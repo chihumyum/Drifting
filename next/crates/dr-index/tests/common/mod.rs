@@ -83,6 +83,7 @@ impl StoreDoc {
             book_id: Some("b1"),
             doc: &self.doc,
             changes,
+            held: true,
         };
         match d.derive(&input) {
             Some(DerivedUpdate::Full(d)) => d,

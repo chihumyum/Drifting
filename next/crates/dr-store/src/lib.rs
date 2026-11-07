@@ -66,8 +66,9 @@ pub use holder::{
 };
 pub use identity::Device;
 pub use library::{
-    CompactStats, CompactionPolicy, DocActivity, DocHead, DocInfo, EpochChange, Library,
-    LibraryOptions, LibraryPaths, LoadStats, OpenDoc, Settlement, StoredUpdate, UploadBatch,
+    CloseRefused, CompactStats, CompactionPolicy, DocActivity, DocHead, DocInfo, EpochChange,
+    Library, LibraryOptions, LibraryPaths, LoadStats, LocalTx, OpenDoc, Settlement, StoredUpdate,
+    UploadBatch,
 };
 pub use migrate::{Durability, MIGRATIONS, Migration, MigrationStage, OpenReport};
 pub use origin::{AGENT_PREFIX, Origin};

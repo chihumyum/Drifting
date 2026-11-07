@@ -1,0 +1,241 @@
+{
+  "bottomStatusBar": {
+    "elements": "Elements",
+    "storyGraph": "Story graph",
+    "todoLibrary": "TODO & Library"
+  },
+  "common": {
+    "close": "Close",
+    "local": "Local"
+  },
+  "feedback": {
+    "crash": {
+      "title": "Drifting ran into a problem last time"
+    }
+  },
+  "leftSidebar": {
+    "empty": {
+      "noChapters": "No chapters yet.",
+      "noDrifts": "No ideas yet.",
+      "noElements": "No elements yet."
+    },
+    "meta": {
+      "drifts": "{{count}} ideas",
+      "elements": "{{categories}} categories · {{elements}} elements"
+    },
+    "tabs": {
+      "chapters": "Chapters",
+      "drifts": "Ideas",
+      "elements": "Elements"
+    },
+    "top": {
+      "close": "Close left sidebar",
+      "open": "Open left sidebar"
+    },
+    "viewMode": {
+      "chapterSummary": "{{storylines}} storylines · {{chapters}} chapters"
+    }
+  },
+  "navigation": {
+    "back": "Back"
+  },
+  "notifications": {
+    "appUpdate": {
+      "source": "Updates"
+    },
+    "clear": "Clear",
+    "cloudSync": {
+      "source": "Cloud sync"
+    },
+    "crashFollowUp": {
+      "source": "Drifting"
+    },
+    "empty": "No notifications",
+    "markdownFolder": {
+      "preserved_one": "{{count}} edited file was kept in .drifting/preserved",
+      "preserved_other": "{{count}} edited files were kept in .drifting/preserved",
+      "source": "Markdown folder"
+    },
+    "organize": {
+      "source": "Agent"
+    },
+    "remove": "Remove",
+    "shareComments": {
+      "source": "Reader comment"
+    },
+    "time": {
+      "daysAgo": "{{count}} days ago",
+      "hoursAgo": "{{count}} hr ago",
+      "justNow": "just now",
+      "minutesAgo": "{{count}} min ago"
+    },
+    "title": "Notifications"
+  },
+  "projectHome": {
+    "kicker": "Project Home"
+  },
+  "rightSidebar": {
+    "kickers": {
+      "library": "Project · Library",
+      "review": "Project · Review",
+      "stats": {
+        "all-chapters": "Whole book · pacing",
+        "category": "This category · detailed stats",
+        "chapter": "This chapter · detailed stats",
+        "drift": "This idea · detailed stats",
+        "element": "This element · detailed stats",
+        "material": "This material · Details",
+        "none": "Project · detailed stats",
+        "storyline": "This storyline · detailed stats"
+      }
+    },
+    "tabs": {
+      "companion": "Agent",
+      "library": "Library",
+      "review": "Review",
+      "stats": "Stats"
+    },
+    "top": {
+      "close": "Close right sidebar",
+      "open": "Open right sidebar"
+    }
+  },
+  "settings": {
+    "appearance": {
+      "dark": "Dark",
+      "interface_text_large": "Larger",
+      "interface_text_largest": "Largest",
+      "interface_text_size": "Interface text size",
+      "interface_text_size_desc": "Adjust desktop interface text on this device. Manuscript text uses the editor font size.",
+      "interface_text_small": "Smaller",
+      "interface_text_smallest": "Smallest",
+      "interface_text_standard": "Standard",
+      "light": "Light",
+      "system": "Follow system",
+      "theme": "Theme",
+      "theme_desc": "Light, dark, or follow the system."
+    },
+    "editor": {
+      "auto_immersive": "Immersive writing as you type",
+      "auto_immersive_desc": "Writing in the paper tucks away the sidebars and tools; press Esc or click outside the text to bring them back.",
+      "flow": "Flow",
+      "font_size": "Font size",
+      "font_size_desc": "Editor view only; export is unaffected.",
+      "indent": "Paragraph indent",
+      "indent_desc": "Editor view only. Export uses its own settings.",
+      "indent_none": "None",
+      "indent_one": "1 char",
+      "indent_two": "2 chars",
+      "line_height": "Line height",
+      "page_width": "Page width",
+      "page_width_desc": "The paper width in the editor; prose fills it with fixed margins.",
+      "paragraph_spacing": "Paragraph spacing",
+      "paragraph_spacing_desc": "Shared spacing for body paragraphs and all heading levels, relative to the body font size; editor view only.",
+      "typesetting": "Typesetting",
+      "typewriter_mode": "Typewriter mode",
+      "typewriter_mode_desc": "Keeps the active prose line at a stable viewport position while typing or moving the caret. Editor view only."
+    },
+    "groups": {
+      "control": "Control",
+      "preferences": "Preferences"
+    },
+    "keys": {
+      "actions": {
+        "closeActiveTab": {
+          "desc": "Close the active tab in the bottom dock",
+          "label": "Close active tab"
+        },
+        "closeProject": {
+          "desc": "Close this project and return to the bookshelf",
+          "label": "Close project"
+        },
+        "findInEditor": {
+          "desc": "Find text in the currently open editor",
+          "label": "Find in current editor"
+        },
+        "globalSearch": {
+          "desc": "Search across chapters, storylines, elements, and categories",
+          "label": "Global search"
+        },
+        "goBack": {
+          "desc": "Return to the previous page you visited, like browser back",
+          "label": "Go back"
+        },
+        "goForward": {
+          "desc": "Return to the next page you visited, like browser forward",
+          "label": "Go forward"
+        },
+        "newEntity": {
+          "desc": "Open Project Home with its create row in reach",
+          "label": "New"
+        },
+        "nextTab": {
+          "desc": "Move right through open tabs",
+          "label": "Next tab"
+        },
+        "prevTab": {
+          "desc": "Move left through open tabs",
+          "label": "Previous tab"
+        },
+        "toggleBottomTimeline": {
+          "desc": "Show or hide the bottom timeline",
+          "label": "Toggle bottom timeline"
+        },
+        "toggleImmersiveWriting": {
+          "desc": "Leave only the paper; press again or Esc to come back",
+          "label": "Immersive writing"
+        }
+      },
+      "conflict": "{{accelerator}} is already used by \"{{action}}\"",
+      "pressNewCombo": "Press new combo…",
+      "recording": "Recording",
+      "reset": "Restore",
+      "resetAll": "Restore all defaults"
+    },
+    "language": {
+      "ui_locale": "UI language",
+      "ui_locale_desc": "The language of menus, buttons and messages. Your writing is not affected."
+    },
+    "privacy": {
+      "crashLogs": "Send fault diagnostics automatically",
+      "crashLogsDesc": "Send sanitized error locations, version and platform to the maintainer to diagnose failures. No manuscript text is included. You can turn this off at any time.",
+      "dataUsage": "Data use"
+    },
+    "rail": {
+      "appearance": "Appearance",
+      "editor": "Editor",
+      "keys": "Keyboard",
+      "language": "Language",
+      "privacy": "Privacy",
+      "updates": "Updates"
+    },
+    "search_placeholder": "Search settings…",
+    "title": "Settings",
+    "update": {
+      "channel_desc": "Apple Silicon · macOS 13+",
+      "current_version": "Current version"
+    }
+  },
+  "sidebarLayout": {
+    "split": "Restore two columns"
+  },
+  "topTimeline": {
+    "singletons": {
+      "allChapters": "Whole book"
+    },
+    "untitled": {
+      "category": "Untitled category",
+      "chapter": "Untitled chapter",
+      "drift": "Untitled idea",
+      "element": "Untitled element",
+      "library_item": "Untitled material",
+      "storyline": "Untitled storyline"
+    }
+  },
+  "windowCaption": {
+    "close": "Close",
+    "maximize": "Maximize",
+    "minimize": "Minimize",
+    "restore": "Restore"
+  }
+}

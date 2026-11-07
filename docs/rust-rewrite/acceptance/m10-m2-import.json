@@ -1,0 +1,625 @@
+{
+  "schema": "dr-testkit/evidence/1",
+  "name": "import",
+  "milestone": "m10-m2",
+  "generatedBy": "cargo run --release -p dr-import-v1 --example m10-measure -- <fixtures> --milestone m10-m2 --write",
+  "inputs": {
+    "crates/dr-doc": "cfe066a930ba59d46c6b66d08250d80c4041fd69d43fd15a6bc8fba9639a724d",
+    "crates/dr-import-v1": "19d16f6fc30c090b4b0d704cd71f0c713b9452629954d1e4a6958b338fd193e5",
+    "crates/dr-index": "ff72031d9fa0b3f521bf56cc5e13cbfb9219d351770e4691812598a0f46246f9",
+    "crates/dr-model": "2b73aec5734a4bbab173dc4f75937183f871370a462c2fe81b373dea1103db5b",
+    "crates/dr-store": "78298245c71d70701946b6f327cb9a7a14f260464561536c2e863b10ec6127ec",
+    "crates/dr-text": "b235c04be32769501bf2cf0e31847ad6b4dfddc9caf3927b89ceaf9b93bc51bc",
+    "crates/prose-metrics": "b09cc348b72c602ca3613800279113096ab969e794c6b72f6e38ff6f9db354ec"
+  },
+  "corpus": {
+    "generatedAt": "2026-11-07T11:18:37.265Z",
+    "generator": "src/renderer/services/v2-handoff/m10-fixtures.test.ts",
+    "libraries": [
+      {
+        "bytes": 11780096,
+        "name": "sample",
+        "sha256": "6f000d59b102f2459aa3c886e1125297e470a5d30ea0cf7bca9a43c804c3df90",
+        "source": "ensureBuiltInSampleProject(BUILT_IN_SAMPLES), the first run"
+      },
+      {
+        "bytes": 12009472,
+        "name": "sample-stale",
+        "sha256": "b6f5939f7a0d23d15744e34df049dc1b841e00de7eab610b624caba3f9cf7859",
+        "source": "sample + Yjs edits without their cache projection + snapshot history"
+      },
+      {
+        "bytes": 12177408,
+        "name": "sample-handoff",
+        "sha256": "a471ad4ee003e3d0e1a7f01765e9daec1bf01a554e7cd2a7a0a540408a88f651",
+        "source": "sample-stale + WebView preferences + runV2Handoff({ liveDocuments: \"include\" })"
+      },
+      {
+        "bytes": 16650240,
+        "name": "lite",
+        "sha256": "f31d5274265d9aad5f7c40aa4effdc668b818e39dcee3bbab3383c7655b77d68",
+        "source": "pnpm dev:seed (lite preset), not written by this file"
+      },
+      {
+        "bytes": 255078400,
+        "name": "stress",
+        "sha256": "e9e0af0f483411741a295a0f26943c21f4334c0d8865189b2954ed2c9f5231c3",
+        "source": "pnpm dev:seed (stress preset), not written by this file"
+      }
+    ]
+  },
+  "machine": {
+    "arch": "aarch64",
+    "cores": 12,
+    "cpu": "Apple M3 Pro",
+    "loadAverage1m": 8.64,
+    "memoryBytes": 38654705664,
+    "os": "macos",
+    "osVersion": "27.0.1",
+    "profile": "release"
+  },
+  "results": {
+    "libraries": [
+      {
+        "import": {
+          "anchorCursors": 19,
+          "anchorResolutions": {
+            "exact": 19
+          },
+          "anchors": 19,
+          "archivedRows": {
+            "agent_conversation": 0,
+            "agent_runtime_message": 0,
+            "agent_runtime_result_artifact": 0,
+            "agent_runtime_result_blob": 0,
+            "agent_runtime_session": 0,
+            "agent_runtime_tool_call": 0,
+            "agent_runtime_turn": 0
+          },
+          "assetsCopied": 7,
+          "assetsMismatched": 0,
+          "assetsMissing": 0,
+          "bodies": 156,
+          "books": 2,
+          "byFreshness": {
+            "creation-seed": 74,
+            "node-basis-current": 78,
+            "seed-only": 4
+          },
+          "chars": 703301,
+          "gateReasons": [],
+          "historyMetaChecked": 0,
+          "historyMetaReplayed": 0,
+          "historyVersions": 0,
+          "installationIdAdopted": false,
+          "notes": {
+            "container-id-remapped": 34
+          },
+          "orphanYjsDocs": 0,
+          "outcome": "imported",
+          "peakRssBytes": 43466752,
+          "progress": {
+            "events": 332,
+            "maxGapMs": 311.1,
+            "overallMonotonic": true,
+            "steps": [
+              "Copying",
+              "Checking",
+              "Bodies",
+              "Book",
+              "Assets",
+              "Bodies",
+              "Book",
+              "Finishing",
+              "Indexing",
+              "Done"
+            ]
+          },
+          "projectedTodos": 0,
+          "repairedBlockIds": 0,
+          "roundTrips": 156,
+          "sourceBytes": 11780096,
+          "sourceSha256": "6f000d59b102f2459aa3c886e1125297e470a5d30ea0cf7bca9a43c804c3df90",
+          "storedExactly": 156,
+          "timing": {
+            "assetsMs": 173.80075,
+            "bookMs": 10.963167,
+            "indexMs": 174.411084,
+            "indexedDocs": 158,
+            "labelsMs": 1.880125,
+            "proseMs": 178.64404799999983,
+            "receiptMs": 18.696209,
+            "stageMs": 388.814958,
+            "storeMs": 193.16480199999998,
+            "totalMs": 1195.856416
+          }
+        },
+        "index": {
+          "bookWords": 135825,
+          "outlineEntries": 2,
+          "searchFound": {
+            "category": true,
+            "element": true,
+            "material": true,
+            "node": true,
+            "storyline": true
+          },
+          "staleAfterImport": 0,
+          "wordsByKind": {
+            "category": 79,
+            "element": 1534,
+            "material": 397,
+            "node": 133399,
+            "storyline": 416
+          },
+          "wordsDiffer": []
+        },
+        "name": "sample",
+        "newLibraryBytes": 6946816,
+        "stoppedByGate": null,
+        "truth": {
+          "bodiesWithYjs": 152,
+          "doubtfulAndDifferent": 0,
+          "doubtfulButEqual": 0,
+          "equalToYjs": 152,
+          "historyDocs": 0,
+          "historyDocsMatching": 0,
+          "historyPointsKeptWithBookVersion": true,
+          "historyRows": 0,
+          "historyRowsWithPoints": 0,
+          "notImported": 0,
+          "provenFreshButDifferent": [],
+          "provenFreshEqual": 152
+        }
+      },
+      {
+        "import": {
+          "anchorCursors": 19,
+          "anchorResolutions": {
+            "exact": 19
+          },
+          "anchors": 19,
+          "archivedRows": {
+            "agent_conversation": 0,
+            "agent_runtime_message": 0,
+            "agent_runtime_result_artifact": 0,
+            "agent_runtime_result_blob": 0,
+            "agent_runtime_session": 0,
+            "agent_runtime_tool_call": 0,
+            "agent_runtime_turn": 0
+          },
+          "assetsCopied": 7,
+          "assetsMismatched": 0,
+          "assetsMissing": 0,
+          "bodies": 156,
+          "books": 2,
+          "byFreshness": {
+            "creation-seed": 70,
+            "node-basis-behind": 2,
+            "node-basis-current": 76,
+            "seed-only": 3,
+            "unproven": 5
+          },
+          "chars": 703301,
+          "gateReasons": [
+            "no-handoff",
+            "unproven",
+            "stale"
+          ],
+          "historyMetaChecked": 6,
+          "historyMetaReplayed": 6,
+          "historyVersions": 6,
+          "installationIdAdopted": false,
+          "notes": {
+            "container-id-remapped": 34
+          },
+          "orphanYjsDocs": 0,
+          "outcome": "imported",
+          "peakRssBytes": 43089920,
+          "progress": {
+            "events": 338,
+            "maxGapMs": 295.0,
+            "overallMonotonic": true,
+            "steps": [
+              "Copying",
+              "Checking",
+              "Bodies",
+              "Book",
+              "Assets",
+              "Bodies",
+              "Book",
+              "Finishing",
+              "Indexing",
+              "Done"
+            ]
+          },
+          "projectedTodos": 0,
+          "repairedBlockIds": 0,
+          "roundTrips": 156,
+          "sourceBytes": 12009472,
+          "sourceSha256": "b6f5939f7a0d23d15744e34df049dc1b841e00de7eab610b624caba3f9cf7859",
+          "storedExactly": 156,
+          "timing": {
+            "assetsMs": 176.198459,
+            "bookMs": 10.745123999999999,
+            "indexMs": 179.856875,
+            "indexedDocs": 158,
+            "labelsMs": 2.5317939999999997,
+            "proseMs": 185.1197560000001,
+            "receiptMs": 16.956042,
+            "stageMs": 356.94095799999997,
+            "storeMs": 187.59870799999985,
+            "totalMs": 1167.1886670000001
+          }
+        },
+        "index": {
+          "bookWords": 135825,
+          "outlineEntries": 2,
+          "searchFound": {
+            "category": true,
+            "element": true,
+            "material": true,
+            "node": true,
+            "storyline": true
+          },
+          "staleAfterImport": 0,
+          "wordsByKind": {
+            "category": 79,
+            "element": 1534,
+            "material": 397,
+            "node": 133399,
+            "storyline": 416
+          },
+          "wordsDiffer": []
+        },
+        "name": "sample-stale",
+        "newLibraryBytes": 6938624,
+        "stoppedByGate": [
+          "no-handoff",
+          "unproven",
+          "stale"
+        ],
+        "truth": {
+          "bodiesWithYjs": 153,
+          "doubtfulAndDifferent": 7,
+          "doubtfulButEqual": 0,
+          "equalToYjs": 146,
+          "historyDocs": 2,
+          "historyDocsMatching": 2,
+          "historyPointsKeptWithBookVersion": true,
+          "historyRows": 6,
+          "historyRowsWithPoints": 6,
+          "notImported": 0,
+          "provenFreshButDifferent": [],
+          "provenFreshEqual": 146
+        }
+      },
+      {
+        "import": {
+          "anchorCursors": 19,
+          "anchorResolutions": {
+            "exact": 18,
+            "relocated": 1
+          },
+          "anchors": 19,
+          "archivedRows": {
+            "agent_conversation": 0,
+            "agent_runtime_message": 0,
+            "agent_runtime_result_artifact": 0,
+            "agent_runtime_result_blob": 0,
+            "agent_runtime_session": 0,
+            "agent_runtime_tool_call": 0,
+            "agent_runtime_turn": 0
+          },
+          "assetsCopied": 7,
+          "assetsMismatched": 0,
+          "assetsMissing": 0,
+          "bodies": 156,
+          "books": 2,
+          "byFreshness": {
+            "handoff": 153,
+            "seed-only": 3
+          },
+          "chars": 703409,
+          "gateReasons": [],
+          "historyMetaChecked": 6,
+          "historyMetaReplayed": 6,
+          "historyVersions": 6,
+          "installationIdAdopted": false,
+          "notes": {
+            "container-id-remapped": 34
+          },
+          "orphanYjsDocs": 0,
+          "outcome": "imported",
+          "peakRssBytes": 44711936,
+          "progress": {
+            "events": 338,
+            "maxGapMs": 283.8,
+            "overallMonotonic": true,
+            "steps": [
+              "Copying",
+              "Checking",
+              "Bodies",
+              "Book",
+              "Assets",
+              "Bodies",
+              "Book",
+              "Finishing",
+              "Indexing",
+              "Done"
+            ]
+          },
+          "projectedTodos": 0,
+          "repairedBlockIds": 0,
+          "roundTrips": 156,
+          "sourceBytes": 12177408,
+          "sourceSha256": "a471ad4ee003e3d0e1a7f01765e9daec1bf01a554e7cd2a7a0a540408a88f651",
+          "storedExactly": 156,
+          "timing": {
+            "assetsMs": 171.45925,
+            "bookMs": 10.584708000000001,
+            "indexMs": 159.804542,
+            "indexedDocs": 158,
+            "labelsMs": 2.4665019999999998,
+            "proseMs": 168.54808599999993,
+            "receiptMs": 17.112,
+            "stageMs": 348.482167,
+            "storeMs": 169.5756709999999,
+            "totalMs": 1102.3331249999999
+          }
+        },
+        "index": {
+          "bookWords": 135873,
+          "outlineEntries": 2,
+          "searchFound": {
+            "category": true,
+            "element": true,
+            "material": true,
+            "node": true,
+            "storyline": true
+          },
+          "staleAfterImport": 0,
+          "wordsByKind": {
+            "category": 85,
+            "element": 1549,
+            "material": 403,
+            "node": 133414,
+            "storyline": 422
+          },
+          "wordsDiffer": []
+        },
+        "name": "sample-handoff",
+        "newLibraryBytes": 6946816,
+        "stoppedByGate": null,
+        "truth": {
+          "bodiesWithYjs": 153,
+          "doubtfulAndDifferent": 0,
+          "doubtfulButEqual": 0,
+          "equalToYjs": 153,
+          "historyDocs": 2,
+          "historyDocsMatching": 2,
+          "historyPointsKeptWithBookVersion": true,
+          "historyRows": 6,
+          "historyRowsWithPoints": 6,
+          "notImported": 0,
+          "provenFreshButDifferent": [],
+          "provenFreshEqual": 153
+        }
+      },
+      {
+        "import": {
+          "anchorCursors": 2,
+          "anchorResolutions": {
+            "exact": 2
+          },
+          "anchors": 2,
+          "archivedRows": {
+            "agent_conversation": 4,
+            "agent_runtime_message": 64,
+            "agent_runtime_result_artifact": 0,
+            "agent_runtime_result_blob": 0,
+            "agent_runtime_session": 4,
+            "agent_runtime_tool_call": 318,
+            "agent_runtime_turn": 176
+          },
+          "assetsCopied": 6,
+          "assetsMismatched": 0,
+          "assetsMissing": 0,
+          "bodies": 80,
+          "books": 1,
+          "byFreshness": {
+            "creation-seed": 68,
+            "seed-only": 12
+          },
+          "chars": 272941,
+          "gateReasons": [],
+          "historyMetaChecked": 0,
+          "historyMetaReplayed": 0,
+          "historyVersions": 0,
+          "installationIdAdopted": false,
+          "notes": {},
+          "orphanYjsDocs": 0,
+          "outcome": "imported",
+          "peakRssBytes": 34766848,
+          "progress": {
+            "events": 178,
+            "maxGapMs": 288.7,
+            "overallMonotonic": true,
+            "steps": [
+              "Copying",
+              "Checking",
+              "Bodies",
+              "Book",
+              "Assets",
+              "Finishing",
+              "Indexing",
+              "Done"
+            ]
+          },
+          "projectedTodos": 0,
+          "repairedBlockIds": 172,
+          "roundTrips": 80,
+          "sourceBytes": 16650240,
+          "sourceSha256": "f31d5274265d9aad5f7c40aa4effdc668b818e39dcee3bbab3383c7655b77d68",
+          "storedExactly": 80,
+          "timing": {
+            "assetsMs": 146.897167,
+            "bookMs": 5.680040999999999,
+            "indexMs": 64.99258400000001,
+            "indexedDocs": 81,
+            "labelsMs": 0.9847079999999999,
+            "proseMs": 77.07179599999999,
+            "receiptMs": 21.676583,
+            "stageMs": 367.300834,
+            "storeMs": 87.87120599999997,
+            "totalMs": 807.5845
+          }
+        },
+        "index": {
+          "bookWords": 249800,
+          "outlineEntries": 204,
+          "searchFound": {
+            "category": true,
+            "element": true,
+            "material": true,
+            "node": true,
+            "storyline": true
+          },
+          "staleAfterImport": 0,
+          "wordsByKind": {
+            "category": 1800,
+            "element": 50000,
+            "material": 20000,
+            "node": 170000,
+            "storyline": 8000
+          },
+          "wordsDiffer": []
+        },
+        "name": "lite",
+        "newLibraryBytes": 4128768,
+        "stoppedByGate": null,
+        "truth": {
+          "bodiesWithYjs": 68,
+          "doubtfulAndDifferent": 0,
+          "doubtfulButEqual": 0,
+          "equalToYjs": 68,
+          "historyDocs": 0,
+          "historyDocsMatching": 0,
+          "historyPointsKeptWithBookVersion": true,
+          "historyRows": 0,
+          "historyRowsWithPoints": 0,
+          "notImported": 0,
+          "provenFreshButDifferent": [],
+          "provenFreshEqual": 68
+        }
+      },
+      {
+        "import": {
+          "anchorCursors": 10,
+          "anchorResolutions": {
+            "exact": 10
+          },
+          "anchors": 10,
+          "archivedRows": {
+            "agent_conversation": 25,
+            "agent_runtime_message": 4800,
+            "agent_runtime_result_artifact": 0,
+            "agent_runtime_result_blob": 0,
+            "agent_runtime_session": 25,
+            "agent_runtime_tool_call": 3236,
+            "agent_runtime_turn": 3103
+          },
+          "assetsCopied": 36,
+          "assetsMismatched": 0,
+          "assetsMissing": 0,
+          "bodies": 679,
+          "books": 1,
+          "byFreshness": {
+            "creation-seed": 619,
+            "seed-only": 60
+          },
+          "chars": 3908340,
+          "gateReasons": [],
+          "historyMetaChecked": 0,
+          "historyMetaReplayed": 0,
+          "historyVersions": 0,
+          "installationIdAdopted": false,
+          "notes": {},
+          "orphanYjsDocs": 0,
+          "outcome": "imported",
+          "peakRssBytes": 141377536,
+          "progress": {
+            "events": 1463,
+            "maxGapMs": 279.3,
+            "overallMonotonic": true,
+            "steps": [
+              "Copying",
+              "Checking",
+              "Bodies",
+              "Book",
+              "Assets",
+              "Finishing",
+              "Indexing",
+              "Done"
+            ]
+          },
+          "projectedTodos": 0,
+          "repairedBlockIds": 3343,
+          "roundTrips": 679,
+          "sourceBytes": 255078400,
+          "sourceSha256": "e9e0af0f483411741a295a0f26943c21f4334c0d8865189b2954ed2c9f5231c3",
+          "storedExactly": 679,
+          "timing": {
+            "assetsMs": 866.991042,
+            "bookMs": 56.362291000000006,
+            "indexMs": 931.984625,
+            "indexedDocs": 680,
+            "labelsMs": 8.413458,
+            "proseMs": 1078.829115,
+            "receiptMs": 173.51825000000002,
+            "stageMs": 1104.819125,
+            "storeMs": 1269.5543060000007,
+            "totalMs": 5639.609125
+          }
+        },
+        "index": {
+          "bookWords": 3576000,
+          "outlineEntries": 2586,
+          "searchFound": {
+            "category": true,
+            "element": true,
+            "material": true,
+            "node": true,
+            "storyline": true
+          },
+          "staleAfterImport": 0,
+          "wordsByKind": {
+            "category": 16000,
+            "element": 500000,
+            "material": 500000,
+            "node": 2500000,
+            "storyline": 60000
+          },
+          "wordsDiffer": []
+        },
+        "name": "stress",
+        "newLibraryBytes": 51867648,
+        "stoppedByGate": null,
+        "truth": {
+          "bodiesWithYjs": 619,
+          "doubtfulAndDifferent": 0,
+          "doubtfulButEqual": 0,
+          "equalToYjs": 619,
+          "historyDocs": 0,
+          "historyDocsMatching": 0,
+          "historyPointsKeptWithBookVersion": true,
+          "historyRows": 0,
+          "historyRowsWithPoints": 0,
+          "notImported": 0,
+          "provenFreshButDifferent": [],
+          "provenFreshEqual": 619
+        }
+      }
+    ]
+  }
+}

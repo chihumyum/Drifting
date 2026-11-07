@@ -27,5 +27,6 @@ target/aarch64-apple-darwin/release/bad_structure corpus/bad_structure -max_tota
 ```
 
 The fuzz crate is its own workspace (its `Cargo.lock`, corpus and artifacts
-are not committed). Results of the last run are in
-`docs/rust-rewrite/acceptance/f1-fuzz.json`.
+are not committed). Inputs that once crashed are kept as regression tests in
+`../tests/fuzz-regressions/`, replayed by `../tests/fuzz_regressions.rs`
+through the same code (`fuzz_targets/common.rs`); add new ones there.

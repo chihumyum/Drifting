@@ -17,7 +17,8 @@ pub enum Fate {
     ProseEvidence,
     /// Asset metadata and bytes: `dr-store` asset table and files.
     Assets,
-    /// Snapshot history: replayed into the prose document's history labels.
+    /// Snapshot history: replayed into the prose document's history labels,
+    /// its metadata into the book document's history.
     History,
     /// Device-local state. This milestone keeps it in the import's own
     /// receipt database beside the new library (`import-v1/receipt.sqlite`)
@@ -214,9 +215,13 @@ pub const TABLES: &[TableFate] = &[
     t(
         "entity_snapshot_history",
         History,
-        "快照历史：按渲染好的预览回放成可检出的版本和历史点",
+        "快照历史：按渲染好的预览回放成可检出的版本和历史点，当时的标题等元数据回放进书目文档",
     ),
-    t("inline_mention", Rebuild, "引用索引，按人物链接标记重建"),
+    t(
+        "inline_mention",
+        Rebuild,
+        "引用索引：导入后由 dr-index 按人物链接标记重建",
+    ),
     t(
         "library_item",
         BookDoc,

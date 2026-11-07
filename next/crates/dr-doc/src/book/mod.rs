@@ -19,7 +19,7 @@ use dr_model::{DocId, Origin};
 use loro::event::{Diff, DiffEvent};
 use loro::{CommitOptions, ContainerID, ExportMode, Frontiers, Index, LoroDoc, VersionVector};
 
-use crate::core::{Committed, Core, Imported, configured};
+use crate::core::{Committed, Core, Imported, check_borrowed, configured};
 use crate::error::Result;
 use crate::peer::{PeerId, genesis_peer};
 use crate::prose::Trigger;
@@ -358,6 +358,9 @@ impl BookDoc {
     /// Compute and apply the deterministic background repairs
     /// ([`RepairPlan`]) as one commit with origin `repair`.
     pub fn repair(&mut self) -> Result<(RepairPlan, Option<Committed>)> {
+        if !self.view().needs_repair() {
+            return Ok((RepairPlan::default(), None));
+        }
         let plan = self.view().repair_plan();
         if plan.is_empty() {
             return Ok((plan, None));
@@ -393,6 +396,38 @@ fn subscribe(doc: &LoroDoc, f: impl Fn(&BookEvent) + Send + Sync + 'static) -> l
     doc.subscribe_root(Arc::new(move |e| f(&convert(&e))))
 }
 
+/// A book document someone else holds (dr-store's holder): the typed views
+/// and transactions on its `LoroDoc`. Nothing here commits; see
+/// [`crate::prose::BorrowedProse`] for the rules (the holder commits with one
+/// origin and sets the commit options before writing).
+pub struct BorrowedBook<'a> {
+    doc: &'a LoroDoc,
+    book: BookId,
+}
+
+impl<'a> BorrowedBook<'a> {
+    /// Wrap `doc`, checking it is `book`'s book document and initialised.
+    pub fn new(doc: &'a LoroDoc, book: &BookId) -> Result<Self> {
+        check_borrowed(doc, &DocId::Book(book.clone()), schema::meta::BOOK)?;
+        Ok(Self {
+            doc,
+            book: book.clone(),
+        })
+    }
+
+    pub fn view(&self) -> BookView<'_> {
+        BookView {
+            doc: self.doc,
+            book: &self.book,
+        }
+    }
+
+    /// A write on the borrowed document; the holder commits it.
+    pub fn txn(&self) -> BookTxn<'_> {
+        BookTxn { view: self.view() }
+    }
+}
+
 /// A shareable read handle on a book document (see [`crate::prose::ProseReader`]).
 #[derive(Clone)]
 pub struct BookReader {
@@ -410,6 +445,21 @@ impl BookReader {
 
     pub fn subscribe(&self, f: impl Fn(&BookEvent) + Send + Sync + 'static) -> loro::Subscription {
         subscribe(&self.inner.core.doc, f)
+    }
+
+    /// A reader on a book document someone else holds: shares it, copies and
+    /// writes nothing.
+    pub fn from_loro(book: BookId, doc: &LoroDoc) -> Result<BookReader> {
+        check_borrowed(doc, &DocId::Book(book.clone()), schema::meta::BOOK)?;
+        Ok(BookReader {
+            inner: Arc::new(Inner {
+                core: Core {
+                    doc: doc.clone(),
+                    id: DocId::Book(book.clone()),
+                },
+                book,
+            }),
+        })
     }
 
     /// A private, detached copy at `frontiers` (history views).

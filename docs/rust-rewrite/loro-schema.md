@@ -242,7 +242,7 @@ id 是 `system:generic-association:<书 id>`，和旧版 `genericAssociationRela
 
 ## 不变量
 
-旧版靠 SQL 约束、触发器和同步内核（`production-domain-kernel.ts`）挡住的事，新版各有归属。下表是摘要；逐条对过旧版 70 条领域不变量和 126 个仍生效的触发器之后的完整清单（78 条，加 16 条写明不再需要的、9 条界面和 Agent 做法不一样待 F3 统一的）在 `dr_model::invariant`，生成的证据是 [acceptance/f1-invariants.json](acceptance/f1-invariants.json)：
+旧版靠 SQL 约束、触发器和同步内核（`production-domain-kernel.ts`）挡住的事，新版各有归属。下表是摘要；逐条对过旧版 70 条领域不变量和 126 个仍生效的触发器之后的完整清单（78 条，加 16 条写明不再需要的、9 条界面和 Agent 做法不一样、已由 F3 统一的）在 `dr_model::invariant`，由测试当场断言：
 
 | 不变量 | 新版靠什么 |
 | --- | --- |

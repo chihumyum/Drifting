@@ -100,7 +100,7 @@ fn repair_and_genesis_rows_are_appended_and_uploaded_like_any_other() {
     // Everything, genesis and repair included, goes to the server.
     let batch = a.export_for_upload("node:a").unwrap().unwrap();
     let probe = loro::LoroDoc::new();
-    dr_store::synthetic::configure(&probe);
+    common::synthetic::configure(&probe);
     probe.import(&batch.bytes).unwrap();
     assert_eq!(text(&probe), text(h.doc()));
     assert_eq!(probe.oplog_vv(), h.doc().oplog_vv());

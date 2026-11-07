@@ -1,0 +1,241 @@
+{
+  "bottomStatusBar": {
+    "elements": "要素",
+    "storyGraph": "故事圖譜",
+    "todoLibrary": "審閱與素材"
+  },
+  "common": {
+    "close": "關閉",
+    "local": "本機"
+  },
+  "feedback": {
+    "crash": {
+      "title": "Drifting 上次執行時發生問題"
+    }
+  },
+  "leftSidebar": {
+    "empty": {
+      "noChapters": "尚無章節。",
+      "noDrifts": "尚無構想。",
+      "noElements": "尚無要素。"
+    },
+    "meta": {
+      "drifts": "{{count}} 個構想",
+      "elements": "{{categories}} 個類目 · {{elements}} 個要素"
+    },
+    "tabs": {
+      "chapters": "章節",
+      "drifts": "構想",
+      "elements": "要素"
+    },
+    "top": {
+      "close": "關閉左側欄",
+      "open": "開啟左側欄"
+    },
+    "viewMode": {
+      "chapterSummary": "{{storylines}} 條故事線 · {{chapters}} 章"
+    }
+  },
+  "navigation": {
+    "back": "返回"
+  },
+  "notifications": {
+    "appUpdate": {
+      "source": "更新"
+    },
+    "clear": "清除",
+    "cloudSync": {
+      "source": "雲端同步"
+    },
+    "crashFollowUp": {
+      "source": "Drifting"
+    },
+    "empty": "沒有通知",
+    "markdownFolder": {
+      "preserved_one": "已將 {{count}} 個編輯過的檔案保留在 .drifting/preserved",
+      "preserved_other": "已將 {{count}} 個編輯過的檔案保留在 .drifting/preserved",
+      "source": "Markdown 資料夾"
+    },
+    "organize": {
+      "source": "Agent"
+    },
+    "remove": "移除",
+    "shareComments": {
+      "source": "讀者留言"
+    },
+    "time": {
+      "daysAgo": "{{count}} 天前",
+      "hoursAgo": "{{count}} 小時前",
+      "justNow": "剛剛",
+      "minutesAgo": "{{count}} 分鐘前"
+    },
+    "title": "通知"
+  },
+  "projectHome": {
+    "kicker": "作品首頁"
+  },
+  "rightSidebar": {
+    "kickers": {
+      "library": "作品 · 素材庫",
+      "review": "作品 · 審閱",
+      "stats": {
+        "all-chapters": "全書 · 節奏",
+        "category": "此類目 · 詳細統計",
+        "chapter": "此章 · 詳細統計",
+        "drift": "此構想 · 詳細統計",
+        "element": "此要素 · 詳細統計",
+        "material": "此素材 · 詳情",
+        "none": "作品 · 詳細統計",
+        "storyline": "此故事線 · 詳細統計"
+      }
+    },
+    "tabs": {
+      "companion": "幫手",
+      "library": "素材庫",
+      "review": "審閱",
+      "stats": "統計"
+    },
+    "top": {
+      "close": "關閉右側欄",
+      "open": "開啟右側欄"
+    }
+  },
+  "settings": {
+    "appearance": {
+      "dark": "深色",
+      "interface_text_large": "較大",
+      "interface_text_largest": "最大",
+      "interface_text_size": "介面文字大小",
+      "interface_text_size_desc": "調整這部裝置的桌面介面文字；書稿文字使用編輯器的字級。",
+      "interface_text_small": "較小",
+      "interface_text_smallest": "最小",
+      "interface_text_standard": "標準",
+      "light": "淺色",
+      "system": "跟隨系統",
+      "theme": "主題",
+      "theme_desc": "淺色、深色，或跟隨系統。"
+    },
+    "editor": {
+      "auto_immersive": "打字時自動沉浸",
+      "auto_immersive_desc": "開始寫正文就收起側欄與工具；按 Esc 或點正文以外的地方回來。",
+      "flow": "寫作節奏",
+      "font_size": "字級",
+      "font_size_desc": "僅影響編輯器畫面，不影響匯出。",
+      "indent": "段落縮排",
+      "indent_desc": "僅用於編輯器畫面；匯出使用獨立設定。",
+      "indent_none": "無",
+      "indent_one": "1 字",
+      "indent_two": "2 字",
+      "line_height": "行高",
+      "page_width": "紙張寬度",
+      "page_width_desc": "編輯器中的紙張寬度；正文會在固定邊距內填滿可用寬度。",
+      "paragraph_spacing": "段落間距",
+      "paragraph_spacing_desc": "正文段落與各級標題共用的間距，以正文字級為基準；僅影響編輯器畫面。",
+      "typesetting": "排版",
+      "typewriter_mode": "打字機模式",
+      "typewriter_mode_desc": "輸入或移動游標時，將目前正文行維持在畫面的固定位置；僅影響編輯器畫面。"
+    },
+    "groups": {
+      "control": "管理",
+      "preferences": "偏好設定"
+    },
+    "keys": {
+      "actions": {
+        "closeActiveTab": {
+          "desc": "關閉底部 Dock 中的目前分頁",
+          "label": "關閉目前分頁"
+        },
+        "closeProject": {
+          "desc": "關閉此作品並返回書架",
+          "label": "關閉作品"
+        },
+        "findInEditor": {
+          "desc": "尋找目前開啟編輯器中的文字",
+          "label": "在目前編輯器中尋找"
+        },
+        "globalSearch": {
+          "desc": "搜尋章節、故事線、要素與類目",
+          "label": "全域搜尋"
+        },
+        "goBack": {
+          "desc": "返回上一個瀏覽的頁面，類似瀏覽器的返回操作",
+          "label": "返回"
+        },
+        "goForward": {
+          "desc": "前往下一個已瀏覽的頁面，類似瀏覽器的前進操作",
+          "label": "前進"
+        },
+        "newEntity": {
+          "desc": "開啟作品首頁，並顯示新增操作列",
+          "label": "新增"
+        },
+        "nextTab": {
+          "desc": "向右切換開啟的分頁",
+          "label": "下一個分頁"
+        },
+        "prevTab": {
+          "desc": "向左切換開啟的分頁",
+          "label": "上一個分頁"
+        },
+        "toggleBottomTimeline": {
+          "desc": "顯示或隱藏底部時間線",
+          "label": "切換底部時間線"
+        },
+        "toggleImmersiveWriting": {
+          "desc": "只留頁面；再按一次或按 Esc 回來",
+          "label": "沉浸寫作"
+        }
+      },
+      "conflict": "{{accelerator}} 已由「{{action}}」使用",
+      "pressNewCombo": "按下新的組合鍵…",
+      "recording": "錄製中",
+      "reset": "還原",
+      "resetAll": "還原所有預設值"
+    },
+    "language": {
+      "ui_locale": "介面語言",
+      "ui_locale_desc": "選單、按鈕與訊息的語言，不會影響你的寫作內容。"
+    },
+    "privacy": {
+      "crashLogs": "自動傳送故障診斷資訊",
+      "crashLogsDesc": "向維護者傳送去除敏感資訊的錯誤位置、版本及平台資料，以利診斷。不含書稿文字，可隨時關閉。",
+      "dataUsage": "資料使用"
+    },
+    "rail": {
+      "appearance": "外觀",
+      "editor": "編輯器",
+      "keys": "鍵盤",
+      "language": "語言",
+      "privacy": "隱私",
+      "updates": "更新"
+    },
+    "search_placeholder": "搜尋設定…",
+    "title": "設定",
+    "update": {
+      "channel_desc": "Apple Silicon · macOS 13 以上",
+      "current_version": "目前版本"
+    }
+  },
+  "sidebarLayout": {
+    "split": "恢復雙欄"
+  },
+  "topTimeline": {
+    "singletons": {
+      "allChapters": "全書"
+    },
+    "untitled": {
+      "category": "未命名類目",
+      "chapter": "未命名章節",
+      "drift": "未命名構想",
+      "element": "未命名要素",
+      "library_item": "未命名素材",
+      "storyline": "未命名故事線"
+    }
+  },
+  "windowCaption": {
+    "close": "關閉",
+    "maximize": "最大化",
+    "minimize": "最小化",
+    "restore": "還原"
+  }
+}

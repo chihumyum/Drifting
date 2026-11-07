@@ -46,6 +46,14 @@ pub const CHAPTER_JSON: &str = r#"{"type":"doc","content":[{"type":"heading","at
 pub const CHAPTER_V1: &str = r#"{"type":"doc","content":[{"type":"heading","attrs":{"id":"h1","level":1},"content":[{"type":"text","text":"第一章"}]},{"type":"paragraph","attrs":{"id":"p1"},"content":[{"type":"text","text":"我要给阿Q做正传。"}]}]}"#;
 pub const CHAPTER_V2: &str = r#"{"type":"doc","content":[{"type":"heading","attrs":{"id":"h1","level":1},"content":[{"type":"text","text":"第一章 序"}]},{"type":"paragraph","attrs":{"id":"p1"},"content":[{"type":"text","text":"我要给阿Q做正传，已经不止一两年了。"}]}]}"#;
 
+/// The metadata of the history rows (`SnapshotMeta`).
+pub const CHAPTER_META_V1: &str =
+    r#"{"title":"第一章","summary":"初稿梗概","writingStatus":"draft"}"#;
+pub const CHAPTER_META_V2: &str = r#"{"title":"第一章 序"}"#;
+pub const ELEMENT_META_V1: &str = r#"{"name":"阿Q","summary":"","aliases":["阿贵"],"groupName":"未庄","kvJson":"[{\"key\":\"住处\",\"value\":\"破庙\"},{\"key\":\"绰号\",\"value\":\"阿Q\"}]"}"#;
+/// An earlier version of the element's body.
+pub const ELEMENT_V1: &str = r#"{"type":"doc","content":[{"type":"paragraph","attrs":{"id":"e-p1"},"content":[{"type":"text","text":"未庄的人。"}]}]}"#;
+
 pub const ELEMENT_JSON: &str = r#"{"type":"doc","content":[{"type":"paragraph","attrs":{"id":"e-p1"},"content":[{"type":"text","text":"未庄的闲人。","marks":[{"type":"bold"}]}]}]}"#;
 pub const NOTE_JSON: &str = r#"{"type":"doc","content":[{"type":"taskList","attrs":{"id":"tl"},"content":[{"type":"taskItem","attrs":{"id":"ti1","checked":false,"todoId":"01900000-0000-7000-8000-000000000062"},"content":[{"type":"paragraph","attrs":{"id":"tp1"},"content":[{"type":"text","text":"核对称呼"}]}]},{"type":"taskItem","attrs":{"id":"ti2","checked":true},"content":[{"type":"paragraph","attrs":{"id":"tp2"},"content":[{"type":"text","text":"抄录告示"}]}]}]},{"type":"materialEmbed","attrs":{"id":"me","libraryItemId":"01900000-0000-7000-8000-0000000000f2"}}]}"#;
 pub const STORYLINE_JSON: &str = r#"{"type":"doc","content":[{"type":"paragraph","attrs":{"id":"s-p1"},"content":[{"type":"text","text":"阿Q 的一生。"}]}]}"#;
@@ -372,12 +380,19 @@ fn rows(c: &Connection, stamped: bool) {
         "INSERT INTO writing_day (id, project_id, day, device_key, words, created_at, updated_at) VALUES ('wd-1', ?1, '2026-10-02', ?2, 1234, ?3, ?3)",
         params![BOOK, DEVICE_KEY, T1],
     );
-    // Snapshot history of the chapter: two earlier versions.
-    for (id, at, json) in [("h-1", T0, CHAPTER_V1), ("h-2", T1, CHAPTER_V2)] {
+    // Snapshot history: two earlier versions of the chapter, one of the
+    // element, each with the metadata 0.1 kept beside it. The second
+    // chapter row carries only a title (older 0.1 builds stored fewer
+    // fields): its summary stays as the first row had it.
+    for (id, at, kind, entity, json, meta) in [
+        ("h-1", T0, "node", CHAPTER, CHAPTER_V1, CHAPTER_META_V1),
+        ("h-2", T1, "node", CHAPTER, CHAPTER_V2, CHAPTER_META_V2),
+        ("h-3", T2, "element", ELEMENT, ELEMENT_V1, ELEMENT_META_V1),
+    ] {
         exec(
             c,
-            "INSERT INTO entity_snapshot_history (id, project_id, entity_kind, entity_id, state_blob, content_json, meta_json, created_at) VALUES (?1, ?2, 'node', ?3, X'00', ?4, '{\"title\":\"第一章\"}', ?5)",
-            params![id, BOOK, CHAPTER, json, at],
+            "INSERT INTO entity_snapshot_history (id, project_id, entity_kind, entity_id, state_blob, content_json, meta_json, created_at) VALUES (?1, ?2, ?3, ?4, X'00', ?5, ?6, ?7)",
+            params![id, BOOK, kind, entity, json, meta, at],
         );
     }
     // An Agent conversation (archived read-only).

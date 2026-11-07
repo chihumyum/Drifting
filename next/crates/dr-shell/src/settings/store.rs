@@ -1,0 +1,376 @@
+//! The settings file: `settings.json` in the app's data folder.
+//!
+//! ```json
+//! { "version": 1,
+//!   "device":  { "appearance.interface_text_size": "large", ... },
+//!   "account": { "appearance.theme": "dark", "keys.bindings": { ... }, ... },
+//!   "books":   { "<book id>": { "settings": { ... }, "layout": { ... } } } }
+//! ```
+//!
+//! - Values are checked against the registry when read: a value of the wrong
+//!   type or out of range reads as the default and is left for the next write
+//!   to replace, so a file from a newer build is not destroyed.
+//! - Keys the registry does not know are kept as they are (a newer build's).
+//! - A book's local layout (its tabs, sidebars, view modes; loro-schema.md
+//!   「不进书目文档的：本机布局」) is kept under its book id, opaque here.
+//! - Writes replace the file atomically (write a sibling, flush, rename), so
+//!   a crash leaves the old file or the new one. A file that cannot be read
+//!   is moved aside, never overwritten.
+
+use std::io::Write as _;
+use std::path::{Path, PathBuf};
+
+use serde_json::{Map, Value, json};
+
+use super::registry::{self, Initial, Scope, SettingDef};
+
+pub const FILE_NAME: &str = "settings.json";
+const VERSION: u64 = 1;
+/// The account value that holds rebound shortcuts (action id → keystrokes).
+pub const KEY_BINDINGS: &str = "keys.bindings";
+
+#[derive(Debug)]
+pub struct SettingsFile {
+    path: Option<PathBuf>,
+    data: Map<String, Value>,
+    dirty: bool,
+}
+
+impl SettingsFile {
+    /// Only in memory (tests, and when there is no data folder).
+    pub fn in_memory() -> SettingsFile {
+        SettingsFile {
+            path: None,
+            data: fresh(),
+            dirty: false,
+        }
+    }
+
+    /// Reads `dir/settings.json`. A missing file is an empty one; a file that
+    /// is not ours is moved to `settings.json.unreadable-<unix time>`.
+    pub fn open(dir: &Path) -> SettingsFile {
+        let path = dir.join(FILE_NAME);
+        let data = match std::fs::read(&path) {
+            Ok(bytes) => match serde_json::from_slice::<Value>(&bytes) {
+                Ok(Value::Object(map)) => map,
+                _ => {
+                    let stamp = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_secs())
+                        .unwrap_or(0);
+                    let aside = dir.join(format!("{FILE_NAME}.unreadable-{stamp}"));
+                    match std::fs::rename(&path, &aside) {
+                        Ok(()) => log::warn!("settings file unreadable; moved it aside"),
+                        Err(error) => log::error!("settings file unreadable and stuck: {error}"),
+                    }
+                    fresh()
+                }
+            },
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => fresh(),
+            Err(error) => {
+                log::error!("cannot read the settings file: {error}");
+                fresh()
+            }
+        };
+        SettingsFile {
+            path: Some(path),
+            data,
+            dirty: false,
+        }
+    }
+
+    pub fn path(&self) -> Option<&Path> {
+        self.path.as_deref()
+    }
+
+    fn scope_map(&self, scope: Scope, book: Option<&str>) -> Option<&Map<String, Value>> {
+        match scope {
+            Scope::Device => self.data.get("device")?.as_object(),
+            Scope::Account => self.data.get("account")?.as_object(),
+            Scope::Book => self
+                .data
+                .get("books")?
+                .get(book?)?
+                .get("settings")?
+                .as_object(),
+        }
+    }
+
+    fn scope_map_mut(
+        &mut self,
+        scope: Scope,
+        book: Option<&str>,
+    ) -> Option<&mut Map<String, Value>> {
+        let node = match scope {
+            Scope::Device => object_at(&mut self.data, "device"),
+            Scope::Account => object_at(&mut self.data, "account"),
+            Scope::Book => {
+                let books = object_at(&mut self.data, "books");
+                let entry = object_at(books, book?);
+                object_at(entry, "settings")
+            }
+        };
+        Some(node)
+    }
+
+    /// The stored value of `def`, if any and valid.
+    pub fn stored(&self, def: &SettingDef, book: Option<&str>) -> Option<Value> {
+        let raw = self.scope_map(def.scope, book)?.get(def.key)?;
+        def.validate(raw)
+    }
+
+    /// The value of `def`: stored, else its default (`Null` when computed).
+    pub fn value(&self, def: &SettingDef, book: Option<&str>) -> Value {
+        self.stored(def, book)
+            .unwrap_or_else(|| def.default_value())
+    }
+
+    pub fn get(&self, key: &str) -> Value {
+        match registry::find(key) {
+            Some(def) => self.value(def, None),
+            None => Value::Null,
+        }
+    }
+
+    pub fn bool(&self, key: &str) -> bool {
+        self.get(key).as_bool().unwrap_or(false)
+    }
+
+    pub fn str(&self, key: &str) -> Option<String> {
+        self.get(key).as_str().map(str::to_owned)
+    }
+
+    pub fn number(&self, key: &str) -> f64 {
+        self.get(key).as_f64().unwrap_or(0.0)
+    }
+
+    /// Sets `key`. Returns whether it changed; an invalid value is refused.
+    pub fn set(&mut self, key: &str, value: Value, book: Option<&str>) -> Result<bool, SetError> {
+        let def = registry::find(key).ok_or(SetError::Unknown)?;
+        let value = def.validate(&value).ok_or(SetError::Invalid)?;
+        if self.stored(def, book).as_ref() == Some(&value) {
+            return Ok(false);
+        }
+        let map = self
+            .scope_map_mut(def.scope, book)
+            .ok_or(SetError::NoBook)?;
+        map.insert(def.key.to_owned(), value);
+        self.dirty = true;
+        Ok(true)
+    }
+
+    /// Back to the default.
+    pub fn reset(&mut self, key: &str, book: Option<&str>) -> bool {
+        let Some(def) = registry::find(key) else {
+            return false;
+        };
+        let removed = self
+            .scope_map_mut(def.scope, book)
+            .and_then(|map| map.remove(def.key))
+            .is_some();
+        self.dirty |= removed;
+        removed
+    }
+
+    /// Whether `def` differs from its default.
+    pub fn is_changed(&self, def: &SettingDef, book: Option<&str>) -> bool {
+        self.stored(def, book)
+            .is_some_and(|v| def.default == Initial::Computed || v != def.default_value())
+    }
+
+    /// Rebound shortcuts: action id → keystrokes ("" unbinds).
+    pub fn key_bindings(&self) -> Map<String, Value> {
+        self.scope_map(Scope::Account, None)
+            .and_then(|m| m.get(KEY_BINDINGS))
+            .and_then(Value::as_object)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    pub fn set_key_binding(&mut self, id: &str, keystrokes: Option<&str>) -> bool {
+        let account = object_at(&mut self.data, "account");
+        let bindings = object_at(account, KEY_BINDINGS);
+        let changed = match keystrokes {
+            Some(k) => bindings.insert(id.to_owned(), Value::from(k)) != Some(Value::from(k)),
+            None => bindings.remove(id).is_some(),
+        };
+        self.dirty |= changed;
+        changed
+    }
+
+    pub fn reset_key_bindings(&mut self) -> bool {
+        let account = object_at(&mut self.data, "account");
+        let changed = account.remove(KEY_BINDINGS).is_some();
+        self.dirty |= changed;
+        changed
+    }
+
+    /// A book's saved local layout.
+    pub fn layout(&self, book: &str) -> Option<&Value> {
+        self.data.get("books")?.get(book)?.get("layout")
+    }
+
+    pub fn set_layout(&mut self, book: &str, layout: Value) {
+        let books = object_at(&mut self.data, "books");
+        let entry = object_at(books, book);
+        if entry.get("layout") != Some(&layout) {
+            entry.insert("layout".into(), layout);
+            self.dirty = true;
+        }
+    }
+
+    pub fn is_dirty(&self) -> bool {
+        self.dirty
+    }
+
+    /// Writes the file if anything changed. Atomic: a sibling file is written
+    /// and flushed, then renamed over the old one.
+    pub fn save(&mut self) -> std::io::Result<()> {
+        if !self.dirty {
+            return Ok(());
+        }
+        let Some(path) = &self.path else {
+            self.dirty = false;
+            return Ok(());
+        };
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir)?;
+        }
+        self.data.insert("version".into(), Value::from(VERSION));
+        let mut bytes = serde_json::to_vec_pretty(&Value::Object(self.data.clone()))?;
+        bytes.push(b'\n');
+        let tmp = path.with_extension("json.tmp");
+        {
+            let mut file = std::fs::File::create(&tmp)?;
+            file.write_all(&bytes)?;
+            file.sync_all()?;
+        }
+        std::fs::rename(&tmp, path)?;
+        self.dirty = false;
+        Ok(())
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SetError {
+    Unknown,
+    Invalid,
+    NoBook,
+}
+
+fn fresh() -> Map<String, Value> {
+    match json!({ "version": VERSION }) {
+        Value::Object(map) => map,
+        _ => unreachable!(),
+    }
+}
+
+/// `map[key]` as an object, made one if it is missing or not an object.
+fn object_at<'a>(map: &'a mut Map<String, Value>, key: &str) -> &'a mut Map<String, Value> {
+    let slot = map
+        .entry(key.to_owned())
+        .or_insert_with(|| Value::Object(Map::new()));
+    if !slot.is_object() {
+        *slot = Value::Object(Map::new());
+    }
+    slot.as_object_mut().expect("just made an object")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::settings::registry::{CRASH_REPORTS, FONT_SIZE, TEXT_SIZE, THEME};
+
+    #[test]
+    fn values_round_trip_through_the_file_by_scope() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut file = SettingsFile::open(dir.path());
+        assert_eq!(file.get(THEME), Value::from("system"));
+        assert!(file.set(THEME, Value::from("dark"), None).unwrap());
+        assert!(!file.set(THEME, Value::from("dark"), None).unwrap());
+        assert!(file.set(TEXT_SIZE, Value::from("large"), None).unwrap());
+        assert!(file.set(FONT_SIZE, Value::from(40), None).unwrap());
+        file.set_layout("book-1", json!({ "left": { "open": true } }));
+        file.save().unwrap();
+        assert!(!file.is_dirty());
+
+        let again = SettingsFile::open(dir.path());
+        assert_eq!(again.get(THEME), Value::from("dark"));
+        assert_eq!(again.number(FONT_SIZE), 28.0, "clamped to the range");
+        assert_eq!(again.layout("book-1").unwrap()["left"]["open"], true);
+        let raw: Value =
+            serde_json::from_slice(&std::fs::read(dir.path().join(FILE_NAME)).unwrap()).unwrap();
+        assert_eq!(raw["account"][THEME], "dark");
+        assert_eq!(raw["device"][TEXT_SIZE], "large");
+        assert_eq!(raw["version"], 1);
+    }
+
+    #[test]
+    fn invalid_values_are_refused_and_bad_stored_ones_read_as_default() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join(FILE_NAME),
+            r#"{"version":1,"account":{"appearance.theme":"sepia","future.key":3}}"#,
+        )
+        .unwrap();
+        let mut file = SettingsFile::open(dir.path());
+        assert_eq!(file.get(THEME), Value::from("system"));
+        assert_eq!(
+            file.set(THEME, Value::from(1), None),
+            Err(SetError::Invalid)
+        );
+        assert_eq!(
+            file.set("nope", Value::from(1), None),
+            Err(SetError::Unknown)
+        );
+        file.set(CRASH_REPORTS, Value::from(false), None).unwrap();
+        file.save().unwrap();
+        let raw: Value =
+            serde_json::from_slice(&std::fs::read(dir.path().join(FILE_NAME)).unwrap()).unwrap();
+        assert_eq!(
+            raw["account"]["future.key"], 3,
+            "a newer build's key is kept"
+        );
+    }
+
+    #[test]
+    fn an_unreadable_file_is_moved_aside_not_overwritten() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join(FILE_NAME), b"{ not json").unwrap();
+        let mut file = SettingsFile::open(dir.path());
+        assert_eq!(file.get(THEME), Value::from("system"));
+        let aside: Vec<_> = std::fs::read_dir(dir.path())
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_name().to_string_lossy().contains("unreadable"))
+            .collect();
+        assert_eq!(aside.len(), 1);
+        assert_eq!(std::fs::read(aside[0].path()).unwrap(), b"{ not json");
+        file.set(THEME, Value::from("light"), None).unwrap();
+        file.save().unwrap();
+        assert!(SettingsFile::open(dir.path()).get(THEME) == "light");
+    }
+
+    #[test]
+    fn shortcuts_rebind_and_reset() {
+        let mut file = SettingsFile::in_memory();
+        assert!(file.set_key_binding("goBack", Some("cmd-alt-left")));
+        assert!(!file.set_key_binding("goBack", Some("cmd-alt-left")));
+        assert_eq!(file.key_bindings()["goBack"], "cmd-alt-left");
+        assert!(file.set_key_binding("goBack", None));
+        file.set_key_binding("nextTab", Some(""));
+        assert!(file.reset_key_bindings());
+        assert!(file.key_bindings().is_empty());
+    }
+
+    #[test]
+    fn reset_returns_to_the_default() {
+        let mut file = SettingsFile::in_memory();
+        let theme = registry::find(THEME).unwrap();
+        file.set(THEME, Value::from("dark"), None).unwrap();
+        assert!(file.is_changed(theme, None));
+        assert!(file.reset(THEME, None));
+        assert!(!file.is_changed(theme, None));
+        assert_eq!(file.get(THEME), "system");
+    }
+}

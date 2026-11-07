@@ -93,11 +93,40 @@ pub fn all() -> Vec<Gate> {
 }
 
 /// Whether `path` (from the repository root) is a test, a fixture or a
-/// benchmark rather than product code: text gates on copy skip these.
+/// benchmark rather than product code: text gates on copy skip these. A
+/// benchmark kept as an example (`examples/*bench*.rs`, or a file under
+/// `examples/<…bench…>/`) is a benchmark.
 pub fn is_test_path(path: &str) -> bool {
-    let file = path.rsplit('/').next().unwrap_or(path);
-    path.split('/')
-        .any(|seg| seg == "tests" || seg == "fixtures" || seg == "benches" || seg == "fuzz")
-        // A benchmark kept as an example (`examples/*bench*.rs`) is a benchmark.
-        || (path.split('/').any(|seg| seg == "examples") && file.contains("bench"))
+    let segs: Vec<&str> = path.split('/').collect();
+    segs.iter()
+        .any(|s| matches!(*s, "tests" | "fixtures" | "benches" | "fuzz"))
+        || segs
+            .iter()
+            .position(|s| *s == "examples")
+            .is_some_and(|i| segs[i + 1..].iter().any(|s| s.contains("bench")))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_test_path;
+
+    #[test]
+    fn tests_fixtures_and_benchmarks_are_not_product_code() {
+        for p in [
+            "next/crates/a/tests/x.rs",
+            "next/crates/a/fixtures/b.json",
+            "next/crates/a/examples/index-bench.rs",
+            "next/crates/gpui-prose/examples/prose-bench/synth.rs",
+            "next/crates/dr-doc/fuzz/fuzz_targets/a.rs",
+        ] {
+            assert!(is_test_path(p), "{p}");
+        }
+        for p in [
+            "next/crates/a/src/bench.rs",
+            "next/crates/a/examples/gallery.rs",
+            "next/crates/dr-ui/examples/gallery/main.rs",
+        ] {
+            assert!(!is_test_path(p), "{p}");
+        }
+    }
 }

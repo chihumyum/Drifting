@@ -89,9 +89,138 @@ pub struct Derived {
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum DerivedUpdate {
-    /// Replace everything derived from the document. (A later version adds
-    /// paragraph-level patches; the input already carries the diffs.)
+    /// Replace everything derived from the document.
     Full(Derived),
+    /// Change only some paragraphs: what keystrokes need. Writing one changed
+    /// paragraph of a 20 000-character chapter costs about a hundredth of a
+    /// full replacement (the trigram index is rebuilt only for the rows that
+    /// change).
+    Patch(DerivedPatch),
+}
+
+/// In the stored paragraph order: replace the `removed` paragraphs starting
+/// at `at` with `blocks` (which may be more, fewer or none).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Splice {
+    pub at: u32,
+    pub removed: u32,
+    pub blocks: Vec<BlockRow>,
+}
+
+/// Paragraph-level changes to a document's derived rows.
+///
+/// Splices are sorted by `at` and do not overlap; positions are in the
+/// stored order before the patch. The paragraphs after a splice move by its
+/// size difference. A patch is only written onto exactly the rows it was
+/// made from: if the stored document does not have `base_paragraphs` rows,
+/// writing fails with [`StoreError::IndexBase`] and the holder derives the
+/// document from scratch next time.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct DerivedPatch {
+    pub base_paragraphs: u32,
+    pub splices: Vec<Splice>,
+    /// The document's references after the patch, or `None` when they did
+    /// not change (they are few, so a change rewrites them all).
+    pub references: Option<Vec<RefRow>>,
+    /// The new totals for the whole document.
+    pub words: u64,
+    pub chars: u64,
+}
+
+impl DerivedPatch {
+    /// The patch that turns `old` into `new`: one splice around what lies
+    /// between their common first and last paragraphs. A deriver that keeps
+    /// what it derived last can send this instead of [`DerivedUpdate::Full`].
+    pub fn between(old: &Derived, new: &Derived) -> Self {
+        let (a, b) = (&old.blocks, &new.blocks);
+        let prefix = a.iter().zip(b).take_while(|(x, y)| x == y).count();
+        let max_suffix = a.len().min(b.len()) - prefix;
+        let suffix = a
+            .iter()
+            .rev()
+            .zip(b.iter().rev())
+            .take(max_suffix)
+            .take_while(|(x, y)| x == y)
+            .count();
+        let removed = a.len() - prefix - suffix;
+        let inserted = &b[prefix..b.len() - suffix];
+        let splices = if removed == 0 && inserted.is_empty() {
+            Vec::new()
+        } else {
+            vec![Splice {
+                at: prefix as u32,
+                removed: removed as u32,
+                blocks: inserted.to_vec(),
+            }]
+        };
+        Self {
+            base_paragraphs: a.len() as u32,
+            splices,
+            references: (old.references != new.references).then(|| new.references.clone()),
+            words: new.words,
+            chars: new.chars,
+        }
+    }
+
+    /// Check the splices: sorted, apart, inside `base_paragraphs`.
+    pub fn validate(&self) -> Result<()> {
+        let mut end = 0u32;
+        for s in &self.splices {
+            let stop = s.at.checked_add(s.removed);
+            if s.at < end || stop.is_none_or(|e| e > self.base_paragraphs) {
+                return Err(StoreError::invalid(
+                    "index patch",
+                    format!(
+                        "splice at {} removing {} out of order or out of range",
+                        s.at, s.removed
+                    ),
+                ));
+            }
+            end = stop.unwrap_or(u32::MAX);
+            if s.blocks.iter().any(|b| b.heading > 3) {
+                return Err(StoreError::invalid("heading", "above 3"));
+            }
+        }
+        Ok(())
+    }
+
+    /// The paragraph count after the patch.
+    pub fn paragraphs(&self) -> u64 {
+        self.splices
+            .iter()
+            .fold(self.base_paragraphs as i64, |n, s| {
+                n - s.removed as i64 + s.blocks.len() as i64
+            }) as u64
+    }
+
+    /// What `old` becomes (to check a patch, or keep a copy in step).
+    pub fn apply_to(&self, old: &Derived) -> Result<Derived> {
+        self.validate()?;
+        if old.blocks.len() != self.base_paragraphs as usize {
+            return Err(StoreError::IndexBase {
+                doc_id: String::new(),
+                stored: old.blocks.len() as u64,
+                expected: self.base_paragraphs as u64,
+            });
+        }
+        let mut blocks = Vec::with_capacity(self.paragraphs() as usize);
+        let mut next = 0usize;
+        for s in &self.splices {
+            blocks.extend_from_slice(&old.blocks[next..s.at as usize]);
+            blocks.extend(s.blocks.iter().cloned());
+            next = (s.at + s.removed) as usize;
+        }
+        blocks.extend_from_slice(&old.blocks[next..]);
+        Ok(Derived {
+            words: self.words,
+            chars: self.chars,
+            blocks,
+            references: self
+                .references
+                .clone()
+                .unwrap_or_else(|| old.references.clone()),
+        })
+    }
 }
 
 /// What a deriver is given: the document on its holder thread (or a copy
@@ -103,6 +232,9 @@ pub struct DeriveInput<'a> {
     pub book_id: Option<&'a str>,
     pub doc: &'a LoroDoc,
     pub changes: Option<&'a [ContainerChange]>,
+    /// `true`: the open document of a holder (worth caching for the next
+    /// diffs). `false`: a copy loaded from SQLite for a rebuild, read once.
+    pub held: bool,
 }
 
 /// Computes a document's derived rows. Implemented outside dr-store (it needs
@@ -110,6 +242,17 @@ pub struct DeriveInput<'a> {
 /// for this kind of document".
 pub trait Deriver: Send + Sync {
     fn derive(&self, input: &DeriveInput<'_>) -> Option<DerivedUpdate>;
+}
+
+/// A patch to write with [`crate::Library::patch_index`].
+#[derive(Clone, Debug)]
+pub struct DocPatch<'a> {
+    pub doc_id: &'a str,
+    pub book_id: Option<&'a str>,
+    /// The document's stored seq the result reflects (as for [`DocIndex`]).
+    pub seq: i64,
+    pub frontiers: &'a Frontiers,
+    pub patch: &'a DerivedPatch,
 }
 
 /// Everything derived from one document at one version, for
@@ -175,6 +318,22 @@ pub struct Reference {
     pub target_id: String,
     pub kind: RefKind,
     pub count: u32,
+}
+
+/// JavaScript's `\\s` (what the 0.1 client's `trim()` removes): the same set
+/// as prose-metrics' `is_js_whitespace` (a test compares them).
+pub fn is_js_whitespace(c: char) -> bool {
+    matches!(
+        c,
+        '\t' | '\n' | '\u{0B}' | '\u{0C}' | '\r' | ' ' | '\u{A0}' | '\u{1680}' | '\u{2000}'
+            ..='\u{200A}'
+                | '\u{2028}'
+                | '\u{2029}'
+                | '\u{202F}'
+                | '\u{205F}'
+                | '\u{3000}'
+                | '\u{FEFF}'
+    )
 }
 
 /// Queries shorter than this many characters use `LIKE` instead of FTS5.
@@ -294,22 +453,8 @@ pub(crate) fn write_index(conn: &Connection, index: &DocIndex<'_>) -> Result<boo
             ])?;
             fts.execute(params![tx.last_insert_rowid(), b.text])?;
         }
-        let mut insert = tx.prepare_cached(
-            "INSERT INTO reference (source_doc, source_block, book_id, target_kind, target_id, kind, count)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-        )?;
-        for r in &index.derived.references {
-            insert.execute(params![
-                index.doc_id,
-                r.source_block,
-                index.book_id,
-                r.target_kind,
-                r.target_id,
-                r.kind.as_str(),
-                r.count.max(1)
-            ])?;
-        }
     }
+    insert_references(&tx, index.doc_id, index.book_id, &index.derived.references)?;
     tx.execute(
         "INSERT INTO index_state (doc_id, book_id, indexed_seq, frontiers, words, chars, paragraphs, updated_ms)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
@@ -332,6 +477,177 @@ pub(crate) fn write_index(conn: &Connection, index: &DocIndex<'_>) -> Result<boo
     Ok(true)
 }
 
+/// Renumbering moves rows above every real paragraph index first, so the
+/// `UNIQUE (doc_id, ord)` constraint never sees two rows on one index.
+const RENUMBER_OFFSET: i64 = 1 << 40;
+
+/// Write a paragraph patch and `index_state` in one transaction. Returns
+/// false when the stored index is already at `seq` or later, or the document
+/// is not registered; fails with [`StoreError::IndexBase`] when the stored
+/// rows are not the ones the patch was made from.
+pub(crate) fn write_patch(conn: &Connection, p: &DocPatch<'_>) -> Result<bool> {
+    p.patch.validate()?;
+    let tx = conn.unchecked_transaction()?;
+    let registered: bool = tx
+        .prepare_cached("SELECT EXISTS(SELECT 1 FROM loro_doc WHERE doc_id = ?1)")?
+        .query_row([p.doc_id], |r| r.get(0))?;
+    if !registered {
+        return Ok(false);
+    }
+    let stored: Option<i64> = tx
+        .prepare_cached("SELECT indexed_seq FROM index_state WHERE doc_id = ?1")?
+        .query_row([p.doc_id], |r| r.get(0))
+        .optional()?;
+    let Some(stored) = stored else {
+        // Nothing to patch: the first index of a document is a full one.
+        return Err(StoreError::IndexBase {
+            doc_id: p.doc_id.into(),
+            stored: 0,
+            expected: p.patch.base_paragraphs as u64,
+        });
+    };
+    if stored >= p.seq {
+        return Ok(false);
+    }
+    let rows: i64 = tx
+        .prepare_cached("SELECT count(*) FROM block_index WHERE doc_id = ?1")?
+        .query_row([p.doc_id], |r| r.get(0))?;
+    if rows != p.patch.base_paragraphs as i64 {
+        return Err(StoreError::IndexBase {
+            doc_id: p.doc_id.into(),
+            stored: rows as u64,
+            expected: p.patch.base_paragraphs as u64,
+        });
+    }
+    {
+        let mut old = tx.prepare_cached(
+            "SELECT id, text FROM block_index WHERE doc_id = ?1 AND ord >= ?2 AND ord < ?3",
+        )?;
+        let mut fts_delete = tx.prepare_cached(
+            "INSERT INTO block_fts (block_fts, rowid, text) VALUES ('delete', ?1, ?2)",
+        )?;
+        let mut delete = tx.prepare_cached(
+            "DELETE FROM block_index WHERE doc_id = ?1 AND ord >= ?2 AND ord < ?3",
+        )?;
+        for s in &p.patch.splices {
+            if s.removed == 0 {
+                continue;
+            }
+            let end = s.at as i64 + s.removed as i64;
+            let gone: Vec<(i64, String)> = old
+                .query_map(params![p.doc_id, s.at, end], |r| Ok((r.get(0)?, r.get(1)?)))?
+                .collect::<rusqlite::Result<_>>()?;
+            for (id, text) in &gone {
+                fts_delete.execute(params![id, text])?;
+            }
+            delete.execute(params![p.doc_id, s.at, end])?;
+        }
+        // Move the paragraphs between and after splices by the size change
+        // before them.
+        let mut segments: Vec<(i64, i64, i64)> = Vec::new(); // (from, to, delta), old indexes
+        let mut delta = 0i64;
+        for (i, s) in p.patch.splices.iter().enumerate() {
+            delta += s.blocks.len() as i64 - s.removed as i64;
+            let from = s.at as i64 + s.removed as i64;
+            let to = p
+                .patch
+                .splices
+                .get(i + 1)
+                .map(|n| n.at as i64)
+                .unwrap_or(p.patch.base_paragraphs as i64);
+            if from < to {
+                segments.push((from, to, delta));
+            }
+        }
+        if let Some(first) = segments.iter().position(|(_, _, d)| *d != 0) {
+            let moving = &segments[first..];
+            tx.prepare_cached(
+                "UPDATE block_index SET ord = ord + ?2 WHERE doc_id = ?1 AND ord >= ?3",
+            )?
+            .execute(params![p.doc_id, RENUMBER_OFFSET, moving[0].0])?;
+            let mut settle = tx.prepare_cached(
+                "UPDATE block_index SET ord = ord - ?2 + ?3 WHERE doc_id = ?1 AND ord >= ?4 AND ord < ?5",
+            )?;
+            for (from, to, d) in moving {
+                settle.execute(params![
+                    p.doc_id,
+                    RENUMBER_OFFSET,
+                    d,
+                    from + RENUMBER_OFFSET,
+                    to + RENUMBER_OFFSET
+                ])?;
+            }
+        }
+        // The new paragraphs, at their indexes after the patch.
+        let mut insert = tx.prepare_cached(
+            "INSERT INTO block_index (doc_id, book_id, ord, block_id, heading, chars, text)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        )?;
+        let mut fts = tx.prepare_cached("INSERT INTO block_fts (rowid, text) VALUES (?1, ?2)")?;
+        let mut shift = 0i64;
+        for s in &p.patch.splices {
+            let start = s.at as i64 + shift;
+            for (k, b) in s.blocks.iter().enumerate() {
+                insert.execute(params![
+                    p.doc_id,
+                    p.book_id,
+                    start + k as i64,
+                    b.block_id,
+                    b.heading,
+                    b.chars,
+                    b.text
+                ])?;
+                fts.execute(params![tx.last_insert_rowid(), b.text])?;
+            }
+            shift += s.blocks.len() as i64 - s.removed as i64;
+        }
+    }
+    if let Some(refs) = &p.patch.references {
+        tx.execute("DELETE FROM reference WHERE source_doc = ?1", [p.doc_id])?;
+        insert_references(&tx, p.doc_id, p.book_id, refs)?;
+    }
+    tx.prepare_cached(
+        "UPDATE index_state SET book_id = ?2, indexed_seq = ?3, frontiers = ?4, words = ?5,
+           chars = ?6, paragraphs = ?7, updated_ms = ?8 WHERE doc_id = ?1",
+    )?
+    .execute(params![
+        p.doc_id,
+        p.book_id,
+        p.seq,
+        p.frontiers.encode(),
+        p.patch.words as i64,
+        p.patch.chars as i64,
+        p.patch.paragraphs() as i64,
+        now_ms()
+    ])?;
+    tx.commit()?;
+    Ok(true)
+}
+
+fn insert_references(
+    tx: &Connection,
+    doc_id: &str,
+    book_id: Option<&str>,
+    refs: &[RefRow],
+) -> Result<()> {
+    let mut insert = tx.prepare_cached(
+        "INSERT INTO reference (source_doc, source_block, book_id, target_kind, target_id, kind, count)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+    )?;
+    for r in refs {
+        insert.execute(params![
+            doc_id,
+            r.source_block,
+            book_id,
+            r.target_kind,
+            r.target_id,
+            r.kind.as_str(),
+            r.count.max(1)
+        ])?;
+    }
+    Ok(())
+}
+
 /// Remove everything derived from a document, inside the caller's
 /// transaction.
 pub(crate) fn delete_index(tx: &Connection, doc_id: &str) -> Result<()> {
@@ -351,6 +667,20 @@ impl Library {
             self.notify_local(crate::LocalChange::new(
                 "index",
                 index.doc_id,
+                crate::LocalChangeKind::Update,
+            ));
+        }
+        Ok(written)
+    }
+
+    /// Write a paragraph patch (see [`DerivedPatch`]) unless the stored index
+    /// already reflects `seq` or later (returns false then).
+    pub fn patch_index(&self, patch: &DocPatch<'_>) -> Result<bool> {
+        let written = write_patch(&self.writer(), patch)?;
+        if written {
+            self.notify_local(crate::LocalChange::new(
+                "index",
+                patch.doc_id,
                 crate::LocalChangeKind::Update,
             ));
         }
@@ -381,45 +711,88 @@ impl Library {
         query: &str,
         limit: usize,
     ) -> Result<Vec<SearchHit>> {
+        self.search_in_order(book_id, query, limit, &[])
+    }
+
+    /// [`Self::search`], with documents ranked in `order` (say the book's
+    /// chapter order, which the book document knows and dr-store does not):
+    /// hits come document by document in that order, then from documents
+    /// not listed (by id), and `limit` cuts the list in that order.
+    pub fn search_in_order(
+        &self,
+        book_id: Option<&str>,
+        query: &str,
+        limit: usize,
+        order: &[&str],
+    ) -> Result<Vec<SearchHit>> {
         let query = query.trim();
         let needle: Vec<char> = query.chars().collect();
         if needle.is_empty() || limit == 0 {
             return Ok(Vec::new());
         }
-        let conn = self.reader();
-        let map = |r: &rusqlite::Row<'_>| {
-            Ok((
-                r.get::<_, String>(0)?,
-                r.get::<_, Option<String>>(1)?,
-                r.get::<_, i64>(2)?,
-                r.get::<_, String>(3)?,
-            ))
-        };
-        let rows = if needle.len() >= TRIGRAM_MIN_CHARS {
-            conn.prepare_cached(
-                "SELECT b.doc_id, b.block_id, b.ord, b.text
-                 FROM block_fts JOIN block_index b ON b.id = block_fts.rowid
-                 WHERE block_fts MATCH ?1 AND (?2 IS NULL OR b.book_id = ?2)
-                 ORDER BY b.doc_id, b.ord LIMIT ?3",
-            )?
-            .query_map(params![fts_phrase(query), book_id, limit as i64], map)?
-            .collect::<rusqlite::Result<Vec<_>>>()?
+        // The ranks as a table of values: ?4, ?5, … are the doc ids.
+        let (with, join, rank) = if order.is_empty() {
+            (String::new(), "", "")
         } else {
-            conn.prepare_cached(
-                "SELECT doc_id, block_id, ord, text FROM block_index
-                 WHERE (?2 IS NULL OR book_id = ?2) AND text LIKE ?1 ESCAPE '\\'
-                 ORDER BY doc_id, ord LIMIT ?3",
-            )?
-            .query_map(params![like_pattern(query), book_id, limit as i64], map)?
-            .collect::<rusqlite::Result<Vec<_>>>()?
+            let values: Vec<String> = (0..order.len())
+                .map(|i| format!("(?{}, {i})", i + 4))
+                .collect();
+            (
+                format!("WITH rank (doc_id, r) AS (VALUES {}) ", values.join(", ")),
+                " LEFT JOIN rank ON rank.doc_id = b.doc_id",
+                "coalesce(rank.r, 9223372036854775807), ",
+            )
         };
+        let (from, pattern) = if needle.len() >= TRIGRAM_MIN_CHARS {
+            (
+                format!(
+                    "FROM block_fts JOIN block_index b ON b.id = block_fts.rowid{join}
+                     WHERE block_fts MATCH ?1 AND (?2 IS NULL OR b.book_id = ?2)"
+                ),
+                fts_phrase(query),
+            )
+        } else {
+            (
+                format!(
+                    "FROM block_index b{join}
+                     WHERE (?2 IS NULL OR b.book_id = ?2) AND b.text LIKE ?1 ESCAPE '\\'"
+                ),
+                like_pattern(query),
+            )
+        };
+        let sql = format!(
+            "{with}SELECT b.doc_id, b.block_id, b.ord, b.text {from}
+             ORDER BY {rank}b.doc_id, b.ord LIMIT ?3"
+        );
+        let mut args: Vec<&dyn rusqlite::ToSql> = Vec::with_capacity(3 + order.len());
+        let limit = limit as i64;
+        args.push(&pattern);
+        args.push(&book_id);
+        args.push(&limit);
+        for id in order {
+            args.push(id);
+        }
+        let conn = self.reader();
+        let rows = conn
+            .prepare_cached(&sql)?
+            .query_map(args.as_slice(), |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, Option<String>>(1)?,
+                    r.get::<_, i64>(2)?,
+                    r.get::<_, String>(3)?,
+                ))
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
         Ok(rows
             .into_iter()
             .map(|(doc, block, ord, text)| hit(doc, block, ord, &text, &needle))
             .collect())
     }
 
-    /// The H1–H3 paragraphs of a document, in order.
+    /// The H1–H3 paragraphs of a document, in order, by dr-text's outline
+    /// rule (the 0.1 client's `outline.ts`): a heading's text is trimmed of
+    /// JavaScript whitespace, and a heading with nothing left is not listed.
     pub fn outline(&self, doc_id: &str) -> Result<Vec<OutlineEntry>> {
         let conn = self.reader();
         let rows = conn
@@ -428,15 +801,26 @@ impl Library {
                  WHERE doc_id = ?1 AND heading > 0 ORDER BY ord",
             )?
             .query_map([doc_id], |r| {
-                Ok(OutlineEntry {
-                    ord: r.get::<_, i64>(0)? as u32,
-                    block_id: r.get(1)?,
-                    heading: r.get::<_, i64>(2)? as u8,
-                    text: r.get(3)?,
-                })
+                Ok((
+                    r.get::<_, i64>(0)?,
+                    r.get::<_, Option<String>>(1)?,
+                    r.get::<_, i64>(2)?,
+                    r.get::<_, String>(3)?,
+                ))
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
-        Ok(rows)
+        Ok(rows
+            .into_iter()
+            .filter_map(|(ord, block_id, heading, text)| {
+                let text = text.trim_matches(is_js_whitespace);
+                (!text.is_empty()).then(|| OutlineEntry {
+                    ord: ord as u32,
+                    block_id,
+                    heading: heading as u8,
+                    text: text.to_string(),
+                })
+            })
+            .collect())
     }
 
     /// Paragraph lengths of a document, in order, without decoding it.

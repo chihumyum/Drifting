@@ -1360,8 +1360,10 @@ dependencies = [
  "dr-model",
  "dr-store",
  "dr-testkit",
+ "dr-workspace",
  "loro",
  "rusqlite",
+ "serde",
  "serde_json",
  "tempfile",
 ]
@@ -1377,12 +1379,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "dr-i18n"
+version = "0.0.0"
+dependencies = [
+ "icu_locale_core",
+ "icu_plurals",
+ "serde_json",
+ "sys-locale",
+]
+
+[[package]]
 name = "dr-import-v1"
 version = "0.0.0"
 dependencies = [
  "dr-doc",
+ "dr-index",
  "dr-model",
  "dr-store",
+ "dr-testkit",
  "libc",
  "log",
  "loro",
@@ -1455,14 +1469,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "dr-shell"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "color_quant",
+ "dr-i18n",
+ "dr-model",
+ "dr-platform",
+ "dr-ui",
+ "futures",
+ "gpui",
+ "gpui_platform",
+ "log",
+ "objc2 0.6.5",
+ "objc2-app-kit 0.3.2",
+ "png 0.18.1",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "dr-store"
 version = "0.0.0"
 dependencies = [
  "dr-model",
+ "dr-testkit",
  "flate2",
  "getrandom 0.4.3",
  "log",
  "loro",
+ "prose-metrics",
  "rusqlite",
  "serde",
  "serde_json",
@@ -1479,6 +1517,7 @@ dependencies = [
  "dr-doc",
  "dr-model",
  "dr-store",
+ "dr-workspace",
  "loro",
  "serde",
  "serde_json",
@@ -1537,11 +1576,11 @@ version = "0.2.0-dev"
 dependencies = [
  "anyhow",
  "dr-platform",
+ "dr-shell",
+ "dr-ui",
  "gpui",
  "gpui_platform",
  "log",
- "objc2 0.6.5",
- "objc2-app-kit 0.3.2",
 ]
 
 [[package]]
@@ -1846,6 +1885,17 @@ dependencies = [
  "lazy_static",
  "libc",
  "winapi",
+]
+
+[[package]]
+name = "fixed_decimal"
+version = "0.7.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2214fb00f669ee96bee5bb29dfb1ddabe058b2bc426817efc79afa03c9bc55ae"
+dependencies = [
+ "displaydoc",
+ "smallvec",
+ "writeable",
 ]
 
 [[package]]
@@ -2970,6 +3020,25 @@ name = "icu_normalizer_data"
 version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "20f0088bfb7441f7a37fa0c9e20cb1e9cba1cac6b9ce8cd2a6dc44294f8e8cbc"
+
+[[package]]
+name = "icu_plurals"
+version = "2.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2ef046647b445acf95ce0f8083fa292467d3df649959fa9a20f3f8abfd957c5d"
+dependencies = [
+ "fixed_decimal",
+ "icu_locale_fallback",
+ "icu_plurals_data",
+ "icu_provider",
+ "zerovec",
+]
+
+[[package]]
+name = "icu_plurals_data"
+version = "2.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d43ff7df2c1a1d41588a6ddcba354d513d4a3e10eec22c06fe56d13c12a848ea"
 
 [[package]]
 name = "icu_properties"

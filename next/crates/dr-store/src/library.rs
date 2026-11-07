@@ -40,7 +40,8 @@ pub struct CompactionPolicy {
 }
 
 impl Default for CompactionPolicy {
-    /// From `f2-bench` (docs/rust-rewrite/acceptance/f2-store-bench.json):
+    /// Measured with F2's first benchmark (now `dr-testkit`'s store bench,
+    /// docs/rust-rewrite/acceptance/f8-m1-store-bench.json):
     /// each keystroke-sized update left on top of a 20 000-character
     /// chapter's snapshot adds about 6.5 µs to opening it, and compacting a
     /// few hundred costs about a millisecond. 200 keeps an open under ~1.5 ms.
@@ -187,6 +188,49 @@ pub struct StoredUpdate {
     pub bytes: Vec<u8>,
 }
 
+/// [`Library::try_close`] refused: why, and the library back.
+pub struct CloseRefused {
+    pub error: StoreError,
+    pub library: Library,
+}
+
+impl std::fmt::Debug for CloseRefused {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CloseRefused")
+            .field("error", &self.error)
+            .finish_non_exhaustive()
+    }
+}
+
+impl std::fmt::Display for CloseRefused {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "closing the library was refused: {}", self.error)
+    }
+}
+
+impl std::error::Error for CloseRefused {}
+
+/// A write transaction on a module's local-only tables
+/// ([`Library::local_write`]). Derefs to the SQLite transaction.
+pub struct LocalTx<'a> {
+    tx: rusqlite::Transaction<'a>,
+    changes: Vec<LocalChange>,
+}
+
+impl LocalTx<'_> {
+    /// Announce `change` once the transaction commits.
+    pub fn changed(&mut self, change: LocalChange) {
+        self.changes.push(change);
+    }
+}
+
+impl<'a> std::ops::Deref for LocalTx<'a> {
+    type Target = rusqlite::Transaction<'a>;
+    fn deref(&self) -> &Self::Target {
+        &self.tx
+    }
+}
+
 /// The latest stored state of a document.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DocHead {
@@ -268,7 +312,9 @@ pub(crate) struct Inner {
     pub stopping: AtomicBool,
     /// Identifies this process's asset imports for garbage collection.
     pub session: String,
-    _lock: File,
+    /// Opened by [`Library::open_read_only`]: no lock, no writes.
+    pub read_only: bool,
+    _lock: Option<File>,
 }
 
 impl Inner {
@@ -361,6 +407,66 @@ impl Library {
         Self::open_locked(paths, options, migrations, lock)
     }
 
+    /// Open a library only to read it (inspection tools): no lock, no
+    /// migration, no safety snapshot, no epoch check, no background work.
+    /// The app may have it open at the same time. The library's schema must
+    /// be exactly this build's; documents cannot be opened for editing
+    /// (copies can be loaded), and every write fails.
+    pub fn open_read_only(root: impl Into<PathBuf>, options: LibraryOptions) -> Result<Self> {
+        let paths = LibraryPaths::new(root);
+        if !paths.db.is_file() {
+            return Err(StoreError::NotFound(paths.db.display().to_string()));
+        }
+        let open = || -> Result<Connection> {
+            let conn = Connection::open_with_flags(
+                &paths.db,
+                rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY
+                    | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
+            )?;
+            conn.busy_timeout(Duration::from_secs(5))?;
+            conn.pragma_update(None, "query_only", true)?;
+            Ok(conn)
+        };
+        let writer = open()?;
+        let applied = migrate::applied_count(&writer, MIGRATIONS)?;
+        if applied != MIGRATIONS.len() {
+            return Err(StoreError::NeedsMigration {
+                applied,
+                known: MIGRATIONS.len(),
+            });
+        }
+        let epoch = meta(&writer, "epoch")?.unwrap_or_default();
+        let library_id = meta(&writer, "library_id")?.unwrap_or_default();
+        let reader = open()?;
+        let mut options = options;
+        options.rebuild_indexes_on_open = false;
+        Ok(Self {
+            inner: Arc::new(Inner {
+                paths,
+                options,
+                report: OpenReport::default(),
+                writer: Mutex::new(writer),
+                reader: Mutex::new(reader),
+                epoch: Mutex::new(epoch),
+                docs: Mutex::new(HashMap::new()),
+                docs_changed: Condvar::new(),
+                closing: Closing::default(),
+                bus: SharedBus::default(),
+                library_id,
+                epoch_change: None,
+                stopping: AtomicBool::new(false),
+                session: format!("{:016x}", random_u64()),
+                read_only: true,
+                _lock: None,
+            }),
+        })
+    }
+
+    /// Whether this library was opened with [`Self::open_read_only`].
+    pub fn is_read_only(&self) -> bool {
+        self.inner.read_only
+    }
+
     fn open_locked(
         paths: LibraryPaths,
         options: LibraryOptions,
@@ -439,7 +545,8 @@ impl Library {
                 epoch_change,
                 stopping: AtomicBool::new(false),
                 session: format!("{:016x}", random_u64()),
-                _lock: lock,
+                read_only: false,
+                _lock: Some(lock),
             }),
         };
         if library.inner.options.deriver.is_some() && library.inner.options.rebuild_indexes_on_open
@@ -707,6 +814,9 @@ impl Library {
     /// already open returns a handle to the same holder.
     pub fn open_doc(&self, doc_id: &str, how: OpenDoc<'_>) -> Result<DocHandle> {
         validate_doc_id(doc_id)?;
+        if self.inner.read_only {
+            return Err(StoreError::ReadOnly);
+        }
         {
             let mut docs = self.inner.docs.lock().unwrap_or_else(|e| e.into_inner());
             loop {
@@ -801,8 +911,15 @@ impl Library {
     /// Close the library: wait for every closing document holder to finish
     /// (labels, compaction), then close the database and release the lock.
     /// Refused while documents are open, or while other clones of this
-    /// `Library` are alive (they keep the database open).
+    /// `Library` are alive (they keep the database open). The library is
+    /// dropped either way; [`Self::try_close`] hands it back on refusal.
     pub fn close(self) -> Result<()> {
+        self.try_close().map_err(|refused| refused.error)
+    }
+
+    /// [`Self::close`], but a refusal returns the library so the caller can
+    /// close its documents and try again.
+    pub fn try_close(self) -> std::result::Result<(), CloseRefused> {
         {
             let mut docs = self.inner.docs.lock().unwrap_or_else(|e| e.into_inner());
             loop {
@@ -814,7 +931,11 @@ impl Library {
                     })
                     .count();
                 if live > 0 {
-                    return Err(StoreError::DocumentsOpen(live));
+                    drop(docs);
+                    return Err(CloseRefused {
+                        error: StoreError::DocumentsOpen(live),
+                        library: self,
+                    });
                 }
                 if docs.is_empty() {
                     break;
@@ -836,12 +957,21 @@ impl Library {
             }
         }
         if Arc::strong_count(&self.inner) > 1 {
-            return Err(StoreError::invalid(
-                "library",
-                "other clones of this library are still alive",
-            ));
+            return Err(CloseRefused {
+                error: StoreError::invalid(
+                    "library",
+                    "other clones of this library are still alive",
+                ),
+                library: self,
+            });
         }
-        self.raise_watermark()
+        if !self.inner.read_only {
+            self.raise_watermark().map_err(|error| CloseRefused {
+                error,
+                library: self.clone(),
+            })?;
+        }
+        Ok(())
     }
 
     /// Make everything committed so far survive a power failure. With
@@ -872,6 +1002,28 @@ impl Library {
         let tx = conn.transaction()?;
         let r = f(&tx)?;
         tx.commit()?;
+        Ok(r)
+    }
+
+    /// [`Self::local_transaction`] that also announces what changed: `f`
+    /// records each change with [`LocalTx::changed`], and once the
+    /// transaction has committed every change goes out on the bus (nothing
+    /// is announced when `f` fails).
+    pub fn local_write<R>(&self, f: impl FnOnce(&mut LocalTx<'_>) -> Result<R>) -> Result<R> {
+        let (r, changes) = {
+            let mut conn = self.inner.writer();
+            let mut tx = LocalTx {
+                tx: conn.transaction()?,
+                changes: Vec::new(),
+            };
+            let r = f(&mut tx)?;
+            let LocalTx { tx, changes } = tx;
+            tx.commit()?;
+            (r, changes)
+        };
+        for change in changes {
+            self.notify_local(change);
+        }
         Ok(r)
     }
 
@@ -1443,18 +1595,26 @@ impl Library {
             book_id: info.book_id.as_deref(),
             doc: &doc,
             changes: None,
-        };
-        let Some(DerivedUpdate::Full(derived)) = deriver.derive(&input) else {
-            return Ok(false);
+            held: false,
         };
         let frontiers = doc.oplog_frontiers();
-        self.index_doc(&DocIndex {
-            doc_id,
-            book_id: info.book_id.as_deref(),
-            seq: stats.last_seq,
-            frontiers: &frontiers,
-            derived: &derived,
-        })
+        match deriver.derive(&input) {
+            Some(DerivedUpdate::Full(derived)) => self.index_doc(&DocIndex {
+                doc_id,
+                book_id: info.book_id.as_deref(),
+                seq: stats.last_seq,
+                frontiers: &frontiers,
+                derived: &derived,
+            }),
+            Some(DerivedUpdate::Patch(patch)) => self.patch_index(&crate::index::DocPatch {
+                doc_id,
+                book_id: info.book_id.as_deref(),
+                seq: stats.last_seq,
+                frontiers: &frontiers,
+                patch: &patch,
+            }),
+            _ => Ok(false),
+        }
     }
 
     /// Rebuild every stale index now (see [`Self::stale_index_docs`]).

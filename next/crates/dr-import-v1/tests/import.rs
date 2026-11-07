@@ -5,16 +5,18 @@ mod common;
 
 use common::*;
 use dr_doc::Anchor;
-use dr_doc::book::{BookDoc, BookView};
+use dr_doc::book::{BookDoc, BookReader, BookView};
 use dr_doc::peer::{import_peer, random_device_peer};
 use dr_doc::prose::{EmbedView, ProseDoc};
 use dr_import_v1::gate::{Accept, Reason};
 use dr_import_v1::legacy::Freshness;
+use dr_import_v1::progress::{Progress, Step};
 use dr_import_v1::receipt::{self, Receipt};
 use dr_import_v1::run::{self, Options, Outcome};
 use dr_model::id::*;
 use dr_model::kind::*;
 use dr_model::{DocId, Timestamp};
+use dr_store::history::LabelRetention;
 use dr_store::{Library, LibraryOptions};
 
 struct New {
@@ -39,6 +41,25 @@ fn options(old: &Old, new: &New, accept: Accept) -> Options {
     o.device_dir = Some(new.device.clone());
     o.verify_history = true;
     o
+}
+
+/// Open a library the import just closed. dr-store's lock is sometimes
+/// still held for a moment after `Library::close` returns when many tests
+/// run at once (reported to F2, `m10-import.md` 待协调); retry briefly.
+fn open_library(root: &std::path::Path, options: LibraryOptions) -> Library {
+    let started = std::time::Instant::now();
+    loop {
+        match Library::open(root, options.clone()) {
+            Ok(lib) => return lib,
+            Err(e)
+                if e.to_string().contains("already open")
+                    && started.elapsed() < std::time::Duration::from_secs(5) =>
+            {
+                std::thread::sleep(std::time::Duration::from_millis(20));
+            }
+            Err(e) => panic!("{e}"),
+        }
+    }
 }
 
 fn imported(outcome: Outcome) -> Box<Receipt> {
@@ -122,7 +143,7 @@ fn a_handed_off_library_imports_completely() {
     assert!(r.installation_id_adopted);
     assert_eq!(r.books[0].assets_copied, 1);
 
-    let lib = Library::open(&new.root, LibraryOptions::new("0.2.0-test")).unwrap();
+    let lib = open_library(&new.root, LibraryOptions::new("0.2.0-test"));
     let book = book_doc(&lib);
     let v: BookView<'_> = book.view();
 
@@ -318,23 +339,75 @@ fn a_handed_off_library_imports_completely() {
         matches!(note_prose.view().embed(&embed), Some(EmbedView::Material { material: Some(m), .. }) if m.as_str() == IMAGE)
     );
 
-    // History: two replayed points with their 0.1 times, plus the import.
+    // History: two replayed points with their 0.1 times, plus the import,
+    // all kept from the 30-day retention.
     let chapter_id = format!("node:{CHAPTER}");
     let labels = lib.history(&chapter_id).unwrap();
     let periodic: Vec<_> = labels.iter().filter(|l| l.label == "periodic").collect();
     assert_eq!(periodic.len(), 2);
     assert!(labels.iter().any(|l| l.label == "import"));
+    assert!(
+        labels.iter().filter(|l| l.label != "close").all(|l| l.keep),
+        "imported points are kept (dr-store's own close label is not ours)"
+    );
     let oldest = periodic.iter().min_by_key(|l| l.ts).unwrap();
     assert_eq!(oldest.ts, dr_import_v1::time::parse_iso_ms(T0).unwrap());
-    assert!(
-        oldest.book_frontiers.is_some(),
-        "labels carry the book's version"
-    );
     let back = lib.load_copy_at(&chapter_id, &oldest.frontiers).unwrap();
     assert_eq!(
         back.get_text("body").to_string(),
         "第一章\n我要给阿Q做正传。\n"
     );
+    assert_eq!(r.books[0].history_meta_replayed, 3);
+    assert_eq!(r.books[0].history_meta_checked, 3);
+
+    // The metadata at each point is what 0.1 kept with the row: restoring an
+    // object from a point reads its fields from the book at `book_frontiers`.
+    let book_at = |label: &dr_store::history::HistoryLabel| -> BookReader {
+        BookReader::load_at(
+            BookId::parse(BOOK).unwrap(),
+            &[snapshot(&lib, &format!("book:{BOOK}"))],
+            label
+                .book_frontiers
+                .as_ref()
+                .expect("labels carry the book's version"),
+        )
+        .unwrap()
+    };
+    let chapter_node = NodeId::parse(CHAPTER).unwrap();
+    let at = |label: &dr_store::history::HistoryLabel| {
+        let n = book_at(label).view().node(&chapter_node).unwrap();
+        (n.title, n.summary)
+    };
+    let newest = periodic.iter().max_by_key(|l| l.ts).unwrap();
+    assert_eq!(at(oldest), ("第一章".into(), "初稿梗概".into()));
+    assert_eq!(
+        at(newest),
+        ("第一章 序".into(), "初稿梗概".into()),
+        "a field the row did not carry stays as the earlier row had it"
+    );
+    let element_points = lib.history(&format!("element:{ELEMENT}")).unwrap();
+    let ep = element_points
+        .iter()
+        .find(|l| l.label == "periodic")
+        .unwrap();
+    let el_then = book_at(ep)
+        .view()
+        .element(&ElementId::parse(ELEMENT).unwrap())
+        .unwrap();
+    assert_eq!(el_then.aliases.iter().collect::<Vec<_>>(), ["阿贵"]);
+    assert_eq!(el_then.group_name.as_deref(), Some("未庄"));
+    let facts: Vec<(&str, &str, &str)> = el_then
+        .facts
+        .iter()
+        .map(|f| (f.id.as_str(), f.key.as_str(), f.value.as_str()))
+        .collect();
+    assert_eq!(
+        facts[0],
+        ("kv-6", "住处", "破庙"),
+        "the same fact keeps its id"
+    );
+    assert_eq!((facts[1].1, facts[1].2), ("绰号", "阿Q"));
+    assert_eq!(facts.len(), 2);
 
     // Every change is the import peer's (or the genesis').
     let doc = lib.load_copy(&chapter_id).unwrap();
@@ -350,11 +423,24 @@ fn a_handed_off_library_imports_completely() {
     );
     lib.close().unwrap();
 
-    // The receipt, the archive, the local state and the summary.
+    // The receipt in the library (dr-store `0001`); the archive, the local
+    // state and the summary beside it.
+    let library_db = rusqlite::Connection::open(dr_store::LibraryPaths::new(&new.root).db).unwrap();
+    let in_library = |sql: &str| -> i64 { library_db.query_row(sql, [], |r| r.get(0)).unwrap() };
+    assert_eq!(in_library("SELECT count(*) FROM import_run"), 1);
+    assert_eq!(in_library("SELECT count(*) FROM import_doc"), 6);
+    assert_eq!(
+        in_library("SELECT count(*) FROM import_anchor WHERE cursor = 1"),
+        3
+    );
     let dir = receipt::directory(&new.root);
     let conn = rusqlite::Connection::open(dir.join(receipt::DATABASE)).unwrap();
     let n = |sql: &str| -> i64 { conn.query_row(sql, [], |r| r.get(0)).unwrap() };
-    assert_eq!(n("SELECT count(*) FROM import_doc"), 6);
+    assert_eq!(
+        n("SELECT count(*) FROM sqlite_schema WHERE name LIKE 'import_%'"),
+        0,
+        "the receipt is no longer in the archive"
+    );
     assert_eq!(n("SELECT count(*) FROM archive_agent_conversation"), 1);
     assert_eq!(
         n("SELECT count(*) FROM local_setting WHERE key = 'settings-storage'"),
@@ -366,6 +452,7 @@ fn a_handed_off_library_imports_completely() {
     );
     let summary = std::fs::read_to_string(dir.join(receipt::SUMMARY)).unwrap();
     assert!(summary.contains("阿Q正传") && summary.contains("一字不差"));
+    assert!(summary.contains("当时的标题"));
     assert!(!dir.join("staging").exists(), "the staging copy is removed");
     let identity = std::fs::read_to_string(new.device.join("sync-installation-v2.json")).unwrap();
     assert!(
@@ -467,7 +554,9 @@ fn the_same_library_imports_to_the_same_bytes() {
             .unwrap()
     };
     let (ra, rb) = (rows(&a), rows(&b));
-    assert_eq!(ra.len(), 7);
+    // Six bodies, and the book document in steps (its first version, the
+    // history rows that change metadata, the current fields back).
+    assert!(ra.len() > 7, "{}", ra.len());
     assert_eq!(
         ra, rb,
         "two devices importing the same library write identical changes"
@@ -495,4 +584,266 @@ fn an_older_library_is_brought_up_on_its_copy() {
     assert_eq!(r.schema_level_before, 12);
     assert_eq!(r.books[0].status, "imported");
     assert_eq!(sha_of(&db), before);
+}
+
+#[test]
+fn the_import_reports_its_progress() {
+    let old = build(true);
+    let new = new_library();
+    let mut seen: Vec<Progress> = Vec::new();
+    imported(
+        run::import_with(
+            &old.db,
+            &new.root,
+            &options(&old, &new, Accept::NOTHING),
+            &mut |p| seen.push(p.clone()),
+        )
+        .unwrap()
+        .0,
+    );
+    let mut steps: Vec<Step> = seen.iter().map(|p| p.step).collect();
+    steps.dedup();
+    assert_eq!(
+        steps,
+        [
+            Step::Copying,
+            Step::Checking,
+            Step::Bodies,
+            Step::Book,
+            Step::Assets,
+            Step::Finishing,
+            Step::Indexing,
+            Step::Done
+        ]
+    );
+    assert!(seen.windows(2).all(|w| w[0].overall <= w[1].overall));
+    assert_eq!(seen.last().unwrap().overall, 1.0);
+    let bodies: Vec<&Progress> = seen.iter().filter(|p| p.step == Step::Bodies).collect();
+    assert_eq!(bodies.len(), 6, "one report per body");
+    assert_eq!((bodies[5].done, bodies[5].total), (6, 6));
+    assert_eq!((bodies[0].book, bodies[0].books), (1, 1));
+    assert_eq!(bodies[0].book_name, "阿Q正传");
+    let copying = seen.iter().rev().find(|p| p.step == Step::Copying).unwrap();
+    assert!(copying.total > 0 && copying.done == copying.total);
+    let indexing = seen
+        .iter()
+        .rev()
+        .find(|p| p.step == Step::Indexing)
+        .unwrap();
+    assert_eq!(
+        (indexing.done, indexing.total),
+        (7, 7),
+        "six bodies and the book"
+    );
+}
+
+#[test]
+fn an_imported_library_has_its_indexes() {
+    let old = build(true);
+    let new = new_library();
+    let (outcome, timing) =
+        run::import(&old.db, &new.root, &options(&old, &new, Accept::NOTHING)).unwrap();
+    imported(outcome);
+    assert_eq!(timing.indexed_docs, 7);
+    let mut o = LibraryOptions::new("0.2.0-test");
+    dr_index::attach(&mut o);
+    o.rebuild_indexes_on_open = false;
+    let lib = open_library(&new.root, o);
+    assert!(lib.stale_index_docs().unwrap().is_empty());
+    let chapter = format!("node:{CHAPTER}");
+    // 第一章 序 / 我要给阿Q做正传，已经不止一两年了。 / 引文第一段 / 引文第二段 /
+    // TODO: 查一查赵太爷的年纪
+    assert_eq!(
+        lib.doc_stats(&chapter).unwrap().unwrap().words,
+        4 + 16 + 5 + 5 + 10
+    );
+    let outline: Vec<(u8, String)> = lib
+        .outline(&chapter)
+        .unwrap()
+        .into_iter()
+        .map(|o| (o.heading, o.text))
+        .collect();
+    assert_eq!(outline, vec![(1, "第一章 序".into())]);
+    let hits = lib.search(Some(BOOK), "赵太爷", 10).unwrap();
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].block_id.as_deref(), Some("p2"));
+    assert!(lib.book_stats(BOOK).unwrap().words > 0);
+    lib.close().unwrap();
+}
+
+#[test]
+fn replaying_the_history_leaves_the_book_as_it_is_now() {
+    let with = build(true);
+    let without = build(true);
+    {
+        let conn = rusqlite::Connection::open(&without.db).unwrap();
+        conn.execute("DELETE FROM entity_snapshot_history", [])
+            .unwrap();
+    }
+    let (a, b) = (new_library(), new_library());
+    imported(
+        run::import(&with.db, &a.root, &options(&with, &a, Accept::NOTHING))
+            .unwrap()
+            .0,
+    );
+    imported(
+        run::import(
+            &without.db,
+            &b.root,
+            &options(&without, &b, Accept::NOTHING),
+        )
+        .unwrap()
+        .0,
+    );
+    let book = |n: &New| -> loro::LoroValue {
+        let lib = open_library(&n.root, LibraryOptions::new("0.2.0-test"));
+        let v = lib
+            .load_copy(&format!("book:{BOOK}"))
+            .unwrap()
+            .get_deep_value();
+        lib.close().unwrap();
+        v
+    };
+    let (va, vb) = (book(&a), book(&b));
+    let mut differ = Vec::new();
+    diff_values("", &va, &vb, &mut differ);
+    // Cursors name operations of the prose documents, which differ (one has
+    // history versions): they are compared by the text they point at.
+    differ.retain(|d| !d.contains("/anchor/start:") && !d.contains("/anchor/end:"));
+    assert!(differ.is_empty(), "{differ:#?}");
+    let quote = |n: &New| -> String {
+        let lib = open_library(&n.root, LibraryOptions::new("0.2.0-test"));
+        let book = book_doc(&lib);
+        let c = book
+            .view()
+            .comment(&CommentId::parse(COMMENT).unwrap())
+            .unwrap();
+        let text = text_at(
+            &prose_doc(&lib, &format!("node:{CHAPTER}")),
+            c.anchor.as_ref().unwrap(),
+        );
+        drop(book);
+        lib.close().unwrap();
+        text
+    };
+    assert_eq!(quote(&a), quote(&b));
+}
+
+/// Paths where two Loro values differ.
+fn diff_values(at: &str, a: &loro::LoroValue, b: &loro::LoroValue, out: &mut Vec<String>) {
+    use loro::LoroValue::Map;
+    match (a, b) {
+        (Map(x), Map(y)) => {
+            let keys: std::collections::BTreeSet<&String> = x.keys().chain(y.keys()).collect();
+            for k in keys {
+                match (x.get(k), y.get(k)) {
+                    (Some(p), Some(q)) => diff_values(&format!("{at}/{k}"), p, q, out),
+                    (p, q) => out.push(format!("{at}/{k}: {p:?} vs {q:?}")),
+                }
+            }
+        }
+        _ if a != b => out.push(format!("{at}: {a:?} vs {b:?}")),
+        _ => {}
+    }
+}
+
+#[test]
+fn imported_points_can_follow_the_usual_retention() {
+    let old = build(true);
+    let new = new_library();
+    let mut o = options(&old, &new, Accept::NOTHING);
+    o.history_retention = LabelRetention::Thinned;
+    let r = imported(run::import(&old.db, &new.root, &o).unwrap().0);
+    assert_eq!(r.history_retention, "thinned");
+    let lib = open_library(&new.root, LibraryOptions::new("0.2.0-test"));
+    let labels = lib.history(&format!("node:{CHAPTER}")).unwrap();
+    // The 0.1 points are older than 30 days: thinned away at once. The
+    // import's own point is new (and dr-store's close label).
+    assert!(
+        labels.iter().all(|l| l.label != "periodic" && !l.keep),
+        "{labels:?}"
+    );
+    assert!(labels.iter().any(|l| l.label == "import"));
+    lib.close().unwrap();
+}
+
+#[test]
+fn an_interrupted_import_carries_on_without_doubling_history() {
+    let old = build(true);
+    let new = new_library();
+    imported(
+        run::import(&old.db, &new.root, &options(&old, &new, Accept::NOTHING))
+            .unwrap()
+            .0,
+    );
+    let book_before = {
+        let lib = open_library(&new.root, LibraryOptions::new("0.2.0-test"));
+        let v = lib
+            .load_copy(&format!("book:{BOOK}"))
+            .unwrap()
+            .get_deep_value();
+        lib.close().unwrap();
+        v
+    };
+    // As if the run had stopped in the middle of the book: its receipt row
+    // still says `importing`.
+    {
+        let conn = rusqlite::Connection::open(dr_store::LibraryPaths::new(&new.root).db).unwrap();
+        conn.execute("UPDATE import_book SET status = 'importing'", [])
+            .unwrap();
+    }
+    let again = imported(
+        run::import(&old.db, &new.root, &options(&old, &new, Accept::NOTHING))
+            .unwrap()
+            .0,
+    );
+    assert_eq!(again.books[0].status, "imported");
+    assert!(
+        again.books[0]
+            .notes
+            .0
+            .contains_key("resumed-after-interruption")
+    );
+    let lib = open_library(&new.root, LibraryOptions::new("0.2.0-test"));
+    let labels = lib.history(&format!("node:{CHAPTER}")).unwrap();
+    let count = |l: &str| labels.iter().filter(|x| x.label == l).count();
+    assert_eq!(
+        (count("periodic"), count("import")),
+        (2, 1),
+        "no point doubled"
+    );
+    assert_eq!(
+        lib.load_copy(&format!("book:{BOOK}"))
+            .unwrap()
+            .get_deep_value(),
+        book_before,
+        "the same book"
+    );
+    lib.close().unwrap();
+}
+
+#[test]
+fn a_book_already_in_the_library_without_a_receipt_is_left_alone() {
+    let old = build(true);
+    let new = new_library();
+    imported(
+        run::import(&old.db, &new.root, &options(&old, &new, Accept::NOTHING))
+            .unwrap()
+            .0,
+    );
+    // As if the book had come from another device (synced): no receipt here.
+    {
+        let conn = rusqlite::Connection::open(dr_store::LibraryPaths::new(&new.root).db).unwrap();
+        conn.execute_batch(
+            "DELETE FROM import_book; DELETE FROM import_doc; DELETE FROM import_anchor; DELETE FROM import_original; DELETE FROM import_run;",
+        )
+        .unwrap();
+    }
+    let again = imported(
+        run::import(&old.db, &new.root, &options(&old, &new, Accept::NOTHING))
+            .unwrap()
+            .0,
+    );
+    assert_eq!(again.books[0].status, "already-in-library");
+    assert!(again.docs.is_empty());
 }

@@ -5,25 +5,32 @@
 //! 2. classify every body's freshness and decide the gate; stop unless it is
 //!    clear or the author accepted;
 //! 3. per book: plan every body, give projected TODOs their ids, write each
-//!    prose document (snapshot history first, then the current body) and
-//!    the book document in memory with dr-doc (deterministic import peers and
-//!    the 0.1 timestamps), store them in dr-store (origin `import`), copy the
-//!    assets;
-//! 4. label the history points, write the receipt and the summary.
+//!    prose document (snapshot history first, then the current body) in
+//!    memory with dr-doc (deterministic import peers and the 0.1
+//!    timestamps) and store it in dr-store (origin `import`); then the book
+//!    document, stored step by step while the snapshot history's metadata is
+//!    replayed, each history point labelled at its version and time; then
+//!    the assets;
+//! 4. write the receipt into the library and the archive beside it;
+//! 5. build search, outlines and word counts (dr-index).
+//!
+//! [`import_with`] reports [`Progress`] all the way.
 
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
 
 use dr_doc::Anchor;
-use dr_doc::book::BookDoc;
+use dr_doc::book::{BookDoc, BookReader};
 use dr_doc::loro_types::{Frontiers, VersionVector};
 use dr_doc::peer::import_peer;
 use dr_doc::prose::ProseDoc;
 use dr_model::id::{BlockId, BookId, CommentId};
 use dr_model::kind::ProjectionKind;
 use dr_model::{DocId, Origin, ProseProfile};
-use dr_store::{Device, Library, LibraryOptions, OpenDoc};
+use dr_store::history::{LabelRetention, NewLabel};
+use dr_store::{Device, DocHandle, Library, LibraryOptions, OpenDoc};
 use serde::Serialize;
 use serde_json::Value;
 
@@ -34,6 +41,8 @@ use crate::gate::{Accept, Gate};
 use crate::handoff::BookSettings;
 use crate::legacy::{HistoryRow, Legacy, ProseKind, ProseOwner};
 use crate::locate;
+use crate::meta::{self, Fields, Meta, Owner};
+use crate::progress::{Callback, Reporter, Step};
 use crate::prose::{self, BlockSpan, Context, DocBlocks, Notes, Para, Plan, pm, read, write};
 use crate::receipt::{self, AnchorRecord, BookRecord, DocRecord, Receipt};
 use crate::staging::{self, Staged};
@@ -53,13 +62,24 @@ pub struct Options {
     /// it no asset bytes are copied.
     pub old_root: Option<PathBuf>,
     /// This device's directory for dr-store's [`Device`]. When it has no
-    /// installation identity yet, the 0.1 one is adopted, so writing days
-    /// continue under the same device key.
+    /// installation identity yet, the 0.1 one is adopted
+    /// ([`Device::adopt`]), so writing days continue under the same device
+    /// key.
     pub device_dir: Option<PathBuf>,
     /// Keep the staging copy after a successful import.
     pub keep_staging: bool,
-    /// Also check every history version by loading it at its frontiers.
+    /// Also check every history version by loading it at its frontiers:
+    /// the body on its prose document, the metadata on the book document.
     pub verify_history: bool,
+    /// Build search, outlines and word counts right after the import
+    /// (dr-index). On by default; without it dr-store builds them the next
+    /// time the library opens with a deriver.
+    pub index: bool,
+    /// Whether the history points brought from 0.1 (and the `import` point)
+    /// are exempt from the 30-day retention. Kept by default: the author
+    /// may import months after the last 0.1 edit, and thinning would drop
+    /// them the moment they arrive.
+    pub history_retention: LabelRetention,
 }
 
 impl Options {
@@ -71,6 +91,8 @@ impl Options {
             device_dir: None,
             keep_staging: false,
             verify_history: false,
+            index: true,
+            history_retention: LabelRetention::Kept,
         }
     }
 }
@@ -92,9 +114,18 @@ pub struct Timing {
     pub prose_ms: f64,
     pub book_ms: f64,
     pub store_ms: f64,
+    /// Writing the history points (dr-store `label_many`).
+    pub labels_ms: f64,
     pub assets_ms: f64,
     pub receipt_ms: f64,
+    /// Building search, outlines and word counts.
+    pub index_ms: f64,
+    pub indexed_docs: usize,
     pub total_ms: f64,
+}
+
+fn ms(since: Instant) -> f64 {
+    since.elapsed().as_secs_f64() * 1e3
 }
 
 /// Stage and analyse a 0.1 library without writing anything new.
@@ -102,7 +133,18 @@ pub fn analyse(
     source: &Path,
     staging_dir: &Path,
 ) -> Result<(Staged, Legacy, Vec<ProseOwner>, Gate)> {
-    let staged = staging::stage(source, staging_dir, "source")?;
+    analyse_reporting(source, staging_dir, &mut Reporter::new(&mut |_| {}))
+}
+
+fn analyse_reporting(
+    source: &Path,
+    staging_dir: &Path,
+    reporter: &mut Reporter<'_>,
+) -> Result<(Staged, Legacy, Vec<ProseOwner>, Gate)> {
+    let staged = staging::stage_with(source, staging_dir, "source", &mut |done, total| {
+        reporter.copying(done, total)
+    })?;
+    reporter.checking();
     let legacy = Legacy::new(staged.open()?)?;
     let (owners, _) = legacy.prose_owners()?;
     let sync = legacy.sync_blockers()?;
@@ -138,27 +180,17 @@ fn secs(ms: i64) -> i64 {
 }
 
 /// Adopt the 0.1 installation identity into `device_dir` when it has none.
-fn adopt_identity(old_root: Option<&Path>, device_dir: &Path) -> Result<bool> {
-    let target = device_dir.join(locate::INSTALLATION_FILE);
-    if target.exists() {
-        return Ok(false);
-    }
+fn adopt_identity(old_root: Option<&Path>, device_dir: &Path) -> bool {
     let Some(id) = old_root.and_then(locate::installation_id) else {
-        return Ok(false);
+        return false;
     };
-    std::fs::create_dir_all(device_dir)?;
-    let tmp = device_dir.join(format!(".{}.import.tmp", locate::INSTALLATION_FILE));
-    std::fs::write(
-        &tmp,
-        serde_json::to_vec(&serde_json::json!({"version": 2, "installation_id": id}))?,
-    )?;
-    std::fs::rename(&tmp, &target)?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o600))?;
+    match Device::adopt(device_dir, &id) {
+        Ok(adopted) => adopted,
+        Err(e) => {
+            log::warn!("not adopting the 0.1 installation identity: {e}");
+            false
+        }
     }
-    Ok(true)
 }
 
 struct Body<'a> {
@@ -170,12 +202,15 @@ struct Body<'a> {
     history: Vec<&'a HistoryRow>,
 }
 
-/// A history label to write once the documents are stored.
-struct Label {
+/// One 0.1 history row, replayed: the prose version it became, and the
+/// metadata to replay into the book document.
+struct Point {
     doc_id: String,
-    frontiers: Frontiers,
+    row_id: String,
     ts_ms: i64,
-    label: &'static str,
+    frontiers: Frontiers,
+    owner: Option<Owner>,
+    meta: Option<Meta>,
 }
 
 fn old_doc_of_target(kind: &str, id: &str) -> Option<String> {
@@ -190,17 +225,10 @@ fn old_doc_of_target(kind: &str, id: &str) -> Option<String> {
     Some(format!("{prefix}:{id}"))
 }
 
-fn store_doc(
-    lib: &Library,
-    doc_id: &DocId,
-    book: &str,
-    genesis: Vec<u8>,
-    bytes: Vec<u8>,
-) -> Result<()> {
-    let id = doc_id.to_string();
+fn open_new(lib: &Library, doc_id: &DocId, book: &str, genesis: Vec<u8>) -> Result<DocHandle> {
     let g = genesis;
-    let h = lib.open_doc(
-        &id,
+    Ok(lib.open_doc(
+        &doc_id.to_string(),
         OpenDoc::CreateIfMissing {
             kind: doc_id.kind().prefix(),
             book_id: Some(book),
@@ -209,25 +237,69 @@ fn store_doc(
                     .expect("dr-doc's genesis imports into an empty document");
             },
         },
-    )?;
+    )?)
+}
+
+fn import_into(h: &DocHandle, id: &str, bytes: Vec<u8>) -> Result<()> {
     let imported = h.import(bytes, dr_store::Origin::Import)?;
     if imported.status.pending.is_some() {
         return Err(ImportError::Invalid(format!(
             "{id}: imported updates wait for missing ones"
         )));
     }
+    Ok(())
+}
+
+fn store_doc(
+    lib: &Library,
+    doc_id: &DocId,
+    book: &str,
+    genesis: Vec<u8>,
+    bytes: Vec<u8>,
+) -> Result<()> {
+    let h = open_new(lib, doc_id, book, genesis)?;
+    import_into(&h, &doc_id.to_string(), bytes)?;
     h.close();
     Ok(())
 }
 
+/// Bodies and assets of each book, for the overall estimate.
+fn book_units(legacy: &Legacy, owners: &[ProseOwner]) -> HashMap<String, u64> {
+    let mut units: HashMap<String, u64> = HashMap::new();
+    for o in owners {
+        *units.entry(o.project_id.clone()).or_default() += 1;
+    }
+    if let Ok(mut stmt) = legacy
+        .conn
+        .prepare("SELECT project_id, count(*) FROM project_asset GROUP BY project_id")
+        && let Ok(rows) = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))
+    {
+        for (p, n) in rows.flatten() {
+            *units.entry(p).or_default() += n.max(0) as u64;
+        }
+    }
+    units
+}
+
 /// Import the 0.1 library at `source` into the 0.2 library at `target`.
 pub fn import(source: &Path, target: &Path, options: &Options) -> Result<(Outcome, Timing)> {
+    import_with(source, target, options, &mut |_| {})
+}
+
+/// [`import`], reporting what it is doing to `progress`.
+pub fn import_with(
+    source: &Path,
+    target: &Path,
+    options: &Options,
+    progress: Callback<'_>,
+) -> Result<(Outcome, Timing)> {
+    let mut reporter = Reporter::new(progress);
     let started = Instant::now();
     let started_ms = dr_store::now_ms();
     let mut timing = Timing::default();
     let staging_dir = receipt::directory(target).join("staging");
-    let (staged, legacy, owners, gate) = analyse(source, &staging_dir)?;
-    timing.stage_ms = started.elapsed().as_secs_f64() * 1e3;
+    let (staged, legacy, owners, gate) = analyse_reporting(source, &staging_dir, &mut reporter)?;
+    timing.stage_ms = ms(started);
     if !gate.allows(options.accept) {
         if !options.keep_staging {
             let _ = std::fs::remove_dir_all(&staging_dir);
@@ -235,30 +307,59 @@ pub fn import(source: &Path, target: &Path, options: &Options) -> Result<(Outcom
             let _ = std::fs::remove_dir(receipt::directory(target));
             let _ = std::fs::remove_dir(target);
         }
+        reporter.done();
         return Ok((Outcome::Blocked(gate), timing));
     }
 
     let adopted = match &options.device_dir {
-        Some(dir) => adopt_identity(options.old_root.as_deref(), dir)?,
+        Some(dir) => adopt_identity(options.old_root.as_deref(), dir),
         None => false,
     };
-    let mut lib_options = LibraryOptions::new(options.app_version.clone());
-    lib_options.configure_doc = Some(std::sync::Arc::new(dr_doc::schema::configure));
-    if let Some(dir) = &options.device_dir {
-        lib_options.device = Some(Device::open(dir)?);
-    }
-    let lib = Library::open(target, lib_options)?;
+    let library_options = || -> Result<LibraryOptions> {
+        let mut o = LibraryOptions::new(options.app_version.clone());
+        o.configure_doc = Some(std::sync::Arc::new(dr_doc::schema::configure));
+        if let Some(dir) = &options.device_dir {
+            o.device = Some(Device::open(dir)?);
+        }
+        Ok(o)
+    };
+    let lib = Library::open(target, library_options()?)?;
+    let run_id = lib.local_transaction(|tx| {
+        Ok(receipt::begin_run(
+            tx,
+            &receipt::RunStart {
+                started_ms,
+                source_sha256: &staged.source.sha256,
+                source_bytes: staged.source.database_bytes + staged.source.wal_bytes,
+                schema_level_before: staged.level_before.applied,
+                gate: &gate,
+                accepted: options.accept,
+            },
+        )?)
+    })?;
 
     let (_, orphans) = legacy.prose_owners()?;
     let history = legacy.history()?;
     let stamp = legacy.stamp.clone();
+    let projects = legacy.projects()?;
+    let units = book_units(&legacy, &owners);
+    reporter.plan_books(
+        projects.len(),
+        projects
+            .iter()
+            .map(|p| units.get(&p.id).copied().unwrap_or(0) + 1)
+            .sum(),
+    );
+    let retention = options.history_retention;
     let mut books = Vec::new();
     let mut docs = Vec::new();
     let mut anchors_out = Vec::new();
     let mut originals = Vec::new();
-    let mut labels: Vec<Label> = Vec::new();
 
-    for project in legacy.projects()? {
+    for (book_no, project) in projects.iter().enumerate() {
+        let book_no = book_no + 1;
+        let here = (book_no, project.name.as_str());
+        let book_units = units.get(&project.id).copied().unwrap_or(0) + 1;
         let mut rec = BookRecord {
             book_id: project.id.clone(),
             name: project.name.clone(),
@@ -268,16 +369,51 @@ pub fn import(source: &Path, target: &Path, options: &Options) -> Result<(Outcom
         let Ok(book_id) = BookId::parse(&project.id) else {
             rec.status = "invalid-book-id".into();
             books.push(rec);
+            reporter.book_done(book_units);
             continue;
         };
         let book_doc_id = DocId::Book(book_id.clone());
-        if lib.doc_info(&book_doc_id.to_string())?.is_some() {
-            rec.status = "already-imported".into();
+        let book_doc_s = book_doc_id.to_string();
+        // Imported once on this device: never again (the import peers are
+        // deterministic, see m10-import.md 待协调 8). Interrupted on this
+        // device: carry on; the documents stored so far take the same
+        // updates again without change, and history points are not doubled.
+        // In the library without a receipt (synced from another device, or
+        // made here): leave it alone.
+        let (finished, interrupted) =
+            lib.local_read(|c| Ok(receipt::book_state(c, &project.id)?))?;
+        let exists = lib.doc_info(&book_doc_s)?.is_some();
+        let status = if finished {
+            Some("already-imported")
+        } else if exists && !interrupted {
+            Some("already-in-library")
+        } else {
+            None
+        };
+        if let Some(status) = status {
+            rec.status = status.into();
             books.push(rec);
+            reporter.book_done(book_units);
             continue;
         }
+        let resuming = exists || interrupted;
+        lib.local_transaction(|tx| {
+            Ok(receipt::begin_book(tx, run_id, &project.id, &project.name)?)
+        })?;
         let rows = legacy.book(&project.id)?;
         let mut notes = Notes::default();
+        if resuming {
+            notes.add("resumed-after-interruption");
+        }
+        // Whether a history point is already there (an interrupted import
+        // wrote it): the same label on the same version (and, for the 0.1
+        // points, at the same time).
+        let has_label = |doc: &str, label: &str, at: &Frontiers, ts: Option<i64>| -> Result<bool> {
+            Ok(resuming
+                && lib.history(doc)?.iter().any(|l| {
+                    l.label == label && l.frontiers == *at && ts.is_none_or(|t| l.ts == t)
+                }))
+        };
         let empty = BookSettings::default();
         let settings = stamp
             .as_ref()
@@ -370,9 +506,12 @@ pub fn import(source: &Path, target: &Path, options: &Options) -> Result<(Outcom
         rec.projected_todos = projected.len();
         let todo = |old: &str| projected.get(old).map(|p| p.0.clone());
 
-        // Pass 2: plan, write and check every body, history first.
+        // Pass 2: plan, write, check and store every body, history first.
         let mut anchors_made: HashMap<String, Anchor> = HashMap::new();
-        for b in &bodies {
+        let mut points: Vec<Point> = Vec::new();
+        let mut import_points: Vec<(String, Frontiers)> = Vec::new();
+        let n_bodies = bodies.len() as u64;
+        for (body_no, b) in bodies.iter().enumerate() {
             let t0 = Instant::now();
             let ctx = Context {
                 profile: b.profile,
@@ -380,7 +519,7 @@ pub fn import(source: &Path, target: &Path, options: &Options) -> Result<(Outcom
                 todo: &todo,
             };
             let current = prose::plan(&b.lines, &b.blocks, &ctx);
-            let mut versions: Vec<(Plan, i64)> = Vec::new();
+            let mut versions: Vec<(Plan, &HistoryRow, i64)> = Vec::new();
             for h in &b.history {
                 let Some(preview) = h.preview.as_deref() else {
                     notes.add("history-row-without-preview");
@@ -392,23 +531,31 @@ pub fn import(source: &Path, target: &Path, options: &Options) -> Result<(Outcom
                 };
                 let blocks = prose::doc_blocks(&lines);
                 let ts = parse_iso_ms(&h.created_at).unwrap_or(0);
-                versions.push((prose::plan(&lines, &blocks, &ctx), ts));
+                versions.push((prose::plan(&lines, &blocks, &ctx), h, ts));
             }
             let final_ms = parse_iso_ms(&b.owner.updated_at)
                 .unwrap_or(0)
-                .max(versions.last().map_or(0, |v| v.1));
+                .max(versions.last().map_or(0, |v| v.2));
             let id_s = b.doc_id.to_string();
+            let owner = Owner::of(b.owner.kind, &b.owner.id);
             let mut doc = ProseDoc::create(b.doc_id.clone(), import_peer(&id_s))?;
-            for (p, ts) in &versions {
+            let first_point = points.len();
+            for (p, h, ts) in &versions {
                 let (r, _) = doc.edit_at(Origin::Import, Some(secs(*ts)), |t| {
                     write::sync(t, &p.paras)
                 });
                 r?;
-                labels.push(Label {
+                let parsed = h.meta.as_deref().and_then(meta::parse);
+                if h.meta.is_some() && parsed.is_none() {
+                    notes.add("history-meta-unreadable");
+                }
+                points.push(Point {
                     doc_id: id_s.clone(),
-                    frontiers: doc.frontiers(),
+                    row_id: h.id.clone(),
                     ts_ms: *ts,
-                    label: dr_store::history::labels::PERIODIC,
+                    frontiers: doc.frontiers(),
+                    owner: owner.clone(),
+                    meta: parsed,
                 });
             }
             let (r, _) = doc.edit_at(Origin::Import, Some(secs(final_ms)), |t| {
@@ -421,9 +568,9 @@ pub fn import(source: &Path, target: &Path, options: &Options) -> Result<(Outcom
             if options.verify_history && !versions.is_empty() {
                 // Every version checks out on a detached copy.
                 let bytes = vec![doc.export_snapshot()?];
-                for (n, (p, _)) in versions.iter().enumerate() {
-                    let at = labels[labels.len() - versions.len() + n].frontiers.clone();
-                    let copy = dr_doc::prose::ProseReader::load_at(b.doc_id.clone(), &bytes, &at)?;
+                for (n, (p, _, _)) in versions.iter().enumerate() {
+                    let at = &points[first_point + n].frontiers;
+                    let copy = dr_doc::prose::ProseReader::load_at(b.doc_id.clone(), &bytes, at)?;
                     if read::read_paras(&copy.view()) != p.paras {
                         notes.add("history-version-differs");
                     }
@@ -533,14 +680,9 @@ pub fn import(source: &Path, target: &Path, options: &Options) -> Result<(Outcom
                 t.repair_block_ids()
             });
             let repaired = repaired?;
-            labels.push(Label {
-                doc_id: id_s.clone(),
-                frontiers: doc.frontiers(),
-                ts_ms: started_ms,
-                label: IMPORT_LABEL,
-            });
+            import_points.push((id_s.clone(), doc.frontiers()));
             let bytes = doc.export_updates_since(&VersionVector::default())?;
-            timing.prose_ms += t0.elapsed().as_secs_f64() * 1e3;
+            timing.prose_ms += ms(t0);
             let t1 = Instant::now();
             store_doc(
                 &lib,
@@ -549,7 +691,7 @@ pub fn import(source: &Path, target: &Path, options: &Options) -> Result<(Outcom
                 dr_doc::prose::genesis(&b.doc_id),
                 bytes,
             )?;
-            timing.store_ms += t1.elapsed().as_secs_f64() * 1e3;
+            timing.store_ms += ms(t1);
             let mut doc_notes = current.notes.clone();
             notes.merge(&doc_notes);
             if repaired > 0 {
@@ -573,47 +715,172 @@ pub fn import(source: &Path, target: &Path, options: &Options) -> Result<(Outcom
                 notes: doc_notes,
                 dropped_inline: current.dropped_inline.clone(),
             });
+            let done = body_no as u64 + 1;
+            reporter.book_step(Step::Bodies, here, done, n_bodies, done);
         }
         rec.bodies = bodies.len();
 
-        // The book document.
-        let t2 = Instant::now();
+        // The book document, with the snapshot history's metadata replayed:
+        // stored after each history row, so every point is labelled while
+        // its version is the stored head (`meta.rs`).
+        points.sort_by(|a, b| (a.ts_ms, &a.row_id).cmp(&(b.ts_ms, &b.row_id)));
+        let mut currents: BTreeMap<Owner, Fields> = BTreeMap::new();
+        let mut steps: Vec<Option<(Owner, Fields)>> = Vec::with_capacity(points.len());
+        for p in &points {
+            let (Some(o), Some(m)) = (&p.owner, &p.meta) else {
+                steps.push(None);
+                continue;
+            };
+            if !currents.contains_key(o) {
+                match meta::current(o, &rows) {
+                    Some(f) => {
+                        currents.insert(o.clone(), f);
+                    }
+                    None => {
+                        notes.add("history-meta-entity-missing");
+                        steps.push(None);
+                        continue;
+                    }
+                }
+            }
+            steps.push(Some((o.clone(), meta::historical(o, m, &currents[o]))));
+        }
         let book_ts = secs(parse_iso_ms(&project.updated_at).unwrap_or(0));
-        let mut bdoc = BookDoc::create(book_id.clone(), import_peer(&book_doc_id.to_string()))?;
+        let first_ts = points
+            .iter()
+            .zip(&steps)
+            .find(|(_, s)| s.is_some())
+            .map(|(p, _)| secs(p.ts_ms));
+        let base_ts = first_ts.map_or(book_ts, |t| t.min(book_ts));
+        let final_ts = points
+            .last()
+            .map_or(book_ts, |p| secs(p.ts_ms).max(book_ts));
+
+        let t2 = Instant::now();
+        let mut bdoc = BookDoc::create(book_id.clone(), import_peer(&book_doc_s))?;
         let inputs = book::Inputs {
             book: &book_id,
-            project: &project,
+            project,
             rows: &rows,
             settings: Some(settings),
             projected: &projected,
             anchors: &anchors_made,
             span: &span,
         };
-        let (r, _) = bdoc.edit_at(Origin::Import, Some(book_ts), |t| {
-            book::write(t, &inputs, &mut notes)
+        // Each entity with history starts as its earliest row has it.
+        let mut state: BTreeMap<Owner, Fields> = BTreeMap::new();
+        for (o, step) in steps.iter().flatten() {
+            if !state.contains_key(o) {
+                state.insert(o.clone(), currents[o].then(step));
+            }
+        }
+        let (r, _) = bdoc.edit_at(Origin::Import, Some(base_ts), |t| {
+            let originals = book::write(t, &inputs, &mut notes)?;
+            for (o, earliest) in &state {
+                meta::apply(t, o, earliest, &currents[o])?;
+            }
+            Ok(originals)
         });
         for (c, id, f, json) in r? {
             originals.push((c.to_string(), id, f.to_string(), json));
         }
-        let (r, _) = bdoc.edit_at(Origin::Repair, Some(book_ts), |t| {
-            let plan = t.view().repair_plan();
-            t.apply_repair(&plan)
-        });
-        r?;
-        let bytes = bdoc.export_updates_since(&VersionVector::default())?;
-        timing.book_ms += t2.elapsed().as_secs_f64() * 1e3;
+        timing.book_ms += ms(t2);
+
         let t3 = Instant::now();
-        store_doc(
+        let bh = open_new(
             &lib,
             &book_doc_id,
             &project.id,
             dr_doc::book::genesis(&book_id),
-            bytes,
         )?;
-        timing.store_ms += t3.elapsed().as_secs_f64() * 1e3;
+        let mut stored = VersionVector::default();
+        let push = |bdoc: &BookDoc, stored: &mut VersionVector| -> Result<()> {
+            let now = bdoc.version();
+            if now != *stored {
+                import_into(&bh, &book_doc_s, bdoc.export_updates_since(stored)?)?;
+                *stored = now;
+            }
+            Ok(())
+        };
+        push(&bdoc, &mut stored)?;
+        timing.store_ms += ms(t3);
+        let mut expected: Vec<(Frontiers, Owner, Fields)> = Vec::new();
+        let n_points = points.len() as u64;
+        reporter.book_step(Step::Book, here, 0, n_points, n_bodies);
+        for (i, (p, step)) in points.iter().zip(&steps).enumerate() {
+            if let Some((o, f)) = step {
+                let t = Instant::now();
+                let before = state[o].clone();
+                let (r, _) = bdoc.edit_at(Origin::Import, Some(secs(p.ts_ms)), |t| {
+                    meta::apply(t, o, f, &before)
+                });
+                r?;
+                let after = before.then(f);
+                state.insert(o.clone(), after.clone());
+                timing.book_ms += ms(t);
+                let t = Instant::now();
+                push(&bdoc, &mut stored)?;
+                timing.store_ms += ms(t);
+                rec.history_meta_replayed += 1;
+                expected.push((bdoc.frontiers(), o.clone(), after));
+            }
+            let t = Instant::now();
+            let periodic = dr_store::history::labels::PERIODIC;
+            if !has_label(&p.doc_id, periodic, &p.frontiers, Some(p.ts_ms))? {
+                lib.label_at(&p.doc_id, &p.frontiers, periodic, p.ts_ms, retention)?;
+            }
+            timing.labels_ms += ms(t);
+            reporter.book_step(Step::Book, here, i as u64 + 1, n_points, n_bodies);
+        }
+        // The current fields back, then the book's own repairs.
+        let t4 = Instant::now();
+        let (r, _) = bdoc.edit_at(Origin::Import, Some(final_ts), |t| {
+            for (o, was) in &state {
+                meta::apply(t, o, &currents[o], was)?;
+            }
+            Ok(())
+        });
+        r?;
+        let (r, _) = bdoc.edit_at(Origin::Repair, Some(final_ts), |t| {
+            let plan = t.view().repair_plan();
+            t.apply_repair(&plan)
+        });
+        r?;
+        timing.book_ms += ms(t4);
+        let t5 = Instant::now();
+        push(&bdoc, &mut stored)?;
+        bh.close();
+        timing.store_ms += ms(t5);
+        if options.verify_history && !expected.is_empty() {
+            let snapshot = vec![bdoc.export_snapshot()?];
+            for (at, o, want) in &expected {
+                let reader = BookReader::load_at(book_id.clone(), &snapshot, at)?;
+                if meta::holds(&reader.view(), o, want) {
+                    rec.history_meta_checked += 1;
+                } else {
+                    notes.add("history-meta-differs");
+                }
+            }
+        }
+        // The version as imported, on every body.
+        let t6 = Instant::now();
+        let mut labels: Vec<NewLabel<'_>> = Vec::with_capacity(import_points.len());
+        for (doc_id, frontiers) in &import_points {
+            if !has_label(doc_id, IMPORT_LABEL, frontiers, None)? {
+                labels.push(NewLabel {
+                    doc_id,
+                    frontiers,
+                    label: IMPORT_LABEL,
+                    ts_ms: started_ms,
+                    retention,
+                });
+            }
+        }
+        lib.label_many(&labels)?;
+        timing.labels_ms += ms(t6);
 
         // Asset bytes.
-        let t4 = Instant::now();
+        let t7 = Instant::now();
         copy_assets(
             &lib,
             options.old_root.as_deref(),
@@ -621,8 +888,9 @@ pub fn import(source: &Path, target: &Path, options: &Options) -> Result<(Outcom
             &rows.assets,
             &mut rec,
             &mut notes,
+            &mut |done, total| reporter.book_step(Step::Assets, here, done, total, n_bodies + done),
         )?;
-        timing.assets_ms += t4.elapsed().as_secs_f64() * 1e3;
+        timing.assets_ms += ms(t7);
 
         rec.rows = [
             ("book_node", rows.nodes.len()),
@@ -651,11 +919,11 @@ pub fn import(source: &Path, target: &Path, options: &Options) -> Result<(Outcom
         rec.notes = notes;
         rec.status = "imported".into();
         books.push(rec);
+        reporter.book_done(book_units);
     }
-    lib.close()?;
 
-    let t5 = Instant::now();
-    write_labels(target, &labels)?;
+    reporter.finishing();
+    let t8 = Instant::now();
     let counts = legacy.table_counts()?;
     let pick = |tables: &[&str]| -> BTreeMap<String, i64> {
         tables
@@ -680,16 +948,106 @@ pub fn import(source: &Path, target: &Path, options: &Options) -> Result<(Outcom
         archived_rows: pick(receipt::AGENT_ARCHIVE),
         local_rows: pick(receipt::LOCAL),
         installation_id_adopted: adopted,
+        history_retention: match retention {
+            LabelRetention::Kept => "kept",
+            LabelRetention::Thinned => "thinned",
+        },
     };
+    lib.local_transaction(|tx| Ok(receipt::write_records(tx, run_id, &receipt)?))?;
+    lib.close()?;
     let settings = stamp.map(|s| s.settings).unwrap_or_default();
     drop(legacy);
-    receipt::write(target, &staged.path, &receipt, &settings)?;
-    timing.receipt_ms = t5.elapsed().as_secs_f64() * 1e3;
+    receipt::write_archive(target, &staged.path, &receipt, &settings)?;
+    timing.receipt_ms = ms(t8);
     if !options.keep_staging {
         let _ = std::fs::remove_dir_all(&staging_dir);
     }
-    timing.total_ms = started.elapsed().as_secs_f64() * 1e3;
+
+    if options.index {
+        let t9 = Instant::now();
+        let mut o = library_options()?;
+        dr_index::attach(&mut o);
+        o.rebuild_indexes_on_open = false;
+        let lib = reopen(target, o)?;
+        timing.indexed_docs = build_indexes(&lib, &mut reporter)?;
+        lib.close()?;
+        timing.index_ms = ms(t9);
+    }
+    reporter.done();
+    timing.total_ms = ms(started);
     Ok((Outcome::Imported(Box::new(receipt)), timing))
+}
+
+/// Open the library this import has just closed. dr-store sometimes still
+/// holds its lock for a moment after `Library::close` returns when other
+/// threads are busy (`m10-import.md` 待协调 12), so an "already open" is
+/// retried for up to two seconds.
+fn reopen(target: &Path, options: LibraryOptions) -> Result<Library> {
+    let started = Instant::now();
+    loop {
+        match Library::open(target, options.clone()) {
+            Err(e)
+                if e.to_string().contains("already open")
+                    && started.elapsed() < std::time::Duration::from_secs(2) =>
+            {
+                std::thread::sleep(std::time::Duration::from_millis(20));
+            }
+            r => return Ok(r?),
+        }
+    }
+}
+
+/// Derive every document's index that is missing or behind, on a few
+/// threads (deriving is independent per document; dr-store serialises the
+/// reads and writes). Returns how many were written.
+fn build_indexes(lib: &Library, reporter: &mut Reporter<'_>) -> Result<usize> {
+    let stale = lib.stale_index_docs()?;
+    let total = stale.len() as u64;
+    reporter.indexing(0, total);
+    if stale.is_empty() {
+        return Ok(0);
+    }
+    let threads = std::thread::available_parallelism()
+        .map_or(1, |n| n.get())
+        .clamp(1, 8)
+        .min(stale.len());
+    let next = AtomicUsize::new(0);
+    let (tx, rx) = std::sync::mpsc::channel::<dr_store::Result<bool>>();
+    let mut written = 0;
+    let mut failed: Option<dr_store::StoreError> = None;
+    std::thread::scope(|s| {
+        for _ in 0..threads {
+            let tx = tx.clone();
+            let lib = lib.clone();
+            let (next, stale) = (&next, &stale);
+            s.spawn(move || {
+                loop {
+                    let i = next.fetch_add(1, Ordering::Relaxed);
+                    let Some(doc) = stale.get(i) else {
+                        break;
+                    };
+                    if tx.send(lib.reindex_doc(doc)).is_err() {
+                        break;
+                    }
+                }
+            });
+        }
+        drop(tx);
+        for (n, r) in rx.iter().enumerate() {
+            match r {
+                Ok(true) => written += 1,
+                Ok(false) => {}
+                Err(e) => {
+                    failed.get_or_insert(e);
+                }
+            }
+            reporter.indexing(n as u64 + 1, total);
+        }
+    });
+    match failed {
+        Some(e) => Err(e.into()),
+        None => Ok(written),
+    }
 }
 
 /// The history label on the version as imported.
@@ -713,6 +1071,7 @@ fn copy_assets(
     assets: &[crate::legacy::AssetRow],
     rec: &mut BookRecord,
     notes: &mut Notes,
+    progress: &mut dyn FnMut(u64, u64),
 ) -> Result<()> {
     use sha2::{Digest, Sha256};
     let Some(root) = old_root else {
@@ -721,7 +1080,9 @@ fn copy_assets(
         }
         return Ok(());
     };
-    for a in assets {
+    let total = assets.len() as u64;
+    for (n, a) in assets.iter().enumerate() {
+        progress(n as u64, total);
         let dir = root
             .join("assets")
             .join(dr_store::asset::sanitized_segment(book)?)
@@ -736,6 +1097,14 @@ fn copy_assets(
             rec.assets_missing += 1;
             continue;
         };
+        if lib
+            .asset(&a.id, dr_store::asset::Variant::Source)?
+            .is_some_and(|r| r.sha256 == a.sha256)
+        {
+            // Already copied (an interrupted import carrying on).
+            rec.assets_copied += 1;
+            continue;
+        }
         let bytes = std::fs::read(&source)?;
         let sha: String = Sha256::digest(&bytes)
             .iter()
@@ -765,33 +1134,8 @@ fn copy_assets(
         })?;
         rec.assets_copied += 1;
     }
-    Ok(())
-}
-
-/// History labels at the replayed versions, with their 0.1 times. dr-store
-/// has no call for "a label at these frontiers at that time" (only "label
-/// the current version now"), so the rows are written here, in exactly the
-/// shape dr-store writes them (`history.rs` `insert`), after the library is
-/// closed (`m10-import.md` 待协调 2).
-fn write_labels(root: &Path, labels: &[Label]) -> Result<()> {
-    let db = dr_store::LibraryPaths::new(root).db;
-    let conn = rusqlite::Connection::open(db)?;
-    conn.busy_timeout(std::time::Duration::from_secs(5))?;
-    let tx = conn.unchecked_transaction()?;
-    {
-        let mut stmt = tx.prepare(
-            "INSERT INTO history_label (doc_id, frontiers, book_frontiers, label, ts)
-             VALUES (?1, ?2, (SELECT h.frontiers FROM loro_doc d JOIN loro_head h ON h.doc_id = 'book:' || d.book_id WHERE d.doc_id = ?1), ?3, ?4)",
-        )?;
-        for l in labels {
-            stmt.execute(rusqlite::params![
-                l.doc_id,
-                l.frontiers.encode(),
-                l.label,
-                l.ts_ms
-            ])?;
-        }
+    if total > 0 {
+        progress(total, total);
     }
-    tx.commit()?;
     Ok(())
 }

@@ -12,7 +12,7 @@ use dr_model::kind::*;
 use dr_model::order::{CHAPTER_ORDER_STRIDE, cmp_order, sort_acts};
 use dr_model::pos::cmp_pos;
 use dr_model::{DocId, Timestamp};
-use loro::{LoroDoc, LoroTree, LoroValue, TreeID, TreeParentId};
+use loro::{LoroDoc, LoroMap, LoroTree, LoroValue, TreeID, TreeParentId};
 
 use super::fields::{F, kv_entries};
 use crate::schema::book;
@@ -26,8 +26,14 @@ pub struct EntitySnapshot {
 }
 
 impl EntitySnapshot {
-    pub(crate) fn value(&self, key: &str) -> Option<&LoroValue> {
+    /// The stored value of one field (a set or a key/value list reads as a
+    /// map, a rich text as its plain text). `None` when the field is absent.
+    pub fn field(&self, key: &str) -> Option<&LoroValue> {
         F(&self.value).get(key)
+    }
+
+    pub(crate) fn value(&self, key: &str) -> Option<&LoroValue> {
+        self.field(key)
     }
 
     pub(crate) fn is_text(&self, key: &str) -> bool {
@@ -44,6 +50,25 @@ impl EntitySnapshot {
             }
             _ => Vec::new(),
         }
+    }
+
+    /// The fields that differ between `self` (before) and `after`, by key:
+    /// `(key, before, after)`, `None` for an absent field. For comparing an
+    /// entity before an Agent write, after it, and now.
+    pub fn diff(
+        &self,
+        after: &EntitySnapshot,
+    ) -> Vec<(String, Option<LoroValue>, Option<LoroValue>)> {
+        let mut keys: Vec<String> = self.keys();
+        keys.extend(after.keys());
+        keys.sort();
+        keys.dedup();
+        keys.into_iter()
+            .filter_map(|k| {
+                let (a, b) = (self.field(&k), after.field(&k));
+                (a != b).then(|| (k, a.cloned(), b.cloned()))
+            })
+            .collect()
     }
 }
 
@@ -315,14 +340,6 @@ impl<'a> BookView<'a> {
             .collect();
         v.sort_by(|a, b| cmp_order((a.narrative_order, &a.id), (b.narrative_order, &b.id)));
         v
-    }
-
-    fn live_node_ids(&self) -> HashSet<String> {
-        entities(self.doc, book::NODES)
-            .into_iter()
-            .filter(|(_, v)| F(v).ts("deleted_at").is_none())
-            .map(|(id, _)| id)
-            .collect()
     }
 
     fn drift_ids(&self) -> HashSet<String> {
@@ -633,65 +650,71 @@ impl<'a> BookView<'a> {
             .collect()
     }
 
-    /// Which entities exist and are not in the trash, by kind.
-    fn live_entities(&self) -> HashMap<EntityKind, HashSet<String>> {
-        let mut m = HashMap::new();
-        m.insert(EntityKind::Node, self.live_node_ids());
-        m.insert(EntityKind::Element, self.live_ids(book::ELEMENTS));
-        m.insert(EntityKind::Category, self.live_ids(book::CATEGORIES));
-        m.insert(EntityKind::Storyline, self.live_ids(book::STORYLINES));
-        m.insert(
-            EntityKind::Patch,
-            self.patches()
-                .into_iter()
-                .map(|p| p.id.to_string())
-                .collect(),
-        );
-        m.insert(
-            EntityKind::Comment,
-            entities(self.doc, book::COMMENTS)
-                .into_iter()
-                .map(|(id, _)| id)
-                .collect(),
-        );
-        m.insert(
-            EntityKind::Material,
-            entities(self.doc, book::MATERIALS)
-                .into_iter()
-                .map(|(id, _)| id)
-                .collect(),
-        );
-        m
+    /// The entity map `root[id]`, if it exists.
+    fn entity_map(&self, root: &str, id: &str) -> Option<LoroMap> {
+        match self.doc.get_map(root).get(id)? {
+            loro::ValueOrContainer::Container(loro::Container::Map(m)) => Some(m),
+            _ => None,
+        }
     }
 
-    /// Whether `r` names a live entity of a known kind.
+    fn map_is_trashed(m: &LoroMap) -> bool {
+        matches!(m.get("deleted_at"), Some(loro::ValueOrContainer::Value(v)) if !v.is_null())
+    }
+
+    /// Whether `r` names an entity that exists and is not in the trash: a
+    /// key lookup, not a read of the collection. A patch counts while its
+    /// element exists; comments and materials have no trash.
     pub fn entity_exists(&self, r: &EntityRef) -> bool {
-        self.live_entities()
-            .get(&r.kind)
-            .is_some_and(|s| s.contains(&r.id))
+        let live = |root: &str| {
+            self.entity_map(root, &r.id)
+                .is_some_and(|m| !Self::map_is_trashed(&m))
+        };
+        match r.kind {
+            EntityKind::Node => live(book::NODES),
+            EntityKind::Element => live(book::ELEMENTS),
+            EntityKind::Category => live(book::CATEGORIES),
+            EntityKind::Storyline => live(book::STORYLINES),
+            EntityKind::Patch => self.entity_map(book::PATCHES, &r.id).is_some_and(|m| {
+                matches!(m.get("element"), Some(loro::ValueOrContainer::Value(LoroValue::String(e)))
+                    if self.doc.get_map(book::ELEMENTS).get(e.as_str()).is_some())
+            }),
+            EntityKind::Comment => self.entity_map(book::COMMENTS, &r.id).is_some(),
+            EntityKind::Material => self.entity_map(book::MATERIALS, &r.id).is_some(),
+            EntityKind::Other(_) => false,
+        }
     }
 
     /// Relations to show: both ends live, type present and allowing the end
     /// kinds, no self-edge, and one per semantic edge (same ends and type,
     /// either order for a symmetric type; the smallest id wins).
     pub fn relations(&self) -> Vec<Relation> {
-        let live = self.live_entities();
+        self.visible_relations(|_| true)
+    }
+
+    /// The relations [`Self::relations`] shows that touch `end` (either side).
+    /// Reads the relation map but checks liveness only for these.
+    pub fn relations_of(&self, end: &EntityRef) -> Vec<Relation> {
+        self.visible_relations(|r| &r.from == end || &r.to == end)
+    }
+
+    fn visible_relations(&self, keep: impl Fn(&Relation) -> bool) -> Vec<Relation> {
         let types: HashMap<RelationTypeId, RelationType> = self
             .relation_types()
             .into_iter()
             .map(|t| (t.id.clone(), t))
             .collect();
         let mut seen: HashSet<(EntityRef, EntityRef, RelationTypeId)> = HashSet::new();
+        let mut alive_cache: HashMap<EntityRef, bool> = HashMap::new();
         let mut out = Vec::new();
         for r in self.relations_raw() {
+            if !keep(&r) {
+                continue;
+            }
             let Some(t) = types.get(&r.relation_type) else {
                 continue;
             };
-            let alive = |e: &EntityRef| live.get(&e.kind).is_some_and(|s| s.contains(&e.id));
-            if !alive(&r.from) || !alive(&r.to) || r.from == r.to {
-                continue;
-            }
-            if !r.from.kind.may_start_relation() || !r.to.kind.is_structural() {
+            if r.from == r.to || !r.from.kind.may_start_relation() || !r.to.kind.is_structural() {
                 continue;
             }
             let allowed =
@@ -705,19 +728,30 @@ impl<'a> BookView<'a> {
             if !fits {
                 continue;
             }
-            let key = if symmetric {
-                let (a, b) = canonical_symmetric(r.from.clone(), r.to.clone());
-                (a, b, r.relation_type.clone())
-            } else {
-                (r.from.clone(), r.to.clone(), r.relation_type.clone())
+            let mut alive = |e: &EntityRef| {
+                *alive_cache
+                    .entry(e.clone())
+                    .or_insert_with(|| self.entity_exists(e))
             };
+            if !alive(&r.from) || !alive(&r.to) {
+                continue;
+            }
             // relations_raw is sorted by id, so the first one kept is the
             // smallest.
-            if seen.insert(key) {
+            if seen.insert(Self::semantic_key(&r, symmetric)) {
                 out.push(r);
             }
         }
         out
+    }
+
+    fn semantic_key(r: &Relation, symmetric: bool) -> (EntityRef, EntityRef, RelationTypeId) {
+        if symmetric {
+            let (a, b) = canonical_symmetric(r.from.clone(), r.to.clone());
+            (a, b, r.relation_type.clone())
+        } else {
+            (r.from.clone(), r.to.clone(), r.relation_type.clone())
+        }
     }
 
     // ---- plot grids ----------------------------------------------------
@@ -782,17 +816,10 @@ impl<'a> BookView<'a> {
 
     // ---- comments ----------------------------------------------------
 
-    fn read_comment(
-        &self,
-        id: &str,
-        v: &LoroValue,
-        live: &HashMap<EntityKind, HashSet<String>>,
-    ) -> Option<Comment> {
+    fn read_comment(&self, id: &str, v: &LoroValue) -> Option<Comment> {
         let f = F(v);
         let target = f.entity_ref("target_kind", "target");
-        let target_missing = target
-            .as_ref()
-            .is_some_and(|t| !live.get(&t.kind).is_some_and(|s| s.contains(&t.id)));
+        let target_missing = target.as_ref().is_some_and(|t| !self.entity_exists(t));
         Some(Comment {
             id: CommentId::parse(id).ok()?,
             kind: f.kind("kind").unwrap_or(CommentKind::Note),
@@ -827,16 +854,15 @@ impl<'a> BookView<'a> {
 
     pub fn comment(&self, id: &CommentId) -> Option<Comment> {
         let v = entity(self.doc, book::COMMENTS, id.as_str())?;
-        self.read_comment(id.as_str(), &v, &self.live_entities())
+        self.read_comment(id.as_str(), &v)
     }
 
     /// Comments and TODOs, by id. A target that is gone or in the trash is
     /// kept and flagged `target_missing` (shown as unlocated).
     pub fn comments(&self) -> Vec<Comment> {
-        let live = self.live_entities();
         entities(self.doc, book::COMMENTS)
             .iter()
-            .filter_map(|(id, v)| self.read_comment(id, v, &live))
+            .filter_map(|(id, v)| self.read_comment(id, v))
             .collect()
     }
 
@@ -1023,30 +1049,49 @@ impl<'a> BookView<'a> {
         }
     }
 
+    /// Whether [`Self::repair_plan`] would be non-empty, stopping at the first
+    /// thing to fix (cheap when nothing is wrong, the usual case).
+    pub fn needs_repair(&self) -> bool {
+        // Bulk values (one deep read per collection) are cheaper than field
+        // by field reads; stop at the first finding.
+        for (_, v) in entities(self.doc, book::NODES) {
+            let f = F(&v);
+            match f.str("kind") {
+                Some("chapter") if f.f64("book_order").is_none() || f.get("group").is_some() => {
+                    return true;
+                }
+                Some("drift") if f.get("book_order").is_some() => return true,
+                _ => {}
+            }
+        }
+        let symmetric: HashSet<RelationTypeId> = self
+            .relation_types()
+            .into_iter()
+            .filter(|t| t.orientation == RelationOrientation::Symmetric)
+            .map(|t| t.id)
+            .collect();
+        let mut seen = HashSet::new();
+        self.relations_raw()
+            .iter()
+            .any(|r| !seen.insert(Self::semantic_key(r, symmetric.contains(&r.relation_type))))
+    }
+
     /// What the deterministic background repair would write.
     pub fn repair_plan(&self) -> RepairPlan {
         let mut plan = RepairPlan::default();
-        // Relations: semantic duplicates of a visible relation.
-        let visible: HashSet<RelationId> = self.relations().into_iter().map(|r| r.id).collect();
-        let types: HashMap<RelationTypeId, RelationType> = self
+        // Relations: semantic duplicates beyond the smallest id. Duplicates
+        // share ends and type, so they are shown or hidden together: the raw
+        // relations are enough, no liveness needed.
+        let symmetric: HashSet<RelationTypeId> = self
             .relation_types()
             .into_iter()
-            .map(|t| (t.id.clone(), t))
+            .filter(|t| t.orientation == RelationOrientation::Symmetric)
+            .map(|t| t.id)
             .collect();
         let mut kept: HashSet<(EntityRef, EntityRef, RelationTypeId)> = HashSet::new();
         for r in self.relations_raw() {
-            let symmetric = types
-                .get(&r.relation_type)
-                .is_some_and(|t| t.orientation == RelationOrientation::Symmetric);
-            let key = if symmetric {
-                let (a, b) = canonical_symmetric(r.from.clone(), r.to.clone());
-                (a, b, r.relation_type.clone())
-            } else {
-                (r.from.clone(), r.to.clone(), r.relation_type.clone())
-            };
-            if visible.contains(&r.id) {
-                kept.insert(key);
-            } else if kept.contains(&key) {
+            let key = Self::semantic_key(&r, symmetric.contains(&r.relation_type));
+            if !kept.insert(key) {
                 plan.duplicate_relations.push(r.id.clone());
             }
         }

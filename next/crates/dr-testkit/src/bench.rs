@@ -154,8 +154,10 @@ pub struct Suite {
 
 /// Every suite. A module's benchmark joins by adding one here.
 pub fn suites() -> Vec<Suite> {
-    vec![store::suite()]
+    vec![doc::suite(), store::suite(), workspace::suite()]
 }
+
+pub mod doc;
 
 /// Inputs every suite's fingerprint includes: this convention and the seed.
 pub const COMMON_INPUTS: &[&str] = &[
@@ -412,5 +414,287 @@ pub mod store {
                 .is_some_and(|n| n.kind == dr_model::kind::NodeKind::Chapter),
             _ => false,
         }
+    }
+}
+
+/// The dr-workspace suite, moved from F3's `tests/measure.rs`
+/// (`f3-workspace-measure.json`) onto the seed: the book is written through
+/// the commands (the heavy seed has the workload F3 measured: 100 chapters,
+/// 300 elements, 200 ideas, 400 relations, 200 comments and TODOs), then
+/// queries cold and warm, queries after an event, single commands, search
+/// and undoing an Agent turn.
+pub mod workspace {
+    use super::*;
+    use crate::seed::{self, DEFAULT_SEED};
+    use dr_workspace::commands::ListIn;
+    use dr_workspace::commands::chapter::ChapterList;
+    use dr_workspace::{Actor, Workspace};
+
+    pub fn suite() -> Suite {
+        Suite {
+            name: "workspace",
+            about: "dr-workspace: the seed written through the commands; queries cold, warm and after events; commands; search; an Agent turn undone",
+            inputs: &["crates/dr-workspace", "crates/dr-testkit/src/seed"],
+            run,
+            expect_quick,
+        }
+    }
+
+    fn err(e: impl std::fmt::Display) -> String {
+        e.to_string()
+    }
+
+    fn expect_quick() -> Value {
+        json!({
+            "agentUndo": { "writes": 3 },
+            "coldQueries": { "chapters": 4, "comments": 6, "elements": 6, "relations": 6 },
+            "commands": { "each": 3 },
+            "queriesAfterEvents": { "each": 3 },
+            "search": { "each": 3 },
+            "seedViaCommands": { "books": 1, "commands": 49, "proseEdits": 19 },
+            "warmQueries": { "each": 3 },
+        })
+    }
+
+    /// A call by name as the author; the output.
+    fn out(ws: &Workspace, name: &str, input: Value) -> Result<Value, String> {
+        ws.call(&Actor::User, name, input)
+            .map(|o| o["output"].clone())
+            .map_err(|e| format!("{name}: {e}"))
+    }
+
+    fn ids(v: &Value) -> Vec<String> {
+        v.as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|x| x["id"].as_str().map(str::to_string))
+            .collect()
+    }
+
+    pub fn run(mode: Mode) -> Result<Bench, String> {
+        let mut bench = Bench::new("workspace", mode);
+        let scratch = Scratch::new("workspace").map_err(err)?;
+        let dir = scratch.path().join("library");
+        let shape = seed::generate(mode.preset(), DEFAULT_SEED)
+            .map_err(err)?
+            .shape();
+        bench.corpus = json!({
+            "preset": shape.preset,
+            "seed": shape.seed,
+            "corpusFingerprint": shape.corpus_fingerprint,
+        });
+
+        let ws = Workspace::open_dir(&dir, "0.2.0-bench").map_err(err)?;
+        let case = bench.case(
+            "seedViaCommands",
+            "the whole preset written through Workspace::call and editing sessions",
+        );
+        let made = case.time("seed", || {
+            seed::generate_via_commands(mode.preset(), DEFAULT_SEED, &ws, &Actor::Import)
+        })?;
+        case.set("books", made.len())
+            .set("commands", made[0].commands)
+            .set("proseEdits", made[0].prose_edits);
+        let b = made[0].book.clone();
+        ws.shutdown().map_err(err)?;
+
+        // Cold: a fresh workspace over the reopened library.
+        let ws = Workspace::open_dir(&dir, "0.2.0-bench").map_err(err)?;
+        let case = bench.case(
+            "coldQueries",
+            "the first chapter, element, relation and comment lists after reopening",
+        );
+        let chapters = case.time("chapterList", || {
+            out(&ws, "chapter.list", json!({ "book": b }))
+        })?;
+        let elements = case.time("elementList", || {
+            out(&ws, "element.list", json!({ "book": b }))
+        })?;
+        let relations = case.time("relationList", || {
+            out(&ws, "relation.list", json!({ "book": b }))
+        })?;
+        let comments = case.time("commentList", || {
+            out(&ws, "comment.list", json!({ "book": b }))
+        })?;
+        let (chapters, elements) = (ids(&chapters), ids(&elements));
+        case.set("chapters", chapters.len())
+            .set("elements", elements.len())
+            .set("relations", relations.as_array().map_or(0, Vec::len))
+            .set("comments", comments.as_array().map_or(0, Vec::len));
+
+        let n = mode.reps(3, 300);
+        let case = bench.case("warmQueries", "the same lists again, by name and typed");
+        for _ in 0..n {
+            case.time("chapterList", || {
+                out(&ws, "chapter.list", json!({ "book": b }))
+            })?;
+            case.time("chapterListTyped", || {
+                ws.run::<ChapterList>(
+                    &Actor::User,
+                    ListIn {
+                        book: b.clone(),
+                        trashed: false,
+                    },
+                )
+                .map_err(err)
+            })?;
+            case.time("elementList", || {
+                out(&ws, "element.list", json!({ "book": b }))
+            })?;
+            case.time("relationList", || {
+                out(&ws, "relation.list", json!({ "book": b }))
+            })?;
+        }
+        case.set("each", n);
+
+        let rt = out(&ws, "relation_type.list", json!({ "book": b }))?
+            .as_array()
+            .into_iter()
+            .flatten()
+            .find(|t| t["locked"] != json!(true))
+            .and_then(|t| t["id"].as_str().map(str::to_string))
+            .ok_or("the seed has no relation type of its own")?;
+        let n = mode.reps(3, 100);
+        let case = bench.case(
+            "queriesAfterEvents",
+            "a list right after a change it shows: a chapter summary, a new relation",
+        );
+        for i in 0..n {
+            let c = &chapters[i % chapters.len()];
+            out(
+                &ws,
+                "chapter.update",
+                json!({ "book": b, "id": c, "summary": format!("s{i}") }),
+            )?;
+            case.time("chapterListAfterUpdate", || {
+                out(&ws, "chapter.list", json!({ "book": b }))
+            })?;
+            out(
+                &ws,
+                "relation.create",
+                json!({
+                    "book": b, "relation_type": rt,
+                    // The seed's own type relates elements to elements.
+                    "from": { "kind": "element", "id": elements[(2 * i + 1) % elements.len()] },
+                    "to": { "kind": "element", "id": elements[(2 * i) % elements.len()] },
+                }),
+            )?;
+            case.time("relationListAfterCreate", || {
+                out(&ws, "relation.list", json!({ "book": b }))
+            })?;
+        }
+        case.set("each", n);
+
+        let n = mode.reps(3, 100);
+        let long = crate::text::plain(&crate::text::body(
+            &mut crate::rng::Rng::new(7),
+            2_000,
+            crate::text::BodyShape::default(),
+        ));
+        let case = bench.case("commands", "single commands as the author");
+        for i in 0..n {
+            let c = &chapters[i % chapters.len()];
+            case.time("chapterCreate", || {
+                out(
+                    &ws,
+                    "chapter.create",
+                    json!({ "book": b, "title": format!("新章{i}") }),
+                )
+            })?;
+            case.time("chapterCreateWith2000Words", || {
+                out(
+                    &ws,
+                    "chapter.create",
+                    json!({ "book": b, "title": format!("带字{i}"), "text": long }),
+                )
+            })?;
+            case.time("chapterRename", || {
+                out(
+                    &ws,
+                    "chapter.update",
+                    json!({ "book": b, "id": c, "title": format!("改名{i}") }),
+                )
+            })?;
+            case.time("chapterMove", || {
+                out(
+                    &ws,
+                    "chapter.move",
+                    json!({ "book": b, "id": c, "place": "last" }),
+                )
+            })?;
+            case.time("elementCreate", || {
+                out(
+                    &ws,
+                    "element.create",
+                    json!({ "book": b, "name": format!("新要素{i}") }),
+                )
+            })?;
+            case.time("commentCreate", || {
+                out(
+                    &ws,
+                    "comment.create",
+                    json!({ "book": b, "target": { "kind": "node", "id": c }, "body": "x" }),
+                )
+            })?;
+            case.time("chapterTrashThenRestore", || -> Result<(), String> {
+                out(&ws, "chapter.trash", json!({ "book": b, "id": c }))?;
+                out(&ws, "chapter.restore", json!({ "book": b, "id": c }))?;
+                Ok(())
+            })?;
+            let doc = format!("node:{c}");
+            let p = out(&ws, "prose.read", json!({ "doc": doc, "limit": 2 }))?;
+            let para = &p["paragraphs"][1];
+            let find: String = para["text"]
+                .as_str()
+                .unwrap_or_default()
+                .chars()
+                .take(6)
+                .collect();
+            case.time("proseReplace", || {
+                out(&ws, "prose.replace", json!({ "doc": doc, "find": find, "replace": "替换", "block_id": para["block_id"] }))
+            })?;
+            case.time("objectUndo", || ws.undo(&Actor::User).map_err(err))?;
+        }
+        case.set("each", n);
+
+        for d in ws.library().docs(Some(&b), None).map_err(err)? {
+            ws.library().reindex_doc(&d.doc_id).map_err(err)?;
+        }
+        let n = mode.reps(3, 50);
+        let case = bench.case("search", "book.search over the derived index");
+        for _ in 0..n {
+            case.time("threeCharacters", || {
+                out(&ws, "book.search", json!({ "book": b, "query": "灯塔亮" }))
+            })?;
+            case.time("oneCharacter", || {
+                out(&ws, "book.search", json!({ "book": b, "query": "灯" }))
+            })?;
+        }
+        case.set("each", n);
+
+        let writes = mode.reps(3, 10);
+        let agent = Actor::agent("bench", 1, "c");
+        for (i, c) in chapters.iter().take(writes).enumerate() {
+            ws.call(
+                &agent,
+                "chapter.update",
+                json!({ "book": b, "id": c, "title": format!("代笔{i}") }),
+            )
+            .map_err(err)?;
+        }
+        let case = bench.case(
+            "agentUndo",
+            "history.undo_agent of one turn of title changes",
+        );
+        case.time("undoTurn", || {
+            out(
+                &ws,
+                "history.undo_agent",
+                json!({ "session": "bench", "turn": 1 }),
+            )
+        })?;
+        case.set("writes", writes);
+        ws.shutdown().map_err(err)?;
+        Ok(bench)
     }
 }

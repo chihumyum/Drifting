@@ -1,0 +1,241 @@
+{
+  "bottomStatusBar": {
+    "elements": "요소",
+    "storyGraph": "이야기 그래프",
+    "todoLibrary": "할 일 및 자료실"
+  },
+  "common": {
+    "close": "닫기",
+    "local": "로컬"
+  },
+  "feedback": {
+    "crash": {
+      "title": "지난번 Drifting 실행 중 문제가 발생했습니다"
+    }
+  },
+  "leftSidebar": {
+    "empty": {
+      "noChapters": "아직 장이 없습니다.",
+      "noDrifts": "아직 아이디어가 없습니다.",
+      "noElements": "아직 요소가 없습니다."
+    },
+    "meta": {
+      "drifts": "아이디어 {{count}}개",
+      "elements": "분류 {{categories}}개 · 요소 {{elements}}개"
+    },
+    "tabs": {
+      "chapters": "장",
+      "drifts": "아이디어",
+      "elements": "요소"
+    },
+    "top": {
+      "close": "왼쪽 사이드바 닫기",
+      "open": "왼쪽 사이드바 열기"
+    },
+    "viewMode": {
+      "chapterSummary": "스토리라인 {{storylines}}개 · {{chapters}}장"
+    }
+  },
+  "navigation": {
+    "back": "뒤로"
+  },
+  "notifications": {
+    "appUpdate": {
+      "source": "업데이트"
+    },
+    "clear": "지우기",
+    "cloudSync": {
+      "source": "클라우드 동기화"
+    },
+    "crashFollowUp": {
+      "source": "Drifting"
+    },
+    "empty": "알림 없음",
+    "markdownFolder": {
+      "preserved_one": "수정된 파일 {{count}}개를 .drifting/preserved에 보존함",
+      "preserved_other": "수정된 파일 {{count}}개를 .drifting/preserved에 보존함",
+      "source": "Markdown 폴더"
+    },
+    "organize": {
+      "source": "Agent"
+    },
+    "remove": "제거",
+    "shareComments": {
+      "source": "독자 댓글"
+    },
+    "time": {
+      "daysAgo": "{{count}}일 전",
+      "hoursAgo": "{{count}}시간 전",
+      "justNow": "방금",
+      "minutesAgo": "{{count}}분 전"
+    },
+    "title": "알림"
+  },
+  "projectHome": {
+    "kicker": "작품 홈"
+  },
+  "rightSidebar": {
+    "kickers": {
+      "library": "작품 · 자료실",
+      "review": "작품 · 검토",
+      "stats": {
+        "all-chapters": "작품 전체 · 리듬",
+        "category": "이 분류 · 상세 통계",
+        "chapter": "이 장 · 상세 통계",
+        "drift": "이 아이디어 · 상세 통계",
+        "element": "이 요소 · 상세 통계",
+        "material": "이 자료 · 상세",
+        "none": "작품 · 상세 통계",
+        "storyline": "이 스토리라인 · 상세 통계"
+      }
+    },
+    "tabs": {
+      "companion": "Agent",
+      "library": "자료실",
+      "review": "검토",
+      "stats": "통계"
+    },
+    "top": {
+      "close": "오른쪽 사이드바 닫기",
+      "open": "오른쪽 사이드바 열기"
+    }
+  },
+  "settings": {
+    "appearance": {
+      "dark": "어둡게",
+      "interface_text_large": "크게",
+      "interface_text_largest": "가장 크게",
+      "interface_text_size": "인터페이스 글자 크기",
+      "interface_text_size_desc": "이 기기의 데스크톱 인터페이스 글자 크기를 조절합니다. 원고는 편집기 글자 크기를 따릅니다.",
+      "interface_text_small": "작게",
+      "interface_text_smallest": "가장 작게",
+      "interface_text_standard": "표준",
+      "light": "밝게",
+      "system": "시스템 설정 따르기",
+      "theme": "테마",
+      "theme_desc": "밝게, 어둡게 또는 시스템 설정을 따릅니다."
+    },
+    "editor": {
+      "auto_immersive": "입력하면 몰입 쓰기",
+      "auto_immersive_desc": "본문을 쓰기 시작하면 사이드바와 도구를 접습니다. Esc를 누르거나 본문 바깥을 클릭하면 돌아옵니다.",
+      "flow": "집필 흐름",
+      "font_size": "글자 크기",
+      "font_size_desc": "편집기 화면에만 적용되며 내보내기에는 영향을 주지 않습니다.",
+      "indent": "문단 들여쓰기",
+      "indent_desc": "편집기 화면에만 적용됩니다. 내보내기는 별도 설정을 사용합니다.",
+      "indent_none": "없음",
+      "indent_one": "1글자",
+      "indent_two": "2글자",
+      "line_height": "줄 높이",
+      "page_width": "용지 너비",
+      "page_width_desc": "편집기의 용지 너비입니다. 본문은 고정 여백을 제외한 너비를 채웁니다.",
+      "paragraph_spacing": "문단 간격",
+      "paragraph_spacing_desc": "본문 문단과 모든 제목 단계의 공통 간격입니다. 본문 글자 크기를 기준으로 하며 편집기 화면에만 적용됩니다.",
+      "typesetting": "조판",
+      "typewriter_mode": "타자기 모드",
+      "typewriter_mode_desc": "입력하거나 커서를 이동할 때 현재 본문 줄을 화면의 일정한 위치에 유지합니다. 편집기 화면에만 적용됩니다."
+    },
+    "groups": {
+      "control": "관리",
+      "preferences": "환경설정"
+    },
+    "keys": {
+      "actions": {
+        "closeActiveTab": {
+          "desc": "하단 Dock의 현재 탭을 닫습니다",
+          "label": "현재 탭 닫기"
+        },
+        "closeProject": {
+          "desc": "이 작품을 닫고 책장으로 돌아갑니다",
+          "label": "작품 닫기"
+        },
+        "findInEditor": {
+          "desc": "현재 열린 편집기에서 텍스트를 찾습니다",
+          "label": "현재 편집기에서 찾기"
+        },
+        "globalSearch": {
+          "desc": "장·스토리라인·요소·분류 전체에서 검색합니다",
+          "label": "전체 검색"
+        },
+        "goBack": {
+          "desc": "브라우저의 뒤로 가기처럼 이전에 본 페이지로 돌아갑니다",
+          "label": "뒤로"
+        },
+        "goForward": {
+          "desc": "브라우저의 앞으로 가기처럼 다음에 본 페이지로 이동합니다",
+          "label": "앞으로"
+        },
+        "newEntity": {
+          "desc": "작품 홈을 열고 생성 작업줄을 표시합니다",
+          "label": "새로 만들기"
+        },
+        "nextTab": {
+          "desc": "열린 탭을 오른쪽으로 이동합니다",
+          "label": "다음 탭"
+        },
+        "prevTab": {
+          "desc": "열린 탭을 왼쪽으로 이동합니다",
+          "label": "이전 탭"
+        },
+        "toggleBottomTimeline": {
+          "desc": "하단 타임라인을 표시하거나 숨깁니다",
+          "label": "하단 타임라인 전환"
+        },
+        "toggleImmersiveWriting": {
+          "desc": "페이지만 남깁니다. 다시 누르거나 Esc로 돌아옵니다.",
+          "label": "몰입 쓰기"
+        }
+      },
+      "conflict": "{{accelerator}}은(는) “{{action}}”에서 사용 중입니다",
+      "pressNewCombo": "새 키 조합을 누르세요…",
+      "recording": "기록 중",
+      "reset": "복원",
+      "resetAll": "모두 기본값으로 복원"
+    },
+    "language": {
+      "ui_locale": "인터페이스 언어",
+      "ui_locale_desc": "메뉴, 버튼, 메시지의 언어입니다. 집필 내용에는 영향을 주지 않습니다."
+    },
+    "privacy": {
+      "crashLogs": "오류 진단 자동 전송",
+      "crashLogsDesc": "민감 정보를 제거한 오류 위치·버전·플랫폼 정보를 유지관리자에게 보내 문제를 진단합니다. 원고 텍스트는 포함되지 않으며 언제든 끌 수 있습니다.",
+      "dataUsage": "데이터 사용"
+    },
+    "rail": {
+      "appearance": "모양",
+      "editor": "편집기",
+      "keys": "키보드",
+      "language": "언어",
+      "privacy": "개인정보",
+      "updates": "업데이트"
+    },
+    "search_placeholder": "설정 검색…",
+    "title": "설정",
+    "update": {
+      "channel_desc": "Apple Silicon · macOS 13 이상",
+      "current_version": "현재 버전"
+    }
+  },
+  "sidebarLayout": {
+    "split": "두 열로 복원"
+  },
+  "topTimeline": {
+    "singletons": {
+      "allChapters": "작품 전체"
+    },
+    "untitled": {
+      "category": "이름 없는 분류",
+      "chapter": "제목 없는 장",
+      "drift": "제목 없는 아이디어",
+      "element": "이름 없는 요소",
+      "library_item": "이름 없는 자료",
+      "storyline": "이름 없는 스토리라인"
+    }
+  },
+  "windowCaption": {
+    "close": "닫기",
+    "maximize": "최대화",
+    "minimize": "최소화",
+    "restore": "이전 크기로 복원"
+  }
+}

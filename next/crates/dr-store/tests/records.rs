@@ -8,8 +8,8 @@ use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use common::synthetic::{self, LinesDeriver};
 use common::*;
-use dr_store::synthetic::{self, LinesDeriver};
 use dr_store::{AgentWrite, Library, LocalChangeKind, OpenDoc, Origin, StoreError, StoreEvent};
 
 fn agent(turn: u32, call: &str) -> AgentWrite {
@@ -290,4 +290,92 @@ fn modules_write_their_local_tables_in_one_transaction() {
         .local_read(|c| Ok(c.query_row("SELECT count(*) FROM import_book", [], |r| r.get(0))?))
         .unwrap();
     assert_eq!(books, 1);
+}
+
+#[test]
+fn local_writes_announce_their_changes_after_commit() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open(dir.path());
+    let seen: Arc<Mutex<Vec<String>>> = Arc::default();
+    let _sub = {
+        let seen = seen.clone();
+        lib.subscribe(move |e| {
+            if let StoreEvent::Local(l) = e {
+                seen.lock().unwrap().push(format!("{} {}", l.table, l.key));
+            }
+        })
+    };
+    let seq = lib
+        .local_write(|tx| {
+            tx.execute(
+                "INSERT INTO ws_journal (ts, actor, command, effects, changed_ts) VALUES (1, 'user', 'node.rename', '[]', 1)",
+                [],
+            )?;
+            let seq = tx.last_insert_rowid();
+            tx.changed(dr_store::LocalChange::new("ws_journal", seq.to_string(), LocalChangeKind::Insert));
+            Ok(seq)
+        })
+        .unwrap();
+    let failed: dr_store::Result<()> = lib.local_write(|tx| {
+        tx.execute(
+            "INSERT INTO ws_journal (ts, actor, command, effects, changed_ts) VALUES (2, 'user', 'x', '[]', 2)",
+            [],
+        )?;
+        tx.changed(dr_store::LocalChange::new("ws_journal", "never", LocalChangeKind::Insert));
+        Err(StoreError::Asset("roll back".into()))
+    });
+    assert!(failed.is_err());
+    assert_eq!(*seen.lock().unwrap(), [format!("ws_journal {seq}")]);
+    let rows: i64 = lib
+        .local_read(|c| Ok(c.query_row("SELECT count(*) FROM ws_journal", [], |r| r.get(0))?))
+        .unwrap();
+    assert_eq!(rows, 1);
+}
+
+#[test]
+fn a_refused_close_hands_the_library_back() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open(dir.path());
+    let h = create(&lib, "node:a");
+    let refused = lib.try_close().expect_err("a document is open");
+    assert!(matches!(refused.error, StoreError::DocumentsOpen(1)));
+    let lib = refused.library;
+    insert(&h, Origin::User, 0, "还能用");
+    h.close();
+    lib.try_close().expect("closes once the document is closed");
+    open(dir.path());
+}
+
+#[test]
+fn a_read_only_open_reads_beside_the_app_and_writes_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = open(dir.path());
+    let h = create(&app, "node:a");
+    insert(&h, Origin::User, 0, "看得见");
+    // The app keeps the library open (and locked) meanwhile.
+    let ro = Library::open_read_only(dir.path(), options()).unwrap();
+    assert!(ro.is_read_only());
+    assert_eq!(text(&ro.load_copy("node:a").unwrap()), "看得见\n");
+    assert_eq!(ro.doc_info("node:a").unwrap().unwrap().kind, "node");
+    assert!(!ro.history("node:a").unwrap().is_empty());
+    assert!(matches!(
+        ro.open_doc("node:a", OpenDoc::Existing),
+        Err(StoreError::ReadOnly)
+    ));
+    assert!(ro.register("node:b", "node", None).is_err(), "writes fail");
+    ro.close().unwrap();
+    assert!(Library::open_read_only(dir.path().join("missing"), options()).is_err());
+    h.close();
+    app.close().unwrap();
+
+    // A library this build would migrate first.
+    let old = tempfile::tempdir().unwrap();
+    Library::open_with_migrations(old.path(), options(), &dr_store::MIGRATIONS[..1])
+        .unwrap()
+        .close()
+        .unwrap();
+    assert!(matches!(
+        Library::open_read_only(old.path(), options()),
+        Err(StoreError::NeedsMigration { applied: 1, .. })
+    ));
 }
