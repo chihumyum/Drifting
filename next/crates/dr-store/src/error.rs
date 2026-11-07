@@ -63,6 +63,20 @@ pub enum StoreError {
     },
     #[error("installation identity: {0}")]
     Identity(String),
+    /// The library is opened read-only.
+    #[error("the library is opened read-only")]
+    ReadOnly,
+    /// A read-only open of a library this build would first migrate.
+    #[error("library needs migrating ({applied} of {known} migrations); open it read-write once")]
+    NeedsMigration { applied: usize, known: usize },
+    /// A derived-index patch was made from other rows than the stored ones;
+    /// derive the document from scratch instead.
+    #[error("index patch for {doc_id} expects {expected} paragraphs, {stored} are stored")]
+    IndexBase {
+        doc_id: String,
+        stored: u64,
+        expected: u64,
+    },
 }
 
 impl StoreError {

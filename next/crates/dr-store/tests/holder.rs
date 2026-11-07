@@ -6,9 +6,9 @@ mod common;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use common::synthetic::{self, Rng};
 use common::*;
 use dr_store::history::labels;
-use dr_store::synthetic::{self, Rng};
 use dr_store::{Library, OpenDoc, Origin, StoreError};
 use loro::{CommitOptions, ExportMode, LoroDoc};
 
@@ -563,4 +563,38 @@ fn a_panicking_genesis_does_not_block_the_document() {
     assert_eq!(lib.open_doc_count(), 0);
     let h = create(&lib, "node:a");
     assert_eq!(text(h.doc()), "\n");
+}
+
+#[test]
+fn a_write_starts_on_a_settled_document_and_typed_readers_borrow_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open(dir.path());
+    let h = create(&lib, "node:a");
+    insert(&h, Origin::User, 0, "甲");
+    // A stray edit is pending in Loro's shared transaction…
+    h.doc().get_text(synthetic::BODY).insert(0, "x").unwrap();
+    let persisted_before = lib.updates_since("node:a", 0).unwrap().len();
+    let (pending, stored) = {
+        let lib = lib.clone();
+        h.write(Origin::User, move |doc| {
+            // …but the job starts settled: nothing pending, all stored.
+            let pending = doc.get_pending_txn_len();
+            let stored = lib.updates_since("node:a", 0).unwrap().len();
+            doc.get_text(synthetic::BODY).insert(0, "乙").unwrap();
+            (pending, stored)
+        })
+        .unwrap()
+        .0
+    };
+    assert_eq!(pending, 0);
+    assert_eq!(
+        stored,
+        persisted_before + 1,
+        "the stray edit was stored first"
+    );
+    // A typed reader borrows the open document without copying it.
+    let len = h
+        .doc()
+        .with_doc(|doc| doc.get_text(synthetic::BODY).len_unicode());
+    assert_eq!(len, "乙x甲\n".chars().count());
 }

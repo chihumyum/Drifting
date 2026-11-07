@@ -253,24 +253,15 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "0002_history_label_keep",
         sql: include_str!("../migrations/0002_history_label_keep.sql"),
     },
+    Migration {
+        name: "0003_ws_journal",
+        sql: include_str!("../migrations/0003_ws_journal.sql"),
+    },
 ];
 
-/// SHA-256 of every published migration. A published migration must never
-/// change; `published_migrations_are_unchanged` compares the two lists.
-pub const PUBLISHED: &[(&str, &str)] = &[
-    (
-        "0000_baseline",
-        "95ca0b5d31142594fe265e04bcbc88bc732c88d3422f2991cf206b41544fb617",
-    ),
-    (
-        "0001_import_receipts",
-        "5f47250f78fc16536c786818278469cd8819ff005fc875ddce8ba0303c64ff40",
-    ),
-    (
-        "0002_history_label_keep",
-        "71420b3d1d81597a934279906cd355a37e837621aacc82d683b733453a66bd09",
-    ),
-];
+// Which migrations are published (and so frozen) is tracked in one place:
+// `next/xtask/src/gates/migrations.rs` (`cargo xtask check`). Every new file
+// here is registered there too.
 
 const RECORD_TABLE: &str = "schema_migration";
 const SAFETY_SNAPSHOTS_PER_VERSION: usize = 3;
@@ -351,6 +342,17 @@ pub struct MigrationFault {
     pub mode: FaultMode,
 }
 
+type PauseHook = Box<dyn Fn(MigrationStage) + Send + Sync>;
+static PAUSE_HOOK: std::sync::Mutex<Option<PauseHook>> = std::sync::Mutex::new(None);
+
+/// Test hook: run `f` when a migration pauses at its stage
+/// ([`FaultMode::Pause`]), so a crash harness can kill the process exactly
+/// there.
+#[doc(hidden)]
+pub fn on_migration_pause(f: impl Fn(MigrationStage) + Send + Sync + 'static) {
+    *PAUSE_HOOK.lock().unwrap_or_else(|e| e.into_inner()) = Some(Box::new(f));
+}
+
 enum Stop {
     Fail(MigrationStage, String),
     Crash(MigrationStage, String),
@@ -375,6 +377,13 @@ fn fault(fault: Option<MigrationFault>, stage: MigrationStage) -> Result<(), Sto
             use std::io::Write;
             println!("MIGRATION_STAGE:{stage}");
             let _ = std::io::stdout().flush();
+            if let Some(hook) = PAUSE_HOOK
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .as_ref()
+            {
+                hook(stage);
+            }
             loop {
                 std::thread::sleep(Duration::from_secs(60));
             }
@@ -996,32 +1005,5 @@ mod tests {
         left.sort();
         assert_eq!(left.len(), SAFETY_SNAPSHOTS_PER_VERSION);
         assert!(left.iter().all(|n| !n.ends_with(".part")));
-    }
-
-    #[test]
-    fn migration_list_is_well_formed() {
-        for (i, m) in MIGRATIONS.iter().enumerate() {
-            assert!(
-                m.name.starts_with(&format!("{i:04}_")),
-                "{} must start with its index {i:04}",
-                m.name
-            );
-        }
-    }
-
-    /// A published migration must never change: add a new one instead. Until
-    /// 0.2.0 ships an intended baseline edit may update this pin in the same
-    /// change (development libraries then have to be reset).
-    #[test]
-    fn published_migrations_are_unchanged() {
-        assert!(PUBLISHED.len() <= MIGRATIONS.len());
-        for ((name, sha), m) in PUBLISHED.iter().zip(MIGRATIONS) {
-            assert_eq!(*name, m.name);
-            assert_eq!(
-                *sha,
-                m.sha256(),
-                "published migration {name} was edited; append a new migration instead"
-            );
-        }
     }
 }
