@@ -328,7 +328,12 @@ pub fn paint_slab(
     window: &mut Window,
 ) {
     let ring = ring_image(dark);
-    let (ox, oy) = origin;
+    // GPUI shrinks a piece's corner radius to half its size, so each
+    // rounded corner (2r square) must lie inside one tile: move the grid
+    // the least it takes to keep its lines out of the bands along the edges.
+    let band = 2.0 * radius;
+    let ox = tile_start(origin.0, f32::from(bounds.size.width), band);
+    let oy = tile_start(origin.1, f32::from(bounds.size.height), band);
     let mut ty = oy;
     while ty < f32::from(bounds.size.height) {
         let mut tx = ox;
@@ -370,10 +375,51 @@ pub fn paint_slab(
     );
 }
 
+/// Where tiling starts (at or left of 0) so that no tile line falls within
+/// `band` of either end of `len`, as near `origin`'s grid as possible.
+pub(crate) fn tile_start(origin: f32, len: f32, band: f32) -> f32 {
+    let clear = |o: f32| {
+        let mut line = o.rem_euclid(TILE);
+        while line < len {
+            if line > 0.0 && (line < band || line > len - band) {
+                return false;
+            }
+            line += TILE;
+        }
+        true
+    };
+    let shift = (0..TILE as i32)
+        .flat_map(|d| [d as f32, -(d as f32)])
+        .find(|d| clear(origin + d))
+        .unwrap_or(0.0);
+    let first = (origin + shift).rem_euclid(TILE);
+    if first == 0.0 { 0.0 } else { first - TILE }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::glass::DENSE;
+
+    #[test]
+    fn a_slab_corner_never_straddles_two_tiles() {
+        for len in [240.0_f32, 248.0, 320.0, 420.0, 333.5, 600.0, 90.0] {
+            for origin in [-96.0_f32, -30.0, -132.0, 0.0, 17.0] {
+                let start = tile_start(origin, len, 32.0);
+                assert!(start <= 0.0 && start > -TILE, "{start}");
+                let mut line = start + TILE;
+                while line < len {
+                    assert!(
+                        (32.0..=len - 32.0).contains(&line),
+                        "len {len}, origin {origin}: a line at {line}"
+                    );
+                    line += TILE;
+                }
+            }
+        }
+        // Already clear: the grid is kept.
+        assert_eq!(tile_start(-96.0, 240.0, 32.0), -96.0);
+    }
 
     #[test]
     fn erfc_matches_known_values() {

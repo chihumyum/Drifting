@@ -89,6 +89,12 @@ pub struct Gallery {
     pub readouts: [f32; 4],
     pub sheet: usize,
     pub panel: usize,
+    /// The pushed panel is open (a click on its selected tab closes it).
+    pub panel_open: bool,
+    /// The wave's pills in their dragged order (chapter numbers).
+    pub wave_order: Vec<usize>,
+    /// Font size, line height, paragraph spacing, paper width.
+    pub numbers: [f64; 4],
     pub thinking: bool,
     /// Hold every hover card and list open (captures).
     pub hold_open: bool,
@@ -132,6 +138,9 @@ impl Gallery {
             readouts: [0.82, 0.46, 0.64, 0.18],
             sheet: 0,
             panel: 0,
+            panel_open: true,
+            wave_order: (0..6).collect(),
+            numbers: [17.0, 1.5, 1.0, 720.0],
             thinking: true,
             hold_open: false,
             loaders: !std::env::args().any(|a| a == "--quiet"),

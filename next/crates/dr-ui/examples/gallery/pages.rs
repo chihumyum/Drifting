@@ -10,12 +10,12 @@ use dr_ui::{
     Theme,
     components::{
         Button, CardAction, CardBody, Chip, Choice, Dialog, EmptyState, HoverCard, IconButton,
-        Loading, Menu, MenuItem, MenuWidth, NotificationPill, Pill, PillGroup, Progress, RowIcon,
-        ScopeToggle, Segmented, Select, Switch, overlay,
+        Loading, Menu, MenuItem, MenuWidth, NotificationPill, NumberField, Pill, PillGroup,
+        Progress, Range, RowIcon, SandCell, ScopeToggle, Segmented, Select, Switch, overlay,
     },
     fonts::{self, Role, weight},
     glass::{self, Ground, Held, Kind, Mode, Spec, Tone},
-    sand::{self, Icon, KindMark, Readout, SandFrame},
+    sand::{self, Icon, KindMark, Readout},
     style::DrStyled,
     tokens::{Easing, Rgb, Story, glass as g, motion, radius},
     transitions::{PageTurn, Push},
@@ -262,6 +262,82 @@ pub fn tokens(
 }
 
 // ── 控件 ────────────────────────────────────────────────────────────────
+
+/// The editor's four numbers as the settings show them: a slider and the
+/// number beside it, then the same pair disabled.
+fn numbers(g: &Gallery, t: &Theme, cx: &mut Context<Gallery>) -> impl IntoElement {
+    let p = t.palette;
+    let specs: [(&str, f64, f64, f64, u32, &str); 4] = [
+        ("字号", 12.0, 28.0, 1.0, 0, "px"),
+        ("行距", 1.0, 2.0, 0.02, 2, ""),
+        ("段间距", 0.0, 2.5, 0.05, 2, "em"),
+        ("纸张宽度", 480.0, 1280.0, 10.0, 0, "px"),
+    ];
+    let e = cx.entity();
+    let line = |name: &'static str| {
+        row().gap(px(14.0)).child(
+            div()
+                .w(px(64.0))
+                .type_px(t.scale.secondary, t.scale.line_body)
+                .text_color(p.ink(2).solid())
+                .child(name),
+        )
+    };
+    let mut list = col().gap(px(12.0));
+    for (i, (name, min, max, step, decimals, unit)) in specs.iter().copied().enumerate() {
+        let value = g.numbers[i];
+        let (e1, e2) = (e.clone(), e.clone());
+        list = list.child(
+            line(name)
+                .child(
+                    Range::new(
+                        ElementId::Name(format!("range-{i}").into()),
+                        value,
+                        min,
+                        max,
+                    )
+                    .step(step)
+                    .label(name)
+                    .on_change(move |v, _, cx| {
+                        e1.update(cx, |g, cx| {
+                            g.numbers[i] = v;
+                            cx.notify();
+                        })
+                    }),
+                )
+                .child(
+                    NumberField::new(
+                        ElementId::Name(format!("number-{i}").into()),
+                        value,
+                        min,
+                        max,
+                    )
+                    .decimals(decimals)
+                    .unit(unit)
+                    .label(name)
+                    .on_change(move |v, _, cx| {
+                        e2.update(cx, |g, cx| {
+                            g.numbers[i] = v;
+                            cx.notify();
+                        })
+                    }),
+                ),
+        );
+    }
+    list.child(
+        line("自动保存")
+            .child(
+                Range::new("range-off", 30.0, 5.0, 120.0)
+                    .step(5.0)
+                    .disabled(true),
+            )
+            .child(
+                NumberField::new("number-off", 30.0, 5.0, 120.0)
+                    .unit("s")
+                    .disabled(true),
+            ),
+    )
+}
 
 fn held_strip(t: &Theme, window: &mut Window, cx: &mut Context<Gallery>) -> impl IntoElement {
     let p = t.palette;
@@ -564,7 +640,12 @@ pub fn controls(
                         .child(select),
                 ),
         )
-        .child(held_strip(&t, window, cx))
+        .child(
+            col()
+                .gap(px(44.0))
+                .child(held_strip(&t, window, cx))
+                .child(numbers(g, &t, cx)),
+        )
 }
 
 // ── 浮层 ────────────────────────────────────────────────────────────────
@@ -908,32 +989,26 @@ pub fn sand(g: &mut Gallery, window: &mut Window, cx: &mut Context<Gallery>) -> 
         .gap(px(6.0))
         .children(names.iter().enumerate().map(|(i, (name, kind, story))| {
             let e = e.clone();
-            let color = p.story(*story);
-            div()
-                .id(ElementId::Name(format!("cell-{i}").into()))
-                .relative()
-                .h(px(t.scale.row_height))
-                .px(px(10.0))
-                .flex()
-                .items_center()
-                .gap(px(8.0))
-                .cursor_pointer()
-                .child(
-                    SandFrame::new(ElementId::Name(format!("frame-{i}").into()), g.cell == i)
-                        .color(color),
-                )
-                .child(
-                    KindMark::new(ElementId::Name(format!("cell-mark-{i}").into()), *kind)
-                        .color(color),
-                )
-                .child(*name)
+            let place = matches!(kind, sand::Kind::Chapter(_));
+            SandCell::new(ElementId::Name(format!("cell-{i}").into()), *name)
+                .mark(*kind)
+                .color(p.story(*story))
+                .font(if place { Role::Structure } else { Role::Ui })
+                .selected(g.cell == i)
                 .on_click(move |_, _, cx| {
                     e.update(cx, |g, cx| {
                         g.cell = i;
                         cx.notify();
                     })
                 })
-        }));
+        }))
+        // A lane that opens nothing: no ring.
+        .child(
+            SandCell::new("cell-loose", "未归属")
+                .mark(sand::Kind::Storyline)
+                .hollow(true)
+                .disabled(true),
+        );
     let labels = ["本周", "本月", "全书", "待写"];
     let er = e.clone();
     let readouts = col()
@@ -1048,15 +1123,28 @@ pub fn motion(g: &mut Gallery, window: &mut Window, cx: &mut Context<Gallery>) -
         )));
     let panels = ["章节", "要素", "构想"];
     let ep = e.clone();
+    let panel_open = g.panel_open;
     let push = col()
         .gap(px(12.0))
         .child(
-            Segmented::new("push-tabs", panels, g.panel).on_change(move |i, _, cx| {
-                ep.update(cx, |g, cx| {
-                    g.panel = i;
-                    cx.notify();
-                })
-            }),
+            // A sidebar half's Panel Tabs: the block rides the panel's push
+            // and a click on the open tab closes the half.
+            Segmented::new("push-tabs", panels, g.panel)
+                .font(Role::Structure)
+                .text_size(t.scale.label)
+                .motion(motion::PUSH)
+                .report_selected()
+                .on_change(move |i, _, cx| {
+                    ep.update(cx, |g, cx| {
+                        if i == g.panel {
+                            g.panel_open = !g.panel_open;
+                        } else {
+                            g.panel = i;
+                            g.panel_open = true;
+                        }
+                        cx.notify();
+                    })
+                }),
         )
         .child(
             div()
@@ -1065,67 +1153,86 @@ pub fn motion(g: &mut Gallery, window: &mut Window, cx: &mut Context<Gallery>) -
                 .border_l(px(0.5))
                 .border_r(px(0.5))
                 .border_color(p.hairline())
-                .child(Push::new(
-                    "push",
-                    panels[g.panel],
-                    g.panel,
-                    move |key, window, cx| {
-                        let t = Theme::of(window, cx);
-                        let p = t.palette;
-                        let rows: Vec<(&str, sand::Kind)> = match key.as_ref() {
-                            "章节" => vec![
-                                ("第一章　灯塔", sand::Kind::Chapter(0)),
-                                ("第二章　北岸", sand::Kind::Chapter(1)),
-                                ("第三章　雾港", sand::Kind::Chapter(2)),
-                            ],
-                            "要素" => vec![
-                                ("林岚", sand::Kind::Element),
-                                ("守塔人", sand::Kind::Element),
-                                ("旧港", sand::Kind::Element),
-                            ],
-                            _ => vec![
-                                ("雾里的回声", sand::Kind::Drift { loose: false }),
-                                ("第三封信", sand::Kind::Drift { loose: true }),
-                            ],
-                        };
-                        div()
-                            .size_full()
-                            .bg(p.desk.solid())
-                            .py(px(8.0))
-                            .flex()
-                            .flex_col()
-                            .children(rows.into_iter().enumerate().map(|(i, (name, kind))| {
-                                row()
-                                    .h(px(t.scale.row_height))
-                                    .px(px(12.0))
-                                    .gap(px(8.0))
-                                    .child(
-                                        KindMark::new(
-                                            ElementId::Name(format!("push-{}-{i}", key).into()),
-                                            kind,
+                .when(panel_open, |el| {
+                    el.child(Push::new(
+                        "push",
+                        panels[g.panel],
+                        g.panel,
+                        move |key, window, cx| {
+                            let t = Theme::of(window, cx);
+                            let p = t.palette;
+                            let rows: Vec<(&str, sand::Kind)> = match key.as_ref() {
+                                "章节" => vec![
+                                    ("第一章　灯塔", sand::Kind::Chapter(0)),
+                                    ("第二章　北岸", sand::Kind::Chapter(1)),
+                                    ("第三章　雾港", sand::Kind::Chapter(2)),
+                                ],
+                                "要素" => vec![
+                                    ("林岚", sand::Kind::Element),
+                                    ("守塔人", sand::Kind::Element),
+                                    ("旧港", sand::Kind::Element),
+                                ],
+                                _ => vec![
+                                    ("雾里的回声", sand::Kind::Drift { loose: false }),
+                                    ("第三封信", sand::Kind::Drift { loose: true }),
+                                ],
+                            };
+                            div()
+                                .size_full()
+                                .bg(p.desk.solid())
+                                .py(px(8.0))
+                                .flex()
+                                .flex_col()
+                                .children(rows.into_iter().enumerate().map(|(i, (name, kind))| {
+                                    row()
+                                        .h(px(t.scale.row_height))
+                                        .px(px(12.0))
+                                        .gap(px(8.0))
+                                        .child(
+                                            KindMark::new(
+                                                ElementId::Name(format!("push-{}-{i}", key).into()),
+                                                kind,
+                                            )
+                                            .color(p.story(Story::ALL[i])),
                                         )
-                                        .color(p.story(Story::ALL[i])),
-                                    )
-                                    .child(name)
-                            }))
-                            .into_any_element()
-                    },
-                )),
+                                        .child(name)
+                                }))
+                                .into_any_element()
+                        },
+                    ))
+                }),
         );
     let ew = e.clone();
+    // The selected pill is a chapter; dragging reorders the row and the
+    // selection stays with its chapter.
+    let order = g.wave_order.clone();
+    let chosen = g.pill.min(5);
+    let selected = order.iter().position(|c| *c == chosen).unwrap_or(0);
+    let pick = order.clone();
+    let ed = e.clone();
     let wave = PillGroup::new(
         "wave",
-        (0..6)
-            .map(|i| {
-                Pill::new(format!("第{}章", ["一", "二", "三", "四", "五", "六"][i]))
-                    .mark(sand::Kind::Chapter(i as u8), Some(p.story(Story::ALL[i])))
+        order
+            .iter()
+            .map(|&c| {
+                Pill::new(format!("第{}章", ["一", "二", "三", "四", "五", "六"][c]))
+                    .mark(sand::Kind::Chapter(c as u8), Some(p.story(Story::ALL[c])))
+                    .preview(c == 5)
             })
             .collect(),
-        g.pill.min(5),
+        selected,
     )
     .on_change(move |i, _, cx| {
+        let c = pick[i];
         ew.update(cx, |g, cx| {
-            g.pill = i;
+            g.pill = c;
+            cx.notify();
+        })
+    })
+    .draggable(WaveDrag, move |drag: &WaveDrag, to, _, cx| {
+        ed.update(cx, |g, cx| {
+            let c = g.wave_order.remove(drag.0);
+            g.wave_order.insert(to, c);
             cx.notify();
         })
     });
@@ -1138,6 +1245,9 @@ pub fn motion(g: &mut Gallery, window: &mut Window, cx: &mut Context<Gallery>) -
         .child(wave)
         .child(row().gap(px(48.0)).items_start().child(turn).child(push))
 }
+
+/// A wave pill in the hand: where it was picked up.
+struct WaveDrag(usize);
 
 #[allow(dead_code)]
 fn _unused(_: Div, _: Easing, _: Rgb) {}

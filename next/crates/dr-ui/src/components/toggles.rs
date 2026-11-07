@@ -28,6 +28,38 @@ use crate::{
     tokens::{Easing, Rgb, glass as g, radius},
 };
 
+/// The Switch's knob, which the number slider shares: plain paper (light
+/// ink in the dark) that never takes a colour, a 1px soft shadow under it
+/// and a hairline round it. `dim` below 1 fades it toward `under`, what it
+/// lies on (disabled).
+pub(crate) fn paint_knob(
+    at: gpui::Bounds<gpui::Pixels>,
+    p: &crate::tokens::Palette,
+    dim: f32,
+    under: Rgb,
+    window: &mut Window,
+) {
+    let r = at.size.width / 2.0;
+    let fill = if p.dark { p.ink(2) } else { p.page };
+    window.paint_drop_shadows(
+        at,
+        gpui::Corners::all(r),
+        &[BoxShadow {
+            color: gpui::black().opacity(0.18 * dim),
+            offset: point(px(0.0), px(1.0)),
+            blur_radius: px(2.0),
+            spread_radius: px(0.0),
+            inset: false,
+        }],
+    );
+    window.paint_quad(
+        gpui::fill(at, fill.mix(under, 1.0 - dim).solid())
+            .corner_radii(r)
+            .border_widths(px(0.5))
+            .border_color(p.ink(1).alpha(0.06)),
+    );
+}
+
 pub struct SwitchState {
     on: Tween,
     knob: Tween,
@@ -113,7 +145,6 @@ impl RenderOnce for Switch {
         });
         let tint = self.tint.unwrap_or(p.accent);
         let (w, h, knob) = (g::SWITCH_W, g::SWITCH_H, g::SWITCH_KNOB);
-        let knob_fill = if p.dark { p.ink(2) } else { p.page };
         let interactive = !self.disabled;
         // Disabled dims the knob and the tint; glass never takes `opacity`,
         // which would thin its cover and show the texture through.
@@ -167,23 +198,7 @@ impl RenderOnce for Switch {
                             origin: bounds.origin + point(px(x), px((h - knob) / 2.0)),
                             size: gpui::size(px(knob), px(knob)),
                         };
-                        window.paint_drop_shadows(
-                            at,
-                            gpui::Corners::all(px(knob / 2.0)),
-                            &[BoxShadow {
-                                color: gpui::black().opacity(0.18),
-                                offset: point(px(0.0), px(1.0)),
-                                blur_radius: px(2.0),
-                                spread_radius: px(0.0),
-                                inset: false,
-                            }],
-                        );
-                        window.paint_quad(
-                            gpui::fill(at, knob_fill.mix(p.page, 1.0 - dim).solid())
-                                .corner_radii(px(knob / 2.0))
-                                .border_widths(px(0.5))
-                                .border_color(p.ink(1).alpha(0.06)),
-                        );
+                        paint_knob(at, p, dim, p.page, window);
                         anim::keep_going(!s.on.settled(now) || !s.knob.settled(now), window);
                         glass::request_frames(r, now, window, cx);
                     },
