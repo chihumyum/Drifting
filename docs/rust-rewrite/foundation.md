@@ -378,9 +378,11 @@
 
 **大小**：M–L
 
+做法、接口和交接设计见 [foundations/f7-platform.md](foundations/f7-platform.md)。
+
 #### 钥匙串
 
-- 用 GPUI 自带的凭据接口。
+- ~~用 GPUI 自带的凭据接口。~~ 2026-11-07 F7 改为沿用旧版的存法、自己读写系统钥匙串：GPUI 的接口在 macOS 上存「互联网密码」、在 Windows 上给条目名加 `zed:url=` 前缀，读不到旧版的条目，而且必须在应用跑起来以后才能用。
 - Windows 上单条凭据最多 2560 字节，大令牌要拆开存。
 - 要能读到旧版用 keyring 写的条目，保证升级后不丢登录和 API Key。
 

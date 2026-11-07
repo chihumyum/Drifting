@@ -6,6 +6,7 @@ resolver = "3"
 # One member per line, kept sorted, so parallel branches merge cleanly.
 members = [
     "app/drifting",
+    "crates/dr-platform",
     "spikes/import-v1",
     "spikes/loro-model",
     "spikes/visual",
@@ -54,6 +55,49 @@ base64 = "0.22.1"
 image = { version = "0.25.10", default-features = false, features = ["png"] }
 smallvec = "1.16"
 tiny-skia = "0.11.4"
+
+# F7 dr-platform: logs, crash reports, keychain, deep links and single
+# instance, the updater. docs/rust-rewrite/foundations/f7-platform.md.
+dr-platform = { path = "crates/dr-platform" }
+dirs = "6.0"
+flate2 = "1.1"
+# Development only: proves the legacy Tauri layout (keyring 3.6, as the 0.1
+# client) reads back, and signs updater test artifacts with a throwaway key.
+keyring = { version = "3.6", default-features = false, features = ["apple-native", "windows-native"] }
+minisign = "0.10"
+minisign-verify = "0.3"
+objc2-core-foundation = { version = "0.3", default-features = false, features = ["std", "CFBase", "CFData", "CFDictionary", "CFNumber", "CFString"] }
+objc2-security = { version = "0.3", default-features = false, features = ["std", "SecBase", "SecItem"] }
+# reqwest 0.13 is the HTTP client Sentry's transport already brings; the
+# updater uses the same blocking client. TLS is rustls with ring, as the 0.1
+# client (it builds on the Windows ARM runner; aws-lc is not proven there).
+reqwest = { version = "0.13", default-features = false, features = ["blocking", "rustls-no-provider"] }
+rustls = { version = "0.23", default-features = false, features = ["logging", "ring", "std", "tls12"] }
+semver = "1.0"
+# Without `reqwest` and `rustls-no-provider` (dr-platform's `network` feature
+# adds them) a client builds but sends nothing.
+sentry = { version = "0.49", default-features = false, features = ["backtrace", "contexts", "debug-images", "minidump"] }
+tar = "0.4"
+tempfile = "3.27"
+thiserror = "2.0"
+tracing = "0.1"
+tracing-appender = "0.2"
+tracing-log = "0.2"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["ansi", "fmt", "registry", "std"] }
+uuid = { version = "1.29", features = ["v4"] }
+# The version GPUI's Windows backend builds; the features add Win32 modules,
+# not crates.
+windows = { version = "0.62", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Security_Credentials",
+    "Win32_Storage_FileSystem",
+    "Win32_System_IO",
+    "Win32_System_Pipes",
+    "Win32_System_RemoteDesktop",
+    "Win32_System_Threading",
+    "Win32_UI_WindowsAndMessaging",
+] }
 
 # Zed patches these crates.io crates in its own workspace; a git dependency
 # does not inherit [patch], so GPUI's consumers repeat the ones it needs.
