@@ -1,0 +1,111 @@
+{
+  "schema": "dr-testkit/evidence/1",
+  "name": "store-bench",
+  "milestone": "f8-m1",
+  "generatedBy": "cargo run --release -p dr-testkit --bin bench -- store --milestone f8-m1",
+  "inputs": {
+    "crates/dr-store": "784752e1b2f7d3686bafeb1c902b7fec5628888681923c496de5fa33c02a5b32",
+    "crates/dr-testkit/src/bench.rs": "13154382effa81d06fbee1721a2d7016376bb2bb32eb0c3e41df019a7465b82f",
+    "crates/dr-testkit/src/bin/bench.rs": "4b197da40bd52f5bb7f64ab6b716967eae8598af6dd312cbff8b00208ba3b148",
+    "crates/dr-testkit/src/rng.rs": "eb878d8e485f01a901cb1742074c9de455d51871985ddf836e599e86baf353e3",
+    "crates/dr-testkit/src/seed": "7c5f10aa6515164347ca59049080b017dccccac01dd070efd07d2bcbf799706e",
+    "crates/dr-testkit/src/text.rs": "d639486e1178aadb3f7a41cdd4f563e74564f4f3d719de21cc4c183e5f6cb5b8"
+  },
+  "corpus": {
+    "corpusFingerprint": "5b319924c784252a98d35588c557a642ff4fb6b347f3a3603a9f1696a54bfb48",
+    "preset": "heavy",
+    "seed": "0x5eed0f08"
+  },
+  "machine": {
+    "arch": "aarch64",
+    "cores": 12,
+    "cpu": "Apple M3 Pro",
+    "loadAverage1m": 14.6,
+    "memoryBytes": 38654705664,
+    "os": "macos",
+    "osVersion": "27.0.1",
+    "profile": "release"
+  },
+  "results": {
+    "cases": {
+      "fullBook": {
+        "ms": {
+          "closeAllHolders": {
+            "max": 10.312,
+            "mean": 8.096,
+            "n": 5,
+            "p50": 8.59,
+            "p95": 10.312
+          },
+          "coldLoadAll": {
+            "max": 34.224,
+            "mean": 20.947,
+            "n": 5,
+            "p50": 15.916,
+            "p95": 34.224
+          },
+          "openAllHolders": {
+            "max": 109.85,
+            "mean": 45.552,
+            "n": 5,
+            "p50": 28.288,
+            "p95": 109.85
+          },
+          "readAllText": {
+            "max": 63.061,
+            "mean": 39.097,
+            "n": 5,
+            "p50": 32.519,
+            "p95": 63.061
+          }
+        },
+        "shape": {
+          "chapterWords": 1500000,
+          "chapters": 100,
+          "holdersOpened": 100,
+          "librarySqliteBytes": 13451264,
+          "loads": 5
+        },
+        "what": "every chapter: load_copy cold, read all text, start a holder each, close them"
+      },
+      "keystrokeWrite": {
+        "ms": {
+          "write": {
+            "max": 16.001,
+            "mean": 0.156,
+            "n": 2000,
+            "p50": 0.061,
+            "p95": 0.441
+          }
+        },
+        "shape": {
+          "chapterWords": 20000,
+          "durability": "normal",
+          "eventsDelivered": 2000,
+          "writes": 2000
+        },
+        "what": "DocHandle::write of a one-character insert mid-chapter: commit, export, append to SQLite, deliver the event"
+      },
+      "keystrokeWriteFull": {
+        "ms": {
+          "write": {
+            "max": 2.906,
+            "mean": 0.096,
+            "n": 2000,
+            "p50": 0.075,
+            "p95": 0.181
+          }
+        },
+        "shape": {
+          "chapterWords": 20000,
+          "durability": "full",
+          "eventsDelivered": 2000,
+          "writes": 2000
+        },
+        "what": "DocHandle::write of a one-character insert mid-chapter: commit, export, append to SQLite, deliver the event"
+      }
+    },
+    "mode": "full",
+    "suite": "store"
+  }
+}

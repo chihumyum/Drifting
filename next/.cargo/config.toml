@@ -1,0 +1,5 @@
+# `cargo xtask …`: the workspace's gates and launchers (xtask/).
+# `cargo drifting …`: the development command line (crates/dr-cli).
+[alias]
+xtask = "run -q --locked -p xtask --"
+drifting = "run -q --locked -p dr-cli --"
