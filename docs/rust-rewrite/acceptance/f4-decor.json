@@ -1,0 +1,84 @@
+{
+  "schema": "drifting.f4d.decor/1",
+  "generated_at": "2026-11-07",
+  "source_fingerprint": "149a778b481186e5",
+  "conditions": {
+    "load_average_1m_max": 4.91,
+    "quiet_below_1m": 2,
+    "reference_only": true,
+    "note": "High load: other builds were running on this machine. For reference only; do not compare builds or patches with these numbers. Remeasure on an idle machine (f4-editor.md, remeasuring)."
+  },
+  "machine": {
+    "cpu": "Apple M3 Pro",
+    "model": "Mac15,7",
+    "cores": 12,
+    "memory_gb": 36,
+    "os": "macOS 27.0.1"
+  },
+  "build": {
+    "profile": "release",
+    "gpui": "zed v1.27.0 (git tag), runtime_shaders",
+    "loro": "=1.17.1"
+  },
+  "corpus": {
+    "chapter": {
+      "seed": "0x5eed0b01",
+      "chapters": 1,
+      "chars": 20023,
+      "fingerprint": "964a8f71d58ceb72"
+    }
+  },
+  "method": "Headless GPUI (test platform, macOS text system, Metal into a texture), 1100x820 window, the 20k-char chapter. Frame = CPU time of one whole editor frame (render, layout, paint). Decorated = 400 comment swashes (sand, hot texture, ticks), 300 sand underlines, 120 dotted suggestions, 120 find hits, 60 Agent inks (ticks), all settled. Scroll: top to bottom, 48 px a frame. Typing: 120 characters one by one mid-chapter, edit + frame each. Plain and decorated alternate, 3 rounds each.",
+  "decorations": {
+    "count": 1000,
+    "painted_in_one_view": 42,
+    "set_all_groups": {
+      "count": 3,
+      "mean_ms": 0.867,
+      "p50_ms": 0.878,
+      "p95_ms": 0.92,
+      "p99_ms": 0.92,
+      "max_ms": 0.92
+    }
+  },
+  "scroll_frame": {
+    "plain": {
+      "count": 1179,
+      "mean_ms": 0.196,
+      "p50_ms": 0.148,
+      "p95_ms": 0.364,
+      "p99_ms": 0.382,
+      "max_ms": 0.4
+    },
+    "decorated": {
+      "count": 1179,
+      "mean_ms": 0.284,
+      "p50_ms": 0.232,
+      "p95_ms": 0.478,
+      "p99_ms": 0.505,
+      "max_ms": 0.539
+    },
+    "p95_ratio": 1.31,
+    "budget_p95_ms": 16.7
+  },
+  "keystroke_frame": {
+    "plain": {
+      "count": 360,
+      "mean_ms": 0.298,
+      "p50_ms": 0.295,
+      "p95_ms": 0.323,
+      "p99_ms": 0.355,
+      "max_ms": 0.506
+    },
+    "decorated": {
+      "count": 360,
+      "mean_ms": 0.47,
+      "p50_ms": 0.456,
+      "p95_ms": 0.49,
+      "p99_ms": 0.509,
+      "max_ms": 4.271
+    },
+    "p95_ratio": 1.52,
+    "budget_p95_ms": 16
+  }
+}
