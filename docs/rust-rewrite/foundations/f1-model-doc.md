@@ -1,6 +1,6 @@
 # F1：dr-model 与 dr-doc
 
-2026-11-07，两轮：第一轮把结构做成库（结构改成 v1），第二轮按监管会话的两份审查补数据、改顺序（结构改成 v2）。计划见 [foundation.md 的 F1](../foundation.md#f1-dr-model-与-dr-doc)，文档结构见 [loro-schema.md](../loro-schema.md)，代码在 `next/crates/dr-model/` 和 `next/crates/dr-doc/`。
+2026-11-07，三轮：第一轮把结构做成库（结构改成 v1）；第二轮按监管会话的两份审查补数据、改顺序（结构改成 v2）；第三轮按 F3、dr-text、F8 的反馈，让视图和事务能套在存储持有的文档上，读取按对象变便宜，证据换成新做法。计划见 [foundation.md 的 F1](../foundation.md#f1-dr-model-与-dr-doc)，文档结构见 [loro-schema.md](../loro-schema.md)，代码在 `next/crates/dr-model/` 和 `next/crates/dr-doc/`。
 
 ## 做了什么（大白话）
 
@@ -21,6 +21,15 @@
    - 新增「按对象恢复快照」的接口：在历史副本上读出这个对象当时的字段，作为新提交写回，书里别的东西不动。
    - 界面和 Agent 做法不一样的 9 处（删章时关系、批注、构想绑定、分类里的要素、故事线成员怎么办，删关系类型，重名时加后缀还是报错）列成了清单，每条写了建议的统一做法，等 F3 照着做成一条命令。
    - 视图数据逐项定了放哪：作者亲手摆的（关系图固定位置、情节规划格子宽高）进书目文档，看的方式（视图模式、视口、滚动位置、手调比例、栏宽）放本机。
+
+6. **第三轮：让命令层不再需要「镜像」，读取变便宜，证据换成新做法。**
+   - **借来的文档上也能读写**：存储（F2）的文档持有者手里拿着 Loro 文档，原来 `dr-doc` 只能在自己那份上开事务，所以 F3 得给每篇打开的文档多存一份「镜像」，每次提交再导出导入一次。现在 `BorrowedProse` / `BorrowedBook` 直接套在持有者的文档上，读写都行，提交由持有者做；撤销也一样（`ProseUndo::on` + `undo_step`）。F3 可以拆掉镜像，内存少一半。
+   - **直接读持有者手里的热文档**：`ProseReader::from_loro` / `BookReader::from_loro` 共享那份文档，不复制、不写；`ProseView::paragraph_in(位置, 段数)` 不看前文就能读中间几段。
+   - **按对象读不再读全书**：「某个对象还在不在」从读五六个集合改成直接查一个键；「列关系」只对用到的端点查；新增 `relations_of(端点)`。
+   - **「要不要修」先粗看一眼**：`needs_repair()` 遇到第一个问题就停；修复计划里找重复关系也不再先算「哪些能显示」（重复的关系端点和类型都一样，要显示一起显示，要藏一起藏）。
+   - **快照能按字段读、能比较**：`EntitySnapshot::field` / `diff`，帮手撤销要比「动手前 / 写完后 / 现在」。
+   - **9 处分叉标成已统一**，F3 的测试名挂到了对应的不变量和分叉上；清单里还没有测试的 3 条单独列出来并写明原因。
+   - **证据换成新做法**：不变量清单、两个三设备属性测试、模糊测试的 JSON 都删了，改成测试里直接断言；模糊测试找到的两个崩溃输入作为回归测试保留；测量搬进 `dr-testkit` 的基准，成了 `doc` 套件。
 
 **要作者定的事：没有。** 都是技术取舍，下面写了理由。
 
@@ -58,7 +67,7 @@
 | `origin` | `Origin`：`user` / `agent:<会话>/<轮>` / `mirror` / `sync` / `import` / `genesis` / `repair`；`commit_message()`：Agent、Markdown 文件夹、导入的提交带提交信息，作者自己的不带；`UNDO_EXCLUDED_ORIGIN_PREFIXES` | 稳定 |
 | `time` | `Timestamp`（秒）、`Day`（`YYYY-MM-DD`，校验闰年） | 稳定 |
 | `check` | 命令层用的判断：`non_empty_name`、`relation_type_definition`、`relation_ends`、`comment_target`、`patch_source`、`material_payload`、`asset_shape`、`plot_cell_size`；违反时返回不变量 id | 可能变（F3 会加） |
-| `invariant` | 不变量清单 `INVARIANTS`（78 条）、`NOT_CARRIED`（16 条）、界面和 Agent 的分叉 `DIVERGENCES`（9 条，待 F3 统一），生成 [acceptance/f1-invariants.json](../acceptance/f1-invariants.json) | 随 F3 增补 |
+| `invariant` | 不变量清单 `INVARIANTS`（78 条）、`NOT_CARRIED`（16 条）、界面和 Agent 的分叉 `DIVERGENCES`（9 条，已由 F3 统一，各带测试名）、还没有测试的 `NOT_YET_TESTED`（3 条，写明原因）；全部由测试当场断言，不再生成 JSON | 随 F3 增补 |
 
 ### dr-doc：正文文档
 
@@ -74,16 +83,19 @@ ProseDoc::create(doc_id, peer) / load(doc_id, peer, &blobs)     一个写入者
   .subscribe(|ProseEvent| ...)      提交或导入后同步回调
   .version() / frontiers() / export_updates_since(vv) / export_snapshot()
 ProseReader::load_at(doc_id, &blobs, &frontiers)   看历史：另载一份脱离的副本
+ProseReader::from_loro(doc_id, &loro_doc)            共享别人（持有者）手里的文档，不复制不写
+BorrowedProse::new(&loro_doc, &doc_id)               借来的文档：.view() / .txn() / .undo_manager()，不提交
 genesis(&doc_id) -> Vec<u8>         确定性创世字节
 ```
 
 | 类型 | 主要方法 | 状态 |
 | --- | --- | --- |
-| `ProseView` | `len` / `len_utf8` / `len_utf16`、`pos(unit, value) -> TextPos`、`text_in(range)`、`paragraphs()`（逐段懒读，已按「重复 id 只认第一个」处理）、`paragraph_at(pos)`、`paragraph_by_id(&BlockId)`、`blocks()`（只要换行位置和块 ID）、`newlines()`、`entity_links()`、`embed_refs()` / `embed(id)` / `orphan_embeds()`、`anchor(range)`、`resolve(&Anchor)` | 稳定；会加按范围读 |
+| `ProseView` | `len` / `len_utf8` / `len_utf16`、`pos(unit, value) -> TextPos`、`text_in(range)`、`paragraphs()`（逐段懒读，已按「重复 id 只认第一个」处理）、`paragraph_at(pos)`、`paragraph_by_id(&BlockId)`、`blocks()`（只要换行位置和块 ID）、`newlines()`、`entity_links()`、`embed_refs()` / `embed(id)` / `orphan_embeds()`、`anchor(range)`、`resolve(&Anchor)`；第三轮新增 `paragraph_in(位置, 段数)`（不看前文，块 ID 按存的原样） | 稳定 |
 | `Paragraph` | `id`（读者用的）、`stored_id`、`range`、`newline`、`attrs: BlockAttrs`、`runs: Vec<Run { text, marks }>`、`embed()` | 稳定 |
 | `ProseTxn` | `insert_text`、`insert_paragraphs`（粘贴，每段新块 ID）、`split`（回车）、`delete`（含并段规则）、`set_block_attrs`、`set_heading`、`set_style` / `clear_style`、`link_entity` / `unlink_entity`、`insert_embed` / `table`、`drop_orphan_embeds`、`repair_block_ids`、`set_block_id`（只给导入） | 稳定；F4 会要更多编辑原语 |
 | `ProseEvent` | `trigger`（本机 / 导入 / 检出）、`origin`、`body: Vec<TextChange>`（按字符的 retain / insert / delete）、`splices()`（改后的坐标）、`restyled()`、`embeds_changed`、`meta_changed` | 可能变（F4 用起来再调） |
-| `ProseUndo` | `undo(&mut doc)` / `redo(&mut doc)` 返回 `Committed`；`hooks()` 拿到 Loro 的 `UndoManager` 挂 `set_on_push` / `set_on_pop` | 可能变 |
+| `ProseUndo` | `undo(&mut doc)` / `redo(&mut doc)` 返回 `Committed`；借来的文档上用 `ProseUndo::on(&loro_doc)` + `undo_step()` / `redo_step()`（只执行，落盘归持有者）；`hooks()` 拿到 Loro 的 `UndoManager` 挂 `set_on_push` / `set_on_pop` | 可能变 |
+| `BorrowedProse` | 套在持有者的 `LoroDoc` 上：`new`（核对 `meta.doc`、要有创世）、`view`、`txn`、`undo_manager`；什么都不提交 | 稳定 |
 | `TableWriter` | `add_row` / `add_col` / `remove_*` / `set_cell` | 可能变 |
 
 ### dr-doc：书目文档
@@ -95,11 +107,14 @@ BookDoc::create(book_id, peer) / load(book_id, peer, &blobs)
   .repair() -> (RepairPlan, Option<Committed>)
   .subscribe(|BookEvent| ...)  BookEvent.changes: {Change { collection, id }}
 generic_relation_type_id(&book) = "system:generic-association:<书 id>"
+BookReader::from_loro(book_id, &loro_doc)    共享持有者手里的书目文档
+BorrowedBook::new(&loro_doc, &book_id)       借来的书目文档：.view() / .txn()，不提交
 ```
 
 | 类型 | 主要方法 | 状态 |
 | --- | --- | --- |
-| `BookView`（读，已容错） | `meta`、`node` / `nodes` / `chapters`（书序）/ `drifts` / `timeline`（叙事序）、`acts`、`time_pins`、`storylines`、`categories`、`element` / `elements`、`patches` / `patches_of`、`relation_type(s)`、`relations`（能显示的）/ `relations_raw`（存的全部）、`entity_exists`、`plot_grid`、`comment` / `comments`（目标不在时标 `target_missing`）、`materials`、`assets`、`drift_groups`、`material_folders`（父在前）、`facts`、`memory`、`writing_days` / `words_on`、`owns_prose(&DocId)`、`repair_plan`；v2 新增 `element_name_conflicts`（合并后重名的要素和保留名字的那个）、`todo_done`（任务行显示的待办状态）、`entity_snapshot`（某对象存着的全部字段，用在历史副本上） | 稳定；会加缓存和按 id 的批量读 |
+| `BookView`（读，已容错） | `meta`、`node` / `nodes` / `chapters`（书序）/ `drifts` / `timeline`（叙事序）、`acts`、`time_pins`、`storylines`、`categories`、`element` / `elements`、`patches` / `patches_of`、`relation_type(s)`、`relations`（能显示的）/ `relations_raw`（存的全部）、`entity_exists`、`plot_grid`、`comment` / `comments`（目标不在时标 `target_missing`）、`materials`、`assets`、`drift_groups`、`material_folders`（父在前）、`facts`、`memory`、`writing_days` / `words_on`、`owns_prose(&DocId)`、`repair_plan`；v2 新增 `element_name_conflicts`（合并后重名的要素和保留名字的那个）、`todo_done`（任务行显示的待办状态）、`entity_snapshot`（某对象存着的全部字段，用在历史副本上）；第三轮新增 `relations_of(端点)`、`needs_repair()`，`entity_exists` / `comment` / `comments` / `relations` 改成按键查是否还在 | 稳定；增量索引以后再说 |
+| `EntitySnapshot` | `field(键)`、`keys()`、`diff(&另一份)`（按键列出 `(键, 之前, 之后)`）；`restore_fields` 用它写回 | 稳定 |
 | `BookTxn`（写） | 每类一个写入器，逐字段设值、`None` 即删除：`meta()`、`node(id)`、`act`、`storyline`、`category`、`element`、`patch`、`relation_type`（内置的拒绝）、`relation`、`time_pin`、`plot_grid(chapter)`、`comment`、`material`、`memory`；`put_asset`（写一次）、`put_fact` / `remove_fact`、`writing_day`、`drift_groups()` / `material_folders()`（树：建、改名、改色、移动）、`delete_drift_group` / `delete_material_folder`（子级和成员上移）、`purge(collection, id)`、`apply_repair(&plan)`；v2 新增 `projected_todo(kind, doc, block)`（生成待办，id 确定）、`restore_fields(collection, id, &snapshot, metadata_fields(collection))`（按对象恢复历史），以及各写入器的新字段：`pos`、`color`、`word_target`、`relate_pin`、`quote`、`snapshots`、`region`、`agent_conversation`、`description` | 稳定；F3 会提出缺的 |
 | `Collection` | 19 个根容器 | 稳定 |
 | `RepairPlan` | 语义重复的关系、缺书序的章节（补成什么）、带书序的构想、在分组里的章节 | 随修复项增补 |
@@ -119,7 +134,7 @@ generic_relation_type_id(&book) = "system:generic-association:<书 id>"
 
 ## 不变量清单（摘要）
 
-完整清单和每条的旧版出处、新版落点、对应测试在 `dr_model::invariant`，证据 [acceptance/f1-invariants.json](../acceptance/f1-invariants.json) 由测试生成并校验（`invariants_evidence_is_current`）；清单里点名的每个测试都必须真的存在（`every_named_test_exists`）。
+完整清单和每条的旧版出处、新版落点、对应测试在 `dr_model::invariant`，由测试当场断言：每条都有落点；没有测试的必须写在 `NOT_YET_TESTED` 里并说明原因（`every_rule_is_tested_or_says_why_not`）；清单和分叉里点名的每个测试都必须真的存在，dr-model、dr-doc、dr-workspace 里都会找（`every_named_test_exists`）。
 
 | 靠什么成立 | 条数 | 例子 |
 | --- | ---: | --- |
@@ -134,9 +149,9 @@ generic_relation_type_id(&book) = "system:generic-association:<书 id>"
 - 旧版删章节、要素时把它们的关系永久删掉；新版只是不显示，恢复后关系回来。
 - 旧版靠外键级联删书；新版一本书就是它的那些文档，按文档 id 一起删。
 
-### 界面和 Agent 做法不一样的地方（待 F3 统一）
+### 界面和 Agent 做法不一样的地方（已由 F3 统一）
 
-旧版界面和 Agent 工具各走各的代码，同一个操作结果不同。新版两边走同一条命令，下面是每处建议的统一做法（详细出处在 `DIVERGENCES`）：
+旧版界面和 Agent 工具各走各的代码，同一个操作结果不同。新版两边走同一条命令，F3 照下面的做法实现了（`DIVERGENCES` 里每条都标了「已统一」并挂着 F3 的测试名；分类的空名在工作区里是 `Untitled`，本地化的默认名由界面传）：
 
 | 操作 | 旧版界面 | 旧版 Agent | 建议统一成 |
 | --- | --- | --- | --- |
@@ -164,12 +179,12 @@ cargo test --release -p dr-doc --test measure -- --ignored --nocapture
 
 | 测试 | 内容 | 结果 |
 | --- | --- | --- |
-| 单元测试 | dr-model 33 个；dr-doc 69 个（正文 32、书目 29、样式表与位置换算、对等方等 8）。P0-C 的正文用例全部搬过来，换成类型化接口 | 全过 |
-| 正文三设备属性测试 `three_peers_converge` | 三台设备随机打字、回车、跨段删、设标题、加人物链接、加锚点、撤销、Agent 写入，任意顺序同步；查收敛、以换行结尾、块 ID 唯一且一致、锚点各处一致 | 3000 例全过；导入后自动修复 1622 次，没有一例需要额外修复轮；2708 个锚点，793 个收成点。见 [f1-prose-convergence.json](../acceptance/f1-prose-convergence.json) |
-| 书目三设备属性测试 `three_peers_read_the_same_book` | 随机建章、建构想、建要素、进出废纸篓、彻底删、建关系（含没按规范顺序存的对称关系）、加减故事线、移动和删除分组、后台修复，任意顺序同步；查各设备读出来一样、读出来的东西守住全部读取规则 | 第一次跑 3000 例时在第 708 例失败：两台设备各建了同一个分组 id，树里有两个同 id 的节点，挂在其中一个下面的子分组读漏了（见下「发现并修好的」）。修好后 3000 例全过：1725 例同步后需要修复，都是一轮修好。见 [f1-book-convergence.json](../acceptance/f1-book-convergence.json) |
+| 单元测试 | dr-model 34 个；dr-doc 76 个（正文 35、书目 33、样式表与位置换算、对等方等 8）。P0-C 的正文用例全部搬过来，换成类型化接口 | 全过 |
+| 正文三设备属性测试 `three_peers_converge` | 三台设备随机打字、回车、跨段删、设标题、加人物链接、加锚点、撤销、Agent 写入，任意顺序同步；查收敛、以换行结尾、块 ID 唯一且一致、锚点各处一致；最后断言这一轮真的修过重复块 ID、锚过字也收起过 | 3000 例全过；导入后自动修复 1622 次，没有一例需要额外修复轮；2708 个锚点，793 个收成点 |
+| 书目三设备属性测试 `three_peers_read_the_same_book` | 随机建章、建构想、建要素、进出废纸篓、彻底删、建关系（含没按规范顺序存的对称关系）、加减故事线、移动和删除分组、后台修复，任意顺序同步；查各设备读出来一样、读出来的东西守住全部读取规则 | 第一次跑 3000 例时在第 708 例失败：两台设备各建了同一个分组 id，树里有两个同 id 的节点，挂在其中一个下面的子分组读漏了（见下「发现并修好的」）。修好后 3000 例全过：1725 例同步后需要修复，都是一轮修好。第三轮加查：便宜的 `needs_repair` 和完整的修复计划结论一致；按端点读的关系和全书关系里挑出来的一致 |
 | 其他属性测试 | 没人删的锚点永远锚着原文；块 ID 修复是状态的函数（两台设备修出来一样）；位置换算三种单位处处一致、字符中间一律报错 | 全过 |
-| 模糊测试（`next/crates/dr-doc/fuzz/`，不进 CI） | `load_bytes`：任意字节当存储的数据载入、导入、读、写；`bad_structure`：用 Loro 原始接口写出结构坏掉的文档（没有末尾换行、段落标记打在字上、字段类型不对、树节点重复同一个 id、两个写入者），再经 `dr-doc` 读写 | 找到两个崩溃（批量导入申请 29 GB 内存、坏锚点让 Loro panic），都已修；修后两个目标各跑 150 秒无崩溃。见 [f1-fuzz.json](../acceptance/f1-fuzz.json) |
-| 测量 | 2 万字章节、100 章 / 300 要素 / 400 关系的书目，release | 见下 |
+| 模糊测试（`next/crates/dr-doc/fuzz/`，不进 CI） | `load_bytes`：任意字节当存储的数据载入、导入、读、写；`bad_structure`：用 Loro 原始接口写出结构坏掉的文档（没有末尾换行、段落标记打在字上、字段类型不对、树节点重复同一个 id、两个写入者），再经 `dr-doc` 读写 | 找到两个崩溃（批量导入申请 29 GB 内存、坏锚点让 Loro panic），都已修；修后两个目标各跑 150 秒无崩溃。两个崩溃输入（124 和 546 字节，模糊测试生成的）放在 `tests/fuzz-regressions/`，`tests/fuzz_regressions.rs` 用和模糊目标同一段代码回放 |
+| 测量 | `dr-testkit` 基准的 `doc` 套件，统一种子：快跑（tiny）进 CI 只查形状，全跑（heavy）在作者机器上 | 见下 |
 
 ### 发现并修好的
 
@@ -180,22 +195,28 @@ cargo test --release -p dr-doc --test measure -- --ignored --nocapture
 
 ### 关键数字
 
-M3 Pro，release，Loro 1.17.1，合成数据（[f1-measure.json](../acceptance/f1-measure.json)，只作参考，不是门槛）：
+`cargo run --release -p dr-testkit --bin bench -- doc`，heavy 种子；里程碑测量证据是 [acceptance/f1-m3-doc-bench.json](../acceptance/f1-m3-doc-bench.json)（带输入指纹和当时的机器负载）。只作参考，不是门槛。
 
-| 项 | 数字 | 说明 |
+| 项 | p50 / p95 | 说明 |
 | --- | ---: | --- |
-| 打开一章（2 万字，从快照载入） | 0.30 ms | 快照 44 KB，199 段、135 处人物链接 |
-| 第一次读出全部段落（含解码整章） | 4.22 ms | 冷文档第一次读会整章解码（P0-C 的结论） |
-| 再读全部段落 | 0.45 ms | 逐段懒读，每段只拷这一段 |
-| 按位置找段落 `paragraph_at` | 121.9 µs | 要读它前面各段的块 ID（「重复的只认第一个」）；随段落数增长，编辑器用自己的索引，别每次按键调用 |
-| 位置换算（字符 → 三种单位 → 再从 UTF-16 换回） | 1.4 µs | 经 Loro 的索引，与文档长度无关 |
-| 列出全部人物链接 | 0.46 ms | 读整章 |
-| 一次按键：`edit` + 提交 + 导出更新字节 | p50 5 µs / p95 18 µs | 每次约 96 字节；不含 SQLite（P0-C 测过写库，合计 0.23 ms） |
-| 打开书目（100 章、200 构想、300 要素、400 关系） | 0.36 ms | 快照 85 KB |
-| 列章节（书序，已容错） | 0.53 ms |  |
-| 列能显示的关系（已容错、已去重） | 3.85 ms | 每次重新读各集合，见待协调 2 |
-| 算修复计划 | 5.39 ms |  |
+| 打开一章（从快照载入） | 0.44 / 0.55 ms | heavy 种子里最长的一章：22031 字、124 段、222 处人物链接 |
+| 第一次读出全部段落（含整章解码） | 2.49 / 2.85 ms | 冷文档第一次读会整章解码（P0-C） |
+| 再读全部段落 | 0.42 / 0.52 ms |  |
+| `paragraph_at`（按位置找段） | 121 µs / 228 µs | 要读前面各段的块 ID |
+| `paragraph_in`（第三轮新增，不看前文） | 10 µs / 13 µs | 编辑器、派生器按段读用它 |
+| 位置换算往返 | 2 µs / 2 µs |  |
+| 列出人物链接 | 0.42 / 0.67 ms | 读整章 |
+| 一次按键：`edit` + 提交 + 导出 | 5 µs / 7 µs | 不含 SQLite；经持有者落盘见 F8 的 store 套件 |
+| 打开书目（100 章、300 要素、400 关系、200 批注） | 1.13 / 1.92 ms |  |
+| 列章节 | 1.42 / 2.00 ms |  |
+| 列能显示的关系 | 2.27 / 2.46 ms | 第三轮起每个端点只查一次键 |
+| 某个要素的关系 `relations_of`（新增） | 1.23 / 2.70 ms | 仍要读一遍关系表 |
+| 列批注 | 3.32 / 3.73 ms | 目标是否还在改成查键；剩下的是读出 200 条批注本身 |
+| 对象还在不在 `entity_exists` | 1 µs / 2 µs | 第三轮前每次读五六个集合，约 4–5 ms |
+| 要不要修 `needs_repair`（新增） | 2.17 / 4.96 ms | 没东西要修时和下一行一样，要把节点表、关系表各整块读一遍 |
+| 修复计划 `repair_plan` | 2.11 / 5.26 ms | 第三轮前约 5 ms：原来要先算「哪些关系能显示」，现在不用 |
 
+测的时候机器一分钟负载 10.68（别的会话在编译），长尾偏高。和第一轮的旧数字不是同一份数据（旧的是 `tests/measure.rs` 自己造的书，没有批注），只能看量级。
 
 ## 里程碑状态
 
@@ -207,6 +228,7 @@ M3 Pro，release，Loro 1.17.1，合成数据（[f1-measure.json](../acceptance/
 | 4 | 属性测试（含 3000 例三设备）、模糊测试 | 完成 |
 | 5 | 第二轮（监管会话审查）：v2 补字段、列表改位置键、待办单一真相、按对象恢复、名字唯一的读取容忍、分叉清单、视图数据归属 | 完成 |
 | 6 | M10 / F4 反馈：导入和 Markdown 文件夹的提交也带提交信息；样式表的唯一来源和对拍接口 | 完成 |
+| 7 | 第三轮（F3 / dr-text / F8 反馈）：借来的文档上读写和撤销、`from_loro`、`paragraph_in`、按对象的便宜读取、`needs_repair`、快照按字段读和比较、分叉标已统一、证据换新做法 | 完成 |
 
 ## 待协调
 
@@ -221,12 +243,14 @@ M3 Pro，release，Loro 1.17.1，合成数据（[f1-measure.json](../acceptance/
    - 写作日的设备键用 `DeviceKey::from_installation_id(安装身份)`，安装身份文件归 F2。
    - 本机布局（视图模式、视口、滚动位置、手调比例、栏宽，见 loro-schema.md「不进书目文档的」）按书 id 存在本机文件里，格式由 F2 / F6 定。
 2. **F3（dr-workspace）**
+   - **可以拆镜像了**：在持有者的写入闭包里用 `BorrowedBook::new(doc, &book)` / `BorrowedProse::new(doc, &doc_id)` 开视图和事务，撤销用 `ProseUndo::on(doc)` + `undo_step`；读取用 `BookReader::from_loro` / `ProseReader::from_loro` 共享持有者的文档。两条规矩：写之前先 `set_next_commit_options`（带来源和提交信息），因为解析已删文字上的锚点会在中途隐式提交一次；文档要先过 `dr_doc::schema::configure`、带着创世。
    - 清单里标「命令层」的 37 条是命令层的事，`dr_model::check` 有一部分现成的判断。
    - 9 处界面和 Agent 的分叉（`DIVERGENCES`）请照建议做成一条命令，或者改了建议再回来更新清单。
    - 新建要素前用 `element_name_key` 查重；合并后的重名读取时已经标出来（`name_conflict`），界面可以提示作者改名。
    - `edit` 出错也会提交已经做了的部分（Loro 不能回滚），所以先校验再写。
    - 写对称关系前用 `canonical_symmetric`（或 `check::relation_ends`）。
    - 删分组、删素材夹用 `delete_drift_group` / `delete_material_folder`，它们先把子级和成员挪上去；直接删树节点会连子树一起删。
+   - `BookDoc::repair()` 现在先问 `needs_repair()`；没东西要修时两者都约 2 ms（各整块读一遍节点表和关系表），比原来约 5 ms 少了一半多，但不是零。重复关系、缺书序这类问题只会在合并远端或导入后出现，建议只在打开书时跑一次、之后只在导入远端更新后跑。
    - 书目读取每次都从 Loro 取整个根映射的值。100 章、300 要素、400 关系时，列章节、列关系各要几毫秒（见上表）。如果 F3 的查询频繁，在它那一层按事件做增量缓存，不要每次都全读。
 3. **F4（编辑器）**
    - 计划里 `gpui-prose` 只依赖 gpui 和 loro、不依赖任何 `dr-*`，但正文的写入规则（回车挪块 ID、新换行写全属性、行内标记不打在换行上）都在 `dr-doc` 里。建议：`gpui-prose` 定义一个「文本源」trait（读段落、订阅改动、提交编辑），由 `dr-editor` 用 `dr-doc` 实现。不要让 `gpui-prose` 直接往 `LoroText` 里写，否则这些规则会绕过去。
@@ -258,7 +282,9 @@ next/crates/dr-doc/src/
   prose/  mod.rs view.rs txn.rs attrs.rs embed.rs event.rs tests.rs
   book/   mod.rs read.rs write.rs fields.rs tests.rs
 next/crates/dr-doc/tests/
-  prose_convergence.rs book_convergence.rs positions.rs invariant_tests_exist.rs measure.rs fuzz_seeds.rs
+  prose_convergence.rs book_convergence.rs positions.rs invariant_tests_exist.rs
+  fuzz_regressions.rs fuzz-regressions/ fuzz_seeds.rs
 next/crates/dr-doc/fuzz/   load_bytes、bad_structure（独立工作区，不进 CI）
-docs/rust-rewrite/acceptance/f1-*.json
+next/crates/dr-testkit/src/bench/doc.rs   基准的 doc 套件
+docs/rust-rewrite/acceptance/f1-m3-doc-bench.json   第三轮的测量证据
 ```

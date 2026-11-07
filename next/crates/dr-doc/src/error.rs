@@ -34,6 +34,9 @@ pub enum DocError {
     NotInProfile(&'static str),
     /// No paragraph ends at this position.
     NotANewline(usize),
+    /// A borrowed document has no genesis yet (no `meta`): create it from
+    /// `prose::genesis` / `book::genesis` first.
+    NotInitialized(DocId),
     /// The peer id is reserved (zero, or a genesis peer).
     ReservedPeer(u64),
     /// The entity does not exist.
@@ -64,6 +67,7 @@ impl fmt::Display for DocError {
             }
             DocError::NotANewline(p) => write!(f, "no paragraph ends at {p}"),
             DocError::ReservedPeer(p) => write!(f, "peer {p} is reserved"),
+            DocError::NotInitialized(id) => write!(f, "{id} has no genesis yet"),
             DocError::Missing { collection, id } => write!(f, "no {id:?} in {collection}"),
             DocError::Locked(id) => write!(f, "{id} is built in and locked"),
         }

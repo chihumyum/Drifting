@@ -39,7 +39,10 @@ pub fn exercise_prose(d: &mut ProseDoc, seed: &[u8]) {
     // Cursors from arbitrary bytes.
     if seed.len() > 4 {
         let (s, e) = seed.split_at(seed.len() / 2);
-        if let Some(a) = Anchor::decode(&EncodedAnchor { start: s.to_vec(), end: e.to_vec() }) {
+        if let Some(a) = Anchor::decode(&EncodedAnchor {
+            start: s.to_vec(),
+            end: e.to_vec(),
+        }) {
             let _ = v.resolve(&a);
         }
     }

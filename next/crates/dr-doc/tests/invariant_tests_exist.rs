@@ -1,5 +1,6 @@
 //! Every test the invariant checklist (`dr_model::invariant`) names exists in
-//! dr-model or dr-doc, so the checklist cannot claim a check nobody runs.
+//! dr-model, dr-doc or dr-workspace, so the checklist cannot claim a check
+//! nobody runs.
 
 use std::path::Path;
 
@@ -23,12 +24,20 @@ fn every_named_test_exists() {
     let mut src = String::new();
     sources(root, &mut src);
     sources(&root.join("../dr-model"), &mut src);
+    // The command layer's tests (F3).
+    sources(&root.join("../dr-workspace"), &mut src);
     let mut missing = Vec::new();
-    for inv in dr_model::invariant::INVARIANTS {
-        for t in inv.tests {
-            if !src.contains(&format!("fn {t}(")) {
-                missing.push(format!("{} → {t}", inv.id));
-            }
+    let named = dr_model::invariant::INVARIANTS
+        .iter()
+        .flat_map(|i| i.tests.iter().map(move |t| (i.id, *t)))
+        .chain(
+            dr_model::invariant::DIVERGENCES
+                .iter()
+                .flat_map(|d| d.tests.iter().map(move |t| (d.id, *t))),
+        );
+    for (id, t) in named {
+        if !src.contains(&format!("fn {t}(")) {
+            missing.push(format!("{id} → {t}"));
         }
     }
     assert!(

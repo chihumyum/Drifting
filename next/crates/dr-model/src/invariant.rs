@@ -18,9 +18,10 @@
 //! [`INVARIANTS`] is the checklist; [`NOT_CARRIED`] lists old rules the new
 //! version does not need, with the reason; [`DIVERGENCES`] lists operations
 //! the old interface and the old Agent tools did differently, each with the
-//! single meaning proposed for the new command (待 F3 统一). `docs/rust-rewrite/acceptance/
-//! f1-invariants.json` is generated from both (see the crate's tests) and
-//! `dr-doc`'s tests check that every test named here exists.
+//! single meaning the new command implements (unified by F3). The crate's
+//! tests assert the checklist's shape (every rule tested or listed in
+//! [`NOT_YET_TESTED`]); `dr-doc`'s tests check that every test named here
+//! exists, in dr-model, dr-doc or dr-workspace.
 
 use serde::Serialize;
 
@@ -56,7 +57,7 @@ pub struct Invariant {
 
 /// Where the old interface and the old Agent tools did the same operation
 /// differently. The new version runs both through one command (F3); each
-/// entry proposes that command's meaning. Status: 待 F3 统一.
+/// entry records the meaning chosen, its status and the command's tests.
 #[derive(Clone, Debug, Serialize)]
 pub struct Divergence {
     pub id: &'static str,
@@ -69,6 +70,10 @@ pub struct Divergence {
     pub legacy: &'static [&'static str],
     /// The proposed single meaning for interface and Agent alike.
     pub proposal: &'static str,
+    /// Where it stands now.
+    pub status: &'static str,
+    /// Tests of the unified command (in `dr-workspace`).
+    pub tests: &'static [&'static str],
 }
 
 /// An old rule the new version does not carry over.
@@ -176,7 +181,9 @@ pub const INVARIANTS: &[Invariant] = &[
             "author_undo_never_removes_agent_or_sync_text",
             "resolving_a_deleted_anchor_inside_an_agent_write_keeps_its_origin",
             "a_failed_edit_still_commits_what_it_applied",
-            "only_user_writes_are_author_undoable"
+            "only_user_writes_are_author_undoable",
+            "every_commit_is_durable_when_the_command_returns",
+            "the_editor_layer_undoes_only_the_authors_typing"
         ]
     ),
     inv!(
@@ -209,7 +216,10 @@ pub const INVARIANTS: &[Invariant] = &[
         [Command, Read],
         "F3 的创建命令负责；读取时缺的字段读成默认值（空串、默认状态），不报错",
         ["K:451-477", "K:556-565"],
-        ["read_tolerance_on_nodes"]
+        [
+            "read_tolerance_on_nodes",
+            "random_commands_keep_the_invariants"
+        ]
     ),
     inv!(
         "IMMUTABLE-AFTER-CREATE",
@@ -233,7 +243,11 @@ pub const INVARIANTS: &[Invariant] = &[
         [Command, Read],
         "dr_model::check::non_empty_name；读取时空名由界面显示占位",
         ["K:155-156", "K:196-325"],
-        ["command_checks_follow_the_old_rules"]
+        [
+            "command_checks_follow_the_old_rules",
+            "books_create_list_update_trash",
+            "unknown_commands_and_bad_input"
+        ]
     ),
     inv!(
         "BOOK-TRASH",
@@ -241,7 +255,7 @@ pub const INVARIANTS: &[Invariant] = &[
         [Command],
         "F3 的删除命令写 deleted_at；到期清理由存储（F2）做：删掉这本书的全部文档",
         ["K:196", "src/renderer/usecase/useProject.ts:25-31"],
-        []
+        ["books_create_list_update_trash"]
     ),
     inv!(
         "BOOK-PURGE",
@@ -285,7 +299,9 @@ pub const INVARIANTS: &[Invariant] = &[
         ["K:1881-1896"],
         [
             "chapters_sort_by_order_then_id_and_ideas_ignore_book_order",
-            "repair_orders_chapters_identically_on_two_devices"
+            "repair_orders_chapters_identically_on_two_devices",
+            "chapters_are_ordered_and_titles_get_suffixes",
+            "random_commands_keep_the_invariants"
         ]
     ),
     inv!(
@@ -313,7 +329,10 @@ pub const INVARIANTS: &[Invariant] = &[
         [Command, Read],
         "读取时分组不在就放到根目录（不修复：并发恢复可能让它回来）",
         ["K:1913-1917"],
-        ["concurrent_moves_never_make_a_cycle_and_missing_groups_read_as_root"]
+        [
+            "concurrent_moves_never_make_a_cycle_and_missing_groups_read_as_root",
+            "ideas_and_groups"
+        ]
     ),
     inv!(
         "ORDERS-FINITE",
@@ -365,7 +384,10 @@ pub const INVARIANTS: &[Invariant] = &[
         [Command, Read],
         "读取时彻底删除的故事线不列在成员里；废纸篓里的故事线由界面过滤",
         ["K:646-708"],
-        ["references_to_missing_entities_read_as_none"]
+        [
+            "references_to_missing_entities_read_as_none",
+            "chapter_storylines_and_primary"
+        ]
     ),
     inv!(
         "PRIMARY-IS-MEMBER",
@@ -417,7 +439,9 @@ pub const INVARIANTS: &[Invariant] = &[
         ],
         [
             "element_names_stay_unique_on_read_after_a_merge",
-            "regions_and_name_keys"
+            "regions_and_name_keys",
+            "element_names_are_unique_and_placeholders_numbered",
+            "concurrent_creates_of_one_name_are_flagged_not_lost"
         ]
     ),
     inv!(
@@ -429,7 +453,10 @@ pub const INVARIANTS: &[Invariant] = &[
             "src/renderer/domain/book-node.ts:182-199",
             "src/renderer/domain/storyline.ts:30-47"
         ],
-        []
+        [
+            "chapters_are_ordered_and_titles_get_suffixes",
+            "names_get_suffixes"
+        ]
     ),
     inv!(
         "CATEGORY-LAYOUT",
@@ -472,7 +499,8 @@ pub const INVARIANTS: &[Invariant] = &[
         [
             "relations_are_shown_only_when_whole",
             "todo_links_through_the_builtin_type",
-            "entity_kind_roles_match_the_old_vocabulary"
+            "entity_kind_roles_match_the_old_vocabulary",
+            "relations_validate_and_dedupe"
         ]
     ),
     inv!(
@@ -483,7 +511,8 @@ pub const INVARIANTS: &[Invariant] = &[
         ["K:1793-1796"],
         [
             "relations_are_shown_only_when_whole",
-            "command_checks_follow_the_old_rules"
+            "command_checks_follow_the_old_rules",
+            "relations_validate_and_dedupe"
         ]
     ),
     inv!(
@@ -497,7 +526,9 @@ pub const INVARIANTS: &[Invariant] = &[
         ],
         [
             "relations_are_shown_only_when_whole",
-            "three_peers_read_the_same_book"
+            "three_peers_read_the_same_book",
+            "relations_validate_and_dedupe",
+            "trashing_never_refuses_and_reports_fallout"
         ]
     ),
     inv!(
@@ -506,7 +537,10 @@ pub const INVARIANTS: &[Invariant] = &[
         [Command, Read],
         "读取时类型不在就不显示",
         ["K:1822-1854", "M00:755"],
-        ["relations_are_shown_only_when_whole"]
+        [
+            "relations_are_shown_only_when_whole",
+            "relations_validate_and_dedupe"
+        ]
     ),
     inv!(
         "REL-KINDS-BY-TYPE",
@@ -516,7 +550,8 @@ pub const INVARIANTS: &[Invariant] = &[
         ["K:1856-1864", "ERT:191-232"],
         [
             "relations_are_shown_only_when_whole",
-            "todo_links_through_the_builtin_type"
+            "todo_links_through_the_builtin_type",
+            "relations_validate_and_dedupe"
         ]
     ),
     inv!(
@@ -527,7 +562,8 @@ pub const INVARIANTS: &[Invariant] = &[
         ["K:1862-1863", "ERT:204-217"],
         [
             "symmetric_endpoints_are_canonical",
-            "relations_are_shown_only_when_whole"
+            "relations_are_shown_only_when_whole",
+            "relations_validate_and_dedupe"
         ]
     ),
     inv!(
@@ -555,7 +591,10 @@ pub const INVARIANTS: &[Invariant] = &[
         [Command],
         "dr_model::check::relation_type_definition",
         ["K:1774-1790", "ERT:111-168"],
-        ["command_checks_follow_the_old_rules"]
+        [
+            "command_checks_follow_the_old_rules",
+            "relation_types_names_locks_and_cascade"
+        ]
     ),
     inv!(
         "RT-NAME",
@@ -565,7 +604,8 @@ pub const INVARIANTS: &[Invariant] = &[
         ["K:1043", "K:1785-1787", "ERT:68-72", "M00:793"],
         [
             "relation_type_names_normalize",
-            "the_builtin_relation_type_is_locked"
+            "the_builtin_relation_type_is_locked",
+            "relation_types_names_locks_and_cascade"
         ]
     ),
     inv!(
@@ -589,7 +629,10 @@ pub const INVARIANTS: &[Invariant] = &[
             "M00:1792",
             "M00:1805"
         ],
-        ["the_builtin_relation_type_is_locked"]
+        [
+            "the_builtin_relation_type_is_locked",
+            "relation_types_names_locks_and_cascade"
+        ]
     ),
     // ---- comments, memory -------------------------------------------------
     inv!(
@@ -600,7 +643,8 @@ pub const INVARIANTS: &[Invariant] = &[
         ["K:280", "K:1870-1874"],
         [
             "comments_keep_unlocated_targets_and_anchor_into_prose",
-            "command_checks_follow_the_old_rules"
+            "command_checks_follow_the_old_rules",
+            "comments_with_anchors_and_metadata"
         ]
     ),
     inv!(
@@ -631,7 +675,8 @@ pub const INVARIANTS: &[Invariant] = &[
         ["K:246", "M00:842", "M11:27", "M11:34"],
         [
             "command_checks_follow_the_old_rules",
-            "unknown_values_survive"
+            "unknown_values_survive",
+            "materials_folders_and_assets"
         ]
     ),
     inv!(
@@ -672,7 +717,11 @@ pub const INVARIANTS: &[Invariant] = &[
         [Command],
         "dr_model::check::asset_shape",
         ["M00:948-961", "src/renderer/sync/protocol/asset.ts:98-112"],
-        ["command_checks_follow_the_old_rules", "sha256_shape"]
+        [
+            "command_checks_follow_the_old_rules",
+            "sha256_shape",
+            "materials_folders_and_assets"
+        ]
     ),
     inv!(
         "ASSET-BYTES",
@@ -707,7 +756,8 @@ pub const INVARIANTS: &[Invariant] = &[
         ],
         [
             "deleting_a_group_moves_children_and_ideas_up",
-            "materials_folders_and_assets"
+            "materials_folders_and_assets",
+            "ideas_and_groups"
         ]
     ),
     inv!(
@@ -719,7 +769,7 @@ pub const INVARIANTS: &[Invariant] = &[
             "src/renderer/domain/drift-group.ts:11",
             "src/renderer/domain/drift-group.ts:117-131"
         ],
-        []
+        ["ideas_and_groups", "random_commands_keep_the_invariants"]
     ),
     inv!(
         "ACT-PIN-DRIFT",
@@ -924,7 +974,11 @@ pub const INVARIANTS: &[Invariant] = &[
         [Command],
         "历史点同时记正文和书目文档的 frontiers（F2/F3）；恢复时在 BookReader::load_at 载入的副本上取 entity_snapshot，用 BookTxn::restore_fields 作为新提交写回 metadata_fields 列的字段；不整篇 revert 书目文档",
         ["src/renderer/services/snapshot-restore.service.ts:212-280 (restoreMetadata)"],
-        ["restoring_an_entity_writes_its_old_fields_back"]
+        [
+            "restoring_an_entity_writes_its_old_fields_back",
+            "restore_entities_is_its_own_inverse",
+            "undo_agent_restores_fields_nobody_changed_since"
+        ]
     ),
     inv!(
         "STYLE-TABLE-ONE-SOURCE",
@@ -944,7 +998,11 @@ pub const INVARIANTS: &[Invariant] = &[
         [Command],
         "F3 的事务顺序；中途失败只留下没有书目实体的正文文档，由 PROSE-OWNER 兜住",
         [],
-        []
+        [
+            "chapter_with_text_writes_prose_first",
+            "a_failure_after_the_prose_leaves_only_an_orphan",
+            "prose_written_before_the_book_survives_a_reopen"
+        ]
     ),
 ];
 
@@ -963,6 +1021,11 @@ pub const DIVERGENCES: &[Divergence] = &[
             "drifting-structural-write-strategy.ts:1406-1432",
         ],
         proposal: "同一条「进废纸篓」命令，界面和 Agent 都直接执行，不拒绝；关系不动，端点在废纸篓时读取隐藏（REL-ENDS-EXIST），恢复后回来；「彻底删除」在同一条命令里删掉这些关系。命令结果写明受影响的关系条数：界面在提示里说，Agent 在回复里报给作者",
+        status: "已统一（F3，2026-11-07）：界面和 Agent 走同一条命令，照上面的提议实现",
+        tests: &[
+            "trashing_never_refuses_and_reports_fallout",
+            "purging_a_chapter_cleans_up_in_one_commit",
+        ],
     },
     Divergence {
         id: "DIV-TRASH-COMMENTS",
@@ -974,6 +1037,11 @@ pub const DIVERGENCES: &[Divergence] = &[
             "drifting-structural-write-strategy.ts:1434-1457",
         ],
         proposal: "都直接执行；批注保留目标，目标在废纸篓时显示为「未定位」（CMT-TARGET），恢复后回到原处；彻底删除时批注不删，变成浮动批注（清掉目标、留下正文和原文快照）",
+        status: "已统一（F3，2026-11-07）：界面和 Agent 走同一条命令，照上面的提议实现",
+        tests: &[
+            "trashing_never_refuses_and_reports_fallout",
+            "purging_a_chapter_cleans_up_in_one_commit",
+        ],
     },
     Divergence {
         id: "DIV-DRIFT-BINDINGS",
@@ -985,6 +1053,8 @@ pub const DIVERGENCES: &[Divergence] = &[
             "src/renderer/domain/timeline-marker.ts:9-19",
         ],
         proposal: "进废纸篓不解绑，读取时绑定的构想不在或在废纸篓就当没绑定（ACT-PIN-DRIFT），恢复后绑定回来；彻底删除时，同一条命令把构想标题写进时间钉的标签，再清掉幕和时间钉的绑定",
+        status: "已统一（F3，2026-11-07）：界面和 Agent 走同一条命令，照上面的提议实现",
+        tests: &["purging_an_idea_keeps_its_title_on_time_pins"],
     },
     Divergence {
         id: "DIV-CATEGORY-ELEMENTS",
@@ -996,6 +1066,8 @@ pub const DIVERGENCES: &[Divergence] = &[
             "drifting-structural-write-strategy.ts:1459-1490",
         ],
         proposal: "都直接执行；要素的分类字段不动，分类在废纸篓时读取显示为未分类（ELEMENT-CATEGORY），恢复后回来；彻底删除分类时同一条命令清掉这些要素的分类",
+        status: "已统一（F3，2026-11-07）：界面和 Agent 走同一条命令，照上面的提议实现",
+        tests: &["categories_and_their_elements"],
     },
     Divergence {
         id: "DIV-STORYLINE-MEMBERSHIP",
@@ -1007,6 +1079,8 @@ pub const DIVERGENCES: &[Divergence] = &[
             "drifting-structural-write-strategy.ts:1492-1515",
         ],
         proposal: "都直接执行；成员关系保留，读取时废纸篓里的故事线不列出，恢复后回来；彻底删除故事线时同一条命令删掉各章里它的成员键（读取本来就会滤掉，删掉只是清理）",
+        status: "已统一（F3，2026-11-07）：界面和 Agent 走同一条命令，照上面的提议实现",
+        tests: &["storylines_order_rename_trash_purge"],
     },
     Divergence {
         id: "DIV-RELTYPE-DELETE",
@@ -1018,6 +1092,8 @@ pub const DIVERGENCES: &[Divergence] = &[
             "drifting-structural-write-strategy.ts:1399-1405",
         ],
         proposal: "同一条命令在一次提交里删掉类型和用它的关系；界面先显示条数请作者确认，Agent 直接执行并在结果里列出（Agent 写入直接生效，作者靠快照历史撤销）。内置类型照旧不能删",
+        status: "已统一（F3，2026-11-07）：界面和 Agent 走同一条命令，照上面的提议实现",
+        tests: &["relation_types_names_locks_and_cascade"],
     },
     Divergence {
         id: "DIV-DUP-TITLE",
@@ -1031,6 +1107,11 @@ pub const DIVERGENCES: &[Divergence] = &[
             "drifting-structural-write-strategy.ts:444",
         ],
         proposal: "同一条命令都自动加后缀，并在结果里返回最终的名字（Agent 看得到改成了什么，可以再改）",
+        status: "已统一（F3，2026-11-07）：界面和 Agent 走同一条命令，照上面的提议实现",
+        tests: &[
+            "chapters_are_ordered_and_titles_get_suffixes",
+            "names_get_suffixes",
+        ],
     },
     Divergence {
         id: "DIV-DUP-CATEGORY",
@@ -1042,6 +1123,8 @@ pub const DIVERGENCES: &[Divergence] = &[
             "drifting-structural-write-strategy.ts:475",
         ],
         proposal: "和章节标题一样：自动加后缀并返回最终名字；空名统一用界面语言的默认名",
+        status: "已统一（F3，2026-11-07）：界面和 Agent 走同一条命令，照上面的提议实现；空名在工作区里是 Untitled，本地化的默认名由界面传进来",
+        tests: &["categories_and_their_elements"],
     },
     Divergence {
         id: "DIV-DUP-ELEMENT",
@@ -1053,6 +1136,8 @@ pub const DIVERGENCES: &[Divergence] = &[
             "drifting-structural-write-strategy.ts:404-405",
         ],
         proposal: "两边本来一致，保持：明确的名字重名就拒绝（自动链接靠名字认人物，ELEMENT-NAME-UNIQUE），返回占用这个名字的要素；只有命令层的「新建空要素」给占位名自动编号",
+        status: "已统一（F3，2026-11-07）：界面和 Agent 走同一条命令，照上面的提议实现",
+        tests: &["element_names_are_unique_and_placeholders_numbered"],
     },
 ];
 
@@ -1139,44 +1224,28 @@ pub const NOT_CARRIED: &[NotCarried] = &[
     },
 ];
 
+/// Invariants nothing tests yet, and why. The checklist's test keeps this
+/// list exact: an untested rule must be named here, and a rule that gains a
+/// test must leave it.
+pub const NOT_YET_TESTED: &[(&str, &str)] = &[
+    (
+        "JSON-FIELDS",
+        "templates and metadata have no commands yet (F3 next milestone)",
+    ),
+    (
+        "BOOK-PURGE",
+        "deleting a whole book for good is not implemented yet (F2 / F3)",
+    ),
+    (
+        "ASSET-BYTES",
+        "asset bytes and their loading state belong to dr-store and the interface",
+    ),
+];
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::collections::HashSet;
-
-    fn evidence() -> serde_json::Value {
-        let mut by: std::collections::BTreeMap<&str, usize> = Default::default();
-        for i in INVARIANTS {
-            for m in i.holds_by {
-                let k = match m {
-                    Command => "command",
-                    Read => "read",
-                    Repair => "repair",
-                    Structure => "structure",
-                };
-                *by.entry(k).or_default() += 1;
-            }
-        }
-        serde_json::json!({
-            "schema": "f1-invariants/1",
-            "note": "Generated by `cargo test -p dr-model invariant` from next/crates/dr-model/src/invariant.rs; set DR_UPDATE_EVIDENCE=1 to rewrite. Do not edit by hand.",
-            "legacyLegend": LEGACY_LEGEND.iter().map(|(k, v)| (k.to_string(), serde_json::Value::from(*v))).collect::<serde_json::Map<_, _>>(),
-            "legacyCounts": LEGACY_COUNTS.iter().map(|(k, v)| (k.to_string(), serde_json::Value::from(*v))).collect::<serde_json::Map<_, _>>(),
-            "invariantCount": INVARIANTS.len(),
-            "notCarriedCount": NOT_CARRIED.len(),
-            "divergenceCount": DIVERGENCES.len(),
-            "divergenceStatus": "待 F3 统一：界面和 Agent 走同一条命令，提议见每条的 proposal",
-            "byMechanism": by,
-            "invariants": INVARIANTS,
-            "notCarried": NOT_CARRIED,
-            "divergences": DIVERGENCES,
-        })
-    }
-
-    fn evidence_path() -> std::path::PathBuf {
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../docs/rust-rewrite/acceptance/f1-invariants.json")
-    }
 
     #[test]
     fn invariant_ids_are_unique_and_every_rule_says_how_it_holds() {
@@ -1185,15 +1254,6 @@ mod tests {
             assert!(ids.insert(i.id), "duplicate id {}", i.id);
             assert!(!i.holds_by.is_empty(), "{} names no mechanism", i.id);
             assert!(!i.rule.is_empty() && !i.how.is_empty(), "{}", i.id);
-            // A rule the new version keeps only by structure or reads, with
-            // no test, would be a claim nobody checks.
-            if !i.holds_by.contains(&Command) {
-                assert!(
-                    !i.tests.is_empty() || i.id == "ASSET-BYTES",
-                    "{} has no test",
-                    i.id
-                );
-            }
         }
         // Every `check` predicate names an invariant that exists.
         for id in [
@@ -1214,35 +1274,58 @@ mod tests {
     }
 
     #[test]
-    fn every_divergence_proposes_one_meaning() {
+    fn every_rule_is_tested_or_says_why_not() {
+        let untested: Vec<&str> = INVARIANTS
+            .iter()
+            .filter(|i| i.tests.is_empty())
+            .map(|i| i.id)
+            .collect();
+        let listed: Vec<&str> = NOT_YET_TESTED.iter().map(|(id, _)| *id).collect();
+        assert_eq!(
+            untested, listed,
+            "NOT_YET_TESTED must name exactly the untested rules"
+        );
+    }
+
+    #[test]
+    fn the_checklist_covers_the_audit() {
+        // The audit of the old client (LEGACY_COUNTS) found 70 domain
+        // invariants and 126 triggers in force; the checklist carries at
+        // least as many rules as the audit found, and accounts for every
+        // trigger group it does not carry.
+        let counts: std::collections::HashMap<&str, usize> =
+            LEGACY_COUNTS.iter().copied().collect();
+        assert_eq!(
+            counts["triggers_in_force_after_0018"],
+            counts["domain_triggers"] + counts["infrastructure_triggers"]
+        );
+        assert!(INVARIANTS.len() >= counts["domain_invariants"]);
+        let by = |m: Mechanism| {
+            INVARIANTS
+                .iter()
+                .filter(|i| i.holds_by.contains(&m))
+                .count()
+        };
+        for m in [Command, Read, Repair, Structure] {
+            assert!(by(m) > 0, "{m:?}");
+        }
+        assert!(
+            NOT_CARRIED
+                .iter()
+                .all(|n| !n.why.is_empty() && !n.legacy.is_empty())
+        );
+    }
+
+    #[test]
+    fn every_divergence_is_unified_with_tests() {
         let mut ids = HashSet::new();
         for d in DIVERGENCES {
             assert!(ids.insert(d.id), "duplicate {}", d.id);
             assert!(d.id.starts_with("DIV-"));
             assert!(!d.ui.is_empty() && !d.agent.is_empty() && !d.proposal.is_empty());
             assert!(!d.legacy.is_empty(), "{} cites no source", d.id);
+            assert!(d.status.starts_with("已统一"), "{}", d.id);
+            assert!(!d.tests.is_empty(), "{} names no test", d.id);
         }
-    }
-
-    #[test]
-    fn invariants_evidence_is_current() {
-        let want = evidence();
-        let path = evidence_path();
-        if std::env::var("DR_UPDATE_EVIDENCE").is_ok() {
-            let mut s = serde_json::to_string_pretty(&want).unwrap();
-            s.push('\n');
-            std::fs::write(&path, s).unwrap();
-            return;
-        }
-        let have: serde_json::Value = serde_json::from_str(
-            &std::fs::read_to_string(&path).expect("f1-invariants.json exists"),
-        )
-        .unwrap();
-        assert_eq!(
-            have,
-            want,
-            "run with DR_UPDATE_EVIDENCE=1 to regenerate {}",
-            path.display()
-        );
     }
 }
