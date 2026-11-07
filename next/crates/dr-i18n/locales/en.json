@@ -11,6 +11,13 @@
     "close": "Close",
     "local": "Local"
   },
+  "dashboard": {
+    "today": {
+      "goal": "Goal",
+      "streak": "Streak",
+      "week": "This week"
+    }
+  },
   "editorOutline": {
     "aria": "Outline",
     "hiddenItems": "{{count}} distant outline items; hover to reveal"
@@ -39,6 +46,16 @@
     "crash": {
       "title": "Drifting ran into a problem last time"
     }
+  },
+  "globalSearch": {
+    "closeTitle": "Close (Esc)",
+    "field": {
+      "body": "Body",
+      "name": "Name",
+      "title": "Title"
+    },
+    "noResults": "No matches found",
+    "stats": "{{groups}} items · {{occurrences}} matches"
   },
   "immersiveWriting": {
     "enter": "Immersive writing",
@@ -110,7 +127,36 @@
     "title": "Notifications"
   },
   "projectHome": {
+    "create": {
+      "kinds": {
+        "category": "Category",
+        "chapter": "Chapter",
+        "drift": "Idea",
+        "element": "Element",
+        "material": "Material",
+        "storyline": "Storyline"
+      }
+    },
     "kicker": "Project Home"
+  },
+  "projectPicker": {
+    "desk": {
+      "form": {
+        "summaryLabel": "Summary"
+      }
+    },
+    "heat": {
+      "daysUnit": "days",
+      "today": "Today"
+    }
+  },
+  "referencesPanel": {
+    "kind": {
+      "patch": "Patch"
+    }
+  },
+  "relationTypes": {
+    "description": "Description"
   },
   "rightSidebar": {
     "kickers": {
@@ -126,6 +172,18 @@
         "none": "Project · detailed stats",
         "storyline": "This storyline · detailed stats"
       }
+    },
+    "stats": {
+      "averagePerChapter": "Average per chapter",
+      "bookPosition": "Book position",
+      "chapterCount": "Chapters",
+      "chapterOrdinal": "Chapter {{count}}",
+      "chaptersValue": "{{count}} chapters",
+      "recent": "Recent",
+      "wordsPerChapterValue": "{{words}} words / chapter",
+      "wordsValue": "{{count}} words",
+      "writingProgress": "Writing progress",
+      "writtenTarget": "Written / target"
     },
     "tabs": {
       "companion": "Agent",
@@ -279,5 +337,14 @@
     "maximize": "Maximize",
     "minimize": "Minimize",
     "restore": "Restore"
+  },
+  "workspaceWordTally": {
+    "book": "Book",
+    "chapter": "Chapter",
+    "counting": "counting",
+    "drift": "Idea",
+    "selection": "Selected",
+    "storyline": "Storyline",
+    "today": "Today"
   }
 }

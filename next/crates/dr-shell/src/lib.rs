@@ -96,6 +96,10 @@ pub fn init(info: ShellInfo, services: Services, file: SettingsFile, cx: &mut Ap
             );
         });
     }
+    // M07: the writing-day recorder and the Stats tab over the library,
+    // stored before quitting.
+    dr_view_stats::init(services.library.clone(), cx);
+    quit::before_quit(cx, dr_view_stats::flush);
     cx.set_global(info);
     cx.set_global(services);
     settings::install(file, cx);

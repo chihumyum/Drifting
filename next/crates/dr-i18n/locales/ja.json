@@ -11,6 +11,13 @@
     "close": "閉じる",
     "local": "ローカル"
   },
+  "dashboard": {
+    "today": {
+      "goal": "目標",
+      "streak": "連続執筆",
+      "week": "今週"
+    }
+  },
   "editorOutline": {
     "aria": "アウトライン",
     "hiddenItems": "離れた項目{{count}}件・ホバーで表示"
@@ -39,6 +46,16 @@
     "crash": {
       "title": "前回の使用時に Drifting で問題が発生しました"
     }
+  },
+  "globalSearch": {
+    "closeTitle": "閉じる（Esc）",
+    "field": {
+      "body": "本文",
+      "name": "名前",
+      "title": "タイトル"
+    },
+    "noResults": "一致する項目がありません",
+    "stats": "{{groups}}項目 · {{occurrences}}件一致"
   },
   "immersiveWriting": {
     "enter": "没入執筆",
@@ -110,7 +127,36 @@
     "title": "通知"
   },
   "projectHome": {
+    "create": {
+      "kinds": {
+        "category": "カテゴリ",
+        "chapter": "章",
+        "drift": "アイデア",
+        "element": "要素",
+        "material": "資料",
+        "storyline": "ストーリーライン"
+      }
+    },
     "kicker": "作品ホーム"
+  },
+  "projectPicker": {
+    "desk": {
+      "form": {
+        "summaryLabel": "要約"
+      }
+    },
+    "heat": {
+      "daysUnit": "日",
+      "today": "今日"
+    }
+  },
+  "referencesPanel": {
+    "kind": {
+      "patch": "変化記録"
+    }
+  },
+  "relationTypes": {
+    "description": "説明"
   },
   "rightSidebar": {
     "kickers": {
@@ -126,6 +172,18 @@
         "none": "作品・詳細統計",
         "storyline": "このストーリーライン・詳細統計"
       }
+    },
+    "stats": {
+      "averagePerChapter": "1章の平均",
+      "bookPosition": "本の中の位置",
+      "chapterCount": "章",
+      "chapterOrdinal": "第{{count}}章",
+      "chaptersValue": "{{count}}章",
+      "recent": "最近",
+      "wordsPerChapterValue": "{{words}}文字／章",
+      "wordsValue": "{{count}}文字",
+      "writingProgress": "執筆の進捗",
+      "writtenTarget": "執筆済み／目標"
     },
     "tabs": {
       "companion": "Agent",
@@ -279,5 +337,14 @@
     "maximize": "最大化",
     "minimize": "最小化",
     "restore": "元のサイズに戻す"
+  },
+  "workspaceWordTally": {
+    "book": "全編",
+    "chapter": "章",
+    "counting": "集計中",
+    "drift": "アイデア",
+    "selection": "選択範囲",
+    "storyline": "ストーリーライン",
+    "today": "今日"
   }
 }

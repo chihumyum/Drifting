@@ -11,9 +11,11 @@ book.create                  command  library  Create a book (its book document 
 book.get                     query    shared   Read a book's name, summary, word targets and counts.
 book.list                    query    shared   List the library's books (trashed ones when asked).
 book.restore                 command  book     Bring a book back from the trash.
-book.search                  query    shared   Search a book's prose (chapters in reading order first, then ideas, elements, storylines, categories, materials). One- and two-character queries work.
+book.search                  query    shared   Search a book: titles, summaries, prose, material descriptions and element patches (chapters in reading order first, then ideas, elements, storylines, categories, materials). One- and two-character queries work.
 book.trash                   command  book     Move a book to the trash (restorable; storage deletes it for good later).
 book.update                  command  book     Change a book's name, summary or word targets.
+book.word_counts             query    shared   Word counts of a book from the derived index: each chapter, idea and storyline, the book (its chapters), and the word targets.
+book.writing_days            query    shared   A book's writing days: words written per day (all devices), today, the last seven days, active days and the streak.
 category.create              command  book     Create an element category (a taken name gets a numbered suffix; the final name is returned).
 category.list                query    shared   List element categories, with how many live elements each has.
 category.purge               command  book     Delete a category for good: its elements become uncategorized, its relations go and comments on it become floating, in one commit.
@@ -87,3 +89,4 @@ storyline.restore            command  book     Bring a storyline back from the t
 storyline.trash              command  book     Move a storyline to the trash. Never refused: chapters keep their membership, hidden until it is restored.
 storyline.update             command  book     Rename a storyline (a taken name gets a suffix), recolour it or change its summary.
 todo.project                 command  book     Keep the TODOs typed as markers in one prose document (a paragraph starting with TODO or 待办) in step with it: a new marker gets a TODO, an open TODO whose marker is gone is deleted, resolved ones stay; the same marker makes the same TODO on every device.
+writing_day.record           command  book     Set this device's words for one day of a book (the writing-day recorder; not undoable).

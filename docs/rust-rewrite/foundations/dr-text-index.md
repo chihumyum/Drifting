@@ -227,10 +227,10 @@ M07 的两个读数里，跟着编辑器走的那个按「选区 → 本章或�
 2. **dr-store：派生单独一个空闲等待。** 现在派生和压缩共用 750 ms 的空闲等待。派生已经只要 0.2 ms，可以给它一个短得多的等待（比如 150 ms），让搜索、大纲更跟手；压缩照旧 750 ms。小事。
 3. **dr-workspace（F3）：换用 `dr_index::attach`，搜索少取一些。**
    - dr-workspace 还在用自己的替身派生器（`src/deriver.rs`）：字数规则和产品不一样（把假名、谚文也算字，非 ASCII 的字母连成的段也算词），每次导出快照再冷读，每次整篇替换，不做素材嵌入的引用，书目文档不记成已索引（每次打开都当落后的）。换成 `dr_index::attach(&mut options)` 一行就够，`count_words` 的替身也可以删掉。
-   - `book.search` 一次向 dr-store 要 1 万条命中再自己按书序排。用它自己的查询词，dr-store 取 1 万条就要 30–38 ms，是它 33–47 ms 的大头；同样的查询只取 50 条是 0.11–4.2 ms。dr-store 的 `search_in_order` 能按章节顺序排，但也是把所有命中排好序再截（上表 1 个字要 16.5 ms）。建议 M06 做搜索时，按书序逐篇查、够数就停，或者 dr-store 给 `block_index` 存一个书序键，让 `ORDER BY … LIMIT` 用上索引；片段也只给留下的那几条切。
+   - （已解决）`book.search` 一次要 1 万条命中的问题：F3 第二个里程碑改成按 `limit` 取，F2 第四轮让按书序搜索 1–2 个字够数就停；M06 的实测见 [m06-search.md](../modules/m06-search.md)。
 4. **dr-store：删掉只为旧基准留着的两个模块。** `dr_store::synthetic` 和 `dr_store::evidence` 只有 dr-index 的旧基准例子还在用，例子已经删了，可以一起删掉（f2-store.md 里也记着这件事）。
 5. **「提及」引用（`RefKind::Mention`）没做。** 派生器只看得到这一篇正文，看不到书里的要素名。要做的话，要么 `DeriveInput` 带上书的名字表（书目文档变了就要重算全书），要么由 M12 / M20 在书这一层另算一遍。等 M20（统计面板的「提及的出与入」）开工时定。
-6. **书目文档里的文字不进搜索。** 补丁正文、批注正文、素材描述是书目文档里的 `LoroText`，派生器对书目文档交的是空结果。M06（搜索）要搜它们的话，需要给这些文字一种在 `block_index` 里的身份（比如 `book:<书>#patch:<id>`）。M06 开工时定。
+6. **书目文档里的文字进不进搜索：M06 定了（2026-11-08）。** 标题、梗概、素材说明、要素补丁进，批注不进；这些短字段由 F3 的 `book.search` 在查询时直接扫书目文档，不进 `block_index`，派生器对书目文档照旧交空结果。见 [m06-search.md](../modules/m06-search.md)。
 7. **断行**：照 F4 的计划，`gpui_prose::layout::linebreak` 拆成一个只依赖 ICU4X 的宽松许可小 crate 以后，dr-text 再依赖它。
 8. **M07**：实时字数用 `LiveCount`（见上文「实时字数」）。表格那一段要交表格的文字，不然字数会比索引少。
 9. **dr-testkit（F8）：登记一个新套件，别的套件的证据全变过期。** 新套件要在 `bench.rs` 的 `suites()` 里登记，而 `bench.rs` 是所有套件证据的公共输入。这次登记 `index` 以后，`f1-m3-doc-bench`、`f8-m1-store-bench`、`f8-m2-workspace-bench` 都报过期（`f8-m2-workspace-bench` 只是因为这一处）。建议把登记表挪到不算公共输入的文件里，公共输入只留约定本身。

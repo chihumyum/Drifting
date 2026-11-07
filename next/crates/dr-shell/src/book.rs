@@ -400,6 +400,19 @@ impl PageText {
 }
 
 /// The shell's target for F3's.
+/// The shell's target as F3 names it (for the view modules).
+pub fn nav_target(t: &Target) -> NavTarget {
+    match t {
+        Target::Book => NavTarget::Book,
+        Target::Chapter(id) => NavTarget::Chapter(id.clone()),
+        Target::Idea(id) => NavTarget::Idea(id.clone()),
+        Target::Storyline(id) => NavTarget::Storyline(id.clone()),
+        Target::Element(id) => NavTarget::Element(id.clone()),
+        Target::Category(id) => NavTarget::Category(id.clone()),
+        Target::Material(id) => NavTarget::Material(id.clone()),
+    }
+}
+
 pub fn target(t: NavTarget) -> Target {
     match t {
         NavTarget::Book => Target::Book,

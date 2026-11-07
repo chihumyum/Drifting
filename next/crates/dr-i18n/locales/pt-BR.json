@@ -11,6 +11,13 @@
     "close": "Fechar",
     "local": "Local"
   },
+  "dashboard": {
+    "today": {
+      "goal": "Meta",
+      "streak": "Sequência",
+      "week": "Esta semana"
+    }
+  },
   "editorOutline": {
     "aria": "Estrutura",
     "hiddenItems": "{{count}} itens distantes; passe o mouse para mostrar"
@@ -39,6 +46,16 @@
     "crash": {
       "title": "O Drifting teve um problema na última vez"
     }
+  },
+  "globalSearch": {
+    "closeTitle": "Fechar (Esc)",
+    "field": {
+      "body": "Corpo",
+      "name": "Nome",
+      "title": "Título"
+    },
+    "noResults": "Nenhuma ocorrência encontrada",
+    "stats": "{{groups}} itens · {{occurrences}} ocorrências"
   },
   "immersiveWriting": {
     "enter": "Escrita imersiva",
@@ -111,7 +128,36 @@
     "title": "Notificações"
   },
   "projectHome": {
+    "create": {
+      "kinds": {
+        "category": "Categoria",
+        "chapter": "Capítulo",
+        "drift": "Ideia",
+        "element": "Elemento",
+        "material": "Material",
+        "storyline": "Linha narrativa"
+      }
+    },
     "kicker": "Início do projeto"
+  },
+  "projectPicker": {
+    "desk": {
+      "form": {
+        "summaryLabel": "Resumo"
+      }
+    },
+    "heat": {
+      "daysUnit": "dias",
+      "today": "Hoje"
+    }
+  },
+  "referencesPanel": {
+    "kind": {
+      "patch": "Evolução"
+    }
+  },
+  "relationTypes": {
+    "description": "Descrição"
   },
   "rightSidebar": {
     "kickers": {
@@ -127,6 +173,18 @@
         "none": "Projeto · estatísticas",
         "storyline": "Esta linha narrativa · estatísticas"
       }
+    },
+    "stats": {
+      "averagePerChapter": "Média por capítulo",
+      "bookPosition": "Posição no livro",
+      "chapterCount": "Capítulos",
+      "chapterOrdinal": "Capítulo {{count}}",
+      "chaptersValue": "{{count}} capítulos",
+      "recent": "Recente",
+      "wordsPerChapterValue": "{{words}} palavras / capítulo",
+      "wordsValue": "{{count}} palavras",
+      "writingProgress": "Progresso da escrita",
+      "writtenTarget": "Escrito / meta"
     },
     "tabs": {
       "companion": "Agent",
@@ -280,5 +338,14 @@
     "maximize": "Maximizar",
     "minimize": "Minimizar",
     "restore": "Restaurar"
+  },
+  "workspaceWordTally": {
+    "book": "Livro",
+    "chapter": "Capítulo",
+    "counting": "contando",
+    "drift": "Ideia",
+    "selection": "Seleção",
+    "storyline": "Linha narrativa",
+    "today": "Hoje"
   }
 }

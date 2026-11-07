@@ -189,6 +189,17 @@ impl Workspace {
         &self.inner.lib
     }
 
+    /// This device's writing-day key (`writing_day.record`), when the
+    /// library was opened with F2's `Device` (`LibraryOptions::device`).
+    pub fn writing_device(&self) -> Option<String> {
+        self.inner
+            .lib
+            .options()
+            .device
+            .as_ref()
+            .map(|d| d.writing_device_key())
+    }
+
     /// Close every open document and wait for their holders (the library
     /// stays open; close it with `Library::close`).
     pub fn close(&self) {

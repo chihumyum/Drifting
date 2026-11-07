@@ -60,10 +60,18 @@ fn rust_name(part: &str, upper: bool) -> String {
 #[test]
 fn every_copied_key_is_used() {
     let mut source = String::new();
-    sources(
-        &Path::new(env!("CARGO_MANIFEST_DIR")).join("src"),
-        &mut source,
-    );
+    let here = Path::new(env!("CARGO_MANIFEST_DIR"));
+    sources(&here.join("src"), &mut source);
+    // The view modules the shell hosts use copied strings too.
+    for entry in std::fs::read_dir(here.parent().unwrap()).unwrap() {
+        let dir = entry.unwrap().path();
+        if dir
+            .file_name()
+            .is_some_and(|n| n.to_string_lossy().starts_with("dr-view-"))
+        {
+            sources(&dir.join("src"), &mut source);
+        }
+    }
     let aliases = aliases(&source);
     let names = dr_i18n::Key::all()
         .map(|k| k.name())

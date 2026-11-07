@@ -36,6 +36,7 @@ pub mod idea;
 pub mod material;
 pub mod prose;
 pub mod relation;
+pub mod stats;
 pub mod storyline;
 
 /// Define an [`crate::Op`].
@@ -74,6 +75,7 @@ pub(crate) fn register(r: &mut Registry) {
     material::register(r);
     prose::register(r);
     history::register(r);
+    stats::register(r);
 }
 
 // ---- shared inputs and outputs ------------------------------------------

@@ -11,6 +11,13 @@
     "close": "Schließen",
     "local": "Lokal"
   },
+  "dashboard": {
+    "today": {
+      "goal": "Ziel",
+      "streak": "Serie",
+      "week": "Diese Woche"
+    }
+  },
   "editorOutline": {
     "aria": "Gliederung",
     "hiddenItems": "{{count}} entfernte Einträge; zum Anzeigen darüberfahren"
@@ -39,6 +46,16 @@
     "crash": {
       "title": "Bei Drifting ist beim letzten Mal ein Problem aufgetreten"
     }
+  },
+  "globalSearch": {
+    "closeTitle": "Schließen (Esc)",
+    "field": {
+      "body": "Text",
+      "name": "Name",
+      "title": "Titel"
+    },
+    "noResults": "Keine Treffer",
+    "stats": "{{groups}} Einträge · {{occurrences}} Treffer"
   },
   "immersiveWriting": {
     "enter": "Immersives Schreiben",
@@ -110,7 +127,36 @@
     "title": "Benachrichtigungen"
   },
   "projectHome": {
+    "create": {
+      "kinds": {
+        "category": "Kategorie",
+        "chapter": "Kapitel",
+        "drift": "Idee",
+        "element": "Element",
+        "material": "Material",
+        "storyline": "Handlungsstrang"
+      }
+    },
     "kicker": "Projektstartseite"
+  },
+  "projectPicker": {
+    "desk": {
+      "form": {
+        "summaryLabel": "Zusammenfassung"
+      }
+    },
+    "heat": {
+      "daysUnit": "Tage",
+      "today": "Heute"
+    }
+  },
+  "referencesPanel": {
+    "kind": {
+      "patch": "Entwicklung"
+    }
+  },
+  "relationTypes": {
+    "description": "Beschreibung"
   },
   "rightSidebar": {
     "kickers": {
@@ -126,6 +172,18 @@
         "none": "Projekt · Detailstatistik",
         "storyline": "Dieser Handlungsstrang · Detailstatistik"
       }
+    },
+    "stats": {
+      "averagePerChapter": "Durchschnitt pro Kapitel",
+      "bookPosition": "Position im Buch",
+      "chapterCount": "Kapitel",
+      "chapterOrdinal": "Kapitel {{count}}",
+      "chaptersValue": "{{count}} Kapitel",
+      "recent": "Zuletzt",
+      "wordsPerChapterValue": "{{words}} Wörter / Kapitel",
+      "wordsValue": "{{count}} Wörter",
+      "writingProgress": "Schreibfortschritt",
+      "writtenTarget": "Geschrieben / Ziel"
     },
     "tabs": {
       "companion": "Agent",
@@ -279,5 +337,14 @@
     "maximize": "Maximieren",
     "minimize": "Minimieren",
     "restore": "Wiederherstellen"
+  },
+  "workspaceWordTally": {
+    "book": "Buch",
+    "chapter": "Kapitel",
+    "counting": "wird gezählt",
+    "drift": "Idee",
+    "selection": "Auswahl",
+    "storyline": "Handlungsstrang",
+    "today": "Heute"
   }
 }

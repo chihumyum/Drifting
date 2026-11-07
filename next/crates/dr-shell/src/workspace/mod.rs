@@ -319,6 +319,8 @@ pub struct Workspace {
     pub corner_menu: Option<String>,
     pub super_view: Option<SuperView>,
     pub settings: Option<Entity<SettingsPanel>>,
+    /// M06's search panel, while open.
+    pub search: Option<Entity<dr_view_search::SearchPanel>>,
     pub notifications_open: bool,
     /// A left press on a drag region that has not moved yet (macOS).
     drag_armed: bool,
@@ -382,6 +384,7 @@ impl Workspace {
             corner_menu: None,
             super_view: None,
             settings: None,
+            search: None,
             notifications_open: false,
             drag_armed: false,
             layout_dirty: false,
@@ -930,6 +933,43 @@ impl Workspace {
         }
     }
 
+    /// ⌘⇧F: M06's search panel. A hit opens its page through a location
+    /// link (the paragraph scrolls into view) or, for a material, the page.
+    pub fn toggle_search(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.search.take().is_some() {
+            self.focus.focus(window, cx);
+            cx.notify();
+            return;
+        }
+        let strings = crate::Strings::get(cx);
+        let (locale, platform) = (strings.locale(), strings.platform());
+        let book = self.book.clone();
+        let marks: dr_view_search::Marks = Rc::new(move |t| book.mark(&book::target(t.clone())));
+        let (lib, id) = (self.library.clone(), self.book_id.clone());
+        let panel = cx.new(|cx| {
+            dr_view_search::SearchPanel::new(lib, id, marks, locale, platform, window, cx)
+        });
+        cx.subscribe_in(&panel, window, |ws, _, event, window, cx| {
+            ws.search = None;
+            ws.focus.focus(window, cx);
+            if let dr_view_search::SearchEvent::Jump(jump) = event {
+                let opened = jump
+                    .link
+                    .as_deref()
+                    .is_some_and(|link| ws.open_link(link, window, cx));
+                if !opened {
+                    ws.super_view = None;
+                    ws.open(book::target(jump.target.clone()), Open::KEEP, cx);
+                }
+            }
+            cx.notify();
+        })
+        .detach();
+        panel.update(cx, |p, cx| p.focus(window, cx));
+        self.search = Some(panel);
+        cx.notify();
+    }
+
     pub fn toggle_super_view(&mut self, view: SuperView, cx: &mut Context<Self>) {
         self.notifications_open = false;
         self.super_view = if self.super_view == Some(view) {
@@ -1028,7 +1068,7 @@ impl Workspace {
             }
         }))
         // Each of these arrives with its module (F4e, M-timeline, the
-        // immersive mode, search, the bookshelf). The shortcut is bound
+        // immersive mode, the bookshelf). The shortcut is bound
         // already so the keymap and Settings → Keys are complete.
         .on_action(|_: &ToggleBottomTimeline, _, _| log::debug!("the timeline is not built yet"))
         .on_action(
@@ -1037,7 +1077,7 @@ impl Workspace {
             }),
         )
         .on_action(|_: &FindInEditor, _, _| log::debug!("find is not built yet"))
-        .on_action(|_: &GlobalSearch, _, _| log::debug!("search is not built yet"))
+        .on_action(cx.listener(|ws, _: &GlobalSearch, window, cx| ws.toggle_search(window, cx)))
         .on_action(|_: &CloseProject, _, _| log::debug!("the bookshelf is not built yet"))
     }
 }
@@ -1087,6 +1127,7 @@ impl Render for Workspace {
                 el.child(super_view::stage(view, window, cx))
             })
             .when_some(self.settings.clone(), |el, panel| el.child(panel))
+            .when_some(self.search.clone(), |el, panel| el.child(panel))
             .child(chrome::windows_caption(window, cx))
             .when(self.notifications_open, |el| {
                 el.child(sidebar::notification_center(self, window, cx))
