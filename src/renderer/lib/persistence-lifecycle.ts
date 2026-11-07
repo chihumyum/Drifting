@@ -1,4 +1,5 @@
 import { flushMarkdownProjections } from '../services/markdown-projection-lifecycle';
+import { flushV2Handoff } from '../services/v2-handoff/lifecycle';
 import loglevel from 'loglevel';
 import { checkpointDatabase } from './db';
 import { saveActiveEditor } from './active-editor';
@@ -42,6 +43,9 @@ async function performLocalFlush(): Promise<void> {
     ['assets', () => flushPendingAssetPersistence()],
     ['entity-transactions', () => flushPendingAtomicSyncTransactions()],
     ['assets-after-transactions', () => flushPendingAssetPersistence()],
+    // Before the checkpoint, so the stamp is in the main database file the
+    // 0.2 importer copies (docs/v2-handoff.md). Never throws.
+    ['v2-handoff', () => flushV2Handoff()],
     ['database-checkpoint', () => checkpointDatabase()],
     ['markdown-projections', () => flushMarkdownProjections()],
     ['session-token', () => flushSessionTokenStorage()],

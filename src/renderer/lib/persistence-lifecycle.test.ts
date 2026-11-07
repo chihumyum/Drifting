@@ -1,4 +1,5 @@
 import { registerMarkdownProjectionFlush } from '../services/markdown-projection-lifecycle';
+import { registerV2HandoffFlush } from '../services/v2-handoff/lifecycle';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -86,6 +87,22 @@ describe('application persistence lifecycle', () => {
     try {
       await expect(flushApplicationPersistenceForLifecycle('suspended')).resolves.toBeUndefined();
       expect(mocks.order.slice(-3)).toEqual(['checkpoint', 'projection', 'session']);
+      expect(warn).toHaveBeenCalledOnce();
+    } finally { release(); warn.mockRestore(); }
+  });
+
+  it('runs the 0.2 handoff after every durability lane and before the checkpoint, and never fails the flush for it', async () => {
+    mocks.saveActiveEditor.mockResolvedValue(undefined);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const release = registerV2HandoffFlush(async () => {
+      mocks.order.push('v2-handoff');
+      throw new Error('Synthetic handoff failure');
+    });
+    try {
+      await expect(flushApplicationPersistenceForLifecycle('shutdown')).resolves.toBeUndefined();
+      expect(mocks.order).toEqual([
+        'yjs', 'snapshot-history', 'assets', 'atomic-transactions', 'assets', 'v2-handoff', 'checkpoint', 'session',
+      ]);
       expect(warn).toHaveBeenCalledOnce();
     } finally { release(); warn.mockRestore(); }
   });

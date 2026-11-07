@@ -21,6 +21,7 @@ import { UpdateService } from '../../services/update/update-service';
 import { installUpdateNotifications } from '../../services/update/update-notifications';
 import { offerCrashFollowUp } from '../../services/diagnostics/crash-follow-up-notifications';
 import { runAssetStoreRestartGc } from '../../services/asset-store-restart-gc';
+import { installV2HandoffRuntime } from '../../services/v2-handoff/runtime';
 import { applyResolvedColorScheme } from '../../lib/initial-theme';
 import { reportIntegrityEvent } from '../../services/diagnostics/crash-reporter';
 import { APP_CONFIG } from '../../lib/config';
@@ -277,6 +278,25 @@ function UpdaterEffects() {
   return null;
 }
 
+/**
+ * Keeps this library ready for the 0.2 import: caches equal to Yjs and a
+ * stamp saying so (docs/v2-handoff.md). Installed once, when the library opens.
+ */
+function V2HandoffEffects() {
+  useEffect(() => {
+    let stop: (() => void) | null = null;
+    const install = () => {
+      stop ??= installV2HandoffRuntime();
+    };
+    events.on('db:ready', install);
+    return () => {
+      events.off('db:ready', install);
+      stop?.();
+    };
+  }, []);
+  return null;
+}
+
 /** A fatal report from an earlier launch becomes one notification the author can explain. */
 function CrashFollowUpEffects() {
   useEffect(() => {
@@ -309,6 +329,7 @@ export function AppEffects() {
       <SyncEngineEffects />
       <RestoredProjectUiEffects />
       <AssetStoreRestartGcEffects />
+      <V2HandoffEffects />
       <UpdaterEffects />
       <CrashFollowUpEffects />
     </>
