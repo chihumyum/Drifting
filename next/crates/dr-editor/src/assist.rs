@@ -219,6 +219,9 @@ pub struct Assist {
     /// Each chapter's author undo count after the last event (an undo
     /// lowers it).
     undo_counts: Vec<usize>,
+    /// Each chapter's paragraph count after the last event (Enter raises
+    /// it).
+    line_counts: Vec<usize>,
     menu: Option<OpenMenu>,
     /// The menu opened at a new trigger since it was last drawn.
     menu_fresh: bool,
@@ -246,6 +249,7 @@ impl Assist {
             this.on_editor(event, window, cx)
         });
         let undo_counts = Self::counts(&editor, cx);
+        let line_counts = Self::lines(&editor, cx);
         Assist {
             ws,
             book: book.to_owned(),
@@ -256,6 +260,7 @@ impl Assist {
             pending: Vec::new(),
             link_task: None,
             undo_counts,
+            line_counts,
             menu: None,
             menu_fresh: false,
             dismissed: None,
@@ -264,6 +269,16 @@ impl Assist {
             writing: false,
             _editor_events: events,
         }
+    }
+
+    fn lines(editor: &Entity<ProseEditor>, cx: &App) -> Vec<usize> {
+        editor
+            .read(cx)
+            .book()
+            .chapters
+            .iter()
+            .map(|c| c.doc.visible_lines())
+            .collect()
     }
 
     fn counts(editor: &Entity<ProseEditor>, cx: &App) -> Vec<usize> {
@@ -288,6 +303,7 @@ impl Assist {
             this.on_editor(event, window, cx)
         });
         self.undo_counts = Self::counts(&editor, cx);
+        self.line_counts = Self::lines(&editor, cx);
         self.editor = editor;
         self.docs = docs;
         self.pending.clear();
@@ -358,6 +374,7 @@ impl Assist {
                 self.hide_bar();
                 if now < before {
                     // An undo: nothing of it is the author's typing.
+                    self.line_counts = Self::lines(&self.editor, cx);
                     self.menu = None;
                     cx.notify();
                     return;
@@ -407,6 +424,7 @@ impl Assist {
 
     fn note_typing(&mut self, chapter: usize, window: &mut Window, cx: &mut Context<Self>) {
         if !self.auto_links {
+            self.line_counts = Self::lines(&self.editor, cx);
             return;
         }
         let e = self.editor.read(cx);
@@ -417,9 +435,19 @@ impl Assist {
         let doc = &e.book().chapters[chapter].doc;
         let line_ix = doc.line_of(sel.head);
         let bid = doc.line(line_ix).bid().map(str::to_owned);
-        // Enter splits a paragraph: the one above was typed in too.
+        // Enter split a paragraph (there is one more): the one above was
+        // typed in too, and its block id may have moved down with its end.
+        let lines = doc.visible_lines();
+        let split = self
+            .line_counts
+            .get(chapter)
+            .is_some_and(|&before| lines > before);
+        if let Some(c) = self.line_counts.get_mut(chapter) {
+            *c = lines;
+        }
         let above = line_ix
             .checked_sub(1)
+            .filter(|_| split)
             .map(|ix| (chapter, doc.line(ix).bid().map(str::to_owned), ix));
         for entry in std::iter::once((chapter, bid, line_ix)).chain(above) {
             if !self.pending.contains(&entry) {
@@ -506,6 +534,7 @@ impl Assist {
             .update(cx, |e, cx| e.edit_chapter(chapter, step, window, cx, f));
         self.writing = false;
         self.undo_counts = Self::counts(&self.editor, cx);
+        self.line_counts = Self::lines(&self.editor, cx);
         done
     }
 

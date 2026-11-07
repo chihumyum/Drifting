@@ -165,6 +165,33 @@ fn typed_names_link_themselves_and_undo_with_the_typing(cx: &mut TestAppContext)
 }
 
 #[gpui::test]
+fn only_what_the_author_typed_in_is_linked(cx: &mut TestAppContext) {
+    let e = env();
+    let ye = element(&e, "叶青知", &[]);
+    let doc = chapter(&e, "一", "叶青知来过。\n第二段");
+    let mut o = open(cx, &e, &doc);
+    // Typing in the second paragraph leaves the first one as it was.
+    let end = o
+        .editor
+        .update(o.cx, |e, _| e.book().chapters[0].doc.max_cursor());
+    o.caret(end);
+    o.type_text("，叶青知");
+    o.wait_links();
+    assert!(!o.linked(0, &ye), "the paragraph above was not typed in");
+    // 第二段，叶青知: 叶 is the second paragraph's fifth character.
+    assert!(o.linked(7 + 4, &ye));
+    // Enter splits a paragraph: the half above was typed in, it is linked.
+    o.type_text("又见叶青知");
+    o.action(Newline);
+    o.wait_links();
+    let start = o
+        .editor
+        .update(o.cx, |e, _| e.book().chapters[0].doc.line_start(1));
+    // 第二段，叶青知又见叶青知: the second name starts at its tenth.
+    assert!(o.linked(start + 9, &ye));
+}
+
+#[gpui::test]
 fn a_broken_name_loses_its_link(cx: &mut TestAppContext) {
     let e = env();
     let yue = element(&e, "约格", &["老约"]);
