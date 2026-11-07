@@ -7,9 +7,11 @@ resolver = "3"
 members = [
     "app/drifting",
     "crates/dr-doc",
+    "crates/dr-i18n",
     "crates/dr-import-v1",
     "crates/dr-model",
     "crates/dr-platform",
+    "crates/dr-shell",
     "crates/dr-store",
     "crates/dr-ui",
     "crates/gpui-prose",
@@ -133,6 +135,22 @@ windows = { version = "0.62", features = [
 # and the fonts mapped into memory (the version GPUI already builds).
 memmap2 = "0.9"
 unicode-segmentation = "1.13"
+
+# F6 (dr-shell, dr-i18n): the interface strings and their plural rules
+# (CLDR, compiled in, the same 2.4 line as icu_segmenter), the system's
+# preferred languages, and a channel that brings deep links to the main
+# thread (the versions GPUI already builds).
+dr-i18n = { path = "crates/dr-i18n" }
+dr-shell = { path = "crates/dr-shell" }
+dr-ui = { path = "crates/dr-ui" }
+futures = "0.3"
+icu_plurals = { version = "2.4", default-features = false, features = ["compiled_data"] }
+icu_locale_core = { version = "2.4", default-features = false }
+sys-locale = "0.3"
+# dr-shell's capture example writes its screenshots as 256-colour PNGs
+# (the versions GPUI's image stack already builds).
+color_quant = "1.1"
+png = "0.18"
 
 # Zed patches these crates.io crates in its own workspace; a git dependency
 # does not inherit [patch], so GPUI's consumers repeat the ones it needs.

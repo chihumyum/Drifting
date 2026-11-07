@@ -98,6 +98,11 @@ rm -rf "$app"
 mkdir -p "$contents/MacOS" "$contents/Resources"
 cp "$binary" "$contents/MacOS/$EXECUTABLE"
 
+# The bundled fonts (dr-ui looks in Contents/Resources/fonts first). They
+# are built, not committed; install-fonts says how to build them if missing.
+"$next_dir/crates/dr-ui/script/install-fonts" "$contents/Resources" >/dev/null ||
+  die "the fonts are missing; build them first (see the message above)"
+
 # The icon: the checked-in .icns for every macOS, plus the layered Icon
 # Composer catalog that macOS 26 and later draw (needs Xcode 26's actool).
 cp "$repo_dir/src/assets/icon.icns" "$contents/Resources/icon.icns"

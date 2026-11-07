@@ -1,7 +1,7 @@
 //! Development probes, off unless asked for:
 //!
-//! - `DRIFTING_DEV_PROBE=<file>` appends one JSON object per line: the first
-//!   frame, the window's appearance when it opens, and every appearance change.
+//! - `DRIFTING_DEV_PROBE=<file>` appends one JSON object per line: the
+//!   window's appearance when it opens and the first frame.
 //!   `-` writes to stderr instead.
 //! - `DRIFTING_DEV_EXIT_AFTER_FIRST_FRAME=1` quits right after the first frame,
 //!   for `script/measure-startup-mac`.
@@ -15,9 +15,8 @@ use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
+use dr_ui::Theme;
 use gpui::{App, Window};
-
-use crate::appearance::{self, Appearance};
 
 pub const PROBE_ENV: &str = "DRIFTING_DEV_PROBE";
 pub const EXIT_AFTER_FIRST_FRAME_ENV: &str = "DRIFTING_DEV_EXIT_AFTER_FIRST_FRAME";
@@ -73,20 +72,13 @@ pub fn app_ready() {
 
 /// Records the window's starting appearance and schedules the first-frame
 /// hook. GPUI runs `on_next_frame` callbacks right after a frame is drawn.
-pub fn window_opened(window: &Window, cx: &App) {
-    let appearance = appearance::current(window, cx);
+pub fn window_opened(window: &mut Window, cx: &mut App) {
+    let appearance = Theme::of(window, cx).appearance;
     emit(
         "window_opened",
-        &[("appearance", Value::Str(appearance.name()))],
+        &[("appearance", Value::Str(appearance.slug()))],
     );
     window.on_next_frame(|_, cx| first_frame_drawn(cx));
-}
-
-pub fn appearance_changed(appearance: Appearance) {
-    emit(
-        "appearance_changed",
-        &[("appearance", Value::Str(appearance.name()))],
-    );
 }
 
 fn first_frame_drawn(cx: &mut App) {
@@ -98,16 +90,6 @@ fn first_frame_drawn(cx: &mut App) {
         .map(|elapsed| elapsed.as_millis() as u64)
         .unwrap_or_default();
     emit("first_frame", &[("unix_ms", Value::Int(unix_ms))]);
-
-    // Apply the development appearance switch only now, so that on macOS it
-    // reaches the open window the way a system switch does.
-    let setting = cx
-        .try_global::<appearance::AppearanceSetting>()
-        .copied()
-        .unwrap_or_default();
-    if setting != appearance::AppearanceSetting::System {
-        appearance::apply_natively(setting);
-    }
 
     if PROBE
         .get()

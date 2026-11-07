@@ -1,0 +1,241 @@
+{
+  "bottomStatusBar": {
+    "elements": "要素全景",
+    "storyGraph": "故事图谱",
+    "todoLibrary": "审阅与素材"
+  },
+  "common": {
+    "close": "关闭",
+    "local": "本地"
+  },
+  "feedback": {
+    "crash": {
+      "title": "上次出了故障"
+    }
+  },
+  "leftSidebar": {
+    "empty": {
+      "noChapters": "还没有章节。",
+      "noDrifts": "还没有构想。",
+      "noElements": "还没有要素。"
+    },
+    "meta": {
+      "drifts": "{{count}} 条构想",
+      "elements": "{{categories}} 类 · {{elements}} 要素"
+    },
+    "tabs": {
+      "chapters": "章节",
+      "drifts": "构想",
+      "elements": "要素"
+    },
+    "top": {
+      "close": "收起左侧栏",
+      "open": "展开左侧栏"
+    },
+    "viewMode": {
+      "chapterSummary": "{{storylines}} 条故事线 · {{chapters}} 章"
+    }
+  },
+  "navigation": {
+    "back": "返回"
+  },
+  "notifications": {
+    "appUpdate": {
+      "source": "更新"
+    },
+    "clear": "清空",
+    "cloudSync": {
+      "source": "云同步"
+    },
+    "crashFollowUp": {
+      "source": "Drifting"
+    },
+    "empty": "暂无通知",
+    "markdownFolder": {
+      "preserved_one": "{{count}} 个改过的文件另存到了 .drifting/preserved",
+      "preserved_other": "{{count}} 个改过的文件另存到了 .drifting/preserved",
+      "source": "Markdown 文件夹"
+    },
+    "organize": {
+      "source": "Agent"
+    },
+    "remove": "移除",
+    "shareComments": {
+      "source": "读者评论"
+    },
+    "time": {
+      "daysAgo": "{{count}} 天前",
+      "hoursAgo": "{{count}} 小时前",
+      "justNow": "刚刚",
+      "minutesAgo": "{{count}} 分钟前"
+    },
+    "title": "通知"
+  },
+  "projectHome": {
+    "kicker": "作品主页"
+  },
+  "rightSidebar": {
+    "kickers": {
+      "library": "全项目 · 素材库",
+      "review": "全项目 · 审阅",
+      "stats": {
+        "all-chapters": "全书 · 节奏统计",
+        "category": "本类目 · 详细统计",
+        "chapter": "本章 · 详细统计",
+        "drift": "这条构想 · 详细统计",
+        "element": "本要素 · 详细统计",
+        "material": "这份素材 · 详细统计",
+        "none": "本项目 · 详细统计",
+        "storyline": "本故事线 · 详细统计"
+      }
+    },
+    "tabs": {
+      "companion": "帮手",
+      "library": "素材库",
+      "review": "审阅",
+      "stats": "统计"
+    },
+    "top": {
+      "close": "收起右侧栏",
+      "open": "展开右侧栏"
+    }
+  },
+  "settings": {
+    "appearance": {
+      "dark": "深色",
+      "interface_text_large": "较大",
+      "interface_text_largest": "最大",
+      "interface_text_size": "界面字号",
+      "interface_text_size_desc": "调整此设备的桌面界面文字大小。正文使用编辑器中的字号设置。",
+      "interface_text_small": "较小",
+      "interface_text_smallest": "最小",
+      "interface_text_standard": "标准",
+      "light": "浅色",
+      "system": "跟随系统",
+      "theme": "主题",
+      "theme_desc": "浅色、深色，或跟随系统。"
+    },
+    "editor": {
+      "auto_immersive": "打字时自动沉浸",
+      "auto_immersive_desc": "开始写正文就收起侧栏与工具；按 Esc 或点正文以外的地方回来。",
+      "flow": "书写体验",
+      "font_size": "字号",
+      "font_size_desc": "编辑视图字号；导出稿件不受影响。",
+      "indent": "段首缩进",
+      "indent_desc": "仅编辑视图。导出时按稿件格式独立设定。",
+      "indent_none": "无",
+      "indent_one": "一字符",
+      "indent_two": "两字符",
+      "line_height": "行距",
+      "page_width": "纸张宽度",
+      "page_width_desc": "编辑器中部纸张的宽度；正文按固定边距填满纸张。",
+      "paragraph_spacing": "段间距",
+      "paragraph_spacing_desc": "正文与各级标题共用的段间距，按正文字号计算；仅编辑视图。",
+      "typesetting": "排版",
+      "typewriter_mode": "打字机模式",
+      "typewriter_mode_desc": "输入或移动光标时，让当前正文行稳定停在视口中的固定位置；只影响编辑视图。"
+    },
+    "groups": {
+      "control": "控制",
+      "preferences": "偏好"
+    },
+    "keys": {
+      "actions": {
+        "closeActiveTab": {
+          "desc": "关闭底部标签中当前激活的标签页",
+          "label": "关闭当前标签页"
+        },
+        "closeProject": {
+          "desc": "关闭当前项目并回到书架",
+          "label": "关闭项目"
+        },
+        "findInEditor": {
+          "desc": "在当前打开的编辑器中查找文本",
+          "label": "当前编辑器内查找"
+        },
+        "globalSearch": {
+          "desc": "跨章节、故事线、要素、分类搜索",
+          "label": "全局搜索"
+        },
+        "goBack": {
+          "desc": "回到上一个访问过的页面（类似浏览器后退）",
+          "label": "返回上一个页面"
+        },
+        "goForward": {
+          "desc": "回到下一个访问过的页面（类似浏览器前进）",
+          "label": "前进下一个页面"
+        },
+        "newEntity": {
+          "desc": "回到作品主页，新建那一排就在手边",
+          "label": "新建"
+        },
+        "nextTab": {
+          "desc": "在已打开的标签页间向右切换",
+          "label": "切换到下一个标签页"
+        },
+        "prevTab": {
+          "desc": "在已打开的标签页间向左切换",
+          "label": "切换到上一个标签页"
+        },
+        "toggleBottomTimeline": {
+          "desc": "切换底部时间轴的显示与隐藏",
+          "label": "展开 / 收起底部时间轴"
+        },
+        "toggleImmersiveWriting": {
+          "desc": "只留稿纸；再按一次或按 Esc 回来",
+          "label": "沉浸写作"
+        }
+      },
+      "conflict": "{{accelerator}} 已被「{{action}}」占用",
+      "pressNewCombo": "按下新组合键…",
+      "recording": "录制中",
+      "reset": "恢复",
+      "resetAll": "恢复全部默认"
+    },
+    "language": {
+      "ui_locale": "界面语言",
+      "ui_locale_desc": "菜单、按钮与提示文字的语言，不影响你写的内容。"
+    },
+    "privacy": {
+      "crashLogs": "自动发送故障诊断",
+      "crashLogsDesc": "发送脱敏的错误位置、版本和系统信息，帮助维护者排查故障；不包含正文。可随时关闭。",
+      "dataUsage": "数据使用"
+    },
+    "rail": {
+      "appearance": "外观",
+      "editor": "编辑器",
+      "keys": "快捷键",
+      "language": "语言",
+      "privacy": "隐私",
+      "updates": "更新"
+    },
+    "search_placeholder": "搜索设定…",
+    "title": "设定",
+    "update": {
+      "channel_desc": "Apple Silicon · macOS 13+",
+      "current_version": "当前版本"
+    }
+  },
+  "sidebarLayout": {
+    "split": "恢复双栏"
+  },
+  "topTimeline": {
+    "singletons": {
+      "allChapters": "通览全书"
+    },
+    "untitled": {
+      "category": "未命名类目",
+      "chapter": "未命名章节",
+      "drift": "未命名构想",
+      "element": "未命名要素",
+      "library_item": "未命名素材",
+      "storyline": "未命名故事线"
+    }
+  },
+  "windowCaption": {
+    "close": "关闭",
+    "maximize": "最大化",
+    "minimize": "最小化",
+    "restore": "还原"
+  }
+}

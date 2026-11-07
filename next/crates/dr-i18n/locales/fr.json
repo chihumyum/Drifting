@@ -1,0 +1,242 @@
+{
+  "bottomStatusBar": {
+    "elements": "Éléments",
+    "storyGraph": "Graphe du récit",
+    "todoLibrary": "Tâches et documentation"
+  },
+  "common": {
+    "close": "Fermer",
+    "local": "Local"
+  },
+  "feedback": {
+    "crash": {
+      "title": "Drifting a rencontré un problème la dernière fois"
+    }
+  },
+  "leftSidebar": {
+    "empty": {
+      "noChapters": "Pas encore de chapitres.",
+      "noDrifts": "Pas encore d’idées.",
+      "noElements": "Pas encore d’éléments."
+    },
+    "meta": {
+      "drifts": "{{count}} idées",
+      "elements": "{{categories}} catégories · {{elements}} éléments"
+    },
+    "tabs": {
+      "chapters": "Chapitres",
+      "drifts": "Idées",
+      "elements": "Éléments"
+    },
+    "top": {
+      "close": "Fermer la barre gauche",
+      "open": "Ouvrir la barre gauche"
+    },
+    "viewMode": {
+      "chapterSummary": "{{storylines}} intrigues · {{chapters}} chapitres"
+    }
+  },
+  "navigation": {
+    "back": "Retour"
+  },
+  "notifications": {
+    "appUpdate": {
+      "source": "Mises à jour"
+    },
+    "clear": "Effacer",
+    "cloudSync": {
+      "source": "Synchronisation cloud"
+    },
+    "crashFollowUp": {
+      "source": "Drifting"
+    },
+    "empty": "Aucune notification",
+    "markdownFolder": {
+      "preserved_many": "{{count}} fichiers modifiés conservés dans .drifting/preserved",
+      "preserved_one": "{{count}} fichier modifié conservé dans .drifting/preserved",
+      "preserved_other": "{{count}} fichiers modifiés conservés dans .drifting/preserved",
+      "source": "Dossier Markdown"
+    },
+    "organize": {
+      "source": "Agent"
+    },
+    "remove": "Retirer",
+    "shareComments": {
+      "source": "Commentaire de lecteur"
+    },
+    "time": {
+      "daysAgo": "il y a {{count}} jours",
+      "hoursAgo": "il y a {{count}} h",
+      "justNow": "à l’instant",
+      "minutesAgo": "il y a {{count}} min"
+    },
+    "title": "Notifications"
+  },
+  "projectHome": {
+    "kicker": "Accueil du projet"
+  },
+  "rightSidebar": {
+    "kickers": {
+      "library": "Projet · Documentation",
+      "review": "Projet · Relecture",
+      "stats": {
+        "all-chapters": "Livre entier · rythme",
+        "category": "Cette catégorie · statistiques détaillées",
+        "chapter": "Ce chapitre · statistiques détaillées",
+        "drift": "Cette idée · statistiques détaillées",
+        "element": "Cet élément · statistiques détaillées",
+        "material": "Cette ressource · Détails",
+        "none": "Projet · statistiques détaillées",
+        "storyline": "Cette intrigue · statistiques détaillées"
+      }
+    },
+    "tabs": {
+      "companion": "Agent",
+      "library": "Documentation",
+      "review": "Relecture",
+      "stats": "Statistiques"
+    },
+    "top": {
+      "close": "Fermer la barre droite",
+      "open": "Ouvrir la barre droite"
+    }
+  },
+  "settings": {
+    "appearance": {
+      "dark": "Sombre",
+      "interface_text_large": "Grand",
+      "interface_text_largest": "Très grand",
+      "interface_text_size": "Taille du texte de l’interface",
+      "interface_text_size_desc": "Règle le texte de l’interface de bureau sur cet appareil. Le manuscrit utilise la taille de police de l’éditeur.",
+      "interface_text_small": "Petit",
+      "interface_text_smallest": "Très petit",
+      "interface_text_standard": "Standard",
+      "light": "Clair",
+      "system": "Suivre le système",
+      "theme": "Thème",
+      "theme_desc": "Clair, sombre ou selon le système."
+    },
+    "editor": {
+      "auto_immersive": "Écriture immersive dès la saisie",
+      "auto_immersive_desc": "Dès que vous écrivez dans le texte, les barres latérales et les outils se retirent ; Échap ou un clic hors du texte les fait revenir.",
+      "flow": "Rythme d’écriture",
+      "font_size": "Taille de police",
+      "font_size_desc": "Uniquement dans l’éditeur ; l’exportation n’est pas affectée.",
+      "indent": "Retrait de paragraphe",
+      "indent_desc": "Uniquement dans l’éditeur. L’exportation a ses propres réglages.",
+      "indent_none": "Aucun",
+      "indent_one": "1 caractère",
+      "indent_two": "2 caractères",
+      "line_height": "Hauteur de ligne",
+      "page_width": "Largeur de page",
+      "page_width_desc": "Largeur du papier dans l’éditeur ; le texte la remplit avec des marges fixes.",
+      "paragraph_spacing": "Espacement des paragraphes",
+      "paragraph_spacing_desc": "Espacement commun aux paragraphes et à tous les niveaux de titres, relatif à la taille du texte ; uniquement dans l’éditeur.",
+      "typesetting": "Composition",
+      "typewriter_mode": "Mode machine à écrire",
+      "typewriter_mode_desc": "Maintient la ligne active à une position stable lors de la saisie ou du déplacement du curseur. Uniquement dans l’éditeur."
+    },
+    "groups": {
+      "control": "Gestion",
+      "preferences": "Préférences"
+    },
+    "keys": {
+      "actions": {
+        "closeActiveTab": {
+          "desc": "Ferme l’onglet actif du dock inférieur",
+          "label": "Fermer l’onglet actif"
+        },
+        "closeProject": {
+          "desc": "Ferme ce projet et revient à la bibliothèque",
+          "label": "Fermer le projet"
+        },
+        "findInEditor": {
+          "desc": "Recherche du texte dans l’éditeur ouvert",
+          "label": "Rechercher dans l’éditeur actif"
+        },
+        "globalSearch": {
+          "desc": "Recherche dans les chapitres, intrigues, éléments et catégories",
+          "label": "Recherche globale"
+        },
+        "goBack": {
+          "desc": "Revient à la page précédente, comme dans un navigateur",
+          "label": "Retour"
+        },
+        "goForward": {
+          "desc": "Avance vers la page déjà visitée suivante, comme dans un navigateur",
+          "label": "Suivant"
+        },
+        "newEntity": {
+          "desc": "Ouvre l’accueil du projet avec la ligne de création accessible",
+          "label": "Nouveau"
+        },
+        "nextTab": {
+          "desc": "Parcourt les onglets ouverts vers la droite",
+          "label": "Onglet suivant"
+        },
+        "prevTab": {
+          "desc": "Parcourt les onglets ouverts vers la gauche",
+          "label": "Onglet précédent"
+        },
+        "toggleBottomTimeline": {
+          "desc": "Affiche ou masque la chronologie inférieure",
+          "label": "Basculer la chronologie inférieure"
+        },
+        "toggleImmersiveWriting": {
+          "desc": "Ne garde que la page ; appuyez à nouveau ou sur Échap pour revenir",
+          "label": "Écriture immersive"
+        }
+      },
+      "conflict": "{{accelerator}} est déjà utilisé pour « {{action}} »",
+      "pressNewCombo": "Appuyez sur une nouvelle combinaison…",
+      "recording": "Capture",
+      "reset": "Restaurer",
+      "resetAll": "Tout rétablir par défaut"
+    },
+    "language": {
+      "ui_locale": "Langue de l’interface",
+      "ui_locale_desc": "Langue des menus, boutons et messages. Vos écrits ne sont pas modifiés."
+    },
+    "privacy": {
+      "crashLogs": "Envoyer automatiquement les diagnostics d’erreur",
+      "crashLogsDesc": "Envoie au responsable des emplacements d’erreur expurgés, la version et la plateforme pour diagnostiquer les pannes. Aucun texte de manuscrit. Désactivable à tout moment.",
+      "dataUsage": "Utilisation des données"
+    },
+    "rail": {
+      "appearance": "Apparence",
+      "editor": "Éditeur",
+      "keys": "Clavier",
+      "language": "Langue",
+      "privacy": "Confidentialité",
+      "updates": "Mises à jour"
+    },
+    "search_placeholder": "Rechercher dans les réglages…",
+    "title": "Réglages",
+    "update": {
+      "channel_desc": "Apple Silicon · macOS 13 ou ultérieur",
+      "current_version": "Version actuelle"
+    }
+  },
+  "sidebarLayout": {
+    "split": "Rétablir deux colonnes"
+  },
+  "topTimeline": {
+    "singletons": {
+      "allChapters": "Livre entier"
+    },
+    "untitled": {
+      "category": "Catégorie sans titre",
+      "chapter": "Chapitre sans titre",
+      "drift": "Idée sans titre",
+      "element": "Élément sans titre",
+      "library_item": "Ressource sans titre",
+      "storyline": "Intrigue sans titre"
+    }
+  },
+  "windowCaption": {
+    "close": "Fermer",
+    "maximize": "Agrandir",
+    "minimize": "Réduire",
+    "restore": "Restaurer"
+  }
+}
