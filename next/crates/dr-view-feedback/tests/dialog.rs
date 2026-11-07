@@ -8,6 +8,9 @@
 //! - a crash follow-up names the crash; a failed send offers mail, which
 //!   carries the same message and retires the notice;
 //! - Cancel and Esc keep the notice, 「忽略」 retires it;
+//! - the ✕ always closes, even while sending (the message still arrives and
+//!   still retires its notice); a click on the mist closes only while
+//!   nothing is written;
 //! - nothing is sent while the message is empty or the address is not one;
 //! - without the service, the message goes to the mail client at once.
 
@@ -20,7 +23,7 @@ use dr_shell::dialogs::FollowUpNotice;
 use dr_shell::notifications::{Notifications, Source};
 use dr_shell::{Services, SettingsFile, ShellInfo, Workspace};
 use dr_view_feedback::{FeedbackDialog, Phase, Service};
-use gpui::{Entity, TestAppContext, VisualTestContext};
+use gpui::{Entity, Modifiers, Pixels, Point, TestAppContext, VisualTestContext, point, px};
 
 const CRASH_ID: &str = "3f2a9c0d1e2b4a5f8c7d6e5f4a3b2c1d";
 const SEND_KEYS: &str = if cfg!(target_os = "macos") {
@@ -66,6 +69,37 @@ fn setup(cx: &mut TestAppContext, service: Service) -> (Entity<Workspace>, &mut 
 
 fn draw(cx: &mut VisualTestContext) {
     cx.update(|window, cx| window.draw(cx).clear(cx));
+}
+
+fn click(at: Point<Pixels>, cx: &mut VisualTestContext) {
+    draw(cx);
+    cx.simulate_mouse_move(at, None, Modifiers::default());
+    cx.simulate_click(at, Modifiers::default());
+    cx.run_until_parked();
+}
+
+/// A point on the mist, away from the card.
+fn mist() -> Point<Pixels> {
+    point(px(10.0), px(10.0))
+}
+
+/// Clicks the dialog's ✕: the card is centred and its ✕ is the last 24 px
+/// of its first row, 20 px in from the right edge. The card's height
+/// depends on its content, so this walks down that column from the top of
+/// the window; above the ✕ there is only mist and the card's padding, and
+/// the message must be written so the mist does not close it first.
+fn click_close_button(ws: &Entity<Workspace>, cx: &mut VisualTestContext) {
+    let size = cx.update(|window, _| window.viewport_size());
+    let x = (size.width + px(dr_view_feedback::WIDTH)) / 2.0 - px(32.0);
+    let mut y = px(0.0);
+    while y < size.height {
+        click(point(x, y), cx);
+        if dialog(ws, cx).is_none() {
+            return;
+        }
+        y += px(6.0);
+    }
+    panic!("no ✕ in the dialog");
 }
 
 fn dialog(ws: &Entity<Workspace>, cx: &mut VisualTestContext) -> Option<Entity<FeedbackDialog>> {
@@ -153,7 +187,7 @@ fn feedback_reaches_the_service_with_the_summary_and_the_session(cx: &mut TestAp
 
     write(
         &d,
-        "  改了幕的名字以后大纲卡住了  ",
+        "  改了幕的名字以后\n大纲卡住了  ",
         " author@example.com ",
         cx,
     );
@@ -170,7 +204,7 @@ fn feedback_reaches_the_service_with_the_summary_and_the_session(cx: &mut TestAp
     assert_eq!(body["format"], "drifting.feedback");
     assert_eq!(body["formatVersion"], 1);
     assert_eq!(body["kind"], "feedback");
-    assert_eq!(body["message"], "改了幕的名字以后大纲卡住了");
+    assert_eq!(body["message"], "改了幕的名字以后\n大纲卡住了");
     assert_eq!(body["contactEmail"], "author@example.com");
     assert_eq!(body["related"], serde_json::Value::Null);
     assert_eq!(body["appVersion"], "0.2.0-dev");
@@ -187,9 +221,10 @@ fn feedback_reaches_the_service_with_the_summary_and_the_session(cx: &mut TestAp
 
     assert_eq!(cx.read(|cx| d.read(cx).phase()), Phase::Sent);
     assert_eq!(cx.opened_url(), None, "nothing went to the mail client");
-    draw(cx);
-    d.update_in(cx, |d, window, cx| d.dismiss(window, cx));
-    cx.run_until_parked();
+    // Sent, the words are still there: the mist keeps it, the ✕ closes it.
+    click(mist(), cx);
+    assert!(dialog(&ws, cx).is_some());
+    click_close_button(&ws, cx);
     assert!(dialog(&ws, cx).is_none());
 }
 
@@ -261,15 +296,80 @@ fn cancel_and_esc_keep_the_notice_ignore_retires_it(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn the_mist_closes_only_while_nothing_is_written(cx: &mut TestAppContext) {
+    let (ws, cx) = setup(cx, service(Delivery::Email));
+    cx.dispatch_action(SendFeedback);
+    cx.run_until_parked();
+    let d = dialog(&ws, cx).unwrap();
+
+    write(&d, "导出的时候", "", cx);
+    click(mist(), cx);
+    assert!(dialog(&ws, cx).is_some(), "written words keep it open");
+
+    // Spaces are nothing.
+    write(&d, "  \n ", "", cx);
+    click(mist(), cx);
+    assert!(dialog(&ws, cx).is_none());
+    assert_eq!(cx.opened_url(), None);
+}
+
+#[gpui::test]
+fn the_close_button_lets_a_message_on_its_way_arrive(cx: &mut TestAppContext) {
+    let fake = FakeService::start(&[202, 503]);
+    let (ws, cx) = setup(cx, hosted(&fake));
+    let follow_up = post_follow_up(cx);
+    open_follow_up(&ws, follow_up, cx);
+    let d = dialog(&ws, cx).unwrap();
+    write(&d, "正在拖动章节", "", cx);
+
+    // The ✕ while sending: the dialog goes at once, the send goes on.
+    d.update_in(cx, |d, window, cx| {
+        d.submit(window, cx);
+        assert_eq!(d.phase(), Phase::Sending);
+        d.close_button(window, cx);
+    });
+    assert!(dialog(&ws, cx).is_none());
+    cx.run_until_parked();
+    assert_eq!(
+        fake.next().expect("it still arrived").json()["kind"],
+        "crash-follow-up"
+    );
+    assert_eq!(notices(cx), 0, "and still retired its notice");
+
+    // Esc and the mist do not close it while sending; the ✕ does.
+    let follow_up = post_follow_up(cx);
+    open_follow_up(&ws, follow_up, cx);
+    let d = dialog(&ws, cx).unwrap();
+    write(&d, "又一次", "", cx);
+    d.update_in(cx, |d, window, cx| {
+        d.submit(window, cx);
+        d.dismiss(window, cx);
+        d.mist(window, cx);
+    });
+    assert!(dialog(&ws, cx).is_some());
+    cx.run_until_parked();
+    assert!(fake.next().is_some());
+    // (The stand-in answers 503 this time: the dialog offers mail.)
+    assert_eq!(cx.read(|cx| d.read(cx).phase()), Phase::Failed);
+    assert_eq!(notices(cx), 1);
+    click_close_button(&ws, cx);
+    assert!(dialog(&ws, cx).is_none());
+    assert_eq!(notices(cx), 1, "closing keeps the notice");
+}
+
+#[gpui::test]
 fn nothing_goes_until_the_draft_can_be_answered(cx: &mut TestAppContext) {
     let (ws, cx) = setup(cx, service(Delivery::Email));
     cx.dispatch_action(SendFeedback);
     cx.run_until_parked();
     let d = dialog(&ws, cx).unwrap();
 
-    // (A header smuggled after a newline cannot be typed into one line;
-    // dr-platform's own tests turn that address down too.)
-    for (message, contact) in [("   ", ""), ("Hi", "not an address"), ("Hi", "a@b.c")] {
+    for (message, contact) in [
+        ("   ", ""),
+        (" \n\n ", ""),
+        ("Hi", "not an address"),
+        ("Hi", "a@b.c"),
+    ] {
         write(&d, message, contact, cx);
         cx.simulate_keystrokes(SEND_KEYS);
         cx.run_until_parked();
