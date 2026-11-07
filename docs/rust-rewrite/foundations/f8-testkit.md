@@ -1,6 +1,6 @@
 # F8 dr-testkit、dr-cli、调试桥与新工作区门禁
 
-2026-11-07 至 11-08，第一到第三个里程碑。计划见 [foundation.md 的 F8](../foundation.md#f8-dr-cli-与-dr-testkit)，要简化的东西见 [simplifications.md](../simplifications.md) 第二、五、六节。
+2026-11-07 至 11-08，第一到第三个里程碑（第三个里程碑在 F6 把稿纸换成编辑器以后补了一轮）。计划见 [foundation.md 的 F8](../foundation.md#f8-dr-cli-与-dr-testkit)，要简化的东西见 [simplifications.md](../simplifications.md) 第二、五、六节。
 
 ## 一句话
 
@@ -26,7 +26,7 @@
 | 开发实例隔离 | `cargo xtask dev` | 1、3 | 做完；`--debug-bridge` 带上调试桥 |
 | 开发命令行 | `next/crates/dr-cli/` | 1、2、3 | 接上 F3 的注册表：`describe`、`call`、脚本化 `scenario`、`inspect`；`app` 子命令，场景能启动和驱动应用 |
 | 调试桥 | `next/crates/dr-debug-bridge/`、`dr-debug-protocol/` | 3 | 做完：打开书和页、打字、按键、动作、F3 命令、读外壳状态和页面文字、等待、截图。按名字找元素和组字没做 |
-| 阶段 2「写作闭环」验收场景 | `next/crates/dr-cli/scenarios/writing-loop.json` | 3 | 在真实窗口上跑通；在编辑器里打字的 9 步等 F6 |
+| 阶段 2「写作闭环」验收场景 | `next/crates/dr-cli/scenarios/writing-loop.json` | 3 | 在真实窗口上 46 步全过：从书架打开书、在编辑器里打字、回车、⌘Z、换章、关掉重开 |
 | 收编编辑器的基准语料 | — | 4 | 等 F4 把基准搬进 `dr-editor` |
 
 ## 种子
@@ -377,9 +377,10 @@ cargo drifting app <动作> …                     # 正在跑的开发版，�
 cd next
 cargo xtask dev --debug-bridge                 # 这个 worktree 的开发版，带调试桥（前台运行）
 cargo drifting app info                        # 版本、profile、窗口（在不在前台、有没有被遮住）
+cargo drifting app book 慢钟                     # 打开一本书，和在书架上点书卡一样（app shelf 回书架）
 cargo drifting app open 第二章 面馆             # 按章名、页面键（chapter:<id>、book）或位置链接打开
 cargo drifting app wait --text 周阿婆           # 等书目和屏幕上的页读好，还可以等某段文字出现
-cargo drifting app text                        # 稿纸上这一页的段落
+cargo drifting app text                        # 这一页编辑器里的段落和选区
 cargo drifting app type 灯塔亮了。              # 走 GPUI 的输入路径打字；没有输入框拿着焦点就报 no_input
 cargo drifting app key secondary-z             # 按键（secondary 在 macOS 上是 ⌘，别处是 Ctrl）
 cargo drifting app dispatch workspace::ToggleLeftSidebar
@@ -404,14 +405,16 @@ cargo drifting app quit
 | `input.type` | 逐字打字，走 GPUI 的输入路径到有焦点的输入框；换行是回车；没人接就报 `no_input` |
 | `input.key` | 按键，空格隔开可以连按：`secondary-z`、`enter escape` |
 | `input.click` | 在窗口坐标（逻辑像素）上点一下，可以连点 |
+| `book.open` / `shelf.show` | `{name}`（书名或 id）：打开一本书，和在书架上点书卡一样，它存过的标签和侧栏回来；回到书架（⇧⌘W） |
 | `nav.open` | `{target}`（页面键）、`{chapter}`（章名或 id）或 `{link}`（位置链接）：开成留下的标签（`preview: true` 是预览） |
-| `state.get` | 外壳的状态：书、当前页、标签、侧栏、浮层、焦点、窗口是否可见、读过的页 |
-| `page.text` | 一页的段落（默认稿纸上那一页）：标题级别和文字 |
-| `ui.wait` | 等到书目到了、当前标签里的页都读好了；还可以要求页上出现某段文字、`state.get` 的某些字段等于某些值；超时报 `timeout` 并说明还在等什么 |
+| `state.get` | 外壳的状态：书、书架是否盖着、当前页、标签、侧栏、浮层、焦点（`focus.editor`：当前页的编辑器有没有拿到键盘）、当前页的选区、打开着的编辑器和只读页 |
+| `page.text` | 一页的段落（默认稿纸上那一页）：章节等正文页读编辑器里的文字（每个键都已经在里面）和选区，通览全书读外壳的只读行；带标题级别 |
+| `ui.wait` | 等到书目到了、当前标签里每一页的编辑器都打开了（打不开就报错）、书架盖着时不等书；还可以要求页上出现某段文字、`state.get` 的某些字段等于某些值；超时报 `timeout` 并说明还在等什么 |
 | `ui.screenshot` | 窗口的 PNG（base64），默认先等 500 ms 让动画走完 |
 
 ### 怎么做的
 
+- **读编辑器**：F6 第三个里程碑以后，章节、构想、要素等正文页是 `dr-editor` 的编辑器，放在 `Workspace::editors` 里，用 `editor_of(&Target)` 拿到；通览全书仍是只读行（`Workspace::pages`）。调试桥两边都读。换页时外壳自己把键盘交给当前页的编辑器（`focus_page`），所以 `nav.open` 之后直接 `input.type` 就进编辑器。
 - **两个 crate**：
   - `dr-debug-protocol`（平台层，不依赖 GPUI）：线上格式、连接文件在哪、令牌握手、阻塞的客户端、不带 GPUI 的监听线程，以及 profile 的规则。`dr-cli` 和 xtask 用它；
   - `dr-debug-bridge`（界面层）：把请求交到 GPUI 的主线程，实现上面的方法。读外壳只走 dr-shell 的公开接口。
@@ -448,7 +451,7 @@ cargo drifting workspace scenario crates/dr-cli/scenarios/writing-loop.json --ap
 - **用自己的 profile**：不给 `--profile` 时，场景新建一个 `accept-<哈希>` profile，在它的空库里写入 showcase 种子并补齐索引，跑完删掉这个 profile 的数据和日志文件夹（`--keep` 留着）。作者的库、各 worktree 的开发库都碰不到。给了 `--profile` 就用那个 profile 的库，要加 `--yes`。
 - **新的步骤**：
   - `seed`：往空库里写一个预设，写完补齐索引（不然启动前读到的字数和搜索不全）；
-  - `launch`：启动应用，带上 `DRIFTING_BOOK` 和指定的环境变量，等到调试桥应答为止。应用的输出写进输出目录的 `app-<n>.log`；
+  - `launch`：启动应用，带上指定的环境变量（`book` 会设 `DRIFTING_BOOK`，跳过书架），等到调试桥应答为止。应用的输出写进输出目录的 `app-<n>.log`；
   - `app`：调一个调试桥方法；
   - `png`：把截图存进输出目录（默认 `target/acceptance/<场景名>/`）。
 - **其他变化**：
@@ -458,22 +461,20 @@ cargo drifting workspace scenario crates/dr-cli/scenarios/writing-loop.json --ap
   - `pending` 跳过一步并写明原因，结尾报出跳过了几步；
   - `note` 写这一步是干什么的。
 - **流程**：
-  1. 写入 showcase 种子，启动，等《慢钟》读好，截主页；
-  2. 按章名打开第一章，核对稿纸上的文字和 F3 读出的一致，截图；
-  3. 在编辑器里打一句、回车、⌘Z：**待 F6**；
-  4. 以作者身份经 F3 在第二章开头加一句（窗口外的写入，像帮手那样）；
-  5. 换到第二章，等那句话出现在稿纸上，核对两个标签，截图；
-  6. 退出，确认连接文件已删；
-  7. 重新启动，布局恢复：两个标签都在，停在第二章，那句话还在；
-  8. 回到第一章，核对它没被动过；
-  9. 全书字数正好多了 8 个字；搜索那句话，命中第二章；
-  10. 截图，退出。
-- **结果**：2026-11-08 在这台 Mac 上，40 步里 31 步通过，9 步标着「待 F6」；临时 profile 跑完删干净了。截图 4 张，都在动画走完以后拍。
-- **F6 接好编辑器以后**：
-  - 去掉 9 个 `pending`；
-  - 打字那一步要求打开的一章由编辑器拿到焦点，否则 `input.type` 报 `no_input`；
-  - 撤销那一步期望段落数回到原样、打的字还在。要是编辑器把打字和回车并成一步撤销，改这一步的期望；
-  - `page.text` 现在读的是外壳的只读行（每次改动后从 F3 重读），编辑器接上以后应改成读编辑器，见「待协调」。
+  1. 写入 showcase 种子；启动，窗口先显示书架，截图；
+  2. 从书架打开《慢钟》（`book.open`），主页，截图；
+  3. 按章名打开第一章：编辑器打开、拿到键盘，稿纸上第一段和 F3 读出的一致，截图；
+  4. 在编辑器里打「验收打字一句。」（光标在开头），回车：第一段拆成两段，截图；
+  5. ⌘Z：只撤回回车，两段合回一段，打的字还在；
+  6. 以作者身份经 F3 在第二章开头加一句（窗口外的写入，像帮手那样）；
+  7. 换到第二章：编辑器里已经有那句话，两个标签都在，截图；
+  8. 退出，确认连接文件已删；
+  9. 重新启动，从书架再打开《慢钟》：布局恢复（两个标签，停在第二章，那句话还在）；
+  10. 回到第一章：编辑器里打的那句还在；F3 读出的段数没变、第一段和编辑器一致；
+  11. 全书字数正好多了 14 个字（8 + 6）；两句话各自搜得到，命中各自的章；
+  12. 截图，退出。
+- **结果**：2026-11-08 在这台 Mac 上，带调试桥的开发版，46 步全过、没有跳过的；临时 profile 跑完删干净了。截图 6 张，都在动画走完以后拍：书架、主页、第一章、打字回车以后、第二章、重开以后。另外用 `cargo xtask dev --debug-bridge` 在这个 worktree 自己的开发库（先写了 showcase 种子）上手动走了一遍：`app book 慢钟`、`app open 第三章 钟楼下`、打字、回车、⌘Z、截图、退出，结果一样。
+- **测试平台上也跑一遍**：`crates/dr-debug-bridge/tests/bridge.rs` 在 GPUI 的测试平台上做同样的事（打字、回车、⌘Z、窗口外的修改、⌘[ 回上一页、设置的搜索框），每次 `cargo test` 都跑，不用开窗口。
 
 ## 待协调
 
@@ -495,12 +496,9 @@ cargo drifting workspace scenario crates/dr-cli/scenarios/writing-loop.json --ap
 ### dr-shell 与应用入口（F6）
 
 - **调试桥挂在哪**：只在 `app/drifting/src/main.rs` 加了一行（`dr_shell::init` 之后，`#[cfg(feature = "debug-bridge")]`），`app/drifting/Cargo.toml` 加了 `debug-bridge` 特性。dr-shell 没改。
-- **调试桥读外壳用到的接口**：`Workspace` 的 `nav`、`pages`（`PageSlot` 的 `items`、`ready`、`loading`）、`book`、`book_id`、`library`、`left`、`right`、`super_view`、`dock_locked`，以及 `open`、`open_link`、`top_layer`、`focus_handle`；`title_of`、`Item`、`Layer`、`Target::{key, from_key}`、`Open`、`Page`；`quit::before_quit`、`quit::request`、`open_workspace`、`Services`、`ShellInfo`。改这些时请顺手改 `crates/dr-debug-bridge/src/methods.rs`（它在全工作区构建里，编不过 CI 会报）。
-- **编辑器接进稿纸以后，调试桥需要两样**：
-  1. 打开一章时，编辑器拿到焦点（或者给 `Workspace` 一个把焦点交给当前页编辑器的方法），`input.type` 才有地方去；
-  2. 一个读当前页编辑器的入口，比如 `Workspace::page_editor(&Target) -> Option<Entity<ChapterEditor>>`。`page.text` 改成读编辑器的文字，`state.get` 加上选区。
-
-  有了这两样，去掉 `writing-loop.json` 里的 9 个 `pending`，写作闭环就完整了。
+- **调试桥读外壳用到的接口**：`Workspace` 的 `nav`、`editors`（`PageEditor` 的 `doc`、`editor`、`loading`、`failed`）、`editor_of`、`pages`（`PageSlot` 的 `items`、`ready`、`loading`）、`book`、`book_id`、`library`、`left`、`right`、`super_view`、`dock_locked`、`shelf_open`，以及 `open`、`open_link`、`open_book`、`show_shelf`、`top_layer`、`focus_handle`；编辑器那边是 `ChapterEditor::editor()`、`ProseEditor::{book, selection}`、`ProseDoc::{visible_lines, line}`；`title_of`、`Item`、`Layer`、`Target::{key, from_key}`、`Open`、`Page`；`quit::before_quit`、`quit::request`、`open_workspace`、`Services`、`ShellInfo`。改这些时请顺手改 `crates/dr-debug-bridge/src/methods.rs`（它在全工作区构建里，编不过 CI 会报）。
+- **编辑器接进稿纸以后**：调试桥要的两样 F6 第三个里程碑都已经有了：打开一章时 `focus_page` 把键盘交给编辑器；`editor_of(&Target)` 拿到当前页的编辑器。所以这一轮 dr-shell 还是一行没改。
+- **一个小坑**（不用改，记一笔）：`ui.wait` 等的是「编辑器已经打开」，键盘交给编辑器要再晚一帧（下一次渲染里的 `focus_page`）。场景里打字之前多等一个 `/focus/editor: true`。
 - **调试名**：要按名字找元素、点元素，dr-ui 的组件和外壳要给可交互的元素起稳定的名字；GPUI 现在只在测试上下文里读得到元素位置，需要一个小补丁或者外壳自己记录。
 
 ### gpui-prose、gpui-ime 与编辑器（F4、F5）
@@ -540,7 +538,7 @@ cargo drifting workspace scenario crates/dr-cli/scenarios/writing-loop.json --ap
 
 ## 下一个里程碑建议
 
-1. **写作闭环跑全**：F6 把编辑器接进稿纸、给出上面那两样以后，去掉 9 个 `pending`，`page.text` 改读编辑器；再试着把这个场景放进 CI 的 macOS 那一条（runner 有图形会话）。
+1. **写作闭环进 CI**：试着把 `writing-loop.json` 放进 CI 的 macOS 那一条（runner 有图形会话），先只在 `next/` 改动时跑；再加几条阶段 2 的场景（M03 章末 ⁂、M04 大纲、M06 搜索、M07 字数）。
 2. **按名字找元素**：和 F5、F6 商量调试名，做 `ui.query`、按名字点；和 F4、F5 商量组字的入口。
 3. **编辑器基准**：F4 交回以后，收成 `bench` 的 `editor` 套件。
 4. **补齐种子**：

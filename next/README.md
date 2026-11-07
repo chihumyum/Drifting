@@ -131,10 +131,11 @@ cargo drifting workspace inspect --library <目录>  # 只读查看一个库
 ```bash
 cargo xtask dev --debug-bridge                    # 这个 worktree 的开发版，带调试桥
 cargo drifting app state                          # 连上正在跑的那个（按 profile 找）
+cargo drifting app book 慢钟                       # 从书架打开一本书
 cargo drifting app open 第一章                     # 还有 type、key、dispatch、call、text、wait、screenshot、quit
 cargo build -p drifting --features debug-bridge
 cargo drifting workspace scenario crates/dr-cli/scenarios/writing-loop.json --app target/debug/drifting
-                                                  # 阶段 2 写作闭环，在一个临时 profile 里跑完再删掉
+                                                  # 阶段 2 写作闭环（打字、回车、⌘Z、换章、重开），在临时 profile 里跑完再删掉
 ```
 
 方法表、场景的写法、被遮住的窗口和截图的细节见 [f8-testkit.md](../docs/rust-rewrite/foundations/f8-testkit.md)「调试桥」。

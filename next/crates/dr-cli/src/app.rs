@@ -25,7 +25,8 @@ pub struct AppCall {
     pub timeout_ms: Option<u64>,
 }
 
-pub const VERBS: &str = "  app info | state | methods | actions | focus | quit
+pub const VERBS: &str = "  app info | state | methods | actions | focus | quit | shelf
+  app book <name or id>                 open a book, as the bookshelf does
   app call <command> [--input JSON]     an F3 command or query, as the author, in the app
   app dispatch <action> [--params JSON] a GPUI action, as its shortcut would
   app type <text>                       type into the focused text field
@@ -78,6 +79,12 @@ pub fn request(a: &AppCall) -> Result<(String, Value, Option<PathBuf>), String> 
         "actions" => simple("action.list"),
         "focus" => simple("window.focus"),
         "quit" => simple("app.quit"),
+        "shelf" => simple("shelf.show"),
+        "book" => Ok((
+            "book.open".into(),
+            json!({ "name": a.args.join(" ") }),
+            None,
+        )),
         "call" => Ok((
             "command.call".into(),
             json!({ "name": one(&a.args, "a command name")?, "input": json_arg("--input", &a.input)? }),
@@ -219,6 +226,7 @@ mod tests {
     fn verbs_become_methods() {
         let r = |v, a: &[&str]| request(&call(v, a)).unwrap();
         assert_eq!(r("state", &[]).0, "state.get");
+        assert_eq!(r("book", &["慢钟"]).1, json!({"name": "慢钟"}));
         assert_eq!(r("open", &["第一章"]).1, json!({"chapter": "第一章"}));
         assert_eq!(
             r("open", &["chapter:ab"]).1,

@@ -318,7 +318,7 @@ fn app_calls_parse_and_need_a_running_build() {
 }
 
 /// The acceptance scenarios that ship with dr-cli parse, and the writing
-/// loop drives the app (its editing steps wait for F6).
+/// loop drives the app, typing included.
 #[test]
 fn the_shipped_scenarios_parse() {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("scenarios");
@@ -335,7 +335,13 @@ fn the_shipped_scenarios_parse() {
         dr_cli::scenario::parse(&std::fs::read_to_string(dir.join("writing-loop.json")).unwrap())
             .unwrap();
     assert!(dr_cli::scenario::is_live(&loop_));
-    assert!(loop_.steps.iter().any(|s| s.pending.is_some()));
+    assert!(loop_.steps.iter().all(|s| s.pending.is_none()));
+    assert!(
+        loop_
+            .steps
+            .iter()
+            .any(|s| s.app.as_deref() == Some("input.type"))
+    );
     assert!(loop_.steps.iter().filter(|s| s.launch.is_some()).count() == 2);
 }
 

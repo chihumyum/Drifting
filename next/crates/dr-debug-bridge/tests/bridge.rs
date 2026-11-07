@@ -57,20 +57,20 @@ fn setup(
         );
     });
     let (view, cx) = cx.add_window_view(Workspace::new);
-    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    wait_for(&view, cx, |ws, _| !ws.book.is_empty());
     (view, cx, dir)
 }
 
-/// Runs the app until `done` holds, at most five seconds.
+/// Runs the app until `done` holds, at most ten seconds.
 fn wait_for(
     view: &Entity<Workspace>,
     cx: &mut VisualTestContext,
-    done: impl Fn(&Workspace) -> bool,
+    done: impl Fn(&Workspace, &gpui::App) -> bool,
 ) {
-    let deadline = Instant::now() + Duration::from_secs(5);
+    let deadline = Instant::now() + Duration::from_secs(10);
     loop {
         cx.run_until_parked();
-        if view.read_with(cx, |ws, _| done(ws)) {
+        if cx.update(|_, cx| done(view.read(cx), cx)) {
             return;
         }
         assert!(Instant::now() < deadline, "timed out");
@@ -90,11 +90,36 @@ fn call(
     out
 }
 
-fn page_ready(ws: &Workspace) -> bool {
-    ws.nav
-        .current()
-        .and_then(|t| ws.pages.get(&t.key()))
-        .is_some_and(|s| s.ready && s.loading.is_none())
+/// The page on the paper has its editor.
+fn editor_ready(ws: &Workspace, _: &gpui::App) -> bool {
+    ws.nav.current().and_then(|t| ws.editor_of(t)).is_some()
+}
+
+/// Calls `method` until `done` holds for its answer (F3's holder threads
+/// and the editor's events land in their own time).
+fn call_until(
+    cx: &mut VisualTestContext,
+    method: &'static str,
+    params: Value,
+    done: impl Fn(&Value) -> bool,
+) -> Value {
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        let out = call(cx, method, params.clone()).unwrap();
+        if done(&out) {
+            return out;
+        }
+        assert!(Instant::now() < deadline, "timed out: {out}");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+fn texts(v: &Value) -> Vec<String> {
+    v.as_array()
+        .unwrap()
+        .iter()
+        .map(|p| p["text"].as_str().unwrap().to_owned())
+        .collect()
 }
 
 #[gpui::test]
@@ -115,8 +140,16 @@ fn the_shell_is_read_and_driven(cx: &mut TestAppContext) {
         call(cx, "no.such", json!({})).unwrap_err().code,
         codes::UNKNOWN_METHOD
     );
+    // On the Project Home no text field has the keyboard.
+    assert_eq!(
+        call(cx, "input.type", json!({"text": "字"}))
+            .unwrap_err()
+            .code,
+        codes::NO_INPUT
+    );
 
-    // Open the first chapter by its title; the page reads its prose.
+    // Open the first chapter by its title: its editor opens and takes the
+    // keyboard; the page reads what F3 has.
     let chapters = call(
         cx,
         "command.call",
@@ -125,54 +158,126 @@ fn the_shell_is_read_and_driven(cx: &mut TestAppContext) {
     .unwrap();
     let first = &chapters["output"][0];
     let second = &chapters["output"][1];
+    let first_doc = format!("node:{}", first["id"].as_str().unwrap());
     let opened = call(cx, "nav.open", json!({"chapter": first["title"]})).unwrap();
     let key = format!("chapter:{}", first["id"].as_str().unwrap());
     assert_eq!(opened["opened"], json!(key));
-    wait_for(&view, cx, page_ready);
-    let waited = call(cx, "ui.wait", json!({"until": "ready"})).unwrap();
-    assert_eq!(waited["polls"], 1);
-    let page = call(cx, "page.text", json!({})).unwrap();
-    assert_eq!(page["target"], json!(key));
-    assert_eq!(page["title"], first["title"]);
-    let prose = call(
+    wait_for(&view, cx, editor_ready);
+    // The shell hands the opened page's editor the keyboard (F6).
+    call_until(cx, "state.get", json!({}), |s| {
+        s["focus"]["editor"] == json!(true)
+    });
+    let waited = call(
         cx,
-        "command.call",
-        json!({"name": "prose.read", "input": {"doc": format!("node:{}", first["id"].as_str().unwrap())}}),
+        "ui.wait",
+        json!({"until": "ready", "state": {"/focus/editor": true}}),
     )
     .unwrap();
-    let paragraphs: Vec<&str> = prose["output"]["paragraphs"]
-        .as_array()
+    assert_eq!(waited["polls"], 1);
+    let page = call(cx, "page.text", json!({})).unwrap();
+    assert_eq!(
+        (page["target"].clone(), page["source"].clone()),
+        (json!(key), json!("editor"))
+    );
+    assert_eq!(page["title"], first["title"]);
+    let read = |cx: &mut VisualTestContext| {
+        call(
+            cx,
+            "command.call",
+            json!({"name": "prose.read", "input": {"doc": first_doc}}),
+        )
         .unwrap()
-        .iter()
-        .map(|p| p["text"].as_str().unwrap())
-        .collect();
-    assert_eq!(page["text"], json!(paragraphs.join("\n")));
-    assert!(!paragraphs.is_empty());
+    };
+    let before = texts(&read(cx)["output"]["paragraphs"]);
+    assert!(!before.is_empty());
+    assert_eq!(page["text"], json!(before.join("\n")));
+
+    // Type a sentence, press Enter, undo: through GPUI's input path into the
+    // editor, persisted through F3's session.
+    let typed = call(cx, "input.type", json!({"text": "验收打字一句。"})).unwrap();
+    assert_eq!(typed["typed"], 7);
+    let page = call(cx, "page.text", json!({})).unwrap();
+    assert!(
+        page["text"].as_str().unwrap().starts_with("验收打字一句。"),
+        "{page}"
+    );
+    assert_eq!(page["selection"], json!({"anchor": 7, "head": 7}));
+    call_until(
+        cx,
+        "command.call",
+        json!({"name": "prose.read", "input": {"doc": first_doc}}),
+        |o| {
+            o["output"]["paragraphs"][0]["text"]
+                .as_str()
+                .is_some_and(|t| t.starts_with("验收打字一句。"))
+        },
+    );
+    let enter = call(cx, "input.key", json!({"keys": "enter"})).unwrap();
+    assert_eq!(enter["handled"], json!([true]));
+    let split = call(cx, "page.text", json!({})).unwrap();
+    assert_eq!(
+        split["paragraphs"].as_array().unwrap().len(),
+        before.len() + 1
+    );
+    assert_eq!(split["paragraphs"][0]["text"], "验收打字一句。");
+    let undo = call(cx, "input.key", json!({"keys": "secondary-z"})).unwrap();
+    assert_eq!(undo["handled"], json!([true]));
+    let undone = call(cx, "page.text", json!({})).unwrap();
+    assert_eq!(
+        undone["paragraphs"].as_array().unwrap().len(),
+        before.len(),
+        "{undone}"
+    );
+    // ⌘Z takes back the Enter only; the sentence typed before it stays.
+    assert_eq!(
+        undone["paragraphs"][0]["text"],
+        json!(format!("验收打字一句。{}", before[0]))
+    );
+    let after = call_until(
+        cx,
+        "command.call",
+        json!({"name": "prose.read", "input": {"doc": first_doc}}),
+        |o| o["output"]["total"] == json!(before.len()),
+    );
+    assert_eq!(
+        texts(&after["output"]["paragraphs"]).join("\n"),
+        undone["text"].as_str().unwrap()
+    );
 
     // A change through F3 (as the author, from outside the window) reaches
-    // the page through the workspace's events.
-    let old = paragraphs[0].chars().take(4).collect::<String>();
+    // the open editor through the workspace's events.
+    let second_doc = format!("node:{}", second["id"].as_str().unwrap());
+    let theirs = call(
+        cx,
+        "command.call",
+        json!({"name": "prose.read", "input": {"doc": second_doc}}),
+    )
+    .unwrap();
+    let p0 = theirs["output"]["paragraphs"][0]["text"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    call(
+        cx,
+        "nav.open",
+        json!({"target": format!("chapter:{}", second["id"].as_str().unwrap())}),
+    )
+    .unwrap();
+    wait_for(&view, cx, editor_ready);
     call(
         cx,
         "command.call",
         json!({"name": "prose.replace", "input": {
-            "doc": format!("node:{}", first["id"].as_str().unwrap()),
-            "find": old, "replace": "灯塔亮了。",
+            "doc": second_doc, "find": p0, "replace": format!("灯塔亮了。{p0}"),
         }}),
     )
     .unwrap();
-    wait_for(&view, cx, |ws| {
-        page_ready(ws)
-            && ws.pages.values().any(|s| {
-                s.items.iter().any(|i| matches!(i, dr_shell::workspace::Item::Para(p) if p.text.starts_with("灯塔亮了。")))
-            })
+    call_until(cx, "page.text", json!({}), |p| {
+        p["text"]
+            .as_str()
+            .is_some_and(|t| t.starts_with("灯塔亮了。"))
     });
-    call(
-        cx,
-        "ui.wait",
-        json!({"text": "灯塔亮了。", "state": {"/page": key}}),
-    )
-    .unwrap();
+    call(cx, "ui.wait", json!({"text": "灯塔亮了。"})).unwrap();
     let words = call(
         cx,
         "command.call",
@@ -181,13 +286,7 @@ fn the_shell_is_read_and_driven(cx: &mut TestAppContext) {
     .unwrap();
     assert!(words["output"]["words"].as_u64().unwrap() > 1000);
 
-    // Keys go through the keymap: open a second chapter, then ⌘[ goes back.
-    call(
-        cx,
-        "nav.open",
-        json!({"target": format!("chapter:{}", second["id"].as_str().unwrap())}),
-    )
-    .unwrap();
+    // ⌘[ goes back through the keymap, from inside the editor too.
     let back = call(cx, "input.key", json!({"keys": "secondary-["})).unwrap();
     assert_eq!(back["handled"], json!([true]));
     assert_eq!(
@@ -214,14 +313,7 @@ fn the_shell_is_read_and_driven(cx: &mut TestAppContext) {
         left
     );
 
-    // Typing needs a text field with the focus: the paper is read-only
-    // until the editor is on it (F6), Settings' search field takes it.
-    assert_eq!(
-        call(cx, "input.type", json!({"text": "字"}))
-            .unwrap_err()
-            .code,
-        codes::NO_INPUT
-    );
+    // Settings' search field takes typing too.
     call(cx, "action.dispatch", json!({"name": "app::OpenSettings"})).unwrap();
     assert_eq!(
         call(cx, "state.get", json!({})).unwrap()["layer"],

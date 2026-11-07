@@ -15,8 +15,8 @@ use dr_shell::workspace::{Item, Layer, title_of};
 use dr_shell::{Services, ShellInfo, Workspace};
 use dr_workspace::Actor;
 use gpui::{
-    AnyWindowHandle, App, AsyncApp, Context, Entity, Keystroke, Modifiers, MouseButton,
-    MouseDownEvent, MouseMoveEvent, MouseUpEvent, PlatformInput, Window, WindowHandle,
+    AnyWindowHandle, App, AsyncApp, Context, Entity, Focusable as _, Keystroke, Modifiers,
+    MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, PlatformInput, Window, WindowHandle,
     WindowVisibility, point, px,
 };
 use serde_json::{Value, json};
@@ -75,12 +75,17 @@ pub const METHODS: &[(&str, &str)] = &[
         "{target} (a page key: chapter:<id>, idea:<id>, …, book), {chapter} (an id or a title) or {link} (a location link): open it as a kept tab ({preview: true} for a preview)",
     ),
     (
+        "book.open",
+        "{book} (an id) or {name} (a name or an id): open a book as the bookshelf does (its saved tabs come back)",
+    ),
+    ("shelf.show", "show the bookshelf over the window (as ⇧⌘W)"),
+    (
         "state.get",
-        "the shell's state: book, page, tabs, sidebars, layers, focus, the pages read",
+        "the shell's state: book, bookshelf, page, tabs, sidebars, layers, focus (and whether the page's editor has it), the page's selection, the pages and editors open",
     ),
     (
         "page.text",
-        "{target?}: the paragraphs a page shows (default: the page on the paper)",
+        "{target?}: the paragraphs a page shows (default: the page on the paper): a prose page's editor, or the whole book's rows",
     ),
     (
         "ui.wait",
@@ -171,6 +176,11 @@ pub async fn call(method: &str, params: Value, cx: &mut AsyncApp) -> Out {
         "input.key" => cx.update(|cx| press(&p, cx)),
         "input.click" => cx.update(|cx| click(&p, cx)),
         "nav.open" => cx.update(|cx| open(&p, cx)),
+        "book.open" => open_book(&p, cx).await,
+        "shelf.show" => cx.update(|cx| {
+            update_workspace(cx, |ws, window, cx| ws.show_shelf(window, cx))
+                .map(|shown| json!({ "shown": shown }))
+        }),
         "state.get" => cx.update(state),
         "page.text" => cx.update(|cx| page_text(&p, cx)),
         "ui.wait" => wait(&p, cx).await,
@@ -443,6 +453,32 @@ fn open(p: &Value, cx: &mut App) -> Out {
     })?
 }
 
+/// Opens a book as the bookshelf does, by id or by name.
+async fn open_book(p: &Value, cx: &mut AsyncApp) -> Out {
+    let id = match (
+        p.get("book").and_then(Value::as_str),
+        p.get("name").and_then(Value::as_str),
+    ) {
+        (Some(id), _) => id.to_owned(),
+        (None, Some(name)) => {
+            let books = command(&json!({ "name": "book.list", "input": {} }), cx).await?;
+            books["output"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .find(|b| b["name"] == json!(name) || b["id"] == json!(name))
+                .and_then(|b| b["id"].as_str())
+                .map(str::to_owned)
+                .ok_or_else(|| not_found(format!("no book named {name}")))?
+        }
+        (None, None) => return Err(bad("give params.book (an id) or params.name")),
+    };
+    cx.update(|cx| {
+        update_workspace(cx, |ws, window, cx| ws.open_book(&id, window, cx))?;
+        Ok(json!({ "opened": id }))
+    })
+}
+
 fn layer_name(l: Layer) -> &'static str {
     match l {
         Layer::Notifications => "notifications",
@@ -472,20 +508,42 @@ fn state_of(ws: &Workspace, window: &Window, cx: &App) -> Value {
         Page::Home => (json!("home"), Value::Null),
         Page::Target(t) => (json!(t.key()), json!(title_of(book, &t, cx).to_string())),
     };
+    // Prose pages are editors (F6's third milestone); the whole book is
+    // still read-only rows.
     let mut pages: Vec<Value> = ws
         .pages
         .iter()
         .map(|(k, s)| {
-            json!({ "key": k, "ready": s.ready, "loading": s.loading.is_some(), "rows": s.items.len() })
+            json!({
+                "key": k, "kind": "rows", "ready": s.ready,
+                "loading": s.loading.is_some(), "failed": false, "rows": s.items.len(),
+            })
         })
+        .chain(ws.editors.iter().map(|(k, e)| {
+            json!({
+                "key": k, "kind": "editor", "doc": e.doc,
+                "ready": e.editor.is_some() && e.loading.is_none(),
+                "loading": e.loading.is_some(), "failed": e.failed,
+            })
+        }))
         .collect();
     pages.sort_by_key(|v| v["key"].to_string());
+    let editor = ws.nav.current().and_then(|t| ws.editor_of(t));
+    let editor_focused = editor.is_some_and(|e| {
+        let handle = e.read(cx).editor().focus_handle(cx);
+        window.focused(cx).is_some_and(|f| f == handle)
+    });
+    let selection = editor.map(|e| {
+        let s = e.read(cx).editor().read(cx).selection();
+        json!({ "anchor": s.anchor, "head": s.head })
+    });
     json!({
         "library": ws.library.is_some(),
         "book": {
             "id": ws.book_id, "name": book.name,
             "chapters": book.chapters.len(), "loaded": !book.is_empty(),
         },
+        "shelf": ws.shelf_open,
         "page": page,
         "pageTitle": title,
         "tabs": tabs,
@@ -503,8 +561,10 @@ fn state_of(ws: &Workspace, window: &Window, cx: &App) -> Value {
         "dockLocked": ws.dock_locked,
         "focus": {
             "workspace": ws.focus_handle().contains_focused(window, cx),
+            "editor": editor_focused,
             "any": window.focused(cx).is_some(),
         },
+        "selection": selection,
         "window": {
             "active": window.is_window_active(),
             "visible": window.visibility() == WindowVisibility::Visible,
@@ -529,6 +589,38 @@ fn page_text(p: &Value, cx: &mut App) -> Out {
                 .cloned()
                 .ok_or_else(|| not_found("the paper shows the Project Home, not a page"))?,
         };
+        let title = title_of(&ws.book, &target, cx).to_string();
+        // A prose page: what its editor holds (every keystroke is already
+        // in it; F3's prose.read reads the same once persisted).
+        if let Some(page) = ws.editors.get(&target.key()) {
+            let Some(editor) = &page.editor else {
+                return Ok(json!({
+                    "target": target.key(), "title": title, "ready": false,
+                    "loading": page.loading.is_some(), "failed": page.failed,
+                    "paragraphs": [], "text": "", "source": "editor",
+                }));
+            };
+            let prose = editor.read(cx).editor().read(cx);
+            let doc = &prose.book().chapters[0].doc;
+            let mut paragraphs = Vec::new();
+            let mut lines = Vec::new();
+            for ix in 0..doc.visible_lines() {
+                let line = doc.line(ix);
+                paragraphs.push(json!({
+                    "heading": line.kind.level().unwrap_or(0),
+                    "text": line.text.as_ref(),
+                }));
+                lines.push(line.text.to_string());
+            }
+            let sel = prose.selection();
+            return Ok(json!({
+                "target": target.key(), "title": title, "ready": true, "loading": false,
+                "paragraphs": paragraphs, "text": lines.join("\n"),
+                "selection": { "anchor": sel.anchor, "head": sel.head },
+                "source": "editor",
+            }));
+        }
+        // The whole book: the shell's read-only rows.
         let slot = ws
             .pages
             .get(&target.key())
@@ -547,14 +639,12 @@ fn page_text(p: &Value, cx: &mut App) -> Out {
         }
         Ok(json!({
             "target": target.key(),
-            "title": title_of(&ws.book, &target, cx).to_string(),
+            "title": title,
             "ready": slot.ready,
             "loading": slot.loading.is_some(),
             "paragraphs": paragraphs,
             "text": lines.join("\n"),
-            // The shell's read-only rows, read from F3 after every change.
-            // Once the editor is on the paper (F6), this reads the editor.
-            "source": "shell",
+            "source": "rows",
         }))
     })?
 }
@@ -588,7 +678,9 @@ fn settled(
             "the app runs without a library",
         ));
     }
-    if s["book"]["loaded"] != json!(true) {
+    if s["shelf"] == json!(true) {
+        // The bookshelf covers the window: nothing of a book to wait for.
+    } else if s["book"]["loaded"] != json!(true) {
         return Ok(Some("the book's lists have not arrived".into()));
     }
     let shown: Vec<String> = s["activeTab"]
@@ -609,6 +701,12 @@ fn settled(
             .into_iter()
             .flatten()
             .find(|p| p["key"] == json!(key));
+        if page.is_some_and(|p| p["failed"] == json!(true)) {
+            return Err(BridgeError::new(
+                codes::IO,
+                format!("{key}: the editor could not open it (see the app's log)"),
+            ));
+        }
         let ready = page.is_some_and(|p| p["ready"] == json!(true) && p["loading"] == json!(false));
         if !ready {
             return Ok(Some(format!("{key} is being read")));
