@@ -1,6 +1,8 @@
 //! Editing actions: deleting by grapheme cluster, word and row; Enter;
 //! paragraph kinds; inline-mark toggles; undo and redo across chapters;
-//! plain-text copy, cut and paste.
+//! plain-text copy, cut and paste. A selection across chapters is edited
+//! chapter by chapter (`span.rs`); Enter and Backspace in list items have
+//! their own rules (`lists.rs`).
 
 use gpui::{ClipboardItem, Context, Window};
 use loro::LoroValue;
@@ -24,7 +26,7 @@ impl ProseEditor {
         cx: &mut Context<Self>,
         target: impl FnOnce(&mut crate::text::ProseDoc, usize) -> usize,
     ) {
-        if self.composition.is_some() {
+        if self.composition.is_some() || self.replace_across("", &[], window, cx) {
             return;
         }
         self.edit(window, cx, |doc, sel| {
@@ -52,6 +54,10 @@ impl ProseEditor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        // At a list item's start: out of the list first (`lists.rs`).
+        if self.backspace_in_list(window, cx) {
+            return;
+        }
         self.delete_towards(window, cx, prev_cluster);
     }
 
@@ -98,6 +104,13 @@ impl ProseEditor {
             return;
         }
         self.pending_marks.clear();
+        // In an empty list item: out of the list (`lists.rs`).
+        if self.newline_in_list(window, cx) {
+            return;
+        }
+        // Across chapters: the selection goes first, as its own step (like a
+        // selection across paragraphs below).
+        self.replace_across("", &[], window, cx);
         self.edit(window, cx, |doc, sel| {
             let range = sel.range();
             doc.checkpoint();
@@ -111,6 +124,10 @@ impl ProseEditor {
     }
 
     fn set_kind(&mut self, kind: BlockKind, window: &mut Window, cx: &mut Context<Self>) {
+        if self.selection.spans_chapters() {
+            self.set_kind_across(kind, window, cx);
+            return;
+        }
         self.edit(window, cx, |doc, sel| {
             let range = sel.range();
             let (first, _) = doc.locate(range.start);
@@ -154,6 +171,10 @@ impl ProseEditor {
             cx.notify();
             return;
         }
+        if self.selection.spans_chapters() {
+            self.toggle_mark_across(key, window, cx);
+            return;
+        }
         let key = key.to_owned();
         self.edit(window, cx, |doc, sel| {
             doc.checkpoint();
@@ -166,6 +187,10 @@ impl ProseEditor {
         if self.selection.is_empty() || self.composition.is_some() {
             return;
         }
+        if self.selection.spans_chapters() {
+            self.set_link_across(url, window, cx);
+            return;
+        }
         self.edit(window, cx, |doc, sel| {
             doc.checkpoint();
             doc.set_link(sel.range(), url, ORIGIN_USER);
@@ -176,6 +201,9 @@ impl ProseEditor {
     /// a caret's pending toggles (for a toolbar's pressed state).
     pub fn mark_active(&mut self, key: &str) -> bool {
         let sel = self.selection;
+        if sel.spans_chapters() {
+            return self.mark_active_across(key);
+        }
         let doc = &mut self.book.chapters[sel.chapter].doc;
         if sel.is_empty() {
             match self.pending_marks.iter().find(|(k, _)| k == key) {
@@ -227,10 +255,9 @@ impl ProseEditor {
             return;
         }
         while let Some(chapter) = self.undo_chapters.pop() {
-            self.own_edit = true;
-            let result = self.book.chapters[chapter].doc.undo();
-            self.sync_chapter(chapter, cx);
-            self.own_edit = false;
+            // With the rest of its edit group, if it is part of an edit
+            // across chapters.
+            let result = self.undo_grouped(chapter, cx);
             if let Some(cursor) = result {
                 self.redo_chapters.push(chapter);
                 if let Some(cursor) = cursor {
@@ -248,10 +275,7 @@ impl ProseEditor {
             return;
         }
         while let Some(chapter) = self.redo_chapters.pop() {
-            self.own_edit = true;
-            let result = self.book.chapters[chapter].doc.redo();
-            self.sync_chapter(chapter, cx);
-            self.own_edit = false;
+            let result = self.redo_grouped(chapter, cx);
             if let Some(cursor) = result {
                 self.undo_chapters.push(chapter);
                 if let Some(cursor) = cursor {
@@ -272,11 +296,11 @@ impl ProseEditor {
         self.redo(window, cx);
     }
 
+    /// Copies the selection as plain text; across chapters, each chapter's
+    /// part on its own line(s), in order.
     pub(crate) fn on_copy(&mut self, _: &Copy, _: &mut Window, cx: &mut Context<Self>) {
-        let sel = self.selection;
-        if !sel.is_empty() {
-            let text = self.book.chapters[sel.chapter].doc.slice(sel.range());
-            cx.write_to_clipboard(ClipboardItem::new_string(text));
+        if !self.selection.is_empty() {
+            cx.write_to_clipboard(ClipboardItem::new_string(self.selected_text()));
         }
     }
 
@@ -301,6 +325,10 @@ impl ProseEditor {
         }
         let text = text.replace("\r\n", "\n").replace('\r', "\n");
         self.pending_marks.clear();
+        // Across chapters: one step per chapter, the text in the first.
+        if self.replace_across(&text, &[], window, cx) {
+            return;
+        }
         self.edit(window, cx, |doc, sel| {
             doc.checkpoint();
             let inserted = doc.replace(sel.range(), &text, ORIGIN_USER);

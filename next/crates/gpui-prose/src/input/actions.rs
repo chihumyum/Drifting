@@ -63,6 +63,9 @@ actions!(
         FindNext,
         FindPrevious,
         UseSelectionForFind,
+        IndentListItem,
+        OutdentListItem,
+        ToggleTask,
     ]
 );
 
@@ -122,6 +125,9 @@ pub fn key_bindings(scheme: KeyScheme) -> Vec<KeyBinding> {
         KeyBinding::new("shift-backspace", Backspace, ctx),
         KeyBinding::new("delete", Delete, ctx),
         KeyBinding::new("enter", Newline, ctx),
+        // List items only; elsewhere the key goes on to the host.
+        KeyBinding::new("tab", IndentListItem, ctx),
+        KeyBinding::new("shift-tab", OutdentListItem, ctx),
     ];
     match scheme {
         KeyScheme::Mac => keys.extend([
@@ -161,6 +167,7 @@ pub fn key_bindings(scheme: KeyScheme) -> Vec<KeyBinding> {
             KeyBinding::new("cmd-g", FindNext, ctx),
             KeyBinding::new("cmd-shift-g", FindPrevious, ctx),
             KeyBinding::new("cmd-e", UseSelectionForFind, ctx),
+            KeyBinding::new("cmd-enter", ToggleTask, ctx),
         ]),
         KeyScheme::Windows => keys.extend([
             KeyBinding::new("ctrl-left", MoveWordLeft, ctx),
@@ -197,6 +204,7 @@ pub fn key_bindings(scheme: KeyScheme) -> Vec<KeyBinding> {
             KeyBinding::new("ctrl-shift-x", ToggleStrikethrough, ctx),
             KeyBinding::new("f3", FindNext, ctx),
             KeyBinding::new("shift-f3", FindPrevious, ctx),
+            KeyBinding::new("ctrl-enter", ToggleTask, ctx),
         ]),
     }
     keys

@@ -459,11 +459,13 @@ impl ProseEditor {
         if self.composition.is_some() || self.input.find.matcher.is_none() {
             return FindOutcome::NotFound;
         }
-        let range = self.selection.range();
-        let from = (
-            self.selection.chapter,
-            if forward { range.end } else { range.start },
-        );
+        // From the selection's far end (it may span chapters).
+        let at = if forward {
+            self.selection.end()
+        } else {
+            self.selection.start()
+        };
+        let from = (at.chapter, at.offset);
         let outcome = self.step(from, forward);
         if outcome == FindOutcome::PassedEnd {
             cx.emit(FindEvent::PassedEnd { forward });
@@ -577,7 +579,7 @@ impl ProseEditor {
         if sel.is_empty() {
             return;
         }
-        let text = self.book.chapters[sel.chapter].doc.slice(sel.range());
+        let text = self.selected_text();
         if text.contains('\n') {
             return;
         }

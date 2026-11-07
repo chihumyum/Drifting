@@ -32,7 +32,8 @@
 //!
 //! What is not there: the marked text of an input-method composition (screen
 //! readers hear the input method itself; that paragraph is exposed by
-//! chunks while it lasts), and selections across chapters.
+//! chunks while it lasts), and the other chapters' parts of a selection
+//! across chapters (the part in the caret's chapter is there).
 //!
 //! Only built while a screen reader is connected ([`Window::is_a11y_active`]);
 //! paragraphs that did not change reuse their runs. While one is connected
@@ -458,7 +459,14 @@ impl ProseEditor {
             (line, text.paragraphs[line].runs.char_at(inner))
         };
         let sel = self.selection;
-        let (anchor, focus) = (position(sel.anchor), position(sel.head));
+        // A selection across chapters shows as its part in this chapter: the
+        // anchor at the chapter's start or end.
+        let anchor = match sel.anchor_chapter.cmp(&chapter) {
+            std::cmp::Ordering::Equal => sel.anchor,
+            std::cmp::Ordering::Less => 0,
+            std::cmp::Ordering::Greater => doc.max_cursor(),
+        };
+        let (anchor, focus) = (position(anchor), position(sel.head));
         text.anchor = Some(anchor);
         text.focus = Some(focus);
         text

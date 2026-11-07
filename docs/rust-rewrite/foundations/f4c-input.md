@@ -6,6 +6,8 @@
 
 编辑器能查找替换了：一章（或编辑器里的整本书）里所有命中、前后跳、逐个或全部替换，全部替换是一次撤销；区分大小写、全字（中文按 ICU 词典分词）两个选项；命中随编辑、撤销、别人的写入自动更新，「当前项」就是选区。双击后拖动按词扩展、三击后拖动按段扩展。正文作为一个多行文本框交给读屏（AccessKit），整章可读、选区读得到也设得进去，在真窗口里用进程内探针核过；GPUI v1.27 刚接上 AccessKit，有两个坑：缓存视图会把读屏节点弄丢（`gpui-prose` 已绕开，另存补丁 G7），系统问「焦点在哪」时答的是窗口而不是正文（要改 GPUI，补丁 G8 只存文件）。Windows 上组字中失焦时用 IMM32 让输入法丢弃（台账 G4，不用改 GPUI），键位有 Windows 一套（Ctrl、Home/End、Ctrl+↑↓ 按段、F3）。
 
+第三轮（2026-11-08）：通览全书里选区能跨章了——拖选、⇧ 加方向键、⇧ 点击都能越过章界，复制把各章的部分用换行接起来；删除不合并章、不搬字，每章在自己的会话里删自己那段，这几步记成一组，⌘Z 仍只撤光标那一章的最新一步，但同一次删除在别章的部分（还没被后来的改动盖住的）一起回来。素材笔记里的列表能打了：回车续项、空项回车退出、项首退格变回段落、Tab / ⇧Tab 改层级、⌘↩ 勾任务（走点任务框的同一条路）、段首 `- ` / `1. ` / `[ ] ` 变列表（章节里不会）。
+
 ## 大白话
 
 ### 查找替换
@@ -33,7 +35,7 @@
   1. 单元测试用 AccessKit 自己的读法（`accesskit_consumer`，macOS 和 Windows 适配器用的就是它）读编辑器交出的树：全文、选区的 UTF-16 范围、每段一行、段尾光标落在换行上、表情是一个字、600 字的段落切成几段但仍是一行、读屏挪光标时编辑器的选区跟着变。
   2. `cargo run -p gpui-prose --example a11y-probe` 在本机开一个小窗口，在进程里向窗口要读屏子元素（VoiceOver 连上时也是这样唤醒 AccessKit 的），再像 VoiceOver 一样读那个 `AXTextArea`，约两秒后自己关掉。不用读屏软件、不用系统权限。结果见下面「测量」。
   3. 真用 VoiceOver 读：要作者手测（本轮约定不改系统设置），清单见「要作者手测的」。
-- **没做到的。** 系统层面的焦点（上面的 G8）；组字中的拼音（读屏听到的是输入法自己的播报）；跨章的选区（编辑器本来就没有）；书模式下只交出光标所在这一章。
+- **没做到的。** 系统层面的焦点（上面的 G8）；组字中的拼音（读屏听到的是输入法自己的播报）；跨章选区在别的章里的部分（读屏看到的是光标这一章里被选中的那段）；书模式下只交出光标所在这一章。
 
 ### Windows
 
@@ -41,6 +43,44 @@
 - **和 GPUI 自己的行为怎么配合。** GPUI 的 Windows 后端在「焦点所在的元素不再接受文字」时发 `CPS_COMPLETE`（把组字上屏）。编辑器的失焦处理在那一帧的绘制里先跑，组字已经取消，GPUI 随后的 `COMPLETE` 什么也找不到；焦点挪到另一个文字框（比如查找栏）时 GPUI 什么都不发，而输入法上下文是整个线程共用的，不取消的话半截拼音会跟到那个框里——这正是要 `CPS_CANCEL` 的原因。
 - **键位。** `KeyScheme::{Mac, Windows}`，`bind_keys` 按运行的平台选（Linux 用 Windows 那套）；`key_bindings(scheme)` 给出任一套的列表，F6 的快捷键注册表接管时用它。Windows 一套：Ctrl 代替 ⌘ 做命令，Ctrl+←/→ 按词（Mac 是 ⌥），Home/End 到屏幕行的头尾（换行处光标靠前一行），Ctrl+Home/End 到章首章尾，Ctrl+↑ 到段首（已在段首就到上一段段首）、Ctrl+↓ 到下一段段首（Word 的习惯），Ctrl+Backspace/Delete 删词，Ctrl+Y 和 Ctrl+Shift+Z 重做，Ctrl+Insert / Shift+Insert / Shift+Delete 复制粘贴剪切，F3 / Shift+F3 查找。Mac 一套另加 ⌥↑/⌥↓（到段首、段尾，已在就到上一段段首、下一段段尾）。仍然不绑任何单个可打印键（zed#59882 的规避照旧）。
 - **本机只能做到编译检查。** Windows 的真跑要等 CI 或作者的虚拟机。`cargo check --target x86_64-pc-windows-msvc` 在 Mac 上要绕过三处 C 构建（Loro 依赖的 `stacker`、`psm` 和 GPUI 的资源文件），命令见「检查」。
+
+## 第三轮：跨章选区（2026-11-08）
+
+通览全书（M05 的 `BookEditor`）里，选区可以从一章拖到另一章，⇧ 加方向键也能越过章界。每章仍是一份独立的文档、一个独立的 F3 会话，所以先定下面这套说法，再照它做。
+
+**说法**
+
+1. **选区。** 选区记两头：锚点（拖选的起点）在哪一章哪个位置，光标那头在哪一章哪个位置。两头在同一章时和以前完全一样；不在同一章时就是一个跨章选区，`Selection::book_range()` 给出 `BookRange`，`Book::split_range` 把它切成每章一段。
+2. **复制。** 各章选中的部分按章的顺序接起来，章与章之间放一个换行（`Book::text_in`）。贴回去是几个段落。
+3. **删除不合并章，也不搬字。** 跨章选区上按删除、剪切、打字、粘贴、回车，或者输入法开始组字，都先把选中的字删掉：起点所在章删到章末，中间整章被选中的章删空（章还在，标题、页面、批注都还在，只是正文空了），终点所在章删到选区终点为止。章与章的分界不动，终点那一章剩下的字留在终点那一章，不会接到起点那一章后面。删完光标落在起点；打字、粘贴的内容写在起点那一章。
+4. **落到会话。** 每一章各做一步，写进那一章自己的 F3 会话，在那一章自己的撤销栈里留一步。几章之间没有共同的提交——它们本来就是几份文档。
+5. **撤销。** 这几步记成一组。⌘Z 照旧只撤**光标所在那一章的最新一步**；如果这一步是某次跨章删除的一部分，同一次删除在别的章留下的那一步也一起撤回，前提是它在那一章里还是最新的一步。哪一章在删除之后又被作者改过，那一章的这一步就留在那一章自己的撤销栈里，等光标进了那一章再按 ⌘Z 才撤。重做同理。所以和 F4（M05）的「撤销只撤光标所在那一章」不矛盾：撤的仍是这一章的最新一步，只是这一步本来就跨了几章。
+6. **一步还是两步，和章内一样。** 打字、粘贴替换跨章选区，删除和写进去的字是同一步（章内替换选区也是一步，⌘Z 一次全回来）；回车、输入法组字时，删除单独算一步（和章内跨段的选区一样）。
+7. **格式。** 加粗、斜体、下划线、删除线、链接、H1/H2/H3 在跨章选区上也是每章一步、记成一组，撤销同上。加粗这类开关看整个选区：每一章的那段都已经有了才去掉，否则全加上。
+8. **不跨章的。** ⌘A 仍只选光标所在那一章；查找的当前项、读屏交出的文字仍是光标那一章（读屏看到的选区是这一章里被选中的那部分）；拖选越过章界时，章标题、章首章尾的宿主区域不算正文，选区从上一章章末直接接到下一章章首。
+
+**做法**
+
+- `Selection` 多了一个字段 `anchor_chapter`（锚点所在章；`chapter` 仍是光标所在章），和 `start()` / `end()` / `book_range()` / `spans_chapters()` / `Selection::across(锚点, 光标)`。`range()` 对跨章选区只给光标处的空范围——外面还按「一章内」用 `range()` 的代码（字数统计、浮条）因此看到的是「没选东西」，不会拿错范围去切字；要整段文字用 `ProseEditor::selected_text()`，要每章的部分用 `selected_in(章)`。
+- 移动：⇧←/→ 越过章末章首（章界算一步，像换行），⇧↑/↓ 进到上一章、下一章的行，⌥⇧←/→ 在章边上去找邻章的词（章界当空格）；不按 ⇧ 时 ←/→ 把跨章选区收到它的头或尾。鼠标拖选、⇧ 点击可以落在任何一章（`drag_to_in(章, 位置)`）；双击、三击后的拖动跨章时照旧整词、整段地长。
+- 编辑：`input/span.rs` 把选区按 `split_range` 切开，每章「先断一下撤销步，再改」，改完给这一步打上同一个组号（`ProseDoc::tag_last_step`）。撤销（`undo`、`undo_in`）和重做先看这一章最新一步的组号，再把各章里最新一步是同一组号的一起撤或重做；组号跟着步走，撤到重做栈里也带着。没有共同提交，没有第二套撤销栈。
+- 画：每章各画自己被选中的部分；一章的部分一直延伸到下一章时，这一章最后一段也画到段尾外面，和段落换行被选中时一样。
+- 读屏和输入法只看光标那一章：输入法问「选中了什么」时答这一章里被选中的那部分；在跨章选区上打字、组字，一律先按上面的规则删掉整个跨章选区。
+
+## 第三轮：列表的输入（2026-11-08）
+
+列表只在素材笔记里有（dr-doc 在章节里不收列表），样子是 F4d 画的（记号、编号、任务框，[f4d-render.md](f4d-render.md)），这里是按键。代码在 `input/lists.rs`。
+
+| 按键 | 做什么 |
+| --- | --- |
+| 在一项里回车 | 续一项：新的一项和这一项同级、同类（拆段时继承 `list`、`list_level`，F4a 的规则本来就这样）。任务的勾和挂着的 TODO 不继承，新任务是没勾的。在一项中间回车，后半段留着原来那一项的勾和 TODO（段落属性跟着段尾换行走）。 |
+| 在空的一项里回车 | 退出列表：嵌套的项退一级，第 0 级的项变成普通段落。不新增段落。 |
+| 在一项开头按退格 | 这一项变成普通段落，字不动；再按一次才和上一段接起来。 |
+| Tab / ⇧Tab | 选区碰到的每一项进一级、退一级（0–8 级，到头就不动）；夹在中间的普通段落不动。选区一项都没碰到时编辑器不管，按键交还给宿主（再往下就是系统照常输入一个制表符，和以前一样）。 |
+| ⌘↩（Windows：Ctrl+Enter） | 勾上或取消选区碰到的每个任务，走的是点任务框的同一条路：编辑器发 `DecorationEvent::TaskClicked { chapter, line }`，宿主去勾（没挂 TODO 的改 `checked`，挂了的改那个 TODO 的状态，dr-editor 已经接好）。一个任务都没碰到时按键交还给宿主。 |
+| 段首打 `- `、`* `、`+ ` / `1. `（任何数字）/ `[ ] `、`- [ ] ` / `[x] ` | 变成圆点项 / 编号项 / 任务 / 勾好的任务，打的记号消失；⌘Z 一次把记号原样还回来。只在宿主打开时有效（`set_list_shortcuts(true)`）：dr-editor 只给素材笔记打开，章节里打 `- ` 永远是字。 |
+
+每一种都是单独一步撤销。组字时这些键都归输入法。
 
 ## 要求和完成情况
 
@@ -52,6 +92,8 @@
 | 4 | Windows：IMM32 丢弃组字（G4）、Windows 键位；本机只能 `cargo check --target x86_64-pc-windows-msvc` | 完成；Windows 上没真跑 | `input/system_ime.rs`、`input/actions.rs`（`KeyScheme`）；`windows_keys`、`mac_keys_for_paragraphs_and_find`、`paragraph_moves`、`test_windows_get_no_system_input_method`；Windows 交叉检查（「检查」） |
 | 5 | 失焦时组字：清掉 + 让系统丢弃 | 照旧，并且现在不设钩子也会通知系统 | `losing_focus_drops_the_composition`（原有）；`SystemIme` |
 | 6 | 用 `TestAppContext` 模拟输入；真输入法仍由作者手测 | 完成；手测清单见下 | 上面的测试都在 `TestAppContext` 里跑，键位测试用 `simulate_keystrokes` |
+| 7 | 第三轮：跨章选区（`BookRange`）——通览全书里拖选、⇧ 方向键跨章扩展、复制、删除跨章；先定删除怎么落到各章会话、撤销怎么算 | 完成；说法见「第三轮：跨章选区」，和 M05「撤销只撤光标所在那一章」不矛盾 | `input/selection.rs`、`input/span.rs`；`input/tests/across.rs`：`shift_arrows_and_drags_cross_chapters`、`what_each_chapter_shows_selected`、`copying_and_deleting_across_chapters`、`a_chapter_edited_since_keeps_its_part_for_its_own_undo`、`typing_pasting_and_enter_over_a_selection_across_chapters`、`formatting_a_selection_across_chapters`、`others_writes_move_both_ends`；dr-editor 的通览全书测试照跑 |
+| 8 | 第三轮：列表的输入——回车续项、空项回车退出、Tab / ⇧Tab 改层级、任务框的勾（F4d 共享笔记里的分工：另有段首退格、Markdown 记号） | 完成 | `input/lists.rs`；`input/tests/lists.rs`：`enter_continues_a_list_and_an_empty_item_leaves_it`、`a_nested_empty_item_moves_out_a_level_at_a_time`、`a_new_task_starts_open`、`backspace_at_an_item_start_leaves_the_list`、`backspace_inside_an_item_deletes_as_always`、`tab_and_shift_tab_change_levels`、`command_enter_ticks_tasks_through_the_host`、`markdown_markers_make_items_where_the_host_allows_lists` |
 
 ## 接口概览
 
@@ -72,12 +114,24 @@
 | `click_at(chapter, offset, click_count, shift, cx)`、`drag_to(offset, cx)`、`release()`、`paragraph_range_at`、`Granularity` | 鼠标的逻辑部分（事件处理和测试共用） |
 | `a11y_text() -> A11yText`、`A11yText::assemble`、`ParagraphRuns`、`RUN_CHARS`、`input::a11y::editor_view` | 交给读屏的文字（测试和别的宿主可直接用）；视图包装 |
 | `input::system_ime::SystemIme::for_window(window)` | macOS / Windows 的 `PlatformHooks`；编辑器在组字开始时自动装上，宿主也可以自己装 |
+| `Selection { anchor_chapter, .. }`、`spans_chapters()`、`start()` / `end()` / `anchor_pos()` / `head_pos()`、`book_range()`、`reversed()`、`Selection::across(锚点, 光标)` | 第三轮：选区的两头可以在不同章。`range()` 对跨章选区是光标处的空范围 |
+| `ProseEditor::select_across(锚点, 光标, …)`、`drag_to_in(章, 位置, cx)`、`selected_in(章) -> Option<(范围, 是否延伸到章外)>`、`selected_text()` | 设跨章选区；拖到别的章；每章被选中的部分（画选区用）；选中的文字（跨章时各章用换行接起来） |
+| `ProseDoc::tag_last_step(组号)`、`last_step_group()`、`next_redo_group()` | 撤销组：跨章编辑在各章的那一步带同一个组号，撤销、重做时一起走 |
+| `list_item_at(章, 段)`、`shift_list_level(±1, …) -> bool`、`toggle_tasks(cx) -> bool`、`set_list_shortcuts(bool)` | 列表：读一段是不是列表项；改层级；让宿主勾任务；Markdown 记号开关（默认关） |
+| 动作 `IndentListItem`（Tab）、`OutdentListItem`（⇧Tab）、`ToggleTask`（⌘↩ / Ctrl+Enter） | 新动作；没碰到列表项、任务时交还给宿主（`cx.propagate()`） |
 
 ## 改了 editor.rs 的哪几行
 
 - 字段 `input: crate::input::InputState` 和它的初始化（查找、拖动单位、读屏状态都在里面，以后 F4c 再加状态也只改 `InputState`）；
 - `render` 里一行 `.map(|root| self.input_layer(root, window, cx))`：注册新动作、读屏的角色和节点（为此 `render` 的 `_window` 改名为 `window`，`gpui` 的导入加了 `prelude::FluentBuilder`、去掉了不再用的 `StyleRefinement`）；
 - `ProseEditor::element` 里正文那个 `.child(...)` 换成 `crate::input::a11y::editor_view(editor, cx)`：读屏连着时不走缓存。F4d 若要在 `element` 里加画层，在它旁边加 `.child` 就行。
+
+第三轮（跨章选区）又动了这些别的子线的地方：
+
+- `editor.rs`（F4 主会话）：`undo_in` / `redo_in` 改调 `undo_grouped` / `redo_grouped`（带上同组的别的章）；`sync_chapter` 里别人的改动分别挪选区的两头（各在各的章）；`clamp_selection` 两头各按自己那一章夹；`edit()` 开头断言选区不跨章（跨章的编辑都走 `span.rs`，发布构建里退回光标）。
+- `render/items.rs`（F4d）：段落的选区范围改从 `selected_in(章)` 来，跨章时每章画自己那段。
+- `text/undo.rs`、`text/doc.rs`（F4a）：`Step` 多一个 `group` 字段和上面三个方法。
+- `dr-editor`：`book.rs` 的 `BookEditor::selection()` 改成 `selection().book_range()`（以前总是一章内）、模块说明；`view.rs` 的 `editor_on` 给素材笔记打开 Markdown 列表记号（一处，按 `DocId::profile() == Note`）。
 
 ## 测量
 
@@ -152,7 +206,18 @@ cargo clippy -p gpui-prose -p gpui-ime --target x86_64-pc-windows-msvc --all-tar
    - ⇧→ 选字时读出所选的字；⌘A 后读出「全选」或所选内容；
    - 在别的地方点一下再回来、等光标闪几下，VoiceOver 不应报「窗口」或丢掉位置（这是 G7 那个坑，`gpui-prose` 绕开了）；
    - 用 VoiceOver 的文本转子（VO+U）或 VO+点按挪光标，编辑器的光标跟着走。
-3. **Windows**（等能在 Windows 上跑）：键位逐个过一遍（Ctrl+←/→、Home/End、Ctrl+Home/End、Ctrl+↑/↓、Ctrl+Backspace、Ctrl+Z/Y、F3）；微软拼音、搜狗组字中点到别处，拼音应消失、不上屏。
+3. **跨章选区**（第三轮）：在 Drifting 里打开通览全书，
+   - 从一章中间拖到后面某章中间，三章都应显示选区，中间那章整章高亮、上一章最后一段的选区一直画到段尾外；
+   - ⇧→ 在章末一下进到下一章开头，⇧↓ 在章的最后一行进到下一章第一行；
+   - ⌘C 后贴到别处，各章的部分之间是一个换行；
+   - 按删除：中间的章空了但还在，前后两章各少一截、没有合到一起；⌘Z 一次全回来，⇧⌘Z 再删掉；
+   - 删除之后到最后那章打几个字，回到第一章按 ⌘Z：前两章回来，最后那章的字和删掉的那截还在；光标进最后那章再按两次 ⌘Z，先撤打的字，再撤回那截。
+4. **列表**（第三轮）：在素材里打开一篇笔记，
+   - 段首打 `- `、`1. `、`[ ] ` 各变成圆点、编号、任务；⌘Z 一次记号原样回来；
+   - 列表里回车续一项，空项回车退出（嵌套的先退一级），项首按退格变回普通段落；
+   - Tab / ⇧Tab 改层级，不在列表里时 Tab 和以前一样；
+   - 光标在任务上按 ⌘↩，勾上或取消，和点任务框一样（挂着 TODO 的，审阅里那条 TODO 跟着变）。
+5. **Windows**（等能在 Windows 上跑）：键位逐个过一遍（Ctrl+←/→、Home/End、Ctrl+Home/End、Ctrl+↑/↓、Ctrl+Backspace、Ctrl+Z/Y、F3）；微软拼音、搜狗组字中点到别处，拼音应消失、不上屏。
 
 ## 待协调
 
@@ -163,3 +228,8 @@ cargo clippy -p gpui-prose -p gpui-ime --target x86_64-pc-windows-msvc --all-tar
 5. **F5：缓存视图的读屏节点。** 外壳和 `dr-ui` 里别的缓存视图也会遇到 G7：读屏连着时被回放的视图会从读屏树里掉出去。挂 G7 之前，要读屏的缓存视图可以照 `editor_view` 的办法在读屏连着时不缓存。
 6. **监管会话：G7、G8 要不要提上游、要不要挂。** 两个都是 GPUI v1.27 刚合入 AccessKit 后的问题，`a11y-probe`（`--stock-cache` 看 G7）在本机就能复现；按「确定的上游 bug 可直接报」的规矩，查重后可以开 issue（本会话没有对外发任何东西）。G8 不挂，VoiceOver 进程序时落不到正文上；挂的时候和 G1 一起开 fork。
 7. **F4 台账：** `f4-editor.md` 的「GPUI 补丁台账」加 G7、G8 两行，G4 改成「完成（不改 GPUI）」；「下一轮怎么拆」的 F4c 一行指向本文。`progress.md` 的 F4 一行同理。这几处不是本子线的文件，留给监管会话合并时改。
+8. **F6 / M07：跨章选区的字数和浮条。** `dr-shell` 的 `report_selection`（选区字数）和 `dr-editor` 的选区浮条用的是 `sel.range()`，对跨章选区那是光标处的空范围：字数会显示 0、浮条不出来（不会拿错范围去切字）。要算跨章选区的字数，改用 `ProseEditor::selected_text()`。编辑菜单的「全选」仍只选光标那一章，要不要改成全书全选是产品决定。
+9. **F4 主会话 / M05：** [m05-book.md](../modules/m05-book.md) 待协调第 2 条（跨章选区、撤销要不要一起撤）已按本文「第三轮：跨章选区」定下并做完，那一条可以划掉、指到这里；`BookEditor` 的模块说明已改。`editor.rs` 改了哪几行见「改了 editor.rs 的哪几行」。
+10. **F4d：** 选区画法改从 `selected_in(章)` 来（`render/items.rs` 一处）；`f4d-lists-for-f4c.md` 里留给 F4c 的列表按键都做了。代码块、引注框（也是笔记专用）还没有样子，也就没做它们的按键。
+11. **F2 / F3：跨章删除不是一个事务。** 每章是一次独立的会话写入，几章之间没有共同提交；中途某一章写失败（`SessionSource` 记一条错误日志，那一章原样不动、也不留那一步），别的章照样删了。删了的每一章那一步都在同一组里，⌘Z 能一起撤回来；要不要做成跨文档的事务，等 F3 的会话层有这个能力再说。
+
