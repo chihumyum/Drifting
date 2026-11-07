@@ -100,9 +100,13 @@ pub fn init(info: ShellInfo, services: Services, file: SettingsFile, cx: &mut Ap
     // M07: the writing-day recorder and the Stats tab over the library,
     // stored before quitting.
     dr_view_stats::init(services.library.clone(), cx);
+    // M18: the Review tab and the comment composer's shortcut.
+    dr_view_review::init(services.library.clone(), cx);
+    keymap::add_bindings(cx, dr_view_review::bindings);
     quit::before_quit(cx, |cx| {
         dr_view_stats::flush(cx);
         dr_view_stats::release(cx);
+        dr_view_review::release(cx);
     });
     cx.set_global(info);
     cx.set_global(services);

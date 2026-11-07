@@ -16,6 +16,7 @@
 
 pub mod anchors;
 pub mod convert;
+pub mod decor;
 pub mod links;
 pub mod rules;
 pub mod settings;

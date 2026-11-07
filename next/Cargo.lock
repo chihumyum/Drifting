@@ -1388,6 +1388,7 @@ dependencies = [
  "dr-store",
  "dr-testkit",
  "dr-text",
+ "dr-ui",
  "dr-workspace",
  "futures",
  "gpui",
@@ -1502,6 +1503,7 @@ dependencies = [
  "dr-store",
  "dr-testkit",
  "dr-ui",
+ "dr-view-review",
  "dr-view-search",
  "dr-view-stats",
  "dr-workspace",
@@ -1606,6 +1608,25 @@ dependencies = [
  "gpui_platform",
  "log",
  "png 0.18.1",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
+name = "dr-view-review"
+version = "0.0.0"
+dependencies = [
+ "dr-doc",
+ "dr-editor",
+ "dr-i18n",
+ "dr-model",
+ "dr-store",
+ "dr-ui",
+ "dr-workspace",
+ "futures",
+ "gpui",
+ "gpui-prose",
+ "log",
  "serde_json",
  "tempfile",
 ]

@@ -7,6 +7,15 @@
     "storyGraph": "이야기 그래프",
     "todoLibrary": "할 일 및 자료실"
   },
+  "commentRail": {
+    "actions": {
+      "reopen": "다시 열기",
+      "resolve": "해결 처리"
+    },
+    "card": {
+      "emptyComment": "빈 댓글"
+    }
+  },
   "common": {
     "cancel": "취소",
     "close": "닫기",
@@ -258,6 +267,25 @@
   },
   "relationTypes": {
     "description": "설명"
+  },
+  "reviewPanel": {
+    "commentPlaceholder": "댓글 작성…",
+    "empty": "이 범위에는 검토 항목이 없습니다.",
+    "filters": {
+      "all": "둘 다",
+      "comment": "댓글",
+      "todo": "할 일"
+    },
+    "groups": {
+      "deleted": "삭제됨",
+      "floating": "연결되지 않음"
+    },
+    "jumpToText": "연결된 텍스트로 이동",
+    "newComment": "새 댓글",
+    "resolved": "해결됨({{count}}개)",
+    "scopes": {
+      "current": "현재"
+    }
   },
   "rightSidebar": {
     "kickers": {

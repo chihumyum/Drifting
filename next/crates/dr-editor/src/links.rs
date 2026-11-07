@@ -58,6 +58,9 @@ pub struct DriftingExtension {
     targets: Option<Box<dyn LinkTargets>>,
     alive: RefCell<HashMap<String, bool>>,
     markdown: bool,
+    /// The paint layers draw the links' dry underline (crate::decor), so
+    /// the run gets none of its own.
+    dry_underline: std::cell::Cell<bool>,
 }
 
 impl DriftingExtension {
@@ -67,6 +70,7 @@ impl DriftingExtension {
             targets,
             alive: RefCell::default(),
             markdown: true,
+            dry_underline: std::cell::Cell::new(false),
         }
     }
 
@@ -79,6 +83,16 @@ impl DriftingExtension {
     /// Forgets cached link targets (the book changed).
     pub fn invalidate(&self) {
         self.alive.borrow_mut().clear();
+    }
+
+    /// Whether the paint layers draw the links' underline.
+    pub fn set_dry_underline(&self, on: bool) {
+        self.dry_underline.set(on);
+    }
+
+    /// Whether a link's target still exists (cached until [`Self::invalidate`]).
+    pub fn alive(&self, kind: &EntityKind, id: &str) -> bool {
+        self.is_alive(kind, id)
     }
 
     fn is_alive(&self, kind: &EntityKind, id: &str) -> bool {
@@ -112,6 +126,9 @@ impl ProseExtension for DriftingExtension {
                 run.underline = Some(style.muted.opacity(0.6));
             }
             None => {}
+        }
+        if linked.is_some() && self.dry_underline.get() {
+            run.underline = None;
         }
     }
 

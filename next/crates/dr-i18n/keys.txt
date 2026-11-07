@@ -299,3 +299,19 @@ dashboard.sections.writingPlan
 dashboard.sections.projectProfile
 dashboard.profilePlaceholder
 dashboard.plan.wordsPerDay
+
+# The Review panel and the comment composer (M18)
+reviewPanel.filters.all
+reviewPanel.filters.comment
+reviewPanel.filters.todo
+reviewPanel.scopes.current
+reviewPanel.empty
+reviewPanel.resolved
+reviewPanel.jumpToText
+reviewPanel.groups.floating
+reviewPanel.groups.deleted
+reviewPanel.commentPlaceholder
+reviewPanel.newComment
+commentRail.actions.resolve
+commentRail.actions.reopen
+commentRail.card.emptyComment

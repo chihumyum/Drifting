@@ -1,15 +1,18 @@
 //! The editor's list items: chapter titles and paragraphs.
 
+use std::ops::Range;
+
 use gpui::{
     AnyElement, Context, FontWeight, IntoElement, ParentElement, SharedString, Styled, TextRun,
     Window, div, px,
 };
 
 use super::{
+    decor::{DecorationKey, Touch},
     element::ParagraphElement,
     frame::CompSpan,
     runs::{line_runs, splice_composition},
-    state::{Live, ParaDeco},
+    state::{Live, ParaDeco, ParaKind},
 };
 use crate::{ProseEditor, layout::Affinity, layout::Item};
 
@@ -131,25 +134,50 @@ impl ProseEditor {
         font_size: f32,
         now: std::time::Instant,
     ) -> Vec<ParaDeco> {
-        let Some(layer) = self.paint.layer_ref(chapter) else {
+        let find_look = self.paint.find_look.clone();
+        let layer = self.paint.layer_ref(chapter);
+        if layer.is_none() && find_look.is_none() {
             return Vec::new();
-        };
+        }
         let doc = &self.book.chapters[chapter].doc;
         let line_start = doc.line_start(line_ix);
         let line = doc.line(line_ix);
         let line_end = line_start + line.chars;
         let wrap = f32::from(self.estimate_width.unwrap_or(self.style.max_width));
         let chars_per_row = wrap / font_size.max(1.);
-        let lives: Vec<&Live> = layer.overlapping(line_start, line_end).collect();
-        if lives.is_empty() {
+        let lives: Vec<&Live> = layer
+            .map(|layer| layer.overlapping(line_start, line_end).collect())
+            .unwrap_or_default();
+        // Find hits on this paragraph (F4c keeps them; the current one is the
+        // selection), drawn with the host's look under everything else.
+        let mut first_find = 0;
+        let finds: Vec<(Range<usize>, bool)> = match &find_look {
+            Some(_) if self.find_query().is_some() => {
+                let matches = self.find_matches(chapter);
+                let current = self.find_current().filter(|hit| hit.chapter == chapter);
+                let first = matches.partition_point(|m| m.end <= line_start);
+                first_find = first;
+                matches[first..]
+                    .iter()
+                    .take_while(|m| m.start < line_end)
+                    .map(|m| {
+                        let is_current = current.as_ref().is_some_and(|hit| hit.range == *m);
+                        (m.clone(), is_current)
+                    })
+                    .collect()
+            }
+            _ => Vec::new(),
+        };
+        if lives.is_empty() && finds.is_empty() {
             return Vec::new();
         }
         // Every start and end on this paragraph, turned into bytes in one
         // walk along its text (a paragraph can be thousands of characters).
         let mut offsets: Vec<usize> = lives
             .iter()
-            .flat_map(|l| {
-                let r = &l.deco.range;
+            .map(|l| &l.deco.range)
+            .chain(finds.iter().map(|(r, _)| r))
+            .flat_map(|r| {
                 [
                     r.start.max(line_start) - line_start,
                     r.end.min(line_end).max(line_start) - line_start,
@@ -177,15 +205,42 @@ impl ProseEditor {
                 _ => byte,
             }
         };
+        let mut decos: Vec<ParaDeco> = Vec::with_capacity(finds.len() + lives.len());
+        if let Some(look) = &find_look {
+            for (ix, (range, current)) in finds.iter().enumerate() {
+                let (start, end) = (range.start.max(line_start), range.end.min(line_end));
+                let strength = if *current {
+                    look.strength.hot
+                } else {
+                    look.strength.rest
+                };
+                decos.push(ParaDeco {
+                    key: DecorationKey {
+                        group: SharedString::new_static("find"),
+                        id: SharedString::from((first_find + ix).to_string()),
+                    },
+                    bytes: byte_of(start - line_start, true)..byte_of(end - line_start, false),
+                    kind: ParaKind::Wash {
+                        brush: look.brush.clone(),
+                        hot_brush: None,
+                        color: look.color,
+                        alpha: look.color.a * strength,
+                        heat: 0.,
+                        reach: look.reach,
+                    },
+                    touch: Touch::None,
+                    seed: ix as u32,
+                    drawn: None,
+                });
+            }
+        }
         let mut animating = false;
-        let decos = lives
-            .into_iter()
-            .filter_map(|live| {
-                let part = live.para(line_start, line_end, chars_per_row, byte_of, line_ix, now);
-                animating |= live.moving(now) || part.as_ref().is_some_and(|p| p.drawn.is_some());
-                part
-            })
-            .collect();
+        let decos_from_layer = lives.into_iter().filter_map(|live| {
+            let part = live.para(line_start, line_end, chars_per_row, byte_of, line_ix, now);
+            animating |= live.moving(now) || part.as_ref().is_some_and(|p| p.drawn.is_some());
+            part
+        });
+        decos.extend(decos_from_layer);
         self.paint.animating |= animating;
         decos
     }

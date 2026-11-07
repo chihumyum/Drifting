@@ -7,6 +7,15 @@
     "storyGraph": "Grafo da história",
     "todoLibrary": "Tarefas e biblioteca de materiais"
   },
+  "commentRail": {
+    "actions": {
+      "reopen": "Reabrir",
+      "resolve": "Resolver"
+    },
+    "card": {
+      "emptyComment": "Comentário vazio"
+    }
+  },
   "common": {
     "cancel": "Cancelar",
     "close": "Fechar",
@@ -264,6 +273,25 @@
   },
   "relationTypes": {
     "description": "Descrição"
+  },
+  "reviewPanel": {
+    "commentPlaceholder": "Escreva um comentário…",
+    "empty": "Não há itens de revisão neste escopo.",
+    "filters": {
+      "all": "Ambos",
+      "comment": "Comentários",
+      "todo": "Tarefas"
+    },
+    "groups": {
+      "deleted": "Excluídos",
+      "floating": "Não vinculados"
+    },
+    "jumpToText": "Ir para o texto vinculado",
+    "newComment": "Novo comentário",
+    "resolved": "Resolvidos ({{count}})",
+    "scopes": {
+      "current": "Atual"
+    }
   },
   "rightSidebar": {
     "kickers": {

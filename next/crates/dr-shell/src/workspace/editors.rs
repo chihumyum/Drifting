@@ -22,7 +22,7 @@
 
 use std::time::Instant;
 
-pub use dr_editor::{ChapterEditor, ChapterEditorEvent, EditorSettings};
+pub use dr_editor::{ChapterEditor, ChapterEditorEvent, EditorSettings, decor::DecorLooks};
 use dr_ui::{Theme, fonts::Role, tokens::motion};
 use dr_workspace::ProseSession;
 use gpui::{
@@ -93,6 +93,12 @@ pub fn base_style(theme: &Theme) -> ProseStyle {
         link: p.accent.solid(),
         ..ProseStyle::default()
     }
+}
+
+/// How comments, Agent changes, links and find hits look on the prose in
+/// this theme (dr-editor's paint layers).
+pub fn decor_looks(theme: &Theme, base: &ProseStyle) -> DecorLooks {
+    DecorLooks::new(theme.palette, base.link, theme.reduce_motion)
 }
 
 impl Workspace {
@@ -191,8 +197,10 @@ impl Workspace {
                 },
             );
         drop(session);
+        let looks = decor_looks(&Theme::of(window, cx), &base);
         editor.update(cx, |e, cx| {
             e.set_base_style(base, cx);
+            e.set_decor_looks(looks, cx);
             set_title(e, title, cx);
         });
         log::debug!(
@@ -215,8 +223,10 @@ impl Workspace {
     ) {
         match event {
             ChapterEditorEvent::Edited => {}
+            // The editor projects its TODO markers (`todo.project`) and
+            // stores re-anchored comments (`comment.reanchor`) itself
+            // (dr-editor's decor module).
             ChapterEditorEvent::TodoMarkers(markers) => {
-                // TODO(F3 `todo.project`): project the markers into TODOs.
                 log::debug!(
                     "{}: {} TODO markers",
                     editor.read(cx).doc_id(),
@@ -224,10 +234,8 @@ impl Workspace {
                 );
             }
             ChapterEditorEvent::AnchorsChanged(changes) => {
-                // TODO(F3 `comment.reanchor`): store the anchors an undo
-                // brought back in the book document.
                 log::debug!(
-                    "{}: {} comment anchors to store",
+                    "{}: {} anchors re-stored",
                     editor.read(cx).doc_id(),
                     changes.len()
                 );
@@ -374,7 +382,8 @@ impl Workspace {
     /// New settings or a new theme: every open editor is restyled.
     pub(super) fn style_editors(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let settings = editor_settings(cx);
-        let base = base_style(&Theme::of(window, cx));
+        let theme = Theme::of(window, cx);
+        let base = base_style(&theme);
         let settings_changed = settings != self.editor_settings;
         let base_changed = base != self.editor_base;
         if !settings_changed && !base_changed {
@@ -386,6 +395,7 @@ impl Workspace {
             editor.update(cx, |e, cx| {
                 if base_changed {
                     e.set_base_style(base.clone(), cx);
+                    e.set_decor_looks(decor_looks(&theme, &base), cx);
                 }
                 if settings_changed {
                     e.set_settings(settings.clone(), cx);

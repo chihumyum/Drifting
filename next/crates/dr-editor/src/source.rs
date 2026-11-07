@@ -62,6 +62,19 @@ impl Shared {
     }
 }
 
+/// The count of a document's events the holder has pushed. Read inside a
+/// holder job, it says which state of the document that job saw; compare
+/// it with [`SessionSource::taken`] to know whether the editor shows the
+/// same state (positions found off the main thread are only right then).
+#[derive(Clone)]
+pub(crate) struct EventCount(Arc<Shared>);
+
+impl EventCount {
+    pub(crate) fn now(&self) -> u64 {
+        self.0.queue().pushed
+    }
+}
+
 /// gpui-prose's text source on one of the workspace's prose documents.
 pub struct SessionSource {
     doc_id: String,
@@ -146,6 +159,16 @@ impl SessionSource {
 
     pub fn doc_id(&self) -> &str {
         &self.doc_id
+    }
+
+    /// The holder's count of this document's events (see [`EventCount`]).
+    pub(crate) fn event_count(&self) -> EventCount {
+        EventCount(self.shared.clone())
+    }
+
+    /// Events the editor has taken, and so folded into what it shows.
+    pub(crate) fn taken(&self) -> u64 {
+        self.taken
     }
 
     pub fn session(&self) -> &ProseSession {

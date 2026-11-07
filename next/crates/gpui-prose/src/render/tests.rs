@@ -684,3 +684,42 @@ fn ticks_sit_at_their_paragraphs_and_a_click_scrolls_there(cx: &mut TestAppConte
     let top = editor.update(cx, |e, _| e.list_state().logical_scroll_top().item_ix);
     assert!(top > 40, "scrolled near paragraph 55: {top}");
 }
+
+// ----- find ---------------------------------------------------------------------------
+
+#[gpui::test]
+fn find_matches_are_drawn_with_the_current_one_stronger(cx: &mut TestAppContext) {
+    let (editor, cx) = editor(
+        cx,
+        &[
+            (BlockKind::Body, "灯芯往下拨了拨"),
+            (BlockKind::Body, "岸上的灯一盏一盏地灭"),
+        ],
+    );
+    editor.update_in(cx, |e, window, cx| {
+        e.set_find_look(
+            Some(Wash::flat(
+                hsla(0.58, 0.9, 0.5, 1.),
+                Strength::new(0.16, 0.34),
+            )),
+            cx,
+        );
+        e.set_find("灯", crate::input::find::FindOptions::default(), window, cx);
+    });
+    draw(cx);
+    let first = painted(&editor, cx, "find", "0").unwrap();
+    let second = painted(&editor, cx, "find", "1").unwrap();
+    assert_eq!(first.boxes.len(), 1);
+    // The first match is current (find selects it): stronger.
+    assert!((first.alpha - 0.34).abs() < 1e-4, "{}", first.alpha);
+    assert!((second.alpha - 0.16).abs() < 1e-4, "{}", second.alpha);
+    editor.update_in(cx, |e, window, cx| {
+        e.find_next(window, cx);
+    });
+    draw(cx);
+    assert!((painted(&editor, cx, "find", "1").unwrap().alpha - 0.34).abs() < 1e-4);
+    // No query, nothing drawn.
+    editor.update(cx, |e, cx| e.clear_find(cx));
+    draw(cx);
+    assert!(painted(&editor, cx, "find", "0").is_none());
+}

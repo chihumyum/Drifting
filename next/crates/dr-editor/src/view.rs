@@ -71,6 +71,8 @@ pub struct ChapterEditor {
     extension: Rc<DriftingExtension>,
     editor: Entity<ProseEditor>,
     todos: Vec<TodoMarker>,
+    /// The paint layers: comments, Agent changes, links (crate::decor).
+    pub(crate) decor: crate::decor::Decor,
     _editor_events: Subscription,
     _ws_events: dr_workspace::events::Subscription,
 }
@@ -100,6 +102,8 @@ impl ChapterEditor {
             cx,
         )?;
         let ws_events = Self::watch(&ws, doc_id, window, cx);
+        let decor =
+            crate::decor::Decor::new(&ws, book, doc_id, &editor, extension.clone(), window, cx);
         let mut this = ChapterEditor {
             ws,
             book: book.to_owned(),
@@ -110,6 +114,7 @@ impl ChapterEditor {
             extension,
             editor,
             todos: Vec::new(),
+            decor,
             _editor_events: editor_events,
             _ws_events: ws_events,
         };
@@ -271,6 +276,8 @@ impl ChapterEditor {
         self.editor = editor;
         self._editor_events = events;
         self.doc_id = doc_id.to_owned();
+        self.decor
+            .rebind(&self.ws, &self.book, doc_id, &self.editor, window, cx);
         self.todos = self.find_todos(cx);
         cx.emit(ChapterEditorEvent::TodoMarkers(self.todos.clone()));
         cx.notify();

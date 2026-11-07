@@ -20,6 +20,7 @@ members = [
     "crates/dr-text",
     "crates/dr-ui",
     "crates/dr-view-home",
+    "crates/dr-view-review",
     "crates/dr-view-search",
     "crates/dr-view-shelf",
     "crates/dr-view-stats",
@@ -198,6 +199,7 @@ dr-shell = { path = "crates/dr-shell" }
 dr-ui = { path = "crates/dr-ui" }
 # M06 and M07: the search panel and the Stats tab with the writing-day
 # recorder (interface crates over F3).
+dr-view-review = { path = "crates/dr-view-review" }
 dr-view-search = { path = "crates/dr-view-search" }
 dr-view-stats = { path = "crates/dr-view-stats" }
 futures = "0.3"

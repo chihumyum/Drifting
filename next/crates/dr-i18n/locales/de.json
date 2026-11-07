@@ -7,6 +7,15 @@
     "storyGraph": "Geschichtsgraph",
     "todoLibrary": "Aufgaben und Materialsammlung"
   },
+  "commentRail": {
+    "actions": {
+      "reopen": "Erneut öffnen",
+      "resolve": "Erledigen"
+    },
+    "card": {
+      "emptyComment": "Leerer Kommentar"
+    }
+  },
   "common": {
     "cancel": "Abbrechen",
     "close": "Schließen",
@@ -258,6 +267,25 @@
   },
   "relationTypes": {
     "description": "Beschreibung"
+  },
+  "reviewPanel": {
+    "commentPlaceholder": "Kommentar schreiben…",
+    "empty": "Keine Prüfeinträge in diesem Bereich.",
+    "filters": {
+      "all": "Beides",
+      "comment": "Kommentare",
+      "todo": "Aufgaben"
+    },
+    "groups": {
+      "deleted": "Gelöscht",
+      "floating": "Nicht angehängt"
+    },
+    "jumpToText": "Zum verknüpften Text springen",
+    "newComment": "Neuer Kommentar",
+    "resolved": "Erledigt ({{count}})",
+    "scopes": {
+      "current": "Aktuell"
+    }
   },
   "rightSidebar": {
     "kickers": {

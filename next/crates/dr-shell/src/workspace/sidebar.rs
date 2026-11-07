@@ -1184,7 +1184,27 @@ fn right_body(
                 cx,
             )
         }
-        // Their modules fill these: review (M18/M19), the Agent (M27).
+        // M18: comments and TODOs.
+        RightTab::Review => {
+            let strings = crate::Strings::get(cx);
+            let (locale, platform) = (strings.locale(), strings.platform());
+            let shell = cx.weak_entity();
+            let open: dr_view_review::Opener = std::rc::Rc::new(move |key, window, cx| {
+                shell
+                    .update(cx, |ws, cx| ws.open_review_target(key, window, cx))
+                    .ok();
+            });
+            dr_view_review::panel(
+                &format!("review-{}", pane_slug(pane)),
+                &ws.book_id,
+                ws.nav.current().map(crate::book::nav_target),
+                locale,
+                platform,
+                open,
+                cx,
+            )
+        }
+        // Its module fills this: the Agent (M27).
         _ => div().size_full().into_any_element(),
     }
 }

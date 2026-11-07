@@ -7,6 +7,15 @@
     "storyGraph": "物語グラフ",
     "todoLibrary": "TODOと資料庫"
   },
+  "commentRail": {
+    "actions": {
+      "reopen": "開き直す",
+      "resolve": "解決済みにする"
+    },
+    "card": {
+      "emptyComment": "空のコメント"
+    }
+  },
   "common": {
     "cancel": "キャンセル",
     "close": "閉じる",
@@ -258,6 +267,25 @@
   },
   "relationTypes": {
     "description": "説明"
+  },
+  "reviewPanel": {
+    "commentPlaceholder": "コメントを入力…",
+    "empty": "この範囲にレビュー項目はありません。",
+    "filters": {
+      "all": "両方",
+      "comment": "コメント",
+      "todo": "TODO"
+    },
+    "groups": {
+      "deleted": "削除済み",
+      "floating": "未添付"
+    },
+    "jumpToText": "リンクされた本文へ移動",
+    "newComment": "新しいコメント",
+    "resolved": "解決済み（{{count}}件）",
+    "scopes": {
+      "current": "現在"
+    }
   },
   "rightSidebar": {
     "kickers": {
