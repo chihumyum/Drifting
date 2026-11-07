@@ -5,8 +5,35 @@
     "todoLibrary": "Tareas y documentación"
   },
   "common": {
+    "cancel": "Cancelar",
     "close": "Cerrar",
-    "local": "Local"
+    "counting": "Contando…",
+    "creating": "Creando…",
+    "edit": "Editar",
+    "local": "Local",
+    "save": "Guardar",
+    "saveFailed": "No se pudieron guardar los cambios. Reintenta.",
+    "saving": "Guardando…",
+    "untitled": "Sin título"
+  },
+  "dashboard": {
+    "actions": {
+      "allChapters": "Todos los capítulos",
+      "elementOverview": "Vista de elementos",
+      "storyGraph": "Mapa de la historia"
+    },
+    "hero": {
+      "projectName": "Nombre del proyecto"
+    },
+    "plan": {
+      "wordsPerDay": "palabras / día"
+    },
+    "profilePlaceholder": "Escribe la premisa, tesis o sinopsis",
+    "sections": {
+      "projectProfile": "Presentación del proyecto",
+      "writingPlan": "Plan de escritura"
+    },
+    "wordCount": "{{count}} palabras"
   },
   "feedback": {
     "crash": {
@@ -78,7 +105,95 @@
     "title": "Notificaciones"
   },
   "projectHome": {
-    "kicker": "Inicio del proyecto"
+    "book": {
+      "noStorylines": "Aún no hay tramas.",
+      "storylineCount": "{{done}} / {{total}} capítulos",
+      "title": "El libro"
+    },
+    "continue": {
+      "empty": "Aún no hay capítulos.",
+      "title": "Continuar"
+    },
+    "kicker": "Inicio del proyecto",
+    "readout": "{{chapters}} capítulos · {{storylines}} tramas · {{elements}} elementos",
+    "settings": {
+      "dailyGoal": "Meta diaria",
+      "projectTarget": "Meta del libro"
+    },
+    "since": "Inicio del proyecto · desde {{date}}",
+    "today": "Hoy {{today}} / {{goal}} · racha de {{streak}} días",
+    "todayNoGoal": "Hoy {{today}} · racha de {{streak}} días",
+    "views": {
+      "overview": "Vista general",
+      "settings": "Ajustes"
+    },
+    "words": "{{words}} palabras",
+    "wordsOfTarget": "{{words}} / {{target}} palabras"
+  },
+  "projectPicker": {
+    "desk": {
+      "chaptersUnit_many": "capítulos",
+      "chaptersUnit_one": "capítulo",
+      "chaptersUnit_other": "capítulos",
+      "elementsUnit_many": "elementos",
+      "elementsUnit_one": "elemento",
+      "elementsUnit_other": "elementos",
+      "form": {
+        "createTitle": "Nuevo libro",
+        "editTitle": "Editar «{{name}}»",
+        "nameLabel": "Título",
+        "summaryLabel": "Resumen"
+      },
+      "goal": "{{pct}}% · meta {{target}} palabras",
+      "moveToTrash": "Mover a eliminados recientemente",
+      "newCard": "Nuevo libro",
+      "newCardSub": "Empieza con una página en blanco",
+      "open": "Abrir «{{name}}»",
+      "progress": "Progreso",
+      "storylinesUnit_many": "tramas",
+      "storylinesUnit_one": "trama",
+      "storylinesUnit_other": "tramas",
+      "trashEntry": "Eliminados recientemente",
+      "trashList": {
+        "empty": "No hay libros eliminados recientemente.",
+        "title": "Eliminados recientemente"
+      },
+      "trashTitle": "¿Mover «{{name}}» a eliminados recientemente?",
+      "untitled": "Sin título",
+      "wordsUnit": "palabras"
+    },
+    "form": {
+      "createSubmit": "Crear",
+      "namePlaceholder": "p. ej., La luz del cabo Norte",
+      "summaryPlaceholder": "Describe el libro en una o dos frases."
+    },
+    "header": {
+      "titleEm": "Estantería"
+    },
+    "rail": {
+      "books_many": "{{count}} libros",
+      "books_one": "{{count}} libro",
+      "books_other": "{{count}} libros",
+      "import": "Importar libro",
+      "library_many": "{{count}} libros · {{words}} palabras",
+      "library_one": "{{count}} libro · {{words}} palabras",
+      "library_other": "{{count}} libros · {{words}} palabras"
+    },
+    "status": {
+      "draft": "Borrador",
+      "paused": "En pausa",
+      "writing": "Escribiendo"
+    },
+    "trash": {
+      "body": "Este libro ({{words}} palabras · {{nodes}} capítulos · {{elements}} elementos) saldrá de la estantería. Puedes restaurarlo durante 30 días desde eliminados recientemente; después se borrará definitivamente.",
+      "confirm": "Mover a eliminados recientemente",
+      "failed": "No se pudo mover el proyecto. Reintenta.",
+      "localNote": "El contenido y la copia Markdown se conservan hasta el borrado definitivo.",
+      "moving": "Moviendo…",
+      "restore": "Restaurar",
+      "restoreFailed": "No se pudo restaurar el proyecto. Reintenta.",
+      "restoring": "Restaurando…"
+    }
   },
   "rightSidebar": {
     "kickers": {
@@ -241,6 +356,21 @@
       "library_item": "Material sin título",
       "storyline": "Trama sin título"
     }
+  },
+  "userMenu": {
+    "import": "Importar",
+    "importBook": "Importar libro (.driftingbook)",
+    "language": "Idioma",
+    "localMenu": "Menú de biblioteca local",
+    "localStatus": "LOCAL · EN ESTE DISPOSITIVO",
+    "settings": "Ajustes",
+    "theme": "Tema",
+    "themeDark": "Oscuro",
+    "themeDarkShort": "Oscuro",
+    "themeLight": "Claro",
+    "themeLightShort": "Claro",
+    "themeSystem": "Seguir el sistema",
+    "themeSystemShort": "Sistema"
   },
   "windowCaption": {
     "close": "Cerrar",
