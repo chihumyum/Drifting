@@ -1393,6 +1393,7 @@ dependencies = [
  "gpui",
  "gpui-prose",
  "gpui_platform",
+ "libc",
  "log",
  "loro",
  "serde_json",

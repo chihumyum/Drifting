@@ -153,6 +153,56 @@ impl ProseEditor {
         self.list.remeasure();
     }
 
+    /// Undoes the most recent author step of `chapter` only, for hosts whose
+    /// chapters keep their own undo (Drifting's whole-book view: ⌘Z undoes
+    /// in the chapter the caret is in). Returns whether anything changed.
+    pub fn undo_in(&mut self, chapter: usize, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        if self.composition.is_some() || chapter >= self.book.chapters.len() {
+            return false;
+        }
+        self.own_edit = true;
+        let result = self.book.chapters[chapter].doc.undo();
+        self.sync_chapter(chapter, cx);
+        self.own_edit = false;
+        let Some(cursor) = result else {
+            return false;
+        };
+        if let Some(at) = self.undo_chapters.iter().rposition(|c| *c == chapter) {
+            self.undo_chapters.remove(at);
+        }
+        self.redo_chapters.push(chapter);
+        if let Some(cursor) = cursor {
+            self.selection = Selection::caret(chapter, cursor);
+            self.clamp_selection();
+        }
+        self.after_history_step(chapter, window, cx);
+        true
+    }
+
+    /// Redoes the most recent undone step of `chapter` only.
+    pub fn redo_in(&mut self, chapter: usize, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        if self.composition.is_some() || chapter >= self.book.chapters.len() {
+            return false;
+        }
+        self.own_edit = true;
+        let result = self.book.chapters[chapter].doc.redo();
+        self.sync_chapter(chapter, cx);
+        self.own_edit = false;
+        let Some(cursor) = result else {
+            return false;
+        };
+        if let Some(at) = self.redo_chapters.iter().rposition(|c| *c == chapter) {
+            self.redo_chapters.remove(at);
+        }
+        self.undo_chapters.push(chapter);
+        if let Some(cursor) = cursor {
+            self.selection = Selection::caret(chapter, cursor);
+            self.clamp_selection();
+        }
+        self.after_history_step(chapter, window, cx);
+        true
+    }
+
     /// Changes sizes, spacing, width or colours (the host's settings and
     /// theme): every paragraph is measured and laid out again.
     pub fn set_style(&mut self, style: ProseStyle, cx: &mut Context<Self>) {

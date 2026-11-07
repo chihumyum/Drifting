@@ -12,6 +12,6 @@ pub mod heights;
 pub mod linebreak;
 pub mod paragraph;
 
-pub use book::{Book, Chapter, Item};
+pub use book::{Book, BookPos, BookRange, Chapter, Item};
 pub use heights::{BlockMetrics, HeightIndex, estimate_height};
 pub use paragraph::{Affinity, ProseLayout, column, shape};
