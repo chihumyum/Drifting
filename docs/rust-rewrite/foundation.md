@@ -385,9 +385,11 @@
 
 **大小**：M–L
 
+做法、接口和交接设计见 [foundations/f7-platform.md](foundations/f7-platform.md)。
+
 #### 钥匙串
 
-- **不用 GPUI 自带的凭据接口**：它在 macOS 存 internet password、在 Windows 超过 2560 字节直接报错，读不到旧版条目，也存不下 OAuth 令牌。沿用 keyring 加旧版的 `secure_storage/chunked.rs`，键名不变（见 [simplifications.md](simplifications.md) 第 14 条）。
+- **不用 GPUI 自带的凭据接口**：它在 macOS 存 internet password、在 Windows 给条目名加 `zed:url=` 前缀且超过 2560 字节直接报错，读不到旧版条目，也存不下 OAuth 令牌。沿用旧版的存法和 `secure_storage/chunked.rs` 的分片格式，键名不变（见 [simplifications.md](simplifications.md) 第 14 条）。F7 直接调系统接口、按 keyring 3.6 的格式读写，keyring 只在测试里扮演旧版，见 [f7-platform.md](foundations/f7-platform.md#钥匙串)。
 - Windows 上单条凭据最多 2560 字节，大令牌要拆开存。
 - 要能读到旧版用 keyring 写的条目，保证升级后不丢登录和 API Key。
 

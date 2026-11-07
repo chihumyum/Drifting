@@ -57,6 +57,34 @@ jobs:
       - if: ${{ !cancelled() }}
         run: cargo build --workspace --locked
       # The unsigned development bundle: Info.plist, icons and the ad-hoc
-      # seal (codesign --verify) without opening a window.
+      # seal (codesign --verify) without opening a window; then the disk image
+      # and the updater archive a release ships (F7).
       - if: ${{ !cancelled() && matrix.platform == 'macos' }}
-        run: script/bundle-mac --debug
+        run: script/bundle-mac --debug --dmg --archive
+      # The release side of updates with a throwaway key (never the release
+      # key): sign the archive as `tauri signer` does and verify it; then mount
+      # the disk image and find the app and the /Applications link in it.
+      - if: ${{ !cancelled() && matrix.platform == 'macos' }}
+        name: Check the disk image and the signed update archive
+        run: |
+          keys="$RUNNER_TEMP/test-updater"
+          cargo run --locked -q -p dr-platform --example update-tool -- keygen "$keys"
+          archive=$(find target/bundle -maxdepth 1 -name '*.app.tar.gz' -print -quit)
+          test -n "$archive"
+          TAURI_SIGNING_PRIVATE_KEY="$keys/test-updater.key" \
+            cargo run --locked -q -p dr-platform --example update-tool -- sign "$archive"
+          cargo run --locked -q -p dr-platform --example update-tool -- verify "$archive" "$keys/test-updater.pub"
+          dmg=$(find target/bundle -maxdepth 1 -name '*.dmg' -print -quit)
+          mount="$RUNNER_TEMP/drifting-dmg"
+          hdiutil attach -nobrowse -readonly -mountpoint "$mount" "$dmg"
+          trap 'hdiutil detach "$mount" -quiet || true' EXIT
+          test -x "$mount/Drifting Next.app/Contents/MacOS/drifting"
+          test -L "$mount/Applications"
+          codesign --verify --strict "$mount/Drifting Next.app"
+          ls -l target/bundle
+      # The NSIS installer: build it from the debug executable, install it for
+      # the runner's user, update over it with Tauri's flags, uninstall.
+      - if: ${{ !cancelled() && matrix.platform == 'windows' }}
+        name: Check the Windows installer
+        shell: pwsh
+        run: script/check-windows-installer.ps1

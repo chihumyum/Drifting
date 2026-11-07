@@ -8,6 +8,7 @@ publish.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+dr-platform.workspace = true
 gpui.workspace = true
 gpui_platform.workspace = true
 log.workspace = true
