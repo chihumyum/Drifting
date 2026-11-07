@@ -1087,3 +1087,31 @@ fn before_ids(tx: &rusqlite::Connection, doc: &str) -> dr_store::Result<Vec<i64>
         .query_map([doc], |r| r.get(0))?
         .collect::<rusqlite::Result<Vec<i64>>>()?)
 }
+
+/// A whole book's references (`mention.list` without `from`/`to`) are read
+/// through `reference_by_book` (migration 0006): only that book's rows, in
+/// order, with no sort.
+#[test]
+fn a_books_references_are_read_through_its_own_index() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open(dir.path());
+    let plan: Vec<String> = lib
+        .local_read(|c| {
+            let mut s = c.prepare(
+                "EXPLAIN QUERY PLAN SELECT source_doc, source_block, book_id, target_kind,
+                   target_id, kind, count FROM reference WHERE book_id = ?1
+                 ORDER BY source_doc, id",
+            )?;
+            let rows = s
+                .query_map(["b1"], |r| r.get::<_, String>(3))?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            Ok(rows)
+        })
+        .unwrap();
+    assert_eq!(
+        plan,
+        ["SEARCH reference USING INDEX reference_by_book (book_id=?)"],
+        "{plan:?}"
+    );
+    lib.close().unwrap();
+}

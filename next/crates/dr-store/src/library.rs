@@ -7,9 +7,9 @@
 use std::collections::HashMap;
 use std::fs::{self, File, OpenOptions};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, Weak};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use loro::{ExportMode, Frontiers, LoroDoc, VersionVector};
 use rusqlite::{Connection, OptionalExtension, params};
@@ -83,6 +83,10 @@ pub struct LibraryOptions {
     /// head is beyond its `indexed_seq` when the library opens (needs a
     /// deriver).
     pub rebuild_indexes_on_open: bool,
+    /// The background rebuild writes a document's index only after nobody
+    /// else has written for this long (default 500 ms), and never while
+    /// anyone waits to: the author's keystrokes do not queue behind it.
+    pub background_quiet: Duration,
     /// Test hook: fail or pause a migration at a stage.
     #[doc(hidden)]
     pub migration_fault: Option<MigrationFault>,
@@ -106,6 +110,7 @@ impl LibraryOptions {
             deriver: None,
             derive_idle: Duration::from_millis(150),
             rebuild_indexes_on_open: true,
+            background_quiet: Duration::from_millis(500),
             migration_fault: None,
             compaction_pause: None,
             append_faults: None,
@@ -294,9 +299,77 @@ pub struct CompactStats {
     pub deleted_updates: usize,
 }
 
+/// What a background reindex did.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Reindexed {
+    Written,
+    Unchanged,
+    /// Not a quiet moment when it came to writing: try again.
+    Deferred,
+}
+
 pub(crate) enum Slot {
     Opening,
     Open(Weak<Shared>),
+}
+
+/// Who else writes: every writer but the background rebuild counts, from
+/// the moment it asks for the connection until it lets go.
+pub(crate) struct Foreground {
+    /// Asking for the connection or holding it.
+    pending: AtomicUsize,
+    /// When the last one let go, in nanoseconds since `clock`.
+    last_ns: AtomicU64,
+    clock: Instant,
+}
+
+impl Foreground {
+    fn new() -> Self {
+        Self {
+            pending: AtomicUsize::new(0),
+            last_ns: AtomicU64::new(0),
+            clock: Instant::now(),
+        }
+    }
+
+    /// How long nobody has written; `None` while someone is.
+    fn quiet_for(&self) -> Option<Duration> {
+        if self.pending.load(Ordering::SeqCst) > 0 {
+            return None;
+        }
+        let last = Duration::from_nanos(self.last_ns.load(Ordering::SeqCst));
+        Some(self.clock.elapsed().saturating_sub(last))
+    }
+}
+
+/// The writer connection, held. Dropping it lets go; a foreground writer's
+/// drop also records when.
+pub(crate) struct Writer<'a> {
+    guard: MutexGuard<'a, Connection>,
+    foreground: Option<&'a Foreground>,
+}
+
+impl std::ops::Deref for Writer<'_> {
+    type Target = Connection;
+    fn deref(&self) -> &Connection {
+        &self.guard
+    }
+}
+
+impl std::ops::DerefMut for Writer<'_> {
+    fn deref_mut(&mut self) -> &mut Connection {
+        &mut self.guard
+    }
+}
+
+impl Drop for Writer<'_> {
+    fn drop(&mut self) {
+        if let Some(f) = self.foreground {
+            let now = f.clock.elapsed().as_nanos() as u64;
+            f.last_ns.fetch_max(now, Ordering::SeqCst);
+            f.pending.fetch_sub(1, Ordering::SeqCst);
+        }
+    }
 }
 
 pub(crate) struct Inner {
@@ -304,6 +377,7 @@ pub(crate) struct Inner {
     pub options: LibraryOptions,
     pub report: OpenReport,
     writer: Mutex<Connection>,
+    foreground: Foreground,
     reader: Mutex<Connection>,
     epoch: Mutex<String>,
     pub docs: Mutex<HashMap<String, Slot>>,
@@ -325,8 +399,39 @@ pub(crate) struct Inner {
 }
 
 impl Inner {
-    pub fn writer(&self) -> MutexGuard<'_, Connection> {
-        self.writer.lock().unwrap_or_else(|e| e.into_inner())
+    /// The writer connection, for anyone but the background rebuild.
+    pub fn writer(&self) -> Writer<'_> {
+        self.foreground.pending.fetch_add(1, Ordering::SeqCst);
+        Writer {
+            guard: self.writer.lock().unwrap_or_else(|e| e.into_inner()),
+            foreground: Some(&self.foreground),
+        }
+    }
+
+    /// How long background work should still wait before it writes: zero
+    /// once nobody else has written for [`LibraryOptions::background_quiet`]
+    /// and nobody is waiting to.
+    pub fn quiet_remaining(&self) -> Duration {
+        let quiet = self.options.background_quiet;
+        match self.foreground.quiet_for() {
+            Some(q) => quiet.saturating_sub(q),
+            None => quiet,
+        }
+    }
+
+    /// The writer connection for background work if it is a quiet moment
+    /// ([`Self::quiet_remaining`] is zero, and still nobody asked once the
+    /// lock is taken); `None` otherwise.
+    pub fn try_background_writer(&self) -> Option<Writer<'_>> {
+        if !self.quiet_remaining().is_zero() {
+            return None;
+        }
+        let guard = self.writer.lock().unwrap_or_else(|e| e.into_inner());
+        // Someone asked while this waited for the lock: they go first.
+        self.foreground.quiet_for().is_some().then_some(Writer {
+            guard,
+            foreground: None,
+        })
     }
 
     pub fn reader(&self) -> MutexGuard<'_, Connection> {
@@ -472,6 +577,7 @@ impl Library {
                 options,
                 report: OpenReport::default(),
                 writer: Mutex::new(writer),
+                foreground: Foreground::new(),
                 reader: Mutex::new(reader),
                 epoch: Mutex::new(epoch),
                 docs: Mutex::new(HashMap::new()),
@@ -561,6 +667,7 @@ impl Library {
                 options,
                 report,
                 writer: Mutex::new(writer),
+                foreground: Foreground::new(),
                 reader: Mutex::new(reader),
                 epoch: Mutex::new(epoch),
                 docs: Mutex::new(HashMap::new()),
@@ -1103,7 +1210,7 @@ impl Library {
             .len()
     }
 
-    pub(crate) fn writer(&self) -> MutexGuard<'_, Connection> {
+    pub(crate) fn writer(&self) -> Writer<'_> {
         self.inner.writer()
     }
 
@@ -1282,17 +1389,31 @@ fn check_device(
 ) -> Result<Option<EpochChange>> {
     let installation_id = device.installation_id();
     let recorded = meta(conn, "installation_id")?;
+    // Two machines can share an installation id when both took over the
+    // same 0.1 identity (M10, `adopt_installation_id`): the machine is
+    // compared too, where both sides know it.
+    let recorded_machine = meta(conn, "machine")?;
+    let other_machine = matches!(
+        (recorded_machine.as_deref(), device.machine()),
+        (Some(was), Some(now)) if was != now
+    );
     let write_seq: i64 = meta(conn, "write_seq")?
         .and_then(|v| v.parse().ok())
         .unwrap_or(0);
     let watermark = device.watermark(library_id)?;
     let change = match (&recorded, watermark) {
         (Some(id), _) if *id != installation_id => Some(EpochChange::OtherDevice),
+        _ if other_machine => Some(EpochChange::OtherDevice),
         (_, Some(mark)) if write_seq < mark => Some(EpochChange::OlderCopy),
         _ => None,
     };
     if recorded.as_deref() != Some(installation_id.as_str()) {
         set_meta(conn, "installation_id", &installation_id)?;
+    }
+    if let Some(machine) = device.machine()
+        && recorded_machine.as_deref() != Some(machine)
+    {
+        set_meta(conn, "machine", machine)?;
     }
     if let Some(mark) = watermark
         && write_seq < mark
@@ -1674,22 +1795,33 @@ impl Library {
     /// idle anyway, instead of taking a handle on it: a handle held there
     /// would make a `close` at that moment refuse.
     fn reindex(&self, doc_id: &str, background: bool) -> Result<bool> {
+        Ok(self.reindex_as(doc_id, background)? == Reindexed::Written)
+    }
+
+    fn reindex_as(&self, doc_id: &str, background: bool) -> Result<Reindexed> {
+        let unchanged = |written: bool| {
+            if written {
+                Reindexed::Written
+            } else {
+                Reindexed::Unchanged
+            }
+        };
         let Some(deriver) = self.inner.options.deriver.clone() else {
-            return Ok(false);
+            return Ok(Reindexed::Unchanged);
         };
         if background {
             if self.is_open(doc_id) {
-                return Ok(false);
+                return Ok(Reindexed::Unchanged);
             }
         } else if let Some(h) = self.open_handle(doc_id) {
-            return h.reindex_now();
+            return h.reindex_now().map(unchanged);
         }
         let Some(info) = self.doc_info(doc_id)? else {
             return Err(StoreError::NotFound(doc_id.into()));
         };
         let doc = self.inner.new_doc();
         let Some(stats) = load_into(&self.inner.reader(), doc_id, &doc)? else {
-            return Ok(false);
+            return Ok(Reindexed::Unchanged);
         };
         let input = DeriveInput {
             doc_id,
@@ -1700,51 +1832,100 @@ impl Library {
             held: false,
         };
         let frontiers = doc.oplog_frontiers();
-        match deriver.derive(&input) {
-            Some(DerivedUpdate::Full(derived)) => self.index_doc(&DocIndex {
-                doc_id,
-                book_id: info.book_id.as_deref(),
-                seq: stats.last_seq,
-                frontiers: &frontiers,
-                derived: &derived,
-            }),
-            Some(DerivedUpdate::Patch(patch)) => self.patch_index(&crate::index::DocPatch {
-                doc_id,
-                book_id: info.book_id.as_deref(),
-                seq: stats.last_seq,
-                frontiers: &frontiers,
-                patch: &patch,
-            }),
-            _ => Ok(false),
+        let derived = deriver.derive(&input);
+        // Derived without the lock; written with it, in one transaction. In
+        // the background only in a quiet moment; otherwise it is tried again.
+        let writer = if background {
+            match self.inner.try_background_writer() {
+                Some(w) => w,
+                None => return Ok(Reindexed::Deferred),
+            }
+        } else {
+            self.inner.writer()
+        };
+        let book_id = info.book_id.as_deref();
+        let written = match derived {
+            Some(DerivedUpdate::Full(derived)) => crate::index::write_index(
+                &writer,
+                &DocIndex {
+                    doc_id,
+                    book_id,
+                    seq: stats.last_seq,
+                    frontiers: &frontiers,
+                    derived: &derived,
+                },
+            )?,
+            Some(DerivedUpdate::Patch(patch)) => crate::index::write_patch(
+                &writer,
+                &crate::index::DocPatch {
+                    doc_id,
+                    book_id,
+                    seq: stats.last_seq,
+                    frontiers: &frontiers,
+                    patch: &patch,
+                },
+            )?,
+            _ => false,
+        };
+        drop(writer);
+        if written {
+            self.notify_local(LocalChange::new("index", doc_id, LocalChangeKind::Update));
         }
+        Ok(unchanged(written))
     }
 
     /// Rebuild every stale index now (see [`Self::stale_index_docs`]).
     /// Returns how many were written.
     pub fn rebuild_stale_indexes(&self) -> Result<usize> {
-        self.rebuild_stale(false)
-    }
-
-    fn rebuild_stale(&self, background: bool) -> Result<usize> {
         let mut n = 0;
         for doc_id in self.stale_index_docs()? {
             if self.inner.stopping.load(Ordering::Relaxed) {
                 break;
             }
-            if self.reindex(&doc_id, background)? {
+            if self.reindex(&doc_id, false)? {
                 n += 1;
             }
         }
         Ok(n)
     }
 
+    /// Rebuild stale indexes on a thread of its own, writing only in quiet
+    /// moments. Between documents, and while it waits for a quiet moment, it
+    /// keeps no hold on the library: dropping the last handle ends it.
     fn spawn_index_rebuild(&self) {
-        let lib = self.clone();
+        let weak = Arc::downgrade(&self.inner);
         let spawned = std::thread::Builder::new()
             .name("dr-store:index-rebuild".into())
             .spawn(move || {
-                if let Err(e) = lib.rebuild_stale(true) {
-                    log::warn!("rebuilding stale indexes failed: {e}");
+                let live = |weak: &Weak<Inner>| {
+                    weak.upgrade()
+                        .filter(|inner| !inner.stopping.load(Ordering::Relaxed))
+                        .map(|inner| Library { inner })
+                };
+                let Some(docs) = live(&weak).map(|lib| lib.stale_index_docs()) else {
+                    return;
+                };
+                let docs = match docs {
+                    Ok(d) => d,
+                    Err(e) => return log::warn!("listing stale indexes failed: {e}"),
+                };
+                for doc_id in docs {
+                    loop {
+                        let wait = match live(&weak) {
+                            Some(lib) => lib.inner.quiet_remaining(),
+                            None => return,
+                        };
+                        if !wait.is_zero() {
+                            std::thread::sleep(wait.min(Duration::from_millis(25)));
+                            continue;
+                        }
+                        let Some(lib) = live(&weak) else { return };
+                        match lib.reindex_as(&doc_id, true) {
+                            Ok(Reindexed::Deferred) => continue,
+                            Ok(_) => break,
+                            Err(e) => return log::warn!("rebuilding stale indexes failed: {e}"),
+                        }
+                    }
                 }
             });
         match spawned {
