@@ -217,6 +217,10 @@
         "unproven_one": "{{count}} text can't be confirmed as the latest; it's listed below",
         "unproven_other": "{{count}} texts can't be confirmed as the latest; they're listed below"
       },
+      "notice": {
+        "carry_on": "Resume import",
+        "unfinished": "“{{name}}” didn't finish importing"
+      },
       "summary": {
         "account_libraries_left_one": "{{count}} account library in the folder waits for accounts",
         "account_libraries_left_other": "{{count}} account libraries in the folder wait for accounts",

@@ -25,6 +25,10 @@
         "account_libraries_left_one": "{{count}} account library in the folder waits for accounts",
         "account_libraries_left_other": "{{count}} account libraries in the folder wait for accounts",
         "carries_on": "Not finished; importing this library again carries it on"
+      },
+      "notice": {
+        "unfinished": "“{{name}}” didn't finish importing",
+        "carry_on": "Resume import"
       }
     }
   },

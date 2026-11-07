@@ -217,6 +217,10 @@
         "unproven_one": "Não dá para confirmar que {{count}} texto é o mais recente; ele está abaixo",
         "unproven_other": "Não dá para confirmar que {{count}} textos são os mais recentes; eles estão abaixo"
       },
+      "notice": {
+        "carry_on": "Retomar importação",
+        "unfinished": "“{{name}}” não terminou de ser importado"
+      },
       "summary": {
         "account_libraries_left_one": "{{count}} biblioteca de conta na pasta espera pelas contas",
         "account_libraries_left_other": "{{count}} bibliotecas de conta na pasta esperam pelas contas",

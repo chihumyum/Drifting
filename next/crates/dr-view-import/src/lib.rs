@@ -25,12 +25,14 @@
 //! 5. The bookshelf reads again on F3's events as the books land, so the new
 //!    books are on it when the summary shows.
 //!
-//! The dialog is the shell's modal dialog (`dr_shell::dialogs::show`) while
-//! an import is open, so the workspace's shortcuts wait until it closes.
-//! 「取消」 lets the book being written finish and leaves the rest out;
-//! quitting the app stops the import first ([`LegacyImport::stop_for_quit`]),
-//! and a book stopped halfway is carried on by the next import
-//! (m10-import.md).
+//! The dialog is the shell's modal dialog (`dr_shell::dialogs::show_in`, in
+//! the window the author started the import in) while an import is open,
+//! so the workspace's shortcuts wait until it closes. 「取消」 lets the book
+//! being written finish and leaves the rest out; quitting the app stops the
+//! import first ([`LegacyImport::stop_for_quit`]), and a book stopped halfway
+//! is carried on by the next import. At launch, each book an earlier import
+//! left unfinished is a notice in the notification center whose 「接着导入」
+//! imports its 0.1 library again ([`LegacyImport::carry_on`]; m10-import.md).
 //!
 //! Copy comes from the 0.1 client's strings; what it never had is the new
 //! client's own (dr-i18n's `own/`, [`copy`]).
@@ -73,13 +75,19 @@ pub fn init(cx: &mut App) {
         if open != shown {
             cx.set_global(Shown(open));
             if open {
-                dr_shell::dialogs::show(cx, import.into());
+                // In the window the author started it in.
+                match import.read(cx).window() {
+                    Some(window) => dr_shell::dialogs::show_in(window, cx, import.into()),
+                    None => dr_shell::dialogs::show(cx, import.into()),
+                }
             } else {
                 dr_shell::dialogs::hide(cx, import.entity_id());
             }
         }
     })
     .detach();
+    // A book an earlier import left unfinished: a reminder to carry it on.
+    flow::check_unfinished(entity.clone(), cx);
     cx.set_global(Importer(entity));
     // Quitting: the import stops first, so its documents close and its
     // thread lets go of the library.

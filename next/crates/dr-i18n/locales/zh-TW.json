@@ -214,6 +214,10 @@
         "title": "有幾篇正文可能少了最後幾秒打的字",
         "unproven": "有 {{count}} 篇正文無法確認是最新的，列在下面"
       },
+      "notice": {
+        "carry_on": "接著匯入",
+        "unfinished": "《{{name}}》沒匯入完"
+      },
       "summary": {
         "account_libraries_left": "資料夾裡還有 {{count}} 個帳號資料庫沒匯入，等帳號功能做好",
         "already_imported": "這台裝置以前匯入過，這次沒再匯入",

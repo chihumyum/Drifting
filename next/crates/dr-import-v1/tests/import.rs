@@ -1023,6 +1023,18 @@ fn stopping_now_leaves_the_book_to_carry_on() {
     assert_eq!(receipt.books[0].status, "importing");
     let lib = open_library(&new.root, LibraryOptions::new("0.2.0-test"));
     assert!(lib.doc_info(&format!("book:{BOOK}")).unwrap().is_none());
+    // The receipt says which book is unfinished and where its 0.1 library
+    // is, for the app's reminder to carry it on.
+    let unfinished = lib.local_read(|c| Ok(receipt::unfinished(c)?)).unwrap();
+    assert_eq!(
+        unfinished,
+        vec![receipt::Unfinished {
+            book_id: BOOK.to_owned(),
+            name: receipt.books[0].name.clone(),
+            database: Some(old.db.clone()),
+            root: Some(old.root.clone()),
+        }]
+    );
     lib.close().unwrap();
 
     let opts = options(&old, &new, Accept::NOTHING);
@@ -1033,6 +1045,27 @@ fn stopping_now_leaves_the_book_to_carry_on() {
         .load_copy(&format!("book:{BOOK}"))
         .unwrap()
         .get_deep_value();
+    assert!(
+        lib.local_read(|c| Ok(receipt::unfinished(c)?))
+            .unwrap()
+            .is_empty()
+    );
+    // The run's summary keeps the source next to what the end added.
+    let summary: String = lib
+        .local_read(|c| {
+            Ok(c.query_row(
+                "SELECT summary_json FROM import_run ORDER BY id DESC LIMIT 1",
+                [],
+                |r| r.get(0),
+            )?)
+        })
+        .unwrap();
+    let summary: serde_json::Value = serde_json::from_str(&summary).unwrap();
+    assert_eq!(
+        summary["source"]["database"].as_str(),
+        Some(old.db.to_string_lossy().as_ref())
+    );
+    assert_eq!(summary["cancelled"], serde_json::json!(false));
     lib.close().unwrap();
 
     let clean = new_library();

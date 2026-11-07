@@ -9,11 +9,16 @@ use dr_i18n::keys;
 use dr_import_v1::gate::{Accept, Gate, Reason};
 use dr_import_v1::locate::{self, Owner, Picked};
 use dr_import_v1::progress::Progress;
-use dr_import_v1::receipt::Receipt;
+use dr_import_v1::receipt::{Receipt, Unfinished};
 use dr_import_v1::run::{self, Cancel, Options, Outcome};
+use dr_shell::notifications::{NoticeAction, Notifications, Source};
+use dr_shell::strings::tf;
 use dr_shell::{Services, ShellInfo, t};
 use futures::StreamExt as _;
-use gpui::{Context, FocusHandle, PathPromptOptions, Task, Window};
+use gpui::{
+    AnyWindowHandle, App, AppContext as _, Context, Entity, FocusHandle, PathPromptOptions, Task,
+    Window,
+};
 
 /// Where the 0.1 client keeps its libraries on this device, by its own rule
 /// (`src-tauri/src/data_paths.rs`, `base_local_root`): `DRIFTING_APP_DATA_DIR`
@@ -137,6 +142,11 @@ pub struct LegacyImport {
     cancel: Cancel,
     /// Where to look for the local 0.1 libraries ([`v1_data_dir`]).
     v1_dir: Option<PathBuf>,
+    /// The window the author started the import in: its dialogs show there.
+    window: Option<AnyWindowHandle>,
+    /// The reminders posted for books an import left unfinished: (notice,
+    /// book id). Each goes once its book is imported.
+    reminders: Vec<(u64, String)>,
 }
 
 impl LegacyImport {
@@ -149,7 +159,19 @@ impl LegacyImport {
             thread: None,
             cancel: Cancel::default(),
             v1_dir: v1_data_dir(),
+            window: None,
+            reminders: Vec::new(),
         }
+    }
+
+    /// The window the import was started in (its dialogs show there).
+    pub fn window(&self) -> Option<AnyWindowHandle> {
+        self.window
+    }
+
+    /// The notices posted for unfinished books: (notice id, book id).
+    pub fn reminders(&self) -> &[(u64, String)] {
+        &self.reminders
     }
 
     /// Looks for the local 0.1 libraries in `dir` instead (tests and
@@ -180,6 +202,7 @@ impl LegacyImport {
         if self.is_open() {
             return;
         }
+        self.window = Some(window.window_handle());
         let libraries = self
             .v1_dir
             .as_deref()
@@ -200,6 +223,7 @@ impl LegacyImport {
         if matches!(self.state, State::Running(_) | State::Picking) {
             return;
         }
+        self.window = Some(window.window_handle());
         self.state = State::Picking;
         let paths = cx.prompt_for_paths(PathPromptOptions {
             files: false,
@@ -261,6 +285,67 @@ impl LegacyImport {
         };
         let (folder, picked) = (blocked.folder.clone(), blocked.picked.clone());
         self.run(folder, picked, accept, window, cx);
+    }
+
+    /// A reminder's 「接着导入」: imports again the 0.1 library `book` came
+    /// from, which carries the book on (and any other book that import left
+    /// unfinished). When that library is no longer where it was, the
+    /// bookshelf entry's choice instead. The gate decides again: what was
+    /// accepted before is not taken as accepted now.
+    pub fn carry_on(&mut self, book: &Unfinished, window: &mut Window, cx: &mut Context<Self>) {
+        if self.is_open() {
+            return;
+        }
+        match book.database.as_ref().filter(|d| d.is_file()) {
+            Some(database) => {
+                let root = book.root.clone().unwrap_or_else(|| {
+                    database
+                        .parent()
+                        .and_then(Path::parent)
+                        .unwrap_or(database)
+                        .to_path_buf()
+                });
+                log::info!("carrying on the 0.1 library import of {:?}", book.book_id);
+                let picked = Picked {
+                    database: database.clone(),
+                    root: root.clone(),
+                    id: None,
+                    left: Vec::new(),
+                };
+                self.run(folder_name(&root), picked, Accept::NOTHING, window, cx);
+            }
+            None => {
+                log::info!("the 0.1 library of an unfinished book is gone; choosing again");
+                self.choose(window, cx);
+            }
+        }
+    }
+
+    /// Posts a reminder for each book an import left unfinished (read off
+    /// the main thread at launch, [`check_unfinished`]).
+    pub(crate) fn remind(&mut self, books: Vec<Unfinished>, cx: &mut Context<Self>) {
+        let this = cx.entity();
+        for book in books {
+            if self.reminders.iter().any(|(_, id)| *id == book.book_id) {
+                continue;
+            }
+            let name = if book.name.trim().is_empty() {
+                t(cx, keys::common::UNTITLED)
+            } else {
+                book.name.clone().into()
+            };
+            let text = tf(cx, k_notice::UNFINISHED, &[("name", &name)]);
+            let id = book.book_id.clone();
+            let import = this.clone();
+            let action = NoticeAction {
+                label: t(cx, k_notice::CARRY_ON),
+                run: std::rc::Rc::new(move |_, window, cx| {
+                    import.update(cx, |import, cx| import.carry_on(&book, window, cx));
+                }),
+            };
+            let notice = Notifications::post_with(Source::Import, text, action, cx);
+            self.reminders.push((notice, id));
+        }
     }
 
     /// 「取消」 while it runs: the book being written is finished (no book is
@@ -369,6 +454,7 @@ impl LegacyImport {
         if self.is_running() {
             return;
         }
+        self.window = Some(window.window_handle());
         let Some(ws) = cx.try_global::<Services>().and_then(|s| s.library.clone()) else {
             self.fail(Some(folder), "no library is open".into(), window, cx);
             return;
@@ -488,6 +574,19 @@ impl LegacyImport {
                 self.close_now(window, cx);
             }
             Msg::Done(done) => {
+                let finished: HashSet<&str> = done
+                    .books
+                    .iter()
+                    .filter(|b| matches!(b.status.as_str(), "imported" | "already-imported"))
+                    .map(|b| b.id.as_str())
+                    .collect();
+                let (gone, kept) = std::mem::take(&mut self.reminders)
+                    .into_iter()
+                    .partition::<Vec<_>, _>(|(_, book)| finished.contains(book.as_str()));
+                self.reminders = kept;
+                for (notice, _) in gone {
+                    Notifications::remove(notice, cx);
+                }
                 log::info!(
                     "imported the 0.1 library: {} books in {:.0} ms{}",
                     done.books.len(),
@@ -505,6 +604,36 @@ impl LegacyImport {
             }
         }
     }
+}
+
+use dr_i18n::keys::import::v1::notice as k_notice;
+
+/// At launch: the books this device's imports left unfinished, read from the
+/// library's receipt off the main thread, each posted as a reminder in the
+/// notification center ([`LegacyImport::remind`]).
+pub(crate) fn check_unfinished(import: Entity<LegacyImport>, cx: &mut App) {
+    let Some(ws) = cx.try_global::<Services>().and_then(|s| s.library.clone()) else {
+        return;
+    };
+    let read = cx.background_spawn(async move {
+        ws.library()
+            .local_read(|c| Ok(dr_import_v1::receipt::unfinished(c)?))
+    });
+    cx.spawn(async move |cx| {
+        let books = match read.await {
+            Ok(books) => books,
+            Err(error) => {
+                log::warn!("the import receipts could not be read: {error}");
+                return;
+            }
+        };
+        if books.is_empty() {
+            return;
+        }
+        log::info!("{} books an import left unfinished", books.len());
+        cx.update(|cx| import.update(cx, |import, cx| import.remind(books, cx)));
+    })
+    .detach();
 }
 
 fn wait_for(thread: &JoinHandle<()>, at_most: Duration) -> bool {

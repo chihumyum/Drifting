@@ -81,20 +81,58 @@ pub(crate) fn init(cx: &mut App) {
     });
 }
 
-/// Runs `f` on the open workspace, if any.
+/// The workspace window an app-level action was dispatched to: the active
+/// window when it is a workspace (GPUI sends menu actions and shortcuts to
+/// it, and a click makes its window the active one), else the frontmost
+/// workspace window, else any. GPUI does not tell an app-level handler which
+/// window it was dispatched in.
+pub fn active_workspace(cx: &App) -> Option<gpui::WindowHandle<Workspace>> {
+    cx.active_window()
+        .and_then(|w| w.downcast::<Workspace>())
+        .or_else(|| {
+            cx.window_stack()?
+                .into_iter()
+                .find_map(|w| w.downcast::<Workspace>())
+        })
+        .or_else(|| {
+            cx.windows()
+                .into_iter()
+                .find_map(|w| w.downcast::<Workspace>())
+        })
+}
+
+/// Runs `f` on the workspace an action was dispatched to
+/// ([`active_workspace`]), if any.
 pub fn with_workspace(
     cx: &mut App,
     f: impl FnOnce(&mut Workspace, &mut Window, &mut Context<Workspace>) + 'static,
 ) {
-    let Some(handle) = cx
-        .windows()
-        .into_iter()
-        .find_map(|w| w.downcast::<Workspace>())
-    else {
+    let Some(handle) = active_workspace(cx) else {
         return;
     };
     if let Err(error) = handle.update(cx, |ws, window, cx| f(ws, window, cx)) {
         log::error!("could not reach the workspace: {error:#}");
+    }
+}
+
+/// Runs `f` on the workspace in `window` (one that started something long,
+/// such as an import); when that window is gone or is no workspace, on
+/// [`with_workspace`]'s.
+pub fn with_workspace_in(
+    window: gpui::AnyWindowHandle,
+    cx: &mut App,
+    f: impl FnOnce(&mut Workspace, &mut Window, &mut Context<Workspace>) + 'static,
+) {
+    let handle = window
+        .downcast::<Workspace>()
+        .filter(|h| cx.windows().iter().any(|w| w.window_id() == h.window_id()));
+    match handle {
+        Some(handle) => {
+            if let Err(error) = handle.update(cx, |ws, window, cx| f(ws, window, cx)) {
+                log::error!("could not reach the workspace: {error:#}");
+            }
+        }
+        None => with_workspace(cx, f),
     }
 }
 

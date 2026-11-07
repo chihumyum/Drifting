@@ -217,6 +217,10 @@
         "unproven_one": "Bei {{count}} Text ist nicht sicher, dass er aktuell ist; er steht unten",
         "unproven_other": "Bei {{count}} Texten ist nicht sicher, dass sie aktuell sind; sie stehen unten"
       },
+      "notice": {
+        "carry_on": "Import fortsetzen",
+        "unfinished": "„{{name}}“ wurde nicht fertig importiert"
+      },
       "summary": {
         "account_libraries_left_one": "{{count}} Kontobibliothek im Ordner wartet auf Konten",
         "account_libraries_left_other": "{{count}} Kontobibliotheken im Ordner warten auf Konten",

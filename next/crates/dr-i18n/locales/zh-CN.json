@@ -214,6 +214,10 @@
         "title": "有几篇正文可能少了最后几秒打的字",
         "unproven": "有 {{count}} 篇正文无法确认是最新的，列在下面"
       },
+      "notice": {
+        "carry_on": "接着导入",
+        "unfinished": "《{{name}}》没导完"
+      },
       "summary": {
         "account_libraries_left": "文件夹里还有 {{count}} 个账号资料库没导入，等账号功能做好",
         "already_imported": "这台设备以前导入过，这次没再导入",

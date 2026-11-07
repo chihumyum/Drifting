@@ -1553,7 +1553,21 @@ pub fn notification_center(
                                 .type_px(s.secondary, s.line_body)
                                 .text_color(p.ink(1).solid())
                                 .child(notice.text.clone()),
-                        ),
+                        )
+                        .when_some(notice.action.clone(), |el, action| {
+                            let run = action.run.clone();
+                            el.child(
+                                div().pt(px(2.0)).child(
+                                    Button::new(
+                                        SharedString::from(format!("notice-action-{id}")),
+                                        action.label,
+                                    )
+                                    .text()
+                                    .small()
+                                    .on_click(move |_, window, cx| run(id, window, cx)),
+                                ),
+                            )
+                        }),
                 )
                 .child(
                     PanelIconButton::new(SharedString::from(format!("notice-{id}")), Icon::Close)

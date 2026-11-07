@@ -217,6 +217,10 @@
         "unproven_one": "{{count}} texte n’est peut-être pas le plus récent ; il figure ci-dessous",
         "unproven_other": "{{count}} textes ne sont peut-être pas les plus récents ; ils figurent ci-dessous"
       },
+      "notice": {
+        "carry_on": "Reprendre l’importation",
+        "unfinished": "« {{name}} » n’a pas fini d’être importé"
+      },
       "summary": {
         "account_libraries_left_one": "{{count}} bibliothèque de compte du dossier attend les comptes",
         "account_libraries_left_other": "{{count}} bibliothèques de compte du dossier attendent les comptes",
