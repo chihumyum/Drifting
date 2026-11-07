@@ -1,0 +1,419 @@
+{
+  "fixtures": "src/renderer/services/v2-handoff/m10-fixtures.test.ts + src/dev-cli/seed-main.ts (lite, stress)",
+  "generatedBy": "cargo run --release -p dr-import-v1 --bin m10-import -- measure <fixtures>",
+  "libraries": [
+    {
+      "import": {
+        "anchorCursors": 19,
+        "anchorResolutions": {
+          "exact": 19
+        },
+        "anchors": 19,
+        "archivedRows": {
+          "agent_conversation": 0,
+          "agent_runtime_message": 0,
+          "agent_runtime_result_artifact": 0,
+          "agent_runtime_result_blob": 0,
+          "agent_runtime_session": 0,
+          "agent_runtime_tool_call": 0,
+          "agent_runtime_turn": 0
+        },
+        "bodies": 156,
+        "books": [
+          {
+            "assetsCopied": 7,
+            "assetsMismatched": 0,
+            "assetsMissing": 0,
+            "bodies": 106,
+            "historyPoints": 0,
+            "name": "Pride and Prejudice (Sample)",
+            "projectedTodos": 0,
+            "status": "imported"
+          },
+          {
+            "assetsCopied": 0,
+            "assetsMismatched": 0,
+            "assetsMissing": 0,
+            "bodies": 50,
+            "historyPoints": 0,
+            "name": "阿Q正传（示例）",
+            "projectedTodos": 0,
+            "status": "imported"
+          }
+        ],
+        "byFreshness": {
+          "creation-seed": 74,
+          "node-basis-current": 78,
+          "seed-only": 4
+        },
+        "chars": 703301,
+        "gateReasons": [],
+        "historyVersions": 0,
+        "notes": {
+          "container-id-remapped": 34
+        },
+        "orphanYjsDocs": 0,
+        "outcome": "imported",
+        "peakRssBytes": 37339136,
+        "repairedBlockIds": 0,
+        "roundTrips": 156,
+        "sourceBytes": 11780096,
+        "storedExactly": 156,
+        "timing": {
+          "assetsMs": 162.506167,
+          "bookMs": 11.843625,
+          "proseMs": 170.55250200000003,
+          "receiptMs": 11.520458000000001,
+          "stageMs": 312.98870800000003,
+          "storeMs": 169.81071300000005,
+          "totalMs": 886.359167
+        }
+      },
+      "name": "sample",
+      "newLibraryBytes": 1789952,
+      "stoppedByGate": null,
+      "truth": {
+        "bodiesWithYjs": 152,
+        "doubtfulAndDifferent": 0,
+        "doubtfulButEqual": 0,
+        "equalToYjs": 152,
+        "historyDocs": 0,
+        "historyDocsMatching": 0,
+        "historyRows": 0,
+        "historyRowsWithLabels": 0,
+        "notImported": 0,
+        "provenFreshButDifferent": [],
+        "provenFreshEqual": 152
+      }
+    },
+    {
+      "import": {
+        "anchorCursors": 19,
+        "anchorResolutions": {
+          "exact": 19
+        },
+        "anchors": 19,
+        "archivedRows": {
+          "agent_conversation": 0,
+          "agent_runtime_message": 0,
+          "agent_runtime_result_artifact": 0,
+          "agent_runtime_result_blob": 0,
+          "agent_runtime_session": 0,
+          "agent_runtime_tool_call": 0,
+          "agent_runtime_turn": 0
+        },
+        "bodies": 156,
+        "books": [
+          {
+            "assetsCopied": 7,
+            "assetsMismatched": 0,
+            "assetsMissing": 0,
+            "bodies": 106,
+            "historyPoints": 0,
+            "name": "Pride and Prejudice (Sample)",
+            "projectedTodos": 0,
+            "status": "imported"
+          },
+          {
+            "assetsCopied": 0,
+            "assetsMismatched": 0,
+            "assetsMissing": 0,
+            "bodies": 50,
+            "historyPoints": 6,
+            "name": "阿Q正传（示例）",
+            "projectedTodos": 0,
+            "status": "imported"
+          }
+        ],
+        "byFreshness": {
+          "creation-seed": 70,
+          "node-basis-behind": 2,
+          "node-basis-current": 76,
+          "seed-only": 3,
+          "unproven": 5
+        },
+        "chars": 703301,
+        "gateReasons": [
+          "no-handoff",
+          "unproven",
+          "stale"
+        ],
+        "historyVersions": 6,
+        "notes": {
+          "container-id-remapped": 34
+        },
+        "orphanYjsDocs": 0,
+        "outcome": "imported",
+        "peakRssBytes": 39649280,
+        "repairedBlockIds": 0,
+        "roundTrips": 156,
+        "sourceBytes": 12009472,
+        "storedExactly": 156,
+        "timing": {
+          "assetsMs": 165.16854099999998,
+          "bookMs": 13.156874000000002,
+          "proseMs": 193.84220200000004,
+          "receiptMs": 10.042542,
+          "stageMs": 287.932042,
+          "storeMs": 192.941509,
+          "totalMs": 909.22925
+        }
+      },
+      "name": "sample-stale",
+      "newLibraryBytes": 1789952,
+      "stoppedByGate": [
+        "no-handoff",
+        "unproven",
+        "stale"
+      ],
+      "truth": {
+        "bodiesWithYjs": 153,
+        "doubtfulAndDifferent": 7,
+        "doubtfulButEqual": 0,
+        "equalToYjs": 146,
+        "historyDocs": 2,
+        "historyDocsMatching": 2,
+        "historyRows": 6,
+        "historyRowsWithLabels": 6,
+        "notImported": 0,
+        "provenFreshButDifferent": [],
+        "provenFreshEqual": 146
+      }
+    },
+    {
+      "import": {
+        "anchorCursors": 19,
+        "anchorResolutions": {
+          "exact": 18,
+          "relocated": 1
+        },
+        "anchors": 19,
+        "archivedRows": {
+          "agent_conversation": 0,
+          "agent_runtime_message": 0,
+          "agent_runtime_result_artifact": 0,
+          "agent_runtime_result_blob": 0,
+          "agent_runtime_session": 0,
+          "agent_runtime_tool_call": 0,
+          "agent_runtime_turn": 0
+        },
+        "bodies": 156,
+        "books": [
+          {
+            "assetsCopied": 7,
+            "assetsMismatched": 0,
+            "assetsMissing": 0,
+            "bodies": 106,
+            "historyPoints": 0,
+            "name": "Pride and Prejudice (Sample)",
+            "projectedTodos": 0,
+            "status": "imported"
+          },
+          {
+            "assetsCopied": 0,
+            "assetsMismatched": 0,
+            "assetsMissing": 0,
+            "bodies": 50,
+            "historyPoints": 6,
+            "name": "阿Q正传（示例）",
+            "projectedTodos": 0,
+            "status": "imported"
+          }
+        ],
+        "byFreshness": {
+          "handoff": 153,
+          "seed-only": 3
+        },
+        "chars": 703409,
+        "gateReasons": [],
+        "historyVersions": 6,
+        "notes": {
+          "container-id-remapped": 34
+        },
+        "orphanYjsDocs": 0,
+        "outcome": "imported",
+        "peakRssBytes": 38748160,
+        "repairedBlockIds": 0,
+        "roundTrips": 156,
+        "sourceBytes": 12177408,
+        "storedExactly": 156,
+        "timing": {
+          "assetsMs": 161.120207,
+          "bookMs": 11.399334,
+          "proseMs": 165.4420090000001,
+          "receiptMs": 10.224832999999999,
+          "stageMs": 283.075084,
+          "storeMs": 166.3575330000001,
+          "totalMs": 851.672125
+        }
+      },
+      "name": "sample-handoff",
+      "newLibraryBytes": 1789952,
+      "stoppedByGate": null,
+      "truth": {
+        "bodiesWithYjs": 153,
+        "doubtfulAndDifferent": 0,
+        "doubtfulButEqual": 0,
+        "equalToYjs": 153,
+        "historyDocs": 2,
+        "historyDocsMatching": 2,
+        "historyRows": 6,
+        "historyRowsWithLabels": 6,
+        "notImported": 0,
+        "provenFreshButDifferent": [],
+        "provenFreshEqual": 153
+      }
+    },
+    {
+      "import": {
+        "anchorCursors": 2,
+        "anchorResolutions": {
+          "exact": 2
+        },
+        "anchors": 2,
+        "archivedRows": {
+          "agent_conversation": 4,
+          "agent_runtime_message": 64,
+          "agent_runtime_result_artifact": 0,
+          "agent_runtime_result_blob": 0,
+          "agent_runtime_session": 4,
+          "agent_runtime_tool_call": 318,
+          "agent_runtime_turn": 176
+        },
+        "bodies": 80,
+        "books": [
+          {
+            "assetsCopied": 6,
+            "assetsMismatched": 0,
+            "assetsMissing": 0,
+            "bodies": 80,
+            "historyPoints": 0,
+            "name": "潮汐灯塔（轻量功能样本）",
+            "projectedTodos": 0,
+            "status": "imported"
+          }
+        ],
+        "byFreshness": {
+          "creation-seed": 68,
+          "seed-only": 12
+        },
+        "chars": 272941,
+        "gateReasons": [],
+        "historyVersions": 0,
+        "notes": {},
+        "orphanYjsDocs": 0,
+        "outcome": "imported",
+        "peakRssBytes": 30228480,
+        "repairedBlockIds": 172,
+        "roundTrips": 80,
+        "sourceBytes": 16650240,
+        "storedExactly": 80,
+        "timing": {
+          "assetsMs": 136.152583,
+          "bookMs": 5.617166,
+          "proseMs": 75.15124900000004,
+          "receiptMs": 12.833625,
+          "stageMs": 323.745791,
+          "storeMs": 83.40541100000003,
+          "totalMs": 668.23
+        }
+      },
+      "name": "lite",
+      "newLibraryBytes": 1449984,
+      "stoppedByGate": null,
+      "truth": {
+        "bodiesWithYjs": 68,
+        "doubtfulAndDifferent": 0,
+        "doubtfulButEqual": 0,
+        "equalToYjs": 68,
+        "historyDocs": 0,
+        "historyDocsMatching": 0,
+        "historyRows": 0,
+        "historyRowsWithLabels": 0,
+        "notImported": 0,
+        "provenFreshButDifferent": [],
+        "provenFreshEqual": 68
+      }
+    },
+    {
+      "import": {
+        "anchorCursors": 10,
+        "anchorResolutions": {
+          "exact": 10
+        },
+        "anchors": 10,
+        "archivedRows": {
+          "agent_conversation": 25,
+          "agent_runtime_message": 4800,
+          "agent_runtime_result_artifact": 0,
+          "agent_runtime_result_blob": 0,
+          "agent_runtime_session": 25,
+          "agent_runtime_tool_call": 3236,
+          "agent_runtime_turn": 3103
+        },
+        "bodies": 679,
+        "books": [
+          {
+            "assetsCopied": 36,
+            "assetsMismatched": 0,
+            "assetsMissing": 0,
+            "bodies": 679,
+            "historyPoints": 0,
+            "name": "潮汐灯塔（重型性能样本）",
+            "projectedTodos": 0,
+            "status": "imported"
+          }
+        ],
+        "byFreshness": {
+          "creation-seed": 619,
+          "seed-only": 60
+        },
+        "chars": 3908340,
+        "gateReasons": [],
+        "historyVersions": 0,
+        "notes": {},
+        "orphanYjsDocs": 0,
+        "outcome": "imported",
+        "peakRssBytes": 138117120,
+        "repairedBlockIds": 3343,
+        "roundTrips": 679,
+        "sourceBytes": 255078400,
+        "storedExactly": 679,
+        "timing": {
+          "assetsMs": 858.779,
+          "bookMs": 54.047583,
+          "proseMs": 1059.8965919999991,
+          "receiptMs": 144.100541,
+          "stageMs": 995.0120000000001,
+          "storeMs": 1185.7193969999992,
+          "totalMs": 4435.742917
+        }
+      },
+      "name": "stress",
+      "newLibraryBytes": 17252352,
+      "stoppedByGate": null,
+      "truth": {
+        "bodiesWithYjs": 619,
+        "doubtfulAndDifferent": 0,
+        "doubtfulButEqual": 0,
+        "equalToYjs": 619,
+        "historyDocs": 0,
+        "historyDocsMatching": 0,
+        "historyRows": 0,
+        "historyRowsWithLabels": 0,
+        "notImported": 0,
+        "provenFreshButDifferent": [],
+        "provenFreshEqual": 619
+      }
+    }
+  ],
+  "machine": {
+    "arch": "aarch64",
+    "cpu": "Apple M3 Pro",
+    "loadavg": "{ 6.45 8.07 8.27 }",
+    "os": "macos",
+    "profile": "release"
+  },
+  "milestone": "m10-1",
+  "sourceFingerprint": "a0b61a67ed797039c5838b302ae37c6d3ecebc1e531c0b22e5fee5459d9bb7d3"
+}

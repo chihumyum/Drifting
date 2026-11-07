@@ -1,0 +1,223 @@
+{
+  "schema": "drifting.f4.milestone/1",
+  "generated_at": "2026-11-07",
+  "source_fingerprint": "172d279e51afa196",
+  "milestone": "F4 milestone 1 (gpui-prose)",
+  "doc": "docs/rust-rewrite/foundations/f4-editor.md",
+  "tests_run_with": "cargo test -p gpui-prose (and --no-default-features)",
+  "items": [
+    {
+      "id": "crate",
+      "requirement": "gpui-prose as its own crate, split into F4a text / F4b layout / F4c input / F4d render, depending on gpui and loro only (icu optional)",
+      "tests": [
+        {
+          "name": "documents_can_move_between_threads",
+          "found": true
+        },
+        {
+          "name": "seed_and_reread_agree",
+          "found": true
+        }
+      ],
+      "evidence": []
+    },
+    {
+      "id": "block-ids",
+      "requirement": "Every paragraph has a block id; Enter at a paragraph end moves the id onto the new newline; joins, cross-paragraph deletes and pastes follow loro-schema v0; duplicates are repaired deterministically",
+      "tests": [
+        {
+          "name": "enter_moves_block_ids_with_the_text",
+          "found": true
+        },
+        {
+          "name": "joins_keep_the_right_block_id",
+          "found": true
+        },
+        {
+          "name": "pasted_paragraphs_get_fresh_ids",
+          "found": true
+        },
+        {
+          "name": "concurrent_enters_are_repaired_the_same_way",
+          "found": true
+        },
+        {
+          "name": "opening_fills_in_missing_block_ids",
+          "found": true
+        },
+        {
+          "name": "mirror_follows_random_edits_undo_and_imports",
+          "found": true
+        }
+      ],
+      "evidence": []
+    },
+    {
+      "id": "undo",
+      "requirement": "Loro merge interval 0; the editor groups a burst of typing itself; Agent writes are not the author's to undo; undoing a delete re-anchors the anchors it collapsed and reports them",
+      "tests": [
+        {
+          "name": "undo_merges_within_interval",
+          "found": true
+        },
+        {
+          "name": "undo_skips_agent_writes",
+          "found": true
+        },
+        {
+          "name": "undo_of_enter_keeps_the_final_newline",
+          "found": true
+        },
+        {
+          "name": "undo_brings_a_deleted_anchor_back",
+          "found": true
+        },
+        {
+          "name": "undo_restores_partially_deleted_anchors",
+          "found": true
+        },
+        {
+          "name": "undo_restores_anchors_across_merged_backspaces",
+          "found": true
+        },
+        {
+          "name": "agent_deletions_leave_anchors_alone",
+          "found": true
+        },
+        {
+          "name": "anchor_restore_survives_remote_edits",
+          "found": true
+        },
+        {
+          "name": "undo_reports_restored_anchors",
+          "found": true
+        }
+      ],
+      "evidence": []
+    },
+    {
+      "id": "words-and-clusters",
+      "requirement": "Option-arrows, option-backspace and double click by ICU words (Chinese from the dictionary); arrows and Backspace by grapheme cluster",
+      "tests": [
+        {
+          "name": "chinese_words_come_from_the_dictionary",
+          "found": true
+        },
+        {
+          "name": "emoji_sequences_are_one_cluster",
+          "found": true
+        },
+        {
+          "name": "option_arrows_move_by_chinese_words",
+          "found": true
+        },
+        {
+          "name": "double_click_selects_a_word",
+          "found": true
+        },
+        {
+          "name": "arrows_and_backspace_step_over_whole_clusters",
+          "found": true
+        }
+      ],
+      "evidence": []
+    },
+    {
+      "id": "inline-marks",
+      "requirement": "Bold, italic, underline, strike and links rendered and toggled (selection and caret); marks never on a newline; entity links styled through the extension hook",
+      "tests": [
+        {
+          "name": "marks_skip_newlines_and_toggle",
+          "found": true
+        },
+        {
+          "name": "bold_expands_and_links_do_not",
+          "found": true
+        },
+        {
+          "name": "pending_toggles_style_inserted_text",
+          "found": true
+        },
+        {
+          "name": "bold_toggles_on_a_selection_and_at_the_caret",
+          "found": true
+        },
+        {
+          "name": "links_render_with_their_own_run",
+          "found": true
+        },
+        {
+          "name": "runs_cover_the_text",
+          "found": true
+        },
+        {
+          "name": "composition_is_spliced_in",
+          "found": true
+        }
+      ],
+      "evidence": []
+    },
+    {
+      "id": "composition",
+      "requirement": "Marked text stays out of Loro until confirmed; losing focus discards it (decided)",
+      "tests": [
+        {
+          "name": "marked_text_stays_out_of_loro_until_confirmed",
+          "found": true
+        },
+        {
+          "name": "typing_over_a_selection_replaces_it_only_on_confirm",
+          "found": true
+        },
+        {
+          "name": "losing_focus_drops_the_composition",
+          "found": true
+        },
+        {
+          "name": "undo_is_ignored_while_composing",
+          "found": true
+        },
+        {
+          "name": "foreign_writes_move_the_composition_anchor",
+          "found": true
+        },
+        {
+          "name": "virtual_mapping",
+          "found": true
+        }
+      ],
+      "evidence": []
+    },
+    {
+      "id": "on-glass",
+      "requirement": "Keystroke to on-glass latency measured with Instruments (xctrace Metal System Trace), stock timing and present-now",
+      "tests": [
+        {
+          "name": "reads_xctrace_rows_with_refs",
+          "found": true
+        }
+      ],
+      "evidence": [
+        "f4-present.json"
+      ]
+    },
+    {
+      "id": "gpui-idle-patch",
+      "requirement": "GPUI patch: stop the display link when idle, tried on a local fork, idle CPU before and after",
+      "tests": [],
+      "evidence": [
+        "f4-idle-stock.json",
+        "f4-idle-patched.json"
+      ]
+    },
+    {
+      "id": "editor-tier",
+      "requirement": "Editor-tier benchmarks rerun and compared with P0-B",
+      "tests": [],
+      "evidence": [
+        "f4-headless.json",
+        "f4-window.json"
+      ]
+    }
+  ]
+}

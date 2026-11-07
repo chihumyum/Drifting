@@ -131,3 +131,35 @@ fn the_writing_day_key_comes_from_the_0_1_identity_file() {
         dr_store::identity::writing_device_key(&id)
     );
 }
+
+#[test]
+fn moving_the_app_data_and_the_library_to_another_machine_is_noticed() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (lib_dir, dev) = (tmp.path().join("lib"), tmp.path().join("device"));
+    let open_as = |machine: &str| {
+        let mut o = options();
+        o.device = Some(Device::open_with_machine_id(&dev, Some(machine.into())).unwrap());
+        Library::open(&lib_dir, o).unwrap()
+    };
+    let lib = open_as("MACHINE-A");
+    edit(&lib, "一");
+    let (epoch, peer) = (lib.epoch(), lib.peer_for("node:a").unwrap());
+    let key_a = lib.options().device.as_ref().unwrap().writing_device_key();
+    lib.close().unwrap();
+    // Migration Assistant: the identity file and the library both arrive on
+    // machine B. Without the machine binding both would look unchanged.
+    let lib = open_as("MACHINE-B");
+    let device = lib.options().device.clone().unwrap();
+    assert!(device.machine_changed());
+    assert_ne!(
+        device.writing_device_key(),
+        key_a,
+        "a new device for writing days"
+    );
+    assert_eq!(lib.epoch_change(), Some(EpochChange::OtherDevice));
+    assert_ne!(lib.epoch(), epoch);
+    assert_ne!(lib.peer_for("node:a").unwrap(), peer);
+    lib.close().unwrap();
+    let lib = open_as("MACHINE-B");
+    assert_eq!(lib.epoch_change(), None, "settled on the new machine");
+}

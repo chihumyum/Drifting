@@ -1,0 +1,51 @@
+# gpui-prose: a long-form rich-text editor for GPUI, stored in Loro.
+# Design, API and milestones: docs/rust-rewrite/foundations/f4-editor.md
+#
+# Licensed MIT OR Apache-2.0, unlike the rest of the repository (AGPL): it
+# depends on `gpui` and `loro` only (plus ICU4X segmentation behind the default
+# `icu` feature), never on a `dr-*` crate. `cargo check -p gpui-prose
+# --no-default-features` proves the boundary. The examples (a demo window and
+# the benchmark harness) may use more, as dev-dependencies.
+[package]
+name = "gpui-prose"
+version = "0.1.0"
+description = "A Chinese-first long-form rich-text editor for GPUI, with its text stored in Loro"
+license = "MIT OR Apache-2.0"
+edition.workspace = true
+rust-version.workspace = true
+# Not on crates.io yet: GPUI itself is a git dependency.
+publish.workspace = true
+
+[features]
+default = ["icu"]
+# Word and grapheme-cluster boundaries from ICU4X (Chinese words from its
+# dictionary). Without it the editor falls back to a small built-in
+# approximation (character classes, common emoji and combining sequences).
+icu = ["dep:icu_segmenter"]
+
+[dependencies]
+gpui.workspace = true
+icu_segmenter = { workspace = true, optional = true }
+loro.workspace = true
+
+[dev-dependencies]
+gpui = { workspace = true, features = ["test-support"] }
+# Without `font-kit`, gpui_macos renders no text at all (it logs a warning).
+gpui_platform.workspace = true
+log.workspace = true
+
+[target.'cfg(target_os = "macos")'.dev-dependencies]
+libc.workspace = true
+objc2.workspace = true
+raw-window-handle.workspace = true
+rusqlite.workspace = true
+
+[[example]]
+name = "editor"
+path = "examples/editor.rs"
+
+[[example]]
+name = "prose-bench"
+path = "examples/prose-bench/main.rs"
+# Its unit tests (statistics, the xctrace table reader) run with `cargo test`.
+test = true

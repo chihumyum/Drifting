@@ -7,9 +7,12 @@ resolver = "3"
 members = [
     "app/drifting",
     "crates/dr-doc",
+    "crates/dr-import-v1",
     "crates/dr-model",
     "crates/dr-platform",
     "crates/dr-store",
+    "crates/dr-ui",
+    "crates/gpui-prose",
     "spikes/import-v1",
     "spikes/loro-model",
     "spikes/prose-spike",
@@ -37,12 +40,17 @@ gpui_platform = { git = "https://github.com/zed-industries/zed", tag = "v1.27.0"
 loro = "=1.17.1"
 
 anyhow = "1"
+# gpui-prose (F4): word and grapheme-cluster boundaries, Chinese words from the
+# dictionary. Same 2.4 line as the icu_* crates GPUI already pulls in; no LSTM.
+icu_segmenter = { version = "2.4", default-features = false, features = ["compiled_data"] }
 log = "0.4"
 
 # F1 data crates. Workspace members are listed here so dependants write
 # `dr-model.workspace = true`.
 dr-doc = { path = "crates/dr-doc" }
 dr-model = { path = "crates/dr-model" }
+# F2 storage, for the 0.1 library import (M10, dr-import-v1).
+dr-store = { path = "crates/dr-store" }
 # uuidv7 for new domain ids (the old data uses uuidv7 too); v4 for F7's
 # installation and crash ids. The version the lockfile already carries for GPUI.
 uuid = { version = "1.29", default-features = false, features = ["std", "v4", "v7"] }
@@ -121,6 +129,11 @@ windows = { version = "0.62", features = [
     "Win32_UI_WindowsAndMessaging",
 ] }
 
+# F5 (dr-ui): grapheme boundaries for the single-line input's caret moves,
+# and the fonts mapped into memory (the version GPUI already builds).
+memmap2 = "0.9"
+unicode-segmentation = "1.13"
+
 # Zed patches these crates.io crates in its own workspace; a git dependency
 # does not inherit [patch], so GPUI's consumers repeat the ones it needs.
 [patch.crates-io]
@@ -137,4 +150,9 @@ opt-level = 2
 # Spike P0-D draws glass, the sea and covers on the CPU; unoptimized, a dev
 # build would show costs ten times their real size.
 [profile.dev.package.visual-spike]
+opt-level = 2
+
+# dr-ui rasterises sand frames and builds glass on the CPU; keep its
+# timings honest in the gallery.
+[profile.dev.package.dr-ui]
 opt-level = 2

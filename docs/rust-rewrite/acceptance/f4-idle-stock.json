@@ -1,0 +1,31 @@
+{
+  "schema": "drifting.f4.idle/1",
+  "generated_at": "2026-11-07",
+  "source_fingerprint": "172d279e51afa196",
+  "machine": {
+    "cpu": "Apple M3 Pro",
+    "model": "Mac15,7",
+    "cores": 12,
+    "memory_gb": 36,
+    "os": "macOS 27.0.1"
+  },
+  "display": {
+    "builtin": true,
+    "refresh_hz": 120
+  },
+  "gpui_build": "stock",
+  "corpus": {
+    "chapter": {
+      "seed": "0x5eed0b01",
+      "chapters": 1,
+      "chars": 20023,
+      "fingerprint": "964a8f71d58ceb72"
+    }
+  },
+  "method": "One 20k-char chapter open in a visible window; whole-process CPU time (getrusage) over each window, as percent of one core.",
+  "seconds": 30,
+  "load_average_1m_before": 27.12,
+  "focused_blinking_percent": 0.85,
+  "focused_solid_caret_percent": 0.69,
+  "unfocused_percent": 0.67
+}

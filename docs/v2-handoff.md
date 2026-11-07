@@ -38,7 +38,8 @@ be imported exactly, even if the author skips the last 0.1.x release.
    revision is unchanged and whose cache is byte-for-byte the rendering.
 4. Renders the preview of any snapshot-history row whose preview is missing
    (at most 32 per pass).
-5. Writes the stamp, with the author's preferences.
+5. Writes the stamp, with the author's preferences: raw, and per book for
+   the books in this library.
 
 Every write is a derived, never-journaled transaction: nothing syncs, and no
 Yjs state changes. Documents whose owner row is gone (a deleted material keeps
@@ -77,6 +78,14 @@ pass takes 0.68 s; a pass with nothing changed takes 14 ms.
   "settings": {
     "capturedAt": "2026-11-07T08:00:00.000Z",
     "entries": { "settings-storage": "<raw value>", "shortcuts-storage": "<raw value>" }
+  },
+  "books": {
+    "<projectId>": {
+      "wordTarget": 80000,
+      "dailyWordTarget": 1000,
+      "relationTypeColors": { "<relationTypeId>": "#aabbcc" },
+      "elementPins": { "<elementId>": [12.5, -40] }
+    }
   }
 }
 ```
@@ -96,6 +105,23 @@ pass takes 0.68 s; a pass with nothing changed takes 14 ms.
   styles; guide-seen flags. Session tokens, the Hosted profile, diagnostics,
   updater state, the preference-sync ledger and transient Agent state are
   never copied. Settings are app-wide, so each library carries a copy.
+- `books` holds the per-book preferences already read out of their stores'
+  own formats (`books.ts`), so 0.2 need not parse them: the writing plan of
+  the persisted writing-stats store (`wordTarget`, `dailyWordTarget`; present
+  only when the book has a plan, and `0` is a target the author turned off),
+  the relation-type line colors of `drifting:edge-kind-meta:<projectId>`
+  (version 2 only, as `useEdgeKindMeta` reads it), and the pins of the 关系
+  layout in `super-element-view:relate:<projectId>` (`[x, y]` world px; not
+  the computed positions or the layout mode). Only books in this library's
+  `project` table are written, sorted by id; a book with nothing to say and
+  an empty part are left out, so `{}` means storage had nothing for this
+  library. Writing history is a rebuildable cache and is not copied. The
+  section is additive within `version: 1`: a stamp without `books` was
+  written before it existed, and the importer falls back to the raw values
+  in `settings.entries` (colors and pins; `writing-stats-storage` is not on
+  the settings allowlist, so such a stamp has no writing plan). When storage
+  is unavailable, both `settings` and `books` keep the previous stamp's
+  values.
 
 `library_state` is device-local and never synced. Keychain entries stay where
 they are; 0.2 reads them under the same service name.
@@ -118,7 +144,41 @@ inside the debounce), and checks that one pass:
 - leaves an open document to the quit pass;
 - stops between batches when the budget runs out and finishes next time;
 - renders a missing snapshot-history preview;
-- copies allowlisted preferences and no credentials.
+- copies allowlisted preferences and no credentials;
+- stamps each book of this library (a 0 target kept, another library's book
+  left out) and keeps the last `books` when storage is unavailable.
+
+`books.test.ts` checks the per-book readers on their own: plans, colors and
+pins; an older writing-stats payload read through the store's migration; and
+malformed or other-version values ignored as the stores ignore them.
+
+### Fixtures for the 0.2 importer
+
+`m10-fixtures.test.ts` is skipped unless `DRIFTING_M10_FIXTURE_DIR` names an
+output directory:
+
+```bash
+DRIFTING_M10_FIXTURE_DIR=/path/to/fixtures pnpm exec vitest run src/renderer/services/v2-handoff/m10-fixtures.test.ts
+```
+
+It writes three synthetic libraries, each `<name>/drifting-library.db`
+(checkpointed and closed) with `<name>/app-local-data/` in the native asset
+store's layout: `sample`, both built-in samples as the first run writes them,
+illustration bytes included; `sample-stale`, that library after authored Yjs
+edits without their cache projection (a chapter, element, storyline, category
+and material note), three snapshot-history rows each on two documents from
+the app's capture service, and no stamp; `sample-handoff`, that library after
+per-book preferences in WebView storage and one quit pass. For these and any
+`lite`/`stress` seed library already in the directory it writes
+`truth/<name>.jsonl`, one line per document with Yjs state
+(`documentId`, `revision`, and `prose`, the parsed rendering of its current
+state) and per history row (`historyId`, `documentId`, `prose` from
+`state_blob`), and a `manifest.json` with each library's projects and
+counts. Even a library no one has edited has caches that are not the Yjs
+bytes: the samples' chapter caches carry entity-link marks in their own
+attribute order and without the schema's null defaults (same text), which is
+why the importer judges a cache by revisions and the stamp, never by
+comparing it with the Yjs bytes.
 
 The lifecycle test checks that the handoff runs after every durability lane,
 before the checkpoint, and that its failure does not fail the flush. The 0.2

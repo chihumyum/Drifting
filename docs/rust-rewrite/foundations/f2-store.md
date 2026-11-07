@@ -13,6 +13,7 @@
 - **派生索引**（搜索、大纲、段落长度、引用、字数）由存储层自己算：持有者空闲时把攒下的 Loro 差异交给「派生器」，结果和它对应的版本号在同一个事务里写进去；打开库时把落后的文档重建一遍。
 - **同步**：每篇文档记住服务器已经有到哪（`remote_vv`），上传时从文档本身导出那之后的改动，所以压缩和上传互不相干。
 - **资源文件**：照旧版 `native_capabilities.rs` 的做法存原文件、显示图、缩略图；图片管线这一轮只留了接口。
+- **换电脑**：身份文件旁边记着「这个身份属于哪台机器」（系统机器 id 的摘要）。迁移助理把整个应用数据搬到新电脑时，机器对不上，这台就当新设备：换一个安装 id，写作日里算新设备，打开的每个库也自动换代。
 
 ## 里程碑状态
 
@@ -25,16 +26,18 @@
 | 5 | 崩溃安全：随机杀进程、迁移各阶段杀进程 | 完成 | `tests/crash.rs`（CI 跑 6 次）；[acceptance/f2-crash-recovery.json](../acceptance/f2-crash-recovery.json)（60 次） |
 | 6 | 资源文件：三种版本、导入标记协议、垃圾回收、落盘删除、图片管线接口 | 完成（管线只有接口） | `tests/asset.rs` 和 `asset.rs` 里的单测 |
 | 7 | 测量 | 完成 | [acceptance/f2-store-bench.json](../acceptance/f2-store-bench.json)，见下文「测量」 |
-| — | 本机身份与自动换代、同步状态、派生器、事件总线（监管会话追加） | 完成 | `tests/device.rs`（4 项）、`tests/sync.rs`（2 项）、`tests/records.rs` |
+| — | 本机身份与自动换代、同步状态、派生器、事件总线（监管会话追加） | 完成 | `tests/device.rs`（5 项）、`tests/sync.rs`（2 项）、`tests/records.rs` |
+| — | 机器指纹：换了机器就当新设备（监管会话批准待协调第 8 条） | 完成 | `machine.rs`、`identity.rs` 的单测（7 项）、`tests/device.rs` |
 | — | `file_io.rs`、`archive.rs` 原样搬入并补单测 | 完成 | `tests/file_io.rs`（8 项，Windows 另有 1 项在 CI 跑） |
 
-合计 88 项测试（Windows 上 89 项）。
+合计 96 项测试（macOS）。Windows 上跑 90 项：少了只在 Unix/macOS 上有意义的 7 项（符号链接、目录同步、`IOPlatformUUID`），多 1 项写穿改名。
 
 ## 接口概览
 
 ```rust
 // 设备：库外的身份文件与水位
-let device = Device::open(app_local_dir)?;          // 读写 sync-installation-v2.json（与 0.1 同一个文件）
+let device = Device::open(app_local_dir)?;          // 读写 sync-installation-v2.json（与 0.1 同一个文件），并核对机器指纹
+device.machine_changed();                           // 身份来自别的机器：已换成新的安装 id
 device.writing_device_key();                        // 写作日的设备键，与 0.1 算法一致
 
 // 打开库（一个文件夹；同一时刻只能被一个进程、一个 Library 打开）
@@ -104,14 +107,23 @@ lib.close()?;                                       // 等持有者和后台重�
 <root>/assets/<书>/<资源>/{source,display,thumbnail}.<扩展名>
 <root>/safety-snapshots/<版本>/library-*.sqlite      每个版本留最新 3 份
 <root>/safety-snapshots/recovery/<回执 id>.json
-<设备目录>/sync-installation-v2.json   本机安装身份（与 0.1 同一个文件）
+<设备目录>/sync-installation-v2.json   本机安装身份（与 0.1 同一个文件、同一个格式）
+<设备目录>/device-machine-v1.json      这个身份属于哪台机器（机器 id 的加盐摘要）
 <设备目录>/library-watermarks.json     每个库：这台设备见它写到过哪
 ```
 
 - **独占**：loro-schema 的对等方规则以「一个库只被一个进程打开」为前提。所以打开时对 `library.lock` 加排他锁：另一个进程、或同一进程里第二个 `Library` 都打不开。进程被杀时系统自动放锁。
 - **两条连接**：一条写（所有持有者共用，Rust 互斥锁排队），一条只读（`query_only`）。WAL 下读不挡写。
 - **本机身份**：`identity.rs` 原样搬了 0.1 的 `installation_identity.rs`：随机 32 字节、先写临时文件再硬链接发布、损坏时报错且不改动文件、只给本人读写。写作日的设备键沿用 0.1 渲染层的算法（`device-key.ts`：`SHA-256("drifting.writing-day.v1\n" + 安装 id)` 的前 12 字节），同一台设备导入后在写作日里还是同一台。
-- **对等方 ID 不从安装身份派生**：迁移助理、恢复整个用户目录时，身份文件会跟着被拷走，两台电脑就会用同一组对等方写入。所以对等方仍是每库、每（设备，文档）随机一个，存在 `loro_peer`；靠下面的自动换代兜住搬库。
+- **机器指纹**（`machine.rs`）：macOS 读硬件 UUID（`gethostuuid`，和 `ioreg` 里的 `IOPlatformUUID` 是同一个值，测试逐字比对过），Windows 读 `HKLM\SOFTWARE\Microsoft\Cryptography\MachineGuid`（`RegGetValueW`，强制 64 位视图）。只存 `SHA-256("drifting.machine.v1\n" + 大写的机器 id)`，不存原值。其他平台没有指纹，也就不做这项检查。
+- **换了机器就当新设备**：`device-machine-v1.json` 记着「安装 id → 机器摘要」。`Device::open` 时：
+  - 没有这个文件（第一次运行，或从 0.1 升级上来）：绑定到这台机器；
+  - 安装 id 对得上、机器摘要也对得上：什么都不做；
+  - 安装 id 对得上、机器摘要不同：身份是在别的机器上生成的（迁移助理、恢复了整个用户目录）。生成新的安装 id 原子替换身份文件（仍是 0.1 的格式和只给本人读写的权限），再写新的绑定，`machine_changed()` 为真。写作日的设备键随之改变（新电脑就是新设备），打开的每个库都因为安装 id 不同而自动换代；
+  - 安装 id 对不上（身份文件被删后重建，或上一步在两次写入之间崩溃）：只重新绑定，不再换。
+  - 绑定文件损坏：报错，不猜、不动任何文件。
+- **为什么不写进身份文件本身**：0.1 读 `sync-installation-v2.json` 用的是 `deny_unknown_fields`，多一个字段它就会当成损坏、停用同步。所以摘要放在同一目录的另一个文件里，效果相同，0.1 照常能读。
+- **对等方 ID 不从安装身份派生**：对等方仍是每库、每（设备，文档）随机一个，存在 `loro_peer`；搬库靠下面的自动换代兜住。
 - **自动换代**：`library_meta` 记着上次打开它的安装 id 和一个全库的写入计数 `write_seq`（每追加一行加一，和那一行在同一个事务里）。打开时：
   - 安装 id 和本机不同：库是从别的设备拷来的，换代（`EpochChange::OtherDevice`）；
   - `write_seq` 低于本机水位：库被旧备份盖回来了，换代（`EpochChange::OlderCopy`），并把计数抬到水位，免得每次打开都换；
@@ -217,23 +229,23 @@ DDL 以 `migrations/0000_baseline.sql` 为准：所有表 `STRICT`，时间一�
 
 ## 测量
 
-M3 Pro（12 核，36 GB），release，Loro 1.17.1，2026-11-07，跑时 1 分钟负载约 7（记在证据里）。数据全是合成的：章节由固定字池随机组段，一次写入后压缩，然后模拟打字（每次插 1–6 字，六分之一的概率删 1–3 字）。完整数字在 [acceptance/f2-store-bench.json](../acceptance/f2-store-bench.json)。
+M3 Pro（12 核，36 GB），release，Loro 1.17.1，2026-11-07，跑时 1 分钟负载约 7.5（记在证据里）。数据全是合成的：章节由固定字池随机组段，一次写入后压缩，然后模拟打字（每次插 1–6 字，六分之一的概率删 1–3 字）。完整数字在 [acceptance/f2-store-bench.json](../acceptance/f2-store-bench.json)。
 
 | 项 | 结果 | 预算（benchmarks.md） |
 | --- | ---: | --- |
-| 一次按键写入：持有者线程上提交 + 导出 + 一个事务写更新行、head、写入计数 + 发事件 + 唤醒调用方，2 万字章节，2000 次，`synchronous=NORMAL` | p50 0.037 ms，p95 0.059 ms，最慢 1.5 ms | 单次按键的写入中位数 ≤ 2 ms（探针档）/ ≤ 1 ms（发布档） |
-| 同上，`synchronous=FULL` | p50 0.056 ms，p95 0.076 ms，最慢 0.53 ms | — |
+| 一次按键写入：持有者线程上提交 + 导出 + 一个事务写更新行、head、写入计数 + 发事件 + 唤醒调用方，2 万字章节，2000 次，`synchronous=NORMAL` | p50 0.037 ms，p95 0.061 ms，最慢 1.2 ms | 单次按键的写入中位数 ≤ 2 ms（探针档）/ ≤ 1 ms（发布档） |
+| 同上，`synchronous=FULL` | p50 0.060 ms，p95 0.084 ms，最慢 0.75 ms | — |
 | 每次按键的更新平均大小 | 104 字节 | — |
-| 打开一章（2 万字快照 + N 条按键更新）：载入 / 载入并读出全文 / 起一个持有者，p50 | N=0：0.11 / 0.22 / 0.12 ms<br>N=100：0.95 / 0.94 / 0.99 ms<br>N=500：3.2 / 3.2 / 3.2 ms<br>N=1000：6.0 / 5.9 / 6.0 ms<br>N=5000：28 / 28 / 29 ms | 打开 2 万字章节 ≤ 80 ms（探针档，含排版） |
-| 压缩（2 万字章节，写快照 + 删掉 N 行），p50 | N=100：0.40 ms；N=500：0.55 ms；N=2000：1.2 ms；快照 69–133 KB | — |
-| 全书 100 章 × 1.5 万字：从 SQLite 冷载入全部 | 8.9 ms | 冷开全书的 Loro 文档 ≤ 300 ms（发布档） |
-| 全书：第一次读出每章全文 | 9.3 ms | — |
-| 全书：起 100 个持有者 / 逐个 `close` 等它们收尾 | 12.2 ms / 2.5 ms | — |
+| 打开一章（2 万字快照 + N 条按键更新）：载入 / 载入并读出全文 / 起一个持有者，p50 | N=0：0.11 / 0.23 / 0.13 ms<br>N=100：1.1 / 1.0 / 1.1 ms<br>N=500：3.6 / 3.5 / 3.7 ms<br>N=1000：6.6 / 6.5 / 6.8 ms<br>N=5000：33 / 32 / 33 ms | 打开 2 万字章节 ≤ 80 ms（探针档，含排版） |
+| 压缩（2 万字章节，写快照 + 删掉 N 行），p50 | N=100：0.51 ms；N=500：0.73 ms；N=2000：1.4 ms；快照 69–133 KB | — |
+| 全书 100 章 × 1.5 万字：从 SQLite 冷载入全部 | 9.3 ms | 冷开全书的 Loro 文档 ≤ 300 ms（发布档） |
+| 全书：第一次读出每章全文 | 9.8 ms | — |
+| 全书：起 100 个持有者 / 逐个 `close` 等它们收尾 | 12.5 ms / 2.5 ms | — |
 | 全书的库文件 | 5.2 MB | — |
 
 怎么读这些数字：
 
-- **按键写入**比第一轮（0.022 ms）多了约 15 µs，是每次追加多写 `loro_head` 和全库写入计数的代价，仍比预算低约 50 倍。最慢的那一次（约 1.5 ms）多半是 SQLite 自动 checkpoint 落在了这次提交上，见「下一步」。
+- **按键写入**比第一轮（0.022 ms）多了约 15 µs，是每次追加多写 `loro_head` 和全库写入计数的代价，仍比预算低约 50 倍。最慢的那一次（约 1.2 ms）多半是 SQLite 自动 checkpoint 落在了这次提交上，见「下一步」。
 - **打开一章的成本几乎全在待压缩的更新上**：每多一条约 6 µs。所以默认 200 条就压缩（打开 ≤ 约 1.5 ms），关闭时 50 条以上也压缩；一次压缩不到 1 ms，又是在空闲时做。
 - **全书数字偏乐观**：每章只有「一次写入」的历史。P0-C 用重型种子测得冷载入 26–29 ms、第一次解码每章 0.8–1.7 ms，更接近真实；两者都远在预算内。
 - 机器忙时同一程序会慢 2–4 倍（负载 70 多时测过），所以证据里记着负载。内存 P0-C 已测过，存储层没有改变那些数字。
@@ -242,7 +254,7 @@ M3 Pro（12 核，36 GB），release，Loro 1.17.1，2026-11-07，跑时 1 分�
 
 [acceptance/f2-crash-recovery.json](../acceptance/f2-crash-recovery.json)，`f2-crash run --kills 60 --migration-kills`：
 
-- **编辑中被杀**：写入进程通过真实的持有者不停编辑一篇 3 万字的文档，每 25 次压缩一次，并故意把压缩事务撑开 20 ms。父进程随机时刻强杀（macOS 上 SIGKILL，Windows 上 TerminateProcess），重开库、和「第 0 到第 k 次编辑」的确定性重放逐字比对。60 次里 36 次落在压缩事务中间、2 次刚压缩完、22 次落在两次编辑之间：**零丢失、零不一致**；更新日志始终连续、没有被快照覆盖的残行；有 2 次恢复出了比最后一次报告多一步的编辑（写进去了、还没来得及报告就被杀，允许）。崩溃后重开并载入 p50 13.4 ms，最慢 28 ms。
+- **编辑中被杀**：写入进程通过真实的持有者不停编辑一篇 3 万字的文档，每 25 次压缩一次，并故意把压缩事务撑开 20 ms。父进程随机时刻强杀（macOS 上 SIGKILL，Windows 上 TerminateProcess），重开库、和「第 0 到第 k 次编辑」的确定性重放逐字比对。60 次里 36 次落在压缩事务中间、1 次刚压缩完、23 次落在两次编辑之间：**零丢失、零不一致**；更新日志始终连续、没有被快照覆盖的残行。（恢复出比最后一次报告多一步的编辑也算对：写进去了、还没来得及报告就被杀；这一轮 0 次，上一轮 2 次。）崩溃后重开并载入 p50 11.9 ms，最慢 23 ms。
 - **迁移中被杀**：对迁移的六个阶段各杀一次（子进程停在该阶段等着被杀）：
 
   | 停在 | 原库字节 | 留下的回执 / 影子 | 旧版本还能打开 | 下一次新版本打开 |
@@ -308,8 +320,8 @@ M3 Pro（12 核，36 GB），release，Loro 1.17.1，2026-11-07，跑时 1 分�
 5. **搜索结果的顺序**：现在按文档 id、段序；要按书序排，需要 F3 用书目文档排，或以后给 `block_index` 加书序列。
 6. **本机表**（帮手运行记录、权限、Markdown 台账、工作记忆、生图收件箱）：谁需要谁追加 `0001_*.sql`，变化用 `notify_local` 发到总线。
 7. **同步 v2（阶段 6）**：上传走 `export_for_upload` → `mark_uploaded`；导入走 `h.import(.., Origin::Sync)`，存储自动记服务器已有的版本。服务端协议和多文档恢复是阶段 6 的事。
-8. **搬到新电脑但身份文件也被拷走**（迁移助理）：两台电脑的安装 id 相同，自动换代抓不到。可以在身份文件里加机器指纹（macOS 的 `IOPlatformUUID`、Windows 的 `MachineGuid`），指纹变了就当新设备。这会改变写作日的设备键（新电脑本来就是新设备），需要监管会话点头。
-9. **Windows**：代码有 Windows 分支（写穿改名、墓碑删除、可写句柄 fsync），本机只能编 Rust、编不了打包的 SQLite C 代码，只能靠 CI 的 Windows 那一条验证。
+8. ~~搬到新电脑但身份文件也被拷走~~：监管会话已批准，已做（见「库的文件夹与本机身份」）。
+9. **Windows**：代码有 Windows 分支（写穿改名、墓碑删除、可写句柄 fsync、`MachineGuid`）。本机 `cargo check --target x86_64-pc-windows-msvc` 过不了：Loro 依赖的 `stacker` 和打包的 SQLite 要用 `windows.h` 编 C 代码，这台 Mac 上没有 Windows SDK。只依赖标准库的 `machine.rs`（库和测试）和 `file_io.rs` 用 `rustc --edition 2024 --crate-type lib --target x86_64-pc-windows-msvc --emit=metadata -D warnings` 单独做了类型检查，通过；`asset.rs` 的 Windows 删除分支依赖 crate 内部，只能靠 CI 的 Windows 那一条验证（它是从 0.1 在 Windows 上编过的代码逐行搬来的）。
 
 ## 没做的、下一步建议
 

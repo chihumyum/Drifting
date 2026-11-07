@@ -260,6 +260,8 @@
 
 **大小**：XL。最长的一条线。P0-B 定下架构以后，下面五条子线可以并行。
 
+**现状**：第一个里程碑（2026-11-07）建了 `next/crates/gpui-prose`，四条子线各占一个目录；架构、对外 API、测量、GPUI 补丁台账和下一轮的拆法见 [foundations/f4-editor.md](foundations/f4-editor.md)。
+
 | 子线 | 内容 | 放在哪 |
 | --- | --- | --- |
 | F4a 文本存储与索引 | 段落边界索引：用 SumTree 记 UTF-8 字节数、UTF-16 单元数、字符数、段数。Loro 事件增量更新这个索引 | gpui-prose |
@@ -304,6 +306,8 @@
 ### F5 dr-ui
 
 **大小**：L
+
+做到哪了、组件清单与 API、字体的做法和待协调的事，见 [foundations/f5-ui.md](foundations/f5-ui.md)。
 
 #### 令牌
 
