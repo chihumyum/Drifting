@@ -310,7 +310,8 @@ pub fn make_spike(assets: Arc<Assets>, start: StartTimes) -> Spike {
     let content_h = WINDOW_H - TOP_BAR;
     Spike {
         page: Page::Paper,
-        plan: Plan::Bake,
+        // The plan chosen for F5 (decision D2); the others stay for comparison.
+        plan: Plan::Cover,
         dark: false,
         assets,
         texture,
