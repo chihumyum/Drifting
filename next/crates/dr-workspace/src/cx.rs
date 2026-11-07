@@ -353,9 +353,10 @@ impl<'a> Cx<'a> {
     /// Step 2, raw: run `f` on the holder's document itself (history
     /// restores use Loro's `revert_to`).
     ///
-    /// The author's commands commit with [`holder::COMMAND_ORIGIN`], not
-    /// `user`: an editor open on this document undoes only its own steps
-    /// (`ProseSession`), and a command is undone through the journal. An
+    /// The author's commands are written with dr-store's `Origin::Command`
+    /// (`user:command`), not `user`: an editor open on this document undoes
+    /// only its own steps (`ProseSession`), and a command is undone through
+    /// the journal. An
     /// Agent's, the mirror's or a sync's origin is left out of the editor's
     /// undo already.
     pub(crate) fn write_prose_raw<R, F>(&self, slot: &ProseSlot, f: F) -> Result<R>
@@ -365,11 +366,13 @@ impl<'a> Cx<'a> {
     {
         self.check_phase(Phase::Prose)?;
         let agent = self.actor.agent_write(&self.summary());
-        let commit = match self.actor {
-            Actor::User => holder::Commit::AsCommand,
-            _ => holder::Commit::Holder,
+        // The author's command, not the author's typing (dr-store's
+        // `Origin::Command`): an editor's undo leaves it to the journal.
+        let origin = match self.actor {
+            Actor::User => dr_store::Origin::Command,
+            _ => self.actor.store_origin(),
         };
-        holder::write_with(&slot.handle, self.actor.store_origin(), agent, commit, f)
+        holder::write(&slot.handle, origin, agent, f)
     }
 
     /// Step 3: the book document, one commit. Returns `f`'s value and the

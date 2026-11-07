@@ -43,6 +43,8 @@ pub struct BookInfo {
     /// The book's word target (`None`: turned off).
     pub word_target: Option<i64>,
     pub daily_word_target: Option<i64>,
+    /// When the book was created (Unix seconds).
+    pub created_at: Option<i64>,
 }
 
 impl From<&BookMeta> for BookInfo {
@@ -54,6 +56,7 @@ impl From<&BookMeta> for BookInfo {
             trashed: m.deleted_at.is_some(),
             word_target: m.word_target(),
             daily_word_target: m.daily_word_target(),
+            created_at: m.created_at.map(|t| t.0),
         }
     }
 }
@@ -237,6 +240,11 @@ pub struct CategoryInfo {
     pub trashed: bool,
     /// Live elements in this category.
     pub elements: u32,
+    /// The fields its new elements start with (`category_template.*`).
+    pub template_fields: Vec<FieldInfo>,
+    /// Whether it has an element template (the body its new elements start
+    /// with; `category_template.body`).
+    pub has_element_template: bool,
 }
 
 #[derive(Clone, Debug, Serialize, JsonSchema)]

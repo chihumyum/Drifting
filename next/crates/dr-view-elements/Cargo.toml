@@ -13,14 +13,18 @@ description = "Drifting's element and category pages (M11): name, aliases, categ
 capture = ["dep:gpui_platform", "gpui_platform/test-support", "dep:color_quant", "dep:png"]
 
 [dependencies]
+chrono.workspace = true
 color_quant = { workspace = true, optional = true }
 dr-editor.workspace = true
 dr-i18n.workspace = true
 dr-shell.workspace = true
 dr-ui.workspace = true
+dr-view-shelf.workspace = true
 dr-workspace.workspace = true
 gpui.workspace = true
 gpui_platform = { workspace = true, optional = true }
+icu_collator.workspace = true
+icu_locale_core.workspace = true
 log.workspace = true
 png = { workspace = true, optional = true }
 

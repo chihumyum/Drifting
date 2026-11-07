@@ -1152,6 +1152,29 @@ fn borrowed_undo_steps_and_shared_readers() {
     assert!(ProseReader::from_loro(node("x"), &raw).is_err());
 }
 
+/// The author's commands (`user:command`, F2's `Origin::Command`) are undone
+/// by the workspace's journal: every `ProseUndo` leaves them out on its own,
+/// while the author's typing before and after stays undoable.
+#[test]
+fn the_editors_undo_leaves_the_authors_commands_out() {
+    let raw = holder_doc("uc", 7);
+    let id = node("uc");
+    let b = BorrowedProse::new(&raw, &id).unwrap();
+    let mut um = b.undo_manager();
+    let commit = |origin: &str| raw.commit_with(loro::CommitOptions::new().origin(origin));
+    b.txn().insert_text(0, "甲").unwrap();
+    commit("user");
+    b.txn().insert_text(1, "【命令】").unwrap();
+    commit(dr_model::origin::COMMAND_ORIGIN);
+    b.txn().insert_text(5, "乙").unwrap();
+    commit("user");
+    assert_eq!(um.undo_count(), 2, "two items, both typing");
+    while um.can_undo() {
+        assert!(um.undo_step().unwrap());
+    }
+    assert_eq!(b.view().plain_text(), "【命令】\n");
+}
+
 #[test]
 fn reading_paragraphs_from_the_middle_needs_nothing_before() {
     let mut p = doc("pin", 7);
@@ -1171,4 +1194,112 @@ fn reading_paragraphs_from_the_middle_needs_nothing_before() {
     assert_eq!(v.paragraph_in(all[3].range.start, 5).len(), 1);
     assert!(v.paragraph_in(0, 0).is_empty());
     assert_eq!(v.paragraph_in(v.len() + 10, 1)[0].text(), "四");
+}
+
+fn template(peer: u64) -> ProseDoc {
+    let c = dr_model::id::CategoryId::parse("cat-1").unwrap();
+    ProseDoc::create(dr_model::id::TemplateOwner::Category(c).doc_id(), peer).unwrap()
+}
+
+/// A body template is an ordinary prose document under a derived id: two
+/// devices that start the same template merge into one, and copying it into
+/// a new element gives exactly its text, attributes, marks and table, under
+/// fresh block and embed ids.
+#[test]
+fn templates_merge_and_copy_into_new_documents() {
+    // Two devices start the category's template before they sync.
+    let mut a = template(1);
+    let mut b = template(2);
+    sync(&b, &mut a);
+    assert_eq!(texts(&a), vec![""], "one genesis, one empty paragraph");
+    let tbl = EmbedId::parse("tbl-t").unwrap();
+    user(&mut a, |t| {
+        t.insert_text(0, "外貌")?;
+        let c = t.split(2)?;
+        t.insert_text(c, "身高一米八，常和林立吵架")?;
+        t.set_style(c..c + 2, &InlineStyle::Bold)?;
+        t.link_entity(c + 8..c + 10, &link("el-lin"))?;
+        let c = t.split(c + 12)?;
+        let c = t.split(c)?;
+        t.insert_text(c, "性格")?;
+        let w = t.insert_embed(c, &tbl, &EmbedKind::Table)?;
+        w.add_col("k0", &PosKey::first())?;
+        w.add_row("r0", &PosKey::first())?;
+        w.set_cell("r0", "k0", "格子")?;
+        t.set_heading(0, Some(Heading::H1))
+    });
+    sync(&a, &mut b);
+    assert_eq!(
+        texts(&b),
+        vec!["外貌", "身高一米八，常和林立吵架", "", "\u{FFFC}", "性格"]
+    );
+
+    // A new element starts from it.
+    let mut e = ProseDoc::create(DocId::parse("element:e1").unwrap(), 3).unwrap();
+    let end = user(&mut e, |t| t.insert_copy(0, &b.view()));
+    assert_eq!(
+        texts(&e),
+        texts(&b),
+        "exactly the template, no extra paragraph"
+    );
+    assert_eq!(end, e.view().len() - 1);
+    let (src, dst): (Vec<_>, Vec<_>) = (
+        b.view().paragraphs().collect(),
+        e.view().paragraphs().collect(),
+    );
+    for (s, d) in src.iter().zip(&dst) {
+        assert_eq!(s.attrs, d.attrs);
+        assert_ne!(s.id, d.id, "fresh block ids");
+        if s.embed().is_none() {
+            assert_eq!(s.runs, d.runs, "marks and entity links");
+        }
+    }
+    assert!(dst.iter().all(|p| p.id.is_some()));
+    let copied = dst[3].embed().unwrap().clone();
+    assert_ne!(copied, tbl, "a new embed id");
+    match e.view().embed(&copied) {
+        Some(super::embed::EmbedView::Table { cells, .. }) => {
+            assert_eq!(
+                cells.get(&("r0".into(), "k0".into())).map(String::as_str),
+                Some("格子")
+            );
+        }
+        other => panic!("{other:?}"),
+    }
+    // Typing next to the copied bold or link behaves as typed text does.
+    user(&mut e, |t| t.insert_text(5, "高"));
+    assert!(e.view().paragraphs().nth(1).unwrap().runs[0].marks.bold);
+
+    // Copied in front of existing text: that paragraph keeps its id.
+    let mut n = doc("tpl", 4);
+    user(&mut n, |t| t.insert_text(0, "原文"));
+    let kept = ids(&n)[0].clone();
+    user(&mut n, |t| t.insert_copy(0, &b.view()).map(|_| ()));
+    let mut want = texts(&b);
+    want.push("原文".into());
+    assert_eq!(texts(&n), want);
+    assert_eq!(ids(&n).last(), Some(&kept));
+    let all = ids(&n);
+    assert_eq!(
+        all.iter().collect::<std::collections::HashSet<_>>().len(),
+        all.len()
+    );
+
+    // Not in the middle of a paragraph, and nothing a profile refuses.
+    let (r, _) = n.edit(Origin::User, |t| t.insert_copy(1, &b.view()));
+    assert!(matches!(r, Err(DocError::BadRange { .. })));
+    let mut note = ProseDoc::create(DocId::parse("material:m").unwrap(), 5).unwrap();
+    user(&mut note, |t| {
+        t.insert_text(0, "条目")?;
+        t.set_block_attrs(
+            0,
+            &BlockAttrs {
+                list: Some(ListKind::Bullet),
+                ..Default::default()
+            },
+        )
+    });
+    let mut chap = doc("tpl2", 6);
+    let (r, _) = chap.edit(Origin::User, |t| t.insert_copy(0, &note.view()));
+    assert!(matches!(r, Err(DocError::NotInProfile(_))));
 }

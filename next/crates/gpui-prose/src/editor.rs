@@ -235,10 +235,8 @@ impl ProseEditor {
         if self.composition.is_some() || chapter >= self.book.chapters.len() {
             return false;
         }
-        self.own_edit = true;
-        let result = self.book.chapters[chapter].doc.undo();
-        self.sync_chapter(chapter, cx);
-        self.own_edit = false;
+        // With the rest of its edit group (an edit across chapters).
+        let result = self.undo_grouped(chapter, cx);
         let Some(cursor) = result else {
             return false;
         };
@@ -259,10 +257,7 @@ impl ProseEditor {
         if self.composition.is_some() || chapter >= self.book.chapters.len() {
             return false;
         }
-        self.own_edit = true;
-        let result = self.book.chapters[chapter].doc.redo();
-        self.sync_chapter(chapter, cx);
-        self.own_edit = false;
+        let result = self.redo_grouped(chapter, cx);
         let Some(cursor) = result else {
             return false;
         };
@@ -642,9 +637,12 @@ impl ProseEditor {
         for set in &changes {
             self.paint.follow(chapter, set, self.own_edit, cx);
             if !self.own_edit {
-                if self.selection.chapter == chapter {
-                    for op in &set.ops {
+                // Each end in its own chapter (a selection may span chapters).
+                for op in &set.ops {
+                    if self.selection.anchor_chapter == chapter {
                         self.selection.anchor = op.transform(self.selection.anchor);
+                    }
+                    if self.selection.chapter == chapter {
                         self.selection.head = op.transform(self.selection.head);
                     }
                 }
@@ -704,10 +702,16 @@ impl ProseEditor {
     }
 
     pub(crate) fn clamp_selection(&mut self) {
-        let doc = &mut self.book.chapters[self.selection.chapter].doc;
-        let max = doc.max_cursor();
-        self.selection.anchor = self.selection.anchor.min(max);
-        self.selection.head = self.selection.head.min(max);
+        let last = self.book.chapters.len() - 1;
+        let sel = &mut self.selection;
+        sel.chapter = sel.chapter.min(last);
+        sel.anchor_chapter = sel.anchor_chapter.min(last);
+        sel.head = sel
+            .head
+            .min(self.book.chapters[sel.chapter].doc.max_cursor());
+        sel.anchor = sel
+            .anchor
+            .min(self.book.chapters[sel.anchor_chapter].doc.max_cursor());
     }
 
     /// Runs an edit the editor makes on the selected chapter, then syncs.
@@ -717,6 +721,12 @@ impl ProseEditor {
         cx: &mut Context<Self>,
         f: impl FnOnce(&mut ProseDoc, &mut Selection),
     ) {
+        // Edits of a selection across chapters go through `input/span.rs`;
+        // here the selection is in one chapter.
+        debug_assert!(!self.selection.spans_chapters());
+        if self.selection.spans_chapters() {
+            self.selection.collapse();
+        }
         let chapter = self.selection.chapter;
         let before = self.book.chapters[chapter].doc.undo_count();
         let mut selection = self.selection;

@@ -50,6 +50,11 @@ actions!(
         ToggleNotifications,
         /// Opens the feedback dialog (M39, [`crate::dialogs`]).
         SendFeedback,
+        /// Settings → 本地数据 → 导出备份…: the library backup (the dialog is
+        /// another crate's, shown with [`crate::dialogs::show`]).
+        BackupLibrary,
+        /// Settings → 本地数据 → 选择备份…: restore the library from a backup.
+        RestoreLibrary,
         /// Esc: closes the topmost layer (a popover, Settings, a Super View).
         Dismiss,
     ]

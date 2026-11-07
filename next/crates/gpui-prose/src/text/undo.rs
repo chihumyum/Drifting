@@ -82,6 +82,9 @@ impl ItemRecord {
 pub(crate) struct Step {
     pub items: Vec<ItemRecord>,
     pub started: Instant,
+    /// The edit across chapters this step is part of (the editor undoes the
+    /// group's steps in the other chapters with it).
+    pub group: Option<u64>,
 }
 
 pub(crate) struct AuthorUndo {
@@ -128,6 +131,7 @@ impl AuthorUndo {
             _ => self.steps.push(Step {
                 items,
                 started: now,
+                group: None,
             }),
         }
         self.redo.clear();

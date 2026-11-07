@@ -96,6 +96,27 @@ pub struct ChapterEditor {
 
 impl EventEmitter<ChapterEditorEvent> for ChapterEditor {}
 impl EventEmitter<CommentRequested> for ChapterEditor {}
+impl EventEmitter<PositionLinkCopied> for ChapterEditor {}
+impl EventEmitter<EntityLinkOpened> for ChapterEditor {}
+
+/// A plain click on a live entity link in `doc`: the host opens what it
+/// links to (`kind`, `id`), in a preview tab as the 0.1 client did. Its own
+/// event type, like [`CommentRequested`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct EntityLinkOpened {
+    pub doc: String,
+    pub kind: dr_model::kind::EntityKind,
+    pub id: String,
+}
+
+/// The slash menu's 位置链接 put `link` (to a paragraph of `doc`) on the
+/// clipboard: the host may say so (a toast). Its own event type, like
+/// [`CommentRequested`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct PositionLinkCopied {
+    pub doc: String,
+    pub link: String,
+}
 
 impl ChapterEditor {
     /// Opens prose document `doc_id` of `book` for the author.
@@ -188,16 +209,30 @@ impl ChapterEditor {
         });
         let events = cx.subscribe(
             &assist,
-            |this, _, event: &crate::assist::AssistEvent, cx| {
-                let crate::assist::AssistEvent::Comment { range, .. } = event;
-                let text = this.editor.read(cx).book().chapters[0]
-                    .doc
-                    .slice(range.clone());
-                cx.emit(CommentRequested {
-                    doc: this.doc_id.clone(),
-                    range: range.clone(),
-                    text,
-                });
+            |this, _, event: &crate::assist::AssistEvent, cx| match event {
+                crate::assist::AssistEvent::Comment { range, .. } => {
+                    let text = this.editor.read(cx).book().chapters[0]
+                        .doc
+                        .slice(range.clone());
+                    cx.emit(CommentRequested {
+                        doc: this.doc_id.clone(),
+                        range: range.clone(),
+                        text,
+                    });
+                }
+                crate::assist::AssistEvent::LinkCopied { link, .. } => {
+                    cx.emit(PositionLinkCopied {
+                        doc: this.doc_id.clone(),
+                        link: link.clone(),
+                    });
+                }
+                crate::assist::AssistEvent::OpenLink { target, .. } => {
+                    cx.emit(EntityLinkOpened {
+                        doc: this.doc_id.clone(),
+                        kind: target.kind.clone(),
+                        id: target.id.clone(),
+                    });
+                }
             },
         );
         (assist, events)
@@ -255,9 +290,16 @@ impl ChapterEditor {
         }]);
         let style = style.clone();
         let extension = extension.clone();
+        // Typed `- `, `1. `, `[ ] ` make list items where the document keeps
+        // lists (material notes); never in chapters.
+        let lists = dr_model::DocId::parse(doc_id)
+            .ok()
+            .and_then(|d| d.profile())
+            == Some(dr_model::ProseProfile::Note);
         let editor = cx.new(|cx| {
             let mut editor = ProseEditor::new(book, style, window, cx);
             editor.set_extension(extension);
+            editor.set_list_shortcuts(lists);
             editor
         });
         let events = cx.subscribe(&editor, |this, _, event: &EditorEvent, cx| {
@@ -304,7 +346,7 @@ impl ChapterEditor {
     fn on_workspace(&mut self, notices: &[Notice], cx: &mut Context<Self>) {
         if notices.contains(&Notice::Book) {
             self.extension.invalidate();
-            self.assist.update(cx, |a, _| a.invalidate_names());
+            self.assist.update(cx, |a, cx| a.invalidate_names(cx));
             if self.pages.has_chrome() {
                 self.refresh_page(cx);
             }

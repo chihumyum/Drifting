@@ -199,3 +199,48 @@ fn a_taken_over_0_1_identity_is_the_same_device_on_the_next_open() {
     assert!(!lib.adopt_installation_id(&old).unwrap());
     lib.close().unwrap();
 }
+
+/// Two machines that both took over the same 0.1 installation id (the old
+/// data folder was copied from one to the other and imported on both) are
+/// still two devices for a library copied between them: the library records
+/// the machine too.
+#[test]
+fn a_library_copied_between_machines_sharing_a_0_1_identity_gets_a_new_epoch() {
+    let tmp = tempfile::tempdir().unwrap();
+    let old = format!("install-{}", "2b".repeat(32));
+    let on = |machine: &str| {
+        let device = Device::open_with_machine_id(
+            tmp.path().join(format!("device-{machine}")),
+            Some(machine.into()),
+        )
+        .unwrap();
+        let root = tmp.path().join(format!("lib-{machine}"));
+        let mut o = options();
+        o.device = Some(device);
+        (root, o)
+    };
+    let (root_a, options_a) = on("MACHINE-A");
+    let lib = Library::open(&root_a, options_a).unwrap();
+    assert!(lib.adopt_installation_id(&old).unwrap());
+    edit(&lib, "一");
+    let (epoch, peer) = (lib.epoch(), lib.peer_for("node:a").unwrap());
+    lib.close().unwrap();
+
+    // Machine B took over the same 0.1 id, then the library folder is
+    // copied there.
+    let (root_b, options_b) = on("MACHINE-B");
+    {
+        let scratch = Library::open(tmp.path().join("scratch"), options_b.clone()).unwrap();
+        assert!(scratch.adopt_installation_id(&old).unwrap());
+        scratch.close().unwrap();
+    }
+    copy_dir(&root_a, &root_b);
+    let lib = Library::open(&root_b, options_b.clone()).unwrap();
+    assert_eq!(lib.epoch_change(), Some(EpochChange::OtherDevice));
+    assert_ne!(lib.epoch(), epoch);
+    assert_ne!(lib.peer_for("node:a").unwrap(), peer);
+    lib.close().unwrap();
+    let lib = Library::open(&root_b, options_b).unwrap();
+    assert_eq!(lib.epoch_change(), None, "settled on machine B");
+    lib.close().unwrap();
+}

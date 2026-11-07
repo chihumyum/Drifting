@@ -16,6 +16,10 @@
     "actions": {
       "openElement": "打开要素"
     },
+    "alerts": {
+      "deleteFailed": "删除类目失败，请重试。"
+    },
+    "deleteConfirm": "删除类目「{{name}}」？\n\n这个类目下的要素会移到「未分类」（categoryId 变为空）。",
     "empty": {
       "noFilteredElements": "此筛选下暂无要素",
       "noSummary": "尚未填写概述"
@@ -65,6 +69,7 @@
   "common": {
     "cancel": "取消",
     "close": "关闭",
+    "confirm": "确认",
     "counting": "统计中…",
     "creating": "创建中…",
     "delete": "删除",
@@ -75,6 +80,7 @@
     "saveFailed": "保存未完成，请重试。",
     "saving": "保存中…",
     "untitled": "未命名",
+    "words": "字",
     "wordsCount": "{{count}} 字"
   },
   "dashboard": {
@@ -110,7 +116,12 @@
       "more": "更多操作"
     },
     "menu": {
-      "deleteNode": "删除节点"
+      "changeCategory": "更改类目",
+      "changeGroup": "更改分组",
+      "deleteCategory": "删除类目",
+      "deleteElement": "删除要素",
+      "deleteNode": "删除节点",
+      "deleteStoryline": "删除故事线"
     },
     "outlineRailMode": {
       "hidden": "隐藏 TOC",
@@ -125,9 +136,23 @@
       "chapter": "写作状态"
     }
   },
+  "elementCategoryCreateMenu": {
+    "back": "返回新增菜单",
+    "createGroup": "创建并打开首个要素",
+    "duplicateGroup": "已有同名分组。",
+    "groupNameLabel": "分组名称",
+    "groupNamePlaceholder": "输入分组名称",
+    "groupTitle": "新建分组",
+    "newElement": "新建要素",
+    "newGroup": "新建分组…",
+    "openCreateMenu": "添加到此类目",
+    "title": "新增至「{{name}}」"
+  },
   "elementEditor": {
     "alerts": {
       "aliasConflict": "无法添加别名：“{{name}}” 已被要素「{{conflicting}}」使用。",
+      "deleteFailed": "删除要素失败，请重试。",
+      "groupUpdateFailed": "更新分组失败，请重试。",
       "renameConflict": "无法重命名：“{{name}}” 已被要素「{{conflicting}}」使用（名字或别名冲突）。"
     },
     "alias": {
@@ -135,10 +160,21 @@
       "addFirst": "添加别名",
       "remove": "移除别名"
     },
+    "category": {
+      "newOption": "新建类目…"
+    },
+    "deleteConfirm": "删除要素「{{name}}」？",
     "empty": {
       "noFacts": "尚无字段。新建要素时，所属类目的「字段模版」会自动填入"
     },
     "folio": "要素",
+    "group": {
+      "create": "新建分组「{{name}}」",
+      "empty": "此类目下还没有分组。",
+      "noGroup": "（不分组）",
+      "placeholder": "搜索或新建分组…（留空 = 不分组）",
+      "title": "分组 · {{category}}"
+    },
     "sections": {
       "bioTitle": "记 · 传",
       "facts": "字段"
@@ -218,7 +254,7 @@
         "account_libraries_left": "文件夹里还有 {{count}} 个账号资料库没导入，等账号功能做好",
         "already_imported": "这台设备以前导入过，这次没再导入",
         "already_in_library": "新资料库里已经有这本书，没有动",
-        "carries_on": "没导完，再导一次这个库会接着导完",
+        "carries_on": "没导入完，再导入一次这个资料库会接着导入",
         "from_caches": "有 {{count}} 篇照缓存导入，可能少了最后几秒的字"
       }
     }
@@ -240,6 +276,8 @@
   },
   "leftSidebar": {
     "actions": {
+      "collapseAll": "展开／折叠全部",
+      "newCategory": "新类目",
       "sort": "排序"
     },
     "empty": {
@@ -248,6 +286,8 @@
       "noElements": "还没有要素。"
     },
     "groups": {
+      "addElementToGroup": "在此分组新建要素",
+      "renameElementGroupTitle": "双击重命名分组",
       "unaffiliated": "未归属"
     },
     "meta": {
@@ -258,6 +298,7 @@
     "sort": {
       "alphabet": "按字母顺序",
       "bookOrder": "按阅读顺序",
+      "categoryElements": "排序类目内要素",
       "cellMetaGroup": "单元格右侧",
       "chapters": "排序章节",
       "createdAt": "按创建时间",
@@ -265,6 +306,7 @@
       "duplicatesGroup": "多线章节",
       "duplicatesPrimary": "仅在主线分组显示",
       "narrativeOrder": "按叙事顺序",
+      "outerCategoriesGroup": "外层类目",
       "outerStorylinesGroup": "外层故事线",
       "showBoth": "显示字数和日期",
       "showDate": "显示日期",
@@ -286,6 +328,8 @@
     "uncategorized": "未分类",
     "viewMode": {
       "chapterSummary": "{{storylines}} 条故事线 · {{chapters}} 章",
+      "elementCompactTitle": "紧凑索引 · 点此切换到名称列表",
+      "elementListTitle": "名称列表 · 点此切换到紧凑索引",
       "globalTitle": "全书总览 · 点此按 storyline 分组",
       "storylineTitle": "按 storyline 分组 · 点此切回全书总览"
     }
@@ -355,6 +399,9 @@
     "back": "返回"
   },
   "nodeEditor": {
+    "empty": {
+      "noStoryline": "未归属故事线"
+    },
     "folio": {
       "chapter": "章节",
       "chapterNumber": "第 {{n}} 章"
@@ -812,6 +859,14 @@
     },
     "search_placeholder": "搜索设定…",
     "sync": {
+      "backup": {
+        "exportButton": "导出备份…",
+        "exportDesc": "把所有项目的数据库，连同图片、PDF 原文件，打包成一个 .drifting 文件。可用来恢复，也可以带到另一台电脑。",
+        "exportTitle": "资料库备份",
+        "restoreButton": "选择备份…",
+        "restoreDesc": "用 .drifting 备份替换当前资料库。恢复前，当前资料库会自动存成一份恢复前副本。",
+        "restoreTitle": "从备份恢复"
+      },
       "local_data": "本地数据",
       "local_sub": "无需 Drifting 账号，也不连接托管云服务；你可以随时导出一份可阅读的副本。",
       "local_title": "作品只保存在这台设备上。"
@@ -841,13 +896,45 @@
     "restoring": "恢复中…",
     "title": "历史快照 · 30 天"
   },
+  "storyGraph": {
+    "edge": {
+      "create": "创建"
+    }
+  },
   "storylineEditor": {
-    "filters": {
-      "all": "全部"
+    "actions": {
+      "openChapter": "打开章节"
     },
+    "alerts": {
+      "deleteFailed": "删除故事线失败，请重试。"
+    },
+    "deleteConfirm": "删除故事线「{{name}}」？",
+    "empty": {
+      "noChapterSummary": "尚未填写一句话摘要",
+      "noFacts": "尚无字段。新建故事线时，项目主页的「故事线字段模版」会自动填入",
+      "noFilteredChapters": "此筛选下暂无章节"
+    },
+    "filters": {
+      "all": "全部",
+      "unwritten": "未起",
+      "written": "已写"
+    },
+    "folio": "故事线",
     "labels": {
       "color": "色标"
-    }
+    },
+    "meta": {
+      "chapters": "{{count}} 章",
+      "chaptersWords": "{{chapters}} 章 · {{words}}k 字",
+      "kWords": "{{count}}k 字"
+    },
+    "sections": {
+      "chapters": "章节序列",
+      "facts": "字段",
+      "scratch": "札记"
+    },
+    "summaryPlaceholder": "一句话概述本线…",
+    "untitled": "未命名故事线"
   },
   "topTimeline": {
     "closeTab": "关闭标签页",

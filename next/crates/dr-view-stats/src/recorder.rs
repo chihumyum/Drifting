@@ -55,7 +55,9 @@ pub trait Source: Send + 'static {
 
 /// Whether a prose change is this device's writing.
 pub fn writes_here(origin: &Origin) -> bool {
-    matches!(origin, Origin::User | Origin::Agent(_) | Origin::Mirror)
+    // The author typing or by a command (`Origin::Command`), an Agent, the
+    // mirror.
+    origin.is_author() || matches!(origin, Origin::Agent(_) | Origin::Mirror)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -520,5 +522,20 @@ impl Recorder {
 impl Drop for Recorder {
     fn drop(&mut self) {
         let _ = self.tx.send(Msg::Stop);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_authors_commands_are_writing_here() {
+        assert!(writes_here(&Origin::User));
+        assert!(writes_here(&Origin::Command));
+        assert!(writes_here(&Origin::agent("s", 1)));
+        assert!(writes_here(&Origin::Mirror));
+        assert!(!writes_here(&Origin::Sync));
+        assert!(!writes_here(&Origin::Import));
     }
 }

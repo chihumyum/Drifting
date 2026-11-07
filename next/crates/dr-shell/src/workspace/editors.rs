@@ -38,7 +38,6 @@ pub use dr_editor::{
 use dr_text::TextMetrics;
 use dr_ui::{Theme, fonts::Role, tokens::motion};
 use dr_view_stats::LiveWords;
-use dr_workspace::ProseSession;
 use gpui::{
     AnyView, App, AppContext as _, Context, Entity, Focusable as _, InteractiveElement as _,
     SharedString, Subscription, Task, Window, px,
@@ -115,6 +114,9 @@ pub struct PageEditor {
     pub loading: Option<Instant>,
     /// It could not be opened (logged). Tried again when the tab reopens.
     pub failed: bool,
+    /// A module draws the page's head (M03, M11): the editor's own title
+    /// row is not shown, so the shell does not set it.
+    pub chrome: bool,
     /// Live word counts, per document the editor holds.
     tallies: HashMap<String, Tally>,
     _prepare: Option<Task<()>>,
@@ -129,6 +131,7 @@ impl PageEditor {
             view: None,
             loading: Some(Instant::now()),
             failed: false,
+            chrome: false,
             tallies: HashMap::new(),
             _prepare: Some(prepare),
             _timer: Some(timer),
@@ -156,8 +159,8 @@ impl PageEditor {
 enum Prepared {
     /// One document's editing session.
     Doc(dr_editor::SessionSource),
-    /// Every chapter's session, held while the whole book's editor opens.
-    Book(Vec<ProseSession>),
+    /// The whole book, read for `BookEditor::with_prepared`.
+    Book(dr_editor::PreparedBook),
 }
 
 /// One document's word count, per paragraph; only the paragraphs whose text
@@ -279,32 +282,22 @@ impl Workspace {
             return;
         };
         let doc = book::doc_of(target);
-        let docs: Vec<String> = match &doc {
-            Some(doc) => vec![doc.clone()],
-            None => self
-                .book
-                .chapters
-                .iter()
-                .map(|c| format!("node:{}", c.id))
-                .collect(),
-        };
         let key = target.key();
         let prepared = key.clone();
-        let one = doc.is_some();
+        let (one, book_id) = (doc.clone(), self.book_id.clone());
         let prepare = cx.spawn_in(window, async move |this, cx| {
             let started = Instant::now();
             let sessions = cx
                 .background_executor()
                 .spawn(async move {
-                    if one {
+                    match one {
                         // One document: its editor's own session, for
                         // `ChapterEditor::with_session`.
-                        dr_editor::SessionSource::open(&lib, &docs[0]).map(Prepared::Doc)
-                    } else {
-                        docs.iter()
-                            .map(|d| lib.prose_session(d))
-                            .collect::<dr_workspace::Result<Vec<ProseSession>>>()
-                            .map(Prepared::Book)
+                        Some(doc) => dr_editor::SessionSource::open(&lib, &doc).map(Prepared::Doc),
+                        // The whole book: every chapter's session and
+                        // document, the acts and the anchors, for
+                        // `BookEditor::with_prepared`.
+                        None => BookEditor::prepare(&lib, &book_id).map(Prepared::Book),
                     }
                 })
                 .await;
@@ -359,18 +352,10 @@ impl Workspace {
             }
         };
         let opened = Instant::now();
-        // One document's editor is built on the session opened above
-        // (`with_session` cannot fail). `BookEditor::open` still returns a
-        // `Result` inside `cx.new`; the sessions opened above hold every
-        // chapter open, so short of the holder threads or the library being
-        // gone it cannot fail (see f6-shell.md, 待协调 F4).
-        let (doc, sessions) = match (page.doc.clone(), sessions) {
-            (Some(doc), Prepared::Doc(source)) => (Some((doc, source)), Vec::new()),
-            (_, Prepared::Book(sessions)) => (None, sessions),
-            (None, Prepared::Doc(_)) => return,
-        };
-        let view = match doc {
-            Some((doc, source)) => {
+        // Both halves were read off the main thread above; building the
+        // editors on them cannot fail (`with_session`, `with_prepared`).
+        let view = match (page.doc.clone(), sessions) {
+            (Some(doc), Prepared::Doc(source)) => {
                 let editor = cx.new(|cx| {
                     ChapterEditor::with_session(lib, &book, &doc, source, settings, window, cx)
                 });
@@ -378,7 +363,6 @@ impl Workspace {
                 editor.update(cx, |e, cx| {
                     e.set_base_style(base, cx);
                     e.set_decor_looks(looks, cx);
-                    set_title(e, title, cx);
                 });
                 let events = cx.subscribe(&editor, |ws, editor, event: &ChapterEditorEvent, cx| {
                     ws.on_editor_event(&editor, event, cx)
@@ -395,16 +379,9 @@ impl Workspace {
                 page._events.push(comments);
                 PageView::Doc(editor)
             }
-            None => {
+            (None, Prepared::Book(prepared)) => {
                 let editor =
-                    cx.new(
-                        |cx| match BookEditor::open(lib, &book, settings, window, cx) {
-                            Ok(editor) => editor,
-                            Err(error) => {
-                                panic!("{book}: the open book could not be edited: {error}")
-                            }
-                        },
-                    );
+                    cx.new(|cx| BookEditor::with_prepared(lib, prepared, settings, window, cx));
                 let looks = decor_looks(&Theme::of(window, cx), &base);
                 editor.update(cx, |e, cx| {
                     e.set_base_style(base, cx);
@@ -433,8 +410,8 @@ impl Workspace {
                 page._events.push(comments);
                 PageView::Book(editor)
             }
+            _ => return,
         };
-        drop(sessions);
         // What the modules draw around the page's text (M03's chapter
         // page, M11's element and category pages), when one is registered.
         let host = crate::pages::PageHost {
@@ -448,19 +425,32 @@ impl Workspace {
         };
         let chrome = Target::from_key(key)
             .and_then(|target| crate::pages::chrome_for(&target, host, window, cx));
-        if let Some(chrome) = chrome {
-            match &view {
-                PageView::Doc(e) => e.update(cx, |e, cx| e.set_chrome(Some(chrome), cx)),
-                PageView::Book(e) => e.update(cx, |e, cx| e.set_chrome(Some(chrome), cx)),
+        page.chrome = chrome.is_some();
+        match (&view, chrome) {
+            (PageView::Doc(e), Some(chrome)) => {
+                e.update(cx, |e, cx| e.set_chrome(Some(chrome), cx))
             }
+            (PageView::Book(e), Some(chrome)) => {
+                e.update(cx, |e, cx| e.set_chrome(Some(chrome), cx))
+            }
+            // Without a module's head, the editor's own title row shows the
+            // page's name.
+            (PageView::Doc(e), None) => e.update(cx, |e, cx| set_title(e, title, cx)),
+            (PageView::Book(_), None) => {}
         }
         let prose = view.prose(cx);
-        let selection = cx.subscribe(&prose, |_, prose, event: &EditorEvent, cx| {
+        let selection = cx.subscribe(&prose, |ws, prose, event: &EditorEvent, cx| {
             if matches!(event, EditorEvent::SelectionChanged) {
                 report_selection(&prose, cx);
+                ws.caret_moved(&prose, cx);
             }
         });
         page._events.push(selection);
+        // Leaving the text: the edited chapters' patch sources are checked.
+        let blur = cx.on_blur(&prose.focus_handle(cx), window, |ws, _, cx| {
+            ws.check_sources(cx)
+        });
+        page._events.push(blur);
         page.view = Some(view);
         log::debug!(
             "{key}: sessions in {ms:.1} ms, editor in {:.2} ms",
@@ -486,6 +476,9 @@ impl Workspace {
         let doc = editor.read(cx).doc_id().to_owned();
         match event {
             ChapterEditorEvent::Edited => {
+                if doc.starts_with("node:") {
+                    self.unchecked.insert(doc.clone());
+                }
                 let key = self
                     .editors
                     .iter()
@@ -510,20 +503,64 @@ impl Workspace {
     fn on_book_event(&mut self, event: &BookEditorEvent, cx: &mut Context<Self>) {
         let key = Target::Book.key();
         match event {
-            BookEditorEvent::Edited { doc } => self.report_words(&key, Some(doc), cx),
+            BookEditorEvent::Edited { doc } => {
+                self.unchecked.insert(doc.clone());
+                self.report_words(&key, Some(doc), cx)
+            }
             BookEditorEvent::Reloaded => {
                 if let Some(page) = self.editors.get_mut(&key) {
                     page.tallies.clear();
                 }
                 self.report_words(&key, None, cx);
             }
+            // As for one chapter, the editor's paint layers project the TODO
+            // markers (`todo.project`) and store re-anchored comments
+            // (`comment.reanchor`) themselves, chapter by chapter.
             BookEditorEvent::TodoMarkers { doc, markers } => {
-                // TODO(F3 `todo.project`).
                 log::debug!("{doc}: {} TODO markers", markers.len());
             }
             BookEditorEvent::AnchorsChanged { doc, changes } => {
-                // TODO(F3 `comment.reanchor`).
-                log::debug!("{doc}: {} comment anchors to store", changes.len());
+                log::debug!("{doc}: {} comment anchors re-stored", changes.len());
+            }
+        }
+    }
+
+    /// The caret moved: when it left its paragraph, the edited chapters'
+    /// patch sources are checked.
+    fn caret_moved(&mut self, prose: &Entity<ProseEditor>, cx: &mut Context<Self>) {
+        let here = {
+            let p = prose.read(cx);
+            let sel = p.selection();
+            let Some(chapter) = p.book().chapters.get(sel.chapter) else {
+                return;
+            };
+            (
+                prose.entity_id(),
+                sel.chapter,
+                chapter.doc.line_of(sel.head),
+            )
+        };
+        if self
+            .caret_paragraph
+            .replace(here)
+            .is_some_and(|was| was != here)
+        {
+            self.check_sources(cx);
+        }
+    }
+
+    /// F3's `patch.check_sources` for every node edited since the last
+    /// check: patches whose source paragraph went are marked 失效. The same
+    /// moments as dr-editor's `todo.project`: the caret leaves a paragraph,
+    /// the text loses the keyboard.
+    pub(super) fn check_sources(&mut self, cx: &mut Context<Self>) {
+        for doc in std::mem::take(&mut self.unchecked) {
+            if let Some(id) = doc.strip_prefix("node:") {
+                self.run_command(
+                    "patch.check_sources",
+                    serde_json::json!({ "book": self.book_id, "node": id }),
+                    cx,
+                );
             }
         }
     }
@@ -596,7 +633,7 @@ impl Workspace {
             .editors
             .iter()
             .filter_map(|(key, p)| match &p.view {
-                Some(PageView::Doc(e)) => Some((key.clone(), e.clone())),
+                Some(PageView::Doc(e)) if !p.chrome => Some((key.clone(), e.clone())),
                 _ => None,
             })
             .collect();
@@ -743,6 +780,14 @@ impl Workspace {
         if want == self.focused_editor {
             return;
         }
+        // Opened at its title (`Open::at_title`): the page's head gives the
+        // title the caret; the editor is left alone this once.
+        let front = self.nav.active_tab().map(|t| t.focused().target.key());
+        if want.is_some() && front.is_some() && front == self.title_first {
+            self.title_first = None;
+            self.focused_editor = want;
+            return;
+        }
         // Ours to move: an editor, the workspace or nothing has it, or the
         // editor we gave it to last (whose tab may have closed).
         let free = in_editor
@@ -800,6 +845,12 @@ impl Workspace {
         let reduce_changed = theme.reduce_motion != self.editor_reduce;
         if !settings_changed && !base_changed && !reduce_changed {
             return;
+        }
+        if settings_changed
+            && settings.auto_entity_links != self.editor_settings.auto_entity_links
+            && let Some(lib) = &self.library
+        {
+            lib.set_auto_links(settings.auto_entity_links);
         }
         self.editor_settings = settings.clone();
         self.editor_base = base.clone();

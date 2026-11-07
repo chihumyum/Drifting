@@ -20,6 +20,9 @@ thiserror.workspace = true
 zip.workspace = true
 
 [dev-dependencies]
+# The real deriver, to measure typing while stale indexes are rebuilt
+# (integration tests only, like dr-testkit).
+dr-index.workspace = true
 # Only to check that both Origin types spell every origin the same way.
 dr-model.workspace = true
 # The shared seeds, random streams and crash harness; integration tests only

@@ -16,6 +16,10 @@
     "actions": {
       "openElement": "Abrir elemento"
     },
+    "alerts": {
+      "deleteFailed": "Não foi possível excluir a categoria. Tente novamente."
+    },
+    "deleteConfirm": "Excluir a categoria “{{name}}”?\n\nOs elementos desta categoria serão movidos para “Sem categoria”.",
     "empty": {
       "noFilteredElements": "Nenhum elemento para este filtro",
       "noSummary": "Ainda não há resumo"
@@ -65,6 +69,7 @@
   "common": {
     "cancel": "Cancelar",
     "close": "Fechar",
+    "confirm": "Confirmar",
     "counting": "Contando…",
     "creating": "Criando…",
     "delete": "Excluir",
@@ -75,6 +80,7 @@
     "saveFailed": "Não foi possível salvar as alterações. Tente novamente.",
     "saving": "Salvando…",
     "untitled": "Sem título",
+    "words": "palavras",
     "wordsCount": "{{count}} palavras"
   },
   "dashboard": {
@@ -110,7 +116,12 @@
       "more": "Mais ações"
     },
     "menu": {
-      "deleteNode": "Excluir nó"
+      "changeCategory": "Alterar categoria",
+      "changeGroup": "Alterar grupo",
+      "deleteCategory": "Excluir categoria",
+      "deleteElement": "Excluir elemento",
+      "deleteNode": "Excluir nó",
+      "deleteStoryline": "Excluir linha narrativa"
     },
     "outlineRailMode": {
       "hidden": "Ocultar sumário",
@@ -125,9 +136,23 @@
       "chapter": "Estado da escrita"
     }
   },
+  "elementCategoryCreateMenu": {
+    "back": "Voltar ao menu de criação",
+    "createGroup": "Criar e abrir o primeiro elemento",
+    "duplicateGroup": "Já existe um grupo com esse nome.",
+    "groupNameLabel": "Nome do grupo",
+    "groupNamePlaceholder": "Digite um nome de grupo",
+    "groupTitle": "Novo grupo",
+    "newElement": "Novo elemento",
+    "newGroup": "Novo grupo…",
+    "openCreateMenu": "Adicionar a esta categoria",
+    "title": "Adicionar a “{{name}}”"
+  },
   "elementEditor": {
     "alerts": {
       "aliasConflict": "Não é possível adicionar o apelido: “{{name}}” já é usado pelo elemento “{{conflicting}}”.",
+      "deleteFailed": "Não foi possível excluir o elemento. Tente novamente.",
+      "groupUpdateFailed": "Não foi possível atualizar o grupo. Tente novamente.",
       "renameConflict": "Não é possível renomear: “{{name}}” já é usado como nome ou apelido do elemento “{{conflicting}}”."
     },
     "alias": {
@@ -135,10 +160,21 @@
       "addFirst": "Adicionar apelido",
       "remove": "Remover apelido"
     },
+    "category": {
+      "newOption": "Nova categoria…"
+    },
+    "deleteConfirm": "Excluir o elemento “{{name}}”?",
     "empty": {
       "noFacts": "Ainda não há campos. Ao criar um elemento, o Modelo de campos da categoria os preenche."
     },
     "folio": "Elemento",
+    "group": {
+      "create": "Criar grupo “{{name}}”",
+      "empty": "Esta categoria ainda não tem grupos.",
+      "noGroup": "(Sem grupo)",
+      "placeholder": "Busque ou crie um grupo… (em branco = sem grupo)",
+      "title": "Grupo · {{category}}"
+    },
     "sections": {
       "bioTitle": "Biografia",
       "facts": "Dados"
@@ -222,7 +258,7 @@
         "account_libraries_left_other": "{{count}} bibliotecas de conta na pasta esperam pelas contas",
         "already_imported": "Já importado neste dispositivo; ignorado",
         "already_in_library": "Já está na biblioteca; mantido como está",
-        "carries_on": "Não terminou; importar esta biblioteca de novo continua de onde parou",
+        "carries_on": "Não terminou; importe esta biblioteca de novo para continuar",
         "from_caches_one": "{{count}} texto veio do cache e pode estar sem os últimos segundos",
         "from_caches_other": "{{count}} textos vieram do cache e podem estar sem os últimos segundos"
       }
@@ -245,6 +281,8 @@
   },
   "leftSidebar": {
     "actions": {
+      "collapseAll": "Expandir ou recolher tudo",
+      "newCategory": "Nova categoria",
       "sort": "Ordenar"
     },
     "empty": {
@@ -253,6 +291,8 @@
       "noElements": "Ainda não há elementos."
     },
     "groups": {
+      "addElementToGroup": "Novo elemento neste grupo",
+      "renameElementGroupTitle": "Clique duas vezes para renomear o grupo",
       "unaffiliated": "Sem vínculo"
     },
     "meta": {
@@ -263,6 +303,7 @@
     "sort": {
       "alphabet": "Alfabética",
       "bookOrder": "Ordem de leitura",
+      "categoryElements": "Ordenar elementos nas categorias",
       "cellMetaGroup": "Borda direita da célula",
       "chapters": "Ordenar capítulos",
       "createdAt": "Data de criação",
@@ -270,6 +311,7 @@
       "duplicatesGroup": "Capítulos com várias linhas narrativas",
       "duplicatesPrimary": "Mostrar apenas na linha narrativa principal",
       "narrativeOrder": "Ordem narrativa",
+      "outerCategoriesGroup": "Categorias externas",
       "outerStorylinesGroup": "Linhas narrativas externas",
       "showBoth": "Mostrar palavras e data",
       "showDate": "Mostrar data",
@@ -291,6 +333,8 @@
     "uncategorized": "Sem categoria",
     "viewMode": {
       "chapterSummary": "{{storylines}} linhas narrativas · {{chapters}} capítulos",
+      "elementCompactTitle": "Índice compacto · mudar para lista de nomes",
+      "elementListTitle": "Lista de nomes · mudar para índice compacto",
       "globalTitle": "Visão do livro · agrupar por linha narrativa",
       "storylineTitle": "Por linha narrativa · voltar à visão do livro"
     }
@@ -361,6 +405,9 @@
     "back": "Voltar"
   },
   "nodeEditor": {
+    "empty": {
+      "noStoryline": "Sem linha narrativa"
+    },
     "folio": {
       "chapter": "Capítulo",
       "chapterNumber": "Capítulo {{n}}"
@@ -830,6 +877,14 @@
     },
     "search_placeholder": "Buscar configurações…",
     "sync": {
+      "backup": {
+        "exportButton": "Exportar backup…",
+        "exportDesc": "Reúne os bancos de todos os projetos, imagens e PDFs originais num arquivo .drifting, para restaurar ou mudar de computador.",
+        "exportTitle": "Backup da biblioteca",
+        "restoreButton": "Escolher backup…",
+        "restoreDesc": "Substitui a biblioteca atual por um backup .drifting. Antes, uma cópia da biblioteca atual é salva.",
+        "restoreTitle": "Restaurar de um backup"
+      },
       "local_data": "Dados locais",
       "local_sub": "Sem conta Drifting ou nuvem hospedada. Exporte uma cópia legível quando quiser.",
       "local_title": "Seu trabalho fica neste dispositivo."
@@ -859,13 +914,45 @@
     "restoring": "Restaurando…",
     "title": "Snapshots do histórico · 30 dias"
   },
+  "storyGraph": {
+    "edge": {
+      "create": "Criar"
+    }
+  },
   "storylineEditor": {
-    "filters": {
-      "all": "Todos"
+    "actions": {
+      "openChapter": "Abrir capítulo"
     },
+    "alerts": {
+      "deleteFailed": "Não foi possível excluir a linha narrativa. Tente novamente."
+    },
+    "deleteConfirm": "Excluir a linha narrativa “{{name}}”?",
+    "empty": {
+      "noChapterSummary": "Ainda não há resumo em uma frase",
+      "noFacts": "Ainda não há campos. Ao criar uma linha narrativa, o Modelo de linha narrativa do início do projeto os preenche.",
+      "noFilteredChapters": "Nenhum capítulo para este filtro"
+    },
+    "filters": {
+      "all": "Todos",
+      "unwritten": "Não iniciado",
+      "written": "Escritos"
+    },
+    "folio": "Linha narrativa",
     "labels": {
       "color": "Cor"
-    }
+    },
+    "meta": {
+      "chapters": "{{count}} capítulos",
+      "chaptersWords": "{{chapters}} capítulos · {{words}} mil palavras",
+      "kWords": "{{count}} mil palavras"
+    },
+    "sections": {
+      "chapters": "Sequência de capítulos",
+      "facts": "Dados",
+      "scratch": "Anotações"
+    },
+    "summaryPlaceholder": "Resumo desta linha narrativa em uma frase…",
+    "untitled": "Linha narrativa sem título"
   },
   "topTimeline": {
     "closeTab": "Fechar aba",

@@ -20,7 +20,7 @@ use crate::cx::{Cx, Faults, Gate, Invocation, Outcome};
 use crate::error::{Result, WsError};
 use crate::events::{
     self, BookChanged, Bus, EntityChange, ProseChanged, Removed, RemovedEntity, Subscription,
-    WsEvent, book_changes, prose_ranges, touched_blocks,
+    WsEvent, book_changes, prose_ranges, touched_blocks_near,
 };
 use crate::holder::{self, lock};
 use crate::journal::{Journal, JournalEntry};
@@ -471,7 +471,27 @@ impl Workspace {
     /// dr-doc's repair for what a merge can produce (duplicate block ids,
     /// semantic duplicate relations, chapters without a book order). Creates
     /// the document (from its genesis) when it is new here.
+    ///
+    /// Returns false, writing nothing, when the document or its book was
+    /// purged on this device (dr-store's `purged_doc`): a book deleted for
+    /// good stays deleted however its updates arrive. Bringing it back on
+    /// purpose is `Library::forget_purged_book` first (the sync module's
+    /// call, M36).
     pub fn import_remote(
+        &self,
+        doc_id: &str,
+        kind_book: Option<(&str, &str)>,
+        bytes: Vec<u8>,
+        actor: &Actor,
+    ) -> Result<bool> {
+        match self.import_remote_inner(doc_id, kind_book, bytes, actor) {
+            Ok(()) => Ok(true),
+            Err(WsError::Store(StoreError::Purged(_))) => Ok(false),
+            Err(e) => Err(e),
+        }
+    }
+
+    fn import_remote_inner(
         &self,
         doc_id: &str,
         kind_book: Option<(&str, &str)>,
@@ -870,7 +890,7 @@ impl Inner {
                                 let blocks = if ranges.is_empty() {
                                     Vec::new()
                                 } else {
-                                    touched_blocks(&s.reader.view().blocks(), &ranges)
+                                    touched_blocks_near(&s.reader.view(), &ranges)
                                 };
                                 (s.book.clone(), blocks)
                             }

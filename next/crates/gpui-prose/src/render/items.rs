@@ -276,23 +276,27 @@ impl ProseEditor {
         let line_end = line_start + line.chars;
 
         let sel = self.selection;
-        let selection = if sel.chapter == chapter && !sel.is_empty() && self.composition.is_none() {
-            let range = sel.range();
-            if range.end <= line_start || range.start > line_end {
-                None
-            } else {
-                let start = range.start.max(line_start);
-                let end = range.end.min(line_end);
-                let past_end = range.end > line_end;
-                (start < end || past_end).then(|| {
-                    (
-                        line.byte_of_char(start - line_start)..line.byte_of_char(end - line_start),
-                        past_end,
-                    )
-                })
+        // What is selected in this chapter (a selection may span chapters:
+        // then the chapter's end is selected like a line break).
+        let selection = match self.selected_in(chapter) {
+            Some((range, beyond)) if self.composition.is_none() => {
+                let reach = range.end + usize::from(beyond);
+                if reach <= line_start || range.start > line_end {
+                    None
+                } else {
+                    let start = range.start.max(line_start);
+                    let end = range.end.min(line_end);
+                    let past_end = reach > line_end;
+                    (start < end || past_end).then(|| {
+                        (
+                            line.byte_of_char(start - line_start)
+                                ..line.byte_of_char(end - line_start),
+                            past_end,
+                        )
+                    })
+                }
             }
-        } else {
-            None
+            _ => None,
         };
 
         // Immersive writing: the caret's paragraph keeps its ink.

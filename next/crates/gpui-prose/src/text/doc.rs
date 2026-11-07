@@ -466,6 +466,25 @@ impl ProseDoc {
         self.undo.join_last_step = true;
     }
 
+    /// Marks the last undo step as part of edit group `group`: an edit
+    /// across chapters, whose steps in the other chapters are undone and
+    /// redone with it (see [`crate::ProseEditor`]'s undo).
+    pub fn tag_last_step(&mut self, group: u64) {
+        if let Some(step) = self.undo.steps.last_mut() {
+            step.group = Some(group);
+        }
+    }
+
+    /// The edit group of the step [`ProseDoc::undo`] would undo next.
+    pub fn last_step_group(&self) -> Option<u64> {
+        self.undo.steps.last().and_then(|step| step.group)
+    }
+
+    /// The edit group of the step [`ProseDoc::redo`] would redo next.
+    pub fn next_redo_group(&self) -> Option<u64> {
+        self.undo.redo.last().and_then(|step| step.group)
+    }
+
     pub fn can_undo(&self) -> bool {
         !self.undo.steps.is_empty()
     }

@@ -460,6 +460,14 @@ expression: json
           "minimum": 0,
           "type": "integer"
         },
+        "created_at": {
+          "description": "When the book was created (Unix seconds).",
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
         "daily_word_target": {
           "format": "int64",
           "type": [
@@ -511,6 +519,7 @@ expression: json
         "trashed",
         "word_target",
         "daily_word_target",
+        "created_at",
         "chapters",
         "ideas",
         "elements",
@@ -540,6 +549,14 @@ expression: json
       "$defs": {
         "BookInfo": {
           "properties": {
+            "created_at": {
+              "description": "When the book was created (Unix seconds).",
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
             "daily_word_target": {
               "format": "int64",
               "type": [
@@ -574,7 +591,8 @@ expression: json
             "summary",
             "trashed",
             "word_target",
-            "daily_word_target"
+            "daily_word_target",
+            "created_at"
           ],
           "type": "object"
         }
@@ -940,12 +958,12 @@ expression: json
             "trashed",
             "word_target",
             "daily_word_target",
+            "created_at",
             "subtitle",
             "chapters",
             "storylines",
             "elements",
             "words",
-            "created_at",
             "updated_at",
             "deleted_at",
             "purge_at",
@@ -1458,6 +1476,10 @@ expression: json
                 "null"
               ]
             },
+            "has_element_template": {
+              "description": "Whether it has an element template (the body its new elements start\nwith; `category_template.body`).",
+              "type": "boolean"
+            },
             "id": {
               "type": "string"
             },
@@ -1466,6 +1488,13 @@ expression: json
             },
             "name": {
               "type": "string"
+            },
+            "template_fields": {
+              "description": "The fields its new elements start with (`category_template.*`).",
+              "items": {
+                "$ref": "#/$defs/FieldInfo"
+              },
+              "type": "array"
             },
             "trashed": {
               "type": "boolean"
@@ -1479,7 +1508,35 @@ expression: json
             "grid_x",
             "grid_y",
             "trashed",
-            "elements"
+            "elements",
+            "template_fields",
+            "has_element_template"
+          ],
+          "type": "object"
+        },
+        "FieldInfo": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "key": {
+              "type": "string"
+            },
+            "pos": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "key",
+            "value",
+            "pos"
           ],
           "type": "object"
         }
@@ -1708,6 +1765,61 @@ expression: json
       "type": "object"
     },
     "kind": "query",
+    "name": "category_template.body",
+    "output": {
+      "$defs": {
+        "TemplateParagraph": {
+          "description": "One paragraph of a body template.",
+          "properties": {
+            "heading": {
+              "description": "1, 2 or 3 for H1/H2/H3; omitted for body text.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "text": {
+              "default": "",
+              "type": "string"
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/TemplateParagraph"
+      },
+      "title": "Array_of_TemplateParagraph",
+      "type": "array"
+    },
+    "summary": "Read a category's element template: the paragraphs (body text or H1/H2/H3) its new elements start with."
+  },
+  {
+    "access": "read",
+    "concurrency": "shared",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "category"
+      ],
+      "title": "CategoryIn",
+      "type": "object"
+    },
+    "kind": "query",
     "name": "category_template.list",
     "output": {
       "$defs": {
@@ -1905,6 +2017,72 @@ expression: json
       "type": "object"
     },
     "summary": "Remove a field from a category's template. Existing elements keep theirs."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "TemplateParagraph": {
+          "description": "One paragraph of a body template.",
+          "properties": {
+            "heading": {
+              "description": "1, 2 or 3 for H1/H2/H3; omitted for body text.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "text": {
+              "default": "",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string"
+        },
+        "paragraphs": {
+          "description": "The whole template; empty removes it.",
+          "items": {
+            "$ref": "#/$defs/TemplateParagraph"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "book",
+        "category",
+        "paragraphs"
+      ],
+      "title": "SetBodyIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "category_template.set_body",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Replace a category's element template (the body its new elements start with; empty removes it). Existing elements keep their bodies."
   },
   {
     "access": "write",
@@ -3135,7 +3313,7 @@ expression: json
       "title": "Named",
       "type": "object"
     },
-    "summary": "Create an element (it starts with its category's template fields). A name or alias another element already has is refused (automatic links find people by name); the error names that element."
+    "summary": "Create an element (it starts with its category's template fields, and its element template as the body when no text is given). A name or alias another element already has is refused (automatic links find people by name); the error names that element."
   },
   {
     "access": "read",

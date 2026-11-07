@@ -4,7 +4,8 @@
 //! { "version": 1,
 //!   "device":  { "appearance.interface_text_size": "large", ... },
 //!   "account": { "appearance.theme": "dark", "keys.bindings": { ... }, ... },
-//!   "books":   { "<book id>": { "settings": { ... }, "layout": { ... } } },
+//!   "books":   { "<book id>": { "settings": { ... }, "layout": { ... },
+//!                               "export": { ... } } },
 //!   "last_book": "<book id>" }
 //! ```
 //!
@@ -14,6 +15,11 @@
 //! - Keys the registry does not know are kept as they are (a newer build's).
 //! - A book's local layout (its tabs, sidebars, view modes; loro-schema.md
 //!   「不进书目文档的：本机布局」) is kept under its book id, opaque here.
+//! - What the export dialog remembers (M41; the 0.1 client's
+//!   `drifting.manuscriptExport.v1`) is not a setting with a row: the
+//!   author's name is the account value `export.author`, each book's
+//!   choices its `export` entry. Not checked here either (dr-view-export
+//!   reads them).
 //! - Writes replace the file atomically (write a sibling, flush, rename), so
 //!   a crash leaves the old file or the new one. A file that cannot be read
 //!   is moved aside, never overwritten.
@@ -31,6 +37,10 @@ const VERSION: u64 = 1;
 pub const KEY_BINDINGS: &str = "keys.bindings";
 /// The top-level entry naming the book opened last.
 const LAST_BOOK: &str = "last_book";
+/// The account value: the author's name the export dialog last used.
+pub const EXPORT_AUTHOR: &str = "export.author";
+/// A book's entry: its export choices (format, title switches, title).
+const BOOK_EXPORT: &str = "export";
 
 #[derive(Debug)]
 pub struct SettingsFile {
@@ -222,6 +232,51 @@ impl SettingsFile {
         }
     }
 
+    /// The author's name the export dialog last used.
+    pub fn export_author(&self) -> Option<&str> {
+        self.scope_map(Scope::Account, None)?
+            .get(EXPORT_AUTHOR)?
+            .as_str()
+    }
+
+    /// Remembers the export's author name (empty forgets it).
+    pub fn set_export_author(&mut self, name: &str) -> bool {
+        if self.export_author().unwrap_or("") == name {
+            return false;
+        }
+        let account = object_at(&mut self.data, "account");
+        if name.is_empty() {
+            account.remove(EXPORT_AUTHOR);
+        } else {
+            account.insert(EXPORT_AUTHOR.into(), Value::from(name));
+        }
+        self.dirty = true;
+        true
+    }
+
+    /// Every book's remembered export choices (book id, as stored).
+    pub fn book_exports(&self) -> Vec<(String, Value)> {
+        let Some(books) = self.data.get("books").and_then(Value::as_object) else {
+            return Vec::new();
+        };
+        books
+            .iter()
+            .filter_map(|(id, entry)| Some((id.clone(), entry.get(BOOK_EXPORT)?.clone())))
+            .collect()
+    }
+
+    /// Remembers a book's export choices.
+    pub fn set_book_export(&mut self, book: &str, choices: Value) -> bool {
+        let books = object_at(&mut self.data, "books");
+        let entry = object_at(books, book);
+        if entry.get(BOOK_EXPORT) == Some(&choices) {
+            return false;
+        }
+        entry.insert(BOOK_EXPORT.into(), choices);
+        self.dirty = true;
+        true
+    }
+
     /// The book this device opened last (the workspace opens it again).
     pub fn last_book(&self) -> Option<&str> {
         self.data.get(LAST_BOOK)?.as_str()
@@ -387,5 +442,23 @@ mod tests {
         assert!(file.reset(THEME, None));
         assert!(!file.is_changed(theme, None));
         assert_eq!(file.get(THEME), "system");
+    }
+
+    #[test]
+    fn the_export_choices_are_kept_beside_the_settings() {
+        let mut file = SettingsFile::in_memory();
+        assert_eq!(file.export_author(), None);
+        assert!(file.set_export_author("沈知微"));
+        assert!(!file.set_export_author("沈知微"), "unchanged");
+        let choices =
+            serde_json::json!({"format": "pdf", "actTitles": true, "chapterTitles": false});
+        assert!(file.set_book_export("book-1", choices.clone()));
+        assert!(!file.set_book_export("book-1", choices.clone()));
+        assert_eq!(file.book_exports(), vec![("book-1".to_owned(), choices)]);
+        // The book's layout and settings live beside it, untouched.
+        file.set_layout("book-1", serde_json::json!({"x": 1}));
+        assert_eq!(file.book_exports().len(), 1);
+        assert!(file.set_export_author(""));
+        assert_eq!(file.export_author(), None);
     }
 }

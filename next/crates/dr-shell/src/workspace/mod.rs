@@ -19,6 +19,7 @@ mod dock;
 pub mod editors;
 pub mod find;
 pub mod outline;
+pub mod page_actions;
 mod review;
 mod sidebar;
 mod stage;
@@ -247,6 +248,18 @@ pub struct Workspace {
     editor_base: gpui_prose::ProseStyle,
     /// The page last recorded with F3's `recent.touch`.
     touched: Option<String>,
+    /// The page (its target key) opened with [`Open::at_title`]: its
+    /// editor does not get the keyboard when it opens.
+    title_first: Option<String>,
+    /// The outline rail's 「…」 whose list is open, and the timer that
+    /// closes it.
+    pub outline_reveal: Option<outline::Reveal>,
+    outline_reveal_close: Option<Task<()>>,
+    /// Node documents edited since their patches' sources were last
+    /// checked (`patch.check_sources`).
+    unchecked: std::collections::BTreeSet<String>,
+    /// The paragraph the caret was last in: its editor, chapter and line.
+    caret_paragraph: Option<(gpui::EntityId, usize, usize)>,
     /// The prose editor last given the keyboard, and its handle.
     focused_editor: Option<gpui::EntityId>,
     gave_focus: Option<FocusHandle>,
@@ -274,6 +287,9 @@ pub struct Workspace {
     /// The chapter panel's view: the whole book, not by storyline.
     pub chapters_by_book: bool,
     pub chapter_sort: chapter_sort::ChapterSort,
+    /// The chapter panel's folded groups (storyline ids, `unaffiliated`);
+    /// this window's, not stored.
+    pub folded: std::collections::HashSet<String>,
     /// The chapter panel whose sort menu is open (its pane's slug).
     pub chapter_sort_open: Option<String>,
     /// The page whose corner's ⋯ menu is open (its target key).
@@ -346,6 +362,11 @@ impl Workspace {
         ];
         let editor_settings = editors::editor_settings(cx);
         let editor_base = editors::base_style(&Theme::of(window, cx));
+        // F3 links the names its text commands write when the author's
+        // setting says so (自动要素链接).
+        if let Some(lib) = &library {
+            lib.set_auto_links(editor_settings.auto_entity_links);
+        }
         let mut ws = Workspace {
             focus,
             library,
@@ -357,6 +378,11 @@ impl Workspace {
             editor_settings,
             editor_base,
             touched: None,
+            title_first: None,
+            outline_reveal: None,
+            outline_reveal_close: None,
+            unchecked: Default::default(),
+            caret_paragraph: None,
             focused_editor: None,
             gave_focus: None,
             shown_pages: Vec::new(),
@@ -375,6 +401,7 @@ impl Workspace {
             chapters_by_book: false,
             chapter_sort: Default::default(),
             chapter_sort_open: None,
+            folded: Default::default(),
             corner_menu: None,
             super_view: None,
             settings: None,
@@ -451,10 +478,12 @@ impl Workspace {
         self.chapters_by_book = by_book;
         self.chapter_sort = sort;
         self.chapter_sort_open = None;
+        self.folded.clear();
         self.book_position = position;
         self.editors.clear();
         self.focused_editor = None;
         self.touched = None;
+        self.title_first = None;
     }
 
     // The book, from F3.
@@ -797,6 +826,57 @@ impl Workspace {
         cx.notify();
     }
 
+    /// The library is about to be swapped ([`crate::library::replace`]):
+    /// everything here that holds it goes (the open pages' editors, the
+    /// bookshelf, Project Home, search, snapshot history, the comment
+    /// composer, the subscription). The window's layout is stored first; a
+    /// dialog over it stays.
+    pub(crate) fn let_go_of_library(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.store_layout(cx);
+        self.editors.clear();
+        self.release_words(cx);
+        self.focused_editor = None;
+        self.gave_focus = None;
+        self.dimmed = None;
+        self.find = None;
+        self.search = None;
+        self.history = None;
+        self.composer = None;
+        self.corner_menu = None;
+        self.book_task = None;
+        self.book_stale = false;
+        self._library_events = None;
+        self.shelf = None;
+        self.shelf_open = false;
+        self.home = None;
+        self.library = None;
+        self.book_id = String::new();
+        self.book = Rc::new(Book::default());
+        self.focus.focus(window, cx);
+        cx.notify();
+    }
+
+    /// The swapped library ([`crate::library::replace`]): the window
+    /// follows its changes again and shows the bookshelf (without one, the
+    /// book opened last, or the library's first).
+    pub(crate) fn adopt_library(
+        &mut self,
+        lib: Library,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.library = Some(lib.clone());
+        self.listen_to_library(cx);
+        self.home = pages::make_home(cx.weak_entity(), window, cx);
+        if !self.show_shelf(window, cx) {
+            let last = Settings::read(cx).last_book().map(str::to_owned);
+            if let Some(book) = first_choice(&lib, last.as_deref()) {
+                self.open_book(&book, window, cx);
+            }
+        }
+        cx.notify();
+    }
+
     /// The red light: in a book it goes back to the bookshelf; on the
     /// bookshelf (or without one) it closes the window.
     fn listen_on_close(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -862,6 +942,9 @@ impl Workspace {
     // Navigation.
 
     pub fn open(&mut self, target: Target, how: Open, cx: &mut Context<Self>) {
+        if how.title {
+            self.title_first = Some(target.key());
+        }
         self.nav.open(target, how);
         self.changed(cx);
     }

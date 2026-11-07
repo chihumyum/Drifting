@@ -25,7 +25,7 @@
 
 - **入口**：只有章节和「通览全书」的 ⋯ 有这两行。旧版的构想、要素等页面的 ⋯ 也有「分享」；新版这些页面还没有 ⋯ 菜单（外壳只给章节画了），等它们有了再加同一组两行（`export_items`）。
 - **对话框放在外壳给别的 crate 用的对话框位置**（`Workspace::dialog`，M39 的反馈也在这里），外壳没有为导出新加字段。
-- **记住的选择只在这次运行里有效**：旧版存在 WebView 的 `localStorage`；新版的设置文件归 F6，没有为它加键，见「待协调」。
+- **记住的选择存在设置文件里**：旧版存在 WebView 的 `localStorage`；新版由外壳（F6 第六轮）存进设置文件，跨重启有效。
 - **保存面板从用户主目录开始**，建议的文件名是书名（旧版 `manuscriptFilename`：去掉文件名里不能用的字符，最多 35 个字）。
 - **PDF 用的字体**：旧版会先试作者在设置里选的编辑器字体；新版还没有这个设置，先按 `dr-export` 的系统字体链。
 - **`sync-locales.py` 修了一处**：按 `前缀.*` 整棵搬文案时，英文有 `_one`/`_other` 而中文只有不带后缀的键（`manuscriptExport.chapterCount`），原来会漏掉中文那一个，构建报「zh-CN.json lacks …_other」。现在整棵搬时也带上它（和逐个列出的键同一条规则，build.rs 本来就把它当作这门语言的 `_other`）。
@@ -79,8 +79,8 @@ dialog.markdown_mut().unwrap().copy(cx) / save(cx)
 
 ## 待协调
 
-1. **F6（外壳设置）**：导出记住的选择（作者名、每本书的格式、两个开关、改过的书名）现在只在这次运行里有效。要跨重启记住，需要在设置文件里给它几把键（旧版是 `localStorage` 的 `drifting.manuscriptExport.v1`）。
-2. **F6（⋯ 菜单）**：构想、要素、故事线、类目页还没有 ⋯ 菜单；有了以后在最上面加「分享」（调 `open_export(Request::Markdown(Doc("element:<id>")))` 这类，`export_items` 可以直接复用）。
+1. ~~**F6（外壳设置）**：导出记住的选择跨重启~~：**已做（F6 第六轮）**，外壳启动时从设置文件填 `Prefs`、`Prefs` 一变就写回：账号值 `export.author`，每本书的 `export`（`format`、`actTitles`、`chapterTitles`、`title`）。
+2. ~~**F6（⋯ 菜单）**：构想、要素、故事线、类目页最上面加「分享」~~：**已做（F6 第六轮）**，在外壳的 `workspace::page_actions` 里，⋯ 菜单和章节面板的悬停卡共用。
 3. **编辑器字体设置（F4 / F6）**：旧版 PDF 先试作者选的编辑器字体（`preferredFont`）；新版有这个设置以后传给 `read_manuscript` 的 `preferred_font`。
 4. **M41 下一轮**：`.driftingbook` v2、整库备份、导入 docx 和 Markdown 还没做；分享链接属于在线服务，不在这里。
 5. **dr-i18n**：`sync-locales.py` 的那处修复（见「定下的事」），请 dr-i18n 的维护者过目。
@@ -92,7 +92,7 @@ dialog.markdown_mut().unwrap().copy(cx) / save(cx)
 next/crates/dr-export/                             排版（旧版搬来）、Loro → 成稿、Markdown、封面、写文件
 next/crates/dr-view-export/src/manuscript.rs       「导出成稿」对话框
 next/crates/dr-view-export/src/markdown.rs         「分享 Markdown」对话框
-next/crates/dr-view-export/src/prefs.rs            记住的选择（这次运行）
+next/crates/dr-view-export/src/prefs.rs            记住的选择（外壳存进设置文件）
 next/crates/dr-shell/src/workspace/corner.rs       ⋯ 菜单的两行、通览全书的 ⋯、open_export
 next/crates/dr-i18n/keys.txt                       manuscriptExport.*、markdownShare.*（从旧版搬）
 next/crates/dr-i18n/script/sync-locales.py         整棵搬文案时带上没有复数形式的语言的那个键

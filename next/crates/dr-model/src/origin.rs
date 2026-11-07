@@ -119,10 +119,21 @@ impl Origin {
     }
 }
 
-/// Origin prefixes the editor's undo manager excludes (everything but
-/// `user`). Loro matches them as string prefixes.
+/// The Loro origin of the author's *commands* (command palette, the helper
+/// acting for the author, object-level undo). The same string as storage's
+/// `dr_store::COMMAND_ORIGIN`, written out because dr-model does not depend
+/// on dr-store; keep the two equal. Not an [`Origin`]: at the model layer a
+/// command is the author's write.
+pub const COMMAND_ORIGIN: &str = "user:command";
+
+/// Origin prefixes the editor's undo manager excludes: everything but the
+/// author's own typing (`user`). The author's commands are undone by the
+/// workspace's journal, so the editor's Undo leaves them out too. Loro
+/// matches these as string prefixes; `user` is a prefix of `user:command`,
+/// not the other way round, so the author's typing stays undoable.
 pub const UNDO_EXCLUDED_ORIGIN_PREFIXES: &[&str] = &[
     AGENT_PREFIX,
+    COMMAND_ORIGIN,
     "genesis",
     "mirror",
     "sync",
@@ -214,10 +225,12 @@ mod tests {
             );
         }
         assert!(Origin::User.author_undoable());
-        assert!(
-            !UNDO_EXCLUDED_ORIGIN_PREFIXES
+        let excluded = |s: &str| {
+            UNDO_EXCLUDED_ORIGIN_PREFIXES
                 .iter()
-                .any(|p| "user".starts_with(p))
-        );
+                .any(|p| s.starts_with(p))
+        };
+        assert!(!excluded("user"));
+        assert!(excluded(COMMAND_ORIGIN), "the author's commands");
     }
 }

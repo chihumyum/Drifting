@@ -67,6 +67,126 @@ pub const INVALID: &str = "backup-invalid";
 pub const LEGACY: &str = "backup-legacy";
 /// Made by a newer Drifting (newer format or schema): update the app first.
 pub const NEWER: &str = "backup-newer";
+/// The progress callback asked to stop ([`Progress`]).
+pub const CANCELLED: &str = "backup-cancelled";
+
+/// What a backup operation is doing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Step {
+    /// Export: a consistent copy of the database (not counted in bytes).
+    Snapshot,
+    /// Export: writing the package (the database copy and asset files).
+    Pack,
+    /// Checking: extracting every file and checking its checksum.
+    Extract,
+    /// Checking: the database's integrity, and its upgrade when the backup
+    /// is older (not counted in bytes).
+    Verify,
+    /// Restore: saving the current library first (as [`Step::Pack`]).
+    SaveCurrent,
+    /// Restore: copying the backup's asset files in.
+    CopyAssets,
+    /// Restore: replacing the database and opening it (not counted; no
+    /// longer cancellable).
+    Replace,
+}
+
+/// Where a backup operation is: the step, and bytes done of the step's
+/// total (`total` is 0 for a step not counted in bytes). Reported at each
+/// step's start, every [`REPORT_EVERY`] bytes and at its end.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Progress {
+    pub step: Step,
+    pub done: u64,
+    pub total: u64,
+}
+
+/// A progress callback: return `false` to cancel ([`CANCELLED`]). An export
+/// or a check cancelled leaves nothing behind; a restore can be cancelled
+/// until [`Step::Replace`], and the library is then as it was (asset files
+/// already added stay: they are only ever added).
+pub type ProgressFn<'a> = dyn FnMut(&Progress) -> bool + 'a;
+
+/// Bytes between two reports within a step.
+pub const REPORT_EVERY: u64 = 1024 * 1024;
+
+struct Reporter<'a, 'b> {
+    f: &'a mut ProgressFn<'b>,
+    at: Progress,
+    reported: u64,
+    cancellable: bool,
+}
+
+impl<'a, 'b> Reporter<'a, 'b> {
+    fn new(f: &'a mut ProgressFn<'b>) -> Self {
+        Self {
+            f,
+            at: Progress {
+                step: Step::Snapshot,
+                done: 0,
+                total: 0,
+            },
+            reported: 0,
+            cancellable: true,
+        }
+    }
+
+    fn emit(&mut self) -> Result<()> {
+        self.reported = self.at.done;
+        let go_on = (self.f)(&self.at);
+        if !go_on && self.cancellable {
+            return Err(bad(CANCELLED, "cancelled"));
+        }
+        Ok(())
+    }
+
+    fn step(&mut self, step: Step, total: u64) -> Result<()> {
+        if step == Step::Replace {
+            self.cancellable = false;
+        }
+        self.at = Progress {
+            step,
+            done: 0,
+            total,
+        };
+        self.emit()
+    }
+
+    fn add(&mut self, n: u64) -> Result<()> {
+        self.at.done += n;
+        if self.at.done - self.reported >= REPORT_EVERY
+            || (self.at.done >= self.at.total && self.reported < self.at.total)
+        {
+            return self.emit();
+        }
+        Ok(())
+    }
+}
+
+fn is_cancelled(e: &StoreError) -> bool {
+    matches!(e, StoreError::Backup { code, .. } if *code == CANCELLED)
+}
+
+/// Copy `from` to `to` through `out`, reporting each chunk.
+fn copy_reporting(
+    from: &mut impl Read,
+    to: &mut impl Write,
+    reporter: &mut Reporter<'_, '_>,
+) -> Result<u64> {
+    let mut buf = vec![0u8; 256 * 1024];
+    let mut copied = 0u64;
+    loop {
+        let n = match from.read(&mut buf) {
+            Ok(0) => return Ok(copied),
+            Ok(n) => n,
+            Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
+            Err(e) => return Err(e.into()),
+        };
+        to.write_all(&buf[..n])?;
+        copied += n as u64;
+        reporter.add(n as u64)?;
+    }
+}
 
 /// Pre-restore backups kept (the 0.1 number).
 pub const PRE_RESTORE_KEPT: usize = 3;
@@ -252,6 +372,7 @@ fn add_file<W: Write + Seek>(
     name: &str,
     source: &Path,
     method: CompressionMethod,
+    reporter: &mut Reporter<'_, '_>,
 ) -> Result<BackupFile> {
     let mut file = File::open(source)?;
     let len = file.metadata()?.len();
@@ -265,7 +386,7 @@ fn add_file<W: Write + Seek>(
         hasher: Sha256::new(),
         size: 0,
     };
-    io::copy(&mut file, &mut out)?;
+    copy_reporting(&mut file, &mut out, reporter)?;
     Ok(BackupFile {
         path: name.to_string(),
         sha256: hex(&out.hasher.finalize()),
@@ -282,6 +403,7 @@ fn write_package(
     destination: &Path,
     app_version: &str,
     book_names: &HashMap<String, String>,
+    (reporter, step): (&mut Reporter<'_, '_>, Step),
 ) -> Result<(BackupManifest, u64)> {
     type AssetRow = (String, String, String, String);
     let (migrations, library_id, books, documents, rows) = {
@@ -323,44 +445,58 @@ fn write_package(
             .collect::<rusqlite::Result<_>>()?;
         (migrations, library_id, books, documents as u64, rows)
     };
+    // Which files go in, and how many bytes in all, before writing any.
+    let mut missing_assets = 0u64;
+    let mut files: Vec<(String, PathBuf)> = Vec::new();
+    let mut total = fs::metadata(snapshot)?.len();
+    for (book, asset, variant, ext) in &rows {
+        let (Ok(book), Ok(asset), Ok(ext)) = (
+            sanitized_segment(book),
+            sanitized_segment(asset),
+            sanitized_extension(ext),
+        ) else {
+            missing_assets += 1;
+            continue;
+        };
+        let name = format!("{variant}.{ext}");
+        let file = assets_root.join(&book).join(&asset).join(&name);
+        reject_symlinks(assets_root, &book, &asset, Some(&file))?;
+        match fs::symlink_metadata(&file) {
+            Ok(m) if m.is_file() => total += m.len(),
+            Ok(_) => {
+                missing_assets += 1;
+                continue;
+            }
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                missing_assets += 1;
+                continue;
+            }
+            Err(e) => return Err(e.into()),
+        }
+        files.push((format!("{ASSETS_PREFIX}{book}/{asset}/{name}"), file));
+    }
     ensure_parent_directory(destination)?;
     let temporary = temporary_sibling(destination)?;
     let written = (|| -> Result<BackupManifest> {
+        reporter.step(step, total)?;
         let mut zip = ZipWriter::new(File::create(&temporary)?);
         let database = add_file(
             &mut zip,
             DATABASE_PATH,
             snapshot,
             CompressionMethod::Deflated,
+            reporter,
         )?;
         let mut assets = Vec::new();
-        let mut missing_assets = 0u64;
-        for (book, asset, variant, ext) in &rows {
-            let (Ok(book), Ok(asset), Ok(ext)) = (
-                sanitized_segment(book),
-                sanitized_segment(asset),
-                sanitized_extension(ext),
-            ) else {
-                missing_assets += 1;
-                continue;
-            };
-            let name = format!("{variant}.{ext}");
-            let file = assets_root.join(&book).join(&asset).join(&name);
-            reject_symlinks(assets_root, &book, &asset, Some(&file))?;
-            match fs::symlink_metadata(&file) {
-                Ok(m) if m.is_file() => {}
-                Ok(_) => {
+        for (path, file) in &files {
+            match add_file(&mut zip, path, file, CompressionMethod::Stored, reporter) {
+                Ok(f) => assets.push(f),
+                // Deleted since it was counted.
+                Err(StoreError::Io(e)) if e.kind() == io::ErrorKind::NotFound => {
                     missing_assets += 1;
-                    continue;
                 }
-                Err(e) if e.kind() == io::ErrorKind::NotFound => {
-                    missing_assets += 1;
-                    continue;
-                }
-                Err(e) => return Err(e.into()),
+                Err(e) => return Err(e),
             }
-            let path = format!("{ASSETS_PREFIX}{book}/{asset}/{name}");
-            assets.push(add_file(&mut zip, &path, &file, CompressionMethod::Stored)?);
         }
         let manifest = BackupManifest {
             format: FORMAT.into(),
@@ -416,19 +552,35 @@ impl Library {
         destination: &Path,
         book_names: &HashMap<String, String>,
     ) -> Result<BackupSummary> {
+        self.export_backup_with(destination, book_names, &mut |_| true)
+    }
+
+    /// [`Self::export_backup`], reporting [`Progress`] ([`Step::Snapshot`],
+    /// [`Step::Pack`]); cancelled, nothing is left at `destination`.
+    pub fn export_backup_with(
+        &self,
+        destination: &Path,
+        book_names: &HashMap<String, String>,
+        progress: &mut ProgressFn<'_>,
+    ) -> Result<BackupSummary> {
+        let mut reporter = Reporter::new(progress);
         let paths = self.paths();
         let dir = paths.root.join(EXPORT_DIR);
         fs::create_dir_all(&dir)?;
         let snapshot = dir.join(format!("{}.sqlite", token()));
-        let result = snapshot_database(&paths.db, &snapshot).and_then(|()| {
-            write_package(
-                &snapshot,
-                &paths.assets,
-                destination,
-                &self.options().app_version,
-                book_names,
-            )
-        });
+        let result = reporter
+            .step(Step::Snapshot, 0)
+            .and_then(|()| snapshot_database(&paths.db, &snapshot))
+            .and_then(|()| {
+                write_package(
+                    &snapshot,
+                    &paths.assets,
+                    destination,
+                    &self.options().app_version,
+                    book_names,
+                    (&mut reporter, Step::Pack),
+                )
+            });
         let _ = fs::remove_file(&snapshot);
         let _ = fs::remove_dir(&dir);
         let (manifest, size) = result?;
@@ -444,6 +596,19 @@ impl Library {
         staged: &StagedBackup,
         options: LibraryOptions,
     ) -> Result<(Library, RestoreOutcome)> {
+        Self::restore_staged_with(root, staged, options, &mut |_| true)
+    }
+
+    /// [`Self::restore_staged`], reporting [`Progress`]
+    /// ([`Step::SaveCurrent`], [`Step::CopyAssets`], [`Step::Replace`]);
+    /// cancellable until [`Step::Replace`], the library then as it was.
+    pub fn restore_staged_with(
+        root: impl Into<PathBuf>,
+        staged: &StagedBackup,
+        options: LibraryOptions,
+        progress: &mut ProgressFn<'_>,
+    ) -> Result<(Library, RestoreOutcome)> {
+        let mut reporter = Reporter::new(progress);
         let paths = LibraryPaths::new(root);
         if fs::canonicalize(&paths.root)? != fs::canonicalize(&staged.root)? {
             return Err(StoreError::invalid(
@@ -474,8 +639,9 @@ impl Library {
             )?;
         }
         sync_file(&candidate)?;
-        let pre_restore = save_pre_restore(&paths, &staged.dir, &options)?;
-        merge_assets(&staged.dir, &paths.assets, &manifest)?;
+        let pre_restore = save_pre_restore(&paths, &staged.dir, &options, &mut reporter)?;
+        merge_assets(&staged.dir, &paths.assets, &manifest, &mut reporter)?;
+        reporter.step(Step::Replace, 0)?;
         migrate::remove_sidecars(&paths.db)?;
         durable_replace_file(&candidate, &paths.db)?;
         let summary = staged.summary.clone();
@@ -521,6 +687,7 @@ fn save_pre_restore(
     paths: &LibraryPaths,
     staging: &Path,
     options: &LibraryOptions,
+    reporter: &mut Reporter<'_, '_>,
 ) -> Result<Option<PathBuf>> {
     if !fs::metadata(&paths.db).is_ok_and(|m| m.is_file() && m.len() > 0) {
         return Ok(None);
@@ -542,17 +709,20 @@ fn save_pre_restore(
             &package,
             &options.app_version,
             &HashMap::new(),
+            (&mut *reporter, Step::SaveCurrent),
         )
         .map(|_| ())
     })();
     let _ = fs::remove_file(&snapshot);
     let saved = match packaged {
         Ok(()) => package,
+        Err(e) if is_cancelled(&e) => return Err(e),
         Err(e) => {
             log::warn!(
                 "the current library could not be packaged before a restore ({e}); keeping its raw database"
             );
             let raw = dir.join(format!("{stamp}.sqlite"));
+            reporter.step(Step::SaveCurrent, 0)?;
             atomic_copy_capped(&paths.db, &raw, DATABASE_LIMIT)?;
             let wal = paths.db.with_file_name("library.sqlite-wal");
             if wal.is_file() {
@@ -603,7 +773,16 @@ fn retain_pre_restore(dir: &Path) -> Result<()> {
 /// Copy the staged asset files into the asset store without removing
 /// anything. Asset ids are immutable, so an existing derivative is kept and
 /// an existing source replaced only when it no longer matches the backup.
-fn merge_assets(staging: &Path, assets_root: &Path, manifest: &BackupManifest) -> Result<()> {
+fn merge_assets(
+    staging: &Path,
+    assets_root: &Path,
+    manifest: &BackupManifest,
+    reporter: &mut Reporter<'_, '_>,
+) -> Result<()> {
+    reporter.step(
+        Step::CopyAssets,
+        manifest.assets.iter().map(|a| a.size_bytes).sum(),
+    )?;
     if manifest.assets.is_empty() {
         return Ok(());
     }
@@ -626,6 +805,7 @@ fn merge_assets(staging: &Path, assets_root: &Path, manifest: &BackupManifest) -
                     || file_sha256(&target)
                         .is_ok_and(|(sha, size)| sha == asset.sha256 && size == asset.size_bytes);
                 if keep {
+                    reporter.add(asset.size_bytes)?;
                     continue;
                 }
             }
@@ -634,6 +814,7 @@ fn merge_assets(staging: &Path, assets_root: &Path, manifest: &BackupManifest) -
         }
         atomic_copy_capped(&staging.join(&asset.path), &target, ASSET_FILE_LIMIT)?;
         touched.insert(book.to_string());
+        reporter.add(asset.size_bytes)?;
     }
     for book in touched {
         let _ = sync_directory(&assets_root.join(book));
@@ -648,6 +829,18 @@ fn merge_assets(staging: &Path, assets_root: &Path, manifest: &BackupManifest) -
 /// open. Errors are [`StoreError::Backup`] (codes [`INVALID`], [`LEGACY`],
 /// [`NEWER`]) or I/O.
 pub fn stage(root: impl Into<PathBuf>, package: &Path, app_version: &str) -> Result<StagedBackup> {
+    stage_with(root, package, app_version, &mut |_| true)
+}
+
+/// [`stage`], reporting [`Progress`] ([`Step::Extract`], [`Step::Verify`]);
+/// cancelled, nothing is left staged.
+pub fn stage_with(
+    root: impl Into<PathBuf>,
+    package: &Path,
+    app_version: &str,
+    progress: &mut ProgressFn<'_>,
+) -> Result<StagedBackup> {
+    let mut reporter = Reporter::new(progress);
     let root = root.into();
     let base = root.join(STAGING_DIR);
     match fs::remove_dir_all(&base) {
@@ -657,7 +850,7 @@ pub fn stage(root: impl Into<PathBuf>, package: &Path, app_version: &str) -> Res
     }
     let dir = base.join(token());
     fs::create_dir_all(&dir)?;
-    match stage_into(package, &dir, app_version) {
+    match stage_into(package, &dir, app_version, &mut reporter) {
         Ok(summary) => Ok(StagedBackup { root, dir, summary }),
         Err(e) => {
             let _ = fs::remove_dir_all(&base);
@@ -721,6 +914,7 @@ fn extract_verified<R: Read + Seek>(
     archive: &mut ZipArchive<R>,
     expected: &BackupFile,
     destination: &Path,
+    reporter: &mut Reporter<'_, '_>,
 ) -> Result<()> {
     let mut entry = archive
         .by_name(&expected.path)
@@ -738,8 +932,15 @@ fn extract_verified<R: Read + Seek>(
         hasher: Sha256::new(),
         size: 0,
     };
-    io::copy(&mut (&mut entry).take(expected.size_bytes + 1), &mut out)
-        .map_err(|e| bad(INVALID, format!("{} cannot be read: {e}", expected.path)))?;
+    copy_reporting(
+        &mut (&mut entry).take(expected.size_bytes + 1),
+        &mut out,
+        reporter,
+    )
+    .map_err(|e| match e {
+        StoreError::Io(e) => bad(INVALID, format!("{} cannot be read: {e}", expected.path)),
+        other => other,
+    })?;
     if out.size != expected.size_bytes || hex(&out.hasher.finalize()) != expected.sha256 {
         return Err(bad(
             INVALID,
@@ -750,7 +951,12 @@ fn extract_verified<R: Read + Seek>(
     Ok(())
 }
 
-fn stage_into(package: &Path, dir: &Path, app_version: &str) -> Result<BackupSummary> {
+fn stage_into(
+    package: &Path,
+    dir: &Path,
+    app_version: &str,
+    reporter: &mut Reporter<'_, '_>,
+) -> Result<BackupSummary> {
     let file = File::open(package)?;
     let package_bytes = file.metadata()?.len();
     let mut archive = ZipArchive::new(file)
@@ -770,11 +976,16 @@ fn stage_into(package: &Path, dir: &Path, app_version: &str) -> Result<BackupSum
         ));
     }
     let candidate = dir.join(DATABASE_PATH);
-    extract_verified(&mut archive, &manifest.database, &candidate)?;
+    reporter.step(
+        Step::Extract,
+        manifest.database.size_bytes + manifest.assets.iter().map(|a| a.size_bytes).sum::<u64>(),
+    )?;
+    extract_verified(&mut archive, &manifest.database, &candidate, reporter)?;
     for asset in &manifest.assets {
-        extract_verified(&mut archive, asset, &dir.join(&asset.path))?;
+        extract_verified(&mut archive, asset, &dir.join(&asset.path), reporter)?;
     }
     drop(archive);
+    reporter.step(Step::Verify, 0)?;
 
     let applied = {
         let conn = Connection::open(&candidate)

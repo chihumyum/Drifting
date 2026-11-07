@@ -806,8 +806,8 @@ impl<'a> BookView<'a> {
         };
         Some(PlotGrid {
             chapter: chapter.clone(),
-            cell_w: clamp(f.f64("cell_w"), &PLOT_CELL_W, 184.0),
-            cell_h: clamp(f.f64("cell_h"), &PLOT_CELL_H, 96.0),
+            cell_w: clamp(f.f64("cell_w"), &PLOT_CELL_W, PLOT_DEFAULT_CELL.0),
+            cell_h: clamp(f.f64("cell_h"), &PLOT_CELL_H, PLOT_DEFAULT_CELL.1),
             rows,
             cols,
             cells,
@@ -833,7 +833,12 @@ impl<'a> BookView<'a> {
             author_kind: f.kind("author_kind").unwrap_or(CommentAuthorKind::User),
             author: f.opt_string("author"),
             author_name: f.opt_string("author_name"),
-            body: f.string("body"),
+            // A TODO projected from a marker has no body text until the
+            // author edits it: its body is the marker's text then (written
+            // by the seed, `book::seed`).
+            body: f
+                .opt_string("body")
+                .unwrap_or_else(|| f.string("projection_text")),
             status: f.kind("status").unwrap_or(CommentStatus::Open),
             priority: f.kind("priority"),
             source: f.kind("source").unwrap_or(CommentSource::Manual),
@@ -1034,8 +1039,9 @@ impl<'a> BookView<'a> {
 
     /// Whether the prose document `doc` still has its owner in this book (a
     /// node, element, storyline, category or text material that exists, the
-    /// trash included). Storage drops prose documents without one; they
-    /// appear when a purge races an edit on another device.
+    /// trash included; for a template, its category or storyline). Storage
+    /// drops prose documents without one; they appear when a purge races an
+    /// edit on another device.
     pub fn owns_prose(&self, doc: &DocId) -> bool {
         let has = |root: &str, id: &str| self.doc.get_map(root).get(id).is_some();
         match doc {
@@ -1046,6 +1052,11 @@ impl<'a> BookView<'a> {
             DocId::Category(id) => has(book::CATEGORIES, id.as_str()),
             DocId::Material(id) => entity(self.doc, book::MATERIALS, id.as_str())
                 .is_some_and(|v| F(&v).str("kind").is_none_or(|k| k == "text")),
+            DocId::Template(id) => match id.owner() {
+                Some(TemplateOwner::Category(c)) => has(book::CATEGORIES, c.as_str()),
+                Some(TemplateOwner::Storyline(s)) => has(book::STORYLINES, s.as_str()),
+                None => false,
+            },
         }
     }
 

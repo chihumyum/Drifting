@@ -633,11 +633,27 @@ fn left_header(
             };
             let sorter = cx.entity();
             let pane_key = slug.to_owned();
+            // The folding fan (by storyline only), drawn as a press will
+            // leave the groups: shut while all are open.
+            let fan = (!by_book).then(|| {
+                let folder = cx.entity();
+                IconButton::new(
+                    SharedString::from(format!("chapter-fold-{slug}")),
+                    if ws.folded.is_empty() {
+                        Icon::FoldingFanClosed
+                    } else {
+                        Icon::FoldingFan
+                    },
+                )
+                .label(t(cx, keys::left_sidebar::actions::COLLAPSE_ALL))
+                .on_click(move |_, _, cx| folder.update(cx, |ws, cx| ws.fold_all(cx)))
+            });
             div()
                 .size_full()
                 .flex()
                 .items_center()
                 .child(summary)
+                .children(fan)
                 .child(
                     div().relative().child(overlay::probe(sort_bounds)).child(
                         IconButton::new(
@@ -785,6 +801,10 @@ enum Row {
         structure: bool,
         /// A chapter's readout on the right (its date, its word count).
         meta: Option<SharedString>,
+        /// A storyline's group folds (the chapter panel by storyline).
+        fold: Option<Fold>,
+        /// Its hover card shows what can be done to it (the chapter panel).
+        card: bool,
     },
     /// A group's heading that opens nothing (未归属, 未分类, an idea group,
     /// a material folder).
@@ -794,7 +814,92 @@ enum Row {
         mark: Option<sand::Kind>,
         color: Option<Rgb>,
         depth: usize,
+        fold: Option<Fold>,
     },
+}
+
+/// A group that folds (the 0.1 client's `GroupHeaderCell`): its id in
+/// [`Workspace::folded`], whether it is folded, how many it holds.
+#[derive(Clone, Debug)]
+struct Fold {
+    id: SharedString,
+    folded: bool,
+    count: usize,
+}
+
+/// The id of the 未归属 group among the folded ones.
+const LOOSE_GROUP: &str = "unaffiliated";
+
+impl Workspace {
+    /// Folds or opens one group of the chapter panel.
+    pub fn toggle_fold(&mut self, group: &str, cx: &mut Context<Self>) {
+        if !self.folded.remove(group) {
+            self.folded.insert(group.to_owned());
+        }
+        cx.notify();
+    }
+
+    /// The folding fan: folds every group, or opens them all when any is
+    /// folded.
+    pub fn fold_all(&mut self, cx: &mut Context<Self>) {
+        if self.folded.is_empty() {
+            self.folded = self
+                .book
+                .storylines
+                .iter()
+                .map(|s| s.id.clone())
+                .chain([LOOSE_GROUP.to_owned()])
+                .collect();
+        } else {
+            self.folded.clear();
+        }
+        cx.notify();
+    }
+}
+
+/// A group's count and its chevron at the end of its row: the chevron
+/// folds or opens it (and only that: the row's own click is not run).
+fn fold_tail(
+    id: &SharedString,
+    fold: &Fold,
+    ws: &gpui::Entity<Workspace>,
+    theme: &Theme,
+) -> [AnyElement; 2] {
+    let p = theme.palette;
+    let count = div()
+        .flex_none()
+        .font_role(Role::Index)
+        .type_px(theme.scale.caption, theme.scale.line_caption)
+        .text_color(p.muted().solid())
+        .child(fold.count.to_string())
+        .into_any_element();
+    let (ws, group) = (ws.clone(), fold.id.to_string());
+    let chevron = div()
+        .id(ElementId::Name(format!("{id}-fold").into()))
+        .flex_none()
+        .size(px(16.0))
+        .flex()
+        .items_center()
+        .justify_center()
+        .cursor_pointer()
+        .role(gpui::Role::Button)
+        .aria_expanded(!fold.folded)
+        .child(sand::icon(
+            if fold.folded {
+                Icon::ChevronRight
+            } else {
+                Icon::ChevronDown
+            },
+            11.0,
+            p.ink(3).solid(),
+        ))
+        .on_click(move |_, _, cx| {
+            cx.stop_propagation();
+            let group = group.clone();
+            ws.update(cx, |ws, cx| ws.toggle_fold(&group, cx));
+        })
+        .into_any_element();
+    [count, chevron]
 }
 
 /// A sidebar list: every row is one cell high, so only the rows on screen
@@ -810,6 +915,13 @@ fn rows_view(
     let book = ws.book.clone();
     let current = ws.nav.current().cloned();
     let entity = cx.entity();
+    // What a hover card's rows are made with.
+    let host = crate::pages::PageMenuHost {
+        workspace: entity.downgrade(),
+        library: ws.library.clone(),
+        book_id: ws.book_id.clone(),
+        book: book.clone(),
+    };
     let list_id = id.clone();
     uniform_list(ElementId::Name(id), rows.len(), move |range, window, cx| {
         let theme = Theme::of(window, cx);
@@ -823,31 +935,46 @@ fn rows_view(
                         depth,
                         structure,
                         meta,
-                    } => cell(
-                        format!("{list_id}-{group}-{}", target.key()).into(),
-                        &book,
-                        target.clone(),
-                        *depth,
-                        *structure,
-                        meta.clone(),
-                        current.as_ref() == Some(target),
-                        &entity,
-                        wash,
-                        &theme,
-                        cx,
-                    ),
+                        fold,
+                        card,
+                    } => {
+                        let id: SharedString = format!("{list_id}-{group}-{}", target.key()).into();
+                        let el = cell(
+                            id.clone(),
+                            &book,
+                            target.clone(),
+                            *depth,
+                            *structure,
+                            meta.clone(),
+                            fold.as_ref(),
+                            current.as_ref() == Some(target),
+                            &entity,
+                            wash,
+                            &theme,
+                            cx,
+                        );
+                        if *card {
+                            hover_card(id, el, target, &entity, &host)
+                        } else {
+                            el
+                        }
+                    }
                     Row::Heading {
                         key,
                         label,
                         mark,
                         color,
                         depth,
+                        fold,
                     } => heading(
                         format!("{list_id}-{key}").into(),
                         label.clone(),
                         *mark,
                         *color,
                         *depth,
+                        fold.as_ref(),
+                        &entity,
+                        &theme,
                     ),
                 };
                 div().pb(px(ROW_GAP)).child(row)
@@ -877,12 +1004,14 @@ fn cell(
     depth: usize,
     structure: bool,
     meta: Option<SharedString>,
+    fold: Option<&Fold>,
     selected: bool,
     ws: &gpui::Entity<Workspace>,
     wash: gpui::Hsla,
     theme: &Theme,
     cx: &App,
 ) -> AnyElement {
+    let tail = fold.map(|f| fold_tail(&id, f, ws, theme));
     let (mark, color) = book.mark(&target);
     let label = super::title_of(book, &target, cx);
     let entity = ws.clone();
@@ -906,6 +1035,7 @@ fn cell(
         .selected(selected)
         .font(if structure { Role::Structure } else { Role::Ui })
         .children(readout)
+        .children(tail.into_iter().flatten())
         .on_click(move |e, _, cx| {
             let how = if e.click_count() > 1 {
                 Open::KEEP
@@ -937,21 +1067,193 @@ fn cell(
         .into_any_element()
 }
 
+#[allow(clippy::too_many_arguments)]
 fn heading(
     id: SharedString,
     label: SharedString,
     mark: Option<sand::Kind>,
     color: Option<Rgb>,
     depth: usize,
+    fold: Option<&Fold>,
+    ws: &gpui::Entity<Workspace>,
+    theme: &Theme,
 ) -> AnyElement {
-    let mut cell = SandCell::new(ElementId::Name(id), label)
+    let tail = fold.map(|f| fold_tail(&id, f, ws, theme));
+    let mut cell = SandCell::new(ElementId::Name(id.clone()), label)
         .color_opt(color)
         .font(Role::Structure)
-        .disabled(true);
+        .disabled(true)
+        .children(tail.into_iter().flatten());
     if let Some(mark) = mark {
         cell = cell.mark(mark);
     }
-    indented(depth, cell.into_any_element())
+    // A heading that folds folds on a click anywhere on it.
+    let el = match fold {
+        Some(fold) => {
+            let (ws, group) = (ws.clone(), fold.id.to_string());
+            div()
+                .id(ElementId::Name(format!("{id}-toggle").into()))
+                .cursor_pointer()
+                .on_click(move |_, _, cx| {
+                    let group = group.clone();
+                    ws.update(cx, |ws, cx| ws.toggle_fold(&group, cx));
+                })
+                .child(cell)
+                .into_any_element()
+        }
+        None => cell.into_any_element(),
+    };
+    indented(depth, el)
+}
+
+/// A chapter panel row with its hover card: what the page can do (the same
+/// rows as its ⋯ menu), under its name, words, storylines and summary.
+fn hover_card(
+    id: SharedString,
+    el: AnyElement,
+    target: &Target,
+    ws: &gpui::Entity<Workspace>,
+    host: &crate::pages::PageMenuHost,
+) -> AnyElement {
+    let (target, ws, host) = (target.clone(), ws.clone(), host.clone());
+    let card_id = id.clone();
+    dr_ui::components::HoverCard::new(
+        ElementId::Name(format!("{id}-card").into()),
+        el,
+        move |window, cx| card_body(&card_id, &target, &ws, &host, window, cx),
+    )
+    .into_any_element()
+}
+
+/// Words as the 0.1 client wrote them (`toLocaleString`): 12,345.
+fn grouped(n: u64) -> String {
+    let digits = n.to_string();
+    let mut out = String::new();
+    for (i, c) in digits.chars().enumerate() {
+        if i > 0 && (digits.len() - i).is_multiple_of(3) {
+            out.push(',');
+        }
+        out.push(c);
+    }
+    out
+}
+
+/// A page's hover card (the 0.1 client's `EntityHoverCard`): a chapter's
+/// words, its storylines (the primary first) and summary; a storyline's
+/// chapters and words, its summary. Then its actions.
+fn card_body(
+    id: &SharedString,
+    target: &Target,
+    ws: &gpui::Entity<Workspace>,
+    host: &crate::pages::PageMenuHost,
+    window: &mut Window,
+    cx: &mut App,
+) -> AnyElement {
+    use dr_ui::components::{CardAction, CardBody};
+    let theme = Theme::of(window, cx);
+    let p = theme.palette;
+    let book = &host.book;
+    let (mark, color) = book.mark(target);
+    let mut body = CardBody::new(
+        ElementId::Name(format!("{id}-body").into()),
+        super::title_of(book, target, cx),
+    )
+    .mark(mark, color);
+    match target {
+        Target::Chapter(chapter) => {
+            if let Some(c) = book.chapters.iter().find(|c| c.id == chapter.as_str()) {
+                body = body.count(tf(
+                    cx,
+                    keys::node_editor::meta::WORDS,
+                    &[("count", &grouped(c.words))],
+                ));
+                let mut on: Vec<&dr_workspace::dto::StorylineInfo> = c
+                    .storylines
+                    .iter()
+                    .filter_map(|s| book.storylines.iter().find(|x| &x.id == s))
+                    .collect();
+                on.sort_by_key(|s| Some(&s.id) != c.primary_storyline.as_ref());
+                let line = if on.is_empty() {
+                    div()
+                        .text_color(p.muted().solid())
+                        .child(t(cx, keys::node_editor::empty::NO_STORYLINE))
+                } else {
+                    div().flex().flex_row().flex_wrap().gap(px(8.0)).children(
+                        on.into_iter().enumerate().map(|(i, s)| {
+                            let ink = if i == 0 { p.ink(2) } else { p.muted() };
+                            div()
+                                .flex()
+                                .flex_row()
+                                .items_center()
+                                .gap(px(4.0))
+                                .text_color(ink.solid())
+                                .child({
+                                    let mark = sand::KindMark::new(
+                                        ElementId::Name(format!("{id}-sl-{}", s.id).into()),
+                                        sand::Kind::Storyline,
+                                    )
+                                    .scale(0.7);
+                                    match crate::book::color_of(&s.color) {
+                                        Some(c) => mark.color(c),
+                                        None => mark,
+                                    }
+                                })
+                                .child(s.name.clone())
+                        }),
+                    )
+                };
+                body = body.meta(line);
+                if !c.summary.trim().is_empty() {
+                    body = body.summary(c.summary.clone());
+                }
+            }
+        }
+        Target::Storyline(storyline) => {
+            if let Some(s) = book.storylines.iter().find(|s| s.id == storyline.as_str()) {
+                let chapters: Vec<_> = book.chapters_of(&s.id).collect();
+                let words: u64 = chapters.iter().map(|c| c.words).sum();
+                body = body.count(format!(
+                    "{} · {}",
+                    tf(
+                        cx,
+                        keys::storyline_editor::meta::CHAPTERS,
+                        &[("count", &chapters.len())]
+                    ),
+                    tf(
+                        cx,
+                        keys::storyline_editor::meta::K_WORDS,
+                        &[("count", &format!("{:.1}", words as f64 / 1000.0))]
+                    ),
+                ));
+                if !s.summary.trim().is_empty() {
+                    body = body.summary(s.summary.clone());
+                }
+            }
+        }
+        _ => {}
+    }
+    for section in super::page_actions::page_actions(ws, host, target, cx) {
+        let rows = section
+            .items
+            .into_iter()
+            .map(|item| {
+                let run = item.run.clone();
+                let mut action = CardAction::new(
+                    ElementId::Name(format!("{id}-{}", item.id).into()),
+                    item.icon,
+                    item.label,
+                )
+                .current(item.checked)
+                .on_click(move |_, window, cx| run(window, cx));
+                if item.danger {
+                    action = action.danger();
+                }
+                action.into_any_element()
+            })
+            .collect();
+        body = body.section(rows);
+    }
+    body.into_any_element()
 }
 
 fn indented(depth: usize, el: AnyElement) -> AnyElement {
@@ -988,6 +1290,8 @@ fn open_row(target: Option<Target>, group: &str, depth: usize, structure: bool) 
         depth,
         structure,
         meta: None,
+        fold: None,
+        card: false,
     })
 }
 
@@ -1004,8 +1308,12 @@ fn chapter_row(
         depth,
         false,
     )?;
-    if let (Row::Cell { meta: slot, .. }, Some(meta)) = (&mut row, meta) {
-        *slot = chapter_sort::readout(chapter, meta).map(SharedString::from);
+    if let Row::Cell {
+        meta: slot, card, ..
+    } = &mut row
+    {
+        *slot = meta.and_then(|meta| chapter_sort::readout(chapter, meta).map(SharedString::from));
+        *card = true;
     }
     Some(row)
 }
@@ -1027,16 +1335,19 @@ fn heading_row(
         mark,
         color,
         depth,
+        fold: None,
     }
 }
 
 /// The rows of a left panel.
+#[allow(clippy::too_many_arguments)]
 fn left_rows(
     tab: LeftTab,
     book: &Book,
     by_book: bool,
     sort: ChapterSort,
     show_meta: bool,
+    folded: &std::collections::HashSet<String>,
     theme: &Theme,
     cx: &App,
 ) -> Vec<Row> {
@@ -1091,35 +1402,55 @@ fn left_rows(
                     });
                 }
                 for (_, sl) in storylines {
-                    rows.extend(open_row(
-                        sl.id.parse().ok().map(Target::Storyline),
-                        "sl",
-                        0,
-                        true,
-                    ));
                     let on = book.chapters_of(&sl.id).filter(|c| {
                         !sort.primary_only || c.primary_storyline.as_deref() == Some(&sl.id)
                     });
-                    rows.extend(
-                        chapter_sort::sort_inner(on, sort.inner)
-                            .into_iter()
-                            .filter_map(|c| chapter_row(c, &sl.id, 1, meta)),
-                    );
+                    let chapters = chapter_sort::sort_inner(on, sort.inner);
+                    let is_folded = folded.contains(&sl.id);
+                    let mut head =
+                        open_row(sl.id.parse().ok().map(Target::Storyline), "sl", 0, true);
+                    if let Some(Row::Cell { fold, card, .. }) = &mut head {
+                        *fold = Some(Fold {
+                            id: sl.id.clone().into(),
+                            folded: is_folded,
+                            count: chapters.len(),
+                        });
+                        *card = true;
+                    }
+                    rows.extend(head);
+                    if !is_folded {
+                        rows.extend(
+                            chapters
+                                .into_iter()
+                                .filter_map(|c| chapter_row(c, &sl.id, 1, meta)),
+                        );
+                    }
                 }
                 let loose: Vec<_> = book.unaffiliated().collect();
                 if !loose.is_empty() {
-                    rows.push(heading_row(
-                        "unaffiliated",
+                    let is_folded = folded.contains(LOOSE_GROUP);
+                    let mut head = heading_row(
+                        LOOSE_GROUP,
                         t(cx, keys::left_sidebar::groups::UNAFFILIATED),
                         Some(sand::Kind::Storyline),
                         Some(theme.palette.ink(4)),
                         0,
-                    ));
-                    rows.extend(
-                        chapter_sort::sort_inner(loose.into_iter(), sort.inner)
-                            .into_iter()
-                            .filter_map(|c| chapter_row(c, "loose", 1, meta)),
                     );
+                    if let Row::Heading { fold, .. } = &mut head {
+                        *fold = Some(Fold {
+                            id: LOOSE_GROUP.into(),
+                            folded: is_folded,
+                            count: loose.len(),
+                        });
+                    }
+                    rows.push(head);
+                    if !is_folded {
+                        rows.extend(
+                            chapter_sort::sort_inner(loose.into_iter(), sort.inner)
+                                .into_iter()
+                                .filter_map(|c| chapter_row(c, "loose", 1, meta)),
+                        );
+                    }
                 }
             }
         }
@@ -1239,6 +1570,7 @@ fn left_body(
         ws.chapters_by_book,
         ws.chapter_sort,
         show_meta,
+        &ws.folded,
         &theme,
         cx,
     );

@@ -345,3 +345,70 @@ fn time_pins_label_bind_move_delete() {
     assert_eq!(ids(&list), [p, bound]);
     assert_eq!(list[1]["idea"], json!(idea));
 }
+
+#[test]
+fn a_purged_book_does_not_come_back_with_sync() {
+    use dr_workspace::Actor;
+    use loro::ExportMode;
+    let a = env();
+    let z = env();
+    let b = a.book();
+    chapter(&a, &b, "One", "text");
+    // Both devices have the book.
+    let docs: Vec<_> = a.ws().library().docs(None, None).unwrap();
+    let export = |e: &Env, doc: &str| {
+        e.ws()
+            .library()
+            .load_copy(doc)
+            .unwrap()
+            .export(ExportMode::all_updates())
+            .unwrap()
+    };
+    for d in &docs {
+        let book = d.book_id.clone().unwrap_or_default();
+        assert!(
+            z.ws()
+                .import_remote(
+                    &d.doc_id,
+                    Some((&d.kind, &book)),
+                    export(&a, &d.doc_id),
+                    &Actor::Sync
+                )
+                .unwrap()
+        );
+    }
+    // A deletes it for good; Z's copy then arrives at A.
+    a.call("book.trash", json!({"book": b}));
+    a.call("book.purge", json!({"book": b}));
+    assert!(a.ws().library().book_purged(&b).unwrap());
+    for d in &docs {
+        let book = d.book_id.clone().unwrap_or_default();
+        let imported = a
+            .ws()
+            .import_remote(
+                &d.doc_id,
+                Some((&d.kind, &book)),
+                export(&z, &d.doc_id),
+                &Actor::Sync,
+            )
+            .unwrap();
+        assert!(!imported, "{} stays deleted", d.doc_id);
+    }
+    assert!(a.ws().library().docs(Some(&b), None).unwrap().is_empty());
+    assert!(ids(&a.out("book.shelf", json!({"trashed": true}))).is_empty());
+    // Bringing it back on purpose forgets the records first.
+    a.ws().library().forget_purged_book(&b).unwrap();
+    let book_doc = format!("book:{b}");
+    let d = docs.iter().find(|d| d.doc_id == book_doc).unwrap();
+    assert!(
+        a.ws()
+            .import_remote(
+                &book_doc,
+                Some((&d.kind, &b)),
+                export(&z, &book_doc),
+                &Actor::Sync
+            )
+            .unwrap()
+    );
+    assert_eq!(ids(&a.out("book.shelf", json!({"trashed": true}))), [b]);
+}

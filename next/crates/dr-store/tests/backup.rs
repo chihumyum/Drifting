@@ -328,13 +328,14 @@ fn an_older_backup_is_upgraded_while_staged() {
         .unwrap();
     {
         // Written by this build, then taken back to the older schema: the
-        // later migrations only add tables (and move one setting).
+        // later migrations only add tables and an index (and move one
+        // setting).
         let lib = open(&old_root);
         create_in(&lib, "node:a", "book-1", "旧版写的");
         lib.close().unwrap();
         let conn = rusqlite::Connection::open(old_root.join("library.sqlite")).unwrap();
         conn.execute_batch(
-            "DROP TABLE local_state; DROP TABLE purged_doc;
+            "DROP TABLE local_state; DROP TABLE purged_doc; DROP INDEX reference_by_book;
              INSERT INTO library_meta (key, value) VALUES ('ws.recent', '[7]');",
         )
         .unwrap();
@@ -470,5 +471,135 @@ fn a_backup_restores_into_an_empty_folder() {
     assert_eq!(body(&lib, "node:a"), "带过来的\n");
     let a1 = lib.asset("asset-1", Variant::Source).unwrap().unwrap();
     assert_eq!(fs::read(&a1.path).unwrap(), b"\x89PNG one");
+    lib.close().unwrap();
+}
+
+/// Every report of `seen`, as (step, done, total); checks each step's
+/// bytes only go up and end at its total.
+fn steps(seen: &[backup::Progress]) -> Vec<backup::Step> {
+    let mut out: Vec<backup::Step> = Vec::new();
+    for (i, p) in seen.iter().enumerate() {
+        assert!(p.done <= p.total || p.total == 0, "{p:?}");
+        if out.last() != Some(&p.step) {
+            out.push(p.step);
+        } else {
+            assert!(p.done >= seen[i - 1].done, "{p:?} after {:?}", seen[i - 1]);
+        }
+        let last_of_step = seen.get(i + 1).is_none_or(|n| n.step != p.step);
+        if last_of_step {
+            assert_eq!(p.done, p.total, "{p:?} ends its step");
+        }
+    }
+    out
+}
+
+/// Progress for the backup dialog: each operation's steps in order, bytes
+/// reported along the way (every MiB) and ending at the step's total.
+#[test]
+fn backups_report_their_progress_step_by_step() {
+    use backup::Step::*;
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("library");
+    let files = tempfile::tempdir().unwrap();
+    // An asset of 3 MiB, so the packing reports more than once.
+    let big = files.path().join("big.png");
+    let mut rng = common::synthetic::Rng::new(5);
+    let bytes: Vec<u8> = (0..3 * 1024 * 1024).map(|_| rng.next_u64() as u8).collect();
+    fs::write(&big, &bytes).unwrap();
+    let lib = open(&root);
+    create_in(&lib, "node:a", "book-1", "进度");
+    lib.import_asset(&SourceImport {
+        limit: 8 * 1024 * 1024,
+        ..source("book-1", "asset-1", &big)
+    })
+    .unwrap();
+    let package = files.path().join("b.drifting");
+    let mut seen = Vec::new();
+    lib.export_backup_with(&package, &HashMap::new(), &mut |p| {
+        seen.push(*p);
+        true
+    })
+    .unwrap();
+    assert_eq!(steps(&seen), [Snapshot, Pack]);
+    let pack: Vec<_> = seen.iter().filter(|p| p.step == Pack).collect();
+    assert!(pack.len() >= 4, "{pack:?}");
+    assert!(pack[0].total > bytes.len() as u64);
+
+    let mut seen = Vec::new();
+    let staged = backup::stage_with(&root, &package, VERSION, &mut |p| {
+        seen.push(*p);
+        true
+    })
+    .unwrap();
+    assert_eq!(steps(&seen), [Extract, Verify]);
+    assert!(seen[0].total > bytes.len() as u64);
+
+    lib.close().unwrap();
+    let mut seen = Vec::new();
+    let (lib, _) = Library::restore_staged_with(&root, &staged, options(), &mut |p| {
+        seen.push(*p);
+        true
+    })
+    .unwrap();
+    assert_eq!(steps(&seen), [SaveCurrent, CopyAssets, Replace]);
+    let copy = seen.iter().find(|p| p.step == CopyAssets).unwrap();
+    assert_eq!(copy.total, bytes.len() as u64);
+    lib.close().unwrap();
+}
+
+/// Cancelling leaves nothing behind: no package, nothing staged, the
+/// library as it was (and the staged backup still restorable); once the
+/// database is being replaced, a restore no longer stops.
+#[test]
+fn a_cancelled_backup_leaves_nothing_behind() {
+    use backup::Step::*;
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("library");
+    let files = tempfile::tempdir().unwrap();
+    let png = files.path().join("a.png");
+    fs::write(&png, b"\x89PNG one").unwrap();
+    let lib = open(&root);
+    create_in(&lib, "node:a", "book-1", "原文");
+    lib.import_asset(&source("book-1", "asset-1", &png))
+        .unwrap();
+    let cancelled =
+        |e: StoreError| matches!(e, StoreError::Backup { code, .. } if code == backup::CANCELLED);
+
+    let out = files.path().join("out");
+    fs::create_dir_all(&out).unwrap();
+    let package = out.join("b.drifting");
+    let e = lib
+        .export_backup_with(&package, &HashMap::new(), &mut |p| p.step != Pack)
+        .unwrap_err();
+    assert!(cancelled(e));
+    assert_eq!(
+        fs::read_dir(&out).unwrap().count(),
+        0,
+        "no package, no part file"
+    );
+    assert!(!root.join("export-staging").exists());
+
+    lib.export_backup(&package, &HashMap::new()).unwrap();
+    let e = backup::stage_with(&root, &package, VERSION, &mut |p| p.step != Verify).unwrap_err();
+    assert!(cancelled(e));
+    assert!(!root.join("restore-staging").exists());
+
+    let h = lib.open_doc("node:a", OpenDoc::Existing).unwrap();
+    insert(&h, Origin::User, 0, "后来");
+    h.close();
+    let staged = backup::stage(&root, &package, VERSION).unwrap();
+    lib.close().unwrap();
+    let db = sha256_file(&root.join("library.sqlite"));
+    let e = Library::restore_staged_with(&root, &staged, options(), &mut |p| p.step != CopyAssets)
+        .err()
+        .expect("cancelled");
+    assert!(cancelled(e));
+    assert_eq!(sha256_file(&root.join("library.sqlite")), db);
+    // Asking to stop while the database is replaced changes nothing: it
+    // finishes.
+    let (lib, _) =
+        Library::restore_staged_with(&root, &staged, options(), &mut |p| p.step != Replace)
+            .unwrap();
+    assert_eq!(body(&lib, "node:a"), "原文\n");
     lib.close().unwrap();
 }

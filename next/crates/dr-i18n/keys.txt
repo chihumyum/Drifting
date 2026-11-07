@@ -331,7 +331,6 @@ projectPicker.desk.trashTitle
 projectPicker.desk.form.createTitle
 projectPicker.desk.form.editTitle
 projectPicker.desk.form.nameLabel
-projectPicker.desk.form.summaryLabel
 projectPicker.desk.trashList.title
 projectPicker.desk.trashList.empty
 projectPicker.form.namePlaceholder
@@ -476,7 +475,6 @@ common.wordsCount
 
 # M10 the 0.1 library import (dr-view-import)
 common.processing
-common.wordsCount
 projectPicker.projectCount
 projectPicker.desk.importing
 projectPicker.bookTransfer.importFailedTitle
@@ -486,7 +484,6 @@ importDialog.summary.done
 agentPanel.pending.cancelling
 settings.hosted.connect_errors.cancelled
 
-common.delete
 commentRail.actions.toNote
 commentRail.actions.toTodo
 reviewPanel.sourceFloating
@@ -573,3 +570,73 @@ categoryEditor.empty.noFilteredElements
 categoryEditor.actions.openElement
 storylineEditor.labels.color
 storylineEditor.filters.all
+
+# Settings → 本地数据: back up and restore the library (the dialogs are
+# dr-text's, behind workspace::BackupLibrary / RestoreLibrary)
+settings.sync.backup.exportTitle
+settings.sync.backup.exportDesc
+settings.sync.backup.exportButton
+settings.sync.backup.restoreTitle
+settings.sync.backup.restoreDesc
+settings.sync.backup.restoreButton
+
+# The chapter panel's folding fan and its rows' hover cards (M04)
+leftSidebar.actions.collapseAll
+nodeEditor.empty.noStoryline
+storylineEditor.meta.chapters
+storylineEditor.meta.kWords
+
+# M11 round two: the element dialogs and the elements panel
+elementEditor.category.newOption
+elementEditor.group.title
+elementEditor.group.placeholder
+elementEditor.group.noGroup
+elementEditor.group.empty
+elementEditor.group.create
+elementEditor.alerts.groupUpdateFailed
+elementEditor.alerts.deleteFailed
+elementEditor.deleteConfirm
+categoryEditor.deleteConfirm
+categoryEditor.alerts.deleteFailed
+editorTopBar.menu.changeCategory
+editorTopBar.menu.changeGroup
+editorTopBar.menu.deleteElement
+editorTopBar.menu.deleteCategory
+storyGraph.edge.create
+leftSidebar.actions.newCategory
+leftSidebar.viewMode.elementCompactTitle
+leftSidebar.viewMode.elementListTitle
+leftSidebar.sort.categoryElements
+leftSidebar.sort.outerCategoriesGroup
+leftSidebar.groups.renameElementGroupTitle
+leftSidebar.groups.addElementToGroup
+elementCategoryCreateMenu.openCreateMenu
+elementCategoryCreateMenu.title
+elementCategoryCreateMenu.newElement
+elementCategoryCreateMenu.newGroup
+elementCategoryCreateMenu.groupTitle
+elementCategoryCreateMenu.groupNameLabel
+elementCategoryCreateMenu.groupNamePlaceholder
+elementCategoryCreateMenu.duplicateGroup
+elementCategoryCreateMenu.createGroup
+elementCategoryCreateMenu.back
+
+# M13 the storyline page (dr-view-elements)
+storylineEditor.untitled
+storylineEditor.folio
+storylineEditor.deleteConfirm
+storylineEditor.alerts.deleteFailed
+storylineEditor.summaryPlaceholder
+storylineEditor.sections.scratch
+storylineEditor.sections.facts
+storylineEditor.sections.chapters
+storylineEditor.meta.chaptersWords
+storylineEditor.filters.written
+storylineEditor.filters.unwritten
+storylineEditor.empty.noFacts
+storylineEditor.empty.noChapterSummary
+storylineEditor.empty.noFilteredChapters
+storylineEditor.actions.openChapter
+editorTopBar.menu.deleteStoryline
+common.confirm
+common.words

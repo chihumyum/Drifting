@@ -243,6 +243,8 @@ pub fn writing_device_key(installation_id: &str) -> String {
 pub struct Device {
     dir: PathBuf,
     installation_id: Arc<RwLock<String>>,
+    /// This machine's fingerprint (`None` where the platform has none).
+    machine: Option<String>,
     machine_changed: bool,
 }
 
@@ -260,7 +262,8 @@ impl Device {
         let dir = dir.into();
         let mut installation_id = load_or_create_installation_id(&dir)?;
         let mut machine_changed = false;
-        if let Some(fingerprint) = raw.as_deref().map(machine_fingerprint) {
+        let machine = raw.as_deref().map(machine_fingerprint);
+        if let Some(fingerprint) = machine.clone() {
             match read_binding(&dir)? {
                 Some(b) if b.installation_id == installation_id && b.machine == fingerprint => {}
                 Some(b) if b.installation_id == installation_id => {
@@ -280,6 +283,7 @@ impl Device {
         Ok(Self {
             dir,
             installation_id: Arc::new(RwLock::new(installation_id)),
+            machine,
             machine_changed,
         })
     }
@@ -311,6 +315,15 @@ impl Device {
             .read()
             .unwrap_or_else(|e| e.into_inner())
             .clone()
+    }
+
+    /// The fingerprint of the machine this device runs on (a salted digest,
+    /// never the raw id); `None` where the platform has none. A library
+    /// records it next to the installation id, so a copy moved to another
+    /// machine is noticed even when both machines took over the same 0.1
+    /// installation id.
+    pub fn machine(&self) -> Option<&str> {
+        self.machine.as_deref()
     }
 
     pub fn writing_device_key(&self) -> String {
