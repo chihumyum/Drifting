@@ -25,6 +25,7 @@ const SOURCES: &[(&str, &str)] = &[
     ("src/index.rs", include_str!("index.rs")),
     ("src/lib.rs", include_str!("lib.rs")),
     ("src/library.rs", include_str!("library.rs")),
+    ("src/machine.rs", include_str!("machine.rs")),
     ("src/migrate.rs", include_str!("migrate.rs")),
     ("src/origin.rs", include_str!("origin.rs")),
     ("src/synthetic.rs", include_str!("synthetic.rs")),
