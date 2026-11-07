@@ -1031,6 +1031,26 @@ impl Library {
         Ok(r)
     }
 
+    /// The device this library was opened with takes over the 0.1
+    /// installation id of a library it is importing (M10,
+    /// [`Device::take_over`]), so its writing days continue under the 0.1
+    /// device key, at once. The library records the id as the one that
+    /// opened it last, so its next open sees the same device (no new epoch).
+    /// `Ok(false)`: opened without a device, or already that id. Another
+    /// library this device opened before sees another installation the next
+    /// time it opens, and starts a new epoch.
+    pub fn adopt_installation_id(&self, installation_id: &str) -> Result<bool> {
+        let Some(device) = &self.inner.options.device else {
+            return Ok(false);
+        };
+        let conn = self.inner.writer();
+        if !device.take_over(installation_id)? {
+            return Ok(false);
+        }
+        set_meta(&conn, "installation_id", installation_id)?;
+        Ok(true)
+    }
+
     /// [`Self::local_transaction`] that also announces what changed: `f`
     /// records each change with [`LocalTx::changed`], and once the
     /// transaction has committed every change goes out on the bus (nothing
@@ -1246,18 +1266,19 @@ fn check_device(
     device: &Device,
     library_id: &str,
 ) -> Result<Option<EpochChange>> {
+    let installation_id = device.installation_id();
     let recorded = meta(conn, "installation_id")?;
     let write_seq: i64 = meta(conn, "write_seq")?
         .and_then(|v| v.parse().ok())
         .unwrap_or(0);
     let watermark = device.watermark(library_id)?;
     let change = match (&recorded, watermark) {
-        (Some(id), _) if id != device.installation_id() => Some(EpochChange::OtherDevice),
+        (Some(id), _) if *id != installation_id => Some(EpochChange::OtherDevice),
         (_, Some(mark)) if write_seq < mark => Some(EpochChange::OlderCopy),
         _ => None,
     };
-    if recorded.as_deref() != Some(device.installation_id()) {
-        set_meta(conn, "installation_id", device.installation_id())?;
+    if recorded.as_deref() != Some(installation_id.as_str()) {
+        set_meta(conn, "installation_id", &installation_id)?;
     }
     if let Some(mark) = watermark
         && write_seq < mark

@@ -31,6 +31,7 @@ use std::collections::BTreeMap;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, RwLock};
 
 use crate::digest::hex;
 use crate::error::{Result, StoreError};
@@ -96,7 +97,12 @@ fn write_binding(dir: &Path, installation_id: &str, machine: &str) -> Result<()>
 /// Replace the installation id with a new one (same file format as 0.1,
 /// owner-only), durably. Returns the new id.
 fn replace_installation_id(dir: &Path) -> Result<String> {
-    let id = random_id()?;
+    write_installation_id(dir, &random_id()?)
+}
+
+/// Write `id` over the installation id (same file format as 0.1,
+/// owner-only), durably. Returns the id as read back.
+fn write_installation_id(dir: &Path, id: &str) -> Result<String> {
     let path = dir.join(IDENTITY_FILE);
     let temporary = dir.join(format!(".{id}.tmp"));
     let result = (|| {
@@ -110,7 +116,7 @@ fn replace_installation_id(dir: &Path) -> Result<String> {
         let mut file = options.open(&temporary)?;
         let bytes = serde_json::to_vec(&Identity {
             version: 2,
-            installation_id: id.clone(),
+            installation_id: id.to_string(),
         })
         .map_err(|e| invalid(&e.to_string()))?;
         file.write_all(&bytes)?;
@@ -230,10 +236,13 @@ pub fn writing_device_key(installation_id: &str) -> String {
 
 /// The device directory: where the identity and the library watermarks live
 /// (the app's local data directory, outside every library).
+///
+/// Clones share the installation id: after [`Self::take_over`] every clone
+/// (the library's options among them) reads the new one.
 #[derive(Clone, Debug)]
 pub struct Device {
     dir: PathBuf,
-    installation_id: String,
+    installation_id: Arc<RwLock<String>>,
     machine_changed: bool,
 }
 
@@ -270,7 +279,7 @@ impl Device {
         }
         Ok(Self {
             dir,
-            installation_id,
+            installation_id: Arc::new(RwLock::new(installation_id)),
             machine_changed,
         })
     }
@@ -297,12 +306,51 @@ impl Device {
         &self.dir
     }
 
-    pub fn installation_id(&self) -> &str {
-        &self.installation_id
+    pub fn installation_id(&self) -> String {
+        self.installation_id
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
     }
 
     pub fn writing_device_key(&self) -> String {
-        writing_device_key(&self.installation_id)
+        writing_device_key(&self.installation_id())
+    }
+
+    /// Take over `installation_id` in place of the current one: the 0.1
+    /// installation id of a library this device wrote and is importing (M10),
+    /// so that its writing days continue under the 0.1 device key. Unlike
+    /// [`Self::adopt`] it replaces an existing identity, but only the one
+    /// this device holds: when the file changed underneath (another process
+    /// replaced it), nothing is written and it fails. The machine binding is
+    /// left as it is; the next [`Self::open`] binds the new id to this
+    /// machine. Every clone reads the new id at once. Returns whether the id
+    /// changed. Use [`crate::Library::adopt_installation_id`], which also
+    /// records it in the library.
+    pub fn take_over(&self, installation_id: &str) -> Result<bool> {
+        if !valid_installation_id(installation_id) {
+            return Err(invalid("not an installation id"));
+        }
+        let mut current = self
+            .installation_id
+            .write()
+            .unwrap_or_else(|e| e.into_inner());
+        if *current == installation_id {
+            return Ok(false);
+        }
+        let on_disk = read_identity(&self.dir.join(IDENTITY_FILE))?;
+        if on_disk != *current {
+            return Err(invalid(
+                "the installation identity changed underneath; not replaced",
+            ));
+        }
+        let written = write_installation_id(&self.dir, installation_id)?;
+        if written != installation_id {
+            return Err(invalid("the installation identity did not take"));
+        }
+        log::info!("this device takes over a 0.1 installation id (writing days continue under it)");
+        *current = written;
+        Ok(true)
     }
 
     fn watermarks(&self) -> Result<BTreeMap<String, i64>> {
@@ -453,7 +501,7 @@ mod tests {
         let identity = read_0_1_style(dir.path());
         assert_eq!(
             (identity.version, identity.installation_id.as_str()),
-            (2, b.installation_id())
+            (2, b.installation_id().as_str())
         );
         #[cfg(unix)]
         {
@@ -551,5 +599,31 @@ mod tests {
             Device::open(dir.path()).unwrap().watermark("lib").unwrap(),
             Some(10)
         );
+    }
+
+    #[test]
+    fn a_device_takes_over_a_0_1_installation_id_in_place() {
+        let dir = tempfile::tempdir().unwrap();
+        let device = Device::open_with_machine_id(dir.path(), Some("MACHINE-A".into())).unwrap();
+        let first = device.installation_id();
+        let clone = device.clone();
+        let old = format!("install-{}", "cd".repeat(32));
+        assert!(device.take_over(&old).unwrap());
+        // Every clone reads it, the file holds it, its key is the 0.1 one.
+        assert_eq!(clone.installation_id(), old);
+        assert_eq!(clone.writing_device_key(), writing_device_key(&old));
+        assert_eq!(load_or_create_installation_id(dir.path()).unwrap(), old);
+        assert!(!device.take_over(&old).unwrap(), "already");
+        // The next open binds it to this machine: the same device.
+        let again = Device::open_with_machine_id(dir.path(), Some("MACHINE-A".into())).unwrap();
+        assert_eq!(again.installation_id(), old);
+        assert!(!again.machine_changed());
+        assert_ne!(first, old);
+        // Not an id, or a file replaced underneath: nothing written.
+        assert!(device.take_over("install-zz").is_err());
+        let other = format!("install-{}", "ef".repeat(32));
+        write_installation_id(dir.path(), &other).unwrap();
+        assert!(device.take_over(&first).is_err());
+        assert_eq!(load_or_create_installation_id(dir.path()).unwrap(), other);
     }
 }

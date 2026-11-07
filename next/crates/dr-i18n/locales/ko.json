@@ -1,4 +1,9 @@
 {
+  "agentPanel": {
+    "pending": {
+      "cancelling": "중지 중…"
+    }
+  },
   "allChapters": {
     "actOrdinal": "제{{n}}막"
   },
@@ -437,6 +442,11 @@
       "about": "정보",
       "control": "관리",
       "preferences": "환경설정"
+    },
+    "hosted": {
+      "connect_errors": {
+        "cancelled": "취소했습니다."
+      }
     },
     "keys": {
       "actions": {

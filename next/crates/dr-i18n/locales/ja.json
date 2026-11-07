@@ -1,4 +1,9 @@
 {
+  "agentPanel": {
+    "pending": {
+      "cancelling": "停止中…"
+    }
+  },
   "allChapters": {
     "actOrdinal": "第{{n}}幕"
   },
@@ -437,6 +442,11 @@
       "about": "このアプリについて",
       "control": "管理",
       "preferences": "環境設定"
+    },
+    "hosted": {
+      "connect_errors": {
+        "cancelled": "取り消しました。"
+      }
     },
     "keys": {
       "actions": {

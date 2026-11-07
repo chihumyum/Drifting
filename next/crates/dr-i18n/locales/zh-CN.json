@@ -1,4 +1,9 @@
 {
+  "agentPanel": {
+    "pending": {
+      "cancelling": "正在停止…"
+    }
+  },
   "allChapters": {
     "actOrdinal": "第{{n}}幕"
   },
@@ -432,6 +437,11 @@
       "about": "关于",
       "control": "控制",
       "preferences": "偏好"
+    },
+    "hosted": {
+      "connect_errors": {
+        "cancelled": "已取消。"
+      }
     },
     "keys": {
       "actions": {

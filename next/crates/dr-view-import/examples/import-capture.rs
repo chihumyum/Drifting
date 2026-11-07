@@ -105,7 +105,7 @@ struct Headless {
 }
 
 impl Headless {
-    fn new(appearance: Appearance) -> Result<Headless> {
+    fn new(appearance: Appearance, locale: &str) -> Result<Headless> {
         let text_system = gpui_platform::current_platform(true).text_system();
         let mut cx = HeadlessAppContext::with_platform(
             text_system,
@@ -126,12 +126,8 @@ impl Headless {
                 forced_appearance: Some(appearance),
             };
             let mut file = SettingsFile::in_memory();
-            file.set(
-                dr_shell::settings::registry::UI_LOCALE,
-                "zh-CN".into(),
-                None,
-            )
-            .ok();
+            file.set(dr_shell::settings::registry::UI_LOCALE, locale.into(), None)
+                .ok();
             let services = Services {
                 library: Some(library),
                 ..Services::default()
@@ -284,9 +280,31 @@ fn capture(fixtures: PathBuf, modules: PathBuf) -> Result<()> {
     let report = recorded_report(&sample)?;
     let nothing = old.path().join("empty-folder");
     std::fs::create_dir_all(&nothing)?;
+    // A 0.1 data folder as the app finds it: `sample-stale` is its `legacy`
+    // library, `sample` its `local` one.
+    let base = old.path().join("cc.drifting.client");
+    copy_dir(&stale, &base)?;
+    copy_dir(&sample, &base.join("libraries").join("local"))?;
+    std::fs::write(
+        base.join("libraries.json"),
+        r#"{"version":1,"active":"local","libraries":{"legacy":{"owner":{"kind":"local"}},"local":{"owner":{"kind":"local"}}}}"#,
+    )?;
 
     for (appearance, suffix) in [(Appearance::Light, "light"), (Appearance::Dark, "dark")] {
-        let mut h = Headless::new(appearance)?;
+        let mut h = Headless::new(appearance, "zh-CN")?;
+
+        // The local 0.1 libraries, to pick from.
+        let dir = base.clone();
+        h.on_import(move |i, window, cx| {
+            i.look_in(Some(dir));
+            i.choose(window, cx);
+        });
+        h.settle()?;
+        let State::Found(_) = h.state() else {
+            bail!("the 0.1 libraries were not listed: {:?}", h.state());
+        };
+        h.save(&out, &format!("import-list-{suffix}.png"))?;
+        h.on_import(|i, window, cx| i.close(window, cx));
 
         // The gate: the library without the handoff.
         let folder = stale.clone();
@@ -311,14 +329,23 @@ fn capture(fixtures: PathBuf, modules: PathBuf) -> Result<()> {
         h.save(&out, &format!("import-shelf-{suffix}.png"))?;
 
         // The progress, held still at a recorded report.
-        let running = State::Running(Running {
-            folder: "sample".into(),
-            accept: dr_import_v1::gate::Accept::NOTHING,
-            progress: Some(report.clone()),
-        });
-        h.on_import(move |i, window, cx| i.show(running, window, cx));
+        let running = |cancelling| {
+            State::Running(Running {
+                folder: "sample".into(),
+                accept: dr_import_v1::gate::Accept::NOTHING,
+                progress: Some(report.clone()),
+                cancelling,
+            })
+        };
+        let state = running(false);
+        h.on_import(move |i, window, cx| i.show(state, window, cx));
         h.settle()?;
         h.save(&out, &format!("import-progress-{suffix}.png"))?;
+        // 「取消」 pressed: the book is finished first.
+        let state = running(true);
+        h.on_import(move |i, window, cx| i.show(state, window, cx));
+        h.settle()?;
+        h.save(&out, &format!("import-stopping-{suffix}.png"))?;
         h.on_import(|i, window, cx| i.show(State::Idle, window, cx));
 
         // A folder without a 0.1 library.
@@ -329,6 +356,15 @@ fn capture(fixtures: PathBuf, modules: PathBuf) -> Result<()> {
         };
         h.save(&out, &format!("import-failed-{suffix}.png"))?;
     }
+
+    // The gate in English: longer kind labels stay on one line.
+    let mut h = Headless::new(Appearance::Light, "en")?;
+    let folder = stale.clone();
+    h.on_import(move |i, window, cx| i.start(folder, window, cx));
+    let State::Blocked(_) = h.settled()? else {
+        bail!("sample-stale was not stopped: {:?}", h.state());
+    };
+    h.save(&out, "import-gate-en-light.png")?;
     Ok(())
 }
 

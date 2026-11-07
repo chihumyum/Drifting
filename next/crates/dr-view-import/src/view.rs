@@ -25,7 +25,7 @@ use gpui::{
 };
 
 use crate::copy;
-use crate::flow::{Blocked, Done, Failed, LegacyImport, Running, State};
+use crate::flow::{Blocked, Done, Failed, Found, LegacyImport, Running, State, now_ms};
 
 /// Where the dialogs say they come from (the product and its version are not
 /// translated, as on the bookshelf's entry).
@@ -38,6 +38,7 @@ impl Render for LegacyImport {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let dialog = match &self.state {
             State::Idle | State::Picking => None,
+            State::Found(f) => Some(found(f, window, cx)),
             State::Running(r) => Some(running(r, window, cx)),
             State::Blocked(b) => Some(blocked(b, window, cx)),
             State::Done(d) => Some(done(d, window, cx)),
@@ -128,6 +129,12 @@ fn running(r: &Running, window: &mut Window, cx: &mut Context<LegacyImport>) -> 
     });
     let share = p.map(|p| p.overall as f32);
     let percent = (share.unwrap_or(0.0) * 100.0).floor() as u32;
+    let doing = if r.cancelling {
+        t(cx, keys::agent_panel::pending::CANCELLING)
+    } else {
+        t(cx, keys::project_picker::desk::IMPORTING)
+    };
+    let entity = cx.entity();
     Dialog::new("legacy-import-running", t(cx, keys::user_menu::IMPORT))
         .eyebrow(EYEBROW)
         .subtitle(r.folder.clone())
@@ -155,13 +162,92 @@ fn running(r: &Running, window: &mut Window, cx: &mut Context<LegacyImport>) -> 
                 .flex_row()
                 .items_baseline()
                 .gap(px(8.0))
-                .child(quiet(
-                    t(cx, keys::project_picker::desk::IMPORTING),
-                    window,
-                    cx,
-                ))
+                .child(quiet(doing, window, cx))
                 .child(index(format!("{percent}%"), window, cx)),
         )
+        .action(
+            Button::new("legacy-import-stop", t(cx, keys::common::CANCEL))
+                .text()
+                .disabled(r.cancelling)
+                .busy(r.cancelling)
+                .on_click(move |_, _, cx| entity.update(cx, |import, cx| import.cancel(cx))),
+        )
+        .into_any_element()
+}
+
+// The 0.1 libraries on this device.
+
+fn found(f: &Found, window: &mut Window, cx: &mut Context<LegacyImport>) -> AnyElement {
+    let theme = Theme::of(window, cx);
+    let p = theme.palette;
+    let entity = cx.entity();
+    let now = now_ms();
+    let mut rows = div()
+        .id("legacy-import-found")
+        .max_h(px(LIST_MAX_H))
+        .overflow_y_scroll()
+        .flex()
+        .flex_col()
+        .py(px(4.0))
+        .border_t(px(0.5))
+        .border_b(px(0.5))
+        .border_color(p.hairline());
+    for (i, library) in f.libraries.iter().enumerate() {
+        let when = library
+            .modified_ms
+            .map(|at| dr_view_shelf::format::ago(at, now, cx));
+        let entity = entity.clone();
+        rows = rows.child(
+            div()
+                .id(("legacy-import-library", i))
+                .flex()
+                .flex_row()
+                .items_baseline()
+                .gap(px(12.0))
+                .px(px(8.0))
+                .py(px(8.0))
+                .cursor_pointer()
+                .hover(|el| el.bg(p.ink(1).alpha(0.05)))
+                .on_click(move |_, window, cx| {
+                    entity.update(cx, |import, cx| import.pick(i, window, cx))
+                })
+                .child(
+                    div()
+                        .text_color(p.ink(1).solid())
+                        .child(t(cx, keys::common::LOCAL)),
+                )
+                .child(div().flex_1().min_w_0().truncate().child(index(
+                    library.folder.clone(),
+                    window,
+                    cx,
+                )))
+                .children(when.map(|w| index(w, window, cx))),
+        );
+    }
+    let close = closer(cx);
+    Dialog::new("legacy-import-found", t(cx, keys::user_menu::IMPORT))
+        .eyebrow(EYEBROW)
+        .width(WIDTH)
+        .body(rows)
+        .action(
+            Button::new(
+                "legacy-import-folder",
+                t(cx, keys::import_dialog::CHOOSE_FOLDER),
+            )
+            .text()
+            .on_click(move |_, window, cx| {
+                entity.update(cx, |import, cx| import.choose_folder(window, cx))
+            }),
+        )
+        .action(
+            Button::new("legacy-import-found-cancel", t(cx, keys::common::CANCEL))
+                .text()
+                .on_click({
+                    let close = close.clone();
+                    move |_, window, cx| close(window, cx)
+                }),
+        )
+        .on_close(close)
         .into_any_element()
 }
 
@@ -243,11 +329,15 @@ fn blocked(b: &Blocked, window: &mut Window, cx: &mut Context<LegacyImport>) -> 
                     .flex_row()
                     .items_baseline()
                     .gap(px(10.0))
-                    .child(div().w(px(44.0)).flex_none().child(index(
-                        kind_label(body, cx),
-                        window,
-                        cx,
-                    )))
+                    // At least as wide as two CJK characters, wider for a
+                    // longer label; never wrapped.
+                    .child(
+                        div()
+                            .min_w(px(44.0))
+                            .flex_none()
+                            .whitespace_nowrap()
+                            .child(index(kind_label(body, cx), window, cx)),
+                    )
                     .child(
                         div()
                             .flex_1()
@@ -345,6 +435,13 @@ fn done(d: &Done, window: &mut Window, cx: &mut Context<LegacyImport>) -> AnyEle
             }
             "already-imported" => missing(copy::ALREADY_IMPORTED, None, window, cx),
             "already-in-library" => missing(copy::ALREADY_IN_LIBRARY, None, window, cx),
+            "cancelled" => quiet(
+                t(cx, keys::settings::hosted::connect_errors::CANCELLED),
+                window,
+                cx,
+            )
+            .into_any_element(),
+            "importing" => missing(copy::CARRIES_ON, None, window, cx),
             other => index(other.to_owned(), window, cx).into_any_element(),
         };
         let words = book.words.filter(|_| book.status == "imported").map(|w| {

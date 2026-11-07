@@ -386,3 +386,5 @@ projectPicker.bookTransfer.importFailedTitle
 importDialog.chooseFolder
 importDialog.status.committed
 importDialog.summary.done
+agentPanel.pending.cancelling
+settings.hosted.connect_errors.cancelled
