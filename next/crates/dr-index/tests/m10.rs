@@ -22,6 +22,9 @@ fn an_imported_library_is_indexed_when_it_opens() {
     o.accept = Accept::NOTHING;
     o.old_root = Some(src.root.clone());
     o.device_dir = Some(dir.path().join("device"));
+    // The import builds the indexes itself; this test checks the rebuild on
+    // open, so it imports without them.
+    o.index = false;
     let (outcome, _) = run::import(&src.db, &root, &o).unwrap();
     assert!(matches!(outcome, Outcome::Imported(_)));
 

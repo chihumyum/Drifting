@@ -16,6 +16,8 @@ pub enum ImportError {
     Store(#[from] dr_store::StoreError),
     #[error("document: {0}")]
     Doc(#[from] dr_doc::DocError),
+    #[error("loro export: {0}")]
+    LoroEncode(#[from] loro::LoroEncodeError),
     /// Not a Drifting 0.1 library at all (no Drizzle migration table, or not
     /// SQLite).
     #[error("not a Drifting 0.1 library: {0}")]

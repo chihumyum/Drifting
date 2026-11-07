@@ -1381,8 +1381,10 @@ name = "dr-import-v1"
 version = "0.0.0"
 dependencies = [
  "dr-doc",
+ "dr-index",
  "dr-model",
  "dr-store",
+ "dr-testkit",
  "libc",
  "log",
  "loro",

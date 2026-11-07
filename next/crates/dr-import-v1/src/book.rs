@@ -56,7 +56,7 @@ fn id<T>(parse: impl Fn(&str) -> std::result::Result<T, IdError>, s: &str) -> Op
 }
 
 /// Fresh position keys for `n` items in order.
-fn ranks(n: usize) -> Vec<PosKey> {
+pub(crate) fn ranks(n: usize) -> Vec<PosKey> {
     keys_between(None, None, n)
         .unwrap_or_default()
         .into_iter()
@@ -163,6 +163,30 @@ fn kv_ordered(rows: Vec<&KvRow>, projection: &str, notes: &mut Notes) -> Vec<KvE
         .collect()
 }
 
+/// The key/value rows of one owner and namespace.
+fn kv_rows<'r>(rows: &'r BookRows, owner_kind: &str, owner: &str, ns: &str) -> Vec<&'r KvRow> {
+    rows.kv
+        .iter()
+        .filter(|k| k.owner_kind == owner_kind && k.owner_id == owner && k.namespace == ns)
+        .collect()
+}
+
+/// One owner's key/value list exactly as [`write`] writes it (the snapshot
+/// history replay puts it back after the historical lists, `meta.rs`).
+pub(crate) fn kv_list(
+    rows: &BookRows,
+    owner_kind: &str,
+    owner: &str,
+    ns: &str,
+    projection: &str,
+) -> Vec<KvEntry> {
+    kv_ordered(
+        kv_rows(rows, owner_kind, owner, ns),
+        projection,
+        &mut Notes::default(),
+    )
+}
+
 fn entity(kind: &str, id: &str, comments: &HashMap<String, CommentId>) -> EntityRef {
     let kind = legacy::entity_kind(kind);
     let id = match (&kind, comments.get(id)) {
@@ -226,11 +250,7 @@ pub fn write(txn: &mut BookTxn<'_>, inp: &Inputs<'_>, notes: &mut Notes) -> Resu
     };
 
     // The book.
-    let kv_of = |owner_kind: &str, owner: &str, ns: &str| -> Vec<&KvRow> {
-        r.kv.iter()
-            .filter(|k| k.owner_kind == owner_kind && k.owner_id == owner && k.namespace == ns)
-            .collect()
-    };
+    let kv_of = |owner_kind: &str, owner: &str, ns: &str| kv_rows(r, owner_kind, owner, ns);
     {
         let m = txn.meta();
         m.name(&inp.project.name)?

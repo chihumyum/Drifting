@@ -123,11 +123,24 @@ fn open_elsewhere(files: &[&Path]) -> Option<String> {
     }
 }
 
-fn copy_hashing(from: &Path, to: &Path, hasher: &mut Sha256) -> Result<u64> {
+/// Bytes between two copy progress reports.
+const REPORT_EVERY: u64 = 4 << 20;
+
+/// Copy `from` to `to`, hashing; `copied` counts across files, `progress`
+/// gets (bytes copied, bytes in all) every few megabytes.
+fn copy_hashing(
+    from: &Path,
+    to: &Path,
+    hasher: &mut Sha256,
+    copied: &mut u64,
+    all: u64,
+    progress: &mut dyn FnMut(u64, u64),
+) -> Result<u64> {
     let mut src = std::fs::File::open(from)?;
     let mut dst = std::fs::File::create(to)?;
     let mut buf = vec![0u8; 1 << 20];
     let mut total = 0u64;
+    let mut reported = *copied;
     loop {
         let n = src.read(&mut buf)?;
         if n == 0 {
@@ -136,6 +149,11 @@ fn copy_hashing(from: &Path, to: &Path, hasher: &mut Sha256) -> Result<u64> {
         hasher.update(&buf[..n]);
         dst.write_all(&buf[..n])?;
         total += n as u64;
+        *copied += n as u64;
+        if *copied - reported >= REPORT_EVERY {
+            reported = *copied;
+            progress(*copied, all.max(*copied));
+        }
     }
     dst.sync_all()?;
     Ok(total)
@@ -145,6 +163,16 @@ fn copy_hashing(from: &Path, to: &Path, hasher: &mut Sha256) -> Result<u64> {
 /// `<name>.db`, recover it into one self-contained file, check it, and bring
 /// an older 0.1.x schema up to the last one.
 pub fn stage(source: &Path, dir: &Path, name: &str) -> Result<Staged> {
+    stage_with(source, dir, name, &mut |_, _| {})
+}
+
+/// [`stage`], reporting (bytes copied, bytes in all) while copying.
+pub fn stage_with(
+    source: &Path,
+    dir: &Path,
+    name: &str,
+    progress: &mut dyn FnMut(u64, u64),
+) -> Result<Staged> {
     let wal = sidecar(source, "-wal");
     let before = (
         stat(source)?.ok_or_else(|| ImportError::Path {
@@ -165,12 +193,23 @@ pub fn stage(source: &Path, dir: &Path, name: &str) -> Result<Staged> {
         }
     }
     let mut hasher = Sha256::new();
-    let database_bytes = copy_hashing(source, &path, &mut hasher)?;
+    let all = before.0.len + before.1.as_ref().map_or(0, |s| s.len);
+    let mut copied = 0u64;
+    progress(0, all);
+    let database_bytes = copy_hashing(source, &path, &mut hasher, &mut copied, all, progress)?;
     let wal_bytes = if before.1.is_some() {
-        copy_hashing(&wal, &sidecar(&path, "-wal"), &mut hasher)?
+        copy_hashing(
+            &wal,
+            &sidecar(&path, "-wal"),
+            &mut hasher,
+            &mut copied,
+            all,
+            progress,
+        )?
     } else {
         0
     };
+    progress(copied, all.max(copied));
     let after = (stat(source)?, stat(&wal)?);
     if Some(&before.0) != after.0.as_ref() || before.1 != after.1 {
         let _ = std::fs::remove_file(&path);
