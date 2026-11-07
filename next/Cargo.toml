@@ -19,7 +19,9 @@ members = [
     "crates/dr-text",
     "crates/dr-ui",
     "crates/dr-workspace",
+    "crates/gpui-ime",
     "crates/gpui-prose",
+    "crates/prose-linebreak",
     "crates/prose-metrics",
     "spikes/import-v1",
     "spikes/loro-model",
@@ -49,6 +51,11 @@ gpui_platform = { git = "https://github.com/zed-industries/zed", tag = "v1.27.0"
 loro = "=1.17.1"
 
 anyhow = "1"
+# gpui-prose (F4) and its two small crates, all MIT OR Apache-2.0.
+gpui-ime = { path = "crates/gpui-ime" }
+prose-linebreak = { path = "crates/prose-linebreak", default-features = false }
+# GPUI's own B-tree (Apache-2.0), for gpui-prose's paragraph index.
+sum_tree = { git = "https://github.com/zed-industries/zed", tag = "v1.27.0" }
 # gpui-prose (F4): word and grapheme-cluster boundaries, Chinese words from the
 # dictionary. Same 2.4 line as the icu_* crates GPUI already pulls in; no LSTM.
 icu_segmenter = { version = "2.4", default-features = false, features = ["compiled_data"] }

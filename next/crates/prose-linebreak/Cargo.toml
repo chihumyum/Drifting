@@ -1,0 +1,22 @@
+# prose-linebreak: Chinese line breaking as plain functions (UAX #14 plus the
+# Chinese tailoring, hanging or squeezed line ends, punctuation squeezing).
+# Shared by gpui-prose (the editor) and, later, dr-text and the PDF export.
+# Design: docs/rust-rewrite/foundations/f4-editor.md, "中文断行".
+[package]
+name = "prose-linebreak"
+version = "0.1.0"
+description = "Chinese line breaking: UAX #14 with a Chinese tailoring, hanging or squeezed punctuation"
+license = "MIT OR Apache-2.0"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[features]
+default = ["icu"]
+# UAX #14 break opportunities from ICU4X. Without it a small built-in table
+# (CJK, Latin words, the Chinese tailoring) is used and the crate has no
+# dependencies at all.
+icu = ["dep:icu_segmenter"]
+
+[dependencies]
+icu_segmenter = { workspace = true, optional = true }

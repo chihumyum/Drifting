@@ -1,0 +1,119 @@
+{
+  "schema": "drifting.f4.milestone/1",
+  "generated_at": "2026-11-07",
+  "source_fingerprint": "2bcb271616ea2c39",
+  "milestone": "F4 milestone 2 (F4a: text source, index, gpui-ime, prose-linebreak)",
+  "doc": "docs/rust-rewrite/foundations/f4-editor.md",
+  "tests_run_with": "cargo test -p gpui-prose (and --no-default-features)",
+  "items": [
+    {
+      "id": "prose-source",
+      "requirement": "The editor no longer owns the Loro document: reads, writes and undo go through ProseSource; gpui-prose ships LoroSource; a dr-doc-style source (closure writes, events without marks, its own rules) passes the same conformance suite and behaves identically",
+      "tests": [
+        {
+          "name": "conformance_on_the_built_in_source",
+          "found": true
+        },
+        {
+          "name": "conformance_on_a_dr_doc_style_source",
+          "found": true
+        },
+        {
+          "name": "dr_doc_style_source_matches_the_built_in_one",
+          "found": true
+        },
+        {
+          "name": "documents_can_move_between_threads",
+          "found": true
+        }
+      ],
+      "evidence": []
+    },
+    {
+      "id": "paragraph-index",
+      "requirement": "SumTree paragraph index (paragraphs, scalars, UTF-16, bytes) updated per event, plus a block-id map, replacing the prefix arrays rebuilt after every change",
+      "tests": [
+        {
+          "name": "locate_and_start",
+          "found": true
+        },
+        {
+          "name": "splice_and_set",
+          "found": true
+        },
+        {
+          "name": "first_bid_wins",
+          "found": true
+        },
+        {
+          "name": "mirror_follows_random_edits_undo_and_imports",
+          "found": true
+        }
+      ],
+      "evidence": [
+        "f4-headless.json",
+        "f4-window.json"
+      ]
+    },
+    {
+      "id": "gpui-ime",
+      "requirement": "Composition rules in one std-only crate (the editor's overlay and the single-line composer from dr-ui); blur discards",
+      "tests": [
+        {
+          "name": "virtual_mapping",
+          "found": true
+        },
+        {
+          "name": "overlay_lifecycle",
+          "found": true
+        },
+        {
+          "name": "pinyin_is_shown_but_not_committed_until_chosen",
+          "found": true
+        },
+        {
+          "name": "blur_discards_the_composition",
+          "found": true
+        },
+        {
+          "name": "losing_focus_drops_the_composition",
+          "found": true
+        }
+      ],
+      "evidence": []
+    },
+    {
+      "id": "prose-linebreak",
+      "requirement": "Line breaking in its own crate (icu_segmenter only), used by gpui-prose",
+      "tests": [
+        {
+          "name": "opportunities_follow_uax14_and_the_chinese_tailoring",
+          "found": true
+        },
+        {
+          "name": "rows_hang_a_comma_in_the_editor",
+          "found": true
+        },
+        {
+          "name": "rows_squeeze_or_break_earlier_in_print",
+          "found": true
+        }
+      ],
+      "evidence": []
+    },
+    {
+      "id": "keystroke-budget",
+      "requirement": "Keystroke budget split: key to present stays 16 / 8.3 ms; key to glass is recorded",
+      "tests": [
+        {
+          "name": "reads_xctrace_rows_with_refs",
+          "found": true
+        }
+      ],
+      "evidence": [
+        "f4-present.json",
+        "f4-window.json"
+      ]
+    }
+  ]
+}

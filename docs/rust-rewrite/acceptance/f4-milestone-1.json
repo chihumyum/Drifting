@@ -1,7 +1,7 @@
 {
   "schema": "drifting.f4.milestone/1",
   "generated_at": "2026-11-07",
-  "source_fingerprint": "172d279e51afa196",
+  "source_fingerprint": "2bcb271616ea2c39",
   "milestone": "F4 milestone 1 (gpui-prose)",
   "doc": "docs/rust-rewrite/foundations/f4-editor.md",
   "tests_run_with": "cargo test -p gpui-prose (and --no-default-features)",

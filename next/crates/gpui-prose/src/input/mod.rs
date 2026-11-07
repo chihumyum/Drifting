@@ -11,7 +11,7 @@ mod movement;
 pub mod selection;
 
 pub use actions::{KEY_CONTEXT, bind_keys};
-pub use composition::{Composition, Marked16, Virtual16};
+pub use composition::{Composition, Marked16, Marking, Overlay, Virtual16};
 pub use selection::Selection;
 
 #[cfg(test)]

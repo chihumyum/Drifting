@@ -145,7 +145,7 @@ fn pasted_paragraphs_get_fresh_ids() {
 
 #[test]
 fn utf16_round_trip() {
-    let mut doc = seeded(&[(BlockKind::Body, "a😀中"), (BlockKind::Body, "文")]);
+    let doc = seeded(&[(BlockKind::Body, "a😀中"), (BlockKind::Body, "文")]);
     // "a😀中\n文\n": scalars a=0 😀=1 中=2 \n=3 文=4; utf16 a=0 😀=1..3 中=3 \n=4 文=5
     assert_eq!(doc.offset_to_utf16(2), 3);
     assert_eq!(doc.offset_to_utf16(4), 5);
@@ -200,9 +200,9 @@ fn undo_of_enter_keeps_the_final_newline() {
     let mut doc = seeded(&[(BlockKind::H1, "标题")]);
     let id = bids(&doc)[0].clone();
     doc.split(2, ORIGIN_USER);
-    assert_eq!(doc.text().to_string(), "标题\n\n");
+    assert_eq!(doc.loro_source().unwrap().text().to_string(), "标题\n\n");
     doc.undo().expect("undo the Enter");
-    assert_eq!(doc.text().to_string(), "标题\n");
+    assert_eq!(doc.loro_source().unwrap().text().to_string(), "标题\n");
     assert_eq!(doc.line(0).kind, BlockKind::H1);
     assert_eq!(doc.line(0).bid(), Some(id.as_str()));
     assert_mirror(&doc);
@@ -351,13 +351,19 @@ fn agent_deletions_leave_anchors_alone() {
 #[test]
 fn anchor_restore_survives_remote_edits() {
     let mut doc = seeded(&[(BlockKind::Body, "甲乙丙丁")]);
-    doc.loro().set_peer_id(1).unwrap();
+    doc.loro_source().unwrap().loro().set_peer_id(1).unwrap();
     doc.add_anchor("c", 2..4).unwrap(); // 丙丁
     let remote = LoroDoc::new();
     crate::schema::configure(&remote);
     remote.set_peer_id(2).unwrap();
     remote
-        .import(&doc.loro().export(ExportMode::Snapshot).unwrap())
+        .import(
+            &doc.loro_source()
+                .unwrap()
+                .loro()
+                .export(ExportMode::Snapshot)
+                .unwrap(),
+        )
         .unwrap();
     doc.delete(2..4, ORIGIN_USER);
     remote.get_text(BODY).insert(0, "远端").unwrap();
@@ -378,7 +384,12 @@ fn anchor_restore_survives_remote_edits() {
 #[test]
 fn concurrent_enters_are_repaired_the_same_way() {
     let seed = seeded(&[(BlockKind::Body, "同一段")]);
-    let snapshot = seed.loro().export(ExportMode::Snapshot).unwrap();
+    let snapshot = seed
+        .loro_source()
+        .unwrap()
+        .loro()
+        .export(ExportMode::Snapshot)
+        .unwrap();
     let open = |peer: u64| {
         let loro = LoroDoc::new();
         crate::schema::configure(&loro);
@@ -390,15 +401,31 @@ fn concurrent_enters_are_repaired_the_same_way() {
     a.split(3, ORIGIN_USER);
     b.split(3, ORIGIN_USER);
     let (ua, ub) = (
-        a.loro().export(ExportMode::all_updates()).unwrap(),
-        b.loro().export(ExportMode::all_updates()).unwrap(),
+        a.loro_source()
+            .unwrap()
+            .loro()
+            .export(ExportMode::all_updates())
+            .unwrap(),
+        b.loro_source()
+            .unwrap()
+            .loro()
+            .export(ExportMode::all_updates())
+            .unwrap(),
     );
     a.import(&ub).unwrap();
     b.import(&ua).unwrap();
     // Exchange the repairs too, then both agree.
     let (ra, rb) = (
-        a.loro().export(ExportMode::all_updates()).unwrap(),
-        b.loro().export(ExportMode::all_updates()).unwrap(),
+        a.loro_source()
+            .unwrap()
+            .loro()
+            .export(ExportMode::all_updates())
+            .unwrap(),
+        b.loro_source()
+            .unwrap()
+            .loro()
+            .export(ExportMode::all_updates())
+            .unwrap(),
     );
     a.import(&rb).unwrap();
     b.import(&ra).unwrap();
@@ -457,12 +484,18 @@ fn mirror_follows_random_edits_undo_and_imports() {
     for seed in 1..=24u64 {
         let mut rng = Rng(seed.wrapping_mul(0x9e37_79b9_7f4a_7c15) | 1);
         let mut doc = seeded(&[(BlockKind::H1, "开头"), (BlockKind::Body, "正文第一段")]);
-        doc.loro().set_peer_id(1).unwrap();
+        doc.loro_source().unwrap().loro().set_peer_id(1).unwrap();
         let remote = LoroDoc::new();
         crate::schema::configure(&remote);
         remote.set_peer_id(2).unwrap();
         remote
-            .import(&doc.loro().export(ExportMode::Snapshot).unwrap())
+            .import(
+                &doc.loro_source()
+                    .unwrap()
+                    .loro()
+                    .export(ExportMode::Snapshot)
+                    .unwrap(),
+            )
             .unwrap();
         doc.add_anchor("a", 1..3);
         for _ in 0..120 {
@@ -522,20 +555,38 @@ fn mirror_follows_random_edits_undo_and_imports() {
                         text.mark(at..at + 2, inline::ITALIC, true).unwrap();
                     }
                     remote.commit();
-                    let from = doc.loro().oplog_vv();
+                    let from = doc.loro_source().unwrap().loro().oplog_vv();
                     let update = remote.export(ExportMode::updates(&from)).unwrap();
                     doc.import(&update).unwrap();
                     remote
-                        .import(&doc.loro().export(ExportMode::Snapshot).unwrap())
+                        .import(
+                            &doc.loro_source()
+                                .unwrap()
+                                .loro()
+                                .export(ExportMode::Snapshot)
+                                .unwrap(),
+                        )
                         .unwrap();
                 }
             }
             assert_mirror(&doc);
             assert_unique_bids(&doc);
-            assert!(doc.text().to_string().ends_with('\n'));
+            assert!(
+                doc.loro_source()
+                    .unwrap()
+                    .text()
+                    .to_string()
+                    .ends_with('\n')
+            );
             assert_eq!(
                 doc.lines().len(),
-                doc.text().to_string().matches('\n').count() + 1
+                doc.loro_source()
+                    .unwrap()
+                    .text()
+                    .to_string()
+                    .matches('\n')
+                    .count()
+                    + 1
             );
             let _ = doc.anchor("a");
         }
@@ -561,4 +612,58 @@ fn text_op_transform() {
 fn documents_can_move_between_threads() {
     fn assert_send<T: Send>() {}
     assert_send::<ProseDoc>();
+}
+
+/// Opening reads the text once (the block-id check's read is reused for the
+/// mirror), but never a read the document has moved past.
+#[test]
+fn the_opening_read_is_reused_only_while_current() {
+    let source = LoroSource::from_paragraphs([(BlockKind::Body, "一"), (BlockKind::H1, "二")]);
+    let doc = ProseDoc::open(Box::new(source));
+    assert_eq!(texts(&doc), ["一", "二"]);
+    assert_eq!(doc.lines()[1].kind, BlockKind::H1);
+    assert_mirror(&doc);
+
+    // Changed through the LoroDoc before the editor opens it, committed or not.
+    for commit in [true, false] {
+        let source = LoroSource::from_paragraphs([(BlockKind::Body, "一")]);
+        source.text().insert(0, "新").unwrap();
+        if commit {
+            source.loro().commit();
+        }
+        let doc = ProseDoc::open(Box::new(source));
+        assert_eq!(texts(&doc), ["新一"], "commit: {commit}");
+        assert_mirror(&doc);
+    }
+}
+
+// ----- the text-source conformance suite -------------------------------------------
+
+fn loro_source(paragraphs: &[(BlockKind, &str)]) -> Box<dyn ProseSource> {
+    Box::new(LoroSource::from_paragraphs(paragraphs.iter().copied()))
+}
+
+fn dr_doc_style(paragraphs: &[(BlockKind, &str)]) -> Box<dyn ProseSource> {
+    Box::new(super::drdoc_style::DrDocStyle::seeded(paragraphs))
+}
+
+#[test]
+fn conformance_on_the_built_in_source() {
+    conformance::run_all(&loro_source).unwrap();
+}
+
+/// A source built the way `dr-doc` + `dr-store` are (writes through a holder's
+/// closure, Quill-style events without marks, its own undo exclusions, its own
+/// implementation of the v0 rules) passes the same suite: the trait is enough.
+#[test]
+fn conformance_on_a_dr_doc_style_source() {
+    conformance::run_all(&dr_doc_style).unwrap();
+}
+
+/// The two sources, driven by the same random scripts through the editor's
+/// document, stay identical: text, paragraph attributes, marks, which
+/// paragraph keeps which block id, undo steps.
+#[test]
+fn dr_doc_style_source_matches_the_built_in_one() {
+    conformance::same_behaviour(&loro_source, &dr_doc_style, 16, 120).unwrap();
 }

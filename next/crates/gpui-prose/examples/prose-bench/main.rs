@@ -9,7 +9,7 @@
 //! prose-bench headless [--out FILE]           write path and cold opens, no window
 //! prose-bench present [--keys N] [--out FILE] on-glass latency under Instruments (xctrace)
 //! prose-bench idle [--seconds N] [--out FILE] idle CPU only (for GPUI patch comparisons)
-//! prose-bench milestone [--out FILE]         milestone 1 manifest: requirements, tests, evidence
+//! prose-bench milestone [--round N] [--out FILE]  milestone manifest: requirements, tests, evidence
 //! prose-bench check FILE...                   evidence matches sources and corpus
 //! ```
 //!
@@ -82,7 +82,10 @@ fn main() {
             value("--keys").and_then(|s| s.parse().ok()).unwrap_or(160),
             value("--report"),
         ),
-        Some("milestone") => bench::run_milestone(value("--out")),
+        Some("milestone") => bench::run_milestone_round(
+            value("--out"),
+            value("--round").and_then(|s| s.parse().ok()).unwrap_or(1),
+        ),
         Some("check") => {
             if !bench::check(&args[1..]) {
                 std::process::exit(1);

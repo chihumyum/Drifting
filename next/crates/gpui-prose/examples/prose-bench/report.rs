@@ -149,6 +149,31 @@ pub fn max(samples: &[f64]) -> f64 {
     samples.iter().copied().fold(f64::NAN, f64::max)
 }
 
+/// A one-minute load average at or above this (on the 12-core measuring
+/// machine) means other work was running: frame timing and tails are skewed.
+pub const QUIET_LOAD_1M: f64 = 2.0;
+
+/// How quiet the machine was, from load averages sampled around the run.
+/// Evidence measured on a busy machine is marked `reference_only`: fine for
+/// orders of magnitude, not for comparing builds or patches.
+pub fn conditions(loads: &[f64]) -> J {
+    let highest = max(loads);
+    let busy = highest.is_nan() || highest >= QUIET_LOAD_1M;
+    J::obj(vec![
+        ("load_average_1m_max", J::Num(highest)),
+        ("quiet_below_1m", J::Num(QUIET_LOAD_1M)),
+        ("reference_only", J::Bool(busy)),
+        (
+            "note",
+            J::str(if busy {
+                "High load: other builds were running on this machine. For reference only; do not compare builds or patches with these numbers. Remeasure on an idle machine (f4-editor.md, remeasuring)."
+            } else {
+                "Quiet machine."
+            }),
+        ),
+    ])
+}
+
 /// `{count, mean, p50, p95, p99, max}` in milliseconds.
 pub fn summary(samples: &[f64]) -> J {
     J::obj(vec![
@@ -174,7 +199,8 @@ pub fn source_fingerprint() -> String {
     format!("{hash:016x}")
 }
 
-/// Every source file of gpui-prose and this harness, compiled in.
+/// Every source file of gpui-prose, its two small crates and this harness,
+/// compiled in.
 pub fn all_sources() -> &'static [&'static str] {
     const SOURCES: &[&str] = &[
         include_str!("../../Cargo.toml"),
@@ -186,6 +212,11 @@ pub fn all_sources() -> &'static [&'static str] {
         include_str!("../../src/style.rs"),
         include_str!("../../src/text/mod.rs"),
         include_str!("../../src/text/anchor.rs"),
+        include_str!("../../src/text/conformance.rs"),
+        include_str!("../../src/text/drdoc_style.rs"),
+        include_str!("../../src/text/index.rs"),
+        include_str!("../../src/text/loro_source.rs"),
+        include_str!("../../src/text/source.rs"),
         include_str!("../../src/text/blocks.rs"),
         include_str!("../../src/text/doc.rs"),
         include_str!("../../src/text/marks.rs"),
@@ -221,6 +252,13 @@ pub fn all_sources() -> &'static [&'static str] {
         include_str!("synth.rs"),
         include_str!("trace.rs"),
         include_str!("../../src/text/tests.rs"),
+        include_str!("../../../gpui-ime/Cargo.toml"),
+        include_str!("../../../gpui-ime/src/lib.rs"),
+        include_str!("../../../gpui-ime/src/line.rs"),
+        include_str!("../../../gpui-ime/src/overlay.rs"),
+        include_str!("../../../gpui-ime/src/units.rs"),
+        include_str!("../../../prose-linebreak/Cargo.toml"),
+        include_str!("../../../prose-linebreak/src/lib.rs"),
         include_str!("../../src/input/tests.rs"),
     ];
     SOURCES
