@@ -14,9 +14,16 @@
 //!   whole list and trimming keys; F3 has the interface's per-field commands
 //!   for both templates.
 //!
-//! The body templates (a category's element template, a storyline's chapter
-//! template) stay as 0.1 stored them: to edit and merge them they need a
-//! prose document of their own (F1's 待协调 6); no command writes them yet.
+//! A category's **element template** (要素模版) is the body its new elements
+//! start with: paragraphs, each body text or an H1/H2/H3 heading (the 0.1
+//! template editor had nothing else). It is kept in the category's
+//! `element_template` field in the 0.1 format (an editor JSON document,
+//! which M10 imports as it is); `category_template.body` reads it as
+//! paragraphs and `category_template.set_body` writes it whole. A new
+//! element with a category and no text of its own starts with it. The field
+//! is one value: two devices editing it at once keep the later one (merging
+//! needs a template document of its own, F1's 待协调 6). A storyline's
+//! chapter template is the same kind of value; no command reads it yet.
 
 use dr_model::book::KvEntry;
 use dr_model::id::{CategoryId, KvEntryId};
@@ -31,7 +38,9 @@ use crate::naming::{Place, pos_for};
 use crate::registry::Registry;
 
 pub(crate) fn register(r: &mut Registry) {
-    r.add::<StorylineTemplateList>()
+    r.add::<CategoryTemplateBody>()
+        .add::<CategoryTemplateSetBody>()
+        .add::<StorylineTemplateList>()
         .add::<StorylineTemplatePut>()
         .add::<StorylineTemplateRemove>()
         .add::<CategoryTemplateList>()
@@ -263,5 +272,176 @@ op! {
             place: None, pos: old.pos.map(|p| p.to_string()),
         }));
         Ok(Done { id: input.id })
+    }
+}
+
+// ---- a category's element template (body) -------------------------------------------
+
+/// One paragraph of a body template.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct TemplateParagraph {
+    /// 1, 2 or 3 for H1/H2/H3; omitted for body text.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub heading: Option<u8>,
+    #[serde(default)]
+    pub text: String,
+}
+
+/// A body template's paragraphs, read from its stored editor JSON (the 0.1
+/// format; anything else, or `{}`, is no template). Headings keep their
+/// level, other blocks (quotes, list items, code) read as body text, hard
+/// breaks as spaces.
+pub fn body_of(json: Option<&str>) -> Vec<TemplateParagraph> {
+    fn text(v: &serde_json::Value, out: &mut String) {
+        match v.get("type").and_then(|t| t.as_str()) {
+            Some("text") => {
+                out.push_str(v.get("text").and_then(|t| t.as_str()).unwrap_or_default())
+            }
+            Some("hardBreak") => out.push(' '),
+            _ => {
+                for c in v
+                    .get("content")
+                    .and_then(|c| c.as_array())
+                    .into_iter()
+                    .flatten()
+                {
+                    text(c, out);
+                }
+            }
+        }
+    }
+    fn blocks(v: &serde_json::Value, out: &mut Vec<TemplateParagraph>) {
+        for b in v
+            .get("content")
+            .and_then(|c| c.as_array())
+            .into_iter()
+            .flatten()
+        {
+            match b.get("type").and_then(|t| t.as_str()) {
+                Some("heading") => {
+                    let level = b
+                        .get("attrs")
+                        .and_then(|a| a.get("level"))
+                        .and_then(|l| l.as_u64())
+                        .map(|l| l.clamp(1, 3) as u8);
+                    let mut t = String::new();
+                    text(b, &mut t);
+                    out.push(TemplateParagraph {
+                        heading: level,
+                        text: t,
+                    });
+                }
+                Some("paragraph") | Some("codeBlock") => {
+                    let mut t = String::new();
+                    text(b, &mut t);
+                    out.push(TemplateParagraph {
+                        heading: None,
+                        text: t,
+                    });
+                }
+                Some("horizontalRule") => {}
+                // Quotes and lists hold blocks of their own.
+                _ => blocks(b, out),
+            }
+        }
+    }
+    let Some(v) = json.and_then(|j| serde_json::from_str::<serde_json::Value>(j).ok()) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    blocks(&v, &mut out);
+    out
+}
+
+/// `paragraphs` as an editor JSON document (the format 0.1 stored).
+pub fn body_json(paragraphs: &[TemplateParagraph]) -> String {
+    let content: Vec<serde_json::Value> = paragraphs
+        .iter()
+        .map(|p| {
+            let inner: Vec<serde_json::Value> = if p.text.is_empty() {
+                Vec::new()
+            } else {
+                vec![serde_json::json!({"type": "text", "text": p.text})]
+            };
+            match p.heading {
+                Some(level) => serde_json::json!({"type": "heading", "attrs": {"level": level}, "content": inner}),
+                None => serde_json::json!({"type": "paragraph", "content": inner}),
+            }
+        })
+        .collect();
+    serde_json::json!({"type": "doc", "content": content}).to_string()
+}
+
+/// Write `paragraphs` into a fresh prose document (step 2 of the write
+/// order), headings included.
+pub(crate) fn seed_body(
+    cx: &Cx<'_>,
+    book: &dr_model::id::BookId,
+    doc: &dr_model::DocId,
+    paragraphs: &[TemplateParagraph],
+) -> Result<()> {
+    cx.create_prose(book, doc)?;
+    let slot = cx.prose(doc)?;
+    let text: Vec<String> = paragraphs
+        .iter()
+        .map(|p| p.text.replace(['\n', '\u{FFFC}'], " "))
+        .collect();
+    let text = text.join("\n");
+    let levels: Vec<Option<u8>> = paragraphs.iter().map(|p| p.heading).collect();
+    cx.write_prose(&slot, move |txn| {
+        let end = txn.view().len().saturating_sub(1);
+        txn.insert_paragraphs(end, &text)?;
+        let starts: Vec<usize> = txn.view().paragraphs().map(|p| p.range.start).collect();
+        for (at, level) in starts.into_iter().zip(levels) {
+            let h = match level {
+                Some(1) => Some(dr_model::prose::Heading::H1),
+                Some(2) => Some(dr_model::prose::Heading::H2),
+                Some(3) => Some(dr_model::prose::Heading::H3),
+                _ => None,
+            };
+            if h.is_some() {
+                txn.set_heading(at, h)?;
+            }
+        }
+        Ok(())
+    })?;
+    Ok(())
+}
+
+op! {
+    CategoryTemplateBody = "category_template.body", Read, Shared,
+    "Read a category's element template: the paragraphs (body text or H1/H2/H3) its new elements start with.",
+    fn(cx, input: CategoryIn) -> Vec<TemplateParagraph> {
+        let slot = cx.book(&input.book)?;
+        Ok(body_of(live_category(&slot, &input.category)?.element_template.as_deref()))
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct SetBodyIn {
+    pub book: String,
+    pub category: String,
+    /// The whole template; empty removes it.
+    pub paragraphs: Vec<TemplateParagraph>,
+}
+
+op! {
+    CategoryTemplateSetBody = "category_template.set_body", Write, Book,
+    "Replace a category's element template (the body its new elements start with; empty removes it). Existing elements keep their bodies.",
+    fn(cx, input: SetBodyIn) -> Done {
+        let slot = cx.book(&input.book)?;
+        let cat = live_category(&slot, &input.category)?;
+        if input.paragraphs.iter().any(|p| p.heading.is_some_and(|h| !(1..=3).contains(&h))) {
+            return Err(WsError::invalid("headings are H1, H2 or H3"));
+        }
+        let value = (!input.paragraphs.is_empty()).then(|| body_json(&input.paragraphs));
+        let (c2, v2) = (cat.id.clone(), value.clone());
+        cx.write_book(&slot, move |txn| { txn.category(&c2)?.element_template(v2.as_deref())?; Ok(()) })?;
+        cx.effect(EffectAction::Updated, "category", cat.id.as_str(), Some(&cat.name));
+        cx.undo_with(Invocation::new("category_template.set_body", SetBodyIn {
+            book: input.book.clone(), category: input.category.clone(),
+            paragraphs: body_of(cat.element_template.as_deref()),
+        }));
+        Ok(Done { id: input.category })
     }
 }

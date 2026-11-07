@@ -141,7 +141,7 @@ pub struct ElementCreateIn {
 
 op! {
     ElementCreate = "element.create", Write, Book,
-    "Create an element (it starts with its category's template fields). A name or alias another element already has is refused (automatic links find people by name); the error names that element.",
+    "Create an element (it starts with its category's template fields, and its element template as the body when no text is given). A name or alias another element already has is refused (automatic links find people by name); the error names that element.",
     fn(cx, input: ElementCreateIn) -> Named {
         let slot = cx.book(&input.book)?;
         let name = if input.numbered || input.name.trim().is_empty() {
@@ -155,7 +155,18 @@ op! {
         let category = input.category.as_deref().map(|c| live_category(&slot, c)).transpose()?;
         let id = ElementId::new_v7();
         cx.summarize(format!("「{name}」"));
-        super::chapter::seed_prose(cx, &slot.book, &DocId::Element(id.clone()), input.text.as_deref())?;
+        // The category's element template seeds the body when no text is
+        // given (the 0.1 interface's rule).
+        let body = match (&input.text, category.as_ref()) {
+            (None, Some(c)) => categories(&slot).iter().find(|x| &x.id == c)
+                .map(|x| super::template::body_of(x.element_template.as_deref())).unwrap_or_default(),
+            _ => Vec::new(),
+        };
+        if body.is_empty() {
+            super::chapter::seed_prose(cx, &slot.book, &DocId::Element(id.clone()), input.text.as_deref())?;
+        } else {
+            super::template::seed_body(cx, &slot.book, &DocId::Element(id.clone()), &body)?;
+        }
         let (i2, n2, s2, a2) = (id.clone(), name.clone(), input.summary.clone(), input.aliases.clone());
         // The category's field template, copied (new ids, same order).
         let fields = category.as_ref()
@@ -553,6 +564,8 @@ op! {
             id: c.id.to_string(), name: c.name.clone(), color: c.color.clone(), layout: c.layout.as_str().to_string(),
             grid_x: c.grid_x, grid_y: c.grid_y, trashed: c.deleted_at.is_some(),
             elements: els.iter().filter(|e| e.deleted_at.is_none() && e.category.as_ref() == Some(&c.id)).count() as u32,
+            template_fields: c.template_fields.iter().map(crate::dto::FieldInfo::from).collect(),
+            has_element_template: !super::template::body_of(c.element_template.as_deref()).is_empty(),
         }).collect())
     }
 }

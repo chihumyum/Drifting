@@ -220,8 +220,55 @@ pub(crate) fn prose_ranges(changes: &[ContainerChange]) -> (Vec<Range<usize>>, b
     (merged, embeds)
 }
 
+/// The stored block ids of the paragraphs `ranges` (sorted, merged, as
+/// [`prose_ranges`] gives them) touch, read around the ranges only: back to
+/// the start of the first paragraph, forward newline by newline, one
+/// attribute lookup per paragraph. Each commit's event runs this on the
+/// holder thread, so it must not read the whole body (it used to read every
+/// paragraph's newline and style with `ProseView::blocks`, most of a
+/// keystroke's time on the holder in a long chapter: F4's measurement).
+/// Same answer as [`touched_blocks`] over `view.blocks()`.
+pub(crate) fn touched_blocks_near(
+    view: &dr_doc::prose::ProseView<'_>,
+    ranges: &[Range<usize>],
+) -> Vec<BlockId> {
+    let len = view.len();
+    let mut out = BTreeSet::new();
+    // The last newline read; ranges come sorted.
+    let mut read_to: Option<usize> = None;
+    for r in ranges {
+        if r.start >= len {
+            continue;
+        }
+        let mut pos = match read_to {
+            Some(nl) if r.start <= nl => {
+                if r.end <= nl {
+                    continue;
+                }
+                nl + 1
+            }
+            _ => view.paragraph_start(r.start),
+        };
+        while pos < len {
+            let Some(nl) = view.next_newline(pos) else {
+                break;
+            };
+            if let Some(id) = view.newline_block(nl).0 {
+                out.insert(id);
+            }
+            read_to = Some(nl);
+            if nl >= r.end {
+                break;
+            }
+            pos = nl + 1;
+        }
+    }
+    out.into_iter().collect()
+}
+
 /// The block ids of the paragraphs `ranges` touch, from the paragraph ends
 /// (newline positions, sorted) and their ids.
+#[cfg(test)]
 pub(crate) fn touched_blocks(
     blocks: &[dr_doc::prose::BlockRef],
     ranges: &[Range<usize>],
@@ -313,5 +360,41 @@ mod tests {
         assert_eq!(ids(1..4), ["p1", "p2"]);
         assert_eq!(ids(6..8), ["p3"]);
         assert_eq!(ids(2..3), ["p1", "p2"]);
+    }
+
+    proptest::proptest! {
+        /// Reading near the changes finds what reading every paragraph
+        /// finds, for any body and any changed ranges.
+        #[test]
+        fn reading_near_the_changes_is_reading_everything(
+            paras in proptest::collection::vec(0usize..700, 1..12),
+            cuts in proptest::collection::vec((0usize..8000, 0usize..40), 0..6),
+        ) {
+            use dr_doc::prose::ProseDoc;
+            use dr_model::DocId;
+            let id = DocId::parse("node:n1").unwrap();
+            let mut d = ProseDoc::create(id, 7).unwrap();
+            let text: String = paras.iter().enumerate()
+                .map(|(i, n)| "字".repeat(*n) + if i + 1 < paras.len() { "\n" } else { "" })
+                .collect();
+            d.edit(dr_model::Origin::User, |t| t.insert_paragraphs(0, &text).map(|_| ())).0.unwrap();
+            let view = d.view();
+            let len = view.len();
+            let mut ranges: Vec<Range<usize>> = cuts.iter()
+                .map(|(a, n)| { let a = a % (len + 1); a..(a + n).min(len) })
+                .collect();
+            ranges.sort_by_key(|r| (r.start, r.end));
+            let mut merged: Vec<Range<usize>> = Vec::new();
+            for r in ranges {
+                match merged.last_mut() {
+                    Some(last) if r.start <= last.end => last.end = last.end.max(r.end),
+                    _ => merged.push(r),
+                }
+            }
+            proptest::prop_assert_eq!(
+                touched_blocks_near(&view, &merged),
+                touched_blocks(&view.blocks(), &merged)
+            );
+        }
     }
 }

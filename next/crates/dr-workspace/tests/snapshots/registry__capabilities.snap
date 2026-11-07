@@ -26,9 +26,11 @@ category.purge               command  book     Delete a category for good: its e
 category.restore             command  book     Bring a category back from the trash, with its elements.
 category.trash               command  book     Move a category to the trash. Never refused: its elements read as uncategorized until it is restored.
 category.update              command  book     Rename a category (a taken name gets a suffix), recolour it or change its layout.
+category_template.body       query    shared   Read a category's element template: the paragraphs (body text or H1/H2/H3) its new elements start with.
 category_template.list       query    shared   List the fields every new element of a category starts with, in order.
 category_template.put        command  book     Add a field to a category's template or change one (key, value, position). Existing elements keep their fields.
 category_template.remove     command  book     Remove a field from a category's template. Existing elements keep theirs.
+category_template.set_body   command  book     Replace a category's element template (the body its new elements start with; empty removes it). Existing elements keep their bodies.
 chapter.create               command  book     Create a chapter (a taken title gets a numbered suffix; the final title is returned).
 chapter.list                 query    shared   List chapters in reading order, with their act, storylines, words, creation and last change (trashed ones after, when asked).
 chapter.move                 command  book     Move a chapter in reading order (it lands before the next chapter or act boundary).
@@ -42,7 +44,7 @@ comment.delete               command  book     Delete a comment or TODO (its rel
 comment.list                 query    shared   List comments and TODOs (a target in the trash or gone shows as unlocated).
 comment.reanchor             command  book     Put a comment's anchor back where the editor's undo brought its text back (the author's change, synced; it follows the editor's undo, so it is not an entry of the object-level undo).
 comment.update               command  book     Change a comment or TODO: its text, status (resolve / reopen), priority, kind or linked Agent conversation.
-element.create               command  book     Create an element (it starts with its category's template fields). A name or alias another element already has is refused (automatic links find people by name); the error names that element.
+element.create               command  book     Create an element (it starts with its category's template fields, and its element template as the body when no text is given). A name or alias another element already has is refused (automatic links find people by name); the error names that element.
 element.list                 query    shared   List elements (with a mark on names a merge left duplicated).
 element.purge                command  book     Delete an element for good: its relations and patches go, comments on it become floating, in one commit.
 element.restore              command  book     Bring an element back from the trash (a name taken meanwhile gets a suffix).

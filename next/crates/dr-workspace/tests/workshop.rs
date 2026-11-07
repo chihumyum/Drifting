@@ -456,3 +456,173 @@ fn templates_are_copied_on_create_and_never_after() {
         .unwrap()["fields"];
     assert!(bea_fields.as_array().unwrap().is_empty());
 }
+
+#[test]
+fn a_categorys_element_template_seeds_new_elements() {
+    let e = env();
+    let b = e.book();
+    let cat = id(&e.out("category.create", json!({"book": b, "name": "人物"})));
+    let body = json!([
+        {"heading": 1, "text": "外貌"},
+        {"text": "（写一两句）"},
+        {"heading": 2, "text": "经历"},
+    ]);
+    e.call(
+        "category_template.set_body",
+        json!({"book": b, "category": cat, "paragraphs": body}),
+    );
+    assert_eq!(
+        e.out(
+            "category_template.body",
+            json!({"book": b, "category": cat})
+        ),
+        body
+    );
+    let cats = e.out("category.list", json!({"book": b}));
+    assert_eq!(cats[0]["has_element_template"], true);
+    // A new element of the category starts with it, headings and all.
+    let anna = id(&e.out(
+        "element.create",
+        json!({"book": b, "name": "安娜", "category": cat}),
+    ));
+    let p = e.out("prose.read", json!({"doc": format!("element:{anna}")}))["paragraphs"].clone();
+    assert_eq!(
+        field(&p, "text"),
+        [json!("外貌"), json!("（写一两句）"), json!("经历")]
+    );
+    assert_eq!(field(&p, "heading"), [json!(1), json!(0), json!(2)]);
+    // Text of its own wins; no category, no template.
+    let bea = id(&e.out(
+        "element.create",
+        json!({"book": b, "name": "贝雅", "category": cat, "text": "自己的"}),
+    ));
+    let p = e.out("prose.read", json!({"doc": format!("element:{bea}")}))["paragraphs"].clone();
+    assert_eq!(field(&p, "text"), [json!("自己的")]);
+    // Empty removes it; undo brings it back.
+    e.call(
+        "category_template.set_body",
+        json!({"book": b, "category": cat, "paragraphs": []}),
+    );
+    assert_eq!(
+        e.out("category.list", json!({"book": b}))[0]["has_element_template"],
+        false
+    );
+    undo(&e);
+    assert_eq!(
+        e.out(
+            "category_template.body",
+            json!({"book": b, "category": cat})
+        ),
+        body
+    );
+    assert!(matches!(
+        e.try_call(
+            "category_template.set_body",
+            json!({"book": b, "category": cat, "paragraphs": [{"heading": 4, "text": "x"}]})
+        ),
+        Err(WsError::Invalid(_))
+    ));
+}
+
+#[test]
+fn a_01_element_template_reads_as_paragraphs() {
+    use dr_workspace::commands::template::{TemplateParagraph, body_json, body_of};
+    // As the 0.1 template editor stored it: headings, paragraphs, a quote,
+    // a hard break, a rule.
+    let old = r#"{"type":"doc","content":[
+        {"type":"heading","attrs":{"level":2},"content":[{"type":"text","text":"身世"}]},
+        {"type":"paragraph","content":[{"type":"text","text":"生于"},{"type":"hardBreak"},{"type":"text","marks":[{"type":"bold"}],"text":"雨季"}]},
+        {"type":"horizontalRule"},
+        {"type":"blockquote","content":[{"type":"paragraph","content":[{"type":"text","text":"引"}]}]},
+        {"type":"paragraph"}
+    ]}"#;
+    let p = |h: Option<u8>, t: &str| TemplateParagraph {
+        heading: h,
+        text: t.into(),
+    };
+    let want = vec![
+        p(Some(2), "身世"),
+        p(None, "生于 雨季"),
+        p(None, "引"),
+        p(None, ""),
+    ];
+    assert_eq!(body_of(Some(old)), want);
+    assert_eq!(body_of(Some(&body_json(&want))), want);
+    assert!(body_of(Some("{}")).is_empty());
+    assert!(body_of(Some("not json")).is_empty());
+    assert!(body_of(None).is_empty());
+}
+
+#[test]
+fn books_carry_their_creation_and_elements_their_references() {
+    let e = env();
+    let b = e.book();
+    let info = e.out("book.get", json!({"book": b}));
+    assert!(info["created_at"].as_i64().is_some());
+    assert_eq!(
+        e.out("book.list", json!({}))[0]["created_at"],
+        info["created_at"]
+    );
+    // Who mentions an element and whom it mentions: `mention.list`.
+    let anna = id(&e.out("element.create", json!({"book": b, "name": "安娜"})));
+    let bea = id(&e.out(
+        "element.create",
+        json!({"book": b, "name": "贝雅", "text": "她认识安娜。"}),
+    ));
+    let agent = Actor::agent("s", 1, "c");
+    let c = dr_workspace::Workspace::call(
+        e.ws(),
+        &agent,
+        "chapter.create",
+        json!({"book": b, "title": "一", "text": "安娜和贝雅，还是安娜。"}),
+    )
+    .unwrap()["output"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    // The author links 安娜 in 贝雅's body by hand.
+    let doc = format!("element:{bea}");
+    let s = e.ws().prose_session(&doc).unwrap();
+    let a2 = anna.clone();
+    s.edit(move |t| {
+        t.link_entity(
+            3..5,
+            &dr_model::prose::EntityLink {
+                target: a2,
+                kind: dr_model::kind::EntityKind::Element,
+                block: None,
+                end_block: None,
+            },
+        )
+    })
+    .unwrap();
+    drop(s);
+    for d in e.ws().library().docs(Some(&b), None).unwrap() {
+        e.ws().library().reindex_doc(&d.doc_id).unwrap();
+    }
+    let into = e.out(
+        "mention.list",
+        json!({"book": b, "to": {"kind": "element", "id": anna}}),
+    );
+    let from: Vec<(String, u64)> = into
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|m| {
+            (
+                m["from"]["id"].as_str().unwrap().to_string(),
+                m["count"].as_u64().unwrap(),
+            )
+        })
+        .collect();
+    let mut want = vec![(c.clone(), 2), (bea.clone(), 1)];
+    want.sort();
+    let mut from = from;
+    from.sort();
+    assert_eq!(from, want);
+    let out = e.out(
+        "mention.list",
+        json!({"book": b, "from": {"kind": "element", "id": bea}}),
+    );
+    assert_eq!(out[0]["to"]["id"], json!(anna));
+}
