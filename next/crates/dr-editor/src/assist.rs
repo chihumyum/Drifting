@@ -141,10 +141,12 @@ impl BlockChoice {
 /// A row of an open picker.
 #[derive(Clone, Debug, PartialEq)]
 pub enum MenuRow {
-    /// Link to `target` under `name` (an alias is a row of its own).
+    /// Link to `target` under `name` (an alias is a row of its own), in
+    /// the picker's `group` (要素, 章节, 构想).
     Link {
         name: String,
         target: LinkTarget,
+        group: entity_links::NameGroup,
     },
     /// 「创建要素「name」」.
     Create {
@@ -435,19 +437,19 @@ impl Assist {
         let doc = &e.book().chapters[chapter].doc;
         let line_ix = doc.line_of(sel.head);
         let bid = doc.line(line_ix).bid().map(str::to_owned);
-        // Enter split a paragraph (there is one more): the one above was
-        // typed in too, and its block id may have moved down with its end.
+        // Enter split a paragraph, or a paste brought several: every
+        // paragraph the edit added above the caret's was typed in too (and a
+        // block id may have moved down with its paragraph's end).
         let lines = doc.visible_lines();
-        let split = self
+        let added = self
             .line_counts
             .get(chapter)
-            .is_some_and(|&before| lines > before);
+            .map_or(0, |&before| lines.saturating_sub(before));
         if let Some(c) = self.line_counts.get_mut(chapter) {
             *c = lines;
         }
-        let above = line_ix
-            .checked_sub(1)
-            .filter(|_| split)
+        let above = (1..=added.min(line_ix))
+            .map(|k| line_ix - k)
             .map(|ix| (chapter, doc.line(ix).bid().map(str::to_owned), ix));
         for entry in std::iter::once((chapter, bid, line_ix)).chain(above) {
             if !self.pending.contains(&entry) {
@@ -610,9 +612,13 @@ impl Assist {
                 let mut rows: Vec<MenuRow> = names
                     .search(query, MAX_ROWS + 1)
                     .into_iter()
-                    .filter(|(_, t)| Some(&t.id) != own.as_ref())
+                    .filter(|(_, t, _)| Some(&t.id) != own.as_ref())
                     .take(MAX_ROWS)
-                    .map(|(name, target)| MenuRow::Link { name, target })
+                    .map(|(name, target, group)| MenuRow::Link {
+                        name,
+                        target,
+                        group,
+                    })
                     .collect();
                 let q = query.trim();
                 if !q.is_empty() && !names.has_element_named(q) {
@@ -656,7 +662,7 @@ impl Assist {
             sel.head
         };
         match row {
-            MenuRow::Link { name, target } => {
+            MenuRow::Link { name, target, .. } => {
                 self.insert_link(chapter, at..caret, &name, &target, window, cx);
             }
             MenuRow::Create { name } => match self.create_element(&name) {
@@ -892,18 +898,41 @@ impl Assist {
 
     // ----- drawing ------------------------------------------------------------------
 
-    fn menu_element(&self, menu: &OpenMenu, cx: &mut Context<Self>) -> impl IntoElement {
+    fn menu_element(
+        &self,
+        menu: &OpenMenu,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        use entity_links::NameGroup;
         let this = cx.entity();
+        let theme = Theme::of(window, cx);
         let mut list = Menu::new("dr-editor-picker").width(MenuWidth::Wide);
+        let mut section: Option<NameGroup> = None;
         for (ix, row) in menu.rows.iter().enumerate() {
+            // Each group under its heading; 创建要素 after a hairline.
+            match row {
+                MenuRow::Link { group, .. } if section != Some(*group) => {
+                    if section.is_some() {
+                        list = list.separator(&theme);
+                    }
+                    list = list.section(group.label(), &theme);
+                    section = Some(*group);
+                }
+                MenuRow::Create { .. } if section.is_some() => {
+                    list = list.separator(&theme);
+                }
+                _ => {}
+            }
             let (icon, label, trailing): (RowIcon, SharedString, Option<&str>) = match row {
-                MenuRow::Link { name, target } => {
-                    let (kind, word) = match &target.kind {
-                        EntityKind::Element => (sand::Kind::Element, "要素"),
-                        EntityKind::Node => (sand::Kind::Chapter(0), "章节"),
-                        _ => (sand::Kind::Category, ""),
+                MenuRow::Link { name, group, .. } => {
+                    let kind = match group {
+                        NameGroup::Element => sand::Kind::Element,
+                        NameGroup::Chapter => sand::Kind::Chapter(0),
+                        NameGroup::Idea => sand::Kind::Drift { loose: false },
+                        NameGroup::Other => sand::Kind::Category,
                     };
-                    (RowIcon::Mark(kind, None), name.clone().into(), Some(word))
+                    (RowIcon::Mark(kind, None), name.clone().into(), None)
                 }
                 MenuRow::Create { name } => (
                     Icon::Plus.into(),
@@ -1048,7 +1077,7 @@ impl Render for Assist {
                 root = root.child(dr_ui::components::float(
                     place,
                     Layer::Popover,
-                    self.menu_element(&menu, cx),
+                    self.menu_element(&menu, window, cx),
                 ));
             }
             // The trigger was just typed: place the menu again once the
