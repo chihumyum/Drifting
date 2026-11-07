@@ -24,7 +24,8 @@ use dr_store::{ContainerChange, LocalChange, Origin};
 use loro::event::Diff;
 use loro::{ContainerID, Index, TextDelta};
 
-use crate::bridge::lock;
+use crate::holder::lock;
+use crate::nav::NavTarget;
 
 /// One changed thing in a book document: a whole collection (`id: None`,
 /// e.g. a tree move or a meta field) or one entity (its key in the
@@ -66,9 +67,33 @@ pub struct ProseChanged {
     pub embeds: bool,
 }
 
+/// Things that left a book's view in one persisted change: moved to the
+/// trash or deleted for good, by anyone (the author, an Agent, another
+/// device). Follows the [`BookChanged`] of the same change. The shell closes
+/// their tabs (`Navigator::forget`).
+#[derive(Clone, Debug)]
+pub struct Removed {
+    pub book: BookId,
+    pub seq: i64,
+    pub origin: Origin,
+    pub entities: Vec<RemovedEntity>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RemovedEntity {
+    pub target: NavTarget,
+    /// Deleted for good (otherwise in the trash). A node deleted for good
+    /// that this workspace never read is named twice, as a chapter and as
+    /// an idea: its kind is gone with it.
+    pub purged: bool,
+}
+
 #[derive(Clone, Debug)]
 pub enum WsEvent {
     Book(BookChanged),
+    /// After a `Book` event whose change trashed or purged something a tab
+    /// can show.
+    Removed(Removed),
     Prose(ProseChanged),
     /// A local-only table changed (dr-store's assets, settlements, derived
     /// index, sync state, and the workspace journal).

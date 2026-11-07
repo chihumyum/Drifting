@@ -22,29 +22,35 @@
 //!   and an Agent's changes (`history.undo_agent`: by origin, entity by
 //!   entity, from history).
 //!
-//! The adapter in [`bridge`] keeps a dr-doc writer next to each dr-store
-//! holder until dr-doc can open a transaction on the holder's document.
+//! - The shell's needs ([`nav`]): location-link lookup, the targets a
+//!   removal names, the quit hook.
+//!
+//! Every write is a dr-doc transaction inside a dr-store holder's write job,
+//! on the holder's own document; every read shares that document (see
+//! `holder.rs`).
 
 pub mod actor;
-mod bridge;
 mod cache;
 pub mod commands;
 pub mod cx;
-mod deriver;
 pub mod dto;
 pub mod editor;
 pub mod error;
 pub mod events;
+mod holder;
 pub mod journal;
 pub mod naming;
+pub mod nav;
 pub mod registry;
 mod workspace;
 
 pub use actor::Actor;
 pub use cx::{Cx, Effect, EffectAction, Faults, Invocation, Outcome};
-pub use deriver::count_words;
 pub use editor::ProseSession;
 pub use error::{Result, WsError};
-pub use events::{BookChanged, EntityChange, ProseChanged, Subscription, WsEvent};
+pub use events::{
+    BookChanged, EntityChange, ProseChanged, Removed, RemovedEntity, Subscription, WsEvent,
+};
+pub use nav::{BookCatalog, LinkGroup, NavTarget};
 pub use registry::{Access, Concurrency, Op, Registry, Spec, registry};
-pub use workspace::{Workspace, WorkspaceOptions, library_options};
+pub use workspace::{QuitReport, Workspace, WorkspaceOptions, library_options};

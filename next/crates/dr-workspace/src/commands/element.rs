@@ -695,7 +695,7 @@ op! {
 
 /// Elements whose stored category is `cat` (live or trashed category alike).
 fn raw_members(slot: &BookSlot, cat: &CategoryId) -> Vec<ElementId> {
-    let doc = slot.mirror.handle.doc();
+    let doc = slot.handle.doc();
     let root = doc.get_map(Collection::Elements.root());
     let loro::LoroValue::Map(all) = root.get_deep_value() else {
         return Vec::new();
