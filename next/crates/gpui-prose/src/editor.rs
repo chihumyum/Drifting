@@ -19,7 +19,7 @@ use gpui::{
 use crate::{
     extension::ProseExtension,
     input::{Composition, KEY_CONTEXT, Selection},
-    layout::{BlockMetrics, Book, HeightIndex, ProseLayout, column, estimate_height, shape},
+    layout::{BlockMetrics, Book, HeightIndex, ProseLayout, column, shape_set},
     platform::PlatformHooks,
     render::{CursorLayer, FrameCache, line_runs},
     style::{EditorOptions, ProseStyle},
@@ -550,6 +550,7 @@ impl ProseEditor {
         self.estimate_generation += 1;
         let generation = self.estimate_generation;
         let mut items = Vec::with_capacity(self.book.item_count());
+        let wrap = f32::from(wrap_width);
         let slot = |height: f32| {
             (
                 None,
@@ -559,6 +560,8 @@ impl ProseEditor {
                     pad_top: height,
                     pad_bottom: 0.,
                 },
+                wrap,
+                Default::default(),
             )
         };
         for (ix, chapter) in self.book.chapters.iter().enumerate() {
@@ -572,21 +575,32 @@ impl ProseEditor {
                         pad_top: if ix == 0 { 56. } else { 96. },
                         pad_bottom: 28. + 42.,
                     },
+                    wrap,
+                    Default::default(),
                 )),
             }
-            for line in &chapter.doc.lines()[..chapter.doc.visible_lines()] {
-                items.push((Some(line.text.clone()), self.style.metrics(line.kind)));
+            for (line_ix, line) in chapter.doc.lines()[..chapter.doc.visible_lines()]
+                .iter()
+                .enumerate()
+            {
+                // Set like the paragraph (block inset, first-line indent).
+                let (setting, inset) = self.row_setting(ix, line_ix);
+                items.push((
+                    Some(line.text.clone()),
+                    self.style.metrics(line.kind),
+                    wrap - f32::from(inset),
+                    setting,
+                ));
             }
             if let Some(slots) = self.book.has_ends().then_some(()).and(self.slots.as_ref()) {
                 items.push(slot(slots.end_estimate(ix)));
             }
         }
-        let wrap = f32::from(wrap_width);
         let task = cx.background_executor().spawn(async move {
             items
                 .iter()
-                .map(|(text, metrics)| match text {
-                    Some(text) => estimate_height(text, metrics, wrap),
+                .map(|(text, metrics, wrap, setting)| match text {
+                    Some(text) => crate::layout::estimate_indented(text, metrics, *wrap, *setting),
                     None => metrics.pad_top + metrics.pad_bottom,
                 })
                 .collect::<Vec<f32>>()
@@ -604,12 +618,8 @@ impl ProseEditor {
     }
 
     fn estimate_line(&self, chapter: usize, line: usize) -> f32 {
-        let doc = &self.book.chapters[chapter].doc;
-        let Some(line) = doc.lines().get(line) else {
-            return 0.;
-        };
         let wrap = self.estimate_width.map_or(680., f32::from);
-        estimate_height(&line.text, &self.style.metrics(line.kind), wrap)
+        self.estimate_set(chapter, line, wrap)
     }
 
     // ----- change bookkeeping -------------------------------------------------------
@@ -822,8 +832,24 @@ impl ProseEditor {
         let sel = self.selection;
         let line = self.book.chapters[sel.chapter].doc.locate(sel.head).0;
         if self.frame.borrow().get(sel.chapter, line).is_none() {
-            self.list
-                .scroll_to_reveal_item(self.book.line_item(sel.chapter, line));
+            let item = self.book.line_item(sel.chapter, line);
+            // The list reveals from the heights it measured; past its
+            // overdraw it has measured nothing and stops short (the caret
+            // stays off screen, and no autoscroll can fix that). There, put
+            // the paragraph at the top: it is laid out, and its autoscroll
+            // (or typewriter scrolling) places it.
+            let (scroll_y, _) = self.scroll_y();
+            let top = self.heights.borrow_mut().top(item);
+            let view = f64::from(f32::from(self.list.viewport_bounds().size.height));
+            let reach = f64::from(OVERDRAW);
+            if top >= scroll_y - reach && top <= scroll_y + view + reach {
+                self.list.scroll_to_reveal_item(item);
+            } else {
+                self.list.scroll_to(ListOffset {
+                    item_ix: item,
+                    offset_in_item: px(0.),
+                });
+            }
         }
     }
 
@@ -908,7 +934,9 @@ impl ProseEditor {
         }
         let line = self.book.chapters[chapter].doc.line(line_ix).clone();
         let metrics = self.style.metrics(line.kind);
-        let wrap = self.estimate_width.unwrap_or(self.style.max_width);
+        // Set as the paragraph element sets it (block inset, row setting).
+        let (setting, inset) = self.row_setting(chapter, line_ix);
+        let wrap = (self.estimate_width.unwrap_or(self.style.max_width) - inset).max(px(40.));
         let runs = line_runs(
             line.text.len(),
             &line.spans,
@@ -916,7 +944,14 @@ impl ProseEditor {
             &self.style,
             self.extension.as_deref(),
         );
-        let shaped = shape(&line.text, px(metrics.font_size), &runs, wrap, window);
+        let shaped = shape_set(
+            &line.text,
+            px(metrics.font_size),
+            &runs,
+            wrap,
+            setting,
+            window,
+        );
         Some((Rc::new(shaped), px(metrics.line_height)))
     }
 

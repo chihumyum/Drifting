@@ -368,6 +368,66 @@ impl DrDocStyle {
     }
 }
 
+/// One edit in a transaction, as `dr-doc`'s `ProseTxn` calls would make it.
+fn apply(txn: &mut Txn, edit: Edit<'_>) -> EditResult {
+    let mut result = EditResult::default();
+    match edit {
+        Edit::Replace {
+            range,
+            text,
+            overrides,
+        } => {
+            let deleted = txn.delete(range);
+            if !deleted.is_empty() {
+                result.deleted.push((deleted.start, deleted.len()));
+            }
+            let caret = txn.insert_paragraphs(deleted.start, text);
+            for (key, value) in overrides {
+                match value {
+                    Some(v) => txn.set_style(deleted.start..caret, key, v.clone()),
+                    None => txn.clear_style(deleted.start..caret, key),
+                }
+            }
+            result.inserted = deleted.start..caret;
+            result.caret = caret;
+        }
+        Edit::Delete { range } => {
+            let deleted = txn.delete(range);
+            if !deleted.is_empty() {
+                result.deleted.push((deleted.start, deleted.len()));
+            }
+            result.inserted = deleted.start..deleted.start;
+            result.caret = deleted.start;
+        }
+        Edit::Split { at } => {
+            result.caret = txn.split(at);
+            result.inserted = at..result.caret;
+        }
+        Edit::SetBlockAttr {
+            newline,
+            key,
+            value,
+        } => {
+            let (id, mut attrs) = txn.newline_block(newline);
+            attrs.retain(|(k, _)| k != key);
+            if let Some(v) = value {
+                attrs.push((key.to_owned(), v));
+            }
+            txn.set_newline(newline, id.as_ref(), &attrs);
+            result.caret = newline;
+        }
+        Edit::Mark { range, key, value } => {
+            txn.set_style(range.clone(), key, value);
+            result.caret = range.end;
+        }
+        Edit::Unmark { range, key } => {
+            txn.clear_style(range.clone(), key);
+            result.caret = range.end;
+        }
+    }
+    result
+}
+
 impl ProseSource for DrDocStyle {
     fn read_all(&self) -> Vec<SourceParagraph> {
         read_paragraphs(&self.holder.text().to_delta())
@@ -391,63 +451,19 @@ impl ProseSource for DrDocStyle {
 
     fn edit(&mut self, edit: Edit<'_>, origin: &str) -> EditResult {
         let before = self.undo.undo_count();
+        let mut result = self.holder.write(origin, |txn| apply(txn, edit));
+        result.undo_items = self.undo.undo_count().saturating_sub(before);
+        result
+    }
+
+    fn edit_batch(&mut self, edits: &[Edit<'_>], origin: &str) -> EditResult {
+        let before = self.undo.undo_count();
         let mut result = self.holder.write(origin, |txn| {
-            let mut result = EditResult::default();
-            match edit {
-                Edit::Replace {
-                    range,
-                    text,
-                    overrides,
-                } => {
-                    let deleted = txn.delete(range);
-                    if !deleted.is_empty() {
-                        result.deleted.push((deleted.start, deleted.len()));
-                    }
-                    let caret = txn.insert_paragraphs(deleted.start, text);
-                    for (key, value) in overrides {
-                        match value {
-                            Some(v) => txn.set_style(deleted.start..caret, key, v.clone()),
-                            None => txn.clear_style(deleted.start..caret, key),
-                        }
-                    }
-                    result.inserted = deleted.start..caret;
-                    result.caret = caret;
-                }
-                Edit::Delete { range } => {
-                    let deleted = txn.delete(range);
-                    if !deleted.is_empty() {
-                        result.deleted.push((deleted.start, deleted.len()));
-                    }
-                    result.inserted = deleted.start..deleted.start;
-                    result.caret = deleted.start;
-                }
-                Edit::Split { at } => {
-                    result.caret = txn.split(at);
-                    result.inserted = at..result.caret;
-                }
-                Edit::SetBlockAttr {
-                    newline,
-                    key,
-                    value,
-                } => {
-                    let (id, mut attrs) = txn.newline_block(newline);
-                    attrs.retain(|(k, _)| k != key);
-                    if let Some(v) = value {
-                        attrs.push((key.to_owned(), v));
-                    }
-                    txn.set_newline(newline, id.as_ref(), &attrs);
-                    result.caret = newline;
-                }
-                Edit::Mark { range, key, value } => {
-                    txn.set_style(range.clone(), key, value);
-                    result.caret = range.end;
-                }
-                Edit::Unmark { range, key } => {
-                    txn.clear_style(range.clone(), key);
-                    result.caret = range.end;
-                }
+            let mut merged = EditResult::default();
+            for edit in edits {
+                merged.merge(apply(txn, edit.clone()));
             }
-            result
+            merged
         });
         result.undo_items = self.undo.undo_count().saturating_sub(before);
         result

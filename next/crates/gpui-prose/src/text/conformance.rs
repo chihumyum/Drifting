@@ -18,7 +18,7 @@ use loro::LoroValue;
 use super::{
     blocks::{BlockAttrs, BlockKind},
     doc::{ORIGIN_USER, ProseDoc},
-    source::ProseSource,
+    source::{Edit, ProseSource},
 };
 use crate::schema::{block, inline};
 
@@ -262,6 +262,74 @@ pub fn anchor_rules(make: Factory) -> Check {
     Ok(())
 }
 
+/// A batch of edits is one commit, one undo item, undone and redone whole;
+/// a batch of deletes brings its anchors back on undo.
+pub fn batch_rules(make: Factory) -> Check {
+    let mut doc = open(
+        make,
+        &[
+            (BlockKind::Body, "阿明来了，阿明笑了。"),
+            (BlockKind::Body, "大家都等阿明。"),
+        ],
+    );
+    let steps = doc.undo_count();
+    doc.checkpoint();
+    // Last first, as a replace-all gives them.
+    let edits: Vec<Edit> = [15..17, 5..7, 0..2]
+        .into_iter()
+        .map(|range| Edit::Replace {
+            range,
+            text: "小明",
+            overrides: &[],
+        })
+        .collect();
+    let result = doc.edit_batch(&edits, ORIGIN_USER);
+    ensure(
+        texts(&doc) == ["小明来了，小明笑了。", "大家都等小明。"],
+        || format!("a batch of replacements: {:?}", texts(&doc)),
+    )?;
+    ensure(result.undo_items == 1, || {
+        format!(
+            "a batch is one commit, one undo item, not {}",
+            result.undo_items
+        )
+    })?;
+    ensure(result.deleted.len() == 3, || {
+        format!("a batch reports each deletion: {:?}", result.deleted)
+    })?;
+    ensure(doc.undo_count() == steps + 1, || {
+        "a batch is one author step".into()
+    })?;
+    doc.undo();
+    ensure(
+        texts(&doc) == ["阿明来了，阿明笑了。", "大家都等阿明。"],
+        || format!("one undo takes the whole batch back: {:?}", texts(&doc)),
+    )?;
+    doc.redo();
+    ensure(
+        texts(&doc) == ["小明来了，小明笑了。", "大家都等小明。"],
+        || format!("one redo puts it back: {:?}", texts(&doc)),
+    )?;
+    consistent(&doc)?;
+
+    let mut doc = open(make, &[(BlockKind::Body, "零一二三四五六七八九")]);
+    doc.add_anchor("two", 2..3).ok_or("anchor")?;
+    doc.add_anchor("seven", 7..9).ok_or("anchor")?;
+    doc.checkpoint();
+    let edits = [Edit::Delete { range: 6..9 }, Edit::Delete { range: 1..4 }];
+    doc.edit_batch(&edits, ORIGIN_USER);
+    ensure(texts(&doc) == ["零四五九"], || {
+        format!("a batch of deletes: {:?}", texts(&doc))
+    })?;
+    doc.undo();
+    let two = doc.anchor("two").map(|r| r.range);
+    let seven = doc.anchor("seven").map(|r| r.range);
+    ensure(two == Some(2..3) && seven == Some(7..9), || {
+        format!("undoing a batch re-anchors: two {two:?}, seven {seven:?}")
+    })?;
+    consistent(&doc)
+}
+
 /// xorshift64*, so the suite needs no crates.
 struct Rng(u64);
 impl Rng {
@@ -442,5 +510,6 @@ pub fn run_all(make: Factory) -> Check {
     undo_rules(make)?;
     mark_rules(make)?;
     anchor_rules(make)?;
+    batch_rules(make)?;
     random_edits(make, 12, 100)
 }

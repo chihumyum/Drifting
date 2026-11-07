@@ -23,6 +23,10 @@ pub const TYPEWRITER: &str = "editor.typewriter_mode";
 /// registry yet (see m03-page.md).
 pub const AUTO_ENTITY_LINKS: &str = "editor.auto_entity_links";
 
+/// Where typewriter scrolling holds the caret's row: the 0.1 client's
+/// default (its setting ranged 25–75 % and is not in the registry yet).
+pub const TYPEWRITER_POSITION: f32 = 0.5;
+
 /// The 0.1 client's H1, H2 and H3 (28, 22 and 18 px) over its 17 px body, as
 /// the shell's read-only page scales them.
 pub const HEADING_SCALE: [f32; 3] = [28.0 / 17.0, 22.0 / 17.0, 18.0 / 17.0];
@@ -38,10 +42,10 @@ pub struct EditorSettings {
     pub paragraph_spacing: f32,
     /// Paper width, px.
     pub page_width: f32,
-    /// First-line indent of body paragraphs, in characters (0, 1, 2). Not
-    /// laid out yet (F4b).
+    /// First-line indent of body paragraphs, in characters (0, 1, 2).
     pub paragraph_indent: u8,
-    /// Typewriter scrolling. Not implemented yet (F4b).
+    /// Typewriter scrolling (the caret's row held at the middle of the view,
+    /// the 0.1 client's default position).
     pub typewriter: bool,
     /// Automatic entity links while typing.
     pub auto_entity_links: bool,
@@ -100,6 +104,8 @@ impl EditorSettings {
         style.heading_sizes = HEADING_SCALE.map(|s| px((self.font_size * s).round()));
         style.paragraph_spacing = self.paragraph_spacing;
         style.max_width = px(self.page_width);
+        style.first_line_indent = f32::from(self.paragraph_indent);
+        style.typewriter = self.typewriter.then_some(TYPEWRITER_POSITION);
         style
     }
 }
@@ -124,5 +130,14 @@ mod tests {
         assert_eq!(s.page_width, 720.0);
         let style = s.style(&ProseStyle::default());
         assert_eq!(style.heading_sizes[0], px((20.0f32 * 28.0 / 17.0).round()));
+        // The first-line indent and typewriter scrolling reach the layout.
+        assert_eq!(style.first_line_indent, 2.0);
+        assert_eq!(style.typewriter, None);
+        let s = EditorSettings::from_values(|k| match k {
+            TYPEWRITER => Some(json!(true)),
+            _ => None,
+        });
+        assert_eq!(s.style(&ProseStyle::default()).typewriter, Some(0.5));
+        assert_eq!(s.style(&ProseStyle::default()).first_line_indent, 0.0);
     }
 }

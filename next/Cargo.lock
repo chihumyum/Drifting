@@ -3875,6 +3875,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f3d053a135388e6b1df14e8af1212af5064746e9b87a06a345a7a779ee9695a"
 
 [[package]]
+name = "loro-undo-quadratic-spike"
+version = "0.0.0"
+dependencies = [
+ "loro",
+]
+
+[[package]]
 name = "loro_fractional_index"
 version = "1.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

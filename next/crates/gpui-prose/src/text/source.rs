@@ -109,6 +109,16 @@ pub struct EditResult {
     pub undo_items: usize,
 }
 
+impl EditResult {
+    /// Folds a later edit of the same batch into this result.
+    pub fn merge(&mut self, next: EditResult) {
+        self.deleted.extend(next.deleted);
+        self.inserted = next.inserted;
+        self.caret = next.caret;
+        self.undo_items += next.undo_items;
+    }
+}
+
 /// Where a body text lives. Object-safe: the editor holds `Box<dyn ProseSource>`.
 pub trait ProseSource: Send {
     /// Every paragraph, in order. The last entry is whatever follows the final
@@ -125,6 +135,25 @@ pub trait ProseSource: Send {
 
     /// Applies one edit as one commit with `origin`.
     fn edit(&mut self, edit: Edit<'_>, origin: &str) -> EditResult;
+
+    /// Applies `edits` in order as **one** commit with `origin` (so one item
+    /// on the author's undo stack): each edit's positions are those the edits
+    /// before it left. Give non-overlapping ranges last first (a replace-all
+    /// does) so every position is also a position before the batch, which
+    /// the editor's anchor bookkeeping assumes. The result merges the edits':
+    /// every deletion in order, the last edit's inserted range and caret, and
+    /// the commit's undo items.
+    ///
+    /// The default commits each edit on its own (one undo item each: correct
+    /// but slow to undo, since Loro's undo of N items in a row is
+    /// quadratic); sources override it.
+    fn edit_batch(&mut self, edits: &[Edit<'_>], origin: &str) -> EditResult {
+        let mut merged = EditResult::default();
+        for edit in edits {
+            merged.merge(self.edit(edit.clone(), origin));
+        }
+        merged
+    }
 
     /// Undoes one item of the author's undo stack. Returns whether anything
     /// changed. (The editor groups items into steps and calls this once per

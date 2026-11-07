@@ -312,6 +312,37 @@ impl ProseSource for SessionSource {
         }
     }
 
+    fn edit_batch(&mut self, edits: &[Edit<'_>], origin: &str) -> EditResult {
+        if origin != ORIGIN_USER {
+            // Tests and stand-ins only (see `edit`): one at a time.
+            let mut merged = EditResult::default();
+            for edit in edits {
+                merged.merge(self.edit(edit.clone(), origin));
+            }
+            return merged;
+        }
+        let edits: Vec<OwnedEdit> = edits.iter().cloned().map(OwnedEdit::from).collect();
+        let before = self.shared.queue().pushed_user;
+        // One `dr-doc` transaction, one commit, one item on the undo stack.
+        let written = self.session.edit(move |txn| {
+            let mut merged = EditResult::default();
+            for edit in edits {
+                merged.merge(convert::apply(txn, edit)?);
+            }
+            Ok(merged)
+        });
+        match written {
+            Ok(mut result) => {
+                result.undo_items = (self.shared.queue().pushed_user - before) as usize;
+                result
+            }
+            Err(e) => {
+                log::error!("dr-editor: batch edit of {} failed: {e}", self.doc_id);
+                EditResult::default()
+            }
+        }
+    }
+
     fn undo_item(&mut self) -> bool {
         self.session.undo().unwrap_or_else(|e| {
             log::error!("dr-editor: undo in {} failed: {e}", self.doc_id);
