@@ -1,0 +1,36 @@
+# Fuzz targets for dr-doc (cargo-fuzz layout). Not a member of the next/
+# workspace and not run in CI: run them by hand on nightly, see README.md.
+[package]
+name = "dr-doc-fuzz"
+version = "0.0.0"
+edition = "2024"
+license = "AGPL-3.0-or-later"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+arbitrary = { version = "1.4", features = ["derive"] }
+dr-doc = { path = ".." }
+dr-model = { path = "../../dr-model" }
+libfuzzer-sys = "0.4"
+loro = "=1.17.1"
+
+# Its own workspace, so the next/ workspace does not adopt it.
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "load_bytes"
+path = "fuzz_targets/load_bytes.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "bad_structure"
+path = "fuzz_targets/bad_structure.rs"
+test = false
+doc = false
+bench = false

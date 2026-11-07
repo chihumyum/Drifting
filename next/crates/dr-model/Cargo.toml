@@ -1,0 +1,15 @@
+[package]
+name = "dr-model"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Drifting domain types: ids, entity records, ordering, write origins and the invariant checklist"
+
+[dependencies]
+serde.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

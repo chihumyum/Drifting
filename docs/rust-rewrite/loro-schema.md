@@ -1,8 +1,9 @@
-# Loro 文档结构 v0
+# Loro 文档结构 v1
 
-2026-11-07 由 P0-C 探针定下。合进 `main` 后定稿：以后任何改动都要升版本号（见「版本」一节），并在这里写明从哪一版改成哪一版、旧文档怎么读。
+2026-11-07 由 P0-C 探针定下 v0，同日 F1 实现时改成 v1（改了什么、为什么见「版本」一节的「v0 → v1」）。以后任何改动都要升版本号，并在这里写明从哪一版改成哪一版、旧文档怎么读。
 
-- 探针的实现和测试：`next/spikes/loro-model/`（包名 `loro-model-spike`）。F1 的 `dr-doc` 照这份结构写，可以直接搬探针里的代码。
+- 正式实现：`next/crates/dr-doc/`（类型化的书目文档和正文文档）和 `next/crates/dr-model/`（领域类型、不变量清单），说明见 [foundations/f1-model-doc.md](foundations/f1-model-doc.md)。
+- 探针的实现和测试：`next/spikes/loro-model/`（包名 `loro-model-spike`），只读保留。
 - 测量和结论：[spikes/p0-c-loro.md](spikes/p0-c-loro.md)。
 - Loro 精确钉在 `=1.17.1`。
 
@@ -28,7 +29,7 @@
 
 ### 版本号
 
-- 每个文档的 `meta` 映射里有 `v`，现在是 `0`。
+- 每个文档的 `meta` 映射里有 `v`，现在是 `1`。
 - Loro 不把文本样式配置存进文档。下文的样式表（每个标记键的 `ExpandType`）也是 v0 的一部分：每个 `LoroDoc` 在导入或编辑之前都要先配置它（探针里是 `schema::configure`）。
 
 ### 创世变更
@@ -37,8 +38,9 @@
 
 - 写入者是一个专用的「创世对等方」，ID 由文档 id 和创世版本号算出（FNV-1a 64 位，最高位置 1；见 `ids::genesis_peer`）；
 - 时间戳为 0，不带提交信息；
-- 正文文档的创世内容：`meta.v = 0`、`meta.doc = <文档 id>`，`body` 里一个 `\n`，它的块 ID 是 `0@<创世对等方>`；
-- 书目文档的创世内容：`meta.v = 0`、`meta.book = <书 id>`，以及内置的锁定关系类型（见「书目文档」）。
+- 正文文档的创世内容：`meta.v = 1`、`meta.doc = <文档 id>`，`body` 里一个 `\n`，它的块 ID 是 `0@<创世对等方>`；
+- 书目文档的创世内容：`meta.v = 1`、`meta.book = <书 id>`，以及内置的锁定关系类型（见「书目文档」）；
+- 创世版本号现在是 `1`（v0 是 `0`）。
 
 **为什么**：任何一台设备都可以独立生成同一份创世变更，字节完全相同。Loro 按操作 ID 去重，所以两台设备同时初始化同一篇空正文，合并后仍然只有一个空段落，不会多出一段；内置关系类型也只会有一个。
 
@@ -64,7 +66,7 @@
 ### 时间戳、来源和提交信息
 
 - 每次载入后调用 `set_record_timestamp(true)`，提交时间按秒记。快照历史（`history_label`）靠它。
-- 提交来源（origin）只在本机生效，不进 Loro 历史：来源记在 SQLite `loro_update.origin`，取值 `user`、`agent:<会话>/<轮>`、`mirror`、`sync`、`import`、`genesis`。
+- 提交来源（origin）只在本机生效，不进 Loro 历史：来源记在 SQLite `loro_update.origin`，取值 `user`、`agent:<会话>/<轮>`、`mirror`、`sync`、`import`、`genesis`、`repair`（`dr-doc` 自己写的确定性修复，比如导入后修重复的块 ID；v1 新增）。编辑器的撤销管理器排除 `user` 以外的全部来源。
 - **Agent 的提交带提交信息** `agent:<会话>/<轮>`。提交信息会存进 Loro 历史，并随快照和同步走（探针已测快照往返后仍在），用来在历史里认出 Agent 的改动。
 
 ## 正文文档
@@ -169,7 +171,7 @@ H1、H2、H3 三级同等对待，只叫 H1/H2/H3。
 | `relations` | 映射 | `from_kind`、`from`、`to_kind`、`to`、`type`、`created_at` | `entity_relation` |
 | `time_pins` | 映射 | `narrative_order`、`label`、`drift` | `timeline_marker` |
 | `plot_grids` | 映射（键是章节 id） | `cell_w`、`cell_h`；`rows`、`cols`（id → `{pos, label}`，`pos` 是分数索引字符串）；`cells`（`"<行>/<列>"` → 文字） | `plot_grid_*` |
-| `comments` | 映射 | `kind`（`note` / `todo` / 旧值原样）、`target_kind`、`target`、`anchor`、`author_kind`、`author`、`author_name`、`body`（LoroText）、`status`、`priority`、`source`、`metadata`、`resolved_at`、`created_at`、`updated_at` | `comment`、`comment_action` |
+| `comments` | 映射 | `kind`（`note` / `todo` / 旧值原样）、`target_kind`、`target`、`target_block`（v1 新增，旧版 `target_block_id`）、`anchor`、`author_kind`、`author`、`author_name`、`body`（LoroText）、`status`、`priority`、`source`、`metadata`、`resolved_at`、`created_at`、`updated_at` | `comment`、`comment_action` |
 | `materials` | 映射 | `title`、`kind`（`image` / `pdf` / `text`）、`asset`、`folder`、`order`、`task_todos`、`provenance`、`preview_image` | `library_item` |
 | `assets` | 映射 | `kind`、`mime`、`size`、`sha256`、`width`、`height` | `project_asset`（字节在 SQLite / 文件里） |
 | `drift_groups` | LoroTree | 节点 meta：`id`、`name`、`color` | `drift_group` |
@@ -203,7 +205,18 @@ H1、H2、H3 三级同等对待，只叫 H1/H2/H3。
 
 ### 内置关系类型
 
-id 是 `rt-generic:<书 id>`，在创世变更里建：`name`、`orientation = symmetric`、`system_key = generic-association`、`locked = true`。它不能改、不能删（命令层拒绝）。
+id 是 `system:generic-association:<书 id>`，和旧版 `genericAssociationRelationTypeId` 一样，导入的旧关系不用换类型 id。在创世变更里建，字段照抄旧版 `genericAssociationRelationType`：
+
+- `name = "Generic association"`、`normalized_name = "generic association"`、`description = "Built-in association for TODO and library item links."`；
+- `orientation = directed`、`source_role = "Source"`、`target_role = "Target"`；
+- `source_kinds = [comment, material]`、`target_kinds = [node, element, patch, category, storyline]`；
+- `system_key = generic-association`、`locked = true`。
+
+它不能改、不能删（`dr-doc` 的写入接口拒绝）。界面显示的名字按 `system_key` 本地化，不读 `name`。
+
+### 实体种类的取值
+
+关系两端（`from_kind` / `to_kind`）、批注目标（`target_kind`）、Project Memory 目标、人物链接的 `kind` 用同一套字符串：`node`、`element`、`patch`、`category`、`storyline`、`comment`、`material`。旧版的 `library_item` 读作 `material`，导入时改写成 `material`（v1 写明；v0 没规定）。
 
 ## 锚点
 
@@ -214,7 +227,7 @@ id 是 `rt-generic:<书 id>`，在创世变更里建：`name`、`orientation = s
 
 ## 不变量
 
-旧版靠 SQL 约束、触发器和同步内核（`production-domain-kernel.ts`）挡住的事，新版各有归属：
+旧版靠 SQL 约束、触发器和同步内核（`production-domain-kernel.ts`）挡住的事，新版各有归属。下表是摘要；逐条对过旧版 70 条领域不变量和 126 个仍生效的触发器之后的完整清单（71 条，加 14 条写明不再需要的）在 `dr_model::invariant`，生成的证据是 [acceptance/f1-invariants.json](acceptance/f1-invariants.json)：
 
 | 不变量 | 新版靠什么 |
 | --- | --- |
@@ -223,7 +236,7 @@ id 是 `rt-generic:<书 id>`，在创世变更里建：`name`、`orientation = s
 | 关系不能连自己 | 命令层预防 |
 | 对称关系两端按规范顺序 | 命令层预防 |
 | 同一对端点同一类型只留一条（语义重复） | 读取时按 id 取最小的那条；后台修复删掉其余的 |
-| 内置关系类型不能改、不能删 | 命令层预防；创世保证它只有一个 |
+| 内置关系类型不能改、不能删 | `dr-doc` 的写入接口拒绝；创世保证它只有一个 |
 | 章节有书序，构想没有书序；章节不进构想分组 | 读取时以 `kind` 为准：章节缺书序排到最后，构想的书序忽略；后台修复 |
 | 节点所在的构想分组、素材所在的素材夹存在 | 读取时不在就放到根目录（旧版也是这样） |
 | 分组、素材夹不成环 | LoroTree 保证 |
@@ -256,6 +269,7 @@ CREATE TABLE loro_peer (doc_id TEXT PRIMARY KEY, peer_id INTEGER NOT NULL, epoch
 - **写**：每次本机提交，导出自上次追加以来的更新，作为一行追加进 `loro_update`，一次提交一个事务；导入的远端更新也作为一行追加，`origin = sync`。新文档的第一次追加包含创世变更。
 - **压缩**：在**同一个事务**里写新快照（`upto_seq` = 当时最大的 `seq`）并删除 `seq <= upto_seq` 的更新。崩溃时要么是旧快照加全部更新，要么是新快照加更新的更新。
 - **载入**：快照加 `seq > upto_seq` 的更新，一次 `import_batch`；重叠的部分 Loro 会去重。载入后先配置样式和时间戳，再设本机对等方。
+- **载入前先校验每份字节的校验和**（`LoroDoc::decode_import_blob_meta(bytes, true)`）：Loro 1.17.1 的 `import_batch` 解码时不校验，而它的解码器照字节里的长度申请内存，一份坏字节能让进程申请几十 GB 后被杀（F1 的模糊测试找到的）。单份的 `import` 自己会校验。`dr-doc` 的载入已经这样做，存储层不要绕过它直接导入。
 - 不做浅快照裁剪（理由见 F2）。
 
 ## Agent 写入
@@ -273,11 +287,23 @@ CREATE TABLE loro_peer (doc_id TEXT PRIMARY KEY, peer_id INTEGER NOT NULL, epoch
 
 ## 版本
 
-- 现在是 v0：`meta.v = 0`，创世版本 0，样式表如上。
+- 现在是 v1：`meta.v = 1`，创世版本 1，样式表如上；另外给未配置的标记键设了默认 `ExpandType::None`（新版本加的标记键在旧版本里本机插入时不扩展）。
 - 改动分两类：
   - **向后兼容**（新增根容器、新增实体字段、新增标记键且旧版忽略它也不会写坏）：升小版本，在这里记一行；读取端遇到不认识的字段原样保留。
   - **不兼容**（改键名、改值的含义、改 `ExpandType`、改创世内容、改块 ID 规则）：升 `meta.v`，写清楚迁移办法。改 `ExpandType` 尤其要小心：同一个键在不同设备上配置不同，本机插入时的扩展行为就会不一致。
 - Loro 自己的数据格式从 1.0 起不再有破坏性改动；新版 Loro 建的新类型容器，旧版会读成 `LoroUnknown`。
+
+### v0 → v1（2026-11-07，F1）
+
+实现 `dr-doc` 时对照旧版代码，发现 v0 有一处错、两处漏：
+
+1. **内置关系类型错了**（不兼容，所以升 `meta.v`）。v0 写成对称的 `rt-generic:<书 id>`、名字「关联」。旧版其实是有向的 `system:generic-association:<项目 id>`，只允许从批注（TODO）或素材指向结构实体，专门用来把 TODO 和素材挂到章节、要素上。照 v0 做会有两个后果：对称类型要按规范顺序存两端，一条「TODO → 要素」的关系可能被存成「要素 → TODO」，指向了不该被指向的种类；旧库导入的关系指向旧 id，还得逐条改写。v1 照抄旧版的 id 和全部字段。
+2. **批注漏了 `target_block`**（向后兼容）。旧版批注和 TODO 可以只挂在某一段上而不锚住文字（`target_block_id`）。v1 加回这个字段。
+3. **实体种类的字符串没写**（向后兼容）。v1 写明用 `material`，旧的 `library_item` 读作 `material`。
+
+另外两条不改结构的补充：来源多了 `repair`；载入前要先校验校验和（见「SQLite 存储」）。
+
+**旧文档怎么读**：v0 的文档只在探针和测试里出现过，没有真实数据，所以不做迁移。万一读到 `meta.v = 0` 的书目文档，会多出一个 `rt-generic:<书 id>` 的关系类型，它是一个普通的、没锁定的类型，不影响读取。
 
 ## 和 P0-B 的最小模型的关系
 
