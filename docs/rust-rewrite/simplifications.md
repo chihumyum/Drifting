@@ -113,7 +113,7 @@
 - 对话分支模型：从没用过。
 - 记忆的 veto / directive、待确认流程。
 - 「Rust MCP 服务端」里转发给 WebView 的那一层，改用 rmcp 直接调命令注册表。
-- `sidecar` / `remote` 接缝：两种都没有实现，这条要作者确认，见文末。
+- `sidecar` / `remote` 接缝：两种都没有实现，作者已定不保留，见文末。
 
 **界面**
 - 为 WebKit 写的性能补丁：隐藏常驻的标签页、输入法查询遍历的拦截、暂停动画的样式税、`content-visibility` 高度估算、按需加载。只照它们背后的视觉规格来做。
@@ -194,7 +194,7 @@
    - 第三方许可证用 `cargo-deny` 管白名单。
 4. **依赖方向**：界面 → 应用服务 → 数据。用 `cargo metadata` 写测试来查。
 5. **漏洞审计**：`cargo deny advisories`。`next.yml` 现在没跑这一项，也没跑公开边界检查，要补上。
-6. **退役产品守护**：对 `next/` 跑黑名单，包括 Google Drive、Copilot（含 Google BYOK）、Shadow CI、Element Arc、Goal Evolve、独立 Apple 前端、R2。
+6. **退役产品守护**：对 `next/` 跑黑名单，名单照搬 `src/renderer/architecture/retired-client-integrations.acceptance.test.ts` 和两份退役产品守护测试的模式（已退役的云盘同步、Copilot 及其 Google BYOK、Shadow CI、Element Arc、Goal Evolve、独立 Apple 前端、R2）。
 7. **术语守护**：
    - 中文界面叫「构想」，英文叫 Ideas；
    - **H1/H2/H3 只叫 H1/H2/H3，不得叫 scene、beat、场景、节拍**。这一条现在没有任何机器检查，要新建，范围是文案、Agent 提示词和导出。
@@ -223,8 +223,6 @@
 6. **改写 `AGENTS.md`** 的「Checks」一节和各条只适用于旧客户端的规则。
 7. **留作规格的文档（约 60 篇）**：`docs/editor/*`、`design-system/*`、帮手的各份协议，以及根目录各功能说明。把里面引用的 TS 路径改掉；新代码的测试不再钉文档措辞。
 
-## 等作者定的
+## 作者定下的
 
-- **帮手的 `sidecar` / `remote` 接缝。** `AGENTS.md` 要求保留 `local` / `sidecar` / `remote` 三种接缝，但后两种从来没有实现。为了这层接缝，旧版写了约 2.1k 行来回适配。
-  - 建议：新版只保留与模型无关的驱动接口和事件日志，第二种接法真有需要时再加。
-  - 作者回复之前，计划先按这个建议写；`AGENTS.md` 里的这条规则对旧客户端照旧有效。
+- **帮手只留本机这一种接法**（2026-11-07）。`sidecar` / `remote` 接缝不保留：新版只有与模型无关的驱动接口和事件日志，第二种接法真有需要时再加。`AGENTS.md` 里「保留 local/sidecar/remote 接缝」那条规则只对 0.1 客户端有效。

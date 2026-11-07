@@ -76,7 +76,7 @@ F3 的命令注册表一好就能开，不必等阶段 3。
 
 | # | 模块 | 内容 | 旧代码 | 依赖 | 大小 |
 | --- | --- | --- | --- | --- | --- |
-| M27 | 运行时核心 | 与模型无关的驱动接口，只做本机这一种接法（`sidecar` / `remote` 从没实现，等作者确认后不再保留）；运行日志是唯一的事件流，消息由事件推出，结算记录和 Loro 更新同一事务；权限请求；向作者提问；中途转向；在当前工具之后停止；中止 | `src/renderer/lib/agent/protocol.ts`、`transport.ts`、`runtime/*`。运行时核心约 5.7 万行，其中不少是旧数据模型和 Yjs 的适配，新版要重新设计，不是逐行搬 | F3 | XL |
+| M27 | 运行时核心 | 与模型无关的驱动接口，只做本机这一种接法（`sidecar` / `remote` 从没实现，作者 2026-11-07 定为不保留）；运行日志是唯一的事件流，消息由事件推出，结算记录和 Loro 更新同一事务；权限请求；向作者提问；中途转向；在当前工具之后停止；中止 | `src/renderer/lib/agent/protocol.ts`、`transport.ts`、`runtime/*`。运行时核心约 5.7 万行，其中不少是旧数据模型和 Yjs 的适配，新版要重新设计，不是逐行搬 | F3 | XL |
 | M28 | 模型接入 | DeepSeek（Chat Completions）、Anthropic（Messages：流式输出、自适应思考、回放签名过的思考内容）、OpenAI（Responses）、ChatGPT 订阅（设备码登录，走 Codex 后端）；实时拉取模型列表；各家自带的联网搜索 | TS 驱动：`runtime/drivers/*`。已经是 Rust、可以复用的：`codex_oauth.rs` 858、`codex_models.rs` 516、`byok_models.rs` 484；`openai_responses.rs` 644 只转发字节，只留错误投影和 Codex 请求头，流式解析按 TS 驱动重写。新版一个 HTTP 客户端、一个 SSE 解析器、三种协议适配 | M27 | L |
 | M29 | 工具 | 命令注册表加一层帮手外观（按名称找对象、正文投影成可改的文本），不保留旧目录名和虚拟路径；工具搜索（`tool_search` / `call_tool`）；读写屏障；修订 CAS（每轮每个目标冲突两次就停）；结算记录 | `runtime/drifting-workspace-tool-runtime.ts` 6023、`tool-registry.ts` 2037、`drifting-write-*.ts`；生成的清单在 `docs/agent-runtime/acceptance/agent-capabilities.md` | M27、F3 | XL |
 | M30 | 长任务、记忆与主动建议 | 长任务的计划、步骤、约束；Project Memory 和工作记忆；主页签到（只出卡片，什么都不写）和整理卡；「主动建议」开关；章末交给 Agent 审阅；把待办交给帮手 | `runtime/long-task-*`、`lib/agent/checkin/*`、`lib/agent/organize/*`、`docs/agent-runtime/project-checkin.md` | M29 | L |
