@@ -6,6 +6,8 @@ resolver = "3"
 # One member per line, kept sorted, so parallel branches merge cleanly.
 members = [
     "app/drifting",
+    "crates/dr-doc",
+    "crates/dr-model",
     "spikes/import-v1",
     "spikes/loro-model",
     "spikes/prose-spike",
@@ -34,6 +36,14 @@ loro = "=1.17.1"
 
 anyhow = "1"
 log = "0.4"
+
+# F1 data crates. Workspace members are listed here so dependants write
+# `dr-model.workspace = true`.
+dr-doc = { path = "crates/dr-doc" }
+dr-model = { path = "crates/dr-model" }
+# uuidv7 for new domain ids (the old data uses uuidv7 too); the version the
+# lockfile already carries for GPUI.
+uuid = { version = "1.29", default-features = false, features = ["std", "v7"] }
 
 # AppKit calls GPUI does not wrap, such as the app's own appearance. The same
 # versions GPUI's macOS backend already builds, so they add nothing new.

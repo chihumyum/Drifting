@@ -1275,6 +1275,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "dr-doc"
+version = "0.0.0"
+dependencies = [
+ "dr-model",
+ "loro",
+ "proptest",
+ "serde_json",
+]
+
+[[package]]
+name = "dr-model"
+version = "0.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sha2",
+ "uuid",
+]
+
+[[package]]
 name = "drifting"
 version = "0.2.0-dev"
 dependencies = [

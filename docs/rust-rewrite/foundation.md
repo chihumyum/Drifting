@@ -118,6 +118,8 @@
 
 **大小**：L。适合亲手写。
 
+第一轮已实现（2026-11-07）：接口、不变量清单、测试结果和待协调的事见 [foundations/f1-model-doc.md](foundations/f1-model-doc.md)；文档结构实现时改成了 [loro-schema.md](loro-schema.md) v1。
+
 #### dr-model
 
 - 领域类型和 ID。沿用旧数据的 uuidv7。
@@ -126,7 +128,7 @@
   - 读取时容错，比如关系指向的要素已删除，就不显示；
   - 后台修复。
 
-结构以 [loro-schema.md](loro-schema.md) v0 为准（P0-C 定下），下面是摘要。
+结构以 [loro-schema.md](loro-schema.md) 为准（P0-C 定下 v0，F1 实现时改成 v1），下面是摘要。
 
 #### dr-doc 的书目文档（每本书一个）
 
