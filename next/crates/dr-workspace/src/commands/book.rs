@@ -207,8 +207,6 @@ pub struct ShelfBook {
     /// Words in the live chapters only (not ideas, elements or notes), as
     /// the derived index counts them.
     pub words: u64,
-    /// When the book was created (Unix seconds).
-    pub created_at: Option<i64>,
     /// The newest stored change of any of its documents (Unix seconds).
     pub updated_at: Option<i64>,
     /// In Recently Deleted since (Unix seconds).
@@ -265,7 +263,6 @@ fn shelf_book(cx: &Cx<'_>, id: &BookId, now: i64) -> Result<ShelfBook> {
             .filter(|e| e.deleted_at.is_none())
             .count() as u32,
         words,
-        created_at: m.created_at.map(|t| t.0),
         updated_at,
         deleted_at,
         purge_at: due.map(|d| d.0),

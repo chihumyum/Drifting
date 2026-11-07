@@ -332,9 +332,11 @@ fn the_editors_undo_leaves_the_authors_commands_to_the_journal() {
         json!({"doc": doc, "find": "开头", "replace": "起首"}),
     );
     assert_eq!(text(&e), "作者起首。");
-    // Stored as the author's write all the same.
+    // Stored as the author's command (dr-store's `Origin::Command`), which
+    // counts as the author's write everywhere.
     let rows = e.ws().library().updates_since(&doc, 0).unwrap();
-    assert_eq!(rows.last().unwrap().origin, "user");
+    assert_eq!(rows.last().unwrap().origin, "user:command");
+    assert!(dr_store::Origin::parse(&rows.last().unwrap().origin).is_some_and(|o| o.is_author()));
     // The editor's one step is the typing; the command is not on its stack.
     assert!(s.undo().unwrap());
     assert_eq!(text(&e), "起首。");
