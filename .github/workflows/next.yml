@@ -38,6 +38,9 @@ jobs:
     defaults:
       run:
         working-directory: next
+    env:
+      # dr-ui's font check fails instead of skipping when the fonts are absent.
+      DR_UI_REQUIRE_FONTS: '1'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       # Keep in step with next/rust-toolchain.toml.
@@ -49,6 +52,22 @@ jobs:
         with:
           workspaces: next
           key: ${{ matrix.platform }}
+      # dr-ui's fonts are built, never committed: build-fonts.py downloads the
+      # sources pinned in provenance.json, checks their hashes, merges the
+      # faces and checks the result. Cached on the pins and the script.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: fonts
+        with:
+          path: next/.cache/fonts
+          key: dr-ui-fonts-${{ matrix.platform }}-${{ hashFiles('next/crates/dr-ui/assets/fonts/provenance.json', 'next/crates/dr-ui/script/build-fonts.py') }}
+      - if: steps.fonts.outputs.cache-hit != 'true'
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+      - if: steps.fonts.outputs.cache-hit != 'true'
+        run: |
+          python -m pip install fonttools==4.60.1
+          python crates/dr-ui/script/build-fonts.py
       - run: cargo fmt --all --check
       - if: ${{ !cancelled() }}
         run: cargo clippy --workspace --all-targets --locked -- -D warnings

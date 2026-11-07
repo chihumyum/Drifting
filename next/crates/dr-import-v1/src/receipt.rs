@@ -1,0 +1,442 @@
+//! The import's own records, beside the new library:
+//!
+//! ```text
+//! <library>/import-v1/receipt.sqlite   what was imported, normalised, doubted;
+//!                                      the read-only Agent archive; device-local
+//!                                      0.1 state (settings, MCP servers, working
+//!                                      memory, Markdown folder ledger, flags)
+//! <library>/import-v1/summary.md       the same, for the author
+//! ```
+//!
+//! dr-store's baseline has no tables for these yet, and other foundations'
+//! migrations are not this crate's to add (`m10-import.md` 待协调): the
+//! receipt keeps them in its own SQLite file until their modules (F6, M30,
+//! M31, M32, M40) take them over. Everything here is device-local.
+
+use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
+
+use rusqlite::{Connection, params};
+use serde::Serialize;
+
+use crate::anchors::Resolution;
+use crate::error::Result;
+use crate::gate::Gate;
+use crate::legacy::{Freshness, ProseKind};
+use crate::prose::Notes;
+
+pub const DIRECTORY: &str = "import-v1";
+pub const DATABASE: &str = "receipt.sqlite";
+pub const SUMMARY: &str = "summary.md";
+
+/// Tables copied as they are into the archive (the 0.1 names prefixed).
+pub const AGENT_ARCHIVE: &[&str] = &[
+    "agent_conversation",
+    "agent_runtime_session",
+    "agent_runtime_turn",
+    "agent_runtime_message",
+    "agent_runtime_tool_call",
+    "agent_runtime_result_artifact",
+    "agent_runtime_result_blob",
+];
+
+/// Device-local 0.1 tables kept until their module takes them over.
+pub const LOCAL: &[&str] = &[
+    "agent_mcp_server",
+    "agent_working_memory",
+    "library_state",
+    "markdown_mirror_file",
+];
+
+pub fn directory(root: &Path) -> PathBuf {
+    root.join(DIRECTORY)
+}
+
+/// One imported prose body.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DocRecord {
+    pub doc_id: String,
+    pub old_doc_id: String,
+    pub book_id: String,
+    pub kind: ProseKind,
+    pub freshness: Freshness,
+    pub revision: Option<i64>,
+    pub cache_sha256: Option<String>,
+    /// Snapshot-history versions replayed before the current body.
+    pub history_versions: usize,
+    pub paragraphs: usize,
+    pub chars: usize,
+    /// The stored body read back equals the plan.
+    pub stored_exactly: bool,
+    /// Exported and imported again, the body is the same.
+    pub round_trips: bool,
+    /// Block ids the dr-doc repair rewrote (duplicates in the 0.1 data).
+    pub repaired_block_ids: usize,
+    pub notes: Notes,
+    pub dropped_inline: Vec<String>,
+}
+
+/// One anchor.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnchorRecord {
+    pub entity: &'static str,
+    pub id: String,
+    pub doc_id: String,
+    pub resolution: Resolution,
+    /// The cursor pair was made and resolves to the intended range.
+    pub cursor: bool,
+}
+
+/// One book.
+#[derive(Clone, Debug, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BookRecord {
+    pub book_id: String,
+    pub name: String,
+    /// `imported`, or why not.
+    pub status: String,
+    pub trashed: bool,
+    /// Rows read, by 0.1 table.
+    pub rows: BTreeMap<String, usize>,
+    pub notes: Notes,
+    pub bodies: usize,
+    pub history_points: usize,
+    pub assets_copied: usize,
+    pub assets_missing: usize,
+    pub assets_mismatched: usize,
+    pub projected_todos: usize,
+    pub anchors_with_cursors: usize,
+    pub anchors_without_cursors: usize,
+}
+
+/// Everything one import did.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Receipt {
+    pub importer: &'static str,
+    pub started_ms: i64,
+    pub finished_ms: i64,
+    pub source_sha256: String,
+    pub source_bytes: u64,
+    pub schema_level_before: usize,
+    pub gate: Gate,
+    pub accepted: crate::gate::Accept,
+    pub books: Vec<BookRecord>,
+    pub docs: Vec<DocRecord>,
+    pub anchors: Vec<AnchorRecord>,
+    /// (collection, id, field, original JSON) of bodies kept as plain text.
+    pub originals: Vec<(String, String, String, String)>,
+    pub orphan_yjs_docs: usize,
+    pub archived_rows: BTreeMap<String, i64>,
+    pub local_rows: BTreeMap<String, i64>,
+    pub installation_id_adopted: bool,
+}
+
+const SCHEMA: &str = "
+CREATE TABLE IF NOT EXISTS import_run (
+    id INTEGER PRIMARY KEY,
+    importer TEXT NOT NULL,
+    started_ms INTEGER NOT NULL,
+    finished_ms INTEGER NOT NULL,
+    source_sha256 TEXT NOT NULL,
+    source_bytes INTEGER NOT NULL,
+    schema_level_before INTEGER NOT NULL,
+    gate_json TEXT NOT NULL,
+    accepted_json TEXT NOT NULL,
+    summary_json TEXT NOT NULL
+) STRICT;
+CREATE TABLE IF NOT EXISTS import_book (
+    run_id INTEGER NOT NULL,
+    book_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    status TEXT NOT NULL,
+    record_json TEXT NOT NULL,
+    PRIMARY KEY (run_id, book_id)
+) STRICT;
+CREATE TABLE IF NOT EXISTS import_doc (
+    run_id INTEGER NOT NULL,
+    doc_id TEXT NOT NULL,
+    old_doc_id TEXT NOT NULL,
+    book_id TEXT NOT NULL,
+    freshness TEXT NOT NULL,
+    revision INTEGER,
+    cache_sha256 TEXT,
+    history_versions INTEGER NOT NULL,
+    stored_exactly INTEGER NOT NULL,
+    round_trips INTEGER NOT NULL,
+    record_json TEXT NOT NULL,
+    PRIMARY KEY (run_id, doc_id)
+) STRICT;
+CREATE TABLE IF NOT EXISTS import_anchor (
+    run_id INTEGER NOT NULL,
+    entity TEXT NOT NULL,
+    id TEXT NOT NULL,
+    doc_id TEXT NOT NULL,
+    resolution TEXT NOT NULL,
+    cursor INTEGER NOT NULL,
+    PRIMARY KEY (run_id, entity, id)
+) STRICT;
+CREATE TABLE IF NOT EXISTS import_original (
+    run_id INTEGER NOT NULL,
+    collection TEXT NOT NULL,
+    id TEXT NOT NULL,
+    field TEXT NOT NULL,
+    json TEXT NOT NULL,
+    PRIMARY KEY (run_id, collection, id, field)
+) STRICT;
+CREATE TABLE IF NOT EXISTS local_setting (
+    key TEXT PRIMARY KEY NOT NULL,
+    value TEXT NOT NULL
+) STRICT;
+";
+
+fn kebab<T: Serialize>(v: &T) -> String {
+    serde_json::to_value(v)
+        .ok()
+        .and_then(|v| v.as_str().map(str::to_string))
+        .unwrap_or_default()
+}
+
+/// Write the receipt, the archive and the local state. `staged` is the
+/// staging copy the archive tables are copied from.
+pub fn write(
+    root: &Path,
+    staged: &Path,
+    receipt: &Receipt,
+    settings: &BTreeMap<String, String>,
+) -> Result<PathBuf> {
+    let dir = directory(root);
+    std::fs::create_dir_all(&dir)?;
+    let path = dir.join(DATABASE);
+    let conn = Connection::open(&path)?;
+    conn.execute_batch(SCHEMA)?;
+    conn.execute("ATTACH DATABASE ?1 AS old", [staged.to_string_lossy()])?;
+    let tx = conn.unchecked_transaction()?;
+    tx.execute(
+        "INSERT INTO import_run (importer, started_ms, finished_ms, source_sha256, source_bytes, schema_level_before, gate_json, accepted_json, summary_json) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        params![
+            receipt.importer,
+            receipt.started_ms,
+            receipt.finished_ms,
+            receipt.source_sha256,
+            receipt.source_bytes as i64,
+            receipt.schema_level_before as i64,
+            serde_json::to_string(&receipt.gate)?,
+            serde_json::to_string(&receipt.accepted)?,
+            serde_json::to_string(&serde_json::json!({
+                "orphanYjsDocs": receipt.orphan_yjs_docs,
+                "archivedRows": receipt.archived_rows,
+                "localRows": receipt.local_rows,
+                "installationIdAdopted": receipt.installation_id_adopted,
+            }))?,
+        ],
+    )?;
+    let run = tx.last_insert_rowid();
+    for b in &receipt.books {
+        tx.execute(
+            "INSERT INTO import_book VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![run, b.book_id, b.name, b.status, serde_json::to_string(b)?],
+        )?;
+    }
+    for d in &receipt.docs {
+        tx.execute(
+            "INSERT INTO import_doc VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+            params![
+                run,
+                d.doc_id,
+                d.old_doc_id,
+                d.book_id,
+                kebab(&d.freshness),
+                d.revision,
+                d.cache_sha256,
+                d.history_versions as i64,
+                d.stored_exactly,
+                d.round_trips,
+                serde_json::to_string(d)?
+            ],
+        )?;
+    }
+    for a in &receipt.anchors {
+        tx.execute(
+            "INSERT OR REPLACE INTO import_anchor VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![
+                run,
+                a.entity,
+                a.id,
+                a.doc_id,
+                kebab(&a.resolution),
+                a.cursor
+            ],
+        )?;
+    }
+    for (c, id, f, json) in &receipt.originals {
+        tx.execute(
+            "INSERT OR REPLACE INTO import_original VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![run, c, id, f, json],
+        )?;
+    }
+    // The Agent archive and the local state: the 0.1 rows as they are.
+    for (prefix, tables) in [("archive_", AGENT_ARCHIVE), ("local_", LOCAL)] {
+        for t in tables {
+            tx.execute_batch(&format!(
+                "DROP TABLE IF EXISTS main.{prefix}{t}; CREATE TABLE main.{prefix}{t} AS SELECT * FROM old.{t};"
+            ))?;
+        }
+    }
+    for (k, v) in settings {
+        tx.execute(
+            "INSERT OR REPLACE INTO local_setting VALUES (?1, ?2)",
+            params![k, v],
+        )?;
+    }
+    tx.commit()?;
+    conn.execute("DETACH DATABASE old", [])?;
+    let summary = dir.join(SUMMARY);
+    std::fs::write(&summary, summary_zh(receipt))?;
+    Ok(path)
+}
+
+/// What a lossy normalisation means, in plain words (`m10-import.md` has
+/// the full list). Keys not listed are lossless bookkeeping.
+fn explain(key: &str) -> Option<&'static str> {
+    Some(match key {
+        k if k.starts_with("unknown-inline:") => {
+            "正文里有新版不认识的行内对象，已从正文里去掉，原样记在回执里"
+        }
+        k if k.starts_with("unknown-mark:") => "有新版不认识的文字格式，文字保留，格式去掉",
+        k if k.starts_with("unknown-block:") || k.starts_with("unknown-atom:") => {
+            "有新版不认识的段落类型，按普通段落导入"
+        }
+        k if k.starts_with("comment-action-dropped:") => {
+            "已退役的 Copilot 批注动作（采纳 / 拒绝）不再导入"
+        }
+        "list-item-extra-paragraph" => "一个列表项里有好几段，新版每段是一项",
+        "table-header-cell" => "表格的表头格按普通格导入",
+        "table-cell-marks" => "表格格子里的文字格式没有保留（新版格子只存文字）",
+        "table-cell-span" => "表格的合并单元格和列宽没有保留",
+        "table-cell-paragraphs-joined" => "表格格子里的几段合成一段，中间用段内换行",
+        "ordered-list-start" => "编号列表的起始编号没有保留",
+        "align-unsupported" => "两端对齐按左对齐导入",
+        "comment-body-formatting-kept-as-text"
+        | "patch-body-formatting-kept-as-text"
+        | "material-description-formatting-kept-as-text" => {
+            "批注、补丁或素材描述里的格式按纯文字导入，原文记在回执里"
+        }
+        "entity-link-same-target-overlap" => {
+            "同一段文字上有两条指向同一对象、但范围不同的链接，保留了后一条"
+        }
+        "material-embed-dropped" => "素材嵌入找不到对应的素材，按空段落导入",
+        "heading-level-clamped" | "indent-clamped" => "标题层级或缩进超出范围，已收进 H1–H3、0–8",
+        "built-in-relation-color-dropped" => "内置关系类型的颜色没有导入（它不能改）",
+        _ => return None,
+    })
+}
+
+fn freshness_zh(f: Freshness) -> &'static str {
+    match f {
+        Freshness::SeedOnly => "从没打开过，缓存就是正文",
+        Freshness::CreationSeed => "建好后没改过",
+        Freshness::NodeBasisCurrent => "字数依据和缓存同版",
+        Freshness::Handoff => "交接时核对过",
+        Freshness::HandoffMismatch => "交接核对后缓存又被改过",
+        Freshness::NodeBasisBehind => "缓存确定比正文旧",
+        Freshness::Unproven => "无法证明是最新",
+    }
+}
+
+/// The author's summary (Chinese; the app will render the receipt in the
+/// author's language once dr-i18n exists).
+pub fn summary_zh(r: &Receipt) -> String {
+    let mut s = String::new();
+    s.push_str("# 旧书导入摘要\n\n");
+    s.push_str(&format!(
+        "- 旧库：SHA-256 `{}`，{} 字节；原库没有被改动。\n",
+        &r.source_sha256[..12.min(r.source_sha256.len())],
+        r.source_bytes
+    ));
+    s.push_str(&format!(
+        "- 交接：{}。\n",
+        if r.gate.handed_off {
+            "旧版最后一版交接过"
+        } else {
+            "没有经过旧版最后一版的交接"
+        }
+    ));
+    let doubtful: Vec<&DocRecord> = r
+        .docs
+        .iter()
+        .filter(|d| !d.freshness.proven_fresh())
+        .collect();
+    if doubtful.is_empty() {
+        s.push_str("- 每一篇正文都能证明是最新的，导入一字不差。\n");
+    } else {
+        s.push_str(&format!(
+            "- 有 {} 篇正文无法证明是最新，照旧版的缓存导入，可能少了最后几秒打的字：\n",
+            doubtful.len()
+        ));
+        for d in &doubtful {
+            s.push_str(&format!(
+                "  - `{}`（{}）\n",
+                d.old_doc_id,
+                freshness_zh(d.freshness)
+            ));
+        }
+    }
+    s.push('\n');
+    for b in &r.books {
+        s.push_str(&format!("## {}\n\n", b.name));
+        if b.status != "imported" {
+            s.push_str(&format!("没有导入：{}。\n\n", b.status));
+            continue;
+        }
+        if b.trashed {
+            s.push_str("这本书在最近删除里，导入后仍在最近删除里。\n\n");
+        }
+        let n = |t: &str| b.rows.get(t).copied().unwrap_or(0);
+        s.push_str(&format!(
+            "导入了 {} 个章节和构想、{} 个要素、{} 个分类、{} 条故事线、{} 条关系、{} 条批注和待办、{} 个补丁、{} 个素材；{} 篇正文，{} 个历史点，{} 个资源文件。\n\n",
+            n("book_node"),
+            n("element"),
+            n("element_category"),
+            n("storylines"),
+            n("entity_relation"),
+            n("comment"),
+            n("element_patch"),
+            n("library_item"),
+            b.bodies,
+            b.history_points,
+            b.assets_copied
+        ));
+        if b.assets_missing + b.assets_mismatched > 0 {
+            s.push_str(&format!(
+                "有 {} 个资源文件找不到、{} 个和记录的哈希对不上，没有导入。\n\n",
+                b.assets_missing, b.assets_mismatched
+            ));
+        }
+        if b.anchors_without_cursors > 0 {
+            s.push_str(&format!(
+                "有 {} 条批注或补丁锚住的段落已经不在，批注保留，卡片显示原文。\n\n",
+                b.anchors_without_cursors
+            ));
+        }
+        let lossy: Vec<(&str, usize, &str)> = b
+            .notes
+            .0
+            .iter()
+            .filter_map(|(k, v)| explain(k).map(|e| (k.as_str(), *v, e)))
+            .collect();
+        if !lossy.is_empty() {
+            s.push_str("和旧版不完全一样的地方：\n\n");
+            for (k, v, e) in lossy {
+                s.push_str(&format!("- {e}（{v} 处，`{k}`）\n"));
+            }
+            s.push('\n');
+        }
+    }
+    s.push_str(
+        "旧的帮手对话已只读搬过来，可以看、可以搜，不能接着聊；Agent 改动的结算记录留在旧库里。\n",
+    );
+    s
+}

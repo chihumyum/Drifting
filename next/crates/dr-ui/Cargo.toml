@@ -1,0 +1,32 @@
+[package]
+name = "dr-ui"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Drifting's design system on GPUI: tokens, fonts, sand and glass, menus, hover cards, pills and transitions."
+
+[features]
+# Offscreen screenshots and frame timings for the gallery (`--capture`,
+# `--bench`), through GPUI's headless test platform. Off by default.
+capture = ["dep:gpui_platform", "gpui_platform/test-support"]
+
+[dependencies]
+anyhow.workspace = true
+base64.workspace = true
+gpui.workspace = true
+# Only for the gallery's `capture` feature; apps bring their own platform.
+gpui_platform = { workspace = true, optional = true }
+image.workspace = true
+log.workspace = true
+memmap2.workspace = true
+smallvec.workspace = true
+unicode-segmentation.workspace = true
+
+[dev-dependencies]
+gpui = { workspace = true, features = ["test-support"] }
+gpui_platform.workspace = true
+
+[[example]]
+name = "gallery"

@@ -1363,6 +1363,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "dr-import-v1"
+version = "0.0.0"
+dependencies = [
+ "dr-doc",
+ "dr-model",
+ "dr-store",
+ "libc",
+ "log",
+ "loro",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "dr-model"
 version = "0.0.0"
 dependencies = [
@@ -1419,6 +1437,21 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.21",
  "zip",
+]
+
+[[package]]
+name = "dr-ui"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "gpui",
+ "gpui_platform",
+ "image",
+ "log",
+ "memmap2",
+ "smallvec",
+ "unicode-segmentation",
 ]
 
 [[package]]
