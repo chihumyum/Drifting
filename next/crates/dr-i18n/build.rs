@@ -25,7 +25,7 @@ fn main() {
     println!("cargo:rerun-if-changed=locales");
     println!("cargo:rerun-if-changed=build.rs");
 
-    let base: Vec<BTreeMap<String, String>> = LOCALES
+    let mut base: Vec<BTreeMap<String, String>> = LOCALES
         .iter()
         .map(|l| read(&dir.join("locales").join(format!("{l}.json")), true))
         .collect();
@@ -57,6 +57,19 @@ fn main() {
             }
             _ => {
                 plain.insert(key.clone());
+            }
+        }
+    }
+    // A language with only the plain key where English has plural forms
+    // (zh-CN's `projectPicker.desk.chaptersUnit`) uses it for every count,
+    // as i18next falls back to the plain key: it is that language's `_other`.
+    for table in base.iter_mut() {
+        for stem in &plural {
+            let other = format!("{stem}_other");
+            if !table.contains_key(&other)
+                && let Some(text) = table.remove(stem)
+            {
+                table.insert(other, text);
             }
         }
     }
@@ -355,9 +368,13 @@ fn snake(part: &str) -> String {
 
 fn module_name(part: &str) -> String {
     let name = snake(part);
-    const KEYWORDS: [&str; 12] = [
-        "type", "match", "move", "ref", "self", "use", "loop", "mod", "fn", "impl", "crate",
-        "super",
+    // Rust's keywords (strict and reserved) cannot name a module.
+    const KEYWORDS: [&str; 49] = [
+        "abstract", "as", "async", "await", "become", "box", "break", "const", "continue", "crate",
+        "do", "dyn", "else", "enum", "extern", "false", "final", "fn", "for", "gen", "if", "impl",
+        "in", "let", "loop", "macro", "match", "mod", "move", "mut", "override", "priv", "pub",
+        "ref", "return", "self", "static", "struct", "super", "trait", "true", "try", "type",
+        "typeof", "unsafe", "unsized", "use", "virtual", "where",
     ];
     if KEYWORDS.contains(&name.as_str()) {
         format!("{name}_")

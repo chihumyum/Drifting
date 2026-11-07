@@ -30,6 +30,7 @@ pub mod keymap;
 pub mod menus;
 pub mod nav;
 pub mod notifications;
+pub mod pages;
 pub mod panes;
 pub mod quit;
 pub mod settings;

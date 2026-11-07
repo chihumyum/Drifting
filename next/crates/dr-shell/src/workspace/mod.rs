@@ -30,10 +30,10 @@ use dr_ui::{
     tokens::motion,
 };
 use gpui::{
-    App, AppContext as _, Bounds, Context, Entity, FocusHandle, Focusable, InteractiveElement,
-    IntoElement, ListAlignment, ListState, ParentElement, Render, Size, Styled, Subscription, Task,
-    TitlebarOptions, Window, WindowBounds, WindowOptions, div, prelude::FluentBuilder as _, px,
-    size,
+    AnyView, App, AppContext as _, Bounds, Context, Entity, FocusHandle, Focusable,
+    InteractiveElement, IntoElement, ListAlignment, ListState, ParentElement, Render, Size, Styled,
+    Subscription, Task, TitlebarOptions, Window, WindowBounds, WindowOptions, div,
+    prelude::FluentBuilder as _, px, size,
 };
 use serde::{Deserialize, Serialize};
 
@@ -46,6 +46,7 @@ use crate::actions::{
 use crate::book::{self, Book, PageText, Paragraph};
 use crate::nav::{self, Navigator, Open, Target, location};
 use crate::notifications::{self, Notifications};
+use crate::pages::{self, ShelfPage};
 use crate::panes::{self, Panes};
 use crate::settings::panel::SettingsPanel;
 use crate::{Services, Settings, ShellInfo, keymap, menus};
@@ -292,6 +293,14 @@ pub struct Workspace {
     pub super_view: Option<SuperView>,
     pub settings: Option<Entity<SettingsPanel>>,
     pub notifications_open: bool,
+    /// The bookshelf (M01), when one is registered ([`pages::set_shelf`]):
+    /// made the first time it shows, kept while the window lives.
+    pub shelf: Option<ShelfPage>,
+    /// The bookshelf covers the window (at launch, after ⇧⌘W or the red
+    /// light) until a book opens.
+    pub shelf_open: bool,
+    /// Project Home (M02), when one is registered ([`pages::set_home`]).
+    pub home: Option<AnyView>,
     /// A left press on a drag region that has not moved yet (macOS).
     drag_armed: bool,
     /// The layout changed since it was last stored.
@@ -313,8 +322,12 @@ impl Workspace {
         let preferred = services
             .and_then(|s| s.book.clone())
             .or_else(|| Settings::read(cx).last_book().map(str::to_owned));
+        // With a bookshelf, the window opens on it (unless a book was named
+        // for this run); without one, straight into the last book.
+        let shelf_first = services.is_none_or(|s| s.book.is_none()) && pages::has_shelf(cx);
         let book_id = library
             .as_ref()
+            .filter(|_| !shelf_first)
             .and_then(|lib| first_choice(lib, preferred.as_deref()))
             .unwrap_or_default();
         let observers = vec![
@@ -339,6 +352,9 @@ impl Workspace {
             super_view: None,
             settings: None,
             notifications_open: false,
+            shelf: None,
+            shelf_open: false,
+            home: None,
             drag_armed: false,
             layout_dirty: false,
             layout_save: None,
@@ -347,7 +363,12 @@ impl Workspace {
         };
         ws.restore_layout(cx);
         ws.listen_to_library(cx);
-        ws.load_book(preferred, cx);
+        if shelf_first {
+            ws.show_shelf(window, cx);
+        } else {
+            ws.load_book(preferred, cx);
+        }
+        ws.listen_on_close(window, cx);
         ws.listen_for_links(window, cx);
         // The crash follow-up waits until the window has settled.
         cx.spawn_in(window, async move |_, cx| {
@@ -722,6 +743,61 @@ impl Workspace {
         &self.focus
     }
 
+    // The bookshelf (M01) and the book it opens.
+
+    /// Shows the bookshelf over the window. Returns `false` when none is
+    /// registered or it is up already.
+    pub fn show_shelf(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        if self.shelf_open {
+            return false;
+        }
+        if self.shelf.is_none() {
+            self.shelf = pages::make_shelf(cx.weak_entity(), window, cx);
+        }
+        if self.shelf.is_none() {
+            return false;
+        }
+        self.store_layout(cx);
+        self.shelf_open = true;
+        self.super_view = None;
+        self.notifications_open = false;
+        cx.notify();
+        true
+    }
+
+    /// Opens `book` from the bookshelf: its saved tabs and sidebars come
+    /// back (or Home, the first time), and the bookshelf goes.
+    pub fn open_book(&mut self, book: &str, window: &mut Window, cx: &mut Context<Self>) {
+        self.shelf_open = false;
+        self.notifications_open = false;
+        self.super_view = None;
+        self.focus.focus(window, cx);
+        if book != self.book_id || self.book.is_empty() {
+            self.store_layout(cx);
+            // A read of the book shown before is dropped, not applied.
+            self.book_task = None;
+            self.book_stale = false;
+            self.book_id = book.to_owned();
+            self.book = Rc::new(Book::default());
+            self.restore_layout(cx);
+            self.load_book(None, cx);
+        }
+        cx.notify();
+    }
+
+    /// The red light: in a book it goes back to the bookshelf; on the
+    /// bookshelf (or without one) it closes the window.
+    fn listen_on_close(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !pages::has_shelf(cx) {
+            return;
+        }
+        let this = cx.weak_entity();
+        window.on_window_should_close(cx, move |window, cx| {
+            this.update(cx, |ws, cx| !ws.show_shelf(window, cx))
+                .unwrap_or(true)
+        });
+    }
+
     /// Something in the layout changed: repaint, and store it soon.
     fn changed(&mut self, cx: &mut Context<Self>) {
         self.layout_dirty = true;
@@ -795,7 +871,7 @@ impl Workspace {
     /// Settings or a Super View covers the workspace: nothing under it
     /// answers the keyboard (the 0.1 client made it `inert`).
     pub fn covered(&self) -> bool {
-        self.settings.is_some() || self.super_view.is_some()
+        self.settings.is_some() || self.super_view.is_some() || self.shelf_open
     }
 
     /// The topmost open layer.
@@ -975,7 +1051,9 @@ impl Workspace {
         })
         .on_action(|_: &FindInEditor, _, _| log::debug!("find is not built yet"))
         .on_action(|_: &GlobalSearch, _, _| log::debug!("search is not built yet"))
-        .on_action(|_: &CloseProject, _, _| log::debug!("the bookshelf is not built yet"))
+        .on_action(cx.listener(|ws, _: &CloseProject, window, cx| {
+            ws.show_shelf(window, cx);
+        }))
     }
 }
 
@@ -989,6 +1067,11 @@ impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(window, cx);
         let p = theme.palette;
+        if self.shelf_open
+            && let Some(shelf) = self.shelf.clone()
+        {
+            return self.render_shelf(shelf, window, cx);
+        }
         let viewport = window.viewport_size();
         let window_w = f32::from(viewport.width);
         self.fit_sidebars(window_w, window, cx);
@@ -1026,7 +1109,51 @@ impl Render for Workspace {
                 el.child(sidebar::notification_center(self, window, cx))
             });
         let root = self.on_actions(root, cx);
-        glass::surface(Ground::flat(p.desk), root)
+        glass::surface(Ground::flat(p.desk), root).into_any_element()
+    }
+}
+
+impl Workspace {
+    /// The bookshelf over the whole window, with Settings and the
+    /// notification center (opening from the bookshelf's bell) above it.
+    fn render_shelf(
+        &mut self,
+        shelf: ShelfPage,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> gpui::AnyElement {
+        let p = Theme::of(window, cx).palette;
+        if let Some(bell) = shelf.bell.as_ref().and_then(|b| *b.read(cx)) {
+            dr_ui::components::overlay::use_bounds("bell-bounds", window, cx)
+                .update(cx, |b, _| *b = Some(bell));
+        }
+        let strip = chrome::drag_region(
+            div()
+                .id("shelf-drag-strip")
+                .absolute()
+                .top_0()
+                .left_0()
+                .right_0()
+                .h(px(chrome::TITLEBAR_HEIGHT)),
+            cx,
+        );
+        let root = div()
+            .id("workspace")
+            .key_context(keymap::WORKSPACE)
+            .track_focus(&self.focus)
+            .relative()
+            .size_full()
+            .bg(p.desk.solid())
+            .text_color(p.ink(1).solid())
+            .child(shelf.view)
+            .child(strip)
+            .when_some(self.settings.clone(), |el, panel| el.child(panel))
+            .child(chrome::windows_caption(window, cx))
+            .when(self.notifications_open, |el| {
+                el.child(sidebar::notification_center(self, window, cx))
+            });
+        let root = self.on_actions(root, cx);
+        glass::surface(Ground::flat(p.desk), root).into_any_element()
     }
 }
 
