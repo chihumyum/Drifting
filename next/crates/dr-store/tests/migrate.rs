@@ -111,7 +111,7 @@ fn a_later_build_migrates_a_shadow_copy_after_a_snapshot() {
     let before = sha256_file(&dir.path().join("library.sqlite"));
     match Library::open(dir.path(), options()) {
         Err(StoreError::SchemaNewer { applied, known }) => {
-            assert_eq!((applied, known), (2, 1));
+            assert_eq!((applied, known), (MIGRATIONS.len() + 1, MIGRATIONS.len()));
         }
         other => panic!("expected SchemaNewer, got {:?}", other.err()),
     }
@@ -141,7 +141,7 @@ fn a_failing_migration_leaves_the_library_byte_identical() {
         f.safety_snapshot.exists(),
         "the snapshot is kept for recovery"
     );
-    assert_eq!((f.from, f.to), (1, 2));
+    assert_eq!((f.from, f.to), (MIGRATIONS.len(), MIGRATIONS.len() + 1));
     assert!(f.to_string().contains("not changed"));
 
     assert_eq!(sha256_file(&db), before, "library bytes unchanged");
@@ -314,7 +314,10 @@ fn a_failed_migration_keeps_its_receipt_until_the_next_open() {
     assert_eq!(r.len(), 1);
     assert_eq!(Some(&r[0].recovery_id), f.recovery_id.as_ref());
     assert_eq!(r[0].failed_stage.as_deref(), Some("migrate"));
-    assert_eq!((r[0].from_migrations, r[0].to_migrations), (1, 2));
+    assert_eq!(
+        (r[0].from_migrations, r[0].to_migrations),
+        (MIGRATIONS.len(), MIGRATIONS.len() + 1)
+    );
     assert_eq!(r[0].shadow_file, None, "the shadow was cleaned up");
     let snapshot =
         dr_store::migrate::verified_snapshot(&dir.path().join("safety-snapshots"), &r[0]).unwrap();
@@ -383,7 +386,8 @@ fn an_incomplete_replacement_stops_the_open_and_migrates_nothing() {
         .query_row("SELECT count(*) FROM schema_migration", [], |r| r.get(0))
         .unwrap();
     assert_eq!(
-        applied, 1,
+        applied as usize,
+        MIGRATIONS.len(),
         "nothing migrated while the receipt is unsettled"
     );
     drop(conn);
@@ -408,4 +412,50 @@ fn a_completed_replacement_clears_its_receipt_after_validating() {
     let lib = Library::open_with_migrations(dir.path(), options(), &later()).unwrap();
     assert_eq!(lib.open_report().migrations_applied, 0);
     assert!(receipts(dir.path()).is_empty());
+}
+
+#[test]
+fn a_baseline_library_gets_the_later_published_migrations() {
+    let dir = tempfile::tempdir().unwrap();
+    // A library made by a build that only had the baseline: its schema, and
+    // rows written the way that build wrote them.
+    let lib = Library::open_with_migrations(dir.path(), options(), &MIGRATIONS[..1]).unwrap();
+    lib.close().unwrap();
+    let doc = loro::LoroDoc::new();
+    doc.get_text(dr_store::synthetic::BODY)
+        .insert(0, "旧库里的字\n")
+        .unwrap();
+    doc.commit();
+    let conn = rusqlite::Connection::open(dir.path().join("library.sqlite")).unwrap();
+    conn.execute_batch(
+        "INSERT INTO loro_doc VALUES ('node:a', 'node', NULL, 0);
+         INSERT INTO history_label (doc_id, frontiers, label, ts) VALUES ('node:a', x'', 'periodic', 1);",
+    )
+    .unwrap();
+    conn.execute(
+        "INSERT INTO loro_update VALUES ('node:a', 1, ?1, 'user', 1)",
+        [doc.export(loro::ExportMode::all_updates()).unwrap()],
+    )
+    .unwrap();
+    drop(conn);
+
+    let lib = open(dir.path());
+    let r = lib.open_report().clone();
+    assert_eq!(r.migrations_applied, MIGRATIONS.len() - 1);
+    assert!(r.safety_snapshot.is_some(), "snapshot before migrating");
+    assert_eq!(text(&lib.load_copy("node:a").unwrap()), "旧库里的字\n");
+    let conn = rusqlite::Connection::open(dir.path().join("library.sqlite")).unwrap();
+    let keep: i64 = conn
+        .query_row(
+            "SELECT keep FROM history_label WHERE doc_id = 'node:a'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(keep, 0, "existing labels follow the usual retention");
+    drop(conn);
+    let runs: i64 = lib
+        .local_read(|c| Ok(c.query_row("SELECT count(*) FROM import_run", [], |r| r.get(0))?))
+        .unwrap();
+    assert_eq!(runs, 0, "the import receipt tables exist");
 }

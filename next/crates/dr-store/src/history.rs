@@ -29,7 +29,7 @@ use loro::{Frontiers, ID, LoroDoc};
 use rusqlite::{Connection, OptionalExtension, params};
 
 use crate::Library;
-use crate::error::Result;
+use crate::error::{Result, StoreError};
 use crate::origin::Origin;
 
 pub mod labels {
@@ -53,6 +53,27 @@ pub struct HistoryLabel {
     pub book_frontiers: Option<Frontiers>,
     pub label: String,
     pub ts: i64,
+    /// Exempt from thinning and the 30-day retention.
+    pub keep: bool,
+}
+
+/// Whether a label written with [`Library::label_at`] follows the usual
+/// retention (thinned, gone after 30 days) or is kept.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum LabelRetention {
+    #[default]
+    Thinned,
+    Kept,
+}
+
+/// A history point to write at a given version and time.
+#[derive(Clone, Debug)]
+pub struct NewLabel<'a> {
+    pub doc_id: &'a str,
+    pub frontiers: &'a Frontiers,
+    pub label: &'a str,
+    pub ts_ms: i64,
+    pub retention: LabelRetention,
 }
 
 /// One Loro change: who wrote it (peer), when (seconds), with which commit
@@ -96,9 +117,12 @@ pub fn changes_since(doc: &LoroDoc, since_s: i64) -> Vec<ChangeSummary> {
 }
 
 /// Whether commits of `origin` earn periodic labels. Genesis, the 0.1
-/// import and stray outside writes do not.
+/// import, dr-doc's repairs and stray outside writes do not.
 pub fn records_periodic(origin: &Origin) -> bool {
-    !matches!(origin, Origin::Genesis | Origin::Import | Origin::Outside)
+    !matches!(
+        origin,
+        Origin::Genesis | Origin::Import | Origin::Repair | Origin::Outside
+    )
 }
 
 /// Whether a periodic label is due, given the latest label's time.
@@ -152,7 +176,7 @@ pub(crate) fn insert(
 
 pub(crate) fn thin(conn: &Connection, doc_id: &str, now: i64) -> Result<usize> {
     let rows: Vec<(i64, i64)> = conn
-        .prepare_cached("SELECT id, ts FROM history_label WHERE doc_id = ?1")?
+        .prepare_cached("SELECT id, ts FROM history_label WHERE doc_id = ?1 AND keep = 0")?
         .query_map([doc_id], |r| Ok((r.get(0)?, r.get(1)?)))?
         .collect::<rusqlite::Result<_>>()?;
     let remove = thinning_plan(&rows, now);
@@ -178,7 +202,7 @@ impl Library {
     pub fn history(&self, doc_id: &str) -> Result<Vec<HistoryLabel>> {
         let conn = self.reader();
         let mut stmt = conn.prepare_cached(
-            "SELECT id, doc_id, frontiers, book_frontiers, label, ts FROM history_label
+            "SELECT id, doc_id, frontiers, book_frontiers, label, ts, keep FROM history_label
              WHERE doc_id = ?1 ORDER BY ts DESC, id DESC",
         )?;
         let rows = stmt
@@ -190,11 +214,12 @@ impl Library {
                     r.get::<_, Option<Vec<u8>>>(3)?,
                     r.get::<_, String>(4)?,
                     r.get::<_, i64>(5)?,
+                    r.get::<_, bool>(6)?,
                 ))
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
         rows.into_iter()
-            .map(|(id, doc_id, f, bf, label, ts)| {
+            .map(|(id, doc_id, f, bf, label, ts, keep)| {
                 Ok(HistoryLabel {
                     id,
                     doc_id,
@@ -202,6 +227,7 @@ impl Library {
                     book_frontiers: bf.map(|b| Frontiers::decode(&b)).transpose()?,
                     label,
                     ts,
+                    keep,
                 })
             })
             .collect()
@@ -211,9 +237,96 @@ impl Library {
     /// time a document gets a new label).
     pub fn prune_history(&self, now: i64) -> Result<usize> {
         Ok(self.writer().execute(
-            "DELETE FROM history_label WHERE ts < ?1",
+            "DELETE FROM history_label WHERE ts < ?1 AND keep = 0",
             [now - RETENTION_MS],
         )?)
+    }
+
+    /// Write a history point at `frontiers`, dated `ts_ms` (for example a
+    /// version an import replays from 0.1). The book document's current
+    /// stored version is recorded with it. With [`LabelRetention::Thinned`]
+    /// the usual thinning runs at once, so a point older than 30 days is not
+    /// kept. Returns whether the label is stored.
+    pub fn label_at(
+        &self,
+        doc_id: &str,
+        frontiers: &Frontiers,
+        label: &str,
+        ts_ms: i64,
+        retention: LabelRetention,
+    ) -> Result<bool> {
+        Ok(self.label_many(&[NewLabel {
+            doc_id,
+            frontiers,
+            label,
+            ts_ms,
+            retention,
+        }])? == 1)
+    }
+
+    /// [`Self::label_at`] for many points, in one transaction. Returns how
+    /// many are stored after thinning.
+    pub fn label_many(&self, labels: &[NewLabel<'_>]) -> Result<usize> {
+        let mut docs: Vec<&str> = Vec::new();
+        let mut ids = Vec::with_capacity(labels.len());
+        {
+            let conn = self.writer();
+            let tx = conn.unchecked_transaction()?;
+            for l in labels {
+                if l.label.is_empty() || l.label.chars().count() > 200 {
+                    return Err(StoreError::invalid("history label", l.label));
+                }
+                let registered: bool = tx
+                    .prepare_cached("SELECT EXISTS(SELECT 1 FROM loro_doc WHERE doc_id = ?1)")?
+                    .query_row([l.doc_id], |r| r.get(0))?;
+                if !registered {
+                    return Err(StoreError::NotFound(l.doc_id.to_string()));
+                }
+                tx.prepare_cached(
+                    "INSERT INTO history_label (doc_id, frontiers, book_frontiers, label, ts, keep)
+                     VALUES (?1, ?2,
+                       (SELECT h.frontiers FROM loro_doc d JOIN loro_head h ON h.doc_id = 'book:' || d.book_id
+                        WHERE d.doc_id = ?1),
+                       ?3, ?4, ?5)",
+                )?
+                .execute(params![
+                    l.doc_id,
+                    l.frontiers.encode(),
+                    l.label,
+                    l.ts_ms,
+                    l.retention == LabelRetention::Kept
+                ])?;
+                ids.push(tx.last_insert_rowid());
+                if !docs.contains(&l.doc_id) {
+                    docs.push(l.doc_id);
+                }
+            }
+            let now = crate::now_ms();
+            for doc in &docs {
+                thin(&tx, doc, now)?;
+            }
+            tx.commit()?;
+        }
+        let kept = {
+            let conn = self.reader();
+            let mut stmt =
+                conn.prepare_cached("SELECT EXISTS(SELECT 1 FROM history_label WHERE id = ?1)")?;
+            let mut n = 0;
+            for id in &ids {
+                if stmt.query_row([id], |r| r.get::<_, bool>(0))? {
+                    n += 1;
+                }
+            }
+            n
+        };
+        for doc in docs {
+            self.notify_local(crate::LocalChange::new(
+                "history_label",
+                doc,
+                crate::LocalChangeKind::Insert,
+            ));
+        }
+        Ok(kept)
     }
 }
 

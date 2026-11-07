@@ -161,17 +161,32 @@ fn read_identity(path: &Path) -> Result<String> {
     Ok(value.installation_id)
 }
 
+fn valid_installation_id(id: &str) -> bool {
+    let suffix = id.strip_prefix("install-").unwrap_or_default();
+    suffix.len() == 64 && suffix.bytes().all(|c| c.is_ascii_hexdigit())
+}
+
 /// Read the installation id in `dir`, creating it on first use. A corrupt
 /// file is an error and is left untouched (never silently rotated).
 pub fn load_or_create_installation_id(dir: &Path) -> Result<String> {
+    publish_installation_id(dir, None).map(|(id, _)| id)
+}
+
+/// Read the installation id in `dir`; when there is none, publish `wanted`
+/// (or a new random id) without ever replacing a file another process
+/// published first. Returns the id and whether this call wrote it.
+fn publish_installation_id(dir: &Path, wanted: Option<&str>) -> Result<(String, bool)> {
     fs::create_dir_all(dir)?;
     let path = dir.join(IDENTITY_FILE);
     match fs::symlink_metadata(&path) {
-        Ok(_) => return read_identity(&path),
+        Ok(_) => return Ok((read_identity(&path)?, false)),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
         Err(e) => return Err(e.into()),
     }
-    let id = random_id()?;
+    let id = match wanted {
+        Some(id) => id.to_string(),
+        None => random_id()?,
+    };
     let temporary = dir.join(format!(".{id}.tmp"));
     let result = (|| {
         let mut options = OpenOptions::new();
@@ -184,20 +199,21 @@ pub fn load_or_create_installation_id(dir: &Path) -> Result<String> {
         let mut file = options.open(&temporary)?;
         let bytes = serde_json::to_vec(&Identity {
             version: 2,
-            installation_id: id,
+            installation_id: id.clone(),
         })
         .map_err(|e| invalid(&e.to_string()))?;
         file.write_all(&bytes)?;
         file.sync_all()?;
         // Publish a complete file without replacing a competing process's marker.
-        match fs::hard_link(&temporary, &path) {
-            Ok(()) => {}
-            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+        let wrote = match fs::hard_link(&temporary, &path) {
+            Ok(()) => true,
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => false,
             Err(e) => return Err(e.into()),
-        }
+        };
         #[cfg(unix)]
         File::open(dir)?.sync_all()?;
-        read_identity(&path)
+        let stored = read_identity(&path)?;
+        Ok((stored.clone(), wrote && stored == id))
     })();
     let _ = fs::remove_file(temporary);
     result
@@ -257,6 +273,18 @@ impl Device {
             installation_id,
             machine_changed,
         })
+    }
+
+    /// Take over an installation id (the 0.1 library's, so that this device
+    /// stays the same device for writing days) when `dir` has none yet.
+    /// Returns whether it was adopted; an existing identity is never
+    /// replaced. The next [`Self::open`] binds it to this machine.
+    pub fn adopt(dir: impl Into<PathBuf>, installation_id: &str) -> Result<bool> {
+        if !valid_installation_id(installation_id) {
+            return Err(invalid("not an installation id"));
+        }
+        let (_, wrote) = publish_installation_id(&dir.into(), Some(installation_id))?;
+        Ok(wrote)
     }
 
     /// Whether this open found the identity made on another machine and
@@ -479,6 +507,36 @@ mod tests {
             read_0_1_style(dir.path()).installation_id,
             a.installation_id()
         );
+    }
+
+    #[test]
+    fn adopting_takes_the_old_id_only_when_there_is_none() {
+        let dir = tempfile::tempdir().unwrap();
+        let old = format!("install-{}", "1a".repeat(32));
+        assert!(Device::adopt(dir.path(), &old).unwrap());
+        let device = Device::open_with_machine_id(dir.path(), Some("MACHINE-A".into())).unwrap();
+        assert_eq!(device.installation_id(), old);
+        assert_eq!(device.writing_device_key(), writing_device_key(&old));
+        assert_eq!(
+            read_0_1_style(dir.path()).installation_id,
+            old,
+            "0.1 format"
+        );
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = fs::metadata(dir.path().join(IDENTITY_FILE))
+                .unwrap()
+                .permissions()
+                .mode();
+            assert_eq!(mode & 0o777, 0o600);
+        }
+        // An identity that exists is never replaced.
+        let other = format!("install-{}", "2b".repeat(32));
+        assert!(!Device::adopt(dir.path(), &other).unwrap());
+        assert_eq!(load_or_create_installation_id(dir.path()).unwrap(), old);
+        assert!(Device::adopt(dir.path(), "install-short").is_err());
+        assert!(Device::adopt(tempfile::tempdir().unwrap().path(), "not-an-id").is_err());
     }
 
     #[test]

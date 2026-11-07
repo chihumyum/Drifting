@@ -12,6 +12,14 @@ const SOURCES: &[(&str, &str)] = &[
         "migrations/0000_baseline.sql",
         include_str!("../migrations/0000_baseline.sql"),
     ),
+    (
+        "migrations/0001_import_receipts.sql",
+        include_str!("../migrations/0001_import_receipts.sql"),
+    ),
+    (
+        "migrations/0002_history_label_keep.sql",
+        include_str!("../migrations/0002_history_label_keep.sql"),
+    ),
     ("src/archive.rs", include_str!("archive.rs")),
     ("src/asset.rs", include_str!("asset.rs")),
     ("src/digest.rs", include_str!("digest.rs")),
