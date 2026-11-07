@@ -80,9 +80,13 @@ impl Global for Services {}
 /// actions and the quit flow. Call once, after `dr_ui::init`.
 pub fn init(info: ShellInfo, services: Services, file: SettingsFile, cx: &mut App) {
     // Before quitting, F3 brings the open documents' search index up to date
-    // and lets each one close (nothing is lost without it).
-    if let Some(lib) = services.library.clone() {
-        quit::before_quit(cx, move |_| {
+    // and lets each one close (nothing is lost without it). The hook finds
+    // the library when it runs: holding a handle would keep it open.
+    if services.library.is_some() {
+        quit::before_quit(cx, |cx| {
+            let Some(lib) = cx.try_global::<Services>().and_then(|s| s.library.clone()) else {
+                return;
+            };
             let report = lib.before_quit();
             log::info!(
                 "library: {} documents closed ({} in use) in {:.0} ms",

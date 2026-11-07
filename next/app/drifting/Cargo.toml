@@ -15,3 +15,5 @@ dr-workspace.workspace = true
 gpui.workspace = true
 gpui_platform.workspace = true
 log.workspace = true
+# DRIFTING_CHECK (development builds): F3's queries the self-check reads.
+serde_json.workspace = true

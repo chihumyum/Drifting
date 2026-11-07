@@ -1,4 +1,7 @@
 {
+  "allChapters": {
+    "actOrdinal": "제{{n}}막"
+  },
   "bottomStatusBar": {
     "elements": "요소",
     "storyGraph": "이야기 그래프",
@@ -8,10 +11,38 @@
     "close": "닫기",
     "local": "로컬"
   },
+  "editorOutline": {
+    "aria": "개요",
+    "hiddenItems": "멀리 있는 개요 항목 {{count}}개 · 마우스를 올려 표시"
+  },
+  "editorTopBar": {
+    "actions": {
+      "more": "추가 작업"
+    },
+    "menu": {
+      "deleteNode": "노드 삭제"
+    },
+    "outlineRailMode": {
+      "hidden": "목차 숨기기",
+      "visible": "목차 표시"
+    },
+    "status": {
+      "discarded": "폐기됨",
+      "draft": "초안",
+      "finished": "완료"
+    },
+    "statusSection": {
+      "chapter": "집필 상태"
+    }
+  },
   "feedback": {
     "crash": {
       "title": "지난번 Drifting 실행 중 문제가 발생했습니다"
     }
+  },
+  "immersiveWriting": {
+    "enter": "몰입 쓰기",
+    "leave": "몰입 쓰기 종료"
   },
   "leftSidebar": {
     "empty": {
@@ -38,7 +69,9 @@
     },
     "uncategorized": "미분류",
     "viewMode": {
-      "chapterSummary": "스토리라인 {{storylines}}개 · {{chapters}}장"
+      "chapterSummary": "스토리라인 {{storylines}}개 · {{chapters}}장",
+      "globalTitle": "작품 전체 보기 · 스토리라인별 그룹화",
+      "storylineTitle": "스토리라인별 그룹 · 작품 전체 보기로 전환"
     }
   },
   "navigation": {

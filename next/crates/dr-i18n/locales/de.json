@@ -1,4 +1,7 @@
 {
+  "allChapters": {
+    "actOrdinal": "Akt {{n}}"
+  },
   "bottomStatusBar": {
     "elements": "Elemente",
     "storyGraph": "Geschichtsgraph",
@@ -8,10 +11,38 @@
     "close": "Schließen",
     "local": "Lokal"
   },
+  "editorOutline": {
+    "aria": "Gliederung",
+    "hiddenItems": "{{count}} entfernte Einträge; zum Anzeigen darüberfahren"
+  },
+  "editorTopBar": {
+    "actions": {
+      "more": "Weitere Aktionen"
+    },
+    "menu": {
+      "deleteNode": "Knoten löschen"
+    },
+    "outlineRailMode": {
+      "hidden": "Inhaltsverzeichnis ausblenden",
+      "visible": "Inhaltsverzeichnis anzeigen"
+    },
+    "status": {
+      "discarded": "Verworfen",
+      "draft": "Entwurf",
+      "finished": "Fertig"
+    },
+    "statusSection": {
+      "chapter": "Schreibstatus"
+    }
+  },
   "feedback": {
     "crash": {
       "title": "Bei Drifting ist beim letzten Mal ein Problem aufgetreten"
     }
+  },
+  "immersiveWriting": {
+    "enter": "Immersives Schreiben",
+    "leave": "Immersives Schreiben beenden"
   },
   "leftSidebar": {
     "empty": {
@@ -38,7 +69,9 @@
     },
     "uncategorized": "Ohne Kategorie",
     "viewMode": {
-      "chapterSummary": "{{storylines}} Handlungsstränge · {{chapters}} Kapitel"
+      "chapterSummary": "{{storylines}} Handlungsstränge · {{chapters}} Kapitel",
+      "globalTitle": "Buchübersicht · nach Handlungsstrang gruppieren",
+      "storylineTitle": "Nach Handlungsstrang · zur Buchübersicht wechseln"
     }
   },
   "navigation": {

@@ -1495,6 +1495,7 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "color_quant",
+ "dr-editor",
  "dr-i18n",
  "dr-model",
  "dr-platform",
@@ -1504,6 +1505,7 @@ dependencies = [
  "dr-workspace",
  "futures",
  "gpui",
+ "gpui-prose",
  "gpui_platform",
  "log",
  "objc2 0.6.5",
@@ -1613,6 +1615,7 @@ dependencies = [
  "gpui",
  "gpui_platform",
  "log",
+ "serde_json",
 ]
 
 [[package]]

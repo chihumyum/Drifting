@@ -1,4 +1,7 @@
 {
+  "allChapters": {
+    "actOrdinal": "Ato {{n}}"
+  },
   "bottomStatusBar": {
     "elements": "Elementos",
     "storyGraph": "Grafo da história",
@@ -8,10 +11,38 @@
     "close": "Fechar",
     "local": "Local"
   },
+  "editorOutline": {
+    "aria": "Estrutura",
+    "hiddenItems": "{{count}} itens distantes; passe o mouse para mostrar"
+  },
+  "editorTopBar": {
+    "actions": {
+      "more": "Mais ações"
+    },
+    "menu": {
+      "deleteNode": "Excluir nó"
+    },
+    "outlineRailMode": {
+      "hidden": "Ocultar sumário",
+      "visible": "Mostrar sumário"
+    },
+    "status": {
+      "discarded": "Descartado",
+      "draft": "Rascunho",
+      "finished": "Concluído"
+    },
+    "statusSection": {
+      "chapter": "Estado da escrita"
+    }
+  },
   "feedback": {
     "crash": {
       "title": "O Drifting teve um problema na última vez"
     }
+  },
+  "immersiveWriting": {
+    "enter": "Escrita imersiva",
+    "leave": "Sair da escrita imersiva"
   },
   "leftSidebar": {
     "empty": {
@@ -38,7 +69,9 @@
     },
     "uncategorized": "Sem categoria",
     "viewMode": {
-      "chapterSummary": "{{storylines}} linhas narrativas · {{chapters}} capítulos"
+      "chapterSummary": "{{storylines}} linhas narrativas · {{chapters}} capítulos",
+      "globalTitle": "Visão do livro · agrupar por linha narrativa",
+      "storylineTitle": "Por linha narrativa · voltar à visão do livro"
     }
   },
   "navigation": {

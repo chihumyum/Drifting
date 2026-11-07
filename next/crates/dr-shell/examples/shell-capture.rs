@@ -16,14 +16,17 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use anyhow::{Result, bail};
+use anyhow::{Context as _, Result, bail};
 use dr_shell::nav::{Open, Side, Target};
 use dr_shell::notifications::{Notifications, Source};
 use dr_shell::panes::PaneId;
 use dr_shell::workspace::{LeftTab, RightTab, SuperView};
 use dr_shell::{Services, SettingsFile, ShellInfo, Workspace};
 use dr_ui::{Appearance, anim, theme};
-use gpui::{AnyWindowHandle, AppContext as _, Context, Entity, HeadlessAppContext, px, size};
+use gpui::{
+    AnyWindowHandle, AppContext as _, Context, Entity, EntityInputHandler as _, HeadlessAppContext,
+    px, size,
+};
 
 const W: f32 = 1280.0;
 const H: f32 = 800.0;
@@ -129,18 +132,28 @@ impl Headless {
         }
     }
 
-    /// Runs until every page on screen has been read.
+    /// Runs until every page on screen is open: its editor, or the whole
+    /// book read.
     fn pages_ready(&mut self) -> Result<()> {
         self.draw()?;
         self.wait(|ws| {
             ws.nav
                 .active_tab()
                 .map(|t| {
-                    t.leaves()
-                        .all(|l| ws.pages.get(&l.target.key()).is_some_and(|p| p.ready))
+                    t.leaves().all(|l| {
+                        let key = l.target.key();
+                        ws.pages.get(&key).is_some_and(|p| p.ready)
+                            || ws
+                                .editors
+                                .get(&key)
+                                .is_some_and(|p| p.editor.is_some() || p.failed)
+                    })
                 })
                 .unwrap_or(true)
-        })
+        })?;
+        // The editor takes the keyboard on the frame after it opened.
+        self.draw()?;
+        Ok(())
     }
 
     fn set(&mut self, f: impl FnOnce(&mut Workspace, &mut gpui::Window, &mut Context<Workspace>)) {
@@ -291,6 +304,10 @@ fn reset(ws: &mut Workspace, window: &mut gpui::Window, cx: &mut Context<Workspa
     ws.super_view = None;
     ws.settings = None;
     ws.notifications_open = false;
+    ws.immersive = false;
+    ws.corner_menu = None;
+    ws.chapters_by_book = false;
+    ws.outline_hidden = false;
     ws.dock_locked = false;
     ws.left.panes = dr_shell::panes::Panes::single(LeftTab::Chapters);
     ws.right.panes = dr_shell::panes::Panes::single(RightTab::Review);
@@ -354,6 +371,39 @@ fn capture(dir: PathBuf) -> Result<()> {
         });
         still(&mut h)?;
         h.save(&dir, &format!("headings-{a}.png"))?;
+
+        // The paper's corner: a chapter's ⋯ menu, its writing status ticked.
+        h.set(|ws, window, cx| {
+            everyday(ws, window, cx);
+            ws.corner_menu = Some(chapter(ws, 1).key());
+        });
+        still(&mut h)?;
+        h.save(&dir, &format!("corner-menu-{a}.png"))?;
+
+        // The chapter panel's whole-book view: the three volumes as acts.
+        h.set(|ws, window, cx| {
+            everyday(ws, window, cx);
+            ws.chapters_by_book = true;
+        });
+        still(&mut h)?;
+        h.save(&dir, &format!("chapters-by-act-{a}.png"))?;
+
+        // The outline rail in the margin of a wide page: the note's two H2s.
+        h.set(|ws, window, cx| {
+            reset(ws, window, cx);
+            let note = material(ws, "机械钟怎么走");
+            ws.open(note, Open::KEEP, cx);
+        });
+        still(&mut h)?;
+        h.save(&dir, &format!("outline-{a}.png"))?;
+
+        // Immersive writing: only the paper.
+        h.set(|ws, window, cx| {
+            everyday(ws, window, cx);
+            ws.set_immersive(true, cx);
+        });
+        still(&mut h)?;
+        h.save(&dir, &format!("immersive-{a}.png"))?;
 
         h.set(|ws, window, cx| {
             everyday(ws, window, cx);
@@ -463,8 +513,40 @@ fn bench(dir: PathBuf) -> Result<()> {
         .map(|_| h.draw().map(|d| d.0))
         .collect::<Result<Vec<_>>>()?;
     out.push(format!(
-        r#""everyday_at_rest": {{"frame_requests": {rest}, "full_redraw_ms": {}, "first_page_read_ms": {first_page_ms:.2}}}"#,
+        r#""everyday_at_rest": {{"frame_requests": {rest}, "full_redraw_ms": {}, "first_page_open_ms": {first_page_ms:.2}}}"#,
         summary(&redraw)
+    ));
+
+    // Typing into the open chapter: each character through the editor's
+    // input handler (where the system's input method hands it over; the
+    // session writes and persists it), then the frame that shows it.
+    let first = h.read(|ws| chapter(ws, 1));
+    let editor = h
+        .read(|ws| ws.editor_of(&first).cloned())
+        .context("the first chapter's editor")?;
+    let mut input = Vec::new();
+    let mut typed = Vec::new();
+    for c in "钟楼上的钟停在三点一刻，没有人去拨它。"
+        .chars()
+        .cycle()
+        .take(80)
+    {
+        let s = c.to_string();
+        let editor = editor.clone();
+        let took = h.cx.update_window(h.window, move |_, window, cx| {
+            let prose = editor.read(cx).editor().clone();
+            let started = Instant::now();
+            prose.update(cx, |p, cx| p.replace_text_in_range(None, &s, window, cx));
+            started.elapsed().as_secs_f32() * 1000.0
+        })?;
+        input.push(took);
+        typed.push(h.draw()?.0);
+        h.cx.run_until_parked();
+    }
+    out.push(format!(
+        r#""typing": {{"input_ms": {}, "frame_ms": {}}}"#,
+        summary(&input),
+        summary(&typed)
     ));
 
     // The whole book on one page: 24 chapters, only the rows on screen laid
@@ -567,7 +649,7 @@ fn bench(dir: PathBuf) -> Result<()> {
     ))?;
     let mut evidence = dr_testkit::evidence::Evidence::new(
         "shell-bench",
-        "f6-m2",
+        "f6-m3",
         "cargo run --release -p dr-shell --features capture --example shell-capture -- --bench ../docs/rust-rewrite/acceptance",
     )
     .inputs(
@@ -576,6 +658,8 @@ fn bench(dir: PathBuf) -> Result<()> {
             "crates/dr-shell",
             "crates/dr-ui",
             "crates/dr-workspace",
+            "crates/dr-editor",
+            "crates/gpui-prose",
             "crates/dr-testkit/src/samples.rs",
             "crates/dr-testkit/fixtures/slow-clock.json",
         ],
