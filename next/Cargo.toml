@@ -12,6 +12,7 @@ members = [
     "crates/dr-platform",
     "crates/dr-store",
     "crates/dr-ui",
+    "crates/dr-workspace",
     "crates/gpui-prose",
     "spikes/import-v1",
     "spikes/loro-model",
@@ -51,6 +52,13 @@ dr-doc = { path = "crates/dr-doc" }
 dr-model = { path = "crates/dr-model" }
 # F2 storage, for the 0.1 library import (M10, dr-import-v1).
 dr-store = { path = "crates/dr-store" }
+
+# F2 storage and F3 commands (docs/rust-rewrite/foundations/f3-workspace.md).
+dr-workspace = { path = "crates/dr-workspace" }
+# F3: JSON Schemas of every command and query input and output (the
+# capability list), reviewed as insta snapshots.
+schemars = "1.2"
+insta = { version = "1.49", default-features = false }
 # uuidv7 for new domain ids (the old data uses uuidv7 too); v4 for F7's
 # installation and crash ids. The version the lockfile already carries for GPUI.
 uuid = { version = "1.29", default-features = false, features = ["std", "v4", "v7"] }

@@ -1,0 +1,1112 @@
+//! One or more tests per command and query.
+
+mod common;
+
+use common::*;
+use dr_workspace::{Actor, WsError, registry};
+use serde_json::{Value, json};
+
+fn chapter(e: &Env, book: &str, title: &str) -> String {
+    e.out("chapter.create", json!({"book": book, "title": title}))["id"]
+        .as_str()
+        .unwrap()
+        .into()
+}
+
+fn element(e: &Env, book: &str, name: &str) -> String {
+    e.out("element.create", json!({"book": book, "name": name}))["id"]
+        .as_str()
+        .unwrap()
+        .into()
+}
+
+fn rel_type(e: &Env, book: &str) -> String {
+    e.out(
+        "relation_type.create",
+        json!({"book": book, "name": "knows", "orientation": "symmetric",
+               "source_kinds": ["element", "node"], "target_kinds": ["element", "node"]}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .into()
+}
+
+#[test]
+fn books_create_list_update_trash() {
+    let e = env();
+    let b = e.book();
+    let list = e.out("book.list", json!({}));
+    assert_eq!(ids(&list), std::slice::from_ref(&b));
+    e.call(
+        "book.update",
+        json!({"book": b, "name": "Renamed", "word_target": 0, "daily_word_target": 800}),
+    );
+    let got = e.out("book.get", json!({"book": b}));
+    assert_eq!(got["name"], "Renamed");
+    assert_eq!(got["word_target"], Value::Null, "0 turns the target off");
+    assert_eq!(got["daily_word_target"], 800);
+    e.call("book.trash", json!({"book": b}));
+    assert!(ids(&e.out("book.list", json!({}))).is_empty());
+    assert_eq!(
+        ids(&e.out("book.list", json!({"trashed": true}))),
+        std::slice::from_ref(&b)
+    );
+    e.call("book.restore", json!({"book": b}));
+    assert_eq!(ids(&e.out("book.list", json!({}))), [b]);
+    assert!(matches!(
+        e.try_call("book.create", json!({"name": "  "})),
+        Err(WsError::Violation(_))
+    ));
+    assert!(matches!(
+        e.try_call("book.get", json!({"book": "nope"})),
+        Err(WsError::NotFound { .. })
+    ));
+}
+
+#[test]
+fn chapters_are_ordered_and_titles_get_suffixes() {
+    let e = env();
+    let b = e.book();
+    let a = chapter(&e, &b, "Opening");
+    let c = chapter(&e, &b, "Opening");
+    let got = e.out("chapter.list", json!({"book": b}));
+    assert_eq!(field(&got, "title"), [json!("Opening"), json!("Opening 2")]);
+    assert_eq!(field(&got, "number"), [json!(1), json!(2)]);
+    // Insert between: before the next chapter.
+    let mid = e.out(
+        "chapter.create",
+        json!({"book": b, "title": "Middle", "place": {"after": a}}),
+    );
+    assert_eq!(mid["title"], "Middle");
+    assert_eq!(
+        ids(&e.out("chapter.list", json!({"book": b}))),
+        [a.clone(), mid["id"].as_str().unwrap().into(), c.clone()]
+    );
+    // Move first.
+    e.call(
+        "chapter.move",
+        json!({"book": b, "id": c, "place": "first"}),
+    );
+    assert_eq!(ids(&e.out("chapter.list", json!({"book": b})))[0], c);
+    // Rename to a taken title (ideas share the namespace).
+    e.out("idea.create", json!({"book": b, "title": "Taken"}));
+    let r = e.out(
+        "chapter.update",
+        json!({"book": b, "id": a, "title": "taken", "summary": "S", "status": "finished"}),
+    );
+    assert_eq!(r["name"], "taken 2");
+    let ch = e.out("chapter.list", json!({"book": b}));
+    let ch = ch
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|x| x["id"] == json!(a))
+        .unwrap()
+        .clone();
+    assert_eq!(
+        (ch["summary"].clone(), ch["status"].clone()),
+        (json!("S"), json!("finished"))
+    );
+    assert!(matches!(
+        e.try_call(
+            "chapter.update",
+            json!({"book": b, "id": a, "status": "drifting"})
+        ),
+        Err(WsError::Invalid(_))
+    ));
+    // Empty title.
+    assert_eq!(
+        e.out("chapter.create", json!({"book": b}))["title"],
+        "Untitled"
+    );
+}
+
+#[test]
+fn chapter_storylines_and_primary() {
+    let e = env();
+    let b = e.book();
+    let s = e.out("storyline.create", json!({"book": b, "name": "Main"}))["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let c = e.out(
+        "chapter.create",
+        json!({"book": b, "title": "One", "storyline": s}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let ch = &e.out("chapter.list", json!({"book": b}))[0];
+    assert_eq!(ch["primary_storyline"], json!(s));
+    assert_eq!(
+        e.out("storyline.list", json!({"book": b}))[0]["chapters"],
+        1
+    );
+    // Leaving the primary storyline clears it.
+    e.call(
+        "chapter.update",
+        json!({"book": b, "id": c, "remove_storylines": [s]}),
+    );
+    let ch = &e.out("chapter.list", json!({"book": b}))[0];
+    assert_eq!(
+        (ch["primary_storyline"].clone(), ch["storylines"].clone()),
+        (Value::Null, json!([]))
+    );
+    assert!(matches!(
+        e.try_call(
+            "chapter.update",
+            json!({"book": b, "id": c, "primary_storyline": s})
+        ),
+        Err(WsError::Invalid(_))
+    ));
+}
+
+#[test]
+fn chapter_with_text_writes_prose_first() {
+    let e = env();
+    let b = e.book();
+    let c = e.out(
+        "chapter.create",
+        json!({"book": b, "title": "One", "text": "第一段。\n第二段有安娜。"}),
+    );
+    let doc = format!("node:{}", c["id"].as_str().unwrap());
+    let p = e.out("prose.read", json!({"doc": doc}));
+    assert_eq!(
+        field(&p["paragraphs"], "text"),
+        [json!("第一段。"), json!("第二段有安娜。")]
+    );
+    assert_eq!(p["total"], 2);
+}
+
+#[test]
+fn trashing_never_refuses_and_reports_fallout() {
+    let e = env();
+    let b = e.book();
+    let c = chapter(&e, &b, "One");
+    let el = element(&e, &b, "Anna");
+    let t = rel_type(&e, &b);
+    e.call("relation.create", json!({"book": b, "from": {"kind": "element", "id": el}, "to": {"kind": "node", "id": c}, "relation_type": t}));
+    e.call(
+        "comment.create",
+        json!({"book": b, "target": {"kind": "node", "id": c}, "body": "fix"}),
+    );
+    let o = e.call("chapter.trash", json!({"book": b, "id": c}));
+    let fx = effects(&o);
+    assert!(fx.contains(&"hidden relation".to_string()), "{fx:?}");
+    assert!(fx.contains(&"unlocated comment".to_string()), "{fx:?}");
+    assert!(fx.contains(&"trashed node".to_string()));
+    assert!(
+        e.out("relation.list", json!({"book": b}))
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        e.out("comment.list", json!({"book": b}))[0]["unlocated"],
+        true
+    );
+    let o = e.call("chapter.restore", json!({"book": b, "id": c}));
+    assert!(effects(&o).contains(&"shown relation".to_string()));
+    assert_eq!(
+        e.out("relation.list", json!({"book": b}))
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        e.out("comment.list", json!({"book": b}))[0]["unlocated"],
+        false
+    );
+}
+
+#[test]
+fn purging_a_chapter_cleans_up_in_one_commit() {
+    let e = env();
+    let b = e.book();
+    let c = chapter(&e, &b, "One");
+    let el = element(&e, &b, "Anna");
+    let t = rel_type(&e, &b);
+    e.call("relation.create", json!({"book": b, "from": {"kind": "element", "id": el}, "to": {"kind": "node", "id": c}, "relation_type": t}));
+    let cm = e.out(
+        "comment.create",
+        json!({"book": b, "target": {"kind": "node", "id": c}, "body": "keep me"}),
+    )["id"]
+        .clone();
+    e.call("chapter.trash", json!({"book": b, "id": c}));
+    let o = e.call("chapter.purge", json!({"book": b, "id": c}));
+    let fx = effects(&o);
+    assert!(
+        fx.contains(&"purged relation".to_string()) && fx.contains(&"detached comment".to_string()),
+        "{fx:?}"
+    );
+    let cs = e.out("comment.list", json!({"book": b}));
+    assert_eq!(cs[0]["id"], cm);
+    assert_eq!(
+        (cs[0]["target"].clone(), cs[0]["body"].clone()),
+        (Value::Null, json!("keep me")),
+        "floating, text kept"
+    );
+    assert!(ids(&e.out("chapter.list", json!({"book": b, "trashed": true}))).is_empty());
+    // Undo restores node, relation and comment target.
+    e.ws().undo(&Actor::User).unwrap().expect("undoable");
+    assert_eq!(
+        ids(&e.out("chapter.list", json!({"book": b, "trashed": true}))),
+        std::slice::from_ref(&c)
+    );
+    e.call("chapter.restore", json!({"book": b, "id": c}));
+    assert_eq!(
+        e.out("relation.list", json!({"book": b}))
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        e.out("comment.list", json!({"book": b}))[0]["target"]["id"],
+        json!(c)
+    );
+}
+
+#[test]
+fn acts_partition_chapters() {
+    let e = env();
+    let b = e.book();
+    let c1 = chapter(&e, &b, "1");
+    let c2 = chapter(&e, &b, "2");
+    let c3 = chapter(&e, &b, "3");
+    let head = e.out("act.create", json!({"book": b, "name": "Act I"}))["id"].clone();
+    let two = e.out(
+        "act.create",
+        json!({"book": b, "name": "Act II", "start_chapter": c2}),
+    )["id"]
+        .clone();
+    let acts = e.out("act.list", json!({"book": b}));
+    assert_eq!(
+        field(&acts, "chapters"),
+        [json!([c1.clone()]), json!([c2.clone(), c3.clone()])]
+    );
+    assert_eq!(e.out("chapter.list", json!({"book": b}))[1]["act"], two);
+    assert!(matches!(
+        e.try_call("act.create", json!({"book": b, "name": "Another head"})),
+        Err(WsError::Invalid(_))
+    ));
+    // A chapter inserted after the last one of Act I stays in Act I.
+    let mid = e.out(
+        "chapter.create",
+        json!({"book": b, "title": "1b", "place": {"after": c1}}),
+    );
+    let acts = e.out("act.list", json!({"book": b}));
+    assert_eq!(acts[0]["chapters"], json!([c1, mid["id"].clone()]));
+    let idea = e.out("idea.create", json!({"book": b, "title": "notes"}))["id"].clone();
+    e.call(
+        "act.update",
+        json!({"book": b, "id": head, "name": "Prologue", "drift": idea}),
+    );
+    assert_eq!(e.out("act.list", json!({"book": b}))[0]["drift"], idea);
+    e.call("act.delete", json!({"book": b, "id": two}));
+    assert_eq!(
+        e.out("act.list", json!({"book": b}))
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    e.ws().undo(&Actor::User).unwrap().unwrap();
+    assert_eq!(
+        e.out("act.list", json!({"book": b}))[1]["id"],
+        two,
+        "same id back"
+    );
+}
+
+#[test]
+fn storylines_order_rename_trash_purge() {
+    let e = env();
+    let b = e.book();
+    let s1 = e.out("storyline.create", json!({"book": b, "name": "A"}))["id"].clone();
+    let s2 = e.out("storyline.create", json!({"book": b, "name": "a"}));
+    assert_eq!(s2["name"], "a 2");
+    let s3 = e.out(
+        "storyline.create",
+        json!({"book": b, "name": "C", "place": "first"}),
+    )["id"]
+        .clone();
+    assert_eq!(
+        ids(&e.out("storyline.list", json!({"book": b})))[0],
+        s3.as_str().unwrap()
+    );
+    e.call(
+        "storyline.move",
+        json!({"book": b, "id": s3, "place": "last"}),
+    );
+    assert_eq!(
+        ids(&e.out("storyline.list", json!({"book": b})))
+            .last()
+            .unwrap(),
+        s3.as_str().unwrap()
+    );
+    e.call(
+        "storyline.update",
+        json!({"book": b, "id": s1, "summary": "sum", "color": "#fff"}),
+    );
+    let c = e.out(
+        "chapter.create",
+        json!({"book": b, "title": "x", "storyline": s1}),
+    )["id"]
+        .clone();
+    e.call("storyline.trash", json!({"book": b, "id": s1}));
+    assert_eq!(
+        e.out("storyline.list", json!({"book": b}))
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    e.call("storyline.restore", json!({"book": b, "id": s1}));
+    let o = e.call("storyline.purge", json!({"book": b, "id": s1}));
+    assert!(effects(&o).contains(&"detached node".to_string()));
+    let ch = &e.out("chapter.list", json!({"book": b}))[0];
+    assert_eq!(
+        (
+            ch["id"].clone(),
+            ch["storylines"].clone(),
+            ch["primary_storyline"].clone()
+        ),
+        (c, json!([]), Value::Null)
+    );
+}
+
+#[test]
+fn element_names_are_unique_and_placeholders_numbered() {
+    let e = env();
+    let b = e.book();
+    let anna = element(&e, &b, "Anna");
+    match e.try_call("element.create", json!({"book": b, "name": " anna "})) {
+        Err(WsError::NameTaken { id, .. }) => assert_eq!(id, anna),
+        other => panic!("{other:?}"),
+    }
+    let n1 = e.out(
+        "element.create",
+        json!({"book": b, "name": "New Element", "numbered": true}),
+    );
+    let n2 = e.out(
+        "element.create",
+        json!({"book": b, "name": "New Element", "numbered": true}),
+    );
+    assert_eq!(
+        (n1["name"].clone(), n2["name"].clone()),
+        (json!("New Element"), json!("New Element 2"))
+    );
+    // Aliases count.
+    let bob = element(&e, &b, "Bob");
+    assert!(matches!(
+        e.try_call(
+            "element.update",
+            json!({"book": b, "id": bob, "add_aliases": ["ANNA"]})
+        ),
+        Err(WsError::NameTaken { .. })
+    ));
+    e.call(
+        "element.update",
+        json!({"book": b, "id": bob, "add_aliases": ["Bobby"], "summary": "s",
+        "put_fields": [{"key": "age", "value": "30"}], "relate_pin": [1.0, 2.0]}),
+    );
+    assert!(matches!(
+        e.try_call("element.create", json!({"book": b, "name": "bobby"})),
+        Err(WsError::NameTaken { .. })
+    ));
+    let el = e.out("element.list", json!({"book": b}));
+    let bobv = el
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|x| x["id"] == json!(bob))
+        .unwrap()
+        .clone();
+    assert_eq!(bobv["aliases"], json!(["Bobby"]));
+    assert_eq!(bobv["fields"][0]["key"], "age");
+    assert_eq!(bobv["relate_pin"], json!([1.0, 2.0]));
+    // A trashed element frees its name; restoring it gets a suffix.
+    e.call("element.trash", json!({"book": b, "id": anna}));
+    let anna2 = element(&e, &b, "Anna");
+    let r = e.out("element.restore", json!({"book": b, "id": anna}));
+    assert_eq!(r["name"], "Anna 2");
+    assert_ne!(anna2, anna);
+}
+
+#[test]
+fn categories_and_their_elements() {
+    let e = env();
+    let b = e.book();
+    let cat = e.out("category.create", json!({"book": b, "name": "People"}))["id"].clone();
+    assert_eq!(
+        e.out("category.create", json!({"book": b, "name": "people"}))["name"],
+        "people 2"
+    );
+    let el = e.out(
+        "element.create",
+        json!({"book": b, "name": "Anna", "category": cat}),
+    )["id"]
+        .clone();
+    assert_eq!(e.out("category.list", json!({"book": b}))[0]["elements"], 1);
+    e.call(
+        "category.update",
+        json!({"book": b, "id": cat, "layout": "pinned", "grid": [1, 2]}),
+    );
+    assert_eq!(
+        e.out("category.list", json!({"book": b}))[0]["layout"],
+        "pinned"
+    );
+    e.call("category.trash", json!({"book": b, "id": cat}));
+    assert_eq!(
+        e.out("element.list", json!({"book": b}))[0]["category"],
+        Value::Null,
+        "reads uncategorized"
+    );
+    e.call("category.restore", json!({"book": b, "id": cat}));
+    assert_eq!(
+        e.out("element.list", json!({"book": b}))[0]["category"],
+        cat
+    );
+    let o = e.call("category.purge", json!({"book": b, "id": cat}));
+    assert!(effects(&o).contains(&"detached element".to_string()));
+    assert_eq!(e.out("element.list", json!({"book": b}))[0]["id"], el);
+    e.call("element.purge", json!({"book": b, "id": el}));
+    assert!(
+        e.out("element.list", json!({"book": b, "trashed": true}))
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[test]
+fn relations_validate_and_dedupe() {
+    let e = env();
+    let b = e.book();
+    let a = element(&e, &b, "A");
+    let c = element(&e, &b, "C");
+    let t = rel_type(&e, &b);
+    let r1 = e.out("relation.create", json!({"book": b, "from": {"kind": "element", "id": c}, "to": {"kind": "element", "id": a}, "relation_type": t}));
+    let r2 = e.out("relation.create", json!({"book": b, "from": {"kind": "element", "id": a}, "to": {"kind": "element", "id": c}, "relation_type": t}));
+    assert_eq!(r2["existing"], true);
+    assert_eq!(r1["id"], r2["id"]);
+    let list = e.out("relation.list", json!({"book": b}));
+    assert_eq!(list[0]["from"]["id"], json!(a), "canonical order");
+    assert!(matches!(e.try_call("relation.create", json!({"book": b, "from": {"kind": "element", "id": a}, "to": {"kind": "element", "id": a}, "relation_type": t})), Err(WsError::Violation(_))));
+    assert!(matches!(e.try_call("relation.create", json!({"book": b, "from": {"kind": "element", "id": a}, "to": {"kind": "element", "id": "ghost"}, "relation_type": t})), Err(WsError::NotFound { .. })));
+    // A comment links to structure through the built-in type.
+    let cm = e.out(
+        "comment.create",
+        json!({"book": b, "kind": "todo", "body": "x"}),
+    )["id"]
+        .clone();
+    e.call("relation.create", json!({"book": b, "from": {"kind": "comment", "id": cm}, "to": {"kind": "element", "id": a}}));
+    assert_eq!(
+        e.out(
+            "relation.list",
+            json!({"book": b, "entity": {"kind": "comment", "id": cm}})
+        )
+        .as_array()
+        .unwrap()
+        .len(),
+        1
+    );
+    e.call("relation.delete", json!({"book": b, "id": r1["id"]}));
+    assert_eq!(
+        e.out("relation.list", json!({"book": b}))
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+}
+
+#[test]
+fn relation_types_names_locks_and_cascade() {
+    let e = env();
+    let b = e.book();
+    let t = rel_type(&e, &b);
+    assert!(matches!(e.try_call("relation_type.create", json!({"book": b, "name": " KNOWS ", "source_kinds": ["element"], "target_kinds": ["element"], "source_role": "a", "target_role": "b"})), Err(WsError::NameTaken { .. })));
+    assert!(matches!(
+        e.try_call(
+            "relation_type.create",
+            json!({"book": b, "name": "bad", "source_kinds": [], "target_kinds": ["element"]})
+        ),
+        Err(WsError::Violation(_))
+    ));
+    let types = e.out("relation_type.list", json!({"book": b}));
+    let generic = types
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["locked"] == json!(true))
+        .unwrap()["id"]
+        .clone();
+    assert!(matches!(
+        e.try_call(
+            "relation_type.update",
+            json!({"book": b, "id": generic, "name": "x"})
+        ),
+        Err(WsError::Locked(_))
+    ));
+    assert!(matches!(
+        e.try_call("relation_type.delete", json!({"book": b, "id": generic})),
+        Err(WsError::Locked(_))
+    ));
+    e.call(
+        "relation_type.update",
+        json!({"book": b, "id": t, "name": "friends", "color": "#f00"}),
+    );
+    let a = element(&e, &b, "A");
+    let c = element(&e, &b, "C");
+    e.call("relation.create", json!({"book": b, "from": {"kind": "element", "id": a}, "to": {"kind": "element", "id": c}, "relation_type": t}));
+    let d = e.out("relation_type.delete", json!({"book": b, "id": t}));
+    assert_eq!(d["relations"], 1);
+    assert!(
+        e.out("relation.list", json!({"book": b}))
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    e.ws().undo(&Actor::User).unwrap().unwrap();
+    assert_eq!(
+        e.out("relation.list", json!({"book": b}))
+            .as_array()
+            .unwrap()
+            .len(),
+        1,
+        "type and relation back"
+    );
+}
+
+#[test]
+fn ideas_and_groups() {
+    let e = env();
+    let b = e.book();
+    let g = e.out("idea_group.create", json!({"book": b, "name": "G"}))["id"].clone();
+    let sub = e.out(
+        "idea_group.create",
+        json!({"book": b, "name": "Sub", "parent": g}),
+    )["id"]
+        .clone();
+    assert!(
+        matches!(
+            e.try_call(
+                "idea_group.create",
+                json!({"book": b, "name": "Deep", "parent": sub})
+            ),
+            Err(WsError::Invalid(_))
+        ),
+        "two levels at most"
+    );
+    let i = e.out(
+        "idea.create",
+        json!({"book": b, "title": "Spark", "group": sub, "position": [3.0, 4.0]}),
+    )["id"]
+        .clone();
+    assert_eq!(
+        e.out("idea.list", json!({"book": b, "group": sub}))[0]["id"],
+        i
+    );
+    e.call(
+        "idea.update",
+        json!({"book": b, "id": i, "status": "resting", "narrative_order": 12.0}),
+    );
+    let idea = &e.out("idea.list", json!({"book": b}))[0];
+    assert_eq!(
+        (idea["status"].clone(), idea["narrative_order"].clone()),
+        (json!("resting"), json!(12.0))
+    );
+    let other = e.out("idea_group.create", json!({"book": b, "name": "Other"}))["id"].clone();
+    assert!(
+        matches!(
+            e.try_call(
+                "idea_group.update",
+                json!({"book": b, "id": g, "parent": other})
+            ),
+            Err(WsError::Invalid(_))
+        ),
+        "G has a child: would be three levels"
+    );
+    e.call("idea_group.delete", json!({"book": b, "id": sub}));
+    let idea = &e.out("idea.list", json!({"book": b}))[0];
+    assert_eq!(idea["group"], g, "moved up to the parent");
+    e.ws().undo(&Actor::User).unwrap().unwrap();
+    assert_eq!(
+        e.out("idea.list", json!({"book": b}))[0]["group"],
+        sub,
+        "group restored with its member"
+    );
+    assert_eq!(
+        e.out("idea_group.list", json!({"book": b}))
+            .as_array()
+            .unwrap()
+            .len(),
+        3
+    );
+    e.call("idea.trash", json!({"book": b, "id": i}));
+    assert!(
+        e.out("idea.list", json!({"book": b}))
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    e.call("idea.restore", json!({"book": b, "id": i}));
+}
+
+#[test]
+fn purging_an_idea_keeps_its_title_on_time_pins() {
+    let e = env();
+    let b = e.book();
+    let i = e.out("idea.create", json!({"book": b, "title": "Battle"}))["id"].clone();
+    let act = e.out("act.create", json!({"book": b, "name": "A"}))["id"].clone();
+    e.call("act.update", json!({"book": b, "id": act, "drift": i}));
+    let o = e.call("idea.purge", json!({"book": b, "id": i}));
+    assert!(effects(&o).contains(&"detached act".to_string()));
+    assert_eq!(
+        e.out("act.list", json!({"book": b}))[0]["drift"],
+        Value::Null
+    );
+}
+
+#[test]
+fn comments_with_anchors_and_metadata() {
+    let e = env();
+    let b = e.book();
+    let c = e.out(
+        "chapter.create",
+        json!({"book": b, "title": "One", "text": "安娜走进了房间。"}),
+    )["id"]
+        .clone();
+    let cm = e.out(
+        "comment.create",
+        json!({"book": b, "kind": "todo", "target": {"kind": "node", "id": c},
+        "range": [0, 2], "body": "rename?", "priority": "high"}),
+    )["id"]
+        .clone();
+    let got = &e.out("comment.list", json!({"book": b, "kind": "todo"}))[0];
+    assert_eq!(
+        (
+            got["quote"].clone(),
+            got["anchored"].clone(),
+            got["priority"].clone()
+        ),
+        (json!("安娜"), json!(true), json!("high"))
+    );
+    e.call(
+        "comment.update",
+        json!({"book": b, "id": cm, "status": "resolved", "body": "done"}),
+    );
+    let got = &e.out("comment.list", json!({"book": b}))[0];
+    assert_eq!(
+        (got["status"].clone(), got["body"].clone()),
+        (json!("resolved"), json!("done"))
+    );
+    assert!(
+        e.out("comment.list", json!({"book": b, "status": "open"}))
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    assert!(
+        matches!(
+            e.try_call(
+                "comment.create",
+                json!({"book": b, "block_id": "b1", "body": "x"})
+            ),
+            Err(WsError::Violation(_))
+        ),
+        "a block needs a target"
+    );
+    e.call("comment.delete", json!({"book": b, "id": cm}));
+    assert!(
+        e.out("comment.list", json!({"book": b}))
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    e.ws().undo(&Actor::User).unwrap().unwrap();
+    assert_eq!(e.out("comment.list", json!({"book": b}))[0]["body"], "done");
+}
+
+#[test]
+fn materials_folders_and_assets() {
+    let e = env();
+    let b = e.book();
+    let f = e.out("material_folder.create", json!({"book": b, "name": "Refs"}))["id"].clone();
+    let sub = e.out(
+        "material_folder.create",
+        json!({"book": b, "name": "Maps", "parent": f}),
+    )["id"]
+        .clone();
+    assert!(matches!(
+        e.try_call(
+            "material_folder.update",
+            json!({"book": b, "id": f, "parent": sub})
+        ),
+        Err(WsError::Invalid(_))
+    ));
+    e.call(
+        "material_folder.update",
+        json!({"book": b, "id": sub, "name": "Atlas"}),
+    );
+    let fs = e.out("material_folder.list", json!({"book": b}));
+    assert_eq!(field(&fs, "name"), [json!("Refs"), json!("Atlas")]);
+    assert_eq!(fs[1]["parent"], f);
+    let t = e.out(
+        "material.create",
+        json!({"book": b, "kind": "text", "title": "Note", "folder": sub, "text": "a note"}),
+    )["id"]
+        .clone();
+    assert_eq!(
+        e.out(
+            "prose.read",
+            json!({"doc": format!("material:{}", t.as_str().unwrap())})
+        )["paragraphs"][0]["text"],
+        "a note"
+    );
+    assert!(
+        matches!(
+            e.try_call(
+                "material.create",
+                json!({"book": b, "kind": "image", "title": "pic"})
+            ),
+            Err(WsError::Violation(_))
+        ),
+        "an image needs its asset"
+    );
+    let sha = "a".repeat(64);
+    e.call("asset.put", json!({"book": b, "id": "asset-1", "kind": "image", "mime": "image/png", "size": 10, "sha256": sha, "width": 2, "height": 2}));
+    assert!(matches!(e.try_call("asset.put", json!({"book": b, "id": "asset-1", "kind": "image", "mime": "image/png", "size": 11, "sha256": sha, "width": 2, "height": 2})), Err(WsError::Locked(_))));
+    let img = e.out(
+        "material.create",
+        json!({"book": b, "kind": "image", "title": "pic", "asset": "asset-1", "place": "first"}),
+    )["id"]
+        .clone();
+    assert_eq!(
+        ids(&e.out("material.list", json!({"book": b})))[0],
+        img.as_str().unwrap()
+    );
+    e.call(
+        "material.move",
+        json!({"book": b, "id": img, "place": "last"}),
+    );
+    assert_eq!(
+        ids(&e.out("material.list", json!({"book": b})))
+            .last()
+            .unwrap(),
+        img.as_str().unwrap()
+    );
+    e.call(
+        "material.update",
+        json!({"book": b, "id": t, "description": "about maps", "task_todos": false, "folder": f}),
+    );
+    let m = e.out("material.list", json!({"book": b, "folder": f}));
+    assert_eq!(
+        (m[0]["description"].clone(), m[0]["task_todos"].clone()),
+        (json!("about maps"), json!(false))
+    );
+    e.call("material_folder.delete", json!({"book": b, "id": f}));
+    assert_eq!(
+        e.out("material.list", json!({"book": b, "folder": ""}))
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    e.call("material.delete", json!({"book": b, "id": img}));
+    assert_eq!(
+        e.out("material.list", json!({"book": b}))
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+}
+
+#[test]
+fn facts_and_memory() {
+    let e = env();
+    let b = e.book();
+    let f1 = e.out(
+        "fact.put",
+        json!({"book": b, "key": "Era", "value": "1870s"}),
+    )["id"]
+        .clone();
+    e.out(
+        "fact.put",
+        json!({"book": b, "key": "Place", "value": "Moscow", "place": "first"}),
+    );
+    assert_eq!(
+        field(&e.out("fact.list", json!({"book": b})), "key"),
+        [json!("Place"), json!("Era")]
+    );
+    e.call(
+        "fact.put",
+        json!({"book": b, "id": f1, "key": "Era", "value": "1880s"}),
+    );
+    assert_eq!(e.out("fact.list", json!({"book": b}))[1]["value"], "1880s");
+    e.call("fact.remove", json!({"book": b, "id": f1}));
+    assert_eq!(
+        e.out("fact.list", json!({"book": b}))
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    let m = e.out(
+        "memory.add",
+        json!({"book": b, "body": "Never use semicolons", "kind": "preference"}),
+    )["id"]
+        .clone();
+    e.call(
+        "memory.update",
+        json!({"book": b, "id": m, "status": "dismissed"}),
+    );
+    assert_eq!(
+        e.out("memory.list", json!({"book": b}))[0]["status"],
+        "dismissed"
+    );
+    e.call("memory.remove", json!({"book": b, "id": m}));
+    assert!(
+        e.out("memory.list", json!({"book": b}))
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    e.call("memory.restore", json!({"book": b, "id": m}));
+    assert_eq!(
+        e.out("memory.list", json!({"book": b}))[0]["source"],
+        "author"
+    );
+    let am = e
+        .ws()
+        .call(
+            &Actor::agent("s", 1, "c"),
+            "memory.add",
+            json!({"book": b, "body": "from agent"}),
+        )
+        .unwrap();
+    assert!(am["output"]["id"].is_string());
+    assert!(
+        e.out("memory.list", json!({"book": b}))
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|m| m["source"] == "agent")
+    );
+}
+
+#[test]
+fn prose_replace_is_exact() {
+    let e = env();
+    let b = e.book();
+    let c = e.out(
+        "chapter.create",
+        json!({"book": b, "title": "One", "text": "他说好。\n她说好。"}),
+    )["id"]
+        .clone();
+    let doc = format!("node:{}", c.as_str().unwrap());
+    assert!(matches!(
+        e.try_call(
+            "prose.replace",
+            json!({"doc": doc, "find": "说好", "replace": "答应"})
+        ),
+        Err(WsError::Ambiguous(_))
+    ));
+    assert!(matches!(
+        e.try_call(
+            "prose.replace",
+            json!({"doc": doc, "find": "没有", "replace": "x"})
+        ),
+        Err(WsError::NotFound { .. })
+    ));
+    let p = e.out("prose.read", json!({"doc": doc}));
+    let block = p["paragraphs"][1]["block_id"].clone();
+    let r = e.out(
+        "prose.replace",
+        json!({"doc": doc, "find": "说好", "replace": "答应", "block_id": block}),
+    );
+    assert_eq!(r["block_id"], block);
+    assert_eq!(
+        e.out("prose.read", json!({"doc": doc}))["paragraphs"][1]["text"],
+        "她答应。"
+    );
+    e.ws().undo(&Actor::User).unwrap().unwrap();
+    assert_eq!(
+        e.out("prose.read", json!({"doc": doc}))["paragraphs"][1]["text"],
+        "她说好。"
+    );
+    assert!(matches!(
+        e.try_call(
+            "prose.replace",
+            json!({"doc": doc, "find": "他", "replace": "a\nb"})
+        ),
+        Err(WsError::Invalid(_))
+    ));
+}
+
+#[test]
+fn prose_restore_goes_back_and_forth() {
+    let e = env();
+    let b = e.book();
+    let c = e.out(
+        "chapter.create",
+        json!({"book": b, "title": "One", "text": "原文。"}),
+    )["id"]
+        .clone();
+    let doc = format!("node:{}", c.as_str().unwrap());
+    let v0 = e.out("prose.read", json!({"doc": doc}))["version"].clone();
+    e.call(
+        "prose.replace",
+        json!({"doc": doc, "find": "原文", "replace": "改过"}),
+    );
+    e.call("prose.restore", json!({"doc": doc, "at": v0}));
+    assert_eq!(
+        e.out("prose.read", json!({"doc": doc}))["paragraphs"][0]["text"],
+        "原文。"
+    );
+    e.ws().undo(&Actor::User).unwrap().unwrap();
+    assert_eq!(
+        e.out("prose.read", json!({"doc": doc}))["paragraphs"][0]["text"],
+        "改过。"
+    );
+}
+
+#[test]
+fn search_orders_by_book_order() {
+    let e = env();
+    let b = e.book();
+    let c2 = e.out(
+        "chapter.create",
+        json!({"book": b, "title": "Two", "text": "安娜在第二章。"}),
+    )["id"]
+        .clone();
+    let c1 = e.out(
+        "chapter.create",
+        json!({"book": b, "title": "One", "text": "安娜在第一章。", "place": "first"}),
+    )["id"]
+        .clone();
+    e.out(
+        "element.create",
+        json!({"book": b, "name": "安娜", "text": "安娜是主角。"}),
+    );
+    // The index is derived when holders are idle; force it.
+    for d in e.ws().library().docs(Some(&b), None).unwrap() {
+        e.ws().library().reindex_doc(&d.doc_id).unwrap();
+    }
+    let hits = e.out("book.search", json!({"book": b, "query": "安娜"}));
+    let owners: Vec<Value> = field(&hits, "owner");
+    assert_eq!(owners.len(), 3);
+    assert_eq!(
+        (owners[0].clone(), owners[1].clone()),
+        (c1, c2),
+        "chapters in reading order first"
+    );
+    assert_eq!(hits[2]["kind"], "element");
+    let one = e.out(
+        "book.search",
+        json!({"book": b, "query": "安娜在第", "limit": 1}),
+    );
+    assert_eq!(one.as_array().unwrap().len(), 1);
+}
+
+#[test]
+fn unknown_commands_and_bad_input() {
+    let e = env();
+    assert!(matches!(
+        e.try_call("nope.nothing", json!({})),
+        Err(WsError::UnknownCommand(_))
+    ));
+    match e.try_call("chapter.create", json!({"title": "no book"})) {
+        Err(err @ WsError::BadInput { .. }) => assert_eq!(err.code(), "bad_input"),
+        other => panic!("{other:?}"),
+    }
+}
+
+#[test]
+fn every_registered_entry_is_exercised_here() {
+    // Keep this list in step with the registry: a new command needs a test.
+    let src = include_str!("commands.rs");
+    let missing: Vec<&str> = registry()
+        .iter()
+        .map(|s| s.name)
+        .filter(|n| {
+            !src.contains(&format!("\"{n}\""))
+                && ![
+                    "history.restore_entities",
+                    "history.undo_agent",
+                    "history.agent_changes",
+                ]
+                .contains(n)
+        })
+        .collect();
+    assert!(missing.is_empty(), "no test calls {missing:?}");
+}
+
+#[test]
+fn null_clears_a_field_and_undo_brings_back_an_empty_one() {
+    let e = env();
+    let b = e.book();
+    let u = Actor::User;
+    let s = e.out("storyline.create", json!({"book": b, "name": "Main"}))["id"].clone();
+    let c = e.out(
+        "chapter.create",
+        json!({"book": b, "title": "One", "storyline": s}),
+    )["id"]
+        .clone();
+    // An explicit null clears; a missing field leaves it.
+    e.call(
+        "chapter.update",
+        json!({"book": b, "id": c, "summary": "x"}),
+    );
+    assert_eq!(
+        e.out("chapter.list", json!({"book": b}))[0]["primary_storyline"],
+        s
+    );
+    e.call(
+        "chapter.update",
+        json!({"book": b, "id": c, "primary_storyline": null}),
+    );
+    assert_eq!(
+        e.out("chapter.list", json!({"book": b}))[0]["primary_storyline"],
+        Value::Null
+    );
+    e.ws().undo(&u).unwrap().unwrap();
+    assert_eq!(
+        e.out("chapter.list", json!({"book": b}))[0]["primary_storyline"],
+        s,
+        "undo sets it again"
+    );
+    // Undo of setting a field that was empty empties it again.
+    let el = e.out("element.create", json!({"book": b, "name": "A"}))["id"].clone();
+    e.call(
+        "element.update",
+        json!({"book": b, "id": el, "group_name": "Family", "relate_pin": [1.0, 1.0]}),
+    );
+    e.ws().undo(&u).unwrap().unwrap();
+    let got = &e.out("element.list", json!({"book": b}))[0];
+    assert_eq!(
+        (got["group_name"].clone(), got["relate_pin"].clone()),
+        (Value::Null, Value::Null)
+    );
+    let g = e.out("idea_group.create", json!({"book": b, "name": "G"}))["id"].clone();
+    let i = e.out("idea.create", json!({"book": b, "title": "I", "group": g}))["id"].clone();
+    e.call(
+        "idea.update",
+        json!({"book": b, "id": i, "group": null, "narrative_order": 3.0}),
+    );
+    let got = &e.out("idea.list", json!({"book": b}))[0];
+    assert_eq!(
+        (got["group"].clone(), got["narrative_order"].clone()),
+        (Value::Null, json!(3.0))
+    );
+    e.ws().undo(&u).unwrap().unwrap();
+    let got = &e.out("idea.list", json!({"book": b}))[0];
+    assert_eq!(
+        (got["group"].clone(), got["narrative_order"].clone()),
+        (g, Value::Null)
+    );
+}

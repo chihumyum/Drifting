@@ -1,0 +1,25 @@
+[package]
+name = "dr-workspace"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Drifting's commands and queries: one registry for the interface, Agent tools, MCP and the dev CLI; write order across documents; events; query caches; undo"
+
+[dependencies]
+dr-doc.workspace = true
+dr-model.workspace = true
+dr-store.workspace = true
+log.workspace = true
+loro.workspace = true
+rusqlite.workspace = true
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+insta.workspace = true
+proptest.workspace = true
+tempfile.workspace = true
