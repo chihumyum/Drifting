@@ -120,7 +120,7 @@
 | 方法 | 做什么 |
 | --- | --- |
 | `read_all()`、`read(range)` | 读段落：文字、`\n` 上的段落属性、行内标记的分段（按读取规则：段落属性只认 `\n`，标记不认 `\n`）。`read` 的范围从段首开始、到某个 `\n` 之后或全文末尾结束 |
-| `take_events()` | 取走自上次以来的改动：本机编辑、撤销重做、导入。每个事件是 retain / insert / delete 的序列，坐标是改之前的（Quill 式，和 `dr-doc` 的 `ProseEvent` 一样）。插入可以带「这段新字的标记」，带了编辑器就不回读这一段（自带实现带，`dr-doc` 现在不带） |
+| `take_events()` | 取走自上次以来的改动：本机编辑、撤销重做、导入。每个事件是 retain / insert / delete 的序列，坐标是改之前的（Quill 式，和 `dr-doc` 的 `ProseEvent` 一样）。插入可以带「这段新字的标记」，带了编辑器就不回读这一段（自带实现带；`dr-doc` 自 F1 第四轮起也带，见待协调 2） |
 | `edit(Edit, origin) -> EditResult` | 一次编辑一次提交。`Edit` 有六种：`Replace`（换成一段字，里面的 `\n` 都按回车处理，可以给新字加减标记）、`Delete`、`Split`（回车）、`SetBlockAttr`、`Mark`、`Unmark`。规则全在实现里。`EditResult` 给回新字的范围、光标位置、删掉的几段（改之前的坐标）和这次提交往作者撤销栈里压了几项 |
 | `undo_item()`、`redo_item()` | 撤销 / 重做 Loro 撤销栈里的一项。编辑器按阵把几项合成作者的一步，一次撤销调几次 |
 | `anchor(range)`、`resolve(&Anchor)` | 建锚点、解析锚点 |
@@ -340,7 +340,7 @@ GPUI 的 fork 由 F4 负责（D1：需要挂补丁时再开 fork）。现在工�
    - **TextEdit 参照还没量，要作者点头一件事。** 量法：`prose-bench` 加一个子命令，打开 TextEdit 的一个空文档、把它的窗口放到最前，往它的进程发按键（`CGEventPostToPid`）并在每次按键前打 `os_signpost`，在 Instruments 下录约 30 秒；TextEdit 不用 Metal，没有我们用的那张「显示」表，所以用 Core Animation 的提交（`Commit` 信号）加 WindowServer 的帧交换（`displayed-surfaces-interval`）来对，并用同样的方法再量一次 `gpui-prose`，两边口径一致。要点头的是：这半分钟 TextEdit 会挡在作者的窗口前面，而且往别的程序发按键多半要给终端开「辅助功能」权限。这两件都超出了这一轮的约定（不接管屏幕、不改系统设置），所以没做。
 2. **文本源 trait（F1 的约定，这一轮做完）。** 定稿的样子见「文本源」一节，和上一轮草案的差别：读是 `read_all` / `read(range)` 返回段落（不把 `LoroText` 交出去，因为 `dr-doc` 不暴露它）；撤销是 `undo_item` / `redo_item` 一次一项，按阵分组留在编辑器；`EditResult` 带 `undo_items`，让编辑器知道这次提交压了几项。剩下给 F4e 和 F1 的：
    - **`dr-editor` 的实现（F4e）**：用 `dr-doc` 的 `ProseTxn` 和 `ProseUndo` 实现 `ProseSource`，写入都放进 `dr-store` 文档持有者的写闭包，读走 `DocView`，锚点的 `get_cursor_pos` 放进读闭包；开 `gpui-prose` 的 `conformance` 特性，测试里跑 `conformance::run_all`，再和 `LoroSource` 跑 `conformance::same_behaviour`。`gpui-prose` 里的 `text/drdoc_style.rs` 是照这个形状写的样板。
-   - **给 F1 的小建议**：`dr-doc` 的 `ProseEvent` 里插入不带标记（`TextChange::Insert { text }`），编辑器只好每打一个字就回读这一段。如果 `TextChange::Insert` 加一个可选的 `marks`（Loro 的事件本来就有），`dr-editor` 就能把它传给 `SourceChange::Insert.marks`，打字不必回读。不急，回读一段约几微秒。
+   - **给 F1 的小建议**：`dr-doc` 的 `ProseEvent` 里插入不带标记（`TextChange::Insert { text }`），编辑器只好每打一个字就回读这一段。如果 `TextChange::Insert` 加一个可选的 `marks`（Loro 的事件本来就有），`dr-editor` 就能把它传给 `SourceChange::Insert.marks`，打字不必回读。不急，回读一段约几微秒。**F1 第四轮已做**（2026-11-07）：`TextChange::Insert { text, marks: InlineMarks }`，总是有（Loro 每次插入都给），和 `ProseView` 读出来的一样；`dr-editor` 用和 `read` 同一个函数换成 `Marks` 后传 `Some`。见 [f1-model-doc.md 待协调 3](f1-model-doc.md#待协调)。
    - **每次按键的查询**照约定用 F4a 自己的索引，不调 `ProseView::paragraph_at` / `paragraph_by_id`。
 3. **样式表只能有一份（给 F1）。** Loro 不把样式表存进文档，同一个文档配两次时后配的覆盖先配的。Drifting 里文档由 `dr-doc` 配（`dr-editor` 不要再调 `gpui_prose::schema::configure`）；`gpui_prose::schema::style_config()` 和 loro-schema 一致，留给 `LoroSource` 和对拍用。建议 `dr-editor` 的测试逐键比较两张表，以后谁改表，两边一起改、升 schema 版本。
 4. **锚点的编码和语义（给 F1）。** `gpui_prose::Anchor` 存两个 `Cursor::encode()`：`start` 是第一个被锚字符上的 `Side::Left`，`end` 是最后一个被锚字符上的 `Side::Right`，和 loro-schema v0「锚点」一节、P0-C 的 `anchor.rs` 一样。`dr-doc` 读写书目文档里的 `anchor` 字段时用同样的编码，`dr-editor` 在两边之间原样搬字节。撤销带回的锚点通过 `EditorEvent::AnchorsChanged` 交给宿主写回书目文档（这是本机作者的操作，要同步出去，和「替换光标只存本机缓存」不同）。
