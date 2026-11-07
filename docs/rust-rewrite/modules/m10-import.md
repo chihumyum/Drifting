@@ -1,6 +1,6 @@
 # M10 旧库导入
 
-2026-11-07，第一、第二个里程碑；2026-11-08，第三个里程碑（导入界面）和第四个里程碑（认领身份、取消、自动找旧库、真窗口验收）。计划见 [modules.md 的 M10](../modules.md#阶段-2写作闭环)，依据是 [P0-E 的结论和规格草稿](../spikes/p0-e-import.md)。导入本身在 `next/crates/dr-import-v1/`（不依赖 GPUI，不依赖 yrs / Yjs），界面在 `next/crates/dr-view-import/`；旧版这一侧只改了交接（`src/renderer/services/v2-handoff/`，[docs/v2-handoff.md](../../v2-handoff.md)）。测量证据在 [acceptance/m10-m2-import.json](../acceptance/m10-m2-import.json)（F8 的新格式），截图在 [m10/](m10/)。
+2026-11-07，第一、第二个里程碑；2026-11-08，第三个里程碑（导入界面）和第四个里程碑（认领身份、取消、自动找旧库、真窗口验收）。计划见 [modules.md 的 M10](../modules.md#阶段-2写作闭环)，依据是 [P0-E 的结论和规格草稿](../spikes/p0-e-import.md)。导入本身在 `next/crates/dr-import-v1/`（不依赖 GPUI，不依赖 yrs / Yjs），界面在 `next/crates/dr-view-import/`；旧版这一侧只改了交接（`src/renderer/services/v2-handoff/`，[docs/v2-handoff.md](../../v2-handoff.md)）。测量证据在 [acceptance/m10-m4-import.json](../acceptance/m10-m4-import.json)（F8 的新格式，第四个里程碑重测），截图在 [m10/](m10/)。
 
 ## 做了什么（大白话）
 
@@ -54,9 +54,9 @@
 
 ## 关键数字
 
-第二个里程碑结束时重测（[m10-m2-import.json](../acceptance/m10-m2-import.json)）：M3 Pro，release，2026-11-07。
+第四个里程碑结束时重测（[m10-m4-import.json](../acceptance/m10-m4-import.json)）：M3 Pro，release，2026-11-08。下表的计数和第二个里程碑一样，时间、内存、进度是这次的。
 
-- **机器有点忙**：测的时候别的会话在编译和跑测试，一分钟负载 8.6（第一个里程碑测的时候约 5–6.5；负载 25 时同一程序慢 1.5–2.5 倍）。
+- **机器负载**：等到一分钟负载降到 10 以下才测，开测时 7.0（第二个里程碑测的时候 8.6，第一个约 5–6.5；负载 25 时同一程序慢 1.5–2.5 倍）。
 - **测试库**：五份都是本 worktree 里新生成的合成库，不碰作者的库。
 - **真值**：旧版用 Yjs 渲染出的正文（交接用的同一个函数），只用来核对，导入本身不读它。
 
@@ -77,22 +77,22 @@
 | 建好索引的文档（导入后落后的） | 158（0） | 158（0） | 158（0） | 81（0） | 680（0） |
 | 字数和 dr-index 自己读出的一致；每类正文的搜索探针 | 全部；5 / 5 | 全部；5 / 5 | 全部；5 / 5 | 全部；5 / 5 | 全部；5 / 5 |
 | 大纲条目 | 2 | 2 | 2 | 204 | 2 586 |
-| 整库导入耗时（其中建索引） | 1.20 s（0.17） | 1.17 s（0.18） | 1.10 s（0.16） | 0.81 s（0.06） | 5.64 s（0.93） |
-| 峰值内存 | 41 MB | 41 MB | 43 MB | 33 MB | 135 MB |
-| 进度回报次数 / 两次之间最长 | 332 / 0.31 s | 338 / 0.29 s | 338 / 0.28 s | 178 / 0.29 s | 1 463 / 0.28 s |
+| 整库导入耗时（其中建索引） | 1.06 s（0.17） | 1.02 s（0.17） | 1.07 s（0.17） | 0.73 s（0.07） | 5.10 s（0.87） |
+| 峰值内存 | 39 MB | 39 MB | 40 MB | 31 MB | 132 MB |
+| 进度回报次数 / 两次之间最长 | 332 / 0.25 s | 338 / 0.22 s | 338 / 0.25 s | 178 / 0.24 s | 1 463 / 0.22 s |
 | 旧库 / 新库的数据库文件 | 11.2 / 6.6 MB | 11.5 / 6.6 MB | 11.6 / 6.6 MB | 15.9 / 3.9 MB | 243 / 49.5 MB |
 
 - 「用旧」= 样书上用旧版自己的写入路径在 7 篇正文的 Yjs 里追加了字、不誊缓存（章节、要素、故事线、分类、素材笔记都有），再用旧版的快照服务给两篇各拍 3 份历史（连同当时的元数据）。闸门判出的 7 篇正好是这 7 篇；作者点「仍然导入」后，这 7 篇照缓存导入，和真值不同，回执里记成「无法证明」。
 - 「交接过」= 在「用旧」上跑真实的 `runV2Handoff`（153 篇重新誊写并盖章）。导入时 153 篇全部判为「交接时核对过」，和真值一字不差；历史 6 行全部变成历史点，逐个检出和当时的预览一致。
 - 重型库的耗时：
-  - 拷贝、检查和判断旧库 1.11 s；
-  - 建正文 1.08 s；
-  - 写进 dr-store 1.27 s；
-  - 资源文件 0.87 s（每个文件都落盘同步）；
-  - 打历史点 8 ms，回执 0.17 s；
-  - 建索引 0.93 s（680 篇，最多 8 个线程）。
+  - 拷贝、检查和判断旧库 0.99 s；
+  - 建正文 0.97 s；
+  - 写进 dr-store 1.07 s；
+  - 资源文件 0.85 s（每个文件都落盘同步）；
+  - 打历史点 7 ms，回执 0.14 s；
+  - 建索引 0.87 s（680 篇，最多 8 个线程）。
 
-  不算建索引是 4.7 s，和第一个里程碑的 4.4 s（负载更低）差不多：这一轮加的进度、打点、回执搬家几乎不花时间。
+  不算建索引是 4.2 s，第二个里程碑是 4.7 s（负载 8.6），第一个是 4.4 s：第三、第四个里程碑加的入口拆分、取消检查、认领身份几乎不花时间，差别主要是负载。
 - 新库比第一个里程碑大（重型库 16.5 → 49.4 MB），多出来的是搜索、大纲、字数的索引，主要是全文搜索的三元组。旧库大得多，是因为里面还有同步引擎、投影表和 Yjs 的多份拷贝。
 - 重型库里 3 343 段、轻量库里 172 段正文在旧数据里没有块 ID，导入后由 dr-doc 的修复按确定规则补上。
 - 样书里的「容器块 ID 改指段落」34 处：引用块自己的块 ID 在新结构里不是段落 ID，引用它的批注、链接改指它的第一段（见下文「正文」）。
@@ -465,10 +465,10 @@ DRIFTING_M10_FIXTURE_DIR=<dir> ./node_modules/.bin/vitest run src/renderer/servi
 
 ```bash
 cd next
-cargo run --release -p dr-import-v1 --example m10-measure -- <dir> --milestone m10-m2 --write
+cargo run --release -p dr-import-v1 --example m10-measure -- <dir> --milestone m10-m4 --write
 ```
 
-`m10-measure` 对清单里每份库在子进程里导入一遍（峰值内存按库算），先不勾「仍然导入」，被拦了再勾着导一遍；然后和真值核对，再查索引。契约有一条不成立就报错，不写证据；成立时写 `docs/rust-rewrite/acceptance/m10-m2-import.json`（不加 `--write` 只打印）。
+`m10-measure` 对清单里每份库在子进程里导入一遍（峰值内存按库算），先不勾「仍然导入」，被拦了再勾着导一遍；然后和真值核对，再查索引。契约有一条不成立就报错，不写证据；成立时写 `docs/rust-rewrite/acceptance/<里程碑>-import.json`（不加 `--write` 只打印）。新证据写好后删掉上一份。
 
 ## 测试与证据
 
@@ -490,9 +490,9 @@ cargo xtask check
 证据按 [F8 的做法](../foundations/f8-testkit.md#证据)：
 
 - **契约类不提交 JSON。** 合成库上的在上面的测试里断言；五份测试库上的在 `m10-measure` 里当场断言，一条不成立就不写证据。
-- **测量类**：`m10-m2-import.json`，格式 `dr-testkit/evidence/1`。输入是 `dr-import-v1`、`dr-index`、`dr-text`、`prose-metrics`、`dr-doc`、`dr-model`、`dr-store` 七个 crate 目录；其中任何一个变了，`cargo xtask evidence --check` 只报「过期」。测试库本身由旧客户端的种子和 `m10-fixtures.test.ts` 生成，不在 `next/` 里，所以不作输入，记在 `corpus` 里：生成器、生成时间、每份库的 SHA-256 和大小。
+- **测量类**：`m10-m4-import.json`，格式 `dr-testkit/evidence/1`。输入是 `dr-import-v1`、`dr-index`、`dr-text`、`prose-metrics`、`dr-doc`、`dr-model`、`dr-store` 七个 crate 目录；其中任何一个变了，`cargo xtask evidence --check` 只报「过期」。测试库本身由旧客户端的种子和 `m10-fixtures.test.ts` 生成，不在 `next/` 里，所以不作输入，记在 `corpus` 里：生成器、生成时间、每份库的 SHA-256 和大小。
 - 旧格式的 `m10-import.json`（第一个里程碑）和检查它的 `tests/evidence.rs` 删掉了。
-- 第三个里程碑改了 `dr-import-v1`：拆出 `import_into_library`、闸门多填书名和「是不是构想」、加了 `locate::resolve`。导入本身没改，所以 `m10-m2-import.json` 现在显示「过期」，但里面的数仍然有效。这一轮机器负载在 50–90 之间，量出来的时间没有参考价值，所以没重测；等机器空闲时重跑 `m10-measure`。
+- 第三个里程碑时机器太忙（负载 50–90）没重测；第四个里程碑等负载降到 10 以下重测，写了 `m10-m4-import.json`，删了 `m10-m2-import.json`。五份库上的契约全部成立：判为最新、其实不同的正文 0 篇，存得一致、往返一致、锚点全是光标、历史点和元数据都对、索引不落后、字数一致、每类正文都搜得到。
 
 旧客户端：`./node_modules/.bin/vitest run src/renderer/services/v2-handoff src/renderer/lib/persistence-lifecycle.test.ts`、`pnpm typecheck`。
 
@@ -531,7 +531,7 @@ cargo xtask check
 | 2 | 能取消；导入途中退出 App 时先停下、库正常收尾 | 完成 |
 | 3 | 先自动找本机的旧库、列出来让作者点，找不到再弹面板；不打 GPUI 补丁 | 完成 |
 | 4 | 用调试桥在真窗口里点一遍 | 完成；修了一个英文折行 |
-| 5 | 机器空闲时重测导入证据 | 见「测试与证据」 |
+| 5 | 机器空闲时重测导入证据 | 完成：负载 7.0 时重测，`m10-m4-import.json` |
 
 ## 待协调
 
