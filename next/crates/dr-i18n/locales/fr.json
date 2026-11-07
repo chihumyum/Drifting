@@ -16,6 +16,10 @@
     "actions": {
       "openElement": "Ouvrir l’élément"
     },
+    "alerts": {
+      "deleteFailed": "Impossible de supprimer la catégorie. Réessayez."
+    },
+    "deleteConfirm": "Supprimer la catégorie « {{name}} » ?\n\nSes éléments seront déplacés vers « Sans catégorie ».",
     "empty": {
       "noFilteredElements": "Aucun élément pour ce filtre",
       "noSummary": "Aucun résumé pour le moment"
@@ -110,6 +114,10 @@
       "more": "Autres actions"
     },
     "menu": {
+      "changeCategory": "Changer de catégorie",
+      "changeGroup": "Changer de groupe",
+      "deleteCategory": "Supprimer la catégorie",
+      "deleteElement": "Supprimer l’élément",
       "deleteNode": "Supprimer le nœud"
     },
     "outlineRailMode": {
@@ -125,9 +133,23 @@
       "chapter": "État d’écriture"
     }
   },
+  "elementCategoryCreateMenu": {
+    "back": "Retour au menu de création",
+    "createGroup": "Créer et ouvrir le premier élément",
+    "duplicateGroup": "Un groupe de ce nom existe déjà.",
+    "groupNameLabel": "Nom du groupe",
+    "groupNamePlaceholder": "Saisissez un nom de groupe",
+    "groupTitle": "Nouveau groupe",
+    "newElement": "Nouvel élément",
+    "newGroup": "Nouveau groupe…",
+    "openCreateMenu": "Ajouter à cette catégorie",
+    "title": "Ajouter à « {{name}} »"
+  },
   "elementEditor": {
     "alerts": {
       "aliasConflict": "Impossible d’ajouter l’alias : « {{name}} » est déjà utilisé par l’élément « {{conflicting}} ».",
+      "deleteFailed": "Impossible de supprimer l’élément. Réessayez.",
+      "groupUpdateFailed": "Impossible de mettre à jour le groupe. Réessayez.",
       "renameConflict": "Impossible de renommer : « {{name}} » est déjà utilisé comme nom ou alias de l’élément « {{conflicting}} »."
     },
     "alias": {
@@ -135,10 +157,21 @@
       "addFirst": "Ajouter un alias",
       "remove": "Retirer l’alias"
     },
+    "category": {
+      "newOption": "Nouvelle catégorie…"
+    },
+    "deleteConfirm": "Supprimer l’élément « {{name}} » ?",
     "empty": {
       "noFacts": "Aucun champ pour le moment. À la création d’un élément, le Modèle de champs de sa catégorie les renseigne."
     },
     "folio": "Élément",
+    "group": {
+      "create": "Créer le groupe « {{name}} »",
+      "empty": "Cette catégorie n’a pas encore de groupes.",
+      "noGroup": "(Aucun groupe)",
+      "placeholder": "Rechercher ou créer un groupe… (vide = aucun groupe)",
+      "title": "Groupe · {{category}}"
+    },
     "sections": {
       "bioTitle": "Biographie",
       "facts": "Faits"
@@ -245,6 +278,8 @@
   },
   "leftSidebar": {
     "actions": {
+      "collapseAll": "Tout développer ou réduire",
+      "newCategory": "Nouvelle catégorie",
       "sort": "Trier"
     },
     "empty": {
@@ -253,6 +288,8 @@
       "noElements": "Pas encore d’éléments."
     },
     "groups": {
+      "addElementToGroup": "Nouvel élément dans ce groupe",
+      "renameElementGroupTitle": "Double-cliquez pour renommer le groupe",
       "unaffiliated": "Sans appartenance"
     },
     "meta": {
@@ -263,6 +300,7 @@
     "sort": {
       "alphabet": "Alphabétique",
       "bookOrder": "Ordre de lecture",
+      "categoryElements": "Trier les éléments dans les catégories",
       "cellMetaGroup": "Bord droit de cellule",
       "chapters": "Trier les chapitres",
       "createdAt": "Date de création",
@@ -270,6 +308,7 @@
       "duplicatesGroup": "Chapitres à plusieurs intrigues",
       "duplicatesPrimary": "Afficher seulement dans l’intrigue principale",
       "narrativeOrder": "Ordre narratif",
+      "outerCategoriesGroup": "Catégories extérieures",
       "outerStorylinesGroup": "Intrigues extérieures",
       "showBoth": "Afficher les mots et la date",
       "showDate": "Afficher la date",
@@ -291,6 +330,8 @@
     "uncategorized": "Sans catégorie",
     "viewMode": {
       "chapterSummary": "{{storylines}} intrigues · {{chapters}} chapitres",
+      "elementCompactTitle": "Index compact · passer à la liste de noms",
+      "elementListTitle": "Liste de noms · passer à l’index compact",
       "globalTitle": "Vue du livre · grouper par intrigue",
       "storylineTitle": "Par intrigue · revenir à la vue du livre"
     }
@@ -858,6 +899,11 @@
     "restoreSuccess": "Version sélectionnée restaurée. L’état précédent a d’abord été conservé dans un nouvel instantané.",
     "restoring": "Restauration…",
     "title": "Instantanés historiques · 30 jours"
+  },
+  "storyGraph": {
+    "edge": {
+      "create": "Créer"
+    }
   },
   "storylineEditor": {
     "filters": {

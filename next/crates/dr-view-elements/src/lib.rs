@@ -21,9 +21,12 @@
 
 pub mod category;
 pub mod data;
+pub mod dialogs;
 pub mod element;
 pub mod fields;
+pub mod menu;
 mod page;
+pub mod panel;
 
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -84,8 +87,32 @@ pub fn category_page(id: &str, cx: &App) -> Option<(Entity<CategoryHead>, Entity
     Some((head.upgrade()?, end.upgrade()?))
 }
 
-/// Registers the element and category pages' chrome with the shell.
+/// Now, ms since the epoch.
+pub(crate) fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
+}
+
+/// The elements panel for one sidebar pane of the window of `ws`: its list
+/// and its head row (the shell hosts both once it has a place for them).
+pub fn make_panel(
+    ws: gpui::WeakEntity<dr_shell::Workspace>,
+    cx: &mut App,
+) -> (Entity<panel::ElementPanel>, Entity<panel::PanelHead>) {
+    let list = cx.new(|cx| panel::ElementPanel::new(ws.clone(), cx));
+    let head = {
+        let list = list.clone();
+        cx.new(|cx| panel::PanelHead::new(list, ws, cx))
+    };
+    (list, head)
+}
+
+/// Registers the element and category pages' chrome with the shell, and
+/// makes their dialogs.
 pub fn init(cx: &mut App) {
+    dialogs::init(cx);
     dr_shell::pages::add_page_chrome(cx, |target, host, window, cx| {
         let ws = host.workspace;
         let chrome = match target {

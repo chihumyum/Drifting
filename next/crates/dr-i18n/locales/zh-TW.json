@@ -16,6 +16,10 @@
     "actions": {
       "openElement": "開啟要素"
     },
+    "alerts": {
+      "deleteFailed": "無法刪除分類，請再試一次。"
+    },
+    "deleteConfirm": "刪除分類「{{name}}」？\n\n此分類的要素將移至「未分類」。",
     "empty": {
       "noFilteredElements": "沒有符合篩選條件的要素",
       "noSummary": "尚未填寫概述"
@@ -110,6 +114,10 @@
       "more": "更多操作"
     },
     "menu": {
+      "changeCategory": "變更分類",
+      "changeGroup": "變更群組",
+      "deleteCategory": "刪除分類",
+      "deleteElement": "刪除要素",
       "deleteNode": "刪除節點"
     },
     "outlineRailMode": {
@@ -125,9 +133,23 @@
       "chapter": "寫作狀態"
     }
   },
+  "elementCategoryCreateMenu": {
+    "back": "返回新增選單",
+    "createGroup": "建立並開啟第一個要素",
+    "duplicateGroup": "同名分組已存在。",
+    "groupNameLabel": "分組名稱",
+    "groupNamePlaceholder": "輸入分組名稱",
+    "groupTitle": "新增分組",
+    "newElement": "新增要素",
+    "newGroup": "新增分組…",
+    "openCreateMenu": "新增至此類目",
+    "title": "新增至「{{name}}」"
+  },
   "elementEditor": {
     "alerts": {
       "aliasConflict": "無法新增別名：「{{name}}」已被要素「{{conflicting}}」使用。",
+      "deleteFailed": "無法刪除要素，請再試一次。",
+      "groupUpdateFailed": "無法更新群組，請再試一次。",
       "renameConflict": "無法重新命名：「{{name}}」已被要素「{{conflicting}}」用作名稱或別名。"
     },
     "alias": {
@@ -135,10 +157,21 @@
       "addFirst": "新增別名",
       "remove": "移除別名"
     },
+    "category": {
+      "newOption": "新增分類…"
+    },
+    "deleteConfirm": "刪除要素「{{name}}」？",
     "empty": {
       "noFacts": "尚無欄位。建立要素時，所屬分類的「欄位範本」會自動填入。"
     },
     "folio": "要素",
+    "group": {
+      "create": "建立分組「{{name}}」",
+      "empty": "此分類尚無群組。",
+      "noGroup": "（無群組）",
+      "placeholder": "搜尋或建立群組…（留空＝無群組）",
+      "title": "群組 · {{category}}"
+    },
     "sections": {
       "bioTitle": "生平",
       "facts": "設定資料"
@@ -240,6 +273,8 @@
   },
   "leftSidebar": {
     "actions": {
+      "collapseAll": "全部展開或收合",
+      "newCategory": "新增類目",
       "sort": "排序"
     },
     "empty": {
@@ -248,6 +283,8 @@
       "noElements": "尚無要素。"
     },
     "groups": {
+      "addElementToGroup": "在此分組新增要素",
+      "renameElementGroupTitle": "按兩下重新命名分組",
       "unaffiliated": "無歸屬"
     },
     "meta": {
@@ -258,6 +295,7 @@
     "sort": {
       "alphabet": "字母順序",
       "bookOrder": "閱讀順序",
+      "categoryElements": "類目內要素排序",
       "cellMetaGroup": "儲存格右側",
       "chapters": "章節排序",
       "createdAt": "建立時間",
@@ -265,6 +303,7 @@
       "duplicatesGroup": "多故事線章節",
       "duplicatesPrimary": "只在主要故事線顯示",
       "narrativeOrder": "敘事順序",
+      "outerCategoriesGroup": "外層類目",
       "outerStorylinesGroup": "外層故事線",
       "showBoth": "顯示字數與日期",
       "showDate": "顯示日期",
@@ -286,6 +325,8 @@
     "uncategorized": "未分類",
     "viewMode": {
       "chapterSummary": "{{storylines}} 條故事線 · {{chapters}} 章",
+      "elementCompactTitle": "精簡索引 · 切換至名稱清單",
+      "elementListTitle": "名稱清單 · 切換至精簡索引",
       "globalTitle": "全書總覽 · 依故事線分組",
       "storylineTitle": "依故事線分組 · 切換回全書總覽"
     }
@@ -846,6 +887,11 @@
     "restoreSuccess": "已還原至選取版本，先前狀態已先存為新快照。",
     "restoring": "正在還原…",
     "title": "歷史快照 · 30 天"
+  },
+  "storyGraph": {
+    "edge": {
+      "create": "建立"
+    }
   },
   "storylineEditor": {
     "filters": {

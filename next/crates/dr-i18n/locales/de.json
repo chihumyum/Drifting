@@ -16,6 +16,10 @@
     "actions": {
       "openElement": "Element öffnen"
     },
+    "alerts": {
+      "deleteFailed": "Kategorie konnte nicht gelöscht werden. Bitte erneut versuchen."
+    },
+    "deleteConfirm": "Kategorie „{{name}}“ löschen?\n\nDie Elemente dieser Kategorie werden nach „Nicht kategorisiert“ verschoben.",
     "empty": {
       "noFilteredElements": "Keine Elemente für diesen Filter",
       "noSummary": "Noch keine Zusammenfassung"
@@ -110,6 +114,10 @@
       "more": "Weitere Aktionen"
     },
     "menu": {
+      "changeCategory": "Kategorie ändern",
+      "changeGroup": "Gruppe ändern",
+      "deleteCategory": "Kategorie löschen",
+      "deleteElement": "Element löschen",
       "deleteNode": "Knoten löschen"
     },
     "outlineRailMode": {
@@ -125,9 +133,23 @@
       "chapter": "Schreibstatus"
     }
   },
+  "elementCategoryCreateMenu": {
+    "back": "Zurück zum Erstellungsmenü",
+    "createGroup": "Erstes Element erstellen und öffnen",
+    "duplicateGroup": "Eine Gruppe mit diesem Namen existiert bereits.",
+    "groupNameLabel": "Gruppenname",
+    "groupNamePlaceholder": "Gruppennamen eingeben",
+    "groupTitle": "Neue Gruppe",
+    "newElement": "Neues Element",
+    "newGroup": "Neue Gruppe…",
+    "openCreateMenu": "Dieser Kategorie hinzufügen",
+    "title": "Zu „{{name}}“ hinzufügen"
+  },
   "elementEditor": {
     "alerts": {
       "aliasConflict": "Alias kann nicht hinzugefügt werden: „{{name}}“ wird bereits vom Element „{{conflicting}}“ verwendet.",
+      "deleteFailed": "Element konnte nicht gelöscht werden. Bitte erneut versuchen.",
+      "groupUpdateFailed": "Gruppe konnte nicht aktualisiert werden. Bitte erneut versuchen.",
       "renameConflict": "Umbenennen nicht möglich: „{{name}}“ wird bereits vom Element „{{conflicting}}“ als Name oder Alias verwendet."
     },
     "alias": {
@@ -135,10 +157,21 @@
       "addFirst": "Alias hinzufügen",
       "remove": "Alias entfernen"
     },
+    "category": {
+      "newOption": "Neue Kategorie…"
+    },
+    "deleteConfirm": "Element „{{name}}“ löschen?",
     "empty": {
       "noFacts": "Noch keine Felder. Beim Erstellen eines Elements füllt die Feldvorlage seiner Kategorie sie aus."
     },
     "folio": "Element",
+    "group": {
+      "create": "Gruppe „{{name}}“ erstellen",
+      "empty": "Diese Kategorie hat noch keine Gruppen.",
+      "noGroup": "(Keine Gruppe)",
+      "placeholder": "Gruppe suchen oder erstellen… (leer = keine Gruppe)",
+      "title": "Gruppe · {{category}}"
+    },
     "sections": {
       "bioTitle": "Biografie",
       "facts": "Fakten"
@@ -245,6 +278,8 @@
   },
   "leftSidebar": {
     "actions": {
+      "collapseAll": "Alle auf- oder einklappen",
+      "newCategory": "Neue Kategorie",
       "sort": "Sortieren"
     },
     "empty": {
@@ -253,6 +288,8 @@
       "noElements": "Noch keine Elemente."
     },
     "groups": {
+      "addElementToGroup": "Neues Element in dieser Gruppe",
+      "renameElementGroupTitle": "Doppelklicken, um die Gruppe umzubenennen",
       "unaffiliated": "Ohne Zuordnung"
     },
     "meta": {
@@ -263,6 +300,7 @@
     "sort": {
       "alphabet": "Alphabetisch",
       "bookOrder": "Lesereihenfolge",
+      "categoryElements": "Elemente innerhalb der Kategorien sortieren",
       "cellMetaGroup": "Rechter Zellenrand",
       "chapters": "Kapitel sortieren",
       "createdAt": "Erstellungszeit",
@@ -270,6 +308,7 @@
       "duplicatesGroup": "Kapitel mit mehreren Handlungssträngen",
       "duplicatesPrimary": "Nur im Haupthandlungsstrang anzeigen",
       "narrativeOrder": "Erzählreihenfolge",
+      "outerCategoriesGroup": "Äußere Kategorien",
       "outerStorylinesGroup": "Äußere Handlungsstränge",
       "showBoth": "Wortzahl und Datum anzeigen",
       "showDate": "Datum anzeigen",
@@ -291,6 +330,8 @@
     "uncategorized": "Ohne Kategorie",
     "viewMode": {
       "chapterSummary": "{{storylines}} Handlungsstränge · {{chapters}} Kapitel",
+      "elementCompactTitle": "Kompakter Index · zur Namensliste wechseln",
+      "elementListTitle": "Namensliste · zum kompakten Index wechseln",
       "globalTitle": "Buchübersicht · nach Handlungsstrang gruppieren",
       "storylineTitle": "Nach Handlungsstrang · zur Buchübersicht wechseln"
     }
@@ -851,6 +892,11 @@
     "restoreSuccess": "Ausgewählte Version wiederhergestellt. Der vorherige Zustand wurde zuerst als neuer Schnappschuss gespeichert.",
     "restoring": "Wird wiederhergestellt…",
     "title": "Verlaufsschnappschüsse · 30 Tage"
+  },
+  "storyGraph": {
+    "edge": {
+      "create": "Erstellen"
+    }
   },
   "storylineEditor": {
     "filters": {

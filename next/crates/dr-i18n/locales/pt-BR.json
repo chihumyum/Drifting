@@ -16,6 +16,10 @@
     "actions": {
       "openElement": "Abrir elemento"
     },
+    "alerts": {
+      "deleteFailed": "Não foi possível excluir a categoria. Tente novamente."
+    },
+    "deleteConfirm": "Excluir a categoria “{{name}}”?\n\nOs elementos desta categoria serão movidos para “Sem categoria”.",
     "empty": {
       "noFilteredElements": "Nenhum elemento para este filtro",
       "noSummary": "Ainda não há resumo"
@@ -110,6 +114,10 @@
       "more": "Mais ações"
     },
     "menu": {
+      "changeCategory": "Alterar categoria",
+      "changeGroup": "Alterar grupo",
+      "deleteCategory": "Excluir categoria",
+      "deleteElement": "Excluir elemento",
       "deleteNode": "Excluir nó"
     },
     "outlineRailMode": {
@@ -125,9 +133,23 @@
       "chapter": "Estado da escrita"
     }
   },
+  "elementCategoryCreateMenu": {
+    "back": "Voltar ao menu de criação",
+    "createGroup": "Criar e abrir o primeiro elemento",
+    "duplicateGroup": "Já existe um grupo com esse nome.",
+    "groupNameLabel": "Nome do grupo",
+    "groupNamePlaceholder": "Digite um nome de grupo",
+    "groupTitle": "Novo grupo",
+    "newElement": "Novo elemento",
+    "newGroup": "Novo grupo…",
+    "openCreateMenu": "Adicionar a esta categoria",
+    "title": "Adicionar a “{{name}}”"
+  },
   "elementEditor": {
     "alerts": {
       "aliasConflict": "Não é possível adicionar o apelido: “{{name}}” já é usado pelo elemento “{{conflicting}}”.",
+      "deleteFailed": "Não foi possível excluir o elemento. Tente novamente.",
+      "groupUpdateFailed": "Não foi possível atualizar o grupo. Tente novamente.",
       "renameConflict": "Não é possível renomear: “{{name}}” já é usado como nome ou apelido do elemento “{{conflicting}}”."
     },
     "alias": {
@@ -135,10 +157,21 @@
       "addFirst": "Adicionar apelido",
       "remove": "Remover apelido"
     },
+    "category": {
+      "newOption": "Nova categoria…"
+    },
+    "deleteConfirm": "Excluir o elemento “{{name}}”?",
     "empty": {
       "noFacts": "Ainda não há campos. Ao criar um elemento, o Modelo de campos da categoria os preenche."
     },
     "folio": "Elemento",
+    "group": {
+      "create": "Criar grupo “{{name}}”",
+      "empty": "Esta categoria ainda não tem grupos.",
+      "noGroup": "(Sem grupo)",
+      "placeholder": "Busque ou crie um grupo… (em branco = sem grupo)",
+      "title": "Grupo · {{category}}"
+    },
     "sections": {
       "bioTitle": "Biografia",
       "facts": "Dados"
@@ -245,6 +278,8 @@
   },
   "leftSidebar": {
     "actions": {
+      "collapseAll": "Expandir ou recolher tudo",
+      "newCategory": "Nova categoria",
       "sort": "Ordenar"
     },
     "empty": {
@@ -253,6 +288,8 @@
       "noElements": "Ainda não há elementos."
     },
     "groups": {
+      "addElementToGroup": "Novo elemento neste grupo",
+      "renameElementGroupTitle": "Clique duas vezes para renomear o grupo",
       "unaffiliated": "Sem vínculo"
     },
     "meta": {
@@ -263,6 +300,7 @@
     "sort": {
       "alphabet": "Alfabética",
       "bookOrder": "Ordem de leitura",
+      "categoryElements": "Ordenar elementos nas categorias",
       "cellMetaGroup": "Borda direita da célula",
       "chapters": "Ordenar capítulos",
       "createdAt": "Data de criação",
@@ -270,6 +308,7 @@
       "duplicatesGroup": "Capítulos com várias linhas narrativas",
       "duplicatesPrimary": "Mostrar apenas na linha narrativa principal",
       "narrativeOrder": "Ordem narrativa",
+      "outerCategoriesGroup": "Categorias externas",
       "outerStorylinesGroup": "Linhas narrativas externas",
       "showBoth": "Mostrar palavras e data",
       "showDate": "Mostrar data",
@@ -291,6 +330,8 @@
     "uncategorized": "Sem categoria",
     "viewMode": {
       "chapterSummary": "{{storylines}} linhas narrativas · {{chapters}} capítulos",
+      "elementCompactTitle": "Índice compacto · mudar para lista de nomes",
+      "elementListTitle": "Lista de nomes · mudar para índice compacto",
       "globalTitle": "Visão do livro · agrupar por linha narrativa",
       "storylineTitle": "Por linha narrativa · voltar à visão do livro"
     }
@@ -858,6 +899,11 @@
     "restoreSuccess": "Versão selecionada restaurada. O estado anterior foi salvo primeiro como um novo snapshot.",
     "restoring": "Restaurando…",
     "title": "Snapshots do histórico · 30 dias"
+  },
+  "storyGraph": {
+    "edge": {
+      "create": "Criar"
+    }
   },
   "storylineEditor": {
     "filters": {
