@@ -221,6 +221,94 @@ fn titles_follow_the_old_rules(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn an_ideas_page_keeps_its_title_and_synopsis(cx: &mut TestAppContext) {
+    let e = env();
+    let idea = out(
+        &e.ws,
+        "idea.create",
+        json!({"book": e.book, "title": "钟楼的秘密", "text": "也许钟停在三点十七分。"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let doc = format!("node:{idea}");
+    let ideas = |e: &Env| out(&e.ws, "idea.list", json!({"book": e.book}));
+    assert_eq!(
+        page::rename(&e.ws, &e.book, &doc, " 钟楼里的人 ").unwrap(),
+        Some("钟楼里的人".to_owned())
+    );
+    assert_eq!(
+        page::rename(&e.ws, &e.book, &doc, "钟楼里的人").unwrap(),
+        None
+    );
+    assert!(page::set_synopsis(&e.ws, &e.book, &doc, "一个关于时间的构想").unwrap());
+    let stored = ideas(&e)[0].clone();
+    assert_eq!(
+        (stored["title"].as_str(), stored["summary"].as_str()),
+        (Some("钟楼里的人"), Some("一个关于时间的构想"))
+    );
+    // The page sees it.
+    let (view, cx) = open(cx, &e, &doc);
+    view.update(cx, |v, cx| {
+        v.set_chrome(Some(Rc::new(Chrome(Rc::default()))), cx)
+    });
+    let p = view.read_with(cx, |v, _| v.page_info()).unwrap();
+    assert_eq!(
+        (p.kind, p.title.as_str(), p.synopsis.as_str()),
+        (PageKind::Idea, "钟楼里的人", "一个关于时间的构想")
+    );
+}
+
+#[gpui::test]
+fn an_acts_title_page_counts_its_chapters_and_words(cx: &mut TestAppContext) {
+    let e = env();
+    let one = chapter(&e, "一", "雨夜。");
+    let two = chapter(&e, "二", "钟停了。");
+    let three = chapter(&e, "三", "天亮了。");
+    for (name, at) in [("回乡", &one), ("停摆", &three)] {
+        out(
+            &e.ws,
+            "act.create",
+            json!({"book": e.book, "name": name, "start_chapter": at.trim_start_matches("node:")}),
+        );
+    }
+    let (ws, book) = (e.ws.clone(), e.book.clone());
+    cx.executor().allow_parking();
+    let (view, cx) = cx.add_window_view(move |window, cx| {
+        BookEditor::open(ws, &book, EditorSettings::default(), window, cx).unwrap()
+    });
+    view.update(cx, |v, cx| {
+        v.set_chrome(Some(Rc::new(Chrome(Rc::default()))), cx)
+    });
+    let act = |doc: &str, cx: &mut VisualTestContext| {
+        view.read_with(cx, |v, _| v.page_info(doc))
+            .unwrap()
+            .act_page
+    };
+    let first = act(&one, cx).expect("the first act opens at 一");
+    assert_eq!(
+        (
+            first.name.as_str(),
+            first.ordinal,
+            first.chapters,
+            first.words
+        ),
+        ("回乡", 1, 2, 5),
+        "雨夜 and 钟停了: punctuation is not counted"
+    );
+    let second = act(&three, cx).expect("the second at 三");
+    assert_eq!((second.ordinal, second.chapters, second.words), (2, 1, 3));
+    assert!(act(&two, cx).is_none());
+    // Typing in 二 counts toward the first act at once.
+    let editor = view.read_with(cx, |v, _| v.editor().clone());
+    editor.update_in(cx, |ed, window, cx| {
+        ed.select(1, 0..0, window, cx);
+        ed.replace_text_in_range(None, "夜里", window, cx);
+    });
+    assert_eq!(act(&one, cx).unwrap().words, 7);
+}
+
+#[gpui::test]
 fn a_new_chapter_lands_right_after(cx: &mut TestAppContext) {
     let _ = cx;
     let e = env();

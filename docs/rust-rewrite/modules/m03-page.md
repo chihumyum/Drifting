@@ -71,7 +71,13 @@ cargo run -p dr-view-page --features capture --example page-capture -- ../docs/r
 1. **F6：「新建下一章」后打开并全选标题。** dr-view-page 在单章页面里调了外壳现成的 `Workspace::open(Target::Chapter(…), Open::KEEP)`，并记下「这一章的标题要拿光标」；新页第一次画出时标题拿到焦点、全选（测试守着）。这能成立是因为外壳的 `focus_page` 在新编辑器建好时先把键盘给编辑器，章首第一次画在那之后，标题的焦点又放在这一帧画完以后。外壳以后如果改成晚一步再给编辑器焦点，就会抢走标题的。更稳的做法是外壳认这个意图，比如打开时带上「聚焦标题」，`focus_page` 遇到它就跳过。
 2. **F6：装了 chrome 的章节页不用再 `set_title`。** 章首代替了编辑器的标题行，外壳在 `editor_prepared` 里调的 `set_title` 对章节页已经多余（无害）。
 3. **F6：键盘进出 ⁂**（Tab 到 ⁂、方向键选、回车做），等外壳的焦点框架。
-4. **F4（dr-editor）：**
-   - `PageInfo` 加这一章所在的幕、幕的序号、章数和字数，扉页才能画「第一幕」和「N 章 · x 千字」；
-   - 构想页的标题和梗概要 `idea.update` 的动作（现在的 `page::rename` / `set_synopsis` 只改章节），有了以后构想页也可以用这里的章首。
+4. ~~**F4（dr-editor）：**~~（F4e 第四批已做，见 [f4e-editor.md](../foundations/f4e-editor.md#第四批2026-11-08-夜)）
+   - ~~`PageInfo` 加这一章所在的幕、幕的序号、章数和字数，扉页才能画「第一幕」和「N 章 · x 千字」；~~
+     - **字段**：全书视图里，开一幕的那一章的 `PageInfo::act_page` 是 `Some(ActPage { name, ordinal, chapters, words })`。别的章是 `None`，单章页面上也是 `None`。
+     - **序号**：`ordinal` 照旧版 `deriveActSegments`，数书里所有的幕，空幕和书首的幕也算。
+     - **章数和字数**：`chapters` 是这一幕到下一幕之前的章数。`words` 是这些章的字数（prose-metrics 的规则，和页眉一样），作者一打字就跟着变，编辑器会请宿主重画那一章的章首。
+     - **旧版的写法**：序号是「第{n}幕」（中文用汉字数字，1–99，十、十一、二十一……，超出用阿拉伯数字；英文用罗马数字 "Act IV"）。下面一行是「{N} 章 · {x.x}k 字」：字数除以一千保留一位小数，0 也写「0.0k」，英文 "{N} chapters · {x.x}k words"。旧版里没有「千字」这个写法。这两样格式由 dr-view-page 拼。
+   - ~~构想页的标题和梗概要 `idea.update` 的动作（现在的 `page::rename` / `set_synopsis` 只改章节），有了以后构想页也可以用这里的章首。~~
+     - `page::rename(lib, book, doc, title)` 和 `page::set_synopsis(lib, book, doc, text)` 现在认得构想页（`node:<构想 id>`），走 `idea.update`，规则和章节一样：去掉首尾空白，空标题不存，没变不写。
+     - 构想页的 `PageInfo` 是 `kind: PageKind::Idea`，带 `title`、`synopsis` 和 `status`（`drifting` / `resting`）。所以 dr-view-page 可以照章节页接管构想页的标题和梗概。构想页没有 ⁂ 的完成和新建下一章（`set_finished` / `new_chapter_after` 仍只对章节）。
 5. **M30（Agent）：** ⁂ 菜单里的「帮手审阅」。

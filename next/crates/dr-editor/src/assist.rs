@@ -46,10 +46,11 @@ use dr_ui::theme::Theme;
 use dr_workspace::{Actor, Workspace};
 use gpui::{
     App, Bounds, Context, Entity, EventEmitter, InteractiveElement, IntoElement, KeyDownEvent,
-    ParentElement, Pixels, Render, SharedString, Styled, Subscription, Task, Window, div, point,
-    px, size,
+    ParentElement, Pixels, Render, SharedString, StatefulInteractiveElement, Styled, Subscription,
+    Task, Window, div, point, px, size,
 };
 use gpui_prose::input::actions::{MoveDown, MoveUp, Newline, SetBody, SetH1, SetH2, SetH3};
+use gpui_prose::render::DecorationEvent;
 use gpui_prose::schema::{block, inline};
 use gpui_prose::text::{BlockKind, ORIGIN_USER};
 use gpui_prose::{EditorEvent, HostStep, ProseEditor};
@@ -138,6 +139,64 @@ impl BlockChoice {
     }
 }
 
+/// Drifting's own entries of the slash menu, after the formats.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SlashAction {
+    /// 人物链接: the @ picker, here.
+    Mention,
+    /// 待办: a TODO marker at the paragraph's start (projected into TODOs).
+    Todo,
+    /// 批注: the host's comment composer on this paragraph.
+    Comment,
+    /// 位置链接: a location link to this paragraph, copied.
+    PositionLink,
+}
+
+impl SlashAction {
+    pub const ALL: [SlashAction; 4] = [
+        SlashAction::Mention,
+        SlashAction::Todo,
+        SlashAction::Comment,
+        SlashAction::PositionLink,
+    ];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            SlashAction::Mention => "人物链接",
+            SlashAction::Todo => "待办",
+            SlashAction::Comment => "批注",
+            SlashAction::PositionLink => "位置链接",
+        }
+    }
+
+    fn words(self) -> &'static [&'static str] {
+        match self {
+            SlashAction::Mention => &["@", "mention", "link", "人物", "要素", "链接"],
+            SlashAction::Todo => &["todo", "task", "待办"],
+            SlashAction::Comment => &["comment", "note", "批注"],
+            SlashAction::PositionLink => &["location", "link", "位置"],
+        }
+    }
+
+    fn icon(self) -> Icon {
+        match self {
+            SlashAction::Mention => Icon::NameSeal,
+            SlashAction::Todo => Icon::ChecklistPlus,
+            SlashAction::Comment => Icon::CommentPlus,
+            SlashAction::PositionLink => Icon::KnotLinks,
+        }
+    }
+
+    fn matches(self, query: &str) -> bool {
+        let q = query.to_lowercase();
+        self.label().contains(&q) || self.words().iter().any(|w| w.starts_with(&q))
+    }
+}
+
+/// The marker 「待办」 puts at a paragraph's start (the typed-marker rule
+/// of [`crate::todo`]).
+pub const TODO_MARKER: &str = "待办：";
+
 /// A row of an open picker.
 #[derive(Clone, Debug, PartialEq)]
 pub enum MenuRow {
@@ -153,6 +212,7 @@ pub enum MenuRow {
         name: String,
     },
     Block(BlockChoice),
+    Action(SlashAction),
 }
 
 /// The open picker: where its trigger is and what it offers.
@@ -200,9 +260,15 @@ pub fn trigger(before: &str) -> Option<(MenuKind, usize, String)> {
 /// What the assist tells its view.
 #[derive(Clone, Debug, PartialEq)]
 pub enum AssistEvent {
-    /// The selection bar's 添加批注: the host opens its comment composer on
-    /// `range` of chapter `chapter`.
+    /// The selection bar's 添加批注 (or the slash menu's 批注, on the
+    /// paragraph): the host opens its comment composer on `range` of
+    /// chapter `chapter`.
     Comment { chapter: usize, range: Range<usize> },
+    /// The slash menu's 位置链接 put `link` on the clipboard.
+    LinkCopied { chapter: usize, link: String },
+    /// A plain click on a live entity link in chapter `chapter`: the host
+    /// opens `target` (a preview tab, as the 0.1 client did).
+    OpenLink { chapter: usize, target: LinkTarget },
 }
 
 /// The pickers, automatic links and selection bar of one editor.
@@ -227,6 +293,11 @@ pub struct Assist {
     menu: Option<OpenMenu>,
     /// The menu opened at a new trigger since it was last drawn.
     menu_fresh: bool,
+    /// The book's names changed since they were last read.
+    names_dirty: bool,
+    /// The caret paragraph's link runs as they were before the next edit:
+    /// chapter, block id, line, and `(target, text)` of each run.
+    before: Option<BeforeEdit>,
     /// A trigger the author closed with Esc: chapter and offset.
     dismissed: Option<(usize, usize)>,
     bar: Option<(usize, Range<usize>)>,
@@ -234,6 +305,25 @@ pub struct Assist {
     /// The assist's own edit is running (its events are not the author's).
     writing: bool,
     _editor_events: Subscription,
+    /// The link decoration under the pointer: chapter and decoration id.
+    pointed_link: Option<(usize, SharedString)>,
+    /// The open link card, and the link it is for.
+    card: Option<OpenCard>,
+    card_task: Option<Task<()>>,
+    over_card: bool,
+    _decor_events: Subscription,
+}
+
+/// A paragraph's links before an edit: chapter, block id, line, and
+/// `(target, text)` of each run.
+type BeforeEdit = (usize, Option<String>, usize, Vec<(String, String)>);
+
+/// A link's hover card that is open.
+#[derive(Clone, Debug)]
+struct OpenCard {
+    chapter: usize,
+    id: SharedString,
+    facts: crate::link_card::CardFacts,
 }
 
 impl EventEmitter<AssistEvent> for Assist {}
@@ -250,9 +340,10 @@ impl Assist {
         let events = cx.subscribe_in(&editor, window, |this, _, event, window, cx| {
             this.on_editor(event, window, cx)
         });
+        let decor_events = Self::watch_decorations(&editor, window, cx);
         let undo_counts = Self::counts(&editor, cx);
         let line_counts = Self::lines(&editor, cx);
-        Assist {
+        let mut assist = Assist {
             ws,
             book: book.to_owned(),
             docs,
@@ -265,12 +356,34 @@ impl Assist {
             line_counts,
             menu: None,
             menu_fresh: false,
+            names_dirty: false,
+            before: None,
             dismissed: None,
             bar: None,
             bar_task: None,
             writing: false,
             _editor_events: events,
-        }
+            pointed_link: None,
+            card: None,
+            card_task: None,
+            over_card: false,
+            _decor_events: decor_events,
+        };
+        // What the book is called now: new names are told from these.
+        assist.names();
+        assist
+    }
+
+    fn watch_decorations(
+        editor: &Entity<ProseEditor>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Subscription {
+        cx.subscribe_in(
+            editor,
+            window,
+            |this, _, event: &DecorationEvent, window, cx| this.on_decoration(event, window, cx),
+        )
     }
 
     fn lines(editor: &Entity<ProseEditor>, cx: &App) -> Vec<usize> {
@@ -304,6 +417,9 @@ impl Assist {
         self._editor_events = cx.subscribe_in(&editor, window, |this, _, event, window, cx| {
             this.on_editor(event, window, cx)
         });
+        self._decor_events = Self::watch_decorations(&editor, window, cx);
+        self.pointed_link = None;
+        self.close_card();
         self.undo_counts = Self::counts(&editor, cx);
         self.line_counts = Self::lines(&editor, cx);
         self.editor = editor;
@@ -316,9 +432,76 @@ impl Assist {
         cx.notify();
     }
 
-    /// The book's names changed (an element renamed, a chapter added …).
-    pub fn invalidate_names(&mut self) {
-        self.names = None;
+    /// The book's names changed (an element made or renamed, an alias, a
+    /// chapter …): names new since are linked in the existing text, at the
+    /// next frame ([`Assist::names_changed`]).
+    pub fn invalidate_names(&mut self, cx: &mut Context<Self>) {
+        self.names_dirty = true;
+        cx.notify();
+    }
+
+    /// Links the names that are new in the book in the text that already
+    /// is (the 0.1 client's retroactive links): in this editor's documents
+    /// as one undo step of their own per chapter, and once in this process
+    /// in the documents no editor has open
+    /// ([`entity_links::backfill_closed`], on a background thread). Without
+    /// automatic links (the setting), only the names are read again.
+    pub fn names_changed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let old = self.names.take();
+        let Some(new) = self.names() else { return };
+        let Some(old) = old.filter(|_| self.auto_links) else {
+            return;
+        };
+        let added: std::collections::HashSet<(String, String)> =
+            new.pairs().difference(&old.pairs()).cloned().collect();
+        if added.is_empty() {
+            return;
+        }
+        let chapters = self.editor.read(cx).book().chapters.len();
+        for chapter in 0..chapters {
+            let own = self.own_id(chapter).map(str::to_owned);
+            let plans: Vec<(usize, Vec<entity_links::LinkEdit>)> = {
+                let doc = &self.editor.read(cx).book().chapters[chapter].doc;
+                (0..doc.visible_lines())
+                    .filter_map(|ix| {
+                        let line = doc.line(ix);
+                        if !added.iter().any(|(n, _)| line.text.contains(n.as_str())) {
+                            return None;
+                        }
+                        let runs = entity_links::link_runs(line);
+                        let edits: Vec<_> = entity_links::autolink(&line.text, &runs, &new)
+                            .into_iter()
+                            .filter(|e| match e {
+                                entity_links::LinkEdit::Link { target, .. } => {
+                                    Some(&target.id) != own.as_ref()
+                                }
+                                _ => true,
+                            })
+                            .collect();
+                        let edits = entity_links::only_added(&line.text, edits, &added);
+                        (!edits.is_empty()).then_some((ix, edits))
+                    })
+                    .collect()
+            };
+            if plans.is_empty() {
+                continue;
+            }
+            self.write(chapter, HostStep::Own, window, cx, move |doc| {
+                for (ix, edits) in &plans {
+                    entity_links::apply(doc, *ix, edits);
+                }
+                None
+            });
+        }
+        let mine = entity_links::claim_backfill(&self.book, &added);
+        if !mine.is_empty() {
+            let (ws, book) = (self.ws.clone(), self.book.clone());
+            std::thread::spawn(move || {
+                if let Err(e) = entity_links::backfill_closed(&ws, &book, &mine) {
+                    log::warn!("dr-editor: linking new names in {book}: {e}");
+                }
+            });
+        }
     }
 
     /// The setting `editor.auto_entity_links`.
@@ -366,6 +549,7 @@ impl Assist {
         match event {
             EditorEvent::Edited { chapter } => {
                 let chapter = *chapter;
+                self.close_card();
                 let now = self.editor.read(cx).book().chapters[chapter]
                     .doc
                     .undo_count();
@@ -386,6 +570,7 @@ impl Assist {
                 self.update_menu(cx);
             }
             EditorEvent::SelectionChanged => {
+                self.note_before(cx);
                 self.update_menu(cx);
                 self.schedule_bar(window, cx);
             }
@@ -408,10 +593,21 @@ impl Assist {
             let line = doc.line(line_ix);
             let caret = sel.head - doc.line_start(line_ix);
             let runs = entity_links::link_runs(line);
+            // The paragraph's runs before this edit, if they were noted.
+            let before: &[(String, String)] = match &self.before {
+                Some((c, bid, l, runs))
+                    if *c == chapter
+                        && (bid.is_some() && bid.as_deref() == line.bid()
+                            || bid.is_none() && *l == line_ix) =>
+                {
+                    runs
+                }
+                _ => &[],
+            };
             (
                 line_ix,
                 caret,
-                entity_links::repairs(&line.text, &runs, caret, &names),
+                entity_links::repairs(&line.text, &runs, caret, &names, before),
             )
         };
         let _ = caret;
@@ -422,6 +618,25 @@ impl Assist {
             entity_links::apply(doc, line_ix, &edits);
             None
         });
+    }
+
+    /// Notes the caret paragraph's links, for the next edit's repair.
+    fn note_before(&mut self, cx: &App) {
+        let e = self.editor.read(cx);
+        let sel = e.selection();
+        let Some(c) = e.book().chapters.get(sel.chapter) else {
+            return;
+        };
+        let doc = &c.doc;
+        let line_ix = doc.line_of(sel.head);
+        let line = doc.line(line_ix);
+        let runs = entity_links::link_runs(line);
+        self.before = Some((
+            sel.chapter,
+            line.bid().map(str::to_owned),
+            line_ix,
+            entity_links::run_texts(&line.text, &runs),
+        ));
     }
 
     fn note_typing(&mut self, chapter: usize, window: &mut Window, cx: &mut Context<Self>) {
@@ -537,6 +752,7 @@ impl Assist {
         self.writing = false;
         self.undo_counts = Self::counts(&self.editor, cx);
         self.line_counts = Self::lines(&self.editor, cx);
+        self.note_before(cx);
         done
     }
 
@@ -603,6 +819,12 @@ impl Assist {
                 .into_iter()
                 .filter(|c| c.matches(query))
                 .map(MenuRow::Block)
+                .chain(
+                    SlashAction::ALL
+                        .into_iter()
+                        .filter(|a| a.matches(query))
+                        .map(MenuRow::Action),
+                )
                 .collect(),
             MenuKind::Mention => {
                 let Some(names) = self.names() else {
@@ -640,6 +862,7 @@ impl Assist {
 
     /// Esc: the picker closes and stays closed for this trigger.
     pub fn dismiss(&mut self, cx: &mut Context<Self>) {
+        self.close_card();
         if let Some(m) = self.menu.take() {
             self.dismissed = Some((m.chapter, m.at));
         }
@@ -679,6 +902,7 @@ impl Assist {
                 }
             },
             MenuRow::Block(choice) => self.apply_block(chapter, at..caret, choice, window, cx),
+            MenuRow::Action(action) => self.apply_action(chapter, at..caret, action, window, cx),
         }
         self.dismissed = None;
         cx.notify();
@@ -702,6 +926,94 @@ impl Assist {
             doc.mark(range.start..range.start + len, &key, value, ORIGIN_USER);
             Some(range.start + len + 1)
         });
+    }
+
+    /// Drifting's own slash entries: `/query` goes, then the action.
+    fn apply_action(
+        &mut self,
+        chapter: usize,
+        range: Range<usize>,
+        action: SlashAction,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        match action {
+            SlashAction::Mention => {
+                self.write(chapter, HostStep::Own, window, cx, |doc| {
+                    doc.replace(range.clone(), "@", ORIGIN_USER);
+                    Some(range.start + 1)
+                });
+                // Written as the assist's own edit: open the @ picker here.
+                self.update_menu(cx);
+            }
+            SlashAction::Todo => {
+                self.write(chapter, HostStep::Own, window, cx, |doc| {
+                    doc.delete(range.clone(), ORIGIN_USER);
+                    let ix = doc.line_of(range.start);
+                    let start = doc.line_start(ix);
+                    if crate::todo::parse(&doc.line(ix).text).is_some() {
+                        return Some(range.start);
+                    }
+                    doc.replace(start..start, TODO_MARKER, ORIGIN_USER);
+                    Some(range.start + TODO_MARKER.chars().count())
+                });
+            }
+            SlashAction::Comment => {
+                let mut paragraph = range.start..range.start;
+                self.write(chapter, HostStep::Own, window, cx, |doc| {
+                    doc.delete(range.clone(), ORIGIN_USER);
+                    let ix = doc.line_of(range.start);
+                    let start = doc.line_start(ix);
+                    paragraph = start..start + doc.line(ix).chars;
+                    Some(range.start)
+                });
+                cx.emit(AssistEvent::Comment {
+                    chapter,
+                    range: paragraph,
+                });
+            }
+            SlashAction::PositionLink => {
+                let mut line = 0;
+                self.write(chapter, HostStep::Own, window, cx, |doc| {
+                    doc.delete(range.clone(), ORIGIN_USER);
+                    line = doc.line_of(range.start);
+                    Some(range.start)
+                });
+                if let Some(link) = self.position_link(chapter, line) {
+                    cx.write_to_clipboard(gpui::ClipboardItem::new_string(link.clone()));
+                    cx.emit(AssistEvent::LinkCopied { chapter, link });
+                }
+            }
+        }
+    }
+
+    /// The location link of paragraph `line` of chapter `chapter`, in the
+    /// document form: `drifting:<group>/id-<id>/prose.md#L<2N+1>`.
+    pub fn position_link(&self, chapter: usize, line: usize) -> Option<String> {
+        let doc = self.docs.get(chapter)?;
+        let (prefix, id) = doc.split_once(':')?;
+        let group = match prefix {
+            "node" => {
+                let catalog = self.ws.catalog(&self.book).ok()?;
+                if catalog
+                    .by_id(dr_workspace::nav::LinkGroup::Chapters, id)
+                    .is_some()
+                {
+                    dr_workspace::nav::LinkGroup::Chapters
+                } else {
+                    dr_workspace::nav::LinkGroup::Drifts
+                }
+            }
+            "element" => dr_workspace::nav::LinkGroup::Elements,
+            "category" => dr_workspace::nav::LinkGroup::Categories,
+            "storyline" => dr_workspace::nav::LinkGroup::Storylines,
+            _ => return None,
+        };
+        Some(format!(
+            "drifting:{}/id-{id}/prose.md#L{}",
+            group.segment(),
+            2 * line + 1
+        ))
     }
 
     fn create_element(&self, name: &str) -> Result<LinkTarget, String> {
@@ -797,6 +1109,113 @@ impl Assist {
     }
 
     // ----- selection bar ------------------------------------------------------------
+
+    // ----- the link card -------------------------------------------------------------
+
+    /// The link card that is open: the link's chapter and its target.
+    pub fn card(&self) -> Option<(usize, &LinkTarget)> {
+        self.card.as_ref().map(|c| (c.chapter, &c.facts.target))
+    }
+
+    fn close_card(&mut self) {
+        self.card = None;
+        self.card_task = None;
+        self.over_card = false;
+    }
+
+    fn on_decoration(
+        &mut self,
+        event: &DecorationEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let DecorationEvent::Pointed { ids } = event else {
+            return;
+        };
+        let link = ids
+            .iter()
+            .find(|(_, k)| k.group == "links")
+            .map(|(c, k)| (*c, k.id.clone()));
+        if link == self.pointed_link {
+            return;
+        }
+        self.pointed_link = link.clone();
+        let wait = dr_ui::tokens::motion::dwell::HOVER_CARD_DELAY;
+        match link {
+            Some((chapter, id)) => {
+                // Rest on it a moment, then open (another link's card goes).
+                if self
+                    .card
+                    .as_ref()
+                    .is_some_and(|c| c.chapter != chapter || c.id != id)
+                {
+                    self.close_card();
+                }
+                if self.card.is_none() {
+                    self.card_task = Some(cx.spawn_in(window, async move |this, cx| {
+                        cx.background_executor().timer(wait).await;
+                        this.update(cx, |this, cx| this.open_card(chapter, id, cx))
+                            .ok();
+                    }));
+                }
+            }
+            None if self.card.is_some() => {
+                // A moment to reach the card.
+                let grace = dr_ui::tokens::motion::dwell::HOVER_CARD_GRACE;
+                self.card_task = Some(cx.spawn_in(window, async move |this, cx| {
+                    cx.background_executor().timer(grace).await;
+                    this.update(cx, |this, cx| {
+                        if !this.over_card && this.pointed_link.is_none() {
+                            this.close_card();
+                            cx.notify();
+                        }
+                    })
+                    .ok();
+                }));
+            }
+            None => self.card_task = None,
+        }
+    }
+
+    /// The target of link decoration `id` in chapter `chapter`.
+    fn link_target(&self, chapter: usize, id: &str, cx: &App) -> Option<LinkTarget> {
+        let e = self.editor.read(cx);
+        let range = e.decoration_range(chapter, "links", id)?;
+        let doc = &e.book().chapters.get(chapter)?.doc;
+        let marks = doc.marks_before(range.start + 1);
+        let (target, value) = marks.entities().next()?;
+        let link = crate::convert::entity_link(target, value);
+        Some(LinkTarget::new(link.kind, link.target))
+    }
+
+    fn open_card(&mut self, chapter: usize, id: SharedString, cx: &mut Context<Self>) {
+        self.card_task = None;
+        if self.pointed_link.as_ref() != Some(&(chapter, id.clone())) {
+            return;
+        }
+        let Some(target) = self.link_target(chapter, &id, cx) else {
+            return;
+        };
+        if let Some(facts) = crate::link_card::card_facts(&self.ws, &self.book, &target) {
+            self.card = Some(OpenCard { chapter, id, facts });
+            cx.notify();
+        }
+    }
+
+    /// A plain click on a live link: the host opens its target.
+    pub fn link_clicked(&mut self, cx: &mut Context<Self>) {
+        let Some((chapter, id)) = self.pointed_link.clone() else {
+            return;
+        };
+        let target = self.link_target(chapter, &id, cx);
+        self.close_card();
+        let Some(target) = target else { return };
+        // A target in the trash or gone: the click does nothing.
+        if crate::link_card::card_facts(&self.ws, &self.book, &target).is_some() {
+            cx.emit(AssistEvent::OpenLink { chapter, target });
+        }
+        cx.notify();
+    }
 
     fn hide_bar(&mut self) {
         self.bar = None;
@@ -922,6 +1341,15 @@ impl Assist {
                 MenuRow::Create { .. } if section.is_some() => {
                     list = list.separator(&theme);
                 }
+                // The slash menu: the formats, the rule, Drifting's own.
+                MenuRow::Block(BlockChoice::Rule) if ix > 0 => {
+                    list = list.separator(&theme);
+                }
+                MenuRow::Action(_)
+                    if ix > 0 && !matches!(menu.rows[ix - 1], MenuRow::Action(_)) =>
+                {
+                    list = list.separator(&theme);
+                }
                 _ => {}
             }
             let (icon, label, trailing): (RowIcon, SharedString, Option<&str>) = match row {
@@ -940,6 +1368,7 @@ impl Assist {
                     None,
                 ),
                 MenuRow::Block(choice) => (choice.icon().into(), choice.label().into(), None),
+                MenuRow::Action(action) => (action.icon().into(), action.label().into(), None),
             };
             let this = this.clone();
             let mut item = MenuItem::new(("dr-editor-picker-row", ix), icon, label)
@@ -1058,6 +1487,9 @@ impl Assist {
 
 impl Render for Assist {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if std::mem::take(&mut self.names_dirty) {
+            cx.defer_in(window, |this, window, cx| this.names_changed(window, cx));
+        }
         let mut root = div().absolute().top_0().left_0().size_0();
         let focused = {
             let e = self.editor.read(cx);
@@ -1089,6 +1521,35 @@ impl Render for Assist {
                         this.update(cx, |_, cx| cx.notify());
                     })
                 });
+            }
+        }
+        if let Some(card) = self.card.clone() {
+            let painted = self
+                .editor
+                .read(cx)
+                .painted_decoration(card.chapter, "links", &card.id);
+            if let Some(rect) =
+                painted.and_then(|p| p.boxes.iter().copied().reduce(|a, b| a.union(&b)))
+            {
+                let this = cx.entity();
+                let body = div()
+                    .id("dr-editor-link-card")
+                    .on_hover(move |on, _, cx| {
+                        let on = *on;
+                        this.update(cx, |a, cx| {
+                            a.over_card = on;
+                            if !on && a.pointed_link.is_none() {
+                                a.close_card();
+                                cx.notify();
+                            }
+                        });
+                    })
+                    .child(crate::link_card::card_element(&card.facts));
+                root = root.child(dr_ui::components::float(
+                    Place::below(rect, 8.),
+                    Layer::Popover,
+                    body,
+                ));
             }
         }
         if let Some((chapter, range)) = self.bar.clone().filter(|_| focused) {
@@ -1136,9 +1597,22 @@ pub fn wrap(assist: &Entity<Assist>, editor: impl IntoElement) -> impl IntoEleme
         .capture_key_down(move |event: &KeyDownEvent, _, cx| {
             if event.keystroke.key == "escape" {
                 let a = esc.read(cx);
-                if a.menu.is_some() || a.bar.is_some() {
+                if a.menu.is_some() || a.bar.is_some() || a.card.is_some() {
                     esc.update(cx, |a, cx| a.dismiss(cx));
                     cx.stop_propagation();
+                }
+            }
+        })
+        .on_mouse_up(gpui::MouseButton::Left, {
+            let assist = assist.clone();
+            move |event: &gpui::MouseUpEvent, _, cx| {
+                // A plain click (no drag, no modifier) on a link.
+                if event.click_count == 1 && !event.modifiers.modified() {
+                    assist.update(cx, |a, cx| {
+                        if a.editor.read(cx).selection().is_empty() {
+                            a.link_clicked(cx);
+                        }
+                    });
                 }
             }
         })

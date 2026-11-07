@@ -216,6 +216,8 @@ pub struct BookEditor {
 
 impl EventEmitter<BookEditorEvent> for BookEditor {}
 impl EventEmitter<crate::view::CommentRequested> for BookEditor {}
+impl EventEmitter<crate::view::PositionLinkCopied> for BookEditor {}
+impl EventEmitter<crate::view::EntityLinkOpened> for BookEditor {}
 
 impl BookEditor {
     /// Opens every chapter of `book` for the author: [`BookEditor::prepare`]
@@ -294,19 +296,37 @@ impl BookEditor {
         });
         let assist_events = cx.subscribe(
             &assist,
-            |this: &mut BookEditor, _, event: &crate::assist::AssistEvent, cx| {
-                let crate::assist::AssistEvent::Comment { chapter, range } = event;
-                let Some(doc) = this.chapters.get(*chapter).map(|c| c.doc.clone()) else {
-                    return;
-                };
-                let text = this.editor.read(cx).book().chapters[*chapter]
-                    .doc
-                    .slice(range.clone());
-                cx.emit(crate::view::CommentRequested {
-                    doc,
-                    range: range.clone(),
-                    text,
-                });
+            |this: &mut BookEditor, _, event: &crate::assist::AssistEvent, cx| match event {
+                crate::assist::AssistEvent::Comment { chapter, range } => {
+                    let Some(doc) = this.chapters.get(*chapter).map(|c| c.doc.clone()) else {
+                        return;
+                    };
+                    let text = this.editor.read(cx).book().chapters[*chapter]
+                        .doc
+                        .slice(range.clone());
+                    cx.emit(crate::view::CommentRequested {
+                        doc,
+                        range: range.clone(),
+                        text,
+                    });
+                }
+                crate::assist::AssistEvent::LinkCopied { chapter, link } => {
+                    if let Some(doc) = this.chapters.get(*chapter).map(|c| c.doc.clone()) {
+                        cx.emit(crate::view::PositionLinkCopied {
+                            doc,
+                            link: link.clone(),
+                        });
+                    }
+                }
+                crate::assist::AssistEvent::OpenLink { chapter, target } => {
+                    if let Some(doc) = this.chapters.get(*chapter).map(|c| c.doc.clone()) {
+                        cx.emit(crate::view::EntityLinkOpened {
+                            doc,
+                            kind: target.kind.clone(),
+                            id: target.id.clone(),
+                        });
+                    }
+                }
             },
         );
         let decor = crate::decor::Decor::for_book(
@@ -446,7 +466,7 @@ impl BookEditor {
         }
         if notices.contains(&Notice::Book) {
             self.extension.invalidate();
-            self.assist.update(cx, |a, _| a.invalidate_names());
+            self.assist.update(cx, |a, cx| a.invalidate_names(cx));
             self.follow_book(window, cx);
             if self.pages.has_chrome() {
                 self.refresh_pages(cx);
