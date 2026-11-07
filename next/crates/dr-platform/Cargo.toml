@@ -1,0 +1,49 @@
+[package]
+name = "dr-platform"
+version = "0.2.0-dev"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Drifting's platform services: logs, crash reports, keychain, deep links and single instance, updates"
+
+[features]
+default = ["network"]
+# Sentry's transport and the updater's HTTP client. Off, everything else still
+# builds, which lets `cargo check --target x86_64-pc-windows-msvc` run on a Mac
+# without a Windows C toolchain for the TLS stack.
+network = ["dep:reqwest", "dep:rustls", "sentry/reqwest", "sentry/rustls-no-provider"]
+
+[dependencies]
+anyhow.workspace = true
+base64.workspace = true
+dirs.workspace = true
+flate2.workspace = true
+log.workspace = true
+minisign-verify.workspace = true
+reqwest = { workspace = true, optional = true }
+rustls = { workspace = true, optional = true }
+semver.workspace = true
+sentry.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tar.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tracing-appender.workspace = true
+tracing-log.workspace = true
+tracing-subscriber.workspace = true
+uuid.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-core-foundation.workspace = true
+objc2-security.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows.workspace = true
+
+[dev-dependencies]
+keyring.workspace = true
+minisign.workspace = true
+tempfile.workspace = true

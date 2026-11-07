@@ -1,0 +1,107 @@
+{
+  "compactEvery": 25,
+  "compactionHeldOpenMs": 20,
+  "generatedBy": "cargo run --release -p dr-store --bin f2-crash -- run",
+  "loro": "1.17.1",
+  "machine": {
+    "arch": "aarch64",
+    "cores": 12,
+    "cpu": "Apple M3 Pro",
+    "loadAverage1m": 10.68,
+    "memoryBytes": 38654705664,
+    "os": "macos",
+    "osVersion": "27.0.1"
+  },
+  "method": "kill the writer at random moments (SIGKILL / TerminateProcess); reopen; compare with a deterministic replay of edits 0..=k; kill migrations paused at each stage",
+  "probe": "F2 dr-store crash recovery",
+  "results": {
+    "editsAtEnd": 4067,
+    "kills": 60,
+    "killsByPhase": {
+      "between edits": 22,
+      "during compaction": 36,
+      "right after compaction": 2
+    },
+    "lostDurableEdits": 0,
+    "migrationKills": {
+      "copy": {
+        "libraryBytesUnchanged": true,
+        "migrationsAppliedByNextOpen": 1,
+        "oldBuildOpensIt": true,
+        "receiptsAfterNextOpens": 0,
+        "receiptsLeftByKill": 1,
+        "shadowFilesLeftByKill": 0,
+        "staleShadowRemovedOnOpen": true,
+        "textIntact": true
+      },
+      "migrate": {
+        "libraryBytesUnchanged": true,
+        "migrationsAppliedByNextOpen": 1,
+        "oldBuildOpensIt": true,
+        "receiptsAfterNextOpens": 0,
+        "receiptsLeftByKill": 1,
+        "shadowFilesLeftByKill": 1,
+        "staleShadowRemovedOnOpen": true,
+        "textIntact": true
+      },
+      "reopen": {
+        "libraryBytesUnchanged": false,
+        "migrationsAppliedByNextOpen": 0,
+        "oldBuildOpensIt": false,
+        "receiptsAfterNextOpens": 0,
+        "receiptsLeftByKill": 1,
+        "shadowFilesLeftByKill": 0,
+        "staleShadowRemovedOnOpen": true,
+        "textIntact": true
+      },
+      "replace": {
+        "libraryBytesUnchanged": true,
+        "migrationsAppliedByNextOpen": 1,
+        "oldBuildOpensIt": true,
+        "receiptsAfterNextOpens": 0,
+        "receiptsLeftByKill": 1,
+        "shadowFilesLeftByKill": 1,
+        "staleShadowRemovedOnOpen": true,
+        "textIntact": true
+      },
+      "snapshot": {
+        "libraryBytesUnchanged": true,
+        "migrationsAppliedByNextOpen": 1,
+        "oldBuildOpensIt": true,
+        "receiptsAfterNextOpens": 0,
+        "receiptsLeftByKill": 0,
+        "shadowFilesLeftByKill": 0,
+        "staleShadowRemovedOnOpen": true,
+        "textIntact": true
+      },
+      "validate": {
+        "libraryBytesUnchanged": true,
+        "migrationsAppliedByNextOpen": 1,
+        "oldBuildOpensIt": true,
+        "receiptsAfterNextOpens": 0,
+        "receiptsLeftByKill": 1,
+        "shadowFilesLeftByKill": 1,
+        "staleShadowRemovedOnOpen": true,
+        "textIntact": true
+      }
+    },
+    "mismatches": 0,
+    "recoverOpenAndLoadMs": {
+      "max": 28.343,
+      "mean": 13.435,
+      "n": 60,
+      "p50": 13.426,
+      "p95": 27.025
+    },
+    "recoveredOneEditBeyondLastReport": 2,
+    "verifyByReplayMs": {
+      "max": 13.653,
+      "mean": 6.827,
+      "n": 60,
+      "p50": 7.399,
+      "p95": 12.858
+    }
+  },
+  "schemaVersion": 1,
+  "sourceFingerprint": "b401a8df37f704b53ecbf805293c4e3e396f4d7652fc29e0461572bfca524025"
+}

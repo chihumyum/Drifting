@@ -118,6 +118,8 @@
 
 **大小**：L。适合亲手写。
 
+第一轮已实现（2026-11-07）：接口、不变量清单、测试结果和待协调的事见 [foundations/f1-model-doc.md](foundations/f1-model-doc.md)；文档结构实现时改成了 [loro-schema.md](loro-schema.md) v1。
+
 #### dr-model
 
 - 领域类型和 ID。沿用旧数据的 uuidv7。
@@ -126,7 +128,7 @@
   - 读取时容错，比如关系指向的要素已删除，就不显示；
   - 后台修复。
 
-结构以 [loro-schema.md](loro-schema.md) v0 为准（P0-C 定下），下面是摘要。
+结构以 [loro-schema.md](loro-schema.md) 为准（P0-C 定下 v0，F1 实现时改成 v1），下面是摘要。
 
 #### dr-doc 的书目文档（每本书一个）
 
@@ -173,6 +175,8 @@
 ### F2 dr-store
 
 **大小**：L
+
+实现、接口和里程碑状态见 [foundations/f2-store.md](foundations/f2-store.md)。
 
 #### 数据库基线与迁移
 
@@ -381,9 +385,11 @@
 
 **大小**：M–L
 
+做法、接口和交接设计见 [foundations/f7-platform.md](foundations/f7-platform.md)。
+
 #### 钥匙串
 
-- **不用 GPUI 自带的凭据接口**：它在 macOS 存 internet password、在 Windows 超过 2560 字节直接报错，读不到旧版条目，也存不下 OAuth 令牌。沿用 keyring 加旧版的 `secure_storage/chunked.rs`，键名不变（见 [simplifications.md](simplifications.md) 第 14 条）。
+- **不用 GPUI 自带的凭据接口**：它在 macOS 存 internet password、在 Windows 给条目名加 `zed:url=` 前缀且超过 2560 字节直接报错，读不到旧版条目，也存不下 OAuth 令牌。沿用旧版的存法和 `secure_storage/chunked.rs` 的分片格式，键名不变（见 [simplifications.md](simplifications.md) 第 14 条）。F7 直接调系统接口、按 keyring 3.6 的格式读写，keyring 只在测试里扮演旧版，见 [f7-platform.md](foundations/f7-platform.md#钥匙串)。
 - Windows 上单条凭据最多 2560 字节，大令牌要拆开存。
 - 要能读到旧版用 keyring 写的条目，保证升级后不丢登录和 API Key。
 

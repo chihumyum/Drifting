@@ -22,7 +22,11 @@ cargo run -p drifting
 
 | 变量 | 作用 |
 | --- | --- |
-| `DRIFTING_LOG=error\|warn\|info\|debug\|trace` | stderr 日志级别，默认 `warn`。GPUI 自己的报错（字体、着色器、窗口）只走日志 |
+| `DRIFTING_LOG=<级别或目标>` | 日志级别，`tracing` 的写法（`debug`、`warn,dr_platform=trace`）。开发时打到 stderr，默认 `warn`；装好的版本写进日志文件（位置见 [F7](../docs/rust-rewrite/foundations/f7-platform.md#日志)），设了它也同时打到 stderr。GPUI 自己的报错（字体、着色器、窗口）只走日志 |
+| `DRIFTING_LOG_FILE=1` | 开发时也写日志文件 |
+| `DRIFTING_PROFILE=<名字>` | 开发版的数据、日志文件夹、钥匙串服务和单实例锁都加上这个名字，几个 worktree 的开发版互不干扰 |
+| `DRIFTING_CRASH_REPORTS_IN_DEV=1` | 开发构建也发崩溃报告（还要构建时带 DSN，平时没有） |
+| `DRIFTING_DEV_UPDATE_MANIFEST`、`DRIFTING_DEV_UPDATER_PUBLIC_KEY` | 开发构建从本地清单更新，只用于自测；见 F7 文档 |
 | `DRIFTING_APPEARANCE=light\|dark` | 强制浅色或深色，不动系统设置。macOS 上设的是本应用自己的外观，和系统切换走同一条路 |
 | `DRIFTING_DEV_PROBE=<文件>` | 把启动各阶段的时间和外观变化按 JSON 行追加到文件；`-` 表示写到 stderr |
 | `DRIFTING_DEV_EXIT_AFTER_FIRST_FRAME=1` | 画完首帧就退出，给测启动时间用 |
@@ -41,9 +45,18 @@ script/bundle-mac
 
 - 产物是 `target/bundle/Drifting Next.app`：release 构建，带 `Info.plist`、旧版的 `.icns` 和分层图标（`Assets.car`，要 Xcode 26 以上的 `actool`）。
 - 加 `--open` 打包完就打开；加 `--debug` 打 dev 构建，快很多。
-- bundle id 是开发用的 `cc.drifting.next.dev`，和装着的正式版互不干扰。接管正式版身份、签名、公证和 DMG 是 F7 的事。
+- 加 `--dmg` 再出一个不签名的 `.dmg`，加 `--archive` 再出更新包 `.app.tar.gz`。
+- bundle id 是开发用的 `cc.drifting.next.dev`，链接协议是 `drifting-next-dev:`，和装着的正式版互不干扰。接管正式版身份、签名、公证在 F7 的交接里，见 [f7-platform.md](../docs/rust-rewrite/foundations/f7-platform.md)。
 - 不用开发者证书签名，只做 ad-hoc 签名（Apple 芯片要求改过的可执行文件至少有这个）。本机打的包双击就能开；从别处下载的副本会被 Gatekeeper 拦下。
-- 正式包要预编译着色器、去掉 `runtime_shaders`，脚本里记成了待办。
+- 正式包要预编译着色器、去掉 `runtime_shaders`，脚本里记成了发版前的待办。
+
+Windows 安装包（NSIS，只能在 Windows 上打，要装 NSIS 3）：
+
+```powershell
+script/bundle-windows.ps1
+```
+
+安装位置、卸载项和协议与旧版 Tauri 安装器一致；`script/check-windows-installer.ps1` 是 CI 用的安装、升级、卸载检查，会改当前用户的注册表，别在自己用的机器上跑。
 
 测启动时间（打开 5 次，每次画完首帧就退出）。机器忙的时候墙钟时间会成倍变长，结果里带着当时的负载：
 
@@ -88,7 +101,12 @@ next/
   Cargo.toml            虚拟工作区：成员、钉住的依赖、补丁
   rust-toolchain.toml   工具链
   app/drifting/         可执行程序：窗口、标题栏、菜单、外观、开发探针
-  script/bundle-mac     打 .app
+  crates/dr-platform/   F7：身份与目录、日志、崩溃上报、钥匙串、深链接与单实例、自动更新
+  script/bundle-mac     打 .app，可选 .dmg 和更新包
+  script/bundle-windows.ps1, script/windows/drifting.nsi
+                        Windows 安装包
+  script/release-next.draft.yml
+                        新版发布工作流的草稿，不会被触发
   script/measure-startup-mac
                         测冷启动到首帧
 ```
