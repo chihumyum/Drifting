@@ -297,7 +297,7 @@ pub struct Assist {
     names_dirty: bool,
     /// The caret paragraph's link runs as they were before the next edit:
     /// chapter, block id, line, and `(target, text)` of each run.
-    before: Option<(usize, Option<String>, usize, Vec<(String, String)>)>,
+    before: Option<BeforeEdit>,
     /// A trigger the author closed with Esc: chapter and offset.
     dismissed: Option<(usize, usize)>,
     bar: Option<(usize, Range<usize>)>,
@@ -313,6 +313,10 @@ pub struct Assist {
     over_card: bool,
     _decor_events: Subscription,
 }
+
+/// A paragraph's links before an edit: chapter, block id, line, and
+/// `(target, text)` of each run.
+type BeforeEdit = (usize, Option<String>, usize, Vec<(String, String)>);
 
 /// A link's hover card that is open.
 #[derive(Clone, Debug)]

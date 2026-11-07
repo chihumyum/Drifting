@@ -191,6 +191,15 @@ impl Shot {
                         ChapterEditor::open(ws, &book, &doc, EditorSettings::default(), window, cx)
                             .expect("open the chapter");
                     v.set_chrome(Some(Rc::new(Chrome)), cx);
+                    // The paint layers draw the links (and their cards).
+                    v.set_decor_looks(
+                        dr_editor::decor::DecorLooks::new(
+                            &dr_ui::tokens::Palette::LIGHT,
+                            hsla(0.58, 0.55, 0.42, 1.),
+                            false,
+                        ),
+                        cx,
+                    );
                     v
                 });
                 slot = Some(view.clone());
@@ -282,11 +291,14 @@ fn main() {
         .as_str()
         .unwrap()
         .to_owned();
-    out(
+    let people = out(
         &ws,
         "category.create",
         json!({"book": book, "name": "人物"}),
-    );
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
     let line = out(
         &ws,
         "storyline.create",
@@ -300,10 +312,15 @@ fn main() {
         ("约格", vec!["老约"]),
         ("许岚竹", vec![]),
     ] {
+        let summary = if name == "约格" {
+            "码头的看守，记得每一艘船的名字。"
+        } else {
+            ""
+        };
         out(
             &ws,
             "element.create",
-            json!({"book": book, "name": name, "aliases": aliases}),
+            json!({"book": book, "name": name, "aliases": aliases, "category": people, "summary": summary}),
         );
     }
     out(
@@ -343,6 +360,35 @@ fn main() {
     shot.cx
         .advance_clock(dr_editor::assist::LINK_DELAY + Duration::from_millis(20));
     shot.save(&dir, "page.png");
+
+    // A link's hover card: the pointer rests on 约格.
+    shot.cx.advance_clock(Duration::from_millis(200));
+    shot.settle();
+    let ids = shot.editor(|e, _, _| {
+        (0..8).map(|i| format!("l{i}")).find(|id| {
+            e.decoration_range(0, "links", id)
+                .is_some_and(|r| e.book().chapters[0].doc.slice(r.clone()) == "约格")
+        })
+    });
+    if let Some(id) = ids {
+        shot.editor(|_, _, cx| {
+            cx.emit(gpui_prose::render::DecorationEvent::Pointed {
+                ids: vec![(
+                    0,
+                    gpui_prose::render::DecorationKey {
+                        group: "links".into(),
+                        id: id.into(),
+                    },
+                )],
+            })
+        });
+        shot.cx.advance_clock(Duration::from_millis(240));
+        shot.save(&dir, "link-card.png");
+        shot.editor(|_, _, cx| {
+            cx.emit(gpui_prose::render::DecorationEvent::Pointed { ids: Vec::new() })
+        });
+        shot.cx.advance_clock(Duration::from_millis(240));
+    }
 
     // The @ picker.
     shot.type_text("他看见@叶");
