@@ -37,8 +37,9 @@ Guidance for coding agents working in this standalone Drifting client repository
   Apple platform adapters and Tauri iOS are not the removed front-end. See
   `docs/hosted-sync/README.md`.
 - `packages/prose-metrics` and its Rust port `next/crates/prose-metrics` are
-  independently licensed under Apache-2.0 and `next/crates/gpui-prose` under
-  MIT OR Apache-2.0. The remaining project-owned client source is
+  independently licensed under Apache-2.0; `next/crates/gpui-prose`,
+  `next/crates/gpui-ime` and `next/crates/prose-linebreak` under MIT OR
+  Apache-2.0. The remaining project-owned client source is
   AGPL-3.0-or-later.
 - Keep service integration behind versioned network contracts. Do not import or
   mirror private service source.

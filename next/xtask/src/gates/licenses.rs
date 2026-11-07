@@ -15,7 +15,9 @@ pub const WORKSPACE_LICENSE: &str = "AGPL-3.0-or-later";
 
 /// Members under a permissive licence, and that licence.
 pub const PERMISSIVE: &[(&str, &str)] = &[
+    ("gpui-ime", "MIT OR Apache-2.0"),
     ("gpui-prose", "MIT OR Apache-2.0"),
+    ("prose-linebreak", "MIT OR Apache-2.0"),
     ("prose-metrics", "Apache-2.0"),
 ];
 

@@ -7,8 +7,11 @@
 //!   block under the tab rides the same push.
 //! - A half's minimum width is its tab row's; two halves fit when the
 //!   sidebar is twice that plus the hairline between them.
-//! - The panels are placeholders filled from the stand-in book until their
-//!   modules (M-chapters, M-elements, …) take them over.
+//! - The left panels and the material library list the book from F3's
+//!   queries (chapters by storyline, elements by category, ideas by group,
+//!   materials by folder); their modules (M-chapters, M-elements, …) add
+//!   hover cards, sorting and editing. Review, stats and the Agent are empty
+//!   until theirs arrive.
 
 use std::time::SystemTime;
 
@@ -16,28 +19,29 @@ use dr_i18n::{Key, keys};
 use dr_ui::{
     Theme, anim,
     components::{
-        Button, IconButton, Layer as FloatLayer, PanelIconButton, Place,
+        Button, IconButton, Layer as FloatLayer, PanelIconButton, Place, SandCell, Segmented,
         menu::{float_shadow, slab_edge},
         overlay,
     },
     fonts::{Role, weight},
-    glass::{self, Ground, Kind, Mode, Spec, Tone},
-    sand::{self, Icon, KindMark, SandFrame},
+    glass::{self, Ground},
+    sand::{self, Icon},
     style::DrStyled,
-    tokens::{Story, glass as g, menu as m, radius},
+    tokens::{Rgb, glass as g, menu as m, motion, radius},
     transitions::Push,
 };
+use dr_workspace::dto::GroupInfo;
 use gpui::{
     AnyElement, App, AppContext as _, Context, DragMoveEvent, ElementId, InteractiveElement,
     IntoElement, ParentElement, Render, SharedString, StatefulInteractiveElement, Styled, TextRun,
-    Window, div, prelude::FluentBuilder as _, px,
+    Window, div, prelude::FluentBuilder as _, px, uniform_list,
 };
 use serde::{Deserialize, Serialize};
 
 use super::chrome::{self, LEADING_INSET, TITLEBAR_HEIGHT, TOGGLE_GAP, TRAILING_INSET};
-use super::panel_tabs::{self, PanelTabs, TAB_PAD};
 use super::{SuperView, Workspace};
 use crate::actions::{ShowProjectHome, ToggleNotifications};
+use crate::book::Book;
 use crate::nav::{Open, Target};
 use crate::notifications::{self, Notifications};
 use crate::panes::{PaneId, Panes};
@@ -111,11 +115,14 @@ impl Render for NoPreview {
     }
 }
 
+/// A Panel Tab's padding on each side (`Segmented`'s).
+const TAB_PAD: f32 = 10.0;
+
 /// The width of a tab row: the labels with their padding, 6px at each end,
 /// and the toggle's slot for the half by the window edge.
 fn row_width(labels: &[Key], with_toggle: bool, side: Side, window: &Window, cx: &App) -> f32 {
     let theme = Theme::of(window, cx);
-    let size = px(panel_tabs::label_size(&theme));
+    let size = px(theme.scale.label);
     let font = Role::Structure.font(weight::REGULAR);
     let text: f32 = labels
         .iter()
@@ -439,12 +446,17 @@ where
     let selected = T::ORDER.iter().position(|t| *t == tab).unwrap_or(0);
     let order = T::ORDER;
     let entity = cx.entity();
-    let tabs = PanelTabs::new(ElementId::Name(id("tabs")), labels, selected).on_click(
-        move |i, window, cx| {
+    // Panel Tabs: the block rides the panel's push and lands with it; a
+    // click on the current one closes the half.
+    let tabs = Segmented::new(ElementId::Name(id("tabs")), labels, selected)
+        .motion(motion::PUSH)
+        .report_selected()
+        .font(Role::Structure)
+        .text_size(theme.scale.label)
+        .on_change(move |i, window, cx| {
             let tab = order[i];
             entity.update(cx, |ws, cx| T::click(ws, pane, tab, window, cx));
-        },
-    );
+        });
     let split = split_button.map(|edge| {
         let entity = cx.entity();
         (
@@ -544,14 +556,23 @@ fn left_header(
     let slug = pane_slug(pane);
     match tab {
         LeftTab::Chapters => {
-            let text = tf(
-                cx,
-                keys::left_sidebar::view_mode::CHAPTER_SUMMARY,
-                &[
-                    ("storylines", &book.storylines.len()),
-                    ("chapters", &book.chapters.len()),
-                ],
-            );
+            // Before the first storyline only the chapters count.
+            let text = if book.storylines.is_empty() {
+                tf(
+                    cx,
+                    keys::left_sidebar::meta::CHAPTERS,
+                    &[("count", &book.chapters.len())],
+                )
+            } else {
+                tf(
+                    cx,
+                    keys::left_sidebar::view_mode::CHAPTER_SUMMARY,
+                    &[
+                        ("storylines", &book.storylines.len()),
+                        ("chapters", &book.chapters.len()),
+                    ],
+                )
+            };
             let selected = ws.nav.is_selected(&Target::Book);
             let entity = cx.entity();
             div()
@@ -561,6 +582,7 @@ fn left_header(
                 .child(meta(text, &theme))
                 .child(
                     IconButton::new(SharedString::from(format!("book-{slug}")), Icon::OpenBook)
+                        .label(t(cx, keys::top_timeline::singletons::ALL_CHAPTERS))
                         .selected(selected)
                         .on_click(move |e, _, cx| {
                             let how = if e.click_count() > 1 {
@@ -594,6 +616,7 @@ fn left_header(
                         SharedString::from(format!("elements-sv-{slug}")),
                         Icon::KnotLinks,
                     )
+                    .label(t(cx, SuperView::Elements.label()))
                     .selected(selected)
                     .on_click(move |_, _, cx| {
                         entity.update(cx, |ws, cx| ws.toggle_super_view(SuperView::Elements, cx))
@@ -627,6 +650,7 @@ fn right_header(
             SharedString::from(format!("{name}-sv-{slug}")),
             Icon::Layers,
         )
+        .label(t(cx, SuperView::ReviewMaterials.label()))
         .selected(ws.super_view == Some(SuperView::ReviewMaterials))
         .on_click(move |_, _, cx| {
             entity.update(cx, |ws, cx| {
@@ -663,56 +687,111 @@ fn right_header(
     }
 }
 
-/// A cell (components.md, 「Cell」): its mark always shown, a hairline glass
-/// ring under the hand, a sand frame drawn when selected and ink-1 text.
+/// How far a level of a list is set in.
+const INDENT: f32 = 12.0;
+/// The space under each row.
+const ROW_GAP: f32 = 2.0;
+
+/// One row of a sidebar list.
+#[derive(Clone, Debug)]
+enum Row {
+    /// A cell that opens `target`; `group` keeps its id unique where the
+    /// same thing shows twice (a chapter on two storylines).
+    Cell {
+        target: Target,
+        group: SharedString,
+        depth: usize,
+        structure: bool,
+    },
+    /// A group's heading that opens nothing (未归属, 未分类, an idea group,
+    /// a material folder).
+    Heading {
+        key: SharedString,
+        label: SharedString,
+        mark: Option<sand::Kind>,
+        color: Option<Rgb>,
+        depth: usize,
+    },
+}
+
+/// A sidebar list: every row is one cell high, so only the rows on screen
+/// are built (a book of hundreds of chapters costs what one screenful
+/// does).
+fn rows_view(
+    id: SharedString,
+    rows: Vec<Row>,
+    ws: &Workspace,
+    cx: &mut Context<Workspace>,
+) -> AnyElement {
+    let rows = std::rc::Rc::new(rows);
+    let book = ws.book.clone();
+    let current = ws.nav.current().cloned();
+    let entity = cx.entity();
+    let list_id = id.clone();
+    uniform_list(ElementId::Name(id), rows.len(), move |range, _, cx| {
+        range
+            .map(|i| {
+                let row = match &rows[i] {
+                    Row::Cell {
+                        target,
+                        group,
+                        depth,
+                        structure,
+                    } => cell(
+                        format!("{list_id}-{group}-{}", target.key()).into(),
+                        &book,
+                        target.clone(),
+                        *depth,
+                        *structure,
+                        current.as_ref() == Some(target),
+                        &entity,
+                        cx,
+                    ),
+                    Row::Heading {
+                        key,
+                        label,
+                        mark,
+                        color,
+                        depth,
+                    } => heading(
+                        format!("{list_id}-{key}").into(),
+                        label.clone(),
+                        *mark,
+                        *color,
+                        *depth,
+                    ),
+                };
+                div().pb(px(ROW_GAP)).child(row)
+            })
+            .collect::<Vec<_>>()
+    })
+    .size_full()
+    .px(px(8.0))
+    .py(px(6.0))
+    .into_any_element()
+}
+
+/// A cell that opens `target` (components.md, 「Cell」): a click shows it
+/// as a preview, a double click keeps it.
 #[allow(clippy::too_many_arguments)]
 fn cell(
     id: SharedString,
-    kind: sand::Kind,
-    color: Option<dr_ui::tokens::Rgb>,
-    label: &'static str,
-    selected: bool,
-    structure: bool,
+    book: &Book,
     target: Target,
-    window: &mut Window,
-    cx: &mut Context<Workspace>,
+    depth: usize,
+    structure: bool,
+    selected: bool,
+    ws: &gpui::Entity<Workspace>,
+    cx: &App,
 ) -> AnyElement {
-    let theme = Theme::of(window, cx);
-    let p = theme.palette;
-    let tone = color.map_or(Tone::Clear, Tone::Color);
-    let el = glass::glass_box(
-        ElementId::Name(id.clone()),
-        Kind::Hidden,
-        Mode::default(),
-        false,
-        Spec::new(tone, radius::SM).rim(3.0),
-        window,
-        cx,
-    );
-    let mark = KindMark::new(ElementId::Name(format!("{id}-mark").into()), kind);
-    let mark = match color {
-        Some(c) => mark.color(c),
-        None => mark,
-    };
-    let frame = SandFrame::new(ElementId::Name(format!("{id}-frame").into()), selected);
-    let frame = match color {
-        Some(c) => frame.color(c),
-        None => frame,
-    };
-    let entity = cx.entity();
-    el.h(px(theme.scale.row_height))
-        .px(px(10.0))
-        .flex()
-        .flex_row()
-        .items_center()
-        .gap(px(8.0))
-        .cursor_pointer()
-        .font_role(if structure { Role::Structure } else { Role::Ui })
-        .type_px(theme.scale.secondary, theme.scale.line_body)
-        .text_color(if selected { p.ink(1) } else { p.ink(2) }.solid())
-        .child(frame)
-        .child(mark)
-        .child(div().flex_1().min_w_0().overflow_hidden().child(label))
+    let (mark, color) = book.mark(&target);
+    let label = super::title_of(book, &target, cx);
+    let entity = ws.clone();
+    let cell = SandCell::new(ElementId::Name(id), label)
+        .mark(mark)
+        .color_opt(color)
+        .selected(selected)
+        .font(if structure { Role::Structure } else { Role::Ui })
         .on_click(move |e, _, cx| {
             let how = if e.click_count() > 1 {
                 Open::KEEP
@@ -721,24 +800,196 @@ fn cell(
             };
             let target = target.clone();
             entity.update(cx, |ws, cx| ws.open(target, how, cx));
-        })
+        });
+    indented(depth, cell.into_any_element())
+}
+
+fn heading(
+    id: SharedString,
+    label: SharedString,
+    mark: Option<sand::Kind>,
+    color: Option<Rgb>,
+    depth: usize,
+) -> AnyElement {
+    let mut cell = SandCell::new(ElementId::Name(id), label)
+        .color_opt(color)
+        .font(Role::Structure)
+        .disabled(true);
+    if let Some(mark) = mark {
+        cell = cell.mark(mark);
+    }
+    indented(depth, cell.into_any_element())
+}
+
+fn indented(depth: usize, el: AnyElement) -> AnyElement {
+    if depth == 0 {
+        return el;
+    }
+    div()
+        .pl(px(INDENT * depth as f32))
+        .child(el)
         .into_any_element()
 }
 
-fn story_color(i: usize, theme: &Theme) -> dr_ui::tokens::Rgb {
-    theme.palette.story(Story::ALL[i % Story::ALL.len()])
+/// Groups in their list's order, each followed by its children (a cycle
+/// stops at the depth limit).
+fn walk_groups<'a>(
+    groups: &'a [GroupInfo],
+    parent: Option<&str>,
+    depth: usize,
+    out: &mut Vec<(&'a GroupInfo, usize)>,
+) {
+    if depth > 4 {
+        return;
+    }
+    for g in groups.iter().filter(|g| g.parent.as_deref() == parent) {
+        out.push((g, depth));
+        walk_groups(groups, Some(&g.id), depth + 1, out);
+    }
 }
 
-fn list(id: SharedString) -> gpui::Stateful<gpui::Div> {
-    div()
-        .id(ElementId::Name(id))
-        .size_full()
-        .overflow_y_scroll()
-        .px(px(8.0))
-        .py(px(6.0))
-        .flex()
-        .flex_col()
-        .gap(px(2.0))
+fn open_row(target: Option<Target>, group: &str, depth: usize, structure: bool) -> Option<Row> {
+    target.map(|target| Row::Cell {
+        target,
+        group: SharedString::from(group.to_owned()),
+        depth,
+        structure,
+    })
+}
+
+fn heading_row(
+    key: impl Into<SharedString>,
+    label: SharedString,
+    mark: Option<sand::Kind>,
+    color: Option<Rgb>,
+    depth: usize,
+) -> Row {
+    Row::Heading {
+        key: key.into(),
+        label,
+        mark,
+        color,
+        depth,
+    }
+}
+
+/// The rows of a left panel.
+fn left_rows(tab: LeftTab, book: &Book, theme: &Theme, cx: &App) -> Vec<Row> {
+    let mut rows = Vec::new();
+    let chapter = |id: &str| id.parse().ok().map(Target::Chapter);
+    match tab {
+        LeftTab::Chapters => {
+            if book.storylines.is_empty() {
+                rows.extend(
+                    book.chapters
+                        .iter()
+                        .filter_map(|c| open_row(chapter(&c.id), "all", 0, false)),
+                );
+            } else {
+                // By storyline, as the 0.1 client's storyline view: a chapter
+                // shows under each storyline it is on.
+                for sl in &book.storylines {
+                    rows.extend(open_row(
+                        sl.id.parse().ok().map(Target::Storyline),
+                        "sl",
+                        0,
+                        true,
+                    ));
+                    rows.extend(
+                        book.chapters_of(&sl.id)
+                            .filter_map(|c| open_row(chapter(&c.id), &sl.id, 1, false)),
+                    );
+                }
+                let loose: Vec<_> = book.unaffiliated().collect();
+                if !loose.is_empty() {
+                    rows.push(heading_row(
+                        "unaffiliated",
+                        t(cx, keys::left_sidebar::groups::UNAFFILIATED),
+                        Some(sand::Kind::Storyline),
+                        Some(theme.palette.ink(4)),
+                        0,
+                    ));
+                    rows.extend(
+                        loose
+                            .into_iter()
+                            .filter_map(|c| open_row(chapter(&c.id), "loose", 1, false)),
+                    );
+                }
+            }
+        }
+        LeftTab::Elements => {
+            let element = |id: &str| id.parse().ok().map(Target::Element);
+            for cat in &book.categories {
+                rows.extend(open_row(
+                    cat.id.parse().ok().map(Target::Category),
+                    "cat",
+                    0,
+                    true,
+                ));
+                rows.extend(
+                    book.elements
+                        .iter()
+                        .filter(|e| e.category.as_deref() == Some(cat.id.as_str()))
+                        .filter_map(|e| open_row(element(&e.id), "el", 1, false)),
+                );
+            }
+            let known = |c: &Option<String>| {
+                c.as_ref()
+                    .is_some_and(|c| book.categories.iter().any(|cat| &cat.id == c))
+            };
+            let loose: Vec<_> = book
+                .elements
+                .iter()
+                .filter(|e| !known(&e.category))
+                .collect();
+            if !loose.is_empty() {
+                rows.push(heading_row(
+                    "uncategorized",
+                    t(cx, keys::left_sidebar::UNCATEGORIZED),
+                    Some(sand::Kind::Category),
+                    Some(theme.palette.ink(4)),
+                    0,
+                ));
+                rows.extend(
+                    loose
+                        .into_iter()
+                        .filter_map(|e| open_row(element(&e.id), "el", 1, false)),
+                );
+            }
+        }
+        LeftTab::Drifts => {
+            let idea = |id: &str| id.parse().ok().map(Target::Idea);
+            let mut groups = Vec::new();
+            walk_groups(&book.idea_groups, None, 0, &mut groups);
+            for (g, depth) in groups {
+                rows.push(heading_row(
+                    format!("group-{}", g.id),
+                    g.name.clone().into(),
+                    Some(sand::Kind::DriftGroup),
+                    g.color.as_deref().and_then(crate::book::color_of),
+                    depth,
+                ));
+                rows.extend(
+                    book.ideas
+                        .iter()
+                        .filter(|i| i.group.as_deref() == Some(g.id.as_str()))
+                        .filter_map(|i| open_row(idea(&i.id), "idea", depth + 1, false)),
+                );
+            }
+            let grouped = |i: &&dr_workspace::dto::IdeaInfo| {
+                i.group
+                    .as_ref()
+                    .is_some_and(|g| book.idea_groups.iter().any(|x| &x.id == g))
+            };
+            rows.extend(
+                book.ideas
+                    .iter()
+                    .filter(|i| !grouped(i))
+                    .filter_map(|i| open_row(idea(&i.id), "idea", 0, false)),
+            );
+        }
+    }
+    rows
 }
 
 fn left_body(
@@ -750,144 +1001,78 @@ fn left_body(
 ) -> AnyElement {
     let theme = Theme::of(window, cx);
     let book = ws.book.clone();
-    let slug = pane_slug(pane);
-    let mut rows: Vec<AnyElement> = Vec::new();
-    match tab {
-        LeftTab::Chapters => {
-            if book.chapters.is_empty() {
-                return empty(keys::left_sidebar::empty::NO_CHAPTERS, cx);
-            }
-            for (si, storyline) in book.storylines.iter().enumerate() {
-                let color = story_color(si, &theme);
-                let target = Target::Storyline(storyline.id.clone());
-                rows.push(cell(
-                    format!("{slug}-sl-{}", storyline.id).into(),
-                    sand::Kind::Storyline,
-                    Some(color),
-                    storyline.name,
-                    ws.nav.is_selected(&target),
-                    true,
-                    target,
-                    window,
-                    cx,
-                ));
-                for chapter in book.chapters.iter().filter(|c| c.storyline == si) {
-                    let target = Target::Chapter(chapter.id.clone());
-                    rows.push(
-                        div()
-                            .pl(px(12.0))
-                            .child(cell(
-                                format!("{slug}-ch-{}", chapter.id).into(),
-                                sand::Kind::Chapter(chapter.seal),
-                                Some(color),
-                                chapter.title,
-                                ws.nav.is_selected(&target),
-                                false,
-                                target,
-                                window,
-                                cx,
-                            ))
-                            .into_any_element(),
-                    );
-                }
-            }
+    let empty_key = match tab {
+        LeftTab::Chapters if book.chapters.is_empty() => {
+            Some(keys::left_sidebar::empty::NO_CHAPTERS)
         }
-        LeftTab::Elements => {
-            if book.elements.is_empty() {
-                return empty(keys::left_sidebar::empty::NO_ELEMENTS, cx);
-            }
-            for (ci, category) in book.categories.iter().enumerate() {
-                let color = story_color(ci + 2, &theme);
-                let target = Target::Category(category.id.clone());
-                rows.push(cell(
-                    format!("{slug}-cat-{}", category.id).into(),
-                    sand::Kind::Category,
-                    Some(color),
-                    category.name,
-                    ws.nav.is_selected(&target),
-                    true,
-                    target,
-                    window,
-                    cx,
-                ));
-                for (element, _) in book.elements.iter().filter(|(_, c)| *c == ci) {
-                    let target = Target::Element(element.id.clone());
-                    rows.push(
-                        div()
-                            .pl(px(12.0))
-                            .child(cell(
-                                format!("{slug}-el-{}", element.id).into(),
-                                sand::Kind::Element,
-                                Some(color),
-                                element.name,
-                                ws.nav.is_selected(&target),
-                                false,
-                                target,
-                                window,
-                                cx,
-                            ))
-                            .into_any_element(),
-                    );
-                }
-            }
+        LeftTab::Elements if book.elements.is_empty() && book.categories.is_empty() => {
+            Some(keys::left_sidebar::empty::NO_ELEMENTS)
         }
-        LeftTab::Drifts => {
-            if book.ideas.is_empty() {
-                return empty(keys::left_sidebar::empty::NO_DRIFTS, cx);
-            }
-            for idea in &book.ideas {
-                let target = Target::Idea(idea.id.clone());
-                rows.push(cell(
-                    format!("{slug}-idea-{}", idea.id).into(),
-                    sand::Kind::Drift { loose: true },
-                    None,
-                    idea.name,
-                    ws.nav.is_selected(&target),
-                    false,
-                    target,
-                    window,
-                    cx,
-                ));
-            }
+        LeftTab::Drifts if book.ideas.is_empty() && book.idea_groups.is_empty() => {
+            Some(keys::left_sidebar::empty::NO_DRIFTS)
         }
+        _ => None,
+    };
+    if let Some(key) = empty_key {
+        return empty(key, cx);
     }
-    list(format!("left-{slug}-{}", tab.slug()).into())
-        .children(rows)
-        .into_any_element()
+    let rows = left_rows(tab, &book, &theme, cx);
+    rows_view(
+        format!("left-{}-{}", pane_slug(pane), tab.slug()).into(),
+        rows,
+        ws,
+        cx,
+    )
 }
 
 fn right_body(
     tab: RightTab,
     ws: &Workspace,
     pane: PaneId,
-    window: &mut Window,
+    _window: &mut Window,
     cx: &mut Context<Workspace>,
 ) -> AnyElement {
-    let slug = pane_slug(pane);
     match tab {
         RightTab::Library => {
             let book = ws.book.clone();
-            let rows: Vec<AnyElement> = book
-                .materials
-                .iter()
-                .map(|material| {
-                    let target = Target::Material(material.id.clone());
-                    cell(
-                        format!("{slug}-mat-{}", material.id).into(),
-                        sand::Kind::Material,
-                        None,
-                        material.name,
-                        ws.nav.is_selected(&target),
-                        false,
-                        target,
-                        window,
-                        cx,
-                    )
-                })
-                .collect();
-            list(format!("right-{slug}-library").into())
-                .children(rows)
-                .into_any_element()
+            let material = |id: &str| id.parse().ok().map(Target::Material);
+            let mut rows = Vec::new();
+            // Folders (素材夹) first, each with its materials; then the
+            // materials in no folder.
+            let mut folders = Vec::new();
+            walk_groups(&book.folders, None, 0, &mut folders);
+            for (f, depth) in folders {
+                rows.push(heading_row(
+                    format!("folder-{}", f.id),
+                    f.name.clone().into(),
+                    None,
+                    None,
+                    depth,
+                ));
+                rows.extend(
+                    book.materials
+                        .iter()
+                        .filter(|m| m.folder.as_deref() == Some(f.id.as_str()))
+                        .filter_map(|m| open_row(material(&m.id), "mat", depth + 1, false)),
+                );
+            }
+            let filed = |m: &&dr_workspace::dto::MaterialInfo| {
+                m.folder
+                    .as_ref()
+                    .is_some_and(|f| book.folders.iter().any(|x| &x.id == f))
+            };
+            rows.extend(
+                book.materials
+                    .iter()
+                    .filter(|m| !filed(m))
+                    .filter_map(|m| open_row(material(&m.id), "mat", 0, false)),
+            );
+            rows_view(
+                format!("right-{}-library", pane_slug(pane)).into(),
+                rows,
+                ws,
+                cx,
+            )
         }
         // Their modules fill these: review (M18/M19), stats (M07), the Agent (M27).
         _ => div().size_full().into_any_element(),
@@ -933,12 +1118,14 @@ fn account_cell(
         )
         .child(
             IconButton::new("home", Icon::Torii)
+                .label(t(cx, keys::project_home::KICKER))
                 .selected(home)
                 .on_click(|_, window, cx| window.dispatch_action(Box::new(ShowProjectHome), cx)),
         )
         .child(
             div().relative().child(overlay::probe(bell)).child(
                 IconButton::new("notifications", Icon::Furin)
+                    .label(t(cx, keys::notifications::TITLE))
                     .selected(open)
                     .on_click(|_, window, cx| {
                         window.dispatch_action(Box::new(ToggleNotifications), cx)
@@ -1017,16 +1204,9 @@ pub fn notification_center(
                         ),
                 )
                 .child(
-                    div()
-                        .id(SharedString::from(format!("notice-remove-{id}")))
-                        .aria_label(t(cx, keys::notifications::REMOVE))
-                        .child(
-                            PanelIconButton::new(
-                                SharedString::from(format!("notice-{id}")),
-                                Icon::Close,
-                            )
-                            .on_click(move |_, _, cx| Notifications::remove(id, cx)),
-                        ),
+                    PanelIconButton::new(SharedString::from(format!("notice-{id}")), Icon::Close)
+                        .label(t(cx, keys::notifications::REMOVE))
+                        .on_click(move |_, _, cx| Notifications::remove(id, cx)),
                 ),
         );
     }

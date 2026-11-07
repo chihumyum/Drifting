@@ -38,7 +38,12 @@ fn editor<'a>(
 
 fn loro_text(editor: &Entity<ProseEditor>, cx: &mut VisualTestContext, chapter: usize) -> String {
     editor.update(cx, |editor, _| {
-        editor.book().chapters[chapter].doc.text().to_string()
+        editor.book().chapters[chapter]
+            .doc
+            .loro_source()
+            .unwrap()
+            .text()
+            .to_string()
     })
 }
 
@@ -279,7 +284,7 @@ fn remote_import_moves_the_selection(cx: &mut TestAppContext) {
     let (editor, cx) = editor(cx, &[&[(BlockKind::Body, "甲乙")]]);
     select(&editor, cx, 0, 2);
     let update = editor.update(cx, |editor, _| {
-        let doc = editor.book().chapters[0].doc.loro();
+        let doc = editor.book().chapters[0].doc.loro_source().unwrap().loro();
         let remote = loro::LoroDoc::new();
         crate::schema::configure(&remote);
         remote

@@ -29,6 +29,7 @@ use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex, Weak};
 use std::thread::JoinHandle;
+use std::time::Instant;
 
 use loro::event::{Diff, DiffEvent, MapDelta};
 use loro::{
@@ -761,23 +762,48 @@ impl Drop for ReleaseSlot {
 impl Holder {
     fn run(mut self, rx: Receiver<Msg>) {
         let _release = ReleaseSlot(self.lib.clone(), self.doc_id.clone());
+        let derive_idle = self.lib.options.derive_idle;
         let idle = self.lib.options.compaction.idle;
+        // Idle work waits for a quiet spell after the last job: deriving the
+        // index `derive_idle` after it, compacting `idle` after it. Work
+        // that ran (or failed) waits a full spell again before it is retried.
+        let (mut derive_at, mut maintain_at) = {
+            let now = Instant::now();
+            (now + derive_idle, now + idle)
+        };
         loop {
-            let msg = if self.maintenance_due() {
-                match rx.recv_timeout(idle) {
+            let next = [
+                self.derive_due().then_some(derive_at),
+                self.maintenance_due().then_some(maintain_at),
+            ]
+            .into_iter()
+            .flatten()
+            .min();
+            let msg = match next {
+                Some(at) => match rx.recv_timeout(at.saturating_duration_since(Instant::now())) {
                     Ok(msg) => msg,
                     Err(RecvTimeoutError::Timeout) => {
-                        self.idle_maintenance();
+                        let now = Instant::now();
+                        if self.derive_due() && now >= derive_at {
+                            self.derive_when_idle();
+                            derive_at = now + derive_idle;
+                        }
+                        if self.maintenance_due() && now >= maintain_at {
+                            self.idle_maintenance();
+                            maintain_at = now + idle;
+                        }
                         continue;
                     }
                     Err(RecvTimeoutError::Disconnected) => break,
-                }
-            } else {
-                match rx.recv() {
+                },
+                None => match rx.recv() {
                     Ok(msg) => msg,
                     Err(_) => break,
-                }
+                },
             };
+            let now = Instant::now();
+            derive_at = now + derive_idle;
+            maintain_at = now + idle;
             match msg {
                 Msg::Write {
                     origin,
@@ -830,9 +856,20 @@ impl Holder {
     }
 
     fn maintenance_due(&self) -> bool {
-        self.compaction_due()
-            || self.import_since_idle
-            || (self.index_dirty && self.lib.options.deriver.is_some())
+        self.compaction_due() || self.import_since_idle
+    }
+
+    fn derive_due(&self) -> bool {
+        self.index_dirty && self.lib.options.deriver.is_some()
+    }
+
+    fn derive_when_idle(&mut self) {
+        if let Err(e) = self.reindex() {
+            log::warn!("deriving the index of {} failed: {e}", self.doc_id);
+            // Try again from scratch next time rather than spinning.
+            self.index_dirty = false;
+            self.changes_since_index = None;
+        }
     }
 
     fn idle_maintenance(&mut self) {
@@ -840,15 +877,6 @@ impl Holder {
             && let Err(e) = self.compact()
         {
             log::warn!("compacting {} failed: {e}", self.doc_id);
-        }
-        if self.index_dirty
-            && self.lib.options.deriver.is_some()
-            && let Err(e) = self.reindex()
-        {
-            log::warn!("deriving the index of {} failed: {e}", self.doc_id);
-            // Try again from scratch next time rather than spinning.
-            self.index_dirty = false;
-            self.changes_since_index = None;
         }
         if self.import_since_idle {
             // Imports expand history into memory (P0-C); give back what Loro can.

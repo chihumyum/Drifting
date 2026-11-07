@@ -45,7 +45,7 @@ impl Corpus {
         let plan = synth::mark_plan(&synth, CHAPTER_SEED ^ 0x11, 500, 200);
         let mut corpus = Corpus::from_synth(vec![synth]);
         let doc = ProseDoc::from_snapshot(&corpus.snapshots[0]).expect("import a snapshot");
-        let text = doc.text();
+        let text = doc.loro_source().unwrap().text();
         for (start, len, key) in &plan {
             let value: loro::LoroValue = if key.starts_with("entity:") {
                 loro::LoroValue::Map(
@@ -57,9 +57,14 @@ impl Corpus {
             text.mark(*start..*start + *len, key, value)
                 .expect("mark a seed span");
         }
-        doc.loro().set_next_commit_origin("seed");
-        doc.loro().commit();
+        doc.loro_source()
+            .unwrap()
+            .loro()
+            .set_next_commit_origin("seed");
+        doc.loro_source().unwrap().loro().commit();
         corpus.snapshots[0] = doc
+            .loro_source()
+            .unwrap()
             .loro()
             .export(ExportMode::Snapshot)
             .expect("export a snapshot");
@@ -76,7 +81,9 @@ impl Corpus {
                 let doc = ProseDoc::from_paragraphs(
                     chapter.paragraphs.iter().map(|(k, p)| (*k, p.as_str())),
                 );
-                doc.loro()
+                doc.loro_source()
+                    .unwrap()
+                    .loro()
                     .export(ExportMode::Snapshot)
                     .expect("export a snapshot")
             })
@@ -180,7 +187,7 @@ impl Root {
         let editor = editor.read(cx);
         let sel = editor.selection();
         let chapter = &editor.book().chapters[sel.chapter];
-        let loro_len = chapter.doc.text().len_unicode();
+        let loro_len = chapter.doc.loro_source().unwrap().text().len_unicode();
         let comp = editor
             .composition()
             .map(|c| format!(" · 组字中「{}」（未写入 Loro）", c.text))

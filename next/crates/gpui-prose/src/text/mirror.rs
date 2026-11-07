@@ -1,22 +1,25 @@
 //! The paragraph mirror: the body text split at `\n`, with each paragraph's
-//! attributes and inline marks, kept in step with Loro by its events only.
+//! attributes and inline marks, kept in step with the source by its events
+//! only, together with the paragraph index.
 //!
 //! Local edits, undo, redo and imported remote changes all arrive the same
-//! way, as text deltas. A delta's structure (inserted and deleted text) is
-//! folded in directly; the attributes and marks of every paragraph it touched
-//! are then re-read from Loro, which is simpler than replaying attribute
-//! deltas and applies the reading rules (paragraph keys only on `\n`, marks
-//! only off it) in one place. A property test checks the mirror against a
-//! fresh read after every step.
+//! way, as [`SourceChange`]s. Their structure (inserted and deleted text) is
+//! folded in directly and the index updated at each step; typing inside a
+//! paragraph shifts its marked runs in place when the event says which marks
+//! the new text has. Everything else (formatting, Enter, joins) marks the
+//! paragraph stale, and its attributes and marks are re-read from the source,
+//! which applies the reading rules in one place. A property test checks the
+//! mirror against a fresh read after every step.
 
-use std::{ops::Range, sync::Arc};
+use std::sync::Arc;
 
 use gpui::SharedString;
-use loro::{LoroText, TextDelta, cursor::PosType};
 
 use super::{
     blocks::{BlockAttrs, BlockKind},
-    marks::{Marks, Span, push_span, spans_after_delete, spans_after_insert},
+    index::{ParagraphExtent, ParagraphIndex},
+    marks::{Span, spans_after_delete, spans_after_insert},
+    source::{ProseSource, SourceChange, SourceParagraph},
     units::byte_of_char,
 };
 
@@ -120,65 +123,9 @@ pub struct ChangeSet {
     pub ops: Vec<TextOp>,
 }
 
-/// One paragraph as read from a delta: text, attributes, marks.
-pub(crate) struct ReadLine {
-    pub text: String,
-    pub block: BlockAttrs,
-    pub spans: Vec<Span>,
-}
-
-/// Splits a delta into paragraphs, applying the reading rules: paragraph
-/// attributes only from `\n`, marks only from other characters. The last
-/// entry is whatever follows the last `\n` (empty in well-formed text).
-pub(crate) fn read_lines(delta: &[TextDelta]) -> Vec<ReadLine> {
-    let mut lines = Vec::new();
-    let mut current = ReadLine {
-        text: String::new(),
-        block: BlockAttrs::default(),
-        spans: Vec::new(),
-    };
-    for item in delta {
-        let TextDelta::Insert { insert, attributes } = item else {
-            continue;
-        };
-        let marks = attributes
-            .as_ref()
-            .map(Marks::from_attributes)
-            .unwrap_or_default();
-        let mut parts = insert.split('\n');
-        if let Some(first) = parts.next() {
-            push_span(
-                &mut current.spans,
-                current.text.len(),
-                first.len(),
-                marks.clone(),
-            );
-            current.text.push_str(first);
-        }
-        for part in parts {
-            current.block = attributes
-                .as_ref()
-                .map(BlockAttrs::from_attributes)
-                .unwrap_or_default();
-            lines.push(std::mem::replace(
-                &mut current,
-                ReadLine {
-                    text: String::new(),
-                    block: BlockAttrs::default(),
-                    spans: Vec::new(),
-                },
-            ));
-            push_span(&mut current.spans, 0, part.len(), marks.clone());
-            current.text.push_str(part);
-        }
-    }
-    lines.push(current);
-    lines
-}
-
-/// Builds the mirror from a full delta (`LoroText::to_delta`).
-pub(crate) fn lines_from_delta(delta: &[TextDelta], rev: u64) -> Vec<Line> {
-    read_lines(delta)
+/// Builds the mirror from a full read.
+pub(crate) fn lines_from_paragraphs(paragraphs: Vec<SourceParagraph>, rev: u64) -> Vec<Line> {
+    paragraphs
         .into_iter()
         .map(|read| {
             let mut line = Line::new(&read.text, rev);
@@ -189,6 +136,16 @@ pub(crate) fn lines_from_delta(delta: &[TextDelta], rev: u64) -> Vec<Line> {
             line
         })
         .collect()
+}
+
+impl Line {
+    pub(crate) fn extent(&self) -> ParagraphExtent {
+        ParagraphExtent {
+            chars: self.chars + 1,
+            utf16: self.utf16 + 1,
+            bytes: self.text.len() + 1,
+        }
+    }
 }
 
 /// Records that line `ix` changed (so the editor remeasures it); `stale`
@@ -228,23 +185,24 @@ fn push_op(set: &mut ChangeSet, op: TextOp) {
     set.ops.push(op);
 }
 
-/// Folds one event delta into the mirror's structure. Positions advance in
-/// scalars. Touched lines are marked stale for [`refresh_stale`].
-pub(crate) fn apply_delta(
+/// Folds one event's changes into the mirror's structure and the index.
+/// Positions advance in scalars. Touched lines are marked stale for
+/// [`refresh_stale`] unless the event carried the marks of inserted text.
+pub(crate) fn apply_changes(
     lines: &mut Vec<Line>,
-    delta: &[TextDelta],
+    index: &mut ParagraphIndex,
+    changes: &[SourceChange],
     rev: u64,
     set: &mut ChangeSet,
 ) {
     // Cursor: line index, scalar offset inside it, and absolute scalar offset.
     let (mut ix, mut inner, mut pos) = (0usize, 0usize, 0usize);
-    for item in delta {
-        match item {
-            TextDelta::Retain { retain, attributes } => {
-                let styled = attributes.as_ref().is_some_and(|a| !a.is_empty());
-                let mut remaining = *retain;
+    for change in changes {
+        match change {
+            SourceChange::Retain { len, restyled } => {
+                let mut remaining = *len;
                 while remaining > 0 {
-                    if styled {
+                    if *restyled {
                         touch(lines, ix, rev, true, set);
                     }
                     let left_in_line = lines[ix].chars - inner;
@@ -261,7 +219,10 @@ pub(crate) fn apply_delta(
                     }
                 }
             }
-            TextDelta::Insert { insert, attributes } => {
+            SourceChange::Insert {
+                text: insert,
+                marks,
+            } => {
                 let inserted = insert.chars().count();
                 push_op(
                     set,
@@ -276,19 +237,26 @@ pub(crate) fn apply_delta(
                 let (left, right) = (&line.text[..split], &line.text[split..]);
                 let parts: Vec<&str> = insert.split('\n').collect();
                 if parts.len() == 1 {
-                    // Typing: the event says which marks the new text has, so
-                    // the spans shift in place and nothing is re-read.
+                    // Typing: when the event says which marks the new text
+                    // has, the spans shift in place and nothing is re-read.
                     let text = format!("{left}{insert}{right}");
-                    let marks = attributes
-                        .as_ref()
-                        .map(Marks::from_attributes)
-                        .unwrap_or_default();
                     let line = &mut lines[ix];
-                    if !line.stale && !(line.spans.is_empty() && marks.is_empty()) {
-                        line.spans =
-                            spans_after_insert(&line.spans, split, insert.len(), marks).into();
+                    match marks {
+                        Some(marks) if !line.stale => {
+                            if !(line.spans.is_empty() && marks.is_empty()) {
+                                line.spans = spans_after_insert(
+                                    &line.spans,
+                                    split,
+                                    insert.len(),
+                                    marks.clone(),
+                                )
+                                .into();
+                            }
+                        }
+                        _ => line.stale = true,
                     }
                     line.set_text(text, rev);
+                    index.set(ix, lines[ix].extent());
                     touch(lines, ix, rev, false, set);
                     inner += inserted;
                 } else {
@@ -304,6 +272,7 @@ pub(crate) fn apply_delta(
                     tail.stale = true;
                     new_lines.push(tail);
                     let added = new_lines.len();
+                    index.splice(ix..ix + 1, new_lines.iter().map(Line::extent));
                     lines.splice(ix..ix + 1, new_lines);
                     set.splices.push(LineSplice {
                         start: ix,
@@ -315,16 +284,16 @@ pub(crate) fn apply_delta(
                 }
                 pos += inserted;
             }
-            TextDelta::Delete { delete } => {
+            SourceChange::Delete { len } => {
                 push_op(
                     set,
                     TextOp {
                         pos,
-                        deleted: *delete,
+                        deleted: *len,
                         inserted: 0,
                     },
                 );
-                let mut remaining = *delete;
+                let mut remaining = *len;
                 let mut joined = 0;
                 while remaining > 0 {
                     let left_in_line = lines[ix].chars - inner;
@@ -351,10 +320,12 @@ pub(crate) fn apply_delta(
                         lines[ix].block = block;
                         lines[ix].stale = true;
                         lines.remove(ix + 1);
+                        index.splice(ix + 1..ix + 2, []);
                         remaining -= left_in_line + 1;
                         joined += 1;
                     }
                 }
+                index.set(ix, lines[ix].extent());
                 set.splices.push(LineSplice {
                     start: ix,
                     old: joined + 1,
@@ -365,48 +336,38 @@ pub(crate) fn apply_delta(
     }
 }
 
-/// Re-reads attributes and marks of every stale line from Loro. Returns
-/// whether any line was stale.
-pub(crate) fn refresh_stale(lines: &mut [Line], text: &LoroText) -> bool {
+/// Re-reads attributes and marks of every stale line from the source.
+/// Returns whether a paragraph's block id changed (the id map is stale).
+pub(crate) fn refresh_stale(
+    lines: &mut [Line],
+    index: &ParagraphIndex,
+    source: &dyn ProseSource,
+) -> bool {
     let last = lines.len() - 1;
-    let mut at = 0;
-    let mut any = false;
+    let mut ids_changed = false;
     for (ix, line) in lines.iter_mut().enumerate() {
+        if !line.stale {
+            continue;
+        }
+        let start = index.start(ix);
         let len = line.chars + usize::from(ix < last);
-        if line.stale {
-            any = true;
-            refresh_line(line, text, at..at + len);
+        line.stale = false;
+        let read = source.read(start..start + len).into_iter().next();
+        let old_bid = line.block.bid().map(str::to_owned);
+        match read {
+            Some(read) => {
+                debug_assert_eq!(read.text, line.text.as_ref(), "mirror text drifted");
+                line.kind = read.block.kind();
+                line.block = read.block;
+                line.spans = read.spans.into();
+            }
+            None => {
+                line.block = BlockAttrs::default();
+                line.kind = BlockKind::Body;
+                line.spans = Arc::from([]);
+            }
         }
-        at += len;
+        ids_changed |= line.block.bid() != old_bid.as_deref();
     }
-    any
-}
-
-fn refresh_line(line: &mut Line, text: &LoroText, range: Range<usize>) {
-    line.stale = false;
-    let delta = if range.is_empty() {
-        Vec::new()
-    } else {
-        text.slice_delta(range.start, range.end, PosType::Unicode)
-            .unwrap_or_default()
-    };
-    let mut read = read_lines(&delta);
-    let first = if read.is_empty() {
-        None
-    } else {
-        Some(read.swap_remove(0))
-    };
-    match first {
-        Some(read) => {
-            debug_assert_eq!(read.text, line.text.as_ref(), "mirror text drifted");
-            line.kind = read.block.kind();
-            line.block = read.block;
-            line.spans = read.spans.into();
-        }
-        None => {
-            line.block = BlockAttrs::default();
-            line.kind = BlockKind::Body;
-            line.spans = Arc::from([]);
-        }
-    }
+    ids_changed
 }

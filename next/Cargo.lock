@@ -1477,7 +1477,10 @@ dependencies = [
  "dr-i18n",
  "dr-model",
  "dr-platform",
+ "dr-store",
+ "dr-testkit",
  "dr-ui",
+ "dr-workspace",
  "futures",
  "gpui",
  "gpui_platform",
@@ -1581,6 +1584,7 @@ dependencies = [
  "dr-platform",
  "dr-shell",
  "dr-ui",
+ "dr-workspace",
  "gpui",
  "gpui_platform",
  "log",
@@ -2381,18 +2385,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "gpui-ime"
+version = "0.1.0"
+
+[[package]]
 name = "gpui-prose"
 version = "0.1.0"
 dependencies = [
  "gpui",
+ "gpui-ime",
  "gpui_platform",
  "icu_segmenter",
  "libc",
  "log",
  "loro",
  "objc2 0.6.5",
+ "prose-linebreak",
  "raw-window-handle",
  "rusqlite",
+ "sum_tree",
 ]
 
 [[package]]
@@ -5118,6 +5129,13 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.9",
+]
+
+[[package]]
+name = "prose-linebreak"
+version = "0.1.0"
+dependencies = [
+ "icu_segmenter",
 ]
 
 [[package]]

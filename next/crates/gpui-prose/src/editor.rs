@@ -380,9 +380,7 @@ impl ProseEditor {
                     && comp.chapter == chapter
                 {
                     for op in &set.ops {
-                        let end = op.transform(comp.at + comp.replaced);
-                        comp.at = op.transform(comp.at);
-                        comp.replaced = end.saturating_sub(comp.at);
+                        comp.follow(|p| op.transform(p));
                     }
                 }
             }
@@ -542,9 +540,18 @@ impl ProseEditor {
         cx.notify();
     }
 
-    /// Imports remote updates into a chapter (sync, another device).
+    /// Imports remote updates into a chapter (sync, another device), for
+    /// sources that import themselves.
     pub fn import_remote(&mut self, chapter: usize, bytes: &[u8], cx: &mut Context<Self>) {
         let _ = self.book.chapters[chapter].doc.import(bytes);
+        self.sync_chapter(chapter, cx);
+        cx.notify();
+    }
+
+    /// Folds in changes a chapter's source made outside the editor (sync, an
+    /// Agent writing through the command layer): call after them.
+    pub fn refresh_chapter(&mut self, chapter: usize, cx: &mut Context<Self>) {
+        self.book.chapters[chapter].doc.drain();
         self.sync_chapter(chapter, cx);
         cx.notify();
     }

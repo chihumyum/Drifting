@@ -1,8 +1,9 @@
 //! The Drifting desktop app (the Rust + GPUI rewrite).
 //!
 //! The entry point wires F7's platform services (the MCP bridge first, then
-//! crash reports, logs, the single running copy, deep links), dr-ui's
-//! assets and fonts, and hands the window to the shell (F6, `dr-shell`).
+//! crash reports, logs, the single running copy, deep links), F3's
+//! workspace over the library, dr-ui's assets and fonts, and hands the
+//! window to the shell (F6, `dr-shell`).
 //! See docs/rust-rewrite/foundations/f6-shell.md.
 
 mod about;
@@ -20,6 +21,13 @@ use gpui_platform::application;
 /// The development switch: `DRIFTING_APPEARANCE=light|dark` forces one
 /// appearance without touching the system setting or the stored theme.
 pub const APPEARANCE_ENV: &str = "DRIFTING_APPEARANCE";
+/// The development switch: `DRIFTING_BOOK=<id or name>` opens that book
+/// instead of the one opened last (until the bookshelf exists).
+pub const BOOK_ENV: &str = "DRIFTING_BOOK";
+/// The library's folder inside the app's data folder (F2's `library.sqlite`,
+/// `assets/`, …). The data folder itself is the 0.1 client's for the release
+/// identity, so the new library keeps to a folder of its own.
+pub const LIBRARY_DIR: &str = "library";
 
 fn forced_appearance() -> Option<dr_ui::Appearance> {
     match std::env::var(APPEARANCE_ENV).ok().as_deref().map(str::trim) {
@@ -77,6 +85,19 @@ fn main() {
     let Some(instance) = dr_platform::single_instance::acquire(platform, &args).primary() else {
         return;
     };
+    // The library opens on its own thread while AppKit launches; the shell
+    // takes it once the app is ready. Without one the window still opens,
+    // with no book.
+    let library = dirs.as_ref().map(|dirs| {
+        let root = dirs.data.join(LIBRARY_DIR);
+        std::thread::Builder::new()
+            .name("library-open".into())
+            .spawn(move || {
+                let started = std::time::Instant::now();
+                let opened = dr_workspace::Workspace::open_dir(&root, env!("CARGO_PKG_VERSION"));
+                (opened, started.elapsed())
+            })
+    });
     let deep_links = DeepLinks::new(platform.url_scheme);
     deep_links.push_args(&args);
     instance.listen({
@@ -117,11 +138,40 @@ fn main() {
             url_scheme: platform.url_scheme,
             forced_appearance: forced_appearance(),
         };
+        let library = match library {
+            Some(Ok(thread)) => match thread.join() {
+                Ok((Ok(lib), took)) => {
+                    probe::library_opened(took);
+                    Some(lib)
+                }
+                Ok((Err(error), _)) => {
+                    log::error!(
+                        "the library could not be opened: {error} ({})",
+                        error.code()
+                    );
+                    None
+                }
+                Err(_) => {
+                    log::error!("opening the library panicked");
+                    None
+                }
+            },
+            Some(Err(error)) => {
+                log::error!("could not start opening the library: {error}");
+                None
+            }
+            None => None,
+        };
         let services = Services {
             deep_links: Some(deep_links),
             crash_reports: Some(crash_reports),
+            library,
+            book: std::env::var(BOOK_ENV)
+                .ok()
+                .filter(|b| !b.trim().is_empty()),
         };
         dr_shell::init(info, services, settings, cx);
+        probe::shell_ready();
         cx.on_action(about::open);
         if !cfg!(target_os = "macos") {
             cx.on_window_closed(|cx, _| {

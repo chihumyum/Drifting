@@ -175,31 +175,49 @@ fn scratch_dir() -> PathBuf {
     dir
 }
 
-/// Records one traced typing run; returns the trace path.
+/// Records one traced typing run; returns the trace path. A run whose target
+/// never finished (xctrace sometimes leaves it stuck in `dyld` on a loaded
+/// machine) is cut off by the time limit and recorded again, at most three
+/// times.
 fn record(dir: &Path, name: &str, present_now: bool, keys: usize) -> Option<(PathBuf, PathBuf)> {
-    let exe = std::env::current_exe().ok()?;
     let trace = dir.join(format!("{name}.trace"));
     let report = dir.join(format!("{name}.json"));
+    for attempt in 1..=3 {
+        let _ = std::fs::remove_dir_all(&trace);
+        let _ = std::fs::remove_file(&report);
+        let ok = record_once(&trace, &report, present_now, keys)?;
+        if ok && report.exists() {
+            return Some((trace, report));
+        }
+        eprintln!("the {name} run did not finish (attempt {attempt}), recording again");
+    }
+    eprintln!("xctrace record failed three times");
+    None
+}
+
+fn record_once(trace: &Path, report: &Path, present_now: bool, keys: usize) -> Option<bool> {
+    let exe = std::env::current_exe().ok()?;
     let mut cmd = Command::new("xcrun");
     cmd.args(["xctrace", "record", "--template", "Metal System Trace"])
         .args(["--instrument", "os_signpost"])
+        .args(["--time-limit", "180s"])
         .arg("--output")
-        .arg(&trace)
+        .arg(trace)
         .args(["--no-prompt", "--launch", "--"])
         .arg(&exe)
         .arg("trace-typing")
         .args(["--keys", &keys.to_string()])
         .arg("--report")
-        .arg(&report);
+        .arg(report);
     if present_now {
         cmd.arg("--present-now");
     }
     let status = cmd.status().ok()?;
     if !status.success() && !trace.exists() {
         eprintln!("xctrace record failed ({status})");
-        return None;
+        return Some(false);
     }
-    Some((trace, report))
+    Some(true)
 }
 
 fn export(trace: &Path, xpath: &str) -> Option<String> {
@@ -417,7 +435,7 @@ pub fn run_present(out: Option<String>, keys: usize) {
             lat.to_glass.len(),
             report::percentile(&lat.to_glass, 95.0)
         );
-        runs.push((name, lat, refresh, load));
+        runs.push((name, lat, refresh, load, platform::load_average()));
         let _ = std::fs::remove_dir_all(&trace);
         let _ = std::fs::remove_file(&report_path);
     }
@@ -453,8 +471,8 @@ pub fn run_present(out: Option<String>, keys: usize) {
         ),
     ];
     let mut pass = None;
-    for (name, lat, _, load) in &runs {
-        let p95 = report::percentile(&lat.to_glass, 95.0);
+    for (name, lat, _, load, _) in &runs {
+        let p95 = report::percentile(&lat.to_present, 95.0);
         if *name == "stock" {
             pass = Some(p95);
         }
@@ -471,9 +489,17 @@ pub fn run_present(out: Option<String>, keys: usize) {
             ]),
         ));
     }
-    fields.push(("budget_p95_ms", J::Num(16.0)));
+    let loads: Vec<f64> = runs.iter().flat_map(|r| [r.3, r.4]).collect();
+    fields.push(("conditions", report::conditions(&loads)));
     fields.push((
-        "pass_stock",
+        "budget",
+        J::obj(vec![
+            ("key_to_present_p95_ms", J::Num(16.0)),
+            ("key_to_glass", J::str("recorded only (benchmarks.md)")),
+        ]),
+    ));
+    fields.push((
+        "pass_stock_key_to_present",
         J::Bool(pass.is_some_and(|p| p.is_finite() && p <= 16.0)),
     ));
     let text = J::obj(fields).to_pretty();

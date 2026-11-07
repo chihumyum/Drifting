@@ -2,8 +2,9 @@
 # Design, API and milestones: docs/rust-rewrite/foundations/f4-editor.md
 #
 # Licensed MIT OR Apache-2.0, unlike the rest of the repository (AGPL): it
-# depends on `gpui` and `loro` only (plus ICU4X segmentation behind the default
-# `icu` feature), never on a `dr-*` crate. `cargo check -p gpui-prose
+# depends on `gpui` (and GPUI's `sum_tree`), `loro` and its own two small
+# crates `gpui-ime` and `prose-linebreak` (plus ICU4X segmentation behind the
+# default `icu` feature), never on a `dr-*` crate. `cargo check -p gpui-prose
 # --no-default-features` proves the boundary. The examples (a demo window and
 # the benchmark harness) may use more, as dev-dependencies.
 [package]
@@ -21,12 +22,18 @@ default = ["icu"]
 # Word and grapheme-cluster boundaries from ICU4X (Chinese words from its
 # dictionary). Without it the editor falls back to a small built-in
 # approximation (character classes, common emoji and combining sequences).
-icu = ["dep:icu_segmenter"]
+icu = ["dep:icu_segmenter", "prose-linebreak/icu"]
+# The `text::conformance` suite, for hosts that implement `ProseSource`
+# (Drifting's dr-editor runs it on its dr-doc source).
+conformance = []
 
 [dependencies]
 gpui.workspace = true
+gpui-ime.workspace = true
 icu_segmenter = { workspace = true, optional = true }
 loro.workspace = true
+prose-linebreak.workspace = true
+sum_tree.workspace = true
 
 [dev-dependencies]
 gpui = { workspace = true, features = ["test-support"] }

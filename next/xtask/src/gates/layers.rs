@@ -40,6 +40,8 @@ pub const LAYERS: &[(&str, Layer)] = &[
     ("dr-text", Layer::Data),
     ("dr-index", Layer::Data),
     ("prose-metrics", Layer::Data),
+    // Line breaking: the editor uses it now, dr-text and the PDF export later.
+    ("prose-linebreak", Layer::Data),
     ("dr-platform", Layer::Platform),
     ("dr-i18n", Layer::Platform),
     ("dr-workspace", Layer::Services),
@@ -50,6 +52,7 @@ pub const LAYERS: &[(&str, Layer)] = &[
     ("dr-mirror", Layer::Services),
     ("dr-import-v1", Layer::Services),
     ("gpui-prose", Layer::Interface),
+    ("gpui-ime", Layer::Interface),
     ("dr-editor", Layer::Interface),
     ("dr-ui", Layer::Interface),
     ("dr-shell", Layer::Interface),

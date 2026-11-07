@@ -19,7 +19,11 @@
       "noDrifts": "아직 아이디어가 없습니다.",
       "noElements": "아직 요소가 없습니다."
     },
+    "groups": {
+      "unaffiliated": "소속 없음"
+    },
     "meta": {
+      "chapters": "{{count}}개 장",
       "drifts": "아이디어 {{count}}개",
       "elements": "분류 {{categories}}개 · 요소 {{elements}}개"
     },
@@ -32,6 +36,7 @@
       "close": "왼쪽 사이드바 닫기",
       "open": "왼쪽 사이드바 열기"
     },
+    "uncategorized": "미분류",
     "viewMode": {
       "chapterSummary": "스토리라인 {{storylines}}개 · {{chapters}}장"
     }
@@ -220,6 +225,10 @@
     "split": "두 열로 복원"
   },
   "topTimeline": {
+    "closeTab": "탭 닫기",
+    "dockLock": "열린 상태 유지",
+    "dockUnlock": "점으로 접기",
+    "newEntity": "개체 만들기",
     "singletons": {
       "allChapters": "작품 전체"
     },
