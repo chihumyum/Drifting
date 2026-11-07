@@ -1,0 +1,31 @@
+#!/bin/sh
+# Copies dr-ui's built fonts and their licence into <resources>/fonts, for a
+# release bundle (macOS: Drifting.app/Contents/Resources). The fonts are
+# built by build-fonts.py into next/.cache/fonts, or taken from
+# DRIFTING_FONTS_DIR. Stops if any face is missing.
+#
+#   crates/dr-ui/script/install-fonts "path/to/App.app/Contents/Resources"
+set -eu
+
+here=$(cd "$(dirname "$0")" && pwd)
+next=$(cd "$here/../../.." && pwd)
+src=${DRIFTING_FONTS_DIR:-"$next/.cache/fonts"}
+dest=${1:?usage: install-fonts <resources dir>}/fonts
+
+faces="DriftingSans-Regular.ttf DriftingSans-Medium.ttf DriftingSans-SemiBold.ttf
+DriftingSerif-Regular.ttf DriftingSerif-Bold.ttf SarasaMonoSC-Regular.ttf"
+
+for face in $faces; do
+  if [ ! -f "$src/$face" ]; then
+    echo "install-fonts: $src/$face is missing; build the fonts first:" >&2
+    echo "  cd next && python3 crates/dr-ui/script/build-fonts.py" >&2
+    exit 1
+  fi
+done
+
+mkdir -p "$dest"
+for face in $faces; do
+  cp "$src/$face" "$dest/$face"
+done
+cp "$src/OFL-1.1.txt" "$dest/OFL-1.1.txt"
+echo "install-fonts: $(echo $faces | wc -w | tr -d ' ') faces in $dest"

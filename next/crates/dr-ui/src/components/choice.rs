@@ -1,0 +1,466 @@
+//! Choosing one of several (components.md, 「多选一」「Dock 药丸」;
+//! materials.md, 「同族选中的水波」).
+//!
+//! - [`Segmented`] (`GlassSlider`): words side by side, no track; one
+//!   square block of glass (an opaque paper fill and the selected rim) lies
+//!   under the chosen word and slides to another on the weighted spring
+//!   (520ms), its texture flowing with the distance it travels. Words have
+//!   no press state; a choice turns the word at once and the block follows.
+//! - [`PillGroup`]: glass pills (a resting line, flowing under the pointer)
+//!   that pass the selection between them as a wave: the selected bleed
+//!   travels from the old pill to the new one as one band of water, a
+//!   little longer for each pill it crosses, wider and fainter mid-way with
+//!   softer edges; the new pill keeps its resting line until the band lands,
+//!   then its own bleed comes in as the band fades.
+
+use std::{rc::Rc, time::Instant};
+
+use gpui::{
+    App, Bounds, ElementId, Entity, InteractiveElement, IntoElement, ParentElement, Pixels,
+    RenderOnce, SharedString, StatefulInteractiveElement, Styled, Window, canvas, div,
+    prelude::FluentBuilder as _, px,
+};
+
+use crate::{
+    anim,
+    fonts::Role,
+    glass::{self, DENSE, Ground, Kind, Look, Mode, Spec, Tone},
+    sand::{self, KindMark},
+    style::DrStyled,
+    theme::Theme,
+    tokens::{Rgb, glass as g, motion},
+};
+
+type OnSelect = super::OnIndex;
+/// A band of glass: (a0, a1, b0, b1) in window x.
+type Band = (f32, f32, f32, f32);
+
+/// Where each item was laid out last frame, and how the chosen one moved.
+pub struct ChoiceState {
+    selected: usize,
+    rects: Vec<Option<Bounds<Pixels>>>,
+    /// The block (or band) leaving `from` at `start`.
+    from: Option<(f32, f32)>,
+    start: Option<Instant>,
+    crossed: u32,
+    flow_base: f32,
+}
+
+impl ChoiceState {
+    fn new(selected: usize, n: usize) -> ChoiceState {
+        ChoiceState {
+            selected,
+            rects: vec![None; n],
+            from: None,
+            start: None,
+            crossed: 0,
+            flow_base: 0.0,
+        }
+    }
+
+    fn rect(&self, i: usize) -> Option<(f32, f32)> {
+        self.rects
+            .get(i)
+            .copied()
+            .flatten()
+            .map(|b| (f32::from(b.origin.x), f32::from(b.size.width)))
+    }
+}
+
+fn use_choice(
+    id: &ElementId,
+    selected: usize,
+    n: usize,
+    window: &mut Window,
+    cx: &mut App,
+) -> Entity<ChoiceState> {
+    window.use_keyed_state(crate::style::child_id(&id.clone(), "choice"), cx, |_, _| {
+        ChoiceState::new(selected, n)
+    })
+}
+
+/// Records an item's bounds during prepaint.
+fn measure(state: Entity<ChoiceState>, i: usize) -> impl IntoElement {
+    canvas(
+        move |bounds, _, cx| {
+            state.update(cx, |s, _| {
+                if let Some(slot) = s.rects.get_mut(i) {
+                    *slot = Some(bounds);
+                }
+            });
+        },
+        |_, _, _, _| {},
+    )
+    .absolute()
+    .top_0()
+    .left_0()
+    .size_full()
+}
+
+#[derive(IntoElement)]
+pub struct Segmented {
+    id: ElementId,
+    options: Vec<SharedString>,
+    selected: usize,
+    disabled: bool,
+    on_change: Option<OnSelect>,
+}
+
+impl Segmented {
+    pub fn new(
+        id: impl Into<ElementId>,
+        options: impl IntoIterator<Item = impl Into<SharedString>>,
+        selected: usize,
+    ) -> Segmented {
+        Segmented {
+            id: id.into(),
+            options: options.into_iter().map(Into::into).collect(),
+            selected,
+            disabled: false,
+            on_change: None,
+        }
+    }
+
+    pub fn disabled(mut self, disabled: bool) -> Self {
+        self.disabled = disabled;
+        self
+    }
+
+    /// Called with the chosen index when the author picks another.
+    pub fn on_change(mut self, f: impl Fn(usize, &mut Window, &mut App) + 'static) -> Self {
+        self.on_change = Some(Rc::new(f));
+        self
+    }
+}
+
+/// The block's position (x, width) at `at`.
+fn block_at(s: &ChoiceState, at: Instant) -> Option<(f32, f32)> {
+    let (tx, tw) = s.rect(s.selected)?;
+    match (s.from, s.start) {
+        (Some((fx, fw)), Some(start)) => {
+            let t = motion::spring_progress(at.saturating_duration_since(start).as_secs_f32());
+            Some((fx + (tx - fx) * t, fw + (tw - fw) * t))
+        }
+        _ => Some((tx, tw)),
+    }
+}
+
+/// How far the block's texture has flowed at `at`: 1.2px per px travelled.
+fn block_flow(s: &ChoiceState, at: Instant) -> f32 {
+    match (s.from, block_at(s, at)) {
+        (Some((fx, _)), Some((x, _))) => s.flow_base + (x - fx).abs() * 1.2,
+        _ => s.flow_base,
+    }
+}
+
+impl RenderOnce for Segmented {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let theme = Theme::of(window, cx);
+        let p = theme.palette;
+        let s = theme.scale;
+        let n = self.options.len();
+        let state = use_choice(&self.id, self.selected, n, window, cx);
+        let selected = self.selected;
+        let reduce = theme.reduce_motion;
+        state.update(cx, |st, _| {
+            st.rects.resize(n, None);
+            if st.selected != selected {
+                let at = anim::now();
+                let from = block_at(st, at);
+                st.flow_base = block_flow(st, at);
+                st.from = if reduce { None } else { from };
+                st.start = (!reduce).then_some(at);
+                st.selected = selected;
+            }
+        });
+        let height = s.control_height - 4.0;
+        let block_state = state.clone();
+        let block = canvas(
+            |_, _, _| (),
+            move |bounds, _, window, cx| {
+                let now = anim::now();
+                let st = block_state.read(cx);
+                let Some((x, w)) = block_at(st, now) else {
+                    return;
+                };
+                let moving = st.start.is_some_and(|start| {
+                    now.saturating_duration_since(start) < motion::SPRING_DURATION
+                });
+                // The texture runs with the block's travel, so it is still
+                // once the block lands.
+                let travelled = block_flow(st, now);
+                let rect = Bounds {
+                    origin: gpui::point(px(x), bounds.origin.y),
+                    size: gpui::size(px(w), bounds.size.height),
+                };
+                let outside = match glass::current_ground() {
+                    Some(Ground::Flat { inside, .. }) => inside,
+                    _ => p.desk,
+                };
+                window.paint_quad(gpui::fill(rect, p.page.solid()));
+                let look = Look {
+                    flow: travelled,
+                    bleed_lift: p.bleed_lift,
+                    ..Look::new(p.glass_clear, DENSE)
+                };
+                glass::paint_rim(
+                    rect,
+                    0.0,
+                    &look,
+                    Ground::Flat {
+                        inside: p.page,
+                        outside,
+                    },
+                    window,
+                    cx,
+                );
+                anim::keep_going(moving, window);
+            },
+        )
+        .absolute()
+        .top_0()
+        .left_0()
+        .size_full();
+        let mut row = div()
+            .id(self.id.clone())
+            .relative()
+            .h(px(height))
+            .flex()
+            .flex_row()
+            .flex_none()
+            .items_stretch()
+            .font_role(Role::Ui)
+            .type_px(s.secondary, s.line_body)
+            .child(block);
+        let disabled = self.disabled;
+        for (i, label) in self.options.into_iter().enumerate() {
+            let on = i == selected;
+            let ink = match (disabled, on) {
+                (true, true) => p.ink(3),
+                (true, false) => p.ink(5),
+                (false, true) => p.ink(1),
+                (false, false) => p.ink(3),
+            };
+            let hover = p.ink(2).solid();
+            let f = self.on_change.clone().filter(|_| !disabled && !on);
+            row = row.child(
+                div()
+                    .id(crate::style::child_id(&self.id.clone(), label.clone()))
+                    .relative()
+                    .px(px(10.0))
+                    .flex()
+                    .items_center()
+                    .text_color(ink.solid())
+                    .when(!on && !disabled, |el| {
+                        el.hover(move |st| st.text_color(hover)).cursor_pointer()
+                    })
+                    .child(measure(state.clone(), i))
+                    .child(label)
+                    .when_some(f, |el, f| el.on_click(move |_, w, cx| f(i, w, cx))),
+            );
+        }
+        row
+    }
+}
+
+/// One pill of a [`PillGroup`].
+#[derive(Clone, Debug)]
+pub struct Pill {
+    pub label: SharedString,
+    pub mark: Option<(sand::Kind, Option<Rgb>)>,
+    pub tone: Tone,
+}
+
+impl Pill {
+    pub fn new(label: impl Into<SharedString>) -> Pill {
+        Pill {
+            label: label.into(),
+            mark: None,
+            tone: Tone::Clear,
+        }
+    }
+
+    /// Its kind mark, and the glass in the mark's colour.
+    pub fn mark(mut self, kind: sand::Kind, color: Option<Rgb>) -> Pill {
+        self.mark = Some((kind, color));
+        if let Some(c) = color {
+            self.tone = Tone::Color(c);
+        }
+        self
+    }
+}
+
+#[derive(IntoElement)]
+pub struct PillGroup {
+    id: ElementId,
+    pills: Vec<Pill>,
+    selected: usize,
+    on_change: Option<OnSelect>,
+}
+
+impl PillGroup {
+    pub fn new(id: impl Into<ElementId>, pills: Vec<Pill>, selected: usize) -> PillGroup {
+        PillGroup {
+            id: id.into(),
+            pills,
+            selected,
+            on_change: None,
+        }
+    }
+
+    /// Called with the chosen index when the author picks another.
+    pub fn on_change(mut self, f: impl Fn(usize, &mut Window, &mut App) + 'static) -> Self {
+        self.on_change = Some(Rc::new(f));
+        self
+    }
+}
+
+/// The band at `at`: (a0, a1, b0, b1) in window x and its strength, or
+/// `None` once it has landed and faded.
+fn band_at(s: &ChoiceState, at: Instant) -> Option<(Band, f32, bool)> {
+    let start = s.start?;
+    let (fx, fw) = s.from?;
+    let (tx, tw) = s.rect(s.selected)?;
+    let travel = motion::wave::duration(s.crossed);
+    let elapsed = at.saturating_duration_since(start);
+    let (center, width, edge, k, travelling) = if elapsed < travel {
+        let e = motion::wave::ease(elapsed.as_secs_f32() / travel.as_secs_f32());
+        let mid = (std::f32::consts::PI * e).sin();
+        let center = (fx + fw / 2.0) + ((tx + tw / 2.0) - (fx + fw / 2.0)) * e;
+        let width = (fw + (tw - fw) * e) * (1.0 + (motion::wave::WIDEN - 1.0) * mid);
+        let edge =
+            motion::wave::EDGE_FROM + (motion::wave::EDGE_TO - motion::wave::EDGE_FROM) * mid;
+        (center, width, edge, 1.0 - motion::wave::FADE * mid, true)
+    } else {
+        let settle = (elapsed - travel).as_secs_f32() / motion::wave::SETTLE.as_secs_f32();
+        if settle >= 1.0 {
+            return None;
+        }
+        (
+            tx + tw / 2.0,
+            tw,
+            motion::wave::EDGE_FROM,
+            1.0 - settle,
+            false,
+        )
+    };
+    let a1 = center - width / 2.0;
+    let b0 = center + width / 2.0;
+    Some(((a1 - edge, a1, b0, b0 + edge), k, travelling))
+}
+
+impl RenderOnce for PillGroup {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let theme = Theme::of(window, cx);
+        let p = theme.palette;
+        let s = theme.scale;
+        let n = self.pills.len();
+        let selected = self.selected;
+        let state = use_choice(&self.id, selected, n, window, cx);
+        let reduce = theme.reduce_motion;
+        state.update(cx, |st, _| {
+            st.rects.resize(n, None);
+            if st.selected != selected {
+                let at = anim::now();
+                st.from = if reduce { None } else { st.rect(st.selected) };
+                st.crossed = (st.selected as i64 - selected as i64).unsigned_abs() as u32;
+                st.start = (!reduce).then_some(at);
+                st.selected = selected;
+            }
+        });
+        let now = anim::now();
+        let travelling = band_at(state.read(cx), now).is_some_and(|(_, _, t)| t);
+        let mut row = div()
+            .id(self.id.clone())
+            .flex()
+            .flex_row()
+            .flex_none()
+            .gap(px(4.0))
+            .items_center();
+        for (i, pill) in self.pills.into_iter().enumerate() {
+            let on = i == selected;
+            // While the wave travels the new pill keeps its resting line.
+            let lit = on && !travelling;
+            let pid = crate::style::child_id(&self.id.clone(), pill.label.clone());
+            let spec =
+                Spec::new(pill.tone, g::PILL_HEIGHT / 2.0).origin(glass::SAMPLE_ORIGINS[i % 4]);
+            let band_state = state.clone();
+            let band_tone = pill.tone;
+            let band = canvas(
+                |_, _, _| (),
+                move |bounds, _, window, cx| {
+                    let now = anim::now();
+                    let st = band_state.read(cx);
+                    let Some((band, k, _)) = band_at(st, now) else {
+                        return;
+                    };
+                    let group_x = st
+                        .rect(0)
+                        .map(|(x, _)| x)
+                        .unwrap_or(f32::from(bounds.origin.x));
+                    let travelled = st
+                        .from
+                        .map(|(fx, _)| (band.1 - fx).abs() * 1.2)
+                        .unwrap_or(0.0);
+                    let rel = f32::from(bounds.origin.x) - group_x;
+                    let look = Look {
+                        origin: (travelled - rel, -46.0),
+                        bleed_lift: p.bleed_lift,
+                        ..Look::new(band_tone.rgb(p), DENSE)
+                    };
+                    let ground = spec.resolve_ground(p);
+                    glass::paint_band(
+                        bounds,
+                        g::PILL_HEIGHT / 2.0,
+                        &look,
+                        ground,
+                        band,
+                        k,
+                        window,
+                        cx,
+                    );
+                    window.request_animation_frame();
+                },
+            )
+            .absolute()
+            .top_0()
+            .left_0()
+            .size_full();
+            let ink = if on { p.ink(1) } else { p.ink(2) };
+            let f = self.on_change.clone();
+            let el = glass::glass_box(
+                pid.clone(),
+                Kind::Rest,
+                Mode::default(),
+                lit,
+                spec,
+                window,
+                cx,
+            )
+            .h(px(g::PILL_HEIGHT))
+            .px(px(10.0))
+            .flex()
+            .flex_row()
+            .items_center()
+            .gap(px(6.0))
+            .rounded_full()
+            .font_role(Role::Ui)
+            .type_px(s.secondary, s.line_body)
+            .text_color(ink.solid())
+            .cursor_pointer()
+            .child(measure(state.clone(), i))
+            .child(band)
+            .when_some(pill.mark, |el, (kind, color)| {
+                let mark = KindMark::new(crate::style::child_id(&pid.clone(), "mark"), kind);
+                el.child(match color {
+                    Some(c) => mark.color(c),
+                    None => mark,
+                })
+            })
+            .child(pill.label)
+            .when_some(f, |el, f| el.on_click(move |_, w, cx| f(i, w, cx)));
+            row = row.child(el);
+        }
+        row
+    }
+}

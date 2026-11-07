@@ -1440,6 +1440,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "dr-ui"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "gpui",
+ "gpui_platform",
+ "image",
+ "log",
+ "memmap2",
+ "smallvec",
+ "unicode-segmentation",
+]
+
+[[package]]
 name = "drifting"
 version = "0.2.0-dev"
 dependencies = [
