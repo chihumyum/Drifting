@@ -69,6 +69,7 @@
   "common": {
     "cancel": "取消",
     "close": "关闭",
+    "confirm": "确认",
     "counting": "统计中…",
     "creating": "创建中…",
     "delete": "删除",
@@ -79,6 +80,7 @@
     "saveFailed": "保存未完成，请重试。",
     "saving": "保存中…",
     "untitled": "未命名",
+    "words": "字",
     "wordsCount": "{{count}} 字"
   },
   "dashboard": {
@@ -118,7 +120,8 @@
       "changeGroup": "更改分组",
       "deleteCategory": "删除类目",
       "deleteElement": "删除要素",
-      "deleteNode": "删除节点"
+      "deleteNode": "删除节点",
+      "deleteStoryline": "删除故事线"
     },
     "outlineRailMode": {
       "hidden": "隐藏 TOC",
@@ -888,12 +891,39 @@
     }
   },
   "storylineEditor": {
-    "filters": {
-      "all": "全部"
+    "actions": {
+      "openChapter": "打开章节"
     },
+    "alerts": {
+      "deleteFailed": "删除故事线失败，请重试。"
+    },
+    "deleteConfirm": "删除故事线「{{name}}」？",
+    "empty": {
+      "noChapterSummary": "尚未填写一句话摘要",
+      "noFacts": "尚无字段。新建故事线时，项目主页的「故事线字段模版」会自动填入",
+      "noFilteredChapters": "此筛选下暂无章节"
+    },
+    "filters": {
+      "all": "全部",
+      "unwritten": "未起",
+      "written": "已写"
+    },
+    "folio": "故事线",
     "labels": {
       "color": "色标"
-    }
+    },
+    "meta": {
+      "chapters": "{{count}} 章",
+      "chaptersWords": "{{chapters}} 章 · {{words}}k 字",
+      "kWords": "{{count}}k 字"
+    },
+    "sections": {
+      "chapters": "章节序列",
+      "facts": "字段",
+      "scratch": "札记"
+    },
+    "summaryPlaceholder": "一句话概述本线…",
+    "untitled": "未命名故事线"
   },
   "topTimeline": {
     "closeTab": "关闭标签页",

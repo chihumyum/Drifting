@@ -69,6 +69,7 @@
   "common": {
     "cancel": "取消",
     "close": "關閉",
+    "confirm": "確認",
     "counting": "計算中…",
     "creating": "正在建立…",
     "delete": "刪除",
@@ -79,6 +80,7 @@
     "saveFailed": "無法儲存變更，請重試。",
     "saving": "正在儲存…",
     "untitled": "未命名",
+    "words": "字",
     "wordsCount": "{{count}} 字"
   },
   "dashboard": {
@@ -118,7 +120,8 @@
       "changeGroup": "變更群組",
       "deleteCategory": "刪除分類",
       "deleteElement": "刪除要素",
-      "deleteNode": "刪除節點"
+      "deleteNode": "刪除節點",
+      "deleteStoryline": "刪除故事線"
     },
     "outlineRailMode": {
       "hidden": "隱藏目錄",
@@ -894,12 +897,39 @@
     }
   },
   "storylineEditor": {
-    "filters": {
-      "all": "全部"
+    "actions": {
+      "openChapter": "開啟章節"
     },
+    "alerts": {
+      "deleteFailed": "無法刪除故事線，請再試一次。"
+    },
+    "deleteConfirm": "刪除故事線「{{name}}」？",
+    "empty": {
+      "noChapterSummary": "尚無一句話摘要",
+      "noFacts": "尚無欄位。建立故事線時，作品首頁的「故事線範本」會自動填入。",
+      "noFilteredChapters": "沒有符合篩選條件的章節"
+    },
+    "filters": {
+      "all": "全部",
+      "unwritten": "尚未開始",
+      "written": "已撰寫"
+    },
+    "folio": "故事線",
     "labels": {
       "color": "顏色"
-    }
+    },
+    "meta": {
+      "chapters": "{{count}} 章",
+      "chaptersWords": "{{chapters}} 章 · {{words}} 千字",
+      "kWords": "{{count}} 千字"
+    },
+    "sections": {
+      "chapters": "章節順序",
+      "facts": "設定資料",
+      "scratch": "隨筆"
+    },
+    "summaryPlaceholder": "此故事線的一句話摘要…",
+    "untitled": "未命名故事線"
   },
   "topTimeline": {
     "closeTab": "關閉分頁",

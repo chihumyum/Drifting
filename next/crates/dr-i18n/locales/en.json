@@ -69,6 +69,7 @@
   "common": {
     "cancel": "Cancel",
     "close": "Close",
+    "confirm": "Confirm",
     "counting": "Counting…",
     "creating": "Creating…",
     "delete": "Delete",
@@ -79,6 +80,7 @@
     "saveFailed": "Your changes could not be saved. Please try again.",
     "saving": "Saving…",
     "untitled": "Untitled",
+    "words": "words",
     "wordsCount": "{{count}} words"
   },
   "dashboard": {
@@ -118,7 +120,8 @@
       "changeGroup": "Change group",
       "deleteCategory": "Delete category",
       "deleteElement": "Delete element",
-      "deleteNode": "Delete node"
+      "deleteNode": "Delete node",
+      "deleteStoryline": "Delete storyline"
     },
     "outlineRailMode": {
       "hidden": "Hide TOC",
@@ -899,12 +902,39 @@
     }
   },
   "storylineEditor": {
-    "filters": {
-      "all": "All"
+    "actions": {
+      "openChapter": "Open chapter"
     },
+    "alerts": {
+      "deleteFailed": "Failed to delete storyline. Please try again."
+    },
+    "deleteConfirm": "Delete storyline \"{{name}}\"?",
+    "empty": {
+      "noChapterSummary": "No one-sentence summary yet",
+      "noFacts": "No fields yet. When a storyline is created, the Storyline template on project home fills them in.",
+      "noFilteredChapters": "No chapters for this filter"
+    },
+    "filters": {
+      "all": "All",
+      "unwritten": "Not started",
+      "written": "Written"
+    },
+    "folio": "Storyline",
     "labels": {
       "color": "Color"
-    }
+    },
+    "meta": {
+      "chapters": "{{count}} chapters",
+      "chaptersWords": "{{chapters}} chapters · {{words}}k words",
+      "kWords": "{{count}}k words"
+    },
+    "sections": {
+      "chapters": "Chapter sequence",
+      "facts": "Facts",
+      "scratch": "Scratch"
+    },
+    "summaryPlaceholder": "One-sentence summary for this storyline…",
+    "untitled": "Untitled storyline"
   },
   "topTimeline": {
     "closeTab": "Close tab",

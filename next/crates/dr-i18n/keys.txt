@@ -608,3 +608,25 @@ elementCategoryCreateMenu.groupNamePlaceholder
 elementCategoryCreateMenu.duplicateGroup
 elementCategoryCreateMenu.createGroup
 elementCategoryCreateMenu.back
+
+# M13 the storyline page (dr-view-elements)
+storylineEditor.untitled
+storylineEditor.folio
+storylineEditor.deleteConfirm
+storylineEditor.alerts.deleteFailed
+storylineEditor.summaryPlaceholder
+storylineEditor.sections.scratch
+storylineEditor.sections.facts
+storylineEditor.sections.chapters
+storylineEditor.meta.chapters
+storylineEditor.meta.kWords
+storylineEditor.meta.chaptersWords
+storylineEditor.filters.written
+storylineEditor.filters.unwritten
+storylineEditor.empty.noFacts
+storylineEditor.empty.noChapterSummary
+storylineEditor.empty.noFilteredChapters
+storylineEditor.actions.openChapter
+editorTopBar.menu.deleteStoryline
+common.confirm
+common.words

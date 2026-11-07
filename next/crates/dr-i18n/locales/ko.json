@@ -69,6 +69,7 @@
   "common": {
     "cancel": "취소",
     "close": "닫기",
+    "confirm": "확인",
     "counting": "계산 중…",
     "creating": "만드는 중…",
     "delete": "삭제",
@@ -79,6 +80,7 @@
     "saveFailed": "변경을 저장할 수 없습니다. 다시 시도해 주세요.",
     "saving": "저장 중…",
     "untitled": "제목 없음",
+    "words": "자",
     "wordsCount": "{{count}}자"
   },
   "dashboard": {
@@ -118,7 +120,8 @@
       "changeGroup": "그룹 변경",
       "deleteCategory": "분류 삭제",
       "deleteElement": "요소 삭제",
-      "deleteNode": "노드 삭제"
+      "deleteNode": "노드 삭제",
+      "deleteStoryline": "스토리라인 삭제"
     },
     "outlineRailMode": {
       "hidden": "목차 숨기기",
@@ -894,12 +897,39 @@
     }
   },
   "storylineEditor": {
-    "filters": {
-      "all": "전체"
+    "actions": {
+      "openChapter": "장 열기"
     },
+    "alerts": {
+      "deleteFailed": "스토리라인을 삭제하지 못했습니다. 다시 시도해 주세요."
+    },
+    "deleteConfirm": "스토리라인 “{{name}}”을 삭제할까요?",
+    "empty": {
+      "noChapterSummary": "아직 한 문장 요약이 없습니다",
+      "noFacts": "아직 필드가 없습니다. 스토리라인을 만들면 작품 홈의 '스토리라인 템플릿'으로 채워집니다.",
+      "noFilteredChapters": "이 필터에 해당하는 장이 없습니다"
+    },
+    "filters": {
+      "all": "전체",
+      "unwritten": "시작 전",
+      "written": "작성됨"
+    },
+    "folio": "스토리라인",
     "labels": {
       "color": "색상"
-    }
+    },
+    "meta": {
+      "chapters": "{{count}}개 장",
+      "chaptersWords": "{{chapters}}장 · {{words}}천 단어",
+      "kWords": "{{count}}천 단어"
+    },
+    "sections": {
+      "chapters": "장 순서",
+      "facts": "설정 정보",
+      "scratch": "임시 메모"
+    },
+    "summaryPlaceholder": "이 스토리라인의 한 문장 요약…",
+    "untitled": "이름 없는 스토리라인"
   },
   "topTimeline": {
     "closeTab": "탭 닫기",

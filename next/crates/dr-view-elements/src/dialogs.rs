@@ -44,6 +44,7 @@ use dr_workspace::{
     commands::{
         EntityIn,
         element::{CategoryCreate, CategoryCreateIn, CategoryTrash, ElementTrash},
+        storyline::StorylineTrash,
     },
 };
 use gpui::{
@@ -76,6 +77,9 @@ pub enum Ask {
     DeleteCategory {
         category: String,
     },
+    DeleteStoryline {
+        storyline: String,
+    },
 }
 
 /// Which dialog is open (tests and the debug bridge).
@@ -87,6 +91,7 @@ pub enum Asking {
     ChangeGroup(String),
     DeleteElement(String),
     DeleteCategory(String),
+    DeleteStoryline(String),
 }
 
 /// The app's one element dialog.
@@ -157,6 +162,7 @@ pub enum AskFor {
     ChangeGroup(String),
     DeleteElement(String),
     DeleteCategory(String),
+    DeleteStoryline(String),
 }
 
 impl ElementDialogs {
@@ -168,6 +174,7 @@ impl ElementDialogs {
             Ask::ChangeGroup { element, .. } => Asking::ChangeGroup(element.clone()),
             Ask::DeleteElement { element } => Asking::DeleteElement(element.clone()),
             Ask::DeleteCategory { category } => Asking::DeleteCategory(category.clone()),
+            Ask::DeleteStoryline { storyline } => Asking::DeleteStoryline(storyline.clone()),
         })
     }
 
@@ -198,6 +205,7 @@ impl ElementDialogs {
             AskFor::ChangeCategory(element) => Ask::ChangeCategory { element },
             AskFor::DeleteElement(element) => Ask::DeleteElement { element },
             AskFor::DeleteCategory(category) => Ask::DeleteCategory { category },
+            AskFor::DeleteStoryline(storyline) => Ask::DeleteStoryline { storyline },
             AskFor::NewCategory(element) => {
                 let hint = t(cx, keys::category_editor::UNTITLED);
                 let name = cx
@@ -415,6 +423,18 @@ impl ElementDialogs {
                 self.write(
                     move |lib| lib.run::<CategoryTrash>(&Actor::User, input).map(|_| ()),
                     Some(keys::category_editor::alerts::DELETE_FAILED),
+                    window,
+                    cx,
+                );
+            }
+            Some(Ask::DeleteStoryline { storyline }) => {
+                let input = EntityIn {
+                    book,
+                    id: storyline.clone(),
+                };
+                self.write(
+                    move |lib| lib.run::<StorylineTrash>(&Actor::User, input).map(|_| ()),
+                    Some(keys::storyline_editor::alerts::DELETE_FAILED),
                     window,
                     cx,
                 );
@@ -743,54 +763,40 @@ fn dialog(
             let name = data::element(&book, element)
                 .map(|e| e.name.clone())
                 .unwrap_or_default();
-            delete_dialog(
-                "element-delete",
-                tf(cx, keys::element_editor::DELETE_CONFIRM, &[("name", &name)]),
-                None,
-                busy,
-                &entity,
-                cancel,
-                close,
-                cx,
-            )
+            let text = tf(cx, keys::element_editor::DELETE_CONFIRM, &[("name", &name)]);
+            delete_dialog("element-delete", text, busy, &entity, cancel, close, cx)
         }
         Ask::DeleteCategory { category } => {
             let name = data::category(&book, category)
                 .map(|c| c.name.clone())
                 .unwrap_or_default();
-            // The 0.1 sentence is a question, a blank line and a note.
             let text = tf(
                 cx,
                 keys::category_editor::DELETE_CONFIRM,
                 &[("name", &name)],
             );
-            let (title, note) = match text.split_once("\n\n") {
-                Some((q, n)) => (
-                    SharedString::from(q.to_owned()),
-                    Some(SharedString::from(n.to_owned())),
-                ),
-                None => (text, None),
-            };
-            delete_dialog(
-                "category-delete",
-                title,
-                note,
-                busy,
-                &entity,
-                cancel,
-                close,
+            delete_dialog("category-delete", text, busy, &entity, cancel, close, cx)
+        }
+        Ask::DeleteStoryline { storyline } => {
+            let name = data::storyline(&book, storyline)
+                .map(|l| l.name.clone())
+                .unwrap_or_default();
+            let text = tf(
                 cx,
-            )
+                keys::storyline_editor::DELETE_CONFIRM,
+                &[("name", &name)],
+            );
+            delete_dialog("storyline-delete", text, busy, &entity, cancel, close, cx)
         }
     };
     Some(el)
 }
 
-#[allow(clippy::too_many_arguments)]
+/// The 0.1 `requestConfirmation` dialog: 「确认」 over the question (its
+/// paragraphs as written), 「取消」 first, the danger's 「确认」 after.
 fn delete_dialog(
     id: &'static str,
-    title: SharedString,
-    note: Option<SharedString>,
+    question: SharedString,
     busy: bool,
     entity: &Entity<ElementDialogs>,
     cancel: impl Fn(&gpui::ClickEvent, &mut Window, &mut App) + 'static,
@@ -798,8 +804,11 @@ fn delete_dialog(
     cx: &mut Context<ElementDialogs>,
 ) -> AnyElement {
     let confirm = entity.clone();
-    Dialog::new(id, title)
-        .when_some(note, |d, note| d.body(div().child(note)))
+    let mut dialog = Dialog::new(id, t(cx, keys::common::CONFIRM));
+    for paragraph in question.split("\n\n") {
+        dialog = dialog.body(div().child(SharedString::from(paragraph.to_owned())));
+    }
+    dialog
         .action(
             Button::new(
                 SharedString::from(format!("{id}-cancel")),
@@ -811,10 +820,9 @@ fn delete_dialog(
         .action(
             Button::new(
                 SharedString::from(format!("{id}-confirm")),
-                t(cx, keys::common::DELETE),
+                t(cx, keys::common::CONFIRM),
             )
             .danger()
-            .icon(Icon::Trash)
             .busy(busy)
             .disabled(busy)
             .on_click(move |_, window, cx| {

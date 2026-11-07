@@ -69,6 +69,7 @@
   "common": {
     "cancel": "Cancelar",
     "close": "Fechar",
+    "confirm": "Confirmar",
     "counting": "Contando…",
     "creating": "Criando…",
     "delete": "Excluir",
@@ -79,6 +80,7 @@
     "saveFailed": "Não foi possível salvar as alterações. Tente novamente.",
     "saving": "Salvando…",
     "untitled": "Sem título",
+    "words": "palavras",
     "wordsCount": "{{count}} palavras"
   },
   "dashboard": {
@@ -118,7 +120,8 @@
       "changeGroup": "Alterar grupo",
       "deleteCategory": "Excluir categoria",
       "deleteElement": "Excluir elemento",
-      "deleteNode": "Excluir nó"
+      "deleteNode": "Excluir nó",
+      "deleteStoryline": "Excluir linha narrativa"
     },
     "outlineRailMode": {
       "hidden": "Ocultar sumário",
@@ -906,12 +909,39 @@
     }
   },
   "storylineEditor": {
-    "filters": {
-      "all": "Todos"
+    "actions": {
+      "openChapter": "Abrir capítulo"
     },
+    "alerts": {
+      "deleteFailed": "Não foi possível excluir a linha narrativa. Tente novamente."
+    },
+    "deleteConfirm": "Excluir a linha narrativa “{{name}}”?",
+    "empty": {
+      "noChapterSummary": "Ainda não há resumo em uma frase",
+      "noFacts": "Ainda não há campos. Ao criar uma linha narrativa, o Modelo de linha narrativa do início do projeto os preenche.",
+      "noFilteredChapters": "Nenhum capítulo para este filtro"
+    },
+    "filters": {
+      "all": "Todos",
+      "unwritten": "Não iniciado",
+      "written": "Escritos"
+    },
+    "folio": "Linha narrativa",
     "labels": {
       "color": "Cor"
-    }
+    },
+    "meta": {
+      "chapters": "{{count}} capítulos",
+      "chaptersWords": "{{chapters}} capítulos · {{words}} mil palavras",
+      "kWords": "{{count}} mil palavras"
+    },
+    "sections": {
+      "chapters": "Sequência de capítulos",
+      "facts": "Dados",
+      "scratch": "Anotações"
+    },
+    "summaryPlaceholder": "Resumo desta linha narrativa em uma frase…",
+    "untitled": "Linha narrativa sem título"
   },
   "topTimeline": {
     "closeTab": "Fechar aba",

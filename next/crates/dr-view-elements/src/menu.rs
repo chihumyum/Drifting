@@ -1,7 +1,8 @@
 //! The rows an element's or a category's page adds to its ⋯ menu (the 0.1
 //! `EditorTopBar`): 「更改类目」 (the category's mark) and 「更改分组」
 //! (a folder) as plain rows, 「删除要素」 as the danger row after the
-//! hairline; a category page has 「删除类目」 only. Each opens its dialog
+//! hairline; a category page has 「删除类目」 only, a storyline page
+//! 「删除故事线」 (M13). Each opens its dialog
 //! ([`crate::dialogs`]).
 //!
 //! The shell draws the ⋯ menu; it asks [`rows`] for the page in front once
@@ -73,6 +74,18 @@ pub fn rows(target: &Target, cx: &App) -> Vec<MenuRow> {
                 danger: true,
                 run: Rc::new(move |ws, window, cx| {
                     dialogs::open(AskFor::DeleteCategory(id.clone()), ws, window, cx)
+                }),
+            }]
+        }
+        Target::Storyline(id) => {
+            let id = id.to_string();
+            vec![MenuRow {
+                id: "storyline-delete",
+                label: t(cx, keys::editor_top_bar::menu::DELETE_STORYLINE),
+                icon: RowIcon::Brush(dr_ui::sand::Icon::Trash),
+                danger: true,
+                run: Rc::new(move |ws, window, cx| {
+                    dialogs::open(AskFor::DeleteStoryline(id.clone()), ws, window, cx)
                 }),
             }]
         }

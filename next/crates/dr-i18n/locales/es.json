@@ -69,6 +69,7 @@
   "common": {
     "cancel": "Cancelar",
     "close": "Cerrar",
+    "confirm": "Confirmar",
     "counting": "Contando…",
     "creating": "Creando…",
     "delete": "Eliminar",
@@ -79,6 +80,7 @@
     "saveFailed": "No se pudieron guardar los cambios. Reintenta.",
     "saving": "Guardando…",
     "untitled": "Sin título",
+    "words": "palabras",
     "wordsCount": "{{count}} palabras"
   },
   "dashboard": {
@@ -118,7 +120,8 @@
       "changeGroup": "Cambiar grupo",
       "deleteCategory": "Eliminar categoría",
       "deleteElement": "Eliminar elemento",
-      "deleteNode": "Eliminar nodo"
+      "deleteNode": "Eliminar nodo",
+      "deleteStoryline": "Eliminar trama"
     },
     "outlineRailMode": {
       "hidden": "Ocultar índice",
@@ -906,12 +909,39 @@
     }
   },
   "storylineEditor": {
-    "filters": {
-      "all": "Todo"
+    "actions": {
+      "openChapter": "Abrir capítulo"
     },
+    "alerts": {
+      "deleteFailed": "No se pudo eliminar la trama. Inténtalo de nuevo."
+    },
+    "deleteConfirm": "¿Eliminar la trama «{{name}}»?",
+    "empty": {
+      "noChapterSummary": "Aún no hay resumen en una frase",
+      "noFacts": "Aún no hay campos. Al crear una trama, la Plantilla de trama del inicio del proyecto los rellena.",
+      "noFilteredChapters": "No hay capítulos para este filtro"
+    },
+    "filters": {
+      "all": "Todo",
+      "unwritten": "Sin empezar",
+      "written": "Escritos"
+    },
+    "folio": "Trama",
     "labels": {
       "color": "Color"
-    }
+    },
+    "meta": {
+      "chapters": "{{count}} capítulos",
+      "chaptersWords": "{{chapters}} capítulos · {{words}} mil palabras",
+      "kWords": "{{count}} mil palabras"
+    },
+    "sections": {
+      "chapters": "Secuencia de capítulos",
+      "facts": "Datos",
+      "scratch": "Apuntes"
+    },
+    "summaryPlaceholder": "Resumen de esta trama en una frase…",
+    "untitled": "Trama sin título"
   },
   "topTimeline": {
     "closeTab": "Cerrar pestaña",

@@ -69,6 +69,7 @@
   "common": {
     "cancel": "Abbrechen",
     "close": "Schließen",
+    "confirm": "Bestätigen",
     "counting": "Wird gezählt…",
     "creating": "Wird erstellt…",
     "delete": "Löschen",
@@ -79,6 +80,7 @@
     "saveFailed": "Änderungen konnten nicht gespeichert werden. Bitte erneut versuchen.",
     "saving": "Wird gespeichert…",
     "untitled": "Unbenannt",
+    "words": "Wörter",
     "wordsCount": "{{count}} Wörter"
   },
   "dashboard": {
@@ -118,7 +120,8 @@
       "changeGroup": "Gruppe ändern",
       "deleteCategory": "Kategorie löschen",
       "deleteElement": "Element löschen",
-      "deleteNode": "Knoten löschen"
+      "deleteNode": "Knoten löschen",
+      "deleteStoryline": "Handlungsstrang löschen"
     },
     "outlineRailMode": {
       "hidden": "Inhaltsverzeichnis ausblenden",
@@ -899,12 +902,39 @@
     }
   },
   "storylineEditor": {
-    "filters": {
-      "all": "Alle"
+    "actions": {
+      "openChapter": "Kapitel öffnen"
     },
+    "alerts": {
+      "deleteFailed": "Handlungsstrang konnte nicht gelöscht werden. Bitte erneut versuchen."
+    },
+    "deleteConfirm": "Handlungsstrang „{{name}}“ löschen?",
+    "empty": {
+      "noChapterSummary": "Noch keine Zusammenfassung in einem Satz",
+      "noFacts": "Noch keine Felder. Beim Erstellen eines Handlungsstrangs füllt die Handlungsstrang-Vorlage auf der Projektstartseite sie aus.",
+      "noFilteredChapters": "Keine Kapitel für diesen Filter"
+    },
+    "filters": {
+      "all": "Alle",
+      "unwritten": "Nicht begonnen",
+      "written": "Geschrieben"
+    },
+    "folio": "Handlungsstrang",
     "labels": {
       "color": "Farbe"
-    }
+    },
+    "meta": {
+      "chapters": "{{count}} Kapitel",
+      "chaptersWords": "{{chapters}} Kapitel · {{words}} Tsd. Wörter",
+      "kWords": "{{count}} Tsd. Wörter"
+    },
+    "sections": {
+      "chapters": "Kapitelreihenfolge",
+      "facts": "Fakten",
+      "scratch": "Notizen"
+    },
+    "summaryPlaceholder": "Diesen Handlungsstrang in einem Satz zusammenfassen…",
+    "untitled": "Unbenannter Handlungsstrang"
   },
   "topTimeline": {
     "closeTab": "Tab schließen",

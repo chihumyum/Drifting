@@ -69,6 +69,7 @@
   "common": {
     "cancel": "キャンセル",
     "close": "閉じる",
+    "confirm": "確認",
     "counting": "集計中…",
     "creating": "作成中…",
     "delete": "削除",
@@ -79,6 +80,7 @@
     "saveFailed": "変更を保存できませんでした。再試行してください。",
     "saving": "保存中…",
     "untitled": "無題",
+    "words": "文字",
     "wordsCount": "{{count}}文字"
   },
   "dashboard": {
@@ -118,7 +120,8 @@
       "changeGroup": "グループを変更",
       "deleteCategory": "カテゴリを削除",
       "deleteElement": "要素を削除",
-      "deleteNode": "ノードを削除"
+      "deleteNode": "ノードを削除",
+      "deleteStoryline": "ストーリーラインを削除"
     },
     "outlineRailMode": {
       "hidden": "目次を非表示",
@@ -894,12 +897,39 @@
     }
   },
   "storylineEditor": {
-    "filters": {
-      "all": "すべて"
+    "actions": {
+      "openChapter": "章を開く"
     },
+    "alerts": {
+      "deleteFailed": "ストーリーラインを削除できませんでした。もう一度お試しください。"
+    },
+    "deleteConfirm": "ストーリーライン「{{name}}」を削除しますか？",
+    "empty": {
+      "noChapterSummary": "一文の要約はまだありません",
+      "noFacts": "フィールドはまだありません。ストーリーラインを作成すると、作品ホームの「ストーリーラインのテンプレート」から入力されます。",
+      "noFilteredChapters": "条件に合う章はありません"
+    },
+    "filters": {
+      "all": "すべて",
+      "unwritten": "未着手",
+      "written": "執筆済み"
+    },
+    "folio": "ストーリーライン",
     "labels": {
       "color": "色"
-    }
+    },
+    "meta": {
+      "chapters": "{{count}}章",
+      "chaptersWords": "{{chapters}}章 · {{words}}千語",
+      "kWords": "{{count}}千語"
+    },
+    "sections": {
+      "chapters": "章の順序",
+      "facts": "設定情報",
+      "scratch": "走り書き"
+    },
+    "summaryPlaceholder": "このストーリーラインを一文で要約…",
+    "untitled": "無題のストーリーライン"
   },
   "topTimeline": {
     "closeTab": "タブを閉じる",

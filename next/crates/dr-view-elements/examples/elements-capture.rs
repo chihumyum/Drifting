@@ -1,5 +1,6 @@
-//! The element and category pages (M11) drawn offscreen, light and dark,
-//! into `<dir>/m11/`:
+//! The element and category pages and the elements panel (M11) and the
+//! storyline page (M13) drawn offscreen, light and dark, into `<dir>/m11/`
+//! and `<dir>/m13/`:
 //!
 //! ```text
 //! cargo run -p dr-view-elements --features capture --example elements-capture -- ../docs/rust-rewrite/modules
@@ -236,6 +237,7 @@ impl Headless {
 fn capture(dir: PathBuf) -> Result<()> {
     let mut h = Headless::new()?;
     let out = dir.join("m11");
+    let m13 = dir.join("m13");
     let (zhiwei, people) = h.read(|ws, _| {
         let e = ws
             .book
@@ -253,6 +255,16 @@ fn capture(dir: PathBuf) -> Result<()> {
     });
     let zhiwei = zhiwei.context("沈知微 in 《慢钟》")?;
     let people = people.context("人物 in 《慢钟》")?;
+    let tower = h
+        .read(|ws, _| {
+            ws.book
+                .storylines
+                .iter()
+                .find(|l| l.name == "钟楼")
+                .cloned()
+        })
+        .context("钟楼 in 《慢钟》")?;
+    let storyline = Target::Storyline(tower.id.parse()?);
     let element = Target::Element(zhiwei.id.parse()?);
     let category = Target::Category(people.id.parse()?);
     // The elements panel out on the left, as when working on them.
@@ -329,6 +341,41 @@ fn capture(dir: PathBuf) -> Result<()> {
         })?;
         h.settle()?;
         h.save(&out, &format!("category-{suffix}.png"))?;
+
+        // The storyline page (M13): its head, then scrolled down to its
+        // fields and chapter sequence; the ⋯ menu's delete confirmation.
+        h.open(storyline.clone())?;
+        h.wait(|h| {
+            h.cx.update(|cx| dr_view_elements::storyline_page(&tower.id, cx).is_some())
+        })?;
+        h.settle()?;
+        h.save(&m13, &format!("storyline-{suffix}.png"))?;
+        let target = storyline.clone();
+        h.set(move |ws, _, cx| {
+            if let Some(editor) = ws.editor_of(&target) {
+                let prose = editor.read(cx).editor().clone();
+                prose.update(cx, |p, cx| {
+                    p.scroll_by_estimate(560.0, cx);
+                });
+            }
+        });
+        h.settle()?;
+        h.save(&m13, &format!("storyline-sequence-{suffix}.png"))?;
+        let target = storyline.clone();
+        h.set(move |ws, _, cx| {
+            if let Some(editor) = ws.editor_of(&target) {
+                let prose = editor.read(cx).editor().clone();
+                prose.update(cx, |p, cx| {
+                    p.scroll_by_estimate(-2000.0, cx);
+                });
+            }
+        });
+        let ws = h.view.downgrade();
+        let ask = AskFor::DeleteStoryline(tower.id.clone());
+        h.in_window(move |window, cx| dr_view_elements::dialogs::open(ask, ws, window, cx));
+        h.settle()?;
+        h.save(&m13, &format!("storyline-delete-{suffix}.png"))?;
+        h.close_dialog()?;
 
         // The elements panel, in both views (its own window until the shell
         // hosts it).

@@ -69,6 +69,7 @@
   "common": {
     "cancel": "Annuler",
     "close": "Fermer",
+    "confirm": "Confirmer",
     "counting": "Comptage…",
     "creating": "Création…",
     "delete": "Supprimer",
@@ -79,6 +80,7 @@
     "saveFailed": "Impossible d’enregistrer les modifications. Réessayez.",
     "saving": "Enregistrement…",
     "untitled": "Sans titre",
+    "words": "mots",
     "wordsCount": "{{count}} mots"
   },
   "dashboard": {
@@ -118,7 +120,8 @@
       "changeGroup": "Changer de groupe",
       "deleteCategory": "Supprimer la catégorie",
       "deleteElement": "Supprimer l’élément",
-      "deleteNode": "Supprimer le nœud"
+      "deleteNode": "Supprimer le nœud",
+      "deleteStoryline": "Supprimer l’intrigue"
     },
     "outlineRailMode": {
       "hidden": "Masquer la table des matières",
@@ -906,12 +909,39 @@
     }
   },
   "storylineEditor": {
-    "filters": {
-      "all": "Tout"
+    "actions": {
+      "openChapter": "Ouvrir le chapitre"
     },
+    "alerts": {
+      "deleteFailed": "Impossible de supprimer l’intrigue. Réessayez."
+    },
+    "deleteConfirm": "Supprimer l’intrigue « {{name}} » ?",
+    "empty": {
+      "noChapterSummary": "Aucun résumé en une phrase pour le moment",
+      "noFacts": "Aucun champ pour le moment. À la création d’une intrigue, le Modèle d’intrigue de l’accueil du projet les renseigne.",
+      "noFilteredChapters": "Aucun chapitre pour ce filtre"
+    },
+    "filters": {
+      "all": "Tout",
+      "unwritten": "Non commencé",
+      "written": "Rédigés"
+    },
+    "folio": "Intrigue",
     "labels": {
       "color": "Couleur"
-    }
+    },
+    "meta": {
+      "chapters": "{{count}} chapitres",
+      "chaptersWords": "{{chapters}} chapitres · {{words}} k mots",
+      "kWords": "{{count}} k mots"
+    },
+    "sections": {
+      "chapters": "Séquence des chapitres",
+      "facts": "Faits",
+      "scratch": "Brouillon"
+    },
+    "summaryPlaceholder": "Résumé de cette intrigue en une phrase…",
+    "untitled": "Intrigue sans titre"
   },
   "topTimeline": {
     "closeTab": "Fermer l’onglet",
