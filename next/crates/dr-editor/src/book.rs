@@ -17,8 +17,10 @@
 //!   event and is folded into that chapter; a change of the book's chapters
 //!   (added, removed, reordered, renamed) reloads the view at the same
 //!   reading position.
-//! - A selection across chapters is not editable yet (F4b, F4c); the view
-//!   reports the selection as a [`BookRange`] already.
+//! - A selection may span chapters (drag, ⇧ with the arrows); copying joins
+//!   the chapters' parts, deleting takes each chapter's part out of that
+//!   chapter as a step of its own, undone together (gpui-prose's
+//!   `input/span.rs`). The view reports the selection as a [`BookRange`].
 
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -32,7 +34,7 @@ use gpui::{
     ParentElement, Render, SharedString, Styled, Subscription, Window, div, px,
 };
 use gpui_prose::input::actions::{Redo, Undo};
-use gpui_prose::layout::{BookPos, BookRange, Item};
+use gpui_prose::layout::{BookRange, Item};
 use gpui_prose::{Book, Chapter, EditorEvent, ProseDoc, ProseEditor, ProseStyle};
 use serde_json::{Value, json};
 
@@ -726,21 +728,9 @@ impl BookEditor {
         self.chapters.get(chapter).map(|c| c.doc.as_str())
     }
 
-    /// The selection as a book range (inside one chapter today; the type
-    /// already spans chapters for F4b's selection across chapters).
+    /// The selection as a book range (it may span chapters).
     pub fn selection(&self, cx: &App) -> BookRange {
-        let s = self.editor.read(cx).selection();
-        let r = s.range();
-        BookRange {
-            start: BookPos {
-                chapter: s.chapter,
-                offset: r.start,
-            },
-            end: BookPos {
-                chapter: s.chapter,
-                offset: r.end,
-            },
-        }
+        self.editor.read(cx).selection().book_range()
     }
 
     /// The text of a book range (chapters joined by a newline).

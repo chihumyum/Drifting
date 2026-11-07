@@ -255,9 +255,16 @@ impl ChapterEditor {
         }]);
         let style = style.clone();
         let extension = extension.clone();
+        // Typed `- `, `1. `, `[ ] ` make list items where the document keeps
+        // lists (material notes); never in chapters.
+        let lists = dr_model::DocId::parse(doc_id)
+            .ok()
+            .and_then(|d| d.profile())
+            == Some(dr_model::ProseProfile::Note);
         let editor = cx.new(|cx| {
             let mut editor = ProseEditor::new(book, style, window, cx);
             editor.set_extension(extension);
+            editor.set_list_shortcuts(lists);
             editor
         });
         let events = cx.subscribe(&editor, |this, _, event: &EditorEvent, cx| {

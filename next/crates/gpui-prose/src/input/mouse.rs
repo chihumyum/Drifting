@@ -6,13 +6,18 @@
 //! the selection grows word by word, after a triple click paragraph by
 //! paragraph, always keeping the whole first word (or paragraph) and
 //! reaching the far edge of the one under the pointer, in either direction.
+//!
+//! In the whole-book view a drag or a shift-click may cross into other
+//! chapters: the selection then spans chapters (`span.rs`). Titles and the
+//! host's chapter heads and ends are not text; dragging over them selects
+//! up to the nearest paragraph.
 
 use std::ops::Range;
 
 use gpui::{Context, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, Window};
 
 use super::Selection;
-use crate::{ProseEditor, text::segment};
+use crate::{ProseEditor, layout::BookPos, text::segment};
 
 /// What a drag selects by.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -71,9 +76,12 @@ impl ProseEditor {
         cx: &mut Context<Self>,
     ) {
         let granularity = Granularity::of_clicks(click_count);
-        let sel = if shift && chapter == self.selection.chapter {
+        let sel = if shift {
+            // Possibly into another chapter: a selection across chapters.
             let mut sel = self.selection;
+            sel.chapter = chapter;
             sel.head = offset;
+            sel.goal_x = None;
             self.input.drag = None;
             sel
         } else {
@@ -89,11 +97,24 @@ impl ProseEditor {
         self.set_selection_with(sel, false, cx);
     }
 
-    /// The pointer dragged to `offset` (in the selection's chapter).
+    /// The pointer dragged to `offset` in the chapter the drag started in.
     pub fn drag_to(&mut self, offset: usize, cx: &mut Context<Self>) {
-        let sel = self.drag_selection(offset);
-        if sel.anchor != self.selection.anchor || sel.head != self.selection.head {
+        self.drag_to_in(self.selection.anchor_chapter, offset, cx);
+    }
+
+    /// The pointer dragged to `offset` of `chapter` (any chapter of the
+    /// book: the selection then spans chapters).
+    pub fn drag_to_in(&mut self, chapter: usize, offset: usize, cx: &mut Context<Self>) {
+        if chapter >= self.book.chapters.len() {
+            return;
+        }
+        let sel = self.drag_selection(chapter, offset);
+        if (sel.anchor_pos(), sel.head_pos())
+            != (self.selection.anchor_pos(), self.selection.head_pos())
+        {
+            self.selection.anchor_chapter = sel.anchor_chapter;
             self.selection.anchor = sel.anchor;
+            self.selection.chapter = sel.chapter;
             self.selection.head = sel.head;
             self.emit_selection_changed(cx);
             cx.notify();
@@ -134,20 +155,27 @@ impl ProseEditor {
         }
     }
 
-    /// The selection a drag to `offset` makes: by characters from the click,
-    /// or by the click's unit, keeping the first unit whole.
-    fn drag_selection(&mut self, offset: usize) -> Selection {
+    /// The selection a drag to `offset` of `chapter` makes: by characters
+    /// from the click, or by the click's unit, keeping the first unit whole.
+    fn drag_selection(&mut self, chapter: usize, offset: usize) -> Selection {
         let Some(drag) = self.input.drag.clone() else {
             let mut sel = self.selection;
+            sel.chapter = chapter;
             sel.head = offset;
             return sel;
         };
-        let under = self.unit_range(drag.chapter, offset, drag.granularity);
+        let under = self.unit_range(chapter, offset, drag.granularity);
         let initial = drag.initial;
-        if under.start < initial.start {
-            Selection::new(drag.chapter, initial.end, under.start)
+        let pos = |chapter, offset| BookPos { chapter, offset };
+        if pos(chapter, under.start) < pos(drag.chapter, initial.start) {
+            Selection::across(pos(drag.chapter, initial.end), pos(chapter, under.start))
         } else {
-            Selection::new(drag.chapter, initial.start, under.end.max(initial.end))
+            let end = if chapter == drag.chapter {
+                under.end.max(initial.end)
+            } else {
+                under.end
+            };
+            Selection::across(pos(drag.chapter, initial.start), pos(chapter, end))
         }
     }
 
@@ -161,14 +189,7 @@ impl ProseEditor {
             return;
         }
         if let Some((chapter, offset)) = self.hit_test(event.position) {
-            let offset = if chapter == self.selection.chapter {
-                offset
-            } else if chapter > self.selection.chapter {
-                self.book.chapters[self.selection.chapter].doc.max_cursor()
-            } else {
-                0
-            };
-            self.drag_to(offset, cx);
+            self.drag_to_in(chapter, offset, cx);
         }
         // Dragged past the edge: scroll so the selection can grow.
         let viewport = self.list.viewport_bounds();

@@ -130,12 +130,16 @@ impl ProseEditor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let Some(extension) = self.extension.clone() else {
-            return;
-        };
         if typed.is_empty() || typed.contains('\n') || !self.selection.is_empty() {
             return;
         }
+        // The editor's own: Markdown list markers, where the host allows lists.
+        if self.list_shortcut(typed, window, cx) {
+            return;
+        }
+        let Some(extension) = self.extension.clone() else {
+            return;
+        };
         let chapter = self.selection.chapter;
         let caret = self.selection.head;
         let doc = &self.book.chapters[chapter].doc;
@@ -320,10 +324,15 @@ impl EntityInputHandler for ProseEditor {
         }
         let sel = self.selection;
         let doc = &mut self.book.chapters[sel.chapter].doc;
-        let range = sel.range();
+        // Across chapters: the selection's part in the caret's chapter.
+        let range = match sel.anchor_chapter.cmp(&sel.chapter) {
+            std::cmp::Ordering::Equal => sel.range(),
+            std::cmp::Ordering::Less => 0..sel.head,
+            std::cmp::Ordering::Greater => sel.head..doc.max_cursor(),
+        };
         Some(UTF16Selection {
             range: doc.offset_to_utf16(range.start)..doc.offset_to_utf16(range.end),
-            reversed: sel.head < sel.anchor,
+            reversed: sel.reversed(),
         })
     }
 
@@ -369,6 +378,15 @@ impl EntityInputHandler for ProseEditor {
         cx: &mut Context<Self>,
     ) {
         self.log_ime(format_args!("replace_text_in_range({range16:?}, {text:?})"));
+        if self.composition.is_none() && self.selection.spans_chapters() {
+            // Typing over a selection across chapters replaces all of it
+            // (the input method only sees the caret's chapter, so a range it
+            // names is the selection's part there).
+            let overrides = std::mem::take(&mut self.pending_marks);
+            self.replace_across(text, &overrides, window, cx);
+            self.run_input_rule(text, window, cx);
+            return;
+        }
         let explicit = range16.is_some();
         let range = match (&self.composition, range16) {
             (Some(comp), None) => comp.at..comp.at + comp.replaced,
@@ -411,9 +429,12 @@ impl EntityInputHandler for ProseEditor {
             // Losing focus from here on must also clear the system's marked
             // text (input/system_ime.rs).
             self.ensure_system_ime(window);
+            // A selection across chapters is removed up front, chapter by
+            // chapter; composing starts at the caret it leaves.
+            let across = self.replace_across("", &[], window, cx);
             let mut base = match range16 {
-                Some(range16) => self.virtual_range_to_doc(range16),
-                None => self.selection.range(),
+                Some(range16) if !across => self.virtual_range_to_doc(range16),
+                _ => self.selection.range(),
             };
             let chapter = self.selection.chapter;
             let doc = &mut self.book.chapters[chapter].doc;

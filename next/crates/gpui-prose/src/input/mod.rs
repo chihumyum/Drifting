@@ -2,7 +2,8 @@
 //! selection, input-method composition and the `EntityInputHandler`, caret
 //! movement (grapheme clusters, ICU words, rows, paragraphs), editing
 //! actions, the mouse (word and paragraph drags), find and replace, the
-//! text exposed to screen readers, and the system input-method hooks.
+//! text exposed to screen readers, the system input-method hooks,
+//! selections across chapters, and list items (Enter, Tab, ticks).
 
 pub mod a11y;
 pub mod actions;
@@ -10,9 +11,11 @@ pub mod composition;
 mod editing;
 pub mod find;
 mod ime;
+mod lists;
 pub mod mouse;
 mod movement;
 pub mod selection;
+mod span;
 pub mod system_ime;
 
 pub use actions::{KEY_CONTEXT, KeyScheme, bind_keys, bind_keys_for, key_bindings};
@@ -29,6 +32,10 @@ pub(crate) struct InputState {
     /// The unit a drag started by a double or triple click extends by.
     pub drag: Option<mouse::DragUnit>,
     pub a11y: a11y::A11yState,
+    /// The last edit group handed out (`span.rs`): edits across chapters.
+    pub edit_groups: u64,
+    /// Whether typed Markdown list markers make list items (`lists.rs`).
+    pub list_shortcuts: bool,
 }
 
 impl crate::ProseEditor {
@@ -50,6 +57,9 @@ impl crate::ProseEditor {
             .on_action(cx.listener(Self::on_find_next))
             .on_action(cx.listener(Self::on_find_previous))
             .on_action(cx.listener(Self::on_use_selection_for_find))
+            .on_action(cx.listener(Self::on_indent_list_item))
+            .on_action(cx.listener(Self::on_outdent_list_item))
+            .on_action(cx.listener(Self::on_toggle_task))
     }
 }
 

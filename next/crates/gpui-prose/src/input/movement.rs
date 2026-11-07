@@ -1,5 +1,7 @@
 //! Caret movement: by grapheme cluster, by word (ICU), by visual row, to row
-//! and chapter edges, and into neighbouring chapters in the book view.
+//! and chapter edges, and into neighbouring chapters in the book view. With
+//! ⇧ the head crosses chapter boundaries too (←/→, ⌥←/⌥→ and ↑/↓): the
+//! selection then spans chapters (`span.rs`).
 
 use gpui::{Context, Window};
 
@@ -86,23 +88,24 @@ impl ProseEditor {
         let chapters = self.book.chapters.len();
         let doc = &mut self.book.chapters[sel.chapter].doc;
         if !extend && !sel.is_empty() {
-            let range = sel.range();
-            let to = if forward { range.end } else { range.start };
-            sel = Selection::caret(sel.chapter, to);
+            let to = if forward { sel.end() } else { sel.start() };
+            sel = Selection::caret(to.chapter, to.offset);
         } else if forward {
             if sel.head < doc.max_cursor() {
                 sel.head = next_cluster(doc, sel.head);
-            } else if !extend && sel.chapter + 1 < chapters {
-                sel = Selection::caret(sel.chapter + 1, 0);
+            } else if sel.chapter + 1 < chapters {
+                // The chapter boundary is one step, like a line break.
+                sel.chapter += 1;
+                sel.head = 0;
             }
         } else if sel.head > 0 {
             sel.head = prev_cluster(doc, sel.head);
-        } else if !extend && sel.chapter > 0 {
-            let prev = sel.chapter - 1;
-            sel = Selection::caret(prev, self.book.chapters[prev].doc.max_cursor());
+        } else if sel.chapter > 0 {
+            sel.chapter -= 1;
+            sel.head = self.book.chapters[sel.chapter].doc.max_cursor();
         }
         if !extend {
-            sel.anchor = sel.head;
+            sel.collapse();
         }
         sel.affinity = Affinity::Downstream;
         sel.goal_x = None;
@@ -111,7 +114,10 @@ impl ProseEditor {
 
     pub(crate) fn move_word(&mut self, forward: bool, extend: bool, cx: &mut Context<Self>) {
         let mut sel = self.selection;
-        let doc = &mut self.book.chapters[sel.chapter].doc;
+        if !extend && sel.spans_chapters() {
+            let to = if forward { sel.end() } else { sel.start() };
+            sel = Selection::caret(to.chapter, to.offset);
+        }
         let from = if extend || sel.is_empty() {
             sel.head
         } else if forward {
@@ -119,13 +125,28 @@ impl ProseEditor {
         } else {
             sel.range().start
         };
+        // At a chapter's edge the word is looked for in the next chapter
+        // (the boundary counts as a space).
+        let (mut chapter, mut from) = (sel.chapter, from);
+        if forward
+            && from >= self.book.chapters[chapter].doc.max_cursor()
+            && chapter + 1 < self.book.chapters.len()
+        {
+            chapter += 1;
+            from = 0;
+        } else if !forward && from == 0 && chapter > 0 {
+            chapter -= 1;
+            from = self.book.chapters[chapter].doc.max_cursor();
+        }
+        let doc = &mut self.book.chapters[chapter].doc;
+        sel.chapter = chapter;
         sel.head = if forward {
             word_end_after(doc, from)
         } else {
             word_start_before(doc, from)
         };
         if !extend {
-            sel.anchor = sel.head;
+            sel.collapse();
         }
         sel.affinity = Affinity::Downstream;
         sel.goal_x = None;
@@ -163,14 +184,14 @@ impl ProseEditor {
             let neighbour = if down {
                 if line_ix + 1 < visible {
                     Some((chapter, line_ix + 1))
-                } else if chapter + 1 < self.book.chapters.len() && !extend {
+                } else if chapter + 1 < self.book.chapters.len() {
                     Some((chapter + 1, 0))
                 } else {
                     None
                 }
             } else if line_ix > 0 {
                 Some((chapter, line_ix - 1))
-            } else if chapter > 0 && !extend {
+            } else if chapter > 0 {
                 Some((
                     chapter - 1,
                     self.book.chapters[chapter - 1].doc.visible_lines() - 1,
@@ -202,13 +223,10 @@ impl ProseEditor {
                 (end, Affinity::Downstream, chapter)
             }
         };
-        if target_chapter != sel.chapter {
-            sel = Selection::caret(target_chapter, offset);
-        } else {
-            sel.head = offset;
-            if !extend {
-                sel.anchor = offset;
-            }
+        sel.chapter = target_chapter;
+        sel.head = offset;
+        if !extend {
+            sel.collapse();
         }
         sel.affinity = affinity;
         sel.goal_x = Some(goal_x);
@@ -234,7 +252,7 @@ impl ProseEditor {
         let inner = doc.line(line_ix).char_of_byte(target);
         sel.head = doc.line_start(line_ix) + inner;
         if !extend {
-            sel.anchor = sel.head;
+            sel.collapse();
         }
         sel.affinity = if end {
             Affinity::Upstream
@@ -256,6 +274,14 @@ impl ProseEditor {
         cx: &mut Context<Self>,
     ) {
         let mut sel = self.selection;
+        if !extend && sel.spans_chapters() {
+            let at = if to == ParagraphMove::Start {
+                sel.start()
+            } else {
+                sel.end()
+            };
+            sel = Selection::caret(at.chapter, at.offset);
+        }
         let doc = &mut self.book.chapters[sel.chapter].doc;
         let from = if extend || sel.is_empty() {
             sel.head
@@ -281,7 +307,7 @@ impl ProseEditor {
             ParagraphMove::Next => doc.line_start(line) + doc.line(line).chars,
         };
         if !extend {
-            sel.anchor = sel.head;
+            sel.collapse();
         }
         sel.affinity = Affinity::Downstream;
         sel.goal_x = None;
@@ -293,7 +319,7 @@ impl ProseEditor {
         let doc = &mut self.book.chapters[sel.chapter].doc;
         sel.head = if end { doc.max_cursor() } else { 0 };
         if !extend {
-            sel.anchor = sel.head;
+            sel.collapse();
         }
         sel.goal_x = None;
         self.set_selection(sel, cx);
