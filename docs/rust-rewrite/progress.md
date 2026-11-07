@@ -34,11 +34,11 @@
 
 | 基座 | 状态 | 开工条件 |
 | --- | --- | --- |
-| F1 dr-model / dr-doc | 第三轮已合 `main`（借来的文档上读写、按对象的便宜读取、证据改成测试断言） | 结构升到 [v2](loro-schema.md)；77 条不变量、16 条旧规则不搬、9 处界面与帮手的语义分叉留给 F3；三设备 3000 例收敛、两个模糊测试目标。见 [f1-model-doc.md](foundations/f1-model-doc.md) |
+| F1 dr-model / dr-doc | 第四轮已合 `main`（插入事件带标记；与 F4 的样式表、锚点、打开分工逐条对齐） | 结构升到 [v2](loro-schema.md)；77 条不变量、16 条旧规则不搬、9 处界面与帮手的语义分叉留给 F3；三设备 3000 例收敛、两个模糊测试目标。见 [f1-model-doc.md](foundations/f1-model-doc.md) |
 | F2 dr-store | 第四轮已合 `main`（按书序搜索单字 495→0.5 ms、回车 2.6→0.4 ms、关库先停后台重建、派生短空闲等待） | 安全快照迁移、文档持有者、压缩、历史点、派生索引、资源存储、本机身份与自动换代、同步状态；88 项测试，崩溃恢复证据。见 [f2-store.md](foundations/f2-store.md) |
 | F3 dr-workspace | 第二个里程碑已合 `main`（镜像拆掉，每章内存少三分之一；撤销日志重启后仍在；给外壳的目录、删除事件、退出钩子） | 82 条命令和查询（63 写、19 读），每条只登记一次，能力清单是快照测试；写入顺序与补偿、事件、查询缓存、三层撤销；9 处界面与帮手的分叉已统一。暂用一份文档镜像接 dr-store，等 F1、F2 补「借来的文档上开事务」后拆掉。见 [f3-workspace.md](foundations/f3-workspace.md) |
-| F4 编辑引擎 | 第二轮（F4a）已合 `main`：文本源 trait `ProseSource`、段落索引、`gpui-ime`、`prose-linebreak`；下一轮 F4e `dr-editor` 把编辑器接到 dr-doc / dr-store / F3 | `gpui-prose`（MIT OR Apache-2.0）按四条子线分目录；断行是不依赖 GPUI 的纯函数；GPUI 补丁存成文件。见 [f4-editor.md](foundations/f4-editor.md) |
-| F5 dr-ui | 第二个里程碑已合 `main`（收进外壳拼的面板标签、悬停环、滑块、可拖药丸） | 令牌、遮盖素玻璃、砂笔、组件、一个浮层层和一个定位函数、单行输入、样张；字体是构建产物（`next/.cache/fonts`），不入库。见 [f5-ui.md](foundations/f5-ui.md) |
+| F4 编辑引擎 | 第三轮已合 `main`：`dr-editor`（AGPL）用 dr-doc 实现文本源，经 F3 会话编辑并落盘，人物链接显示、Markdown 输入规则、TODO 标记识别；F4c 输入、F4d 画层并行中，F4 自己做 M05 通览全书 | `gpui-prose`（MIT OR Apache-2.0）按四条子线分目录；断行是不依赖 GPUI 的纯函数；GPUI 补丁存成文件。见 [f4-editor.md](foundations/f4-editor.md) |
+| F5 dr-ui | 第三个里程碑已合 `main`（单行输入改用 `gpui-ime`，标签坞成了组件 `TabDock`） | 令牌、遮盖素玻璃、砂笔、组件、一个浮层层和一个定位函数、单行输入、样张；字体是构建产物（`next/.cache/fonts`），不入库。见 [f5-ui.md](foundations/f5-ui.md) |
 | F6 dr-shell | 第二个里程碑已合 `main`（读真书、换上 F5 组件、删除事件关标签、退出钩子；含 dr-i18n） | 三栏、侧栏抽屉与一半两半、标签坞与分栏、Super View 舞台、一个导航模型（标签树 + 历史栈）、位置链接与深链接、快捷键注册表（无 ⌘S）、声明式设置与搜索、通知中心、退出流程；文案只搬用到的键、编译期检查。稿纸暂显示替身书的只读文字。冷启动在高负载下超 300 ms，待空闲重测。见 [f6-shell.md](foundations/f6-shell.md) |
 | F7 dr-platform | 第一个里程碑已合 `main` | 日志、崩溃上报、钥匙串（沿用旧版格式）、深链接与单实例、开发 profile 隔离、`.dmg`、更新验签与交接设计、`--mcp --connection` 入口；67 个单元测试。见 [f7-platform.md](foundations/f7-platform.md) |
 | F8 dr-cli / dr-testkit | 第二个里程碑已合 `main`（dr-cli 接上 F3 注册表，种子可走命令写入） | 统一种子（tiny / lite / heavy / showcase 加两本样书）、测量证据、崩溃试验台、bench；`cargo xtask check` 跑 10 道门禁；`cargo xtask dev` 按 worktree 隔离开发实例；`dr-cli` 骨架。见 [f8-testkit.md](foundations/f8-testkit.md) |
@@ -47,8 +47,10 @@
 
 | 模块 | 状态 | 结论 |
 | --- | --- | --- |
+| M01–M02 书架与作品主页 | 进行中 | — |
+| M05 通览全书 | 进行中（F4） | — |
 | M10 旧库导入 | 第二个里程碑已合 `main`（F2 新接口、进度、历史元数据回放、导入后建索引） | 五份合成库全部导入，判成最新却不对的正文 0 篇，锚点全部换成光标，历史点对得上；旧版交接补导字数目标、关系类型颜色等本机数据。见 [m10-import.md](modules/m10-import.md) |
-| dr-text 与派生索引 | 第二个里程碑已合 `main`（读热文档、按段写，打字后派生 0.21 ms；实时字数接口） | 字数规则单独成 Apache-2.0 的 `prose-metrics`，和旧版逐篇相等；`dr-text` 纯文本、大纲、人物自动链接匹配器；`dr-index` 派生器，重型库 1.5 秒建好全部索引。按键后的派生要 17 ms，等 F2 加按段写入（实测 0.12 ms）。见 [dr-text-index.md](foundations/dr-text-index.md) |
+| dr-text 与派生索引 | 第二个里程碑已合 `main`（读热文档、按段写，打字后派生 0.21 ms；实时字数接口）；现在做 M06 搜索、M07 字数与写作日 | 字数规则单独成 Apache-2.0 的 `prose-metrics`，和旧版逐篇相等；`dr-text` 纯文本、大纲、人物自动链接匹配器；`dr-index` 派生器，重型库 1.5 秒建好全部索引。按键后的派生要 17 ms，等 F2 加按段写入（实测 0.12 ms）。见 [dr-text-index.md](foundations/dr-text-index.md) |
 
 ## 架构审查
 

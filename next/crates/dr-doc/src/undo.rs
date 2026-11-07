@@ -9,6 +9,10 @@
 //! - Undo and redo are local writes. They go through [`ProseUndo::undo`] /
 //!   [`ProseUndo::redo`] with the document's writer, so the step comes back as
 //!   a [`Committed`] for storage like any other edit.
+//! - No stack limit (Loro's default). The editor learns how many items an
+//!   edit pushed from [`ProseUndo::undo_count`] before and after it
+//!   (gpui-prose's `EditResult::undo_items`); a limit would make a full stack
+//!   report 0. Do not set one.
 //!
 //! Known: Loro #1229 is not avoidable — undoing the author's own formatting
 //! change also clears another device's later change of the same key. Only

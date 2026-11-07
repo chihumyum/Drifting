@@ -1,0 +1,118 @@
+//! The editor's settings, keyed as the shell's settings registry keys them.
+//!
+//! `dr-editor` does not depend on `dr-shell` (the shell embeds the editor), so
+//! the shell hands the values over:
+//!
+//! ```ignore
+//! let settings = EditorSettings::from_values(|key| Some(Settings::read(cx).get(key)));
+//! chapter_editor.update(cx, |e, cx| e.set_settings(settings, cx));
+//! ```
+
+use gpui::px;
+use gpui_prose::ProseStyle;
+use serde_json::Value;
+
+pub const FONT_SIZE: &str = "editor.font_size";
+pub const LINE_HEIGHT: &str = "editor.line_height";
+pub const PARAGRAPH_SPACING: &str = "editor.paragraph_spacing";
+pub const PAGE_WIDTH: &str = "editor.page_width";
+pub const PARAGRAPH_INDENT: &str = "editor.paragraph_indent";
+pub const TYPEWRITER: &str = "editor.typewriter_mode";
+
+/// The 0.1 client's H1, H2 and H3 (28, 22 and 18 px) over its 17 px body, as
+/// the shell's read-only page scales them.
+pub const HEADING_SCALE: [f32; 3] = [28.0 / 17.0, 22.0 / 17.0, 18.0 / 17.0];
+
+/// What the editor's settings say (defaults: the 0.1 client's).
+#[derive(Clone, Debug, PartialEq)]
+pub struct EditorSettings {
+    /// Body text size, px.
+    pub font_size: f32,
+    /// Line height, a multiple of the size.
+    pub line_height: f32,
+    /// Space after a paragraph, em.
+    pub paragraph_spacing: f32,
+    /// Paper width, px.
+    pub page_width: f32,
+    /// First-line indent of body paragraphs, in characters (0, 1, 2). Not
+    /// laid out yet (F4b).
+    pub paragraph_indent: u8,
+    /// Typewriter scrolling. Not implemented yet (F4b).
+    pub typewriter: bool,
+}
+
+impl Default for EditorSettings {
+    fn default() -> Self {
+        EditorSettings {
+            font_size: 17.0,
+            line_height: 1.5,
+            paragraph_spacing: 1.0,
+            page_width: 720.0,
+            paragraph_indent: 0,
+            typewriter: false,
+        }
+    }
+}
+
+impl EditorSettings {
+    /// Reads every key through `get` (the shell's settings file); missing or
+    /// malformed values keep their defaults, out-of-range numbers are clamped
+    /// to the registry's ranges.
+    pub fn from_values(get: impl Fn(&str) -> Option<Value>) -> EditorSettings {
+        let d = EditorSettings::default();
+        let num = |key: &str, min: f32, max: f32, default: f32| {
+            get(key)
+                .and_then(|v| v.as_f64())
+                .map(|v| (v as f32).clamp(min, max))
+                .unwrap_or(default)
+        };
+        EditorSettings {
+            font_size: num(FONT_SIZE, 12.0, 28.0, d.font_size),
+            line_height: num(LINE_HEIGHT, 1.0, 2.0, d.line_height),
+            paragraph_spacing: num(PARAGRAPH_SPACING, 0.0, 2.5, d.paragraph_spacing),
+            page_width: num(PAGE_WIDTH, 480.0, 1280.0, d.page_width),
+            paragraph_indent: match get(PARAGRAPH_INDENT).as_ref().and_then(Value::as_str) {
+                Some("one") => 1,
+                Some("two") => 2,
+                _ => 0,
+            },
+            typewriter: get(TYPEWRITER)
+                .and_then(|v| v.as_bool())
+                .unwrap_or(d.typewriter),
+        }
+    }
+
+    /// `base` with these settings applied (colours and fonts stay).
+    pub fn style(&self, base: &ProseStyle) -> ProseStyle {
+        let mut style = base.clone();
+        style.body_size = px(self.font_size);
+        style.body_line_height = self.line_height;
+        style.heading_sizes = HEADING_SCALE.map(|s| px((self.font_size * s).round()));
+        style.paragraph_spacing = self.paragraph_spacing;
+        style.max_width = px(self.page_width);
+        style
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn values_are_read_clamped_and_defaulted() {
+        let s = EditorSettings::from_values(|k| match k {
+            FONT_SIZE => Some(json!(20)),
+            LINE_HEIGHT => Some(json!(9.0)),
+            PARAGRAPH_INDENT => Some(json!("two")),
+            PAGE_WIDTH => Some(json!("wide")),
+            _ => None,
+        });
+        assert_eq!(s.font_size, 20.0);
+        assert_eq!(s.line_height, 2.0);
+        assert_eq!(s.paragraph_indent, 2);
+        assert_eq!(s.page_width, 720.0);
+        let style = s.style(&ProseStyle::default());
+        assert_eq!(style.heading_sizes[0], px((20.0f32 * 28.0 / 17.0).round()));
+    }
+}

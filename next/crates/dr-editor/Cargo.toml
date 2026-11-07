@@ -1,0 +1,36 @@
+[package]
+name = "dr-editor"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Drifting's editor (F4e): gpui-prose on dr-doc through the workspace, entity links, Markdown input rules, TODO markers"
+
+[dependencies]
+dr-doc.workspace = true
+dr-model.workspace = true
+dr-store.workspace = true
+dr-text.workspace = true
+dr-workspace.workspace = true
+futures.workspace = true
+gpui.workspace = true
+gpui-prose.workspace = true
+log.workspace = true
+loro.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+# The showcase library for the example and the tests.
+dr-platform.workspace = true
+dr-testkit.workspace = true
+gpui = { workspace = true, features = ["test-support"] }
+gpui-prose = { workspace = true, features = ["conformance"] }
+gpui_platform.workspace = true
+tempfile.workspace = true
+
+[[example]]
+name = "edit"
+
+[[example]]
+name = "editor-bench"

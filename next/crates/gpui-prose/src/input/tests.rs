@@ -469,3 +469,51 @@ fn undo_reports_restored_anchors(cx: &mut TestAppContext) {
     let restored: Vec<std::ops::Range<usize>> = std::iter::once(1..3).collect();
     assert_eq!(*events.borrow(), restored);
 }
+
+/// An extension that turns `**x**` at the caret into bold `x`.
+struct Stars;
+
+impl crate::ProseExtension for Stars {
+    fn input_rule(&self, typed: &crate::Typed<'_>) -> Option<crate::InputRule> {
+        let chars: Vec<char> = typed.before.chars().collect();
+        let n = chars.len();
+        if n < 5 || !typed.before.ends_with("**") {
+            return None;
+        }
+        let open = chars[..n - 2].iter().collect::<String>().rfind("**")?;
+        let open = typed.before[..open].chars().count();
+        (open + 2 < n - 2).then(|| crate::InputRule::Mark {
+            open: open..open + 2,
+            inner: open + 2..n - 2,
+            close: n - 2..n,
+            key: inline::BOLD.into(),
+            value: true.into(),
+        })
+    }
+}
+
+#[gpui::test]
+fn input_rules_apply_as_their_own_step(cx: &mut TestAppContext) {
+    let (editor, cx) = editor(cx, &[&[(BlockKind::Body, "")]]);
+    editor.update(cx, |e, _| e.set_extension(std::rc::Rc::new(Stars)));
+    select(&editor, cx, 0, 0);
+    for c in "a**b**".chars() {
+        commit(&editor, cx, &c.to_string());
+    }
+    commit(&editor, cx, "c");
+    assert_eq!(loro_text(&editor, cx, 0), "abc\n");
+    let (bold, after) = editor.update(cx, |e, _| {
+        let doc = &e.book().chapters[0].doc;
+        (
+            doc.range_has_mark(1..2, inline::BOLD),
+            doc.range_has_mark(2..3, inline::BOLD),
+        )
+    });
+    assert!(bold && !after, "b is bold, typing went on without it");
+    undo(&editor, cx);
+    assert_eq!(
+        loro_text(&editor, cx, 0),
+        "a**b**\n",
+        "undo brings the literal text back"
+    );
+}

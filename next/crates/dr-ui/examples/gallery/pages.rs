@@ -9,9 +9,10 @@ use gpui::{
 use dr_ui::{
     Theme,
     components::{
-        Button, CardAction, CardBody, Chip, Choice, Dialog, EmptyState, HoverCard, IconButton,
-        Loading, Menu, MenuItem, MenuWidth, NotificationPill, NumberField, Pill, PillGroup,
-        Progress, Range, RowIcon, SandCell, ScopeToggle, Segmented, Select, Switch, overlay,
+        Button, CardAction, CardBody, Chip, Choice, Dialog, DockMark, DockTab, EmptyState,
+        HoverCard, IconButton, Loading, Menu, MenuItem, MenuWidth, NotificationPill, NumberField,
+        Pill, PillGroup, Progress, Range, RowIcon, SandCell, ScopeToggle, Segmented, Select,
+        Switch, TabDock, overlay,
     },
     fonts::{self, Role, weight},
     glass::{self, Ground, Held, Kind, Mode, Spec, Tone},
@@ -1244,10 +1245,122 @@ pub fn motion(g: &mut Gallery, window: &mut Window, cx: &mut Context<Gallery>) -
         .gap(px(28.0))
         .child(wave)
         .child(row().gap(px(48.0)).items_start().child(turn).child(push))
+        .child(
+            row()
+                .w(px(720.0))
+                .justify_center()
+                .child(dock(g, window, cx)),
+        )
 }
 
 /// A wave pill in the hand: where it was picked up.
 struct WaveDrag(usize);
+
+/// A dock pill in the hand.
+struct DockDrag(usize);
+
+/// The tab dock: chapters, an element, a split of two elements and a
+/// drift (a preview), marks at rest and pills under the hand.
+fn dock(g: &Gallery, window: &mut Window, cx: &mut Context<Gallery>) -> impl IntoElement {
+    let t = Theme::of(window, cx);
+    let p = t.palette;
+    let story = |i: usize| Some(p.story(Story::ALL[i]));
+    let tab = |i: usize| -> DockTab {
+        match i {
+            0 => DockTab::new(Pill::new("第三章　雾港").mark(sand::Kind::Chapter(2), story(2))),
+            1 => DockTab::new(Pill::new("第四章　信").mark(sand::Kind::Chapter(3), story(3))),
+            2 => DockTab::new(Pill::new("林岚").mark(sand::Kind::Element, story(0))),
+            3 => {
+                let halves = [("守塔人", story(1)), ("旧港", story(4))];
+                DockTab::new(
+                    Pill::new("守塔人　旧港")
+                        .key("split")
+                        .mark(sand::Kind::Element, story(1))
+                        .content(move |window, cx| {
+                            let p = Theme::of(window, cx).palette;
+                            let mut both = row().gap(px(8.0));
+                            for (n, (name, color)) in halves.into_iter().enumerate() {
+                                if n > 0 {
+                                    both = both.child(
+                                        div().w(px(1.0)).h(px(12.0)).bg(p.rule_strong.solid()),
+                                    );
+                                }
+                                let mark = KindMark::new(
+                                    ElementId::Name(format!("dock-split-{n}").into()),
+                                    sand::Kind::Element,
+                                );
+                                let mark = match color {
+                                    Some(c) => mark.color(c),
+                                    None => mark,
+                                };
+                                both = both.child(row().gap(px(6.0)).child(mark).child(name));
+                            }
+                            both.into_any_element()
+                        }),
+                )
+                .marks(
+                    halves.map(|(_, color)| DockMark::new(sand::Kind::Element, color)),
+                    0,
+                )
+            }
+            _ => DockTab::new(
+                Pill::new("雾里的回声")
+                    .mark(sand::Kind::Drift { loose: false }, None)
+                    .preview(true),
+            ),
+        }
+    };
+    let order = g.dock_order.clone();
+    let active = order.iter().position(|&i| i == g.dock_active);
+    let (pick, ed, el) = (order.clone(), cx.entity(), cx.entity());
+    let ec = cx.entity();
+    let locked = g.dock_locked;
+    TabDock::new("dock", order.iter().map(|&i| tab(i)).collect(), active)
+        .locked(locked)
+        .leading(move |_, _| {
+            let el = el.clone();
+            IconButton::new(
+                "dock-lock",
+                if locked {
+                    Icon::LockShut
+                } else {
+                    Icon::LockOpen
+                },
+            )
+            .label(if locked {
+                "收回小点"
+            } else {
+                "保持展开"
+            })
+            .selected(locked)
+            .on_click(move |_, _, cx| {
+                el.update(cx, |g, cx| {
+                    g.dock_locked = !g.dock_locked;
+                    cx.notify();
+                })
+            })
+            .into_any_element()
+        })
+        .trailing(|_, _| {
+            IconButton::new("dock-new", Icon::Plus)
+                .label("新建")
+                .into_any_element()
+        })
+        .on_change(move |i, _, cx| {
+            let tab = pick[i];
+            ec.update(cx, |g, cx| {
+                g.dock_active = tab;
+                cx.notify();
+            })
+        })
+        .draggable(DockDrag, move |drag: &DockDrag, to, _, cx| {
+            ed.update(cx, |g, cx| {
+                let tab = g.dock_order.remove(drag.0);
+                g.dock_order.insert(to, tab);
+                cx.notify();
+            })
+        })
+}
 
 #[allow(dead_code)]
 fn _unused(_: Div, _: Easing, _: Rgb) {}

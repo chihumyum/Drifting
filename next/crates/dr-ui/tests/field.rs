@@ -1,8 +1,12 @@
 //! The single-line input under GPUI's test platform: the owner never hears
 //! about half-composed text, Enter while composing is the input method's,
-//! and losing focus leaves no composition behind.
+//! and losing focus (or the window) discards the composition here and in the
+//! system input method.
 
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+};
 
 use dr_ui::input::{FieldEvent, TextField};
 use gpui::{
@@ -70,8 +74,17 @@ fn composition_is_shown_but_never_reported(cx: &mut TestAppContext) {
     );
 }
 
+/// Counts the field's calls to the system input method.
+fn count_discards(cx: &mut TestAppContext) -> Rc<Cell<usize>> {
+    let calls = Rc::new(Cell::new(0));
+    let seen = calls.clone();
+    cx.update(|cx| dr_ui::input::set_discard_marked_text(cx, move |_| seen.set(seen.get() + 1)));
+    calls
+}
+
 #[gpui::test]
-fn losing_focus_commits_the_composition(cx: &mut TestAppContext) {
+fn losing_focus_discards_the_composition(cx: &mut TestAppContext) {
+    let discards = count_discards(cx);
     let (host, cx) = cx.add_window_view(Host::new);
     let (field, events) = host.read_with(cx, |h, _| (h.field.clone(), h.events.clone()));
     // Focus listeners run when a frame sees the focus change.
@@ -82,6 +95,12 @@ fn losing_focus_commits_the_composition(cx: &mut TestAppContext) {
     cx.update(|window, _| window.activate_window());
     cx.update(|window, cx| window.focus(&field.focus_handle(cx), cx));
     frame(cx);
+    // Leaving with nothing marked asks the system for nothing.
+    cx.update(|window, cx| window.blur(cx));
+    frame(cx);
+    assert_eq!(discards.get(), 0);
+    cx.update(|window, cx| window.focus(&field.focus_handle(cx), cx));
+    frame(cx);
     cx.update(|window, cx| {
         field.update(cx, |f, cx| {
             f.replace_and_mark_text_in_range(None, "wu gang", Some(7..7), window, cx)
@@ -90,19 +109,36 @@ fn losing_focus_commits_the_composition(cx: &mut TestAppContext) {
     cx.update(|window, cx| window.blur(cx));
     frame(cx);
     assert!(!field.read_with(cx, |f, _| f.is_composing()));
-    assert_eq!(field.read_with(cx, |f, _| f.text()), "林wu gang");
+    assert_eq!(field.read_with(cx, |f, _| f.text()), "林");
+    assert_eq!(
+        field.read_with(cx, |f, _| f.composer().text().to_string()),
+        "林"
+    );
+    assert_eq!(discards.get(), 1, "the system input method is told once");
+    // The window still routes the input method here until the next frame;
+    // a late commit of the pinyin is not taken.
+    cx.update(|window, cx| {
+        field.update(cx, |f, cx| {
+            f.replace_text_in_range(None, "wu gang", window, cx)
+        })
+    });
+    assert_eq!(field.read_with(cx, |f, _| f.text()), "林");
     let seen = events.borrow();
     assert!(
-        seen.contains(&FieldEvent::Changed("林wu gang".into())),
+        !seen.iter().any(|e| matches!(e, FieldEvent::Changed(_))),
         "{seen:?}"
     );
-    assert!(seen.contains(&FieldEvent::Blurred));
+    assert_eq!(
+        seen.iter().filter(|e| **e == FieldEvent::Blurred).count(),
+        2
+    );
 }
 
 #[gpui::test]
-fn switching_apps_commits_the_composition(cx: &mut TestAppContext) {
+fn switching_apps_discards_the_composition(cx: &mut TestAppContext) {
+    let discards = count_discards(cx);
     let (host, cx) = cx.add_window_view(Host::new);
-    let field = host.read_with(cx, |h, _| h.field.clone());
+    let (field, events) = host.read_with(cx, |h, _| (h.field.clone(), h.events.clone()));
     cx.update(|window, _| window.activate_window());
     cx.update(|window, cx| window.focus(&field.focus_handle(cx), cx));
     cx.run_until_parked();
@@ -114,5 +150,11 @@ fn switching_apps_commits_the_composition(cx: &mut TestAppContext) {
     cx.deactivate_window();
     cx.run_until_parked();
     assert!(!field.read_with(cx, |f, _| f.is_composing()));
-    assert_eq!(field.read_with(cx, |f, _| f.text()), "林deng");
+    assert_eq!(field.read_with(cx, |f, _| f.text()), "林");
+    assert_eq!(discards.get(), 1, "once, though the window also blurs it");
+    let seen = events.borrow();
+    assert!(
+        !seen.iter().any(|e| matches!(e, FieldEvent::Changed(_))),
+        "{seen:?}"
+    );
 }

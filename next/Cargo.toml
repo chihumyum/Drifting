@@ -8,6 +8,7 @@ members = [
     "app/drifting",
     "crates/dr-cli",
     "crates/dr-doc",
+    "crates/dr-editor",
     "crates/dr-i18n",
     "crates/dr-import-v1",
     "crates/dr-index",
@@ -52,6 +53,7 @@ loro = "=1.17.1"
 
 anyhow = "1"
 # gpui-prose (F4) and its two small crates, all MIT OR Apache-2.0.
+gpui-prose = { path = "crates/gpui-prose" }
 gpui-ime = { path = "crates/gpui-ime" }
 prose-linebreak = { path = "crates/prose-linebreak", default-features = false }
 # GPUI's own B-tree (Apache-2.0), for gpui-prose's paragraph index.
@@ -64,6 +66,8 @@ log = "0.4"
 # F1 data crates. Workspace members are listed here so dependants write
 # `dr-model.workspace = true`.
 dr-doc = { path = "crates/dr-doc" }
+# F4e: Drifting's editor on gpui-prose (AGPL).
+dr-editor = { path = "crates/dr-editor" }
 dr-model = { path = "crates/dr-model" }
 # F2 storage, for the 0.1 library import (M10, dr-import-v1).
 dr-store = { path = "crates/dr-store" }
@@ -166,6 +170,8 @@ windows = { version = "0.62", features = [
     "Win32_System_Pipes",
     "Win32_System_RemoteDesktop",
     "Win32_System_Threading",
+    "Win32_UI_Input_Ime",
+    "Win32_UI_Input_KeyboardAndMouse",
     "Win32_UI_WindowsAndMessaging",
 ] }
 

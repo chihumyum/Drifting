@@ -9,6 +9,7 @@ use gpui::{Bounds, Context, EntityInputHandler, Pixels, Point, UTF16Selection, W
 use super::composition::{Composition, Marked16, Marking, Virtual16};
 use crate::{
     ProseEditor,
+    extension::{InputRule, Typed},
     input::Selection,
     layout::{Affinity, shape},
     text::{ORIGIN_USER, units::byte_of_utf16, units::utf16_slice},
@@ -118,6 +119,77 @@ impl ProseEditor {
             let inserted = doc.replace_styled(range, text, &overrides, ORIGIN_USER);
             *sel = Selection::caret(sel.chapter, inserted.end);
         });
+        self.run_input_rule(text, window, cx);
+    }
+
+    /// Runs the extension's input rule on text the author just typed; what it
+    /// returns is applied as its own undo step.
+    pub(crate) fn run_input_rule(
+        &mut self,
+        typed: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(extension) = self.extension.clone() else {
+            return;
+        };
+        if typed.is_empty() || typed.contains('\n') || !self.selection.is_empty() {
+            return;
+        }
+        let chapter = self.selection.chapter;
+        let caret = self.selection.head;
+        let doc = &self.book.chapters[chapter].doc;
+        let (line_ix, inner) = doc.locate(caret);
+        let line = doc.line(line_ix);
+        let before = line.text[..line.byte_of_char(inner)].to_string();
+        let start = doc.line_start(line_ix);
+        let kind = line.kind;
+        let Some(rule) = extension.input_rule(&Typed {
+            before: &before,
+            typed,
+            kind,
+        }) else {
+            return;
+        };
+        let mut clear = None;
+        self.edit(window, cx, |doc, sel| {
+            doc.checkpoint();
+            match rule {
+                InputRule::Mark {
+                    open,
+                    inner,
+                    close,
+                    key,
+                    value,
+                } => {
+                    if open.end > inner.start
+                        || inner.end > close.start
+                        || close.end > inner_len(&before)
+                    {
+                        return;
+                    }
+                    doc.delete(start + close.start..start + close.end, ORIGIN_USER);
+                    doc.delete(start + open.start..start + open.end, ORIGIN_USER);
+                    let shift = open.len();
+                    let marked = start + inner.start - shift..start + inner.end - shift;
+                    doc.mark(marked.clone(), &key, value, ORIGIN_USER);
+                    *sel = Selection::caret(sel.chapter, marked.end);
+                    clear = Some(key);
+                }
+                InputRule::Block { prefix, key, value } => {
+                    if prefix.end > inner_len(&before) {
+                        return;
+                    }
+                    doc.delete(start + prefix.start..start + prefix.end, ORIGIN_USER);
+                    doc.set_block_attr(line_ix, key, Some(value), ORIGIN_USER);
+                    *sel = Selection::caret(sel.chapter, caret - prefix.len());
+                }
+            }
+        });
+        if let Some(key) = clear {
+            self.pending_marks.retain(|(k, _)| *k != key);
+            self.pending_marks.push((key, None));
+        }
     }
 
     /// The line and display byte of a virtual UTF-16 position.
@@ -319,6 +391,7 @@ impl EntityInputHandler for ProseEditor {
                 let inserted = doc.replace_styled(range.clone(), text, &overrides, ORIGIN_USER);
                 *sel = Selection::caret(sel.chapter, inserted.end);
             });
+            self.run_input_rule(text, window, cx);
         }
     }
 
@@ -434,4 +507,8 @@ impl EntityInputHandler for ProseEditor {
         self.clamp_selection();
         cx.notify();
     }
+}
+
+fn inner_len(s: &str) -> usize {
+    s.chars().count()
 }

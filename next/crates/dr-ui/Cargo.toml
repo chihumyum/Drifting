@@ -16,6 +16,8 @@ capture = ["dep:gpui_platform", "gpui_platform/test-support"]
 anyhow.workspace = true
 base64.workspace = true
 gpui.workspace = true
+# The single-line input's composition rules, shared with the editor.
+gpui-ime.workspace = true
 # Only for the gallery's `capture` feature; apps bring their own platform.
 gpui_platform = { workspace = true, optional = true }
 image.workspace = true
@@ -23,6 +25,17 @@ log.workspace = true
 memmap2.workspace = true
 smallvec.workspace = true
 unicode-segmentation.workspace = true
+
+# Asking the system input method to drop its marked text when a field loses
+# focus mid-composition (GPUI v1.27 has no call for it); the versions GPUI's
+# own backends build.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2.workspace = true
+raw-window-handle.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+raw-window-handle.workspace = true
+windows.workspace = true
 
 [dev-dependencies]
 gpui = { workspace = true, features = ["test-support"] }

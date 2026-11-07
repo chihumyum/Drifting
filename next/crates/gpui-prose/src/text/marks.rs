@@ -210,9 +210,10 @@ pub(crate) fn mark_inline(text: &LoroText, range: Range<usize>, key: &str, value
     }
 }
 
-/// Removes `key` from `range`, skipping newlines.
+/// Removes `key` from `range`, newlines included, so no stray piece survives
+/// on one (as `dr-doc` does).
 pub(crate) fn unmark_inline(text: &LoroText, range: Range<usize>, key: &str) {
-    for seg in segments_without_newlines(text, range) {
-        let _ = text.unmark(seg, key);
+    if !range.is_empty() {
+        let _ = text.unmark(range, key);
     }
 }

@@ -263,11 +263,6 @@ impl RenderOnce for KindMark {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = Theme::of(window, cx);
         let palette = theme.palette;
-        let pigment = match self.kind {
-            Kind::All => 1.0,
-            Kind::Drift { loose: true } => 0.55 * palette.pigment,
-            _ => palette.pigment,
-        };
         let presence = use_presence(
             self.id.clone(),
             if self.shown { self.strength } else { 0.0 },
@@ -275,11 +270,10 @@ impl RenderOnce for KindMark {
             window,
             cx,
         );
-        let mask = self.kind.mask(self.hollow);
-        let (l, t, w, h) = self.kind.placement();
         let k = self.scale;
         let kind = self.kind;
         let color = self.color;
+        let hollow = self.hollow;
         let slot = MARK_SLOT * k;
         div().size(px(slot)).flex_none().relative().child(
             canvas(
@@ -289,31 +283,16 @@ impl RenderOnce for KindMark {
                     let p = presence.read(cx);
                     let level = p.level.value(now);
                     anim::keep_going(!p.level.settled(now), window);
-                    if level <= 0.003 {
-                        return;
-                    }
-                    let tint = match (kind, color) {
-                        (Kind::All, _) => palette.accent,
-                        (_, Some(c)) => sand_color(palette, c),
-                        (_, None) => sand_color(palette, palette.ink(3)),
-                    };
                     // Arriving sand grows from 0.8× as it fades in (sand-arrive).
                     let grow = 0.8 + 0.2 * level.min(1.0);
-                    let (bw, bh) = (w * k * grow, h * k * grow);
-                    let cx_ = l * k + w * k / 2.0;
-                    let cy_ = t * k + h * k / 2.0;
-                    let at = Bounds {
-                        origin: bounds.origin + point(px(cx_ - bw / 2.0), px(cy_ - bh / 2.0)),
-                        size: size(px(bw), px(bh)),
+                    let look = MarkLook {
+                        kind,
+                        color,
+                        hollow,
+                        level,
+                        stretch: (grow, grow),
                     };
-                    let _ = window.paint_svg(
-                        at,
-                        mask.shared_path(),
-                        None,
-                        TransformationMatrix::unit(),
-                        tint.alpha(pigment * level),
-                        cx,
-                    );
+                    paint_kind_mark(bounds, k, look, palette, window, cx);
                 },
             )
             .absolute()
@@ -322,6 +301,63 @@ impl RenderOnce for KindMark {
             .size_full(),
         )
     }
+}
+
+/// How a kind mark is drawn at one moment.
+#[derive(Clone, Copy, Debug)]
+pub struct MarkLook {
+    pub kind: Kind,
+    pub color: Option<Rgb>,
+    pub hollow: bool,
+    /// 0–1 of its strength (fading in or out).
+    pub level: f32,
+    /// How much wider and taller than its slot it is drawn, about its
+    /// centre (arriving sand starts at 0.8; spreading sand ends at 2.8 × 1.6).
+    pub stretch: (f32, f32),
+}
+
+/// Paints a kind mark into its slot at `bounds` (the 14px slot times
+/// `scale`), during paint: [`KindMark`]'s drawing, for marks that move on
+/// their own (the one a dock pill grew from, spreading away).
+pub fn paint_kind_mark(
+    bounds: Bounds<Pixels>,
+    scale: f32,
+    look: MarkLook,
+    palette: &Palette,
+    window: &mut Window,
+    cx: &App,
+) {
+    if look.level <= 0.003 {
+        return;
+    }
+    let pigment = match look.kind {
+        Kind::All => 1.0,
+        Kind::Drift { loose: true } => 0.55 * palette.pigment,
+        _ => palette.pigment,
+    };
+    let tint = match (look.kind, look.color) {
+        (Kind::All, _) => palette.accent,
+        (_, Some(c)) => sand_color(palette, c),
+        (_, None) => sand_color(palette, palette.ink(3)),
+    };
+    let mask = look.kind.mask(look.hollow);
+    let (l, t, w, h) = look.kind.placement();
+    let k = scale;
+    let (bw, bh) = (w * k * look.stretch.0, h * k * look.stretch.1);
+    let cx_ = l * k + w * k / 2.0;
+    let cy_ = t * k + h * k / 2.0;
+    let at = Bounds {
+        origin: bounds.origin + point(px(cx_ - bw / 2.0), px(cy_ - bh / 2.0)),
+        size: size(px(bw), px(bh)),
+    };
+    let _ = window.paint_svg(
+        at,
+        mask.shared_path(),
+        None,
+        TransformationMatrix::unit(),
+        tint.alpha(pigment * look.level),
+        cx,
+    );
 }
 
 /// A sand mask laid in `bounds` in `color` at `alpha`, during paint.

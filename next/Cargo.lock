@@ -1379,6 +1379,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "dr-editor"
+version = "0.0.0"
+dependencies = [
+ "dr-doc",
+ "dr-model",
+ "dr-platform",
+ "dr-store",
+ "dr-testkit",
+ "dr-text",
+ "dr-workspace",
+ "futures",
+ "gpui",
+ "gpui-prose",
+ "gpui_platform",
+ "log",
+ "loro",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "dr-i18n"
 version = "0.0.0"
 dependencies = [
@@ -1548,12 +1569,16 @@ dependencies = [
  "anyhow",
  "base64 0.22.1",
  "gpui",
+ "gpui-ime",
  "gpui_platform",
  "image",
  "log",
  "memmap2",
+ "objc2 0.6.5",
+ "raw-window-handle",
  "smallvec",
  "unicode-segmentation",
+ "windows 0.62.2",
 ]
 
 [[package]]

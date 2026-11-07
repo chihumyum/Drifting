@@ -271,6 +271,7 @@ setters!(PatchWriter {
     pos: &PosKey => "pos",
 });
 impl PatchWriter {
+    /// Re-anchor; see [`CommentWriter::anchor`].
     pub fn anchor(&self, a: Option<&Anchor>) -> Result<&Self> {
         put_anchor(&self.map, "anchor", a)?;
         Ok(self)
@@ -443,8 +444,11 @@ impl CommentWriter {
         set_ref(&self.map, "target_kind", "target", t)?;
         Ok(self)
     }
-    /// Re-anchor (the author moved it). Replacement cursors found while
-    /// resolving go to [`crate::AnchorCache`], not here.
+    /// Re-anchor: the author moved it, or the editor's undo put back
+    /// anchored text that had been deleted (F4's `AnchorsChanged`; decode
+    /// its bytes with [`Anchor::decode`]). Either is the author's own write
+    /// and syncs like any other. Replacement cursors found while resolving go
+    /// to [`crate::AnchorCache`], not here.
     pub fn anchor(&self, a: Option<&Anchor>) -> Result<&Self> {
         put_anchor(&self.map, "anchor", a)?;
         Ok(self)

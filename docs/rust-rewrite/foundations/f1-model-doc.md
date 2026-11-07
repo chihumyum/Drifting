@@ -1,6 +1,6 @@
 # F1：dr-model 与 dr-doc
 
-2026-11-07，三轮：第一轮把结构做成库（结构改成 v1）；第二轮按监管会话的两份审查补数据、改顺序（结构改成 v2）；第三轮按 F3、dr-text、F8 的反馈，让视图和事务能套在存储持有的文档上，读取按对象变便宜，证据换成新做法。计划见 [foundation.md 的 F1](../foundation.md#f1-dr-model-与-dr-doc)，文档结构见 [loro-schema.md](../loro-schema.md)，代码在 `next/crates/dr-model/` 和 `next/crates/dr-doc/`。
+2026-11-07，四轮：第一轮把结构做成库（结构改成 v1）；第二轮按监管会话的两份审查补数据、改顺序（结构改成 v2）；第三轮按 F3、dr-text、F8 的反馈，让视图和事务能套在存储持有的文档上，读取按对象变便宜，证据换成新做法；第四轮按 F4 的建议让插入事件带上新字的标记，并对照 F4 的待协调核对了样式表、锚点和打开文档的分工（结构没变，还是 v2）。计划见 [foundation.md 的 F1](../foundation.md#f1-dr-model-与-dr-doc)，文档结构见 [loro-schema.md](../loro-schema.md)，代码在 `next/crates/dr-model/` 和 `next/crates/dr-doc/`。
 
 ## 做了什么（大白话）
 
@@ -31,6 +31,15 @@
    - **9 处分叉标成已统一**，F3 的测试名挂到了对应的不变量和分叉上；清单里还没有测试的 3 条单独列出来并写明原因。
    - **证据换成新做法**：不变量清单、两个三设备属性测试、模糊测试的 JSON 都删了，改成测试里直接断言；模糊测试找到的两个崩溃输入作为回归测试保留；测量搬进 `dr-testkit` 的基准，成了 `doc` 套件。
 
+7. **第四轮：编辑器打字不用再回读这一段。**
+   - **插入事件带上标记**：`ProseEvent` 里的插入现在是 `TextChange::Insert { text, marks }`，`marks` 就是这几个新字插进去以后带的行内标记（加粗、链接、人物链接……），和读出来的一模一样。原来事件只说「插了哪几个字」，编辑器的段落镜像不知道新字该不该加粗，只好每打一个字就把这一段从文档里再读一遍；现在照事件就能把新字摆好。Loro 的事件本来就带这些，本机打字、撤销、远端导入都带，所以总是有，不是可选的。
+   - **怎么知道它对**：新的三设备属性测试随机打字（专挑加粗的字后面、链接的字后面这种边界打）、回车、删、加减加粗斜体链接、加人物链接、撤销重做、任意顺序同步，每走一步都只靠事件拼出一份正文和每个字的标记，再和重新读出来的逐字比。3000 例全过，比了约 94 万个字。故意把事件里的标记改成空的，或者把「格式变了」的标志弄反，测试当场失败。
+   - **和 F4 的约定逐条对过**（F4 文档「待协调」第 3、4、5 条），都一致，补了两处：
+     - **样式表**：`gpui-prose` 自带的表逐键核对过，和 `dr-doc` 的一样。`gpui-prose` 只导出 Loro 的配置表、给不出键列表，所以新加了 `style_config_mismatches(&配置表)`，`dr-editor` 的对拍测试一行就能写。
+     - **锚点**：两边存的是同样的两段字节，加了一个测试把这个约定钉住。撤销带回来的锚点写回书目文档用 `CommentWriter::anchor` / `PatchWriter::anchor`，注释里写清楚了：这是作者的写入，要同步出去。
+     - **打开文档的分工**：配样式表、创世、对等方、块 ID 修复都在 `dr-doc` / `dr-store` / F3 这边（F3 已经拆了镜像，在持有者的写入里用 `BorrowedProse` 修块 ID），`dr-editor` 拿到的是已经打开好的文档。
+     - 顺手发现 `gpui-prose` 自己的 `Anchor::resolve` 没有「锚点是不是指向这篇正文」的检查，坏字节会让 Loro panic（`dr-doc` 第一轮的模糊测试找到过同一个问题）。Drifting 里锚点经 `dr-doc` 解析，碰不到；记给 F4。
+
 **要作者定的事：没有。** 都是技术取舍，下面写了理由。
 
 ## 为什么这样做
@@ -46,7 +55,7 @@
 
 - **F2（存储）**：存字节、管对等方和换代；载入一律交给 `ProseDoc::load` / `BookDoc::load`，打开后跑一次 `repair()` 并把结果存下来。见「待协调」第 1 条。
 - **F3（命令总线）**：在 `BookTxn` / `ProseTxn` 之上组命令；创建时必填什么、名字是否重复、跨文档先写哪个，都在命令层，清单里标了「命令层」的 35 条是 F3 的活。
-- **F4（编辑器）**：读 `ProseView`、订阅 `ProseEvent`，写走 `ProseTxn`，撤销走 `ProseUndo`。见「待协调」第 3 条。
+- **F4（编辑器）**：`dr-editor` 经 F3 的 `ProseSession` 读写和撤销（底下是 `ProseReader`、`ProseTxn`、`ProseUndo`），订阅 `ProseEvent`；插入事件带标记，打字不用回读。见「待协调」第 3 条。
 - **M10（旧库导入）**：用确定性的导入对等方（`peer::import_peer`）和 `edit_at` 的固定时间戳；旧块 ID 用 `ProseTxn::set_block_id` 原样写入；`library_item` 写成 `material`；内置关系类型的 id 和旧版一样，不用改写。
 
 ## 接口概览
@@ -93,7 +102,7 @@ genesis(&doc_id) -> Vec<u8>         确定性创世字节
 | `ProseView` | `len` / `len_utf8` / `len_utf16`、`pos(unit, value) -> TextPos`、`text_in(range)`、`paragraphs()`（逐段懒读，已按「重复 id 只认第一个」处理）、`paragraph_at(pos)`、`paragraph_by_id(&BlockId)`、`blocks()`（只要换行位置和块 ID）、`newlines()`、`entity_links()`、`embed_refs()` / `embed(id)` / `orphan_embeds()`、`anchor(range)`、`resolve(&Anchor)`；第三轮新增 `paragraph_in(位置, 段数)`（不看前文，块 ID 按存的原样） | 稳定 |
 | `Paragraph` | `id`（读者用的）、`stored_id`、`range`、`newline`、`attrs: BlockAttrs`、`runs: Vec<Run { text, marks }>`、`embed()` | 稳定 |
 | `ProseTxn` | `insert_text`、`insert_paragraphs`（粘贴，每段新块 ID）、`split`（回车）、`delete`（含并段规则）、`set_block_attrs`、`set_heading`、`set_style` / `clear_style`、`link_entity` / `unlink_entity`、`insert_embed` / `table`、`drop_orphan_embeds`、`repair_block_ids`、`set_block_id`（只给导入） | 稳定；F4 会要更多编辑原语 |
-| `ProseEvent` | `trigger`（本机 / 导入 / 检出）、`origin`、`body: Vec<TextChange>`（按字符的 retain / insert / delete）、`splices()`（改后的坐标）、`restyled()`、`embeds_changed`、`meta_changed` | 可能变（F4 用起来再调） |
+| `ProseEvent` | `trigger`（本机 / 导入 / 检出）、`origin`、`body: Vec<TextChange>`（按字符的 retain / insert / delete）、`splices()`（改后的坐标）、`restyled()`、`embeds_changed`、`meta_changed`；第四轮起 `TextChange::Insert { text, marks: InlineMarks }`：新字插入后的行内标记，和 `ProseView` 读出来的一样（`\n` 的段落属性不在里面） | 可能变（F4 用起来再调） |
 | `ProseUndo` | `undo(&mut doc)` / `redo(&mut doc)` 返回 `Committed`；借来的文档上用 `ProseUndo::on(&loro_doc)` + `undo_step()` / `redo_step()`（只执行，落盘归持有者）；`hooks()` 拿到 Loro 的 `UndoManager` 挂 `set_on_push` / `set_on_pop` | 可能变 |
 | `BorrowedProse` | 套在持有者的 `LoroDoc` 上：`new`（核对 `meta.doc`、要有创世）、`view`、`txn`、`undo_manager`；什么都不提交 | 稳定 |
 | `TableWriter` | `add_row` / `add_col` / `remove_*` / `set_cell` | 可能变 |
@@ -129,7 +138,7 @@ BorrowedBook::new(&loro_doc, &book_id)       借来的书目文档：.view() / .
 | `TextPos` / `Unit` / `PosError` | 三种单位一起带；`TextPos::in_str`（段内，线性）、`ProseView::pos`（全文，经 Loro 索引）；字符中间、越界都报错 | 稳定 |
 | `Committed` / `Imported` | 交给存储的一次提交；导入结果（有没有在等依赖、导入后修了什么） | 稳定 |
 | `peer` | `genesis_peer`、`import_peer`、`is_device_peer`、`random_device_peer`（测试用；正式的由 F2 分配） | 稳定 |
-| `schema` | 容器名、标记键、`SCHEMA_VERSION = 2`、`GENESIS_VERSION = 2`；样式表的唯一来源 `STYLE_TABLE` + `DEFAULT_EXPAND`，`style_config()`、`configure(doc)`，以及给别处对拍用的 `style_table_mismatches(表, 默认值)` | 稳定（就是 loro-schema.md） |
+| `schema` | 容器名、标记键、`SCHEMA_VERSION = 2`、`GENESIS_VERSION = 2`；样式表的唯一来源 `STYLE_TABLE` + `DEFAULT_EXPAND`，`style_config()`、`configure(doc)`，以及给别处对拍用的 `style_table_mismatches(表, 默认值)`、第四轮新增的 `style_config_mismatches(&配置表)`（直接比 `gpui_prose::schema::style_config()` 那样的 Loro 配置表） | 稳定（就是 loro-schema.md） |
 | `loro_types` | 重新导出 `VersionVector`、`Frontiers`、`Subscription`、`Cursor`、`UndoManager`，下游用同一个钉住的 Loro | 稳定 |
 
 ## 不变量清单（摘要）
@@ -173,15 +182,16 @@ BorrowedBook::new(&loro_doc, &book_id)       借来的书目文档：.view() / .
 
 ```bash
 cargo test -p dr-model -p dr-doc
-DR_PROP_CASES=3000 cargo test --release -p dr-doc --test prose_convergence --test book_convergence -- --nocapture
-cargo test --release -p dr-doc --test measure -- --ignored --nocapture
+DR_PROP_CASES=3000 cargo test --release -p dr-doc --test prose_convergence --test book_convergence --test prose_events -- --nocapture
+cargo run --release -p dr-testkit --bin bench -- doc
 ```
 
 | 测试 | 内容 | 结果 |
 | --- | --- | --- |
-| 单元测试 | dr-model 34 个；dr-doc 76 个（正文 35、书目 33、样式表与位置换算、对等方等 8）。P0-C 的正文用例全部搬过来，换成类型化接口 | 全过 |
+| 单元测试 | dr-model 34 个；dr-doc 79 个（正文 37、书目 33、样式表与位置换算、对等方等 9）。P0-C 的正文用例全部搬过来，换成类型化接口 | 全过 |
 | 正文三设备属性测试 `three_peers_converge` | 三台设备随机打字、回车、跨段删、设标题、加人物链接、加锚点、撤销、Agent 写入，任意顺序同步；查收敛、以换行结尾、块 ID 唯一且一致、锚点各处一致；最后断言这一轮真的修过重复块 ID、锚过字也收起过 | 3000 例全过；导入后自动修复 1622 次，没有一例需要额外修复轮；2708 个锚点，793 个收成点 |
 | 书目三设备属性测试 `three_peers_read_the_same_book` | 随机建章、建构想、建要素、进出废纸篓、彻底删、建关系（含没按规范顺序存的对称关系）、加减故事线、移动和删除分组、后台修复，任意顺序同步；查各设备读出来一样、读出来的东西守住全部读取规则 | 第一次跑 3000 例时在第 708 例失败：两台设备各建了同一个分组 id，树里有两个同 id 的节点，挂在其中一个下面的子分组读漏了（见下「发现并修好的」）。修好后 3000 例全过：1725 例同步后需要修复，都是一轮修好。第三轮加查：便宜的 `needs_repair` 和完整的修复计划结论一致；按端点读的关系和全书关系里挑出来的一致 |
+| 正文事件属性测试 `insert_events_carry_the_marks_reads_see`（第四轮） | 三台设备随机打字（含加粗、链接、人物链接的边界）、回车、删、加减加粗 / 斜体 / 删除线 / 链接、加人物链接、设标题、撤销、重做，任意顺序同步；每一步都只用事件重建正文和每个字的标记，和重新读出来的逐字比：字一样；插入事件说的标记就是读出来的标记；标记变了的字一定落在 `restyled` 的范围里 | 3000 例全过（release 约 2 秒）：比了 939642 个字，本机带标记的插入 2405 次，导入来的插入 16548 次。把事件里的标记换成空的、或把 `restyled` 弄反，测试都会失败（试过） |
 | 其他属性测试 | 没人删的锚点永远锚着原文；块 ID 修复是状态的函数（两台设备修出来一样）；位置换算三种单位处处一致、字符中间一律报错 | 全过 |
 | 模糊测试（`next/crates/dr-doc/fuzz/`，不进 CI） | `load_bytes`：任意字节当存储的数据载入、导入、读、写；`bad_structure`：用 Loro 原始接口写出结构坏掉的文档（没有末尾换行、段落标记打在字上、字段类型不对、树节点重复同一个 id、两个写入者），再经 `dr-doc` 读写 | 找到两个崩溃（批量导入申请 29 GB 内存、坏锚点让 Loro panic），都已修；修后两个目标各跑 150 秒无崩溃。两个崩溃输入（124 和 546 字节，模糊测试生成的）放在 `tests/fuzz-regressions/`，`tests/fuzz_regressions.rs` 用和模糊目标同一段代码回放 |
 | 测量 | `dr-testkit` 基准的 `doc` 套件，统一种子：快跑（tiny）进 CI 只查形状，全跑（heavy）在作者机器上 | 见下 |
@@ -229,6 +239,7 @@ cargo test --release -p dr-doc --test measure -- --ignored --nocapture
 | 5 | 第二轮（监管会话审查）：v2 补字段、列表改位置键、待办单一真相、按对象恢复、名字唯一的读取容忍、分叉清单、视图数据归属 | 完成 |
 | 6 | M10 / F4 反馈：导入和 Markdown 文件夹的提交也带提交信息；样式表的唯一来源和对拍接口 | 完成 |
 | 7 | 第三轮（F3 / dr-text / F8 反馈）：借来的文档上读写和撤销、`from_loro`、`paragraph_in`、按对象的便宜读取、`needs_repair`、快照按字段读和比较、分叉标已统一、证据换新做法 | 完成 |
+| 8 | 第四轮（F4 反馈）：插入事件带标记；对照 F4 待协调 3、4、5 核对样式表、锚点、打开文档的分工，补 `style_config_mismatches` 和锚点编码测试 | 完成 |
 
 ## 待协调
 
@@ -252,12 +263,15 @@ cargo test --release -p dr-doc --test measure -- --ignored --nocapture
    - 删分组、删素材夹用 `delete_drift_group` / `delete_material_folder`，它们先把子级和成员挪上去；直接删树节点会连子树一起删。
    - `BookDoc::repair()` 现在先问 `needs_repair()`；没东西要修时两者都约 2 ms（各整块读一遍节点表和关系表），比原来约 5 ms 少了一半多，但不是零。重复关系、缺书序这类问题只会在合并远端或导入后出现，建议只在打开书时跑一次、之后只在导入远端更新后跑。
    - 书目读取每次都从 Loro 取整个根映射的值。100 章、300 要素、400 关系时，列章节、列关系各要几毫秒（见上表）。如果 F3 的查询频繁，在它那一层按事件做增量缓存，不要每次都全读。
-3. **F4（编辑器）**
-   - 计划里 `gpui-prose` 只依赖 gpui 和 loro、不依赖任何 `dr-*`，但正文的写入规则（回车挪块 ID、新换行写全属性、行内标记不打在换行上）都在 `dr-doc` 里。建议：`gpui-prose` 定义一个「文本源」trait（读段落、订阅改动、提交编辑），由 `dr-editor` 用 `dr-doc` 实现。不要让 `gpui-prose` 直接往 `LoroText` 里写，否则这些规则会绕过去。
-   - 撤销走 `ProseUndo::undo(&mut doc)`，它返回要存的提交；按阵合并用 `hooks()` 挂 `set_on_push`。
-   - `ProseEvent` 的位置是改之前的字符坐标（Quill 式）；`splices()` 给的是改之后的坐标。
-   - 样式表只用 `dr-doc` 那一份（`dr_doc::schema::STYLE_TABLE` + `DEFAULT_EXPAND`）。Loro 在打标记时把规则写进标记本身，`gpui-prose` 用了不一样的表，打出来的标记就带着错规则进书、同步到每台设备。最好直接调 `dr_doc::schema::configure`；不能依赖 `dr-doc` 的话就照抄这张表，`dr-editor` 写一个对拍测试调 `style_table_mismatches`。
-   - `ProseView::paragraph_at` 要读前面各段的块 ID（2 万字章约 0.13 ms），`paragraph_by_id` 是全文扫描。光标所在段、按块 ID 定位这类每次按键都要的查询，用 F4a 自己的段落索引（由事件增量维护），不要每次调它们。
+3. **F4（编辑器）**：按 F4 文档「待协调」逐条对过（2026-11-07）。
+   - **插入带标记**（F4 待协调 2 的小建议，已做）：`TextChange::Insert { text, marks }`。`dr-editor` 把 `marks` 用和 `read` 同一个函数换成 `gpui_prose::Marks`，传进 `SourceChange::Insert.marks`（总是 `Some`）。`marks` 只对新字里的非换行字成立，这和编辑器只在「一段之内插字」时用它正好对上。`gpui-prose` 的 `text/drdoc_style.rs` 样板里还写着「dr-doc 不带标记」，F4 改样板时顺手改掉。
+   - **事件从哪来**：`ProseSession::reader().subscribe(...)`（F3）。回调在持有者线程上、提交的那一刻同步执行，先进队列，回到界面线程再折进镜像（`drdoc_style.rs` 就是这么做的）。它表示「文档变了」，不表示「已经存好」。
+   - **样式表**（F4 待协调 3，一致）：Drifting 的文档只由 `dr-doc` / `dr-store` 配，`dr-editor` 不调 `gpui_prose::schema::configure`。两张表逐键核对过一样。`dr-editor` 的测试写 `assert!(dr_doc::schema::style_config_mismatches(&gpui_prose::schema::style_config()).is_empty())`。默认值只有 `dr-doc` 设；`gpui-prose` 不设时没配置的键在本机打不上标记，不会打出规则不同的标记，不算分歧。
+   - **锚点**（F4 待协调 4，一致）：编码一样，都是两个 `Cursor::encode()`，`start` 是首字上的 `Side::Left`，`end` 是末字上的 `Side::Right`，点是同一个 `Side::Left` 光标两次（测试 `anchors_are_the_cursor_pair_the_editor_stores`）。两边的 `Anchor` 字段都是 `loro::cursor::Cursor`，`dr-editor` 可以直接搬光标，不用过字节。解析的规则一样；`dr-doc` 多两样：先查光标是不是指向这篇正文，结果夹在全文长度以内。撤销带回的锚点用 `CommentWriter::anchor` / `PatchWriter::anchor` 写回，来源 `user`，要同步；替换光标照旧只进本机的 `AnchorCache`。
+   - **`gpui-prose` 自己的 `Anchor::resolve`**（给 F4）：没有容器检查。锚点字节指向一个文档里没有的容器时，Loro 的 `get_cursor_pos` 会 panic，这是 `dr-doc` 第一轮模糊测试找到的（修法见 `dr-doc` 的 `anchor.rs`：先比 `cursor.container` 和正文的容器 id）。只影响 `LoroSource`；Drifting 里经 `dr-doc` 解析，碰不到。
+   - **打开文档的分工**（F4 待协调 5，一致）：存储打开文档时调 `dr_doc::schema::configure`（样式表、默认值、时间戳），设备对等方由 F2 分配，创世由 F3 用 `dr_doc::prose::genesis` 写，块 ID 修复由 F3 在持有者的写入里用 `BorrowedProse::txn().repair_block_ids()` 做（来源 `repair`）。`dr-editor` 拿到的是已经打开、配好、修过的文档。
+   - **撤销计数**：`EditResult::undo_items` 用 `ProseUndo::undo_count` 前后相减是对的，前提是撤销栈没有上限。`dr-doc` 不设上限（Loro 默认也不设），`undo.rs` 里写明了不要设。
+   - **每次按键的查询**照旧用 F4a 自己的段落索引，不调 `ProseView::paragraph_at` / `paragraph_by_id`（前者 2 万字章约 0.12 ms，后者全文扫描）。
 4. **批注、补丁的正文和素材描述**在书目文档里是 `LoroText`，现在只给了纯文本写入（按最小差异更新，并发会合并）。审阅模块（M-审阅）如果要在批注里用富文本，要么在 `dr-doc` 加一套书目文档内的富文本接口，要么以后把批注正文挪成独立的正文文档。等该模块开工时定。
 5. **M10（旧库导入）**：退役取值用 `dr_model::legacy` 规整；旧 `anchor_json` 拆成 `anchor`（光标对）、`quote`（`selectedText` / `textAnchor.text`）、`snapshots`（`blockSnapshots`，没有时用 v2 的 `blockText`）、`region`；`comment_action` 里 `start_agent_task` 的 `conversationId` 写进 `agent_conversation`；元数据里 `kind = todo-autoparse` / `note-task` 的待办，改用 `CommentId::for_projection` 的 id 和 `projection` 字段；旧的 `position_key` 原样写进 `pos`；本机 localStorage 里的颜色、目标、固定位置在交接时一起导出。
 6. **`chapter_template` / `element_template`** 暂时原样存旧版的 JSON 字符串。做模板的模块如果想让模板可编辑、可合并，需要一种新的正文文档（比如 `template:<id>`），那是一次结构改动。
@@ -265,12 +279,12 @@ cargo test --release -p dr-doc --test measure -- --ignored --nocapture
 
 ## 没做完的，和下一个里程碑建议
 
-- **没做**：批注 / 补丁正文的富文本接口（见待协调 4）；书目读取的缓存和增量索引（见待协调 2）；按范围读正文的接口（F4 的全书模式用得上）；模糊测试只跑了几分钟。
-- **探针**：`next/spikes/loro-model/` 原样保留没动。它的种子生成器和 P0-C 的测量还在用它；等 F8 把种子移到 `dr-testkit`、改用 `dr-doc`，就可以删。
+- **没做**：批注 / 补丁正文的富文本接口（见待协调 4）；书目读取的缓存和增量索引（见待协调 2）；模糊测试只跑了几分钟。
+- **探针**：`next/spikes/loro-model/` 原样保留没动。种子已经由 F8 搬进 `dr-testkit`，基准也改用 `dr-doc`；探针删不删由监管会话定。
 - **建议的下一个里程碑**：
-  1. F3 开工后，把它真正用到的写入组合补进 `BookTxn`，把清单里「命令层」各条接到 `check` 上并补测试；
-  2. 给 F4 的「文本源」trait 定稿，同时补按范围读、按块 ID 定位的接口；
-  3. 用 P0-C 的重型种子（150 万字）在 `dr-doc` 上重测打开、读取、按键的数字，进 F8 的基准程序。
+  1. `dr-editor` 开工后，按它真正用到的补接口（比如段落属性改动在事件里直接带上新属性，设标题就不用回读整段，这要 F4a 的快路径一起做）；
+  2. 清单里还没有测试的 3 条（`NOT_YET_TESTED`）等对应的模块开工时补上；
+  3. 书目读取按事件做增量缓存，如果 F3 的查询热起来。
 
 ## 代码位置
 
@@ -282,7 +296,7 @@ next/crates/dr-doc/src/
   prose/  mod.rs view.rs txn.rs attrs.rs embed.rs event.rs tests.rs
   book/   mod.rs read.rs write.rs fields.rs tests.rs
 next/crates/dr-doc/tests/
-  prose_convergence.rs book_convergence.rs positions.rs invariant_tests_exist.rs
+  prose_convergence.rs book_convergence.rs prose_events.rs positions.rs invariant_tests_exist.rs
   fuzz_regressions.rs fuzz-regressions/ fuzz_seeds.rs
 next/crates/dr-doc/fuzz/   load_bytes、bad_structure（独立工作区，不进 CI）
 next/crates/dr-testkit/src/bench/doc.rs   基准的 doc 套件

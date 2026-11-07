@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use dr_model::id::{BlockId, CommentId, EmbedId, MaterialId};
 use dr_model::kind::{EntityKind, ListKind};
 use dr_model::pos::PosKey;
-use dr_model::prose::{BlockAttrs, EntityLink, Heading, InlineStyle};
+use dr_model::prose::{BlockAttrs, EntityLink, Heading, InlineMarks, InlineStyle};
 use dr_model::{DocId, Origin};
 
 use super::*;
@@ -804,6 +804,110 @@ fn events_report_unicode_splices_and_origins() {
         ev.iter()
             .any(|e| e.trigger == Trigger::Import && e.origin == Some(Origin::Sync))
     );
+}
+
+#[test]
+fn insert_events_carry_the_new_texts_marks() {
+    // "甲乙" bold, "丙" linked to an entity. Bold extends after its end,
+    // entity links do not extend at all (`schema::STYLE_TABLE`).
+    let mut p = doc("evm", 7);
+    user(&mut p, |t| {
+        t.insert_text(0, "甲乙丙")?;
+        t.set_style(0..2, &InlineStyle::Bold)?;
+        t.link_entity(2..3, &link("el-1"))
+    });
+    let seen: Arc<Mutex<Vec<ProseEvent>>> = Default::default();
+    let s2 = seen.clone();
+    let _sub = p.subscribe(move |e| s2.lock().unwrap().push(e.clone()));
+    let inserted = |e: &ProseEvent| -> Vec<(String, InlineMarks)> {
+        e.body
+            .iter()
+            .filter_map(|c| match c {
+                TextChange::Insert { text, marks } => Some((text.clone(), marks.clone())),
+                _ => None,
+            })
+            .collect()
+    };
+    let bold = InlineMarks {
+        bold: true,
+        ..InlineMarks::default()
+    };
+    user(&mut p, |t| t.insert_text(2, "一")); // after the bold, before the link
+    user(&mut p, |t| t.insert_text(4, "二")); // after the link
+    user(&mut p, |t| t.insert_text(0, "三")); // before the bold
+    {
+        let ev = seen.lock().unwrap();
+        assert_eq!(inserted(&ev[0]), vec![("一".into(), bold.clone())]);
+        assert_eq!(
+            inserted(&ev[1]),
+            vec![("二".into(), InlineMarks::default())]
+        );
+        assert_eq!(
+            inserted(&ev[2]),
+            vec![("三".into(), InlineMarks::default())]
+        );
+    }
+    // An import reports every run with its marks (how Loro cuts the runs
+    // is its own business; the final newline comes with the genesis).
+    let mut q = doc("evm", 8);
+    let seen_q: Arc<Mutex<Vec<ProseEvent>>> = Default::default();
+    let s3 = seen_q.clone();
+    let _sub_q = q.subscribe(move |e| s3.lock().unwrap().push(e.clone()));
+    sync(&p, &mut q);
+    let ev = seen_q.lock().unwrap();
+    let chars: Vec<(char, InlineMarks)> = ev
+        .iter()
+        .flat_map(inserted)
+        .flat_map(|(t, m)| t.chars().map(move |c| (c, m.clone())).collect::<Vec<_>>())
+        .collect();
+    let linked = InlineMarks {
+        entities: vec![link("el-1")],
+        ..InlineMarks::default()
+    };
+    let plain = InlineMarks::default();
+    assert_eq!(
+        chars,
+        vec![
+            ('三', plain.clone()),
+            ('甲', bold.clone()),
+            ('乙', bold.clone()),
+            ('一', bold),
+            ('丙', linked),
+            ('二', plain),
+        ]
+    );
+    assert_eq!(q.view().plain_text(), "三甲乙一丙二\n");
+}
+
+#[test]
+fn anchors_are_the_cursor_pair_the_editor_stores() {
+    // `gpui_prose::Anchor` stores the same bytes (f4-editor.md "待协调" 4):
+    // `Cursor::encode()` of a `Side::Left` cursor on the first anchored
+    // character and a `Side::Right` cursor on the last; a point is one
+    // `Side::Left` cursor twice. `dr-editor` moves the bytes as they are.
+    use dr_model::book::EncodedAnchor;
+    use loro::cursor::Side;
+    let mut p = doc("anc-enc", 7);
+    user(&mut p, |t| t.insert_text(0, "甲乙丙丁"));
+    let (e, point_bytes) = {
+        let v = p.view();
+        let e = v.anchor(1..3).unwrap().encode();
+        assert_eq!(e.start, v.text.get_cursor(1, Side::Left).unwrap().encode());
+        assert_eq!(e.end, v.text.get_cursor(2, Side::Right).unwrap().encode());
+        (e, v.text.get_cursor(2, Side::Left).unwrap().encode())
+    };
+    assert_eq!(Anchor::decode(&e).unwrap().encode(), e, "bytes round-trip");
+    let point = Anchor::decode(&EncodedAnchor {
+        start: point_bytes.clone(),
+        end: point_bytes,
+    })
+    .unwrap();
+    assert!(point.is_point());
+    user(&mut p, |t| t.insert_text(0, "前"));
+    let r = p.view().resolve(&point).unwrap();
+    assert_eq!((r.range, r.collapsed), (3..3, true));
+    let r = p.view().resolve(&Anchor::decode(&e).unwrap()).unwrap();
+    assert_eq!((r.range, r.collapsed), (2..4, false));
 }
 
 #[test]

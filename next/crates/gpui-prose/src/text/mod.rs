@@ -25,7 +25,7 @@ pub use anchor::{Anchor, AnchorChange, AnchorId, AnchorSet, Resolved};
 pub use blocks::{BlockAttrs, BlockKind};
 pub use doc::{ORIGIN_AGENT_PREFIX, ORIGIN_USER, ProseDoc};
 pub use index::{ParagraphExtent, ParagraphIndex};
-pub use loro_source::{LoroSource, ORIGIN_REPAIR};
+pub use loro_source::{LoroSource, ORIGIN_REPAIR, change_of, read_paragraphs};
 pub use marks::{Marks, Span};
 pub use mirror::{ChangeSet, Line, LineSplice, TextOp};
 pub use source::{
