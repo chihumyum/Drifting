@@ -4,6 +4,11 @@
 //! selected glass, still. A search field puts the brush's search icon before
 //! the words and a count in index type at the end.
 //!
+//! [`TextField::bare`] drops the slip: no glass, no padding, no height of
+//! its own, and the face, size, weight and colour of the text around it, so
+//! a title on a page can be edited where it stands (Project Home's book
+//! title). Only the caret, the selection and the placeholder are its own.
+//!
 //! Input goes through GPUI's `EntityInputHandler`; the rules for
 //! composition are `gpui-ime`'s [`LineComposer`], shared with the editor.
 //! The owner hears [`FieldEvent::Changed`] only for committed text, never
@@ -61,8 +66,18 @@ actions!(
 
 pub const KEY_CONTEXT: &str = "DrTextField";
 
-/// The field's key bindings; [`crate::init`] registers them.
+/// Every dr-ui input's key bindings, this field's and the multi-line
+/// [`super::TextArea`]'s (each in its own key context); [`crate::init`]
+/// registers them, and so does a host that clears the keymap (F6's
+/// `keymap::apply`). The same list as [`super::bindings`].
 pub fn bindings() -> Vec<KeyBinding> {
+    let mut all = own_bindings();
+    all.extend(super::area::bindings());
+    all
+}
+
+/// This field's key bindings alone.
+fn own_bindings() -> Vec<KeyBinding> {
     let c = Some(KEY_CONTEXT);
     // The platform's command key: ⌘ on macOS, Ctrl elsewhere.
     let mac = cfg!(target_os = "macos");
@@ -105,6 +120,7 @@ pub struct TextField {
     disabled: bool,
     small: bool,
     mono: bool,
+    bare: bool,
     trailing: Option<crate::components::Build>,
     last_layout: Option<ShapedLine>,
     last_bounds: Option<Bounds<Pixels>>,
@@ -154,6 +170,7 @@ impl TextField {
             disabled: false,
             small: false,
             mono: false,
+            bare: false,
             trailing: None,
             last_layout: None,
             last_bounds: None,
@@ -185,6 +202,12 @@ impl TextField {
     /// Read one character at a time (keys, paths, numbers): the index face.
     pub fn mono(mut self) -> Self {
         self.mono = true;
+        self
+    }
+
+    /// No frame: the words alone, in the type of the text around them.
+    pub fn bare(mut self) -> Self {
+        self.bare = true;
         self
     }
 
@@ -222,6 +245,12 @@ impl TextField {
 
     pub fn is_composing(&self) -> bool {
         self.composer.is_composing()
+    }
+
+    /// Selects the whole text.
+    pub fn select_all_text(&mut self, cx: &mut Context<Self>) {
+        self.composer.select_all();
+        cx.notify();
     }
 
     pub fn set_text(&mut self, text: impl Into<String>, cx: &mut Context<Self>) {
@@ -552,30 +581,34 @@ impl Render for TextField {
         let s = theme.scale;
         let focused = self.focus.is_focused(window);
         let height = s.control_height - if self.small { 6.0 } else { 0.0 };
-        let el = glass::glass_box(
-            self.id.clone(),
-            Kind::Rest,
-            Mode {
+        let bare = self.bare;
+        let el = if bare {
+            div().id(self.id.clone())
+        } else {
+            let mode = Mode {
                 disabled: self.disabled,
                 ..Mode::default()
-            },
-            focused,
-            Spec::new(Tone::Clear, radius::SM).filled(p.page),
-            window,
-            cx,
-        );
-        self.glass = Some(glass::use_state(
-            self.id.clone(),
-            Kind::Rest,
-            Mode {
-                disabled: self.disabled,
-                ..Mode::default()
-            },
-            focused,
-            theme,
-            window,
-            cx,
-        ));
+            };
+            let el = glass::glass_box(
+                self.id.clone(),
+                Kind::Rest,
+                mode,
+                focused,
+                Spec::new(Tone::Clear, radius::SM).filled(p.page),
+                window,
+                cx,
+            );
+            self.glass = Some(glass::use_state(
+                self.id.clone(),
+                Kind::Rest,
+                mode,
+                focused,
+                theme,
+                window,
+                cx,
+            ));
+            el
+        };
         el.key_context(KEY_CONTEXT)
             .track_focus(&self.focus)
             .cursor(CursorStyle::IBeam)
@@ -597,9 +630,25 @@ impl Render for TextField {
             .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .on_mouse_move(cx.listener(Self::on_mouse_move))
-            .h(px(height))
             .w_full()
+            .flex()
+            .flex_row()
+            .items_center()
             .map(|el| {
+                if bare {
+                    // The type of the text around it; only a locked field
+                    // fades.
+                    return el
+                        .gap(px(8.0))
+                        .when(self.disabled, |el| el.text_color(p.ink(4).solid()));
+                }
+                let el = el
+                    .h(px(height))
+                    .rounded(px(radius::SM))
+                    .bg(p.page.solid())
+                    .font_role(if self.mono { Role::Index } else { Role::Ui })
+                    .type_px(s.body, s.line_body)
+                    .text_color(if self.disabled { p.ink(4) } else { p.ink(1) }.solid());
                 // A number field: 8px before the digits, 4px after its steps.
                 if self.trailing.is_some() {
                     el.pl(px(8.0)).pr(px(4.0)).gap(px(4.0))
@@ -607,14 +656,6 @@ impl Render for TextField {
                     el.px(px(10.0)).gap(px(8.0))
                 }
             })
-            .flex()
-            .flex_row()
-            .items_center()
-            .rounded(px(radius::SM))
-            .bg(p.page.solid())
-            .font_role(if self.mono { Role::Index } else { Role::Ui })
-            .type_px(s.body, s.line_body)
-            .text_color(if self.disabled { p.ink(4) } else { p.ink(1) }.solid())
             .when_some(self.icon, |el, icon| {
                 el.child(sand::icon(icon, 14.0, p.ink(3).solid()))
             })
@@ -622,7 +663,7 @@ impl Render for TextField {
                 div()
                     .flex_1()
                     .min_w_0()
-                    .h(px(s.line_body))
+                    .when(!bare, |el| el.h(px(s.line_body)))
                     .overflow_hidden()
                     .child(LineElement {
                         field: cx.entity(),
