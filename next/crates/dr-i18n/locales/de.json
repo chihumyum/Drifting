@@ -106,7 +106,10 @@
     "closeTitle": "Schließen (Esc)",
     "currentPlaceholder": "Im aktuellen Editor suchen…",
     "nextTitle": "Nächstes (Enter)",
-    "previousTitle": "Vorheriges (Umschalt+Enter)"
+    "previousTitle": "Vorheriges (Umschalt+Enter)",
+    "replace": "Ersetzen",
+    "replaceAll": "Alle ersetzen",
+    "replacePlaceholder": "Ersetzen durch…"
   },
   "globalSearch": {
     "closeTitle": "Schließen (Esc)",
@@ -122,6 +125,34 @@
     "enter": "Immersives Schreiben",
     "leave": "Immersives Schreiben beenden"
   },
+  "import": {
+    "v1": {
+      "action": {
+        "download_last_release": "Letzte Version 0.1 herunterladen",
+        "import_anyway": "Trotzdem importieren"
+      },
+      "blocked": {
+        "changed_after_handoff_one": "{{count}} Text wurde nach der Übergabeprüfung geändert",
+        "changed_after_handoff_other": "{{count}} Texte wurden nach der Übergabeprüfung geändert",
+        "get_last_release": "Lade die letzte Version 0.1 herunter, öffne diese Bibliothek einmal, beende sie und importiere dann erneut",
+        "no_handoff": "Diese Bibliothek wurde noch nicht in der letzten Version 0.1 geöffnet",
+        "stale_one": "{{count}} Kapitel ist älter als das, was du geschrieben hast",
+        "stale_other": "{{count}} Kapitel sind älter als das, was du geschrieben hast",
+        "sync": "Die Synchronisierung hat ungelöste Konflikte",
+        "title": "Einigen Texten fehlen vielleicht die letzten Sekunden Getipptes",
+        "unproven_one": "Bei {{count}} Text ist nicht sicher, dass er aktuell ist; er steht unten",
+        "unproven_other": "Bei {{count}} Texten ist nicht sicher, dass sie aktuell sind; sie stehen unten"
+      },
+      "summary": {
+        "account_libraries_left_one": "{{count}} Kontobibliothek im Ordner wartet auf Konten",
+        "account_libraries_left_other": "{{count}} Kontobibliotheken im Ordner warten auf Konten",
+        "already_imported": "Auf diesem Gerät schon importiert; übersprungen",
+        "already_in_library": "Schon in der Bibliothek; unverändert gelassen",
+        "from_caches_one": "{{count}} Text kam aus dem Cache; die letzten Sekunden fehlen vielleicht",
+        "from_caches_other": "{{count}} Texte kamen aus dem Cache; die letzten Sekunden fehlen vielleicht"
+      }
+    }
+  },
   "importDialog": {
     "chooseFolder": "Ordner auswählen",
     "status": {
@@ -132,6 +163,9 @@
     }
   },
   "leftSidebar": {
+    "actions": {
+      "sort": "Sortieren"
+    },
     "empty": {
       "noChapters": "Noch keine Kapitel.",
       "noDrifts": "Noch keine Ideen.",
@@ -144,6 +178,25 @@
       "chapters": "{{count}} Kapitel",
       "drifts": "{{count}} Ideen",
       "elements": "{{categories}} Kategorien · {{elements}} Elemente"
+    },
+    "sort": {
+      "alphabet": "Alphabetisch",
+      "bookOrder": "Lesereihenfolge",
+      "cellMetaGroup": "Rechter Zellenrand",
+      "chapters": "Kapitel sortieren",
+      "createdAt": "Erstellungszeit",
+      "duplicatesAll": "In jeder verknüpften Gruppe anzeigen",
+      "duplicatesGroup": "Kapitel mit mehreren Handlungssträngen",
+      "duplicatesPrimary": "Nur im Haupthandlungsstrang anzeigen",
+      "narrativeOrder": "Erzählreihenfolge",
+      "outerStorylinesGroup": "Äußere Handlungsstränge",
+      "showBoth": "Wortzahl und Datum anzeigen",
+      "showDate": "Datum anzeigen",
+      "showNone": "Beides ausblenden",
+      "showWordCount": "Wortzahl anzeigen",
+      "storylineChapters": "Kapitel innerhalb der Handlungsstränge sortieren",
+      "storylineOrder": "Handlungsstrang-Reihenfolge",
+      "updatedAt": "Änderungszeit"
     },
     "tabs": {
       "chapters": "Kapitel",
@@ -373,6 +426,7 @@
       "credits": "Danksagungen und Lizenzen",
       "emailTeam": "Dem Team schreiben",
       "engine": "Engine",
+      "feedback": "Feedback…",
       "knownIssues": "Bekannte Probleme",
       "knownIssuesDesc": "Bekannte Einschränkungen der aktuellen Alpha",
       "license": "Client-Lizenz",
@@ -381,6 +435,8 @@
       "sourceCode": "Quellcode",
       "sourceCodeDesc": "Zugehöriger Quellcode dieses AGPL-Clients",
       "sub": "Das ultimative Schreiberlebnis",
+      "submitFeedback": "Feedback senden",
+      "submitFeedbackDesc": "Kann eine bereinigte Diagnosezusammenfassung enthalten, niemals Manuskripttext.",
       "support": "Alpha-Support",
       "supportDesc": "Fehlerbehebung und sichere Meldung von Problemen",
       "tagline": "Für Schreibende, die bis tief in die Nacht wach bleiben.",
@@ -409,6 +465,8 @@
       "open_in_browser": "Im Browser öffnen"
     },
     "editor": {
+      "auto_element_link": "Automatische Elementlinks",
+      "auto_element_link_desc": "Erkennt beim Tippen vorhandene Elementnamen und verlinkt ihre Seiten.",
       "auto_immersive": "Immersives Schreiben beim Tippen",
       "auto_immersive_desc": "Sobald du im Text schreibst, treten Seitenleisten und Werkzeuge zurück; Esc oder ein Klick außerhalb des Textes holt sie zurück.",
       "flow": "Schreibfluss",
@@ -419,6 +477,7 @@
       "indent_none": "Keine",
       "indent_one": "1 Zeichen",
       "indent_two": "2 Zeichen",
+      "justify": "Blocksatz",
       "line_height": "Zeilenhöhe",
       "page_width": "Seitenbreite",
       "page_width_desc": "Papierbreite im Editor; der Text füllt sie mit festen Rändern aus.",
@@ -431,7 +490,9 @@
       "reset_style": "Empfohlenen Stil wiederherstellen",
       "typesetting": "Satz",
       "typewriter_mode": "Schreibmaschinenmodus",
-      "typewriter_mode_desc": "Hält die aktuelle Textzeile beim Tippen oder Bewegen des Cursors an einer festen Bildschirmposition. Nur im Editor."
+      "typewriter_mode_desc": "Hält die aktuelle Textzeile beim Tippen oder Bewegen des Cursors an einer festen Bildschirmposition. Nur im Editor.",
+      "typewriter_position": "Position der Schreibzeile",
+      "typewriter_position_desc": "Anteil vom oberen Rand: 25% oben, 50% mittig, 75% unten."
     },
     "groups": {
       "about": "Info",
@@ -563,6 +624,7 @@
     }
   },
   "userMenu": {
+    "feedback": "Feedback senden",
     "import": "Importieren",
     "importBook": "Buch importieren (.driftingbook)",
     "language": "Sprache",

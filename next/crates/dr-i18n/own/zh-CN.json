@@ -1,0 +1,35 @@
+{
+  "import": {
+    "v1": {
+      "blocked": {
+        "title": "有几篇正文可能少了最后几秒打的字",
+        "no_handoff": "这个资料库还没在旧版的最后一版里打开过",
+        "unproven": "有 {{count}} 篇正文无法确认是最新的，列在下面",
+        "stale": "有 {{count}} 章比你写到的旧",
+        "changed_after_handoff": "有 {{count}} 篇在交接核对后又改过",
+        "sync": "同步还有没解决的冲突",
+        "get_last_release": "下载旧版的最后一版，打开这个资料库一次再退出，然后重新导入"
+      },
+      "action": {
+        "download_last_release": "下载旧版最后一版",
+        "import_anyway": "仍然导入"
+      },
+      "summary": {
+        "already_imported": "这台设备以前导入过，这次没再导入",
+        "already_in_library": "新资料库里已经有这本书，没有动",
+        "from_caches": "有 {{count}} 篇照缓存导入，可能少了最后几秒的字",
+        "account_libraries_left": "文件夹里还有 {{count}} 个账号资料库没导入，等账号功能做好"
+      }
+    }
+  },
+  "settings": {
+    "editor": {
+      "justify": "两端对齐"
+    }
+  },
+  "findPanel": {
+    "replacePlaceholder": "替换为…",
+    "replace": "替换",
+    "replaceAll": "全部替换"
+  }
+}

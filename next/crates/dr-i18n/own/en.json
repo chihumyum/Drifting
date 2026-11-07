@@ -1,0 +1,40 @@
+{
+  "import": {
+    "v1": {
+      "blocked": {
+        "title": "Some text may be missing its last few seconds of typing",
+        "no_handoff": "This library hasn't been opened in the last 0.1 release",
+        "unproven_one": "{{count}} text can't be confirmed as the latest; it's listed below",
+        "unproven_other": "{{count}} texts can't be confirmed as the latest; they're listed below",
+        "stale_one": "{{count}} chapter is older than what you wrote",
+        "stale_other": "{{count}} chapters are older than what you wrote",
+        "changed_after_handoff_one": "{{count}} text changed after the handoff check",
+        "changed_after_handoff_other": "{{count}} texts changed after the handoff check",
+        "sync": "Sync has unresolved conflicts",
+        "get_last_release": "Download the last 0.1 release, open this library once, quit, then import again"
+      },
+      "action": {
+        "download_last_release": "Download the last 0.1 release",
+        "import_anyway": "Import anyway"
+      },
+      "summary": {
+        "already_imported": "Imported on this device before; skipped",
+        "already_in_library": "Already in the library; left as it is",
+        "from_caches_one": "{{count}} text came from its cache and may miss its last few seconds",
+        "from_caches_other": "{{count}} texts came from their caches and may miss their last few seconds",
+        "account_libraries_left_one": "{{count}} account library in the folder waits for accounts",
+        "account_libraries_left_other": "{{count}} account libraries in the folder wait for accounts"
+      }
+    }
+  },
+  "settings": {
+    "editor": {
+      "justify": "Justify"
+    }
+  },
+  "findPanel": {
+    "replacePlaceholder": "Replace with…",
+    "replace": "Replace",
+    "replaceAll": "Replace all"
+  }
+}

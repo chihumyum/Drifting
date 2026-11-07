@@ -18,7 +18,7 @@ use dr_shell::workspace::editors::PageView;
 use dr_shell::workspace::{Layer, SuperView};
 use dr_shell::{Services, Settings, SettingsFile, ShellInfo, Workspace};
 use dr_workspace::{Actor, Workspace as Library};
-use gpui::{Entity, Focusable as _, TestAppContext, VisualTestContext};
+use gpui::{AppContext as _, Entity, Focusable as _, TestAppContext, VisualTestContext};
 use serde_json::{Value, json};
 
 const SCHEME: &str = "drifting-next-dev";
@@ -1164,4 +1164,240 @@ fn the_tabs_under_a_super_view_do_not_answer_the_keyboard(cx: &mut TestAppContex
     keys(cx, "cmd-alt-left");
     let (tabs, page) = view.read_with(cx, |ws, _| (ws.nav.tabs().len(), ws.nav.page()));
     assert_eq!((tabs, page), (2, Page::Target(chapter(2))));
+}
+
+/// A view with nothing in it, to stand for a modal dialog.
+struct Blank;
+
+impl gpui::Render for Blank {
+    fn render(
+        &mut self,
+        _: &mut gpui::Window,
+        _: &mut gpui::Context<Self>,
+    ) -> impl gpui::IntoElement {
+        gpui::div()
+    }
+}
+
+/// One modal mechanism (`dialogs::show`): while a dialog is open the
+/// workspace's shortcuts are off; once it goes they work again.
+#[gpui::test]
+fn a_modal_dialog_turns_the_workspace_shortcuts_off(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx, SettingsFile::in_memory(), None);
+    let blank = cx.update(|_, cx| cx.new(|_| Blank));
+    let id = blank.entity_id();
+    // Outside the window's update, as the modules call it.
+    TestAppContext::update(cx, |cx| dr_shell::dialogs::show(cx, blank.into()));
+    cx.run_until_parked();
+    assert!(view.read_with(cx, |ws, _| ws.modal()));
+    keys(cx, "cmd-alt-4");
+    view.update_in(cx, |ws, window, cx| ws.open_settings(window, cx));
+    assert_eq!(
+        view.read_with(cx, |ws, _| (ws.super_view, ws.settings.is_some())),
+        (None, false),
+        "no Super View and no settings under a dialog"
+    );
+    draw(cx);
+    TestAppContext::update(cx, |cx| dr_shell::dialogs::hide(cx, id));
+    cx.run_until_parked();
+    assert!(!view.read_with(cx, |ws, _| ws.modal()));
+    keys(cx, "cmd-alt-4");
+    assert_eq!(
+        view.read_with(cx, |ws, _| ws.super_view),
+        Some(SuperView::Elements)
+    );
+}
+
+/// M06's search panel is a layer: Esc closes it before what is under it.
+#[gpui::test]
+fn escape_closes_the_search_panel_first(cx: &mut TestAppContext) {
+    let (_dir, lib) = slow_clock();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    keys(cx, "cmd-alt-4");
+    view.update_in(cx, |ws, window, cx| ws.toggle_search(window, cx));
+    draw(cx);
+    let top = |cx: &mut VisualTestContext| view.read_with(cx, |ws, _| ws.top_layer());
+    assert_eq!(top(cx), Some(Layer::Search));
+    view.update_in(cx, |ws, window, cx| ws.dismiss(window, cx));
+    assert_eq!(top(cx), Some(Layer::SuperView));
+}
+
+/// The find bar's replace row (F4c's `replace_current` / `replace_all`):
+/// ⌘⌥F opens it; 替换 replaces the current match and moves on, 全部替换 the
+/// rest, and one ⌘Z on the page brings the rest back.
+#[gpui::test]
+fn the_find_bar_replaces_one_then_all_as_one_undo(cx: &mut TestAppContext) {
+    let (_dir, lib) = slow_clock();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib.clone()));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    let first = view.read_with(cx, |ws, _| chapter_of(ws, 0));
+    let Target::Chapter(id) = &first else {
+        unreachable!()
+    };
+    let doc = format!("node:{id}");
+    view.update(cx, |ws, cx| ws.open(first.clone(), Open::KEEP, cx));
+    open_page(&view, cx, &first);
+    let count = |lib: &Library, needle: &str| {
+        stored(lib, &doc)
+            .iter()
+            .map(|p| p.matches(needle).count())
+            .sum::<usize>()
+    };
+    let before = count(&lib, "钟");
+    assert!(before > 3, "{before}");
+
+    cx.simulate_keystrokes(if cfg!(target_os = "macos") {
+        "cmd-alt-f"
+    } else {
+        "ctrl-h"
+    });
+    draw(cx);
+    let bar = view
+        .read_with(cx, |ws, _| ws.find.clone())
+        .expect("the find bar");
+    assert!(
+        bar.read_with(cx, |b, _| b.replacing),
+        "with its replace row"
+    );
+    bar.update_in(cx, |b, window, cx| b.set_query("钟", window, cx));
+    draw(cx);
+    assert_eq!(bar.read_with(cx, |b, _| b.status()).total, before);
+    bar.update_in(cx, |b, window, cx| {
+        b.set_replacement("铃", cx);
+        b.replace_current(window, cx);
+    });
+    draw(cx);
+    assert_eq!(count(&lib, "钟"), before - 1);
+    assert_eq!(bar.read_with(cx, |b, _| b.status()).total, before - 1);
+    let replaced = bar.update_in(cx, |b, window, cx| b.replace_all(window, cx));
+    draw(cx);
+    assert_eq!(replaced, before - 1);
+    assert_eq!(count(&lib, "钟"), 0);
+    assert_eq!(count(&lib, "铃"), before);
+
+    keys(cx, "escape");
+    draw(cx);
+    assert!(view.read_with(cx, |ws, _| ws.find.is_none()));
+    keys(cx, "cmd-z");
+    draw(cx);
+    assert_eq!(count(&lib, "钟"), before - 1, "全部替换 is one undo");
+}
+
+/// Switching the page in front tells F3 (`recent.touch`), which Project
+/// Home's 「继续写」 reads.
+#[gpui::test]
+fn the_page_in_front_is_recorded_as_recent(cx: &mut TestAppContext) {
+    let (_dir, lib) = slow_clock();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib.clone()));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    let (book, second) = view.read_with(cx, |ws, _| (ws.book_id.clone(), chapter_of(ws, 1)));
+    view.update(cx, |ws, cx| ws.open(second.clone(), Open::KEEP, cx));
+    draw(cx);
+    let Target::Chapter(id) = &second else {
+        unreachable!()
+    };
+    let id = id.to_string();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        cx.run_until_parked();
+        let recent = out(&lib, "recent.list", json!({ "book": book }));
+        let front = recent.as_array().and_then(|a| a.first()).cloned();
+        if front
+            .as_ref()
+            .is_some_and(|e| e["target"]["id"] == id.as_str())
+        {
+            assert_eq!(front.unwrap()["target"]["kind"], "node");
+            break;
+        }
+        assert!(Instant::now() < deadline, "not recorded: {recent}");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+/// F4's selection bar asks for a comment (`CommentRequested`): the
+/// composer comes up, and what is saved there is a comment on that range.
+#[gpui::test]
+fn a_comment_asked_for_from_the_selection_bar_is_written(cx: &mut TestAppContext) {
+    let (_dir, lib) = slow_clock();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib.clone()));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    let first = view.read_with(cx, |ws, _| chapter_of(ws, 0));
+    let book = view.read_with(cx, |ws, _| ws.book_id.clone());
+    let Target::Chapter(id) = &first else {
+        unreachable!()
+    };
+    let doc = format!("node:{id}");
+    view.update(cx, |ws, cx| ws.open(first.clone(), Open::KEEP, cx));
+    let editor = open_editor(&view, cx, &first);
+    editor.update(cx, |_, cx| {
+        cx.emit(dr_editor::CommentRequested {
+            doc: doc.clone(),
+            range: 0..2,
+            text: String::new(),
+        })
+    });
+    draw(cx);
+    let composer = view
+        .read_with(cx, |ws, _| ws.composer.as_ref().map(|c| c.view().clone()))
+        .expect("the composer");
+    composer.update(cx, |c, cx| {
+        c.set_text("看这里", cx);
+        c.save(cx);
+    });
+    wait_for(&view, cx, |ws| ws.composer.is_none());
+    let list = out(&lib, "comment.list", json!({ "book": book }));
+    let mine: Vec<_> = list
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|c| c["body"] == "看这里")
+        .collect();
+    assert_eq!(mine.len(), 1, "{list}");
+    assert_eq!(mine[0]["target"]["id"], id.to_string());
+}
+
+/// M04: the chapter panel's sort and its cells' readout are the book's
+/// layout; every view draws with each.
+#[gpui::test]
+fn the_chapter_sort_is_kept_with_the_layout(cx: &mut TestAppContext) {
+    use dr_shell::workspace::chapter_sort::{BookSort, CellMeta, OuterSort};
+    let (_dir, lib) = slow_clock();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    view.update_in(cx, |ws, window, cx| {
+        if !ws.left.open {
+            ws.toggle_left(window, cx);
+        }
+        ws.chapter_sort_open = Some("primary".into());
+    });
+    draw(cx);
+    for by_book in [true, false] {
+        for meta in [
+            CellMeta::Date,
+            CellMeta::WordCount,
+            CellMeta::Both,
+            CellMeta::None,
+        ] {
+            view.update(cx, |ws, cx| {
+                ws.chapters_by_book = by_book;
+                ws.chapter_sort.meta = meta;
+                ws.chapter_sort.book = BookSort::UpdatedAt;
+                ws.chapter_sort.outer = OuterSort::Alphabet;
+                ws.chapter_sort.primary_only = true;
+                cx.notify();
+            });
+            draw(cx);
+        }
+    }
+    let layout = view.read_with(cx, |ws, _| ws.layout());
+    assert_eq!(layout.chapter_sort.book, BookSort::UpdatedAt);
+    let value = serde_json::to_value(&layout).unwrap();
+    assert_eq!(value["chapter_sort"]["book"], "updatedAt");
+    assert_eq!(value["chapter_sort"]["primaryOnly"], true);
+    // A layout stored before the sort existed reads as the default.
+    let mut old = value.clone();
+    old.as_object_mut().unwrap().remove("chapter_sort");
+    let back: dr_shell::workspace::BookLayout = serde_json::from_value(old).unwrap();
+    assert_eq!(back.chapter_sort, Default::default());
 }

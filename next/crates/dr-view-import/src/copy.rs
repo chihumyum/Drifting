@@ -1,16 +1,11 @@
-//! The sentences the 0.1 client never had, as placeholders.
-//!
-//! The interface strings so far are the 0.1 client's nine languages (dr-i18n
-//! copies them). A sentence it never had has no translation, and none is
-//! made up here: until the new client has strings of its own (F6), each
-//! shows its key, in index type and secondary ink, so nobody takes it for
-//! settled copy. The one exception is the button the author named when the
-//! gate was decided (「仍然导入」, D5), in Simplified Chinese.
-//!
-//! The gate's keys are `dr_import_v1::gate::messages`; the summary's are
-//! here. m10-import.md 「待协调」 lists them all with what each should say.
+//! The sentences the 0.1 client never had: the new client's own strings
+//! (dr-i18n's `own/`, in all nine languages), looked up by the keys the gate
+//! and the summary use. The gate's keys are `dr_import_v1::gate::messages`;
+//! the summary's are here.
 
-use dr_i18n::Locale;
+use dr_i18n::keys::import::v1 as k;
+use dr_shell::strings::{t, tp};
+use gpui::{App, SharedString};
 
 pub use dr_import_v1::gate::messages::{
     ACTION_DOWNLOAD, ACTION_IMPORT_ANYWAY, BLOCKED_TITLE, CHANGED_AFTER_HANDOFF, GET_LAST_RELEASE,
@@ -29,7 +24,7 @@ pub const FROM_CACHES: &str = "import.v1.summary.from_caches";
 /// are imported with accounts (M35).
 pub const ACCOUNT_LIBRARIES_LEFT: &str = "import.v1.summary.account_libraries_left";
 
-/// Every placeholder the dialogs show.
+/// Every sentence the dialogs show from the new client's strings.
 pub const ALL: [&str; 13] = [
     BLOCKED_TITLE,
     NO_HANDOFF,
@@ -46,11 +41,24 @@ pub const ALL: [&str; 13] = [
     ACCOUNT_LIBRARIES_LEFT,
 ];
 
-/// The text the author settled for a placeholder in `locale`, if any.
-pub fn settled(key: &str, locale: Locale) -> Option<&'static str> {
-    match (key, locale) {
-        (ACTION_IMPORT_ANYWAY, Locale::ZhCn) => Some("仍然导入"),
-        _ => None,
+/// The sentence for `key`, with `count` filled in where it has one.
+pub fn text(key: &str, count: Option<usize>, cx: &App) -> SharedString {
+    let n = count.unwrap_or(0) as u64;
+    match key {
+        BLOCKED_TITLE => t(cx, k::blocked::TITLE),
+        NO_HANDOFF => t(cx, k::blocked::NO_HANDOFF),
+        UNPROVEN => tp(cx, k::blocked::UNPROVEN, n, &[]),
+        STALE => tp(cx, k::blocked::STALE, n, &[]),
+        CHANGED_AFTER_HANDOFF => tp(cx, k::blocked::CHANGED_AFTER_HANDOFF, n, &[]),
+        SYNC => t(cx, k::blocked::SYNC),
+        GET_LAST_RELEASE => t(cx, k::blocked::GET_LAST_RELEASE),
+        ACTION_DOWNLOAD => t(cx, k::action::DOWNLOAD_LAST_RELEASE),
+        ACTION_IMPORT_ANYWAY => t(cx, k::action::IMPORT_ANYWAY),
+        ALREADY_IMPORTED => t(cx, k::summary::ALREADY_IMPORTED),
+        ALREADY_IN_LIBRARY => t(cx, k::summary::ALREADY_IN_LIBRARY),
+        FROM_CACHES => tp(cx, k::summary::FROM_CACHES, n, &[]),
+        ACCOUNT_LIBRARIES_LEFT => tp(cx, k::summary::ACCOUNT_LIBRARIES_LEFT, n, &[]),
+        other => other.to_owned().into(),
     }
 }
 
@@ -59,17 +67,22 @@ mod tests {
     use super::*;
 
     #[test]
-    fn every_placeholder_is_an_import_key_and_listed_once() {
+    fn every_sentence_is_an_import_key_listed_once_with_its_words() {
         let mut seen = std::collections::BTreeSet::new();
         for key in ALL {
             assert!(key.starts_with("import.v1."), "{key}");
             assert!(seen.insert(key), "{key} twice");
         }
+        let zh = dr_i18n::I18n::new(dr_i18n::Locale::ZhCn, dr_i18n::Platform::Mac);
+        assert_eq!(zh.t(k::action::IMPORT_ANYWAY), "仍然导入");
+        let en = dr_i18n::I18n::new(dr_i18n::Locale::En, dr_i18n::Platform::Mac);
         assert_eq!(
-            settled(ACTION_IMPORT_ANYWAY, Locale::ZhCn),
-            Some("仍然导入")
+            en.plural(k::blocked::STALE, 1, &[]),
+            "1 chapter is older than what you wrote"
         );
-        assert_eq!(settled(ACTION_IMPORT_ANYWAY, Locale::En), None);
-        assert_eq!(settled(BLOCKED_TITLE, Locale::ZhCn), None);
+        assert_eq!(
+            en.plural(k::blocked::STALE, 3, &[]),
+            "3 chapters are older than what you wrote"
+        );
     }
 }

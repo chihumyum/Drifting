@@ -106,7 +106,10 @@
     "closeTitle": "Close (Esc)",
     "currentPlaceholder": "Find in current editor…",
     "nextTitle": "Next (Enter)",
-    "previousTitle": "Previous (Shift+Enter)"
+    "previousTitle": "Previous (Shift+Enter)",
+    "replace": "Replace",
+    "replaceAll": "Replace all",
+    "replacePlaceholder": "Replace with…"
   },
   "globalSearch": {
     "closeTitle": "Close (Esc)",
@@ -122,6 +125,34 @@
     "enter": "Immersive writing",
     "leave": "Leave immersive writing"
   },
+  "import": {
+    "v1": {
+      "action": {
+        "download_last_release": "Download the last 0.1 release",
+        "import_anyway": "Import anyway"
+      },
+      "blocked": {
+        "changed_after_handoff_one": "{{count}} text changed after the handoff check",
+        "changed_after_handoff_other": "{{count}} texts changed after the handoff check",
+        "get_last_release": "Download the last 0.1 release, open this library once, quit, then import again",
+        "no_handoff": "This library hasn't been opened in the last 0.1 release",
+        "stale_one": "{{count}} chapter is older than what you wrote",
+        "stale_other": "{{count}} chapters are older than what you wrote",
+        "sync": "Sync has unresolved conflicts",
+        "title": "Some text may be missing its last few seconds of typing",
+        "unproven_one": "{{count}} text can't be confirmed as the latest; it's listed below",
+        "unproven_other": "{{count}} texts can't be confirmed as the latest; they're listed below"
+      },
+      "summary": {
+        "account_libraries_left_one": "{{count}} account library in the folder waits for accounts",
+        "account_libraries_left_other": "{{count}} account libraries in the folder wait for accounts",
+        "already_imported": "Imported on this device before; skipped",
+        "already_in_library": "Already in the library; left as it is",
+        "from_caches_one": "{{count}} text came from its cache and may miss its last few seconds",
+        "from_caches_other": "{{count}} texts came from their caches and may miss their last few seconds"
+      }
+    }
+  },
   "importDialog": {
     "chooseFolder": "Choose folder",
     "status": {
@@ -132,6 +163,9 @@
     }
   },
   "leftSidebar": {
+    "actions": {
+      "sort": "Sort"
+    },
     "empty": {
       "noChapters": "No chapters yet.",
       "noDrifts": "No ideas yet.",
@@ -144,6 +178,25 @@
       "chapters": "{{count}} chapters",
       "drifts": "{{count}} ideas",
       "elements": "{{categories}} categories · {{elements}} elements"
+    },
+    "sort": {
+      "alphabet": "Alphabetical",
+      "bookOrder": "Reading order",
+      "cellMetaGroup": "Cell right edge",
+      "chapters": "Sort chapters",
+      "createdAt": "Created time",
+      "duplicatesAll": "Show in every linked group",
+      "duplicatesGroup": "Multi-storyline chapters",
+      "duplicatesPrimary": "Show only in primary storyline",
+      "narrativeOrder": "Narrative order",
+      "outerStorylinesGroup": "Outer storylines",
+      "showBoth": "Show word count and date",
+      "showDate": "Show date",
+      "showNone": "Show neither",
+      "showWordCount": "Show word count",
+      "storylineChapters": "Sort chapters within storylines",
+      "storylineOrder": "Storyline order",
+      "updatedAt": "Updated time"
     },
     "tabs": {
       "chapters": "Chapters",
@@ -373,6 +426,7 @@
       "credits": "Credits and licenses",
       "emailTeam": "Email the team",
       "engine": "Engine",
+      "feedback": "Feedback…",
       "knownIssues": "Known issues",
       "knownIssuesDesc": "Known limitations of the current Alpha",
       "license": "Client license",
@@ -381,6 +435,8 @@
       "sourceCode": "Source code",
       "sourceCodeDesc": "Corresponding source for this AGPL client",
       "sub": "The ultimate writing experience",
+      "submitFeedback": "Submit feedback",
+      "submitFeedbackDesc": "Can include a sanitized diagnostic summary; never manuscript text.",
       "support": "Alpha support",
       "supportDesc": "Troubleshooting and safe reporting instructions",
       "tagline": "Built for writers awake deep into the night.",
@@ -409,6 +465,8 @@
       "open_in_browser": "Open in browser"
     },
     "editor": {
+      "auto_element_link": "Auto element links",
+      "auto_element_link_desc": "Recognize existing element names while typing and link them to their pages.",
       "auto_immersive": "Immersive writing as you type",
       "auto_immersive_desc": "Writing in the paper tucks away the sidebars and tools; press Esc or click outside the text to bring them back.",
       "flow": "Flow",
@@ -419,6 +477,7 @@
       "indent_none": "None",
       "indent_one": "1 char",
       "indent_two": "2 chars",
+      "justify": "Justify",
       "line_height": "Line height",
       "page_width": "Page width",
       "page_width_desc": "The paper width in the editor; prose fills it with fixed margins.",
@@ -431,7 +490,9 @@
       "reset_style": "Restore recommended style",
       "typesetting": "Typesetting",
       "typewriter_mode": "Typewriter mode",
-      "typewriter_mode_desc": "Keeps the active prose line at a stable viewport position while typing or moving the caret. Editor view only."
+      "typewriter_mode_desc": "Keeps the active prose line at a stable viewport position while typing or moving the caret. Editor view only.",
+      "typewriter_position": "Typing line position",
+      "typewriter_position_desc": "Percentage from the top of the editor: 25% high, 50% centered, 75% low."
     },
     "groups": {
       "about": "About",
@@ -563,6 +624,7 @@
     }
   },
   "userMenu": {
+    "feedback": "Send feedback",
     "import": "Import",
     "importBook": "Import book (.driftingbook)",
     "language": "Language",

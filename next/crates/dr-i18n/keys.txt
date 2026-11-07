@@ -386,3 +386,35 @@ projectPicker.bookTransfer.importFailedTitle
 importDialog.chooseFolder
 importDialog.status.committed
 importDialog.summary.done
+
+# Settings → 编辑器: the typewriter's row and automatic element links (F4)
+settings.editor.typewriter_position
+settings.editor.typewriter_position_desc
+settings.editor.auto_element_link
+settings.editor.auto_element_link_desc
+
+# 提交反馈 (F7's feedback dialog): Settings → About and the account menu
+settings.about.submitFeedback
+settings.about.submitFeedbackDesc
+settings.about.feedback
+userMenu.feedback
+
+# The chapter panel's sort menu and its cells' right side (M04)
+leftSidebar.actions.sort
+leftSidebar.sort.chapters
+leftSidebar.sort.storylineChapters
+leftSidebar.sort.bookOrder
+leftSidebar.sort.narrativeOrder
+leftSidebar.sort.createdAt
+leftSidebar.sort.updatedAt
+leftSidebar.sort.outerStorylinesGroup
+leftSidebar.sort.storylineOrder
+leftSidebar.sort.alphabet
+leftSidebar.sort.duplicatesGroup
+leftSidebar.sort.duplicatesAll
+leftSidebar.sort.duplicatesPrimary
+leftSidebar.sort.cellMetaGroup
+leftSidebar.sort.showDate
+leftSidebar.sort.showWordCount
+leftSidebar.sort.showBoth
+leftSidebar.sort.showNone

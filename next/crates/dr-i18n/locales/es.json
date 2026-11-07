@@ -106,7 +106,10 @@
     "closeTitle": "Cerrar (Esc)",
     "currentPlaceholder": "Buscar en el editor actual…",
     "nextTitle": "Siguiente (Enter)",
-    "previousTitle": "Anterior (Shift+Enter)"
+    "previousTitle": "Anterior (Shift+Enter)",
+    "replace": "Reemplazar",
+    "replaceAll": "Reemplazar todo",
+    "replacePlaceholder": "Reemplazar con…"
   },
   "globalSearch": {
     "closeTitle": "Cerrar (Esc)",
@@ -122,6 +125,34 @@
     "enter": "Escritura inmersiva",
     "leave": "Salir de la escritura inmersiva"
   },
+  "import": {
+    "v1": {
+      "action": {
+        "download_last_release": "Descargar la última versión 0.1",
+        "import_anyway": "Importar de todos modos"
+      },
+      "blocked": {
+        "changed_after_handoff_one": "{{count}} texto cambió después de la comprobación del traspaso",
+        "changed_after_handoff_other": "{{count}} textos cambiaron después de la comprobación del traspaso",
+        "get_last_release": "Descargue la última versión 0.1, abra esta biblioteca una vez, ciérrela y vuelva a importar",
+        "no_handoff": "Esta biblioteca aún no se ha abierto en la última versión 0.1",
+        "stale_one": "{{count}} capítulo es más antiguo que lo que usted escribió",
+        "stale_other": "{{count}} capítulos son más antiguos que lo que usted escribió",
+        "sync": "La sincronización tiene conflictos sin resolver",
+        "title": "Puede que a algunos textos les falten los últimos segundos de escritura",
+        "unproven_one": "No se puede confirmar que {{count}} texto sea el más reciente; aparece abajo",
+        "unproven_other": "No se puede confirmar que {{count}} textos sean los más recientes; aparecen abajo"
+      },
+      "summary": {
+        "account_libraries_left_one": "{{count}} biblioteca de cuenta de la carpeta espera a que haya cuentas",
+        "account_libraries_left_other": "{{count}} bibliotecas de cuenta de la carpeta esperan a que haya cuentas",
+        "already_imported": "Ya se importó en este dispositivo; se omitió",
+        "already_in_library": "Ya está en la biblioteca; se dejó como está",
+        "from_caches_one": "{{count}} texto vino de su caché y puede que le falten los últimos segundos",
+        "from_caches_other": "{{count}} textos vinieron de su caché y puede que les falten los últimos segundos"
+      }
+    }
+  },
   "importDialog": {
     "chooseFolder": "Elegir carpeta",
     "status": {
@@ -132,6 +163,9 @@
     }
   },
   "leftSidebar": {
+    "actions": {
+      "sort": "Ordenar"
+    },
     "empty": {
       "noChapters": "Aún no hay capítulos.",
       "noDrifts": "Aún no hay ideas.",
@@ -144,6 +178,25 @@
       "chapters": "{{count}} capítulos",
       "drifts": "{{count}} ideas",
       "elements": "{{categories}} categorías · {{elements}} elementos"
+    },
+    "sort": {
+      "alphabet": "Alfabético",
+      "bookOrder": "Orden de lectura",
+      "cellMetaGroup": "Borde derecho de celda",
+      "chapters": "Ordenar capítulos",
+      "createdAt": "Fecha de creación",
+      "duplicatesAll": "Mostrar en todos los grupos vinculados",
+      "duplicatesGroup": "Capítulos con varias tramas",
+      "duplicatesPrimary": "Mostrar solo en la trama principal",
+      "narrativeOrder": "Orden narrativo",
+      "outerStorylinesGroup": "Tramas externas",
+      "showBoth": "Mostrar palabras y fecha",
+      "showDate": "Mostrar fecha",
+      "showNone": "No mostrar ninguno",
+      "showWordCount": "Mostrar recuento de palabras",
+      "storylineChapters": "Ordenar capítulos dentro de las tramas",
+      "storylineOrder": "Orden de tramas",
+      "updatedAt": "Fecha de actualización"
     },
     "tabs": {
       "chapters": "Capítulos",
@@ -379,6 +432,7 @@
       "credits": "Créditos y licencias",
       "emailTeam": "Enviar correo al equipo",
       "engine": "Motor",
+      "feedback": "Comentarios…",
       "knownIssues": "Problemas conocidos",
       "knownIssuesDesc": "Limitaciones conocidas de la versión Alpha actual",
       "license": "Licencia del cliente",
@@ -387,6 +441,8 @@
       "sourceCode": "Código fuente",
       "sourceCodeDesc": "Código correspondiente a este cliente AGPL",
       "sub": "La mejor experiencia de escritura",
+      "submitFeedback": "Enviar comentarios",
+      "submitFeedbackDesc": "Puede incluir un diagnóstico sin datos sensibles; nunca texto del manuscrito.",
       "support": "Soporte de Alpha",
       "supportDesc": "Instrucciones para resolver problemas e informar con seguridad",
       "tagline": "Para quienes escriben hasta bien entrada la noche.",
@@ -415,6 +471,8 @@
       "open_in_browser": "Abrir en el navegador"
     },
     "editor": {
+      "auto_element_link": "Enlaces automáticos a elementos",
+      "auto_element_link_desc": "Detecta nombres de elementos existentes al escribir y enlaza sus páginas.",
       "auto_immersive": "Escritura inmersiva al teclear",
       "auto_immersive_desc": "Al escribir en el texto se recogen las barras laterales y las herramientas; pulsa Esc o haz clic fuera del texto para recuperarlas.",
       "flow": "Flujo de escritura",
@@ -425,6 +483,7 @@
       "indent_none": "Ninguna",
       "indent_one": "1 carácter",
       "indent_two": "2 caracteres",
+      "justify": "Justificar",
       "line_height": "Interlineado",
       "page_width": "Ancho de página",
       "page_width_desc": "Ancho del papel en el editor; el texto lo ocupa respetando márgenes fijos.",
@@ -437,7 +496,9 @@
       "reset_style": "Restaurar estilo recomendado",
       "typesetting": "Composición tipográfica",
       "typewriter_mode": "Modo máquina de escribir",
-      "typewriter_mode_desc": "Mantiene la línea activa en una posición fija al escribir o mover el cursor. Solo en el editor."
+      "typewriter_mode_desc": "Mantiene la línea activa en una posición fija al escribir o mover el cursor. Solo en el editor.",
+      "typewriter_position": "Posición de la línea activa",
+      "typewriter_position_desc": "Porcentaje desde arriba: 25% alto, 50% centrado, 75% bajo."
     },
     "groups": {
       "about": "Acerca de",
@@ -569,6 +630,7 @@
     }
   },
   "userMenu": {
+    "feedback": "Enviar comentarios",
     "import": "Importar",
     "importBook": "Importar libro (.driftingbook)",
     "language": "Idioma",

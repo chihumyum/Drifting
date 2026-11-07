@@ -11,11 +11,16 @@
 //! selection, so the editor scrolls to it; drawing every match is F4d's
 //! highlight layer. ⌘E in the editor ("use the selection for find") fills
 //! the bar.
+//!
+//! Replace (⌥⌘F / Ctrl+H, or the bar's swap button) opens a second row: the
+//! replacement, 替换 (the current match, then on to the next) and 全部替换
+//! (every match of the scope; one undo step per chapter). Enter in that
+//! field replaces the current match.
 
 use dr_i18n::keys;
 use dr_ui::{
     Theme,
-    components::IconButton,
+    components::{Button, IconButton},
     fonts::Role,
     glass::{self, Kind, Mode, Spec, Tone},
     input::field::{FieldEvent, TextField},
@@ -72,6 +77,9 @@ pub struct FindBar {
     /// The editor it searches.
     pub prose: Entity<ProseEditor>,
     field: Entity<TextField>,
+    replace_field: Entity<TextField>,
+    /// The replace row is open.
+    pub replacing: bool,
     scope: FindScope,
     status: FindStatus,
     _subscriptions: Vec<Subscription>,
@@ -109,7 +117,22 @@ impl FindBar {
                 .small()
                 .with_text(query)
         });
+        let replace_hint = t(cx, keys::find_panel::REPLACE_PLACEHOLDER);
+        let replace_field = cx.new(|cx| {
+            TextField::new("replace-field", window, cx)
+                .placeholder(replace_hint)
+                .small()
+        });
         let subscriptions = vec![
+            cx.subscribe_in(
+                &replace_field,
+                window,
+                |bar, _, event: &FieldEvent, window, cx| match event {
+                    FieldEvent::Submitted(_) => bar.replace_current(window, cx),
+                    FieldEvent::Cancelled => cx.emit(FindBarEvent::Close),
+                    FieldEvent::Changed(_) | FieldEvent::Blurred => {}
+                },
+            ),
             cx.subscribe_in(
                 &field,
                 window,
@@ -132,6 +155,8 @@ impl FindBar {
         let mut bar = FindBar {
             prose,
             field,
+            replace_field,
+            replacing: false,
             scope: if book {
                 FindScope::Book
             } else {
@@ -192,6 +217,50 @@ impl FindBar {
         self.refresh(cx);
     }
 
+    /// Opens or closes the replace row; opened, its field takes the
+    /// keyboard.
+    pub fn set_replacing(&mut self, on: bool, window: &mut Window, cx: &mut Context<Self>) {
+        self.replacing = on;
+        if on {
+            self.replace_field.focus_handle(cx).focus(window, cx);
+        } else {
+            self.field.focus_handle(cx).focus(window, cx);
+        }
+        cx.notify();
+    }
+
+    /// What the replace field holds.
+    pub fn replacement(&self, cx: &gpui::App) -> String {
+        self.replace_field.read(cx).text()
+    }
+
+    pub fn set_replacement(&mut self, text: &str, cx: &mut Context<Self>) {
+        let text = text.to_owned();
+        self.replace_field.update(cx, |f, cx| f.set_text(text, cx));
+    }
+
+    /// 替换: the current match (the first after the caret if none is), then
+    /// on to the next.
+    pub fn replace_current(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let with = self.replacement(cx);
+        self.prose.update(cx, |p, cx| {
+            if p.replace_current(&with, window, cx) {
+                p.find_next(window, cx);
+            }
+        });
+        self.refresh(cx);
+    }
+
+    /// 全部替换: every match of the scope. Returns how many.
+    pub fn replace_all(&mut self, window: &mut Window, cx: &mut Context<Self>) -> usize {
+        let with = self.replacement(cx);
+        let n = self
+            .prose
+            .update(cx, |p, cx| p.replace_all(&with, window, cx));
+        self.refresh(cx);
+        n
+    }
+
     /// Drops the query (the bar is closing).
     pub fn clear(&mut self, cx: &mut Context<Self>) {
         self.prose.update(cx, |p, cx| p.clear_find(cx));
@@ -217,8 +286,41 @@ impl Render for FindBar {
             (None, n) => format!("{n}"),
         };
         let entity = cx.entity();
-        let (prev, next, close) = (entity.clone(), entity.clone(), entity);
-        glass::glass_box(
+        let (prev, next, close, swap) = (
+            entity.clone(),
+            entity.clone(),
+            entity.clone(),
+            entity.clone(),
+        );
+        let (one, all) = (entity.clone(), entity);
+        let replacing = self.replacing;
+        let replace_row = replacing.then(|| {
+            div()
+                .w_full()
+                .flex()
+                .flex_row()
+                .items_center()
+                .gap(px(6.0))
+                .child(div().flex_1().min_w_0().child(self.replace_field.clone()))
+                .child(
+                    Button::new("replace-one", t(cx, keys::find_panel::REPLACE))
+                        .small()
+                        .on_click(move |_, window, cx| {
+                            one.update(cx, |bar, cx| bar.replace_current(window, cx))
+                        }),
+                )
+                .child(
+                    Button::new("replace-all", t(cx, keys::find_panel::REPLACE_ALL))
+                        .small()
+                        .on_click(move |_, window, cx| {
+                            all.update(cx, |bar, cx| {
+                                bar.replace_all(window, cx);
+                            })
+                        }),
+                )
+        });
+        let find_row = div().w_full().flex().flex_row().items_center().gap(px(2.0));
+        let bar = glass::glass_box(
             "find-bar",
             Kind::Surface,
             Mode::default(),
@@ -234,48 +336,60 @@ impl Render for FindBar {
         .on_action(cx.listener(|bar, _: &Previous, window, cx| bar.step(false, window, cx)))
         .on_action(cx.listener(|bar, _: &Next, window, cx| bar.step(true, window, cx)))
         .occlude()
-        .w(px(340.0))
+        .w(px(if replacing { 420.0 } else { 372.0 }))
         .flex()
-        .flex_row()
-        .items_center()
-        .gap(px(2.0))
+        .flex_col()
+        .gap(px(4.0))
         .p(px(g::TRAY_PADDING))
-        .rounded_full()
-        .bg(p.page.solid())
-        .child(div().flex_1().min_w_0().child(self.field.clone()))
-        .child(
-            div()
-                .px(px(6.0))
-                .min_w(px(44.0))
-                .flex()
-                .justify_end()
-                .font_role(Role::Index)
-                .type_px(s.caption, s.line_caption)
-                .text_color(p.muted().solid())
-                .child(status),
-        )
-        .child(
-            IconButton::new("find-previous", Icon::ChevronUp)
-                .in_tray()
-                .label(t(cx, keys::find_panel::PREVIOUS_TITLE))
-                .on_click(move |_, window, cx| {
-                    prev.update(cx, |bar, cx| bar.step(false, window, cx))
-                }),
-        )
-        .child(
-            IconButton::new("find-next", Icon::ChevronDown)
-                .in_tray()
-                .label(t(cx, keys::find_panel::NEXT_TITLE))
-                .on_click(move |_, window, cx| {
-                    next.update(cx, |bar, cx| bar.step(true, window, cx))
-                }),
-        )
-        .child(
-            IconButton::new("find-close", Icon::Close)
-                .in_tray()
-                .label(t(cx, keys::find_panel::CLOSE_TITLE))
-                .on_click(move |_, _, cx| close.update(cx, |_, cx| cx.emit(FindBarEvent::Close))),
-        )
+        .rounded(px((g::PILL_HEIGHT + 2.0 * g::TRAY_PADDING) / 2.0))
+        .bg(p.page.solid());
+        let find_row = find_row
+            .child(div().flex_1().min_w_0().child(self.field.clone()))
+            .child(
+                div()
+                    .px(px(6.0))
+                    .min_w(px(44.0))
+                    .flex()
+                    .justify_end()
+                    .font_role(Role::Index)
+                    .type_px(s.caption, s.line_caption)
+                    .text_color(p.muted().solid())
+                    .child(status),
+            )
+            .child(
+                IconButton::new("find-previous", Icon::ChevronUp)
+                    .in_tray()
+                    .label(t(cx, keys::find_panel::PREVIOUS_TITLE))
+                    .on_click(move |_, window, cx| {
+                        prev.update(cx, |bar, cx| bar.step(false, window, cx))
+                    }),
+            )
+            .child(
+                IconButton::new("find-next", Icon::ChevronDown)
+                    .in_tray()
+                    .label(t(cx, keys::find_panel::NEXT_TITLE))
+                    .on_click(move |_, window, cx| {
+                        next.update(cx, |bar, cx| bar.step(true, window, cx))
+                    }),
+            )
+            .child(
+                IconButton::new("find-replace", Icon::Swap)
+                    .in_tray()
+                    .selected(replacing)
+                    .label(t(cx, keys::find_panel::REPLACE))
+                    .on_click(move |_, window, cx| {
+                        swap.update(cx, |bar, cx| bar.set_replacing(!bar.replacing, window, cx))
+                    }),
+            )
+            .child(
+                IconButton::new("find-close", Icon::Close)
+                    .in_tray()
+                    .label(t(cx, keys::find_panel::CLOSE_TITLE))
+                    .on_click(move |_, _, cx| {
+                        close.update(cx, |_, cx| cx.emit(FindBarEvent::Close))
+                    }),
+            );
+        bar.child(find_row).children(replace_row)
     }
 }
 
@@ -307,6 +421,14 @@ impl super::Workspace {
         bar.update(cx, |bar, cx| bar.focus(window, cx));
         self.find = Some(bar);
         cx.notify();
+    }
+
+    /// ⌥⌘F / Ctrl+H: the find bar with its replace row open.
+    pub fn open_replace(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.open_find(window, cx);
+        if let Some(bar) = self.find.clone() {
+            bar.update(cx, |bar, cx| bar.set_replacing(true, window, cx));
+        }
     }
 
     /// Closes the find bar: its query goes, the page gets the keyboard.

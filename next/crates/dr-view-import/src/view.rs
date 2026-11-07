@@ -5,7 +5,7 @@
 
 use std::collections::BTreeMap;
 
-use dr_i18n::{Locale, keys};
+use dr_i18n::keys;
 use dr_import_v1::gate::{BodyRef, Reason};
 use dr_import_v1::legacy::{Freshness, ProseKind};
 use dr_import_v1::progress::Step;
@@ -82,22 +82,9 @@ fn index(text: impl Into<SharedString>, window: &Window, cx: &App) -> gpui::Div 
         .child(text.into())
 }
 
-/// A sentence the 0.1 client never had ([`copy`]): its settled text, or its
-/// key (with its count) in index type.
-fn missing(key: &'static str, count: Option<usize>, window: &Window, cx: &App) -> AnyElement {
-    if let Some(text) = copy::settled(key, Settings::locale(cx)) {
-        return div().child(text).into_any_element();
-    }
-    let text = match count {
-        Some(n) => format!("{key} · {n}"),
-        None => key.to_owned(),
-    };
-    index(text, window, cx).into_any_element()
-}
-
-/// A button whose label the 0.1 client never had.
-fn missing_label(key: &'static str, locale: Locale) -> SharedString {
-    copy::settled(key, locale).unwrap_or(key).into()
+/// A sentence of the import's own ([`copy`]), with its count.
+fn missing(key: &'static str, count: Option<usize>, _: &Window, cx: &App) -> AnyElement {
+    div().child(copy::text(key, count, cx)).into_any_element()
 }
 
 fn name_or_untitled(name: &str, cx: &App) -> SharedString {
@@ -185,7 +172,6 @@ fn kind_label(body: &BodyRef, cx: &App) -> SharedString {
 fn blocked(b: &Blocked, window: &mut Window, cx: &mut Context<LegacyImport>) -> AnyElement {
     let theme = Theme::of(window, cx);
     let (p, s) = (theme.palette, theme.scale);
-    let locale = Settings::locale(cx);
     let gate = &b.gate;
     let count_of = |f: Freshness| gate.doubtful.iter().filter(|d| d.freshness == f).count();
     let reasons: Vec<AnyElement> = gate
@@ -281,7 +267,7 @@ fn blocked(b: &Blocked, window: &mut Window, cx: &mut Context<LegacyImport>) -> 
                 .child(
                     Button::new(
                         "legacy-import-download",
-                        missing_label(copy::ACTION_DOWNLOAD, locale),
+                        copy::text(copy::ACTION_DOWNLOAD, None, cx),
                     )
                     .text()
                     .small()
@@ -299,7 +285,7 @@ fn blocked(b: &Blocked, window: &mut Window, cx: &mut Context<LegacyImport>) -> 
         .action(
             Button::new(
                 "legacy-import-anyway",
-                missing_label(copy::ACTION_IMPORT_ANYWAY, locale),
+                copy::text(copy::ACTION_IMPORT_ANYWAY, None, cx),
             )
             .primary()
             .on_click(move |_, window, cx| {

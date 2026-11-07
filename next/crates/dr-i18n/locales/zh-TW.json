@@ -106,7 +106,10 @@
     "closeTitle": "關閉（Esc）",
     "currentPlaceholder": "在目前編輯器中尋找…",
     "nextTitle": "下一個（Enter）",
-    "previousTitle": "上一個（Shift+Enter）"
+    "previousTitle": "上一個（Shift+Enter）",
+    "replace": "取代",
+    "replaceAll": "全部取代",
+    "replacePlaceholder": "取代為…"
   },
   "globalSearch": {
     "closeTitle": "關閉（Esc）",
@@ -122,6 +125,29 @@
     "enter": "沉浸寫作",
     "leave": "退出沉浸寫作"
   },
+  "import": {
+    "v1": {
+      "action": {
+        "download_last_release": "下載舊版最後一版",
+        "import_anyway": "仍然匯入"
+      },
+      "blocked": {
+        "changed_after_handoff": "有 {{count}} 篇在交接核對後又改過",
+        "get_last_release": "下載舊版的最後一版，打開這個資料庫一次再退出，然後重新匯入",
+        "no_handoff": "這個資料庫還沒在舊版的最後一版裡打開過",
+        "stale": "有 {{count}} 章比你寫到的舊",
+        "sync": "同步還有沒解決的衝突",
+        "title": "有幾篇正文可能少了最後幾秒打的字",
+        "unproven": "有 {{count}} 篇正文無法確認是最新的，列在下面"
+      },
+      "summary": {
+        "account_libraries_left": "資料夾裡還有 {{count}} 個帳號資料庫沒匯入，等帳號功能做好",
+        "already_imported": "這台裝置以前匯入過，這次沒再匯入",
+        "already_in_library": "新資料庫裡已經有這本書，沒有動",
+        "from_caches": "有 {{count}} 篇照快取匯入，可能少了最後幾秒的字"
+      }
+    }
+  },
   "importDialog": {
     "chooseFolder": "選擇資料夾",
     "status": {
@@ -132,6 +158,9 @@
     }
   },
   "leftSidebar": {
+    "actions": {
+      "sort": "排序"
+    },
     "empty": {
       "noChapters": "尚無章節。",
       "noDrifts": "尚無構想。",
@@ -144,6 +173,25 @@
       "chapters": "{{count}} 章",
       "drifts": "{{count}} 個構想",
       "elements": "{{categories}} 個類目 · {{elements}} 個要素"
+    },
+    "sort": {
+      "alphabet": "字母順序",
+      "bookOrder": "閱讀順序",
+      "cellMetaGroup": "儲存格右側",
+      "chapters": "章節排序",
+      "createdAt": "建立時間",
+      "duplicatesAll": "顯示於每個連結的分組",
+      "duplicatesGroup": "多故事線章節",
+      "duplicatesPrimary": "只在主要故事線顯示",
+      "narrativeOrder": "敘事順序",
+      "outerStorylinesGroup": "外層故事線",
+      "showBoth": "顯示字數與日期",
+      "showDate": "顯示日期",
+      "showNone": "皆不顯示",
+      "showWordCount": "顯示字數",
+      "storylineChapters": "故事線內章節排序",
+      "storylineOrder": "故事線順序",
+      "updatedAt": "更新時間"
     },
     "tabs": {
       "chapters": "章節",
@@ -373,6 +421,7 @@
       "credits": "致謝與授權",
       "emailTeam": "寄電子郵件給團隊",
       "engine": "引擎",
+      "feedback": "意見回饋…",
       "knownIssues": "已知問題",
       "knownIssuesDesc": "目前 Alpha 版的已知限制",
       "license": "用戶端授權",
@@ -381,6 +430,8 @@
       "sourceCode": "原始碼",
       "sourceCodeDesc": "此 AGPL 用戶端對應的原始碼",
       "sub": "極致寫作體驗",
+      "submitFeedback": "提交意見回饋",
+      "submitFeedbackDesc": "可包含去除敏感資訊的診斷摘要，絕不包含書稿文字。",
       "support": "Alpha 支援",
       "supportDesc": "疑難排解與安全回報說明",
       "tagline": "獻給深夜仍清醒寫作的人。",
@@ -409,6 +460,8 @@
       "open_in_browser": "在瀏覽器中開啟"
     },
     "editor": {
+      "auto_element_link": "自動連結要素",
+      "auto_element_link_desc": "輸入時辨識現有要素名稱，並連結至其頁面。",
       "auto_immersive": "打字時自動沉浸",
       "auto_immersive_desc": "開始寫正文就收起側欄與工具；按 Esc 或點正文以外的地方回來。",
       "flow": "寫作節奏",
@@ -419,6 +472,7 @@
       "indent_none": "無",
       "indent_one": "1 字",
       "indent_two": "2 字",
+      "justify": "兩端對齊",
       "line_height": "行高",
       "page_width": "紙張寬度",
       "page_width_desc": "編輯器中的紙張寬度；正文會在固定邊距內填滿可用寬度。",
@@ -431,7 +485,9 @@
       "reset_style": "還原建議樣式",
       "typesetting": "排版",
       "typewriter_mode": "打字機模式",
-      "typewriter_mode_desc": "輸入或移動游標時，將目前正文行維持在畫面的固定位置；僅影響編輯器畫面。"
+      "typewriter_mode_desc": "輸入或移動游標時，將目前正文行維持在畫面的固定位置；僅影響編輯器畫面。",
+      "typewriter_position": "輸入行位置",
+      "typewriter_position_desc": "距編輯器頂端的百分比：25% 偏高、50% 置中、75% 偏低。"
     },
     "groups": {
       "about": "關於",
@@ -563,6 +619,7 @@
     }
   },
   "userMenu": {
+    "feedback": "傳送意見回饋",
     "import": "匯入",
     "importBook": "匯入作品（.driftingbook）",
     "language": "語言",

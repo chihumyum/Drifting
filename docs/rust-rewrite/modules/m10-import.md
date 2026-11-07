@@ -354,7 +354,7 @@ Agent 的结算记录、读取回执、检查点、事件流、长任务状态�
 | 出错 | 「无法导入」，正文是导入器给的原因 | 「关闭」 |
 
 - **只走一次。** 对话框开着时再点入口什么都不做；一次只能有一个导入。
-- **对话框浮在整个窗口上**（dr-ui 的 `Dialog`，书架上的对话框也是它）。它是外壳的一层（`dr_shell::pages::add_layer`，这一轮加的），书架和书里都画；没有导入时什么都不画。打开时拿走焦点，关掉时还给原来的地方。
+- **对话框浮在整个窗口上**（dr-ui 的 `Dialog`，书架上的对话框也是它）。它是外壳的模态对话框（F6 第五轮起走 `dr_shell::dialogs::show` / `hide`，和 F7 的反馈同一套），书架和书里都画；没有导入时什么都不画，开着时工作区的快捷键停。打开时拿走焦点，关掉时还给原来的地方。
 - **在哪个库里导**：App 开着的那个（F3 的 `Services.library`）。导入在名为 `legacy-import` 的线程上跑；进度一批一批送到界面，界面只留最新的一个、每批重画一次。导入线程意外结束（崩溃）时，显示出错对话框，原因写 `the import stopped unexpectedly`。
 - **字数**：摘要里的字数在导入线程上用书架自己的读法（`ShelfData::load`）读，所以和书架上的数一样。
 - **原库只读、不动**：界面不碰旧库，导入照旧在新库旁边的副本上读。
@@ -379,7 +379,7 @@ Agent 的结算记录、读取回执、检查点、事件流、长任务状态�
 | 每本书的字数、状态 | `common.wordsCount`、`importDialog.status.committed` | {{count}} 字、已导入 |
 | 出错的标题 | `projectPicker.bookTransfer.importFailedTitle` | 无法导入 |
 
-旧版没有的句子**没有编**：界面上直接显示它的键（等宽小字、次要墨色），一看就知道是待定的文案。键和该说什么列在「待协调」第 13 条。唯一的例外是作者定闸门时亲口定的按钮名「仍然导入」（D5），简体中文显示这四个字，其他语言仍显示键。出错时的正文是导入器自己的错误信息（英文，和旧版「无法导入文件：{{error}}」一样直接给原因）。
+旧版没有的 13 句（键和意思见「待协调」第 13 条）是 F6 第五轮写的，在 `next/crates/dr-i18n/own/` 里，九种语言齐全，`copy.rs` 用 `t` / `tp` 取（有数字的按复数规则选）。作者定闸门时亲口定的按钮名「仍然导入」（D5）照旧。出错时的正文是导入器自己的错误信息（英文，和旧版「无法导入文件：{{error}}」一样直接给原因）。
 
 ### 截图
 
@@ -395,7 +395,7 @@ Agent 的结算记录、读取回执、检查点、事件流、长任务状态�
 
 ### 改到的别处
 
-- `dr-shell`：`pages::add_layer`（新）和工作区两处 `render` 末尾各一行 `.children(pages::layers(cx))`。
+- `dr-shell`：不用改（F6 第五轮起导入走外壳的 `dialogs::show` / `hide`；原来的 `pages::add_layer` 和两处 `render` 里的那一行已删）。
 - `dr-view-shelf`：删掉书架根上接 `ImportLegacyLibrary` 的那行调试日志。它不放行，动作到不了 `cx.on_action`。
 - `app/drifting`：`main.rs` 一行 `dr_view_import::init(cx)`，`Cargo.toml` 一行依赖。
 
@@ -528,8 +528,8 @@ cargo xtask check
     | `import.v1.summary.from_caches` | 有几篇照缓存导入，可能少了最后几秒的字 | 篇数 |
     | `import.v1.summary.account_libraries_left` | 文件夹里还有几个账号库没导，等账号功能（M35） | 个数 |
 
-    新版的文案来源定下来以后（`sync-locales.py` 现在只从旧版拷），把这 13 句加进去、九种语言齐全，`copy.rs` 的占位就可以删了。
-14. **F6：请审外壳里加的一层。** `dr_shell::pages::add_layer` 是新加的，工作区的两个 `render` 末尾各加了一行。另外两点请 F6 定：
+    **已做（F6 第五轮）**：新版自己的文案放在 `dr-i18n/own/`，`sync-locales.py` 把它并进 `locales/`；这 13 句九种语言齐全，`copy.rs` 的占位删了。
+14. **F6：请审外壳里加的一层。** **已做（F6 第五轮）**：外壳只留一套模态浮层，`pages::add_layer` 删了，导入对话框开着时用 `dr_shell::dialogs::show`，回到空闲时 `dialogs::hide`；对话框开着时工作区快捷键停（监管定的）。剩下的是下面第二点。原来的问题：`dr_shell::pages::add_layer` 是新加的，工作区的两个 `render` 末尾各加了一行。另外两点请 F6 定：
     - 导入对话框开着时，工作区自己的快捷键还在（比如 ⌘N 新建一本书）。要不要像设置、Super View 那样算进 `covered()`？
     - 书架左栏入口派发动作后，`cx.on_action` 要等这次派发结束才能碰窗口，所以 dr-view-import 用 `menus::after_dispatch` 再找工作区窗口（`workspace::with_workspace`，找的是第一个工作区窗口）。将来有多个窗口时，应该改成派发动作的那个窗口。
 15. **F7：选文件夹面板不能先定位到旧版的数据目录。** GPUI 的 `PathPromptOptions` 没有起始目录这一项，而旧版的数据目录藏在 `~/Library/Application Support/` 里，作者得自己找（⇧⌘G）。两种做法，请 F7 挑一种：

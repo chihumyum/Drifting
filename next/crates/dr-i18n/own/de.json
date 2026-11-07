@@ -1,0 +1,40 @@
+{
+  "import": {
+    "v1": {
+      "blocked": {
+        "title": "Einigen Texten fehlen vielleicht die letzten Sekunden Getipptes",
+        "no_handoff": "Diese Bibliothek wurde noch nicht in der letzten Version 0.1 geöffnet",
+        "unproven_one": "Bei {{count}} Text ist nicht sicher, dass er aktuell ist; er steht unten",
+        "unproven_other": "Bei {{count}} Texten ist nicht sicher, dass sie aktuell sind; sie stehen unten",
+        "stale_one": "{{count}} Kapitel ist älter als das, was du geschrieben hast",
+        "stale_other": "{{count}} Kapitel sind älter als das, was du geschrieben hast",
+        "changed_after_handoff_one": "{{count}} Text wurde nach der Übergabeprüfung geändert",
+        "changed_after_handoff_other": "{{count}} Texte wurden nach der Übergabeprüfung geändert",
+        "sync": "Die Synchronisierung hat ungelöste Konflikte",
+        "get_last_release": "Lade die letzte Version 0.1 herunter, öffne diese Bibliothek einmal, beende sie und importiere dann erneut"
+      },
+      "action": {
+        "download_last_release": "Letzte Version 0.1 herunterladen",
+        "import_anyway": "Trotzdem importieren"
+      },
+      "summary": {
+        "already_imported": "Auf diesem Gerät schon importiert; übersprungen",
+        "already_in_library": "Schon in der Bibliothek; unverändert gelassen",
+        "from_caches_one": "{{count}} Text kam aus dem Cache; die letzten Sekunden fehlen vielleicht",
+        "from_caches_other": "{{count}} Texte kamen aus dem Cache; die letzten Sekunden fehlen vielleicht",
+        "account_libraries_left_one": "{{count}} Kontobibliothek im Ordner wartet auf Konten",
+        "account_libraries_left_other": "{{count}} Kontobibliotheken im Ordner warten auf Konten"
+      }
+    }
+  },
+  "settings": {
+    "editor": {
+      "justify": "Blocksatz"
+    }
+  },
+  "findPanel": {
+    "replacePlaceholder": "Ersetzen durch…",
+    "replace": "Ersetzen",
+    "replaceAll": "Alle ersetzen"
+  }
+}

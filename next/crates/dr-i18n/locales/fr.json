@@ -106,7 +106,10 @@
     "closeTitle": "Fermer (Échap)",
     "currentPlaceholder": "Rechercher dans l’éditeur actif…",
     "nextTitle": "Suivant (Entrée)",
-    "previousTitle": "Précédent (Maj+Entrée)"
+    "previousTitle": "Précédent (Maj+Entrée)",
+    "replace": "Remplacer",
+    "replaceAll": "Tout remplacer",
+    "replacePlaceholder": "Remplacer par…"
   },
   "globalSearch": {
     "closeTitle": "Fermer (Échap)",
@@ -122,6 +125,34 @@
     "enter": "Écriture immersive",
     "leave": "Quitter l’écriture immersive"
   },
+  "import": {
+    "v1": {
+      "action": {
+        "download_last_release": "Télécharger la dernière version 0.1",
+        "import_anyway": "Importer quand même"
+      },
+      "blocked": {
+        "changed_after_handoff_one": "{{count}} texte a changé après la vérification du passage",
+        "changed_after_handoff_other": "{{count}} textes ont changé après la vérification du passage",
+        "get_last_release": "Téléchargez la dernière version 0.1, ouvrez cette bibliothèque une fois, quittez, puis importez de nouveau",
+        "no_handoff": "Cette bibliothèque n’a pas encore été ouverte dans la dernière version 0.1",
+        "stale_one": "{{count}} chapitre est plus ancien que ce que vous avez écrit",
+        "stale_other": "{{count}} chapitres sont plus anciens que ce que vous avez écrit",
+        "sync": "La synchronisation a des conflits non résolus",
+        "title": "Il manque peut-être à certains textes leurs dernières secondes de frappe",
+        "unproven_one": "{{count}} texte n’est peut-être pas le plus récent ; il figure ci-dessous",
+        "unproven_other": "{{count}} textes ne sont peut-être pas les plus récents ; ils figurent ci-dessous"
+      },
+      "summary": {
+        "account_libraries_left_one": "{{count}} bibliothèque de compte du dossier attend les comptes",
+        "account_libraries_left_other": "{{count}} bibliothèques de compte du dossier attendent les comptes",
+        "already_imported": "Déjà importé sur cet appareil ; ignoré",
+        "already_in_library": "Déjà dans la bibliothèque ; laissé tel quel",
+        "from_caches_one": "{{count}} texte vient de son cache ; ses dernières secondes manquent peut-être",
+        "from_caches_other": "{{count}} textes viennent de leur cache ; leurs dernières secondes manquent peut-être"
+      }
+    }
+  },
   "importDialog": {
     "chooseFolder": "Choisir un dossier",
     "status": {
@@ -132,6 +163,9 @@
     }
   },
   "leftSidebar": {
+    "actions": {
+      "sort": "Trier"
+    },
     "empty": {
       "noChapters": "Pas encore de chapitres.",
       "noDrifts": "Pas encore d’idées.",
@@ -144,6 +178,25 @@
       "chapters": "{{count}} chapitres",
       "drifts": "{{count}} idées",
       "elements": "{{categories}} catégories · {{elements}} éléments"
+    },
+    "sort": {
+      "alphabet": "Alphabétique",
+      "bookOrder": "Ordre de lecture",
+      "cellMetaGroup": "Bord droit de cellule",
+      "chapters": "Trier les chapitres",
+      "createdAt": "Date de création",
+      "duplicatesAll": "Afficher dans chaque groupe lié",
+      "duplicatesGroup": "Chapitres à plusieurs intrigues",
+      "duplicatesPrimary": "Afficher seulement dans l’intrigue principale",
+      "narrativeOrder": "Ordre narratif",
+      "outerStorylinesGroup": "Intrigues extérieures",
+      "showBoth": "Afficher les mots et la date",
+      "showDate": "Afficher la date",
+      "showNone": "Ne rien afficher",
+      "showWordCount": "Afficher le nombre de mots",
+      "storylineChapters": "Trier les chapitres dans les intrigues",
+      "storylineOrder": "Ordre des intrigues",
+      "updatedAt": "Date de modification"
     },
     "tabs": {
       "chapters": "Chapitres",
@@ -379,6 +432,7 @@
       "credits": "Crédits et licences",
       "emailTeam": "Écrire à l’équipe",
       "engine": "Moteur",
+      "feedback": "Votre avis…",
       "knownIssues": "Problèmes connus",
       "knownIssuesDesc": "Limites connues de la version Alpha actuelle",
       "license": "Licence du client",
@@ -387,6 +441,8 @@
       "sourceCode": "Code source",
       "sourceCodeDesc": "Code correspondant à ce client AGPL",
       "sub": "L’expérience d’écriture ultime",
+      "submitFeedback": "Envoyer un retour",
+      "submitFeedbackDesc": "Peut inclure un diagnostic expurgé, jamais le texte du manuscrit.",
       "support": "Assistance Alpha",
       "supportDesc": "Dépannage et instructions de signalement sécurisé",
       "tagline": "Pour celles et ceux qui écrivent au cœur de la nuit.",
@@ -415,6 +471,8 @@
       "open_in_browser": "Ouvrir dans le navigateur"
     },
     "editor": {
+      "auto_element_link": "Liens automatiques vers les éléments",
+      "auto_element_link_desc": "Reconnaît les noms d’éléments existants lors de la saisie et crée un lien vers leur page.",
       "auto_immersive": "Écriture immersive dès la saisie",
       "auto_immersive_desc": "Dès que vous écrivez dans le texte, les barres latérales et les outils se retirent ; Échap ou un clic hors du texte les fait revenir.",
       "flow": "Rythme d’écriture",
@@ -425,6 +483,7 @@
       "indent_none": "Aucun",
       "indent_one": "1 caractère",
       "indent_two": "2 caractères",
+      "justify": "Justifier",
       "line_height": "Hauteur de ligne",
       "page_width": "Largeur de page",
       "page_width_desc": "Largeur du papier dans l’éditeur ; le texte la remplit avec des marges fixes.",
@@ -437,7 +496,9 @@
       "reset_style": "Rétablir le style recommandé",
       "typesetting": "Composition",
       "typewriter_mode": "Mode machine à écrire",
-      "typewriter_mode_desc": "Maintient la ligne active à une position stable lors de la saisie ou du déplacement du curseur. Uniquement dans l’éditeur."
+      "typewriter_mode_desc": "Maintient la ligne active à une position stable lors de la saisie ou du déplacement du curseur. Uniquement dans l’éditeur.",
+      "typewriter_position": "Position de la ligne de saisie",
+      "typewriter_position_desc": "Pourcentage depuis le haut : 25% en haut, 50% au centre, 75% en bas."
     },
     "groups": {
       "about": "À propos",
@@ -569,6 +630,7 @@
     }
   },
   "userMenu": {
+    "feedback": "Envoyer un retour",
     "import": "Importer",
     "importBook": "Importer un livre (.driftingbook)",
     "language": "Langue",
