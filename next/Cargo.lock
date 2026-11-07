@@ -1381,6 +1381,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "dr-index"
+version = "0.0.0"
+dependencies = [
+ "dr-doc",
+ "dr-import-v1",
+ "dr-model",
+ "dr-store",
+ "dr-text",
+ "log",
+ "loro",
+ "proptest",
+ "rusqlite",
+ "serde_json",
+ "sha2",
+ "tempfile",
+]
+
+[[package]]
 name = "dr-model"
 version = "0.0.0"
 dependencies = [
@@ -1437,6 +1455,17 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.21",
  "zip",
+]
+
+[[package]]
+name = "dr-text"
+version = "0.0.0"
+dependencies = [
+ "aho-corasick",
+ "dr-doc",
+ "dr-model",
+ "proptest",
+ "prose-metrics",
 ]
 
 [[package]]
@@ -4958,6 +4987,13 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.9",
+]
+
+[[package]]
+name = "prose-metrics"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
 ]
 
 [[package]]

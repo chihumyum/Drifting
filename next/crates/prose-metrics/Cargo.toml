@@ -1,0 +1,17 @@
+# prose-metrics: Drifting's word-count rule, ported from the Apache-2.0
+# `packages/prose-metrics` of the 0.1 client. Licensed Apache-2.0, unlike the
+# rest of the repository (AGPL), so independently operated services can use
+# it: it depends on no `dr-*` crate (and on nothing at all at run time).
+[package]
+name = "prose-metrics"
+version = "0.1.0"
+description = "Drifting's word count: CJK ideographs one by one, other words by whitespace"
+license = "Apache-2.0"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+serde_json.workspace = true

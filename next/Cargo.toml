@@ -8,11 +8,14 @@ members = [
     "app/drifting",
     "crates/dr-doc",
     "crates/dr-import-v1",
+    "crates/dr-index",
     "crates/dr-model",
     "crates/dr-platform",
     "crates/dr-store",
+    "crates/dr-text",
     "crates/dr-ui",
     "crates/gpui-prose",
+    "crates/prose-metrics",
     "spikes/import-v1",
     "spikes/loro-model",
     "spikes/prose-spike",
@@ -51,6 +54,17 @@ dr-doc = { path = "crates/dr-doc" }
 dr-model = { path = "crates/dr-model" }
 # F2 storage, for the 0.1 library import (M10, dr-import-v1).
 dr-store = { path = "crates/dr-store" }
+# Text tools (plain text, outline, auto-link matcher) and the word-count rule
+# (Apache-2.0, no dr-* dependency). docs/rust-rewrite/foundations/dr-text-index.md
+dr-text = { path = "crates/dr-text" }
+# The derived-index implementation (dr-store's Deriver), and M10 for its
+# end-to-end check.
+dr-import-v1 = { path = "crates/dr-import-v1" }
+dr-index = { path = "crates/dr-index" }
+prose-metrics = { path = "crates/prose-metrics" }
+# dr-text: entity auto-link names, leftmost-longest (the version the lockfile
+# already carries).
+aho-corasick = "1.1"
 # uuidv7 for new domain ids (the old data uses uuidv7 too); v4 for F7's
 # installation and crash ids. The version the lockfile already carries for GPUI.
 uuid = { version = "1.29", default-features = false, features = ["std", "v4", "v7"] }
