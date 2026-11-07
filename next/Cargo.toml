@@ -9,6 +9,7 @@ members = [
     "crates/dr-platform",
     "spikes/import-v1",
     "spikes/loro-model",
+    "spikes/prose-spike",
     "spikes/visual",
 ]
 
@@ -55,6 +56,10 @@ base64 = "0.22.1"
 image = { version = "0.25.10", default-features = false, features = ["png"] }
 smallvec = "1.16"
 tiny-skia = "0.11.4"
+
+# Spike P0-B shell (process metrics, AppKit event posting).
+libc = "0.2.191"
+raw-window-handle = "0.6.2"
 
 # F7 dr-platform: logs, crash reports, keychain, deep links and single
 # instance, the updater. docs/rust-rewrite/foundations/f7-platform.md.

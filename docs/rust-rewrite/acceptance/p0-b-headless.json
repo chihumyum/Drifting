@@ -1,0 +1,73 @@
+{
+  "schema": "drifting.p0-b.headless/1",
+  "generated_at": "2026-11-07",
+  "source_fingerprint": "1cc347107d0da2e6",
+  "machine": {
+    "cpu": "Apple M3 Pro",
+    "model": "Mac15,7",
+    "cores": 12,
+    "memory_gb": 36,
+    "os": "macOS 27.0.1"
+  },
+  "build": {
+    "profile": "release",
+    "gpui": "zed v1.27.0 (git tag), runtime_shaders",
+    "loro": "=1.17.1"
+  },
+  "corpus": {
+    "chapter": {
+      "seed": "0x5eed0b01",
+      "chapters": 1,
+      "chars": 20023,
+      "fingerprint": "964a8f71d58ceb72"
+    },
+    "book": {
+      "seed": "0x5eed0b02",
+      "chapters": 100,
+      "chars": 1502265,
+      "fingerprint": "cd4ddcc9a603b967"
+    }
+  },
+  "write_per_keystroke": {
+    "method": "2000 single-character inserts in the middle of the 20k-char chapter. loro = LoroText::insert + commit (the text event is folded into the paragraph mirror); sqlite = INSERT of the commit's encoded update (subscribe_local_update) into a WAL database with synchronous=NORMAL on the local SSD.",
+    "loro": {
+      "count": 2000,
+      "mean_ms": 0.012,
+      "p50_ms": 0.012,
+      "p95_ms": 0.017,
+      "p99_ms": 0.019,
+      "max_ms": 0.218
+    },
+    "sqlite": {
+      "count": 2000,
+      "mean_ms": 0.015,
+      "p50_ms": 0.012,
+      "p95_ms": 0.02,
+      "p99_ms": 0.031,
+      "max_ms": 1.076
+    },
+    "total": {
+      "count": 2000,
+      "mean_ms": 0.028,
+      "p50_ms": 0.025,
+      "p95_ms": 0.032,
+      "p99_ms": 0.047,
+      "max_ms": 1.089
+    },
+    "update_bytes_p50": 92,
+    "budget_median_ms": 2,
+    "pass": true
+  },
+  "cold_open": {
+    "method": "No window. Import Loro snapshots and build the paragraph mirror (LoroDoc::from_snapshot + to_delta).",
+    "book_chapters": 100,
+    "book_paragraphs": 10069,
+    "book_list_items": 10169,
+    "book_snapshot_mb": 8,
+    "book_import_ms": 38.62,
+    "book_import_memory_mb": 34.4,
+    "chapter_import_ms": 0.486,
+    "book_height_estimate_ms": 2.513,
+    "book_estimated_height_px": 1567703
+  }
+}

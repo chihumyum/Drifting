@@ -20,11 +20,13 @@ pub enum Fate {
     History,
     /// Device-local state the new version keeps in its own SQLite.
     Local,
-    /// Agent records: kept read-only, or left behind, as the author decides.
+    /// Agent conversations: imported read-only, to read and search, not to
+    /// continue (decided 2026-11-07). The rest of the run records stay in the
+    /// old library, which the import never changes or deletes.
     AgentArchive,
     /// Rebuilt by the new version from imported data (indexes, projections).
     Rebuild,
-    /// Old machinery with no meaning in the new version.
+    /// Not imported: old machinery, or records left in the old library.
     Drop,
 }
 
@@ -48,20 +50,36 @@ use Fate::*;
 
 /// Sorted by table name.
 pub const TABLES: &[TableFate] = &[
-    t("agent_chat_binding", AgentArchive, "帮手对话扩展的投递状态"),
-    t("agent_chat_branch", AgentArchive, "帮手对话扩展的投递状态"),
-    t("agent_chat_cursor", AgentArchive, "帮手对话扩展的投递状态"),
+    t(
+        "agent_chat_binding",
+        Drop,
+        "帮手对话扩展的投递状态，留在旧库",
+    ),
+    t(
+        "agent_chat_branch",
+        Drop,
+        "帮手对话扩展的投递状态，留在旧库",
+    ),
+    t(
+        "agent_chat_cursor",
+        Drop,
+        "帮手对话扩展的投递状态，留在旧库",
+    ),
     t(
         "agent_chat_delivery",
-        AgentArchive,
-        "帮手对话扩展的投递状态",
+        Drop,
+        "帮手对话扩展的投递状态，留在旧库",
     ),
-    t("agent_chat_object", AgentArchive, "帮手对话扩展的投递状态"),
-    t("agent_chat_queue", AgentArchive, "帮手对话扩展的投递状态"),
+    t(
+        "agent_chat_object",
+        Drop,
+        "帮手对话扩展的投递状态，留在旧库",
+    ),
+    t("agent_chat_queue", Drop, "帮手对话扩展的投递状态，留在旧库"),
     t(
         "agent_conversation",
         AgentArchive,
-        "帮手对话的标题和记录，只读保留",
+        "帮手对话的标题，只读搬过去",
     ),
     t(
         "agent_mcp_server",
@@ -74,43 +92,79 @@ pub const TABLES: &[TableFate] = &[
         Drop,
         "授权绑定旧工具版本，作者在新版重新授权",
     ),
-    t("agent_runtime_checkpoint", AgentArchive, "模型上下文检查点"),
+    t(
+        "agent_runtime_checkpoint",
+        Drop,
+        "模型上下文检查点，可由消息重建，留在旧库",
+    ),
     t(
         "agent_runtime_element_patch_receipt",
-        AgentArchive,
-        "结算记录（含 Yjs 状态向量）",
+        Drop,
+        "结算记录（含 Yjs 状态向量），留在旧库",
     ),
     t(
         "agent_runtime_entity_write_receipt",
-        AgentArchive,
-        "结算记录",
+        Drop,
+        "结算记录，留在旧库",
     ),
-    t("agent_runtime_event", AgentArchive, "运行日志"),
-    t("agent_runtime_message", AgentArchive, "运行记录"),
+    t("agent_runtime_event", Drop, "运行事件流，留在旧库"),
+    t(
+        "agent_runtime_message",
+        AgentArchive,
+        "对话消息，只读搬过去",
+    ),
     t(
         "agent_runtime_read_observation",
-        AgentArchive,
-        "读取回执（含 Yjs 状态向量）",
+        Drop,
+        "读取回执（含 Yjs 状态向量），留在旧库",
     ),
-    t("agent_runtime_read_receipt", AgentArchive, "读取回执"),
-    t("agent_runtime_result_artifact", AgentArchive, "工具结果"),
-    t("agent_runtime_result_blob", AgentArchive, "工具结果"),
-    t("agent_runtime_session", AgentArchive, "运行会话"),
-    t("agent_runtime_task", AgentArchive, "长任务"),
+    t("agent_runtime_read_receipt", Drop, "读取回执，留在旧库"),
+    t(
+        "agent_runtime_result_artifact",
+        AgentArchive,
+        "工具结果，随对话只读搬过去",
+    ),
+    t(
+        "agent_runtime_result_blob",
+        AgentArchive,
+        "工具结果，随对话只读搬过去",
+    ),
+    t(
+        "agent_runtime_session",
+        AgentArchive,
+        "对话的运行会话，只读搬过去",
+    ),
+    t("agent_runtime_task", Drop, "长任务状态，留在旧库"),
     t(
         "agent_runtime_task_chapter_manifest",
-        AgentArchive,
-        "长任务",
+        Drop,
+        "长任务状态，留在旧库",
     ),
-    t("agent_runtime_task_command", AgentArchive, "长任务"),
-    t("agent_runtime_task_constraint", AgentArchive, "长任务"),
-    t("agent_runtime_task_step", AgentArchive, "长任务"),
-    t("agent_runtime_tool_call", AgentArchive, "运行日志"),
-    t("agent_runtime_turn", AgentArchive, "运行日志"),
-    t("agent_runtime_write_effect", AgentArchive, "结算记录"),
-    t("agent_runtime_write_expectation", AgentArchive, "结算记录"),
-    t("agent_runtime_write_review", AgentArchive, "结算记录"),
-    t("agent_runtime_write_review_block", AgentArchive, "结算记录"),
+    t("agent_runtime_task_command", Drop, "长任务状态，留在旧库"),
+    t(
+        "agent_runtime_task_constraint",
+        Drop,
+        "长任务状态，留在旧库",
+    ),
+    t("agent_runtime_task_step", Drop, "长任务状态，留在旧库"),
+    t(
+        "agent_runtime_tool_call",
+        AgentArchive,
+        "工具调用，随对话只读搬过去",
+    ),
+    t("agent_runtime_turn", AgentArchive, "对话轮次，只读搬过去"),
+    t("agent_runtime_write_effect", Drop, "结算记录，留在旧库"),
+    t(
+        "agent_runtime_write_expectation",
+        Drop,
+        "结算记录，留在旧库",
+    ),
+    t("agent_runtime_write_review", Drop, "结算记录，留在旧库"),
+    t(
+        "agent_runtime_write_review_block",
+        Drop,
+        "结算记录，留在旧库",
+    ),
     t("agent_working_memory", Local, "每本书的工作记忆文本"),
     t("block_section", Drop, "已退役 Copilot 的滚动摘要"),
     t("book_act", BookDoc, "书目文档：幕，书序上的分界"),

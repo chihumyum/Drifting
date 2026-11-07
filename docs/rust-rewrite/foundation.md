@@ -36,7 +36,7 @@
 
 1. **只读**：把一章 2 万字的合成正文放进 LoroText，用 GPUI 排版：
    - 比例字体，H1–H3 各自的字号，段距；
-   - 中文断行：GPUI 的 `shape_text` 已经用 ICU 的 UAX #14 断行；
+   - 中文断行：原以为 GPUI 的 `shape_text` 已经用 ICU 的 UAX #14 断行，钉住的 v1.27.0 里其实没有，「，」「。」会落到行首。P0-B 改由编辑器自己断行（标点禁则加标点悬挂），GPUI 只排字形，见 [P0-B 结论](spikes/p0-b-editor.md)；
    - 能滚动。
 2. **能写**：
    - 光标和选区；
@@ -209,7 +209,8 @@
 
 #### 可以复用的
 
-- `crates/drifting-core`：`asset_store.rs`、`library_backup.rs`（`VACUUM INTO` 加资源文件）、`file_io.rs`、`archive.rs`；
+- `crates/drifting-core`：`database.rs` 的影子库迁移、恢复回执和安全快照那一段，`library_backup.rs`（`VACUUM INTO` 加资源文件）、`file_io.rs`、`archive.rs`；
+- 资源存储以 `src-tauri/src/native_capabilities.rs` 那一份为准（三种版本、导入标记、Windows 落盘删除），不是 `drifting-core/asset_store.rs`；
 - `src-tauri`：`image_pipeline.rs` 和各平台的图片解码器，`library_registry.rs`（本机库和每账号一库的规则）。
 
 ### F3 dr-workspace
@@ -248,8 +249,8 @@
 
 #### 可以参考的
 
-- `crates/drifting-core/src/workspace/*`：约 1 万行领域增删改查的规则。
-- 旧 TS 的用例层：`src/renderer/usecase`，约 8.8k 行。
+- 旧 TS 的用例层 `src/renderer/usecase`（约 8.8k 行）、同步内核 `src/renderer/sync/reducer/production-domain-kernel.ts` 和 `sync/journal/domain-mutation.ts`、帮手写策略 `src/renderer/lib/agent/runtime/drifting-*-write-strategy.ts`。界面和帮手对同一操作的语义已经分叉，统一以界面为准，见 [simplifications.md](simplifications.md)。
+- `crates/drifting-core/src/workspace/*` **不当参考**：它是已退役 Apple 前端的后端，Tauri 从没调用，也落后于素材夹和写作日。
 
 ### F4 编辑引擎（gpui-prose 与 dr-editor）
 
@@ -266,6 +267,8 @@
 **F4b 排版与虚拟化：**
 
 - 段落排版缓存，只排看得见的段落，屏幕外段落的高度在后台估算，用 `list()` 虚拟化。
+  - 断行和逐行绘制由编辑器自己做：GPUI 只给整段字形（`layout_line`）和画单个字形（`paint_glyph`），标点禁则、标点悬挂、以后的两端对齐都在这一层。
+  - `list()` 没有逐项的高度提示，首帧和改宽度时会清空高度。滚动条和按像素跳转用编辑器自己的高度索引，滚动定位仍交给 `list()`。P0-B 的做法见 [结论](spikes/p0-b-editor.md)。
 - 全书模式：多篇文档拼成一个滚动区。所有段落走同一套排版，不再分成「静态 HTML」和「活编辑器」两套。
 - 打字机滚动。
 
@@ -382,7 +385,7 @@
 
 #### 钥匙串
 
-- ~~用 GPUI 自带的凭据接口。~~ 2026-11-07 F7 改为沿用旧版的存法、自己读写系统钥匙串：GPUI 的接口在 macOS 上存「互联网密码」、在 Windows 上给条目名加 `zed:url=` 前缀，读不到旧版的条目，而且必须在应用跑起来以后才能用。
+- **不用 GPUI 自带的凭据接口**：它在 macOS 存 internet password、在 Windows 给条目名加 `zed:url=` 前缀且超过 2560 字节直接报错，读不到旧版条目，也存不下 OAuth 令牌。沿用旧版的存法和 `secure_storage/chunked.rs` 的分片格式，键名不变（见 [simplifications.md](simplifications.md) 第 14 条）。F7 直接调系统接口、按 keyring 3.6 的格式读写，keyring 只在测试里扮演旧版，见 [f7-platform.md](foundations/f7-platform.md#钥匙串)。
 - Windows 上单条凭据最多 2560 字节，大令牌要拆开存。
 - 要能读到旧版用 keyring 写的条目，保证升级后不丢登录和 API Key。
 
@@ -421,10 +424,17 @@
 
 - 把种子生成器移到 Rust，确定性生成。现在它们在 TS 里：`src/renderer/services/sample-project`、`src/dev-cli/seeds`。
 - 要移的有：内置样书，以及合成的轻量种子和重型种子。
+- 只留一个生成器 `dr-testkit::seed`，预设 tiny / lite / heavy / showcase 加两本样书；探针里的两套（`loro-model` 的 seed、`prose-spike` 的 synth）并进来，随机数和语料指纹只用一种。
+
+#### 隔离与崩溃
+
+- 按 worktree / profile 隔离开发实例：数据库、应用身份、端口、单实例锁各自分开（旧版是 `scripts/run-worktree-dev.mjs`）。
+- 一个崩溃试验台：随机时刻 SIGKILL、重开、和确定性重放比对（P0-C 的做法），代替旧版的 6 套。
+- 证据统一走 `dr-testkit::evidence` 和 `cargo xtask evidence --check`，做法见 [simplifications.md 第五节](simplifications.md#五更轻的验收证据新工作区适用)。
 
 #### 命令行
 
-- 子命令：`drifting workspace call | describe | inspect | scenario`，直接调用 F3 的命令注册表。
+- 子命令：`drifting workspace call | describe | inspect | scenario`，直接调用 F3 的命令注册表。旧版的 `db:inspect` 和无界面的帮手调试也并进这一个命令行。
 - 离线改库的安全规则照旧：应用必须关着；先备份；加 `--yes` 才执行。
 
 #### 界面自动化

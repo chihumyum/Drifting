@@ -113,3 +113,29 @@ release 构建，2026-10-30，修复之后的数字。来源：`docs/renderer-pe
   - `--check` 校验证据和当前源码是否一致，做法沿用旧版的证据生成器。
 - **CI**：只检查计数和形状，不检查耗时。耗时在作者的机器上测，和旧版一样。
 - **对比**：每做一项优化，都要拿出改前、改后两份报告，用 `bench --compare a.json b.json` 对比。
+
+### 探针档的测法（P0-B，2026-11-07）
+
+探针程序是 `next/spikes/prose-spike`，正式的 `dr-testkit` 出来之前先用它：
+
+```bash
+cd next
+cargo run --release -p prose-spike -- headless --out ../docs/rust-rewrite/acceptance/p0-b-headless.json
+cargo run --release -p prose-spike -- window --out ../docs/rust-rewrite/acceptance/p0-b-window.json
+cargo run --release -p prose-spike -- check ../docs/rust-rewrite/acceptance/p0-b-*.json
+```
+
+- **语料**：确定性合成，单章 2 万字（含一段 5000 字的长段落）、全书 100 章 150 万字（每章 2 千到 2 万字）。种子和指纹写在证据里。
+- **窗口**：
+  - 放在 120 Hz 的内建屏上，窗口置顶（GPUI 不画被完全遮住的窗口）；
+  - 测量窗口把 GPUI 的 `inactive_frame_interval` 关掉。GPUI 默认把非前台窗口限制在 30 帧，而且只限制带「下一帧回调」的帧，恰好是测量探头用的机制；作者打字的窗口在前台，本来就不受这个限制。
+- **「上屏」的时刻**：GPUI 在显示链接的一拍上画帧，画好的帧在下一个垂直同步显示，也就是下一拍。探头在编辑器画完时登记 `on_next_frame`，回调被调用的时刻记为「上屏」。
+  - 编辑器用「立即画」钩子（`setNeedsDisplay:` → `displayLayer:`）时，GPUI 会停掉再重启显示链接，第一拍可能晚一拍，所以这条路径上的「上屏」数字是上限。
+- **按键**：进程内调用 macOS `insertText:` 最终调用的同一个函数（`replace_text_in_range`），每秒 8 个字；不含 AppKit 把按键送到这个函数之前的那一段（通常不到 1 ms）。按键时刻要均匀错开在一个刷新周期里：125 ms 正好是 15 个 120 Hz 周期，不错开的话每一键都落在同一个相位上，分布是假的。
+- **组字**：进程内模拟 `setMarkedText:` 五次再 `insertText:`；另记输入法查询候选窗位置（`firstRectForCharacterRange` → `bounds_for_range`）的耗时。
+- **滚动**：每个显示链接的拍子在回调里推进半屏，从第一章开头到第一百章末尾；记每帧的工作时间（根视图开始渲染到编辑器画完）和相邻两拍的间隔。
+- **CPU**：`getrusage` 的用户态加内核态时间，整个进程，占一个核的百分比。空闲另测一次「编辑器不聚焦、光标不闪」，用来区分 GPUI 显示链接本身的开销。
+- **内存**：`proc_pid_rusage` 的 `phys_footprint`（活动监视器里的「内存」）。
+- **写入**：无窗口；每次按键 = `LoroText::insert` 加 `commit`（事件同步折进段落镜像），再把 `subscribe_local_update` 给出的更新 `INSERT` 进 WAL 模式、`synchronous=NORMAL` 的 SQLite。
+- **`check`**：核对证据里的源码指纹（探针源码编进程序算出的 FNV-1a）和两份语料指纹，和当前代码一致才通过。
+

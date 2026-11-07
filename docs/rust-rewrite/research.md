@@ -35,7 +35,7 @@
 ### 新版不留的
 
 - `crates/drifting-document`、`crates/drifting-prose`：建在 yrs 上。
-- `crates/drifting-core/src/workspace/*`：约 1 万行，是在旧表结构上做领域增删改查，规则可以参考。
+- `crates/drifting-core/src/workspace/*`：约 1 万行，是已退役 Apple 前端的后端，Tauri 从没调用，也落后于素材夹和写作日，**不当规则参考**（见 [simplifications.md](simplifications.md)）。
 
 ## GPUI
 
@@ -86,7 +86,7 @@
   - `shape_line` 处理单行，遇到 `\n` 会 panic；
   - `shape_text` 处理多行，可以换行；
   - `TextRun` 包含长度（按 UTF-8 字节）、字体、颜色、背景、下划线、删除线。**一行只能有一个字号**，没有字距和基线偏移。
-- **断行**：从 2026-10-29（#64624）开始，换行用 `icu_segmenter` 的 UAX #14，中文标点禁则有基本保证。不支持两端对齐、注音和竖排。
+- **断行**：Zed `main` 从 2026-10-29（#64624）开始，换行用 `icu_segmenter` 的 UAX #14，中文标点禁则有基本保证。**钉住的 v1.27.0 不含这个改动**（P0-B 实测「，」「。」会落到行首），新版由编辑器自己断行，见 [P0-B 结论](spikes/p0-b-editor.md)。不支持两端对齐、注音和竖排。
 - **Zed 编辑器的做法**：DisplayMap 一层层叠起来（Inlay → Fold → Tab → Wrap → Block），每层是一棵 SumTree。WrapMap 在后台重新换行，最多同步等 5 ms。这套设计假定行高统一、只有一种编辑器字体，**不能直接拿来做比例字体的富文本**。
 - **可用的积木**：
   - `list()` 支持可变高度的虚拟化（`splice`、`remeasure`、`scroll_to_reveal_item`）；
@@ -250,7 +250,7 @@ GPUI 调研里建议正文数据用 yrs。作者已经定了用 Loro，所以这
 | 断行与分词 | `icu_segmenter` 2.4（UAX #14 的严格档，中文日文按词典分词） | GPUI 已经在用它 |
 | 搜索 | SQLite FTS5 trigram；1–2 个字的中文查询退回 LIKE | Tantivy 的索引不在 SQLite 里，会破坏「一个库就是一个文件」 |
 | Markdown | comrak 0.59 或 pulldown-cmark 0.13 负责解析，序列化自己写成确定性的 | markdown-rs 没有序列化，而且从 2025-04 起没有更新 |
-| 导出 | DOCX 用 docx-rs 0.4.22；EPUB 用 epub-builder 0.8.3（MPL-2.0）；PDF 沿用现有的 krilla 方案，或者换 typst 0.15 | 中文字体要做子集化；思源和 Noto 字体是 OFL，可以嵌入 |
+| 导出 | 原样复用旧版 `manuscript_export`：DOCX、EPUB 只用 zip 手写，PDF 用 krilla（架构审查后定，原先考虑的 docx-rs、epub-builder、typst 都不需要） | 中文字体要做子集化；思源和 Noto 字体是 OFL，可以嵌入 |
 | 网络 | reqwest 0.13（默认 rustls）、tokio 1.54、tokio-tungstenite 0.30；SSE 用 `sse-stream` 0.3 或 `eventsource-stream` | oauth2 5.0 和 cargo-packager-updater 还在 reqwest 0.12 上：给 oauth2 接一个基于 0.13 的自定义 HTTP 客户端 |
 | Google 登录 | 系统浏览器加 PKCE | Google 规定桌面应用用本机回环地址做回调。现在的做法是由服务端处理 Google、再回调 `drifting://`，可以沿用 |
 | 大模型 | 自己写一层与模型无关的协议（M27）；各家接入用 reqwest 加 SSE 手写，或者基于 genai 0.7.3；OpenAI 可以用 async-openai 0.43（支持 Responses） | Anthropic 没有官方 Rust SDK；`anthropic_rust` 这个 crate 自称官方仓库，但那个地址是 404，不是官方的 |
