@@ -1,4 +1,9 @@
 {
+  "agentPanel": {
+    "pending": {
+      "cancelling": "Deteniendo…"
+    }
+  },
   "allChapters": {
     "actOrdinal": "Acto {{n}}"
   },
@@ -443,6 +448,11 @@
       "about": "Acerca de",
       "control": "Control",
       "preferences": "Preferencias"
+    },
+    "hosted": {
+      "connect_errors": {
+        "cancelled": "Cancelado."
+      }
     },
     "keys": {
       "actions": {

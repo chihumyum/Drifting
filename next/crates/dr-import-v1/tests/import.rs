@@ -66,6 +66,7 @@ fn imported(outcome: Outcome) -> Box<Receipt> {
     match outcome {
         Outcome::Imported(r) => r,
         Outcome::Blocked(g) => panic!("blocked: {:?}", g.reasons),
+        Outcome::Cancelled => panic!("cancelled"),
     }
 }
 
@@ -879,6 +880,8 @@ fn an_open_library_takes_the_import_and_stays_open() {
     let old = build(true);
     let mut opts = options(&old, &new, Accept::NOTHING);
     opts.device_dir = None;
+    // Without a device the library has no identity to take over.
+    assert!(lib.options().device.is_none());
     let mut steps = Vec::new();
     let (outcome, timing) = run::import_into_library(&old.db, &lib, &opts, &mut |p| {
         if steps.last() != Some(&p.step) {
@@ -903,4 +906,143 @@ fn an_open_library_takes_the_import_and_stays_open() {
     let (outcome, _) = run::import_into_library(&old.db, &lib, &opts, &mut |_| {}).unwrap();
     assert_eq!(imported(outcome).books[0].status, "already-imported");
     lib.close().unwrap();
+}
+
+/// The app opens its library with this device's identity (F7): importing
+/// into it, the device takes over the 0.1 library's installation id, so the
+/// writing days it records from now on continue under the 0.1 device key;
+/// the library, reopened, is the same device (no new epoch).
+#[test]
+fn the_apps_device_takes_over_the_0_1_identity() {
+    let new = new_library();
+    let open = || {
+        let mut o = LibraryOptions::new("0.2.0-test");
+        dr_index::attach(&mut o);
+        o.rebuild_indexes_on_open = false;
+        o.device = Some(dr_store::Device::open(&new.device).unwrap());
+        open_library(&new.root, o)
+    };
+    let lib = open();
+    let fresh = lib.options().device.as_ref().unwrap().writing_device_key();
+    let old = build(true);
+    let old_id = format!("install-{}", "ab".repeat(32));
+    let mut opts = options(&old, &new, Accept::NOTHING);
+    opts.device_dir = None;
+    let (outcome, _) = run::import_into_library(&old.db, &lib, &opts, &mut |_| {}).unwrap();
+    assert!(imported(outcome).installation_id_adopted);
+    let key = lib.options().device.as_ref().unwrap().writing_device_key();
+    assert_eq!(key, dr_store::identity::writing_device_key(&old_id));
+    assert_ne!(key, fresh);
+    let epoch = lib.epoch();
+    lib.close().unwrap();
+    let lib = open();
+    assert_eq!(lib.epoch_change(), None);
+    assert_eq!(lib.epoch(), epoch);
+    assert_eq!(
+        lib.options().device.as_ref().unwrap().installation_id(),
+        old_id
+    );
+    lib.close().unwrap();
+}
+
+/// A second, empty book in the synthetic library, created after the first.
+fn add_second_book(old: &Old) -> &'static str {
+    const SECOND: &str = "01900000-0000-7000-8000-000000000002";
+    let conn = rusqlite::Connection::open(&old.db).unwrap();
+    conn.execute(
+        "INSERT INTO project (id, name, summary, kv_json, storyline_template_kv_json, user_id, created_at, updated_at, deleted_at)
+         VALUES (?1, '第二本', '', '[]', '[]', 'local', '2026-10-05T00:00:00.000Z', '2026-10-05T00:00:00.000Z', NULL)",
+        [SECOND],
+    )
+    .unwrap();
+    SECOND
+}
+
+/// 「取消」: asked before anything is written, nothing is; asked while the
+/// first book is written, that book is finished and the second left out;
+/// the library is usable and the second book imports later.
+#[test]
+fn cancelling_finishes_the_book_being_written_and_leaves_the_rest() {
+    let old = build(true);
+    let second = add_second_book(&old);
+
+    let new = new_library();
+    let opts = options(&old, &new, Accept::NOTHING);
+    opts.cancel.after_book();
+    let (outcome, _) = run::import(&old.db, &new.root, &opts).unwrap();
+    assert!(matches!(outcome, Outcome::Cancelled));
+    assert!(!new.root.join("library.sqlite").exists(), "nothing written");
+
+    let new = new_library();
+    let opts = options(&old, &new, Accept::NOTHING);
+    let cancel = opts.cancel.clone();
+    let (outcome, _) = run::import_with(&old.db, &new.root, &opts, &mut |p| {
+        if p.step == Step::Bodies && p.book == 1 {
+            cancel.after_book();
+        }
+    })
+    .unwrap();
+    let receipt = imported(outcome);
+    assert!(receipt.cancelled);
+    let status: Vec<(&str, &str)> = receipt
+        .books
+        .iter()
+        .map(|b| (b.book_id.as_str(), b.status.as_str()))
+        .collect();
+    assert_eq!(status, [(BOOK, "imported"), (second, "cancelled")]);
+    let lib = open_library(&new.root, LibraryOptions::new("0.2.0-test"));
+    assert!(lib.doc_info(&format!("book:{BOOK}")).unwrap().is_some());
+    assert!(lib.doc_info(&format!("book:{second}")).unwrap().is_none());
+    lib.close().unwrap();
+
+    // Later, the same library again: the first is done, the second comes.
+    let opts = options(&old, &new, Accept::NOTHING);
+    let receipt = imported(run::import(&old.db, &new.root, &opts).unwrap().0);
+    let status: Vec<&str> = receipt.books.iter().map(|b| b.status.as_str()).collect();
+    assert_eq!(status, ["already-imported", "imported"]);
+}
+
+/// Stopped now (the app quitting) while bodies are written: the book stays
+/// "importing" and no book document exists yet, so nothing half-made is on
+/// the bookshelf; the next import carries it on to the same result as an
+/// import that was never stopped.
+#[test]
+fn stopping_now_leaves_the_book_to_carry_on() {
+    let old = build(true);
+    let new = new_library();
+    let opts = options(&old, &new, Accept::NOTHING);
+    let cancel = opts.cancel.clone();
+    let (outcome, _) = run::import_with(&old.db, &new.root, &opts, &mut |p| {
+        if p.step == Step::Bodies && p.done == 1 {
+            cancel.now();
+        }
+    })
+    .unwrap();
+    let receipt = imported(outcome);
+    assert!(receipt.cancelled);
+    assert_eq!(receipt.books[0].status, "importing");
+    let lib = open_library(&new.root, LibraryOptions::new("0.2.0-test"));
+    assert!(lib.doc_info(&format!("book:{BOOK}")).unwrap().is_none());
+    lib.close().unwrap();
+
+    let opts = options(&old, &new, Accept::NOTHING);
+    let receipt = imported(run::import(&old.db, &new.root, &opts).unwrap().0);
+    assert_eq!(receipt.books[0].status, "imported");
+    let lib = open_library(&new.root, LibraryOptions::new("0.2.0-test"));
+    let carried = lib
+        .load_copy(&format!("book:{BOOK}"))
+        .unwrap()
+        .get_deep_value();
+    lib.close().unwrap();
+
+    let clean = new_library();
+    let opts = options(&old, &clean, Accept::NOTHING);
+    imported(run::import(&old.db, &clean.root, &opts).unwrap().0);
+    let lib = open_library(&clean.root, LibraryOptions::new("0.2.0-test"));
+    let whole = lib
+        .load_copy(&format!("book:{BOOK}"))
+        .unwrap()
+        .get_deep_value();
+    lib.close().unwrap();
+    assert_eq!(carried, whole);
 }

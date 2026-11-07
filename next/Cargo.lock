@@ -1701,6 +1701,7 @@ dependencies = [
  "color_quant",
  "dr-i18n",
  "dr-import-v1",
+ "dr-platform",
  "dr-shell",
  "dr-store",
  "dr-ui",

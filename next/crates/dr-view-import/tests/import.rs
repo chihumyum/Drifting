@@ -276,3 +276,156 @@ fn a_folder_without_a_library_fails(cx: &mut TestAppContext) {
     cx.run_until_parked();
     assert!(matches!(state(cx), State::Idle));
 }
+
+/// A library opened as the app opens it (F7's `library.rs`): with this
+/// device's identity, made fresh in a temporary folder.
+fn library_with_device() -> (tempfile::TempDir, Library) {
+    let dir = tempfile::tempdir().unwrap();
+    let mut o = dr_workspace::library_options(VERSION);
+    o.device = Some(dr_store::Device::open(dir.path().join("device")).unwrap());
+    let lib = dr_store::Library::open(dir.path().join("library"), o).unwrap();
+    let ws = Library::open(lib, dr_workspace::WorkspaceOptions::default()).unwrap();
+    (dir, ws)
+}
+
+fn look_in(cx: &mut VisualTestContext, dir: &Path) {
+    let import = importer(cx);
+    let dir = dir.to_path_buf();
+    cx.update(|_, cx| import.update(cx, |i, _| i.look_in(Some(dir))));
+}
+
+/// A second, empty book in the synthetic library, created after the first.
+fn add_second_book(old: &common::Old) {
+    let conn = rusqlite::Connection::open(&old.db).unwrap();
+    conn.execute(
+        "INSERT INTO project (id, name, summary, kv_json, storyline_template_kv_json, user_id, created_at, updated_at, deleted_at)
+         VALUES ('01900000-0000-7000-8000-000000000002', '第二本', '', '[]', '[]', 'local', '2026-10-05T00:00:00.000Z', '2026-10-05T00:00:00.000Z', NULL)",
+        [],
+    )
+    .unwrap();
+}
+
+#[gpui::test]
+fn the_local_libraries_are_listed_and_the_device_takes_over_their_identity(
+    cx: &mut TestAppContext,
+) {
+    let (_dir, library) = library_with_device();
+    let lib = library.clone();
+    let fresh = lib.writing_device().expect("opened with a device");
+    let (view, cx) = setup(cx, library);
+    let shelf = shelf_of(&view, cx);
+    // The 0.1 data folder: the synthetic library is its `legacy` one.
+    let old = common::build(true);
+    look_in(cx, &old.root);
+
+    // Listed, no folder panel; Esc closes the list.
+    cx.dispatch_action(ImportLegacyLibrary);
+    cx.run_until_parked();
+    assert!(!cx.did_prompt_for_paths());
+    let State::Found(found) = state(cx) else {
+        panic!("not listed: {:?}", state(cx))
+    };
+    assert_eq!(found.libraries.len(), 1);
+    assert_eq!(found.libraries[0].picked.id.as_deref(), Some("legacy"));
+    assert_eq!(found.libraries[0].picked.root, old.root);
+    assert!(found.libraries[0].modified_ms.is_some());
+    cx.dispatch_action(Dismiss);
+    cx.run_until_parked();
+    assert!(matches!(state(cx), State::Idle));
+
+    // 「选择文件夹」 from the list: the panel; cancelled, nothing is open.
+    cx.dispatch_action(ImportLegacyLibrary);
+    cx.run_until_parked();
+    let import = importer(cx);
+    cx.update(|window, cx| import.update(cx, |i, cx| i.choose_folder(window, cx)));
+    cx.run_until_parked();
+    assert!(cx.did_prompt_for_paths());
+    cx.simulate_path_prompt_response(|_| None);
+    cx.run_until_parked();
+    assert!(matches!(state(cx), State::Idle));
+
+    // Picked from the list: imported, and this device's writing days now
+    // go under the 0.1 device key.
+    cx.dispatch_action(ImportLegacyLibrary);
+    cx.run_until_parked();
+    cx.update(|window, cx| import.update(cx, |i, cx| i.pick(0, window, cx)));
+    let State::Done(done) = settled(cx) else {
+        panic!("not done: {:?}", state(cx))
+    };
+    assert_eq!(done.books[0].status, "imported");
+    assert!(done.identity_adopted);
+    let key = lib.writing_device().unwrap();
+    assert_eq!(
+        key,
+        dr_store::identity::writing_device_key(&format!("install-{}", "ab".repeat(32)))
+    );
+    assert_ne!(key, fresh);
+    shelf_until(&shelf, cx, |d| d.books.iter().any(|b| b.name == "阿Q正传"));
+}
+
+#[gpui::test]
+fn cancelling_leaves_no_book_half_written(cx: &mut TestAppContext) {
+    let (_dir, library) = library();
+    let lib = library.clone();
+    let (_view, cx) = setup(cx, library);
+    let old = common::build(true);
+    add_second_book(&old);
+    start(cx, &old.root);
+    let import = importer(cx);
+    cx.update(|_, cx| import.update(cx, |i, cx| i.cancel(cx)));
+    if let State::Running(running) = state(cx) {
+        assert!(running.cancelling);
+    }
+    // Cancelled before any book: nothing; else the books it got to, whole.
+    let books_in_library = || {
+        lib.library()
+            .docs(None, Some("book"))
+            .unwrap()
+            .into_iter()
+            .map(|d| d.doc_id)
+            .collect::<Vec<_>>()
+    };
+    match settled(cx) {
+        State::Idle => assert!(books_in_library().is_empty()),
+        State::Done(done) => {
+            assert!(done.cancelled);
+            assert!(
+                done.books
+                    .iter()
+                    .all(|b| b.status == "imported" || b.status == "cancelled"),
+                "{:?}",
+                done.books
+            );
+            let imported = done.books.iter().filter(|b| b.status == "imported").count();
+            assert_eq!(books_in_library().len(), imported);
+        }
+        other => panic!("{other:?}"),
+    }
+}
+
+#[gpui::test]
+fn quitting_stops_the_import_first(cx: &mut TestAppContext) {
+    let (_dir, library) = library();
+    let lib = library.clone();
+    let (_view, cx) = setup(cx, library);
+    let old = common::build(true);
+    add_second_book(&old);
+    start(cx, &old.root);
+    let import = importer(cx);
+    // What the shell's quit hook runs.
+    cx.update(|_, cx| import.update(cx, |i, _| i.stop_for_quit()));
+    assert!(!import.read_with(cx, |i, _| i.is_running()));
+    // The receipt: no book left half-written (it had time to finish one).
+    let statuses: Vec<String> = lib
+        .library()
+        .local_read(|c| {
+            let mut stmt = c.prepare("SELECT status FROM import_book")?;
+            let v = stmt
+                .query_map([], |r| r.get::<_, String>(0))?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            Ok(v)
+        })
+        .unwrap();
+    assert!(statuses.iter().all(|s| s != "importing"), "{statuses:?}");
+    settled(cx);
+}

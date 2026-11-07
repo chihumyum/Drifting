@@ -28,9 +28,12 @@ pub const FROM_CACHES: &str = "import.v1.summary.from_caches";
 /// `{count}` account libraries in the chosen folder were left alone; they
 /// are imported with accounts (M35).
 pub const ACCOUNT_LIBRARIES_LEFT: &str = "import.v1.summary.account_libraries_left";
+/// A book the import stopped in the middle of (the app quit): importing the
+/// same library again carries it on.
+pub const CARRIES_ON: &str = "import.v1.summary.carries_on";
 
 /// Every placeholder the dialogs show.
-pub const ALL: [&str; 13] = [
+pub const ALL: [&str; 14] = [
     BLOCKED_TITLE,
     NO_HANDOFF,
     UNPROVEN,
@@ -44,6 +47,7 @@ pub const ALL: [&str; 13] = [
     ALREADY_IN_LIBRARY,
     FROM_CACHES,
     ACCOUNT_LIBRARIES_LEFT,
+    CARRIES_ON,
 ];
 
 /// The text the author settled for a placeholder in `locale`, if any.

@@ -143,6 +143,10 @@ pub struct Receipt {
     /// `kept` (the default) or `thinned`: whether the history points brought
     /// from 0.1 are exempt from the 30-day retention.
     pub history_retention: &'static str,
+    /// Stopped before the end (`run::Cancel`): books not started are
+    /// `cancelled`; one stopped while it was written stays `importing`, and
+    /// the next import carries it on.
+    pub cancelled: bool,
 }
 
 /// The archive's own table (the other archive tables are copies).
@@ -238,6 +242,7 @@ pub fn write_records(
                 "localRows": receipt.local_rows,
                 "installationIdAdopted": receipt.installation_id_adopted,
                 "historyRetention": receipt.history_retention,
+                "cancelled": receipt.cancelled,
             }))?,
         ],
     )?;
@@ -413,7 +418,14 @@ pub fn summary_zh(r: &Receipt) -> String {
     for b in &r.books {
         s.push_str(&format!("## {}\n\n", b.name));
         if b.status != "imported" {
-            s.push_str(&format!("没有导入：{}。\n\n", b.status));
+            let why = match b.status.as_str() {
+                "cancelled" => "导入取消了，这本书还没开始",
+                "importing" => "导入中途停下，这本书只写了一部分；再导入一次这个库会接着导完",
+                "already-imported" => "这台设备以前导入过",
+                "already-in-library" => "新库里已经有这本书（从别的设备同步来的，或在新版里建的）",
+                other => other,
+            };
+            s.push_str(&format!("没有导入：{why}。\n\n"));
             continue;
         }
         if b.trashed {

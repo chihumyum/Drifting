@@ -5,10 +5,13 @@
 //! [`dr_view_shelf::ImportLegacyLibrary`], which [`init`] takes with
 //! `cx.on_action`. Then:
 //!
-//! 1. **The folder.** The system's folder panel; the author picks the 0.1
-//!    library's folder (the 0.1 app's data folder, one library's root or its
-//!    `databases` folder: `dr_import_v1::locate::resolve` says which library
-//!    that is).
+//! 1. **The library.** The local 0.1 libraries this device has (found by the
+//!    0.1 client's own path rule, [`v1_data_dir`]) are listed to pick from;
+//!    with none, or with 「选择文件夹」, the system's folder panel: the 0.1
+//!    app's data folder, one library's root or its `databases` folder
+//!    (`dr_import_v1::locate::resolve` says which library that is). The
+//!    device takes over the chosen library's 0.1 installation id, so its
+//!    writing days continue under the 0.1 device key.
 //! 2. **The import** runs on its own thread, into the library the app has
 //!    open (`run::import_into_library`). The 0.1 library is only read: the
 //!    import works on a copy beside the new library.
@@ -24,8 +27,10 @@
 //!
 //! The dialog floats over the window as a layer of the shell
 //! (`dr_shell::pages::add_layer`); it draws nothing while no import is
-//! open. There is no cancel yet (an import that stops halfway carries on the
-//! next time, m10-import.md).
+//! open. 「取消」 lets the book being written finish and leaves the rest out;
+//! quitting the app stops the import first ([`LegacyImport::stop_for_quit`]),
+//! and a book stopped halfway is carried on by the next import
+//! (m10-import.md).
 //!
 //! Copy comes from the 0.1 client's strings; what it never had is a
 //! placeholder ([`copy`]), listed in m10-import.md 「待协调」.
@@ -34,7 +39,10 @@ pub mod copy;
 mod flow;
 mod view;
 
-pub use flow::{Done, DoneBook, Failed, LegacyImport, Running, State};
+pub use flow::{
+    Done, DoneBook, Failed, Found, FoundLibrary, LegacyImport, QUIT_WAIT_BOOK, QUIT_WAIT_NOW,
+    Running, State, V1_DATA_DIR_ENV, find_local_libraries, v1_data_dir,
+};
 
 use gpui::{App, AppContext as _, Entity, Global};
 
@@ -53,6 +61,13 @@ pub fn init(cx: &mut App) {
     let entity = cx.new(LegacyImport::new);
     dr_shell::pages::add_layer(cx, entity.clone().into());
     cx.set_global(Importer(entity));
+    // Quitting: the import stops first, so its documents close and its
+    // thread lets go of the library.
+    dr_shell::quit::before_quit(cx, |cx| {
+        if let Some(entity) = importer(cx) {
+            entity.update(cx, |import, _| import.stop_for_quit());
+        }
+    });
     cx.on_action(|_: &dr_view_shelf::ImportLegacyLibrary, cx| {
         // GPUI has the window checked out while it dispatches; reach it once
         // the dispatch is over.

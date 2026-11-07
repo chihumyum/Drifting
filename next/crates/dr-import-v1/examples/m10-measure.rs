@@ -143,6 +143,7 @@ fn one(args: &[String]) -> Res<Value> {
     });
     Ok(match outcome {
         Outcome::Blocked(gate) => json!({"outcome": "blocked", "gate": gate}),
+        Outcome::Cancelled => json!({"outcome": "cancelled"}),
         Outcome::Imported(r) => {
             let mut v = verify::summary(&r, &timing);
             v["outcome"] = json!("imported");

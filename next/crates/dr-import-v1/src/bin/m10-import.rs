@@ -132,6 +132,7 @@ fn import_cmd(args: &[String]) -> Res<Value> {
         Outcome::Blocked(gate) => {
             json!({"outcome": "blocked", "gate": gate, "timing": timing, "peakRssBytes": rss})
         }
+        Outcome::Cancelled => json!({"outcome": "cancelled", "timing": timing}),
         Outcome::Imported(r) => {
             let mut v = verify::summary(&r, &timing);
             v["outcome"] = json!("imported");
