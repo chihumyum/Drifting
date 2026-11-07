@@ -422,3 +422,96 @@ fn a_closed_library_reopens_at_once_while_processes_start() {
         "reopens refused while {spawned} processes started"
     );
 }
+
+/// Deriving the index waits `derive_idle` after the last job, compacting
+/// waits `compaction.idle`: each runs on its own clock.
+#[test]
+fn deriving_and_compacting_wait_for_their_own_quiet_spells() {
+    let deriver = Arc::new(LinesDeriver::default());
+    let open_with = |dir: &std::path::Path, derive_ms: u64, compact_ms: u64| {
+        let mut o = options();
+        o.deriver = Some(deriver.clone());
+        o.rebuild_indexes_on_open = false;
+        o.derive_idle = Duration::from_millis(derive_ms);
+        o.compaction.idle = Duration::from_millis(compact_ms);
+        o.compaction.max_updates = 1;
+        Library::open(dir, o).unwrap()
+    };
+    // Quick derivation, slow compaction.
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open_with(dir.path(), 20, 60_000);
+    let h = create(&lib, "node:a");
+    insert(&h, Origin::User, 0, "一段");
+    wait_until(|| {
+        lib.doc_stats("node:a")
+            .unwrap()
+            .is_some_and(|s| s.indexed_seq == 2)
+    });
+    assert_eq!(
+        h.stats().compactions,
+        0,
+        "compaction waits for its own idle"
+    );
+    drop(h);
+    drop(lib);
+    // The other way round.
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open_with(dir.path(), 60_000, 20);
+    let h = create(&lib, "node:a");
+    insert(&h, Origin::User, 0, "一段");
+    wait_until(|| h.stats().compactions == 1);
+    assert!(
+        lib.doc_stats("node:a").unwrap().is_none(),
+        "derivation waits for its own idle"
+    );
+}
+
+/// A deriver that takes its time.
+struct Slow(LinesDeriver, Duration);
+
+impl dr_store::index::Deriver for Slow {
+    fn derive(
+        &self,
+        input: &dr_store::index::DeriveInput<'_>,
+    ) -> Option<dr_store::index::DerivedUpdate> {
+        std::thread::sleep(self.1);
+        self.0.derive(input)
+    }
+}
+
+/// The rebuild when a library opens leaves open documents to their holders
+/// and takes no handle on them, so closing the library while it runs is
+/// not refused (dr-workspace saw one refusal in three thousand runs).
+#[test]
+fn closing_during_the_rebuild_on_open_is_not_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    {
+        let lib = open(dir.path());
+        for id in ["node:a-copy", "node:b-open"] {
+            let h = create(&lib, id);
+            insert(&h, Origin::User, 0, "旧的正文");
+            h.close();
+        }
+        lib.close().unwrap();
+    }
+    let mut o = options();
+    o.deriver = Some(Arc::new(Slow(
+        LinesDeriver::default(),
+        Duration::from_millis(200),
+    )));
+    o.rebuild_indexes_on_open = true;
+    o.derive_idle = Duration::from_secs(60);
+    o.compaction.idle = Duration::from_secs(60);
+    let lib = Library::open(dir.path(), o).unwrap();
+    // The rebuild derives node:a-copy from a copy for 200 ms, then comes to
+    // node:b-open, which is open by then.
+    let h = lib.open_doc("node:b-open", OpenDoc::Existing).unwrap();
+    std::thread::sleep(Duration::from_millis(300));
+    drop(h);
+    let refused = lib.try_close().err();
+    assert!(
+        refused.is_none(),
+        "close refused: {:?}",
+        refused.map(|r| r.error)
+    );
+}

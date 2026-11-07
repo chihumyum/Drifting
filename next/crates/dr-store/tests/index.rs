@@ -285,8 +285,14 @@ fn stored(lib: &Library, doc: &str) -> Vec<(i64, Option<String>, i64, i64, Strin
     .expect("the full-text index matches its rows");
     lib.local_read(|c| {
         let rows = c
-            .prepare("SELECT ord, block_id, heading, chars, text FROM block_index WHERE doc_id = ?1 ORDER BY ord")?
-            .query_map([doc], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)))?
+            // Keys are sort keys with gaps: compare positions.
+            .prepare(
+                "SELECT row_number() OVER (ORDER BY ord) - 1, block_id, heading, chars, text
+                 FROM block_index WHERE doc_id = ?1 ORDER BY ord",
+            )?
+            .query_map([doc], |r| {
+                Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?))
+            })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
         Ok(rows)
     })
@@ -354,10 +360,62 @@ fn para(rng: &mut Rng, n: u64) -> BlockRow {
 
 #[test]
 fn random_patches_leave_exactly_what_a_full_rewrite_would() {
+    random_patches(0xF2_0003, false);
+}
+
+/// The same with the keys often packed one by one (as libraries written
+/// before the gaps are), so inserts keep finding no room and renumber, and
+/// with patches cut into several touching splices.
+#[test]
+fn random_patches_on_packed_keys_and_touching_splices() {
+    random_patches(0xF2_0004, true);
+}
+
+/// Give a document's rows the keys 0, 1, 2, … in their order.
+fn pack_keys(lib: &Library, doc: &str) {
+    let ids: Vec<i64> = keys(lib, doc).into_iter().map(|k| k.0).collect();
+    lib.local_transaction(|tx| {
+        tx.execute(
+            "UPDATE block_index SET ord = ord + (1 << 61) WHERE doc_id = ?1",
+            [doc],
+        )?;
+        for (i, id) in ids.iter().enumerate() {
+            tx.execute(
+                "UPDATE block_index SET ord = ?2 WHERE id = ?1",
+                rusqlite::params![id, i as i64],
+            )?;
+        }
+        Ok(())
+    })
+    .unwrap();
+}
+
+/// Cut a one-splice patch into two touching splices (positions and the
+/// result unchanged).
+fn cut(p: &mut DerivedPatch, rng: &mut Rng) {
+    if p.splices.len() != 1 {
+        return;
+    }
+    let s = p.splices.remove(0);
+    let r = rng.range(0, s.removed as usize) as u32;
+    let k = rng.range(0, s.blocks.len());
+    p.splices.push(Splice {
+        at: s.at,
+        removed: r,
+        blocks: s.blocks[..k].to_vec(),
+    });
+    p.splices.push(Splice {
+        at: s.at + r,
+        removed: s.removed - r,
+        blocks: s.blocks[k..].to_vec(),
+    });
+}
+
+fn random_patches(seed: u64, packed: bool) {
     let dir = tempfile::tempdir().unwrap();
     let lib = open(dir.path());
     lib.register("node:p", "node", Some("book-p")).unwrap();
-    let mut rng = Rng::new(0xF2_0003);
+    let mut rng = Rng::new(seed);
     let mut next = 0u64;
     let mut current: Vec<BlockRow> = (0..40)
         .map(|_| {
@@ -416,7 +474,15 @@ fn random_patches_leave_exactly_what_a_full_rewrite_would() {
             prev.references.clone()
         };
         let now = derived(current.clone(), refs);
-        let p = DerivedPatch::between(&prev, &now);
+        let mut p = DerivedPatch::between(&prev, &now);
+        if packed {
+            if rng.below(3) == 0 {
+                pack_keys(&lib, "node:p");
+            }
+            if rng.below(2) == 0 {
+                cut(&mut p, &mut rng);
+            }
+        }
         assert_eq!(p.apply_to(&prev).unwrap(), now, "the patch is the change");
         assert!(patch(&lib, "node:p", seq, &p).unwrap());
         assert_eq!(stored(&lib, "node:p"), rows_of(&now), "seq {seq}");
@@ -657,4 +723,367 @@ fn js_whitespace_matches_prose_metrics() {
             c as u32
         );
     }
+}
+
+/// (row id, key) of a document's rows, in order.
+fn keys(lib: &Library, doc: &str) -> Vec<(i64, i64)> {
+    lib.local_read(|c| {
+        Ok(
+            c.prepare("SELECT id, ord FROM block_index WHERE doc_id = ?1 ORDER BY ord")?
+                .query_map([doc], |r| Ok((r.get(0)?, r.get(1)?)))?
+                .collect::<rusqlite::Result<Vec<_>>>()?,
+        )
+    })
+    .unwrap()
+}
+
+fn insert_at(at: u32, base: u32, b: BlockRow) -> DerivedPatch {
+    DerivedPatch {
+        base_paragraphs: base,
+        splices: vec![Splice {
+            at,
+            removed: 0,
+            blocks: vec![b],
+        }],
+        references: None,
+        words: 0,
+        chars: 0,
+    }
+}
+
+/// Splitting a paragraph in the middle of a long document writes the two
+/// new rows and touches no other (the order is kept by gaps between keys);
+/// positions in search and outline still count paragraphs.
+#[test]
+fn a_new_paragraph_writes_its_own_rows_and_no_others() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open(dir.path());
+    lib.register("node:k", "node", Some("book-p")).unwrap();
+    let blocks: Vec<BlockRow> = (0..200)
+        .map(|i| block(&format!("b{i}"), 0, &format!("第{i}段")))
+        .collect();
+    let old = derived(blocks, vec![]);
+    full(&lib, "node:k", 1, &old);
+    let before = keys(&lib, "node:k");
+    let split = DerivedPatch {
+        base_paragraphs: 200,
+        splices: vec![Splice {
+            at: 100,
+            removed: 1,
+            blocks: vec![block("b100", 2, "前半"), block("n", 0, "后半独有")],
+        }],
+        references: None,
+        words: 0,
+        chars: 0,
+    };
+    assert!(patch(&lib, "node:k", 2, &split).unwrap());
+    let after = keys(&lib, "node:k");
+    assert_eq!(after.len(), 201);
+    assert_eq!(after[..100], before[..100], "rows before are untouched");
+    assert_eq!(after[102..], before[101..], "rows after are untouched");
+    assert!(after[100].1 > before[99].1 && after[101].1 < before[101].1);
+    assert_eq!(
+        stored(&lib, "node:k"),
+        rows_of(&split.apply_to(&old).unwrap())
+    );
+    assert_eq!(
+        hits(&lib, Some("book-p"), "后半独有"),
+        [("node:k".into(), 101)]
+    );
+    assert_eq!(
+        hits(&lib, Some("book-p"), "第150段"),
+        [("node:k".into(), 151)]
+    );
+    let outline = lib.outline("node:k").unwrap();
+    assert_eq!((outline[0].ord, outline[0].text.as_str()), (100, "前半"));
+}
+
+/// Inserting again and again at one place halves the gap each time; the
+/// document is renumbered only when it runs out, and reads the same.
+#[test]
+fn inserting_in_one_place_renumbers_only_when_the_gap_runs_out() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open(dir.path());
+    lib.register("node:g", "node", Some("book-p")).unwrap();
+    let mut now = derived(
+        vec![
+            block("a", 0, "甲"),
+            block("b", 0, "乙"),
+            block("c", 0, "丙"),
+        ],
+        vec![],
+    );
+    full(&lib, "node:g", 1, &now);
+    let mut renumbered = 0;
+    for i in 0..80u32 {
+        let before = keys(&lib, "node:g");
+        let p = insert_at(
+            1,
+            now.blocks.len() as u32,
+            block(&format!("n{i}"), 0, &format!("新{i}")),
+        );
+        assert!(patch(&lib, "node:g", 2 + i as i64, &p).unwrap());
+        now = p.apply_to(&now).unwrap();
+        let after = keys(&lib, "node:g");
+        assert_eq!(stored(&lib, "node:g"), rows_of(&now), "insert {i}");
+        let moved = before
+            .iter()
+            .filter(|(id, k)| after.iter().any(|(id2, k2)| id2 == id && k2 != k))
+            .count();
+        if moved > 0 {
+            renumbered += 1;
+            let spaced: Vec<i64> = (0..after.len() as i64).map(|j| j << 32).collect();
+            assert_eq!(after.iter().map(|k| k.1).collect::<Vec<_>>(), spaced);
+        } else {
+            assert_eq!(after.len(), before.len() + 1);
+        }
+    }
+    // 2^32 between two keys halves 32 times before there is no room.
+    assert_eq!(renumbered, 2);
+    assert_eq!(hits(&lib, Some("book-p"), "丙"), [("node:g".into(), 82)]);
+}
+
+/// Libraries written before the gaps numbered paragraphs 0, 1, 2, …: they
+/// read the same, an append still fits, and the first insert with no room
+/// renumbers the document.
+#[test]
+fn a_document_numbered_one_by_one_reads_the_same_and_renumbers_when_needed() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open(dir.path());
+    lib.register("node:o", "node", Some("book-p")).unwrap();
+    let mut now = derived(
+        (0..5)
+            .map(|i| block(&format!("b{i}"), (i == 3) as u8, &format!("旧{i}")))
+            .collect(),
+        vec![],
+    );
+    full(&lib, "node:o", 1, &now);
+    lib.local_transaction(|tx| {
+        tx.execute(
+            "UPDATE block_index SET ord = ord >> 32 WHERE doc_id = 'node:o'",
+            [],
+        )?;
+        Ok(())
+    })
+    .unwrap();
+    assert_eq!(
+        keys(&lib, "node:o").iter().map(|k| k.1).collect::<Vec<_>>(),
+        [0, 1, 2, 3, 4]
+    );
+    assert_eq!(hits(&lib, Some("book-p"), "旧4"), [("node:o".into(), 4)]);
+    assert_eq!(lib.outline("node:o").unwrap()[0].ord, 3);
+    // An append fits after the last key.
+    let p = insert_at(5, 5, block("e", 0, "末尾"));
+    assert!(patch(&lib, "node:o", 2, &p).unwrap());
+    now = p.apply_to(&now).unwrap();
+    assert_eq!(
+        keys(&lib, "node:o")[..5]
+            .iter()
+            .map(|k| k.1)
+            .collect::<Vec<_>>(),
+        [0, 1, 2, 3, 4]
+    );
+    // An insert between 1 and 2 does not: renumbered.
+    let p = insert_at(2, 6, block("m", 0, "中间"));
+    assert!(patch(&lib, "node:o", 3, &p).unwrap());
+    now = p.apply_to(&now).unwrap();
+    assert_eq!(stored(&lib, "node:o"), rows_of(&now));
+    assert_eq!(
+        keys(&lib, "node:o").iter().map(|k| k.1).collect::<Vec<_>>(),
+        (0..7i64).map(|j| j << 32).collect::<Vec<_>>()
+    );
+    assert_eq!(hits(&lib, Some("book-p"), "中间"), [("node:o".into(), 2)]);
+    assert_eq!(lib.outline("node:o").unwrap()[0].ord, 4);
+}
+
+/// The ordered search gives exactly what sorting every hit of a plain
+/// search by the order and cutting would: random orders (with documents
+/// left out, repeated or unknown), queries of one to four characters and
+/// limits.
+#[test]
+fn ordered_search_equals_sorting_every_hit() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open(dir.path());
+    let mut rng = Rng::new(11);
+    let docs: Vec<String> = (0..12).map(|i| format!("node:{i:02}")).collect();
+    for (n, doc) in docs.iter().enumerate() {
+        let blocks: Vec<BlockRow> = (0..rng.range(0, 30))
+            .map(|i| para(&mut rng, (n * 100 + i) as u64))
+            .collect();
+        index(&lib, doc, "book-r", &blocks, &[]);
+    }
+    for _ in 0..200 {
+        let mut order: Vec<&str> = Vec::new();
+        for _ in 0..rng.range(0, 16) {
+            match rng.below(8) {
+                0 => order.push("node:unknown"),
+                _ => order.push(rng.pick(&docs)),
+            }
+        }
+        let q = *rng.pick(&["安", "安娜", "下着雨", "我们走吧", "雨", "rain", "无此字"]);
+        let limit = rng.range(1, 40);
+        let rank = |doc: &str| order.iter().position(|d| *d == doc).unwrap_or(usize::MAX);
+        let mut expected = lib.search(Some("book-r"), q, 100_000).unwrap();
+        expected.sort_by_key(|h| rank(&h.doc_id));
+        expected.truncate(limit);
+        assert_eq!(
+            lib.search_in_order(Some("book-r"), q, limit, &order)
+                .unwrap(),
+            expected,
+            "{q:?} limit {limit} order {order:?}"
+        );
+    }
+}
+
+fn ref_ids(lib: &Library, doc: &str) -> Vec<(i64, String, u32)> {
+    lib.local_read(|c| {
+        Ok(c.prepare(
+            "SELECT id, target_id, count FROM reference WHERE source_doc = ?1 ORDER BY id",
+        )?
+        .query_map([doc], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
+        .collect::<rusqlite::Result<Vec<_>>>()?)
+    })
+    .unwrap()
+}
+
+fn refs_of(lib: &Library, doc: &str) -> Vec<(Option<String>, String, String, RefKind, u32)> {
+    lib.references_from(doc)
+        .unwrap()
+        .into_iter()
+        .map(|r| (r.source_block, r.target_kind, r.target_id, r.kind, r.count))
+        .collect()
+}
+
+fn want_refs(refs: &[RefRow]) -> Vec<(Option<String>, String, String, RefKind, u32)> {
+    refs.iter()
+        .map(|r| {
+            (
+                r.source_block.clone(),
+                r.target_kind.clone(),
+                r.target_id.clone(),
+                r.kind,
+                r.count.max(1),
+            )
+        })
+        .collect()
+}
+
+fn random_ref(rng: &mut Rng) -> RefRow {
+    RefRow {
+        source_block: (rng.below(6) != 0).then(|| format!("b{}", rng.below(40))),
+        target_kind: (*rng.pick(&["element", "material"])).to_string(),
+        target_id: format!("el-{}", rng.below(30)),
+        kind: *rng.pick(&[RefKind::Link, RefKind::Embed]),
+        count: rng.range(1, 4) as u32,
+    }
+}
+
+fn set_refs(lib: &Library, doc: &str, seq: i64, refs: &[RefRow]) {
+    let p = DerivedPatch {
+        base_paragraphs: 0,
+        splices: vec![],
+        references: Some(refs.to_vec()),
+        words: 0,
+        chars: 0,
+    };
+    assert!(patch(lib, doc, seq, &p).unwrap());
+}
+
+/// A document's references come back in the deriver's order however they
+/// change, with other documents' rows interleaved in the table; a change in
+/// the middle rewrites only the rows that differ.
+#[test]
+fn references_keep_their_order_and_only_changed_rows_are_rewritten() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open(dir.path());
+    let mut rng = Rng::new(0xF2_0005);
+    for doc in ["node:r", "node:other"] {
+        lib.register(doc, "node", Some("book-p")).unwrap();
+        full(&lib, doc, 1, &derived(vec![], vec![]));
+    }
+    let mut refs: Vec<RefRow> = (0..30).map(|_| random_ref(&mut rng)).collect();
+    set_refs(&lib, "node:r", 2, &refs);
+    for seq in 3..400 {
+        match rng.below(6) {
+            0 if !refs.is_empty() => {
+                refs.remove(rng.below(refs.len() as u64) as usize);
+            }
+            1 if !refs.is_empty() => {
+                let i = rng.below(refs.len() as u64) as usize;
+                refs[i].count += 1;
+            }
+            2 => {
+                // A paste: several at once.
+                let at = rng.below(refs.len() as u64 + 1) as usize;
+                let more: Vec<RefRow> =
+                    (0..rng.range(1, 8)).map(|_| random_ref(&mut rng)).collect();
+                refs.splice(at..at, more);
+            }
+            3 => {
+                // Another document's rows land between this one's ids.
+                let other: Vec<RefRow> =
+                    (0..rng.range(0, 5)).map(|_| random_ref(&mut rng)).collect();
+                set_refs(&lib, "node:other", seq, &other);
+            }
+            _ => {
+                let at = rng.below(refs.len() as u64 + 1) as usize;
+                refs.insert(at, random_ref(&mut rng));
+            }
+        }
+        set_refs(&lib, "node:r", seq, &refs);
+        assert_eq!(refs_of(&lib, "node:r"), want_refs(&refs), "seq {seq}");
+    }
+
+    // One place changed in the middle of 200 (as an Enter that splits a
+    // paragraph with links): only the changed row and the new one are
+    // written. (Changes in two places rewrite what lies between them.)
+    let mut refs: Vec<RefRow> = (0..200)
+        .map(|i| RefRow {
+            source_block: Some(format!("p{i}")),
+            target_kind: "element".into(),
+            target_id: format!("el-{i}"),
+            kind: RefKind::Link,
+            count: 1,
+        })
+        .collect();
+    set_refs(&lib, "node:r", 1000, &refs);
+    let before = ref_ids(&lib, "node:r");
+    refs[100].count = 2;
+    refs.insert(101, link("p100", "el-new"));
+    set_refs(&lib, "node:r", 1001, &refs);
+    let after = ref_ids(&lib, "node:r");
+    let kept = after.iter().filter(|r| before.contains(r)).count();
+    assert_eq!(
+        kept, 199,
+        "only the changed row and the new one are written"
+    );
+    assert_eq!(refs_of(&lib, "node:r"), want_refs(&refs));
+
+    // Rows numbered one by one (before the gaps): an insert in the middle
+    // has no room, and the document's rows are written again in order.
+    lib.local_transaction(|tx| {
+        let ids: Vec<i64> = before_ids(tx, "node:r")?;
+        tx.execute(
+            "UPDATE reference SET id = -id WHERE source_doc = 'node:r'",
+            [],
+        )?;
+        for (i, id) in ids.iter().enumerate() {
+            tx.execute(
+                "UPDATE reference SET id = ?2 WHERE id = ?1",
+                rusqlite::params![-id, 1_000_000_000 + i as i64],
+            )?;
+        }
+        Ok(())
+    })
+    .unwrap();
+    refs.insert(10, link("p10", "el-tight"));
+    set_refs(&lib, "node:r", 1002, &refs);
+    assert_eq!(refs_of(&lib, "node:r"), want_refs(&refs));
+}
+
+fn before_ids(tx: &rusqlite::Connection, doc: &str) -> dr_store::Result<Vec<i64>> {
+    Ok(tx
+        .prepare("SELECT id FROM reference WHERE source_doc = ?1 ORDER BY id")?
+        .query_map([doc], |r| r.get(0))?
+        .collect::<rusqlite::Result<Vec<i64>>>()?)
 }
