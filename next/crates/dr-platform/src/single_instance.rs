@@ -5,8 +5,9 @@
 //!   `on_open_urls`, so every process is the primary. (`cargo run` outside a
 //!   bundle may start several; that is a development convenience.)
 //! - **Windows**: the first process holds a named mutex,
-//!   `Local\<bundle id>.instance`. A later one finds it taken, sends its
-//!   arguments over a named pipe, `\\.\pipe\<bundle id>.instance.<session>`,
+//!   `Local\<instance name>.instance` (the bundle id, plus the development
+//!   profile when there is one). A later one finds it taken, sends its
+//!   arguments over a named pipe, `\\.\pipe\<instance name>.instance.<session>`,
 //!   lets the first take the foreground, and exits. The primary reads each
 //!   message on a background thread and hands the arguments on (to
 //!   `DeepLinks::push_args`, which keeps only our links).
@@ -16,6 +17,10 @@
 //! `FILE_FLAG_FIRST_PIPE_INSTANCE`, so another process cannot squat on the
 //! name ahead of the primary. Messages are bounded JSON:
 //! `{"drifting.instance":1,"args":[…]}`.
+//!
+//! Headless launches must not come here: `drifting --mcp --connection <file>`
+//! (the external-Agent contract, simplifications.md item 15) is routed in
+//! `main` before this, or it would be forwarded to the window and exit.
 //!
 //! The idea follows Zed's `windows_only_instance.rs`; that file is GPL, so
 //! nothing was copied. Only `cargo check --target x86_64-pc-windows-msvc`
@@ -144,12 +149,12 @@ mod windows_impl {
         let _ = unsafe { ProcessIdToSessionId(GetCurrentProcessId(), &mut session) };
         PipeName(wide(&format!(
             r"\\.\pipe\{}.instance.{session}",
-            identity.bundle_id
+            identity.instance_name()
         )))
     }
 
     pub(super) fn acquire(identity: &Identity, args: &[String]) -> Instance {
-        let name = wide(&format!(r"Local\{}.instance", identity.bundle_id));
+        let name = wide(&format!(r"Local\{}.instance", identity.instance_name()));
         // SAFETY: `name` is NUL-terminated and outlives the call.
         let mutex = unsafe { CreateMutexW(None, true, PCWSTR::from_raw(name.as_ptr())) };
         // SAFETY: reads this thread's last error right after the call.

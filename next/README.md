@@ -24,6 +24,7 @@ cargo run -p drifting
 | --- | --- |
 | `DRIFTING_LOG=<级别或目标>` | 日志级别，`tracing` 的写法（`debug`、`warn,dr_platform=trace`）。开发时打到 stderr，默认 `warn`；装好的版本写进日志文件（位置见 [F7](../docs/rust-rewrite/foundations/f7-platform.md#日志)），设了它也同时打到 stderr。GPUI 自己的报错（字体、着色器、窗口）只走日志 |
 | `DRIFTING_LOG_FILE=1` | 开发时也写日志文件 |
+| `DRIFTING_PROFILE=<名字>` | 开发版的数据、日志文件夹、钥匙串服务和单实例锁都加上这个名字，几个 worktree 的开发版互不干扰 |
 | `DRIFTING_CRASH_REPORTS_IN_DEV=1` | 开发构建也发崩溃报告（还要构建时带 DSN，平时没有） |
 | `DRIFTING_DEV_UPDATE_MANIFEST`、`DRIFTING_DEV_UPDATER_PUBLIC_KEY` | 开发构建从本地清单更新，只用于自测；见 F7 文档 |
 | `DRIFTING_APPEARANCE=light\|dark` | 强制浅色或深色，不动系统设置。macOS 上设的是本应用自己的外观，和系统切换走同一条路 |

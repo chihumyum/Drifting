@@ -130,9 +130,10 @@ impl std::fmt::Debug for SecretStore {
 }
 
 impl SecretStore {
-    /// The system store under this identity's service.
+    /// The system store under this run's service (`Identity::secret_service`:
+    /// the identity's, plus the development profile when there is one).
     pub fn for_identity(identity: &Identity) -> Self {
-        Self::system(identity.keychain_service)
+        Self::system(identity.secret_service())
     }
 
     /// The system store under any service. Tests use a throwaway service so

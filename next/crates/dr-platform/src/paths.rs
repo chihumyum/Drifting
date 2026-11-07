@@ -9,7 +9,8 @@
 //! These are the folders Tauri's `app_local_data_dir` and `app_log_dir` name
 //! for the same identifier, so the release identity finds the 0.1 client's
 //! data folder where it always was. A development build has its own bundle id
-//! and therefore its own folders.
+//! and therefore its own folders; with `DRIFTING_PROFILE` each profile gets
+//! `<bundle id>.<profile>` (`Identity::instance_name`).
 
 use std::path::{Path, PathBuf};
 
@@ -28,14 +29,18 @@ pub struct AppDirs {
 
 impl AppDirs {
     pub fn for_identity(identity: &Identity) -> Result<Self> {
+        Self::named(&identity.instance_name())
+    }
+
+    fn named(name: &str) -> Result<Self> {
         let data = dirs::data_local_dir()
             .context("this system has no local application data folder")?
-            .join(identity.bundle_id);
+            .join(name);
         #[cfg(target_os = "macos")]
         let logs = dirs::home_dir()
             .context("this system has no home folder")?
             .join("Library/Logs")
-            .join(identity.bundle_id);
+            .join(name);
         #[cfg(not(target_os = "macos"))]
         let logs = data.join("logs");
         Ok(Self {
@@ -63,8 +68,8 @@ mod tests {
 
     #[test]
     fn each_identity_has_its_own_folders_named_by_bundle_id() {
-        let development = AppDirs::for_identity(&DEVELOPMENT).unwrap();
-        let release = AppDirs::for_identity(&RELEASE).unwrap();
+        let development = AppDirs::named(DEVELOPMENT.bundle_id).unwrap();
+        let release = AppDirs::named(RELEASE.bundle_id).unwrap();
         for (dirs, id) in [
             (&development, DEVELOPMENT.bundle_id),
             (&release, RELEASE.bundle_id),
@@ -80,7 +85,7 @@ mod tests {
     #[cfg(target_os = "macos")]
     #[test]
     fn macos_logs_follow_the_library_logs_convention() {
-        let dirs = AppDirs::for_identity(&DEVELOPMENT).unwrap();
+        let dirs = AppDirs::named(DEVELOPMENT.bundle_id).unwrap();
         assert!(dirs.logs.ends_with("Library/Logs/cc.drifting.next.dev"));
         assert!(
             dirs.data

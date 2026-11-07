@@ -65,6 +65,22 @@ pub const RELEASE: Identity = Identity {
     publisher: "drifting",
 };
 
+/// Development builds only: `DRIFTING_PROFILE=<name>` gives a run its own
+/// data and log folders, keychain service and single-instance lock, so builds
+/// from two worktrees never share a library or a lock (simplifications.md
+/// item 17; F8's launcher sets it). The URL scheme stays the bundle's.
+pub const PROFILE_ENV: &str = "DRIFTING_PROFILE";
+
+/// `a-z`, `0-9` and `-`, 1 to 32 characters; anything else is ignored.
+fn parse_profile(value: Option<&str>) -> Option<String> {
+    let value = value?.trim();
+    let valid = (1..=32).contains(&value.len())
+        && value
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
+    valid.then(|| value.to_owned())
+}
+
 impl Identity {
     /// The identity this build runs under. Changing it to [`RELEASE`] is the
     /// hand-over's job and nothing else's.
@@ -74,6 +90,41 @@ impl Identity {
 
     pub fn is_release(&self) -> bool {
         self.channel == Channel::Release
+    }
+
+    /// This run's development profile; the release identity has none.
+    pub fn profile(&self) -> Option<String> {
+        self.profile_from(std::env::var(PROFILE_ENV).ok().as_deref())
+    }
+
+    fn profile_from(&self, value: Option<&str>) -> Option<String> {
+        if self.is_release() {
+            None
+        } else {
+            parse_profile(value)
+        }
+    }
+
+    /// The name of this run's folders, lock and pipe: the bundle id, or
+    /// `<bundle id>.<profile>`.
+    pub fn instance_name(&self) -> String {
+        self.instance_name_for(self.profile().as_deref())
+    }
+
+    fn instance_name_for(&self, profile: Option<&str>) -> String {
+        match profile {
+            Some(profile) => format!("{}.{profile}", self.bundle_id),
+            None => self.bundle_id.to_owned(),
+        }
+    }
+
+    /// This run's keychain service: `keychain_service`, or
+    /// `<keychain_service>.<profile>`.
+    pub fn secret_service(&self) -> String {
+        match self.profile() {
+            Some(profile) => format!("{}.{profile}", self.keychain_service),
+            None => self.keychain_service.to_owned(),
+        }
     }
 }
 
@@ -106,6 +157,24 @@ mod tests {
     fn every_build_is_the_development_identity_until_the_hand_over() {
         assert_eq!(Identity::current(), &DEVELOPMENT);
         assert!(!Identity::current().is_release());
+    }
+
+    #[test]
+    fn profiles_separate_development_runs_only() {
+        assert_eq!(parse_profile(Some("wt-f7")), Some("wt-f7".into()));
+        for bad in ["", "Upper", "a/b", "..", "with space", &"a".repeat(33)] {
+            assert_eq!(parse_profile(Some(bad)), None, "{bad:?}");
+        }
+        assert_eq!(
+            DEVELOPMENT.profile_from(Some("wt-f7")),
+            Some("wt-f7".into())
+        );
+        assert_eq!(RELEASE.profile_from(Some("wt-f7")), None);
+        assert_eq!(
+            DEVELOPMENT.instance_name_for(Some("wt-f7")),
+            "cc.drifting.next.dev.wt-f7"
+        );
+        assert_eq!(DEVELOPMENT.instance_name_for(None), DEVELOPMENT.bundle_id);
     }
 
     #[test]

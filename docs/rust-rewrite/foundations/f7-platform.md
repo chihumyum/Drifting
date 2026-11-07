@@ -20,7 +20,7 @@
 
 **最要紧的三个发现**：
 
-1. **GPUI 自带的凭据接口读不到旧版的条目。** macOS 上它存的是「互联网密码」而旧版是「通用密码」；Windows 上它把条目名前面加了 `zed:url=`；它还必须在应用跑起来以后才能用（测试碰不到），macOS 上读的时候可能弹密码框。所以没用它，直接按旧版的格式读写系统钥匙串，旧版、新版来回切都不丢。这推翻了计划里「用 GPUI 自带的凭据接口」一句（见「待协调」1）。
+1. **GPUI 自带的凭据接口读不到旧版的条目。** macOS 上它存的是「互联网密码」而旧版是「通用密码」；Windows 上它把条目名前面加了 `zed:url=`；它还必须在应用跑起来以后才能用（测试碰不到），macOS 上读的时候可能弹密码框。所以没用它，直接按旧版的格式读写系统钥匙串，旧版、新版来回切都不丢。计划原来写的是「用 GPUI 自带的凭据接口」，监管会话审旧架构时也得出同样结论（simplifications.md 第 14 条，见「待协调」1）。
 2. **交棒要分两份清单，否则老用户会跳过「交接」。** 现在所有旧版都去读 `latest.json`。如果新版发布时直接把 `latest.json` 指向新版，还停在 alpha.10 这类老版本的人会直接装上新版，他们的库没经过交接，导入时会被拦下，而旧程序已经被替换掉了。办法是：新版用一份新清单 `update.json`；`latest.json` 从此永远指向旧版最后一版。老用户先升到旧版最后一版（它每次启动、退出、装更新前都会交接），再由它去读 `update.json` 换成新版（见「交接设计」）。
 3. **TLS 换成和旧版一样的 ring。** Sentry 默认带的 aws-lc 在 Windows ARM 构建机上没验证过，旧版用 ring 在两台 Windows 构建机上一直能编，所以统一用 rustls + ring。
 
@@ -70,6 +70,8 @@ cx.set_global(Platform { deep_links, crash_reports });     // 给 F6
 | 链接协议 | `drifting-next-dev:` | `drifting:` |
 | 钥匙串服务 | `Drifting.cc.drifting.next.dev` | `Drifting` |
 | Windows 厂商键 | `drifting` | `drifting` |
+
+**开发版的 profile**（[simplifications.md](../simplifications.md) 第 17 条）：开发版设了 `DRIFTING_PROFILE=<名字>`（小写字母、数字、`-`，最多 32 个字符），数据和日志文件夹、钥匙串服务、Windows 单实例锁都会加上 `.<名字>`，两个 worktree 的开发版就不会抢同一把锁、打开同一个库。链接协议是包注册的，不跟着变。正式版忽略这个变量。F8 的启动器给每个 worktree 设一个。
 
 `identity.rs` 的测试拿 `src-tauri/tauri.conf.json` 和 `src-tauri/Cargo.toml` 对正式版身份，拿 `script/bundle-mac` 和 `script/windows/drifting.nsi` 对开发版身份，并保证脚本里没有正式版的 bundle id。旧代码删掉以后，前一半测试要跟着改。
 
@@ -160,6 +162,7 @@ cx.set_global(Platform { deep_links, crash_reports });     // 给 F6
 - **开发版的协议是 `drifting-next-dev:`**，正式版是 `drifting:`。开发版的包在本机打开后，Launch Services 只会把 `drifting-next-dev:` 交给它，作者装着的正式版照常收 `drifting:`。
 - 链接全进 `DeepLinks` 队列：只收本协议的、8 KiB 以内、不含控制字符的；最多排 64 条；消费者按前缀取，`auth/` 给登录、`open/` 给跳转，和旧版的 `DeepLinkQueue` 一样。链接里可能有一次性登录码，所以日志只记条数。
 - 命名管道：只收本机连接，用默认安全描述（只有本用户、管理员和 SYSTEM 能写），创建时带 `FILE_FLAG_FIRST_PIPE_INSTANCE`，别的进程抢不了名字；消息是不超过 64 KiB 的 JSON。后来的进程先调 `AllowSetForegroundWindow`，让先开的那个能把窗口提到前面。
+- **不带窗口的启动不能经过这里**：外部 Agent 用 `drifting --mcp --connection <文件>` 调这个可执行文件（[simplifications.md](../simplifications.md) 第 15 条）。旧版在 `main` 的第一行就分流；新版也要在崩溃上报、日志和单实例之前分流，否则 Windows 上它会被当成第二次启动、把参数转给窗口然后退出。
 - 思路照 Zed 的 `windows_only_instance.rs`，那个文件是 GPL，只看了思路，代码是自己写的。
 - Windows 部分本机只能 `cargo check --target x86_64-pc-windows-msvc --no-default-features`（带网络特性时 ring 的 C 代码在 Mac 上交叉编不了），clippy 也过了；真跑要等 CI 或作者的虚拟机。
 
@@ -289,7 +292,7 @@ CI（`next.yml` 的 Windows 任务，`script/check-windows-installer.ps1`）：�
 
 ## 待协调
 
-1. **计划改动（监管会话定）**：`foundation.md` 和 `research.md` 写的「凭据用 GPUI 自带的接口」改成「沿用旧版格式，自己读写系统钥匙串」，理由见开头。我只改了 `foundation.md` F7 一节里的这一句。
+1. **计划改动（监管会话定）**：`foundation.md` 和 `research.md` 写的「凭据用 GPUI 自带的接口」改成「沿用旧版格式，自己读写系统钥匙串」，理由见开头。`main` 上监管会话已经同样定了（[simplifications.md](../simplifications.md) 第 14 条，写的是「沿用 keyring」）；合并时我把 `foundation.md` F7 一节的那一句改成了实际做法：直接调系统接口按 keyring 的格式读写，keyring 只在测试里扮演旧版。
 2. **F6**：
    - 崩溃上报的同意开关（默认开）和首次说明，`set_consent`，`take_follow_up` 接通知中心和反馈；
    - `DeepLinks::set_waker` 接到主线程：来了链接就把主窗口叫到前面、按前缀分发；
@@ -297,9 +300,11 @@ CI（`next.yml` 的 Windows 任务，`script/check-windows-installer.ps1`）：�
    - Windows 上调 GPUI 的 `set_app_identity(bundle id, 名字)`，让通知和任务栏归到同一个应用；新装的开始菜单快捷方式没带 AppUserModelID（NSIS 不带插件做不到），更新时保留旧快捷方式所以不受影响。
 3. **F2**：正式版和旧版共用数据文件夹 `~/Library/Application Support/cc.drifting.client`（Windows `%LOCALAPPDATA%\cc.drifting.client`），新库放进自己的子文件夹，旧文件一个都不写。`crashes/` 已被 F7 占用。完整性事件用 `report_integrity`。
 4. **工作区（监管会话定）**：`runtime_shaders` 现在写在 `[workspace.dependencies]` 的 `gpui_platform` 上，所有成员都开着。正式包要关掉它，得改成各可执行文件自己的默认特性（发布时 `--no-default-features`）。动的是共用的 GPUI 依赖行，我没改。
-5. **M10**：没交接的库被拦下时，提示里给旧版最后一版的下载链接（旧程序已经被替换了）。
-6. **正式版身份怎么切换**：建议交接时给 `dr-platform` 加一个 `release-identity` 特性，只有发布工作流开它，`Identity::current()` 据此返回 `RELEASE`；`bundle-mac` 和 `bundle-windows.ps1` 加对应开关。现在照 `AGENTS.md` 不做。
-7. **`next/README.md`**：改了「开发开关」表的 `DRIFTING_LOG` 一行，加了 `DRIFTING_LOG_FILE`、`DRIFTING_CRASH_REPORTS_IN_DEV`、两个开发更新变量，和打包一节的 `--dmg`、`--archive`、Windows 脚本，以及目录表。
+5. **M32 / M42**：`--mcp --connection <文件>` 在 `main` 最前面分流（见「深链接与单实例」），交接以后外部 Agent 才连得上新程序。
+6. **F8**：启动器给每个 worktree 设 `DRIFTING_PROFILE`。
+7. **M10**：没交接的库被拦下时，提示里给旧版最后一版的下载链接（旧程序已经被替换了）。
+8. **正式版身份怎么切换**：建议交接时给 `dr-platform` 加一个 `release-identity` 特性，只有发布工作流开它，`Identity::current()` 据此返回 `RELEASE`；`bundle-mac` 和 `bundle-windows.ps1` 加对应开关。现在照 `AGENTS.md` 不做。
+9. **`next/README.md`**：改了「开发开关」表的 `DRIFTING_LOG` 一行，加了 `DRIFTING_LOG_FILE`、`DRIFTING_PROFILE`、`DRIFTING_CRASH_REPORTS_IN_DEV`、两个开发更新变量，和打包一节的 `--dmg`、`--archive`、Windows 脚本，以及目录表。
 
 ## 数字
 
@@ -315,7 +320,7 @@ M3 Pro，release 构建，机器负载 15–18（其他会话在编译）。
 
 - 可执行文件多出的约 6 MB 是 Sentry（含 minidump 写入）、reqwest + tokio、rustls + ring 和平台验证器。
 - 不带 DSN 时，启动时 F7 只读几个环境变量、建几个路径、装一个 panic hook，量不出差别；首帧时间和 P0-A 在高负载下的分布一致。带 DSN 时多起一个旁路进程，要在空闲机器上另测。
-- 测试：`dr-platform` 63 个单元测试 + 1 个示例测试，另有 3 个默认忽略的真钥匙串测试（本机跑过）；`drifting` 13 个。
+- 测试：`dr-platform` 64 个单元测试 + 1 个示例测试，另有 3 个默认忽略的真钥匙串测试（本机跑过）；`drifting` 13 个。
 
 ## 下一个里程碑建议
 
