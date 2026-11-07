@@ -32,8 +32,8 @@ impl Workspace {
         }
     }
 
-    /// ⌘⌥M (or the selection toolbar's 批注): the composer comes up beside
-    /// the selection of the editor that has focus.
+    /// ⌘⌥M: the composer comes up beside the selection of the editor that
+    /// has focus.
     pub(super) fn on_new_comment(
         &mut self,
         _: &NewComment,

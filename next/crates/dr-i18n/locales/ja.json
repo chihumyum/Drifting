@@ -321,8 +321,6 @@
       "deleted": "削除済み",
       "floating": "未添付"
     },
-    "jumpToText": "リンクされた本文へ移動",
-    "newComment": "新しいコメント",
     "resolved": "解決済み（{{count}}件）",
     "scopes": {
       "current": "現在"

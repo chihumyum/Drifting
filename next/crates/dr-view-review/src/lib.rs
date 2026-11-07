@@ -5,8 +5,7 @@
 //!   project), grouped by where they are; edited in place; a TODO completed
 //!   with a check stroke drawn in its round button; jumping to the text.
 //! - The comment composer ([`CommentComposer`]) that comes up beside the
-//!   selected text ([`NewComment`], ⌘⌥M in the prose; the selection
-//!   toolbar's 批注 sends the same action).
+//!   selected text ([`NewComment`], ⌘⌥M in the prose).
 //! - The prose side (sand under the anchored words, multi-paragraph anchors
 //!   drawn as dry sand along every row, the ticks, `TODO:` / `待办:`
 //!   markers projected into TODOs) is dr-editor's (`decor`); the two meet in

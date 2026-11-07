@@ -316,8 +316,6 @@
       "deleted": "已删除",
       "floating": "未挂载"
     },
-    "jumpToText": "跳转到关联文字",
-    "newComment": "新建批注",
     "resolved": "已解决（{{count}}）",
     "scopes": {
       "current": "当前"
