@@ -17,7 +17,8 @@
     "save": "Speichern",
     "saveFailed": "Änderungen konnten nicht gespeichert werden. Bitte erneut versuchen.",
     "saving": "Wird gespeichert…",
-    "untitled": "Unbenannt"
+    "untitled": "Unbenannt",
+    "wordsCount": "{{count}} Wörter"
   },
   "dashboard": {
     "actions": {
@@ -281,6 +282,7 @@
       "chapterOrdinal": "Kapitel {{count}}",
       "chaptersValue": "{{count}} Kapitel",
       "recent": "Zuletzt",
+      "snapshotButton": "Verlaufsschnappschüsse…",
       "wordsPerChapterValue": "{{words}} Wörter / Kapitel",
       "wordsValue": "{{count}} Wörter",
       "writingProgress": "Schreibfortschritt",
@@ -415,6 +417,23 @@
   },
   "sidebarLayout": {
     "split": "Zwei Spalten wiederherstellen"
+  },
+  "snapshotHistory": {
+    "confirmRestore": "Überschreiben der aktuellen Version bestätigen",
+    "empty": "Noch keine Schnappschüsse. Nach Textänderungen wird etwa alle 15 Minuten einer automatisch gespeichert.",
+    "kind": {
+      "category": "Kategorie",
+      "element": "Element",
+      "library_item": "Notiz",
+      "node": "Kapitel",
+      "storyline": "Handlungsstrang"
+    },
+    "loading": "Wird geladen…",
+    "restore": "Wiederherstellen…",
+    "restoreFailed": "Wiederherstellung fehlgeschlagen: {{error}}",
+    "restoreSuccess": "Ausgewählte Version wiederhergestellt. Der vorherige Zustand wurde zuerst als neuer Schnappschuss gespeichert.",
+    "restoring": "Wird wiederhergestellt…",
+    "title": "Verlaufsschnappschüsse · 30 Tage"
   },
   "topTimeline": {
     "closeTab": "Tab schließen",

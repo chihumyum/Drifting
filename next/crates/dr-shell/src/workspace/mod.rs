@@ -322,6 +322,8 @@ pub struct Workspace {
     pub settings: Option<Entity<SettingsPanel>>,
     /// M06's search panel, while open.
     pub search: Option<Entity<dr_view_search::SearchPanel>>,
+    /// M09's snapshot history of a page, while open (`corner::open_history`).
+    pub history: Option<Entity<dr_view_history::HistoryDialog>>,
     pub notifications_open: bool,
     /// The bookshelf (M01), when one is registered ([`pages::set_shelf`]):
     /// made the first time it shows, kept while the window lives.
@@ -398,6 +400,7 @@ impl Workspace {
             super_view: None,
             settings: None,
             search: None,
+            history: None,
             notifications_open: false,
             shelf: None,
             shelf_open: false,
@@ -1211,6 +1214,7 @@ impl Render for Workspace {
             })
             .when_some(self.settings.clone(), |el, panel| el.child(panel))
             .when_some(self.search.clone(), |el, panel| el.child(panel))
+            .when_some(self.history.clone(), |el, dialog| el.child(dialog))
             .child(chrome::windows_caption(window, cx))
             .when(self.notifications_open, |el| {
                 el.child(sidebar::notification_center(self, window, cx))

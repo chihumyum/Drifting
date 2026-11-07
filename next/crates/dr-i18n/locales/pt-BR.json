@@ -17,7 +17,8 @@
     "save": "Salvar",
     "saveFailed": "Não foi possível salvar as alterações. Tente novamente.",
     "saving": "Salvando…",
-    "untitled": "Sem título"
+    "untitled": "Sem título",
+    "wordsCount": "{{count}} palavras"
   },
   "dashboard": {
     "actions": {
@@ -287,6 +288,7 @@
       "chapterOrdinal": "Capítulo {{count}}",
       "chaptersValue": "{{count}} capítulos",
       "recent": "Recente",
+      "snapshotButton": "Snapshots do histórico…",
       "wordsPerChapterValue": "{{words}} palavras / capítulo",
       "wordsValue": "{{count}} palavras",
       "writingProgress": "Progresso da escrita",
@@ -421,6 +423,23 @@
   },
   "sidebarLayout": {
     "split": "Restaurar duas colunas"
+  },
+  "snapshotHistory": {
+    "confirmRestore": "Confirmar substituição da versão atual",
+    "empty": "Ainda não há snapshots. Após editar o texto, um é salvo automaticamente a cada 15 minutos aproximadamente.",
+    "kind": {
+      "category": "Categoria",
+      "element": "Elemento",
+      "library_item": "Nota",
+      "node": "Capítulo",
+      "storyline": "Linha narrativa"
+    },
+    "loading": "Carregando…",
+    "restore": "Restaurar…",
+    "restoreFailed": "Falha na restauração: {{error}}",
+    "restoreSuccess": "Versão selecionada restaurada. O estado anterior foi salvo primeiro como um novo snapshot.",
+    "restoring": "Restaurando…",
+    "title": "Snapshots do histórico · 30 dias"
   },
   "topTimeline": {
     "closeTab": "Fechar aba",

@@ -75,6 +75,16 @@ pub struct ChapterInfo {
     pub storylines: Vec<String>,
     pub primary_storyline: Option<String>,
     pub trashed: bool,
+    /// Words in the chapter's prose, as the derived index counts them (0
+    /// until dr-index has reached it).
+    pub words: u64,
+    /// When the chapter was created (Unix seconds).
+    pub created_at: Option<i64>,
+    /// When the chapter last changed (Unix seconds): its prose's newest
+    /// stored change, or its creation if later. The book document keeps no
+    /// `updated_at` (simplifications.md 第一节第 13 条), so a new title,
+    /// summary or status alone does not move it.
+    pub updated_at: Option<i64>,
 }
 
 impl ChapterInfo {
@@ -91,7 +101,17 @@ impl ChapterInfo {
             storylines: n.storylines.iter().map(|s| s.to_string()).collect(),
             primary_storyline: n.effective_primary_storyline().map(|s| s.to_string()),
             trashed: n.is_trashed(),
+            words: 0,
+            created_at: n.created_at.map(|t| t.0),
+            updated_at: n.created_at.map(|t| t.0),
         }
+    }
+
+    /// With what storage knows of its prose ([`crate::commands::ProseFacts`]).
+    pub(crate) fn with_prose(mut self, facts: crate::commands::ProseFacts) -> Self {
+        self.words = facts.words;
+        self.updated_at = self.updated_at.max(facts.edited_at);
+        self
     }
 }
 

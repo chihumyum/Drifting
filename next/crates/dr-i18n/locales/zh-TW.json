@@ -17,7 +17,8 @@
     "save": "儲存",
     "saveFailed": "無法儲存變更，請重試。",
     "saving": "正在儲存…",
-    "untitled": "未命名"
+    "untitled": "未命名",
+    "wordsCount": "{{count}} 字"
   },
   "dashboard": {
     "actions": {
@@ -281,6 +282,7 @@
       "chapterOrdinal": "第 {{count}} 章",
       "chaptersValue": "{{count}} 章",
       "recent": "近期",
+      "snapshotButton": "歷史快照…",
       "wordsPerChapterValue": "每章 {{words}} 字",
       "wordsValue": "{{count}} 字",
       "writingProgress": "寫作進度",
@@ -415,6 +417,23 @@
   },
   "sidebarLayout": {
     "split": "恢復雙欄"
+  },
+  "snapshotHistory": {
+    "confirmRestore": "確認覆寫目前版本",
+    "empty": "尚無快照。編輯正文後，系統約每 15 分鐘自動保留一份。",
+    "kind": {
+      "category": "類目",
+      "element": "要素",
+      "library_item": "筆記",
+      "node": "章節",
+      "storyline": "故事線"
+    },
+    "loading": "載入中…",
+    "restore": "還原…",
+    "restoreFailed": "還原失敗：{{error}}",
+    "restoreSuccess": "已還原至選取版本，先前狀態已先存為新快照。",
+    "restoring": "正在還原…",
+    "title": "歷史快照 · 30 天"
   },
   "topTimeline": {
     "closeTab": "關閉分頁",

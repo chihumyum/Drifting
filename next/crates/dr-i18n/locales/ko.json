@@ -17,7 +17,8 @@
     "save": "저장",
     "saveFailed": "변경을 저장할 수 없습니다. 다시 시도해 주세요.",
     "saving": "저장 중…",
-    "untitled": "제목 없음"
+    "untitled": "제목 없음",
+    "wordsCount": "{{count}}자"
   },
   "dashboard": {
     "actions": {
@@ -281,6 +282,7 @@
       "chapterOrdinal": "제{{count}}장",
       "chaptersValue": "{{count}}개 장",
       "recent": "최근",
+      "snapshotButton": "기록 스냅샷…",
       "wordsPerChapterValue": "{{words}}자 / 장",
       "wordsValue": "{{count}}자",
       "writingProgress": "집필 진행률",
@@ -415,6 +417,23 @@
   },
   "sidebarLayout": {
     "split": "두 열로 복원"
+  },
+  "snapshotHistory": {
+    "confirmRestore": "현재 버전 덮어쓰기 확인",
+    "empty": "아직 스냅샷이 없습니다. 본문 편집 후 약 15분마다 자동으로 저장합니다.",
+    "kind": {
+      "category": "분류",
+      "element": "요소",
+      "library_item": "메모",
+      "node": "장",
+      "storyline": "스토리라인"
+    },
+    "loading": "불러오는 중…",
+    "restore": "복원…",
+    "restoreFailed": "복원 실패: {{error}}",
+    "restoreSuccess": "선택한 버전으로 복원했습니다. 이전 상태는 새 스냅샷으로 먼저 저장했습니다.",
+    "restoring": "복원 중…",
+    "title": "기록 스냅샷 · 30일"
   },
   "topTimeline": {
     "closeTab": "탭 닫기",

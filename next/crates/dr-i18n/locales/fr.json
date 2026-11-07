@@ -17,7 +17,8 @@
     "save": "Enregistrer",
     "saveFailed": "Impossible d’enregistrer les modifications. Réessayez.",
     "saving": "Enregistrement…",
-    "untitled": "Sans titre"
+    "untitled": "Sans titre",
+    "wordsCount": "{{count}} mots"
   },
   "dashboard": {
     "actions": {
@@ -287,6 +288,7 @@
       "chapterOrdinal": "Chapitre {{count}}",
       "chaptersValue": "{{count}} chapitres",
       "recent": "Récent",
+      "snapshotButton": "Instantanés historiques…",
       "wordsPerChapterValue": "{{words}} mots / chapitre",
       "wordsValue": "{{count}} mots",
       "writingProgress": "Progression d’écriture",
@@ -421,6 +423,23 @@
   },
   "sidebarLayout": {
     "split": "Rétablir deux colonnes"
+  },
+  "snapshotHistory": {
+    "confirmRestore": "Confirmer le remplacement de la version actuelle",
+    "empty": "Aucun instantané. Après édition du texte, le système en conserve un environ toutes les 15 minutes.",
+    "kind": {
+      "category": "Catégorie",
+      "element": "Élément",
+      "library_item": "Note",
+      "node": "Chapitre",
+      "storyline": "Intrigue"
+    },
+    "loading": "Chargement…",
+    "restore": "Restaurer…",
+    "restoreFailed": "Échec de restauration : {{error}}",
+    "restoreSuccess": "Version sélectionnée restaurée. L’état précédent a d’abord été conservé dans un nouvel instantané.",
+    "restoring": "Restauration…",
+    "title": "Instantanés historiques · 30 jours"
   },
   "topTimeline": {
     "closeTab": "Fermer l’onglet",

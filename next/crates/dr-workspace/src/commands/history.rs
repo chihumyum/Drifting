@@ -100,7 +100,7 @@ const META_FIELDS: &[&str] = &[
 ];
 
 /// What to write for one entity.
-enum Plan {
+pub(crate) enum Plan {
     /// Make these fields equal to the snapshot's (absent ones removed).
     Fields(Collection, String, EntitySnapshot, Vec<String>),
     /// The entity did not exist then: delete it now.
@@ -116,7 +116,7 @@ enum Plan {
 }
 
 /// What a restored entity will be called and whether it will be live.
-struct Identity {
+pub(crate) struct Identity {
     c: Collection,
     id: String,
     name: String,
@@ -125,7 +125,7 @@ struct Identity {
 }
 
 /// The identity of `id` once `keys` of it come back from `old`.
-fn identity(
+pub(crate) fn identity(
     old: &BookView<'_>,
     cur: &BookView<'_>,
     c: Collection,
@@ -209,7 +209,7 @@ fn identity(
 
 /// Renames that keep names unique after restoring `ids` (`TITLE-SUFFIX`,
 /// `ELEMENT-NAME-UNIQUE`): a restore must not fail on a name taken since.
-fn name_fixes(cur: &BookView<'_>, ids: &[Identity]) -> Vec<Plan> {
+pub(crate) fn name_fixes(cur: &BookView<'_>, ids: &[Identity]) -> Vec<Plan> {
     use crate::naming::unique_name;
     use dr_model::book::element_name_key;
     let restoring: BTreeSet<(Collection, &str)> =
@@ -270,7 +270,7 @@ fn name_fixes(cur: &BookView<'_>, ids: &[Identity]) -> Vec<Plan> {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-struct TreeItem {
+pub(crate) struct TreeItem {
     id: String,
     name: String,
     color: Option<String>,
@@ -324,7 +324,7 @@ fn meta_value(view: &dr_doc::book::BookView<'_>, key: &str) -> LoroValue {
 }
 
 /// Apply plans inside the book transaction.
-fn apply(txn: &mut dr_doc::book::BookTxn<'_>, plans: Vec<Plan>) -> Result<()> {
+pub(crate) fn apply(txn: &mut dr_doc::book::BookTxn<'_>, plans: Vec<Plan>) -> Result<()> {
     for p in plans {
         match p {
             Plan::Fields(c, id, snap, keys) => {
@@ -870,7 +870,7 @@ op! {
     }
 }
 
-fn report_renames(cx: &Cx<'_>, fixes: &[Plan]) {
+pub(crate) fn report_renames(cx: &Cx<'_>, fixes: &[Plan]) {
     for f in fixes {
         if let Plan::Rename(c, id, name) = f {
             cx.effect(EffectAction::Renamed, c.root(), id.as_str(), Some(name));

@@ -17,7 +17,8 @@
     "save": "Save",
     "saveFailed": "Your changes could not be saved. Please try again.",
     "saving": "Saving…",
-    "untitled": "Untitled"
+    "untitled": "Untitled",
+    "wordsCount": "{{count}} words"
   },
   "dashboard": {
     "actions": {
@@ -281,6 +282,7 @@
       "chapterOrdinal": "Chapter {{count}}",
       "chaptersValue": "{{count}} chapters",
       "recent": "Recent",
+      "snapshotButton": "History snapshots…",
       "wordsPerChapterValue": "{{words}} words / chapter",
       "wordsValue": "{{count}} words",
       "writingProgress": "Writing progress",
@@ -415,6 +417,23 @@
   },
   "sidebarLayout": {
     "split": "Restore two columns"
+  },
+  "snapshotHistory": {
+    "confirmRestore": "Confirm overwrite current version",
+    "empty": "No snapshots yet. After editing prose, the system keeps one automatically about every 15 minutes.",
+    "kind": {
+      "category": "Category",
+      "element": "Element",
+      "library_item": "Note",
+      "node": "Chapter",
+      "storyline": "Storyline"
+    },
+    "loading": "Loading…",
+    "restore": "Restore…",
+    "restoreFailed": "Restore failed: {{error}}",
+    "restoreSuccess": "Restored to the selected version. The previous state was saved as a new snapshot first.",
+    "restoring": "Restoring…",
+    "title": "History snapshots · 30 days"
   },
   "topTimeline": {
     "closeTab": "Close tab",

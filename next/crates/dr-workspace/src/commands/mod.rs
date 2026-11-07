@@ -34,10 +34,13 @@ pub mod element;
 pub mod history;
 pub mod idea;
 pub mod material;
+pub mod points;
 pub mod prose;
+pub mod recent;
 pub mod relation;
 pub mod stats;
 pub mod storyline;
+pub mod time_pin;
 
 /// Define an [`crate::Op`].
 macro_rules! op {
@@ -75,10 +78,17 @@ pub(crate) fn register(r: &mut Registry) {
     material::register(r);
     prose::register(r);
     history::register(r);
+    points::register(r);
+    recent::register(r);
     stats::register(r);
+    time_pin::register(r);
 }
 
 // ---- shared inputs and outputs ------------------------------------------
+
+/// No input.
+#[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema)]
+pub struct NoInput {}
 
 /// A book.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -141,6 +151,22 @@ pub(crate) fn name_ok(s: &str) -> Result<()> {
 
 pub(crate) fn now() -> dr_model::Timestamp {
     dr_model::Timestamp::now()
+}
+
+/// What storage knows of a prose document without opening it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct ProseFacts {
+    /// Its words in the derived index (0 until dr-index reaches it).
+    pub words: u64,
+    /// Its newest stored change (Unix seconds); `None` before any.
+    pub edited_at: Option<i64>,
+}
+
+pub(crate) fn prose_facts(lib: &dr_store::Library, doc: &str) -> ProseFacts {
+    ProseFacts {
+        words: lib.doc_stats(doc).ok().flatten().map_or(0, |s| s.words),
+        edited_at: lib.head(doc).ok().flatten().map(|h| h.ts.div_euclid(1000)),
+    }
 }
 
 pub(crate) fn nodes(slot: &BookSlot) -> Arc<BTreeMap<NodeId, Node>> {

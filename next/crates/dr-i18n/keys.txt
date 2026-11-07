@@ -299,3 +299,16 @@ dashboard.sections.writingPlan
 dashboard.sections.projectProfile
 dashboard.profilePlaceholder
 dashboard.plan.wordsPerDay
+
+# Snapshot history (M09, dr-view-history), opened from the page's ⋯ menu
+snapshotHistory.title
+snapshotHistory.loading
+snapshotHistory.empty
+snapshotHistory.restore
+snapshotHistory.confirmRestore
+snapshotHistory.restoring
+snapshotHistory.restoreSuccess
+snapshotHistory.restoreFailed
+snapshotHistory.kind.*
+rightSidebar.stats.snapshotButton
+common.wordsCount
