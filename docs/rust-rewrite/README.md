@@ -9,6 +9,7 @@
 - [benchmarks.md](benchmarks.md)：工作负载、性能预算、输入法矩阵和测量方法
 - [research.md](research.md)：GPUI、Loro 与 Rust 生态的调研结论和来源
 - [progress.md](progress.md)：各路会话现在做到哪了
+- [simplifications.md](simplifications.md)：旧架构里不搬、合成一份、必须接住的东西，以及阶段 7 的清单
 
 在新版能导入旧书之前，现有 Tauri 客户端照常维护，`AGENTS.md` 的规则对它照旧适用。
 
@@ -111,7 +112,7 @@ SQLite 只存三类东西：
 | 4 Super View 与视觉 | 三个 Super View、字海、封面、热力图、沉浸写作、首次体验 | 作者先在原型上点头，再落地 |
 | 5 帮手 | Agent 运行时、四家模型、工具、长任务、签到、MCP | 工具清单从命令注册表自动生成，并与旧版对齐 |
 | 6 连接与发布 | 账号、同步 v2、偏好、分享、反馈、Markdown 文件夹、导出、更新交接、Windows | 旧版用户能升级过来；同步往返通过 |
-| 7 切换与清理 | 发最后一个旧版，删掉 TS / Tauri / yrs，重建门禁 | 仓库里没有 TS；CI 全绿 |
+| 7 切换与清理 | 发最后一个旧版，删掉 TS / Tauri / yrs，重建门禁；按 [simplifications.md 第七节](simplifications.md#七阶段-7-的清单) 的清单走，第一步是冻结旧库测试库 | 仓库里没有 TS；CI 全绿 |
 
 阶段 3–6 不是严格先后。底座有了以后，它们大多可以同时推进，见下一节。
 
@@ -149,7 +150,7 @@ flowchart LR
 
 - **基座 crate 各有一个负责会话**：`dr-model`、`dr-doc`、`dr-store`、`dr-workspace`、`dr-ui`、`dr-shell`。功能模块要改基座，就在基座的分支上改，先合进 `main`，再接着做模块。
 - **一个会话一个 worktree，一个模块一个 crate 或目录**，两路会话不改同一批文件（沿用 `AGENTS.md`：在单独的 worktree 里开发验证，再本地合进 `main`）。
-- **完成一个里程碑**，文档和可机器检查的验收证据一起提交。
+- **完成一个里程碑**，文档和可机器检查的验收证据一起提交。`next/` 的证据用更轻的做法：契约类当场由测试生成，测量类只在阶段关口提交，见 [simplifications.md 第五节](simplifications.md#五更轻的验收证据新工作区适用)。
 - **合进 `main` 前，跑新工作区的检查**：`cargo fmt --check`、`cargo clippy --all-targets -- -D warnings`、`cargo test`，以及基准的 `--check`。
 - **跨层的接口改动**（文档结构、命令注册表、组件 API）先改文档，再改代码。
 
