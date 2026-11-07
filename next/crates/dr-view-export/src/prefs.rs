@@ -1,8 +1,9 @@
 //! What the export dialog remembers between exports (the 0.1 client kept it
 //! in `localStorage` under `drifting.manuscriptExport.v1`): the author's
 //! name, and per book the format, the two title switches and a title that
-//! differs from the book's name. Kept for this run of the app only (see
-//! m41-export.md, 「待协调」).
+//! differs from the book's name. The shell keeps them across restarts: it
+//! fills this global from its settings file when it starts and writes the
+//! file back whenever the global changes (dr-shell's `export_memory`).
 
 use std::collections::HashMap;
 

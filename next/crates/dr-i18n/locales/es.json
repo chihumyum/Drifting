@@ -222,7 +222,7 @@
         "account_libraries_left_other": "{{count}} bibliotecas de cuenta de la carpeta esperan a que haya cuentas",
         "already_imported": "Ya se importó en este dispositivo; se omitió",
         "already_in_library": "Ya está en la biblioteca; se dejó como está",
-        "carries_on": "Sin terminar; al importar de nuevo esta biblioteca se continúa",
+        "carries_on": "Sin terminar; importe de nuevo esta biblioteca para continuar",
         "from_caches_one": "{{count}} texto vino de su caché y puede que le falten los últimos segundos",
         "from_caches_other": "{{count}} textos vinieron de su caché y puede que les falten los últimos segundos"
       }
@@ -245,6 +245,7 @@
   },
   "leftSidebar": {
     "actions": {
+      "collapseAll": "Expandir o contraer todo",
       "sort": "Ordenar"
     },
     "empty": {
@@ -361,6 +362,9 @@
     "back": "Volver"
   },
   "nodeEditor": {
+    "empty": {
+      "noStoryline": "Sin trama"
+    },
     "folio": {
       "chapter": "Capítulo",
       "chapterNumber": "Capítulo {{n}}"
@@ -830,6 +834,14 @@
     },
     "search_placeholder": "Buscar ajustes…",
     "sync": {
+      "backup": {
+        "exportButton": "Exportar copia…",
+        "exportDesc": "Empaqueta las bases de todos los proyectos y sus imágenes y PDF originales en un archivo .drifting. Sirve para restaurar o cambiar de ordenador.",
+        "exportTitle": "Copia de la biblioteca",
+        "restoreButton": "Elegir copia…",
+        "restoreDesc": "Sustituye la biblioteca actual por una copia .drifting. Antes se guarda una copia de la biblioteca actual.",
+        "restoreTitle": "Restaurar desde una copia"
+      },
       "local_data": "Datos locales",
       "local_sub": "No se usa ninguna cuenta Drifting ni nube alojada. Exporta una copia legible cuando quieras.",
       "local_title": "Tu obra se queda en este dispositivo."
@@ -865,6 +877,10 @@
     },
     "labels": {
       "color": "Color"
+    },
+    "meta": {
+      "chapters": "{{count}} capítulos",
+      "kWords": "{{count}} mil palabras"
     }
   },
   "topTimeline": {

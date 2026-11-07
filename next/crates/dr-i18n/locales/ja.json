@@ -240,6 +240,7 @@
   },
   "leftSidebar": {
     "actions": {
+      "collapseAll": "すべて展開・折りたたみ",
       "sort": "並べ替え"
     },
     "empty": {
@@ -356,6 +357,9 @@
     "back": "戻る"
   },
   "nodeEditor": {
+    "empty": {
+      "noStoryline": "ストーリーラインなし"
+    },
     "folio": {
       "chapter": "章",
       "chapterNumber": "第{{n}}章"
@@ -818,6 +822,14 @@
     },
     "search_placeholder": "設定を検索…",
     "sync": {
+      "backup": {
+        "exportButton": "バックアップを出力…",
+        "exportDesc": "全作品のデータベースと元の画像・PDFを1つの.driftingファイルにまとめます。復元や他のパソコンへの移行に使えます。",
+        "exportTitle": "ライブラリのバックアップ",
+        "restoreButton": "バックアップを選択…",
+        "restoreDesc": ".driftingバックアップで現在のライブラリを置き換えます。実行前に現在のコピーを保存します。",
+        "restoreTitle": "バックアップから復元"
+      },
       "local_data": "ローカルデータ",
       "local_sub": "Driftingのアカウントやクラウドは使いません。いつでも読めるコピーを出力できます。",
       "local_title": "作品はこの端末に。"
@@ -853,6 +865,10 @@
     },
     "labels": {
       "color": "色"
+    },
+    "meta": {
+      "chapters": "{{count}}章",
+      "kWords": "{{count}}千語"
     }
   },
   "topTimeline": {

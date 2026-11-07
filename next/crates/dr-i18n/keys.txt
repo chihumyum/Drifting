@@ -573,3 +573,19 @@ categoryEditor.empty.noFilteredElements
 categoryEditor.actions.openElement
 storylineEditor.labels.color
 storylineEditor.filters.all
+
+# Settings → 本地数据: back up and restore the library (the dialogs are
+# dr-text's, behind workspace::BackupLibrary / RestoreLibrary)
+settings.sync.backup.exportTitle
+settings.sync.backup.exportDesc
+settings.sync.backup.exportButton
+settings.sync.backup.restoreTitle
+settings.sync.backup.restoreDesc
+settings.sync.backup.restoreButton
+
+# The chapter panel's folding fan and its rows' hover cards (M04)
+leftSidebar.actions.collapseAll
+nodeEditor.meta.words
+nodeEditor.empty.noStoryline
+storylineEditor.meta.chapters
+storylineEditor.meta.kWords

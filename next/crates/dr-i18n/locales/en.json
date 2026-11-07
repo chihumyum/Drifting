@@ -222,7 +222,7 @@
         "account_libraries_left_other": "{{count}} account libraries in the folder wait for accounts",
         "already_imported": "Imported on this device before; skipped",
         "already_in_library": "Already in the library; left as it is",
-        "carries_on": "Not finished; importing this library again carries it on",
+        "carries_on": "Not finished; import this library again to carry on",
         "from_caches_one": "{{count}} text came from its cache and may miss its last few seconds",
         "from_caches_other": "{{count}} texts came from their caches and may miss their last few seconds"
       }
@@ -245,6 +245,7 @@
   },
   "leftSidebar": {
     "actions": {
+      "collapseAll": "Expand or collapse all",
       "sort": "Sort"
     },
     "empty": {
@@ -361,6 +362,9 @@
     "back": "Back"
   },
   "nodeEditor": {
+    "empty": {
+      "noStoryline": "No storyline"
+    },
     "folio": {
       "chapter": "Chapter",
       "chapterNumber": "Chapter {{n}}"
@@ -823,6 +827,14 @@
     },
     "search_placeholder": "Search settings…",
     "sync": {
+      "backup": {
+        "exportButton": "Export backup…",
+        "exportDesc": "Package every project's database together with original image and PDF files into one .drifting file. Use it to restore, or to move to another computer.",
+        "exportTitle": "Library backup",
+        "restoreButton": "Choose backup…",
+        "restoreDesc": "Replace the current library with a .drifting backup. The current library is saved as a pre-restore copy first.",
+        "restoreTitle": "Restore from backup"
+      },
       "local_data": "Local data",
       "local_sub": "No Drifting account or hosted cloud is used. Export a readable copy whenever you want.",
       "local_title": "Your work stays on this device."
@@ -858,6 +870,10 @@
     },
     "labels": {
       "color": "Color"
+    },
+    "meta": {
+      "chapters": "{{count}} chapters",
+      "kWords": "{{count}}k words"
     }
   },
   "topTimeline": {

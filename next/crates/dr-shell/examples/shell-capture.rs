@@ -174,6 +174,28 @@ impl Headless {
         })
     }
 
+    /// The pointer at (`x`, `y`) in the window, held there for `ms` (a
+    /// hover card waits 220 ms before it shows).
+    fn hover(&mut self, x: f32, y: f32, ms: u64) -> Result<()> {
+        self.cx.update_window(self.window, |_, window, cx| {
+            window.dispatch_event(
+                gpui::PlatformInput::MouseMove(gpui::MouseMoveEvent {
+                    position: gpui::point(px(x), px(y)),
+                    pressed_button: None,
+                    modifiers: gpui::Modifiers::default(),
+                }),
+                cx,
+            );
+        })?;
+        // The headless dispatcher's timers run on its own clock.
+        for _ in 0..10 {
+            self.draw()?;
+            self.cx.advance_clock(Duration::from_millis(ms / 10));
+            self.cx.run_until_parked();
+        }
+        self.settle()
+    }
+
     fn pending(&mut self) -> Result<usize> {
         self.cx
             .update_window(self.window, |_, window, cx| window.simulate_next_frame(cx))
@@ -308,6 +330,7 @@ fn reset(ws: &mut Workspace, window: &mut gpui::Window, cx: &mut Context<Workspa
     ws.chapters_by_book = false;
     ws.chapter_sort = Default::default();
     ws.chapter_sort_open = None;
+    ws.folded.clear();
     ws.outline_hidden = false;
     ws.dock_locked = false;
     ws.left.panes = dr_shell::panes::Panes::single(LeftTab::Chapters);
@@ -449,6 +472,26 @@ fn capture(dir: PathBuf) -> Result<()> {
         });
         still(&mut h)?;
         h.save(&dir, &format!("chapter-sort-book-{a}.png"))?;
+
+        // The chapter panel with its first storyline folded: each group's
+        // count and chevron, the folding fan open.
+        h.set(|ws, window, cx| {
+            everyday(ws, window, cx);
+            let first = ws.book.storylines[0].id.clone();
+            ws.toggle_fold(&first, cx);
+        });
+        still(&mut h)?;
+        h.save(&dir, &format!("chapter-fold-{a}.png"))?;
+
+        // A chapter's hover card: words, storylines, summary, then what its
+        // ⋯ menu offers (the pointer resting on 第二章).
+        h.set(|ws, window, cx| {
+            everyday(ws, window, cx);
+        });
+        still(&mut h)?;
+        h.hover(120.0, 179.0, 400)?;
+        h.save(&dir, &format!("chapter-card-{a}.png"))?;
+        h.hover(700.0, 400.0, 400)?;
 
         // An element's page has a ⋯ menu too: its snapshot history.
         h.set(|ws, window, cx| {

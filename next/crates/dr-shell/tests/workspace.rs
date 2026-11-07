@@ -1476,3 +1476,280 @@ fn the_chapter_sort_is_kept_with_the_layout(cx: &mut TestAppContext) {
     let back: dr_shell::workspace::BookLayout = serde_json::from_value(old).unwrap();
     assert_eq!(back.chapter_sort, Default::default());
 }
+
+/// Round six: a page opened at its title (⁂ 新建下一章, `Open::at_title`)
+/// leaves the keyboard to its head; a page opened as usual gives it to its
+/// text.
+#[gpui::test]
+fn a_page_opened_at_its_title_leaves_the_keyboard_alone(cx: &mut TestAppContext) {
+    let (_dir, lib) = slow_clock();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    let (first, second) = view.read_with(cx, |ws, _| (chapter_of(ws, 0), chapter_of(ws, 1)));
+    view.update(cx, |ws, cx| {
+        ws.open(first.clone(), Open::KEEP.at_title(), cx)
+    });
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while view.read_with(cx, |ws, _| ws.page_view(&first).is_none()) {
+        draw(cx);
+        cx.run_until_parked();
+        assert!(Instant::now() < deadline, "the page did not open");
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    draw(cx);
+    draw(cx);
+    let prose = view.read_with(cx, |ws, cx| ws.page_view(&first).unwrap().prose(cx));
+    let focused = cx.update(|window, cx| window.focused(cx) == Some(prose.focus_handle(cx)));
+    assert!(
+        !focused,
+        "the title's page does not hand its text the keyboard"
+    );
+    view.update(cx, |ws, cx| ws.open(second.clone(), Open::KEEP, cx));
+    open_page(&view, cx, &second);
+}
+
+/// One list behind the ⋯ menu and the hover cards: share first, a
+/// chapter's status, the modules' rows, 历史快照…, what deletes last.
+#[gpui::test]
+fn page_actions_put_share_first_and_what_deletes_last(cx: &mut TestAppContext) {
+    use dr_shell::pages::{PageMenuHost, PageMenuItem, PageMenuSection};
+    use dr_shell::workspace::page_actions::page_actions;
+    let (_dir, lib) = slow_clock();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    let ran = std::rc::Rc::new(std::cell::Cell::new(false));
+    let seen = ran.clone();
+    cx.update(|_, cx| {
+        dr_shell::pages::add_page_menu(cx, move |target, _, _| {
+            if !matches!(target, Target::Element(_)) {
+                return Vec::new();
+            }
+            let seen = seen.clone();
+            let row = |id: &'static str, danger: bool, run: dr_shell::pages::RunRow| PageMenuItem {
+                id: id.into(),
+                icon: dr_ui::sand::Icon::Folder,
+                label: id.into(),
+                checked: false,
+                danger,
+                run,
+            };
+            vec![PageMenuSection {
+                title: None,
+                items: vec![
+                    row(
+                        "module-category",
+                        false,
+                        std::rc::Rc::new(move |_, _| seen.set(true)),
+                    ),
+                    row("module-delete", true, std::rc::Rc::new(|_, _| {})),
+                ],
+            }]
+        });
+    });
+    let host = view.read_with(cx, |ws, _| PageMenuHost {
+        workspace: view.downgrade(),
+        library: ws.library.clone(),
+        book_id: ws.book_id.clone(),
+        book: ws.book.clone(),
+    });
+    let ids = |sections: &[PageMenuSection]| -> Vec<Vec<String>> {
+        sections
+            .iter()
+            .map(|s| s.items.iter().map(|i| i.id.to_string()).collect())
+            .collect()
+    };
+    let (element, material, chapter) = view.read_with(cx, |ws, _| {
+        (
+            Target::Element(ws.book.elements[0].id.parse().unwrap()),
+            Target::Material(ws.book.materials[0].id.parse().unwrap()),
+            chapter_of(ws, 0),
+        )
+    });
+    let on_element = cx.update(|_, cx| page_actions(&view, &host, &element, cx));
+    assert_eq!(
+        ids(&on_element),
+        [
+            vec!["page-share"],
+            vec!["module-category"],
+            vec!["page-history"],
+            vec!["module-delete"],
+        ]
+    );
+    assert!(on_element.last().unwrap().items.iter().all(|i| i.danger));
+    let on_material = cx.update(|_, cx| page_actions(&view, &host, &material, cx));
+    assert_eq!(ids(&on_material), [vec!["page-history"]], "no share");
+    let on_chapter = cx.update(|_, cx| page_actions(&view, &host, &chapter, cx));
+    let chapter_ids = ids(&on_chapter);
+    assert_eq!(chapter_ids[0], ["page-share", "page-export"]);
+    assert_eq!(
+        chapter_ids[1],
+        ["status-draft", "status-finished", "status-discarded"]
+    );
+    assert_eq!(on_chapter[1].items.iter().filter(|i| i.checked).count(), 1);
+    assert_eq!(chapter_ids.last().unwrap(), &["chapter-trash"]);
+    // A module's row runs.
+    let run = on_element[1].items[0].run.clone();
+    cx.update(|window, cx| run(window, cx));
+    assert!(ran.get());
+    // The menu draws on an element's page.
+    view.update(cx, |ws, cx| {
+        ws.open(element.clone(), Open::KEEP, cx);
+        ws.corner_menu = Some(element.key());
+    });
+    draw(cx);
+    draw(cx);
+}
+
+/// What the export dialog remembers goes into the settings file and comes
+/// back after a restart (M41's 「待协调」1).
+#[gpui::test]
+fn the_export_choices_come_back_after_a_restart(cx: &mut TestAppContext, cx2: &mut TestAppContext) {
+    use dr_view_export::Format;
+    use dr_view_export::prefs::{BookPrefs, Prefs};
+    let dir = tempfile::tempdir().unwrap();
+    let (_view, vcx) = setup(cx, SettingsFile::open(dir.path()), None);
+    let mine = BookPrefs {
+        format: Format::Pdf,
+        act_titles: false,
+        chapter_titles: true,
+        title: Some("慢钟（修订）".into()),
+    };
+    let book = mine.clone();
+    vcx.update(|_, cx| {
+        let mut prefs = Prefs::get(cx);
+        prefs.author = "沈知微".into();
+        prefs.books.insert("book-1".into(), book);
+        Prefs::set(prefs, cx);
+    });
+    vcx.run_until_parked();
+    vcx.executor()
+        .advance_clock(dr_shell::settings::SAVE_DELAY * 2);
+    vcx.run_until_parked();
+    let raw: Value =
+        serde_json::from_slice(&std::fs::read(dir.path().join("settings.json")).unwrap()).unwrap();
+    assert_eq!(raw["account"]["export.author"], "沈知微");
+    assert_eq!(raw["books"]["book-1"]["export"]["format"], "pdf");
+    cx2.update(|cx| {
+        dr_shell::init(
+            info(),
+            Services::default(),
+            SettingsFile::open(dir.path()),
+            cx,
+        )
+    });
+    let back = cx2.update(|cx| Prefs::get(cx));
+    assert_eq!(back.author, "沈知微");
+    assert_eq!(back.books.get("book-1"), Some(&mine));
+}
+
+/// 自动要素链接 reaches F3, and the chapter panel's groups fold: one by its
+/// chevron, all by the folding fan.
+#[gpui::test]
+fn auto_links_reach_f3_and_the_chapter_panel_folds(cx: &mut TestAppContext) {
+    let (_dir, lib) = slow_clock();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib.clone()));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    assert!(lib.auto_links());
+    cx.update(|_, cx| {
+        Settings::update(cx, |f| {
+            f.set(registry::AUTO_ENTITY_LINKS, Value::Bool(false), None)
+        })
+        .unwrap();
+    });
+    cx.run_until_parked();
+    assert!(!lib.auto_links(), "the setting reached F3");
+    let storylines = view.read_with(cx, |ws, _| ws.book.storylines.len());
+    view.update_in(cx, |ws, window, cx| {
+        if !ws.left.open {
+            ws.toggle_left(window, cx);
+        }
+        ws.fold_all(cx);
+    });
+    draw(cx);
+    assert_eq!(
+        view.read_with(cx, |ws, _| ws.folded.len()),
+        storylines + 1,
+        "every storyline and 未归属"
+    );
+    view.update(cx, |ws, cx| ws.fold_all(cx));
+    assert!(view.read_with(cx, |ws, _| ws.folded.is_empty()));
+    let first = view.read_with(cx, |ws, _| ws.book.storylines[0].id.clone());
+    view.update(cx, |ws, cx| ws.toggle_fold(&first, cx));
+    draw(cx);
+    assert!(view.read_with(cx, |ws, _| ws.folded.contains(&first)));
+}
+
+/// Writing away a patch's source passage marks the patch 失效 once the
+/// caret leaves the paragraph (F3's `patch.check_sources`).
+#[gpui::test]
+fn a_patch_whose_passage_was_written_away_is_marked(cx: &mut TestAppContext) {
+    let (_dir, lib) = slow_clock();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib.clone()));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    let (book, first, element) = view.read_with(cx, |ws, _| {
+        (
+            ws.book_id.clone(),
+            chapter_of(ws, 0),
+            ws.book.elements[0].id.clone(),
+        )
+    });
+    let Target::Chapter(id) = &first else {
+        unreachable!()
+    };
+    let doc = format!("node:{id}");
+    let passage: String = stored(&lib, &doc)[0].chars().take(6).collect();
+    let made = out(
+        &lib,
+        "patch.create",
+        json!({
+            "book": book,
+            "element": element,
+            "body": "补丁",
+            "source": id.to_string(),
+            "source_text": passage,
+        }),
+    );
+    let patch = made["id"].as_str().unwrap().to_owned();
+    view.update(cx, |ws, cx| ws.open(first.clone(), Open::KEEP, cx));
+    let page = open_page(&view, cx, &first);
+    let prose = cx.update(|_, cx| page.prose(cx));
+    // Into the middle of the passage, then a word there.
+    cx.update(|window, cx| {
+        prose.update(cx, |p, cx| {
+            let at = p.book().chapters[0].doc.line_start(0) + 3;
+            p.select(0, at..at, window, cx)
+        })
+    });
+    type_text(cx, "钟");
+    let invalidated = |lib: &Library| {
+        out(
+            lib,
+            "patch.list",
+            json!({ "book": book, "element": element }),
+        )
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|p| p["id"] == patch.as_str() && !p["invalidated_at"].is_null())
+    };
+    assert!(
+        !invalidated(&lib),
+        "not while the caret is in the paragraph"
+    );
+    // The caret leaves the paragraph.
+    cx.update(|window, cx| {
+        prose.update(cx, |p, cx| {
+            let at = p.book().chapters[0].doc.line_start(2);
+            p.select(0, at..at, window, cx)
+        })
+    });
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        cx.run_until_parked();
+        if invalidated(&lib) {
+            break;
+        }
+        assert!(Instant::now() < deadline, "the patch was not marked");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}

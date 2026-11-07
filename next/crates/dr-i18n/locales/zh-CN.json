@@ -218,7 +218,7 @@
         "account_libraries_left": "文件夹里还有 {{count}} 个账号资料库没导入，等账号功能做好",
         "already_imported": "这台设备以前导入过，这次没再导入",
         "already_in_library": "新资料库里已经有这本书，没有动",
-        "carries_on": "没导完，再导一次这个库会接着导完",
+        "carries_on": "没导入完，再导入一次这个资料库会接着导入",
         "from_caches": "有 {{count}} 篇照缓存导入，可能少了最后几秒的字"
       }
     }
@@ -240,6 +240,7 @@
   },
   "leftSidebar": {
     "actions": {
+      "collapseAll": "展开／折叠全部",
       "sort": "排序"
     },
     "empty": {
@@ -355,6 +356,9 @@
     "back": "返回"
   },
   "nodeEditor": {
+    "empty": {
+      "noStoryline": "未归属故事线"
+    },
     "folio": {
       "chapter": "章节",
       "chapterNumber": "第 {{n}} 章"
@@ -812,6 +816,14 @@
     },
     "search_placeholder": "搜索设定…",
     "sync": {
+      "backup": {
+        "exportButton": "导出备份…",
+        "exportDesc": "把所有项目的数据库，连同图片、PDF 原文件，打包成一个 .drifting 文件。可用来恢复，也可以带到另一台电脑。",
+        "exportTitle": "资料库备份",
+        "restoreButton": "选择备份…",
+        "restoreDesc": "用 .drifting 备份替换当前资料库。恢复前，当前资料库会自动存成一份恢复前副本。",
+        "restoreTitle": "从备份恢复"
+      },
       "local_data": "本地数据",
       "local_sub": "无需 Drifting 账号，也不连接托管云服务；你可以随时导出一份可阅读的副本。",
       "local_title": "作品只保存在这台设备上。"
@@ -847,6 +859,10 @@
     },
     "labels": {
       "color": "色标"
+    },
+    "meta": {
+      "chapters": "{{count}} 章",
+      "kWords": "{{count}}k 字"
     }
   },
   "topTimeline": {

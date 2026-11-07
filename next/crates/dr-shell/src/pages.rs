@@ -17,14 +17,20 @@
 //! makers for each editor it opens (one document or the whole book); a
 //! maker answers for the pages it knows and `None` for the rest, and the
 //! first answer wins.
+//!
+//! And the rows a module adds to a page's ⋯ menu ([`add_page_menu`]): an
+//! element's 更改类目 and 删除要素, a category's 删除类目 (M11). The shell
+//! keeps the menu's order: share and export, its own sections, the modules'
+//! sections, 历史快照…, then everything dangerous last.
 
 use std::rc::Rc;
 
 use dr_editor::page::PageChrome;
 use dr_editor::{BookEditor, ChapterEditor};
-use gpui::{AnyView, App, Bounds, Entity, Global, Pixels, WeakEntity, Window};
+use gpui::{AnyView, App, Bounds, Entity, Global, Pixels, SharedString, WeakEntity, Window};
 
 use crate::Workspace;
+use crate::book::Book;
 use crate::nav::Target;
 
 /// The bookshelf a window shows: its view, and the cell its notification
@@ -39,6 +45,43 @@ type MakeShelf = Rc<dyn Fn(WeakEntity<Workspace>, &mut Window, &mut App) -> Shel
 type MakeHome = Rc<dyn Fn(WeakEntity<Workspace>, &mut Window, &mut App) -> AnyView>;
 type MakeChrome =
     Rc<dyn Fn(&Target, PageHost, &mut Window, &mut App) -> Option<Rc<dyn PageChrome>>>;
+type MakeMenu = Rc<dyn Fn(&Target, &PageMenuHost, &App) -> Vec<PageMenuSection>>;
+/// What a ⋯ row does.
+pub type RunRow = Rc<dyn Fn(&mut Window, &mut App)>;
+
+/// One row a module adds to a page's ⋯ menu.
+#[derive(Clone)]
+pub struct PageMenuItem {
+    /// Unique in the menu.
+    pub id: SharedString,
+    pub icon: dr_ui::sand::Icon,
+    pub label: SharedString,
+    /// The current choice of a single-choice section: a tick.
+    pub checked: bool,
+    /// Delete and the like: at the menu's end, in the danger colour.
+    pub danger: bool,
+    /// What it does. The menu is closed first; the workspace is free to
+    /// update.
+    pub run: RunRow,
+}
+
+/// A module's rows, under a heading or none (`title: None`).
+#[derive(Clone, Default)]
+pub struct PageMenuSection {
+    pub title: Option<SharedString>,
+    pub items: Vec<PageMenuItem>,
+}
+
+/// What a module's ⋯ rows are made with: the window's workspace (for the
+/// rows' `run`, not to read while the menu is made: it is drawing), the
+/// library, and the book's lists as the shell has them.
+#[derive(Clone)]
+pub struct PageMenuHost {
+    pub workspace: WeakEntity<Workspace>,
+    pub library: Option<dr_workspace::Workspace>,
+    pub book_id: String,
+    pub book: Rc<Book>,
+}
 
 /// The editor a page's chrome sits in.
 #[derive(Clone)]
@@ -64,6 +107,7 @@ struct Pages {
     shelf: Option<MakeShelf>,
     home: Option<MakeHome>,
     chrome: Vec<MakeChrome>,
+    menus: Vec<MakeMenu>,
 }
 
 impl Global for Pages {}
@@ -107,6 +151,31 @@ pub(crate) fn chrome_for(
     makers
         .iter()
         .find_map(|make| make(target, host.clone(), window, cx))
+}
+
+/// Registers rows for pages' ⋯ menus: asked each time a page's menu opens
+/// (its target and a [`PageMenuHost`]), it gives that page's sections, or
+/// none. Called while the workspace draws: build rows, do not read or
+/// update the workspace here (do that in a row's `run`).
+pub fn add_page_menu(
+    cx: &mut App,
+    make: impl Fn(&Target, &PageMenuHost, &App) -> Vec<PageMenuSection> + 'static,
+) {
+    cx.default_global::<Pages>().menus.push(Rc::new(make));
+}
+
+/// Every module's sections for `target`'s ⋯ menu, in the order they were
+/// registered.
+pub(crate) fn menu_for(target: &Target, host: &PageMenuHost, cx: &App) -> Vec<PageMenuSection> {
+    let Some(pages) = cx.try_global::<Pages>() else {
+        return Vec::new();
+    };
+    pages
+        .menus
+        .iter()
+        .flat_map(|make| make(target, host, cx))
+        .filter(|s| !s.items.is_empty())
+        .collect()
 }
 
 pub(crate) fn has_shelf(cx: &App) -> bool {

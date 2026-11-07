@@ -190,7 +190,7 @@ impl PageEnd {
                                 .and_then(|id| Target::from_key(&format!("chapter:{id}")));
                             if let (false, Some(target)) = (in_book, target) {
                                 workspace
-                                    .update(cx, |ws, cx| ws.open(target, Open::KEEP, cx))
+                                    .update(cx, |ws, cx| ws.open(target, Open::KEEP.at_title(), cx))
                                     .ok();
                             }
                         });

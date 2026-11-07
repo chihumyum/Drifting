@@ -19,7 +19,7 @@
         "already_in_library": "新資料庫裡已經有這本書，沒有動",
         "from_caches": "有 {{count}} 篇照快取匯入，可能少了最後幾秒的字",
         "account_libraries_left": "資料夾裡還有 {{count}} 個帳號資料庫沒匯入，等帳號功能做好",
-        "carries_on": "沒匯入完，再匯入一次這個資料庫會接著匯入完"
+        "carries_on": "沒匯入完，再匯入一次這個資料庫會接著匯入"
       }
     }
   },

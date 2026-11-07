@@ -222,7 +222,7 @@
         "account_libraries_left_other": "{{count}} bibliotecas de conta na pasta esperam pelas contas",
         "already_imported": "Já importado neste dispositivo; ignorado",
         "already_in_library": "Já está na biblioteca; mantido como está",
-        "carries_on": "Não terminou; importar esta biblioteca de novo continua de onde parou",
+        "carries_on": "Não terminou; importe esta biblioteca de novo para continuar",
         "from_caches_one": "{{count}} texto veio do cache e pode estar sem os últimos segundos",
         "from_caches_other": "{{count}} textos vieram do cache e podem estar sem os últimos segundos"
       }
@@ -245,6 +245,7 @@
   },
   "leftSidebar": {
     "actions": {
+      "collapseAll": "Expandir ou recolher tudo",
       "sort": "Ordenar"
     },
     "empty": {
@@ -361,6 +362,9 @@
     "back": "Voltar"
   },
   "nodeEditor": {
+    "empty": {
+      "noStoryline": "Sem linha narrativa"
+    },
     "folio": {
       "chapter": "Capítulo",
       "chapterNumber": "Capítulo {{n}}"
@@ -830,6 +834,14 @@
     },
     "search_placeholder": "Buscar configurações…",
     "sync": {
+      "backup": {
+        "exportButton": "Exportar backup…",
+        "exportDesc": "Reúne os bancos de todos os projetos, imagens e PDFs originais num arquivo .drifting, para restaurar ou mudar de computador.",
+        "exportTitle": "Backup da biblioteca",
+        "restoreButton": "Escolher backup…",
+        "restoreDesc": "Substitui a biblioteca atual por um backup .drifting. Antes, uma cópia da biblioteca atual é salva.",
+        "restoreTitle": "Restaurar de um backup"
+      },
       "local_data": "Dados locais",
       "local_sub": "Sem conta Drifting ou nuvem hospedada. Exporte uma cópia legível quando quiser.",
       "local_title": "Seu trabalho fica neste dispositivo."
@@ -865,6 +877,10 @@
     },
     "labels": {
       "color": "Cor"
+    },
+    "meta": {
+      "chapters": "{{count}} capítulos",
+      "kWords": "{{count}} mil palavras"
     }
   },
   "topTimeline": {
