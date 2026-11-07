@@ -5,6 +5,7 @@ use std::rc::Rc;
 
 use gpui::{Bounds, Pixels, Point, SharedString};
 
+use super::decor::DecorationKey;
 use crate::layout::ProseLayout;
 
 /// The composition shown inside a paragraph, in display-text bytes.
@@ -45,9 +46,27 @@ pub struct PaintedLine {
     pub comp: Option<CompSpan>,
 }
 
+/// A decoration's part of a paragraph as it was painted this frame.
+#[derive(Clone, Debug)]
+pub struct PaintedDecoration {
+    pub chapter: usize,
+    pub line: usize,
+    pub key: DecorationKey,
+    /// Window bounds of the words it covers, one per visual row (a wash
+    /// reaches a little past them).
+    pub boxes: Vec<Bounds<Pixels>>,
+    /// The stroke's alpha this frame; for an ink, how far its colour is in.
+    pub alpha: f32,
+    /// How much of a stroke being drawn along its rows is down.
+    pub drawn: Option<f32>,
+}
+
 #[derive(Default)]
 pub struct FrameCache {
     pub lines: Vec<PaintedLine>,
+    /// Decorations painted this frame (for placing things next to them, and
+    /// for tests).
+    pub decorations: Vec<PaintedDecoration>,
 }
 
 impl FrameCache {

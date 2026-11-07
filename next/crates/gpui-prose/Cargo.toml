@@ -38,7 +38,8 @@ sum_tree.workspace = true
 [dev-dependencies]
 gpui = { workspace = true, features = ["test-support"] }
 # Without `font-kit`, gpui_macos renders no text at all (it logs a warning).
-gpui_platform.workspace = true
+# `test-support` gives prose-bench its headless renderer (`decor`, `capture`).
+gpui_platform = { workspace = true, features = ["test-support"] }
 log.workspace = true
 
 [target.'cfg(target_os = "macos")'.dev-dependencies]

@@ -80,6 +80,7 @@ pub struct ProseEditor {
     paint_hooks: Vec<PaintHook>,
     pub(crate) hooks: Option<Rc<dyn PlatformHooks>>,
     pub(crate) extension: Option<Rc<dyn ProseExtension>>,
+    pub(crate) paint: crate::render::PaintState,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -140,6 +141,7 @@ impl ProseEditor {
             paint_hooks: Vec::new(),
             hooks: None,
             extension: None,
+            paint: Default::default(),
             _subscriptions: subscriptions,
         }
     }
@@ -384,6 +386,7 @@ impl ProseEditor {
             return;
         }
         for set in &changes {
+            self.paint.follow(chapter, set, self.own_edit, cx);
             if !self.own_edit {
                 if self.selection.chapter == chapter {
                     for op in &set.ops {
@@ -764,6 +767,7 @@ impl Render for ProseEditor {
                 )
                 .size_full(),
             )
+            .child(self.scroll_ticks(cx))
             .children(thumb.map(|(top, height)| {
                 div()
                     .absolute()
