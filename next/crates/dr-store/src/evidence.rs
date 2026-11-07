@@ -47,9 +47,22 @@ fn command_output(cmd: &str, args: &[&str]) -> Option<String> {
     Some(String::from_utf8_lossy(&out.stdout).trim().to_string())
 }
 
-/// CPU, memory and OS version; nothing that identifies the user.
+/// The 1-minute load average, where the OS reports one. Timings taken while
+/// other work keeps the machine busy are several times longer.
+pub fn load_average() -> Option<f64> {
+    command_output("sysctl", &["-n", "vm.loadavg"])?
+        .trim_matches(|c| c == '{' || c == '}' || c == ' ')
+        .split_whitespace()
+        .next()?
+        .parse()
+        .ok()
+}
+
+/// CPU, memory, OS version and current load; nothing that identifies the
+/// user.
 pub fn machine() -> serde_json::Value {
     serde_json::json!({
+        "loadAverage1m": load_average(),
         "cpu": command_output("sysctl", &["-n", "machdep.cpu.brand_string"]),
         "cores": std::thread::available_parallelism().map(|n| n.get()).ok(),
         "memoryBytes": command_output("sysctl", &["-n", "hw.memsize"]).and_then(|s| s.parse::<u64>().ok()),

@@ -391,31 +391,54 @@ fn version_segment(version: &str) -> Result<&str> {
 static SNAPSHOT_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// Write a `VACUUM INTO` safety snapshot of `conn`'s database under
-/// `<dir>/<app_version>/` and keep the newest few there.
+/// `<dir>/<app_version>/` and keep the newest few there. The snapshot is
+/// written under a temporary name and renamed when complete, so a crash
+/// never leaves a partial file that looks like a snapshot.
 pub(crate) fn safety_snapshot(conn: &Connection, dir: &Path, app_version: &str) -> Result<PathBuf> {
     let dir = dir.join(version_segment(app_version)?);
     fs::create_dir_all(&dir)?;
     let n = SNAPSHOT_COUNTER.fetch_add(1, Ordering::Relaxed);
-    let path = dir.join(format!("library-{:013}-{:04}.sqlite", now_ms(), n % 10_000));
-    let target = path
-        .to_str()
-        .ok_or_else(|| StoreError::invalid("safety snapshot path", path.display().to_string()))?;
-    conn.execute("VACUUM INTO ?1", [target])?;
-    sync_file(&path)?;
-    sync_directory(&dir)?;
-    retain_newest(&dir, SAFETY_SNAPSHOTS_PER_VERSION)?;
+    let name = format!("library-{:013}-{:04}.sqlite", now_ms(), n % 10_000);
+    let path = dir.join(&name);
+    let partial = dir.join(format!(".{name}.part"));
+    let target = partial.to_str().ok_or_else(|| {
+        StoreError::invalid("safety snapshot path", partial.display().to_string())
+    })?;
+    let written = (|| -> Result<()> {
+        conn.execute("VACUUM INTO ?1", [target])?;
+        sync_file(&partial)?;
+        durable_replace_file(&partial, &path)?;
+        Ok(())
+    })();
+    if written.is_err() {
+        let _ = fs::remove_file(&partial);
+    }
+    written?;
+    retain_newest(&dir, SAFETY_SNAPSHOTS_PER_VERSION, &name)?;
     Ok(path)
 }
 
-fn retain_newest(dir: &Path, keep: usize) -> Result<()> {
-    let mut names: Vec<String> = fs::read_dir(dir)?
-        .filter_map(|e| e.ok())
-        .filter(|e| e.file_type().map(|t| t.is_file()).unwrap_or(false))
-        .filter_map(|e| e.file_name().into_string().ok())
-        .filter(|n| n.starts_with("library-") && n.ends_with(".sqlite"))
-        .collect();
+/// Keep `keep` snapshots in `dir`: the one just written and the newest
+/// others by name. Partial files left by a crash are removed.
+fn retain_newest(dir: &Path, keep: usize, just_written: &str) -> Result<()> {
+    let mut names: Vec<String> = Vec::new();
+    for entry in fs::read_dir(dir)? {
+        let entry = entry?;
+        if !entry.file_type()?.is_file() {
+            continue;
+        }
+        let Ok(name) = entry.file_name().into_string() else {
+            continue;
+        };
+        if name.starts_with(".library-") && name.ends_with(".part") {
+            fs::remove_file(entry.path())?;
+        } else if name.starts_with("library-") && name.ends_with(".sqlite") && name != just_written
+        {
+            names.push(name);
+        }
+    }
     names.sort_unstable_by(|a, b| b.cmp(a));
-    for name in names.into_iter().skip(keep) {
+    for name in names.into_iter().skip(keep.saturating_sub(1)) {
         fs::remove_file(dir.join(name))?;
     }
     sync_directory(dir)?;
@@ -460,7 +483,7 @@ fn sidecar(db_path: &Path, suffix: &str) -> PathBuf {
 
 /// Remove the closed library's `-wal` and `-shm`. Refuses a WAL that still
 /// holds frames: those would be lost by the replacement.
-fn remove_sidecars(db_path: &Path) -> std::io::Result<()> {
+pub(crate) fn remove_sidecars(db_path: &Path) -> std::io::Result<()> {
     let wal = sidecar(db_path, "-wal");
     if let Ok(meta) = fs::metadata(&wal)
         && meta.len() > 0
@@ -624,6 +647,34 @@ pub(crate) fn open_database(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_new_safety_snapshot_survives_retention_even_with_a_clock_set_back() {
+        let dir = tempfile::tempdir().unwrap();
+        let versions = dir.path().join("v");
+        std::fs::create_dir_all(&versions).unwrap();
+        // Three snapshots from "the future" and a partial file from a crash.
+        for i in 0..3 {
+            std::fs::write(
+                versions.join(format!("library-9999999999999-000{i}.sqlite")),
+                b"x",
+            )
+            .unwrap();
+        }
+        std::fs::write(versions.join(".library-1-0000.sqlite.part"), b"x").unwrap();
+        let conn = Connection::open(dir.path().join("db.sqlite")).unwrap();
+        conn.execute_batch("CREATE TABLE t (x); INSERT INTO t VALUES (1);")
+            .unwrap();
+        let snap = safety_snapshot(&conn, dir.path(), "v").unwrap();
+        assert!(snap.exists(), "the snapshot just taken is kept");
+        let mut left: Vec<String> = std::fs::read_dir(&versions)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().into_string().unwrap())
+            .collect();
+        left.sort();
+        assert_eq!(left.len(), SAFETY_SNAPSHOTS_PER_VERSION);
+        assert!(left.iter().all(|n| !n.ends_with(".part")));
+    }
 
     #[test]
     fn migration_list_is_well_formed() {

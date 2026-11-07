@@ -46,6 +46,9 @@ pub enum StoreError {
     /// persisted (Loro cannot roll them back), under the write's origin.
     #[error("write to {0} panicked; partial edits were persisted")]
     WritePanicked(String),
+    /// A read closure panicked. The holder keeps running.
+    #[error("a read of {0} panicked")]
+    ReadPanicked(String),
     #[error("invalid {what}: {value}")]
     Invalid { what: &'static str, value: String },
     #[error("asset: {0}")]

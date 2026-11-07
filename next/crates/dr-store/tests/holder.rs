@@ -26,8 +26,8 @@ fn a_created_document_survives_reopening() {
     assert_eq!(c.seq, Some(2), "after the genesis row");
     let (_, unchanged) = h.write(Origin::User, |_| {}).unwrap();
     assert_eq!(unchanged.seq, None, "an empty write appends nothing");
-    drop(h);
-    drop(lib);
+    h.close();
+    lib.close().unwrap();
 
     let lib = open(dir.path());
     let info = lib.doc_info("node:a").unwrap().unwrap();
@@ -56,8 +56,8 @@ fn opening_twice_shares_one_holder() {
     insert(&a, Origin::User, 0, "甲");
     assert_eq!(text(b.doc()), "甲\n");
     assert_eq!(lib.open_doc_count(), 1);
-    drop(a);
-    drop(b);
+    a.close();
+    b.close();
     assert_eq!(lib.open_doc_count(), 0, "the holder released its slot");
     let c = lib.open_doc("node:a", OpenDoc::Existing).unwrap();
     assert_eq!(text(c.doc()), "甲\n");
@@ -148,7 +148,7 @@ fn author_and_agent_writes_never_share_a_commit() {
     a.join().unwrap();
     b.join().unwrap();
     assert_eq!(h.stats().outside_commits, 0);
-    drop(h);
+    h.close();
 
     let rows = added_per_row(&lib, "node:a");
     assert_eq!(rows.len(), 1 + 2 * n, "genesis plus one row per write");
@@ -184,7 +184,7 @@ fn edits_made_outside_the_holder_are_committed_on_their_own() {
     h.doc().get_text(synthetic::BODY).insert(0, "x").unwrap();
     insert(&h, Origin::agent("s", 2), 1, "a");
     assert_eq!(h.stats().outside_commits, 1);
-    drop(h);
+    h.close();
     let rows = added_per_row(&lib, "node:a");
     let tail: Vec<(&str, &str)> = rows[1..]
         .iter()
@@ -223,7 +223,8 @@ fn events_arrive_after_the_update_is_stored() {
         let lib2 = open(dir.path());
         let h2 = create(&lib2, "node:a");
         insert(&h2, Origin::User, 0, "三");
-        h2.doc().export(ExportMode::all_updates()).unwrap()
+        h2.read(|doc| doc.export(ExportMode::all_updates()).unwrap())
+            .unwrap()
     };
     let imported = h.import(other, Origin::Sync).unwrap();
     assert!(imported.status.pending.is_none());
@@ -259,8 +260,9 @@ fn peers_are_kept_per_document_and_change_with_the_epoch() {
         lib.rotate_epoch(),
         Err(StoreError::DocumentsOpen(2))
     ));
-    drop((h, b));
-    drop(lib);
+    h.close();
+    b.close();
+    lib.close().unwrap();
 
     let lib = open(dir.path());
     assert_eq!(lib.peer_for("node:a").unwrap(), peer_a, "persisted");
@@ -300,8 +302,8 @@ fn compaction_replaces_covered_updates_with_one_snapshot() {
     insert(&h, Origin::User, 0, "后");
     assert_eq!(lib.updates_since("node:a", 0).unwrap()[0].seq, 62);
     let content = text(h.doc());
-    drop(h);
-    drop(lib);
+    h.close();
+    lib.close().unwrap();
     let lib = open(dir.path());
     assert_eq!(text(&lib.load_copy("node:a").unwrap()), content);
 }
@@ -371,7 +373,7 @@ fn a_panicking_write_is_persisted_and_reported() {
     });
     assert!(matches!(r, Err(StoreError::WritePanicked(_))));
     insert(&h, Origin::User, 1, "句");
-    drop(h);
+    h.close();
     assert_eq!(text(&lib.load_copy("node:a").unwrap()), "半句\n");
 }
 
@@ -387,7 +389,7 @@ fn reads_on_the_holder_see_whole_writes() {
             doc.get_text(synthetic::BODY).insert(1, "句").unwrap();
         })
         .unwrap();
-    let seen = h.read(text).unwrap();
+    let seen = h.read(text::<LoroDoc>).unwrap();
     assert_eq!(seen, "整句\n");
     pending.wait().unwrap();
 }
@@ -423,7 +425,7 @@ fn a_failed_append_is_retried_under_its_own_origin() {
     );
     // The disk recovers.
     insert(&h, Origin::User, 0, "u");
-    drop(h);
+    h.close();
     let rows = added_per_row(&lib, "node:a");
     let tail: Vec<(&str, &str)> = rows[1..]
         .iter()
@@ -431,6 +433,116 @@ fn a_failed_append_is_retried_under_its_own_origin() {
         .collect();
     assert_eq!(tail, [("agent:s/6", "a"), ("user", "u")]);
     assert_eq!(*seen.lock().unwrap(), ["agent:s/6", "user"]);
+    // The label due with the failed Agent write was written with its retry.
+    let history = lib.history("node:a").unwrap();
+    let turn = history
+        .iter()
+        .find(|l| l.label == "agent:s/6")
+        .expect("turn label");
+    assert_eq!(
+        text(&lib.load_copy_at("node:a", &turn.frontiers).unwrap()),
+        "\n"
+    );
+}
+
+#[test]
+fn a_failed_append_of_outside_edits_refuses_the_next_write() {
+    use std::sync::atomic::AtomicUsize;
+    let dir = tempfile::tempdir().unwrap();
+    let faults = Arc::new(AtomicUsize::new(0));
+    let mut o = options();
+    o.append_faults = Some(faults.clone());
+    o.compaction.on_close_min_updates = usize::MAX;
+    let lib = Library::open(dir.path(), o).unwrap();
+    let h = create(&lib, "node:a");
+    h.doc().get_text(synthetic::BODY).insert(0, "x").unwrap();
+    faults.store(1, std::sync::atomic::Ordering::Relaxed);
+    let refused = h.write(Origin::agent("s", 8), |doc| {
+        doc.get_text(synthetic::BODY).insert(0, "never").unwrap();
+    });
+    assert!(refused.is_err(), "the outside edit could not be stored");
+    insert(&h, Origin::agent("s", 8), 0, "a");
+    h.close();
+    let rows = added_per_row(&lib, "node:a");
+    let tail: Vec<(&str, &str)> = rows[1..]
+        .iter()
+        .map(|(o, a)| (o.as_str(), a.as_str()))
+        .collect();
+    assert_eq!(tail, [("outside", "x"), ("agent:s/8", "a")]);
+}
+
+#[test]
+fn copies_stay_complete_while_the_holder_compacts() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut o = options();
+    o.compaction.max_updates = usize::MAX;
+    let lib = Library::open(dir.path(), o).unwrap();
+    let h = create(&lib, "node:a");
+    let writer = {
+        let h = h.clone();
+        std::thread::spawn(move || {
+            for k in 0..300i64 {
+                h.write(Origin::User, move |doc| {
+                    doc.get_map("meta").insert("k", k).unwrap();
+                    doc.get_text(synthetic::BODY).insert(0, "字").unwrap();
+                })
+                .unwrap();
+                if k % 3 == 0 {
+                    h.compact_now().unwrap();
+                }
+            }
+        })
+    };
+    let mut last = -1;
+    while !writer.is_finished() {
+        let copy = lib.load_copy("node:a").unwrap();
+        let k = synthetic::last_crash_edit(&copy);
+        assert!(k >= last, "a copy went back from {last} to {k}");
+        assert_eq!(text(&copy).chars().count() as i64, k + 2, "text matches k");
+        last = k;
+    }
+    writer.join().unwrap();
+}
+
+#[test]
+fn dropping_the_last_handle_does_not_wait_for_the_holder() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open(dir.path());
+    let h = create(&lib, "node:a");
+    let pending = h
+        .submit(Origin::User, |doc| {
+            std::thread::sleep(Duration::from_millis(300));
+            doc.get_text(synthetic::BODY).insert(0, "慢").unwrap();
+        })
+        .unwrap();
+    let t = std::time::Instant::now();
+    drop(h);
+    assert!(
+        t.elapsed() < Duration::from_millis(200),
+        "drop returned at once"
+    );
+    pending.wait().unwrap();
+    // Reopening waits for the old holder to finish closing.
+    let h = lib.open_doc("node:a", OpenDoc::Existing).unwrap();
+    assert_eq!(text(h.doc()), "慢\n");
+    assert!(matches!(
+        lib.clone().close(),
+        Err(StoreError::DocumentsOpen(1))
+    ));
+    h.close();
+    lib.close().unwrap();
+    open(dir.path());
+}
+
+#[test]
+fn a_panicking_read_leaves_the_holder_running() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open(dir.path());
+    let h = create(&lib, "node:a");
+    let r: Result<(), _> = h.read(|_| panic!("bug in a query"));
+    assert!(matches!(r, Err(StoreError::ReadPanicked(_))));
+    insert(&h, Origin::User, 0, "仍在");
+    assert_eq!(h.read(text::<LoroDoc>).unwrap(), "仍在\n");
 }
 
 #[test]

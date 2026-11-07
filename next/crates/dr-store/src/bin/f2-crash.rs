@@ -80,7 +80,7 @@ fn writer(root: &Path) -> Fallible<()> {
     o.compaction_pause = Some(Duration::from_millis(20));
     let lib = Library::open(root, o)?;
     let h = lib.open_doc(DOC, create_how())?;
-    let mut k = synthetic::last_crash_edit(h.doc()) + 1;
+    let mut k = h.read(synthetic::last_crash_edit)? + 1;
     let mut out = std::io::stdout().lock();
     loop {
         h.write(Origin::User, move |doc| synthetic::crash_edit(doc, k))?;
@@ -238,7 +238,10 @@ fn seed_library(root: &Path) -> Fallible<String> {
         h.write(Origin::User, move |doc| synthetic::crash_edit(doc, k))?;
     }
     h.compact_now()?;
-    let text = content_json(h.doc());
+    let text = h.read(content_json)?;
+    // The child process opens it next: release it completely.
+    h.close();
+    lib.close()?;
     Ok(text)
 }
 

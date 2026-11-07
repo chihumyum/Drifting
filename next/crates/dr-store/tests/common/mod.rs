@@ -4,8 +4,8 @@ use std::path::Path;
 use std::sync::Arc;
 
 use dr_store::synthetic;
-use dr_store::{DocHandle, Library, LibraryOptions, OpenDoc, Origin};
-use loro::LoroDoc;
+use dr_store::{DocHandle, DocView, Library, LibraryOptions, OpenDoc, Origin};
+use loro::{LoroDoc, LoroText};
 
 pub const VERSION: &str = "0.2.0-test";
 
@@ -39,8 +39,25 @@ pub fn create(lib: &Library, doc_id: &str) -> DocHandle {
     .expect("open doc")
 }
 
-pub fn text(doc: &LoroDoc) -> String {
-    doc.get_text(synthetic::BODY).to_string()
+/// The body text of a document or of an open document's view.
+pub trait Body {
+    fn body(&self) -> LoroText;
+}
+
+impl Body for LoroDoc {
+    fn body(&self) -> LoroText {
+        self.get_text(synthetic::BODY)
+    }
+}
+
+impl Body for DocView {
+    fn body(&self) -> LoroText {
+        self.get_text(synthetic::BODY)
+    }
+}
+
+pub fn text<D: Body>(doc: &D) -> String {
+    doc.body().to_string()
 }
 
 pub fn insert(h: &DocHandle, origin: Origin, at: usize, s: &str) {

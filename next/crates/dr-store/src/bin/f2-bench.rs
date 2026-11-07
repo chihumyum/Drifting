@@ -129,7 +129,7 @@ fn open_with_updates(dir: &Path) -> Fallible<serde_json::Value> {
         let id = format!("node:n{n}");
         let h = chapter_doc(&lib, &id, CHAPTER_CHARS, 3)?;
         keystrokes(&h, n, 11)?;
-        drop(h);
+        h.close();
         let (pending, pending_bytes) = lib.pending_updates(&id)?;
         let mut load = Vec::new();
         let mut load_read = Vec::new();
@@ -147,7 +147,7 @@ fn open_with_updates(dir: &Path) -> Fallible<serde_json::Value> {
             let t = Instant::now();
             let h = lib.open_doc(&id, OpenDoc::Existing)?;
             holder.push(ms_since(t));
-            drop(h);
+            h.close();
         }
         rows.push(json!({
             "pendingUpdates": pending,
@@ -221,7 +221,9 @@ fn full_book(dir: &Path) -> Fallible<serde_json::Value> {
             .collect::<Result<_, _>>()?;
         open.push(ms_since(t));
         let t = Instant::now();
-        drop(handles);
+        for h in handles {
+            h.close();
+        }
         close.push(ms_since(t));
     }
     Ok(json!({

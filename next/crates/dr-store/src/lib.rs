@@ -42,8 +42,8 @@ pub mod synthetic;
 
 pub use error::{MigrationFailure, Result, StoreError};
 pub use holder::{
-    Committed, ContainerChange, DocEvent, DocHandle, EventSubscription, HolderStats, Imported,
-    PendingWrite,
+    Committed, ContainerChange, DocEvent, DocHandle, DocView, EventSubscription, HolderStats,
+    Imported, PendingWrite,
 };
 pub use library::{
     CompactStats, CompactionPolicy, DocInfo, Library, LibraryOptions, LibraryPaths, LoadStats,

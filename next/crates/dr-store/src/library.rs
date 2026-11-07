@@ -13,7 +13,7 @@ use rusqlite::{Connection, OptionalExtension, params};
 
 use crate::error::{Result, StoreError};
 use crate::file_io::{durable_replace_file, sync_file, temporary_sibling};
-use crate::holder::{self, DocHandle, Shared};
+use crate::holder::{self, Closing, DocHandle, Shared};
 use crate::migrate::{self, Durability, MIGRATIONS, Migration, MigrationFault, OpenReport};
 use crate::origin::Origin;
 use crate::{now_ms, random_peer_id, random_u64};
@@ -184,6 +184,8 @@ pub(crate) struct Inner {
     epoch: Mutex<String>,
     pub docs: Mutex<HashMap<String, Slot>>,
     pub docs_changed: Condvar,
+    /// Holder threads whose last handle is gone.
+    pub closing: Closing,
     /// Identifies this process's asset imports for garbage collection.
     pub session: String,
     _lock: File,
@@ -329,6 +331,7 @@ impl Library {
                 epoch: Mutex::new(epoch),
                 docs: Mutex::new(HashMap::new()),
                 docs_changed: Condvar::new(),
+                closing: Closing::default(),
                 session: format!("{:016x}", random_u64()),
                 _lock: lock,
             }),
@@ -346,30 +349,46 @@ impl Library {
     ) -> Result<Self> {
         let paths = LibraryPaths::new(root);
         let lock = take_lock(&paths)?;
-        {
-            let conn =
-                Connection::open_with_flags(backup, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)?;
-            let integrity: String = conn.query_row("PRAGMA integrity_check", [], |r| r.get(0))?;
-            if integrity != "ok" {
-                return Err(StoreError::invalid("backup", integrity));
-            }
-            if migrate::applied_count(&conn, MIGRATIONS)? == 0 {
-                return Err(StoreError::invalid("backup", "not a Drifting library"));
-            }
-        }
         let shadow = temporary_sibling(&paths.db)?;
         let result = (|| -> Result<()> {
-            fs::copy(backup, &shadow)?;
-            sync_file(&shadow)?;
-            for suffix in ["-wal", "-shm"] {
-                let mut name = paths.db.file_name().unwrap_or_default().to_os_string();
-                name.push(suffix);
-                match fs::remove_file(paths.db.with_file_name(name)) {
-                    Ok(()) => {}
-                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-                    Err(e) => return Err(e.into()),
+            // Copy through SQLite: a consistent copy even if the backup has
+            // a WAL of its own.
+            {
+                let conn = Connection::open_with_flags(
+                    backup,
+                    rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+                )?;
+                let integrity: String =
+                    conn.query_row("PRAGMA integrity_check", [], |r| r.get(0))?;
+                if integrity != "ok" {
+                    return Err(StoreError::invalid("backup", integrity));
                 }
+                if migrate::applied_count(&conn, MIGRATIONS)? == 0 {
+                    return Err(StoreError::invalid("backup", "not a Drifting library"));
+                }
+                let target = shadow.to_str().ok_or_else(|| {
+                    StoreError::invalid("library path", shadow.display().to_string())
+                })?;
+                conn.execute("VACUUM INTO ?1", [target])?;
             }
+            // The new epoch goes in before the copy takes the library's
+            // place, so no later failure can leave the backup's peers in use.
+            {
+                let conn = Connection::open(&shadow)?;
+                conn.execute(
+                    "INSERT INTO library_meta (key, value) VALUES ('epoch', ?1)
+                     ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+                    [format!("{:016x}", random_u64())],
+                )?;
+            }
+            sync_file(&shadow)?;
+            // The current library's WAL must be empty before it is dropped:
+            // if the replacement then fails, nothing committed is lost.
+            if paths.db.exists() {
+                let conn = migrate::open_connection(&paths.db, options.durability)?;
+                migrate::checkpoint_truncate(&conn)?;
+            }
+            migrate::remove_sidecars(&paths.db)?;
             durable_replace_file(&shadow, &paths.db)?;
             Ok(())
         })();
@@ -377,9 +396,7 @@ impl Library {
             let _ = fs::remove_file(&shadow);
         }
         result?;
-        let library = Self::open_locked(paths, options, MIGRATIONS, lock)?;
-        library.rotate_epoch()?;
-        Ok(library)
+        Self::open_locked(paths, options, MIGRATIONS, lock)
     }
 
     pub fn paths(&self) -> &LibraryPaths {
@@ -631,6 +648,62 @@ impl Library {
         Ok((pages * size) as u64)
     }
 
+    /// Close the library: wait for every closing document holder to finish
+    /// (labels, compaction), then close the database and release the lock.
+    /// Refused while documents are open, or while other clones of this
+    /// `Library` are alive (they keep the database open).
+    pub fn close(self) -> Result<()> {
+        {
+            let mut docs = self.inner.docs.lock().unwrap_or_else(|e| e.into_inner());
+            loop {
+                let live = docs
+                    .values()
+                    .filter(|slot| match slot {
+                        Slot::Opening => true,
+                        Slot::Open(weak) => weak.strong_count() > 0,
+                    })
+                    .count();
+                if live > 0 {
+                    return Err(StoreError::DocumentsOpen(live));
+                }
+                if docs.is_empty() {
+                    break;
+                }
+                docs = self
+                    .inner
+                    .docs_changed
+                    .wait(docs)
+                    .unwrap_or_else(|e| e.into_inner());
+            }
+        }
+        let threads =
+            std::mem::take(&mut *self.inner.closing.lock().unwrap_or_else(|e| e.into_inner()));
+        for thread in threads {
+            if thread.thread().id() != std::thread::current().id() {
+                let _ = thread.join();
+            }
+        }
+        if Arc::strong_count(&self.inner) > 1 {
+            return Err(StoreError::invalid(
+                "library",
+                "other clones of this library are still alive",
+            ));
+        }
+        Ok(())
+    }
+
+    /// Make everything committed so far survive a power failure. With
+    /// [`Durability::Normal`] a commit survives a crash of the process but not
+    /// of the machine. Call this before anything leaves the device (sync
+    /// uploads): otherwise a power cut could take back operations another
+    /// replica already has, and this device would reuse their ids.
+    pub fn sync_to_disk(&self) -> Result<()> {
+        // A checkpoint syncs the WAL before it copies anything back.
+        let conn = self.inner.writer();
+        conn.query_row("PRAGMA wal_checkpoint(PASSIVE)", [], |_| Ok(()))?;
+        Ok(())
+    }
+
     /// Documents with a live holder in this process.
     pub fn open_doc_count(&self) -> usize {
         self.inner
@@ -687,7 +760,10 @@ pub(crate) fn load_into(
     doc_id: &str,
     doc: &LoroDoc,
 ) -> Result<Option<LoadStats>> {
-    let snapshot: Option<(i64, Vec<u8>)> = conn
+    // One read transaction: a holder compacting between the two reads would
+    // otherwise delete updates the snapshot read had not covered yet.
+    let tx = conn.unchecked_transaction()?;
+    let snapshot: Option<(i64, Vec<u8>)> = tx
         .prepare_cached("SELECT upto_seq, bytes FROM loro_snapshot WHERE doc_id = ?1")?
         .query_row([doc_id], |r| Ok((r.get(0)?, r.get(1)?)))
         .optional()?;
@@ -701,25 +777,34 @@ pub(crate) fn load_into(
     if let Some((_, bytes)) = snapshot {
         batch.push(bytes);
     }
-    let mut stmt = conn.prepare_cached(
-        "SELECT seq, bytes FROM loro_update WHERE doc_id = ?1 AND seq > ?2 ORDER BY seq",
-    )?;
-    let mut rows = stmt.query(params![doc_id, stats.snapshot_seq])?;
-    while let Some(row) = rows.next()? {
-        let seq: i64 = row.get(0)?;
-        let bytes: Vec<u8> = row.get(1)?;
-        stats.updates += 1;
-        stats.update_bytes += bytes.len();
-        stats.last_seq = stats.last_seq.max(seq);
-        batch.push(bytes);
+    {
+        let mut stmt = tx.prepare_cached(
+            "SELECT seq, bytes FROM loro_update WHERE doc_id = ?1 AND seq > ?2 ORDER BY seq",
+        )?;
+        let mut rows = stmt.query(params![doc_id, stats.snapshot_seq])?;
+        while let Some(row) = rows.next()? {
+            let seq: i64 = row.get(0)?;
+            let bytes: Vec<u8> = row.get(1)?;
+            stats.updates += 1;
+            stats.update_bytes += bytes.len();
+            stats.last_seq = stats.last_seq.max(seq);
+            batch.push(bytes);
+        }
     }
+    tx.commit()?;
     if batch.is_empty() {
         return Ok(None);
     }
-    if batch.len() == 1 {
-        doc.import(&batch[0])?;
+    let status = if batch.len() == 1 {
+        doc.import(&batch[0])?
     } else {
-        doc.import_batch(&batch)?;
+        doc.import_batch(&batch)?
+    };
+    if status.pending.is_some() {
+        return Err(StoreError::invalid(
+            "stored document",
+            format!("{doc_id}: stored updates depend on operations that are not stored"),
+        ));
     }
     Ok(Some(stats))
 }

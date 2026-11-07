@@ -24,8 +24,9 @@ use std::thread::JoinHandle;
 
 use loro::event::{Diff, DiffEvent, MapDelta};
 use loro::{
-    CommitOptions, ContainerID, EventTriggerKind, ExportMode, Frontiers, ImportStatus, Index,
-    LoroDoc, Subscription, VersionVector,
+    ChangeMeta, CommitOptions, ContainerID, EventTriggerKind, ExportMode, Frontiers, ID,
+    ImportStatus, Index, IntoContainerId, LoroCounter, LoroDoc, LoroList, LoroMap, LoroMovableList,
+    LoroText, LoroTree, LoroValue, PeerID, Subscription, VersionVector,
 };
 use rusqlite::params;
 
@@ -112,6 +113,14 @@ type Listener = Arc<dyn Fn(&DocEvent) + Send + Sync>;
 /// Loro diffs of commits not yet persisted, in order.
 type EventBuffer = Arc<Mutex<Vec<(EventTriggerKind, Vec<ContainerChange>)>>>;
 
+/// Holder threads whose last handle is gone, for [`crate::Library::close`]
+/// to join.
+pub(crate) type Closing = Arc<Mutex<Vec<JoinHandle<()>>>>;
+
+/// Operations whose append failed: their origin and the history label that
+/// was to be written with them.
+type Unpersisted = (Origin, Option<(Vec<u8>, String)>);
+
 #[derive(Default)]
 struct Listeners {
     next: u64,
@@ -180,7 +189,8 @@ enum Msg {
         bytes: Vec<u8>,
         done: Sender<Result<Imported>>,
     },
-    Run(Box<dyn FnOnce(&LoroDoc) + Send>),
+    /// A read; returns false if the closure panicked.
+    Run(Box<dyn FnOnce(&LoroDoc) -> bool + Send>),
     Compact(Sender<Result<Option<CompactStats>>>),
     Label {
         label: String,
@@ -191,27 +201,115 @@ enum Msg {
 
 pub(crate) struct Shared {
     doc_id: Arc<str>,
-    doc: LoroDoc,
+    view: DocView,
     tx: Sender<Msg>,
     thread: Mutex<Option<JoinHandle<()>>>,
+    closing: Closing,
     listeners: Arc<Mutex<Listeners>>,
     counters: Arc<Counters>,
 }
 
 impl Drop for Shared {
+    /// Never blocks: the holder finishes its queue and closes on its own
+    /// thread. [`DocHandle::close`] and [`crate::Library::close`] wait.
     fn drop(&mut self) {
-        let _ = self.tx.send(Msg::Close);
-        let thread = self.thread.lock().unwrap_or_else(|e| e.into_inner()).take();
-        if let Some(thread) = thread
-            && thread.thread().id() != std::thread::current().id()
-        {
-            let _ = thread.join();
+        // Hand the thread over before asking it to stop, so whoever sees
+        // the document's slot freed can also join the thread.
+        if let Some(thread) = self.thread.lock().unwrap_or_else(|e| e.into_inner()).take() {
+            self.closing
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .push(thread);
         }
+        let _ = self.tx.send(Msg::Close);
     }
 }
 
-/// A handle to an open document. Clones share one holder; the holder closes
-/// (label, compaction) when the last handle is dropped or [`Self::close`]d.
+/// Read access to an open document from any thread (layout, queries).
+///
+/// Only reads of the current state are offered. Loro's `export`, `fork`,
+/// `checkout`, `diff`, cursor-position queries and history walks first
+/// commit the document's shared pending transaction: from another thread
+/// that would cut a queued write in two, half of it without its origin. Do
+/// those through [`DocHandle::read`].
+///
+/// The containers it returns can technically be edited. Never do that: an
+/// edit made here is committed on its own with origin [`Origin::Outside`]
+/// before the next queued operation, but one made while a queued write runs
+/// would join it. Reads may observe a write in progress; [`DocHandle::read`]
+/// sees only whole writes.
+#[derive(Clone)]
+pub struct DocView(LoroDoc);
+
+impl DocView {
+    pub fn get_text<I: IntoContainerId>(&self, id: I) -> LoroText {
+        self.0.get_text(id)
+    }
+
+    pub fn get_map<I: IntoContainerId>(&self, id: I) -> LoroMap {
+        self.0.get_map(id)
+    }
+
+    pub fn get_list<I: IntoContainerId>(&self, id: I) -> LoroList {
+        self.0.get_list(id)
+    }
+
+    pub fn get_movable_list<I: IntoContainerId>(&self, id: I) -> LoroMovableList {
+        self.0.get_movable_list(id)
+    }
+
+    pub fn get_tree<I: IntoContainerId>(&self, id: I) -> LoroTree {
+        self.0.get_tree(id)
+    }
+
+    pub fn get_counter<I: IntoContainerId>(&self, id: I) -> LoroCounter {
+        self.0.get_counter(id)
+    }
+
+    pub fn get_value(&self) -> LoroValue {
+        self.0.get_value()
+    }
+
+    pub fn get_deep_value(&self) -> LoroValue {
+        self.0.get_deep_value()
+    }
+
+    pub fn oplog_frontiers(&self) -> Frontiers {
+        self.0.oplog_frontiers()
+    }
+
+    pub fn state_frontiers(&self) -> Frontiers {
+        self.0.state_frontiers()
+    }
+
+    pub fn oplog_vv(&self) -> VersionVector {
+        self.0.oplog_vv()
+    }
+
+    pub fn state_vv(&self) -> VersionVector {
+        self.0.state_vv()
+    }
+
+    pub fn peer_id(&self) -> PeerID {
+        self.0.peer_id()
+    }
+
+    pub fn len_changes(&self) -> usize {
+        self.0.len_changes()
+    }
+
+    pub fn len_ops(&self) -> usize {
+        self.0.len_ops()
+    }
+
+    pub fn get_change(&self, id: ID) -> Option<ChangeMeta> {
+        self.0.get_change(id)
+    }
+}
+
+/// A handle to an open document. Clones share one holder. When the last
+/// handle goes, the holder finishes what is queued, labels and compacts on
+/// its own thread; dropping never blocks, [`Self::close`] waits.
 #[derive(Clone)]
 pub struct DocHandle {
     shared: Arc<Shared>,
@@ -263,15 +361,9 @@ impl DocHandle {
         &self.shared.doc_id
     }
 
-    /// The open document, for reading from any thread (layout, queries).
-    /// **Never edit it directly**: edits belong in [`Self::write`]. A direct
-    /// edit is committed separately with origin [`Origin::Outside`] before
-    /// the next queued operation, so it cannot join another origin's commit,
-    /// but one made while a queued write runs would. Reads may observe a
-    /// write that is still in progress; use [`Self::read`] for a consistent
-    /// view.
-    pub fn doc(&self) -> &LoroDoc {
-        &self.shared.doc
+    /// Read access from any thread; see [`DocView`] for what it allows.
+    pub fn doc(&self) -> &DocView {
+        &self.shared.view
     }
 
     fn send(&self, msg: Msg) -> Result<()> {
@@ -328,18 +420,31 @@ impl DocHandle {
     }
 
     /// Run `f` on the holder thread, between queued writes: a consistent
-    /// view. `f` must not edit.
+    /// view, and the place for exports, cursor positions and history walks.
+    /// `f` must not edit.
     pub fn read<R, F>(&self, f: F) -> Result<R>
     where
         F: FnOnce(&LoroDoc) -> R + Send + 'static,
         R: Send + 'static,
     {
         let (done, rx) = mpsc::channel();
-        self.send(Msg::Run(Box::new(move |doc| {
-            let _ = done.send(f(doc));
-        })))?;
-        rx.recv()
-            .map_err(|_| StoreError::Closed(self.shared.doc_id.to_string()))
+        self.send(Msg::Run(Box::new(
+            move |doc| match std::panic::catch_unwind(AssertUnwindSafe(|| f(doc))) {
+                Ok(r) => {
+                    let _ = done.send(Ok(r));
+                    true
+                }
+                Err(_) => {
+                    let _ = done.send(Err(()));
+                    false
+                }
+            },
+        )))?;
+        match rx.recv() {
+            Ok(Ok(r)) => Ok(r),
+            Ok(Err(())) => Err(StoreError::ReadPanicked(self.shared.doc_id.to_string())),
+            Err(_) => Err(StoreError::Closed(self.shared.doc_id.to_string())),
+        }
     }
 
     /// Compact now: snapshot plus deletion of the covered updates. `None`
@@ -392,10 +497,23 @@ impl DocHandle {
         }
     }
 
-    /// Close this handle. The holder stops (labelling and compacting) once
-    /// no other clone is left; this call waits for that if it was the last.
+    /// Close this handle. If it was the last one, wait until the holder has
+    /// finished its queue, labelled, compacted and released the document.
     pub fn close(self) {
-        drop(self);
+        let Ok(shared) = Arc::try_unwrap(self.shared) else {
+            return;
+        };
+        let thread = shared
+            .thread
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .take();
+        drop(shared);
+        if let Some(thread) = thread
+            && thread.thread().id() != std::thread::current().id()
+        {
+            let _ = thread.join();
+        }
     }
 }
 
@@ -408,9 +526,9 @@ struct Holder {
     /// The latest history label: (time, encoded frontiers, label).
     latest_label: Option<(i64, Vec<u8>, String)>,
     import_since_idle: bool,
-    /// The origin of operations whose append failed. They are retried on
-    /// their own before anything else runs, so a row never mixes origins.
-    unpersisted: Option<Origin>,
+    /// Operations whose append failed. They are retried on their own, with
+    /// their label, before anything else runs, so a row never mixes origins.
+    unpersisted: Option<Unpersisted>,
     buffer: EventBuffer,
     _loro_subscription: Subscription,
     listeners: Arc<Mutex<Listeners>>,
@@ -478,9 +596,10 @@ pub(crate) fn spawn(
     Ok(DocHandle {
         shared: Arc::new(Shared {
             doc_id,
-            doc,
+            view: DocView(doc),
             tx,
             thread: Mutex::new(Some(thread)),
+            closing: lib.closing.clone(),
             listeners,
             counters,
         }),
@@ -530,13 +649,11 @@ impl Holder {
                     let _ = done.send(self.import(&origin, &bytes));
                 }
                 Msg::Run(f) => {
-                    if self.retry_unpersisted().is_ok() {
-                        self.absorb_outside();
+                    let _ = self.settle();
+                    if !f(&self.doc) {
+                        log::error!("{}: a read panicked", self.doc_id);
                     }
-                    f(&self.doc);
-                    if self.retry_unpersisted().is_ok() {
-                        self.absorb_outside();
-                    }
+                    let _ = self.settle();
                 }
                 Msg::Compact(done) => {
                     let _ = done.send(self.compact());
@@ -580,11 +697,19 @@ impl Holder {
         }
     }
 
+    /// Before anything else: store what an earlier failed append left, then
+    /// commit and store what was written outside the holder. On failure the
+    /// caller must not add operations of its own.
+    fn settle(&mut self) -> Result<()> {
+        self.retry_unpersisted()?;
+        self.absorb_outside()
+    }
+
     /// Commit and persist operations someone wrote outside the holder, so
     /// they never join the next origin's commit.
-    fn absorb_outside(&mut self) {
+    fn absorb_outside(&mut self) -> Result<()> {
         if self.doc.get_pending_txn_len() == 0 {
-            return;
+            return Ok(());
         }
         log::error!(
             "{}: {} operations were written outside the document holder",
@@ -594,23 +719,21 @@ impl Holder {
         self.doc
             .commit_with(CommitOptions::new().origin(&Origin::Outside.to_string()));
         self.counters.outside.fetch_add(1, Ordering::Relaxed);
-        if let Err(e) = self.persist(&Origin::Outside, None) {
-            log::error!("{}: persisting outside operations failed: {e}", self.doc_id);
-        }
+        self.persist(&Origin::Outside, None).map(|_| ())
     }
 
-    /// Append operations whose earlier append failed, under their own origin.
+    /// Append operations whose earlier append failed, under their own origin
+    /// and with the label that was due with them.
     fn retry_unpersisted(&mut self) -> Result<()> {
-        if let Some(origin) = self.unpersisted.clone() {
-            self.persist(&origin, None)?;
+        if let Some((origin, label)) = self.unpersisted.clone() {
+            self.persist(&origin, label)?;
         }
         Ok(())
     }
 
     fn write(&mut self, origin: &Origin, job: &mut dyn WriteJob) -> Result<Committed> {
         // Refuse new edits while earlier ones cannot be stored.
-        self.retry_unpersisted()?;
-        self.absorb_outside();
+        self.settle()?;
         let before = self.doc.oplog_frontiers();
         let ok = job.run(&self.doc);
         let mut options = CommitOptions::new().origin(&origin.to_string());
@@ -630,8 +753,7 @@ impl Holder {
     }
 
     fn import(&mut self, origin: &Origin, bytes: &[u8]) -> Result<Imported> {
-        self.retry_unpersisted()?;
-        self.absorb_outside();
+        self.settle()?;
         let status = self.doc.import_with(bytes, &origin.to_string())?;
         self.import_since_idle = true;
         let committed = self.persist(origin, None)?;
@@ -647,13 +769,13 @@ impl Holder {
         origin: &Origin,
         pre_label: Option<(Vec<u8>, String)>,
     ) -> Result<Committed> {
-        let result = self.append(origin, pre_label);
+        let result = self.append(origin, pre_label.clone());
         match &result {
             Ok(_) => self.unpersisted = None,
             Err(e) => {
                 log::error!("{}: appending a {origin} update failed: {e}", self.doc_id);
                 if self.unpersisted.is_none() {
-                    self.unpersisted = Some(origin.clone());
+                    self.unpersisted = Some((origin.clone(), pre_label));
                 }
             }
         }
@@ -770,14 +892,7 @@ impl Holder {
 
     fn compact(&mut self) -> Result<Option<CompactStats>> {
         // A snapshot must not cover operations no row holds yet.
-        self.retry_unpersisted()?;
-        self.absorb_outside();
-        if self.unpersisted.is_some() {
-            return Err(StoreError::invalid(
-                "compaction",
-                "updates are not stored yet",
-            ));
-        }
+        self.settle()?;
         if self.pending().0 == 0 {
             return Ok(None);
         }
@@ -797,8 +912,7 @@ impl Holder {
     }
 
     fn label_now(&mut self, label: &str) -> Result<bool> {
-        self.retry_unpersisted()?;
-        self.absorb_outside();
+        self.settle()?;
         let frontiers = self.doc.oplog_frontiers().encode();
         if self
             .latest_label
@@ -820,14 +934,13 @@ impl Holder {
     }
 
     fn on_close(&mut self) {
-        if let Err(e) = self.retry_unpersisted() {
+        if let Err(e) = self.settle() {
             log::error!(
                 "{}: final append failed; edits since are lost: {e}",
                 self.doc_id
             );
             return;
         }
-        self.absorb_outside();
         if self.counters.commits.load(Ordering::Relaxed) > 0
             && let Err(e) = self.label_now(labels::CLOSE)
         {

@@ -38,8 +38,8 @@ fn seeded(dir: &Path) -> String {
     let h = create(&lib, "node:a");
     insert(&h, Origin::User, 0, "春风十里");
     let content = text(h.doc());
-    drop(h);
-    drop(lib);
+    h.close();
+    lib.close().unwrap();
     content
 }
 
@@ -67,7 +67,7 @@ fn a_new_library_gets_the_baseline_and_reopens_without_a_snapshot() {
     assert!(r.safety_snapshot.is_none());
     let epoch = lib.epoch();
     assert_eq!(epoch.len(), 16);
-    drop(lib);
+    lib.close().unwrap();
 
     let lib = open(dir.path());
     let r = lib.open_report();
@@ -86,7 +86,7 @@ fn a_new_app_version_takes_a_safety_snapshot() {
     let lib = Library::open(dir.path(), o).unwrap();
     let snap = lib.open_report().safety_snapshot.clone().expect("snapshot");
     assert!(snap.starts_with(dir.path().join("safety-snapshots/0.2.1-test")));
-    drop(lib);
+    lib.close().unwrap();
     // The snapshot is a complete library on its own.
     let copy = tempfile::tempdir().unwrap();
     std::fs::copy(&snap, copy.path().join("library.sqlite")).unwrap();
@@ -104,7 +104,7 @@ fn a_later_build_migrates_a_shadow_copy_after_a_snapshot() {
     let snap = r.safety_snapshot.expect("snapshot before migrating");
     assert!(snap.exists());
     assert_eq!(text(&lib.load_copy("node:a").unwrap()), content);
-    drop(lib);
+    lib.close().unwrap();
     assert_eq!(shadows(dir.path()), 0);
 
     // An older build refuses the newer library and leaves it alone.
@@ -184,7 +184,7 @@ fn faults_at_every_stage_before_replacing_leave_the_library_unchanged() {
             let lib = open(dir.path());
             assert_eq!(shadows(dir.path()), 0, "{stage:?}/{mode:?}: stale shadow");
             assert_eq!(text(&lib.load_copy("node:a").unwrap()), content);
-            drop(lib);
+            lib.close().unwrap();
             // And the new build migrates it after all.
             let lib = Library::open_with_migrations(dir.path(), options(), &later()).unwrap();
             assert_eq!(
@@ -252,7 +252,7 @@ fn a_library_is_open_once() {
     let dir = tempfile::tempdir().unwrap();
     let lib = open(dir.path());
     assert!(Library::open(dir.path(), options()).is_err());
-    drop(lib);
+    lib.close().unwrap();
     open(dir.path());
 }
 
@@ -269,8 +269,8 @@ fn restoring_a_backup_starts_a_new_epoch() {
     let old_peer = lib.peer_for("node:a").unwrap();
     let h = lib.open_doc("node:a", dr_store::OpenDoc::Existing).unwrap();
     insert(&h, Origin::User, 0, "后来写的");
-    drop(h);
-    drop(lib);
+    h.close();
+    lib.close().unwrap();
 
     let lib = Library::restore_backup(dir.path(), &backup, options()).unwrap();
     assert_ne!(lib.epoch(), old_epoch);

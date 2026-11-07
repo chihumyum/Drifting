@@ -15,11 +15,11 @@
     "rows": [
       {
         "compactMs": {
-          "max": 0.523,
-          "mean": 0.502,
+          "max": 0.49,
+          "mean": 0.471,
           "n": 3,
-          "p50": 0.52,
-          "p95": 0.523
+          "p50": 0.467,
+          "p95": 0.49
         },
         "deletedUpdates": 100,
         "pendingUpdates": 100,
@@ -27,11 +27,11 @@
       },
       {
         "compactMs": {
-          "max": 0.801,
-          "mean": 0.761,
+          "max": 0.761,
+          "mean": 0.736,
           "n": 3,
-          "p50": 0.765,
-          "p95": 0.801
+          "p50": 0.753,
+          "p95": 0.761
         },
         "deletedUpdates": 500,
         "pendingUpdates": 500,
@@ -39,11 +39,11 @@
       },
       {
         "compactMs": {
-          "max": 3.239,
-          "mean": 2.285,
+          "max": 3.326,
+          "mean": 2.358,
           "n": 3,
-          "p50": 1.845,
-          "p95": 3.239
+          "p50": 2.028,
+          "p95": 3.326
         },
         "deletedUpdates": 2000,
         "pendingUpdates": 2000,
@@ -54,37 +54,37 @@
   },
   "corpus": "synthetic: characters from a fixed pool (dr_store::synthetic), paragraphs of 60-300",
   "fullBook": {
-    "buildMs": 118.6,
+    "buildMs": 111.7,
     "chapters": 100,
     "charsPerChapter": 15000,
     "close100HoldersMs": {
-      "max": 2.695,
-      "mean": 2.567,
+      "max": 2.51,
+      "mean": 2.466,
       "n": 5,
-      "p50": 2.578,
-      "p95": 2.695
+      "p50": 2.456,
+      "p95": 2.51
     },
     "coldLoadAllMs": {
-      "max": 9.921,
-      "mean": 9.056,
+      "max": 9.736,
+      "mean": 8.819,
       "n": 5,
-      "p50": 8.878,
-      "p95": 9.921
+      "p50": 8.617,
+      "p95": 9.736
     },
     "firstReadAllTextMs": {
-      "max": 10.039,
-      "mean": 9.561,
+      "max": 9.808,
+      "mean": 9.389,
       "n": 5,
-      "p50": 9.455,
-      "p95": 10.039
+      "p50": 9.301,
+      "p95": 9.808
     },
     "librarySqliteBytes": 5152768,
     "open100HoldersMs": {
-      "max": 12.208,
-      "mean": 11.892,
+      "max": 11.784,
+      "mean": 11.538,
       "n": 5,
-      "p50": 11.84,
-      "p95": 12.208
+      "p50": 11.479,
+      "p95": 11.784
     }
   },
   "generatedBy": "cargo run --release -p dr-store --bin f2-bench",
@@ -94,11 +94,11 @@
       "eventsDelivered": 2200,
       "meanUpdateBytes": 104,
       "ms": {
-        "max": 1.445,
-        "mean": 0.06,
+        "max": 7.486,
+        "mean": 0.126,
         "n": 2000,
-        "p50": 0.049,
-        "p95": 0.094
+        "p50": 0.056,
+        "p95": 0.323
       },
       "writes": 2000
     },
@@ -106,11 +106,11 @@
       "eventsDelivered": 2200,
       "meanUpdateBytes": 104,
       "ms": {
-        "max": 1.336,
-        "mean": 0.029,
+        "max": 1.383,
+        "mean": 0.031,
         "n": 2000,
-        "p50": 0.023,
-        "p95": 0.049
+        "p50": 0.022,
+        "p95": 0.048
       },
       "writes": 2000
     },
@@ -121,6 +121,7 @@
     "arch": "aarch64",
     "cores": 12,
     "cpu": "Apple M3 Pro",
+    "loadAverage1m": 8.52,
     "memoryBytes": 38654705664,
     "os": "macos",
     "osVersion": "27.0.1"
@@ -130,150 +131,150 @@
     "rows": [
       {
         "loadAndReadTextMs": {
-          "max": 0.247,
-          "mean": 0.23,
+          "max": 0.257,
+          "mean": 0.227,
           "n": 15,
-          "p50": 0.228,
-          "p95": 0.237
+          "p50": 0.225,
+          "p95": 0.229
         },
         "loadMs": {
-          "max": 0.167,
-          "mean": 0.116,
+          "max": 0.211,
+          "mean": 0.113,
           "n": 15,
-          "p50": 0.108,
-          "p95": 0.135
+          "p50": 0.106,
+          "p95": 0.111
         },
         "openHolderMs": {
-          "max": 0.156,
-          "mean": 0.137,
+          "max": 0.161,
+          "mean": 0.131,
           "n": 15,
-          "p50": 0.134,
-          "p95": 0.154
+          "p50": 0.129,
+          "p95": 0.137
         },
         "pendingBytes": 0,
         "pendingUpdates": 0
       },
       {
         "loadAndReadTextMs": {
-          "max": 1.113,
-          "mean": 1.022,
+          "max": 2.749,
+          "mean": 1.726,
           "n": 15,
-          "p50": 1.011,
-          "p95": 1.078
+          "p50": 1.398,
+          "p95": 2.496
         },
         "loadMs": {
-          "max": 1.351,
-          "mean": 1.052,
+          "max": 2.552,
+          "mean": 1.884,
           "n": 15,
-          "p50": 1.045,
-          "p95": 1.092
+          "p50": 2.388,
+          "p95": 2.504
         },
         "openHolderMs": {
-          "max": 1.191,
-          "mean": 1.088,
+          "max": 3.074,
+          "mean": 1.733,
           "n": 15,
-          "p50": 1.057,
-          "p95": 1.169
+          "p50": 1.273,
+          "p95": 2.645
         },
         "pendingBytes": 10381,
         "pendingUpdates": 100
       },
       {
         "loadAndReadTextMs": {
-          "max": 3.611,
-          "mean": 3.472,
+          "max": 8.686,
+          "mean": 4.307,
           "n": 15,
-          "p50": 3.454,
-          "p95": 3.61
+          "p50": 3.797,
+          "p95": 5.847
         },
         "loadMs": {
-          "max": 3.675,
-          "mean": 3.533,
+          "max": 8.17,
+          "mean": 5.152,
           "n": 15,
-          "p50": 3.53,
-          "p95": 3.649
+          "p50": 4.266,
+          "p95": 7.891
         },
         "openHolderMs": {
-          "max": 3.783,
-          "mean": 3.657,
+          "max": 7.806,
+          "mean": 4.558,
           "n": 15,
-          "p50": 3.651,
-          "p95": 3.782
+          "p50": 4.24,
+          "p95": 5.491
         },
         "pendingBytes": 52334,
         "pendingUpdates": 500
       },
       {
         "loadAndReadTextMs": {
-          "max": 6.766,
-          "mean": 6.584,
+          "max": 6.985,
+          "mean": 6.581,
           "n": 15,
-          "p50": 6.58,
-          "p95": 6.713
+          "p50": 6.514,
+          "p95": 6.914
         },
         "loadMs": {
-          "max": 7.217,
-          "mean": 6.704,
+          "max": 6.998,
+          "mean": 6.62,
           "n": 15,
-          "p50": 6.614,
-          "p95": 7.141
+          "p50": 6.561,
+          "p95": 6.895
         },
         "openHolderMs": {
-          "max": 7.156,
-          "mean": 6.864,
+          "max": 7.109,
+          "mean": 6.763,
           "n": 15,
-          "p50": 6.846,
-          "p95": 7.003
+          "p50": 6.778,
+          "p95": 6.964
         },
         "pendingBytes": 104658,
         "pendingUpdates": 1000
       },
       {
         "loadAndReadTextMs": {
-          "max": 13.078,
-          "mean": 12.706,
+          "max": 18.497,
+          "mean": 14.017,
           "n": 15,
-          "p50": 12.739,
-          "p95": 13.022
+          "p50": 13.745,
+          "p95": 15.567
         },
         "loadMs": {
-          "max": 13.108,
-          "mean": 12.876,
+          "max": 17.387,
+          "mean": 14.098,
           "n": 15,
-          "p50": 12.935,
-          "p95": 13.107
+          "p50": 13.65,
+          "p95": 16.904
         },
         "openHolderMs": {
-          "max": 13.463,
-          "mean": 13.15,
+          "max": 24.167,
+          "mean": 15.295,
           "n": 15,
-          "p50": 13.152,
-          "p95": 13.342
+          "p50": 14.049,
+          "p95": 21.219
         },
         "pendingBytes": 209254,
         "pendingUpdates": 2000
       },
       {
         "loadAndReadTextMs": {
-          "max": 34.333,
-          "mean": 30.991,
+          "max": 79.235,
+          "mean": 35.033,
           "n": 15,
-          "p50": 30.97,
-          "p95": 31.936
+          "p50": 31.204,
+          "p95": 43.52
         },
         "loadMs": {
-          "max": 33.505,
-          "mean": 31.487,
+          "max": 70.538,
+          "mean": 37.902,
           "n": 15,
-          "p50": 31.515,
-          "p95": 32.231
+          "p50": 31.834,
+          "p95": 63.836
         },
         "openHolderMs": {
-          "max": 37.028,
-          "mean": 32.261,
+          "max": 78.747,
+          "mean": 37.712,
           "n": 15,
-          "p50": 32.151,
-          "p95": 33.486
+          "p50": 32.452,
+          "p95": 57.682
         },
         "pendingBytes": 523424,
         "pendingUpdates": 5000
@@ -283,5 +284,5 @@
   },
   "probe": "F2 dr-store benchmark",
   "schemaVersion": 1,
-  "sourceFingerprint": "c3bafb599f560ac4fc362234d023bdbd28f4e8396e563bce0902323b00014ca8"
+  "sourceFingerprint": "d5b016fe0eb5b8d672fb06cad938f03e8a355ff8cf0fcd6805cb7f8d2cc192a8"
 }
