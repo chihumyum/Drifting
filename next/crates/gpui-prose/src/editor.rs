@@ -12,8 +12,8 @@ use std::{
 use gpui::{
     App, AppContext, Bounds, Context, CursorStyle, ElementInputHandler, Entity, EventEmitter,
     FocusHandle, Focusable, InteractiveElement, IntoElement, ListAlignment, ListOffset, ListState,
-    MouseButton, ParentElement, Pixels, Point, Render, StyleRefinement, Styled, Subscription, Task,
-    Window, canvas, div, list, px,
+    MouseButton, ParentElement, Pixels, Point, Render, Styled, Subscription, Task, Window, canvas,
+    div, list, prelude::FluentBuilder as _, px,
 };
 
 use crate::{
@@ -80,6 +80,7 @@ pub struct ProseEditor {
     paint_hooks: Vec<PaintHook>,
     pub(crate) hooks: Option<Rc<dyn PlatformHooks>>,
     pub(crate) extension: Option<Rc<dyn ProseExtension>>,
+    pub(crate) input: crate::input::InputState,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -140,6 +141,7 @@ impl ProseEditor {
             paint_hooks: Vec::new(),
             hooks: None,
             extension: None,
+            input: Default::default(),
             _subscriptions: subscriptions,
         }
     }
@@ -598,11 +600,7 @@ impl ProseEditor {
         div()
             .size_full()
             .relative()
-            .child(
-                editor
-                    .clone()
-                    .cached(StyleRefinement::default().size_full()),
-            )
+            .child(crate::input::a11y::editor_view(editor, cx))
             .child(layer)
     }
 
@@ -693,7 +691,7 @@ impl Focusable for ProseEditor {
 }
 
 impl Render for ProseEditor {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.frame.borrow_mut().lines.clear();
         self.cursor_rect.set(None);
         let entity = cx.entity();
@@ -753,6 +751,7 @@ impl Render for ProseEditor {
             .on_action(cx.listener(Self::on_toggle_italic))
             .on_action(cx.listener(Self::on_toggle_underline))
             .on_action(cx.listener(Self::on_toggle_strikethrough))
+            .map(|root| self.input_layer(root, window, cx))
             .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
             .on_mouse_move(cx.listener(Self::on_mouse_move))
             .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))

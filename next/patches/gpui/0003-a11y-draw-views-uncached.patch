@@ -1,0 +1,53 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Drifting <noreply@drifting.invalid>
+Date: Sun, 8 Nov 2026 01:05:54 +0800
+Subject: [PATCH] gpui: draw views uncached while assistive technology is
+ connected
+
+---
+ crates/gpui/src/view.rs | 15 +++++++++++++--
+ 1 file changed, 13 insertions(+), 2 deletions(-)
+
+diff --git a/crates/gpui/src/view.rs b/crates/gpui/src/view.rs
+index 76688b7..57919e6 100644
+--- a/crates/gpui/src/view.rs
++++ b/crates/gpui/src/view.rs
+@@ -480,6 +480,17 @@ impl Render for EmptyView {
+     }
+ }
+ 
++/// Whether cached views are drawn uncached this frame: while the inspector
++/// picks, and while assistive technology is connected. Accessibility nodes
++/// are built while prepainting, so a view replayed from the cache would drop
++/// its nodes (and with them the focused text field) out of the tree on every
++/// frame something else redraws. The flag is stable within a frame, and a
++/// view drawn uncached leaves no cache state behind, so the first cached
++/// frame afterwards renders it afresh.
++fn caching_disabled(window: &Window, cx: &App) -> bool {
++    window.is_inspector_picking(cx) || window.a11y.is_active()
++}
++
+ #[inline(never)]
+ fn request_layout_view(
+     entity_id: EntityId,
+@@ -489,7 +500,7 @@ fn request_layout_view(
+     render: &mut dyn FnMut(&mut Window, &mut App) -> AnyElement,
+ ) -> (LayoutId, Option<AnyElement>) {
+     window.with_rendered_view(entity_id, |window| {
+-        let caching_disabled = window.is_inspector_picking(cx);
++        let caching_disabled = caching_disabled(window, cx);
+         match cached_style {
+             Some(style) if !caching_disabled => {
+                 let mut root_style = Style::default();
+@@ -613,7 +624,7 @@ fn paint_view(
+     cx: &mut App,
+ ) {
+     window.with_rendered_view(entity_id, |window| {
+-        let caching_disabled = window.is_inspector_picking(cx);
++        let caching_disabled = caching_disabled(window, cx);
+         if cached && !caching_disabled {
+             window.with_element_state::<ViewElementState, _>(
+                 global_id.unwrap(),
+-- 
+2.54.0 (Apple Git-157)
+

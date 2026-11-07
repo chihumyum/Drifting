@@ -2413,6 +2413,7 @@ version = "0.1.0"
 name = "gpui-prose"
 version = "0.1.0"
 dependencies = [
+ "accesskit_consumer",
  "gpui",
  "gpui-ime",
  "gpui_platform",
@@ -2425,6 +2426,7 @@ dependencies = [
  "raw-window-handle",
  "rusqlite",
  "sum_tree",
+ "windows 0.62.2",
 ]
 
 [[package]]
