@@ -962,6 +962,183 @@ fn projected_todos_are_one_entity_on_every_device() {
     assert_eq!(a.view().todo_done(&CommentId::parse("nope").unwrap()), None);
 }
 
+/// Raise a device's Lamport clock well past anything a seed carries, as a
+/// device that has been writing for a while has.
+fn busy(d: &mut BookDoc) {
+    for i in 0..40 {
+        user(d, |t| t.meta().summary(&format!("忙{i}")).map(|_| ()));
+    }
+}
+
+fn todos(d: &BookDoc) -> Vec<dr_model::book::Comment> {
+    d.view()
+        .comments()
+        .into_iter()
+        .filter(|c| c.is_todo())
+        .collect()
+}
+
+#[test]
+fn a_marker_projected_on_two_devices_is_one_todo_with_one_body() {
+    let doc = DocId::Node(n("c1"));
+    let block = BlockId::parse("4@9").unwrap();
+    let mut a = book(1);
+    let mut b = book(2);
+    busy(&mut b);
+    for d in [&mut a, &mut b] {
+        user(d, |t| {
+            let (_, w) = t.project_todo(&ProjectionKind::Marker, &doc, &block, "查一下年代")?;
+            w.source(&CommentSource::Manual)?;
+            Ok(())
+        });
+    }
+    sync_both(&mut a, &mut b);
+    let ts = todos(&a);
+    assert_eq!(ts.len(), 1);
+    assert_eq!(ts[0].body, "查一下年代", "not doubled");
+    assert_eq!(ts[0].status, CommentStatus::Open);
+    assert_eq!(ts[0].target, Some(EntityRef::new(EntityKind::Node, "c1")));
+    assert_eq!(format!("{:?}", todos(&b)), format!("{ts:?}"));
+    // The two devices wrote the same seed: one change, one peer, in both.
+    let seed_peers = |d: &BookDoc| -> Vec<(u64, i32)> {
+        d.version()
+            .iter()
+            .filter(|(p, _)| **p >> 63 == 1 && **p & 1 == 1)
+            .map(|(p, c)| (*p, *c))
+            .collect()
+    };
+    assert_eq!(seed_peers(&a).len(), 1);
+    assert_eq!(seed_peers(&a), seed_peers(&b));
+
+    // Two devices that read the marker's task differently (one saw a
+    // later version of the paragraph): one body, the same everywhere.
+    let other = BlockId::parse("5@9").unwrap();
+    user(&mut a, |t| {
+        t.project_todo(&ProjectionKind::Marker, &doc, &other, "补一场")
+            .map(|_| ())
+    });
+    user(&mut b, |t| {
+        t.project_todo(&ProjectionKind::Marker, &doc, &other, "补一场雨")
+            .map(|_| ())
+    });
+    sync_both(&mut a, &mut b);
+    let id = CommentId::for_projection(&ProjectionKind::Marker, &doc, &other);
+    let body = a.view().comment(&id).unwrap().body;
+    assert!(body == "补一场" || body == "补一场雨", "{body}");
+    assert_eq!(b.view().comment(&id).unwrap().body, body);
+}
+
+#[test]
+fn a_late_projection_never_reopens_a_resolved_todo() {
+    let doc = DocId::Node(n("c1"));
+    let block = BlockId::parse("4@9").unwrap();
+    let id = CommentId::for_projection(&ProjectionKind::Marker, &doc, &block);
+    // A projects and resolves; B, which has written much more, projects
+    // the same marker before it hears of A's TODO.
+    let mut a = book(1);
+    let mut b = book(2);
+    busy(&mut b);
+    user(&mut a, |t| {
+        t.project_todo(&ProjectionKind::Marker, &doc, &block, "查")?;
+        t.comment(&id)?.status(&CommentStatus::Resolved).map(|_| ())
+    });
+    user(&mut b, |t| {
+        t.project_todo(&ProjectionKind::Marker, &doc, &block, "查")
+            .map(|_| ())
+    });
+    sync_both(&mut a, &mut b);
+    assert_eq!(a.view().todo_done(&id), Some(true));
+    assert_eq!(b.view().todo_done(&id), Some(true));
+    // The same with ordinary writes: B's later default wins and the TODO
+    // reopens, which is why the projection is a seed.
+    let mut a = book(1);
+    let mut b = book(2);
+    busy(&mut b);
+    user(&mut a, |t| {
+        t.projected_todo(&ProjectionKind::Marker, &doc, &block)?;
+        t.comment(&id)?.status(&CommentStatus::Resolved).map(|_| ())
+    });
+    user(&mut b, |t| {
+        let (_, w) = t.projected_todo(&ProjectionKind::Marker, &doc, &block)?;
+        w.status(&CommentStatus::Open).map(|_| ())
+    });
+    sync_both(&mut a, &mut b);
+    assert_eq!(a.view().todo_done(&id), Some(false));
+}
+
+#[test]
+fn a_todo_projected_again_after_its_marker_came_back_starts_fresh() {
+    let doc = DocId::Node(n("c1"));
+    let block = BlockId::parse("4@9").unwrap();
+    let mut a = book(1);
+    let id = user(&mut a, |t| {
+        let (id, w) = t.project_todo(&ProjectionKind::Marker, &doc, &block, "旧")?;
+        w.body("作者改过")?.priority(Some(&CommentPriority::High))?;
+        Ok(id)
+    });
+    assert_eq!(a.view().comment(&id).unwrap().body, "作者改过");
+    // The marker is removed (the TODO deleted), then typed again.
+    user(&mut a, |t| t.purge(Collection::Comments, id.as_str()));
+    assert!(a.view().comment(&id).is_none());
+    user(&mut a, |t| {
+        t.project_todo(&ProjectionKind::Marker, &doc, &block, "新")
+            .map(|_| ())
+    });
+    let c = a.view().comment(&id).unwrap();
+    assert_eq!((c.body.as_str(), c.priority), ("新", None));
+    assert_eq!(c.status, CommentStatus::Open);
+    // The same text as the first time: the seed is already in the history,
+    // so the TODO comes back as ordinary writes.
+    user(&mut a, |t| t.purge(Collection::Comments, id.as_str()));
+    user(&mut a, |t| {
+        t.project_todo(&ProjectionKind::Marker, &doc, &block, "旧")
+            .map(|_| ())
+    });
+    assert_eq!(a.view().comment(&id).unwrap().body, "旧");
+    // Projecting an existing TODO writes nothing.
+    let (_, c) = a.edit(Origin::User, |t| {
+        t.project_todo(&ProjectionKind::Marker, &doc, &block, "别的")
+            .map(|_| ())
+    });
+    assert!(c.is_none());
+    assert_eq!(a.view().comment(&id).unwrap().body, "旧");
+    // An edited body replaces the task; an emptied one stays empty.
+    user(&mut a, |t| t.comment(&id)?.body("").map(|_| ()));
+    assert_eq!(a.view().comment(&id).unwrap().body, "");
+}
+
+#[test]
+fn a_grid_created_on_two_devices_is_three_by_three_and_keeps_its_labels() {
+    let c = n("c1");
+    let mut a = book(1);
+    let mut b = book(2);
+    busy(&mut b);
+    let r1 = PlotRowId::default_for(&c, 1);
+    // A creates the grid, labels its first row and moves it to the end.
+    user(&mut a, |t| {
+        t.create_plot_grid(&c)?.row(&r1, "a3", "开端")?;
+        Ok(())
+    });
+    user(&mut b, |t| t.create_plot_grid(&c).map(|_| ()));
+    sync_both(&mut a, &mut b);
+    let g = a.view().plot_grid(&c).unwrap();
+    assert_eq!(
+        g.rows.iter().map(|x| x.id.to_string()).collect::<Vec<_>>(),
+        ["c1:r2", "c1:r3", "c1:r1"],
+        "B's late default does not move it back"
+    );
+    assert_eq!(
+        g.cols.iter().map(|x| x.id.to_string()).collect::<Vec<_>>(),
+        ["c1:c1", "c1:c2", "c1:c3"]
+    );
+    assert_eq!(g.rows[2].label, "开端");
+    assert_eq!((g.cell_w, g.cell_h), dr_model::book::PLOT_DEFAULT_CELL);
+    assert_eq!(b.view().plot_grid(&c), Some(g));
+    // Creating it again leaves it alone.
+    let (_, c2) = a.edit(Origin::User, |t| t.create_plot_grid(&c).map(|_| ()));
+    assert!(c2.is_none());
+}
+
 #[test]
 fn comments_keep_what_the_text_was_and_material_regions() {
     let mut a = book(1);
@@ -1329,4 +1506,16 @@ fn needs_repair_agrees_with_the_plan() {
     assert!(!a.view().needs_repair());
     let (plan, c) = a.repair().unwrap();
     assert!(plan.is_empty() && c.is_none(), "nothing to do: no commit");
+}
+
+#[test]
+fn a_template_belongs_to_its_category_or_storyline() {
+    let mut a = book(1);
+    let c = CategoryId::parse("cat").unwrap();
+    let doc = TemplateOwner::Category(c.clone()).doc_id();
+    assert!(!a.view().owns_prose(&doc));
+    user(&mut a, |t| t.category(&c)?.name("人物").map(|_| ()));
+    assert!(a.view().owns_prose(&doc));
+    let s = StorylineId::parse("s").unwrap();
+    assert!(!a.view().owns_prose(&TemplateOwner::Storyline(s).doc_id()));
 }

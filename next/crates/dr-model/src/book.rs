@@ -347,6 +347,10 @@ pub struct PlotGrid {
 /// Plot-grid cell size limits (old `plot_grid_document_size_check`).
 pub const PLOT_CELL_W: std::ops::RangeInclusive<f64> = 120.0..=440.0;
 pub const PLOT_CELL_H: std::ops::RangeInclusive<f64> = 56.0..=380.0;
+/// The cell size a grid without a stored size reads as (the old default).
+pub const PLOT_DEFAULT_CELL: (f64, f64) = (184.0, 96.0);
+/// A new grid's rows, and its columns (`PlotRowId::default_for`).
+pub const PLOT_DEFAULT_LINES: usize = 3;
 
 /// A margin note or a TODO.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

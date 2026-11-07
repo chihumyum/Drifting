@@ -8,6 +8,7 @@
 
 pub(crate) mod fields;
 pub mod read;
+mod seed;
 pub mod write;
 
 use std::collections::BTreeSet;

@@ -175,10 +175,11 @@ pub const INVARIANTS: &[Invariant] = &[
         "ONE-ORIGIN-PER-COMMIT",
         "一次提交只有一个来源；作者撤销只撤作者自己的输入",
         [Structure],
-        "每篇文档一个写入者（edit 要 &mut）；transact 先设好下次提交的来源，隐式提交也带同一来源；撤销排除 user 以外的来源前缀",
+        "每篇文档一个写入者（edit 要 &mut）；transact 先设好下次提交的来源，隐式提交也带同一来源；撤销排除 user 以外的来源前缀，作者的命令 user:command 也排除（由工作区的日志撤）",
         [],
         [
             "author_undo_never_removes_agent_or_sync_text",
+            "the_editors_undo_leaves_the_authors_commands_out",
             "resolving_a_deleted_anchor_inside_an_agent_write_keeps_its_origin",
             "a_failed_edit_still_commits_what_it_applied",
             "only_user_writes_are_author_undoable",
@@ -798,10 +799,12 @@ pub const INVARIANTS: &[Invariant] = &[
         "PLOT-GRID",
         "每章一张情节规划；格子尺寸 120–440 × 56–380；格子的行列要存在",
         [Structure, Command, Read],
-        "按章节 id 存一张；check::plot_cell_size；读取时尺寸夹到范围内，行或列不在的格子不显示",
+        "按章节 id 存一张；新表的三行三列是种子变更、id 确定（PlotRowId / PlotColId::default_for），两台设备同时新建也只有 3 × 3，晚到的默认值盖不掉作者的改动；check::plot_cell_size；读取时尺寸夹到范围内，行或列不在的格子不显示",
         ["K:592-602", "M00:884-922", "K:1089-1107"],
         [
             "plot_grids_skip_orphan_cells_and_clamp_sizes",
+            "a_grid_created_on_two_devices_is_three_by_three_and_keeps_its_labels",
+            "seeds_merge_into_one_and_never_beat_a_real_edit",
             "command_checks_follow_the_old_rules"
         ]
     ),
@@ -950,14 +953,18 @@ pub const INVARIANTS: &[Invariant] = &[
         "PROJECTED-TODO-ID",
         "从正文生成的待办（TODO: 标记、素材笔记的任务行）在每台设备上是同一个实体",
         [Structure],
-        "id 由（种类、文档 id、块 ID）算出：CommentId::for_projection；来源种类和块是正式字段 projection / projection_block；两台设备各自生成也只有一个，不需要去重",
+        "id 由（种类、文档 id、块 ID）算出：CommentId::for_projection；来源种类和块是正式字段 projection / projection_block；两台设备各自生成也只有一个，不需要去重。投出的内容（种类、目标、状态、任务文字 projection_text）是种子变更（BookTxn::project_todo）：两边投同一个标记只有一份正文，晚到的投影不会把已解决的重新打开",
         [
             "src/renderer/hooks/useTodoAutoParse.ts:37-216",
             "src/renderer/domain/comment.ts:393-418"
         ],
         [
             "projected_todos_are_one_entity_on_every_device",
-            "derived_ids"
+            "derived_ids",
+            "a_marker_projected_on_two_devices_is_one_todo_with_one_body",
+            "a_late_projection_never_reopens_a_resolved_todo",
+            "a_todo_projected_again_after_its_marker_came_back_starts_fresh",
+            "seeds_merge_into_one_and_never_beat_a_real_edit"
         ]
     ),
     inv!(

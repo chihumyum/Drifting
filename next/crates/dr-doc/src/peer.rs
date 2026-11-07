@@ -1,12 +1,14 @@
 //! Peer ids.
 //!
-//! Three kinds share the 64-bit space without overlapping:
+//! Four kinds share the 64-bit space; the deterministic ones never collide
+//! with each other:
 //!
-//! | kind | top bit | how it is made |
-//! | --- | --- | --- |
-//! | genesis peer | set | hash of (document id, genesis version) |
-//! | import peer | clear, lowest bit set | hash of `import:<document id>` |
-//! | device peer | clear | random, persisted per (device, document) by storage (F2) |
+//! | kind | top bit | lowest bit | how it is made |
+//! | --- | --- | --- | --- |
+//! | genesis peer | set | clear | hash of (document id, genesis version) |
+//! | seed peer | set | set | hash of (document id, the seed's key); see `book::seed` |
+//! | import peer | clear | set | hash of `import:<document id>` |
+//! | device peer | clear | any | random, persisted per (device, document) by storage (F2) |
 //!
 //! A device peer must never be derived from anything deterministic, and a
 //! library copied or restored from a backup must rotate its peers (storage's
@@ -37,6 +39,22 @@ pub fn genesis_peer(doc_id: &str, genesis_version: u32) -> PeerId {
     let mut bytes = doc_id.as_bytes().to_vec();
     bytes.extend_from_slice(&genesis_version.to_le_bytes());
     (fnv1a64(&bytes) | TOP) & !1
+}
+
+/// The peer that writes a seed change (`book::seed`): a hash of the document
+/// and the seed's key, which names everything the seed writes, so the same
+/// seed on two devices is one change and two different seeds never share an
+/// op id. Never `u64::MAX`, which Loro reserves; never a genesis peer
+/// (lowest bit set) or a device peer (top bit set).
+pub fn seed_peer(doc_id: &str, key: &str) -> PeerId {
+    let mut bytes = b"seed\0".to_vec();
+    bytes.extend_from_slice(doc_id.as_bytes());
+    bytes.push(0);
+    bytes.extend_from_slice(key.as_bytes());
+    match fnv1a64(&bytes) | TOP | 1 {
+        u64::MAX => u64::MAX - 2,
+        p => p,
+    }
 }
 
 /// The deterministic peer an import (old library, `.driftingbook`) writes a
@@ -83,6 +101,13 @@ mod tests {
         assert_ne!(g, genesis_peer("node:y", 1));
         assert!(!is_device_peer(g));
         assert_ne!(g, u64::MAX);
+        let s = seed_peer("book:b", "todo");
+        assert_eq!(s, seed_peer("book:b", "todo"));
+        assert_ne!(s, seed_peer("book:b", "todo "));
+        assert_ne!(s, seed_peer("book:c", "todo"));
+        assert!(!is_device_peer(s));
+        assert_eq!(s & 1, 1, "never a genesis peer");
+        assert_ne!(s, u64::MAX);
         let i = import_peer("node:x");
         assert!(is_device_peer(i));
         assert_eq!(i & 1, 1);

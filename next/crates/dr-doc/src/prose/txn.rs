@@ -15,12 +15,13 @@ use std::ops::Range;
 
 use dr_model::ProseProfile;
 use dr_model::id::{BlockId, EmbedId};
+use dr_model::pos::PosKey;
 use dr_model::prose::{BlockAttrs, EntityLink, Heading, InlineStyle, OBJECT_CHAR, PARAGRAPH_END};
 use loro::LoroValue;
 use loro::cursor::Side;
 
 use super::attrs::{encode_block, encode_entity, note_only_block};
-use super::embed::{EmbedKind, TableWriter};
+use super::embed::{EmbedKind, EmbedView, TableWriter};
 use super::view::ProseView;
 use crate::error::{DocError, Result};
 use crate::schema::{block, inline};
@@ -158,6 +159,120 @@ impl<'a> ProseTxn<'a> {
             caret += line.chars().count();
         }
         Ok(caret)
+    }
+
+    /// Copy the whole of `from` (a template, `template:` document) in front
+    /// of the paragraph that starts at `pos`: every paragraph with its
+    /// attributes and a fresh block id, the inline marks and entity links of
+    /// its text, tables (structure and cell text; marks inside cells are not
+    /// copied) and material embeds under new embed ids. When the paragraph at
+    /// `pos` is empty, the last copied paragraph takes its place, so applying
+    /// a template to a new, empty document leaves exactly the template.
+    /// Returns the position after the copied text.
+    ///
+    /// Marks and attributes `from` has but this document's profile does not
+    /// allow are refused (a note's list copied into a chapter).
+    pub fn insert_copy(&mut self, pos: usize, from: &ProseView<'_>) -> Result<usize> {
+        self.check_insert_pos(pos)?;
+        let target = self.view.paragraph_at(pos)?;
+        if target.range.start != pos || target.runs.iter().any(|r| r.marks.embed.is_some()) {
+            return Err(DocError::BadRange {
+                start: pos,
+                end: pos,
+                len: self.len(),
+            });
+        }
+        let replace_last = target.range.is_empty();
+        let source: Vec<_> = from.paragraphs().collect();
+        let mut caret = pos;
+        for (i, p) in source.iter().enumerate() {
+            if let Some(embed) = p.runs.iter().find_map(|r| r.marks.embed.clone()) {
+                caret = self.copy_embed(caret, from, &embed)?;
+                continue;
+            }
+            let start = caret;
+            let text = p.text();
+            self.insert_text(start, &text)?;
+            let mut at = start;
+            for r in &p.runs {
+                let n = r.text.chars().count();
+                self.copy_marks(at..at + n, &r.marks)?;
+                at += n;
+            }
+            caret = start + text.chars().count();
+            if !(replace_last && i + 1 == source.len()) {
+                caret = self.split(caret)?;
+            }
+            self.set_block_attrs(start, &p.attrs)?;
+        }
+        Ok(caret)
+    }
+
+    fn copy_marks(&mut self, range: Range<usize>, m: &dr_model::prose::InlineMarks) -> Result<()> {
+        if range.is_empty() {
+            return Ok(());
+        }
+        let styles = [
+            m.bold.then_some(InlineStyle::Bold),
+            m.italic.then_some(InlineStyle::Italic),
+            m.underline.then_some(InlineStyle::Underline),
+            m.strike.then_some(InlineStyle::Strike),
+            m.link.clone().map(InlineStyle::Link),
+            m.highlight.clone().map(InlineStyle::Highlight),
+            m.code.then_some(InlineStyle::Code),
+        ];
+        for s in styles.iter().flatten() {
+            self.set_style(range.clone(), s)?;
+        }
+        for e in &m.entities {
+            self.link_entity(range.clone(), e)?;
+        }
+        Ok(())
+    }
+
+    /// Copy embed `id` of `from` as a new embed paragraph at `para_start`.
+    /// Returns the start of the paragraph after it.
+    fn copy_embed(
+        &mut self,
+        para_start: usize,
+        from: &ProseView<'_>,
+        id: &EmbedId,
+    ) -> Result<usize> {
+        let fresh = EmbedId::new_v7();
+        match from.embed(id) {
+            Some(EmbedView::Table {
+                cols, rows, cells, ..
+            }) => {
+                let t = self.insert_embed(para_start, &fresh, &EmbedKind::Table)?;
+                for (lines, col) in [(&cols, true), (&rows, false)] {
+                    let mut last: Option<PosKey> = None;
+                    for l in lines {
+                        let pos = l.pos.clone().unwrap_or_else(|| match &last {
+                            Some(k) => k.after(),
+                            None => PosKey::first(),
+                        });
+                        if col {
+                            t.add_col(&l.id, &pos)?;
+                        } else {
+                            t.add_row(&l.id, &pos)?;
+                        }
+                        last = Some(pos);
+                    }
+                }
+                for ((r, c), text) in &cells {
+                    t.set_cell(r, c, text)?;
+                }
+            }
+            Some(EmbedView::Material {
+                material: Some(m), ..
+            }) => {
+                self.insert_embed(para_start, &fresh, &EmbedKind::Material(m))?;
+            }
+            // A material embed without its material, or a kind this version
+            // does not know: nothing to copy.
+            _ => return Ok(para_start),
+        }
+        Ok(para_start + 2)
     }
 
     /// Enter at `pos`. Returns the caret afterwards (`pos + 1`).
