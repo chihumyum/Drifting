@@ -10,3 +10,8 @@ publish.workspace = true
 anyhow.workspace = true
 gpui.workspace = true
 gpui_platform.workspace = true
+log.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2.workspace = true
+objc2-app-kit.workspace = true

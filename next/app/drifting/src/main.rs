@@ -1,33 +1,60 @@
-//! The Drifting desktop app. For now an empty window that proves the GPUI pin
-//! builds; spike P0-A grows it into the engineering skeleton.
+//! The Drifting desktop app (the Rust + GPUI rewrite).
+//!
+//! Spike P0-A's skeleton: the main window with a custom titlebar, the menu bar,
+//! light and dark following the system, and development probes. F6 (`dr-shell`)
+//! takes it from here; see docs/rust-rewrite/spikes/p0-a-skeleton.md.
 
-use gpui::{App, Bounds, Context, Window, WindowBounds, WindowOptions, div, prelude::*, px, size};
+mod about;
+mod appearance;
+mod identity;
+mod logging;
+mod main_window;
+mod menus;
+mod probe;
+mod titlebar;
+
+use gpui::App;
 use gpui_platform::application;
 
-struct Root;
-
-impl Render for Root {
-    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        div()
-            .size_full()
-            .flex()
-            .justify_center()
-            .items_center()
-            .child("Drifting")
-    }
-}
+use crate::appearance::AppearanceSetting;
+use crate::main_window::MainWindow;
 
 fn main() {
-    application().run(|cx: &mut App| {
-        let bounds = Bounds::centered(None, size(px(960.0), px(640.0)), cx);
-        cx.open_window(
-            WindowOptions {
-                window_bounds: Some(WindowBounds::Windowed(bounds)),
-                ..Default::default()
-            },
-            |_, cx| cx.new(|_| Root),
-        )
-        .expect("open the main window");
+    probe::start();
+    logging::init();
+    let appearance = AppearanceSetting::from_env();
+
+    let app = application();
+    probe::platform_created();
+    // macOS keeps the app running when its last window closes; clicking the
+    // Dock icon then opens a new main window.
+    app.on_reopen(|cx| {
+        if cx.windows().is_empty() {
+            open_main_window(cx);
+        }
+    });
+    app.run(move |cx: &mut App| {
+        probe::app_ready();
+        cx.set_global(appearance);
+        menus::init(cx);
+        cx.on_action(about::open);
+        cx.on_action(main_window::open_settings);
+        if !cfg!(target_os = "macos") {
+            cx.on_window_closed(|cx, _| {
+                if cx.windows().is_empty() {
+                    cx.quit();
+                }
+            })
+            .detach();
+        }
+
+        open_main_window(cx);
         cx.activate(true);
     });
+}
+
+fn open_main_window(cx: &mut App) {
+    if let Err(error) = MainWindow::open_or_activate(cx) {
+        log::error!("could not open the main window: {error:#}");
+    }
 }
