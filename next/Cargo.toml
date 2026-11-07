@@ -1,0 +1,42 @@
+# The Rust + GPUI + Loro rewrite of the Drifting desktop client.
+# Plan: docs/rust-rewrite/README.md. The old Tauri client keeps its own
+# manifests under src-tauri/ and crates/ until the switch-over.
+[workspace]
+resolver = "3"
+# One member per line, kept sorted, so parallel branches merge cleanly.
+members = [
+    "app/drifting",
+]
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.98"
+license = "AGPL-3.0-or-later"
+publish = false
+
+[workspace.dependencies]
+# GPUI is pinned to a Zed stable release tag (decision D1). Upgrade on a
+# schedule: bump both entries together, then rerun the spike benchmarks.
+gpui = { git = "https://github.com/zed-industries/zed", tag = "v1.27.0" }
+# `runtime_shaders` compiles the Metal shaders when the app starts instead of at
+# build time, so a build needs no Metal Toolchain (a separate Xcode download).
+# Release bundles should precompile them; see docs/rust-rewrite/progress.md.
+gpui_platform = { git = "https://github.com/zed-industries/zed", tag = "v1.27.0", features = ["runtime_shaders"] }
+
+# Loro is pinned exactly; its Rust API still has breaking changes.
+loro = "=1.17.1"
+
+anyhow = "1"
+
+# Zed patches these crates.io crates in its own workspace; a git dependency
+# does not inherit [patch], so GPUI's consumers repeat the ones it needs.
+[patch.crates-io]
+async-process = { git = "https://github.com/zed-industries/async-process.git", rev = "0b6d6713570af61806e1e5cb40e0f757cb93fd9d" }
+async-task = { git = "https://github.com/zed-industries/async-task.git", rev = "015845a19fc31752c02367567d3b8900a406f9da" }
+calloop = { git = "https://github.com/zed-industries/calloop", rev = "3759371fee14c40066d64777e2a36b6ffcc22590" }
+windows-capture = { git = "https://github.com/zed-industries/windows-capture.git", rev = "f0d6c1b6691db75461b732f6d5ff56eed002eeb9" }
+
+[profile.dev]
+# GPUI is slow unoptimized; keep our own crates debuggable.
+[profile.dev.package."*"]
+opt-level = 2
