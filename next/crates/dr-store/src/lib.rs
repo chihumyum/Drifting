@@ -52,6 +52,7 @@ mod holder;
 pub mod identity;
 pub mod index;
 mod library;
+pub mod machine;
 pub mod migrate;
 mod origin;
 #[doc(hidden)]

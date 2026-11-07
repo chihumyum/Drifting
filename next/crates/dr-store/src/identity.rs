@@ -7,16 +7,25 @@
 //! - **Writing-day device key**: the digest the 0.1 renderer derives from it
 //!   (`src/renderer/services/writing-days/device-key.ts`), so imported
 //!   writing days stay attributed to this device.
+//! - **Machine binding** (`device-machine-v1.json`): which machine the
+//!   installation id belongs to, as a salted digest of the OS machine id
+//!   ([`crate::machine`]: macOS `IOPlatformUUID`, Windows `MachineGuid`). When
+//!   the app's data is copied to another machine (Migration Assistant, a
+//!   restored home folder), the identity file comes along but the machine id
+//!   does not match: the device takes a new installation id, so it is a new
+//!   device for writing days, and every library it opens starts a new epoch.
+//!   The digest lives beside `sync-installation-v2.json`, not in it: 0.1 reads
+//!   that file with `deny_unknown_fields` and would call an extra field
+//!   corrupt.
 //! - **Library watermarks** (`library-watermarks.json`): for every library
 //!   this device has opened, the highest `write_seq` it has seen leave the
 //!   device. A library that opens below its watermark is an older copy put
 //!   back (a restored backup), and gets a new epoch.
 //!
-//! Loro peer ids are not derived from the installation id: copying the app's
-//! data (Migration Assistant, a restored home folder) copies this file too,
-//! and two machines would then write under the same peers. Peers stay random
+//! Loro peer ids are not derived from the installation id: peers stay random
 //! per (device, document) in each library (`loro_peer`), and the epoch rotates
-//! whenever the library notices it moved.
+//! whenever the library notices it moved (another installation id, or an
+//! older copy).
 
 use std::collections::BTreeMap;
 use std::fs::{self, File, OpenOptions};
@@ -28,7 +37,93 @@ use crate::error::{Result, StoreError};
 use crate::file_io::atomic_write;
 
 pub const IDENTITY_FILE: &str = "sync-installation-v2.json";
+pub const MACHINE_FILE: &str = "device-machine-v1.json";
 pub const WATERMARK_FILE: &str = "library-watermarks.json";
+
+/// Which machine an installation id belongs to.
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MachineBinding {
+    version: u8,
+    installation_id: String,
+    /// `SHA-256("drifting.machine.v1\n" + machine id)`, hex.
+    machine: String,
+}
+
+/// The salted digest of a raw machine id that is stored (never the id).
+pub fn machine_fingerprint(raw_machine_id: &str) -> String {
+    crate::digest::sha256_hex(
+        format!(
+            "drifting.machine.v1\n{}",
+            raw_machine_id.trim().to_ascii_uppercase()
+        )
+        .as_bytes(),
+    )
+}
+
+fn read_binding(dir: &Path) -> Result<Option<MachineBinding>> {
+    let path = dir.join(MACHINE_FILE);
+    let metadata = match fs::symlink_metadata(&path) {
+        Ok(m) => m,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(e.into()),
+    };
+    if !metadata.is_file() || metadata.len() > 1024 {
+        return Err(invalid("invalid machine binding file"));
+    }
+    let binding: MachineBinding = serde_json::from_slice(&fs::read(&path)?)
+        .map_err(|_| invalid("machine binding is corrupt"))?;
+    if binding.version != 1
+        || binding.machine.len() != 64
+        || !binding.machine.bytes().all(|c| c.is_ascii_hexdigit())
+    {
+        return Err(invalid("unsupported machine binding"));
+    }
+    Ok(Some(binding))
+}
+
+fn write_binding(dir: &Path, installation_id: &str, machine: &str) -> Result<()> {
+    let bytes = serde_json::to_vec(&MachineBinding {
+        version: 1,
+        installation_id: installation_id.into(),
+        machine: machine.into(),
+    })
+    .map_err(|e| invalid(&e.to_string()))?;
+    atomic_write(&dir.join(MACHINE_FILE), &bytes)?;
+    Ok(())
+}
+
+/// Replace the installation id with a new one (same file format as 0.1,
+/// owner-only), durably. Returns the new id.
+fn replace_installation_id(dir: &Path) -> Result<String> {
+    let id = random_id()?;
+    let path = dir.join(IDENTITY_FILE);
+    let temporary = dir.join(format!(".{id}.tmp"));
+    let result = (|| {
+        let mut options = OpenOptions::new();
+        options.write(true).create_new(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+        let mut file = options.open(&temporary)?;
+        let bytes = serde_json::to_vec(&Identity {
+            version: 2,
+            installation_id: id.clone(),
+        })
+        .map_err(|e| invalid(&e.to_string()))?;
+        file.write_all(&bytes)?;
+        file.sync_all()?;
+        drop(file);
+        crate::file_io::durable_replace_file(&temporary, &path)?;
+        read_identity(&path)
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&temporary);
+    }
+    result
+}
 
 #[derive(serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -123,16 +218,51 @@ pub fn writing_device_key(installation_id: &str) -> String {
 pub struct Device {
     dir: PathBuf,
     installation_id: String,
+    machine_changed: bool,
 }
 
 impl Device {
+    /// Open the device directory: read (or create) the installation id and
+    /// check it still belongs to this machine.
     pub fn open(dir: impl Into<PathBuf>) -> Result<Self> {
+        Self::open_with_machine_id(dir, crate::machine::platform_machine_id())
+    }
+
+    /// [`Self::open`] with a given raw machine id (`None`: the platform has
+    /// none). Tests use it to play another machine.
+    #[doc(hidden)]
+    pub fn open_with_machine_id(dir: impl Into<PathBuf>, raw: Option<String>) -> Result<Self> {
         let dir = dir.into();
-        let installation_id = load_or_create_installation_id(&dir)?;
+        let mut installation_id = load_or_create_installation_id(&dir)?;
+        let mut machine_changed = false;
+        if let Some(fingerprint) = raw.as_deref().map(machine_fingerprint) {
+            match read_binding(&dir)? {
+                Some(b) if b.installation_id == installation_id && b.machine == fingerprint => {}
+                Some(b) if b.installation_id == installation_id => {
+                    // The identity was made on another machine: this is a new
+                    // device. New id first, then the binding; a crash in
+                    // between only leaves a binding to rewrite next time.
+                    installation_id = replace_installation_id(&dir)?;
+                    write_binding(&dir, &installation_id, &fingerprint)?;
+                    machine_changed = true;
+                    log::warn!("the app's data came from another machine: new installation id");
+                }
+                // No binding yet (first run, or upgraded from 0.1), or the
+                // identity file was replaced meanwhile: bind it to this machine.
+                _ => write_binding(&dir, &installation_id, &fingerprint)?,
+            }
+        }
         Ok(Self {
             dir,
             installation_id,
+            machine_changed,
         })
+    }
+
+    /// Whether this open found the identity made on another machine and
+    /// replaced it.
+    pub fn machine_changed(&self) -> bool {
+        self.machine_changed
     }
 
     pub fn dir(&self) -> &Path {
@@ -257,6 +387,98 @@ mod tests {
             format!("drifting.writing-day.v1\n{id}").as_bytes(),
         ));
         assert_eq!(&key["device-".len()..], &full[..24]);
+    }
+
+    fn read_0_1_style(dir: &Path) -> Identity {
+        // 0.1's reader: exactly `version` and `installation_id`.
+        serde_json::from_slice(&fs::read(dir.join(IDENTITY_FILE)).unwrap()).unwrap()
+    }
+
+    #[test]
+    fn the_identity_is_bound_to_this_machine() {
+        let dir = tempfile::tempdir().unwrap();
+        let a = Device::open_with_machine_id(dir.path(), Some("MACHINE-A".into())).unwrap();
+        assert!(!a.machine_changed());
+        assert!(dir.path().join(MACHINE_FILE).exists());
+        let again = Device::open_with_machine_id(dir.path(), Some("machine-a".into())).unwrap();
+        assert_eq!(
+            again.installation_id(),
+            a.installation_id(),
+            "case does not matter"
+        );
+        assert!(!again.machine_changed());
+        // The raw machine id is never stored.
+        let binding = fs::read_to_string(dir.path().join(MACHINE_FILE)).unwrap();
+        assert!(!binding.to_ascii_uppercase().contains("MACHINE-A"));
+    }
+
+    #[test]
+    fn data_copied_to_another_machine_becomes_a_new_device() {
+        let dir = tempfile::tempdir().unwrap();
+        let a = Device::open_with_machine_id(dir.path(), Some("MACHINE-A".into())).unwrap();
+        // The whole directory arrives on machine B.
+        let b = Device::open_with_machine_id(dir.path(), Some("MACHINE-B".into())).unwrap();
+        assert!(b.machine_changed());
+        assert_ne!(b.installation_id(), a.installation_id());
+        assert_ne!(b.writing_device_key(), a.writing_device_key());
+        // The identity file keeps 0.1's exact format (and owner-only mode).
+        let identity = read_0_1_style(dir.path());
+        assert_eq!(
+            (identity.version, identity.installation_id.as_str()),
+            (2, b.installation_id())
+        );
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = fs::metadata(dir.path().join(IDENTITY_FILE))
+                .unwrap()
+                .permissions()
+                .mode();
+            assert_eq!(mode & 0o777, 0o600);
+        }
+        // From then on B is stable.
+        let again = Device::open_with_machine_id(dir.path(), Some("MACHINE-B".into())).unwrap();
+        assert_eq!(again.installation_id(), b.installation_id());
+        assert!(!again.machine_changed());
+        let names: Vec<String> = fs::read_dir(dir.path())
+            .unwrap()
+            .map(|e| e.unwrap().file_name().into_string().unwrap())
+            .collect();
+        assert!(names.iter().all(|n| !n.ends_with(".tmp")), "{names:?}");
+    }
+
+    #[test]
+    fn no_machine_id_means_no_binding_and_no_change() {
+        let dir = tempfile::tempdir().unwrap();
+        let a = Device::open_with_machine_id(dir.path(), None).unwrap();
+        let b = Device::open_with_machine_id(dir.path(), None).unwrap();
+        assert_eq!(a.installation_id(), b.installation_id());
+        assert!(!dir.path().join(MACHINE_FILE).exists());
+    }
+
+    #[test]
+    fn a_replaced_identity_is_rebound_without_another_change() {
+        let dir = tempfile::tempdir().unwrap();
+        Device::open_with_machine_id(dir.path(), Some("MACHINE-A".into())).unwrap();
+        // The identity file is lost and recreated (0.1 does that), or a crash
+        // hit between writing a new id and its binding.
+        fs::remove_file(dir.path().join(IDENTITY_FILE)).unwrap();
+        let b = Device::open_with_machine_id(dir.path(), Some("MACHINE-A".into())).unwrap();
+        assert!(!b.machine_changed());
+        let c = Device::open_with_machine_id(dir.path(), Some("MACHINE-A".into())).unwrap();
+        assert_eq!(c.installation_id(), b.installation_id());
+    }
+
+    #[test]
+    fn a_corrupt_binding_stops_instead_of_guessing() {
+        let dir = tempfile::tempdir().unwrap();
+        let a = Device::open_with_machine_id(dir.path(), Some("MACHINE-A".into())).unwrap();
+        fs::write(dir.path().join(MACHINE_FILE), b"{broken").unwrap();
+        assert!(Device::open_with_machine_id(dir.path(), Some("MACHINE-B".into())).is_err());
+        assert_eq!(
+            read_0_1_style(dir.path()).installation_id,
+            a.installation_id()
+        );
     }
 
     #[test]
