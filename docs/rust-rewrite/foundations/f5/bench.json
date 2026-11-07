@@ -1,13 +1,13 @@
 {
   "note": "CPU time of window.draw (layout + paint) per frame, release build, 1280x800 at 2x, headless Metal",
-  "start": {"init_ms": 0.87, "first_frame_ms": 0.77},
-  "tokens": {"frame_requests_at_rest": 0, "full_redraw_ms": {"n": 60, "p50": 0.675, "p95": 0.775, "max": 0.874}},
-  "controls": {"frame_requests_at_rest": 0, "full_redraw_ms": {"n": 60, "p50": 0.708, "p95": 0.910, "max": 1.032}},
-  "floating": {"frame_requests_at_rest": 0, "full_redraw_ms": {"n": 60, "p50": 0.433, "p95": 0.566, "max": 0.699}},
-  "sand": {"frame_requests_at_rest": 0, "full_redraw_ms": {"n": 60, "p50": 0.677, "p95": 0.850, "max": 0.898}},
-  "motion": {"frame_requests_at_rest": 0, "full_redraw_ms": {"n": 60, "p50": 0.349, "p95": 0.701, "max": 0.885}},
-  "loaders_turning": {"frame_ms": {"n": 60, "p50": 0.794, "p95": 1.502, "max": 3.171}, "frame_requests": 3},
-  "hover_drift": {"frame_ms": {"n": 120, "p50": 1.026, "p95": 1.563, "max": 2.625}, "next_frame_requests_while_drifting": 0, "redraw_interval_ms": 33.0, "core_share_p50": 0.031},
-  "press": {"frame_ms": {"n": 30, "p50": 1.043, "p95": 1.660, "max": 1.852}},
-  "release_and_leave": {"frame_ms": {"n": 36, "p50": 1.007, "p95": 1.250, "max": 1.405}, "frame_requests_after": 0}
+  "start": {"init_ms": 0.90, "first_frame_ms": 1.17},
+  "tokens": {"frame_requests_at_rest": 0, "full_redraw_ms": {"n": 60, "p50": 0.672, "p95": 0.687, "max": 0.733}},
+  "controls": {"frame_requests_at_rest": 0, "full_redraw_ms": {"n": 60, "p50": 0.951, "p95": 1.054, "max": 1.143}},
+  "floating": {"frame_requests_at_rest": 0, "full_redraw_ms": {"n": 60, "p50": 0.427, "p95": 0.483, "max": 0.524}},
+  "sand": {"frame_requests_at_rest": 0, "full_redraw_ms": {"n": 60, "p50": 0.673, "p95": 0.704, "max": 0.781}},
+  "motion": {"frame_requests_at_rest": 0, "full_redraw_ms": {"n": 60, "p50": 0.244, "p95": 0.263, "max": 0.437}},
+  "loaders_turning": {"frame_ms": {"n": 60, "p50": 0.712, "p95": 0.833, "max": 1.085}, "frame_requests": 3},
+  "hover_drift": {"frame_ms": {"n": 120, "p50": 1.293, "p95": 1.413, "max": 1.701}, "next_frame_requests_while_drifting": 0, "redraw_interval_ms": 33.0, "core_share_p50": 0.039},
+  "press": {"frame_ms": {"n": 30, "p50": 1.309, "p95": 1.407, "max": 1.567}},
+  "release_and_leave": {"frame_ms": {"n": 36, "p50": 1.297, "p95": 1.412, "max": 1.446}, "frame_requests_after": 0}
 }
