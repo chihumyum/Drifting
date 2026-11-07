@@ -1459,10 +1459,12 @@ name = "dr-store"
 version = "0.0.0"
 dependencies = [
  "dr-model",
+ "dr-testkit",
  "flate2",
  "getrandom 0.4.3",
  "log",
  "loro",
+ "prose-metrics",
  "rusqlite",
  "serde",
  "serde_json",

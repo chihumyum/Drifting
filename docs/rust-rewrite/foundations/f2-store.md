@@ -10,7 +10,8 @@
 - **打开一篇文档**：每篇打开的文档有一个专门的线程（持有者）。作者打字、Agent 写入、Markdown 文件夹、同步进来的更新，全都排队交给它，一件一次提交、一次只有一个来源。提交后先写进 SQLite 再通知界面，所以每次提交都已经落盘，退出时什么都不用冲刷（GPUI 只给退出钩子 200 ms）。
 - **谁改了什么**：Agent、Markdown 文件夹、导入的提交都把来源写进 Loro 的提交信息，跟着文档走、压缩删不掉。每次 Agent 写入还会在同一个事务里留下一条结算记录。
 - **压缩与历史**：文档空闲时把攒下的小更新压成一份完整快照，历史一直全留着。值得回去的版本打标签，同时记下当时书目文档的版本；要看某个版本，就从 SQLite 另载一份副本。
-- **派生索引**（搜索、大纲、段落长度、引用、字数）由存储层自己算：持有者空闲时把攒下的 Loro 差异交给「派生器」，结果和它对应的版本号在同一个事务里写进去；打开库时把落后的文档重建一遍。
+- **派生索引**（搜索、大纲、段落长度、引用、字数）由存储层自己算：持有者空闲时把攒下的 Loro 差异交给「派生器」，结果和它对应的版本号在同一个事务里写进去；打开库时把落后的文档重建一遍。改了一段就只写那一段，不用整篇重写。
+- **只读打开**：检查工具（`dr-cli inspect`）可以在应用开着的时候只读打开同一个库：不升级、不拿锁、不拍快照，什么都写不进去。
 - **同步**：每篇文档记住服务器已经有到哪（`remote_vv`），上传时从文档本身导出那之后的改动，所以压缩和上传互不相干。
 - **资源文件**：照旧版 `native_capabilities.rs` 的做法存原文件、显示图、缩略图；图片管线这一轮只留了接口。
 - **换电脑**：身份文件旁边记着「这个身份属于哪台机器」（系统机器 id 的摘要）。迁移助理把整个应用数据搬到新电脑时，机器对不上，这台就当新设备：换一个安装 id，写作日里算新设备，打开的每个库也自动换代。
@@ -19,19 +20,20 @@
 
 | # | 里程碑 | 状态 | 证据 |
 | --- | --- | --- | --- |
-| 1 | 数据库基线与迁移：基线、安全快照、影子库、恢复回执、失败原库不变 | 完成 | `tests/migrate.rs`（15 项，含每个阶段注入失败、模拟崩溃、回执的各种状态） |
-| 2 | 表：Loro 相关表、历史标签、结算、同步状态、派生索引、资源 | 完成 | `migrations/0000_baseline.sql`；`tests/index.rs`（6 项，含 1–2 字中文查询退回 LIKE、没有触发器） |
-| 3 | 文档持有者：专用线程、来源标记、先落盘再发事件、作者与 Agent 不同提交 | 完成 | `tests/holder.rs`（18 项）、`tests/records.rs`（7 项） |
+| 1 | 数据库基线与迁移：基线、安全快照、影子库、恢复回执、失败原库不变 | 完成 | `tests/migrate.rs`（16 项，含每个阶段注入失败、模拟崩溃、回执的各种状态） |
+| 2 | 表：Loro 相关表、历史标签、结算、同步状态、派生索引、资源 | 完成 | `migrations/0000_baseline.sql`；`tests/index.rs`（12 项，另有 1 项手动测量） |
+| 3 | 文档持有者：专用线程、来源标记、先落盘再发事件、作者与 Agent 不同提交 | 完成 | `tests/holder.rs`（19 项）、`tests/records.rs`（11 项） |
 | 4 | 压缩与历史：后台压缩、同事务删除、不做浅快照、另载副本回看 | 完成 | `tests/holder.rs`、`tests/records.rs` |
-| 5 | 崩溃安全：随机杀进程、迁移各阶段杀进程 | 完成 | `tests/crash.rs`（CI 跑 6 次）；[acceptance/f2-crash-recovery.json](../acceptance/f2-crash-recovery.json)（60 次） |
+| 5 | 崩溃安全：编辑中被杀、迁移各阶段被杀 | 完成 | `tests/crash.rs`（迁移六个阶段各杀一次，用 dr-testkit 的试验台）；编辑中被杀归 dr-testkit 的 `tests/crash_store.rs` |
 | 6 | 资源文件：三种版本、导入标记协议、垃圾回收、落盘删除、图片管线接口 | 完成（管线只有接口） | `tests/asset.rs` 和 `asset.rs` 里的单测 |
-| 7 | 测量 | 完成 | [acceptance/f2-store-bench.json](../acceptance/f2-store-bench.json)，见下文「测量」 |
-| — | 本机身份与自动换代、同步状态、派生器、事件总线（监管会话追加） | 完成 | `tests/device.rs`（5 项）、`tests/sync.rs`（2 项）、`tests/records.rs` |
+| 7 | 测量 | 完成 | 现由 dr-testkit 的 `bench store` 测，证据 [acceptance/f8-m1-store-bench.json](../acceptance/f8-m1-store-bench.json)；见下文「测量」 |
+| — | 本机身份与自动换代、同步状态、派生器、事件总线（监管会话追加） | 完成 | `tests/device.rs`（5 项）、`tests/sync.rs`（3 项）、`tests/records.rs` |
 | — | 机器指纹：换了机器就当新设备（监管会话批准待协调第 8 条） | 完成 | `machine.rs`、`identity.rs` 的单测（7 项）、`tests/device.rs` |
 | — | `file_io.rs`、`archive.rs` 原样搬入并补单测 | 完成 | `tests/file_io.rs`（8 项，Windows 另有 1 项在 CI 跑） |
 | — | M10 要的接口：`label_at`、`Device::adopt`、导入回执表（`0001`）、`repair` 来源 | 完成 | `tests/labels.rs`（2 项）、`identity.rs` 单测、`tests/migrate.rs`、`tests/sync.rs`、`tests/records.rs` |
+| — | 第三轮（监管会话）：按段写派生索引、类型化读取、本机表 `ws_journal`（`0003`）、书序搜索、关库被拒时交还、大纲规则、只读打开、换用 dr-testkit | 完成 | `tests/index.rs`、`tests/holder.rs`、`tests/records.rs`、`tests/crash.rs`；见「第三轮」 |
 
-合计 103 项测试（macOS）。Windows 上跑 97 项：少了只在 Unix/macOS 上有意义的 7 项（符号链接、目录同步、`IOPlatformUUID`），多 1 项写穿改名。
+合计 112 项测试（macOS：32 项单测、80 项集成测试），另有 1 项手动测量默认不跑。按平台条件算，Windows 上是 106 项：少了只在 Unix/macOS 上有意义的 7 项（符号链接、目录同步、`IOPlatformUUID`），多 1 项写穿改名；这一轮没在 Windows 上跑过。
 
 ## 接口概览
 
@@ -48,6 +50,7 @@ options.device = Some(device);
 options.configure_doc = Some(Arc::new(dr_doc::schema::configure)); // F1 接入点：样式表
 options.deriver = Some(Arc::new(my_deriver));      // F1/F3 接入点：派生索引
 let lib = Library::open(root, options)?;           // 新建 / 迁移 / 自动换代
+let ro = Library::open_read_only(root, options)?;  // 只读：不迁移、不拿锁、不拍快照（dr-cli inspect）
 lib.open_report(); lib.epoch_change();              // 迁了几条、快照在哪；换代了吗、为什么
 Library::recovery_receipts(root)?;                  // 不打开库也能读回执（给恢复界面）
 Library::restore_from_receipt(root, id, options)?;  // 校验快照哈希后恢复，自动换代
@@ -61,6 +64,7 @@ h.write_agent(AgentWrite { session, turn, call, summary }, |doc| ...)?; // 同�
 h.import(bytes, Origin::Sync)?;                     // 远端更新：导入、落盘、记下服务器已有
 h.read(|doc| ...)?;                                 // 持有者线程上读：导出、光标位置、回看都在这里
 h.doc();                                            // DocView：任何线程可读的当前状态，不许改
+h.doc().with_doc(|doc: &LoroDoc| ..);               // 同上，给要 &LoroDoc 的类型化读取（dr-doc 的视图）
 h.subscribe(|e: &DocEvent| ...); h.reindex_now()?; h.compact_now()?; h.label(labels::RESTORE)?;
 lib.label_at(doc_id, &frontiers, "import", ts_ms, LabelRetention::Thinned)?; // 指定版本、指定时间的历史点
 lib.label_many(&[NewLabel { .. }])?;                // 同上，多条一个事务（导入重放旧版本用）
@@ -68,7 +72,12 @@ h.close();                                          // 最后一个句柄：等�
 
 // 总线：所有文档的已落盘变化 + 本机表的变化
 let _sub = lib.subscribe(|e: &StoreEvent| ...);     // Doc(DocEvent) | Local(LocalChange)
-lib.notify_local(LocalChange::new("agent_run", id, LocalChangeKind::Insert)); // F3 的本机表
+lib.notify_local(LocalChange::new("agent_run", id, LocalChangeKind::Insert)); // 自己发
+lib.local_write(|tx| {                              // F3 的本机表：一个事务，提交后才发
+    tx.execute("INSERT INTO ws_journal ..", params)?;
+    tx.changed(LocalChange::new("ws_journal", id, LocalChangeKind::Insert));
+    Ok(())
+})?;
 
 // 历史、活动、结算
 lib.history(doc_id)?;                               // 标签（带书目文档的版本），新的在前
@@ -82,7 +91,10 @@ lib.mark_uploaded(doc_id, &vv)?; lib.docs_with_local_changes()?;
 lib.assets_pending_upload()?; lib.mark_asset_uploaded(asset_id, variant)?;
 
 // 派生索引
+// 派生器返回 DerivedUpdate::Full(Derived) 或 ::Patch(DerivedPatch)；DeriveInput.held 说明是不是持有者的文档
+lib.patch_index(&DocPatch { doc_id, book_id, seq, frontiers, patch: &DerivedPatch::between(&old, &new) })?;
 lib.search(Some(book), "安娜", 50)?;                // 3 字以上 FTS5 trigram，1–2 字 LIKE
+lib.search_in_order(Some(book), "安娜", 50, &doc_ids_in_book_order)?; // 先按书序排，再截 limit
 lib.outline(doc_id)?; lib.block_lengths(doc_id)?; lib.references_to(target)?;
 lib.doc_stats(doc_id)?; lib.book_stats(book)?; lib.stale_index_docs()?; lib.rebuild_stale_indexes()?;
 
@@ -99,6 +111,7 @@ lib.purge_doc(doc_id)?;                             // 一个事务删掉一篇�
 lib.local_transaction(|tx| { /* 本模块自己的本机表 */ Ok(()) })?; // 例如导入回执；之后 notify_local
 lib.local_read(|conn| ...)?;
 lib.close()?;                                       // 等持有者和后台重建收尾、关库、放锁
+match lib.try_close() { Err(CloseRefused { error, library }) => /* 还有文档开着：库还回来，可重试 */, Ok(()) => .. }
 ```
 
 `Origin` 是 `User`、`Agent("<会话>/<轮>")`、`Mirror`、`Sync`、`Import`、`Repair`（dr-doc 的确定性修复）、`Genesis`，外加兜底用的 `Outside`。字符串和 dr-model 的 `Origin` 一一相同，有测试对照。
@@ -138,21 +151,33 @@ lib.close()?;                                       // 等持有者和后台重�
   - 局限：同一台电脑上把整个库文件夹复制一份、两份轮流用，第二份打开时比水位低会换代，第一份之后可能再换一次。换代总是安全的，只是对等方会多几个。
 - 按账号分库（M36）以后在这一层之上做，参考 `src-tauri/src/library_registry.rs`：每个账号一个这样的文件夹，共用同一个设备目录。
 
+### 只读打开与关库
+
+- **只读打开**（`Library::open_read_only`，给 `dr-cli inspect`）：
+  - 两条连接都以 SQLite 只读方式打开，再加 `query_only`，任何写都会失败；
+  - 不拿 `library.lock`，应用开着同一个库时也能打开；WAL 下每次读看到的是一致的某一刻；
+  - 不迁移、不拍安全快照、不看换代、不在后台重建索引；库的迁移条数必须正好等于本版本的，否则报 `NeedsMigration { applied, known }`；
+  - 不能 `open_doc`（报 `ReadOnly`），但 `load_copy`、历史、搜索、统计都照常能读。
+- **关库被拒时交还**：还有文档句柄开着（`DocumentsOpen(n)`），或者这个 `Library` 还有别的克隆活着，关库会被拒。`lib.try_close()` 被拒时返回 `CloseRefused { error, library }`，把库还给调用方，关掉句柄后可以再试；`close()` 是丢掉库、只留错误的那个版本。因为克隆被拒时，后台重建已经停了：落后的索引等文档打开、或下次打开库时再补。
+
 ### 迁移与恢复回执
 
 照旧版 `crates/drifting-core/src/database.rs` 的影子库迁移、恢复回执、按版本的安全快照那一段改写；给渲染层的 SQL 网关和 Drizzle 相关的部分不搬（Drizzle 旧库留给 dr-import-v1）。新基线用自己的迁移记录表 `schema_migration`（序号、名字、SHA-256）。
 
-- 迁移是 `migrations/` 下按序号排的 SQL 文件。记录必须是本版本列表的前缀，否则报 `SchemaMismatch`（改过已发布的迁移），比本版本多则报 `SchemaNewer`（请升级应用）；两种情况都不碰库。测试 `published_migrations_are_unchanged` 钉住每条已发布迁移的哈希。
+- 迁移是 `migrations/` 下按序号排的 SQL 文件。记录必须是本版本列表的前缀，否则报 `SchemaMismatch`（改过已发布的迁移），比本版本多则报 `SchemaNewer`（请升级应用）；两种情况都不碰库。每条迁移的哈希只在一个地方钉：F8 的门禁 `next/xtask/src/gates/migrations.rs` 的 `PINNED`（`cargo xtask check` 的 migrations 一道）。新迁移在那里登记，发布后填上哈希。
 - **升级步骤**：checkpoint 清空 WAL → `VACUUM INTO` 安全快照（先写临时名，fsync 后改名）→ 写回执（快照的相对路径、SHA-256、大小、来源和目标版本）→ 关连接 → 回执记下影子文件名 → 把快照复制成影子 → 在影子上迁移（一个事务）→ `integrity_check`、`foreign_key_check`、迁移记录完整 → fsync → 回执改成「替换中」→ 删掉原库已空的 `-wal`/`-shm` → 原子改名替换原库并 fsync 目录 → 重新打开再检查 → 删回执。
 - **失败**：替换之前任何一步失败，影子删掉，原库内容不变；回执留着，写明失败阶段和原因。返回 `MigrationFailure { stage, detail, safety_snapshot, recovery_id, from, to }`。只有「替换之后重新打开」失败时库已是新的，`source_unchanged()` 为假。改名成功、只是之后同步目录失败的情况，会检出库已迁完，照常往下走。
 - **下次打开先结清回执**（照旧版）：读不出的回执 → 停（`recovery-receipt-invalid`），不猜；快照哈希或大小对不上 → 停（`safety-snapshot-invalid`）；没到「替换中」、或影子还在 → 替换没发生，删影子和回执、照常打开（有待跑的迁移就重试）；「替换中」且影子已不在 → 替换已发生，库必须完整、迁移条数等于回执的目标，否则停（`activated-database-invalid`），不在半成品上继续迁移。停下时界面用 `Library::recovery_receipts` 读回执，`restore_from_receipt` 校验哈希后恢复。
 - **「原库不变」的确切含义**：原库正常关闭过（WAL 为空）时逐字节不变，测试按这个校验；上次是崩溃退出时，升级前的 checkpoint 会把 WAL 写回主文件，内容不变、字节会变。
 - **换版本也拍快照**：没有待跑的迁移、但打开它的应用版本变了，也先拍一张。
-- **已发布的迁移**：基线随 `main` 的 `e0a9e964` 发布，从此不再改；之后的表一律追加。现在有三条，`PUBLISHED` 钉着它们的哈希：
+- **已合进 `main` 的迁移**：基线随 `main` 的 `e0a9e964` 合入，从此不再改；之后的表一律追加。现在有四条：
   - `0000_baseline`；
   - `0001_import_receipts`：导入回执表（见「本机表」）；
-  - `0002_history_label_keep`：历史标签加 `keep` 列，`1` 表示不参与修剪。
-  测试 `a_baseline_library_gets_the_later_published_migrations` 用只有基线的旧库走一遍真实的升级：先拍安全快照，再在影子库上迁 `0001`、`0002`，正文和已有标签都在。
+  - `0002_history_label_keep`：历史标签加 `keep` 列，`1` 表示不参与修剪；
+  - `0003_ws_journal`：F3 的本机日志表（见「本机表」）。
+
+  测试 `a_baseline_library_gets_the_later_published_migrations` 用只有基线的旧库走一遍真实的升级：先拍安全快照，再在影子库上迁后面几条，正文和已有标签都在。
+- **哈希还没人钉**：`PINNED` 里四条现在都是 `None`（F8 的约定：第一个 0.2 版本发布时才填），门禁只提示「not published yet」。以前 dr-store 自己有一个 `PUBLISHED` 测试钉着前三条，这一轮删了，免得两份名单。见「待协调」。
 
 ### 表
 
@@ -174,6 +199,7 @@ DDL 以 `migrations/0000_baseline.sql` 为准：所有表 `STRICT`，时间一�
 | `reference` | 引用：`link` / `mention` / `embed` |
 | `asset` | 资源文件，每个版本一行，带 `uploaded_ms` |
 | `import_run`、`import_book`、`import_doc`、`import_anchor`、`import_original` | 导入回执（`0001`，M10 写） |
+| `ws_journal` | F3 的本机日志（`0003`，F3 写） |
 
 ### 文档持有者
 
@@ -182,6 +208,8 @@ DDL 以 `migrations/0000_baseline.sql` 为准：所有表 `STRICT`，时间一�
 - **一次追加一个事务**：更新行、文档的新 head、全库写入计数，加上不能和它分开的东西（到期的历史标签、Agent 写入的结算记录、同步导入时服务器已有的版本），都在同一个 SQLite 事务里。所以每次提交返回时已经落盘，退出时不需要冲刷，也没有旧版那样的十条车道和 ⌘S 强制保存。
 - **先落盘再通知**：Loro 的订阅回调在提交时同步触发、早于写 SQLite，所以持有者先把差异存着，追加成功后才发 `DocEvent`，同时发到库的总线上。
 - **别的线程怎么读**：`h.doc()` 给的是 `DocView`，只开放读当前状态的方法。Loro 的 `export`、`fork`、`checkout`、`diff`、光标位置查询和历史遍历都会先提交共享的待提交事务，在别的线程上做会把正在执行的写入切成两半，所以一律放进 `h.read`。
+- **类型化读取**：dr-doc 的视图要的是 `&LoroDoc`，用 `h.doc().with_doc(|doc| ..)` 借出同一篇文档。规矩和 `DocView` 一样：只读当前状态，上面那些会提交的操作不许在这里做。
+- **写闭包开始时文档是干净的**：持有者在每件事之前先结清（重试没存进去的、把外部改动单独提交成 `Outside`），所以写闭包拿到的文档没有待提交的事务，闭包里的改动全属于这一次写。F4 的镜像拆掉之前，这一点不变（测试 `a_write_starts_on_a_settled_document_and_typed_readers_borrow_it`）。
 - **兜底**：`DocView` 取出的容器技术上还能改。万一有人改了，持有者在下一件事之前把它单独提交成 `Outside` 来源（提交信息 `outside`）；存不进去就拒绝接下来的写入。
 - **失败**：追加失败（比如磁盘满）时改动留在内存里，记下来源和随它要写的东西（标签、结算、同步版本）；之后先用原来源重试，重试不成功就拒绝新写入。写入闭包 panic：已做的改动照样提交落盘，返回 `WritePanicked`；读取闭包 panic：返回 `ReadPanicked`，持有者照常运行。
 - **关闭**：放掉最后一个句柄不阻塞，持有者在自己的线程上做完队列里的事、打关闭标签、按需压缩。要等用 `h.close()` 或 `lib.close()`。
@@ -214,10 +242,17 @@ DDL 以 `migrations/0000_baseline.sql` 为准：所有表 `STRICT`，时间一�
 
 ### 派生索引
 
-- 由存储层自己算，不由编辑器推回：`LibraryOptions::deriver` 注册一个 `Deriver`，输入是文档、它的种类和所属的书，以及**自上次以来累积的 Loro 差异**（`None` 表示从头算）。输出现在只有「整篇替换」一种（`DerivedUpdate::Full`，枚举已标 `non_exhaustive`，以后加按段补丁不用改接口）。实现要用 dr-doc 的结构知识和 dr-text 的数法，归 F1/F3。
+- 由存储层自己算，不由编辑器推回：`LibraryOptions::deriver` 注册一个 `Deriver`，输入是文档、它的种类和所属的书，以及**自上次以来累积的 Loro 差异**（`None` 表示从头算）。实现要用 dr-doc 的结构知识和 dr-text 的数法，在 dr-index。
+- **两种输出**（枚举仍是 `non_exhaustive`）：
+  - `DerivedUpdate::Full(Derived)`：整篇替换；
+  - `DerivedUpdate::Patch(DerivedPatch)`：只写改了的段。`base_paragraphs` 是做补丁时依据的段数；`splices` 是按位置排好、互不重叠的若干处「从第 `at` 段起删 `removed` 段、换成这些段」，位置都按补丁之前的段序；`references` 是 `None` 表示引用没变，`Some` 就整篇换掉（引用很少）；`words`、`chars` 是整篇的新合计。`DerivedPatch::between(旧, 新)` 按首尾相同的段算出一处替换，派生器留着上一次的结果时可以直接用。
+- **补丁只落在它依据的那些行上**：存着的段数不等于 `base_paragraphs`，写入就报 `IndexBase`，什么都不改；持有者遇到它就丢掉攒的差异，下次从头算一遍。补丁的 `seq` 不比已存的大就跳过，和整篇写一样。
+- **怎么挪段号**：`block_index` 的 `UNIQUE(doc_id, ord)` 和 `ord >= 0` 已经随基线发布，不能改。所以补丁先删掉被替换的行（连同 FTS 条目），把第一处替换之后的行整体加一个很大的偏移（2⁴⁰），再一段一段减回各自的新位置，最后插入新行。随机 400 步补丁和整篇重写逐行比对、FTS 完整性检查都过。
+- **`held`**：`DeriveInput.held` 为真，是持有者自己的那篇文档，值得把结果缓存起来接下一次的差异；为假，是后台重建从 SQLite 另载的副本，只读一次，派生器不该把它放进缓存。
 - 持有者每次追加后标记「索引落后」，空闲时调用派生器，把结果和 `indexed_seq` 在同一个事务里写进去；同一篇文档的索引永远不会倒退（`seq` 不比已存的大就不写）。
 - 打开库时（有派生器就默认开），后台线程把 `loro_head.seq > index_state.indexed_seq` 的文档全部重建；打开着的文档交给它的持有者做。这是 P0-E 发现的「缓存落后正文」的根治办法。
-- 搜索：3 个字以上走 FTS5 trigram（整句当一个短语），1–2 个字退回 `LIKE`；都不分大小写，结果按文档 id 再按段序排，给出命中位置和上下文。
+- 搜索：3 个字以上走 FTS5 trigram（整句当一个短语），1–2 个字退回 `LIKE`；都不分大小写，给出命中位置和上下文。`search` 按文档 id 再按段序排。`search_in_order(书, 查询, limit, 文档顺序)` 先按传进来的文档顺序排（不在名单里的排在后面，按 id），再截 `limit`，所以截出来的就是书里最前面的那些命中；顺序由 F3 从书目文档取。
+- 大纲：照 dr-text 的规则，标题文字按 JavaScript 的空白去掉首尾（`is_js_whitespace`，和 prose-metrics 的判断逐字比对过），去完是空的标题不列。`paragraphs_after` 没做，原因见「待协调」。
 
 ### 同步状态
 
@@ -229,10 +264,15 @@ DDL 以 `migrations/0000_baseline.sql` 为准：所有表 `STRICT`，时间一�
 
 ### 本机表
 
-只在本机、不进 Loro 的表由各自的模块所有，dr-store 只负责迁移和事务：模块用 `Library::local_transaction` 写自己的表、用 `local_read` 读，改完用 `notify_local` 发到总线。Loro 表、历史和派生表不许这样碰。
+只在本机、不进 Loro 的表由各自的模块所有，dr-store 只负责迁移和事务。Loro 表、历史和派生表不许这样碰。
+
+- **写**：`Library::local_write(|tx| ..)` 开一个写事务，`tx` 当 `rusqlite::Transaction` 用；每改一处就 `tx.changed(LocalChange::new(表, id, 种类))` 记下来。事务提交之后，记下的变化才一条条发到总线；闭包返回错误就回滚，什么都不发。
+- 不需要发事件的（比如导入回执），用 `local_transaction(|tx| ..)`；`notify_local` 留给事务以外的场合。
+- **读**：`local_read(|conn| ..)`，在只读连接上。
 
 | 表 | 归属 | 现状 |
 | --- | --- | --- |
+| 本机日志：`ws_journal`（索引 `ws_journal_actor`） | F3（dr-workspace） | `0003` 已建，表结构和 F3 的 `journal.rs` 逐字相同；F3 用 `local_write` 写 |
 | 导入回执：`import_run`、`import_book`、`import_doc`、`import_anchor`、`import_original` | M10（dr-import-v1） | `0001` 已建，表结构照 M10 的 `receipt.rs`；M10 改为经 `local_transaction` 写进库里 |
 | 旧帮手对话的只读存档（`archive_*`） | M31 | 这一轮不建，暂留在 M10 的 `import-v1/receipt.sqlite` |
 | MCP 服务（`local_agent_mcp_server`） | M32 | 同上 |
@@ -259,7 +299,13 @@ DDL 以 `migrations/0000_baseline.sql` 为准：所有表 `STRICT`，时间一�
 
 ## 测量
 
-M3 Pro（12 核，36 GB），release，Loro 1.17.1，2026-11-07，跑时 1 分钟负载约 7.4（记在证据里）。数据全是合成的：章节由固定字池随机组段，一次写入后压缩，然后模拟打字（每次插 1–6 字，六分之一的概率删 1–3 字）。完整数字在 [acceptance/f2-store-bench.json](../acceptance/f2-store-bench.json)。
+**现在的测量归 dr-testkit**：`cargo run --release -p dr-testkit --bin bench -- store` 测按键写入（`NORMAL` 和 `FULL`）和全书 100 章，数据是统一种子 heavy，证据是 [acceptance/f8-m1-store-bench.json](../acceptance/f8-m1-store-bench.json)，数字见 [F8](f8-testkit.md#示范dr-store)。这一轮改了 dr-store，门禁把那份证据报为「过期」，到下一个里程碑重测。
+
+**按段写派生索引**：一章约 2 万字、120 段，每次只改一段，整篇重写 p50 7.68 ms，只写那一段 p50 0.235 ms，约 33 倍（release，M3 Pro，2026-11-07，跑时一分钟负载约 31，绝对值偏高、比例可信）。这是 `tests/index.rs` 里默认不跑的 `measure_patch_against_full_rewrite`，不是门禁。
+
+下面是第一轮用 F2 自己的 `f2-bench` 测的（那个程序和 `f2-store-bench.json` 这一轮删了）。按键写入和全书两项已由上面的 `bench store` 接替；「打开一章」和「压缩」两项只记在这里，要重测得加进 dr-testkit 的 store 套件。
+
+M3 Pro（12 核，36 GB），release，Loro 1.17.1，2026-11-07，跑时 1 分钟负载约 7.4。数据全是合成的：章节由固定字池随机组段，一次写入后压缩，然后模拟打字（每次插 1–6 字，六分之一的概率删 1–3 字）。
 
 | 项 | 结果 | 预算（benchmarks.md） |
 | --- | ---: | --- |
@@ -282,22 +328,21 @@ M3 Pro（12 核，36 GB），release，Loro 1.17.1，2026-11-07，跑时 1 分�
 
 ## 崩溃安全
 
-[acceptance/f2-crash-recovery.json](../acceptance/f2-crash-recovery.json)，`f2-crash run --kills 60 --migration-kills`：
+崩溃试验用 dr-testkit 的统一试验台（`dr_testkit::crash`）：测试程序把自己再启动一次当写入进程，到点强杀（macOS 上 SIGKILL，Windows 上 TerminateProcess），再由父进程重开、核对。
 
-- **编辑中被杀**：写入进程通过真实的持有者不停编辑一篇 3 万字的文档，每 25 次压缩一次，并故意把压缩事务撑开 20 ms。父进程随机时刻强杀（macOS 上 SIGKILL，Windows 上 TerminateProcess），重开库、和「第 0 到第 k 次编辑」的确定性重放逐字比对。60 次里 35 次落在压缩事务中间、25 次落在两次编辑之间：**零丢失、零不一致**；更新日志始终连续、没有被快照覆盖的残行。（恢复出比最后一次报告多一步的编辑也算对：写进去了、还没来得及报告就被杀；这一轮 1 次。）崩溃后重开并载入 p50 11.5 ms，最慢 17 ms。
-- **迁移中被杀**：对迁移的六个阶段各杀一次（子进程停在该阶段等着被杀）：
+- **编辑中被杀**：归 dr-testkit 的 `tests/crash_store.rs`，在真实的持有者上做。第一轮 F2 自己的 `f2-crash` 杀过 60 次（35 次落在压缩事务中间），零丢失、零不一致；那个程序和 `f2-crash-recovery.json` 这一轮删了。
+- **迁移中被杀**（`tests/crash.rs`，dr-store 专有，留着）：写入进程用「再多一条迁移」的新版本打开一个有正文的库，停在指定的阶段。停下时通过 `migrate::on_migration_pause` 向试验台报告，试验台就在这时杀掉它。六个阶段各杀一次，每次之后核对：
 
-  | 停在 | 原库字节 | 留下的回执 / 影子 | 旧版本还能打开 | 下一次新版本打开 |
-  | --- | --- | --- | --- | --- |
-  | 拍安全快照前 | 不变 | 0 / 0 | 能 | 迁移成功，正文完整 |
-  | 复制影子前 | 不变 | 1 / 0 | 能，回执结清 | 同上 |
-  | 迁移事务里（未提交） | 不变 | 1 / 1 | 能，影子和回执结清 | 同上 |
-  | 校验前 | 不变 | 1 / 1 | 能，影子和回执结清 | 同上 |
-  | 替换前 | 不变 | 1 / 1 | 能，影子和回执结清 | 同上 |
-  | 替换后、重开前 | 已是新库 | 1 / 0 | 回执校验新库完整后结清；旧版本报 `SchemaNewer`，库不动 | 不用再迁，正文完整 |
+  | 停在 | 原库字节 | 旧版本打开 | 下一次新版本打开 |
+  | --- | --- | --- | --- |
+  | 拍安全快照前 | 不变 | 能，正文完整，没有残留的影子 | 迁 1 条，正文完整 |
+  | 复制影子前 | 不变 | 同上 | 同上 |
+  | 迁移事务里（未提交） | 不变 | 同上 | 同上 |
+  | 校验前 | 不变 | 同上 | 同上 |
+  | 替换前 | 不变 | 同上 | 同上 |
+  | 替换后、重开前 | 已是新库 | 报 `SchemaNewer`，库不动 | 不用再迁，正文完整 |
 
-  每种情形之后回执都结清了（`receiptsAfterNextOpens = 0`）。
-- CI 里 `tests/crash.rs` 跑同样的程序，杀 6 次加六个迁移阶段，约 2 秒。
+  每种情形之后都不剩恢复回执。CI 里约 1 秒。
 
 ## 实测发现（给其他基座）
 
@@ -341,38 +386,60 @@ M3 Pro（12 核，36 GB），release，Loro 1.17.1，2026-11-07，跑时 1 分�
 | 本机表的变化发到和 Loro 事件同一条总线 | `Library::subscribe`、`notify_local` |
 | Loro 表和派生表不写触发器 | 基线里没有触发器和级联，测试检查 `sqlite_schema` |
 
+## 第三轮（监管会话，2026-11-07）
+
+| 要求 | 处理 |
+| --- | --- |
+| 1. 按段写派生索引 | `DerivedUpdate::Patch(DerivedPatch)`、`Library::patch_index`；只落在依据的行上，对不上就报 `IndexBase`、下次从头算；见「派生索引」 |
+| 2. 类型化读取持有者的文档 | `DocView::with_doc(\|doc: &LoroDoc\| ..)`；写闭包开始时已结清待提交事务，写进文档并有测试 |
+| 3. 本机表 `ws_journal` | `0003_ws_journal.sql`（与 F3 的 `journal.rs` 逐字相同），登记进 xtask 的 `PINNED`；`Library::local_write(\|tx\| ..)`，提交后才发总线 |
+| 4. 搜索按书序 | `search_in_order(书, 查询, limit, 文档顺序)`：先排序后截断。没加书序列：书序在书目文档里，存一份就得跟着每次挪章节改 |
+| 5. 关库失败能重试 | `try_close()` 返回 `CloseRefused { error, library }` |
+| 6. 大纲照 dr-text；`held` 标志 | 去空白、去空标题；`DeriveInput.held`，后台重建的副本为 `false` |
+| 7. 只读打开 | `Library::open_read_only`；见「只读打开与关库」 |
+| 8. 换用 dr-testkit | 测试改用 dr-testkit 的随机流和语料；迁移被杀改写在 `crash::Harness` 上（`for_test` 就是 `with_args` 加上测试名）；删了 `f2-bench`、`f2-crash` 和两份 `f2-*.json`。`synthetic.rs`、`evidence.rs` 只留下 dr-index 的基准例子还在用的几个函数，见「待协调」 |
+
 ## 待协调
 
 0. **给 M10**：`label_at` / `label_many` 可以替换 `run::write_labels` 的直写 SQL（行为相同：书目文档的版本取当前 head；另外多了保留参数和修剪）；`Device::adopt(dir, &id)` 替换 `adopt_identity`；导入回执的五张表在库里了（`0001`），用 `lib.local_transaction` 写，表名和列与 `receipt.rs` 相同。存档和本机表这一轮仍留在 `receipt.sqlite`（`ATTACH` 不能在事务里做，到它们的模块接手时再搬）。
 1. **F1 的接入点**：`configure_doc`（样式表）、`OpenDoc::CreateIfMissing.genesis`（创世），以及 `Deriver`（段落、块 ID、人物链接 → `BlockRow`、`RefRow`，字数用 dr-text）。书目文档的 id 按 loro-schema 用 `book:<书 id>`，历史标签靠它找书目文档的版本。
 2. **`loro_doc.book_id`**：F3 创建任何属于某本书的文档时传入，书目文档自己也填。
 3. **F4 编辑器怎么读写**：写一律走 `write` 闭包；读用 `DocView` 或 `h.read`。批注锚点的位置（`get_cursor_pos`）、导出、回看要放进 `h.read`。`UndoManager` 建议放在写闭包里用。
-4. **基线冻结的时间**：见「迁移与恢复回执」最后一条。
-5. **搜索结果的顺序**：现在按文档 id、段序；要按书序排，需要 F3 用书目文档排，或以后给 `block_index` 加书序列。
-6. **本机表**（帮手运行记录、权限、Markdown 台账、工作记忆、生图收件箱）：谁需要谁追加 `0001_*.sql`，变化用 `notify_local` 发到总线。
+4. **基线冻结的时间**：并进第 12 条。
+5. **搜索按书序（给 F3）**：调 `search_in_order`，把书目文档里的章节顺序（文档 id 列表）传进来。
+6. **本机表**（帮手运行记录、权限、Markdown 台账、工作记忆、生图收件箱）：谁需要谁追加下一个序号的 `000N_*.sql`（现在到 `0003`），登记进 xtask 的 `PINNED`，用 `local_write` 写、提交后自动发到总线。
 7. **同步 v2（阶段 6）**：上传走 `export_for_upload` → `mark_uploaded`；导入走 `h.import(.., Origin::Sync)`，存储自动记服务器已有的版本。服务端协议和多文档恢复是阶段 6 的事。
 8. ~~搬到新电脑但身份文件也被拷走~~：监管会话已批准，已做（见「库的文件夹与本机身份」）。
 9. **Windows**：代码有 Windows 分支（写穿改名、墓碑删除、可写句柄 fsync、`MachineGuid`）。本机 `cargo check --target x86_64-pc-windows-msvc` 过不了：Loro 依赖的 `stacker` 和打包的 SQLite 要用 `windows.h` 编 C 代码，这台 Mac 上没有 Windows SDK。只依赖标准库的 `machine.rs`（库和测试）和 `file_io.rs` 用 `rustc --edition 2024 --crate-type lib --target x86_64-pc-windows-msvc --emit=metadata -D warnings` 单独做了类型检查，通过；`asset.rs` 的 Windows 删除分支依赖 crate 内部，只能靠 CI 的 Windows 那一条验证（它是从 0.1 在 Windows 上编过的代码逐行搬来的）。
+10. **给 dr-index**：
+    - 派生器可以改发 `DerivedUpdate::Patch`：留着上一次的 `Derived`，用 `DerivedPatch::between(&旧, &新)` 就行；收到 `held == false` 的输入别进缓存。
+    - 它的 `examples/dr-index-bench.rs` 还在用 `dr_store::synthetic`（`Rng`、`chapter`、`han`、`keystroke`）和 `dr_store::evidence`（`machine`、`summarize`）。dr-store 只为它留着这几个，例子换到 dr-testkit 以后就把这两个模块删掉。
+    - 这一轮给 `DeriveInput` 加了 `held`，`dr-index/tests/common/mod.rs` 里的构造因此编不过，我在那里补了一行 `held: true,`。这是 F2 的文件范围以外唯一改动的一处。
+11. **大纲的 `paragraphs_after`**（dr-text 的规则：数到下一个进大纲的标题为止的段落，正文段和嵌入算，分隔线不算）没在 `Library::outline` 里做：`block_index` 只记标题级别，分不出分隔线和嵌入，现在算只能算错。要做就给 `block_index` 加一列段落种类（新迁移），由派生器填；在那之前要这个数，用 `dr_text::outline` 过一遍持有者的文档。
+12. **迁移的哈希**：`0000`–`0002` 已合进 `main`（M10 在用），`0003` 随这一轮合入；但 xtask 的 `PINNED` 按 F8 的约定要到第一个 0.2 版本才填，现在没有任何东西拦着有人改它们。要不要现在就把哈希填上，请监管会话定。
+13. **F8 的证据与文档**：`f8-m1-store-bench.json` 因为 dr-store 改了被报「过期」，下一个里程碑重测。`f8-testkit.md`「待协调 → dr-store」里的「换用统一的种子和试验台」和「只读打开」这一轮都做了，`dr-cli inspect` 可以改用 `Library::open_read_only`，不用先复制；那份文档归 F8，我没改。
 
 ## 没做的、下一步建议
 
 - 图片管线（`image_pipeline.rs` 和各平台解码器）只有接口。
-- 派生器的真正实现（F1/F3），以及按段补丁（`DerivedUpdate` 的下一种）。
+- dr-index 的派生器还只发整篇替换，改发按段补丁归 dr-index（见第 10 条）。
+- 大纲的 `paragraphs_after`（见第 11 条）。
 - 帮手的本机表、整库备份（`library_backup.rs`：`VACUUM INTO` 加资源文件打包）、按账号分库（M36）。
 - WAL 自动 checkpoint 会让某一次提交多花约 1 ms；如果真实打字测到尾延迟，改在持有者空闲时做被动 checkpoint。
-- 建议下一个里程碑：F1 的 dr-doc 出来后做「F1 + F2」接线测试：真实的创世、样式表和派生器跑一遍崩溃测试和测量，再接 F3。
+- 建议下一个里程碑：dr-index 改发补丁之后，把「打开一章」「压缩」两项测量和按段写索引加进 dr-testkit 的 store 套件，用真实的 dr-doc 创世、样式表和派生器重测一遍，替掉上面第一轮的数字。
 
 ## 怎么复现
 
 在 `next/` 下：
 
 ```bash
-cargo test -p dr-store
-cargo run --release -p dr-store --bin f2-bench
-cargo run --release -p dr-store --bin f2-crash -- run --kills 60 --migration-kills
-cargo run --release -p dr-store --bin f2-bench -- --check
-cargo run --release -p dr-store --bin f2-crash -- --check
+cargo test -p dr-store --locked
+cargo test --release -p dr-store --test index -- --ignored --nocapture measure_patch
+cargo run --release -p dr-testkit --bin bench -- store
+cargo xtask check
 ```
 
-- `f2-bench` 写 `docs/rust-rewrite/acceptance/f2-store-bench.json`，`f2-crash` 写 `f2-crash-recovery.json`。两份都带源码指纹和当时的机器负载；`--check` 只校验指纹和形状，不校验耗时。
-- 测试数据全是合成的（`dr_store::synthetic`：固定字池随机组段），不含任何书稿。
+- 第一条包括迁移各阶段被杀（`tests/crash.rs`）；编辑中被杀在 `cargo test -p dr-testkit --test crash_store`。
+- 第二条是按段写索引和整篇重写的对比，只打到屏幕，不写证据。
+- 第三条是 dr-testkit 的存储基准；加 `--milestone <名字>` 才写成测量证据，只在里程碑时做。
+- 测试数据全是合成的：dr-testkit 的随机流和语料（`dr_testkit::rng`、`dr_testkit::text`），不含任何书稿。

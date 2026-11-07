@@ -1,56 +1,7 @@
-//! Helpers for the evidence programs (`f2-bench`, `f2-crash`): a source
-//! fingerprint, a machine description with no paths or user names, and
-//! timing summaries. Not part of the storage API.
-
-use sha2::{Digest, Sha256};
-
-/// Sources that define the measured behaviour, embedded at compile time so
-/// the fingerprint does not depend on where the checkout lives.
-const SOURCES: &[(&str, &str)] = &[
-    ("Cargo.toml", include_str!("../Cargo.toml")),
-    (
-        "migrations/0000_baseline.sql",
-        include_str!("../migrations/0000_baseline.sql"),
-    ),
-    (
-        "migrations/0001_import_receipts.sql",
-        include_str!("../migrations/0001_import_receipts.sql"),
-    ),
-    (
-        "migrations/0002_history_label_keep.sql",
-        include_str!("../migrations/0002_history_label_keep.sql"),
-    ),
-    ("src/archive.rs", include_str!("archive.rs")),
-    ("src/asset.rs", include_str!("asset.rs")),
-    ("src/digest.rs", include_str!("digest.rs")),
-    ("src/error.rs", include_str!("error.rs")),
-    ("src/events.rs", include_str!("events.rs")),
-    ("src/evidence.rs", include_str!("evidence.rs")),
-    ("src/file_io.rs", include_str!("file_io.rs")),
-    ("src/history.rs", include_str!("history.rs")),
-    ("src/holder.rs", include_str!("holder.rs")),
-    ("src/identity.rs", include_str!("identity.rs")),
-    ("src/index.rs", include_str!("index.rs")),
-    ("src/lib.rs", include_str!("lib.rs")),
-    ("src/library.rs", include_str!("library.rs")),
-    ("src/machine.rs", include_str!("machine.rs")),
-    ("src/migrate.rs", include_str!("migrate.rs")),
-    ("src/origin.rs", include_str!("origin.rs")),
-    ("src/synthetic.rs", include_str!("synthetic.rs")),
-    ("src/bin/f2-bench.rs", include_str!("bin/f2-bench.rs")),
-    ("src/bin/f2-crash.rs", include_str!("bin/f2-crash.rs")),
-];
-
-pub fn source_fingerprint() -> String {
-    let mut h = Sha256::new();
-    for (name, body) in SOURCES {
-        h.update(name.as_bytes());
-        h.update([0]);
-        h.update(body.as_bytes());
-        h.update([0]);
-    }
-    format!("{:x}", h.finalize())
-}
+//! What is left of F2's evidence helpers, kept only for `dr-index`'s
+//! `dr-index-bench` example, which still imports `machine` and `summarize`.
+//! Measured evidence is dr-testkit's now (`dr_testkit::evidence`); delete
+//! this module once that example moves there. Not part of the storage API.
 
 fn command_output(cmd: &str, args: &[&str]) -> Option<String> {
     let out = std::process::Command::new(cmd).args(args).output().ok()?;
@@ -124,25 +75,4 @@ impl Summary {
             "n": self.n, "p50": r(self.p50), "p95": r(self.p95), "max": r(self.max), "mean": r(self.mean)
         })
     }
-}
-
-/// Check an evidence file against this build: same fingerprint, and the
-/// given top-level keys present. Returns a description of the mismatch.
-pub fn check(path: &std::path::Path, keys: &[&str]) -> Result<(), String> {
-    let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    let v: serde_json::Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
-    let got = v["sourceFingerprint"].as_str().unwrap_or_default();
-    let want = source_fingerprint();
-    if got != want {
-        return Err(format!(
-            "{} was generated from other sources ({got} != {want}); rerun the program",
-            path.display()
-        ));
-    }
-    for key in keys {
-        if v.get(*key).is_none() {
-            return Err(format!("{} lacks {key}", path.display()));
-        }
-    }
-    Ok(())
 }

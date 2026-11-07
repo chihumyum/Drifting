@@ -422,7 +422,7 @@ fn a_baseline_library_gets_the_later_published_migrations() {
     let lib = Library::open_with_migrations(dir.path(), options(), &MIGRATIONS[..1]).unwrap();
     lib.close().unwrap();
     let doc = loro::LoroDoc::new();
-    doc.get_text(dr_store::synthetic::BODY)
+    doc.get_text(common::synthetic::BODY)
         .insert(0, "旧库里的字\n")
         .unwrap();
     doc.commit();

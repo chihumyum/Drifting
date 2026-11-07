@@ -41,7 +41,7 @@ use rusqlite::{OptionalExtension, params};
 use crate::error::{Result, StoreError};
 use crate::events::{LocalChange, LocalChangeKind, StoreEvent};
 use crate::history::{self, labels};
-use crate::index::{DeriveInput, DerivedUpdate, DocIndex, write_index};
+use crate::index::{DeriveInput, DerivedUpdate, DocIndex, DocPatch, write_index, write_patch};
 use crate::library::{
     CompactStats, Inner, LoadStats, export_snapshot, merge_remote_vv, record_append, store_snapshot,
 };
@@ -351,6 +351,17 @@ impl DocView {
     pub fn get_change(&self, id: ID) -> Option<ChangeMeta> {
         self.0.get_change(id)
     }
+
+    /// The open document itself, for typed readers (dr-doc's views) that
+    /// take a `&LoroDoc`. The same contract as the rest of `DocView`: read
+    /// the current state only. Never commit, export, import, fork, check out,
+    /// diff, ask for a cursor position or walk history on it here: those
+    /// commit the shared pending transaction and would split a queued write.
+    /// They belong in [`DocHandle::read`], which hands over the same
+    /// document on the holder thread.
+    pub fn with_doc<R>(&self, f: impl FnOnce(&LoroDoc) -> R) -> R {
+        f(&self.0)
+    }
 }
 
 /// A handle to an open document. Clones share one holder. When the last
@@ -487,6 +498,12 @@ impl DocHandle {
     /// Run `f` on the holder thread, commit its edits as one commit with
     /// `origin`, append it to SQLite, and return once it is durable. `f` must
     /// only edit; it must not commit, export, import or check out.
+    ///
+    /// When `f` starts, the holder has settled the document: nothing is
+    /// pending in Loro's transaction and everything committed is stored. So
+    /// `f` may export what it needs at its start, or import updates made
+    /// elsewhere and then edit; the whole job is still one append with one
+    /// origin (dr-workspace's mirror relies on this).
     pub fn write<R, F>(&self, origin: Origin, f: F) -> Result<(R, Committed)>
     where
         F: FnOnce(&LoroDoc) -> R + Send + 'static,
@@ -850,24 +867,49 @@ impl Holder {
             book_id: self.book_id.as_deref(),
             doc: &self.doc,
             changes: changes.as_deref(),
+            held: true,
         };
         let derived = deriver.derive(&input);
         self.index_dirty = false;
         self.changes_since_index = Some(Vec::new());
-        let Some(DerivedUpdate::Full(derived)) = derived else {
-            return Ok(false);
-        };
         let frontiers = self.doc.oplog_frontiers();
-        let written = write_index(
-            &self.lib.writer(),
-            &DocIndex {
-                doc_id: &self.doc_id,
-                book_id: self.book_id.as_deref(),
-                seq: self.next_seq - 1,
-                frontiers: &frontiers,
-                derived: &derived,
-            },
-        )?;
+        let seq = self.next_seq - 1;
+        let written = match derived {
+            None => return Ok(false),
+            Some(DerivedUpdate::Full(derived)) => write_index(
+                &self.lib.writer(),
+                &DocIndex {
+                    doc_id: &self.doc_id,
+                    book_id: self.book_id.as_deref(),
+                    seq,
+                    frontiers: &frontiers,
+                    derived: &derived,
+                },
+            )?,
+            Some(DerivedUpdate::Patch(patch)) => {
+                let written = write_patch(
+                    &self.lib.writer(),
+                    &DocPatch {
+                        doc_id: &self.doc_id,
+                        book_id: self.book_id.as_deref(),
+                        seq,
+                        frontiers: &frontiers,
+                        patch: &patch,
+                    },
+                );
+                match written {
+                    Err(StoreError::IndexBase { .. }) => {
+                        // Made from other rows than the stored ones: derive
+                        // the whole document next time.
+                        log::debug!("{}: index patch did not fit, rederiving", self.doc_id);
+                        self.changes_since_index = None;
+                        self.index_dirty = true;
+                        return Ok(false);
+                    }
+                    other => other?,
+                }
+            }
+        };
         if written {
             self.lib.publish(&StoreEvent::Local(LocalChange::new(
                 "index",
