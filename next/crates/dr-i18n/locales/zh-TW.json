@@ -23,6 +23,7 @@
     "creating": "正在建立…",
     "edit": "編輯",
     "local": "本機",
+    "processing": "正在處理…",
     "save": "儲存",
     "saveFailed": "無法儲存變更，請重試。",
     "saving": "正在儲存…",
@@ -120,6 +121,15 @@
   "immersiveWriting": {
     "enter": "沉浸寫作",
     "leave": "退出沉浸寫作"
+  },
+  "importDialog": {
+    "chooseFolder": "選擇資料夾",
+    "status": {
+      "committed": "已匯入"
+    },
+    "summary": {
+      "done": "完成"
+    }
   },
   "leftSidebar": {
     "empty": {
@@ -223,6 +233,9 @@
     "wordsOfTarget": "{{words}}／{{target}} 字"
   },
   "projectPicker": {
+    "bookTransfer": {
+      "importFailedTitle": "無法匯入"
+    },
     "desk": {
       "chaptersUnit_one": "章",
       "chaptersUnit_other": "章",
@@ -235,6 +248,7 @@
         "summaryLabel": "摘要"
       },
       "goal": "{{pct}}% · 目標 {{target}} 字",
+      "importing": "匯入中",
       "moveToTrash": "移至最近刪除",
       "newCard": "新作品",
       "newCardSub": "從空白頁開始",
@@ -263,6 +277,7 @@
       "daysUnit": "天",
       "today": "今天"
     },
+    "projectCount": "{{filtered}}／{{total}} 部作品",
     "rail": {
       "books_one": "{{count}} 部作品",
       "books_other": "{{count}} 部作品",

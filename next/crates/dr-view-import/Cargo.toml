@@ -1,0 +1,42 @@
+[package]
+name = "dr-view-import"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Drifting's import of a 0.1 library (M10's interface): the folder panel, the gate, progress and the summary, over the bookshelf"
+
+[features]
+# Offscreen screenshots of the dialogs (`examples/import-capture.rs`),
+# through GPUI's headless test platform.
+capture = ["dep:anyhow", "dep:gpui_platform", "gpui_platform/test-support", "dep:color_quant", "dep:png", "dep:tempfile"]
+
+[dependencies]
+anyhow = { workspace = true, optional = true }
+color_quant = { workspace = true, optional = true }
+dr-i18n.workspace = true
+dr-import-v1.workspace = true
+dr-shell.workspace = true
+dr-ui.workspace = true
+dr-view-shelf.workspace = true
+dr-workspace.workspace = true
+futures.workspace = true
+gpui.workspace = true
+gpui_platform = { workspace = true, optional = true }
+log.workspace = true
+png = { workspace = true, optional = true }
+tempfile = { workspace = true, optional = true }
+
+[dev-dependencies]
+dr-store.workspace = true
+gpui = { workspace = true, features = ["test-support"] }
+# The synthetic 0.1 library of dr-import-v1's tests (`tests/common`).
+rusqlite.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tempfile.workspace = true
+
+[[example]]
+name = "import-capture"
+required-features = ["capture"]

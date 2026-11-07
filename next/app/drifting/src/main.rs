@@ -185,6 +185,8 @@ fn main() {
             ),
             cx,
         );
+        // M10: the bookshelf's 「导入 · Drifting 0.1」.
+        dr_view_import::init(cx);
         probe::shell_ready();
         cx.on_action(about::open);
         if !cfg!(target_os = "macos") {

@@ -23,6 +23,7 @@
     "creating": "Wird erstellt…",
     "edit": "Bearbeiten",
     "local": "Lokal",
+    "processing": "Wird verarbeitet…",
     "save": "Speichern",
     "saveFailed": "Änderungen konnten nicht gespeichert werden. Bitte erneut versuchen.",
     "saving": "Wird gespeichert…",
@@ -120,6 +121,15 @@
   "immersiveWriting": {
     "enter": "Immersives Schreiben",
     "leave": "Immersives Schreiben beenden"
+  },
+  "importDialog": {
+    "chooseFolder": "Ordner auswählen",
+    "status": {
+      "committed": "importiert"
+    },
+    "summary": {
+      "done": "Fertig"
+    }
   },
   "leftSidebar": {
     "empty": {
@@ -223,6 +233,9 @@
     "wordsOfTarget": "{{words}} / {{target}} Wörter"
   },
   "projectPicker": {
+    "bookTransfer": {
+      "importFailedTitle": "Import nicht möglich"
+    },
     "desk": {
       "chaptersUnit_one": "Kapitel",
       "chaptersUnit_other": "Kapitel",
@@ -235,6 +248,7 @@
         "summaryLabel": "Zusammenfassung"
       },
       "goal": "{{pct}}% · Ziel {{target}} Wörter",
+      "importing": "Wird importiert",
       "moveToTrash": "Zu kürzlich Gelöscht verschieben",
       "newCard": "Neues Buch",
       "newCardSub": "Beginne mit einer leeren Seite",
@@ -263,6 +277,7 @@
       "daysUnit": "Tage",
       "today": "Heute"
     },
+    "projectCount": "{{filtered}} / {{total}} Bücher",
     "rail": {
       "books_one": "{{count}} Buch",
       "books_other": "{{count}} Bücher",

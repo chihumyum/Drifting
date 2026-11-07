@@ -36,6 +36,10 @@ pub enum ImportError {
     InUse(String),
     #[error("library registry: {0}")]
     Registry(String),
+    /// The chosen 0.1 data folder holds only account libraries; they go into
+    /// per-account libraries (M35).
+    #[error("only account libraries in the folder ({0}); they are imported per account")]
+    AccountLibrariesOnly(String),
     /// The staging copy failed SQLite's integrity check.
     #[error("the copy of the 0.1 library is damaged: {0}")]
     Damaged(String),

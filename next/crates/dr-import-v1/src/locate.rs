@@ -165,6 +165,80 @@ pub fn installation_id(root: &Path) -> Option<String> {
     (suffix.len() == 64 && suffix.bytes().all(|c| c.is_ascii_hexdigit())).then(|| id.to_string())
 }
 
+/// The 0.1 library a chosen folder stands for (the app's folder picker).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Picked {
+    /// Its database (`databases/drifting-library.db`).
+    pub database: PathBuf,
+    /// Its data root: assets, installation identity.
+    pub root: PathBuf,
+    /// Its registry id, when the folder was the 0.1 app's data folder.
+    pub id: Option<String>,
+    /// The other libraries there that this import leaves alone: account
+    /// libraries go into per-account libraries (M35), one at a time.
+    pub left: Vec<String>,
+}
+
+/// Which 0.1 library `folder` means. Read-only. Accepted:
+///
+/// - the 0.1 app's data folder (a registry, `libraries/`, or the
+///   pre-registry library's `databases/` in it): its local library
+///   (`legacy` unclaimed or claimed locally, or `local`; the active one when
+///   both exist). A folder holding only account libraries is refused;
+/// - one library's root (`databases/drifting-library.db` in it), such as
+///   `libraries/<id>`;
+/// - that library's `databases` folder.
+pub fn resolve(folder: &Path) -> Result<Picked> {
+    let database_here = folder.join(DATABASE_FILE);
+    let looks_like_base = folder.join(REGISTRY_FILE).exists()
+        || folder.join(LIBRARIES_DIRECTORY).is_dir()
+        || folder
+            .join(DATABASE_DIRECTORY)
+            .join(DATABASE_FILE)
+            .is_file();
+    if !looks_like_base {
+        if database_here.is_file() {
+            let root = folder.parent().unwrap_or(folder).to_path_buf();
+            return Ok(Picked {
+                database: database_here,
+                root,
+                id: None,
+                left: Vec::new(),
+            });
+        }
+        return Err(ImportError::NotALibrary(format!(
+            "no {DATABASE_DIRECTORY}/{DATABASE_FILE} in the folder"
+        )));
+    }
+    let found: Vec<LegacyLibrary> = discover(folder)?.into_iter().filter(|l| l.exists).collect();
+    let local = |l: &LegacyLibrary| matches!(l.owner, None | Some(Owner::Local));
+    // `discover` lists the active library first.
+    let Some(chosen) = found.iter().find(|l| local(l)) else {
+        if found.is_empty() {
+            return Err(ImportError::NotALibrary(format!(
+                "no library with a {DATABASE_FILE} in the folder"
+            )));
+        }
+        return Err(ImportError::AccountLibrariesOnly(
+            found
+                .iter()
+                .map(|l| l.id.clone())
+                .collect::<Vec<_>>()
+                .join(", "),
+        ));
+    };
+    Ok(Picked {
+        database: chosen.database.clone(),
+        root: chosen.root.clone(),
+        id: Some(chosen.id.clone()),
+        left: found
+            .iter()
+            .filter(|l| l.id != chosen.id)
+            .map(|l| l.id.clone())
+            .collect(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -256,5 +330,72 @@ mod tests {
         )
         .unwrap();
         assert_eq!(installation_id(root.path()), None);
+    }
+
+    fn database_at(dir: &Path) {
+        let db = dir.join(DATABASE_DIRECTORY);
+        std::fs::create_dir_all(&db).unwrap();
+        std::fs::write(db.join(DATABASE_FILE), b"").unwrap();
+    }
+
+    #[test]
+    fn a_chosen_folder_means_one_local_library() {
+        // The data folder of a 0.1 app that never had the registry.
+        let base = tempfile::tempdir().unwrap();
+        assert!(matches!(
+            resolve(base.path()),
+            Err(ImportError::NotALibrary(_))
+        ));
+        database_at(base.path());
+        let picked = resolve(base.path()).unwrap();
+        assert_eq!(picked.id.as_deref(), Some("legacy"));
+        assert_eq!(picked.root, base.path());
+        // Its `databases` folder: the root is the folder above.
+        let databases = base.path().join(DATABASE_DIRECTORY);
+        let picked = resolve(&databases).unwrap();
+        assert_eq!((picked.root.as_path(), picked.id), (base.path(), None));
+        assert_eq!(picked.database, databases.join(DATABASE_FILE));
+
+        // With the registry: the local library, the account ones left.
+        std::fs::write(
+            base.path().join(REGISTRY_FILE),
+            r#"{"version":1,"active":"account-0123456789abcdef0123456789abcdef","libraries":{
+                "legacy":{"owner":{"kind":"account","subject":"a"}},
+                "local":{"owner":{"kind":"local"}},
+                "account-0123456789abcdef0123456789abcdef":{"owner":{"kind":"account","subject":"b"}}}}"#,
+        )
+        .unwrap();
+        database_at(&base.path().join("libraries/local"));
+        database_at(
+            &base
+                .path()
+                .join("libraries/account-0123456789abcdef0123456789abcdef"),
+        );
+        let picked = resolve(base.path()).unwrap();
+        assert_eq!(picked.id.as_deref(), Some("local"));
+        assert_eq!(picked.root, base.path().join("libraries/local"));
+        assert_eq!(
+            picked.left,
+            ["account-0123456789abcdef0123456789abcdef", "legacy"]
+        );
+        // One library's own root.
+        let one = base
+            .path()
+            .join("libraries/account-0123456789abcdef0123456789abcdef");
+        assert_eq!(resolve(&one).unwrap().root, one);
+
+        // Only account libraries: refused.
+        std::fs::remove_dir_all(base.path().join("libraries/local")).unwrap();
+        std::fs::write(
+            base.path().join(REGISTRY_FILE),
+            r#"{"version":1,"active":"legacy","libraries":{
+                "legacy":{"owner":{"kind":"account","subject":"a"}},
+                "local":{"owner":{"kind":"local"}}}}"#,
+        )
+        .unwrap();
+        assert!(matches!(
+            resolve(base.path()),
+            Err(ImportError::AccountLibrariesOnly(_))
+        ));
     }
 }

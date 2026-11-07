@@ -43,8 +43,8 @@ actions!(
         /// Imports a `.driftingbook` (M41 handles it; the bookshelf only has
         /// the entry).
         ImportBook,
-        /// Imports a Drifting 0.1 library (M10 handles it; the bookshelf
-        /// only has the entry).
+        /// Imports a Drifting 0.1 library (M10, `dr-view-import`, handles it
+        /// with `cx.on_action`; the bookshelf only has the entry).
         ImportLegacyLibrary,
         /// Creates or saves the book in the open form (⌘↵ / Ctrl+↵, as in
         /// the 0.1 client; Enter in a field does it too).
@@ -542,9 +542,6 @@ impl Render for Shelf {
             }))
             .on_action(|_: &ImportBook, _, _| {
                 log::debug!("importing a .driftingbook is not built yet (M41)")
-            })
-            .on_action(|_: &ImportLegacyLibrary, _, _| {
-                log::debug!("importing a 0.1 library is not built yet (M10)")
             })
             .child(rail)
             .child(books)

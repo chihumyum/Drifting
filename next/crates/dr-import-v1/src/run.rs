@@ -160,17 +160,33 @@ fn analyse_reporting(
 
 fn fill_titles(legacy: &Legacy, gate: &mut Gate) -> Result<()> {
     for d in &mut gate.doubtful {
+        d.book_name = legacy
+            .conn
+            .query_row("SELECT name FROM project WHERE id = ?1", [&d.book], |r| {
+                r.get(0)
+            })
+            .ok();
         let Some((kind, id)) = ProseKind::from_doc_id(&d.doc) else {
             continue;
         };
         let sql = match kind {
-            ProseKind::NodeContent => "SELECT title FROM book_node WHERE id = ?1",
-            ProseKind::Element => "SELECT name FROM element WHERE id = ?1",
-            ProseKind::Storyline => "SELECT name FROM storylines WHERE id = ?1",
-            ProseKind::Category => "SELECT name FROM element_category WHERE id = ?1",
-            ProseKind::LibraryItem => "SELECT title FROM library_item WHERE id = ?1",
+            ProseKind::NodeContent => "SELECT title, kind FROM book_node WHERE id = ?1",
+            ProseKind::Element => "SELECT name, NULL FROM element WHERE id = ?1",
+            ProseKind::Storyline => "SELECT name, NULL FROM storylines WHERE id = ?1",
+            ProseKind::Category => "SELECT name, NULL FROM element_category WHERE id = ?1",
+            ProseKind::LibraryItem => "SELECT title, NULL FROM library_item WHERE id = ?1",
         };
-        d.title = legacy.conn.query_row(sql, [id], |r| r.get(0)).ok();
+        if let Ok((title, node_kind)) = legacy.conn.query_row(sql, [id], |r| {
+            Ok((
+                r.get::<_, Option<String>>(0)?,
+                r.get::<_, Option<String>>(1)?,
+            ))
+        }) {
+            d.title = title;
+            d.drift = node_kind.is_some_and(|k| {
+                dr_model::kind::NodeKind::parse(&k) == dr_model::kind::NodeKind::Drift
+            });
+        }
     }
     Ok(())
 }
@@ -295,22 +311,17 @@ pub fn import_with(
 ) -> Result<(Outcome, Timing)> {
     let mut reporter = Reporter::new(progress);
     let started = Instant::now();
-    let started_ms = dr_store::now_ms();
     let mut timing = Timing::default();
-    let staging_dir = receipt::directory(target).join("staging");
-    let (staged, legacy, owners, gate) = analyse_reporting(source, &staging_dir, &mut reporter)?;
-    timing.stage_ms = ms(started);
-    if !gate.allows(options.accept) {
-        if !options.keep_staging {
-            let _ = std::fs::remove_dir_all(&staging_dir);
-            // Leave nothing behind (removes the folder only if empty).
-            let _ = std::fs::remove_dir(receipt::directory(target));
-            let _ = std::fs::remove_dir(target);
+    let analysed = match stage_and_gate(source, target, options, &mut reporter, &mut timing)? {
+        Gated::Clear(a) => a,
+        Gated::Blocked(gate) => {
+            if !options.keep_staging {
+                // A library folder this import made, and nothing else.
+                let _ = std::fs::remove_dir(target);
+            }
+            return Ok((Outcome::Blocked(gate), timing));
         }
-        reporter.done();
-        return Ok((Outcome::Blocked(gate), timing));
-    }
-
+    };
     let adopted = match &options.device_dir {
         Some(dir) => adopt_identity(options.old_root.as_deref(), dir),
         None => false,
@@ -324,6 +335,135 @@ pub fn import_with(
         Ok(o)
     };
     let lib = Library::open(target, library_options()?)?;
+    let written = write_library(&lib, analysed, options, adopted, &mut reporter, &mut timing)?;
+    lib.close()?;
+    let receipt = finish(target, written, options, &mut timing)?;
+    if options.index {
+        let t9 = Instant::now();
+        let mut o = library_options()?;
+        dr_index::attach(&mut o);
+        o.rebuild_indexes_on_open = false;
+        let lib = reopen(target, o)?;
+        timing.indexed_docs = build_indexes(&lib, &mut reporter)?;
+        lib.close()?;
+        timing.index_ms = ms(t9);
+    }
+    reporter.done();
+    timing.total_ms = ms(started);
+    Ok((Outcome::Imported(receipt), timing))
+}
+
+/// [`import_with`] into a library that is already open (the app's): the
+/// same import, written through `lib`, which stays open. The receipt
+/// archive and the staging copy go beside it as usual. Indexes are built
+/// right away when `lib` has a deriver (the app's does: dr-index through
+/// F3); without one dr-store builds them the next time the library opens
+/// with a deriver. `options.device_dir` is only used to adopt the 0.1
+/// installation identity; the library keeps the device it was opened with.
+pub fn import_into_library(
+    source: &Path,
+    lib: &Library,
+    options: &Options,
+    progress: Callback<'_>,
+) -> Result<(Outcome, Timing)> {
+    let mut reporter = Reporter::new(progress);
+    let started = Instant::now();
+    let mut timing = Timing::default();
+    let root = lib.paths().root.clone();
+    let analysed = match stage_and_gate(source, &root, options, &mut reporter, &mut timing)? {
+        Gated::Clear(a) => a,
+        Gated::Blocked(gate) => return Ok((Outcome::Blocked(gate), timing)),
+    };
+    let adopted = match &options.device_dir {
+        Some(dir) => adopt_identity(options.old_root.as_deref(), dir),
+        None => false,
+    };
+    let written = write_library(lib, analysed, options, adopted, &mut reporter, &mut timing)?;
+    let receipt = finish(&root, written, options, &mut timing)?;
+    if options.index && lib.options().deriver.is_some() {
+        let t9 = Instant::now();
+        timing.indexed_docs = build_indexes(lib, &mut reporter)?;
+        timing.index_ms = ms(t9);
+    }
+    reporter.done();
+    timing.total_ms = ms(started);
+    Ok((Outcome::Imported(receipt), timing))
+}
+
+/// The staged and checked 0.1 library, ready to write.
+struct Analysed {
+    started_ms: i64,
+    staging_dir: PathBuf,
+    staged: Staged,
+    legacy: Legacy,
+    owners: Vec<ProseOwner>,
+    gate: Gate,
+}
+
+enum Gated {
+    Clear(Box<Analysed>),
+    Blocked(Gate),
+}
+
+/// Steps 1 and 2: stage a copy beside the library at `root` and decide the
+/// gate. Blocked: nothing is left behind (the staging folder goes, and the
+/// receipt folder when it is empty) and the progress is done.
+fn stage_and_gate(
+    source: &Path,
+    root: &Path,
+    options: &Options,
+    reporter: &mut Reporter<'_>,
+    timing: &mut Timing,
+) -> Result<Gated> {
+    let started = Instant::now();
+    let started_ms = dr_store::now_ms();
+    let staging_dir = receipt::directory(root).join("staging");
+    let (staged, legacy, owners, gate) = analyse_reporting(source, &staging_dir, reporter)?;
+    timing.stage_ms = ms(started);
+    if !gate.allows(options.accept) {
+        drop(legacy);
+        if !options.keep_staging {
+            let _ = std::fs::remove_dir_all(&staging_dir);
+            let _ = std::fs::remove_dir(receipt::directory(root));
+        }
+        reporter.done();
+        return Ok(Gated::Blocked(gate));
+    }
+    Ok(Gated::Clear(Box::new(Analysed {
+        started_ms,
+        staging_dir,
+        staged,
+        legacy,
+        owners,
+        gate,
+    })))
+}
+
+/// What [`write_library`] leaves for [`finish`].
+struct Written {
+    receipt: Box<Receipt>,
+    staged: Staged,
+    staging_dir: PathBuf,
+    settings: BTreeMap<String, String>,
+}
+
+/// Steps 3 and 4: every book into `lib`, then the receipt into it.
+fn write_library(
+    lib: &Library,
+    analysed: Box<Analysed>,
+    options: &Options,
+    adopted: bool,
+    reporter: &mut Reporter<'_>,
+    timing: &mut Timing,
+) -> Result<Written> {
+    let Analysed {
+        started_ms,
+        staging_dir,
+        staged,
+        legacy,
+        owners,
+        gate,
+    } = *analysed;
     let run_id = lib.local_transaction(|tx| {
         Ok(receipt::begin_run(
             tx,
@@ -685,7 +825,7 @@ pub fn import_with(
             timing.prose_ms += ms(t0);
             let t1 = Instant::now();
             store_doc(
-                &lib,
+                lib,
                 &b.doc_id,
                 &project.id,
                 dr_doc::prose::genesis(&b.doc_id),
@@ -788,7 +928,7 @@ pub fn import_with(
 
         let t3 = Instant::now();
         let bh = open_new(
-            &lib,
+            lib,
             &book_doc_id,
             &project.id,
             dr_doc::book::genesis(&book_id),
@@ -882,7 +1022,7 @@ pub fn import_with(
         // Asset bytes.
         let t7 = Instant::now();
         copy_assets(
-            &lib,
+            lib,
             options.old_root.as_deref(),
             &project.id,
             &rows.assets,
@@ -954,28 +1094,37 @@ pub fn import_with(
         },
     };
     lib.local_transaction(|tx| Ok(receipt::write_records(tx, run_id, &receipt)?))?;
-    lib.close()?;
     let settings = stamp.map(|s| s.settings).unwrap_or_default();
     drop(legacy);
-    receipt::write_archive(target, &staged.path, &receipt, &settings)?;
     timing.receipt_ms = ms(t8);
-    if !options.keep_staging {
-        let _ = std::fs::remove_dir_all(&staging_dir);
-    }
+    Ok(Written {
+        receipt: Box::new(receipt),
+        staged,
+        staging_dir,
+        settings,
+    })
+}
 
-    if options.index {
-        let t9 = Instant::now();
-        let mut o = library_options()?;
-        dr_index::attach(&mut o);
-        o.rebuild_indexes_on_open = false;
-        let lib = reopen(target, o)?;
-        timing.indexed_docs = build_indexes(&lib, &mut reporter)?;
-        lib.close()?;
-        timing.index_ms = ms(t9);
+/// Step 5's rest: the archive and the summary beside the library at
+/// `root`; the staging copy goes.
+fn finish(
+    root: &Path,
+    written: Written,
+    options: &Options,
+    timing: &mut Timing,
+) -> Result<Box<Receipt>> {
+    let t = Instant::now();
+    receipt::write_archive(
+        root,
+        &written.staged.path,
+        &written.receipt,
+        &written.settings,
+    )?;
+    timing.receipt_ms += ms(t);
+    if !options.keep_staging {
+        let _ = std::fs::remove_dir_all(&written.staging_dir);
     }
-    reporter.done();
-    timing.total_ms = ms(started);
-    Ok((Outcome::Imported(Box::new(receipt)), timing))
+    Ok(written.receipt)
 }
 
 /// Open the library this import has just closed. dr-store sometimes still

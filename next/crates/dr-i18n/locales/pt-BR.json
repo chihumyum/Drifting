@@ -23,6 +23,7 @@
     "creating": "Criando…",
     "edit": "Editar",
     "local": "Local",
+    "processing": "Processando…",
     "save": "Salvar",
     "saveFailed": "Não foi possível salvar as alterações. Tente novamente.",
     "saving": "Salvando…",
@@ -120,6 +121,15 @@
   "immersiveWriting": {
     "enter": "Escrita imersiva",
     "leave": "Sair da escrita imersiva"
+  },
+  "importDialog": {
+    "chooseFolder": "Escolher pasta",
+    "status": {
+      "committed": "importado"
+    },
+    "summary": {
+      "done": "Concluir"
+    }
   },
   "leftSidebar": {
     "empty": {
@@ -224,6 +234,9 @@
     "wordsOfTarget": "{{words}} / {{target}} palavras"
   },
   "projectPicker": {
+    "bookTransfer": {
+      "importFailedTitle": "Não foi possível importar"
+    },
     "desk": {
       "chaptersUnit_many": "capítulos",
       "chaptersUnit_one": "capítulo",
@@ -238,6 +251,7 @@
         "summaryLabel": "Resumo"
       },
       "goal": "{{pct}}% · meta {{target}} palavras",
+      "importing": "Importando",
       "moveToTrash": "Mover para excluídos recentemente",
       "newCard": "Novo livro",
       "newCardSub": "Comece com uma página em branco",
@@ -267,6 +281,7 @@
       "daysUnit": "dias",
       "today": "Hoje"
     },
+    "projectCount": "{{filtered}} / {{total}} livros",
     "rail": {
       "books_many": "{{count}} livros",
       "books_one": "{{count}} livro",

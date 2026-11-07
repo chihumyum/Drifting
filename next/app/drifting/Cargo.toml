@@ -15,6 +15,7 @@ dr-store.workspace = true
 dr-ui.workspace = true
 dr-view-feedback.workspace = true
 dr-view-home.workspace = true
+dr-view-import.workspace = true
 dr-view-shelf.workspace = true
 dr-workspace.workspace = true
 gpui.workspace = true

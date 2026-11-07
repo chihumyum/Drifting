@@ -378,3 +378,13 @@ snapshotHistory.restoreFailed
 snapshotHistory.kind.*
 rightSidebar.stats.snapshotButton
 common.wordsCount
+
+# M10 the 0.1 library import (dr-view-import)
+common.processing
+common.wordsCount
+projectPicker.projectCount
+projectPicker.desk.importing
+projectPicker.bookTransfer.importFailedTitle
+importDialog.chooseFolder
+importDialog.status.committed
+importDialog.summary.done
