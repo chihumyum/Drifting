@@ -17,7 +17,7 @@
 - **影响**：章节和构想没事——旧版每次打开书都会把章节的抄本重新誊一遍，而且章节记着「抄本是照哪一版誊的」，新版能看出来是不是最新。要素、故事线、分类、素材笔记的正文没有这道修复，也没有记版本：只要最后一次编辑后没有再碰过，抄本就一直缺那几个字，新版单看旧库无法判断。
 - **规模**：在「用旧」副本里人为制造了 5 处这种情况，探针一处不漏地把它们归到「无法证明是最新」，而被它判为「可以证明是最新」的 152 篇，没有一篇和 Yjs 不一致。
 
-**3. D5 的建议：不另做交换格式文件；旧版最后发一版，加一个「交接」步骤，把交接结果写回旧库本身。**
+**3. D5：不另做交换格式文件；旧版最后发一版，加一个「交接」步骤，把交接结果写回旧库本身。** 作者 2026-11-07 同意，已定。
 
 交接只做三件事：把每篇正文从 Yjs 重新誊一遍缓存；在旧库的 `library_state` 里记一张「交接清单」（每篇誊的是第几版）；把只存在 WebView 里的设置导出成一个文件。新版照常直接读旧库，对着清单逐篇核对版本号，全部对上就是一字不差。
 
@@ -30,12 +30,12 @@
 
 不推荐的两条路：在新版里自己写只读的 Yjs 解码器（要实现 Yjs 的排序算法、y-prosemirror 的约定，估计 2–3 千行加大量对照测试，只为照顾「跳过最后一版」的人）；让旧版导出 Loro（会把 P0-C 还没定稿的 Loro 结构写死在旧版里）。
 
-**4. 要作者定的事**
+**4. 作者已定的两件事（2026-11-07）**
 
-1. **旧的帮手对话要不要搬过去。** 建议只读搬过去（能看、能搜，不能接着聊）。Agent 改动的结算记录里存的是 Yjs 状态向量，到新版没有意义，原样留在旧库里。旧库导入后只读保留，不删。
-2. **没经过交接的库怎么办**（比如有人跳过最后一版，直接装了新版）。建议默认拦住，列出「无法证明是最新」的几篇，提示先用旧版最后一版打开一次；同时给一个「仍然导入」的按钮，照缓存导入，并说明这几篇可能少最后几秒的字。
+1. **旧的帮手对话只读搬过去**：能看、能搜，不能接着聊。搬的是对话、运行会话、轮次、消息、工具调用和工具结果这 7 张表。Agent 改动的结算记录、读取回执、检查点、事件流、长任务状态存的是 Yjs 状态向量或运行时的中间状态，到新版没有意义，留在旧库里。旧库导入后只读保留，不删。
+2. **没经过交接的库默认拦住**（比如有人跳过最后一版，直接装了新版）：列出「无法证明是最新」的几篇，提示先用旧版最后一版打开一次；同时给一个「仍然导入」的按钮，照缓存导入，并说明这几篇可能少最后几秒的字。
 
-另有一条需要监管会话在 M36 里定的规则，见下文「多台设备和账号库」：一个账号只能由一台设备做导入。
+还有一条规则要监管会话在 M36 里定，见下文「多台设备和账号库」：一个账号只能由一台设备做导入。
 
 ## 关键数字
 
@@ -98,55 +98,56 @@
    - 用 SQLite 的 backup 接口把库（连同 `-wal`）复制到新版的暂存目录，之后只读暂存副本。原库只读、不动，导入完也不删。
    - 迁移级别：`__drizzle_migrations` 行数。0018（19 行）直接读；更低的 0.1.x 库，用 M10 里冻结的那 19 个 `drizzle/*.sql` 在暂存副本上补齐（迁移是纯 SQL，旧版的 `crates/drifting-core/src/database.rs` 就是这么做的）；更高的拒绝。
    - 报告并默认拦住：`sync_conflict`、`sync_frontier_gap`、`sync_quarantined_object` 非空。账号库还要求交接时同步已经停稳。
-2. **读交接清单**（`library_state` 的 `v2-handoff`），给每篇正文分类（上表）。有 `unproven` 或 `node-basis-behind` 时按作者在「要作者定的事」第 2 条里定的规则处理。
+2. **读交接清单**（`library_state` 的 `v2-handoff`），给每篇正文分类（上表）。有 `unproven` 或 `node-basis-behind` 时默认停下：列出这几篇，提示先用旧版最后一版打开一次；作者点「仍然导入」才照缓存导入，导入回执里把这几篇记成「未证明」。
 3. **书目文档**：每本书（`project` 一行）一个，见下文逐表映射。最近删除里的书、各表里 `deleted_at` 不为空的对象，照样导入并保持「已删除」。
 4. **正文文档**：每个有正文的对象一个（章节和构想 `node-content`、要素、故事线、分类、素材笔记）。
 5. **锚点**：批注、补丁换成一对 Loro 光标，见下文。
 6. **快照历史**：回放成历史标签，见下文。
 7. **资源文件**：`assets/<书>/<资源>/source.*` 按 `project_asset.source_sha256` 校验后复制进 `dr-store`；`display`、`thumbnail` 可以重建，缺了不算错。
-8. **本机状态**：设置文件（交接导出）、`library_state` 的内置样书标记（删掉的样书不能回来）、MCP 扩展配置、工作记忆；钥匙串条目不用搬，新版用同一个服务名 `Drifting` 读（F7）。
-9. **重建**：引用与提及（`inline_mention`）、搜索、大纲、字数、写作统计。
-10. **写导入回执**：每篇正文的来源、新鲜度类别、旧版本号、缓存的哈希。之后的多设备核对要用。
+8. **帮手对话**：`agent-archive` 那 7 张表只读导入，按对话分组，能看能搜，不能续聊；其余帮手表不导入。
+9. **本机状态**：设置文件（交接导出）、`library_state` 的内置样书标记（删掉的样书不能回来）、MCP 扩展配置、工作记忆；钥匙串条目不用搬，新版用同一个服务名 `Drifting` 读（F7）。
+10. **重建**：引用与提及（`inline_mention`）、搜索、大纲、字数、写作统计。
+11. **写导入回执**：每篇正文的来源、新鲜度类别、旧版本号、缓存的哈希。之后的多设备核对要用。
 
 ### 逐表映射
 
 旧库在迁移 0018 之后正好 100 张表，每张都有去向。这张表由 `cargo run -p import-v1-spike --release -- --mapping-md` 从 `tables.rs` 生成；测试保证它和真实旧库的表、和仓库里 `drizzle/*.sql` 建出来的表完全一致，多一张少一张都会失败。
 
-去向：`book-doc` 书目文档，`prose-doc` 正文文档，`prose-evidence` 只用来判断缓存新鲜度，`assets` 资源文件，`history` 快照历史，`local` 新版本机 SQLite，`agent-archive` 帮手记录（按作者定的处理），`rebuild` 导入后重建，`drop` 不导入。
+去向：`book-doc` 书目文档，`prose-doc` 正文文档，`prose-evidence` 只用来判断缓存新鲜度，`assets` 资源文件，`history` 快照历史，`local` 新版本机 SQLite，`agent-archive` 帮手对话，只读导入，`rebuild` 导入后重建，`drop` 不导入（旧机制，或留在旧库里的记录）。
 
 | 旧表 | 去向 | 落到哪里 / 为什么 |
 | --- | --- | --- |
-| `agent_chat_binding` | agent-archive | 帮手对话扩展的投递状态 |
-| `agent_chat_branch` | agent-archive | 帮手对话扩展的投递状态 |
-| `agent_chat_cursor` | agent-archive | 帮手对话扩展的投递状态 |
-| `agent_chat_delivery` | agent-archive | 帮手对话扩展的投递状态 |
-| `agent_chat_object` | agent-archive | 帮手对话扩展的投递状态 |
-| `agent_chat_queue` | agent-archive | 帮手对话扩展的投递状态 |
-| `agent_conversation` | agent-archive | 帮手对话的标题和记录，只读保留 |
+| `agent_chat_binding` | drop | 帮手对话扩展的投递状态，留在旧库 |
+| `agent_chat_branch` | drop | 帮手对话扩展的投递状态，留在旧库 |
+| `agent_chat_cursor` | drop | 帮手对话扩展的投递状态，留在旧库 |
+| `agent_chat_delivery` | drop | 帮手对话扩展的投递状态，留在旧库 |
+| `agent_chat_object` | drop | 帮手对话扩展的投递状态，留在旧库 |
+| `agent_chat_queue` | drop | 帮手对话扩展的投递状态，留在旧库 |
+| `agent_conversation` | agent-archive | 帮手对话的标题，只读搬过去 |
 | `agent_mcp_server` | local | MCP 扩展配置；secret_* 只是钥匙串引用 |
 | `agent_memory` | book-doc | 书目文档：Project Memory |
 | `agent_permission_grant` | drop | 授权绑定旧工具版本，作者在新版重新授权 |
-| `agent_runtime_checkpoint` | agent-archive | 模型上下文检查点 |
-| `agent_runtime_element_patch_receipt` | agent-archive | 结算记录（含 Yjs 状态向量） |
-| `agent_runtime_entity_write_receipt` | agent-archive | 结算记录 |
-| `agent_runtime_event` | agent-archive | 运行日志 |
-| `agent_runtime_message` | agent-archive | 运行记录 |
-| `agent_runtime_read_observation` | agent-archive | 读取回执（含 Yjs 状态向量） |
-| `agent_runtime_read_receipt` | agent-archive | 读取回执 |
-| `agent_runtime_result_artifact` | agent-archive | 工具结果 |
-| `agent_runtime_result_blob` | agent-archive | 工具结果 |
-| `agent_runtime_session` | agent-archive | 运行会话 |
-| `agent_runtime_task` | agent-archive | 长任务 |
-| `agent_runtime_task_chapter_manifest` | agent-archive | 长任务 |
-| `agent_runtime_task_command` | agent-archive | 长任务 |
-| `agent_runtime_task_constraint` | agent-archive | 长任务 |
-| `agent_runtime_task_step` | agent-archive | 长任务 |
-| `agent_runtime_tool_call` | agent-archive | 运行日志 |
-| `agent_runtime_turn` | agent-archive | 运行日志 |
-| `agent_runtime_write_effect` | agent-archive | 结算记录 |
-| `agent_runtime_write_expectation` | agent-archive | 结算记录 |
-| `agent_runtime_write_review` | agent-archive | 结算记录 |
-| `agent_runtime_write_review_block` | agent-archive | 结算记录 |
+| `agent_runtime_checkpoint` | drop | 模型上下文检查点，可由消息重建，留在旧库 |
+| `agent_runtime_element_patch_receipt` | drop | 结算记录（含 Yjs 状态向量），留在旧库 |
+| `agent_runtime_entity_write_receipt` | drop | 结算记录，留在旧库 |
+| `agent_runtime_event` | drop | 运行事件流，留在旧库 |
+| `agent_runtime_message` | agent-archive | 对话消息，只读搬过去 |
+| `agent_runtime_read_observation` | drop | 读取回执（含 Yjs 状态向量），留在旧库 |
+| `agent_runtime_read_receipt` | drop | 读取回执，留在旧库 |
+| `agent_runtime_result_artifact` | agent-archive | 工具结果，随对话只读搬过去 |
+| `agent_runtime_result_blob` | agent-archive | 工具结果，随对话只读搬过去 |
+| `agent_runtime_session` | agent-archive | 对话的运行会话，只读搬过去 |
+| `agent_runtime_task` | drop | 长任务状态，留在旧库 |
+| `agent_runtime_task_chapter_manifest` | drop | 长任务状态，留在旧库 |
+| `agent_runtime_task_command` | drop | 长任务状态，留在旧库 |
+| `agent_runtime_task_constraint` | drop | 长任务状态，留在旧库 |
+| `agent_runtime_task_step` | drop | 长任务状态，留在旧库 |
+| `agent_runtime_tool_call` | agent-archive | 工具调用，随对话只读搬过去 |
+| `agent_runtime_turn` | agent-archive | 对话轮次，只读搬过去 |
+| `agent_runtime_write_effect` | drop | 结算记录，留在旧库 |
+| `agent_runtime_write_expectation` | drop | 结算记录，留在旧库 |
+| `agent_runtime_write_review` | drop | 结算记录，留在旧库 |
+| `agent_runtime_write_review_block` | drop | 结算记录，留在旧库 |
 | `agent_working_memory` | local | 每本书的工作记忆文本 |
 | `block_section` | drop | 已退役 Copilot 的滚动摘要 |
 | `book_act` | book-doc | 书目文档：幕，书序上的分界 |
@@ -291,7 +292,7 @@ v4 的偏移有三个陷阱，单元测试都覆盖了：
 
 ## 三、D5：三种做法的比较
 
-| | 新版自己读 Yjs | 旧版导出交换文件 | 旧版交接 + 新版直接读旧库（建议） |
+| | 新版自己读 Yjs | 旧版导出交换文件 | 旧版交接 + 新版直接读旧库（已定） |
 | --- | --- | --- | --- |
 | 新版要写的 | 只读 Yjs 解码器：更新格式、YATA 排序、删除集、XmlText 格式、y-prosemirror 约定，估计 2–3 千行加对照测试 | 交换文件的读取 | 读旧库（本探针的大部分代码） |
 | 旧版要加的 | 无 | 一种文件格式的写出：每篇正文、标记、块 ID、锚点、历史 | 交接：誊缓存、写清单、导出设置，约 200–300 行 TS 加一个集成测试 |
@@ -323,7 +324,7 @@ v4 的偏移有三个陷阱，单元测试都覆盖了：
 
 探针用「用旧+交接」副本模拟了第 1、3 步：154 篇全部归为 `handoff`，和 Yjs 全部一致。真正的交接要按上面走旧版的派生事务，不能像模拟那样直接改表。
 
-**这次没做的事**：没有改旧版代码。交接的原型按上面的设计写，属于旧版最后一个版本的功能，等监管会话和作者确认后再在旧客户端里实现。
+**还没做的事**：旧版代码一行没改。作者已经同意这个设计，交接要在旧客户端里按上面的步骤实现，随一个 0.1.x 版本发布。越早发越好：交接在每次退出前都会跑，只要作者用过带交接的任何一个 0.1.x 版本，库里就有清单，就算之后跳过了最后一版也能证明。
 
 ## 四、和计划不一致的地方
 

@@ -1199,39 +1199,39 @@
   ],
   "mapping": [
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_chat_binding",
-      "target": "帮手对话扩展的投递状态"
+      "target": "帮手对话扩展的投递状态，留在旧库"
     },
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_chat_branch",
-      "target": "帮手对话扩展的投递状态"
+      "target": "帮手对话扩展的投递状态，留在旧库"
     },
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_chat_cursor",
-      "target": "帮手对话扩展的投递状态"
+      "target": "帮手对话扩展的投递状态，留在旧库"
     },
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_chat_delivery",
-      "target": "帮手对话扩展的投递状态"
+      "target": "帮手对话扩展的投递状态，留在旧库"
     },
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_chat_object",
-      "target": "帮手对话扩展的投递状态"
+      "target": "帮手对话扩展的投递状态，留在旧库"
     },
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_chat_queue",
-      "target": "帮手对话扩展的投递状态"
+      "target": "帮手对话扩展的投递状态，留在旧库"
     },
     {
       "fate": "agent-archive",
       "table": "agent_conversation",
-      "target": "帮手对话的标题和记录，只读保留"
+      "target": "帮手对话的标题，只读搬过去"
     },
     {
       "fate": "local",
@@ -1249,109 +1249,109 @@
       "target": "授权绑定旧工具版本，作者在新版重新授权"
     },
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_runtime_checkpoint",
-      "target": "模型上下文检查点"
+      "target": "模型上下文检查点，可由消息重建，留在旧库"
     },
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_runtime_element_patch_receipt",
-      "target": "结算记录（含 Yjs 状态向量）"
+      "target": "结算记录（含 Yjs 状态向量），留在旧库"
     },
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_runtime_entity_write_receipt",
-      "target": "结算记录"
+      "target": "结算记录，留在旧库"
     },
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_runtime_event",
-      "target": "运行日志"
+      "target": "运行事件流，留在旧库"
     },
     {
       "fate": "agent-archive",
       "table": "agent_runtime_message",
-      "target": "运行记录"
+      "target": "对话消息，只读搬过去"
     },
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_runtime_read_observation",
-      "target": "读取回执（含 Yjs 状态向量）"
+      "target": "读取回执（含 Yjs 状态向量），留在旧库"
     },
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_runtime_read_receipt",
-      "target": "读取回执"
+      "target": "读取回执，留在旧库"
     },
     {
       "fate": "agent-archive",
       "table": "agent_runtime_result_artifact",
-      "target": "工具结果"
+      "target": "工具结果，随对话只读搬过去"
     },
     {
       "fate": "agent-archive",
       "table": "agent_runtime_result_blob",
-      "target": "工具结果"
+      "target": "工具结果，随对话只读搬过去"
     },
     {
       "fate": "agent-archive",
       "table": "agent_runtime_session",
-      "target": "运行会话"
+      "target": "对话的运行会话，只读搬过去"
     },
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_runtime_task",
-      "target": "长任务"
+      "target": "长任务状态，留在旧库"
     },
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_runtime_task_chapter_manifest",
-      "target": "长任务"
+      "target": "长任务状态，留在旧库"
     },
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_runtime_task_command",
-      "target": "长任务"
+      "target": "长任务状态，留在旧库"
     },
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_runtime_task_constraint",
-      "target": "长任务"
+      "target": "长任务状态，留在旧库"
     },
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_runtime_task_step",
-      "target": "长任务"
+      "target": "长任务状态，留在旧库"
     },
     {
       "fate": "agent-archive",
       "table": "agent_runtime_tool_call",
-      "target": "运行日志"
+      "target": "工具调用，随对话只读搬过去"
     },
     {
       "fate": "agent-archive",
       "table": "agent_runtime_turn",
-      "target": "运行日志"
+      "target": "对话轮次，只读搬过去"
     },
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_runtime_write_effect",
-      "target": "结算记录"
+      "target": "结算记录，留在旧库"
     },
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_runtime_write_expectation",
-      "target": "结算记录"
+      "target": "结算记录，留在旧库"
     },
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_runtime_write_review",
-      "target": "结算记录"
+      "target": "结算记录，留在旧库"
     },
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_runtime_write_review_block",
-      "target": "结算记录"
+      "target": "结算记录，留在旧库"
     },
     {
       "fate": "local",
