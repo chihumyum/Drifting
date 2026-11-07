@@ -1,0 +1,5677 @@
+---
+source: crates/dr-workspace/tests/registry.rs
+expression: json
+---
+[
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "description": "Keep this id (undo uses it).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "start_chapter": {
+          "description": "The act starts at this chapter; omitted: a book-head act (before\nevery chapter).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "start_order": {
+          "description": "An exact boundary (undo uses it); wins over `start_chapter`.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book",
+        "name"
+      ],
+      "title": "ActCreateIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "act.create",
+    "output": {
+      "description": "The entity a command created or renamed, with its final name.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Named",
+      "type": "object"
+    },
+    "summary": "Create an act starting at a chapter (or at the head of the book)."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "act.delete",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Delete an act boundary (its chapters join the act before)."
+  },
+  {
+    "access": "read",
+    "concurrency": "shared",
+    "input": {
+      "description": "A book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "BookIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "act.list",
+    "output": {
+      "$defs": {
+        "ActInfo": {
+          "properties": {
+            "chapters": {
+              "description": "The act's chapters, in reading order.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "color": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "drift": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "start_order": {
+              "description": "`None`: the book-head act.",
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "color",
+            "start_order",
+            "drift",
+            "chapters"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/ActInfo"
+      },
+      "title": "Array_of_ActInfo",
+      "type": "array"
+    },
+    "summary": "List acts in reading order, each with its chapters."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "drift": {
+          "description": "Bind an idea as the act's notes (`null` unbinds).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "start_chapter": {
+          "description": "Move the boundary to this chapter.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "start_order": {
+          "description": "Move the boundary exactly (`null`: the book head).",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "ActUpdateIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "act.update",
+    "output": {
+      "description": "The entity a command created or renamed, with its final name.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Named",
+      "type": "object"
+    },
+    "summary": "Rename an act, recolour it, move its boundary or bind an idea to it."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "height": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "id": {
+          "description": "The asset id the store imported the bytes under.",
+          "type": "string"
+        },
+        "kind": {
+          "description": "`image` or `pdf`.",
+          "type": "string"
+        },
+        "mime": {
+          "type": "string"
+        },
+        "sha256": {
+          "description": "Lowercase hex SHA-256 of the bytes.",
+          "type": "string"
+        },
+        "size": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "width": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book",
+        "id",
+        "kind",
+        "mime",
+        "size",
+        "sha256"
+      ],
+      "title": "AssetPutIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "asset.put",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Record an imported asset's metadata in the book (written once; the bytes are in storage)."
+  },
+  {
+    "access": "write",
+    "concurrency": "library",
+    "input": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "summary": {
+          "default": "",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "BookCreateIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "book.create",
+    "output": {
+      "description": "The entity a command created or renamed, with its final name.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Named",
+      "type": "object"
+    },
+    "summary": "Create a book (its book document from the shared genesis) and return its id."
+  },
+  {
+    "access": "read",
+    "concurrency": "shared",
+    "input": {
+      "description": "A book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "BookIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "book.get",
+    "output": {
+      "properties": {
+        "chapters": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "daily_word_target": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "elements": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "id": {
+          "type": "string"
+        },
+        "ideas": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "trashed": {
+          "type": "boolean"
+        },
+        "word_target": {
+          "description": "The book's word target (`None`: turned off).",
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "words": {
+          "description": "Words in the book's prose documents, from the derived index.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "summary",
+        "trashed",
+        "word_target",
+        "daily_word_target",
+        "chapters",
+        "ideas",
+        "elements",
+        "words"
+      ],
+      "title": "BookDetail",
+      "type": "object"
+    },
+    "summary": "Read a book's name, summary, word targets and counts."
+  },
+  {
+    "access": "read",
+    "concurrency": "shared",
+    "input": {
+      "properties": {
+        "trashed": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "title": "ListBooksIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "book.list",
+    "output": {
+      "$defs": {
+        "BookInfo": {
+          "properties": {
+            "daily_word_target": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "summary": {
+              "type": "string"
+            },
+            "trashed": {
+              "type": "boolean"
+            },
+            "word_target": {
+              "description": "The book's word target (`None`: turned off).",
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "summary",
+            "trashed",
+            "word_target",
+            "daily_word_target"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/BookInfo"
+      },
+      "title": "Array_of_BookInfo",
+      "type": "array"
+    },
+    "summary": "List the library's books (trashed ones when asked)."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "description": "A book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "BookIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "book.restore",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Bring a book back from the trash."
+  },
+  {
+    "access": "read",
+    "concurrency": "shared",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "limit": {
+          "description": "At most this many hits (default 50).",
+          "format": "uint",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "query": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "query"
+      ],
+      "title": "SearchIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "book.search",
+    "output": {
+      "$defs": {
+        "SearchHitInfo": {
+          "properties": {
+            "block_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "doc": {
+              "type": "string"
+            },
+            "kind": {
+              "description": "What owns the document: `node`, `element`, `storyline`, `category`,\n`material`.",
+              "type": "string"
+            },
+            "offset": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "owner": {
+              "type": "string"
+            },
+            "paragraph": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "snippet": {
+              "type": "string"
+            },
+            "title": {
+              "description": "The owner's title or name.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "doc",
+            "kind",
+            "owner",
+            "title",
+            "block_id",
+            "paragraph",
+            "offset",
+            "snippet"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/SearchHitInfo"
+      },
+      "title": "Array_of_SearchHitInfo",
+      "type": "array"
+    },
+    "summary": "Search a book's prose (chapters in reading order first, then ideas, elements, storylines, categories, materials). One- and two-character queries work."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "description": "A book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "BookIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "book.trash",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Move a book to the trash (restorable; storage deletes it for good later)."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "daily_word_target": {
+          "description": "Words per day; 0 turns it off.",
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "summary": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "word_target": {
+          "description": "The book's word target; 0 turns it off.",
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "BookUpdateIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "book.update",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Change a book's name, summary or word targets."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "default": "",
+          "description": "A taken name gets a ` 2` suffix; empty becomes \"Untitled\".",
+          "type": "string"
+        },
+        "text": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "CategoryCreateIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "category.create",
+    "output": {
+      "description": "The entity a command created or renamed, with its final name.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Named",
+      "type": "object"
+    },
+    "summary": "Create an element category (a taken name gets a numbered suffix; the final name is returned)."
+  },
+  {
+    "access": "read",
+    "concurrency": "shared",
+    "input": {
+      "description": "A list query's filter on the trash.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "trashed": {
+          "default": false,
+          "description": "Include what is in the trash.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "ListIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "category.list",
+    "output": {
+      "$defs": {
+        "CategoryInfo": {
+          "properties": {
+            "color": {
+              "type": "string"
+            },
+            "elements": {
+              "description": "Live elements in this category.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "grid_x": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "grid_y": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "layout": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "trashed": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "color",
+            "layout",
+            "grid_x",
+            "grid_y",
+            "trashed",
+            "elements"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/CategoryInfo"
+      },
+      "title": "Array_of_CategoryInfo",
+      "type": "array"
+    },
+    "summary": "List element categories, with how many live elements each has."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "category.purge",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Delete a category for good: its elements become uncategorized, its relations go and comments on it become floating, in one commit."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "category.restore",
+    "output": {
+      "description": "The entity a command created or renamed, with its final name.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Named",
+      "type": "object"
+    },
+    "summary": "Bring a category back from the trash, with its elements."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "category.trash",
+    "output": {
+      "description": "The entity a command created or renamed, with its final name.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Named",
+      "type": "object"
+    },
+    "summary": "Move a category to the trash. Never refused: its elements read as uncategorized until it is restored."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "grid": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "format": "int64",
+              "type": "integer"
+            },
+            {
+              "format": "int64",
+              "type": "integer"
+            }
+          ],
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "layout": {
+          "description": "`auto` or `pinned`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "CategoryUpdateIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "category.update",
+    "output": {
+      "description": "The entity a command created or renamed, with its final name.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Named",
+      "type": "object"
+    },
+    "summary": "Rename a category (a taken name gets a suffix), recolour it or change its layout."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "ChapterPlace": {
+          "description": "Where a chapter goes in reading order.",
+          "oneOf": [
+            {
+              "const": "first",
+              "description": "Before every chapter.",
+              "type": "string"
+            },
+            {
+              "const": "last",
+              "description": "After every chapter.",
+              "type": "string"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Right after this chapter (before the next chapter or act boundary).",
+              "properties": {
+                "after": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "after"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Right before this chapter.",
+              "properties": {
+                "before": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "before"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "An exact book-order coordinate (undo uses it).",
+              "properties": {
+                "order": {
+                  "format": "double",
+                  "type": "number"
+                }
+              },
+              "required": [
+                "order"
+              ],
+              "type": "object"
+            }
+          ]
+        }
+      },
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "place": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ChapterPlace"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Default: after the last chapter."
+        },
+        "storyline": {
+          "description": "Put it on this storyline (and make it the primary one).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "summary": {
+          "default": "",
+          "type": "string"
+        },
+        "text": {
+          "description": "Initial text; a newline starts a new paragraph.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "title": {
+          "default": "",
+          "description": "A taken title gets a ` 2` suffix; empty becomes \"Untitled\".",
+          "type": "string"
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "ChapterCreateIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "chapter.create",
+    "output": {
+      "properties": {
+        "book_order": {
+          "format": "double",
+          "type": "number"
+        },
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "description": "The final title (with a suffix if the asked one was taken).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "book_order"
+      ],
+      "title": "ChapterCreated",
+      "type": "object"
+    },
+    "summary": "Create a chapter (a taken title gets a numbered suffix; the final title is returned)."
+  },
+  {
+    "access": "read",
+    "concurrency": "shared",
+    "input": {
+      "description": "A list query's filter on the trash.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "trashed": {
+          "default": false,
+          "description": "Include what is in the trash.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "ListIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "chapter.list",
+    "output": {
+      "$defs": {
+        "ChapterInfo": {
+          "description": "A chapter, in reading order.",
+          "properties": {
+            "act": {
+              "description": "The act the chapter is in, if any.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "book_order": {
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "narrative_order": {
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "number": {
+              "description": "1-based position in reading order (live chapters only).",
+              "format": "uint32",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "primary_storyline": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "status": {
+              "description": "`draft`, `finished` or `discarded`.",
+              "type": "string"
+            },
+            "storylines": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "summary": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "trashed": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "id",
+            "title",
+            "summary",
+            "number",
+            "book_order",
+            "narrative_order",
+            "status",
+            "act",
+            "storylines",
+            "primary_storyline",
+            "trashed"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/ChapterInfo"
+      },
+      "title": "Array_of_ChapterInfo",
+      "type": "array"
+    },
+    "summary": "List chapters in reading order, with their act and storylines (trashed ones after, when asked)."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "ChapterPlace": {
+          "description": "Where a chapter goes in reading order.",
+          "oneOf": [
+            {
+              "const": "first",
+              "description": "Before every chapter.",
+              "type": "string"
+            },
+            {
+              "const": "last",
+              "description": "After every chapter.",
+              "type": "string"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Right after this chapter (before the next chapter or act boundary).",
+              "properties": {
+                "after": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "after"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Right before this chapter.",
+              "properties": {
+                "before": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "before"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "An exact book-order coordinate (undo uses it).",
+              "properties": {
+                "order": {
+                  "format": "double",
+                  "type": "number"
+                }
+              },
+              "required": [
+                "order"
+              ],
+              "type": "object"
+            }
+          ]
+        }
+      },
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "place": {
+          "$ref": "#/$defs/ChapterPlace"
+        }
+      },
+      "required": [
+        "book",
+        "id",
+        "place"
+      ],
+      "title": "ChapterMoveIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "chapter.move",
+    "output": {
+      "properties": {
+        "book_order": {
+          "format": "double",
+          "type": "number"
+        },
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "description": "The final title (with a suffix if the asked one was taken).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "book_order"
+      ],
+      "title": "ChapterCreated",
+      "type": "object"
+    },
+    "summary": "Move a chapter in reading order (it lands before the next chapter or act boundary)."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "chapter.purge",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Delete a chapter for good: its relations go and comments on it become floating, in one commit. Undo restores it from history."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "chapter.restore",
+    "output": {
+      "description": "The entity a command created or renamed, with its final name.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Named",
+      "type": "object"
+    },
+    "summary": "Bring a chapter back from the trash (its relations and comments come back with it)."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "chapter.trash",
+    "output": {
+      "description": "The entity a command created or renamed, with its final name.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Named",
+      "type": "object"
+    },
+    "summary": "Move a chapter to the trash. Never refused: its relations are hidden and comments on it shown as unlocated until it is restored; the result lists them."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "add_storylines": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "narrative_order": {
+          "description": "Place on the narrative axis (`null` takes it off).",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "primary_storyline": {
+          "description": "The primary storyline (must be one of the chapter's; `null` clears).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "remove_storylines": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "status": {
+          "description": "`draft`, `finished` or `discarded`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "summary": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "title": {
+          "description": "A taken title gets a ` 2` suffix.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "ChapterUpdateIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "chapter.update",
+    "output": {
+      "description": "The entity a command created or renamed, with its final name.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Named",
+      "type": "object"
+    },
+    "summary": "Change a chapter's title, summary, status, narrative position or storylines."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "Target": {
+          "description": "A reference to an entity (relation end, comment or memory target).",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "description": "`node`, `element`, `patch`, `category`, `storyline`, `comment`,\n`material`.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "author_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "block_id": {
+          "description": "The paragraph it sits on (needs a target).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "body": {
+          "default": "",
+          "type": "string"
+        },
+        "book": {
+          "type": "string"
+        },
+        "kind": {
+          "description": "`note` (default) or `todo`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "priority": {
+          "description": "`low`, `med` or `high`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "range": {
+          "description": "Anchor it to characters `[start, end)` of the target's prose.",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            }
+          ],
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "target": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Target"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "What it is on; omitted: a floating comment."
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "CommentCreateIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "comment.create",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Add a comment or TODO, on an entity, a paragraph, a passage of its prose, or floating."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "comment.delete",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Delete a comment or TODO (its relations go with it)."
+  },
+  {
+    "access": "read",
+    "concurrency": "shared",
+    "input": {
+      "$defs": {
+        "Target": {
+          "description": "A reference to an entity (relation end, comment or memory target).",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "description": "`node`, `element`, `patch`, `category`, `storyline`, `comment`,\n`material`.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "kind": {
+          "description": "`note` or `todo`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "description": "`open` or `resolved`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "target": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Target"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Only comments on this entity."
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "CommentListIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "comment.list",
+    "output": {
+      "$defs": {
+        "CommentInfo": {
+          "properties": {
+            "agent_conversation": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "anchored": {
+              "type": "boolean"
+            },
+            "author_kind": {
+              "description": "`user`, `ai` or `external`.",
+              "type": "string"
+            },
+            "author_name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "body": {
+              "type": "string"
+            },
+            "created_at": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "description": "`note` or `todo`.",
+              "type": "string"
+            },
+            "priority": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "projection": {
+              "description": "Generated from prose (`marker` or `note_task`).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "quote": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "source": {
+              "description": "`manual` or `api`.",
+              "type": "string"
+            },
+            "status": {
+              "description": "`open` or `resolved`.",
+              "type": "string"
+            },
+            "target": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Target"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "target_block": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "unlocated": {
+              "description": "The target is in the trash or gone: show as unlocated.",
+              "type": "boolean"
+            },
+            "updated_at": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "target",
+            "unlocated",
+            "target_block",
+            "anchored",
+            "quote",
+            "body",
+            "status",
+            "priority",
+            "author_kind",
+            "author_name",
+            "source",
+            "agent_conversation",
+            "projection",
+            "created_at",
+            "updated_at"
+          ],
+          "type": "object"
+        },
+        "Target": {
+          "description": "A reference to an entity (relation end, comment or memory target).",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "description": "`node`, `element`, `patch`, `category`, `storyline`, `comment`,\n`material`.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/CommentInfo"
+      },
+      "title": "Array_of_CommentInfo",
+      "type": "array"
+    },
+    "summary": "List comments and TODOs (a target in the trash or gone shows as unlocated)."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "agent_conversation": {
+          "description": "The Agent conversation started from this TODO.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "body": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "description": "`note` or `todo`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "priority": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "description": "`open` or `resolved`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "CommentUpdateIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "comment.update",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Change a comment or TODO: its text, status (resolve / reopen), priority, kind or linked Agent conversation."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "aliases": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "book": {
+          "type": "string"
+        },
+        "category": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "default": "",
+          "description": "The element's name. A name another element has is refused, unless\n`numbered` (a placeholder name, numbered ` 2`, ` 3`…).",
+          "type": "string"
+        },
+        "numbered": {
+          "default": false,
+          "type": "boolean"
+        },
+        "summary": {
+          "default": "",
+          "type": "string"
+        },
+        "text": {
+          "description": "Initial body text.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "ElementCreateIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "element.create",
+    "output": {
+      "description": "The entity a command created or renamed, with its final name.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Named",
+      "type": "object"
+    },
+    "summary": "Create an element. A name or alias another element already has is refused (automatic links find people by name); the error names that element."
+  },
+  {
+    "access": "read",
+    "concurrency": "shared",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "category": {
+          "description": "Only this category's elements.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "trashed": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "ElementListIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "element.list",
+    "output": {
+      "$defs": {
+        "ElementInfo": {
+          "properties": {
+            "aliases": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "category": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "fields": {
+              "items": {
+                "$ref": "#/$defs/FieldInfo"
+              },
+              "type": "array"
+            },
+            "group_name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "name_conflict": {
+              "description": "When a merge left two live elements with one name: the element that\nkeeps it (show this one as a conflict to rename).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "portrait": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "relate_pin": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "format": "double",
+                  "type": "number"
+                },
+                {
+                  "format": "double",
+                  "type": "number"
+                }
+              ],
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "summary": {
+              "type": "string"
+            },
+            "trashed": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "summary",
+            "category",
+            "aliases",
+            "fields",
+            "group_name",
+            "portrait",
+            "relate_pin",
+            "trashed",
+            "name_conflict"
+          ],
+          "type": "object"
+        },
+        "FieldInfo": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "key": {
+              "type": "string"
+            },
+            "pos": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "key",
+            "value",
+            "pos"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/ElementInfo"
+      },
+      "title": "Array_of_ElementInfo",
+      "type": "array"
+    },
+    "summary": "List elements (with a mark on names a merge left duplicated)."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "element.purge",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Delete an element for good: its relations and patches go, comments on it become floating, in one commit."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "element.restore",
+    "output": {
+      "description": "The entity a command created or renamed, with its final name.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Named",
+      "type": "object"
+    },
+    "summary": "Bring an element back from the trash (a name taken meanwhile gets a suffix)."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "element.trash",
+    "output": {
+      "description": "The entity a command created or renamed, with its final name.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Named",
+      "type": "object"
+    },
+    "summary": "Move an element to the trash. Never refused: its relations are hidden and comments on it unlocated until it is restored."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "FieldIn": {
+          "description": "A field of an element's key/value list to add or change.",
+          "properties": {
+            "id": {
+              "description": "Omitted: a new field.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "key": {
+              "type": "string"
+            },
+            "place": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Place"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "pos": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "key",
+            "value"
+          ],
+          "type": "object"
+        },
+        "Place": {
+          "description": "Where to put something in an ordered list.",
+          "oneOf": [
+            {
+              "const": "first",
+              "description": "At the start.",
+              "type": "string"
+            },
+            {
+              "const": "last",
+              "description": "At the end.",
+              "type": "string"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Right after the item with this id.",
+              "properties": {
+                "after": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "after"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Right before the item with this id.",
+              "properties": {
+                "before": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "before"
+              ],
+              "type": "object"
+            }
+          ]
+        }
+      },
+      "properties": {
+        "add_aliases": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "book": {
+          "type": "string"
+        },
+        "category": {
+          "description": "`null` leaves it uncategorized.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "group_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "description": "Refused if another element has it.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "portrait": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "put_fields": {
+          "items": {
+            "$ref": "#/$defs/FieldIn"
+          },
+          "type": "array"
+        },
+        "relate_pin": {
+          "description": "Pin in the relation graph (`null` unpins).",
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "format": "double",
+              "type": "number"
+            },
+            {
+              "format": "double",
+              "type": "number"
+            }
+          ],
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "remove_aliases": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "remove_fields": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "summary": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "ElementUpdateIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "element.update",
+    "output": {
+      "description": "The entity a command created or renamed, with its final name.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Named",
+      "type": "object"
+    },
+    "summary": "Change an element: name, summary, category, aliases, fields, portrait, relation-graph pin. A name or alias another element has is refused."
+  },
+  {
+    "access": "read",
+    "concurrency": "shared",
+    "input": {
+      "description": "A book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "BookIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "fact.list",
+    "output": {
+      "$defs": {
+        "FieldInfo": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "key": {
+              "type": "string"
+            },
+            "pos": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "key",
+            "value",
+            "pos"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/FieldInfo"
+      },
+      "title": "Array_of_FieldInfo",
+      "type": "array"
+    },
+    "summary": "List the book's project facts (项目设定), in order."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "Place": {
+          "description": "Where to put something in an ordered list.",
+          "oneOf": [
+            {
+              "const": "first",
+              "description": "At the start.",
+              "type": "string"
+            },
+            {
+              "const": "last",
+              "description": "At the end.",
+              "type": "string"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Right after the item with this id.",
+              "properties": {
+                "after": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "after"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Right before the item with this id.",
+              "properties": {
+                "before": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "before"
+              ],
+              "type": "object"
+            }
+          ]
+        }
+      },
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "description": "The fact to change; omitted: a new fact.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "key": {
+          "type": "string"
+        },
+        "place": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Place"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Where it goes (a new fact goes last by default)."
+        },
+        "pos": {
+          "description": "An exact position key (undo uses it); wins over `place`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "key",
+        "value"
+      ],
+      "title": "FactPutIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "fact.put",
+    "output": {
+      "description": "The entity a command created or renamed, with its final name.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Named",
+      "type": "object"
+    },
+    "summary": "Add a project fact or change one (key, value, position)."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "fact.remove",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Remove a project fact."
+  },
+  {
+    "access": "read",
+    "concurrency": "shared",
+    "input": {
+      "properties": {
+        "session": {
+          "type": "string"
+        },
+        "turn": {
+          "description": "One turn; omitted: the whole session.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "session"
+      ],
+      "title": "AgentIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "history.agent_changes",
+    "output": {
+      "$defs": {
+        "AgentWriteInfo": {
+          "properties": {
+            "call": {
+              "type": "string"
+            },
+            "doc": {
+              "type": "string"
+            },
+            "summary": {
+              "type": "string"
+            },
+            "ts": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "turn": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "doc",
+            "turn",
+            "call",
+            "summary",
+            "ts"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/AgentWriteInfo"
+      },
+      "title": "Array_of_AgentWriteInfo",
+      "type": "array"
+    },
+    "summary": "List what an Agent session (or one turn) wrote: one entry per settled write, oldest first."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "EntityKey": {
+          "description": "One entity of a book document: its collection (the root container's\nname, e.g. `nodes`, `relations`, `drift_groups`; `meta` with a field name\nas id) and id.",
+          "properties": {
+            "collection": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "collection",
+            "id"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "at": {
+          "description": "The book document's version to restore from (hex of Loro frontiers).",
+          "type": "string"
+        },
+        "book": {
+          "type": "string"
+        },
+        "entities": {
+          "items": {
+            "$ref": "#/$defs/EntityKey"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "book",
+        "at",
+        "entities"
+      ],
+      "title": "RestoreIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "history.restore_entities",
+    "output": {
+      "$defs": {
+        "EntityKey": {
+          "description": "One entity of a book document: its collection (the root container's\nname, e.g. `nodes`, `relations`, `drift_groups`; `meta` with a field name\nas id) and id.",
+          "properties": {
+            "collection": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "collection",
+            "id"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "restored": {
+          "items": {
+            "$ref": "#/$defs/EntityKey"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "restored"
+      ],
+      "title": "Restored",
+      "type": "object"
+    },
+    "summary": "Make named entities of a book equal to an earlier version (one commit; the rest of the book is untouched). The undo of every purge."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "session": {
+          "type": "string"
+        },
+        "turn": {
+          "description": "One turn; omitted: the whole session.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "session"
+      ],
+      "title": "AgentIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "history.undo_agent",
+    "output": {
+      "$defs": {
+        "Conflict": {
+          "properties": {
+            "field": {
+              "description": "The field left alone, for a book entity.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "reason": {
+              "type": "string"
+            },
+            "what": {
+              "description": "A prose document id, or `<collection>/<id>` of a book entity.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "what",
+            "reason"
+          ],
+          "type": "object"
+        },
+        "EntityKey": {
+          "description": "One entity of a book document: its collection (the root container's\nname, e.g. `nodes`, `relations`, `drift_groups`; `meta` with a field name\nas id) and id.",
+          "properties": {
+            "collection": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "collection",
+            "id"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "conflicts": {
+          "items": {
+            "$ref": "#/$defs/Conflict"
+          },
+          "type": "array"
+        },
+        "restored": {
+          "items": {
+            "$ref": "#/$defs/EntityKey"
+          },
+          "type": "array"
+        },
+        "reverted_prose": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "trashed": {
+          "items": {
+            "$ref": "#/$defs/EntityKey"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "restored",
+        "trashed",
+        "reverted_prose",
+        "conflicts"
+      ],
+      "title": "AgentUndone",
+      "type": "object"
+    },
+    "summary": "Undo what an Agent session (or one turn) wrote: book fields nobody changed since go back, entities it created go to the trash, entities it deleted come back, and prose untouched since is reverted; the rest is reported as conflicts."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "group": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "position": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "format": "double",
+              "type": "number"
+            },
+            {
+              "format": "double",
+              "type": "number"
+            }
+          ],
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "summary": {
+          "default": "",
+          "type": "string"
+        },
+        "text": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "title": {
+          "default": "",
+          "description": "A taken title (chapters and ideas share titles) gets a ` 2` suffix.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "IdeaCreateIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "idea.create",
+    "output": {
+      "description": "The entity a command created or renamed, with its final name.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Named",
+      "type": "object"
+    },
+    "summary": "Create an idea (构想); a taken title gets a numbered suffix and the final title is returned."
+  },
+  {
+    "access": "read",
+    "concurrency": "shared",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "group": {
+          "description": "Only ideas in this group (`\"\"`: at the top level).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "trashed": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "IdeaListIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "idea.list",
+    "output": {
+      "$defs": {
+        "IdeaInfo": {
+          "description": "An idea (构想; internal name drift).",
+          "properties": {
+            "group": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "narrative_order": {
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "status": {
+              "description": "`drifting` or `resting`.",
+              "type": "string"
+            },
+            "summary": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "trashed": {
+              "type": "boolean"
+            },
+            "x": {
+              "format": "double",
+              "type": "number"
+            },
+            "y": {
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "id",
+            "title",
+            "summary",
+            "status",
+            "group",
+            "x",
+            "y",
+            "narrative_order",
+            "trashed"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/IdeaInfo"
+      },
+      "title": "Array_of_IdeaInfo",
+      "type": "array"
+    },
+    "summary": "List ideas (构想), optionally of one group."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "idea.purge",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Delete an idea for good: time pins bound to it keep its title as their label, acts and pins lose the binding, relations go, comments become floating; one commit."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "idea.restore",
+    "output": {
+      "description": "The entity a command created or renamed, with its final name.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Named",
+      "type": "object"
+    },
+    "summary": "Bring an idea back from the trash (its bindings come back with it)."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "idea.trash",
+    "output": {
+      "description": "The entity a command created or renamed, with its final name.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Named",
+      "type": "object"
+    },
+    "summary": "Move an idea to the trash. Never refused: acts and time pins bound to it read as unbound until it is restored."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "group": {
+          "description": "`null` moves it to the top level.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "narrative_order": {
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "position": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "format": "double",
+              "type": "number"
+            },
+            {
+              "format": "double",
+              "type": "number"
+            }
+          ],
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "status": {
+          "description": "`drifting` or `resting`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "summary": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "IdeaUpdateIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "idea.update",
+    "output": {
+      "description": "The entity a command created or renamed, with its final name.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Named",
+      "type": "object"
+    },
+    "summary": "Change an idea's title, summary, status, group, board position or narrative position."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book",
+        "name"
+      ],
+      "title": "GroupCreateIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "idea_group.create",
+    "output": {
+      "description": "The entity a command created or renamed, with its final name.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Named",
+      "type": "object"
+    },
+    "summary": "Create an idea group (groups nest at most two levels)."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "idea_group.delete",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Delete an idea group: its sub-groups and ideas move up to its parent."
+  },
+  {
+    "access": "read",
+    "concurrency": "shared",
+    "input": {
+      "description": "A book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "BookIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "idea_group.list",
+    "output": {
+      "$defs": {
+        "GroupInfo": {
+          "properties": {
+            "color": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "parent": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "color",
+            "parent"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/GroupInfo"
+      },
+      "title": "Array_of_GroupInfo",
+      "type": "array"
+    },
+    "summary": "List idea groups, parents before children."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "parent": {
+          "description": "Move under this group (`null`: the top level).",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "GroupUpdateIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "idea_group.update",
+    "output": {
+      "description": "The entity a command created or renamed, with its final name.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Named",
+      "type": "object"
+    },
+    "summary": "Rename, recolour or move an idea group (at most two levels)."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "Place": {
+          "description": "Where to put something in an ordered list.",
+          "oneOf": [
+            {
+              "const": "first",
+              "description": "At the start.",
+              "type": "string"
+            },
+            {
+              "const": "last",
+              "description": "At the end.",
+              "type": "string"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Right after the item with this id.",
+              "properties": {
+                "after": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "after"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Right before the item with this id.",
+              "properties": {
+                "before": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "before"
+              ],
+              "type": "object"
+            }
+          ]
+        }
+      },
+      "properties": {
+        "asset": {
+          "description": "The asset of an image or PDF material (registered with `asset.put`).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "book": {
+          "type": "string"
+        },
+        "description": {
+          "default": "",
+          "type": "string"
+        },
+        "folder": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "kind": {
+          "description": "`text`, `image` or `pdf`.",
+          "type": "string"
+        },
+        "place": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Place"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "description": "A text material's note.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "title": {
+          "default": "",
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "kind"
+      ],
+      "title": "MaterialCreateIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "material.create",
+    "output": {
+      "description": "The entity a command created or renamed, with its final name.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Named",
+      "type": "object"
+    },
+    "summary": "Add a material: a text note, or an image or PDF whose asset is registered."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "material.delete",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Delete a material: its relations go and comments on it become floating, in one commit (its note stays in history; undo restores it)."
+  },
+  {
+    "access": "read",
+    "concurrency": "shared",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "folder": {
+          "description": "Only this folder's materials (`\"\"`: at the top level).",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "MaterialListIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "material.list",
+    "output": {
+      "$defs": {
+        "MaterialInfo": {
+          "properties": {
+            "asset": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "description": {
+              "type": "string"
+            },
+            "folder": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "description": "`image`, `pdf` or `text`.",
+              "type": "string"
+            },
+            "pos": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "task_todos": {
+              "type": "boolean"
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "title",
+            "kind",
+            "asset",
+            "folder",
+            "pos",
+            "task_todos",
+            "description"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/MaterialInfo"
+      },
+      "title": "Array_of_MaterialInfo",
+      "type": "array"
+    },
+    "summary": "List materials in order, optionally of one folder."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "Place": {
+          "description": "Where to put something in an ordered list.",
+          "oneOf": [
+            {
+              "const": "first",
+              "description": "At the start.",
+              "type": "string"
+            },
+            {
+              "const": "last",
+              "description": "At the end.",
+              "type": "string"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Right after the item with this id.",
+              "properties": {
+                "after": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "after"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Right before the item with this id.",
+              "properties": {
+                "before": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "before"
+              ],
+              "type": "object"
+            }
+          ]
+        }
+      },
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "place": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Place"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pos": {
+          "description": "An exact position key (undo uses it).",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "MaterialMoveIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "material.move",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Move a material in the list (only its own position changes)."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "folder": {
+          "description": "Move to this folder (`null`: the top level).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "task_todos": {
+          "description": "Whether a text material's checklist items project into TODOs.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "MaterialUpdateIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "material.update",
+    "output": {
+      "description": "The entity a command created or renamed, with its final name.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Named",
+      "type": "object"
+    },
+    "summary": "Change a material's title, description, folder or TODO projection."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book",
+        "name"
+      ],
+      "title": "FolderCreateIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "material_folder.create",
+    "output": {
+      "description": "The entity a command created or renamed, with its final name.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Named",
+      "type": "object"
+    },
+    "summary": "Create a material folder."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "material_folder.delete",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Delete a material folder: its sub-folders and materials move up to its parent."
+  },
+  {
+    "access": "read",
+    "concurrency": "shared",
+    "input": {
+      "description": "A book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "BookIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "material_folder.list",
+    "output": {
+      "$defs": {
+        "GroupInfo": {
+          "properties": {
+            "color": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "parent": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "color",
+            "parent"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/GroupInfo"
+      },
+      "title": "Array_of_GroupInfo",
+      "type": "array"
+    },
+    "summary": "List material folders (素材夹), parents before children."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "parent": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "FolderUpdateIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "material_folder.update",
+    "output": {
+      "description": "The entity a command created or renamed, with its final name.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Named",
+      "type": "object"
+    },
+    "summary": "Rename or move a material folder."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "Target": {
+          "description": "A reference to an entity (relation end, comment or memory target).",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "description": "`node`, `element`, `patch`, `category`, `storyline`, `comment`,\n`material`.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "body": {
+          "type": "string"
+        },
+        "book": {
+          "type": "string"
+        },
+        "kind": {
+          "description": "`preference`, `veto` or `directive` (default).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "target": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Target"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "target_block": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book",
+        "body"
+      ],
+      "title": "MemoryAddIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "memory.add",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Add a Project Memory entry (plain text; takes effect at once)."
+  },
+  {
+    "access": "read",
+    "concurrency": "shared",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "removed": {
+          "default": false,
+          "description": "Include removed entries.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "MemoryListIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "memory.list",
+    "output": {
+      "$defs": {
+        "MemoryInfo": {
+          "properties": {
+            "body": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "description": "`preference`, `veto` or `directive`.",
+              "type": "string"
+            },
+            "removed": {
+              "type": "boolean"
+            },
+            "source": {
+              "type": "string"
+            },
+            "status": {
+              "description": "`active`, … as stored.",
+              "type": "string"
+            },
+            "supersedes": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "target": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Target"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "body",
+            "target",
+            "source",
+            "status",
+            "supersedes",
+            "removed"
+          ],
+          "type": "object"
+        },
+        "Target": {
+          "description": "A reference to an entity (relation end, comment or memory target).",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "description": "`node`, `element`, `patch`, `category`, `storyline`, `comment`,\n`material`.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/MemoryInfo"
+      },
+      "title": "Array_of_MemoryInfo",
+      "type": "array"
+    },
+    "summary": "List the book's Project Memory entries."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "memory.remove",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Remove a Project Memory entry (kept as removed; restorable)."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "memory.restore",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Bring back a removed Project Memory entry."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "body": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "description": "`active` or `dismissed`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "MemoryUpdateIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "memory.update",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Change a Project Memory entry's text, kind or status."
+  },
+  {
+    "access": "read",
+    "concurrency": "shared",
+    "input": {
+      "properties": {
+        "doc": {
+          "description": "The prose document: `node:<id>`, `element:<id>`, `storyline:<id>`,\n`category:<id>` or `material:<id>`.",
+          "type": "string"
+        },
+        "from": {
+          "default": 0,
+          "description": "First paragraph (0-based).",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "limit": {
+          "description": "At most this many paragraphs (default 200).",
+          "format": "uint",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "doc"
+      ],
+      "title": "ProseReadIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "prose.read",
+    "output": {
+      "$defs": {
+        "ParagraphInfo": {
+          "properties": {
+            "block_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "heading": {
+              "description": "0 for body text, 1–3 for H1–H3.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "index": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "index",
+            "block_id",
+            "heading",
+            "text"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "paragraphs": {
+          "items": {
+            "$ref": "#/$defs/ParagraphInfo"
+          },
+          "type": "array"
+        },
+        "total": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "version": {
+          "description": "The document's version (hex frontiers).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "paragraphs",
+        "total",
+        "version"
+      ],
+      "title": "ProseText",
+      "type": "object"
+    },
+    "summary": "Read paragraphs of a prose document (text, block id, heading level)."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "block_id": {
+          "description": "Look only in this paragraph.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "doc": {
+          "type": "string"
+        },
+        "find": {
+          "description": "The exact current text to replace (within one paragraph).",
+          "type": "string"
+        },
+        "replace": {
+          "description": "The new text (no paragraph breaks).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "doc",
+        "find",
+        "replace"
+      ],
+      "title": "ProseReplaceIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "prose.replace",
+    "output": {
+      "properties": {
+        "at": {
+          "description": "Character offset of the replacement in the document.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "block_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "at",
+        "block_id"
+      ],
+      "title": "Replaced",
+      "type": "object"
+    },
+    "summary": "Replace one exact passage of prose with new text (it must occur exactly once, in one paragraph)."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "at": {
+          "description": "The version to go back to (hex frontiers, from history).",
+          "type": "string"
+        },
+        "doc": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "doc",
+        "at"
+      ],
+      "title": "ProseRestoreIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "prose.restore",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Restore a prose document to an earlier version, as a new change (history stays)."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "Target": {
+          "description": "A reference to an entity (relation end, comment or memory target).",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "description": "`node`, `element`, `patch`, `category`, `storyline`, `comment`,\n`material`.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "from": {
+          "$ref": "#/$defs/Target"
+        },
+        "id": {
+          "description": "Keep this id (undo uses it).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "relation_type": {
+          "description": "The relation type; omitted for a comment or material linked to the\nbook's structure (the built-in association).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "to": {
+          "$ref": "#/$defs/Target"
+        }
+      },
+      "required": [
+        "book",
+        "from",
+        "to"
+      ],
+      "title": "RelationCreateIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "relation.create",
+    "output": {
+      "properties": {
+        "existing": {
+          "description": "The same relation existed already; nothing was written.",
+          "type": "boolean"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "existing"
+      ],
+      "title": "RelationMade",
+      "type": "object"
+    },
+    "summary": "Relate two entities (a symmetric type stores its ends in canonical order; an existing identical relation is returned instead)."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "relation.delete",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Delete a relation."
+  },
+  {
+    "access": "read",
+    "concurrency": "shared",
+    "input": {
+      "$defs": {
+        "Target": {
+          "description": "A reference to an entity (relation end, comment or memory target).",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "description": "`node`, `element`, `patch`, `category`, `storyline`, `comment`,\n`material`.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "entity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Target"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Only relations touching this entity."
+        },
+        "relation_type": {
+          "description": "Only relations of this type.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "RelationListIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "relation.list",
+    "output": {
+      "$defs": {
+        "RelationInfo": {
+          "properties": {
+            "from": {
+              "$ref": "#/$defs/Target"
+            },
+            "id": {
+              "type": "string"
+            },
+            "relation_type": {
+              "type": "string"
+            },
+            "to": {
+              "$ref": "#/$defs/Target"
+            }
+          },
+          "required": [
+            "id",
+            "from",
+            "to",
+            "relation_type"
+          ],
+          "type": "object"
+        },
+        "Target": {
+          "description": "A reference to an entity (relation end, comment or memory target).",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "description": "`node`, `element`, `patch`, `category`, `storyline`, `comment`,\n`material`.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/RelationInfo"
+      },
+      "title": "Array_of_RelationInfo",
+      "type": "array"
+    },
+    "summary": "List the relations to show (both ends live, one per semantic edge)."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "description": {
+          "default": "",
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "orientation": {
+          "description": "`directed` (default) or `symmetric`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_kinds": {
+          "description": "Entity kinds allowed at the start (`node`, `element`, …).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "source_role": {
+          "default": "",
+          "type": "string"
+        },
+        "target_kinds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "target_role": {
+          "default": "",
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "name",
+        "source_kinds",
+        "target_kinds"
+      ],
+      "title": "RelationTypeCreateIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "relation_type.create",
+    "output": {
+      "description": "The entity a command created or renamed, with its final name.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Named",
+      "type": "object"
+    },
+    "summary": "Create a relation type. A name another type has is refused (`RT-NAME`); the error names that type."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "relation_type.delete",
+    "output": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "relations": {
+          "description": "Relations of this type deleted with it.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "relations"
+      ],
+      "title": "TypeDeleted",
+      "type": "object"
+    },
+    "summary": "Delete a relation type and every relation of that type, in one commit; the result says how many (the interface asks first, an Agent reports it)."
+  },
+  {
+    "access": "read",
+    "concurrency": "shared",
+    "input": {
+      "description": "A book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "BookIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "relation_type.list",
+    "output": {
+      "$defs": {
+        "RelationTypeInfo": {
+          "properties": {
+            "color": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "description": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "locked": {
+              "description": "The built-in type (TODO and material links): cannot be changed.",
+              "type": "boolean"
+            },
+            "name": {
+              "type": "string"
+            },
+            "orientation": {
+              "description": "`directed` or `symmetric`.",
+              "type": "string"
+            },
+            "source_kinds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "source_role": {
+              "type": "string"
+            },
+            "target_kinds": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "target_role": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "description",
+            "orientation",
+            "source_role",
+            "target_role",
+            "source_kinds",
+            "target_kinds",
+            "color",
+            "locked"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/RelationTypeInfo"
+      },
+      "title": "Array_of_RelationTypeInfo",
+      "type": "array"
+    },
+    "summary": "List relation types (the built-in one is marked locked)."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_role": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "target_role": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "RelationTypeUpdateIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "relation_type.update",
+    "output": {
+      "description": "The entity a command created or renamed, with its final name.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Named",
+      "type": "object"
+    },
+    "summary": "Rename a relation type or change its description, role names or colour (the built-in type is locked)."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "Place": {
+          "description": "Where to put something in an ordered list.",
+          "oneOf": [
+            {
+              "const": "first",
+              "description": "At the start.",
+              "type": "string"
+            },
+            {
+              "const": "last",
+              "description": "At the end.",
+              "type": "string"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Right after the item with this id.",
+              "properties": {
+                "after": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "after"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Right before the item with this id.",
+              "properties": {
+                "before": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "before"
+              ],
+              "type": "object"
+            }
+          ]
+        }
+      },
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "default": "",
+          "description": "A taken name gets a ` 2` suffix.",
+          "type": "string"
+        },
+        "place": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Place"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "summary": {
+          "default": "",
+          "type": "string"
+        },
+        "text": {
+          "description": "Initial description text.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "StorylineCreateIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "storyline.create",
+    "output": {
+      "description": "The entity a command created or renamed, with its final name.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Named",
+      "type": "object"
+    },
+    "summary": "Create a storyline (a taken name gets a numbered suffix; the final name is returned)."
+  },
+  {
+    "access": "read",
+    "concurrency": "shared",
+    "input": {
+      "description": "A list query's filter on the trash.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "trashed": {
+          "default": false,
+          "description": "Include what is in the trash.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "ListIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "storyline.list",
+    "output": {
+      "$defs": {
+        "StorylineInfo": {
+          "properties": {
+            "chapters": {
+              "description": "Live chapters on this storyline.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "color": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "pos": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "summary": {
+              "type": "string"
+            },
+            "trashed": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "color",
+            "summary",
+            "pos",
+            "trashed",
+            "chapters"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/StorylineInfo"
+      },
+      "title": "Array_of_StorylineInfo",
+      "type": "array"
+    },
+    "summary": "List storylines in order, with how many live chapters each has."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "Place": {
+          "description": "Where to put something in an ordered list.",
+          "oneOf": [
+            {
+              "const": "first",
+              "description": "At the start.",
+              "type": "string"
+            },
+            {
+              "const": "last",
+              "description": "At the end.",
+              "type": "string"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Right after the item with this id.",
+              "properties": {
+                "after": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "after"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Right before the item with this id.",
+              "properties": {
+                "before": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "before"
+              ],
+              "type": "object"
+            }
+          ]
+        }
+      },
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "place": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Place"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pos": {
+          "description": "An exact position key (undo uses it); wins over `place`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "StorylineMoveIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "storyline.move",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Move a storyline in the list (only its own position changes)."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "storyline.purge",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Delete a storyline for good: chapters leave it, its relations go and comments on it become floating, in one commit."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "storyline.restore",
+    "output": {
+      "description": "The entity a command created or renamed, with its final name.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Named",
+      "type": "object"
+    },
+    "summary": "Bring a storyline back from the trash, with its chapters' membership."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "storyline.trash",
+    "output": {
+      "description": "The entity a command created or renamed, with its final name.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Named",
+      "type": "object"
+    },
+    "summary": "Move a storyline to the trash. Never refused: chapters keep their membership, hidden until it is restored."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "color": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "summary": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "StorylineUpdateIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "storyline.update",
+    "output": {
+      "description": "The entity a command created or renamed, with its final name.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Named",
+      "type": "object"
+    },
+    "summary": "Rename a storyline (a taken name gets a suffix), recolour it or change its summary."
+  }
+]
