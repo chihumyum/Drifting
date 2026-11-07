@@ -198,7 +198,9 @@ impl LoroSource {
     }
 }
 
-fn change_of(delta: &TextDelta) -> SourceChange {
+/// One Loro text delta item as a source change, with the inserted text's
+/// marks (for sources on a `LoroDoc` someone else holds).
+pub fn change_of(delta: &TextDelta) -> SourceChange {
     match delta {
         TextDelta::Retain { retain, attributes } => SourceChange::Retain {
             len: *retain,
@@ -219,8 +221,9 @@ fn change_of(delta: &TextDelta) -> SourceChange {
 
 /// Splits a delta into paragraphs, applying the reading rules: paragraph
 /// attributes only from `\n`, marks only from other characters. The last
-/// entry is whatever follows the last `\n`.
-pub(crate) fn read_paragraphs(delta: &[TextDelta]) -> Vec<SourceParagraph> {
+/// entry is whatever follows the last `\n`. Public for sources on a
+/// `LoroDoc` someone else holds.
+pub fn read_paragraphs(delta: &[TextDelta]) -> Vec<SourceParagraph> {
     let mut lines = Vec::new();
     let mut current = SourceParagraph::default();
     for item in delta {

@@ -325,7 +325,17 @@ fn random_step(doc: &mut ProseDoc, rng: &mut Rng) {
             if rng.below(3) == 0 {
                 doc.unmark(at..at + n, key, ORIGIN_USER);
             } else {
-                doc.mark(at..at + n, key, LoroValue::from("v"), ORIGIN_USER);
+                // The values the editor writes: `true` for the toggles, a
+                // URL for a link, the storage format's map for an entity link
+                // (a typed source stores exactly these).
+                let value = if key == inline::LINK {
+                    LoroValue::from("https://example.com/")
+                } else if inline::entity_target(key).is_some() {
+                    LoroValue::Map(vec![("kind".to_string(), LoroValue::from("element"))].into())
+                } else {
+                    LoroValue::from(true)
+                };
+                doc.mark(at..at + n, key, value, ORIGIN_USER);
             }
         }
         9 => {

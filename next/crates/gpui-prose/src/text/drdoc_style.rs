@@ -140,13 +140,37 @@ impl Txn {
     }
 
     /// Writes exactly `id` and `attrs` on the `\n` at `nl`.
+    /// Like `dr-doc`'s: no inline mark stays on the newline, and only the
+    /// paragraph keys whose value changes are written.
     fn set_newline(&self, nl: usize, id: Option<&LoroValue>, attrs: &Attrs) {
+        if let Ok(delta) = self
+            .text
+            .slice_delta(nl, nl + 1, loro::cursor::PosType::Unicode)
+        {
+            for item in delta {
+                if let loro::TextDelta::Insert {
+                    attributes: Some(attributes),
+                    ..
+                } = item
+                {
+                    for (key, value) in attributes.iter() {
+                        if !block::is_block_key(key) && !value.is_null() {
+                            let _ = self.text.unmark(nl..nl + 1, key);
+                        }
+                    }
+                }
+            }
+        }
+        let have = super::blocks::newline_attrs(&self.text, nl);
         for key in block::ALL {
             let want = if *key == block::ID {
                 id.cloned()
             } else {
                 attrs.iter().find(|(k, _)| k == key).map(|(_, v)| v.clone())
             };
+            if want.as_ref() == have.get(key) {
+                continue;
+            }
             let _ = match want {
                 Some(v) => self.text.mark(nl..nl + 1, key, v),
                 None => self.text.unmark(nl..nl + 1, key),
@@ -243,10 +267,11 @@ impl Txn {
         });
     }
 
+    /// Like `dr-doc`'s: newlines included.
     fn clear_style(&self, range: Range<usize>, key: &str) {
-        self.each_run(range, |r| {
-            let _ = self.text.unmark(r, key);
-        });
+        if !range.is_empty() {
+            let _ = self.text.unmark(range, key);
+        }
     }
 }
 

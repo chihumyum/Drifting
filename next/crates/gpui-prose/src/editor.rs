@@ -153,6 +153,21 @@ impl ProseEditor {
         self.list.remeasure();
     }
 
+    /// Changes sizes, spacing, width or colours (the host's settings and
+    /// theme): every paragraph is measured and laid out again.
+    pub fn set_style(&mut self, style: ProseStyle, cx: &mut Context<Self>) {
+        if style == self.style {
+            return;
+        }
+        let cursor = style.cursor;
+        self.style = style;
+        self.estimate_width = None;
+        self.list.remeasure();
+        self.cursor_layer
+            .update(cx, |layer, cx| layer.set_color(cursor, cx));
+        cx.notify();
+    }
+
     pub fn options(&self) -> &EditorOptions {
         &self.options
     }

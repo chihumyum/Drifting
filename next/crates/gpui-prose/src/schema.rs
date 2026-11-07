@@ -101,34 +101,41 @@ pub mod inline {
 
 /// The style table: every paragraph attribute `None`; bold, italic, underline
 /// and strike `After` (typing right after bold text stays bold); links,
-/// highlights, code, entity links and embeds `None`.
+/// highlights, code, entity links and embeds `None`. `entity` is a prefix:
+/// Loro gives `entity:<id>` the `entity` entry. Drifting compares it with
+/// `dr-doc`'s table key by key (`dr-editor`'s tests).
+pub const STYLE_TABLE: &[(&str, ExpandType)] = &[
+    (block::ID, ExpandType::None),
+    (block::HEADING, ExpandType::None),
+    (block::QUOTE, ExpandType::None),
+    (block::INDENT, ExpandType::None),
+    (block::ALIGN, ExpandType::None),
+    (block::RULE, ExpandType::None),
+    (block::LIST, ExpandType::None),
+    (block::LIST_LEVEL, ExpandType::None),
+    (block::CHECKED, ExpandType::None),
+    (block::TODO, ExpandType::None),
+    (block::CODE_BLOCK, ExpandType::None),
+    (block::CALLOUT, ExpandType::None),
+    (inline::BOLD, ExpandType::After),
+    (inline::ITALIC, ExpandType::After),
+    (inline::UNDERLINE, ExpandType::After),
+    (inline::STRIKE, ExpandType::After),
+    (inline::LINK, ExpandType::None),
+    (inline::HIGHLIGHT, ExpandType::None),
+    (inline::CODE, ExpandType::None),
+    (inline::ENTITY, ExpandType::None),
+    (inline::EMBED, ExpandType::None),
+];
+
+/// How keys not in [`STYLE_TABLE`] expand (a mark a newer version added).
+pub const DEFAULT_EXPAND: ExpandType = ExpandType::None;
+
+/// [`STYLE_TABLE`] as Loro's configuration map.
 pub fn style_config() -> StyleConfigMap {
     let mut map = StyleConfigMap::new();
-    let none = StyleConfig {
-        expand: ExpandType::None,
-    };
-    let after = StyleConfig {
-        expand: ExpandType::After,
-    };
-    for key in block::ALL {
-        map.insert((*key).into(), none);
-    }
-    for key in [
-        inline::BOLD,
-        inline::ITALIC,
-        inline::UNDERLINE,
-        inline::STRIKE,
-    ] {
-        map.insert(key.into(), after);
-    }
-    for key in [
-        inline::LINK,
-        inline::HIGHLIGHT,
-        inline::CODE,
-        inline::ENTITY,
-        inline::EMBED,
-    ] {
-        map.insert(key.into(), none);
+    for (key, expand) in STYLE_TABLE {
+        map.insert((*key).into(), StyleConfig { expand: *expand });
     }
     map
 }
@@ -136,4 +143,7 @@ pub fn style_config() -> StyleConfigMap {
 /// Applies [`style_config`] to a document. Call before importing or editing.
 pub fn configure(doc: &LoroDoc) {
     doc.config_text_style(style_config());
+    doc.config_default_text_style(Some(StyleConfig {
+        expand: DEFAULT_EXPAND,
+    }));
 }

@@ -1379,6 +1379,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "dr-editor"
+version = "0.0.0"
+dependencies = [
+ "dr-doc",
+ "dr-model",
+ "dr-platform",
+ "dr-store",
+ "dr-testkit",
+ "dr-text",
+ "dr-workspace",
+ "futures",
+ "gpui",
+ "gpui-prose",
+ "gpui_platform",
+ "log",
+ "loro",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "dr-i18n"
 version = "0.0.0"
 dependencies = [

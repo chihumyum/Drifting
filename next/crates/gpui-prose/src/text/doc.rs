@@ -15,7 +15,7 @@ use super::{
     index::{BidMap, ParagraphIndex},
     loro_source::LoroSource,
     marks::{self, Marks, Span},
-    mirror::{self, ChangeSet, Line},
+    mirror::{self, ChangeSet, Line, LineSplice, TextOp},
     source::{Edit, EditResult, MarkOverride, ProseSource},
     undo::{AnchorRestore, AuthorUndo, DeletionRecord, UndoConfig, restore_points},
     units::byte_of_char,
@@ -49,9 +49,8 @@ impl ProseDoc {
 
     pub fn open_with(mut source: Box<dyn ProseSource>, undo: &UndoConfig) -> ProseDoc {
         // Whatever the source did while opening (a repair) is already in the
-        // read below.
-        source.take_events();
-        let lines = mirror::lines_from_paragraphs(source.read_all(), 0);
+        // read, and its events are dropped with it.
+        let lines = mirror::lines_from_paragraphs(source.resync(), 0);
         let index = ParagraphIndex::new(lines.iter().map(Line::extent));
         let mut bids = BidMap::default();
         bids.rebuild(lines.iter().map(Line::bid));
@@ -563,9 +562,71 @@ impl ProseDoc {
         if structure_changed || ids_changed {
             self.bids.mark_dirty();
         }
+        if self.source.needs_resync() {
+            self.resync();
+        }
         if self.bids.is_dirty() {
             self.bids.rebuild(self.lines.iter().map(Line::bid));
         }
+    }
+
+    /// Rebuilds the mirror from a fresh read (the source saw another thread's
+    /// commit while the editor was reading). Reported as one change set
+    /// covering the paragraphs that differ, so the selection and composition
+    /// outside them stay put.
+    fn resync(&mut self) {
+        let fresh = mirror::lines_from_paragraphs(self.source.resync(), self.rev + 1);
+        let same =
+            |a: &Line, b: &Line| a.text == b.text && a.block == b.block && a.spans == b.spans;
+        let prefix = self
+            .lines
+            .iter()
+            .zip(&fresh)
+            .take_while(|(a, b)| same(a, b))
+            .count();
+        let max_suffix = self.lines.len().min(fresh.len()) - prefix;
+        let suffix = self
+            .lines
+            .iter()
+            .rev()
+            .zip(fresh.iter().rev())
+            .take(max_suffix)
+            .take_while(|(a, b)| same(a, b))
+            .count();
+        let old = self.lines.len() - prefix - suffix;
+        let new = fresh.len() - prefix - suffix;
+        if old == 0 && new == 0 {
+            return;
+        }
+        self.rev += 1;
+        let pos = self.index.start(prefix);
+        let deleted: usize = self.lines[prefix..prefix + old]
+            .iter()
+            .map(|l| l.extent().chars)
+            .sum();
+        let inserted: usize = fresh[prefix..prefix + new]
+            .iter()
+            .map(|l| l.extent().chars)
+            .sum();
+        let replacement: Vec<Line> = fresh.into_iter().skip(prefix).take(new).collect();
+        self.index
+            .splice(prefix..prefix + old, replacement.iter().map(Line::extent));
+        self.lines.splice(prefix..prefix + old, replacement);
+        self.bids.mark_dirty();
+        self.changes.push(ChangeSet {
+            origin: "resync".into(),
+            local: false,
+            splices: vec![LineSplice {
+                start: prefix,
+                old,
+                new,
+            }],
+            ops: vec![TextOp {
+                pos,
+                deleted,
+                inserted,
+            }],
+        });
     }
 
     /// Changes folded into the mirror since the last call.

@@ -19,6 +19,12 @@ pub struct CursorLayer {
 }
 
 impl CursorLayer {
+    /// Changes the caret colour (a new theme).
+    pub fn set_color(&mut self, color: Hsla, cx: &mut Context<Self>) {
+        self.color = color;
+        cx.notify();
+    }
+
     pub(crate) fn new(
         rect: Rc<Cell<Option<Bounds<Pixels>>>>,
         color: Hsla,
