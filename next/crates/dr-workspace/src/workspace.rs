@@ -145,6 +145,8 @@ pub(crate) struct Inner {
     pub journal: Journal,
     pub library_gate: Arc<Gate>,
     subscription: Mutex<Option<LibrarySubscription>>,
+    /// The author's `editor.auto_entity_links` (`crate::autolink`).
+    auto_links: std::sync::atomic::AtomicBool,
 }
 
 /// The command and query layer over one library. Cheap to clone.
@@ -168,6 +170,7 @@ impl Workspace {
             bus: Bus::default(),
             library_gate: Arc::default(),
             subscription: Mutex::new(None),
+            auto_links: std::sync::atomic::AtomicBool::new(true),
         });
         let weak: Weak<Inner> = Arc::downgrade(&inner);
         let sub = inner.lib.subscribe(move |e| {
@@ -183,6 +186,21 @@ impl Workspace {
     pub fn open_dir(root: impl AsRef<Path>, app_version: &str) -> Result<Self> {
         let lib = Library::open(root.as_ref(), library_options(app_version))?;
         Self::open(lib, WorkspaceOptions::default())
+    }
+
+    /// Whether commands link names in the text they write (the author's
+    /// `editor.auto_entity_links`, on by default; see [`crate::autolink`]).
+    pub fn auto_links(&self) -> bool {
+        self.inner
+            .auto_links
+            .load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    /// The shell passes the author's setting on whenever it changes.
+    pub fn set_auto_links(&self, on: bool) {
+        self.inner
+            .auto_links
+            .store(on, std::sync::atomic::Ordering::Relaxed);
     }
 
     pub fn library(&self) -> &Library {

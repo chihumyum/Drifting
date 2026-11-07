@@ -30,6 +30,7 @@
 //! `holder.rs`).
 
 pub mod actor;
+pub mod autolink;
 mod cache;
 pub mod commands;
 pub mod cx;

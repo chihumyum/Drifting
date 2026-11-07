@@ -141,7 +141,7 @@ pub struct ElementCreateIn {
 
 op! {
     ElementCreate = "element.create", Write, Book,
-    "Create an element. A name or alias another element already has is refused (automatic links find people by name); the error names that element.",
+    "Create an element (it starts with its category's template fields). A name or alias another element already has is refused (automatic links find people by name); the error names that element.",
     fn(cx, input: ElementCreateIn) -> Named {
         let slot = cx.book(&input.book)?;
         let name = if input.numbered || input.name.trim().is_empty() {
@@ -157,10 +157,15 @@ op! {
         cx.summarize(format!("「{name}」"));
         super::chapter::seed_prose(cx, &slot.book, &DocId::Element(id.clone()), input.text.as_deref())?;
         let (i2, n2, s2, a2) = (id.clone(), name.clone(), input.summary.clone(), input.aliases.clone());
+        // The category's field template, copied (new ids, same order).
+        let fields = category.as_ref()
+            .and_then(|c| categories(&slot).iter().find(|x| &x.id == c).map(|x| super::template::copied(&x.template_fields)))
+            .unwrap_or_default();
         cx.write_book(&slot, move |txn| {
             let w = txn.element(&i2)?;
             w.name(&n2)?.summary(&s2)?.category(category.as_ref())?.created_at(Some(now()))?;
             for a in &a2 { w.add_alias(a)?; }
+            for f in &fields { w.put_fact(f)?; }
             Ok(())
         })?;
         cx.effect(EffectAction::Created, "element", id.as_str(), Some(&name));
@@ -181,6 +186,90 @@ pub struct FieldIn {
     pub place: Option<Place>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pos: Option<String>,
+}
+
+/// What `put` and `remove` do to a key/value list `old` (an element's or a
+/// storyline's fields), and how to undo it.
+pub(crate) struct FieldPlan {
+    pub put: Vec<KvEntry>,
+    pub removed: Vec<KvEntry>,
+    /// Fields to put back: the changed ones as they were, the removed ones.
+    pub undo_put: Vec<FieldIn>,
+    /// Fields to remove: the new ones.
+    pub undo_remove: Vec<String>,
+}
+
+pub(crate) fn plan_fields(
+    old: &[KvEntry],
+    put: &[FieldIn],
+    remove: &[String],
+) -> Result<FieldPlan> {
+    let mut plan = FieldPlan {
+        put: Vec::new(),
+        removed: Vec::new(),
+        undo_put: Vec::new(),
+        undo_remove: Vec::new(),
+    };
+    for f in put {
+        name_ok(&f.key)?;
+        let existing =
+            f.id.as_ref()
+                .map(|id| {
+                    old.iter()
+                        .find(|x| x.id.as_str() == id)
+                        .cloned()
+                        .ok_or_else(|| WsError::not_found("field", id))
+                })
+                .transpose()?;
+        let id = existing
+            .as_ref()
+            .map(|e| e.id.clone())
+            .unwrap_or_else(KvEntryId::new_v7);
+        let others: Vec<(String, Option<PosKey>)> = old
+            .iter()
+            .filter(|x| x.id != id)
+            .map(|x| (x.id.to_string(), x.pos.clone()))
+            .collect();
+        let pos = match (&f.pos, &f.place, &existing) {
+            (Some(p), _, _) => Some(PosKey::parse(p).map_err(|e| WsError::invalid(e.to_string()))?),
+            (None, Some(pl), _) => Some(pos_for(&others, pl)?),
+            (None, None, Some(e)) => e.pos.clone(),
+            (None, None, None) => Some(pos_for(&others, &Place::Last)?),
+        };
+        match &existing {
+            Some(e) => plan.undo_put.push(FieldIn {
+                id: Some(e.id.to_string()),
+                key: e.key.clone(),
+                value: e.value.clone(),
+                place: None,
+                pos: e.pos.as_ref().map(|p| p.to_string()),
+            }),
+            None => plan.undo_remove.push(id.to_string()),
+        }
+        plan.put.push(KvEntry {
+            id,
+            key: f.key.trim().to_string(),
+            value: f.value.clone(),
+            pos,
+        });
+    }
+    plan.removed = remove
+        .iter()
+        .map(|id| {
+            old.iter()
+                .find(|x| x.id.as_str() == id)
+                .cloned()
+                .ok_or_else(|| WsError::not_found("field", id))
+        })
+        .collect::<Result<_>>()?;
+    plan.undo_put.extend(plan.removed.iter().map(|e| FieldIn {
+        id: None,
+        key: e.key.clone(),
+        value: e.value.clone(),
+        place: None,
+        pos: e.pos.as_ref().map(|p| p.to_string()),
+    }));
+    Ok(plan)
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema)]
@@ -274,29 +363,8 @@ op! {
         if let Some(Some((x, y))) = input.relate_pin && !(x.is_finite() && y.is_finite()) {
             return Err(WsError::invalid("pin coordinates must be finite"));
         }
-        let mut fields: Vec<KvEntry> = Vec::new();
-        let mut field_undo: Vec<FieldIn> = Vec::new();
-        let mut field_removed_new: Vec<String> = Vec::new();
-        for f in &input.put_fields {
-            name_ok(&f.key)?;
-            let existing = f.id.as_ref().map(|id| old.facts.iter().find(|x| x.id.as_str() == id).cloned()
-                .ok_or_else(|| WsError::not_found("field", id))).transpose()?;
-            let id = existing.as_ref().map(|e| e.id.clone()).unwrap_or_else(KvEntryId::new_v7);
-            let others: Vec<(String, Option<PosKey>)> = old.facts.iter().filter(|x| x.id != id).map(|x| (x.id.to_string(), x.pos.clone())).collect();
-            let pos = match (&f.pos, &f.place, &existing) {
-                (Some(p), _, _) => Some(PosKey::parse(p).map_err(|e| WsError::invalid(e.to_string()))?),
-                (None, Some(pl), _) => Some(pos_for(&others, pl)?),
-                (None, None, Some(e)) => e.pos.clone(),
-                (None, None, None) => Some(pos_for(&others, &Place::Last)?),
-            };
-            match &existing {
-                Some(e) => field_undo.push(FieldIn { id: Some(e.id.to_string()), key: e.key.clone(), value: e.value.clone(), place: None, pos: e.pos.as_ref().map(|p| p.to_string()) }),
-                None => field_removed_new.push(id.to_string()),
-            }
-            fields.push(KvEntry { id, key: f.key.trim().to_string(), value: f.value.clone(), pos });
-        }
-        let removed: Vec<KvEntry> = input.remove_fields.iter().map(|id| old.facts.iter().find(|x| x.id.as_str() == id).cloned()
-            .ok_or_else(|| WsError::not_found("field", id))).collect::<Result<_>>()?;
+        let FieldPlan { put: fields, removed, undo_put: field_undo, undo_remove: field_removed_new } =
+            plan_fields(&old.facts, &input.put_fields, &input.remove_fields)?;
         let id = old.id.clone();
         let i = input.clone();
         let (f2, r2) = (fields.clone(), removed.clone());
@@ -316,8 +384,7 @@ op! {
         })?;
         let name = input.name.as_ref().map(|n| n.trim().to_string()).unwrap_or_else(|| old.name.clone());
         cx.effect(if input.name.is_some() { EffectAction::Renamed } else { EffectAction::Updated }, "element", &input.id, Some(&name));
-        let mut back_fields = field_undo;
-        back_fields.extend(removed.iter().map(|e| FieldIn { id: None, key: e.key.clone(), value: e.value.clone(), place: None, pos: e.pos.as_ref().map(|p| p.to_string()) }));
+        let back_fields = field_undo;
         cx.undo_with(Invocation::new("element.update", ElementUpdateIn {
             book: input.book.clone(), id: input.id.clone(),
             name: input.name.as_ref().map(|_| old.name.clone()),

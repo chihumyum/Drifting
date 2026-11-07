@@ -62,6 +62,12 @@ enum Op {
     Point(u8),
     /// `history.restore_point` on a live chapter, to its n-th point.
     RestorePoint(u8, u8),
+    /// A patch on a live element, from a live chapter when there is one.
+    Patch(u8, u8),
+    DeletePatch(u8),
+    /// A live chapter's plot grid: a cell written, and (odd second byte)
+    /// its first row removed.
+    PlotCell(u8, u8),
     Undo,
     Redo,
     AgentRename(u8, u8),
@@ -106,6 +112,9 @@ fn op() -> impl Strategy<Value = Op> {
         2 => (i(), i()).prop_map(|(a, m)| Op::Project(a, m)),
         1 => i().prop_map(Op::Point),
         1 => (i(), i()).prop_map(|(a, n)| Op::RestorePoint(a, n)),
+        1 => (i(), i()).prop_map(|(a, c)| Op::Patch(a, c)),
+        1 => i().prop_map(Op::DeletePatch),
+        1 => (i(), i()).prop_map(|(a, k)| Op::PlotCell(a, k)),
         2 => Just(Op::Undo),
         1 => Just(Op::Redo),
         1 => (i(), i()).prop_map(|(a, b)| Op::AgentRename(a, b)),
@@ -416,6 +425,54 @@ fn run(ws: &Workspace, faults: &Faults, book: &str, op: &Op, agent_turn: &mut u3
             }
             None => Ok(()),
         },
+        Op::Patch(i, j) => match pick(&live_elements(), *i) {
+            Some(el) => {
+                let source = pick(&live_chapters(), *j);
+                c(
+                    "patch.create",
+                    json!({"book": b, "element": el, "title": name(*j), "body": "补", "source": source}),
+                )
+            }
+            None => Ok(()),
+        },
+        Op::DeletePatch(i) => {
+            let all: Vec<String> = live_elements()
+                .iter()
+                .flat_map(|el| ids(&list(ws, "patch.list", json!({"book": b, "element": el}))))
+                .collect();
+            match pick(&all, *i) {
+                Some(id) => c("patch.delete", json!({"book": b, "id": id})),
+                None => Ok(()),
+            }
+        }
+        Op::PlotCell(i, k) => match pick(&live_chapters(), *i) {
+            Some(ch) => {
+                // An armed fault may hit the create: allowed like any other.
+                if let Err(e) = c("plot_grid.create", json!({"book": b, "node": ch})) {
+                    return finish(op, Err(e));
+                }
+                let g = list(ws, "plot_grid.get", json!({"book": b, "node": ch}));
+                let (rows, cols) = (ids(&g["rows"]), ids(&g["columns"]));
+                match (pick(&rows, *k), pick(&cols, k / 3)) {
+                    (Some(r), Some(col)) => {
+                        let r1 = c(
+                            "plot_grid.cell",
+                            json!({"book": b, "node": ch, "row": r, "column": col, "text": name(*k)}),
+                        );
+                        if k % 2 == 1 && r1.is_ok() {
+                            c(
+                                "plot_grid.line_remove",
+                                json!({"book": b, "node": ch, "axis": "row", "id": rows[0]}),
+                            )
+                        } else {
+                            r1
+                        }
+                    }
+                    _ => Ok(()),
+                }
+            }
+            None => Ok(()),
+        },
         Op::Undo => ws.undo(&u).map(|_| ()),
         Op::Redo => ws.redo(&u).map(|_| ()),
         Op::AgentRename(i, n) => match pick(&live_chapters(), *i) {
@@ -446,6 +503,11 @@ fn run(ws: &Workspace, faults: &Faults, book: &str, op: &Op, agent_turn: &mut u3
         }
         Op::Reopen => return true,
     };
+    finish(op, r)
+}
+
+/// Command errors the rules allow are fine, anything else fails.
+fn finish(op: &Op, r: dr_workspace::Result<()>) -> bool {
     match r {
         Ok(())
         | Err(WsError::NameTaken { .. })
@@ -489,8 +551,51 @@ fn check_projections(ws: &Workspace, b: &str) {
     }
 }
 
+/// Plot grids keep a row and a column, and their cells name them; every
+/// listed patch belongs to its element and comes from a node that exists.
+fn check_workshop(ws: &Workspace, b: &str) {
+    for ch in ids(&list(ws, "chapter.list", json!({"book": b}))) {
+        let g = list(ws, "plot_grid.get", json!({"book": b, "node": ch}));
+        if g["exists"] == true {
+            let (rows, cols) = (ids(&g["rows"]), ids(&g["columns"]));
+            assert!(
+                !rows.is_empty() && !cols.is_empty(),
+                "a plot grid keeps a row and a column"
+            );
+            for cell in g["cells"].as_array().unwrap() {
+                assert!(rows.contains(&cell["row"].as_str().unwrap().to_string()));
+                assert!(cols.contains(&cell["column"].as_str().unwrap().to_string()));
+            }
+        }
+    }
+    let nodes: HashSet<String> = ids(&list(
+        ws,
+        "chapter.list",
+        json!({"book": b, "trashed": true}),
+    ))
+    .into_iter()
+    .chain(ids(&list(
+        ws,
+        "idea.list",
+        json!({"book": b, "trashed": true}),
+    )))
+    .collect();
+    for el in ids(&list(ws, "element.list", json!({"book": b}))) {
+        for p in list(ws, "patch.list", json!({"book": b, "element": el}))
+            .as_array()
+            .unwrap()
+        {
+            assert_eq!(p["element"], el.as_str());
+            if let Some(src) = p["source"].as_str() {
+                assert!(nodes.contains(src), "a patch's source exists");
+            }
+        }
+    }
+}
+
 fn check_single(ws: &Workspace, b: &str) {
     check_projections(ws, b);
+    check_workshop(ws, b);
     let key = |s: &str| s.trim().to_lowercase();
     let unique = |what: &str, names: Vec<String>| {
         let mut seen = HashSet::new();
@@ -572,6 +677,7 @@ fn check_single(ws: &Workspace, b: &str) {
 
 /// What holds after any merge too: reads are tolerant.
 fn check_tolerant(ws: &Workspace, b: &str) {
+    check_workshop(ws, b);
     check_projections(ws, b);
     let lib = ws.library();
     let live: HashSet<String> = ids(&list(ws, "chapter.list", json!({"book": b})))

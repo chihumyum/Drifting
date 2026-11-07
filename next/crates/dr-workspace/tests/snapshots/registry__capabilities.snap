@@ -25,6 +25,9 @@ category.purge               command  book     Delete a category for good: its e
 category.restore             command  book     Bring a category back from the trash, with its elements.
 category.trash               command  book     Move a category to the trash. Never refused: its elements read as uncategorized until it is restored.
 category.update              command  book     Rename a category (a taken name gets a suffix), recolour it or change its layout.
+category_template.list       query    shared   List the fields every new element of a category starts with, in order.
+category_template.put        command  book     Add a field to a category's template or change one (key, value, position). Existing elements keep their fields.
+category_template.remove     command  book     Remove a field from a category's template. Existing elements keep theirs.
 chapter.create               command  book     Create a chapter (a taken title gets a numbered suffix; the final title is returned).
 chapter.list                 query    shared   List chapters in reading order, with their act, storylines, words, creation and last change (trashed ones after, when asked).
 chapter.move                 command  book     Move a chapter in reading order (it lands before the next chapter or act boundary).
@@ -38,7 +41,7 @@ comment.delete               command  book     Delete a comment or TODO (its rel
 comment.list                 query    shared   List comments and TODOs (a target in the trash or gone shows as unlocated).
 comment.reanchor             command  book     Put a comment's anchor back where the editor's undo brought its text back (the author's change, synced; it follows the editor's undo, so it is not an entry of the object-level undo).
 comment.update               command  book     Change a comment or TODO: its text, status (resolve / reopen), priority, kind or linked Agent conversation.
-element.create               command  book     Create an element. A name or alias another element already has is refused (automatic links find people by name); the error names that element.
+element.create               command  book     Create an element (it starts with its category's template fields). A name or alias another element already has is refused (automatic links find people by name); the error names that element.
 element.list                 query    shared   List elements (with a mark on names a merge left duplicated).
 element.purge                command  book     Delete an element for good: its relations and patches go, comments on it become floating, in one commit.
 element.restore              command  book     Bring an element back from the trash (a name taken meanwhile gets a suffix).
@@ -77,6 +80,20 @@ memory.list                  query    shared   List the book's Project Memory en
 memory.remove                command  book     Remove a Project Memory entry (kept as removed; restorable).
 memory.restore               command  book     Bring back a removed Project Memory entry.
 memory.update                command  book     Change a Project Memory entry's text, kind or status.
+patch.check_sources          command  book     After a chapter's or idea's prose changed: mark the patches taken from it whose passage no longer occurs as invalidated, and unmark those whose passage is back. Follows the prose; not an author's step.
+patch.create                 command  book     Add a patch to an element: a title (optional) and a body, floating or taken from a passage of a chapter or idea.
+patch.delete                 command  book     Delete a patch at once (never refused): relations to it go and comments on it float, in the same commit; undo brings it all back.
+patch.list                   query    shared   List an element's patches: by their source chapter's reading order, then their own order; floating ones last. Invalidated ones are listed too.
+patch.move                   command  book     Move a patch among its element's patches (within the same source chapter the order is the patches' own).
+patch.update                 command  book     Change a patch's title or body, or the chapter it belongs to (none detaches it).
+plot_grid.cell               command  book     Write one cell of a plot grid (empty text clears it).
+plot_grid.clear              command  book     清空: clear every label and every cell of a plot grid; its rows, columns and size stay.
+plot_grid.create             command  book     Store a chapter's or idea's plot grid, three rows by three columns with empty labels, before its first edit; an existing grid is returned as it is.
+plot_grid.get                query    shared   Read a chapter's or idea's plot grid: rows, columns and the cells' text (an empty 3 × 3 grid when none is stored yet).
+plot_grid.line_add           command  book     Insert a row or column into a plot grid, first or right after another, with a label (empty shows the placeholder).
+plot_grid.line_remove        command  book     Remove a plot grid's row or column with its cells (the last row or column cannot go).
+plot_grid.line_update        command  book     Rename or move a plot grid's row or column (first, or right after another).
+plot_grid.size               command  book     Set the size of a plot grid's cells (120–440 wide, 56–380 high).
 prose.read                   query    shared   Read paragraphs of a prose document (text, block id, heading level).
 prose.replace                command  book     Replace one exact passage of prose with new text (it must occur exactly once, in one paragraph).
 prose.restore                command  book     Restore a prose document to an earlier version, as a new change (history stays).
@@ -89,13 +106,16 @@ relation_type.create         command  book     Create a relation type. A name an
 relation_type.delete         command  book     Delete a relation type and every relation of that type, in one commit; the result says how many (the interface asks first, an Agent reports it).
 relation_type.list           query    shared   List relation types (the built-in one is marked locked).
 relation_type.update         command  book     Rename a relation type or change its description, role names or colour (the built-in type is locked).
-storyline.create             command  book     Create a storyline (a taken name gets a numbered suffix; the final name is returned).
+storyline.create             command  book     Create a storyline (a taken name gets a numbered suffix; the final name is returned). It starts with the book's storyline template fields.
 storyline.list               query    shared   List storylines in order, with how many live chapters each has.
 storyline.move               command  book     Move a storyline in the list (only its own position changes).
 storyline.purge              command  book     Delete a storyline for good: chapters leave it, its relations go and comments on it become floating, in one commit.
 storyline.restore            command  book     Bring a storyline back from the trash, with its chapters' membership.
 storyline.trash              command  book     Move a storyline to the trash. Never refused: chapters keep their membership, hidden until it is restored.
-storyline.update             command  book     Rename a storyline (a taken name gets a suffix), recolour it or change its summary.
+storyline.update             command  book     Rename a storyline (a taken name gets a suffix), recolour it, change its summary or its fields.
+storyline_template.list      query    shared   List the fields every new storyline starts with, in order.
+storyline_template.put       command  book     Add a field to the storyline template or change one (key, value, position). Existing storylines keep their fields.
+storyline_template.remove    command  book     Remove a field from the storyline template. Existing storylines keep theirs.
 time_pin.create              command  book     Put a time pin on the narrative axis, with a label or bound to an idea.
 time_pin.delete              command  book     Delete a time pin.
 time_pin.list                query    shared   List the book's time pins along the narrative axis, with the ideas bound to them.

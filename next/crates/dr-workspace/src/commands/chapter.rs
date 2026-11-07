@@ -169,11 +169,23 @@ pub(crate) fn seed_prose(
         if t.contains('\u{FFFC}') {
             return Err(WsError::invalid("text may not contain U+FFFC"));
         }
+        let names = if cx.workspace().auto_links() && crate::autolink::links_for(cx.actor()) {
+            Some(crate::autolink::matcher(
+                &cx.book(book.as_str())?.reader.view(),
+                doc,
+            ))
+        } else {
+            None
+        };
         let slot = cx.prose(doc)?;
         let t = t.replace("\r\n", "\n");
         cx.write_prose(&slot, move |txn| {
             let end = txn.view().len().saturating_sub(1);
-            txn.insert_paragraphs(end, &t)?;
+            let caret = txn.insert_paragraphs(end, &t)?;
+            // Automatic links on the names in the new text, same commit.
+            if let Some(n) = &names {
+                crate::autolink::link_written(txn, n, end..caret)?;
+            }
             Ok(())
         })?;
     }

@@ -176,6 +176,15 @@ impl BookCache {
         }
     }
 
+    /// The cached value of `key` when there is one; never fills it.
+    pub(crate) fn peek<T: Send + Sync + 'static>(&self, key: Key) -> Option<Arc<T>> {
+        let s = lock(&self.state);
+        let (_, e) = s.entries.get(&key)?;
+        let v = e.clone().downcast::<T>().ok()?;
+        self.hits.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        Some(v)
+    }
+
     /// The cached value of `key`, or `fill` it from `view`.
     pub(crate) fn get<T: Send + Sync + 'static>(
         &self,

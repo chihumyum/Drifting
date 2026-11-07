@@ -39,7 +39,15 @@ op! {
     fn(cx, input: RelationListIn) -> Vec<RelationInfo> {
         let slot = cx.book(&input.book)?;
         let e = input.entity.as_ref().map(Target::to_ref);
-        Ok(relations(&slot).iter()
+        // One entity's relations right after a write: F1's `relations_of`
+        // checks only that entity's relations, where filling the cache would
+        // check every relation of the book.
+        let list = match (&e, slot.cache.peek::<Vec<dr_model::book::Relation>>(crate::cache::Key::Relations)) {
+            (_, Some(all)) => all,
+            (Some(e), None) => std::sync::Arc::new(slot.reader.view().relations_of(e)),
+            (None, None) => relations(&slot),
+        };
+        Ok(list.iter()
             .filter(|r| e.as_ref().is_none_or(|e| &r.from == e || &r.to == e))
             .filter(|r| input.relation_type.as_ref().is_none_or(|t| r.relation_type.as_str() == t))
             .map(RelationInfo::from).collect())
