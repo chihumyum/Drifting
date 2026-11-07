@@ -15,6 +15,9 @@
 - **同步**：每篇文档记住服务器已经有到哪（`remote_vv`），上传时从文档本身导出那之后的改动，所以压缩和上传互不相干。
 - **资源文件**：照旧版 `native_capabilities.rs` 的做法存原文件、显示图、缩略图；图片管线这一轮只留了接口。
 - **换电脑**：身份文件旁边记着「这个身份属于哪台机器」（系统机器 id 的摘要）。迁移助理把整个应用数据搬到新电脑时，机器对不上，这台就当新设备：换一个安装 id，写作日里算新设备，打开的每个库也自动换代。
+- **整库备份**：导出成一个 `.drifting` 文件（压缩包：数据库快照加资源文件），库开着也能导。恢复分两步：先把备份整个解开、逐个核对，告诉界面里面有什么；作者确认、库关上以后才替换。替换前把当前的库也存一份「恢复前备份」，资源文件只添不删，失败时原库不动。
+- **彻底删掉的书不会被同步拉回来**：彻底删除一篇文档时记一笔「这台设备删过它」；以后谁要再建它（同步拉来的、导入的），一律拒绝。一本书的最后一篇删掉，整本书就算删了，书里新来的文档也进不来。
+- **小块本机状态**：「最近打开」这类只在本机、不同步的小东西有一张自己的表，按「模块 + 键」存一个值。
 
 ## 里程碑状态
 
@@ -22,7 +25,7 @@
 | --- | --- | --- | --- |
 | 1 | 数据库基线与迁移：基线、安全快照、影子库、恢复回执、失败原库不变 | 完成 | `tests/migrate.rs`（16 项，含每个阶段注入失败、模拟崩溃、回执的各种状态） |
 | 2 | 表：Loro 相关表、历史标签、结算、同步状态、派生索引、资源 | 完成 | `migrations/0000_baseline.sql`；`tests/index.rs`（18 项，另有 1 项手动测量） |
-| 3 | 文档持有者：专用线程、来源标记、先落盘再发事件、作者与 Agent 不同提交 | 完成 | `tests/holder.rs`（19 项）、`tests/records.rs`（14 项） |
+| 3 | 文档持有者：专用线程、来源标记、先落盘再发事件、作者与 Agent 不同提交 | 完成 | `tests/holder.rs`（20 项）、`tests/records.rs`（14 项） |
 | 4 | 压缩与历史：后台压缩、同事务删除、不做浅快照、另载副本回看 | 完成 | `tests/holder.rs`、`tests/records.rs` |
 | 5 | 崩溃安全：编辑中被杀、迁移各阶段被杀 | 完成 | `tests/crash.rs`（迁移六个阶段各杀一次，用 dr-testkit 的试验台）；编辑中被杀归 dr-testkit 的 `tests/crash_store.rs` |
 | 6 | 资源文件：三种版本、导入标记协议、垃圾回收、落盘删除、图片管线接口 | 完成（管线只有接口） | `tests/asset.rs` 和 `asset.rs` 里的单测 |
@@ -32,8 +35,10 @@
 | — | `file_io.rs`、`archive.rs` 原样搬入并补单测 | 完成 | `tests/file_io.rs`（8 项，Windows 另有 1 项在 CI 跑） |
 | — | M10 要的接口：`label_at`、`Device::adopt`、导入回执表（`0001`）、`repair` 来源 | 完成 | `tests/labels.rs`（3 项）、`identity.rs` 单测、`tests/migrate.rs`、`tests/sync.rs`、`tests/records.rs` |
 | — | 第三轮（监管会话）：按段写派生索引、类型化读取、本机表 `ws_journal`（`0003`）、书序搜索、关库被拒时交还、大纲规则、只读打开、换用 dr-testkit | 完成 | `tests/index.rs`、`tests/holder.rs`、`tests/records.rs`、`tests/crash.rs`；见「第三轮」 |
+| — | 第四轮（性能）：按书序搜索、带空隙的段序键、引用只写变了的、关库不被后台重建挡住、派生单独的空闲等待 | 完成 | `tests/index.rs`、`tests/records.rs`；证据 `f2-m4-*-bench.json`；见「第四轮」 |
+| — | 第五轮：作者命令的来源 `user:command`、本机小状态表（`0004`）、彻底删除的记录（`0005`）、整库备份与恢复 | 完成 | `tests/holder.rs`、`tests/local.rs`（4 项）、`tests/backup.rs`（6 项）、`backup.rs` 的单测；见「第五轮」 |
 
-合计 122 项测试（macOS：32 项单测、90 项集成测试），另有 1 项手动测量默认不跑。按平台条件算，Windows 上是 115 项：少了只在 Unix/macOS 上有意义的 8 项（符号链接、目录同步、`IOPlatformUUID`、子进程拿着锁文件），多 1 项写穿改名；没在 Windows 上跑过。
+合计 134 项测试（macOS：33 项单测、101 项集成测试），另有 1 项手动测量默认不跑。按平台条件算，Windows 上是 127 项：少了只在 Unix/macOS 上有意义的 8 项（符号链接、目录同步、`IOPlatformUUID`、子进程拿着锁文件），多 1 项写穿改名；没在 Windows 上跑过。
 
 ## 接口概览
 
@@ -61,6 +66,7 @@ let h = lib.open_doc("node:<id>", OpenDoc::CreateIfMissing {
     kind: "node", book_id: Some(book), genesis: &dr_doc::genesis_for(...), // F1 接入点：创世
 })?;
 h.write(Origin::User, |doc| { /* 只改，不提交 */ })?;          // 落盘后才返回
+h.write(Origin::Command, |doc| ..)?;                // 作者的命令：Loro 来源 user:command，事件和存下的行也是它
 h.write_agent(AgentWrite { session, turn, call, summary }, |doc| ...)?; // 同一事务里留结算记录
 h.import(bytes, Origin::Sync)?;                     // 远端更新：导入、落盘、记下服务器已有
 h.read(|doc| ...)?;                                 // 持有者线程上读：导出、光标位置、回看都在这里
@@ -77,8 +83,13 @@ lib.notify_local(LocalChange::new("agent_run", id, LocalChangeKind::Insert)); //
 lib.local_write(|tx| {                              // F3 的本机表：一个事务，提交后才发
     tx.execute("INSERT INTO ws_journal ..", params)?;
     tx.changed(LocalChange::new("ws_journal", id, LocalChangeKind::Insert));
+    tx.set_state("ws", "recent", &json, None)?;     // 同一个事务里也能写本机小状态
     Ok(())
 })?;
+
+// 本机小状态（local_state）：每个（模块，键）一个文本值，不同步
+lib.local_set("ws", "recent", &json, None)?;        // 第四个参数是所属的书：书删光时一起删
+lib.local_get("ws", "recent")?; lib.local_entries("ws", Some(book))?; lib.local_remove("ws", "recent")?;
 
 // 历史、活动、结算
 lib.history(doc_id)?;                               // 标签（带书目文档的版本），新的在前
@@ -108,14 +119,26 @@ lib.import_asset(&SourceImport { .. })?;            // 上面三步的一次性�
 lib.derive_variants(asset_id, &pipeline)?;          // pipeline: impl ImageDeriver（待做）
 lib.remove_asset(asset_id)?; lib.collect_asset_garbage()?;
 
-lib.purge_doc(doc_id)?;                             // 一个事务删掉一篇文档的所有行
+lib.purge_doc(doc_id)?;                             // 一个事务删掉一篇文档的所有行，并记下「删过」
+lib.purged(doc_id)?; lib.purged_docs(Some(book))?; lib.book_purged(book)?; // 删过什么（给同步）
+lib.forget_purged(doc_id)?; lib.forget_purged_book(book)?;               // 有意让它回来（重新导入）
+// 再建删过的文档（CreateIfMissing、register），或往删光的书里建文档：StoreError::Purged
+// 用 OpenDoc::Existing 打开删过的文档照旧是 NotFound（什么都没存），要分清用 lib.purged()
+
+// 整库备份（.drifting）
+let summary = lib.export_backup(&dest, &book_names)?;           // 库开着也能导；book_names 是书名（给确认框）
+let staged = backup::stage(root, &package, app_version)?;        // 解开、逐个核对、按需升级；库可以开着
+staged.summary();                                                // 几本书、多少文档、哪个版本做的
+let (lib, outcome) = Library::restore_staged(root, &staged, options)?; // 库必须关着；先存恢复前备份
+Library::pre_restore_backups(root)?;                             // 恢复前备份，新的在前（撤销恢复就拿它再恢复一次）
+// 错误：StoreError::Backup { code: backup::INVALID | LEGACY | NEWER, detail }
 lib.local_transaction(|tx| { /* 本模块自己的本机表 */ Ok(()) })?; // 例如导入回执；之后 notify_local
 lib.local_read(|conn| ...)?;
 lib.close()?;                                       // 等持有者和后台重建收尾、关库、放锁
 match lib.try_close() { Err(CloseRefused { error, library }) => /* 还有文档开着：库还回来，可重试 */, Ok(()) => .. }
 ```
 
-`Origin` 是 `User`、`Agent("<会话>/<轮>")`、`Mirror`、`Sync`、`Import`、`Repair`（dr-doc 的确定性修复）、`Genesis`，外加兜底用的 `Outside`。字符串和 dr-model 的 `Origin` 一一相同，有测试对照。
+`Origin` 是 `User`、`Command`（作者的命令，字符串 `user:command`）、`Agent("<会话>/<轮>")`、`Mirror`、`Sync`、`Import`、`Repair`（dr-doc 的确定性修复）、`Genesis`，外加兜底用的 `Outside`。除 `Command` 外，字符串和 dr-model 的 `Origin` 一一相同，有测试对照；dr-model 没有 `Command`（命令是工作区的概念，模型层的写入不分）。`is_author()` 对 `User` 和 `Command` 都为真。
 
 ## 设计与取舍
 
@@ -172,14 +195,16 @@ match lib.try_close() { Err(CloseRefused { error, library }) => /* 还有文档�
 - **下次打开先结清回执**（照旧版）：读不出的回执 → 停（`recovery-receipt-invalid`），不猜；快照哈希或大小对不上 → 停（`safety-snapshot-invalid`）；没到「替换中」、或影子还在 → 替换没发生，删影子和回执、照常打开（有待跑的迁移就重试）；「替换中」且影子已不在 → 替换已发生，库必须完整、迁移条数等于回执的目标，否则停（`activated-database-invalid`），不在半成品上继续迁移。停下时界面用 `Library::recovery_receipts` 读回执，`restore_from_receipt` 校验哈希后恢复。
 - **「原库不变」的确切含义**：原库正常关闭过（WAL 为空）时逐字节不变，测试按这个校验；上次是崩溃退出时，升级前的 checkpoint 会把 WAL 写回主文件，内容不变、字节会变。
 - **换版本也拍快照**：没有待跑的迁移、但打开它的应用版本变了，也先拍一张。
-- **已合进 `main` 的迁移**：基线随 `main` 的 `e0a9e964` 合入，从此不再改；之后的表一律追加。现在有四条：
+- **已合进 `main` 的迁移**：基线随 `main` 的 `e0a9e964` 合入，从此不再改；之后的表一律追加。现在有六条：
   - `0000_baseline`；
   - `0001_import_receipts`：导入回执表（见「本机表」）；
   - `0002_history_label_keep`：历史标签加 `keep` 列，`1` 表示不参与修剪；
-  - `0003_ws_journal`：F3 的本机日志表（见「本机表」）。
+  - `0003_ws_journal`：F3 的本机日志表（见「本机表」）；
+  - `0004_local_state`：本机小状态表；同时把 F3 暂借在 `library_meta` 里的 `ws.recent` 原样搬过去（模块 `ws`、键 `recent`）；
+  - `0005_purged_doc`：彻底删除的记录（见「彻底删除」）。
 
   测试 `a_baseline_library_gets_the_later_published_migrations` 用只有基线的旧库走一遍真实的升级：先拍安全快照，再在影子库上迁后面几条，正文和已有标签都在。
-- **哈希还没人钉**：`PINNED` 里四条现在都是 `None`（F8 的约定：第一个 0.2 版本发布时才填），门禁只提示「not published yet」。以前 dr-store 自己有一个 `PUBLISHED` 测试钉着前三条，第三轮删了，免得两份名单。监管会话定了：等第一个 0.2 版本真正发布时再钉，在那之前保持「未冻结」。
+- **哈希还没人钉**：`PINNED` 里六条现在都是 `None`（F8 的约定：第一个 0.2 版本发布时才填），门禁只提示「not published yet」。以前 dr-store 自己有一个 `PUBLISHED` 测试钉着前三条，第三轮删了，免得两份名单。监管会话定了：等第一个 0.2 版本真正发布时再钉，在那之前保持「未冻结」。
 
 ### 表
 
@@ -202,6 +227,8 @@ DDL 以 `migrations/0000_baseline.sql` 为准：所有表 `STRICT`，时间一�
 | `asset` | 资源文件，每个版本一行，带 `uploaded_ms` |
 | `import_run`、`import_book`、`import_doc`、`import_anchor`、`import_original` | 导入回执（`0001`，M10 写） |
 | `ws_journal` | F3 的本机日志（`0003`，F3 写） |
+| `local_state` | 本机小状态（`0004`）：`(scope, key)` → 文本值，可带 `book_id` |
+| `purged_doc` | 彻底删除过的文档（`0005`）：`doc_id`、`kind`、`book_id`、时间 |
 
 ### 文档持有者
 
@@ -222,6 +249,7 @@ DDL 以 `migrations/0000_baseline.sql` 为准：所有表 `STRICT`，时间一�
 - 来源不只记在 `loro_update.origin`（压缩会删）：`Agent`、`Mirror`、`Import`、`Repair`（以及 `Outside`）的提交都把来源写进 **Loro 提交信息**，作者自己的提交不带。远端的提交带着它们自己的提交信息过来。
 - `genesis` 和 `repair` 的行和别的行一样追加、一样上传：上传按 `remote_vv` 从文档导出，不看来源（`repair_and_genesis_rows_are_appended_and_uploaded_like_any_other`）。各设备的创世变更字节相同，服务器和 Loro 都会去重；修复是确定的，两台设备修出来的值相同。`repair` 不触发周期标签。
 - 「某时间起谁改了哪些文档」（主页签到）：`loro_head.ts` 找出改过的文档，再从每篇文档自己的 Loro 变更里读出对等方、时间和提交信息（`history::changes_since`、`Library::activity_since`）。对等方是不是本机，用 `peer_for` 比对。
+- **作者的命令**（`Origin::Command`，字符串 `user:command`，常量 `dr_store::COMMAND_ORIGIN`）：工作区（F3）的命令改正文时用它，比如命令面板、帮手代作者执行、对象级撤销。除了来源，它和作者打字完全一样：不写提交信息（署名是作者），照常打周期标签和关闭标签。持有者提交时 Loro 的来源就是 `user:command`，编辑器的撤销管理器排除这个前缀，就不会撤到命令；`DocEvent.origin` 和存下的那一行也是 `Command`，听事件的模块分得出是打字还是命令。写闭包中途隐式提交（解析锚点）时，用的是闭包自己先设好的提交选项，和别的来源一样。
 - Agent 结算记录（`agent_settlement`）和那次写入在同一个事务里写；作者撤销 Agent 的改动走历史（`revert_to` 到 `before`），由 F3 实现。
 - **这些都依赖「不做浅快照」**：来源、活动、历史标签、结算记录里的 frontiers，都要求完整历史还在。以后谁要加浅快照，得先给这些找别的存法。
 
@@ -289,14 +317,56 @@ DDL 以 `migrations/0000_baseline.sql` 为准：所有表 `STRICT`，时间一�
 | 表 | 归属 | 现状 |
 | --- | --- | --- |
 | 本机日志：`ws_journal`（索引 `ws_journal_actor`） | F3（dr-workspace） | `0003` 已建，表结构和 F3 的 `journal.rs` 逐字相同；F3 用 `local_write` 写 |
+| 本机小状态：`local_state` | 各模块共用，`scope` 分开 | `0004` 已建，dr-store 给读写接口（见下） |
 | 导入回执：`import_run`、`import_book`、`import_doc`、`import_anchor`、`import_original` | M10（dr-import-v1） | `0001` 已建，表结构照 M10 的 `receipt.rs`；M10 改为经 `local_transaction` 写进库里 |
 | 旧帮手对话的只读存档（`archive_*`） | M31 | 这一轮不建，暂留在 M10 的 `import-v1/receipt.sqlite` |
 | MCP 服务（`local_agent_mcp_server`） | M32 | 同上 |
 | 工作记忆（`local_agent_working_memory`） | M30 | 同上 |
 | Markdown 文件夹台账（`local_markdown_mirror_file`） | M40 | 同上 |
-| 本机设置（`local_setting`、`local_library_state`） | F6 | 同上 |
+| 本机设置（`local_setting`、`local_library_state`） | F6 | 同上；小的可以直接放 `local_state` |
 
 谁接手就追加自己的 `000N_*.sql`，并把数据从 `receipt.sqlite` 搬进来。
+
+**本机小状态（`local_state`）**：给「最近打开」、面板宽度、某个模块上次的选择这类小东西，不值得各建一张表。
+
+- 每个 `(scope, key)` 一个文本值（一般是 JSON），`scope` 是模块的名字（工作区用 `ws`），各模块互不相撞；值最大 1 MiB，免得被当成存大块数据的地方。
+- 只在本机，不同步，也不进任何文档。
+- 一行可以写明属于哪本书（`book_id`）：那本书最后一篇文档被彻底删除时，在同一个事务里一起删掉。
+- 写走 `local_write`：`tx.set_state` / `tx.remove_state`，或者单独的 `lib.local_set` / `lib.local_remove`。提交后每改一行发一条 `LocalChange`，表名 `local_state`，键是 `<scope>/<key>`；写进去的值和原来一样就什么都不改、不发。
+- 读：`lib.local_get`、`lib.local_entries(scope, 书)`。
+
+### 彻底删除
+
+- `purge_doc` 删掉一篇文档的全部行，同一个事务里在 `purged_doc` 记一笔（文档、种类、所属的书、时间）。
+- **一本书什么时候算删了**：这本书的最后一篇文档被彻底删除以后，也就是「有删除记录写着这本书，又没有一篇存着的文档属于它」。不靠文档 id 的格式认书目文档。这时这本书的本机小状态也一起删。
+- **拒绝再建**：删过的文档再用 `CreateIfMissing` 打开、再 `register`，或者往删光的书里建任何文档，都报 `StoreError::Purged`，什么都不写。用 `Existing` 打开删过的文档照旧报 `NotFound`（确实什么都没存），F3 的 `book.get` 之类不用改；要分清「从来没有」和「删过」，用 `lib.purged(id)`。同步拉来的远端更新要先打开（创建）文档才能导入，所以进不来；检查放在建文档的那个事务里，和删除排在同一把写锁后面。
+- **记录一直留着**（每条几十字节）。有意让它回来时先忘掉记录：作者重新导入同一个 0.1 库（M10），或者同步服务说别的设备恢复了这本书（M36），用 `forget_purged` / `forget_purged_book`。
+- 删除怎么同步到服务器和别的设备是 M36 的事；它要的「这台删过什么」是 `purged_docs`。恢复整库备份时删除记录跟着备份走（备份里的书回来了，就是作者要的）。
+
+### 整库备份与恢复
+
+照 0.1 `crates/drifting-core/src/library_backup.rs` 的包格式和恢复规则，用在 0.2 的库上；格式版本记为 2（`backup.rs`）。
+
+```text
+manifest.json                          格式、版本、每个文件的 SHA-256 和大小、书、文档数
+library.sqlite                         VACUUM INTO 快照（deflate 压缩）
+assets/<书>/<资源>/<版本>.<扩展名>     原样存（图片本来就压缩过）
+```
+
+- **导出**（`lib.export_backup(目标, 书名)`）：库开着也能导。快照在它自己的一条只读连接上用 `VACUUM INTO` 一次读完，持有者照常写、不用等；资源文件之后再复制（它们写一次就不再改）。表里有、这台设备上却没有的资源文件只计数（`missing_assets`），不算失败。先写临时文件，写完 fsync 再改名，目标处要么是完整的包、要么没有。书名由调用方给（dr-store 不读文档内容），写进清单给恢复确认框用。
+- **核对**（`backup::stage(库, 包, 版本)`）：把整个包解到 `<库>/restore-staging/`，逐个核对 SHA-256 和大小、包里不许有清单以外的文件、数据库 `integrity_check`、迁移记录是本版本的前缀。备份比本版本旧就在暂存区里升级（升级失败也在替换之前）。返回 `BackupSummary`（做备份的时间和版本、几本书各几篇、资源文件数、缺的资源数），给确认框用。这一步不碰库，库可以开着；一次只暂存一份，新的会顶掉旧的；`StagedBackup` 丢掉时暂存的文件一起删。
+- **替换**（`Library::restore_staged(库, &暂存, 选项)`）：库必须关着（这个进程和别的进程都没开）。
+  1. 先把当前的库存成「恢复前备份」（`safety-snapshots/pre-restore/Drifting-pre-restore-<毫秒>.drifting`，留最新 3 份）；当前数据库读不出来（往往正是要恢复的原因）时，改存原始的数据库文件（`.sqlite`，有 WAL 也一起）。
+  2. 恢复出来的库先换代：备份里的对等方不能再写，否则会在别处已经用过的操作 ID 下写出不同的内容。
+  3. 资源文件只添不删：已有的显示图、缩略图留着，已有的原文件和备份对不上才换。
+  4. 最后才替换数据库文件，然后照常打开（`open_locked`）。
+  - 崩溃或失败落在任何一步，库要么是旧的、要么是新的，各自的资源文件都在。在替换之前失败，当前的数据库文件一个字节不变，多出来的只有恢复前备份和添进来的资源文件；核对没通过时整个库文件夹都不变（测试逐个文件比哈希）。
+- **撤销恢复**：`Library::pre_restore_backups(库)` 列出恢复前备份，拿它再走一遍核对和替换。
+- **认得出的错**（`StoreError::Backup { code, detail }`，界面按 `code` 选文案）：
+  - `backup-invalid`：不是备份、损坏、和清单不符、包里多了东西；
+  - `backup-legacy`：0.1 做的备份（格式 1），里面是 0.1 的数据库，要走导入（M10）；
+  - `backup-newer`：更新的版本做的（格式更新，或者数据库迁移比本版本多），先升级应用。
+- 以前就有的 `Library::restore_backup(库, SQLite 文件)` 留着，给恢复回执用（只有数据库、没有资源）。
 
 ### 资源文件
 
@@ -461,6 +531,38 @@ M3 Pro（12 核，36 GB），release，Loro 1.17.1，2026-11-07，跑时 1 分�
 - `closing_labels_only_openings_that_wrote_something_worth_a_label`（`tests/labels.rs`）按 M10 的顺序走一遍：创世 → `import` → 修复 → 关 → `label_at`。之后验证三件事：只开不写不打点；作者写了就打 `close`；文档开着时别人在当前版本打过点，就不再重复。两项改动分别撤掉时，这项测试分别失败。
 - `a_closed_library_reopens_at_once_while_processes_start`（`tests/records.rs`，只在 Unix 上跑）：四个线程不停启动子进程，同时开关库 1000 次。不显式解锁时 438 次被拒，改后 0 次，约 2 秒。
 
+## 第五轮（监管会话，2026-11-08）
+
+| 要求 | 处理 |
+| --- | --- |
+| 1. 作者命令的来源（F3「待协调」F2-3） | `Origin::Command`（`user:command`），见「来源与活动」。持有者用它提交，事件、存下的行都分得出来；F3 不用再在写闭包里自己提交 |
+| 2. 本机小状态表（F3「待协调」F2-4） | `0004_local_state`，接口 `local_set` / `local_get` / `local_entries` / `local_remove` 和 `LocalTx::set_state` 等，见「本机表」；迁移把 `library_meta` 里的 `ws.recent` 原样搬过去 |
+| 3. 删掉的书防被同步拉回（F3「待协调」F2-6） | `0005_purged_doc`：`purge_doc` 同一个事务里记一笔；删过的文档、删光的书里的文档都建不起来（`StoreError::Purged`），见「彻底删除」。F3 的 `book.purge` 不用改 |
+| 4. 备份与恢复（F6「本地数据」） | `backup.rs`：导出、核对暂存、替换前存恢复前备份、只添不删资源、换代，见「整库备份与恢复」 |
+| 5. 按书批量读字数和存盘时间（F3「待协调」F2-5） | 量过，现在不做，见下 |
+
+测试：
+- **来源**：`the_authors_commands_keep_their_own_origin_from_commit_to_event`（`tests/holder.rs`）：Loro 事件的来源、`DocEvent`、存下的行都是 `user:command`，中途隐式提交的那一部分也是；没有提交信息；只有命令的一次打开也打关闭标签。
+- **本机小状态**（`tests/local.rs`）：`local_values_are_kept_per_scope_and_announced_once_committed`（按模块分开、提交后才发、值没变不发、失败的事务什么都不留、重开还在）；`the_migration_moves_the_recent_pages_out_of_the_library_settings`（用只到 `0003` 的旧库走真实升级）。
+- **彻底删除**（`tests/local.rs`）：`purged_documents_and_books_are_not_created_again`（文档删了建不了、登记不了，打开照旧是「没存」；书里还有文档时还能来新的，删光后不行；书的本机状态跟着删、别的书不动；重开后还记得；忘掉记录就能回来）；`a_remote_copy_of_a_purged_document_stays_out`（照同步的做法「打开再导入」，删过的那篇进不来，什么都没写）。
+- **整库备份**（`tests/backup.rs`）：
+  - `a_backup_puts_the_library_back_as_it_was_and_the_restore_can_be_undone`：库开着导出；备份以后又写的字、新章、新资源在恢复后都不见了，但新资源的文件还在盘上；库开着时恢复被拒，关了再试就成；换了代；恢复前备份能把这次恢复撤回来。
+  - `bad_old_and_newer_backups_are_refused_and_nothing_changes`：不是压缩包、0.1 的格式 1、格式 3、别的格式、资源被改了一个字节、多一个文件、少一个文件、新版本迁移过的库，都拒绝，库的每个文件哈希不变。
+  - `an_older_backup_is_upgraded_while_staged`：旧版本的备份在暂存区里升级，`ws.recent` 也照迁移搬好。
+  - `a_failed_restore_leaves_the_library_and_a_broken_one_can_be_replaced`：资源文件的位置被占了，恢复失败，数据库文件一个字节没变；当前数据库是坏的也能恢复，坏的那份原样存下。
+  - `a_backup_restores_into_an_empty_folder`：新电脑上还没有库，备份直接成为库，没有恢复前备份。
+  - `only_the_newest_pre_restore_backups_are_kept`。
+  - 撤掉「恢复时换代」或者「解包时核对 SHA-256」，对应的测试都会失败（试过）。
+
+**第 5 条的结论：现在不做。** heavy 种子的一本书（680 篇文档，其中 300 篇正文：100 章加 200 个构想），在 release 下量：
+
+| 读法 | 300 篇正文 | 全部 680 篇 |
+| --- | ---: | ---: |
+| 每篇一次 `doc_stats` 加一次 `head`（F3 现在的做法） | 0.73 ms | 1.70 ms |
+| 一条联表查询（`loro_doc` × `index_state` × `loro_head`，按 `book_id`） | 0.25 ms | 0.25 ms |
+
+（M3 Pro，2026-11-08，跑时一分钟负载约 60，绝对值偏大。）每篇约 2.4 µs，100 章的 `chapter.list` 约 0.25 ms，20 本书、每本 100 章的书架约 5 ms，而且都不在界面线程上。等真实书架上 `book.shelf` 超过 10 ms 左右再做：加一个 `Library::book_doc_summaries(书)`，一条查询给出每篇的字数和最近存盘时间。`head()` 还会解出版本向量和 frontiers，`chapter.list` 只要时间；到时一起换掉，每篇的开销还能再少一半。
+
 ## 待协调
 
 0. **给 M10**：`label_at` / `label_many` 可以替换 `run::write_labels` 的直写 SQL（行为相同：书目文档的版本取当前 head；另外多了保留参数和修剪）；`Device::adopt(dir, &id)` 替换 `adopt_identity`；导入回执的五张表在库里了（`0001`），用 `lib.local_transaction` 写，表名和列与 `receipt.rs` 相同。存档和本机表这一轮仍留在 `receipt.sqlite`（`ATTACH` 不能在事务里做，到它们的模块接手时再搬）。
@@ -469,7 +571,7 @@ M3 Pro（12 核，36 GB），release，Loro 1.17.1，2026-11-07，跑时 1 分�
 3. **F4 编辑器怎么读写**：写一律走 `write` 闭包；读用 `DocView` 或 `h.read`。批注锚点的位置（`get_cursor_pos`）、导出、回看要放进 `h.read`。`UndoManager` 建议放在写闭包里用。
 4. **基线冻结的时间**：并进第 12 条。
 5. **搜索按书序（给 F3）**：调 `search_in_order`，把书目文档里的章节顺序（文档 id 列表）传进来。
-6. **本机表**（帮手运行记录、权限、Markdown 台账、工作记忆、生图收件箱）：谁需要谁追加下一个序号的 `000N_*.sql`（现在到 `0003`），登记进 xtask 的 `PINNED`，用 `local_write` 写、提交后自动发到总线。
+6. **本机表**（帮手运行记录、权限、Markdown 台账、工作记忆、生图收件箱）：谁需要谁追加下一个序号的 `000N_*.sql`（现在到 `0005`）；小块的状态直接用 `local_state`，登记进 xtask 的 `PINNED`，用 `local_write` 写、提交后自动发到总线。
 7. **同步 v2（阶段 6）**：上传走 `export_for_upload` → `mark_uploaded`；导入走 `h.import(.., Origin::Sync)`，存储自动记服务器已有的版本。服务端协议和多文档恢复是阶段 6 的事。
 8. ~~搬到新电脑但身份文件也被拷走~~：监管会话已批准，已做（见「库的文件夹与本机身份」）。
 9. **Windows**：代码有 Windows 分支（写穿改名、墓碑删除、可写句柄 fsync、`MachineGuid`）。本机 `cargo check --target x86_64-pc-windows-msvc` 过不了：Loro 依赖的 `stacker` 和打包的 SQLite 要用 `windows.h` 编 C 代码，这台 Mac 上没有 Windows SDK。只依赖标准库的 `machine.rs`（库和测试）和 `file_io.rs` 用 `rustc --edition 2024 --crate-type lib --target x86_64-pc-windows-msvc --emit=metadata -D warnings` 单独做了类型检查，通过；`asset.rs` 的 Windows 删除分支依赖 crate 内部，只能靠 CI 的 Windows 那一条验证（它是从 0.1 在 Windows 上编过的代码逐行搬来的）。
@@ -483,12 +585,29 @@ M3 Pro（12 核，36 GB），release，Loro 1.17.1，2026-11-07，跑时 1 分�
 14. **给 M10**：`run::reopen` 和测试里打开库的重试（最多 2 秒）可以删了；测试里对 `close` 历史点的豁免也可以去掉。
 15. **给 F3**：`Workspace::shutdown` 被拒后重试一秒的绕法可以删了（后台重建不再拿已打开文档的句柄）；`book.search` 用 `search_in_order` 不用改。
 16. **给 dr-text / dr-index**：待协调 1（回车）、2（派生的空闲等待）、4（删两个旧模块）都做了，回车重测见「第四轮」。`references_from` 的顺序照旧是派生器给的顺序。
+17. **给 F3**（第五轮）：
+    - **作者命令**：改成 `holder::write(handle, dr_store::Origin::Command, None, job)`，去掉 `Commit::AsCommand` 和写闭包里自己提交的那一步；`COMMAND_ORIGIN` 可以改成转出 `dr_store::COMMAND_ORIGIN`。换了以后事件里的来源是 `Command` 而不是 `User`：按 `== Origin::User` 认作者的地方改用 `is_author()`。
+    - **「最近打开」**：换成 `lib.local_get("ws", "recent")` 和 `tx.set_state("ws", "recent", &json, None)`，迁移 `0004` 已经把旧值原样搬过去了。也可以一本书一个键（比如 `recent:<书>`，带上 `book_id`），书删光时自动删掉，`forget_book` 就不用了。**这两边要一起合**：F2 的迁移进来、F3 还没换之前，「最近打开」读出来是空的。
+    - **彻底删除**：`book.purge` 不用改，删除记录由 `purge_doc` 自己写。`import_remote` 遇到 `StoreError::Purged` 时，建议转成一个明确的错误码，M36 看到就跳过。
+18. **给 F6**（设置「本地数据」的备份与恢复）：
+    - 「备份资料库」：文件对话框选位置（扩展名 `.drifting`），在后台线程调 `lib.export_backup(路径, &书名)`，书名从 `book.shelf` 取；
+    - 「从备份恢复」：选文件 → `backup::stage(库目录, 路径, 版本)` → 拿 `summary()` 出确认框（几本书、哪天、哪个版本做的）→ 关掉工作区 → `Library::restore_staged` → 用返回的库重开工作区；
+    - 错误按 `code` 出文案，`backup-legacy` 引到导入 0.1 的入口（M10）；
+    - 要做「撤销这次恢复」，就列 `Library::pre_restore_backups`，拿其中一份再恢复一次。
+    - 导出、核对都没有进度回调；大库要进度条的话说一声，加一个回调参数。
+19. **给 M36**：`purged_docs` 是这台设备删过的清单；服务器上的副本怎么删、别的设备怎么知道，由 M36 定。服务器说别的设备恢复了这本书时，调 `forget_purged_book`。
+20. **给 M10**：作者彻底删了一本导入的书、又重新导入同一个 0.1 库时，这本书的文档会被拒（`StoreError::Purged`）。作者明确要重新导入时，先对这本书调 `forget_purged_book`。0.1 的整库备份（格式 1）F2 报 `backup-legacy`，照 m10-import.md 的计划走导入。
+21. **给 M07（dr-view-stats）**：`recorder::writes_here` 只认 `User | Agent(_) | Mirror`。F3 换成 `Origin::Command` 以后，作者的命令（比如恢复历史快照）就不算「这台设备写的」了；要和现在一样，把 `Command` 加进去，或者用 `is_author()`。
+22. **给 F1**：`user:command` 现在是 dr-store 的 `COMMAND_ORIGIN`。dr-model 不依赖 dr-store，`UNDO_EXCLUDED_ORIGIN_PREFIXES` 要加它就写同一个字符串（F3 待协调 F1-2）。
+23. **给 M41**：整库备份的格式现在由 F2 定（`backup.rs`，格式 2）。M41 做「导出与搬运」时直接调，不要另写一份。
 
 ## 没做的、下一步建议
 
 - 图片管线（`image_pipeline.rs` 和各平台解码器）只有接口。
 - 大纲的 `paragraphs_after`（见第 11 条）。
-- 帮手的本机表、整库备份（`library_backup.rs`：`VACUUM INTO` 加资源文件打包）、按账号分库（M36）。
+- 帮手的本机表、按账号分库（M36）。
+- 整库备份没在大库上量过（几 GB 的资源文件）；导出、核对都没有进度回调（见第 18 条）。
+- 按书批量读字数和存盘时间（第五轮第 5 条：量过，现在不需要）。
 - WAL 自动 checkpoint 会让某一次提交多花约 1 ms；如果真实打字测到尾延迟，改在持有者空闲时做被动 checkpoint。
 - 普通 `search` 因为要现数段号慢了一点（见「第四轮」）。要是有人还在用它取很多条，可以给数段号换一种做法（比如按文档一次数完）。
 - 建议下一个里程碑：把「打开一章」「压缩」两项测量加进 dr-testkit 的 store 套件，用真实的 dr-doc 创世、样式表和派生器重测一遍，替掉上面第一轮的数字。

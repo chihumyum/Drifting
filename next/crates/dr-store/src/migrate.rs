@@ -257,6 +257,14 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "0003_ws_journal",
         sql: include_str!("../migrations/0003_ws_journal.sql"),
     },
+    Migration {
+        name: "0004_local_state",
+        sql: include_str!("../migrations/0004_local_state.sql"),
+    },
+    Migration {
+        name: "0005_purged_doc",
+        sql: include_str!("../migrations/0005_purged_doc.sql"),
+    },
 ];
 
 // Which migrations are published (and so frozen) is tracked in one place:
