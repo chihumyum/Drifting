@@ -1,0 +1,257 @@
+{
+  "schema": "dr-testkit/evidence/1",
+  "name": "workspace-bench",
+  "milestone": "f2-m4",
+  "generatedBy": "cargo run --release -p dr-testkit --bin bench -- workspace --milestone f2-m4",
+  "inputs": {
+    "crates/dr-testkit/src/bench.rs": "4b942709d574501ecf7915c844268c528e9b0c4f5310f1ee08a641531e739ae1",
+    "crates/dr-testkit/src/bin/bench.rs": "4b197da40bd52f5bb7f64ab6b716967eae8598af6dd312cbff8b00208ba3b148",
+    "crates/dr-testkit/src/rng.rs": "eb878d8e485f01a901cb1742074c9de455d51871985ddf836e599e86baf353e3",
+    "crates/dr-testkit/src/seed": "a01def93a860c30e8b9ab3d7371b1766a53a14bf5c3e885821324d5c222caa6f",
+    "crates/dr-testkit/src/text.rs": "d639486e1178aadb3f7a41cdd4f563e74564f4f3d719de21cc4c183e5f6cb5b8",
+    "crates/dr-workspace": "a027003030fe2c9fdfe6d410c975a80fd44a0d1e05c2408c33f3a5c635a638d8"
+  },
+  "corpus": {
+    "corpusFingerprint": "5b319924c784252a98d35588c557a642ff4fb6b347f3a3603a9f1696a54bfb48",
+    "preset": "heavy",
+    "seed": "0x5eed0f08"
+  },
+  "machine": {
+    "arch": "aarch64",
+    "cores": 12,
+    "cpu": "Apple M3 Pro",
+    "loadAverage1m": 6.92,
+    "memoryBytes": 38654705664,
+    "os": "macos",
+    "osVersion": "27.0.1",
+    "profile": "release"
+  },
+  "results": {
+    "cases": {
+      "agentUndo": {
+        "ms": {
+          "undoTurn": {
+            "max": 99.863,
+            "mean": 99.863,
+            "n": 1,
+            "p50": 99.863,
+            "p95": 99.863
+          }
+        },
+        "shape": {
+          "writes": 10
+        },
+        "what": "history.undo_agent of one turn of title changes"
+      },
+      "coldQueries": {
+        "ms": {
+          "chapterList": {
+            "max": 6.884,
+            "mean": 6.884,
+            "n": 1,
+            "p50": 6.884,
+            "p95": 6.884
+          },
+          "commentList": {
+            "max": 4.514,
+            "mean": 4.514,
+            "n": 1,
+            "p50": 4.514,
+            "p95": 4.514
+          },
+          "elementList": {
+            "max": 2.653,
+            "mean": 2.653,
+            "n": 1,
+            "p50": 2.653,
+            "p95": 2.653
+          },
+          "relationList": {
+            "max": 2.953,
+            "mean": 2.953,
+            "n": 1,
+            "p50": 2.953,
+            "p95": 2.953
+          }
+        },
+        "shape": {
+          "chapters": 100,
+          "comments": 200,
+          "elements": 300,
+          "relations": 400
+        },
+        "what": "the first chapter, element, relation and comment lists after reopening"
+      },
+      "commands": {
+        "ms": {
+          "chapterCreate": {
+            "max": 18.584,
+            "mean": 1.96,
+            "n": 100,
+            "p50": 1.624,
+            "p95": 3.298
+          },
+          "chapterCreateWith2000Words": {
+            "max": 33.247,
+            "mean": 3.708,
+            "n": 100,
+            "p50": 2.337,
+            "p95": 10.914
+          },
+          "chapterMove": {
+            "max": 22.793,
+            "mean": 1.854,
+            "n": 100,
+            "p50": 1.352,
+            "p95": 1.797
+          },
+          "chapterRename": {
+            "max": 11.451,
+            "mean": 0.476,
+            "n": 100,
+            "p50": 0.241,
+            "p95": 0.565
+          },
+          "chapterTrashThenRestore": {
+            "max": 23.408,
+            "mean": 1.551,
+            "n": 100,
+            "p50": 0.962,
+            "p95": 4.278
+          },
+          "commentCreate": {
+            "max": 20.371,
+            "mean": 0.448,
+            "n": 100,
+            "p50": 0.231,
+            "p95": 0.333
+          },
+          "elementCreate": {
+            "max": 27.108,
+            "mean": 2.101,
+            "n": 100,
+            "p50": 1.604,
+            "p95": 3.593
+          },
+          "objectUndo": {
+            "max": 15.382,
+            "mean": 1.146,
+            "n": 100,
+            "p50": 0.848,
+            "p95": 2.369
+          },
+          "proseReplace": {
+            "max": 23.531,
+            "mean": 1.662,
+            "n": 100,
+            "p50": 0.912,
+            "p95": 3.634
+          }
+        },
+        "shape": {
+          "each": 100
+        },
+        "what": "single commands as the author"
+      },
+      "queriesAfterEvents": {
+        "ms": {
+          "chapterListAfterUpdate": {
+            "max": 0.428,
+            "mean": 0.342,
+            "n": 100,
+            "p50": 0.344,
+            "p95": 0.395
+          },
+          "relationListAfterCreate": {
+            "max": 3.372,
+            "mean": 2.571,
+            "n": 100,
+            "p50": 2.585,
+            "p95": 2.872
+          }
+        },
+        "shape": {
+          "each": 100
+        },
+        "what": "a list right after a change it shows: a chapter summary, a new relation"
+      },
+      "search": {
+        "ms": {
+          "oneCharacter": {
+            "max": 0.838,
+            "mean": 0.526,
+            "n": 50,
+            "p50": 0.522,
+            "p95": 0.582
+          },
+          "threeCharacters": {
+            "max": 8.11,
+            "mean": 6.095,
+            "n": 50,
+            "p50": 5.993,
+            "p95": 6.595
+          }
+        },
+        "shape": {
+          "each": 50
+        },
+        "what": "book.search over the derived index"
+      },
+      "seedViaCommands": {
+        "ms": {
+          "seed": {
+            "max": 3253.405,
+            "mean": 3253.405,
+            "n": 1,
+            "p50": 3253.405,
+            "p95": 3253.405
+          }
+        },
+        "shape": {
+          "books": 1,
+          "commands": 1623,
+          "proseEdits": 679
+        },
+        "what": "the whole preset written through Workspace::call and editing sessions"
+      },
+      "warmQueries": {
+        "ms": {
+          "chapterList": {
+            "max": 0.314,
+            "mean": 0.236,
+            "n": 300,
+            "p50": 0.232,
+            "p95": 0.265
+          },
+          "chapterListTyped": {
+            "max": 0.042,
+            "mean": 0.03,
+            "n": 300,
+            "p50": 0.029,
+            "p95": 0.035
+          },
+          "elementList": {
+            "max": 0.72,
+            "mean": 0.606,
+            "n": 300,
+            "p50": 0.607,
+            "p95": 0.659
+          },
+          "relationList": {
+            "max": 0.761,
+            "mean": 0.618,
+            "n": 300,
+            "p50": 0.615,
+            "p95": 0.675
+          }
+        },
+        "shape": {
+          "each": 300
+        },
+        "what": "the same lists again, by name and typed"
+      }
+    },
+    "mode": "full",
+    "suite": "workspace"
+  }
+}

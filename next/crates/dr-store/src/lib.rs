@@ -44,8 +44,6 @@ pub mod asset;
 pub mod digest;
 pub mod error;
 pub mod events;
-#[doc(hidden)]
-pub mod evidence;
 pub mod file_io;
 pub mod history;
 mod holder;
@@ -55,8 +53,6 @@ mod library;
 pub mod machine;
 pub mod migrate;
 mod origin;
-#[doc(hidden)]
-pub mod synthetic;
 
 pub use error::{MigrationFailure, Result, StoreError};
 pub use events::{LibrarySubscription, LocalChange, LocalChangeKind, StoreEvent};

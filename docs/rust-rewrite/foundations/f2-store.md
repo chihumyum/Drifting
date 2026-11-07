@@ -21,8 +21,8 @@
 | # | 里程碑 | 状态 | 证据 |
 | --- | --- | --- | --- |
 | 1 | 数据库基线与迁移：基线、安全快照、影子库、恢复回执、失败原库不变 | 完成 | `tests/migrate.rs`（16 项，含每个阶段注入失败、模拟崩溃、回执的各种状态） |
-| 2 | 表：Loro 相关表、历史标签、结算、同步状态、派生索引、资源 | 完成 | `migrations/0000_baseline.sql`；`tests/index.rs`（12 项，另有 1 项手动测量） |
-| 3 | 文档持有者：专用线程、来源标记、先落盘再发事件、作者与 Agent 不同提交 | 完成 | `tests/holder.rs`（19 项）、`tests/records.rs`（12 项） |
+| 2 | 表：Loro 相关表、历史标签、结算、同步状态、派生索引、资源 | 完成 | `migrations/0000_baseline.sql`；`tests/index.rs`（18 项，另有 1 项手动测量） |
+| 3 | 文档持有者：专用线程、来源标记、先落盘再发事件、作者与 Agent 不同提交 | 完成 | `tests/holder.rs`（19 项）、`tests/records.rs`（14 项） |
 | 4 | 压缩与历史：后台压缩、同事务删除、不做浅快照、另载副本回看 | 完成 | `tests/holder.rs`、`tests/records.rs` |
 | 5 | 崩溃安全：编辑中被杀、迁移各阶段被杀 | 完成 | `tests/crash.rs`（迁移六个阶段各杀一次，用 dr-testkit 的试验台）；编辑中被杀归 dr-testkit 的 `tests/crash_store.rs` |
 | 6 | 资源文件：三种版本、导入标记协议、垃圾回收、落盘删除、图片管线接口 | 完成（管线只有接口） | `tests/asset.rs` 和 `asset.rs` 里的单测 |
@@ -33,7 +33,7 @@
 | — | M10 要的接口：`label_at`、`Device::adopt`、导入回执表（`0001`）、`repair` 来源 | 完成 | `tests/labels.rs`（3 项）、`identity.rs` 单测、`tests/migrate.rs`、`tests/sync.rs`、`tests/records.rs` |
 | — | 第三轮（监管会话）：按段写派生索引、类型化读取、本机表 `ws_journal`（`0003`）、书序搜索、关库被拒时交还、大纲规则、只读打开、换用 dr-testkit | 完成 | `tests/index.rs`、`tests/holder.rs`、`tests/records.rs`、`tests/crash.rs`；见「第三轮」 |
 
-合计 114 项测试（macOS：32 项单测、82 项集成测试），另有 1 项手动测量默认不跑。按平台条件算，Windows 上是 107 项：少了只在 Unix/macOS 上有意义的 8 项（符号链接、目录同步、`IOPlatformUUID`、子进程拿着锁文件），多 1 项写穿改名；没在 Windows 上跑过。
+合计 122 项测试（macOS：32 项单测、90 项集成测试），另有 1 项手动测量默认不跑。按平台条件算，Windows 上是 115 项：少了只在 Unix/macOS 上有意义的 8 项（符号链接、目录同步、`IOPlatformUUID`、子进程拿着锁文件），多 1 项写穿改名；没在 Windows 上跑过。
 
 ## 接口概览
 
@@ -49,6 +49,7 @@ let mut options = LibraryOptions::new(env!("CARGO_PKG_VERSION"));
 options.device = Some(device);
 options.configure_doc = Some(Arc::new(dr_doc::schema::configure)); // F1 接入点：样式表
 options.deriver = Some(Arc::new(my_deriver));      // F1/F3 接入点：派生索引
+options.derive_idle = Duration::from_millis(150);   // 空闲多久就派生（默认值）；压缩看 options.compaction.idle
 let lib = Library::open(root, options)?;           // 新建 / 迁移 / 自动换代
 let ro = Library::open_read_only(root, options)?;  // 只读：不迁移、不拿锁、不拍快照（dr-cli inspect）
 lib.open_report(); lib.epoch_change();              // 迁了几条、快照在哪；换代了吗、为什么
@@ -159,7 +160,7 @@ match lib.try_close() { Err(CloseRefused { error, library }) => /* 还有文档�
   - 不拿 `library.lock`，应用开着同一个库时也能打开；WAL 下每次读看到的是一致的某一刻；
   - 不迁移、不拍安全快照、不看换代、不在后台重建索引；库的迁移条数必须正好等于本版本的，否则报 `NeedsMigration { applied, known }`；
   - 不能 `open_doc`（报 `ReadOnly`），但 `load_copy`、历史、搜索、统计都照常能读。
-- **关库被拒时交还**：还有文档句柄开着（`DocumentsOpen(n)`），或者这个 `Library` 还有别的克隆活着，关库会被拒。`lib.try_close()` 被拒时返回 `CloseRefused { error, library }`，把库还给调用方，关掉句柄后可以再试；`close()` 是丢掉库、只留错误的那个版本。因为克隆被拒时，后台重建已经停了：落后的索引等文档打开、或下次打开库时再补。
+- **关库被拒时交还**：还有文档句柄开着（`DocumentsOpen(n)`），或者这个 `Library` 还有别的克隆活着，关库会被拒。`lib.try_close()` 被拒时返回 `CloseRefused { error, library }`，把库还给调用方，关掉句柄后可以再试；`close()` 是丢掉库、只留错误的那个版本。因为克隆被拒时，后台重建已经停了：落后的索引等文档打开、或下次打开库时再补。后台重建从不拿已打开文档的句柄（见「派生索引」），所以它不会让关库被拒。
 
 ### 迁移与恢复回执
 
@@ -226,7 +227,7 @@ DDL 以 `migrations/0000_baseline.sql` 为准：所有表 `STRICT`，时间一�
 
 ### 压缩
 
-- 持有者空闲 `idle`（默认 750 ms）后，攒够 `max_updates`（默认 200）条或 `max_bytes`（默认 1 MiB）就压缩；关闭时攒了 `on_close_min_updates`（默认 50）条以上也压缩。默认值来自测量。
+- 持有者空闲 `compaction.idle`（默认 750 ms）后，攒够 `max_updates`（默认 200）条或 `max_bytes`（默认 1 MiB）就压缩；关闭时攒了 `on_close_min_updates`（默认 50）条以上也压缩。默认值来自测量。
 - 快照在持有者线程上导出（不占写锁），然后一个事务里写快照、删 `seq <= upto_seq` 的更新。只做完整快照。
 - 压缩与上传无关：上传从文档导出 `remote_vv` 之后的改动，不按行上传。
 
@@ -249,11 +250,24 @@ DDL 以 `migrations/0000_baseline.sql` 为准：所有表 `STRICT`，时间一�
   - `DerivedUpdate::Full(Derived)`：整篇替换；
   - `DerivedUpdate::Patch(DerivedPatch)`：只写改了的段。`base_paragraphs` 是做补丁时依据的段数；`splices` 是按位置排好、互不重叠的若干处「从第 `at` 段起删 `removed` 段、换成这些段」，位置都按补丁之前的段序；`references` 是 `None` 表示引用没变，`Some` 就整篇换掉（引用很少）；`words`、`chars` 是整篇的新合计。`DerivedPatch::between(旧, 新)` 按首尾相同的段算出一处替换，派生器留着上一次的结果时可以直接用。
 - **补丁只落在它依据的那些行上**：存着的段数不等于 `base_paragraphs`，写入就报 `IndexBase`，什么都不改；持有者遇到它就丢掉攒的差异，下次从头算一遍。补丁的 `seq` 不比已存的大就跳过，和整篇写一样。
-- **怎么挪段号**：`block_index` 的 `UNIQUE(doc_id, ord)` 和 `ord >= 0` 已经随基线发布，不能改。所以补丁先删掉被替换的行（连同 FTS 条目），把第一处替换之后的行整体加一个很大的偏移（2⁴⁰），再一段一段减回各自的新位置，最后插入新行。随机 400 步补丁和整篇重写逐行比对、FTS 完整性检查都过。
+- **段序是带空隙的排序键**：`block_index.ord` 不再等于「第几段」，只用来排序。整篇写入时每段隔 2³²；补丁先删掉被替换的行（连同 FTS 条目），再给新段取它前后两段的键之间的值（在末尾就接着隔 2³²，在中间就均匀分开），**后面的行一行都不动**。所以回车只写两行，不管这一章后面还有多少段。
+  - 相邻（一处结束正好是下一处开始）的几处替换共用同一个空隙，一起分配。
+  - 空隙用完（同一个位置连着插了 32 次左右）才把整篇重新编号：先把留下的行整体挪到所有键之上（`UNIQUE(doc_id, ord)` 已随基线发布，不能改），再逐行给新键。
+  - 键始终不超过 2⁶⁰，挪上去也不会溢出。
+  - **旧库**：以前的库里段序是 0、1、2……，读起来一样；在末尾追加照样有空隙，第一次在中间插段时那一篇重新编号一次。不需要迁移。
+  - **对外的段号不变**：`SearchHit.ord`、`OutlineEntry.ord` 仍是第几段（从 0 起）。读的时候按这篇文档的键数出来：每篇只从 `(doc_id, ord)` 索引读一次键，再二分。
+  - 随机 400 步补丁和整篇重写逐行比对、FTS 完整性检查都过；另有一组在「键被压成 0、1、2……」、补丁被切成几处相邻替换的情况下跑同样的比对，专门走重新编号。
+- **引用也只写变了的**：`references` 是 `Some` 时，dr-store 拿它和存着的那篇的引用比：头尾相同的行都留着，只删、只插中间变了的那一段。`references_from` 按行号给出引用，顺序就是派生器给的顺序，所以每篇的引用行号也带空隙（隔 2¹⁶），新行取前后两行之间的号；没有空隙（或是以前一条挨一条写的旧行），就把这一篇的引用在表尾重写一遍。
+  - 为什么要这样：人物链接多的章节里，回车把带链接的一段切开，这一篇的引用确实变了；以前每次都整篇删了重插，那一章上百行引用，占了回车的大半时间。
 - **`held`**：`DeriveInput.held` 为真，是持有者自己的那篇文档，值得把结果缓存起来接下一次的差异；为假，是后台重建从 SQLite 另载的副本，只读一次，派生器不该把它放进缓存。
 - 持有者每次追加后标记「索引落后」，空闲时调用派生器，把结果和 `indexed_seq` 在同一个事务里写进去；同一篇文档的索引永远不会倒退（`seq` 不比已存的大就不写）。
-- 打开库时（有派生器就默认开），后台线程把 `loro_head.seq > index_state.indexed_seq` 的文档全部重建；打开着的文档交给它的持有者做。这是 P0-E 发现的「缓存落后正文」的根治办法。
+- 打开库时（有派生器就默认开），后台线程把 `loro_head.seq > index_state.indexed_seq` 的文档全部重建。已经打开的文档它跳过，不拿句柄：持有者打开时就知道索引落后，空闲时自己补。这是 P0-E 发现的「缓存落后正文」的根治办法。
+- **派生有自己的空闲等待**：`LibraryOptions::derive_idle`（默认 150 ms）。最后一件事过去 150 ms 就派生，压缩照旧等 `compaction.idle`（750 ms）。哪件做过（或失败了），都要再等满一段才重试，不会空转。
 - 搜索：3 个字以上走 FTS5 trigram（整句当一个短语），1–2 个字退回 `LIKE`；都不分大小写，给出命中位置和上下文。`search` 按文档 id 再按段序排。`search_in_order(书, 查询, limit, 文档顺序)` 先按传进来的文档顺序排（不在名单里的排在后面，按 id），再截 `limit`，所以截出来的就是书里最前面的那些命中；顺序由 F3 从书目文档取。
+- **按书序搜索**，SQL 文本都是固定的（`prepare_cached` 能一直用），耗时不再随书序长度变：
+  - 3 个字以上（FTS）：先只取所有命中的行号、文档和段序键，不取文字；在 Rust 里按 `HashMap<文档, 名次>` 排好，截出前 `limit` 条，再按行号取这几行的文字、切片段。
+  - 1–2 个字（`LIKE`，反正要逐行看）：按传进来的顺序一篇一篇查（走 `(doc_id, ord)` 索引），凑够 `limit` 条就停；常见的字头几章就够了。不够再查名单以外的文档（`NOT IN json_each(名单)`），按 id 排。
+- **段号要现数**：段序键不等于第几段，所以搜索结果和大纲里的段号要数出来。每条命中在索引上数一次（`count(*) … ord < 键`）；同一篇命中超过 4 条，就把这篇的键读一遍再二分。
 - 大纲：照 dr-text 的规则，标题文字按 JavaScript 的空白去掉首尾（`is_js_whitespace`，和 prose-metrics 的判断逐字比对过），去完是空的标题不列。`paragraphs_after` 没做，原因见「待协调」。
 
 ### 同步状态
@@ -401,6 +415,41 @@ M3 Pro（12 核，36 GB），release，Loro 1.17.1，2026-11-07，跑时 1 分�
 | 7. 只读打开 | `Library::open_read_only`；见「只读打开与关库」 |
 | 8. 换用 dr-testkit | 测试改用 dr-testkit 的随机流和语料；迁移被杀改写在 `crash::Harness` 上（`for_test` 就是 `with_args` 加上测试名）；删了 `f2-bench`、`f2-crash` 和两份 `f2-*.json`。`synthetic.rs`、`evidence.rs` 只留下 dr-index 的基准例子还在用的几个函数，见「待协调」 |
 
+## 第四轮：性能（监管会话，2026-11-07）
+
+| 要求 | 处理 |
+| --- | --- |
+| 1. 按书序搜索慢十倍（F3「待协调」F2-1） | 见「派生索引」：FTS 先取命中、Rust 里排序截断再取文字；`LIKE` 按书序逐篇查、够数就停；SQL 文本固定 |
+| 2. 回车约 3 ms（dr-text「待协调」1） | 段序键带空隙，插段、删段不动后面的行；查下来另一半时间在整篇重写引用，改成只写变了的引用行 |
+| 3. 关库碰上后台重建（F3「待协调」F2-2） | 后台重建跳过已打开的文档、不拿句柄，交给持有者空闲时补；`try_close` 就不会因为它被拒 |
+| 4. 派生单独一个短的空闲等待（dr-text「待协调」2） | `LibraryOptions::derive_idle`，默认 150 ms；压缩照旧 750 ms |
+| 另：删掉 `dr_store::synthetic`、`dr_store::evidence`（dr-text「待协调」4） | 已删 |
+
+测试：
+- **段序键**：`a_new_paragraph_writes_its_own_rows_and_no_others`（200 段中间切一段：只多两行、别的行号和键都不变，搜索和大纲的段号对）；`inserting_in_one_place_renumbers_only_when_the_gap_runs_out`（同一处连插 80 次，正好重新编号 2 次）；`a_document_numbered_one_by_one_reads_the_same_and_renumbers_when_needed`（旧库）；`random_patches_on_packed_keys_and_touching_splices`（键压紧、补丁切成相邻几处，随机 400 步和整篇重写比对）。
+- **引用**：`references_keep_their_order_and_only_changed_rows_are_rewritten`（随机 400 步，别的文档的行穿插在中间，顺序始终和派生器给的一样；200 条里改一处只写两行；旧行没空隙时重写）。
+- **搜索**：`ordered_search_equals_sorting_every_hit`（随机书序，含漏掉的、重复的、不认识的文档，1–4 个字，随机 `limit`，结果和「普通搜索全取出来再按书序排、截断」逐条相同）。
+- **关库**：`closing_during_the_rebuild_on_open_is_not_refused`（改前 3 次里 3 次被拒）；**空闲等待**：`deriving_and_compacting_wait_for_their_own_quiet_spells`。
+
+重测用 F8 的 `bench`，改前改后的两个程序背靠背跑（M3 Pro，release，heavy 种子，2026-11-07，一分钟负载 6–11）。下表是背靠背那一轮的数；证据 [f2-m4-index-bench.json](../acceptance/f2-m4-index-bench.json) 和 [f2-m4-workspace-bench.json](../acceptance/f2-m4-workspace-bench.json) 是改后单独又跑的一轮（负载约 7），数字在噪声以内一致（回车 0.40 / 0.89，工作区一个字 0.52、三个字 6.0）。
+
+| 项（p50 / p95，ms） | 改前 | 改后 |
+| --- | ---: | ---: |
+| 回车后的一次派生，连写入（`index` 套件，174 段的一章，50 次） | 2.59 / 8.71 | 0.41 / 0.84 |
+| 打一个字后的一次派生，连写入 | 0.19 / 0.61 | 0.20 / 0.62 |
+| 工作区按书序搜索一个字（`workspace` 套件） | 495 / 588 | 0.50 / 0.59 |
+| 工作区按书序搜索三个字 | 265 / 301 | 5.8 / 9.4 |
+| `search_in_order` 一个字 / 两个字 / 三个字 / 八个字，取 50 条（`index` 套件） | 15.3 / 12.4 / 1.84 / 0.20 | 0.50 / 1.03 / 0.78 / 0.087 |
+| 普通 `search` 三个字，取 50 条 / 取 1 万条 | 0.24 / 0.81 | 0.58 / 2.05 |
+| 普通 `search` 一个字，取 1 万条 | 12.6 | 15.6 |
+| `outline`（13 个标题） | 0.019 | 0.037 |
+
+怎么读：
+- **回车**：一半时间省在不再挪后面各段的段序，另一半省在引用只写变了的行。调查时在 `write_patch` 里临时计时，回车那 50 次里有 39 次带着整篇的引用，删了重插要 0.7–0.9 ms，提交还要多写约 0.8 ms 的脏页。现在回车和打字一样在 1 ms 以内。
+- **按书序搜索**：一个字、两个字从头几章就凑够了，所以几乎不花时间；冷僻的字要查完整本书，大约是一次全表扫描再加每篇几微秒。
+- **普通搜索变慢了一点**：段号现在要数（每条命中在索引上数一次），取 50 条多 0.3 ms 左右，取 1 万条多 1–3 ms。工作区已经全用按书序搜索。
+- 别的项（全书冷读、开关持有者、按键写入、全书重建、种子写入）改前改后在噪声以内；种子写入只跑一次，三轮里分别是 1.02×、0.54×、1.22×。
+
 ## M10 报的两处（2026-11-07）
 
 | M10 的报告（`m10-import.md`「待协调」1、12） | 原因 | 处理 |
@@ -425,22 +474,24 @@ M3 Pro（12 核，36 GB），release，Loro 1.17.1，2026-11-07，跑时 1 分�
 8. ~~搬到新电脑但身份文件也被拷走~~：监管会话已批准，已做（见「库的文件夹与本机身份」）。
 9. **Windows**：代码有 Windows 分支（写穿改名、墓碑删除、可写句柄 fsync、`MachineGuid`）。本机 `cargo check --target x86_64-pc-windows-msvc` 过不了：Loro 依赖的 `stacker` 和打包的 SQLite 要用 `windows.h` 编 C 代码，这台 Mac 上没有 Windows SDK。只依赖标准库的 `machine.rs`（库和测试）和 `file_io.rs` 用 `rustc --edition 2024 --crate-type lib --target x86_64-pc-windows-msvc --emit=metadata -D warnings` 单独做了类型检查，通过；`asset.rs` 的 Windows 删除分支依赖 crate 内部，只能靠 CI 的 Windows 那一条验证（它是从 0.1 在 Windows 上编过的代码逐行搬来的）。
 10. **给 dr-index**：
-    - 派生器可以改发 `DerivedUpdate::Patch`：留着上一次的 `Derived`，用 `DerivedPatch::between(&旧, &新)` 就行；收到 `held == false` 的输入别进缓存。
-    - 它的 `examples/dr-index-bench.rs` 还在用 `dr_store::synthetic`（`Rng`、`chapter`、`han`、`keystroke`）和 `dr_store::evidence`（`machine`、`summarize`）。dr-store 只为它留着这几个；监管会话已把例子换进 dr-testkit 的事交给 dr-text 会话，换完就把这两个模块删掉。
+    - ~~派生器改发 `DerivedUpdate::Patch`、照 `held` 决定缓存~~：dr-index 第二个里程碑做了。
+    - ~~它的基准例子还在用 `dr_store::synthetic`、`dr_store::evidence`~~：例子已删，这两个模块第四轮删了。
     - 这一轮给 `DeriveInput` 加了 `held`，`dr-index/tests/common/mod.rs` 里的构造因此编不过，我在那里补了一行 `held: true,`。这是 F2 的文件范围以外唯一改动的一处。
 11. **大纲的 `paragraphs_after`**（dr-text 的规则：数到下一个进大纲的标题为止的段落，正文段和嵌入算，分隔线不算）没在 `Library::outline` 里做：`block_index` 只记标题级别，分不出分隔线和嵌入，现在算只能算错。要做就给 `block_index` 加一列段落种类（新迁移），由派生器填；在那之前要这个数，用 `dr_text::outline` 过一遍持有者的文档。
 12. ~~迁移的哈希要不要现在就钉~~：监管会话定了，等第一个 0.2 版本真正发布时再钉（发布才算「已发布」），在那之前保持「未冻结」。
 13. **F8 的证据与文档**：`f8-m1-store-bench.json` 因为 dr-store 改了被报「过期」，下一个里程碑重测。`f8-testkit.md`「待协调 → dr-store」里的「换用统一的种子和试验台」和「只读打开」这一轮都做了，`dr-cli inspect` 可以改用 `Library::open_read_only`，不用先复制；那份文档归 F8，我没改。
 14. **给 M10**：`run::reopen` 和测试里打开库的重试（最多 2 秒）可以删了；测试里对 `close` 历史点的豁免也可以去掉。
+15. **给 F3**：`Workspace::shutdown` 被拒后重试一秒的绕法可以删了（后台重建不再拿已打开文档的句柄）；`book.search` 用 `search_in_order` 不用改。
+16. **给 dr-text / dr-index**：待协调 1（回车）、2（派生的空闲等待）、4（删两个旧模块）都做了，回车重测见「第四轮」。`references_from` 的顺序照旧是派生器给的顺序。
 
 ## 没做的、下一步建议
 
 - 图片管线（`image_pipeline.rs` 和各平台解码器）只有接口。
-- dr-index 的派生器还只发整篇替换，改发按段补丁归 dr-index（见第 10 条）。
 - 大纲的 `paragraphs_after`（见第 11 条）。
 - 帮手的本机表、整库备份（`library_backup.rs`：`VACUUM INTO` 加资源文件打包）、按账号分库（M36）。
 - WAL 自动 checkpoint 会让某一次提交多花约 1 ms；如果真实打字测到尾延迟，改在持有者空闲时做被动 checkpoint。
-- 建议下一个里程碑：dr-index 改发补丁之后，把「打开一章」「压缩」两项测量和按段写索引加进 dr-testkit 的 store 套件，用真实的 dr-doc 创世、样式表和派生器重测一遍，替掉上面第一轮的数字。
+- 普通 `search` 因为要现数段号慢了一点（见「第四轮」）。要是有人还在用它取很多条，可以给数段号换一种做法（比如按文档一次数完）。
+- 建议下一个里程碑：把「打开一章」「压缩」两项测量加进 dr-testkit 的 store 套件，用真实的 dr-doc 创世、样式表和派生器重测一遍，替掉上面第一轮的数字。
 
 ## 怎么复现
 

@@ -17,6 +17,8 @@
 //! characters per query. Chinese searches are often one or two characters
 //! (人名、地名), so shorter queries fall back to `LIKE` over the same rows.
 
+use std::collections::HashMap;
+
 use loro::{Frontiers, LoroDoc};
 use rusqlite::{Connection, OptionalExtension, params};
 
@@ -291,6 +293,7 @@ pub struct BookStats {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OutlineEntry {
+    /// Paragraph index in the document.
     pub ord: u32,
     pub block_id: Option<String>,
     pub heading: u8,
@@ -374,7 +377,7 @@ fn find_chars(hay: &[char], needle: &[char]) -> Option<usize> {
 fn hit(
     doc_id: String,
     block_id: Option<String>,
-    ord: i64,
+    paragraph: u32,
     text: &str,
     query: &[char],
 ) -> SearchHit {
@@ -385,10 +388,46 @@ fn hit(
     SearchHit {
         doc_id,
         block_id,
-        ord: ord as u32,
+        ord: paragraph,
         match_offset: offset,
         snippet: chars[start..end].iter().collect(),
     }
+}
+
+/// Paragraph numbers from sort keys (see [`ORD_GAP`]), counted on the
+/// `(doc_id, ord)` index: one count per hit, until a document has had a
+/// few hits, then its keys are read once and searched.
+#[derive(Default)]
+struct DocKeys(HashMap<String, (usize, Option<Vec<i64>>)>);
+
+impl DocKeys {
+    /// Hits in one document after which its keys are read whole.
+    const READ_AFTER: usize = 4;
+
+    fn position(&mut self, conn: &Connection, doc_id: &str, key: i64) -> Result<u32> {
+        let entry = self.0.entry(doc_id.to_string()).or_default();
+        entry.0 += 1;
+        if entry.1.is_none() && entry.0 > Self::READ_AFTER {
+            entry.1 = Some(
+                conn.prepare_cached("SELECT ord FROM block_index WHERE doc_id = ?1 ORDER BY ord")?
+                    .query_map([doc_id], |r| r.get(0))?
+                    .collect::<rusqlite::Result<Vec<i64>>>()?,
+            );
+        }
+        Ok(match &entry.1 {
+            Some(keys) => keys.partition_point(|k| *k < key) as u32,
+            None => conn
+                .prepare_cached("SELECT count(*) FROM block_index WHERE doc_id = ?1 AND ord < ?2")?
+                .query_row(params![doc_id, key], |r| r.get::<_, i64>(0))?
+                as u32,
+        })
+    }
+}
+
+type HitRow = (String, Option<String>, i64, String);
+
+fn hit_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<HitRow> {
+    Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?))
 }
 
 /// Delete a document's paragraph rows and their FTS entries (the FTS table
@@ -428,33 +467,17 @@ pub(crate) fn write_index(conn: &Connection, index: &DocIndex<'_>) -> Result<boo
         return Ok(false);
     }
     delete_blocks(&tx, index.doc_id)?;
-    tx.execute(
-        "DELETE FROM reference WHERE source_doc = ?1",
-        [index.doc_id],
-    )?;
     {
-        let mut insert = tx.prepare_cached(
-            "INSERT INTO block_index (doc_id, book_id, ord, block_id, heading, chars, text)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-        )?;
-        let mut fts = tx.prepare_cached("INSERT INTO block_fts (rowid, text) VALUES (?1, ?2)")?;
-        for (ord, b) in index.derived.blocks.iter().enumerate() {
+        let keys = spaced_keys(index.derived.blocks.len())?;
+        let mut insert = Inserter::new(&tx, index.doc_id, index.book_id)?;
+        for (b, key) in index.derived.blocks.iter().zip(keys) {
             if b.heading > 3 {
                 return Err(StoreError::invalid("heading", b.heading.to_string()));
             }
-            insert.execute(params![
-                index.doc_id,
-                index.book_id,
-                ord as i64,
-                b.block_id,
-                b.heading,
-                b.chars,
-                b.text
-            ])?;
-            fts.execute(params![tx.last_insert_rowid(), b.text])?;
+            insert.row(b, key)?;
         }
     }
-    insert_references(&tx, index.doc_id, index.book_id, &index.derived.references)?;
+    update_references(&tx, index.doc_id, index.book_id, &index.derived.references)?;
     tx.execute(
         "INSERT INTO index_state (doc_id, book_id, indexed_seq, frontiers, words, chars, paragraphs, updated_ms)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
@@ -477,9 +500,93 @@ pub(crate) fn write_index(conn: &Connection, index: &DocIndex<'_>) -> Result<boo
     Ok(true)
 }
 
-/// Renumbering moves rows above every real paragraph index first, so the
-/// `UNIQUE (doc_id, ord)` constraint never sees two rows on one index.
-const RENUMBER_OFFSET: i64 = 1 << 40;
+/// `block_index.ord` is a sort key, not the paragraph's number. A document
+/// written whole gets keys `ORD_GAP` apart; a patch gives new paragraphs
+/// keys between their neighbours' and touches no other row, so splitting a
+/// paragraph writes two rows whatever comes after it. Only a patch that
+/// finds no room renumbers the whole document. Readers that report a
+/// paragraph's number count the keys before it ([`DocKeys`]).
+///
+/// Libraries written before this numbered paragraphs 0, 1, 2, …: they read
+/// the same, and the first patch that needs room in such a document
+/// renumbers it.
+const ORD_GAP: i64 = 1 << 32;
+/// Every key stays at or below this, so a renumbering can park rows above
+/// all keys without overflowing.
+const ORD_MAX: i64 = 1 << 60;
+
+/// Keys for `n` paragraphs written whole.
+fn spaced_keys(n: usize) -> Result<impl Iterator<Item = i64>> {
+    if n as i64 > ORD_MAX / ORD_GAP {
+        return Err(StoreError::invalid("index", format!("{n} paragraphs")));
+    }
+    Ok((0..n as i64).map(|i| i * ORD_GAP))
+}
+
+/// `k` increasing keys strictly between `lo` and `hi` (`None`: no paragraph
+/// on that side), or `None` when they do not fit.
+fn keys_between(lo: Option<i64>, hi: Option<i64>, k: usize) -> Option<Vec<i64>> {
+    if k == 0 {
+        return Some(Vec::new());
+    }
+    let k = k as i64;
+    match hi {
+        // At the end (the common case: writing on): a full gap each.
+        None => {
+            let start = match lo {
+                Some(l) => l.checked_add(ORD_GAP)?,
+                None => 0,
+            };
+            let last = start.checked_add(ORD_GAP.checked_mul(k - 1)?)?;
+            (last <= ORD_MAX).then(|| (0..k).map(|j| start + j * ORD_GAP).collect())
+        }
+        // Between two paragraphs (or before the first): spread evenly.
+        Some(h) => {
+            let lo = lo.unwrap_or(-1);
+            let step = (h - lo) / (k + 1);
+            (step >= 1).then(|| (1..=k).map(|j| lo + j * step).collect())
+        }
+    }
+}
+
+/// Inserts paragraph rows and their FTS entries.
+struct Inserter<'c> {
+    insert: rusqlite::CachedStatement<'c>,
+    fts: rusqlite::CachedStatement<'c>,
+    conn: &'c Connection,
+    doc_id: &'c str,
+    book_id: Option<&'c str>,
+}
+
+impl<'c> Inserter<'c> {
+    fn new(conn: &'c Connection, doc_id: &'c str, book_id: Option<&'c str>) -> Result<Self> {
+        Ok(Self {
+            insert: conn.prepare_cached(
+                "INSERT INTO block_index (doc_id, book_id, ord, block_id, heading, chars, text)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            )?,
+            fts: conn.prepare_cached("INSERT INTO block_fts (rowid, text) VALUES (?1, ?2)")?,
+            conn,
+            doc_id,
+            book_id,
+        })
+    }
+
+    fn row(&mut self, b: &BlockRow, key: i64) -> Result<()> {
+        self.insert.execute(params![
+            self.doc_id,
+            self.book_id,
+            key,
+            b.block_id,
+            b.heading,
+            b.chars,
+            b.text
+        ])?;
+        self.fts
+            .execute(params![self.conn.last_insert_rowid(), b.text])?;
+        Ok(())
+    }
+}
 
 /// Write a paragraph patch and `index_state` in one transaction. Returns
 /// false when the stored index is already at `seq` or later, or the document
@@ -509,102 +616,89 @@ pub(crate) fn write_patch(conn: &Connection, p: &DocPatch<'_>) -> Result<bool> {
     if stored >= p.seq {
         return Ok(false);
     }
-    let rows: i64 = tx
-        .prepare_cached("SELECT count(*) FROM block_index WHERE doc_id = ?1")?
-        .query_row([p.doc_id], |r| r.get(0))?;
-    if rows != p.patch.base_paragraphs as i64 {
+    // (id, key) of every row, in order: read from the (doc_id, ord) index
+    // alone.
+    let rows: Vec<(i64, i64)> = tx
+        .prepare_cached("SELECT id, ord FROM block_index WHERE doc_id = ?1 ORDER BY ord")?
+        .query_map([p.doc_id], |r| Ok((r.get(0)?, r.get(1)?)))?
+        .collect::<rusqlite::Result<_>>()?;
+    if rows.len() != p.patch.base_paragraphs as usize {
         return Err(StoreError::IndexBase {
             doc_id: p.doc_id.into(),
-            stored: rows as u64,
+            stored: rows.len() as u64,
             expected: p.patch.base_paragraphs as u64,
         });
     }
+    // Splices that touch (one ends where the next starts) share one gap
+    // between surviving paragraphs: plan their keys together.
+    let mut groups: Vec<(usize, usize, Vec<&BlockRow>)> = Vec::new(); // (start, end, new rows)
+    for sp in &p.patch.splices {
+        let (at, end) = (sp.at as usize, (sp.at + sp.removed) as usize);
+        match groups.last_mut() {
+            Some(g) if g.1 == at => {
+                g.1 = end;
+                g.2.extend(&sp.blocks);
+            }
+            _ => groups.push((at, end, sp.blocks.iter().collect())),
+        }
+    }
+    let planned: Option<Vec<Vec<i64>>> = groups
+        .iter()
+        .map(|(at, end, blocks)| {
+            let lo = at.checked_sub(1).map(|i| rows[i].1);
+            let hi = rows.get(*end).map(|r| r.1);
+            keys_between(lo, hi, blocks.len())
+        })
+        .collect();
     {
-        let mut old = tx.prepare_cached(
-            "SELECT id, text FROM block_index WHERE doc_id = ?1 AND ord >= ?2 AND ord < ?3",
-        )?;
+        let mut text_of = tx.prepare_cached("SELECT text FROM block_index WHERE id = ?1")?;
         let mut fts_delete = tx.prepare_cached(
             "INSERT INTO block_fts (block_fts, rowid, text) VALUES ('delete', ?1, ?2)",
         )?;
-        let mut delete = tx.prepare_cached(
-            "DELETE FROM block_index WHERE doc_id = ?1 AND ord >= ?2 AND ord < ?3",
-        )?;
-        for s in &p.patch.splices {
-            if s.removed == 0 {
-                continue;
-            }
-            let end = s.at as i64 + s.removed as i64;
-            let gone: Vec<(i64, String)> = old
-                .query_map(params![p.doc_id, s.at, end], |r| Ok((r.get(0)?, r.get(1)?)))?
-                .collect::<rusqlite::Result<_>>()?;
-            for (id, text) in &gone {
+        let mut delete = tx.prepare_cached("DELETE FROM block_index WHERE id = ?1")?;
+        for (at, end, _) in &groups {
+            for (id, _) in &rows[*at..*end] {
+                let text: String = text_of.query_row([id], |r| r.get(0))?;
                 fts_delete.execute(params![id, text])?;
+                delete.execute([id])?;
             }
-            delete.execute(params![p.doc_id, s.at, end])?;
-        }
-        // Move the paragraphs between and after splices by the size change
-        // before them.
-        let mut segments: Vec<(i64, i64, i64)> = Vec::new(); // (from, to, delta), old indexes
-        let mut delta = 0i64;
-        for (i, s) in p.patch.splices.iter().enumerate() {
-            delta += s.blocks.len() as i64 - s.removed as i64;
-            let from = s.at as i64 + s.removed as i64;
-            let to = p
-                .patch
-                .splices
-                .get(i + 1)
-                .map(|n| n.at as i64)
-                .unwrap_or(p.patch.base_paragraphs as i64);
-            if from < to {
-                segments.push((from, to, delta));
-            }
-        }
-        if let Some(first) = segments.iter().position(|(_, _, d)| *d != 0) {
-            let moving = &segments[first..];
-            tx.prepare_cached(
-                "UPDATE block_index SET ord = ord + ?2 WHERE doc_id = ?1 AND ord >= ?3",
-            )?
-            .execute(params![p.doc_id, RENUMBER_OFFSET, moving[0].0])?;
-            let mut settle = tx.prepare_cached(
-                "UPDATE block_index SET ord = ord - ?2 + ?3 WHERE doc_id = ?1 AND ord >= ?4 AND ord < ?5",
-            )?;
-            for (from, to, d) in moving {
-                settle.execute(params![
-                    p.doc_id,
-                    RENUMBER_OFFSET,
-                    d,
-                    from + RENUMBER_OFFSET,
-                    to + RENUMBER_OFFSET
-                ])?;
-            }
-        }
-        // The new paragraphs, at their indexes after the patch.
-        let mut insert = tx.prepare_cached(
-            "INSERT INTO block_index (doc_id, book_id, ord, block_id, heading, chars, text)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-        )?;
-        let mut fts = tx.prepare_cached("INSERT INTO block_fts (rowid, text) VALUES (?1, ?2)")?;
-        let mut shift = 0i64;
-        for s in &p.patch.splices {
-            let start = s.at as i64 + shift;
-            for (k, b) in s.blocks.iter().enumerate() {
-                insert.execute(params![
-                    p.doc_id,
-                    p.book_id,
-                    start + k as i64,
-                    b.block_id,
-                    b.heading,
-                    b.chars,
-                    b.text
-                ])?;
-                fts.execute(params![tx.last_insert_rowid(), b.text])?;
-            }
-            shift += s.blocks.len() as i64 - s.removed as i64;
         }
     }
+    let mut insert = Inserter::new(&tx, p.doc_id, p.book_id)?;
+    if let Some(planned) = planned {
+        for ((_, _, blocks), keys) in groups.iter().zip(planned) {
+            for (b, key) in blocks.iter().zip(keys) {
+                insert.row(b, key)?;
+            }
+        }
+    } else {
+        // No room somewhere: renumber the document. Park the surviving rows
+        // above every key, then give every row, old and new, its spaced key.
+        let mut keys = spaced_keys(p.patch.paragraphs() as usize)?;
+        let mut key = || {
+            keys.next()
+                .ok_or_else(|| StoreError::invalid("index patch", "paragraph count"))
+        };
+        tx.prepare_cached("UPDATE block_index SET ord = ord + ?2 WHERE doc_id = ?1")?
+            .execute(params![p.doc_id, ORD_MAX + 1])?;
+        let mut set = tx.prepare_cached("UPDATE block_index SET ord = ?2 WHERE id = ?1")?;
+        let mut next_old = 0usize;
+        for (at, end, blocks) in &groups {
+            for (id, _) in &rows[next_old..*at] {
+                set.execute(params![id, key()?])?;
+            }
+            for b in blocks {
+                insert.row(b, key()?)?;
+            }
+            next_old = *end;
+        }
+        for (id, _) in &rows[next_old..] {
+            set.execute(params![id, key()?])?;
+        }
+    }
+    drop(insert);
     if let Some(refs) = &p.patch.references {
-        tx.execute("DELETE FROM reference WHERE source_doc = ?1", [p.doc_id])?;
-        insert_references(&tx, p.doc_id, p.book_id, refs)?;
+        update_references(&tx, p.doc_id, p.book_id, refs)?;
     }
     tx.prepare_cached(
         "UPDATE index_state SET book_id = ?2, indexed_seq = ?3, frontiers = ?4, words = ?5,
@@ -624,18 +718,137 @@ pub(crate) fn write_patch(conn: &Connection, p: &DocPatch<'_>) -> Result<bool> {
     Ok(true)
 }
 
-fn insert_references(
+/// A document's reference rows come back in the deriver's order by row id
+/// (`references_from` orders by it). Ids are chosen with gaps, so a change
+/// rewrites only the rows that differ: the rows before and after the change
+/// keep theirs, and the new ones get ids in the gap between. With no room
+/// (or rows from before the gaps, numbered one by one) the document's rows
+/// are written again at the end.
+const REF_GAP: i64 = 1 << 16;
+
+/// (id, source_block, book_id, target_kind, target_id, kind, count)
+type StoredRef = (
+    i64,
+    Option<String>,
+    Option<String>,
+    String,
+    String,
+    String,
+    i64,
+);
+
+fn update_references(
     tx: &Connection,
     doc_id: &str,
     book_id: Option<&str>,
     refs: &[RefRow],
 ) -> Result<()> {
+    let stored: Vec<StoredRef> = tx
+        .prepare_cached(
+            "SELECT id, source_block, book_id, target_kind, target_id, kind, count
+             FROM reference WHERE source_doc = ?1 ORDER BY id",
+        )?
+        .query_map([doc_id], |r| {
+            Ok((
+                r.get(0)?,
+                r.get(1)?,
+                r.get(2)?,
+                r.get(3)?,
+                r.get(4)?,
+                r.get(5)?,
+                r.get(6)?,
+            ))
+        })?
+        .collect::<rusqlite::Result<_>>()?;
+    let same = |s: &StoredRef, r: &RefRow| {
+        s.1 == r.source_block
+            && s.2.as_deref() == book_id
+            && s.3 == r.target_kind
+            && s.4 == r.target_id
+            && s.5 == r.kind.as_str()
+            && s.6 == i64::from(r.count.max(1))
+    };
+    let mut p = 0;
+    while p < stored.len() && p < refs.len() && same(&stored[p], &refs[p]) {
+        p += 1;
+    }
+    let mut q = 0;
+    while q < stored.len() - p
+        && q < refs.len() - p
+        && same(&stored[stored.len() - 1 - q], &refs[refs.len() - 1 - q])
+    {
+        q += 1;
+    }
+    let gone = &stored[p..stored.len() - q];
+    let new = &refs[p..refs.len() - q];
+    if gone.is_empty() && new.is_empty() {
+        return Ok(());
+    }
+    let mut delete = tx.prepare_cached("DELETE FROM reference WHERE id = ?1")?;
+    for row in gone {
+        delete.execute([row.0])?;
+    }
+    let lo = p.checked_sub(1).map(|i| stored[i].0);
+    let hi = (q > 0).then(|| stored[stored.len() - q].0);
+    let ids = match hi {
+        // After every row of the document: past every id in the table.
+        None => fresh_ref_ids(tx, new.len())?,
+        Some(h) => {
+            let k = new.len() as i64;
+            let lo = lo.unwrap_or_else(|| h.saturating_sub((k + 1).saturating_mul(REF_GAP)));
+            let step = (h - lo) / (k + 1);
+            let ids: Vec<i64> = (1..=k).map(|j| lo + j * step).collect();
+            let mut taken =
+                tx.prepare_cached("SELECT EXISTS(SELECT 1 FROM reference WHERE id = ?1)")?;
+            let mut free = step >= 1;
+            for id in &ids {
+                if !free {
+                    break;
+                }
+                free = !taken.query_row([id], |r| r.get::<_, bool>(0))?;
+            }
+            if free {
+                ids
+            } else {
+                // No room: the document's rows again, at the end.
+                tx.prepare_cached("DELETE FROM reference WHERE source_doc = ?1")?
+                    .execute([doc_id])?;
+                let ids = fresh_ref_ids(tx, refs.len())?;
+                return insert_references(tx, doc_id, book_id, refs, &ids);
+            }
+        }
+    };
+    insert_references(tx, doc_id, book_id, new, &ids)
+}
+
+/// `n` ids past every reference row, `REF_GAP` apart.
+fn fresh_ref_ids(tx: &Connection, n: usize) -> Result<Vec<i64>> {
+    let max: i64 = tx
+        .prepare_cached("SELECT coalesce(max(id), 0) FROM reference")?
+        .query_row([], |r| r.get(0))?;
+    (1..=n as i64)
+        .map(|j| {
+            j.checked_mul(REF_GAP)
+                .and_then(|d| max.checked_add(d))
+                .ok_or_else(|| StoreError::invalid("reference", "row ids exhausted"))
+        })
+        .collect()
+}
+
+fn insert_references(
+    tx: &Connection,
+    doc_id: &str,
+    book_id: Option<&str>,
+    refs: &[RefRow],
+    ids: &[i64],
+) -> Result<()> {
     let mut insert = tx.prepare_cached(
-        "INSERT INTO reference (source_doc, source_block, book_id, target_kind, target_id, kind, count)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        "INSERT INTO reference (id, source_doc, source_block, book_id, target_kind, target_id, kind, count)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
     )?;
-    for r in refs {
+    for (r, id) in refs.iter().zip(ids) {
         insert.execute(params![
+            id,
             doc_id,
             r.source_block,
             book_id,
@@ -718,6 +931,12 @@ impl Library {
     /// chapter order, which the book document knows and dr-store does not):
     /// hits come document by document in that order, then from documents
     /// not listed (by id), and `limit` cuts the list in that order.
+    ///
+    /// Full-text queries (three characters or more) read every match's row
+    /// id, document and key first (no text), rank and cut them in Rust, and
+    /// read only the rows kept. Shorter queries (`LIKE`) go document by
+    /// document in `order` and stop at `limit`. Either way the cost no longer
+    /// grows with the length of `order`.
     pub fn search_in_order(
         &self,
         book_id: Option<&str>,
@@ -730,64 +949,115 @@ impl Library {
         if needle.is_empty() || limit == 0 {
             return Ok(Vec::new());
         }
-        // The ranks as a table of values: ?4, ?5, … are the doc ids.
-        let (with, join, rank) = if order.is_empty() {
-            (String::new(), "", "")
+        let fts = needle.len() >= TRIGRAM_MIN_CHARS;
+        let pattern = if fts {
+            fts_phrase(query)
         } else {
-            let values: Vec<String> = (0..order.len())
-                .map(|i| format!("(?{}, {i})", i + 4))
-                .collect();
-            (
-                format!("WITH rank (doc_id, r) AS (VALUES {}) ", values.join(", ")),
-                " LEFT JOIN rank ON rank.doc_id = b.doc_id",
-                "coalesce(rank.r, 9223372036854775807), ",
-            )
+            like_pattern(query)
         };
-        let (from, pattern) = if needle.len() >= TRIGRAM_MIN_CHARS {
-            (
-                format!(
-                    "FROM block_fts JOIN block_index b ON b.id = block_fts.rowid{join}
-                     WHERE block_fts MATCH ?1 AND (?2 IS NULL OR b.book_id = ?2)"
-                ),
-                fts_phrase(query),
-            )
-        } else {
-            (
-                format!(
-                    "FROM block_index b{join}
-                     WHERE (?2 IS NULL OR b.book_id = ?2) AND b.text LIKE ?1 ESCAPE '\\'"
-                ),
-                like_pattern(query),
-            )
-        };
-        let sql = format!(
-            "{with}SELECT b.doc_id, b.block_id, b.ord, b.text {from}
-             ORDER BY {rank}b.doc_id, b.ord LIMIT ?3"
-        );
-        let mut args: Vec<&dyn rusqlite::ToSql> = Vec::with_capacity(3 + order.len());
-        let limit = limit as i64;
-        args.push(&pattern);
-        args.push(&book_id);
-        args.push(&limit);
-        for id in order {
-            args.push(id);
-        }
         let conn = self.reader();
-        let rows = conn
-            .prepare_cached(&sql)?
-            .query_map(args.as_slice(), |r| {
-                Ok((
-                    r.get::<_, String>(0)?,
-                    r.get::<_, Option<String>>(1)?,
-                    r.get::<_, i64>(2)?,
-                    r.get::<_, String>(3)?,
-                ))
-            })?
-            .collect::<rusqlite::Result<Vec<_>>>()?;
-        Ok(rows
-            .into_iter()
-            .map(|(doc, block, ord, text)| hit(doc, block, ord, &text, &needle))
-            .collect())
+        let rows: Vec<HitRow> = if order.is_empty() {
+            let sql = if fts {
+                "SELECT b.doc_id, b.block_id, b.ord, b.text
+                 FROM block_fts JOIN block_index b ON b.id = block_fts.rowid
+                 WHERE block_fts MATCH ?1 AND (?2 IS NULL OR b.book_id = ?2)
+                 ORDER BY b.doc_id, b.ord LIMIT ?3"
+            } else {
+                "SELECT b.doc_id, b.block_id, b.ord, b.text FROM block_index b
+                 WHERE (?2 IS NULL OR b.book_id = ?2) AND b.text LIKE ?1 ESCAPE '\\'
+                 ORDER BY b.doc_id, b.ord LIMIT ?3"
+            };
+            conn.prepare_cached(sql)?
+                .query_map(params![pattern, book_id, limit as i64], hit_row)?
+                .collect::<rusqlite::Result<_>>()?
+        } else if !fts {
+            // `LIKE` reads every row anyway: go document by document in the
+            // given order on the (doc_id, ord) index and stop once there are
+            // `limit` hits (a common character fills them from the first
+            // chapters), then the documents not listed.
+            let mut rows: Vec<HitRow> = Vec::new();
+            let mut listed: Vec<&str> = Vec::with_capacity(order.len());
+            let mut in_doc = conn.prepare_cached(
+                "SELECT doc_id, block_id, ord, text FROM block_index
+                 WHERE doc_id = ?1 AND (?2 IS NULL OR book_id = ?2) AND text LIKE ?3 ESCAPE '\\'
+                 ORDER BY ord LIMIT ?4",
+            )?;
+            for doc in order {
+                if rows.len() >= limit {
+                    break;
+                }
+                if listed.contains(doc) {
+                    continue;
+                }
+                listed.push(doc);
+                let left = (limit - rows.len()) as i64;
+                for row in in_doc.query_map(params![doc, book_id, pattern, left], hit_row)? {
+                    rows.push(row?);
+                }
+            }
+            if rows.len() < limit {
+                let left = (limit - rows.len()) as i64;
+                let listed = serde_json::to_string(&listed)
+                    .map_err(|e| StoreError::invalid("search", e.to_string()))?;
+                let mut rest = conn.prepare_cached(
+                    "SELECT b.doc_id, b.block_id, b.ord, b.text FROM block_index b
+                     WHERE (?2 IS NULL OR b.book_id = ?2) AND b.text LIKE ?1 ESCAPE '\\'
+                       AND b.doc_id NOT IN (SELECT value FROM json_each(?3))
+                     ORDER BY b.doc_id, b.ord LIMIT ?4",
+                )?;
+                for row in rest.query_map(params![pattern, book_id, listed, left], hit_row)? {
+                    rows.push(row?);
+                }
+            }
+            rows
+        } else {
+            let mut rank: HashMap<&str, usize> = HashMap::with_capacity(order.len());
+            for (i, id) in order.iter().enumerate() {
+                rank.entry(*id).or_insert(i);
+            }
+            let sql = "SELECT b.id, b.doc_id, b.ord
+                 FROM block_fts JOIN block_index b ON b.id = block_fts.rowid
+                 WHERE block_fts MATCH ?1 AND (?2 IS NULL OR b.book_id = ?2)";
+            // (rank, the id of an unlisted document, key, row id)
+            type Found = (usize, Option<String>, i64, i64);
+            let mut found: Vec<Found> = conn
+                .prepare_cached(sql)?
+                .query_map(params![pattern, book_id], |r| {
+                    let doc = r.get_ref(1)?.as_str().map_err(|e| {
+                        rusqlite::Error::FromSqlConversionFailure(
+                            1,
+                            rusqlite::types::Type::Text,
+                            Box::new(e),
+                        )
+                    })?;
+                    let (n, unlisted) = match rank.get(doc) {
+                        Some(&n) => (n, None),
+                        None => (usize::MAX, Some(doc.to_string())),
+                    };
+                    Ok((n, unlisted, r.get(2)?, r.get(0)?))
+                })?
+                .collect::<rusqlite::Result<_>>()?;
+            let by_place = |a: &Found, b: &Found| (a.0, &a.1, a.2).cmp(&(b.0, &b.1, b.2));
+            if found.len() > limit {
+                found.select_nth_unstable_by(limit, by_place);
+                found.truncate(limit);
+            }
+            found.sort_unstable_by(by_place);
+            let mut row = conn.prepare_cached(
+                "SELECT doc_id, block_id, ord, text FROM block_index WHERE id = ?1",
+            )?;
+            found
+                .iter()
+                .map(|f| row.query_row([f.3], hit_row))
+                .collect::<rusqlite::Result<_>>()?
+        };
+        let mut keys = DocKeys::default();
+        rows.into_iter()
+            .map(|(doc, block, key, text)| {
+                let n = keys.position(&conn, &doc, key)?;
+                Ok(hit(doc, block, n, &text, &needle))
+            })
+            .collect()
     }
 
     /// The H1–H3 paragraphs of a document, in order, by dr-text's outline
@@ -809,18 +1079,20 @@ impl Library {
                 ))
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
-        Ok(rows
-            .into_iter()
-            .filter_map(|(ord, block_id, heading, text)| {
-                let text = text.trim_matches(is_js_whitespace);
-                (!text.is_empty()).then(|| OutlineEntry {
-                    ord: ord as u32,
+        let mut keys = DocKeys::default();
+        let mut out = Vec::with_capacity(rows.len());
+        for (key, block_id, heading, text) in rows {
+            let text = text.trim_matches(is_js_whitespace);
+            if !text.is_empty() {
+                out.push(OutlineEntry {
+                    ord: keys.position(&conn, doc_id, key)?,
                     block_id,
                     heading: heading as u8,
                     text: text.to_string(),
-                })
-            })
-            .collect())
+                });
+            }
+        }
+        Ok(out)
     }
 
     /// Paragraph lengths of a document, in order, without decoding it.

@@ -74,6 +74,11 @@ pub struct LibraryOptions {
     pub device: Option<Device>,
     /// Computes derived indexes from Loro changes (dr-doc + dr-text).
     pub deriver: Option<Arc<dyn Deriver>>,
+    /// How long a holder waits after its last job before deriving the index
+    /// (default 150 ms: a derivation after a keystroke takes about 0.2 ms, so
+    /// search and outline can follow closely). Compaction waits
+    /// `compaction.idle`.
+    pub derive_idle: Duration,
     /// Rebuild, in the background, the derived index of every document whose
     /// head is beyond its `indexed_seq` when the library opens (needs a
     /// deriver).
@@ -99,6 +104,7 @@ impl LibraryOptions {
             configure_doc: None,
             device: None,
             deriver: None,
+            derive_idle: Duration::from_millis(150),
             rebuild_indexes_on_open: true,
             migration_fault: None,
             compaction_pause: None,
@@ -1344,6 +1350,17 @@ impl Library {
         self.inner.publish(&StoreEvent::Local(change));
     }
 
+    /// Whether a holder has (or is getting) this document, without taking a
+    /// handle on it.
+    fn is_open(&self, doc_id: &str) -> bool {
+        let docs = self.inner.docs.lock().unwrap_or_else(|e| e.into_inner());
+        match docs.get(doc_id) {
+            Some(Slot::Opening) => true,
+            Some(Slot::Open(weak)) => weak.strong_count() > 0,
+            None => false,
+        }
+    }
+
     pub(crate) fn open_handle(&self, doc_id: &str) -> Option<DocHandle> {
         let docs = self.inner.docs.lock().unwrap_or_else(|e| e.into_inner());
         match docs.get(doc_id) {
@@ -1596,10 +1613,22 @@ impl Library {
     /// copy loaded from SQLite. Returns false when nothing was written (no
     /// deriver, nothing derived for this kind, or the index is current).
     pub fn reindex_doc(&self, doc_id: &str) -> Result<bool> {
+        self.reindex(doc_id, false)
+    }
+
+    /// [`Self::reindex_doc`]; `background` (the rebuild when the library
+    /// opens) leaves an open document to its holder, which derives it when
+    /// idle anyway, instead of taking a handle on it: a handle held there
+    /// would make a `close` at that moment refuse.
+    fn reindex(&self, doc_id: &str, background: bool) -> Result<bool> {
         let Some(deriver) = self.inner.options.deriver.clone() else {
             return Ok(false);
         };
-        if let Some(h) = self.open_handle(doc_id) {
+        if background {
+            if self.is_open(doc_id) {
+                return Ok(false);
+            }
+        } else if let Some(h) = self.open_handle(doc_id) {
             return h.reindex_now();
         }
         let Some(info) = self.doc_info(doc_id)? else {
@@ -1640,12 +1669,16 @@ impl Library {
     /// Rebuild every stale index now (see [`Self::stale_index_docs`]).
     /// Returns how many were written.
     pub fn rebuild_stale_indexes(&self) -> Result<usize> {
+        self.rebuild_stale(false)
+    }
+
+    fn rebuild_stale(&self, background: bool) -> Result<usize> {
         let mut n = 0;
         for doc_id in self.stale_index_docs()? {
             if self.inner.stopping.load(Ordering::Relaxed) {
                 break;
             }
-            if self.reindex_doc(&doc_id)? {
+            if self.reindex(&doc_id, background)? {
                 n += 1;
             }
         }
@@ -1657,7 +1690,7 @@ impl Library {
         let spawned = std::thread::Builder::new()
             .name("dr-store:index-rebuild".into())
             .spawn(move || {
-                if let Err(e) = lib.rebuild_stale_indexes() {
+                if let Err(e) = lib.rebuild_stale(true) {
                     log::warn!("rebuilding stale indexes failed: {e}");
                 }
             });
