@@ -1,0 +1,454 @@
+//! Document holders: one origin per commit, persist before announcing,
+//! peers per (device, document), compaction, history copies.
+
+mod common;
+
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+
+use common::*;
+use dr_store::history::labels;
+use dr_store::synthetic::{self, Rng};
+use dr_store::{Library, OpenDoc, Origin, StoreError};
+use loro::{CommitOptions, ExportMode, LoroDoc};
+
+#[test]
+fn a_created_document_survives_reopening() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open(dir.path());
+    let h = create(&lib, "node:a");
+    assert_eq!(text(h.doc()), "\n", "genesis");
+    let (_, c) = h
+        .write(Origin::User, |doc| {
+            doc.get_text(synthetic::BODY).insert(0, "第一句").unwrap();
+        })
+        .unwrap();
+    assert_eq!(c.seq, Some(2), "after the genesis row");
+    let (_, unchanged) = h.write(Origin::User, |_| {}).unwrap();
+    assert_eq!(unchanged.seq, None, "an empty write appends nothing");
+    drop(h);
+    drop(lib);
+
+    let lib = open(dir.path());
+    let info = lib.doc_info("node:a").unwrap().unwrap();
+    assert_eq!(info.kind, "node");
+    assert_eq!(info.book_id.as_deref(), Some("book-1"));
+    let h = lib.open_doc("node:a", OpenDoc::Existing).unwrap();
+    assert_eq!(text(h.doc()), "第一句\n");
+    let (_, c) = h
+        .write(Origin::User, |doc| {
+            doc.get_text(synthetic::BODY).insert(3, "。").unwrap();
+        })
+        .unwrap();
+    assert_eq!(c.seq, Some(3), "numbering continues");
+    assert!(matches!(
+        lib.open_doc("node:missing", OpenDoc::Existing),
+        Err(StoreError::NotFound(_))
+    ));
+}
+
+#[test]
+fn opening_twice_shares_one_holder() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open(dir.path());
+    let a = create(&lib, "node:a");
+    let b = lib.open_doc("node:a", OpenDoc::Existing).unwrap();
+    insert(&a, Origin::User, 0, "甲");
+    assert_eq!(text(b.doc()), "甲\n");
+    assert_eq!(lib.open_doc_count(), 1);
+    drop(a);
+    drop(b);
+    assert_eq!(lib.open_doc_count(), 0, "the holder released its slot");
+    let c = lib.open_doc("node:a", OpenDoc::Existing).unwrap();
+    assert_eq!(text(c.doc()), "甲\n");
+}
+
+/// Why the holder exists: Loro's implicit transaction is shared by every
+/// clone of a document, so an edit made on one thread joins whatever commit
+/// another thread makes next.
+#[test]
+fn loro_shares_its_implicit_transaction_across_clones() {
+    let doc = LoroDoc::new();
+    doc.set_peer_id(7).unwrap();
+    let author = doc.clone();
+    let agent = doc.clone();
+    author.get_text("body").insert(0, "u").unwrap();
+    agent.get_text("body").insert(1, "a").unwrap();
+    agent.commit_with(
+        CommitOptions::new()
+            .origin("agent:s/1")
+            .commit_msg("agent:s/1"),
+    );
+    let change = doc.get_change(loro::ID::new(7, 0)).unwrap();
+    assert_eq!(
+        (change.len, change.message.as_deref()),
+        (2, Some("agent:s/1")),
+        "the author's keystroke went into the Agent's commit"
+    );
+    // Loro even counts the uncommitted keystroke in the version vector.
+    let fresh = LoroDoc::new();
+    fresh.set_peer_id(8).unwrap();
+    fresh.get_text("body").insert(0, "u").unwrap();
+    assert_eq!(fresh.oplog_vv().get(&8).copied(), Some(1));
+}
+
+/// Import rows one by one and return what each added to the text.
+fn added_per_row(lib: &Library, doc_id: &str) -> Vec<(String, String)> {
+    let doc = LoroDoc::new();
+    synthetic::configure(&doc);
+    let mut out = Vec::new();
+    let mut prev = String::new();
+    for row in lib.updates_since(doc_id, 0).unwrap() {
+        doc.import(&row.bytes).unwrap();
+        let now = text(&doc);
+        let mut added: Vec<char> = now.chars().collect();
+        for c in prev.chars() {
+            if let Some(i) = added.iter().position(|x| *x == c) {
+                added.remove(i);
+            }
+        }
+        out.push((row.origin, added.into_iter().collect()));
+        prev = now;
+    }
+    out
+}
+
+#[test]
+fn author_and_agent_writes_never_share_a_commit() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut o = options();
+    o.compaction.max_updates = usize::MAX;
+    o.compaction.on_close_min_updates = usize::MAX;
+    let lib = Library::open(dir.path(), o).unwrap();
+    let h = create(&lib, "node:a");
+    let n = 200;
+    let spawn = |origin: Origin, ch: &'static str, seed: u64| {
+        let h = h.clone();
+        std::thread::spawn(move || {
+            let mut rng = Rng::new(seed);
+            for _ in 0..n {
+                let pick = rng.next_u64();
+                // Several edits per write, queued from two threads at once.
+                h.submit(origin.clone(), move |doc| {
+                    let t = doc.get_text(synthetic::BODY);
+                    for i in 0..3u64 {
+                        let len = t.len_unicode();
+                        let at = ((pick >> (i * 8)) as usize) % len;
+                        t.insert(at, ch).unwrap();
+                    }
+                })
+                .unwrap()
+                .wait()
+                .unwrap();
+            }
+        })
+    };
+    let a = spawn(Origin::User, "u", 1);
+    let b = spawn(Origin::agent("s", 1), "a", 2);
+    a.join().unwrap();
+    b.join().unwrap();
+    assert_eq!(h.stats().outside_commits, 0);
+    drop(h);
+
+    let rows = added_per_row(&lib, "node:a");
+    assert_eq!(rows.len(), 1 + 2 * n, "genesis plus one row per write");
+    for (origin, added) in &rows[1..] {
+        let want = if origin == "user" { "uuu" } else { "aaa" };
+        assert!(origin == "user" || origin == "agent:s/1", "{origin}");
+        assert_eq!(added, want, "a {origin} row added only its own text");
+    }
+    // Agent commits carry their origin as a durable message.
+    let doc = lib.load_copy("node:a").unwrap();
+    let mut agent_changes = 0;
+    let mut user_changes = 0;
+    for change in doc
+        .export_json_updates(&Default::default(), &doc.oplog_vv())
+        .unwrap()
+        .changes
+    {
+        match change.msg.as_deref() {
+            Some("agent:s/1") => agent_changes += 1,
+            None => user_changes += 1,
+            Some(other) => panic!("unexpected message {other}"),
+        }
+    }
+    assert!(agent_changes > 0 && user_changes > 0);
+}
+
+#[test]
+fn edits_made_outside_the_holder_are_committed_on_their_own() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open(dir.path());
+    let h = create(&lib, "node:a");
+    // A bug: someone edits the shared document directly.
+    h.doc().get_text(synthetic::BODY).insert(0, "x").unwrap();
+    insert(&h, Origin::agent("s", 2), 1, "a");
+    assert_eq!(h.stats().outside_commits, 1);
+    drop(h);
+    let rows = added_per_row(&lib, "node:a");
+    let tail: Vec<(&str, &str)> = rows[1..]
+        .iter()
+        .map(|(o, a)| (o.as_str(), a.as_str()))
+        .collect();
+    assert_eq!(tail, [("outside", "x"), ("agent:s/2", "a")]);
+}
+
+#[test]
+fn events_arrive_after_the_update_is_stored() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open(dir.path());
+    let h = create(&lib, "node:a");
+    let seen: Arc<Mutex<Vec<(i64, String, bool)>>> = Arc::default();
+    let sub = {
+        let seen = seen.clone();
+        let lib = lib.clone();
+        h.subscribe(move |e| {
+            // Read SQLite from inside the event: the row must be there.
+            let stored = lib
+                .updates_since(&e.doc_id, e.seq - 1)
+                .unwrap()
+                .first()
+                .is_some_and(|r| r.seq == e.seq);
+            seen.lock().unwrap().push((
+                e.seq,
+                e.origin.to_string(),
+                stored && !e.changes.is_empty(),
+            ));
+        })
+    };
+    insert(&h, Origin::User, 0, "一");
+    insert(&h, Origin::agent("s", 3), 0, "二");
+    let other = {
+        let dir = tempfile::tempdir().unwrap();
+        let lib2 = open(dir.path());
+        let h2 = create(&lib2, "node:a");
+        insert(&h2, Origin::User, 0, "三");
+        h2.doc().export(ExportMode::all_updates()).unwrap()
+    };
+    let imported = h.import(other, Origin::Sync).unwrap();
+    assert!(imported.status.pending.is_none());
+    assert!(imported.committed.seq.is_some());
+    drop(sub);
+    insert(&h, Origin::User, 0, "四");
+    let seen = seen.lock().unwrap().clone();
+    assert_eq!(
+        seen,
+        [
+            (2, "user".to_string(), true),
+            (3, "agent:s/3".to_string(), true),
+            (4, "sync".to_string(), true),
+        ],
+        "in order, persisted, and none after unsubscribing"
+    );
+}
+
+#[test]
+fn peers_are_kept_per_document_and_change_with_the_epoch() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open(dir.path());
+    let h = create(&lib, "node:a");
+    let b = create(&lib, "node:b");
+    let peer_a = lib.peer_for("node:a").unwrap();
+    assert_ne!(peer_a, lib.peer_for("node:b").unwrap());
+    assert!(
+        peer_a & (1 << 63) == 0,
+        "device peers never look like genesis peers"
+    );
+    insert(&h, Origin::User, 0, "甲");
+    assert!(matches!(
+        lib.rotate_epoch(),
+        Err(StoreError::DocumentsOpen(2))
+    ));
+    drop((h, b));
+    drop(lib);
+
+    let lib = open(dir.path());
+    assert_eq!(lib.peer_for("node:a").unwrap(), peer_a, "persisted");
+    lib.rotate_epoch().unwrap();
+    let new_peer = lib.peer_for("node:a").unwrap();
+    assert_ne!(new_peer, peer_a);
+    let h = lib.open_doc("node:a", OpenDoc::Existing).unwrap();
+    assert_eq!(h.doc().peer_id(), new_peer);
+}
+
+#[test]
+fn compaction_replaces_covered_updates_with_one_snapshot() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut o = options();
+    o.compaction.max_updates = usize::MAX;
+    o.compaction.on_close_min_updates = usize::MAX;
+    let lib = Library::open(dir.path(), o).unwrap();
+    let h = create(&lib, "node:a");
+    let mut rng = Rng::new(9);
+    let mut cursor = 0;
+    for _ in 0..60 {
+        let seed = rng.next_u64();
+        cursor = h
+            .write(Origin::User, move |doc| {
+                synthetic::keystroke(doc, &mut Rng::new(seed), cursor)
+            })
+            .unwrap()
+            .0;
+    }
+    assert_eq!(lib.pending_updates("node:a").unwrap().0, 61);
+    let stats = h.compact_now().unwrap().expect("something to compact");
+    assert_eq!(stats.upto_seq, 61);
+    assert_eq!(stats.deleted_updates, 61);
+    assert_eq!(lib.pending_updates("node:a").unwrap().0, 0);
+    assert_eq!(lib.snapshot_info("node:a").unwrap().unwrap().0, 61);
+    assert_eq!(h.compact_now().unwrap(), None, "nothing pending");
+    insert(&h, Origin::User, 0, "后");
+    assert_eq!(lib.updates_since("node:a", 0).unwrap()[0].seq, 62);
+    let content = text(h.doc());
+    drop(h);
+    drop(lib);
+    let lib = open(dir.path());
+    assert_eq!(text(&lib.load_copy("node:a").unwrap()), content);
+}
+
+#[test]
+fn an_idle_holder_compacts_in_the_background() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut o = options();
+    o.compaction.max_updates = 10;
+    o.compaction.idle = Duration::from_millis(30);
+    let lib = Library::open(dir.path(), o).unwrap();
+    let h = create(&lib, "node:a");
+    for i in 0..12 {
+        insert(&h, Origin::User, 0, &i.to_string());
+    }
+    let deadline = std::time::Instant::now() + Duration::from_secs(10);
+    while h.stats().compactions == 0 && std::time::Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert_eq!(h.stats().compactions, 1);
+    assert_eq!(h.stats().pending_updates, 0);
+    assert_eq!(lib.pending_updates("node:a").unwrap().0, 0);
+}
+
+#[test]
+fn each_agent_turn_labels_the_version_before_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open(dir.path());
+    let h = create(&lib, "node:a");
+    insert(&h, Origin::User, 0, "作者写的");
+    let before_turn = text(h.doc());
+    insert(&h, Origin::agent("s", 4), 0, "帮手写的");
+    insert(&h, Origin::agent("s", 4), 0, "又写");
+    let after_turn = text(h.doc());
+    insert(&h, Origin::agent("s", 5), 0, "下一轮");
+    let history = lib.history("node:a").unwrap();
+    let names: Vec<&str> = history.iter().map(|l| l.label.as_str()).collect();
+    // Newest first: one label per Agent turn (even on the same version as
+    // the periodic label), then the first periodic one.
+    assert_eq!(names, ["agent:s/5", "agent:s/4", labels::PERIODIC]);
+    let back = lib.load_copy_at("node:a", &history[1].frontiers).unwrap();
+    assert_eq!(text(&back), before_turn, "the version just before turn 4");
+    assert!(back.is_detached());
+    let back = lib.load_copy_at("node:a", &history[0].frontiers).unwrap();
+    assert_eq!(text(&back), after_turn, "the version just before turn 5");
+    assert_eq!(
+        text(h.doc()),
+        format!("下一轮{after_turn}"),
+        "open doc untouched"
+    );
+    // A restore label goes on the current version once.
+    assert!(h.label(labels::RESTORE).unwrap());
+    assert!(
+        !h.label(labels::RESTORE).unwrap(),
+        "not twice on one version"
+    );
+}
+
+#[test]
+fn a_panicking_write_is_persisted_and_reported() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open(dir.path());
+    let h = create(&lib, "node:a");
+    let r = h.write(Origin::User, |doc| {
+        doc.get_text(synthetic::BODY).insert(0, "半").unwrap();
+        panic!("bug in a command");
+    });
+    assert!(matches!(r, Err(StoreError::WritePanicked(_))));
+    insert(&h, Origin::User, 1, "句");
+    drop(h);
+    assert_eq!(text(&lib.load_copy("node:a").unwrap()), "半句\n");
+}
+
+#[test]
+fn reads_on_the_holder_see_whole_writes() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open(dir.path());
+    let h = create(&lib, "node:a");
+    let pending = h
+        .submit(Origin::User, |doc| {
+            doc.get_text(synthetic::BODY).insert(0, "整").unwrap();
+            std::thread::sleep(Duration::from_millis(20));
+            doc.get_text(synthetic::BODY).insert(1, "句").unwrap();
+        })
+        .unwrap();
+    let seen = h.read(text).unwrap();
+    assert_eq!(seen, "整句\n");
+    pending.wait().unwrap();
+}
+
+#[test]
+fn a_failed_append_is_retried_under_its_own_origin() {
+    use std::sync::atomic::AtomicUsize;
+    let dir = tempfile::tempdir().unwrap();
+    let faults = Arc::new(AtomicUsize::new(0));
+    let mut o = options();
+    o.append_faults = Some(faults.clone());
+    o.compaction.on_close_min_updates = usize::MAX;
+    let lib = Library::open(dir.path(), o).unwrap();
+    let h = create(&lib, "node:a");
+    let seen: Arc<Mutex<Vec<String>>> = Arc::default();
+    let _sub = {
+        let seen = seen.clone();
+        h.subscribe(move |e| seen.lock().unwrap().push(e.origin.to_string()))
+    };
+    // The disk "fills up" for two appends: the Agent write fails, and so
+    // does its first retry, which refuses the author's next write.
+    faults.store(2, std::sync::atomic::Ordering::Relaxed);
+    let agent = h.write(Origin::agent("s", 6), |doc| {
+        doc.get_text(synthetic::BODY).insert(0, "a").unwrap();
+    });
+    assert!(agent.is_err());
+    let refused = h.write(Origin::User, |doc| {
+        doc.get_text(synthetic::BODY).insert(0, "never").unwrap();
+    });
+    assert!(
+        refused.is_err(),
+        "no new edits while earlier ones are unstored"
+    );
+    // The disk recovers.
+    insert(&h, Origin::User, 0, "u");
+    drop(h);
+    let rows = added_per_row(&lib, "node:a");
+    let tail: Vec<(&str, &str)> = rows[1..]
+        .iter()
+        .map(|(o, a)| (o.as_str(), a.as_str()))
+        .collect();
+    assert_eq!(tail, [("agent:s/6", "a"), ("user", "u")]);
+    assert_eq!(*seen.lock().unwrap(), ["agent:s/6", "user"]);
+}
+
+#[test]
+fn a_panicking_genesis_does_not_block_the_document() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open(dir.path());
+    let panicked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _ = lib.open_doc(
+            "node:a",
+            OpenDoc::CreateIfMissing {
+                kind: "node",
+                book_id: None,
+                genesis: &|_| panic!("bad genesis"),
+            },
+        );
+    }));
+    assert!(panicked.is_err());
+    assert_eq!(lib.open_doc_count(), 0);
+    let h = create(&lib, "node:a");
+    assert_eq!(text(h.doc()), "\n");
+}

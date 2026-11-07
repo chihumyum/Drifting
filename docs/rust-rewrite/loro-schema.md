@@ -240,22 +240,21 @@ id 是 `rt-generic:<书 id>`，在创世变更里建：`name`、`orientation = s
 
 ## SQLite 存储（F2 的 Loro 部分）
 
+DDL 以 `next/crates/dr-store/migrations/0000_baseline.sql` 为准（F2 实现，说明见 [foundations/f2-store.md](foundations/f2-store.md)）。Loro 相关的五张表：
+
 ```sql
-CREATE TABLE library_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);      -- 含 epoch
-CREATE TABLE loro_doc (doc_id TEXT PRIMARY KEY, kind TEXT NOT NULL);
-CREATE TABLE loro_update (
-  doc_id TEXT NOT NULL, seq INTEGER NOT NULL, bytes BLOB NOT NULL,
-  origin TEXT NOT NULL, ts INTEGER NOT NULL, PRIMARY KEY (doc_id, seq));
-CREATE TABLE loro_snapshot (
-  doc_id TEXT PRIMARY KEY, upto_seq INTEGER NOT NULL, vv BLOB NOT NULL,
-  frontiers BLOB NOT NULL, bytes BLOB NOT NULL, ts INTEGER NOT NULL);
-CREATE TABLE loro_peer (doc_id TEXT PRIMARY KEY, peer_id INTEGER NOT NULL, epoch TEXT NOT NULL);
+library_meta (key, value)                                  -- 含 epoch、app_version、created_ms
+loro_doc (doc_id, kind, book_id, created_ms)               -- book_id：所属的书，F2 新增
+loro_update (doc_id, seq, bytes, origin, ts)               -- PRIMARY KEY (doc_id, seq)
+loro_snapshot (doc_id, upto_seq, vv, frontiers, bytes, ts)
+loro_peer (doc_id, peer_id, epoch)
 ```
 
+- 时间一律 Unix 毫秒；表都是 `STRICT`，引用 `loro_doc` 的表 `ON DELETE CASCADE`。
 - WAL 模式，`synchronous=NORMAL`（进程崩溃不丢已提交的事务；断电可能丢最后几次）。
-- **写**：每次本机提交，导出自上次追加以来的更新，作为一行追加进 `loro_update`，一次提交一个事务；导入的远端更新也作为一行追加，`origin = sync`。新文档的第一次追加包含创世变更。
+- **写**：每次本机提交，导出自上次追加以来的更新，作为一行追加进 `loro_update`，一次提交一个事务、一行一个来源；导入的远端更新也作为一行追加，`origin = sync`。新文档的第一次追加包含创世变更（`origin = genesis`）。
 - **压缩**：在**同一个事务**里写新快照（`upto_seq` = 当时最大的 `seq`）并删除 `seq <= upto_seq` 的更新。崩溃时要么是旧快照加全部更新，要么是新快照加更新的更新。
-- **载入**：快照加 `seq > upto_seq` 的更新，一次 `import_batch`；重叠的部分 Loro 会去重。载入后先配置样式和时间戳，再设本机对等方。
+- **载入**：先配置样式和时间戳，再导入快照加 `seq > upto_seq` 的更新（一次 `import_batch`，重叠的部分 Loro 会去重），最后设本机对等方。
 - 不做浅快照裁剪（理由见 F2）。
 
 ## Agent 写入

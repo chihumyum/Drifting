@@ -1,0 +1,93 @@
+{
+  "compactEvery": 25,
+  "compactionHeldOpenMs": 20,
+  "generatedBy": "cargo run --release -p dr-store --bin f2-crash -- run",
+  "loro": "1.17.1",
+  "machine": {
+    "arch": "aarch64",
+    "cores": 12,
+    "cpu": "Apple M3 Pro",
+    "memoryBytes": 38654705664,
+    "os": "macos",
+    "osVersion": "27.0.1"
+  },
+  "method": "kill the writer at random moments (SIGKILL / TerminateProcess); reopen; compare with a deterministic replay of edits 0..=k; kill migrations paused at each stage",
+  "probe": "F2 dr-store crash recovery",
+  "results": {
+    "editsAtEnd": 4401,
+    "kills": 60,
+    "killsByPhase": {
+      "between edits": 20,
+      "during compaction": 40
+    },
+    "lostDurableEdits": 0,
+    "migrationKills": {
+      "copy": {
+        "libraryBytesUnchanged": true,
+        "migrationsAppliedByNextOpen": 1,
+        "oldBuildOpensIt": true,
+        "shadowFilesLeftByKill": 0,
+        "staleShadowRemovedOnOpen": true,
+        "textIntact": true
+      },
+      "migrate": {
+        "libraryBytesUnchanged": true,
+        "migrationsAppliedByNextOpen": 1,
+        "oldBuildOpensIt": true,
+        "shadowFilesLeftByKill": 1,
+        "staleShadowRemovedOnOpen": true,
+        "textIntact": true
+      },
+      "reopen": {
+        "libraryBytesUnchanged": false,
+        "migrationsAppliedByNextOpen": 0,
+        "oldBuildOpensIt": false,
+        "shadowFilesLeftByKill": 0,
+        "staleShadowRemovedOnOpen": true,
+        "textIntact": true
+      },
+      "replace": {
+        "libraryBytesUnchanged": true,
+        "migrationsAppliedByNextOpen": 1,
+        "oldBuildOpensIt": true,
+        "shadowFilesLeftByKill": 1,
+        "staleShadowRemovedOnOpen": true,
+        "textIntact": true
+      },
+      "snapshot": {
+        "libraryBytesUnchanged": true,
+        "migrationsAppliedByNextOpen": 1,
+        "oldBuildOpensIt": true,
+        "shadowFilesLeftByKill": 0,
+        "staleShadowRemovedOnOpen": true,
+        "textIntact": true
+      },
+      "validate": {
+        "libraryBytesUnchanged": true,
+        "migrationsAppliedByNextOpen": 1,
+        "oldBuildOpensIt": true,
+        "shadowFilesLeftByKill": 1,
+        "staleShadowRemovedOnOpen": true,
+        "textIntact": true
+      }
+    },
+    "mismatches": 0,
+    "recoverOpenAndLoadMs": {
+      "max": 22.299,
+      "mean": 10.56,
+      "n": 60,
+      "p50": 11.672,
+      "p95": 16.592
+    },
+    "recoveredOneEditBeyondLastReport": 0,
+    "verifyByReplayMs": {
+      "max": 16.051,
+      "mean": 6.905,
+      "n": 60,
+      "p50": 8.025,
+      "p95": 12.122
+    }
+  },
+  "schemaVersion": 1,
+  "sourceFingerprint": "c3bafb599f560ac4fc362234d023bdbd28f4e8396e563bce0902323b00014ca8"
+}

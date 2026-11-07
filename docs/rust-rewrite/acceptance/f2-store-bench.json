@@ -1,0 +1,287 @@
+{
+  "budgets": {
+    "coldOpenBookLoroMs": {
+      "release": 300.0,
+      "source": "benchmarks.md: 冷开全书的 Loro 文档"
+    },
+    "keystrokeWriteMedianMs": {
+      "probe": 2.0,
+      "release": 1.0,
+      "source": "benchmarks.md: 单次按键的写入（中位数）"
+    }
+  },
+  "compaction": {
+    "chapterChars": 20000,
+    "rows": [
+      {
+        "compactMs": {
+          "max": 0.523,
+          "mean": 0.502,
+          "n": 3,
+          "p50": 0.52,
+          "p95": 0.523
+        },
+        "deletedUpdates": 100,
+        "pendingUpdates": 100,
+        "snapshotBytes": 68996
+      },
+      {
+        "compactMs": {
+          "max": 0.801,
+          "mean": 0.761,
+          "n": 3,
+          "p50": 0.765,
+          "p95": 0.801
+        },
+        "deletedUpdates": 500,
+        "pendingUpdates": 500,
+        "snapshotBytes": 81646
+      },
+      {
+        "compactMs": {
+          "max": 3.239,
+          "mean": 2.285,
+          "n": 3,
+          "p50": 1.845,
+          "p95": 3.239
+        },
+        "deletedUpdates": 2000,
+        "pendingUpdates": 2000,
+        "snapshotBytes": 132864
+      }
+    ],
+    "what": "compact_now after N keystrokes: export a full snapshot, write it and delete the covered rows in one transaction"
+  },
+  "corpus": "synthetic: characters from a fixed pool (dr_store::synthetic), paragraphs of 60-300",
+  "fullBook": {
+    "buildMs": 118.6,
+    "chapters": 100,
+    "charsPerChapter": 15000,
+    "close100HoldersMs": {
+      "max": 2.695,
+      "mean": 2.567,
+      "n": 5,
+      "p50": 2.578,
+      "p95": 2.695
+    },
+    "coldLoadAllMs": {
+      "max": 9.921,
+      "mean": 9.056,
+      "n": 5,
+      "p50": 8.878,
+      "p95": 9.921
+    },
+    "firstReadAllTextMs": {
+      "max": 10.039,
+      "mean": 9.561,
+      "n": 5,
+      "p50": 9.455,
+      "p95": 10.039
+    },
+    "librarySqliteBytes": 5152768,
+    "open100HoldersMs": {
+      "max": 12.208,
+      "mean": 11.892,
+      "n": 5,
+      "p50": 11.84,
+      "p95": 12.208
+    }
+  },
+  "generatedBy": "cargo run --release -p dr-store --bin f2-bench",
+  "keystrokeWrite": {
+    "chapterChars": 20000,
+    "synchronousFull": {
+      "eventsDelivered": 2200,
+      "meanUpdateBytes": 104,
+      "ms": {
+        "max": 1.445,
+        "mean": 0.06,
+        "n": 2000,
+        "p50": 0.049,
+        "p95": 0.094
+      },
+      "writes": 2000
+    },
+    "synchronousNormal": {
+      "eventsDelivered": 2200,
+      "meanUpdateBytes": 104,
+      "ms": {
+        "max": 1.336,
+        "mean": 0.029,
+        "n": 2000,
+        "p50": 0.023,
+        "p95": 0.049
+      },
+      "writes": 2000
+    },
+    "what": "DocHandle::write of a 1-6 character insert or a short delete: run on the holder thread, commit, export, append to SQLite, deliver the event, wake the caller"
+  },
+  "loro": "1.17.1",
+  "machine": {
+    "arch": "aarch64",
+    "cores": 12,
+    "cpu": "Apple M3 Pro",
+    "memoryBytes": 38654705664,
+    "os": "macos",
+    "osVersion": "27.0.1"
+  },
+  "openChapterWithPendingUpdates": {
+    "chapterChars": 20000,
+    "rows": [
+      {
+        "loadAndReadTextMs": {
+          "max": 0.247,
+          "mean": 0.23,
+          "n": 15,
+          "p50": 0.228,
+          "p95": 0.237
+        },
+        "loadMs": {
+          "max": 0.167,
+          "mean": 0.116,
+          "n": 15,
+          "p50": 0.108,
+          "p95": 0.135
+        },
+        "openHolderMs": {
+          "max": 0.156,
+          "mean": 0.137,
+          "n": 15,
+          "p50": 0.134,
+          "p95": 0.154
+        },
+        "pendingBytes": 0,
+        "pendingUpdates": 0
+      },
+      {
+        "loadAndReadTextMs": {
+          "max": 1.113,
+          "mean": 1.022,
+          "n": 15,
+          "p50": 1.011,
+          "p95": 1.078
+        },
+        "loadMs": {
+          "max": 1.351,
+          "mean": 1.052,
+          "n": 15,
+          "p50": 1.045,
+          "p95": 1.092
+        },
+        "openHolderMs": {
+          "max": 1.191,
+          "mean": 1.088,
+          "n": 15,
+          "p50": 1.057,
+          "p95": 1.169
+        },
+        "pendingBytes": 10381,
+        "pendingUpdates": 100
+      },
+      {
+        "loadAndReadTextMs": {
+          "max": 3.611,
+          "mean": 3.472,
+          "n": 15,
+          "p50": 3.454,
+          "p95": 3.61
+        },
+        "loadMs": {
+          "max": 3.675,
+          "mean": 3.533,
+          "n": 15,
+          "p50": 3.53,
+          "p95": 3.649
+        },
+        "openHolderMs": {
+          "max": 3.783,
+          "mean": 3.657,
+          "n": 15,
+          "p50": 3.651,
+          "p95": 3.782
+        },
+        "pendingBytes": 52334,
+        "pendingUpdates": 500
+      },
+      {
+        "loadAndReadTextMs": {
+          "max": 6.766,
+          "mean": 6.584,
+          "n": 15,
+          "p50": 6.58,
+          "p95": 6.713
+        },
+        "loadMs": {
+          "max": 7.217,
+          "mean": 6.704,
+          "n": 15,
+          "p50": 6.614,
+          "p95": 7.141
+        },
+        "openHolderMs": {
+          "max": 7.156,
+          "mean": 6.864,
+          "n": 15,
+          "p50": 6.846,
+          "p95": 7.003
+        },
+        "pendingBytes": 104658,
+        "pendingUpdates": 1000
+      },
+      {
+        "loadAndReadTextMs": {
+          "max": 13.078,
+          "mean": 12.706,
+          "n": 15,
+          "p50": 12.739,
+          "p95": 13.022
+        },
+        "loadMs": {
+          "max": 13.108,
+          "mean": 12.876,
+          "n": 15,
+          "p50": 12.935,
+          "p95": 13.107
+        },
+        "openHolderMs": {
+          "max": 13.463,
+          "mean": 13.15,
+          "n": 15,
+          "p50": 13.152,
+          "p95": 13.342
+        },
+        "pendingBytes": 209254,
+        "pendingUpdates": 2000
+      },
+      {
+        "loadAndReadTextMs": {
+          "max": 34.333,
+          "mean": 30.991,
+          "n": 15,
+          "p50": 30.97,
+          "p95": 31.936
+        },
+        "loadMs": {
+          "max": 33.505,
+          "mean": 31.487,
+          "n": 15,
+          "p50": 31.515,
+          "p95": 32.231
+        },
+        "openHolderMs": {
+          "max": 37.028,
+          "mean": 32.261,
+          "n": 15,
+          "p50": 32.151,
+          "p95": 33.486
+        },
+        "pendingBytes": 523424,
+        "pendingUpdates": 5000
+      }
+    ],
+    "what": "snapshot of a 20 000-character chapter plus N keystroke updates; load_copy, load_copy + reading the whole text, and starting a holder"
+  },
+  "probe": "F2 dr-store benchmark",
+  "schemaVersion": 1,
+  "sourceFingerprint": "c3bafb599f560ac4fc362234d023bdbd28f4e8396e563bce0902323b00014ca8"
+}

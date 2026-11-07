@@ -174,6 +174,8 @@
 
 **大小**：L
 
+实现、接口和里程碑状态见 [foundations/f2-store.md](foundations/f2-store.md)。
+
 #### 数据库基线与迁移
 
 新版有自己的 SQLite 基线：`next/crates/dr-store/migrations/0000_*.sql`。迁移沿用现有的做法，复用 `crates/drifting-core/src/database.rs` 的这部分：

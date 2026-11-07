@@ -1,0 +1,19 @@
+[package]
+name = "dr-store"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Drifting 0.2 storage: SQLite library database, Loro update log and snapshots, document holders, derived indexes, assets, migrations"
+
+[dependencies]
+log.workspace = true
+loro.workspace = true
+rusqlite.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
