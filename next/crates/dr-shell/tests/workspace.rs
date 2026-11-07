@@ -738,6 +738,78 @@ fn the_corner_sets_the_status_and_immersive_writing_keeps_only_the_paper(cx: &mu
     draw(cx);
 }
 
+/// M04: the chapter panel's whole-book view has the book's acts; a chapter
+/// dropped on another moves there in reading order through F3; the outline
+/// rail reads the page's headings and a click puts the caret on one.
+#[gpui::test]
+fn chapters_move_by_act_and_the_outline_jumps_to_a_heading(cx: &mut TestAppContext) {
+    use dr_shell::workspace::outline;
+    let (_dir, lib) = slow_clock();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    let (acts, in_acts, chapters) = view.read_with(cx, |ws, _| {
+        (
+            ws.book.acts.len(),
+            ws.book.acts.iter().map(|a| a.chapters.len()).sum::<usize>(),
+            ws.book.chapters.len(),
+        )
+    });
+    assert_eq!(
+        (acts, in_acts),
+        (3, chapters),
+        "three volumes hold every chapter"
+    );
+    // The whole book's view, drawn.
+    view.update_in(cx, |ws, window, cx| {
+        ws.chapters_by_book = true;
+        ws.toggle_left(window, cx);
+    });
+    draw(cx);
+    // The first chapter dropped on the third goes after it; back again.
+    let ids =
+        |ws: &Workspace| -> Vec<String> { ws.book.chapters.iter().map(|c| c.id.clone()).collect() };
+    let before = view.read_with(cx, |ws, _| ids(ws));
+    view.update(cx, |ws, cx| ws.move_chapter(&before[0], &before[2], cx));
+    wait_for(&view, cx, |ws| ids(ws)[2] == before[0]);
+    assert_eq!(
+        view.read_with(cx, |ws, _| ids(ws)[..3].to_vec()),
+        [before[1].clone(), before[2].clone(), before[0].clone()]
+    );
+    view.update(cx, |ws, cx| ws.move_chapter(&before[0], &before[1], cx));
+    wait_for(&view, cx, |ws| ids(ws) == before);
+
+    // The outline of the material note: its two H2s.
+    let note = view.read_with(cx, |ws, _| {
+        let m = ws
+            .book
+            .materials
+            .iter()
+            .find(|m| m.title == "机械钟怎么走")
+            .expect("the sample's note");
+        Target::Material(m.id.parse().unwrap())
+    });
+    view.update_in(cx, |ws, window, cx| {
+        ws.toggle_left(window, cx);
+        ws.open(note.clone(), Open::KEEP, cx);
+    });
+    let editor = open_editor(&view, cx, &note);
+    let (entries, total, _, _) = cx.update(|_, cx| outline::read(&editor, cx));
+    let names: Vec<(u8, &str)> = entries.iter().map(|e| (e.level, e.text.as_str())).collect();
+    assert_eq!(names, [(2, "四个部分"), (2, "常见毛病")]);
+    assert!(entries[0].top < entries[1].top && entries[1].top < total);
+    let line = entries[1].line;
+    cx.update(|window, cx| outline::jump_to(&editor, line, window, cx));
+    let (caret, start) = editor.read_with(cx, |e, cx| {
+        let prose = e.editor().read(cx);
+        (
+            prose.selection().head,
+            prose.book().chapters[0].doc.line_start(line),
+        )
+    });
+    assert_eq!(caret, start, "the caret at the heading's start");
+    draw(cx);
+}
+
 #[gpui::test]
 fn a_chapter_trashed_through_f3_closes_its_tab(cx: &mut TestAppContext) {
     use dr_workspace::commands::{EntityIn, chapter::ChapterTrash};

@@ -1,4 +1,7 @@
 {
+  "allChapters": {
+    "actOrdinal": "Act {{n}}"
+  },
   "bottomStatusBar": {
     "elements": "Elements",
     "storyGraph": "Story graph",
@@ -8,12 +11,20 @@
     "close": "Close",
     "local": "Local"
   },
+  "editorOutline": {
+    "aria": "Outline",
+    "hiddenItems": "{{count}} distant outline items; hover to reveal"
+  },
   "editorTopBar": {
     "actions": {
       "more": "More actions"
     },
     "menu": {
       "deleteNode": "Delete node"
+    },
+    "outlineRailMode": {
+      "hidden": "Hide TOC",
+      "visible": "Show TOC"
     },
     "status": {
       "discarded": "Discarded",
@@ -58,7 +69,9 @@
     },
     "uncategorized": "Uncategorized",
     "viewMode": {
-      "chapterSummary": "{{storylines}} storylines · {{chapters}} chapters"
+      "chapterSummary": "{{storylines}} storylines · {{chapters}} chapters",
+      "globalTitle": "Book overview · group by storyline",
+      "storylineTitle": "Grouped by storyline · switch back to book overview"
     }
   },
   "navigation": {

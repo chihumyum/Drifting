@@ -27,7 +27,7 @@ use gpui::{
 
 use super::chrome::{self, TITLEBAR_HEIGHT};
 use super::dock::DockDrag;
-use super::{Item, PageSide, Workspace, corner, dock};
+use super::{Item, PageSide, Workspace, corner, dock, outline};
 use crate::Settings;
 use crate::book::Paragraph;
 use crate::nav::{Tab, Target};
@@ -84,6 +84,16 @@ fn page_key(target: Option<&Target>) -> SharedString {
 pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>) -> AnyElement {
     let entity = cx.entity();
     let look = EditorLook::read(cx);
+    // The middle column's size, for the outline rail's margin.
+    let viewport = window.viewport_size();
+    let beside = |width: f32, shown: f32| (width * shown).round();
+    let column_w = f32::from(viewport.width)
+        - if ws.immersive {
+            0.0
+        } else {
+            beside(ws.left.width, ws.left.shown()) + beside(ws.right.width, ws.right.shown())
+        };
+    let column_h = f32::from(viewport.height);
     let active = ws.nav.active_index();
     let pages: AnyElement = match ws.nav.active_tab().cloned() {
         Some(Tab::Split(split)) => {
@@ -123,22 +133,42 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
             };
             let left_target = split.side(PageSide::Left).target.clone();
             let right_target = split.side(PageSide::Right).target.clone();
-            let left = side(PageSide::Left, cx).child(corner::corner(
+            let left_rail = outline::rail(
                 ws,
-                &entity,
                 Some(&left_target),
-                false,
+                column_w * ratio,
+                column_h,
                 window,
                 cx,
-            ));
-            let right = side(PageSide::Right, cx).child(corner::corner(
+            );
+            let right_rail = outline::rail(
                 ws,
-                &entity,
                 Some(&right_target),
-                true,
+                column_w * (1.0 - ratio),
+                column_h,
                 window,
                 cx,
-            ));
+            );
+            let left = side(PageSide::Left, cx)
+                .children(left_rail)
+                .child(corner::corner(
+                    ws,
+                    &entity,
+                    Some(&left_target),
+                    false,
+                    window,
+                    cx,
+                ));
+            let right = side(PageSide::Right, cx)
+                .children(right_rail)
+                .child(corner::corner(
+                    ws,
+                    &entity,
+                    Some(&right_target),
+                    true,
+                    window,
+                    cx,
+                ));
             let theme = Theme::of(window, cx);
             div()
                 .size_full()
@@ -156,10 +186,12 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
         }
         tab => {
             let target = tab.map(|t| t.focused().target.clone());
+            let rail = outline::rail(ws, target.as_ref(), column_w, column_h, window, cx);
             div()
                 .relative()
                 .size_full()
                 .child(page_turn("page-main", target.as_ref(), &entity, look))
+                .children(rail)
                 .child(corner::corner(
                     ws,
                     &entity,

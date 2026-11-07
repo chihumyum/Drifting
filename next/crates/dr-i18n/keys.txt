@@ -162,3 +162,13 @@ editorTopBar.status.discarded
 editorTopBar.menu.deleteNode
 immersiveWriting.enter
 immersiveWriting.leave
+
+# The chapter panel's two views, the acts in the whole book's view, the
+# outline rail (M04)
+leftSidebar.viewMode.storylineTitle
+leftSidebar.viewMode.globalTitle
+allChapters.actOrdinal
+editorTopBar.outlineRailMode.visible
+editorTopBar.outlineRailMode.hidden
+editorOutline.aria
+editorOutline.hiddenItems

@@ -17,6 +17,7 @@ mod chrome;
 pub mod corner;
 mod dock;
 pub mod editors;
+pub mod outline;
 mod sidebar;
 mod stage;
 mod super_view;
@@ -200,6 +201,10 @@ pub struct BookLayout {
     /// The outline rail in the page's left margin is hidden.
     #[serde(default)]
     pub outline_hidden: bool,
+    /// The chapter panel lists the whole book in reading order (with its
+    /// acts) instead of by storyline.
+    #[serde(default)]
+    pub chapters_by_book: bool,
 }
 
 /// What the Escape key closes, topmost first.
@@ -308,6 +313,8 @@ pub struct Workspace {
     pub outline_hidden: bool,
     /// Immersive writing: only the paper (the incense stick, ⌘⇧↩).
     pub immersive: bool,
+    /// The chapter panel's view: the whole book, not by storyline.
+    pub chapters_by_book: bool,
     /// The page whose corner's ⋯ menu is open (its target key).
     pub corner_menu: Option<String>,
     pub super_view: Option<SuperView>,
@@ -371,6 +378,7 @@ impl Workspace {
             dock_locked: false,
             outline_hidden: false,
             immersive: false,
+            chapters_by_book: false,
             corner_menu: None,
             super_view: None,
             settings: None,
@@ -403,21 +411,23 @@ impl Workspace {
         let saved: Option<BookLayout> = Settings::read(cx)
             .layout(&self.book_id)
             .and_then(|v| serde_json::from_value(v.clone()).ok());
-        let (nav, left, right, dock_locked, outline_hidden) = match saved {
+        let (nav, left, right, dock_locked, outline_hidden, by_book) = match saved {
             Some(l) => (
                 Navigator::restored(l.nav, |_| true),
                 Some(l.left),
                 Some(l.right),
                 l.dock_locked,
                 l.outline_hidden,
+                l.chapters_by_book,
             ),
-            None => (Navigator::default(), None, None, false, false),
+            None => (Navigator::default(), None, None, false, false, false),
         };
         self.nav = nav;
         self.left = Sidebar::new(left, LeftTab::Chapters, |_| true);
         self.right = Sidebar::new(right, RightTab::Review, |_| true);
         self.dock_locked = dock_locked;
         self.outline_hidden = outline_hidden;
+        self.chapters_by_book = by_book;
         self.pages.clear();
         self.editors.clear();
         self.focused_doc = None;
@@ -772,6 +782,7 @@ impl Workspace {
             right: self.right.saved(),
             dock_locked: self.dock_locked,
             outline_hidden: self.outline_hidden,
+            chapters_by_book: self.chapters_by_book,
         }
     }
 
@@ -801,6 +812,30 @@ impl Workspace {
     pub fn open(&mut self, target: Target, how: Open, cx: &mut Context<Self>) {
         self.nav.open(target, how);
         self.changed(cx);
+    }
+
+    /// A chapter dropped on another in the chapter panel takes that place
+    /// in reading order: after it when it came from above, before it when
+    /// from below (F3's `chapter.move`; the lists change when F3 says the
+    /// book did).
+    pub fn move_chapter(&mut self, id: &str, onto: &str, cx: &mut Context<Self>) {
+        let at = |x: &str| self.book.chapters.iter().position(|c| c.id == x);
+        let (Some(from), Some(to)) = (at(id), at(onto)) else {
+            return;
+        };
+        if from == to {
+            return;
+        }
+        let place = if from < to {
+            serde_json::json!({ "after": onto })
+        } else {
+            serde_json::json!({ "before": onto })
+        };
+        self.run_command(
+            "chapter.move",
+            serde_json::json!({ "book": self.book_id, "id": id, "place": place }),
+            cx,
+        );
     }
 
     pub fn promote(&mut self, target: &Target, cx: &mut Context<Self>) {

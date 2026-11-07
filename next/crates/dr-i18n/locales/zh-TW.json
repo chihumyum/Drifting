@@ -1,4 +1,7 @@
 {
+  "allChapters": {
+    "actOrdinal": "第 {{n}} 幕"
+  },
   "bottomStatusBar": {
     "elements": "要素",
     "storyGraph": "故事圖譜",
@@ -8,12 +11,20 @@
     "close": "關閉",
     "local": "本機"
   },
+  "editorOutline": {
+    "aria": "大綱",
+    "hiddenItems": "{{count}} 個遠處大綱項目，游標停留以顯示"
+  },
   "editorTopBar": {
     "actions": {
       "more": "更多操作"
     },
     "menu": {
       "deleteNode": "刪除節點"
+    },
+    "outlineRailMode": {
+      "hidden": "隱藏目錄",
+      "visible": "顯示目錄"
     },
     "status": {
       "discarded": "已棄用",
@@ -58,7 +69,9 @@
     },
     "uncategorized": "未分類",
     "viewMode": {
-      "chapterSummary": "{{storylines}} 條故事線 · {{chapters}} 章"
+      "chapterSummary": "{{storylines}} 條故事線 · {{chapters}} 章",
+      "globalTitle": "全書總覽 · 依故事線分組",
+      "storylineTitle": "依故事線分組 · 切換回全書總覽"
     }
   },
   "navigation": {

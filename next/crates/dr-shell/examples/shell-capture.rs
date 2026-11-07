@@ -306,6 +306,8 @@ fn reset(ws: &mut Workspace, window: &mut gpui::Window, cx: &mut Context<Workspa
     ws.notifications_open = false;
     ws.immersive = false;
     ws.corner_menu = None;
+    ws.chapters_by_book = false;
+    ws.outline_hidden = false;
     ws.dock_locked = false;
     ws.left.panes = dr_shell::panes::Panes::single(LeftTab::Chapters);
     ws.right.panes = dr_shell::panes::Panes::single(RightTab::Review);
@@ -377,6 +379,23 @@ fn capture(dir: PathBuf) -> Result<()> {
         });
         still(&mut h)?;
         h.save(&dir, &format!("corner-menu-{a}.png"))?;
+
+        // The chapter panel's whole-book view: the three volumes as acts.
+        h.set(|ws, window, cx| {
+            everyday(ws, window, cx);
+            ws.chapters_by_book = true;
+        });
+        still(&mut h)?;
+        h.save(&dir, &format!("chapters-by-act-{a}.png"))?;
+
+        // The outline rail in the margin of a wide page: the note's two H2s.
+        h.set(|ws, window, cx| {
+            reset(ws, window, cx);
+            let note = material(ws, "机械钟怎么走");
+            ws.open(note, Open::KEEP, cx);
+        });
+        still(&mut h)?;
+        h.save(&dir, &format!("outline-{a}.png"))?;
 
         // Immersive writing: only the paper.
         h.set(|ws, window, cx| {

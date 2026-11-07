@@ -1,4 +1,7 @@
 {
+  "allChapters": {
+    "actOrdinal": "Acte {{n}}"
+  },
   "bottomStatusBar": {
     "elements": "Éléments",
     "storyGraph": "Graphe du récit",
@@ -8,12 +11,20 @@
     "close": "Fermer",
     "local": "Local"
   },
+  "editorOutline": {
+    "aria": "Plan",
+    "hiddenItems": "{{count}} éléments éloignés ; survolez pour afficher"
+  },
   "editorTopBar": {
     "actions": {
       "more": "Autres actions"
     },
     "menu": {
       "deleteNode": "Supprimer le nœud"
+    },
+    "outlineRailMode": {
+      "hidden": "Masquer la table des matières",
+      "visible": "Afficher la table des matières"
     },
     "status": {
       "discarded": "Écarté",
@@ -58,7 +69,9 @@
     },
     "uncategorized": "Sans catégorie",
     "viewMode": {
-      "chapterSummary": "{{storylines}} intrigues · {{chapters}} chapitres"
+      "chapterSummary": "{{storylines}} intrigues · {{chapters}} chapitres",
+      "globalTitle": "Vue du livre · grouper par intrigue",
+      "storylineTitle": "Par intrigue · revenir à la vue du livre"
     }
   },
   "navigation": {

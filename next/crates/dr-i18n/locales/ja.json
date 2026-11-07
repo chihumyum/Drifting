@@ -1,4 +1,7 @@
 {
+  "allChapters": {
+    "actOrdinal": "第{{n}}幕"
+  },
   "bottomStatusBar": {
     "elements": "要素",
     "storyGraph": "物語グラフ",
@@ -8,12 +11,20 @@
     "close": "閉じる",
     "local": "ローカル"
   },
+  "editorOutline": {
+    "aria": "アウトライン",
+    "hiddenItems": "離れた項目{{count}}件・ホバーで表示"
+  },
   "editorTopBar": {
     "actions": {
       "more": "その他の操作"
     },
     "menu": {
       "deleteNode": "ノードを削除"
+    },
+    "outlineRailMode": {
+      "hidden": "目次を非表示",
+      "visible": "目次を表示"
     },
     "status": {
       "discarded": "不採用",
@@ -58,7 +69,9 @@
     },
     "uncategorized": "未分類",
     "viewMode": {
-      "chapterSummary": "{{storylines}}ストーリーライン・{{chapters}}章"
+      "chapterSummary": "{{storylines}}ストーリーライン・{{chapters}}章",
+      "globalTitle": "全編一覧・ストーリーライン別にする",
+      "storylineTitle": "ストーリーライン別・全編一覧に切り替え"
     }
   },
   "navigation": {

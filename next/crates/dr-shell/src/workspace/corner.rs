@@ -3,6 +3,8 @@
 //! that enters immersive writing. Always there, never hidden under the hand;
 //! it stands on the desk beside the page and does not scroll.
 //!
+//! - **Outline** (`toc-raked`): shows or hides the outline rail in the
+//!   page's left margin (M04). Kept in the book's local layout.
 //! - **⋯** (`more`): the page's menu. A chapter's has its writing status
 //!   (草稿 / 已完成 / 已弃用, the current one ticked) and 删除节点, which puts
 //!   it in the trash (its tab closes through F3's event, as for anyone's
@@ -91,6 +93,33 @@ pub fn corner(
     );
 
     let mut tools: Vec<AnyElement> = Vec::new();
+    if target.is_some_and(|t| crate::book::doc_of(t).is_some()) {
+        let toggle = ws.clone();
+        let shown = !w.outline_hidden;
+        tools.push(
+            IconButton::new(
+                gpui::ElementId::Name(format!("corner-outline-{key}").into()),
+                Icon::TocRaked,
+            )
+            .in_tray()
+            .selected(shown)
+            .label(t(
+                cx,
+                if shown {
+                    keys::editor_top_bar::outline_rail_mode::HIDDEN
+                } else {
+                    keys::editor_top_bar::outline_rail_mode::VISIBLE
+                },
+            ))
+            .on_click(move |_, _, cx| {
+                toggle.update(cx, |ws, cx| {
+                    ws.outline_hidden = !ws.outline_hidden;
+                    ws.changed(cx);
+                })
+            })
+            .into_any_element(),
+        );
+    }
     if chapter.is_some() {
         let opener = ws.clone();
         let page = key.clone();

@@ -1,4 +1,7 @@
 {
+  "allChapters": {
+    "actOrdinal": "Acto {{n}}"
+  },
   "bottomStatusBar": {
     "elements": "Elementos",
     "storyGraph": "Mapa de la historia",
@@ -8,12 +11,20 @@
     "close": "Cerrar",
     "local": "Local"
   },
+  "editorOutline": {
+    "aria": "Esquema",
+    "hiddenItems": "{{count}} elementos lejanos; pasa el cursor para verlos"
+  },
   "editorTopBar": {
     "actions": {
       "more": "Más acciones"
     },
     "menu": {
       "deleteNode": "Eliminar nodo"
+    },
+    "outlineRailMode": {
+      "hidden": "Ocultar índice",
+      "visible": "Mostrar índice"
     },
     "status": {
       "discarded": "Descartado",
@@ -58,7 +69,9 @@
     },
     "uncategorized": "Sin categoría",
     "viewMode": {
-      "chapterSummary": "{{storylines}} tramas · {{chapters}} capítulos"
+      "chapterSummary": "{{storylines}} tramas · {{chapters}} capítulos",
+      "globalTitle": "Vista del libro · agrupar por trama",
+      "storylineTitle": "Agrupado por trama · volver a vista del libro"
     }
   },
   "navigation": {

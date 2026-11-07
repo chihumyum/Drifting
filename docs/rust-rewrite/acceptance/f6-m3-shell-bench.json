@@ -5,7 +5,7 @@
   "generatedBy": "cargo run --release -p dr-shell --features capture --example shell-capture -- --bench ../docs/rust-rewrite/acceptance",
   "inputs": {
     "crates/dr-editor": "3e19884dfe07c366a38a35fc40c6bc079be5aecd9f560859f8f8043db2b1884c",
-    "crates/dr-shell": "b18791aac6f9ebefcab76f90413b061548bc9f7958eacd5cbf9cda354dcc69b9",
+    "crates/dr-shell": "fc1638ca73597f083b6da297e8cd2c50635c5882b74ca838ae0a701f008c1b70",
     "crates/dr-testkit/fixtures/slow-clock.json": "3fa3ff0ac28ea90269e9734689c1d51446ea58b15d7f3e0bc8da301b9d66d9d8",
     "crates/dr-testkit/src/samples.rs": "d92b073fab71aafed3cf29f0a115def579ab2dd40e3da476356955f9017e874d",
     "crates/dr-ui": "176fa019295dc71f89ea81c5e094ce116c60e7c24b91ab88910f5145485ef3fe",
@@ -22,90 +22,90 @@
     "os": "macos",
     "osVersion": "27.0.1",
     "arch": "aarch64",
-    "loadAverage1m": 27.85,
+    "loadAverage1m": 24.72,
     "profile": "release"
   },
   "results": {
     "note": "CPU time of window.draw (layout + paint) per frame, 1280x800 at 2x, headless Metal, 《慢钟》 read through F3",
     "start": {
-      "init_and_open_ms": 79.85,
-      "first_frame_ms": 0.09,
-      "book_lists_ms": 83.96
+      "init_and_open_ms": 52.68,
+      "first_frame_ms": 0.08,
+      "book_lists_ms": 56.06
     },
     "everyday_at_rest": {
       "frame_requests": 0,
       "full_redraw_ms": {
         "n": 60,
-        "p50": 2.749,
-        "p95": 21.579,
-        "max": 44.895
+        "p50": 0.857,
+        "p95": 1.064,
+        "max": 1.158
       },
-      "first_page_open_ms": 82.47
+      "first_page_open_ms": 39.25
     },
     "typing": {
       "input_ms": {
         "n": 80,
-        "p50": 0.511,
-        "p95": 10.959,
-        "max": 91.877
+        "p50": 0.213,
+        "p95": 0.31,
+        "max": 8.829
       },
       "frame_ms": {
         "n": 80,
-        "p50": 2.352,
-        "p95": 23.077,
-        "max": 128.349
+        "p50": 0.895,
+        "p95": 1.076,
+        "max": 1.192
       }
     },
     "whole_book_page": {
       "rows": 127,
-      "read_ms": 31.87,
+      "read_ms": 10.39,
       "full_redraw_ms": {
         "n": 60,
-        "p50": 3.414,
-        "p95": 27.677,
-        "max": 57.272
+        "p50": 0.82,
+        "p95": 1.068,
+        "max": 1.323
       }
     },
     "tab_switch": {
       "frame_ms": {
         "n": 150,
-        "p50": 3.459,
-        "p95": 9.162,
-        "max": 47.304
+        "p50": 2.44,
+        "p95": 4.453,
+        "max": 5.561
       },
       "frame_requests_after": 0
     },
     "sidebar_slide": {
       "frame_ms": {
-        "n": 148,
-        "p50": 2.893,
-        "p95": 13.641,
-        "max": 22.415
+        "n": 150,
+        "p50": 1.98,
+        "p95": 4.226,
+        "max": 5.219
       },
       "frame_requests_after": 0
     },
     "panel_push": {
       "frame_ms": {
         "n": 168,
-        "p50": 1.313,
-        "p95": 2.42,
-        "max": 19.071
+        "p50": 0.753,
+        "p95": 1.864,
+        "max": 2.473
       }
     },
     "super_view_open": {
       "frame_ms": {
         "n": 30,
-        "p50": 1.438,
-        "p95": 2.944,
-        "max": 3.132
+        "p50": 1.038,
+        "p95": 1.958,
+        "max": 3.128
       }
     },
     "settings_open": {
       "frame_ms": {
         "n": 30,
-        "p50": 4.737,
-        "p95": 12.666,
-        "max": 26.535
+        "p50": 2.222,
+        "p95": 5.728,
+        "max": 8.969
       }
     }
   }

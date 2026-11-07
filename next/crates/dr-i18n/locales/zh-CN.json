@@ -1,4 +1,7 @@
 {
+  "allChapters": {
+    "actOrdinal": "第{{n}}幕"
+  },
   "bottomStatusBar": {
     "elements": "要素全景",
     "storyGraph": "故事图谱",
@@ -8,12 +11,20 @@
     "close": "关闭",
     "local": "本地"
   },
+  "editorOutline": {
+    "aria": "大纲",
+    "hiddenItems": "远处 {{count}} 个目录项，悬停展开"
+  },
   "editorTopBar": {
     "actions": {
       "more": "更多操作"
     },
     "menu": {
       "deleteNode": "删除节点"
+    },
+    "outlineRailMode": {
+      "hidden": "隐藏 TOC",
+      "visible": "显示 TOC"
     },
     "status": {
       "discarded": "已弃用",
@@ -58,7 +69,9 @@
     },
     "uncategorized": "未分类",
     "viewMode": {
-      "chapterSummary": "{{storylines}} 条故事线 · {{chapters}} 章"
+      "chapterSummary": "{{storylines}} 条故事线 · {{chapters}} 章",
+      "globalTitle": "全书总览 · 点此按 storyline 分组",
+      "storylineTitle": "按 storyline 分组 · 点此切回全书总览"
     }
   },
   "navigation": {
