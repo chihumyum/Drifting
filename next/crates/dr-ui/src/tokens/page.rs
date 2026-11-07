@@ -61,11 +61,18 @@ pub const HINTS_TOP: f32 = 96.0;
 pub const HINTS_COLUMN_GAP: f32 = 40.0;
 pub const HINTS_ROW_GAP: f32 = 8.0;
 
-/// An act's title page in the whole book: the act's name in the page's face
-/// over one dry stroke of the brush.
+/// An act's title page in the whole book: 「第一幕」 in the structure face,
+/// the act's name in the page's face, one dry stroke of the brush, then
+/// 「N 章 · x.xk 字」 in the index face.
 pub const ACT_TOP: f32 = 120.0;
 pub const ACT_BOTTOM: f32 = 112.0;
+pub const ACT_ORDINAL_SIZE: f32 = 15.0;
+/// Between 「第一幕」 and the name.
+pub const ACT_ORDINAL_GAP: f32 = 14.0;
 pub const ACT_NAME_SIZE: f32 = 30.0;
 pub const ACT_NAME_LINE: f32 = 1.25;
 pub const ACT_STROKE: f32 = 180.0;
+/// Above the stroke, and above the counts.
 pub const ACT_GAP: f32 = 16.0;
+pub const ACT_META_SIZE: f32 = 11.5;
+pub const ACT_META_LINE: f32 = 16.0;
