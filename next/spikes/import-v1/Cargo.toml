@@ -1,0 +1,16 @@
+[package]
+name = "import-v1-spike"
+version = "0.0.0"
+description = "P0-E spike: read a Drifting 0.1.x library (SQLite + contentJson) and map it onto the F1 book and prose documents."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+loro.workspace = true
+rusqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
