@@ -24,6 +24,7 @@ pub mod book;
 pub mod convert;
 pub mod decor;
 pub mod entity_links;
+pub mod link_card;
 pub mod links;
 pub mod page;
 pub mod rules;
@@ -34,8 +35,10 @@ pub mod view;
 
 pub use book::{BookEditor, BookEditorEvent, PreparedBook, ReadingPosition};
 pub use links::{DriftingExtension, LinkTargets};
-pub use page::{PageChrome, PageInfo, PageKind};
+pub use page::{ActPage, PageChrome, PageInfo, PageKind};
 pub use settings::EditorSettings;
 pub use source::SessionSource;
 pub use todo::TodoMarker;
-pub use view::{ChapterEditor, ChapterEditorEvent, CommentRequested};
+pub use view::{
+    ChapterEditor, ChapterEditorEvent, CommentRequested, EntityLinkOpened, PositionLinkCopied,
+};
