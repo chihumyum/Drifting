@@ -5,16 +5,23 @@
 //! [`Workspace`] owns the navigation model, both sidebars and which layers
 //! are open. Everything on screen is read from that state each frame; no
 //! view keeps a second copy of "what is open".
+//!
+//! The book comes from F3 (`dr-workspace`): the lists as one [`Book`]
+//! snapshot, each open page's prose as a [`PageSlot`], both read off the
+//! main thread and read again when F3's bus reports a change. Things that
+//! go to the trash or are deleted, by anyone, close their tabs.
 
 mod chrome;
 mod dock;
-mod panel_tabs;
 mod sidebar;
 mod stage;
 mod super_view;
 
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
+
+use dr_workspace::{Workspace as Library, WsEvent};
 
 use dr_ui::{
     Theme,
@@ -24,8 +31,9 @@ use dr_ui::{
 };
 use gpui::{
     App, AppContext as _, Bounds, Context, Entity, FocusHandle, Focusable, InteractiveElement,
-    IntoElement, ParentElement, Render, Size, Styled, Subscription, Task, TitlebarOptions, Window,
-    WindowBounds, WindowOptions, div, prelude::FluentBuilder as _, px, size,
+    IntoElement, ListAlignment, ListState, ParentElement, Render, Size, Styled, Subscription, Task,
+    TitlebarOptions, Window, WindowBounds, WindowOptions, div, prelude::FluentBuilder as _, px,
+    size,
 };
 use serde::{Deserialize, Serialize};
 
@@ -35,16 +43,17 @@ use crate::actions::{
     ToggleBottomTimeline, ToggleElementOverview, ToggleImmersiveWriting, ToggleLeftSidebar,
     ToggleNotifications, ToggleReviewMaterials, ToggleRightSidebar, ToggleStoryGraph,
 };
+use crate::book::{self, Book, PageText, Paragraph};
 use crate::nav::{self, Navigator, Open, Target, location};
 use crate::notifications::{self, Notifications};
 use crate::panes::{self, Panes};
 use crate::settings::panel::SettingsPanel;
-use crate::stand_in::StandIn;
 use crate::{Services, Settings, ShellInfo, keymap, menus};
 
 pub use chrome::{LEADING_INSET, TITLEBAR_HEIGHT, TRAFFIC_LIGHT_POSITION};
 pub use dock::DockDrag;
 pub use sidebar::{LeftTab, RightTab};
+pub use stage::EditorLook;
 pub use super_view::SuperView;
 
 /// The 0.1 client's default and minimum window sizes.
@@ -193,9 +202,87 @@ pub enum Layer {
     SuperView,
 }
 
+/// One row of a page's list: the page's own heading (its mark and title),
+/// a chapter's title on the whole book's page, or a paragraph.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Item {
+    Head,
+    Section(String),
+    Para(Paragraph),
+}
+
+/// A page's prose and the list that shows it (only the rows on screen are
+/// laid out).
+pub struct PageSlot {
+    /// The document whose changes reload it (`None`: the whole book).
+    pub doc: Option<String>,
+    pub items: Rc<Vec<Item>>,
+    pub list: ListState,
+    /// Read at least once.
+    pub ready: bool,
+    /// Being read; since when.
+    pub loading: Option<Instant>,
+    /// The editor settings the rows were measured with.
+    look: Option<EditorLook>,
+    _task: Option<Task<()>>,
+    _timer: Option<Task<()>>,
+}
+
+impl PageSlot {
+    fn new(target: &Target) -> PageSlot {
+        PageSlot {
+            doc: book::doc_of(target),
+            items: Rc::new(vec![Item::Head]),
+            list: ListState::new(1, ListAlignment::Top, px(PAGE_OVERDRAW)),
+            ready: false,
+            loading: None,
+            look: None,
+            _task: None,
+            _timer: None,
+        }
+    }
+
+    fn set(&mut self, text: PageText) {
+        let mut items = vec![Item::Head];
+        for (title, paragraphs) in text.sections {
+            if let Some(title) = title {
+                items.push(Item::Section(title));
+            }
+            items.extend(paragraphs.into_iter().map(Item::Para));
+        }
+        let old = self.items.len();
+        if self.ready {
+            // Read again after a change: the rows keep their place.
+            self.list.splice(0..old, items.len());
+        } else {
+            self.list.reset(items.len());
+        }
+        self.items = Rc::new(items);
+        self.ready = true;
+    }
+
+    /// The page is taking long to read: its pill drifts (`Pill::loading`).
+    pub fn slow(&self) -> bool {
+        self.loading
+            .is_some_and(|since| since.elapsed() >= motion::dwell::LOADING_DELAY)
+    }
+}
+
+/// How far beyond the paper's edges a page lays out rows.
+const PAGE_OVERDRAW: f32 = 800.0;
+
 pub struct Workspace {
     focus: FocusHandle,
-    pub book: Rc<StandIn>,
+    /// F3's workspace over the library; `None` without one (tests,
+    /// captures, a library that could not be opened).
+    pub library: Option<Library>,
+    /// The book shown (its id is known before its lists arrive).
+    pub book_id: String,
+    pub book: Rc<Book>,
+    book_task: Option<Task<()>>,
+    /// The book changed while it was being read: read it again after.
+    book_stale: bool,
+    pub pages: HashMap<String, PageSlot>,
     pub nav: Navigator,
     pub left: Sidebar<LeftTab>,
     pub right: Sidebar<RightTab>,
@@ -210,12 +297,10 @@ pub struct Workspace {
     /// The layout changed since it was last stored.
     layout_dirty: bool,
     layout_save: Option<Task<()>>,
+    _library_events: Option<dr_workspace::Subscription>,
     _observers: Vec<Subscription>,
 }
 
-/// How long the dock stays open after the pointer leaves it (the 0.1
-/// client's `DOCK_COLLAPSE_DELAY_MS`).
-pub const DOCK_COLLAPSE_DELAY: Duration = Duration::from_millis(260);
 /// How long after a layout change it is written to the settings file.
 pub const LAYOUT_SAVE_DELAY: Duration = Duration::from_millis(500);
 
@@ -223,19 +308,15 @@ impl Workspace {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         let focus = cx.focus_handle();
         focus.focus(window, cx);
-        let book = Rc::new(StandIn::sample());
-        let saved: Option<BookLayout> = Settings::read(cx)
-            .layout(book.book_id)
-            .and_then(|v| serde_json::from_value(v.clone()).ok());
-        let (nav, left, right, dock_locked) = match saved {
-            Some(l) => (
-                Navigator::restored(l.nav, |t| book.exists(t)),
-                Some(l.left),
-                Some(l.right),
-                l.dock_locked,
-            ),
-            None => (Navigator::default(), None, None, false),
-        };
+        let services = cx.try_global::<Services>();
+        let library = services.and_then(|s| s.library.clone());
+        let preferred = services
+            .and_then(|s| s.book.clone())
+            .or_else(|| Settings::read(cx).last_book().map(str::to_owned));
+        let book_id = library
+            .as_ref()
+            .and_then(|lib| first_choice(lib, preferred.as_deref()))
+            .unwrap_or_default();
         let observers = vec![
             cx.observe_window_appearance(window, |_, _, cx| cx.notify()),
             cx.observe_global::<Settings>(|_, cx| cx.notify()),
@@ -243,11 +324,16 @@ impl Workspace {
         ];
         let mut ws = Workspace {
             focus,
-            book,
-            nav,
-            left: Sidebar::new(left, LeftTab::Chapters, |_| true),
-            right: Sidebar::new(right, RightTab::Review, |_| true),
-            dock_locked,
+            library,
+            book_id,
+            book: Rc::new(Book::default()),
+            book_task: None,
+            book_stale: false,
+            pages: HashMap::new(),
+            nav: Navigator::default(),
+            left: Sidebar::new(None, LeftTab::Chapters, |_| true),
+            right: Sidebar::new(None, RightTab::Review, |_| true),
+            dock_locked: false,
             dock_hovered: false,
             dock_collapse: None,
             super_view: None,
@@ -256,8 +342,12 @@ impl Workspace {
             drag_armed: false,
             layout_dirty: false,
             layout_save: None,
+            _library_events: None,
             _observers: observers,
         };
+        ws.restore_layout(cx);
+        ws.listen_to_library(cx);
+        ws.load_book(preferred, cx);
         ws.listen_for_links(window, cx);
         // The crash follow-up waits until the window has settled.
         cx.spawn_in(window, async move |_, cx| {
@@ -269,6 +359,288 @@ impl Workspace {
         })
         .detach();
         ws
+    }
+
+    /// The saved layout of the book shown: its tabs (checked against the
+    /// book once its lists arrive), the sidebars, the dock lock.
+    fn restore_layout(&mut self, cx: &mut Context<Self>) {
+        let saved: Option<BookLayout> = Settings::read(cx)
+            .layout(&self.book_id)
+            .and_then(|v| serde_json::from_value(v.clone()).ok());
+        let (nav, left, right, dock_locked) = match saved {
+            Some(l) => (
+                Navigator::restored(l.nav, |_| true),
+                Some(l.left),
+                Some(l.right),
+                l.dock_locked,
+            ),
+            None => (Navigator::default(), None, None, false),
+        };
+        self.nav = nav;
+        self.left = Sidebar::new(left, LeftTab::Chapters, |_| true);
+        self.right = Sidebar::new(right, RightTab::Review, |_| true);
+        self.dock_locked = dock_locked;
+        self.pages.clear();
+    }
+
+    // The book, from F3.
+
+    /// Reads the book's lists off the main thread (again, if it changed).
+    fn load_book(&mut self, preferred: Option<String>, cx: &mut Context<Self>) {
+        let Some(lib) = self.library.clone() else {
+            return;
+        };
+        if self.book_task.is_some() {
+            self.book_stale = true;
+            return;
+        }
+        let want = if self.book_id.is_empty() {
+            preferred
+        } else {
+            Some(self.book_id.clone())
+        };
+        self.book_task = Some(cx.spawn(async move |this, cx| {
+            let started = Instant::now();
+            let loaded = cx
+                .background_executor()
+                .spawn(async move { Book::load_any(&lib, want.as_deref()) })
+                .await;
+            let ms = started.elapsed().as_secs_f64() * 1e3;
+            this.update(cx, |ws, cx| ws.book_loaded(loaded, ms, cx))
+                .ok();
+        }));
+    }
+
+    fn book_loaded(
+        &mut self,
+        loaded: dr_workspace::Result<Option<Book>>,
+        ms: f64,
+        cx: &mut Context<Self>,
+    ) {
+        self.book_task = None;
+        match loaded {
+            Ok(Some(book)) => {
+                log::debug!("book {} read in {ms:.1} ms", book.id);
+                if book.id != self.book_id {
+                    self.book_id = book.id.clone();
+                    self.restore_layout(cx);
+                }
+                // Tabs whose things are gone close (they went while the
+                // app was closed, or since the last read).
+                let gone: Vec<Target> = self
+                    .nav
+                    .tabs()
+                    .iter()
+                    .flat_map(|t| t.leaves())
+                    .map(|l| l.target.clone())
+                    .filter(|t| !book.exists(t))
+                    .collect();
+                for target in &gone {
+                    self.nav.forget(target);
+                    self.pages.remove(&target.key());
+                }
+                let id = book.id.clone();
+                let chapters_changed = self.book.chapter_titles() != book.chapter_titles();
+                self.book = Rc::new(book);
+                if chapters_changed && self.pages.contains_key(&Target::Book.key()) {
+                    self.load_page(Target::Book, cx);
+                }
+                Settings::update(cx, |file| file.set_last_book(&id));
+                if !gone.is_empty() {
+                    self.changed(cx);
+                }
+                cx.notify();
+            }
+            Ok(None) => {
+                log::info!("the library has no book");
+                self.book_id.clear();
+                self.book = Rc::new(Book::default());
+                cx.notify();
+            }
+            Err(error) => log::warn!("the book could not be read: {error}"),
+        }
+        if std::mem::take(&mut self.book_stale) {
+            self.load_book(None, cx);
+        }
+    }
+
+    /// F3's bus: changes to the book, removals, prose. Events arrive on
+    /// document holder threads; they are queued and handled here in batches.
+    fn listen_to_library(&mut self, cx: &mut Context<Self>) {
+        let Some(lib) = self.library.clone() else {
+            return;
+        };
+        let (tx, mut rx) = futures::channel::mpsc::unbounded::<WsEvent>();
+        self._library_events = Some(lib.subscribe(move |event| {
+            if matches!(
+                event,
+                WsEvent::Book(_) | WsEvent::Removed(_) | WsEvent::Prose(_)
+            ) {
+                let _ = tx.unbounded_send(event.clone());
+            }
+        }));
+        cx.spawn(async move |this, cx| {
+            use futures::StreamExt as _;
+            while let Some(first) = rx.next().await {
+                let mut batch = vec![first];
+                while let Ok(more) = rx.try_recv() {
+                    batch.push(more);
+                }
+                if this
+                    .update(cx, |ws, cx| ws.on_library_events(batch, cx))
+                    .is_err()
+                {
+                    break;
+                }
+            }
+        })
+        .detach();
+    }
+
+    /// What a batch of F3 events means for the window.
+    pub fn on_library_events(&mut self, events: Vec<WsEvent>, cx: &mut Context<Self>) {
+        let mut reload_book = false;
+        let mut gone = Vec::new();
+        let mut docs: HashSet<String> = HashSet::new();
+        let mut book_prose = false;
+        for event in events {
+            match event {
+                WsEvent::Book(b) if b.book.as_str() == self.book_id => reload_book = true,
+                WsEvent::Removed(r) if r.book.as_str() == self.book_id => {
+                    gone.extend(r.entities.into_iter().map(|e| book::target(e.target)));
+                }
+                WsEvent::Prose(p) => {
+                    book_prose |= p.book.as_ref().is_some_and(|b| b.as_str() == self.book_id);
+                    docs.insert(p.doc.to_string());
+                }
+                _ => {}
+            }
+        }
+        if !gone.is_empty() {
+            for target in &gone {
+                self.nav.forget(target);
+                self.pages.remove(&target.key());
+            }
+            self.changed(cx);
+        }
+        let stale: Vec<Target> = self
+            .nav
+            .tabs()
+            .iter()
+            .flat_map(|t| t.leaves())
+            .map(|l| l.target.clone())
+            .filter(|t| match (t, self.pages.get(&t.key())) {
+                (_, None) => false,
+                (Target::Book, Some(_)) => book_prose,
+                (_, Some(slot)) => slot.doc.as_ref().is_some_and(|d| docs.contains(d)),
+            })
+            .collect();
+        for target in stale {
+            self.load_page(target, cx);
+        }
+        if reload_book {
+            self.load_book(None, cx);
+        }
+    }
+
+    // Pages.
+
+    /// Starts reading the pages on screen that have not been read.
+    fn ensure_pages(&mut self, cx: &mut Context<Self>) {
+        if self.book.is_empty() {
+            return;
+        }
+        let shown: Vec<Target> = match self.nav.active_tab() {
+            Some(tab) => tab.leaves().map(|l| l.target.clone()).collect(),
+            None => Vec::new(),
+        };
+        for target in shown {
+            if !self.pages.contains_key(&target.key()) {
+                self.load_page(target.clone(), cx);
+            }
+            // A location link's lines: the page scrolls there once.
+            if let Some(slot) = self.pages.get(&target.key())
+                && slot.ready
+                && let Some(lines) = self.nav.take_reveal(&target)
+            {
+                let block = location::line_to_block(lines.start) as usize;
+                slot.list
+                    .scroll_to_reveal_item((block + 1).min(slot.items.len() - 1));
+            }
+        }
+        // Pages of closed tabs go.
+        let open: HashSet<String> = self
+            .nav
+            .tabs()
+            .iter()
+            .flat_map(|t| t.leaves())
+            .map(|l| l.target.key())
+            .collect();
+        self.pages.retain(|key, _| open.contains(key));
+    }
+
+    /// Reads a page's prose off the main thread.
+    fn load_page(&mut self, target: Target, cx: &mut Context<Self>) {
+        let Some(lib) = self.library.clone() else {
+            return;
+        };
+        let key = target.key();
+        let chapters = match target {
+            Target::Book => self.book.chapter_titles(),
+            _ => Vec::new(),
+        };
+        let slot = self
+            .pages
+            .entry(key.clone())
+            .or_insert_with(|| PageSlot::new(&target));
+        slot.loading = Some(Instant::now());
+        let read_key = key.clone();
+        slot._task = Some(cx.spawn(async move |this, cx| {
+            let text = cx
+                .background_executor()
+                .spawn(async move { PageText::load(&lib, &target, &chapters) })
+                .await;
+            this.update(cx, |ws, cx| ws.page_loaded(&read_key, text, cx))
+                .ok();
+        }));
+        // Past the loading delay, the pill shows it.
+        slot._timer = Some(cx.spawn(async move |this, cx| {
+            cx.background_executor()
+                .timer(motion::dwell::LOADING_DELAY)
+                .await;
+            this.update(cx, |_, cx| cx.notify()).ok();
+        }));
+    }
+
+    fn page_loaded(
+        &mut self,
+        key: &str,
+        text: dr_workspace::Result<PageText>,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(slot) = self.pages.get_mut(key) else {
+            return;
+        };
+        slot.loading = None;
+        slot._timer = None;
+        match text {
+            Ok(text) => slot.set(text),
+            Err(error) => log::warn!("{key}: the page could not be read: {error}"),
+        }
+        slot._task = None;
+        cx.notify();
+    }
+
+    /// Rows measured with other editor settings are measured again.
+    fn fit_pages(&mut self, look: EditorLook) {
+        for slot in self.pages.values_mut() {
+            if slot.look != Some(look) {
+                if slot.look.is_some() {
+                    slot.list.remeasure();
+                }
+                slot.look = Some(look);
+            }
+        }
     }
 
     /// Deep links (`<scheme>://open/<book>/chapters/…#L3`): F7's queue
@@ -324,7 +696,15 @@ impl Workspace {
             log::info!("not a location link");
             return false;
         };
-        match location::resolve(&link, self.book.as_ref()) {
+        let Some(catalog) = self
+            .library
+            .as_ref()
+            .and_then(|lib| lib.catalog(&self.book_id).ok())
+        else {
+            log::info!("no book to resolve a location link in");
+            return false;
+        };
+        match location::resolve(&link, &catalog) {
             Ok((target, lines)) => {
                 self.super_view = None;
                 self.nav.open_at(target, lines);
@@ -369,11 +749,14 @@ impl Workspace {
         }
         self.layout_dirty = false;
         self.layout_save = None;
+        if self.book_id.is_empty() {
+            return;
+        }
         let Ok(value) = serde_json::to_value(self.layout()) else {
             return;
         };
-        let book = self.book.book_id;
-        Settings::update(cx, |file| file.set_layout(book, value));
+        let book = self.book_id.clone();
+        Settings::update(cx, |file| file.set_layout(&book, value));
     }
 
     fn reduce_motion(&self, window: &Window, cx: &App) -> bool {
@@ -484,7 +867,9 @@ impl Workspace {
             return;
         }
         self.dock_collapse = Some(cx.spawn(async move |this, cx| {
-            cx.background_executor().timer(DOCK_COLLAPSE_DELAY).await;
+            cx.background_executor()
+                .timer(motion::dwell::DOCK_COLLAPSE)
+                .await;
             this.update(cx, |ws, cx| {
                 ws.dock_hovered = false;
                 ws.dock_collapse = None;
@@ -607,6 +992,8 @@ impl Render for Workspace {
         let viewport = window.viewport_size();
         let window_w = f32::from(viewport.width);
         self.fit_sidebars(window_w, window, cx);
+        self.ensure_pages(cx);
+        self.fit_pages(EditorLook::read(cx));
 
         let left = sidebar::left(self, window, cx);
         let right = sidebar::right(self, window, cx);
@@ -677,7 +1064,7 @@ pub(crate) use nav::Side as PageSide;
 
 /// The name a pill, a page or a link shows for `target`: its title, the
 /// whole book's tab name, or 「未命名…」 for its kind.
-pub fn title_of(book: &StandIn, target: &Target, cx: &App) -> gpui::SharedString {
+pub fn title_of(book: &Book, target: &Target, cx: &App) -> gpui::SharedString {
     use dr_i18n::keys::top_timeline::{singletons, untitled};
     let untitled = match target {
         Target::Book => return crate::t(cx, singletons::ALL_CHAPTERS),
@@ -689,7 +1076,26 @@ pub fn title_of(book: &StandIn, target: &Target, cx: &App) -> gpui::SharedString
         Target::Material(_) => untitled::LIBRARY_ITEM,
     };
     match book.title(target).filter(|t| !t.trim().is_empty()) {
-        Some(title) => gpui::SharedString::new_static(title),
+        Some(title) => title.to_owned().into(),
         None => crate::t(cx, untitled),
     }
+}
+
+/// The book to try first without reading any: the one asked for or opened
+/// last, if the library has it, else the first the library lists (an id
+/// only; whether it is in the trash shows once it is read).
+fn first_choice(lib: &Library, preferred: Option<&str>) -> Option<String> {
+    let ids: Vec<String> = match lib.library().docs(None, Some("book")) {
+        Ok(docs) => docs
+            .into_iter()
+            .filter_map(|d| d.doc_id.strip_prefix("book:").map(str::to_owned))
+            .collect(),
+        Err(error) => {
+            log::warn!("the library's books could not be listed: {error}");
+            return None;
+        }
+    };
+    preferred
+        .and_then(|p| ids.iter().find(|id| id.as_str() == p).cloned())
+        .or_else(|| ids.into_iter().next())
 }

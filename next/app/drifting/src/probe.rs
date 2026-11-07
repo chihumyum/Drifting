@@ -70,6 +70,21 @@ pub fn app_ready() {
     emit("app_ready", &[]);
 }
 
+/// F3's workspace over the library is open (`took`: on its own thread,
+/// alongside the app's launch).
+pub fn library_opened(took: std::time::Duration) {
+    emit(
+        "library_opened",
+        &[("open_us", Value::Int(took.as_micros() as u64))],
+    );
+}
+
+/// dr-ui and the shell are installed (fonts, settings, shortcuts, menus);
+/// the window is next.
+pub fn shell_ready() {
+    emit("shell_ready", &[]);
+}
+
 /// Records the window's starting appearance and schedules the first-frame
 /// hook. GPUI runs `on_next_frame` callbacks right after a frame is drawn.
 pub fn window_opened(window: &mut Window, cx: &mut App) {

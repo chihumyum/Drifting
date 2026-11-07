@@ -1,0 +1,96 @@
+{
+  "schema": "dr-testkit/evidence/1",
+  "name": "shell-bench",
+  "milestone": "f6-m2",
+  "generatedBy": "cargo run --release -p dr-shell --features capture --example shell-capture -- --bench ../docs/rust-rewrite/acceptance",
+  "inputs": {
+    "crates/dr-shell": "08c2cc3c069cbc03755e014d0cace447eb0adfbea8df14fb87d1b28dd0873068",
+    "crates/dr-testkit/fixtures/slow-clock.json": "3fa3ff0ac28ea90269e9734689c1d51446ea58b15d7f3e0bc8da301b9d66d9d8",
+    "crates/dr-testkit/src/samples.rs": "d92b073fab71aafed3cf29f0a115def579ab2dd40e3da476356955f9017e874d",
+    "crates/dr-ui": "1952c8759fcf8b94f2b4d8932331be393a5378f3d8ad870e8bbff1cee322078d",
+    "crates/dr-workspace": "a027003030fe2c9fdfe6d410c975a80fd44a0d1e05c2408c33f3a5c635a638d8"
+  },
+  "corpus": {
+    "sample": "slow-clock"
+  },
+  "machine": {
+    "cpu": "Apple M3 Pro",
+    "cores": 12,
+    "memoryBytes": 38654705664,
+    "os": "macos",
+    "osVersion": "27.0.1",
+    "arch": "aarch64",
+    "loadAverage1m": 5.55,
+    "profile": "release"
+  },
+  "results": {
+    "note": "CPU time of window.draw (layout + paint) per frame, 1280x800 at 2x, headless Metal, 《慢钟》 read through F3",
+    "start": {
+      "init_and_open_ms": 38.97,
+      "first_frame_ms": 0.07,
+      "book_lists_ms": 41.89
+    },
+    "everyday_at_rest": {
+      "frame_requests": 0,
+      "full_redraw_ms": {
+        "n": 60,
+        "p50": 0.696,
+        "p95": 0.884,
+        "max": 1.487
+      },
+      "first_page_read_ms": 23.39
+    },
+    "whole_book_page": {
+      "rows": 127,
+      "read_ms": 8.44,
+      "full_redraw_ms": {
+        "n": 60,
+        "p50": 0.761,
+        "p95": 0.965,
+        "max": 1.302
+      }
+    },
+    "tab_switch": {
+      "frame_ms": {
+        "n": 150,
+        "p50": 2.859,
+        "p95": 4.32,
+        "max": 5.001
+      },
+      "frame_requests_after": 0
+    },
+    "sidebar_slide": {
+      "frame_ms": {
+        "n": 150,
+        "p50": 2.668,
+        "p95": 4.509,
+        "max": 7.714
+      },
+      "frame_requests_after": 0
+    },
+    "panel_push": {
+      "frame_ms": {
+        "n": 168,
+        "p50": 1.559,
+        "p95": 2.835,
+        "max": 3.126
+      }
+    },
+    "super_view_open": {
+      "frame_ms": {
+        "n": 30,
+        "p50": 1.694,
+        "p95": 2.946,
+        "max": 3.32
+      }
+    },
+    "settings_open": {
+      "frame_ms": {
+        "n": 30,
+        "p50": 3.466,
+        "p95": 4.679,
+        "max": 4.716
+      }
+    }
+  }
+}

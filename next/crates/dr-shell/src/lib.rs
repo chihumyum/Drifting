@@ -2,6 +2,7 @@
 //!
 //! - one navigation model ([`nav`]): the tab tree and its own history; the
 //!   page shown, the highlighted cell and Back/Forward are read from it;
+//! - the open book from F3's queries and events ([`book`]);
 //! - the three columns: sidebars that slide out from the corners and split
 //!   in two when wide enough ([`panes`]), the tab dock on the paper's top
 //!   edge, the Super View stage ([`workspace`]);
@@ -24,6 +25,7 @@
 
 pub mod actions;
 pub mod appearance;
+pub mod book;
 pub mod keymap;
 pub mod menus;
 pub mod nav;
@@ -31,7 +33,6 @@ pub mod notifications;
 pub mod panes;
 pub mod quit;
 pub mod settings;
-pub mod stand_in;
 pub mod strings;
 pub mod workspace;
 
@@ -60,12 +61,17 @@ pub struct ShellInfo {
 
 impl Global for ShellInfo {}
 
-/// F7's services, for the shell: the deep-link queue and crash reports.
-/// Optional so tests and captures run without them.
+/// What the shell is given: F7's deep-link queue and crash reports, F3's
+/// workspace over the library. Optional so tests and captures run without
+/// them.
 #[derive(Default)]
 pub struct Services {
     pub deep_links: Option<Arc<DeepLinks>>,
     pub crash_reports: Option<CrashReporting>,
+    pub library: Option<dr_workspace::Workspace>,
+    /// The book to open instead of the one opened last (`DRIFTING_BOOK`, a
+    /// development override: an id or a name).
+    pub book: Option<String>,
 }
 
 impl Global for Services {}
@@ -73,6 +79,19 @@ impl Global for Services {}
 /// Installs the shell: strings, settings, shortcuts, menus, the app-wide
 /// actions and the quit flow. Call once, after `dr_ui::init`.
 pub fn init(info: ShellInfo, services: Services, file: SettingsFile, cx: &mut App) {
+    // Before quitting, F3 brings the open documents' search index up to date
+    // and lets each one close (nothing is lost without it).
+    if let Some(lib) = services.library.clone() {
+        quit::before_quit(cx, move |_| {
+            let report = lib.before_quit();
+            log::info!(
+                "library: {} documents closed ({} in use) in {:.0} ms",
+                report.closed,
+                report.in_use,
+                report.ms
+            );
+        });
+    }
     cx.set_global(info);
     cx.set_global(services);
     settings::install(file, cx);

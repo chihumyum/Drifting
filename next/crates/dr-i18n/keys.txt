@@ -18,9 +18,12 @@ leftSidebar.tabs.drifts
 leftSidebar.empty.noChapters
 leftSidebar.empty.noElements
 leftSidebar.empty.noDrifts
+leftSidebar.meta.chapters
 leftSidebar.meta.elements
 leftSidebar.meta.drifts
 leftSidebar.viewMode.chapterSummary
+leftSidebar.groups.unaffiliated
+leftSidebar.uncategorized
 rightSidebar.tabs.review
 rightSidebar.tabs.library
 rightSidebar.tabs.stats
@@ -36,6 +39,10 @@ topTimeline.untitled.element
 topTimeline.untitled.category
 topTimeline.untitled.library_item
 topTimeline.singletons.allChapters
+topTimeline.dockLock
+topTimeline.dockUnlock
+topTimeline.newEntity
+topTimeline.closeTab
 navigation.back
 projectHome.kicker
 bottomStatusBar.storyGraph

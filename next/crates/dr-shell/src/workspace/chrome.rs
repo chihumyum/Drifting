@@ -81,8 +81,10 @@ pub fn sidebar_toggles(
     cx: &mut Context<Workspace>,
 ) -> impl IntoElement {
     let top = (TITLEBAR_HEIGHT - g::ROUND) / 2.0;
-    let toggle = |id: &'static str, open: bool, icons: (Icon, Icon)| {
-        let button = IconButton::new(id, if open { icons.0 } else { icons.1 });
+    use keys::left_sidebar::top as lt;
+    use keys::right_sidebar::top as rt;
+    let toggle = |id: &'static str, open: bool, icons: (Icon, Icon), label: SharedString| {
+        let button = IconButton::new(id, if open { icons.0 } else { icons.1 }).label(label);
         if open {
             button.in_tray()
         } else {
@@ -93,18 +95,16 @@ pub fn sidebar_toggles(
         "toggle-left",
         ws.left.open,
         (Icon::MoonLeft, Icon::MoonLeftHollow),
+        t(cx, if ws.left.open { lt::CLOSE } else { lt::OPEN }),
     )
     .on_click(|_, window, cx| window.dispatch_action(Box::new(ToggleLeftSidebar), cx));
     let right = toggle(
         "toggle-right",
         ws.right.open,
         (Icon::MoonRight, Icon::MoonRightHollow),
+        t(cx, if ws.right.open { rt::CLOSE } else { rt::OPEN }),
     )
     .on_click(|_, window, cx| window.dispatch_action(Box::new(ToggleRightSidebar), cx));
-    use keys::left_sidebar::top as lt;
-    use keys::right_sidebar::top as rt;
-    let left_label = t(cx, if ws.left.open { lt::CLOSE } else { lt::OPEN });
-    let right_label = t(cx, if ws.right.open { rt::CLOSE } else { rt::OPEN });
     div()
         .absolute()
         .top_0()
@@ -113,8 +113,6 @@ pub fn sidebar_toggles(
         .h(px(TITLEBAR_HEIGHT))
         .child(
             div()
-                .id("toggle-left-slot")
-                .aria_label(left_label)
                 .absolute()
                 .top(px(top))
                 .left(px(LEADING_INSET))
@@ -122,8 +120,6 @@ pub fn sidebar_toggles(
         )
         .child(
             div()
-                .id("toggle-right-slot")
-                .aria_label(right_label)
                 .absolute()
                 .top(px(top))
                 .right(px(TRAILING_INSET))
@@ -152,11 +148,13 @@ pub fn windows_caption(window: &mut Window, cx: &mut App) -> impl IntoElement {
     };
     let labels: [SharedString; 3] = [wc::CLOSE, wc::MINIMIZE, max_label].map(|k| t(cx, k));
     let button = |id: &'static str, icon: Icon, area: WindowControlArea, label: &SharedString| {
+        // The outer element is the system's caption button area; the name
+        // goes on the button (only an element with a role reaches the
+        // accessibility tree).
         div()
             .id(id)
             .window_control_area(area)
-            .aria_label(label.clone())
-            .child(IconButton::new(id, icon).in_tray())
+            .child(IconButton::new(id, icon).label(label.clone()).in_tray())
     };
     let top = (TITLEBAR_HEIGHT - g::ROUND) / 2.0 - g::TRAY_PADDING;
     // The toolbar's tray: a resting glass line, no fill (the sidebar shows

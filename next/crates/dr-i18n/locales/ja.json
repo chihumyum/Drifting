@@ -19,7 +19,11 @@
       "noDrifts": "アイデアはまだありません。",
       "noElements": "要素はまだありません。"
     },
+    "groups": {
+      "unaffiliated": "所属なし"
+    },
     "meta": {
+      "chapters": "{{count}}章",
       "drifts": "{{count}}件のアイデア",
       "elements": "{{categories}}カテゴリ・{{elements}}要素"
     },
@@ -32,6 +36,7 @@
       "close": "左サイドバーを閉じる",
       "open": "左サイドバーを開く"
     },
+    "uncategorized": "未分類",
     "viewMode": {
       "chapterSummary": "{{storylines}}ストーリーライン・{{chapters}}章"
     }
@@ -220,6 +225,10 @@
     "split": "2列表示に戻す"
   },
   "topTimeline": {
+    "closeTab": "タブを閉じる",
+    "dockLock": "開いたままにする",
+    "dockUnlock": "点表示に戻す",
+    "newEntity": "エンティティを作成",
     "singletons": {
       "allChapters": "全編"
     },

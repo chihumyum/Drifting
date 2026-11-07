@@ -3,12 +3,13 @@
 //!
 //! GPUI runs headless (its test platform with the real macOS text system and
 //! Metal drawing into a texture), so nothing opens on screen and no
-//! screen-recording permission is needed. Everything shown is the synthetic
-//! stand-in book.
+//! screen-recording permission is needed. The book is 《慢钟》, the
+//! showcase's novel written for Drifting (dr-testkit), seeded into a
+//! temporary library and read through F3 like the app reads it.
 //!
 //! ```text
 //! cargo run -p dr-shell --features capture --example shell-capture -- --capture <dir>
-//! cargo run --release -p dr-shell --features capture --example shell-capture -- --bench <file.json>
+//! cargo run --release -p dr-shell --features capture --example shell-capture -- --bench ../docs/rust-rewrite/acceptance
 //! ```
 
 use std::path::{Path, PathBuf};
@@ -33,6 +34,23 @@ struct Headless {
     view: Entity<Workspace>,
     first_frame_ms: f32,
     init_ms: f32,
+    /// Opening the window until the book's lists arrived from F3.
+    book_ms: f32,
+    _library: tempfile::TempDir,
+}
+
+const VERSION: &str = "0.2.0-dev";
+
+/// A temporary library holding 《慢钟》.
+fn slow_clock() -> Result<(tempfile::TempDir, dr_workspace::Workspace)> {
+    let dir = tempfile::tempdir()?;
+    let root = dir.path().join("library");
+    let lib = dr_store::Library::open(&root, dr_workspace::library_options(VERSION))?;
+    let book = dr_testkit::samples::slow_clock()?;
+    dr_testkit::seed::write_book(&lib, &book).map_err(|e| anyhow::anyhow!("{e}"))?;
+    lib.close()?;
+    let ws = dr_workspace::Workspace::open_dir(&root, VERSION)?;
+    Ok((dir, ws))
 }
 
 impl Headless {
@@ -43,6 +61,9 @@ impl Headless {
             Arc::new(dr_ui::Assets::new()),
             gpui_platform::current_headless_renderer,
         );
+        // F3 reads and delivers events on its own threads.
+        cx.allow_parking();
+        let (dir, library) = slow_clock()?;
         let started = Instant::now();
         cx.update(|cx| -> Result<()> {
             dr_ui::init(cx)?;
@@ -60,7 +81,11 @@ impl Headless {
                 None,
             )
             .ok();
-            dr_shell::init(info, Services::default(), file, cx);
+            let services = Services {
+                library: Some(library),
+                ..Services::default()
+            };
+            dr_shell::init(info, services, file, cx);
             Ok(())
         })?;
         let window = cx.open_window(size(px(W), px(H)), |window, cx| {
@@ -74,9 +99,48 @@ impl Headless {
             view,
             first_frame_ms: 0.0,
             init_ms,
+            book_ms: 0.0,
+            _library: dir,
         };
         h.first_frame_ms = h.draw()?.0;
+        h.wait(|ws| !ws.book.is_empty())?;
+        h.book_ms = started.elapsed().as_secs_f32() * 1000.0;
         Ok(h)
+    }
+
+    fn read<T>(&mut self, f: impl FnOnce(&Workspace) -> T) -> T {
+        let view = self.view.clone();
+        self.cx.update(|cx| f(view.read(cx)))
+    }
+
+    /// Runs until `done` holds (F3's threads answer in their own time).
+    fn wait(&mut self, done: impl Fn(&Workspace) -> bool) -> Result<()> {
+        let deadline = Instant::now() + Duration::from_secs(20);
+        loop {
+            self.draw()?;
+            self.cx.run_until_parked();
+            if self.read(&done) {
+                return Ok(());
+            }
+            if Instant::now() > deadline {
+                bail!("timed out waiting for the library");
+            }
+            std::thread::sleep(Duration::from_millis(2));
+        }
+    }
+
+    /// Runs until every page on screen has been read.
+    fn pages_ready(&mut self) -> Result<()> {
+        self.draw()?;
+        self.wait(|ws| {
+            ws.nav
+                .active_tab()
+                .map(|t| {
+                    t.leaves()
+                        .all(|l| ws.pages.get(&l.target.key()).is_some_and(|p| p.ready))
+                })
+                .unwrap_or(true)
+        })
     }
 
     fn set(&mut self, f: impl FnOnce(&mut Workspace, &mut gpui::Window, &mut Context<Workspace>)) {
@@ -145,13 +209,16 @@ impl Headless {
         Ok(())
     }
 
-    /// Frames at 60 a second of real time for `seconds`.
+    /// Frames at 60 a second of real time for `seconds`. Between frames the
+    /// app's tasks run (reading a page, F3's events), as they do on screen;
+    /// the headless executor runs them only when asked.
     fn frames(&mut self, seconds: f32) -> Result<Vec<f32>> {
         let started = Instant::now();
         let mut next = started;
         let mut times = Vec::new();
         while started.elapsed().as_secs_f32() < seconds {
             times.push(self.draw()?.0);
+            self.cx.run_until_parked();
             next += Duration::from_micros(16_667);
             if let Some(wait) = next.checked_duration_since(Instant::now()) {
                 std::thread::sleep(wait);
@@ -166,12 +233,29 @@ impl Headless {
     }
 }
 
-fn chapter(n: u8) -> Target {
-    Target::Chapter(format!("ch-{n}").parse().unwrap())
+/// The `n`th chapter of the book, 1-based.
+fn chapter(ws: &Workspace, n: usize) -> Target {
+    Target::Chapter(ws.book.chapters[n - 1].id.parse().unwrap())
 }
 
-fn element(id: &str) -> Target {
-    Target::Element(id.parse().unwrap())
+fn element(ws: &Workspace, name: &str) -> Target {
+    let e = ws
+        .book
+        .elements
+        .iter()
+        .find(|e| e.name == name)
+        .expect("in 慢钟");
+    Target::Element(e.id.parse().unwrap())
+}
+
+fn material(ws: &Workspace, title: &str) -> Target {
+    let m = ws
+        .book
+        .materials
+        .iter()
+        .find(|m| m.title == title)
+        .expect("in 慢钟");
+    Target::Material(m.id.parse().unwrap())
 }
 
 /// The everyday layout: chapters on the left, the library on the right,
@@ -185,10 +269,11 @@ fn everyday(ws: &mut Workspace, window: &mut gpui::Window, cx: &mut Context<Work
     ws.left.reveal.set(1.0);
     ws.right.reveal.set(1.0);
     ws.right.panes.click(PaneId::Primary, RightTab::Library);
-    ws.open(chapter(1), Open::KEEP, cx);
-    ws.open(chapter(3), Open::KEEP, cx);
-    ws.open(element("el-linlan"), Open::PREVIEW, cx);
-    ws.nav.activate(1);
+    let (first, third, zhiwei) = (chapter(ws, 1), chapter(ws, 3), element(ws, "沈知微"));
+    ws.open(first, Open::KEEP, cx);
+    ws.open(third, Open::KEEP, cx);
+    ws.open(zhiwei, Open::PREVIEW, cx);
+    ws.nav.activate(0);
     ws.dock_locked = true;
 }
 
@@ -218,6 +303,7 @@ fn capture(dir: PathBuf) -> Result<()> {
         let a = appearance.slug();
         h.appearance(appearance);
         let still = |h: &mut Headless| -> Result<()> {
+            h.pages_ready()?;
             let t0 = Instant::now();
             anim::freeze(Some(t0));
             h.settle()?;
@@ -234,11 +320,12 @@ fn capture(dir: PathBuf) -> Result<()> {
         // Both sidebars closed, the dock at rest (marks), a split page.
         h.set(|ws, window, cx| {
             reset(ws, window, cx);
-            ws.open(chapter(1), Open::KEEP, cx);
-            ws.open(chapter(2), Open::KEEP, cx);
+            let (first, second) = (chapter(ws, 1), chapter(ws, 2));
+            ws.open(first, Open::KEEP, cx);
+            ws.open(second, Open::KEEP, cx);
             ws.open(Target::Book, Open::PREVIEW, cx);
             ws.nav.activate(0);
-            ws.nav.split_with(1, Side::Right);
+            ws.nav.split_with(2, Side::Right);
         });
         still(&mut h)?;
         h.save(&dir, &format!("split-{a}.png"))?;
@@ -250,10 +337,23 @@ fn capture(dir: PathBuf) -> Result<()> {
             ws.right.width = 0.0;
             ws.toggle_left(window, cx);
             ws.left.reveal.set(1.0);
-            ws.open(element("el-harbour"), Open::KEEP, cx);
+            let zhiwei = element(ws, "沈知微");
+            ws.open(zhiwei, Open::KEEP, cx);
         });
         still(&mut h)?;
         h.save(&dir, &format!("halves-{a}.png"))?;
+
+        // A material note with H2 headings: the editor's sizes.
+        h.set(|ws, window, cx| {
+            reset(ws, window, cx);
+            ws.toggle_right(window, cx);
+            ws.right.reveal.set(1.0);
+            ws.right.panes.click(PaneId::Primary, RightTab::Library);
+            let note = material(ws, "机械钟怎么走");
+            ws.open(note, Open::KEEP, cx);
+        });
+        still(&mut h)?;
+        h.save(&dir, &format!("headings-{a}.png"))?;
 
         h.set(|ws, window, cx| {
             everyday(ws, window, cx);
@@ -345,24 +445,53 @@ fn summary(values: &[f32]) -> String {
     )
 }
 
-fn bench(file: PathBuf) -> Result<()> {
+fn bench(dir: PathBuf) -> Result<()> {
     let mut h = Headless::new()?;
     let mut out = vec![format!(
-        r#""start": {{"init_and_open_ms": {:.2}, "first_frame_ms": {:.2}}}"#,
-        h.init_ms, h.first_frame_ms
+        r#""start": {{"init_and_open_ms": {:.2}, "first_frame_ms": {:.2}, "book_lists_ms": {:.2}}}"#,
+        h.init_ms, h.first_frame_ms, h.book_ms
     )];
     h.set(everyday);
+    let read = Instant::now();
+    h.pages_ready()?;
+    let first_page_ms = read.elapsed().as_secs_f32() * 1000.0;
     h.settle()?;
-    std::thread::sleep(Duration::from_millis(700));
+    std::thread::sleep(Duration::from_millis(2000));
     h.settle()?;
     let rest = h.pending()?;
     let redraw = (0..60)
         .map(|_| h.draw().map(|d| d.0))
         .collect::<Result<Vec<_>>>()?;
     out.push(format!(
-        r#""everyday_at_rest": {{"frame_requests": {rest}, "full_redraw_ms": {}}}"#,
+        r#""everyday_at_rest": {{"frame_requests": {rest}, "full_redraw_ms": {}, "first_page_read_ms": {first_page_ms:.2}}}"#,
         summary(&redraw)
     ));
+
+    // The whole book on one page: 24 chapters, only the rows on screen laid
+    // out.
+    h.set(|ws, _, cx| ws.open(Target::Book, Open::KEEP, cx));
+    let read = Instant::now();
+    h.pages_ready()?;
+    let book_page_ms = read.elapsed().as_secs_f32() * 1000.0;
+    std::thread::sleep(Duration::from_millis(300));
+    h.settle()?;
+    let rows = h.read(|ws| ws.pages.get("book").map_or(0, |p| p.items.len()));
+    let book_redraw = (0..60)
+        .map(|_| h.draw().map(|d| d.0))
+        .collect::<Result<Vec<_>>>()?;
+    out.push(format!(
+        r#""whole_book_page": {{"rows": {rows}, "read_ms": {book_page_ms:.2}, "full_redraw_ms": {}}}"#,
+        summary(&book_redraw)
+    ));
+    h.set(|ws, _, cx| {
+        if let Some(i) = ws.nav.tabs().iter().position(|t| t.key() == "book") {
+            ws.nav.close(i);
+        }
+        ws.nav.activate(0);
+        cx.notify();
+    });
+    h.pages_ready()?;
+    h.settle()?;
 
     // Switching tabs: the page dissolves in 180 ms.
     let mut switch = Vec::new();
@@ -373,7 +502,9 @@ fn bench(file: PathBuf) -> Result<()> {
         });
         switch.extend(h.frames(0.25)?);
     }
-    std::thread::sleep(Duration::from_millis(300));
+    // The dock's wave: 300 ms across, 300 ms to settle; frames keep coming
+    // until everything is still, as on screen.
+    h.frames(1.0)?;
     h.settle()?;
     let after_switch = h.pending()?;
     out.push(format!(
@@ -428,19 +559,31 @@ fn bench(file: PathBuf) -> Result<()> {
         summary(&settings)
     ));
 
-    let load = std::process::Command::new("sysctl")
-        .args(["-n", "vm.loadavg"])
-        .output()
-        .ok()
-        .and_then(|o| String::from_utf8(o.stdout).ok())
-        .and_then(|s| s.split_whitespace().nth(1).map(str::to_owned))
-        .unwrap_or_else(|| "null".into());
-    let json = format!(
-        "{{\n  \"note\": \"CPU time of window.draw (layout + paint) per frame, release build, {W}x{H} at 2x, headless Metal, stand-in book\",\n  \"load_average_1m\": {load},\n  {}\n}}\n",
-        out.join(",\n  ")
-    );
-    std::fs::write(&file, json)?;
-    println!("wrote {}", file.display());
+    // Measured evidence (dr-testkit's convention): the machine and load go
+    // with the numbers; the inputs say when they go stale.
+    let results: serde_json::Value = serde_json::from_str(&format!(
+        "{{\"note\": \"CPU time of window.draw (layout + paint) per frame, {W}x{H} at 2x, headless Metal, 《慢钟》 read through F3\", {}}}",
+        out.join(", ")
+    ))?;
+    let mut evidence = dr_testkit::evidence::Evidence::new(
+        "shell-bench",
+        "f6-m2",
+        "cargo run --release -p dr-shell --features capture --example shell-capture -- --bench ../docs/rust-rewrite/acceptance",
+    )
+    .inputs(
+        &dr_testkit::evidence::workspace_root(),
+        &[
+            "crates/dr-shell",
+            "crates/dr-ui",
+            "crates/dr-workspace",
+            "crates/dr-testkit/src/samples.rs",
+            "crates/dr-testkit/fixtures/slow-clock.json",
+        ],
+    )?;
+    evidence.corpus = serde_json::json!({ "sample": "slow-clock" });
+    evidence.results = results;
+    let path = evidence.write(&dir)?;
+    println!("wrote {}", path.display());
     Ok(())
 }
 
@@ -448,7 +591,7 @@ fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.as_slice() {
         [flag, dir] if flag == "--capture" => capture(PathBuf::from(dir)),
-        [flag, file] if flag == "--bench" => bench(PathBuf::from(file)),
-        _ => bail!("usage: shell-capture --capture <dir> | --bench <file.json>"),
+        [flag, dir] if flag == "--bench" => bench(PathBuf::from(dir)),
+        _ => bail!("usage: shell-capture --capture <dir> | --bench <dir>"),
     }
 }

@@ -19,6 +19,7 @@ dr-i18n.workspace = true
 dr-model.workspace = true
 dr-platform.workspace = true
 dr-ui.workspace = true
+dr-workspace.workspace = true
 futures.workspace = true
 gpui.workspace = true
 # Only for the `capture` feature; the app brings its own platform.
@@ -33,6 +34,9 @@ objc2.workspace = true
 objc2-app-kit.workspace = true
 
 [dev-dependencies]
+# A seeded library for the tests and the captures (the showcase's 《慢钟》).
+dr-store.workspace = true
+dr-testkit.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
 gpui_platform.workspace = true
 tempfile.workspace = true

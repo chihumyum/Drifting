@@ -4,7 +4,8 @@
 //! { "version": 1,
 //!   "device":  { "appearance.interface_text_size": "large", ... },
 //!   "account": { "appearance.theme": "dark", "keys.bindings": { ... }, ... },
-//!   "books":   { "<book id>": { "settings": { ... }, "layout": { ... } } } }
+//!   "books":   { "<book id>": { "settings": { ... }, "layout": { ... } } },
+//!   "last_book": "<book id>" }
 //! ```
 //!
 //! - Values are checked against the registry when read: a value of the wrong
@@ -28,6 +29,8 @@ pub const FILE_NAME: &str = "settings.json";
 const VERSION: u64 = 1;
 /// The account value that holds rebound shortcuts (action id → keystrokes).
 pub const KEY_BINDINGS: &str = "keys.bindings";
+/// The top-level entry naming the book opened last.
+const LAST_BOOK: &str = "last_book";
 
 #[derive(Debug)]
 pub struct SettingsFile {
@@ -215,6 +218,18 @@ impl SettingsFile {
         let entry = object_at(books, book);
         if entry.get("layout") != Some(&layout) {
             entry.insert("layout".into(), layout);
+            self.dirty = true;
+        }
+    }
+
+    /// The book this device opened last (the workspace opens it again).
+    pub fn last_book(&self) -> Option<&str> {
+        self.data.get(LAST_BOOK)?.as_str()
+    }
+
+    pub fn set_last_book(&mut self, book: &str) {
+        if self.last_book() != Some(book) {
+            self.data.insert(LAST_BOOK.into(), Value::from(book));
             self.dirty = true;
         }
     }

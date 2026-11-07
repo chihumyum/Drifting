@@ -19,7 +19,11 @@
       "noDrifts": "Ainda não há ideias.",
       "noElements": "Ainda não há elementos."
     },
+    "groups": {
+      "unaffiliated": "Sem vínculo"
+    },
     "meta": {
+      "chapters": "{{count}} capítulos",
       "drifts": "{{count}} ideias",
       "elements": "{{categories}} categorias · {{elements}} elementos"
     },
@@ -32,6 +36,7 @@
       "close": "Fechar barra esquerda",
       "open": "Abrir barra esquerda"
     },
+    "uncategorized": "Sem categoria",
     "viewMode": {
       "chapterSummary": "{{storylines}} linhas narrativas · {{chapters}} capítulos"
     }
@@ -221,6 +226,10 @@
     "split": "Restaurar duas colunas"
   },
   "topTimeline": {
+    "closeTab": "Fechar aba",
+    "dockLock": "Manter aberto",
+    "dockUnlock": "Recolher para pontos",
+    "newEntity": "Criar entidade",
     "singletons": {
       "allChapters": "Livro inteiro"
     },

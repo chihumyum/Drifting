@@ -19,7 +19,11 @@
       "noDrifts": "No ideas yet.",
       "noElements": "No elements yet."
     },
+    "groups": {
+      "unaffiliated": "Unaffiliated"
+    },
     "meta": {
+      "chapters": "{{count}} chapters",
       "drifts": "{{count}} ideas",
       "elements": "{{categories}} categories · {{elements}} elements"
     },
@@ -32,6 +36,7 @@
       "close": "Close left sidebar",
       "open": "Open left sidebar"
     },
+    "uncategorized": "Uncategorized",
     "viewMode": {
       "chapterSummary": "{{storylines}} storylines · {{chapters}} chapters"
     }
@@ -220,6 +225,10 @@
     "split": "Restore two columns"
   },
   "topTimeline": {
+    "closeTab": "Close tab",
+    "dockLock": "Keep open",
+    "dockUnlock": "Fold back to dots",
+    "newEntity": "Create entity",
     "singletons": {
       "allChapters": "Whole book"
     },
