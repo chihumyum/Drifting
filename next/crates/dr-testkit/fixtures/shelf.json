@@ -1,0 +1,392 @@
+{
+ "en": [
+  {
+   "name": "The Lantern Keeper",
+   "genre": "Literary fiction",
+   "words": 94000,
+   "chapters": 32,
+   "summary": "A widowed lighthouse keeper takes in a boy who washed up with no name, and the island decides what to do about them.",
+   "people": [
+    "Edda Marr",
+    "The boy",
+    "Tomas Rell",
+    "Mother Agnes",
+    "Kit Farrow"
+   ],
+   "places": [
+    "Skerry Light",
+    "The harbour",
+    "Gull Rock"
+   ],
+   "storylines": [
+    {
+     "name": "The keeper",
+     "color": "#9B6A4F"
+    },
+    {
+     "name": "The boy",
+     "color": "#5C7FA3"
+    },
+    {
+     "name": "The island",
+     "color": "#6E8B5E"
+    }
+   ],
+   "startedDaysAgo": 340,
+   "lastWrittenDaysAgo": 0,
+   "diligence": 0.62
+  },
+  {
+   "name": "Salt and Static",
+   "genre": "Science fiction",
+   "words": 61000,
+   "chapters": 24,
+   "summary": "On a drowned Earth, a radio operator hears a broadcast that should have stopped a hundred years ago.",
+   "people": [
+    "Mara Quell",
+    "Old Bishop",
+    "Juno",
+    "The Voice"
+   ],
+   "places": [
+    "Rig Seven",
+    "The Shallows",
+    "Drowned Station"
+   ],
+   "storylines": [
+    {
+     "name": "Mara",
+     "color": "#5C7FA3"
+    },
+    {
+     "name": "The signal",
+     "color": "#7A6A96"
+    },
+    {
+     "name": "The rig",
+     "color": "#B07A3B"
+    }
+   ],
+   "startedDaysAgo": 260,
+   "lastWrittenDaysAgo": 2,
+   "diligence": 0.48
+  },
+  {
+   "name": "Night Train to Vell",
+   "genre": "Mystery",
+   "words": 71000,
+   "chapters": 28,
+   "summary": "Nine passengers, one sleeper car and a conductor who swears the tenth berth was empty when they left.",
+   "people": [
+    "Inspector Hale",
+    "Ada Brisk",
+    "The conductor",
+    "Dr. Penrose",
+    "Lena Voss",
+    "Mr. Szabo"
+   ],
+   "places": [
+    "Sleeper car 4",
+    "Vell station",
+    "The dining car"
+   ],
+   "storylines": [
+    {
+     "name": "Inspector Hale",
+     "color": "#9B4D5A"
+    },
+    {
+     "name": "The passengers",
+     "color": "#5F7D74"
+    },
+    {
+     "name": "The tenth berth",
+     "color": "#7A6A96"
+    },
+    {
+     "name": "Vell",
+     "color": "#B07A3B"
+    }
+   ],
+   "startedDaysAgo": 300,
+   "lastWrittenDaysAgo": 5,
+   "diligence": 0.4
+  },
+  {
+   "name": "A Map of Small Rivers",
+   "genre": "Short stories",
+   "words": 38000,
+   "chapters": 14,
+   "summary": "Fourteen stories set along one river, from its source in the hills to the estuary.",
+   "people": [
+    "Nell",
+    "The miller",
+    "Ruth Abbot"
+   ],
+   "places": [
+    "The source",
+    "Millbrook",
+    "Hatch Bridge",
+    "The estuary"
+   ],
+   "storylines": [
+    {
+     "name": "Upstream",
+     "color": "#6E8B5E"
+    },
+    {
+     "name": "Downstream",
+     "color": "#5C7FA3"
+    }
+   ],
+   "startedDaysAgo": 420,
+   "lastWrittenDaysAgo": 21,
+   "diligence": 0.3
+  },
+  {
+   "name": "The Orchard Year",
+   "genre": "Memoir",
+   "words": 22000,
+   "chapters": 12,
+   "summary": "Twelve months on my grandmother’s apple farm, the year before it was sold.",
+   "people": [
+    "Gran",
+    "Uncle Pete"
+   ],
+   "places": [
+    "The orchard",
+    "The cider barn"
+   ],
+   "storylines": [
+    {
+     "name": "The seasons",
+     "color": "#B07A3B"
+    }
+   ],
+   "startedDaysAgo": 360,
+   "lastWrittenDaysAgo": 64,
+   "diligence": 0.35
+  },
+  {
+   "name": "Glasswing",
+   "genre": "Fantasy",
+   "words": 8400,
+   "chapters": 6,
+   "summary": "A glassblower’s apprentice finds that what she makes remembers who held it.",
+   "people": [
+    "Ilse",
+    "Master Brann"
+   ],
+   "places": [
+    "The furnace hall"
+   ],
+   "storylines": [
+    {
+     "name": "Ilse",
+     "color": "#A0596B"
+    },
+    {
+     "name": "The guild",
+     "color": "#5F7D74"
+    }
+   ],
+   "startedDaysAgo": 12,
+   "lastWrittenDaysAgo": 1,
+   "diligence": 0.8
+  }
+ ],
+ "zh-CN": [
+  {
+   "name": "北岬灯塔",
+   "genre": "悬疑",
+   "words": 86000,
+   "chapters": 30,
+   "summary": "新来的守灯人发现，灯塔日志里有一页记着一艘从没靠过岸的船。",
+   "people": [
+    "守灯人老周",
+    "阿岚",
+    "邮差",
+    "船长遗孀"
+   ],
+   "places": [
+    "北岬灯塔",
+    "小码头",
+    "礁石滩"
+   ],
+   "storylines": [
+    {
+     "name": "守灯人",
+     "color": "#5C7FA3"
+    },
+    {
+     "name": "无名船",
+     "color": "#7A6A96"
+    },
+    {
+     "name": "岛上的人",
+     "color": "#6E8B5E"
+    }
+   ],
+   "startedDaysAgo": 330,
+   "lastWrittenDaysAgo": 3,
+   "diligence": 0.5
+  },
+  {
+   "name": "盐与星",
+   "genre": "科幻",
+   "words": 61000,
+   "chapters": 24,
+   "summary": "海平面上升后的第一百年，盐田上的女孩收到了一段来自旧卫星的广播。",
+   "people": [
+    "阿盐",
+    "老主教",
+    "朱诺"
+   ],
+   "places": [
+    "七号盐田",
+    "浅滩",
+    "沉没的站"
+   ],
+   "storylines": [
+    {
+     "name": "阿盐",
+     "color": "#5C7FA3"
+    },
+    {
+     "name": "信号",
+     "color": "#7A6A96"
+    },
+    {
+     "name": "盐田",
+     "color": "#B07A3B"
+    }
+   ],
+   "startedDaysAgo": 280,
+   "lastWrittenDaysAgo": 6,
+   "diligence": 0.42
+  },
+  {
+   "name": "夜车",
+   "genre": "推理",
+   "words": 71000,
+   "chapters": 28,
+   "summary": "一节卧铺车厢，九个乘客，列车员坚称第十张铺位出发时是空的。",
+   "people": [
+    "何警官",
+    "白小姐",
+    "列车员",
+    "彭医生",
+    "沈太太",
+    "萨先生"
+   ],
+   "places": [
+    "四号卧铺车厢",
+    "终点站",
+    "餐车"
+   ],
+   "storylines": [
+    {
+     "name": "何警官",
+     "color": "#9B4D5A"
+    },
+    {
+     "name": "乘客",
+     "color": "#5F7D74"
+    },
+    {
+     "name": "第十张铺位",
+     "color": "#7A6A96"
+    },
+    {
+     "name": "终点站",
+     "color": "#B07A3B"
+    }
+   ],
+   "startedDaysAgo": 310,
+   "lastWrittenDaysAgo": 12,
+   "diligence": 0.38
+  },
+  {
+   "name": "小河地图",
+   "genre": "短篇集",
+   "words": 38000,
+   "chapters": 14,
+   "summary": "十四个短篇，沿着同一条河，从山里的源头写到入海口。",
+   "people": [
+    "阿宁",
+    "磨坊主",
+    "茹老师"
+   ],
+   "places": [
+    "源头",
+    "磨坊镇",
+    "闸桥",
+    "入海口"
+   ],
+   "storylines": [
+    {
+     "name": "上游",
+     "color": "#6E8B5E"
+    },
+    {
+     "name": "下游",
+     "color": "#5C7FA3"
+    }
+   ],
+   "startedDaysAgo": 400,
+   "lastWrittenDaysAgo": 24,
+   "diligence": 0.3
+  },
+  {
+   "name": "果园那一年",
+   "genre": "散文",
+   "words": 22000,
+   "chapters": 12,
+   "summary": "外婆的果园卖掉之前的最后一年，按月份写下来。",
+   "people": [
+    "外婆",
+    "舅舅"
+   ],
+   "places": [
+    "果园",
+    "酒窖"
+   ],
+   "storylines": [
+    {
+     "name": "四季",
+     "color": "#B07A3B"
+    }
+   ],
+   "startedDaysAgo": 365,
+   "lastWrittenDaysAgo": 70,
+   "diligence": 0.35
+  },
+  {
+   "name": "玻璃翅",
+   "genre": "奇幻",
+   "words": 8400,
+   "chapters": 6,
+   "summary": "吹玻璃的学徒发现，她做出来的东西记得握过它的每一只手。",
+   "people": [
+    "伊尔",
+    "布兰师傅"
+   ],
+   "places": [
+    "熔炉大厅"
+   ],
+   "storylines": [
+    {
+     "name": "伊尔",
+     "color": "#A0596B"
+    },
+    {
+     "name": "行会",
+     "color": "#5F7D74"
+    }
+   ],
+   "startedDaysAgo": 12,
+   "lastWrittenDaysAgo": 1,
+   "diligence": 0.8
+  }
+ ]
+}

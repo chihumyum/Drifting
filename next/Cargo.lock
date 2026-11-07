@@ -1353,6 +1353,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "dr-cli"
+version = "0.0.0"
+dependencies = [
+ "dr-doc",
+ "dr-model",
+ "dr-store",
+ "dr-testkit",
+ "loro",
+ "rusqlite",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "dr-doc"
 version = "0.0.0"
 dependencies = [
@@ -1437,6 +1451,20 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.21",
  "zip",
+]
+
+[[package]]
+name = "dr-testkit"
+version = "0.0.0"
+dependencies = [
+ "dr-doc",
+ "dr-model",
+ "dr-store",
+ "loro",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
 ]
 
 [[package]]
@@ -8251,6 +8279,19 @@ name = "xmlwriter"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec7a2a501ed189703dba8b08142f057e887dfc4b2cc4db2d343ac6376ba3e0b9"
+
+[[package]]
+name = "xtask"
+version = "0.0.0"
+dependencies = [
+ "dirs",
+ "dr-platform",
+ "dr-testkit",
+ "regex",
+ "serde_json",
+ "sha2",
+ "tempfile",
+]
 
 [[package]]
 name = "xxhash-rust"

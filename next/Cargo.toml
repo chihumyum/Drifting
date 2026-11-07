@@ -6,17 +6,20 @@ resolver = "3"
 # One member per line, kept sorted, so parallel branches merge cleanly.
 members = [
     "app/drifting",
+    "crates/dr-cli",
     "crates/dr-doc",
     "crates/dr-import-v1",
     "crates/dr-model",
     "crates/dr-platform",
     "crates/dr-store",
+    "crates/dr-testkit",
     "crates/dr-ui",
     "crates/gpui-prose",
     "spikes/import-v1",
     "spikes/loro-model",
     "spikes/prose-spike",
     "spikes/visual",
+    "xtask",
 ]
 
 [workspace.package]
@@ -51,6 +54,10 @@ dr-doc = { path = "crates/dr-doc" }
 dr-model = { path = "crates/dr-model" }
 # F2 storage, for the 0.1 library import (M10, dr-import-v1).
 dr-store = { path = "crates/dr-store" }
+# F8 test kit: the seed, sample books, evidence, crash harness, benchmarks.
+dr-testkit = { path = "crates/dr-testkit" }
+# xtask's text gates (the version GPUI's dependencies already lock).
+regex = "1.13"
 # uuidv7 for new domain ids (the old data uses uuidv7 too); v4 for F7's
 # installation and crash ids. The version the lockfile already carries for GPUI.
 uuid = { version = "1.29", default-features = false, features = ["std", "v4", "v7"] }

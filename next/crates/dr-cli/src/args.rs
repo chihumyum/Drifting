@@ -1,0 +1,122 @@
+//! The command line's shape. Hand-parsed: four subcommands and a handful of
+//! flags do not need a parser dependency yet.
+
+use std::path::PathBuf;
+
+pub const USAGE: &str = "usage: cargo drifting workspace <subcommand>
+
+  describe [--json]                         the command registry (F3)
+  call <command> --library DIR [--input JSON] [--yes]
+                                            run one command offline (F3)
+  inspect --library DIR [--doc ID] [--json] read a library without changing it
+  scenario <name> --library DIR [--yes]     run a scripted scenario offline
+                                            (built in: seed:tiny, seed:lite,
+                                            seed:heavy, seed:showcase)
+
+Writing commands (call, scenario) need the app closed, back the library up
+first and only run with --yes; without it they print what they would do.";
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Command {
+    Describe {
+        json: bool,
+    },
+    Call {
+        library: PathBuf,
+        command: String,
+        input: Option<String>,
+        yes: bool,
+    },
+    Inspect {
+        library: PathBuf,
+        doc: Option<String>,
+        json: bool,
+    },
+    Scenario {
+        library: PathBuf,
+        name: String,
+        yes: bool,
+    },
+    Help,
+}
+
+struct Flags {
+    library: Option<PathBuf>,
+    input: Option<String>,
+    doc: Option<String>,
+    json: bool,
+    yes: bool,
+    positional: Vec<String>,
+}
+
+fn flags(args: &[String]) -> Result<Flags, String> {
+    let mut f = Flags {
+        library: None,
+        input: None,
+        doc: None,
+        json: false,
+        yes: false,
+        positional: Vec::new(),
+    };
+    let mut it = args.iter();
+    while let Some(a) = it.next() {
+        let mut value = |name: &str| {
+            it.next()
+                .cloned()
+                .ok_or_else(|| format!("{name} needs a value"))
+        };
+        match a.as_str() {
+            "--library" => f.library = Some(PathBuf::from(value("--library")?)),
+            "--input" => f.input = Some(value("--input")?),
+            "--doc" => f.doc = Some(value("--doc")?),
+            "--json" => f.json = true,
+            "--yes" => f.yes = true,
+            s if s.starts_with('-') => return Err(format!("unknown option {s}")),
+            s => f.positional.push(s.to_string()),
+        }
+    }
+    Ok(f)
+}
+
+pub fn parse(args: &[String]) -> Result<Command, String> {
+    match args.first().map(String::as_str) {
+        None | Some("help" | "--help" | "-h") => return Ok(Command::Help),
+        Some("workspace") => {}
+        Some(other) => return Err(format!("unknown command {other}")),
+    }
+    let sub = args.get(1).map(String::as_str);
+    let f = flags(args.get(2..).unwrap_or_default())?;
+    let library = || {
+        f.library
+            .clone()
+            .ok_or("--library DIR is required".to_string())
+    };
+    let one = |what: &str| -> Result<String, String> {
+        match f.positional.as_slice() {
+            [x] => Ok(x.clone()),
+            [] => Err(format!("{what} is required")),
+            _ => Err(format!("one {what} only")),
+        }
+    };
+    Ok(match sub {
+        Some("describe") => Command::Describe { json: f.json },
+        Some("call") => Command::Call {
+            library: library()?,
+            command: one("a command name")?,
+            input: f.input.clone(),
+            yes: f.yes,
+        },
+        Some("inspect") => Command::Inspect {
+            library: library()?,
+            doc: f.doc.clone(),
+            json: f.json,
+        },
+        Some("scenario") => Command::Scenario {
+            library: library()?,
+            name: one("a scenario name")?,
+            yes: f.yes,
+        },
+        None | Some("help" | "--help") => Command::Help,
+        Some(other) => return Err(format!("unknown subcommand workspace {other}")),
+    })
+}

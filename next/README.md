@@ -70,9 +70,56 @@ script/measure-startup-mac --runs 5
 cargo fmt --all --check
 cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked
+cargo xtask check
 ```
 
-CI 是 [`.github/workflows/next.yml`](../.github/workflows/next.yml)：只在 `next/` 或它自己变化时跑，macOS 和 Windows 各一条，跑上面三项和 `cargo build`，macOS 上再打一次 dev 包。
+`cargo xtask check` 是新工作区的门禁，一条命令跑完 9 道：
+
+- 隐私与凭据、大文件；
+- 退役产品、术语（构想 / Ideas；H1/H2/H3 只叫 H1/H2/H3）；
+- 已发布迁移的哈希；
+- 许可证、依赖方向；
+- 测量证据；
+- `cargo audit`。
+
+`--list` 列出全部，`--only` / `--skip` 挑着跑（离线时 `--skip audit`）。漏洞审计要先装 `cargo install cargo-audit --version 0.22.2 --locked`。每一道查什么，见 [F8](../docs/rust-rewrite/foundations/f8-testkit.md#门禁cargo-xtask-check)。
+
+CI 是 [`.github/workflows/next.yml`](../.github/workflows/next.yml)：
+
+- **什么时候跑**：`next/`、`docs/rust-rewrite/`、`next/` 还在引用的旧目录资源，或这个工作流本身变化时；
+- **两个平台**：macOS 和 Windows 各一条，跑上面前三项和 `cargo build`；
+- **macOS 上再加**：`cargo xtask check`、仓库的公开边界检查，再打一次 dev 包。
+
+## 测试数据、证据、基准
+
+都在 `crates/dr-testkit`，做法见 [F8](../docs/rust-rewrite/foundations/f8-testkit.md)：
+
+- **种子**：只用 `dr_testkit::seed`，预设 tiny / lite / heavy / showcase。样书在 `dr_testkit::samples`。不要另写随机语料。
+- **证据**：契约类在测试里断言，不提交 JSON。测量类只在里程碑提交：
+
+  ```bash
+  cargo run --release -p dr-testkit --bin bench -- <套件> --milestone <里程碑>
+  ```
+
+  源码变了只报「过期」：
+
+  ```bash
+  cargo xtask evidence --check
+  ```
+
+- **崩溃试验**：`dr_testkit::crash`，示范在 `crates/dr-testkit/tests/crash_store.rs`。
+
+## 开发实例与命令行
+
+```bash
+cargo xtask dev                                   # 按 worktree 设 DRIFTING_PROFILE 再启动
+cargo xtask dev --instance two --print-config     # 同一 checkout 的第二个实例；只打印配置
+cargo drifting workspace inspect --library <目录>  # 只读查看一个库
+cargo drifting workspace scenario seed:lite --library <目录> --yes
+```
+
+- **隔离**：在 linked worktree 里，每个 checkout 的开发版有自己的数据、日志、钥匙串服务和单实例锁。
+- **离线改库**：要应用关着、先备份、加 `--yes`。
 
 ## 工作区约定
 
@@ -100,8 +147,12 @@ CI 是 [`.github/workflows/next.yml`](../.github/workflows/next.yml)：只在 `n
 next/
   Cargo.toml            虚拟工作区：成员、钉住的依赖、补丁
   rust-toolchain.toml   工具链
+  .cargo/config.toml    别名：cargo xtask、cargo drifting
   app/drifting/         可执行程序：窗口、标题栏、菜单、外观、开发探针
+  crates/dr-cli/        F8：开发命令行（cargo drifting workspace …）
   crates/dr-platform/   F7：身份与目录、日志、崩溃上报、钥匙串、深链接与单实例、自动更新
+  crates/dr-testkit/    F8：种子、样书、测量证据、崩溃试验台、基准
+  xtask/                F8：门禁（cargo xtask check）和开发启动器（cargo xtask dev）
   script/bundle-mac     打 .app，可选 .dmg 和更新包
   script/bundle-windows.ps1, script/windows/drifting.nsi
                         Windows 安装包
