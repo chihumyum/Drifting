@@ -19,7 +19,9 @@ members = [
     "crates/dr-testkit",
     "crates/dr-text",
     "crates/dr-ui",
+    "crates/dr-view-home",
     "crates/dr-view-search",
+    "crates/dr-view-shelf",
     "crates/dr-view-stats",
     "crates/dr-workspace",
     "crates/gpui-ime",
@@ -202,6 +204,12 @@ futures = "0.3"
 icu_plurals = { version = "2.4", default-features = false, features = ["compiled_data"] }
 icu_locale_core = { version = "2.4", default-features = false }
 sys-locale = "0.3"
+# Stage 2 views: the bookshelf (M01) and Project Home (M02), docs/rust-rewrite/
+# modules/m01-shelf.md and m02-home.md. chrono gives the local calendar day
+# (the writing day) and is the version the lockfile already carries.
+dr-view-home = { path = "crates/dr-view-home" }
+dr-view-shelf = { path = "crates/dr-view-shelf" }
+chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
 # dr-shell's capture example writes its screenshots as 256-colour PNGs
 # (the versions GPUI's image stack already builds).
 color_quant = "1.1"

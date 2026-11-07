@@ -1617,6 +1617,49 @@ dependencies = [
 ]
 
 [[package]]
+name = "dr-view-home"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "color_quant",
+ "dr-doc",
+ "dr-i18n",
+ "dr-model",
+ "dr-shell",
+ "dr-store",
+ "dr-testkit",
+ "dr-ui",
+ "dr-view-shelf",
+ "dr-workspace",
+ "futures",
+ "gpui",
+ "gpui_platform",
+ "log",
+ "png 0.18.1",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
+name = "dr-view-shelf"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "dr-i18n",
+ "dr-shell",
+ "dr-store",
+ "dr-testkit",
+ "dr-ui",
+ "dr-workspace",
+ "futures",
+ "gpui",
+ "log",
+ "tempfile",
+]
+
+[[package]]
 name = "dr-workspace"
 version = "0.0.0"
 dependencies = [
@@ -1645,6 +1688,8 @@ dependencies = [
  "dr-platform",
  "dr-shell",
  "dr-ui",
+ "dr-view-home",
+ "dr-view-shelf",
  "dr-workspace",
  "gpui",
  "gpui_platform",

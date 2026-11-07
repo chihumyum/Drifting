@@ -8,15 +8,40 @@
     "todoLibrary": "审阅与素材"
   },
   "common": {
+    "cancel": "取消",
     "close": "关闭",
-    "local": "本地"
+    "counting": "统计中…",
+    "creating": "创建中…",
+    "edit": "编辑",
+    "local": "本地",
+    "save": "保存",
+    "saveFailed": "保存未完成，请重试。",
+    "saving": "保存中…",
+    "untitled": "未命名"
   },
   "dashboard": {
+    "actions": {
+      "allChapters": "通览全书",
+      "elementOverview": "要素总览",
+      "storyGraph": "叙事图"
+    },
+    "hero": {
+      "projectName": "项目名称"
+    },
+    "plan": {
+      "wordsPerDay": "字 / 天"
+    },
+    "profilePlaceholder": "写下项目简介、核心命题或故事梗概",
+    "sections": {
+      "projectProfile": "本书简介",
+      "writingPlan": "写作计划"
+    },
     "today": {
       "goal": "目标",
       "streak": "连续写作",
       "week": "本周"
-    }
+    },
+    "wordCount": "{{count}} 字"
   },
   "editorOutline": {
     "aria": "大纲",
@@ -127,6 +152,15 @@
     "title": "通知"
   },
   "projectHome": {
+    "book": {
+      "noStorylines": "还没有故事线。",
+      "storylineCount": "{{done}} / {{total}} 章",
+      "title": "全书"
+    },
+    "continue": {
+      "empty": "还没有章节。",
+      "title": "继续写"
+    },
     "create": {
       "kinds": {
         "category": "类目",
@@ -137,17 +171,79 @@
         "storyline": "故事线"
       }
     },
-    "kicker": "作品主页"
+    "kicker": "作品主页",
+    "readout": "{{chapters}} 章 · {{storylines}} 条故事线 · {{elements}} 个要素",
+    "settings": {
+      "dailyGoal": "每日目标",
+      "projectTarget": "全书目标"
+    },
+    "since": "作品主页 · {{date}}起",
+    "today": "今日 {{today}} / {{goal}} · 连续 {{streak}} 天",
+    "todayNoGoal": "今日 {{today}} · 连续 {{streak}} 天",
+    "views": {
+      "overview": "概览",
+      "settings": "设定"
+    },
+    "words": "{{words}} 字",
+    "wordsOfTarget": "{{words}} / {{target}} 字"
   },
   "projectPicker": {
     "desk": {
+      "chaptersUnit": "章",
+      "elementsUnit": "个要素",
       "form": {
+        "createTitle": "新建一本书",
+        "editTitle": "编辑《{{name}}》",
+        "nameLabel": "书名",
         "summaryLabel": "梗概"
-      }
+      },
+      "goal": "{{pct}}% · 目标 {{target}} 字",
+      "moveToTrash": "移到最近删除",
+      "newCard": "新建一本",
+      "newCardSub": "从一张白纸开始",
+      "open": "打开《{{name}}》",
+      "progress": "进度",
+      "storylinesUnit": "条故事线",
+      "trashEntry": "最近删除",
+      "trashList": {
+        "empty": "最近没有删除的作品。",
+        "title": "最近删除"
+      },
+      "trashTitle": "把《{{name}}》移到最近删除？",
+      "untitled": "未命名",
+      "wordsUnit": "字"
+    },
+    "form": {
+      "createSubmit": "新建",
+      "namePlaceholder": "例：北岬灯塔",
+      "summaryPlaceholder": "一两句话说明这本书是什么。"
+    },
+    "header": {
+      "titleEm": "书架"
     },
     "heat": {
       "daysUnit": "天",
       "today": "今天"
+    },
+    "rail": {
+      "books": "{{count}} 本",
+      "import": "导入书",
+      "library": "{{count}} 本 · {{words}}字"
+    },
+    "status": {
+      "draft": "草稿",
+      "paused": "搁置",
+      "writing": "在写"
+    },
+    "trash": {
+      "body": "这本书（{{words}} 字 · {{nodes}} 章 · {{elements}} 个要素）会从书架移走。30 天内可以在「最近删除」里恢复，之后永久删除。",
+      "confirm": "移到最近删除",
+      "failed": "移动未完成，请重试。",
+      "localNote": "内容和可读 Markdown 副本都保留到永久删除时。",
+      "moving": "正在移动…",
+      "restore": "恢复",
+      "restoreFailed": "恢复未完成，请重试。",
+      "restoring": "正在恢复…"
     }
   },
   "referencesPanel": {
@@ -331,6 +427,21 @@
       "library_item": "未命名素材",
       "storyline": "未命名故事线"
     }
+  },
+  "userMenu": {
+    "import": "导入",
+    "importBook": "导入书（.driftingbook）",
+    "language": "语言",
+    "localMenu": "本地书库菜单",
+    "localStatus": "本地 · 本机存储",
+    "settings": "设定",
+    "theme": "主题",
+    "themeDark": "深色",
+    "themeDarkShort": "暗",
+    "themeLight": "浅色",
+    "themeLightShort": "明",
+    "themeSystem": "跟随系统",
+    "themeSystemShort": "系统"
   },
   "windowCaption": {
     "close": "关闭",

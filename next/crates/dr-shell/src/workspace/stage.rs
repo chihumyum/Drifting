@@ -323,6 +323,10 @@ fn paper(
 }
 
 fn home(ws: &Entity<Workspace>, window: &mut Window, cx: &mut App) -> AnyElement {
+    // Project Home (M02, dr-view-home) when the app registered it.
+    if let Some(view) = crate::pages::home_of(ws, window, cx) {
+        return view.into_any_element();
+    }
     let theme = Theme::of(window, cx);
     let p = theme.palette;
     let s = theme.scale;

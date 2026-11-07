@@ -8,15 +8,40 @@
     "todoLibrary": "Aufgaben und Materialsammlung"
   },
   "common": {
+    "cancel": "Abbrechen",
     "close": "Schließen",
-    "local": "Lokal"
+    "counting": "Wird gezählt…",
+    "creating": "Wird erstellt…",
+    "edit": "Bearbeiten",
+    "local": "Lokal",
+    "save": "Speichern",
+    "saveFailed": "Änderungen konnten nicht gespeichert werden. Bitte erneut versuchen.",
+    "saving": "Wird gespeichert…",
+    "untitled": "Unbenannt"
   },
   "dashboard": {
+    "actions": {
+      "allChapters": "Alle Kapitel",
+      "elementOverview": "Elementübersicht",
+      "storyGraph": "Geschichtsgraph"
+    },
+    "hero": {
+      "projectName": "Projektname"
+    },
+    "plan": {
+      "wordsPerDay": "Wörter / Tag"
+    },
+    "profilePlaceholder": "Prämisse, These oder Inhaltsangabe schreiben",
+    "sections": {
+      "projectProfile": "Projektprofil",
+      "writingPlan": "Schreibplan"
+    },
     "today": {
       "goal": "Ziel",
       "streak": "Serie",
       "week": "Diese Woche"
-    }
+    },
+    "wordCount": "{{count}} Wörter"
   },
   "editorOutline": {
     "aria": "Gliederung",
@@ -127,6 +152,15 @@
     "title": "Benachrichtigungen"
   },
   "projectHome": {
+    "book": {
+      "noStorylines": "Noch keine Handlungsstränge.",
+      "storylineCount": "{{done}} / {{total}} Kapitel",
+      "title": "Das Buch"
+    },
+    "continue": {
+      "empty": "Noch keine Kapitel.",
+      "title": "Weiter"
+    },
     "create": {
       "kinds": {
         "category": "Kategorie",
@@ -137,17 +171,84 @@
         "storyline": "Handlungsstrang"
       }
     },
-    "kicker": "Projektstartseite"
+    "kicker": "Projektstartseite",
+    "readout": "{{chapters}} Kapitel · {{storylines}} Handlungsstränge · {{elements}} Elemente",
+    "settings": {
+      "dailyGoal": "Tagesziel",
+      "projectTarget": "Buchziel"
+    },
+    "since": "Projektstartseite · seit {{date}}",
+    "today": "Heute {{today}} / {{goal}} · {{streak}} Tage in Folge",
+    "todayNoGoal": "Heute {{today}} · {{streak}} Tage in Folge",
+    "views": {
+      "overview": "Übersicht",
+      "settings": "Einstellungen"
+    },
+    "words": "{{words}} Wörter",
+    "wordsOfTarget": "{{words}} / {{target}} Wörter"
   },
   "projectPicker": {
     "desk": {
+      "chaptersUnit_one": "Kapitel",
+      "chaptersUnit_other": "Kapitel",
+      "elementsUnit_one": "Element",
+      "elementsUnit_other": "Elemente",
       "form": {
+        "createTitle": "Neues Buch",
+        "editTitle": "„{{name}}“ bearbeiten",
+        "nameLabel": "Titel",
         "summaryLabel": "Zusammenfassung"
-      }
+      },
+      "goal": "{{pct}}% · Ziel {{target}} Wörter",
+      "moveToTrash": "Zu kürzlich Gelöscht verschieben",
+      "newCard": "Neues Buch",
+      "newCardSub": "Beginne mit einer leeren Seite",
+      "open": "„{{name}}“ öffnen",
+      "progress": "Fortschritt",
+      "storylinesUnit_one": "Handlungsstrang",
+      "storylinesUnit_other": "Handlungsstränge",
+      "trashEntry": "Kürzlich gelöscht",
+      "trashList": {
+        "empty": "Keine kürzlich gelöschten Bücher.",
+        "title": "Kürzlich gelöscht"
+      },
+      "trashTitle": "„{{name}}“ nach kürzlich Gelöscht verschieben?",
+      "untitled": "Unbenannt",
+      "wordsUnit": "Wörter"
+    },
+    "form": {
+      "createSubmit": "Erstellen",
+      "namePlaceholder": "z. B. Das Licht am Nordkap",
+      "summaryPlaceholder": "Beschreibe das Buch in ein oder zwei Sätzen."
+    },
+    "header": {
+      "titleEm": "Bücherregal"
     },
     "heat": {
       "daysUnit": "Tage",
       "today": "Heute"
+    },
+    "rail": {
+      "books_one": "{{count}} Buch",
+      "books_other": "{{count}} Bücher",
+      "import": "Buch importieren",
+      "library_one": "{{count}} Buch · {{words}} Wörter",
+      "library_other": "{{count}} Bücher · {{words}} Wörter"
+    },
+    "status": {
+      "draft": "Entwurf",
+      "paused": "Pausiert",
+      "writing": "In Arbeit"
+    },
+    "trash": {
+      "body": "Dieses Buch ({{words}} Wörter · {{nodes}} Kapitel · {{elements}} Elemente) verlässt das Regal. Es kann 30 Tage lang unter kürzlich Gelöscht wiederhergestellt werden; danach wird es endgültig gelöscht.",
+      "confirm": "Zu kürzlich Gelöscht verschieben",
+      "failed": "Projekt konnte nicht verschoben werden. Bitte erneut versuchen.",
+      "localNote": "Inhalt und lesbare Markdown-Kopie bleiben bis zur endgültigen Löschung erhalten.",
+      "moving": "Wird verschoben…",
+      "restore": "Wiederherstellen",
+      "restoreFailed": "Projekt konnte nicht wiederhergestellt werden. Bitte erneut versuchen.",
+      "restoring": "Wird wiederhergestellt…"
     }
   },
   "referencesPanel": {
@@ -331,6 +432,21 @@
       "library_item": "Unbenanntes Material",
       "storyline": "Unbenannter Handlungsstrang"
     }
+  },
+  "userMenu": {
+    "import": "Importieren",
+    "importBook": "Buch importieren (.driftingbook)",
+    "language": "Sprache",
+    "localMenu": "Menü der lokalen Bibliothek",
+    "localStatus": "LOKAL · AUF DIESEM GERÄT",
+    "settings": "Einstellungen",
+    "theme": "Design",
+    "themeDark": "Dunkel",
+    "themeDarkShort": "Dunkel",
+    "themeLight": "Hell",
+    "themeLightShort": "Hell",
+    "themeSystem": "Systemeinstellung",
+    "themeSystemShort": "System"
   },
   "windowCaption": {
     "close": "Schließen",

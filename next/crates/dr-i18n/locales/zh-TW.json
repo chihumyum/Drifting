@@ -8,15 +8,40 @@
     "todoLibrary": "審閱與素材"
   },
   "common": {
+    "cancel": "取消",
     "close": "關閉",
-    "local": "本機"
+    "counting": "計算中…",
+    "creating": "正在建立…",
+    "edit": "編輯",
+    "local": "本機",
+    "save": "儲存",
+    "saveFailed": "無法儲存變更，請重試。",
+    "saving": "正在儲存…",
+    "untitled": "未命名"
   },
   "dashboard": {
+    "actions": {
+      "allChapters": "全部章節",
+      "elementOverview": "要素總覽",
+      "storyGraph": "故事圖譜"
+    },
+    "hero": {
+      "projectName": "作品名稱"
+    },
+    "plan": {
+      "wordsPerDay": "字／天"
+    },
+    "profilePlaceholder": "寫下作品前提、主旨或故事梗概",
+    "sections": {
+      "projectProfile": "作品簡介",
+      "writingPlan": "寫作計畫"
+    },
     "today": {
       "goal": "目標",
       "streak": "連續寫作",
       "week": "本週"
-    }
+    },
+    "wordCount": "{{count}} 字"
   },
   "editorOutline": {
     "aria": "大綱",
@@ -127,6 +152,15 @@
     "title": "通知"
   },
   "projectHome": {
+    "book": {
+      "noStorylines": "尚無故事線。",
+      "storylineCount": "{{done}}／{{total}} 章",
+      "title": "本書"
+    },
+    "continue": {
+      "empty": "尚無章節。",
+      "title": "繼續"
+    },
     "create": {
       "kinds": {
         "category": "類目",
@@ -137,17 +171,84 @@
         "storyline": "故事線"
       }
     },
-    "kicker": "作品首頁"
+    "kicker": "作品首頁",
+    "readout": "{{chapters}} 章 · {{storylines}} 條故事線 · {{elements}} 個要素",
+    "settings": {
+      "dailyGoal": "每日目標",
+      "projectTarget": "全書目標"
+    },
+    "since": "作品首頁 · 自 {{date}} 起",
+    "today": "今日 {{today}}／{{goal}} · 連續 {{streak}} 天",
+    "todayNoGoal": "今日 {{today}} · 連續 {{streak}} 天",
+    "views": {
+      "overview": "總覽",
+      "settings": "設定"
+    },
+    "words": "{{words}} 字",
+    "wordsOfTarget": "{{words}}／{{target}} 字"
   },
   "projectPicker": {
     "desk": {
+      "chaptersUnit_one": "章",
+      "chaptersUnit_other": "章",
+      "elementsUnit_one": "個要素",
+      "elementsUnit_other": "個要素",
       "form": {
+        "createTitle": "新作品",
+        "editTitle": "編輯「{{name}}」",
+        "nameLabel": "標題",
         "summaryLabel": "摘要"
-      }
+      },
+      "goal": "{{pct}}% · 目標 {{target}} 字",
+      "moveToTrash": "移至最近刪除",
+      "newCard": "新作品",
+      "newCardSub": "從空白頁開始",
+      "open": "開啟「{{name}}」",
+      "progress": "進度",
+      "storylinesUnit_one": "條故事線",
+      "storylinesUnit_other": "條故事線",
+      "trashEntry": "最近刪除",
+      "trashList": {
+        "empty": "沒有最近刪除的作品。",
+        "title": "最近刪除"
+      },
+      "trashTitle": "將「{{name}}」移至最近刪除？",
+      "untitled": "未命名",
+      "wordsUnit": "字"
+    },
+    "form": {
+      "createSubmit": "建立",
+      "namePlaceholder": "例如：北岬燈塔",
+      "summaryPlaceholder": "用一兩句話描述這部作品。"
+    },
+    "header": {
+      "titleEm": "書架"
     },
     "heat": {
       "daysUnit": "天",
       "today": "今天"
+    },
+    "rail": {
+      "books_one": "{{count}} 部作品",
+      "books_other": "{{count}} 部作品",
+      "import": "匯入作品",
+      "library_one": "{{count}} 部作品 · {{words}} 字",
+      "library_other": "{{count}} 部作品 · {{words}} 字"
+    },
+    "status": {
+      "draft": "草稿",
+      "paused": "已暫停",
+      "writing": "寫作中"
+    },
+    "trash": {
+      "body": "此作品（{{words}} 字 · {{nodes}} 章 · {{elements}} 個要素）將離開書架。30 天內可從「最近刪除」還原，之後會永久刪除。",
+      "confirm": "移至最近刪除",
+      "failed": "無法移動作品，請重試。",
+      "localNote": "永久刪除前，內容與可讀 Markdown 副本都會保留。",
+      "moving": "正在移動…",
+      "restore": "還原",
+      "restoreFailed": "無法還原作品，請重試。",
+      "restoring": "正在還原…"
     }
   },
   "referencesPanel": {
@@ -331,6 +432,21 @@
       "library_item": "未命名素材",
       "storyline": "未命名故事線"
     }
+  },
+  "userMenu": {
+    "import": "匯入",
+    "importBook": "匯入作品（.driftingbook）",
+    "language": "語言",
+    "localMenu": "本機資料庫選單",
+    "localStatus": "本機 · 存於此裝置",
+    "settings": "設定",
+    "theme": "主題",
+    "themeDark": "深色",
+    "themeDarkShort": "深色",
+    "themeLight": "淺色",
+    "themeLightShort": "淺色",
+    "themeSystem": "跟隨系統",
+    "themeSystemShort": "系統"
   },
   "windowCaption": {
     "close": "關閉",
