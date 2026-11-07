@@ -7,6 +7,33 @@
     "storyGraph": "Geschichtsgraph",
     "todoLibrary": "Aufgaben und Materialsammlung"
   },
+  "categoryEditor": {
+    "actions": {
+      "openElement": "Element öffnen"
+    },
+    "empty": {
+      "noFilteredElements": "Keine Elemente für diesen Filter",
+      "noSummary": "Noch keine Zusammenfassung"
+    },
+    "filters": {
+      "unused": "Leer",
+      "used": "Ausgefüllt"
+    },
+    "folio": "Kategorie",
+    "labels": {
+      "elementCount": "Elemente",
+      "summary": "Zusammenfassung"
+    },
+    "meta": {
+      "elements": "{{count}} Elemente",
+      "items": "{{count}} Einträge"
+    },
+    "sections": {
+      "elements": "Elementliste",
+      "scratch": "Notizen"
+    },
+    "untitled": "Unbenannte Kategorie"
+  },
   "commentRail": {
     "actions": {
       "reopen": "Erneut öffnen",
@@ -79,6 +106,27 @@
       "chapter": "Schreibstatus"
     }
   },
+  "elementEditor": {
+    "alerts": {
+      "aliasConflict": "Alias kann nicht hinzugefügt werden: „{{name}}“ wird bereits vom Element „{{conflicting}}“ verwendet.",
+      "renameConflict": "Umbenennen nicht möglich: „{{name}}“ wird bereits vom Element „{{conflicting}}“ als Name oder Alias verwendet."
+    },
+    "alias": {
+      "add": "Alias",
+      "addFirst": "Alias hinzufügen",
+      "remove": "Alias entfernen"
+    },
+    "empty": {
+      "noFacts": "Noch keine Felder. Beim Erstellen eines Elements füllt die Feldvorlage seiner Kategorie sie aus."
+    },
+    "folio": "Element",
+    "sections": {
+      "bioTitle": "Biografie",
+      "facts": "Fakten"
+    },
+    "summaryPlaceholder": "In einem Satz zusammenfassen…",
+    "untitled": "Unbenanntes Element"
+  },
   "feedback": {
     "attachDiagnostics": "Bereinigte Diagnosedaten anhängen",
     "cancel": "Abbrechen",
@@ -131,6 +179,12 @@
     "summary": {
       "done": "Fertig"
     }
+  },
+  "kvEditor": {
+    "addField": "Feld hinzufügen",
+    "keyPlaceholder": "Feld",
+    "removeRow": "Zeile entfernen",
+    "valuePlaceholder": "Inhalt"
   },
   "leftSidebar": {
     "empty": {
@@ -560,6 +614,14 @@
     "restoreSuccess": "Ausgewählte Version wiederhergestellt. Der vorherige Zustand wurde zuerst als neuer Schnappschuss gespeichert.",
     "restoring": "Wird wiederhergestellt…",
     "title": "Verlaufsschnappschüsse · 30 Tage"
+  },
+  "storylineEditor": {
+    "filters": {
+      "all": "Alle"
+    },
+    "labels": {
+      "color": "Farbe"
+    }
   },
   "topTimeline": {
     "closeTab": "Tab schließen",

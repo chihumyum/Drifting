@@ -1,0 +1,125 @@
+//! dr-view-elements: the element and category pages (module M11).
+//!
+//! An element's or a category's page is its text in the shell's editor;
+//! this crate draws what goes around the text (dr-editor's `PageChrome`,
+//! which scrolls with it), as the 0.1 client's `ElementEditorView` and
+//! `CategoryEditorView` laid it out:
+//!
+//! - **Element**: above the text the folio (要素 · its category), the name,
+//!   the aliases, the summary and the head of 「记 · 传」; under it 「字段」.
+//! - **Category**: above the text the folio (类目 · name · how many
+//!   elements), the name beside the big folded-corner mark, the count and
+//!   the colour, the head of 「札记」; under it 「要素清单」.
+//!
+//! What it shows comes from the shell's book snapshot; what it changes goes
+//! through F3 (`element.update`, `category.update`). Relations, patches,
+//! the templates, references and the Agent's field review are later
+//! milestones (docs/rust-rewrite/modules/m11-elements.md).
+//!
+//! The app registers it with [`init`]; the shell asks it for the chrome of
+//! each element and category page it opens (`dr_shell::pages`).
+
+pub mod category;
+pub mod data;
+pub mod element;
+pub mod fields;
+mod page;
+
+use std::collections::HashMap;
+use std::rc::Rc;
+
+use dr_editor::{PageChrome, PageInfo};
+use dr_shell::nav::Target;
+use gpui::{
+    AnyElement, AnyView, App, AppContext as _, Entity, Global, IntoElement as _, WeakEntity, Window,
+};
+
+pub use category::{CategoryEnd, CategoryHead, Filter};
+pub use element::ElementHead;
+pub use fields::Fields;
+
+/// The views a page shows around its text.
+pub struct Chrome {
+    pub head: AnyView,
+    pub end: AnyView,
+}
+
+impl PageChrome for Chrome {
+    fn head(&self, _: &PageInfo, _: &mut Window, _: &mut App) -> Option<AnyElement> {
+        Some(self.head.clone().into_any_element())
+    }
+
+    fn end(&self, _: &PageInfo, _: &mut Window, _: &mut App) -> Option<AnyElement> {
+        Some(self.end.clone().into_any_element())
+    }
+
+    fn head_estimate(&self, _: &PageInfo) -> f32 {
+        300.0
+    }
+
+    fn end_estimate(&self, _: &PageInfo) -> f32 {
+        200.0
+    }
+}
+
+/// The views each open element or category page shows, by id (the newest
+/// page of one wins), for tests and the debug bridge.
+#[derive(Default)]
+struct Views {
+    elements: HashMap<String, (WeakEntity<ElementHead>, WeakEntity<Fields>)>,
+    categories: HashMap<String, (WeakEntity<CategoryHead>, WeakEntity<CategoryEnd>)>,
+}
+
+impl Global for Views {}
+
+/// The head and fields of element `id`'s page, while it is open.
+pub fn element_page(id: &str, cx: &App) -> Option<(Entity<ElementHead>, Entity<Fields>)> {
+    let (head, end) = cx.try_global::<Views>()?.elements.get(id)?;
+    Some((head.upgrade()?, end.upgrade()?))
+}
+
+/// The head and element list of category `id`'s page, while it is open.
+pub fn category_page(id: &str, cx: &App) -> Option<(Entity<CategoryHead>, Entity<CategoryEnd>)> {
+    let (head, end) = cx.try_global::<Views>()?.categories.get(id)?;
+    Some((head.upgrade()?, end.upgrade()?))
+}
+
+/// Registers the element and category pages' chrome with the shell.
+pub fn init(cx: &mut App) {
+    dr_shell::pages::add_page_chrome(cx, |target, ws, window, cx| {
+        let chrome = match target {
+            Target::Element(id) => {
+                let id = id.to_string();
+                let head = {
+                    let (id, ws) = (id.clone(), ws.clone());
+                    cx.new(|cx| ElementHead::new(id, ws, window, cx))
+                };
+                let end = cx.new(|cx| Fields::new(id.clone(), ws, cx));
+                cx.default_global::<Views>()
+                    .elements
+                    .insert(id, (head.downgrade(), end.downgrade()));
+                Chrome {
+                    head: head.into(),
+                    end: end.into(),
+                }
+            }
+            Target::Category(id) => {
+                let id = id.to_string();
+                let head = {
+                    let (id, ws) = (id.clone(), ws.clone());
+                    cx.new(|cx| CategoryHead::new(id, ws, window, cx))
+                };
+                let end = cx.new(|cx| CategoryEnd::new(id.clone(), ws, cx));
+                cx.default_global::<Views>()
+                    .categories
+                    .insert(id, (head.downgrade(), end.downgrade()));
+                Chrome {
+                    head: head.into(),
+                    end: end.into(),
+                }
+            }
+            _ => return None,
+        };
+        Some(Rc::new(chrome) as Rc<dyn PageChrome>)
+    });
+}

@@ -7,6 +7,33 @@
     "storyGraph": "Story graph",
     "todoLibrary": "TODO & Library"
   },
+  "categoryEditor": {
+    "actions": {
+      "openElement": "Open element"
+    },
+    "empty": {
+      "noFilteredElements": "No elements for this filter",
+      "noSummary": "No summary yet"
+    },
+    "filters": {
+      "unused": "Empty",
+      "used": "Filled"
+    },
+    "folio": "Category",
+    "labels": {
+      "elementCount": "Elements",
+      "summary": "Summary"
+    },
+    "meta": {
+      "elements": "{{count}} elements",
+      "items": "{{count}} items"
+    },
+    "sections": {
+      "elements": "Element list",
+      "scratch": "Scratch"
+    },
+    "untitled": "Untitled category"
+  },
   "commentRail": {
     "actions": {
       "reopen": "Reopen",
@@ -79,6 +106,27 @@
       "chapter": "Writing status"
     }
   },
+  "elementEditor": {
+    "alerts": {
+      "aliasConflict": "Cannot add alias: \"{{name}}\" is already used by element \"{{conflicting}}\".",
+      "renameConflict": "Cannot rename: \"{{name}}\" is already used by element \"{{conflicting}}\" as a name or alias."
+    },
+    "alias": {
+      "add": "Alias",
+      "addFirst": "Add alias",
+      "remove": "Remove alias"
+    },
+    "empty": {
+      "noFacts": "No fields yet. When an element is created, its category's Field template fills them in."
+    },
+    "folio": "Element",
+    "sections": {
+      "bioTitle": "Biography",
+      "facts": "Facts"
+    },
+    "summaryPlaceholder": "One-sentence summary…",
+    "untitled": "Untitled Element"
+  },
   "feedback": {
     "attachDiagnostics": "Attach sanitized diagnostics",
     "cancel": "Cancel",
@@ -131,6 +179,12 @@
     "summary": {
       "done": "Done"
     }
+  },
+  "kvEditor": {
+    "addField": "Add field",
+    "keyPlaceholder": "Field",
+    "removeRow": "Remove row",
+    "valuePlaceholder": "Content"
   },
   "leftSidebar": {
     "empty": {
@@ -560,6 +614,14 @@
     "restoreSuccess": "Restored to the selected version. The previous state was saved as a new snapshot first.",
     "restoring": "Restoring…",
     "title": "History snapshots · 30 days"
+  },
+  "storylineEditor": {
+    "filters": {
+      "all": "All"
+    },
+    "labels": {
+      "color": "Color"
+    }
   },
   "topTimeline": {
     "closeTab": "Close tab",

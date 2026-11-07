@@ -4,7 +4,7 @@
   "milestone": "m01-m02",
   "generatedBy": "cargo run --release -p dr-view-home --features capture --example shelf-home-capture -- --bench ../docs/rust-rewrite/acceptance",
   "inputs": {
-    "crates/dr-shell/src/pages.rs": "0ceee7d4eb9f6f675e2bab0a4ea30bac12719342a8389df5775edb058ebab1de",
+    "crates/dr-shell/src/pages.rs": "d92c196b1f87b3e735eb0e9e28349548f6a5b9d21c1d9b46034c827867c3e140",
     "crates/dr-testkit/fixtures/shelf.json": "d2677541b73be253a34454cfd1add8f9635445305728d58a615dc206fcf87ef2",
     "crates/dr-testkit/src/samples.rs": "d92b073fab71aafed3cf29f0a115def579ab2dd40e3da476356955f9017e874d",
     "crates/dr-testkit/src/seed": "a01def93a860c30e8b9ab3d7371b1766a53a14bf5c3e885821324d5c222caa6f",
@@ -23,41 +23,41 @@
     "os": "macos",
     "osVersion": "27.0.1",
     "arch": "aarch64",
-    "loadAverage1m": 75.53,
+    "loadAverage1m": 24.07,
     "profile": "release"
   },
   "results": {
-    "note": "Headless (GPUI test platform, Metal into a texture), 1280x800 at 2x, the showcase library (8 books) plus the heavy seed's book, read through F3. shelf_first: making the window until its first frame and until the cards drew (the shelf read off the main thread). open_book: from a card's click until the book's lists and Project Home's numbers arrived and a frame drew; the shelf has read every book's lists by then (as in the app), so 'first' means the first time the book's lists, chapter documents' numbers and Project Home are read for it, not a cold F3. Frames are the CPU time of window.draw. One-minute load average when it started: 86.5.",
+    "note": "Headless (GPUI test platform, Metal into a texture), 1280x800 at 2x, the showcase library (8 books) plus the heavy seed's book, read through F3. shelf_first: making the window until its first frame and until the cards drew (the shelf read off the main thread). open_book: from a card's click until the book's lists and Project Home's numbers arrived and a frame drew; the shelf has read every book's lists by then (as in the app), so 'first' means the first time the book's lists, chapter documents' numbers and Project Home are read for it, not a cold F3. Frames are the CPU time of window.draw. One-minute load average when it started: 25.3.",
     "shelf_first": {
-      "first_frame_ms": 610.49,
-      "cards_ms": 880.45,
-      "shelf_cards_ms": 236.9
+      "first_frame_ms": 44.26,
+      "cards_ms": 124.99,
+      "shelf_cards_ms": 51.54
     },
     "books_on_shelf": 9,
     "shelf_redraw_ms": {
       "n": 60,
-      "median": 9.89,
-      "max": 148.32
+      "median": 1.47,
+      "max": 2.71
     },
     "open_book_first_ms": {
-      "慢钟": 32.15,
-      "阿Q正传（示例）": 39.17,
-      "heavy": 186.77
+      "慢钟": 23.86,
+      "阿Q正传（示例）": 18.0,
+      "heavy": 34.5
     },
     "open_book_again_ms": {
       "n": 10,
-      "median": 11.24,
-      "max": 17.21
+      "median": 4.27,
+      "max": 9.3
     },
     "back_to_shelf_ms": {
       "n": 5,
-      "median": 14.19,
-      "max": 106.77
+      "median": 8.7,
+      "max": 12.98
     },
     "home_redraw_ms": {
       "n": 60,
-      "median": 0.94,
-      "max": 95.32
+      "median": 0.65,
+      "max": 1.56
     }
   }
 }

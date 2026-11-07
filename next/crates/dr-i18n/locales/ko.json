@@ -7,6 +7,33 @@
     "storyGraph": "이야기 그래프",
     "todoLibrary": "할 일 및 자료실"
   },
+  "categoryEditor": {
+    "actions": {
+      "openElement": "요소 열기"
+    },
+    "empty": {
+      "noFilteredElements": "이 필터에 해당하는 요소가 없습니다",
+      "noSummary": "아직 요약이 없습니다"
+    },
+    "filters": {
+      "unused": "비어 있음",
+      "used": "작성됨"
+    },
+    "folio": "분류",
+    "labels": {
+      "elementCount": "요소",
+      "summary": "요약"
+    },
+    "meta": {
+      "elements": "요소 {{count}}개",
+      "items": "항목 {{count}}개"
+    },
+    "sections": {
+      "elements": "요소 목록",
+      "scratch": "임시 메모"
+    },
+    "untitled": "이름 없는 분류"
+  },
   "commentRail": {
     "actions": {
       "reopen": "다시 열기",
@@ -79,6 +106,27 @@
       "chapter": "집필 상태"
     }
   },
+  "elementEditor": {
+    "alerts": {
+      "aliasConflict": "별칭을 추가할 수 없습니다. “{{name}}”은(는) 요소 “{{conflicting}}”에서 이미 사용 중입니다.",
+      "renameConflict": "이름을 변경할 수 없습니다. “{{name}}”은(는) 요소 “{{conflicting}}”의 이름이나 별칭으로 이미 사용 중입니다."
+    },
+    "alias": {
+      "add": "별칭",
+      "addFirst": "별칭 추가",
+      "remove": "별칭 제거"
+    },
+    "empty": {
+      "noFacts": "아직 필드가 없습니다. 요소를 만들면 분류의 '필드 템플릿'으로 채워집니다."
+    },
+    "folio": "요소",
+    "sections": {
+      "bioTitle": "생애",
+      "facts": "설정 정보"
+    },
+    "summaryPlaceholder": "한 문장 요약…",
+    "untitled": "제목 없는 요소"
+  },
   "feedback": {
     "attachDiagnostics": "민감 정보를 제거한 진단 정보 첨부",
     "cancel": "취소",
@@ -131,6 +179,12 @@
     "summary": {
       "done": "완료"
     }
+  },
+  "kvEditor": {
+    "addField": "필드 추가",
+    "keyPlaceholder": "필드",
+    "removeRow": "행 제거",
+    "valuePlaceholder": "내용"
   },
   "leftSidebar": {
     "empty": {
@@ -560,6 +614,14 @@
     "restoreSuccess": "선택한 버전으로 복원했습니다. 이전 상태는 새 스냅샷으로 먼저 저장했습니다.",
     "restoring": "복원 중…",
     "title": "기록 스냅샷 · 30일"
+  },
+  "storylineEditor": {
+    "filters": {
+      "all": "전체"
+    },
+    "labels": {
+      "color": "색상"
+    }
   },
   "topTimeline": {
     "closeTab": "탭 닫기",

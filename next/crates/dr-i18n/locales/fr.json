@@ -7,6 +7,33 @@
     "storyGraph": "Graphe du récit",
     "todoLibrary": "Tâches et documentation"
   },
+  "categoryEditor": {
+    "actions": {
+      "openElement": "Ouvrir l’élément"
+    },
+    "empty": {
+      "noFilteredElements": "Aucun élément pour ce filtre",
+      "noSummary": "Aucun résumé pour le moment"
+    },
+    "filters": {
+      "unused": "Vide",
+      "used": "Renseignés"
+    },
+    "folio": "Catégorie",
+    "labels": {
+      "elementCount": "Éléments",
+      "summary": "Résumé"
+    },
+    "meta": {
+      "elements": "{{count}} éléments",
+      "items": "{{count}} éléments"
+    },
+    "sections": {
+      "elements": "Liste des éléments",
+      "scratch": "Brouillon"
+    },
+    "untitled": "Catégorie sans titre"
+  },
   "commentRail": {
     "actions": {
       "reopen": "Rouvrir",
@@ -79,6 +106,27 @@
       "chapter": "État d’écriture"
     }
   },
+  "elementEditor": {
+    "alerts": {
+      "aliasConflict": "Impossible d’ajouter l’alias : « {{name}} » est déjà utilisé par l’élément « {{conflicting}} ».",
+      "renameConflict": "Impossible de renommer : « {{name}} » est déjà utilisé comme nom ou alias de l’élément « {{conflicting}} »."
+    },
+    "alias": {
+      "add": "Alias",
+      "addFirst": "Ajouter un alias",
+      "remove": "Retirer l’alias"
+    },
+    "empty": {
+      "noFacts": "Aucun champ pour le moment. À la création d’un élément, le Modèle de champs de sa catégorie les renseigne."
+    },
+    "folio": "Élément",
+    "sections": {
+      "bioTitle": "Biographie",
+      "facts": "Faits"
+    },
+    "summaryPlaceholder": "Résumé en une phrase…",
+    "untitled": "Élément sans titre"
+  },
   "feedback": {
     "attachDiagnostics": "Joindre les diagnostics expurgés",
     "cancel": "Annuler",
@@ -131,6 +179,12 @@
     "summary": {
       "done": "Terminé"
     }
+  },
+  "kvEditor": {
+    "addField": "Ajouter un champ",
+    "keyPlaceholder": "Champ",
+    "removeRow": "Retirer la ligne",
+    "valuePlaceholder": "Contenu"
   },
   "leftSidebar": {
     "empty": {
@@ -567,6 +621,14 @@
     "restoreSuccess": "Version sélectionnée restaurée. L’état précédent a d’abord été conservé dans un nouvel instantané.",
     "restoring": "Restauration…",
     "title": "Instantanés historiques · 30 jours"
+  },
+  "storylineEditor": {
+    "filters": {
+      "all": "Tout"
+    },
+    "labels": {
+      "color": "Couleur"
+    }
   },
   "topTimeline": {
     "closeTab": "Fermer l’onglet",

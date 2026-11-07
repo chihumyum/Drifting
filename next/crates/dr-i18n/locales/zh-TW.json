@@ -7,6 +7,33 @@
     "storyGraph": "故事圖譜",
     "todoLibrary": "審閱與素材"
   },
+  "categoryEditor": {
+    "actions": {
+      "openElement": "開啟要素"
+    },
+    "empty": {
+      "noFilteredElements": "沒有符合篩選條件的要素",
+      "noSummary": "尚未填寫概述"
+    },
+    "filters": {
+      "unused": "空白",
+      "used": "已填寫"
+    },
+    "folio": "類目",
+    "labels": {
+      "elementCount": "要素",
+      "summary": "概述"
+    },
+    "meta": {
+      "elements": "{{count}} 個要素",
+      "items": "{{count}} 個項目"
+    },
+    "sections": {
+      "elements": "要素清單",
+      "scratch": "隨筆"
+    },
+    "untitled": "未命名類目"
+  },
   "commentRail": {
     "actions": {
       "reopen": "重新開啟",
@@ -79,6 +106,27 @@
       "chapter": "寫作狀態"
     }
   },
+  "elementEditor": {
+    "alerts": {
+      "aliasConflict": "無法新增別名：「{{name}}」已被要素「{{conflicting}}」使用。",
+      "renameConflict": "無法重新命名：「{{name}}」已被要素「{{conflicting}}」用作名稱或別名。"
+    },
+    "alias": {
+      "add": "別名",
+      "addFirst": "新增別名",
+      "remove": "移除別名"
+    },
+    "empty": {
+      "noFacts": "尚無欄位。建立要素時，所屬分類的「欄位範本」會自動填入。"
+    },
+    "folio": "要素",
+    "sections": {
+      "bioTitle": "生平",
+      "facts": "設定資料"
+    },
+    "summaryPlaceholder": "一句話概述…",
+    "untitled": "未命名要素"
+  },
   "feedback": {
     "attachDiagnostics": "附上已去識別的診斷資料",
     "cancel": "取消",
@@ -131,6 +179,12 @@
     "summary": {
       "done": "完成"
     }
+  },
+  "kvEditor": {
+    "addField": "新增欄位",
+    "keyPlaceholder": "欄位",
+    "removeRow": "移除此列",
+    "valuePlaceholder": "內容"
   },
   "leftSidebar": {
     "empty": {
@@ -560,6 +614,14 @@
     "restoreSuccess": "已還原至選取版本，先前狀態已先存為新快照。",
     "restoring": "正在還原…",
     "title": "歷史快照 · 30 天"
+  },
+  "storylineEditor": {
+    "filters": {
+      "all": "全部"
+    },
+    "labels": {
+      "color": "顏色"
+    }
   },
   "topTimeline": {
     "closeTab": "關閉分頁",

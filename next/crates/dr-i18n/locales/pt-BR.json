@@ -7,6 +7,33 @@
     "storyGraph": "Grafo da história",
     "todoLibrary": "Tarefas e biblioteca de materiais"
   },
+  "categoryEditor": {
+    "actions": {
+      "openElement": "Abrir elemento"
+    },
+    "empty": {
+      "noFilteredElements": "Nenhum elemento para este filtro",
+      "noSummary": "Ainda não há resumo"
+    },
+    "filters": {
+      "unused": "Vazio",
+      "used": "Preenchidos"
+    },
+    "folio": "Categoria",
+    "labels": {
+      "elementCount": "Elementos",
+      "summary": "Resumo"
+    },
+    "meta": {
+      "elements": "{{count}} elementos",
+      "items": "{{count}} itens"
+    },
+    "sections": {
+      "elements": "Lista de elementos",
+      "scratch": "Anotações"
+    },
+    "untitled": "Categoria sem título"
+  },
   "commentRail": {
     "actions": {
       "reopen": "Reabrir",
@@ -79,6 +106,27 @@
       "chapter": "Estado da escrita"
     }
   },
+  "elementEditor": {
+    "alerts": {
+      "aliasConflict": "Não é possível adicionar o apelido: “{{name}}” já é usado pelo elemento “{{conflicting}}”.",
+      "renameConflict": "Não é possível renomear: “{{name}}” já é usado como nome ou apelido do elemento “{{conflicting}}”."
+    },
+    "alias": {
+      "add": "Apelido",
+      "addFirst": "Adicionar apelido",
+      "remove": "Remover apelido"
+    },
+    "empty": {
+      "noFacts": "Ainda não há campos. Ao criar um elemento, o Modelo de campos da categoria os preenche."
+    },
+    "folio": "Elemento",
+    "sections": {
+      "bioTitle": "Biografia",
+      "facts": "Dados"
+    },
+    "summaryPlaceholder": "Resumo em uma frase…",
+    "untitled": "Elemento sem título"
+  },
   "feedback": {
     "attachDiagnostics": "Anexar diagnósticos sem dados sensíveis",
     "cancel": "Cancelar",
@@ -131,6 +179,12 @@
     "summary": {
       "done": "Concluir"
     }
+  },
+  "kvEditor": {
+    "addField": "Adicionar campo",
+    "keyPlaceholder": "Campo",
+    "removeRow": "Remover linha",
+    "valuePlaceholder": "Conteúdo"
   },
   "leftSidebar": {
     "empty": {
@@ -567,6 +621,14 @@
     "restoreSuccess": "Versão selecionada restaurada. O estado anterior foi salvo primeiro como um novo snapshot.",
     "restoring": "Restaurando…",
     "title": "Snapshots do histórico · 30 dias"
+  },
+  "storylineEditor": {
+    "filters": {
+      "all": "Todos"
+    },
+    "labels": {
+      "color": "Cor"
+    }
   },
   "topTimeline": {
     "closeTab": "Fechar aba",

@@ -358,10 +358,18 @@ impl Workspace {
                     }
                 });
                 let looks = decor_looks(&Theme::of(window, cx), &base);
+                // A module's head and end around the text (M11's element
+                // and category pages), when one is registered for the page.
+                let chrome = Target::from_key(key).and_then(|target| {
+                    crate::pages::chrome_for(&target, cx.weak_entity(), window, cx)
+                });
                 editor.update(cx, |e, cx| {
                     e.set_base_style(base, cx);
                     e.set_decor_looks(looks, cx);
                     set_title(e, title, cx);
+                    if chrome.is_some() {
+                        e.set_chrome(chrome, cx);
+                    }
                 });
                 let events = cx.subscribe(&editor, |ws, editor, event: &ChapterEditorEvent, cx| {
                     ws.on_editor_event(&editor, event, cx)

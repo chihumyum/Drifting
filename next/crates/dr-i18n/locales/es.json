@@ -7,6 +7,33 @@
     "storyGraph": "Mapa de la historia",
     "todoLibrary": "Tareas y documentación"
   },
+  "categoryEditor": {
+    "actions": {
+      "openElement": "Abrir elemento"
+    },
+    "empty": {
+      "noFilteredElements": "No hay elementos para este filtro",
+      "noSummary": "Aún no hay resumen"
+    },
+    "filters": {
+      "unused": "Vacío",
+      "used": "Completos"
+    },
+    "folio": "Categoría",
+    "labels": {
+      "elementCount": "Elementos",
+      "summary": "Resumen"
+    },
+    "meta": {
+      "elements": "{{count}} elementos",
+      "items": "{{count}} elementos"
+    },
+    "sections": {
+      "elements": "Lista de elementos",
+      "scratch": "Apuntes"
+    },
+    "untitled": "Categoría sin título"
+  },
   "commentRail": {
     "actions": {
       "reopen": "Reabrir",
@@ -79,6 +106,27 @@
       "chapter": "Estado de escritura"
     }
   },
+  "elementEditor": {
+    "alerts": {
+      "aliasConflict": "No se puede añadir el alias: «{{name}}» ya lo usa el elemento «{{conflicting}}».",
+      "renameConflict": "No se puede renombrar: «{{name}}» ya se usa como nombre o alias del elemento «{{conflicting}}»."
+    },
+    "alias": {
+      "add": "Alias",
+      "addFirst": "Añadir alias",
+      "remove": "Quitar alias"
+    },
+    "empty": {
+      "noFacts": "Aún no hay campos. Al crear un elemento, la Plantilla de campos de su categoría los rellena."
+    },
+    "folio": "Elemento",
+    "sections": {
+      "bioTitle": "Biografía",
+      "facts": "Datos"
+    },
+    "summaryPlaceholder": "Resumen en una frase…",
+    "untitled": "Elemento sin título"
+  },
   "feedback": {
     "attachDiagnostics": "Adjuntar diagnósticos sin datos sensibles",
     "cancel": "Cancelar",
@@ -131,6 +179,12 @@
     "summary": {
       "done": "Listo"
     }
+  },
+  "kvEditor": {
+    "addField": "Añadir campo",
+    "keyPlaceholder": "Campo",
+    "removeRow": "Quitar fila",
+    "valuePlaceholder": "Contenido"
   },
   "leftSidebar": {
     "empty": {
@@ -567,6 +621,14 @@
     "restoreSuccess": "Se restauró la versión elegida. El estado anterior se guardó primero como una nueva captura.",
     "restoring": "Restaurando…",
     "title": "Capturas del historial · 30 días"
+  },
+  "storylineEditor": {
+    "filters": {
+      "all": "Todo"
+    },
+    "labels": {
+      "color": "Color"
+    }
   },
   "topTimeline": {
     "closeTab": "Cerrar pestaña",

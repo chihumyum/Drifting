@@ -21,6 +21,7 @@ members = [
     "crates/dr-testkit",
     "crates/dr-text",
     "crates/dr-ui",
+    "crates/dr-view-elements",
     "crates/dr-view-feedback",
     "crates/dr-view-history",
     "crates/dr-view-home",
@@ -224,6 +225,8 @@ sys-locale = "0.3"
 # (the writing day) and is the version the lockfile already carries.
 dr-view-home = { path = "crates/dr-view-home" }
 dr-view-shelf = { path = "crates/dr-view-shelf" }
+# M11: the element and category pages (docs/rust-rewrite/modules/m11-elements.md).
+dr-view-elements = { path = "crates/dr-view-elements" }
 # M10's interface: the 0.1 library import over the bookshelf
 # (docs/rust-rewrite/modules/m10-import.md).
 dr-view-import = { path = "crates/dr-view-import" }

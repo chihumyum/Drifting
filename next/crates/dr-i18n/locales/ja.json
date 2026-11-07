@@ -7,6 +7,33 @@
     "storyGraph": "物語グラフ",
     "todoLibrary": "TODOと資料庫"
   },
+  "categoryEditor": {
+    "actions": {
+      "openElement": "要素を開く"
+    },
+    "empty": {
+      "noFilteredElements": "条件に合う要素はありません",
+      "noSummary": "要約はまだありません"
+    },
+    "filters": {
+      "unused": "空",
+      "used": "記入済み"
+    },
+    "folio": "カテゴリ",
+    "labels": {
+      "elementCount": "要素",
+      "summary": "要約"
+    },
+    "meta": {
+      "elements": "{{count}}要素",
+      "items": "{{count}}項目"
+    },
+    "sections": {
+      "elements": "要素一覧",
+      "scratch": "走り書き"
+    },
+    "untitled": "無題のカテゴリ"
+  },
   "commentRail": {
     "actions": {
       "reopen": "開き直す",
@@ -79,6 +106,27 @@
       "chapter": "執筆状態"
     }
   },
+  "elementEditor": {
+    "alerts": {
+      "aliasConflict": "別名を追加できません。「{{name}}」は要素「{{conflicting}}」で使用されています。",
+      "renameConflict": "名前を変更できません。「{{name}}」は要素「{{conflicting}}」の名前または別名として使用されています。"
+    },
+    "alias": {
+      "add": "別名",
+      "addFirst": "別名を追加",
+      "remove": "別名を削除"
+    },
+    "empty": {
+      "noFacts": "フィールドはまだありません。要素を作成すると、カテゴリの「フィールドのテンプレート」から入力されます。"
+    },
+    "folio": "要素",
+    "sections": {
+      "bioTitle": "略歴",
+      "facts": "設定情報"
+    },
+    "summaryPlaceholder": "一文で要約…",
+    "untitled": "無題の要素"
+  },
   "feedback": {
     "attachDiagnostics": "機密情報を除去した診断情報を添付",
     "cancel": "キャンセル",
@@ -131,6 +179,12 @@
     "summary": {
       "done": "完了"
     }
+  },
+  "kvEditor": {
+    "addField": "項目を追加",
+    "keyPlaceholder": "項目",
+    "removeRow": "行を削除",
+    "valuePlaceholder": "内容"
   },
   "leftSidebar": {
     "empty": {
@@ -560,6 +614,14 @@
     "restoreSuccess": "選択した版に復元しました。直前の状態は新しいスナップショットとして保存済みです。",
     "restoring": "復元中…",
     "title": "履歴スナップショット・30日間"
+  },
+  "storylineEditor": {
+    "filters": {
+      "all": "すべて"
+    },
+    "labels": {
+      "color": "色"
+    }
   },
   "topTimeline": {
     "closeTab": "タブを閉じる",

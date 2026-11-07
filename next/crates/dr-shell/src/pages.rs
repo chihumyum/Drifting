@@ -12,12 +12,19 @@
 //! every workspace window, over the bookshelf or the book, for flows that
 //! belong to no page (the 0.1 library import, M10). It draws nothing while
 //! it has nothing to show; what it shows floats (dr-ui's `float`).
+//!
+//! And a page's own head and end around its text ([`add_page_chrome`]): the
+//! element and category pages (M11, `dr-view-elements`) put their fields
+//! above the text there. A maker answers for the pages it knows and `None`
+//! for the rest; the first answer wins.
 
 use std::rc::Rc;
 
+use dr_editor::PageChrome;
 use gpui::{AnyView, App, Bounds, Entity, Global, Pixels, WeakEntity, Window};
 
 use crate::Workspace;
+use crate::nav::Target;
 
 /// The bookshelf a window shows: its view, and the cell its notification
 /// bell records its bounds in (the notification center opens from there).
@@ -29,12 +36,15 @@ pub struct ShelfPage {
 
 type MakeShelf = Rc<dyn Fn(WeakEntity<Workspace>, &mut Window, &mut App) -> ShelfPage>;
 type MakeHome = Rc<dyn Fn(WeakEntity<Workspace>, &mut Window, &mut App) -> AnyView>;
+type MakeChrome =
+    Rc<dyn Fn(&Target, WeakEntity<Workspace>, &mut Window, &mut App) -> Option<Rc<dyn PageChrome>>>;
 
 #[derive(Clone, Default)]
 struct Pages {
     shelf: Option<MakeShelf>,
     home: Option<MakeHome>,
     layers: Vec<AnyView>,
+    chrome: Vec<MakeChrome>,
 }
 
 impl Global for Pages {}
@@ -55,6 +65,30 @@ pub fn set_home(
     make: impl Fn(WeakEntity<Workspace>, &mut Window, &mut App) -> AnyView + 'static,
 ) {
     cx.default_global::<Pages>().home = Some(Rc::new(make));
+}
+
+/// Registers what a page draws around its text: asked once for each page
+/// editor the workspace opens (its target), it gives that page's
+/// [`PageChrome`] or `None`.
+pub fn add_page_chrome(
+    cx: &mut App,
+    make: impl Fn(&Target, WeakEntity<Workspace>, &mut Window, &mut App) -> Option<Rc<dyn PageChrome>>
+    + 'static,
+) {
+    cx.default_global::<Pages>().chrome.push(Rc::new(make));
+}
+
+/// The chrome registered for `target`'s page, if any.
+pub(crate) fn chrome_for(
+    target: &Target,
+    ws: WeakEntity<Workspace>,
+    window: &mut Window,
+    cx: &mut App,
+) -> Option<Rc<dyn PageChrome>> {
+    let makers = cx.try_global::<Pages>()?.chrome.clone();
+    makers
+        .iter()
+        .find_map(|make| make(target, ws.clone(), window, cx))
 }
 
 /// Adds a layer drawn over every workspace window's bookshelf and book.

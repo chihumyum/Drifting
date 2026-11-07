@@ -7,6 +7,33 @@
     "storyGraph": "故事图谱",
     "todoLibrary": "审阅与素材"
   },
+  "categoryEditor": {
+    "actions": {
+      "openElement": "打开要素"
+    },
+    "empty": {
+      "noFilteredElements": "此筛选下暂无要素",
+      "noSummary": "尚未填写概述"
+    },
+    "filters": {
+      "unused": "未填写",
+      "used": "已填写"
+    },
+    "folio": "类目",
+    "labels": {
+      "elementCount": "要素数",
+      "summary": "概述"
+    },
+    "meta": {
+      "elements": "{{count}} 要素",
+      "items": "{{count}} 个"
+    },
+    "sections": {
+      "elements": "要素清单",
+      "scratch": "札记"
+    },
+    "untitled": "未命名类目"
+  },
   "commentRail": {
     "actions": {
       "reopen": "未解决",
@@ -79,6 +106,27 @@
       "chapter": "写作状态"
     }
   },
+  "elementEditor": {
+    "alerts": {
+      "aliasConflict": "无法添加别名：“{{name}}” 已被要素「{{conflicting}}」使用。",
+      "renameConflict": "无法重命名：“{{name}}” 已被要素「{{conflicting}}」使用（名字或别名冲突）。"
+    },
+    "alias": {
+      "add": "别名",
+      "addFirst": "添加别名",
+      "remove": "移除别名"
+    },
+    "empty": {
+      "noFacts": "尚无字段。新建要素时，所属类目的「字段模版」会自动填入"
+    },
+    "folio": "要素",
+    "sections": {
+      "bioTitle": "记 · 传",
+      "facts": "字段"
+    },
+    "summaryPlaceholder": "一句话概述…",
+    "untitled": "未命名要素"
+  },
   "feedback": {
     "attachDiagnostics": "附上脱敏诊断摘要",
     "cancel": "取消",
@@ -131,6 +179,12 @@
     "summary": {
       "done": "完成"
     }
+  },
+  "kvEditor": {
+    "addField": "新增字段",
+    "keyPlaceholder": "字段",
+    "removeRow": "移除这一行",
+    "valuePlaceholder": "内容"
   },
   "leftSidebar": {
     "empty": {
@@ -555,6 +609,14 @@
     "restoreSuccess": "已恢复到所选版本。恢复前的状态已自动存为新快照。",
     "restoring": "恢复中…",
     "title": "历史快照 · 30 天"
+  },
+  "storylineEditor": {
+    "filters": {
+      "all": "全部"
+    },
+    "labels": {
+      "color": "色标"
+    }
   },
   "topTimeline": {
     "closeTab": "关闭标签页",
