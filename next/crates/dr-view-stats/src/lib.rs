@@ -12,8 +12,8 @@
 //!   [`load_progress`] off the main thread, [`today_live`] for this device's
 //!   words not stored yet.
 //!
-//! The shell installs it ([`init`]), flushes it before quitting ([`flush`])
-//! and shows the tab ([`panel`]). docs/rust-rewrite/modules/m07-words.md
+//! The shell installs it ([`init`]), flushes it and lets go of the library
+//! before quitting ([`flush`], [`release`]) and shows the tab ([`panel`]). docs/rust-rewrite/modules/m07-words.md
 //! has the rules and the decisions.
 
 pub mod clock;
@@ -29,7 +29,7 @@ use dr_i18n::{Locale, Platform};
 use dr_model::Day;
 use dr_workspace::commands::BookIn;
 use dr_workspace::commands::stats::{self as ops};
-use dr_workspace::{Actor, NavTarget, Workspace, WsEvent};
+use dr_workspace::{Actor, NavTarget, Subscription, Workspace, WsEvent};
 use gpui::{AnyElement, App, AppContext as _, Entity, Global, IntoElement, SharedString};
 
 pub use dr_text::TextMetrics;
@@ -41,6 +41,7 @@ pub use recorder::Recorder;
 struct Hub {
     lib: Option<Workspace>,
     recorder: Option<Recorder>,
+    subscription: Option<Subscription>,
     views: HashMap<SharedString, Entity<StatsView>>,
 }
 
@@ -72,11 +73,14 @@ pub fn init(lib: Option<Workspace>, cx: &mut App) {
     cx.set_global(Hub {
         lib,
         recorder,
+        subscription,
         views: HashMap::new(),
     });
+    // Ends once [`release`] drops the recorder and the subscription (the
+    // last senders).
+    drop(tx);
     cx.spawn(async move |cx| {
         use futures::StreamExt as _;
-        let _keep = subscription;
         while let Some(first) = rx.next().await {
             let mut batch = vec![first];
             while let Ok(more) = rx.try_recv() {
@@ -137,6 +141,19 @@ pub fn flush(cx: &mut App) {
         && !r.flush(Duration::from_millis(500))
     {
         log::warn!("writing days were not all stored before quitting");
+    }
+}
+
+/// Lets go of the library before quitting: the recorder stops, the
+/// subscription and the tabs go, so nothing here keeps the library open.
+/// Call after [`flush`].
+pub fn release(cx: &mut App) {
+    if cx.has_global::<Hub>() {
+        let hub = cx.global_mut::<Hub>();
+        hub.recorder = None;
+        hub.subscription = None;
+        hub.views.clear();
+        hub.lib = None;
     }
 }
 

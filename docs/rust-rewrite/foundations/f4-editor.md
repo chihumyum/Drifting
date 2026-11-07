@@ -397,9 +397,11 @@ GPUI 的 fork 由 F4 负责（D1：需要挂补丁时再开 fork）。现在工�
 | G1 | 空闲时停掉刷新时钟 | **已写、本机 fork 上量过**：`next/patches/gpui/0001-macos-stop-idle-display-link.patch` | `gpui_macos/src/window.rs` | +94 行 | v1.27 的 GPUI 已经有「平台空闲时停帧、有事时唤醒」的接口（`PlatformWindow::frame_waker`，网页端在用），macOS 没实现。补丁：macOS 实现 `frame_waker`；显示链接每一拍记下这一拍有没有画（`draw` 置位）、有没有新的需求（唤醒置位），连续 6 拍（120 Hz 下 50 ms）两样都没有就停掉显示链接。GPUI 在窗口变脏、要下一帧回调、节流重试时都会调唤醒；唤醒时在主队列的下一轮重新启动显示链接，**并且当场画这一帧**（不等重启后的第一拍，不开 CA 事务）。第一版只重启不当场画，量出来每次停顿后的第一个按键要多等将近一拍（按键到交出画面中位数 4.6 → 14.7 ms），所以改成当场画。唤醒可能发生在持有窗口状态锁的平台回调里，所以唤醒本身不拿锁，只置标志、排到主队列 | 高：Zed 自己也省电，接口是现成的。先在 Drifting 用一段时间，再提 PR |
 | G2 | 输入后立即绘制（不经 CA 事务、不重启显示链接） | **实验，量过，不挂**：`next/patches/gpui/0002-experiment-present-now-direct.patch`，环境变量 `GPUI_PRESENT_NOW_DIRECT=1` 才生效 | `gpui_macos/src/window.rs` 的 `displayLayer:` | +20 行 | 现在的「改完立刻画」走 `setNeedsDisplay:` → `displayLayer:`，GPUI 在这条路上开 `presentsWithTransaction`、停掉再启动显示链接，造成长尾。实验让 `displayLayer:` 直接画、不开事务、不动显示链接。结果：有了 G1 以后，G2 的「立刻画」中位数 25.0、p95 33.3 ms，和只开 G1、不开「立刻画」（25.0 / 36.1 ms）差不多；只有 G2 才能去掉「立刻画」的长尾（不开 G2 时 p95 137 ms）。**第一轮的结论：不需要 G2**，G1 当场画醒来的那一帧已经拿到了好处。两轮都是在高负载下量的，这个结论等空闲时重测再确认 | 中：要先证明有用；正式版应该是单独的「输入后立即画」入口，不改 `displayLayer:`（它也管窗口缩放时的同步绘制） |
 | G3 | 丢弃组字的接口 | 未做 | `gpui/src/platform.rs` 加 `PlatformWindow::discard_marked_text`；macOS 调 `[NSTextInputContext discardMarkedText]`，Windows 调 `ImmNotifyIME(himc, NI_COMPOSITIONSTR, CPS_CANCEL, 0)` | 约 30 行 | 现在由程序的 `PlatformHooks` 自己调（macOS 十来行 objc）。有了接口，`PlatformHooks::discard_marked_text` 可以删 | 中 |
-| G4 | Windows 组字丢弃（IMM32） | 未做，下一轮（F4c） | 不改 GPUI 也能做：程序层拿到 HWND，`ImmGetContext` → `ImmNotifyIME(…, CPS_CANCEL)` → `ImmReleaseContext` | 约 20 行 | 先写成 `PlatformHooks` 的 Windows 实现；G3 合了以后挪进 GPUI | — |
+| G4 | Windows 组字丢弃（IMM32） | **完成，不改 GPUI**（F4c） | 程序层拿到 HWND，`ImmGetContext` → `ImmNotifyIME(…, CPS_CANCEL)` → `ImmReleaseContext`；宿主没设平台钩子时编辑器在组字开始时自己装上 | 约 20 行 | `PlatformHooks` 的 Windows 实现；G3 合了以后挪进 GPUI。Windows 上还没真跑过 | — |
 | G5 | 中文斜体合成倾斜 | 未做，不急 | `gpui_macos` 的字形光栅化加倾斜变换 | 待估 | 苹方没有斜体字形，现在中文斜体画成正体 | 低 |
 | G6 | 中文断行 | 不需要 | — | — | 上游 #64624（ICU UAX #14）不在 v1.27.0；即使升级，编辑器自己断行仍更合适（悬挂、以后两端对齐） | 已在上游 |
+| G7 | 缓存视图里的正文从读屏树里掉出去 | 补丁文件已写，未挂 | 别处一重画（比如光标闪烁），缓存视图的元素不再交读屏树 | 待估 | `gpui-prose` 已绕开：读屏连着时正文不走缓存（`input::a11y::editor_view`）。`dr-ui` 别的缓存视图也会碰到。见 [f4c-input.md](f4c-input.md) | 报不报上游等作者在时定 |
+| G8 | 系统问焦点元素时答成窗口 | 补丁文件已写，未在 fork 上构建验证 | 读屏的焦点元素应是正文 | 待估 | 绕不开，必须改 GPUI。补丁按探针诊断写成。见 [f4c-input.md](f4c-input.md) | 报不报上游等作者在时定 |
 
 **本机 fork 怎么用**（只在测量时临时用，不提交）：fork 是 Zed `v1.27.0`（`c84af5b`）的本地克隆，放在家目录下单独的文件夹，没有远端。临时在 `next/Cargo.toml` 末尾加一节 `[patch."https://github.com/zed-industries/zed"]`，把锁文件里来自 Zed 仓库的 20 个 crate（`gpui`、`gpui_macos`、`gpui_platform`、`collections`、`sum_tree`、`scheduler` 等，见 `Cargo.lock` 里 `source = "git+https://github.com/zed-industries/zed?tag=v1.27.0"` 的那些）都指到 fork 的路径；只换 `gpui_macos` 一个不行，它的依赖会变成第二份 `gpui`。量完删掉这一节、还原 `Cargo.lock`。以后正式挂补丁时，把 fork 推到 GitHub 上一个仓库，`[patch]` 改成指向那个仓库的固定提交（D1）。
 
@@ -423,7 +425,7 @@ GPUI 的 fork 由 F4 负责（D1：需要挂补丁时再开 fork）。现在工�
     2. **TODO 标记投成待办**：编辑器找到标记（`TodoMarker`：段落、块 ID、任务）并在变化时发事件；投成待办（`CommentId::for_projection(Marker, doc, block)`，标记消失时处理旧的）需要一条命令，比如 `todo.project { doc, markers: [{block, task}] }`，按旧版 `useTodoAutoParse` 的规则建、改、留（离开该段才算写完由界面决定）。
     3. **作者身份的命令和编辑器共用一个撤销栈。** 会话的 `ProseUndo` 撤所有 `user` 来源的提交；如果作者从别处（命令面板、帮手代作者执行）用 `Actor::User` 的命令改了正开着的这篇正文，那次提交也进了这个栈，编辑器按自己的步数撤销时可能撤到它。建议：改正开着的正文的作者命令换一个不进编辑器撤销的来源（比如 `user:command`，它们有对象级撤销），或者经会话写。
 12. **F4b（排版）**：`EditorSettings` 已经读进段首缩进（0/1/2 字）和打字机模式，`gpui-prose` 还不会排段首缩进、没有打字机滚动；做了以后在 `EditorSettings::style` 里接上。
-13. **F4d（渲染）**：两样显示要画层接口（不改正文、只画）：`dr-text` 匹配器找到但还没链上的名字（建议链接），和 TODO 标记的样子。`style_run` 只能改已经带标记的字。
+13. **F4d（渲染，F4d 第一轮做完）**：建议链接和 TODO 标记都由画层画（`Look::Underline` 的砂粒点线、`Look::Ink` 的 TODO 色），不改正文。接法见 [f4d-render.md](f4d-render.md)。
 14. **F6（外壳）接编辑器**：`workspace/stage.rs` 的只读页换成 `ChapterEditor`（`PageSlot` 换成 `ChapterEditor::open` / `switch_to`）；设置变了调 `set_settings(EditorSettings::from_values(|k| Some(Settings::read(cx).get(k))), cx)`，主题变了调 `set_base_style`；`take_reveal` 的行号交给 `editor().update(.., select)`；订阅 `ChapterEditorEvent`（`AnchorsChanged` 等 F3-1，`TodoMarkers` 等 F3-2）；编辑菜单的 `edit::{Undo, Redo, …}` 转给编辑器。`dr-editor` 不依赖 `dr-shell`。
 
 ## 下一轮怎么拆
@@ -446,5 +448,5 @@ GPUI 补丁 G1 什么时候正式挂上，由作者在发布档前定（需要�
 - 中文斜体画成正体（见 G5）。
 - 复制粘贴只有纯文本；粘贴的多段一律按回车规则拆开（第一段并进光标所在段）。
 - 选区不能跨章。
-- 块样式里只有 H1/H2/H3 有样子；引用、缩进、对齐、列表的属性会被正确保存和继承，但还没画出来。
+- 列表还没有样子；引用、缩进、对齐、分隔线由 F4d 画出（居中、右对齐的多行段落，输入法候选窗和上下移动还按第一行的偏移算，等 F4b 加每行偏移）。
 - 真输入法的手测清单沿用 [P0-B](../spikes/p0-b-editor.md#待作者手测)，命令换成 `cargo run --release -p gpui-prose --example prose-bench -- chapter`（`PROSE_BENCH_IME_LOG=1` 打印输入法调用）。

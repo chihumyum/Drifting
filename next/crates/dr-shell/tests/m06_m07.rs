@@ -128,10 +128,9 @@ fn search_finds_and_jumps_to_the_paragraph(cx: &mut TestAppContext) {
     view.read_with(cx, |ws, _| {
         assert_eq!(ws.nav.current(), Some(&want));
     });
-    // The page was read and scrolled to the paragraph (the reveal taken).
-    wait_for(&view, cx, |ws, _| {
-        ws.pages.get(&want.key()).is_some_and(|p| p.ready)
-    });
+    // The page's editor opened and put the caret at the paragraph (the
+    // reveal taken).
+    wait_for(&view, cx, |ws, _| ws.editor_of(&want).is_some());
     view.update(cx, |ws, _| assert_eq!(ws.nav.take_reveal(&want), None));
     assert!(para.is_some(), "a prose hit");
     let _ = (owner, paragraph);

@@ -40,6 +40,13 @@ fn the_authors_words_are_stored_for_today() {
 
     let recorder = Recorder::over(&ws, |_| {});
     recorder.track(&book);
+    // The recorder reads the book's words on its own thread: wait until it
+    // has, or that read could already include the edit below.
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while recorder.today(&book).is_none() {
+        assert!(Instant::now() < deadline, "the book was never followed");
+        std::thread::sleep(Duration::from_millis(5));
+    }
     // The author adds four characters; the index catches up.
     out(
         &ws,
