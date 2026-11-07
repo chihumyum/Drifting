@@ -1623,6 +1623,100 @@ expression: json
     "summary": "Change a chapter's title, summary, status, narrative position or storylines."
   },
   {
+    "access": "read",
+    "concurrency": "shared",
+    "input": {
+      "$defs": {
+        "Target": {
+          "description": "A reference to an entity (relation end, comment or memory target).",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "description": "`node`, `element`, `patch`, `category`, `storyline`, `comment`,\n`material`.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "target": {
+          "$ref": "#/$defs/Target",
+          "description": "The entity whose prose the anchors are in."
+        }
+      },
+      "required": [
+        "book",
+        "target"
+      ],
+      "title": "CommentAnchorsIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "comment.anchors",
+    "output": {
+      "$defs": {
+        "AnchorBytes": {
+          "description": "A comment's anchor as stored: the two Loro cursors dr-doc writes\n(`Cursor::encode()`, the start on the first anchored character, the end\non the last), each in base64 (standard alphabet, padded). The editor\nmoves these bytes between the book and the prose document unchanged.",
+          "properties": {
+            "end": {
+              "type": "string"
+            },
+            "start": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "start",
+            "end"
+          ],
+          "type": "object"
+        },
+        "CommentAnchor": {
+          "description": "One anchored comment, for an editor laying anchors out.",
+          "properties": {
+            "anchor": {
+              "$ref": "#/$defs/AnchorBytes"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "description": "`note` or `todo`.",
+              "type": "string"
+            },
+            "status": {
+              "description": "`open` or `resolved`.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "status",
+            "anchor"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/CommentAnchor"
+      },
+      "title": "Array_of_CommentAnchor",
+      "type": "array"
+    },
+    "summary": "The stored anchors of the comments on one entity's prose, for an editor laying them out (comments without an anchor are not listed)."
+  },
+  {
     "access": "write",
     "concurrency": "book",
     "input": {
@@ -1975,6 +2069,72 @@ expression: json
       "type": "array"
     },
     "summary": "List comments and TODOs (a target in the trash or gone shows as unlocated)."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "AnchorBytes": {
+          "description": "A comment's anchor as stored: the two Loro cursors dr-doc writes\n(`Cursor::encode()`, the start on the first anchored character, the end\non the last), each in base64 (standard alphabet, padded). The editor\nmoves these bytes between the book and the prose document unchanged.",
+          "properties": {
+            "end": {
+              "type": "string"
+            },
+            "start": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "start",
+            "end"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "anchor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AnchorBytes"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The anchor as the editor holds it (dr-doc's encoding, base64);\n`null` removes the anchor (the comment stays on its paragraph or\nentity)."
+        },
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id",
+        "anchor"
+      ],
+      "title": "CommentReanchorIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "comment.reanchor",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Put a comment's anchor back where the editor's undo brought its text back (the author's change, synced; it follows the editor's undo, so it is not an entry of the object-level undo)."
   },
   {
     "access": "write",
@@ -5673,5 +5833,91 @@ expression: json
       "type": "object"
     },
     "summary": "Rename a storyline (a taken name gets a suffix), recolour it or change its summary."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "TodoMarkerIn": {
+          "properties": {
+            "block": {
+              "description": "The paragraph's block id.",
+              "type": "string"
+            },
+            "task": {
+              "default": "",
+              "description": "The task text after the marker.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "block"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "doc": {
+          "description": "The prose document (`node:<id>`, `element:<id>`, `storyline:<id>`,\n`category:<id>`).",
+          "type": "string"
+        },
+        "editing": {
+          "description": "The paragraph the author is typing in: its marker gets no TODO until\nthey leave it. A TODO it already has stays while its marker does.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "markers": {
+          "description": "Every paragraph of the document that now starts with a TODO marker.",
+          "items": {
+            "$ref": "#/$defs/TodoMarkerIn"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "doc",
+        "markers"
+      ],
+      "title": "TodoProjectIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "todo.project",
+    "output": {
+      "properties": {
+        "created": {
+          "description": "TODOs made for new markers.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "removed": {
+          "description": "Open TODOs whose marker or paragraph is gone, deleted.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "waiting": {
+          "description": "Open TODOs whose marker is missing here, kept because this device\nhas not yet received the prose they were made from (sync brings the\nbook and the prose separately).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "created",
+        "removed",
+        "waiting"
+      ],
+      "title": "TodoProjected",
+      "type": "object"
+    },
+    "summary": "Keep the TODOs typed as markers in one prose document (a paragraph starting with TODO or 待办) in step with it: a new marker gets a TODO, an open TODO whose marker is gone is deleted, resolved ones stay; the same marker makes the same TODO on every device."
   }
 ]

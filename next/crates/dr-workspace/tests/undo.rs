@@ -299,7 +299,7 @@ fn the_editor_layer_undoes_only_the_authors_typing() {
     );
     assert!(s.redo().unwrap());
     assert_eq!(text(&e), "作者起首。");
-    // Durable like any command.
+    // Durable like any editor step.
     drop(s);
     let mut e = e;
     e.reopen();
@@ -307,6 +307,57 @@ fn the_editor_layer_undoes_only_the_authors_typing() {
         e.out("prose.read", json!({"doc": doc}))["paragraphs"][0]["text"],
         "作者起首。"
     );
+}
+
+/// The author's commands on an open document (the command palette, the
+/// Agent panel acting for the author, an object-level undo) are not steps of
+/// the editor: its Undo takes back only its own typing, the journal undoes
+/// the command, and either order leaves the other's change alone.
+#[test]
+fn the_editors_undo_leaves_the_authors_commands_to_the_journal() {
+    let e = env();
+    let b = e.book();
+    let c = e.out(
+        "chapter.create",
+        json!({"book": b, "title": "One", "text": "开头。"}),
+    )["id"]
+        .clone();
+    let doc = format!("node:{}", c.as_str().unwrap());
+    let s = e.ws().prose_session(&doc).unwrap();
+    let text = |e: &Env| e.out("prose.read", json!({"doc": doc}))["paragraphs"][0]["text"].clone();
+    s.edit(|t| t.insert_text(0, "作者")).unwrap();
+    // The author, from the command palette, on the open chapter.
+    e.call(
+        "prose.replace",
+        json!({"doc": doc, "find": "开头", "replace": "起首"}),
+    );
+    assert_eq!(text(&e), "作者起首。");
+    // Stored as the author's write all the same.
+    let rows = e.ws().library().updates_since(&doc, 0).unwrap();
+    assert_eq!(rows.last().unwrap().origin, "user");
+    // The editor's one step is the typing; the command is not on its stack.
+    assert!(s.undo().unwrap());
+    assert_eq!(text(&e), "起首。");
+    assert!(!s.can_undo(), "the command is not an editor step");
+    assert!(!s.undo().unwrap());
+    assert_eq!(text(&e), "起首。");
+    // The journal undoes the command, and that is no editor step either.
+    assert!(e.ws().undo(&Actor::User).unwrap().is_some());
+    assert_eq!(text(&e), "开头。");
+    assert!(!s.can_undo());
+    // The editor's redo still brings its typing back, after both.
+    assert!(s.redo().unwrap());
+    assert_eq!(text(&e), "作者开头。");
+    // The other order: typing, a command, the journal's undo first.
+    e.call(
+        "prose.replace",
+        json!({"doc": doc, "find": "开头", "replace": "起首"}),
+    );
+    s.edit(|t| t.insert_text(0, "又")).unwrap();
+    assert!(e.ws().undo(&Actor::User).unwrap().is_some());
+    assert_eq!(text(&e), "又作者开头。");
+    assert!(s.undo().unwrap());
+    assert_eq!(text(&e), "作者开头。", "the editor undid its own step");
 }
 
 #[test]

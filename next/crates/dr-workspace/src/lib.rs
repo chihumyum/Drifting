@@ -51,6 +51,7 @@ pub use error::{Result, WsError};
 pub use events::{
     BookChanged, EntityChange, ProseChanged, Removed, RemovedEntity, Subscription, WsEvent,
 };
+pub use holder::COMMAND_ORIGIN;
 pub use nav::{BookCatalog, LinkGroup, NavTarget};
 pub use registry::{Access, Concurrency, Op, Registry, Spec, registry};
 pub use workspace::{QuitReport, Workspace, WorkspaceOptions, library_options};

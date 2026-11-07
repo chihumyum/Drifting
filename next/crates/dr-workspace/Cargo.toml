@@ -8,6 +8,7 @@ publish.workspace = true
 description = "Drifting's commands and queries: one registry for the interface, Agent tools, MCP and the dev CLI; write order across documents; events; query caches; undo"
 
 [dependencies]
+base64.workspace = true
 dr-doc.workspace = true
 dr-index.workspace = true
 dr-model.workspace = true
