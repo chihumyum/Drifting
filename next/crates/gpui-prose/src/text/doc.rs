@@ -433,6 +433,14 @@ impl ProseDoc {
         self.undo.force_new_step = true;
     }
 
+    /// Makes the next commit part of the last undo step, however long ago
+    /// it was (a host's edit derived from the typing, such as automatic
+    /// links, which one undo takes back with it). Without a last step it
+    /// starts one.
+    pub fn join_last_step(&mut self) {
+        self.undo.join_last_step = true;
+    }
+
     pub fn can_undo(&self) -> bool {
         !self.undo.steps.is_empty()
     }

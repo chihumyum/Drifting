@@ -1396,6 +1396,7 @@ dependencies = [
  "libc",
  "log",
  "loro",
+ "prose-metrics",
  "serde_json",
  "tempfile",
 ]

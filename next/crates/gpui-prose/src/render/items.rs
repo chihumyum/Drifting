@@ -34,10 +34,18 @@ impl ProseEditor {
         }
         match self.book.item(ix) {
             Item::Title(chapter) => {
+                if let Some(slots) = self.slots.clone()
+                    && let Some(head) = slots.head(chapter, window, cx)
+                {
+                    return crate::slots::slot_item(ix, self.heights.clone(), Some(head));
+                }
                 let title = self.book.chapters[chapter].title.clone();
                 let top = if chapter == 0 { px(56.) } else { px(96.) };
+                // The paragraphs' column: the page gutter on both sides, then
+                // at most `max_width`, centred.
                 div()
                     .w_full()
+                    .px(self.style.gutter)
                     .flex()
                     .justify_center()
                     .pt(top)
@@ -60,6 +68,13 @@ impl ProseEditor {
                     window.request_animation_frame();
                 }
                 element.into_any_element()
+            }
+            Item::End(chapter) => {
+                let end = self
+                    .slots
+                    .clone()
+                    .and_then(|slots| slots.end(chapter, window, cx));
+                crate::slots::slot_item(ix, self.heights.clone(), end)
             }
         }
     }

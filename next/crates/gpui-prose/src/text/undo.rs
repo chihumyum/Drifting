@@ -88,6 +88,9 @@ pub(crate) struct AuthorUndo {
     pub steps: Vec<Step>,
     pub redo: Vec<Step>,
     pub force_new_step: bool,
+    /// The next commit joins the last step whatever the time (a host's
+    /// derived edit, such as automatic links, undone with the typing).
+    pub join_last_step: bool,
     /// Deletions made since the last commit.
     pub pending: ItemRecord,
     merge_interval: Duration,
@@ -99,6 +102,7 @@ impl AuthorUndo {
             steps: Vec::new(),
             redo: Vec::new(),
             force_new_step: false,
+            join_last_step: false,
             pending: ItemRecord::default(),
             merge_interval: config.merge_interval,
         }
@@ -108,6 +112,7 @@ impl AuthorUndo {
     /// steps; drops the pending record if the commit was not the author's.
     pub fn after_commit(&mut self, pushed: usize) {
         let split = std::mem::take(&mut self.force_new_step);
+        let join = std::mem::take(&mut self.join_last_step);
         let record = std::mem::take(&mut self.pending);
         if pushed == 0 {
             return;
@@ -116,6 +121,7 @@ impl AuthorUndo {
         items.push(record);
         let now = Instant::now();
         match self.steps.last_mut() {
+            Some(step) if join => step.items.extend(items),
             Some(step) if !split && now.duration_since(step.started) < self.merge_interval => {
                 step.items.extend(items);
             }

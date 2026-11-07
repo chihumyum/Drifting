@@ -219,7 +219,7 @@ impl Headless {
         self.update(|_, _, cx| {
             let e = editor.read(cx);
             match e.book().item(e.list_state().logical_scroll_top().item_ix) {
-                Item::Title(chapter) | Item::Line(chapter, _) => chapter,
+                Item::Title(chapter) | Item::Line(chapter, _) | Item::End(chapter) => chapter,
             }
         })
     }
