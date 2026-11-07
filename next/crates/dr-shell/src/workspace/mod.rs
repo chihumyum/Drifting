@@ -826,6 +826,57 @@ impl Workspace {
         cx.notify();
     }
 
+    /// The library is about to be swapped ([`crate::library::replace`]):
+    /// everything here that holds it goes (the open pages' editors, the
+    /// bookshelf, Project Home, search, snapshot history, the comment
+    /// composer, the subscription). The window's layout is stored first; a
+    /// dialog over it stays.
+    pub(crate) fn let_go_of_library(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.store_layout(cx);
+        self.editors.clear();
+        self.release_words(cx);
+        self.focused_editor = None;
+        self.gave_focus = None;
+        self.dimmed = None;
+        self.find = None;
+        self.search = None;
+        self.history = None;
+        self.composer = None;
+        self.corner_menu = None;
+        self.book_task = None;
+        self.book_stale = false;
+        self._library_events = None;
+        self.shelf = None;
+        self.shelf_open = false;
+        self.home = None;
+        self.library = None;
+        self.book_id = String::new();
+        self.book = Rc::new(Book::default());
+        self.focus.focus(window, cx);
+        cx.notify();
+    }
+
+    /// The swapped library ([`crate::library::replace`]): the window
+    /// follows its changes again and shows the bookshelf (without one, the
+    /// book opened last, or the library's first).
+    pub(crate) fn adopt_library(
+        &mut self,
+        lib: Library,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.library = Some(lib.clone());
+        self.listen_to_library(cx);
+        self.home = pages::make_home(cx.weak_entity(), window, cx);
+        if !self.show_shelf(window, cx) {
+            let last = Settings::read(cx).last_book().map(str::to_owned);
+            if let Some(book) = first_choice(&lib, last.as_deref()) {
+                self.open_book(&book, window, cx);
+            }
+        }
+        cx.notify();
+    }
+
     /// The red light: in a book it goes back to the bookshelf; on the
     /// bookshelf (or without one) it closes the window.
     fn listen_on_close(&mut self, window: &mut Window, cx: &mut Context<Self>) {

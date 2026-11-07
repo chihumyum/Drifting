@@ -1753,3 +1753,72 @@ fn a_patch_whose_passage_was_written_away_is_marked(cx: &mut TestAppContext) {
         std::thread::sleep(Duration::from_millis(5));
     }
 }
+
+/// Runs `replace` with `job` and waits for its outcome.
+fn swap_library(
+    cx: &mut VisualTestContext,
+    job: impl FnOnce(&std::path::Path, dr_store::LibraryOptions) -> Result<dr_store::Library, String>
+    + Send
+    + 'static,
+) -> Result<(), String> {
+    let got = std::rc::Rc::new(std::cell::RefCell::new(None));
+    let put = got.clone();
+    cx.update(|_, cx| {
+        dr_shell::library::replace(cx, job, move |result, _| *put.borrow_mut() = Some(result))
+    });
+    let deadline = Instant::now() + Duration::from_secs(20);
+    loop {
+        // Frames go on as in the app: the last frame's handlers let go of
+        // what they held (the editors) once the next one is drawn.
+        draw(cx);
+        cx.run_until_parked();
+        if let Some(result) = got.borrow_mut().take() {
+            return result;
+        }
+        assert!(Instant::now() < deadline, "the swap did not finish");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+/// M41's restore swaps the library under the running app: the window lets
+/// go of everything holding it (the job can open the library itself, so it
+/// was closed), takes up what the job returns and reads its book again; a
+/// job that fails leaves the old library in use again and says why.
+#[gpui::test]
+fn the_library_is_swapped_under_the_running_app(cx: &mut TestAppContext) {
+    let (_dir, lib) = slow_clock();
+    let root = lib.library().paths().root.clone();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    let first = view.read_with(cx, |ws, _| chapter_of(ws, 0));
+    view.update(cx, |ws, cx| ws.open(first.clone(), Open::KEEP, cx));
+    open_page(&view, cx, &first);
+    view.update_in(cx, |ws, window, cx| ws.toggle_search(window, cx));
+    draw(cx);
+
+    let seen = root.clone();
+    let swapped = swap_library(cx, move |root, options| {
+        assert_eq!(root, seen.as_path());
+        // Only a closed library opens.
+        dr_store::Library::open(root, options).map_err(|e| e.to_string())
+    });
+    assert_eq!(swapped, Ok(()));
+    wait_for(&view, cx, |ws| ws.library.is_some() && !ws.book.is_empty());
+    let (search, services) = view.read_with(cx, |ws, cx| {
+        (
+            ws.search.is_some(),
+            cx.global::<Services>().library.is_some(),
+        )
+    });
+    assert!(!search, "the search panel went with the old library");
+    assert!(services, "Services offers the new library");
+    // The new library is in use: a page opens in it.
+    let first = view.read_with(cx, |ws, _| chapter_of(ws, 0));
+    view.update(cx, |ws, cx| ws.open(first.clone(), Open::KEEP, cx));
+    open_page(&view, cx, &first);
+
+    let failed = swap_library(cx, |_, _| Err("备份坏了".into()));
+    assert_eq!(failed, Err("备份坏了".into()));
+    wait_for(&view, cx, |ws| ws.library.is_some() && !ws.book.is_empty());
+    assert!(cx.update(|_, cx| cx.global::<Services>().library.is_some()));
+}

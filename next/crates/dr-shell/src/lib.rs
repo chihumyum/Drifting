@@ -31,6 +31,7 @@ pub mod book;
 pub mod dialogs;
 mod export_memory;
 pub mod keymap;
+pub mod library;
 pub mod menus;
 pub mod nav;
 pub mod notifications;
