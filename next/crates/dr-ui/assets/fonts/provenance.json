@@ -1,0 +1,96 @@
+{
+  "about": "The pinned sources of dr-ui's fonts and the faces built from them by script/build-fonts.py. The fonts themselves are never committed; they are built into next/.cache/fonts. All are SIL OFL 1.1 (OFL-1.1.txt).",
+  "fonttools": "4.60.1",
+  "sources": {
+    "source-sans-3": {
+      "url": "https://raw.githubusercontent.com/google/fonts/86aced91de05cd4f96a06838124cca45be337b2b/ofl/sourcesans3/SourceSans3%5Bwght%5D.ttf",
+      "file": "SourceSans3[wght].ttf",
+      "sha256": "042fe2cc0b933e328410d7acbd0aa6a1873dca5aef81875f4bc214b08825c7b9",
+      "version": "3.052",
+      "from": "google/fonts at 86aced91de05cd4f96a06838124cca45be337b2b"
+    },
+    "newsreader": {
+      "url": "https://raw.githubusercontent.com/google/fonts/86aced91de05cd4f96a06838124cca45be337b2b/ofl/newsreader/Newsreader%5Bopsz,wght%5D.ttf",
+      "file": "Newsreader[opsz,wght].ttf",
+      "sha256": "8a08d13f8a6c0d51be379a60af84f945f65369a67e509ee3c3bdcc421254d7c1",
+      "version": "1.003",
+      "from": "google/fonts at 86aced91de05cd4f96a06838124cca45be337b2b"
+    },
+    "noto-sans-sc": {
+      "url": "https://raw.githubusercontent.com/google/fonts/86aced91de05cd4f96a06838124cca45be337b2b/ofl/notosanssc/NotoSansSC%5Bwght%5D.ttf",
+      "file": "NotoSansSC[wght].ttf",
+      "sha256": "a3041811a78c361b1de50f953c805e0244951c21c5bd412f7232ef0d899af0da",
+      "version": "2.004",
+      "from": "google/fonts at 86aced91de05cd4f96a06838124cca45be337b2b"
+    },
+    "noto-serif-sc": {
+      "url": "https://raw.githubusercontent.com/google/fonts/86aced91de05cd4f96a06838124cca45be337b2b/ofl/notoserifsc/NotoSerifSC%5Bwght%5D.ttf",
+      "file": "NotoSerifSC[wght].ttf",
+      "sha256": "050080d9255a86808f2945bffac582b31ef32bc36411ce29563b4961670c66f9",
+      "version": "2.003",
+      "from": "google/fonts at 86aced91de05cd4f96a06838124cca45be337b2b"
+    },
+    "sarasa-mono-sc": {
+      "url": "https://github.com/be5invis/Sarasa-Gothic/releases/download/v1.0.43/SarasaMonoSC-TTF-Unhinted-1.0.43.7z",
+      "file": "SarasaMonoSC-TTF-Unhinted-1.0.43.7z",
+      "sha256": "b2f09e089c0dfb049860635a91766b7decc19b7ef6df8ae9bb11a22451845612",
+      "member": "SarasaMonoSC-Regular.ttf",
+      "member_sha256": "8c8a032ef20b5db2e0ecb08f87cd4e427b4cf4752168507b026d70e8c699fc58",
+      "version": "1.0.43",
+      "from": "the Sarasa Gothic release v1.0.43, as the 0.1 client"
+    }
+  },
+  "outputs": [
+    {
+      "file": "DriftingSans-Regular.ttf",
+      "family": "Drifting Sans",
+      "weight": 400,
+      "latin": "source-sans-3",
+      "cjk": "noto-sans-sc",
+      "sha256": "1253066b7f25ff364460c0e7e0f0dfd6037fbb4b3ad5e6f78e5640254754e39e"
+    },
+    {
+      "file": "DriftingSans-Medium.ttf",
+      "family": "Drifting Sans",
+      "weight": 500,
+      "latin": "source-sans-3",
+      "cjk": "noto-sans-sc",
+      "sha256": "08784e4003985e3da0303a3ea17cf55bde1a60952de3b9bbe5e015b58aa86ece"
+    },
+    {
+      "file": "DriftingSans-SemiBold.ttf",
+      "family": "Drifting Sans",
+      "weight": 600,
+      "latin": "source-sans-3",
+      "cjk": "noto-sans-sc",
+      "sha256": "15d58f1f07d0b386146b40a95cbbc663daabb41f7260716e4caba19585eb73cd"
+    },
+    {
+      "file": "DriftingSerif-Regular.ttf",
+      "family": "Drifting Serif",
+      "weight": 400,
+      "latin": "newsreader",
+      "latin_location": {
+        "opsz": 16
+      },
+      "cjk": "noto-serif-sc",
+      "sha256": "8d9812d082a053ae0881abe9f5abd13789cf75efc4827ae853415acaa8ee2fc8"
+    },
+    {
+      "file": "DriftingSerif-Bold.ttf",
+      "family": "Drifting Serif",
+      "weight": 700,
+      "latin": "newsreader",
+      "latin_location": {
+        "opsz": 16
+      },
+      "cjk": "noto-serif-sc",
+      "sha256": "2376948d30e66b8141eca46221008e8cc15727c8fe894a8ce7e8a0f16991018b"
+    },
+    {
+      "file": "SarasaMonoSC-Regular.ttf",
+      "copy": "sarasa-mono-sc",
+      "sha256": "8c8a032ef20b5db2e0ecb08f87cd4e427b4cf4752168507b026d70e8c699fc58"
+    }
+  ]
+}
