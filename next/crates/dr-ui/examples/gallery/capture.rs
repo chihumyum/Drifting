@@ -174,6 +174,9 @@ mod headless {
     /// the page's layout.
     const FONT_SIZE_KNOB: Point<Pixels> = point(px(800.0), px(318.0));
 
+    /// The motion page's tab dock, at rest (its marks' middle).
+    const DOCK: Point<Pixels> = point(px(392.0), px(511.0));
+
     fn settle(h: &mut Headless) -> Result<()> {
         // Fonts, SVG tiles and hover cards' first layout take a few frames.
         for _ in 0..4 {
@@ -268,6 +271,47 @@ mod headless {
             h.save(&dir, &format!("motion-drag-{}.png", appearance.slug()))?;
             h.release(point(pick.x + px(190.0), pick.y + px(64.0)))?;
             h.draw()?;
+            // The tab dock under the hand: its marks growing into pills,
+            // caught 120 ms in.
+            let t3 = t0 + Duration::from_secs(4);
+            anim::freeze(Some(t3));
+            h.move_to(DOCK)?;
+            h.draw()?;
+            anim::freeze(Some(t3 + Duration::from_millis(120)));
+            settle(&mut h)?;
+            h.save(&dir, &format!("motion-dock-grow-{}.png", appearance.slug()))?;
+            // A pill carried along the open row: the third chapter past the
+            // next two, which make way on the spring (caught 150 ms in).
+            let t4 = t3 + Duration::from_secs(1);
+            anim::freeze(Some(t4));
+            settle(&mut h)?;
+            let lift = point(px(130.0), px(514.0));
+            h.press(lift)?;
+            h.draw()?;
+            for k in 1..=6 {
+                let f = k as f32 / 6.0;
+                h.drag_to(point(lift.x + px(200.0 * f), lift.y + px(4.0 * f)))?;
+                h.draw()?;
+            }
+            for step in 1..=3 {
+                anim::freeze(Some(t4 + Duration::from_millis(50 * step)));
+                h.draw()?;
+            }
+            h.save(
+                &dir,
+                &format!("motion-dock-reorder-{}.png", appearance.slug()),
+            )?;
+            h.release(point(lift.x + px(200.0), lift.y + px(4.0)))?;
+            h.draw()?;
+            anim::freeze(None);
+            // Away again: the dock folds back once its wait is over.
+            h.move_to(point(px(WINDOW_W - 4.0), px(WINDOW_H - 4.0)))?;
+            h.draw()?;
+            h.cx.advance_clock(
+                dr_ui::tokens::motion::dwell::DOCK_COLLAPSE + Duration::from_millis(20),
+            );
+            h.cx.run_until_parked();
+            h.draw()?;
             h.set(|g, cx| {
                 g.page = Page::Sand;
                 g.cell = 0;
@@ -287,6 +331,7 @@ mod headless {
             anim::freeze(None);
             h.set(|g, cx| {
                 g.cell = 1;
+                g.dock_order = (0..5).collect();
                 g.pill = 1;
                 g.sheet = 0;
                 g.panel = 0;
