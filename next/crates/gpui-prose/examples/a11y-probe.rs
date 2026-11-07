@@ -57,6 +57,26 @@ mod probe {
             Encoding::Struct("_NSRange", &[usize::ENCODING, usize::ENCODING]);
     }
 
+    #[repr(C)]
+    #[derive(Clone, Copy, Debug, PartialEq)]
+    struct CGRect {
+        x: f64,
+        y: f64,
+        width: f64,
+        height: f64,
+    }
+
+    // SAFETY: matches CoreGraphics' `struct CGRect { CGPoint; CGSize; }`.
+    unsafe impl Encode for CGRect {
+        const ENCODING: Encoding = Encoding::Struct(
+            "CGRect",
+            &[
+                Encoding::Struct("CGPoint", &[f64::ENCODING, f64::ENCODING]),
+                Encoding::Struct("CGSize", &[f64::ENCODING, f64::ENCODING]),
+            ],
+        );
+    }
+
     struct Probe {
         editor: Entity<ProseEditor>,
         stock_cache: bool,
@@ -183,6 +203,14 @@ mod probe {
                 string(msg_send![area, accessibilityStringForRange: head]).unwrap_or_default();
             let selected_text =
                 string(msg_send![area, accessibilitySelectedText]).unwrap_or_default();
+            // Lines as the screen reader counts them (screen rows since F4b),
+            // and the screen frame of the character after the caret.
+            let last_line: isize = msg_send![area, accessibilityLineForIndex: (count - 1).max(0)];
+            let probe_range = NSRange {
+                location: selected.location,
+                length: 1,
+            };
+            let char_frame: CGRect = msg_send![area, accessibilityFrameForRange: probe_range];
             let ns_window: *mut AnyObject = msg_send![view, window];
             let key: bool = msg_send![ns_window, isKeyWindow];
             // What VoiceOver asks: the application's focused element (AppKit
@@ -206,12 +234,18 @@ mod probe {
             println!(
                 "{{\"step\":{step:?},\"text_area\":true,\"label\":{label:?},\"characters\":{count},\
                  \"start\":{text:?},\"selected\":[{},{}],\"selected_text\":{selected_text:?},\
-                 \"line\":{line},\"key_window\":{key},\"app_focused_role\":{focused_role:?},\
+                 \"line\":{line},\"last_line\":{last_line},\
+                 \"char_frame\":[{:.0},{:.0},{:.0},{:.0}],\
+                 \"key_window\":{key},\"app_focused_role\":{focused_role:?},\
                  \"adapter_focused_role\":{adapter_focus:?},\
                  \"first_responder_is_content_view\":{responder_is_content_view},\
                  \"gpui_focus_role\":{:?}}}",
                 selected.location,
                 selected.length,
+                char_frame.x,
+                char_frame.y,
+                char_frame.width,
+                char_frame.height,
                 gpui_focus_role(window)
             );
         }
@@ -253,6 +287,10 @@ mod probe {
                 (BlockKind::H1, "第一章　雨夜"),
                 (BlockKind::Body, "天色将晚，雨还没有停。"),
                 (BlockKind::Body, "她把伞靠在门边。"),
+                (
+                    BlockKind::Body,
+                    "“你来了”这句话在嘴边转了几圈，终于没有说出口。窗外的雨一阵紧一阵慢，屋里只听得见钟摆的声音，她数着，数到第三十下的时候，门开了。",
+                ),
             ]);
             let book = Book::new(vec![Chapter {
                 title: "雨夜".into(),

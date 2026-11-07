@@ -21,8 +21,9 @@
 //!   GPUI's `SharedString` keeps short strings inline, so an address says
 //!   nothing about the text.
 //! - **Replace** writes as the author (`user` origin), one undo step;
-//!   **replace all** writes every match of the scope back to front in one
-//!   undo step per chapter. The replacement takes the marks of the match's
+//!   **replace all** writes every match of a chapter back to front as one
+//!   commit ([`crate::text::ProseDoc::edit_batch`]): one undo step, one Loro
+//!   undo item. The replacement takes the marks of the match's
 //!   first character (a renamed, bold, entity-linked name stays so).
 //! - Drawing the matches is F4d's: [`ProseEditor::find_matches`] and
 //!   [`ProseEditor::find_current`] are what a highlight layer reads.
@@ -40,7 +41,7 @@ use gpui::{Context, EventEmitter, SharedString, Window};
 use super::{Selection, actions::*};
 use crate::{
     ProseEditor,
-    text::{MarkOverride, ORIGIN_USER, ProseDoc, segment},
+    text::{Edit, MarkOverride, ORIGIN_USER, ProseDoc, segment},
 };
 
 /// How a query matches.
@@ -528,16 +529,31 @@ impl ProseEditor {
             let steps_before = self.book.chapters[chapter].doc.undo_count();
             self.edit(window, cx, |doc, sel| {
                 doc.checkpoint();
-                for range in matches.iter().rev() {
-                    let overrides = overrides_for(doc, range.clone());
-                    doc.replace_styled(range.clone(), replacement, &overrides, ORIGIN_USER);
-                }
+                // One commit, one undo item (undoing N separate commits is
+                // quadratic in Loro).
+                let overrides: Vec<Vec<MarkOverride>> = matches
+                    .iter()
+                    .rev()
+                    .map(|range| overrides_for(doc, range.clone()))
+                    .collect();
+                let edits: Vec<Edit> = matches
+                    .iter()
+                    .rev()
+                    .zip(&overrides)
+                    .map(|(range, overrides)| Edit::Replace {
+                        range: range.clone(),
+                        text: replacement,
+                        overrides,
+                    })
+                    .collect();
+                doc.edit_batch(&edits, ORIGIN_USER);
                 *sel =
                     Selection::caret(sel.chapter, matches[0].start + replacement.chars().count());
                 doc.checkpoint();
             });
-            // A replace-all slower than the undo merge interval spans several
-            // steps; each one needs its own entry so undo reaches them all.
+            // One commit is one step; a source without batches commits each
+            // edit, and a slow run of them may span several steps: each needs
+            // its own entry so undo reaches them all.
             let steps = self.book.chapters[chapter].doc.undo_count() - steps_before;
             for _ in 1..steps {
                 self.undo_chapters.push(chapter);

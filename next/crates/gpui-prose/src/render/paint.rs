@@ -169,7 +169,7 @@ pub fn paint_text(
             let color = paint.ink(glyph.index, color);
             let at = origin
                 + point(
-                    glyph.position.x - layout.row_x(row) + paint.shift(row),
+                    layout.glyph_x(row, glyph.index, glyph.position.x) + paint.shift(row),
                     line_height * row as f32 + baseline,
                 );
             let _ = if glyph.is_emoji {

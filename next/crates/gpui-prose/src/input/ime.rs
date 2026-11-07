@@ -11,7 +11,7 @@ use crate::{
     ProseEditor,
     extension::{InputRule, Typed},
     input::Selection,
-    layout::{Affinity, shape},
+    layout::{Affinity, shape_set},
     text::{ORIGIN_USER, units::byte_of_utf16, units::utf16_slice},
 };
 
@@ -241,11 +241,12 @@ impl ProseEditor {
         } else {
             let kind = self.book.chapters[chapter].doc.line(line_ix).kind;
             let font_size = self.style.font_size(kind);
-            std::rc::Rc::new(shape(
+            std::rc::Rc::new(shape_set(
                 &display.text,
                 font_size,
                 &display.runs,
                 painted.layout.wrap_width,
+                *painted.layout.setting(),
                 window,
             ))
         };

@@ -1,6 +1,7 @@
 //! F4b — layout and virtualization: Chinese line breaking, paragraph
-//! geometry, height estimates for off-screen paragraphs, and the book (several
-//! body texts in one scroll).
+//! geometry and how rows are set (first-line indent, punctuation squeezing,
+//! alignment, justification), height estimates for off-screen paragraphs,
+//! typewriter scrolling, and the book (several body texts in one scroll).
 //!
 //! The editor virtualizes with GPUI's `list()`: one item per chapter title and
 //! one per visible paragraph. `list()` has no per-item height hints and wipes
@@ -11,7 +12,12 @@ pub mod book;
 pub mod heights;
 pub mod linebreak;
 pub mod paragraph;
+pub mod setting;
 
 pub use book::{Book, Chapter, Item};
 pub use heights::{BlockMetrics, HeightIndex, estimate_height};
-pub use paragraph::{Affinity, ProseLayout, column, shape};
+pub use paragraph::{Affinity, ProseLayout, RowAlign, RowSetting, column, shape, shape_set};
+pub use setting::{estimate_indented, typewriter_bounds, typewriter_tail};
+
+#[cfg(test)]
+mod tests;

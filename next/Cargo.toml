@@ -30,6 +30,7 @@ members = [
     "crates/prose-metrics",
     "spikes/import-v1",
     "spikes/loro-model",
+    "spikes/loro-undo-quadratic",
     "spikes/prose-spike",
     "spikes/visual",
     "xtask",

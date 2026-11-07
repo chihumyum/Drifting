@@ -241,6 +241,8 @@ impl ProseEditor {
         let decos =
             self.paragraph_decorations(chapter, line_ix, display.comp, metrics.font_size, now);
         let block = self.block_look(chapter, line_ix);
+        let (setting, _) = self.row_setting(chapter, line_ix);
+        let last = item_ix + 1 == self.book.item_count();
 
         let show_cursor =
             display.cursor.is_some() && (self.selection.is_empty() || display.comp.is_some());
@@ -274,6 +276,9 @@ impl ProseEditor {
             editor: cx.weak_entity(),
             shared: self.paint.shared.clone(),
             settle_on_click: self.paint.any_unsettled_drawn(),
+            setting,
+            typewriter: self.style.typewriter,
+            last,
         }
     }
 }

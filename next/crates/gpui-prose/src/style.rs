@@ -29,6 +29,19 @@ pub struct ProseStyle {
     pub selection: Hsla,
     pub cursor: Hsla,
     pub link: Hsla,
+    /// First-line indent of body paragraphs, in ems of the body size (the
+    /// editor setting: 0, 1 or 2). Headings are never indented.
+    pub first_line_indent: f32,
+    /// Justify: every row of a left-aligned paragraph but its last spans
+    /// the column (spare width between characters, a hanging mark outside).
+    pub justify: bool,
+    /// Squeeze adjacent full-width punctuation (标点挤压: 「。」」 at 1.5 em).
+    pub squeeze: bool,
+    /// Typewriter scrolling: while the author types or moves the caret, its
+    /// row stays at this fraction of the view's height (0.25–0.75; the old
+    /// editor's default 0.5). `None`: the view scrolls only to keep the
+    /// caret in sight.
+    pub typewriter: Option<f32>,
 }
 
 impl Default for ProseStyle {
@@ -52,6 +65,10 @@ impl Default for ProseStyle {
             selection: hsla(210. / 360., 0.9, 0.55, 0.22),
             cursor: hsla(210. / 360., 0.9, 0.45, 1.),
             link: hsla(210. / 360., 0.7, 0.42, 1.),
+            first_line_indent: 0.,
+            justify: false,
+            squeeze: true,
+            typewriter: None,
         }
     }
 }

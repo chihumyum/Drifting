@@ -64,6 +64,9 @@ pub struct PaintedDecoration {
 #[derive(Default)]
 pub struct FrameCache {
     pub lines: Vec<PaintedLine>,
+    /// Paragraphs laid out this frame, recorded in prepaint (before the
+    /// editor's accessibility children are built); cleared each render.
+    pub prepainted: Vec<PaintedLine>,
     /// Decorations painted this frame (for placing things next to them, and
     /// for tests).
     pub decorations: Vec<PaintedDecoration>,

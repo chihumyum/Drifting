@@ -549,39 +549,77 @@ fn indents_and_quotes_move_the_text_in(cx: &mut TestAppContext) {
     assert!(head == line_start + 1 || head == line_start + 2, "{head}");
 }
 
+/// The placed x of each row's first character in paragraph `line` (the
+/// layout sets alignment since F4b; one record per paragraph).
+fn row_starts(
+    editor: &Entity<ProseEditor>,
+    cx: &mut VisualTestContext,
+    line: usize,
+) -> Vec<Pixels> {
+    editor.update(cx, |e, _| {
+        let frame = e.frame.borrow();
+        let painted = frame.lines.iter().find(|l| l.line == line).unwrap();
+        (0..painted.layout.row_count())
+            .map(|row| painted.origin.x + painted.layout.x_at(row, painted.layout.rows[row].start))
+            .collect()
+    })
+}
+
 #[gpui::test]
 fn alignment_moves_rows_and_clicks_follow(cx: &mut TestAppContext) {
     let (editor, cx) = block_editor(cx, styled("居中", &[(block::ALIGN, "center".into())]));
-    let plain = origins(&editor, cx, 0)[0];
-    let centered = origins(&editor, cx, 1);
-    assert_eq!(centered.len(), 1);
-    assert!(centered[0].x > plain.x + px(200.), "{centered:?}");
+    let plain = row_starts(&editor, cx, 0)[0];
+    let centered = row_starts(&editor, cx, 1);
+    assert_eq!(origins(&editor, cx, 1).len(), 1, "one record per paragraph");
+    assert!(centered[0] > plain + px(200.), "{centered:?}");
     assert_eq!(
         editor.update(cx, |e, _| e.block_look(0, 1).align),
         Align::Center
     );
     // Clicking just before the end of the first character puts the caret
     // after it: hit testing knows where the row moved to.
-    let first_end = editor.update(cx, |e, _| {
+    let (origin, first_end) = editor.update(cx, |e, _| {
         let frame = e.frame.borrow();
         let line = frame.lines.iter().find(|l| l.line == 1).unwrap();
-        line.layout.line.x_for_index("居".len())
+        (line.origin, line.layout.x_at(0, "居".len()))
     });
     cx.simulate_click(
-        centered[0] + point(first_end - px(2.), px(10.)),
+        origin + point(first_end - px(2.), px(10.)),
         Modifiers::default(),
     );
     let line_start = editor.update(cx, |e, _| e.book.chapters[0].doc.line_start(1));
     assert_eq!(editor.update(cx, |e, _| e.selection().head), line_start + 1);
 
     // A long right-aligned paragraph: its last row moves, the full rows
-    // barely; each row gets its own record so clicks find their offsets.
+    // barely.
     let long: &'static str = LONG;
     let (editor, cx) = block_editor(cx, styled(long, &[(block::ALIGN, "right".into())]));
-    let rows = origins(&editor, cx, 1);
+    let rows = row_starts(&editor, cx, 1);
     assert!(rows.len() >= 2, "{rows:?}");
     let last = *rows.last().unwrap();
-    assert!(last.x > rows[0].x + px(40.), "{rows:?}");
+    assert!(last > rows[0] + px(40.), "{rows:?}");
+    // A click on the moved last row finds its first character.
+    let (origin, top) = editor.update(cx, |e, _| {
+        let frame = e.frame.borrow();
+        let line = frame.lines.iter().find(|l| l.line == 1).unwrap();
+        let row = line.layout.row_count() - 1;
+        (line.origin, line.line_height * row as f32)
+    });
+    cx.simulate_click(
+        point(last + px(1.), origin.y + top + px(10.)),
+        Modifiers::default(),
+    );
+    let (head, expected) = editor.update(cx, |e, _| {
+        let frame = e.frame.borrow();
+        let line = frame.lines.iter().find(|l| l.line == 1).unwrap();
+        let start_byte = line.layout.rows.last().unwrap().start;
+        let doc = &e.book.chapters[0].doc;
+        (
+            e.selection().head,
+            doc.line_start(1) + doc.line(1).char_of_byte(start_byte),
+        )
+    });
+    assert_eq!(head, expected);
 }
 
 #[gpui::test]
