@@ -379,3 +379,46 @@ fn a_read_only_open_reads_beside_the_app_and_writes_nothing() {
         Err(StoreError::NeedsMigration { applied: 1, .. })
     ));
 }
+
+/// Closing releases the library at once, even while other threads are
+/// starting processes (which briefly hold copies of every descriptor, the
+/// lock file's included). Before the lock was released explicitly, 438
+/// immediate reopens in 1000 failed this way. Windows handles are not
+/// inherited, so this is a Unix case.
+#[cfg(unix)]
+#[test]
+fn a_closed_library_reopens_at_once_while_processes_start() {
+    use std::sync::atomic::AtomicBool;
+    let dir = tempfile::tempdir().unwrap();
+    let stop = Arc::new(AtomicBool::new(false));
+    let spawners: Vec<_> = (0..4)
+        .map(|_| {
+            let stop = stop.clone();
+            std::thread::spawn(move || {
+                let mut n = 0usize;
+                while !stop.load(Ordering::Relaxed) {
+                    let _ = std::process::Command::new("true").status();
+                    n += 1;
+                }
+                n
+            })
+        })
+        .collect();
+    let mut refused = 0;
+    for _ in 0..1000 {
+        match Library::open(dir.path(), options()) {
+            Ok(lib) => lib.close().unwrap(),
+            Err(_) => {
+                refused += 1;
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        }
+    }
+    stop.store(true, Ordering::Relaxed);
+    let spawned: usize = spawners.into_iter().map(|t| t.join().unwrap()).sum();
+    assert!(spawned > 100, "only {spawned} processes started meanwhile");
+    assert_eq!(
+        refused, 0,
+        "reopens refused while {spawned} processes started"
+    );
+}

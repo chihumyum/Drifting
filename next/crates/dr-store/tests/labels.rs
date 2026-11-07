@@ -127,3 +127,81 @@ fn old_points_are_pruned_unless_kept() {
     lib.prune_history(dr_store::now_ms()).unwrap();
     assert!(lib.history("node:a").unwrap().iter().any(|l| l.keep));
 }
+
+/// The import's way to store a document (genesis, one `import` commit, a
+/// dated `import` point) leaves no `close` point beside it: closing labels
+/// only an opening that wrote something worth a label, and never the
+/// version the latest label already has.
+#[test]
+fn closing_labels_only_openings_that_wrote_something_worth_a_label() {
+    use dr_store::history::labels;
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open(dir.path());
+    let names = |lib: &dr_store::Library| -> Vec<String> {
+        lib.history("node:a")
+            .unwrap()
+            .into_iter()
+            .map(|l| l.label)
+            .collect()
+    };
+
+    let h = create(&lib, "node:a");
+    let other = h.read(|d| d.fork()).unwrap();
+    other.set_peer_id(42).unwrap();
+    other
+        .get_text(synthetic::BODY)
+        .insert(0, "旧版的正文")
+        .unwrap();
+    other.commit();
+    let bytes = other
+        .export(loro::ExportMode::updates(&h.doc().oplog_vv()))
+        .unwrap();
+    h.import(bytes, Origin::Import).unwrap();
+    h.write(Origin::Repair, |doc| {
+        doc.get_map("meta").insert("repaired", true).unwrap();
+    })
+    .unwrap();
+    let imported = h.doc().oplog_frontiers();
+    // As M10 does: the document is stored and closed before its book, and
+    // only then gets its dated points.
+    h.close();
+    assert!(names(&lib).is_empty(), "no close point after an import");
+    assert!(
+        lib.label_at(
+            "node:a",
+            &imported,
+            "import",
+            dr_store::now_ms(),
+            LabelRetention::Kept
+        )
+        .unwrap()
+    );
+
+    // Opened and closed without writing: nothing.
+    lib.open_doc("node:a", OpenDoc::Existing).unwrap().close();
+    assert_eq!(names(&lib), ["import"]);
+
+    // The author writes: closing labels the new version.
+    let h = lib.open_doc("node:a", OpenDoc::Existing).unwrap();
+    insert(&h, Origin::User, 0, "新");
+    h.close();
+    assert_eq!(names(&lib), [labels::CLOSE, "import"]);
+
+    // A point written beside the open holder on its current version is not
+    // repeated by the close.
+    let h = lib.open_doc("node:a", OpenDoc::Existing).unwrap();
+    insert(&h, Origin::User, 0, "再");
+    let current = h.doc().oplog_frontiers();
+    assert!(
+        lib.label_at(
+            "node:a",
+            &current,
+            "restore-point",
+            dr_store::now_ms(),
+            LabelRetention::Thinned
+        )
+        .unwrap()
+    );
+    h.close();
+    assert_eq!(names(&lib), ["restore-point", labels::CLOSE, "import"]);
+}
