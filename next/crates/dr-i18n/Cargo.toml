@@ -1,0 +1,20 @@
+[package]
+name = "dr-i18n"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Drifting's interface strings: the 0.1 JSON locales, CLDR plurals, interpolation and keys checked at compile time"
+build = "build.rs"
+
+[dependencies]
+icu_locale_core.workspace = true
+icu_plurals.workspace = true
+sys-locale.workspace = true
+
+[build-dependencies]
+serde_json.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

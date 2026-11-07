@@ -1,0 +1,241 @@
+{
+  "bottomStatusBar": {
+    "elements": "Elemente",
+    "storyGraph": "Geschichtsgraph",
+    "todoLibrary": "Aufgaben und Materialsammlung"
+  },
+  "common": {
+    "close": "Schließen",
+    "local": "Lokal"
+  },
+  "feedback": {
+    "crash": {
+      "title": "Bei Drifting ist beim letzten Mal ein Problem aufgetreten"
+    }
+  },
+  "leftSidebar": {
+    "empty": {
+      "noChapters": "Noch keine Kapitel.",
+      "noDrifts": "Noch keine Ideen.",
+      "noElements": "Noch keine Elemente."
+    },
+    "meta": {
+      "drifts": "{{count}} Ideen",
+      "elements": "{{categories}} Kategorien · {{elements}} Elemente"
+    },
+    "tabs": {
+      "chapters": "Kapitel",
+      "drifts": "Ideen",
+      "elements": "Elemente"
+    },
+    "top": {
+      "close": "Linke Seitenleiste schließen",
+      "open": "Linke Seitenleiste öffnen"
+    },
+    "viewMode": {
+      "chapterSummary": "{{storylines}} Handlungsstränge · {{chapters}} Kapitel"
+    }
+  },
+  "navigation": {
+    "back": "Zurück"
+  },
+  "notifications": {
+    "appUpdate": {
+      "source": "Updates"
+    },
+    "clear": "Leeren",
+    "cloudSync": {
+      "source": "Cloudsynchronisierung"
+    },
+    "crashFollowUp": {
+      "source": "Drifting"
+    },
+    "empty": "Keine Benachrichtigungen",
+    "markdownFolder": {
+      "preserved_one": "{{count}} bearbeitete Datei unter .drifting/preserved aufbewahrt",
+      "preserved_other": "{{count}} bearbeitete Dateien unter .drifting/preserved aufbewahrt",
+      "source": "Markdown-Ordner"
+    },
+    "organize": {
+      "source": "Agent"
+    },
+    "remove": "Entfernen",
+    "shareComments": {
+      "source": "Leserkommentar"
+    },
+    "time": {
+      "daysAgo": "vor {{count}} Tagen",
+      "hoursAgo": "vor {{count}} Std.",
+      "justNow": "gerade eben",
+      "minutesAgo": "vor {{count}} Min."
+    },
+    "title": "Benachrichtigungen"
+  },
+  "projectHome": {
+    "kicker": "Projektstartseite"
+  },
+  "rightSidebar": {
+    "kickers": {
+      "library": "Projekt · Materialsammlung",
+      "review": "Projekt · Prüfung",
+      "stats": {
+        "all-chapters": "Ganzes Buch · Tempo",
+        "category": "Diese Kategorie · Detailstatistik",
+        "chapter": "Dieses Kapitel · Detailstatistik",
+        "drift": "Diese Idee · Detailstatistik",
+        "element": "Dieses Element · Detailstatistik",
+        "material": "Dieses Material · Details",
+        "none": "Projekt · Detailstatistik",
+        "storyline": "Dieser Handlungsstrang · Detailstatistik"
+      }
+    },
+    "tabs": {
+      "companion": "Agent",
+      "library": "Materialsammlung",
+      "review": "Prüfung",
+      "stats": "Statistik"
+    },
+    "top": {
+      "close": "Rechte Seitenleiste schließen",
+      "open": "Rechte Seitenleiste öffnen"
+    }
+  },
+  "settings": {
+    "appearance": {
+      "dark": "Dunkel",
+      "interface_text_large": "Größer",
+      "interface_text_largest": "Am größten",
+      "interface_text_size": "Schriftgröße der Oberfläche",
+      "interface_text_size_desc": "Passt die Schrift der Desktop-Oberfläche auf diesem Gerät an. Manuskripttext verwendet die Editor-Schriftgröße.",
+      "interface_text_small": "Kleiner",
+      "interface_text_smallest": "Am kleinsten",
+      "interface_text_standard": "Standard",
+      "light": "Hell",
+      "system": "Systemeinstellung",
+      "theme": "Design",
+      "theme_desc": "Hell, dunkel oder dem System folgen."
+    },
+    "editor": {
+      "auto_immersive": "Immersives Schreiben beim Tippen",
+      "auto_immersive_desc": "Sobald du im Text schreibst, treten Seitenleisten und Werkzeuge zurück; Esc oder ein Klick außerhalb des Textes holt sie zurück.",
+      "flow": "Schreibfluss",
+      "font_size": "Schriftgröße",
+      "font_size_desc": "Nur die Editoransicht; der Export bleibt unverändert.",
+      "indent": "Absatzeinzug",
+      "indent_desc": "Nur im Editor. Für den Export gelten eigene Einstellungen.",
+      "indent_none": "Keine",
+      "indent_one": "1 Zeichen",
+      "indent_two": "2 Zeichen",
+      "line_height": "Zeilenhöhe",
+      "page_width": "Seitenbreite",
+      "page_width_desc": "Papierbreite im Editor; der Text füllt sie mit festen Rändern aus.",
+      "paragraph_spacing": "Absatzabstand",
+      "paragraph_spacing_desc": "Gemeinsamer Abstand für Absätze und alle Überschriftenebenen, bezogen auf die Textschriftgröße; nur im Editor.",
+      "typesetting": "Satz",
+      "typewriter_mode": "Schreibmaschinenmodus",
+      "typewriter_mode_desc": "Hält die aktuelle Textzeile beim Tippen oder Bewegen des Cursors an einer festen Bildschirmposition. Nur im Editor."
+    },
+    "groups": {
+      "control": "Verwaltung",
+      "preferences": "Voreinstellungen"
+    },
+    "keys": {
+      "actions": {
+        "closeActiveTab": {
+          "desc": "Schließt den aktiven Tab im unteren Dock",
+          "label": "Aktiven Tab schließen"
+        },
+        "closeProject": {
+          "desc": "Schließt dieses Projekt und kehrt zum Bücherregal zurück",
+          "label": "Projekt schließen"
+        },
+        "findInEditor": {
+          "desc": "Sucht Text im geöffneten Editor",
+          "label": "Im aktuellen Editor suchen"
+        },
+        "globalSearch": {
+          "desc": "Durchsucht Kapitel, Handlungsstränge, Elemente und Kategorien",
+          "label": "Globale Suche"
+        },
+        "goBack": {
+          "desc": "Kehrt wie im Browser zur vorherigen Seite zurück",
+          "label": "Zurück"
+        },
+        "goForward": {
+          "desc": "Geht wie im Browser zur nächsten bereits besuchten Seite",
+          "label": "Vorwärts"
+        },
+        "newEntity": {
+          "desc": "Öffnet die Projektstartseite mit erreichbarer Erstellungsleiste",
+          "label": "Neu"
+        },
+        "nextTab": {
+          "desc": "Wechselt durch offene Tabs nach rechts",
+          "label": "Nächster Tab"
+        },
+        "prevTab": {
+          "desc": "Wechselt durch offene Tabs nach links",
+          "label": "Vorheriger Tab"
+        },
+        "toggleBottomTimeline": {
+          "desc": "Zeigt oder verbirgt die untere Zeitleiste",
+          "label": "Untere Zeitleiste umschalten"
+        },
+        "toggleImmersiveWriting": {
+          "desc": "Nur die Seite bleibt; erneut drücken oder Esc, um zurückzukehren",
+          "label": "Immersives Schreiben"
+        }
+      },
+      "conflict": "{{accelerator}} wird bereits für „{{action}}“ verwendet",
+      "pressNewCombo": "Neue Tastenkombination drücken…",
+      "recording": "Aufzeichnung",
+      "reset": "Wiederherstellen",
+      "resetAll": "Alle Standardwerte wiederherstellen"
+    },
+    "language": {
+      "ui_locale": "Oberflächensprache",
+      "ui_locale_desc": "Sprache für Menüs, Schaltflächen und Meldungen. Deine Texte bleiben unverändert."
+    },
+    "privacy": {
+      "crashLogs": "Fehlerdiagnosen automatisch senden",
+      "crashLogsDesc": "Sendet bereinigte Fehlerstellen, Version und Plattform zur Diagnose an den Betreuer. Kein Manuskripttext. Jederzeit abschaltbar.",
+      "dataUsage": "Datennutzung"
+    },
+    "rail": {
+      "appearance": "Darstellung",
+      "editor": "Editor",
+      "keys": "Tastatur",
+      "language": "Sprache",
+      "privacy": "Datenschutz",
+      "updates": "Updates"
+    },
+    "search_placeholder": "Einstellungen durchsuchen…",
+    "title": "Einstellungen",
+    "update": {
+      "channel_desc": "Apple Silicon · macOS 13 oder neuer",
+      "current_version": "Aktuelle Version"
+    }
+  },
+  "sidebarLayout": {
+    "split": "Zwei Spalten wiederherstellen"
+  },
+  "topTimeline": {
+    "singletons": {
+      "allChapters": "Ganzes Buch"
+    },
+    "untitled": {
+      "category": "Unbenannte Kategorie",
+      "chapter": "Unbenanntes Kapitel",
+      "drift": "Unbenannte Idee",
+      "element": "Unbenanntes Element",
+      "library_item": "Unbenanntes Material",
+      "storyline": "Unbenannter Handlungsstrang"
+    }
+  },
+  "windowCaption": {
+    "close": "Schließen",
+    "maximize": "Maximieren",
+    "minimize": "Minimieren",
+    "restore": "Wiederherstellen"
+  }
+}

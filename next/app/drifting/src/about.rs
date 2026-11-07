@@ -1,13 +1,13 @@
 //! The About window: name, version and licence. One at a time.
 
+use dr_shell::{actions::About, menus};
+use dr_ui::{Theme, fonts::Role, style::DrStyled};
 use gpui::{
     App, AppContext, Bounds, Context, IntoElement, ParentElement, Render, Styled, Subscription,
     TitlebarOptions, Window, WindowBounds, WindowHandle, WindowOptions, div, px, size,
 };
 
-use crate::appearance::{self, Palette};
 use crate::identity::{self, APP_NAME, BUNDLE_ID};
-use crate::menus::{self, About};
 
 pub struct AboutWindow {
     _appearance_observer: Subscription,
@@ -15,7 +15,8 @@ pub struct AboutWindow {
 
 impl Render for AboutWindow {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let palette = Palette::for_appearance(appearance::current(window, cx));
+        let theme = Theme::of(window, cx);
+        let (p, s) = (theme.palette, theme.scale);
         div()
             .size_full()
             .flex()
@@ -23,19 +24,27 @@ impl Render for AboutWindow {
             .justify_center()
             .items_center()
             .gap_1()
-            .bg(palette.background)
-            .text_color(palette.text)
-            .child(div().text_xl().child(APP_NAME))
+            .bg(p.desk.solid())
+            .text_color(p.ink(1).solid())
+            .font_role(Role::Ui)
             .child(
                 div()
-                    .text_sm()
-                    .text_color(palette.muted)
+                    .font_role(Role::Structure)
+                    .type_px(s.heading + 4.0, s.heading + 12.0)
+                    .child(APP_NAME),
+            )
+            .child(
+                div()
+                    .font_role(Role::Index)
+                    .type_px(s.caption, s.line_caption)
+                    .text_color(p.muted().solid())
                     .child(identity::version()),
             )
             .child(
                 div()
-                    .text_xs()
-                    .text_color(palette.muted)
+                    .font_role(Role::Index)
+                    .type_px(s.caption, s.line_caption)
+                    .text_color(p.muted().solid())
                     .child(env!("CARGO_PKG_LICENSE")),
             )
     }

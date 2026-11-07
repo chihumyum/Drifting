@@ -1,36 +1,37 @@
 //! The Drifting desktop app (the Rust + GPUI rewrite).
 //!
-//! Spike P0-A's skeleton: the main window with a custom titlebar, the menu bar,
-//! light and dark following the system, and development probes. F6 (`dr-shell`)
-//! takes it from here; see docs/rust-rewrite/spikes/p0-a-skeleton.md.
+//! The entry point wires F7's platform services (the MCP bridge first, then
+//! crash reports, logs, the single running copy, deep links), dr-ui's
+//! assets and fonts, and hands the window to the shell (F6, `dr-shell`).
+//! See docs/rust-rewrite/foundations/f6-shell.md.
 
 mod about;
-mod appearance;
 mod identity;
-mod main_window;
-mod menus;
 mod probe;
-mod titlebar;
 
 use std::path::Path;
-use std::sync::Arc;
 
 use dr_platform::DeepLinks;
-use dr_platform::crash::{CrashConfig, CrashReporting};
-use gpui::{App, Global};
+use dr_platform::crash::CrashConfig;
+use dr_shell::{Services, SettingsFile, ShellInfo};
+use gpui::App;
 use gpui_platform::application;
 
-use crate::appearance::AppearanceSetting;
-use crate::main_window::MainWindow;
+/// The development switch: `DRIFTING_APPEARANCE=light|dark` forces one
+/// appearance without touching the system setting or the stored theme.
+pub const APPEARANCE_ENV: &str = "DRIFTING_APPEARANCE";
 
-/// F7's services, for the shell (F6) to take: the deep-link queue and crash
-/// follow-ups.
-pub struct Platform {
-    pub deep_links: Arc<DeepLinks>,
-    pub crash_reports: CrashReporting,
+fn forced_appearance() -> Option<dr_ui::Appearance> {
+    match std::env::var(APPEARANCE_ENV).ok().as_deref().map(str::trim) {
+        Some("light") => Some(dr_ui::Appearance::Light),
+        Some("dark") => Some(dr_ui::Appearance::Dark),
+        None | Some("" | "system") => None,
+        Some(other) => {
+            eprintln!("{APPEARANCE_ENV}={other:?} is not light, dark or system; ignored");
+            None
+        }
+    }
 }
-
-impl Global for Platform {}
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -51,23 +52,28 @@ fn main() {
     probe::start();
     let platform = dr_platform::Identity::current();
     let dirs = dr_platform::AppDirs::for_identity(platform).ok();
-    // First: in the crash-reporter process this never returns. Consent comes
-    // from Settings once F6 stores it (and the first launch says so); until
-    // then reports stay off.
+    // The settings file holds the crash-report consent, which `crash::init`
+    // needs before anything else runs. Reading it is plain file I/O.
+    let settings = match &dirs {
+        Some(dirs) => SettingsFile::open(&dirs.data),
+        None => SettingsFile::in_memory(),
+    };
+    let consent = settings.bool(dr_shell::settings::registry::CRASH_REPORTS);
+    // First: in the crash-reporter process this never returns.
     let crash_reports = dr_platform::crash::init(CrashConfig::for_build(
         platform,
         dirs.as_ref(),
         env!("CARGO_PKG_VERSION"),
         option_env!("DRIFTING_BUILD_COMMIT"),
-        false,
+        consent,
     ));
     dr_platform::logging::init(&dr_platform::logging::LogConfig::for_build(
         dirs.as_ref().map(|dirs| dirs.logs.as_path()),
     ));
     crash_reports.log_status();
 
-    // Windows: a second launch hands its arguments (a `drifting:` link) to the
-    // running copy and exits. macOS: Launch Services does this itself.
+    // Windows: a second launch hands its arguments (a link) to the running
+    // copy and exits. macOS: Launch Services does this itself.
     let Some(instance) = dr_platform::single_instance::acquire(platform, &args).primary() else {
         return;
     };
@@ -80,9 +86,7 @@ fn main() {
         }
     });
 
-    let appearance = AppearanceSetting::from_env();
-
-    let app = application();
+    let app = application().with_assets(dr_ui::Assets::new());
     probe::platform_created();
     app.on_open_urls({
         let deep_links = deep_links.clone();
@@ -91,32 +95,43 @@ fn main() {
         }
     });
     // macOS keeps the app running when its last window closes; clicking the
-    // Dock icon then opens a new main window.
+    // Dock icon opens the workspace again.
     app.on_reopen(|cx| {
         if cx.windows().is_empty() {
-            open_main_window(cx);
+            open_workspace(cx);
         }
     });
     app.run(move |cx: &mut App| {
         probe::app_ready();
-        cx.set_global(appearance);
-        cx.set_global(Platform {
-            deep_links,
-            crash_reports,
-        });
-        menus::init(cx);
+        if let Err(missing) = dr_ui::init(cx) {
+            // dr-ui never falls back to system fonts; say what to run.
+            log::error!("{missing}");
+            eprintln!("{missing}");
+            cx.quit();
+            return;
+        }
+        let info = ShellInfo {
+            app_name: identity::APP_NAME,
+            bundle_id: identity::BUNDLE_ID,
+            version: env!("CARGO_PKG_VERSION"),
+            url_scheme: platform.url_scheme,
+            forced_appearance: forced_appearance(),
+        };
+        let services = Services {
+            deep_links: Some(deep_links),
+            crash_reports: Some(crash_reports),
+        };
+        dr_shell::init(info, services, settings, cx);
         cx.on_action(about::open);
-        cx.on_action(main_window::open_settings);
         if !cfg!(target_os = "macos") {
             cx.on_window_closed(|cx, _| {
                 if cx.windows().is_empty() {
-                    cx.quit();
+                    dr_shell::quit::request(cx);
                 }
             })
             .detach();
         }
-
-        open_main_window(cx);
+        open_workspace(cx);
         cx.activate(true);
     });
 }
@@ -127,9 +142,9 @@ fn run_mcp_bridge(_connection: &Path) -> Result<(), String> {
     Err("this build has no MCP bridge yet".into())
 }
 
-fn open_main_window(cx: &mut App) {
-    if let Err(error) = MainWindow::open_or_activate(cx) {
-        log::error!("could not open the main window: {error:#}");
+fn open_workspace(cx: &mut App) {
+    if let Err(error) = dr_shell::open_workspace(cx, probe::window_opened) {
+        log::error!("could not open the workspace: {error:#}");
     }
 }
 

@@ -1,0 +1,42 @@
+[package]
+name = "dr-shell"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Drifting's shell: the three-column workspace, tabs and splits, sidebars, the Super View stage, shortcuts, settings and notifications"
+
+[features]
+# Offscreen screenshots and frame timings (`examples/shell-capture.rs`),
+# through GPUI's headless test platform. Off by default.
+capture = ["dep:gpui_platform", "gpui_platform/test-support", "dep:color_quant", "dep:png"]
+
+[dependencies]
+anyhow.workspace = true
+color_quant = { workspace = true, optional = true }
+dr-i18n.workspace = true
+dr-model.workspace = true
+dr-platform.workspace = true
+dr-ui.workspace = true
+futures.workspace = true
+gpui.workspace = true
+# Only for the `capture` feature; the app brings its own platform.
+gpui_platform = { workspace = true, optional = true }
+log.workspace = true
+png = { workspace = true, optional = true }
+serde.workspace = true
+serde_json.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2.workspace = true
+objc2-app-kit.workspace = true
+
+[dev-dependencies]
+gpui = { workspace = true, features = ["test-support"] }
+gpui_platform.workspace = true
+tempfile.workspace = true
+
+[[example]]
+name = "shell-capture"
+required-features = ["capture"]

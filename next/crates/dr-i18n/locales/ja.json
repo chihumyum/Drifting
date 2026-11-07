@@ -1,0 +1,241 @@
+{
+  "bottomStatusBar": {
+    "elements": "要素",
+    "storyGraph": "物語グラフ",
+    "todoLibrary": "TODOと資料庫"
+  },
+  "common": {
+    "close": "閉じる",
+    "local": "ローカル"
+  },
+  "feedback": {
+    "crash": {
+      "title": "前回の使用時に Drifting で問題が発生しました"
+    }
+  },
+  "leftSidebar": {
+    "empty": {
+      "noChapters": "章はまだありません。",
+      "noDrifts": "アイデアはまだありません。",
+      "noElements": "要素はまだありません。"
+    },
+    "meta": {
+      "drifts": "{{count}}件のアイデア",
+      "elements": "{{categories}}カテゴリ・{{elements}}要素"
+    },
+    "tabs": {
+      "chapters": "章",
+      "drifts": "アイデア",
+      "elements": "要素"
+    },
+    "top": {
+      "close": "左サイドバーを閉じる",
+      "open": "左サイドバーを開く"
+    },
+    "viewMode": {
+      "chapterSummary": "{{storylines}}ストーリーライン・{{chapters}}章"
+    }
+  },
+  "navigation": {
+    "back": "戻る"
+  },
+  "notifications": {
+    "appUpdate": {
+      "source": "アップデート"
+    },
+    "clear": "消去",
+    "cloudSync": {
+      "source": "クラウド同期"
+    },
+    "crashFollowUp": {
+      "source": "Drifting"
+    },
+    "empty": "通知なし",
+    "markdownFolder": {
+      "preserved_one": "編集済みファイル{{count}}件を.drifting/preservedに保存",
+      "preserved_other": "編集済みファイル{{count}}件を.drifting/preservedに保存",
+      "source": "Markdownフォルダ"
+    },
+    "organize": {
+      "source": "Agent"
+    },
+    "remove": "削除",
+    "shareComments": {
+      "source": "読者のコメント"
+    },
+    "time": {
+      "daysAgo": "{{count}}日前",
+      "hoursAgo": "{{count}}時間前",
+      "justNow": "たった今",
+      "minutesAgo": "{{count}}分前"
+    },
+    "title": "通知"
+  },
+  "projectHome": {
+    "kicker": "作品ホーム"
+  },
+  "rightSidebar": {
+    "kickers": {
+      "library": "作品・資料庫",
+      "review": "作品・レビュー",
+      "stats": {
+        "all-chapters": "全編・ペース",
+        "category": "このカテゴリ・詳細統計",
+        "chapter": "この章・詳細統計",
+        "drift": "このアイデア・詳細統計",
+        "element": "この要素・詳細統計",
+        "material": "この資料・詳細",
+        "none": "作品・詳細統計",
+        "storyline": "このストーリーライン・詳細統計"
+      }
+    },
+    "tabs": {
+      "companion": "Agent",
+      "library": "資料庫",
+      "review": "レビュー",
+      "stats": "統計"
+    },
+    "top": {
+      "close": "右サイドバーを閉じる",
+      "open": "右サイドバーを開く"
+    }
+  },
+  "settings": {
+    "appearance": {
+      "dark": "ダーク",
+      "interface_text_large": "大きめ",
+      "interface_text_largest": "最大",
+      "interface_text_size": "画面の文字サイズ",
+      "interface_text_size_desc": "この端末のデスクトップ画面の文字サイズを調整します。原稿にはエディタの文字サイズが適用されます。",
+      "interface_text_small": "小さめ",
+      "interface_text_smallest": "最小",
+      "interface_text_standard": "標準",
+      "light": "ライト",
+      "system": "システムに合わせる",
+      "theme": "テーマ",
+      "theme_desc": "ライト、ダーク、またはシステムに合わせる。"
+    },
+    "editor": {
+      "auto_immersive": "入力すると没入執筆",
+      "auto_immersive_desc": "本文を書き始めるとサイドバーとツールを収めます。Esc か本文の外をクリックすると戻ります。",
+      "flow": "執筆の流れ",
+      "font_size": "文字サイズ",
+      "font_size_desc": "エディタ表示のみに適用し、出力には影響しません。",
+      "indent": "段落の字下げ",
+      "indent_desc": "エディタ表示専用です。出力には別の設定を使います。",
+      "indent_none": "なし",
+      "indent_one": "1文字",
+      "indent_two": "2文字",
+      "line_height": "行の高さ",
+      "page_width": "用紙の幅",
+      "page_width_desc": "エディタの用紙幅です。本文は固定の余白を除いた幅に収まります。",
+      "paragraph_spacing": "段落の間隔",
+      "paragraph_spacing_desc": "本文段落と各レベルの見出しに共通の間隔です。本文の文字サイズを基準とし、エディタ表示だけに適用します。",
+      "typesetting": "組版",
+      "typewriter_mode": "タイプライターモード",
+      "typewriter_mode_desc": "入力やカーソル移動中、現在の行を画面内の一定位置に保ちます。エディタ表示のみに適用します。"
+    },
+    "groups": {
+      "control": "管理",
+      "preferences": "環境設定"
+    },
+    "keys": {
+      "actions": {
+        "closeActiveTab": {
+          "desc": "下部Dockの現在のタブを閉じます",
+          "label": "現在のタブを閉じる"
+        },
+        "closeProject": {
+          "desc": "作品を閉じて本棚へ戻ります",
+          "label": "作品を閉じる"
+        },
+        "findInEditor": {
+          "desc": "現在開いているエディタのテキストを検索します",
+          "label": "現在のエディタ内を検索"
+        },
+        "globalSearch": {
+          "desc": "章、ストーリーライン、要素、カテゴリを横断して検索します",
+          "label": "全体を検索"
+        },
+        "goBack": {
+          "desc": "ブラウザの「戻る」のように、前に開いたページへ戻ります",
+          "label": "戻る"
+        },
+        "goForward": {
+          "desc": "ブラウザの「進む」のように、次の訪問済みページへ進みます",
+          "label": "進む"
+        },
+        "newEntity": {
+          "desc": "作品ホームを開き、新規作成行を表示します",
+          "label": "新規"
+        },
+        "nextTab": {
+          "desc": "開いているタブを右へ移動します",
+          "label": "次のタブ"
+        },
+        "prevTab": {
+          "desc": "開いているタブを左へ移動します",
+          "label": "前のタブ"
+        },
+        "toggleBottomTimeline": {
+          "desc": "下部タイムラインを表示・非表示にします",
+          "label": "下部タイムラインを切り替え"
+        },
+        "toggleImmersiveWriting": {
+          "desc": "ページだけを残します。もう一度押すか Esc で戻ります。",
+          "label": "没入執筆"
+        }
+      },
+      "conflict": "{{accelerator}}は「{{action}}」で使用中です",
+      "pressNewCombo": "新しい組み合わせを押す…",
+      "recording": "記録中",
+      "reset": "復元",
+      "resetAll": "すべて既定値に戻す"
+    },
+    "language": {
+      "ui_locale": "表示言語",
+      "ui_locale_desc": "メニュー、ボタン、メッセージの言語です。執筆内容には影響しません。"
+    },
+    "privacy": {
+      "crashLogs": "障害の診断情報を自動送信",
+      "crashLogsDesc": "機密情報を除いたエラー箇所、バージョン、環境を開発者へ送信し、障害の調査に役立てます。原稿は含みません。いつでも無効にできます。",
+      "dataUsage": "データの利用"
+    },
+    "rail": {
+      "appearance": "外観",
+      "editor": "エディタ",
+      "keys": "キーボード",
+      "language": "言語",
+      "privacy": "プライバシー",
+      "updates": "アップデート"
+    },
+    "search_placeholder": "設定を検索…",
+    "title": "設定",
+    "update": {
+      "channel_desc": "Apple Silicon・macOS 13以降",
+      "current_version": "現在のバージョン"
+    }
+  },
+  "sidebarLayout": {
+    "split": "2列表示に戻す"
+  },
+  "topTimeline": {
+    "singletons": {
+      "allChapters": "全編"
+    },
+    "untitled": {
+      "category": "無題のカテゴリ",
+      "chapter": "無題の章",
+      "drift": "無題のアイデア",
+      "element": "無題の要素",
+      "library_item": "無題の資料",
+      "storyline": "無題のストーリーライン"
+    }
+  },
+  "windowCaption": {
+    "close": "閉じる",
+    "maximize": "最大化",
+    "minimize": "最小化",
+    "restore": "元のサイズに戻す"
+  }
+}
