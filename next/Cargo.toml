@@ -134,6 +134,10 @@ tiny-skia = "0.11.4"
 libc = "0.2.191"
 raw-window-handle = "0.6.2"
 
+# F4c (gpui-prose tests): AccessKit's reading of an accessibility tree, the
+# same version GPUI's macOS and Windows adapters already build.
+accesskit_consumer = "0.38"
+
 # F7 dr-platform: logs, crash reports, keychain, deep links and single
 # instance, the updater. docs/rust-rewrite/foundations/f7-platform.md.
 dr-platform = { path = "crates/dr-platform" }
