@@ -168,3 +168,110 @@ fn book_documents_are_recorded_as_indexed() {
     h.close();
     lib.close().unwrap();
 }
+
+/// Random typing, Enters, deletes across paragraphs, headings and links
+/// through a real holder: after every derivation (a paragraph patch written
+/// by dr-store) the stored rows are what a full read gives.
+#[test]
+fn patches_written_by_the_holder_keep_the_rows_right() {
+    let dir = tempfile::tempdir().unwrap();
+    let (lib, deriver) = open(dir.path(), true);
+    let deriver = deriver.unwrap();
+    let id = DocId::parse("node:c2").unwrap();
+    let doc_id = id.to_string();
+    let h = open_doc(&lib, &id);
+    let mut p = ProseDoc::create(id.clone(), 5).unwrap();
+    write(&h, &mut p, |t| {
+        t.insert_paragraphs(0, "甲段落一\n乙段落二\n丙段落三\n丁段落四\n戊段落五")
+            .map(|_| ())
+    });
+    assert!(h.reindex_now().unwrap());
+    let mut x = 0x2545_f491_4f6c_dd1du64;
+    let mut next = |n: usize| {
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        (x % n as u64) as usize
+    };
+    for step in 0..120 {
+        let len = p.view().len();
+        let at = next(len - 1);
+        let span = 1 + next(6);
+        let end = (at + span).min(len - 1);
+        let kind = next(10);
+        write(&h, &mut p, |t| match kind {
+            0..=4 => t.insert_text(at, ["字", "安娜", " ", "，"][step % 4]),
+            5 => t.split(at).map(|_| ()),
+            6 => t.delete(at..end),
+            7 => t.set_heading(
+                at,
+                [
+                    None,
+                    Some(Heading::H1),
+                    Some(Heading::H2),
+                    Some(Heading::H3),
+                ][step % 4],
+            ),
+            8 => t.link_entity(at..end, &link(["anna", "bob"][step % 2])),
+            _ => t.unlink_entity(at..end, "anna"),
+        });
+        // An edit that changed nothing (a link over nothing but a newline)
+        // has nothing to write.
+        h.reindex_now().unwrap();
+        let want = derive_view(&p.view());
+        let stats = lib.doc_stats(&doc_id).unwrap().unwrap();
+        assert_eq!(
+            (stats.words, stats.chars, stats.paragraphs),
+            (want.words, want.chars, want.blocks.len() as u64),
+            "step {step}"
+        );
+        let lengths: Vec<u32> = want.blocks.iter().map(|b| b.chars).collect();
+        assert_eq!(lib.block_lengths(&doc_id).unwrap(), lengths, "step {step}");
+        let refs: Vec<(Option<String>, String, u32)> = lib
+            .references_from(&doc_id)
+            .unwrap()
+            .into_iter()
+            .map(|r| (r.source_block, r.target_id, r.count))
+            .collect();
+        let want_refs: Vec<(Option<String>, String, u32)> = want
+            .references
+            .iter()
+            .map(|r| (r.source_block.clone(), r.target_id.clone(), r.count))
+            .collect();
+        assert_eq!(refs, want_refs, "step {step}");
+        let outline: Vec<(u32, Option<String>, String)> = lib
+            .outline(&doc_id)
+            .unwrap()
+            .into_iter()
+            .map(|o| (o.ord, o.block_id, o.text))
+            .collect();
+        let want_outline: Vec<(u32, Option<String>, String)> = dr_text::outline(&p.view())
+            .into_iter()
+            .map(|o| {
+                (
+                    o.ord as u32,
+                    o.block_id.map(|b| b.as_str().to_string()),
+                    o.text,
+                )
+            })
+            .collect();
+        assert_eq!(outline, want_outline, "step {step}");
+    }
+    let s = deriver.stats();
+    assert_eq!((s.incremental, s.fallbacks), (120, 0), "{s:?}");
+    // Every row of the last text is found by search.
+    for b in derive_view(&p.view())
+        .blocks
+        .iter()
+        .filter(|b| b.chars >= 3)
+    {
+        let q: String = b.text.chars().take(3).collect();
+        assert!(
+            lib.search(Some("b1"), &q, 1000)
+                .unwrap()
+                .iter()
+                .any(|hit| hit.snippet.contains(&q)),
+            "{q}"
+        );
+    }
+}

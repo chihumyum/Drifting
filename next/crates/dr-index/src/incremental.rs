@@ -5,8 +5,9 @@
 //! applied in commit order) edits that layout: retained text stays as it
 //! was, restyled text becomes "dirty", inserted text is dirty, deleted text
 //! goes. Afterwards a paragraph that is still exactly one old paragraph,
-//! whole and unchanged, keeps its derived data; everything else is re-read
-//! from the document, and only the dirty text is scanned for newlines.
+//! whole and unchanged, keeps its derived data ([`Slot::Kept`]); everything
+//! else is re-read from the document ([`Slot::Read`]), and only the dirty
+//! text is scanned for newlines.
 //!
 //! The result is the same as reading the whole document (a property test
 //! checks it); when the diffs do not add up to the document's length, or so
@@ -24,10 +25,16 @@ use crate::paragraphs::Block;
 
 /// More body diff items than this: read the whole document.
 pub const MAX_DELTA_ITEMS: usize = 4096;
-/// More paragraphs to re-read than this: read the whole document. Re-reading
-/// one paragraph costs a scan of the block ids before it (dr-doc's
-/// `paragraph_at`), so past a handful a full read is cheaper.
-pub const MAX_READS: usize = 24;
+/// Re-reading a paragraph costs about what reading it in a full pass costs
+/// (dr-doc's `paragraph_in` looks at nothing before it), so the diffs are
+/// used until half the document's paragraphs would be re-read, and always
+/// for this many.
+pub const MIN_READ_LIMIT: usize = 32;
+
+/// How many paragraphs may be re-read for a document that had `old`.
+pub fn read_limit(old: usize) -> usize {
+    MIN_READ_LIMIT.max(old / 2)
+}
 
 /// Why diffs could not be used.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -43,16 +50,25 @@ impl std::fmt::Display for Fallback {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Fallback::TooManyDiffs => write!(f, "more than {MAX_DELTA_ITEMS} diff items"),
-            Fallback::TooManyParagraphs => write!(f, "more than {MAX_READS} paragraphs changed"),
+            Fallback::TooManyParagraphs => write!(f, "more than half the paragraphs changed"),
             Fallback::Mismatch(why) => write!(f, "diffs do not line up: {why}"),
         }
     }
 }
 
-/// The paragraphs after the diffs, and how many were re-read.
+/// One paragraph after the diffs.
+#[derive(Debug)]
+pub enum Slot {
+    /// Old paragraph `idx`, whole and unchanged.
+    Kept(usize),
+    /// Re-read from the document.
+    Read(Block),
+}
+
+/// The paragraphs after the diffs, in order, and how many were re-read.
 #[derive(Debug)]
 pub struct Update {
-    pub blocks: Vec<Block>,
+    pub slots: Vec<Slot>,
     pub read: usize,
 }
 
@@ -185,8 +201,9 @@ fn root_of(c: &ContainerChange) -> Option<&str> {
 /// Re-read paragraphs as the layout is walked, counting them.
 struct Reader<'v, 'a> {
     view: &'v ProseView<'a>,
-    out: Vec<Block>,
+    out: Vec<Slot>,
     read: usize,
+    limit: usize,
 }
 
 impl Reader<'_, '_> {
@@ -194,13 +211,16 @@ impl Reader<'_, '_> {
     /// (`None`: the unterminated end of a damaged body).
     fn read(&mut self, start: usize, newline: Option<usize>) -> Result<(), Fallback> {
         self.read += 1;
-        if self.read > MAX_READS {
+        if self.read > self.limit {
             return Err(Fallback::TooManyParagraphs);
         }
+        // The stored block id: which paragraph keeps a duplicated one is
+        // decided over the whole document afterwards.
         let p = self
             .view
-            .paragraph_at(start)
-            .map_err(|_| Fallback::Mismatch("a paragraph start is out of range"))?;
+            .paragraph_in(start, 1)
+            .pop()
+            .ok_or(Fallback::Mismatch("a paragraph start is out of range"))?;
         let ok = p.range.start == start
             && match newline {
                 Some(nl) => p.terminated && p.newline == nl,
@@ -211,7 +231,7 @@ impl Reader<'_, '_> {
                 "a paragraph is not where the diffs put it",
             ));
         }
-        self.out.push(Block::read(self.view, &p));
+        self.out.push(Slot::Read(Block::read(self.view, &p)));
         Ok(())
     }
 }
@@ -259,6 +279,7 @@ pub fn update(
         view,
         out: Vec::with_capacity(old.len() + 1),
         read: 0,
+        limit: read_limit(old.len()),
     };
     let mut pos = 0usize;
     // Start of the paragraph being assembled.
@@ -274,7 +295,7 @@ pub fn update(
                     if embeds_changed && b.embed.is_some() {
                         r.read(pos, Some(pos + n - 1))?;
                     } else {
-                        r.out.push(b.clone());
+                        r.out.push(Slot::Kept(idx));
                     }
                     start = pos + n;
                 } else if ends_paragraph {
@@ -301,7 +322,7 @@ pub fn update(
         r.read(start, None)?;
     }
     Ok(Update {
-        blocks: r.out,
+        slots: r.out,
         read: r.read,
     })
 }

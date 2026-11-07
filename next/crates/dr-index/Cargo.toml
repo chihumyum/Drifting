@@ -14,13 +14,13 @@ dr-store.workspace = true
 dr-text.workspace = true
 log.workspace = true
 loro.workspace = true
-# The measurement evidence's source fingerprint (`evidence`).
-sha2.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true
 tempfile.workspace = true
-# The end-to-end check imports a synthetic 0.1 library (M10's own builder).
+# The end-to-end check imports a synthetic 0.1 library (M10's own builder,
+# which needs the next three).
 dr-import-v1.workspace = true
 rusqlite.workspace = true
 serde_json.workspace = true
+sha2.workspace = true

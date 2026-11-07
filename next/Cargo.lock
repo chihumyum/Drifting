@@ -1515,8 +1515,10 @@ name = "dr-testkit"
 version = "0.0.0"
 dependencies = [
  "dr-doc",
+ "dr-index",
  "dr-model",
  "dr-store",
+ "dr-text",
  "dr-workspace",
  "loro",
  "serde",

@@ -6,3 +6,4 @@
 # everyone who runs the test benefits from these saved cases.
 cc 8c472330f0dbc1ed3fbdbf6b14d49fc33a484b6a03e522354062853e671adefc # shrinks to steps = [(false, [Type { at: 0, text: 2 }, Type { at: 0, text: 2 }], false), (false, [Enter { at: 0 }, Link { at: 69, len: 2, target: 0 }], false)]
 cc a351d344f150f76d4db2b8135e4531aabe53ba36ba14dd486539dd1a18dfbaa9 # shrinks to steps = [(false, [Table { at: 0 }], false), (false, [Cell { table: 0, text: 0 }], false)]
+cc 3d0750c38cd9509ffd6a9c21de3026b07964509bf0a51f34d455e1e96dcef70d # shrinks to steps = [(false, [Enter { at: 180 }, Type { at: 0, text: 0 }], false), (false, [Delete { at: 282, len: 15 }, Type { at: 3, text: 6 }, Paste { at: 42 }], false), (false, [Material { at: 252 }], false), (false, [Delete { at: 105, len: 9 }, Type { at: 154, text: 0 }], false), (false, [CopyId { from: 76, to: 48 }], false)]
