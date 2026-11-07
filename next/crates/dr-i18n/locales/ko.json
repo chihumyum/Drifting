@@ -8,10 +8,27 @@
     "close": "닫기",
     "local": "로컬"
   },
+  "dashboard": {
+    "today": {
+      "goal": "목표",
+      "streak": "연속 집필",
+      "week": "이번 주"
+    }
+  },
   "feedback": {
     "crash": {
       "title": "지난번 Drifting 실행 중 문제가 발생했습니다"
     }
+  },
+  "globalSearch": {
+    "closeTitle": "닫기(Esc)",
+    "field": {
+      "body": "본문",
+      "name": "이름",
+      "title": "제목"
+    },
+    "noResults": "일치하는 항목 없음",
+    "stats": "항목 {{groups}}개 · 일치 {{occurrences}}개"
   },
   "leftSidebar": {
     "empty": {
@@ -77,7 +94,36 @@
     "title": "알림"
   },
   "projectHome": {
+    "create": {
+      "kinds": {
+        "category": "분류",
+        "chapter": "장",
+        "drift": "아이디어",
+        "element": "요소",
+        "material": "자료",
+        "storyline": "스토리라인"
+      }
+    },
     "kicker": "작품 홈"
+  },
+  "projectPicker": {
+    "desk": {
+      "form": {
+        "summaryLabel": "요약"
+      }
+    },
+    "heat": {
+      "daysUnit": "일",
+      "today": "오늘"
+    }
+  },
+  "referencesPanel": {
+    "kind": {
+      "patch": "변화 기록"
+    }
+  },
+  "relationTypes": {
+    "description": "설명"
   },
   "rightSidebar": {
     "kickers": {
@@ -93,6 +139,18 @@
         "none": "작품 · 상세 통계",
         "storyline": "이 스토리라인 · 상세 통계"
       }
+    },
+    "stats": {
+      "averagePerChapter": "장별 평균",
+      "bookPosition": "작품 내 위치",
+      "chapterCount": "장",
+      "chapterOrdinal": "제{{count}}장",
+      "chaptersValue": "{{count}}개 장",
+      "recent": "최근",
+      "wordsPerChapterValue": "{{words}}자 / 장",
+      "wordsValue": "{{count}}자",
+      "writingProgress": "집필 진행률",
+      "writtenTarget": "작성 / 목표"
     },
     "tabs": {
       "companion": "Agent",
@@ -246,5 +304,14 @@
     "maximize": "최대화",
     "minimize": "최소화",
     "restore": "이전 크기로 복원"
+  },
+  "workspaceWordTally": {
+    "book": "작품 전체",
+    "chapter": "장",
+    "counting": "계산 중",
+    "drift": "아이디어",
+    "selection": "선택 영역",
+    "storyline": "스토리라인",
+    "today": "오늘"
   }
 }

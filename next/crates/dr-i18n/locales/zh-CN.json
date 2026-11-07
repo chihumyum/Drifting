@@ -8,10 +8,27 @@
     "close": "关闭",
     "local": "本地"
   },
+  "dashboard": {
+    "today": {
+      "goal": "目标",
+      "streak": "连续写作",
+      "week": "本周"
+    }
+  },
   "feedback": {
     "crash": {
       "title": "上次出了故障"
     }
+  },
+  "globalSearch": {
+    "closeTitle": "关闭 (Esc)",
+    "field": {
+      "body": "正文",
+      "name": "名称",
+      "title": "标题"
+    },
+    "noResults": "没有找到匹配项",
+    "stats": "{{groups}} 个 · {{occurrences}} 处"
   },
   "leftSidebar": {
     "empty": {
@@ -77,7 +94,36 @@
     "title": "通知"
   },
   "projectHome": {
+    "create": {
+      "kinds": {
+        "category": "类目",
+        "chapter": "章节",
+        "drift": "构想",
+        "element": "要素",
+        "material": "素材",
+        "storyline": "故事线"
+      }
+    },
     "kicker": "作品主页"
+  },
+  "projectPicker": {
+    "desk": {
+      "form": {
+        "summaryLabel": "梗概"
+      }
+    },
+    "heat": {
+      "daysUnit": "天",
+      "today": "今天"
+    }
+  },
+  "referencesPanel": {
+    "kind": {
+      "patch": "补丁"
+    }
+  },
+  "relationTypes": {
+    "description": "说明"
   },
   "rightSidebar": {
     "kickers": {
@@ -93,6 +139,18 @@
         "none": "本项目 · 详细统计",
         "storyline": "本故事线 · 详细统计"
       }
+    },
+    "stats": {
+      "averagePerChapter": "平均每章",
+      "bookPosition": "全书位置",
+      "chapterCount": "章节数",
+      "chapterOrdinal": "第 {{count}} 章",
+      "chaptersValue": "{{count}} 章",
+      "recent": "最近",
+      "wordsPerChapterValue": "{{words}} 字 / 章",
+      "wordsValue": "{{count}} 字",
+      "writingProgress": "写作进度",
+      "writtenTarget": "已写 / 目标"
     },
     "tabs": {
       "companion": "帮手",
@@ -246,5 +304,14 @@
     "maximize": "最大化",
     "minimize": "最小化",
     "restore": "还原"
+  },
+  "workspaceWordTally": {
+    "book": "全书",
+    "chapter": "本章",
+    "counting": "统计中",
+    "drift": "构想",
+    "selection": "选中",
+    "storyline": "故事线",
+    "today": "今日"
   }
 }

@@ -56,6 +56,9 @@ pub const LAYERS: &[(&str, Layer)] = &[
     ("dr-editor", Layer::Interface),
     ("dr-ui", Layer::Interface),
     ("dr-shell", Layer::Interface),
+    // Feature views (`dr-view-*` are interface crates by name too).
+    ("dr-view-search", Layer::Interface),
+    ("dr-view-stats", Layer::Interface),
     ("drifting", Layer::App),
     ("dr-testkit", Layer::Tools),
     ("dr-cli", Layer::Tools),

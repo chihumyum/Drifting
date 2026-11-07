@@ -8,10 +8,27 @@
     "close": "Fermer",
     "local": "Local"
   },
+  "dashboard": {
+    "today": {
+      "goal": "Objectif",
+      "streak": "Série",
+      "week": "Cette semaine"
+    }
+  },
   "feedback": {
     "crash": {
       "title": "Drifting a rencontré un problème la dernière fois"
     }
+  },
+  "globalSearch": {
+    "closeTitle": "Fermer (Échap)",
+    "field": {
+      "body": "Corps du texte",
+      "name": "Nom",
+      "title": "Titre"
+    },
+    "noResults": "Aucune correspondance",
+    "stats": "{{groups}} éléments · {{occurrences}} correspondances"
   },
   "leftSidebar": {
     "empty": {
@@ -78,7 +95,36 @@
     "title": "Notifications"
   },
   "projectHome": {
+    "create": {
+      "kinds": {
+        "category": "Catégorie",
+        "chapter": "Chapitre",
+        "drift": "Idée",
+        "element": "Élément",
+        "material": "Ressource",
+        "storyline": "Intrigue"
+      }
+    },
     "kicker": "Accueil du projet"
+  },
+  "projectPicker": {
+    "desk": {
+      "form": {
+        "summaryLabel": "Résumé"
+      }
+    },
+    "heat": {
+      "daysUnit": "jours",
+      "today": "Aujourd’hui"
+    }
+  },
+  "referencesPanel": {
+    "kind": {
+      "patch": "Évolution"
+    }
+  },
+  "relationTypes": {
+    "description": "Description"
   },
   "rightSidebar": {
     "kickers": {
@@ -94,6 +140,18 @@
         "none": "Projet · statistiques détaillées",
         "storyline": "Cette intrigue · statistiques détaillées"
       }
+    },
+    "stats": {
+      "averagePerChapter": "Moyenne par chapitre",
+      "bookPosition": "Position dans le livre",
+      "chapterCount": "Chapitres",
+      "chapterOrdinal": "Chapitre {{count}}",
+      "chaptersValue": "{{count}} chapitres",
+      "recent": "Récent",
+      "wordsPerChapterValue": "{{words}} mots / chapitre",
+      "wordsValue": "{{count}} mots",
+      "writingProgress": "Progression d’écriture",
+      "writtenTarget": "Écrit / objectif"
     },
     "tabs": {
       "companion": "Agent",
@@ -247,5 +305,14 @@
     "maximize": "Agrandir",
     "minimize": "Réduire",
     "restore": "Restaurer"
+  },
+  "workspaceWordTally": {
+    "book": "Livre",
+    "chapter": "Chapitre",
+    "counting": "comptage",
+    "drift": "Idée",
+    "selection": "Sélection",
+    "storyline": "Intrigue",
+    "today": "Aujourd’hui"
   }
 }

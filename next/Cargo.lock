@@ -1480,6 +1480,8 @@ dependencies = [
  "dr-store",
  "dr-testkit",
  "dr-ui",
+ "dr-view-search",
+ "dr-view-stats",
  "dr-workspace",
  "futures",
  "gpui",
@@ -1554,6 +1556,37 @@ dependencies = [
  "memmap2",
  "smallvec",
  "unicode-segmentation",
+]
+
+[[package]]
+name = "dr-view-search"
+version = "0.0.0"
+dependencies = [
+ "dr-i18n",
+ "dr-ui",
+ "dr-workspace",
+ "gpui",
+ "log",
+]
+
+[[package]]
+name = "dr-view-stats"
+version = "0.0.0"
+dependencies = [
+ "dr-doc",
+ "dr-i18n",
+ "dr-model",
+ "dr-store",
+ "dr-text",
+ "dr-ui",
+ "dr-workspace",
+ "futures",
+ "gpui",
+ "libc",
+ "log",
+ "serde_json",
+ "tempfile",
+ "windows 0.62.2",
 ]
 
 [[package]]

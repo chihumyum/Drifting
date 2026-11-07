@@ -999,13 +999,18 @@ fn search_orders_by_book_order() {
     }
     let hits = e.out("book.search", json!({"book": b, "query": "安娜"}));
     let owners: Vec<Value> = field(&hits, "owner");
-    assert_eq!(owners.len(), 3);
+    assert_eq!(owners.len(), 4);
     assert_eq!(
         (owners[0].clone(), owners[1].clone()),
         (c1.clone(), c2.clone()),
         "chapters in reading order first"
     );
-    assert_eq!(hits[2]["kind"], "element");
+    // The element's name, then its prose.
+    assert_eq!(
+        field(&hits, "kind")[2..],
+        [json!("element"), json!("element")]
+    );
+    assert_eq!(field(&hits, "field")[2..], [json!("title"), json!("body")]);
     let one = e.out(
         "book.search",
         json!({"book": b, "query": "安娜在第", "limit": 1}),
@@ -1018,6 +1023,168 @@ fn search_orders_by_book_order() {
         json!({"book": b, "query": "安娜", "limit": 1}),
     );
     assert_eq!(field(&after, "owner"), [c2]);
+}
+
+#[test]
+fn search_reads_titles_summaries_and_material_descriptions_too() {
+    let e = env();
+    let b = e.book();
+    let c = e.out(
+        "chapter.create",
+        json!({"book": b, "title": "灯塔", "summary": "她在灯塔下等。", "text": "第一段。\n灯塔亮了。"}),
+    )["id"]
+        .clone();
+    let m = e.out(
+        "material.create",
+        json!({"book": b, "kind": "text", "title": "旧照片", "description": "一张灯塔的照片"}),
+    )["id"]
+        .clone();
+    for d in e.ws().library().docs(Some(&b), None).unwrap() {
+        e.ws().library().reindex_doc(&d.doc_id).unwrap();
+    }
+    let hits = e.out("book.search", json!({"book": b, "query": "灯塔"}));
+    let fields: Vec<(Value, Value, Value)> = hits
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|h| {
+            (
+                h["owner"].clone(),
+                h["field"].clone(),
+                h["paragraph"].clone(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        fields,
+        [
+            (c.clone(), json!("title"), Value::Null),
+            (c.clone(), json!("summary"), Value::Null),
+            (c.clone(), json!("body"), json!(1)),
+            (m.clone(), json!("description"), Value::Null),
+        ]
+    );
+    assert_eq!(hits[0]["kind"], "chapter");
+    assert_eq!(hits[3]["kind"], "material");
+    // Where the match is in the snippet, for highlighting.
+    for h in hits.as_array().unwrap() {
+        let snippet: Vec<char> = h["snippet"].as_str().unwrap().chars().collect();
+        let at = h["snippet_match"].as_u64().unwrap() as usize;
+        let len = h["match_len"].as_u64().unwrap() as usize;
+        assert_eq!(snippet[at..at + len].iter().collect::<String>(), "灯塔");
+    }
+    // The cut counts the short texts too, in the same order.
+    let two = e.out(
+        "book.search",
+        json!({"book": b, "query": "灯塔", "limit": 2}),
+    );
+    assert_eq!(field(&two, "field"), [json!("title"), json!("summary")]);
+    // Case folds as in the prose.
+    e.call(
+        "material.update",
+        json!({"book": b, "id": m, "description": "A LIGHTHOUSE"}),
+    );
+    let latin = e.out("book.search", json!({"book": b, "query": "lighthouse"}));
+    assert_eq!(field(&latin, "owner"), [m]);
+}
+
+#[test]
+fn word_counts_come_from_the_index() {
+    let e = env();
+    let b = e.book();
+    let s = e.out("storyline.create", json!({"book": b, "name": "Main"}))["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let one = e.out(
+        "chapter.create",
+        json!({"book": b, "title": "One", "text": "安娜在第一章。", "storyline": s}),
+    )["id"]
+        .clone();
+    let two = e.out(
+        "chapter.create",
+        json!({"book": b, "title": "Two", "text": "Hello world"}),
+    )["id"]
+        .clone();
+    e.out(
+        "idea.create",
+        json!({"book": b, "title": "Idea", "text": "构想"}),
+    );
+    let before = e.out("book.word_counts", json!({"book": b}));
+    for d in e.ws().library().docs(Some(&b), None).unwrap() {
+        e.ws().library().reindex_doc(&d.doc_id).unwrap();
+    }
+    let got = e.out("book.word_counts", json!({"book": b}));
+    assert_eq!(field(&got["chapters"], "id"), [one.clone(), two.clone()]);
+    assert_eq!(field(&got["chapters"], "words"), [json!(6), json!(2)]);
+    assert_eq!(got["book"]["words"], 8, "the book counts its chapters only");
+    assert_eq!(got["counted"], true);
+    assert_eq!(got["ideas"][0]["words"], 2);
+    assert_eq!(got["storylines"][0]["words"], 6);
+    assert_eq!(got["storylines"][0]["chapters"], 1);
+    assert_eq!(got["word_target"], 120_000);
+    assert_eq!(got["daily_word_target"], 1_500);
+    // Whatever the index had not counted yet says so.
+    let _ = before;
+    e.call("chapter.trash", json!({"book": b, "id": one}));
+    let after = e.out("book.word_counts", json!({"book": b}));
+    assert_eq!(after["book"]["words"], 2);
+    assert_eq!(after["storylines"][0]["chapters"], 0);
+}
+
+#[test]
+fn writing_days_sum_devices_and_keep_each_device_to_its_key() {
+    let e = env();
+    let b = e.book();
+    let mac = "device-000000000000000000000001";
+    let win = "device-000000000000000000000002";
+    let rec = |device: &str, day: &str, words: i64| {
+        e.call(
+            "writing_day.record",
+            json!({"book": b, "device": device, "day": day, "words": words}),
+        );
+    };
+    rec(mac, "2026-11-08", 300);
+    rec(win, "2026-11-08", 200);
+    rec(mac, "2026-11-07", 50);
+    rec(mac, "2026-11-05", 10);
+    rec(mac, "2026-11-08", 350);
+    let got = e.out(
+        "book.writing_days",
+        json!({"book": b, "today": "2026-11-08", "days": 4, "device": mac}),
+    );
+    assert_eq!(
+        field(&got["days"], "words"),
+        [json!(10), json!(0), json!(50), json!(550)]
+    );
+    assert_eq!(got["days"][0]["day"], "2026-11-05");
+    assert_eq!(got["today"], 550);
+    assert_eq!(got["mine_today"], 350);
+    assert_eq!(got["week"], 610);
+    assert_eq!(got["active_days"], 3);
+    assert_eq!(got["streak"], 2);
+    // Not undoable: undo leaves the writing day alone.
+    assert!(matches!(
+        e.try_call(
+            "writing_day.record",
+            json!({"book": b, "device": "mac|1", "day": "2026-11-08", "words": 1})
+        ),
+        Err(WsError::Invalid(_))
+    ));
+    assert!(matches!(
+        e.try_call(
+            "writing_day.record",
+            json!({"book": b, "device": mac, "day": "2026-13-01", "words": 1})
+        ),
+        Err(WsError::Invalid(_))
+    ));
+    assert!(matches!(
+        e.try_call(
+            "writing_day.record",
+            json!({"book": b, "device": mac, "day": "2026-11-08", "words": -1})
+        ),
+        Err(WsError::Invalid(_))
+    ));
 }
 
 #[test]

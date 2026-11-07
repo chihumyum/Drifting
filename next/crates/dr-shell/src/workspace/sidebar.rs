@@ -10,8 +10,8 @@
 //! - The left panels and the material library list the book from F3's
 //!   queries (chapters by storyline, elements by category, ideas by group,
 //!   materials by folder); their modules (M-chapters, M-elements, …) add
-//!   hover cards, sorting and editing. Review, stats and the Agent are empty
-//!   until theirs arrive.
+//!   hover cards, sorting and editing. Stats is M07's (`dr-view-stats`);
+//!   review and the Agent are empty until theirs arrive.
 
 use std::time::SystemTime;
 
@@ -1074,7 +1074,20 @@ fn right_body(
                 cx,
             )
         }
-        // Their modules fill these: review (M18/M19), stats (M07), the Agent (M27).
+        // M07: word counts and writing days.
+        RightTab::Stats => {
+            let strings = crate::Strings::get(cx);
+            let (locale, platform) = (strings.locale(), strings.platform());
+            dr_view_stats::panel(
+                &format!("stats-{}", pane_slug(pane)),
+                &ws.book_id,
+                ws.nav.current().map(crate::book::nav_target),
+                locale,
+                platform,
+                cx,
+            )
+        }
+        // Their modules fill these: review (M18/M19), the Agent (M27).
         _ => div().size_full().into_any_element(),
     }
 }

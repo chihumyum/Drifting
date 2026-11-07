@@ -8,10 +8,27 @@
     "close": "Cerrar",
     "local": "Local"
   },
+  "dashboard": {
+    "today": {
+      "goal": "Meta",
+      "streak": "Racha",
+      "week": "Esta semana"
+    }
+  },
   "feedback": {
     "crash": {
       "title": "Drifting tuvo un problema la última vez"
     }
+  },
+  "globalSearch": {
+    "closeTitle": "Cerrar (Esc)",
+    "field": {
+      "body": "Cuerpo",
+      "name": "Nombre",
+      "title": "Título"
+    },
+    "noResults": "No se encontraron coincidencias",
+    "stats": "{{groups}} elementos · {{occurrences}} coincidencias"
   },
   "leftSidebar": {
     "empty": {
@@ -78,7 +95,36 @@
     "title": "Notificaciones"
   },
   "projectHome": {
+    "create": {
+      "kinds": {
+        "category": "Categoría",
+        "chapter": "Capítulo",
+        "drift": "Idea",
+        "element": "Elemento",
+        "material": "Material",
+        "storyline": "Trama"
+      }
+    },
     "kicker": "Inicio del proyecto"
+  },
+  "projectPicker": {
+    "desk": {
+      "form": {
+        "summaryLabel": "Resumen"
+      }
+    },
+    "heat": {
+      "daysUnit": "días",
+      "today": "Hoy"
+    }
+  },
+  "referencesPanel": {
+    "kind": {
+      "patch": "Evolución"
+    }
+  },
+  "relationTypes": {
+    "description": "Descripción"
   },
   "rightSidebar": {
     "kickers": {
@@ -94,6 +140,18 @@
         "none": "Proyecto · estadísticas",
         "storyline": "Esta trama · estadísticas"
       }
+    },
+    "stats": {
+      "averagePerChapter": "Media por capítulo",
+      "bookPosition": "Posición en el libro",
+      "chapterCount": "Capítulos",
+      "chapterOrdinal": "Capítulo {{count}}",
+      "chaptersValue": "{{count}} capítulos",
+      "recent": "Reciente",
+      "wordsPerChapterValue": "{{words}} palabras / capítulo",
+      "wordsValue": "{{count}} palabras",
+      "writingProgress": "Progreso de escritura",
+      "writtenTarget": "Escrito / meta"
     },
     "tabs": {
       "companion": "Agent",
@@ -247,5 +305,14 @@
     "maximize": "Maximizar",
     "minimize": "Minimizar",
     "restore": "Restaurar"
+  },
+  "workspaceWordTally": {
+    "book": "Libro",
+    "chapter": "Capítulo",
+    "counting": "contando",
+    "drift": "Idea",
+    "selection": "Selección",
+    "storyline": "Trama",
+    "today": "Hoy"
   }
 }

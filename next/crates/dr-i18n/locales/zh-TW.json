@@ -8,10 +8,27 @@
     "close": "關閉",
     "local": "本機"
   },
+  "dashboard": {
+    "today": {
+      "goal": "目標",
+      "streak": "連續寫作",
+      "week": "本週"
+    }
+  },
   "feedback": {
     "crash": {
       "title": "Drifting 上次執行時發生問題"
     }
+  },
+  "globalSearch": {
+    "closeTitle": "關閉（Esc）",
+    "field": {
+      "body": "正文",
+      "name": "名稱",
+      "title": "標題"
+    },
+    "noResults": "找不到符合項目",
+    "stats": "{{groups}} 個項目 · {{occurrences}} 處符合"
   },
   "leftSidebar": {
     "empty": {
@@ -77,7 +94,36 @@
     "title": "通知"
   },
   "projectHome": {
+    "create": {
+      "kinds": {
+        "category": "類目",
+        "chapter": "章節",
+        "drift": "構想",
+        "element": "要素",
+        "material": "素材",
+        "storyline": "故事線"
+      }
+    },
     "kicker": "作品首頁"
+  },
+  "projectPicker": {
+    "desk": {
+      "form": {
+        "summaryLabel": "摘要"
+      }
+    },
+    "heat": {
+      "daysUnit": "天",
+      "today": "今天"
+    }
+  },
+  "referencesPanel": {
+    "kind": {
+      "patch": "演化記錄"
+    }
+  },
+  "relationTypes": {
+    "description": "說明"
   },
   "rightSidebar": {
     "kickers": {
@@ -93,6 +139,18 @@
         "none": "作品 · 詳細統計",
         "storyline": "此故事線 · 詳細統計"
       }
+    },
+    "stats": {
+      "averagePerChapter": "平均每章",
+      "bookPosition": "全書位置",
+      "chapterCount": "章節",
+      "chapterOrdinal": "第 {{count}} 章",
+      "chaptersValue": "{{count}} 章",
+      "recent": "近期",
+      "wordsPerChapterValue": "每章 {{words}} 字",
+      "wordsValue": "{{count}} 字",
+      "writingProgress": "寫作進度",
+      "writtenTarget": "已寫／目標"
     },
     "tabs": {
       "companion": "幫手",
@@ -246,5 +304,14 @@
     "maximize": "最大化",
     "minimize": "最小化",
     "restore": "還原"
+  },
+  "workspaceWordTally": {
+    "book": "全書",
+    "chapter": "章節",
+    "counting": "計算中",
+    "drift": "構想",
+    "selection": "選取",
+    "storyline": "故事線",
+    "today": "今天"
   }
 }

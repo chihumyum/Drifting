@@ -18,6 +18,8 @@ members = [
     "crates/dr-testkit",
     "crates/dr-text",
     "crates/dr-ui",
+    "crates/dr-view-search",
+    "crates/dr-view-stats",
     "crates/dr-workspace",
     "crates/gpui-ime",
     "crates/gpui-prose",
@@ -165,6 +167,7 @@ windows = { version = "0.62", features = [
     "Win32_System_IO",
     "Win32_System_Pipes",
     "Win32_System_RemoteDesktop",
+    "Win32_System_SystemInformation",
     "Win32_System_Threading",
     "Win32_UI_WindowsAndMessaging",
 ] }
@@ -181,6 +184,10 @@ unicode-segmentation = "1.13"
 dr-i18n = { path = "crates/dr-i18n" }
 dr-shell = { path = "crates/dr-shell" }
 dr-ui = { path = "crates/dr-ui" }
+# M06 and M07: the search panel and the Stats tab with the writing-day
+# recorder (interface crates over F3).
+dr-view-search = { path = "crates/dr-view-search" }
+dr-view-stats = { path = "crates/dr-view-stats" }
 futures = "0.3"
 icu_plurals = { version = "2.4", default-features = false, features = ["compiled_data"] }
 icu_locale_core = { version = "2.4", default-features = false }
