@@ -29,12 +29,18 @@
 
 ### 版本号
 
-- 每个文档的 `meta` 映射里有 `v`，现在是 `1`。
+- 每个文档的 `meta` 映射里有 `v`，现在是 `2`（见「版本」）。
 - 下文的样式表（每个标记键的 `ExpandType`）也是结构的一部分，规则见下面「样式表」一节。
 
 ### 样式表：只有一个来源
 
-**唯一来源是 `dr_doc::schema::STYLE_TABLE` 加 `dr_doc::schema::DEFAULT_EXPAND`**（键和规则就是下文段落属性、行内标记两张表的 ExpandType 列；新版本加的、这张表里没有的键一律 `None`）。`dr_doc::schema::configure(doc)` 照它配置一份文档。别的地方（`gpui-prose`）要么调这个函数，要么用一模一样的表；`dr-editor` 用 `dr_doc::schema::style_table_mismatches(另一张表, 另一个默认值)` 逐键对拍，不一样就把差在哪列出来。`dr-doc` 不依赖 `gpui-prose`。
+**唯一来源是 `dr_doc::schema::STYLE_TABLE` 加 `dr_doc::schema::DEFAULT_EXPAND`**（键和规则就是下文段落属性、行内标记两张表的 ExpandType 列；新版本加的、这张表里没有的键一律 `None`）。`dr_doc::schema::configure(doc)` 照它配置一份文档。
+
+- **谁来配**：Drifting 里的文档只由 `dr-doc` 和 `dr-store` 配（存储打开文档时调 `configure`）。`dr-editor` 拿到的是已经配好的文档，不再调 `gpui_prose::schema::configure`。
+- **`gpui-prose` 自带的表**只给它自己的 `LoroSource` 和对拍测试用，必须和这张一模一样（2026-11-07 逐键核对过：12 个段落属性 `None`，加粗、斜体、下划线、删除线 `After`，链接、高亮、行内代码、人物链接、嵌入 `None`）。
+- **怎么对拍**：`dr-editor` 的测试调 `dr_doc::schema::style_config_mismatches(&gpui_prose::schema::style_config())`，不一样就列出差在哪个键。如果两边手里都是键列表，也可以用 `style_table_mismatches(另一张表, 另一个默认值)`，它还能查出多出来的键。谁改表，两边一起改、升结构版本。
+- `dr-doc` 不依赖 `gpui-prose`。
+- 默认值只有 `dr-doc` 设。`gpui-prose` 不设默认值时，没配置的键在本机根本打不上标记（Loro 报错），不会打出规则不一样的标记，所以不算分歧。
 
 为什么必须只有一张表（都测过，`dr-doc` 的 `schema` 测试）：
 
@@ -237,7 +243,10 @@ id 是 `system:generic-association:<书 id>`，和旧版 `genericAssociationRela
 
 - `start` 是第一个被锚字符上的光标（`Side::Left`），`end` 是最后一个被锚字符上的光标（`Side::Right`），活着的时候解析为「那个字符的位置 + 1」。所以在锚点前后打字不会扩进去，在中间打字算进去。
 - 被锚的文字删掉一部分：锚点缩小到剩下的文字。全删掉：锚点收成删除处的一个点（`collapsed`），批注还在，界面显示「原文已删除」。
-- **撤销不会把收起的锚点展开回来**：撤销重新插入的文字是新的操作 ID，旧光标找不回它们。编辑器要靠撤销项的元数据自己带回锚点（Loro 的 `UndoItemMeta` 可以附带光标），这件事归 F4。
+- **零宽锚点**（只标一个位置）的两个光标是同一个：插入点后面那个字符上的 `Side::Left` 光标。解析出来是收起的点。
+- **编码**：`dr-doc` 的 `Anchor::encode` 和 `gpui-prose` 的 `Anchor::encode` 给出同样的两段字节（测试 `anchors_are_the_cursor_pair_the_editor_stores`），`dr-editor` 在两边之间原样搬，不转换。
+- **撤销不会自己把收起的锚点展开回来**：撤销重新插入的文字是新的操作 ID，旧光标找不回它们。编辑器自己带回（F4 已做）：删除前把落在被删文字里的锚点边记进撤销项，撤销后在插回来的字上重建光标，再发 `EditorEvent::AnchorsChanged`。
+- **带回来的锚点要写回书目文档**：宿主用 `CommentWriter::anchor` / `PatchWriter::anchor` 写，来源是作者（`user`），像别的写入一样同步出去。这和下一条的替换光标不同：替换光标只是同一位置的便宜写法，带回来的锚点是位置真的变了。
 - 被锚字符删掉以后，Loro 要回放历史才能找到位置（重型种子里每次 0.1–1 ms），并给回一个指向活字符的替换光标（再解析只要几微秒）。**替换光标存在本机缓存里，不回写书目文档**：读一次就产生一次同步写入不值得。
 
 ## 不变量

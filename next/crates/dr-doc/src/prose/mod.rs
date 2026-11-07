@@ -201,7 +201,7 @@ impl ProseDoc {
     /// callback runs synchronously after each commit or import, on the thread
     /// that made it. Drop the returned subscription to unsubscribe.
     pub fn subscribe(&self, f: impl Fn(&ProseEvent) + Send + Sync + 'static) -> loro::Subscription {
-        event::subscribe(&self.inner.core.doc, f)
+        event::subscribe(&self.inner.core.doc, self.inner.profile, f)
     }
 
     /// The undo manager for the author's typing: merge interval 0 (the editor
@@ -292,7 +292,7 @@ impl ProseReader {
     }
 
     pub fn subscribe(&self, f: impl Fn(&ProseEvent) + Send + Sync + 'static) -> loro::Subscription {
-        event::subscribe(&self.inner.core.doc, f)
+        event::subscribe(&self.inner.core.doc, self.inner.profile, f)
     }
 
     /// A reader on a document someone else holds (a dr-store holder's hot

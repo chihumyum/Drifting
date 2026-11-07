@@ -137,9 +137,12 @@ pub mod inline {
 /// mark's own rule (tested in `a_mark_made_under_another_table_keeps_its_rule`).
 /// A wrong table therefore writes wrong marks into the book for good. Anything
 /// that configures a document holding Drifting text must use exactly this
-/// table and [`DEFAULT_EXPAND`], or better call [`configure`]. `dr-editor` compares `gpui-prose`'s table
-/// against this one key by key ([`style_table_mismatches`]); `dr-doc` does
-/// not depend on `gpui-prose`.
+/// table and [`DEFAULT_EXPAND`], or better call [`configure`]. In Drifting
+/// only `dr-doc` / `dr-store` configure documents (`dr-editor` does not call
+/// `gpui_prose::schema::configure`); `dr-editor`'s tests compare
+/// `gpui-prose`'s table with this one key by key
+/// ([`style_config_mismatches`]), so a change to either is caught. `dr-doc`
+/// does not depend on `gpui-prose`.
 ///
 /// `entity` is a prefix: Loro gives `entity:<id>` the `entity` entry.
 pub const STYLE_TABLE: &[(&str, ExpandType)] = &[
@@ -210,12 +213,33 @@ pub fn style_table_mismatches(
             out.push(format!("{key}: {got:?}, not in the schema"));
         }
     }
-    if other_default != Some(DEFAULT_EXPAND) {
-        out.push(format!(
-            "default: {other_default:?} (schema: {DEFAULT_EXPAND:?})"
-        ));
+    match other_default {
+        Some(d) if d == DEFAULT_EXPAND => {}
+        Some(d) => out.push(format!("default: {d:?} (schema: {DEFAULT_EXPAND:?})")),
+        None => out.push(format!("default: not set (schema: {DEFAULT_EXPAND:?})")),
     }
     out
+}
+
+/// Where another crate's Loro style map (`gpui_prose::schema::style_config()`)
+/// differs from [`STYLE_TABLE`]: one line per key it lacks or expands
+/// differently. Empty when it gives every schema key the schema's rule.
+///
+/// Only the keys are compared. `LoroDoc::config_text_style` takes the keys of
+/// a map and ignores its default (that is `config_default_text_style`), and
+/// Loro cannot list a map's keys, so extra keys are not seen here: compare
+/// lists with [`style_table_mismatches`] for that.
+pub fn style_config_mismatches(other: &StyleConfigMap) -> Vec<String> {
+    STYLE_TABLE
+        .iter()
+        .filter_map(
+            |(key, want)| match other.get(&(*key).into()).map(|c| c.expand) {
+                Some(got) if got == *want => None,
+                Some(got) => Some(format!("{key}: {got:?} (schema: {want:?})")),
+                None => Some(format!("{key}: missing (schema: {want:?})")),
+            },
+        )
+        .collect()
 }
 
 /// Configure a document: the style table, its default and per-commit
@@ -279,7 +303,32 @@ mod tests {
         assert!(m.iter().any(|l| l.starts_with("link: missing")));
         assert!(m.iter().any(|l| l.starts_with("bold: None")));
         assert!(m.iter().any(|l| l.starts_with("comment:")));
-        assert!(m.iter().any(|l| l.starts_with("default:")));
+        assert!(m.iter().any(|l| l.starts_with("default: not set")));
+    }
+
+    #[test]
+    fn map_mismatches_name_missing_and_different_keys() {
+        assert!(style_config_mismatches(&style_config()).is_empty());
+        let mut other = StyleConfigMap::new();
+        for (k, e) in STYLE_TABLE {
+            if *k == inline::LINK {
+                continue;
+            }
+            let expand = if *k == inline::BOLD {
+                ExpandType::None
+            } else {
+                *e
+            };
+            other.insert((*k).into(), StyleConfig { expand });
+        }
+        let m = style_config_mismatches(&other);
+        assert_eq!(
+            m,
+            vec![
+                "bold: None (schema: After)".to_string(),
+                "link: missing (schema: None)".to_string()
+            ]
+        );
     }
 
     #[test]
