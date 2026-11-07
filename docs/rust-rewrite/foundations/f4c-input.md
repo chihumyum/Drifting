@@ -145,7 +145,7 @@ cargo clippy -p gpui-prose -p gpui-ime --target x86_64-pc-windows-msvc --all-tar
 
 ## 要作者手测的
 
-1. **真输入法**：清单沿用 [P0-B 的「待作者手测」](../spikes/p0-b-editor.md#待作者手测)，命令换成 `cargo run --release -p gpui-prose --example prose-bench -- chapter`（`PROSE_BENCH_IME_LOG=1` 打印输入法调用）。这一轮多测一项：**组字中点到别处**（比如别的窗口或查找栏）再回来，不应残留拼音，也不应把拼音上屏到别处。
+1. **真输入法**：清单沿用 [P0-B 的「待作者手测」](../spikes/p0-b-editor.md#待作者手测)，命令换成 `cargo run --release -p dr-editor --example prose-bench -- chapter`（基准程序已搬进 `dr-editor`）（`PROSE_BENCH_IME_LOG=1` 打印输入法调用）。这一轮多测一项：**组字中点到别处**（比如别的窗口或查找栏）再回来，不应残留拼音，也不应把拼音上屏到别处。
 2. **VoiceOver**（⌘F5 打开，测完再按 ⌘F5 关掉）：`cargo run -p gpui-prose --example editor`，点进正文：
    - 应读出「雨夜……文本区域」类的提示；VO+A 从光标读到章末；
    - ←/→ 逐字读、⌥←/⌥→ 逐词读（中文按词）、↑/↓ 读一行（屏幕上的那一行）；

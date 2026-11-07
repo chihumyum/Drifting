@@ -15,7 +15,9 @@
   "commentRail": {
     "actions": {
       "reopen": "Reopen",
-      "resolve": "Resolve"
+      "resolve": "Resolve",
+      "toNote": "To comment",
+      "toTodo": "To TODO"
     },
     "card": {
       "emptyComment": "Empty comment"
@@ -26,6 +28,7 @@
     "close": "Close",
     "counting": "Counting…",
     "creating": "Creating…",
+    "delete": "Delete",
     "edit": "Edit",
     "local": "Local",
     "processing": "Processing…",
@@ -329,7 +332,9 @@
     "resolved": "Resolved ({{count}})",
     "scopes": {
       "current": "Current"
-    }
+    },
+    "sourceFloating": "Project-level · no linked entity",
+    "sourceTextUnavailable": "No saved excerpt"
   },
   "rightSidebar": {
     "kickers": {

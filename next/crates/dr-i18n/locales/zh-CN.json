@@ -15,7 +15,9 @@
   "commentRail": {
     "actions": {
       "reopen": "未解决",
-      "resolve": "解决"
+      "resolve": "解决",
+      "toNote": "转批注",
+      "toTodo": "转 TODO"
     },
     "card": {
       "emptyComment": "空批注"
@@ -26,6 +28,7 @@
     "close": "关闭",
     "counting": "统计中…",
     "creating": "创建中…",
+    "delete": "删除",
     "edit": "编辑",
     "local": "本地",
     "processing": "处理中…",
@@ -324,7 +327,9 @@
     "resolved": "已解决（{{count}}）",
     "scopes": {
       "current": "当前"
-    }
+    },
+    "sourceFloating": "项目级 · 未关联对象",
+    "sourceTextUnavailable": "没有保存原文摘录"
   },
   "rightSidebar": {
     "kickers": {

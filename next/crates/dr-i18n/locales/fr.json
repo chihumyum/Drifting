@@ -15,7 +15,9 @@
   "commentRail": {
     "actions": {
       "reopen": "Rouvrir",
-      "resolve": "Résoudre"
+      "resolve": "Résoudre",
+      "toNote": "En commentaire",
+      "toTodo": "En tâche"
     },
     "card": {
       "emptyComment": "Commentaire vide"
@@ -26,6 +28,7 @@
     "close": "Fermer",
     "counting": "Comptage…",
     "creating": "Création…",
+    "delete": "Supprimer",
     "edit": "Modifier",
     "local": "Local",
     "processing": "Traitement…",
@@ -335,7 +338,9 @@
     "resolved": "Résolus ({{count}})",
     "scopes": {
       "current": "Actuel"
-    }
+    },
+    "sourceFloating": "Au niveau du projet · aucune entité liée",
+    "sourceTextUnavailable": "Aucun extrait enregistré"
   },
   "rightSidebar": {
     "kickers": {

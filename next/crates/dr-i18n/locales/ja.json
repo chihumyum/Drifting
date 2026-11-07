@@ -15,7 +15,9 @@
   "commentRail": {
     "actions": {
       "reopen": "開き直す",
-      "resolve": "解決済みにする"
+      "resolve": "解決済みにする",
+      "toNote": "コメントに変換",
+      "toTodo": "TODO に変換"
     },
     "card": {
       "emptyComment": "空のコメント"
@@ -26,6 +28,7 @@
     "close": "閉じる",
     "counting": "集計中…",
     "creating": "作成中…",
+    "delete": "削除",
     "edit": "編集",
     "local": "ローカル",
     "processing": "処理中…",
@@ -329,7 +332,9 @@
     "resolved": "解決済み（{{count}}件）",
     "scopes": {
       "current": "現在"
-    }
+    },
+    "sourceFloating": "作品全体 · エンティティへのリンクなし",
+    "sourceTextUnavailable": "保存された抜粋はありません"
   },
   "rightSidebar": {
     "kickers": {

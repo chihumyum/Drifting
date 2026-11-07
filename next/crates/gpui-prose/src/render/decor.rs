@@ -263,6 +263,9 @@ pub enum DecorationEvent {
     Settled { chapter: usize, key: DecorationKey },
     /// The author clicked a decoration's tick; the editor scrolled to it.
     TickClicked { chapter: usize, key: DecorationKey },
+    /// The author clicked the box of the task item on paragraph `line`
+    /// (the host ticks it: its `checked`, or the TODO it is linked to).
+    TaskClicked { chapter: usize, line: usize },
 }
 
 /// A decoration's group and id.

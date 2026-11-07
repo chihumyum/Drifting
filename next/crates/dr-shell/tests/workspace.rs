@@ -702,6 +702,23 @@ fn the_find_bar_steps_through_matches_and_live_words_follow(cx: &mut TestAppCont
     let status = bar.read_with(cx, |b, _| b.status());
     assert!(status.total > 3, "{status:?}");
     let first_hit = status.current.unwrap();
+    // Every match is washed in the accent, the current one deeper (F4d's
+    // find layer, with the looks the shell gives the editor).
+    let prose = cx.update(|_, cx| page.prose(cx));
+    let current = prose.read_with(cx, |p, _| {
+        p.painted_decoration(0, "find", &first_hit.to_string())
+    });
+    let current = current.expect("the current match is painted");
+    assert!((current.alpha - 0.34).abs() < 1e-3, "{}", current.alpha);
+    let others = prose.read_with(cx, |p, _| {
+        (0..status.total)
+            .filter(|ix| *ix != first_hit)
+            .filter_map(|ix| p.painted_decoration(0, "find", &ix.to_string()))
+            .map(|d| d.alpha)
+            .collect::<Vec<_>>()
+    });
+    assert!(!others.is_empty(), "other matches are in view");
+    assert!(others.iter().all(|a| (a - 0.16).abs() < 1e-3), "{others:?}");
     keys(cx, "enter");
     let next = bar.read_with(cx, |b, _| b.status()).current.unwrap();
     assert_eq!(
@@ -1164,4 +1181,62 @@ fn the_tabs_under_a_super_view_do_not_answer_the_keyboard(cx: &mut TestAppContex
     keys(cx, "cmd-alt-left");
     let (tabs, page) = view.read_with(cx, |ws, _| (ws.nav.tabs().len(), ws.nav.page()));
     assert_eq!((tabs, page), (2, Page::Target(chapter(2))));
+}
+
+/// M18 in the whole book: ⌘⌥M on a selection in chapter 3 brings up the
+/// composer; ⌘↵ writes the comment on those words of chapter 3, and the
+/// book view draws its sand there.
+#[gpui::test]
+fn a_comment_is_written_in_the_whole_book(cx: &mut TestAppContext) {
+    use dr_shell::workspace::outline;
+    let (_dir, lib) = slow_clock();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib.clone()));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    let (book, third) = view.read_with(cx, |ws, _| (ws.book_id.clone(), chapter_of(ws, 2)));
+    let Target::Chapter(third_id) = &third else {
+        unreachable!()
+    };
+    view.update(cx, |ws, cx| ws.open(Target::Book, Open::KEEP, cx));
+    let page = open_page(&view, cx, &Target::Book);
+    cx.update(|window, cx| outline::jump_to(&page, 2, None, window, cx));
+    draw(cx);
+    let prose = cx.update(|_, cx| page.prose(cx));
+    prose.update_in(cx, |p, window, cx| p.select(2, 0..2, window, cx));
+    draw(cx);
+    keys(cx, "cmd-alt-m");
+    draw(cx);
+    assert!(view.read_with(cx, |ws, _| ws.composer.is_some()));
+    type_text(cx, "要改");
+    keys(cx, "cmd-enter");
+    let written = |lib: &Library| {
+        let listed = lib
+            .call(&Actor::User, "comment.list", json!({"book": book}))
+            .unwrap()["output"]
+            .clone();
+        listed
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c["body"] == "要改")
+            .cloned()
+    };
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while written(&lib).is_none() && Instant::now() < deadline {
+        cx.run_until_parked();
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let made = written(&lib).expect("the comment is written");
+    assert_eq!(made["target"]["id"], third_id.to_string().as_str());
+    assert_eq!(made["anchored"], true);
+    assert!(view.read_with(cx, |ws, _| ws.composer.is_none()));
+    // Drawn in the book, on chapter 3's first two characters.
+    let id = made["id"].as_str().unwrap().to_owned();
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let mut range = None;
+    while range.is_none() && Instant::now() < deadline {
+        cx.executor().advance_clock(Duration::from_millis(20));
+        cx.run_until_parked();
+        range = prose.read_with(cx, |p, _| p.decoration_range(2, "comments", &id));
+    }
+    assert_eq!(range, Some(0..2));
 }

@@ -14,12 +14,13 @@ use std::{cell::RefCell, ops::Range, rc::Rc};
 
 use gpui::{
     App, AvailableSpace, Bounds, DispatchPhase, Element, ElementId, GlobalElementId, Hsla,
-    InspectorElementId, IntoElement, LayoutId, MouseButton, MouseDownEvent, MouseMoveEvent, Pixels,
-    Point, SharedString, Size, Style, TextRun, WeakEntity, Window, fill, point, px, relative, size,
+    InspectorElementId, IntoElement, LayoutId, MouseButton, MouseDownEvent, MouseMoveEvent,
+    PathBuilder, Pixels, Point, SharedString, Size, Style, TextRun, WeakEntity, Window, fill,
+    point, px, quad, relative, size,
 };
 
 use super::{
-    blocks::{BlockLook, BlockStyle},
+    blocks::{BlockLook, BlockStyle, ListItem, ListMark},
     decor::{Brush, DecorationKey, Touch},
     frame::{CompSpan, FrameCache, PaintedDecoration, PaintedLine},
     paint::{TextPaint, paint_text},
@@ -83,10 +84,9 @@ pub struct ParagraphElement {
 struct Shaped {
     layout: Rc<ProseLayout>,
     /// The text's left edge inside the item (column, indent, quote inset).
+    /// Alignment, indent and justification are the layout's own (F4b), so
+    /// every row is placed by the layout.
     left: Pixels,
-    /// How far each row moves right on top of the layout's own placement;
-    /// empty (alignment is the layout's now, F4b).
-    shifts: Vec<Pixels>,
 }
 
 pub struct ParagraphLayout(Rc<RefCell<Option<Shaped>>>);
@@ -104,10 +104,9 @@ impl IntoElement for ParagraphElement {
 }
 
 /// The extent of `bytes` in each of `rows` it touches, relative to the text
-/// origin (the layout's placement and any shifts applied): (row, x0, x1).
+/// origin (the layout's placement applied): (row, x0, x1).
 fn row_spans<'a>(
     layout: &'a ProseLayout,
-    shifts: &'a [Pixels],
     rows: Range<usize>,
     bytes: Range<usize>,
 ) -> impl Iterator<Item = (usize, Pixels, Pixels)> + 'a {
@@ -120,14 +119,7 @@ fn row_spans<'a>(
         .filter_map(move |row| {
             let span = &layout.rows[row];
             let (start, end) = (bytes.start.max(span.start), bytes.end.min(span.end));
-            (start < end).then(|| {
-                let shift = shifts.get(row).copied().unwrap_or_default();
-                (
-                    row,
-                    layout.x_at(row, start) + shift,
-                    layout.x_at(row, end) + shift,
-                )
-            })
+            (start < end).then(|| (row, layout.x_at(row, start), layout.x_at(row, end)))
         })
 }
 
@@ -208,7 +200,6 @@ impl Element for ParagraphElement {
                 // Alignment, indent, squeezing and justification are the
                 // layout's, so every position it answers is placed.
                 let layout = shape_set(&text, font_size, &runs, wrap_width, setting, window);
-                let shifts = Vec::new();
                 let height = pad_top + line_height * layout.row_count() as f32 + pad_bottom;
                 heights
                     .borrow_mut()
@@ -216,7 +207,6 @@ impl Element for ParagraphElement {
                 *shared.borrow_mut() = Some(Shaped {
                     layout: Rc::new(layout),
                     left: left + block.inset,
-                    shifts,
                 });
                 size(width, height)
             }
@@ -242,12 +232,7 @@ impl Element for ParagraphElement {
             let at = shaped
                 .layout
                 .point_for_byte(byte, affinity, self.line_height);
-            let row = shaped.layout.row_of(byte, affinity);
-            let shift = shaped.shifts.get(row).copied().unwrap_or_default();
-            Bounds::new(
-                origin + at + point(shift, px(0.)),
-                size(px(2.), self.line_height),
-            )
+            Bounds::new(origin + at, size(px(2.), self.line_height))
         });
         if self.autoscroll
             && let Some(cursor) = cursor
@@ -302,7 +287,6 @@ impl Element for ParagraphElement {
         };
         let origin = bounds.origin + point(shaped.left, self.pad_top);
         let lay = &shaped.layout;
-        let shifts = &shaped.shifts[..];
         let lh = self.line_height;
         let rows = lay.row_count();
         let ascent = lay.line.ascent;
@@ -349,7 +333,7 @@ impl Element for ParagraphElement {
                     _ => px(0.),
                 };
                 let boxes: Vec<Bounds<Pixels>> =
-                    row_spans(lay, shifts, rows_in_view.clone(), deco.bytes.clone())
+                    row_spans(lay, rows_in_view.clone(), deco.bytes.clone())
                         .map(|(row, x0, x1)| text_box(row, x0, x1, reach))
                         .collect();
                 if deco.touch != Touch::None {
@@ -401,23 +385,32 @@ impl Element for ParagraphElement {
             }
         });
 
+        let mut task_box = None;
         window.paint_layer(layer_bounds, |window| {
             if let Some((range, past_end)) = self.selection.clone() {
                 for rect in lay.selection_rects(range, past_end, lh) {
-                    let row = (f32::from(rect.origin.y) / f32::from(lh)).round() as usize;
-                    let shift = shifts.get(row).copied().unwrap_or_default();
                     window.paint_quad(fill(
-                        Bounds::new(origin + rect.origin + point(shift, px(0.)), rect.size),
+                        Bounds::new(origin + rect.origin, rect.size),
                         self.selection_color,
                     ));
                 }
             }
-            let plain = self
-                .block
-                .quote
-                .then_some(self.block_style.quote_ink)
-                .flatten()
-                .map(|ink| (self.text_color, ink));
+            let done = matches!(
+                self.block.list,
+                Some(ListItem {
+                    mark: ListMark::Task { done: true },
+                    ..
+                })
+            );
+            let plain = if done {
+                self.block_style.task_done_ink
+            } else {
+                self.block
+                    .quote
+                    .then_some(self.block_style.quote_ink)
+                    .flatten()
+            }
+            .map(|ink| (self.text_color, ink));
             paint_text(
                 lay,
                 origin,
@@ -425,7 +418,6 @@ impl Element for ParagraphElement {
                 &TextPaint {
                     runs: &self.runs,
                     fallback: self.text_color,
-                    shifts,
                     inks: &inks,
                     plain,
                     alpha: self.alpha,
@@ -445,6 +437,21 @@ impl Element for ParagraphElement {
                     self.block_style.rule,
                 ));
             }
+            if done {
+                // A done task's text is struck through, row by row.
+                let ink = self.block_style.task_done_ink.unwrap_or(self.text_color);
+                let thick = (self.font_size * 0.06).max(px(1.));
+                for row in rows_in_view.clone() {
+                    if let Some((x0, x1)) = lay.x_range(row, 0..self.text.len()) {
+                        let y = origin.y + lh * row as f32 + baseline - ascent * 0.3;
+                        window.paint_quad(fill(
+                            Bounds::new(origin + point(x0, y - origin.y), size(x1 - x0, thick)),
+                            ink,
+                        ));
+                    }
+                }
+            }
+            task_box = self.paint_list_mark(origin, lh, baseline, ascent, window, cx);
         });
 
         if self
@@ -465,7 +472,7 @@ impl Element for ParagraphElement {
                         continue;
                     };
                     let boxes: Vec<Bounds<Pixels>> =
-                        row_spans(lay, shifts, rows_in_view.clone(), deco.bytes.clone())
+                        row_spans(lay, rows_in_view.clone(), deco.bytes.clone())
                             .map(|(row, x0, x1)| {
                                 let mid = lh * row as f32 + baseline + *drop;
                                 Bounds::from_corners(
@@ -503,14 +510,13 @@ impl Element for ParagraphElement {
             self.cursor_out.set(Some(cursor));
         }
         self.listen(&touch_targets, bounds, origin, window, cx);
+        if let Some(task_box) = task_box {
+            self.listen_task_box(task_box, window);
+        }
 
-        // What hit testing, vertical movement and the input method read.
-        // A left-aligned paragraph (or one whose rows all move alike) is one
-        // record with its origin moved; rows moved by different amounts get
-        // a record each, so a click finds the right row's offset.
-        let uniform = shifts.windows(2).all(|w| w[0] == w[1]);
-        let mut frame = self.frame.borrow_mut();
-        let record = |bounds: Bounds<Pixels>, origin: Point<Pixels>| PaintedLine {
+        // What hit testing, vertical movement and the input method read:
+        // one record a paragraph (the layout places each row itself).
+        self.frame.borrow_mut().lines.push(PaintedLine {
             chapter: self.chapter,
             line: self.line,
             rev: self.rev,
@@ -520,30 +526,7 @@ impl Element for ParagraphElement {
             layout: lay.clone(),
             line_height: lh,
             comp: self.comp,
-        };
-        if uniform {
-            let shift = shifts.first().copied().unwrap_or_default();
-            frame
-                .lines
-                .push(record(bounds, origin + point(shift, px(0.))));
-        } else {
-            for (row, shift) in shifts.iter().enumerate() {
-                let top = if row == 0 {
-                    bounds.top()
-                } else {
-                    origin.y + lh * row as f32
-                };
-                let bottom = if row + 1 == shifts.len() {
-                    bounds.bottom()
-                } else {
-                    origin.y + lh * (row + 1) as f32
-                };
-                frame.lines.push(record(
-                    Bounds::from_corners(point(bounds.left(), top), point(bounds.right(), bottom)),
-                    origin + point(*shift, px(0.)),
-                ));
-            }
-        }
+        });
     }
 }
 
@@ -641,6 +624,121 @@ impl ParagraphElement {
     /// [`Touch::Point`] one; a click settles drawn decorations. What is found
     /// is applied in a deferred editor update (painting cannot change the
     /// editor).
+    /// A list item's mark left of its first row; a task's box is returned
+    /// (where a click ticks it).
+    fn paint_list_mark(
+        &self,
+        origin: Point<Pixels>,
+        lh: Pixels,
+        baseline: Pixels,
+        ascent: Pixels,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Option<Bounds<Pixels>> {
+        let item = self.block.list?;
+        let style = &self.block_style;
+        let ink = style.list_ink.unwrap_or(self.text_color);
+        let em = self.font_size;
+        let right = origin.x - em * 0.5;
+        let middle = origin.y + baseline - ascent * 0.33;
+        match item.mark {
+            ListMark::Bullet => {
+                let d = em * 0.3;
+                let dot = Bounds::new(point(right - d, middle - d / 2.), size(d, d));
+                match item.level % 3 {
+                    0 => window.paint_quad(fill(dot, ink).corner_radii(d / 2.)),
+                    1 => window.paint_quad(quad(
+                        dot,
+                        d / 2.,
+                        gpui::transparent_black(),
+                        px(1.),
+                        ink,
+                        gpui::BorderStyle::Solid,
+                    )),
+                    _ => {
+                        let s = d * 0.85;
+                        window.paint_quad(fill(
+                            Bounds::new(point(right - s, middle - s / 2.), size(s, s)),
+                            ink,
+                        ))
+                    }
+                }
+                None
+            }
+            ListMark::Ordered(n) => {
+                let label = SharedString::from(format!("{n}."));
+                let run = TextRun {
+                    len: label.len(),
+                    color: ink,
+                    background_color: None,
+                    underline: None,
+                    strikethrough: None,
+                    ..self.runs.first().cloned().unwrap_or_else(|| TextRun {
+                        len: 0,
+                        font: window.text_style().font(),
+                        color: ink,
+                        background_color: None,
+                        underline: None,
+                        strikethrough: None,
+                    })
+                };
+                let line = window.text_system().shape_line(label, em, &[run], None);
+                let at = point(right - line.width, origin.y);
+                let _ = line.paint(at, lh, gpui::TextAlign::Left, None, window, cx);
+                None
+            }
+            ListMark::Task { done } => {
+                let side = em * 0.82;
+                let b = Bounds::new(point(right - side, middle - side / 2.), size(side, side));
+                let radius = (side * 0.2).min(px(3.));
+                if done {
+                    window.paint_quad(fill(b, style.task_done).corner_radii(radius));
+                    let mut tick = PathBuilder::stroke(side * 0.13);
+                    let p = |x: f32, y: f32| b.origin + point(side * x, side * y);
+                    tick.move_to(p(0.24, 0.52));
+                    tick.line_to(p(0.43, 0.7));
+                    tick.line_to(p(0.77, 0.32));
+                    if let Ok(path) = tick.build() {
+                        window.paint_path(path, style.task_tick);
+                    }
+                } else {
+                    window.paint_quad(quad(
+                        b,
+                        radius,
+                        gpui::transparent_black(),
+                        px(1.2),
+                        style.task_box,
+                        gpui::BorderStyle::Solid,
+                    ));
+                }
+                // A little room around the box for the click.
+                Some(b.dilate(px(4.)))
+            }
+        }
+    }
+
+    /// A click on a task's box ticks it (the host does): the caret stays
+    /// where it was.
+    fn listen_task_box(&self, task_box: Bounds<Pixels>, window: &mut Window) {
+        let mask = window.content_mask().bounds;
+        let (editor, chapter, line) = (self.editor.clone(), self.chapter, self.line);
+        window.on_mouse_event(move |event: &MouseDownEvent, phase, _window, cx| {
+            if phase == DispatchPhase::Capture
+                && event.button == MouseButton::Left
+                && mask.contains(&event.position)
+                && task_box.contains(&event.position)
+            {
+                cx.stop_propagation();
+                let editor = editor.clone();
+                cx.defer(move |cx| {
+                    if let Some(editor) = editor.upgrade() {
+                        editor.update(cx, |e, cx| e.task_clicked(chapter, line, cx));
+                    }
+                });
+            }
+        });
+    }
+
     fn listen(
         &self,
         targets: &[(DecorationKey, Touch, Vec<Bounds<Pixels>>)],

@@ -12,7 +12,13 @@
 //! - The arrow jumps to the text: the shell opens the entity (the
 //!   [`crate::Opener`] it gave) and the editor shows the comment and draws
 //!   its sand again.
-//! - Double-click the body to edit it in place (Enter saves, Esc cancels).
+//! - Double-click the body to edit it in place, on a slip of paper with
+//!   F5's multi-line input (Enter a new line, ⌘↵ saves, Esc cancels).
+//! - Resting on a card floats out its source card (the 0.1 client's
+//!   `CommentSourceHoverCard`): what it is on, with that thing's mark, and
+//!   the passage it is anchored to; the card's rows at the bottom: edit,
+//!   resolve or reopen, turn into a TODO or a note, delete (no right-click
+//!   menu).
 //! - A TODO's round button completes it: a check stroke is drawn in it
 //!   from left to right (0.38 s); undone, the stroke goes back. A note is
 //!   resolved and reopened with a text button.
@@ -24,14 +30,19 @@ use dr_editor::decor::ReviewFocus;
 use dr_i18n::{I18n, Locale, Platform, keys};
 use dr_ui::Theme;
 use dr_ui::anim::{self, Tween};
-use dr_ui::components::{Button, EmptyState, ScopeToggle, Segmented};
+use dr_ui::components::{
+    Button, CardAction, CardBody, EmptyState, HoverCard, ScopeToggle, Segmented,
+};
 use dr_ui::fonts::Role;
 use dr_ui::glass::{self, Kind, Mode, Spec, Tone};
-use dr_ui::input::{FieldEvent, TextField};
+use dr_ui::input::{FieldEvent, TextArea};
 use dr_ui::sand::{self, Icon};
 use dr_ui::style::DrStyled;
 use dr_ui::tokens::{Easing, Story, motion, radius};
-use dr_workspace::commands::comment::{CommentList, CommentListIn, CommentUpdate, CommentUpdateIn};
+use dr_workspace::commands::EntityIn;
+use dr_workspace::commands::comment::{
+    CommentDelete, CommentList, CommentListIn, CommentUpdate, CommentUpdateIn,
+};
 use dr_workspace::dto::{CommentInfo, Target};
 use dr_workspace::{Actor, LinkGroup, NavTarget, Workspace};
 use gpui::{
@@ -56,7 +67,7 @@ pub struct ReviewView {
     filter: Filter,
     current_only: bool,
     resolved_open: bool,
-    editing: Option<(String, Entity<TextField>, Subscription)>,
+    editing: Option<(String, Entity<TextArea>, Subscription)>,
     /// TODOs completed or undone here: their check strokes are drawn.
     checks: HashMap<String, Tween>,
     pending: Option<Task<()>>,
@@ -282,7 +293,7 @@ impl ReviewView {
             .to_owned();
         let field_id = ElementId::Name(format!("{}-edit-{id}", self.id).into());
         let field = cx.new(|cx| {
-            TextField::new(field_id, window, cx)
+            TextArea::new(field_id, window, cx)
                 .placeholder(placeholder)
                 .with_text(body)
         });
@@ -313,6 +324,91 @@ impl ReviewView {
             self.update_comment(input, cx);
         }
         cx.notify();
+    }
+
+    /// Turns a note into a TODO or back (`kind`: `todo` or `note`).
+    pub fn set_kind(&mut self, id: &str, kind: &str, cx: &mut Context<Self>) {
+        if let Some(item) = self.items.iter_mut().find(|i| i.id == id) {
+            item.kind = kind.to_owned();
+        }
+        let mut input = self.update_in(id);
+        input.kind = Some(kind.to_owned());
+        self.update_comment(input, cx);
+    }
+
+    /// Deletes a comment (F3 records how to undo it).
+    pub fn delete(&mut self, id: &str, cx: &mut Context<Self>) {
+        let Some(lib) = self.lib.clone() else {
+            return;
+        };
+        self.items.retain(|i| i.id != id);
+        let input = EntityIn {
+            book: self.book.clone(),
+            id: id.to_owned(),
+        };
+        cx.background_executor()
+            .spawn(async move {
+                if let Err(e) = lib.run::<CommentDelete>(&Actor::User, input) {
+                    log::warn!("review: comment.delete: {e}");
+                }
+            })
+            .detach();
+        cx.notify();
+    }
+
+    /// What the source card of comment `id` says: where it is, and the
+    /// passage it is anchored to.
+    pub fn source_summary(&self, id: &str) -> Option<(SharedString, Option<SharedString>)> {
+        let item = self.items.iter().find(|i| i.id == id)?;
+        let source = self.source_of(item);
+        Some((source.title, source.quote))
+    }
+
+    /// What a card's source card shows: the thing it is on and the passage.
+    fn source_of(&self, item: &CommentInfo) -> Source {
+        let place = item
+            .target
+            .as_ref()
+            .filter(|_| !item.unlocated)
+            .and_then(|t| self.places.get(&format!("{}:{}", t.kind, t.id)));
+        let Some((title, nav)) = place else {
+            return Source {
+                title: self
+                    .i18n
+                    .t(keys::review_panel::SOURCE_FLOATING)
+                    .to_owned()
+                    .into(),
+                mark: None,
+                quote: None,
+            };
+        };
+        let key = nav.as_ref().map(NavTarget::key).unwrap_or_default();
+        let (kind, id) = key.split_once(':').unwrap_or(("", ""));
+        let mark = match kind {
+            "chapter" => Some(sand::Kind::Chapter(seal_of(id))),
+            "idea" => Some(sand::Kind::Drift { loose: false }),
+            "element" => Some(sand::Kind::Element),
+            "storyline" => Some(sand::Kind::Storyline),
+            "category" => Some(sand::Kind::Category),
+            "material" => Some(sand::Kind::Material),
+            _ => None,
+        };
+        let quote = item.anchored.then(|| {
+            item.quote
+                .clone()
+                .filter(|q| !q.is_empty())
+                .unwrap_or_else(|| {
+                    self.i18n
+                        .t(keys::review_panel::SOURCE_TEXT_UNAVAILABLE)
+                        .to_owned()
+                })
+                .into()
+        });
+        Source {
+            title: title.clone().into(),
+            mark,
+            quote,
+        }
     }
 
     /// Jumps to a comment's text: the shell opens its entity, the editor
@@ -432,7 +528,19 @@ impl ReviewView {
                 let (save, cancel) = (entity.clone(), entity.clone());
                 let (c1, c2) = (comment.clone(), comment.clone());
                 let f = field.clone();
-                body = body.child(field.clone()).child(
+                // A slip of paper to write on; the input takes its type.
+                let slip = div()
+                    .px(px(8.0))
+                    .py(px(6.0))
+                    .rounded(px(radius::SM))
+                    .bg(p.page.solid())
+                    .border_1()
+                    .border_color(p.hairline())
+                    .font_role(Role::Ui)
+                    .type_px(s.secondary, s.line_body)
+                    .text_color(p.ink(1).solid())
+                    .child(field.clone());
+                body = body.child(slip).child(
                     div()
                         .flex()
                         .flex_row()
@@ -482,9 +590,45 @@ impl ReviewView {
             }
         }
         let pointed = comment.clone();
+        let source = self.source_of(item);
+        let labels = Labels {
+            edit: self.i18n.t(keys::common::EDIT).to_owned().into(),
+            status: self
+                .i18n
+                .t(if done {
+                    keys::comment_rail::actions::REOPEN
+                } else {
+                    keys::comment_rail::actions::RESOLVE
+                })
+                .to_owned()
+                .into(),
+            convert: self
+                .i18n
+                .t(if todo {
+                    keys::comment_rail::actions::TO_NOTE
+                } else {
+                    keys::comment_rail::actions::TO_TODO
+                })
+                .to_owned()
+                .into(),
+            delete: self.i18n.t(keys::common::DELETE).to_owned().into(),
+        };
+        let card_id = format!("{}-src-{}", self.id, item.id);
+        let (card_entity, card_comment) = (entity.clone(), comment.clone());
+        let source_card = move |_: &mut Window, _: &mut gpui::App| {
+            source_card(
+                &card_id,
+                &source,
+                &labels,
+                card_entity.clone(),
+                card_comment.clone(),
+                todo,
+                done,
+            )
+        };
         // The glass answers the pointer itself; the card around it tells
         // the prose which card the pointer is on.
-        div()
+        let card = div()
             .id(id("wrap"))
             .w_full()
             .on_hover(move |hovered, _, cx| {
@@ -509,8 +653,13 @@ impl ReviewView {
                 .p(px(10.0))
                 .when(resolved, |d| d.opacity(0.55))
                 .child(body),
-            )
-            .into_any_element()
+            );
+        let editing = self.editing.as_ref().is_some_and(|(e, _, _)| *e == item.id);
+        if editing {
+            // No card over the slip being written on.
+            return card.into_any_element();
+        }
+        HoverCard::new(id("source"), card, source_card).into_any_element()
     }
 
     /// A TODO's round completion button with its check stroke.
@@ -709,3 +858,91 @@ impl Render for ReviewView {
 
 /// The time a check stroke takes, for tests.
 pub const CHECK_DRAW: Duration = motion::sand::DRAW;
+
+/// What a source card shows.
+#[derive(Clone)]
+struct Source {
+    title: SharedString,
+    mark: Option<sand::Kind>,
+    /// The anchored passage (or the words saying it was not kept).
+    quote: Option<SharedString>,
+}
+
+/// The source card's row labels, in the tab's language.
+#[derive(Clone)]
+struct Labels {
+    edit: SharedString,
+    status: SharedString,
+    convert: SharedString,
+    delete: SharedString,
+}
+
+/// The card beside a Review card: its source, then its rows.
+fn source_card(
+    id: &str,
+    source: &Source,
+    labels: &Labels,
+    view: Entity<ReviewView>,
+    comment: String,
+    todo: bool,
+    done: bool,
+) -> AnyElement {
+    let rid = |part: &str| ElementId::Name(format!("{id}-{part}").into());
+    let mut body = CardBody::new(rid("body"), source.title.clone());
+    if let Some(mark) = source.mark {
+        body = body.mark(mark, None);
+    }
+    if let Some(quote) = &source.quote {
+        body = body.summary(quote.clone());
+    }
+    let (v1, c1) = (view.clone(), comment.clone());
+    let (v2, c2) = (view.clone(), comment.clone());
+    let (v3, c3) = (view.clone(), comment.clone());
+    let (v4, c4) = (view, comment);
+    body.section(vec![
+        CardAction::new(rid("edit"), Icon::Edit, labels.edit.clone())
+            .on_click(move |_, window, cx| v1.update(cx, |v, cx| v.edit(&c1, window, cx)))
+            .into_any_element(),
+    ])
+    .section(vec![
+        CardAction::new(
+            rid("status"),
+            if done { Icon::Rotate } else { Icon::Check },
+            labels.status.clone(),
+        )
+        .on_click(move |_, _, cx| v2.update(cx, |v, cx| v.set_done(&c2, !done, cx)))
+        .into_any_element(),
+        CardAction::new(
+            rid("convert"),
+            if todo {
+                Icon::Comment
+            } else {
+                Icon::ChecklistPlus
+            },
+            labels.convert.clone(),
+        )
+        .on_click(move |_, _, cx| {
+            v3.update(cx, |v, cx| {
+                v.set_kind(&c3, if todo { "note" } else { "todo" }, cx)
+            })
+        })
+        .into_any_element(),
+    ])
+    .section(vec![
+        CardAction::new(rid("delete"), Icon::Trash, labels.delete.clone())
+            .danger()
+            .on_click(move |_, _, cx| v4.update(cx, |v, cx| v.delete(&c4, cx)))
+            .into_any_element(),
+    ])
+    .into_any_element()
+}
+
+/// The seal a chapter presses (the 0.1 client's `sealOf`: a 31-hash of the
+/// id over UTF-16 units, modulo 6; the same as the shell's).
+fn seal_of(id: &str) -> u8 {
+    let mut hash: i32 = 0;
+    for unit in id.encode_utf16() {
+        hash = hash.wrapping_mul(31).wrapping_add(unit as i32);
+    }
+    ((hash as i64).abs() % 6) as u8
+}

@@ -15,7 +15,9 @@
   "commentRail": {
     "actions": {
       "reopen": "Erneut öffnen",
-      "resolve": "Erledigen"
+      "resolve": "Erledigen",
+      "toNote": "Zu Kommentar",
+      "toTodo": "Zu Aufgabe"
     },
     "card": {
       "emptyComment": "Leerer Kommentar"
@@ -26,6 +28,7 @@
     "close": "Schließen",
     "counting": "Wird gezählt…",
     "creating": "Wird erstellt…",
+    "delete": "Löschen",
     "edit": "Bearbeiten",
     "local": "Lokal",
     "processing": "Wird verarbeitet…",
@@ -329,7 +332,9 @@
     "resolved": "Erledigt ({{count}})",
     "scopes": {
       "current": "Aktuell"
-    }
+    },
+    "sourceFloating": "Projektebene · keine verknüpfte Entität",
+    "sourceTextUnavailable": "Kein gespeicherter Auszug"
   },
   "rightSidebar": {
     "kickers": {
