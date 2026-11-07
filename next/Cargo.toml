@@ -6,6 +6,7 @@ resolver = "3"
 # One member per line, kept sorted, so parallel branches merge cleanly.
 members = [
     "app/drifting",
+    "spikes/prose-spike",
 ]
 
 [workspace.package]
@@ -27,6 +28,12 @@ gpui_platform = { git = "https://github.com/zed-industries/zed", tag = "v1.27.0"
 loro = "=1.17.1"
 
 anyhow = "1"
+# Spike P0-B shell only (process metrics, AppKit event posting, SQLite append).
+libc = "0.2.191"
+log = "0.4.29"
+objc2 = "0.6.5"
+raw-window-handle = "0.6.2"
+rusqlite = { version = "0.41.1", features = ["bundled"] }
 
 # Zed patches these crates.io crates in its own workspace; a git dependency
 # does not inherit [patch], so GPUI's consumers repeat the ones it needs.
