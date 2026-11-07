@@ -107,20 +107,22 @@ fn order_for(slot: &BookSlot, place: &ChapterPlace, moving: Option<&NodeId>) -> 
 
 op! {
     ChapterList = "chapter.list", Read, Shared,
-    "List chapters in reading order, with their act and storylines (trashed ones after, when asked).",
+    "List chapters in reading order, with their act, storylines, words, creation and last change (trashed ones after, when asked).",
     fn(cx, input: ListIn) -> Vec<ChapterInfo> {
         let slot = cx.book(&input.book)?;
         let a = acts(&slot);
+        let lib = cx.workspace().library();
+        let facts = |n: &Node| prose_facts(lib, &DocId::Node(n.id.clone()).to_string());
         let mut out: Vec<ChapterInfo> = chapters(&slot).iter().enumerate().map(|(i, n)| {
             let act = n.effective_book_order()
                 .and_then(|o| act_index_for_order(&a, o))
                 .map(|i| a[i].id.to_string());
-            ChapterInfo::of(n, Some(i as u32 + 1), act)
+            ChapterInfo::of(n, Some(i as u32 + 1), act).with_prose(facts(n))
         }).collect();
         if input.trashed {
             let mut t: Vec<Node> = nodes(&slot).values().filter(|n| n.is_chapter() && n.is_trashed()).cloned().collect();
             t.sort_by(|a, b| cmp_order((a.book_order, &a.id), (b.book_order, &b.id)));
-            out.extend(t.iter().map(|n| ChapterInfo::of(n, None, None)));
+            out.extend(t.iter().map(|n| ChapterInfo::of(n, None, None).with_prose(facts(n))));
         }
         Ok(out)
     }

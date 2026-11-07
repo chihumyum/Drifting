@@ -26,7 +26,8 @@
     "save": "保存",
     "saveFailed": "保存未完成，请重试。",
     "saving": "保存中…",
-    "untitled": "未命名"
+    "untitled": "未命名",
+    "wordsCount": "{{count}} 字"
   },
   "dashboard": {
     "actions": {
@@ -329,6 +330,7 @@
       "chapterOrdinal": "第 {{count}} 章",
       "chaptersValue": "{{count}} 章",
       "recent": "最近",
+      "snapshotButton": "历史快照…",
       "wordsPerChapterValue": "{{words}} 字 / 章",
       "wordsValue": "{{count}} 字",
       "writingProgress": "写作进度",
@@ -507,6 +509,23 @@
   },
   "sidebarLayout": {
     "split": "恢复双栏"
+  },
+  "snapshotHistory": {
+    "confirmRestore": "确认覆盖当前版本",
+    "empty": "暂无快照。编辑正文后系统会按约 15 分钟一次的节奏自动留存。",
+    "kind": {
+      "category": "类目",
+      "element": "要素",
+      "library_item": "笔记",
+      "node": "章节",
+      "storyline": "故事线"
+    },
+    "loading": "读取中…",
+    "restore": "恢复…",
+    "restoreFailed": "恢复失败：{{error}}",
+    "restoreSuccess": "已恢复到所选版本。恢复前的状态已自动存为新快照。",
+    "restoring": "恢复中…",
+    "title": "历史快照 · 30 天"
   },
   "topTimeline": {
     "closeTab": "关闭标签页",

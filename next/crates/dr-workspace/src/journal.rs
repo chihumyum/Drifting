@@ -156,6 +156,21 @@ impl Journal {
         })?)
     }
 
+    /// Drop a purged book's rows: nothing in them can be undone or redone.
+    pub(crate) fn forget_book(&self, book: &str) -> Result<()> {
+        Ok(self.lib.local_write(|tx| {
+            let seqs: Vec<i64> = tx
+                .prepare("SELECT seq FROM ws_journal WHERE book = ?1")?
+                .query_map([book], |r| r.get(0))?
+                .collect::<rusqlite::Result<_>>()?;
+            tx.execute("DELETE FROM ws_journal WHERE book = ?1", [book])?;
+            for seq in seqs {
+                changed(tx, seq, LocalChangeKind::Delete);
+            }
+            Ok(())
+        })?)
+    }
+
     pub(crate) fn entries(&self, actor: Option<&str>, limit: usize) -> Result<Vec<JournalEntry>> {
         let rows = self.lib.local_read(|conn| {
             let mut stmt = conn.prepare(

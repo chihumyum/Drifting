@@ -13,6 +13,7 @@ dr-doc.workspace = true
 dr-index.workspace = true
 dr-model.workspace = true
 dr-store.workspace = true
+dr-text.workspace = true
 log.workspace = true
 loro.workspace = true
 rusqlite.workspace = true

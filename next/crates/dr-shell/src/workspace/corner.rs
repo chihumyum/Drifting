@@ -6,9 +6,11 @@
 //! - **Outline** (`toc-raked`): shows or hides the outline rail in the
 //!   page's left margin (M04). Kept in the book's local layout.
 //! - **⋯** (`more`): the page's menu. A chapter's has its writing status
-//!   (草稿 / 已完成 / 已弃用, the current one ticked) and 删除节点, which puts
-//!   it in the trash (its tab closes through F3's event, as for anyone's
-//!   deletion). The other kinds' menus come with their modules.
+//!   (草稿 / 已完成 / 已弃用, the current one ticked), 历史快照… (M09's
+//!   snapshot history of the chapter, [`Workspace::open_history`]) and
+//!   删除节点, which puts it in the trash (its tab closes through F3's
+//!   event, as for anyone's deletion). The other kinds' menus come with
+//!   their modules.
 //! - **一炷香** (`incense`): [`ToggleImmersiveWriting`]. In a split only the
 //!   right page has it, as in the 0.1 client.
 //!
@@ -28,8 +30,8 @@ use dr_ui::{
 };
 use dr_workspace::Actor;
 use gpui::{
-    AnyElement, App, Context, Entity, InteractiveElement, IntoElement, ParentElement, Styled,
-    Window, div, px,
+    AnyElement, App, AppContext as _, Context, Entity, InteractiveElement, IntoElement,
+    ParentElement, Styled, Window, div, px,
 };
 use serde_json::json;
 
@@ -281,7 +283,27 @@ fn more_menu(
             });
         })
     };
-    menu = menu.separator(theme).item(trash);
+    let history = {
+        let ws = ws.clone();
+        let doc = format!("node:{}", chapter.id);
+        let name = chapter.title.clone();
+        MenuItem::new(
+            "chapter-history",
+            Icon::Rotate,
+            t(cx, keys::right_sidebar::stats::SNAPSHOT_BUTTON),
+        )
+        .on_click(move |_, window, cx| {
+            ws.update(cx, |ws, cx| {
+                ws.corner_menu = None;
+                ws.open_history(doc.clone(), &name, window, cx);
+            });
+        })
+    };
+    menu = menu
+        .separator(theme)
+        .item(history)
+        .separator(theme)
+        .item(trash);
     let dismiss = ws.clone();
     overlay::float(
         // Above the button (no room below it), its end lined up with the
@@ -305,6 +327,32 @@ fn more_menu(
 }
 
 impl Workspace {
+    /// M09: the snapshot history of prose document `doc` (its page is called
+    /// `name`), over the workspace until it closes.
+    pub fn open_history(
+        &mut self,
+        doc: String,
+        name: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let strings = crate::Strings::get(cx);
+        let (locale, platform) = (strings.locale(), strings.platform());
+        let lib = self.library.clone();
+        let dialog =
+            cx.new(|cx| dr_view_history::HistoryDialog::new(lib, doc, name, locale, platform, cx));
+        cx.subscribe_in(&dialog, window, |ws, _, event, window, cx| {
+            if *event == dr_view_history::HistoryEvent::Close {
+                ws.history = None;
+                ws.focus.focus(window, cx);
+                cx.notify();
+            }
+        })
+        .detach();
+        self.history = Some(dialog);
+        cx.notify();
+    }
+
     /// Runs one of F3's commands as the author, off the main thread; what it
     /// changes comes back on F3's bus.
     pub fn run_command(

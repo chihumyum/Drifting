@@ -20,6 +20,7 @@ members = [
     "crates/dr-text",
     "crates/dr-ui",
     "crates/dr-view-feedback",
+    "crates/dr-view-history",
     "crates/dr-view-home",
     "crates/dr-view-review",
     "crates/dr-view-search",
@@ -202,6 +203,7 @@ dr-ui = { path = "crates/dr-ui" }
 # M06 and M07: the search panel and the Stats tab with the writing-day
 # recorder (interface crates over F3).
 dr-view-review = { path = "crates/dr-view-review" }
+dr-view-history = { path = "crates/dr-view-history" }
 dr-view-search = { path = "crates/dr-view-search" }
 dr-view-stats = { path = "crates/dr-view-stats" }
 # M39: the feedback dialog and the crash follow-up.

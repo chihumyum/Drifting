@@ -272,6 +272,8 @@ pub struct Workspace {
     pub search: Option<Entity<dr_view_search::SearchPanel>>,
     /// M18: the comment composer beside the selection (`review.rs`).
     pub composer: Option<review::Composer>,
+    /// M09's snapshot history of a page, while open (`corner::open_history`).
+    pub history: Option<Entity<dr_view_history::HistoryDialog>>,
     pub notifications_open: bool,
     /// The account menu over the left sidebar's account cell is open.
     pub account_open: bool,
@@ -362,6 +364,7 @@ impl Workspace {
             settings: None,
             search: None,
             composer: None,
+            history: None,
             notifications_open: false,
             account_open: false,
             dialog: None,
@@ -1157,6 +1160,7 @@ impl Render for Workspace {
             .when_some(self.search.clone(), |el, panel| el.child(panel))
             .children(self.composer_overlay())
             .when_some(self.dialog.clone(), |el, dialog| el.child(dialog))
+            .when_some(self.history.clone(), |el, dialog| el.child(dialog))
             .child(chrome::windows_caption(window, cx))
             .when(self.notifications_open, |el| {
                 el.child(sidebar::notification_center(self, window, cx))

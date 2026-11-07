@@ -1,8 +1,60 @@
 # F3：dr-workspace（命令、查询、事件、撤销）
 
-2026-11-07 两个里程碑，2026-11-08 第三轮（给编辑器的三样）。计划见 [foundation.md 的 F3](../foundation.md#f3-dr-workspace)，代码在 `next/crates/dr-workspace/`。它建在 F1（[f1-model-doc.md](f1-model-doc.md)）、F2（[f2-store.md](f2-store.md)）和 dr-index（[dr-text-index.md](dr-text-index.md)）之上，不依赖 GPUI。
+2026-11-07 两个里程碑，2026-11-08 第三轮（给编辑器的三样）和第四轮（各模块要的小命令、M09 快照历史）。计划见 [foundation.md 的 F3](../foundation.md#f3-dr-workspace)，代码在 `next/crates/dr-workspace/`。它建在 F1（[f1-model-doc.md](f1-model-doc.md)）、F2（[f2-store.md](f2-store.md)）和 dr-index（[dr-text-index.md](dr-text-index.md)）之上，不依赖 GPUI。
 
 ## 做了什么（大白话）
+
+### 第四轮：各模块要的小命令，和 M09 快照历史
+
+监管会话汇总了各模块交回时提的小命令，再加上 M09（快照历史）。都做了：
+
+1. **`chapter.list` 每章带上字数、`created_at`、`updated_at`**（F6 的 M04 做排序菜单和格子里的字数、日期）。
+   - 字数是派生索引里这一章正文的字数（dr-index 还没数到的算 0）。
+   - `created_at` 是书目里存的建章时间；`updated_at` 是这一章正文最新一次存盘的时间，比建章早就用建章时间。时间都是 Unix 秒，和书目文档一致。
+   - 书目文档里不存 `updated_at`（simplifications.md 第一节第 13 条），所以只改标题、梗概或状态不会让它变。旧版的 `node.updated_at` 改字段也会刷新，这一点不一样；要的话以后从书目文档的变更里按实体找最后一次改动。
+2. **书架一次读完：`book.shelf { trashed }`**（M01 以前每本书要跑 4 条查询）。每本书给出：
+   - 名字、梗概、字数目标；「副标题」项目设定；
+   - 活着的章节、故事线、要素各几个；
+   - 只算章节的字数（不算构想、要素、笔记，和旧版书架一样）；
+   - `created_at`、`updated_at`（这本书任何一篇文档最新一次存盘的时间）、`deleted_at`；
+   - 在「最近删除」里的，再给出 `purge_at`（哪天永久删除）和 `days_left`（还剩几天）。
+   - 排序：活着的书按最近改动在前；带上 `trashed` 时，最近删除的跟在后面，最近删掉的在前。
+   - 旧版书架数故事线、要素时连废纸篓里的也算进去了（它的子查询没过滤），这里只数活着的，和 M01 现在显示的一致。
+3. **`book.purge`：从「最近删除」里立即删掉一本。** 保留期照旧版：**30 天**（`BOOK_TRASH_DAYS`）。还剩几天按旧版算：到期时间减现在，除以一天，**向上取整**；到 0 就是「即将永久删除」。
+   - 只删已经在「最近删除」里的书；书还开着编辑器时拒绝（等最多 2 秒，读查询手上的引用会放掉）。
+   - 删的东西：这本书的每一篇文档（更新、快照、历史点、派生索引，F2 的 `purge_doc`），资源文件，这本书在撤销日志里的记录（已经没法撤了），这本书的「最近打开」。书目文档最后删：中途出错时书还在「最近删除」里，再删一次就能删完。
+   - 不能撤销（`irreversible`）。
+   - 另加 **`book.purge_expired`**：把到期的书都删掉。旧版是书架打开 2 分钟以后跑一次（让别的设备上的「恢复」先同步过来），M01 照这个时机调用就行。还开着的书留到下次，列在结果的 `waiting` 里。
+   - **只删这台设备上的。** 旧版先删 Hosted 上的、确认了再删本地；新版的同步（M36）还没做，见「待协调」M36。
+4. **「最近打开」：`recent.touch`、`recent.list`**（M02 的「继续写」）。旧版是 WebView 的 localStorage，只在这台设备上，所以这里也**只在本机、不同步**。
+   - 一条记录是作者打开过的一页：章节、构想、要素、故事线、分类、素材，和打开的时间。
+   - `recent.touch` 把这一页挪到最前面（不重复），每本书留最近 **10** 条（旧版的默认值）。它不是作者的一步操作：不记日志、没有撤销。
+   - `recent.list` 按时间倒序给出一本书的记录，废纸篓里的、已经没了的不给。「继续写」打开哪一页由界面定（旧版：最近的一个章节或构想；没有就用最近改过的章节）。
+   - 旧版里调用 `touchEntity` 的地方在改成标签页时删掉了，旧版的清单其实一直是空的，「继续写」一直走的是「最近改过的章节」。新版补上了记录；谁来调 `recent.touch` 见「待协调」F6。
+   - 存在 dr-store 的 `library_meta` 表里，键是 `ws.recent`，一个 JSON 值。这是借用：F2 还没有给小块本机状态的表，见「待协调」F2-4。
+5. **时间钉：`time_pin.list`、`time_pin.create`、`time_pin.update`、`time_pin.delete`**（第二个里程碑列的缺口）。规则照旧版 `useTimelineMarkers`：
+   - 没绑构想的钉要有标签；绑了构想的可以没有（用构想的标题）。
+   - 一个构想只绑一个钉，只能绑活着的构想；构想进了废纸篓读成没绑，彻底删除时标题写进钉的标签（第二个里程碑已经做了）。
+   - 删除就是删掉（钉没有废纸篓），撤销用同一个 id 建回来。
+   - 写作日不用做了：M07 已经加了 `book.word_counts`、`book.writing_days`、`writing_day.record`。
+6. **M09 快照历史：`history.points`、`history.preview`、`history.restore_point`**，界面在新 crate `dr-view-history`（见 [modules/m09-history.md](../modules/m09-history.md)）。
+   - **历史点就是 F2 的历史标签**，F3 不另存：写作时最多每 15 分钟一个、关闭时一个、帮手每一轮动手前一个、恢复时一个；一小时内全留、一天内每小时留一个、再往前每天一个，30 天以前的删掉。这些 F2 都已经照旧版做好了（旧版的 Rust 移植里「一小时内全留」的修正也在）。
+   - `history.points { doc }`：一篇正文的历史点，新的在前；每个点给出时间、为什么打的（`auto` / `close` / `restore` / `agent` / `import`）、当时的字数、当时这一页的标题、当时正文的前 120 个字（空白合成一个空格，和旧版列表一样）。都从 SQLite 另载的副本上读：正文副本按时间倒着逐个检出，书目副本每个不同的版本检出一次；不碰打开着的文档（P0-C：在它上面检出会把历史一直摊开）。
+   - `history.preview { doc, point }`：那个点的正文（每段的 H1/H2/H3 级别和文字）、这一页当时的标题和梗概，和它是不是跟现在一样（一样就不用恢复）。
+   - `history.restore_point { doc, point }`：**按实体恢复**（simplifications.md 第一节第 4 条）。
+     - 先给现在的版本打一个 `restore` 点，所以「恢复前的状态已自动存为新快照」这句旧文案是真的。
+     - 正文退回那个点（Loro 的 `revert_to`，是一次新的改动，历史还在）。
+     - 这一页自己的字段退回那个点当时书目文档里的值：章节的标题、梗概、状态；要素的名字、别名、梗概、分组、字段；故事线的名字、梗概、字段；分类的名字、模板字段；素材的标题和说明（dr-doc 的 `metadata_fields`，和旧版 `restoreMetadata` 一样）。书的其余部分不动。
+     - 照旧版：要素当时的名字或别名现在已经被别的要素占了，就不动名字和别名，其余照常恢复，结果里列在 `skipped`。
+     - 章节、构想、故事线、分类当时的标题现在被别的占了，照新版「重名加后缀」的规矩加后缀（和 `history.restore_entities` 同一套），结果里报 `renamed`。
+     - 已经一样的字段不写；正文和字段都一样就什么也不改。
+     - 作者的命令：正文的提交来源是 `user:command`，编辑器的撤销不会撤到它；对象级撤销一步撤回整个恢复（正文和字段），重做再来一次。反操作是同一条命令，带着恢复前正文和书目的版本。
+   - 旧版还有两件这里没做：恢复时清掉这一页「帮手刚改过」的标记（帮手的墨色显现还没做，M27–M34 做的时候接上），和素材笔记的待办核对（M19）。
+   - 一个小毛病：新建一章时，存储层给正文打第一个点的那一刻，书目里还没有这一章（写入顺序是先正文后书目），所以这个点没有「当时的标题」。界面上用现在的名字顶上。
+
+命令和查询从 88 条（第三轮的 85 条，加上 M07 的 3 条）变成 100 条：73 条命令，27 条查询。能力清单的快照已更新。属性测试加了两种随机操作（给某章打一个历史点、把某章恢复到它的某个点），单设备和两设备都跑；比较两台设备、比较重开前后时，去掉 `chapter.list` 的 `words` 和 `updated_at`：前者是后台索引慢慢补上的，后者是这台设备存盘的时间，本来就因设备而异。
+
+**性能没重测。** 做完时机器的一分钟负载在 200 以上（别的会话在编译），比要求的 3 高得多，所以没跑 `bench workspace --milestone f3-m3`。新加的查询里，`chapter.list` 和 `book.shelf` 每章多读两行 SQLite（`index_state` 和 `loro_head`，都按主键）；`history.points` 要把正文和书目各载一份副本、逐个检出。等机器空闲时一起量，见「下一个里程碑建议」。
 
 ### 第三轮：给编辑器（F4 的 dr-editor）的三样
 
@@ -167,22 +219,25 @@ quit::before_quit(cx, move |_| {
 
 | 类 | 查询 | 命令 |
 | --- | --- | --- |
-| 书 | `book.list`、`book.get`、`book.search` | `book.create`（library）、`book.update`（名字、梗概、全书和每日字数目标）、`book.trash`、`book.restore` |
+| 书 | `book.list`、`book.get`、`book.search`、`book.shelf`（书架一次读完：数目、只算章节的字数、日期、还剩几天） | `book.create`（library）、`book.update`（名字、梗概、全书和每日字数目标）、`book.trash`、`book.restore`、`book.purge`（library，从最近删除里立即删掉）、`book.purge_expired`（library，删掉到期的） |
+| 字数与写作日（M07 加的） | `book.word_counts`、`book.writing_days` | `writing_day.record` |
+| 最近打开（只在本机） | `recent.list` | `recent.touch` |
 | 项目设定 | `fact.list` | `fact.put`（新建或修改，可指定位置）、`fact.remove` |
 | Project Memory | `memory.list` | `memory.add`、`memory.update`、`memory.remove`、`memory.restore` |
-| 章节 | `chapter.list`（书序、所在的幕、故事线） | `chapter.create`（可带初始正文）、`chapter.update`（标题、梗概、状态、叙事序、故事线和主故事线）、`chapter.move`、`chapter.trash`、`chapter.restore`、`chapter.purge` |
+| 章节 | `chapter.list`（书序、所在的幕、故事线、字数、建章和最近修改时间） | `chapter.create`（可带初始正文）、`chapter.update`（标题、梗概、状态、叙事序、故事线和主故事线）、`chapter.move`、`chapter.trash`、`chapter.restore`、`chapter.purge` |
 | 幕 | `act.list`（带各幕的章节） | `act.create`、`act.update`（改名、颜色、分界、绑定构想）、`act.delete` |
 | 故事线 | `storyline.list` | `storyline.create`、`storyline.update`、`storyline.move`、`storyline.trash`、`storyline.restore`、`storyline.purge` |
 | 要素 | `element.list`（标出合并后重名的） | `element.create`、`element.update`（名字、梗概、分类、别名、字段、肖像、关系图固定位置）、`element.trash`、`element.restore`、`element.purge` |
 | 分类 | `category.list` | `category.create`、`category.update`、`category.trash`、`category.restore`、`category.purge` |
 | 关系 | `relation.list`、`relation_type.list` | `relation.create`（对称类型按规范顺序存，已有就返回已有的）、`relation.delete`、`relation_type.create`、`relation_type.update`、`relation_type.delete`（连同用它的关系） |
 | 构想 | `idea.list`、`idea_group.list` | `idea.create`、`idea.update`、`idea.trash`、`idea.restore`、`idea.purge`、`idea_group.create`、`idea_group.update`、`idea_group.delete` |
+| 时间钉 | `time_pin.list` | `time_pin.create`、`time_pin.update`（移动、改标签、绑定或解绑构想）、`time_pin.delete` |
 | 批注与待办 | `comment.list`（目标不在的标「未定位」）、`comment.anchors`（一个对象正文上的锚点，给编辑器） | `comment.create`（挂在对象、段落、一段文字上，或浮动）、`comment.update`（正文、解决或重开、优先级、种类、关联的 Agent 对话）、`comment.reanchor`（编辑器撤销带回的锚点）、`comment.delete`、`todo.project`（正文里的 TODO 标记投成待办） |
 | 素材 | `material.list`、`material_folder.list` | `material.create`（文本笔记、图片、PDF）、`material.update`、`material.move`、`material.delete`、`material_folder.create`、`material_folder.update`、`material_folder.delete`、`asset.put`（资源元数据，写一次） |
 | 正文 | `prose.read`（段落：块 ID、H1/H2/H3 级别、文字、版本） | `prose.replace`（一段里唯一出现的原文 → 新文字）、`prose.restore`（退回某个版本） |
-| 历史 | `history.agent_changes` | `history.restore_entities`、`history.undo_agent` |
+| 历史 | `history.agent_changes`、`history.points`（一篇正文的历史点）、`history.preview`（某个点的正文和当时的标题梗概） | `history.restore_entities`、`history.undo_agent`、`history.restore_point`（按实体恢复到某个点） |
 
-一共 85 条：65 条命令，20 条查询。除了 `book.create` 是 `library`，其余写命令都是 `book`；查询都是 `shared`。`comment.reanchor` 和 `todo.project` 跟着正文走，不进对象级撤销的日志（见第三轮第 1 条）。
+一共 100 条：73 条命令，27 条查询。`book.create`、`book.purge`、`book.purge_expired` 是 `library`，其余写命令都是 `book`；查询都是 `shared`。`comment.reanchor` 和 `todo.project` 跟着正文走，不进对象级撤销的日志（见第三轮第 1 条）；`recent.touch` 不是作者的一步，也不记日志；`book.purge`、`book.purge_expired` 不能撤销。
 
 
 ## 写入顺序与补偿
@@ -226,7 +281,7 @@ quit::before_quit(cx, move |_| {
 | 层 | 做法 | 测试 |
 | --- | --- | --- |
 | 编辑器内 | `ProseSession`：dr-doc 的 `ProseUndo` 挂在持有者那份文档上（合并间隔 0，只撤 `user`），每一步是持有者的一个写入任务。Agent 和同步的改动是别的来源的提交，管理器把它们当成远端改动折进去，从不撤它们；作者的命令提交时来源是 `user:command`，会话的管理器也排除它，由日志撤 | `the_editor_layer_undoes_only_the_authors_typing`、`the_editors_undo_leaves_the_authors_commands_to_the_journal` |
-| 对象级 | 每条命令声明自己的反操作（新建 → 进废纸篓；改 → 改回旧值；移动 → 移回原坐标或原位置键；进废纸篓 ↔ 恢复；彻底删除 → `history.restore_entities` 从删除前的版本恢复）。日志在 `library.sqlite`，各人一个栈，新命令清空重做栈，重启后还在。跟着正文走的两条（`comment.reanchor`、`todo.project`）不记日志 | `undo_and_redo_walk_the_journal`、`a_new_command_clears_redo_and_actors_have_their_own_stacks`、`the_journal_survives_a_restart`、`an_actor_keeps_its_newest_rows`、`restore_entities_is_its_own_inverse` 和各命令的测试 |
+| 对象级 | 每条命令声明自己的反操作（新建 → 进废纸篓；改 → 改回旧值；移动 → 移回原坐标或原位置键；进废纸篓 ↔ 恢复；彻底删除 → `history.restore_entities` 从删除前的版本恢复）。日志在 `library.sqlite`，各人一个栈，新命令清空重做栈，重启后还在。跟着正文走的两条（`comment.reanchor`、`todo.project`）和 `recent.touch` 不记日志；快照恢复（`history.restore_point`）一步撤回正文和字段；整本书彻底删除不能撤 | `undo_and_redo_walk_the_journal`、`a_new_command_clears_redo_and_actors_have_their_own_stacks`、`the_journal_survives_a_restart`、`an_actor_keeps_its_newest_rows`、`restore_entities_is_its_own_inverse`、`points_preview_and_restore_a_chapter` 和各命令的测试 |
 | Agent 改动 | `history.undo_agent`：从 F2 的结算记录找到这个会话（或这一轮）每次写入的前后版本。书目文档逐字段比较「Agent 动手前、Agent 写完后、现在」，现在还等于 Agent 写的才恢复。正文的每段写入首尾相接、之后也没人再写过，才整篇退回；「比较版本」和「退回」在同一个写入任务里做 | `undo_agent_restores_fields_nobody_changed_since`、`undo_agent_brings_back_what_it_deleted_for_good`、`undo_agent_leaves_prose_someone_else_edited` |
 
 Agent 撤销的细节：
@@ -295,14 +350,16 @@ DR_FOOTPRINT_DIR=<同一个> cargo test --release -p dr-workspace --test footpri
 
 | 测试 | 内容 | 结果 |
 | --- | --- | --- |
-| `tests/commands.rs`（23 项） | 每条命令和查询至少调一次，包括报错的情形；`null` 清空字段、撤销把空字段变回空；搜索按书序、废纸篓里的不占名额；有一项检查登记表里的每条都在这个文件或 `editor.rs` 里被调用过 | 全过 |
+| `tests/commands.rs`（26 项） | 每条命令和查询至少调一次，包括报错的情形；`null` 清空字段、撤销把空字段变回空；搜索按书序、废纸篓里的不占名额；有一项检查登记表里的每条都在这个文件或 `editor.rs`、`shelf.rs`、`points.rs` 里被调用过 | 全过 |
+| `tests/shelf.rs`（8 项） | `chapter.list` 的字数和日期（废纸篓里的也有）；书架一次读完：只算章节的字数、副标题、数目、日期、还剩几天，废纸篓里的在后面；还剩几天向上取整、到 0 为止；彻底删除只删最近删除里的，文档、日志、最近打开都删掉，别的书不动，再删一次找不到；没到期的书 `book.purge_expired` 不删；最近打开每本书留 10 条、挪到最前不重复、不记日志、废纸篓里的不给、重启后还在；时间钉的标签规则、一个构想一个钉、移动和改名能撤销、构想进废纸篓读成没绑、删除能撤销（同一个 id、绑定还在） | 全过 |
+| `tests/points.rs`（5 项） | 历史点新的在前，带当时的标题、字数、前 120 个字；预览给出 H1 级别、当时的标题和梗概；恢复退回正文和标题梗概，恢复前的版本成了一个 `restore` 点，预览显示「和现在一样」；对象级撤销一步撤回、重做再来；恢复现在这个版本什么也不改；要素旧名字被占了就不动名字和别名；章节旧标题被占了就加后缀；书目文档、不存在的点、没给点都被拒 | 全过 |
 | `tests/editor.rs`（7 项） | 给编辑器的：撤销以后写回锚点、去掉锚点、同一个锚点不写、反操作放回原来的、不进日志；坏字节、浮动批注、别的设备的光标被拒；锚点同步到另一台设备。TODO 标记按旧版规则建、留、删，正在打字的段先不建，已解决的冻结，过时的清单不建，书和素材的正文被拒；投影不进日志、不吃掉重做；两台设备投出同一个待办（正文不重复）；先收到书目、后收到正文的设备先留着待办 | 全过 |
 | `tests/registry.rs`（4 项） | 能力清单的两份快照（先排好键再比）；每条说明是一句话；读的都是 `shared`，写的都不是；输入都是带字段名的对象；清单里不出现 H1–H3 的禁用叫法、退役产品的名字和构想的旧叫法 | 全过 |
 | `tests/events.rs`（4 项） | 书目事件点名实体；正文事件只点名被改的那一段；Agent 写入带结算事件；缓存跟着事件走 | 全过 |
 | `tests/shell.rs`（4 项） | 目录按名字、按 id 找，组和组分开，重名（两台设备合并出来的）都返回，废纸篓里的找不到，改名立刻生效；进废纸篓、彻底删除、Agent 删除、删素材、删整本书都发 `Removed`，恢复不发；另一台设备同步过来的删除也发，没读过的被删节点两种都报；`before_quit` 补齐索引、关掉没人占着的文档，之后还能照常用 | 全过 |
 | `tests/write_order.rs`（6 项） | 上面「写入顺序与补偿」表里的四种失败，加上重开后正文还在、不冲刷也全落盘 | 全过 |
 | `tests/undo.rs`（10 项） | 三层撤销；作者的命令不进编辑器的撤销栈（两种先后顺序）；日志重启后还在；每人只留最近的记录 | 全过 |
-| `tests/invariants.rs` 单设备属性测试（另有两条从失败例子固定下来的回归测试） | 每例最多 35 步随机命令（37 种，包括撤销、重做、Agent 改名和撤销、TODO 标记投影、故障注入、从磁盘重开），每一步后检查：章节和构想标题、故事线名、分类名、要素名和别名都不重复；每个实体的正文文档都在；显示的关系两端都活着；批注目标要么显示、要么标「未定位」；章节都有书序；构想分组不超过两层；投出的待办 id 由文档和块算出、正文就是种子一遍；重开前后读出来一样 | 3000 例全过（release） |
+| `tests/invariants.rs` 单设备属性测试（另有两条从失败例子固定下来的回归测试） | 每例最多 35 步随机命令（39 种，包括撤销、重做、Agent 改名和撤销、TODO 标记投影、打历史点和恢复到历史点、故障注入、从磁盘重开），每一步后检查：章节和构想标题、故事线名、分类名、要素名和别名都不重复；每个实体的正文文档都在；显示的关系两端都活着；批注目标要么显示、要么标「未定位」；章节都有书序；构想分组不超过两层；投出的待办 id 由文档和块算出、正文就是种子一遍；重开前后读出来一样 | 3000 例全过（release） |
 | `tests/invariants.rs` 两设备属性测试 | 同一本书（带一章共有的章节）的两份副本各自跑随机命令，再互相交换全部文档；两边读出来逐项相同；合并后可能出现的重名由读取标出，只有一个保留名字；两边对同一段投出的待办合并后正文不重复（拿掉导入后的修复，这条会失败，确认过） | 3000 例全过 |
 | `concurrent_creates_of_one_name_are_flagged_not_lost` | 两台设备同时建同名要素、同名章节：都保留，要素标出冲突，章节标题允许重复，下一次改名加后缀 | 过 |
 | `tests/footprint.rs`（2 项，默认忽略） | 上面那组内存和单次提交的测量 | 手动跑 |
@@ -391,6 +448,13 @@ F8 的 `bench workspace`，heavy 种子（100 章，正文共约 360 万字，30
 | 3.1 | `comment.reanchor`：编辑器撤销带回的锚点写回书目（base64，作者的改动，同步出去）；加 `comment.anchors` 查询 | 完成；不进日志，理由见第三轮第 1 条 |
 | 3.2 | `todo.project`：按旧版 `useTodoAutoParse` 的规则建、留、删，id 用 `CommentId::for_projection`，两台设备是同一个实体 | 完成；另补了「先收到书目」的等待和「两边同时投」的正文修复 |
 | 3.3 | 作者命令改正开着的正文时不进编辑器的撤销栈 | 完成（`user:command`）；长久做法见 F2-3、F1-2 |
+| 4.1 | `chapter.list` 带字数、建章和最近修改时间 | 完成；改标题不算「修改」，见第四轮第 1 条 |
+| 4.2 | 书架一次读完（`book.shelf`） | 完成 |
+| 4.3 | `book.purge`、`book.purge_expired`，书架能算还剩几天（30 天，向上取整） | 完成；只删本机，Hosted 那边等 M36 |
+| 4.4 | 「最近打开」（只在本机） | 完成；暂借 `library_meta`，见 F2-4；谁来记见 F6 |
+| 4.5 | 时间钉的命令 | 完成 |
+| 4.6 | M09 快照历史：列点、预览、按实体恢复；界面 `dr-view-history`，外壳 ⋯ 菜单一个入口 | 完成；见 [m09-history.md](../modules/m09-history.md) |
+| 4.7 | `bench workspace --milestone f3-m3` | 没跑：机器负载 200 以上 |
 
 ## 待协调
 
@@ -409,8 +473,19 @@ F8 的 `bench workspace`，heavy 种子（100 章，正文共约 360 万字，30
 2. ~~**关库和后台索引重建**~~（已做）：打开库时起的重建线程会对已经打开的文档调 `reindex_doc`，临时拿一个 `DocHandle`。`try_close` 在停掉后台工作之前就先数打开的文档，所以碰巧会被拒。工作区现在靠重试绕过去（`Workspace::shutdown`）。建议 `try_close` 先停后台重建、等它退出，再数文档；或者重建线程不去拿已经打开的文档的句柄，交给持有者自己的空闲维护。
 
 3. **作者命令的提交来源**（第三轮提的）：工作区现在让作者命令的写入任务自己提交一次（Loro 来源 `user:command`），持有者随后的提交是空的、存下的行记作 `user`。这违反了「写入任务只改、不提交」的字面规矩，但和中途隐式提交是同一种情形，现有代码处理得对。长久的做法是 dr-store 的 `Origin` 加一个「作者的命令」（存成 `user`、提交用 `user:command`），或者 `write` 接受一个提交来源；做了以后工作区去掉自己提交的那一步就行。
+4. **小块本机状态要一张表**（第四轮提的）：「最近打开」只在本机、不同步，F3 现在借 `library_meta` 存（键 `ws.recent`，一个 JSON 值，经 `local_write` 写）。`library_meta` 是库自己的设置，这样借用不好。建议加一张给各模块用的本机键值表（例如 `local_kv(scope, key, value, changed_ms)`，经 `local_write` 写、发本机变更），或者一张 `ws_recent` 表；有了以后 F3 把这一个值搬过去。
+5. **按书批量读字数和最近存盘时间**（第四轮提的，不急）：`chapter.list` 和 `book.shelf` 每章调一次 `doc_stats` 和 `head`（各一行、按主键）。几百章没问题；如果量出来慢，给一个按书一次读完的接口（`index_state` 和 `loro_head` 按 `book_id` 联表）。
+6. **彻底删除一本书只删了本机**（第四轮）：`purge_doc` 删了文档，但同步一旦把服务器上的这本书再拉回来，它就会重新出现在「最近删除」里。要等 M36 定删除怎么同步（旧版是先删服务器上的、确认了再删本地），可能要 dr-store 记一份「已经删掉的文档」名单，拒绝再导入。
 
 ### F6（dr-shell）
+
+- **第四轮在 `dr-shell` 里改了这几处**（M09 的入口，越少越好）：
+  1. `Cargo.toml`：加 `dr-view-history` 依赖一行；
+  2. `src/workspace/mod.rs`：`Workspace` 加一个字段 `history: Option<Entity<dr_view_history::HistoryDialog>>`，初始化 `history: None`，渲染时 `.when_some(self.history.clone(), …)` 挂上对话框，共三处各一两行；
+  3. `src/workspace/corner.rs`：章节的 ⋯ 菜单在写作状态和「删除节点」之间加一项「历史快照…」（图标 `rotate`，文案 `rightSidebar.stats.snapshotButton`，旧版的入口就叫这个）；同一个文件里加 `Workspace::open_history(doc, name, window, cx)`，开对话框、收到 `Close` 时收起；模块注释跟着改了一句。
+  - 另在 `dr-i18n/keys.txt` 加了旧版历史对话框用到的键（`snapshotHistory` 下的 8 个和 `kind.*`，`rightSidebar.stats.snapshotButton`、`common.wordsCount`），跑了 `sync-locales.py`。
+- **「最近打开」要外壳来记**：作者打开或切到一页（章节、构想、要素、故事线、分类、素材）时调 `recent.touch { book, target: { kind, id } }`。F3 不知道哪一页在前面，旧版也是界面记的。建议在导航模型换活动标签的那一处调一次（后台线程，失败只记日志）；M02 的「继续写」读 `recent.list`。
+- 别的页面（要素、故事线、分类、素材）的 ⋯ 菜单还没有，各模块做菜单时照章节的加一项「历史快照…」，调 `open_history("element:<id>", 名字, …)` 就行，对话框不分种类。
 
 - 照「给外壳（F6）的接口」那一节接：`Catalog` 套在 `BookCatalog` 上；订阅 `WsEvent::Removed`，转到主线程以后调 `Navigator::forget`；`quit::before_quit` 里调 `ws.before_quit()`。接好以后 `stand_in.rs` 可以删掉。
 - 事件在持有者线程上到达，回调里不要等文档持有者，也不要直接碰 GPUI 的状态。
@@ -442,23 +517,30 @@ F8 的 `bench workspace`，heavy 种子（100 章，正文共约 360 万字，30
 - 按名字调 `Workspace::call(actor, name, json)`；输入输出的 Schema 从 `registry().manifest()` 取；错误按 `code()` 分。
 - 按名称找对象可以直接用 `ws.catalog(book)`，和外壳解析位置链接是同一套规则。
 
+### M01（书架）/ M02（主页）/ M04（章节面板）
+
+- M01 可以把每本书的四条查询换成一条 `book.shelf { trashed: true }`；「还剩几天」直接读 `days_left`（0 显示「即将永久删除」）；「立即删除」调 `book.purge`；书架打开 2 分钟后调一次 `book.purge_expired`。
+- M02 的「继续写」读 `recent.list { book }`，取第一个 `node`；没有就退回「最近改过的章节」（`chapter.list` 的 `updated_at` 最大的）。
+- M04 的排序和格子用 `chapter.list` 的 `words`、`created_at`、`updated_at`（秒）。
+
 ### M36（同步）
 
+- **彻底删除一本书**（`book.purge`）现在只删本机。旧版先删 Hosted 上的、确认了再删本地，离线时书留在「最近删除」里下次再试。同步做好以后，`book.purge` 要先走服务器，或者由 M36 包一层；同时要防止服务器上的旧文档把删掉的书拉回来（见 F2-6）。
 - 远端更新一律走 `Workspace::import_remote`：它走 F2 的 `import`（自动记下服务器已有的版本），然后跑 dr-doc 的修复（重复的块 ID、语义重复的关系、缺书序的章节），书目还会修两边同时投出的待办正文。直接调持有者的 `import` 会跳过修复。
 - 书目和正文分开到达是正常的：`todo.project` 已经按「正文还没到」等着，不会误删待办。
 
 ## 没做的，和下一个里程碑建议
 
 - **没做**：
-  1. 时间钉、情节规划、补丁、写作日、模板的命令；整本书彻底删除和废纸篓 30 天到期；
+  1. 情节规划、补丁、模板的命令（时间钉、整本书彻底删除和 30 天到期第四轮做了，写作日 M07 做了）；
   2. 正文的修订 CAS（带版本的写入），以及作者也改过同一篇正文时按段撤销 Agent 的改动（现在只报冲突，请作者从历史恢复）；
   3. 清理没人认领的正文文档（彻底删除后留下的，和中途失败留下的）；
   4. 第一个里程碑里自己写的「是否活着」判断、按目标找批注、Agent 撤销时从副本读裸值，还没换成 F1 第三轮给的 `entity_exists` / `relations_of` / `EntitySnapshot::field`。
   5. TODO 标记只在编辑器打开那篇正文时才投（和旧版一样）：Agent 用命令写进去的标记、同步来的标记，要等作者打开那一章。识别标记的规则现在只在 `dr-editor` 里；要在后台投，得把规则挪到下层一处（比如 dr-text），再由工作区在正文变化时自己找。素材笔记的任务行（`NoteTask`）还没做。
 - **建议的下一个里程碑**：
-  1. 补齐上面第 1 条的命令（F8 的种子对拍等着时间钉和写作日）；加后台清理（第 3 条）；
+  1. 补齐上面第 1 条的命令；加后台清理（第 3 条）；
   2. 换上 F1 的按键读取和快照按字段读取（第 4 条），重测「改了以后列关系」「冷读批注」；
-  3. 机器空闲时跑 `bench workspace --milestone f3-m3`（这一轮没量，见第三轮；F2 第四轮以后的搜索也一起记下）；
+  3. 机器空闲时跑 `bench workspace --milestone f3-m3`（第三轮、第四轮都没量；F2 第四轮以后的搜索，和 heavy 种子上的 `chapter.list`、`book.shelf`、`history.points` 也一起记下）；
   4. 帮外壳接上真书（F6 下一步的第 1 条），用 F8 的调试桥跑一遍「打开书 → 删章 → 标签关掉」。
 
 ## 代码位置
@@ -476,9 +558,11 @@ next/crates/dr-workspace/src/
   journal.rs       撤销日志（ws_journal）
   editor.rs        ProseSession（编辑器层撤销；作者命令的 user:command 不进它的栈）
   actor.rs dto.rs naming.rs error.rs
-  commands/        book chapter storyline element relation idea comment（含锚点和 TODO 投影）material prose history
+  commands/        book（含书架、彻底删除）chapter storyline element relation idea comment（含锚点和 TODO 投影）
+                   material prose history points（M09 快照历史）recent（最近打开）time_pin stats（M07）
 next/crates/dr-workspace/tests/
-  commands.rs registry.rs events.rs shell.rs editor.rs write_order.rs undo.rs invariants.rs footprint.rs
+  commands.rs registry.rs events.rs shell.rs editor.rs shelf.rs points.rs write_order.rs undo.rs invariants.rs footprint.rs
+next/crates/dr-view-history/       M09 的对话框（见 modules/m09-history.md）
   snapshots/       能力清单快照（registry__capabilities.snap、registry__capability_schemas.snap）
 docs/rust-rewrite/acceptance/f3-m2-workspace-bench.json
 ```
