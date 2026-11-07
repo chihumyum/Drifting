@@ -30,7 +30,17 @@
 ### 版本号
 
 - 每个文档的 `meta` 映射里有 `v`，现在是 `1`。
-- Loro 不把文本样式配置存进文档。下文的样式表（每个标记键的 `ExpandType`）也是 v0 的一部分：每个 `LoroDoc` 在导入或编辑之前都要先配置它（探针里是 `schema::configure`）。
+- 下文的样式表（每个标记键的 `ExpandType`）也是结构的一部分，规则见下面「样式表」一节。
+
+### 样式表：只有一个来源
+
+**唯一来源是 `dr_doc::schema::STYLE_TABLE` 加 `dr_doc::schema::DEFAULT_EXPAND`**（键和规则就是下文段落属性、行内标记两张表的 ExpandType 列；新版本加的、这张表里没有的键一律 `None`）。`dr_doc::schema::configure(doc)` 照它配置一份文档。别的地方（`gpui-prose`）要么调这个函数，要么用一模一样的表；`dr-editor` 用 `dr_doc::schema::style_table_mismatches(另一张表, 另一个默认值)` 逐键对拍，不一样就把差在哪列出来。`dr-doc` 不依赖 `gpui-prose`。
+
+为什么必须只有一张表（都测过，`dr-doc` 的 `schema` 测试）：
+
+- Loro 不把样式表存进文档，每个 `LoroDoc` 在运行时配置；`config_text_style` 会**整张替换**原来的表（默认值另外由 `config_default_text_style` 设，不受影响），所以两处各配一次，后配的说了算。
+- 更要紧的是：**打标记的那一刻，Loro 把这个键的规则抄进标记本身**，之后每台设备在这个标记旁边打字，都照标记自己带的规则走，跟打字那台设备配的什么表无关。所以一台设备用错了表，它打出来的标记就带着错的规则进了书，同步到哪儿错到哪儿，换设备也改不回来。
+- 「`ExpandType` 只管本机插入」说的是另一回事：远端并发插进来的字，按 Loro 的合并规则落位，不按扩展规则（见「读取规则」第一条）。
 
 ### 创世变更
 
@@ -232,7 +242,7 @@ id 是 `system:generic-association:<书 id>`，和旧版 `genericAssociationRela
 
 ## 不变量
 
-旧版靠 SQL 约束、触发器和同步内核（`production-domain-kernel.ts`）挡住的事，新版各有归属。下表是摘要；逐条对过旧版 70 条领域不变量和 126 个仍生效的触发器之后的完整清单（77 条，加 16 条写明不再需要的、9 条界面和 Agent 做法不一样待 F3 统一的）在 `dr_model::invariant`，生成的证据是 [acceptance/f1-invariants.json](acceptance/f1-invariants.json)：
+旧版靠 SQL 约束、触发器和同步内核（`production-domain-kernel.ts`）挡住的事，新版各有归属。下表是摘要；逐条对过旧版 70 条领域不变量和 126 个仍生效的触发器之后的完整清单（78 条，加 16 条写明不再需要的、9 条界面和 Agent 做法不一样待 F3 统一的）在 `dr_model::invariant`，生成的证据是 [acceptance/f1-invariants.json](acceptance/f1-invariants.json)：
 
 | 不变量 | 新版靠什么 |
 | --- | --- |
@@ -299,7 +309,7 @@ sync_doc (doc_id, remote_vv, updated_ms)                   -- 服务器已有到
 - 现在是 v2：`meta.v = 2`，创世版本 2，样式表如上；另外给未配置的标记键设了默认 `ExpandType::None`（新版本加的标记键在旧版本里本机插入时不扩展）。
 - 改动分两类：
   - **向后兼容**（新增根容器、新增实体字段、新增标记键且旧版忽略它也不会写坏）：升小版本，在这里记一行；读取端遇到不认识的字段原样保留。
-  - **不兼容**（改键名、改值的含义、改 `ExpandType`、改创世内容、改块 ID 规则）：升 `meta.v`，写清楚迁移办法。改 `ExpandType` 尤其要小心：同一个键在不同设备上配置不同，本机插入时的扩展行为就会不一致。
+  - **不兼容**（改键名、改值的含义、改 `ExpandType`、改创世内容、改块 ID 规则）：升 `meta.v`，写清楚迁移办法。改 `ExpandType` 尤其要小心：规则在打标记时就写进了标记，改表只影响以后打的标记，书里已有的标记照旧，新旧两种规则会长期并存。
 - Loro 自己的数据格式从 1.0 起不再有破坏性改动；新版 Loro 建的新类型容器，旧版会读成 `LoroUnknown`。
 
 ### v0 → v1（2026-11-07，F1）

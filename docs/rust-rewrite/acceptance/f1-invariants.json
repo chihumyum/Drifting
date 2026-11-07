@@ -1,9 +1,9 @@
 {
   "byMechanism": {
-    "command": 37,
+    "command": 38,
     "read": 52,
     "repair": 7,
-    "structure": 31
+    "structure": 32
   },
   "divergenceCount": 9,
   "divergenceStatus": "待 F3 统一：界面和 Agent 走同一条命令，提议见每条的 proposal",
@@ -114,7 +114,7 @@
       "ui": "明确给的名字重名就报错；只有占位名「新要素」自动编号"
     }
   ],
-  "invariantCount": 77,
+  "invariantCount": 78,
   "invariants": [
     {
       "holds_by": [
@@ -196,12 +196,13 @@
       "holds_by": [
         "structure"
       ],
-      "how": "Agent 提交带提交信息 agent:<会话>/<轮>，随快照和同步走",
+      "how": "这三种提交带提交信息 agent:<会话>/<轮>、mirror、import（Origin::commit_message），存进 Loro 历史、随快照和同步走、压缩删不掉；作者自己的提交不带",
       "id": "AGENT-MESSAGE",
       "legacy": [],
-      "rule": "Agent 的改动在历史里认得出来",
+      "rule": "Agent、Markdown 文件夹、导入的改动在历史里认得出来",
       "tests": [
         "agent_commits_carry_a_durable_message",
+        "import_and_mirror_commits_carry_their_origin_as_message",
         "origins_round_trip"
       ]
     },
@@ -1326,6 +1327,21 @@
       "rule": "从快照历史恢复一个对象时，连同它当时的标题、梗概、字段等元数据一起恢复，书里别的东西不动",
       "tests": [
         "restoring_an_entity_writes_its_old_fields_back"
+      ]
+    },
+    {
+      "holds_by": [
+        "structure",
+        "command"
+      ],
+      "how": "唯一来源是 dr_doc::schema::STYLE_TABLE 加 DEFAULT_EXPAND，dr_doc::schema::configure 照它配置；Loro 在打标记时把规则写进标记本身、之后各设备都照它走，所以一张错表写出来的是错数据。别处（gpui-prose）要么调 configure，要么用一模一样的表，dr-editor 用 style_table_mismatches 对拍",
+      "id": "STYLE-TABLE-ONE-SOURCE",
+      "legacy": [],
+      "rule": "所有配置 Drifting 文档的地方用同一张样式表（每个标记键的扩展规则）",
+      "tests": [
+        "the_style_table_covers_every_mark_key_once",
+        "mismatches_name_every_difference",
+        "a_mark_made_under_another_table_keeps_its_rule"
       ]
     },
     {
