@@ -29,8 +29,9 @@
 | — | 本机身份与自动换代、同步状态、派生器、事件总线（监管会话追加） | 完成 | `tests/device.rs`（5 项）、`tests/sync.rs`（2 项）、`tests/records.rs` |
 | — | 机器指纹：换了机器就当新设备（监管会话批准待协调第 8 条） | 完成 | `machine.rs`、`identity.rs` 的单测（7 项）、`tests/device.rs` |
 | — | `file_io.rs`、`archive.rs` 原样搬入并补单测 | 完成 | `tests/file_io.rs`（8 项，Windows 另有 1 项在 CI 跑） |
+| — | M10 要的接口：`label_at`、`Device::adopt`、导入回执表（`0001`）、`repair` 来源 | 完成 | `tests/labels.rs`（2 项）、`identity.rs` 单测、`tests/migrate.rs`、`tests/sync.rs`、`tests/records.rs` |
 
-合计 96 项测试（macOS）。Windows 上跑 90 项：少了只在 Unix/macOS 上有意义的 7 项（符号链接、目录同步、`IOPlatformUUID`），多 1 项写穿改名。
+合计 103 项测试（macOS）。Windows 上跑 97 项：少了只在 Unix/macOS 上有意义的 7 项（符号链接、目录同步、`IOPlatformUUID`），多 1 项写穿改名。
 
 ## 接口概览
 
@@ -38,6 +39,7 @@
 // 设备：库外的身份文件与水位
 let device = Device::open(app_local_dir)?;          // 读写 sync-installation-v2.json（与 0.1 同一个文件），并核对机器指纹
 device.machine_changed();                           // 身份来自别的机器：已换成新的安装 id
+Device::adopt(app_local_dir, &old_installation_id)?; // 导入时：目录里还没有身份，就采用 0.1 那份
 device.writing_device_key();                        // 写作日的设备键，与 0.1 算法一致
 
 // 打开库（一个文件夹；同一时刻只能被一个进程、一个 Library 打开）
@@ -60,6 +62,8 @@ h.import(bytes, Origin::Sync)?;                     // 远端更新：导入、�
 h.read(|doc| ...)?;                                 // 持有者线程上读：导出、光标位置、回看都在这里
 h.doc();                                            // DocView：任何线程可读的当前状态，不许改
 h.subscribe(|e: &DocEvent| ...); h.reindex_now()?; h.compact_now()?; h.label(labels::RESTORE)?;
+lib.label_at(doc_id, &frontiers, "import", ts_ms, LabelRetention::Thinned)?; // 指定版本、指定时间的历史点
+lib.label_many(&[NewLabel { .. }])?;                // 同上，多条一个事务（导入重放旧版本用）
 h.close();                                          // 最后一个句柄：等持有者收尾；直接 drop 不阻塞
 
 // 总线：所有文档的已落盘变化 + 本机表的变化
@@ -92,10 +96,12 @@ lib.derive_variants(asset_id, &pipeline)?;          // pipeline: impl ImageDeriv
 lib.remove_asset(asset_id)?; lib.collect_asset_garbage()?;
 
 lib.purge_doc(doc_id)?;                             // 一个事务删掉一篇文档的所有行
+lib.local_transaction(|tx| { /* 本模块自己的本机表 */ Ok(()) })?; // 例如导入回执；之后 notify_local
+lib.local_read(|conn| ...)?;
 lib.close()?;                                       // 等持有者和后台重建收尾、关库、放锁
 ```
 
-`Origin` 是 `User`、`Agent("<会话>/<轮>")`、`Mirror`、`Sync`、`Import`、`Genesis`，外加兜底用的 `Outside`。
+`Origin` 是 `User`、`Agent("<会话>/<轮>")`、`Mirror`、`Sync`、`Import`、`Repair`（dr-doc 的确定性修复）、`Genesis`，外加兜底用的 `Outside`。字符串和 dr-model 的 `Origin` 一一相同，有测试对照。
 
 ## 设计与取舍
 
@@ -123,6 +129,7 @@ lib.close()?;                                       // 等持有者和后台重�
   - 安装 id 对不上（身份文件被删后重建，或上一步在两次写入之间崩溃）：只重新绑定，不再换。
   - 绑定文件损坏：报错，不猜、不动任何文件。
 - **为什么不写进身份文件本身**：0.1 读 `sync-installation-v2.json` 用的是 `deny_unknown_fields`，多一个字段它就会当成损坏、停用同步。所以摘要放在同一目录的另一个文件里，效果相同，0.1 照常能读。
+- **采用旧身份**（`Device::adopt`）：导入 0.1 库时，新设备目录里还没有身份文件，就把 0.1 那份安装 id 原样写进来（0.1 的格式、只给本人读写、和首次创建一样用硬链接发布，绝不覆盖已有的），写作日里还是同一台设备。下一次 `Device::open` 把它绑到这台机器。局限：如果旧数据本身是从别的机器拷来的，采用时分辨不出来（0.1 没有机器绑定）。
 - **对等方 ID 不从安装身份派生**：对等方仍是每库、每（设备，文档）随机一个，存在 `loro_peer`；搬库靠下面的自动换代兜住。
 - **自动换代**：`library_meta` 记着上次打开它的安装 id 和一个全库的写入计数 `write_seq`（每追加一行加一，和那一行在同一个事务里）。打开时：
   - 安装 id 和本机不同：库是从别的设备拷来的，换代（`EpochChange::OtherDevice`）；
@@ -141,7 +148,11 @@ lib.close()?;                                       // 等持有者和后台重�
 - **下次打开先结清回执**（照旧版）：读不出的回执 → 停（`recovery-receipt-invalid`），不猜；快照哈希或大小对不上 → 停（`safety-snapshot-invalid`）；没到「替换中」、或影子还在 → 替换没发生，删影子和回执、照常打开（有待跑的迁移就重试）；「替换中」且影子已不在 → 替换已发生，库必须完整、迁移条数等于回执的目标，否则停（`activated-database-invalid`），不在半成品上继续迁移。停下时界面用 `Library::recovery_receipts` 读回执，`restore_from_receipt` 校验哈希后恢复。
 - **「原库不变」的确切含义**：原库正常关闭过（WAL 为空）时逐字节不变，测试按这个校验；上次是崩溃退出时，升级前的 checkpoint 会把 WAL 写回主文件，内容不变、字节会变。
 - **换版本也拍快照**：没有待跑的迁移、但打开它的应用版本变了，也先拍一张。
-- **基线什么时候冻结**：哈希已钉住。这一轮按监管会话的数据层审查改过一次基线，钉住的哈希同时更新（还没合进 `main`，没有任何库用过旧基线）。建议合进 `main` 就当作已发布，以后都追加新迁移。
+- **已发布的迁移**：基线随 `main` 的 `e0a9e964` 发布，从此不再改；之后的表一律追加。现在有三条，`PUBLISHED` 钉着它们的哈希：
+  - `0000_baseline`；
+  - `0001_import_receipts`：导入回执表（见「本机表」）；
+  - `0002_history_label_keep`：历史标签加 `keep` 列，`1` 表示不参与修剪。
+  测试 `a_baseline_library_gets_the_later_published_migrations` 用只有基线的旧库走一遍真实的升级：先拍安全快照，再在影子库上迁 `0001`、`0002`，正文和已有标签都在。
 
 ### 表
 
@@ -162,6 +173,7 @@ DDL 以 `migrations/0000_baseline.sql` 为准：所有表 `STRICT`，时间一�
 | `block_index` + `block_fts` | 每段一行（搜索、大纲、段落长度），FTS5 由 dr-store 在同一事务里维护 |
 | `reference` | 引用：`link` / `mention` / `embed` |
 | `asset` | 资源文件，每个版本一行，带 `uploaded_ms` |
+| `import_run`、`import_book`、`import_doc`、`import_anchor`、`import_original` | 导入回执（`0001`，M10 写） |
 
 ### 文档持有者
 
@@ -177,7 +189,8 @@ DDL 以 `migrations/0000_baseline.sql` 为准：所有表 `STRICT`，时间一�
 
 ### 来源与活动
 
-- 来源不只记在 `loro_update.origin`（压缩会删）：`Agent`、`Mirror`、`Import`（以及 `Outside`）的提交都把来源写进 **Loro 提交信息**，作者自己的提交不带。远端的提交带着它们自己的提交信息过来。
+- 来源不只记在 `loro_update.origin`（压缩会删）：`Agent`、`Mirror`、`Import`、`Repair`（以及 `Outside`）的提交都把来源写进 **Loro 提交信息**，作者自己的提交不带。远端的提交带着它们自己的提交信息过来。
+- `genesis` 和 `repair` 的行和别的行一样追加、一样上传：上传按 `remote_vv` 从文档导出，不看来源（`repair_and_genesis_rows_are_appended_and_uploaded_like_any_other`）。各设备的创世变更字节相同，服务器和 Loro 都会去重；修复是确定的，两台设备修出来的值相同。`repair` 不触发周期标签。
 - 「某时间起谁改了哪些文档」（主页签到）：`loro_head.ts` 找出改过的文档，再从每篇文档自己的 Loro 变更里读出对等方、时间和提交信息（`history::changes_since`、`Library::activity_since`）。对等方是不是本机，用 `peer_for` 比对。
 - Agent 结算记录（`agent_settlement`）和那次写入在同一个事务里写；作者撤销 Agent 的改动走历史（`revert_to` 到 `before`），由 F3 实现。
 - **这些都依赖「不做浅快照」**：来源、活动、历史标签、结算记录里的 frontiers，都要求完整历史还在。以后谁要加浅快照，得先给这些找别的存法。
@@ -196,6 +209,8 @@ DDL 以 `migrations/0000_baseline.sql` 为准：所有表 `STRICT`，时间一�
 - `agent:<会话>/<轮>`：每轮 Agent 的第一次写入之前打一个，整轮可以一起撤；
 - 同一个版本不连着打两个；一小时内全留，一天内每小时留一个，再往前每天一个，30 天以前的删掉；
 - 每个标签同时记下当时书目文档（`book:<书 id>`）最新落盘的 frontiers，按实体恢复时两边一起用（F1 给按实体恢复的接口）。
+- **指定版本、指定时间的历史点**（`label_at`、`label_many`，导入重放 0.1 的快照历史用）：书目文档的版本取当前落盘的那个。参数 `LabelRetention` 默认 `Thinned`：照常修剪，所以早于 30 天的点写进去马上就会被删；`Kept` 写 `keep = 1`，永不修剪。M10 要不要保留导入的旧历史点，由它选。
+- 文档打开着时也可以 `label_at`；持有者记着的「上一个标签」只认它自己打的，影响的只是下一个周期标签什么时候到期。
 
 ### 派生索引
 
@@ -211,6 +226,21 @@ DDL 以 `migrations/0000_baseline.sql` 为准：所有表 `STRICT`，时间一�
 - `docs_with_local_changes`：`loro_head.vv` 超出 `remote_vv` 的文档，就是「有改动只在这台电脑上」。
 - 资源文件带 `uploaded_ms`：`assets_pending_upload`、`mark_asset_uploaded`。
 - 旧版的写入者、HLC、`device_seq` 都不要。
+
+### 本机表
+
+只在本机、不进 Loro 的表由各自的模块所有，dr-store 只负责迁移和事务：模块用 `Library::local_transaction` 写自己的表、用 `local_read` 读，改完用 `notify_local` 发到总线。Loro 表、历史和派生表不许这样碰。
+
+| 表 | 归属 | 现状 |
+| --- | --- | --- |
+| 导入回执：`import_run`、`import_book`、`import_doc`、`import_anchor`、`import_original` | M10（dr-import-v1） | `0001` 已建，表结构照 M10 的 `receipt.rs`；M10 改为经 `local_transaction` 写进库里 |
+| 旧帮手对话的只读存档（`archive_*`） | M31 | 这一轮不建，暂留在 M10 的 `import-v1/receipt.sqlite` |
+| MCP 服务（`local_agent_mcp_server`） | M32 | 同上 |
+| 工作记忆（`local_agent_working_memory`） | M30 | 同上 |
+| Markdown 文件夹台账（`local_markdown_mirror_file`） | M40 | 同上 |
+| 本机设置（`local_setting`、`local_library_state`） | F6 | 同上 |
+
+谁接手就追加自己的 `000N_*.sql`，并把数据从 `receipt.sqlite` 搬进来。
 
 ### 资源文件
 
@@ -229,23 +259,23 @@ DDL 以 `migrations/0000_baseline.sql` 为准：所有表 `STRICT`，时间一�
 
 ## 测量
 
-M3 Pro（12 核，36 GB），release，Loro 1.17.1，2026-11-07，跑时 1 分钟负载约 7.5（记在证据里）。数据全是合成的：章节由固定字池随机组段，一次写入后压缩，然后模拟打字（每次插 1–6 字，六分之一的概率删 1–3 字）。完整数字在 [acceptance/f2-store-bench.json](../acceptance/f2-store-bench.json)。
+M3 Pro（12 核，36 GB），release，Loro 1.17.1，2026-11-07，跑时 1 分钟负载约 7.4（记在证据里）。数据全是合成的：章节由固定字池随机组段，一次写入后压缩，然后模拟打字（每次插 1–6 字，六分之一的概率删 1–3 字）。完整数字在 [acceptance/f2-store-bench.json](../acceptance/f2-store-bench.json)。
 
 | 项 | 结果 | 预算（benchmarks.md） |
 | --- | ---: | --- |
-| 一次按键写入：持有者线程上提交 + 导出 + 一个事务写更新行、head、写入计数 + 发事件 + 唤醒调用方，2 万字章节，2000 次，`synchronous=NORMAL` | p50 0.037 ms，p95 0.061 ms，最慢 1.2 ms | 单次按键的写入中位数 ≤ 2 ms（探针档）/ ≤ 1 ms（发布档） |
-| 同上，`synchronous=FULL` | p50 0.060 ms，p95 0.084 ms，最慢 0.75 ms | — |
+| 一次按键写入：持有者线程上提交 + 导出 + 一个事务写更新行、head、写入计数 + 发事件 + 唤醒调用方，2 万字章节，2000 次，`synchronous=NORMAL` | p50 0.036 ms，p95 0.057 ms，最慢 1.5 ms | 单次按键的写入中位数 ≤ 2 ms（探针档）/ ≤ 1 ms（发布档） |
+| 同上，`synchronous=FULL` | p50 0.061 ms，p95 0.084 ms，最慢 0.59 ms | — |
 | 每次按键的更新平均大小 | 104 字节 | — |
-| 打开一章（2 万字快照 + N 条按键更新）：载入 / 载入并读出全文 / 起一个持有者，p50 | N=0：0.11 / 0.23 / 0.13 ms<br>N=100：1.1 / 1.0 / 1.1 ms<br>N=500：3.6 / 3.5 / 3.7 ms<br>N=1000：6.6 / 6.5 / 6.8 ms<br>N=5000：33 / 32 / 33 ms | 打开 2 万字章节 ≤ 80 ms（探针档，含排版） |
-| 压缩（2 万字章节，写快照 + 删掉 N 行），p50 | N=100：0.51 ms；N=500：0.73 ms；N=2000：1.4 ms；快照 69–133 KB | — |
-| 全书 100 章 × 1.5 万字：从 SQLite 冷载入全部 | 9.3 ms | 冷开全书的 Loro 文档 ≤ 300 ms（发布档） |
-| 全书：第一次读出每章全文 | 9.8 ms | — |
-| 全书：起 100 个持有者 / 逐个 `close` 等它们收尾 | 12.5 ms / 2.5 ms | — |
+| 打开一章（2 万字快照 + N 条按键更新）：载入 / 载入并读出全文 / 起一个持有者，p50 | N=0：0.11 / 0.23 / 0.14 ms<br>N=100：1.0 / 1.0 / 1.1 ms<br>N=500：3.5 / 3.4 / 3.5 ms<br>N=1000：6.5 / 6.5 / 6.7 ms<br>N=5000：30 / 30 / 31 ms | 打开 2 万字章节 ≤ 80 ms（探针档，含排版） |
+| 压缩（2 万字章节，写快照 + 删掉 N 行），p50 | N=100：0.52 ms；N=500：0.70 ms；N=2000：1.3 ms；快照 69–133 KB | — |
+| 全书 100 章 × 1.5 万字：从 SQLite 冷载入全部 | 9.4 ms | 冷开全书的 Loro 文档 ≤ 300 ms（发布档） |
+| 全书：第一次读出每章全文 | 9.6 ms | — |
+| 全书：起 100 个持有者 / 逐个 `close` 等它们收尾 | 12.8 ms / 2.6 ms | — |
 | 全书的库文件 | 5.2 MB | — |
 
 怎么读这些数字：
 
-- **按键写入**比第一轮（0.022 ms）多了约 15 µs，是每次追加多写 `loro_head` 和全库写入计数的代价，仍比预算低约 50 倍。最慢的那一次（约 1.2 ms）多半是 SQLite 自动 checkpoint 落在了这次提交上，见「下一步」。
+- **按键写入**比第一轮（0.022 ms）多了约 15 µs，是每次追加多写 `loro_head` 和全库写入计数的代价，仍比预算低约 50 倍。最慢的那一次（约 1.5 ms）多半是 SQLite 自动 checkpoint 落在了这次提交上，见「下一步」。
 - **打开一章的成本几乎全在待压缩的更新上**：每多一条约 6 µs。所以默认 200 条就压缩（打开 ≤ 约 1.5 ms），关闭时 50 条以上也压缩；一次压缩不到 1 ms，又是在空闲时做。
 - **全书数字偏乐观**：每章只有「一次写入」的历史。P0-C 用重型种子测得冷载入 26–29 ms、第一次解码每章 0.8–1.7 ms，更接近真实；两者都远在预算内。
 - 机器忙时同一程序会慢 2–4 倍（负载 70 多时测过），所以证据里记着负载。内存 P0-C 已测过，存储层没有改变那些数字。
@@ -254,7 +284,7 @@ M3 Pro（12 核，36 GB），release，Loro 1.17.1，2026-11-07，跑时 1 分�
 
 [acceptance/f2-crash-recovery.json](../acceptance/f2-crash-recovery.json)，`f2-crash run --kills 60 --migration-kills`：
 
-- **编辑中被杀**：写入进程通过真实的持有者不停编辑一篇 3 万字的文档，每 25 次压缩一次，并故意把压缩事务撑开 20 ms。父进程随机时刻强杀（macOS 上 SIGKILL，Windows 上 TerminateProcess），重开库、和「第 0 到第 k 次编辑」的确定性重放逐字比对。60 次里 36 次落在压缩事务中间、1 次刚压缩完、23 次落在两次编辑之间：**零丢失、零不一致**；更新日志始终连续、没有被快照覆盖的残行。（恢复出比最后一次报告多一步的编辑也算对：写进去了、还没来得及报告就被杀；这一轮 0 次，上一轮 2 次。）崩溃后重开并载入 p50 11.9 ms，最慢 23 ms。
+- **编辑中被杀**：写入进程通过真实的持有者不停编辑一篇 3 万字的文档，每 25 次压缩一次，并故意把压缩事务撑开 20 ms。父进程随机时刻强杀（macOS 上 SIGKILL，Windows 上 TerminateProcess），重开库、和「第 0 到第 k 次编辑」的确定性重放逐字比对。60 次里 35 次落在压缩事务中间、25 次落在两次编辑之间：**零丢失、零不一致**；更新日志始终连续、没有被快照覆盖的残行。（恢复出比最后一次报告多一步的编辑也算对：写进去了、还没来得及报告就被杀；这一轮 1 次。）崩溃后重开并载入 p50 11.5 ms，最慢 17 ms。
 - **迁移中被杀**：对迁移的六个阶段各杀一次（子进程停在该阶段等着被杀）：
 
   | 停在 | 原库字节 | 留下的回执 / 影子 | 旧版本还能打开 | 下一次新版本打开 |
@@ -313,6 +343,7 @@ M3 Pro（12 核，36 GB），release，Loro 1.17.1，2026-11-07，跑时 1 分�
 
 ## 待协调
 
+0. **给 M10**：`label_at` / `label_many` 可以替换 `run::write_labels` 的直写 SQL（行为相同：书目文档的版本取当前 head；另外多了保留参数和修剪）；`Device::adopt(dir, &id)` 替换 `adopt_identity`；导入回执的五张表在库里了（`0001`），用 `lib.local_transaction` 写，表名和列与 `receipt.rs` 相同。存档和本机表这一轮仍留在 `receipt.sqlite`（`ATTACH` 不能在事务里做，到它们的模块接手时再搬）。
 1. **F1 的接入点**：`configure_doc`（样式表）、`OpenDoc::CreateIfMissing.genesis`（创世），以及 `Deriver`（段落、块 ID、人物链接 → `BlockRow`、`RefRow`，字数用 dr-text）。书目文档的 id 按 loro-schema 用 `book:<书 id>`，历史标签靠它找书目文档的版本。
 2. **`loro_doc.book_id`**：F3 创建任何属于某本书的文档时传入，书目文档自己也填。
 3. **F4 编辑器怎么读写**：写一律走 `write` 闭包；读用 `DocView` 或 `h.read`。批注锚点的位置（`get_cursor_pos`）、导出、回看要放进 `h.read`。`UndoManager` 建议放在写闭包里用。

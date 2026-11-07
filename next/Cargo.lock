@@ -1426,6 +1426,7 @@ dependencies = [
 name = "dr-store"
 version = "0.0.0"
 dependencies = [
+ "dr-model",
  "flate2",
  "getrandom 0.4.3",
  "log",

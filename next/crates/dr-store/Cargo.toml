@@ -20,4 +20,6 @@ thiserror.workspace = true
 zip.workspace = true
 
 [dev-dependencies]
+# Only to check that both Origin types spell every origin the same way.
+dr-model = { path = "../dr-model" }
 tempfile.workspace = true

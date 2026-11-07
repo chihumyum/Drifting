@@ -21,6 +21,9 @@ pub enum Origin {
     Sync,
     /// The 0.1 library import.
     Import,
+    /// A deterministic repair dr-doc writes on its own (for example duplicate
+    /// block ids after a merge).
+    Repair,
     /// A document's deterministic genesis change.
     Genesis,
     /// Operations someone wrote to the document outside its holder. A bug:
@@ -39,6 +42,7 @@ impl Origin {
             "mirror" => Self::Mirror,
             "sync" => Self::Sync,
             "import" => Self::Import,
+            "repair" => Self::Repair,
             "genesis" => Self::Genesis,
             "outside" => Self::Outside,
             _ => Self::Agent(
@@ -56,10 +60,13 @@ impl Origin {
     /// The commit message Loro stores with this origin's changes, so the
     /// origin survives compaction, snapshots and sync: Agent, Markdown
     /// mirror, import and stray outside writes are named; the author's own
-    /// commits (and remote ones, which carry their own) are not.
+    /// commits (and remote ones, which carry their own) are not. dr-doc's
+    /// repairs are named too: they are nobody's edit.
     pub fn commit_message(&self) -> Option<String> {
         match self {
-            Self::Agent(_) | Self::Mirror | Self::Import | Self::Outside => Some(self.to_string()),
+            Self::Agent(_) | Self::Mirror | Self::Import | Self::Repair | Self::Outside => {
+                Some(self.to_string())
+            }
             Self::User | Self::Sync | Self::Genesis => None,
         }
     }
@@ -73,6 +80,7 @@ impl fmt::Display for Origin {
             Self::Mirror => f.write_str("mirror"),
             Self::Sync => f.write_str("sync"),
             Self::Import => f.write_str("import"),
+            Self::Repair => f.write_str("repair"),
             Self::Genesis => f.write_str("genesis"),
             Self::Outside => f.write_str("outside"),
         }
@@ -83,6 +91,26 @@ impl fmt::Display for Origin {
 mod tests {
     use super::*;
 
+    /// dr-model has its own Origin (the domain's); both must store the same
+    /// strings so rows and Loro origins mean one thing.
+    #[test]
+    fn origin_strings_match_dr_model() {
+        use dr_model::Origin as M;
+        let pairs = [
+            (M::Genesis, Origin::Genesis),
+            (M::User, Origin::User),
+            (M::agent("s", 7), Origin::agent("s", 7)),
+            (M::Mirror, Origin::Mirror),
+            (M::Sync, Origin::Sync),
+            (M::Import, Origin::Import),
+            (M::Repair, Origin::Repair),
+        ];
+        for (m, o) in pairs {
+            assert_eq!(m.as_string(), o.to_string());
+            assert_eq!(Origin::parse(&m.as_string()), Some(o));
+        }
+    }
+
     #[test]
     fn origins_round_trip() {
         for o in [
@@ -92,6 +120,7 @@ mod tests {
             Origin::Mirror,
             Origin::Sync,
             Origin::Import,
+            Origin::Repair,
             Origin::Genesis,
             Origin::Outside,
         ] {

@@ -256,3 +256,38 @@ fn purging_a_document_removes_it_everywhere() {
     assert!(lib.load_copy("node:a").is_err());
     assert_eq!(lib.settlements(None, Some("node:a")).unwrap().len(), 0);
 }
+
+#[test]
+fn modules_write_their_local_tables_in_one_transaction() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open(dir.path());
+    let run = lib
+        .local_transaction(|tx| {
+            tx.execute(
+                "INSERT INTO import_run (importer, started_ms, finished_ms, source_sha256, source_bytes,
+                   schema_level_before, gate_json, accepted_json, summary_json)
+                 VALUES ('dr-import-v1', 1, 2, 'abc', 10, 18, '{}', '{}', '{}')",
+                [],
+            )?;
+            let run = tx.last_insert_rowid();
+            tx.execute(
+                "INSERT INTO import_book VALUES (?1, 'book-1', '书', 'imported', '{}')",
+                [run],
+            )?;
+            Ok(run)
+        })
+        .unwrap();
+    // A failing closure rolls everything back.
+    let failed: dr_store::Result<()> = lib.local_transaction(|tx| {
+        tx.execute(
+            "INSERT INTO import_book VALUES (?1, 'book-2', '书二', 'imported', '{}')",
+            [run],
+        )?;
+        Err(StoreError::Asset("roll back".into()))
+    });
+    assert!(failed.is_err());
+    let books: i64 = lib
+        .local_read(|c| Ok(c.query_row("SELECT count(*) FROM import_book", [], |r| r.get(0))?))
+        .unwrap();
+    assert_eq!(books, 1);
+}
