@@ -42,6 +42,8 @@ actions!(
         ToggleImmersiveWriting,
         /// Find in the current editor (⌘F).
         FindInEditor,
+        /// Find and replace in the current editor (⌥⌘F / Ctrl+H).
+        ReplaceInEditor,
         /// Search the whole book (⇧⌘F).
         GlobalSearch,
         /// Opens or closes the notification center.

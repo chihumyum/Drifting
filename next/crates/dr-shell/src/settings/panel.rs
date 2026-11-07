@@ -583,6 +583,17 @@ impl SettingsPanel {
                 })
                 .into_any_element()
             }
+            RowAction::Feedback => {
+                let panel = cx.entity();
+                Button::new("open-feedback", t(cx, keys::settings::about::FEEDBACK))
+                    .small()
+                    .on_click(move |_, window, cx| {
+                        // Settings closes; the dialog comes up over the page.
+                        panel.update(cx, |_, cx| cx.emit(PanelEvent::Close));
+                        window.dispatch_action(Box::new(crate::actions::SendFeedback), cx);
+                    })
+                    .into_any_element()
+            }
             RowAction::Version => div()
                 .font_role(Role::Index)
                 .type_px(s.caption, s.line_caption)
@@ -1003,13 +1014,17 @@ mod tests {
             search("许可证", &s),
             vec![(Section::About, Some(vec!["about.license"]))]
         );
-        // 本地数据: the crash-report switch and the diagnostics summary.
+        // 本地数据: the crash-report switch and the diagnostics summary; 关于:
+        // 提交反馈, which can attach the summary.
         assert_eq!(
             search("诊断", &s),
-            vec![(
-                Section::LocalData,
-                Some(vec![registry::CRASH_REPORTS, "local.diagnostics"])
-            )]
+            vec![
+                (
+                    Section::LocalData,
+                    Some(vec![registry::CRASH_REPORTS, "local.diagnostics"])
+                ),
+                (Section::About, Some(vec!["about.feedback"])),
+            ]
         );
         // A section by its own name: all of it.
         assert_eq!(search("关于", &s), vec![(Section::About, None)]);

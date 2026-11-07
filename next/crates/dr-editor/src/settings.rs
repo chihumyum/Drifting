@@ -22,6 +22,11 @@ pub const TYPEWRITER: &str = "editor.typewriter_mode";
 /// 0.1 client's `autoEntityLinks`, on by default). Not in the shell's
 /// registry yet (see m03-page.md).
 pub const AUTO_ENTITY_LINKS: &str = "editor.auto_entity_links";
+/// Justified rows (`ProseStyle::justify`), off by default.
+pub const JUSTIFY: &str = "editor.justify";
+/// Where the typewriter keeps the caret's row, a share of the view's height
+/// (0.25–0.75; the 0.1 client's 输入行位置).
+pub const TYPEWRITER_LINE: &str = "editor.typewriter_position";
 
 /// Where typewriter scrolling holds the caret's row: the 0.1 client's
 /// default (its setting ranged 25–75 % and is not in the registry yet).
@@ -49,6 +54,10 @@ pub struct EditorSettings {
     pub typewriter: bool,
     /// Automatic entity links while typing.
     pub auto_entity_links: bool,
+    /// Justified rows.
+    pub justify: bool,
+    /// The typewriter's row, a share of the view's height.
+    pub typewriter_position: f32,
 }
 
 impl Default for EditorSettings {
@@ -61,6 +70,8 @@ impl Default for EditorSettings {
             paragraph_indent: 0,
             typewriter: false,
             auto_entity_links: true,
+            justify: false,
+            typewriter_position: TYPEWRITER_POSITION,
         }
     }
 }
@@ -93,6 +104,10 @@ impl EditorSettings {
             auto_entity_links: get(AUTO_ENTITY_LINKS)
                 .and_then(|v| v.as_bool())
                 .unwrap_or(d.auto_entity_links),
+            justify: get(JUSTIFY).and_then(|v| v.as_bool()).unwrap_or(d.justify),
+            // Stored as a percentage (the 0.1 client's 25–75 %).
+            typewriter_position: num(TYPEWRITER_LINE, 25.0, 75.0, d.typewriter_position * 100.0)
+                / 100.0,
         }
     }
 
@@ -105,7 +120,8 @@ impl EditorSettings {
         style.paragraph_spacing = self.paragraph_spacing;
         style.max_width = px(self.page_width);
         style.first_line_indent = f32::from(self.paragraph_indent);
-        style.typewriter = self.typewriter.then_some(TYPEWRITER_POSITION);
+        style.typewriter = self.typewriter.then_some(self.typewriter_position);
+        style.justify = self.justify;
         style
     }
 }
@@ -139,5 +155,25 @@ mod tests {
         });
         assert_eq!(s.style(&ProseStyle::default()).typewriter, Some(0.5));
         assert_eq!(s.style(&ProseStyle::default()).first_line_indent, 0.0);
+    }
+
+    #[test]
+    fn justify_and_the_typewriter_line_reach_the_style() {
+        let s = EditorSettings::from_values(|k| match k {
+            TYPEWRITER => Some(json!(true)),
+            TYPEWRITER_LINE => Some(json!(90)),
+            JUSTIFY => Some(json!(true)),
+            _ => None,
+        });
+        let style = s.style(&ProseStyle::default());
+        assert_eq!(style.typewriter, Some(0.75), "kept between 25% and 75%");
+        assert!(style.justify);
+        let s = EditorSettings::from_values(|k| match k {
+            TYPEWRITER_LINE => Some(json!(30)),
+            _ => None,
+        });
+        assert_eq!(s.typewriter_position, 0.3);
+        assert_eq!(s.style(&ProseStyle::default()).typewriter, None);
+        assert!(!s.style(&ProseStyle::default()).justify);
     }
 }

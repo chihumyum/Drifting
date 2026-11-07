@@ -114,7 +114,10 @@
     "closeTitle": "닫기(Esc)",
     "currentPlaceholder": "현재 편집기에서 찾기…",
     "nextTitle": "다음(Enter)",
-    "previousTitle": "이전(Shift+Enter)"
+    "previousTitle": "이전(Shift+Enter)",
+    "replace": "바꾸기",
+    "replaceAll": "모두 바꾸기",
+    "replacePlaceholder": "바꿀 내용…"
   },
   "globalSearch": {
     "closeTitle": "닫기(Esc)",
@@ -130,6 +133,30 @@
     "enter": "몰입 쓰기",
     "leave": "몰입 쓰기 종료"
   },
+  "import": {
+    "v1": {
+      "action": {
+        "download_last_release": "이전 버전 마지막 릴리스 내려받기",
+        "import_anyway": "그래도 가져오기"
+      },
+      "blocked": {
+        "changed_after_handoff": "인계 확인 후에 바뀐 본문이 {{count}}개 있습니다",
+        "get_last_release": "이전 버전의 마지막 릴리스를 내려받아 이 라이브러리를 한 번 열었다가 종료한 뒤 다시 가져오세요",
+        "no_handoff": "이 라이브러리는 이전 버전의 마지막 릴리스에서 아직 열린 적이 없습니다",
+        "stale": "작성한 내용보다 오래된 장이 {{count}}개 있습니다",
+        "sync": "동기화에 해결되지 않은 충돌이 있습니다",
+        "title": "일부 본문에 마지막 몇 초 동안 입력한 내용이 빠졌을 수 있습니다",
+        "unproven": "최신인지 확인할 수 없는 본문이 {{count}}개 있습니다. 아래에 있습니다"
+      },
+      "summary": {
+        "account_libraries_left": "폴더의 계정 라이브러리 {{count}}개는 계정 기능이 생길 때까지 가져오지 않았습니다",
+        "already_imported": "이 기기에서 이미 가져온 적이 있어 건너뛰었습니다",
+        "already_in_library": "이미 라이브러리에 있어 그대로 두었습니다",
+        "carries_on": "다 가져오지 못했습니다. 이 라이브러리를 다시 가져오면 이어서 가져옵니다",
+        "from_caches": "본문 {{count}}개를 캐시에서 가져왔습니다. 마지막 몇 초가 빠졌을 수 있습니다"
+      }
+    }
+  },
   "importDialog": {
     "chooseFolder": "폴더 선택",
     "status": {
@@ -140,6 +167,9 @@
     }
   },
   "leftSidebar": {
+    "actions": {
+      "sort": "정렬"
+    },
     "empty": {
       "noChapters": "아직 장이 없습니다.",
       "noDrifts": "아직 아이디어가 없습니다.",
@@ -152,6 +182,25 @@
       "chapters": "{{count}}개 장",
       "drifts": "아이디어 {{count}}개",
       "elements": "분류 {{categories}}개 · 요소 {{elements}}개"
+    },
+    "sort": {
+      "alphabet": "가나다순",
+      "bookOrder": "읽기 순서",
+      "cellMetaGroup": "셀 오른쪽",
+      "chapters": "장 정렬",
+      "createdAt": "생성일",
+      "duplicatesAll": "연결된 모든 그룹에 표시",
+      "duplicatesGroup": "여러 스토리라인의 장",
+      "duplicatesPrimary": "주요 스토리라인에만 표시",
+      "narrativeOrder": "서사 순서",
+      "outerStorylinesGroup": "바깥 스토리라인",
+      "showBoth": "글자 수와 날짜 표시",
+      "showDate": "날짜 표시",
+      "showNone": "둘 다 숨기기",
+      "showWordCount": "글자 수 표시",
+      "storylineChapters": "스토리라인 내 장 정렬",
+      "storylineOrder": "스토리라인 순서",
+      "updatedAt": "수정일"
     },
     "tabs": {
       "chapters": "장",
@@ -383,6 +432,7 @@
       "credits": "크레딧 및 라이선스",
       "emailTeam": "팀에 이메일 보내기",
       "engine": "엔진",
+      "feedback": "피드백…",
       "knownIssues": "알려진 문제",
       "knownIssuesDesc": "현재 Alpha 버전의 알려진 제한",
       "license": "클라이언트 라이선스",
@@ -391,6 +441,8 @@
       "sourceCode": "소스 코드",
       "sourceCodeDesc": "이 AGPL 클라이언트에 대응하는 소스 코드",
       "sub": "최상의 집필 경험",
+      "submitFeedback": "피드백 보내기",
+      "submitFeedbackDesc": "민감 정보를 제거한 진단 요약을 포함할 수 있으나 원고 텍스트는 포함하지 않습니다.",
       "support": "Alpha 지원",
       "supportDesc": "문제 해결 및 안전한 보고 안내",
       "tagline": "깊은 밤에도 깨어 쓰는 사람들을 위해.",
@@ -419,6 +471,8 @@
       "open_in_browser": "브라우저에서 열기"
     },
     "editor": {
+      "auto_element_link": "요소 자동 링크",
+      "auto_element_link_desc": "입력 중 기존 요소 이름을 인식하여 해당 페이지로 연결합니다.",
       "auto_immersive": "입력하면 몰입 쓰기",
       "auto_immersive_desc": "본문을 쓰기 시작하면 사이드바와 도구를 접습니다. Esc를 누르거나 본문 바깥을 클릭하면 돌아옵니다.",
       "flow": "집필 흐름",
@@ -429,6 +483,7 @@
       "indent_none": "없음",
       "indent_one": "1글자",
       "indent_two": "2글자",
+      "justify": "양쪽 맞춤",
       "line_height": "줄 높이",
       "page_width": "용지 너비",
       "page_width_desc": "편집기의 용지 너비입니다. 본문은 고정 여백을 제외한 너비를 채웁니다.",
@@ -441,7 +496,9 @@
       "reset_style": "권장 스타일 복원",
       "typesetting": "조판",
       "typewriter_mode": "타자기 모드",
-      "typewriter_mode_desc": "입력하거나 커서를 이동할 때 현재 본문 줄을 화면의 일정한 위치에 유지합니다. 편집기 화면에만 적용됩니다."
+      "typewriter_mode_desc": "입력하거나 커서를 이동할 때 현재 본문 줄을 화면의 일정한 위치에 유지합니다. 편집기 화면에만 적용됩니다.",
+      "typewriter_position": "입력 줄 위치",
+      "typewriter_position_desc": "편집기 상단 기준 비율: 25%는 위쪽, 50%는 가운데, 75%는 아래쪽입니다."
     },
     "groups": {
       "about": "정보",
@@ -578,6 +635,7 @@
     }
   },
   "userMenu": {
+    "feedback": "피드백 보내기",
     "import": "가져오기",
     "importBook": "작품 가져오기(.driftingbook)",
     "language": "언어",

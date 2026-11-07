@@ -1,0 +1,36 @@
+{
+  "import": {
+    "v1": {
+      "blocked": {
+        "title": "有幾篇正文可能少了最後幾秒打的字",
+        "no_handoff": "這個資料庫還沒在舊版的最後一版裡打開過",
+        "unproven": "有 {{count}} 篇正文無法確認是最新的，列在下面",
+        "stale": "有 {{count}} 章比你寫到的舊",
+        "changed_after_handoff": "有 {{count}} 篇在交接核對後又改過",
+        "sync": "同步還有沒解決的衝突",
+        "get_last_release": "下載舊版的最後一版，打開這個資料庫一次再退出，然後重新匯入"
+      },
+      "action": {
+        "download_last_release": "下載舊版最後一版",
+        "import_anyway": "仍然匯入"
+      },
+      "summary": {
+        "already_imported": "這台裝置以前匯入過，這次沒再匯入",
+        "already_in_library": "新資料庫裡已經有這本書，沒有動",
+        "from_caches": "有 {{count}} 篇照快取匯入，可能少了最後幾秒的字",
+        "account_libraries_left": "資料夾裡還有 {{count}} 個帳號資料庫沒匯入，等帳號功能做好",
+        "carries_on": "沒匯入完，再匯入一次這個資料庫會接著匯入完"
+      }
+    }
+  },
+  "settings": {
+    "editor": {
+      "justify": "兩端對齊"
+    }
+  },
+  "findPanel": {
+    "replacePlaceholder": "取代為…",
+    "replace": "取代",
+    "replaceAll": "全部取代"
+  }
+}

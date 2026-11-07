@@ -1,11 +1,15 @@
-//! Dialogs other crates draw over the workspace (the same pattern as
-//! [`crate::pages`]): for now the feedback dialog (M39, `dr-view-feedback`).
+//! Dialogs other crates draw over the workspace: the one way to put a
+//! modal over a window (the bookshelf or a book).
 //!
-//! The app registers the maker once, after [`crate::init`]. The workspace
-//! shows the dialog when [`crate::actions::SendFeedback`] is dispatched (the
-//! account menu, Settings → About) or a crash follow-up in the notification
-//! center is clicked, over the bookshelf too, and drops it when the dialog
-//! calls the `close` it was given. Without a maker nothing opens.
+//! - A dialog is the workspace's `dialog` view: one at a time, drawn over
+//!   everything, and while it is open the workspace answers none of its own
+//!   shortcuts (it is `covered()`); Esc and its own buttons close it.
+//! - [`show`] / [`hide`]: a crate opens or closes its view (M10's import
+//!   shows its progress, gate and summary this way).
+//! - [`set_feedback`]: the feedback dialog (M39, `dr-view-feedback`) is
+//!   made when [`crate::actions::SendFeedback`] is dispatched (the account
+//!   menu, Settings → About) or a crash follow-up is clicked, and dropped
+//!   when it calls the `close` it was given. Without a maker nothing opens.
 
 use std::rc::Rc;
 use std::time::SystemTime;
@@ -50,4 +54,24 @@ pub(crate) fn make_feedback(
 ) -> Option<AnyView> {
     let make = cx.try_global::<Dialogs>()?.feedback.clone()?;
     Some(make(follow_up, close, window, cx))
+}
+
+/// Shows `view` as the workspace window's dialog (in place of any other).
+pub fn show(cx: &mut App, view: AnyView) {
+    crate::workspace::with_workspace(cx, move |ws, _, cx| {
+        ws.notifications_open = false;
+        ws.account_open = false;
+        ws.dialog = Some(view);
+        cx.notify();
+    });
+}
+
+/// Closes `view` if it is the dialog shown; the page gets the keyboard back.
+pub fn hide(cx: &mut App, view: gpui::EntityId) {
+    crate::workspace::with_workspace(cx, move |ws, window, cx| {
+        if ws.dialog.as_ref().is_some_and(|d| d.entity_id() == view) {
+            ws.dialog = None;
+            ws.refocus(window, cx);
+        }
+    });
 }

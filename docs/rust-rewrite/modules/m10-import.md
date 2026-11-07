@@ -377,7 +377,7 @@ Agent 的结算记录、读取回执、检查点、事件流、长任务状态�
 | 出错 | 「无法导入」，正文是导入器给的原因 | 「关闭」 |
 
 - **只走一次。** 对话框开着时再点入口什么都不做；一次只能有一个导入。
-- **对话框浮在整个窗口上**（dr-ui 的 `Dialog`，书架上的对话框也是它）。它是外壳的一层（`dr_shell::pages::add_layer`，这一轮加的），书架和书里都画；没有导入时什么都不画。打开时拿走焦点，关掉时还给原来的地方。
+- **对话框浮在整个窗口上**（dr-ui 的 `Dialog`，书架上的对话框也是它）。它是外壳的模态对话框（F6 第五轮起走 `dr_shell::dialogs::show` / `hide`，和 F7 的反馈同一套），书架和书里都画；没有导入时什么都不画，开着时工作区的快捷键停。打开时拿走焦点，关掉时还给原来的地方。
 - **在哪个库里导**：App 开着的那个（F3 的 `Services.library`）。导入在名为 `legacy-import` 的线程上跑；进度一批一批送到界面，界面只留最新的一个、每批重画一次。导入线程意外结束（崩溃）时，显示出错对话框，原因写 `the import stopped unexpectedly`。
 - **字数**：摘要里的字数在导入线程上用书架自己的读法（`ShelfData::load`）读，所以和书架上的数一样。
 - **原库只读、不动**：界面不碰旧库，导入照旧在新库旁边的副本上读。
@@ -412,7 +412,7 @@ Agent 的结算记录、读取回执、检查点、事件流、长任务状态�
 | 按了取消以后的状态 | `agentPanel.pending.cancelling` | 正在停止… |
 | 没开始就取消了的书 | `settings.hosted.connect_errors.cancelled` | 已取消。 |
 
-旧版没有的句子**没有编**：界面上直接显示它的键（等宽小字、次要墨色），一看就知道是待定的文案。键和该说什么列在「待协调」第 13 条（第四个里程碑多了一句：没导完、下次接着导）。唯一的例外是作者定闸门时亲口定的按钮名「仍然导入」（D5），简体中文显示这四个字，其他语言仍显示键。出错时的正文是导入器自己的错误信息（英文，和旧版「无法导入文件：{{error}}」一样直接给原因）。
+旧版没有的 14 句（键和意思见「待协调」第 13 条）是新版自己的文案，在 `next/crates/dr-i18n/own/` 里，九种语言齐全，`copy.rs` 用 `t` / `tp` 取（有数字的按复数规则选）：前 13 句是 F6 第五轮写的，第 14 句「没导完，下次接着导」是第十一批整合时补的。作者定闸门时亲口定的按钮名「仍然导入」（D5）照旧。出错时的正文是导入器自己的错误信息（英文，和旧版「无法导入文件：{{error}}」一样直接给原因）。
 
 ### 截图
 
@@ -444,7 +444,7 @@ Agent 的结算记录、读取回执、检查点、事件流、长任务状态�
 
 ### 改到的别处
 
-- `dr-shell`：`pages::add_layer`（新）和工作区两处 `render` 末尾各一行 `.children(pages::layers(cx))`。
+- `dr-shell`：不用改（F6 第五轮起导入走外壳的 `dialogs::show` / `hide`；原来的 `pages::add_layer` 和两处 `render` 里的那一行已删）。选文件夹时对话框不画，所以 `flow.rs` 里选完文件夹、线程意外结束这两处回调用开始时的窗口（`AsyncWindowContext::update`），不用 `update_in`（它要实体上次画在哪个窗口）。
 - `dr-view-shelf`：删掉书架根上接 `ImportLegacyLibrary` 的那行调试日志。它不放行，动作到不了 `cx.on_action`。
 - `app/drifting`：`main.rs` 一行 `dr_view_import::init(cx)`，`Cargo.toml` 一行依赖。
 - `dr-store`（第四个里程碑，请 F2 审）：`Device` 的安装身份改成克隆共用、可以换（`Device::take_over`，`installation_id()` 改成返回 `String`），`Library::adopt_installation_id`；`check_device` 跟着改了两行。测试：`identity.rs` 一个、`tests/device.rs` 一个。
@@ -587,8 +587,8 @@ cargo xtask check
     | `import.v1.summary.account_libraries_left` | 文件夹里还有几个账号库没导，等账号功能（M35） | 个数 |
     | `import.v1.summary.carries_on` | 状态：这本书没导完（导入时退出了 App），再导一次这个库会接着导完 | |
 
-    新版的文案来源定下来以后（`sync-locales.py` 现在只从旧版拷），把这 14 句加进去、九种语言齐全，`copy.rs` 的占位就可以删了。
-14. **F6：两套浮层收成一套**（监管会话定了）。`dr_shell::pages::add_layer` 和 F7 的对话框栏位由 F6 合成一套；模态开着时工作区的快捷键停掉（监管会话定的）。合并以后 dr-view-import 换到新接口，只动 `lib.rs` 的 `init` 一处。另外：书架入口派发动作后，dr-view-import 用 `menus::after_dispatch` 加 `workspace::with_workspace` 找窗口，找的是第一个工作区窗口；有多个窗口时应该改成派发动作的那个。
+    **已做**：新版自己的文案放在 `dr-i18n/own/`，`sync-locales.py` 把它并进 `locales/`；前 13 句是 F6 第五轮写的，第 14 句（`carries_on`）第十一批整合时补上，九种语言齐全，`copy.rs` 的占位删了。
+14. ~~F6：两套浮层收成一套~~：**已做（F6 第五轮）**，外壳只留 `dr_shell::dialogs::{show, hide}`，`pages::add_layer` 删了；导入有东西要显示时 `dialogs::show`，回到空闲或只开着系统选文件夹面板时 `dialogs::hide`；对话框开着时工作区快捷键停。还剩一点：书架入口派发动作后，dr-view-import 用 `menus::after_dispatch` 加 `workspace::with_workspace` 找窗口，找的是第一个工作区窗口；有多个窗口时应该改成派发动作的那个。
 15. ~~F7：选文件夹面板不能先定位到旧版的数据目录~~：第四个里程碑改成先自动找本机的旧库、列出来让作者点，找不到才弹面板，没打补丁。
 16. ~~F2 / F7：App 打开库时还没有 `Device`~~：F7 第二轮给 App 加上了；第四个里程碑导入时用 `Library::adopt_installation_id` 认领旧版身份（见「写作日和设备」）。**请 F2 审 dr-store 的改动**（见「导入界面 → 改到的别处」）。另外一点要 F2 知道：认领以后，这台设备以前打开过的**别的**库，下次打开时会看到「另一个安装」而换代（新的 Loro 对等方）；现在一台设备只有一个库，没有影响。
 17. ~~F3：导入时退出 App~~：第四个里程碑加了退出钩子，先停下导入再退出（见「流程 → 进度」）。还剩一点：外壳先跑库自己的退出钩子（`Workspace::before_quit`），再跑导入的，顺序由登记先后决定；导入的文档由导入线程自己关，两者不冲突。系统直接结束进程（注销、程序坞里的「退出」）时不走钩子，下次再导会接着导完。

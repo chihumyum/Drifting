@@ -1537,6 +1537,7 @@ name = "dr-shell"
 version = "0.0.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "color_quant",
  "dr-editor",
  "dr-i18n",

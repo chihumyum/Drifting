@@ -114,7 +114,10 @@
     "closeTitle": "閉じる（Esc）",
     "currentPlaceholder": "現在のエディタ内を検索…",
     "nextTitle": "次へ（Enter）",
-    "previousTitle": "前へ（Shift+Enter）"
+    "previousTitle": "前へ（Shift+Enter）",
+    "replace": "置換",
+    "replaceAll": "すべて置換",
+    "replacePlaceholder": "置換後の文字…"
   },
   "globalSearch": {
     "closeTitle": "閉じる（Esc）",
@@ -130,6 +133,30 @@
     "enter": "没入執筆",
     "leave": "没入執筆を終了"
   },
+  "import": {
+    "v1": {
+      "action": {
+        "download_last_release": "旧版の最終リリースをダウンロード",
+        "import_anyway": "それでもインポート"
+      },
+      "blocked": {
+        "changed_after_handoff": "引き継ぎの確認後に変わった本文が {{count}} 件あります",
+        "get_last_release": "旧版の最終リリースをダウンロードし、このライブラリを一度開いて終了してから、もう一度インポートしてください",
+        "no_handoff": "このライブラリは旧版の最終リリースでまだ開かれていません",
+        "stale": "書いた内容より古い章が {{count}} 章あります",
+        "sync": "同期に未解決の競合があります",
+        "title": "一部の本文で、最後の数秒の入力が抜けているかもしれません",
+        "unproven": "最新か確認できない本文が {{count}} 件あります（下に一覧）"
+      },
+      "summary": {
+        "account_libraries_left": "フォルダー内のアカウントライブラリ {{count}} 件は、アカウント機能ができるまでインポートしません",
+        "already_imported": "このデバイスで以前インポート済みのため、スキップしました",
+        "already_in_library": "すでにライブラリにあるため、そのままにしました",
+        "carries_on": "途中で止まりました。このライブラリをもう一度インポートすると続きから取り込みます",
+        "from_caches": "{{count}} 件の本文をキャッシュからインポートしました。最後の数秒が抜けているかもしれません"
+      }
+    }
+  },
   "importDialog": {
     "chooseFolder": "フォルダを選択",
     "status": {
@@ -140,6 +167,9 @@
     }
   },
   "leftSidebar": {
+    "actions": {
+      "sort": "並べ替え"
+    },
     "empty": {
       "noChapters": "章はまだありません。",
       "noDrifts": "アイデアはまだありません。",
@@ -152,6 +182,25 @@
       "chapters": "{{count}}章",
       "drifts": "{{count}}件のアイデア",
       "elements": "{{categories}}カテゴリ・{{elements}}要素"
+    },
+    "sort": {
+      "alphabet": "文字順",
+      "bookOrder": "読む順番",
+      "cellMetaGroup": "セルの右端",
+      "chapters": "章を並べ替え",
+      "createdAt": "作成日時",
+      "duplicatesAll": "関連する全グループに表示",
+      "duplicatesGroup": "複数ストーリーラインの章",
+      "duplicatesPrimary": "主ストーリーラインにのみ表示",
+      "narrativeOrder": "物語の順番",
+      "outerStorylinesGroup": "外側のストーリーライン",
+      "showBoth": "文字数と日付を表示",
+      "showDate": "日付を表示",
+      "showNone": "どちらも隠す",
+      "showWordCount": "文字数を表示",
+      "storylineChapters": "ストーリーライン内の章を並べ替え",
+      "storylineOrder": "ストーリーライン順",
+      "updatedAt": "更新日時"
     },
     "tabs": {
       "chapters": "章",
@@ -383,6 +432,7 @@
       "credits": "謝辞とライセンス",
       "emailTeam": "チームにメールする",
       "engine": "エンジン",
+      "feedback": "フィードバック…",
       "knownIssues": "既知の問題",
       "knownIssuesDesc": "現在のAlpha版の既知の制限",
       "license": "クライアントのライセンス",
@@ -391,6 +441,8 @@
       "sourceCode": "ソースコード",
       "sourceCodeDesc": "このAGPLクライアントに対応するソースコード",
       "sub": "最高の執筆体験を",
+      "submitFeedback": "フィードバックを送る",
+      "submitFeedbackDesc": "機密情報を除いた診断概要を添付できます。原稿は含みません。",
       "support": "Alphaサポート",
       "supportDesc": "問題の解決方法と安全な報告手順",
       "tagline": "夜更けまで書き続ける人へ。",
@@ -419,6 +471,8 @@
       "open_in_browser": "ブラウザで開く"
     },
     "editor": {
+      "auto_element_link": "要素を自動リンク",
+      "auto_element_link_desc": "入力中に既存の要素名を認識し、そのページにリンクします。",
       "auto_immersive": "入力すると没入執筆",
       "auto_immersive_desc": "本文を書き始めるとサイドバーとツールを収めます。Esc か本文の外をクリックすると戻ります。",
       "flow": "執筆の流れ",
@@ -429,6 +483,7 @@
       "indent_none": "なし",
       "indent_one": "1文字",
       "indent_two": "2文字",
+      "justify": "両端揃え",
       "line_height": "行の高さ",
       "page_width": "用紙の幅",
       "page_width_desc": "エディタの用紙幅です。本文は固定の余白を除いた幅に収まります。",
@@ -441,7 +496,9 @@
       "reset_style": "推奨スタイルに戻す",
       "typesetting": "組版",
       "typewriter_mode": "タイプライターモード",
-      "typewriter_mode_desc": "入力やカーソル移動中、現在の行を画面内の一定位置に保ちます。エディタ表示のみに適用します。"
+      "typewriter_mode_desc": "入力やカーソル移動中、現在の行を画面内の一定位置に保ちます。エディタ表示のみに適用します。",
+      "typewriter_position": "入力行の位置",
+      "typewriter_position_desc": "エディタ上端からの割合：25%は上、50%は中央、75%は下。"
     },
     "groups": {
       "about": "このアプリについて",
@@ -578,6 +635,7 @@
     }
   },
   "userMenu": {
+    "feedback": "フィードバックを送る",
     "import": "インポート",
     "importBook": "作品をインポート（.driftingbook）",
     "language": "言語",

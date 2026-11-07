@@ -1,0 +1,41 @@
+{
+  "import": {
+    "v1": {
+      "blocked": {
+        "title": "Il manque peut-être à certains textes leurs dernières secondes de frappe",
+        "no_handoff": "Cette bibliothèque n’a pas encore été ouverte dans la dernière version 0.1",
+        "unproven_one": "{{count}} texte n’est peut-être pas le plus récent ; il figure ci-dessous",
+        "unproven_other": "{{count}} textes ne sont peut-être pas les plus récents ; ils figurent ci-dessous",
+        "stale_one": "{{count}} chapitre est plus ancien que ce que vous avez écrit",
+        "stale_other": "{{count}} chapitres sont plus anciens que ce que vous avez écrit",
+        "changed_after_handoff_one": "{{count}} texte a changé après la vérification du passage",
+        "changed_after_handoff_other": "{{count}} textes ont changé après la vérification du passage",
+        "sync": "La synchronisation a des conflits non résolus",
+        "get_last_release": "Téléchargez la dernière version 0.1, ouvrez cette bibliothèque une fois, quittez, puis importez de nouveau"
+      },
+      "action": {
+        "download_last_release": "Télécharger la dernière version 0.1",
+        "import_anyway": "Importer quand même"
+      },
+      "summary": {
+        "already_imported": "Déjà importé sur cet appareil ; ignoré",
+        "already_in_library": "Déjà dans la bibliothèque ; laissé tel quel",
+        "from_caches_one": "{{count}} texte vient de son cache ; ses dernières secondes manquent peut-être",
+        "from_caches_other": "{{count}} textes viennent de leur cache ; leurs dernières secondes manquent peut-être",
+        "account_libraries_left_one": "{{count}} bibliothèque de compte du dossier attend les comptes",
+        "account_libraries_left_other": "{{count}} bibliothèques de compte du dossier attendent les comptes",
+        "carries_on": "Pas terminé ; importer de nouveau cette bibliothèque reprend la suite"
+      }
+    }
+  },
+  "settings": {
+    "editor": {
+      "justify": "Justifier"
+    }
+  },
+  "findPanel": {
+    "replacePlaceholder": "Remplacer par…",
+    "replace": "Remplacer",
+    "replaceAll": "Tout remplacer"
+  }
+}

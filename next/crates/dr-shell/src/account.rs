@@ -2,6 +2,7 @@
 //! account cell (M01) and the left sidebar's: who (this build is local
 //! only: 本地), then the theme, the language and Settings. It opens upward
 //! from the cell that owns it; each owner keeps whether it is open.
+//! 提交反馈 opens F7's feedback dialog (`SendFeedback`).
 
 use std::rc::Rc;
 
@@ -154,6 +155,22 @@ pub fn menu(
         let code = Locale::ALL[i.min(Locale::ALL.len() - 1)].code();
         Settings::update(cx, |f| f.set(registry::UI_LOCALE, code.into(), None).ok());
     });
+    let to_feedback = close.clone();
+    let feedback = glass::glass_box(
+        child("feedback"),
+        GlassKind::Hidden,
+        Mode::default(),
+        false,
+        Spec::new(Tone::Clear, radius::MENU_ROW),
+        window,
+        cx,
+    )
+    .cursor_pointer()
+    .on_click(move |_, window, cx| {
+        to_feedback(window, cx);
+        window.dispatch_action(Box::new(crate::actions::SendFeedback), cx);
+    })
+    .child(row(Icon::Comment, t(cx, keys::user_menu::FEEDBACK), None));
     let to_settings = close.clone();
     let settings = glass::glass_box(
         child("settings"),
@@ -193,6 +210,7 @@ pub fn menu(
                     .into_any_element(),
             ),
         ))
+        .child(feedback)
         .child(settings);
     let place = match anchor {
         Some(rect) => Place::Rect {

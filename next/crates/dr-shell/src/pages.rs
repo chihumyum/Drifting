@@ -8,10 +8,8 @@
 //! shell's own tests and captures) the window opens straight into a book
 //! and Home shows only the book's name, as before.
 //!
-//! Other crates can also add a layer ([`add_layer`]): a view drawn last in
-//! every workspace window, over the bookshelf or the book, for flows that
-//! belong to no page (the 0.1 library import, M10). It draws nothing while
-//! it has nothing to show; what it shows floats (dr-ui's `float`).
+//! Modal flows that belong to no page (the 0.1 library import, M10) are
+//! dialogs: [`crate::dialogs::show`].
 
 use std::rc::Rc;
 
@@ -34,7 +32,6 @@ type MakeHome = Rc<dyn Fn(WeakEntity<Workspace>, &mut Window, &mut App) -> AnyVi
 struct Pages {
     shelf: Option<MakeShelf>,
     home: Option<MakeHome>,
-    layers: Vec<AnyView>,
 }
 
 impl Global for Pages {}
@@ -56,17 +53,6 @@ pub fn set_home(
     make: impl Fn(WeakEntity<Workspace>, &mut Window, &mut App) -> AnyView + 'static,
 ) {
     cx.default_global::<Pages>().home = Some(Rc::new(make));
-}
-
-/// Adds a layer drawn over every workspace window's bookshelf and book.
-pub fn add_layer(cx: &mut App, view: AnyView) {
-    cx.default_global::<Pages>().layers.push(view);
-}
-
-pub(crate) fn layers(cx: &App) -> Vec<AnyView> {
-    cx.try_global::<Pages>()
-        .map(|p| p.layers.clone())
-        .unwrap_or_default()
 }
 
 pub(crate) fn has_shelf(cx: &App) -> bool {

@@ -306,6 +306,8 @@ fn reset(ws: &mut Workspace, window: &mut gpui::Window, cx: &mut Context<Workspa
     ws.account_open = false;
     ws.find = None;
     ws.chapters_by_book = false;
+    ws.chapter_sort = Default::default();
+    ws.chapter_sort_open = None;
     ws.outline_hidden = false;
     ws.dock_locked = false;
     ws.left.panes = dr_shell::panes::Panes::single(LeftTab::Chapters);
@@ -411,6 +413,53 @@ fn capture(dir: PathBuf) -> Result<()> {
         still(&mut h)?;
         h.save(&dir, &format!("find-{a}.png"))?;
 
+        // The find bar with its replace row: 「钟」 → 「铃」.
+        h.set(|ws, window, cx| {
+            everyday(ws, window, cx);
+        });
+        still(&mut h)?;
+        h.set(|ws, window, cx| {
+            ws.open_replace(window, cx);
+            if let Some(bar) = ws.find.clone() {
+                bar.update(cx, |b, cx| {
+                    b.set_query("钟", window, cx);
+                    b.set_replacement("铃", cx);
+                });
+            }
+        });
+        still(&mut h)?;
+        h.save(&dir, &format!("find-replace-{a}.png"))?;
+
+        // The chapter panel's sort menu (by storyline), the cells showing
+        // their word count and date.
+        h.set(|ws, window, cx| {
+            everyday(ws, window, cx);
+            ws.chapter_sort.meta = dr_shell::workspace::chapter_sort::CellMeta::Both;
+            ws.chapter_sort_open = Some("primary".into());
+        });
+        still(&mut h)?;
+        h.save(&dir, &format!("chapter-sort-{a}.png"))?;
+
+        // The whole book's sort menu, sorted by when chapters last changed.
+        h.set(|ws, window, cx| {
+            everyday(ws, window, cx);
+            ws.chapters_by_book = true;
+            ws.chapter_sort.book = dr_shell::workspace::chapter_sort::BookSort::UpdatedAt;
+            ws.chapter_sort_open = Some("primary".into());
+        });
+        still(&mut h)?;
+        h.save(&dir, &format!("chapter-sort-book-{a}.png"))?;
+
+        // An element's page has a ⋯ menu too: its snapshot history.
+        h.set(|ws, window, cx| {
+            everyday(ws, window, cx);
+            let zhiwei = element(ws, "沈知微");
+            ws.nav.activate(2);
+            ws.corner_menu = Some(zhiwei.key());
+        });
+        still(&mut h)?;
+        h.save(&dir, &format!("corner-menu-element-{a}.png"))?;
+
         // The whole book in one editor (M05), its acts and chapters in the
         // outline rail.
         h.set(|ws, window, cx| {
@@ -429,7 +478,11 @@ fn capture(dir: PathBuf) -> Result<()> {
         h.save(&dir, &format!("account-menu-{a}.png"))?;
 
         // Settings: 本地数据 and 关于 Drifting (M08).
-        for (query, name) in [("本地数据", "settings-local"), ("关于", "settings-about")] {
+        for (query, name) in [
+            ("本地数据", "settings-local"),
+            ("关于", "settings-about"),
+            ("输入", "settings-input"),
+        ] {
             h.set(move |ws, window, cx| {
                 everyday(ws, window, cx);
                 ws.open_settings(window, cx);

@@ -1,0 +1,36 @@
+{
+  "import": {
+    "v1": {
+      "blocked": {
+        "title": "一部の本文で、最後の数秒の入力が抜けているかもしれません",
+        "no_handoff": "このライブラリは旧版の最終リリースでまだ開かれていません",
+        "unproven": "最新か確認できない本文が {{count}} 件あります（下に一覧）",
+        "stale": "書いた内容より古い章が {{count}} 章あります",
+        "changed_after_handoff": "引き継ぎの確認後に変わった本文が {{count}} 件あります",
+        "sync": "同期に未解決の競合があります",
+        "get_last_release": "旧版の最終リリースをダウンロードし、このライブラリを一度開いて終了してから、もう一度インポートしてください"
+      },
+      "action": {
+        "download_last_release": "旧版の最終リリースをダウンロード",
+        "import_anyway": "それでもインポート"
+      },
+      "summary": {
+        "already_imported": "このデバイスで以前インポート済みのため、スキップしました",
+        "already_in_library": "すでにライブラリにあるため、そのままにしました",
+        "from_caches": "{{count}} 件の本文をキャッシュからインポートしました。最後の数秒が抜けているかもしれません",
+        "account_libraries_left": "フォルダー内のアカウントライブラリ {{count}} 件は、アカウント機能ができるまでインポートしません",
+        "carries_on": "途中で止まりました。このライブラリをもう一度インポートすると続きから取り込みます"
+      }
+    }
+  },
+  "settings": {
+    "editor": {
+      "justify": "両端揃え"
+    }
+  },
+  "findPanel": {
+    "replacePlaceholder": "置換後の文字…",
+    "replace": "置換",
+    "replaceAll": "すべて置換"
+  }
+}

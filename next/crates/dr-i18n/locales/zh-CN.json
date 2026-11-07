@@ -114,7 +114,10 @@
     "closeTitle": "关闭 (Esc)",
     "currentPlaceholder": "在当前编辑器中查找…",
     "nextTitle": "下一个 (Enter)",
-    "previousTitle": "上一个 (Shift+Enter)"
+    "previousTitle": "上一个 (Shift+Enter)",
+    "replace": "替换",
+    "replaceAll": "全部替换",
+    "replacePlaceholder": "替换为…"
   },
   "globalSearch": {
     "closeTitle": "关闭 (Esc)",
@@ -130,6 +133,30 @@
     "enter": "沉浸写作",
     "leave": "退出沉浸写作"
   },
+  "import": {
+    "v1": {
+      "action": {
+        "download_last_release": "下载旧版最后一版",
+        "import_anyway": "仍然导入"
+      },
+      "blocked": {
+        "changed_after_handoff": "有 {{count}} 篇在交接核对后又改过",
+        "get_last_release": "下载旧版的最后一版，打开这个资料库一次再退出，然后重新导入",
+        "no_handoff": "这个资料库还没在旧版的最后一版里打开过",
+        "stale": "有 {{count}} 章比你写到的旧",
+        "sync": "同步还有没解决的冲突",
+        "title": "有几篇正文可能少了最后几秒打的字",
+        "unproven": "有 {{count}} 篇正文无法确认是最新的，列在下面"
+      },
+      "summary": {
+        "account_libraries_left": "文件夹里还有 {{count}} 个账号资料库没导入，等账号功能做好",
+        "already_imported": "这台设备以前导入过，这次没再导入",
+        "already_in_library": "新资料库里已经有这本书，没有动",
+        "carries_on": "没导完，再导一次这个库会接着导完",
+        "from_caches": "有 {{count}} 篇照缓存导入，可能少了最后几秒的字"
+      }
+    }
+  },
   "importDialog": {
     "chooseFolder": "选择文件夹",
     "status": {
@@ -140,6 +167,9 @@
     }
   },
   "leftSidebar": {
+    "actions": {
+      "sort": "排序"
+    },
     "empty": {
       "noChapters": "还没有章节。",
       "noDrifts": "还没有构想。",
@@ -152,6 +182,25 @@
       "chapters": "{{count}} 章",
       "drifts": "{{count}} 条构想",
       "elements": "{{categories}} 类 · {{elements}} 要素"
+    },
+    "sort": {
+      "alphabet": "按字母顺序",
+      "bookOrder": "按阅读顺序",
+      "cellMetaGroup": "单元格右侧",
+      "chapters": "排序章节",
+      "createdAt": "按创建时间",
+      "duplicatesAll": "在每个所属分组显示",
+      "duplicatesGroup": "多线章节",
+      "duplicatesPrimary": "仅在主线分组显示",
+      "narrativeOrder": "按叙事顺序",
+      "outerStorylinesGroup": "外层故事线",
+      "showBoth": "显示字数和日期",
+      "showDate": "显示日期",
+      "showNone": "都不显示",
+      "showWordCount": "显示字数",
+      "storylineChapters": "排序故事线内章节",
+      "storylineOrder": "按故事线顺序",
+      "updatedAt": "按更新时间"
     },
     "tabs": {
       "chapters": "章节",
@@ -378,6 +427,7 @@
       "credits": "致谢与许可",
       "emailTeam": "写信给团队",
       "engine": "引擎",
+      "feedback": "反馈…",
       "knownIssues": "已知问题",
       "knownIssuesDesc": "当前 Alpha 的已知限制",
       "license": "客户端许可证",
@@ -386,6 +436,8 @@
       "sourceCode": "源代码",
       "sourceCodeDesc": "这个 AGPL 客户端的对应源代码",
       "sub": "终极写作体验",
+      "submitFeedback": "提交反馈",
+      "submitFeedbackDesc": "可附上脱敏诊断摘要；不含正文。",
       "support": "Alpha 支持",
       "supportDesc": "故障排查与安全反馈说明",
       "tagline": "为夜里不睡的写作人造。",
@@ -414,6 +466,8 @@
       "open_in_browser": "在浏览器打开"
     },
     "editor": {
+      "auto_element_link": "自动要素链接",
+      "auto_element_link_desc": "输入时自动识别已存在的要素名称（如人物、地点），并链接到对应页面。",
       "auto_immersive": "打字时自动沉浸",
       "auto_immersive_desc": "开始写正文就收起侧栏与工具；按 Esc 或点正文以外的地方回来。",
       "flow": "书写体验",
@@ -424,6 +478,7 @@
       "indent_none": "无",
       "indent_one": "一字符",
       "indent_two": "两字符",
+      "justify": "两端对齐",
       "line_height": "行距",
       "page_width": "纸张宽度",
       "page_width_desc": "编辑器中部纸张的宽度；正文按固定边距填满纸张。",
@@ -436,7 +491,9 @@
       "reset_style": "还原推荐样式",
       "typesetting": "排版",
       "typewriter_mode": "打字机模式",
-      "typewriter_mode_desc": "输入或移动光标时，让当前正文行稳定停在视口中的固定位置；只影响编辑视图。"
+      "typewriter_mode_desc": "输入或移动光标时，让当前正文行稳定停在视口中的固定位置；只影响编辑视图。",
+      "typewriter_position": "输入行位置",
+      "typewriter_position_desc": "距编辑器顶部的比例：25% 靠上，50% 居中，75% 靠下。"
     },
     "groups": {
       "about": "关于",
@@ -573,6 +630,7 @@
     }
   },
   "userMenu": {
+    "feedback": "提交反馈",
     "import": "导入",
     "importBook": "导入书（.driftingbook）",
     "language": "语言",
