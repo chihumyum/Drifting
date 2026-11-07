@@ -177,10 +177,14 @@ fn settled(lib: &Library, book: &str, query: &str) -> (u64, usize) {
 }
 
 /// The book's word count and the search hits for `query`, once F2 has
-/// indexed the open documents (it catches up in the background; the quit
-/// hook makes it now).
+/// indexed the open documents (the quit hook makes it now) and the stale
+/// rest (F2 catches those up only after 500 ms without a write, and each
+/// call here writes, so it is made now too).
 fn counted(lib: &Library, book: &str, query: &str) -> (u64, usize) {
     lib.before_quit();
+    lib.library()
+        .rebuild_stale_indexes()
+        .expect("stale indexes rebuilt");
     let words = out(lib, "book.get", json!({"book": book}))["words"]
         .as_u64()
         .unwrap();

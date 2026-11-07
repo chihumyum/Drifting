@@ -278,13 +278,14 @@ fn the_shell_is_read_and_driven(cx: &mut TestAppContext) {
             .is_some_and(|t| t.starts_with("灯塔亮了。"))
     });
     call(cx, "ui.wait", json!({"text": "灯塔亮了。"})).unwrap();
-    let words = call(
+    // The seed's stale indexes catch up once the typing has been quiet for
+    // a moment (F2's `background_quiet`): ask until the count is in.
+    call_until(
         cx,
         "command.call",
         json!({"name": "book.get", "input": {"book": s["book"]["id"]}}),
-    )
-    .unwrap();
-    assert!(words["output"]["words"].as_u64().unwrap() > 1000);
+        |w| w["output"]["words"].as_u64().is_some_and(|n| n > 1000),
+    );
 
     // ⌘[ goes back through the keymap, from inside the editor too.
     let back = call(cx, "input.key", json!({"keys": "secondary-["})).unwrap();
