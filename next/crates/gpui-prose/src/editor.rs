@@ -80,12 +80,26 @@ pub struct ProseEditor {
     paint_hooks: Vec<PaintHook>,
     pub(crate) hooks: Option<Rc<dyn PlatformHooks>>,
     pub(crate) extension: Option<Rc<dyn ProseExtension>>,
+    /// The host's elements at each chapter's head and end.
+    pub(crate) slots: Option<Rc<dyn crate::slots::ChapterSlots>>,
+    /// The ancestor opacity the editor was last drawn under, when the host
+    /// says ([`ProseEditor::element_at_opacity`]).
+    pub(crate) drawn_opacity: Cell<Option<f32>>,
     pub(crate) input: crate::input::InputState,
     pub(crate) paint: crate::render::PaintState,
     _subscriptions: Vec<Subscription>,
 }
 
 impl EventEmitter<EditorEvent> for ProseEditor {}
+
+/// How a host's edit ([`ProseEditor::edit_chapter`]) undoes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HostStep {
+    /// One undo step of its own.
+    Own,
+    /// Undone together with the last step.
+    JoinLast,
+}
 
 impl ProseEditor {
     pub fn new(book: Book, style: ProseStyle, window: &mut Window, cx: &mut Context<Self>) -> Self {
@@ -142,6 +156,8 @@ impl ProseEditor {
             paint_hooks: Vec::new(),
             hooks: None,
             extension: None,
+            slots: None,
+            drawn_opacity: Cell::new(None),
             input: Default::default(),
             paint: Default::default(),
             _subscriptions: subscriptions,
@@ -155,6 +171,60 @@ impl ProseEditor {
     pub fn set_extension(&mut self, extension: Rc<dyn ProseExtension>) {
         self.extension = Some(extension);
         self.list.remeasure();
+    }
+
+    /// Puts the host's elements at each chapter's head (in place of the
+    /// title row) and end (after its last paragraph), or takes them away.
+    /// Set it right after building the editor: the list starts over (the
+    /// scroll goes back to the top).
+    pub fn set_slots(
+        &mut self,
+        slots: Option<Rc<dyn crate::slots::ChapterSlots>>,
+        cx: &mut Context<Self>,
+    ) {
+        self.book.set_ends(slots.is_some());
+        self.slots = slots;
+        let count = self.book.item_count();
+        self.list.reset(count);
+        let default = self.style.metrics(BlockKind::Body);
+        *self.heights.borrow_mut() =
+            HeightIndex::new((0..count).map(|_| default.line_height * 3. + default.pad_bottom));
+        if let Some(width) = self.estimate_width {
+            self.estimate_all(width, cx);
+        }
+        cx.notify();
+    }
+
+    /// The host's elements of `chapter` changed size (a title now wraps to
+    /// two rows): they are measured again on the next frame.
+    pub fn slots_changed(&mut self, chapter: usize, cx: &mut Context<Self>) {
+        if chapter >= self.book.chapters.len() {
+            return;
+        }
+        let head = self.book.chapter_item(chapter);
+        self.list.remeasure_items(head..head + 1);
+        if let Some(end) = self.book.end_item(chapter) {
+            self.list.remeasure_items(end..end + 1);
+        }
+        cx.notify();
+    }
+
+    /// Puts the caret at the start of `chapter`'s text and focuses the
+    /// editor (the host's title field hands over on Enter).
+    pub fn focus_chapter_start(
+        &mut self,
+        chapter: usize,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let chapter = chapter.min(self.book.chapters.len() - 1);
+        self.cancel_composition();
+        self.set_selection(Selection::caret(chapter, 0), cx);
+        self.list
+            .scroll_to_reveal_item(self.book.line_item(chapter, 0));
+        window.focus(&self.focus, cx);
+        self.reset_blink(cx);
+        cx.notify();
     }
 
     /// Undoes the most recent author step of `chapter` only, for hosts whose
@@ -246,6 +316,11 @@ impl ProseEditor {
         self.selection
     }
 
+    /// Whether a mouse drag is still choosing the selection.
+    pub fn is_selecting(&self) -> bool {
+        self.selecting
+    }
+
     pub fn composition(&self) -> Option<&Composition> {
         self.composition.as_ref()
     }
@@ -262,6 +337,105 @@ impl ProseEditor {
     /// link or an entity).
     pub fn marks_at(&mut self, chapter: usize, offset: usize) -> Marks {
         self.book.chapters[chapter].doc.marks_before(offset + 1)
+    }
+
+    /// Runs a host's edit of `chapter`'s document as the author's (a picker
+    /// inserting a link, automatic links, link repair) and folds it in like
+    /// typing. `step` says how it undoes: [`HostStep::Own`] is one undo step
+    /// of its own; [`HostStep::JoinLast`] is undone together with the last
+    /// step (what the edit was derived from). `f` returns where the caret
+    /// goes, if it moves. Nothing happens while text is being composed in
+    /// that chapter (returns false; try again after the composition).
+    pub fn edit_chapter(
+        &mut self,
+        chapter: usize,
+        step: HostStep,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+        f: impl FnOnce(&mut ProseDoc) -> Option<usize>,
+    ) -> bool {
+        if chapter >= self.book.chapters.len()
+            || self
+                .composition
+                .as_ref()
+                .is_some_and(|c| c.chapter == chapter)
+        {
+            return false;
+        }
+        let before = self.book.chapters[chapter].doc.undo_count();
+        let doc = &mut self.book.chapters[chapter].doc;
+        match step {
+            HostStep::Own => doc.checkpoint(),
+            HostStep::JoinLast => doc.join_last_step(),
+        }
+        let caret = f(doc);
+        // Not marked as the editor's own: the caret and the composition
+        // follow the edit like anyone else's, unless `f` placed the caret.
+        self.sync_chapter(chapter, cx);
+        if let Some(at) = caret {
+            self.pending_marks.clear();
+            self.selection = Selection::caret(chapter, at);
+            self.clamp_selection();
+            self.reveal_cursor();
+        }
+        if self.book.chapters[chapter].doc.undo_count() != before {
+            self.undo_chapters.push(chapter);
+            self.redo_chapters.clear();
+        }
+        if step == HostStep::Own {
+            self.book.chapters[chapter].doc.checkpoint();
+        }
+        window.notify_text_input_changed(&self.focus);
+        cx.emit(EditorEvent::Edited { chapter });
+        self.emit_selection_changed(cx);
+        cx.notify();
+        true
+    }
+
+    /// Where the caret was drawn in the last frame (window coordinates).
+    pub fn caret_bounds(&self) -> Option<Bounds<Pixels>> {
+        self.cursor_rect.get()
+    }
+
+    /// The box around `range` of `chapter` as drawn in the last frame
+    /// (window coordinates): from the top of its first row to the bottom of
+    /// its last, as wide as the text it covers when on one row, else the
+    /// column. `None` when its first paragraph is not on screen.
+    pub fn range_bounds(&self, chapter: usize, range: Range<usize>) -> Option<Bounds<Pixels>> {
+        let doc = &self.book.chapters.get(chapter)?.doc;
+        let frame = self.frame.borrow();
+        let point = |offset: usize, affinity: crate::layout::Affinity| {
+            let line_ix = doc.line_of(offset);
+            let painted = frame.get(chapter, line_ix)?;
+            let line = doc.lines().get(line_ix)?;
+            let byte = line.byte_of_char(offset - doc.line_start(line_ix));
+            let p = painted
+                .layout
+                .point_for_byte(byte, affinity, painted.line_height);
+            Some((
+                painted.origin + p,
+                painted.line_height,
+                painted.origin.x,
+                painted.layout.wrap_width,
+            ))
+        };
+        let (start, line_height, left, wrap) =
+            point(range.start, crate::layout::Affinity::Downstream)?;
+        let (end, end_height) = point(range.end, crate::layout::Affinity::Upstream)
+            .map(|(p, h, _, _)| (p, h))
+            .unwrap_or((start, line_height));
+        let bottom = end.y + end_height;
+        if (end.y - start.y).abs() < px(1.) {
+            Some(Bounds::new(
+                start,
+                gpui::size((end.x - start.x).max(px(1.)), bottom - start.y),
+            ))
+        } else {
+            Some(Bounds::new(
+                gpui::point(left, start.y),
+                gpui::size(wrap, bottom - start.y),
+            ))
+        }
     }
 
     /// Runs `hook` once, at the end of the next paint of this editor.
@@ -376,18 +550,35 @@ impl ProseEditor {
         self.estimate_generation += 1;
         let generation = self.estimate_generation;
         let mut items = Vec::with_capacity(self.book.item_count());
-        for (ix, chapter) in self.book.chapters.iter().enumerate() {
-            items.push((
+        let slot = |height: f32| {
+            (
                 None,
                 BlockMetrics {
-                    font_size: f32::from(self.style.title_size),
+                    font_size: 0.,
                     line_height: 0.,
-                    pad_top: if ix == 0 { 56. } else { 96. },
-                    pad_bottom: 28. + 42.,
+                    pad_top: height,
+                    pad_bottom: 0.,
                 },
-            ));
+            )
+        };
+        for (ix, chapter) in self.book.chapters.iter().enumerate() {
+            match &self.slots {
+                Some(slots) => items.push(slot(slots.head_estimate(ix))),
+                None => items.push((
+                    None,
+                    BlockMetrics {
+                        font_size: f32::from(self.style.title_size),
+                        line_height: 0.,
+                        pad_top: if ix == 0 { 56. } else { 96. },
+                        pad_bottom: 28. + 42.,
+                    },
+                )),
+            }
             for line in &chapter.doc.lines()[..chapter.doc.visible_lines()] {
                 items.push((Some(line.text.clone()), self.style.metrics(line.kind)));
+            }
+            if let Some(slots) = self.book.has_ends().then_some(()).and(self.slots.as_ref()) {
+                items.push(slot(slots.end_estimate(ix)));
             }
         }
         let wrap = f32::from(wrap_width);
@@ -655,6 +846,28 @@ impl ProseEditor {
             .relative()
             .child(crate::input::a11y::editor_view(editor, cx))
             .child(layer)
+    }
+
+    /// [`ProseEditor::element`] for a host that draws the editor under an
+    /// opacity of its own that changes (a page fading in). GPUI replays a
+    /// cached view's last frame exactly as drawn, opacity included, so an
+    /// editor nobody notified would stay at the first frame's faintness.
+    /// Here the editor is drawn afresh on every frame `opacity` differs from
+    /// the last one, and replayed again once it holds still.
+    pub fn element_at_opacity(
+        editor: &Entity<ProseEditor>,
+        opacity: f32,
+        cx: &App,
+    ) -> impl IntoElement + use<> {
+        let this = editor.read(cx);
+        let changed = this.drawn_opacity.replace(Some(opacity)) != Some(opacity);
+        let layer = this.cursor_layer.clone();
+        let view = if changed {
+            div().size_full().child(editor.clone()).into_any_element()
+        } else {
+            crate::input::a11y::editor_view(editor, cx)
+        };
+        div().size_full().relative().child(view).child(layer)
     }
 
     fn on_blur(&mut self, _window: &mut Window, cx: &mut Context<Self>) {

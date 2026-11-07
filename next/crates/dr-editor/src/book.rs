@@ -179,11 +179,17 @@ pub struct BookEditor {
     extension: Rc<DriftingExtension>,
     editor: Entity<ProseEditor>,
     todos: HashMap<usize, Vec<TodoMarker>>,
+    /// Each chapter page's facts and the host's chrome (M03).
+    pages: crate::page::Pages,
+    /// The pickers, automatic links and the selection bar.
+    assist: Entity<crate::assist::Assist>,
+    _assist_events: Subscription,
     _editor_events: Subscription,
     _ws_events: dr_workspace::Subscription,
 }
 
 impl EventEmitter<BookEditorEvent> for BookEditor {}
+impl EventEmitter<crate::view::CommentRequested> for BookEditor {}
 
 impl BookEditor {
     /// Opens every chapter of `book` for the author.
@@ -214,6 +220,30 @@ impl BookEditor {
             .enumerate()
             .map(|(i, c)| (c.doc.clone(), i))
             .collect();
+        let docs: Vec<String> = chapters.iter().map(|c| c.doc.clone()).collect();
+        let assist = cx.new(|cx| {
+            let mut a =
+                crate::assist::Assist::new(ws.clone(), book, editor.clone(), docs, window, cx);
+            a.set_auto_links(settings.auto_entity_links);
+            a
+        });
+        let assist_events = cx.subscribe(
+            &assist,
+            |this: &mut BookEditor, _, event: &crate::assist::AssistEvent, cx| {
+                let crate::assist::AssistEvent::Comment { chapter, range } = event;
+                let Some(doc) = this.chapters.get(*chapter).map(|c| c.doc.clone()) else {
+                    return;
+                };
+                let text = this.editor.read(cx).book().chapters[*chapter]
+                    .doc
+                    .slice(range.clone());
+                cx.emit(crate::view::CommentRequested {
+                    doc,
+                    range: range.clone(),
+                    text,
+                });
+            },
+        );
         let mut this = BookEditor {
             ws,
             book: book.to_owned(),
@@ -224,6 +254,9 @@ impl BookEditor {
             extension,
             editor,
             todos: HashMap::new(),
+            pages: Default::default(),
+            assist,
+            _assist_events: assist_events,
             _editor_events: events,
             _ws_events: ws_events,
         };
@@ -331,10 +364,15 @@ impl BookEditor {
             self.editor
                 .update(cx, |e, cx| e.refresh_chapter(chapter, cx));
             self.update_todos(chapter, cx);
+            self.pages.edited(chapter, &self.editor, cx);
         }
         if notices.contains(&Notice::Book) {
             self.extension.invalidate();
+            self.assist.update(cx, |a, _| a.invalidate_names());
             self.follow_book(window, cx);
+            if self.pages.has_chrome() {
+                self.refresh_pages(cx);
+            }
             cx.notify();
         }
     }
@@ -385,6 +423,16 @@ impl BookEditor {
         self.editor = editor;
         self._editor_events = events;
         self.todos.clear();
+        if self.pages.has_chrome() {
+            self.pages.attach(&self.editor, cx);
+            self.refresh_pages(cx);
+        }
+        let (editor, docs) = (
+            self.editor.clone(),
+            self.chapters.iter().map(|c| c.doc.clone()).collect(),
+        );
+        self.assist
+            .update(cx, |a, cx| a.attach(editor, docs, window, cx));
         if let Some(at) = at {
             self.restore(&at, cx);
         }
@@ -400,6 +448,7 @@ impl BookEditor {
                     cx.emit(BookEditorEvent::Edited { doc });
                 }
                 self.update_todos(*chapter, cx);
+                self.pages.edited(*chapter, &self.editor, cx);
             }
             EditorEvent::AnchorsChanged { chapter, changes } => {
                 if let Some(doc) = self.chapters.get(*chapter).map(|c| c.doc.clone()) {
@@ -443,6 +492,43 @@ impl BookEditor {
                 });
             }
         }
+    }
+
+    // ----- the chapter pages (M03) -----------------------------------------------
+
+    /// Draws the host's head and end around every chapter (see
+    /// [`crate::page`]), or the editor's own title rows again (`None`). The
+    /// list starts over: set it right after opening.
+    pub fn set_chrome(
+        &mut self,
+        chrome: Option<Rc<dyn crate::page::PageChrome>>,
+        cx: &mut Context<Self>,
+    ) {
+        self.pages.set_chrome(chrome, &self.editor, cx);
+        self.refresh_pages(cx);
+        cx.notify();
+    }
+
+    /// Chapter `doc`'s page facts.
+    pub fn page_info(&self, doc: &str) -> Option<crate::page::PageInfo> {
+        self.pages.info(self.chapter_of(doc)?)
+    }
+
+    fn refresh_pages(&mut self, cx: &mut Context<Self>) {
+        let docs: Vec<String> = self.chapters.iter().map(|c| c.doc.clone()).collect();
+        self.pages
+            .refresh(&self.ws, &self.book, &docs, &self.editor, cx);
+    }
+
+    /// The caret at the start of chapter `doc`'s text, the editor focused
+    /// (its title field's Enter).
+    pub fn focus_body(&mut self, doc: &str, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        let Some(chapter) = self.chapter_of(doc) else {
+            return false;
+        };
+        self.editor
+            .update(cx, |e, cx| e.focus_chapter_start(chapter, window, cx));
+        true
     }
 
     // ----- navigation ---------------------------------------------------------
@@ -505,10 +591,16 @@ impl BookEditor {
         if book.chapters.is_empty() {
             return None;
         }
-        let (chapter, paragraph) =
+        let (chapter, paragraph, offset) =
             match book.item(top.item_ix.min(book.item_count().saturating_sub(1))) {
-                Item::Title(c) => (c, 0),
-                Item::Line(c, l) => (c, l),
+                Item::Title(c) => (c, 0, 0.),
+                Item::Line(c, l) => (c, l, f32::from(top.offset_in_item)),
+                // Past a chapter's text, at its end: its last paragraph.
+                Item::End(c) => (
+                    c,
+                    book.chapters[c].doc.visible_lines().saturating_sub(1),
+                    0.,
+                ),
             };
         let doc = &book.chapters[chapter].doc;
         Some(ReadingPosition {
@@ -519,7 +611,7 @@ impl BookEditor {
                 .and_then(|l| l.bid())
                 .map(str::to_owned),
             paragraph,
-            offset: f32::from(top.offset_in_item),
+            offset,
         })
     }
 
@@ -597,7 +689,14 @@ impl BookEditor {
         self.settings = settings;
         let style = self.settings.style(&self.base_style);
         self.editor.update(cx, |e, cx| e.set_style(style, cx));
+        let auto = self.settings.auto_entity_links;
+        self.assist.update(cx, |a, _| a.set_auto_links(auto));
         cx.notify();
+    }
+
+    /// The pickers, automatic links and the selection bar.
+    pub fn assist(&self) -> &Entity<crate::assist::Assist> {
+        &self.assist
     }
 
     pub fn set_base_style(&mut self, style: ProseStyle, cx: &mut Context<Self>) {
@@ -656,6 +755,9 @@ impl Render for BookEditor {
                 this.redo(window, cx);
                 cx.stop_propagation();
             }))
-            .child(ProseEditor::element(&self.editor, cx))
+            .child(crate::assist::wrap(
+                &self.assist,
+                ProseEditor::element(&self.editor, cx),
+            ))
     }
 }

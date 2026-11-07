@@ -1388,6 +1388,7 @@ dependencies = [
  "dr-store",
  "dr-testkit",
  "dr-text",
+ "dr-ui",
  "dr-workspace",
  "futures",
  "gpui",
@@ -1396,6 +1397,7 @@ dependencies = [
  "libc",
  "log",
  "loro",
+ "prose-metrics",
  "serde_json",
  "tempfile",
 ]

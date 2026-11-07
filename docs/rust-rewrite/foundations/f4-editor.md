@@ -2,6 +2,10 @@
 
 2026-11-07 起。代码在 `next/crates/gpui-prose`（Drifting 自己的那一层在 `next/crates/dr-editor`，AGPL，见「第三轮」），加两个小 crate `next/crates/gpui-ime`（组字规则，只用标准库）和 `next/crates/prose-linebreak`（中文断行，只依赖 `icu_segmenter`），三个都是 `MIT OR Apache-2.0`。`gpui-prose` 依赖 `gpui`（和它自带的 `sum_tree`）、`loro`、这两个小 crate，默认特性 `icu` 另加 ICU4X 分词，不依赖任何 `dr-*`。计划见 [foundation.md 的 F4 一节](../foundation.md#f4-编辑引擎gpui-prose-与-dr-editor)，正文格式见 [loro-schema.md](../loro-schema.md)，起点是 [P0-B 探针](../spikes/p0-b-editor.md)。
 
+## 第四轮（F4e 第二批：交互）
+
+章首、章末给宿主留的位置和页的数据（M03），@ 选择器、斜杠菜单、自动人物链接和断链修复、选区浮条，以及 F6 提的三件，记在 [f4e-editor.md](f4e-editor.md)。
+
 ## 第三轮（F4e：dr-editor）
 
 ### 一句话
@@ -411,6 +415,7 @@ GPUI 的 fork 由 F4 负责（D1：需要挂补丁时再开 fork）。现在工�
 | G6 | 中文断行 | 不需要 | — | — | 上游 #64624（ICU UAX #14）不在 v1.27.0；即使升级，编辑器自己断行仍更合适（悬挂、以后两端对齐） | 已在上游 |
 | G7 | 缓存视图里的正文从读屏树里掉出去 | 补丁文件已写，未挂 | 别处一重画（比如光标闪烁），缓存视图的元素不再交读屏树 | 待估 | `gpui-prose` 已绕开：读屏连着时正文不走缓存（`input::a11y::editor_view`）。`dr-ui` 别的缓存视图也会碰到。见 [f4c-input.md](f4c-input.md) | 报不报上游等作者在时定 |
 | G8 | 系统问焦点元素时答成窗口 | 补丁文件已写，未在 fork 上构建验证 | 读屏的焦点元素应是正文 | 待估 | 绕不开，必须改 GPUI。补丁按探针诊断写成。见 [f4c-input.md](f4c-input.md) | 报不报上游等作者在时定 |
+| G9 | 视图缓存也看不透明度 | 未做，不急（F4e 第二批） | `gpui/src/view.rs` 的 `ViewElementCacheKey` 加上画的时候的元素不透明度，不一样就不复用 | 约 5 行 | 缓存视图重放上一帧时连当时的不透明度一起，放在叠化里的编辑器会停在头几帧的淡色。`gpui-prose` 已绕开：`ProseEditor::element_at_opacity` 由宿主传不透明度，变了就重画。见 [f4e-editor.md](f4e-editor.md) | 中：Zed 自己的淡入淡出也会碰到 |
 
 **本机 fork 怎么用**（只在测量时临时用，不提交）：fork 是 Zed `v1.27.0`（`c84af5b`）的本地克隆，放在家目录下单独的文件夹，没有远端。临时在 `next/Cargo.toml` 末尾加一节 `[patch."https://github.com/zed-industries/zed"]`，把锁文件里来自 Zed 仓库的 20 个 crate（`gpui`、`gpui_macos`、`gpui_platform`、`collections`、`sum_tree`、`scheduler` 等，见 `Cargo.lock` 里 `source = "git+https://github.com/zed-industries/zed?tag=v1.27.0"` 的那些）都指到 fork 的路径；只换 `gpui_macos` 一个不行，它的依赖会变成第二份 `gpui`。量完删掉这一节、还原 `Cargo.lock`。以后正式挂补丁时，把 fork 推到 GitHub 上一个仓库，`[patch]` 改成指向那个仓库的固定提交（D1）。
 

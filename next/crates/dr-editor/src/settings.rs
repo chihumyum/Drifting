@@ -18,6 +18,10 @@ pub const PARAGRAPH_SPACING: &str = "editor.paragraph_spacing";
 pub const PAGE_WIDTH: &str = "editor.page_width";
 pub const PARAGRAPH_INDENT: &str = "editor.paragraph_indent";
 pub const TYPEWRITER: &str = "editor.typewriter_mode";
+/// 「自动要素链接」: names become entity links as the author types (the
+/// 0.1 client's `autoEntityLinks`, on by default). Not in the shell's
+/// registry yet (see m03-page.md).
+pub const AUTO_ENTITY_LINKS: &str = "editor.auto_entity_links";
 
 /// The 0.1 client's H1, H2 and H3 (28, 22 and 18 px) over its 17 px body, as
 /// the shell's read-only page scales them.
@@ -39,6 +43,8 @@ pub struct EditorSettings {
     pub paragraph_indent: u8,
     /// Typewriter scrolling. Not implemented yet (F4b).
     pub typewriter: bool,
+    /// Automatic entity links while typing.
+    pub auto_entity_links: bool,
 }
 
 impl Default for EditorSettings {
@@ -50,6 +56,7 @@ impl Default for EditorSettings {
             page_width: 720.0,
             paragraph_indent: 0,
             typewriter: false,
+            auto_entity_links: true,
         }
     }
 }
@@ -79,6 +86,9 @@ impl EditorSettings {
             typewriter: get(TYPEWRITER)
                 .and_then(|v| v.as_bool())
                 .unwrap_or(d.typewriter),
+            auto_entity_links: get(AUTO_ENTITY_LINKS)
+                .and_then(|v| v.as_bool())
+                .unwrap_or(d.auto_entity_links),
         }
     }
 
