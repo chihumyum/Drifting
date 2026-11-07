@@ -91,9 +91,11 @@ impl LinkTargets for Catalog {
     }
 }
 
-/// The chapters of `book` in reading order, and the acts as `(first chapter
-/// index, name)`.
-fn list(ws: &Workspace, book: &str) -> Result<(Vec<Listed>, Vec<(usize, String)>), WsError> {
+/// Acts as `(index of the act's first chapter, name)`.
+type Acts = Vec<(usize, String)>;
+
+/// The chapters of `book` in reading order, and the acts.
+fn list(ws: &Workspace, book: &str) -> Result<(Vec<Listed>, Acts), WsError> {
     let out = |name: &str| -> Result<Value, WsError> {
         Ok(ws.call(&Actor::User, name, json!({ "book": book }))?["output"].clone())
     };

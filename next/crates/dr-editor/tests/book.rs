@@ -163,7 +163,7 @@ fn undo_stays_in_the_caret_chapter(cx: &mut TestAppContext) {
     assert_eq!(stored(&e, &two), ["钟停了。乙"]);
     // The key binding goes the same way (the view captures the action).
     editor.update_in(cx, |e, window, cx| e.select(1, 0..0, window, cx));
-    let focus = editor.read_with(cx, |e, cx| gpui::Focusable::focus_handle(e, cx));
+    let focus = editor.read_with(cx, gpui::Focusable::focus_handle);
     cx.update(|window, cx| window.focus(&focus, cx));
     cx.dispatch_action(gpui_prose::input::actions::Undo);
     cx.run_until_parked();
