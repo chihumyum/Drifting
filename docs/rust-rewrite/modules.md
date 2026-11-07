@@ -25,7 +25,7 @@
 | M07 | 字数与写作日 | 两个读数：一个按选区 → 章 → 故事线 → 全书取最具体的那一级，一个是今天写的字数；每台设备每天每本书记一条写作日 | `components/workspaceChrome/WorkspaceWordTally.tsx`、`services/writing-days/*`、`packages/prose-metrics`（Apache-2.0 的字数规则，移到 Rust 后规则一字不改） | F2、F3 | S |
 | M08 | 设置（第一批） | 外观、编辑器、语言、快捷键、本机数据、关于；可以搜索设置项 | `features/settings/*` 约 5.9k、`store/settings-store.ts` 864、`src/styles/settings.css` 2522 | F6 | M |
 | M09 | 快照历史 | 每篇正文保留 30 天快照，每 15 分钟最多一份；可以预览和恢复 | `components/modals/EntitySnapshotHistoryModal.tsx` 220、`services/snapshot-*.ts` | F2、F3 | S |
-| M10 | 旧库导入 | 把 0.1.x 的库导入新库：结构化表、正文、批注与补丁的锚点、快照历史、资源文件、设置、钥匙串条目；显示进度；原库只读、不动 | 新写，规格来自 P0-E | F1、F2、F3 | L |
+| M10 | 旧库导入 | 把 0.1.x 的库导入新库：结构化表、正文、批注与补丁的锚点、快照历史、资源文件、设置、钥匙串条目，以及只读的帮手对话；显示进度；原库只读、不动；没经过交接、无法证明最新的正文默认拦住，作者点「仍然导入」才照缓存导入 | 新写，规格来自 P0-E | F1、F2、F3 | L |
 
 ### M10 要读的旧数据
 

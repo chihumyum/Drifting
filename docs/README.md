@@ -42,6 +42,7 @@ truth.
 - [Moving a book between libraries](book-transfer.md): one book as a `.driftingbook` file
 - [Writing days and the shelf's heatmap](writing-days.md): words per book, day and device, synced
 - [Saving before quit](desktop-quit-persistence.md)
+- [Handoff to Drifting 0.2](v2-handoff.md): every library kept ready for the rewrite's import
 - [Crash and integrity reports](crash-reports.md) and
   [Sentry diagnostics](sentry-observability.md)
 - [Hosted sync](hosted-sync/README.md) and

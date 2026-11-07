@@ -1111,7 +1111,7 @@
         "yjs_snapshots": 6,
         "yjs_updates": 173
       },
-      "origin": "sample-aged after a simulated last-0.1.x handoff: every cache rewritten from its Yjs rendering and library_state v2-handoff stamped with the revisions",
+      "origin": "sample-aged after the real 0.1.x handoff (runV2Handoff, liveDocuments include): every cache rewritten from its Yjs rendering where it differed, library_state v2-handoff stamped with each revision and SHA-256",
       "orphanYjsDocuments": {
         "ownerMissing": 0,
         "unknownPrefix": 0
@@ -1195,43 +1195,309 @@
       },
       "unknownInlineNodes": 0,
       "unmappedTables": []
+    },
+    {
+      "anchors": {
+        "cursorsFailed": 0,
+        "cursorsOk": 20,
+        "positionless": 2,
+        "resolutions": {
+          "comment:exact": 10,
+          "comment:text-changed": 2,
+          "element_patch:exact": 8
+        },
+        "versions": {
+          "comment:none": 2,
+          "comment:v4": 12,
+          "element_patch:v4": 8
+        }
+      },
+      "assets": {
+        "filesChecked": 0,
+        "filesMissing": 0,
+        "rows": 7,
+        "shaMismatch": 0,
+        "sourceBytes": 532939
+      },
+      "blockers": {
+        "openFrontierGaps": 0,
+        "openSyncConflicts": 0,
+        "quarantinedObjects": 0
+      },
+      "books": [
+        {
+          "bookOrder": 61,
+          "entries": {
+            "acts": 3,
+            "assets": 7,
+            "book": 1,
+            "categories": 3,
+            "comment_actions": 0,
+            "comments": 6,
+            "elements": 31,
+            "idea_groups": 0,
+            "kv_entries": 73,
+            "material_folders": 1,
+            "materials": 7,
+            "nodes": 66,
+            "patches": 4,
+            "plot_cells": 15,
+            "plot_columns": 4,
+            "plot_plans": 1,
+            "plot_rows": 4,
+            "project_memory": 1,
+            "relation_type_endpoints": 23,
+            "relation_types": 9,
+            "relations": 37,
+            "storyline_membership": 97,
+            "storylines": 4,
+            "time_pins": 7,
+            "writing_days": 0
+          },
+          "narrativeOrder": 61,
+          "trashed": false,
+          "treeNodes": 1
+        },
+        {
+          "bookOrder": 9,
+          "entries": {
+            "acts": 2,
+            "assets": 0,
+            "book": 1,
+            "categories": 3,
+            "comment_actions": 0,
+            "comments": 8,
+            "elements": 29,
+            "idea_groups": 0,
+            "kv_entries": 51,
+            "material_folders": 0,
+            "materials": 2,
+            "nodes": 12,
+            "patches": 4,
+            "plot_cells": 11,
+            "plot_columns": 4,
+            "plot_plans": 1,
+            "plot_rows": 4,
+            "project_memory": 1,
+            "relation_type_endpoints": 25,
+            "relation_types": 10,
+            "relations": 32,
+            "storyline_membership": 15,
+            "storylines": 4,
+            "time_pins": 4,
+            "writing_days": 0
+          },
+          "narrativeOrder": 9,
+          "trashed": false,
+          "treeNodes": 0
+        }
+      ],
+      "history": {
+        "byKind": {
+          "library_item": 1,
+          "node": 3,
+          "storyline": 1
+        },
+        "entities": 5,
+        "previewParsed": 5,
+        "previewPresent": 5,
+        "replayAllMatch": true,
+        "replayedVersions": 10,
+        "rows": 5,
+        "stateBytes": 40088
+      },
+      "label": "sample-aged-handoff-tampered",
+      "loro": {
+        "documents": 156,
+        "roundTripFailed": 0,
+        "roundTripOk": 156,
+        "snapshotBytes": 1457935
+      },
+      "migrations": 19,
+      "nonEmptyTables": {
+        "agent_chat_queue": 1,
+        "agent_conversation": 1,
+        "agent_memory": 2,
+        "agent_runtime_entity_write_receipt": 2,
+        "agent_runtime_read_observation": 29,
+        "agent_runtime_read_receipt": 18,
+        "agent_runtime_session": 1,
+        "agent_runtime_tool_call": 33,
+        "agent_runtime_turn": 13,
+        "agent_runtime_write_effect": 10,
+        "agent_runtime_write_expectation": 10,
+        "agent_runtime_write_review": 5,
+        "book_act": 5,
+        "book_node": 78,
+        "comment": 14,
+        "element": 60,
+        "element_category": 6,
+        "element_patch": 8,
+        "entity_kv_entry": 124,
+        "entity_relation": 69,
+        "entity_relation_type": 19,
+        "entity_relation_type_endpoint_kind": 48,
+        "entity_snapshot_history": 5,
+        "library_item": 9,
+        "library_state": 2,
+        "material_folder": 1,
+        "node_content": 78,
+        "node_storyline_link": 112,
+        "plot_grid_cell": 26,
+        "plot_grid_column": 8,
+        "plot_grid_document": 2,
+        "plot_grid_row": 8,
+        "project": 2,
+        "project_asset": 7,
+        "storylines": 8,
+        "sync_app_authority": 1,
+        "sync_apply_receipt": 89,
+        "sync_blob_state": 7,
+        "sync_change_set": 89,
+        "sync_entity_lifecycle": 464,
+        "sync_field_clock": 141,
+        "sync_generation": 2,
+        "sync_generation_writer_state": 3,
+        "sync_local_object": 7,
+        "sync_mutation": 1164,
+        "sync_order_register": 171,
+        "sync_set_tag": 147,
+        "sync_yjs_materialization_receipt": 224,
+        "timeline_marker": 11,
+        "workspace_projection_change": 357,
+        "workspace_projection_clock": 2,
+        "yjs_document_revision": 154,
+        "yjs_document_revision_provenance": 225,
+        "yjs_prose_command_receipt": 6,
+        "yjs_snapshots": 6,
+        "yjs_updates": 173
+      },
+      "origin": "sample-aged-handoff with one element cache edited after stamping, revision unchanged: the importer's SHA-256 check must refuse the stamp",
+      "orphanYjsDocuments": {
+        "ownerMissing": 0,
+        "unknownPrefix": 0
+      },
+      "overlappingEntityLinks": 0,
+      "prose": {
+        "category": {
+          "cacheParseErrors": 0,
+          "chars": 273,
+          "documents": 6,
+          "freshness": {
+            "handoff": 6
+          },
+          "lines": 6,
+          "marks": {},
+          "ownerDeleted": 0
+        },
+        "element": {
+          "cacheParseErrors": 0,
+          "chars": 5759,
+          "documents": 60,
+          "freshness": {
+            "handoff": 59,
+            "handoff-mismatch": 1
+          },
+          "lines": 67,
+          "marks": {},
+          "ownerDeleted": 1
+        },
+        "library-item": {
+          "cacheParseErrors": 0,
+          "chars": 1311,
+          "documents": 4,
+          "freshness": {
+            "handoff": 2,
+            "seed-only": 2
+          },
+          "lines": 26,
+          "marks": {
+            "bold": 11
+          },
+          "ownerDeleted": 0
+        },
+        "node-content": {
+          "cacheParseErrors": 0,
+          "chars": 694402,
+          "documents": 78,
+          "freshness": {
+            "handoff": 78
+          },
+          "lines": 2256,
+          "marks": {
+            "entityLink": 3857,
+            "italic": 467
+          },
+          "ownerDeleted": 0
+        },
+        "storyline": {
+          "cacheParseErrors": 0,
+          "chars": 1604,
+          "documents": 8,
+          "freshness": {
+            "handoff": 8
+          },
+          "lines": 14,
+          "marks": {},
+          "ownerDeleted": 0
+        }
+      },
+      "truth": {
+        "byFreshness": {
+          "handoff": [
+            153,
+            0
+          ],
+          "handoff-mismatch": [
+            0,
+            1
+          ]
+        },
+        "compared": 154,
+        "falseFresh": 0,
+        "staleChars": 14,
+        "staleLines": 2,
+        "truthMissing": 0
+      },
+      "unknownInlineNodes": 0,
+      "unmappedTables": []
     }
   ],
   "mapping": [
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_chat_binding",
-      "target": "帮手对话扩展的投递状态"
+      "target": "帮手对话扩展的投递状态，留在旧库"
     },
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_chat_branch",
-      "target": "帮手对话扩展的投递状态"
+      "target": "帮手对话扩展的投递状态，留在旧库"
     },
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_chat_cursor",
-      "target": "帮手对话扩展的投递状态"
+      "target": "帮手对话扩展的投递状态，留在旧库"
     },
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_chat_delivery",
-      "target": "帮手对话扩展的投递状态"
+      "target": "帮手对话扩展的投递状态，留在旧库"
     },
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_chat_object",
-      "target": "帮手对话扩展的投递状态"
+      "target": "帮手对话扩展的投递状态，留在旧库"
     },
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_chat_queue",
-      "target": "帮手对话扩展的投递状态"
+      "target": "帮手对话扩展的投递状态，留在旧库"
     },
     {
       "fate": "agent-archive",
       "table": "agent_conversation",
-      "target": "帮手对话的标题和记录，只读保留"
+      "target": "帮手对话的标题，只读搬过去"
     },
     {
       "fate": "local",
@@ -1249,109 +1515,109 @@
       "target": "授权绑定旧工具版本，作者在新版重新授权"
     },
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_runtime_checkpoint",
-      "target": "模型上下文检查点"
+      "target": "模型上下文检查点，可由消息重建，留在旧库"
     },
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_runtime_element_patch_receipt",
-      "target": "结算记录（含 Yjs 状态向量）"
+      "target": "结算记录（含 Yjs 状态向量），留在旧库"
     },
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_runtime_entity_write_receipt",
-      "target": "结算记录"
+      "target": "结算记录，留在旧库"
     },
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_runtime_event",
-      "target": "运行日志"
+      "target": "运行事件流，留在旧库"
     },
     {
       "fate": "agent-archive",
       "table": "agent_runtime_message",
-      "target": "运行记录"
+      "target": "对话消息，只读搬过去"
     },
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_runtime_read_observation",
-      "target": "读取回执（含 Yjs 状态向量）"
+      "target": "读取回执（含 Yjs 状态向量），留在旧库"
     },
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_runtime_read_receipt",
-      "target": "读取回执"
+      "target": "读取回执，留在旧库"
     },
     {
       "fate": "agent-archive",
       "table": "agent_runtime_result_artifact",
-      "target": "工具结果"
+      "target": "工具结果，随对话只读搬过去"
     },
     {
       "fate": "agent-archive",
       "table": "agent_runtime_result_blob",
-      "target": "工具结果"
+      "target": "工具结果，随对话只读搬过去"
     },
     {
       "fate": "agent-archive",
       "table": "agent_runtime_session",
-      "target": "运行会话"
+      "target": "对话的运行会话，只读搬过去"
     },
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_runtime_task",
-      "target": "长任务"
+      "target": "长任务状态，留在旧库"
     },
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_runtime_task_chapter_manifest",
-      "target": "长任务"
+      "target": "长任务状态，留在旧库"
     },
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_runtime_task_command",
-      "target": "长任务"
+      "target": "长任务状态，留在旧库"
     },
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_runtime_task_constraint",
-      "target": "长任务"
+      "target": "长任务状态，留在旧库"
     },
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_runtime_task_step",
-      "target": "长任务"
+      "target": "长任务状态，留在旧库"
     },
     {
       "fate": "agent-archive",
       "table": "agent_runtime_tool_call",
-      "target": "运行日志"
+      "target": "工具调用，随对话只读搬过去"
     },
     {
       "fate": "agent-archive",
       "table": "agent_runtime_turn",
-      "target": "运行日志"
+      "target": "对话轮次，只读搬过去"
     },
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_runtime_write_effect",
-      "target": "结算记录"
+      "target": "结算记录，留在旧库"
     },
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_runtime_write_expectation",
-      "target": "结算记录"
+      "target": "结算记录，留在旧库"
     },
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_runtime_write_review",
-      "target": "结算记录"
+      "target": "结算记录，留在旧库"
     },
     {
-      "fate": "agent-archive",
+      "fate": "drop",
       "table": "agent_runtime_write_review_block",
-      "target": "结算记录"
+      "target": "结算记录，留在旧库"
     },
     {
       "fate": "local",
