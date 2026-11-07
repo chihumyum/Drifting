@@ -6,6 +6,7 @@ resolver = "3"
 # One member per line, kept sorted, so parallel branches merge cleanly.
 members = [
     "app/drifting",
+    "spikes/loro-model",
 ]
 
 [workspace.package]
@@ -35,6 +36,13 @@ log = "0.4"
 # versions GPUI's macOS backend already builds, so they add nothing new.
 objc2 = "0.6"
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSAppearance", "NSApplication", "NSResponder"] }
+
+proptest = "1.12"
+# SQLite for the Loro update log and snapshots (P0-C); bundled so every
+# platform builds the same SQLite.
+rusqlite = { version = "0.41", features = ["bundled"] }
+serde_json = "1.0"
+sha2 = "0.10"
 
 # Zed patches these crates.io crates in its own workspace; a git dependency
 # does not inherit [patch], so GPUI's consumers repeat the ones it needs.
