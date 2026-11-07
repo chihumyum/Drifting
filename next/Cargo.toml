@@ -8,6 +8,7 @@ members = [
     "app/drifting",
     "spikes/import-v1",
     "spikes/loro-model",
+    "spikes/visual",
 ]
 
 [workspace.package]
@@ -46,6 +47,14 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha2 = "0.10"
 
+# Spike P0-D (visual): bitmaps for covers, heat maps and baked glass, and
+# the PNG masks of the existing sand and glass assets. `image` must stay on
+# the version GPUI's RenderImage is built from.
+base64 = "0.22.1"
+image = { version = "0.25.10", default-features = false, features = ["png"] }
+smallvec = "1.16"
+tiny-skia = "0.11.4"
+
 # Zed patches these crates.io crates in its own workspace; a git dependency
 # does not inherit [patch], so GPUI's consumers repeat the ones it needs.
 [patch.crates-io]
@@ -57,4 +66,9 @@ windows-capture = { git = "https://github.com/zed-industries/windows-capture.git
 [profile.dev]
 # GPUI is slow unoptimized; keep our own crates debuggable.
 [profile.dev.package."*"]
+opt-level = 2
+
+# Spike P0-D draws glass, the sea and covers on the CPU; unoptimized, a dev
+# build would show costs ten times their real size.
+[profile.dev.package.visual-spike]
 opt-level = 2
