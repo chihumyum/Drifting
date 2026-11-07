@@ -21,6 +21,7 @@
     "close": "닫기",
     "counting": "계산 중…",
     "creating": "만드는 중…",
+    "delete": "삭제",
     "edit": "편집",
     "local": "로컬",
     "processing": "처리 중…",
@@ -161,6 +162,11 @@
       "storylineTitle": "스토리라인별 그룹 · 작품 전체 보기로 전환"
     }
   },
+  "mobileWorkspace": {
+    "projectActions": {
+      "deleteFailed": "작품을 삭제하지 못했습니다. 다시 시도해 주세요."
+    }
+  },
   "navigation": {
     "back": "뒤로"
   },
@@ -236,6 +242,9 @@
     "bookTransfer": {
       "importFailedTitle": "가져올 수 없음"
     },
+    "delete": {
+      "deleting": "삭제 중…"
+    },
     "desk": {
       "chaptersUnit_one": "장",
       "chaptersUnit_other": "장",
@@ -258,7 +267,9 @@
       "storylinesUnit_other": "스토리라인",
       "trashEntry": "최근 삭제 항목",
       "trashList": {
+        "confirmTitle": "“{{name}}”을 영구 삭제할까요?",
         "empty": "최근 삭제된 작품이 없습니다.",
+        "subLocal": "작품을 30일 보관한 뒤 영구 삭제합니다.",
         "title": "최근 삭제 항목"
       },
       "trashTitle": "“{{name}}”을 최근 삭제 항목으로 옮길까요?",
@@ -293,9 +304,14 @@
     "trash": {
       "body": "작품({{words}}자 · {{nodes}}장 · 요소 {{elements}}개)을 책장에서 옮깁니다. 최근 삭제 항목에서 30일 내 복원할 수 있으며 이후 영구 삭제됩니다.",
       "confirm": "최근 삭제 항목으로 이동",
+      "deleteNow": "지금 삭제",
+      "expiresIn_one": "{{count}}일 후 영구 삭제",
+      "expiresIn_other": "{{count}}일 후 영구 삭제",
+      "expiresSoon": "영구 삭제 대기",
       "failed": "작품을 옮길 수 없습니다. 다시 시도하세요.",
       "localNote": "영구 삭제 전까지 내용과 읽기용 Markdown 사본이 유지됩니다.",
       "moving": "옮기는 중…",
+      "permanentBody": "30일을 기다리지 않고 지금 영구 삭제합니다. 되돌릴 수 없습니다.",
       "restore": "복원",
       "restoreFailed": "작품을 복원할 수 없습니다. 다시 시도하세요.",
       "restoring": "복원 중…"

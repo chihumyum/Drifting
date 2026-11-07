@@ -21,6 +21,7 @@
     "close": "閉じる",
     "counting": "集計中…",
     "creating": "作成中…",
+    "delete": "削除",
     "edit": "編集",
     "local": "ローカル",
     "processing": "処理中…",
@@ -161,6 +162,11 @@
       "storylineTitle": "ストーリーライン別・全編一覧に切り替え"
     }
   },
+  "mobileWorkspace": {
+    "projectActions": {
+      "deleteFailed": "作品を削除できませんでした。もう一度お試しください。"
+    }
+  },
   "navigation": {
     "back": "戻る"
   },
@@ -236,6 +242,9 @@
     "bookTransfer": {
       "importFailedTitle": "インポートできませんでした"
     },
+    "delete": {
+      "deleting": "削除中…"
+    },
     "desk": {
       "chaptersUnit_one": "章",
       "chaptersUnit_other": "章",
@@ -258,7 +267,9 @@
       "storylinesUnit_other": "ストーリーライン",
       "trashEntry": "最近削除した項目",
       "trashList": {
+        "confirmTitle": "「{{name}}」を完全に削除しますか？",
         "empty": "最近削除した作品はありません。",
+        "subLocal": "作品は30日間保管し、その後完全削除します。",
         "title": "最近削除した項目"
       },
       "trashTitle": "「{{name}}」を最近削除した項目へ移しますか？",
@@ -293,9 +304,14 @@
     "trash": {
       "body": "作品（{{words}}文字・{{nodes}}章・{{elements}}要素）を本棚から移動します。「最近削除した項目」から30日以内に復元でき、その後は完全削除します。",
       "confirm": "最近削除した項目へ移動",
+      "deleteNow": "今すぐ削除",
+      "expiresIn_one": "{{count}}日後に完全削除",
+      "expiresIn_other": "{{count}}日後に完全削除",
+      "expiresSoon": "完全削除待ち",
       "failed": "作品を移動できません。再試行してください。",
       "localNote": "完全削除まで内容と読めるMarkdownコピーを保ちます。",
       "moving": "移動中…",
+      "permanentBody": "30日を待たず今すぐ完全削除します。取り消せません。",
       "restore": "復元",
       "restoreFailed": "作品を復元できません。再試行してください。",
       "restoring": "復元中…"

@@ -257,6 +257,15 @@ projectPicker.trash.failed
 projectPicker.trash.restore
 projectPicker.trash.restoring
 projectPicker.trash.restoreFailed
+projectPicker.desk.trashList.subLocal
+projectPicker.desk.trashList.confirmTitle
+projectPicker.trash.expiresIn
+projectPicker.trash.expiresSoon
+projectPicker.trash.deleteNow
+projectPicker.trash.permanentBody
+projectPicker.delete.deleting
+common.delete
+mobileWorkspace.projectActions.deleteFailed
 userMenu.import
 userMenu.importBook
 userMenu.localMenu

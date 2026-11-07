@@ -21,6 +21,7 @@
     "close": "Fechar",
     "counting": "Contando…",
     "creating": "Criando…",
+    "delete": "Excluir",
     "edit": "Editar",
     "local": "Local",
     "processing": "Processando…",
@@ -161,6 +162,11 @@
       "storylineTitle": "Por linha narrativa · voltar à visão do livro"
     }
   },
+  "mobileWorkspace": {
+    "projectActions": {
+      "deleteFailed": "Não foi possível excluir o projeto. Tente novamente."
+    }
+  },
   "navigation": {
     "back": "Voltar"
   },
@@ -237,6 +243,9 @@
     "bookTransfer": {
       "importFailedTitle": "Não foi possível importar"
     },
+    "delete": {
+      "deleting": "Excluindo…"
+    },
     "desk": {
       "chaptersUnit_many": "capítulos",
       "chaptersUnit_one": "capítulo",
@@ -262,7 +271,9 @@
       "storylinesUnit_other": "linhas narrativas",
       "trashEntry": "Excluídos recentemente",
       "trashList": {
+        "confirmTitle": "Excluir “{{name}}” permanentemente?",
         "empty": "Nenhum livro excluído recentemente.",
+        "subLocal": "Livros ficam aqui 30 dias e depois são excluídos permanentemente.",
         "title": "Excluídos recentemente"
       },
       "trashTitle": "Mover “{{name}}” para excluídos recentemente?",
@@ -299,9 +310,15 @@
     "trash": {
       "body": "Este livro ({{words}} palavras · {{nodes}} capítulos · {{elements}} elementos) sai da estante. Pode ser restaurado por 30 dias em excluídos recentemente; depois será excluído permanentemente.",
       "confirm": "Mover para excluídos recentemente",
+      "deleteNow": "Excluir agora",
+      "expiresIn_many": "Exclusão permanente em {{count}} dias",
+      "expiresIn_one": "Exclusão permanente em {{count}} dia",
+      "expiresIn_other": "Exclusão permanente em {{count}} dias",
+      "expiresSoon": "Exclusão permanente pendente",
       "failed": "Não foi possível mover o projeto. Tente novamente.",
       "localNote": "O conteúdo e a cópia Markdown permanecem até a exclusão permanente.",
       "moving": "Movendo…",
+      "permanentBody": "Exclua permanentemente agora, sem esperar 30 dias. Não é possível desfazer.",
       "restore": "Restaurar",
       "restoreFailed": "Não foi possível restaurar o projeto. Tente novamente.",
       "restoring": "Restaurando…"

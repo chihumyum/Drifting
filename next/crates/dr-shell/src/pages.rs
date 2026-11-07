@@ -48,9 +48,8 @@ pub fn set_shelf(
     cx.default_global::<Pages>().shelf = Some(Rc::new(make));
 }
 
-/// Registers Project Home. Each workspace window makes one the first time
-/// its paper shows Home, and keeps it while the window lives (it follows
-/// the book the window shows).
+/// Registers Project Home. Each workspace window makes one with itself and
+/// keeps it while the window lives (it follows the book the window shows).
 pub fn set_home(
     cx: &mut App,
     make: impl Fn(WeakEntity<Workspace>, &mut Window, &mut App) -> AnyView + 'static,
@@ -82,18 +81,13 @@ pub(crate) fn make_shelf(
     Some(make(ws, window, cx))
 }
 
-/// The window's Project Home, made on first use; `None` when none is
-/// registered.
-pub(crate) fn home_of(
-    ws: &Entity<Workspace>,
+/// A window's Project Home, made with the workspace (before it first
+/// renders); `None` when none is registered.
+pub(crate) fn make_home(
+    ws: WeakEntity<Workspace>,
     window: &mut Window,
     cx: &mut App,
 ) -> Option<AnyView> {
-    if let Some(view) = ws.read(cx).home.clone() {
-        return Some(view);
-    }
     let make = cx.try_global::<Pages>()?.home.clone()?;
-    let view = make(ws.downgrade(), window, cx);
-    ws.update(cx, |ws, _| ws.home = Some(view.clone()));
-    Some(view)
+    Some(make(ws, window, cx))
 }

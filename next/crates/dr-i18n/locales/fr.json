@@ -21,6 +21,7 @@
     "close": "Fermer",
     "counting": "Comptage…",
     "creating": "Création…",
+    "delete": "Supprimer",
     "edit": "Modifier",
     "local": "Local",
     "processing": "Traitement…",
@@ -161,6 +162,11 @@
       "storylineTitle": "Par intrigue · revenir à la vue du livre"
     }
   },
+  "mobileWorkspace": {
+    "projectActions": {
+      "deleteFailed": "Impossible de supprimer le projet. Réessayez."
+    }
+  },
   "navigation": {
     "back": "Retour"
   },
@@ -237,6 +243,9 @@
     "bookTransfer": {
       "importFailedTitle": "Importation impossible"
     },
+    "delete": {
+      "deleting": "Suppression…"
+    },
     "desk": {
       "chaptersUnit_many": "chapitres",
       "chaptersUnit_one": "chapitre",
@@ -262,7 +271,9 @@
       "storylinesUnit_other": "intrigues",
       "trashEntry": "Suppressions récentes",
       "trashList": {
+        "confirmTitle": "Supprimer définitivement « {{name}} » ?",
         "empty": "Aucun livre récemment supprimé.",
+        "subLocal": "Les livres restent ici 30 jours, puis sont supprimés définitivement.",
         "title": "Suppressions récentes"
       },
       "trashTitle": "Déplacer « {{name}} » dans les suppressions récentes ?",
@@ -299,9 +310,15 @@
     "trash": {
       "body": "Ce livre ({{words}} mots · {{nodes}} chapitres · {{elements}} éléments) quitte la bibliothèque. Restaurable 30 jours depuis les suppressions récentes, puis supprimé définitivement.",
       "confirm": "Déplacer dans les suppressions récentes",
+      "deleteNow": "Supprimer maintenant",
+      "expiresIn_many": "Suppression définitive dans {{count}} jours",
+      "expiresIn_one": "Suppression définitive dans {{count}} jour",
+      "expiresIn_other": "Suppression définitive dans {{count}} jours",
+      "expiresSoon": "Suppression définitive en attente",
       "failed": "Impossible de déplacer le projet. Réessayez.",
       "localNote": "Le contenu et la copie Markdown restent jusqu’à la suppression définitive.",
       "moving": "Déplacement…",
+      "permanentBody": "Supprime définitivement maintenant, sans attendre 30 jours. Irréversible.",
       "restore": "Restaurer",
       "restoreFailed": "Impossible de restaurer le projet. Réessayez.",
       "restoring": "Restauration…"

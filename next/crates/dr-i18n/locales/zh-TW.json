@@ -21,6 +21,7 @@
     "close": "關閉",
     "counting": "計算中…",
     "creating": "正在建立…",
+    "delete": "刪除",
     "edit": "編輯",
     "local": "本機",
     "processing": "正在處理…",
@@ -161,6 +162,11 @@
       "storylineTitle": "依故事線分組 · 切換回全書總覽"
     }
   },
+  "mobileWorkspace": {
+    "projectActions": {
+      "deleteFailed": "無法刪除作品，請再試一次。"
+    }
+  },
   "navigation": {
     "back": "返回"
   },
@@ -236,6 +242,9 @@
     "bookTransfer": {
       "importFailedTitle": "無法匯入"
     },
+    "delete": {
+      "deleting": "正在刪除…"
+    },
     "desk": {
       "chaptersUnit_one": "章",
       "chaptersUnit_other": "章",
@@ -258,7 +267,9 @@
       "storylinesUnit_other": "條故事線",
       "trashEntry": "最近刪除",
       "trashList": {
+        "confirmTitle": "永久刪除「{{name}}」？",
         "empty": "沒有最近刪除的作品。",
+        "subLocal": "作品在此保留 30 天，之後永久刪除。",
         "title": "最近刪除"
       },
       "trashTitle": "將「{{name}}」移至最近刪除？",
@@ -293,9 +304,14 @@
     "trash": {
       "body": "此作品（{{words}} 字 · {{nodes}} 章 · {{elements}} 個要素）將離開書架。30 天內可從「最近刪除」還原，之後會永久刪除。",
       "confirm": "移至最近刪除",
+      "deleteNow": "立即刪除",
+      "expiresIn_one": "{{count}} 天後永久刪除",
+      "expiresIn_other": "{{count}} 天後永久刪除",
+      "expiresSoon": "等待永久刪除",
       "failed": "無法移動作品，請重試。",
       "localNote": "永久刪除前，內容與可讀 Markdown 副本都會保留。",
       "moving": "正在移動…",
+      "permanentBody": "立即永久刪除，不再等 30 天。此操作無法復原。",
       "restore": "還原",
       "restoreFailed": "無法還原作品，請重試。",
       "restoring": "正在還原…"

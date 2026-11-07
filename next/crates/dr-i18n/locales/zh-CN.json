@@ -21,6 +21,7 @@
     "close": "关闭",
     "counting": "统计中…",
     "creating": "创建中…",
+    "delete": "删除",
     "edit": "编辑",
     "local": "本地",
     "processing": "处理中…",
@@ -161,6 +162,11 @@
       "storylineTitle": "按 storyline 分组 · 点此切回全书总览"
     }
   },
+  "mobileWorkspace": {
+    "projectActions": {
+      "deleteFailed": "删除未完成，请重试。"
+    }
+  },
   "navigation": {
     "back": "返回"
   },
@@ -236,6 +242,9 @@
     "bookTransfer": {
       "importFailedTitle": "无法导入"
     },
+    "delete": {
+      "deleting": "删除中…"
+    },
     "desk": {
       "chaptersUnit": "章",
       "elementsUnit": "个要素",
@@ -255,7 +264,9 @@
       "storylinesUnit": "条故事线",
       "trashEntry": "最近删除",
       "trashList": {
+        "confirmTitle": "永久删除《{{name}}》？",
         "empty": "最近没有删除的作品。",
+        "subLocal": "作品在这里保留 30 天，到期后自动永久删除。",
         "title": "最近删除"
       },
       "trashTitle": "把《{{name}}》移到最近删除？",
@@ -288,9 +299,14 @@
     "trash": {
       "body": "这本书（{{words}} 字 · {{nodes}} 章 · {{elements}} 个要素）会从书架移走。30 天内可以在「最近删除」里恢复，之后永久删除。",
       "confirm": "移到最近删除",
+      "deleteNow": "立即删除",
+      "expiresIn_one": "{{count}} 天后永久删除",
+      "expiresIn_other": "{{count}} 天后永久删除",
+      "expiresSoon": "即将永久删除",
       "failed": "移动未完成，请重试。",
       "localNote": "内容和可读 Markdown 副本都保留到永久删除时。",
       "moving": "正在移动…",
+      "permanentBody": "立即永久删除，不再等 30 天。此操作无法撤销。",
       "restore": "恢复",
       "restoreFailed": "恢复未完成，请重试。",
       "restoring": "正在恢复…"

@@ -21,6 +21,7 @@
     "close": "Close",
     "counting": "Counting…",
     "creating": "Creating…",
+    "delete": "Delete",
     "edit": "Edit",
     "local": "Local",
     "processing": "Processing…",
@@ -161,6 +162,11 @@
       "storylineTitle": "Grouped by storyline · switch back to book overview"
     }
   },
+  "mobileWorkspace": {
+    "projectActions": {
+      "deleteFailed": "The project could not be deleted. Please try again."
+    }
+  },
   "navigation": {
     "back": "Back"
   },
@@ -236,6 +242,9 @@
     "bookTransfer": {
       "importFailedTitle": "Could not import"
     },
+    "delete": {
+      "deleting": "Deleting…"
+    },
     "desk": {
       "chaptersUnit_one": "chapter",
       "chaptersUnit_other": "chapters",
@@ -258,7 +267,9 @@
       "storylinesUnit_other": "storylines",
       "trashEntry": "Recently Deleted",
       "trashList": {
+        "confirmTitle": "Permanently delete “{{name}}”?",
         "empty": "No recently deleted books.",
+        "subLocal": "Books stay here for 30 days and are then permanently deleted.",
         "title": "Recently Deleted"
       },
       "trashTitle": "Move “{{name}}” to Recently Deleted?",
@@ -293,9 +304,14 @@
     "trash": {
       "body": "This book ({{words}} words · {{nodes}} chapters · {{elements}} elements) leaves the shelf. You can restore it from Recently Deleted for 30 days; after that it is permanently deleted.",
       "confirm": "Move to Recently Deleted",
+      "deleteNow": "Delete now",
+      "expiresIn_one": "Permanently deleted in {{count}} day",
+      "expiresIn_other": "Permanently deleted in {{count}} days",
+      "expiresSoon": "Permanent deletion pending",
       "failed": "The project could not be moved. Please try again.",
       "localNote": "The content and the readable Markdown copy are kept until the permanent deletion.",
       "moving": "Moving…",
+      "permanentBody": "Delete it permanently now instead of after 30 days. This cannot be undone.",
       "restore": "Restore",
       "restoreFailed": "The project could not be restored. Please try again.",
       "restoring": "Restoring…"

@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use dr_i18n::keys;
 use dr_shell::actions::{ShowWholeBook, ToggleElementOverview, ToggleStoryGraph};
-use dr_shell::book::{Book, color_of, seal_of};
+use dr_shell::book::{Book, color_of};
 use dr_shell::nav::{Open, Target};
 use dr_shell::strings::tf;
 use dr_shell::{Services, Settings, Workspace, t};
@@ -16,15 +16,21 @@ use dr_ui::{
     },
     fonts::{Role, weight},
     glass::{self, Kind as GlassKind, Mode, Spec},
-    input::field::{FieldEvent, TextField},
+    input::{
+        area::TextArea,
+        field::{FieldEvent, TextField},
+    },
     sand::{self, Icon, KindMark, Readout},
     style::DrStyled,
-    tokens::{Rgb, radius},
+    tokens::radius,
 };
 use dr_view_shelf::format::{self, compact, grouped};
 use dr_workspace::{
     Actor, Workspace as Library, WsEvent,
-    commands::book::{BookUpdate, BookUpdateIn},
+    commands::{
+        book::{BookUpdate, BookUpdateIn},
+        recent::{RecentTouch, RecentTouchIn},
+    },
     dto::ChapterInfo,
 };
 use gpui::{
@@ -34,7 +40,7 @@ use gpui::{
     prelude::FluentBuilder as _, px,
 };
 
-use crate::data::HomeStats;
+use crate::data::{HomeStats, Page};
 
 /// Project Home's two views (the multiple choice beside the title).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -45,14 +51,17 @@ pub enum HomeView {
 
 /// What an F3 event touched, as far as Project Home cares.
 enum Touched {
-    /// Prose of this book changed.
+    /// Prose of this book changed, or what was opened in it.
     Book(String),
     /// This document's derived index was written.
     Doc(String),
 }
 
-/// How many recently edited chapters show under the one to continue.
+/// How many pages opened recently show under the one to continue.
 const MORE_RECENT: usize = 3;
+
+/// The book's name when it has none (the 0.1 title's placeholder).
+const NAME_PLACEHOLDER: &str = "Drifting";
 
 pub struct Home {
     ws: WeakEntity<Workspace>,
@@ -66,17 +75,47 @@ pub struct Home {
     task: Option<Task<()>>,
     /// A prose change since the last read (words, the last edit).
     stale: bool,
-    /// The name being edited in place.
-    pub renaming: Option<Entity<TextField>>,
-    summary: Option<Entity<TextField>>,
-    _rename: Option<Subscription>,
+    /// The book's name, a frameless field always (the 0.1 title): a press
+    /// puts the caret in it.
+    title: Entity<TextField>,
+    /// The name last saved from it, until the book's snapshot has it.
+    saved_name: Option<String>,
+    /// The stored name the field was last given: only a new one replaces
+    /// what is in the field (never the author's unsaved typing).
+    shown_name: String,
+    /// 本书简介 in 设定, and the stored summary it was last given.
+    summary: Option<Entity<TextArea>>,
+    shown_summary: String,
+    /// The page last recorded as opened (`recent.touch`), with its book.
+    touched: Option<(String, Target)>,
+    _title: Subscription,
     _summary: Option<Subscription>,
     _events: Option<dr_workspace::Subscription>,
+    _ws: Option<Subscription>,
 }
 
 impl Home {
-    pub fn new(ws: WeakEntity<Workspace>, _: &mut Window, cx: &mut Context<Self>) -> Home {
+    pub fn new(ws: WeakEntity<Workspace>, window: &mut Window, cx: &mut Context<Self>) -> Home {
         let lib = cx.try_global::<Services>().and_then(|s| s.library.clone());
+        let title = cx.new(|cx| {
+            TextField::new("home-title", window, cx)
+                .bare()
+                .placeholder(NAME_PLACEHOLDER)
+        });
+        // The 0.1 title: Enter saves and leaves, Esc puts the name back and
+        // leaves, leaving saves.
+        let sub = cx.subscribe_in(&title, window, |home, field, e, window, cx| match e {
+            FieldEvent::Submitted(_) => {
+                let text = field.read(cx).text();
+                home.finish_rename(Some(text), window, cx);
+            }
+            FieldEvent::Cancelled => home.finish_rename(None, window, cx),
+            FieldEvent::Blurred => {
+                let text = field.read(cx).text();
+                home.save_name(text, cx);
+            }
+            FieldEvent::Changed(_) => {}
+        });
         let mut home = Home {
             ws,
             lib,
@@ -85,20 +124,81 @@ impl Home {
             read_for: None,
             task: None,
             stale: false,
-            renaming: None,
+            title,
+            saved_name: None,
+            shown_name: String::new(),
             summary: None,
-            _rename: None,
+            shown_summary: String::new(),
+            touched: None,
+            _title: sub,
             _summary: None,
             _events: None,
+            _ws: None,
         };
         home.listen(cx);
+        // The workspace is still being made: follow it once it is there.
+        cx.spawn(async move |this, cx| this.update(cx, |home, cx| home.follow(cx)).ok())
+            .detach();
         home
+    }
+
+    /// Records the page the window shows as opened (`recent.touch`, this
+    /// device only), each time it becomes another: 继续写 starts from
+    /// what was opened last. F3 leaves the recording to the window (the
+    /// 0.1 client's `touchEntity`); see m02-home.md.
+    fn follow(&mut self, cx: &mut Context<Self>) {
+        let Some(ws) = self.ws.upgrade() else {
+            return;
+        };
+        self._ws = Some(cx.observe(&ws, |home, ws, cx| home.record_opened(&ws, cx)));
+        self.record_opened(&ws, cx);
+    }
+
+    fn record_opened(&mut self, ws: &Entity<Workspace>, cx: &mut Context<Self>) {
+        let ws = ws.read(cx);
+        if ws.shelf_open || ws.book_id.is_empty() {
+            return;
+        }
+        let Some(target) = ws.nav.current().cloned() else {
+            return;
+        };
+        let page = match &target {
+            Target::Chapter(id) | Target::Idea(id) => ("node", id.to_string()),
+            Target::Element(id) => ("element", id.to_string()),
+            Target::Storyline(id) => ("storyline", id.to_string()),
+            Target::Category(id) => ("category", id.to_string()),
+            Target::Material(id) => ("material", id.to_string()),
+            Target::Book => return,
+        };
+        let now = (ws.book_id.clone(), target);
+        if self.touched.as_ref() == Some(&now) {
+            return;
+        }
+        self.touched = Some(now.clone());
+        let Some(lib) = self.lib.clone() else {
+            return;
+        };
+        let input = RecentTouchIn {
+            book: now.0,
+            target: dr_workspace::dto::Target {
+                kind: page.0.to_owned(),
+                id: page.1,
+            },
+        };
+        cx.background_executor()
+            .spawn(async move {
+                if let Err(error) = lib.run::<RecentTouch>(&Actor::User, input) {
+                    log::debug!("the page opened was not recorded: {error}");
+                }
+            })
+            .detach();
     }
 
     /// F3's bus: a prose change in the book shown means a new last edit; a
     /// chapter's derived index written means new words (right after an
-    /// import or seeding, dr-index builds the indexes in the background).
-    /// Changes to the book itself come as a new snapshot from the shell.
+    /// import or seeding, dr-index builds the indexes in the background); a
+    /// page of it recorded as opened changes 继续写. Changes to the book
+    /// itself come as a new snapshot from the shell.
     fn listen(&mut self, cx: &mut Context<Self>) {
         let Some(lib) = self.lib.clone() else {
             return;
@@ -109,6 +209,10 @@ impl Home {
                 WsEvent::Prose(p) => p.book.as_ref().map(|b| Touched::Book(b.to_string())),
                 WsEvent::Local(change) if change.table == "index" => {
                     Some(Touched::Doc(change.key.clone()))
+                }
+                // `recent.touch`: the key is the book.
+                WsEvent::Local(change) if change.table == "recent" => {
+                    Some(Touched::Book(change.key.clone()))
                 }
                 _ => None,
             };
@@ -161,12 +265,11 @@ impl Home {
         self.stale = false;
         self.read_for = Some(book.clone());
         let id = book.id.clone();
-        let chapters: Vec<String> = book.chapters.iter().map(|c| c.id.clone()).collect();
         let today = crate::today(cx);
         self.task = Some(cx.spawn(async move |this, cx| {
             let stats = cx
                 .background_executor()
-                .spawn(async move { HomeStats::load(&lib, &id, &chapters, today) })
+                .spawn(async move { HomeStats::load(&lib, &id, today) })
                 .await;
             this.update(cx, |home, cx| {
                 home.task = None;
@@ -214,54 +317,65 @@ impl Home {
         }
     }
 
-    /// Starts renaming the book in place.
+    /// The book's name field (frameless, always on the page).
+    pub fn title_field(&self) -> Entity<TextField> {
+        self.title.clone()
+    }
+
+    /// The caret is in the book's name.
+    pub fn renaming(&self, window: &Window, cx: &App) -> bool {
+        self.title.focus_handle(cx).is_focused(window)
+    }
+
+    /// Puts the caret in the book's name (a press on it does the same).
     pub fn start_rename(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(book) = self.book(cx).filter(|b| !b.is_empty()) else {
+        if self.book(cx).is_none_or(|b| b.is_empty()) {
             return;
-        };
-        let name = book.name.clone();
-        let hint = t(cx, keys::dashboard::hero::PROJECT_NAME);
-        let field = cx.new(|cx| {
-            TextField::new("home-title", window, cx)
-                .placeholder(hint)
-                .with_text(name)
-        });
-        let sub = cx.subscribe_in(&field, window, |home, field, e, window, cx| match e {
-            FieldEvent::Submitted(_) | FieldEvent::Blurred => {
-                let text = field.read(cx).text();
-                home.finish_rename(Some(text), window, cx);
-            }
-            FieldEvent::Cancelled => home.finish_rename(None, window, cx),
-            FieldEvent::Changed(_) => {}
-        });
-        field.focus_handle(cx).focus(window, cx);
-        self._rename = Some(sub);
-        self.renaming = Some(field);
+        }
+        self.title.focus_handle(cx).focus(window, cx);
         cx.notify();
     }
 
-    /// Ends renaming: `Some` saves the name (an empty one keeps the old).
+    /// Leaves the book's name: `Some` saves it (an empty one keeps the
+    /// old), `None` puts the old one back.
     pub fn finish_rename(
         &mut self,
         name: Option<String>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.renaming.take().is_none() {
-            return;
-        }
-        if let (Some(name), Some(book)) = (name, self.book(cx)) {
-            let name = name.trim().to_owned();
-            if !name.is_empty() && name != book.name {
-                let mut edit = Home::edit_of(&book.id);
-                edit.name = Some(name);
-                self.update_book(edit, cx);
+        match name {
+            Some(name) => self.save_name(name, cx),
+            None => {
+                let old = self.book(cx).map(|b| b.name.clone()).unwrap_or_default();
+                self.title.update(cx, |f, cx| f.set_text(old, cx));
             }
         }
         if let Some(ws) = self.ws.upgrade() {
             ws.read(cx).focus_handle().clone().focus(window, cx);
         }
         cx.notify();
+    }
+
+    /// Saves `name` as the book's name unless it is empty (the field gets
+    /// the old one back) or already saved.
+    fn save_name(&mut self, name: String, cx: &mut Context<Self>) {
+        let Some(book) = self.book(cx).filter(|b| !b.is_empty()) else {
+            return;
+        };
+        let name = name.trim().to_owned();
+        if name.is_empty() {
+            let old = book.name.clone();
+            self.title.update(cx, |f, cx| f.set_text(old, cx));
+            return;
+        }
+        if name == book.name || self.saved_name.as_ref() == Some(&name) {
+            return;
+        }
+        self.saved_name = Some(name.clone());
+        let mut edit = Home::edit_of(&book.id);
+        edit.name = Some(name);
+        self.update_book(edit, cx);
     }
 
     pub fn set_view(&mut self, view: HomeView, window: &mut Window, cx: &mut Context<Self>) {
@@ -273,11 +387,13 @@ impl Home {
                 .and_then(|b| self.stats_for(&b))
                 .map(|s| s.summary.clone())
                 .unwrap_or_default();
+            self.shown_summary = text.clone();
             let field = cx.new(|cx| {
-                TextField::new("home-summary", window, cx)
+                TextArea::new("home-summary", window, cx)
                     .placeholder(hint)
                     .with_text(text)
             });
+            // Saved when the caret leaves (the 0.1 profile), or on ⌘↵.
             let sub = cx.subscribe_in(&field, window, |home, field, e, _, cx| {
                 if matches!(e, FieldEvent::Submitted(_) | FieldEvent::Blurred) {
                     let text = field.read(cx).text().trim().to_owned();
@@ -326,6 +442,26 @@ impl Render for Home {
         {
             self.summary = None;
             self._summary = None;
+        }
+        // Without the caret the fields take a new stored value (renamed or
+        // rewritten elsewhere, another book). Only a new one: the frame
+        // after the caret leaves is drawn before the field reports it, and
+        // the typing it saves must still be there.
+        if self.saved_name.as_ref() == Some(&book.name) {
+            self.saved_name = None;
+        }
+        if book.name != self.shown_name && !self.title.focus_handle(cx).is_focused(window) {
+            self.shown_name = book.name.clone();
+            let name = book.name.clone();
+            self.title.update(cx, |f, cx| f.set_text(name, cx));
+        }
+        if let (Some(field), Some(stats)) = (&self.summary, self.stats_for(&book))
+            && stats.summary != self.shown_summary
+            && !field.focus_handle(cx).is_focused(window)
+        {
+            self.shown_summary = stats.summary.clone();
+            let text = stats.summary.clone();
+            field.update(cx, |f, cx| f.set_text(text, cx));
         }
         let theme = Theme::of(window, cx);
         let p = theme.palette;
@@ -387,22 +523,17 @@ fn title(
         ),
         None => t(cx, keys::project_home::KICKER),
     };
-    let entity = cx.entity();
-    let name: AnyElement = match &home.renaming {
-        Some(field) => div().py(px(8.0)).child(field.clone()).into_any_element(),
-        None => div()
-            .id("home-name")
-            .font_role(Role::Prose)
-            .type_px(34.0, 34.0 * 1.3)
-            .weight(weight::REGULAR)
-            .text_color(p.ink(1).solid())
-            .cursor_text()
-            .child(SharedString::from(book.name.clone()))
-            .on_click(move |_, window, cx| {
-                entity.update(cx, |home, cx| home.start_rename(window, cx))
-            })
-            .into_any_element(),
-    };
+    // The name is its own frameless field, in the title's type
+    // (`.dash-title__name`: the content face, 34px, regular).
+    let name = div()
+        .id("home-name")
+        // The 0.1 title's label for screen readers.
+        .aria_label(t(cx, keys::dashboard::hero::PROJECT_NAME))
+        .font_role(Role::Prose)
+        .type_px(34.0, 34.0 * 1.3)
+        .weight(weight::REGULAR)
+        .text_color(p.ink(1).solid())
+        .child(home.title.clone());
     let views = {
         let entity = cx.entity();
         Segmented::new(
@@ -676,17 +807,7 @@ fn text_button(
         .into_any_element()
 }
 
-/// A chapter's mark and colour: its seal in its primary storyline's colour.
-fn chapter_mark(book: &Book, chapter: &ChapterInfo) -> (sand::Kind, Option<Rgb>) {
-    let color = chapter
-        .primary_storyline
-        .as_ref()
-        .and_then(|s| book.storylines.iter().find(|l| &l.id == s))
-        .and_then(|l| color_of(&l.color));
-    (sand::Kind::Chapter(seal_of(&chapter.id)), color)
-}
-
-/// The chapters by their last edit, newest first; reading order breaks
+/// The chapters by their last change, newest first; reading order breaks
 /// ties (and orders them all until the numbers arrive).
 pub fn recent<'a>(book: &'a Book, stats: Option<&HomeStats>) -> Vec<&'a ChapterInfo> {
     let mut chapters: Vec<&ChapterInfo> = book.chapters.iter().collect();
@@ -696,11 +817,85 @@ pub fn recent<'a>(book: &'a Book, stats: Option<&HomeStats>) -> Vec<&'a ChapterI
     chapters
 }
 
-fn chapter_target(chapter: &ChapterInfo) -> Option<Target> {
-    chapter.id.parse().ok().map(Target::Chapter)
+/// A chapter or an idea of `book` (F3's `node`), if it is still there.
+fn node_target(book: &Book, id: &str) -> Option<Target> {
+    let parsed = id.parse().ok()?;
+    if book.chapters.iter().any(|c| c.id == id) {
+        Some(Target::Chapter(parsed))
+    } else if book.ideas.iter().any(|i| i.id == id) {
+        Some(Target::Idea(parsed))
+    } else {
+        None
+    }
 }
 
-/// Where to continue: the chapter edited last, then the next few.
+/// Where 继续写 starts (the 0.1 Project Home): the chapter or idea opened
+/// last on this device, else the chapter changed last.
+pub fn continue_page(book: &Book, stats: Option<&HomeStats>) -> Option<Target> {
+    let opened = stats
+        .into_iter()
+        .flat_map(|s| s.opened.iter())
+        .find_map(|o| match &o.page {
+            Page::Node(id) => node_target(book, id),
+            Page::Element(_) => None,
+        });
+    opened.or_else(|| {
+        recent(book, stats)
+            .first()
+            .and_then(|c| c.id.parse().ok().map(Target::Chapter))
+    })
+}
+
+/// The pages opened recently besides `first` (chapters, ideas, elements;
+/// at most three), with when, ms since the epoch.
+pub fn opened_more(
+    book: &Book,
+    stats: Option<&HomeStats>,
+    first: Option<&Target>,
+) -> Vec<(Target, i64)> {
+    stats
+        .into_iter()
+        .flat_map(|s| s.opened.iter())
+        .filter_map(|o| {
+            let target = match &o.page {
+                Page::Node(id) => node_target(book, id)?,
+                Page::Element(id) => {
+                    let target = Target::Element(id.parse().ok()?);
+                    book.exists(&target).then_some(target)?
+                }
+            };
+            (Some(&target) != first).then_some((target, o.used_ms))
+        })
+        .take(MORE_RECENT)
+        .collect()
+}
+
+/// A page's name, 「未命名」 without one.
+fn name_of(book: &Book, target: &Target, cx: &App) -> SharedString {
+    match book.title(target).map(str::trim) {
+        Some(name) if !name.is_empty() => SharedString::from(name.to_owned()),
+        _ => t(cx, keys::common::UNTITLED),
+    }
+}
+
+/// Opens `target` from Project Home: a click previews it, a double click
+/// keeps it (as in the sidebars).
+fn opener(
+    entity: Entity<Home>,
+    target: Target,
+) -> impl Fn(&ClickEvent, &mut Window, &mut App) + 'static {
+    move |e, _, cx| {
+        let how = if e.click_count() > 1 {
+            Open::KEEP
+        } else {
+            Open::PREVIEW
+        };
+        let target = target.clone();
+        entity.update(cx, |home, cx| home.open(target, how, cx));
+    }
+}
+
+/// 继续写: the page to continue, then a few more opened recently.
 fn continue_section(
     book: &Book,
     stats: Option<&HomeStats>,
@@ -726,8 +921,7 @@ fn continue_section(
         window,
         cx,
     );
-    let recent = recent(book, stats);
-    let Some(first) = recent.first().copied() else {
+    let Some(first) = continue_page(book, stats) else {
         return div()
             .flex()
             .flex_col()
@@ -743,48 +937,55 @@ fn continue_section(
             .into_any_element();
     };
     let entity = cx.entity();
-    let (kind, color) = chapter_mark(book, first);
-    let storyline = first
-        .primary_storyline
-        .as_ref()
+    let (kind, color) = book.mark(&first);
+    let chapter = match &first {
+        Target::Chapter(id) => book.chapters.iter().find(|c| c.id == id.as_str()),
+        _ => None,
+    };
+    let idea = match &first {
+        Target::Idea(id) => book.ideas.iter().find(|i| i.id == id.as_str()),
+        _ => None,
+    };
+    let storyline = chapter
+        .and_then(|c| c.primary_storyline.as_ref())
         .and_then(|id| book.storylines.iter().find(|l| &l.id == id));
+    let id = chapter
+        .map(|c| c.id.clone())
+        .or_else(|| idea.map(|i| i.id.clone()))
+        .unwrap_or_default();
+    let (edited, words) = match stats {
+        Some(s) if chapter.is_some() => (
+            s.chapter_edited.get(&id).copied(),
+            s.chapter_words.get(&id).copied(),
+        ),
+        Some(s) => (
+            s.idea_edited.get(&id).copied(),
+            s.idea_words.get(&id).copied(),
+        ),
+        None => (None, None),
+    };
     let mut facts: Vec<String> = Vec::new();
     if let Some(l) = storyline {
         facts.push(l.name.clone());
     }
-    if let Some(at) = stats.and_then(|s| s.chapter_edited.get(&first.id)) {
-        facts.push(format::ago(*at, now, cx).to_string());
+    if let Some(at) = edited {
+        facts.push(format::ago(at, now, cx).to_string());
     }
-    if let Some(words) = stats.and_then(|s| s.chapter_words.get(&first.id)) {
+    if let Some(words) = words {
         facts.push(
             tf(
                 cx,
                 keys::dashboard::WORD_COUNT,
-                &[("count", &grouped(*words, locale))],
+                &[("count", &grouped(words, locale))],
             )
             .to_string(),
         );
     }
-    let title: SharedString = if first.title.trim().is_empty() {
-        t(cx, keys::common::UNTITLED)
-    } else {
-        first.title.clone().into()
-    };
-    let target = chapter_target(first);
-    let open = {
-        let entity = entity.clone();
-        let target = target.clone();
-        move |e: &ClickEvent, _: &mut Window, cx: &mut App| {
-            if let Some(target) = target.clone() {
-                let how = if e.click_count() > 1 {
-                    Open::KEEP
-                } else {
-                    Open::PREVIEW
-                };
-                entity.update(cx, |home, cx| home.open(target, how, cx));
-            }
-        }
-    };
+    let summary = chapter
+        .map(|c| c.summary.clone())
+        .or_else(|| idea.map(|i| i.summary.clone()))
+        .unwrap_or_default();
+    let title = name_of(book, &first, cx);
     let card = glass::glass_box(
         "home-continue",
         GlassKind::Hidden,
@@ -803,7 +1004,7 @@ fn continue_section(
     .cursor_pointer()
     .role(gpui::Role::Button)
     .aria_label(title.clone())
-    .on_click(open)
+    .on_click(opener(entity.clone(), first.clone()))
     .child(
         div()
             .flex()
@@ -836,56 +1037,36 @@ fn continue_section(
             })
             .child(readout(facts.join(" · "), window, cx).flex_none()),
     )
-    .when(!first.summary.trim().is_empty(), |el| {
+    .when(!summary.trim().is_empty(), |el| {
         el.child(
             div()
                 .font_role(Role::Prose)
                 .type_px(14.0, 14.0 * 1.75)
                 .text_color(p.ink(3).solid())
                 .line_clamp(2)
-                .child(first.summary.clone()),
+                .child(summary),
         )
     });
-    let others: Vec<AnyElement> = recent
-        .iter()
-        .skip(1)
-        .take(MORE_RECENT)
-        .map(|chapter| {
-            let (kind, color) = chapter_mark(book, chapter);
-            let name: SharedString = if chapter.title.trim().is_empty() {
-                t(cx, keys::common::UNTITLED)
-            } else {
-                chapter.title.clone().into()
-            };
-            let when = stats
-                .and_then(|s| s.chapter_edited.get(&chapter.id))
-                .map(|at| format::ago(*at, now, cx));
-            let target = chapter_target(chapter);
-            let entity = entity.clone();
+    let others: Vec<AnyElement> = opened_more(book, stats, Some(&first))
+        .into_iter()
+        .map(|(target, used_ms)| {
+            let (kind, color) = book.mark(&target);
+            let name = name_of(book, &target, cx);
             SandCell::new(
-                ElementId::Name(format!("home-recent-{}", chapter.id).into()),
+                ElementId::Name(format!("home-recent-{}", target.key()).into()),
                 name,
             )
             .mark(kind)
             .color_opt(color)
-            .on_click(move |e, _, cx| {
-                if let Some(target) = target.clone() {
-                    let how = if e.click_count() > 1 {
-                        Open::KEEP
-                    } else {
-                        Open::PREVIEW
-                    };
-                    entity.update(cx, |home, cx| home.open(target, how, cx));
-                }
-            })
-            .children(when.map(|w| {
+            .on_click(opener(entity.clone(), target))
+            .child(
                 div()
                     .flex_none()
                     .font_role(Role::Index)
                     .type_px(s.caption, s.caption * 1.45)
                     .text_color(p.muted().solid())
-                    .child(w)
-            }))
+                    .child(format::ago(used_ms, now, cx)),
+            )
             .into_any_element()
         })
         .collect();
@@ -1220,7 +1401,11 @@ fn settings(
             window,
             cx,
         ))
-        .children(home.summary.clone());
+        .children(
+            home.summary
+                .clone()
+                .map(|f| dr_view_shelf::frame::area("home-summary-frame", &f, 4.0, window, cx)),
+        );
     div()
         .flex()
         .flex_col()

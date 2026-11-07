@@ -21,6 +21,7 @@
     "close": "Cerrar",
     "counting": "Contando…",
     "creating": "Creando…",
+    "delete": "Eliminar",
     "edit": "Editar",
     "local": "Local",
     "processing": "Procesando…",
@@ -161,6 +162,11 @@
       "storylineTitle": "Agrupado por trama · volver a vista del libro"
     }
   },
+  "mobileWorkspace": {
+    "projectActions": {
+      "deleteFailed": "No se pudo eliminar el proyecto. Inténtalo de nuevo."
+    }
+  },
   "navigation": {
     "back": "Volver"
   },
@@ -237,6 +243,9 @@
     "bookTransfer": {
       "importFailedTitle": "No se pudo importar"
     },
+    "delete": {
+      "deleting": "Eliminando…"
+    },
     "desk": {
       "chaptersUnit_many": "capítulos",
       "chaptersUnit_one": "capítulo",
@@ -262,7 +271,9 @@
       "storylinesUnit_other": "tramas",
       "trashEntry": "Eliminados recientemente",
       "trashList": {
+        "confirmTitle": "¿Eliminar «{{name}}» definitivamente?",
         "empty": "No hay libros eliminados recientemente.",
+        "subLocal": "Los libros se conservan aquí 30 días y después se eliminan definitivamente.",
         "title": "Eliminados recientemente"
       },
       "trashTitle": "¿Mover «{{name}}» a eliminados recientemente?",
@@ -299,9 +310,15 @@
     "trash": {
       "body": "Este libro ({{words}} palabras · {{nodes}} capítulos · {{elements}} elementos) saldrá de la estantería. Puedes restaurarlo durante 30 días desde eliminados recientemente; después se borrará definitivamente.",
       "confirm": "Mover a eliminados recientemente",
+      "deleteNow": "Eliminar ahora",
+      "expiresIn_many": "Borrado definitivo en {{count}} días",
+      "expiresIn_one": "Borrado definitivo en {{count}} día",
+      "expiresIn_other": "Borrado definitivo en {{count}} días",
+      "expiresSoon": "Borrado definitivo pendiente",
       "failed": "No se pudo mover el proyecto. Reintenta.",
       "localNote": "El contenido y la copia Markdown se conservan hasta el borrado definitivo.",
       "moving": "Moviendo…",
+      "permanentBody": "Elimínalo definitivamente ahora, sin esperar 30 días. No se puede deshacer.",
       "restore": "Restaurar",
       "restoreFailed": "No se pudo restaurar el proyecto. Reintenta.",
       "restoring": "Restaurando…"

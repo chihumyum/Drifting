@@ -21,6 +21,7 @@
     "close": "Schließen",
     "counting": "Wird gezählt…",
     "creating": "Wird erstellt…",
+    "delete": "Löschen",
     "edit": "Bearbeiten",
     "local": "Lokal",
     "processing": "Wird verarbeitet…",
@@ -161,6 +162,11 @@
       "storylineTitle": "Nach Handlungsstrang · zur Buchübersicht wechseln"
     }
   },
+  "mobileWorkspace": {
+    "projectActions": {
+      "deleteFailed": "Projekt konnte nicht gelöscht werden. Bitte erneut versuchen."
+    }
+  },
   "navigation": {
     "back": "Zurück"
   },
@@ -236,6 +242,9 @@
     "bookTransfer": {
       "importFailedTitle": "Import nicht möglich"
     },
+    "delete": {
+      "deleting": "Wird gelöscht…"
+    },
     "desk": {
       "chaptersUnit_one": "Kapitel",
       "chaptersUnit_other": "Kapitel",
@@ -258,7 +267,9 @@
       "storylinesUnit_other": "Handlungsstränge",
       "trashEntry": "Kürzlich gelöscht",
       "trashList": {
+        "confirmTitle": "„{{name}}“ endgültig löschen?",
         "empty": "Keine kürzlich gelöschten Bücher.",
+        "subLocal": "Bücher bleiben hier 30 Tage und werden danach endgültig gelöscht.",
         "title": "Kürzlich gelöscht"
       },
       "trashTitle": "„{{name}}“ nach kürzlich Gelöscht verschieben?",
@@ -293,9 +304,14 @@
     "trash": {
       "body": "Dieses Buch ({{words}} Wörter · {{nodes}} Kapitel · {{elements}} Elemente) verlässt das Regal. Es kann 30 Tage lang unter kürzlich Gelöscht wiederhergestellt werden; danach wird es endgültig gelöscht.",
       "confirm": "Zu kürzlich Gelöscht verschieben",
+      "deleteNow": "Jetzt löschen",
+      "expiresIn_one": "Endgültige Löschung in {{count}} Tag",
+      "expiresIn_other": "Endgültige Löschung in {{count}} Tagen",
+      "expiresSoon": "Endgültige Löschung ausstehend",
       "failed": "Projekt konnte nicht verschoben werden. Bitte erneut versuchen.",
       "localNote": "Inhalt und lesbare Markdown-Kopie bleiben bis zur endgültigen Löschung erhalten.",
       "moving": "Wird verschoben…",
+      "permanentBody": "Jetzt statt nach 30 Tagen endgültig löschen. Nicht rückgängig zu machen.",
       "restore": "Wiederherstellen",
       "restoreFailed": "Projekt konnte nicht wiederhergestellt werden. Bitte erneut versuchen.",
       "restoring": "Wird wiederhergestellt…"
