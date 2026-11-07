@@ -1397,7 +1397,9 @@ dependencies = [
  "libc",
  "log",
  "loro",
+ "objc2 0.6.5",
  "prose-metrics",
+ "raw-window-handle",
  "serde_json",
  "tempfile",
 ]
@@ -2507,13 +2509,10 @@ dependencies = [
  "gpui-ime",
  "gpui_platform",
  "icu_segmenter",
- "libc",
- "log",
  "loro",
  "objc2 0.6.5",
  "prose-linebreak",
  "raw-window-handle",
- "rusqlite",
  "sum_tree",
  "windows 0.62.2",
 ]

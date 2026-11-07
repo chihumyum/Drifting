@@ -1,6 +1,8 @@
 //! On-glass latency under Instruments.
 //!
-//! `trace-typing` types into a chapter and drops an `os_signpost` event at
+//! `trace-typing` types into the longest chapter of the heavy seed (open
+//! through its workspace session, as Drifting opens it; the traced process
+//! seeds its own library) and drops an `os_signpost` event at
 //! each keystroke (subsystem `cc.drifting.prose-bench`, category
 //! `PointsOfInterest`, name `key`). `present` runs it under
 //! `xcrun xctrace record --template "Metal System Trace"` twice (stock GPUI
@@ -12,15 +14,19 @@ use std::{
     ffi::{CString, c_char, c_void},
     path::{Path, PathBuf},
     process::Command,
+    rc::Rc,
     time::{Duration, Instant},
 };
 
-use gpui::{App, AsyncApp, EntityInputHandler, SharedString};
+use gpui::{App, AsyncApp, EntityInputHandler};
+use serde_json::{Value, json};
 
 use crate::{
+    bench::typing_offset,
+    corpus::Corpus,
     platform,
-    report::{self, J},
-    shell::{self, Corpus},
+    report::{self, samples, summary},
+    shell,
 };
 
 // ----- os_signpost --------------------------------------------------------------
@@ -90,33 +96,26 @@ impl Signposts {
 
 // ----- the traced process -------------------------------------------------------
 
-/// Types `keys` characters at 8 per second into the 20k-char chapter with a
+/// Types `keys` characters at 8 per second into the longest chapter with a
 /// solid caret (so the only frames are the keystrokes'), marking each key.
+/// The report (for the driver) has the display's refresh rate, the handler
+/// times and the corpus.
 pub fn run_traced_typing(present_now: bool, keys: usize, report_path: Option<String>) {
     platform::NO_BLINK.store(true, std::sync::atomic::Ordering::Relaxed);
     platform::IMMEDIATE.store(present_now, std::sync::atomic::Ordering::Relaxed);
+    let corpus = Rc::new(Corpus::heavy());
     gpui_platform::application().run(move |cx: &mut App| {
-        let chapter = Corpus::chapter();
-        let titles = vec![SharedString::from(chapter.titles[0].clone())];
-        let (window, display) = shell::open_window(cx, titles, false, true, true);
+        let (window, display) =
+            shell::open_window(cx, vec![corpus.chapter_title()], false, true, true);
         let report_path = report_path.clone();
+        let corpus = corpus.clone();
         cx.spawn(async move |cx| {
             let _ = window.update(cx, |root, window, cx| {
-                let editor = root.open(chapter.open(), window, cx);
+                let editor = root.open(corpus.chapter(), window, cx);
                 let focus = gpui::Focusable::focus_handle(editor.read(cx), cx);
                 window.focus(&focus, cx);
                 editor.update(cx, |editor, cx| {
-                    let doc = &mut editor.book_mut().chapters[0].doc;
-                    let lines = doc.visible_lines();
-                    let mut at = 0;
-                    for ix in lines / 2..lines {
-                        let line = doc.line(ix);
-                        if (60..400).contains(&line.chars) {
-                            let chars = line.chars;
-                            at = doc.line_start(ix) + chars / 2;
-                            break;
-                        }
-                    }
+                    let at = typing_offset(&editor.book().chapters[0].doc);
                     editor.select(0, at..at, window, cx);
                 });
             });
@@ -144,17 +143,19 @@ pub fn run_traced_typing(present_now: bool, keys: usize, report_path: Option<Str
                         });
                     }
                 });
-                handler_ms.push(start.elapsed().as_secs_f64() * 1000.0);
+                handler_ms.push(report::ms(start.elapsed()));
             }
             sleep(cx, Duration::from_millis(500)).await;
             if let Some(path) = &report_path {
                 let refresh = display.map_or(0.0, |d| d.2);
-                let json = J::obj(vec![
-                    ("keys", J::Int(keys as i64)),
-                    ("refresh_hz", J::Num(refresh)),
-                    ("handler", report::summary(&handler_ms)),
-                ]);
-                let _ = std::fs::write(path, json.to_pretty());
+                let report = json!({
+                    "keys": keys,
+                    "refresh_hz": refresh,
+                    "handler": summary(&handler_ms),
+                    "chapter_chars": corpus.chapter_chars(),
+                    "corpus": corpus.shape,
+                });
+                let _ = std::fs::write(path, report.to_string());
             }
             let _ = window.update(cx, |_, window, _| window.remove_window());
             cx.update(|cx| cx.quit());
@@ -409,104 +410,72 @@ fn latencies(trace: &Path) -> Latencies {
     out
 }
 
-pub fn run_present(out: Option<String>, keys: usize) {
+pub fn run_present(write: bool, keys: usize) {
     let dir = scratch_dir();
+    let load_start = report::load();
     let mut runs = Vec::new();
     for (name, present_now) in [("stock", false), ("present_now", true)] {
-        let load = platform::load_average();
+        let load = report::load();
         let Some((trace, report_path)) = record(&dir, name, present_now, keys) else {
             eprintln!("could not record the {name} run");
-            return;
+            std::process::exit(1);
         };
         let lat = latencies(&trace);
-        let refresh = std::fs::read_to_string(&report_path)
+        let child: Value = std::fs::read_to_string(&report_path)
             .ok()
-            .and_then(|s| {
-                let at = s.find("\"refresh_hz\": ")? + 14;
-                s[at..]
-                    .split(|c: char| !c.is_ascii_digit() && c != '.')
-                    .next()?
-                    .parse::<f64>()
-                    .ok()
-            })
-            .unwrap_or(0.0);
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or(Value::Null);
         eprintln!(
-            "{name}: {} keys matched, p95 key→glass {:.1} ms",
+            "{name}: {} keys matched, p95 key→glass {} ms",
             lat.to_glass.len(),
-            report::percentile(&lat.to_glass, 95.0)
+            summary(&lat.to_glass)["p95"]
         );
-        runs.push((name, lat, refresh, load, platform::load_average()));
+        runs.push((name, lat, child, load));
         let _ = std::fs::remove_dir_all(&trace);
         let _ = std::fs::remove_file(&report_path);
     }
     let _ = std::fs::remove_dir_all(&dir);
-    let refresh = runs.first().map_or(0.0, |r| r.2);
-    let mut fields = vec![
-        ("schema", J::str("drifting.f4.present/1")),
-        ("generated_at", J::str(crate::bench::today())),
-        ("source_fingerprint", J::str(report::source_fingerprint())),
-        ("machine", crate::bench::machine_json()),
-        ("build", crate::bench::build_json()),
-        (
-            "display",
-            J::obj(vec![
-                ("builtin", J::Bool(true)),
-                ("refresh_hz", J::Num(refresh)),
-            ]),
-        ),
-        (
-            "method",
-            J::str(
-                "xcrun xctrace record --template \"Metal System Trace\" --instrument os_signpost --launch, around the 20k-char chapter in a visible window on the built-in display with a solid caret (the only frames are the keystrokes'). Each keystroke drops an os_signpost event right before the insertText-equivalent call (replace_text_in_range), 8 keys/s spread over a 120 Hz frame. key→present: to the next ca-client-present-request of this process (CAMetalLayer present). key→glass: to the next block of the Metal dependency chain's display lane (metal-object-dependency-chain-display in-time; equals Core Animation's DrawableLifetime end for that drawable and precedes the drawable's presented handler by ~0.3 ms), i.e. when the frame with the new character is on the display. Includes everything after the input-method call: GPUI's wait for a frame, drawing, Metal, WindowServer compositing and the panel's refresh. Excludes AppKit's event dispatch before insertText (usually under 1 ms).",
-            ),
-        ),
-        ("keys", J::Int(keys as i64)),
-        (
-            "corpus",
-            J::Obj(vec![{
-                let corpus = Corpus::chapter();
-                let (k, v) = crate::bench::corpus_json("chapter", shell::CHAPTER_SEED, &corpus);
-                (k.to_owned(), v)
-            }]),
-        ),
-    ];
-    let mut pass = None;
-    for (name, lat, _, load, _) in &runs {
-        let p95 = report::percentile(&lat.to_present, 95.0);
-        if *name == "stock" {
-            pass = Some(p95);
-        }
-        fields.push((
-            name,
-            J::obj(vec![
-                ("load_average_1m_before", J::Num(*load)),
-                ("matched", J::Int(lat.to_glass.len() as i64)),
-                ("unmatched", J::Int(lat.unmatched as i64)),
-                ("key_to_present", report::summary(&lat.to_present)),
-                ("key_to_glass", report::summary(&lat.to_glass)),
-                ("present_to_glass", report::summary(&lat.present_to_glass)),
-                ("key_to_glass_samples_ms", J::samples(&lat.to_glass)),
-            ]),
-        ));
+    let load_end = report::load();
+    let first = &runs[0].2;
+    let corpus = first["corpus"].clone();
+    let mut results = json!({
+        "method": "xcrun xctrace record --template \"Metal System Trace\" --instrument os_signpost --launch, around the longest chapter of the heavy seed (open through its workspace session, dr_editor::SessionSource) in a visible window on the built-in display with a solid caret (the only frames are the keystrokes'). Each keystroke drops an os_signpost event right before the insertText-equivalent call (replace_text_in_range), 8 keys/s spread over a 120 Hz frame. key→present: to the next ca-client-present-request of this process (CAMetalLayer present). key→glass: to the next block of the Metal dependency chain's display lane (metal-object-dependency-chain-display in-time; equals Core Animation's DrawableLifetime end for that drawable and precedes the drawable's presented handler by ~0.3 ms), i.e. when the frame with the new character is on the display. Includes everything after the input-method call: GPUI's wait for a frame, drawing, Metal, WindowServer compositing and the panel's refresh. Excludes AppKit's event dispatch before insertText (usually under 1 ms).",
+        "gpui_build": report::gpui_build(),
+        "display": { "builtin": true, "refresh_hz": first["refresh_hz"] },
+        "keys": keys,
+        "chapter_chars": first["chapter_chars"],
+        "budget": {
+            "key_to_present_p95_ms": 16.0,
+            "key_to_glass": "recorded only (benchmarks.md)",
+        },
+    });
+    let mut held = Vec::new();
+    for (name, lat, child, load) in &runs {
+        held.push((*name, !lat.to_glass.is_empty()));
+        results[*name] = json!({
+            "load_average_1m_before": load,
+            "matched": lat.to_glass.len(),
+            "unmatched": lat.unmatched,
+            "handler": child["handler"],
+            "key_to_present": summary(&lat.to_present),
+            "key_to_glass": summary(&lat.to_glass),
+            "present_to_glass": summary(&lat.present_to_glass),
+            "key_to_glass_samples_ms": samples(&lat.to_glass),
+        });
     }
-    let loads: Vec<f64> = runs.iter().flat_map(|r| [r.3, r.4]).collect();
-    fields.push(("conditions", report::conditions(&loads)));
-    fields.push((
-        "budget",
-        J::obj(vec![
-            ("key_to_present_p95_ms", J::Num(16.0)),
-            ("key_to_glass", J::str("recorded only (benchmarks.md)")),
-        ]),
-    ));
-    fields.push((
-        "pass_stock_key_to_present",
-        J::Bool(pass.is_some_and(|p| p.is_finite() && p <= 16.0)),
-    ));
-    let text = J::obj(fields).to_pretty();
-    match out {
-        Some(path) => std::fs::write(path, text).expect("write the evidence file"),
-        None => print!("{text}"),
-    }
+    let held: Vec<(String, bool)> = held
+        .into_iter()
+        .map(|(name, ok)| (format!("the {name} run matched keystrokes to frames"), ok))
+        .collect();
+    let held: Vec<(&str, bool)> = held.iter().map(|(w, ok)| (w.as_str(), *ok)).collect();
+    report::finish(
+        "present",
+        write,
+        &corpus,
+        results,
+        (load_start, load_end),
+        &held,
+    );
 }
 
 #[cfg(test)]

@@ -28,13 +28,18 @@ dr-platform.workspace = true
 dr-testkit.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
 gpui-prose = { workspace = true, features = ["conformance"] }
-# `test-support` gives book-bench GPUI's headless renderer.
+# `test-support` gives book-bench and prose-bench (`headless`, `decor`,
+# `capture`) GPUI's headless renderer.
 gpui_platform = { workspace = true, features = ["test-support"] }
 tempfile.workspace = true
 
 [target.'cfg(target_os = "macos")'.dev-dependencies]
-# book-bench reads the process's memory footprint.
+# book-bench and prose-bench read the process's memory footprint and CPU
+# time; prose-bench also asks AppKit to draw right after an edit
+# (present-now) and drops the input method's marked text.
 libc.workspace = true
+objc2.workspace = true
+raw-window-handle.workspace = true
 
 [[example]]
 name = "edit"
@@ -44,3 +49,9 @@ name = "editor-bench"
 
 [[example]]
 name = "book-bench"
+
+[[example]]
+name = "prose-bench"
+path = "examples/prose-bench/main.rs"
+# Its unit tests (statistics, the xctrace table reader) run with `cargo test`.
+test = true

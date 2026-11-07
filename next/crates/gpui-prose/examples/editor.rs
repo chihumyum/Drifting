@@ -1,5 +1,10 @@
 //! A gpui-prose editor in a window: a few paragraphs to type into.
 //!
+//! The standalone demo: the editor on its own in-memory Loro document
+//! (`LoroSource`), using no `dr-*` crate. The benchmarks run the editor on
+//! Drifting's storage and live in dr-editor (`prose-bench`, `editor-bench`,
+//! `book-bench`).
+//!
 //! ```text
 //! cargo run -p gpui-prose --example editor
 //! ```

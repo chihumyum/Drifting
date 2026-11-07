@@ -2,7 +2,7 @@
 //! `dr_testkit::seed`, the Lite preset): opening chapters, a keystroke
 //! persisted through the workspace session, undo, and an Agent's command
 //! reaching the open editor. No window: the GPUI frame and on-glass
-//! measurements are gpui-prose's `prose-bench` (see f4-editor.md).
+//! measurements are `prose-bench`'s, next to this one (see f4-editor.md).
 //!
 //! ```text
 //! cargo run --release -p dr-editor --example editor-bench            # print

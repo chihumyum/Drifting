@@ -151,7 +151,35 @@
 
 ## 测量
 
-（基准搬家的结果，见下一节；这一批的交互本身没有新的预算项。）
+这一批的交互本身没有新的预算项。数字来自搬家以后的基准程序。
+
+**基准搬家。** `prose-bench` 从 `gpui-prose/examples/` 搬到了 `dr-editor/examples/prose-bench/`：
+
+- **语料**：换成 F8 的重型种子（全书 100 章、约 165 万个字符；单章取最长的一章，22031 字、222 处人物链接）。
+- **怎么打开**：经工作区会话（`SessionSource`）打开，和 Drifting 一样。
+- **证据**：写成 F8 格式，`cargo xtask check` 核对。
+- **超时和负载**：每个子命令都有总超时，负载超过 2 时程序自己标「仅供参考」。
+- **去掉的子命令**：`milestone` 和 `check`，由 `cargo xtask check` 代替。
+- **补丁版的证据**：打了 GPUI 补丁的那次（`PROSE_BENCH_GPUI=g1`），文件名带上补丁名，不覆盖原版的。
+- **留在 `gpui-prose` 的**：`examples/editor.rs`，不依赖任何 `dr-*` 的小例子。
+
+`window`、`present`、`idle` 要占屏，这一轮没跑，等空闲重测。
+
+证据：[f4e-m2-prose-bench-headless.json](../acceptance/f4e-m2-prose-bench-headless.json)、[f4e-m2-prose-bench-decor.json](../acceptance/f4e-m2-prose-bench-decor.json)。M3 Pro，release，2026-11-08，一分钟负载 4.6–4.9（别的会话在编译），程序自己标了仅供参考。
+
+| 项 | 预算 | 数字 | 说明 |
+| --- | --- | ---: | --- |
+| 打开全书（100 章的会话和文档，所有核） | ≤ 200 ms | 冷 52.8 ms，热 14–15 ms | 单线程热开 47.3 ms；镜像加索引约 33 MB |
+| 打开最长的一章 | ≤ 80 ms | 冷 3.6 ms，热 0.43–0.48 ms | |
+| 打一个字（经会话写入、落盘、事件回到镜像），p50 / p95 | 中位数 ≤ 2 ms | 0.30 / 0.34 ms | 同样的字打进内存里的 `LoroSource`：0.010 / 0.015 ms |
+| 在人物链接中间打一个字，p50 / p95 / 最慢 | — | 0.32 / 4.5 / 322 ms | 打的字留在链接里（核对过） |
+| 滚动一帧 p95（CPU，无装饰 → 1000 处装饰） | ≤ 16.7 ms | 0.157 → 0.248 ms | ×1.58 |
+| 打字一帧 p95（编辑加整帧，无装饰 → 有装饰） | ≤ 16 ms | 2.37 → 8.93 ms | ×3.77 |
+
+**两处值得看的：**
+
+- **在人物链接中间打字，尾巴长。** 中位数和正文里一样，但 p95 是正文的十几倍，最慢一次 322 ms。插入和加链接本身只是两次 Loro 操作，多半是每次提交后的派生数据（链接的索引一类）在持有者线程上排在下一次写入前面。这要剖析，记进「待协调」。
+- **有装饰时打字那一帧的 p95 变成约三到四倍。** 滚动只多一点。这是 F4d 画层的事，记进「待协调」。
 
 ## 要求和完成情况
 
@@ -164,7 +192,7 @@
 | 3 | 人物链接的 @ 选择和直接新建要素（经会话写）、dr-text 匹配器做自动链接、断链修复 | 完成 | `tests/assist.rs`、`entity_links` 单元测试、截图 |
 | 4 | 斜杠菜单 | 完成 | `the_slash_menu_turns_the_paragraph`、截图 |
 | 5 | 选区浮条，横向，不做右键菜单 | 完成 | `the_selection_bar_shows_once_the_selection_settles`、截图 |
-| 6 | `prose-bench` 搬进 `dr-editor`、语料换成 seed、证据改 F8 格式、`gpui-prose` 留一个不依赖 `dr-*` 的小例子 | 见「测量」 | |
+| 6 | `prose-bench` 搬进 `dr-editor`、语料换成 seed、证据改 F8 格式、`gpui-prose` 留一个不依赖 `dr-*` 的小例子 | 完成；占屏的三项（`window`、`present`、`idle`）在新语料上还没跑，等空闲重测 | `dr-editor/examples/prose-bench/`、[f4e-m2-prose-bench-headless.json](../acceptance/f4e-m2-prose-bench-headless.json)、[f4e-m2-prose-bench-decor.json](../acceptance/f4e-m2-prose-bench-decor.json) |
 
 ## 待协调
 
@@ -186,7 +214,10 @@
    - 「一批编辑一次提交」做好后，`dr-editor` 的宿主编辑可以合成一次提交。现在 `edit_chapter` 闭包里的每个 `ProseDoc` 操作各是会话的一次提交（插分隔线是三四次），撤销照样是一步。
    - 跨章选区以后，浮条和选择器按 `BookRange` 走。
 5. **F4d：** 还没链上的名字（建议链接）的画法、TODO 标记的样子仍归画层。浮层和画层的悬停卡都在 dr-ui 的 `Popover` 层，同时出现时后画的在上面。
-6. **GPUI 补丁 G9（已记进台账，不急）：** 让视图缓存的判断也看元素的不透明度（`ViewElementCacheKey` 加一项）。有了它，`element_at_opacity` 就不需要宿主传值了。和 G1 一样，等可推送的 fork 再说。
+6. **在人物链接中间打字的长尾**（给 F2 / dr-index，或 F4a 剖析）：见「测量」。先确认是不是每次提交后的派生（链接索引）在持有者线程上排在下一次写入前面；是的话，派生挪到写入之后的空闲时做。
+7. **有装饰时打字那一帧变慢**（给 F4d）：见「测量」。
+8. **文档里的旧命令**（给各自的文档）：`f4d-render.md`（`decor`、`capture`）、`f4c-input.md`（手测命令）、`f8-testkit.md`（「基准换地方」那条已经做完）里还写着 `-p gpui-prose --example prose-bench` 和 `--out`。新写法是 `-p dr-editor --example prose-bench -- <子命令> --write`。`benchmarks.md` 和 `f4-editor.md` 已改。
+9. **GPUI 补丁 G9（已记进台账，不急）：** 让视图缓存的判断也看元素的不透明度（`ViewElementCacheKey` 加一项）。有了它，`element_at_opacity` 就不需要宿主传值了。和 G1 一样，等可推送的 fork 再说。
 
 ## 下一轮怎么拆
 

@@ -1,4 +1,6 @@
-//! Process metrics, display facts and the IME hook, for macOS.
+//! Process metrics, display facts and the editor's platform hooks, for
+//! macOS. (The machine itself and the load average are F8's:
+//! `dr_testkit::evidence`.)
 
 use std::time::Duration;
 
@@ -35,83 +37,6 @@ pub fn phys_footprint() -> u64 {
 #[cfg(not(target_os = "macos"))]
 pub fn phys_footprint() -> u64 {
     0
-}
-
-fn sysctl_string(name: &str) -> String {
-    let name = std::ffi::CString::new(name).unwrap();
-    let mut len = 0usize;
-    // SAFETY: two-step sysctl read into a buffer of the reported size.
-    unsafe {
-        if libc::sysctlbyname(
-            name.as_ptr(),
-            std::ptr::null_mut(),
-            &mut len,
-            std::ptr::null_mut(),
-            0,
-        ) != 0
-        {
-            return String::new();
-        }
-        let mut buf = vec![0u8; len];
-        if libc::sysctlbyname(
-            name.as_ptr(),
-            buf.as_mut_ptr().cast(),
-            &mut len,
-            std::ptr::null_mut(),
-            0,
-        ) != 0
-        {
-            return String::new();
-        }
-        String::from_utf8_lossy(&buf[..len.saturating_sub(1)]).into_owned()
-    }
-}
-
-fn sysctl_u64(name: &str) -> u64 {
-    let name = std::ffi::CString::new(name).unwrap();
-    let mut value = 0u64;
-    let mut len = std::mem::size_of::<u64>();
-    // SAFETY: reads a 64-bit integer sysctl.
-    unsafe {
-        libc::sysctlbyname(
-            name.as_ptr(),
-            (&mut value as *mut u64).cast(),
-            &mut len,
-            std::ptr::null_mut(),
-            0,
-        );
-    }
-    value
-}
-
-/// The one-minute load average (other work on the machine skews frame times).
-pub fn load_average() -> f64 {
-    let mut loads = [0f64; 3];
-    // SAFETY: getloadavg writes at most three doubles into the array we own.
-    let n = unsafe { libc::getloadavg(loads.as_mut_ptr(), 3) };
-    if n >= 1 {
-        (loads[0] * 100.0).round() / 100.0
-    } else {
-        f64::NAN
-    }
-}
-
-pub struct Machine {
-    pub cpu: String,
-    pub model: String,
-    pub cores: u64,
-    pub memory_gb: u64,
-    pub os: String,
-}
-
-pub fn machine() -> Machine {
-    Machine {
-        cpu: sysctl_string("machdep.cpu.brand_string"),
-        model: sysctl_string("hw.model"),
-        cores: sysctl_u64("hw.ncpu"),
-        memory_gb: sysctl_u64("hw.memsize") / (1 << 30),
-        os: sysctl_string("kern.osproductversion"),
-    }
 }
 
 #[cfg(target_os = "macos")]
