@@ -46,7 +46,12 @@ impl Workspace {
         let editor = self
             .editors
             .values()
-            .filter_map(|p| p.editor.clone())
+            // The whole book's editor takes no comments yet (one chapter's
+            // editor does).
+            .filter_map(|p| match &p.view {
+                Some(super::editors::PageView::Doc(e)) => Some(e.clone()),
+                _ => None,
+            })
             .find(|e| {
                 let prose = e.read(cx).editor().clone();
                 prose.read(cx).focus_handle(cx).contains_focused(window, cx)
