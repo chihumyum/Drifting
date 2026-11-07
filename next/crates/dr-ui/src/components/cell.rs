@@ -38,6 +38,8 @@ pub struct SandCell {
     id: ElementId,
     label: SharedString,
     mark: Option<sand::Kind>,
+    icon: Option<sand::Icon>,
+    dense: bool,
     hollow: bool,
     color: Option<Rgb>,
     selected: bool,
@@ -54,6 +56,8 @@ impl SandCell {
             id: id.into(),
             label: label.into(),
             mark: None,
+            icon: None,
+            dense: false,
             hollow: false,
             color: None,
             selected: false,
@@ -72,6 +76,21 @@ impl SandCell {
     }
 
     /// The mark drawn hollow (a chapter not yet begun).
+    /// A brush icon where the mark goes (an action, not a thing): the
+    /// chapter end's 「标为完成」, 「新建下一章」.
+    pub fn icon(mut self, icon: sand::Icon) -> Self {
+        self.icon = Some(icon);
+        self
+    }
+
+    /// The short row of a small action list (the chapter end's ⁂ menu,
+    /// `.chapter-end-menu__item`): 22px, the index face, ink 3, the icon
+    /// 14px and 6px from the words.
+    pub fn dense(mut self) -> Self {
+        self.dense = true;
+        self
+    }
+
     pub fn hollow(mut self, hollow: bool) -> Self {
         self.hollow = hollow;
         self
@@ -174,27 +193,39 @@ impl RenderOnce for SandCell {
             None => frame,
         };
         let ring_hover = ring.clone();
+        let dense = self.dense;
+        let ink = if selected {
+            p.ink(1)
+        } else if dense {
+            p.ink(3)
+        } else {
+            p.ink(2)
+        };
+        let icon = self
+            .icon
+            .map(|i| sand::icon(i, if dense { 14.0 } else { 16.0 }, ink.solid()));
         div()
             .id(self.id.clone())
             .relative()
-            .h(px(s.row_height))
-            .px(px(10.0))
+            .h(px(if dense { 22.0 } else { s.row_height }))
+            .px(px(if dense { 8.0 } else { 10.0 }))
             .flex()
             .flex_row()
             .items_center()
-            .gap(px(8.0))
+            .gap(px(if dense { 6.0 } else { 8.0 }))
             .rounded(px(radius::SM))
-            .font_role(self.font)
-            .type_px(s.secondary, s.line_body)
-            .text_color(if selected { p.ink(1) } else { p.ink(2) }.solid())
+            .font_role(if dense { Role::Index } else { self.font })
+            .type_px(s.secondary, if dense { 18.0 } else { s.line_body })
+            .text_color(ink.solid())
             .child(glass::layer(ring, spec, theme))
             .child(frame)
             .children(mark)
+            .children(icon)
             .child(
                 div()
-                    .flex_1()
-                    .min_w_0()
-                    .overflow_hidden()
+                    // A dense row sizes to its words (a column of actions
+                    // as wide as its longest); a list row fills its width.
+                    .when(!dense, |el| el.flex_1().min_w_0().overflow_hidden())
                     .whitespace_nowrap()
                     .when(self.italic, |el| el.italic())
                     .child(self.label.clone()),

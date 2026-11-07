@@ -29,12 +29,11 @@ use gpui::{
     ElementInputHandler, Entity, EntityInputHandler, EventEmitter, FocusHandle, Focusable,
     GlobalElementId, InspectorElementId, InteractiveElement, IntoElement, KeyBinding, LayoutId,
     MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, PaintQuad, ParentElement, Pixels,
-    Point, Render, ShapedLine, SharedString, Style, Styled, Task, TextAlign, TextRun, TextStyle,
+    Point, Render, SharedString, Style, Styled, Task, TextAlign, TextRun, TextStyle,
     UTF16Selection, UnderlineStyle, Window, actions, fill, point, prelude::FluentBuilder as _, px,
     relative, size,
 };
 use gpui_ime::{Change, LineComposer};
-use prose_linebreak as linebreak;
 use unicode_segmentation::UnicodeSegmentation as _;
 
 use super::{
@@ -44,7 +43,11 @@ use super::{
     },
     ime::{self, Graphemes},
 };
-use crate::{theme::Theme, tokens::color::Palette};
+use crate::{
+    text::{Paragraph, shape},
+    theme::Theme,
+    tokens::color::Palette,
+};
 
 actions!(
     dr_text_area,
@@ -86,6 +89,15 @@ pub fn bindings() -> Vec<KeyBinding> {
     ]
 }
 
+/// What the multi-line input says besides [`FieldEvent`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AreaEvent {
+    /// ↓ with the caret already at the very end: nothing below in the
+    /// field, so the owner may move on (a chapter title hands the caret to
+    /// the text).
+    PastEnd,
+}
+
 pub struct TextArea {
     focus: FocusHandle,
     composer: LineComposer,
@@ -104,6 +116,7 @@ pub struct TextArea {
 }
 
 impl EventEmitter<FieldEvent> for TextArea {}
+impl EventEmitter<AreaEvent> for TextArea {}
 
 impl Focusable for TextArea {
     fn focus_handle(&self, _: &App) -> FocusHandle {
@@ -352,6 +365,12 @@ impl TextArea {
     }
 
     fn down(&mut self, _: &Down, window: &mut Window, cx: &mut Context<Self>) {
+        let at_end = self.composer.selection().is_empty()
+            && self.composer.cursor() == self.composer.text().len();
+        if at_end && !self.composer.is_composing() {
+            cx.emit(AreaEvent::PastEnd);
+            return;
+        }
         self.vertical(true, false, window, cx);
     }
 
@@ -727,92 +746,6 @@ impl Render for TextArea {
 }
 
 // ----- layout ----------------------------------------------------------------------------
-
-/// One paragraph shaped as a single line, and the rows it breaks into
-/// (paragraph-relative byte ranges, each with the x it starts at).
-struct Paragraph {
-    start: usize,
-    line: ShapedLine,
-    breaks: Vec<(Range<usize>, Pixels)>,
-}
-
-/// The part of `runs` (covering the whole text) that falls in `range`.
-fn runs_in(runs: &[TextRun], range: Range<usize>) -> Vec<TextRun> {
-    let mut out = Vec::new();
-    let mut at = 0;
-    for run in runs {
-        let (a, b) = (at.max(range.start), (at + run.len).min(range.end));
-        if a < b {
-            out.push(TextRun {
-                len: b - a,
-                ..run.clone()
-            });
-        }
-        at += run.len;
-    }
-    out
-}
-
-/// Shapes `text` a paragraph at a time and breaks each into rows `wrap`
-/// wide by the editor's Chinese line breaking (`prose-linebreak`): no
-/// 「。」 or closing quote starts a row, Latin words stay whole, and a mark
-/// that may not start the next row hangs past the edge rather than pulling
-/// a character down with it.
-fn shape(
-    text: &str,
-    runs: &[TextRun],
-    font_size: Pixels,
-    wrap: Option<Pixels>,
-    window: &Window,
-) -> Vec<Paragraph> {
-    let starts = std::iter::once(0).chain(text.match_indices('\n').map(|(i, _)| i + 1));
-    let ends = text
-        .match_indices('\n')
-        .map(|(i, _)| i)
-        .chain(std::iter::once(text.len()));
-    starts
-        .zip(ends)
-        .map(|(start, end)| {
-            let para = &text[start..end];
-            let line = window.text_system().shape_line(
-                SharedString::from(para.to_string()),
-                font_size,
-                &runs_in(runs, start..end),
-                None,
-            );
-            let breaks = match wrap {
-                Some(wrap) => {
-                    // One (byte, x) per cluster, in byte order.
-                    let mut glyphs: Vec<(usize, f32)> = line
-                        .runs
-                        .iter()
-                        .flat_map(|r| r.glyphs.iter())
-                        .map(|g| (g.index, f32::from(g.position.x)))
-                        .collect();
-                    glyphs.sort_by_key(|g| g.0);
-                    glyphs.dedup_by_key(|g| g.0);
-                    linebreak::break_rows(
-                        para,
-                        &glyphs,
-                        f32::from(line.width()),
-                        f32::from(wrap),
-                        f32::from(font_size),
-                        linebreak::Overflow::Hang,
-                    )
-                    .into_iter()
-                    .map(|row| (row.range, px(row.start_x)))
-                    .collect()
-                }
-                None => vec![(0..para.len(), px(0.0))],
-            };
-            Paragraph {
-                start,
-                line,
-                breaks,
-            }
-        })
-        .collect()
-}
 
 /// One row on screen: the part of a paragraph it shows (text offsets; the
 /// end leaves out the newline) and where it sits.
