@@ -305,6 +305,31 @@
     }
   },
   "settings": {
+    "about": {
+      "channel": "リリースチャンネル",
+      "channelPreAlpha": "Alpha",
+      "contact": "連絡先",
+      "credits": "謝辞とライセンス",
+      "emailTeam": "チームにメールする",
+      "engine": "エンジン",
+      "knownIssues": "既知の問題",
+      "knownIssuesDesc": "現在のAlpha版の既知の制限",
+      "license": "クライアントのライセンス",
+      "licenseDesc": "GNU AGPL v3以降",
+      "openSource": "オープンソースの依存ライブラリ",
+      "sourceCode": "ソースコード",
+      "sourceCodeDesc": "このAGPLクライアントに対応するソースコード",
+      "sub": "最高の執筆体験を",
+      "support": "Alphaサポート",
+      "supportDesc": "問題の解決方法と安全な報告手順",
+      "tagline": "夜更けまで書き続ける人へ。",
+      "title": "Drifting",
+      "version": "バージョン",
+      "viewLicense": "ライセンスを見る",
+      "viewList": "一覧を見る",
+      "viewSource": "ソースを見る",
+      "writeEmail": "メールを作成"
+    },
     "appearance": {
       "dark": "ダーク",
       "interface_text_large": "大きめ",
@@ -318,6 +343,9 @@
       "system": "システムに合わせる",
       "theme": "テーマ",
       "theme_desc": "ライト、ダーク、またはシステムに合わせる。"
+    },
+    "common": {
+      "open_in_browser": "ブラウザで開く"
     },
     "editor": {
       "auto_immersive": "入力すると没入執筆",
@@ -335,11 +363,17 @@
       "page_width_desc": "エディタの用紙幅です。本文は固定の余白を除いた幅に収まります。",
       "paragraph_spacing": "段落の間隔",
       "paragraph_spacing_desc": "本文段落と各レベルの見出しに共通の間隔です。本文の文字サイズを基準とし、エディタ表示だけに適用します。",
+      "preview": "プレビュー",
+      "preview_h1": "見出し1",
+      "preview_p1": "沈黙が、石を覆う潮のように二人の間に広がった。やがて彼女が口を開いた。風にさらわれそうな声は、彼がかろうじて聞き取れるところに落ちた。",
+      "preview_p2": "「戻ってくる？」彼はすぐには答えなかった。海に沈む夕日を見つめ、長い間を置いてうなずいた。それが約束なのか、憐れみなのか、自分にもわからなかった。",
+      "reset_style": "推奨スタイルに戻す",
       "typesetting": "組版",
       "typewriter_mode": "タイプライターモード",
       "typewriter_mode_desc": "入力やカーソル移動中、現在の行を画面内の一定位置に保ちます。エディタ表示のみに適用します。"
     },
     "groups": {
+      "about": "このアプリについて",
       "control": "管理",
       "preferences": "環境設定"
     },
@@ -390,6 +424,7 @@
           "label": "没入執筆"
         }
       },
+      "allActionsShort": "全操作・{{count}}",
       "conflict": "{{accelerator}}は「{{action}}」で使用中です",
       "pressNewCombo": "新しい組み合わせを押す…",
       "recording": "記録中",
@@ -401,23 +436,32 @@
       "ui_locale_desc": "メニュー、ボタン、メッセージの言語です。執筆内容には影響しません。"
     },
     "privacy": {
+      "copyDiagnostics": "概要をコピー",
       "crashLogs": "障害の診断情報を自動送信",
       "crashLogsDesc": "機密情報を除いたエラー箇所、バージョン、環境を開発者へ送信し、障害の調査に役立てます。原稿は含みません。いつでも無効にできます。",
-      "dataUsage": "データの利用"
+      "dataUsage": "データの利用",
+      "diagnostics": "機密情報を除いた診断概要",
+      "diagnosticsCopied": "機密情報を除いた診断概要をコピーしました。",
+      "diagnosticsCopyFailed": "クリップボードへ書き込めません。アクセス権限がない可能性があります。",
+      "diagnosticsDesc": "バージョン、環境、機能の利用可否、同期件数・エラー種別、更新状態をコピーします。原稿、認証情報、作品ID、絶対パスは含まず、自動送信もしません。",
+      "noteLocal": "このビルドはDriftingのサーバーへ接続せず、作品は端末に残ります。AI・音声文字起こしは端末から選択した提供元へ直接送られ、その提供元のデータ・学習規約が適用されます。追加したリモートMCP拡張もネットワークを使います。"
     },
     "rail": {
+      "about_app": "Driftingについて",
       "appearance": "外観",
       "editor": "エディタ",
       "keys": "キーボード",
-      "language": "言語",
-      "privacy": "プライバシー",
-      "updates": "アップデート"
+      "language": "言語"
     },
     "search_placeholder": "設定を検索…",
+    "sync": {
+      "local_data": "ローカルデータ",
+      "local_sub": "Driftingのアカウントやクラウドは使いません。いつでも読めるコピーを出力できます。",
+      "local_title": "作品はこの端末に。"
+    },
     "title": "設定",
     "update": {
-      "channel_desc": "Apple Silicon・macOS 13以降",
-      "current_version": "現在のバージョン"
+      "channel_desc": "Apple Silicon・macOS 13以降"
     }
   },
   "sidebarLayout": {

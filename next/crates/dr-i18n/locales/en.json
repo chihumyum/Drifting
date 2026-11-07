@@ -305,6 +305,31 @@
     }
   },
   "settings": {
+    "about": {
+      "channel": "Channel",
+      "channelPreAlpha": "Alpha",
+      "contact": "Contact",
+      "credits": "Credits and licenses",
+      "emailTeam": "Email the team",
+      "engine": "Engine",
+      "knownIssues": "Known issues",
+      "knownIssuesDesc": "Known limitations of the current Alpha",
+      "license": "Client license",
+      "licenseDesc": "GNU AGPL v3 or later",
+      "openSource": "Open-source dependencies",
+      "sourceCode": "Source code",
+      "sourceCodeDesc": "Corresponding source for this AGPL client",
+      "sub": "The ultimate writing experience",
+      "support": "Alpha support",
+      "supportDesc": "Troubleshooting and safe reporting instructions",
+      "tagline": "Built for writers awake deep into the night.",
+      "title": "Drifting",
+      "version": "Version",
+      "viewLicense": "View license",
+      "viewList": "View list",
+      "viewSource": "View source",
+      "writeEmail": "Write email"
+    },
     "appearance": {
       "dark": "Dark",
       "interface_text_large": "Larger",
@@ -318,6 +343,9 @@
       "system": "Follow system",
       "theme": "Theme",
       "theme_desc": "Light, dark, or follow the system."
+    },
+    "common": {
+      "open_in_browser": "Open in browser"
     },
     "editor": {
       "auto_immersive": "Immersive writing as you type",
@@ -335,11 +363,17 @@
       "page_width_desc": "The paper width in the editor; prose fills it with fixed margins.",
       "paragraph_spacing": "Paragraph spacing",
       "paragraph_spacing_desc": "Shared spacing for body paragraphs and all heading levels, relative to the body font size; editor view only.",
+      "preview": "Preview",
+      "preview_h1": "Heading 1",
+      "preview_p1": "Silence spread between them like tidewater over stone. At last she spoke, her voice almost carried away by the wind, landing somewhere he could barely hear.",
+      "preview_p2": "“Will you come back?” He did not answer at once. He watched the sun sink into the sea, then nodded after a long while, though even he could not tell whether it was a promise or mercy.",
+      "reset_style": "Restore recommended style",
       "typesetting": "Typesetting",
       "typewriter_mode": "Typewriter mode",
       "typewriter_mode_desc": "Keeps the active prose line at a stable viewport position while typing or moving the caret. Editor view only."
     },
     "groups": {
+      "about": "About",
       "control": "Control",
       "preferences": "Preferences"
     },
@@ -390,6 +424,7 @@
           "label": "Immersive writing"
         }
       },
+      "allActionsShort": "All actions · {{count}}",
       "conflict": "{{accelerator}} is already used by \"{{action}}\"",
       "pressNewCombo": "Press new combo…",
       "recording": "Recording",
@@ -401,23 +436,32 @@
       "ui_locale_desc": "The language of menus, buttons and messages. Your writing is not affected."
     },
     "privacy": {
+      "copyDiagnostics": "Copy summary",
       "crashLogs": "Send fault diagnostics automatically",
       "crashLogsDesc": "Send sanitized error locations, version and platform to the maintainer to diagnose failures. No manuscript text is included. You can turn this off at any time.",
-      "dataUsage": "Data use"
+      "dataUsage": "Data use",
+      "diagnostics": "Sanitized diagnostic summary",
+      "diagnosticsCopied": "Sanitized diagnostic summary copied.",
+      "diagnosticsCopyFailed": "Could not write to the clipboard. Clipboard permission may be unavailable.",
+      "diagnosticsDesc": "Copy version, platform, feature availability, sync counts/error categories, and update state. It contains no manuscript, credential, project identifier, or absolute path and is never uploaded automatically.",
+      "noteLocal": "This build never contacts a Drifting server; your work stays on this device. AI and voice-transcription requests go straight from this device to the provider you chose, under that provider's data and training terms; remote MCP extensions you add also use the network."
     },
     "rail": {
+      "about_app": "About Drifting",
       "appearance": "Appearance",
       "editor": "Editor",
       "keys": "Keyboard",
-      "language": "Language",
-      "privacy": "Privacy",
-      "updates": "Updates"
+      "language": "Language"
     },
     "search_placeholder": "Search settings…",
+    "sync": {
+      "local_data": "Local data",
+      "local_sub": "No Drifting account or hosted cloud is used. Export a readable copy whenever you want.",
+      "local_title": "Your work stays on this device."
+    },
     "title": "Settings",
     "update": {
-      "channel_desc": "Apple Silicon · macOS 13+",
-      "current_version": "Current version"
+      "channel_desc": "Apple Silicon · macOS 13+"
     }
   },
   "sidebarLayout": {

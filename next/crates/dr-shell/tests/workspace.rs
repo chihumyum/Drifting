@@ -1075,6 +1075,31 @@ fn settings_take_effect_and_reach_the_file(cx: &mut TestAppContext) {
     assert_eq!(raw["device"]["appearance.interface_text_size"], "large");
 }
 
+/// M08: 还原推荐样式 puts every editor setting back; the diagnostics
+/// summary names the version and the platform and nothing of the author's.
+#[gpui::test]
+fn settings_reset_the_editor_style_and_copy_a_plain_summary(cx: &mut TestAppContext) {
+    use dr_shell::settings::panel::{diagnostics_summary, reset_editor_style, version_line};
+    let (_view, cx) = setup(cx, SettingsFile::in_memory(), None);
+    cx.update(|_, cx| {
+        Settings::update(cx, |f| {
+            f.set(registry::FONT_SIZE, Value::from(22), None).unwrap();
+            f.set(registry::PAGE_WIDTH, Value::from(900), None).unwrap();
+        });
+        assert_eq!(Settings::read(cx).number(registry::FONT_SIZE), 22.0);
+        reset_editor_style(cx);
+        let file = Settings::read(cx);
+        assert_eq!(file.number(registry::FONT_SIZE), 17.0);
+        assert_eq!(file.number(registry::PAGE_WIDTH), 720.0);
+        let summary = diagnostics_summary(cx);
+        assert!(summary.starts_with("Drifting 0.2.0-dev"), "{summary}");
+        assert!(summary.contains(std::env::consts::OS));
+        assert!(!summary.contains('/'), "no paths: {summary}");
+        assert!(version_line(cx).starts_with("0.2.0-dev · "));
+    });
+    cx.update(|window, cx| window.draw(cx).clear(cx));
+}
+
 #[gpui::test]
 fn quitting_runs_the_hooks_and_writes_the_file_first(cx: &mut TestAppContext) {
     let dir = tempfile::tempdir().unwrap();

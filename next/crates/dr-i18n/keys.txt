@@ -76,7 +76,6 @@ settings.rail.appearance
 settings.rail.editor
 settings.rail.language
 settings.rail.keys
-settings.rail.privacy
 settings.appearance.theme
 settings.appearance.theme_desc
 settings.appearance.light
@@ -148,8 +147,6 @@ windowCaption.maximize
 windowCaption.restore
 
 # Settings → Updates (the version row; channel_desc has a Windows overlay)
-settings.rail.updates
-settings.update.current_version
 settings.update.channel_desc
 
 # The paper's corner (M03): the ⋯ menu, a chapter's writing status, the
@@ -306,3 +303,47 @@ findPanel.bookPlaceholder
 findPanel.previousTitle
 findPanel.nextTitle
 findPanel.closeTitle
+
+# Settings, M08's first batch: 本地数据, 关于 Drifting, the editor's preview
+# and reset, the shortcuts' count
+settings.groups.about
+settings.rail.about_app
+settings.sync.local_data
+settings.sync.local_title
+settings.sync.local_sub
+settings.privacy.diagnostics
+settings.privacy.diagnosticsDesc
+settings.privacy.copyDiagnostics
+settings.privacy.diagnosticsCopied
+settings.privacy.diagnosticsCopyFailed
+settings.privacy.noteLocal
+settings.about.title
+settings.about.sub
+settings.about.version
+settings.about.channel
+settings.about.channelPreAlpha
+settings.about.engine
+settings.about.credits
+settings.about.openSource
+settings.about.viewList
+settings.about.sourceCode
+settings.about.sourceCodeDesc
+settings.about.viewSource
+settings.about.license
+settings.about.licenseDesc
+settings.about.viewLicense
+settings.about.knownIssues
+settings.about.knownIssuesDesc
+settings.about.contact
+settings.about.support
+settings.about.supportDesc
+settings.about.emailTeam
+settings.about.writeEmail
+settings.about.tagline
+settings.common.open_in_browser
+settings.editor.reset_style
+settings.editor.preview
+settings.editor.preview_h1
+settings.editor.preview_p1
+settings.editor.preview_p2
+settings.keys.allActionsShort

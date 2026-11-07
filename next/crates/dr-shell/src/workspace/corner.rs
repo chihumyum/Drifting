@@ -93,7 +93,7 @@ pub fn corner(
     );
 
     let mut tools: Vec<AnyElement> = Vec::new();
-    if target.is_some_and(|t| crate::book::doc_of(t).is_some()) {
+    if target.is_some() {
         let toggle = ws.clone();
         let shown = !w.outline_hidden;
         tools.push(

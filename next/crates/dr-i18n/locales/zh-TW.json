@@ -305,6 +305,31 @@
     }
   },
   "settings": {
+    "about": {
+      "channel": "發行通道",
+      "channelPreAlpha": "Alpha",
+      "contact": "聯絡",
+      "credits": "致謝與授權",
+      "emailTeam": "寄電子郵件給團隊",
+      "engine": "引擎",
+      "knownIssues": "已知問題",
+      "knownIssuesDesc": "目前 Alpha 版的已知限制",
+      "license": "用戶端授權",
+      "licenseDesc": "GNU AGPL 第 3 版或更新版本",
+      "openSource": "開放原始碼相依套件",
+      "sourceCode": "原始碼",
+      "sourceCodeDesc": "此 AGPL 用戶端對應的原始碼",
+      "sub": "極致寫作體驗",
+      "support": "Alpha 支援",
+      "supportDesc": "疑難排解與安全回報說明",
+      "tagline": "獻給深夜仍清醒寫作的人。",
+      "title": "Drifting",
+      "version": "版本",
+      "viewLicense": "檢視授權",
+      "viewList": "檢視清單",
+      "viewSource": "檢視原始碼",
+      "writeEmail": "撰寫電子郵件"
+    },
     "appearance": {
       "dark": "深色",
       "interface_text_large": "較大",
@@ -318,6 +343,9 @@
       "system": "跟隨系統",
       "theme": "主題",
       "theme_desc": "淺色、深色，或跟隨系統。"
+    },
+    "common": {
+      "open_in_browser": "在瀏覽器中開啟"
     },
     "editor": {
       "auto_immersive": "打字時自動沉浸",
@@ -335,11 +363,17 @@
       "page_width_desc": "編輯器中的紙張寬度；正文會在固定邊距內填滿可用寬度。",
       "paragraph_spacing": "段落間距",
       "paragraph_spacing_desc": "正文段落與各級標題共用的間距，以正文字級為基準；僅影響編輯器畫面。",
+      "preview": "預覽",
+      "preview_h1": "標題 1",
+      "preview_p1": "沉默像潮水漫過石頭般在兩人之間鋪開。終於，她開口了，聲音幾乎被風吹散，落在他勉強聽得見的地方。",
+      "preview_p2": "「你會回來嗎？」他沒有立刻回答。他望著太陽沉入海裡，過了很久才點頭，連他自己也分不清那是承諾還是憐憫。",
+      "reset_style": "還原建議樣式",
       "typesetting": "排版",
       "typewriter_mode": "打字機模式",
       "typewriter_mode_desc": "輸入或移動游標時，將目前正文行維持在畫面的固定位置；僅影響編輯器畫面。"
     },
     "groups": {
+      "about": "關於",
       "control": "管理",
       "preferences": "偏好設定"
     },
@@ -390,6 +424,7 @@
           "label": "沉浸寫作"
         }
       },
+      "allActionsShort": "全部操作 · {{count}}",
       "conflict": "{{accelerator}} 已由「{{action}}」使用",
       "pressNewCombo": "按下新的組合鍵…",
       "recording": "錄製中",
@@ -401,23 +436,32 @@
       "ui_locale_desc": "選單、按鈕與訊息的語言，不會影響你的寫作內容。"
     },
     "privacy": {
+      "copyDiagnostics": "複製摘要",
       "crashLogs": "自動傳送故障診斷資訊",
       "crashLogsDesc": "向維護者傳送去除敏感資訊的錯誤位置、版本及平台資料，以利診斷。不含書稿文字，可隨時關閉。",
-      "dataUsage": "資料使用"
+      "dataUsage": "資料使用",
+      "diagnostics": "去除敏感資訊的診斷摘要",
+      "diagnosticsCopied": "已複製去除敏感資訊的診斷摘要。",
+      "diagnosticsCopyFailed": "無法寫入剪貼簿，可能未取得剪貼簿權限。",
+      "diagnosticsDesc": "複製版本、平台、功能可用狀態、同步計數與錯誤類型，以及更新狀態。不含書稿、憑證、作品識別碼或絕對路徑，也不會自動上傳。",
+      "noteLocal": "此版本不會連接 Drifting 伺服器，作品留在這部裝置上。AI 與語音轉錄請求直接從本裝置送往所選服務商，並適用其資料與訓練條款；你新增的遠端 MCP 擴充功能也會使用網路。"
     },
     "rail": {
+      "about_app": "關於 Drifting",
       "appearance": "外觀",
       "editor": "編輯器",
       "keys": "鍵盤",
-      "language": "語言",
-      "privacy": "隱私",
-      "updates": "更新"
+      "language": "語言"
     },
     "search_placeholder": "搜尋設定…",
+    "sync": {
+      "local_data": "本機資料",
+      "local_sub": "不使用 Drifting 帳號或託管雲端，隨時可匯出可讀副本。",
+      "local_title": "作品留在這部裝置上。"
+    },
     "title": "設定",
     "update": {
-      "channel_desc": "Apple Silicon · macOS 13 以上",
-      "current_version": "目前版本"
+      "channel_desc": "Apple Silicon · macOS 13 以上"
     }
   },
   "sidebarLayout": {

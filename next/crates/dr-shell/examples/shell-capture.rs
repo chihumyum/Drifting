@@ -303,6 +303,8 @@ fn reset(ws: &mut Workspace, window: &mut gpui::Window, cx: &mut Context<Workspa
     ws.notifications_open = false;
     ws.immersive = false;
     ws.corner_menu = None;
+    ws.account_open = false;
+    ws.find = None;
     ws.chapters_by_book = false;
     ws.outline_hidden = false;
     ws.dock_locked = false;
@@ -393,6 +395,51 @@ fn capture(dir: PathBuf) -> Result<()> {
         });
         still(&mut h)?;
         h.save(&dir, &format!("outline-{a}.png"))?;
+
+        // The find bar over the first chapter: 「钟」, the first match
+        // selected.
+        h.set(|ws, window, cx| {
+            everyday(ws, window, cx);
+        });
+        still(&mut h)?;
+        h.set(|ws, window, cx| {
+            ws.open_find(window, cx);
+            if let Some(bar) = ws.find.clone() {
+                bar.update(cx, |b, cx| b.set_query("钟", window, cx));
+            }
+        });
+        still(&mut h)?;
+        h.save(&dir, &format!("find-{a}.png"))?;
+
+        // The whole book in one editor (M05), its acts and chapters in the
+        // outline rail.
+        h.set(|ws, window, cx| {
+            reset(ws, window, cx);
+            ws.open(Target::Book, Open::KEEP, cx);
+        });
+        still(&mut h)?;
+        h.save(&dir, &format!("whole-book-{a}.png"))?;
+
+        // The left sidebar's account menu (the bookshelf's, shared).
+        h.set(|ws, window, cx| {
+            everyday(ws, window, cx);
+            ws.account_open = true;
+        });
+        still(&mut h)?;
+        h.save(&dir, &format!("account-menu-{a}.png"))?;
+
+        // Settings: 本地数据 and 关于 Drifting (M08).
+        for (query, name) in [("本地数据", "settings-local"), ("关于", "settings-about")] {
+            h.set(move |ws, window, cx| {
+                everyday(ws, window, cx);
+                ws.open_settings(window, cx);
+                if let Some(panel) = ws.settings.clone() {
+                    panel.update(cx, |p, cx| p.set_query(query, cx));
+                }
+            });
+            still(&mut h)?;
+            h.save(&dir, &format!("{name}-{a}.png"))?;
+        }
 
         // Immersive writing: only the paper.
         h.set(|ws, window, cx| {

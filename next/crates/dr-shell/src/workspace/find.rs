@@ -160,6 +160,13 @@ impl FindBar {
         }
     }
 
+    /// Puts `query` in the field and searches for it (as typing it would).
+    pub fn set_query(&mut self, query: &str, window: &mut Window, cx: &mut Context<Self>) {
+        let text = query.to_owned();
+        self.field.update(cx, |f, cx| f.set_text(text, cx));
+        self.search(query, window, cx);
+    }
+
     /// The query changed: the first match at or after the caret.
     pub fn search(&mut self, query: &str, window: &mut Window, cx: &mut Context<Self>) {
         let options = self.options();
