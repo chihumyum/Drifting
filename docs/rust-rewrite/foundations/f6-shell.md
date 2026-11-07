@@ -241,7 +241,7 @@ app.run(|cx| {
 | `book` | 各面板、稿纸 | `Book::{load(lib, id), load_any(lib, preferred), title, exists, mark, chapters_of, unaffiliated, chapter_titles}`（F3 列表的一份快照）、`PageText::load(lib, target, chapters)`（一页的段落：纯文本 + 标题级别）、`doc_of(target)`、`target(NavTarget)`、`color_of`、`seal_of`；`impl Catalog for BookCatalog` |
 | `workspace` | 各面板、F8 的调试桥 | `Workspace::{open, open_link, toggle_left, toggle_right, toggle_super_view, open_settings, dismiss, top_layer, layout, on_library_events, editor_of(target), run_command(name, input, cx)}`、字段 `library`、`book_id`、`book`、`editors`（每个打开标签的 `PageEditor { doc, editor: Option<Entity<ChapterEditor>>, loading, failed }`）、`pages`（只剩通览全书的只读页 `PageSlot`）、`with_workspace(cx, f)`、`title_of(book, target, cx)`、`BookLayout`、`EditorLook::size_of(heading)` |
 | `workspace::editors` | 以后要在稿纸上加东西的模块（批注栏、大纲栏、沉浸写作） | `editor_settings(cx) -> EditorSettings`（设置文件里的编辑器设置）、`base_style(&theme) -> ProseStyle`（主题的颜色和正文字体）、`forward_edit_actions(el)`（编辑菜单的命令转给里面的编辑器）、`PAGE_GUTTER`、`TITLE_SIZE`；`pub use dr_editor::{ChapterEditor, ChapterEditorEvent, EditorSettings}` |
-| `keymap` | 想加快捷键的模块 | 在 `REGISTRY` 加一行（动作名、默认键、上下文、要不要列进设置）；`apply(&overrides, cx)`、`display(keys, os)`、`portable(keystroke, os)`、`conflict(...)` |
+| `keymap` | 想加快捷键的模块 | 在 `REGISTRY` 加一行（动作名、默认键、上下文、要不要列进设置）；模块自己上下文里的键（对话框的 ⌘↵、列表的 ↑↓，不是作者能改的快捷键）用 `add_bindings(cx, \|\| vec![KeyBinding::new(…)])`，`apply` 重建键位表时会一起重新绑上；`apply(&overrides, cx)`、`display(keys, os)`、`portable(keystroke, os)`、`conflict(...)` |
 | `settings` | 想加设置的模块、M37 偏好同步、M10 导入映射 | 在 `registry::REGISTRY` 加一项；`Settings::{read(cx), update(cx, \|file\| …), flush(cx), locale(cx)}`；`SettingsFile::{get, bool, str, number, set, reset, is_changed, key_bindings, set_key_binding, layout, set_layout, last_book, set_last_book, save}` |
 | `notifications` | 同步、分享、整理、Markdown 文件夹、更新 | `Notifications::post(Source::…, 文字, cx)`、`post_at`、`remove`、`clear`、`items`、`unread` |
 | `quit` | F2 / F3 / 同步 / 更新 | `quit::before_quit(cx, \|cx\| …)`：退出前要做完的事登记在这里；`quit::request(cx)` |
@@ -392,7 +392,10 @@ M3 Pro，release 构建。离屏的帧时间是「重新渲染 + 排版 + 绘制
    - 格式键（⌘B、⌘1…）`bind_keys` 和外壳注册表里各有一份，同一个动作同一个上下文，不冲突；以后可以从 `bind_keys` 里删掉。
 5. **F7**：首次启动时故障诊断的那一句说明仍属于首次体验；Windows 上 `set_app_identity` 仍等实测。
 6. **F8**：外壳的测量证据是 `acceptance/f6-m3-shell-bench.json`，由 `examples/shell-capture.rs --bench` 写；截图和测量的离屏写法可以并进 dr-testkit。`cargo xtask dev` 可以加一个 `--seed <预设>`，把「先生成库再启动」并成一步（现在是两条命令，见「怎么看」）。
-7. **监管会话**：
+7. **合并时（给监管会话，关于 M01/M02、M06/M07 那两个会话）**：
+   - 它们的笔记里都提到 `keymap::apply` 会清掉模块自己的键位（M01 的对话框 ⌘↵、M06 的搜索面板 ↑↓ 只好用 `on_key_down`）。外壳现在有了 `keymap::add_bindings`，合并后可以换回键位。
+   - M06/M07 请编辑器报告实时字数（`dr_view_stats::LiveWords::set_doc`）。编辑器现在归外壳管，合并后在 `workspace/editors.rs` 的 `on_editor_event` 里 `Edited` 那一支接上即可。
+8. **监管会话**：
    - 菜单本地化仍要先给 GPUI 打个小补丁，这一轮菜单保持英文。
    - `next/README.md` 的开发开关表可以加 `DRIFTING_APPEARANCE`、`DRIFTING_BOOK` 和「先生成 showcase 库」那一步，我没改那个文件。
    - `progress.md` 的 F6 一行等合并时更新。

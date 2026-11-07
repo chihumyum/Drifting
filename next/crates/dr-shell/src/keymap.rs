@@ -13,12 +13,16 @@
 //!   are bound by name: only when the editor is linked into the app.
 //!
 //! [`apply`] clears the keymap and binds everything again, so a rebinding
-//! takes effect at once; the menu bar is rebuilt with it.
+//! takes effect at once; the menu bar is rebuilt with it. A module's own
+//! keys that are not shortcuts (a dialog's ⌘↵, a list's ↑↓) are added with
+//! [`add_bindings`] and bound again with the rest.
 
 use std::rc::Rc;
 
 use dr_i18n::{Key, keys};
-use gpui::{App, KeyBinding, KeyBindingContextPredicate, Keystroke, Modifiers, OperatingSystem};
+use gpui::{
+    App, Global, KeyBinding, KeyBindingContextPredicate, Keystroke, Modifiers, OperatingSystem,
+};
 use serde_json::{Map, Value};
 
 /// The workspace's key context.
@@ -332,6 +336,14 @@ pub fn apply(overrides: &Map<String, Value>, cx: &mut App) {
     // The editor's own keys (moving, deleting, Enter …) in its context; its
     // formatting keys are the registry's below as well.
     gpui_prose::bind_keys(cx);
+    // The modules' own keys.
+    let extra: Vec<Rc<dyn Fn() -> Vec<KeyBinding>>> = cx
+        .try_global::<ModuleKeys>()
+        .map(|m| m.0.clone())
+        .unwrap_or_default();
+    for make in extra {
+        cx.bind_keys(make());
+    }
     let mut made = Vec::new();
     for (action, keys, context) in bindings(os, overrides) {
         let Ok(action) = cx.build_action(action, None) else {
@@ -348,6 +360,21 @@ pub fn apply(overrides: &Map<String, Value>, cx: &mut App) {
     }
     cx.bind_keys(made);
     cx.set_menus(crate::menus::app_menus(cx));
+}
+
+#[derive(Default)]
+struct ModuleKeys(Vec<Rc<dyn Fn() -> Vec<KeyBinding>>>);
+
+impl Global for ModuleKeys {}
+
+/// A module's own key bindings, in its own key context (a dialog's ⌘↵, a
+/// list's ↑↓): not shortcuts the author rebinds, so not in the registry.
+/// Bound now and again whenever [`apply`] rebuilds the keymap (which clears
+/// every binding). `make` builds them each time.
+pub fn add_bindings(cx: &mut App, make: impl Fn() -> Vec<KeyBinding> + 'static) {
+    let make: Rc<dyn Fn() -> Vec<KeyBinding>> = Rc::new(make);
+    cx.bind_keys(make());
+    cx.default_global::<ModuleKeys>().0.push(make);
 }
 
 /// A recorded keystroke in the stored, portable form: the platform's

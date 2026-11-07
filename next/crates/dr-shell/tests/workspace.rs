@@ -323,6 +323,23 @@ fn a_rebound_shortcut_takes_effect_at_once_and_is_stored(cx: &mut TestAppContext
     );
     let stored = cx.update(|_, cx| Settings::read(cx).key_bindings());
     assert_eq!(stored["goBack"], "alt-secondary-b");
+    // A module's own key survives the keymap being rebuilt.
+    cx.update(|_, cx| {
+        dr_shell::keymap::add_bindings(cx, || {
+            vec![gpui::KeyBinding::new(
+                "cmd-alt-y",
+                dr_shell::actions::ShowWholeBook,
+                Some("Workspace"),
+            )]
+        });
+        let overrides = Settings::read(cx).key_bindings();
+        dr_shell::keymap::apply(&overrides, cx);
+    });
+    keys(cx, "cmd-alt-y");
+    assert_eq!(
+        view.read_with(cx, |ws, _| ws.nav.page()),
+        Page::Target(Target::Book)
+    );
 }
 
 #[gpui::test]
