@@ -1,0 +1,700 @@
+{
+  "build": "release",
+  "generatedBy": "cargo run --release -p loro-model-spike --bin p0c-bench",
+  "loro": "1.17.1",
+  "machine": {
+    "arch": "aarch64",
+    "cores": 12,
+    "cpu": "Apple M3 Pro",
+    "memoryBytes": 38654705664,
+    "os": "macos",
+    "osVersion": "27.0.1"
+  },
+  "notes": [
+    "Wall-clock timings on the machine above. Heap = bytes live in the Rust global allocator (Loro, SQLite and our read model); RSS from ps.",
+    "coldOpen runs in a fresh child process, so its RSS is the cost of the opened documents plus the runtime.",
+    "Synthetic deterministic corpus only (corpusSha256); no manuscript text, paths or user data.",
+    "CI checks only the fingerprint and the shape (--check), not the timings."
+  ],
+  "probe": "P0-C Loro data model",
+  "results": {
+    "agentWrites": {
+      "largest_chapter": {
+        "chars": 32158,
+        "forkedMs": {
+          "max": 3.512,
+          "mean": 3.167,
+          "n": 30,
+          "p50": 3.185,
+          "p95": 3.491
+        },
+        "forkedPeakHeapMB": 1.22,
+        "inPlaceMs": {
+          "max": 2.019,
+          "mean": 0.093,
+          "n": 30,
+          "p50": 0.024,
+          "p95": 0.041
+        },
+        "inPlaceUpdateBytes": {
+          "max": 764.0,
+          "mean": 754.9,
+          "n": 30,
+          "p50": 755.0,
+          "p95": 755.0
+        }
+      },
+      "longest_drift": {
+        "chars": 62312,
+        "forkedMs": {
+          "max": 6.683,
+          "mean": 5.491,
+          "n": 30,
+          "p50": 5.394,
+          "p95": 6.36
+        },
+        "forkedPeakHeapMB": 1.69,
+        "inPlaceMs": {
+          "max": 3.625,
+          "mean": 0.187,
+          "n": 30,
+          "p50": 0.068,
+          "p95": 0.077
+        },
+        "inPlaceUpdateBytes": {
+          "max": 764.0,
+          "mean": 754.9,
+          "n": 30,
+          "p50": 755.0,
+          "p95": 755.0
+        }
+      }
+    },
+    "churnedChapter": {
+      "changes": 66,
+      "charsNow": 20103,
+      "charsTypedInTotal": 196540,
+      "generateMs": 342.0,
+      "heapMB": 1.53,
+      "loadMs": {
+        "max": 0.637,
+        "mean": 0.533,
+        "n": 10,
+        "p50": 0.513,
+        "p95": 0.637
+      },
+      "ops": 374991,
+      "readParagraphsMs": {
+        "max": 1.722,
+        "mean": 1.43,
+        "n": 10,
+        "p50": 1.448,
+        "p95": 1.722
+      },
+      "snapshotBytes": 676747
+    },
+    "cursors": {
+      "churnedChapter": {
+        "chars": 19254,
+        "deletedResolveMs": {
+          "max": 0.647,
+          "mean": 0.149,
+          "n": 50,
+          "p50": 0.13,
+          "p95": 0.28
+        },
+        "liveResolveMs": {
+          "max": 0.005,
+          "mean": 0.002,
+          "n": 200,
+          "p50": 0.002,
+          "p95": 0.004
+        },
+        "replacementResolveMs": {
+          "max": 0.003,
+          "mean": 0.001,
+          "n": 50,
+          "p50": 0.001,
+          "p95": 0.002
+        }
+      },
+      "longestDrift": {
+        "chars": 49389,
+        "deletedResolveMs": {
+          "max": 0.971,
+          "mean": 0.446,
+          "n": 50,
+          "p50": 0.435,
+          "p95": 0.712
+        },
+        "liveResolveMs": {
+          "max": 0.033,
+          "mean": 0.009,
+          "n": 200,
+          "p50": 0.009,
+          "p95": 0.022
+        },
+        "replacementResolveMs": {
+          "max": 0.009,
+          "mean": 0.004,
+          "n": 50,
+          "p50": 0.005,
+          "p95": 0.008
+        }
+      },
+      "typedChapter": {
+        "chars": 19248,
+        "deletedResolveMs": {
+          "max": 0.452,
+          "mean": 0.182,
+          "n": 50,
+          "p50": 0.175,
+          "p95": 0.416
+        },
+        "liveResolveMs": {
+          "max": 0.025,
+          "mean": 0.007,
+          "n": 200,
+          "p50": 0.007,
+          "p95": 0.012
+        },
+        "replacementResolveMs": {
+          "max": 0.006,
+          "mean": 0.003,
+          "n": 50,
+          "p50": 0.003,
+          "p95": 0.006
+        }
+      }
+    },
+    "keystroke": {
+      "full": {
+        "commitAndAppendMs": {
+          "max": 5.663,
+          "mean": 0.288,
+          "n": 2000,
+          "p50": 0.266,
+          "p95": 0.408
+        },
+        "compactDeletedUpdates": 2000,
+        "compactMs": 2.15,
+        "compactSnapshotBytes": 152227,
+        "keystrokes": 2000,
+        "pendingBytesBeforeCompaction": 193715,
+        "pendingUpdatesBeforeCompaction": 2000,
+        "updateBytes": {
+          "max": 133.0,
+          "mean": 96.858,
+          "n": 2000,
+          "p50": 96.0,
+          "p95": 96.0
+        }
+      },
+      "normal": {
+        "commitAndAppendMs": {
+          "max": 2.561,
+          "mean": 0.268,
+          "n": 2000,
+          "p50": 0.233,
+          "p95": 0.483
+        },
+        "compactDeletedUpdates": 2000,
+        "compactMs": 1.718,
+        "compactSnapshotBytes": 152230,
+        "keystrokes": 2000,
+        "pendingBytesBeforeCompaction": 193715,
+        "pendingUpdatesBeforeCompaction": 2000,
+        "updateBytes": {
+          "max": 133.0,
+          "mean": 96.858,
+          "n": 2000,
+          "p50": 96.0,
+          "p95": 96.0
+        }
+      }
+    },
+    "memory": {
+      "churnedChapter": {
+        "afterCheckoutToLatestHeapDeltaMB": 1.78,
+        "afterDroppingCopyHeapDeltaMB": 0.0,
+        "checkoutHeapDeltaMB": 1.78,
+        "checkoutOneBackMs": 2.336,
+        "coldDocumentHeapMB": 0.94,
+        "forkAtHeapWhileAliveMB": 3.52,
+        "forkAtOneBackMs": 7.024,
+        "forkAtPeakMB": 4.81,
+        "forkAtTenthOfHistoryHeapMB": 1.09,
+        "forkAtTenthOfHistoryMs": 8.378,
+        "freeCachesAfterCheckoutMB": 0.82,
+        "freeCachesAfterForkMB": 0.82,
+        "freeCachesAfterImportMB": -0.0,
+        "importSmallUpdateHeapDeltaMB": 1.24,
+        "importSmallUpdateMs": 1.486,
+        "openDocRetainsAfterFarForkDroppedMB": 0.89,
+        "openDocRetainsAfterForkDroppedMB": 2.81,
+        "separateCopyCheckoutMs": 7.112,
+        "separateCopyOldChars": 19848,
+        "separateCopyPeakMB": 3.88
+      },
+      "typedChapter": {
+        "afterCheckoutToLatestHeapDeltaMB": 0.66,
+        "afterDroppingCopyHeapDeltaMB": 0.0,
+        "checkoutHeapDeltaMB": 0.66,
+        "checkoutOneBackMs": 1.108,
+        "coldDocumentHeapMB": 0.31,
+        "forkAtHeapWhileAliveMB": 1.83,
+        "forkAtOneBackMs": 4.174,
+        "forkAtPeakMB": 2.47,
+        "forkAtTenthOfHistoryHeapMB": 0.85,
+        "forkAtTenthOfHistoryMs": 5.927,
+        "freeCachesAfterCheckoutMB": 0.49,
+        "freeCachesAfterForkMB": 0.49,
+        "freeCachesAfterImportMB": -0.0,
+        "importSmallUpdateHeapDeltaMB": 0.99,
+        "importSmallUpdateMs": 1.986,
+        "openDocRetainsAfterFarForkDroppedMB": 0.78,
+        "openDocRetainsAfterForkDroppedMB": 1.6,
+        "separateCopyCheckoutMs": 5.08,
+        "separateCopyOldChars": 2025,
+        "separateCopyPeakMB": 1.81
+      }
+    },
+    "open": {
+      "bulk": {
+        "bookOps": 88116,
+        "bookSnapshotBytes": 1086993,
+        "coldOpen": {
+          "bookDocument": {
+            "chapters": 100,
+            "heapMB": 1.96,
+            "indexMs": 2.633,
+            "loadMs": 1.189
+          },
+          "everyDocument": {
+            "documents": 680,
+            "heapMB": 112.31,
+            "loadRestMs": 61.632,
+            "rssGrowthMB": 135.09
+          },
+          "largestChapter": {
+            "heapMB": 0.74,
+            "loadMs": {
+              "max": 0.519,
+              "mean": 0.407,
+              "n": 10,
+              "p50": 0.414,
+              "p95": 0.519
+            },
+            "paragraphs": 98,
+            "readParagraphsMs": {
+              "max": 1.443,
+              "mean": 1.277,
+              "n": 10,
+              "p50": 1.252,
+              "p95": 1.443
+            }
+          },
+          "openDatabaseMs": 0.571,
+          "processBaselineRssMB": 2.13,
+          "wholeBook": {
+            "chapters": 100,
+            "chars": 1507872,
+            "deltaRuns": 36755,
+            "firstScreenSliceDeltaMs": {
+              "max": 1.239,
+              "mean": 0.65,
+              "n": 100,
+              "p50": 0.796,
+              "p95": 0.928
+            },
+            "heapAfterFirstScreensMB": 58.8,
+            "heapAfterLoadMB": 24.0,
+            "heapMB": 58.8,
+            "loadMs": 26.353,
+            "paragraphs": 7872,
+            "peakHeapMB": 59.25,
+            "readParagraphsMs": 29.424,
+            "rssGrowthMB": 74.92,
+            "toDeltaMs": 18.263,
+            "toStringMs": 1.468
+          }
+        },
+        "databaseBytes": 26460160,
+        "largestChapter": {
+          "chars": 20000,
+          "snapshotBytes": 134214
+        },
+        "longestDrift": {
+          "chars": 50000,
+          "snapshotBytes": 321364
+        },
+        "proseOps": 3675059,
+        "snapshotsByKind": {
+          "category": {
+            "chars": 16000,
+            "documents": 16,
+            "snapshotBytes": 111116
+          },
+          "chapter": {
+            "chars": 1500000,
+            "documents": 100,
+            "snapshotBytes": 10211707
+          },
+          "drift": {
+            "chars": 1000000,
+            "documents": 200,
+            "snapshotBytes": 6683964
+          },
+          "element": {
+            "chars": 500000,
+            "documents": 300,
+            "snapshotBytes": 3437686
+          },
+          "material": {
+            "chars": 500000,
+            "documents": 60,
+            "snapshotBytes": 3304885
+          },
+          "storyline": {
+            "chars": 60000,
+            "documents": 3,
+            "snapshotBytes": 369958
+          }
+        },
+        "storeAllSnapshotsMs": 225.0
+      },
+      "typed": {
+        "bookOps": 88116,
+        "bookSnapshotBytes": 1087053,
+        "coldOpen": {
+          "bookDocument": {
+            "chapters": 100,
+            "heapMB": 1.96,
+            "indexMs": 2.272,
+            "loadMs": 1.248
+          },
+          "everyDocument": {
+            "documents": 680,
+            "heapMB": 141.6,
+            "loadRestMs": 79.033,
+            "rssGrowthMB": 164.05
+          },
+          "largestChapter": {
+            "heapMB": 1.14,
+            "loadMs": {
+              "max": 0.888,
+              "mean": 0.54,
+              "n": 10,
+              "p50": 0.486,
+              "p95": 0.888
+            },
+            "paragraphs": 98,
+            "readParagraphsMs": {
+              "max": 2.782,
+              "mean": 2.375,
+              "n": 10,
+              "p50": 2.329,
+              "p95": 2.782
+            }
+          },
+          "openDatabaseMs": 0.573,
+          "processBaselineRssMB": 2.13,
+          "wholeBook": {
+            "chapters": 100,
+            "chars": 1507872,
+            "deltaRuns": 36755,
+            "firstScreenSliceDeltaMs": {
+              "max": 2.234,
+              "mean": 1.38,
+              "n": 100,
+              "p50": 1.694,
+              "p95": 2.049
+            },
+            "heapAfterFirstScreensMB": 88.09,
+            "heapAfterLoadMB": 24.14,
+            "heapMB": 88.09,
+            "loadMs": 28.722,
+            "paragraphs": 7872,
+            "peakHeapMB": 88.55,
+            "readParagraphsMs": 37.223,
+            "rssGrowthMB": 103.72,
+            "toDeltaMs": 26.53,
+            "toStringMs": 2.714
+          }
+        },
+        "databaseBytes": 27254784,
+        "largestChapter": {
+          "chars": 20000,
+          "snapshotBytes": 143987
+        },
+        "longestDrift": {
+          "chars": 50000,
+          "snapshotBytes": 321364
+        },
+        "proseOps": 3797905,
+        "snapshotsByKind": {
+          "category": {
+            "chars": 16000,
+            "documents": 16,
+            "snapshotBytes": 111116
+          },
+          "chapter": {
+            "chars": 1500000,
+            "documents": 100,
+            "snapshotBytes": 10966987
+          },
+          "drift": {
+            "chars": 1000000,
+            "documents": 200,
+            "snapshotBytes": 6683964
+          },
+          "element": {
+            "chars": 500000,
+            "documents": 300,
+            "snapshotBytes": 3437686
+          },
+          "material": {
+            "chars": 500000,
+            "documents": 60,
+            "snapshotBytes": 3304885
+          },
+          "storyline": {
+            "chars": 60000,
+            "documents": 3,
+            "snapshotBytes": 369958
+          }
+        },
+        "storeAllSnapshotsMs": 251.0
+      }
+    },
+    "seed": {
+      "bulk": {
+        "anchoredComments": 140,
+        "bookSha256": "86604f0794ea9adfe3c6f3312f2e2beb68659ab283ae403b33a93b2aae9b5c02",
+        "categories": 16,
+        "categoryChars": 16000,
+        "chapterChars": 1500000,
+        "chapterCommits": 100,
+        "chapterMax": 20000,
+        "chapterMedian": 17922,
+        "chapterMin": 2114,
+        "chapters": 100,
+        "commentChars": 40000,
+        "comments": 80,
+        "corpusSha256": "dbc49841eaab1c6a305316de6d11734dc17490d27c8a9301cf27d1e2c72effdd",
+        "driftChars": 1000000,
+        "driftMax": 50000,
+        "drifts": 200,
+        "elementChars": 500000,
+        "elements": 300,
+        "embeds": 120,
+        "entityLinks": 15478,
+        "generateMs": 383.0,
+        "headings": 277,
+        "materialNoteChars": 500000,
+        "materialNotes": 60,
+        "overlappingLinks": 200,
+        "paragraphs": 18919,
+        "patches": 40,
+        "proseDocuments": 679,
+        "relations": 400,
+        "storylineChars": 60000,
+        "storylines": 3,
+        "todoChars": 30000,
+        "todos": 120
+      },
+      "typed": {
+        "anchoredComments": 140,
+        "bookSha256": "703290e89e6d113b37cdb2e0ab11ddfb4df0680cf5edc59c4cb37c7670fe127c",
+        "categories": 16,
+        "categoryChars": 16000,
+        "chapterChars": 1500000,
+        "chapterCommits": 497755,
+        "chapterMax": 20000,
+        "chapterMedian": 17922,
+        "chapterMin": 2114,
+        "chapters": 100,
+        "commentChars": 40000,
+        "comments": 80,
+        "corpusSha256": "dbc49841eaab1c6a305316de6d11734dc17490d27c8a9301cf27d1e2c72effdd",
+        "driftChars": 1000000,
+        "driftMax": 50000,
+        "drifts": 200,
+        "elementChars": 500000,
+        "elements": 300,
+        "embeds": 120,
+        "entityLinks": 15478,
+        "generateMs": 1300.0,
+        "headings": 277,
+        "materialNoteChars": 500000,
+        "materialNotes": 60,
+        "overlappingLinks": 200,
+        "paragraphs": 18919,
+        "patches": 40,
+        "proseDocuments": 679,
+        "relations": 400,
+        "storylineChars": 60000,
+        "storylines": 3,
+        "todoChars": 30000,
+        "todos": 120
+      }
+    },
+    "undoCases": [
+      {
+        "actual": "body",
+        "case": "heading set by author, changed by another device, author undoes",
+        "expected": "H2",
+        "issue": "#1229",
+        "ourUsage": true,
+        "undoSteps": 1,
+        "wrong": true
+      },
+      {
+        "actual": "body",
+        "case": "heading set by author, changed by an in-place Agent write, author undoes",
+        "expected": "H2",
+        "issue": "#1229",
+        "ourUsage": true,
+        "undoSteps": 1,
+        "wrong": true
+      },
+      {
+        "actual": "abc[italic]",
+        "case": "author bolds, another device italicises the same text, author undoes",
+        "expected": "abc[italic]",
+        "issue": "#1229",
+        "ourUsage": true,
+        "undoSteps": 1,
+        "wrong": false
+      },
+      {
+        "actual": "abc[]",
+        "case": "author sets a link, another device changes it, author undoes",
+        "expected": "abc[link=https://b.example]",
+        "issue": "#1229",
+        "ourUsage": true,
+        "undoSteps": 1,
+        "wrong": true
+      },
+      {
+        "actual": "kabcdef",
+        "case": "two Backspaces, another device types at the start in between",
+        "expected": "kabcdef",
+        "issue": "#1245",
+        "ourUsage": true,
+        "undoSteps": 2,
+        "wrong": false
+      },
+      {
+        "actual": "abcdef",
+        "case": "two Backspaces, another device changes the embeds map in between",
+        "expected": "abcdef",
+        "issue": "#1245",
+        "ourUsage": true,
+        "undoSteps": 2,
+        "wrong": false
+      },
+      {
+        "actual": "kabcdef",
+        "case": "two Backspaces, an in-place Agent write at the start in between",
+        "expected": "kabcdef",
+        "issue": "#1245",
+        "ourUsage": true,
+        "undoSteps": 2,
+        "wrong": false
+      },
+      {
+        "actual": "abcdef",
+        "case": "two Backspaces, an in-place Agent write to the embeds map in between",
+        "expected": "abcdef",
+        "issue": "#1245",
+        "ourUsage": true,
+        "undoSteps": 2,
+        "wrong": false
+      },
+      {
+        "actual": "abcdfe",
+        "case": "manual undo group around two Backspaces, remote map change in between",
+        "expected": "abcdef",
+        "issue": "#1245",
+        "ourUsage": false,
+        "undoSteps": 1,
+        "wrong": true
+      },
+      {
+        "actual": "x",
+        "case": "manual group: type x, it syncs, retype as y, remote dependent change, undo",
+        "expected": "",
+        "issue": "#1228",
+        "ourUsage": false,
+        "undoSteps": 1,
+        "wrong": true
+      },
+      {
+        "actual": "x",
+        "case": "merge interval: type x, it syncs, retype as y, remote dependent change, undo",
+        "expected": "",
+        "issue": "#1228",
+        "ourUsage": true,
+        "undoSteps": 1,
+        "wrong": true
+      },
+      {
+        "actual": "",
+        "case": "merge interval 0 + editor-side burst: type x, it syncs, retype as y, remote dependent change, undo burst",
+        "expected": "",
+        "issue": "#1228",
+        "ourUsage": true,
+        "undoSteps": 2,
+        "wrong": false
+      },
+      {
+        "actual": "x",
+        "case": "forked Agent write imported after the author retyped inside the merge interval",
+        "expected": "",
+        "issue": "#1228",
+        "ourUsage": true,
+        "undoSteps": 1,
+        "wrong": true
+      },
+      {
+        "actual": "",
+        "case": "forked Agent write imported after the author retyped, merge interval 0 + burst",
+        "expected": "",
+        "issue": "#1228",
+        "ourUsage": true,
+        "undoSteps": 2,
+        "wrong": false
+      },
+      {
+        "actual": "abcdef",
+        "case": "merge interval 0 + editor-side burst: two Backspaces, remote embeds change in between",
+        "expected": "abcdef",
+        "issue": "#1245",
+        "ourUsage": true,
+        "undoSteps": 2,
+        "wrong": false
+      },
+      {
+        "actual": "【Agent】甲乙丙",
+        "case": "author types, in-place Agent write, author types, author undoes everything",
+        "expected": "【Agent】甲乙丙",
+        "issue": "—",
+        "ourUsage": true,
+        "undoSteps": 2,
+        "wrong": false
+      },
+      {
+        "actual": "【Agent】甲乙丙",
+        "case": "author types, forked Agent write, author types, author undoes everything",
+        "expected": "【Agent】甲乙丙",
+        "issue": "—",
+        "ourUsage": true,
+        "undoSteps": 2,
+        "wrong": false
+      }
+    ]
+  },
+  "schemaVersion": 1,
+  "sourceFingerprint": "e2b203c98df4ee4318d999bc2f9b05fa6b491e23f4768f15bff5a407d24a7734"
+}

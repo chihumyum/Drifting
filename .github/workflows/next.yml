@@ -1,0 +1,62 @@
+name: next
+
+# The Rust + GPUI rewrite workspace (next/, docs/rust-rewrite). It has its own
+# toolchain (next/rust-toolchain.toml) and lockfile, and runs only when next/
+# or this workflow changes; ci.yml keeps covering the 0.1 client.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'next/**'
+      - '.github/workflows/next.yml'
+  pull_request:
+    paths:
+      - 'next/**'
+      - '.github/workflows/next.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: next-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  rust:
+    name: next / ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos
+            runner: macos-26
+          - platform: windows
+            runner: windows-latest
+    runs-on: ${{ matrix.runner }}
+    # A cold GPUI build takes several minutes on a desktop Mac.
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: next
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      # Keep in step with next/rust-toolchain.toml.
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # master, toolchain input
+        with:
+          toolchain: 1.98.1
+          components: rustfmt, clippy, rust-src
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: next
+          key: ${{ matrix.platform }}
+      - run: cargo fmt --all --check
+      - if: ${{ !cancelled() }}
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - if: ${{ !cancelled() }}
+        run: cargo test --workspace --locked
+      - if: ${{ !cancelled() }}
+        run: cargo build --workspace --locked
+      # The unsigned development bundle: Info.plist, icons and the ad-hoc
+      # seal (codesign --verify) without opening a window.
+      - if: ${{ !cancelled() && matrix.platform == 'macos' }}
+        run: script/bundle-mac --debug
