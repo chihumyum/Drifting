@@ -254,6 +254,59 @@ describe('v2 handoff', () => {
     expect(Object.keys((await readV2HandoffState(lib.library.client))!.documents)).toHaveLength(total);
   });
 
+  it("stamps each of this library's books from WebView storage, and keeps the last books when storage is unavailable", async () => {
+    const lib = await sampleLibrary();
+    const [relationType] = lib.all<{ id: string }>('SELECT id FROM entity_relation_type WHERE project_id = ? ORDER BY id', lib.projectId);
+    const [element] = lib.all<{ id: string }>('SELECT id FROM element WHERE project_id = ? ORDER BY id', lib.projectId);
+    // WebView storage is app-wide: another library's book is in it too.
+    const elsewhere = uuidv7();
+    localStorage.setItem('writing-stats-storage', JSON.stringify({
+      state: {
+        plans: {
+          [lib.projectId]: { projectWordTarget: 80000, dailyWordGoal: 0 },
+          [elsewhere]: { projectWordTarget: 1000, dailyWordGoal: 10 },
+        },
+        history: { [lib.projectId]: { '2026-11-06': { startTotal: 1, latestTotal: 2 } } },
+      },
+      version: 3,
+    }));
+    localStorage.setItem(`drifting:edge-kind-meta:${lib.projectId}`, JSON.stringify({ v: 2, byRelationTypeId: { [relationType!.id]: { color: '#aabbcc' } } }));
+    localStorage.setItem(`drifting:edge-kind-meta:${elsewhere}`, JSON.stringify({ v: 2, byRelationTypeId: { x: { color: '#000000' } } }));
+    localStorage.setItem(`super-element-view:relate:${lib.projectId}`, JSON.stringify({
+      v: 1, mode: 'isles', positions: { [element!.id]: [1, 1] }, pins: { [element!.id]: [12.5, -40] }, signature: 's',
+    }));
+
+    await runV2Handoff({ liveDocuments: 'skip' }, lib.dependencies());
+    const stamped = (await readV2HandoffState(lib.library.client))!;
+    expect(stamped.books).toEqual({
+      [lib.projectId]: {
+        wordTarget: 80000,
+        dailyWordTarget: 0,
+        relationTypeColors: { [relationType!.id]: '#aabbcc' },
+        elementPins: { [element!.id]: [12.5, -40] },
+      },
+    });
+    // The raw values still travel for an importer that reads them itself.
+    expect(stamped.settings?.entries[`super-element-view:relate:${lib.projectId}`]).toBeDefined();
+
+    // No storage: the last captured books and settings stay.
+    await runV2Handoff({ liveDocuments: 'skip' }, lib.dependencies({ captureSettings: () => null, captureBooks: () => null }));
+    const kept = (await readV2HandoffState(lib.library.client))!;
+    expect(kept.books).toEqual(stamped.books);
+    expect(kept.settings).toEqual(stamped.settings);
+
+    // Storage with nothing for these books is an empty section, not an older stamp.
+    localStorage.clear();
+    await runV2Handoff({ liveDocuments: 'skip' }, lib.dependencies());
+    expect((await readV2HandoffState(lib.library.client))!.books).toEqual({});
+
+    // A stamp from before the section stays without one while storage is unavailable.
+    lib.sql.prepare("UPDATE library_state SET value_json = json_remove(value_json, '$.books') WHERE key = 'v2-handoff'").run();
+    await runV2Handoff({ liveDocuments: 'skip' }, lib.dependencies({ captureBooks: () => null }));
+    const older = lib.one<{ json: string }>("SELECT value_json AS json FROM library_state WHERE key = 'v2-handoff'")!.json;
+    expect(JSON.parse(older)).not.toHaveProperty('books');
+  });
+
   it('renders a snapshot-history preview that is missing', async () => {
     const lib = await sampleLibrary();
     const chapter = lib.docOf('book_node', 'node-content', '第一章 序', 'title');

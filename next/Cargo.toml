@@ -7,6 +7,7 @@ resolver = "3"
 members = [
     "app/drifting",
     "crates/dr-doc",
+    "crates/dr-import-v1",
     "crates/dr-model",
     "crates/dr-platform",
     "crates/dr-store",
@@ -43,6 +44,8 @@ log = "0.4"
 # `dr-model.workspace = true`.
 dr-doc = { path = "crates/dr-doc" }
 dr-model = { path = "crates/dr-model" }
+# F2 storage, for the 0.1 library import (M10, dr-import-v1).
+dr-store = { path = "crates/dr-store" }
 # uuidv7 for new domain ids (the old data uses uuidv7 too); v4 for F7's
 # installation and crash ids. The version the lockfile already carries for GPUI.
 uuid = { version = "1.29", default-features = false, features = ["std", "v4", "v7"] }
