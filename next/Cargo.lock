@@ -1587,6 +1587,7 @@ dependencies = [
  "log",
  "memmap2",
  "objc2 0.6.5",
+ "prose-linebreak",
  "raw-window-handle",
  "smallvec",
  "unicode-segmentation",

@@ -10,8 +10,8 @@ use std::{
 
 use dr_ui::input::{FieldEvent, TextField};
 use gpui::{
-    AppContext as _, Context, Entity, EntityInputHandler, Focusable as _, IntoElement,
-    ParentElement as _, Render, Styled as _, TestAppContext, Window, div,
+    AppContext as _, Context, Entity, EntityInputHandler, Focusable as _, InteractiveElement as _,
+    IntoElement, ParentElement as _, Render, Styled as _, TestAppContext, Window, div,
 };
 
 struct Host {
@@ -157,4 +157,49 @@ fn switching_apps_discards_the_composition(cx: &mut TestAppContext) {
         !seen.iter().any(|e| matches!(e, FieldEvent::Changed(_))),
         "{seen:?}"
     );
+}
+
+/// A bare field and a framed one, in a 34px title's type.
+struct Titles {
+    bare: Entity<TextField>,
+    framed: Entity<TextField>,
+}
+
+impl Render for Titles {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        div()
+            .size_full()
+            .text_size(gpui::px(34.0))
+            .line_height(gpui::px(44.0))
+            .child(
+                div()
+                    .debug_selector(|| "bare".into())
+                    .child(self.bare.clone()),
+            )
+            .child(
+                div()
+                    .debug_selector(|| "framed".into())
+                    .child(self.framed.clone()),
+            )
+    }
+}
+
+#[gpui::test]
+fn a_bare_field_takes_the_type_around_it(cx: &mut TestAppContext) {
+    let (_, cx) = cx.add_window_view(|window, cx| Titles {
+        bare: cx.new(|cx| {
+            TextField::new("bare", window, cx)
+                .bare()
+                .with_text("雾港纪事")
+        }),
+        framed: cx.new(|cx| TextField::new("framed", window, cx).with_text("雾港纪事")),
+    });
+    cx.run_until_parked();
+    cx.update(|window, cx| window.draw(cx).clear(cx));
+    let bare = cx.debug_bounds("bare").expect("drawn");
+    let framed = cx.debug_bounds("framed").expect("drawn");
+    // The title's own row, no frame or padding; the framed one keeps the
+    // control's height and the interface's size.
+    assert_eq!(f32::from(bare.size.height), 44.0);
+    assert!(f32::from(framed.size.height) < 44.0, "{framed:?}");
 }

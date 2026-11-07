@@ -18,6 +18,7 @@ base64.workspace = true
 gpui.workspace = true
 # The single-line input's composition rules, shared with the editor.
 gpui-ime.workspace = true
+prose-linebreak.workspace = true
 # Only for the gallery's `capture` feature; apps bring their own platform.
 gpui_platform = { workspace = true, optional = true }
 image.workspace = true

@@ -9,7 +9,8 @@
 //!   resting line on its own, nothing at rest inside a tray, an opaque
 //!   paper fill when it floats.
 //! - [`PanelIconButton`]: the plain low-level button of a panel header: no
-//!   glass, the pointer deepens the icon over a desk wash.
+//!   glass, the pointer deepens the icon over a desk wash; a danger one
+//!   (a book card's trash) turns the danger colour instead.
 
 use std::rc::Rc;
 
@@ -370,6 +371,7 @@ pub struct PanelIconButton {
     id: ElementId,
     icon: Icon,
     accent: bool,
+    danger: bool,
     label: Option<SharedString>,
     on_click: Option<OnClick>,
 }
@@ -380,6 +382,7 @@ impl PanelIconButton {
             id: id.into(),
             icon,
             accent: false,
+            danger: false,
             label: None,
             on_click: None,
         }
@@ -397,6 +400,13 @@ impl PanelIconButton {
         self
     }
 
+    /// Something that cannot be taken back (a book card's trash): at rest
+    /// like the others, the danger's ink and a wash of it under the pointer.
+    pub fn danger(mut self) -> Self {
+        self.danger = true;
+        self
+    }
+
     pub fn on_click(mut self, f: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static) -> Self {
         self.on_click = Some(Rc::new(f));
         self
@@ -408,10 +418,16 @@ impl RenderOnce for PanelIconButton {
         let theme = Theme::of(window, cx);
         let p = theme.palette;
         let rest = if self.accent { p.accent } else { p.ink(3) };
-        let deep = if self.accent { p.accent } else { p.ink(1) };
-        let wash = p.ink(1).alpha(0.05);
+        let (deep, wash) = if self.danger {
+            (p.danger, p.danger.alpha(0.1))
+        } else if self.accent {
+            (p.accent, p.ink(1).alpha(0.05))
+        } else {
+            (p.ink(1), p.ink(1).alpha(0.05))
+        };
         let icon = self.icon;
         let id = self.id.clone();
+        let group = SharedString::from(format!("panel-icon-{id:?}"));
         div()
             .id(self.id)
             .size(px(24.0))
@@ -422,15 +438,13 @@ impl RenderOnce for PanelIconButton {
             .rounded(px(radius::SM))
             .cursor_pointer()
             .hover(move |st| st.bg(wash))
-            .group(SharedString::from(format!("panel-icon-{id:?}")))
+            .group(group.clone())
             .child(
-                div()
-                    .text_color(rest.solid())
-                    .group_hover(
-                        SharedString::from(format!("panel-icon-{id:?}")),
-                        move |st| st.text_color(deep.solid()),
-                    )
-                    .child(PanelGlyph { icon }),
+                // The icon's colour is settled when it paints, so the
+                // pointer's deepening reaches it (an icon built in the
+                // parent's colour would keep the colour it was built with).
+                sand::icon(icon, 16.0, rest.solid())
+                    .group_hover(group, move |st| st.text_color(deep.solid())),
             )
             .when_some(self.label, |el, label| {
                 el.role(gpui::Role::Button).aria_label(label)
@@ -438,18 +452,5 @@ impl RenderOnce for PanelIconButton {
             .when_some(self.on_click, |el, f| {
                 el.on_click(move |e, w, cx| f(e, w, cx))
             })
-    }
-}
-
-/// An icon tinted by the text colour of its parent (so group hover reaches it).
-#[derive(IntoElement)]
-struct PanelGlyph {
-    icon: Icon,
-}
-
-impl RenderOnce for PanelGlyph {
-    fn render(self, window: &mut Window, _cx: &mut App) -> impl IntoElement {
-        let color = window.text_style().color;
-        sand::icon(self.icon, 16.0, color)
     }
 }

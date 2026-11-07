@@ -1,4 +1,4 @@
-//! The gallery's five pages.
+//! The gallery's six pages.
 
 use gpui::{
     AnyElement, Context, Div, ElementId, InteractiveElement, IntoElement, ParentElement,
@@ -11,8 +11,8 @@ use dr_ui::{
     components::{
         Button, CardAction, CardBody, Chip, Choice, Dialog, DockMark, DockTab, EmptyState,
         HoverCard, IconButton, Loading, Menu, MenuItem, MenuWidth, NotificationPill, NumberField,
-        Pill, PillGroup, Progress, Range, RowIcon, SandCell, ScopeToggle, Segmented, Select,
-        Switch, TabDock, overlay,
+        PanelIconButton, Pill, PillGroup, Progress, Range, RowIcon, SandCell, ScopeToggle,
+        Segmented, Select, Switch, TabDock, overlay,
     },
     fonts::{self, Role, weight},
     glass::{self, Ground, Held, Kind, Mode, Spec, Tone},
@@ -647,6 +647,128 @@ pub fn controls(
                 .child(held_strip(&t, window, cx))
                 .child(numbers(g, &t, cx)),
         )
+}
+
+// ── 输入 ────────────────────────────────────────────────────────────────
+
+/// The book card's trash on the inputs page (the capture rests the pointer
+/// on it): the card is pinned 32px from the page's bottom left.
+#[cfg(feature = "capture")]
+pub const INPUTS_TRASH: (f32, f32) = (266.0, crate::WINDOW_H - 32.0 - CARD_H + 26.0);
+const CARD_W: f32 = 260.0;
+const CARD_H: f32 = 88.0;
+
+pub fn inputs(g: &mut Gallery, window: &mut Window, cx: &mut Context<Gallery>) -> impl IntoElement {
+    let t = Theme::of(window, cx);
+    let p = t.palette;
+    // Project Home's head: the book's title edited where it stands, its
+    // introduction under it, both in the page's own type.
+    let home = glass::surface(
+        Ground::flat(p.page),
+        paper(&t)
+            .w(px(560.0))
+            .px(px(40.0))
+            .py(px(36.0))
+            .flex()
+            .flex_col()
+            .gap(px(18.0))
+            .child(
+                div()
+                    .font_role(Role::Prose)
+                    .type_px(34.0, 44.0)
+                    .text_color(p.ink(1).solid())
+                    .child(g.book_title.clone()),
+            )
+            .child(
+                div()
+                    .font_role(Role::Prose)
+                    .type_px(15.0, 26.0)
+                    .text_color(p.ink(2).solid())
+                    .child(g.intro.clone()),
+            ),
+    );
+    // A chapter's head: a title that wraps, an empty synopsis, the rule
+    // and the first paragraph.
+    let chapter = glass::surface(
+        Ground::flat(p.page),
+        paper(&t)
+            .w(px(560.0))
+            .px(px(40.0))
+            .py(px(36.0))
+            .flex()
+            .flex_col()
+            .child(
+                div()
+                    .mb(px(10.0))
+                    .font_role(Role::Prose)
+                    .type_px(42.0, 54.0)
+                    .text_color(p.ink(1).solid())
+                    .child(g.chapter_title.clone()),
+            )
+            .child(
+                div()
+                    .mb(px(28.0))
+                    .font_role(Role::Prose)
+                    .type_px(15.5, 26.0)
+                    .text_color(p.ink(3).solid())
+                    .child(g.synopsis.clone()),
+            )
+            .child(div().mb(px(28.0)).h(px(1.0)).bg(p.rule.solid()))
+            .child(
+                div()
+                    .font_role(Role::Prose)
+                    .type_px(17.0, 30.0)
+                    .text_color(p.ink(1).solid())
+                    .child(PROSE[0]),
+            ),
+    );
+    // A book card's corner: its edit and its trash, which turns the
+    // danger's colour under the pointer.
+    let card = paper(&t)
+        .absolute()
+        .left(px(32.0))
+        .bottom(px(32.0))
+        .w(px(CARD_W))
+        .h(px(CARD_H))
+        .p(px(14.0))
+        .flex()
+        .flex_col()
+        .gap(px(6.0))
+        .child(
+            row()
+                .items_start()
+                .justify_between()
+                .child(
+                    div()
+                        .font_role(Role::Prose)
+                        .type_px(17.0, 24.0)
+                        .text_color(p.ink(1).solid())
+                        .child("雾港纪事"),
+                )
+                .child(
+                    row()
+                        .child(PanelIconButton::new("card-edit", Icon::Edit))
+                        .child(PanelIconButton::new("card-trash", Icon::Trash).danger()),
+                ),
+        )
+        .child(
+            div()
+                .font_role(Role::Index)
+                .type_px(t.scale.caption, t.scale.line_caption)
+                .text_color(p.ink(3).solid())
+                .child("32,418 字 · 3 天前"),
+        );
+    div()
+        .relative()
+        .size_full()
+        .p(px(32.0))
+        .flex()
+        .flex_row()
+        .items_start()
+        .gap(px(40.0))
+        .child(home)
+        .child(chapter)
+        .child(card)
 }
 
 // ── 浮层 ────────────────────────────────────────────────────────────────

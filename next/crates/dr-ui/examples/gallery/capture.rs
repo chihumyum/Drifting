@@ -147,6 +147,22 @@ mod headless {
             }))
         }
 
+        /// Focuses the inputs page's chapter title and has the input
+        /// method mark `pinyin` at its end.
+        pub fn compose_in_title(&mut self, pinyin: &str) -> Result<()> {
+            use gpui::{EntityInputHandler as _, Focusable as _};
+            let view = self.view.clone();
+            self.cx.update_window(self.window, |_, window, cx| {
+                let area = view.read(cx).chapter_title.clone();
+                window.focus(&area.focus_handle(cx), cx);
+                let end = pinyin.encode_utf16().count();
+                area.update(cx, |a, cx| {
+                    a.replace_and_mark_text_in_range(None, pinyin, Some(end..end), window, cx)
+                });
+            })?;
+            Ok(())
+        }
+
         pub fn save(&mut self, dir: &std::path::Path, name: &str) -> Result<()> {
             let image = self.cx.capture_screenshot(self.window)?;
             image.save(dir.join(name))?;
@@ -201,12 +217,18 @@ mod headless {
                     cx.notify();
                 });
                 // On the controls page the pointer rests on the font size's
-                // knob, so its halo shows; elsewhere it is out of the way.
-                h.move_to(if page == Page::Controls {
-                    FONT_SIZE_KNOB
-                } else {
-                    point(px(WINDOW_W - 4.0), px(WINDOW_H - 4.0))
+                // knob, so its halo shows; on the inputs page on the book
+                // card's trash; elsewhere it is out of the way.
+                let (tx, ty) = crate::pages::INPUTS_TRASH;
+                h.move_to(match page {
+                    Page::Controls => FONT_SIZE_KNOB,
+                    Page::Inputs => point(px(tx), px(ty)),
+                    _ => point(px(WINDOW_W - 4.0), px(WINDOW_H - 4.0)),
                 })?;
+                // The chapter title holds the caret, mid-composition.
+                if page == Page::Inputs {
+                    h.compose_in_title("deng ta")?;
+                }
                 // A still moment: the clock stops so drifts and spinners hold.
                 let t0 = Instant::now();
                 anim::freeze(Some(t0));
@@ -215,6 +237,10 @@ mod headless {
                 settle(&mut h)?;
                 h.save(&dir, &format!("{}-{}.png", page.slug(), appearance.slug()))?;
                 anim::freeze(None);
+                if page == Page::Inputs {
+                    // Letting go discards the composition.
+                    h.cx.update_window(h.window, |_, window, cx| window.blur(cx))?;
+                }
             }
             // The dialog over the floating page.
             h.set(|g, cx| {
