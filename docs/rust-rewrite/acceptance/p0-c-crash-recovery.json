@@ -1,0 +1,44 @@
+{
+  "compactEvery": 25,
+  "generatedBy": "cargo run --release -p loro-model-spike --bin p0c-crash -- run",
+  "loro": "1.17.1",
+  "machine": {
+    "arch": "aarch64",
+    "cores": 12,
+    "cpu": "Apple M3 Pro",
+    "memoryBytes": 38654705664,
+    "os": "macos",
+    "osVersion": "27.0.1"
+  },
+  "method": "SIGKILL the writer at random moments; reopen; compare with a deterministic replay of edits 0..=k",
+  "probe": "P0-C crash recovery",
+  "results": {
+    "editsAtEnd": 4226,
+    "finalRichTextJsonBytes": 176389,
+    "kills": 60,
+    "killsByPhase": {
+      "between edits": 21,
+      "during compaction": 38,
+      "right after compaction": 1
+    },
+    "lostDurableEdits": 0,
+    "mismatches": 0,
+    "recoverOpenAndLoadMs": {
+      "max": 28.717,
+      "mean": 12.602,
+      "n": 60,
+      "p50": 13.499,
+      "p95": 20.764
+    },
+    "recoveredOneEditBeyondLastReport": 0,
+    "verifyByReplayMs": {
+      "max": 1381.088,
+      "mean": 822.088,
+      "n": 60,
+      "p50": 750.293,
+      "p95": 1134.627
+    }
+  },
+  "schemaVersion": 1,
+  "sourceFingerprint": "e2b203c98df4ee4318d999bc2f9b05fa6b491e23f4768f15bff5a407d24a7734"
+}

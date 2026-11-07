@@ -1,0 +1,25 @@
+[package]
+name = "visual-spike"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Spike P0-D: glass without backdrop blur, sand icon tinting, the character sea and tiny-skia covers on GPUI."
+
+[features]
+# Lets the prototype write its own screenshots (`--capture <dir>`) through
+# GPUI's offscreen `Window::render_to_image`, so no screen-recording
+# permission is needed. Off by default: it turns on GPUI's test support.
+capture = ["gpui_platform/test-support"]
+
+[dependencies]
+anyhow.workspace = true
+base64.workspace = true
+gpui.workspace = true
+# Without `font-kit` GPUI has no macOS text system and draws no text at all
+# (Zed turns it on in its own app crate).
+gpui_platform = { workspace = true, features = ["font-kit"] }
+image.workspace = true
+smallvec.workspace = true
+tiny-skia.workspace = true

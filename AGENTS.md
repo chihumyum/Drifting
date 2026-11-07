@@ -41,6 +41,30 @@ Guidance for coding agents working in this standalone Drifting client repository
 - Keep service integration behind versioned network contracts. Do not import or
   mirror private service source.
 
+## New workspace (`next/`)
+
+- `next/` is the Rust + GPUI + Loro rewrite of the desktop client; the plan is
+  `docs/rust-rewrite/`. It is its own Cargo workspace with its own toolchain
+  file and lockfile, and shares no code with the 0.1 client. Every other rule in
+  this file keeps applying to the 0.1 client (`src/`, `src-tauri/`, `crates/`,
+  `drizzle/`, …) until the switch-over.
+- GPUI is pinned to a Zed release tag and Loro exactly; other dependencies go
+  in `[workspace.dependencies]`, pinned at least to a minor version. One
+  workspace member per line, sorted. Keep `[patch.crates-io]` in step with the
+  Zed tag. See `next/README.md`.
+- Development builds carry the bundle id `cc.drifting.next.dev`. Do not give a
+  `next/` build the release client's identity before F7's hand-over.
+- Zed's `editor`, `text`, `rope`, `ui` and `theme` crates are GPL-3.0; do not
+  copy from them. `gpui`, its platform crates and `sum_tree` are Apache-2.0.
+- Checks, run in `next/` (CI: `.github/workflows/next.yml`, macOS and Windows,
+  only when `next/` changes):
+
+  ```bash
+  cargo fmt --all --check
+  cargo clippy --workspace --all-targets --locked -- -D warnings
+  cargo test --workspace --locked
+  ```
+
 ## Public Alpha compatibility policy
 
 - Releases are published on GitHub as described in `docs/releasing.md`;
