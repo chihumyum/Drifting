@@ -6,7 +6,7 @@ use std::ops::Range;
 
 use gpui::{Bounds, Context, EntityInputHandler, Pixels, Point, UTF16Selection, Window, px, size};
 
-use super::composition::{Composition, Marked16, Virtual16};
+use super::composition::{Composition, Marked16, Marking, Virtual16};
 use crate::{
     ProseEditor,
     input::Selection,
@@ -42,16 +42,13 @@ impl ProseEditor {
     /// The marked text in UTF-16 units of the committed chapter text.
     pub(crate) fn marked16(&mut self) -> Option<Marked16> {
         let comp = self.composition.as_ref()?;
-        let (chapter, at, replaced) = (comp.chapter, comp.at, comp.replaced);
-        let len = comp.text.encode_utf16().count();
-        let doc = &mut self.book.chapters[chapter].doc;
-        let at16 = doc.offset_to_utf16(at);
-        let end16 = doc.offset_to_utf16(at + replaced);
-        Some(Marked16 {
-            at: at16,
-            len,
-            replaced: end16 - at16,
-        })
+        let doc = &self.book.chapters[comp.chapter].doc;
+        let target = comp.target();
+        let (at16, end16) = (
+            doc.offset_to_utf16(target.start),
+            doc.offset_to_utf16(target.end),
+        );
+        Some(comp.in_utf16(at16, end16))
     }
 
     fn virtual_len16(&mut self) -> usize {
@@ -243,10 +240,8 @@ impl EntityInputHandler for ProseEditor {
     ) -> Option<UTF16Selection> {
         if let Some(m) = self.marked16() {
             let comp = self.composition.as_ref()?;
-            let start = comp.text[..comp.selected.start].encode_utf16().count();
-            let end = comp.text[..comp.selected.end].encode_utf16().count();
             return Some(UTF16Selection {
-                range: m.at + start..m.at + end,
+                range: comp.selected_utf16(m.at),
                 reversed: false,
             });
         }
@@ -358,36 +353,24 @@ impl EntityInputHandler for ProseEditor {
                 });
                 base = base.start..base.start;
             }
-            self.composition = Some(Composition {
-                chapter,
-                at: base.start,
-                replaced: base.len(),
-                text: String::new(),
-                selected: 0..0,
-            });
+            self.composition = Some(Composition::begin(chapter, base));
         } else if let Some(range16) = range16 {
             // The input method re-targets the marked range (rare).
             let mapped = self.virtual_range_to_doc(range16);
             if let Some(comp) = self.composition.as_mut() {
-                let end = (comp.at + comp.replaced).max(mapped.end);
-                comp.at = comp.at.min(mapped.start);
-                comp.replaced = end - comp.at;
+                comp.retarget(mapped);
             }
         }
-        if new_text.is_empty() {
+        let marking = self
+            .composition
+            .as_mut()
+            .map(|comp| comp.mark(new_text, new_selected_range16));
+        if marking == Some(Marking::Cancelled) {
             // All marked text deleted: back to the committed text, untouched.
             let at = self.composition.as_ref().map_or(0, |comp| comp.at);
             let chapter = self.input_chapter();
             self.cancel_composition();
             self.selection = Selection::caret(chapter, at);
-        } else if let Some(comp) = self.composition.as_mut() {
-            comp.text = new_text.to_owned();
-            comp.selected = match new_selected_range16 {
-                Some(range) => {
-                    byte_of_utf16(new_text, range.start)..byte_of_utf16(new_text, range.end)
-                }
-                None => new_text.len()..new_text.len(),
-            };
         }
         self.autoscroll = true;
         self.reset_blink(cx);

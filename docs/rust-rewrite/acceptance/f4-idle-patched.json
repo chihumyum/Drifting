@@ -1,7 +1,7 @@
 {
   "schema": "drifting.f4.idle/1",
   "generated_at": "2026-11-07",
-  "source_fingerprint": "172d279e51afa196",
+  "source_fingerprint": "2bcb271616ea2c39",
   "machine": {
     "cpu": "Apple M3 Pro",
     "model": "Mac15,7",
@@ -24,8 +24,14 @@
   },
   "method": "One 20k-char chapter open in a visible window; whole-process CPU time (getrusage) over each window, as percent of one core.",
   "seconds": 30,
-  "load_average_1m_before": 4.68,
-  "focused_blinking_percent": 0.58,
+  "load_average_1m_before": 23.31,
+  "conditions": {
+    "load_average_1m_max": 23.31,
+    "quiet_below_1m": 2,
+    "reference_only": true,
+    "note": "High load: other builds were running on this machine. For reference only; do not compare builds or patches with these numbers. Remeasure on an idle machine (f4-editor.md, remeasuring)."
+  },
+  "focused_blinking_percent": 0.06,
   "focused_solid_caret_percent": 0,
   "unfocused_percent": 0
 }

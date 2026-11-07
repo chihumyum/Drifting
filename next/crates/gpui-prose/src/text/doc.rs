@@ -1,50 +1,38 @@
-//! One body text: the Loro document, its paragraph mirror, the author's undo
-//! history and the anchors held on it.
+//! One body text as the editor sees it: a text source (which owns the Loro
+//! document and the write rules), the paragraph mirror and index fed by the
+//! source's events, the author's undo steps and the anchors held on it.
 //!
 //! Positions handed in and out are Unicode scalar offsets in the whole text
-//! (Loro's native unit) unless a name says otherwise.
+//! unless a name says otherwise.
 
-use std::{
-    ops::Range,
-    sync::{Arc, Mutex},
-};
+use std::ops::Range;
 
-use loro::{ContainerTrait, LoroDoc, LoroResult, LoroText, LoroValue, Subscription, TextDelta};
+use loro::{LoroDoc, LoroResult, LoroValue};
 
 use super::{
     anchor::{Anchor, AnchorChange, AnchorId, AnchorSet, Resolved},
-    blocks::{self, BlockAttrs, BlockKind},
+    blocks::{BlockAttrs, BlockKind},
+    index::{BidMap, ParagraphIndex},
+    loro_source::LoroSource,
     marks::{self, Marks, Span},
     mirror::{self, ChangeSet, Line},
+    source::{Edit, EditResult, MarkOverride, ProseSource},
     undo::{AnchorRestore, AuthorUndo, DeletionRecord, UndoConfig, restore_points},
+    units::byte_of_char,
 };
-use crate::schema::{self, BODY, block, inline};
+use crate::schema::{block, inline};
 
 /// Origin of edits typed by the author. Undo tracks these.
 pub const ORIGIN_USER: &str = "user";
 /// Prefix of Agent write origins (`agent:<session>/<turn>`). Undo skips these.
 pub const ORIGIN_AGENT_PREFIX: &str = "agent:";
-/// Origin of the block-id repair commit (not undoable).
-pub const ORIGIN_REPAIR: &str = "repair";
 
-type EventQueue = Arc<Mutex<Vec<(String, bool, Vec<TextDelta>)>>>;
-
-/// A mark to set (`Some`) or clear (`None`) on text being inserted: the
-/// pending toggles of a caret (⌘B before typing).
-pub type MarkOverride = (String, Option<LoroValue>);
-
-/// A body text: the Loro document, its paragraph mirror and its undo history.
+/// A body text: its source, mirror, index, undo steps and anchors.
 pub struct ProseDoc {
-    doc: LoroDoc,
-    text: LoroText,
+    source: Box<dyn ProseSource>,
     lines: Vec<Line>,
-    /// Scalar offset of each line's first character; rebuilt lazily.
-    starts: Vec<usize>,
-    /// UTF-16 offset of each line's first unit; rebuilt lazily.
-    starts16: Vec<usize>,
-    starts_dirty: bool,
-    queue: EventQueue,
-    _subscription: Subscription,
+    index: ParagraphIndex,
+    bids: BidMap,
     rev: u64,
     /// Changes applied since the last [`ProseDoc::take_changes`].
     changes: Vec<ChangeSet>,
@@ -54,125 +42,77 @@ pub struct ProseDoc {
 }
 
 impl ProseDoc {
-    /// A new body text with one empty paragraph (a standalone document; a
-    /// host with deterministic genesis changes builds its own `LoroDoc` and
-    /// opens it with [`ProseDoc::from_loro`]).
+    /// Opens a body text from any source.
+    pub fn open(source: Box<dyn ProseSource>) -> ProseDoc {
+        ProseDoc::open_with(source, &UndoConfig::default())
+    }
+
+    pub fn open_with(mut source: Box<dyn ProseSource>, undo: &UndoConfig) -> ProseDoc {
+        // Whatever the source did while opening (a repair) is already in the
+        // read below.
+        source.take_events();
+        let lines = mirror::lines_from_paragraphs(source.read_all(), 0);
+        let index = ParagraphIndex::new(lines.iter().map(Line::extent));
+        let mut bids = BidMap::default();
+        bids.rebuild(lines.iter().map(Line::bid));
+        ProseDoc {
+            source,
+            lines,
+            index,
+            bids,
+            rev: 0,
+            changes: Vec::new(),
+            undo: AuthorUndo::new(undo),
+            anchors: AnchorSet::default(),
+            anchor_changes: Vec::new(),
+        }
+    }
+
+    /// A new standalone body text with one empty paragraph.
     pub fn new() -> ProseDoc {
-        ProseDoc::from_paragraphs(std::iter::empty())
+        ProseDoc::open(Box::new(LoroSource::empty()))
     }
 
-    /// Opens a body text from a Loro snapshot.
+    /// Opens a standalone body text from a Loro snapshot.
     pub fn from_snapshot(bytes: &[u8]) -> LoroResult<ProseDoc> {
-        let doc = LoroDoc::new();
-        schema::configure(&doc);
-        doc.import(bytes)?;
-        Ok(ProseDoc::from_loro(doc))
+        Ok(ProseDoc::open(Box::new(LoroSource::from_snapshot(bytes)?)))
     }
 
-    /// Builds a body text from plain paragraphs in one commit (a seed, not
-    /// undoable). Every paragraph gets a block id.
+    /// A standalone body text from plain paragraphs (a seed, not undoable).
     pub fn from_paragraphs<'a>(
         paragraphs: impl IntoIterator<Item = (BlockKind, &'a str)>,
     ) -> ProseDoc {
-        let doc = LoroDoc::new();
-        schema::configure(&doc);
-        let text = doc.get_text(BODY);
-        let mut body = String::new();
-        let mut newlines = Vec::new();
-        let mut chars = 0;
-        for (kind, paragraph) in paragraphs {
-            debug_assert!(!paragraph.contains('\n'));
-            body.push_str(paragraph);
-            body.push('\n');
-            chars += paragraph.chars().count();
-            newlines.push((chars, kind));
-            chars += 1;
-        }
-        if body.is_empty() {
-            body.push('\n');
-            newlines.push((0, BlockKind::Body));
-        }
-        text.insert(0, &body).expect("insert the seed text");
-        for (at, kind) in newlines {
-            let bid = blocks::fresh_block_id(&text, at);
-            let _ = text.mark(at..at + 1, block::ID, bid);
-            if let Some(level) = kind.level() {
-                let _ = text.mark(at..at + 1, block::HEADING, level);
-            }
-        }
-        doc.set_next_commit_origin("seed");
-        doc.commit();
-        ProseDoc::from_loro(doc)
+        ProseDoc::open(Box::new(LoroSource::from_paragraphs(paragraphs)))
     }
 
-    /// Opens an existing document: applies the style table, builds the
-    /// mirror, and repairs missing or duplicate block ids (an uncommitted
-    /// `repair` change, committed here; not undoable).
+    /// A standalone body text on an existing `LoroDoc`.
     pub fn from_loro(doc: LoroDoc) -> ProseDoc {
         ProseDoc::from_loro_with(doc, &UndoConfig::default())
     }
 
     pub fn from_loro_with(doc: LoroDoc, undo: &UndoConfig) -> ProseDoc {
-        schema::configure(&doc);
-        let text = doc.get_text(BODY);
-        let queue: EventQueue = Arc::default();
-        let subscription = doc.subscribe(
-            &text.id(),
-            Arc::new({
-                let queue = queue.clone();
-                move |event| {
-                    let local = matches!(event.triggered_by, loro::EventTriggerKind::Local);
-                    let origin = event.origin.to_owned();
-                    let mut deltas = Vec::new();
-                    for diff in event.events {
-                        if let loro::event::Diff::Text(delta) = diff.diff {
-                            deltas.extend(delta);
-                        }
-                    }
-                    if !deltas.is_empty() {
-                        queue.lock().unwrap().push((origin, local, deltas));
-                    }
-                }
-            }),
-        );
-        let undo = AuthorUndo::new(&doc, undo);
-        let lines = mirror::lines_from_delta(&text.to_delta(), 0);
-        let mut prose = ProseDoc {
-            doc,
-            text,
-            lines,
-            starts: Vec::new(),
-            starts16: Vec::new(),
-            starts_dirty: true,
-            queue,
-            _subscription: subscription,
-            rev: 0,
-            changes: Vec::new(),
-            undo,
-            anchors: AnchorSet::default(),
-            anchor_changes: Vec::new(),
-        };
-        if prose.text.len_unicode() == 0 {
-            // A document that never had a body: give it its final newline.
-            let _ = prose.text.insert(0, "\n");
-            let bid = blocks::fresh_block_id(&prose.text, 0);
-            let _ = prose.text.mark(0..1, block::ID, bid);
-            prose.commit("seed");
-        }
-        prose.repair_block_ids();
-        prose.take_changes();
-        prose
+        ProseDoc::open_with(Box::new(LoroSource::with_undo(doc, undo)), undo)
     }
 
-    pub fn loro(&self) -> &LoroDoc {
-        &self.doc
+    pub fn source(&self) -> &dyn ProseSource {
+        self.source.as_ref()
     }
 
-    pub fn text(&self) -> &LoroText {
-        &self.text
+    pub fn source_mut(&mut self) -> &mut dyn ProseSource {
+        self.source.as_mut()
     }
 
-    // ----- the mirror -----------------------------------------------------------
+    /// The concrete source, if it is a `T`.
+    pub fn source_as<T: 'static>(&self) -> Option<&T> {
+        self.source.as_any().downcast_ref()
+    }
+
+    /// The built-in source, for standalone hosts and tests.
+    pub fn loro_source(&self) -> Option<&LoroSource> {
+        self.source_as()
+    }
+
+    // ----- the mirror and the index ----------------------------------------------
 
     /// All lines, including the hidden empty line after the trailing newline.
     pub fn lines(&self) -> &[Line] {
@@ -194,90 +134,65 @@ impl ProseDoc {
         }
     }
 
-    /// The line whose block id is `bid`.
+    /// The line whose block id is `bid` (the first, if several claim it).
     pub fn line_by_bid(&self, bid: &str) -> Option<usize> {
-        self.lines.iter().position(|line| line.bid() == Some(bid))
+        self.bids.get(bid)
+    }
+
+    /// The whole text, from the mirror.
+    pub fn plain_text(&self) -> String {
+        let mut out = String::new();
+        for (ix, line) in self.lines.iter().enumerate() {
+            if ix > 0 {
+                out.push('\n');
+            }
+            out.push_str(&line.text);
+        }
+        out
     }
 
     /// Total length in scalars, newlines included.
-    pub fn len_chars(&mut self) -> usize {
-        self.ensure_starts();
-        let last = self.lines.len() - 1;
-        self.starts[last] + self.lines[last].chars
+    pub fn len_chars(&self) -> usize {
+        self.index.len_chars()
     }
 
     /// The largest offset the cursor may take: the end of the last visible line.
-    pub fn max_cursor(&mut self) -> usize {
+    pub fn max_cursor(&self) -> usize {
         let last = self.visible_lines() - 1;
         self.line_start(last) + self.lines[last].chars
     }
 
     /// Total length in UTF-16 units, newlines included.
-    pub fn len_utf16(&mut self) -> usize {
-        self.ensure_starts();
-        let last = self.lines.len() - 1;
-        self.starts16[last] + self.lines[last].utf16
+    pub fn len_utf16(&self) -> usize {
+        self.index.len_utf16()
     }
 
-    fn ensure_starts(&mut self) {
-        if !self.starts_dirty {
-            return;
-        }
-        self.starts.clear();
-        self.starts16.clear();
-        let (mut at, mut at16) = (0, 0);
-        for line in &self.lines {
-            self.starts.push(at);
-            self.starts16.push(at16);
-            at += line.chars + 1;
-            at16 += line.utf16 + 1;
-        }
-        self.starts_dirty = false;
-    }
-
-    /// The line containing `offset`, without touching the lazy index.
+    /// The line containing `offset`.
     pub fn line_of(&self, offset: usize) -> usize {
-        let mut at = 0;
-        for (ix, line) in self.lines.iter().enumerate() {
-            if offset <= at + line.chars {
-                return ix;
-            }
-            at += line.chars + 1;
-        }
-        self.lines.len() - 1
+        self.index.locate(offset).0
     }
 
     /// Scalar offset of the first character of line `ix`.
-    pub fn line_start(&mut self, ix: usize) -> usize {
-        self.ensure_starts();
-        self.starts[ix.min(self.starts.len() - 1)]
+    pub fn line_start(&self, ix: usize) -> usize {
+        self.index.start(ix.min(self.lines.len() - 1))
     }
 
     /// The line containing `offset`, and the offset inside it. An offset on a
     /// newline belongs to the line that newline ends.
-    pub fn locate(&mut self, offset: usize) -> (usize, usize) {
-        self.ensure_starts();
-        let ix = match self.starts.binary_search(&offset) {
-            Ok(ix) => ix,
-            Err(ix) => ix - 1,
-        };
-        (ix, offset - self.starts[ix])
+    pub fn locate(&self, offset: usize) -> (usize, usize) {
+        self.index.locate(offset)
     }
 
-    pub fn offset_to_utf16(&mut self, offset: usize) -> usize {
+    pub fn offset_to_utf16(&self, offset: usize) -> usize {
         let (ix, inner) = self.locate(offset);
         let line = &self.lines[ix];
         let inner16: usize = line.text.chars().take(inner).map(char::len_utf16).sum();
-        self.starts16[ix] + inner16
+        self.index.start_utf16(ix) + inner16
     }
 
-    pub fn offset_from_utf16(&mut self, offset16: usize) -> usize {
-        self.ensure_starts();
-        let ix = match self.starts16.binary_search(&offset16) {
-            Ok(ix) => ix,
-            Err(ix) => ix - 1,
-        };
-        let mut remaining = offset16 - self.starts16[ix];
+    pub fn offset_from_utf16(&self, offset16: usize) -> usize {
+        let (ix, start16) = self.index.locate_utf16(offset16);
+        let mut remaining = offset16 - start16;
         let mut chars = 0;
         for ch in self.lines[ix].text.chars() {
             if remaining == 0 {
@@ -292,11 +207,11 @@ impl ProseDoc {
         } else {
             chars
         };
-        (self.starts[ix] + inner).min(self.len_chars())
+        (self.line_start(ix) + inner).min(self.len_chars())
     }
 
     /// The text in `range` (scalar offsets), newlines included.
-    pub fn slice(&mut self, range: Range<usize>) -> String {
+    pub fn slice(&self, range: Range<usize>) -> String {
         let mut out = String::new();
         if range.is_empty() {
             return out;
@@ -305,8 +220,8 @@ impl ProseDoc {
         let mut remaining = range.end - range.start;
         for line in &self.lines[first..] {
             let take = remaining.min(line.chars.saturating_sub(inner));
-            let start = line.byte_of_char(inner);
-            let end = line.byte_of_char(inner + take);
+            let start = byte_of_char(&line.text, inner);
+            let end = byte_of_char(&line.text, inner + take);
             out.push_str(&line.text[start..end]);
             remaining -= take;
             if remaining == 0 {
@@ -324,7 +239,7 @@ impl ProseDoc {
 
     /// The marks a character typed at `offset` takes by default: those of the
     /// character before it (inside its paragraph), as far as they expand.
-    pub fn marks_before(&mut self, offset: usize) -> Marks {
+    pub fn marks_before(&self, offset: usize) -> Marks {
         let (ix, inner) = self.locate(offset);
         if inner == 0 {
             return Marks::default();
@@ -337,7 +252,7 @@ impl ProseDoc {
     }
 
     /// Whether every character of `range` (newlines aside) has `key`.
-    pub fn range_has_mark(&mut self, range: Range<usize>, key: &str) -> bool {
+    pub fn range_has_mark(&self, range: Range<usize>, key: &str) -> bool {
         if range.is_empty() {
             return false;
         }
@@ -368,6 +283,31 @@ impl ProseDoc {
 
     // ----- edits ----------------------------------------------------------------
 
+    /// Applies one edit through the source, records anchors whose edges it
+    /// deletes for the undo item, and folds the result into the mirror.
+    fn apply(&mut self, edit: Edit<'_>, origin: &str) -> EditResult {
+        let may_delete = match &edit {
+            Edit::Replace { range, .. } | Edit::Delete { range } => !range.is_empty(),
+            _ => false,
+        };
+        let anchors_before = if may_delete && !self.anchors.is_empty() {
+            self.anchors.resolve_all(self.source.as_ref())
+        } else {
+            Vec::new()
+        };
+        let result = self.source.edit(edit, origin);
+        for &(pos, len) in &result.deleted {
+            let restores = anchor_restores(&anchors_before, pos..pos + len);
+            self.undo
+                .pending
+                .deletions
+                .push(DeletionRecord { len, restores });
+        }
+        self.undo.after_commit(result.undo_items);
+        self.drain();
+        result
+    }
+
     /// Replaces `range` with `text` in one commit. Each `\n` in `text` is an
     /// Enter (new paragraphs get fresh block ids). Returns where the inserted
     /// text ended up.
@@ -387,17 +327,15 @@ impl ProseDoc {
         if range.is_empty() && text.is_empty() {
             return range;
         }
-        let deleted = self.delete_recorded(range.clone());
-        let at = deleted.start;
-        let end = blocks::insert(&self.text, at, text);
-        for (key, value) in overrides {
-            match value {
-                Some(value) => marks::mark_inline(&self.text, at..end, key, value.clone()),
-                None => marks::unmark_inline(&self.text, at..end, key),
-            }
-        }
-        self.commit(origin);
-        at..end
+        self.apply(
+            Edit::Replace {
+                range,
+                text,
+                overrides,
+            },
+            origin,
+        )
+        .inserted
     }
 
     /// Deletes `range` in one commit, under the paragraph-join rules.
@@ -405,15 +343,12 @@ impl ProseDoc {
         if range.is_empty() {
             return;
         }
-        self.delete_recorded(range);
-        self.commit(origin);
+        self.apply(Edit::Delete { range }, origin);
     }
 
     /// Enter at `offset`. Returns the caret position afterwards.
     pub fn split(&mut self, offset: usize, origin: &str) -> usize {
-        let caret = blocks::split(&self.text, offset);
-        self.commit(origin);
-        caret
+        self.apply(Edit::Split { at: offset }, origin).caret
     }
 
     /// Joins line `ix` onto the line before it (Backspace at a paragraph start).
@@ -445,8 +380,14 @@ impl ProseDoc {
             return;
         }
         let newline = self.line_start(ix) + self.lines[ix].chars;
-        blocks::set_block_attr(&self.text, newline, key, value);
-        self.commit(origin);
+        self.apply(
+            Edit::SetBlockAttr {
+                newline,
+                key,
+                value,
+            },
+            origin,
+        );
     }
 
     /// Sets an inline mark on `range` (newlines are skipped).
@@ -454,8 +395,7 @@ impl ProseDoc {
         if range.is_empty() || block::is_block_key(key) {
             return;
         }
-        marks::mark_inline(&self.text, range, key, value);
-        self.commit(origin);
+        self.apply(Edit::Mark { range, key, value }, origin);
     }
 
     /// Clears an inline mark from `range`.
@@ -463,8 +403,7 @@ impl ProseDoc {
         if range.is_empty() || block::is_block_key(key) {
             return;
         }
-        marks::unmark_inline(&self.text, range, key);
-        self.commit(origin);
+        self.apply(Edit::Unmark { range, key }, origin);
     }
 
     /// Bold/italic/underline/strike on `range`: off if all of it has the
@@ -485,65 +424,6 @@ impl ProseDoc {
             Some(url) => self.mark(range, inline::LINK, LoroValue::from(url), origin),
             None => self.unmark(range, inline::LINK, origin),
         }
-    }
-
-    /// Deletes `range` (clamped so the final newline stays), recording the
-    /// anchors whose edges it removes for the undo item.
-    fn delete_recorded(&mut self, range: Range<usize>) -> Range<usize> {
-        let len = self.text.len_unicode();
-        let end = range.end.min(len.saturating_sub(1));
-        let start = range.start.min(end);
-        if start == end {
-            return start..start;
-        }
-        let restores = if self.anchors.is_empty() {
-            Vec::new()
-        } else {
-            self.anchor_restores(start..end)
-        };
-        let deleted = blocks::delete(&self.text, start..end);
-        self.undo.pending.deletions.push(DeletionRecord {
-            len: deleted.len(),
-            restores,
-        });
-        deleted
-    }
-
-    fn anchor_restores(&mut self, deleted: Range<usize>) -> Vec<AnchorRestore> {
-        let mut restores = Vec::new();
-        for (id, resolved) in self.anchors.resolve_all(&self.doc) {
-            if resolved.collapsed {
-                continue;
-            }
-            let (s, e) = (resolved.range.start, resolved.range.end);
-            let start_in = deleted.contains(&s);
-            let end_in = deleted.contains(&(e - 1));
-            if start_in || end_in {
-                restores.push(AnchorRestore {
-                    id,
-                    start: start_in.then(|| s - deleted.start),
-                    end: end_in.then(|| e - deleted.start),
-                });
-            }
-        }
-        restores
-    }
-
-    /// Fixes missing and duplicate block ids (deterministically). Returns how
-    /// many paragraphs it changed.
-    pub fn repair_block_ids(&mut self) -> usize {
-        self.ensure_starts();
-        let last = self.lines.len() - 1;
-        let paragraphs: Vec<(usize, Option<String>)> = self.lines[..last]
-            .iter()
-            .enumerate()
-            .map(|(ix, line)| (self.starts[ix] + line.chars, line.bid().map(String::from)))
-            .collect();
-        let fixed = blocks::repair_block_ids(&self.text, &paragraphs);
-        if fixed > 0 {
-            self.commit(ORIGIN_REPAIR);
-        }
-        fixed
     }
 
     // ----- undo -----------------------------------------------------------------
@@ -576,7 +456,7 @@ impl ProseDoc {
         let mut changed = false;
         for record in step.items.iter().rev() {
             let from = self.changes.len();
-            changed |= self.undo.manager.undo().unwrap_or(false);
+            changed |= self.source.undo_item();
             self.drain();
             if AuthorUndo::needs_ops(record) {
                 let ops: Vec<_> = self.changes[from..]
@@ -601,7 +481,7 @@ impl ProseDoc {
         let before = self.changes.len();
         let mut changed = false;
         for _ in &step.items {
-            changed |= self.undo.manager.redo().unwrap_or(false);
+            changed |= self.source.redo_item();
         }
         self.drain();
         step.started = AuthorUndo::long_ago();
@@ -611,7 +491,7 @@ impl ProseDoc {
 
     fn restore_anchors(&mut self, restores: &[AnchorRestore], point: usize) {
         for restore in restores {
-            let current = self.anchors.resolve(&restore.id, &self.doc);
+            let current = self.anchors.resolve(&restore.id, self.source.as_ref());
             let start = match (restore.start, &current) {
                 (Some(rel), _) => point + rel,
                 (None, Some(now)) => now.range.start,
@@ -625,7 +505,7 @@ impl ProseDoc {
             if start >= end {
                 continue;
             }
-            if let Some(anchor) = Anchor::new(&self.text, start..end) {
+            if let Some(anchor) = self.source.anchor(start..end) {
                 self.anchors.insert(restore.id.clone(), anchor.clone());
                 self.anchor_changes.push(AnchorChange {
                     id: restore.id.clone(),
@@ -644,46 +524,48 @@ impl ProseDoc {
             .map(|op| op.pos + op.inserted)
     }
 
-    // ----- commits and events -----------------------------------------------------
+    // ----- events -------------------------------------------------------------------
 
-    /// Commits pending Loro operations with the given origin and folds the
-    /// resulting event into the mirror.
-    pub fn commit(&mut self, origin: &str) {
-        let before = self.undo.manager.undo_count();
-        self.doc.set_next_commit_origin(origin);
-        self.doc.commit();
-        let pushed = self.undo.manager.undo_count().saturating_sub(before);
-        self.undo.after_commit(pushed);
+    /// Imports remote updates through the source (sources that support it).
+    pub fn import(&mut self, bytes: &[u8]) -> Result<(), String> {
+        let result = self.source.import(bytes);
         self.drain();
+        result
     }
 
-    /// Imports remote updates (sync, another device), folds them in, and
-    /// repairs block ids a concurrent Enter may have duplicated.
-    pub fn import(&mut self, bytes: &[u8]) -> LoroResult<()> {
-        self.doc.import(bytes)?;
-        self.drain();
-        self.repair_block_ids();
-        Ok(())
-    }
-
-    /// Applies queued Loro events to the mirror.
+    /// Folds the source's pending events into the mirror and the index. Hosts
+    /// whose source changes outside the editor (Drifting's sync) call this,
+    /// through the editor, after the change.
     pub fn drain(&mut self) {
-        let events = std::mem::take(&mut *self.queue.lock().unwrap());
+        let events = self.source.take_events();
         if events.is_empty() {
             return;
         }
-        for (origin, local, delta) in events {
+        let mut structure_changed = false;
+        for event in events {
             let mut set = ChangeSet {
-                origin,
-                local,
+                origin: event.origin,
+                local: event.local,
                 ..ChangeSet::default()
             };
             self.rev += 1;
-            mirror::apply_delta(&mut self.lines, &delta, self.rev, &mut set);
-            self.starts_dirty = true;
+            mirror::apply_changes(
+                &mut self.lines,
+                &mut self.index,
+                &event.changes,
+                self.rev,
+                &mut set,
+            );
+            structure_changed |= set.splices.iter().any(|s| s.old != s.new);
             self.changes.push(set);
         }
-        mirror::refresh_stale(&mut self.lines, &self.text);
+        let ids_changed = mirror::refresh_stale(&mut self.lines, &self.index, self.source.as_ref());
+        if structure_changed || ids_changed {
+            self.bids.mark_dirty();
+        }
+        if self.bids.is_dirty() {
+            self.bids.rebuild(self.lines.iter().map(Line::bid));
+        }
     }
 
     /// Changes folded into the mirror since the last call.
@@ -700,7 +582,7 @@ impl ProseDoc {
 
     /// Anchors `range` under `id` and returns the anchor to store.
     pub fn add_anchor(&mut self, id: impl Into<AnchorId>, range: Range<usize>) -> Option<Anchor> {
-        let anchor = Anchor::new(&self.text, range)?;
+        let anchor = self.source.anchor(range)?;
         self.anchors.insert(id.into(), anchor.clone());
         Some(anchor)
     }
@@ -711,7 +593,7 @@ impl ProseDoc {
 
     /// Where an anchor points now.
     pub fn anchor(&mut self, id: &str) -> Option<Resolved> {
-        self.anchors.resolve(id, &self.doc)
+        self.anchors.resolve(id, self.source.as_ref())
     }
 
     pub fn anchors(&self) -> &AnchorSet {
@@ -725,10 +607,11 @@ impl ProseDoc {
 
     // ----- checks ---------------------------------------------------------------
 
-    /// A fresh read straight from Loro, for tests and checks: each paragraph's
-    /// attributes, text and marks.
+    /// A fresh read straight from the source, for tests and checks: each
+    /// paragraph's attributes, text and marks.
     pub fn reread(&self) -> Vec<(BlockAttrs, String, Vec<Span>)> {
-        mirror::read_lines(&self.text.to_delta())
+        self.source
+            .read_all()
             .into_iter()
             .map(|read| (read.block, read.text, read.spans))
             .collect()
@@ -747,12 +630,46 @@ impl ProseDoc {
             })
             .collect()
     }
+
+    /// Whether the index agrees with the mirror (tests).
+    pub fn index_matches_mirror(&self) -> bool {
+        let mut at = 0;
+        for (ix, line) in self.lines.iter().enumerate() {
+            if self.index.start(ix) != at {
+                return false;
+            }
+            at += line.chars + 1;
+        }
+        self.index.len() == self.lines.len() && self.index.len_chars() + 1 == at
+    }
 }
 
 impl Default for ProseDoc {
     fn default() -> Self {
         ProseDoc::new()
     }
+}
+
+/// The anchors whose edges `deleted` removes, with the edges' offsets from
+/// the deletion start (resolved before the edit).
+fn anchor_restores(anchors: &[(AnchorId, Resolved)], deleted: Range<usize>) -> Vec<AnchorRestore> {
+    let mut restores = Vec::new();
+    for (id, resolved) in anchors {
+        if resolved.collapsed {
+            continue;
+        }
+        let (s, e) = (resolved.range.start, resolved.range.end);
+        let start_in = deleted.contains(&s);
+        let end_in = deleted.contains(&(e - 1));
+        if start_in || end_in {
+            restores.push(AnchorRestore {
+                id: id.clone(),
+                start: start_in.then(|| s - deleted.start),
+                end: end_in.then(|| e - deleted.start),
+            });
+        }
+    }
+    restores
 }
 
 /// Whether spans cover every byte of `range` with `key`.

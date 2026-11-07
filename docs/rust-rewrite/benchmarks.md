@@ -46,7 +46,8 @@ release 构建，2026-10-30，修复之后的数字。来源：`docs/renderer-pe
 
 | 项 | 怎么量 | 探针档 | 发布档 |
 | --- | --- | ---: | ---: |
-| 按键上屏 p95 | 从按键事件到包含该字的那一帧呈现 | ≤ 16 ms | ≤ 8.3 ms |
+| 按键到交出画面 p95 | 从按键事件到包含该字的那一帧交给系统（CAMetalLayer present）。程序内探针和 Instruments 都量 | ≤ 16 ms | ≤ 8.3 ms（靠 GPUI 补丁 G1，见 [f4-editor.md](foundations/f4-editor.md#gpui-补丁台账)） |
+| 按键到真正显示 | Instruments：到这一帧开始显示（`prose-bench present`）。用同一方法量一次 TextEdit 当参照 | 记录 | 记录 |
 | 单次按键的写入（中位数） | Loro 提交，加追加到 SQLite | ≤ 2 ms | ≤ 1 ms |
 | 打字时的 CPU | 整个进程，每秒 8 个字，持续 60 s | ≤ 15% | ≤ 8% |
 | 不操作时的 CPU | 编辑器打开、光标闪烁 | ≤ 1% | ≈ 0 |
@@ -67,6 +68,7 @@ release 构建，2026-10-30，修复之后的数字。来源：`docs/renderer-pe
 | 同步恢复 | 重型种子，从 Hosted 恢复到本机 | — | 记录，切换前定预算 |
 
 - 发布档的帧时间按 120 Hz 计。60 Hz 屏上按 16.7 ms 算。
+- 「按键上屏」2026-11-07 起拆成上面两条（监管会话定）：交出画面之后，WindowServer 合成和面板刷新还要两到三个刷新周期，任何经过合成器的窗口都一样，所以「真正显示」只记录、和系统自带程序比，不设预算。
 - 打字 CPU 和空闲 CPU 是「整个进程」的数字。旧版的数字是界面进程和原生进程分开统计的，对比时要把两者相加。
 
 ## 输入法矩阵
@@ -164,7 +166,7 @@ cargo run --release -p gpui-prose --example prose-bench -- check ../docs/rust-re
   - 每次按键取它之后第一次交出画面、再取那之后第一次开始显示，得到「按键 → 交出」「按键 → 显示」「交出 → 显示」三个数；
   - GPUI 原节奏和「改完立刻画」各录一次，结果写进同一个证据文件。
 - **空闲 CPU 单独量（`idle`）。** 单章打开、窗口可见：聚焦且光标闪烁、聚焦且光标不闪、不聚焦三种，各 30 s。用来对比 GPUI 补丁前后；环境变量 `PROSE_BENCH_GPUI` 给证据里的 `gpui_build` 标名字。
-- **负载。** 窗口、`present`、`idle` 的证据里记下测量前的一分钟负载（`load_average_1m_*`）。这台机器上常有别的会话在编译，负载高时帧间隔、上屏的长尾和单线程的数字都会变差，比较时先看负载。
+- **负载。** 窗口、`present`、`idle` 的证据里记下测量前的一分钟负载（`load_average_1m_*`）。这台机器上常有别的会话在编译，负载高时帧间隔、上屏的长尾和单线程的数字都会变差，比较时先看负载。2026-11-07 起 `headless`、`window`、`present`、`idle` 在每次测量前后各取一次负载，写进 `conditions`：最高值不低于 2（这台 12 核的机器）就标 `reference_only: true`，表示「高负载、仅供参考」，不能拿来比较构建或补丁；`check` 会列出这些文件，但不算失败。空闲时怎么重测见 [f4-editor.md 的「重测上屏」](foundations/f4-editor.md#重测上屏机器空闲时)。
 - **GPUI 补丁的对比。** 临时把工作区指向本机 fork（做法见 [f4-editor.md 的「GPUI 补丁台账」](foundations/f4-editor.md#gpui-补丁台账)），设 `PROSE_BENCH_GPUI` 给构建标名字，跑 `idle` 和 `present` 写成 `f4-idle-patched.json`、`f4-present-patched.json`；量完把工作区改回 Zed 官方标签。
 - `milestone` 生成里程碑清单（要求、证明它的测试、测量它的证据），并检查清单里的测试都在源码里。
 - `check` 校验源码指纹（`gpui-prose` 全部源码加基准程序）和语料指纹（用了全书的证据才查全书指纹）。

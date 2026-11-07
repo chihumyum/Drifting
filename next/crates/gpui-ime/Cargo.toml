@@ -1,0 +1,13 @@
+# gpui-ime: input-method composition rules with no dependencies, shared by
+# gpui-prose (the editor) and dr-ui (single-line fields).
+# Design: docs/rust-rewrite/foundations/f4-editor.md, "组字".
+[package]
+name = "gpui-ime"
+version = "0.1.0"
+description = "Input-method composition rules (marked text, UTF-16 mapping, blur) for GPUI text inputs"
+license = "MIT OR Apache-2.0"
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]

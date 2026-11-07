@@ -14,7 +14,8 @@
 //! The editor only holds anchors while a document is open. Where they are
 //! stored (Drifting keeps them in the book document) is the host's business:
 //! it loads them with [`crate::ProseDoc::set_anchor`] and persists what
-//! [`crate::ProseDoc::take_anchor_changes`] reports.
+//! [`crate::ProseDoc::take_anchor_changes`] reports. Anchors are made and
+//! resolved by the text source ([`ProseSource::anchor`], [`ProseSource::resolve`]).
 
 use std::{collections::BTreeMap, ops::Range};
 
@@ -23,6 +24,8 @@ use loro::{
     LoroDoc, LoroText,
     cursor::{Cursor, Side},
 };
+
+use super::source::ProseSource;
 
 /// The host's id for an anchor (a comment id, say).
 pub type AnchorId = SharedString;
@@ -157,8 +160,8 @@ impl AnchorSet {
     }
 
     /// Resolves one anchor, keeping Loro's replacement cursor locally.
-    pub fn resolve(&mut self, id: &str, doc: &LoroDoc) -> Option<Resolved> {
-        let resolved = self.anchors.get(id)?.resolve(doc)?;
+    pub fn resolve(&mut self, id: &str, source: &dyn ProseSource) -> Option<Resolved> {
+        let resolved = source.resolve(self.anchors.get(id)?)?;
         if let Some(updated) = resolved.updated.clone()
             && let Some(anchor) = self.anchors.get_mut(id)
         {
@@ -168,11 +171,11 @@ impl AnchorSet {
     }
 
     /// Every anchor with its current range.
-    pub fn resolve_all(&mut self, doc: &LoroDoc) -> Vec<(AnchorId, Resolved)> {
+    pub fn resolve_all(&mut self, source: &dyn ProseSource) -> Vec<(AnchorId, Resolved)> {
         let ids: Vec<AnchorId> = self.anchors.keys().cloned().collect();
         ids.into_iter()
             .filter_map(|id| {
-                let resolved = self.resolve(&id, doc)?;
+                let resolved = self.resolve(&id, source)?;
                 Some((id, resolved))
             })
             .collect()

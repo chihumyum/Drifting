@@ -1,8 +1,9 @@
-//! The author's undo history on top of Loro's `UndoManager`.
+//! The author's undo history on top of the text source's Loro undo stack.
 //!
 //! Loro's own merge interval stays 0, so every commit is its own Loro item
 //! (merging inside Loro, or `group_start` / `group_end`, hits Loro #1228 and
-//! #1245). This module groups items into *author steps* itself: edits within
+//! #1245); the source reports how many items each edit pushed. This module
+//! groups items into *author steps* itself: edits within
 //! [`UndoConfig::merge_interval`] of a step's first edit join it, and one
 //! undo pops every item of the step. Enter, an input-method commit, a paste
 //! or a format change start a new step ([`AuthorUndo::force_new_step`]).
@@ -14,8 +15,6 @@
 
 use std::time::{Duration, Instant};
 
-use loro::{LoroDoc, UndoManager};
-
 use super::{anchor::AnchorId, mirror::TextOp};
 
 /// How the author's undo history is kept.
@@ -24,9 +23,10 @@ pub struct UndoConfig {
     /// Edits closer than this to a step's first edit undo together.
     pub merge_interval: Duration,
     /// Commits whose origin starts with one of these are not the author's and
-    /// never enter the history (Agent writes, seeding, sync bookkeeping).
+    /// never enter the history (Agent writes, seeding, sync bookkeeping). Used
+    /// by [`crate::text::LoroSource`]; other sources apply their own list.
     pub exclude_origin_prefixes: Vec<String>,
-    /// Loro items kept at most.
+    /// Loro items kept at most (by the source).
     pub max_items: usize,
 }
 
@@ -85,7 +85,6 @@ pub(crate) struct Step {
 }
 
 pub(crate) struct AuthorUndo {
-    pub manager: UndoManager,
     pub steps: Vec<Step>,
     pub redo: Vec<Step>,
     pub force_new_step: bool,
@@ -95,15 +94,8 @@ pub(crate) struct AuthorUndo {
 }
 
 impl AuthorUndo {
-    pub fn new(doc: &LoroDoc, config: &UndoConfig) -> AuthorUndo {
-        let mut manager = UndoManager::new(doc);
-        manager.set_merge_interval(0);
-        for prefix in &config.exclude_origin_prefixes {
-            manager.add_exclude_origin_prefix(prefix);
-        }
-        manager.set_max_undo_steps(config.max_items);
+    pub fn new(config: &UndoConfig) -> AuthorUndo {
         AuthorUndo {
-            manager,
             steps: Vec::new(),
             redo: Vec::new(),
             force_new_step: false,

@@ -3,8 +3,12 @@
 //!
 //! - One body text is one flat `LoroText`; paragraphs end with `\n` and carry
 //!   their attributes (block id, heading …) on it ([`schema`]).
-//! - The editor lays out from a paragraph mirror fed only by Loro events, so
-//!   local typing, undo, other devices and Agent writes take one path.
+//! - The editor does not own the document: it reads, writes and undoes
+//!   through a [`ProseSource`] (gpui-prose ships [`LoroSource`]; a host can
+//!   bring its own, checked with the `conformance` suite).
+//! - It lays out from a paragraph mirror and SumTree index fed only by the
+//!   source's events, so local typing, undo, other devices and Agent writes
+//!   take one path.
 //! - It breaks lines itself with Chinese rules (no 「，」 at a row start,
 //!   hanging punctuation) and virtualizes whole books of 1.5 million
 //!   characters with GPUI's `list()` and its own height index.
@@ -22,8 +26,10 @@
 //! [`ProseEditor`] (in `editor.rs`) holds the state and the frame and ties
 //! the layers together.
 //!
-//! Depends on `gpui` and `loro` only, plus ICU4X segmentation behind the
-//! default `icu` feature.
+//! Depends on `gpui` (and its `sum_tree`), `loro`, and two small crates of
+//! its own: `gpui-ime` (composition rules, shared with dr-ui) and
+//! `prose-linebreak` (Chinese line breaking, shared with the exports), plus
+//! ICU4X segmentation behind the default `icu` feature.
 
 pub mod editor;
 pub mod extension;
@@ -41,4 +47,7 @@ pub use input::{Composition, Selection, bind_keys};
 pub use layout::{Book, Chapter};
 pub use platform::PlatformHooks;
 pub use style::{EditorOptions, ProseStyle};
-pub use text::{Anchor, AnchorChange, BlockKind, Line, Marks, ProseDoc, UndoConfig};
+pub use text::{
+    Anchor, AnchorChange, BlockKind, Edit, EditResult, Line, LoroSource, Marks, ProseDoc,
+    ProseSource, SourceChange, SourceEvent, SourceParagraph, UndoConfig,
+};

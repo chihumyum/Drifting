@@ -529,7 +529,12 @@ async fn window_scenarios(
     for w in 0..words {
         let steps = ["n", "ni", "ni h", "ni ha", "ni hao"];
         let loro_before = editor_do(&window, cx, |editor, _, _| {
-            editor.book().chapters[0].doc.text().len_unicode()
+            editor.book().chapters[0]
+                .doc
+                .loro_source()
+                .unwrap()
+                .text()
+                .len_unicode()
         });
         for step in steps {
             let t0 = Instant::now();
@@ -556,7 +561,12 @@ async fn window_scenarios(
             sleep(cx, Duration::from_millis(40)).await;
         }
         let loro_during = editor_do(&window, cx, |editor, _, _| {
-            editor.book().chapters[0].doc.text().len_unicode()
+            editor.book().chapters[0]
+                .doc
+                .loro_source()
+                .unwrap()
+                .text()
+                .len_unicode()
         });
         let _ = editor_do(&window, cx, |editor, window, cx| {
             editor.replace_text_in_range(
@@ -567,7 +577,12 @@ async fn window_scenarios(
             );
         });
         let loro_after = editor_do(&window, cx, |editor, _, _| {
-            editor.book().chapters[0].doc.text().len_unicode()
+            editor.book().chapters[0]
+                .doc
+                .loro_source()
+                .unwrap()
+                .text()
+                .len_unicode()
         });
         if loro_before != loro_during || loro_after.zip(loro_before).map(|(a, b)| a - b) != Some(2)
         {
@@ -578,6 +593,7 @@ async fn window_scenarios(
 
     let idle_chapter = idle_cpu(&window, idle_seconds, true, cx).await;
     let memory_end = platform::phys_footprint();
+    let load_end = platform::load_average();
 
     let mb = |bytes: u64| J::Num((bytes as f64 / (1 << 20) as f64 * 10.0).round() / 10.0);
     let (display_builtin, display_hz) = display.map_or((false, 0.0), |d| (d.1, d.2));
@@ -595,6 +611,7 @@ async fn window_scenarios(
         ("source_fingerprint", J::str(report::source_fingerprint())),
         ("quick", J::Bool(quick)),
         ("load_average_1m_at_start", J::Num(load_start)),
+        ("conditions", report::conditions(&[load_start, load_end])),
         ("machine", machine_json()),
         (
             "display",
@@ -851,6 +868,7 @@ pub fn run_idle(out: Option<String>, seconds: u64) {
             });
             let solid = idle_cpu(&window, seconds, true, cx).await;
             let unfocused = idle_cpu(&window, seconds, false, cx).await;
+            let load_after = platform::load_average();
             let (display_builtin, display_hz) = display.map_or((false, 0.0), |d| (d.1, d.2));
             let report = J::obj(vec![
                 ("schema", J::str("drifting.f4.idle/1")),
@@ -883,6 +901,7 @@ pub fn run_idle(out: Option<String>, seconds: u64) {
                 ),
                 ("seconds", J::Int(seconds as i64)),
                 ("load_average_1m_before", J::Num(load)),
+                ("conditions", report::conditions(&[load, load_after])),
                 ("focused_blinking_percent", J::Num((blinking * 100.0).round() / 100.0)),
                 ("focused_solid_caret_percent", J::Num((solid * 100.0).round() / 100.0)),
                 ("unfocused_percent", J::Num((unfocused * 100.0).round() / 100.0)),
@@ -904,6 +923,7 @@ pub fn run_idle(out: Option<String>, seconds: u64) {
 pub fn run_headless(out: Option<String>) {
     let book = Corpus::book();
     let chapter = Corpus::chapter();
+    let load_start = platform::load_average();
 
     // Cold opens without a window: import each snapshot, build the mirror.
     let memory0 = platform::phys_footprint();
@@ -993,13 +1013,17 @@ pub fn run_headless(out: Option<String>) {
     // the mirror) + appending the encoded update to SQLite.
     let mut doc = single;
     let updates: Arc<Mutex<Vec<Vec<u8>>>> = Arc::default();
-    let _sub = doc.loro().subscribe_local_update(Box::new({
-        let updates = updates.clone();
-        move |bytes| {
-            updates.lock().unwrap().push(bytes.to_vec());
-            true
-        }
-    }));
+    let _sub = doc
+        .loro_source()
+        .unwrap()
+        .loro()
+        .subscribe_local_update(Box::new({
+            let updates = updates.clone();
+            move |bytes| {
+                updates.lock().unwrap().push(bytes.to_vec());
+                true
+            }
+        }));
     let db_path = std::env::temp_dir().join(format!("prose-bench-{}.sqlite", std::process::id()));
     let db = rusqlite::Connection::open(&db_path).expect("open a scratch SQLite file");
     db.execute_batch(
@@ -1042,11 +1066,13 @@ pub fn run_headless(out: Option<String>) {
         let _ = std::fs::remove_file(format!("{}{suffix}", db_path.display()));
     }
     let write_median = percentile(&total_ms, 50.0);
+    let load_end = platform::load_average();
 
     let report = J::obj(vec![
         ("schema", J::str("drifting.p0-b.headless/1")),
         ("generated_at", J::str(today())),
         ("source_fingerprint", J::str(report::source_fingerprint())),
+        ("conditions", report::conditions(&[load_start, load_end])),
         ("machine", machine_json()),
         ("build", build_json()),
         (
@@ -1178,6 +1204,9 @@ pub fn check(paths: &[String]) -> bool {
                 ok = false;
             }
         }
+        if text.contains("\"reference_only\": true") {
+            eprintln!("{path}: measured on a busy machine, reference only");
+        }
         if text.contains("\"found\": false") {
             eprintln!("{path}: a listed test is missing from the sources");
             ok = false;
@@ -1288,10 +1317,73 @@ const MILESTONE_1: &[(&str, &str, &[&str], &[&str])] = &[
     ),
 ];
 
-pub fn run_milestone(out: Option<String>) {
+/// Round 2 of F4 (F4a only): the text source, the paragraph index, the two
+/// small crates, and the keystroke budget split.
+const MILESTONE_2: &[(&str, &str, &[&str], &[&str])] = &[
+    (
+        "prose-source",
+        "The editor no longer owns the Loro document: reads, writes and undo go through ProseSource; gpui-prose ships LoroSource; a dr-doc-style source (closure writes, events without marks, its own rules) passes the same conformance suite and behaves identically",
+        &[
+            "conformance_on_the_built_in_source",
+            "conformance_on_a_dr_doc_style_source",
+            "dr_doc_style_source_matches_the_built_in_one",
+            "documents_can_move_between_threads",
+        ],
+        &[],
+    ),
+    (
+        "paragraph-index",
+        "SumTree paragraph index (paragraphs, scalars, UTF-16, bytes) updated per event, plus a block-id map, replacing the prefix arrays rebuilt after every change",
+        &[
+            "locate_and_start",
+            "splice_and_set",
+            "first_bid_wins",
+            "mirror_follows_random_edits_undo_and_imports",
+        ],
+        &["f4-headless.json", "f4-window.json"],
+    ),
+    (
+        "gpui-ime",
+        "Composition rules in one std-only crate (the editor's overlay and the single-line composer from dr-ui); blur discards",
+        &[
+            "virtual_mapping",
+            "overlay_lifecycle",
+            "pinyin_is_shown_but_not_committed_until_chosen",
+            "blur_discards_the_composition",
+            "losing_focus_drops_the_composition",
+        ],
+        &[],
+    ),
+    (
+        "prose-linebreak",
+        "Line breaking in its own crate (icu_segmenter only), used by gpui-prose",
+        &[
+            "opportunities_follow_uax14_and_the_chinese_tailoring",
+            "rows_hang_a_comma_in_the_editor",
+            "rows_squeeze_or_break_earlier_in_print",
+        ],
+        &[],
+    ),
+    (
+        "keystroke-budget",
+        "Keystroke budget split: key to present stays 16 / 8.3 ms; key to glass is recorded",
+        &["reads_xctrace_rows_with_refs"],
+        &["f4-present.json", "f4-window.json"],
+    ),
+];
+
+pub fn run_milestone_round(out: Option<String>, round: u32) {
+    let (table, name) = if round == 2 {
+        (
+            MILESTONE_2,
+            "F4 milestone 2 (F4a: text source, index, gpui-ime, prose-linebreak)",
+        )
+    } else {
+        (MILESTONE_1, "F4 milestone 1 (gpui-prose)")
+    };
     let sources = report::all_sources();
     let found = |name: &str| sources.iter().any(|s| s.contains(&format!("fn {name}(")));
-    let items = MILESTONE_1
+    let items = table
         .iter()
         .map(|(id, requirement, tests, evidence)| {
             J::obj(vec![
@@ -1322,7 +1414,7 @@ pub fn run_milestone(out: Option<String>) {
         ("schema", J::str("drifting.f4.milestone/1")),
         ("generated_at", J::str(today())),
         ("source_fingerprint", J::str(report::source_fingerprint())),
-        ("milestone", J::str("F4 milestone 1 (gpui-prose)")),
+        ("milestone", J::str(name)),
         ("doc", J::str("docs/rust-rewrite/foundations/f4-editor.md")),
         (
             "tests_run_with",
