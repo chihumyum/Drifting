@@ -5,6 +5,11 @@
     }
   },
   "settings": {
+    "agent": {
+      "extensions": {
+        "secretHint": "私密值只写入 Windows 凭据管理器。编辑时保留空值代表沿用现有密钥。"
+      }
+    },
     "codexSubscription": {
       "failure": {
         "storage_failed": "登录信息无法保存到 Windows 凭据管理器。"

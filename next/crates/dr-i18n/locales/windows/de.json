@@ -5,6 +5,11 @@
     }
   },
   "settings": {
+    "agent": {
+      "extensions": {
+        "secretHint": "Geheime Werte werden nur in der Windows-Anmeldeinformationsverwaltung gespeichert. Vorhandene Werte leer lassen, um sie zu behalten."
+      }
+    },
     "codexSubscription": {
       "failure": {
         "storage_failed": "Die Anmeldung konnte nicht in der Windows-Anmeldeinformationsverwaltung gespeichert werden."

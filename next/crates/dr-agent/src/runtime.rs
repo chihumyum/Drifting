@@ -18,6 +18,12 @@ use crate::journal::Journal;
 use crate::tools::ToolOutput;
 use crate::*;
 
+mod external;
+pub use external::{
+    ExternalCall, ExternalCallHandle, ExternalScope, ExternalStart, ExternalState,
+    RecoveredExternal,
+};
+
 #[derive(Clone, Debug)]
 pub struct Options {
     pub max_parallel_reads: usize,
@@ -46,6 +52,7 @@ struct Inner {
     descriptors: Vec<ToolDescriptor>,
     options: Options,
     active: Mutex<HashSet<String>>,
+    external_active: Mutex<HashSet<String>>,
     lifecycle: Mutex<()>,
     // Read groups overlap internally; whole groups and writes serialize
     // across all runs of this Runtime. F3 also keeps its own command gates.
@@ -113,6 +120,7 @@ impl Runtime {
                 descriptors,
                 options,
                 active: Mutex::default(),
+                external_active: Mutex::default(),
                 lifecycle: Mutex::default(),
                 tool_gate: Arc::default(),
                 executions: Arc::default(),
