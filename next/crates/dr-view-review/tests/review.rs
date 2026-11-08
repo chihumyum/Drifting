@@ -306,3 +306,144 @@ fn the_source_card_says_where_and_its_rows_act(cx: &mut TestAppContext) {
     assert!(wait_for(cx, |_| listed(&e).len() == 1));
     redraw(cx);
 }
+
+fn sample_env() -> Env {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = Library::open(dir.path(), library_options("test")).unwrap();
+    let sample = dr_testkit::samples::slow_clock().unwrap();
+    dr_testkit::seed::write_book(&lib, &sample).unwrap();
+    let book = sample.book.book_id().to_string();
+    let ws = Workspace::open(lib, WorkspaceOptions::default()).unwrap();
+    Env {
+        _dir: dir,
+        ws,
+        book,
+    }
+}
+
+fn listed_ids(view: &Entity<ReviewView>, cx: &mut VisualTestContext) -> Vec<String> {
+    view.read_with(cx, |v, _| {
+        v.listing()
+            .open
+            .iter()
+            .flat_map(|g| g.items.iter().map(|i| i.id.clone()))
+            .collect()
+    })
+}
+
+#[gpui::test]
+fn current_scope_follows_generic_associations_and_source_changes(cx: &mut TestAppContext) {
+    let e = sample_env();
+    let chapters = out(&e.ws, "chapter.list", json!({"book": e.book}));
+    let one = chapters[0]["id"].as_str().unwrap();
+    let two = chapters[1]["id"].as_str().unwrap();
+    let direct = comment(
+        &e,
+        Some(one),
+        "note",
+        chapters[0]["title"].as_str().unwrap(),
+    );
+    let floating = comment(&e, None, "todo", chapters[1]["title"].as_str().unwrap());
+    let from_two = comment(
+        &e,
+        Some(two),
+        "note",
+        chapters[2]["title"].as_str().unwrap(),
+    );
+    let (view, _, cx) = open_tab(cx, &e, Some(NavTarget::Chapter(one.parse().unwrap())));
+    assert!(wait_for(cx, |cx| listed_ids(&view, cx).contains(&direct)));
+    view.update(cx, |v, cx| v.set_current_only(true, cx));
+    assert!(!listed_ids(&view, cx).contains(&floating));
+    assert!(!listed_ids(&view, cx).contains(&from_two));
+    let relate = |id: &str| {
+        out(
+            &e.ws,
+            "relation.create",
+            json!({
+                "book": e.book, "from": {"kind": "comment", "id": id}, "to": {"kind": "node", "id": one}
+            }),
+        )
+    };
+    let floating_relation = relate(&floating);
+    relate(&from_two);
+    relate(&direct);
+    assert!(wait_for(cx, |cx| {
+        let ids = listed_ids(&view, cx);
+        ids.contains(&floating) && ids.contains(&from_two)
+    }));
+    assert_eq!(
+        listed_ids(&view, cx)
+            .iter()
+            .filter(|id| **id == direct)
+            .count(),
+        1
+    );
+    assert!(
+        view.read_with(cx, |v, _| v.listing().open.iter().any(|g| g.key()
+            == format!("node:{two}")
+            && g.items.iter().any(|i| i.id == from_two)))
+    );
+    out(
+        &e.ws,
+        "relation.delete",
+        json!({"book": e.book, "id": floating_relation["id"]}),
+    );
+    assert!(wait_for(cx, |cx| !listed_ids(&view, cx).contains(&floating)));
+    let renamed = format!(
+        "{} · {}",
+        chapters[1]["title"].as_str().unwrap(),
+        chapters[0]["title"].as_str().unwrap()
+    );
+    out(
+        &e.ws,
+        "chapter.update",
+        json!({"book": e.book, "id": two, "title": renamed}),
+    );
+    assert!(wait_for(cx, |cx| view.read_with(cx, |v, _| v
+        .source_summary(&from_two)
+        .is_some_and(|s| s.0.as_ref() == renamed))));
+    out(&e.ws, "chapter.trash", json!({"book": e.book, "id": two}));
+    assert!(wait_for(cx, |cx| view.read_with(cx, |v, _| v
+        .listing()
+        .open
+        .iter()
+        .any(
+            |g| g.place == dr_view_review::Place::Gone && g.items.iter().any(|i| i.id == from_two)
+        ))));
+}
+
+#[gpui::test]
+fn material_comment_sources_are_named_opened_and_refreshed(cx: &mut TestAppContext) {
+    let e = sample_env();
+    let materials = out(&e.ws, "material.list", json!({"book": e.book}));
+    let material = &materials[0];
+    let id = material["id"].as_str().unwrap();
+    let title = material["title"].as_str().unwrap();
+    let comment = out(
+        &e.ws,
+        "comment.create",
+        json!({
+            "book": e.book, "kind": "note", "body": title, "target": {"kind": "material", "id": id}
+        }),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let (view, opened, cx) = open_tab(cx, &e, Some(NavTarget::Material(id.parse().unwrap())));
+    assert!(wait_for(cx, |cx| view.read_with(cx, |v, _| v
+        .source_summary(&comment)
+        .is_some_and(|s| s.0.as_ref() == title))));
+    view.update(cx, |v, cx| v.set_current_only(true, cx));
+    assert!(listed_ids(&view, cx).contains(&comment));
+    cx.update(|window, cx| view.update(cx, |v, cx| v.jump(&comment, window, cx)));
+    assert_eq!(opened.borrow().as_slice(), [format!("material:{id}")]);
+    let renamed = format!("{title} · {title}");
+    out(
+        &e.ws,
+        "material.update",
+        json!({"book": e.book, "id": id, "title": renamed}),
+    );
+    assert!(wait_for(cx, |cx| view.read_with(cx, |v, _| v
+        .source_summary(&comment)
+        .is_some_and(|s| s.0.as_ref() == renamed))));
+}

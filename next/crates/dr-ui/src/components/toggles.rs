@@ -281,6 +281,13 @@ impl RenderOnce for ScopeToggle {
         .font_role(Role::Ui)
         .type_px(s.secondary, s.line_body)
         .text_color(ink.solid())
+        .role(gpui::Role::CheckBox)
+        .aria_label(self.label.clone())
+        .aria_toggled(if self.on {
+            gpui::Toggled::True
+        } else {
+            gpui::Toggled::False
+        })
         .child(self.label)
         .when(interactive, |el| el.cursor_pointer())
         .when_some(self.on_change.filter(|_| interactive), |el, f| {

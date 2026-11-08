@@ -46,7 +46,8 @@ use dr_workspace::commands::EntityIn;
 use dr_workspace::commands::comment::{
     CommentDelete, CommentList, CommentListIn, CommentUpdate, CommentUpdateIn,
 };
-use dr_workspace::dto::{CommentInfo, Target};
+use dr_workspace::commands::relation::{RelationList, RelationListIn};
+use dr_workspace::dto::{CommentInfo, RelationInfo, Target};
 use dr_workspace::{Actor, LinkGroup, NavTarget, Workspace};
 use gpui::{
     AnyElement, AppContext, ClickEvent, Context, ElementId, Entity, FontWeight, InteractiveElement,
@@ -65,6 +66,8 @@ pub struct ReviewView {
     target: Option<NavTarget>,
     i18n: I18n,
     items: Vec<CommentInfo>,
+    /// Only the built-in generic associations, never custom relation types.
+    associations: Vec<RelationInfo>,
     /// Titles and tabs of the items' targets (`kind:id`).
     places: HashMap<String, (String, Option<NavTarget>)>,
     filter: Filter,
@@ -88,6 +91,10 @@ const ORIGINAL_FRESH: Duration = Duration::from_secs(2);
 
 /// Where a comment is, as a tab: a chapter, an idea, an element ….
 fn nav_of(catalog: &dr_workspace::BookCatalog, target: &Target) -> Option<NavTarget> {
+    if target.kind == "material" {
+        let nav = NavTarget::Material(target.id.parse().ok()?);
+        return catalog.exists(&nav).then_some(nav);
+    }
     let groups: &[LinkGroup] = match target.kind.as_str() {
         "node" => &[LinkGroup::Chapters, LinkGroup::Drifts],
         "element" => &[LinkGroup::Elements],
@@ -120,6 +127,7 @@ impl ReviewView {
             target: None,
             i18n: I18n::new(Locale::default(), Platform::current()),
             items: Vec::new(),
+            associations: Vec::new(),
             places: HashMap::new(),
             filter: Filter::All,
             current_only: false,
@@ -158,6 +166,7 @@ impl ReviewView {
         if self.book != book {
             self.book = book.to_owned();
             self.items.clear();
+            self.associations.clear();
             self.loaded = false;
             self.reload(cx);
         }
@@ -194,6 +203,24 @@ impl ReviewView {
                 )
                 .map(|o| o.output)
                 .unwrap_or_default();
+            let associations = book
+                .parse::<dr_model::id::BookId>()
+                .ok()
+                .and_then(|id| {
+                    lib.run::<RelationList>(
+                        &Actor::User,
+                        RelationListIn {
+                            book: book.clone(),
+                            entity: None,
+                            relation_type: Some(
+                                dr_doc::book::generic_relation_type_id(&id).to_string(),
+                            ),
+                        },
+                    )
+                    .ok()
+                    .map(|o| o.output)
+                })
+                .unwrap_or_default();
             let mut places = HashMap::new();
             if let Ok(catalog) = lib.catalog(&book) {
                 for t in items.iter().filter_map(|i| i.target.as_ref()) {
@@ -208,12 +235,13 @@ impl ReviewView {
                     });
                 }
             }
-            (items, places)
+            (items, places, associations)
         });
         self.pending = Some(cx.spawn(async move |this, cx| {
-            let (items, places) = task.await;
+            let (items, places, associations) = task.await;
             this.update(cx, |this, cx| {
                 this.items = items;
+                this.associations = associations;
                 this.places = places;
                 this.loaded = true;
                 cx.notify();
@@ -228,7 +256,23 @@ impl ReviewView {
             .current_only
             .then(|| self.target.as_ref().and_then(target_of))
             .flatten();
-        model::arrange(&self.items, self.filter, scope.as_ref())
+        let related = scope
+            .as_ref()
+            .filter(|target| {
+                matches!(
+                    target.kind.as_str(),
+                    "node" | "element" | "storyline" | "category"
+                )
+            })
+            .map(|target| {
+                self.associations
+                    .iter()
+                    .filter(|relation| relation.from.kind == "comment" && &relation.to == target)
+                    .map(|relation| relation.from.id.clone())
+                    .collect()
+            })
+            .unwrap_or_default();
+        model::arrange_with_related(&self.items, self.filter, scope.as_ref(), &related)
     }
 
     pub fn set_filter(&mut self, filter: Filter, cx: &mut Context<Self>) {
@@ -633,6 +677,8 @@ impl ReviewView {
                 body = body.child(
                     div()
                         .id(id("body"))
+                        .role(gpui::Role::Label)
+                        .aria_label(text.clone())
                         .font_role(Role::Ui)
                         .type_px(s.secondary, s.line_body)
                         .text_color(p.ink(1).solid())
