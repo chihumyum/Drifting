@@ -36,7 +36,7 @@
 | `codex/legacy-m17-relation-update` | M17 保 id 的关系更新与写入顺序 | `279d3155` 与后续 `c6e8e458` 暂缓；队列退出、连续类型保存、历史恢复校验和 M29 跨模块契约待补，见 remaining.md |
 | `codex/legacy-m24-samples` / `codex/legacy-m24-ownership` | M24 本机样书生产启动与所有权修复 | `ee14bff6` 修好 Failed 标记，但 Creating 释放落盘失败仍覆盖后来同 ID 用户书，已再次定向复现，继续暂缓，见 remaining.md |
 | `codex/legacy-m41-progress` | M41 备份、核对和恢复的真实进度 | `fab79905` 已在第二十四批接收；其工作树已转做 M19 |
-| `antigravity/m*` | Antigravity 的模块 | 作者另行安排，本整合会话不接管、不验收 |
+| `codex/m21-story-graph-review` 及后续接续分支 | 原 Antigravity 的 Super View、账号与 Windows 队列 | 作者已改由独立 Codex 会话接续，正式交回后由本会话验收；M21 原稿待修正和真窗口，M22 `786e39a9` 只是 WIP 检查点 |
 
 分支上的提交如果比 `main` 新，就是还没合的（`git log main..<分支>`）。
 
@@ -240,3 +240,11 @@ git -c core.hooksPath=/dev/null merge --no-ff --no-edit -m "Merge branch '<整�
 - fmt、全工作区 Clippy、`RUST_TEST_THREADS=2 cargo test --workspace --locked --no-fail-fast` 全过（1800 通过、0 失败、22 忽略）；xtask 全部门禁通过，944 个锁定 crate、0 漏洞、12 条既有提示、14 份过期测量。公开边界、CI 契约、旧 Agent 清单、四个定向文件 14 项、九语言和 Rust 生成语言校验通过。
 - 调试桥应用构建通过，隔离 showcase 库重跑 `restore.json` 英文浅色 64 步、0 pending、正常退出，四张截图已核对。实际包含备份、换库恢复和损坏归档拒绝；恢复后的截图显示既有 Markdown 文件夹首次选择框，不把它记成完整书架展示。该场景没有阻塞真实服务，等待期间禁止输入由上述 GPUI 契约证明；IME、既有 portal 和成功换库焦点的全部原生矩阵未冒称通过。
 - 此批只关闭公共输入稳定边界。M11、M17、M19、M15 自身的草稿、计时器、队列持久 ACK 及错误恢复依旧分别验收；开发修复尚未正式接收的，不因共用屏障入 main 而解禁。
+
+
+## 接续分工与第三十四次反馈（2026-11-08）
+
+- 已读取作者在新接续会话的原始指令：原 Antigravity 队列转由独立 Codex 会话按 M21 → M22 → M23 → M35 → M37 → M38 → M36 → M43 推进。旧版“不接管、不验收”只针对原分工，现按正式交回来验收；M22 已有草稿备份和 WIP 检查点不能当成果合入。帮手、旧模块和整合仍各守原范围。
+- M21/M22 提出的最小共享接口分工写入原队列文件：M14 未归线输入复用、M16 绑定构想卡入口、F8 鼠标修饰键和 F3 真实同段共现。交由接续实现者分别补证，旧模块避免同时改这些共享入口；不是提前批准未见实现。
+- M17 `56bec1ab` 的完整类型管理浮层重建问题已实际复现：阻塞另一书的共享 FIFO，A→B 保存后关闭整个管理器，重开新实例读 A，再接受 A 保存，最终仍为 B。编译与前置断言通过，单项 0 通过、1 失败，最终方向 symmetric 而非 directed；不是调度或夹具超时。临时测试已按 SHA 核对恢复，正式产品未改，继续 hold 并要求永久回归。
+- 本次仅文档，产品树与第二十九批相同，沿用该批全工作区 1800 通过／22 忽略及同树 Clippy；上述候选失败不计入 main。fmt、xtask、公开边界、CI 契约另行复核。
