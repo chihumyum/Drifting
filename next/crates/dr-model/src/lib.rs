@@ -28,6 +28,7 @@ pub mod origin;
 pub mod pos;
 pub mod prose;
 pub mod time;
+pub mod v3;
 
 pub use id::{DocId, DocKind, ProseProfile};
 pub use origin::Origin;

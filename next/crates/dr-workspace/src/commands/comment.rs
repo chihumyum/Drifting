@@ -443,6 +443,7 @@ fn owner_of(doc: &DocId) -> Option<EntityRef> {
         DocId::Element(_) => EntityKind::Element,
         DocId::Storyline(_) => EntityKind::Storyline,
         DocId::Category(_) => EntityKind::Category,
+        DocId::Body(b) => return Some(EntityRef::new(EntityKind::Entry, b.entry().as_str())),
         DocId::Book(_) | DocId::Material(_) | DocId::Template(_) | DocId::Conversation(_) => {
             return None;
         }

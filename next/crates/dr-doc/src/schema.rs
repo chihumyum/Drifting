@@ -13,8 +13,14 @@ use loro::{ExpandType, LoroDoc, StyleConfig, StyleConfigMap};
 /// comments and materials. See `loro-schema.md` "版本".
 pub const SCHEMA_VERSION: i64 = 2;
 
+/// `meta.v` of universal kernel v3 book documents (`docs/rust-rewrite/kernel-v3.md`).
+pub const SCHEMA_VERSION_V3: i64 = 3;
+
 /// Version of the genesis content; part of the genesis peer's hash.
 pub const GENESIS_VERSION: u32 = 2;
+
+/// Version of the v3 book document genesis content.
+pub const GENESIS_VERSION_V3: u32 = 3;
 
 /// Keys every document's `meta` map has.
 pub mod meta {
@@ -72,6 +78,41 @@ pub mod book {
         RELATIONS,
         TIME_PINS,
         PLOT_GRIDS,
+        COMMENTS,
+        MATERIALS,
+        ASSETS,
+        MEMORY,
+    ];
+}
+
+/// Root containers of the universal kernel v3 book document (`kernel-v3.md`).
+pub mod book_v3 {
+    pub const META: &str = "meta";
+    pub const ENTRIES: &str = "entries";
+    pub const TEMPLATES: &str = "templates";
+    pub const MEMBERSHIPS: &str = "memberships";
+    pub const TIMELINE_VIEWS: &str = "timeline_views";
+    pub const PATCHES: &str = "patches";
+    pub const PLOT_GRIDS: &str = "plot_grids";
+    pub const RELATION_TYPES: &str = "relation_types";
+    pub const RELATIONS: &str = "relations";
+    pub const COMMENTS: &str = "comments";
+    pub const MATERIALS: &str = "materials";
+    pub const ASSETS: &str = "assets";
+    pub const MATERIAL_FOLDERS: &str = "material_folders";
+    pub const FACTS: &str = "facts";
+    pub const MEMORY: &str = "memory";
+    pub const WRITING_DAYS: &str = "writing_days";
+
+    /// Root maps of the form "id → entity map" in v3.
+    pub const ENTITY_MAPS: &[&str] = &[
+        TEMPLATES,
+        MEMBERSHIPS,
+        TIMELINE_VIEWS,
+        PATCHES,
+        PLOT_GRIDS,
+        RELATION_TYPES,
+        RELATIONS,
         COMMENTS,
         MATERIALS,
         ASSETS,

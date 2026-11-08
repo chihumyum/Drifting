@@ -25,7 +25,7 @@ use dr_model::{DocId, Timestamp};
 use serde::Deserialize;
 
 use crate::rng::Rng;
-use crate::seed::{Builder, SeededBook, T0};
+use crate::seed::{Builder, SeededBook, SeededBookV3, T0, book_to_v3};
 use crate::text;
 
 const SLOW_CLOCK: &str = include_str!("../fixtures/slow-clock.json");
@@ -82,6 +82,26 @@ pub fn showcase(seed: u64) -> Result<Vec<SeededBook>> {
         books.push(shelf_book(book, seed, i)?);
     }
     Ok(books)
+}
+
+/// *Pride and Prejudice* laid out in universal kernel v3 format.
+pub fn pride_and_prejudice_v3() -> Result<SeededBookV3> {
+    book_to_v3(&pride_and_prejudice()?)
+}
+
+/// 《阿Q正传》 laid out in universal kernel v3 format.
+pub fn a_q_v3() -> Result<SeededBookV3> {
+    book_to_v3(&a_q()?)
+}
+
+/// 《慢钟》 laid out in universal kernel v3 format.
+pub fn slow_clock_v3() -> Result<SeededBookV3> {
+    book_to_v3(&slow_clock()?)
+}
+
+/// The showcase library laid out in universal kernel v3 format.
+pub fn showcase_v3(seed: u64) -> Result<Vec<SeededBookV3>> {
+    showcase(seed)?.iter().map(book_to_v3).collect()
 }
 
 fn positions(n: usize) -> Vec<PosKey> {

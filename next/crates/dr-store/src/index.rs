@@ -271,6 +271,89 @@ pub struct DocIndex<'a> {
     pub derived: &'a Derived,
 }
 
+/// Known `loro_doc.kind` values across schema v3 and v2.2.
+pub const DOC_KIND_BOOK: &str = "book";
+pub const DOC_KIND_BODY: &str = "body";
+pub const DOC_KIND_TEMPLATE: &str = "template";
+pub const DOC_KIND_CANVAS: &str = "canvas";
+pub const DOC_KIND_CHAT: &str = "chat";
+pub const DOC_KIND_CHAPTER: &str = "chapter";
+pub const DOC_KIND_ELEMENT: &str = "element";
+pub const DOC_KIND_DRIFT: &str = "drift";
+
+pub const KNOWN_DOC_KINDS: &[&str] = &[
+    DOC_KIND_BOOK,
+    DOC_KIND_BODY,
+    DOC_KIND_TEMPLATE,
+    DOC_KIND_CANVAS,
+    DOC_KIND_CHAT,
+    DOC_KIND_CHAPTER,
+    DOC_KIND_ELEMENT,
+    DOC_KIND_DRIFT,
+];
+
+/// Whether `kind` is a known document kind in schema v3 or v2.2.
+pub fn is_known_doc_kind(kind: &str) -> bool {
+    KNOWN_DOC_KINDS.contains(&kind)
+}
+
+/// Whether `kind` is a book-prose document kind that contributes to search,
+/// word counts, outlines and references (`body` and `canvas` in v3;
+/// `chapter`, `element`, `drift` and `canvas` in v2.2).
+pub fn is_book_text_kind(kind: &str) -> bool {
+    matches!(
+        kind,
+        DOC_KIND_BODY | DOC_KIND_CANVAS | DOC_KIND_CHAPTER | DOC_KIND_ELEMENT | DOC_KIND_DRIFT
+    )
+}
+
+/// Format a v3 entry prose document ID (`body:<entry_id>/<module_id>`).
+pub fn format_body_doc_id(entry_id: &str, module_id: &str) -> String {
+    format!("body:{entry_id}/{module_id}")
+}
+
+/// Parse a v3 entry prose document ID (`body:<entry_id>/<module_id>`) into
+/// `(entry_id, module_id)`.
+pub fn parse_body_doc_id(doc_id: &str) -> Option<(&str, &str)> {
+    let rest = doc_id.strip_prefix("body:")?;
+    let (entry_id, module_id) = rest.split_once('/')?;
+    if entry_id.is_empty() || module_id.is_empty() || module_id.contains('/') {
+        return None;
+    }
+    Some((entry_id, module_id))
+}
+
+/// Format a v3 template prose document ID (`template:<template_id>/<module_id>`).
+pub fn format_template_module_doc_id(template_id: &str, module_id: &str) -> String {
+    format!("template:{template_id}/{module_id}")
+}
+
+/// Parse a v3 template prose document ID (`template:<template_id>/<module_id>`)
+/// into `(template_id, module_id)`.
+pub fn parse_template_module_doc_id(doc_id: &str) -> Option<(&str, &str)> {
+    let rest = doc_id.strip_prefix("template:")?;
+    let (template_id, module_id) = rest.split_once('/')?;
+    if template_id.is_empty() || module_id.is_empty() || module_id.contains('/') {
+        return None;
+    }
+    Some((template_id, module_id))
+}
+
+fn escape_like_literal(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        if matches!(c, '%' | '_' | '\\') {
+            out.push('\\');
+        }
+        out.push(c);
+    }
+    out
+}
+
+fn entry_body_like_prefix(entry_id: &str) -> String {
+    format!("body:{}/%", escape_like_literal(entry_id))
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DocStats {
     pub doc_id: String,
@@ -281,6 +364,47 @@ pub struct DocStats {
     pub chars: u64,
     pub paragraphs: u64,
     pub updated_ms: i64,
+}
+
+impl DocStats {
+    /// When `doc_id` is a v3 `body:<entry_id>/<module_id>` document, returns `(entry_id, module_id)`.
+    pub fn entry_module(&self) -> Option<(&str, &str)> {
+        parse_body_doc_id(&self.doc_id)
+    }
+}
+
+/// Word/character/paragraph counts for one `(entry, module)` prose document (`body:<entry>/<module>`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EntryModuleStats {
+    pub entry_id: String,
+    pub module_id: String,
+    pub doc_id: String,
+    pub book_id: Option<String>,
+    pub indexed_seq: i64,
+    pub frontiers: Frontiers,
+    pub words: u64,
+    pub chars: u64,
+    pub paragraphs: u64,
+    pub updated_ms: i64,
+}
+
+impl EntryModuleStats {
+    pub fn from_doc_stats(stats: DocStats) -> Option<Self> {
+        let (e, m) = parse_body_doc_id(&stats.doc_id)?;
+        let (entry_id, module_id) = (e.to_string(), m.to_string());
+        Some(Self {
+            entry_id,
+            module_id,
+            doc_id: stats.doc_id,
+            book_id: stats.book_id,
+            indexed_seq: stats.indexed_seq,
+            frontiers: stats.frontiers,
+            words: stats.words,
+            chars: stats.chars,
+            paragraphs: stats.paragraphs,
+            updated_ms: stats.updated_ms,
+        })
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -312,6 +436,41 @@ pub struct SearchHit {
     pub snippet: String,
 }
 
+impl SearchHit {
+    /// When `doc_id` is a v3 `body:<entry_id>/<module_id>` document, returns `(entry_id, module_id)`.
+    pub fn entry_module(&self) -> Option<(&str, &str)> {
+        parse_body_doc_id(&self.doc_id)
+    }
+}
+
+/// A search hit inside a v3 `(entry, module)` prose document (`body:<entry_id>/<module_id>`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EntryModuleHit {
+    pub entry_id: String,
+    pub module_id: String,
+    pub doc_id: String,
+    pub block_id: Option<String>,
+    pub ord: u32,
+    pub match_offset: usize,
+    pub snippet: String,
+}
+
+impl EntryModuleHit {
+    pub fn from_search_hit(hit: SearchHit) -> Option<Self> {
+        let (e, m) = parse_body_doc_id(&hit.doc_id)?;
+        let (entry_id, module_id) = (e.to_string(), m.to_string());
+        Some(Self {
+            entry_id,
+            module_id,
+            doc_id: hit.doc_id,
+            block_id: hit.block_id,
+            ord: hit.ord,
+            match_offset: hit.match_offset,
+            snippet: hit.snippet,
+        })
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Reference {
     pub source_doc: String,
@@ -321,6 +480,45 @@ pub struct Reference {
     pub target_id: String,
     pub kind: RefKind,
     pub count: u32,
+}
+
+impl Reference {
+    /// When `source_doc` is a v3 `body:<entry_id>/<module_id>` document, returns `(entry_id, module_id)`.
+    pub fn source_entry_module(&self) -> Option<(&str, &str)> {
+        parse_body_doc_id(&self.source_doc)
+    }
+}
+
+/// A reference originating from a v3 `(entry, module)` prose document (`body:<entry_id>/<module_id>`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EntryModuleReference {
+    pub source_entry: String,
+    pub source_module: String,
+    pub source_doc: String,
+    pub source_block: Option<String>,
+    pub book_id: Option<String>,
+    pub target_kind: String,
+    pub target_id: String,
+    pub kind: RefKind,
+    pub count: u32,
+}
+
+impl EntryModuleReference {
+    pub fn from_reference(r: Reference) -> Option<Self> {
+        let (e, m) = parse_body_doc_id(&r.source_doc)?;
+        let (source_entry, source_module) = (e.to_string(), m.to_string());
+        Some(Self {
+            source_entry,
+            source_module,
+            source_doc: r.source_doc,
+            source_block: r.source_block,
+            book_id: r.book_id,
+            target_kind: r.target_kind,
+            target_id: r.target_id,
+            kind: r.kind,
+            count: r.count,
+        })
+    }
 }
 
 /// JavaScript's `\\s` (what the 0.1 client's `trim()` removes): the same set
@@ -1211,6 +1409,367 @@ impl Library {
             paragraphs: paragraphs as u64,
         })
     }
+
+    // ---- v3 (entry, module) index queries --------------------------------
+
+    /// Search paragraphs in v3 `body:<entry_id>/<module_id>` documents,
+    /// optionally scoped to `book_id`, `entry_id`, and/or `module_id`.
+    pub fn search_entry_modules(
+        &self,
+        book_id: Option<&str>,
+        entry_id: Option<&str>,
+        module_id: Option<&str>,
+        query: &str,
+        limit: usize,
+    ) -> Result<Vec<EntryModuleHit>> {
+        let query = query.trim();
+        let needle: Vec<char> = query.chars().collect();
+        if needle.is_empty() || limit == 0 {
+            return Ok(Vec::new());
+        }
+        if let (Some(e), Some(m)) = (entry_id, module_id) {
+            let doc_id = format_body_doc_id(e, m);
+            let fts = needle.len() >= TRIGRAM_MIN_CHARS;
+            let pattern = if fts {
+                fts_phrase(query)
+            } else {
+                like_pattern(query)
+            };
+            let conn = self.reader();
+            let sql = if fts {
+                "SELECT b.doc_id, b.block_id, b.ord, b.text
+                 FROM block_fts JOIN block_index b ON b.id = block_fts.rowid
+                 WHERE block_fts MATCH ?1 AND b.doc_id = ?2 AND (?3 IS NULL OR b.book_id = ?3)
+                 ORDER BY b.ord LIMIT ?4"
+            } else {
+                "SELECT b.doc_id, b.block_id, b.ord, b.text FROM block_index b
+                 WHERE b.doc_id = ?2 AND (?3 IS NULL OR b.book_id = ?3) AND b.text LIKE ?1 ESCAPE '\\'
+                 ORDER BY b.ord LIMIT ?4"
+            };
+            let rows: Vec<HitRow> = conn
+                .prepare_cached(sql)?
+                .query_map(params![pattern, doc_id, book_id, limit as i64], hit_row)?
+                .collect::<rusqlite::Result<_>>()?;
+            let mut keys = DocKeys::default();
+            return rows
+                .into_iter()
+                .filter_map(|(doc, block, key, text)| {
+                    let n = match keys.position(&conn, &doc, key) {
+                        Ok(n) => n,
+                        Err(e) => return Some(Err(e)),
+                    };
+                    EntryModuleHit::from_search_hit(hit(doc, block, n, &text, &needle)).map(Ok)
+                })
+                .collect();
+        }
+
+        let doc_like = match entry_id {
+            Some(e) => entry_body_like_prefix(e),
+            None => "body:%".to_string(),
+        };
+        let fts = needle.len() >= TRIGRAM_MIN_CHARS;
+        let pattern = if fts {
+            fts_phrase(query)
+        } else {
+            like_pattern(query)
+        };
+        let conn = self.reader();
+        let sql = if fts {
+            "SELECT b.doc_id, b.block_id, b.ord, b.text
+             FROM block_fts JOIN block_index b ON b.id = block_fts.rowid
+             WHERE block_fts MATCH ?1 AND (?2 IS NULL OR b.book_id = ?2)
+               AND b.doc_id LIKE ?3 ESCAPE '\\'
+             ORDER BY b.doc_id, b.ord"
+        } else {
+            "SELECT b.doc_id, b.block_id, b.ord, b.text FROM block_index b
+             WHERE (?2 IS NULL OR b.book_id = ?2) AND b.doc_id LIKE ?3 ESCAPE '\\'
+               AND b.text LIKE ?1 ESCAPE '\\'
+             ORDER BY b.doc_id, b.ord"
+        };
+        let mut stmt = conn.prepare_cached(sql)?;
+        let mut rows_iter = stmt.query(params![pattern, book_id, doc_like])?;
+        let mut keys = DocKeys::default();
+        let mut out = Vec::new();
+        while let Some(r) = rows_iter.next()? {
+            if out.len() >= limit {
+                break;
+            }
+            let (doc, block, key, text) = hit_row(r)?;
+            let Some((e, m)) = parse_body_doc_id(&doc) else {
+                continue;
+            };
+            if let Some(want_m) = module_id
+                && m != want_m
+            {
+                continue;
+            }
+            if let Some(want_e) = entry_id
+                && e != want_e
+            {
+                continue;
+            }
+            let (entry_str, mod_str) = (e.to_string(), m.to_string());
+            let n = keys.position(&conn, &doc, key)?;
+            let sh = hit(doc, block, n, &text, &needle);
+            out.push(EntryModuleHit {
+                entry_id: entry_str,
+                module_id: mod_str,
+                doc_id: sh.doc_id,
+                block_id: sh.block_id,
+                ord: sh.ord,
+                match_offset: sh.match_offset,
+                snippet: sh.snippet,
+            });
+        }
+        Ok(out)
+    }
+
+    /// [`Self::search_in_order`] ranked by `(entry_id, module_id)` pairs.
+    /// Hits come from the listed `(entry, module)` documents in that order,
+    /// then from any unlisted `body:<entry>/<module>` documents in `book_id`.
+    pub fn search_entry_modules_in_order(
+        &self,
+        book_id: Option<&str>,
+        query: &str,
+        limit: usize,
+        order: &[(&str, &str)],
+    ) -> Result<Vec<EntryModuleHit>> {
+        if order.is_empty() {
+            return self.search_entry_modules(book_id, None, None, query, limit);
+        }
+        let doc_ids: Vec<String> = order
+            .iter()
+            .map(|(e, m)| format_body_doc_id(e, m))
+            .collect();
+        let doc_refs: Vec<&str> = doc_ids.iter().map(String::as_str).collect();
+        // Ask for extra hits in case non-`body:` documents also exist in `book_id`.
+        let hits = self.search_in_order(
+            book_id,
+            query,
+            limit.saturating_mul(2).max(limit),
+            &doc_refs,
+        )?;
+        Ok(hits
+            .into_iter()
+            .filter_map(EntryModuleHit::from_search_hit)
+            .take(limit)
+            .collect())
+    }
+
+    /// Outline (H1–H3) of one `(entry, module)` prose document (`body:<entry_id>/<module_id>`).
+    pub fn entry_module_outline(
+        &self,
+        entry_id: &str,
+        module_id: &str,
+    ) -> Result<Vec<OutlineEntry>> {
+        self.outline(&format_body_doc_id(entry_id, module_id))
+    }
+
+    /// Paragraph lengths of one `(entry, module)` prose document (`body:<entry_id>/<module_id>`).
+    pub fn entry_module_block_lengths(&self, entry_id: &str, module_id: &str) -> Result<Vec<u32>> {
+        self.block_lengths(&format_body_doc_id(entry_id, module_id))
+    }
+
+    /// Word, character and paragraph counts of one `(entry, module)` prose document.
+    pub fn entry_module_stats(
+        &self,
+        entry_id: &str,
+        module_id: &str,
+    ) -> Result<Option<EntryModuleStats>> {
+        Ok(self
+            .doc_stats(&format_body_doc_id(entry_id, module_id))?
+            .and_then(EntryModuleStats::from_doc_stats))
+    }
+
+    /// Word, character and paragraph counts for every indexed module of `entry_id`,
+    /// ordered by `module_id`.
+    pub fn entry_stats(&self, entry_id: &str) -> Result<Vec<EntryModuleStats>> {
+        let prefix = entry_body_like_prefix(entry_id);
+        let conn = self.reader();
+        let rows = conn
+            .prepare_cached(
+                "SELECT doc_id, book_id, indexed_seq, frontiers, words, chars, paragraphs, updated_ms
+                 FROM index_state WHERE doc_id LIKE ?1 ESCAPE '\\' ORDER BY doc_id",
+            )?
+            .query_map([prefix], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, Option<String>>(1)?,
+                    r.get::<_, i64>(2)?,
+                    r.get::<_, Vec<u8>>(3)?,
+                    r.get::<_, i64>(4)?,
+                    r.get::<_, i64>(5)?,
+                    r.get::<_, i64>(6)?,
+                    r.get::<_, i64>(7)?,
+                ))
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        let mut out = Vec::new();
+        for (doc_id, book_id, indexed_seq, f, words, chars, paragraphs, updated_ms) in rows {
+            let stats = DocStats {
+                doc_id,
+                book_id,
+                indexed_seq,
+                frontiers: Frontiers::decode(&f)?,
+                words: words as u64,
+                chars: chars as u64,
+                paragraphs: paragraphs as u64,
+                updated_ms,
+            };
+            if let Some(ems) = EntryModuleStats::from_doc_stats(stats)
+                && ems.entry_id == entry_id
+            {
+                out.push(ems);
+            }
+        }
+        Ok(out)
+    }
+
+    /// Summed word, character and paragraph counts across all indexed modules of `entry_id`.
+    pub fn entry_total_stats(&self, entry_id: &str) -> Result<BookStats> {
+        let modules = self.entry_stats(entry_id)?;
+        let mut totals = BookStats::default();
+        for m in modules {
+            totals.docs += 1;
+            totals.words += m.words;
+            totals.chars += m.chars;
+            totals.paragraphs += m.paragraphs;
+        }
+        Ok(totals)
+    }
+
+    /// Word, character and paragraph counts for every indexed `(entry, module)`
+    /// prose document (`body:<entry>/<module>`) in `book_id`.
+    pub fn book_entry_module_stats(&self, book_id: &str) -> Result<Vec<EntryModuleStats>> {
+        let conn = self.reader();
+        let rows = conn
+            .prepare_cached(
+                "SELECT doc_id, book_id, indexed_seq, frontiers, words, chars, paragraphs, updated_ms
+                 FROM index_state WHERE book_id = ?1 AND doc_id LIKE 'body:%' ORDER BY doc_id",
+            )?
+            .query_map([book_id], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, Option<String>>(1)?,
+                    r.get::<_, i64>(2)?,
+                    r.get::<_, Vec<u8>>(3)?,
+                    r.get::<_, i64>(4)?,
+                    r.get::<_, i64>(5)?,
+                    r.get::<_, i64>(6)?,
+                    r.get::<_, i64>(7)?,
+                ))
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        let mut out = Vec::new();
+        for (doc_id, book_id, indexed_seq, f, words, chars, paragraphs, updated_ms) in rows {
+            let stats = DocStats {
+                doc_id,
+                book_id,
+                indexed_seq,
+                frontiers: Frontiers::decode(&f)?,
+                words: words as u64,
+                chars: chars as u64,
+                paragraphs: paragraphs as u64,
+                updated_ms,
+            };
+            if let Some(ems) = EntryModuleStats::from_doc_stats(stats) {
+                out.push(ems);
+            }
+        }
+        Ok(out)
+    }
+
+    /// Totals over a specific list of `(entry_id, module_id)` prose documents
+    /// (for example, all prose modules of leaf entries under a manuscript level).
+    pub fn manuscript_stats(
+        &self,
+        book_id: Option<&str>,
+        entry_modules: &[(&str, &str)],
+    ) -> Result<BookStats> {
+        if entry_modules.is_empty() {
+            return Ok(BookStats::default());
+        }
+        let doc_ids: Vec<String> = entry_modules
+            .iter()
+            .map(|(e, m)| format_body_doc_id(e, m))
+            .collect();
+        let json = serde_json::to_string(&doc_ids)
+            .map_err(|e| StoreError::invalid("manuscript_stats", e.to_string()))?;
+        let conn = self.reader();
+        let (docs, words, chars, paragraphs): (i64, i64, i64, i64) = conn.query_row(
+            "SELECT count(*), coalesce(sum(words), 0), coalesce(sum(chars), 0), coalesce(sum(paragraphs), 0)
+             FROM index_state
+             WHERE (?1 IS NULL OR book_id = ?1)
+               AND doc_id IN (SELECT value FROM json_each(?2))",
+            params![book_id, json],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+        )?;
+        Ok(BookStats {
+            docs: docs as u64,
+            words: words as u64,
+            chars: chars as u64,
+            paragraphs: paragraphs as u64,
+        })
+    }
+
+    /// References made by one `(entry, module)` prose document (`body:<entry_id>/<module_id>`).
+    pub fn references_from_entry_module(
+        &self,
+        entry_id: &str,
+        module_id: &str,
+    ) -> Result<Vec<Reference>> {
+        self.references_from(&format_body_doc_id(entry_id, module_id))
+    }
+
+    /// References made by any prose module of `entry_id` (`body:<entry_id>/*`).
+    pub fn references_from_entry(&self, entry_id: &str) -> Result<Vec<EntryModuleReference>> {
+        let prefix = entry_body_like_prefix(entry_id);
+        let conn = self.reader();
+        let rows = conn
+            .prepare_cached(
+                "SELECT source_doc, source_block, book_id, target_kind, target_id, kind, count
+                 FROM reference WHERE source_doc LIKE ?1 ESCAPE '\\' ORDER BY source_doc, id",
+            )?
+            .query_map([prefix], |r| {
+                let kind: String = r.get(5)?;
+                Ok(Reference {
+                    source_doc: r.get(0)?,
+                    source_block: r.get(1)?,
+                    book_id: r.get(2)?,
+                    target_kind: r.get(3)?,
+                    target_id: r.get(4)?,
+                    kind: RefKind::parse(&kind).unwrap_or(RefKind::Link),
+                    count: r.get::<_, i64>(6)? as u32,
+                })
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(rows
+            .into_iter()
+            .filter_map(EntryModuleReference::from_reference)
+            .filter(|r| r.source_entry == entry_id)
+            .collect())
+    }
+
+    /// References to `target_id` originating from v3 `(entry, module)` prose documents.
+    pub fn entry_module_references_to(&self, target_id: &str) -> Result<Vec<EntryModuleReference>> {
+        Ok(self
+            .references_to(target_id)?
+            .into_iter()
+            .filter_map(EntryModuleReference::from_reference)
+            .collect())
+    }
+
+    /// References in `book_id` originating from v3 `(entry, module)` prose documents.
+    pub fn entry_module_references_in_book(
+        &self,
+        book_id: &str,
+    ) -> Result<Vec<EntryModuleReference>> {
+        Ok(self
+            .references_in_book(book_id)?
+            .into_iter()
+            .filter_map(EntryModuleReference::from_reference)
+            .collect())
+    }
 }
 
 #[cfg(test)]
@@ -1231,5 +1790,31 @@ mod tests {
         assert_eq!(h.snippet, "她叫安娜。");
         let q: Vec<char> = "ANNA".chars().collect();
         assert_eq!(hit("d".into(), None, 0, "dear anna", &q).match_offset, 5);
+    }
+
+    #[test]
+    fn v3_doc_kinds_and_body_doc_ids_parse_and_format() {
+        assert!(is_known_doc_kind(DOC_KIND_BODY));
+        assert!(is_known_doc_kind(DOC_KIND_TEMPLATE));
+        assert!(is_book_text_kind(DOC_KIND_BODY));
+        assert!(!is_book_text_kind(DOC_KIND_TEMPLATE));
+        assert!(!is_book_text_kind(DOC_KIND_BOOK));
+
+        let body = format_body_doc_id("entry-1", "mod-prose");
+        assert_eq!(body, "body:entry-1/mod-prose");
+        assert_eq!(parse_body_doc_id(&body), Some(("entry-1", "mod-prose")));
+        assert_eq!(
+            parse_body_doc_id("body:level-1/about"),
+            Some(("level-1", "about"))
+        );
+        assert_eq!(parse_body_doc_id("body:only-one"), None);
+        assert_eq!(parse_body_doc_id("body:a/b/c"), None);
+
+        let tpl = format_template_module_doc_id("tpl-chapter", "mod-prose");
+        assert_eq!(tpl, "template:tpl-chapter/mod-prose");
+        assert_eq!(
+            parse_template_module_doc_id(&tpl),
+            Some(("tpl-chapter", "mod-prose"))
+        );
     }
 }

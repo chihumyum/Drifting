@@ -181,3 +181,211 @@ fn a_seed_writes_into_a_store_and_reads_back() {
     }
     lib.close().unwrap();
 }
+
+fn check_v3_invariants(book: &seed::SeededBookV3) {
+    let view = book.book.view();
+    assert!(
+        view.repair_plan().is_empty(),
+        "the v3 seeded book needs no repair"
+    );
+    assert!(view.autolink_name_conflicts().is_empty());
+    let entries = view.entries_map();
+    let templates = view.templates_map();
+    let memberships = view.memberships_raw();
+    for e in entries.values().filter(|e| !e.is_trashed()) {
+        assert!(
+            dr_model::v3::check_parent_is_level(e.parent.as_ref(), &entries, &templates).is_ok()
+        );
+        assert!(
+            dr_model::v3::check_level_allows_template(
+                e.parent.as_ref(),
+                e.template.as_ref(),
+                &entries,
+                &templates,
+            )
+            .is_ok()
+        );
+    }
+    for m in &memberships {
+        assert!(dr_model::v3::check_membership(&m.host, &m.member, &entries, &templates).is_ok());
+    }
+    assert_eq!(view.manuscript_levels().len(), 1);
+    for tv in view.timeline_views_raw() {
+        for l in &tv.lanes {
+            assert!(dr_model::v3::check_timeline_lane(&l.entry, &entries, &templates).is_ok());
+        }
+        for p in &tv.placements {
+            assert!(
+                dr_model::v3::check_timeline_placement_in_lane(
+                    &tv,
+                    &p.entry,
+                    &memberships,
+                    &entries,
+                    &templates,
+                )
+                .is_ok()
+            );
+        }
+        for pin in &tv.pins {
+            if let Some(eid) = &pin.entry {
+                assert!(dr_model::v3::check_timeline_target_live(eid, &entries).is_ok());
+            }
+        }
+    }
+    for p in &book.prose {
+        assert!(view.owns_prose(p.doc_id()), "{}", p.doc_id());
+    }
+}
+
+fn check_scale_v3(preset: Preset) -> seed::SeededV3 {
+    let s = seed::generate_v3(preset, DEFAULT_SEED).unwrap();
+    let shape = s.shape();
+    let spec = preset.spec().unwrap();
+    for (name, b) in spec.groups() {
+        let g = &shape.bodies[name];
+        assert_eq!(
+            (g.count, g.total_words, g.min_words, g.max_words),
+            (b.count, b.total, b.min, b.max),
+            "v3 {} {name}",
+            preset.name()
+        );
+    }
+    assert_eq!(shape.chapters, spec.chapters.count);
+    assert_eq!(shape.elements, spec.elements.count);
+    assert_eq!(shape.relations, spec.relations);
+    assert_eq!(shape.acts, spec.acts);
+    assert!(shape.writing_days > 0);
+    assert!(shape.entity_links > 0);
+    if preset != Preset::Tiny {
+        assert!(shape.headings.iter().all(|&n| n > 0), "every heading level");
+    }
+    assert!(shape.tasks > 0);
+    let prose_bodies: usize = spec
+        .groups()
+        .iter()
+        .filter(|(n, _)| *n != "todos" && *n != "comments")
+        .map(|(_, b)| b.count)
+        .sum();
+    assert_eq!(shape.documents, prose_bodies + 1);
+
+    let book = &s.books[0];
+    check_v3_invariants(book);
+    let view = book.book.view();
+    let roots = dr_doc::v3::novel::NovelRootEntries::new();
+    let leaves = view.manuscript_leaves(&roots.manuscript);
+    assert_eq!(leaves.len(), spec.chapters.count);
+    assert!(
+        leaves
+            .iter()
+            .all(|c| !view.memberships_of_member(&c.id).is_empty())
+    );
+    let comments = view.comments();
+    assert_eq!(comments.len(), spec.todos.count + spec.comments.count);
+    assert!(
+        comments
+            .iter()
+            .all(|c| c.anchor.is_some() && c.target.is_some() && c.target_module.is_some())
+    );
+    s
+}
+
+#[test]
+fn v3_tiny_lite_and_heavy_align_with_v2_scale_and_pinned_fingerprints() {
+    for (preset, want_fp) in PINNED {
+        let v3 = check_scale_v3(*preset);
+        assert_eq!(
+            &v3.shape().corpus_fingerprint,
+            want_fp,
+            "v3 {}",
+            preset.name()
+        );
+        if *preset != Preset::Heavy {
+            let v2 = seed::generate(*preset, DEFAULT_SEED).unwrap();
+            assert_eq!(
+                v3.shape(),
+                v2.shape(),
+                "v3 shape matches v2 for {}",
+                preset.name()
+            );
+            let again = seed::generate_v3(*preset, DEFAULT_SEED).unwrap();
+            assert_eq!(
+                v3.books[0].book.export_snapshot().unwrap(),
+                again.books[0].book.export_snapshot().unwrap()
+            );
+            for (p, q) in v3.books[0].prose.iter().zip(&again.books[0].prose) {
+                assert_eq!(p.export_snapshot().unwrap(), q.export_snapshot().unwrap());
+            }
+        }
+    }
+}
+
+#[test]
+fn v3_seed_writes_into_a_store_and_indexes_by_entry_and_module() {
+    let dir = tempfile::tempdir().unwrap();
+    let s = seed::generate_v3(Preset::Tiny, DEFAULT_SEED).unwrap();
+    let mut opts = seed::library_options("0.2.0-test");
+    dr_index::attach(&mut opts);
+    let lib = dr_store::Library::open(dir.path(), opts).unwrap();
+    let written = s.write_to(&lib).unwrap();
+    assert_eq!(written, s.shape().documents);
+    assert_eq!(s.write_to(&lib).unwrap(), 0, "a second write adds nothing");
+    lib.rebuild_stale_indexes().unwrap();
+    let book = &s.books[0];
+    let id = book.book_id().as_str();
+    assert_eq!(lib.docs(Some(id), None).unwrap().len(), written);
+
+    let view = book.book.view();
+    let roots = dr_doc::v3::novel::NovelRootEntries::new();
+    let chapters = view.manuscript_leaves(&roots.manuscript);
+    let pairs: Vec<(&str, &str)> = chapters
+        .iter()
+        .map(|c| (c.id.as_str(), dr_doc::v3::novel::MOD_PROSE))
+        .collect();
+    let ms_stats = lib.manuscript_stats(Some(id), &pairs).unwrap();
+    assert_eq!(
+        ms_stats.words as usize,
+        s.shape().bodies["chapters"].total_words
+    );
+    assert!(!lib.entry_module_references_in_book(id).unwrap().is_empty());
+
+    let d1 = seed::digest_v3(&lib, id).unwrap();
+    let dir2 = tempfile::tempdir().unwrap();
+    let v2 = seed::generate(Preset::Tiny, DEFAULT_SEED).unwrap();
+    let converted = seed::book_to_v3(&v2.books[0]).unwrap();
+    let lib2 = dr_store::Library::open(dir2.path(), seed::library_options("0.2.0-test")).unwrap();
+    seed::write_book_v3(&lib2, &converted).unwrap();
+    let d2 = seed::digest_v3(&lib2, id).unwrap();
+    assert_eq!(d1, d2);
+
+    // Also verify template:<tid>/<mid> skips text indexing while body:<eid>/about is indexed.
+    let tpl_doc_id = dr_model::id::DocId::parse("template:tpl-chapter/mod-prose").unwrap();
+    let mut tpl_doc = ProseDoc::create(tpl_doc_id, 1).unwrap();
+    let (r, _) = tpl_doc.edit(dr_model::origin::Origin::User, |t| {
+        t.insert_paragraphs(0, "模板默认字")
+    });
+    r.unwrap();
+    let tpl_id_str = tpl_doc.doc_id().to_string();
+    let h_tpl = lib
+        .open_doc(
+            &tpl_id_str,
+            dr_store::OpenDoc::CreateIfMissing {
+                kind: dr_store::index::DOC_KIND_TEMPLATE,
+                book_id: Some(id),
+                genesis: &move |d| {
+                    d.import(&tpl_doc.export_snapshot().unwrap()).unwrap();
+                },
+            },
+        )
+        .unwrap();
+    drop(h_tpl);
+    lib.rebuild_stale_indexes().unwrap();
+    assert!(
+        lib.search_entry_modules(Some(id), None, None, "模板默认字", 10)
+            .unwrap()
+            .is_empty(),
+        "template:<tid>/<mid> must not enter search or manuscript stats"
+    );
+
+    lib.close().unwrap();
+    lib2.close().unwrap();
+}

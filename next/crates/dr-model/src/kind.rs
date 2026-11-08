@@ -144,6 +144,7 @@ open_enum!(
         Patch = "patch",
         Category = "category",
         Storyline = "storyline",
+        Entry = "entry",
         Comment = "comment",
         Material = "material" | "library_item",
     }
@@ -160,6 +161,7 @@ impl EntityKind {
                 | EntityKind::Patch
                 | EntityKind::Category
                 | EntityKind::Storyline
+                | EntityKind::Entry
         )
     }
 
@@ -179,8 +181,18 @@ impl EntityKind {
     pub fn may_be_linked(&self) -> bool {
         matches!(
             self,
-            EntityKind::Element | EntityKind::Node | EntityKind::Storyline | EntityKind::Category
+            EntityKind::Element
+                | EntityKind::Node
+                | EntityKind::Storyline
+                | EntityKind::Category
+                | EntityKind::Entry
         )
+    }
+
+    /// Kinds a v3 entity reference or inline link may point at (`kernel-v3.md`:
+    /// `entry` and `material`).
+    pub fn may_be_linked_v3(&self) -> bool {
+        matches!(self, EntityKind::Entry | EntityKind::Material)
     }
 }
 
@@ -370,12 +382,17 @@ mod tests {
             .collect();
         assert_eq!(
             structural,
-            vec!["node", "element", "patch", "category", "storyline"]
+            vec!["node", "element", "patch", "category", "storyline", "entry",]
         );
         assert!(all.iter().all(|k| k.may_start_relation()));
         assert!(EntityKind::Material.may_be_commented());
         assert!(!EntityKind::Comment.may_be_commented());
         assert!(!EntityKind::Patch.may_be_linked());
+        assert!(!EntityKind::Material.may_be_linked());
+        assert!(EntityKind::Entry.may_be_linked());
+        assert!(EntityKind::Entry.may_be_linked_v3());
+        assert!(EntityKind::Material.may_be_linked_v3());
+        assert!(!EntityKind::Element.may_be_linked_v3());
     }
 
     #[test]
