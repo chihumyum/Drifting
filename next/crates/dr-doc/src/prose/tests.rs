@@ -1323,3 +1323,140 @@ fn templates_merge_and_copy_into_new_documents() {
     let (r, _) = chap.edit(Origin::User, |t| t.insert_copy(0, &note.view()));
     assert!(matches!(r, Err(DocError::NotInProfile(_))));
 }
+
+/// A table as a material note's editor writes it (dr-editor's `CellSource`:
+/// each cell a text, its marks set on that text, the highlighter's
+/// highlight valued ""): a copy keeps every cell's marks where they were,
+/// and the rows and columns under their ids, in their order.
+#[test]
+fn a_copied_tables_cells_keep_their_marks() {
+    use super::embed::EmbedView;
+    use crate::schema::inline;
+    let material = |id: &str| DocId::parse(&format!("material:{id}")).unwrap();
+    let table = |t: &mut ProseTxn<'_>, tbl: &EmbedId, cols: &[&str], rows: &[&str]| {
+        let c = t.insert_text(0, "对照").and_then(|_| t.split(2))?;
+        let w = t.insert_embed(c, tbl, &EmbedKind::Table)?;
+        // Like dr-editor's insert_table: positions in order.
+        for (lines, col) in [(cols, true), (rows, false)] {
+            let mut pos = PosKey::first();
+            for (i, id) in lines.iter().enumerate() {
+                if i > 0 {
+                    pos = pos.after();
+                }
+                if col {
+                    w.add_col(id, &pos)?;
+                } else {
+                    w.add_row(id, &pos)?;
+                }
+            }
+        }
+        Ok::<_, DocError>(w)
+    };
+    let typed = |w: &TableWriter, r: &str, c: &str, s: &str| -> Result<loro::LoroText> {
+        let t = w.cell(r, c)?;
+        t.insert(0, s)?;
+        Ok(t)
+    };
+    let lin = || super::attrs::encode_entity(&link("el-lin"));
+
+    let tbl = EmbedId::parse("tbl-n").unwrap();
+    let mut note = ProseDoc::create(material("m1"), 1).unwrap();
+    user(&mut note, |t| {
+        let w = table(t, &tbl, &["c0", "c1", "c2"], &["r0", "r1"])?;
+        let a = typed(&w, "r0", "c0", "粗体和高亮")?;
+        a.mark(0..2, inline::BOLD, true)?;
+        a.mark(3..5, inline::HIGHLIGHT, "")?;
+        typed(&w, "r0", "c1", "代码\u{2028}第二行")?.mark(0..2, inline::CODE, true)?;
+        typed(&w, "r1", "c0", "找林立")?.mark(1..3, &inline::entity_key("el-lin"), lin())?;
+        typed(&w, "r1", "c2", "素")?;
+        Ok(())
+    });
+
+    let mut copy = ProseDoc::create(material("m2"), 2).unwrap();
+    user(&mut copy, |t| t.insert_copy(0, &note.view()));
+    assert_eq!(texts(&copy), texts(&note));
+    let (src, dst) = (note.view(), copy.view());
+    let copied = dst.paragraphs().nth(1).unwrap().embed().unwrap().clone();
+    assert_ne!(copied, tbl);
+    let (
+        Some(EmbedView::Table {
+            cols: sc,
+            rows: sr,
+            cells: scells,
+            ..
+        }),
+        Some(EmbedView::Table {
+            cols: dc,
+            rows: dr,
+            cells: dcells,
+            ..
+        }),
+    ) = (src.embed(&tbl), dst.embed(&copied))
+    else {
+        panic!("both are tables");
+    };
+    assert_eq!((&sc, &sr), (&dc, &dr), "line ids, positions and order");
+    assert_eq!(scells, dcells);
+    assert_eq!(scells.len(), 4, "untyped cells stay uncreated");
+    for (r, c) in scells.keys() {
+        assert_eq!(
+            dst.table_cell(&copied, r, c),
+            src.table_cell(&tbl, r, c),
+            "cell ({r}, {c})"
+        );
+    }
+    let first: Vec<_> = dst
+        .table_cell(&copied, "r0", "c0")
+        .unwrap()
+        .into_iter()
+        .map(|r| (r.text, r.marks.bold, r.marks.highlight))
+        .collect();
+    assert_eq!(
+        first,
+        [
+            ("粗体".into(), true, None),
+            ("和".into(), false, None),
+            ("高亮".into(), false, Some(String::new())),
+        ],
+        "the bold did not spread to the next run"
+    );
+    assert!(dst.table_cell(&copied, "r0", "c1").unwrap()[0].marks.code);
+    assert_eq!(
+        dst.table_cell(&copied, "r1", "c0").unwrap()[1]
+            .marks
+            .entities,
+        [link("el-lin")]
+    );
+    assert_eq!(src.table_cell(&tbl, "r0", "c2"), None, "never typed in");
+
+    // A body template's table: bold and links come along into an element;
+    // a note's highlight and code are refused in a chapter, like the body's.
+    let mut tpl = template(3);
+    let t2 = EmbedId::parse("tbl-t").unwrap();
+    user(&mut tpl, |t| {
+        let w = table(t, &t2, &["k0"], &["r0"])?;
+        let x = typed(&w, "r0", "k0", "林立很高")?;
+        x.mark(0..2, &inline::entity_key("el-lin"), lin())?;
+        x.mark(2..4, inline::BOLD, true)?;
+        Ok(())
+    });
+    let mut el = ProseDoc::create(DocId::parse("element:e2").unwrap(), 4).unwrap();
+    user(&mut el, |t| t.insert_copy(0, &tpl.view()));
+    let e2 = el
+        .view()
+        .paragraphs()
+        .nth(1)
+        .unwrap()
+        .embed()
+        .unwrap()
+        .clone();
+    let runs = el.view().table_cell(&e2, "r0", "k0").unwrap();
+    assert_eq!(Some(runs.clone()), tpl.view().table_cell(&t2, "r0", "k0"));
+    assert_eq!(
+        (runs[0].marks.entities.clone(), runs[1].marks.bold),
+        (vec![link("el-lin")], true)
+    );
+    let mut chap = doc("cells", 5);
+    let (r, _) = chap.edit(Origin::User, |t| t.insert_copy(0, &note.view()));
+    assert!(matches!(r, Err(DocError::NotInProfile(_))));
+}
