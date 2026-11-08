@@ -10,6 +10,7 @@
 - [research.md](research.md)：GPUI、Loro 与 Rust 生态的调研结论和来源
 - [progress.md](progress.md)：各路会话现在做到哪了
 - [simplifications.md](simplifications.md)：旧架构里不搬、合成一份、必须接住的东西，以及阶段 7 的清单
+- [kernel-v3.md](kernel-v3.md)：通用内核 v3 的方案（2026-11-09 草案，等作者定稿），分轨见 [handoff/kernel-v3-split.md](handoff/kernel-v3-split.md)
 
 在新版能导入旧书之前，现有 Tauri 客户端照常维护，`AGENTS.md` 的规则对它照旧适用。
 
