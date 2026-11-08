@@ -1,0 +1,195 @@
+{
+  "about": "M03 构想页分组路径：样书中已有构想移入父子分组后显示路径；页保持打开时改名、移出、再移入、删除子组与父组都刷新。只写分组元数据，不另造正文。",
+  "steps": [
+    {
+      "seed": "showcase"
+    },
+    {
+      "call": "book.list",
+      "save": "books"
+    },
+    {
+      "call": "idea.list",
+      "input": {
+        "book": "${books.[name=慢钟].id}"
+      },
+      "save": "ideas"
+    },
+    {
+      "call": "idea_group.create",
+      "input": {
+        "book": "${books.[name=慢钟].id}",
+        "name": "分组"
+      },
+      "save": "parent"
+    },
+    {
+      "call": "idea_group.create",
+      "input": {
+        "book": "${books.[name=慢钟].id}",
+        "name": "子组",
+        "parent": "${parent.id}"
+      },
+      "save": "child"
+    },
+    {
+      "call": "idea.update",
+      "input": {
+        "book": "${books.[name=慢钟].id}",
+        "id": "${ideas.0.id}",
+        "group": "${child.id}"
+      }
+    },
+    {
+      "launch": {
+        "settings": {
+          "account": {
+            "language.ui_locale": "zh-CN"
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "name": "慢钟"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/shelf": false,
+          "/book/name": "慢钟"
+        }
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "idea:${ideas.0.id}"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "分组 - 子组",
+        "count": 1
+      },
+      "expect": {
+        "/count": 1
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "01-idea-group.png"
+    },
+    {
+      "call": "idea_group.update",
+      "input": {
+        "book": "${books.[name=慢钟].id}",
+        "id": "${parent.id}",
+        "name": "结构"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "结构 - 子组",
+        "count": 1
+      },
+      "expect": {
+        "/count": 1
+      }
+    },
+    {
+      "call": "idea.update",
+      "input": {
+        "book": "${books.[name=慢钟].id}",
+        "id": "${ideas.0.id}",
+        "group": null
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "结构 - 子组",
+        "absent": true
+      },
+      "expect": {
+        "/count": 0
+      }
+    },
+    {
+      "call": "idea.update",
+      "input": {
+        "book": "${books.[name=慢钟].id}",
+        "id": "${ideas.0.id}",
+        "group": "${child.id}"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "结构 - 子组",
+        "count": 1
+      },
+      "expect": {
+        "/count": 1
+      }
+    },
+    {
+      "call": "idea_group.delete",
+      "input": {
+        "book": "${books.[name=慢钟].id}",
+        "id": "${child.id}"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "结构",
+        "role": "StaticText",
+        "count": 1
+      },
+      "expect": {
+        "/count": 1
+      }
+    },
+    {
+      "call": "idea_group.delete",
+      "input": {
+        "book": "${books.[name=慢钟].id}",
+        "id": "${parent.id}"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "结构",
+        "role": "StaticText",
+        "absent": true
+      },
+      "expect": {
+        "/count": 0
+      }
+    },
+    {
+      "app": "app.quit",
+      "expect": {
+        "/quit": true
+      }
+    }
+  ]
+}
