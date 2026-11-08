@@ -60,6 +60,42 @@ fn block_rule(typed: &Typed<'_>) -> Option<InputRule> {
     })
 }
 
+/// A material note's `==text==`: the highlight (the 0.1 note's input rule,
+/// here with the same CJK freedom as `**`: the marker may follow any
+/// character but `=`).
+pub fn highlight_rule(typed: &Typed<'_>) -> Option<InputRule> {
+    if !typed.typed.ends_with('=') {
+        return None;
+    }
+    let chars: Vec<char> = typed.before.chars().collect();
+    if !chars.ends_with(&['=', '=']) {
+        return None;
+    }
+    let close = chars.len() - 2..chars.len();
+    let k = chars[..close.start].iter().rposition(|&x| x == '=')?;
+    if k == 0 || chars[k - 1] != '=' {
+        return None;
+    }
+    let (open, inner) = (k - 1..k + 1, k + 1..close.start);
+    if inner.is_empty() {
+        return None;
+    }
+    let (first, last) = (chars[inner.start], chars[inner.end - 1]);
+    if first.is_whitespace() || last.is_whitespace() {
+        return None;
+    }
+    if open.start > 0 && chars[open.start - 1] == '=' {
+        return None;
+    }
+    Some(InputRule::Mark {
+        open,
+        inner,
+        close,
+        key: inline::HIGHLIGHT.to_owned(),
+        value: crate::highlight::value(),
+    })
+}
+
 fn is_word(c: char) -> bool {
     c.is_ascii_alphanumeric() || c == '_'
 }
@@ -113,6 +149,26 @@ fn inline_rule(typed: &Typed<'_>) -> Option<InputRule> {
 mod tests {
     use super::*;
     use gpui_prose::text::BlockKind;
+
+    #[test]
+    fn double_equals_highlight_in_a_note() {
+        let rule = |before: &str| {
+            highlight_rule(&Typed {
+                before,
+                typed: "=",
+                kind: BlockKind::Body,
+            })
+        };
+        match rule("他==吸铁石==") {
+            Some(InputRule::Mark {
+                open, inner, close, ..
+            }) => assert_eq!((open, inner, close), (1..3, 3..6, 6..8)),
+            other => panic!("{other:?}"),
+        }
+        assert_eq!(rule("==  =="), None, "spaces inside");
+        assert_eq!(rule("===="), None, "nothing inside");
+        assert_eq!(rule("a == b"), None);
+    }
 
     fn rule(before: &str) -> Option<InputRule> {
         let typed = &before[before.char_indices().last().map_or(0, |(i, _)| i)..];

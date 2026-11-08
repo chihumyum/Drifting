@@ -29,13 +29,19 @@ impl ProseEditor {
         if self.composition.is_some() || self.replace_across("", &[], window, cx) {
             return;
         }
+        let sel = self.selection;
+        let range = if sel.is_empty() {
+            let doc = &mut self.book.chapters[sel.chapter].doc;
+            let to = target(doc, sel.head).min(doc.max_cursor());
+            sel.head.min(to)..sel.head.max(to)
+        } else {
+            sel.range()
+        };
+        // Next to or on an embed (`objects.rs`).
+        if self.delete_at_embed(sel.chapter, range.clone(), sel.is_empty(), window, cx) {
+            return;
+        }
         self.edit(window, cx, |doc, sel| {
-            let range = if sel.is_empty() {
-                let to = target(doc, sel.head).min(doc.max_cursor());
-                sel.head.min(to)..sel.head.max(to)
-            } else {
-                sel.range()
-            };
             if range.is_empty() {
                 return;
             }
@@ -108,6 +114,10 @@ impl ProseEditor {
         if self.newline_in_list(window, cx) {
             return;
         }
+        // An embed selected: a paragraph after it (`objects.rs`).
+        if self.newline_at_embed(window, cx) {
+            return;
+        }
         // Across chapters: the selection goes first, as its own step (like a
         // selection across paragraphs below).
         self.replace_across("", &[], window, cx);
@@ -155,6 +165,18 @@ impl ProseEditor {
     /// Toggles bold, italic, underline or strike: on the selection, or (with
     /// a bare caret) for the next typed text.
     pub fn toggle_mark(&mut self, key: &str, window: &mut Window, cx: &mut Context<Self>) {
+        self.toggle_mark_value(key, LoroValue::Bool(true), window, cx);
+    }
+
+    /// [`ProseEditor::toggle_mark`] for a mark whose value is not `true` (a
+    /// note's highlight).
+    pub fn toggle_mark_value(
+        &mut self,
+        key: &str,
+        value: LoroValue,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if self.composition.is_some() {
             return;
         }
@@ -167,18 +189,18 @@ impl ProseEditor {
             };
             self.pending_marks.retain(|(k, _)| k != key);
             self.pending_marks
-                .push((key.to_owned(), (!current).then_some(LoroValue::Bool(true))));
+                .push((key.to_owned(), (!current).then_some(value)));
             cx.notify();
             return;
         }
         if self.selection.spans_chapters() {
-            self.toggle_mark_across(key, window, cx);
+            self.toggle_mark_across(key, value, window, cx);
             return;
         }
         let key = key.to_owned();
         self.edit(window, cx, |doc, sel| {
             doc.checkpoint();
-            doc.toggle_mark(sel.range(), &key, ORIGIN_USER);
+            doc.toggle_mark_value(sel.range(), &key, value, ORIGIN_USER);
         });
     }
 
@@ -324,6 +346,8 @@ impl ProseEditor {
             return;
         }
         let text = text.replace("\r\n", "\n").replace('\r', "\n");
+        // Never over a selected embed (`objects.rs`).
+        self.leave_embed_for_text(&mut None, window, cx);
         self.pending_marks.clear();
         // Across chapters: one step per chapter, the text in the first.
         if self.replace_across(&text, &[], window, cx) {

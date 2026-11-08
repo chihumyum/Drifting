@@ -69,6 +69,23 @@ impl Line {
         self.block.bid()
     }
 
+    /// The embed this paragraph stands for: a lone U+FFFC carrying an
+    /// `embed` mark (a table, a material). See [`crate::embeds`].
+    pub fn embed(&self) -> Option<&str> {
+        if self.text.as_ref() != "\u{FFFC}" {
+            return None;
+        }
+        match self
+            .spans
+            .first()?
+            .marks
+            .get(crate::schema::inline::EMBED)?
+        {
+            loro::LoroValue::String(id) => Some(id.as_str()),
+            _ => None,
+        }
+    }
+
     /// Byte offset of the given scalar offset inside this line.
     pub fn byte_of_char(&self, char_offset: usize) -> usize {
         byte_of_char(&self.text, char_offset)

@@ -169,6 +169,7 @@ impl ProseEditor {
     pub(crate) fn toggle_mark_across(
         &mut self,
         key: &str,
+        value: loro::LoroValue,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
@@ -178,7 +179,7 @@ impl ProseEditor {
                 return;
             }
             if on {
-                doc.mark(range, key, loro::LoroValue::Bool(true), ORIGIN_USER);
+                doc.mark(range, key, value.clone(), ORIGIN_USER);
             } else {
                 doc.unmark(range, key, ORIGIN_USER);
             }

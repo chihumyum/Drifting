@@ -433,9 +433,21 @@ impl ProseDoc {
     /// Bold/italic/underline/strike on `range`: off if all of it has the
     /// mark, else on. Returns whether the mark is now on.
     pub fn toggle_mark(&mut self, range: Range<usize>, key: &str, origin: &str) -> bool {
+        self.toggle_mark_value(range, key, LoroValue::Bool(true), origin)
+    }
+
+    /// [`ProseDoc::toggle_mark`] for a mark whose value is not `true` (a
+    /// note's highlight: its colour).
+    pub fn toggle_mark_value(
+        &mut self,
+        range: Range<usize>,
+        key: &str,
+        value: LoroValue,
+        origin: &str,
+    ) -> bool {
         let on = !self.range_has_mark(range.clone(), key);
         if on {
-            self.mark(range, key, LoroValue::Bool(true), origin);
+            self.mark(range, key, value, origin);
         } else {
             self.unmark(range, key, origin);
         }
@@ -464,6 +476,14 @@ impl ProseDoc {
     /// starts one.
     pub fn join_last_step(&mut self) {
         self.undo.join_last_step = true;
+    }
+
+    /// Folds `items` items a host committed to this document outside its
+    /// body text (an embed's contents) into the author's undo history, as
+    /// if the body had pushed them: the usual merge rules apply
+    /// ([`ProseDoc::checkpoint`] first for a step of their own).
+    pub fn record_host_items(&mut self, items: usize) {
+        self.undo.after_commit(items);
     }
 
     /// Marks the last undo step as part of edit group `group`: an edit
