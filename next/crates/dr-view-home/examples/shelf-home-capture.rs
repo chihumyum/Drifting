@@ -511,6 +511,57 @@ fn capture(dir: PathBuf) -> Result<()> {
         });
         h.settle()?;
     }
+    // The shelf on the sea of characters (M24): a window drawing the sea
+    // under the workspace, as the shell's backdrop will; the sea held on as
+    // the shell will hold it while the shelf shows.
+    let (main_window, main_view) = (h.window, h.view.clone());
+    for (round, (appearance, suffix)) in [(Appearance::Light, "light"), (Appearance::Dark, "dark")]
+        .into_iter()
+        .enumerate()
+    {
+        h.appearance(appearance);
+        let window = h.cx.open_window(size(px(W), px(H)), |window, cx| {
+            let ws = cx.new(|cx| Workspace::new(window, cx));
+            cx.new(|_| SeaRoot { ws })
+        })?;
+        let root = window.entity(&h.cx)?;
+        h.view = h.cx.update(|cx| root.read(cx).ws.clone());
+        h.window = window.into();
+        h.cx.update_window(h.window, |_, window, _| window.activate_window())?;
+        let hold = h.cx.update_window(h.window, |_, window, cx| {
+            dr_view_sea::Sea::of(window, cx).hold(dr_view_sea::HoldKind::Surface, window)
+        })?;
+        h.wait(|h| h.shelf_ready())?;
+        h.wait(|h| h.pictures_ready())?;
+        h.settle()?;
+        h.save(&m01, &format!("shelf-sea-{suffix}.png"))?;
+        // 《慢钟》 is a sample this launch wrote: in light its card lands on
+        // a ring of its own; in dark (landed already) a press on the bare
+        // desk rings through the cards. Either way its rim flows, waiting.
+        if round == 0 {
+            let slow = slow_clock.clone();
+            h.cx.update(|cx| dr_view_sea::first_run::note_samples_created(vec![slow], cx));
+        } else {
+            h.cx.update_window(h.window, |_, window, cx| {
+                dr_view_sea::Sea::of(window, cx).press(
+                    gpui::point(px(W * 0.7), px(H * 0.62)),
+                    1.2,
+                    window,
+                )
+            })?;
+        }
+        let started = Instant::now();
+        while started.elapsed() < Duration::from_millis(if round == 0 { 900 } else { 650 }) {
+            h.draw()?;
+            h.cx.run_until_parked();
+            std::thread::sleep(Duration::from_millis(16));
+        }
+        h.save(&m01, &format!("shelf-sea-ring-{suffix}.png"))?;
+        drop(hold);
+        h.cx.update_window(h.window, |_, window, _| window.remove_window())?;
+    }
+    h.window = main_window;
+    h.view = main_view;
     Ok(())
 }
 
@@ -648,5 +699,37 @@ fn main() -> Result<()> {
         [flag, dir] if flag == "--capture" => capture(PathBuf::from(dir)),
         [flag, dir] if flag == "--bench" => bench(PathBuf::from(dir)),
         _ => bail!("usage: shelf-home-capture --capture <modules dir> | --bench <acceptance dir>"),
+    }
+}
+
+/// The sea under the whole window and the bookshelf over it (what the
+/// shell's backdrop will do, M24; the workspace's own root, which still
+/// lays the desk colour, is left out until the shell clears it).
+struct SeaRoot {
+    ws: Entity<Workspace>,
+}
+
+impl gpui::Render for SeaRoot {
+    fn render(
+        &mut self,
+        window: &mut gpui::Window,
+        cx: &mut Context<Self>,
+    ) -> impl gpui::IntoElement {
+        use gpui::{ParentElement as _, Styled as _};
+        let sea = dr_view_sea::Sea::of(window, cx);
+        let p = dr_ui::Theme::of(window, cx).palette;
+        gpui::div()
+            .size_full()
+            .relative()
+            .bg(p.desk.solid())
+            .child(dr_view_sea::char_sea(&sea))
+            .children(self.ws.read(cx).shelf.as_ref().map(|shelf| {
+                gpui::div()
+                    .absolute()
+                    .top_0()
+                    .left_0()
+                    .size_full()
+                    .child(shelf.view.clone())
+            }))
     }
 }
