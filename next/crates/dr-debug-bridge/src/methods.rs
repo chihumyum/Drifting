@@ -882,7 +882,14 @@ fn head_of(target: &Target, doc: &str, window: &Window, cx: &App) -> Value {
                 "fields": rows.iter().map(|(id, k, v)| json!({
                     "id": id, "key": k.read(cx).text(), "value": v.read(cx).text(),
                 })).collect::<Vec<_>>(),
-                "alert": head.read(cx).alert.as_ref().map(|a| a.to_string()),
+                // The 0.1 alert is the shell's dialog now (M11's
+                // `dr_view_elements::dialogs`), not a field of the head.
+                "alert": dr_view_elements::dialogs::dialogs(cx)
+                    .and_then(|d| d.read(cx).asking())
+                    .and_then(|a| match a {
+                        dr_view_elements::dialogs::Asking::Alert(m) => Some(m),
+                        _ => None,
+                    }),
                 "focus": focus,
             })
         }

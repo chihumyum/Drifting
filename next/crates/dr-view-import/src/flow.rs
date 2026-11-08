@@ -30,9 +30,11 @@ use gpui::{
 pub const V1_DATA_DIR_ENV: &str = "DRIFTING_APP_DATA_DIR";
 
 /// After asking the import to finish its book, how long quitting waits;
-/// then it asks it to stop at once and waits [`QUIT_WAIT_NOW`] more.
-pub const QUIT_WAIT_BOOK: Duration = Duration::from_secs(3);
-pub const QUIT_WAIT_NOW: Duration = Duration::from_secs(2);
+/// then it asks it to stop at once and waits [`QUIT_WAIT_NOW`] more. One
+/// second each (F7, f7-platform.md): the window stands frozen meanwhile, and
+/// a book stopped at once is carried on byte for byte by the next import.
+pub const QUIT_WAIT_BOOK: Duration = Duration::from_secs(1);
+pub const QUIT_WAIT_NOW: Duration = Duration::from_secs(1);
 
 /// Where the import is.
 #[derive(Clone, Debug, Default)]
