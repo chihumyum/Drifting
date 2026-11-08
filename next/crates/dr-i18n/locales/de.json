@@ -188,7 +188,8 @@
       "deleteCategory": "Kategorie löschen",
       "deleteElement": "Element löschen",
       "deleteNode": "Knoten löschen",
-      "deleteStoryline": "Handlungsstrang löschen"
+      "deleteStoryline": "Handlungsstrang löschen",
+      "moveToGroup": "In Gruppe verschieben…"
     },
     "outlineRailMode": {
       "hidden": "Inhaltsverzeichnis ausblenden",
@@ -197,10 +198,13 @@
     "status": {
       "discarded": "Verworfen",
       "draft": "Entwurf",
-      "finished": "Fertig"
+      "drifting": "Treibend",
+      "finished": "Fertig",
+      "resting": "Ruhend"
     },
     "statusSection": {
-      "chapter": "Schreibstatus"
+      "chapter": "Schreibstatus",
+      "drift": "Ideenstatus"
     }
   },
   "elementCategoryCreateMenu": {
@@ -419,6 +423,8 @@
     "actions": {
       "collapseAll": "Alle auf- oder einklappen",
       "newCategory": "Neue Kategorie",
+      "newDrift": "Neue Idee",
+      "newDriftGroup": "Neue Gruppe",
       "sort": "Sortieren"
     },
     "empty": {
@@ -428,7 +434,15 @@
     },
     "groups": {
       "addElementToGroup": "Neues Element in dieser Gruppe",
+      "deleteGroup": "Gruppe löschen",
+      "driftCount_one": "{{count}} Idee",
+      "driftCount_other": "{{count}} Ideen",
+      "moveDriftToRoot": "Oberste Ebene (aus Gruppe verschieben)",
+      "moveGroupToRoot": "Oberste Ebene (ganz nach oben verschieben)",
       "newChapterInStoryline": "Neues Kapitel in diesem Handlungsstrang",
+      "newDriftInGroup": "Neue Idee hier",
+      "newSubGroup": "Neue Untergruppe",
+      "rename": "Umbenennen",
       "renameElementGroupTitle": "Doppelklicken, um die Gruppe umzubenennen",
       "unaffiliated": "Ohne Zuordnung"
     },
@@ -444,6 +458,7 @@
       "cellMetaGroup": "Rechter Zellenrand",
       "chapters": "Kapitel sortieren",
       "createdAt": "Erstellungszeit",
+      "drifts": "Ideen sortieren",
       "duplicatesAll": "In jeder verknüpften Gruppe anzeigen",
       "duplicatesGroup": "Kapitel mit mehreren Handlungssträngen",
       "duplicatesPrimary": "Nur im Haupthandlungsstrang anzeigen",
@@ -456,6 +471,7 @@
       "showWordCount": "Wortzahl anzeigen",
       "storylineChapters": "Kapitel innerhalb der Handlungsstränge sortieren",
       "storylineOrder": "Handlungsstrang-Reihenfolge",
+      "title": "Titel A–Z",
       "updatedAt": "Änderungszeit"
     },
     "tabs": {

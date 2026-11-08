@@ -858,3 +858,20 @@ memoMaterial.preview.loadingPdf
 memoMaterial.preview.loading
 memoMaterial.preview.previousPage
 memoMaterial.preview.nextPage
+
+# M16 the ideas panel (dr-view-ideas)
+leftSidebar.actions.newDrift
+leftSidebar.actions.newDriftGroup
+leftSidebar.sort.drifts
+leftSidebar.sort.title
+leftSidebar.groups.newDriftInGroup
+leftSidebar.groups.newSubGroup
+leftSidebar.groups.moveDriftToRoot
+leftSidebar.groups.moveGroupToRoot
+leftSidebar.groups.rename
+leftSidebar.groups.deleteGroup
+leftSidebar.groups.driftCount
+editorTopBar.status.drifting
+editorTopBar.status.resting
+editorTopBar.statusSection.drift
+editorTopBar.menu.moveToGroup

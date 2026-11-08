@@ -188,7 +188,8 @@
       "deleteCategory": "カテゴリを削除",
       "deleteElement": "要素を削除",
       "deleteNode": "ノードを削除",
-      "deleteStoryline": "ストーリーラインを削除"
+      "deleteStoryline": "ストーリーラインを削除",
+      "moveToGroup": "グループへ移動…"
     },
     "outlineRailMode": {
       "hidden": "目次を非表示",
@@ -197,10 +198,13 @@
     "status": {
       "discarded": "不採用",
       "draft": "下書き",
-      "finished": "完成"
+      "drifting": "漂流中",
+      "finished": "完成",
+      "resting": "停泊中"
     },
     "statusSection": {
-      "chapter": "執筆状態"
+      "chapter": "執筆状態",
+      "drift": "アイデアの状態"
     }
   },
   "elementCategoryCreateMenu": {
@@ -413,6 +417,8 @@
     "actions": {
       "collapseAll": "すべて展開・折りたたみ",
       "newCategory": "新しいカテゴリ",
+      "newDrift": "新しいアイデア",
+      "newDriftGroup": "新しいグループ",
       "sort": "並べ替え"
     },
     "empty": {
@@ -422,7 +428,15 @@
     },
     "groups": {
       "addElementToGroup": "このグループに要素を追加",
+      "deleteGroup": "グループを削除",
+      "driftCount_one": "{{count}}件のアイデア",
+      "driftCount_other": "{{count}}件のアイデア",
+      "moveDriftToRoot": "最上位（グループから移動）",
+      "moveGroupToRoot": "最上位（トップへ移動）",
       "newChapterInStoryline": "このストーリーラインに章を追加",
+      "newDriftInGroup": "ここにアイデアを追加",
+      "newSubGroup": "サブグループを追加",
+      "rename": "名前を変更",
       "renameElementGroupTitle": "ダブルクリックでグループ名を変更",
       "unaffiliated": "所属なし"
     },
@@ -438,6 +452,7 @@
       "cellMetaGroup": "セルの右端",
       "chapters": "章を並べ替え",
       "createdAt": "作成日時",
+      "drifts": "アイデアを並べ替え",
       "duplicatesAll": "関連する全グループに表示",
       "duplicatesGroup": "複数ストーリーラインの章",
       "duplicatesPrimary": "主ストーリーラインにのみ表示",
@@ -450,6 +465,7 @@
       "showWordCount": "文字数を表示",
       "storylineChapters": "ストーリーライン内の章を並べ替え",
       "storylineOrder": "ストーリーライン順",
+      "title": "タイトル A–Z",
       "updatedAt": "更新日時"
     },
     "tabs": {

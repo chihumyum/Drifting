@@ -188,7 +188,8 @@
       "deleteCategory": "Excluir categoria",
       "deleteElement": "Excluir elemento",
       "deleteNode": "Excluir nó",
-      "deleteStoryline": "Excluir linha narrativa"
+      "deleteStoryline": "Excluir linha narrativa",
+      "moveToGroup": "Mover para grupo…"
     },
     "outlineRailMode": {
       "hidden": "Ocultar sumário",
@@ -197,10 +198,13 @@
     "status": {
       "discarded": "Descartado",
       "draft": "Rascunho",
-      "finished": "Concluído"
+      "drifting": "À deriva",
+      "finished": "Concluído",
+      "resting": "Em repouso"
     },
     "statusSection": {
-      "chapter": "Estado da escrita"
+      "chapter": "Estado da escrita",
+      "drift": "Status da ideia"
     }
   },
   "elementCategoryCreateMenu": {
@@ -419,6 +423,8 @@
     "actions": {
       "collapseAll": "Expandir ou recolher tudo",
       "newCategory": "Nova categoria",
+      "newDrift": "Nova ideia",
+      "newDriftGroup": "Novo grupo",
       "sort": "Ordenar"
     },
     "empty": {
@@ -428,7 +434,16 @@
     },
     "groups": {
       "addElementToGroup": "Novo elemento neste grupo",
+      "deleteGroup": "Excluir grupo",
+      "driftCount_many": "{{count}} ideias",
+      "driftCount_one": "{{count}} ideia",
+      "driftCount_other": "{{count}} ideias",
+      "moveDriftToRoot": "Raiz (tirar do grupo)",
+      "moveGroupToRoot": "Raiz (mover ao nível superior)",
       "newChapterInStoryline": "Novo capítulo nesta linha narrativa",
+      "newDriftInGroup": "Nova ideia aqui",
+      "newSubGroup": "Novo subgrupo",
+      "rename": "Renomear",
       "renameElementGroupTitle": "Clique duas vezes para renomear o grupo",
       "unaffiliated": "Sem vínculo"
     },
@@ -444,6 +459,7 @@
       "cellMetaGroup": "Borda direita da célula",
       "chapters": "Ordenar capítulos",
       "createdAt": "Data de criação",
+      "drifts": "Ordenar ideias",
       "duplicatesAll": "Mostrar em todos os grupos vinculados",
       "duplicatesGroup": "Capítulos com várias linhas narrativas",
       "duplicatesPrimary": "Mostrar apenas na linha narrativa principal",
@@ -456,6 +472,7 @@
       "showWordCount": "Mostrar contagem de palavras",
       "storylineChapters": "Ordenar capítulos nas linhas narrativas",
       "storylineOrder": "Ordem das linhas narrativas",
+      "title": "Título A–Z",
       "updatedAt": "Data de atualização"
     },
     "tabs": {

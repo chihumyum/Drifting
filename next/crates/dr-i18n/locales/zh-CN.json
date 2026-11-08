@@ -188,7 +188,8 @@
       "deleteCategory": "删除类目",
       "deleteElement": "删除要素",
       "deleteNode": "删除节点",
-      "deleteStoryline": "删除故事线"
+      "deleteStoryline": "删除故事线",
+      "moveToGroup": "移动到分组…"
     },
     "outlineRailMode": {
       "hidden": "隐藏 TOC",
@@ -197,10 +198,13 @@
     "status": {
       "discarded": "已弃用",
       "draft": "草稿",
-      "finished": "已完成"
+      "drifting": "漂浮中",
+      "finished": "已完成",
+      "resting": "休眠"
     },
     "statusSection": {
-      "chapter": "写作状态"
+      "chapter": "写作状态",
+      "drift": "构想状态"
     }
   },
   "elementCategoryCreateMenu": {
@@ -413,6 +417,8 @@
     "actions": {
       "collapseAll": "展开／折叠全部",
       "newCategory": "新类目",
+      "newDrift": "新构想",
+      "newDriftGroup": "新建分组",
       "sort": "排序"
     },
     "empty": {
@@ -422,7 +428,15 @@
     },
     "groups": {
       "addElementToGroup": "在此分组新建要素",
+      "deleteGroup": "删除分组",
+      "driftCount_one": "{{count}} 条构想",
+      "driftCount_other": "{{count}} 条构想",
+      "moveDriftToRoot": "根层级（移出分组）",
+      "moveGroupToRoot": "根层级（移到顶层）",
       "newChapterInStoryline": "在此故事线中新建章节",
+      "newDriftInGroup": "在此新建构想",
+      "newSubGroup": "新建子分组",
+      "rename": "重命名",
       "renameElementGroupTitle": "双击重命名分组",
       "unaffiliated": "未归属"
     },
@@ -438,6 +452,7 @@
       "cellMetaGroup": "单元格右侧",
       "chapters": "排序章节",
       "createdAt": "按创建时间",
+      "drifts": "排序构想",
       "duplicatesAll": "在每个所属分组显示",
       "duplicatesGroup": "多线章节",
       "duplicatesPrimary": "仅在主线分组显示",
@@ -450,6 +465,7 @@
       "showWordCount": "显示字数",
       "storylineChapters": "排序故事线内章节",
       "storylineOrder": "按故事线顺序",
+      "title": "按标题字母",
       "updatedAt": "按更新时间"
     },
     "tabs": {

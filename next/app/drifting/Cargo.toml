@@ -23,6 +23,7 @@ dr-shell.workspace = true
 dr-store.workspace = true
 dr-ui.workspace = true
 dr-view-elements.workspace = true
+dr-view-ideas.workspace = true
 dr-view-feedback.workspace = true
 dr-view-home.workspace = true
 dr-view-import.workspace = true

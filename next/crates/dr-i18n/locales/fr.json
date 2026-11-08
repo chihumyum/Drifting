@@ -188,7 +188,8 @@
       "deleteCategory": "Supprimer la catégorie",
       "deleteElement": "Supprimer l’élément",
       "deleteNode": "Supprimer le nœud",
-      "deleteStoryline": "Supprimer l’intrigue"
+      "deleteStoryline": "Supprimer l’intrigue",
+      "moveToGroup": "Déplacer vers un groupe…"
     },
     "outlineRailMode": {
       "hidden": "Masquer la table des matières",
@@ -197,10 +198,13 @@
     "status": {
       "discarded": "Écarté",
       "draft": "Brouillon",
-      "finished": "Terminé"
+      "drifting": "À la dérive",
+      "finished": "Terminé",
+      "resting": "Au repos"
     },
     "statusSection": {
-      "chapter": "État d’écriture"
+      "chapter": "État d’écriture",
+      "drift": "État de l’idée"
     }
   },
   "elementCategoryCreateMenu": {
@@ -419,6 +423,8 @@
     "actions": {
       "collapseAll": "Tout développer ou réduire",
       "newCategory": "Nouvelle catégorie",
+      "newDrift": "Nouvelle idée",
+      "newDriftGroup": "Nouveau groupe",
       "sort": "Trier"
     },
     "empty": {
@@ -428,7 +434,16 @@
     },
     "groups": {
       "addElementToGroup": "Nouvel élément dans ce groupe",
+      "deleteGroup": "Supprimer le groupe",
+      "driftCount_many": "{{count}} idées",
+      "driftCount_one": "{{count}} idée",
+      "driftCount_other": "{{count}} idées",
+      "moveDriftToRoot": "Racine (sortir du groupe)",
+      "moveGroupToRoot": "Racine (déplacer au premier niveau)",
       "newChapterInStoryline": "Nouveau chapitre dans cette intrigue",
+      "newDriftInGroup": "Nouvelle idée ici",
+      "newSubGroup": "Nouveau sous-groupe",
+      "rename": "Renommer",
       "renameElementGroupTitle": "Double-cliquez pour renommer le groupe",
       "unaffiliated": "Sans appartenance"
     },
@@ -444,6 +459,7 @@
       "cellMetaGroup": "Bord droit de cellule",
       "chapters": "Trier les chapitres",
       "createdAt": "Date de création",
+      "drifts": "Trier les idées",
       "duplicatesAll": "Afficher dans chaque groupe lié",
       "duplicatesGroup": "Chapitres à plusieurs intrigues",
       "duplicatesPrimary": "Afficher seulement dans l’intrigue principale",
@@ -456,6 +472,7 @@
       "showWordCount": "Afficher le nombre de mots",
       "storylineChapters": "Trier les chapitres dans les intrigues",
       "storylineOrder": "Ordre des intrigues",
+      "title": "Titre A–Z",
       "updatedAt": "Date de modification"
     },
     "tabs": {

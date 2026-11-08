@@ -188,7 +188,8 @@
       "deleteCategory": "Eliminar categoría",
       "deleteElement": "Eliminar elemento",
       "deleteNode": "Eliminar nodo",
-      "deleteStoryline": "Eliminar trama"
+      "deleteStoryline": "Eliminar trama",
+      "moveToGroup": "Mover a grupo…"
     },
     "outlineRailMode": {
       "hidden": "Ocultar índice",
@@ -197,10 +198,13 @@
     "status": {
       "discarded": "Descartado",
       "draft": "Borrador",
-      "finished": "Terminado"
+      "drifting": "Flotando",
+      "finished": "Terminado",
+      "resting": "En reposo"
     },
     "statusSection": {
-      "chapter": "Estado de escritura"
+      "chapter": "Estado de escritura",
+      "drift": "Estado de la idea"
     }
   },
   "elementCategoryCreateMenu": {
@@ -419,6 +423,8 @@
     "actions": {
       "collapseAll": "Expandir o contraer todo",
       "newCategory": "Nueva categoría",
+      "newDrift": "Nueva idea",
+      "newDriftGroup": "Nuevo grupo",
       "sort": "Ordenar"
     },
     "empty": {
@@ -428,7 +434,16 @@
     },
     "groups": {
       "addElementToGroup": "Nuevo elemento en este grupo",
+      "deleteGroup": "Eliminar grupo",
+      "driftCount_many": "{{count}} ideas",
+      "driftCount_one": "{{count}} idea",
+      "driftCount_other": "{{count}} ideas",
+      "moveDriftToRoot": "Nivel raíz (sacar del grupo)",
+      "moveGroupToRoot": "Nivel raíz (mover al nivel superior)",
       "newChapterInStoryline": "Nuevo capítulo en esta trama",
+      "newDriftInGroup": "Nueva idea aquí",
+      "newSubGroup": "Nuevo subgrupo",
+      "rename": "Renombrar",
       "renameElementGroupTitle": "Doble clic para renombrar el grupo",
       "unaffiliated": "Sin vincular"
     },
@@ -444,6 +459,7 @@
       "cellMetaGroup": "Borde derecho de celda",
       "chapters": "Ordenar capítulos",
       "createdAt": "Fecha de creación",
+      "drifts": "Ordenar ideas",
       "duplicatesAll": "Mostrar en todos los grupos vinculados",
       "duplicatesGroup": "Capítulos con varias tramas",
       "duplicatesPrimary": "Mostrar solo en la trama principal",
@@ -456,6 +472,7 @@
       "showWordCount": "Mostrar recuento de palabras",
       "storylineChapters": "Ordenar capítulos dentro de las tramas",
       "storylineOrder": "Orden de tramas",
+      "title": "Título A–Z",
       "updatedAt": "Fecha de actualización"
     },
     "tabs": {
