@@ -95,7 +95,7 @@ fn main() {
             .name("library-open".into())
             .spawn(move || {
                 let started = std::time::Instant::now();
-                let opened = library::open(&data, env!("CARGO_PKG_VERSION"));
+                let opened = library::open_active(&data, env!("CARGO_PKG_VERSION"));
                 (opened, started.elapsed())
             })
     });
@@ -175,6 +175,14 @@ fn main() {
         dr_view_agent::init(platform, cx);
         // ⌘Q hides the app before the quit hooks run (F7).
         dr_shell::quit::hide_first(cx);
+        // M35: Hosted account sign-in, first-run welcome step, and account library isolation.
+        dr_view_account::init(
+            dr_view_account::Service::for_build(
+                platform,
+                dirs.as_ref().map(|dirs| dirs.data.as_path()),
+            ),
+            cx,
+        );
         // M24: the sea under the windows, the first run, the tour.
         dr_view_sea::shell::init(cx);
         // Stage 2 pages: the bookshelf opens first, Project Home is the
@@ -203,6 +211,12 @@ fn main() {
             ),
             cx,
         );
+        if let Some(token) = cx
+            .try_global::<dr_view_account::Service>()
+            .and_then(|s| s.inner.current_token())
+        {
+            dr_view_feedback::Service::set_session(Some(token), cx);
+        }
         // M10: the bookshelf's 「导入 · Drifting 0.1」.
         dr_view_import::init(cx);
         // M41: .driftingbook from the bookshelf, importing documents, backup

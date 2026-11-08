@@ -6,6 +6,7 @@ resolver = "3"
 # One member per line, kept sorted, so parallel branches merge cleanly.
 members = [
     "app/drifting",
+    "crates/dr-account",
     "crates/dr-agent",
     "crates/dr-agent-providers",
     "crates/dr-agent-tools",
@@ -28,6 +29,7 @@ members = [
     "crates/dr-testkit",
     "crates/dr-text",
     "crates/dr-ui",
+    "crates/dr-view-account",
     "crates/dr-view-agent",
     "crates/dr-view-elements",
     "crates/dr-view-export",
@@ -69,6 +71,9 @@ license = "AGPL-3.0-or-later"
 publish = false
 
 [workspace.dependencies]
+# M35: Hosted account, session, PKCE OAuth and account-isolated library registry.
+dr-account = { path = "crates/dr-account" }
+dr-view-account = { path = "crates/dr-view-account" }
 # M27: provider-neutral, in-process Agent runtime (no GPUI).
 dr-agent = { path = "crates/dr-agent" }
 dr-agent-providers = { path = "crates/dr-agent-providers" }
@@ -177,7 +182,7 @@ flate2 = { version = "1.1", default-features = false, features = ["rust_backend"
 # the PNG masks of the existing sand and glass assets. `image` must stay on
 # the version GPUI's RenderImage is built from.
 base64 = "0.22.1"
-image = { version = "0.25.10", default-features = false, features = ["png"] }
+image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "webp"] }
 smallvec = "1.16"
 tiny-skia = "0.11.4"
 # M25 (dr-view-shelf-art): glyph outlines for the cover of characters, the

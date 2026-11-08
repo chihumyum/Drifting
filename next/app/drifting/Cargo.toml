@@ -23,12 +23,14 @@ hot-reload = ["gpui/hot-reload"]
 
 [dependencies]
 anyhow.workspace = true
+dr-account.workspace = true
 dr-debug-bridge = { workspace = true, optional = true }
 dr-platform.workspace = true
 dr-shell.workspace = true
 # F2's device identity for the library (writing days, epochs).
 dr-store.workspace = true
 dr-ui.workspace = true
+dr-view-account.workspace = true
 dr-view-agent.workspace = true
 dr-view-elements.workspace = true
 dr-view-ideas.workspace = true

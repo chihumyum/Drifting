@@ -78,6 +78,71 @@
   "allChapters": {
     "actOrdinal": "Ato {{n}}"
   },
+  "auth": {
+    "back": "Voltar",
+    "backToSignIn": "Voltar para entrar",
+    "createAccount": "Criar conta",
+    "creating": "Criando…",
+    "dialogLabel": "Conta",
+    "errors": {
+      "oauthExpired": "O tempo para entrar expirou. Comece novamente.",
+      "oauthFailed": "A entrada não foi concluída. Tente novamente.",
+      "sendCodeFailed": "Não foi possível enviar o código",
+      "signInCheck": "Falha ao entrar. Confira o e-mail e a senha.",
+      "signUpRetry": "Falha no cadastro. Tente mais tarde.",
+      "verifyFailed": "Falha na verificação"
+    },
+    "fields": {
+      "code": "Código de verificação",
+      "codePlaceholder": "6 dígitos",
+      "email": "E-mail",
+      "emailPlaceholder": "your@email.com",
+      "password": "Senha",
+      "passwordSignupPlaceholder": "Pelo menos 10 caracteres",
+      "penName": "Pseudônimo",
+      "penNamePlaceholder": "ex.: Ada"
+    },
+    "forgot": {
+      "codeSub": "Código enviado para {{email}}. Digite-o e escolha uma nova senha.",
+      "confirmPassword": "Confirmar nova senha",
+      "done": "Senha redefinida. Você já pode entrar.",
+      "newPassword": "Nova senha",
+      "passwordMismatch": "As senhas não coincidem.",
+      "resetFailed": "Falha ao redefinir a senha. Confira o código e tente novamente.",
+      "resetSubmit": "Redefinir senha",
+      "sub": "Digite o e-mail da conta para receber um código."
+    },
+    "forgotPassword": "Esqueceu a senha?",
+    "hasAccount": "Já tem conta?",
+    "noAccount": "Ainda não tem conta?",
+    "otp": {
+      "codeSub": "Enviado para {{email}}. O código vale por 10 minutos.",
+      "emailSub": "Enviaremos um código de 6 dígitos válido por 10 minutos."
+    },
+    "resend": "Reenviar código",
+    "sendCode": "Enviar código",
+    "signIn": "Entrar",
+    "signUp": "Cadastrar-se",
+    "signingIn": "Entrando…",
+    "social": {
+      "continueWith": "Continuar com {{provider}}",
+      "or": "ou",
+      "waiting": "Aguardando autorização no navegador…"
+    },
+    "titles": {
+      "forgot": "Redefinir senha",
+      "otp": "Entrar com um código",
+      "signin": "Entrar no Drifting",
+      "signup": "Criar conta",
+      "verify": "Verifique seu e-mail"
+    },
+    "useOtp": "Entrar com código por e-mail",
+    "verify": {
+      "sent": "Enviado para {{email}}. O código vale por 10 minutos.",
+      "submit": "Verificar e entrar",
+      "verifying": "Verificando…"
+    }
+  },
   "bottomStatusBar": {
     "collapseTimeline": "Recolher linha do tempo narrativa",
     "elements": "Elementos",
@@ -365,6 +430,10 @@
     "replace": "Substituir",
     "replaceAll": "Substituir tudo",
     "replacePlaceholder": "Substituir por…"
+  },
+  "firstRun": {
+    "email": "Continuar com e-mail",
+    "local": "Continuar localmente"
   },
   "globalSearch": {
     "closeTitle": "Fechar (Esc)",
@@ -802,6 +871,10 @@
   },
   "positionLink": {
     "copied": "Link de posição copiado"
+  },
+  "preAlphaGuide": {
+    "crashReports": "O aplicativo envia relatórios de falha sem o texto do manuscrito para ajudar a corrigir problemas. Desative em Configurações → Privacidade.",
+    "title": "Boas-vindas ao Drifting Alpha"
   },
   "projectHome": {
     "book": {
@@ -1306,14 +1379,57 @@
     },
     "groups": {
       "about": "Sobre",
+      "account": "Conta",
       "control": "Controle",
       "intelligence": "Inteligência",
       "preferences": "Preferências"
     },
     "hosted": {
+      "account_errors": {
+        "AVATAR_FILE_SIZE": "Escolha uma imagem de até 5 MB.",
+        "AVATAR_FILE_TYPE": "Escolha uma imagem JPG, PNG ou WebP.",
+        "CURRENT_PASSWORD_REQUIRED": "Digite sua senha atual.",
+        "INVALID_AVATAR": "Não foi possível usar a imagem. Escolha outra JPG, PNG ou WebP.",
+        "INVALID_PASSWORD": "A senha atual está incorreta.",
+        "INVALID_PASSWORD_LENGTH": "A nova senha deve ter de 8 a 128 caracteres.",
+        "INVALID_PROFILE_NAME": "Digite um nome de exibição de 1 a 80 caracteres.",
+        "PASSWORD_MISMATCH": "As novas senhas não coincidem.",
+        "PASSWORD_UNCHANGED": "Escolha uma senha diferente.",
+        "UNAUTHORIZED": "Sua sessão expirou. Entre novamente.",
+        "generic": "Não foi possível concluir a solicitação. Verifique a conexão e tente novamente."
+      },
+      "avatar": "Avatar",
+      "avatar_description": "JPG, PNG ou WebP, até 5 MB.",
+      "change_password": "Alterar senha",
+      "choose_avatar": "Escolher imagem",
+      "confirm_password": "Confirmar nova senha",
       "connect_errors": {
         "cancelled": "Cancelado."
-      }
+      },
+      "current_password": "Senha atual",
+      "description": "Seu texto é salvo primeiro neste dispositivo. Conecte uma conta para sincronizar projetos entre seus dispositivos.",
+      "display_name": "Nome de exibição",
+      "new_password": "Nova senha",
+      "no_account": "Não conectado",
+      "password_description": "De 8 a 128 caracteres.",
+      "password_saved": "Senha alterada. Outros dispositivos precisam entrar novamente.",
+      "password_sessions": "Alterar a senha desconecta outros dispositivos. Este continua conectado.",
+      "password_title": "Senha",
+      "profile_saved": "Perfil salvo.",
+      "profile_title": "Perfil",
+      "remove_avatar": "Remover",
+      "save_profile": "Salvar perfil",
+      "session": {
+        "checking": "Verificando conta…",
+        "connected": "Conta conectada",
+        "needs-reauth": "Sessão expirada. Entre novamente na mesma conta.",
+        "offline": "Offline. Você pode continuar escrevendo localmente.",
+        "signed-out": "Não é preciso ter conta para escrever localmente."
+      },
+      "sign_in": "Entrar / Cadastrar-se",
+      "sign_out": "Sair",
+      "title": "Conta e sincronização Hosted",
+      "working": "Em andamento…"
     },
     "keys": {
       "actions": {
@@ -1395,6 +1511,7 @@
     },
     "rail": {
       "about_app": "Sobre o Drifting",
+      "account": "Conta",
       "agent": "Agent geral",
       "appearance": "Aparência",
       "editor": "Editor",
@@ -1551,6 +1668,7 @@
     }
   },
   "userMenu": {
+    "accountMenu": "Menu da conta",
     "feedback": "Enviar feedback",
     "import": "Importar",
     "importBook": "Importar livro (.driftingbook)",
@@ -1558,6 +1676,8 @@
     "localMenu": "Menu da biblioteca local",
     "localStatus": "LOCAL · NESTE DISPOSITIVO",
     "settings": "Configurações",
+    "signOut": "Sair",
+    "signingOut": "Saindo…",
     "theme": "Tema",
     "themeDark": "Escuro",
     "themeDarkShort": "Escuro",

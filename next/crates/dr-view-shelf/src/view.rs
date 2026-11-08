@@ -951,7 +951,7 @@ fn rail_foot(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) ->
     let theme = Theme::of(window, cx);
     let p = theme.palette;
     let s = theme.scale;
-    let name = t(cx, keys::common::LOCAL);
+    let name = dr_shell::account::display_name(cx);
     let open = shelf.menu_open;
     let entity = cx.entity();
     let avatar = dr_shell::account::avatar(24.0, window, cx);
@@ -974,7 +974,7 @@ fn rail_foot(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) ->
     .gap(px(10.0))
     .cursor_pointer()
     .role(gpui::Role::Button)
-    .aria_label(t(cx, keys::user_menu::LOCAL_MENU))
+    .aria_label(dr_shell::account::menu_aria_label(cx))
     .on_click(move |_, window, cx| entity.update(cx, |shelf, cx| shelf.toggle_menu(window, cx)))
     .child(overlay::probe(shelf.account.clone()))
     .child(avatar)

@@ -78,6 +78,71 @@
   "allChapters": {
     "actOrdinal": "第 {{n}} 幕"
   },
+  "auth": {
+    "back": "返回",
+    "backToSignIn": "返回登入",
+    "createAccount": "建立帳號",
+    "creating": "正在建立…",
+    "dialogLabel": "帳號",
+    "errors": {
+      "oauthExpired": "登入逾時，請重新開始。",
+      "oauthFailed": "登入未完成，請重試。",
+      "sendCodeFailed": "無法寄送驗證碼",
+      "signInCheck": "登入失敗，請檢查電子郵件與密碼。",
+      "signUpRetry": "註冊失敗，請稍後重試。",
+      "verifyFailed": "驗證失敗"
+    },
+    "fields": {
+      "code": "驗證碼",
+      "codePlaceholder": "6 位數字",
+      "email": "電子郵件",
+      "emailPlaceholder": "your@email.com",
+      "password": "密碼",
+      "passwordSignupPlaceholder": "至少 10 個字元",
+      "penName": "筆名",
+      "penNamePlaceholder": "例如：Ada"
+    },
+    "forgot": {
+      "codeSub": "驗證碼已寄至 {{email}}。請輸入驗證碼並設定新密碼。",
+      "confirmPassword": "確認新密碼",
+      "done": "密碼已重設，現在可以登入。",
+      "newPassword": "新密碼",
+      "passwordMismatch": "兩次密碼不一致。",
+      "resetFailed": "重設密碼失敗，請檢查驗證碼後重試。",
+      "resetSubmit": "重設密碼",
+      "sub": "輸入帳號的電子郵件，我們會寄送驗證碼。"
+    },
+    "forgotPassword": "忘記密碼？",
+    "hasAccount": "已經有帳號？",
+    "noAccount": "還沒有帳號？",
+    "otp": {
+      "codeSub": "已寄至 {{email}}，驗證碼有效期限 10 分鐘。",
+      "emailSub": "我們會寄送 6 位驗證碼，有效期限 10 分鐘。"
+    },
+    "resend": "重寄驗證碼",
+    "sendCode": "傳送驗證碼",
+    "signIn": "登入",
+    "signUp": "註冊",
+    "signingIn": "正在登入…",
+    "social": {
+      "continueWith": "以 {{provider}} 繼續",
+      "or": "或",
+      "waiting": "等待瀏覽器授權…"
+    },
+    "titles": {
+      "forgot": "重設密碼",
+      "otp": "使用驗證碼登入",
+      "signin": "登入 Drifting",
+      "signup": "建立帳號",
+      "verify": "驗證電子郵件"
+    },
+    "useOtp": "用電子郵件驗證碼登入",
+    "verify": {
+      "sent": "已寄至 {{email}}，驗證碼有效期限 10 分鐘。",
+      "submit": "驗證並登入",
+      "verifying": "正在驗證…"
+    }
+  },
   "bottomStatusBar": {
     "collapseTimeline": "收合故事線時間線",
     "elements": "要素",
@@ -365,6 +430,10 @@
     "replace": "取代",
     "replaceAll": "全部取代",
     "replacePlaceholder": "取代為…"
+  },
+  "firstRun": {
+    "email": "以電子郵件繼續",
+    "local": "以本機模式繼續"
   },
   "globalSearch": {
     "closeTitle": "關閉（Esc）",
@@ -794,6 +863,10 @@
   },
   "positionLink": {
     "copied": "已複製位置連結"
+  },
+  "preAlphaGuide": {
+    "crashReports": "應用程式會傳送不含書稿文字的故障報告，協助修正問題；可在「設定 → 隱私」關閉。",
+    "title": "歡迎使用 Drifting Alpha"
   },
   "projectHome": {
     "book": {
@@ -1292,14 +1365,57 @@
     },
     "groups": {
       "about": "關於",
+      "account": "帳號",
       "control": "管理",
       "intelligence": "智慧功能",
       "preferences": "偏好設定"
     },
     "hosted": {
+      "account_errors": {
+        "AVATAR_FILE_SIZE": "請選擇不超過 5 MB 的圖片。",
+        "AVATAR_FILE_TYPE": "請選擇 JPG、PNG 或 WebP 圖片。",
+        "CURRENT_PASSWORD_REQUIRED": "請輸入目前密碼。",
+        "INVALID_AVATAR": "無法使用此圖片，請改選 JPG、PNG 或 WebP。",
+        "INVALID_PASSWORD": "目前密碼不正確。",
+        "INVALID_PASSWORD_LENGTH": "新密碼必須有 8–128 個字元。",
+        "INVALID_PROFILE_NAME": "請輸入 1–80 個字元的顯示名稱。",
+        "PASSWORD_MISMATCH": "兩次輸入的新密碼不一致。",
+        "PASSWORD_UNCHANGED": "請選擇不同的密碼。",
+        "UNAUTHORIZED": "登入已過期，請重新登入。",
+        "generic": "請求未完成，請檢查連線後重試。"
+      },
+      "avatar": "頭像",
+      "avatar_description": "JPG、PNG 或 WebP，最大 5 MB。",
+      "change_password": "變更密碼",
+      "choose_avatar": "選擇圖片",
+      "confirm_password": "確認新密碼",
       "connect_errors": {
         "cancelled": "已取消。"
-      }
+      },
+      "current_password": "目前密碼",
+      "description": "書稿會先存於此裝置，連接帳號後可在你的裝置間同步作品。",
+      "display_name": "顯示名稱",
+      "new_password": "新密碼",
+      "no_account": "尚未登入",
+      "password_description": "8–128 個字元。",
+      "password_saved": "密碼已變更，其他裝置需要重新登入。",
+      "password_sessions": "變更密碼會登出其他裝置，此裝置維持登入。",
+      "password_title": "密碼",
+      "profile_saved": "已儲存個人資料。",
+      "profile_title": "個人資料",
+      "remove_avatar": "移除",
+      "save_profile": "儲存個人資料",
+      "session": {
+        "checking": "正在檢查帳號…",
+        "connected": "帳號已連接",
+        "needs-reauth": "登入已過期，請重新登入同一帳號。",
+        "offline": "目前離線，仍可在本機繼續寫作。",
+        "signed-out": "本機寫作無須帳號。"
+      },
+      "sign_in": "登入／註冊",
+      "sign_out": "登出",
+      "title": "帳號與 Hosted 同步",
+      "working": "處理中…"
     },
     "keys": {
       "actions": {
@@ -1381,6 +1497,7 @@
     },
     "rail": {
       "about_app": "關於 Drifting",
+      "account": "帳號",
       "agent": "通用 Agent",
       "appearance": "外觀",
       "editor": "編輯器",
@@ -1537,6 +1654,7 @@
     }
   },
   "userMenu": {
+    "accountMenu": "帳號選單",
     "feedback": "傳送意見回饋",
     "import": "匯入",
     "importBook": "匯入作品（.driftingbook）",
@@ -1544,6 +1662,8 @@
     "localMenu": "本機資料庫選單",
     "localStatus": "本機 · 存於此裝置",
     "settings": "設定",
+    "signOut": "登出",
+    "signingOut": "正在登出…",
     "theme": "主題",
     "themeDark": "深色",
     "themeDarkShort": "深色",
