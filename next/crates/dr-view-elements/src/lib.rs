@@ -138,6 +138,7 @@ pub fn storyline_page(
 /// makes their dialogs.
 pub fn init(cx: &mut App) {
     dialogs::init(cx);
+    menu::register(cx);
     dr_shell::pages::add_page_chrome(cx, |target, host, window, cx| {
         let ws = host.workspace;
         let chrome = match target {

@@ -8,6 +8,8 @@
 use std::time::{Duration, Instant};
 
 use dr_shell::nav::{Open, Target};
+use dr_shell::pages::{PageMenuHost, PageMenuSection};
+use dr_shell::workspace::page_actions::page_actions;
 use dr_shell::{Services, SettingsFile, ShellInfo, Workspace};
 use dr_view_elements::dialogs::{AskFor, Asking};
 use dr_view_elements::{CategoryEnd, CategoryHead, ElementHead, Fields, Filter};
@@ -174,6 +176,28 @@ fn ask(view: &Entity<Workspace>, ask: AskFor, cx: &mut VisualTestContext) {
     let ws = view.downgrade();
     cx.update(|window, cx| dr_view_elements::dialogs::open(ask, ws, window, cx));
     frame(cx);
+}
+
+/// The ⋯ menu of `target`'s page, as the shell lists it.
+fn menu_of(
+    view: &Entity<Workspace>,
+    target: &Target,
+    cx: &mut VisualTestContext,
+) -> Vec<PageMenuSection> {
+    let host = view.read_with(cx, |ws, _| PageMenuHost {
+        workspace: view.downgrade(),
+        library: ws.library.clone(),
+        book_id: ws.book_id.clone(),
+        book: ws.book.clone(),
+    });
+    cx.update(|_, cx| page_actions(view, &host, target, cx))
+}
+
+fn ids(sections: &[PageMenuSection]) -> Vec<Vec<String>> {
+    sections
+        .iter()
+        .map(|s| s.items.iter().map(|i| i.id.to_string()).collect())
+        .collect()
 }
 
 /// Puts the caret in `focus`, types `text` into it with `set`, then moves
@@ -452,15 +476,23 @@ fn the_menu_moves_an_element_to_another_category_or_a_new_one(cx: &mut TestAppCo
     let (view, cx) = setup(cx, library);
     let zhiwei = element(&lib, &book, "沈知微");
     open_element(&view, &zhiwei.id, cx);
-    // The ⋯ menu's rows: two plain ones, then the danger one.
+    // The ⋯ menu as the shell lists it: share, the two plain rows, the
+    // snapshot history, then 删除要素 with what deletes.
     let target = Target::Element(zhiwei.id.parse().unwrap());
-    let rows = cx.update(|_, cx| dr_view_elements::menu::rows(&target, cx));
-    assert_eq!(rows.len(), 3);
-    assert!(rows[2].danger && !rows[0].danger && !rows[1].danger);
+    let sections = menu_of(&view, &target, cx);
+    assert_eq!(
+        ids(&sections),
+        [
+            vec!["page-share"],
+            vec!["element-change-category", "element-change-group"],
+            vec!["page-history"],
+            vec!["element-delete"],
+        ]
+    );
+    assert!(sections[3].items[0].danger);
     // 更改类目: a click on 地点 moves it there.
-    let ws = view.downgrade();
-    let run = rows[0].run.clone();
-    cx.update(|window, cx| run(ws.clone(), window, cx));
+    let run = sections[1].items[0].run.clone();
+    cx.update(|window, cx| run(window, cx));
     frame(cx);
     assert_eq!(asking(cx), Some(Asking::ChangeCategory(zhiwei.id.clone())));
     let places = categories(&lib, &book)
@@ -545,12 +577,18 @@ fn deleting_asks_then_trashes_and_closes_the_page(cx: &mut TestAppContext) {
     wait_for(cx, |cx| {
         view.read_with(cx, |ws, _| !ws.nav.is_selected(&target))
     });
-    // A category: its elements become uncategorized.
+    // A category: its ⋯ menu ends with 删除类目; its elements become
+    // uncategorized.
     let people = categories(&lib, &book)
         .into_iter()
         .find(|c| c.name == "人物")
         .unwrap();
-    ask(&view, AskFor::DeleteCategory(people.id.clone()), cx);
+    let sections = menu_of(&view, &Target::Category(people.id.parse().unwrap()), cx);
+    assert_eq!(ids(&sections).last().unwrap(), &["category-delete"]);
+    let run = sections.last().unwrap().items[0].run.clone();
+    cx.update(|window, cx| run(window, cx));
+    frame(cx);
+    assert_eq!(asking(cx), Some(Asking::DeleteCategory(people.id.clone())));
     cx.update(|window, cx| dialogs.update(cx, |d, cx| d.confirm_delete(window, cx)));
     wait_for(cx, |cx| asking(cx).is_none());
     assert!(!categories(&lib, &book).iter().any(|c| c.id == people.id));

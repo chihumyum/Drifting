@@ -5,15 +5,22 @@
 //! 「删除故事线」 (M13). Each opens its dialog
 //! ([`crate::dialogs`]).
 //!
-//! The shell draws the ⋯ menu; it asks [`rows`] for the page in front once
-//! it has a place for a module's rows (m11-elements.md, 「待协调」 F6).
+//! The shell draws the ⋯ menu (and the sidebar's hover cards, from the same
+//! list); [`register`] gives it these rows through F6's
+//! `pages::add_page_menu`. The shell puts the danger rows last.
+//!
+//! The shell's rows take a brush icon only; 「更改类目」's mark (the 0.1
+//! `{ kind: 'category' }`) is drawn as [`Icon::Swap`] there until they take
+//! a mark too (m11-elements.md, 「待协调」).
 
 use std::rc::Rc;
 
 use dr_i18n::keys;
 use dr_shell::nav::Target;
+use dr_shell::pages::{PageMenuItem, PageMenuSection};
 use dr_shell::{Workspace, t};
-use dr_ui::{components::menu::RowIcon, sand};
+use dr_ui::components::menu::RowIcon;
+use dr_ui::sand::{self, Icon};
 use gpui::{App, SharedString, WeakEntity, Window};
 
 use crate::dialogs::{self, AskFor};
@@ -90,5 +97,41 @@ pub fn rows(target: &Target, cx: &App) -> Vec<MenuRow> {
             }]
         }
         _ => Vec::new(),
+    }
+}
+
+/// Gives the shell's ⋯ menus (and hover cards) the rows of element,
+/// category and storyline pages, in one section with no heading.
+pub fn register(cx: &mut App) {
+    dr_shell::pages::add_page_menu(cx, |target, host, cx| {
+        let items: Vec<PageMenuItem> = rows(target, cx)
+            .into_iter()
+            .map(|row| item(row, host.workspace.clone()))
+            .collect();
+        if items.is_empty() {
+            return Vec::new();
+        }
+        vec![PageMenuSection { title: None, items }]
+    });
+}
+
+/// A row as the shell's menu takes it.
+fn item(row: MenuRow, ws: WeakEntity<Workspace>) -> PageMenuItem {
+    let run = row.run;
+    PageMenuItem {
+        id: row.id.into(),
+        icon: brush(&row.icon),
+        label: row.label,
+        checked: false,
+        danger: row.danger,
+        run: Rc::new(move |window, cx| run(ws.clone(), window, cx)),
+    }
+}
+
+/// The brush a row's icon is drawn with in the shell's menu.
+pub fn brush(icon: &RowIcon) -> Icon {
+    match icon {
+        RowIcon::Brush(icon) => *icon,
+        RowIcon::Mark(..) => Icon::Swap,
     }
 }
