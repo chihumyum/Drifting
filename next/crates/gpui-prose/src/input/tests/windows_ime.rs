@@ -7,7 +7,7 @@
 
 use std::{cell::Cell, rc::Rc};
 
-use gpui::{Entity, TestAppContext, VisualTestContext};
+use gpui::{Entity, TestAppContext, VisualTestContext, Window};
 
 use super::*;
 use crate::{PlatformHooks, layout::BookPos};
@@ -155,7 +155,7 @@ struct FakeIme {
 }
 
 impl PlatformHooks for FakeIme {
-    fn discard_marked_text(&self) {
+    fn discard_marked_text(&self, _window: &Window) {
         self.discarded.set(self.discarded.get() + 1);
     }
 

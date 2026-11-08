@@ -5,6 +5,11 @@
     }
   },
   "settings": {
+    "agent": {
+      "extensions": {
+        "secretHint": "機密値はWindows 資格情報マネージャーだけに保存します。既存の値を空欄にすると元の値を保ちます。"
+      }
+    },
     "codexSubscription": {
       "failure": {
         "storage_failed": "ログイン情報をWindows 資格情報マネージャーに保存できませんでした。"

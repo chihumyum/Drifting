@@ -5,6 +5,11 @@
     }
   },
   "settings": {
+    "agent": {
+      "extensions": {
+        "secretHint": "Secret values are written only to Windows Credential Manager. Leave an existing value blank to keep it."
+      }
+    },
     "codexSubscription": {
       "failure": {
         "storage_failed": "The sign-in could not be saved to Windows Credential Manager."

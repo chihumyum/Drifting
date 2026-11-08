@@ -5,6 +5,8 @@ pub mod connection_view;
 pub mod controller;
 mod data;
 pub mod hub;
+pub mod mcp;
+pub mod mcp_settings;
 pub mod onboarding;
 pub mod panel;
 mod prompt;
@@ -58,7 +60,11 @@ pub fn init(identity: &dr_platform::Identity, cx: &mut App) {
     init_with(
         provider.clone(),
         Arc::new(provider),
-        Arc::new(tools::CompanionTools::default()),
+        Arc::new(tools::CompanionTools::with_plugins(
+            cx.try_global::<mcp::McpGlobal>()
+                .map(|global| global.slot.clone())
+                .unwrap_or_default(),
+        )),
         cx,
     );
 }
@@ -104,6 +110,7 @@ pub fn init_with_service(
     });
     settings::init(connections, cx);
     hub::install(&hub, cx);
+    mcp::attach_agent(&hub, cx);
     dr_shell::keymap::add_bindings(cx, || {
         vec![KeyBinding::new(
             "enter",

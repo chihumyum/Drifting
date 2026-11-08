@@ -272,3 +272,91 @@ fn a_framed_area_is_a_slip_a_few_rows_high_that_grows(cx: &mut TestAppContext) {
     );
     assert!(cx.update(|window, cx| area.focus_handle(cx).is_focused(window)));
 }
+
+#[gpui::test]
+fn empty_unranged_input_cancels_only_marked_text(cx: &mut TestAppContext) {
+    let (input, events, cx) = host(cx, |a| a.with_text("林"));
+    cx.update(|window, cx| {
+        input.update(cx, |f, cx| {
+            f.select_all_text(cx);
+            f.replace_text_in_range(None, "", window, cx);
+            assert_eq!(f.text(), "林");
+            assert_eq!(f.composer().selected_utf16(), 0..1);
+            f.set_selected_text_range(1..1, window, cx);
+            f.replace_and_mark_text_in_range(None, "lan", Some(3..3), window, cx);
+            f.replace_text_in_range(None, "", window, cx);
+            assert!(!f.is_composing());
+            assert_eq!(f.text(), "林");
+            assert_eq!(f.composer().selected_utf16(), 1..1);
+        })
+    });
+    assert!(events.borrow().is_empty());
+    // Named deletions still mean deletion, as do the normal editing keys.
+    cx.update(|window, cx| {
+        input.update(cx, |f, cx| {
+            f.replace_text_in_range(Some(0..1), "", window, cx);
+            assert_eq!(f.text(), "");
+        })
+    });
+    assert_eq!(
+        events.borrow().as_slice(),
+        &[FieldEvent::Changed(String::new())]
+    );
+}
+
+#[gpui::test]
+fn native_focus_loss_rejects_each_ime_entry_before_gpui_blur(cx: &mut TestAppContext) {
+    let away = Rc::new(Cell::new(false));
+    let native_focus = away.clone();
+    let discards = Rc::new(Cell::new(0));
+    let count = discards.clone();
+    cx.update(|cx| {
+        dr_ui::input::set_window_has_keyboard(cx, move |_| !native_focus.get());
+        dr_ui::input::set_discard_marked_text(cx, move |_| count.set(count.get() + 1));
+    });
+    let (input, events, cx) = host(cx, |a| a.with_text("林"));
+    for entry in 0..3 {
+        cx.update(|window, cx| {
+            input.update(cx, |f, cx| {
+                f.replace_and_mark_text_in_range(None, "lan", Some(3..3), window, cx);
+                assert!(f.is_composing());
+                // The native keyboard has left; GPUI still remembers this field.
+                away.set(true);
+                assert!(f.focus_handle(cx).is_focused(window));
+                match entry {
+                    0 => f.replace_text_in_range(None, "lan", window, cx),
+                    1 => f.replace_and_mark_text_in_range(None, "la", None, window, cx),
+                    _ => f.unmark_text(window, cx),
+                }
+                assert!(!f.is_composing());
+                assert_eq!(f.text(), "林");
+                f.replace_text_in_range(None, "late", window, cx);
+                f.replace_and_mark_text_in_range(None, "late", None, window, cx);
+                f.unmark_text(window, cx);
+                assert!(!f.is_composing());
+                assert_eq!(f.text(), "林");
+            })
+        });
+        assert_eq!(discards.get(), entry + 1);
+        assert!(events.borrow().is_empty());
+        away.set(false);
+    }
+    // The delayed blur does not cancel twice.
+    cx.update(|window, cx| window.blur(cx));
+    cx.update(|window, cx| window.draw(cx).clear(cx));
+    cx.run_until_parked();
+    assert_eq!(discards.get(), 3);
+    cx.update(|window, cx| window.focus(&input.focus_handle(cx), cx));
+    cx.run_until_parked();
+    cx.update(|window, cx| {
+        input.update(cx, |f, cx| {
+            f.replace_and_mark_text_in_range(None, "lan", None, window, cx);
+            f.replace_text_in_range(None, "岚", window, cx);
+            assert_eq!(f.text(), "林岚");
+        })
+    });
+    assert_eq!(
+        events.borrow().last(),
+        Some(&FieldEvent::Changed("林岚".into()))
+    );
+}

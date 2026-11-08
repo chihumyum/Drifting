@@ -24,6 +24,7 @@ hot-reload = ["gpui/hot-reload"]
 [dependencies]
 anyhow.workspace = true
 dr-debug-bridge = { workspace = true, optional = true }
+dr-mcp.workspace = true
 dr-platform.workspace = true
 dr-shell.workspace = true
 # F2's device identity for the library (writing days, epochs).
@@ -62,4 +63,8 @@ tempfile.workspace = true
 
 [[example]]
 name = "agent-acceptance"
+required-features = ["debug-bridge"]
+
+[[example]]
+name = "mcp-acceptance"
 required-features = ["debug-bridge"]

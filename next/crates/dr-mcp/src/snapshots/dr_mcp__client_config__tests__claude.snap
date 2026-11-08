@@ -1,0 +1,9 @@
+---
+source: crates/dr-mcp/src/client_config.rs
+expression: edited
+---
+{
+  "account": {"counter":184467440737095516160123},
+  "projects": {},
+  "mcpServers": {"other":{"command":"other"},"drifting_synthetic":{"type":"stdio","command":"/synthetic/writer","args":["--mcp","--connection","/synthetic/connection.json"]}}
+}
