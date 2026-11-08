@@ -400,6 +400,30 @@
     },
     "title": "通知"
   },
+  "plotGrid": {
+    "addColumnShort": "欄",
+    "addRowShort": "列",
+    "clear": "清除",
+    "clearConfirm": "清除情節規劃中全部列名、欄名與儲存格文字？表格結構、尺寸和正文會保留。此操作無法復原。",
+    "clearTitle": "清除情節規劃內容",
+    "columnPlaceholder": "欄",
+    "deleteClears": "清除 {{count}} 個儲存格",
+    "deleteColumn": "刪除此欄",
+    "deleteRow": "刪除此列",
+    "emptyCell": "寫點什麼…",
+    "fit": "符合視窗",
+    "insertColumnLeft": "在左側插入欄",
+    "insertColumnRight": "在右側插入欄",
+    "insertRowAbove": "在上方插入列",
+    "insertRowBelow": "在下方插入列",
+    "moveDown": "下移",
+    "moveLeft": "左移",
+    "moveRight": "右移",
+    "moveUp": "上移",
+    "rename": "重新命名",
+    "rowPlaceholder": "列",
+    "title": "情節"
+  },
   "projectHome": {
     "book": {
       "noStorylines": "尚無故事線。",

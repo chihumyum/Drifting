@@ -1803,6 +1803,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "dr-view-plot"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "color_quant",
+ "dr-doc",
+ "dr-i18n",
+ "dr-model",
+ "dr-shell",
+ "dr-store",
+ "dr-testkit",
+ "dr-ui",
+ "dr-workspace",
+ "futures",
+ "gpui",
+ "gpui_platform",
+ "log",
+ "png 0.18.1",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "dr-view-review"
 version = "0.0.0"
 dependencies = [

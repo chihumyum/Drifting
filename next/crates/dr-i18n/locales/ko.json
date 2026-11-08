@@ -400,6 +400,30 @@
     },
     "title": "알림"
   },
+  "plotGrid": {
+    "addColumnShort": "열",
+    "addRowShort": "행",
+    "clear": "지우기",
+    "clearConfirm": "플롯 계획의 행·열 이름과 셀 텍스트를 모두 지울까요? 표 구조·크기와 본문은 유지됩니다. 되돌릴 수 없습니다.",
+    "clearTitle": "플롯 계획 내용 지우기",
+    "columnPlaceholder": "열",
+    "deleteClears": "셀 {{count}}개 지우기",
+    "deleteColumn": "이 열 삭제",
+    "deleteRow": "이 행 삭제",
+    "emptyCell": "무언가 써 보세요…",
+    "fit": "화면에 맞춤",
+    "insertColumnLeft": "왼쪽에 열 삽입",
+    "insertColumnRight": "오른쪽에 열 삽입",
+    "insertRowAbove": "위에 행 삽입",
+    "insertRowBelow": "아래에 행 삽입",
+    "moveDown": "아래로 이동",
+    "moveLeft": "왼쪽으로 이동",
+    "moveRight": "오른쪽으로 이동",
+    "moveUp": "위로 이동",
+    "rename": "이름 바꾸기",
+    "rowPlaceholder": "행",
+    "title": "플롯"
+  },
   "projectHome": {
     "book": {
       "noStorylines": "아직 스토리라인이 없습니다.",

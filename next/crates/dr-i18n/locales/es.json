@@ -406,6 +406,30 @@
     },
     "title": "Notificaciones"
   },
+  "plotGrid": {
+    "addColumnShort": "Columna",
+    "addRowShort": "Fila",
+    "clear": "Limpiar",
+    "clearConfirm": "¿Borrar todos los nombres de filas, columnas y textos de celdas? Se conservarán estructura, dimensiones y manuscrito. No se puede deshacer.",
+    "clearTitle": "Limpiar contenido de planificación",
+    "columnPlaceholder": "Columna",
+    "deleteClears": "Borra {{count}} celdas",
+    "deleteColumn": "Eliminar esta columna",
+    "deleteRow": "Eliminar esta fila",
+    "emptyCell": "Escribe algo…",
+    "fit": "Ajustar",
+    "insertColumnLeft": "Insertar columna a la izquierda",
+    "insertColumnRight": "Insertar columna a la derecha",
+    "insertRowAbove": "Insertar fila arriba",
+    "insertRowBelow": "Insertar fila abajo",
+    "moveDown": "Bajar",
+    "moveLeft": "Mover a la izquierda",
+    "moveRight": "Mover a la derecha",
+    "moveUp": "Subir",
+    "rename": "Renombrar",
+    "rowPlaceholder": "Fila",
+    "title": "Trama"
+  },
   "projectHome": {
     "book": {
       "noStorylines": "Aún no hay tramas.",

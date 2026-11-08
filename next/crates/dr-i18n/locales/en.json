@@ -405,6 +405,30 @@
     },
     "title": "Notifications"
   },
+  "plotGrid": {
+    "addColumnShort": "Column",
+    "addRowShort": "Row",
+    "clear": "Clear",
+    "clearConfirm": "Clear all row and column labels and cell text in this plot planner? The table structure, dimensions, and prose will be preserved. This cannot be undone.",
+    "clearTitle": "Clear plot planner contents",
+    "columnPlaceholder": "Column",
+    "deleteClears": "Clears {{count}} cells",
+    "deleteColumn": "Delete this column",
+    "deleteRow": "Delete this row",
+    "emptyCell": "Write something…",
+    "fit": "Fit",
+    "insertColumnLeft": "Insert a column to the left",
+    "insertColumnRight": "Insert a column to the right",
+    "insertRowAbove": "Insert a row above",
+    "insertRowBelow": "Insert a row below",
+    "moveDown": "Move down",
+    "moveLeft": "Move left",
+    "moveRight": "Move right",
+    "moveUp": "Move up",
+    "rename": "Rename",
+    "rowPlaceholder": "Row",
+    "title": "Plot"
+  },
   "projectHome": {
     "book": {
       "noStorylines": "No storylines yet.",

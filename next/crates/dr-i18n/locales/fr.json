@@ -406,6 +406,30 @@
     },
     "title": "Notifications"
   },
+  "plotGrid": {
+    "addColumnShort": "Colonne",
+    "addRowShort": "Ligne",
+    "clear": "Effacer",
+    "clearConfirm": "Effacer tous les titres de lignes, colonnes et textes des cellules ? Structure, dimensions et manuscrit seront conservés. Action irréversible.",
+    "clearTitle": "Effacer le contenu du plan narratif",
+    "columnPlaceholder": "Colonne",
+    "deleteClears": "Efface {{count}} cellules",
+    "deleteColumn": "Supprimer cette colonne",
+    "deleteRow": "Supprimer cette ligne",
+    "emptyCell": "Écrivez quelque chose…",
+    "fit": "Ajuster",
+    "insertColumnLeft": "Insérer une colonne à gauche",
+    "insertColumnRight": "Insérer une colonne à droite",
+    "insertRowAbove": "Insérer une ligne au-dessus",
+    "insertRowBelow": "Insérer une ligne en dessous",
+    "moveDown": "Descendre",
+    "moveLeft": "Déplacer à gauche",
+    "moveRight": "Déplacer à droite",
+    "moveUp": "Monter",
+    "rename": "Renommer",
+    "rowPlaceholder": "Ligne",
+    "title": "Intrigue"
+  },
   "projectHome": {
     "book": {
       "noStorylines": "Pas encore d’intrigues.",

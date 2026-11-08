@@ -399,6 +399,30 @@
     },
     "title": "通知"
   },
+  "plotGrid": {
+    "addColumnShort": "列",
+    "addRowShort": "行",
+    "clear": "清空",
+    "clearConfirm": "清空当前情节规划器的所有行列标题和单元格文字？表格结构、尺寸和正文将保留。此操作无法撤销。",
+    "clearTitle": "清空情节规划器内容",
+    "columnPlaceholder": "列",
+    "deleteClears": "会清空 {{count}} 格",
+    "deleteColumn": "删除此列",
+    "deleteRow": "删除此行",
+    "emptyCell": "写点什么…",
+    "fit": "适应",
+    "insertColumnLeft": "在左侧插入一列",
+    "insertColumnRight": "在右侧插入一列",
+    "insertRowAbove": "在上方插入一行",
+    "insertRowBelow": "在下方插入一行",
+    "moveDown": "下移",
+    "moveLeft": "左移",
+    "moveRight": "右移",
+    "moveUp": "上移",
+    "rename": "重命名",
+    "rowPlaceholder": "行",
+    "title": "情节"
+  },
   "projectHome": {
     "book": {
       "noStorylines": "还没有故事线。",
