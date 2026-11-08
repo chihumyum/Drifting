@@ -398,6 +398,10 @@ impl RenderOnce for CardAction {
         .type_px(s.secondary, s.line_body)
         .text_color(ink.solid())
         .cursor_pointer()
+        // In the accessibility tree as the menu rows are (the debug bridge
+        // presses card rows by name too).
+        .role(gpui::Role::MenuItem)
+        .aria_label(self.label.clone())
         .child(row_icon(self.icon, &id, ink.solid()))
         .child(self.label)
         .when_some(self.on_click, |el, f| {
