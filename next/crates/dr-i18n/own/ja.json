@@ -32,5 +32,8 @@
     "replacePlaceholder": "置換後の文字…",
     "replace": "置換",
     "replaceAll": "すべて置換"
+  },
+  "positionLink": {
+    "copied": "位置リンクをコピーしました"
   }
 }

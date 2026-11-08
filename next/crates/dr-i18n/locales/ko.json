@@ -443,6 +443,9 @@
     },
     "title": "알림"
   },
+  "positionLink": {
+    "copied": "위치 링크를 복사했습니다"
+  },
   "projectHome": {
     "book": {
       "noStorylines": "아직 스토리라인이 없습니다.",

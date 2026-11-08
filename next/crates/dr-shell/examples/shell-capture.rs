@@ -478,7 +478,7 @@ fn capture(dir: PathBuf) -> Result<()> {
         h.set(|ws, window, cx| {
             everyday(ws, window, cx);
             let first = ws.book.storylines[0].id.clone();
-            ws.toggle_fold(&first, cx);
+            ws.toggle_fold(PaneId::Primary, &first, cx);
         });
         still(&mut h)?;
         h.save(&dir, &format!("chapter-fold-{a}.png"))?;

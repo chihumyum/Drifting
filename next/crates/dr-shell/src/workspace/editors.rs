@@ -377,6 +377,7 @@ impl Workspace {
                     },
                 );
                 page._events.push(comments);
+                page._events.extend(link_events(&editor, cx));
                 PageView::Doc(editor)
             }
             (None, Prepared::Book(prepared)) => {
@@ -408,6 +409,7 @@ impl Workspace {
                     },
                 );
                 page._events.push(comments);
+                page._events.extend(link_events(&editor, cx));
                 PageView::Book(editor)
             }
             _ => return,
@@ -886,13 +888,59 @@ impl Workspace {
     }
 }
 
+/// F4's links: a click on a live entity link opens its target as a preview
+/// (as the 0.1 client did); the slash menu's 位置链接 says it was copied.
+fn link_events<E>(editor: &Entity<E>, cx: &mut Context<Workspace>) -> [Subscription; 2]
+where
+    E: gpui::EventEmitter<dr_editor::EntityLinkOpened>
+        + gpui::EventEmitter<dr_editor::PositionLinkCopied>
+        + 'static,
+{
+    [
+        cx.subscribe(editor, |ws, _, e: &dr_editor::EntityLinkOpened, cx| {
+            if let Some(target) = link_target(&ws.book, &e.kind, &e.id) {
+                ws.open(target, crate::nav::Open::PREVIEW, cx);
+            }
+        }),
+        cx.subscribe(editor, |ws, _, _: &dr_editor::PositionLinkCopied, cx| {
+            let text = crate::t(cx, dr_i18n::keys::position_link::COPIED);
+            ws.toast(text, cx);
+        }),
+    ]
+}
+
+/// The page an entity link names: a node is a chapter or an idea, by the
+/// book's lists; patches and comments have no page.
+pub fn link_target(
+    book: &crate::book::Book,
+    kind: &dr_model::kind::EntityKind,
+    id: &str,
+) -> Option<Target> {
+    use dr_model::kind::EntityKind;
+    let kind = match kind {
+        EntityKind::Node if book.chapters.iter().any(|c| c.id == id) => "chapter",
+        EntityKind::Node => "idea",
+        EntityKind::Element => "element",
+        EntityKind::Category => "category",
+        EntityKind::Storyline => "storyline",
+        EntityKind::Material => "material",
+        _ => return None,
+    };
+    Target::from_key(&format!("{kind}:{id}"))
+}
+
 /// M07's selection reading: the words in the selection, or none.
 fn report_selection(prose: &Entity<ProseEditor>, cx: &mut App) {
     let words = {
         let p = prose.read(cx);
         let sel = p.selection();
         (!sel.is_empty()).then(|| {
-            let text = p.book().chapters[sel.chapter].doc.slice(sel.range());
+            // Across chapters, each chapter's part (F4c's `selected_text`).
+            let text = if sel.spans_chapters() {
+                p.selected_text()
+            } else {
+                p.book().chapters[sel.chapter].doc.slice(sel.range())
+            };
             dr_text::count_words(&text)
         })
     };

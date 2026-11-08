@@ -47,7 +47,7 @@ fn row(
 ) -> PageMenuItem {
     PageMenuItem {
         id: id.to_owned().into(),
-        icon,
+        icon: icon.into(),
         label,
         checked: false,
         danger: false,

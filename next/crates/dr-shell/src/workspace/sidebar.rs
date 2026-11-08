@@ -18,6 +18,7 @@
 //!   dropped on another chapter: it moves to that place in reading order
 //!   (F3's `chapter.move`), into that act if the place is in another.
 
+use std::collections::HashSet;
 use std::time::SystemTime;
 
 use dr_i18n::{Key, keys};
@@ -552,6 +553,23 @@ fn meta(text: SharedString, theme: &Theme) -> gpui::Div {
         .child(text)
 }
 
+/// The panel a module draws for `tab` in `pane`, made the first time.
+fn module_panel(
+    tab: LeftTab,
+    ws: &Workspace,
+    pane: PaneId,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) -> Option<crate::pages::LeftPanel> {
+    let key = (pane_slug(pane), tab);
+    if let Some(made) = ws.left_panels.borrow().get(&key) {
+        return made.clone();
+    }
+    let made = crate::pages::left_panel_for(tab, cx.weak_entity(), window, cx);
+    ws.left_panels.borrow_mut().insert(key, made.clone());
+    made
+}
+
 fn left_header(
     tab: LeftTab,
     ws: &Workspace,
@@ -559,6 +577,9 @@ fn left_header(
     window: &mut Window,
     cx: &mut Context<Workspace>,
 ) -> AnyElement {
+    if let Some(panel) = module_panel(tab, ws, pane, window, cx) {
+        return div().size_full().child(panel.head).into_any_element();
+    }
     let theme = Theme::of(window, cx);
     let book = &ws.book;
     let slug = pane_slug(pane);
@@ -639,14 +660,14 @@ fn left_header(
                 let folder = cx.entity();
                 IconButton::new(
                     SharedString::from(format!("chapter-fold-{slug}")),
-                    if ws.folded.is_empty() {
+                    if ws.folded_in(pane).is_empty() {
                         Icon::FoldingFanClosed
                     } else {
                         Icon::FoldingFan
                     },
                 )
                 .label(t(cx, keys::left_sidebar::actions::COLLAPSE_ALL))
-                .on_click(move |_, _, cx| folder.update(cx, |ws, cx| ws.fold_all(cx)))
+                .on_click(move |_, _, cx| folder.update(cx, |ws, cx| ws.fold_all(pane, cx)))
             });
             div()
                 .size_full()
@@ -823,6 +844,7 @@ enum Row {
 #[derive(Clone, Debug)]
 struct Fold {
     id: SharedString,
+    pane: PaneId,
     folded: bool,
     count: usize,
 }
@@ -831,27 +853,48 @@ struct Fold {
 const LOOSE_GROUP: &str = "unaffiliated";
 
 impl Workspace {
-    /// Folds or opens one group of the chapter panel.
-    pub fn toggle_fold(&mut self, group: &str, cx: &mut Context<Self>) {
-        if !self.folded.remove(group) {
-            self.folded.insert(group.to_owned());
+    /// The chapter panel's folded groups in `pane`, for the book shown.
+    pub fn folded_in(&self, pane: PaneId) -> HashSet<String> {
+        self.folded
+            .get(&(self.book_id.clone(), pane))
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    /// Where sidebar list `list` (`left-primary-chapters`,
+    /// `right-secondary-library` …) of the book shown is scrolled, once it
+    /// has shown in this run.
+    pub fn list_scroll(&self, list: &str) -> Option<gpui::UniformListScrollHandle> {
+        self.list_scroll
+            .borrow()
+            .get(&format!("{}/{list}", self.book_id))
+            .cloned()
+    }
+
+    /// Folds or opens one group of the chapter panel in `pane`.
+    pub fn toggle_fold(&mut self, pane: PaneId, group: &str, cx: &mut Context<Self>) {
+        let folded = self.folded.entry((self.book_id.clone(), pane)).or_default();
+        if !folded.remove(group) {
+            folded.insert(group.to_owned());
         }
         cx.notify();
     }
 
-    /// The folding fan: folds every group, or opens them all when any is
-    /// folded.
-    pub fn fold_all(&mut self, cx: &mut Context<Self>) {
-        if self.folded.is_empty() {
-            self.folded = self
-                .book
-                .storylines
-                .iter()
-                .map(|s| s.id.clone())
-                .chain([LOOSE_GROUP.to_owned()])
-                .collect();
+    /// The folding fan in `pane`: folds every group, or opens them all when
+    /// any is folded.
+    pub fn fold_all(&mut self, pane: PaneId, cx: &mut Context<Self>) {
+        let all: HashSet<String> = self
+            .book
+            .storylines
+            .iter()
+            .map(|s| s.id.clone())
+            .chain([LOOSE_GROUP.to_owned()])
+            .collect();
+        let folded = self.folded.entry((self.book_id.clone(), pane)).or_default();
+        if folded.is_empty() {
+            *folded = all;
         } else {
-            self.folded.clear();
+            folded.clear();
         }
         cx.notify();
     }
@@ -873,7 +916,7 @@ fn fold_tail(
         .text_color(p.muted().solid())
         .child(fold.count.to_string())
         .into_any_element();
-    let (ws, group) = (ws.clone(), fold.id.to_string());
+    let (ws, group, pane) = (ws.clone(), fold.id.to_string(), fold.pane);
     let chevron = div()
         .id(ElementId::Name(format!("{id}-fold").into()))
         .flex_none()
@@ -896,7 +939,7 @@ fn fold_tail(
         .on_click(move |_, _, cx| {
             cx.stop_propagation();
             let group = group.clone();
-            ws.update(cx, |ws, cx| ws.toggle_fold(&group, cx));
+            ws.update(cx, |ws, cx| ws.toggle_fold(pane, &group, cx));
         })
         .into_any_element();
     [count, chevron]
@@ -923,6 +966,13 @@ fn rows_view(
         book: book.clone(),
     };
     let list_id = id.clone();
+    // Where this list was, if it showed before in this run.
+    let scroll = ws
+        .list_scroll
+        .borrow_mut()
+        .entry(format!("{}/{id}", ws.book_id))
+        .or_default()
+        .clone();
     uniform_list(ElementId::Name(id), rows.len(), move |range, window, cx| {
         let theme = Theme::of(window, cx);
         let wash = theme.palette.accent.alpha(0.08);
@@ -981,6 +1031,7 @@ fn rows_view(
             })
             .collect::<Vec<_>>()
     })
+    .track_scroll(&scroll)
     .size_full()
     .px(px(8.0))
     .py(px(6.0))
@@ -1090,13 +1141,13 @@ fn heading(
     // A heading that folds folds on a click anywhere on it.
     let el = match fold {
         Some(fold) => {
-            let (ws, group) = (ws.clone(), fold.id.to_string());
+            let (ws, group, pane) = (ws.clone(), fold.id.to_string(), fold.pane);
             div()
                 .id(ElementId::Name(format!("{id}-toggle").into()))
                 .cursor_pointer()
                 .on_click(move |_, _, cx| {
                     let group = group.clone();
-                    ws.update(cx, |ws, cx| ws.toggle_fold(&group, cx));
+                    ws.update(cx, |ws, cx| ws.toggle_fold(pane, &group, cx));
                 })
                 .child(cell)
                 .into_any_element()
@@ -1347,7 +1398,8 @@ fn left_rows(
     by_book: bool,
     sort: ChapterSort,
     show_meta: bool,
-    folded: &std::collections::HashSet<String>,
+    pane: PaneId,
+    folded: &HashSet<String>,
     theme: &Theme,
     cx: &App,
 ) -> Vec<Row> {
@@ -1412,6 +1464,7 @@ fn left_rows(
                     if let Some(Row::Cell { fold, card, .. }) = &mut head {
                         *fold = Some(Fold {
                             id: sl.id.clone().into(),
+                            pane,
                             folded: is_folded,
                             count: chapters.len(),
                         });
@@ -1439,6 +1492,7 @@ fn left_rows(
                     if let Row::Heading { fold, .. } = &mut head {
                         *fold = Some(Fold {
                             id: LOOSE_GROUP.into(),
+                            pane,
                             folded: is_folded,
                             count: loose.len(),
                         });
@@ -1546,6 +1600,9 @@ fn left_body(
     window: &mut Window,
     cx: &mut Context<Workspace>,
 ) -> AnyElement {
+    if let Some(panel) = module_panel(tab, ws, pane, window, cx) {
+        return div().size_full().child(panel.body).into_any_element();
+    }
     let theme = Theme::of(window, cx);
     let book = ws.book.clone();
     let empty_key = match tab {
@@ -1570,7 +1627,8 @@ fn left_body(
         ws.chapters_by_book,
         ws.chapter_sort,
         show_meta,
-        &ws.folded,
+        pane,
+        &ws.folded_in(pane),
         &theme,
         cx,
     );

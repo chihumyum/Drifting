@@ -449,6 +449,9 @@
     },
     "title": "Notificaciones"
   },
+  "positionLink": {
+    "copied": "Enlace de posición copiado"
+  },
   "projectHome": {
     "book": {
       "noStorylines": "Aún no hay tramas.",
