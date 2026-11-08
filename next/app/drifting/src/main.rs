@@ -4,7 +4,8 @@
 //! crash reports, logs, the single running copy, deep links), F3's
 //! workspace over the library with this device's identity (`library`),
 //! dr-ui's assets and fonts, and hands the window to the shell (F6,
-//! `dr-shell`) with the views it hosts (bookshelf, Project Home, feedback).
+//! `dr-shell`) with the views it hosts (bookshelf, Project Home, feedback,
+//! updates).
 //! See docs/rust-rewrite/foundations/f6-shell.md.
 
 mod about;
@@ -183,6 +184,8 @@ fn main() {
         // M03: the chapter page's head and end around every editor.
         dr_view_page::init(cx);
         dr_view_elements::init(cx);
+        // M16: the 构想 panel in the left sidebar, an idea's ⋯ rows.
+        dr_view_ideas::init(cx);
         // M14 and M15: the Bottom Panel's timeline (⌘J) and the chapter in
         // front's plot planner.
         dr_view_timeline::init(cx);
@@ -223,6 +226,17 @@ fn main() {
                 cx.background_executor()
                     .spawn(async move { rx.await.unwrap_or_else(|_| Err("cancelled".into())) })
             }),
+        );
+        // M42: updates, checked after launch and every three hours, installed
+        // as the app quits. Last, so its quit hook runs after the others
+        // have saved.
+        dr_view_update::init(
+            dr_view_update::Service::for_build(
+                platform,
+                dirs.as_ref().map(|dirs| dirs.data.as_path()),
+                env!("CARGO_PKG_VERSION"),
+            ),
+            cx,
         );
         // F8's debug bridge, in `--features debug-bridge` builds only.
         #[cfg(feature = "debug-bridge")]

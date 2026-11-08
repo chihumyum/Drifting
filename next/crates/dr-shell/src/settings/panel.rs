@@ -551,6 +551,7 @@ impl SettingsPanel {
             // tour's row only when the app has a tour.
             if (info.action == RowAction::MarkdownLocation && !markdown_on)
                 || (info.action == RowAction::ReplayGuides && crate::pages::guide(cx).is_none())
+                || (info.action == RowAction::Updates && !super::has_updates_row(cx))
             {
                 continue;
             }
@@ -559,6 +560,18 @@ impl SettingsPanel {
                 if let Some(group) = info.group {
                     col = col.child(sub_heading(t(cx, group), &theme));
                 }
+            }
+            if info.action == RowAction::Updates {
+                if let Some(updates) = super::updates_row(window, cx) {
+                    col = col.child(row(
+                        info.id,
+                        t(cx, info.label),
+                        updates.description,
+                        updates.control.unwrap_or_else(|| div().into_any_element()),
+                        &theme,
+                    ));
+                }
+                continue;
             }
             let control = self.info_control(info, window, cx);
             let description = match (info.action, self.copied) {
@@ -763,6 +776,8 @@ impl SettingsPanel {
                 }
             })
             .into_any_element(),
+            // Drawn from M42's hook in `info_rows`.
+            RowAction::Updates => div().into_any_element(),
             RowAction::Version => div()
                 .font_role(Role::Index)
                 .type_px(s.caption, s.line_caption)

@@ -74,8 +74,9 @@ pub struct Artifact {
 pub enum UrlPolicy {
     /// HTTPS only: release builds.
     Https,
-    /// HTTPS, plus `file://` and plain paths: local end-to-end tests and
-    /// development builds pointed at a folder.
+    /// HTTPS, plus `file://`, plain paths and plain HTTP to this machine
+    /// (`127.0.0.1`, `localhost`, `[::1]`): local end-to-end tests and
+    /// development builds pointed at a folder or a local test server.
     AllowLocal,
 }
 
@@ -132,7 +133,9 @@ impl Manifest {
 fn check_url(url: &str, policy: UrlPolicy) -> Result<(), ManifestError> {
     let allowed = url.starts_with("https://")
         || (policy == UrlPolicy::AllowLocal
-            && (url.starts_with("file://") || url.starts_with('/')));
+            && (url.starts_with("file://")
+                || url.starts_with('/')
+                || super::fetch::is_loopback_http(url)));
     if allowed && !url.chars().any(char::is_control) {
         Ok(())
     } else {
@@ -249,6 +252,12 @@ mod tests {
         );
         assert!(local.artifact(&MAC, UrlPolicy::Https).is_err());
         assert!(local.artifact(&MAC, UrlPolicy::AllowLocal).is_ok());
+        let this_machine = manifest(
+            r#"{"version":"1.0.0","platforms":{"darwin-aarch64":{"signature":"a","url":"http://127.0.0.1:4100/a"}}}"#,
+        );
+        assert!(this_machine.artifact(&MAC, UrlPolicy::Https).is_err());
+        assert!(this_machine.artifact(&MAC, UrlPolicy::AllowLocal).is_ok());
+        assert!(plain_http.artifact(&MAC, UrlPolicy::AllowLocal).is_err());
         let unsigned = manifest(
             r#"{"version":"1.0.0","platforms":{"darwin-aarch64":{"signature":" ","url":"https://x/a"}}}"#,
         );

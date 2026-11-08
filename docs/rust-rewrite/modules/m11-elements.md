@@ -78,7 +78,7 @@ cargo run -p dr-view-elements --features capture --example elements-capture -- .
 | --- | --- |
 | 要素：页眉、名字、别名、概述、「记 · 传」、正文 | 有 |
 | 要素：字段（KvEditor） | 有 |
-| 要素：关联（ReferencesPanel 的关联节、关联选择器） | 没有，第二个里程碑（F3 的 `relation.*` 已经有了） |
+| 要素：关联（ReferencesPanel 的关联节、关联选择器） | M17 做了（`dr-view-relations`），2026-11-08 挂在要素页「字段」下面，见 [m17-relations.md](m17-relations.md) |
 | 要素：补丁 | 没有：F3 还没有补丁的命令（见「待协调」） |
 | 要素：设定图（右下角的图片入口） | 没有，第二个里程碑 |
 | 要素：帮手改概述、改字段的演示（FieldReview） | 没有，阶段 5 |

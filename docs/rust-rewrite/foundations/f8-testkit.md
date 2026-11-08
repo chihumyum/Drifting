@@ -529,6 +529,7 @@ done
 | M39 反馈对话框 | `feedback.json` | 只截图、不发送：中文浅色写一条合成的反馈、展开诊断摘要的预览；英文深色再拍一张；都按「取消」关掉。开发构建没有 Hosted 服务，发送键是「用邮件发送」，没点 | 25 |
 | M41 整库备份与恢复 | `restore.json` | 设置里搜「backup」，点「Export backup…」：应用要的是存储面板、建议的文件名是 `Drifting-<日期>.drifting`，桥答上输出目录里的路径，对话框说「Saved …」和几本书、多大，点「Close」关掉；备份以后在第一章开头打字、新建一本书；「Choose backup…」答那个备份：先核对，再问「Replace and restore」（文件名、几本书、书名）；按下去外壳关库、换库、重开，窗口回到书架：新建的书没了（F3 `not_found`），第一章回到备份时，换掉的库存成了恢复前副本；再打开《慢钟》第一章，编辑器里也是备份时的字；最后答一个不是备份的文件：说「not a valid Drifting backup」（原因键 `errors.invalid`），库没动 | 64 |
 | M41 一本书导出再导入 | `book-transfer.json` | 书架上《慢钟》书卡悬停才出来的导出箭头（`within` 挑这一张卡）：存储面板建议 `慢钟.driftingbook`，答上路径，文件写出，书架还在；左栏「Import book」答这个文件：「Importing」走完就消失，书架上两本《慢钟》并排，原书 24 章没动；再答一个不是书的文件：「Could not import」「not a book exported from Drifting」（原因键 `notABook`），关掉以后还是两本 | 27 |
+| M17 关系与关系类型 | `relations.json` | 打开「沈知微」滚到页尾的「关联」；「Edit types」→「New」写「宿敌」保存；色条换第三个颜色（F3 存 `hsl(var(--story-3))`）；「Link entity」搜「林晚秋」、选「宿敌」、「Create」，F3 里有这条；× 移除；类型列表滚到底，「宿敌」的垃圾桶，对话框确认，F3 里没有了（m17-relations.md） | 57 |
 
 - **结果**：2026-11-08 在这台 Mac 上，带调试桥的开发版，七个场景都跑过（M18 一步按待协调跳过），写作闭环也重跑了一遍，46 步全过。截图在各自的输出目录（`target/acceptance/<场景>/`，不提交）；反馈对话框的三张真窗口截图提交在 [modules/m39/](../modules/m39/)：`window-feedback-zh-light.png`、`window-feedback-preview-zh-light.png`、`window-feedback-en-dark.png`。
 - **第五个里程碑的结果**：2026-11-08，同一台 Mac，`restore.json` 64 步、`book-transfer.json` 27 步全过，没有跳过的步。截图在 `target/acceptance/restore/`、`target/acceptance/book-transfer/`（不提交）。

@@ -165,6 +165,8 @@
     "wordCount": "{{count}}文字"
   },
   "edgeKindManager": {
+    "changeColor": "色を変更",
+    "changeColorLabel": "{{label}}の色を変更",
     "editTypes": "種類を編集",
     "resetColor": "既定の色に戻す",
     "summary": "{{kinds}}種類 · {{relations}}件の関係",
@@ -187,7 +189,8 @@
       "deleteElement": "要素を削除",
       "deleteNode": "ノードを削除",
       "deleteStoryline": "ストーリーラインを削除",
-      "editStorylines": "ストーリーラインを編集"
+      "editStorylines": "ストーリーラインを編集",
+      "moveToGroup": "グループへ移動…"
     },
     "outlineRailMode": {
       "hidden": "目次を非表示",
@@ -196,10 +199,13 @@
     "status": {
       "discarded": "不採用",
       "draft": "下書き",
-      "finished": "完成"
+      "drifting": "漂流中",
+      "finished": "完成",
+      "resting": "停泊中"
     },
     "statusSection": {
-      "chapter": "執筆状態"
+      "chapter": "執筆状態",
+      "drift": "アイデアの状態"
     }
   },
   "elementCategoryCreateMenu": {
@@ -412,6 +418,8 @@
     "actions": {
       "collapseAll": "すべて展開・折りたたみ",
       "newCategory": "新しいカテゴリ",
+      "newDrift": "新しいアイデア",
+      "newDriftGroup": "新しいグループ",
       "sort": "並べ替え"
     },
     "empty": {
@@ -421,7 +429,15 @@
     },
     "groups": {
       "addElementToGroup": "このグループに要素を追加",
+      "deleteGroup": "グループを削除",
+      "driftCount_one": "{{count}}件のアイデア",
+      "driftCount_other": "{{count}}件のアイデア",
+      "moveDriftToRoot": "最上位（グループから移動）",
+      "moveGroupToRoot": "最上位（トップへ移動）",
       "newChapterInStoryline": "このストーリーラインに章を追加",
+      "newDriftInGroup": "ここにアイデアを追加",
+      "newSubGroup": "サブグループを追加",
+      "rename": "名前を変更",
       "renameElementGroupTitle": "ダブルクリックでグループ名を変更",
       "unaffiliated": "所属なし"
     },
@@ -437,6 +453,7 @@
       "cellMetaGroup": "セルの右端",
       "chapters": "章を並べ替え",
       "createdAt": "作成日時",
+      "drifts": "アイデアを並べ替え",
       "duplicatesAll": "関連する全グループに表示",
       "duplicatesGroup": "複数ストーリーラインの章",
       "duplicatesPrimary": "主ストーリーラインにのみ表示",
@@ -449,6 +466,7 @@
       "showWordCount": "文字数を表示",
       "storylineChapters": "ストーリーライン内の章を並べ替え",
       "storylineOrder": "ストーリーライン順",
+      "title": "タイトル A–Z",
       "updatedAt": "更新日時"
     },
     "tabs": {
@@ -581,6 +599,8 @@
   },
   "notifications": {
     "appUpdate": {
+      "available": "Drifting {{version}}を利用できます",
+      "installed": "Drifting {{version}}に更新しました",
       "source": "アップデート"
     },
     "clear": "消去",
@@ -883,6 +903,7 @@
     "save": "保存",
     "selectConfigured": "関係の種類を選択",
     "sourceRole": "始点の役割",
+    "swap": "関係の始点と終点を入れ替え",
     "symmetric": "対称",
     "symmetricSummary": "対称 · {{role}}",
     "targetRole": "終点の役割",
@@ -1222,7 +1243,26 @@
     },
     "title": "設定",
     "update": {
-      "channel_desc": "Apple Silicon・macOS 13以降"
+      "channel_desc": "Apple Silicon・macOS 13以降",
+      "check": "新しいバージョン",
+      "check_action": "アップデートを確認",
+      "check_failed": "更新を確認できません。接続がない可能性があります。後ほど再試行してください。現在の版は引き続き使えます。",
+      "checking": "確認中…",
+      "downloading": "ダウンロード・署名検証中…",
+      "downloading_progress": "ダウンロード・検証中… {{progress}}%",
+      "install_failed": "前回の終了時に Drifting {{version}} をインストールできませんでした。現在の版は変更されていません。次の終了時に再試行します。",
+      "install_failed_admin": "前回の終了時に Drifting {{version}} をインストールできませんでした。Drifting のあるフォルダに書き込めません。現在の版は変更されていません。",
+      "interrupted": "更新のダウンロードが完了しなかったため破棄しました。次の確認で再度ダウンロードします。",
+      "local_error": "更新をこのコンピュータに保存できなかったため中止しました。現在の版は引き続き使えます。",
+      "no_update": "最新のバージョンです。",
+      "older_offered": "最新のバージョンです。更新サービスが提供する {{version}} はこの版より古いため、インストールしません。",
+      "ready_on_quit": "Drifting {{version}}をダウンロードし、署名を確認しました。終了時にインストールします。",
+      "refused_app": "ダウンロードした更新は Drifting ではないため破棄しました。現在の版は引き続き使えます。",
+      "refused_signature": "ダウンロードした更新は署名の確認に失敗したため破棄しました。現在の版は引き続き使えます。",
+      "refused_version": "ダウンロードした更新は表示されたバージョンと一致せず、古い版の可能性があるため拒否しました。現在の版は引き続き使えます。",
+      "restart": "再起動して更新",
+      "server_error": "更新サービスで問題が起きています。後ほど再試行してください。現在の版は引き続き使えます。",
+      "unavailable": "このビルドには更新署名キーがなく、更新を確認できません。GitHubからダウンロードしたリリース版では利用できます。"
     }
   },
   "sidebarLayout": {

@@ -246,6 +246,23 @@ fn an_element_page_shows_its_head_and_fields(cx: &mut TestAppContext) {
         .map(|f| (f.key.clone(), f.value.clone()))
         .collect();
     assert_eq!(shown, stored);
+    // Under the fields, 「关联」 (M17): 沈知微's relations, as F3 lists them.
+    let relations = cx
+        .update(|_, cx| dr_view_elements::element_relations(&zhiwei.id, cx))
+        .expect("the relations under the fields");
+    wait_for(cx, |cx| relations.read_with(cx, |r, _| r.is_loaded()));
+    let stored = lib
+        .call(
+            &Actor::User,
+            "relation.list",
+            serde_json::json!({ "book": book, "entity": { "kind": "element", "id": zhiwei.id } }),
+        )
+        .unwrap()["output"]
+        .as_array()
+        .unwrap()
+        .len();
+    assert!(stored > 0);
+    assert_eq!(relations.read_with(cx, |r, _| r.rows().len()), stored);
     // The page opened in an editor with the module's chrome around it.
     let target = Target::Element(zhiwei.id.parse().unwrap());
     assert!(view.read_with(cx, |ws, _| ws.editor_of(&target).is_some()));

@@ -165,6 +165,8 @@
     "wordCount": "{{count}} 字"
   },
   "edgeKindManager": {
+    "changeColor": "變更顏色",
+    "changeColorLabel": "變更 {{label}} 的顏色",
     "editTypes": "編輯類型",
     "resetColor": "還原預設顏色",
     "summary": "{{kinds}} 種類型 · {{relations}} 個關係",
@@ -187,7 +189,8 @@
       "deleteElement": "刪除要素",
       "deleteNode": "刪除節點",
       "deleteStoryline": "刪除故事線",
-      "editStorylines": "編輯故事線"
+      "editStorylines": "編輯故事線",
+      "moveToGroup": "移至分組…"
     },
     "outlineRailMode": {
       "hidden": "隱藏目錄",
@@ -196,10 +199,13 @@
     "status": {
       "discarded": "已棄用",
       "draft": "草稿",
-      "finished": "已完成"
+      "drifting": "漂流中",
+      "finished": "已完成",
+      "resting": "停泊中"
     },
     "statusSection": {
-      "chapter": "寫作狀態"
+      "chapter": "寫作狀態",
+      "drift": "構想狀態"
     }
   },
   "elementCategoryCreateMenu": {
@@ -412,6 +418,8 @@
     "actions": {
       "collapseAll": "全部展開或收合",
       "newCategory": "新增類目",
+      "newDrift": "新增構想",
+      "newDriftGroup": "新增分組",
       "sort": "排序"
     },
     "empty": {
@@ -421,7 +429,15 @@
     },
     "groups": {
       "addElementToGroup": "在此分組新增要素",
+      "deleteGroup": "刪除分組",
+      "driftCount_one": "{{count}} 個構想",
+      "driftCount_other": "{{count}} 個構想",
+      "moveDriftToRoot": "最上層（移出分組）",
+      "moveGroupToRoot": "最上層（移至頂層）",
       "newChapterInStoryline": "在此故事線新增章節",
+      "newDriftInGroup": "在此新增構想",
+      "newSubGroup": "新增子分組",
+      "rename": "重新命名",
       "renameElementGroupTitle": "按兩下重新命名分組",
       "unaffiliated": "無歸屬"
     },
@@ -437,6 +453,7 @@
       "cellMetaGroup": "儲存格右側",
       "chapters": "章節排序",
       "createdAt": "建立時間",
+      "drifts": "構想排序",
       "duplicatesAll": "顯示於每個連結的分組",
       "duplicatesGroup": "多故事線章節",
       "duplicatesPrimary": "只在主要故事線顯示",
@@ -449,6 +466,7 @@
       "showWordCount": "顯示字數",
       "storylineChapters": "故事線內章節排序",
       "storylineOrder": "故事線順序",
+      "title": "標題 A–Z",
       "updatedAt": "更新時間"
     },
     "tabs": {
@@ -581,6 +599,8 @@
   },
   "notifications": {
     "appUpdate": {
+      "available": "Drifting {{version}} 已推出",
+      "installed": "已更新至 Drifting {{version}}",
       "source": "更新"
     },
     "clear": "清除",
@@ -883,6 +903,7 @@
     "save": "儲存",
     "selectConfigured": "選擇關係類型",
     "sourceRole": "來源角色",
+    "swap": "交換關係端點",
     "symmetric": "對稱",
     "symmetricSummary": "對稱 · {{role}}",
     "targetRole": "目標角色",
@@ -1222,7 +1243,26 @@
     },
     "title": "設定",
     "update": {
-      "channel_desc": "Apple Silicon · macOS 13 以上"
+      "channel_desc": "Apple Silicon · macOS 13 以上",
+      "check": "新版本",
+      "check_action": "檢查更新",
+      "check_failed": "目前無法檢查更新，可能是網路未連線。請稍後重試，目前版本仍可繼續使用。",
+      "checking": "正在檢查…",
+      "downloading": "正在下載並驗證簽章…",
+      "downloading_progress": "正在下載並驗證… {{progress}}%",
+      "install_failed": "上次結束時沒能安裝 Drifting {{version}}，目前版本未變更。下次結束時會再試。",
+      "install_failed_admin": "上次結束時沒能安裝 Drifting {{version}}：Drifting 所在的資料夾無法寫入。目前版本未變更。",
+      "interrupted": "更新沒有下載完整，已捨棄。下次檢查時會重新下載。",
+      "local_error": "更新無法存進這台電腦，已停止。目前版本仍可繼續使用。",
+      "no_update": "目前已是最新版本。",
+      "older_offered": "目前已是最新版本。更新服務提供的 {{version}} 比這一版舊，不會安裝。",
+      "ready_on_quit": "Drifting {{version}} 已下載並通過簽章驗證，結束時安裝。",
+      "refused_app": "下載的更新不是 Drifting，已捨棄。目前版本仍可繼續使用。",
+      "refused_signature": "下載的更新未通過簽章驗證，已捨棄。目前版本仍可繼續使用。",
+      "refused_version": "下載的更新不是它標示的版本，可能是舊版本，已拒絕。目前版本仍可繼續使用。",
+      "restart": "重新啟動以更新",
+      "server_error": "更新服務暫時出了問題，請稍後重試。目前版本仍可繼續使用。",
+      "unavailable": "此版本沒有更新簽署金鑰，無法檢查更新。從 GitHub 下載的發行版可使用更新功能。"
     }
   },
   "sidebarLayout": {

@@ -13,8 +13,8 @@ dr-i18n.workspace = true
 dr-platform.workspace = true
 dr-shell.workspace = true
 dr-ui.workspace = true
-# The framed multi-line field (0.1's `ui-field--area`) the bookshelf and
-# Project Home use, until dr-ui has one (m01-shelf.md, 「待协调」).
+# The update service's state for the diagnostic summary (M42).
+dr-view-update.workspace = true
 gpui.workspace = true
 log.workspace = true
 
