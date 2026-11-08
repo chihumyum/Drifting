@@ -4,13 +4,13 @@
   "milestone": "m01-m02",
   "generatedBy": "cargo run --release -p dr-view-home --features capture --example shelf-home-capture -- --bench ../docs/rust-rewrite/acceptance",
   "inputs": {
-    "crates/dr-shell/src/pages.rs": "d92c196b1f87b3e735eb0e9e28349548f6a5b9d21c1d9b46034c827867c3e140",
+    "crates/dr-shell/src/pages.rs": "e54d93b8f8209075bc13c7e48737b9969f86a87f0af48be2ff5252df7e6de684",
     "crates/dr-testkit/fixtures/shelf.json": "d2677541b73be253a34454cfd1add8f9635445305728d58a615dc206fcf87ef2",
     "crates/dr-testkit/src/samples.rs": "d92b073fab71aafed3cf29f0a115def579ab2dd40e3da476356955f9017e874d",
     "crates/dr-testkit/src/seed": "a01def93a860c30e8b9ab3d7371b1766a53a14bf5c3e885821324d5c222caa6f",
-    "crates/dr-view-home": "dfc21782409cdae825852afe42c93ed2f6832b2fda89e6e7f8b14ca377d33cd1",
-    "crates/dr-view-shelf": "53f66092303fbb5c43d8c2a754418568d703f443389ab55ee148e4495acff334",
-    "crates/dr-workspace": "7e5d4a9865c47994b2e134c33ce809da5a45785ccf4091c1e5e46986761bcfc1"
+    "crates/dr-view-home": "839e33c869ed76e70543917aa7e8c907190fb50d650ae5be7a576b273e092155",
+    "crates/dr-view-shelf": "bf68ad1763e0ceadd028d0bf99ea760c0ed4b1e9a59437fb4b5389fde25825fd",
+    "crates/dr-workspace": "0978d5b2438ec5be356987c346a7578730f18b3388b2abdeb561d4496e47f19a"
   },
   "corpus": {
     "sample": "showcase",
@@ -23,41 +23,41 @@
     "os": "macos",
     "osVersion": "27.0.1",
     "arch": "aarch64",
-    "loadAverage1m": 24.07,
+    "loadAverage1m": 2.81,
     "profile": "release"
   },
   "results": {
-    "note": "Headless (GPUI test platform, Metal into a texture), 1280x800 at 2x, the showcase library (8 books) plus the heavy seed's book, read through F3. shelf_first: making the window until its first frame and until the cards drew (the shelf read off the main thread). open_book: from a card's click until the book's lists and Project Home's numbers arrived and a frame drew; the shelf has read every book's lists by then (as in the app), so 'first' means the first time the book's lists, chapter documents' numbers and Project Home are read for it, not a cold F3. Frames are the CPU time of window.draw. One-minute load average when it started: 25.3.",
+    "note": "Headless (GPUI test platform, Metal into a texture), 1280x800 at 2x, the showcase library (8 books) plus the heavy seed's book, read through F3. shelf_first: making the window until its first frame and until the cards drew (the shelf read off the main thread). open_book: from a card's click until the book's lists and Project Home's numbers arrived and a frame drew; the shelf has read every book's lists by then (as in the app), so 'first' means the first time the book's lists, chapter documents' numbers and Project Home are read for it, not a cold F3. Frames are the CPU time of window.draw. One-minute load average when it started: 3.1.",
     "shelf_first": {
-      "first_frame_ms": 44.26,
-      "cards_ms": 124.99,
-      "shelf_cards_ms": 51.54
+      "first_frame_ms": 23.85,
+      "cards_ms": 63.75,
+      "shelf_cards_ms": 30.94
     },
     "books_on_shelf": 9,
     "shelf_redraw_ms": {
       "n": 60,
-      "median": 1.47,
-      "max": 2.71
+      "median": 1.25,
+      "max": 1.36
     },
     "open_book_first_ms": {
-      "慢钟": 23.86,
-      "阿Q正传（示例）": 18.0,
-      "heavy": 34.5
+      "慢钟": 13.15,
+      "阿Q正传（示例）": 11.57,
+      "heavy": 26.16
     },
     "open_book_again_ms": {
       "n": 10,
-      "median": 4.27,
-      "max": 9.3
+      "median": 11.22,
+      "max": 13.91
     },
     "back_to_shelf_ms": {
       "n": 5,
-      "median": 8.7,
-      "max": 12.98
+      "median": 5.44,
+      "max": 9.38
     },
     "home_redraw_ms": {
       "n": 60,
       "median": 0.65,
-      "max": 1.56
+      "max": 1.09
     }
   }
 }

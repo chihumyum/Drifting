@@ -4,12 +4,12 @@
   "milestone": "f3-m2",
   "generatedBy": "cargo run --release -p dr-testkit --bin bench -- workspace --milestone f3-m2",
   "inputs": {
-    "crates/dr-testkit/src/bench.rs": "b3cc7726ae7eebd575e02f1e270df1bd613c28a636c210ec8b77a87d376102a7",
+    "crates/dr-testkit/src/bench.rs": "4b942709d574501ecf7915c844268c528e9b0c4f5310f1ee08a641531e739ae1",
     "crates/dr-testkit/src/bin/bench.rs": "4b197da40bd52f5bb7f64ab6b716967eae8598af6dd312cbff8b00208ba3b148",
     "crates/dr-testkit/src/rng.rs": "eb878d8e485f01a901cb1742074c9de455d51871985ddf836e599e86baf353e3",
     "crates/dr-testkit/src/seed": "a01def93a860c30e8b9ab3d7371b1766a53a14bf5c3e885821324d5c222caa6f",
     "crates/dr-testkit/src/text.rs": "d639486e1178aadb3f7a41cdd4f563e74564f4f3d719de21cc4c183e5f6cb5b8",
-    "crates/dr-workspace": "a027003030fe2c9fdfe6d410c975a80fd44a0d1e05c2408c33f3a5c635a638d8"
+    "crates/dr-workspace": "0978d5b2438ec5be356987c346a7578730f18b3388b2abdeb561d4496e47f19a"
   },
   "corpus": {
     "corpusFingerprint": "5b319924c784252a98d35588c557a642ff4fb6b347f3a3603a9f1696a54bfb48",
@@ -20,7 +20,7 @@
     "arch": "aarch64",
     "cores": 12,
     "cpu": "Apple M3 Pro",
-    "loadAverage1m": 8.94,
+    "loadAverage1m": 3.67,
     "memoryBytes": 38654705664,
     "os": "macos",
     "osVersion": "27.0.1",
@@ -31,11 +31,11 @@
       "agentUndo": {
         "ms": {
           "undoTurn": {
-            "max": 146.136,
-            "mean": 146.136,
+            "max": 91.639,
+            "mean": 91.639,
             "n": 1,
-            "p50": 146.136,
-            "p95": 146.136
+            "p50": 91.639,
+            "p95": 91.639
           }
         },
         "shape": {
@@ -46,32 +46,32 @@
       "coldQueries": {
         "ms": {
           "chapterList": {
-            "max": 7.475,
-            "mean": 7.475,
+            "max": 6.189,
+            "mean": 6.189,
             "n": 1,
-            "p50": 7.475,
-            "p95": 7.475
+            "p50": 6.189,
+            "p95": 6.189
           },
           "commentList": {
-            "max": 5.282,
-            "mean": 5.282,
+            "max": 3.864,
+            "mean": 3.864,
             "n": 1,
-            "p50": 5.282,
-            "p95": 5.282
+            "p50": 3.864,
+            "p95": 3.864
           },
           "elementList": {
-            "max": 2.698,
-            "mean": 2.698,
+            "max": 3.974,
+            "mean": 3.974,
             "n": 1,
-            "p50": 2.698,
-            "p95": 2.698
+            "p50": 3.974,
+            "p95": 3.974
           },
           "relationList": {
-            "max": 3.115,
-            "mean": 3.115,
+            "max": 2.247,
+            "mean": 2.247,
             "n": 1,
-            "p50": 3.115,
-            "p95": 3.115
+            "p50": 2.247,
+            "p95": 2.247
           }
         },
         "shape": {
@@ -85,67 +85,67 @@
       "commands": {
         "ms": {
           "chapterCreate": {
-            "max": 19.55,
-            "mean": 2.567,
+            "max": 12.146,
+            "mean": 5.18,
             "n": 100,
-            "p50": 1.752,
-            "p95": 7.923
+            "p50": 5.106,
+            "p95": 5.71
           },
           "chapterCreateWith2000Words": {
-            "max": 23.564,
-            "mean": 4.16,
+            "max": 10.711,
+            "mean": 5.827,
             "n": 100,
-            "p50": 2.559,
-            "p95": 10.908
+            "p50": 5.712,
+            "p95": 6.324
           },
           "chapterMove": {
-            "max": 17.948,
-            "mean": 2.175,
+            "max": 7.987,
+            "mean": 1.211,
             "n": 100,
-            "p50": 1.452,
-            "p95": 8.91
+            "p50": 1.137,
+            "p95": 1.303
           },
           "chapterRename": {
-            "max": 7.248,
-            "mean": 0.408,
+            "max": 8.787,
+            "mean": 4.057,
             "n": 100,
-            "p50": 0.261,
-            "p95": 0.65
+            "p50": 3.979,
+            "p95": 4.418
           },
           "chapterTrashThenRestore": {
-            "max": 11.387,
-            "mean": 1.732,
+            "max": 4.705,
+            "mean": 0.925,
             "n": 100,
-            "p50": 1.017,
-            "p95": 7.604
+            "p50": 0.859,
+            "p95": 0.99
           },
           "commentCreate": {
-            "max": 5.039,
-            "mean": 0.308,
+            "max": 0.511,
+            "mean": 0.145,
             "n": 100,
-            "p50": 0.239,
-            "p95": 0.373
+            "p50": 0.138,
+            "p95": 0.174
           },
           "elementCreate": {
-            "max": 20.19,
-            "mean": 2.165,
+            "max": 13.344,
+            "mean": 5.365,
             "n": 100,
-            "p50": 1.668,
-            "p95": 3.932
+            "p50": 5.128,
+            "p95": 5.818
           },
           "objectUndo": {
-            "max": 11.722,
-            "mean": 1.425,
+            "max": 4.951,
+            "mean": 0.496,
             "n": 100,
-            "p50": 0.862,
-            "p95": 4.666
+            "p50": 0.51,
+            "p95": 0.596
           },
           "proseReplace": {
-            "max": 14.244,
-            "mean": 1.295,
+            "max": 5.23,
+            "mean": 0.616,
             "n": 100,
-            "p50": 0.959,
-            "p95": 2.938
+            "p50": 0.537,
+            "p95": 0.67
           }
         },
         "shape": {
@@ -156,18 +156,18 @@
       "queriesAfterEvents": {
         "ms": {
           "chapterListAfterUpdate": {
-            "max": 0.457,
-            "mean": 0.351,
+            "max": 0.619,
+            "mean": 0.539,
             "n": 100,
-            "p50": 0.347,
-            "p95": 0.412
+            "p50": 0.533,
+            "p95": 0.575
           },
           "relationListAfterCreate": {
-            "max": 3.222,
-            "mean": 2.697,
+            "max": 2.334,
+            "mean": 2.151,
             "n": 100,
-            "p50": 2.687,
-            "p95": 3.049
+            "p50": 2.184,
+            "p95": 2.289
           }
         },
         "shape": {
@@ -178,18 +178,18 @@
       "search": {
         "ms": {
           "oneCharacter": {
-            "max": 780.596,
-            "mean": 506.038,
+            "max": 0.536,
+            "mean": 0.489,
             "n": 50,
-            "p50": 497.93,
-            "p95": 534.242
+            "p50": 0.485,
+            "p95": 0.524
           },
           "threeCharacters": {
-            "max": 340.983,
-            "mean": 267.691,
+            "max": 9.167,
+            "mean": 4.597,
             "n": 50,
-            "p50": 264.187,
-            "p95": 286.71
+            "p50": 4.479,
+            "p95": 4.93
           }
         },
         "shape": {
@@ -200,11 +200,11 @@
       "seedViaCommands": {
         "ms": {
           "seed": {
-            "max": 3582.155,
-            "mean": 3582.155,
+            "max": 4249.888,
+            "mean": 4249.888,
             "n": 1,
-            "p50": 3582.155,
-            "p95": 3582.155
+            "p50": 4249.888,
+            "p95": 4249.888
           }
         },
         "shape": {
@@ -217,32 +217,32 @@
       "warmQueries": {
         "ms": {
           "chapterList": {
-            "max": 0.475,
-            "mean": 0.248,
+            "max": 1.449,
+            "mean": 0.51,
             "n": 300,
-            "p50": 0.244,
-            "p95": 0.291
+            "p50": 0.478,
+            "p95": 0.639
           },
           "chapterListTyped": {
-            "max": 0.085,
-            "mean": 0.032,
+            "max": 1.176,
+            "mean": 0.247,
             "n": 300,
-            "p50": 0.031,
-            "p95": 0.037
+            "p50": 0.239,
+            "p95": 0.332
           },
           "elementList": {
-            "max": 0.926,
-            "mean": 0.633,
+            "max": 2.764,
+            "mean": 1.688,
             "n": 300,
-            "p50": 0.632,
-            "p95": 0.696
+            "p50": 1.61,
+            "p95": 2.158
           },
           "relationList": {
-            "max": 0.936,
-            "mean": 0.655,
+            "max": 0.679,
+            "mean": 0.585,
             "n": 300,
-            "p50": 0.65,
-            "p95": 0.726
+            "p50": 0.578,
+            "p95": 0.624
           }
         },
         "shape": {

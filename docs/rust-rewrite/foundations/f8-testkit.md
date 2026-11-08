@@ -142,6 +142,12 @@ cargo xtask evidence --check
 
 这一轮唯一一份新格式证据是 `f8-m1-store-bench.json`，见下面「基准」。
 
+**2026-11-08 统一重测**：第十三批合进来以后，`cargo xtask check` 报 14 份新格式证据过期。等机器空下来（一分钟负载降到 4.7，没有别的会话在编译）以后，按每份文件里 `generatedBy` 记的原命令原地重测了 13 份，一份接一份，测的时候负载 3–5，十三份都是离屏绘制，没有开窗口。现在是 13 份新鲜、1 份过期：
+- 重测的：`f8-m1-store`、`f1-m3-doc`、`dr-text-index-m2-index`、`f2-m4-index`、`f8-m2-workspace`、`f3-m2-workspace`、`f2-m4-workspace`、`f4-m3-editor`、`f4e-m2-prose-bench-decor`、`f4e-m2-prose-bench-headless`、`m05-m1-book`、`f6-m3-shell`、`m01-m02-shelf-home`；
+- 数字都比上一次快（上一次多半是在负载 14–19 下测的），没有变慢的；下面「基准」两张表还是第一次测的数，以文件为准。heavy 种子上的搜索从 33–47 ms 降到 0.5 ms（一个字）和 4.4 ms（三个字）；
+- **没重测的**：`m10-m4-import.json`。它要 0.1 客户端的测试库（`m10-fixtures.test.ts` 生成的 `sample` 三份，加 0.1 种子命令生成的 `lite`、`stress`），`next/` 里单独生成不了，等 M10 的下一个里程碑；
+- 旧格式的 15 份（包括会占前台窗口的 `f4-window`、`f4-present*`、`f4-idle-*`）不算过期，这次没动。
+
 ## 崩溃试验台
 
 做法和 P0-C、F2 一样，抽成了通用的 `dr_testkit::crash`：
@@ -558,7 +564,7 @@ done
 
 ### dr-workspace（F3）
 
-- **搜索在全书规模上慢**：heavy 种子上 `book.search` 每次 33–47 ms，F3 原来在 20 万字的数据上量的是 0.4–4 ms。请和 dr-index 一起看（`f8-m2-workspace-bench.json`）。
+- ~~**搜索在全书规模上慢**~~：2026-11-08 重测，heavy 种子上 `book.search` 一个字 0.5 ms、三个字 4.4 ms（原来 33–47 ms），已经回到 F3 原来的量级（`f8-m2-workspace-bench.json`）。
 - **缺两个命令**：时间钉（`time_pin.*`）和写作日。没有它们，走命令写的种子里就没有这两样，对拍只好不比。
 - **删掉旧测量**：`tests/measure.rs` 和 `f3-workspace-measure.json` 已经由 `bench` 的 `workspace` 套件接替，可以删掉（`measure_evidence_has_its_shape` 一起删）。
 - **快照**：能力清单的快照先排好键再比（合并时已经这样改了），以后新的快照照这个做。

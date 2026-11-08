@@ -4,12 +4,12 @@
   "milestone": "f4-m3",
   "generatedBy": "cargo run --release -p dr-editor --example editor-bench -- --write",
   "inputs": {
-    "crates/dr-doc": "95eba33c527aa3cd15fde1f9c35f229546998c75f083b867bfa3433dc54c326d",
-    "crates/dr-editor": "3e19884dfe07c366a38a35fc40c6bc079be5aecd9f560859f8f8043db2b1884c",
-    "crates/dr-store": "3cdc85b5041c5f461c4ce528b0a752098d9eb15e6752b5b0c560a6a591cbbd1a",
+    "crates/dr-doc": "379328868d7efb39d391515b5655ff4438456eb5a8fcffa483425f7ac3598635",
+    "crates/dr-editor": "1b5c624ce375471a2f86c15ef1ce0fc2e2f183087693fd916fcd1b63924d09e1",
+    "crates/dr-store": "691facbf77899ae62a8013e758b0df17a96909ccb6b16e3f2c13660ada41d8ec",
     "crates/dr-testkit/src/seed": "a01def93a860c30e8b9ab3d7371b1766a53a14bf5c3e885821324d5c222caa6f",
-    "crates/dr-workspace": "a027003030fe2c9fdfe6d410c975a80fd44a0d1e05c2408c33f3a5c635a638d8",
-    "crates/gpui-prose": "59eb96ff55bc568fc1e1cc8f8752094f81bc1c61621dacbfd7f463dbdae041bd"
+    "crates/dr-workspace": "0978d5b2438ec5be356987c346a7578730f18b3388b2abdeb561d4496e47f19a",
+    "crates/gpui-prose": "c997db126cb05dfd816abd3eeaa415291ba12c16ffdbda808b8669ae32ed8f23"
   },
   "corpus": {
     "preset": "lite",
@@ -111,7 +111,7 @@
     "os": "macos",
     "osVersion": "27.0.1",
     "arch": "aarch64",
-    "loadAverage1m": 10.64,
+    "loadAverage1m": 3.96,
     "profile": "release"
   },
   "results": {
@@ -119,48 +119,48 @@
     "book_chars": 165316,
     "open_chapter_cold": {
       "n": 20,
-      "p50": 2.489,
-      "p95": 5.454,
-      "max": 5.999,
-      "mean": 2.942
+      "p50": 0.88,
+      "p95": 1.345,
+      "max": 2.978,
+      "mean": 0.921
     },
     "open_chapter_warm": {
       "n": 20,
-      "p50": 0.332,
-      "p95": 0.905,
-      "max": 1.038,
-      "mean": 0.433
+      "p50": 0.154,
+      "p95": 0.25,
+      "max": 0.409,
+      "mean": 0.172
     },
     "largest_chapter_chars": 22005,
     "keystroke": {
       "n": 400,
-      "p50": 0.403,
-      "p95": 7.116,
-      "max": 41.525,
-      "mean": 1.472
+      "p50": 0.053,
+      "p95": 0.081,
+      "max": 1.138,
+      "mean": 0.059
     },
     "keystroke_budget_p50_ms": 2.0,
     "undo_step": {
       "n": 60,
-      "p50": 5.612,
-      "p95": 13.32,
-      "max": 51.829,
-      "mean": 7.594
+      "p50": 1.039,
+      "p95": 1.103,
+      "max": 1.181,
+      "mean": 1.042
     },
     "agent_command": {
       "n": 60,
-      "p50": 1.549,
-      "p95": 3.014,
-      "max": 34.481,
-      "mean": 2.403
+      "p50": 1.942,
+      "p95": 2.194,
+      "max": 2.548,
+      "mean": 1.987
     },
     "agent_change_folded": {
       "n": 60,
-      "p50": 0.015,
-      "p95": 0.028,
-      "max": 0.059,
-      "mean": 0.017
+      "p50": 0.005,
+      "p95": 0.009,
+      "max": 0.013,
+      "mean": 0.006
     },
-    "open_book_ms": 24.414
+    "open_book_ms": 16.046
   }
 }
