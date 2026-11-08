@@ -55,4 +55,4 @@ pub use events::{
 pub use holder::COMMAND_ORIGIN;
 pub use nav::{BookCatalog, LinkGroup, NavTarget};
 pub use registry::{Access, Concurrency, Op, Registry, Spec, registry};
-pub use workspace::{QuitReport, Workspace, WorkspaceOptions, library_options};
+pub use workspace::{QuitReport, ShutdownRefused, Workspace, WorkspaceOptions, library_options};

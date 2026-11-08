@@ -5,7 +5,7 @@ use std::collections::BTreeSet;
 use dr_doc::book::Collection;
 use dr_model::DocId;
 use dr_model::book::{EntityRef, KvEntry, element_name_key};
-use dr_model::id::{AssetId, CategoryId, ElementId, KvEntryId};
+use dr_model::id::{AssetId, CategoryId, ElementId, KvEntryId, TemplateOwner};
 use dr_model::kind::{AssetKind, CategoryLayout, EntityKind};
 use dr_model::pos::PosKey;
 use schemars::JsonSchema;
@@ -107,15 +107,45 @@ pub struct ElementListIn {
     pub trashed: bool,
 }
 
+/// When `e` last changed, in seconds: the latest of its own fields'
+/// stamp (`Cx::touch_element`; created_at before the first), and its body's
+/// last stored edit (the local index's head, so typing counts without a
+/// book write).
+fn updated_at(
+    lib: &dr_store::Library,
+    stamps: &loro::LoroMap,
+    e: &dr_model::book::Element,
+) -> Option<i64> {
+    let stamped = match stamps.get(e.id.as_str()) {
+        Some(loro::ValueOrContainer::Container(loro::Container::Map(m))) => {
+            match m.get(crate::cx::ELEMENT_UPDATED_AT) {
+                Some(loro::ValueOrContainer::Value(loro::LoroValue::I64(t))) => Some(t),
+                _ => None,
+            }
+        }
+        _ => None,
+    };
+    let fields = stamped.or(e.created_at.map(|t| t.0));
+    let body = super::prose_facts(lib, &DocId::Element(e.id.clone()).to_string()).edited_at;
+    fields.max(body)
+}
+
 op! {
     ElementList = "element.list", Read, Shared,
     "List elements (with a mark on names a merge left duplicated).",
     fn(cx, input: ElementListIn) -> Vec<ElementInfo> {
         let slot = cx.book(&input.book)?;
+        let lib = cx.workspace().library();
+        let stamps = slot.handle.doc().get_map(Collection::Elements.root());
         Ok(elements(&slot).iter()
             .filter(|e| input.trashed || e.deleted_at.is_none())
             .filter(|e| input.category.as_ref().is_none_or(|c| e.category.as_ref().map(|x| x.as_str()) == Some(c.as_str())))
-            .map(ElementInfo::from).collect())
+            .map(|e| {
+                let mut info = ElementInfo::from(e);
+                info.updated_at = updated_at(lib, &stamps, e);
+                info
+            })
+            .collect())
     }
 }
 
@@ -157,16 +187,20 @@ op! {
         cx.summarize(format!("「{name}」"));
         // The category's element template seeds the body when no text is
         // given (the 0.1 interface's rule).
-        let body = match (&input.text, category.as_ref()) {
-            (None, Some(c)) => categories(&slot).iter().find(|x| &x.id == c)
-                .map(|x| super::template::body_of(x.element_template.as_deref())).unwrap_or_default(),
-            _ => Vec::new(),
+        let template = match (&input.text, category.as_ref()) {
+            (None, Some(c)) => {
+                let legacy = categories(&slot).iter().find(|x| &x.id == c).and_then(|x| x.element_template.clone());
+                super::template::template_of(cx, &TemplateOwner::Category(c.clone()), legacy.as_deref())?
+            }
+            _ => None,
         };
-        if body.is_empty() {
-            super::chapter::seed_prose(cx, &slot.book, &DocId::Element(id.clone()), input.text.as_deref())?;
-        } else {
-            super::template::seed_body(cx, &slot.book, &DocId::Element(id.clone()), &body)?;
+        match template {
+            Some(t) => super::template::apply_template(cx, &slot.book, &DocId::Element(id.clone()), t)?,
+            None => super::chapter::seed_prose(cx, &slot.book, &DocId::Element(id.clone()), input.text.as_deref())?,
         }
+        // Its names, linked in the text already written.
+        let added: Vec<String> = std::iter::once(name.clone()).chain(input.aliases.iter().cloned()).collect();
+        crate::autolink::backfill_element(cx, &slot, &id, &name, &input.aliases, &added)?;
         let (i2, n2, s2, a2) = (id.clone(), name.clone(), input.summary.clone(), input.aliases.clone());
         // The category's field template, copied (new ids, same order).
         let fields = category.as_ref()
@@ -376,6 +410,17 @@ op! {
         }
         let FieldPlan { put: fields, removed, undo_put: field_undo, undo_remove: field_removed_new } =
             plan_fields(&old.facts, &input.put_fields, &input.remove_fields)?;
+        // New names (a new name, added aliases), linked in the text
+        // already written.
+        let renamed = input.name.as_ref().map(|n| n.trim().to_string()).filter(|n| *n != old.name);
+        if renamed.is_some() || !input.add_aliases.is_empty() {
+            let name = renamed.clone().unwrap_or_else(|| old.name.clone());
+            let aliases: Vec<String> = old.aliases.iter().filter(|a| !input.remove_aliases.contains(a))
+                .chain(input.add_aliases.iter()).cloned().collect();
+            let added: Vec<String> = renamed.iter().cloned().chain(input.add_aliases.iter().cloned()).collect();
+            crate::autolink::backfill_element(cx, &slot, &old.id, &name, &aliases, &added)?;
+        }
+        cx.touch_element(&old.id);
         let id = old.id.clone();
         let i = input.clone();
         let (f2, r2) = (fields.clone(), removed.clone());
@@ -560,13 +605,14 @@ op! {
     fn(cx, input: ListIn) -> Vec<CategoryInfo> {
         let slot = cx.book(&input.book)?;
         let els = elements(&slot);
-        Ok(categories(&slot).iter().filter(|c| input.trashed || c.deleted_at.is_none()).map(|c| CategoryInfo {
+        categories(&slot).iter().filter(|c| input.trashed || c.deleted_at.is_none()).map(|c| Ok(CategoryInfo {
             id: c.id.to_string(), name: c.name.clone(), color: c.color.clone(), layout: c.layout.as_str().to_string(),
             grid_x: c.grid_x, grid_y: c.grid_y, trashed: c.deleted_at.is_some(),
             elements: els.iter().filter(|e| e.deleted_at.is_none() && e.category.as_ref() == Some(&c.id)).count() as u32,
             template_fields: c.template_fields.iter().map(crate::dto::FieldInfo::from).collect(),
-            has_element_template: !super::template::body_of(c.element_template.as_deref()).is_empty(),
-        }).collect())
+            has_element_template: super::template::has_template(
+                cx, &TemplateOwner::Category(c.id.clone()), c.element_template.as_deref())?,
+        })).collect()
     }
 }
 

@@ -50,12 +50,14 @@ op! {
     fn(cx, input: ListIn) -> Vec<StorylineInfo> {
         let slot = cx.book(&input.book)?;
         let chs = chapters(&slot);
-        Ok(storylines(&slot).iter().filter(|s| input.trashed || s.deleted_at.is_none()).map(|s| StorylineInfo {
+        storylines(&slot).iter().filter(|s| input.trashed || s.deleted_at.is_none()).map(|s| Ok(StorylineInfo {
             id: s.id.to_string(), name: s.name.clone(), color: s.color.clone(), summary: s.summary.clone(),
             pos: s.pos.as_ref().map(|p| p.to_string()), trashed: s.deleted_at.is_some(),
             chapters: chs.iter().filter(|c| c.storylines.contains(&s.id)).count() as u32,
             fields: s.facts.iter().map(crate::dto::FieldInfo::from).collect(),
-        }).collect())
+            has_chapter_template: super::template::has_template(
+                cx, &dr_model::id::TemplateOwner::Storyline(s.id.clone()), s.chapter_template.as_deref())?,
+        })).collect()
     }
 }
 

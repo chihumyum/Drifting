@@ -102,6 +102,7 @@ op! {
         let id = NodeId::new_v7();
         cx.summarize(format!("「{title}」"));
         super::chapter::seed_prose(cx, &slot.book, &DocId::Node(id.clone()), input.text.as_deref())?;
+        crate::autolink::backfill_title(cx, &slot, &id, &title)?;
         let (i2, t2, s2) = (id.clone(), title.clone(), input.summary.clone());
         cx.write_book(&slot, move |txn| {
             txn.node(&i2)?.kind(&NodeKind::Drift)?.title(&t2)?.summary(&s2)?.status(&NodeStatus::Drifting)?
@@ -160,6 +161,9 @@ op! {
         };
         if let Some((x, y)) = input.position && !(x.is_finite() && y.is_finite()) { return Err(WsError::invalid("position must be finite")); }
         if let Some(Some(o)) = input.narrative_order && !o.is_finite() { return Err(WsError::invalid("narrative order must be finite")); }
+        if let Some(t) = title.as_ref().filter(|t| **t != old.title) {
+            crate::autolink::backfill_title(cx, &slot, &old.id, t)?;
+        }
         let (id, t2, s2, st2, g2, p2, n2) = (old.id.clone(), title.clone(), input.summary.clone(), status.clone(), group.clone(), input.position, input.narrative_order);
         cx.write_book(&slot, move |txn| {
             let w = txn.node(&id)?;

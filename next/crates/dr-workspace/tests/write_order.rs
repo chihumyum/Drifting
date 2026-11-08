@@ -228,3 +228,48 @@ fn every_commit_is_durable_when_the_command_returns() {
     e.reopen();
     assert_eq!(e.out("chapter.list", json!({"book": b})), before);
 }
+
+#[test]
+fn a_refused_shutdown_hands_the_workspace_back() {
+    let dir = tempfile::tempdir().unwrap();
+    let ws = open_at(dir.path(), Arc::new(Faults::default()));
+    let u = Actor::User;
+    let b = call(&ws, &u, "book.create", json!({"name": "书"}))["output"]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    ws.set_auto_links(false);
+    // Someone still holds the workspace: the close is refused and the
+    // workspace comes back, working and listening as before.
+    let other = ws.clone();
+    let refused = ws.try_shutdown().unwrap_err();
+    assert!(
+        matches!(refused.error, WsError::Internal(_)),
+        "{:?}",
+        refused.error
+    );
+    let ws = refused.workspace.expect("handed back");
+    assert!(!ws.auto_links(), "the author's setting is kept");
+    // A cached list first, so the next one needs the write's event.
+    assert!(ids(&call(&ws, &u, "chapter.list", json!({"book": b}))["output"]).is_empty());
+    call(
+        &ws,
+        &u,
+        "chapter.create",
+        json!({"book": b, "title": "One"}),
+    );
+    assert_eq!(
+        ids(&call(&other, &u, "chapter.list", json!({"book": b}))["output"]).len(),
+        1,
+        "the caches follow the new write"
+    );
+    // Once the other one lets go, it closes, and the library opens again.
+    drop(other);
+    ws.shutdown().unwrap();
+    let ws = open_at(dir.path(), Arc::new(Faults::default()));
+    assert_eq!(
+        ids(&call(&ws, &u, "chapter.list", json!({"book": b}))["output"]).len(),
+        1
+    );
+    ws.shutdown().unwrap();
+}

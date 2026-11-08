@@ -25,6 +25,15 @@ impl From<&EntityRef> for Target {
     }
 }
 
+impl From<&dr_text::autolink::LinkTarget> for Target {
+    fn from(t: &dr_text::autolink::LinkTarget) -> Self {
+        Target {
+            kind: t.kind.as_str().to_string(),
+            id: t.id.clone(),
+        }
+    }
+}
+
 impl Target {
     pub(crate) fn to_ref(&self) -> EntityRef {
         EntityRef::new(
@@ -173,6 +182,9 @@ pub struct StorylineInfo {
     pub chapters: u32,
     /// Its fields (key/value), in order.
     pub fields: Vec<FieldInfo>,
+    /// Whether it has a chapter template (the body new chapters on it start
+    /// with; `chapter_template.body`).
+    pub has_chapter_template: bool,
 }
 
 #[derive(Clone, Debug, Serialize, JsonSchema)]
@@ -209,6 +221,11 @@ pub struct ElementInfo {
     /// When a merge left two live elements with one name: the element that
     /// keeps it (show this one as a conflict to rename).
     pub name_conflict: Option<String>,
+    /// Seconds since the epoch.
+    pub created_at: Option<i64>,
+    /// When it last changed, in seconds: its name, aliases, fields, summary,
+    /// category, portrait or pin (stamped by `element.update`), or its body.
+    pub updated_at: Option<i64>,
 }
 
 impl From<&Element> for ElementInfo {
@@ -225,6 +242,8 @@ impl From<&Element> for ElementInfo {
             relate_pin: e.relate_pin,
             trashed: e.deleted_at.is_some(),
             name_conflict: e.name_conflict.as_ref().map(|c| c.to_string()),
+            created_at: e.created_at.map(|t| t.0),
+            updated_at: e.created_at.map(|t| t.0),
         }
     }
 }

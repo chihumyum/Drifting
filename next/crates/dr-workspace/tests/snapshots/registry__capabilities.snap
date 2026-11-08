@@ -27,17 +27,21 @@ category.restore             command  book     Bring a category back from the tr
 category.trash               command  book     Move a category to the trash. Never refused: its elements read as uncategorized until it is restored.
 category.update              command  book     Rename a category (a taken name gets a suffix), recolour it or change its layout.
 category_template.body       query    shared   Read a category's element template: the paragraphs (body text or H1/H2/H3) its new elements start with.
+category_template.document   command  book     Make sure a category's element template has its own prose document and return its id, for an editor to open (the template is then edited like any page).
 category_template.list       query    shared   List the fields every new element of a category starts with, in order.
 category_template.put        command  book     Add a field to a category's template or change one (key, value, position). Existing elements keep their fields.
 category_template.remove     command  book     Remove a field from a category's template. Existing elements keep theirs.
 category_template.set_body   command  book     Replace a category's element template (the body its new elements start with; empty removes it). Existing elements keep their bodies.
-chapter.create               command  book     Create a chapter (a taken title gets a numbered suffix; the final title is returned).
+chapter.create               command  book     Create a chapter (a taken title gets a numbered suffix; the final title is returned). Given a storyline and no text, it starts from that storyline's chapter template.
 chapter.list                 query    shared   List chapters in reading order, with their act, storylines, words, creation and last change (trashed ones after, when asked).
 chapter.move                 command  book     Move a chapter in reading order (it lands before the next chapter or act boundary).
 chapter.purge                command  book     Delete a chapter for good: its relations go and comments on it become floating, in one commit. Undo restores it from history.
 chapter.restore              command  book     Bring a chapter back from the trash (its relations and comments come back with it).
 chapter.trash                command  book     Move a chapter to the trash. Never refused: its relations are hidden and comments on it shown as unlocated until it is restored; the result lists them.
 chapter.update               command  book     Change a chapter's title, summary, status, narrative position or storylines.
+chapter_template.body        query    shared   Read a storyline's chapter template: the paragraphs (body text or H1/H2/H3) a new chapter whose main storyline it is starts with.
+chapter_template.document    command  book     Make sure a storyline's chapter template has its own prose document and return its id, for an editor to open.
+chapter_template.set_body    command  book     Replace a storyline's chapter template (the body new chapters on it start with; empty removes it). Existing chapters keep their text.
 comment.anchors              query    shared   The stored anchors of the comments on one entity's prose, for an editor laying them out (comments without an anchor are not listed).
 comment.create               command  book     Add a comment or TODO, on an entity, a paragraph, a passage of its prose, or floating.
 comment.delete               command  book     Delete a comment or TODO (its relations go with it).
@@ -83,7 +87,7 @@ memory.list                  query    shared   List the book's Project Memory en
 memory.remove                command  book     Remove a Project Memory entry (kept as removed; restorable).
 memory.restore               command  book     Bring back a removed Project Memory entry.
 memory.update                command  book     Change a Project Memory entry's text, kind or status.
-mention.list                 query    shared   List what prose mentions: entity links and embedded materials, from one entity's prose, to one entity, or in the whole book (live ends only, with paragraph and span counts).
+mention.list                 query    shared   List what prose mentions: entity links and embedded materials, from one entity's prose, to one entity, or in the whole book (live ends only, with paragraph and span counts, the most mentioned first; `limit` keeps the top rows).
 patch.check_sources          command  book     After a chapter's or idea's prose changed: mark the patches taken from it whose passage no longer occurs as invalidated, and unmark those whose passage is back. Follows the prose; not an author's step.
 patch.create                 command  book     Add a patch to an element: a title (optional) and a body, floating or taken from a passage of a chapter or idea.
 patch.delete                 command  book     Delete a patch at once (never refused): relations to it go and comments on it float, in the same commit; undo brings it all back.
@@ -98,10 +102,12 @@ plot_grid.line_add           command  book     Insert a row or column into a plo
 plot_grid.line_remove        command  book     Remove a plot grid's row or column with its cells (the last row or column cannot go).
 plot_grid.line_update        command  book     Rename or move a plot grid's row or column (first, or right after another).
 plot_grid.size               command  book     Set the size of a plot grid's cells (120–440 wide, 56–380 high).
+prose.link                   command  book     Link anchored ranges of a prose document to an entity (anchors, not positions: the undo of automatic links that were taken off).
 prose.read                   query    shared   Read paragraphs of a prose document (text, block id, heading level).
 prose.replace                command  book     Replace one exact passage of prose with new text (it must occur exactly once, in one paragraph).
 prose.restore                command  book     Restore a prose document to an earlier version, as a new change (history stays).
 prose.shape                  query    shared   Shape of a prose document: paragraphs, sentences, the share of dialogue, its checklist and the materials it embeds.
+prose.unlink                 command  book     Take the links to an entity off anchored ranges of a prose document (anchors, not positions: the undo of automatic links).
 recent.list                  query    shared   List the pages of a book the author opened recently on this device, newest first (what is in the trash or gone is left out).
 recent.touch                 command  book     Record that the author opened a page of a book (this device only; Project Home's 「继续写」 reads it). Not undoable.
 relation.create              command  book     Relate two entities (a symmetric type stores its ends in canonical order; an existing identical relation is returned instead).
