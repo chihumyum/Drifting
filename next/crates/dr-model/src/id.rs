@@ -56,6 +56,13 @@ fn validate(s: &str, reserved: &[char]) -> Result<(), IdError> {
     Ok(())
 }
 
+/// The rules every id follows (non-empty, at most [`MAX_ID_LEN`] bytes, no
+/// control characters), for identities that are not one of the id types
+/// here: a conversation entry's event id, session and kind.
+pub fn check_id(s: &str) -> Result<(), IdError> {
+    validate(s, &[])
+}
+
 /// Whether `s` is a uuid of version 7 (what new ids are).
 pub fn is_uuid_v7(s: &str) -> bool {
     uuid::Uuid::try_parse(s).is_ok_and(|u| u.get_version_num() == 7)

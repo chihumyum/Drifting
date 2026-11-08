@@ -45,7 +45,7 @@ use loro::{CommitOptions, ContainerID, ContainerType, ExportMode, LoroDoc, LoroM
 
 use super::fields::set;
 use super::write::{BookTxn, CommentWriter, PlotGridWriter};
-use crate::error::Result;
+use crate::error::{DocError, Result};
 use crate::peer::seed_peer;
 use crate::schema::book;
 
@@ -66,16 +66,22 @@ const TODO_SEED_KEYS: &[&str] = &[
     "status",
 ];
 
-/// The entity a TODO projected from `doc` sits on.
-pub(super) fn projection_target(doc: &DocId) -> EntityRef {
+/// The entity a TODO projected from `doc` sits on. Only the book's text
+/// projects TODOs: not the book document, a template or a conversation.
+pub(super) fn projection_target(doc: &DocId) -> Result<EntityRef> {
     let kind = match doc {
+        DocId::Node(_) => EntityKind::Node,
         DocId::Material(_) => EntityKind::Material,
         DocId::Element(_) => EntityKind::Element,
         DocId::Storyline(_) => EntityKind::Storyline,
         DocId::Category(_) => EntityKind::Category,
-        _ => EntityKind::Node,
+        DocId::Book(_) | DocId::Template(_) | DocId::Conversation(_) => {
+            return Err(DocError::NotInProfile(
+                "a TODO projected from a document that is not the book's text",
+            ));
+        }
     };
-    EntityRef::new(kind, doc.entity_id())
+    Ok(EntityRef::new(kind, doc.entity_id()))
 }
 
 fn write_todo(
@@ -86,7 +92,7 @@ fn write_todo(
     task: &str,
 ) -> Result<()> {
     w.kind(&CommentKind::Todo)?
-        .target(Some(&projection_target(doc)))?
+        .target(Some(&projection_target(doc)?))?
         .target_block(Some(block))?
         .status(&CommentStatus::Open)?;
     set(&w.map, "projection", kind)?;
@@ -179,6 +185,7 @@ impl BookTxn<'_> {
         block: &BlockId,
         task: &str,
     ) -> Result<(CommentId, CommentWriter)> {
+        projection_target(doc)?;
         let id = CommentId::for_projection(kind, doc, block);
         let live = self
             .view
