@@ -172,6 +172,7 @@ fn main() {
                 .filter(|b| !b.trim().is_empty()),
         };
         dr_shell::init(info, services, settings, cx);
+        dr_view_agent::init(platform, cx);
         // ⌘Q hides the app before the quit hooks run (F7).
         dr_shell::quit::hide_first(cx);
         // M24: the sea under the windows, the first run, the tour.

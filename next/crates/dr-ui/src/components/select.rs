@@ -141,7 +141,7 @@ impl RenderOnce for Select {
         .child(overlay::probe(bounds_cell.clone()))
         .when_some(current, |el, c| {
             el.child(row_icon(c.icon, &self.id, p.ink(2).solid()))
-                .child(div().flex_1().min_w_0().child(c.label))
+                .child(div().flex_1().min_w_0().truncate().child(c.label))
         })
         .child(sand::icon(Icon::ChevronDown, 14.0, p.ink(3).solid()))
         .on_click(move |_, _, cx| {

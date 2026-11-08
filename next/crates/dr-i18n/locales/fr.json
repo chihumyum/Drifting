@@ -1,8 +1,79 @@
 {
   "agentPanel": {
+    "checking": "Vérification…",
+    "common": {
+      "none": "Aucun"
+    },
+    "composer": {
+      "answer": "Répondre",
+      "placeholder": "Demandez à Agent… (Cmd/Ctrl+Entrée)",
+      "send": "Envoyer",
+      "steer": "Orienter",
+      "stop": "Arrêter"
+    },
+    "config": {
+      "effort": "Effort · {{effort}}",
+      "effortLabel": "Effort",
+      "model": "Modèle",
+      "modelUnavailable": "Le modèle sélectionné ne figure pas au catalogue actuel. Choisissez-en un autre."
+    },
+    "context": {
+      "tokens": "{{count}} tokens"
+    },
+    "control": {
+      "allow": {
+        "once": "Autoriser une fois"
+      },
+      "deny": "Refuser",
+      "permissionTitle": "Agent demande une action",
+      "questionTitle": "Agent a besoin de votre décision",
+      "recoveredTitle": "Une attente interrompue a été récupérée"
+    },
+    "empty": {
+      "start": "Envoyez un message à Agent pour commencer. Il peut lire et modifier les chapitres, éléments et relations du projet."
+    },
+    "history": {
+      "empty": "Aucun historique pour le moment",
+      "untitled": "Sans titre"
+    },
+    "newConversation": "Nouvelle conversation",
+    "onboarding": {
+      "connect": "Connecter un modèle",
+      "getKey": "Obtenir une clé API",
+      "history": "Historique des versions",
+      "prompts": {
+        "castCharacters": "Crée trois personnages principaux",
+        "commentChapter": "Laisse deux commentaires sur « {{chapter}} »",
+        "completeElement": "Complète les détails de « {{element}} »",
+        "extractElements": "Trouve les personnages et lieux de « {{chapter}} » et ajoute-les comme éléments",
+        "interview": "Pose-moi quelques questions pour façonner cette histoire",
+        "outline": "Ébauche un plan de chapitres en trois actes",
+        "relateElements": "Clarifie la relation entre {{first}} et {{second}}",
+        "tightenChapter": "Resserre le premier paragraphe de « {{chapter}} »"
+      },
+      "saveFailed": "Impossible d’enregistrer la clé dans le trousseau.",
+      "try": "Essayer"
+    },
     "pending": {
-      "cancelling": "Arrêt en cours…"
-    }
+      "cancelling": "Arrêt en cours…",
+      "committing": "Enregistrement…",
+      "now": "Réflexion…"
+    },
+    "setup": {
+      "openSettings": "Ouvrir les réglages"
+    },
+    "thinking": {
+      "done": "Trace du raisonnement",
+      "streaming": "Réflexion…"
+    },
+    "tool": {
+      "result": "Résultat"
+    },
+    "toolbar": {
+      "history": "Historique"
+    },
+    "turnChanges": "Modifications du tour",
+    "unavailable": "Agent est indisponible."
   },
   "allChapters": {
     "actOrdinal": "Acte {{n}}"
@@ -1075,6 +1146,27 @@
       "viewSource": "Voir le code source",
       "writeEmail": "Rédiger un e-mail"
     },
+    "agent": {
+      "chatConfigDesc": "Choisissez fournisseur, modèle et effort de raisonnement dans le menu de la saisie Agent à droite. Les clés et l’abonnement ChatGPT se gèrent dans Modèles et API.",
+      "effortOptions": {
+        "high": "Élevé",
+        "low": "Faible",
+        "max": "Maximum",
+        "medium": "Moyen",
+        "minimal": "Minimal",
+        "ultra": "Ultra",
+        "xhigh": "Très élevé"
+      },
+      "replayOnboarding": "Afficher à nouveau le guide initial",
+      "title": "L’Agent de la barre droite, capable d’agir."
+    },
+    "agentLimits": {
+      "desc": "Limite les itérations du modèle par segment. À la limite, la progression est enregistrée et les tâches continues autorisées reprennent automatiquement ; les tâches en pause peuvent aussi reprendre manuellement. Prend effet au prochain segment.",
+      "iterationLabel": "Itérations maximales par tour",
+      "iterationOption": "{{value}} itérations",
+      "unlimited": "Illimité",
+      "unlimitedHint": "Sans limite, seul votre arrêt manuel interrompt le tour."
+    },
     "appearance": {
       "dark": "Sombre",
       "guides": "Guides",
@@ -1092,8 +1184,38 @@
       "theme": "Thème",
       "theme_desc": "Clair, sombre ou selon le système."
     },
+    "byokProvider": {
+      "available": "Disponible",
+      "editKey": "Modifier la clé",
+      "invalidKey": "Clé invalide",
+      "keyPlaceholder": "Collez la clé…",
+      "notConnected": "Non connecté",
+      "requestFailed": "Échec de la requête (fournisseur indisponible ou problème réseau)"
+    },
+    "codexSubscription": {
+      "cancelled": "Connexion annulée.",
+      "codeHint": "Saisissez-le sur la page appareil d’OpenAI ; Drifting vérifie jusqu’à votre autorisation",
+      "codeLabel": "Code à usage unique",
+      "failure": {
+        "expired": "Le code a expiré avant l’autorisation.",
+        "invalid_response": "OpenAI a renvoyé une réponse inattendue.",
+        "network_failed": "Impossible de joindre OpenAI.",
+        "provider_rejected": "OpenAI a refusé la connexion.",
+        "storage_failed": "Impossible d’enregistrer la connexion dans le trousseau."
+      },
+      "name": "Abonnement ChatGPT",
+      "openVerification": "Ouvrir la page de vérification",
+      "signOut": "Se déconnecter",
+      "signedInAs": "Connecté"
+    },
     "common": {
-      "open_in_browser": "Ouvrir dans le navigateur"
+      "cancel": "Annuler",
+      "connect": "Connecter",
+      "disconnect": "Déconnecter",
+      "manageKeys": "Gérer les clés API",
+      "open_in_browser": "Ouvrir dans le navigateur",
+      "save": "Enregistrer",
+      "test_connection": "Tester la connexion"
     },
     "editor": {
       "auto_element_link": "Liens automatiques vers les éléments",
@@ -1128,6 +1250,7 @@
     "groups": {
       "about": "À propos",
       "control": "Gestion",
+      "intelligence": "Intelligence",
       "preferences": "Préférences"
     },
     "hosted": {
@@ -1193,6 +1316,15 @@
       "ui_locale": "Langue de l’interface",
       "ui_locale_desc": "Langue des menus, boutons et messages. Vos écrits ne sont pas modifiés."
     },
+    "models": {
+      "providers": {
+        "anthropic": "Utilisé par Agent général.",
+        "deepseek": "Utilisé par Agent général.",
+        "openai": "Utilisé par Agent général.",
+        "openaiCodex": "Connectez-vous via le flux appareil Codex d’OpenAI pour utiliser Agent général avec votre abonnement ChatGPT et les modèles proposés à votre compte. Sert aussi aux illustrations d’éléments. OpenAI n’offre aucun contrat tiers pour cette voie : elle peut cesser sans préavis et l’usage est décompté de votre forfait ChatGPT."
+      },
+      "title": "Les services auxquels se connecte l’IA de Drifting."
+    },
     "privacy": {
       "copyDiagnostics": "Copier le résumé",
       "crashLogs": "Envoyer automatiquement les diagnostics d’erreur",
@@ -1206,10 +1338,12 @@
     },
     "rail": {
       "about_app": "À propos de Drifting",
+      "agent": "Agent général",
       "appearance": "Apparence",
       "editor": "Éditeur",
       "keys": "Clavier",
-      "language": "Langue"
+      "language": "Langue",
+      "models": "Modèles et API"
     },
     "search_placeholder": "Rechercher dans les réglages…",
     "sync": {

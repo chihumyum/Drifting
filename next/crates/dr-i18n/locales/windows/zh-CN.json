@@ -1,5 +1,15 @@
 {
+  "agentPanel": {
+    "onboarding": {
+      "saveFailed": "无法保存到 Windows 凭据管理器。"
+    }
+  },
   "settings": {
+    "codexSubscription": {
+      "failure": {
+        "storage_failed": "登录信息无法保存到 Windows 凭据管理器。"
+      }
+    },
     "sync": {
       "projection": {
         "reveal": "在文件资源管理器中打开"

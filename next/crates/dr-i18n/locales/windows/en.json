@@ -1,5 +1,15 @@
 {
+  "agentPanel": {
+    "onboarding": {
+      "saveFailed": "Could not save the key to Windows Credential Manager."
+    }
+  },
   "settings": {
+    "codexSubscription": {
+      "failure": {
+        "storage_failed": "The sign-in could not be saved to Windows Credential Manager."
+      }
+    },
     "sync": {
       "projection": {
         "reveal": "Show in File Explorer"

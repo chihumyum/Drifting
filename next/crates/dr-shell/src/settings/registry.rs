@@ -32,6 +32,8 @@ pub enum Section {
     Editor,
     Language,
     Keys,
+    Models,
+    Agent,
     /// 本地数据: what stays on this machine and what leaves it (the 0.1
     /// client's local-data page, with its privacy rows).
     LocalData,
@@ -40,11 +42,13 @@ pub enum Section {
 }
 
 impl Section {
-    pub const ALL: [Section; 6] = [
+    pub const ALL: [Section; 8] = [
         Section::Appearance,
         Section::Editor,
         Section::Language,
         Section::Keys,
+        Section::Models,
+        Section::Agent,
         Section::LocalData,
         Section::About,
     ];
@@ -55,6 +59,8 @@ impl Section {
             Section::Editor => keys::settings::rail::EDITOR,
             Section::Language => keys::settings::rail::LANGUAGE,
             Section::Keys => keys::settings::rail::KEYS,
+            Section::Models => keys::settings::rail::MODELS,
+            Section::Agent => keys::settings::rail::AGENT,
             Section::LocalData => keys::settings::sync::LOCAL_DATA,
             Section::About => keys::settings::rail::ABOUT_APP,
         }
@@ -67,6 +73,7 @@ impl Section {
                 keys::settings::groups::PREFERENCES
             }
             Section::LocalData => keys::settings::groups::CONTROL,
+            Section::Models | Section::Agent => keys::settings::groups::INTELLIGENCE,
             Section::About => keys::settings::groups::ABOUT,
         }
     }
@@ -77,6 +84,8 @@ impl Section {
             Section::Editor => "editor",
             Section::Language => "language",
             Section::Keys => "keys",
+            Section::Models => "models",
+            Section::Agent => "agent",
             Section::LocalData => "local-data",
             Section::About => "about",
         }
@@ -111,6 +120,8 @@ pub enum RowAction {
     MarkdownLocation,
     /// 重新显示 the workspace tour (M24); only when the app has one.
     ReplayGuides,
+    /// A registered module owns the control; metadata remains in this registry.
+    Module,
 }
 
 /// A row of the panel that is not a stored setting: a link, an action, a
@@ -133,6 +144,46 @@ pub const SUPPORT_EMAIL: &str = "support@drifting.cc";
 
 /// Every [`InfoRow`], in panel order.
 pub static INFO_ROWS: &[InfoRow] = &[
+    InfoRow {
+        id: "models.chatgpt",
+        section: Section::Models,
+        group: None,
+        label: keys::settings::codex_subscription::NAME,
+        description: Some(keys::settings::models::providers::OPENAI_CODEX),
+        action: RowAction::Module,
+    },
+    InfoRow {
+        id: "models.deepseek",
+        section: Section::Models,
+        group: None,
+        label: keys::settings::models::providers::DEEPSEEK,
+        description: None,
+        action: RowAction::Module,
+    },
+    InfoRow {
+        id: "models.anthropic",
+        section: Section::Models,
+        group: None,
+        label: keys::settings::models::providers::ANTHROPIC,
+        description: None,
+        action: RowAction::Module,
+    },
+    InfoRow {
+        id: "models.openai",
+        section: Section::Models,
+        group: None,
+        label: keys::settings::models::providers::OPENAI,
+        description: None,
+        action: RowAction::Module,
+    },
+    InfoRow {
+        id: "agent.onboarding",
+        section: Section::Agent,
+        group: None,
+        label: keys::settings::agent::REPLAY_ONBOARDING,
+        description: Some(keys::settings::agent::CHAT_CONFIG_DESC),
+        action: RowAction::Module,
+    },
     // At the top of 本地数据, as in the 0.1 client (LibraryBackupSettings).
     InfoRow {
         id: "local.backup",
@@ -291,6 +342,8 @@ pub struct Opt {
 /// 「给设置注册表用的控件约定」).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Kind {
+    /// The store validates this value; a module registers its richer control.
+    Module(ModuleValue),
     /// `Switch`.
     Switch,
     /// `Segmented` with up to 4 options, `Select` beyond.
@@ -307,8 +360,16 @@ pub enum Kind {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ModuleValue {
+    Choice(&'static [&'static str]),
+    Text { max_bytes: usize },
+    OptionalPositiveU32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Initial {
     Bool(bool),
+    Unsigned(u32),
     Str(&'static str),
     Num(f64),
     /// Decided at run time (the interface language follows the system).
@@ -335,6 +396,18 @@ impl SettingDef {
     /// `value` if it is valid for this setting, else `None`.
     pub fn validate(&self, value: &Value) -> Option<Value> {
         match (self.kind, value) {
+            (Kind::Module(ModuleValue::Choice(options)), Value::String(value)) => options
+                .contains(&value.as_str())
+                .then(|| Value::String(value.clone())),
+            (Kind::Module(ModuleValue::Text { max_bytes }), Value::String(value)) => {
+                (!value.trim().is_empty() && value.len() <= max_bytes)
+                    .then(|| Value::String(value.clone()))
+            }
+            (Kind::Module(ModuleValue::OptionalPositiveU32), Value::Null) => Some(Value::Null),
+            (Kind::Module(ModuleValue::OptionalPositiveU32), Value::Number(number)) => number
+                .as_u64()
+                .filter(|value| (1..=u32::MAX as u64).contains(value))
+                .map(Value::from),
             (Kind::Switch, Value::Bool(_)) => Some(value.clone()),
             (Kind::Choice(options), Value::String(s)) => {
                 options.iter().any(|o| o.value == s).then(|| value.clone())
@@ -353,6 +426,7 @@ impl SettingDef {
     /// The default as a value (`Null` for [`Initial::Computed`]).
     pub fn default_value(&self) -> Value {
         match self.default {
+            Initial::Unsigned(value) => Value::from(value),
             Initial::Bool(b) => Value::Bool(b),
             Initial::Str(s) => Value::from(s),
             Initial::Num(n) => Value::from(n),
@@ -362,6 +436,10 @@ impl SettingDef {
 }
 
 pub const THEME: &str = "appearance.theme";
+pub const AGENT_PROVIDER: &str = "agent.provider";
+pub const AGENT_MODEL: &str = "agent.model";
+pub const AGENT_THINKING: &str = "agent.thinking";
+pub const AGENT_MAX_MODEL_ROUNDS: &str = "agent.max_model_rounds";
 pub const TEXT_SIZE: &str = "appearance.interface_text_size";
 pub const UI_LOCALE: &str = "language.ui_locale";
 pub const FONT_SIZE: &str = "editor.font_size";
@@ -432,6 +510,57 @@ const INDENTS: &[Opt] = &[
 /// Every setting. Defaults are the 0.1 client's (`settings-store.ts`,
 /// `EDITOR_STYLE_DEFAULTS`).
 pub static REGISTRY: &[SettingDef] = &[
+    SettingDef {
+        key: AGENT_PROVIDER,
+        kind: Kind::Module(ModuleValue::Choice(&[
+            "deepseek",
+            "anthropic",
+            "openai",
+            "openai-codex",
+        ])),
+        default: Initial::Str("deepseek"),
+        scope: Scope::Account,
+        section: Section::Agent,
+        group: None,
+        label: keys::settings::models::TITLE,
+        description: None,
+        search: &["provider", "模型", "API"],
+    },
+    SettingDef {
+        key: AGENT_MODEL,
+        kind: Kind::Module(ModuleValue::Text { max_bytes: 1024 }),
+        default: Initial::Str("deepseek-flash"),
+        scope: Scope::Account,
+        section: Section::Agent,
+        group: None,
+        label: keys::agent_panel::config::MODEL,
+        description: None,
+        search: &["model", "模型"],
+    },
+    SettingDef {
+        key: AGENT_THINKING,
+        kind: Kind::Module(ModuleValue::Choice(&[
+            "off", "minimal", "low", "medium", "high", "xhigh", "max", "ultra",
+        ])),
+        default: Initial::Str("off"),
+        scope: Scope::Account,
+        section: Section::Agent,
+        group: None,
+        label: keys::agent_panel::config::EFFORT_LABEL,
+        description: None,
+        search: &["thinking", "reasoning", "思考", "推理"],
+    },
+    SettingDef {
+        key: AGENT_MAX_MODEL_ROUNDS,
+        kind: Kind::Module(ModuleValue::OptionalPositiveU32),
+        default: Initial::Unsigned(50),
+        scope: Scope::Account,
+        section: Section::Agent,
+        group: None,
+        label: keys::settings::agent_limits::ITERATION_LABEL,
+        description: Some(keys::settings::agent_limits::DESC),
+        search: &["limit", "iterations", "上限", "迭代"],
+    },
     SettingDef {
         key: THEME,
         kind: Kind::Choice(THEMES),

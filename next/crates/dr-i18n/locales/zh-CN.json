@@ -1,8 +1,79 @@
 {
   "agentPanel": {
+    "checking": "检查中…",
+    "common": {
+      "none": "无"
+    },
+    "composer": {
+      "answer": "回答",
+      "placeholder": "询问 Agent…（Cmd/Ctrl+Enter）",
+      "send": "发送",
+      "steer": "补充",
+      "stop": "停止"
+    },
+    "config": {
+      "effort": "强度 · {{effort}}",
+      "effortLabel": "推理强度",
+      "model": "模型",
+      "modelUnavailable": "当前目录中没有已选模型，请选择其他模型。"
+    },
+    "context": {
+      "tokens": "{{count}} tokens"
+    },
+    "control": {
+      "allow": {
+        "once": "仅这一次"
+      },
+      "deny": "拒绝",
+      "permissionTitle": "Agent 请求执行操作",
+      "questionTitle": "Agent 需要你的决定",
+      "recoveredTitle": "发现上次中断的等待步骤"
+    },
+    "empty": {
+      "start": "给 Agent 发条消息开始。它可以读写本项目的章节、要素与关系。"
+    },
+    "history": {
+      "empty": "暂无历史对话",
+      "untitled": "未命名"
+    },
+    "newConversation": "新对话",
+    "onboarding": {
+      "connect": "连接模型",
+      "getKey": "获取 API Key",
+      "history": "版本历史",
+      "prompts": {
+        "castCharacters": "建三个主要人物",
+        "commentChapter": "给「{{chapter}}」留两条批注",
+        "completeElement": "补全「{{element}}」的设定",
+        "extractElements": "从「{{chapter}}」里找出人物和地点，建成要素",
+        "interview": "先问我几个问题，帮我理清这个故事",
+        "outline": "帮我搭一个三幕的分章大纲",
+        "relateElements": "理一理{{first}}和{{second}}的关系",
+        "tightenChapter": "把「{{chapter}}」开头一段改紧凑些"
+      },
+      "saveFailed": "无法保存到 Keychain。",
+      "try": "试试"
+    },
     "pending": {
-      "cancelling": "正在停止…"
-    }
+      "cancelling": "正在停止…",
+      "committing": "正在保存…",
+      "now": "思考中…"
+    },
+    "setup": {
+      "openSettings": "前往设置"
+    },
+    "thinking": {
+      "done": "思考过程",
+      "streaming": "思考中…"
+    },
+    "tool": {
+      "result": "结果"
+    },
+    "toolbar": {
+      "history": "历史"
+    },
+    "turnChanges": "本轮改动",
+    "unavailable": "Agent 不可用。"
   },
   "allChapters": {
     "actOrdinal": "第{{n}}幕"
@@ -1055,6 +1126,27 @@
       "viewSource": "查看源码",
       "writeEmail": "写邮件"
     },
+    "agent": {
+      "chatConfigDesc": "服务商、模型与推理强度在右栏 Agent 输入框的配置菜单里选；密钥和 ChatGPT 订阅在「模型与 API」里管理。",
+      "effortOptions": {
+        "high": "高",
+        "low": "低",
+        "max": "最大",
+        "medium": "中",
+        "minimal": "最低",
+        "ultra": "极高",
+        "xhigh": "超高"
+      },
+      "replayOnboarding": "重新显示首次引导",
+      "title": "右栏那位能动手的 Agent。"
+    },
+    "agentLimits": {
+      "desc": "限制每段执行的模型轮数。达到上限后保存进度，已授权的连续任务会自动接着处理；暂停后也可以手动继续。改动对下一段执行生效。",
+      "iterationLabel": "单轮最大模型迭代数",
+      "iterationOption": "{{value}} 次",
+      "unlimited": "无限制",
+      "unlimitedHint": "选择「无限制」时，唯一的刹车是你手动停止。"
+    },
     "appearance": {
       "dark": "深色",
       "guides": "引导",
@@ -1072,8 +1164,38 @@
       "theme": "主题",
       "theme_desc": "浅色、深色，或跟随系统。"
     },
+    "byokProvider": {
+      "available": "可用",
+      "editKey": "编辑密钥",
+      "invalidKey": "密钥无效",
+      "keyPlaceholder": "粘贴密钥...",
+      "notConnected": "未连接",
+      "requestFailed": "请求失败（provider 不可用或网络问题）"
+    },
+    "codexSubscription": {
+      "cancelled": "已取消登录。",
+      "codeHint": "在 OpenAI 设备页面输入；Drifting 会持续检查直到你批准",
+      "codeLabel": "一次性代码",
+      "failure": {
+        "expired": "代码在批准前已过期。",
+        "invalid_response": "OpenAI 返回了意外的响应。",
+        "network_failed": "无法连接到 OpenAI。",
+        "provider_rejected": "OpenAI 拒绝了这次登录。",
+        "storage_failed": "登录信息无法保存到 Keychain。"
+      },
+      "name": "ChatGPT 订阅",
+      "openVerification": "打开验证页面",
+      "signOut": "退出登录",
+      "signedInAs": "已登录"
+    },
     "common": {
-      "open_in_browser": "在浏览器打开"
+      "cancel": "取消",
+      "connect": "连接",
+      "disconnect": "断开",
+      "manageKeys": "管理 API Key",
+      "open_in_browser": "在浏览器打开",
+      "save": "保存",
+      "test_connection": "测试连接"
     },
     "editor": {
       "auto_element_link": "自动要素链接",
@@ -1108,6 +1230,7 @@
     "groups": {
       "about": "关于",
       "control": "控制",
+      "intelligence": "智能",
       "preferences": "偏好"
     },
     "hosted": {
@@ -1173,6 +1296,15 @@
       "ui_locale": "界面语言",
       "ui_locale_desc": "菜单、按钮与提示文字的语言，不影响你写的内容。"
     },
+    "models": {
+      "providers": {
+        "anthropic": "供 General Agent 使用。",
+        "deepseek": "供 General Agent 使用。",
+        "openai": "供 General Agent 使用。",
+        "openaiCodex": "通过 OpenAI 的 Codex 设备登录，用你的 ChatGPT 订阅运行 General Agent，可用模型以你的账号为准；生成设定图也用它。OpenAI 没有向第三方应用开放这条路径，可能随时失效；用量计入你的 ChatGPT 套餐。"
+      },
+      "title": "AI 功能连接的服务。"
+    },
     "privacy": {
       "copyDiagnostics": "复制摘要",
       "crashLogs": "自动发送故障诊断",
@@ -1186,10 +1318,12 @@
     },
     "rail": {
       "about_app": "关于 Drifting",
+      "agent": "General Agent",
       "appearance": "外观",
       "editor": "编辑器",
       "keys": "快捷键",
-      "language": "语言"
+      "language": "语言",
+      "models": "模型与 API"
     },
     "search_placeholder": "搜索设定…",
     "sync": {

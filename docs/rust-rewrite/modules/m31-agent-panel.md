@@ -1,0 +1,191 @@
+# M31 帮手面板与改动显现
+
+交回状态：`codex/m31-agent-panel`；首次实现已验收，待合入最新 main 及 M29 审查修复后填写最终提交；F4 逐字覆盖接口与真模型手测仍待后续。
+
+2026-11-08。实现 [M31 任务书](../handoff/m31-agent-panel.md)，接在
+[M27 运行时](m27-agent-runtime.md)、[M28 模型接入](m28-model-providers.md)、
+[M29 工具](m29-agent-tools.md) 和 F6 右栏登记口上。首次引导沿用
+[旧版「就地连接」约定](../../agent-runtime/agent-onboarding.md)。
+正文墨色沿用 F4d；逐字覆盖显现需要 F4 后续接口，见「待协调」。
+
+## 做了什么（大白话）
+
+- 右栏「帮手」显示对话、输入框、对话列表和上下文用量。可以新建对话、切换已有对话；
+  关闭右栏或切换书不会丢下正在运行的任务，回到对话后从持久记录重建显示。
+- 回复、折叠的推理块、工具调用与结果都跟随运行时更新。提问卡可以点选答案，也可以
+  在输入框回答；运行中发送普通文字成为插话，停下按钮请求在当前工具结算后停下。
+  需要许可的工具显示运行时给出的许可卡，批准只限该次请求。
+- 搜索网页显示 M28 的 `provider_tool` 活动卡，保留查询或网址；只有正常的 HTTP(S)
+  网址能作为外部链接打开。搜索失败不会把已经收到的查询文字清掉。
+- 空对话就是首次引导。没有可用的当前路由时显示 ChatGPT 订阅、DeepSeek、Anthropic、
+  OpenAI 四个连接格；砂印实心表示已连接，空心表示未连接。Key 先通过连接测试，再存入
+  F7 凭据库并切换路由；失败保留原来的 Key 和选择。ChatGPT 使用 M28 的设备码登录。
+- 连上以后显示三条起手请求，选中后作为作者原文放进输入框并发送。第一次发送后等待
+  一轮真实改动；「本轮改动」打开对应对象，「版本历史」打开现有历史面板，打开一次后
+  结束引导。设置可以重新显示首次引导。
+- Key 连接成功后焦点回到对话框；Enter 发送，Shift+Enter 保留换行，输入法组合期间
+  不提交。开始或控制请求正在等待时新写的草稿不会被旧请求的成功回调清掉。
+- 面板只新增并测试 Key、选择已连接的路由或发起 ChatGPT 登录。修改、重测、删除 Key
+  和退出 ChatGPT 账号放在设置的「模型与 API」。模型、思考程度和轮数限制也使用外壳的
+  设置登记表；Key 和 OAuth token 不进入设置或对话。
+- 思考记号直接用 `dr_ui::sand::thinking`：旧资源帧条每 120 ms 往返播放，结束时停在
+  完整星芒；推理标题和运行状态用同一套，减少动态效果时静止。
+- 真实运行时写入已经打开的编辑器后，F4d 从结算收据产生新增／改写墨色；Mirror 来源
+  使用外部修改墨色。指针碰到相应范围才淡出，并记为本机已看过。
+
+## 定下的事
+
+**一个库只有一个帮手服务。** `AgentHub` 由外壳全局持有，`AgentController` 持有 M27 的
+`Runtime`。每个对话同一时间只运行一个作者回合，不同对话可以同时运行；模型和工具仍走
+M27 的调度、读写屏障和结算。面板不保管 `RunHandle`，也不直接发送对话模型请求。
+连接测试是作者明确发起的独立操作，复用 M28 的同一驱动和 HTTP 客户端。
+
+**界面状态可以重建。** `state::ChatState` 按连续的 journal 序号归约流式回复、提问、许可、
+搜索活动、未消费的插话与结算引用。同步对话正文与本机 journal 投影按不可变事件 id 合并，
+最终回复替换流式草稿，不另建一份界面对话数据库。对话列表同时包含收到的 conversation
+文档和本机 session；读取必须带书 id，防止旧面板读取另一本文档的对话。
+
+**恢复不重跑工具。** 服务打开时先执行 M27 的恢复，再接受新回合。中断状态、没有消费的
+插话和已经结算的改动仍可显示。提问和许可绑定运行时完整的 `RequestId`，旧卡片不能回答
+另一个等待请求。回合的上下文用量取最后一次模型报告，与该回合冻结的模型窗口上限比较，
+不是把多轮请求的用量累加成上下文长度。
+
+**换库与退出先结算。** F6 新增统一的 release hook：同步关闭新任务入口，异步取消并等待
+所有已进入的开始、读取和写入，最后释放 `Runtime`／`Workspace` 的强引用。界面线程不做
+`join`。所有 prepare future 都会等完，一个失败不会丢弃另一个还在结算的服务。
+等待期间重复退出或换库被同一 gate 拦住。
+
+准备失败时保留当前库；换库完成或失败重开后，先把当前库放回 `Services`，再通知服务
+重建，最后调用换库完成回调。成功退出不重建服务。换库还会清理已经画出的旧窗口帧，避免
+旧帧的点击回调继续持有编辑器和库，导致 F3 关闭失败。
+
+**凭据和偏好分开。** `agent.provider`、`agent.model`、`agent.thinking`、
+`agent.max_model_rounds` 是账户范围的非秘密偏好；`agent.onboarding` 是设备记忆，
+每本书的 `agent.conversation` 记住选中的对话。生产初始化使用 F7 完整的 `Identity`，
+包括隔离开发实例的凭据服务名。测试使用内存凭据库和本机假服务。
+已有且仍有效的记住会话会结束首次引导；显式重置不会被迁入规则覆盖。
+起手请求使用 F3 的 `recent.list` 节点记录；字数索引未就绪时从 canonical 正文判断
+章节是否有字，空态在书目更新或新建对话后重新读取，避免永久缓存初次的零字数。
+
+**墨色不改正文。** 新增、改写和外部来源分别使用 F4d 既有的绿色、紫色、蓝色映射。
+指针触碰只更新装饰和本机已读台账；正文的 Loro frontiers 不变。M31 不接管 F4 的绘制层，
+也不把结束后的墨色淡入宣称为写入时逐字覆盖。
+
+## 接口
+
+`dr_view_agent::init(&Identity, &mut App)` 是应用入口。
+`init_with`／`init_with_service` 注入驱动、工具和连接服务，供本机假驱动及调试桥验收使用；
+这些入口同样经过正式的 controller 和 Runtime。
+
+纯服务 `AgentController` 不依赖 GPUI 状态，主要接口是：
+
+```rust
+AgentController::new(workspace, driver, tools) // 先恢复；后台执行
+controller.start(Start { /* 冻结的配置、书、对话和作者输入 */ })
+controller.list(&book)
+controller.snapshot(&book, &conversation)
+controller.control(&session)
+controller.subscribe(listener) // 只发唤醒信号，不能在回调中同步读服务
+controller.close()            // 调用时即冻结；返回可等待的共享关闭边界
+```
+
+`list`、`snapshot`、`with_workspace_read` 和 `start` 可能等待 holder，均放在后台执行。
+`close` 返回 `BoxFuture<'static, Result<(), String>>`，等待后旧 controller 的其他克隆
+也不再持有库。面板只订阅唤醒信号，在前台收到信号后发起后台读取；书和服务切换用代次
+丢弃过期的读取结果。
+
+F6 的最小公共协议在 `dr_shell::release`：
+
+```rust
+before_release(cx, |cx| -> LocalBoxFuture<'static, Result<(), String>> { /* 冻结、结算 */ });
+after_release(cx, |cx| { /* 从当前 Services 重建 */ });
+is_releasing(cx);
+```
+
+`CompanionTools` 组合 M29 的 `AgentTools` 和 `ask_user`。后者返回 M27 的
+`ToolOutput::Question`，作者回答继续同一次工具调用；没有另建 CRUD 清单，也没有在
+面板里绕过 M29 的读后写检查。
+
+## 外壳里的挂接点
+
+- `next/app/drifting/src/main.rs` 在外壳初始化后调用 `dr_view_agent::init`。
+- `pages::set_companion` 提供右栏主体和头部；头部放对话列表、新建对话。
+- `AgentHub` 登记 `before_release`／`after_release`；F6 的 `library::replace` 在
+  `let_go` 以前准备，普通 `quit::request` 在原有退出 hooks 以前准备。
+- 设置使用 `settings::set_module_row` 登记四个模型连接区、模型偏好和引导重置；
+  模型选择器沿用 F5 的浮层组件，Key 输入复用安全输入模式。
+- 「本轮改动」沿用外壳导航，「版本历史」沿用 `Workspace::open_history`。正文装饰
+  直接复用 `dr_editor::decor::AgentMarks`，没有第二套墨色台账。
+
+## 测试
+
+测试语料取自 `dr_testkit::seed`，没有真实模型请求、真实 Key 或作者正文。
+
+- `tests/state.rs`：流式块按原顺序重建，最终回复替换草稿；失败搜索保留查询，未知的
+  对话 payload 不被丢弃。
+- `tests/controller.rs`：真实 M27 假驱动经过流式回复、提问、搜索、完成，重建时不依赖
+  面板；同步收到的对话可列出，中断控制可恢复；关闭立即拒绝新回合，取消所有运行，
+  等待已进入的写入收据、被阻塞的读取以及正在 holder 中开始的回合。
+- `tests/connection.rs`：同一 M28 驱动测试临时 Key，成功才保留；失败、不完整响应和
+  空 Key 不破坏原凭据；GPUI 实体在测试完成前不切路由，成功后才切；设备登录取消
+  不留 token；偏好范围和类型有断言。
+- `tests/panel.rs`：真实 GPUI 面板、键盘和 M27 驱动跑通 Enter 发送、Shift+Enter 换行、
+  提问、回答、当前工具后停；切书后旧任务仍可回来控制；开始等待期间新草稿不被清空。
+- `tests/hub.rs`：初始化未装入界面时就关闭，仍等待初始化并释放库；真实换库后从
+  新 `Services` 重建服务，保留旧／新 controller 克隆也不阻止关闭。
+- `src/data.rs`：未重建字数索引的 tiny 种子仍选有正文的章节，最近打开的第二章优先；
+  外链只接受有主机的 HTTP(S) URL。
+- `tests/onboarding.rs`：没有模型、状态未查明、已有对话、已连接三种状态的显示规则；
+  只有发送后打开真实改动才结束引导；迁移／重置和三条起手请求的选择规则。
+- `tests/ink.rs`：先打开真实 `ChapterEditor`，再用真实 Runtime、`CompanionTools` 和
+  M29 做四次成功工具调用，其中两次正文写入各产生一条收据；Mirror 再产生外部来源。
+  断言 New／Changed／External 的实际编辑器范围和非空绘制框，再模拟真实指针触碰，
+  断言中途透明度、最终消失和本机 `agent-marks.json` 已读更新；正文版本不变。
+  此测试验证语义、范围和淡出，不是像素色值比较，也没有逐字覆盖动画断言。
+- `dr-shell/tests/release.rs`：五个 GPUI 测试覆盖全部服务都等完、重复请求被拦、准备失败
+  保留原库、退出失败后可重试、换库成败后的恢复顺序和拒绝关闭时不执行磁盘任务。
+  既有 `tests/workspace.rs` 的退出与真换库测试继续验证原行为。
+
+真实窗口的可重跑场景为 `next/crates/dr-view-agent/scenarios/companion.json`：
+
+```bash
+cargo build -p drifting --example agent-acceptance --features debug-bridge --locked
+cargo drifting workspace scenario crates/dr-view-agent/scenarios/companion.json \
+  --app target/debug/examples/agent-acceptance --out target/acceptance/m31-companion
+```
+
+例程使用临时 tiny 种子库、内存凭据、本机回环短完成服务和 M27 假驱动；四家的
+completion、catalog、OAuth 地址都指向回环。它不进入正式应用，也不默认开启调试桥。
+本轮 **32 步、0 pending 全过**：四个连接格、遮罩输入、通过测试后显示起手请求并聚焦、
+多行输入与发送、提问、回答、真正正文改写、紫色墨迹、网页搜索卡、首次改动入口、
+版本历史、退出码与连接文件清理。截图在上述忽略的输出目录，检查了连接、起手请求、
+提问、改写和历史的真实绘制结果；没有将生成的结果 JSON 当作验收契约提交。
+
+集成时还修正 F5 `TextField` 的安全输入和 `Select` 的单行截断；设置连接视图及定向
+打开请求按窗口隔离。
+
+首次实现基线的 `cargo fmt --all --check`、全工作区 Clippy、`cargo xtask check` 与
+`pnpm public:check` 均通过；全工作区测试以 `RUST_TEST_THREADS=2` 执行，**1706 通过、20 忽略**。审计 0 漏洞、12 项已有提示；14 份已有测量过期，机器并行编译期间
+未重写测量数字。整合最新 main 和 M29 审查修复后再统一复验。
+
+## 待协调
+
+1. **F4：写入时逐字覆盖显现。** 当前 F4d 接收已经提交的 Agent 收据，计算新增／改写
+   的范围并画墨色；它没有向 M31 提供逐字揭示新文本、覆盖旧字或播放期间光标与布局处理
+   的公共接口。M31 已验证提交后的三类墨色和指针淡出，没有修改 F4 所属的绘制代码。
+   需要 F4 提供受正文提交边界约束的播放接口，再由真实 Runtime 写入测试验证；不能
+   通过延迟实际持久写入来模拟动画。
+2. 真模型连接和真实 ChatGPT 登录留给作者手测；自动化仅使用本机假服务。M32 MCP、
+   M30 长任务和 M33 生图不在本模块另开产品入口，继续组合共享 Runtime 的工具和控制。
+3. 最新队列的第二十／二十一批反馈已收到：M29 的隐藏关系删除、指定关系 id 覆盖与
+   新构想转换保护必须随依赖分支合入；M31 最终接收以该修复后的整合测试为准。
+
+## 代码位置
+
+- `next/crates/dr-view-agent/src/panel.rs`：面板、提问／许可／搜索卡、输入、改动导航。
+- `src/controller.rs`、`src/hub.rs`、`src/state.rs`：库级服务、外壳生命周期、持久记录投影。
+- `src/connection.rs`、`src/connection_view.rs`、`src/settings.rs`：连接测试、模型选择、设置。
+- `src/onboarding.rs`、`src/data.rs`、`src/tools.rs`、`src/prompt.rs`：首次引导、起手请求数据、
+  运行时提问工具、以当前书为界的系统指令。
+- `next/crates/dr-shell/src/release.rs`、`library.rs`、`quit.rs`：统一异步释放边界。
+- `next/crates/dr-view-agent/tests/`、`next/crates/dr-shell/tests/release.rs`：上述契约与集成测试。

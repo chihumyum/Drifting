@@ -1,0 +1,40 @@
+[package]
+name = "dr-view-agent"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "M31 Agent companion, model connections and settled run lifecycle"
+
+[dependencies]
+anyhow.workspace = true
+chrono.workspace = true
+dr-agent.workspace = true
+dr-agent-providers.workspace = true
+dr-agent-tools.workspace = true
+dr-doc.workspace = true
+dr-i18n.workspace = true
+dr-model.workspace = true
+dr-platform.workspace = true
+dr-shell.workspace = true
+dr-store.workspace = true
+dr-ui.workspace = true
+dr-workspace.workspace = true
+futures.workspace = true
+gpui.workspace = true
+log.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+url.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+dr-editor.workspace = true
+dr-testkit.workspace = true
+gpui = { workspace = true, features = ["test-support"] }
+gpui-prose.workspace = true
+gpui_platform.workspace = true
+tempfile.workspace = true

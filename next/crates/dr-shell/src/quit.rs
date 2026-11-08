@@ -4,7 +4,9 @@
 //! callbacks 200 ms in all (`SHUTDOWN_TIMEOUT`); `app.run` never returns, so
 //! nothing in `main` is dropped. So the work happens before the quit:
 //!
-//! 1. [`request`] (⌘Q, the menu) hides the app first when the app asked
+//! 1. [`request`] (⌘Q, the menu) first awaits the shared release hooks,
+//!    keeping the app visible and usable if preparation fails. It then
+//!    hides the app when the app asked
 //!    for it with [`hide_first`] (F7: the hooks may take a moment, an import
 //!    finishing its book up to two seconds, and a window standing frozen
 //!    meanwhile looks hung; GPUI's test platform cannot hide, so tests and
@@ -55,7 +57,23 @@ pub fn before_quit(cx: &mut App, hook: impl FnMut(&mut App) + 'static) {
 /// Saves, hands over, then quits. Runs once the current dispatch is over:
 /// ⌘Q arrives while a window is checked out, and saving needs every window.
 pub fn request(cx: &mut App) {
-    cx.defer(run);
+    let Some(prepare) = crate::release::begin(cx) else {
+        return;
+    };
+    cx.defer(move |cx| {
+        cx.spawn(async move |cx| {
+            let prepared = prepare.await;
+            cx.update(|cx| match prepared {
+                Ok(()) => run(cx),
+                Err(error) => {
+                    crate::release::finish(cx);
+                    log::error!("could not prepare to quit: {error}");
+                    crate::workspace::with_workspace(cx, move |ws, _, cx| ws.toast(error, cx));
+                }
+            });
+        })
+        .detach();
+    });
 }
 
 fn run(cx: &mut App) {

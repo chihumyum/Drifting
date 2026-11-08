@@ -66,6 +66,12 @@ actions!(
 
 pub const KEY_CONTEXT: &str = "DrTextField";
 
+// One bullet per UTF-16 unit keeps the operating system's ranges unchanged,
+// including pasted non-BMP characters; no source character reaches shaping.
+fn mask(text: &str) -> String {
+    "•".repeat(text.encode_utf16().count())
+}
+
 /// Every dr-ui input's key bindings, this field's and the multi-line
 /// [`super::TextArea`]'s (each in its own key context); [`crate::init`]
 /// registers them, and so does a host that clears the keymap (F6's
@@ -102,13 +108,26 @@ fn own_bindings() -> Vec<KeyBinding> {
     ]
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum FieldEvent {
     /// The committed text changed.
     Changed(String),
     Submitted(String),
     Cancelled,
     Blurred,
+}
+
+// Input events can originate in a credential field. Debug output must not
+// accidentally copy their contents into diagnostics or assertion failures.
+impl std::fmt::Debug for FieldEvent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Changed(_) => "Changed(..)",
+            Self::Submitted(_) => "Submitted(..)",
+            Self::Cancelled => "Cancelled",
+            Self::Blurred => "Blurred",
+        })
+    }
 }
 
 pub struct TextField {
@@ -121,6 +140,7 @@ pub struct TextField {
     small: bool,
     mono: bool,
     bare: bool,
+    secure: bool,
     trailing: Option<crate::components::Build>,
     last_layout: Option<ShapedLine>,
     last_bounds: Option<Bounds<Pixels>>,
@@ -171,6 +191,7 @@ impl TextField {
             small: false,
             mono: false,
             bare: false,
+            secure: false,
             trailing: None,
             last_layout: None,
             last_bounds: None,
@@ -203,6 +224,44 @@ impl TextField {
     pub fn mono(mut self) -> Self {
         self.mono = true;
         self
+    }
+
+    /// A credential input. Paint and the system text-input service receive
+    /// masked text, and Copy/Cut cannot put the credential on the clipboard.
+    /// The owner still receives committed text through FieldEvent and text().
+    pub fn secure(mut self, secure: bool) -> Self {
+        self.secure = secure;
+        self
+    }
+
+    pub fn is_secure(&self) -> bool {
+        self.secure
+    }
+
+    /// Safe for a debug bridge or any other visible text projection.
+    pub fn display_text(&self) -> String {
+        if self.secure {
+            mask(self.composer.text())
+        } else {
+            self.composer.text().to_owned()
+        }
+    }
+
+    fn display_index(&self, index: usize) -> usize {
+        if self.secure {
+            self.composer.to_utf16(index) * '•'.len_utf8()
+        } else {
+            index
+        }
+    }
+
+    fn source_index(&self, index: usize) -> usize {
+        if self.secure {
+            let at = index / '•'.len_utf8();
+            self.composer.range_from_utf16(&(at..at)).start
+        } else {
+            index
+        }
     }
 
     /// No frame: the words alone, in the type of the text around them.
@@ -379,6 +438,9 @@ impl TextField {
     }
 
     fn copy(&mut self, _: &Copy, _: &mut Window, cx: &mut Context<Self>) {
+        if self.secure {
+            return;
+        }
         let text = self.composer.selected_text();
         if !text.is_empty() {
             cx.write_to_clipboard(ClipboardItem::new_string(text.to_string()));
@@ -386,6 +448,9 @@ impl TextField {
     }
 
     fn cut(&mut self, _: &Cut, window: &mut Window, cx: &mut Context<Self>) {
+        if self.secure {
+            return;
+        }
         let text = self.composer.selected_text().to_string();
         if !text.is_empty() {
             cx.write_to_clipboard(ClipboardItem::new_string(text));
@@ -415,7 +480,7 @@ impl TextField {
         if self.composer.text().is_empty() {
             return 0;
         }
-        line.closest_index_for_x(x - bounds.left() + px(self.scroll_x))
+        self.source_index(line.closest_index_for_x(x - bounds.left() + px(self.scroll_x)))
     }
 
     fn on_mouse_down(
@@ -468,7 +533,7 @@ impl EntityInputHandler for TextField {
     ) -> Option<String> {
         let (text, range) = self.composer.text_for_utf16(range16);
         actual.replace(range);
-        Some(text)
+        Some(if self.secure { mask(&text) } else { text })
     }
 
     fn selected_text_range(
@@ -537,11 +602,11 @@ impl EntityInputHandler for TextField {
         let shift = px(self.scroll_x);
         Some(Bounds::from_corners(
             point(
-                bounds.left() + layout.x_for_index(range.start) - shift,
+                bounds.left() + layout.x_for_index(self.display_index(range.start)) - shift,
                 bounds.top(),
             ),
             point(
-                bounds.left() + layout.x_for_index(range.end) - shift,
+                bounds.left() + layout.x_for_index(self.display_index(range.end)) - shift,
                 bounds.bottom(),
             ),
         ))
@@ -556,7 +621,7 @@ impl EntityInputHandler for TextField {
         let local = self.last_bounds?.localize(&at)?;
         let layout = self.last_layout.as_ref()?;
         let index = layout.closest_index_for_x(local.x + px(self.scroll_x));
-        Some(self.composer.to_utf16(index))
+        Some(self.composer.to_utf16(self.source_index(index)))
     }
 
     fn text_length_utf16(&mut self, _: &mut Window, _: &mut Context<Self>) -> Option<usize> {
@@ -749,7 +814,7 @@ impl gpui::Element for LineElement {
         let (text, color): (SharedString, _) = if composer.text().is_empty() {
             (field.placeholder.clone(), p.ink(4).solid())
         } else {
-            (composer.text().to_string().into(), style.color)
+            (field.display_text().into(), style.color)
         };
         let run = TextRun {
             len: text.len(),
@@ -759,7 +824,10 @@ impl gpui::Element for LineElement {
             underline: None,
             strikethrough: None,
         };
-        let runs = match composer.marked() {
+        let runs = match composer
+            .marked()
+            .map(|m| field.display_index(m.start)..field.display_index(m.end))
+        {
             Some(m) if !composer.text().is_empty() => [
                 TextRun {
                     len: m.start,
@@ -789,7 +857,7 @@ impl gpui::Element for LineElement {
             .text_system()
             .shape_line(text, font_size, &runs, None);
         // Keep the caret in view.
-        let cursor = composer.cursor();
+        let cursor = field.display_index(composer.cursor());
         let cursor_x = f32::from(line.x_for_index(cursor));
         let width = f32::from(bounds.size.width);
         let mut scroll = field.scroll_x;
@@ -802,6 +870,7 @@ impl gpui::Element for LineElement {
         scroll = scroll.max(0.0);
         let shift = px(scroll);
         let selection = composer.selection();
+        let selection = field.display_index(selection.start)..field.display_index(selection.end);
         let (selection_quad, caret) = if selection.is_empty() {
             let caret = (self.focused && field.caret_on && !field.disabled).then(|| {
                 fill(

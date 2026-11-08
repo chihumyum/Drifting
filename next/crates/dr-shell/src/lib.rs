@@ -39,6 +39,7 @@ pub mod notifications;
 pub mod pages;
 pub mod panes;
 pub mod quit;
+pub mod release;
 pub mod settings;
 pub mod strings;
 pub mod workspace;

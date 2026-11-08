@@ -1,5 +1,15 @@
 {
+  "agentPanel": {
+    "onboarding": {
+      "saveFailed": "No se pudo guardar la clave en el Administrador de credenciales de Windows."
+    }
+  },
   "settings": {
+    "codexSubscription": {
+      "failure": {
+        "storage_failed": "No se pudo guardar la sesión en el Administrador de credenciales de Windows."
+      }
+    },
     "sync": {
       "projection": {
         "reveal": "Mostrar en el Explorador de archivos"

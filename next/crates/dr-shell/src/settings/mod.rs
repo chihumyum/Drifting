@@ -9,6 +9,7 @@ pub mod panel;
 pub mod registry;
 pub mod store;
 
+use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -22,6 +23,64 @@ use crate::{ShellInfo, Strings, appearance};
 
 /// How long after a change the file is written.
 pub const SAVE_DELAY: Duration = Duration::from_millis(300);
+
+type MakeModuleRow = Rc<dyn Fn(&mut Window, &mut App) -> AnyElement>;
+
+#[derive(Default)]
+struct ModuleRows(HashMap<&'static str, MakeModuleRow>);
+impl Global for ModuleRows {}
+
+/// Registers the control of a declared module row. The declaration remains
+/// the single source for type validation, account scope, ordering and search.
+pub fn set_module_row(
+    cx: &mut App,
+    id: &'static str,
+    make: impl Fn(&mut Window, &mut App) -> AnyElement + 'static,
+) {
+    assert!(
+        registry::find(id).is_some_and(|def| matches!(def.kind, registry::Kind::Module(_)))
+            || registry::INFO_ROWS
+                .iter()
+                .any(|row| row.id == id && row.action == registry::RowAction::Module),
+        "a module settings row must be declared"
+    );
+    cx.default_global::<ModuleRows>()
+        .0
+        .insert(id, Rc::new(make));
+}
+
+pub(crate) fn module_row(id: &str, window: &mut Window, cx: &mut App) -> Option<AnyElement> {
+    let make = cx.try_global::<ModuleRows>()?.0.get(id)?.clone();
+    Some(make(window, cx))
+}
+
+pub(crate) fn has_module_section(section: registry::Section, cx: &App) -> bool {
+    let Some(rows) = cx.try_global::<ModuleRows>() else {
+        return false;
+    };
+    registry::in_section(section).any(|def| rows.0.contains_key(def.key))
+        || registry::info_in(section).any(|row| rows.0.contains_key(row.id))
+}
+
+#[derive(Default)]
+struct RequestedSection(Option<(gpui::WindowId, registry::Section)>);
+impl Global for RequestedSection {}
+
+/// Opens a settings section, including when the panel is already open.
+pub fn open_section(section: registry::Section, window: &mut Window, cx: &mut App) {
+    cx.default_global::<RequestedSection>().0 = Some((window.window_handle().window_id(), section));
+    window.dispatch_action(Box::new(crate::actions::OpenSettings), cx);
+    window.refresh();
+}
+
+pub(crate) fn take_requested_section(window: &Window, cx: &mut App) -> Option<registry::Section> {
+    let requested = &mut cx.default_global::<RequestedSection>().0;
+    if requested.is_some_and(|(id, _)| id == window.window_handle().window_id()) {
+        requested.take().map(|(_, section)| section)
+    } else {
+        None
+    }
+}
 
 /// The update row of 关于 (M42, `dr-view-update`): the words under its
 /// label (what the last check found) and its button.

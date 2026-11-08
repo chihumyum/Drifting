@@ -39,6 +39,71 @@ impl Render for Host {
 }
 
 #[gpui::test]
+fn secure_field_masks_paint_and_ime_and_never_copies_the_secret(cx: &mut TestAppContext) {
+    cx.update(|cx| cx.bind_keys(dr_ui::input::field::bindings()));
+    let (host, cx) = cx.add_window_view(|window, cx| {
+        let mut host = Host::new(window, cx);
+        host.field = cx.new(|cx| {
+            TextField::new("credential", window, cx)
+                .secure(true)
+                .with_text("synthetic-密🔑")
+        });
+        host
+    });
+    let field = host.read_with(cx, |host, _| host.field.clone());
+    cx.update(|window, cx| {
+        window.focus(&field.focus_handle(cx), cx);
+        cx.write_to_clipboard(gpui::ClipboardItem::new_string("unchanged".into()));
+    });
+    cx.run_until_parked();
+    cx.update(|window, cx| window.draw(cx).clear(cx));
+    let length = "synthetic-密🔑".encode_utf16().count();
+    assert_eq!(
+        field.read_with(cx, |field, _| field.display_text()),
+        "•".repeat(length)
+    );
+    cx.update(|window, cx| {
+        field.update(cx, |field, cx| {
+            let mut actual = None;
+            assert_eq!(
+                field.text_for_range(0..length, &mut actual, window, cx),
+                Some("•".repeat(length))
+            );
+            assert_eq!(actual, Some(0..length));
+            field.select_all_text(cx);
+        })
+    });
+    cx.simulate_keystrokes(if cfg!(target_os = "macos") {
+        "cmd-c cmd-x"
+    } else {
+        "ctrl-c ctrl-x"
+    });
+    assert_eq!(
+        field.read_with(cx, |field, _| field.text()),
+        "synthetic-密🔑"
+    );
+    assert_eq!(
+        cx.update(|_, cx| cx.read_from_clipboard().and_then(|item| item.text())),
+        Some("unchanged".into())
+    );
+    assert!(
+        !format!("{:?}", FieldEvent::Submitted("synthetic-secret".into()))
+            .contains("synthetic-secret")
+    );
+    cx.update(|window, cx| {
+        field.update(cx, |field, cx| {
+            field.replace_and_mark_text_in_range(None, "秘密", Some(2..2), window, cx);
+            let mut actual = None;
+            assert_eq!(
+                field.text_for_range(0..2, &mut actual, window, cx),
+                Some("••".into())
+            );
+        })
+    });
+    cx.update(|window, cx| window.draw(cx).clear(cx));
+}
+
+#[gpui::test]
 fn composition_is_shown_but_never_reported(cx: &mut TestAppContext) {
     cx.update(|cx| cx.bind_keys(dr_ui::input::field::bindings()));
     let (host, cx) = cx.add_window_view(Host::new);
