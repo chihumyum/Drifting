@@ -58,6 +58,7 @@ impl Root {
                 EditorOptions::default().cursor_blink
             },
             ime_log: std::env::var_os("PROSE_BENCH_IME_LOG").is_some(),
+            ..EditorOptions::default()
         };
         let editor = cx.new(|cx| {
             let mut editor =

@@ -184,7 +184,11 @@ pub struct Row {
     pub squeeze: f32,
 }
 
-/// Breaks one shaped paragraph into rows.
+/// A line break inside a paragraph (Shift-Enter; a table cell's line).
+pub const LINE_SEPARATOR: char = '\u{2028}';
+
+/// Breaks one shaped paragraph into rows. A [`LINE_SEPARATOR`] always ends
+/// its row.
 ///
 /// - `glyphs`: `(byte, x)` of each glyph cluster in the unwrapped line, in
 ///   byte order (x is where the cluster starts; one entry per cluster);
@@ -201,12 +205,36 @@ pub fn break_rows(
 ) -> Vec<Row> {
     let opportunities = break_opportunities(text);
     let can_start = |byte: usize| opportunities.binary_search(&byte).is_ok();
+    // A line separator (U+2028, a line break inside a paragraph) always
+    // ends its row (UAX #14's mandatory break): rows start right after each.
+    let mandatory: Vec<usize> = text
+        .match_indices(LINE_SEPARATOR)
+        .map(|(b, s)| b + s.len())
+        .collect();
+    let mut next_mandatory = 0;
     let mut rows = Vec::new();
     let (mut start, mut start_x) = (0usize, 0f32);
     let mut candidate: Option<(usize, f32)> = None;
     let mut ix = 0;
     while ix < glyphs.len() {
         let (byte, x) = glyphs[ix];
+        if let Some(&at) = mandatory.get(next_mandatory)
+            && byte >= at
+        {
+            next_mandatory += 1;
+            if at > start {
+                rows.push(Row {
+                    range: start..at,
+                    start_x,
+                    hang: 0.,
+                    squeeze: 0.,
+                });
+                start = at;
+                start_x = x;
+                candidate = None;
+            }
+            continue;
+        }
         let c = text[byte..].chars().next().unwrap_or(' ');
         if byte > start && can_start(byte) {
             candidate = Some((byte, x));
@@ -251,6 +279,19 @@ pub fn break_rows(
             }
         }
         ix += 1;
+    }
+    // Separators after the last glyph (a trailing break): its rows end there.
+    for &at in &mandatory[next_mandatory..] {
+        if at > start {
+            rows.push(Row {
+                range: start..at,
+                start_x,
+                hang: 0.,
+                squeeze: 0.,
+            });
+            start = at;
+            start_x = line_width;
+        }
     }
     // The last row; squeezes are settled below.
     let end_x = line_width;
@@ -328,6 +369,33 @@ pub fn punctuation_squeeze(text: &str, em: f32) -> Vec<(usize, f32)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_line_separator_always_ends_its_row() {
+        let text = "听见两声\u{2028}第二声";
+        let (g, width) = glyphs(text, 10.);
+        let rows = break_rows(text, &g, width, 500., 10., Overflow::Hang);
+        let parts: Vec<&str> = rows.iter().map(|r| &text[r.range.clone()]).collect();
+        assert_eq!(parts, ["听见两声\u{2028}", "第二声"]);
+        let after = g
+            .iter()
+            .find(|(b, _)| text[*b..].starts_with('第'))
+            .unwrap()
+            .1;
+        assert_eq!(rows[1].start_x, after, "the next row starts after it");
+        // Two in a row, and one at the end: an empty row each.
+        let text = "甲\u{2028}\u{2028}乙\u{2028}";
+        let (g, width) = glyphs(text, 10.);
+        let rows = break_rows(text, &g, width, 500., 10., Overflow::Hang);
+        let parts: Vec<&str> = rows.iter().map(|r| &text[r.range.clone()]).collect();
+        assert_eq!(parts, ["甲\u{2028}", "\u{2028}", "乙\u{2028}", ""]);
+        // Wrapping still applies inside each row.
+        let text = "一二三四五\u{2028}六";
+        let (g, width) = glyphs(text, 10.);
+        let rows = break_rows(text, &g, width, 30., 10., Overflow::Hang);
+        let parts: Vec<&str> = rows.iter().map(|r| &text[r.range.clone()]).collect();
+        assert_eq!(parts, ["一二三", "四五\u{2028}", "六"]);
+    }
 
     #[test]
     fn chinese_line_breaking_rules() {

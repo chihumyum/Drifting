@@ -84,6 +84,10 @@ pub(crate) enum ParagraphMove {
 
 impl ProseEditor {
     pub(crate) fn move_horizontal(&mut self, forward: bool, extend: bool, cx: &mut Context<Self>) {
+        // Off a selected embed (`objects.rs`).
+        if !extend && self.step_off_embed(forward, cx) {
+            return;
+        }
         let mut sel = self.selection;
         let chapters = self.book.chapters.len();
         let doc = &mut self.book.chapters[sel.chapter].doc;
@@ -160,6 +164,10 @@ impl ProseEditor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        // Off a selected embed (`objects.rs`).
+        if !extend && self.step_off_embed(down, cx) {
+            return;
+        }
         let mut sel = self.selection;
         let chapter = sel.chapter;
         let (line_ix, inner) = self.book.chapters[chapter].doc.locate(sel.head);
@@ -205,6 +213,13 @@ impl ProseEditor {
                 Some((c, l, if down { 0 } else { rows - 1 }))
             })
         };
+        // Onto an embed: its host may take the caret inside (`objects.rs`).
+        if !extend
+            && let Some((c, l, _)) = target
+            && self.enter_embed(c, l, !down, window, cx)
+        {
+            return;
+        }
         let (offset, affinity, target_chapter) = match target {
             Some((c, l, r)) => {
                 let Some((layout, _)) = self.line_layout(c, l, window) else {

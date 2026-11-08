@@ -4,12 +4,12 @@
   "milestone": "m05-m1",
   "generatedBy": "cargo run --release -p dr-editor --example book-bench -- --write",
   "inputs": {
-    "crates/dr-doc": "129aae42498f0b725ffdb4d7e2390a367544d991adf78d0e0475b623d4ebc8c0",
-    "crates/dr-editor": "95b14b3e4b31febf3846824a991b00ba780ab6d1c4947e0f0ba91099c7be7a7b",
-    "crates/dr-store": "3cdc85b5041c5f461c4ce528b0a752098d9eb15e6752b5b0c560a6a591cbbd1a",
+    "crates/dr-doc": "379328868d7efb39d391515b5655ff4438456eb5a8fcffa483425f7ac3598635",
+    "crates/dr-editor": "1b5c624ce375471a2f86c15ef1ce0fc2e2f183087693fd916fcd1b63924d09e1",
+    "crates/dr-store": "691facbf77899ae62a8013e758b0df17a96909ccb6b16e3f2c13660ada41d8ec",
     "crates/dr-testkit/src/seed": "a01def93a860c30e8b9ab3d7371b1766a53a14bf5c3e885821324d5c222caa6f",
-    "crates/dr-workspace": "a027003030fe2c9fdfe6d410c975a80fd44a0d1e05c2408c33f3a5c635a638d8",
-    "crates/gpui-prose": "cf8746d1bb8230a31d13c2c0e492b92029885886e7badedafc742afe906dc9f7"
+    "crates/dr-workspace": "0978d5b2438ec5be356987c346a7578730f18b3388b2abdeb561d4496e47f19a",
+    "crates/gpui-prose": "c997db126cb05dfd816abd3eeaa415291ba12c16ffdbda808b8669ae32ed8f23"
   },
   "corpus": {
     "preset": "heavy",
@@ -111,7 +111,7 @@
     "os": "macos",
     "osVersion": "27.0.1",
     "arch": "aarch64",
-    "loadAverage1m": 19.13,
+    "loadAverage1m": 3.76,
     "profile": "release"
   },
   "results": {
@@ -122,8 +122,8 @@
       800.0
     ],
     "load_average_1m": {
-      "start": 18.66,
-      "end": 19.13
+      "start": 3.76,
+      "end": 3.76
     },
     "conditions": {
       "busy_above_load_1m": 2.0,
@@ -131,97 +131,84 @@
     },
     "open_book": {
       "to_first_frame_ms": [
-        132.358,
-        27.798,
-        30.716
+        88.718,
+        37.954,
+        38.278
       ],
-      "cold_ms": 132.358,
+      "cold_ms": 88.718,
       "sessions_and_documents_ms": [
-        128.516,
-        24.038,
-        24.793
+        77.068,
+        26.23,
+        26.357
       ],
       "first_frame_ms": [
-        0.344,
-        0.327,
-        0.359
+        0.153,
+        0.158,
+        0.184
       ],
-      "max_ms": 132.358,
+      "max_ms": 88.718,
       "budget_ms": 200.0
     },
     "jump": {
       "first_frame_ms": [
-        8.231,
-        2.262,
-        8.016,
-        2.127,
-        6.243,
-        7.333,
-        1.005
+        4.288,
+        0.441,
+        2.723,
+        0.44,
+        1.879,
+        2.793,
+        0.442
       ],
       "settled_ms": [
-        9.019,
-        3.182,
-        9.007,
-        2.896,
-        7.022,
-        7.692,
-        1.351
+        4.442,
+        0.586,
+        2.875,
+        0.602,
+        2.023,
+        2.944,
+        0.594
       ],
-      "to_last_max_ms": 8.231,
+      "to_last_max_ms": 4.288,
       "landed_in_the_chapter": true,
       "budget_ms": 150.0
     },
     "scroll_full_book": {
-      "frames": 3337,
+      "frames": 3332,
       "reached_end": true,
       "ended_in_last_chapter": true,
-      "seconds": 8.133,
+      "seconds": 1.937,
       "viewport_px": 800.0,
       "step_px": 400.0,
       "frame": {
-        "n": 3337,
-        "p50": 1.799,
-        "p95": 6.136,
-        "max": 31.198,
-        "mean": 2.433
+        "n": 3332,
+        "p50": 0.579,
+        "p95": 0.649,
+        "max": 1.031,
+        "mean": 0.581
       },
       "frame_cpu": {
-        "n": 3337,
-        "p50": 1.45,
-        "p95": 3.055,
-        "max": 4.139,
-        "mean": 1.758
+        "n": 3332,
+        "p50": 0.579,
+        "p95": 0.649,
+        "max": 0.955,
+        "mean": 0.58
       },
-      "frames_over_16_7_ms": 2,
-      "slowest": [
-        {
-          "ms": 31.198,
-          "cpu_ms": 3.616,
-          "frame": 59,
-          "chapter": 1
-        },
-        {
-          "ms": 21.71,
-          "cpu_ms": 2.123,
-          "frame": 1727,
-          "chapter": 48
-        }
-      ],
+      "frames_over_16_7_ms": 0,
+      "slowest": [],
       "pending_tasks_between_frames": {
-        "n": 3338,
-        "p50": 0.002,
-        "p95": 0.003,
-        "max": 0.03,
-        "mean": 0.002
+        "n": 3333,
+        "p50": 0.0,
+        "p95": 0.0,
+        "max": 0.0,
+        "mean": 0.0
       },
       "budget_p95_ms": 16.7
     },
     "memory_mb": {
-      "start": 141.7,
-      "book_open": 174.9,
-      "before_scroll": 175.9,
-      "after_scroll": 187.7,
+      "start": 140.6,
+      "book_open": 185.5,
+      "before_scroll": 186.6,
+      "after_scroll": 189.1,
       "budget_after_scroll": 800.0
     }
   }

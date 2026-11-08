@@ -142,6 +142,10 @@ pub struct EditorOptions {
     pub cursor_blink: Option<Duration>,
     /// Print every input-method call to stderr (real-IME testing).
     pub ime_log: bool,
+    /// A small editor that grows with its text instead of scrolling (a
+    /// table cell): no title rows, no scrollbar, every paragraph drawn in a
+    /// plain column (no virtual list), as tall as they are.
+    pub fit_content: bool,
 }
 
 impl Default for EditorOptions {
@@ -150,6 +154,7 @@ impl Default for EditorOptions {
             present_now: false,
             cursor_blink: Some(Duration::from_millis(530)),
             ime_log: false,
+            fit_content: false,
         }
     }
 }
