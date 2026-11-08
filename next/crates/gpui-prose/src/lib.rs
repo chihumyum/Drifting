@@ -32,6 +32,7 @@
 //! ICU4X segmentation behind the default `icu` feature.
 
 pub mod editor;
+pub mod embeds;
 pub mod extension;
 pub mod input;
 pub mod layout;
@@ -43,6 +44,7 @@ pub mod style;
 pub mod text;
 
 pub use editor::{EditorEvent, HostStep, ProseEditor};
+pub use embeds::EmbedViews;
 pub use extension::{InputRule, ProseExtension, Typed};
 pub use input::{Composition, Selection, bind_keys};
 pub use layout::{Book, Chapter};

@@ -37,6 +37,10 @@ impl ProseEditor {
         }
         match self.book.item(ix) {
             Item::Title(chapter) => {
+                // A small editor that fits its text has no title rows.
+                if self.options.fit_content {
+                    return crate::slots::slot_item(ix, self.heights.clone(), None);
+                }
                 if let Some(slots) = self.slots.clone()
                     && let Some(head) = slots.head(chapter, window, cx)
                 {
@@ -66,6 +70,10 @@ impl ProseEditor {
                     .into_any_element()
             }
             Item::Line(chapter, line) => {
+                // An embed the host draws (`embeds.rs`).
+                if let Some(embed) = self.render_embed(ix, chapter, line, window, cx) {
+                    return embed;
+                }
                 let element = self.paragraph(ix, chapter, line, cx);
                 if std::mem::take(&mut self.paint.animating) {
                     window.request_animation_frame();

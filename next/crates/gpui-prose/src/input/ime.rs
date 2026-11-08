@@ -378,6 +378,9 @@ impl EntityInputHandler for ProseEditor {
         cx: &mut Context<Self>,
     ) {
         self.log_ime(format_args!("replace_text_in_range({range16:?}, {text:?})"));
+        // Typing with an embed selected types after it (`objects.rs`).
+        let mut range16 = range16;
+        self.leave_embed_for_text(&mut range16, window, cx);
         if self.composition.is_none() && self.selection.spans_chapters() {
             // Typing over a selection across chapters replaces all of it
             // (the input method only sees the caret's chapter, so a range it
@@ -425,7 +428,11 @@ impl EntityInputHandler for ProseEditor {
         self.log_ime(format_args!(
             "replace_and_mark_text_in_range({range16:?}, {new_text:?}, {new_selected_range16:?})"
         ));
+        let mut range16 = range16;
         if self.composition.is_none() {
+            // Composing with an embed selected composes after it
+            // (`objects.rs`).
+            self.leave_embed_for_text(&mut range16, window, cx);
             // Losing focus from here on must also clear the system's marked
             // text (input/system_ime.rs).
             self.ensure_system_ime(window);

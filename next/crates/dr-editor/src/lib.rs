@@ -23,22 +23,28 @@ pub mod assist;
 pub mod book;
 pub mod convert;
 pub mod decor;
+pub mod embeds;
 pub mod entity_links;
+pub mod highlight;
 pub mod link_card;
 pub mod links;
+pub mod material;
 pub mod page;
 pub mod rules;
 pub mod settings;
 pub mod source;
+pub mod table;
 pub mod todo;
 pub mod view;
 
 pub use book::{BookEditor, BookEditorEvent, PreparedBook, ReadingPosition};
+pub use embeds::{NoteEmbeds, NoteEvent};
 pub use links::{DriftingExtension, LinkTargets};
 pub use page::{ActPage, PageChrome, PageInfo, PageKind};
 pub use settings::EditorSettings;
 pub use source::SessionSource;
 pub use todo::TodoMarker;
 pub use view::{
-    ChapterEditor, ChapterEditorEvent, CommentRequested, EntityLinkOpened, PositionLinkCopied,
+    ChapterEditor, ChapterEditorEvent, CommentRequested, EntityLinkOpened, MaterialOpened,
+    PositionLinkCopied,
 };

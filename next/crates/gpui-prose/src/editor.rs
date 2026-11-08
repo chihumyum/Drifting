@@ -82,6 +82,8 @@ pub struct ProseEditor {
     pub(crate) extension: Option<Rc<dyn ProseExtension>>,
     /// The host's elements at each chapter's head and end.
     pub(crate) slots: Option<Rc<dyn crate::slots::ChapterSlots>>,
+    /// The host's elements for embed paragraphs.
+    pub(crate) embeds: Option<Rc<dyn crate::embeds::EmbedViews>>,
     /// The ancestor opacity the editor was last drawn under, when the host
     /// says ([`ProseEditor::element_at_opacity`]).
     pub(crate) drawn_opacity: Cell<Option<f32>>,
@@ -157,6 +159,7 @@ impl ProseEditor {
             hooks: None,
             extension: None,
             slots: None,
+            embeds: None,
             drawn_opacity: Cell::new(None),
             input: Default::default(),
             paint: Default::default(),
@@ -712,6 +715,8 @@ impl ProseEditor {
         sel.anchor = sel
             .anchor
             .min(self.book.chapters[sel.anchor_chapter].doc.max_cursor());
+        // A caret never rests inside an embed (`input/objects.rs`).
+        self.select_embed_under_caret();
     }
 
     /// Runs an edit the editor makes on the selected chapter, then syncs.
@@ -877,7 +882,13 @@ impl ProseEditor {
     /// (replayed untouched when nothing in them changed) with the caret layer
     /// on top, so a blink repaints a 2 px quad instead of every paragraph.
     pub fn element(editor: &Entity<ProseEditor>, cx: &App) -> impl IntoElement + use<> {
-        let layer = editor.read(cx).cursor_layer.clone();
+        let this = editor.read(cx);
+        let layer = this.cursor_layer.clone();
+        if this.options.fit_content {
+            // As tall as its text: not a cached view, whose size would come
+            // from its style alone.
+            return div().w_full().relative().child(editor.clone()).child(layer);
+        }
         div()
             .size_full()
             .relative()
@@ -1009,7 +1020,8 @@ impl Render for ProseEditor {
         let entity = cx.entity();
         let (scroll_y, total) = self.scroll_y();
         let viewport = self.list.viewport_bounds().size.height;
-        let thumb = (total > 0. && f64::from(f32::from(viewport)) < total).then(|| {
+        let fit = self.options.fit_content;
+        let thumb = (!fit && total > 0. && f64::from(f32::from(viewport)) < total).then(|| {
             let view = f64::from(f32::from(viewport));
             let height = (view / total * view).max(24.);
             let top = (scroll_y / total * view).min(view - height);
@@ -1019,7 +1031,8 @@ impl Render for ProseEditor {
             .id("prose-editor")
             .key_context(KEY_CONTEXT)
             .track_focus(&self.focus)
-            .size_full()
+            .when(fit, |root| root.w_full())
+            .when(!fit, |root| root.size_full())
             .relative()
             .bg(self.style.background)
             .cursor(CursorStyle::IBeam)
@@ -1068,14 +1081,25 @@ impl Render for ProseEditor {
             .on_mouse_move(cx.listener(Self::on_mouse_move))
             .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::on_mouse_up))
-            .child(
-                list(
-                    self.list.clone(),
-                    cx.processor(|this, ix, window, cx| this.render_item(ix, window, cx)),
-                )
-                .size_full(),
-            )
-            .child(self.scroll_ticks(cx))
+            .map(|root| {
+                if fit {
+                    // A few paragraphs, all drawn: a plain column as tall as
+                    // they are.
+                    let items: Vec<_> = (0..self.book.item_count())
+                        .map(|ix| self.render_item(ix, window, cx))
+                        .collect();
+                    root.child(div().w_full().flex().flex_col().children(items))
+                } else {
+                    root.child(
+                        list(
+                            self.list.clone(),
+                            cx.processor(|this, ix, window, cx| this.render_item(ix, window, cx)),
+                        )
+                        .size_full(),
+                    )
+                }
+            })
+            .when(!fit, |root| root.child(self.scroll_ticks(cx)))
             .children(thumb.map(|(top, height)| {
                 div()
                     .absolute()

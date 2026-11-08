@@ -329,6 +329,9 @@ impl BookEditor {
                         });
                     }
                 }
+                // A note's entries: the whole book has no notes.
+                crate::assist::AssistEvent::InsertTable { .. }
+                | crate::assist::AssistEvent::InsertMaterial { .. } => {}
             },
         );
         let decor = crate::decor::Decor::for_book(

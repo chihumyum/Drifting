@@ -33,6 +33,8 @@ gpui-prose = { workspace = true, features = ["conformance"] }
 # `test-support` gives book-bench and prose-bench (`headless`, `decor`,
 # `capture`) GPUI's headless renderer.
 gpui_platform = { workspace = true, features = ["test-support"] }
+# Synthetic pictures for embedded materials (tests, page-capture).
+png.workspace = true
 tempfile.workspace = true
 
 [target.'cfg(target_os = "macos")'.dev-dependencies]
