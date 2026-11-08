@@ -3,7 +3,8 @@
 //! movement (grapheme clusters, ICU words, rows, paragraphs), editing
 //! actions, the mouse (word and paragraph drags), find and replace, the
 //! text exposed to screen readers, the system input-method hooks,
-//! selections across chapters, and list items (Enter, Tab, ticks).
+//! selections across chapters, list items (Enter, Tab, ticks), and the caret
+//! around embeds (`objects.rs`).
 
 pub mod a11y;
 pub mod actions;
@@ -14,6 +15,7 @@ mod ime;
 mod lists;
 pub mod mouse;
 mod movement;
+mod objects;
 pub mod selection;
 mod span;
 pub mod system_ime;

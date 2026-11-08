@@ -1,10 +1,129 @@
-# F4e 第二批：编辑器的交互（dr-editor）
+# F4e：编辑器的交互（dr-editor）
 
 2026-11-08，分支 `claude/optimistic-goodall-6739a9`。这一批接在第三轮之后：第三轮（`dr-editor` 本身、文本源、第一批扩展）记在 [f4-editor.md 的「第三轮」](f4-editor.md#第三轮f4edr-editor)，全书模式记在 [m05-book.md](../modules/m05-book.md)。
 
 - **代码**：`next/crates/dr-editor`（AGPL）。
 - **`gpui-prose` 的改动**：只加了挂钩，见「对 `gpui-prose` 的改动」。
 - **截图**：在 [f4e/](f4e/)，由 `cargo run -p dr-editor --example page-capture -- docs/rust-rewrite/foundations/f4e` 不开窗口画出来。
+
+## 第五批（2026-11-08 深夜）：素材笔记的表格、高亮、素材嵌入
+
+先合了 main `77a957d3`（F4c 的跨章选区和列表按键已在里面）。这一批是 M19 素材笔记要的编辑器能力，只在素材笔记（`material:` 文档，「笔记」配置）里打开，章节、构想、要素正文里都没有（测试 `a_chapter_has_none_of_it`）。代码块和提示框的样子归 F4d，这里只在斜杠菜单里给了入口。旧版参照是 `editor-schema-profile.ts`、`MaterialNotePage.tsx`、`NoteFloatingBar.tsx`、`MaterialEmbedView.tsx` 和 `material-workbench.css`。
+
+**大白话：**笔记里的表格、图片、PDF 在正文里各占一段：那一段只有一个占位字符，真正的内容存在笔记文档的 `embeds` 里（F1 的 `loro-schema.md` 早就定好了，结构不用升版）。编辑器把这一段让给宿主来画。表格的每个格子是一个小编辑器，打字、输入法、粗体、高亮都和正文一样。格子里写的字和正文共用一条撤销历史：⌘Z 永远撤作者刚做的那件事，不管它在格子里还是正文里。
+
+1. **表格**
+   - **存法**：照 F1 的结构。正文里一段 U+FFFC，打 `embed = <id>` 标记；`embeds[<id>]` 里 `kind = "table"`，行、列各是一个映射（id → `{pos}`，位置键），格子是 LoroText，只有行内标记，换行写成 U+2028。新的行、列 id 是 uuidv7。没有表头行：结构里没有（旧版的表头格导入时就是普通格），所以浮条上没有「表头行」。
+   - **插入**：斜杠菜单「表格」，3 × 3，光标进第一格（旧版也是这样，只是旧版有表头行）。表格放在光标所在段的前面（那段是空的）或后面（那段有字，在它后面新开一个空段），所以表格后面总有一段可以接着写。
+   - **排版**：
+     - 列等宽，占满正文栏宽（旧版 `table-layout: fixed`），格子顶对齐。
+     - 格子留白 6 / 9 px，字号 14.5、行高 1.6。
+     - 发丝线用正文墨色 14%（旧版 `--ink-1 / 0.14`）。
+     - 浅、深两套主题都跟着正文的颜色走。
+   - **输入**（旧版 `@tiptap/extension-table` 的规则）：
+     - **Tab** 到下一格，最后一格按 Tab 加一行；**⇧Tab** 到上一格。
+     - **回车**在格子里换行（U+2028）：旧版格子里可以有多段，新结构里格子只有一段，多段合成换行，导入也是这样做的。
+     - 格子开头、结尾按 **← →**，第一行、最后一行按 **↑ ↓**，到相邻的格子；走出表格就回到表格前后的正文。
+     - 从正文按 **↑ ↓** 走到表格，光标直接进最近的那一格。
+   - **增删行列**：浮条在表格上方，光标在格子里时出现，打字时收起，停手 600 ms 后回来（旧版 `NoteFloatingBar` 的时间）。
+     - 按钮：加一行、加一列、删除行、删除列、删除表格。用文字按钮，因为 dr-ui 没有「删除行」「删除列」的图标。
+     - 删掉最后一行或最后一列，就是删整张表。
+     - 没有右键菜单、没有悬停把手（旧版也没有）。
+   - **撤销**：
+     - 格子的打字、浮条的改动都是对同一篇笔记的提交，记在正文编辑器的撤销历史里（`ProseEditor::record_host_items`）：同一格里连续打字合成一步，换了格子或改了结构另起一步。
+     - 在格子里按 ⌘Z / ⇧⌘Z，转给正文编辑器去撤。
+     - 删掉表格时它的内容不删，撤销能整张拿回来。
+   - **复制粘贴**：GPUI 的剪贴板只有文字（外加一份元数据），没有 HTML，所以表格按制表符分隔的文字进剪贴板，电子表格认这种格式。
+     - **复制**：
+       - 正文里整张表格被选中时，按制表符分隔复制，元数据里另带格子，粘回笔记还是表格。
+       - 选区里夹着表格和图片时，表格按行变成文字，图片变成标题。
+     - **粘贴**：
+       - 往格子里粘一块网格，从这一格开始填，不够就加行加列。
+       - 往正文里粘复制来的表格，或者至少 2 × 2 的整齐网格，得到一张新表；只有一行、带一个制表符的文字仍然是文字。
+     - **和旧版不同**：旧版没认制表符分隔的文字，粘贴靠 HTML。
+   - **限制**：
+     - 还不能跨格子选择，也没有格子选区（旧版拖过几格会整格选中）。
+     - 格子里的行内标记，复制成表格时没有带上；F1 的 `insert_copy` 也还没抄（归 F1）。
+     - 在格子里撤销时，撤销由正文编辑器来做，它会把自己的光标露出来；正文光标不在视野里时，笔记会滚到那里。正文光标通常就在表格旁边（插表格、从正文走进表格都是这样），先不改。
+2. **高亮**（行内标记 `highlight`）
+   - **只有一种高亮**：旧版没有颜色（`multicolor: false`），旧库导入时值是 `""`，新写的也写 `""`，读的时候任何值都算这一种。
+   - **样子**：一道干的荧光笔砂痕，每一行各画一道。
+     - 旧版的 `hl-mark.png` 其实就是评论那道砂痕 `hl.png` 染了色：浅色 (245, 196, 41)、透明度 0.62，深色 (171, 133, 35)、透明度 0.5。
+     - 所以直接用 dr-ui 的 `Hl` 遮罩染这两种颜色，照评论的画法铺在字下面，左右各出 0.14 em。dr-ui 不用加图。
+   - **加法**：
+     - ⌘⇧H（`dr_editor::highlight::ToggleHighlight`，按键表 `highlight::key_bindings()`，由外壳挂上）。
+     - 斜杠菜单「高亮」：之后打的字带高亮。
+     - 素材笔记的选区浮条多一个「高亮」。旧版的浮条没有这一项，只能靠快捷键或斜杠，这里补上。
+     - 打 `==字==`：和 `**` 一样，标记前面可以是任何字，不要求空格，中文句子里也能用。
+   - **格子里**也能加高亮，也照样画出来。
+3. **素材嵌入**（图片、PDF）
+   - **存法**：同样是一段占位字符，`embeds[<id>]` 里 `kind = "material"`、`material = <素材 id>`。
+   - **插入**：斜杠菜单「插入素材…」：弹出书里的图片和 PDF 列表，选一个就插进来；书里还没有的时候列表里写「还没有图片或 PDF 素材。」。
+     - 旧版是一个带缩略图的方格弹窗，这里先用和 @ 选择器同一种列表。
+     - 拖入、粘贴文件导入成素材要走资源导入，归 M19（见待协调）。
+   - **样子**（旧版 `MaterialEmbedView`）：
+     - **图片**：用 `display` 变体（没有就用原图），最高 520 px、居中、圆角 4，下面是一行小字标题。单击选中这一块（之后按退格就删掉它），双击图片或点标题就打开素材。图片还不在这台设备上时，显示虚线框和「加载中…」。
+     - **PDF**：一张卡片，左边是 48 px 的首页缩略图（没有就画文件记号），右边是标题和「PDF」。单击打开。
+     - **素材没了**：显示「这条素材已被删除。」。
+   - **打开**交给宿主：发 `MaterialOpened { doc, material }`。
+4. **正文里光标遇到这些块的规则**（gpui-prose 的「对象段」，`embeds.rs` 和 `input/objects.rs`，照 ProseMirror 的整块选中）：
+   - **整块选中**：光标落进这一段，就整块选中它，块上画一圈选中框。
+   - **方向键**：← ↑ 走到前一段的末尾，→ ↓ 走到后一段的开头。
+   - **退格、删除**：
+     - 在后一段开头按退格，或在前一段末尾按删除，先选中这一块。中间隔着空段时先删空段；正文的最后一段不删。
+     - 已经选中时再按，删掉这一整段。
+   - **回车、打字**：选中时按回车，在它后面开一个空段；选中时打字（包括输入法）也打在后面的新段里。一个按键不会把整张表格换掉。
+5. **排版里的段内换行**：U+2028 以前不会断行。现在 `prose-linebreak::break_rows` 把它当作必断点（UAX #14 的 BK），之后的字另起一行。格子的换行和正文的 Shift-Enter 都靠它；dr-ui 用同一个函数排的字也一样。
+6. **截图**：素材笔记的浅、深两张 [note-light](f4e/note-light.png)、[note-dark](f4e/note-dark.png)：高亮、填了字的表格（光标在格子里，浮条在上方）、一张合成的图片素材、一张 PDF 卡片。
+7. **新测试**：
+   - **`gpui-prose` 的 `input/tests/objects.rs`**（7 个）：
+     - 光标落上去就整块选中，方向键走过去；
+     - 退格先选中、再删、撤销能拿回来；
+     - 空段先删，最后一段留着；
+     - 回车、打字、输入法都打在它后面；
+     - ↑ ↓ 先问宿主要不要接光标；
+     - 宿主的提交并进撤销历史。
+   - **`prose-linebreak`**：`a_line_separator_always_ends_its_row`。
+   - **`dr-editor/tests/note.rs`**（9 个）：
+     - 笔记的斜杠菜单（顺序照旧版）；
+     - 斜杠插表格，Tab 走格子、最后一格加一行；
+     - 格子里回车是换行，↓ 走出表格；
+     - 格子和正文共用一条撤销历史，加的行、整张表也各是一步；
+     - 浮条的增删；
+     - 剪贴板：网格粘进格子、表格复制再粘贴、一行文字不变成表格；
+     - 高亮：⌘⇧H、`==字==`、斜杠，以及画出来的砂痕；
+     - 素材嵌入：选择列表、显示、打开、复制时变成标题；
+     - 章节里这些都没有。
+   - **单元测试**：
+     - `table::clip`：制表符文字的往返，换行、制表符、引号都能来回；
+     - `table::cell`：按路径把事件分给各格；
+     - `highlight`：找出高亮的范围；
+     - `rules`：`==` 的规则。
+
+**这一批的待协调：**
+
+- **给 F6：**
+  - 把 `dr_editor::highlight::key_bindings()` 加进按键登记表（`add_bindings`）。
+  - 订阅 `MaterialOpened`，打开素材标签。
+  - 素材笔记的编辑器和章节一样用 `ChapterEditor::open` / `with_session`，打开时自己认出是笔记。
+- **给 M19：**
+  - 拖入、粘贴图片和 PDF 文件导入成素材（资源导入、生成缩略图），导入以后调 `ChapterEditor::insert_material(素材 id, …)`。
+  - PDF 首页缩略图要有人生成 `thumbnail` 变体（hayro 或 pdfium，见 modules.md）。没有缩略图时卡片画文件记号。
+  - 「插入素材…」要不要换回旧版的缩略图方格弹窗，由 M19 定；编辑器这边只要一个素材 id。
+- **给 F1：**格子里的行内标记，导入时丢了（`table-cell-marks`），`insert_copy` 也还没抄（归 F1，监管会话已转达）；结构允许，编辑器这边也写得出来。
+- **给 F4c：**
+  - `gpui-prose` 的输入层加了几处挂钩，都是一行，具体的规则写在 `input/objects.rs`：
+    - `movement.rs` 的左右、上下；
+    - `editing.rs` 的删除、回车、粘贴；
+    - `ime.rs` 的两个入口；
+    - `editor.rs` 的 `clamp_selection`。
+  - `prose-linebreak` 加了 U+2028 必断，Shift-Enter 也该写 U+2028（schema 里早就这么定了）。
+- **给 F4d：**
+  - 对象段的列表项是新的一种项（宿主画、按真实高度量）；表格和图片的选中框暂时由宿主自己画。
+  - 高亮用的是画层的 `Wash` 加 dr-ui 的 `Hl` 遮罩，分组叫 `highlights`。
+- **给 F3：**
+  - Agent 要能读写表格（`prose.*` 命令里的表格、素材嵌入），现在命令层没有。
+  - F3 第七轮（`claude/f3-workspace-88823a` 的 `fc90eb85`，还没进 main）做完了第四批提的三条：`autolink::plan`，以及在命令里补链接。等它合进 main，F4e 下一轮就删掉编辑器的补链（`backfill_closed`、`claim_backfill`，还有开着的文档那份），自动链接改用 `plan`，规则只剩一份。F3 已经按新规则改了 `a_new_element_links_itself_in_text_already_written`。
 
 ## 第四批（2026-11-08 夜）
 
@@ -179,6 +298,8 @@
 | 选区浮条 | [bar](f4e/bar.png) |
 | 空章：提示（H1 #、H2 ##、H3 ###，外壳加的搜索和时间线）和 ⁂ | [empty](f4e/empty.png) |
 | 人物链接的悬停卡（第四批）：分类、别名、梗概 | [link-card](f4e/link-card.png) |
+| 素材笔记（第五批），浅色：高亮、表格和它的浮条、图片素材、PDF 卡片 | [note-light](f4e/note-light.png) |
+| 同上，深色 | [note-dark](f4e/note-dark.png) |
 
 ## 给 F6 的用法
 
@@ -196,6 +317,9 @@
 | `CommentRequested { doc, range, text }`（两个视图都发；单独的事件类型，已有的 `ChapterEditorEvent` 匹配不受影响） | 浮条的「添加批注」 |
 | `EditorSettings::auto_entity_links`（键 `editor.auto_entity_links`） | 自动链接开关 |
 | `assist()` | 选择器、浮条的状态（测试和外壳自己的检查用）；`assist::{trigger, BlockChoice, MenuRow, LINK_DELAY, BAR_DELAY}` |
+| `MaterialOpened { doc, material }`（第五批） | 素材笔记里点了嵌入的素材：打开素材标签 |
+| `ChapterEditor::{note_embeds, insert_table, insert_material, toggle_highlight, focused_prose}`（第五批） | 素材笔记的表格和素材、⌘⇧H；`focused_prose` 是正文或格子里正拿着光标的那个编辑器 |
+| `dr_editor::highlight::{ToggleHighlight, key_bindings}`（第五批） | ⌘⇧H 的动作和按键表 |
 
 ## 对 `gpui-prose` 的改动
 
@@ -220,6 +344,17 @@
     - `caret_bounds`、`range_bounds`、`is_selecting`。
 - **`src/text/doc.rs`、`src/text/undo.rs`**：`ProseDoc::join_last_step()`，下一次提交并进上一步撤销，不管隔了多久。
 - **测试**：`slots.rs` 里三个，见下。
+- **第五批（对象段、紧凑编辑器）：**
+  - **新文件 `src/embeds.rs`**：
+    - `EmbedViews { view, enter }`：宿主画对象段，↑ ↓ 时可以把光标接进去；
+    - `ProseEditor` 的方法：`set_embed_views`、`embed_at`、`embed_line`、`selected_embed`、`select_embed`、`focus_at`、`record_host_items`（宿主对同一篇文档的提交并进作者的撤销历史）。
+  - **新文件 `src/input/objects.rs`**：光标遇到对象段的规则；挂在 `movement.rs`、`editing.rs`、`ime.rs` 和 `clamp_selection` 上，每处一行。
+  - **`Line::embed()`**：这一段是不是对象段。`ProseDoc::record_host_items`，`ProseDoc::toggle_mark_value` 和 `ProseEditor::toggle_mark_value`：值不是 `true` 的标记（高亮）。
+  - **`EditorOptions::fit_content`**：表格格子用的紧凑编辑器。
+    - 没有标题行、没有滚动条，所有段落画在一个普通的列里（不用虚拟列表），整体高度就是段落的高度。
+    - 它不能用 GPUI 的缓存视图：缓存视图的大小只看给它的样式，不看内容。
+  - **`render/items.rs`**：对象段的分支。
+  - **`prose-linebreak`**：U+2028 必断。
 
 ## 和旧版不一样的地方（有意的）
 
@@ -329,6 +464,6 @@
 
 | 子线 | 下一轮的活 |
 | --- | --- |
-| F4e 交互 | 选择器的拼音首字母筛选（要一张拼音表，ICU 不给）；章末 ⁂ 的帮手审阅（等帮手搬过来）；斜杠菜单的「构想」「批注」等 Drifting 自己的条目（等对应模块）；空闲时重跑 `prose-bench` 的证据 |
+| F4e 交互 | 选择器的拼音首字母筛选（要一张拼音表，ICU 不给）；章末 ⁂ 的帮手审阅（等帮手搬过来）；表格的格子选区（拖过几格整格选中）和跨格复制；空闲时重跑 `prose-bench` 的证据 |
 | F6 | 上面「待协调」1 |
 | F5 | 无框多行输入 |

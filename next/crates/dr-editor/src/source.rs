@@ -78,7 +78,9 @@ impl EventCount {
 /// gpui-prose's text source on one of the workspace's prose documents.
 pub struct SessionSource {
     doc_id: String,
-    session: ProseSession,
+    /// Shared with the document's embeds (a table's cells write through it,
+    /// so their commits land on the same undo stack).
+    session: Arc<ProseSession>,
     handle: DocHandle,
     shared: Arc<Shared>,
     /// Events handed to the editor.
@@ -153,7 +155,7 @@ impl SessionSource {
         };
         Ok(SessionSource {
             doc_id: doc_id.to_owned(),
-            session,
+            session: Arc::new(session),
             handle,
             shared,
             taken: 0,
@@ -219,6 +221,12 @@ impl SessionSource {
 
     pub fn session(&self) -> &ProseSession {
         &self.session
+    }
+
+    /// The session, for writers of the same document whose commits belong
+    /// on the author's undo stack (a table's cells).
+    pub fn shared_session(&self) -> Arc<ProseSession> {
+        self.session.clone()
     }
 
     /// The holder's handle (reads on the holder thread).

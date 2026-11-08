@@ -402,7 +402,7 @@ fn the_at_picker_inserts_a_link(cx: &mut TestAppContext) {
         .map(|r| match r {
             MenuRow::Link { name, .. } => name.clone(),
             MenuRow::Create { name } => format!("+{name}"),
-            MenuRow::Block(_) | MenuRow::Action(_) => String::new(),
+            _ => String::new(),
         })
         .collect();
     // Pinyin order (lǎo before yuē), then 创建要素.

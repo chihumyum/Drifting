@@ -22,6 +22,7 @@
 //!   reports the new anchors ([`ChapterEditorEvent::AnchorsChanged`]) for the
 //!   book document (the command that stores them is F3's; see f4-editor.md).
 
+use std::cell::RefCell;
 use std::ops::Range;
 use std::rc::Rc;
 
@@ -35,6 +36,7 @@ use gpui::{
 use gpui_prose::{Book, Chapter, EditorEvent, ProseDoc, ProseEditor, ProseStyle};
 
 use crate::anchors;
+use crate::embeds::{NoteEmbeds, NoteEvent, NoteHost};
 use crate::links::{DriftingExtension, LinkTargets};
 use crate::settings::EditorSettings;
 use crate::source::SessionSource;
@@ -66,6 +68,9 @@ pub struct CommentRequested {
 
 struct Catalog(BookCatalog);
 
+/// A document's editor, its events, and a note's embeds.
+type EditorParts = (Entity<ProseEditor>, Subscription, Option<Rc<NoteEmbeds>>);
+
 impl LinkTargets for Catalog {
     fn alive(&self, kind: &dr_model::kind::EntityKind, id: &str) -> bool {
         self.0.alive(kind, id)
@@ -90,6 +95,8 @@ pub struct ChapterEditor {
     _assist_events: Subscription,
     /// The paint layers: comments, Agent changes, links (crate::decor).
     pub(crate) decor: crate::decor::Decor,
+    /// A material note's tables and materials (`None` elsewhere).
+    embeds: Option<Rc<NoteEmbeds>>,
     _editor_events: Subscription,
     _ws_events: dr_workspace::events::Subscription,
 }
@@ -98,6 +105,16 @@ impl EventEmitter<ChapterEditorEvent> for ChapterEditor {}
 impl EventEmitter<CommentRequested> for ChapterEditor {}
 impl EventEmitter<PositionLinkCopied> for ChapterEditor {}
 impl EventEmitter<EntityLinkOpened> for ChapterEditor {}
+impl EventEmitter<MaterialOpened> for ChapterEditor {}
+
+/// A click on a material embedded in note `doc`: the host opens material
+/// `material` (in a tab, as the 0.1 client did). Its own event type, like
+/// [`CommentRequested`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct MaterialOpened {
+    pub doc: String,
+    pub material: String,
+}
 
 /// A plain click on a live entity link in `doc`: the host opens what it
 /// links to (`kind`, `id`), in a preview tab as the 0.1 client did. Its own
@@ -148,7 +165,7 @@ impl ChapterEditor {
     ) -> ChapterEditor {
         let base_style = ProseStyle::default();
         let extension = Rc::new(Self::extension(&ws, book));
-        let (editor, editor_events) = Self::editor_on(
+        let (editor, editor_events, embeds) = Self::editor_on(
             &ws,
             book,
             doc_id,
@@ -178,6 +195,7 @@ impl ChapterEditor {
             assist,
             _assist_events: assist_events,
             decor,
+            embeds,
             _editor_events: editor_events,
             _ws_events: ws_events,
         };
@@ -205,11 +223,13 @@ impl ChapterEditor {
                 cx,
             );
             a.set_auto_links(settings.auto_entity_links);
+            a.set_note(is_note(doc_id));
             a
         });
-        let events = cx.subscribe(
+        let events = cx.subscribe_in(
             &assist,
-            |this, _, event: &crate::assist::AssistEvent, cx| match event {
+            window,
+            |this, _, event: &crate::assist::AssistEvent, window, cx| match event {
                 crate::assist::AssistEvent::Comment { range, .. } => {
                     let text = this.editor.read(cx).book().chapters[0]
                         .doc
@@ -232,6 +252,12 @@ impl ChapterEditor {
                         kind: target.kind.clone(),
                         id: target.id.clone(),
                     });
+                }
+                crate::assist::AssistEvent::InsertTable { .. } => {
+                    this.insert_table(window, cx);
+                }
+                crate::assist::AssistEvent::InsertMaterial { material, .. } => {
+                    this.insert_material(material, window, cx);
                 }
             },
         );
@@ -256,7 +282,7 @@ impl ChapterEditor {
         extension: &Rc<DriftingExtension>,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) -> Result<(Entity<ProseEditor>, Subscription), WsError> {
+    ) -> Result<EditorParts, WsError> {
         let source = SessionSource::open(ws, doc_id)?;
         Ok(Self::editor_on(
             ws, book, doc_id, source, title, style, extension, window, cx,
@@ -274,7 +300,15 @@ impl ChapterEditor {
         extension: &Rc<DriftingExtension>,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) -> (Entity<ProseEditor>, Subscription) {
+    ) -> EditorParts {
+        // A material note draws its tables and materials (`embeds.rs`); they
+        // write through the note's own session.
+        let note = dr_model::DocId::parse(doc_id)
+            .ok()
+            .and_then(|d| d.profile())
+            == Some(dr_model::ProseProfile::Note);
+        let shared = note.then(|| (source.shared_session(), source.handle().clone()));
+        extension.set_note(note);
         let mut doc = ProseDoc::open(Box::new(source));
         match anchors::comment_anchors(ws, book, doc_id) {
             Ok(found) => {
@@ -284,28 +318,65 @@ impl ChapterEditor {
             }
             Err(e) => log::warn!("dr-editor: comment anchors of {doc_id}: {e}"),
         }
-        let book = Book::new(vec![Chapter {
+        let prose = Book::new(vec![Chapter {
             title: title.to_owned().into(),
             doc,
         }]);
-        let style = style.clone();
-        let extension = extension.clone();
+        let body_style = style.clone();
+        let ext = extension.clone();
         // Typed `- `, `1. `, `[ ] ` make list items where the document keeps
         // lists (material notes); never in chapters.
-        let lists = dr_model::DocId::parse(doc_id)
-            .ok()
-            .and_then(|d| d.profile())
-            == Some(dr_model::ProseProfile::Note);
         let editor = cx.new(|cx| {
-            let mut editor = ProseEditor::new(book, style, window, cx);
-            editor.set_extension(extension);
-            editor.set_list_shortcuts(lists);
+            let mut editor = ProseEditor::new(prose, body_style, window, cx);
+            editor.set_extension(ext);
+            editor.set_list_shortcuts(note);
             editor
         });
         let events = cx.subscribe(&editor, |this, _, event: &EditorEvent, cx| {
             this.on_editor(event, cx)
         });
-        (editor, events)
+        let embeds = shared.map(|(session, handle)| {
+            let weak = cx.weak_entity();
+            let host = NoteHost {
+                ws: ws.clone(),
+                book: book.to_owned(),
+                doc_id: doc_id.to_owned(),
+                session,
+                handle,
+                body: editor.downgrade(),
+                chapter: 0,
+                style: RefCell::new(style.clone()),
+                extension: extension.clone(),
+                // Deferred: an embed may report from inside this view's own
+                // update (inserting a table).
+                notify: Rc::new(move |event: NoteEvent, cx: &mut App| {
+                    let weak = weak.clone();
+                    cx.defer(move |cx| {
+                        if let Some(this) = weak.upgrade() {
+                            this.update(cx, |this, cx| this.on_note(event, cx));
+                        }
+                    });
+                }),
+            };
+            let embeds = Rc::new(NoteEmbeds::new(Rc::new(host)));
+            let views: Rc<dyn gpui_prose::EmbedViews> = embeds.clone();
+            editor.update(cx, |e, cx| {
+                e.set_embed_views(Some(views), cx);
+                crate::highlight::decorate(e, 0, cx);
+            });
+            embeds
+        });
+        (editor, events, embeds)
+    }
+
+    fn on_note(&mut self, event: NoteEvent, cx: &mut Context<Self>) {
+        match event {
+            NoteEvent::Edited => cx.emit(ChapterEditorEvent::Edited),
+            NoteEvent::OpenMaterial(material) => cx.emit(MaterialOpened {
+                doc: self.doc_id.clone(),
+                material,
+            }),
+        }
     }
 
     /// The workspace's events, moved to the main thread.
@@ -345,6 +416,9 @@ impl ChapterEditor {
 
     fn on_workspace(&mut self, notices: &[Notice], cx: &mut Context<Self>) {
         if notices.contains(&Notice::Book) {
+            if let Some(embeds) = &self.embeds {
+                embeds.book_changed(cx);
+            }
             self.extension.invalidate();
             self.assist.update(cx, |a, cx| a.invalidate_names(cx));
             if self.pages.has_chrome() {
@@ -356,6 +430,11 @@ impl ChapterEditor {
             // The author's own edits are already folded in; this drains what
             // someone else committed.
             self.editor.update(cx, |e, cx| e.refresh_chapter(0, cx));
+            if let Some(embeds) = &self.embeds {
+                embeds.refresh(cx);
+                self.editor
+                    .update(cx, |e, cx| crate::highlight::decorate(e, 0, cx));
+            }
             self.update_todos(cx);
         }
     }
@@ -366,6 +445,11 @@ impl ChapterEditor {
                 cx.emit(ChapterEditorEvent::Edited);
                 self.update_todos(cx);
                 self.pages.edited(0, &self.editor, cx);
+                if let Some(embeds) = &self.embeds {
+                    embeds.refresh(cx);
+                    self.editor
+                        .update(cx, |e, cx| crate::highlight::decorate(e, 0, cx));
+                }
             }
             EditorEvent::AnchorsChanged { changes, .. } => {
                 let changes = changes
@@ -407,7 +491,7 @@ impl ChapterEditor {
             return Ok(());
         }
         let style = self.settings.style(&self.base_style);
-        let (editor, events) = Self::make_editor(
+        let (editor, events, embeds) = Self::make_editor(
             &self.ws,
             &self.book,
             doc_id,
@@ -420,14 +504,18 @@ impl ChapterEditor {
         self._ws_events = Self::watch(&self.ws, doc_id, window, cx);
         self.editor = editor;
         self._editor_events = events;
+        self.embeds = embeds;
         self.doc_id = doc_id.to_owned();
         if self.pages.has_chrome() {
             self.pages.attach(&self.editor, cx);
             self.refresh_page(cx);
         }
         let (editor, docs) = (self.editor.clone(), vec![self.doc_id.clone()]);
-        self.assist
-            .update(cx, |a, cx| a.attach(editor, docs, window, cx));
+        let note = is_note(doc_id);
+        self.assist.update(cx, |a, cx| {
+            a.attach(editor, docs, window, cx);
+            a.set_note(note);
+        });
         self.decor
             .rebind(&self.ws, &self.book, doc_id, &self.editor, window, cx);
         self.todos = self.find_todos(cx);
@@ -443,6 +531,9 @@ impl ChapterEditor {
         }
         self.settings = settings;
         let style = self.settings.style(&self.base_style);
+        if let Some(embeds) = &self.embeds {
+            embeds.restyle(style.clone(), cx);
+        }
         self.editor.update(cx, |e, cx| e.set_style(style, cx));
         let auto = self.settings.auto_entity_links;
         self.assist.update(cx, |a, _| a.set_auto_links(auto));
@@ -453,7 +544,16 @@ impl ChapterEditor {
     pub fn set_base_style(&mut self, style: ProseStyle, cx: &mut Context<Self>) {
         self.base_style = style;
         let style = self.settings.style(&self.base_style);
-        self.editor.update(cx, |e, cx| e.set_style(style, cx));
+        if let Some(embeds) = &self.embeds {
+            embeds.restyle(style.clone(), cx);
+        }
+        let note = self.embeds.is_some();
+        self.editor.update(cx, |e, cx| {
+            e.set_style(style, cx);
+            if note {
+                crate::highlight::decorate(e, 0, cx);
+            }
+        });
         cx.notify();
     }
 
@@ -525,6 +625,172 @@ impl ChapterEditor {
     }
 }
 
+/// Whether `doc_id` is a material note (the note profile).
+fn is_note(doc_id: &str) -> bool {
+    dr_model::DocId::parse(doc_id)
+        .ok()
+        .and_then(|d| d.profile())
+        == Some(dr_model::ProseProfile::Note)
+}
+
+impl ChapterEditor {
+    /// A material note's tables and materials (`None` for other documents).
+    pub fn note_embeds(&self) -> Option<&Rc<NoteEmbeds>> {
+        self.embeds.as_ref()
+    }
+
+    /// The editor the author is typing in: the body, or a table's cell.
+    pub fn focused_prose(&self, window: &Window, cx: &App) -> Option<Entity<ProseEditor>> {
+        if gpui::Focusable::focus_handle(self.editor.read(cx), cx).is_focused(window) {
+            return Some(self.editor.clone());
+        }
+        self.embeds
+            .as_ref()?
+            .tables()
+            .into_iter()
+            .find_map(|t| t.read(cx).focused_editor(window, cx))
+    }
+
+    /// The slash menu's 表格 in a material note: a 3 × 3 table at the caret,
+    /// the caret in its first cell. Returns whether one was inserted.
+    pub fn insert_table(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        let Some(embeds) = self.embeds.clone() else {
+            return false;
+        };
+        let offset = self.editor.read(cx).selection().head;
+        crate::embeds::insert_table(&embeds, offset, Vec::new(), window, cx).is_some()
+    }
+
+    /// Embeds material `material` (an image or a PDF) at the caret of a
+    /// material note. Returns whether it was.
+    pub fn insert_material(
+        &mut self,
+        material: &str,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        let (Some(embeds), Ok(id)) = (
+            self.embeds.clone(),
+            dr_model::id::MaterialId::parse(material),
+        ) else {
+            return false;
+        };
+        let offset = self.editor.read(cx).selection().head;
+        crate::embeds::insert_material(&embeds, offset, id, cx).is_some()
+    }
+
+    /// ⌘⇧H in a material note: the highlight on the selection (or for what
+    /// is typed next), in the body or the cell the author is in.
+    pub fn toggle_highlight(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.embeds.is_none() {
+            return;
+        }
+        let editor = self
+            .focused_prose(window, cx)
+            .unwrap_or_else(|| self.editor.clone());
+        editor.update(cx, |e, cx| {
+            e.toggle_mark_value(crate::highlight::KEY, crate::highlight::value(), window, cx)
+        });
+    }
+
+    /// Copy or cut in a note's text over a selection holding embeds: a
+    /// table alone goes as a table (tab-separated, its cells in the
+    /// metadata); otherwise each embed as text (a table's rows, a
+    /// material's title). Returns whether it handled the key.
+    fn note_copy(&mut self, cut: bool, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        let Some(embeds) = self.embeds.clone() else {
+            return false;
+        };
+        let e = self.editor.read(cx);
+        if !gpui::Focusable::focus_handle(e, cx).is_focused(window) {
+            return false;
+        }
+        let sel = e.selection();
+        if sel.is_empty() || sel.spans_chapters() {
+            return false;
+        }
+        let range = sel.range();
+        let doc = &e.book().chapters[0].doc;
+        let (first, _) = doc.locate(range.start);
+        let (last, _) = doc.locate(range.end);
+        let mut parts: Vec<(Option<String>, String)> = Vec::new();
+        for line in first..=last.min(doc.visible_lines().saturating_sub(1)) {
+            let start = doc.line_start(line);
+            let l = doc.line(line);
+            let from = range.start.max(start) - start;
+            let to = range.end.min(start + l.chars).saturating_sub(start);
+            match l.embed() {
+                Some(id) if range.start <= start && range.end > start => {
+                    parts.push((Some(id.to_owned()), String::new()))
+                }
+                _ => parts.push((
+                    None,
+                    l.text
+                        .chars()
+                        .skip(from)
+                        .take(to.saturating_sub(from))
+                        .collect(),
+                )),
+            }
+        }
+        if !parts.iter().any(|(id, _)| id.is_some()) {
+            return false;
+        }
+        let item = match parts.as_slice() {
+            [(Some(id), _)] => embeds
+                .table_cells(id)
+                .map(|cells| crate::table::clip::table_item(&cells))
+                .unwrap_or_else(|| gpui::ClipboardItem::new_string(embeds.embed_text(id))),
+            _ => gpui::ClipboardItem::new_string(
+                parts
+                    .iter()
+                    .map(|(id, text)| match id {
+                        Some(id) => embeds.embed_text(id),
+                        None => text.clone(),
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+            ),
+        };
+        cx.write_to_clipboard(item);
+        if cut {
+            self.editor
+                .update(cx, |e, cx| e.press_backspace(window, cx));
+        }
+        true
+    }
+
+    /// Paste in a note's text: a copied table, or a tab-separated grid of
+    /// at least 2 × 2, becomes a table at the caret. Returns whether it
+    /// handled the key.
+    fn note_paste(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        let Some(embeds) = self.embeds.clone() else {
+            return false;
+        };
+        if !gpui::Focusable::focus_handle(self.editor.read(cx), cx).is_focused(window) {
+            return false;
+        }
+        let Some(item) = cx.read_from_clipboard() else {
+            return false;
+        };
+        let cells = crate::table::clip::table_from_clipboard(&item).or_else(|| {
+            item.text()
+                .and_then(|t| crate::table::clip::parse_grid(&t))
+                .filter(|g| crate::table::clip::is_table(g))
+        });
+        let Some(cells) = cells else {
+            return false;
+        };
+        if !self.editor.read(cx).selection().is_empty() {
+            self.editor
+                .update(cx, |e, cx| e.press_backspace(window, cx));
+        }
+        let offset = self.editor.read(cx).selection().head;
+        crate::embeds::insert_table(&embeds, offset, cells, window, cx);
+        true
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Notice {
     Prose,
@@ -533,6 +799,36 @@ enum Notice {
 
 impl Render for ChapterEditor {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        crate::assist::wrap(&self.assist, ProseEditor::element(&self.editor, cx))
+        let inner = crate::assist::wrap(&self.assist, ProseEditor::element(&self.editor, cx));
+        if self.embeds.is_none() {
+            return inner.into_any_element();
+        }
+        // A material note: tables on the clipboard and the highlight key.
+        use gpui::{InteractiveElement as _, ParentElement as _, Styled as _};
+        use gpui_prose::input::actions::{Copy, Cut, Paste};
+        gpui::div()
+            .size_full()
+            .capture_action(cx.listener(|this, _: &Copy, window, cx| {
+                if this.note_copy(false, window, cx) {
+                    cx.stop_propagation();
+                }
+            }))
+            .capture_action(cx.listener(|this, _: &Cut, window, cx| {
+                if this.note_copy(true, window, cx) {
+                    cx.stop_propagation();
+                }
+            }))
+            .capture_action(cx.listener(|this, _: &Paste, window, cx| {
+                if this.note_paste(window, cx) {
+                    cx.stop_propagation();
+                }
+            }))
+            .on_action(
+                cx.listener(|this, _: &crate::highlight::ToggleHighlight, window, cx| {
+                    this.toggle_highlight(window, cx)
+                }),
+            )
+            .child(inner)
+            .into_any_element()
     }
 }

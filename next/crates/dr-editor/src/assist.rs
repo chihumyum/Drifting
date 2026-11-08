@@ -76,6 +76,9 @@ pub enum MenuKind {
     Mention,
     /// `/`: paragraph formats.
     Slash,
+    /// 插入素材…: a note's images and PDFs (opened from the slash menu, not
+    /// by a typed trigger; any edit or caret move closes it).
+    Material,
 }
 
 /// A paragraph format of the slash menu.
@@ -193,6 +196,77 @@ impl SlashAction {
     }
 }
 
+/// A material note's own entries of the slash menu (M19's note profile:
+/// the 0.1 note's insert group, in its order, after 分隔线).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NoteChoice {
+    Bullet,
+    Ordered,
+    Task,
+    Table,
+    Code,
+    Callout,
+    Highlight,
+    Material,
+}
+
+impl NoteChoice {
+    pub const ALL: [NoteChoice; 8] = [
+        NoteChoice::Bullet,
+        NoteChoice::Ordered,
+        NoteChoice::Task,
+        NoteChoice::Table,
+        NoteChoice::Code,
+        NoteChoice::Callout,
+        NoteChoice::Highlight,
+        NoteChoice::Material,
+    ];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            NoteChoice::Bullet => "无序列表",
+            NoteChoice::Ordered => "有序列表",
+            NoteChoice::Task => "待办清单",
+            NoteChoice::Table => "表格",
+            NoteChoice::Code => "代码块",
+            NoteChoice::Callout => "提示块",
+            NoteChoice::Highlight => "高亮",
+            NoteChoice::Material => "插入素材…",
+        }
+    }
+
+    fn words(self) -> &'static [&'static str] {
+        match self {
+            NoteChoice::Bullet => &["bullet", "list", "ul", "-"],
+            NoteChoice::Ordered => &["ordered", "numbered", "ol", "1."],
+            NoteChoice::Task => &["task", "todo", "checklist", "[]"],
+            NoteChoice::Table => &["table", "grid"],
+            NoteChoice::Code => &["code", "```"],
+            NoteChoice::Callout => &["callout", "note", "tip"],
+            NoteChoice::Highlight => &["highlight", "mark", "=="],
+            NoteChoice::Material => &["material", "image", "pdf", "图片", "素材"],
+        }
+    }
+
+    fn icon(self) -> Icon {
+        match self {
+            NoteChoice::Bullet => Icon::ListBullet,
+            NoteChoice::Ordered => Icon::ListOrdered,
+            NoteChoice::Task => Icon::Checklist,
+            NoteChoice::Table => Icon::Table,
+            NoteChoice::Code => Icon::Code,
+            NoteChoice::Callout => Icon::StickyNote,
+            NoteChoice::Highlight => Icon::Highlight,
+            NoteChoice::Material => Icon::ImagePlus,
+        }
+    }
+
+    fn matches(self, query: &str) -> bool {
+        let q = query.to_lowercase();
+        self.label().contains(&q) || self.words().iter().any(|w| w.starts_with(&q))
+    }
+}
+
 /// The marker 「待办」 puts at a paragraph's start (the typed-marker rule
 /// of [`crate::todo`]).
 pub const TODO_MARKER: &str = "待办：";
@@ -213,6 +287,16 @@ pub enum MenuRow {
     },
     Block(BlockChoice),
     Action(SlashAction),
+    /// A material note's own entry.
+    Note(NoteChoice),
+    /// An image or PDF material to embed (插入素材…).
+    Material {
+        id: String,
+        title: String,
+        pdf: bool,
+    },
+    /// A row that only says something (no materials yet).
+    Nothing(&'static str),
 }
 
 /// The open picker: where its trigger is and what it offers.
@@ -269,6 +353,10 @@ pub enum AssistEvent {
     /// A plain click on a live entity link in chapter `chapter`: the host
     /// opens `target` (a preview tab, as the 0.1 client did).
     OpenLink { chapter: usize, target: LinkTarget },
+    /// The slash menu's 表格 (a material note): a table at the caret.
+    InsertTable { chapter: usize },
+    /// 插入素材…: material `material` embedded at the caret.
+    InsertMaterial { chapter: usize, material: String },
 }
 
 /// The pickers, automatic links and selection bar of one editor.
@@ -316,6 +404,9 @@ pub struct Assist {
     card_task: Option<Task<()>>,
     over_card: bool,
     _decor_events: Subscription,
+    /// The document is a material note: the note's slash entries, the
+    /// bar's 高亮.
+    note: bool,
 }
 
 /// A paragraph's links before an edit: chapter, block id, line, and
@@ -367,6 +458,7 @@ impl Assist {
             bar_across: false,
             bar_task: None,
             writing: false,
+            note: false,
             _editor_events: events,
             pointed_link: None,
             card: None,
@@ -520,6 +612,15 @@ impl Assist {
 
     pub fn menu(&self) -> Option<&OpenMenu> {
         self.menu.as_ref()
+    }
+
+    /// The document is a material note (its slash entries, the bar's 高亮).
+    pub fn set_note(&mut self, note: bool) {
+        self.note = note;
+    }
+
+    pub fn is_note(&self) -> bool {
+        self.note
     }
 
     /// The selection the bar shows for, if it shows.
@@ -764,6 +865,22 @@ impl Assist {
     // ----- pickers ------------------------------------------------------------------
 
     fn update_menu(&mut self, cx: &mut Context<Self>) {
+        // The material picker has no trigger in the text: it stays while
+        // the caret stays where it opened, and anything else closes it.
+        if let Some(m) = self.menu.as_ref().filter(|m| m.kind == MenuKind::Material) {
+            let e = self.editor.read(cx);
+            let sel = e.selection();
+            if e.composition().is_none()
+                && sel.is_empty()
+                && sel.chapter == m.chapter
+                && sel.head == m.at
+            {
+                return;
+            }
+            self.menu = None;
+            cx.notify();
+            return;
+        }
         let found = {
             let e = self.editor.read(cx);
             if e.composition().is_some() {
@@ -820,6 +937,28 @@ impl Assist {
 
     fn rows(&mut self, kind: MenuKind, chapter: usize, query: &str) -> Vec<MenuRow> {
         match kind {
+            MenuKind::Slash if self.note => {
+                // A note: the formats, the rule and the note's own entries,
+                // then Drifting's (its task list stands in for 待办, and a
+                // note has no location links).
+                BlockChoice::ALL
+                    .into_iter()
+                    .filter(|c| c.matches(query))
+                    .map(MenuRow::Block)
+                    .chain(
+                        NoteChoice::ALL
+                            .into_iter()
+                            .filter(|c| c.matches(query))
+                            .map(MenuRow::Note),
+                    )
+                    .chain(
+                        [SlashAction::Mention, SlashAction::Comment]
+                            .into_iter()
+                            .filter(|a| a.matches(query))
+                            .map(MenuRow::Action),
+                    )
+                    .collect()
+            }
             MenuKind::Slash => BlockChoice::ALL
                 .into_iter()
                 .filter(|c| c.matches(query))
@@ -831,6 +970,7 @@ impl Assist {
                         .map(MenuRow::Action),
                 )
                 .collect(),
+            MenuKind::Material => self.material_rows(),
             MenuKind::Mention => {
                 let Some(names) = self.names() else {
                     return Vec::new();
@@ -908,9 +1048,142 @@ impl Assist {
             },
             MenuRow::Block(choice) => self.apply_block(chapter, at..caret, choice, window, cx),
             MenuRow::Action(action) => self.apply_action(chapter, at..caret, action, window, cx),
+            MenuRow::Note(choice) => self.apply_note(chapter, at..caret, choice, window, cx),
+            MenuRow::Material { id, .. } => {
+                cx.emit(AssistEvent::InsertMaterial {
+                    chapter,
+                    material: id,
+                });
+            }
+            MenuRow::Nothing(_) => {}
         }
         self.dismissed = None;
         cx.notify();
+    }
+
+    /// The images and PDFs of the book, for 插入素材….
+    fn material_rows(&self) -> Vec<MenuRow> {
+        let list = self
+            .ws
+            .call(&Actor::User, "material.list", json!({ "book": self.book }))
+            .ok()
+            .and_then(|out| out["output"].as_array().cloned())
+            .unwrap_or_default();
+        let rows: Vec<MenuRow> = list
+            .iter()
+            .filter(|m| matches!(m["kind"].as_str(), Some("image" | "pdf")))
+            .filter_map(|m| {
+                Some(MenuRow::Material {
+                    id: m["id"].as_str()?.to_owned(),
+                    title: m["title"].as_str().unwrap_or_default().to_owned(),
+                    pdf: m["kind"].as_str() == Some("pdf"),
+                })
+            })
+            .take(MAX_ROWS)
+            .collect();
+        if rows.is_empty() {
+            vec![MenuRow::Nothing("还没有图片或 PDF 素材。")]
+        } else {
+            rows
+        }
+    }
+
+    /// A material note's own slash entries: `/query` goes, then the entry.
+    fn apply_note(
+        &mut self,
+        chapter: usize,
+        range: Range<usize>,
+        choice: NoteChoice,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let block_attr = |key: &'static str, value: LoroValue| {
+            let range = range.clone();
+            move |doc: &mut gpui_prose::ProseDoc| {
+                doc.delete(range.clone(), ORIGIN_USER);
+                let ix = doc.line_of(range.start);
+                doc.set_block_attr(ix, key, Some(value), ORIGIN_USER);
+                Some(range.start)
+            }
+        };
+        match choice {
+            NoteChoice::Bullet => {
+                self.write(
+                    chapter,
+                    HostStep::Own,
+                    window,
+                    cx,
+                    block_attr(block::LIST, "bullet".into()),
+                );
+            }
+            NoteChoice::Ordered => {
+                self.write(
+                    chapter,
+                    HostStep::Own,
+                    window,
+                    cx,
+                    block_attr(block::LIST, "ordered".into()),
+                );
+            }
+            NoteChoice::Task => {
+                self.write(
+                    chapter,
+                    HostStep::Own,
+                    window,
+                    cx,
+                    block_attr(block::LIST, "task".into()),
+                );
+            }
+            NoteChoice::Code => {
+                self.write(
+                    chapter,
+                    HostStep::Own,
+                    window,
+                    cx,
+                    block_attr(block::CODE_BLOCK, "".into()),
+                );
+            }
+            NoteChoice::Callout => {
+                // The 0.1 note had one kind of callout (imported as `note`).
+                self.write(
+                    chapter,
+                    HostStep::Own,
+                    window,
+                    cx,
+                    block_attr(block::CALLOUT, "note".into()),
+                );
+            }
+            NoteChoice::Highlight | NoteChoice::Table | NoteChoice::Material => {
+                self.write(chapter, HostStep::Own, window, cx, |doc| {
+                    doc.delete(range.clone(), ORIGIN_USER);
+                    Some(range.start)
+                });
+                match choice {
+                    // At the caret: what is typed next is highlighted.
+                    NoteChoice::Highlight => self.editor.update(cx, |e, cx| {
+                        e.toggle_mark_value(
+                            crate::highlight::KEY,
+                            crate::highlight::value(),
+                            window,
+                            cx,
+                        )
+                    }),
+                    NoteChoice::Table => cx.emit(AssistEvent::InsertTable { chapter }),
+                    _ => {
+                        let rows = self.material_rows();
+                        self.menu = Some(OpenMenu {
+                            kind: MenuKind::Material,
+                            chapter,
+                            at: range.start,
+                            query: String::new(),
+                            rows,
+                            selected: 0,
+                        });
+                        self.menu_fresh = true;
+                    }
+                }
+            }
+        }
     }
 
     fn insert_link(
@@ -1322,8 +1595,13 @@ impl Assist {
 
     /// The bar's mark buttons (粗体, 斜体, 下划线, 删除线).
     pub fn bar_mark(&mut self, key: &'static str, window: &mut Window, cx: &mut Context<Self>) {
-        self.editor
-            .update(cx, |e, cx| e.toggle_mark(key, window, cx));
+        self.editor.update(cx, |e, cx| {
+            if key == crate::highlight::KEY {
+                e.toggle_mark_value(key, crate::highlight::value(), window, cx);
+            } else {
+                e.toggle_mark(key, window, cx);
+            }
+        });
         self.hide_bar();
         cx.notify();
     }
@@ -1376,6 +1654,14 @@ impl Assist {
                 {
                     list = list.separator(&theme);
                 }
+                // A note's entries open the insert group when the rule is
+                // filtered out.
+                MenuRow::Note(_)
+                    if ix > 0
+                        && matches!(menu.rows[ix - 1], MenuRow::Block(c) if c != BlockChoice::Rule) =>
+                {
+                    list = list.separator(&theme);
+                }
                 _ => {}
             }
             let (icon, label, trailing): (RowIcon, SharedString, Option<&str>) = match row {
@@ -1395,6 +1681,13 @@ impl Assist {
                 ),
                 MenuRow::Block(choice) => (choice.icon().into(), choice.label().into(), None),
                 MenuRow::Action(action) => (action.icon().into(), action.label().into(), None),
+                MenuRow::Note(choice) => (choice.icon().into(), choice.label().into(), None),
+                MenuRow::Material { title, pdf, .. } => (
+                    if *pdf { Icon::FileText } else { Icon::Image }.into(),
+                    title.clone().into(),
+                    Some(if *pdf { "PDF" } else { "" }),
+                ),
+                MenuRow::Nothing(text) => (Icon::ImagePlus.into(), (*text).into(), None),
             };
             let this = this.clone();
             let mut item = MenuItem::new(("dr-editor-picker-row", ix), icon, label)
