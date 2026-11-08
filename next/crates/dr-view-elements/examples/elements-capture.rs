@@ -283,6 +283,23 @@ fn capture(dir: PathBuf) -> Result<()> {
         h.settle()?;
         h.save(&out, &format!("element-{suffix}.png"))?;
 
+        // Its ⋯ menu: share, 更改类目 (the category's mark) and 更改分组,
+        // the snapshot history, 删除要素 last.
+        {
+            let key = element.key();
+            h.set(move |ws, _, cx| {
+                ws.corner_menu = Some(key);
+                cx.notify();
+            });
+            h.settle()?;
+            h.save(&out, &format!("element-menu-{suffix}.png"))?;
+            h.set(|ws, _, cx| {
+                ws.corner_menu = None;
+                cx.notify();
+            });
+            h.settle()?;
+        }
+
         // The caret in a field: the slip is the still selected glass.
         let pages =
             h.cx.update(|cx| dr_view_elements::element_page(&zhiwei.id, cx));

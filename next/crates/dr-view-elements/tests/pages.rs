@@ -490,6 +490,11 @@ fn the_menu_moves_an_element_to_another_category_or_a_new_one(cx: &mut TestAppCo
         ]
     );
     assert!(sections[3].items[0].danger);
+    // 更改类目 carries the category's mark, as in the 0.1 menu.
+    assert!(matches!(
+        sections[1].items[0].icon,
+        dr_ui::components::menu::RowIcon::Mark(dr_ui::sand::Kind::Category, _)
+    ));
     // 更改类目: a click on 地点 moves it there.
     let run = sections[1].items[0].run.clone();
     cx.update(|window, cx| run(window, cx));

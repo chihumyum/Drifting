@@ -1,6 +1,6 @@
 # M13 故事线页（第一个里程碑）
 
-2026-11-08，分支 `chihumyum/m01-shelf-home-3bf938`（main `60d510a6` 之后，和 M11 第二个里程碑在同一个分支上）。计划见 [modules.md](../modules.md)。旧版是 `views/StorylineEditorView.tsx`、`KvEditor.tsx`，产品规则见 components.md 的「实体编辑器」。代码和 M11 放在一起（`next/crates/dr-view-elements/src/storyline.rs`）：故事线页和要素页、类目页是同一套实体页，共用页眉、节头、字段列表、对话框；外壳没有改，和 M11 一样经 `pages::add_page_chrome` 认 `Target::Storyline`。
+2026-11-08，分支 `chihumyum/m01-shelf-home-3bf938`（main `60d510a6` 之后，和 M11 第二个里程碑在同一个分支上；第三轮在 `77a957d3` 之后，⋯ 那一行登记进外壳）。计划见 [modules.md](../modules.md)。旧版是 `views/StorylineEditorView.tsx`、`KvEditor.tsx`，产品规则见 components.md 的「实体编辑器」。代码和 M11 放在一起（`next/crates/dr-view-elements/src/storyline.rs`）：故事线页和要素页、类目页是同一套实体页，共用页眉、节头、字段列表、对话框；外壳没有改，和 M11 一样经 `pages::add_page_chrome` 认 `Target::Storyline`。
 
 ## 一句话
 
@@ -17,7 +17,7 @@
 2. **正文下面**：
    - **字段**：和要素页同一个字段列表（`fields.rs`，现在分「要素的」和「故事线的」），写的是 F3 的 `storyline.update`（`put_fields` / `remove_fields`）。空着时写旧版那句「尚无字段。新建故事线时，项目主页的「故事线字段模版」会自动填入」。
    - **章节序列**（这条线上有章节时才有）：节头右边「15 章 · 2.6k 字」；下面多选一「全部 15 / 已写 8 / 未起 7」（有字就是已写）。每章一行：章的印章（故事线的颜色，没字是空心的）、「§01」（在筛出来的列表里排第几）、章名、两行梗概（没有就写「尚未填写一句话摘要」）、一行「885字 · 已写」，右边「0.9k」和「字」，指针下一个箭头。按阅读顺序，主线、副线的章节一样列。单击预览、双击留下。
-3. **⋯ 菜单**：一行危险色的「删除故事线」（`menu.rs`，等外壳给 ⋯ 菜单留出模块的位置）。旧版的「确认」框：「删除故事线「钟楼」？」，「取消」在前、危险色的「确认」在后。确认后故事线进废纸篓（F3 的 `storyline.trash`），外壳关掉它的标签；失败照旧版弹「删除故事线失败，请重试。」。
+3. **⋯ 菜单**：一行危险色的「删除故事线」（`menu.rs`）。第三轮经外壳的 `pages::add_page_menu` 登记进去：外壳的 ⋯ 是「分享」「历史快照…」，最后「删除故事线」；章节面板里故事线行的悬停卡也读这份清单。旧版的「确认」框：「删除故事线「钟楼」？」，「取消」在前、危险色的「确认」在后。确认后故事线进废纸篓（F3 的 `storyline.trash`），外壳关掉它的标签；失败照旧版弹「删除故事线失败，请重试。」。
 4. **文案**全是旧版九种语言的原话（`storylineEditor.*`、`common.confirm`、`common.words`、`editorTopBar.menu.deleteStoryline`）。
 
 **要作者定的事：没有。**
@@ -48,7 +48,7 @@ cargo run -p dr-view-elements --features capture --example elements-capture -- .
 | 章节序列：筛选、每章一行、点开 | 有 |
 | 主故事线、加减章节 | 旧版这一页就没有（在章节的 ⋯「编辑故事线」、悬停卡、时间线里），新版也没有 |
 | 目录栏：概述、札记、字段、章节模版、章节序列 | 没有：大纲栏是外壳的，只读正文里的标题 |
-| ⋯ 删除故事线 | 有（等外壳的挂接点）；「分享」是别的模块 |
+| ⋯ 删除故事线 | 有；「分享」「历史快照…」是外壳的 |
 | 帮手改说明、改字段的演示 | 没有，阶段 5 |
 
 ## 和旧版不一样的地方
@@ -62,7 +62,7 @@ cargo run -p dr-view-elements --features capture --example elements-capture -- .
 | 谁 | 接口 |
 | --- | --- |
 | 测试、调试桥 | `dr_view_elements::storyline_page(id, cx)` → `(StorylineHead, StorylineEnd)`；`StorylineHead::fields`、`StorylineEnd::{fields, listed, set_filter, filter}`；`storyline::{chapters_of, thousands}` |
-| ⋯ 菜单 | `dr_view_elements::menu::rows(&Target::Storyline(..), cx)` |
+| ⋯ 菜单 | `dr_view_elements::menu::register`（`init` 调）；`menu::rows(&Target::Storyline(..), cx)` |
 | 对话框 | `dr_view_elements::dialogs::open(AskFor::DeleteStoryline(id), ws, window, cx)` |
 
 ## 测试
@@ -71,13 +71,12 @@ cargo run -p dr-view-elements --features capture --example elements-capture -- .
 
 - 打开「钟楼」：名字和说明是存着的值；改名离开就存进 F3；两行的说明离开就存，换行原样；「新增字段」加的字段存进这条故事线。
 - 章节序列：就是这条线上的章节，按阅读顺序；「已写」都有字，「未起」都没字，两边加起来是全部。
-- 删除：⋯ 菜单只有一行、是危险的；打开的是「删除故事线」的确认；确认后故事线进废纸篓，外壳关掉它的标签；另开一次按 Esc，什么也没删。
+- 删除：⋯ 菜单照外壳列的样子是「分享」「历史快照…」「删除故事线」，最后一行是危险的；点它打开的是「删除故事线」的确认；确认后故事线进废纸篓，外壳关掉它的标签；另开一次按 Esc，什么也没删。
 
 ## 待协调
 
-1. **F6（dr-shell）**：⋯ 菜单让模块加行，同 [m11-elements.md 的「待协调」](m11-elements.md#待协调)第 2 条。
-2. **F3（dr-workspace）**：故事线的章节模版（`chapter_template`）要能写，才能做「章节模版」一节。
-3. **F5 / F7**：取色器（同 M11）。
+1. **F3（dr-workspace）**：故事线的章节模版（`template:storyline:<id>` 文档）要能读写，才能做「章节模版」一节。F3 这一轮在加，2026-11-08 早上还没交，这一节先跳过。
+2. **F5 / F7**：取色器（同 M11）。
 
 ## 还没做的
 
