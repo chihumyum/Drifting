@@ -115,8 +115,14 @@ fn stored(lib: &dr_workspace::Workspace, doc: &str) -> Check<Vec<String>> {
         .collect())
 }
 
+/// The book's word count and the search hits, once F2 has indexed the open
+/// documents (the quit hook makes it now) and the stale rest (F2 catches
+/// those up only after 500 ms without a write, and these reads come sooner).
 fn counted(lib: &dr_workspace::Workspace, book: &str) -> Check<(u64, usize)> {
     lib.before_quit();
+    lib.library()
+        .rebuild_stale_indexes()
+        .map_err(|e| format!("stale indexes: {e}"))?;
     let words = out(lib, "book.get", json!({"book": book}))?["words"]
         .as_u64()
         .unwrap_or(0);

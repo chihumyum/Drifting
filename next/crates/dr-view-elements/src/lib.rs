@@ -134,10 +134,19 @@ pub fn storyline_page(
     Some((head.upgrade()?, end.upgrade()?))
 }
 
-/// Registers the element and category pages' chrome with the shell, and
-/// makes their dialogs.
+/// Registers the element and category pages' chrome and the left
+/// sidebar's 要素 panel with the shell, and makes their dialogs.
 pub fn init(cx: &mut App) {
     dialogs::init(cx);
+    dr_shell::pages::add_left_panel(cx, |tab, ws, _, cx| {
+        (tab == dr_shell::workspace::LeftTab::Elements).then(|| {
+            let (body, head) = make_panel(ws, cx);
+            dr_shell::pages::LeftPanel {
+                head: head.into(),
+                body: body.into(),
+            }
+        })
+    });
     dr_shell::pages::add_page_chrome(cx, |target, host, window, cx| {
         let ws = host.workspace;
         let chrome = match target {

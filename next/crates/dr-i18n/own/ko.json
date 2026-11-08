@@ -32,5 +32,8 @@
     "replacePlaceholder": "바꿀 내용…",
     "replace": "바꾸기",
     "replaceAll": "모두 바꾸기"
+  },
+  "positionLink": {
+    "copied": "위치 링크를 복사했습니다"
   }
 }

@@ -443,6 +443,9 @@
     },
     "title": "通知"
   },
+  "positionLink": {
+    "copied": "位置リンクをコピーしました"
+  },
   "projectHome": {
     "book": {
       "noStorylines": "ストーリーラインはまだありません。",
