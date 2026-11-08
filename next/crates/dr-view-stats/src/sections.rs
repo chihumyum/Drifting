@@ -22,7 +22,7 @@ use crate::detail::{
     BookDetail, CORE_ELEMENTS, CategoryDetail, Detail, ElementDetail, MaterialDetail, PageDetail,
     Row, Statuses, StorylineDetail, UNAPPEARED,
 };
-use crate::model::{self, Live};
+use crate::model::Live;
 use crate::panel::StatsView;
 use crate::{Hooks, StatsAction};
 
@@ -68,7 +68,7 @@ impl Ui<'_> {
     }
 
     pub fn n(&self, v: i64) -> String {
-        model::grouped(v, self.i18n.locale())
+        dr_i18n::number::grouped_signed(v, self.i18n.locale())
     }
 
     pub fn words(&self, v: u64) -> SharedString {
