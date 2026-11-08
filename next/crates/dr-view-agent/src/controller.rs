@@ -422,17 +422,13 @@ impl AgentController {
             .as_ref()
             .map(|resources| resources.reads.drained());
         let runs = std::mem::take(&mut state.runs);
-        // Poll each request once now: abort's synchronous prefix sends the
-        // cancellation and mailbox command. Even a subsequently dropped close
-        // future cannot leave an unanswered run working indefinitely.
-        let mut aborts = Vec::new();
-        for run in runs.values() {
-            let control = run.control.clone();
-            let mut abort = async move { control.abort().await }.boxed();
-            if abort.as_mut().now_or_never().is_none() {
-                aborts.push(abort);
-            }
-        }
+        // Nonblocking delivery freezes and signals every run now. The returned
+        // futures only wait for durable acknowledgements; none is polled while
+        // the service mutex is held or before close returns to the UI.
+        let aborts = runs
+            .values()
+            .map(|run| run.control.abort())
+            .collect::<Vec<_>>();
         let close = async move {
             // An already terminal run may close its control mailbox before
             // its completion arrives; only the completion is the boundary.
@@ -487,7 +483,7 @@ impl Drop for Inner {
         // only a cancellation fallback; the shell still has to await close.
         if let Ok(state) = self.state.get_mut() {
             for run in state.runs.values() {
-                let _ = run.control.abort().now_or_never();
+                drop(run.control.abort());
             }
         }
     }

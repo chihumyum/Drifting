@@ -720,11 +720,11 @@
     },
     "agentLimits": {
       "title": "実行上限",
-      "desc": "実行区間ごとのモデル反復回数を制限します。上限で進捗を保存し、許可された継続タスクは自動再開します。停止中のタスクは手動でも続行できます。次の区間から適用します。",
+      "desc": "会話の各ターンでのモデル呼び出し回数を制限します。上限に達するとターンが停止し、確定済みの変更は保持されます。設定の変更は次のターンから適用されます。",
       "iterationLabel": "1ターンのモデル反復上限",
       "iterationOption": "{{value}}回",
       "unlimited": "無制限",
-      "unlimitedHint": "無制限では、自分でターンを停止するまで続きます。"
+      "unlimitedHint": "無制限ではモデル呼び出し回数に上限を設けません。ターンは手動で停止できます。"
     },
     "agentMemory": {
       "title": "作品の記憶"
@@ -1508,7 +1508,7 @@
       "endRecovered": "保留中の手順を終了"
     },
     "composer": {
-      "placeholder": "Agentに質問…（Cmd/Ctrl+Enter）",
+      "placeholder": "Agentに質問…（Enterで送信、Shift+Enterで改行）",
       "steerPlaceholder": "実行中のタスクに補足・修正…",
       "answerPlaceholder": "Agentの質問に回答…",
       "stop": "停止",

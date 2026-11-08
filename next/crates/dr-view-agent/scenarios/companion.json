@@ -28,10 +28,22 @@
     { "app": "ui.find", "params": { "label": "本轮改动", "role": "Button" } },
     { "app": "ui.find", "params": { "label": "版本历史", "role": "Button" } },
     { "app": "ui.screenshot", "png": "06-changed-ink-and-search.png" },
+    {"app": "ui.find", "params": {"label": "思考过程", "role": "Button", "count": 1}},
+    {"app": "ui.find", "params": {"label": "prose.read", "role": "Button", "count": 1}},
+    {"app": "ui.find", "params": {"label": "结果 · read", "role": "Button", "count": 1}},
+    {"app": "ui.press", "params": {"label": "思考过程", "role": "Button", "via": "a11y"}, "note": "The native accessibility action operates the disclosure."},
+    {"app": "ui.press", "params": {"label": "思考过程", "role": "Button", "via": "a11y"}},
     { "app": "ui.press", "params": { "label": "版本历史", "role": "Button" } },
-    { "app": "state.get", "expect": { "/history": true } },
+    { "app": "ui.wait", "params": { "until": "ready", "state": { "/history": true } } },
     { "app": "ui.screenshot", "png": "07-history.png" },
     { "app": "ui.find", "params": { "label": "版本历史", "role": "Button", "absent": true }, "note": "Opening history completes the first-change guide." },
+    {"app": "input.click", "params": {"x": 20, "y": 20}, "note": "Dismiss history through its outside-click close action."},
+    {"app": "state.get", "expect": {"/history": false}},
+    {"app": "ui.press", "params": {"label": "发送", "role": "Button", "dy": -60}, "note": "Focus the composer above the send button after closing history."},
+    {"app": "input.type", "params": {"text": "灯塔"}},
+    {"app": "input.key", "params": {"keys": "enter"}},
+    {"app": "ui.find", "params": {"label": "思考过程", "role": "Button", "count": 2}, "note": "Both turns have a completed assistant message."},
+    {"app": "ui.screenshot", "png": "08-second-turn.png", "note": "The first turn’s search, question and changes stay before the second author turn."},
     { "app": "app.quit", "expect": { "/quit": true, "/exitCode": 0, "/connectionFileLeft": false } }
   ]
 }

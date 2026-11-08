@@ -315,7 +315,8 @@ fn close_freezes_immediately_aborts_every_run_and_waits_for_entered_write() {
     let mut close = controller.close();
     assert!(controller.is_closed());
     assert!(controller.start(f.start(ConversationId::new_v7())).is_err());
-    assert!(close.as_mut().now_or_never().is_none());
+    // Synchronous freeze delivers every abort before anybody polls the
+    // barrier. A stalled driver must already be cancelled.
     wait(|| second_control.state() == State::Aborted);
     assert!(
         close.as_mut().now_or_never().is_none(),

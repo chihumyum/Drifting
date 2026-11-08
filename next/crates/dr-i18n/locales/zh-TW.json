@@ -6,10 +6,10 @@
     },
     "composer": {
       "answer": "回答",
+      "placeholder": "向 Agent 提問…（Enter 傳送，Shift+Enter 換行）",
       "send": "傳送",
       "steer": "補充指示",
-      "stop": "停止",
-      "touchPlaceholder": "詢問 Agent…"
+      "stop": "停止"
     },
     "config": {
       "effort": "強度 · {{effort}}",
@@ -1194,11 +1194,11 @@
       "title": "右側可執行操作的 Agent。"
     },
     "agentLimits": {
-      "desc": "限制每段執行中的模型迭代次數。到上限會儲存進度，已授權的持續任務會自動接續；暫停的任務也能手動繼續。變更於下一段生效。",
+      "desc": "限制每輪對話中的模型呼叫次數。達到上限時本輪停止，已提交的變更保留。設定變更於下一輪對話生效。",
       "iterationLabel": "每回合模型迭代上限",
       "iterationOption": "{{value}} 次迭代",
       "unlimited": "無上限",
-      "unlimitedHint": "無上限時，只有你手動停止才能中斷回合。"
+      "unlimitedHint": "「無上限」不設模型呼叫次數上限，你可以手動停止本輪。"
     },
     "appearance": {
       "dark": "深色",

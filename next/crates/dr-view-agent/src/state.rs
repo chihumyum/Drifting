@@ -4,6 +4,8 @@
 //! Local controls and receipt row ids stay in `RunSnapshot`; only transcript
 //! entries are shared with another device.
 
+use std::collections::{BTreeMap, HashMap};
+
 use dr_agent::{
     AssistantMessage, ContentBlock, Event, JournalEvent, ModelFailure, ProviderTool, Question,
     RequestId, RunConfig, SettlementRef, State, ToolCall, ToolPolicy, ToolResult, ToolStatus,
@@ -34,6 +36,49 @@ pub struct ChatSnapshot {
     pub entries: Vec<ConversationEntry>,
     pub messages: Vec<ChatMessage>,
     pub runs: Vec<RunSnapshot>,
+}
+
+/// Presentation order keeps the synchronized transcript untouched and places
+/// local cards after the last message in their own turn. Synced conversations
+/// need not have any local journal at all.
+pub enum TranscriptItem<'a> {
+    Message(&'a ChatMessage),
+    Run { run: &'a RunSnapshot, turn: u32 },
+}
+
+impl ChatSnapshot {
+    pub fn transcript(&self) -> Vec<TranscriptItem<'_>> {
+        let mut last = HashMap::new();
+        for (index, message) in self.messages.iter().enumerate() {
+            last.insert((message.session.as_str(), message.turn), index);
+        }
+        let runs: HashMap<_, _> = self
+            .runs
+            .iter()
+            .map(|run| (run.session.as_str(), run))
+            .collect();
+        let mut items = Vec::new();
+        for (index, message) in self.messages.iter().enumerate() {
+            items.push(TranscriptItem::Message(message));
+            if last.get(&(message.session.as_str(), message.turn)) == Some(&index)
+                && let Some(run) = runs.get(message.session.as_str())
+            {
+                items.push(TranscriptItem::Run {
+                    run,
+                    turn: message.turn,
+                });
+            }
+        }
+        for run in &self.runs {
+            if !last.contains_key(&(run.session.as_str(), run.turn)) {
+                items.push(TranscriptItem::Run {
+                    run,
+                    turn: run.turn,
+                });
+            }
+        }
+        items
+    }
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -132,6 +177,7 @@ pub struct PendingPermission {
 pub struct Steering {
     pub id: String,
     pub text: String,
+    pub turn: u32,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -161,6 +207,7 @@ pub struct RunSnapshot {
     pub questions: Vec<QuestionRecord>,
     pub permission: Option<PendingPermission>,
     pub provider_tools: Vec<ProviderTool>,
+    pub provider_tool_turns: BTreeMap<String, u32>,
     pub tools: Vec<ToolActivity>,
     pub changes: Vec<ChangedReceipt>,
     pub unapplied_steering: Vec<Steering>,
@@ -190,6 +237,7 @@ impl ChatState {
                 questions: Vec::new(),
                 permission: None,
                 provider_tools: Vec::new(),
+                provider_tool_turns: BTreeMap::new(),
                 tools: Vec::new(),
                 changes: Vec::new(),
                 unapplied_steering: Vec::new(),
@@ -273,6 +321,10 @@ impl ChatState {
                 self.run.live_message = None;
             }
             Event::ProviderTool { activity } => {
+                self.run
+                    .provider_tool_turns
+                    .entry(activity.id.clone())
+                    .or_insert(row.turn);
                 if let Some(previous) = self
                     .run
                     .provider_tools
@@ -366,6 +418,7 @@ impl ChatState {
             Event::SteeringReceived { id, text } => self.run.unapplied_steering.push(Steering {
                 id: id.clone(),
                 text: text.clone(),
+                turn: row.turn,
             }),
             Event::SteeringApplied { id } => self.run.unapplied_steering.retain(|s| s.id != *id),
             Event::Failed { error } => self.run.error = Some(error.clone()),

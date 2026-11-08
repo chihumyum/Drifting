@@ -6,10 +6,10 @@
     },
     "composer": {
       "answer": "Antworten",
+      "placeholder": "Agent fragen… (Enter zum Senden, Shift+Enter für eine neue Zeile)",
       "send": "Senden",
       "steer": "Nachsteuern",
-      "stop": "Stoppen",
-      "touchPlaceholder": "Den Agent fragen…"
+      "stop": "Stoppen"
     },
     "config": {
       "effort": "Aufwand · {{effort}}",
@@ -1200,11 +1200,11 @@
       "title": "Der Agent in der rechten Leiste, der Aktionen ausführen kann."
     },
     "agentLimits": {
-      "desc": "Begrenzt Modelliterationen je Ausführungsabschnitt. Am Limit wird gespeichert; autorisierte fortlaufende Aufgaben werden automatisch fortgesetzt, pausierte auch manuell. Änderungen gelten ab dem nächsten Abschnitt.",
+      "desc": "Begrenzt die Modellaufrufe pro Gesprächsrunde. Beim Erreichen des Limits stoppt die Runde; gespeicherte Änderungen bleiben erhalten. Die Einstellung gilt ab der nächsten Runde.",
       "iterationLabel": "Maximale Modelliterationen pro Runde",
       "iterationOption": "{{value}} Iterationen",
       "unlimited": "Unbegrenzt",
-      "unlimitedHint": "Unbegrenzt bedeutet: Nur du selbst stoppst die Runde."
+      "unlimitedHint": "Unbegrenzt setzt kein Limit für Modellaufrufe. Du kannst die Runde manuell stoppen."
     },
     "appearance": {
       "dark": "Dunkel",

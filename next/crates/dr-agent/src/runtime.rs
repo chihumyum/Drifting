@@ -167,12 +167,10 @@ impl Runtime {
         let (finished_tx, finished) = oneshot::channel();
         let state = Arc::new(Mutex::new(State::Streaming));
         let cancel = Cancellation::default();
-        let accepting = Arc::new(Mutex::new(true));
         let control = Control {
             sender,
             cancel: cancel.clone(),
             state: state.clone(),
-            accepting: accepting.clone(),
         };
         self.inner
             .active
@@ -192,7 +190,6 @@ impl Runtime {
                     commands,
                     state,
                     cancel,
-                    accepting,
                     steering: VecDeque::new(),
                     stopping: false,
                     aborting: false,
@@ -222,11 +219,7 @@ impl Runtime {
                         Err(error)
                     }
                 };
-                *worker.accepting.lock().expect("control mailbox") = false;
-                worker.commands.close();
-                while let Ok(command) = worker.commands.try_recv() {
-                    let _ = command.reply.send(Err(Error::Closed));
-                }
+                worker.close_mailbox();
                 inner
                     .active
                     .lock()
@@ -429,7 +422,6 @@ struct Worker {
     commands: mpsc::UnboundedReceiver<Command>,
     state: Arc<Mutex<State>>,
     cancel: Cancellation,
-    accepting: Arc<Mutex<bool>>,
     steering: VecDeque<(String, String)>,
     stopping: bool,
     aborting: bool,
@@ -515,6 +507,15 @@ impl Worker {
         Ok(())
     }
 
+    fn close_mailbox(&mut self) {
+        self.commands.close();
+        // Delivery is not acknowledgement. Requests racing with completion
+        // that have not been durably handled receive Closed, never success.
+        while let Ok(command) = self.commands.try_recv() {
+            let _ = command.reply.send(Err(Error::Closed));
+        }
+    }
+
     fn apply_steering(&mut self) -> Result<bool> {
         let applied = !self.steering.is_empty();
         while let Some((id, text)) = self.steering.pop_front() {
@@ -573,19 +574,11 @@ impl Worker {
                 return self.finish_halted();
             }
             if !has_tools && self.steering.is_empty() {
-                // Linearization point for natural completion: commands already
-                // sent are drained; later calls receive Closed, never disappear.
-                let accepting = self.accepting.clone();
-                let mut open = accepting.lock().expect("control mailbox");
-                self.drain()?;
-                if self.halted() {
-                    return self.finish_halted();
-                }
-                if self.steering.is_empty() {
-                    *open = false;
-                    self.set_state(State::Completed)?;
-                    return Ok(State::Completed);
-                }
+                // Closing the channel is the completion linearization point.
+                // No control caller shares a lock with the terminal write.
+                self.close_mailbox();
+                self.set_state(State::Completed)?;
+                return Ok(State::Completed);
             }
         }
     }

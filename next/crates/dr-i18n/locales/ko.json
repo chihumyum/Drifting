@@ -6,10 +6,10 @@
     },
     "composer": {
       "answer": "답변",
+      "placeholder": "Agent에게 질문…(Enter로 전송, Shift+Enter로 줄바꿈)",
       "send": "보내기",
       "steer": "추가 지시",
-      "stop": "중지",
-      "touchPlaceholder": "Agent에게 묻기…"
+      "stop": "중지"
     },
     "config": {
       "effort": "강도 · {{effort}}",
@@ -1194,11 +1194,11 @@
       "title": "오른쪽 사이드바에서 작업을 수행하는 Agent."
     },
     "agentLimits": {
-      "desc": "실행 구간마다 모델 반복 횟수를 제한합니다. 상한에서 진행을 저장하고 승인된 연속 작업은 자동으로 이어갑니다. 일시정지한 작업도 수동으로 계속할 수 있습니다. 변경은 다음 구간부터 적용됩니다.",
+      "desc": "대화의 각 턴에서 모델 호출 횟수를 제한합니다. 상한에 도달하면 해당 턴이 멈추며, 저장된 변경 사항은 유지됩니다. 설정 변경은 다음 턴부터 적용됩니다.",
       "iterationLabel": "턴당 모델 반복 상한",
       "iterationOption": "{{value}}회 반복",
       "unlimited": "무제한",
-      "unlimitedHint": "무제한에서는 직접 턴을 중지해야 멈춥니다."
+      "unlimitedHint": "무제한은 모델 호출 횟수에 상한을 두지 않습니다. 턴을 수동으로 중지할 수 있습니다."
     },
     "appearance": {
       "dark": "어둡게",

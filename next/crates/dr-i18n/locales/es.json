@@ -6,10 +6,10 @@
     },
     "composer": {
       "answer": "Responder",
+      "placeholder": "Pregunta a Agent… (Enter para enviar, Shift+Enter para un salto de línea)",
       "send": "Enviar",
       "steer": "Orientar",
-      "stop": "Detener",
-      "touchPlaceholder": "Pregunta al agente…"
+      "stop": "Detener"
     },
     "config": {
       "effort": "Esfuerzo · {{effort}}",
@@ -1208,11 +1208,11 @@
       "title": "El Agent de la barra derecha, capaz de actuar."
     },
     "agentLimits": {
-      "desc": "Limita las iteraciones del modelo por tramo. Al alcanzar el máximo se guarda el progreso y las tareas continuas autorizadas siguen automáticamente; las pausadas pueden continuar manualmente. Los cambios se aplican al siguiente tramo.",
+      "desc": "Limita las llamadas al modelo en cada turno de conversación. Al alcanzar el límite, el turno se detiene y los cambios guardados se conservan. La configuración se aplica al siguiente turno.",
       "iterationLabel": "Máximo de iteraciones por turno",
       "iterationOption": "{{value}} iteraciones",
       "unlimited": "Sin límite",
-      "unlimitedHint": "Sin límite, solo se detiene cuando tú paras el turno."
+      "unlimitedHint": "Sin límite no fija un máximo de llamadas al modelo. Puedes detener el turno manualmente."
     },
     "appearance": {
       "dark": "Oscuro",

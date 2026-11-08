@@ -720,11 +720,11 @@
     },
     "agentLimits": {
       "title": "Run limits",
-      "desc": "Limits model iterations in each execution slice. Progress is saved at the cap, and an authorized continuous task resumes automatically; a paused task can also be continued manually. Changes apply to the next slice.",
+      "desc": "Limits model calls in each conversation turn. At the limit, the turn stops; committed changes are kept. Changes apply to the next turn.",
       "iterationLabel": "Max model iterations per turn",
       "iterationOption": "{{value}} iterations",
       "unlimited": "Unlimited",
-      "unlimitedHint": "With Unlimited, the only brake is stopping the turn yourself."
+      "unlimitedHint": "Unlimited sets no model-call limit. You can stop the turn manually."
     },
     "agentMemory": {
       "title": "Project memory"
@@ -1508,7 +1508,7 @@
       "endRecovered": "End pending step"
     },
     "composer": {
-      "placeholder": "Ask the agent… (Cmd/Ctrl+Enter)",
+      "placeholder": "Ask the agent… (Enter to send, Shift+Enter for a new line)",
       "steerPlaceholder": "Add to or correct the running task…",
       "answerPlaceholder": "Answer the agent's question…",
       "stop": "Stop",

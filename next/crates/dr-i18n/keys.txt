@@ -912,7 +912,7 @@ agentPanel.composer.answer
 agentPanel.composer.send
 agentPanel.composer.steer
 agentPanel.composer.stop
-agentPanel.composer.touchPlaceholder
+agentPanel.composer.placeholder
 agentPanel.config.effort
 agentPanel.config.effortLabel
 agentPanel.config.model

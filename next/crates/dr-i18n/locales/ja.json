@@ -6,10 +6,10 @@
     },
     "composer": {
       "answer": "回答",
+      "placeholder": "Agentに質問…（Enterで送信、Shift+Enterで改行）",
       "send": "送信",
       "steer": "追加指示",
-      "stop": "停止",
-      "touchPlaceholder": "Agentに質問…"
+      "stop": "停止"
     },
     "config": {
       "effort": "強度・{{effort}}",
@@ -1194,11 +1194,11 @@
       "title": "右サイドバーで操作を行うAgent。"
     },
     "agentLimits": {
-      "desc": "実行区間ごとのモデル反復回数を制限します。上限で進捗を保存し、許可された継続タスクは自動再開します。停止中のタスクは手動でも続行できます。次の区間から適用します。",
+      "desc": "会話の各ターンでのモデル呼び出し回数を制限します。上限に達するとターンが停止し、確定済みの変更は保持されます。設定の変更は次のターンから適用されます。",
       "iterationLabel": "1ターンのモデル反復上限",
       "iterationOption": "{{value}}回",
       "unlimited": "無制限",
-      "unlimitedHint": "無制限では、自分でターンを停止するまで続きます。"
+      "unlimitedHint": "無制限ではモデル呼び出し回数に上限を設けません。ターンは手動で停止できます。"
     },
     "appearance": {
       "dark": "ダーク",

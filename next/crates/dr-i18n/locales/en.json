@@ -6,10 +6,10 @@
     },
     "composer": {
       "answer": "Answer",
+      "placeholder": "Ask the agent… (Enter to send, Shift+Enter for a new line)",
       "send": "Send",
       "steer": "Steer",
-      "stop": "Stop",
-      "touchPlaceholder": "Ask the agent…"
+      "stop": "Stop"
     },
     "config": {
       "effort": "Effort · {{effort}}",
@@ -1200,11 +1200,11 @@
       "title": "The agent in the right rail that can act."
     },
     "agentLimits": {
-      "desc": "Limits model iterations in each execution slice. Progress is saved at the cap, and an authorized continuous task resumes automatically; a paused task can also be continued manually. Changes apply to the next slice.",
+      "desc": "Limits model calls in each conversation turn. At the limit, the turn stops; committed changes are kept. Changes apply to the next turn.",
       "iterationLabel": "Max model iterations per turn",
       "iterationOption": "{{value}} iterations",
       "unlimited": "Unlimited",
-      "unlimitedHint": "With Unlimited, the only brake is stopping the turn yourself."
+      "unlimitedHint": "Unlimited sets no model-call limit. You can stop the turn manually."
     },
     "appearance": {
       "dark": "Dark",

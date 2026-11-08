@@ -5,6 +5,201 @@ use serde_json::{Value, json};
 
 use crate::onboarding::{Chapter, Element, StarterSource};
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ChangeTarget {
+    pub kind: String,
+    pub id: String,
+    /// Only an actual prose settlement offers prose history. A metadata
+    /// change to an element does not imply that its prose changed too.
+    pub history: Option<String>,
+    book: Option<String>,
+}
+
+impl ChangeTarget {
+    pub fn key(&self) -> String {
+        format!("{}:{}", self.kind, self.id)
+    }
+}
+
+/// Receipt documents identify storage, not metadata entities. Match the
+/// receipt back to its own settled call before inspecting that call's effects.
+pub fn change_targets(run: &crate::state::RunSnapshot, turn: u32) -> Vec<ChangeTarget> {
+    let mut targets: Vec<ChangeTarget> = Vec::new();
+    let mut add = |target: ChangeTarget| {
+        if let Some(previous) = targets.iter_mut().find(|old| old.key() == target.key()) {
+            if target.history.is_some() {
+                previous.history = target.history;
+            }
+        } else {
+            targets.push(target);
+        }
+    };
+    for change in run.changes.iter().filter(|change| change.turn == turn) {
+        let receipt = &change.receipt;
+        let Ok(doc) = dr_model::DocId::parse(&receipt.document) else {
+            continue;
+        };
+        if doc.profile().is_some() {
+            if let Some((kind, id)) = receipt.document.split_once(':') {
+                add(ChangeTarget {
+                    kind: kind.into(),
+                    id: id.into(),
+                    history: Some(receipt.document.clone()),
+                    book: None,
+                });
+            }
+            continue;
+        }
+        let Some(book) = receipt.document.strip_prefix("book:") else {
+            continue;
+        };
+        let result = run
+            .tools
+            .iter()
+            .filter_map(|tool| tool.result.as_ref())
+            .find(|result| result.settlements.iter().any(|settled| settled == receipt));
+        let Some(effects) = result.and_then(|result| result.output.get("effects")) else {
+            // Recovered metadata with no precise effects must not pretend the
+            // entire book was the object the author should inspect.
+            continue;
+        };
+        let Ok(effects) = serde_json::from_value::<Vec<dr_workspace::Effect>>(effects.clone())
+        else {
+            continue;
+        };
+        for effect in effects {
+            if matches!(
+                effect.kind.as_str(),
+                "book" | "node" | "element" | "category" | "storyline" | "material" | "comment"
+            ) {
+                add(ChangeTarget {
+                    kind: effect.kind,
+                    id: effect.id,
+                    history: None,
+                    book: Some(book.into()),
+                });
+            }
+        }
+    }
+    targets
+}
+
+pub enum ChangeLocation {
+    Home,
+    Page(dr_shell::nav::Target),
+    Comment {
+        id: String,
+        target: Option<dr_shell::nav::Target>,
+    },
+    History {
+        doc: String,
+        name: String,
+        target: dr_shell::nav::Target,
+    },
+}
+
+/// Resolve through F3 off the UI thread. Missing/deleted/cross-book objects
+/// fail rather than falling back to an unrelated page or ending the guide.
+pub fn resolve_change(
+    ws: &Workspace,
+    book: &str,
+    change: &ChangeTarget,
+    history: bool,
+) -> Result<ChangeLocation, String> {
+    use dr_workspace::{LinkGroup, NavTarget};
+    let missing = || "changed object is no longer available".to_owned();
+    if change.book.as_deref().is_some_and(|owner| owner != book) {
+        return Err(missing());
+    }
+    let catalog = ws.catalog(book).map_err(|error| error.to_string())?;
+    if !catalog.exists(&NavTarget::Book) {
+        return Err(missing());
+    }
+    if let Some(doc) = &change.history
+        && ws
+            .library()
+            .doc_info(doc)
+            .map_err(|error| error.to_string())?
+            .and_then(|info| info.book_id)
+            .as_deref()
+            != Some(book)
+    {
+        return Err(missing());
+    }
+    let locate = |kind: &str, id: &str| {
+        let nav = match kind {
+            "node" => catalog
+                .by_id(LinkGroup::Chapters, id)
+                .or_else(|| catalog.by_id(LinkGroup::Drifts, id)),
+            "element" => catalog.by_id(LinkGroup::Elements, id),
+            "category" => catalog.by_id(LinkGroup::Categories, id),
+            "storyline" => catalog.by_id(LinkGroup::Storylines, id),
+            "material" => id
+                .parse()
+                .ok()
+                .map(NavTarget::Material)
+                .filter(|target| catalog.exists(target)),
+            _ => None,
+        }?;
+        Some((
+            dr_shell::nav::Target::from_key(&nav.key())?,
+            catalog.title(&nav)?,
+        ))
+    };
+    if history {
+        let doc = change.history.as_ref().ok_or_else(missing)?;
+        if !dr_model::DocId::parse(doc).is_ok_and(|doc| doc.profile().is_some())
+            || ws
+                .library()
+                .doc_info(doc)
+                .map_err(|error| error.to_string())?
+                .and_then(|info| info.book_id)
+                .as_deref()
+                != Some(book)
+        {
+            return Err(missing());
+        }
+        let (target, name) = locate(&change.kind, &change.id).ok_or_else(missing)?;
+        return Ok(ChangeLocation::History {
+            doc: doc.clone(),
+            name,
+            target,
+        });
+    }
+    if change.kind == "book" {
+        return (change.id == book)
+            .then_some(ChangeLocation::Home)
+            .ok_or_else(missing);
+    }
+    if change.kind == "comment" {
+        let result = ws
+            .call(&Actor::User, "comment.list", json!({"book":book}))
+            .map_err(|error| error.to_string())?;
+        let comment = result["output"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .find(|comment| comment["id"].as_str() == Some(change.id.as_str()))
+            .ok_or_else(missing)?;
+        let target = if comment["unlocated"] == true {
+            None
+        } else {
+            comment["target"]["kind"]
+                .as_str()
+                .zip(comment["target"]["id"].as_str())
+                .and_then(|(kind, id)| locate(kind, id))
+                .map(|(target, _)| target)
+        };
+        return Ok(ChangeLocation::Comment {
+            id: change.id.clone(),
+            target,
+        });
+    }
+    locate(&change.kind, &change.id)
+        .map(|(target, _)| ChangeLocation::Page(target))
+        .ok_or_else(missing)
+}
+
 pub fn starters(ws: &Workspace, book: &str) -> Result<StarterSource, String> {
     let read = |name, input| {
         ws.call(&Actor::User, name, input)
@@ -106,8 +301,62 @@ pub fn result_text(value: &Value) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::state::{ChangedReceipt, ChatState, ToolActivity};
+    use dr_agent::{SettlementRef, ToolResult, ToolStatus};
     use dr_i18n::keys::agent_panel::onboarding::prompts;
     use dr_testkit::seed::{self, Preset};
+
+    #[test]
+    fn metadata_targets_use_their_own_call_and_turn_effects() {
+        let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+        let book = seeded.books[0].book_id().to_string();
+        let mut run = ChatState::new("synthetic-session").snapshot();
+        let receipt = |id| SettlementRef {
+            id,
+            document: format!("book:{book}"),
+            seq: id,
+        };
+        let make_tool = |id: &str, settled, kind: &str, target: &str| ToolActivity {
+            id: id.into(),
+            call: None,
+            started: true,
+            result: Some(ToolResult {
+                call: id.into(),
+                status: ToolStatus::Success,
+                output: json!({"effects":[{"action":"updated","kind":kind,"id":target}]}),
+                settlements: vec![receipt(settled)],
+            }),
+        };
+        run.changes = vec![
+            ChangedReceipt {
+                turn: 1,
+                receipt: receipt(1),
+            },
+            ChangedReceipt {
+                turn: 2,
+                receipt: receipt(2),
+            },
+            // A recovered storage receipt alone says nothing about which
+            // metadata object was affected. It must not borrow another call.
+            ChangedReceipt {
+                turn: 3,
+                receipt: receipt(3),
+            },
+        ];
+        run.tools = vec![
+            make_tool("second", 2, "element", "second-effect"),
+            make_tool("first", 1, "book", &book),
+        ];
+        let first = change_targets(&run, 1);
+        assert_eq!(first.len(), 1);
+        assert_eq!(first[0].key(), format!("book:{book}"));
+        assert_eq!(first[0].history, None);
+        let second = change_targets(&run, 2);
+        assert_eq!(second.len(), 1);
+        assert_eq!(second[0].key(), "element:second-effect");
+        assert_eq!(second[0].history, None);
+        assert!(change_targets(&run, 3).is_empty());
+    }
 
     #[test]
     fn recent_node_routes_starters_to_the_non_first_written_chapter() {

@@ -70,6 +70,7 @@ pub struct ReviewView {
     filter: Filter,
     current_only: bool,
     resolved_open: bool,
+    reveal: Option<Reveal>,
     editing: Option<(String, Entity<TextArea>, Subscription)>,
     /// TODOs completed or undone here: their check strokes are drawn.
     checks: HashMap<String, Tween>,
@@ -85,6 +86,11 @@ pub struct ReviewView {
 /// How long a source card trusts the passage it read (the prose may have
 /// changed under it since).
 const ORIGINAL_FRESH: Duration = Duration::from_secs(2);
+
+struct Reveal {
+    id: String,
+    reply: futures::channel::oneshot::Sender<bool>,
+}
 
 /// Where a comment is, as a tab: a chapter, an idea, an element ….
 fn nav_of(catalog: &dr_workspace::BookCatalog, target: &Target) -> Option<NavTarget> {
@@ -124,6 +130,7 @@ impl ReviewView {
             filter: Filter::All,
             current_only: false,
             resolved_open: false,
+            reveal: None,
             editing: None,
             checks: HashMap::new(),
             pending: None,
@@ -137,6 +144,58 @@ impl ReviewView {
     /// How the arrows open an entity's tab.
     pub fn set_opener(&mut self, open: Opener) {
         self.opener = Some(open);
+    }
+
+    /// Accept navigation to a comment, including when this pane has not yet
+    /// loaded it. Only filters which conceal this item are relaxed.
+    pub fn reveal_comment(
+        &mut self,
+        book: &str,
+        id: &str,
+        cx: &mut Context<Self>,
+    ) -> futures::channel::oneshot::Receiver<bool> {
+        if self.book != book {
+            self.book = book.to_owned();
+            self.items.clear();
+            self.places.clear();
+            self.loaded = false;
+        }
+        let (reply, received) = futures::channel::oneshot::channel();
+        if self.lib.is_none() || book.is_empty() {
+            self.reveal = None;
+            let _ = reply.send(false);
+            return received;
+        }
+        self.reveal = Some(Reveal {
+            id: id.to_owned(),
+            reply,
+        });
+        self.reload(cx);
+        received
+    }
+
+    fn apply_reveal(&mut self) {
+        let Some(Reveal { id, reply }) = self.reveal.take() else {
+            return;
+        };
+        let Some(item) = self.items.iter().find(|item| item.id == id) else {
+            let _ = reply.send(false);
+            return;
+        };
+        if matches!((self.filter, item.kind.as_str()), (Filter::Todos, kind) if kind != "todo")
+            || (self.filter == Filter::Comments && item.kind == "todo")
+        {
+            self.filter = Filter::All;
+        }
+        if self.current_only
+            && self.target.as_ref().and_then(target_of).as_ref() != item.target.as_ref()
+        {
+            self.current_only = false;
+        }
+        if item.status == "resolved" {
+            self.resolved_open = true;
+        }
+        let _ = reply.send(true);
     }
 
     /// Shows `book`, following the page `target`.
@@ -157,6 +216,7 @@ impl ReviewView {
         }
         if self.book != book {
             self.book = book.to_owned();
+            self.reveal = None;
             self.items.clear();
             self.loaded = false;
             self.reload(cx);
@@ -216,6 +276,7 @@ impl ReviewView {
                 this.items = items;
                 this.places = places;
                 this.loaded = true;
+                this.apply_reveal();
                 cx.notify();
             })
             .ok();
@@ -1027,4 +1088,237 @@ fn seal_of(id: &str) -> u8 {
         hash = hash.wrapping_mul(31).wrapping_add(unit as i32);
     }
     ((hash as i64).abs() % 6) as u8
+}
+
+#[cfg(test)]
+mod reveal_tests {
+    use super::*;
+    use dr_testkit::seed::{self, Preset};
+    use gpui::TestAppContext;
+    use serde_json::json;
+
+    fn wait(cx: &mut TestAppContext, view: &Entity<ReviewView>) {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            cx.executor().advance_clock(Duration::from_millis(20));
+            cx.run_until_parked();
+            if view.read_with(cx, |view, _| view.loaded && view.reveal.is_none()) {
+                return;
+            }
+            assert!(Instant::now() < deadline, "comment reveal did not load");
+            std::thread::sleep(Duration::from_millis(2));
+        }
+    }
+
+    fn visible(view: &ReviewView, id: &str) -> bool {
+        let listing = view.listing();
+        listing
+            .open
+            .iter()
+            .flat_map(|group| &group.items)
+            .any(|item| item.id == id)
+            || (view.resolved_open
+                && listing
+                    .resolved
+                    .iter()
+                    .flat_map(|group| &group.items)
+                    .any(|item| item.id == id))
+    }
+
+    #[gpui::test]
+    fn reveal_relaxes_only_filters_hiding_the_target_and_expands_resolved(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        let directory = tempfile::tempdir().unwrap();
+        let ws = Workspace::open_dir(directory.path(), "m31-review-reveal-test").unwrap();
+        let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+        let book = seeded.books[0].book_id().to_string();
+        let body = seeded.books[0]
+            .groups()
+            .values()
+            .flatten()
+            .next()
+            .unwrap()
+            .clone();
+        seeded.write_to(ws.library()).unwrap();
+        let chapters = ws
+            .call(&Actor::User, "chapter.list", json!({"book":book}))
+            .unwrap();
+        let chapter = chapters["output"][0]["id"].as_str().unwrap();
+        let located = ws
+            .call(
+                &Actor::User,
+                "comment.create",
+                json!({
+                    "book":book,"body":body,"target":{"kind":"node","id":chapter}
+                }),
+            )
+            .unwrap()["output"]["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        let floating = ws
+            .call(
+                &Actor::User,
+                "comment.create",
+                json!({
+                    "book":book,"body":body
+                }),
+            )
+            .unwrap()["output"]["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        let resolved = ws
+            .call(
+                &Actor::User,
+                "comment.create",
+                json!({
+                    "book":book,"body":body,"target":{"kind":"node","id":chapter}
+                }),
+            )
+            .unwrap()["output"]["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        ws.call(
+            &Actor::User,
+            "comment.update",
+            json!({"book":book,"id":resolved,"status":"resolved"}),
+        )
+        .unwrap();
+        cx.update(|cx| crate::init(Some(ws.clone()), cx));
+        for (index, id) in [&located, &floating, &resolved].into_iter().enumerate() {
+            let pane = format!("reveal-{index}");
+            // Exercise a reveal before the pane's first draw/load too.
+            let mut ack = cx
+                .update(|cx| crate::reveal_comment(&pane, &book, id, cx))
+                .unwrap();
+            let view = cx.update(|cx| crate::view(&pane, cx)).unwrap();
+            wait(cx, &view);
+            assert_eq!(ack.try_recv().unwrap(), Some(true));
+            view.update(cx, |view, cx| {
+                view.target = Some(NavTarget::Chapter(chapter.parse().unwrap()));
+                view.set_filter(
+                    if index == 0 {
+                        Filter::Todos
+                    } else {
+                        Filter::Comments
+                    },
+                    cx,
+                );
+                view.set_current_only(true, cx);
+                view.resolved_open = false;
+            });
+            assert!(
+                !view.read_with(cx, |view, _| visible(view, id)),
+                "precondition {index}"
+            );
+            let mut ack = cx
+                .update(|cx| crate::reveal_comment(&pane, &book, id, cx))
+                .unwrap();
+            wait(cx, &view);
+            assert_eq!(ack.try_recv().unwrap(), Some(true));
+            view.read_with(cx, |view, _| {
+                assert!(visible(view, id), "target {index} remains hidden");
+                assert_eq!(
+                    view.filter,
+                    if index == 0 {
+                        Filter::All
+                    } else {
+                        Filter::Comments
+                    }
+                );
+                assert_eq!(view.current_only, index != 1);
+                assert_eq!(view.resolved_open, index == 2);
+            });
+        }
+        cx.update(crate::release);
+        ws.close();
+    }
+
+    #[gpui::test]
+    fn reveal_ack_rejects_missing_failed_and_superseded_loads(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        let directory = tempfile::tempdir().unwrap();
+        let ws = Workspace::open_dir(directory.path(), "m31-review-ack-test").unwrap();
+        let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+        let book = seeded.books[0].book_id().to_string();
+        let body = seeded.books[0]
+            .groups()
+            .values()
+            .flatten()
+            .next()
+            .unwrap()
+            .clone();
+        seeded.write_to(ws.library()).unwrap();
+        let comment = ws
+            .call(
+                &Actor::User,
+                "comment.create",
+                json!({"book":book,"body":body}),
+            )
+            .unwrap()["output"]["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        cx.update(|cx| crate::init(Some(ws.clone()), cx));
+        let (mut first, mut replaced, view) = cx.update(|cx| {
+            let first = crate::reveal_comment("ack", &book, &comment, cx).unwrap();
+            let view = crate::view("ack", cx).unwrap();
+            let replaced = crate::reveal_comment("ack", &book, &comment, cx).unwrap();
+            view.update(cx, |view, cx| {
+                view.show("", None, Locale::En, Platform::current(), cx)
+            });
+            (first, replaced, view)
+        });
+        assert!(
+            first.try_recv().is_err(),
+            "replacement closes the previous ACK"
+        );
+        assert!(
+            replaced.try_recv().is_err(),
+            "book change closes the pending ACK"
+        );
+
+        // A valid target from the caller's earlier read was removed before
+        // Review's load: finding an empty list must never acknowledge success.
+        ws.call(
+            &Actor::User,
+            "comment.delete",
+            json!({"book":book,"id":comment}),
+        )
+        .unwrap();
+        let mut missing = cx
+            .update(|cx| crate::reveal_comment("ack", &book, &comment, cx))
+            .unwrap();
+        wait(cx, &view);
+        assert_eq!(missing.try_recv().unwrap(), Some(false));
+
+        let unavailable = dr_model::id::BookId::new_v7().to_string();
+        assert!(
+            ws.call(&Actor::User, "comment.list", json!({"book":unavailable}))
+                .is_err()
+        );
+        let mut failed = cx
+            .update(|cx| crate::reveal_comment("ack", &unavailable, &comment, cx))
+            .unwrap();
+        wait(cx, &view);
+        assert_eq!(
+            failed.try_recv().unwrap(),
+            Some(false),
+            "failed F3 read is not a reveal"
+        );
+
+        let mut dropped = cx.update(|cx| {
+            let receiver = crate::reveal_comment("drop", &book, &comment, cx).unwrap();
+            crate::release(cx);
+            receiver
+        });
+        cx.run_until_parked();
+        assert!(
+            dropped.try_recv().is_err(),
+            "dropping the view closes its ACK"
+        );
+        ws.close();
+    }
 }

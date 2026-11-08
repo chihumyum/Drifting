@@ -140,6 +140,7 @@ fn main() -> anyhow::Result<()> {
     let prompt = text.chars().take(32).collect::<String>();
     let reply = text.chars().take(64).collect::<String>();
     let replacement = text.chars().rev().collect::<String>();
+    let second_reply = chapters[1]["title"].as_str().unwrap().to_owned();
     let options = vec![
         chapters[0]["title"].as_str().unwrap().to_owned(),
         chapters[1]["title"].as_str().unwrap().to_owned(),
@@ -192,6 +193,19 @@ fn main() -> anyhow::Result<()> {
                 output_tokens: 20,
                 ..Default::default()
             })),
+            event(E::Finish(FinishReason::Complete)),
+        ],
+        // The second author turn remains in the same conversation. This
+        // exposes attachment ordering that a one-turn window cannot check.
+        vec![
+            event(E::ThinkingDelta {
+                index: 0,
+                text: second_reply.clone(),
+            }),
+            event(E::TextDelta {
+                index: 1,
+                text: second_reply,
+            }),
             event(E::Finish(FinishReason::Complete)),
         ],
     ];

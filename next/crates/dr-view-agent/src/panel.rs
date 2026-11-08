@@ -1,6 +1,9 @@
 //! A pane is a view of a conversation. The application hub owns its runs.
 
-use std::{collections::HashSet, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use dr_agent::{AssistantMessage, ContentBlock, RequestId, Start, State};
 use dr_i18n::Arg;
@@ -8,7 +11,7 @@ use dr_i18n::keys::agent_panel as k;
 use dr_model::id::{BookId, ConversationId};
 use dr_shell::{
     Workspace,
-    nav::{Open, Target},
+    nav::Open,
     strings::{t, tf},
 };
 use dr_ui::{
@@ -37,7 +40,9 @@ use crate::{
     data,
     hub::AgentHub,
     onboarding::{self, StarterSource},
-    state::{ChatSnapshot, ConversationSummary, MessageContent, RunSnapshot},
+    state::{
+        ChatMessage, ChatSnapshot, ConversationSummary, MessageContent, RunSnapshot, TranscriptItem,
+    },
 };
 
 const MEMORY: &str = "agent.conversation";
@@ -61,6 +66,7 @@ pub struct AgentPanel {
     expanded: HashSet<String>,
     busy: bool,
     loading: bool,
+    navigation_pending: usize,
     again: bool,
     generation: u64,
     error: Option<String>,
@@ -81,7 +87,7 @@ impl AgentPanel {
         let composer = cx.new(|cx| {
             TextArea::new("agent-composer", window, cx)
                 .framed(3.0)
-                .placeholder(t(cx, k::composer::TOUCH_PLACEHOLDER))
+                .placeholder(t(cx, k::composer::PLACEHOLDER))
         });
         let connect = cx.new(|cx| ConnectionView::new(connections.clone(), window, cx));
         let mut panel = Self {
@@ -103,6 +109,7 @@ impl AgentPanel {
             expanded: HashSet::new(),
             busy: false,
             loading: false,
+            navigation_pending: 0,
             again: false,
             generation: 0,
             error: None,
@@ -357,7 +364,7 @@ impl AgentPanel {
         self.composer.clone()
     }
     pub fn is_settled(&self) -> bool {
-        !self.busy && !self.loading && self.active().is_none()
+        !self.busy && !self.loading && self.navigation_pending == 0 && self.active().is_none()
     }
     pub fn active(&self) -> Option<&RunSnapshot> {
         self.snapshot
@@ -523,33 +530,93 @@ impl AgentPanel {
         }
     }
 
-    fn change(&mut self, doc: &str, history: bool, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(ws) = self.ws.upgrade() else {
+    fn change(
+        &mut self,
+        change: &data::ChangeTarget,
+        history: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let (Some(controller), Some(book)) = (self.controller.clone(), self.book.clone()) else {
             return;
         };
-        let doc = doc.to_owned();
-        ws.update(cx, |ws, cx| {
-            let target = if let Some(id) = doc.strip_prefix("node:") {
-                if ws.book.ideas.iter().any(|item| item.id == id) {
-                    Target::Idea(id.parse().expect("stored node id"))
-                } else {
-                    Target::Chapter(id.parse().expect("stored node id"))
-                }
-            } else {
-                Target::from_key(&doc).unwrap_or(Target::Book)
-            };
-            let name = ws
-                .book
-                .entry(&target)
-                .map(|e| e.title.clone())
-                .unwrap_or_else(|| ws.book.name.clone());
-            if history {
-                ws.open_history(doc, &name, window, cx);
-            } else {
-                ws.open(target, Open::KEEP, cx);
+        let (generation, change) = (self.generation, change.clone());
+        self.navigation_pending += 1;
+        cx.spawn_in(window, async move |this, cx| {
+            enum Opened {
+                Page,
+                Review(futures::channel::oneshot::Receiver<bool>),
             }
-        });
-        onboarding::note(cx, onboarding::Event::ChangeSeen);
+            let (reader, owner) = (controller.clone(), book.clone());
+            let resolved = cx
+                .background_executor()
+                .spawn(async move {
+                    reader.with_workspace_read(|ws| {
+                        data::resolve_change(ws, owner.as_str(), &change, history)
+                    })
+                })
+                .await;
+            let opened = this
+                .update_in(cx, |panel, window, cx| {
+                    if panel.generation != generation
+                        || panel.book.as_ref() != Some(&book)
+                        || controller.is_closed()
+                    {
+                        return None;
+                    }
+                    let (Ok(location), Some(ws)) = (resolved, panel.ws.upgrade()) else {
+                        return None;
+                    };
+                    ws.update(cx, |ws, cx| {
+                        if ws.book_id != book.as_str() || ws.book.id != book.as_str() {
+                            return None;
+                        }
+                        match location {
+                            data::ChangeLocation::Home => {
+                                ws.open_home(cx);
+                                Some(Opened::Page)
+                            }
+                            data::ChangeLocation::Page(target) => {
+                                ws.book.entry(&target)?;
+                                ws.super_view = None;
+                                ws.open(target, Open::KEEP, cx);
+                                Some(Opened::Page)
+                            }
+                            data::ChangeLocation::Comment { id, target } => {
+                                ws.reveal_comment(&id, target, cx).map(Opened::Review)
+                            }
+                            data::ChangeLocation::History { doc, name, target } => {
+                                ws.book.entry(&target)?;
+                                ws.open_history(doc, &name, window, cx);
+                                Some(Opened::Page)
+                            }
+                        }
+                    })
+                })
+                .ok()
+                .flatten();
+            let opened = match opened {
+                Some(Opened::Page) => true,
+                Some(Opened::Review(revealed)) => revealed.await.unwrap_or(false),
+                None => false,
+            };
+            this.update_in(cx, |panel, _, cx| {
+                panel.navigation_pending -= 1;
+                cx.notify();
+                if opened
+                    && panel.generation == generation
+                    && panel.book.as_ref() == Some(&book)
+                    && !controller.is_closed()
+                    && panel.ws.upgrade().is_some_and(|ws| {
+                        ws.read(cx).book_id == book.as_str() && ws.read(cx).book.id == book.as_str()
+                    })
+                {
+                    onboarding::note(cx, onboarding::Event::ChangeSeen);
+                }
+            })
+            .ok();
+        })
+        .detach();
     }
 
     fn toggle(&mut self, id: String, cx: &mut Context<Self>) {
@@ -563,6 +630,52 @@ impl AgentPanel {
 use futures::FutureExt as _;
 
 impl AgentPanel {
+    fn disclosure(
+        &self,
+        key: String,
+        label: SharedString,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> gpui::Stateful<gpui::Div> {
+        let open = self.expanded.contains(&key);
+        let click = key.clone();
+        let keyboard = key.clone();
+        let accessible = key.clone();
+        let panel = cx.entity().downgrade();
+        let p = Theme::of(window, cx).palette;
+        div()
+            .id(SharedString::from(key.clone()))
+            .debug_selector(|| key)
+            .role(gpui::Role::Button)
+            .aria_label(label)
+            .aria_expanded(open)
+            .tab_index(0)
+            .cursor_pointer()
+            .rounded(px(4.))
+            .focus(|el| el.bg(p.paper.solid()))
+            .on_click(cx.listener(move |panel, _, _, cx| panel.toggle(click.clone(), cx)))
+            .on_key_down(
+                cx.listener(move |panel, event: &gpui::KeyDownEvent, _, cx| {
+                    let modifiers = &event.keystroke.modifiers;
+                    if modifiers.control
+                        || modifiers.alt
+                        || modifiers.platform
+                        || modifiers.function
+                        || modifiers.shift
+                    {
+                        return;
+                    }
+                    if matches!(event.keystroke.key.as_str(), "enter" | "space") {
+                        cx.stop_propagation();
+                        panel.toggle(keyboard.clone(), cx);
+                    }
+                }),
+            )
+            .on_a11y_action(gpui::AccessibleAction::Click, move |_, _, cx| {
+                let _ = panel.update(cx, |panel, cx| panel.toggle(accessible.clone(), cx));
+            })
+    }
+
     fn assistant(
         &self,
         id: &str,
@@ -582,40 +695,39 @@ impl AgentPanel {
                 ContentBlock::Thinking { index, text, .. } => {
                     let key = format!("{id}:thinking:{index}");
                     let open = self.expanded.contains(&key);
+                    let label = t(
+                        cx,
+                        if running {
+                            k::thinking::STREAMING
+                        } else {
+                            k::thinking::DONE
+                        },
+                    );
                     column = column.child(
                         div()
                             .flex()
                             .flex_col()
                             .gap(px(6.))
                             .child(
-                                div()
-                                    .id(SharedString::from(key.clone()))
+                                self.disclosure(key.clone(), label.clone(), window, cx)
                                     .flex()
                                     .items_center()
                                     .gap(px(7.))
                                     .cursor_pointer()
                                     .text_color(p.ink(3).solid())
-                                    .on_click(cx.listener(move |panel, _, _, cx| {
-                                        panel.toggle(key.clone(), cx)
-                                    }))
                                     .child(sand::thinking(
                                         16.,
                                         p.ink(3).solid(),
                                         running && !theme.reduce_motion,
                                         window,
                                     ))
-                                    .child(t(
-                                        cx,
-                                        if running {
-                                            k::thinking::STREAMING
-                                        } else {
-                                            k::thinking::DONE
-                                        },
-                                    )),
+                                    .child(label),
                             )
                             .when(open, |el| {
                                 el.child(
                                     div()
+                                        .id(SharedString::from(format!("{key}:content")))
+                                        .debug_selector(|| format!("{key}:content"))
                                         .text_color(p.ink(3).solid())
                                         .child(text::wrapped(text.clone())),
                                 )
@@ -625,23 +737,24 @@ impl AgentPanel {
                 ContentBlock::ToolCall { call } => {
                     let key = format!("{id}:tool:{}", call.id);
                     let open = self.expanded.contains(&key);
+                    let label = SharedString::from(data::tool_name(call).to_owned());
                     column = column.child(
                         div()
                             .flex()
                             .flex_col()
                             .gap(px(5.))
                             .child(
-                                div()
-                                    .id(SharedString::from(key.clone()))
-                                    .cursor_pointer()
+                                self.disclosure(key.clone(), label.clone(), window, cx)
                                     .text_color(p.ink(3).solid())
-                                    .child(data::tool_name(call).to_owned())
-                                    .on_click(cx.listener(move |panel, _, _, cx| {
-                                        panel.toggle(key.clone(), cx)
-                                    })),
+                                    .child(label),
                             )
                             .when(open, |el| {
-                                el.child(text::wrapped(data::result_text(&call.arguments)))
+                                el.child(
+                                    div()
+                                        .id(SharedString::from(format!("{key}:content")))
+                                        .debug_selector(|| format!("{key}:content"))
+                                        .child(text::wrapped(data::result_text(&call.arguments))),
+                                )
                             }),
                     );
                 }
@@ -650,312 +763,392 @@ impl AgentPanel {
         column.into_any_element()
     }
 
-    fn transcript(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
-        let theme = Theme::of(window, cx);
-        let p = theme.palette;
-        let mut column = div().flex().flex_col().gap(px(18.)).min_w_0();
-        let Some(snapshot) = self.snapshot.clone() else {
-            return column.into_any_element();
-        };
-        for message in &snapshot.messages {
-            let mut row = div()
-                .id(SharedString::from(format!("agent-message-{}", message.id)))
-                .min_w_0();
-            match &message.content {
-                MessageContent::User { text } => {
-                    row = row
-                        .p(px(12.))
-                        .rounded(px(12.))
-                        .bg(p.paper.solid())
-                        .child(text::wrapped(text.clone()))
-                }
-                MessageContent::Assistant { message: assistant } => {
-                    row = row.child(self.assistant(&message.id, assistant, false, window, cx))
-                }
-                MessageContent::ToolResult {
-                    call,
-                    status,
-                    output,
-                } => {
-                    let key = format!("result:{}", message.id);
-                    let open = self.expanded.contains(&key);
-                    let label = format!("{} · {}", t(cx, k::tool::RESULT), call);
-                    row = row
-                        .text_color(if *status == dr_agent::ToolStatus::Error {
-                            p.danger.solid()
-                        } else {
-                            p.ink(3).solid()
-                        })
-                        .child(
-                            div()
-                                .id(SharedString::from(key.clone()))
-                                .cursor_pointer()
-                                .child(label)
-                                .on_click(cx.listener(move |panel, _, _, cx| {
-                                    panel.toggle(key.clone(), cx)
-                                })),
-                        )
-                        .when(open, |el| {
-                            el.child(text::wrapped(data::result_text(output)))
-                        });
-                }
-                MessageContent::Other { payload, .. } => {
-                    if let Some(text) = payload["text"]
-                        .as_str()
-                        .or_else(|| payload["error"].as_str())
-                    {
-                        row = row.child(text::wrapped(text.to_owned()));
+    fn message(
+        &self,
+        message: &ChatMessage,
+        assistant_id: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Option<AnyElement> {
+        let p = Theme::of(window, cx).palette;
+        let mut row = div()
+            .id(SharedString::from(format!("agent-message-{}", message.id)))
+            .debug_selector(|| format!("agent-message-{}", message.id))
+            .min_w_0();
+        match &message.content {
+            MessageContent::User { text } => {
+                row = row
+                    .p(px(12.))
+                    .rounded(px(12.))
+                    .bg(p.paper.solid())
+                    .child(text::wrapped(text.clone()))
+            }
+            MessageContent::Assistant { message: assistant } => {
+                row = row.child(self.assistant(assistant_id, assistant, false, window, cx))
+            }
+            MessageContent::ToolResult {
+                call,
+                status,
+                output,
+            } => {
+                let key = format!("result:{}", message.id);
+                let open = self.expanded.contains(&key);
+                let label = format!("{} · {}", t(cx, k::tool::RESULT), call);
+                row = row
+                    .text_color(if *status == dr_agent::ToolStatus::Error {
+                        p.danger.solid()
                     } else {
-                        continue;
-                    }
-                }
+                        p.ink(3).solid()
+                    })
+                    .child(
+                        self.disclosure(key.clone(), label.clone().into(), window, cx)
+                            .child(label),
+                    )
+                    .when(open, |el| {
+                        el.child(
+                            div()
+                                .id(SharedString::from(format!("{key}:content")))
+                                .debug_selector(|| format!("{key}:content"))
+                                .child(text::wrapped(data::result_text(output))),
+                        )
+                    });
             }
-            column = column.child(row);
+            MessageContent::Other { payload, .. } => {
+                let text = payload["text"]
+                    .as_str()
+                    .or_else(|| payload["error"].as_str())?;
+                row = row.child(text::wrapped(text.to_owned()));
+            }
         }
-        let latest_finished = snapshot
-            .runs
+        Some(row.into_any_element())
+    }
+
+    fn run(
+        &self,
+        run: &RunSnapshot,
+        turn: u32,
+        live_id: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let p = Theme::of(window, cx).palette;
+        let mut column = div().flex().flex_col().gap(px(18.)).min_w_0();
+        let latest_finished = self.snapshot.as_ref().and_then(|snapshot| {
+            snapshot
+                .runs
+                .iter()
+                .rev()
+                .find(|run| run.state.is_terminal())
+                .map(|run| (run.session.as_str(), run.turn))
+        });
+        if turn == run.turn
+            && let Some(live) = &run.live_message
+        {
+            column = column.child(
+                div()
+                    .id(SharedString::from(format!(
+                        "agent-live-{}-{turn}",
+                        run.session
+                    )))
+                    .debug_selector(|| format!("agent-live-{}-{turn}", run.session))
+                    .child(self.assistant(live_id, live, !run.state.is_terminal(), window, cx)),
+            );
+        }
+        for activity in run
+            .provider_tools
             .iter()
-            .rev()
-            .find(|run| run.state.is_terminal())
-            .map(|run| run.session.as_str());
-        for run in &snapshot.runs {
-            if let Some(live) = &run.live_message {
-                column = column.child(self.assistant(
-                    &format!("live:{}", run.session),
-                    live,
-                    !run.state.is_terminal(),
-                    window,
-                    cx,
-                ));
-            }
-            for activity in &run.provider_tools {
-                let label = activity
-                    .query
-                    .as_ref()
-                    .or(activity.url.as_ref())
-                    .cloned()
-                    .unwrap_or_default();
-                let url = activity.url.as_deref().and_then(data::web_url);
-                column = column.child(
-                    div()
-                        .id(SharedString::from(format!(
-                            "provider-tool-{}-{}",
-                            run.session, activity.id
-                        )))
-                        .flex()
-                        .gap(px(8.))
-                        .p(px(10.))
-                        .rounded(px(10.))
-                        .bg(p.paper.solid())
-                        .text_color(if activity.status == dr_agent::ProviderToolStatus::Failed {
-                            p.danger.solid()
-                        } else {
-                            p.ink(3).solid()
-                        })
-                        .child(sand::icon(sand::Icon::Search, 16., p.ink(3).solid()))
-                        .child(text::wrapped(label))
-                        .when_some(url, |el, url| {
-                            el.cursor_pointer()
-                                .on_click(move |_, _, cx| cx.open_url(&url))
-                        }),
+            .filter(|activity| run.provider_tool_turns.get(&activity.id) == Some(&turn))
+        {
+            let label = activity
+                .query
+                .as_ref()
+                .or(activity.url.as_ref())
+                .cloned()
+                .unwrap_or_default();
+            let url = activity.url.as_deref().and_then(data::web_url);
+            column = column.child(
+                div()
+                    .id(SharedString::from(format!(
+                        "provider-tool-{}-{}",
+                        run.session, activity.id
+                    )))
+                    .debug_selector(|| format!("provider-tool-{}-{}", run.session, activity.id))
+                    .flex()
+                    .gap(px(8.))
+                    .p(px(10.))
+                    .rounded(px(10.))
+                    .bg(p.paper.solid())
+                    .text_color(if activity.status == dr_agent::ProviderToolStatus::Failed {
+                        p.danger.solid()
+                    } else {
+                        p.ink(3).solid()
+                    })
+                    .child(sand::icon(sand::Icon::Search, 16., p.ink(3).solid()))
+                    .child(text::wrapped(label))
+                    .when_some(url, |el, url| {
+                        el.cursor_pointer()
+                            .on_click(move |_, _, cx| cx.open_url(&url))
+                    }),
+            );
+        }
+        if let Some(question) = &run.question
+            && question.request.turn == turn
+        {
+            let mut card = div()
+                .id("agent-question")
+                .flex()
+                .flex_col()
+                .gap(px(8.))
+                .p(px(12.))
+                .rounded(px(12.))
+                .bg(p.paper.solid())
+                .child(div().child(t(cx, k::control::QUESTION_TITLE)))
+                .child(text::wrapped(question.question.prompt.clone()));
+            for (index, option) in question.question.options.iter().enumerate() {
+                let request = question.request.clone();
+                let answer = option.clone();
+                card = card.child(
+                    Button::new(("agent-answer", index), option.clone())
+                        .small()
+                        .disabled(self.busy)
+                        .on_click(cx.listener(move |panel, _, _, cx| {
+                            panel.answer(request.clone(), answer.clone(), cx)
+                        })),
                 );
             }
-            if let Some(question) = &run.question {
-                let mut card = div()
-                    .id("agent-question")
+            column = column.child(card);
+        }
+        for question in run
+            .questions
+            .iter()
+            .filter(|question| question.request.turn == turn)
+        {
+            if run
+                .question
+                .as_ref()
+                .is_some_and(|pending| pending.request == question.request)
+            {
+                continue;
+            }
+            column = column.child(
+                div()
+                    .id(SharedString::from(format!(
+                        "agent-question-history-{}",
+                        question.request.nonce
+                    )))
+                    .debug_selector(|| format!("agent-question-history-{}", question.request.nonce))
+                    .flex()
+                    .flex_col()
+                    .gap(px(6.))
+                    .p(px(12.))
+                    .rounded(px(12.))
+                    .bg(p.paper.solid())
+                    .child(t(cx, k::control::QUESTION_TITLE))
+                    .child(text::wrapped(question.question.prompt.clone()))
+                    .when_some(question.answer.as_ref(), |el, answer| {
+                        el.child(text::wrapped(
+                            answer
+                                .as_str()
+                                .map(str::to_owned)
+                                .unwrap_or_else(|| data::result_text(answer)),
+                        ))
+                    }),
+            );
+        }
+        if let Some(permission) = &run.permission
+            && permission.request.turn == turn
+        {
+            let request = permission.request.clone();
+            let deny = request.clone();
+            column = column.child(
+                div()
+                    .id("agent-permission")
                     .flex()
                     .flex_col()
                     .gap(px(8.))
                     .p(px(12.))
                     .rounded(px(12.))
                     .bg(p.paper.solid())
-                    .child(div().child(t(cx, k::control::QUESTION_TITLE)))
-                    .child(text::wrapped(question.question.prompt.clone()));
-                for (index, option) in question.question.options.iter().enumerate() {
-                    let request = question.request.clone();
-                    let answer = option.clone();
-                    card = card.child(
-                        Button::new(("agent-answer", index), option.clone())
-                            .small()
-                            .disabled(self.busy)
-                            .on_click(cx.listener(move |panel, _, _, cx| {
-                                panel.answer(request.clone(), answer.clone(), cx)
-                            })),
-                    );
-                }
-                column = column.child(card);
-            }
-            for question in &run.questions {
-                if run
-                    .question
-                    .as_ref()
-                    .is_some_and(|pending| pending.request == question.request)
-                {
-                    continue;
-                }
-                column = column.child(
-                    div()
-                        .id(SharedString::from(format!(
-                            "agent-question-history-{}",
-                            question.request.nonce
-                        )))
-                        .flex()
-                        .flex_col()
-                        .gap(px(6.))
-                        .p(px(12.))
-                        .rounded(px(12.))
-                        .bg(p.paper.solid())
-                        .child(t(cx, k::control::QUESTION_TITLE))
-                        .child(text::wrapped(question.question.prompt.clone()))
-                        .when_some(question.answer.as_ref(), |el, answer| {
-                            el.child(text::wrapped(
-                                answer
-                                    .as_str()
-                                    .map(str::to_owned)
-                                    .unwrap_or_else(|| data::result_text(answer)),
-                            ))
-                        }),
-                );
-            }
-            if let Some(permission) = &run.permission {
-                let request = permission.request.clone();
-                let deny = request.clone();
-                column = column.child(
-                    div()
-                        .id("agent-permission")
-                        .flex()
-                        .flex_col()
-                        .gap(px(8.))
-                        .p(px(12.))
-                        .rounded(px(12.))
-                        .bg(p.paper.solid())
-                        .child(t(cx, k::control::PERMISSION_TITLE))
-                        .child(data::tool_name(&permission.call).to_owned())
-                        .child(text::wrapped(data::result_text(&permission.call.arguments)))
-                        .child(
-                            div()
-                                .flex()
-                                .gap(px(8.))
-                                .child(
-                                    Button::new("agent-deny", t(cx, k::control::DENY))
-                                        .small()
-                                        .disabled(self.busy)
-                                        .on_click(cx.listener(move |panel, _, _, cx| {
-                                            panel.permit(deny.clone(), false, cx)
-                                        })),
-                                )
-                                .child(
-                                    Button::new("agent-allow", t(cx, k::control::allow::ONCE))
-                                        .small()
-                                        .primary()
-                                        .disabled(self.busy)
-                                        .on_click(cx.listener(move |panel, _, _, cx| {
-                                            panel.permit(request.clone(), true, cx)
-                                        })),
-                                ),
-                        ),
-                );
-            }
-            if run.state == State::Interrupted {
-                column = column.child(
-                    div()
-                        .id("agent-interrupted")
-                        .p(px(12.))
-                        .rounded(px(12.))
-                        .bg(p.paper.solid())
-                        .child(t(cx, k::control::RECOVERED_TITLE)),
-                );
-            }
-            for steering in &run.unapplied_steering {
-                column = column.child(
-                    div()
-                        .id(SharedString::from(format!(
-                            "agent-steering-{}",
-                            steering.id
-                        )))
-                        .p(px(10.))
-                        .rounded(px(10.))
-                        .bg(p.paper.solid())
-                        .child(
-                            div()
-                                .text_color(p.ink(3).solid())
-                                .child(t(cx, k::composer::STEER)),
-                        )
-                        .child(text::wrapped(steering.text.clone())),
-                );
-            }
-            if let Some(error) = &run.error {
-                column = column.child(
-                    div()
-                        .text_color(p.danger.solid())
-                        .child(text::wrapped(error.clone())),
-                );
-            }
-            let mut docs = HashSet::new();
-            for change in &run.changes {
-                if !docs.insert(change.receipt.document.clone()) {
-                    continue;
-                }
-                let doc = change.receipt.document.clone();
-                let history = doc.clone();
-                let waiting = onboarding::waits_on_change(onboarding::step(cx), run.changes.len())
-                    && latest_finished == Some(run.session.as_str());
-                let first_change = docs.len() == 1;
-                let label = t(cx, k::TURN_CHANGES);
-                column = column.child(
-                    div()
-                        .flex()
-                        .flex_wrap()
-                        .gap(px(6.))
-                        .child(
-                            glass::glass_box(
-                                SharedString::from(format!("agent-change-{}-{}", run.session, doc)),
-                                glass::Kind::Rest,
-                                glass::Mode {
-                                    waiting,
-                                    ..Default::default()
-                                },
-                                false,
-                                glass::Spec::new(
-                                    if waiting {
-                                        glass::Tone::Accent
-                                    } else {
-                                        glass::Tone::Clear
-                                    },
-                                    8.,
-                                ),
-                                window,
-                                cx,
+                    .child(t(cx, k::control::PERMISSION_TITLE))
+                    .child(data::tool_name(&permission.call).to_owned())
+                    .child(text::wrapped(data::result_text(&permission.call.arguments)))
+                    .child(
+                        div()
+                            .flex()
+                            .gap(px(8.))
+                            .child(
+                                Button::new("agent-deny", t(cx, k::control::DENY))
+                                    .small()
+                                    .disabled(self.busy)
+                                    .on_click(cx.listener(move |panel, _, _, cx| {
+                                        panel.permit(deny.clone(), false, cx)
+                                    })),
                             )
-                            .role(gpui::Role::Button)
-                            .aria_label(label.clone())
-                            .cursor_pointer()
-                            .px(px(8.))
-                            .py(px(5.))
-                            .child(label)
-                            .on_click(cx.listener(
-                                move |panel, _, window, cx| panel.change(&doc, false, window, cx),
+                            .child(
+                                Button::new("agent-allow", t(cx, k::control::allow::ONCE))
+                                    .small()
+                                    .primary()
+                                    .disabled(self.busy)
+                                    .on_click(cx.listener(move |panel, _, _, cx| {
+                                        panel.permit(request.clone(), true, cx)
+                                    })),
+                            ),
+                    ),
+            );
+        }
+        if turn == run.turn && run.state == State::Interrupted {
+            column = column.child(
+                div()
+                    .id("agent-interrupted")
+                    .p(px(12.))
+                    .rounded(px(12.))
+                    .bg(p.paper.solid())
+                    .child(t(cx, k::control::RECOVERED_TITLE)),
+            );
+        }
+        for steering in run
+            .unapplied_steering
+            .iter()
+            .filter(|steering| steering.turn == turn)
+        {
+            column = column.child(
+                div()
+                    .id(SharedString::from(format!(
+                        "agent-steering-{}",
+                        steering.id
+                    )))
+                    .p(px(10.))
+                    .rounded(px(10.))
+                    .bg(p.paper.solid())
+                    .child(
+                        div()
+                            .text_color(p.ink(3).solid())
+                            .child(t(cx, k::composer::STEER)),
+                    )
+                    .child(text::wrapped(steering.text.clone())),
+            );
+        }
+        if turn == run.turn
+            && let Some(error) = &run.error
+        {
+            column = column.child(
+                div()
+                    .text_color(p.danger.solid())
+                    .child(text::wrapped(error.clone())),
+            );
+        }
+        let targets = data::change_targets(run, turn);
+        for (index, target) in targets.iter().enumerate() {
+            let doc = target.clone();
+            let history = target.clone();
+            let waiting = onboarding::waits_on_change(onboarding::step(cx), run.changes.len())
+                && latest_finished == Some((run.session.as_str(), turn));
+            let first_change = index == 0;
+            let label = t(cx, k::TURN_CHANGES);
+            column = column.child(
+                div()
+                    .flex()
+                    .flex_wrap()
+                    .gap(px(6.))
+                    .child(
+                        glass::glass_box(
+                            SharedString::from(format!(
+                                "agent-change-{}-{turn}-{}",
+                                run.session,
+                                doc.key()
                             )),
+                            glass::Kind::Rest,
+                            glass::Mode {
+                                waiting,
+                                ..Default::default()
+                            },
+                            false,
+                            glass::Spec::new(
+                                if waiting {
+                                    glass::Tone::Accent
+                                } else {
+                                    glass::Tone::Clear
+                                },
+                                8.,
+                            ),
+                            window,
+                            cx,
                         )
-                        .when(waiting && first_change, |el| {
-                            el.child(
-                                Button::new(
-                                    SharedString::from(format!(
-                                        "agent-history-{}-{}",
-                                        run.session, history
+                        .role(gpui::Role::Button)
+                        .debug_selector(|| {
+                            format!("agent-change-{}-{turn}-{}", run.session, target.key())
+                        })
+                        .aria_label(label.clone())
+                        .cursor_pointer()
+                        .px(px(8.))
+                        .py(px(5.))
+                        .child(label)
+                        .on_click(cx.listener(
+                            move |panel, _, window, cx| panel.change(&doc, false, window, cx),
+                        )),
+                    )
+                    .when(waiting && first_change && target.history.is_some(), |el| {
+                        el.child(
+                            div()
+                                .debug_selector(|| {
+                                    format!(
+                                        "agent-history-{}-{turn}-{}",
+                                        run.session,
+                                        history.key()
+                                    )
+                                })
+                                .child(
+                                    Button::new(
+                                        SharedString::from(format!(
+                                            "agent-history-{}-{turn}-{}",
+                                            run.session,
+                                            history.key()
+                                        )),
+                                        t(cx, k::onboarding::HISTORY),
+                                    )
+                                    .text()
+                                    .small()
+                                    .on_click(cx.listener(
+                                        move |panel, _, window, cx| {
+                                            panel.change(&history, true, window, cx)
+                                        },
                                     )),
-                                    t(cx, k::onboarding::HISTORY),
-                                )
-                                .text()
-                                .small()
-                                .on_click(cx.listener(
-                                    move |panel, _, window, cx| {
-                                        panel.change(&history, true, window, cx)
-                                    },
-                                )),
-                            )
-                        }),
-                );
+                                ),
+                        )
+                    }),
+            );
+        }
+        column.into_any_element()
+    }
+
+    fn transcript(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+        let mut column = div().flex().flex_col().gap(px(18.)).min_w_0();
+        let Some(snapshot) = self.snapshot.clone() else {
+            return column.into_any_element();
+        };
+        let mut assistants: HashMap<(&str, u32), usize> = HashMap::new();
+        for item in snapshot.transcript() {
+            match item {
+                TranscriptItem::Message(message) => {
+                    let ordinal = assistants
+                        .entry((&message.session, message.turn))
+                        .or_default();
+                    let id = format!("assistant:{}:{}:{ordinal}", message.session, message.turn);
+                    if matches!(message.content, MessageContent::Assistant { .. }) {
+                        *ordinal += 1;
+                    }
+                    if let Some(row) = self.message(message, &id, window, cx) {
+                        column = column.child(row);
+                    }
+                }
+                TranscriptItem::Run { run, turn } => {
+                    let ordinal = assistants
+                        .get(&(run.session.as_str(), turn))
+                        .copied()
+                        .unwrap_or(0);
+                    let id = format!("assistant:{}:{turn}:{ordinal}", run.session);
+                    column = column.child(self.run(run, turn, &id, window, cx));
+                }
             }
         }
         column.into_any_element()
@@ -1177,6 +1370,23 @@ impl Render for AgentPanel {
             );
         div()
             .id("agent-panel")
+            .tab_group()
+            .on_key_down(|event, window, cx| {
+                let modifiers = &event.keystroke.modifiers;
+                if event.keystroke.key == "tab"
+                    && !(modifiers.control
+                        || modifiers.alt
+                        || modifiers.platform
+                        || modifiers.function)
+                {
+                    cx.stop_propagation();
+                    if modifiers.shift {
+                        window.focus_prev(cx);
+                    } else {
+                        window.focus_next(cx);
+                    }
+                }
+            })
             .size_full()
             .flex()
             .flex_col()
