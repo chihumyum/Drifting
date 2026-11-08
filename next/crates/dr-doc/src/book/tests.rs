@@ -1519,3 +1519,67 @@ fn a_template_belongs_to_its_category_or_storyline() {
     let s = StorylineId::parse("s").unwrap();
     assert!(!a.view().owns_prose(&TemplateOwner::Storyline(s).doc_id()));
 }
+
+/// JSON-FIELDS: a storyline's chapter template, a category's element
+/// template, a comment's metadata and a material's provenance (the old
+/// `*_json` columns) are one value each. dr-doc stores what it is given
+/// without checking it (F3 checks before writing; readers treat what does
+/// not parse as nothing), and two devices writing two documents at once
+/// end with one of them whole on both, never a splice of the two (a text
+/// merge would make broken JSON of two valid ones).
+#[test]
+fn json_fields_are_kept_whole() {
+    let line = StorylineId::parse("s1").unwrap();
+    let cat = CategoryId::parse("c1").unwrap();
+    let cm = CommentId::parse("cm1").unwrap();
+    let m = MaterialId::parse("m1").unwrap();
+    let write = |d: &mut BookDoc, v: &str| {
+        user(d, |t| {
+            t.storyline(&line)?
+                .name("主线")?
+                .chapter_template(Some(v))?;
+            t.category(&cat)?.name("人物")?.element_template(Some(v))?;
+            t.comment(&cm)?
+                .kind(&CommentKind::Todo)?
+                .metadata(Some(v))?;
+            t.material(&m)?
+                .kind(&MaterialKind::Text)?
+                .provenance(Some(v))?;
+            Ok(())
+        })
+    };
+    let read = |d: &BookDoc| {
+        let v = d.view();
+        [
+            v.storylines()[0].chapter_template.clone(),
+            v.categories()[0].element_template.clone(),
+            v.comment(&cm).unwrap().metadata,
+            v.materials()[0].provenance.clone(),
+        ]
+    };
+    let mut a = book(1);
+    write(&mut a, "not json {");
+    assert_eq!(
+        read(&a),
+        std::array::from_fn(|_| Some("not json {".to_string()))
+    );
+    let mut b = book(2);
+    sync(&a, &mut b);
+    let ja = r#"{"type":"doc","content":[{"type":"paragraph"}]}"#;
+    let jb = r#"{"kind":"todo-autoparse","prose_vv":{"7":3}}"#;
+    write(&mut a, ja);
+    write(&mut b, jb);
+    sync_both(&mut a, &mut b);
+    let got = read(&a);
+    assert_eq!(got, read(&b));
+    for v in got {
+        let v = v.unwrap();
+        assert!(v == ja || v == jb, "one write, whole: {v}");
+        serde_json::from_str::<serde_json::Value>(&v).unwrap();
+    }
+    user(&mut a, |t| {
+        t.storyline(&line)?.chapter_template(None)?;
+        Ok(())
+    });
+    assert_eq!(read(&a)[0], None, "cleared");
+}

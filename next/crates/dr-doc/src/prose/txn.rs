@@ -16,13 +16,15 @@ use std::ops::Range;
 use dr_model::ProseProfile;
 use dr_model::id::{BlockId, EmbedId};
 use dr_model::pos::PosKey;
-use dr_model::prose::{BlockAttrs, EntityLink, Heading, InlineStyle, OBJECT_CHAR, PARAGRAPH_END};
-use loro::LoroValue;
+use dr_model::prose::{
+    BlockAttrs, EntityLink, Heading, InlineMarks, InlineStyle, OBJECT_CHAR, PARAGRAPH_END,
+};
 use loro::cursor::Side;
+use loro::{LoroText, LoroValue};
 
 use super::attrs::{encode_block, encode_entity, note_only_block};
 use super::embed::{EmbedKind, EmbedView, TableWriter};
-use super::view::ProseView;
+use super::view::{ProseView, Run};
 use crate::error::{DocError, Result};
 use crate::schema::{block, inline};
 
@@ -164,10 +166,11 @@ impl<'a> ProseTxn<'a> {
     /// Copy the whole of `from` (a template, `template:` document) in front
     /// of the paragraph that starts at `pos`: every paragraph with its
     /// attributes and a fresh block id, the inline marks and entity links of
-    /// its text, tables (structure and cell text; marks inside cells are not
-    /// copied) and material embeds under new embed ids. When the paragraph at
-    /// `pos` is empty, the last copied paragraph takes its place, so applying
-    /// a template to a new, empty document leaves exactly the template.
+    /// its text, tables (rows and columns under the same ids, cells with
+    /// their marks and entity links) and material embeds under new embed
+    /// ids. When the paragraph at `pos` is empty, the last copied paragraph
+    /// takes its place, so applying a template to a new, empty document
+    /// leaves exactly the template.
     /// Returns the position after the copied text.
     ///
     /// Marks and attributes `from` has but this document's profile does not
@@ -208,24 +211,49 @@ impl<'a> ProseTxn<'a> {
         Ok(caret)
     }
 
-    fn copy_marks(&mut self, range: Range<usize>, m: &dr_model::prose::InlineMarks) -> Result<()> {
+    fn copy_marks(&mut self, range: Range<usize>, m: &InlineMarks) -> Result<()> {
         if range.is_empty() {
             return Ok(());
         }
-        let styles = [
-            m.bold.then_some(InlineStyle::Bold),
-            m.italic.then_some(InlineStyle::Italic),
-            m.underline.then_some(InlineStyle::Underline),
-            m.strike.then_some(InlineStyle::Strike),
-            m.link.clone().map(InlineStyle::Link),
-            m.highlight.clone().map(InlineStyle::Highlight),
-            m.code.then_some(InlineStyle::Code),
-        ];
-        for s in styles.iter().flatten() {
-            self.set_style(range.clone(), s)?;
+        for s in styles_of(m) {
+            self.set_style(range.clone(), &s)?;
         }
         for e in &m.entities {
             self.link_entity(range.clone(), e)?;
+        }
+        Ok(())
+    }
+
+    /// Write `runs` into the empty table cell `cell`, marks included, by the
+    /// rules of [`Self::set_style`] and [`Self::link_entity`]. The whole text
+    /// goes in before any mark, so a mark that grows at its end (bold) does
+    /// not spread to the next run.
+    fn copy_cell(&self, cell: &LoroText, runs: &[Run]) -> Result<()> {
+        let text: String = runs.iter().map(|r| r.text.as_str()).collect();
+        if text.is_empty() {
+            return Ok(());
+        }
+        cell.insert(0, &text)?;
+        let mut at = 0;
+        for r in runs {
+            let range = at..at + r.text.chars().count();
+            at = range.end;
+            if range.is_empty() {
+                continue;
+            }
+            for s in styles_of(&r.marks) {
+                self.check_style(&s)?;
+                let (key, value) = style_mark(&s);
+                cell.mark(range.clone(), key, value)?;
+            }
+            for e in &r.marks.entities {
+                check_link(e)?;
+                cell.mark(
+                    range.clone(),
+                    &inline::entity_key(&e.target),
+                    encode_entity(e),
+                )?;
+            }
         }
         Ok(())
     }
@@ -259,8 +287,9 @@ impl<'a> ProseTxn<'a> {
                         last = Some(pos);
                     }
                 }
-                for ((r, c), text) in &cells {
-                    t.set_cell(r, c, text)?;
+                for (r, c) in cells.keys() {
+                    let runs = from.table_cell(id, r, c).unwrap_or_default();
+                    self.copy_cell(&t.cell(r, c)?, &runs)?;
                 }
             }
             Some(EmbedView::Material {
@@ -410,20 +439,18 @@ impl<'a> ProseTxn<'a> {
 
     /// Apply an inline style to `range`, skipping the newlines it crosses.
     pub fn set_style(&mut self, range: Range<usize>, style: &InlineStyle) -> Result<()> {
-        if !style.allowed_in(self.view.profile) {
-            return Err(DocError::NotInProfile("highlight / inline code"));
-        }
-        let (key, value): (&str, LoroValue) = match style {
-            InlineStyle::Bold => (inline::BOLD, true.into()),
-            InlineStyle::Italic => (inline::ITALIC, true.into()),
-            InlineStyle::Underline => (inline::UNDERLINE, true.into()),
-            InlineStyle::Strike => (inline::STRIKE, true.into()),
-            InlineStyle::Link(url) => (inline::LINK, url.as_str().into()),
-            InlineStyle::Highlight(c) => (inline::HIGHLIGHT, c.as_str().into()),
-            InlineStyle::Code => (inline::CODE, true.into()),
-        };
+        self.check_style(style)?;
+        let (key, value) = style_mark(style);
         let text = self.view.text;
         self.per_segment(range, |r| Ok(text.mark(r, key, value.clone())?))
+    }
+
+    fn check_style(&self, style: &InlineStyle) -> Result<()> {
+        if style.allowed_in(self.view.profile) {
+            Ok(())
+        } else {
+            Err(DocError::NotInProfile("highlight / inline code"))
+        }
     }
 
     /// Clear an inline style from `range` (newlines included, so no stray
@@ -439,9 +466,7 @@ impl<'a> ProseTxn<'a> {
     /// Link `range` to an entity. Different targets use different keys, so
     /// links may overlap; two adjacent links to one target join.
     pub fn link_entity(&mut self, range: Range<usize>, link: &EntityLink) -> Result<()> {
-        if !link.kind.may_be_linked() {
-            return Err(DocError::NotInProfile("entity link to this kind"));
-        }
+        check_link(link)?;
         let key = inline::entity_key(&link.target);
         let value = encode_entity(link);
         let text = self.view.text;
@@ -565,5 +590,41 @@ impl<'a> ProseTxn<'a> {
             self.view.text.mark(*nl..*nl + 1, block::ID, id.as_str())?;
         }
         Ok(fixes.len())
+    }
+}
+
+/// The inline styles `m` carries (entity links and embeds aside).
+fn styles_of(m: &InlineMarks) -> impl Iterator<Item = InlineStyle> {
+    [
+        m.bold.then_some(InlineStyle::Bold),
+        m.italic.then_some(InlineStyle::Italic),
+        m.underline.then_some(InlineStyle::Underline),
+        m.strike.then_some(InlineStyle::Strike),
+        m.link.clone().map(InlineStyle::Link),
+        m.highlight.clone().map(InlineStyle::Highlight),
+        m.code.then_some(InlineStyle::Code),
+    ]
+    .into_iter()
+    .flatten()
+}
+
+/// The Loro mark key and value of `style`.
+fn style_mark(style: &InlineStyle) -> (&'static str, LoroValue) {
+    match style {
+        InlineStyle::Bold => (inline::BOLD, true.into()),
+        InlineStyle::Italic => (inline::ITALIC, true.into()),
+        InlineStyle::Underline => (inline::UNDERLINE, true.into()),
+        InlineStyle::Strike => (inline::STRIKE, true.into()),
+        InlineStyle::Link(url) => (inline::LINK, url.as_str().into()),
+        InlineStyle::Highlight(c) => (inline::HIGHLIGHT, c.as_str().into()),
+        InlineStyle::Code => (inline::CODE, true.into()),
+    }
+}
+
+fn check_link(link: &EntityLink) -> Result<()> {
+    if link.kind.may_be_linked() {
+        Ok(())
+    } else {
+        Err(DocError::NotInProfile("entity link to this kind"))
     }
 }
