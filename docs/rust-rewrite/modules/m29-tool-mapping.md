@@ -4,6 +4,8 @@
 
 模型只收到 `tool_search` 和 `call_tool`。检索返回注册名称、说明、输入输出 Schema、读写类别、并发类别与内容修订号；作者名称在执行前解析为当前书籍内的身份。元数据观察按具体对象记录，正文观察保留页和块覆盖，版本变化会使旧观察失效。
 
+合入 F3 第十轮并应用审查限制后，注册表共 136 项，当前目录开放 110 项、排除 26 项。排除项不会因 F3 增加了注册命令就自动变成模型可执行能力。
+
 下表从旧版当前安装表和 F3 注册表逐行核对生成，状态与差异经过人工语义审核；“对应注册命令”表示操作存在，不额外宣称旧版表示法、完整正文编辑或一次多对象事务已等价。创建时的正文也受 F3 当前文本输入能力约束。
 
 | 旧工具 | 新注册入口 | 状态 | 差异 |
@@ -11,7 +13,7 @@
 | `add_chapter_to_storyline` | `chapter.update` | 字段对应 | 使用 add_storylines / remove_storylines / primary_storyline；保留 F3 的主、副故事线规则。 |
 | `ask_user` | — | M27 控制接口 | ToolOutput::Question 已有；不是 F3 注册命令，目录不会伪造这一能力。 |
 | `create_act` | `act.create` | 对应注册命令 | — |
-| `create_chapter` | `chapter.create` | 对应注册命令 | — |
+| `create_chapter` | `chapter.create` | 对应注册命令 | 新 Schema 支持 narrative_order；旧修订调用在创建正文或书记录前拒绝，新修订可写指定叙事位置。 |
 | `create_comment` | `comment.create` | 对应注册命令 | — |
 | `create_element` | `element.create` | 对应注册命令 | — |
 | `create_element_category` | `category.create` | 对应注册命令 | — |
@@ -20,13 +22,13 @@
 | `create_material_folder` | `material_folder.create` | 对应注册命令 | — |
 | `create_material_note` | `material.create` | 对应注册命令 | — |
 | `create_project_memory` | `memory.add` | 对应注册命令 | — |
-| `create_relation` | `relation.create` | 对应注册命令 | — |
+| `create_relation` | `relation.create` | 限制创建身份 | Agent 必须省略 id，由 F3 生成新身份；Schema 和执行入口都拒绝带 id 的调用，避免重写未读的隐藏关系。 |
 | `create_relation_type` | `relation_type.create` | 对应注册命令 | — |
 | `create_storyline` | `storyline.create` | 对应注册命令 | — |
 | `create_timeline_marker` | `time_pin.create` | 对应注册命令 | — |
 | `delete_act` | `act.delete` | 对应注册命令 | — |
 | `delete_chapter` | `chapter.trash` | 对应注册命令 | — |
-| `delete_comment` | `comment.delete` | 对应注册命令 | — |
+| `delete_comment` | — | 待 F3 关联查询 | comment.delete 会永久级联删除指向已回收对象的隐藏关联；只读 comment.list 不能覆盖它们，目录暂不暴露。 |
 | `delete_element` | `element.trash` | 对应注册命令 | — |
 | `delete_element_category` | `category.trash` | 对应注册命令 | — |
 | `delete_element_patch` | — | 待 F3 关联查询 | patch.delete 会级联删除隐藏关联；现有 relation.list 不能提供全部受影响记录，目录暂不暴露。 |
@@ -114,4 +116,6 @@
 
 来源撤回是专门操作：先读指定 session/turn 的结算清单，对清单中文档的当前版本做 CAS，再由 F3 只撤回自该来源写入后未被改动的字段或正文。它只授予该来源撤回范围，不表示已读过正文或实体内容，也不能授权普通替换。
 
-实体永久清除（`*.purge`）、`material.delete`、`patch.delete`、`relation_type.delete` 的隐藏关联级联暂不暴露，等待 F3 的完整受影响关联查询。普通移入回收站及已读取的单条关联删除仍可用。分类/章节模板的字段和正文观察分别记录；正文替换目前要求模板文档已经存在。
+实体永久清除（`*.purge`）、`comment.delete`、`material.delete`、`patch.delete`、`relation_type.delete` 的隐藏关联级联暂不暴露，等待 F3 的完整受影响关联查询。普通移入回收站及已读取的单条关联删除仍可用。分类/章节模板的字段和正文观察分别记录；正文替换目前要求模板文档已经存在。
+
+F3 第十轮新增的 `idea.to_chapter` 和 `idea.to_element` 也明确排除，不补写成旧版映射中的已完成能力。转章节会解绑幕与时间钉，需要完整的实际受影响集合；转要素需要完整源正文及取副本时的版本检查，另有自动补链产生的跨正文影响。将源正文只加入写入 guard 不能保护先前读到的副本；关闭自动补链也不能替代覆盖和结算。等 F3 提供相应受控接口后，再以并发修改、部分读取、部分提交和来源撤回的真实回归开放。

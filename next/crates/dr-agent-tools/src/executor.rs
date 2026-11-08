@@ -149,6 +149,13 @@ impl AgentTools {
                 "tool definition changed; search it again".into(),
             ));
         }
+        // F3 accepts an id for undo, but an Agent must not use that path to
+        // replace a stored relation hidden by relation.list's live-end filter.
+        if request.name == "relation.create" && request.arguments.get("id").is_some() {
+            return Err(Error::Invalid(
+                "relation.create assigns its own id; omit id".into(),
+            ));
+        }
         let key = turn_key(book, actor);
         let mut resolved = resolve::resolve(ws, book, &request.name, request.arguments)?;
         if descriptor.access == ToolAccess::Read {

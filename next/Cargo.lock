@@ -2376,7 +2376,6 @@ dependencies = [
  "dr-index",
  "dr-model",
  "dr-store",
- "dr-testkit",
  "dr-text",
  "insta",
  "log",

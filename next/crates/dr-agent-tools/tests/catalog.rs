@@ -110,13 +110,19 @@ fn descriptors_are_generated_stable_and_book_scoped() {
         "history.restore_point",
         "chapter.purge",
         "category.purge",
+        "comment.delete",
         "patch.delete",
         "relation_type.delete",
         "material.delete",
+        "idea.to_chapter",
+        "idea.to_element",
     ] {
         assert!(catalog.descriptor(name).is_none(), "{name}");
     }
     assert!(catalog.descriptor("chapter.update").is_some());
+    let relation = catalog.descriptor("relation.create").unwrap();
+    assert!(relation.input_schema["properties"].get("id").is_none());
+    assert_eq!(relation.input_schema["not"], json!({"required":["id"]}));
     assert!(
         catalog.descriptor("prose.read").unwrap().input_schema["properties"]["doc"]["anyOf"]
             .is_array()
