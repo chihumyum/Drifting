@@ -4,11 +4,11 @@
   "milestone": "f8-m1",
   "generatedBy": "cargo run --release -p dr-testkit --bin bench -- store --milestone f8-m1",
   "inputs": {
-    "crates/dr-store": "784752e1b2f7d3686bafeb1c902b7fec5628888681923c496de5fa33c02a5b32",
-    "crates/dr-testkit/src/bench.rs": "13154382effa81d06fbee1721a2d7016376bb2bb32eb0c3e41df019a7465b82f",
+    "crates/dr-store": "691facbf77899ae62a8013e758b0df17a96909ccb6b16e3f2c13660ada41d8ec",
+    "crates/dr-testkit/src/bench.rs": "4b942709d574501ecf7915c844268c528e9b0c4f5310f1ee08a641531e739ae1",
     "crates/dr-testkit/src/bin/bench.rs": "4b197da40bd52f5bb7f64ab6b716967eae8598af6dd312cbff8b00208ba3b148",
     "crates/dr-testkit/src/rng.rs": "eb878d8e485f01a901cb1742074c9de455d51871985ddf836e599e86baf353e3",
-    "crates/dr-testkit/src/seed": "7c5f10aa6515164347ca59049080b017dccccac01dd070efd07d2bcbf799706e",
+    "crates/dr-testkit/src/seed": "a01def93a860c30e8b9ab3d7371b1766a53a14bf5c3e885821324d5c222caa6f",
     "crates/dr-testkit/src/text.rs": "d639486e1178aadb3f7a41cdd4f563e74564f4f3d719de21cc4c183e5f6cb5b8"
   },
   "corpus": {
@@ -20,7 +20,7 @@
     "arch": "aarch64",
     "cores": 12,
     "cpu": "Apple M3 Pro",
-    "loadAverage1m": 14.6,
+    "loadAverage1m": 4.76,
     "memoryBytes": 38654705664,
     "os": "macos",
     "osVersion": "27.0.1",
@@ -31,32 +31,32 @@
       "fullBook": {
         "ms": {
           "closeAllHolders": {
-            "max": 10.312,
-            "mean": 8.096,
+            "max": 3.22,
+            "mean": 3.142,
             "n": 5,
-            "p50": 8.59,
-            "p95": 10.312
+            "p50": 3.19,
+            "p95": 3.22
           },
           "coldLoadAll": {
-            "max": 34.224,
-            "mean": 20.947,
+            "max": 8.925,
+            "mean": 8.504,
             "n": 5,
-            "p50": 15.916,
-            "p95": 34.224
+            "p50": 8.389,
+            "p95": 8.925
           },
           "openAllHolders": {
-            "max": 109.85,
-            "mean": 45.552,
+            "max": 11.99,
+            "mean": 11.499,
             "n": 5,
-            "p50": 28.288,
-            "p95": 109.85
+            "p50": 11.248,
+            "p95": 11.99
           },
           "readAllText": {
-            "max": 63.061,
-            "mean": 39.097,
+            "max": 11.401,
+            "mean": 11.183,
             "n": 5,
-            "p50": 32.519,
-            "p95": 63.061
+            "p50": 11.183,
+            "p95": 11.401
           }
         },
         "shape": {
@@ -71,11 +71,11 @@
       "keystrokeWrite": {
         "ms": {
           "write": {
-            "max": 16.001,
-            "mean": 0.156,
+            "max": 2.02,
+            "mean": 0.043,
             "n": 2000,
-            "p50": 0.061,
-            "p95": 0.441
+            "p50": 0.035,
+            "p95": 0.056
           }
         },
         "shape": {
@@ -89,11 +89,11 @@
       "keystrokeWriteFull": {
         "ms": {
           "write": {
-            "max": 2.906,
-            "mean": 0.096,
+            "max": 2.06,
+            "mean": 0.061,
             "n": 2000,
-            "p50": 0.075,
-            "p95": 0.181
+            "p50": 0.057,
+            "p95": 0.08
           }
         },
         "shape": {
