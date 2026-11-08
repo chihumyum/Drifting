@@ -216,6 +216,29 @@ fn the_sample_grid_is_read_and_a_slip_is_stored_as_typed(cx: &mut TestAppContext
     assert_eq!(cell_text(&stored(&s, 3), &r1, &c3), "答应了");
 }
 
+#[gpui::test]
+fn a_narrow_slip_wraps_its_closing_marks_and_resize_keeps_the_text(cx: &mut TestAppContext) {
+    let s = seeded();
+    let (view, cx) = open(cx, &s, 3);
+    let grid = view.read_with(cx, |p, _| p.grid().clone());
+    let (row, col) = (grid.rows[0].id.clone(), grid.cols[1].id.clone());
+    let text = grid.cell(&row, &col).to_owned();
+    assert_eq!(text, "对吴妈跪下：“我和你困觉！”");
+    let area = view
+        .read_with(cx, |p, _| p.field(&Field::Cell(row.clone(), col.clone())))
+        .unwrap();
+    for (w, rows) in [(120.0, 2), (184.0, 1), (120.0, 2)] {
+        view.update_in(cx, |p, window, cx| {
+            p.set_size(CellSize { w, h: 96.0 }, true, window, cx)
+        });
+        settle(&view, cx);
+        cx.update(|window, cx| window.draw(cx).clear(cx));
+        assert_eq!(area.read_with(cx, |a, _| a.rows()), rows);
+        assert_eq!(area.read_with(cx, |a, _| a.text()), text);
+        assert_eq!(cell_text(&stored(&s, 3), &row, &col), text);
+    }
+}
+
 /// The clipboard goes through the actual field shortcut; a module API
 /// call alone would miss capture/bubble propagation and the focused field.
 fn paste(text: &str, cx: &mut VisualTestContext) {

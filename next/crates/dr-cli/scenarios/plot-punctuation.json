@@ -1,0 +1,271 @@
+{
+  "about": "M15 窄格标点：120 px 格宽、原界面字体，使用 dr-samples/books/a-q.json 中「你算是什么东西！」的片段。尾部感叹号及右引号应与前一字完整移到下一行，不在格子右侧裁切；截图核对浅深两种外观，查询断言原文及尺寸在重开后不变。",
+  "steps": [
+    {
+      "seed": "showcase"
+    },
+    {
+      "call": "book.list",
+      "save": "books"
+    },
+    {
+      "call": "chapter.list",
+      "input": {
+        "book": "${books.[name=慢钟].id}"
+      },
+      "save": "chapters"
+    },
+    {
+      "call": "element.list",
+      "input": {
+        "book": "${books.[name=慢钟].id}"
+      },
+      "save": "elements"
+    },
+    {
+      "call": "chapter.create",
+      "input": {
+        "book": "${books.[name=慢钟].id}",
+        "title": "${chapters.0.title}"
+      },
+      "save": "chapter"
+    },
+    {
+      "call": "plot_grid.get",
+      "input": {
+        "book": "${books.[name=慢钟].id}",
+        "node": "${chapter.id}"
+      },
+      "save": "grid"
+    },
+    {
+      "call": "plot_grid.clear",
+      "input": {
+        "book": "${books.[name=慢钟].id}",
+        "node": "${chapter.id}"
+      }
+    },
+    {
+      "call": "plot_grid.size",
+      "input": {
+        "book": "${books.[name=慢钟].id}",
+        "node": "${chapter.id}",
+        "cell_w": 120,
+        "cell_h": 96
+      }
+    },
+    {
+      "call": "plot_grid.cell",
+      "input": {
+        "book": "${books.[name=慢钟].id}",
+        "node": "${chapter.id}",
+        "row": "${grid.rows.0.id}",
+        "column": "${grid.columns.0.id}",
+        "text": "你算是什么东西！”"
+      }
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light"
+        },
+        "settings": {
+          "account": {
+            "language.ui_locale": "zh-CN"
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "name": "慢钟"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/shelf": false,
+          "/book/name": "慢钟"
+        }
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "chapter": "${chapter.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/page": "chapter:${chapter.id}"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "跳过导览"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "展开情节规划"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/bottom/pane": "planner"
+        }
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "Group",
+        "label": "你算是什么东西！”",
+        "count": 1
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Group",
+        "label": "你算是什么东西！”"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "end"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 350
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "01-narrow-light.png"
+    },
+    {
+      "call": "plot_grid.get",
+      "input": {
+        "book": "${books.[name=慢钟].id}",
+        "node": "${chapter.id}"
+      },
+      "expect": {
+        "/cell_w": 120.0,
+        "/cell_h": 96.0,
+        "/cells/0/text": "你算是什么东西！”"
+      }
+    },
+    {
+      "app": "app.quit",
+      "expect": {
+        "/quit": true
+      }
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "dark"
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "name": "慢钟"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/shelf": false,
+          "/book/name": "慢钟"
+        }
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "chapter": "${chapter.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/page": "chapter:${chapter.id}",
+          "/bottom/pane": "planner"
+        }
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "Group",
+        "label": "你算是什么东西！”",
+        "count": 1
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "02-narrow-dark-reopened.png"
+    },
+    {
+      "call": "plot_grid.get",
+      "input": {
+        "book": "${books.[name=慢钟].id}",
+        "node": "${chapter.id}"
+      },
+      "expect": {
+        "/cell_w": 120.0,
+        "/cell_h": 96.0,
+        "/cells/0/text": "你算是什么东西！”"
+      }
+    },
+    {
+      "app": "app.quit",
+      "expect": {
+        "/quit": true
+      }
+    }
+  ]
+}

@@ -105,6 +105,33 @@ fn it_wraps_to_its_width_and_grows_a_row_at_a_time(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn punctuation_wrap_is_opt_in_and_the_caret_follows_its_rows(cx: &mut TestAppContext) {
+    for wrap in [false, true] {
+        let (area, _, cx) = host(cx, move |a| if wrap { a.wrap_punctuation() } else { a });
+        let text = "一二三四五六七八九十！”";
+        type_in(&area, text, cx);
+        assert_eq!(height(cx), ROW * if wrap { 2.0 } else { 1.0 });
+        assert_eq!(
+            area.read_with(cx, |a, _| a.rows()),
+            if wrap { 2 } else { 1 }
+        );
+        if wrap {
+            cx.simulate_keystrokes("home");
+            assert_eq!(caret(&area, cx), ch(9), "十 and both marks moved together");
+            cx.simulate_keystrokes("up end");
+            assert_eq!(
+                caret(&area, cx),
+                ch(9),
+                "the first row ends at the same boundary"
+            );
+            cx.simulate_keystrokes("down end");
+            assert_eq!(caret(&area, cx), text.len());
+        }
+        assert_eq!(area.read_with(cx, |a, _| a.text()), text);
+    }
+}
+
+#[gpui::test]
 fn up_and_down_keep_their_aim(cx: &mut TestAppContext) {
     let (area, _, cx) = host(cx, |a| {
         a.with_text("一二三四五六七八九十甲乙丙丁戊己庚辛壬癸子丑寅")
