@@ -91,6 +91,24 @@ fn ordinary_round_projects_one_transcript_and_replays_signed_thinking() {
                 output_tokens: 5,
                 ..Usage::default()
             })),
+            Step::Event(DriverEvent::Replay {
+                replay: ProviderReplay {
+                    native_search: None,
+                    provider: Provider::Openai,
+                    items: vec![
+                        json!({"type":"reasoning","encrypted_content":"synthetic-encrypted"}),
+                    ],
+                },
+            }),
+            Step::Event(DriverEvent::ProviderTool {
+                activity: ProviderTool {
+                    id: "search-1".into(),
+                    action: ProviderToolAction::Search,
+                    status: ProviderToolStatus::Completed,
+                    query: Some(thinking.into()),
+                    url: None,
+                },
+            }),
             done(),
         ],
         vec![delta(text), done()],
@@ -104,6 +122,7 @@ fn ordinary_round_projects_one_transcript_and_replays_signed_thinking() {
     .unwrap();
     let conversation_id = ConversationId::new_v7();
     let start = Start {
+        config: dr_agent::RunConfig::new(dr_agent::Provider::Openai, "synthetic-model"),
         book,
         conversation: conversation_id.clone(),
         input: text.into(),
@@ -121,6 +140,13 @@ fn ordinary_round_projects_one_transcript_and_replays_signed_thinking() {
     );
     assert_eq!(transcript[1].payload["usage"]["output_tokens"], 5);
     assert_eq!(
+        transcript[1].payload["replay"]["items"][0]["encrypted_content"],
+        "synthetic-encrypted"
+    );
+    assert!(log.iter().any(
+        |row| matches!(&row.event, Event::ProviderTool {activity} if activity.id == "search-1")
+    ));
+    assert_eq!(
         runtime.start(start).unwrap().join().unwrap(),
         State::Completed
     );
@@ -134,6 +160,58 @@ fn ordinary_round_projects_one_transcript_and_replays_signed_thinking() {
         conversation(ws.library(), &conversation_id).unwrap().len(),
         4
     );
+    drop(runtime);
+    ws.shutdown().unwrap();
+}
+
+#[test]
+fn run_freezes_route_and_author_limit_before_tools_settle() {
+    let (_dir, ws, book, doc, prose) = setup();
+    let p = &prose["paragraphs"][1];
+    let text = p["text"].as_str().unwrap();
+    let driver = Arc::new(ScriptedDriver::new(vec![vec![
+        Step::Event(DriverEvent::ToolCall(ToolCall {
+            id: "limited-write".into(),
+            name: "prose.replace".into(),
+            arguments: json!({"doc":doc,"find":text,"replace":text.chars().rev().collect::<String>(),"block_id":p["block_id"]}),
+        })),
+        Step::Event(DriverEvent::Finish(FinishReason::Tools)),
+    ]]));
+    let runtime = Runtime::new(
+        ws.clone(),
+        driver.clone(),
+        Arc::new(Commands),
+        Options::default(),
+    )
+    .unwrap();
+    let mut settings = RunConfig::new(Provider::Anthropic, "synthetic-frozen-model");
+    settings.route.thinking = ThinkingLevel::High;
+    settings.max_model_rounds = Some(1);
+    let frozen = settings.clone();
+    let run = runtime
+        .start(Start {
+            config: settings.clone(),
+            book,
+            conversation: ConversationId::new_v7(),
+            input: text.into(),
+        })
+        .unwrap();
+    let session = run.session.clone();
+    settings.route.provider = Provider::Deepseek;
+    settings.route.model = "changed-for-next-run".into();
+    settings.max_model_rounds = None;
+    assert!(run.join().unwrap_err().to_string().contains("round limit"));
+    assert_eq!(driver.requests().len(), 1);
+    assert_eq!(*driver.requests()[0].config, frozen);
+    let log = events(ws.library(), &session, 0).unwrap();
+    assert!(
+        log.iter()
+            .any(|row| matches!(&row.event, Event::Configured {config} if config == &frozen))
+    );
+    assert!(log.iter().any(
+        |row| matches!(&row.event, Event::ToolFinished {result} if !result.settlements.is_empty())
+    ));
+    assert_ne!(settings, frozen);
     drop(runtime);
     ws.shutdown().unwrap();
 }
@@ -166,6 +244,7 @@ fn scripted_tool_writes_book_leaves_receipts_and_can_be_undone() {
     let cid = ConversationId::new_v7();
     let run = runtime
         .start(Start {
+            config: dr_agent::RunConfig::new(dr_agent::Provider::Openai, "synthetic-model"),
             book,
             conversation: cid.clone(),
             input: text.into(),
@@ -342,6 +421,7 @@ fn premature_driver_eof_preserves_partial_message_and_fails() {
     let cid = ConversationId::new_v7();
     let run = runtime
         .start(Start {
+            config: dr_agent::RunConfig::new(dr_agent::Provider::Openai, "synthetic-model"),
             book,
             conversation: cid.clone(),
             input: text.into(),

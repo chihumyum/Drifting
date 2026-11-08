@@ -3,6 +3,7 @@
 //! Model adapters implement [`Driver`]; M29 implements [`ToolExecutor`].
 //! No provider, interface, network, permission tier, or alternate transport.
 
+mod config;
 mod control;
 pub mod driver;
 mod journal;
@@ -10,6 +11,7 @@ pub mod protocol;
 mod runtime;
 pub mod tools;
 
+pub use config::{ModelCapabilities, ModelRoute, Provider, RunConfig, ThinkingLevel};
 pub use control::{Cancellation, Control, RunHandle};
 pub use driver::{Driver, DriverEvent, DriverRequest, FinishReason};
 pub use journal::{JournalEvent, conversation, events};
@@ -31,6 +33,8 @@ pub enum Error {
     Protocol(String),
     #[error("model driver: {0}")]
     Driver(String),
+    #[error("model provider: {0}")]
+    Provider(#[from] ModelFailure),
     #[error("tool: {0}")]
     Tool(String),
     #[error("the run is closed")]

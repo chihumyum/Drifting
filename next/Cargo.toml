@@ -7,6 +7,7 @@ resolver = "3"
 members = [
     "app/drifting",
     "crates/dr-agent",
+    "crates/dr-agent-providers",
     "crates/dr-cli",
     "crates/dr-debug-bridge",
     "crates/dr-debug-protocol",
@@ -65,6 +66,7 @@ publish = false
 [workspace.dependencies]
 # M27: provider-neutral, in-process Agent runtime (no GPUI).
 dr-agent = { path = "crates/dr-agent" }
+dr-agent-providers = { path = "crates/dr-agent-providers" }
 # GPUI is pinned to a Zed stable release tag (decision D1). Upgrade on a
 # schedule: bump both entries together, then rerun the spike benchmarks.
 gpui = { git = "https://github.com/zed-industries/zed", tag = "v1.27.0" }
@@ -195,7 +197,7 @@ objc2-security = { version = "0.3", default-features = false, features = ["std",
 # reqwest 0.13 is the HTTP client Sentry's transport already brings; the
 # updater uses the same blocking client. TLS is rustls with ring, as the 0.1
 # client (it builds on the Windows ARM runner; aws-lc is not proven there).
-reqwest = { version = "0.13", default-features = false, features = ["blocking", "rustls-no-provider"] }
+reqwest = { version = "0.13", default-features = false, features = ["blocking", "form", "json", "query", "stream", "rustls-no-provider"] }
 rustls = { version = "0.23", default-features = false, features = ["logging", "ring", "std", "tls12"] }
 semver = "1.0"
 # Without `reqwest` and `rustls-no-provider` (dr-platform's `network` feature
@@ -249,6 +251,10 @@ dr-view-transfer = { path = "crates/dr-view-transfer" }
 # M39: the feedback dialog and the crash follow-up.
 dr-view-feedback = { path = "crates/dr-view-feedback" }
 futures = "0.3"
+httpdate = "1.0"
+# M28: one shared async transport executor, also used by catalog and OAuth.
+tokio = { version = "1.48", features = ["rt-multi-thread", "net", "time", "sync", "macros"] }
+
 icu_plurals = { version = "2.4", default-features = false, features = ["compiled_data"] }
 # M40 names files as 0.1 did (NFKC first); already in the tree through url.
 icu_normalizer = { version = "2.4", default-features = false, features = ["compiled_data"] }
