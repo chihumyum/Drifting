@@ -1,8 +1,16 @@
-# M14 底部时间线（第二个里程碑）
+# M14 底部时间线（第三轮）
 
-2026-11-08，分支 `chihumyum/m01-shelf-home-3bf938`（第一个里程碑在 main `77a957d3` 之后；第二个在 `2eb865fa` 之后）。计划见 [modules.md 的 M14](../modules.md)。代码在新 crate `next/crates/dr-view-timeline/`。旧版是 `shells/desktop/views/DesktopBottomTimeline.tsx`、`components/BottomTimeline/*`、`features/graph/chapter-lane-drag.ts`、`usecase/chapter-timeline-move.ts`，样式在 `bottom-timeline.css`、`act-rail.css`。
+2026-11-08，分支 `chihumyum/m01-shelf-home-3bf938`（第一个里程碑在 main `77a957d3` 之后；第二个在 `2eb865fa` 之后；第三轮在 `0f9b86b0` 之后）。计划见 [modules.md 的 M14](../modules.md)。代码在新 crate `next/crates/dr-view-timeline/`。旧版是 `shells/desktop/views/DesktopBottomTimeline.tsx`、`components/BottomTimeline/*`、`features/graph/chapter-lane-drag.ts`、`usecase/chapter-timeline-move.ts`，样式在 `bottom-timeline.css`、`act-rail.css`。
 
-第一个里程碑做了看得见的泳道和拖动；第二个加了拖动的分量（弹簧吸附）、幕轨编辑、时间钉和悬停卡。外壳第八轮（F6）给了稿纸下面的「底部面板」：`dr_view_timeline::init` 把时间线登记进去，⌘J 和稿纸角上的竹子开关它，看法、缩放、滚动按书记住（`kept.rs`）。这两处是 F6 写的；第十六批整合时和这一轮合在一起。
+第一个里程碑做了看得见的泳道和拖动；第二个加了拖动的分量（弹簧吸附）、幕轨编辑、时间钉和悬停卡。外壳第八轮（F6）给了稿纸下面的「底部面板」：`dr_view_timeline::init` 把时间线登记进去，⌘J 和稿纸角上的竹子开关它，看法、缩放、滚动按书记住（`kept.rs`）。这两处是 F6 写的；第十六批整合时和这一轮合在一起（换书时先套用这本书记住的，再读书目和时间钉，两边的字段都在）。第三轮换上 F3 一次写完的命令（放一章、打散都是一步撤销）和外壳的页面悬停卡，加了拖到边上自动横滚和键盘挪幕边界。
+
+### 第三轮（大白话）
+
+1. **一次拖动就是一步撤销。** 松手写的是 F3 的 `chapter.place`：换主故事线（或去掉所有故事线）和挪到新位置在一次提交里，撤销一次全回去。以前书序里是两步。
+2. **打散**（表头右边，定位按钮左边的那个）：把当前这条轴上的章按原来的顺序重新排开，每章隔 5 个单位；书序里幕的边界跟着挪到原来夹着它的两章中间。F3 的 `chapter.spread`，一步撤销。不到两章时按它什么也不做，提示「至少两个章节才能打散」（dr-ui 的平面图标按钮没有禁用的样子）。
+3. **悬停卡是外壳的那张。** 片段和泳道名字的卡换成 F6 的 `page_hover_card`（和章节面板同一张：名字、字数、在哪几条故事线上、梗概，下面是 ⋯ 菜单那些行）；时间线自己的几行（转移至未归属、回到未放置、在此故事线中新建章节）作为 `extra` 交给它，外壳排在危险的行前面。自己拼卡的那一段删了。
+4. **拖到边上自动横滚。** 拖着章节、时间钉或幕边界走到轨道左右边 48 px 以内，轨道就往那边滚，越靠边越快（最快每秒 1080 px，旧版每帧 18 px），滚到头为止；手里的东西跟着重新瞄准滚过来的地方。
+5. **键盘挪幕边界。** 幕边界的把手可以用 Tab 选中，按一下也选中；选中时线变成强调色，←/→ 每按一下挪一个像素对应的距离（缩放 1 时 1/20 个单位），夹在前后两幕之间，每按一下存一次（旧版也是）。读屏念「拖动调整幕边界」（滑块）。
 
 ### 第二个里程碑（大白话）
 
@@ -82,14 +90,13 @@
 
 ## 截图
 
-2 倍像素、256 色，dr-testkit 的《慢钟》（自带 5 枚时间钉、3 幕、4 个构想）。时间线单独画在一个窗口里，宽 1280；书序那张高 180，就是旧版底部面板默认的高度；悬停卡那三张上面留了 290 px 空地，卡从片段上方升起。离屏画没有指针，卡是用 `hold_card` 固定打开的。缩放 0.5 时片段只有 40 px 宽，章名省成「…」，和旧版一样。截图前改了这本书：一章去掉所有故事线（让「未归属」有内容），一章拿下叙事时间轴（让「未放置」有内容）。
+2 倍像素、256 色，dr-testkit 的《慢钟》（自带 5 枚时间钉、3 幕、4 个构想）。时间线单独画在一个窗口里，宽 1280；书序那张高 180，就是旧版底部面板默认的高度；悬停卡那三张上面留了 290 px 空地，卡从片段上方升起。离屏画没有指针，卡是用 `hold_card` 固定打开的；片段和泳道名字的卡第三轮起是外壳的 `page_hover_card`，它没有固定打开的开关，所以这两种卡没有截图（见「待协调」）。表头右边多了打散按钮。缩放 0.5 时片段只有 40 px 宽，章名省成「…」，和旧版一样。截图前改了这本书：一章去掉所有故事线（让「未归属」有内容），一章拿下叙事时间轴（让「未放置」有内容）。
 
 | 画面 | 浅色 | 深色 |
 | --- | --- | --- |
 | 书序，第二章开着；幕的边界线和把手 | [timeline-light](m14/timeline-light.png) | [timeline-dark](m14/timeline-dark.png) |
 | 拖动途中（松手前 70 ms 拍的）：「第三章」拖过了「晚秋」的中线，一下吸进晚秋那条，换成了晚秋的颜色 | [timeline-drag-light](m14/timeline-drag-light.png) | [timeline-drag-dark](m14/timeline-drag-dark.png) |
 | 叙事时（缩放 0.5），时间钉和它们的线，「未归属」泳道和「未放置」列表打开 | [timeline-narrative-light](m14/timeline-narrative-light.png) | [timeline-narrative-dark](m14/timeline-narrative-dark.png) |
-| 章节片段的悬停卡（书序，缩放 0.5） | [timeline-card-clip-light](m14/timeline-card-clip-light.png) | [timeline-card-clip-dark](m14/timeline-card-clip-dark.png) |
 | 幕签的悬停卡 | [timeline-card-act-light](m14/timeline-card-act-light.png) | [timeline-card-act-dark](m14/timeline-card-act-dark.png) |
 | 时间钉的悬停卡（叙事时） | [timeline-card-pin-light](m14/timeline-card-pin-light.png) | [timeline-card-pin-dark](m14/timeline-card-pin-dark.png) |
 
@@ -109,11 +116,13 @@ cargo run -p dr-view-timeline --features capture --example timeline-capture -- .
 | 拖着的片段像有分量（横向跟手慢半拍、换道一下吸过去，弹簧） | 有（第二个里程碑） |
 | 双击空白新建 | 有 |
 | 定位到当前章节、故事图谱入口 | 有 |
-| 打散（把重叠的章拉开） | 没有：书序要一章一章 `chapter.move`，会变成很多步撤销，等 F3 给一次写完的命令 |
+| 打散（把重叠的章拉开） | 有（第三轮，一步撤销） |
 | 幕轨：拖边界、双击新建幕、改名、删除、绑定幕笔记 | 有（第二个里程碑） |
 | 叙事时间轴的时间钉：新建、拖动、改名、绑定构想、删除 | 有（第二个里程碑） |
-| 片段和泳道名字的悬停卡（梗概、转移至未归属、回到未放置、新建章节，加上实体的那些行） | 有；「编辑故事线」那一行（就地勾选故事线）外壳的行里还没有，见「待协调」 |
-| 键盘移动幕边界（←/→）、触控长按开卡 | 没有：桌面先不做键盘这一条；触控是手机端的 |
+| 片段和泳道名字的悬停卡（梗概、转移至未归属、回到未放置、新建章节，加上实体的那些行） | 有（第三轮起是外壳的卡）；「编辑故事线」那一行（就地勾选故事线）外壳的行里还没有；泳道名字的卡旧版开在名字旁边，外壳的卡开在下面（见「待协调」） |
+| 拖到边上自动横滚 | 有（第三轮） |
+| 键盘移动幕边界（←/→） | 有（第三轮） |
+| 触控长按开卡 | 不做（手机端） |
 | ⌘ / Ctrl 滚轮缩放 | 有 |
 | 记住书序 / 叙事时、横向滚动位置、缩放、未归属开没开 | 有：按书存在外壳给的本机布局里（`Workspace::book_memory("timeline")`，F6 第八轮）；滚动在滚轮停下 400 ms 后存 |
 | 手机的竖排时间线 | 不做（短期不管手机端） |
@@ -134,7 +143,8 @@ cargo run -p dr-view-timeline --features capture --example timeline-capture -- .
 | 外壳（底部面板） | `dr_view_timeline::init(cx)`（登记成外壳底部面板的时间线，F6 第八轮）；`make(ws, cx) -> Entity<BottomTimeline>`；`BottomTimeline::min_height()`；`kept::{KEY, Kept}` |
 | 测试、调试桥 | `BottomTimeline::{layout, set_axis, toggle_unaffiliated, toggle_unplaced, move_chapter, create_at, locate_current, drop_target, body_bounds, scroll_x, set_zoom}`；`model::{layout, membership, main_storyline, Scale, Layout, Lane, LaneId, Axis}` |
 | 时间钉和幕（第二个里程碑） | `BottomTimeline::{pins, add_pin, update_pin, delete_pin, add_act, update_act, delete_act, bind, move_mark, start_rename, editing, mark_in_hand}`；`Mark::{Pin, Act}`；`default_act_name` |
-| 悬停卡的行 | `BottomTimeline::{move_to_unaffiliated, detach_from_narrative, append_chapter, hold_card}` |
+| 悬停卡的行 | `BottomTimeline::{move_to_unaffiliated, detach_from_narrative, append_chapter, card_row_ids, hold_card}` |
+| 第三轮 | `BottomTimeline::{spread, nudge_act, act_focus}`；`model::{edge_step, EDGE_ZONE, EDGE_SPEED}` |
 | 故事图谱（M21） | `spring::SlabSpring`（`aim` / `step`）就是旧版两处共用的分量 |
 | 故事图谱（M21） | `model::membership` 就是旧版两处共用的拖放规则（`canDropChapterOnLane` / `resolveChapterTimelineMembership`）；`model::Scale` 是同一套坐标 |
 
@@ -142,7 +152,7 @@ cargo run -p dr-view-timeline --features capture --example timeline-capture -- .
 
 `cargo test -p dr-view-timeline`：
 
-- 单元测试 6 个（第二个里程碑加了 3 个）：
+- 单元测试 7 个（第二个里程碑加了 3 个，第三轮 1 个：边上自动横滚的快慢，中间不滚、贴边一整步、进来一半半步、往回滚不过起点、往前不过终点）：
   - 弹簧：横着跟手慢半拍、最后正好落在那里、一次也没过头；
   - 换泳道：进下一条的上半截还在原来那条（往指针偏 4.2 px）、过了中线才换、往回也要过上一条的中线；离泳道半道以外跟着手、不落在任何泳道；
   - 新幕的名字：第一幕、第十幕、第十二幕、第二十幕、第三十五幕、第100幕。
@@ -161,6 +171,12 @@ cargo run -p dr-view-timeline --features capture --example timeline-capture -- .
     - 幕：用鼠标真拖第二幕的边界把手，拖的途中手里就是它、位置往后 2 个单位，松手 F3 里也是；往后拖过第三幕，停在第三幕前面一点；往回拖过书头的第一幕，停在坐标轴起点；在幕轨空白处双击，多一幕，名字就是它的位置（`default_act_name`）；改名、删除。
     - 悬停卡的行：转移至未归属（F3 里没有故事线了）；回到未放置（F3 里叙事位置没了）；在此故事线中新建章节（在这条线上、叙事位置是最后一章再往后 5，并且打开了）。
   - 拖动那一条的终点改成过了第二条泳道中线 2 px（有分量以后，正好在中线上还不换道）。
+  - 第三轮加了 4 个，改了 1 个：
+    - 拖动那一条最后撤销一次：主故事线和书序位置一起回去（`chapter.place` 一步）。
+    - 打散：书序里每两章相隔正好 5；撤销一次回到原样。
+    - 卡上时间线自己的行：书序里在故事线上的章只有「转移至未归属」，叙事时多一行「回到未放置」，泳道是「在此故事线中新建章节」。
+    - 用鼠标拿起一章停在轨道右边 4 px：轨道自己往右滚，落点跟着往后。
+    - 选中第二幕的边界，按 → → → ←：F3 里它往后挪了 2/20 个单位。
 
 ## 待协调
 
@@ -170,12 +186,14 @@ cargo run -p dr-view-timeline --features capture --example timeline-capture -- .
    - ⌘J（`ToggleBottomTimeline`，现在是空的）和稿纸角上的时间线开关负责开关；沉浸写作时收起；
    - 一次只显示时间线或情节规划里的一个；
    - 「书序 / 叙事时」「未归属开没开」「缩放」「横向滚动」要能记住：外壳给一个按书存的地方，或者在注册表里加这几项。
-2. ~~**F3（dr-workspace）：一次写完的「在时间线上放一章」**~~（F3 第八轮做了 `chapter.place`、`chapter.spread`，第十五批已合；时间线换上它是下一轮的事）（旧版 `persistChapterTimelineMove`）。比如 `chapter.place {book, id, axis: book|narrative, order, storyline: 不变|无|id}`：改故事线和挪位置是一次提交、一步撤销。有了它，打散也能做成一步。
-3. ~~**F6：悬停卡**~~：**F6 第八轮给了** `dr_shell::workspace::page_hover_card(id, el, target, ws, extra, cx)`。时间线这一轮照着章节面板的卡，用 dr-ui 的 `HoverCard` 和外壳的 `page_actions` 自己拼了一张（`view/cards.rs`）；下一轮换成外壳的，删掉 `cards.rs` 里的那一段（要能在前面加时间线自己的行，`extra` 是不是够用到时再看）。
+2. ~~**F3：一次写完的「在时间线上放一章」**~~：**已做**（F3 第八轮的 `chapter.place`、`chapter.spread`），第三轮换上了。双击空白新建在叙事时里还是两步（`chapter.create` 建在书末，再 `chapter.update` 放到叙事轴上）：要一步的话 `chapter.create` 得能直接给叙事位置。
+3. **F6：悬停卡**（第三轮换上了 `page_hover_card`，`extra` 放时间线自己的行，自己拼卡的那一段删了）。还差：
+   - 「模块能在前面加行」：这一轮先用 `extra`，外壳排在危险行前面，也就是外壳自己那几节的后面；
+   - 泳道名字的卡旧版开在名字旁边（`beside`），`page_hover_card` 现在只开在下面；
+   - 截图要能把卡固定打开（比如一个 `force_open` 参数，或者把 `HoverCardState` 开放出来），不然片段和泳道的卡离屏拍不到；
+   - 旧版卡上的「编辑故事线」（就地勾选这一章在哪几条故事线上）外壳的行里还没有，加在 `page_actions` 里，章节面板和时间线就都有了。
 
 ## 还没做的（下一轮）
 
-- 打散（等 F3 一次写完的命令）。
-- 拖到边上自动横滚。
-- 幕边界的键盘移动。
-- 记住书序 / 叙事时、缩放、横向滚动、未归属开没开（等外壳给按书存的地方）。
+- 片段和泳道名字卡的截图（等外壳能固定打开卡）。
+- 叙事时双击新建一步撤销（等 F3 的 `chapter.create` 能给叙事位置）。

@@ -19,6 +19,7 @@
       "chapterCount": "{{count}} 章",
       "deleteMergeNext": "刪除此幕並合併至下一幕",
       "deleteMergePrev": "刪除此幕並合併至上一幕",
+      "dragBoundary": "拖曳以調整幕的邊界",
       "newAct": "新幕",
       "openActNote": "開啟幕備註",
       "railLabel": "幕",
@@ -46,6 +47,10 @@
       "openDrift": "開啟構想",
       "rename": "重新命名",
       "unbind": "解除綁定並還原為一般標籤"
+    },
+    "spread": {
+      "needTwo": "至少需要兩個章節才能分散排列",
+      "title": "分散排列：重新排列{{mode}}，讓重疊的節點分開"
     },
     "storyline": {
       "chapterCount": "{{count}} 章"

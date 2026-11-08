@@ -14,6 +14,35 @@ pub const GRID_UNIT: f32 = 20.0;
 /// A chapter's clip is this many order units wide (`NODE_DEFAULT_WIDTH`);
 /// new chapters are 5 apart (`CHAPTER_ORDER_STRIDE`).
 pub const CLIP_UNITS: f64 = 4.0;
+/// A drag this close to the tracks' left or right edge scrolls them
+/// (`MOBILE_PLANNING_EDGE_ZONE_PX`), at most this fast (18 px a frame at
+/// 60 fps, `MOBILE_PLANNING_EDGE_MAX_STEP_PX`), faster the closer.
+pub const EDGE_ZONE: f32 = 48.0;
+pub const EDGE_SPEED: f32 = 18.0 * 60.0;
+
+/// How far the tracks scroll in `dt` seconds with the pointer at `x`
+/// between `left` and `right` (window px), scrolled `scroll` of at most
+/// `max` (the 0.1 client's `mobilePlanningEdgeAutoscrollDelta`, by time).
+pub fn edge_step(x: f32, left: f32, right: f32, scroll: f32, max: f32, dt: f32) -> f32 {
+    if ![x, left, right, scroll, max, dt]
+        .iter()
+        .all(|v| v.is_finite())
+    {
+        return 0.0;
+    }
+    let (scroll, max) = (scroll.max(0.0), max.max(0.0));
+    let step = EDGE_SPEED * dt.clamp(0.0, 1.0 / 20.0);
+    if x < left + EDGE_ZONE && scroll > 0.0 {
+        let pressure = ((left + EDGE_ZONE - x) / EDGE_ZONE).clamp(0.0, 1.0);
+        return -(step * pressure).min(scroll);
+    }
+    if x > right - EDGE_ZONE && scroll < max {
+        let pressure = ((x - (right - EDGE_ZONE)) / EDGE_ZONE).clamp(0.0, 1.0);
+        return (step * pressure).min(max - scroll);
+    }
+    0.0
+}
+
 /// How far apart new chapters go (`CHAPTER_ORDER_STRIDE`).
 pub const CHAPTER_STRIDE: f64 = 5.0;
 /// Order units the axis runs past the last chapter or act (`RUNWAY_UNITS`).
@@ -456,6 +485,22 @@ mod tests {
             created_at: None,
             updated_at: None,
         }
+    }
+
+    #[test]
+    fn a_drag_at_an_edge_scrolls_faster_the_closer() {
+        let dt = 1.0 / 60.0;
+        // In the middle: nothing.
+        assert_eq!(edge_step(500.0, 100.0, 900.0, 200.0, 1000.0, dt), 0.0);
+        // At the right edge: a whole step; halfway into the zone, half.
+        assert!((edge_step(900.0, 100.0, 900.0, 200.0, 1000.0, dt) - 18.0).abs() < 1e-3);
+        assert!((edge_step(876.0, 100.0, 900.0, 200.0, 1000.0, dt) - 9.0).abs() < 1e-3);
+        // Left, back towards the start, never past it.
+        assert!((edge_step(100.0, 100.0, 900.0, 200.0, 1000.0, dt) + 18.0).abs() < 1e-3);
+        assert_eq!(edge_step(100.0, 100.0, 900.0, 5.0, 1000.0, dt), -5.0);
+        assert_eq!(edge_step(100.0, 100.0, 900.0, 0.0, 1000.0, dt), 0.0);
+        // Never past the end.
+        assert_eq!(edge_step(900.0, 100.0, 900.0, 995.0, 1000.0, dt), 5.0);
     }
 
     #[test]

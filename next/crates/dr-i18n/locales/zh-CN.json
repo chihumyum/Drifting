@@ -19,6 +19,7 @@
       "chapterCount": "{{count}}章",
       "deleteMergeNext": "删除此幕（并入下一幕）",
       "deleteMergePrev": "删除此幕（并入前一幕）",
+      "dragBoundary": "拖动调整幕边界",
       "newAct": "新建幕",
       "openActNote": "打开幕笔记",
       "railLabel": "幕",
@@ -46,6 +47,10 @@
       "openDrift": "打开构想",
       "rename": "重命名",
       "unbind": "解绑（恢复为纯标签）"
+    },
+    "spread": {
+      "needTwo": "至少两个章节才能打散",
+      "title": "打散：把{{mode}}重排，让重叠的节点拉开间距"
     },
     "storyline": {
       "chapterCount": "{{count}} 章"

@@ -44,8 +44,10 @@ pub enum Mark {
 #[derive(Clone)]
 pub struct MarkDrag {
     pub mark: Mark,
-    /// The pointer's x when it was taken, and the mark's order then.
+    /// The pointer's x and the tracks' scroll when it was taken, and the
+    /// mark's order then.
     start_x: f32,
+    start_scroll: f32,
     from: f64,
     /// Where it would go now.
     pub order: f64,
@@ -122,6 +124,23 @@ impl BottomTimeline {
         }));
     }
 
+    /// Every act boundary keeps its focus from frame to frame (←/→ move a
+    /// focused one); called before drawing.
+    pub(super) fn keep_act_focus(&mut self, cx: &mut Context<Self>) {
+        let live: Vec<String> = self.book.acts.iter().map(|a| a.id.clone()).collect();
+        self.act_focus.retain(|id, _| live.contains(id));
+        for id in live {
+            self.act_focus
+                .entry(id)
+                .or_insert_with(|| cx.focus_handle().tab_index(0).tab_stop(true));
+        }
+    }
+
+    /// Act `id`'s boundary handle's focus (tests).
+    pub fn act_focus(&self, id: &str) -> Option<gpui::FocusHandle> {
+        self.act_focus.get(id).cloned()
+    }
+
     /// The pin or act boundary in the hand (tests).
     pub fn mark_in_hand(&self) -> Option<MarkDrag> {
         self.mark_drag.clone()
@@ -129,10 +148,37 @@ impl BottomTimeline {
 
     /// The order a mark is drawn at: where it is, or where the hand has it.
     pub(super) fn mark_order(&self, mark: &Mark, at: f64) -> f64 {
-        match &self.mark_drag {
-            Some(d) if &d.mark == mark => d.order,
+        match (&self.mark_drag, mark) {
+            (Some(d), _) if &d.mark == mark => d.order,
+            (_, Mark::Act(id)) => self.nudged.get(id).copied().unwrap_or(at),
             _ => at,
         }
+    }
+
+    /// Moves act `id`'s boundary one pixel's worth (`dir` −1 or 1) between
+    /// its neighbours (←/→ on a focused boundary, `moveBoundaryFromKeyboard`).
+    pub fn nudge_act(&mut self, id: &str, dir: f64, cx: &mut Context<Self>) {
+        let Some(at) = self
+            .book
+            .acts
+            .iter()
+            .find(|a| a.id == id)
+            .and_then(|a| a.start_order)
+            .map(|s| self.nudged.get(id).copied().unwrap_or(s))
+        else {
+            return;
+        };
+        let unit = f64::from(self.layout().scale.unit());
+        let (lo, hi) = self.act_bounds(id);
+        let next = (at + dir / unit).clamp(lo, hi);
+        if (next - at).abs() < 1e-12 {
+            return;
+        }
+        self.nudged.insert(id.to_owned(), next);
+        let mut edit = self.act_edit(id);
+        edit.start_order = Some(Some(next));
+        self.update_act(edit, cx);
+        cx.notify();
     }
 
     /// The ideas no pin or act holds, most recent first as F3 lists them.
@@ -431,11 +477,19 @@ impl BottomTimeline {
     // ---- dragging -----------------------------------------------------------
 
     pub(super) fn mark_drag_moved(&mut self, e: &DragMoveEvent<MarkDrag>, cx: &mut Context<Self>) {
+        self.drag_pointer = Some(e.event.position);
+        self.aim_mark(e.event.position, cx);
+        cx.notify();
+    }
+
+    /// Where the mark in the hand goes with the pointer at `position`, the
+    /// tracks scrolled since it was taken counted in.
+    pub(super) fn aim_mark(&mut self, position: gpui::Point<Pixels>, cx: &mut Context<Self>) {
         let Some(d) = self.mark_drag.clone() else {
             return;
         };
         let scale = self.layout().scale;
-        let dx = f32::from(e.event.position.x) - d.start_x;
+        let dx = f32::from(position.x) - d.start_x + (self.scroll_x() - d.start_scroll);
         let mut order = scale.order_at(scale.x(d.from) + dx);
         if let Mark::Act(id) = &d.mark {
             let id = id.clone();
@@ -504,6 +558,7 @@ impl BottomTimeline {
         self.mark_drag = Some(MarkDrag {
             mark,
             start_x: 0.0,
+            start_scroll: 0.0,
             from,
             order,
         });
@@ -521,6 +576,7 @@ impl BottomTimeline {
         let drag = MarkDrag {
             mark,
             start_x: 0.0,
+            start_scroll: 0.0,
             from,
             order: from,
         };
@@ -528,6 +584,7 @@ impl BottomTimeline {
             let mut drag = drag.clone();
             drag.start_x = f32::from(window.mouse_position().x);
             entity.update(cx, |t, cx| {
+                drag.start_scroll = t.scroll_x();
                 t.mark_drag = Some(drag);
                 cx.notify();
             });
@@ -742,11 +799,42 @@ impl BottomTimeline {
             let start = info.start_order.map(|s| self.mark_order(&mark, s));
             let x = start.map_or(0.0, |o| scale.x(o));
             if let Some(from) = info.start_order {
-                let held = self.mark_drag.as_ref().is_some_and(|d| d.mark == mark);
+                let focus = self
+                    .act_focus
+                    .get(&info.id)
+                    .cloned()
+                    .unwrap_or_else(|| cx.focus_handle());
+                let held = self.mark_drag.as_ref().is_some_and(|d| d.mark == mark)
+                    || focus.is_focused(window);
+                let id = info.id.clone();
                 let handle = div()
                     .id(ElementId::Name(
                         format!("timeline-act-edge-{}", info.id).into(),
                     ))
+                    .track_focus(&focus)
+                    .role(gpui::Role::Slider)
+                    .aria_label(t(cx, keys::bottom_timeline::act::DRAG_BOUNDARY))
+                    // A press takes the keys; ←/→ then move it a pixel at a time.
+                    .on_mouse_down(gpui::MouseButton::Left, {
+                        let focus = focus.clone();
+                        move |_, window, cx| focus.focus(window, cx)
+                    })
+                    .on_key_down({
+                        let entity = entity.clone();
+                        move |e: &gpui::KeyDownEvent, _, cx| {
+                            let m = &e.keystroke.modifiers;
+                            if m.control || m.alt || m.platform || m.function {
+                                return;
+                            }
+                            let dir = match e.keystroke.key.as_str() {
+                                "left" => -1.0,
+                                "right" => 1.0,
+                                _ => return,
+                            };
+                            cx.stop_propagation();
+                            entity.update(cx, |t, cx| t.nudge_act(&id, dir, cx));
+                        }
+                    })
                     .debug_selector({
                         let id = info.id.clone();
                         move || format!("timeline-act-edge-{id}")
