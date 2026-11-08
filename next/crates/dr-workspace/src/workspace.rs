@@ -22,6 +22,7 @@ use crate::events::{
     self, BookChanged, Bus, EntityChange, ProseChanged, Removed, RemovedEntity, Subscription,
     WsEvent, book_changes, prose_ranges, touched_blocks_near,
 };
+use crate::guard::{Guards, Observation, WritePreconditions};
 use crate::holder::{self, lock};
 use crate::journal::{Journal, JournalEntry};
 use crate::nav::NavTarget;
@@ -395,6 +396,66 @@ impl Workspace {
     pub fn call(&self, actor: &Actor, name: &str, input: Value) -> Result<Value> {
         let o = self.call_outcome(actor, name, input, true)?;
         serde_json::to_value(o).map_err(|e| WsError::Internal(e.to_string()))
+    }
+
+    /// Read a book or prose document and its committed version together.
+    /// Deep JSON is a canonical observation, not a replacement prose format.
+    pub fn observe(&self, id: &str) -> Result<Observation> {
+        let doc = DocId::parse(id).map_err(|e| WsError::Invalid(e.to_string()))?;
+        let handle = match &doc {
+            DocId::Book(book) => self.book_slot(book)?.handle.clone(),
+            _ if doc.profile().is_some() => self.prose_slot(&doc)?.handle.clone(),
+            _ => {
+                return Err(WsError::Invalid(
+                    "observe requires a book or prose document".into(),
+                ));
+            }
+        };
+        let id = doc.to_string();
+        handle.read(move |doc| -> Result<Observation> {
+            Ok(Observation {
+                doc: id,
+                version: crate::naming::frontiers_hex(&doc.oplog_frontiers()),
+                value: serde_json::to_value(doc.get_deep_value())
+                    .map_err(|e| WsError::Internal(e.to_string()))?,
+            })
+        })?
+    }
+
+    /// Run a registered call with document CAS checked inside each write job.
+    /// A later failure can follow earlier settled document writes. Never retry
+    /// this whole call automatically. Library creation/purge and device-local
+    /// recent-page bookkeeping have no document CAS and are refused here.
+    /// `history.restore_point` also labels history before its document write;
+    /// it needs an owner-provided atomic label-and-write hook before use here.
+    pub fn call_guarded(
+        &self,
+        actor: &Actor,
+        name: &str,
+        input: Value,
+        preconditions: WritePreconditions,
+    ) -> Result<Value> {
+        let spec = registry()
+            .get(name)
+            .ok_or_else(|| WsError::UnknownCommand(name.into()))?;
+        let guards = Guards::parse(preconditions)?;
+        if spec.name == "history.restore_point" {
+            return Err(WsError::Invalid(
+                "guarded history restore requires atomic label-and-write support".into(),
+            ));
+        }
+        if spec.access == Access::Write
+            && (spec.concurrency == crate::registry::Concurrency::Library
+                || spec.name == "recent.touch")
+        {
+            return Err(WsError::Invalid(
+                "guarded calls do not support library-level or device-local writes".into(),
+            ));
+        }
+        let cx = Cx::guarded(self, actor, spec, guards);
+        let out = (spec.call)(&cx, input);
+        let outcome = self.finish(cx, out, true)?;
+        serde_json::to_value(outcome).map_err(|e| WsError::Internal(e.to_string()))
     }
 
     pub(crate) fn call_outcome(

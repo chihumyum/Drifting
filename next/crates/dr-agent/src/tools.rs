@@ -11,6 +11,11 @@ use serde_json::Value;
 #[derive(Clone, Debug)]
 pub enum ToolOutput {
     Value(Value),
+    /// A structured tool failure the model can act on (for example, reread).
+    Error(Value),
+    /// Settle this result, then stop the turn without another model request.
+    /// Used when a second CAS conflict requires the author to take over.
+    Stop(Value),
     /// Pause this call. The author's answer becomes its result; execute is
     /// not invoked again (and cannot repeat side effects).
     Question(Question),
@@ -18,6 +23,14 @@ pub enum ToolOutput {
 
 pub trait ToolExecutor: Send + Sync + 'static {
     fn descriptors(&self) -> Vec<ToolDescriptor>;
+    /// Resolve a lazy call's actual access/policy without changing its wire
+    /// envelope or opaque provider replay. The result is frozen at scheduling
+    /// and rechecked immediately before execution.
+    fn describe(&self, call: &ToolCall) -> Option<ToolDescriptor> {
+        self.descriptors().into_iter().find(|d| d.name == call.name)
+    }
+    /// Discard per-run observations after entered tools and writes settle.
+    fn finish_session(&self, _session: &str) {}
     /// Must yield promptly. For F3's synchronous commands use
     /// `context.workspace_call`, which performs the call on a worker.
     /// Write futures MUST finish only after all their effects have settled.

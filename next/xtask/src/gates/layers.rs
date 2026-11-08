@@ -53,6 +53,7 @@ pub const LAYERS: &[(&str, Layer)] = &[
     ("dr-workspace", Layer::Services),
     ("dr-agent", Layer::Services),
     ("dr-agent-providers", Layer::Services),
+    ("dr-agent-tools", Layer::Services),
     ("dr-mcp", Layer::Services),
     ("dr-sync", Layer::Services),
     ("dr-export", Layer::Services),
