@@ -1077,3 +1077,10 @@ settings.agent.extensions.notChecked
 settings.agent.extensions.policy.disabled
 settings.common.edit
 settings.common.delete
+
+# M30 companion surfaces (existing 0.1 copy)
+projectMemory.*
+agentPanel.workingMemory.*
+agentPanel.budget.continue
+agentPanel.slice.*
+projectHome.settings.proactive

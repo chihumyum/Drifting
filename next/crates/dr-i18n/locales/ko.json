@@ -1,5 +1,8 @@
 {
   "agentPanel": {
+    "budget": {
+      "continue": "작업 계속"
+    },
     "checking": "확인 중…",
     "common": {
       "none": "없음"
@@ -62,6 +65,12 @@
     "setup": {
       "openSettings": "설정 열기"
     },
+    "slice": {
+      "continuing": "진행 상황을 저장했습니다. 계속 실행 중…",
+      "paused": "계속하면 저장된 진행 상황에서 재개합니다.",
+      "preparing": "진행 상황을 저장했습니다. 계속할 준비 중…",
+      "saved": "진행 상황 저장됨"
+    },
     "thinking": {
       "done": "사고 기록",
       "streaming": "생각 중…"
@@ -73,7 +82,31 @@
       "history": "기록"
     },
     "turnChanges": "턴 변경 사항",
-    "unavailable": "Agent를 사용할 수 없습니다."
+    "unavailable": "Agent를 사용할 수 없습니다.",
+    "workingMemory": {
+      "agent": "Agent",
+      "author": "작가",
+      "budgetTitle": "제한 없음. 20k·40k 토큰 초과 시 한 번씩, 80k 초과 후에는 매 턴 정리하도록 요청합니다",
+      "clear": "지우기",
+      "clearConfirm": "작업 메모리를 지울까요? 원고·장기 규칙·대화 기록은 삭제되지 않습니다.",
+      "cleared": "작업 메모리를 지웠습니다.",
+      "conflictClear": "다른 Agent가 업데이트하여 지우지 않았습니다. 최신 내용을 확인한 뒤 다시 시도하세요.",
+      "conflictDraftPreserved": "다른 Agent가 작업 메모리를 업데이트했습니다. 초안은 보존되었습니다. 복사한 뒤 작업 메모리를 다시 열어 최신 버전과 병합하세요.",
+      "create": "작업 메모리 만들기",
+      "description": "모든 범용 Agent 대화가 공유하는 최근의 중요한 작업 맥락입니다. 오래된 맥락은 자동으로 압축하거나 잊습니다.",
+      "edit": "편집",
+      "editorLabel": "WORKING_MEMORY.md 편집",
+      "emptyBody": "Agent는 이후 작업에 영향을 줄 수 있는 최근의 중요한 변경만 기록합니다.",
+      "emptyTitle": "아직 작업 메모리가 없습니다",
+      "failed": "작업 메모리를 저장할 수 없습니다.",
+      "filename": "WORKING_MEMORY.md",
+      "loading": "작업 메모리 불러오는 중…",
+      "neverUpdated": "아직 작성하지 않음",
+      "saved": "작업 메모리를 저장했습니다.",
+      "title": "작업 메모리",
+      "tokens": "약 {{count}} 토큰",
+      "updated": "{{time}} · {{by}} 업데이트"
+    }
   },
   "allChapters": {
     "actOrdinal": "제{{n}}막"
@@ -819,6 +852,7 @@
     "readout": "{{chapters}}장 · 스토리라인 {{storylines}}개 · 요소 {{elements}}개",
     "settings": {
       "dailyGoal": "일일 목표",
+      "proactive": "능동적 제안",
       "projectTarget": "책 전체 목표"
     },
     "since": "작품 홈 · {{date}}부터",
@@ -830,6 +864,21 @@
     },
     "words": "{{words}}단어",
     "wordsOfTarget": "{{words}} / {{target}}단어"
+  },
+  "projectMemory": {
+    "add": "추가",
+    "cancel": "취소",
+    "delete": "삭제",
+    "deleteConfirm": "이 기억을 삭제할까요? 이후 대화에서는 더 이상 읽지 않습니다.",
+    "desc": "이 작품에 대한 생각, 의도, 습관, 지속적인 지침을 기록합니다. 사용자와 Agent 모두 편집할 수 있으며 모든 대화에서 읽습니다. 이야기 속 사실은 요소, 스토리라인 등 다른 객체에 기록하세요.",
+    "edit": "편집",
+    "empty": "아직 작품 기억이 없습니다.",
+    "enable": "사용",
+    "inactive": "비활성",
+    "placeholder": "기억할 내용 작성… ({{shortcut}}로 저장)",
+    "save": "저장",
+    "short": "메모리",
+    "title": "작품 메모리"
   },
   "projectPicker": {
     "bookTransfer": {

@@ -14,6 +14,7 @@ use serde_json::{Value, json};
 use crate::{ProviderError, Result, SseEvent};
 
 pub fn request(request: &DriverRequest, search: bool) -> Result<Value> {
+    let single = crate::transport::single_request(request)?;
     let config = &request.config;
     let fallback = crate::catalog::profile(config.route.provider, &config.route.model);
     let caps = config.capabilities.as_ref();
@@ -83,12 +84,12 @@ pub fn request(request: &DriverRequest, search: bool) -> Result<Value> {
         .or_else(|| fallback.as_ref().map(|p| p.supports_verbosity))
         .unwrap_or(true);
     let subscription = config.route.provider == Provider::Chatgpt;
-    let last_user = request
-        .conversation
+    let conversation = crate::conversation::project(&request.conversation)?;
+    let last_user = conversation
         .iter()
         .rposition(|e| e.kind == ConversationEntryKind::User);
     let mut input = Vec::new();
-    for (position, entry) in request.conversation.iter().enumerate() {
+    for (position, entry) in conversation.iter().enumerate() {
         let active = entry.session == request.session
             && entry.turn == request.turn
             && last_user.is_none_or(|i| position > i);
@@ -159,7 +160,7 @@ pub fn request(request: &DriverRequest, search: bool) -> Result<Value> {
     let mut tools: Vec<_> = request.tools.iter().map(|tool| json!({
         "type":"function","name":tool.name,"description":tool.description,"parameters":tool.input_schema,"strict":false,
     })).collect();
-    if search && config.web_search {
+    if search && config.web_search && !single {
         tools.push(json!({"type":"web_search","external_web_access":true}));
     }
     let mut body = json!({
@@ -971,6 +972,7 @@ mod request_tests {
         config.system_prompt = "synthetic system".into();
         config.route.thinking = ThinkingLevel::High;
         DriverRequest {
+            purpose: dr_agent::RequestPurpose::Chat,
             config: Arc::new(config),
             session: "session-1".into(),
             turn: 1,

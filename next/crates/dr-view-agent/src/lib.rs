@@ -9,10 +9,12 @@ pub mod mcp;
 pub mod mcp_settings;
 pub mod onboarding;
 pub mod panel;
+pub mod project_memory;
 mod prompt;
 pub mod settings;
 pub mod state;
 pub mod tools;
+pub mod working_memory;
 
 use dr_agent::{Driver, ToolExecutor};
 use dr_agent_providers::{HttpClient, ProviderDriver, credentials::Credentials};

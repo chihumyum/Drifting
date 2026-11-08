@@ -4,23 +4,28 @@
 //! No provider, interface, network, permission tier, or alternate transport.
 
 mod config;
+pub mod context;
 mod control;
 pub mod driver;
+pub mod evidence;
 mod journal;
+pub mod long_task;
+pub mod memory;
+pub mod proactive;
 pub mod protocol;
 mod runtime;
 pub mod tools;
 
 pub use config::{ModelCapabilities, ModelRoute, Provider, RunConfig, ThinkingLevel};
 pub use control::{Cancellation, Control, RunHandle};
-pub use driver::{Driver, DriverEvent, DriverRequest, FinishReason};
+pub use driver::{Driver, DriverEvent, DriverRequest, FinishReason, RequestPurpose};
 pub use journal::{JournalEvent, conversation, events};
 pub use protocol::*;
+pub use runtime::{ContinuationStart, Options, RecoveredRun, ResumeStart, Runtime, Start};
 pub use runtime::{
     ExternalCall, ExternalCallHandle, ExternalScope, ExternalStart, ExternalState,
     RecoveredExternal,
 };
-pub use runtime::{Options, RecoveredRun, Runtime, Start};
 pub use tools::{ToolContext, ToolExecutor};
 
 pub type Result<T> = std::result::Result<T, Error>;

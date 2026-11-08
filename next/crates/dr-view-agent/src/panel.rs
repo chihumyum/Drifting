@@ -49,6 +49,8 @@ use crate::{
     },
 };
 
+mod continuity;
+
 const MEMORY: &str = "agent.conversation";
 
 struct Navigation {
@@ -86,6 +88,7 @@ pub struct AgentPanel {
     _run_subscription: Option<RunSubscription>,
     _signal: Option<Task<()>>,
     _subs: Vec<Subscription>,
+    continuity: continuity::Continuity,
 }
 
 impl AgentPanel {
@@ -130,6 +133,7 @@ impl AgentPanel {
             _run_subscription: None,
             _signal: None,
             _subs: Vec::new(),
+            continuity: Default::default(),
         };
         panel._subs.push(
             cx.subscribe_in(&composer, window, |panel, _, event, _, cx| {
@@ -157,6 +161,13 @@ impl AgentPanel {
             let _ = this.update(cx, |panel, cx| panel.follow(cx));
         })
         .detach();
+        panel
+            ._subs
+            .push(cx.observe_window_activation(window, |panel, window, cx| {
+                if window.is_window_active() {
+                    panel.trigger_suggestions(cx);
+                }
+            }));
         panel
     }
 
@@ -216,12 +227,16 @@ impl AgentPanel {
             }
             return;
         }
-        self.book = book;
-        self.name = state.book.name.clone();
-        self.selected = state
+        let name = state.book.name.clone();
+        let selected = state
             .book_memory(MEMORY)
             .and_then(|v| v.as_str())
             .and_then(|id| ConversationId::parse(id).ok());
+        self.close_memory(cx);
+        self.continuity = Default::default();
+        self.book = book;
+        self.name = name;
+        self.selected = selected;
         self.fresh = false;
         self.snapshot = None;
         self.conversations.clear();
@@ -229,11 +244,13 @@ impl AgentPanel {
         self.composer.update(cx, |field, cx| field.set_text("", cx));
         self.invalidate();
         self.refresh(cx);
+        self.trigger_suggestions(cx);
     }
 
     fn bind_controller(&mut self, cx: &mut Context<Self>) {
         self._run_subscription = None;
         self._signal = None;
+        self.close_memory(cx);
         self.controller = self.hub.read(cx).controller.clone();
         self.invalidate();
         if let Some(controller) = &self.controller {
@@ -250,6 +267,7 @@ impl AgentPanel {
             }));
         }
         self.refresh(cx);
+        self.trigger_suggestions(cx);
         cx.notify();
     }
 
@@ -294,7 +312,15 @@ impl AgentPanel {
                     } else {
                         None
                     };
-                    Ok::<_, String>((list, snapshot, starters))
+                    let task = snapshot
+                        .as_ref()
+                        .and_then(|s| s.runs.last())
+                        .map(|r| controller.task_view(&r.session))
+                        .transpose()?
+                        .flatten();
+                    let suggestions =
+                        controller.suggestions(&book, chrono::Utc::now().timestamp_millis())?;
+                    Ok::<_, String>((list, snapshot, starters, task, suggestions))
                 })
                 .await;
             let _ = this.update(cx, |panel, cx| {
@@ -303,7 +329,9 @@ impl AgentPanel {
                 }
                 panel.loading = false;
                 match result {
-                    Ok((list, snapshot, starters)) => {
+                    Ok((list, snapshot, starters, task, suggestions)) => {
+                        panel.continuity.task = task;
+                        panel.continuity.suggestions = Some(suggestions);
                         if let Some(ws) = panel
                             .ws
                             .upgrade()
@@ -444,11 +472,9 @@ impl AgentPanel {
             input: text.clone(),
         };
         self.busy = true;
+        let start = controller.start_job(start);
         cx.spawn(async move |this, cx| {
-            let result = cx
-                .background_executor()
-                .spawn(async move { controller.start(start) })
-                .await;
+            let result = start.await;
             let _ = this.update(cx, |panel, cx| {
                 if panel.generation != generation {
                     return;
@@ -514,15 +540,8 @@ impl AgentPanel {
     }
 
     pub fn stop(&mut self, cx: &mut Context<Self>) {
-        if let Some(control) = self
-            .active()
-            .and_then(|r| self.controller.as_ref()?.control(&r.session))
-        {
-            self.control(
-                async move { control.stop_after_tool().await }.boxed(),
-                None,
-                cx,
-            );
+        if let (Some(controller), Some(conversation)) = (&self.controller, &self.selected) {
+            self.control(controller.stop_conversation(conversation), None, cx);
         }
     }
 
@@ -1221,7 +1240,16 @@ impl Render for AgentPanel {
             .is_none_or(|s| s.messages.is_empty() && s.runs.is_empty())
             && !self.busy;
         let mut content = div().flex().flex_col().gap(px(12.)).min_w_0();
-        if self.show_list {
+        content = content.child(self.continuity_header(cx));
+        if let Some(working) = self.continuity.shown {
+            if working {
+                if let Some(view) = &self.continuity.working {
+                    content = content.child(view.clone());
+                }
+            } else if let Some(view) = &self.continuity.project {
+                content = content.child(view.clone());
+            }
+        } else if self.show_list {
             if self.conversations.is_empty() {
                 content = content.child(t(cx, k::history::EMPTY));
             }
@@ -1242,6 +1270,7 @@ impl Render for AgentPanel {
                 );
             }
         } else if empty {
+            content = content.child(self.suggestion_cards(cx));
             match onboarding::resolve_view(
                 onboarding::step(cx),
                 self.connections.read(cx).usable(),
@@ -1305,7 +1334,9 @@ impl Render for AgentPanel {
                         ),
                 );
             }
-            content = content.child(self.transcript(window, cx));
+            content = content
+                .child(self.transcript(window, cx))
+                .child(self.continuation_card(cx));
         }
         let error = self
             .error

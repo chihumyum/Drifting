@@ -1,5 +1,8 @@
 {
   "agentPanel": {
+    "budget": {
+      "continue": "タスクを続行"
+    },
     "checking": "確認中…",
     "common": {
       "none": "なし"
@@ -62,6 +65,12 @@
     "setup": {
       "openSettings": "設定を開く"
     },
+    "slice": {
+      "continuing": "進捗を保存しました。続行中…",
+      "paused": "続行すると保存した進捗から再開します。",
+      "preparing": "進捗を保存しました。続行を準備中…",
+      "saved": "進捗を保存しました"
+    },
     "thinking": {
       "done": "思考の記録",
       "streaming": "思考中…"
@@ -73,7 +82,31 @@
       "history": "履歴"
     },
     "turnChanges": "ターンの変更",
-    "unavailable": "Agentを利用できません。"
+    "unavailable": "Agentを利用できません。",
+    "workingMemory": {
+      "agent": "Agent",
+      "author": "作者",
+      "budgetTitle": "上限なし。2万・4万トークン超で各1回、8万超では毎ターン整理を依頼します",
+      "clear": "消去",
+      "clearConfirm": "作業記憶を消去しますか？原稿、長期ルール、チャット履歴は削除しません。",
+      "cleared": "作業記憶を消去しました。",
+      "conflictClear": "別のAgentが更新したため、消去しませんでした。最新の内容を確認して再試行してください。",
+      "conflictDraftPreserved": "別のAgentが作業記憶を更新しました。草稿は保全されています。コピーしてから開き直し、最新版と統合してください。",
+      "create": "作業記憶を作成",
+      "description": "汎用Agentの全チャットで共有する最近の重要な作業背景です。古い情報は自動圧縮・忘却されます。",
+      "edit": "編集",
+      "editorLabel": "WORKING_MEMORY.mdを編集",
+      "emptyBody": "Agentは後の作業に影響する最近の重要な変更だけを記録します。",
+      "emptyTitle": "作業記憶はまだありません",
+      "failed": "作業記憶を保存できませんでした。",
+      "filename": "WORKING_MEMORY.md",
+      "loading": "作業記憶を読み込み中…",
+      "neverUpdated": "まだ記録されていません",
+      "saved": "作業記憶を保存しました。",
+      "title": "作業記憶",
+      "tokens": "約{{count}}トークン",
+      "updated": "{{time}}・更新者{{by}}"
+    }
   },
   "allChapters": {
     "actOrdinal": "第{{n}}幕"
@@ -819,6 +852,7 @@
     "readout": "{{chapters}}章 · {{storylines}}本のストーリーライン · {{elements}}件の要素",
     "settings": {
       "dailyGoal": "1日の目標",
+      "proactive": "プロアクティブな提案",
       "projectTarget": "本全体の目標"
     },
     "since": "作品ホーム · {{date}}から",
@@ -830,6 +864,21 @@
     },
     "words": "{{words}}語",
     "wordsOfTarget": "{{words}} / {{target}}語"
+  },
+  "projectMemory": {
+    "add": "追加",
+    "cancel": "キャンセル",
+    "delete": "削除",
+    "deleteConfirm": "このメモリーを削除しますか？今後の会話では読み込まれなくなります。",
+    "desc": "この作品についての考え、意図、習慣、継続的な指示を記録します。あなたと Agent の双方が編集でき、すべての会話で読み込まれます。物語の事実は要素やストーリーラインなどの対象に記録してください。",
+    "edit": "編集",
+    "empty": "作品のメモリーはまだありません。",
+    "enable": "有効化",
+    "inactive": "無効",
+    "placeholder": "覚えておくことを入力…（{{shortcut}} で保存）",
+    "save": "保存",
+    "short": "記憶",
+    "title": "作品の記憶"
   },
   "projectPicker": {
     "bookTransfer": {

@@ -1,5 +1,8 @@
 {
   "agentPanel": {
+    "budget": {
+      "continue": "繼續任務"
+    },
     "checking": "正在檢查…",
     "common": {
       "none": "無"
@@ -62,6 +65,12 @@
     "setup": {
       "openSettings": "開啟設定"
     },
+    "slice": {
+      "continuing": "進度已儲存，正在接續…",
+      "paused": "繼續即可從已儲存進度接續。",
+      "preparing": "進度已儲存，正在準備接續…",
+      "saved": "進度已儲存"
+    },
     "thinking": {
       "done": "思考過程",
       "streaming": "思考中…"
@@ -73,7 +82,31 @@
       "history": "歷史"
     },
     "turnChanges": "本回合變更",
-    "unavailable": "Agent 目前無法使用。"
+    "unavailable": "Agent 目前無法使用。",
+    "workingMemory": {
+      "agent": "Agent",
+      "author": "作者",
+      "budgetTitle": "無上限；超過 20k、40k token 時請 Agent 整理一次，超過 80k 後每回合都請它整理",
+      "clear": "清除",
+      "clearConfirm": "清除工作記憶？這不會刪除書稿、長期規則或對話歷史。",
+      "cleared": "工作記憶已清除。",
+      "conflictClear": "另一個 Agent 已更新工作記憶，因此未清除。請檢查最新內容後重試。",
+      "conflictDraftPreserved": "另一個 Agent 已更新工作記憶。你的草稿已保留，請先複製，再重新開啟工作記憶，與最新版本合併。",
+      "create": "建立工作記憶",
+      "description": "所有通用 Agent 對話共用的近期重要工作脈絡。較舊內容會自動壓縮或遺忘。",
+      "edit": "編輯",
+      "editorLabel": "編輯 WORKING_MEMORY.md",
+      "emptyBody": "Agent 只記錄近期可能影響後續工作的重大變更。",
+      "emptyTitle": "尚無工作記憶",
+      "failed": "無法儲存工作記憶。",
+      "filename": "WORKING_MEMORY.md",
+      "loading": "正在載入工作記憶…",
+      "neverUpdated": "尚未寫入",
+      "saved": "工作記憶已儲存。",
+      "title": "工作記憶",
+      "tokens": "約 {{count}} 個 token",
+      "updated": "{{time}} · 由 {{by}} 更新"
+    }
   },
   "allChapters": {
     "actOrdinal": "第 {{n}} 幕"
@@ -819,6 +852,7 @@
     "readout": "{{chapters}} 章 · {{storylines}} 條故事線 · {{elements}} 個要素",
     "settings": {
       "dailyGoal": "每日目標",
+      "proactive": "主動建議",
       "projectTarget": "全書目標"
     },
     "since": "作品首頁 · 自 {{date}} 起",
@@ -830,6 +864,21 @@
     },
     "words": "{{words}} 字",
     "wordsOfTarget": "{{words}}／{{target}} 字"
+  },
+  "projectMemory": {
+    "add": "新增",
+    "cancel": "取消",
+    "delete": "刪除",
+    "deleteConfirm": "刪除此記憶？之後的對話將不再讀取。",
+    "desc": "記錄你對這部作品的想法、意圖、習慣與長期指示。你與 Agent 都能編輯，每次對話都會讀取。故事事實請放在要素、故事線及其他物件中。",
+    "edit": "編輯",
+    "empty": "尚無作品記憶。",
+    "enable": "啟用",
+    "inactive": "未啟用",
+    "placeholder": "寫下需要記住的事…（{{shortcut}} 儲存）",
+    "save": "儲存",
+    "short": "記憶",
+    "title": "作品記憶"
   },
   "projectPicker": {
     "bookTransfer": {

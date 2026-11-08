@@ -1,5 +1,8 @@
 {
   "agentPanel": {
+    "budget": {
+      "continue": "Continuar tarea"
+    },
     "checking": "Comprobando…",
     "common": {
       "none": "Ninguna"
@@ -62,6 +65,12 @@
     "setup": {
       "openSettings": "Abrir ajustes"
     },
+    "slice": {
+      "continuing": "Progreso guardado. Continuando…",
+      "paused": "Continúa para retomar el progreso guardado.",
+      "preparing": "Progreso guardado. Preparando continuación…",
+      "saved": "Progreso guardado"
+    },
     "thinking": {
       "done": "Registro de razonamiento",
       "streaming": "Pensando…"
@@ -73,7 +82,31 @@
       "history": "Historial"
     },
     "turnChanges": "Cambios del turno",
-    "unavailable": "Agent no está disponible."
+    "unavailable": "Agent no está disponible.",
+    "workingMemory": {
+      "agent": "Agent",
+      "author": "autor",
+      "budgetTitle": "Sin límite; se pide consolidar al superar 20k y 40k tokens, y en cada turno después de 80k",
+      "clear": "Limpiar",
+      "clearConfirm": "¿Borrar la memoria de trabajo? No elimina el manuscrito, reglas a largo plazo ni historial.",
+      "cleared": "Memoria de trabajo borrada.",
+      "conflictClear": "Otro Agent actualizó la memoria y no se borró. Revisa el contenido reciente y reintenta.",
+      "conflictDraftPreserved": "Otro Agent actualizó la memoria de trabajo. Se conservó tu borrador; cópialo y vuelve a abrirla para combinarlo con la versión reciente.",
+      "create": "Crear memoria de trabajo",
+      "description": "Contexto reciente y relevante compartido por todos los chats de Agent general. El contexto antiguo se compacta o descarta automáticamente.",
+      "edit": "Editar",
+      "editorLabel": "Editar WORKING_MEMORY.md",
+      "emptyBody": "Agent solo anota cambios recientes importantes que puedan afectar al trabajo posterior.",
+      "emptyTitle": "Aún no hay memoria de trabajo",
+      "failed": "No se pudo guardar la memoria de trabajo.",
+      "filename": "WORKING_MEMORY.md",
+      "loading": "Cargando memoria de trabajo…",
+      "neverUpdated": "Aún no escrita",
+      "saved": "Memoria de trabajo guardada.",
+      "title": "Memoria de trabajo",
+      "tokens": "Unos {{count}} tokens",
+      "updated": "{{time}} · actualizado por {{by}}"
+    }
   },
   "allChapters": {
     "actOrdinal": "Acto {{n}}"
@@ -827,6 +860,7 @@
     "readout": "{{chapters}} capítulos · {{storylines}} tramas · {{elements}} elementos",
     "settings": {
       "dailyGoal": "Meta diaria",
+      "proactive": "Sugerencias proactivas",
       "projectTarget": "Meta del libro"
     },
     "since": "Inicio del proyecto · desde {{date}}",
@@ -838,6 +872,21 @@
     },
     "words": "{{words}} palabras",
     "wordsOfTarget": "{{words}} / {{target}} palabras"
+  },
+  "projectMemory": {
+    "add": "Añadir",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "deleteConfirm": "¿Eliminar esta memoria? Las conversaciones posteriores ya no la leerán.",
+    "desc": "Tus ideas, intenciones, hábitos e instrucciones permanentes para esta obra. Tú y Agent podéis editarlo y se lee en cada conversación. Los hechos de la historia van en los elementos, tramas y otros objetos.",
+    "edit": "Editar",
+    "empty": "Aún no hay memoria del proyecto.",
+    "enable": "Habilitar",
+    "inactive": "Inactiva",
+    "placeholder": "Escribe algo para recordar… ({{shortcut}} para guardar)",
+    "save": "Guardar",
+    "short": "Memoria",
+    "title": "Memoria del proyecto"
   },
   "projectPicker": {
     "bookTransfer": {

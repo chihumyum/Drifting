@@ -1,5 +1,8 @@
 {
   "agentPanel": {
+    "budget": {
+      "continue": "Continue task"
+    },
     "checking": "Checking…",
     "common": {
       "none": "None"
@@ -62,6 +65,12 @@
     "setup": {
       "openSettings": "Open settings"
     },
+    "slice": {
+      "continuing": "Progress saved. Continuing…",
+      "paused": "Continue to resume from saved progress.",
+      "preparing": "Progress saved. Preparing to continue…",
+      "saved": "Progress saved"
+    },
     "thinking": {
       "done": "Thinking trace",
       "streaming": "Thinking…"
@@ -73,7 +82,31 @@
       "history": "History"
     },
     "turnChanges": "Turn changes",
-    "unavailable": "Agent is unavailable."
+    "unavailable": "Agent is unavailable.",
+    "workingMemory": {
+      "agent": "Agent",
+      "author": "author",
+      "budgetTitle": "No limit; the Agent is asked to consolidate once past 20k and 40k tokens, and on every turn past 80k",
+      "clear": "Clear",
+      "clearConfirm": "Clear Working Memory? This does not delete manuscript content, long-term rules, or chat history.",
+      "cleared": "Working memory cleared.",
+      "conflictClear": "Another Agent updated Working Memory, so it was not cleared. Review the latest content and try again.",
+      "conflictDraftPreserved": "Another Agent updated Working Memory. Your draft was preserved; copy it, then reopen Working Memory to merge with the latest revision.",
+      "create": "Create working memory",
+      "description": "Recent high-signal work context shared by every General Agent chat. Older context is compacted or forgotten automatically.",
+      "edit": "Edit",
+      "editorLabel": "Edit WORKING_MEMORY.md",
+      "emptyBody": "Agent writes only recent important changes that may affect later work.",
+      "emptyTitle": "No working memory yet",
+      "failed": "Working Memory could not be saved.",
+      "filename": "WORKING_MEMORY.md",
+      "loading": "Loading working memory…",
+      "neverUpdated": "Not written yet",
+      "saved": "Working memory saved.",
+      "title": "Working memory",
+      "tokens": "About {{count}} tokens",
+      "updated": "{{time}} · updated by {{by}}"
+    }
   },
   "allChapters": {
     "actOrdinal": "Act {{n}}"
@@ -825,6 +858,7 @@
     "readout": "{{chapters}} chapters · {{storylines}} storylines · {{elements}} elements",
     "settings": {
       "dailyGoal": "Daily goal",
+      "proactive": "Proactive suggestions",
       "projectTarget": "Book target"
     },
     "since": "Project Home · since {{date}}",
@@ -836,6 +870,21 @@
     },
     "words": "{{words}} words",
     "wordsOfTarget": "{{words}} / {{target}} words"
+  },
+  "projectMemory": {
+    "add": "Add",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "deleteConfirm": "Delete this memory? Later conversations will no longer read it.",
+    "desc": "Your thoughts, intentions, habits and standing instructions for this work. You and the Agent can both edit it, and every conversation reads it. Story facts belong in elements, storylines and other objects.",
+    "edit": "Edit",
+    "empty": "No project memory yet.",
+    "enable": "Enable",
+    "inactive": "Inactive",
+    "placeholder": "Write something to remember… ({{shortcut}} to save)",
+    "save": "Save",
+    "short": "Memory",
+    "title": "Project memory"
   },
   "projectPicker": {
     "bookTransfer": {

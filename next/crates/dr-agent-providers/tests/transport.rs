@@ -1,6 +1,10 @@
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
-use std::sync::{Arc, Mutex, mpsc};
+use std::sync::{
+    Arc, Mutex,
+    atomic::{AtomicBool, Ordering},
+    mpsc,
+};
 use std::time::Duration;
 
 use dr_agent::{
@@ -25,6 +29,7 @@ struct Service {
     url: String,
     requests: Arc<Mutex<Vec<(String, Value)>>>,
     thread: Option<std::thread::JoinHandle<()>>,
+    stop: Option<Arc<AtomicBool>>,
 }
 
 impl Service {
@@ -68,10 +73,57 @@ impl Service {
             url,
             requests,
             thread: Some(thread),
+            stop: None,
         }
     }
     fn join(&mut self) {
+        if let Some(stop) = &self.stop {
+            stop.store(true, Ordering::SeqCst);
+        }
         self.thread.take().unwrap().join().unwrap();
+    }
+
+    /// Keep accepting while the driver runs, so an unwanted retry is counted
+    /// rather than hidden by an already-closed test listener.
+    fn repeat(reply: Reply) -> Self {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let requests = Arc::new(Mutex::new(Vec::new()));
+        let log = requests.clone();
+        let stop = Arc::new(AtomicBool::new(false));
+        let closing = stop.clone();
+        let thread = std::thread::spawn(move || {
+            let deadline = std::time::Instant::now() + Duration::from_secs(20);
+            while !closing.load(Ordering::SeqCst) {
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "single request did not settle"
+                );
+                match listener.accept() {
+                    Ok((mut socket, _)) => {
+                        log.lock().unwrap().push(read_request(&mut socket));
+                        let header = format!(
+                            "HTTP/1.1 {} Test\r\nContent-Type: text/event-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                            reply.status,
+                            reply.body.len()
+                        );
+                        let _ = socket.write_all(header.as_bytes());
+                        let _ = socket.write_all(reply.body.as_bytes());
+                    }
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                        std::thread::sleep(Duration::from_millis(2));
+                    }
+                    Err(error) => panic!("{error}"),
+                }
+            }
+        });
+        Self {
+            url,
+            requests,
+            thread: Some(thread),
+            stop: Some(stop),
+        }
     }
 }
 
@@ -128,6 +180,7 @@ fn request(provider: Provider, tools: bool) -> DriverRequest {
         _ => "gpt-6.1-terra",
     };
     DriverRequest {
+        purpose: dr_agent::RequestPurpose::Chat,
         config: Arc::new(RunConfig::new(provider, model)),
         session: "synthetic-session".into(),
         turn: 1,
@@ -211,6 +264,57 @@ fn response(text: &str, tools: bool) -> String {
         + &sse(
             json!({"type":"response.completed","response":{"status":"completed","output":output,"usage":{"input_tokens":4,"output_tokens":3}}}),
         )
+}
+
+#[test]
+fn single_request_never_retries_rate_limits_truncation_auth_or_provider_pauses() {
+    let text = source_text();
+    for (provider, reply) in [
+        (
+            Provider::Openai,
+            Reply {
+                status: 429,
+                body: "{}".into(),
+            },
+        ),
+        (
+            Provider::Openai,
+            Reply {
+                status: 200,
+                body: sse(
+                    json!({"type":"response.output_text.delta","output_index":0,"delta":text}),
+                ),
+            },
+        ),
+        (
+            Provider::Chatgpt,
+            Reply {
+                status: 401,
+                body: "{}".into(),
+            },
+        ),
+        (
+            Provider::Anthropic,
+            Reply {
+                status: 200,
+                body: anthropic_response(&text, "pause_turn"),
+            },
+        ),
+    ] {
+        let mut service = Service::repeat(reply);
+        let mut input = request(provider, true);
+        input.purpose = dr_agent::RequestPurpose::SingleRequest;
+        input.tools.clear();
+        let events = collect(&driver(&service), input);
+        service.join();
+        assert!(events.iter().any(Result::is_err), "{provider:?}");
+        assert!(
+            !events
+                .iter()
+                .any(|event| matches!(event, Ok(DriverEvent::ToolCall(_))))
+        );
+        assert_eq!(service.requests.lock().unwrap().len(), 1, "{provider:?}");
+    }
 }
 
 #[test]
@@ -301,6 +405,7 @@ fn aborting_runtime_during_retry_after_settles_without_waiting_for_the_delay() {
         url,
         requests: Arc::default(),
         thread: None,
+        stop: None,
     };
     let dir = tempfile::tempdir().unwrap();
     let library =
@@ -422,6 +527,7 @@ fn dropping_stream_closes_the_active_http_connection() {
         url,
         requests: Arc::default(),
         thread: None,
+        stop: None,
     };
     let stream = driver(&service).stream(request(Provider::Openai, true), Cancellation::default());
     received.recv_timeout(Duration::from_secs(5)).unwrap();

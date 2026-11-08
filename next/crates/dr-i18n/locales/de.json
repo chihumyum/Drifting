@@ -1,5 +1,8 @@
 {
   "agentPanel": {
+    "budget": {
+      "continue": "Aufgabe fortsetzen"
+    },
     "checking": "Wird geprüft…",
     "common": {
       "none": "Keine"
@@ -62,6 +65,12 @@
     "setup": {
       "openSettings": "Einstellungen öffnen"
     },
+    "slice": {
+      "continuing": "Fortschritt gespeichert. Wird fortgesetzt…",
+      "paused": "Fortsetzen, um vom gespeicherten Fortschritt weiterzumachen.",
+      "preparing": "Fortschritt gespeichert. Fortsetzung wird vorbereitet…",
+      "saved": "Fortschritt gespeichert"
+    },
     "thinking": {
       "done": "Denkprotokoll",
       "streaming": "Denkt nach…"
@@ -73,7 +82,31 @@
       "history": "Verlauf"
     },
     "turnChanges": "Änderungen der Runde",
-    "unavailable": "Agent ist nicht verfügbar."
+    "unavailable": "Agent ist nicht verfügbar.",
+    "workingMemory": {
+      "agent": "Agent",
+      "author": "Autor",
+      "budgetTitle": "Unbegrenzt; Konsolidierung wird bei über 20k und 40k Tokens sowie in jeder Runde über 80k angefordert",
+      "clear": "Leeren",
+      "clearConfirm": "Arbeitsgedächtnis leeren? Manuskript, langfristige Regeln und Chatverlauf bleiben erhalten.",
+      "cleared": "Arbeitsgedächtnis geleert.",
+      "conflictClear": "Ein anderer Agent hat aktualisiert; daher wurde nicht geleert. Prüfe den neuesten Inhalt und versuche es erneut.",
+      "conflictDraftPreserved": "Ein anderer Agent hat das Arbeitsgedächtnis aktualisiert. Dein Entwurf bleibt erhalten. Kopiere ihn und öffne erneut, um ihn mit der aktuellen Fassung zusammenzuführen.",
+      "create": "Arbeitsgedächtnis erstellen",
+      "description": "Aktueller wichtiger Arbeitskontext für alle Chats des allgemeinen Agent. Älterer Kontext wird automatisch verdichtet oder vergessen.",
+      "edit": "Bearbeiten",
+      "editorLabel": "WORKING_MEMORY.md bearbeiten",
+      "emptyBody": "Agent hält nur aktuelle wichtige Änderungen fest, die spätere Arbeit beeinflussen können.",
+      "emptyTitle": "Noch kein Arbeitsgedächtnis",
+      "failed": "Arbeitsgedächtnis konnte nicht gespeichert werden.",
+      "filename": "WORKING_MEMORY.md",
+      "loading": "Arbeitsgedächtnis wird geladen…",
+      "neverUpdated": "Noch nicht geschrieben",
+      "saved": "Arbeitsgedächtnis gespeichert.",
+      "title": "Arbeitsgedächtnis",
+      "tokens": "Etwa {{count}} Tokens",
+      "updated": "{{time}} · aktualisiert von {{by}}"
+    }
   },
   "allChapters": {
     "actOrdinal": "Akt {{n}}"
@@ -825,6 +858,7 @@
     "readout": "{{chapters}} Kapitel · {{storylines}} Handlungsstränge · {{elements}} Elemente",
     "settings": {
       "dailyGoal": "Tagesziel",
+      "proactive": "Proaktive Vorschläge",
       "projectTarget": "Buchziel"
     },
     "since": "Projektstartseite · seit {{date}}",
@@ -836,6 +870,21 @@
     },
     "words": "{{words}} Wörter",
     "wordsOfTarget": "{{words}} / {{target}} Wörter"
+  },
+  "projectMemory": {
+    "add": "Hinzufügen",
+    "cancel": "Abbrechen",
+    "delete": "Löschen",
+    "deleteConfirm": "Diese Erinnerung löschen? Spätere Gespräche werden sie nicht mehr lesen.",
+    "desc": "Deine Gedanken, Absichten, Gewohnheiten und dauerhaften Anweisungen zu diesem Werk. Du und Agent können sie bearbeiten; jedes Gespräch liest sie. Fakten der Geschichte gehören in Elemente, Handlungsstränge und andere Objekte.",
+    "edit": "Bearbeiten",
+    "empty": "Noch keine Projekterinnerungen.",
+    "enable": "Aktivieren",
+    "inactive": "Inaktiv",
+    "placeholder": "Etwas zum Merken schreiben… ({{shortcut}} zum Speichern)",
+    "save": "Speichern",
+    "short": "Gedächtnis",
+    "title": "Projektgedächtnis"
   },
   "projectPicker": {
     "bookTransfer": {

@@ -20,6 +20,9 @@ use crate::{
     resolve::{self, ResolvedCall},
 };
 
+#[path = "evidence.rs"]
+mod evidence;
+
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CallRequest {
@@ -486,13 +489,15 @@ impl ToolExecutor for AgentTools {
                                         "tool definition changed; search again".into(),
                                     ));
                                 }
-                                facade.invoke_leased(
+                                let value = facade.invoke_leased(
                                     context.workspace(),
                                     &context.book,
                                     &context.actor,
                                     request,
                                     &lease,
-                                )
+                                )?;
+                                evidence::capture(&context, &value)?;
+                                Ok(value)
                             }
                             _ => Err(Error::Invalid("unknown tool envelope".into())),
                         }

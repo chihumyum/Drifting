@@ -1,5 +1,8 @@
 {
   "agentPanel": {
+    "budget": {
+      "continue": "Continuer la tâche"
+    },
     "checking": "Vérification…",
     "common": {
       "none": "Aucun"
@@ -62,6 +65,12 @@
     "setup": {
       "openSettings": "Ouvrir les réglages"
     },
+    "slice": {
+      "continuing": "Progression enregistrée. Reprise…",
+      "paused": "Continuez pour reprendre la progression enregistrée.",
+      "preparing": "Progression enregistrée. Préparation de la reprise…",
+      "saved": "Progression enregistrée"
+    },
     "thinking": {
       "done": "Trace du raisonnement",
       "streaming": "Réflexion…"
@@ -73,7 +82,31 @@
       "history": "Historique"
     },
     "turnChanges": "Modifications du tour",
-    "unavailable": "Agent est indisponible."
+    "unavailable": "Agent est indisponible.",
+    "workingMemory": {
+      "agent": "Agent",
+      "author": "auteur",
+      "budgetTitle": "Sans limite ; consolidation demandée après 20k et 40k tokens, puis à chaque tour au-delà de 80k",
+      "clear": "Effacer",
+      "clearConfirm": "Effacer la mémoire de travail ? Le manuscrit, les règles à long terme et l’historique ne seront pas supprimés.",
+      "cleared": "Mémoire de travail effacée.",
+      "conflictClear": "Un autre Agent l’a mise à jour ; elle n’a pas été effacée. Vérifiez le contenu récent et réessayez.",
+      "conflictDraftPreserved": "Un autre Agent a mis à jour la mémoire de travail. Votre brouillon est conservé ; copiez-le, puis rouvrez-la pour le fusionner avec la version récente.",
+      "create": "Créer la mémoire de travail",
+      "description": "Contexte de travail récent et pertinent partagé par toutes les conversations d’Agent général. L’ancien contexte est condensé ou oublié automatiquement.",
+      "edit": "Modifier",
+      "editorLabel": "Modifier WORKING_MEMORY.md",
+      "emptyBody": "Agent note seulement les changements récents importants susceptibles d’influencer la suite.",
+      "emptyTitle": "Aucune mémoire de travail",
+      "failed": "Impossible d’enregistrer la mémoire de travail.",
+      "filename": "WORKING_MEMORY.md",
+      "loading": "Chargement de la mémoire de travail…",
+      "neverUpdated": "Pas encore rédigée",
+      "saved": "Mémoire de travail enregistrée.",
+      "title": "Mémoire de travail",
+      "tokens": "Environ {{count}} tokens",
+      "updated": "{{time}} · mis à jour par {{by}}"
+    }
   },
   "allChapters": {
     "actOrdinal": "Acte {{n}}"
@@ -827,6 +860,7 @@
     "readout": "{{chapters}} chapitres · {{storylines}} intrigues · {{elements}} éléments",
     "settings": {
       "dailyGoal": "Objectif quotidien",
+      "proactive": "Suggestions proactives",
       "projectTarget": "Objectif du livre"
     },
     "since": "Accueil du projet · depuis le {{date}}",
@@ -838,6 +872,21 @@
     },
     "words": "{{words}} mots",
     "wordsOfTarget": "{{words}} / {{target}} mots"
+  },
+  "projectMemory": {
+    "add": "Ajouter",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "deleteConfirm": "Supprimer cette mémoire ? Les conversations suivantes ne la liront plus.",
+    "desc": "Vos réflexions, intentions, habitudes et consignes permanentes pour cette œuvre. Vous et Agent pouvez les modifier, et chaque conversation les lit. Les faits du récit vont dans les éléments, intrigues et autres objets.",
+    "edit": "Modifier",
+    "empty": "Aucune mémoire de projet pour le moment.",
+    "enable": "Activer",
+    "inactive": "Inactive",
+    "placeholder": "Écrivez quelque chose à retenir… ({{shortcut}} pour enregistrer)",
+    "save": "Enregistrer",
+    "short": "Mémoire",
+    "title": "Mémoire du projet"
   },
   "projectPicker": {
     "bookTransfer": {

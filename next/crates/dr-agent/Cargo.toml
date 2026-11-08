@@ -13,6 +13,8 @@ dr-model.workspace = true
 dr-store.workspace = true
 dr-workspace.workspace = true
 futures.workspace = true
+loro.workspace = true
+rusqlite.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
@@ -20,5 +22,4 @@ thiserror.workspace = true
 
 [dev-dependencies]
 dr-testkit.workspace = true
-loro.workspace = true
 tempfile.workspace = true
