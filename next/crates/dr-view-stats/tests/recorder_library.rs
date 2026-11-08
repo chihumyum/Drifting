@@ -1,6 +1,6 @@
 //! The recorder over a real library: the author's prose change, once the
 //! index has it, becomes this device's words for today in the book
-//! document, under the 0.1 writing-day key.
+//! document, under the 0.1 writing-day key; a body template's never does.
 
 use std::time::{Duration, Instant};
 
@@ -59,6 +59,26 @@ fn the_authors_words_are_stored_for_today() {
         assert!(Instant::now() < deadline, "{:?}", recorder.today(&book));
         std::thread::sleep(Duration::from_millis(5));
     }
+    // A body template is written like a page but is not the book's text:
+    // neither today's words nor the book's change.
+    let cat = out(
+        &ws,
+        "category.create",
+        json!({"book": book, "name": "人物"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    out(
+        &ws,
+        "category_template.set_body",
+        json!({"book": book, "category": cat, "paragraphs": [{"heading": 1, "text": "外貌与来历"}]}),
+    );
+    ws.library()
+        .reindex_doc(&format!("template:category:{cat}"))
+        .unwrap();
+    std::thread::sleep(Duration::from_millis(300));
+    assert_eq!(recorder.today(&book), Some(4));
     assert!(recorder.flush(Duration::from_secs(5)));
     let today = dr_view_stats::clock::today().to_string();
     let days = out(

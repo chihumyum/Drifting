@@ -21,13 +21,14 @@
 
 pub mod kept;
 pub mod model;
+pub mod spring;
 pub mod view;
 
 use dr_shell::Workspace;
 use dr_shell::pages::{self, BottomPane, BottomPanel};
 use gpui::{App, AppContext as _, Entity, WeakEntity};
 
-pub use view::{BottomTimeline, ClipDrag, DropAt};
+pub use view::{BottomTimeline, ClipDrag, DropAt, Mark, MarkDrag, default_act_name};
 
 /// The timeline for the window of `ws`.
 pub fn make(ws: WeakEntity<Workspace>, cx: &mut App) -> Entity<BottomTimeline> {

@@ -3,7 +3,8 @@
 //! element's page puts its head and fields around the text; the name, the
 //! aliases, the summary and the fields save as in the 0.1 client, and a name
 //! or alias another element holds raises the 0.1 alert; a category's page
-//! renames it and lists its elements with the filter.
+//! renames it and lists its elements with the filter, and its swatch picks
+//! its colour.
 
 use std::time::{Duration, Instant};
 
@@ -21,7 +22,7 @@ use dr_workspace::{
     },
     dto::{CategoryInfo, ElementInfo},
 };
-use gpui::{Entity, Focusable as _, TestAppContext, VisualTestContext};
+use gpui::{Entity, Focusable as _, Modifiers, TestAppContext, VisualTestContext};
 
 const VERSION: &str = "0.2.0-dev";
 
@@ -598,4 +599,48 @@ fn deleting_asks_then_trashes_and_closes_the_page(cx: &mut TestAppContext) {
     wait_for(cx, |cx| asking(cx).is_none());
     assert!(!categories(&lib, &book).iter().any(|c| c.id == people.id));
     assert!(element(&lib, &book, "沈怀山").category.is_none());
+}
+
+#[gpui::test]
+fn the_category_swatch_picks_its_colour(cx: &mut TestAppContext) {
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    use dr_ui::components::color::{self, OnPick};
+    use dr_ui::tokens::Rgb;
+
+    let (_dir, library, book) = library();
+    let lib = library.clone();
+    let (view, cx) = setup(cx, library);
+    let opened: Rc<RefCell<Option<(Rgb, OnPick)>>> = Rc::default();
+    cx.update(|_, cx| {
+        let opened = opened.clone();
+        color::set_color_picker(cx, move |current, on_pick, _, _| {
+            *opened.borrow_mut() = Some((current, on_pick));
+        });
+    });
+    let first = categories(&lib, &book).into_iter().next().unwrap();
+    let _ = open_category(&view, &first.id, cx);
+    frame(cx);
+    let swatch = cx
+        .debug_bounds("category-color")
+        .expect("the swatch is drawn");
+    cx.simulate_click(swatch.center(), Modifiers::none());
+    let (current, on_pick) = opened.borrow().clone().expect("the picker opened");
+    // It opens on the category's own colour.
+    assert_eq!(
+        color::hex(current),
+        first.color.to_ascii_lowercase(),
+        "the picker starts from the stored colour"
+    );
+    cx.update(|window, cx| on_pick(Rgb::hex(0x2d4a6b), window, cx));
+    frame(cx);
+    cx.executor()
+        .advance_clock(dr_view_elements::swatch::SETTLE);
+    let id = first.id.clone();
+    wait_for(cx, |_| {
+        categories(&lib, &book)
+            .into_iter()
+            .any(|c| c.id == id && c.color == "#2d4a6b")
+    });
 }

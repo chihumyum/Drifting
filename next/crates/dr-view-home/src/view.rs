@@ -328,6 +328,7 @@ impl Home {
             self.shown_summary = text.clone();
             let field = cx.new(|cx| {
                 TextArea::new("home-summary", window, cx)
+                    .framed(4.0)
                     .placeholder(hint)
                     .with_text(text)
             });
@@ -982,7 +983,7 @@ fn continue_section(
                 .type_px(14.0, 14.0 * 1.75)
                 .text_color(p.ink(3).solid())
                 .line_clamp(2)
-                .child(summary),
+                .child(dr_ui::text::wrapped(summary)),
         )
     });
     let others: Vec<AnyElement> = opened_more(book, stats, Some(&first))
@@ -1339,11 +1340,7 @@ fn settings(
             window,
             cx,
         ))
-        .children(
-            home.summary
-                .clone()
-                .map(|f| dr_view_shelf::frame::area("home-summary-frame", &f, 4.0, window, cx)),
-        );
+        .children(home.summary.clone());
     div()
         .flex()
         .flex_col()

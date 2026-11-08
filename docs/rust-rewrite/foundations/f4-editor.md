@@ -177,7 +177,7 @@ Drifting 的正文能在新版里编辑并落盘了：新的 AGPL crate `next/cr
 | `anchor(range)`、`resolve(&Anchor)` | 建锚点、解析锚点 |
 | `import(bytes)` | 可选：自己导入远端更新的文本源实现它；Drifting 的同步在别处导入，导入后宿主调 `ProseEditor::refresh_chapter` |
 
-映射到 `dr-doc`：`Replace` = `ProseTxn::delete` + `insert_paragraphs` + `set_style` / `clear_style`；`Delete` = `delete`；`Split` = `split`；`SetBlockAttr` = `set_block_attrs` / `set_heading`；`Mark` / `Unmark` = `set_style` / `clear_style` / `link_entity` / `unlink_entity`；撤销 = `ProseUndo::undo` / `redo`，每次拿回一个 `Committed` 交给存储；`undo_items` 用 `ProseUndo::undo_count` 前后相减。都在 `dr-store` 的写闭包里做。
+映射到 `dr-doc`：`Replace` = `ProseTxn::delete` + `insert_paragraphs` + `set_style` / `clear_style`；`Delete` = `delete`；`Split` = `split`；`SetBlockAttr` = `set_block_attrs` / `set_heading`；`Mark` / `Unmark` = `set_style` / `clear_style` / `link_entity` / `unlink_entity`；撤销 = `ProseUndo::undo` / `redo`，每次拿回一个 `Committed` 交给存储；`undo_items` 是这次编辑里作者的提交数（合并间隔 0，一次提交一项；`SessionSource` 从正文订阅里数），`ProseUndo` 的撤销栈不设上限。都在 `dr-store` 的写闭包里做。
 
 ### 段落镜像
 

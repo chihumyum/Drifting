@@ -36,7 +36,7 @@
 
 - **崩溃指纹**：旧版的 `related.kind` 只认 `render-failure` 和 `native-panic`。新版没有渲染层，崩溃都是原生的（Rust panic 或系统级崩溃），一律填 `native-panic`，不往服务端塞新值；`fingerprint` 填 `native-panic:crash:<崩溃 id>`，崩溃 id 就是 F7 打在 Sentry 事件上的 `drifting.crash_id` 标签，维护者按它在 Sentry 里找到那一次。`reportId` 填空（旧版 Sentry 送达时也是空）。
 - **写话框和关闭，第三轮起和旧版一样**（第一版等 dr-ui 时用过单行框、去掉过 ✕，见待协调 1、2）：
-  - 写话的是 F5 的多行输入框，套书架和 Project Home 用的那个带框的样子（`dr_view_shelf::frame::area`），至少五行高（旧版的 `min-height`）。回车换行，⌘↩ 发送；回信邮箱框里回车什么都不做，和旧版一样。
+  - 写话的是 F5 的带框多行输入（`TextArea::framed(5)`，和书架、Project Home 同一个样子），至少五行高（旧版的 `min-height`）。回车换行，⌘↩ 发送；回信邮箱框里回车什么都不做，和旧版一样。
   - 外壳用 F5 的 `Dialog::on_close` / `on_mist`：✕ 总能关；点雾只在写话框里没有字（只有空格、换行也算没有）且不在发送中时才关（旧版的 `closeOnBackdrop`）。发完以后话还在框里，所以点雾也不关，用「关闭」或 ✕。
 - **发送中**：「取消」灰掉，Esc 和点雾都不关，和旧版一样；只有 ✕ 能关。发送中点 ✕，对话框立刻关掉，话照样发出去，发到了照样收掉崩溃跟进的通知（旧版也是这样：关掉的是界面，请求还在走）。收通知这一步因此放在发送任务里做，不靠对话框还在。
 
@@ -95,7 +95,7 @@ F6 也在改 dr-shell，逐条列出，合并时好对：
 
 ## 待协调
 
-1. ~~F5（dr-ui）：多行输入框~~：**已做**（F5 的 `TextArea`），第三轮换上了，见「新版自己的地方」。框是借 `dr_view_shelf::frame::area` 套的（和 Project Home 一样，所以 `dr-view-feedback` 依赖 `dr-view-shelf`）；dr-ui 有了带框的多行框以后（m01-shelf.md 待协调），三处一起换过去。
+1. ~~F5（dr-ui）：多行输入框~~：**已做**（F5 的 `TextArea`），第三轮换上了，见「新版自己的地方」。框现在是 F5 的 `TextArea::framed`（2026-11-08 由 M01 那一路和书架、Project Home 一起换过去，`dr-view-feedback` 不再依赖 `dr-view-shelf`）。
 2. ~~F5（dr-ui）：对话框外壳分开「✕」和「点雾」~~：**已做**（F5 的 `Dialog::on_mist`），第三轮接上了。
 3. ~~M01（书架账户菜单）和设置的「关于」：加「提交反馈」一项~~：**已做**（第十一批），两处都派发 `SendFeedback`。
 4. **M36（账户）：登录后 `dr_view_feedback::Service::set_session(Some(令牌), cx)`，退出时传 `None`。** 回信邮箱默认填账户邮箱（旧版如此）也在那时加，对话框里留了 `contact_field()`。

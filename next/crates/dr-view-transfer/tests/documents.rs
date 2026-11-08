@@ -185,3 +185,21 @@ fn files_become_chapters_of_the_chosen_storyline(cx: &mut TestAppContext) {
     cx.run_until_parked();
     assert!(dialog(&view, cx).is_none());
 }
+
+#[test]
+fn warnings_are_in_the_interface_language() {
+    use dr_export::import::ImportWarning::{ImagesDropped, NotUtf8};
+    use dr_i18n::{I18n, Locale, Platform};
+    use dr_view_transfer::documents::warning;
+    let zh = I18n::new(Locale::ZhCn, Platform::Mac);
+    assert_eq!(warning(&zh, &ImagesDropped(2)), "2 张图片没有导入");
+    assert_eq!(warning(&zh, &NotUtf8), "不是 UTF-8 文本，有些字符被替换了");
+    let en = I18n::new(Locale::En, Platform::Mac);
+    assert_eq!(warning(&en, &ImagesDropped(1)), "1 image wasn't imported");
+    assert_eq!(warning(&en, &ImagesDropped(3)), "3 images weren't imported");
+    let ko = I18n::new(Locale::Ko, Platform::Mac);
+    assert_eq!(
+        warning(&ko, &ImagesDropped(1)),
+        "이미지 1개는 가져오지 않았습니다"
+    );
+}

@@ -265,6 +265,37 @@ fn capture(dir: PathBuf) -> Result<()> {
         })
         .context("钟楼 in 《慢钟》")?;
     let storyline = Target::Storyline(tower.id.parse()?);
+    // A chapter template on 钟楼, as the author would have written one.
+    {
+        use dr_workspace::commands::template::{
+            ChapterTemplateSetBody, SetChapterTemplateIn, TemplateParagraph,
+        };
+        let (lib, book) = h.read(|ws, cx| {
+            (
+                cx.global::<dr_shell::Services>().library.clone(),
+                ws.book.id.clone(),
+            )
+        });
+        let lib = lib.context("a library")?;
+        let para = |heading: Option<u8>, text: &str| TemplateParagraph {
+            heading,
+            text: text.to_owned(),
+        };
+        lib.run::<ChapterTemplateSetBody>(
+            &dr_workspace::Actor::User,
+            SetChapterTemplateIn {
+                book,
+                storyline: tower.id.clone(),
+                paragraphs: vec![
+                    para(Some(2), "钟楼里"),
+                    para(None, "这一章从钟声停下的那一刻写起。"),
+                    para(Some(2), "知微看见了什么"),
+                    para(None, ""),
+                ],
+            },
+        )
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    }
     let element = Target::Element(zhiwei.id.parse()?);
     let category = Target::Category(people.id.parse()?);
     // The elements panel out on the left, as when working on them.
@@ -376,6 +407,14 @@ fn capture(dir: PathBuf) -> Result<()> {
                 });
             }
         });
+        // The chapter template opens once its place is first drawn.
+        h.wait(|h| {
+            h.cx.update(|cx| {
+                dr_view_elements::storyline_page(&tower.id, cx)
+                    .and_then(|(_, end)| end.read(cx).template.clone())
+                    .is_some_and(|t| t.read(cx).is_open())
+            })
+        })?;
         h.settle()?;
         h.save(&m13, &format!("storyline-sequence-{suffix}.png"))?;
         let target = storyline.clone();

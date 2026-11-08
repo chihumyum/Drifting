@@ -17,15 +17,36 @@
   "bottomTimeline": {
     "act": {
       "chapterCount": "{{count}} chapters",
-      "railLabel": "Act"
+      "deleteMergeNext": "Delete this act and merge into next",
+      "deleteMergePrev": "Delete this act and merge into previous",
+      "newAct": "New act",
+      "openActNote": "Open act note",
+      "railLabel": "Act",
+      "startHere": "Start new act here",
+      "unbindDrift": "Unbind idea"
     },
     "axis": {
+      "addPin": "Add time pin",
       "time": "Time"
     },
     "empty": {
       "noChaptersInStoryline": "No chapters in this storyline · double-click to create one"
     },
     "locateCurrent": "Locate current chapter",
+    "marker": {
+      "defaultLabel": "Marker"
+    },
+    "menu": {
+      "detachFromNarrative": "Return to unplaced",
+      "moveToUnaffiliated": "Move to unaffiliated"
+    },
+    "pinMenu": {
+      "bindDrift": "Bind idea…",
+      "deleteMarker": "Delete marker",
+      "openDrift": "Open idea",
+      "rename": "Rename",
+      "unbind": "Unbind and restore as plain label"
+    },
     "storyline": {
       "chapterCount": "{{count}} ch"
     },
@@ -107,6 +128,7 @@
     "confirm": "Confirm",
     "counting": "Counting…",
     "creating": "Creating…",
+    "customColor": "Custom color",
     "delete": "Delete",
     "edit": "Edit",
     "local": "Local",
@@ -378,7 +400,12 @@
         "label": "Idea"
       }
     },
-    "title": "Import files"
+    "title": "Import files",
+    "warnings": {
+      "imagesDropped_one": "{{count}} image wasn't imported",
+      "imagesDropped_other": "{{count}} images weren't imported",
+      "notUtf8": "Not UTF-8 text; some characters were replaced"
+    }
   },
   "kvEditor": {
     "addField": "Add field",
@@ -399,6 +426,7 @@
     },
     "groups": {
       "addElementToGroup": "New element in this group",
+      "newChapterInStoryline": "New chapter in this storyline",
       "renameElementGroupTitle": "Double-click to rename group",
       "unaffiliated": "Unaffiliated"
     },
@@ -569,6 +597,15 @@
     },
     "empty": "No notifications",
     "markdownFolder": {
+      "issue": {
+        "empty": "The text was emptied; not merged, file kept",
+        "encoding": "Not UTF-8; not read, file kept",
+        "frontmatter": "The properties at the top are malformed; neither merged nor overwritten until fixed",
+        "identity": "drifting-id names another chapter; not merged, file kept",
+        "lineage": "This chapter was restored or reset; cannot merge automatically, file kept",
+        "owned": "Another Drifting installation keeps this folder; nothing was read or written",
+        "too-large": "Too large; not read, file kept"
+      },
       "preserved_one": "{{count}} edited file was kept in .drifting/preserved",
       "preserved_other": "{{count}} edited files were kept in .drifting/preserved",
       "source": "Markdown folder"
@@ -704,6 +741,8 @@
       "newCardSub": "Start from a blank page",
       "open": "Open “{{name}}”",
       "progress": "Progress",
+      "recent": "Last 30 days",
+      "recentLabel": "{{words}} words in the last 30 days",
       "storylinesUnit_one": "storyline",
       "storylinesUnit_other": "storylines",
       "trashEntry": "Recently Deleted",
@@ -1227,11 +1266,14 @@
     "meta": {
       "chapters": "{{count}} chapters",
       "chaptersWords": "{{chapters}} chapters · {{words}}k words",
-      "kWords": "{{count}}k words"
+      "kWords": "{{count}}k words",
+      "nodeTemplate": "Default skeleton for new chapters"
     },
+    "nodeTemplatePlaceholder": "Write a default chapter skeleton with H1 / H2 / H3; new chapters will use it…",
     "sections": {
       "chapters": "Chapter sequence",
       "facts": "Facts",
+      "nodeTemplate": "Chapter template",
       "scratch": "Scratch"
     },
     "summaryPlaceholder": "One-sentence summary for this storyline…",
