@@ -1646,6 +1646,8 @@ fn spreading_respaces_chapters_and_their_act_boundaries_in_one_step() {
         )
         .is_err()
     );
+}
+
 /// M19: a comment can mark a rectangle on an image or a PDF page; it is
 /// listed with its region, and refused anywhere else, with a range, or
 /// outside the picture.

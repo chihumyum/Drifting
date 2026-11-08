@@ -2325,6 +2325,8 @@ fn an_embedded_material_opens_and_the_highlight_key_is_bound(cx: &mut TestAppCon
     assert_eq!(bound(cx), 1);
     cx.update(|_, cx| dr_shell::keymap::apply(&Default::default(), cx));
     assert_eq!(bound(cx), 1, "still bound after the keymap is rebuilt");
+}
+
 /// A page a module draws whole (M19's image and PDF materials): asked
 /// before an editor is opened, it lies on the desk instead of the sheet,
 /// and goes when its tab closes; the pages it does not take still open in
