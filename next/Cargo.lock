@@ -1534,6 +1534,7 @@ dependencies = [
  "log",
  "loro",
  "objc2 0.6.5",
+ "pinyin",
  "png 0.18.1",
  "prose-metrics",
  "raw-window-handle",
@@ -1709,6 +1710,7 @@ dependencies = [
  "color_quant",
  "dr-editor",
  "dr-i18n",
+ "dr-mirror",
  "dr-model",
  "dr-platform",
  "dr-store",
@@ -1818,6 +1820,7 @@ dependencies = [
  "dr-store",
  "dr-testkit",
  "dr-ui",
+ "dr-view-relations",
  "dr-workspace",
  "futures",
  "gpui",
@@ -1826,6 +1829,7 @@ dependencies = [
  "icu_locale_core",
  "log",
  "png 0.18.1",
+ "serde_json",
  "tempfile",
 ]
 
@@ -1854,6 +1858,7 @@ dependencies = [
  "dr-platform",
  "dr-shell",
  "dr-ui",
+ "dr-view-update",
  "gpui",
  "gpui_platform",
  "log",
@@ -1901,6 +1906,27 @@ dependencies = [
  "dr-view-shelf-art",
  "dr-workspace",
  "futures",
+ "gpui",
+ "gpui_platform",
+ "log",
+ "png 0.18.1",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
+name = "dr-view-ideas"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "color_quant",
+ "dr-i18n",
+ "dr-shell",
+ "dr-store",
+ "dr-testkit",
+ "dr-ui",
+ "dr-view-elements",
+ "dr-workspace",
  "gpui",
  "gpui_platform",
  "log",
@@ -2061,6 +2087,7 @@ dependencies = [
  "gpui_platform",
  "image",
  "log",
+ "serde_json",
  "smallvec",
  "tempfile",
 ]
@@ -2185,6 +2212,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "dr-view-update"
+version = "0.0.0"
+dependencies = [
+ "dr-i18n",
+ "dr-platform",
+ "dr-shell",
+ "dr-ui",
+ "gpui",
+ "log",
+ "semver",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "dr-workspace"
 version = "0.0.0"
 dependencies = [
@@ -2219,13 +2261,16 @@ dependencies = [
  "dr-view-elements",
  "dr-view-feedback",
  "dr-view-home",
+ "dr-view-ideas",
  "dr-view-import",
  "dr-view-material",
  "dr-view-page",
  "dr-view-plot",
+ "dr-view-sea",
  "dr-view-shelf",
  "dr-view-timeline",
  "dr-view-transfer",
+ "dr-view-update",
  "dr-workspace",
  "futures",
  "gpui",
@@ -5891,6 +5936,12 @@ name = "pin-project-lite"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
+
+[[package]]
+name = "pinyin"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e225f595052d9c46045755be4b8d7950b6d9f3c33e0c0b74ba58f11bbfa8c64b"
 
 [[package]]
 name = "piper"

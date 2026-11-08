@@ -3,8 +3,11 @@
 //! 0.1 client's `getMenuItems`, behind its ⋯ menu and its hover cards).
 //!
 //! In order: share (and a chapter's 导出成稿); a chapter's writing status;
-//! the rows modules add ([`crate::pages::add_page_menu`]); 历史快照…; last,
-//! what deletes (a chapter's 删除节点, the modules' dangerous rows).
+//! a chapter's 编辑故事线 (every storyline, ticked while the chapter is on
+//! it; a click puts it on or takes it off, the first one left is its main
+//! storyline, as the 0.1 hover card's choices did); the rows modules add
+//! ([`crate::pages::add_page_menu`]); 历史快照…; last, what deletes (a
+//! chapter's 删除节点, the modules' dangerous rows).
 
 use std::rc::Rc;
 
@@ -37,6 +40,38 @@ fn status_label(cx: &App, status: &str) -> SharedString {
             _ => status::DRAFT,
         },
     )
+}
+
+/// What putting `chapter` on `storyline` or taking it off writes (the 0.1
+/// client's `useChapterStorylineToggle`): its live storylines, the main one
+/// first; the toggled one taken out, or added at the end; the first left is
+/// the main one. `(add, remove, primary)`, `primary` only when it changes.
+pub(crate) fn storyline_toggle(
+    on: &[String],
+    primary: Option<&str>,
+    live: &[&str],
+    storyline: &str,
+) -> (Vec<String>, Vec<String>, Option<Option<String>>) {
+    let mapped: Vec<&str> = on
+        .iter()
+        .map(String::as_str)
+        .filter(|s| live.contains(s))
+        .collect();
+    let main = primary
+        .filter(|p| mapped.contains(p))
+        .or_else(|| mapped.first().copied());
+    let mut ordered: Vec<&str> = main.into_iter().collect();
+    ordered.extend(mapped.iter().filter(|s| Some(**s) != main));
+    let (add, remove) = if ordered.contains(&storyline) {
+        ordered.retain(|s| *s != storyline);
+        (Vec::new(), vec![storyline.to_owned()])
+    } else {
+        ordered.push(storyline);
+        (vec![storyline.to_owned()], Vec::new())
+    };
+    let next = ordered.first().copied();
+    let primary = (next != primary).then(|| next.map(str::to_owned));
+    (add, remove, primary)
 }
 
 fn row(
@@ -137,6 +172,60 @@ pub fn page_actions(
             items,
         });
     }
+    // 编辑故事线: a chapter on its storylines, ticked.
+    if let Some(chapter) = chapter
+        && !host.book.storylines.is_empty()
+    {
+        let live: Vec<&str> = host.book.storylines.iter().map(|s| s.id.as_str()).collect();
+        let items = host
+            .book
+            .storylines
+            .iter()
+            .map(|s| {
+                let (add, remove, primary) = storyline_toggle(
+                    &chapter.storylines,
+                    chapter.primary_storyline.as_deref(),
+                    &live,
+                    &s.id,
+                );
+                let (ws, id) = (ws.clone(), chapter.id.clone());
+                let label: SharedString = if s.name.trim().is_empty() {
+                    t(cx, keys::top_timeline::untitled::STORYLINE)
+                } else {
+                    s.name.clone().into()
+                };
+                PageMenuItem {
+                    id: format!("storyline-{}", s.id).into(),
+                    icon: dr_ui::components::menu::RowIcon::Mark(
+                        dr_ui::sand::Kind::Storyline,
+                        crate::book::color_of(&s.color),
+                    ),
+                    label,
+                    checked: chapter.storylines.contains(&s.id),
+                    danger: false,
+                    run: Rc::new(move |_, cx| {
+                        let mut input = json!({
+                            "book": "",
+                            "id": id,
+                            "add_storylines": add,
+                            "remove_storylines": remove,
+                        });
+                        if let Some(primary) = &primary {
+                            input["primary_storyline"] = json!(primary);
+                        }
+                        ws.update(cx, |ws, cx| {
+                            input["book"] = json!(ws.book_id);
+                            ws.run_command("chapter.update", input, cx)
+                        })
+                    }),
+                }
+            })
+            .collect();
+        sections.push(PageMenuSection {
+            title: Some(t(cx, keys::editor_top_bar::menu::EDIT_STORYLINES)),
+            items,
+        });
+    }
     // The modules' rows; what deletes waits for the end.
     let mut dangerous = Vec::new();
     for section in crate::pages::menu_for(target, host, cx) {
@@ -193,20 +282,24 @@ pub fn page_actions(
     sections
 }
 
-/// `sections` with a module's `extra` ones (a hover card's own rows, M14)
-/// before the dangerous rows, which stay last.
-pub(crate) fn with_extra(
+/// `sections` with a module's own rows (a hover card's, M14): `lead` first,
+/// `before_danger` before the dangerous rows, which stay last.
+pub(crate) fn with_rows(
     mut sections: Vec<PageMenuSection>,
-    extra: &[PageMenuSection],
+    rows: &crate::pages::CardRows,
 ) -> Vec<PageMenuSection> {
     let dangerous = sections
         .last()
         .is_some_and(|s| !s.items.is_empty() && s.items.iter().all(|i| i.danger));
     let at = sections.len() - usize::from(dangerous);
-    sections.splice(
-        at..at,
-        extra.iter().filter(|s| !s.items.is_empty()).cloned(),
-    );
+    let kept = |list: &[PageMenuSection]| -> Vec<PageMenuSection> {
+        list.iter()
+            .filter(|s| !s.items.is_empty())
+            .cloned()
+            .collect()
+    };
+    sections.splice(at..at, kept(&rows.before_danger));
+    sections.splice(0..0, kept(&rows.lead));
     sections
 }
 
@@ -235,16 +328,52 @@ mod tests {
     }
 
     #[test]
+    fn a_storyline_is_put_on_or_taken_off_and_the_first_left_is_the_main() {
+        let live = ["a", "b", "c"];
+        let on = |ids: &[&str]| ids.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let s = |v: &[&str]| on(v);
+        // On none: added, and it is the main one.
+        assert_eq!(
+            storyline_toggle(&[], None, &live, "b"),
+            (s(&["b"]), s(&[]), Some(Some("b".into())))
+        );
+        // Added beside the main one: the main one stays.
+        assert_eq!(
+            storyline_toggle(&on(&["a"]), Some("a"), &live, "c"),
+            (s(&["c"]), s(&[]), None)
+        );
+        // The main one taken off: the next one is the main one.
+        assert_eq!(
+            storyline_toggle(&on(&["c", "a"]), Some("a"), &live, "a"),
+            (s(&[]), s(&["a"]), Some(Some("c".into())))
+        );
+        // The last one taken off: no main one.
+        assert_eq!(
+            storyline_toggle(&on(&["a"]), Some("a"), &live, "a"),
+            (s(&[]), s(&["a"]), Some(None))
+        );
+        // A gone storyline does not count.
+        assert_eq!(
+            storyline_toggle(&on(&["x", "b"]), Some("x"), &live, "c"),
+            (s(&["c"]), s(&[]), Some(Some("b".into())))
+        );
+    }
+
+    #[test]
     fn a_modules_rows_go_before_what_deletes() {
         let page = vec![
             section(&[("share", false)]),
             section(&[("history", false)]),
             section(&[("trash", true)]),
         ];
-        let extra = [section(&[("to-unaffiliated", false)]), section(&[])];
+        let rows = crate::pages::CardRows {
+            lead: vec![section(&[("new-chapter", false)])],
+            before_danger: vec![section(&[("to-unaffiliated", false)]), section(&[])],
+        };
         assert_eq!(
-            ids(&with_extra(page, &extra)),
+            ids(&with_rows(page, &rows)),
             [
+                vec!["new-chapter"],
                 vec!["share"],
                 vec!["history"],
                 vec!["to-unaffiliated"],
@@ -254,8 +383,12 @@ mod tests {
         // Nothing dangerous: at the end.
         let page = vec![section(&[("history", false)])];
         assert_eq!(
-            ids(&with_extra(page, &extra)),
-            [vec!["history"], vec!["to-unaffiliated"]]
+            ids(&with_rows(page, &rows)),
+            [
+                vec!["new-chapter"],
+                vec!["history"],
+                vec!["to-unaffiliated"]
+            ]
         );
     }
 

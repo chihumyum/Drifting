@@ -46,6 +46,15 @@ pub enum EditorEvent {
     },
 }
 
+/// The author wrote text: typed characters, an input method's confirmed
+/// text, Enter. Not a paste, a drop, a deletion, an undo, an input method
+/// still composing, nor a host's or an Agent's write. A host begins
+/// immersive writing on it when the author starts writing (M26).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AuthorTyped {
+    pub chapter: usize,
+}
+
 type PaintHook = Box<dyn FnOnce(&mut Window, &mut App)>;
 
 /// Pixels rendered above and below the viewport.
@@ -72,6 +81,12 @@ pub struct ProseEditor {
     /// Where the caret is, written by the paragraph that holds it.
     pub(crate) cursor_rect: Rc<Cell<Option<Bounds<Pixels>>>>,
     pub(crate) autoscroll: bool,
+    /// Typewriter scrolling's line moved (or it was turned on): the caret
+    /// goes to it at the next frame, if the editor has the focus.
+    realign_typewriter: bool,
+    /// The view's height at the last frame (typewriter scrolling realigns
+    /// when it changes).
+    drawn_height: Option<Pixels>,
     pub(crate) selecting: bool,
     pub(crate) undo_chapters: Vec<usize>,
     pub(crate) redo_chapters: Vec<usize>,
@@ -93,6 +108,7 @@ pub struct ProseEditor {
 }
 
 impl EventEmitter<EditorEvent> for ProseEditor {}
+impl EventEmitter<AuthorTyped> for ProseEditor {}
 
 /// How a host's edit ([`ProseEditor::edit_chapter`]) undoes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -150,6 +166,8 @@ impl ProseEditor {
             cursor_layer,
             cursor_rect,
             autoscroll: false,
+            realign_typewriter: false,
+            drawn_height: None,
             selecting: false,
             undo_chapters: Vec::new(),
             redo_chapters: Vec::new(),
@@ -283,6 +301,8 @@ impl ProseEditor {
             return;
         }
         let cursor = style.cursor;
+        self.realign_typewriter |=
+            style.typewriter.is_some() && style.typewriter != self.style.typewriter;
         self.style = style;
         self.estimate_width = None;
         self.list.remeasure();
@@ -518,6 +538,22 @@ impl ProseEditor {
 
     fn after_paint(&mut self, bounds: Bounds<Pixels>, window: &mut Window, cx: &mut Context<Self>) {
         self.autoscroll = false;
+        // Typewriter scrolling keeps the caret on its line when the line
+        // moves or the view's height changes (the 0.1 client's), for the
+        // editor with the focus and a caret only.
+        let resized = self
+            .drawn_height
+            .replace(bounds.size.height)
+            .is_some_and(|h| h != bounds.size.height);
+        if (std::mem::take(&mut self.realign_typewriter) || resized)
+            && self.style.typewriter.is_some()
+            && self.selection.is_empty()
+            && self.composition.is_none()
+            && self.focus.is_focused(window)
+        {
+            self.autoscroll = true;
+            cx.notify();
+        }
         // The candidate window follows the marked text when it moves (scroll,
         // reflow); macOS re-asks `firstRectForCharacterRange` after this.
         if let Some(comp) = &self.composition {

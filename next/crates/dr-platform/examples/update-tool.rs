@@ -102,8 +102,12 @@ fn verify(file: &Path, public_key: &str) -> Result<()> {
     };
     let key = dr_platform::update::UpdaterKey::parse(&public_key)?;
     let signature = std::fs::read_to_string(format!("{}.sig", file.display()))?;
-    key.verify_file(file, &signature)?;
-    println!("ok: {}", file.display());
+    let verified = key.verify_file(file, &signature)?;
+    println!(
+        "ok: {} (signed as {})",
+        file.display(),
+        verified.signed_file().unwrap_or("no file name")
+    );
     Ok(())
 }
 
@@ -173,7 +177,7 @@ fn manifest(args: &[String]) -> Result<()> {
 }
 
 fn apply(args: &[String]) -> Result<()> {
-    use dr_platform::update::{LocalFetch, Target, Updater, UpdaterConfig, UrlPolicy};
+    use dr_platform::update::{LocalFetch, Offer, Target, Updater, UpdaterConfig, UrlPolicy};
     let [manifest, public_key, bundle, rest @ ..] = args else {
         bail!("apply <manifest> <public key> <bundle.app> [--current <version>]");
     };
@@ -204,20 +208,36 @@ fn apply(args: &[String]) -> Result<()> {
         },
         LocalFetch,
     )?;
-    let Some(available) = updater.check()? else {
-        println!("no newer version than {current}");
-        return Ok(());
+    let available = match updater.check()? {
+        Offer::Newer(available) => available,
+        Offer::Current => {
+            println!("the manifest offers {current}, the current version");
+            return Ok(());
+        }
+        Offer::Older(offered) => {
+            println!("the manifest offers {offered}, older than {current}: not installed");
+            return Ok(());
+        }
     };
     let downloads = std::env::temp_dir().join(format!("drifting-update-{}", std::process::id()));
+    let started = std::time::Instant::now();
     let downloaded = updater.download(&available, &downloads, &mut |_| {})?;
     println!(
-        "verified {} ({})",
+        "verified {} ({}) in {} ms",
         available.version,
-        downloaded.path.display()
+        downloaded.path.display(),
+        started.elapsed().as_millis()
     );
+    // What the app's quit hook does (M42): the swap alone.
+    let started = std::time::Instant::now();
     downloaded.replace_bundle(Path::new(bundle))?;
+    let swapped = started.elapsed();
     let _ = std::fs::remove_dir_all(&downloads);
-    println!("installed {} into {bundle}", available.version);
+    println!(
+        "installed {} into {bundle} in {} ms",
+        available.version,
+        swapped.as_millis()
+    );
     Ok(())
 }
 

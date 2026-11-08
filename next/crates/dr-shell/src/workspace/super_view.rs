@@ -5,7 +5,10 @@
 //! push. Esc closes it (after anything floating over it).
 //!
 //! The three views (M21 story graph, M22 element overview, M23 review and
-//! materials) fill the body later; this round it is an empty stage.
+//! materials) are the modules' ([`crate::pages::add_super_view`]): each is
+//! made the first time the stage shows it for a book, its body under the
+//! header, its two slots in the header (the left after 返回, the right
+//! end). A view nobody registered is an empty sheet.
 
 use dr_i18n::{Key, keys};
 use dr_ui::{
@@ -22,6 +25,7 @@ use gpui::{
 
 use super::Workspace;
 use super::chrome::{self, LEADING_INSET, TITLEBAR_HEIGHT};
+use crate::pages::{SuperViewHost, SuperViewPage};
 use crate::strings::t;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -60,9 +64,53 @@ impl SuperView {
     }
 }
 
-pub fn stage(view: SuperView, window: &mut Window, cx: &mut Context<Workspace>) -> AnyElement {
+impl Workspace {
+    /// `view`'s content for the book shown, made when it is not yet.
+    fn super_view_page(
+        &self,
+        view: SuperView,
+        window: &mut Window,
+        cx: &mut Context<Workspace>,
+    ) -> Option<SuperViewPage> {
+        if let Some((book, made)) = self.super_views.borrow().get(&view)
+            && *book == self.book_id
+        {
+            return made.clone();
+        }
+        let host = SuperViewHost {
+            workspace: cx.weak_entity(),
+            library: self.library.clone(),
+            book_id: self.book_id.clone(),
+            book: self.book.clone(),
+        };
+        let made = crate::pages::super_view_for(view, &host, window, cx);
+        self.super_views
+            .borrow_mut()
+            .insert(view, (self.book_id.clone(), made.clone()));
+        made
+    }
+
+    /// The made content of `view`, if a module draws it (tests).
+    pub fn super_view_content(&self, view: SuperView) -> Option<SuperViewPage> {
+        self.super_views.borrow().get(&view)?.1.clone()
+    }
+}
+
+pub fn stage(
+    ws: &Workspace,
+    view: SuperView,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) -> AnyElement {
     let theme = Theme::of(window, cx);
     let p = theme.palette;
+    let page = ws.super_view_page(view, window, cx);
+    // What each view shows, for the push between two of them.
+    let bodies: std::collections::HashMap<&'static str, gpui::AnyView> = SuperView::ALL
+        .iter()
+        .filter_map(|v| Some((v.slug(), ws.super_view_content(*v)?.body)))
+        .collect();
+    let (head_start, head_end) = page.map(|p| (p.head_start, p.head_end)).unwrap_or_default();
     let labels: Vec<SharedString> = SuperView::ALL.iter().map(|v| t(cx, v.label())).collect();
     let entity = cx.entity();
     let switcher =
@@ -97,6 +145,9 @@ pub fn stage(view: SuperView, window: &mut Window, cx: &mut Context<Workspace>) 
             .flex_row()
             .items_center()
             .child(back)
+            .children(head_start.map(|v| div().relative().ml(px(8.0)).child(v)))
+            .child(div().flex_1())
+            .children(head_end.map(|v| div().relative().child(v)))
             .child(
                 div()
                     .absolute()
@@ -115,9 +166,13 @@ pub fn stage(view: SuperView, window: &mut Window, cx: &mut Context<Workspace>) 
         "super-view-body",
         SharedString::new_static(view.slug()),
         view.index(),
-        move |_, window, cx| {
+        move |key, window, cx| {
             let p = Theme::of(window, cx).palette;
-            div().size_full().bg(p.paper.solid()).into_any_element()
+            div()
+                .size_full()
+                .bg(p.paper.solid())
+                .children(bodies.get(key.as_ref()).cloned())
+                .into_any_element()
         },
     );
     glass::surface(

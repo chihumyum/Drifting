@@ -42,6 +42,19 @@
           "legacy": "This is a Drifting 0.1 backup, which this version cannot restore directly. Restore it in Drifting 0.1, then import that library with “Import · Drifting 0.1” on the bookshelf."
         }
       }
+    },
+    "update": {
+      "restart": "Restart to Update",
+      "ready_on_quit": "Drifting {{version}} is downloaded and its signature verified. It installs when you quit.",
+      "older_offered": "You're up to date. The update service offers {{version}}, which is older than this version, so it won't be installed.",
+      "refused_signature": "The downloaded update failed signature verification and was discarded. This version keeps working.",
+      "refused_version": "The downloaded update isn't the version it claims to be, possibly an older one, and was refused. This version keeps working.",
+      "refused_app": "The downloaded update isn't Drifting and was discarded. This version keeps working.",
+      "interrupted": "The update didn't finish downloading and was discarded. It downloads again at the next check.",
+      "server_error": "The update service has a problem right now. Try again later; this version keeps working.",
+      "local_error": "The update couldn't be saved on this computer and was stopped. This version keeps working.",
+      "install_failed": "Drifting {{version}} couldn't be installed when you last quit. This version is unchanged; it tries again next time you quit.",
+      "install_failed_admin": "Drifting {{version}} couldn't be installed when you last quit: the folder Drifting is in can't be written to. This version is unchanged."
     }
   },
   "findPanel": {

@@ -165,6 +165,8 @@
     "wordCount": "{{count}}자"
   },
   "edgeKindManager": {
+    "changeColor": "색상 변경",
+    "changeColorLabel": "{{label}} 색상 변경",
     "editTypes": "유형 편집",
     "resetColor": "기본 색상 복원",
     "summary": "유형 {{kinds}}개 · 관계 {{relations}}개",
@@ -186,7 +188,9 @@
       "deleteCategory": "분류 삭제",
       "deleteElement": "요소 삭제",
       "deleteNode": "노드 삭제",
-      "deleteStoryline": "스토리라인 삭제"
+      "deleteStoryline": "스토리라인 삭제",
+      "editStorylines": "스토리라인 편집",
+      "moveToGroup": "그룹으로 이동…"
     },
     "outlineRailMode": {
       "hidden": "목차 숨기기",
@@ -195,10 +199,13 @@
     "status": {
       "discarded": "폐기됨",
       "draft": "초안",
-      "finished": "완료"
+      "drifting": "떠다니는 중",
+      "finished": "완료",
+      "resting": "정박 중"
     },
     "statusSection": {
-      "chapter": "집필 상태"
+      "chapter": "집필 상태",
+      "drift": "아이디어 상태"
     }
   },
   "elementCategoryCreateMenu": {
@@ -411,6 +418,8 @@
     "actions": {
       "collapseAll": "모두 펼치기 또는 접기",
       "newCategory": "새 분류",
+      "newDrift": "새 아이디어",
+      "newDriftGroup": "새 그룹",
       "sort": "정렬"
     },
     "empty": {
@@ -420,7 +429,15 @@
     },
     "groups": {
       "addElementToGroup": "이 그룹에 새 요소",
+      "deleteGroup": "그룹 삭제",
+      "driftCount_one": "아이디어 {{count}}개",
+      "driftCount_other": "아이디어 {{count}}개",
+      "moveDriftToRoot": "최상위(그룹 밖으로 이동)",
+      "moveGroupToRoot": "최상위(맨 위 수준으로 이동)",
       "newChapterInStoryline": "이 스토리라인에 새 장",
+      "newDriftInGroup": "여기에 새 아이디어",
+      "newSubGroup": "새 하위 그룹",
+      "rename": "이름 바꾸기",
       "renameElementGroupTitle": "두 번 클릭하여 그룹 이름 바꾸기",
       "unaffiliated": "소속 없음"
     },
@@ -436,6 +453,7 @@
       "cellMetaGroup": "셀 오른쪽",
       "chapters": "장 정렬",
       "createdAt": "생성일",
+      "drifts": "아이디어 정렬",
       "duplicatesAll": "연결된 모든 그룹에 표시",
       "duplicatesGroup": "여러 스토리라인의 장",
       "duplicatesPrimary": "주요 스토리라인에만 표시",
@@ -448,6 +466,7 @@
       "showWordCount": "글자 수 표시",
       "storylineChapters": "스토리라인 내 장 정렬",
       "storylineOrder": "스토리라인 순서",
+      "title": "제목 A–Z",
       "updatedAt": "수정일"
     },
     "tabs": {
@@ -580,6 +599,8 @@
   },
   "notifications": {
     "appUpdate": {
+      "available": "Drifting {{version}}을 사용할 수 있습니다",
+      "installed": "Drifting {{version}}(으)로 업데이트했습니다",
       "source": "업데이트"
     },
     "clear": "지우기",
@@ -882,6 +903,7 @@
     "save": "저장",
     "selectConfigured": "관계 유형 선택",
     "sourceRole": "출발점 역할",
+    "swap": "관계 끝점 맞바꾸기",
     "symmetric": "대칭",
     "symmetricSummary": "대칭 · {{role}}",
     "targetRole": "대상 역할",
@@ -1041,6 +1063,7 @@
     },
     "appearance": {
       "dark": "어둡게",
+      "guides": "가이드",
       "interface_text_large": "크게",
       "interface_text_largest": "가장 크게",
       "interface_text_size": "인터페이스 글자 크기",
@@ -1049,6 +1072,8 @@
       "interface_text_smallest": "가장 작게",
       "interface_text_standard": "표준",
       "light": "밝게",
+      "replay_guides": "작품을 처음 열 때 둘러보기",
+      "replay_guides_action": "다시 표시",
       "system": "시스템 설정 따르기",
       "theme": "테마",
       "theme_desc": "밝게, 어둡게 또는 시스템 설정을 따릅니다."
@@ -1202,12 +1227,42 @@
       "local_sub": "Drifting 계정이나 호스팅 클라우드를 사용하지 않습니다. 언제든 읽을 수 있는 사본을 내보낼 수 있습니다.",
       "local_title": "작품은 이 기기에 보관됩니다.",
       "projection": {
-        "turnOff": "Markdown 폴더 끄기"
+        "allProjects": "모든 작품",
+        "allProjectsUnset": "모든 작품 · 위치를 선택하지 않음",
+        "choose": "폴더 선택",
+        "description": "각 작품에는 로컬 읽기·검색·외부 도구용 구조화된 Markdown이 있습니다. Drifting 실행 중 다른 편집기에서 장과 아이디어를 편집하면 병합됩니다. 다른 파일은 자동 생성되며 읽기 전용입니다.",
+        "locationHint": "이 기기에 작품마다 폴더를 만듭니다. 위치를 바꿔도 기존 폴더는 원래 위치에 남습니다.",
+        "offHint": "꺼짐: Markdown을 기록하지 않고 외부 수정도 병합하지 않습니다. 기존 파일은 그대로 남습니다.",
+        "offTitle": "Markdown 폴더를 끌까요?",
+        "offWarning": "모든 작품의 Markdown 기록을 중지합니다. 외부 편집기와 Agent는 현재 파일만 보게 되며 외부 수정은 Drifting에 병합되지 않습니다. 기존 파일은 그대로 남습니다. 설정 → 동기화 및 데이터에서 다시 켤 수 있습니다.",
+        "reveal": "Finder에서 보기",
+        "title": "Markdown 폴더",
+        "turnOff": "Markdown 폴더 끄기",
+        "turnOn": "켜기"
       }
     },
     "title": "설정",
     "update": {
-      "channel_desc": "Apple Silicon · macOS 13 이상"
+      "channel_desc": "Apple Silicon · macOS 13 이상",
+      "check": "새 버전",
+      "check_action": "업데이트 확인",
+      "check_failed": "지금은 업데이트를 확인할 수 없습니다. 네트워크 연결을 확인하고 나중에 다시 시도해 주세요. 현재 버전은 계속 사용할 수 있습니다.",
+      "checking": "확인 중…",
+      "downloading": "다운로드 및 서명 검증 중…",
+      "downloading_progress": "다운로드 및 검증 중… {{progress}}%",
+      "install_failed": "지난번 종료할 때 Drifting {{version}}을 설치하지 못했습니다. 현재 버전은 변경되지 않았으며 다음 종료 때 다시 시도합니다.",
+      "install_failed_admin": "지난번 종료할 때 Drifting {{version}}을 설치하지 못했습니다. Drifting이 있는 폴더에 쓸 수 없습니다. 현재 버전은 변경되지 않았습니다.",
+      "interrupted": "업데이트를 끝까지 내려받지 못해 버렸습니다. 다음 확인 때 다시 내려받습니다.",
+      "local_error": "업데이트를 이 컴퓨터에 저장하지 못해 중지했습니다. 현재 버전은 계속 사용할 수 있습니다.",
+      "no_update": "최신 버전입니다.",
+      "older_offered": "최신 버전입니다. 업데이트 서비스가 제공하는 {{version}}은 이 버전보다 오래되어 설치하지 않습니다.",
+      "ready_on_quit": "Drifting {{version}}을 내려받아 서명을 확인했습니다. 종료할 때 설치합니다.",
+      "refused_app": "내려받은 업데이트가 Drifting이 아니어서 버렸습니다. 현재 버전은 계속 사용할 수 있습니다.",
+      "refused_signature": "내려받은 업데이트가 서명 확인을 통과하지 못해 버렸습니다. 현재 버전은 계속 사용할 수 있습니다.",
+      "refused_version": "내려받은 업데이트가 표시된 버전과 달라(이전 버전일 수 있음) 거부했습니다. 현재 버전은 계속 사용할 수 있습니다.",
+      "restart": "다시 시작하여 업데이트",
+      "server_error": "업데이트 서비스에 지금 문제가 있습니다. 나중에 다시 시도해 주세요. 현재 버전은 계속 사용할 수 있습니다.",
+      "unavailable": "이 빌드에는 업데이터 서명 키가 없어 업데이트를 확인할 수 없습니다. GitHub에서 받은 배포판에서는 사용할 수 있습니다."
     }
   },
   "sidebarLayout": {

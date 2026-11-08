@@ -1,8 +1,9 @@
 //! What the timeline keeps for each book on this device (the 0.1 client
 //! kept it in localStorage and its ui-store): 书序 or 叙事时, whether 未归属
-//! shows, the zoom and the sideways scroll. The shell stores it with the
-//! book's local layout (`Workspace::book_memory`, under [`KEY`]); it never
-//! goes into the book.
+//! shows, the zoom and the sideways scroll. The shell keeps it for the book
+//! on this device (`Workspace::book_memory`, under [`KEY`]; F2's
+//! `local_state`, gone with the book); it never goes into the book. It is
+//! applied once the workspace has read it (`book_memory_ready`).
 
 use serde::{Deserialize, Serialize};
 

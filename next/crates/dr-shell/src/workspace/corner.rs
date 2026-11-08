@@ -247,7 +247,9 @@ pub fn corner(
         .flex_row()
         .items_center()
         .gap(px(8.0))
-        .children(timeline)
+        .children(
+            timeline.map(|t| crate::pages::anchor(crate::pages::anchors::TIMELINE_TOGGLE, t, cx)),
+        )
         .children(tray)
         .children(incense)
         .children(menu)

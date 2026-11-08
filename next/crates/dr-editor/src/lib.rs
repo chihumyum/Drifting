@@ -30,6 +30,7 @@ pub mod link_card;
 pub mod links;
 pub mod material;
 pub mod page;
+pub mod pinyin;
 pub mod rules;
 pub mod settings;
 pub mod source;
@@ -46,5 +47,5 @@ pub use source::SessionSource;
 pub use todo::TodoMarker;
 pub use view::{
     ChapterEditor, ChapterEditorEvent, CommentRequested, EntityLinkOpened, MaterialOpened,
-    PositionLinkCopied,
+    PositionLinkCopied, WritingTyped,
 };

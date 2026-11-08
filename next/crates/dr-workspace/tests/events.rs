@@ -160,3 +160,98 @@ fn caches_follow_events() {
         "dependent read dropped"
     );
 }
+
+/// The `chapter_template` / `element_template` changes in `events`, as
+/// (collection, owner id).
+fn template_changes(events: &[WsEvent]) -> Vec<(Collection, String)> {
+    events
+        .iter()
+        .filter_map(|ev| match ev {
+            WsEvent::Book(b) => Some(b.changes.clone()),
+            _ => None,
+        })
+        .flatten()
+        .filter(|c| {
+            c.fields.as_ref().is_some_and(|f| {
+                f.iter()
+                    .any(|f| f == "chapter_template" || f == "element_template")
+            })
+        })
+        .map(|c| (c.collection, c.id.unwrap_or_default()))
+        .collect()
+}
+
+#[test]
+fn a_template_that_starts_or_stops_holding_something_changes_its_owner() {
+    let e = env();
+    let b = e.book();
+    let line = e.out("storyline.create", json!({"book": b, "name": "主线"}))["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let cat = e.out("category.create", json!({"book": b, "name": "人物"}))["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    // The lists see both owners without a template (and remember it).
+    assert_eq!(
+        e.out("storyline.list", json!({"book": b}))[0]["has_chapter_template"],
+        false
+    );
+    let doc = e.out(
+        "chapter_template.document",
+        json!({"book": b, "storyline": line}),
+    )["doc"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    e.out("storyline.list", json!({"book": b}));
+    let (seen, _sub) = record(&e);
+    // Typed in an editor: the first words make it a template.
+    let s = e.ws().prose_session(&doc).unwrap();
+    s.edit(|t| t.insert_text(0, "开")).unwrap();
+    let take = || std::mem::take(&mut *seen.lock().unwrap());
+    assert_eq!(
+        template_changes(&take()),
+        [(Collection::Storylines, line.clone())]
+    );
+    assert_eq!(
+        e.out("storyline.list", json!({"book": b}))[0]["has_chapter_template"],
+        true
+    );
+    // More typing is only prose.
+    s.edit(|t| t.insert_text(1, "场")).unwrap();
+    let events = take();
+    assert!(template_changes(&events).is_empty());
+    assert!(events.iter().any(|ev| matches!(ev, WsEvent::Prose(_))));
+    // Emptied, it is no template again.
+    s.edit(|t| t.delete(0..2)).unwrap();
+    assert_eq!(
+        template_changes(&take()),
+        [(Collection::Storylines, line.clone())]
+    );
+    drop(s);
+    assert_eq!(
+        e.out("storyline.list", json!({"book": b}))[0]["has_chapter_template"],
+        false
+    );
+    // The same for a category's element template, through the command.
+    e.call(
+        "category_template.set_body",
+        json!({"book": b, "category": cat, "paragraphs": [{"text": "外貌"}]}),
+    );
+    assert_eq!(
+        template_changes(&take()),
+        [(Collection::Categories, cat.clone())]
+    );
+    e.call(
+        "category_template.set_body",
+        json!({"book": b, "category": cat, "paragraphs": [{"text": "性格"}]}),
+    );
+    assert!(template_changes(&take()).is_empty());
+    e.call(
+        "category_template.set_body",
+        json!({"book": b, "category": cat, "paragraphs": []}),
+    );
+    assert_eq!(template_changes(&take()), [(Collection::Categories, cat)]);
+}

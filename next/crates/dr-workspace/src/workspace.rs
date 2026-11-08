@@ -128,6 +128,11 @@ pub(crate) struct Inner {
     pub journal: Journal,
     pub library_gate: Arc<Gate>,
     subscription: Mutex<Option<LibrarySubscription>>,
+    /// Whether each template document held a template when last seen (by
+    /// `storyline.list` / `category.list`, or after its last commit): a
+    /// commit that flips it is reported as a change to its owner
+    /// ([`Inner::template_flip`]).
+    templates: Mutex<HashMap<DocId, bool>>,
     /// The author's `editor.auto_entity_links` (`crate::autolink`).
     auto_links: std::sync::atomic::AtomicBool,
 }
@@ -184,6 +189,7 @@ impl Workspace {
             bus: Bus::default(),
             library_gate: Arc::default(),
             subscription: Mutex::new(None),
+            templates: Mutex::new(HashMap::new()),
             auto_links: std::sync::atomic::AtomicBool::new(true),
         });
         subscribe(&inner);
@@ -971,6 +977,66 @@ fn removed_by(slot: &BookSlot, changes: &[EntityChange]) -> Vec<RemovedEntity> {
 }
 
 impl Inner {
+    /// Remember whether template document `doc` holds a template, unless
+    /// a commit already told (the list queries seed it; commits, on the
+    /// holder thread in their order, are what count).
+    pub(crate) fn seen_template(&self, doc: &DocId, has: bool) {
+        lock(&self.templates).entry(doc.clone()).or_insert(has);
+    }
+
+    /// After a commit to template document `doc`: when whether it holds a
+    /// template flipped (blank ↔ not, or not known yet), the owner's
+    /// `has_chapter_template` / `has_element_template` changed for every
+    /// reader of the book's lists, so the change is also reported as a
+    /// [`BookChanged`] naming the owner, field `chapter_template` (a
+    /// storyline) or `element_template` (a category): the 0.1 fields that
+    /// held the templates. The shell reloads its snapshot on it as on any
+    /// change to the book. Typing inside a template sends no such event.
+    fn template_flip(
+        &self,
+        doc: &DocId,
+        t: &dr_model::id::TemplateId,
+        book: BookId,
+        ev: &dr_store::DocEvent,
+    ) {
+        let Some(owner) = t.owner() else { return };
+        let open = lock(&self.prose).map.get(doc).map(|(_, s)| s.clone());
+        let has = match open {
+            // On the holder thread, right after the commit.
+            Some(s) => !crate::commands::template::blank(&s.reader.view()),
+            None => match self.lib.load_copy(&doc.to_string()) {
+                Ok(d) => ProseReader::from_loro(doc.clone(), &d)
+                    .map(|r| !crate::commands::template::blank(&r.view()))
+                    .unwrap_or(false),
+                Err(_) => return,
+            },
+        };
+        if lock(&self.templates).insert(doc.clone(), has) == Some(has) {
+            return;
+        }
+        let (collection, id, field) = match owner {
+            dr_model::id::TemplateOwner::Storyline(s) => {
+                (Collection::Storylines, s.to_string(), "chapter_template")
+            }
+            dr_model::id::TemplateOwner::Category(c) => {
+                (Collection::Categories, c.to_string(), "element_template")
+            }
+        };
+        events::publish(
+            &self.bus,
+            &WsEvent::Book(BookChanged {
+                book,
+                seq: ev.seq,
+                origin: ev.origin.clone(),
+                changes: vec![EntityChange {
+                    collection,
+                    id: Some(id),
+                    fields: Some(vec![field.to_string()]),
+                }],
+            }),
+        );
+    }
+
     fn on_store_event(&self, e: &StoreEvent) {
         match e {
             StoreEvent::Doc(ev) => {
@@ -1040,8 +1106,8 @@ impl Inner {
                         events::publish(
                             &self.bus,
                             &WsEvent::Prose(ProseChanged {
-                                doc,
-                                book,
+                                doc: doc.clone(),
+                                book: book.clone(),
                                 seq: ev.seq,
                                 origin: ev.origin.clone(),
                                 ranges,
@@ -1049,6 +1115,9 @@ impl Inner {
                                 embeds,
                             }),
                         );
+                        if let (DocId::Template(t), Some(book)) = (&doc, book) {
+                            self.template_flip(&doc, t, book, ev);
+                        }
                     }
                 }
             }

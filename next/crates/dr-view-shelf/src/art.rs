@@ -147,15 +147,25 @@ struct ShownStyle(Option<CoverStyle>);
 
 impl Global for ShownStyle {}
 
+/// Where the style is kept on this device (the 0.1 shelf's
+/// `shelf:cover-style` in localStorage): the shell's device memory.
+pub const STYLE_KEY: &str = "shelf.cover_style";
+
 pub fn cover_style(cx: &App) -> CoverStyle {
     cx.try_global::<ShownStyle>()
         .and_then(|s| s.0)
+        .or_else(|| {
+            dr_shell::Settings::device_memory(cx, STYLE_KEY)
+                .and_then(|v| v.as_str().and_then(CoverStyle::from_slug))
+        })
         .unwrap_or(CoverStyle::DEFAULT)
 }
 
-/// Turns every cover to `style`; the shelves redraw.
+/// Turns every cover to `style` and keeps it on this device; the shelves
+/// redraw.
 pub fn set_cover_style(style: CoverStyle, cx: &mut App) {
     cx.set_global(ShownStyle(Some(style)));
+    dr_shell::Settings::set_device_memory(cx, STYLE_KEY, Some(style.slug().into()));
     cx.refresh_windows();
 }
 

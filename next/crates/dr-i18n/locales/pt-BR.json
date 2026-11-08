@@ -165,6 +165,8 @@
     "wordCount": "{{count}} palavras"
   },
   "edgeKindManager": {
+    "changeColor": "Alterar cor",
+    "changeColorLabel": "Alterar cor de {{label}}",
     "editTypes": "Editar tipos",
     "resetColor": "Restaurar cor padrão",
     "summary": "{{kinds}} tipos · {{relations}} relações",
@@ -186,7 +188,9 @@
       "deleteCategory": "Excluir categoria",
       "deleteElement": "Excluir elemento",
       "deleteNode": "Excluir nó",
-      "deleteStoryline": "Excluir linha narrativa"
+      "deleteStoryline": "Excluir linha narrativa",
+      "editStorylines": "Editar linhas narrativas",
+      "moveToGroup": "Mover para grupo…"
     },
     "outlineRailMode": {
       "hidden": "Ocultar sumário",
@@ -195,10 +199,13 @@
     "status": {
       "discarded": "Descartado",
       "draft": "Rascunho",
-      "finished": "Concluído"
+      "drifting": "À deriva",
+      "finished": "Concluído",
+      "resting": "Em repouso"
     },
     "statusSection": {
-      "chapter": "Estado da escrita"
+      "chapter": "Estado da escrita",
+      "drift": "Status da ideia"
     }
   },
   "elementCategoryCreateMenu": {
@@ -417,6 +424,8 @@
     "actions": {
       "collapseAll": "Expandir ou recolher tudo",
       "newCategory": "Nova categoria",
+      "newDrift": "Nova ideia",
+      "newDriftGroup": "Novo grupo",
       "sort": "Ordenar"
     },
     "empty": {
@@ -426,7 +435,16 @@
     },
     "groups": {
       "addElementToGroup": "Novo elemento neste grupo",
+      "deleteGroup": "Excluir grupo",
+      "driftCount_many": "{{count}} ideias",
+      "driftCount_one": "{{count}} ideia",
+      "driftCount_other": "{{count}} ideias",
+      "moveDriftToRoot": "Raiz (tirar do grupo)",
+      "moveGroupToRoot": "Raiz (mover ao nível superior)",
       "newChapterInStoryline": "Novo capítulo nesta linha narrativa",
+      "newDriftInGroup": "Nova ideia aqui",
+      "newSubGroup": "Novo subgrupo",
+      "rename": "Renomear",
       "renameElementGroupTitle": "Clique duas vezes para renomear o grupo",
       "unaffiliated": "Sem vínculo"
     },
@@ -442,6 +460,7 @@
       "cellMetaGroup": "Borda direita da célula",
       "chapters": "Ordenar capítulos",
       "createdAt": "Data de criação",
+      "drifts": "Ordenar ideias",
       "duplicatesAll": "Mostrar em todos os grupos vinculados",
       "duplicatesGroup": "Capítulos com várias linhas narrativas",
       "duplicatesPrimary": "Mostrar apenas na linha narrativa principal",
@@ -454,6 +473,7 @@
       "showWordCount": "Mostrar contagem de palavras",
       "storylineChapters": "Ordenar capítulos nas linhas narrativas",
       "storylineOrder": "Ordem das linhas narrativas",
+      "title": "Título A–Z",
       "updatedAt": "Data de atualização"
     },
     "tabs": {
@@ -586,6 +606,8 @@
   },
   "notifications": {
     "appUpdate": {
+      "available": "Drifting {{version}} está disponível",
+      "installed": "Atualizado para Drifting {{version}}",
       "source": "Atualizações"
     },
     "clear": "Limpar",
@@ -895,6 +917,7 @@
     "save": "Salvar",
     "selectConfigured": "Escolher tipo de relação",
     "sourceRole": "Papel de origem",
+    "swap": "Inverter extremidades da relação",
     "symmetric": "Simétrica",
     "symmetricSummary": "Simétrica · {{role}}",
     "targetRole": "Papel de destino",
@@ -1054,6 +1077,7 @@
     },
     "appearance": {
       "dark": "Escuro",
+      "guides": "Guias",
       "interface_text_large": "Maior",
       "interface_text_largest": "Máximo",
       "interface_text_size": "Tamanho do texto da interface",
@@ -1062,6 +1086,8 @@
       "interface_text_smallest": "Mínimo",
       "interface_text_standard": "Padrão",
       "light": "Claro",
+      "replay_guides": "Apresentação ao abrir um livro pela primeira vez",
+      "replay_guides_action": "Mostrar novamente",
       "system": "Seguir o sistema",
       "theme": "Tema",
       "theme_desc": "Claro, escuro ou conforme o sistema."
@@ -1215,12 +1241,42 @@
       "local_sub": "Sem conta Drifting ou nuvem hospedada. Exporte uma cópia legível quando quiser.",
       "local_title": "Seu trabalho fica neste dispositivo.",
       "projection": {
-        "turnOff": "Desativar pasta Markdown"
+        "allProjects": "Todos os projetos",
+        "allProjectsUnset": "Todos os projetos · Nenhum local escolhido",
+        "choose": "Escolher pasta",
+        "description": "Cada projeto tem Markdown estruturado para leitura local, busca e ferramentas externas. Com o Drifting aberto, edições de capítulos e ideias em outros editores são mescladas. Os demais arquivos são gerados e somente leitura.",
+        "locationHint": "Dentro há uma pasta por projeto, apenas neste dispositivo. Ao trocar o local, as pastas antigas ficam onde estão.",
+        "offHint": "Desativada: não grava Markdown nem mescla edições externas. Os arquivos existentes permanecem.",
+        "offTitle": "Desativar a pasta Markdown?",
+        "offWarning": "Nenhum projeto gravará Markdown. Editores e Agents externos verão os arquivos atuais; edições externas não serão mais mescladas no Drifting. Os arquivos existentes permanecem. Reative em Configurações → Sincronização e dados.",
+        "reveal": "Mostrar no Finder",
+        "title": "Pasta Markdown",
+        "turnOff": "Desativar pasta Markdown",
+        "turnOn": "Ativar"
       }
     },
     "title": "Configurações",
     "update": {
-      "channel_desc": "Apple Silicon · macOS 13 ou posterior"
+      "channel_desc": "Apple Silicon · macOS 13 ou posterior",
+      "check": "Nova versão",
+      "check_action": "Buscar atualizações",
+      "check_failed": "Não foi possível buscar atualizações agora, talvez por falta de conexão. Tente mais tarde; esta versão continua funcionando.",
+      "checking": "Verificando…",
+      "downloading": "Baixando e verificando a assinatura…",
+      "downloading_progress": "Baixando e verificando… {{progress}}%",
+      "install_failed": "Não foi possível instalar o Drifting {{version}} quando você saiu da última vez. Esta versão não mudou; será tentado de novo na próxima saída.",
+      "install_failed_admin": "Não foi possível instalar o Drifting {{version}} quando você saiu: a pasta onde o Drifting está não pode ser gravada. Esta versão não mudou.",
+      "interrupted": "A atualização não terminou de baixar e foi descartada. Ela será baixada de novo na próxima verificação.",
+      "local_error": "Não foi possível salvar a atualização neste computador, e ela foi interrompida. Esta versão continua funcionando.",
+      "no_update": "Você está atualizado.",
+      "older_offered": "Você está atualizado. O serviço de atualização oferece a {{version}}, mais antiga que esta, então ela não será instalada.",
+      "ready_on_quit": "O Drifting {{version}} foi baixado e a assinatura verificada. Ele é instalado quando você sai.",
+      "refused_app": "A atualização baixada não é o Drifting e foi descartada. Esta versão continua funcionando.",
+      "refused_signature": "A atualização baixada não passou na verificação de assinatura e foi descartada. Esta versão continua funcionando.",
+      "refused_version": "A atualização baixada não é a versão que diz ser, talvez uma mais antiga, e foi recusada. Esta versão continua funcionando.",
+      "restart": "Reiniciar para atualizar",
+      "server_error": "O serviço de atualização está com problema agora. Tente mais tarde; esta versão continua funcionando.",
+      "unavailable": "Esta compilação não tem chave de assinatura do atualizador e não pode buscar atualizações. Versões baixadas do GitHub podem."
     }
   },
   "sidebarLayout": {

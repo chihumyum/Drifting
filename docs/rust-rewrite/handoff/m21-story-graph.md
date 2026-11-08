@@ -34,7 +34,7 @@
   - `relation.create`
   - `idea.update`（绑定）
 - 关系和关系类型的界面是 M17（`dr-view-relations`），建关系后弹出选类型，就用它的选择器。
-- 外壳挂接：F6 正在加 `dr_shell::pages::add_super_view`，`super_view.rs` 的舞台向登记表要正文，头部右上留一个图例的槽。没进 `main` 之前先把视图和测试写好，最后一步再接。
+- 外壳挂接：F6 正在加 `dr_shell::pages::add_super_view`，`super_view.rs` 的舞台向登记表要正文。图例画在正文的右上角，不放进头部的槽。没进 `main` 之前先把视图和测试写好，最后一步再接。
 - 打开方式：⌘⌥3，以及侧栏里的入口。这两样外壳已经有了，只是现在打开是空舞台。
 
 ## 完成标准

@@ -12,27 +12,10 @@ use keys::guide::workspace as w;
 
 /// The anchor ids the workspace tour points at. A control is marked with
 /// [`super::anchor`] under one of these.
+/// They are the shell's (`dr_shell::pages::anchors`), so the shell can mark
+/// its own controls without this crate.
 pub mod ids {
-    /// Each Panel Tab label of the left sidebar (章节, 要素, 构想), in both
-    /// halves when it is split: the tour rings all of them together.
-    pub const LEFT_PANEL_TAB: &str = "left-panel-tab";
-    /// The left sidebar's toggle, marked only while the sidebar is closed
-    /// (it floats then). The first step points here until the sidebar opens.
-    pub const LEFT_SIDEBAR_CLOSED_TOGGLE: &str = "left-sidebar-closed-toggle";
-    /// The round button on a panel's head that opens its Super View.
-    pub const SUPER_VIEW_ENTRY: &str = "super-view-entry";
-    /// Project Home's 新建 section.
-    pub const HOME_CREATE: &str = "home-create";
-    /// The timeline's toggle at the paper's bottom right.
-    pub const TIMELINE_TOGGLE: &str = "timeline-toggle";
-    /// The Agent's Panel Tab label in the right sidebar.
-    pub const AGENT_TAB: &str = "agent-tab";
-    /// The right sidebar's toggle, marked only while the sidebar is closed.
-    pub const RIGHT_SIDEBAR_CLOSED_TOGGLE: &str = "right-sidebar-closed-toggle";
-    /// The torii in the account cell: back to Project Home.
-    pub const PROJECT_HOME: &str = "project-home";
-    /// The wind bell beside it: the notification center.
-    pub const NOTIFICATIONS: &str = "notifications";
+    pub use dr_shell::pages::anchors::*;
 }
 
 /// What the device remembers having shown (the 0.1 client's `guidesSeen`

@@ -67,6 +67,8 @@
 
 ## 任务和先后
 
+**连续做的顺序见 [codex-queue.md](codex-queue.md)**：一个做完接着做下一个，不用等合并。下表是每个模块的依赖。
+
 | 任务书 | 模块 | 什么时候能开工 |
 | --- | --- | --- |
 | [m21-story-graph.md](m21-story-graph.md) | M21 故事图 | F6 的 `add_super_view` 进 `main` 后接上；模块本身现在就能写 |

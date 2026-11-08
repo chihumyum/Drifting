@@ -9,11 +9,12 @@ pub mod panel;
 pub mod registry;
 pub mod store;
 
+use std::rc::Rc;
 use std::time::Duration;
 
 use dr_i18n::Locale;
 use dr_ui::tokens::TextSize;
-use gpui::{App, BorrowAppContext as _, Global, Task};
+use gpui::{AnyElement, App, BorrowAppContext as _, Global, SharedString, Task, Window};
 
 pub use store::SettingsFile;
 
@@ -21,6 +22,34 @@ use crate::{ShellInfo, Strings, appearance};
 
 /// How long after a change the file is written.
 pub const SAVE_DELAY: Duration = Duration::from_millis(300);
+
+/// The update row of 关于 (M42, `dr-view-update`): the words under its
+/// label (what the last check found) and its button.
+pub struct UpdatesRow {
+    pub description: Option<SharedString>,
+    pub control: Option<AnyElement>,
+}
+
+type MakeUpdatesRow = Rc<dyn Fn(&mut Window, &mut App) -> UpdatesRow>;
+
+struct UpdatesHook(MakeUpdatesRow);
+
+impl Global for UpdatesHook {}
+
+/// Registers the update row of 关于. Without it (tests, captures, a
+/// platform with no updates) the row is left out.
+pub fn set_updates_row(cx: &mut App, make: impl Fn(&mut Window, &mut App) -> UpdatesRow + 'static) {
+    cx.set_global(UpdatesHook(Rc::new(make)));
+}
+
+pub(crate) fn updates_row(window: &mut Window, cx: &mut App) -> Option<UpdatesRow> {
+    let make = cx.try_global::<UpdatesHook>()?.0.clone();
+    Some(make(window, cx))
+}
+
+pub(crate) fn has_updates_row(cx: &App) -> bool {
+    cx.has_global::<UpdatesHook>()
+}
 
 pub struct Settings {
     file: SettingsFile,
@@ -42,6 +71,24 @@ struct Applied {
 impl Settings {
     pub fn read(cx: &App) -> &SettingsFile {
         &cx.global::<Settings>().file
+    }
+
+    /// What a module keeps on this device under `key`
+    /// ([`SettingsFile::device_memory`]); `None` without the settings
+    /// (a module's own tests).
+    pub fn device_memory(cx: &App, key: &str) -> Option<serde_json::Value> {
+        cx.try_global::<Settings>()?
+            .file
+            .device_memory(key)
+            .cloned()
+    }
+
+    /// Keeps `value` on this device under `key` (`None` forgets it); the
+    /// file is written a moment later. Does nothing without the settings.
+    pub fn set_device_memory(cx: &mut App, key: &str, value: Option<serde_json::Value>) {
+        if cx.has_global::<Settings>() {
+            Settings::update(cx, |file| file.set_device_memory(key, value));
+        }
     }
 
     /// Changes the file, applies the change and schedules the write.
