@@ -4,6 +4,15 @@
 
 第一个里程碑做了看得见的泳道和拖动；第二个加了拖动的分量（弹簧吸附）、幕轨编辑、时间钉和悬停卡。外壳第八轮（F6）给了稿纸下面的「底部面板」：`dr_view_timeline::init` 把时间线登记进去，⌘J 和稿纸角上的竹子开关它，看法、缩放、滚动按书记住（`kept.rs`）。这两处是 F6 写的；第十六批整合时和这一轮合在一起（换书时先套用这本书记住的，再读书目和时间钉，两边的字段都在）。第三轮换上 F3 一次写完的命令（放一章、打散都是一步撤销）和外壳的页面悬停卡，加了拖到边上自动横滚和键盘挪幕边界。
 
+### 旧模块收尾：叙事轴新建一次写完（2026-11-08）
+
+- 旧版 `useBottomTimelineActions.ts::createChapterAt` 创建时一起给书序、叙事位置和主故事线。新版接上 F3 第十轮的 `ChapterCreateIn.narrative_order`：叙事轴空白处双击，或泳道悬停卡里「在此故事线中新建章节」，只调一次 `chapter.create`，书序仍放在书末、叙事坐标仍取所点位置。一次撤销移除整章，一次重做恢复原来的两个位置和故事线。
+- 创建期间切换了作品，完成后的回调不再把旧作品章节塞到新作品导航里；同一作品中的打开行为保持原样。
+- `tests/timeline.rs` 用 `dr_testkit::samples::slow_clock` 做真实双击、一次撤销和重做，以及创建后立即换书的契约。`dr-cli/scenarios/timeline-create.json` 用 tiny 种子驱动真实窗口双击空泳道并核对创建和打开；空泳道的既有提示补了读屏标签，文案与样式不变。
+- `cargo test -p dr-view-timeline --locked` 23/23 通过（8 个单元测试、15 个 GPUI 契约）。真实窗口浅色、深色各 22/22 步通过，场景结束时确认退出；截图：[浅色](m14/timeline-create-light.png)、[深色](m14/timeline-create-dark.png)。
+- 验证基线为 main `c8ad9edc`，交回分支 `codex/legacy-m14-create`。全工作区 `cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、`cargo test --workspace --locked`（1682 通过、22 忽略）、`cargo xtask check` 和根目录 `pnpm public:check` 全过。xtask 仍提示既有性能证据过时及 12 条依赖维护/健全性 notice，audit 为 0 vulnerabilities；本轮没有在繁忙机器上重跑性能测量。
+- 这只完成叙事轴创建收尾。泳道悬停卡的旁置位置和固定打开截图仍待外壳接口协调，M14 不据此记作全部完成。
+
 ### 第三轮（大白话）
 
 1. **一次拖动就是一步撤销。** 松手写的是 F3 的 `chapter.place`：换主故事线（或去掉所有故事线）和挪到新位置在一次提交里，撤销一次全回去。以前书序里是两步。
@@ -78,12 +87,11 @@
    - 拖到「本书」：故事线不变。
    - 新位置松手就画出来，不等 F3 写完；读回来的书目跟上之前一直这样画。写失败就退回原样，写进日志。
    - 写的是 F3 的命令：
-     - 改故事线用 `chapter.update`（`add_storylines`、`remove_storylines`、`primary_storyline`），叙事时的位置也在这一次里（`narrative_order`）；
-     - 书序的位置用 `chapter.move`，`place: Order(x)` 是确切的坐标。
+     - 第三轮起统一用 `chapter.place`，主故事线和当前轴位置一次写入；`place: Order(x)` 是确切的坐标。
 7. **双击新建**（`createChapterAt`）
    - 双击空白处，就在那个位置新建一章，在这条泳道的故事线上（「本书」「未归属」上的不挂故事线），然后打开。
    - 书序：`chapter.create` 带 `place: Order(x)`。
-   - 叙事时：先建在书末，再用 `chapter.update` 放到叙事时间轴上。
+   - 叙事时：`chapter.create` 同时带 `place: Last` 和 `narrative_order`，书末位置与叙事坐标一次写入。
 8. **缩放**：按住 ⌘ 或 Ctrl 滚轮，0.5–3 倍，指针下面那一点不动（旧版的触控板捏合在 Mac 上也是这个事件）。
 9. **文案**：全是旧版九种语言的原话（`bottomTimeline.*`、`bottomStatusBar.storyGraph`、`common.untitled`）。
 
@@ -135,7 +143,7 @@ cargo run -p dr-view-timeline --features capture --example timeline-capture -- .
 
 - **落点按「看见的片段」算**：旧版按按下时抓的位置。GPUI 在指针移过拖动门槛那一刻才开始拖，手里的片段也按那一刻对齐，所以落点照片段画在哪里算，看见哪里就落在哪里，差不过门槛那两三 px。
 - **单击预览、双击留下**：旧版单击片段是「选中」，再由路由去打开；新版和侧栏一样分预览和留下。
-- **一次拖动在书序里是两步撤销**：改故事线（`chapter.update`）和挪位置（`chapter.move`）是两条命令。旧版是一个事务。见「待协调」。
+- **一次拖动与一次新建都已收成一步撤销**：第三轮接 `chapter.place`，旧模块收尾再接 `chapter.create.narrative_order`。
 
 ## 接口（给别的模块）
 
@@ -187,7 +195,7 @@ cargo run -p dr-view-timeline --features capture --example timeline-capture -- .
    - ⌘J（`ToggleBottomTimeline`，现在是空的）和稿纸角上的时间线开关负责开关；沉浸写作时收起；
    - 一次只显示时间线或情节规划里的一个；
    - 「书序 / 叙事时」「未归属开没开」「缩放」「横向滚动」要能记住：外壳给一个按书存的地方，或者在注册表里加这几项。
-2. ~~**F3：一次写完的「在时间线上放一章」**~~：**已做**（F3 第八轮的 `chapter.place`、`chapter.spread`），第三轮换上了。双击空白新建在叙事时里还是两步（`chapter.create` 建在书末，再 `chapter.update` 放到叙事轴上）：F3 第十轮已给 `chapter.create.narrative_order`，第二十一批整合；界面仍待换成一次调用。
+2. ~~**F3：一次写完的「在时间线上放一章」**~~：**已做**（F3 第八轮的 `chapter.place`、`chapter.spread`），第三轮换上了。F3 第十轮的 `chapter.create.narrative_order` 也已在旧模块收尾接上，叙事轴新建不再补第二次更新。
 3. **F6：悬停卡**（第三轮换上了 `page_hover_card`，`extra` 放时间线自己的行，自己拼卡的那一段删了）。还差：
    - ~~「模块能在前面加行」~~：F6 第九轮把参数改成 `CardRows { lead, before_danger }`，第十九批整合时时间线自己的行改放进 `lead`；
    - 泳道名字的卡旧版开在名字旁边（`beside`），`page_hover_card` 现在只开在下面；
@@ -196,5 +204,5 @@ cargo run -p dr-view-timeline --features capture --example timeline-capture -- .
 
 ## 还没做的（下一轮）
 
+- 泳道名字的卡放在名字旁边（`beside`，待外壳接口）。
 - 片段和泳道名字卡的截图（等外壳能固定打开卡）。
-- 叙事时双击新建一步撤销（F3 第十轮接口已到，界面仍需将后续 `chapter.update` 合入 `chapter.create`）。
