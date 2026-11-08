@@ -132,15 +132,7 @@ pub fn sort_inner<'a>(
     out
 }
 
-/// A word count as the cells show it: 521, 1.2k, 12k (the 0.1 client's
-/// `formatWordCount`).
-pub fn compact_words(n: u64) -> String {
-    match n {
-        0..=999 => n.to_string(),
-        1000..=9999 => format!("{:.1}k", n as f64 / 1000.0),
-        _ => format!("{}k", (n as f64 / 1000.0).round() as u64),
-    }
-}
+pub use dr_i18n::number::compact_words;
 
 /// A date as the cells show it: MM/DD this year, YY/MM/DD before; local
 /// time.

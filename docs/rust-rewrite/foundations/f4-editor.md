@@ -2,6 +2,32 @@
 
 2026-11-07 起。代码在 `next/crates/gpui-prose`（Drifting 自己的那一层在 `next/crates/dr-editor`，AGPL，见「第三轮」），加两个小 crate `next/crates/gpui-ime`（组字规则，只用标准库）和 `next/crates/prose-linebreak`（中文断行，只依赖 `icu_segmenter`），三个都是 `MIT OR Apache-2.0`。`gpui-prose` 依赖 `gpui`（和它自带的 `sum_tree`）、`loro`、这两个小 crate，默认特性 `icu` 另加 ICU4X 分词，不依赖任何 `dr-*`。计划见 [foundation.md 的 F4 一节](../foundation.md#f4-编辑引擎gpui-prose-与-dr-editor)，正文格式见 [loro-schema.md](../loro-schema.md)，起点是 [P0-B 探针](../spikes/p0-b-editor.md)。
 
+## 轨道 2：提交后的公共播放接口（2026-11-09）
+
+`gpui_prose::playback` 提供 `CommitPlaybackOptions` 和 `CommitPlaybackStatus`，`dr_editor` 重新导出。宿主给实际 `ProseEditor` 调 `set_commit_playback(Some(CommitPlaybackOptions::new("agent:")), cx)` 后，原有 `refresh_chapter` 在收到已提交的源事件时启动播放。默认关闭，不改 M31 面板或按种类的画层。
+
+- **真实写入先完成。** 播放只能从 `refresh_chapter` 消费到的真实事件启动，旧字来自该编辑器提交前的镜像，新字来自提交后的镜像；没有公开传入假文本、延后落盘或反复写字的入口。新正文、收据、撤销和对外读取都不等动画。
+- **只画覆盖层。** 整个新正文第一帧就按最终字体和宽度排好；尚未揭示的字素簇暂不画，替换前的旧墨只在这部分最终正文的几何范围内画出来。旧字不增加高度、不进读屏、复制、命中测试或 IME 坐标；原有 New／Changed／External 墨色仍由既有台账负责，本轮不改其种类逻辑。
+- **光标与输入。** 选区先按真实提交移动，播放不推着光标走；光标落在未揭示区时暂不画。作者移动选区、开始输入／组字、编辑、失焦或改变样式，就立即揭示全结果。更新窗口宽度时使用新正文的当前排版，覆盖层跟着同一宽度重排。
+- **生命周期。** 默认每字素簇 24 ms、总时长最多 1200 ms；可配置，硬上限 5 秒。下一笔正文变化先结束旧播放，混有其他来源的批次和 resync 不播放；纯删除／仅格式改变直接显示最终结果。减少动态效果开启时立即结束并跳过后续播放。后台计时只在播放期间通知视图，结束或视图释放即停止。
+- **公开查询与取消。** `commit_playback(cx)` 返回章索引、正文标量范围、揭示位置和字素簇进度；`finish_commit_playback(cx)` 立即结束，二者均不写正文。章索引只是该编辑器内文本源的位置，不新增文档种类或业务命令。
+- **验收。** GPUI 契约覆盖未提交输入不能播放、组合字符／ZWJ emoji／旗帜的边界、最终全文及布局稳定、播放不改变 frontiers／撤销、旧墨范围、后续提交、混合来源、删除、输入、选区和减少动态效果。`dr-editor/tests/playback.rs` 用 F8 tiny 种子、真实 Runtime + AgentTools、脚本模型验证持久正文和结算收据先到、播放期间不再写库、开始组字立即结束覆盖。
+
+M31 的产品入口仍由帮手轨道选择何时开启；本轮交付公共接口及真实 Runtime 的消费回归，不替换既有墨色台账。真实系统上的动效观感仍需窗口验收，不把 GPUI 测试平台当成实机输入法验证。
+
+
+### 本轮检查与性能重测
+
+2026-11-09，macOS，GPUI 仍为官方 `v1.27.0`：
+
+- `cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings` 通过。
+- `cargo test --workspace --locked`：1810 通过、22 忽略、0 失败，含真实 Runtime 的播放回归和 dr-ui 两种输入框回归。忽略项沿用原配置（实机凭据、手动测量和文档示例等）。
+- `cargo xtask check` 全部通过；审计 944 个锁定依赖，0 个漏洞、12 条通知。测量证据仍是 14 份过期、15 份旧格式，本轮没有把过期结果改称新结果。
+- 根目录 `pnpm public:check` 通过，5292 个候选文件。G3 补丁的干净应用、格式检查及打补丁后的 macOS GPUI 下游编译另已通过，见补丁台账。
+
+第 5 项空闲重测仍待满足条件：`cargo build --release --locked -p dr-editor --example prose-bench -j 2` 已通过。自己的编译／检查全部结束后继续等降载，一分钟负载仍先后为 17.42、38.70，超过 `prose-bench` 的 2.0 门槛，机器上仍有其他编译和高负载程序。没有启动测量子命令，没有运行高负载测量来覆盖旧数字，也没有手改测量 JSON。待机器空闲后按「重测上屏」跑官方 GPUI 的 `headless`、`decor`、`window`、`present`、`idle` 五项，再据生成的证据更新数字；本轮不挂 G1，不能把结果标成 G1。
+
+
 ## 第四轮（F4e 第二批：交互）
 
 章首、章末给宿主留的位置和页的数据（M03），@ 选择器、斜杠菜单、自动人物链接和断链修复、选区浮条，以及 F6 提的三件，记在 [f4e-editor.md](f4e-editor.md)。
@@ -219,7 +245,7 @@ Drifting 的正文能在新版里编辑并落盘了：新的 AGPL crate `next/cr
 
 ### 组字
 
-和 P0-B 一样：拼音只显示不写 Loro；确认时一次写入；组字中 ⌘Z 忽略；拼音删光就取消；别人的改动挪动组字位置；失焦清掉并调用 `PlatformHooks::discard_marked_text`。
+和 P0-B 一样：拼音只显示不写 Loro；确认时一次写入；组字中 ⌘Z 忽略；拼音删光就取消；别人的改动挪动组字位置；失焦清掉并调用 `PlatformHooks::discard_marked_text(&Window)`。2026-11-09 轨道 2 将窗口显式传入，macOS 用该窗口视图的 `inputContext`，避免切窗后取消另一窗口的组字；单行／多行输入对齐见 [F4c](f4c-input.md)。
 
 规则在 `gpui-ime`：`Overlay`（拼音的位置、被替换的长度、拼音、输入法的选区；`begin` / `mark` / `retarget` / `follow` / `target`）和 `Marked16`（输入法眼里的文字和已提交文字之间的 UTF-16 换算）。编辑器的 `Composition` 就是 `Overlay` 加所在章。`gpui-ime` 里还有单行输入框用的 `LineComposer`（从 F5 的 `Composer` 搬来，失焦改成丢弃）。
 
@@ -292,7 +318,7 @@ Drifting 的正文能在新版里编辑并落盘了：新的 AGPL crate `next/cr
 | `select(chapter, range, …)`、`jump_to_chapter`、`scroll_by_estimate`、`scroll_y`、`press_enter`、`press_backspace`、`paste_text`、`toggle_mark(key, …)`、`set_link(url, …)`、`mark_active(key)`、`undo`、`redo`、`word_range_at`、`marks_at` | 宿主和测试驱动编辑器 | v0 稳定 |
 | `agent_write(chapter, range, text, session, cx)`、`import_remote(chapter, bytes, cx)`、`refresh_chapter(chapter, cx)` | 别人的写入；文本源在编辑器外变了以后调 `refresh_chapter`；选区和组字跟着挪 | `agent_write` 可能变（F3 的命令总线定下 Agent 写入的入口后改成走它） |
 | `EditorEvent::{Edited, SelectionChanged, AnchorsChanged}`（`EventEmitter`） | 通知宿主 | v0 稳定（只加变体） |
-| `set_platform_hooks(Rc<dyn PlatformHooks>)`：`discard_marked_text`、`present_now` | 平台钩子 | 可能变（打了「丢弃组字接口」补丁后 `discard_marked_text` 可删） |
+| `set_platform_hooks(Rc<dyn PlatformHooks>)`：`discard_marked_text(&Window)`、`present_now` | 平台钩子 | 可能变（打了「丢弃组字接口」补丁后 `discard_marked_text` 可删） |
 | `set_extension(Rc<dyn ProseExtension>)`：`style_run` | 扩展点 | 可能变（F4e 会加：输入规则、装饰层、浮条位置） |
 | `ProseStyle`、`EditorOptions { present_now, cursor_blink, ime_log }` | 样式与选项 | 可能变（F5 的令牌接进来后换成从令牌来） |
 | `after_next_paint`、`painted_lines` | 给基准用 | 可能变 |
@@ -409,9 +435,9 @@ GPUI 的 fork 由 F4 负责（D1：需要挂补丁时再开 fork）。现在工�
 
 | # | 补丁 | 状态 | 改哪里 | 规模 | 设计 | 上游 |
 | --- | --- | --- | --- | --- | --- | --- |
-| G1 | 空闲时停掉刷新时钟 | **已写、本机 fork 上量过**：`next/patches/gpui/0001-macos-stop-idle-display-link.patch` | `gpui_macos/src/window.rs` | +94 行 | v1.27 的 GPUI 已经有「平台空闲时停帧、有事时唤醒」的接口（`PlatformWindow::frame_waker`，网页端在用），macOS 没实现。补丁：macOS 实现 `frame_waker`；显示链接每一拍记下这一拍有没有画（`draw` 置位）、有没有新的需求（唤醒置位），连续 6 拍（120 Hz 下 50 ms）两样都没有就停掉显示链接。GPUI 在窗口变脏、要下一帧回调、节流重试时都会调唤醒；唤醒时在主队列的下一轮重新启动显示链接，**并且当场画这一帧**（不等重启后的第一拍，不开 CA 事务）。第一版只重启不当场画，量出来每次停顿后的第一个按键要多等将近一拍（按键到交出画面中位数 4.6 → 14.7 ms），所以改成当场画。唤醒可能发生在持有窗口状态锁的平台回调里，所以唤醒本身不拿锁，只置标志、排到主队列 | 高：Zed 自己也省电，接口是现成的。先在 Drifting 用一段时间，再提 PR |
+| G1 | 空闲时停掉刷新时钟 | **待挂：等作者指定 fork 仓库**（2026-11-09 作者确认本轮不挂；已写、本机量过）：`next/patches/gpui/0001-macos-stop-idle-display-link.patch` | `gpui_macos/src/window.rs` | +94 行 | v1.27 的 GPUI 已经有「平台空闲时停帧、有事时唤醒」的接口（`PlatformWindow::frame_waker`，网页端在用），macOS 没实现。补丁：macOS 实现 `frame_waker`；显示链接每一拍记下这一拍有没有画（`draw` 置位）、有没有新的需求（唤醒置位），连续 6 拍（120 Hz 下 50 ms）两样都没有就停掉显示链接。GPUI 在窗口变脏、要下一帧回调、节流重试时都会调唤醒；唤醒时在主队列的下一轮重新启动显示链接，**并且当场画这一帧**（不等重启后的第一拍，不开 CA 事务）。第一版只重启不当场画，量出来每次停顿后的第一个按键要多等将近一拍（按键到交出画面中位数 4.6 → 14.7 ms），所以改成当场画。唤醒可能发生在持有窗口状态锁的平台回调里，所以唤醒本身不拿锁，只置标志、排到主队列 | 高：Zed 自己也省电，接口是现成的。先在 Drifting 用一段时间，再提 PR |
 | G2 | 输入后立即绘制（不经 CA 事务、不重启显示链接） | **实验，量过，不挂**：`next/patches/gpui/0002-experiment-present-now-direct.patch`，环境变量 `GPUI_PRESENT_NOW_DIRECT=1` 才生效 | `gpui_macos/src/window.rs` 的 `displayLayer:` | +20 行 | 现在的「改完立刻画」走 `setNeedsDisplay:` → `displayLayer:`，GPUI 在这条路上开 `presentsWithTransaction`、停掉再启动显示链接，造成长尾。实验让 `displayLayer:` 直接画、不开事务、不动显示链接。结果：有了 G1 以后，G2 的「立刻画」中位数 25.0、p95 33.3 ms，和只开 G1、不开「立刻画」（25.0 / 36.1 ms）差不多；只有 G2 才能去掉「立刻画」的长尾（不开 G2 时 p95 137 ms）。**第一轮的结论：不需要 G2**，G1 当场画醒来的那一帧已经拿到了好处。两轮都是在高负载下量的，这个结论等空闲时重测再确认 | 中：要先证明有用；正式版应该是单独的「输入后立即画」入口，不改 `displayLayer:`（它也管窗口缩放时的同步绘制） |
-| G3 | 丢弃组字的接口 | 未做 | `gpui/src/platform.rs` 加 `PlatformWindow::discard_marked_text`；macOS 调 `[NSTextInputContext discardMarkedText]`，Windows 调 `ImmNotifyIME(himc, NI_COMPOSITIONSTR, CPS_CANCEL, 0)` | 约 30 行 | 现在由程序的 `PlatformHooks` 自己调（macOS 十来行 objc）。有了接口，`PlatformHooks::discard_marked_text` 可以删 | 中 |
+| G3 | 丢弃组字的接口 | **已写，未挂**：`next/patches/gpui/0005-window-discard-marked-text.patch` | `gpui/src/{platform,window}.rs`、`gpui_macos/src/window.rs`、`gpui_windows/src/window.rs` | +47 行 | `Window::discard_marked_text(&self)` 转发到 `PlatformWindow`；默认空实现保持其他后端兼容。调用方先清自身组字；macOS 用本窗视图 `inputContext`、发消息前放开状态锁；Windows 用本窗 HWND 获取／取消／释放 IMM 上下文，失活后仍取消，不调用会提交正文的 `unmark_text`。补丁挂接前仍保留应用侧 hooks | 待本地使用后再考虑上游；本轮未发 PR |
 | G4 | Windows 组字丢弃（IMM32） | **第四轮实现已合，不改 GPUI；Windows 实机待验**（第二十二批） | HWND 的 IMM 上下文取消并释放；输入开始时装平台钩子，`GetFocus` 判断迟到输入，空上屏不删选区；同窗失焦和窗口失活都丢弃组字 | 见 `input/system_ime.rs`、`input/ime.rs` | 五项模拟回调测试；交付方做过 x86_64 交叉类型检查。本批没有运行真实微软拼音；TSF 经 IMM 兼容层的实际时序、ARM 检查仍待做 | — |
 | G5 | 中文斜体合成倾斜 | 未做，不急 | `gpui_macos` 的字形光栅化加倾斜变换 | 待估 | 苹方没有斜体字形，现在中文斜体画成正体 | 低 |
 | G6 | 中文断行 | 不需要 | — | — | 上游 #64624（ICU UAX #14）不在 v1.27.0；即使升级，编辑器自己断行仍更合适（悬挂、以后两端对齐） | 已在上游 |

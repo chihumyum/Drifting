@@ -11,7 +11,7 @@ pub mod ime;
 pub use area::{AreaEvent, TextArea};
 pub use field::{FieldEvent, TextField};
 pub use gpui_ime::{Change, LineComposer};
-pub use ime::{Graphemes, set_discard_marked_text};
+pub use ime::{Graphemes, set_discard_marked_text, set_window_has_keyboard};
 
 /// Every input's key bindings (single- and multi-line, each in its own key
 /// context).

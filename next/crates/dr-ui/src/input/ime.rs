@@ -54,6 +54,42 @@ pub(crate) fn discard_marked_text(window: &Window, cx: &App) {
     }
 }
 
+/// Overrides the synchronous keyboard-focus query, for a host or tests.
+/// Unlike GPUI's focus notification, this must reflect a native window
+/// switch before an input method can deliver its final composition.
+struct KeyboardHook(Rc<dyn Fn(&Window) -> bool>);
+impl Global for KeyboardHook {}
+
+pub fn set_window_has_keyboard(cx: &mut App, f: impl Fn(&Window) -> bool + 'static) {
+    cx.set_global(KeyboardHook(Rc::new(f)));
+}
+
+pub(crate) fn window_has_keyboard(window: &Window, cx: &App) -> bool {
+    match cx.try_global::<KeyboardHook>() {
+        Some(hook) => (hook.0)(window),
+        None => system_has_keyboard(window),
+    }
+}
+
+#[cfg(windows)]
+fn system_has_keyboard(window: &Window) -> bool {
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    use windows::Win32::{Foundation::HWND, UI::Input::KeyboardAndMouse::GetFocus};
+    let Ok(handle) = HasWindowHandle::window_handle(window) else {
+        return true; // GPUI test windows have no native handle.
+    };
+    let RawWindowHandle::Win32(win32) = handle.as_raw() else {
+        return true;
+    };
+    // SAFETY: reads the calling UI thread's focus without mutating it.
+    unsafe { GetFocus() == HWND(win32.hwnd.get() as *mut _) }
+}
+
+#[cfg(not(windows))]
+fn system_has_keyboard(_window: &Window) -> bool {
+    true
+}
+
 /// `[[view inputContext] discardMarkedText]` on the window's own view (not
 /// the current context, which after a window switch belongs to another
 /// window).
@@ -81,16 +117,15 @@ pub fn system_discard(window: &Window) {
 }
 
 /// `ImmNotifyIME(…, NI_COMPOSITIONSTR, CPS_CANCEL, 0)` on the window's input
-/// context, only while that window has the keyboard (the context is per
-/// thread, as GPUI's own backend notes).
+/// context, including after the window loses the keyboard: GPUI delivers
+/// blur asynchronously, while the old composition still needs cancelling.
 #[cfg(windows)]
 pub fn system_discard(window: &Window) {
     use raw_window_handle::{HasWindowHandle, RawWindowHandle};
     use windows::Win32::{
         Foundation::HWND,
-        UI::Input::{
-            Ime::{CPS_CANCEL, ImmGetContext, ImmNotifyIME, ImmReleaseContext, NI_COMPOSITIONSTR},
-            KeyboardAndMouse::GetFocus,
+        UI::Input::Ime::{
+            CPS_CANCEL, ImmGetContext, ImmNotifyIME, ImmReleaseContext, NI_COMPOSITIONSTR,
         },
     };
     let Ok(handle) = HasWindowHandle::window_handle(window) else {
@@ -103,9 +138,6 @@ pub fn system_discard(window: &Window) {
     // SAFETY: plain Win32 calls on our own window, on its thread; the
     // context is released before returning.
     unsafe {
-        if GetFocus() != hwnd {
-            return;
-        }
         let himc = ImmGetContext(hwnd);
         if himc.is_invalid() {
             return;

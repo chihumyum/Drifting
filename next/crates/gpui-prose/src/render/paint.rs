@@ -61,6 +61,8 @@ pub struct TextPaint<'a> {
     pub plain: Option<(Hsla, Hsla)>,
     /// The share of their alpha the glyphs keep (immersive writing).
     pub alpha: f32,
+    /// Glyphs and run decorations hidden by post-commit playback, in bytes.
+    pub hidden: &'a [Range<usize>],
 }
 
 impl<'a> TextPaint<'a> {
@@ -71,6 +73,7 @@ impl<'a> TextPaint<'a> {
             inks: &[],
             plain: None,
             alpha: 1.,
+            hidden: &[],
         }
     }
 
@@ -89,6 +92,30 @@ impl<'a> TextPaint<'a> {
         }
         color
     }
+}
+
+/// Subtract the hidden byte ranges from a run decoration.
+fn visible_parts(range: Range<usize>, hidden: &[Range<usize>]) -> Vec<Range<usize>> {
+    let mut parts = vec![range];
+    for hide in hidden {
+        parts = parts
+            .into_iter()
+            .flat_map(|part| {
+                if hide.is_empty() || hide.end <= part.start || hide.start >= part.end {
+                    return vec![part];
+                }
+                let mut out = Vec::new();
+                if part.start < hide.start {
+                    out.push(part.start..hide.start);
+                }
+                if part.end > hide.end {
+                    out.push(hide.end..part.end);
+                }
+                out
+            })
+            .collect();
+    }
+    parts
 }
 
 /// Paints `layout` at `origin` (the text origin of its first row).
@@ -134,13 +161,15 @@ pub fn paint_text(
     };
 
     for (range, color) in &deco.backgrounds {
-        for row in 0..rows.len() {
-            if let (true, Some((x0, x1))) = (visible(row), layout.x_range(row, range.clone())) {
-                let top = origin + point(x0, line_height * row as f32);
-                window.paint_quad(fill(
-                    gpui::Bounds::from_corners(top, top + point(x1 - x0, line_height)),
-                    *color,
-                ));
+        for range in visible_parts(range.clone(), paint.hidden) {
+            for row in 0..rows.len() {
+                if let (true, Some((x0, x1))) = (visible(row), layout.x_range(row, range.clone())) {
+                    let top = origin + point(x0, line_height * row as f32);
+                    window.paint_quad(fill(
+                        gpui::Bounds::from_corners(top, top + point(x1 - x0, line_height)),
+                        *color,
+                    ));
+                }
             }
         }
     }
@@ -152,7 +181,12 @@ pub fn paint_text(
             while row + 1 < rows.len() && glyph.index >= rows[row].end {
                 row += 1;
             }
-            if !visible(row) {
+            if !visible(row)
+                || paint
+                    .hidden
+                    .iter()
+                    .any(|range| range.contains(&glyph.index))
+            {
                 continue;
             }
             while color_ix + 1 < deco.colors.len() && glyph.index >= deco.colors[color_ix].0 {
@@ -174,26 +208,31 @@ pub fn paint_text(
     }
 
     for (range, style) in &deco.underlines {
-        let style = UnderlineStyle {
-            color: style.color.map(faded),
-            ..*style
-        };
-        for row in 0..rows.len() {
-            if let (true, Some((x0, x1))) = (visible(row), layout.x_range(row, range.clone())) {
-                let y = line_height * row as f32 + baseline + line.descent * 0.5;
-                window.paint_underline(origin + point(x0, y), x1 - x0, &style);
+        for range in visible_parts(range.clone(), paint.hidden) {
+            let style = UnderlineStyle {
+                color: style.color.map(faded),
+                ..*style
+            };
+            for row in 0..rows.len() {
+                if let (true, Some((x0, x1))) = (visible(row), layout.x_range(row, range.clone())) {
+                    let y = line_height * row as f32 + baseline + line.descent * 0.5;
+                    window.paint_underline(origin + point(x0, y), x1 - x0, &style);
+                }
             }
         }
     }
+
     for (range, style) in &deco.strikes {
-        let style = StrikethroughStyle {
-            color: style.color.map(faded),
-            ..*style
-        };
-        for row in 0..rows.len() {
-            if let (true, Some((x0, x1))) = (visible(row), layout.x_range(row, range.clone())) {
-                let y = line_height * row as f32 + baseline - line.ascent * 0.32;
-                window.paint_strikethrough(origin + point(x0, y), x1 - x0, &style);
+        for range in visible_parts(range.clone(), paint.hidden) {
+            let style = StrikethroughStyle {
+                color: style.color.map(faded),
+                ..*style
+            };
+            for row in 0..rows.len() {
+                if let (true, Some((x0, x1))) = (visible(row), layout.x_range(row, range.clone())) {
+                    let y = line_height * row as f32 + baseline - line.ascent * 0.32;
+                    window.paint_strikethrough(origin + point(x0, y), x1 - x0, &style);
+                }
             }
         }
     }
@@ -203,6 +242,16 @@ pub fn paint_text(
 mod tests {
     use super::*;
     use gpui::hsla;
+
+    #[test]
+    fn playback_masks_run_decorations_as_well_as_glyphs() {
+        assert_eq!(visible_parts(0..12, &[3..6, 9..12]), vec![0..3, 6..9]);
+        assert!(visible_parts(3..6, std::slice::from_ref(&(0..9))).is_empty());
+        assert_eq!(
+            visible_parts(3..9, std::slice::from_ref(&(3..3))),
+            vec![3..9]
+        );
+    }
 
     #[test]
     fn inks_quote_colour_and_fading_combine() {
@@ -217,6 +266,7 @@ mod tests {
             inks: &inks,
             plain: Some((text, quote)),
             alpha: 0.5,
+            hidden: &[],
         };
         // The plain colour becomes the quote's; a link keeps its own.
         assert_eq!(paint.ink(0, text), quote.alpha(0.5));

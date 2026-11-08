@@ -49,3 +49,6 @@ pub use view::{
     ChapterEditor, ChapterEditorEvent, CommentRequested, EntityLinkOpened, MaterialOpened,
     PositionLinkCopied, WritingTyped,
 };
+
+// The public playback switch lives on each host's `editor()` entity.
+pub use gpui_prose::playback::{CommitPlaybackOptions, CommitPlaybackStatus};

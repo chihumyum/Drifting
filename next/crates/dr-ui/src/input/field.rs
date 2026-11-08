@@ -363,6 +363,15 @@ impl TextField {
     /// Whether text from the input method is for this field: it holds the
     /// keyboard and takes input. (Until the next frame the window still
     /// routes the input method to a field that just lost focus.)
+    /// Native focus can leave before GPUI delivers its blur notification.
+    fn input_is_late(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        if ime::window_has_keyboard(window, cx) {
+            return false;
+        }
+        self.drop_composition(window, cx);
+        true
+    }
+
     fn takes_input(&self, window: &Window) -> bool {
         !self.disabled && self.focus.is_focused(window)
     }
@@ -553,7 +562,7 @@ impl EntityInputHandler for TextField {
     }
 
     fn unmark_text(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if !self.takes_input(window) {
+        if self.input_is_late(window, cx) || !self.takes_input(window) {
             return;
         }
         let change = self.composer.unmark();
@@ -567,7 +576,17 @@ impl EntityInputHandler for TextField {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if !self.takes_input(window) {
+        if self.input_is_late(window, cx) || !self.takes_input(window) {
+            return;
+        }
+        // IMM32's empty, unranged insert means composition cancellation,
+        // including a queued CPS_CANCEL echo in a newly focused field.
+        // Explicit ranges and editing actions still delete normally.
+        if range16.is_none() && text.is_empty() {
+            if self.composer.is_composing() {
+                let change = self.composer.replace_and_mark(None, "", None);
+                self.report(change, window, cx);
+            }
             return;
         }
         let text = text.replace(['\r', '\n'], " ");
@@ -583,7 +602,7 @@ impl EntityInputHandler for TextField {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if !self.takes_input(window) {
+        if self.input_is_late(window, cx) || !self.takes_input(window) {
             return;
         }
         let change = self.composer.replace_and_mark(range16, text, selected16);
