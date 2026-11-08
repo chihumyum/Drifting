@@ -35,7 +35,7 @@ v3 的完整方案写在 `docs/rust-rewrite/kernel-v3.md`，由监管会话（Cl
 | 轨道 | 做什么 | 可以动的 crate | 不做 |
 | --- | --- | --- | --- |
 | 1 整合 | 按本页把 [integration.md](integration.md) 的分支表和 [progress.md](../progress.md) 的状态改成「冻结（v3）」或「继续」；验收 `codex/batch-30`（M32）；之后只收继续轨道的分支 | 只修合并时两边对不上的地方 | 冻结模块的复审、复现和修复 |
-| 2 编辑引擎与输入 | GPUI 两个补丁（按键后立刻交出画面 G1、空闲时停 CVDisplayLink，见 [f4-editor.md](../foundations/f4-editor.md) 补丁表）；F4c 待协调 12、14（`dr-ui` 输入框与编辑器对齐、macOS 用窗口自身的 inputContext）；F5 剩下两处数字写法并进 `dr_i18n::number`；M31 逐字显现要的公共播放接口；空闲时重跑 `prose-bench` | `gpui-prose`、`gpui-ime`、`prose-linebreak`、`dr-ui`、`dr-editor`（只限输入、排版、播放）、`dr-i18n` | 人物链接、批注画层里按种类的部分 |
+| 2 编辑引擎与输入 | GPUI 补丁（见 [f4-editor.md](../foundations/f4-editor.md)「GPUI 补丁台账」）：G3 丢弃组字的接口写成补丁文件；G1 空闲停刷新时钟已经写好，挂上去要开 GPUI 的 fork，fork 放在哪先问作者，不要自己建远端仓库；F4c 待协调 12、14（`dr-ui` 输入框与编辑器对齐、macOS 用窗口自身的 inputContext）；F5 剩下两处数字写法并进 `dr_i18n::number`；M31 逐字显现要的公共播放接口；空闲时重跑 `prose-bench` | `gpui-prose`、`gpui-ime`、`prose-linebreak`、`dr-ui`、`dr-editor`（只限输入、排版、播放）、`dr-i18n` | 人物链接、批注画层里按种类的部分 |
 | 3 帮手运行时 | 接着 M30：长任务、工作记忆、上下文、主动建议的机制（未提交的改动在 `refs/wip/2026-11-08/m30-long-tasks-memory`，原工作区也还在）；把和小说绑定的提示词集中到一处；M32 出站清理失败那条 P2；M34 口述 | `dr-agent`、`dr-agent-providers`、`dr-view-agent`，`dr-agent-tools` 只限执行管线 | 新工具、扩工具清单（M29 后续）、M33 生图 |
 | 4 账号与同步 | 按 [antigravity-queue.md](antigravity-queue.md) 的任务书做 M35 账号 → M37 偏好同步 → M36 同步 v2 → M43 Windows 补齐（托盘、arm64、字体回退；实机验收留给作者）。M36 把书当成一组不透明 id 的 Loro 文档加资源文件 | M35–M37、M43 各自的 crate，`dr-platform` 里和它们有关的部分 | M21–M23 Super View、M38 分享链接 |
 | 5 v3 方案 | 写 `kernel-v3.md`，给作者看 | 只写文档 | 代码 |
