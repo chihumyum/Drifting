@@ -66,7 +66,7 @@
    - 空的（`{}`，或者只有空段落）不算模版，不建文档；读不出来的记一条 `template-unreadable`，旧字段照留。删掉的分类和故事线（回收站里的）也写，恢复后模版还在。
    - 导入的 peer 是确定的，中途打断后接着导，模版文档收到的是同样的改动、不会重复。
    - 回执的每本书多了 `templates`（写了几份），给作者的摘要里多一句「N 个要素模版和章节模版写成了模版文档，新建的要素和章节照它开头」。
-   - 模版文档也建索引（dr-store 给每篇文档都建；模版不算书的正文，不进字数和搜索），所以合成库导入后建索引的文档从 7 篇变成 9 篇。
+   - 模版文档也建索引（dr-store 给每篇文档都建），所以合成库导入后建索引的文档从 7 篇变成 9 篇。模版不是书的正文（`DocKind::is_book_text`），但 dr-index 原来没看这一条，模版的字会算进全书字数、也搜得到；这一轮顺手改了 dr-index：不是书的正文的文档建一份空索引（和书目文档一样），请 dr-index 的负责会话审（待协调 21）。
 
 ## 关键数字
 
@@ -470,6 +470,7 @@ Agent 的结算记录、读取回执、检查点、事件流、长任务状态�
   - 通知可以带一个按钮（`notifications::NoticeAction`、`Notifications::post_with`）：通知中心在那条的文字下面画一个小的文字按钮，点了在当时的窗口里跑发通知的人给的回调；来源多了 `Source::Import`（「导入」）；
   - `workspace::with_workspace` 先找活跃窗口（`active_workspace`），新加 `with_workspace_in(window, …)`；
   - `dialogs::show_in(window, …)`，`dialogs::hide` 在所有工作区窗口里找要关的那个。
+- `dr-index`（第六个里程碑，请审，待协调 21）：`TextDeriver::derive` 对不是书的正文的文档（书目文档、模版）都记一份空索引，模版的字不再算进全书字数、不进搜索；`tests/m10.rs` 跟着改成 9 篇、模版字数为 0、搜不到模版里的字。
 - `dr-import-v1`（第五个里程碑）：`receipt::RunStart` 加了旧库的位置，`begin_run` 把它写进 `summary_json` 的 `source`，结束时用 `json_patch` 合进去、不覆盖；新加 `receipt::unfinished`（这台设备上「还在导」、没有「已导入」的书，带旧库位置）。
 - `dr-store`（第四个里程碑，请 F2 审）：`Device` 的安装身份改成克隆共用、可以换（`Device::take_over`，`installation_id()` 改成返回 `String`），`Library::adopt_installation_id`；`check_device` 跟着改了两行。测试：`identity.rs` 一个、`tests/device.rs` 一个。
 
@@ -564,7 +565,7 @@ cargo xtask check
 
 | # | 里程碑 6 的内容 | 状态 |
 | --- | --- | --- |
-| 1 | 旧的 `element_template` / `chapter_template` 写进 F3 第七轮的模版文档，旧字段原样只读 | 完成；经 F3 新建要素时照它开头（测试过）；改了 `dr-import-v1`，`m10-m4-import.json` 会报「过期」，这一轮没重测 |
+| 1 | 旧的 `element_template` / `chapter_template` 写进 F3 第七轮的模版文档，旧字段原样只读 | 完成；经 F3 新建要素时照它开头（测试过）；顺手修了 dr-index 把模版的字算进全书字数（待协调 21）；改了 `dr-import-v1`，`m10-m4-import.json` 会报「过期」，这一轮没重测 |
 
 ## 待协调
 
@@ -628,6 +629,7 @@ cargo xtask check
 18. **M35：每个库自己的写作日设备键。** 旧版每个库根各有一个安装身份，新版一台设备只有一个（见「写作日和设备 → 边界情况」）。按账号分库时，可以考虑每个库记自己认领的设备键，而不是整台设备换身份。
 19. ~~**F7（或作者）：退出时最多等 5 秒。**~~ F7 定为各等 1 秒、最多 2 秒（理由在 f7-platform.md：等的时候窗口冻在屏幕上，五秒没动静就像卡死；立刻停下不丢东西，下次接着导、逐字节相同）。第十三批整合时改了 `QUIT_WAIT_BOOK` / `QUIT_WAIT_NOW`。
 20. **F6：请审外壳的三处改动**（第五个里程碑，见「导入界面 → 改到的别处」）：通知的按钮（`NoticeAction`）、`with_workspace` 先找活跃窗口、`dialogs::show_in`。`with_workspace` 的改法会影响所有用它的地方（打开设置、反馈对话框）：现在它们也跟着活跃窗口走，单窗口时没有区别。
+21. **dr-index / F2：请审 `TextDeriver::derive` 的一行改动**（第六个里程碑）。模版文档（F3 第七轮）原来按正文建索引，字数算进 `book_stats`、内容进搜索，和 `DocKind::is_book_text` 的约定不符；现在和书目文档一样记空索引。已经建过索引的模版文档要等它下次改动才清空（dr-store 没有「派生器版本」可以逼它重建）；模版今天才有，只影响开发库。改了 dr-index，它的测量证据会报「过期」。
 
 ## 没做的，和下一个里程碑建议
 

@@ -240,9 +240,11 @@ impl Deriver for TextDeriver {
             // Not one of Drifting's documents: nothing to derive.
             return None;
         };
-        if doc_id.is_book() {
-            // A book document has no paragraphs. Record it as indexed (empty)
-            // so it does not count as stale on every open.
+        if !doc_id.kind().is_book_text() {
+            // The book document has no paragraphs, and a body template is not
+            // the book's text (`DocKind::is_book_text`: not searched, counted
+            // or linked from). Record it as indexed (empty) so it does not
+            // count as stale on every open.
             return Some(DerivedUpdate::Full(Derived::default()));
         }
         self.derive_prose(&doc_id, input)
