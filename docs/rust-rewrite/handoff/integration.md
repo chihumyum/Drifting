@@ -52,7 +52,7 @@
 | `codex/legacy-* 其余分支、codex/integration-*-review` | 旧模块与旧复审分支 | 冻结（v3） | 原样保留；停止预审、复现和修复，等 v3 重新接线。 | 不因已有审查结论恢复旧队列。 |
 | `codex/k1-kernel-v3` / `handback/k1` | 轨道 6：K1+K2 内核与通用命令 | 继续（本次退回） | 先修 overnight 退回项：保持 v2.2 链接种类原行为，跨层测试留在授权 crate；共享文件按 main 调整后重交。 | 第三十四批 `3f20c049` 全套检查通过，但旧 Material 链接被放行，违反夜间边界；续交 `72734432` 另含越界的 dr-index 测试，均未接收。 |
 | `codex/k3-import-v3` / `handback/k3` | 轨道 7：K3 导入与样书 | 继续 | 前半段已接；等 K1 的 dr-doc v3 合入 main 后做实际 v3 导入和样书，保留 v2.2 路径。m10 待协调 22–27 已按 overnight 分派。 | 第三十二批接收 `4d9c3d8b`（含 `72bc9bb2`），基于 main `42999fa3` 无冲突，全套检查通过；尚未交付真正 v3 导入。 |
-| `codex/track4-account-sync` / `handback/track4` | 轨道 4：账号、偏好同步、同步传输、Windows | 继续 | M35 已接；按 overnight 继续 M37 → M36 → M43。账号展示与换库失败反馈归轨道 4 后续，真服务和实机留作者。 | 第三十三批接收 `e4722faa`（M35 `de86d2bd`），基于 main `859434e6` 无冲突，全套检查通过；没有接收尚未交回的后续模块。 |
+| `codex/track4-account-sync` / `handback/track4` | 轨道 4：账号、偏好同步、同步传输、Windows | 继续（M37 本次退回） | M35 已接；M37 先按 overnight 收敛 dr-shell/settings 范围，必要接线单列协调或等作者明确。之后 M36 → M43；真服务／实机留作者。 | 第三十三批已接 `e4722faa`。第三十五批 `c719a76d` 全套检查通过（1905 通过／22 忽略），因共享设置改动超出夜间账号入口限制退回，未接收 M37。 |
 
 `git log main..<分支>` 用来列出尚未直接合入的提交（独立摘取另看历史记录），不是自动接收队列。先按上表与分轨页判断范围；冻结分支即使有更新也不预审。`claude/loro-upstream-issues` 与本次分轨无关，原样保留。
 
@@ -327,3 +327,9 @@ git -c core.hooksPath=/dev/null merge --no-ff --no-edit -m "Merge branch '<整�
 - `codex/batch-34` 基于 main `fb506d26` 验收 `handback/k1` → `3f20c049`，合并无冲突；并发 6、测试单线程，fmt、Clippy、全工作区测试（1920 通过、0 失败、22 忽略）、xtask、public 及附加兼容检查全部通过。
 - 范围边界未满足：`EntityKind::Material.may_be_linked()` 从 main 的 false 变为候选 true。临时 Rust 可执行直接打印该表达式已两边对照；现有 `dr-workspace/src/commands/prose.rs::set_links`、`dr-doc/src/prose/txn.rs::check_link`、`dr-import-v1/src/prose/plan.rs::entity_link` 都读取它，因此改变 v2.2 行为，违反 overnight 的 K1 第 4 条。退原轨道限定 v3 行为并补兼容契约，整合者不代写。
 - 检查期间指针续到 `72734432`（第 3 步 dr-store）：该函数没有修正，又新增清单外的 `dr-index/tests/library.rs`。按范围退回，未混入第三十四批、未重跑该续交 SHA；要求把跨层契约放到授权 crate，并一起重交。两次退回写在 overnight；main 只收退回文档，产品仍到第三十三批。
+
+## 第三十五批退回记录（2026-11-09 夜间）
+
+- `codex/batch-35` 基于 main `7c4399af` 验收 `handback/track4` → `c719a76d`，无合并冲突。并发 6、测试单线程，fmt、Clippy、全工作区测试（1905 通过、0 失败、22 忽略）、xtask、public 及附加兼容检查全部通过。
+- 依 overnight 的轨道 4 第 2 条按范围退回：候选在 dr-shell/settings 的 store.rs 新增本机账本及写入跟踪，mod.rs 新增同步通知及快捷键应用，registry.rs 新增同步标记，已超过账号入口挂接。`git diff e4722faa..c719a76d -- next/crates/dr-shell/src/settings` 可重查；没有因测试失败或确定的数据丢失退回。
+- M37 原任务书允许最小注册表标记，但夜间页给了更窄范围。交轨道 4 收敛，必要共享接线另列协调，若仍需超出则等作者明确；整合者不据此放宽范围。候选和 M35 已接历史均保留，main 只合退回记录。
