@@ -1076,6 +1076,111 @@ pub const INVARIANTS: &[Invariant] = &[
             "prose_commands_and_editor_reject_conversations_without_writing"
         ]
     ),
+    // ---- universal kernel v3 (kernel-v3.md) --------------------------------
+    inv!(
+        "V3-TREE-NO-CYCLE",
+        "树不成环",
+        [Structure, Command],
+        "entries 是 LoroTree，自身保证移动与合并绝不成环；命令层用 dr_model::v3::check_entry_move 拒绝把条目移到自己或自己的后代下",
+        [],
+        ["v3_entry_tree_never_cycles"]
+    ),
+    inv!(
+        "V3-LEAF-NO-CHILDREN",
+        "叶子没有子条目；合并后出现时，读取时把这些子条目当作住在叶子的上一层，数据不动",
+        [Command, Read],
+        "命令层用 dr_model::v3::check_parent_is_level 和 check_template_switch 拒绝在叶子下放子条目或把仍有子条目的层级换成叶子；读取时 effective_parent_id 把叶子下的子条目提升到最近的非叶子祖先（或根），底层数据不动",
+        [],
+        ["v3_leaves_cannot_have_children_and_merge_lifts_to_ancestor_level"]
+    ),
+    inv!(
+        "V3-LEVEL-ALLOWS-TEMPLATE",
+        "条目放进的层级允许它的模板；合并后不满足时照常显示，只是不能再往里放新的",
+        [Command, Read],
+        "命令层用 dr_model::v3::check_level_allows_template 检查目标层级解析后的 settings.allow 是否允许该模板；读取时不对已存在的子条目按 allow 过滤",
+        [],
+        ["v3_level_allow_list_filters_new_entries"]
+    ),
+    inv!(
+        "V3-ENTRY-TEMPLATE-EXISTS",
+        "条目的模板不在了：读取时当作没有模板的条目，只显示已有的数据，不丢",
+        [Command, Read],
+        "命令层用 dr_model::v3::check_entry_template 检查模板存在且未删除；读取时 Entry::effective_template 在模板缺失或已删时返回 None，visible_fields / visible_kv 照常展示已有数据",
+        [],
+        ["v3_entry_template_exists_or_degrades_to_blank"]
+    ),
+    inv!(
+        "V3-TEMPLATE-SWITCH-KEEPS-DATA",
+        "换模板不删数据：新模板没有的模块数据原样留着，换回来就回来；层级换成叶子之前要先没有子条目",
+        [Structure, Command, Read],
+        "Entry::switch_template 只改 template 字段，orphaned_fields 暴露不在当前模板里的原内容；check_template_switch 拒绝把仍有子条目的层级改成叶子",
+        [],
+        ["v3_switching_template_preserves_module_data_and_checks_children"]
+    ),
+    inv!(
+        "V3-TEMPLATE-DELETE-UNUSED",
+        "只能删没人用的模板；合并后仍有人用已删的模板，照模板缺失容错",
+        [Command, Read],
+        "命令层用 dr_model::v3::check_template_delete 拒绝删除仍有未删除条目在用的模板；合并冲突下 effective_template 将被删模板的条目当作无模板条目",
+        [],
+        ["v3_template_delete_refuses_when_in_use"]
+    ),
+    inv!(
+        "V3-MEMBERSHIP-RULES",
+        "归属到的层级收别处的条目、允许这个模板；读取时不满足就忽略这条归属，数据留着",
+        [Command, Read],
+        "归属只看要挂去的层级：check_membership 校验宿主是存活层级、解析后的 settings.accept 为真（泳道层级恒为真）且 settings.allow 允许成员模板；filter_valid_memberships 过滤不满足的归属，Entry::effective_primary 只认仍在有效归属里的宿主",
+        [],
+        ["v3_membership_governed_by_target_level_accept_and_allow"]
+    ),
+    inv!(
+        "V3-TIMELINE-LANE-ENABLED",
+        "视图里的泳道必须是泳道层级",
+        [Command, Read],
+        "命令层用 dr_model::v3::check_timeline_lane 校验条目是存活的泳道层级（kind == Level && lane == true）；读取时 effective_timeline_lanes 忽略不满足的条目",
+        [],
+        ["v3_timeline_lanes_and_placements_require_lane_membership"]
+    ),
+    inv!(
+        "V3-TIMELINE-PLACEMENT-IN-LANE",
+        "视图里的条目在这个视图的某条泳道里：拿出最后一条泳道时一起去掉位置；读取时不在任何泳道里的位置不显示",
+        [Command, Read],
+        "命令层用 check_timeline_placement_in_lane 校验条目归属在该视图至少一条有效泳道里，移出泳道时用 prune_placement_if_not_in_view_lanes 清理位置；读取时 effective_timeline_placements 过滤不在该视图任何泳道里的位置",
+        [],
+        ["v3_timeline_lanes_and_placements_require_lane_membership"]
+    ),
+    inv!(
+        "V3-AUTOLINK-NAME-UNIQUE",
+        "自动链接的名字和别名唯一（范围：自动链接的叶子，即住处层级或任一归属层级开了自动链接的叶子）",
+        [Command, Read],
+        "命令层用 dr_model::v3::check_autolink_name_unique 拒绝重名；并发合并产生重名时 resolve_autolink_name_conflicts 按创建时间与 id 保留最早的，其余标出 name_conflict",
+        [],
+        ["v3_autolink_names_and_aliases_are_unique_across_autolink_leaves"]
+    ),
+    inv!(
+        "V3-TIMELINE-TARGETS-LIVE",
+        "视图里的泳道、时间钉挂的条目都要在；读取时不在就不显示",
+        [Command, Read],
+        "命令层用 dr_model::v3::check_timeline_target_live 拒绝指向已删条目；读取时 effective_timeline_lanes / effective_timeline_placements 过滤已删条目，effective_timeline_pins 清掉指向已删条目的绑定",
+        [],
+        ["v3_timeline_targets_filter_deleted_entries"]
+    ),
+    inv!(
+        "V3-MANUSCRIPT-NO-NEST",
+        "成书的层级不嵌套：命令层预防；读取时只认最外层",
+        [Command, Read],
+        "命令层用 dr_model::v3::check_manuscript_no_nest 拒绝在已开启成书层级的祖先或后代上重复开启；合并冲突下 effective_manuscript_levels 只认最外层",
+        [],
+        ["v3_manuscript_levels_never_nest_and_read_outermost"]
+    ),
+    inv!(
+        "V3-CROSS-DOC-ORDER",
+        "v3 跨文档写入的先后：先写正文文档（body: / template:），再写书目文档（book:）",
+        [Command],
+        "plan_entry_write_order 与 check_cross_doc_write_order 保证所有 body:<entry>/<module> 写入先于 book:<id>",
+        [],
+        ["v3_cross_document_writes_put_prose_before_book"]
+    ),
 ];
 
 pub const DIVERGENCES: &[Divergence] = &[

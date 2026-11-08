@@ -252,6 +252,124 @@ id_type!(
     DeviceKey,
     reserved = ['|']
 );
+id_type!(
+    /// An entry (条目) in the universal kernel v3 (`entries` tree).
+    /// `/` and `|` are reserved because entry ids appear in `body:<entry>/<module>`,
+    /// `plot_grids` keys `<entry>/<module>`, and `memberships` keys `<host>|<member>`.
+    EntryId,
+    reserved = ['/', '|']
+);
+id_type!(
+    /// A module (模块) in an entry template's module manifest (`v3`).
+    /// `/` is reserved because module ids appear in `body:<entry>/<module>`
+    /// and `template:<template>/<module>`.
+    ModuleId,
+    reserved = ['/']
+);
+id_type!(
+    /// An entry template (条目模板) in `templates` (`v3`).
+    /// `/` and `:` are reserved so `template:<template>/<module>` is
+    /// unambiguous alongside v2.2 `template:category:<id>` and `template:storyline:<id>`.
+    EntryTemplateId,
+    reserved = ['/', ':']
+);
+id_type!(
+    /// A timeline view (时间线视图) in `timeline_views` (`v3`).
+    TimelineViewId
+);
+
+/// The `<entry_id>/<module_id>` payload of a v3 `body:` prose document id.
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(try_from = "String", into = "String")]
+pub struct BodyDocId {
+    raw: Arc<str>,
+    entry: EntryId,
+    module: ModuleId,
+}
+
+impl BodyDocId {
+    pub fn new(entry: EntryId, module: ModuleId) -> Self {
+        let raw: Arc<str> = format!("{entry}/{module}").into();
+        Self { raw, entry, module }
+    }
+
+    pub fn parse(s: &str) -> Result<Self, IdError> {
+        validate(s, &[])?;
+        let Some((e, m)) = s.split_once('/') else {
+            return Err(IdError::BadChar('/'));
+        };
+        let entry = EntryId::parse(e)?;
+        let module = ModuleId::parse(m)?;
+        Ok(Self {
+            raw: s.into(),
+            entry,
+            module,
+        })
+    }
+
+    pub fn entry(&self) -> &EntryId {
+        &self.entry
+    }
+
+    pub fn module(&self) -> &ModuleId {
+        &self.module
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.raw
+    }
+}
+
+impl fmt::Display for BodyDocId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.raw)
+    }
+}
+
+impl fmt::Debug for BodyDocId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "BodyDocId({:?})", &*self.raw)
+    }
+}
+
+impl FromStr for BodyDocId {
+    type Err = IdError;
+    fn from_str(s: &str) -> Result<Self, IdError> {
+        Self::parse(s)
+    }
+}
+
+impl TryFrom<String> for BodyDocId {
+    type Error = IdError;
+    fn try_from(s: String) -> Result<Self, IdError> {
+        Self::parse(&s)
+    }
+}
+
+impl TryFrom<&str> for BodyDocId {
+    type Error = IdError;
+    fn try_from(s: &str) -> Result<Self, IdError> {
+        Self::parse(s)
+    }
+}
+
+impl From<BodyDocId> for String {
+    fn from(id: BodyDocId) -> String {
+        id.raw.to_string()
+    }
+}
+
+impl AsRef<str> for BodyDocId {
+    fn as_ref(&self) -> &str {
+        &self.raw
+    }
+}
+
+impl Borrow<str> for BodyDocId {
+    fn borrow(&self) -> &str {
+        &self.raw
+    }
+}
 
 impl CommentId {
     /// The id of a TODO generated from prose: a function of what generated
@@ -317,6 +435,11 @@ impl TemplateId {
         Self::parse(&format!("storyline:{id}")).expect("valid id")
     }
 
+    /// A v3 entry template's prose module (`<template_id>/<module_id>`).
+    pub fn for_entry_module(template: &EntryTemplateId, module: &ModuleId) -> Self {
+        Self::parse(&format!("{template}/{module}")).expect("valid id")
+    }
+
     /// Whose template this is; `None` for an id this version does not know.
     pub fn owner(&self) -> Option<TemplateOwner> {
         let (kind, id) = self.as_str().split_once(':')?;
@@ -325,6 +448,15 @@ impl TemplateId {
             "storyline" => StorylineId::parse(id).ok().map(TemplateOwner::Storyline),
             _ => None,
         }
+    }
+
+    /// The `(template_id, module_id)` of a v3 template prose document.
+    pub fn entry_module(&self) -> Option<(EntryTemplateId, ModuleId)> {
+        if self.owner().is_some() {
+            return None;
+        }
+        let (t, m) = self.as_str().split_once('/')?;
+        Some((EntryTemplateId::parse(t).ok()?, ModuleId::parse(m).ok()?))
     }
 }
 
@@ -733,5 +865,17 @@ mod tests {
         let id = ElementId::parse("el-1").unwrap();
         assert_eq!(serde_json::to_string(&id).unwrap(), "\"el-1\"");
         assert!(serde_json::from_str::<ElementId>("\"\"").is_err());
+        let body = BodyDocId::parse("e1/m1").unwrap();
+        assert_eq!(body.entry().as_str(), "e1");
+        assert_eq!(body.module().as_str(), "m1");
+        assert!(BodyDocId::parse("e1").is_err());
+        assert_eq!(EntryId::parse("a/b"), Err(IdError::BadChar('/')));
+        assert_eq!(EntryId::parse("a|b"), Err(IdError::BadChar('|')));
+        assert_eq!(EntryTemplateId::parse("a:b"), Err(IdError::BadChar(':')));
+        let tpl = EntryTemplateId::parse("tpl-chapter").unwrap();
+        let m = ModuleId::parse("mod-prose").unwrap();
+        let tid = TemplateId::for_entry_module(&tpl, &m);
+        assert_eq!(tid.entry_module(), Some((tpl, m)));
+        assert_eq!(tid.owner(), None);
     }
 }
