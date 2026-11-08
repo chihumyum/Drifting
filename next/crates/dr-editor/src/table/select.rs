@@ -71,9 +71,18 @@ fn step(dir: Dir, (r, c): (usize, usize), (rows, cols): (usize, usize)) -> (usiz
     }
 }
 
+/// The `rows` × `cols` part of `grid`.
+fn rect<T: Clone>(grid: &[Vec<T>], rows: &Range<usize>, cols: &Range<usize>) -> Vec<Vec<T>> {
+    grid.get(rows.clone())
+        .unwrap_or_default()
+        .iter()
+        .map(|row| row.get(cols.clone()).map(<[T]>::to_vec).unwrap_or_default())
+        .collect()
+}
+
 /// `grid` repeated over a `rows` × `cols` rectangle when it is smaller
 /// (the 0.1 client's `clipCells`); a larger grid stays as it is.
-pub(crate) fn tile(grid: &[Vec<String>], rows: usize, cols: usize) -> Vec<Vec<String>> {
+pub(crate) fn tile<T: Clone + Default>(grid: &[Vec<T>], rows: usize, cols: usize) -> Vec<Vec<T>> {
     let gh = grid.len().max(1);
     let gw = grid.iter().map(Vec::len).max().unwrap_or(0).max(1);
     let (h, w) = (rows.max(gh), cols.max(gw));
@@ -417,28 +426,21 @@ impl TableView {
         .collect()
     }
 
-    /// ⌘C / ⌘X with cells selected: the cells as a table. Returns whether
-    /// the key was taken.
+    /// ⌘C / ⌘X with cells selected: the cells as a table, with their
+    /// marks. Returns whether the key was taken.
     pub(crate) fn copy_cells(&mut self, cut: bool, cx: &mut Context<Self>) -> bool {
-        if self.cell_sel.is_none() {
+        let Some((rows, cols)) = self.selected_cells() else {
             return false;
-        }
-        let texts: Vec<Vec<String>> = self
-            .selected_keys()
-            .iter()
-            .map(|row| {
-                row.iter()
-                    .map(|k| {
-                        self.cells
-                            .get(k)
-                            .map(|v| v.editor.read(cx).book().chapters[0].doc.plain_text())
-                            .map(|t| t.trim_end_matches('\n').to_owned())
-                            .unwrap_or_default()
-                    })
-                    .collect()
-            })
-            .collect();
-        cx.write_to_clipboard(clip::table_item(&texts));
+        };
+        let embed = self.embed.to_string();
+        let (cells, marks) = self
+            .host
+            .handle
+            .read(move |doc| super::read_grid(doc, &embed))
+            .unwrap_or_default();
+        let texts = rect(&cells, &rows, &cols);
+        let marks = rect(&marks, &rows, &cols);
+        cx.write_to_clipboard(clip::table_item(&texts, &marks));
         if cut {
             self.clear_cells(cx);
         }
@@ -482,9 +484,10 @@ impl TableView {
         let Some(grid) = grid.filter(|g| !g.is_empty()) else {
             return true;
         };
+        let marks = tile(&clip::marks_from_clipboard(item), rows.len(), cols.len());
         let tiled = tile(&grid, rows.len(), cols.len());
         let (h, w) = (tiled.len(), tiled.first().map_or(0, Vec::len));
-        self.paste_grid(rows.start, cols.start, tiled, window, cx);
+        self.paste_marked(rows.start, cols.start, tiled, marks, window, cx);
         if let (Some(a), Some(b)) = (
             self.key_at(rows.start, cols.start),
             self.key_at(rows.start + h - 1, cols.start + w - 1),

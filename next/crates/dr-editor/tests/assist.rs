@@ -408,6 +408,26 @@ fn the_at_picker_inserts_a_link(cx: &mut TestAppContext) {
     // One undo brings the typed query back.
     o.action(Undo);
     assert_eq!(o.text(), "见@约\n");
+    // Pinyin initials find a name too: yg is 约格 (and 叶青 is not).
+    o.caret(4);
+    o.type_text("@yg");
+    let rows = o.menu().expect("the picker is open").2;
+    assert_eq!(
+        rows.first(),
+        Some(&MenuRow::Link {
+            name: "约格".into(),
+            target: dr_text::autolink::LinkTarget::new(dr_model::kind::EntityKind::Element, &yue),
+            group: dr_editor::entity_links::NameGroup::Element,
+        })
+    );
+    assert!(
+        !rows
+            .iter()
+            .any(|r| matches!(r, MenuRow::Link { name, .. } if name == "叶青"))
+    );
+    o.action(Newline);
+    assert_eq!(o.text(), "见@约约格 \n");
+    assert!(o.linked(3, &yue) && o.linked(4, &yue) && !o.linked(5, &yue));
 }
 
 #[gpui::test]

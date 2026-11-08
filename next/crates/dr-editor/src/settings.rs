@@ -113,6 +113,13 @@ impl EditorSettings {
 
     /// `base` with these settings applied (colours and fonts stay).
     pub fn style(&self, base: &ProseStyle) -> ProseStyle {
+        self.style_for(base, false)
+    }
+
+    /// [`EditorSettings::style`], in immersive writing or not. Immersed,
+    /// typewriter scrolling is on whatever its switch says, on the line the
+    /// settings give (the 0.1 client's `typewriterMode || immersive`).
+    pub fn style_for(&self, base: &ProseStyle, immersive: bool) -> ProseStyle {
         let mut style = base.clone();
         style.body_size = px(self.font_size);
         style.body_line_height = self.line_height;
@@ -120,7 +127,7 @@ impl EditorSettings {
         style.paragraph_spacing = self.paragraph_spacing;
         style.max_width = px(self.page_width);
         style.first_line_indent = f32::from(self.paragraph_indent);
-        style.typewriter = self.typewriter.then_some(self.typewriter_position);
+        style.typewriter = (self.typewriter || immersive).then_some(self.typewriter_position);
         style.justify = self.justify;
         style
     }

@@ -212,6 +212,8 @@ pub struct BookEditor {
     _assist_events: Subscription,
     /// The paint layers of every chapter (crate::decor).
     pub(crate) decor: crate::decor::Decor,
+    /// Immersive writing: typewriter scrolling forced on (M26).
+    immersive: bool,
     _editor_events: Subscription,
     _ws_events: dr_workspace::Subscription,
 }
@@ -220,6 +222,7 @@ impl EventEmitter<BookEditorEvent> for BookEditor {}
 impl EventEmitter<crate::view::CommentRequested> for BookEditor {}
 impl EventEmitter<crate::view::PositionLinkCopied> for BookEditor {}
 impl EventEmitter<crate::view::EntityLinkOpened> for BookEditor {}
+impl EventEmitter<crate::view::WritingTyped> for BookEditor {}
 
 impl BookEditor {
     /// Opens every chapter of `book` for the author: [`BookEditor::prepare`]
@@ -350,6 +353,7 @@ impl BookEditor {
             index,
             base_style,
             settings,
+            immersive: false,
             extension,
             editor,
             todos: HashMap::new(),
@@ -414,7 +418,12 @@ impl BookEditor {
         let events = cx.subscribe(&editor, |this, _, event: &EditorEvent, cx| {
             this.on_editor(event, cx)
         });
-        (listed, editor, events)
+        let typed = cx.subscribe(&editor, |this, _, e: &gpui_prose::AuthorTyped, cx| {
+            if let Some(c) = this.chapters.get(e.chapter) {
+                cx.emit(crate::view::WritingTyped { doc: c.doc.clone() });
+            }
+        });
+        (listed, editor, Subscription::join(events, typed))
     }
 
     /// The workspace's events, moved to the main thread.
@@ -514,7 +523,7 @@ impl BookEditor {
     /// position.
     pub fn reload(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Result<(), WsError> {
         let at = self.reading_position(cx);
-        let style = self.settings.style(&self.base_style);
+        let style = self.settings.style_for(&self.base_style, self.immersive);
         let (chapters, editor, events) =
             Self::build(&self.ws, &self.book, &style, &self.extension, window, cx)?;
         self.index = chapters
@@ -781,7 +790,7 @@ impl BookEditor {
             return;
         }
         self.settings = settings;
-        let style = self.settings.style(&self.base_style);
+        let style = self.settings.style_for(&self.base_style, self.immersive);
         self.editor.update(cx, |e, cx| e.set_style(style, cx));
         let auto = self.settings.auto_entity_links;
         self.assist.update(cx, |a, _| a.set_auto_links(auto));
@@ -795,9 +804,24 @@ impl BookEditor {
 
     pub fn set_base_style(&mut self, style: ProseStyle, cx: &mut Context<Self>) {
         self.base_style = style;
-        let style = self.settings.style(&self.base_style);
+        let style = self.settings.style_for(&self.base_style, self.immersive);
         self.editor.update(cx, |e, cx| e.set_style(style, cx));
         cx.notify();
+    }
+
+    /// Immersive writing (M26): as [`crate::ChapterEditor::set_immersive`].
+    pub fn set_immersive(&mut self, on: bool, cx: &mut Context<Self>) {
+        if self.immersive == on {
+            return;
+        }
+        self.immersive = on;
+        let style = self.settings.style_for(&self.base_style, on);
+        self.editor.update(cx, |e, cx| e.set_style(style, cx));
+        cx.notify();
+    }
+
+    pub fn immersive(&self) -> bool {
+        self.immersive
     }
 
     pub fn book_id(&self) -> &str {
