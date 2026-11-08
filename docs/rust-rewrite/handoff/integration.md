@@ -33,7 +33,7 @@
 | `codex/legacy-m11-templates` | M11 分类正文与字段模板 | `51d05b0f` 及后续普通字段 `d7b90666` 仍暂缓；正文模板焦点、字段队列退出和错误回执未修，见 remaining.md |
 | `codex/legacy-m18-scope` | M18 当前范围与来源刷新 | 只摘取 `dabaea00` 为 `2c0bbda7`，第二十七批接收；不带祖先 M02 和旧队列 |
 | `codex/legacy-m17-relation-update` | M17 保 id 的关系更新与写入顺序 | `279d3155` 与后续 `c6e8e458` 暂缓；队列退出、连续类型保存、历史恢复校验和 M29 跨模块契约待补，见 remaining.md |
-| `codex/legacy-m24-samples` | M24 本机样书生产启动与书架恢复 | `08bc3f8a` / 合主线 `dd1cd3c0` 暂缓；失败标记会覆盖后来导入的同 ID 用户书，已定向复现，见 remaining.md |
+| `codex/legacy-m24-samples` / `codex/legacy-m24-ownership` | M24 本机样书生产启动与所有权修复 | `ee14bff6` 修好 Failed 标记，但 Creating 释放落盘失败仍覆盖后来同 ID 用户书，已再次定向复现，继续暂缓，见 remaining.md |
 | `codex/legacy-m41-progress` | M41 备份、核对和恢复的真实进度 | `fab79905` 已在第二十四批接收；其工作树已转做 M19 |
 | `antigravity/m*` | Antigravity 的模块 | 作者另行安排，本整合会话不接管、不验收 |
 
@@ -204,3 +204,10 @@ git -c core.hooksPath=/dev/null merge --no-ff --no-edit -m "Merge branch '<整�
 - F4 逐字播放、其他元数据及模板精确定位接口已转 remaining 与 Codex 队列。M31 release 接口是旧模块排空的接点，接入后的失败和退出契约仍需旧模块各自交回。
 - fmt、全工作区 Clippy、`RUST_TEST_THREADS=2 cargo test --workspace --locked --no-fail-fast` 已通过（1798 通过、0 失败、22 忽略）；全部 xtask 门禁通过，审计 944 个锁定 crate、0 漏洞、12 条既有提示，14 份测量仍过期。公开边界、CI 契约、旧 Agent 清单、四个定向文件（14 项）、九语言及 Rust 生成语言校验通过。
 - 调试桥应用及 M31 验收例程构建通过。隔离 profile 重跑 M15 `plot-punctuation.json` 中文浅色／深色重开共 37 步、M18 `review-current-associations.json` 英文浅色 33 步、M31 `companion.json` 中文浅色 44 步，全部 0 pending；12 张真实截图已核对，应用均正常退出。M31 场景读取三个折叠标题的 Button 角色，实际 AX Click 派发给思考过程；Tab／Space、长列表及关系导航由 GPUI 契约覆盖，不扩大成真窗口全部验证。
+
+## M24 所有权修复复审（2026-11-08，未接收新功能）
+
+- 修复 `ee14bff6` 的 Failed 标记路径已关闭；忙时换库的真实安全拒绝／重试契约成立，但没有新增等待／取消 worker。
+- Creating 清理成功后，释放认领的落盘步骤仍可失败。撤去故障后再导入、修改同 ID 用户书，下一次启动仍会隐藏并覆盖书名和正文，临时定向契约已复现，正式实现与冻结快照一致。此 P1 修复要求已更新 remaining；临时测试及候选副本均恢复，未留下产品代码。
+- 最新浅深原始结果各 32 步、0 pending，四张截图与提交图片一致；它们验证正常启动、打开及移入最近删除后的不重建，不能覆盖本次认领失败边界。
+- 本次只更新审查文档，产品树与第二十八批一致，沿用 1798 通过／22 忽略的全工作区结果；另跑上述 1 项目标断言失败的复现后还原。fmt、Clippy、xtask 门禁、公开边界与 CI 契约重新核对。
