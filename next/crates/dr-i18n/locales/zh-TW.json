@@ -545,7 +545,13 @@
     "wholeBook": "依書稿順序分享全部章節"
   },
   "materialEditor": {
+    "deleteConfirm": "刪除素材「{{title}}」？此操作無法復原。",
     "descriptionPlaceholder": "新增說明…",
+    "embed": {
+      "importFile": "匯入圖片或 PDF…",
+      "importing": "匯入中…",
+      "pastedImage": "貼上的圖片"
+    },
     "regions": {
       "draw": "註解區域",
       "drawHint": "在圖片上拖曳以標記區域",
@@ -559,11 +565,43 @@
     "zoomOut": "縮小",
     "zoomReset": "符合檢視範圍"
   },
+  "materialFolders": {
+    "deleteConfirm": "刪除素材夾「{{name}}」？其中所有項目將移至上一層，不會刪除任何素材。",
+    "deleteSelectionConfirm": "刪除選取的 {{count}} 個項目？素材將被刪除；被刪除素材夾中的內容會移至上一層。",
+    "empty": "尚無素材。可使用上方「新增素材夾」按鈕整理素材。",
+    "menu": {
+      "collapseAll": "收合其中所有項目",
+      "delete": "刪除素材夾",
+      "deleteSelection": "刪除 {{count}} 個項目",
+      "expandAll": "展開其中所有項目",
+      "move": "移至素材夾…",
+      "moveSelection": "將 {{count}} 個項目移至素材夾…",
+      "newFolder": "新增素材夾",
+      "newSubfolder": "在內建立素材夾",
+      "open": "開啟",
+      "rename": "重新命名"
+    },
+    "root": "所有素材",
+    "untitled": "新素材夾"
+  },
   "memoMaterial": {
+    "card": {
+      "addSnippetBody": "在此筆記中寫作…"
+    },
+    "empty": {
+      "noRelated": "目前項目未連結任何素材。"
+    },
+    "error": {
+      "pickFailed": "無法匯入檔案：{{error}}"
+    },
     "kind": {
       "image": "圖片",
       "pdf": "PDF",
       "text": "筆記"
+    },
+    "menu": {
+      "deleteMaterial": "刪除素材",
+      "openInSystem": "用系統應用程式開啟"
     },
     "preview": {
       "loading": "載入中…",
@@ -574,6 +612,10 @@
       "openPdfFailed": "無法開啟 PDF",
       "previousPage": "上一頁",
       "renderPdfFailed": "無法繪製 PDF"
+    },
+    "toolbar": {
+      "count": "{{count}} 份素材",
+      "newMaterial": "新增素材"
     }
   },
   "mobileWorkspace": {

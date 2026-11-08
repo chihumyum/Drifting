@@ -346,6 +346,8 @@ pub struct Workspace {
     left_panels: std::cell::RefCell<HashMap<(&'static str, LeftTab), Option<pages::LeftPanel>>>,
     /// The 帮手 tab a module draws, per pane slug (as the left panels).
     companion: std::cell::RefCell<HashMap<&'static str, Option<pages::LeftPanel>>>,
+    /// The 素材库 tab a module draws, per pane slug (as the 帮手 tab).
+    library_panel: std::cell::RefCell<HashMap<&'static str, Option<pages::LeftPanel>>>,
     /// The Super Views' content modules draw, with the book each was made
     /// for.
     super_views: std::cell::RefCell<HashMap<SuperView, (String, Option<pages::SuperViewPage>)>>,
@@ -503,6 +505,7 @@ impl Workspace {
             toast_timer: None,
             left_panels: Default::default(),
             companion: Default::default(),
+            library_panel: Default::default(),
             super_views: Default::default(),
             outline_reveal: None,
             outline_reveal_close: None,
@@ -1017,6 +1020,7 @@ impl Workspace {
         self.home = None;
         self.left_panels.borrow_mut().clear();
         self.companion.borrow_mut().clear();
+        self.library_panel.borrow_mut().clear();
         self.super_views.borrow_mut().clear();
         self.bottom.forget();
         self.modules.clear();

@@ -545,7 +545,13 @@
     "wholeBook": "원고 순서대로 모든 장"
   },
   "materialEditor": {
+    "deleteConfirm": "자료 “{{title}}”을(를) 삭제할까요? 이 작업은 되돌릴 수 없습니다.",
     "descriptionPlaceholder": "설명 추가…",
+    "embed": {
+      "importFile": "이미지 또는 PDF 가져오기…",
+      "importing": "가져오는 중…",
+      "pastedImage": "붙여넣은 이미지"
+    },
     "regions": {
       "draw": "영역에 댓글 달기",
       "drawHint": "이미지 위를 드래그하여 영역 표시",
@@ -559,11 +565,43 @@
     "zoomOut": "축소",
     "zoomReset": "화면에 맞추기"
   },
+  "materialFolders": {
+    "deleteConfirm": "폴더 “{{name}}”을(를) 삭제할까요? 안의 모든 항목은 한 단계 위로 이동하며 자료는 삭제되지 않습니다.",
+    "deleteSelectionConfirm": "선택한 항목 {{count}}개를 삭제할까요? 자료는 삭제되며, 삭제된 폴더 안의 항목은 한 단계 위로 이동합니다.",
+    "empty": "아직 자료가 없습니다. 위의 새 폴더 버튼으로 자료를 정리하세요.",
+    "menu": {
+      "collapseAll": "내부 항목 모두 접기",
+      "delete": "폴더 삭제",
+      "deleteSelection": "항목 {{count}}개 삭제",
+      "expandAll": "내부 항목 모두 펼치기",
+      "move": "폴더로 이동…",
+      "moveSelection": "항목 {{count}}개를 폴더로 이동…",
+      "newFolder": "새 폴더",
+      "newSubfolder": "내부에 새 폴더 만들기",
+      "open": "열기",
+      "rename": "이름 바꾸기"
+    },
+    "root": "모든 자료",
+    "untitled": "새 폴더"
+  },
   "memoMaterial": {
+    "card": {
+      "addSnippetBody": "이 메모에 쓰기…"
+    },
+    "empty": {
+      "noRelated": "현재 항목에 연결된 자료가 없습니다."
+    },
+    "error": {
+      "pickFailed": "파일을 가져올 수 없음: {{error}}"
+    },
     "kind": {
       "image": "이미지",
       "pdf": "PDF",
       "text": "메모"
+    },
+    "menu": {
+      "deleteMaterial": "자료 삭제",
+      "openInSystem": "시스템 앱으로 열기"
     },
     "preview": {
       "loading": "불러오는 중…",
@@ -574,6 +612,10 @@
       "openPdfFailed": "PDF를 열 수 없습니다",
       "previousPage": "이전",
       "renderPdfFailed": "PDF를 렌더링할 수 없습니다"
+    },
+    "toolbar": {
+      "count": "자료 {{count}}개",
+      "newMaterial": "새 자료"
     }
   },
   "mobileWorkspace": {

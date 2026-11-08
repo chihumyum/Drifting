@@ -122,6 +122,26 @@ pub fn decode_image(bytes: &[u8]) -> Result<Picture, Trouble> {
     Ok(bgra(rgba))
 }
 
+/// An image file decoded small, its longest side at most `side` (a
+/// thumbnail of the library or a card).
+pub fn decode_thumbnail(bytes: &[u8], side: u32) -> Result<Picture, Trouble> {
+    let decoded = image::load_from_memory(bytes).map_err(|e| Trouble::Image(e.to_string()))?;
+    let small = if decoded.width().max(decoded.height()) > side {
+        decoded.thumbnail(side, side)
+    } else {
+        decoded
+    };
+    Ok(bgra(small.to_rgba8()))
+}
+
+/// The best file this device has to make a thumbnail of an asset from:
+/// its thumbnail, else its display copy, else its source.
+pub fn thumbnail_source(lib: &dr_store::Library, asset: &str) -> Option<PathBuf> {
+    variant_path(lib, asset, Variant::Thumbnail)
+        .or_else(|| variant_path(lib, asset, Variant::Display))
+        .or_else(|| variant_path(lib, asset, Variant::Source))
+}
+
 /// An open PDF: its pages' sizes in points (as shown, rotation applied).
 pub struct PdfDoc {
     pdf: Pdf,

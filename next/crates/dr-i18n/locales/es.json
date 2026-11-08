@@ -552,7 +552,13 @@
     "wholeBook": "Todos los capítulos en orden de lectura"
   },
   "materialEditor": {
+    "deleteConfirm": "¿Eliminar el material «{{title}}»? Esta acción no se puede deshacer.",
     "descriptionPlaceholder": "Añade una descripción…",
+    "embed": {
+      "importFile": "Importar imagen o PDF…",
+      "importing": "Importando…",
+      "pastedImage": "Imagen pegada"
+    },
     "regions": {
       "draw": "Comentar una región",
       "drawHint": "Arrastra sobre la imagen para marcar una región",
@@ -566,11 +572,43 @@
     "zoomOut": "Alejar",
     "zoomReset": "Ajustar a la vista"
   },
+  "materialFolders": {
+    "deleteConfirm": "¿Eliminar la carpeta «{{name}}»? Todo su contenido subirá un nivel; no se eliminará ningún material.",
+    "deleteSelectionConfirm": "¿Eliminar los {{count}} elementos seleccionados? Los materiales se eliminan; el contenido de las carpetas eliminadas sube un nivel.",
+    "empty": "Aún no hay materiales. Usa el botón Nueva carpeta de arriba para organizarlos.",
+    "menu": {
+      "collapseAll": "Contraer todo dentro",
+      "delete": "Eliminar carpeta",
+      "deleteSelection": "Eliminar {{count}} elementos",
+      "expandAll": "Expandir todo dentro",
+      "move": "Mover a carpeta…",
+      "moveSelection": "Mover {{count}} elementos a una carpeta…",
+      "newFolder": "Nueva carpeta",
+      "newSubfolder": "Nueva carpeta dentro",
+      "open": "Abrir",
+      "rename": "Renombrar"
+    },
+    "root": "Todos los materiales",
+    "untitled": "Nueva carpeta"
+  },
   "memoMaterial": {
+    "card": {
+      "addSnippetBody": "Escribe en esta nota…"
+    },
+    "empty": {
+      "noRelated": "No hay materiales vinculados al elemento actual."
+    },
+    "error": {
+      "pickFailed": "No se pudo importar el archivo: {{error}}"
+    },
     "kind": {
       "image": "Imagen",
       "pdf": "PDF",
       "text": "Nota"
+    },
+    "menu": {
+      "deleteMaterial": "Eliminar material",
+      "openInSystem": "Abrir en aplicación del sistema"
     },
     "preview": {
       "loading": "Cargando…",
@@ -581,6 +619,10 @@
       "openPdfFailed": "No se puede abrir el PDF",
       "previousPage": "Anterior",
       "renderPdfFailed": "No se puede representar el PDF"
+    },
+    "toolbar": {
+      "count": "{{count}} materiales",
+      "newMaterial": "Nuevo material"
     }
   },
   "mobileWorkspace": {

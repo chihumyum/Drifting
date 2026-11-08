@@ -2662,6 +2662,48 @@ fn a_module_draws_a_super_view(cx: &mut TestAppContext) {
     assert_eq!(made.get(), 1, "kept for the book");
 }
 
+/// The 素材库 tab a module draws (`pages::set_library`): made once for the
+/// half the first time it shows, then kept; its head takes the header row.
+#[gpui::test]
+fn a_module_draws_the_library_tab(cx: &mut TestAppContext) {
+    use dr_shell::workspace::RightTab;
+    let (_dir, lib) = slow_clock();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    let made = std::rc::Rc::new(std::cell::Cell::new(0));
+    let count = made.clone();
+    cx.update(|_, cx| {
+        dr_shell::pages::set_library(cx, move |_, _, cx| {
+            count.set(count.get() + 1);
+            dr_shell::pages::LeftPanel {
+                head: cx.new(|_| Blank).into(),
+                body: cx.new(|_| Blank).into(),
+            }
+        });
+    });
+    view.update_in(cx, |ws, window, cx| {
+        if !ws.right.open {
+            ws.toggle_right(window, cx);
+        }
+        ws.right.reveal.set(1.0);
+        ws.right.panes.click(PaneId::Primary, RightTab::Library);
+    });
+    draw(cx);
+    draw(cx);
+    assert_eq!(made.get(), 1, "made once for the half");
+    view.update(cx, |ws, cx| {
+        ws.right.panes.click(PaneId::Primary, RightTab::Review);
+        cx.notify();
+    });
+    draw(cx);
+    view.update(cx, |ws, cx| {
+        ws.right.panes.click(PaneId::Primary, RightTab::Library);
+        cx.notify();
+    });
+    draw(cx);
+    assert_eq!(made.get(), 1, "then kept");
+}
+
 /// The 帮手 tab a module draws (`pages::set_companion`): made once for the
 /// half the first time it shows, then kept.
 #[gpui::test]

@@ -544,7 +544,13 @@
     "wholeBook": "按书稿顺序分享全部章节"
   },
   "materialEditor": {
+    "deleteConfirm": "删除素材「{{title}}」？此操作无法撤销。",
     "descriptionPlaceholder": "添加说明…",
+    "embed": {
+      "importFile": "从文件导入图片或 PDF…",
+      "importing": "导入中…",
+      "pastedImage": "粘贴的图片"
+    },
     "regions": {
       "draw": "框选批注",
       "drawHint": "在画面上拖出一个区域来批注",
@@ -558,11 +564,43 @@
     "zoomOut": "缩小",
     "zoomReset": "适配窗口"
   },
+  "materialFolders": {
+    "deleteConfirm": "删除素材夹「{{name}}」？里面的素材和子素材夹会移到上一级，不会删除任何素材。",
+    "deleteSelectionConfirm": "删除所选的 {{count}} 项？素材会被删除；删除的素材夹里的内容会移到上一级。",
+    "empty": "还没有素材。可用上方的新建素材夹按钮整理素材。",
+    "menu": {
+      "collapseAll": "全部收起",
+      "delete": "删除素材夹",
+      "deleteSelection": "删除 {{count}} 项",
+      "expandAll": "全部展开",
+      "move": "移动到素材夹…",
+      "moveSelection": "将 {{count}} 项移动到素材夹…",
+      "newFolder": "新建素材夹",
+      "newSubfolder": "在其中新建素材夹",
+      "open": "打开",
+      "rename": "重命名"
+    },
+    "root": "素材库",
+    "untitled": "新素材夹"
+  },
   "memoMaterial": {
+    "card": {
+      "addSnippetBody": "写点什么…"
+    },
+    "empty": {
+      "noRelated": "当前条目没有关联的素材。"
+    },
+    "error": {
+      "pickFailed": "无法导入文件：{{error}}"
+    },
     "kind": {
       "image": "图片",
       "pdf": "PDF",
       "text": "笔记"
+    },
+    "menu": {
+      "deleteMaterial": "删除素材",
+      "openInSystem": "在系统 app 中打开"
     },
     "preview": {
       "loading": "加载中…",
@@ -573,6 +611,10 @@
       "openPdfFailed": "无法打开 PDF",
       "previousPage": "上一页",
       "renderPdfFailed": "无法渲染 PDF"
+    },
+    "toolbar": {
+      "count": "{{count}} 素材",
+      "newMaterial": "新建素材"
     }
   },
   "mobileWorkspace": {
