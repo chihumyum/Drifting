@@ -65,8 +65,13 @@ impl BottomTimeline {
         let (Some(ws), Some(target)) = (self.ws.upgrade(), target) else {
             return el.into_any_element();
         };
-        let extra = self.card_rows(&of, cx);
-        page_hover_card(id, el, &target, &ws, extra, cx)
+        // The timeline's own rows lead the card, above the page's (0.1's
+        // order); F6's CardRows since its round nine.
+        let rows = dr_shell::pages::CardRows {
+            lead: self.card_rows(&of, cx),
+            ..Default::default()
+        };
+        page_hover_card(id, el, &target, &ws, rows, cx)
     }
 
     /// The timeline's own rows on `of`'s card (tests read their ids).
