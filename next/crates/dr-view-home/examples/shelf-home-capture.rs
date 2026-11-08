@@ -106,6 +106,7 @@ impl Headless {
             dr_view_shelf::init(cx);
             dr_view_home::init(cx);
             dr_view_home::set_today(t0_day(), cx);
+            dr_view_shelf::art::set_today(t0_day(), cx);
             Ok(())
         })?;
         let started = Instant::now();
@@ -150,6 +151,20 @@ impl Headless {
     fn shelf_ready(&mut self) -> bool {
         let shelf = self.shelf();
         self.cx.update(|cx| shelf.read(cx).data.is_some())
+    }
+
+    /// The covers, the heat map and the strips are read and every cover is
+    /// drawn (M25).
+    fn pictures_ready(&mut self) -> bool {
+        let shelf = self.shelf();
+        self.cx.update(|cx| {
+            let style = dr_view_shelf::art::cover_style(cx);
+            shelf
+                .read(cx)
+                .art
+                .as_ref()
+                .is_some_and(|a| a.drawn(style, cx))
+        })
     }
 
     /// The book's lists arrived, Home has its numbers and nothing is read.
@@ -310,13 +325,32 @@ fn capture(dir: PathBuf) -> Result<()> {
     let m01 = dir.join("m01");
     let m02 = dir.join("m02");
     let slow_clock = h.book_id("慢钟")?;
+    let night_train = h.book_id("夜车").or_else(|_| h.book_id("Night Train"))?;
     let trashed = h
         .book_id("A Map of Small Rivers")
         .or_else(|_| h.book_id("小河地图"));
     for (appearance, suffix) in [(Appearance::Light, "light"), (Appearance::Dark, "dark")] {
         h.appearance(appearance);
         h.back_to_shelf()?;
+        h.wait(|h| h.pictures_ready())?;
+        h.settle()?;
         h.save(&m01, &format!("shelf-{suffix}.png"))?;
+
+        // The pointer on 《夜车》: the heat map shows it alone; the covers
+        // turned to sand.
+        let id = night_train.clone();
+        h.on_shelf(move |s, _, cx| {
+            s.turn_covers(dr_view_shelf_art::CoverStyle::Sand, cx);
+            s.point_at(&id, true, cx);
+        });
+        h.wait(|h| h.pictures_ready())?;
+        h.settle()?;
+        h.save(&m01, &format!("shelf-pointed-{suffix}.png"))?;
+        let id = night_train.clone();
+        h.on_shelf(move |s, _, cx| {
+            s.turn_covers(dr_view_shelf_art::CoverStyle::DEFAULT, cx);
+            s.point_at(&id, false, cx);
+        });
 
         h.on_shelf(|s, window, cx| s.start_create(window, cx));
         h.on_shelf(|s, _, cx| {

@@ -67,6 +67,12 @@ notifications.markdownFolder.source
 notifications.appUpdate.source
 notifications.crashFollowUp.source
 notifications.markdownFolder.preserved
+notifications.markdownFolder.issue.frontmatter
+notifications.markdownFolder.issue.identity
+notifications.markdownFolder.issue.empty
+notifications.markdownFolder.issue.lineage
+notifications.markdownFolder.issue.encoding
+notifications.markdownFolder.issue.too-large
 
 # Feedback and the crash follow-up (M39, dr-view-feedback)
 feedback.*
@@ -373,6 +379,7 @@ userMenu.settings
 
 # M02 Project Home (dr-view-home)
 common.untitled
+common.customColor
 common.counting
 projectHome.since
 projectHome.views.overview
@@ -645,6 +652,9 @@ storylineEditor.empty.noFacts
 storylineEditor.empty.noChapterSummary
 storylineEditor.empty.noFilteredChapters
 storylineEditor.actions.openChapter
+storylineEditor.sections.nodeTemplate
+storylineEditor.meta.nodeTemplate
+storylineEditor.nodeTemplatePlaceholder
 editorTopBar.menu.deleteStoryline
 common.confirm
 common.words
@@ -663,6 +673,22 @@ bottomTimeline.locateCurrent
 bottomTimeline.axis.time
 bottomTimeline.act.railLabel
 bottomTimeline.act.chapterCount
+bottomTimeline.act.newAct
+bottomTimeline.act.startHere
+bottomTimeline.act.openActNote
+bottomTimeline.act.unbindDrift
+bottomTimeline.act.deleteMergeNext
+bottomTimeline.act.deleteMergePrev
+bottomTimeline.axis.addPin
+bottomTimeline.marker.defaultLabel
+bottomTimeline.pinMenu.openDrift
+bottomTimeline.pinMenu.unbind
+bottomTimeline.pinMenu.bindDrift
+bottomTimeline.pinMenu.rename
+bottomTimeline.pinMenu.deleteMarker
+bottomTimeline.menu.moveToUnaffiliated
+bottomTimeline.menu.detachFromNarrative
+leftSidebar.groups.newChapterInStoryline
 
 # M15: the plot planner (dr-view-plot)
 plotGrid.title
@@ -703,6 +729,8 @@ projectPicker.desk.coverStyle.names.*
 
 # M41 moving books: .driftingbook from the bookshelf (dr-view-transfer)
 projectPicker.desk.exportBook
+projectPicker.desk.recent
+projectPicker.desk.recentLabel
 projectPicker.bookTransfer.*
 
 # M41 whole-library backup and restore (dr-view-transfer)

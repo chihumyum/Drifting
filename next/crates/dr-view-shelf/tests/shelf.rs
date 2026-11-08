@@ -5,15 +5,23 @@
 //! renamed, moved to Recently Deleted and restored; Recently Deleted counts
 //! the days left and deletes a book for good; the books due go two minutes
 //! after the shelf shows; a double click on the empty desk starts a new
-//! book; Esc closes a dialog.
+//! book; Esc closes a dialog; each card carries its cover, its genre and
+//! its last 30 days, the heat map follows the card under the pointer, and
+//! the round button turns every cover.
 
 use std::time::{Duration, Instant};
 
 use dr_shell::{Services, SettingsFile, ShellInfo, Workspace};
-use dr_view_shelf::{PURGE_EXPIRED_AFTER, Shelf, ShelfDialog};
+use dr_view_shelf::{PURGE_EXPIRED_AFTER, Shelf, ShelfDialog, art};
+use dr_view_shelf_art::{CoverStyle, cover_is_dark, cover_key};
 use dr_workspace::{
     Actor, Workspace as Library,
-    commands::{BookIn, ListIn, book::BookTrash, chapter::ChapterList},
+    commands::{
+        BookIn, ListIn,
+        book::{BookTrash, FactPut, FactPutIn},
+        chapter::ChapterList,
+        stats::{WritingDayIn, WritingDayRecord},
+    },
 };
 use gpui::{
     Entity, Modifiers, MouseButton, MouseDownEvent, MouseUpEvent, TestAppContext,
@@ -439,4 +447,99 @@ fn without_a_library_the_shelf_is_empty_and_the_account_menu_works(cx: &mut Test
     assert!(shelf.read_with(cx, |s, _| s.menu_open()));
     cx.simulate_keystrokes("escape");
     assert!(!shelf.read_with(cx, |s, _| s.menu_open()));
+}
+
+#[gpui::test]
+fn the_cards_carry_their_covers_and_days_and_the_button_turns_them(cx: &mut TestAppContext) {
+    let (_dir, library) = library();
+    let lib = library.clone();
+    let books = lib
+        .run::<dr_workspace::commands::book::BookList>(&Actor::User, Default::default())
+        .unwrap()
+        .output;
+    let slow = books.iter().find(|b| b.name == "慢钟").unwrap().id.clone();
+    // A genre for the cover's foot, and two writing days.
+    lib.run::<FactPut>(
+        &Actor::User,
+        FactPutIn {
+            book: slow.clone(),
+            id: None,
+            key: "体裁".into(),
+            value: " 悬疑 ".into(),
+            place: None,
+            pos: None,
+        },
+    )
+    .unwrap();
+    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+    for (day, words) in [(today.clone(), 420), (yesterday(&today), 80)] {
+        lib.run::<WritingDayRecord>(
+            &Actor::User,
+            WritingDayIn {
+                book: slow.clone(),
+                device: "device-0123456789abcdef01234567".into(),
+                day,
+                words,
+            },
+        )
+        .unwrap();
+    }
+    let (view, cx) = setup(cx, library);
+    cx.update(|window, _| window.activate_window());
+    let shelf = shelf_of(&view, cx);
+    wait_for(cx, |cx| {
+        cx.update(|window, _| window.refresh());
+        shelf.read_with(cx, |s, _| {
+            s.art.as_ref().is_some_and(|a| {
+                a.books.len() == 2 && a.books.values().all(|b| b.cover.chapters > 0)
+            })
+        })
+    });
+    let art_now = shelf.read_with(cx, |s, _| s.art.clone().unwrap());
+    let book = &art_now.books[&slow];
+    assert_eq!(book.genre.as_deref(), Some("悬疑"));
+    let recent = art_now.recent(&slow);
+    assert_eq!(recent.len(), 30);
+    assert_eq!(&recent[28..], [80, 420]);
+    // The cover is drawn off the main thread, in the default style.
+    assert_eq!(cx.update(|_, cx| art::cover_style(cx)), CoverStyle::Topo);
+    let key = cover_key(&slow, CoverStyle::Topo, &book.cover);
+    wait_for(cx, |cx| {
+        cx.update(|window, _| window.refresh());
+        cx.update(|_, cx| cover_is_dark(&key, cx)).is_some()
+    });
+    // The pointer on the card: the heat map shows that book alone.
+    let card = cx
+        .debug_bounds(Box::leak(format!("shelf-card-{slow}").into_boxed_str()))
+        .expect("the card is drawn");
+    cx.simulate_mouse_move(card.center(), None, Modifiers::none());
+    cx.run_until_parked();
+    assert_eq!(
+        shelf.read_with(cx, |s, _| s.pointed.clone()),
+        Some(slow.clone())
+    );
+    // The round button turns every cover to the next style.
+    let turn = cx
+        .debug_bounds("shelf-cover-style")
+        .expect("the button is drawn");
+    cx.simulate_click(turn.center(), Modifiers::none());
+    cx.run_until_parked();
+    assert_eq!(
+        cx.update(|_, cx| art::cover_style(cx)),
+        CoverStyle::Topo.next()
+    );
+    assert_eq!(shelf.read_with(cx, |s, _| s.dialog()), None);
+    let key = cover_key(&slow, CoverStyle::Topo.next(), &book.cover);
+    wait_for(cx, |cx| {
+        cx.update(|window, _| window.refresh());
+        cx.update(|_, cx| cover_is_dark(&key, cx)).is_some()
+    });
+}
+
+/// The day before `day` (`YYYY-MM-DD`).
+fn yesterday(day: &str) -> String {
+    let d = chrono::NaiveDate::parse_from_str(day, "%Y-%m-%d").unwrap();
+    (d - chrono::Duration::days(1))
+        .format("%Y-%m-%d")
+        .to_string()
 }

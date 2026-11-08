@@ -17,15 +17,36 @@
   "bottomTimeline": {
     "act": {
       "chapterCount": "{{count}} chapitres",
-      "railLabel": "Acte"
+      "deleteMergeNext": "Supprimer cet acte et le fusionner avec le suivant",
+      "deleteMergePrev": "Supprimer cet acte et le fusionner avec le précédent",
+      "newAct": "Nouvel acte",
+      "openActNote": "Ouvrir la note de l’acte",
+      "railLabel": "Acte",
+      "startHere": "Commencer un nouvel acte ici",
+      "unbindDrift": "Dissocier l’idée"
     },
     "axis": {
+      "addPin": "Ajouter un repère temporel",
       "time": "Temps"
     },
     "empty": {
       "noChaptersInStoryline": "Aucun chapitre dans cette intrigue · double-cliquez pour créer"
     },
     "locateCurrent": "Localiser le chapitre actuel",
+    "marker": {
+      "defaultLabel": "Repère"
+    },
+    "menu": {
+      "detachFromNarrative": "Replacer parmi les non placés",
+      "moveToUnaffiliated": "Déplacer vers les éléments non attribués"
+    },
+    "pinMenu": {
+      "bindDrift": "Associer une idée…",
+      "deleteMarker": "Supprimer le repère",
+      "openDrift": "Ouvrir l’idée",
+      "rename": "Renommer",
+      "unbind": "Dissocier et rétablir comme simple libellé"
+    },
     "storyline": {
       "chapterCount": "{{count}} chap."
     },
@@ -107,6 +128,7 @@
     "confirm": "Confirmer",
     "counting": "Comptage…",
     "creating": "Création…",
+    "customColor": "Couleur personnalisée",
     "delete": "Supprimer",
     "edit": "Modifier",
     "local": "Local",
@@ -378,7 +400,12 @@
         "label": "Idée"
       }
     },
-    "title": "Importer des fichiers"
+    "title": "Importer des fichiers",
+    "warnings": {
+      "imagesDropped_one": "{{count}} image n'a pas été importée",
+      "imagesDropped_other": "{{count}} images n'ont pas été importées",
+      "notUtf8": "Ce n'est pas du texte UTF-8 ; certains caractères ont été remplacés"
+    }
   },
   "kvEditor": {
     "addField": "Ajouter un champ",
@@ -399,6 +426,7 @@
     },
     "groups": {
       "addElementToGroup": "Nouvel élément dans ce groupe",
+      "newChapterInStoryline": "Nouveau chapitre dans cette intrigue",
       "renameElementGroupTitle": "Double-cliquez pour renommer le groupe",
       "unaffiliated": "Sans appartenance"
     },
@@ -569,6 +597,15 @@
     },
     "empty": "Aucune notification",
     "markdownFolder": {
+      "issue": {
+        "empty": "Texte vidé ; non fusionné, fichier conservé",
+        "encoding": "Pas en UTF-8 ; non lu, fichier conservé",
+        "frontmatter": "Propriétés initiales mal formées ; ni fusion ni écrasement avant correction",
+        "identity": "drifting-id désigne un autre chapitre ; non fusionné, fichier conservé",
+        "lineage": "Chapitre restauré ou réinitialisé ; pas de fusion automatique, fichier conservé",
+        "owned": "Une autre installation de Drifting gère ce dossier ; rien n’a été lu ni écrit",
+        "too-large": "Trop volumineux ; non lu, fichier conservé"
+      },
       "preserved_many": "{{count}} fichiers modifiés conservés dans .drifting/preserved",
       "preserved_one": "{{count}} fichier modifié conservé dans .drifting/preserved",
       "preserved_other": "{{count}} fichiers modifiés conservés dans .drifting/preserved",
@@ -707,6 +744,8 @@
       "newCardSub": "Commencez par une page blanche",
       "open": "Ouvrir « {{name}} »",
       "progress": "Progression",
+      "recent": "30 derniers jours",
+      "recentLabel": "{{words}} mots au cours des 30 derniers jours",
       "storylinesUnit_many": "intrigues",
       "storylinesUnit_one": "intrigue",
       "storylinesUnit_other": "intrigues",
@@ -1234,11 +1273,14 @@
     "meta": {
       "chapters": "{{count}} chapitres",
       "chaptersWords": "{{chapters}} chapitres · {{words}} k mots",
-      "kWords": "{{count}} k mots"
+      "kWords": "{{count}} k mots",
+      "nodeTemplate": "Structure par défaut des nouveaux chapitres"
     },
+    "nodeTemplatePlaceholder": "Créez une structure de chapitre avec H1 / H2 / H3 ; les nouveaux chapitres l’utiliseront…",
     "sections": {
       "chapters": "Séquence des chapitres",
       "facts": "Faits",
+      "nodeTemplate": "Modèle de chapitre",
       "scratch": "Brouillon"
     },
     "summaryPlaceholder": "Résumé de cette intrigue en une phrase…",

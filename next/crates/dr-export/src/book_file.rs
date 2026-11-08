@@ -464,6 +464,14 @@ fn uuid_at(s: &[u8]) -> bool {
 }
 
 impl Rewrite {
+    /// A document's new id: its owner's id swapped (`node:<id>`,
+    /// `template:category:<id>`…), whatever form the owner's id takes.
+    fn doc_id(&self, id: &str) -> Option<String> {
+        let (prefix, owner) = id.rsplit_once(':')?;
+        let new = self.ids.get(owner)?;
+        Some(format!("{prefix}:{new}"))
+    }
+
     /// `s` with every mapped id in it replaced (an id that is the whole
     /// string, or a uuid inside a longer one) and every `@<peer>` of a
     /// mapped genesis peer moved.
@@ -794,7 +802,7 @@ fn rewrite_for(read: &Contents) -> Result<Rewrite> {
         doc.import(bytes)
             .map_err(|e| BookFileError::Damaged(e.to_string()))?;
         let new_id = rw
-            .string(&d.id)
+            .doc_id(&d.id)
             .ok_or_else(|| BookFileError::Damaged(format!("{}: no new id", d.id)))?;
         match genesis_of(&doc, &d.id) {
             Some(old) => {
@@ -876,7 +884,7 @@ pub fn import_book(
             written.assets.push(new.clone());
         }
         for (d, bytes) in &read.docs {
-            let new_id = rw.string(&d.id).expect("mapped");
+            let new_id = rw.doc_id(&d.id).expect("mapped");
             let doc_id =
                 DocId::parse(&new_id).map_err(|e| BookFileError::Damaged(e.to_string()))?;
             let doc = rw.doc(bytes)?;

@@ -169,6 +169,35 @@ fn book_documents_are_recorded_as_indexed() {
     lib.close().unwrap();
 }
 
+/// A body template is written like any page but is not the book's text:
+/// indexed as empty, so search, counts, the outline and references never
+/// see it.
+#[test]
+fn templates_are_indexed_as_empty() {
+    let dir = tempfile::tempdir().unwrap();
+    let (lib, _) = open(dir.path(), true);
+    for id in ["template:category:c1", "template:storyline:s1"] {
+        let id = DocId::parse(id).unwrap();
+        let h = open_doc(&lib, &id);
+        let mut p = ProseDoc::create(id.clone(), 5).unwrap();
+        write(&h, &mut p, |t| {
+            t.insert_paragraphs(0, "外貌\n安娜的姐姐")?;
+            t.set_heading(0, Some(Heading::H1))?;
+            t.link_entity(3..5, &link("anna"))
+        });
+        assert!(h.reindex_now().unwrap());
+        let stats = lib.doc_stats(&id.to_string()).unwrap().unwrap();
+        assert_eq!((stats.words, stats.paragraphs), (0, 0));
+        assert!(lib.outline(&id.to_string()).unwrap().is_empty());
+        h.close();
+    }
+    assert!(lib.stale_index_docs().unwrap().is_empty());
+    assert!(lib.search(Some("b1"), "姐姐", 10).unwrap().is_empty());
+    assert!(lib.search(Some("b1"), "外貌", 10).unwrap().is_empty());
+    assert!(lib.references_to("anna").unwrap().is_empty());
+    lib.close().unwrap();
+}
+
 /// Random typing, Enters, deletes across paragraphs, headings and links
 /// through a real holder: after every derivation (a paragraph patch written
 /// by dr-store) the stored rows are what a full read gives.

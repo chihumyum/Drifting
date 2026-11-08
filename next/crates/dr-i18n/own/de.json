@@ -63,6 +63,18 @@
         "label": "Idee",
         "desc": "Freie Ideenkarte, unabhängig von Handlungssträngen."
       }
+    },
+    "warnings": {
+      "imagesDropped_one": "{{count}} Bild wurde nicht importiert",
+      "imagesDropped_other": "{{count}} Bilder wurden nicht importiert",
+      "notUtf8": "Kein UTF-8-Text; einige Zeichen wurden ersetzt"
+    }
+  },
+  "notifications": {
+    "markdownFolder": {
+      "issue": {
+        "owned": "Diesen Ordner verwaltet eine andere Drifting-Installation; nichts wurde gelesen oder geschrieben"
+      }
     }
   }
 }

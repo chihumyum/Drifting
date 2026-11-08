@@ -13,13 +13,16 @@ chrono.workspace = true
 dr-i18n.workspace = true
 dr-shell.workspace = true
 dr-ui.workspace = true
+dr-view-shelf-art.workspace = true
 dr-workspace.workspace = true
 futures.workspace = true
 gpui.workspace = true
 log.workspace = true
 
 [dev-dependencies]
+chrono.workspace = true
 dr-store.workspace = true
 dr-testkit.workspace = true
+dr-view-shelf-art.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
 tempfile.workspace = true
