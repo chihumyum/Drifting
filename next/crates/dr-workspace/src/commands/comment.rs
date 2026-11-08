@@ -386,30 +386,16 @@ pub struct TodoProjected {
 
 /// What a projected TODO keeps in its metadata: the version of the prose
 /// it was made from (peer → operations seen), so another device deletes it
-/// only once it has that prose too; and the text it was seeded with, so a
-/// body two devices seeded at once can be put back (see
-/// [`doubled_seed`]).
+/// only once it has that prose too. (Round six also kept the seeded text,
+/// to put back a body two devices had both seeded; dr-doc's seed change,
+/// `BookTxn::project_todo`, makes that impossible, and a stored `seed` is
+/// ignored.)
 #[derive(Default, Serialize, Deserialize)]
 struct ProjectionMeta {
     #[serde(default)]
     kind: String,
     #[serde(default)]
     prose_vv: BTreeMap<String, i64>,
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    seed: String,
-}
-
-/// The seed a projected TODO's body should be put back to: two devices that
-/// project the same marker before they sync write one entity (its id comes
-/// from the marker), but its body is a text both inserted the seed into, so
-/// after the merge it reads twice. `Some(seed)` when the body is exactly the
-/// seed repeated; both devices then make the same deletion.
-pub(crate) fn doubled_seed(c: &Comment) -> Option<String> {
-    c.projection.as_ref()?;
-    let m: ProjectionMeta = serde_json::from_str(c.metadata.as_deref()?).ok()?;
-    let seed = m.seed;
-    let (n, k) = (c.body.len(), seed.len());
-    (k > 0 && n > k && n % k == 0 && c.body == seed.repeat(n / k)).then_some(seed)
 }
 
 const MARKER_META_KIND: &str = "todo-autoparse";
@@ -500,24 +486,24 @@ op! {
         }
         let prose_vv: BTreeMap<String, i64> =
             vv.iter().map(|(p, c)| (p.to_string(), i64::from(*c))).collect();
-        let meta = |seed: &str| serde_json::to_string(&ProjectionMeta {
+        let meta = serde_json::to_string(&ProjectionMeta {
             kind: MARKER_META_KIND.to_string(),
-            prose_vv: prose_vv.clone(),
-            seed: seed.to_string(),
-        }).map_err(|e| WsError::Internal(e.to_string()));
-        let create: Vec<(BlockId, String, String)> = create.into_iter()
-            .map(|(b, body)| Ok((b, meta(&body)?, body)))
-            .collect::<Result<_>>()?;
+            prose_vv,
+        }).map_err(|e| WsError::Internal(e.to_string()))?;
         let agent = matches!(cx.actor(), crate::Actor::Agent { .. });
         let (d2, c2, r2, rm2) = (doc.clone(), create.clone(), rels.clone(), remove.clone());
         let created = cx.write_book(&slot, move |txn| {
             let mut ids = Vec::new();
-            for (b, meta, body) in &c2 {
-                let (id, w) = txn.projected_todo(&ProjectionKind::Marker, &d2, b)?;
-                w.body(body)?.status(&CommentStatus::Open)?
-                    .author_kind(if agent { &CommentAuthorKind::Ai } else { &CommentAuthorKind::User })?
+            // dr-doc's seed change writes kind, target, block, the task as
+            // the body and the status, the same on every device; only the
+            // rest is ordinary writes. (The holder set this write's commit
+            // options before it ran, so the seed's import barrier commits
+            // nothing without an origin; see `crate::holder`.)
+            for (b, task) in &c2 {
+                let (id, w) = txn.project_todo(&ProjectionKind::Marker, &d2, b, task)?;
+                w.author_kind(if agent { &CommentAuthorKind::Ai } else { &CommentAuthorKind::User })?
                     .source(if agent { &CommentSource::Api } else { &CommentSource::Manual })?
-                    .metadata(Some(meta))?
+                    .metadata(Some(&meta))?
                     .created_at(Some(now()))?.updated_at(Some(now()))?;
                 ids.push(id);
             }

@@ -449,6 +449,8 @@ pub fn import_into_library(
 /// The staged and checked 0.1 library, ready to write.
 struct Analysed {
     started_ms: i64,
+    /// The 0.1 database imported (recorded in the receipt).
+    source: PathBuf,
     staging_dir: PathBuf,
     staged: Staged,
     legacy: Legacy,
@@ -502,6 +504,7 @@ fn stage_and_gate(
     }
     Ok(Gated::Clear(Box::new(Analysed {
         started_ms,
+        source: source.to_path_buf(),
         staging_dir,
         staged,
         legacy,
@@ -529,6 +532,7 @@ fn write_library(
 ) -> Result<Written> {
     let Analysed {
         started_ms,
+        source,
         staging_dir,
         staged,
         legacy,
@@ -540,6 +544,8 @@ fn write_library(
             tx,
             &receipt::RunStart {
                 started_ms,
+                source_database: &source,
+                source_root: options.old_root.as_deref(),
                 source_sha256: &staged.source.sha256,
                 source_bytes: staged.source.database_bytes + staged.source.wal_bytes,
                 schema_level_before: staged.level_before.applied,

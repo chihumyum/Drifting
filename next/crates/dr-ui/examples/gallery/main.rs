@@ -94,6 +94,8 @@ pub struct Gallery {
     pub intro: Entity<TextArea>,
     pub chapter_title: Entity<TextArea>,
     pub synopsis: Entity<TextArea>,
+    /// A form's summary: the multi-line field in its slip.
+    pub summary: Entity<TextArea>,
     pub menu_open: bool,
     pub dialog_open: bool,
     pub notice: bool,
@@ -152,6 +154,11 @@ impl Gallery {
                 .with_text("第三章　灯塔在退潮的夜里第二次亮起")
         });
         let synopsis = cx.new(|cx| TextArea::new("synopsis", window, cx).placeholder("梗概…"));
+        let summary = cx.new(|cx| {
+            TextArea::new("summary", window, cx)
+                .framed(3.0)
+                .with_text("港口起雾的那一年，守灯人收到了一封没有署名的信。")
+        });
         Gallery {
             page: Page::Controls,
             appearance: Appearance::Light,
@@ -168,6 +175,7 @@ impl Gallery {
             intro,
             chapter_title,
             synopsis,
+            summary,
             menu_open: false,
             dialog_open: false,
             notice: true,

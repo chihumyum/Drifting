@@ -4,10 +4,14 @@
 //! `PlotGrid.tsx`, `usePlotGridDraft.ts`), which F3 follows where the 0.1
 //! Agent tool (one Markdown table replacing the whole grid) differed:
 //!
-//! - A node without a grid shows an empty 3 × 3 one; `plot_grid.create`
-//!   stores it (three rows, three columns, labels empty, cells 184 × 96)
-//!   the first time the author edits. It is never deleted, only cleared;
-//!   purging the node takes it along.
+//! - A node without a grid shows an empty 3 × 3 one whose rows and columns
+//!   already have their ids (dr-doc's `PlotRowId::default_for` /
+//!   `PlotColId::default_for`), so the interface can address them before
+//!   anything is stored. `plot_grid.create`, or any first edit, stores it
+//!   with dr-doc's seed change (`BookTxn::create_plot_grid`): two devices
+//!   storing the grid before they sync get one 3 × 3 grid, and a label
+//!   typed on one is never overwritten by the other's late default. It is
+//!   never deleted, only cleared; purging the node takes it along.
 //! - Rows and columns are addressed by id. A new one goes first or right
 //!   after another; labels are any text, empty shows the placeholder, never
 //!   trimmed; moving goes first or right after another (not after itself).
@@ -19,7 +23,9 @@
 //!   before it asks; `PLOT-GRID`).
 
 use dr_doc::book::Collection;
-use dr_model::book::{PLOT_CELL_H, PLOT_CELL_W, PlotGrid};
+use dr_model::book::{
+    PLOT_CELL_H, PLOT_CELL_W, PLOT_DEFAULT_CELL, PLOT_DEFAULT_LINES, PlotGrid, PlotLine,
+};
 use dr_model::id::{NodeId, PlotColId, PlotRowId};
 use dr_model::pos::PosKey;
 use schemars::JsonSchema;
@@ -42,8 +48,8 @@ pub(crate) fn register(r: &mut Registry) {
 }
 
 /// The size of a new grid's cells, and its rows and columns.
-pub const DEFAULT_CELL: (f64, f64) = (184.0, 96.0);
-pub const DEFAULT_LINES: usize = 3;
+pub const DEFAULT_CELL: (f64, f64) = PLOT_DEFAULT_CELL;
+pub const DEFAULT_LINES: usize = PLOT_DEFAULT_LINES;
 
 /// Rows or columns.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -71,7 +77,8 @@ pub struct CellInfo {
 pub struct PlotGridInfo {
     pub node: String,
     /// Whether the grid is stored; when not, the rest is the empty 3 × 3
-    /// grid to show (no ids yet: `plot_grid.create` stores it).
+    /// grid to show, with the ids it will be stored with (any edit, or
+    /// `plot_grid.create`, stores it).
     pub exists: bool,
     pub cell_w: f64,
     pub cell_h: f64,
@@ -85,13 +92,8 @@ impl PlotGridInfo {
     fn of(node: &NodeId, g: Option<&PlotGrid>) -> Self {
         let Some(g) = g else {
             return PlotGridInfo {
-                node: node.to_string(),
                 exists: false,
-                cell_w: DEFAULT_CELL.0,
-                cell_h: DEFAULT_CELL.1,
-                rows: Vec::new(),
-                columns: Vec::new(),
-                cells: Vec::new(),
+                ..PlotGridInfo::of(node, Some(&default_grid(node)))
             };
         };
         let line = |id: String, pos: &Option<PosKey>, label: &str| LineInfo {
@@ -137,11 +139,41 @@ fn node_of(slot: &BookSlot, id: &str) -> Result<NodeId> {
     }
 }
 
-fn grid_of(slot: &BookSlot, node: &NodeId) -> Result<PlotGrid> {
+/// The grid `node` shows before one is stored: what dr-doc's seed change
+/// (`BookTxn::create_plot_grid`) writes.
+fn default_grid(node: &NodeId) -> PlotGrid {
+    fn lines<I>(id: impl Fn(usize) -> I) -> Vec<PlotLine<I>> {
+        let mut pos = PosKey::first();
+        (1..=DEFAULT_LINES)
+            .map(|n| {
+                if n > 1 {
+                    pos = pos.after();
+                }
+                PlotLine {
+                    id: id(n),
+                    pos: Some(pos.clone()),
+                    label: String::new(),
+                }
+            })
+            .collect()
+    }
+    PlotGrid {
+        chapter: node.clone(),
+        cell_w: DEFAULT_CELL.0,
+        cell_h: DEFAULT_CELL.1,
+        rows: lines(|n| PlotRowId::default_for(node, n)),
+        cols: lines(|n| PlotColId::default_for(node, n)),
+        cells: Default::default(),
+    }
+}
+
+/// `node`'s grid, or the default one it shows before it is stored (a write
+/// stores it: [`dr_doc::book::BookTxn::create_plot_grid`] first).
+fn grid_of(slot: &BookSlot, node: &NodeId) -> PlotGrid {
     slot.reader
         .view()
         .plot_grid(node)
-        .ok_or_else(|| WsError::not_found("plot grid", node.as_str()))
+        .unwrap_or_else(|| default_grid(node))
 }
 
 /// One axis's lines as (id, position), in order.
@@ -184,7 +216,7 @@ fn write_line(
     pos: &PosKey,
     label: &str,
 ) -> Result<()> {
-    let w = txn.plot_grid(node)?;
+    let w = txn.create_plot_grid(node)?;
     match axis {
         Axis::Row => w.row(&pid::<PlotRowId>("row", id)?, &pos.to_string(), label)?,
         Axis::Column => w.col(&pid::<PlotColId>("column", id)?, &pos.to_string(), label)?,
@@ -219,24 +251,8 @@ op! {
             cx.undo_nothing();
             return Ok(PlotGridInfo::of(&node, Some(&g)));
         }
-        let rows: Vec<PlotRowId> = (0..DEFAULT_LINES).map(|_| PlotRowId::new_v7()).collect();
-        let cols: Vec<PlotColId> = (0..DEFAULT_LINES).map(|_| PlotColId::new_v7()).collect();
         let n2 = node.clone();
-        cx.write_book(&slot, move |txn| {
-            let w = txn.plot_grid(&n2)?;
-            w.cell_w(DEFAULT_CELL.0)?.cell_h(DEFAULT_CELL.1)?;
-            let mut p = PosKey::first();
-            for (i, r) in rows.iter().enumerate() {
-                if i > 0 { p = p.after(); }
-                w.row(r, &p.to_string(), "")?;
-            }
-            let mut p = PosKey::first();
-            for (i, c) in cols.iter().enumerate() {
-                if i > 0 { p = p.after(); }
-                w.col(c, &p.to_string(), "")?;
-            }
-            Ok(())
-        })?;
+        cx.write_book(&slot, move |txn| { txn.create_plot_grid(&n2)?; Ok(()) })?;
         cx.effect(EffectAction::Created, "plot_grid", node.as_str(), None);
         // The undo of the first edit leaves an empty grid, as 0.1 did.
         cx.undo_nothing();
@@ -258,13 +274,13 @@ op! {
     fn(cx, input: GridSizeIn) -> Done {
         let slot = cx.book(&input.book)?;
         let node = node_of(&slot, &input.node)?;
-        let g = grid_of(&slot, &node)?;
+        let g = grid_of(&slot, &node);
         if !(input.cell_w.is_finite() && input.cell_h.is_finite()) {
             return Err(WsError::invalid("cell size must be finite"));
         }
         dr_model::check::plot_cell_size(input.cell_w, input.cell_h)?;
         let (n2, w, h) = (node.clone(), input.cell_w, input.cell_h);
-        cx.write_book(&slot, move |txn| { txn.plot_grid(&n2)?.cell_w(w)?.cell_h(h)?; Ok(()) })?;
+        cx.write_book(&slot, move |txn| { txn.create_plot_grid(&n2)?.cell_w(w)?.cell_h(h)?; Ok(()) })?;
         cx.effect(EffectAction::Updated, "plot_grid", node.as_str(), None);
         cx.undo_with(Invocation::new("plot_grid.size", GridSizeIn {
             book: input.book.clone(), node: input.node.clone(), cell_w: g.cell_w, cell_h: g.cell_h,
@@ -297,7 +313,7 @@ op! {
     fn(cx, input: LineAddIn) -> Done {
         let slot = cx.book(&input.book)?;
         let node = node_of(&slot, &input.node)?;
-        let g = grid_of(&slot, &node)?;
+        let g = grid_of(&slot, &node);
         let id = match &input.id {
             Some(i) => {
                 if lines(&g, input.axis).iter().any(|(x, _, _)| x == i) {
@@ -351,7 +367,7 @@ op! {
     fn(cx, input: LineUpdateIn) -> Done {
         let slot = cx.book(&input.book)?;
         let node = node_of(&slot, &input.node)?;
-        let g = grid_of(&slot, &node)?;
+        let g = grid_of(&slot, &node);
         let (_, old_pos, old_label) = lines(&g, input.axis).into_iter().find(|(i, _, _)| *i == input.id)
             .ok_or_else(|| WsError::not_found("row or column", &input.id))?;
         if input.after.as_ref().is_some_and(|a| a.as_deref() == Some(input.id.as_str())) {
@@ -391,7 +407,7 @@ op! {
     fn(cx, input: LineIn) -> Done {
         let slot = cx.book(&input.book)?;
         let node = node_of(&slot, &input.node)?;
-        let g = grid_of(&slot, &node)?;
+        let g = grid_of(&slot, &node);
         let all = lines(&g, input.axis);
         let (_, pos, label) = all.iter().find(|(i, _, _)| *i == input.id).cloned()
             .ok_or_else(|| WsError::not_found("row or column", &input.id))?;
@@ -415,7 +431,7 @@ op! {
         };
         let (n2, axis, i2) = (node.clone(), input.axis, input.id.clone());
         cx.write_book(&slot, move |txn| {
-            let w = txn.plot_grid(&n2)?;
+            let w = txn.create_plot_grid(&n2)?;
             for o in &others {
                 let (r, c) = match axis { Axis::Row => (i2.as_str(), o.as_str()), Axis::Column => (o.as_str(), i2.as_str()) };
                 w.cell(&pid("row", r)?, &pid("column", c)?, None)?;
@@ -461,7 +477,7 @@ op! {
     fn(cx, input: CellIn) -> Done {
         let slot = cx.book(&input.book)?;
         let node = node_of(&slot, &input.node)?;
-        let g = grid_of(&slot, &node)?;
+        let g = grid_of(&slot, &node);
         let row: PlotRowId = pid("row", &input.row)?;
         let col: PlotColId = pid("column", &input.column)?;
         if !g.rows.iter().any(|r| r.id == row) { return Err(WsError::not_found("row", &input.row)); }
@@ -473,7 +489,7 @@ op! {
         }
         let (n2, t2) = (node.clone(), input.text.clone());
         cx.write_book(&slot, move |txn| {
-            txn.plot_grid(&n2)?.cell(&row, &col, (!t2.is_empty()).then_some(t2.as_str()))?;
+            txn.create_plot_grid(&n2)?.cell(&row, &col, (!t2.is_empty()).then_some(t2.as_str()))?;
             Ok(())
         })?;
         cx.effect(EffectAction::Updated, "plot_grid", node.as_str(), None);
@@ -488,10 +504,14 @@ op! {
     fn(cx, input: GridIn) -> Done {
         let slot = cx.book(&input.book)?;
         let node = node_of(&slot, &input.node)?;
-        let g = grid_of(&slot, &node)?;
+        // Nothing stored: nothing to clear.
+        let Some(g) = slot.reader.view().plot_grid(&node) else {
+            cx.undo_nothing();
+            return Ok(Done { id: input.node });
+        };
         let n2 = node.clone();
         let (_, before) = cx.write_book(&slot, move |txn| {
-            let w = txn.plot_grid(&n2)?;
+            let w = txn.create_plot_grid(&n2)?;
             for r in &g.rows { w.row(&r.id, &r.pos.as_ref().map(|p| p.to_string()).unwrap_or_default(), "")?; }
             for c in &g.cols { w.col(&c.id, &c.pos.as_ref().map(|p| p.to_string()).unwrap_or_default(), "")?; }
             for (r, c) in g.cells.keys() { w.cell(r, c, None)?; }

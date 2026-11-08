@@ -35,6 +35,7 @@
 pub mod focus;
 pub mod ledger;
 pub mod looks;
+pub mod original;
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
@@ -71,7 +72,8 @@ use crate::view::{ChapterEditor, ChapterEditorEvent};
 
 pub use focus::ReviewFocus;
 pub use ledger::{AgentMarks, Mark, MarkKind};
-pub use looks::DecorLooks;
+pub use looks::{DecorLooks, block_style};
+pub use original::{Original, original};
 
 /// How long the links wait after the last keystroke before they are found
 /// again (the old client's anchors waited 150 ms).

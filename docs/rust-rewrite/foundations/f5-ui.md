@@ -1,6 +1,6 @@
 # F5 dr-ui：设计系统
 
-2026-11-07 起，分支 `claude/f5-ui-254e54`。代码在 `next/crates/dr-ui`，样张程序是它的 `examples/gallery`，截图在 [f5/](f5/)。第二个里程碑（同日）把 F6 外壳用底层件拼的几样收了进来：Panel Tab 用的推进版多选一、cell 的悬停环、数值滑块和数字框、图标按钮的读屏名字、能拖的药丸组。第三个里程碑（11-08）：单行输入的组字改用 F4 拆出来的共用 crate `gpui-ime`，失焦一律「清掉 + 让系统丢弃」；标签坞整个做成了组件 `TabDock`（小点长成药丸、其余药丸让位、拖离药丸行时原位收拢）。第四个里程碑（同日，main `15299820` 之后）给书架、作品主页和章节页出了三样：没有边框、字号字重跟着外面的字走的单行输入（`TextField::bare`），同样没有边框、自动换行、按内容长高的多行输入 `TextArea`（回车换段，或者对标题来说回车就是提交），悬停变危险色的图标按钮（`PanelIconButton::danger`）；还查了 GPUI 读屏树的缓存视图问题 G7，dr-ui 碰不到。第五轮（同日，main `1652a95e` 之后）：对话框的「点 ✕」和「点外面的雾」分成两个回调；界面文字有了按中文规则换行的文字元素 `text::wrapped`（「，」「。」不落行首）；章节页的章首章末（M03）做成了新 crate `dr-view-page`，见 [m03-page.md](../modules/m03-page.md)，dr-ui 为它加了页面的字号间距令牌 `tokens::page`、带图标的紧凑 cell、多行输入的「↓ 到底」事件。
+2026-11-07 起，分支 `claude/f5-ui-254e54`。代码在 `next/crates/dr-ui`，样张程序是它的 `examples/gallery`，截图在 [f5/](f5/)。第二个里程碑（同日）把 F6 外壳用底层件拼的几样收了进来：Panel Tab 用的推进版多选一、cell 的悬停环、数值滑块和数字框、图标按钮的读屏名字、能拖的药丸组。第三个里程碑（11-08）：单行输入的组字改用 F4 拆出来的共用 crate `gpui-ime`，失焦一律「清掉 + 让系统丢弃」；标签坞整个做成了组件 `TabDock`（小点长成药丸、其余药丸让位、拖离药丸行时原位收拢）。第四个里程碑（同日，main `15299820` 之后）给书架、作品主页和章节页出了三样：没有边框、字号字重跟着外面的字走的单行输入（`TextField::bare`），同样没有边框、自动换行、按内容长高的多行输入 `TextArea`（回车换段，或者对标题来说回车就是提交），悬停变危险色的图标按钮（`PanelIconButton::danger`）；还查了 GPUI 读屏树的缓存视图问题 G7，dr-ui 碰不到。第五轮（同日，main `1652a95e` 之后）：对话框的「点 ✕」和「点外面的雾」分成两个回调；界面文字有了按中文规则换行的文字元素 `text::wrapped`（「，」「。」不落行首）；章节页的章首章末（M03）做成了新 crate `dr-view-page`，见 [m03-page.md](../modules/m03-page.md)，dr-ui 为它加了页面的字号间距令牌 `tokens::page`、带图标的紧凑 cell、多行输入的「↓ 到底」事件。第六轮（同日，main `60d510a6` 之后，先合进了 F4e 第四批）：章节页接上 F4 的幕扉页数据和构想页；翻页叠化把进度交给页面（`PageTurn::with_level`）；带框的多行输入（`TextArea::framed`）；色标和取色器（`ColorSwatch`，点开系统自己的取色板，和旧版一样）；书架的封面、写作热力图和近 30 天砂条（M25）做成新 crate `dr-view-shelf-art`，见 [m25-shelf-art.md](../modules/m25-shelf-art.md)。
 
 ## 一句话
 
@@ -52,7 +52,7 @@ cargo run --release -p dr-ui --features capture --example gallery -- --bench <�
 
 都是 2 倍像素、压成了 256 色（24 张共 1.5 MB，最大一张 104 KB），内容全是合成的。截图时时钟停住，所以流动和转圈停在某一刻；「过渡进行中」两张是触发后 140 ms（砂笔框是 260 ms）的那一帧；控件页截图时指针停在「字号」的圆钮上，所以它周围有一圈圆玻璃；输入页截图时章节标题正在组字（行尾带下划线的 deng ta，光标在它后面），指针停在书卡的字纸篓上。
 
-256 色的调色板用八叉树取，不用中位切分：上一轮用中位切分，调色板几乎全花在桌面和稿纸的灰上，几像素宽的故事线颜色（紫、绿、黄）被并成了同一种蓝，第一个里程碑截图里的章节记号和筛选片颜色是错的，第二个里程碑全部重截过。第三个里程碑只重截了过渡页（多了标签坞，药丸拖离行时会收拢）。第四个里程碑全部重截：顶上多了「输入」一页，每张的页面切换行都变了；页面本身除了新的输入页没有改动。第五轮只重截了浮层页和对话框（悬停卡摘要、对话框副标题改按中文规则换行，摘要末尾的「。」现在悬挂在「旧港」后面，不再单独落到下一行），别的页面沿用。
+256 色的调色板用八叉树取，不用中位切分：上一轮用中位切分，调色板几乎全花在桌面和稿纸的灰上，几像素宽的故事线颜色（紫、绿、黄）被并成了同一种蓝，第一个里程碑截图里的章节记号和筛选片颜色是错的，第二个里程碑全部重截过。第三个里程碑只重截了过渡页（多了标签坞，药丸拖离行时会收拢）。第四个里程碑全部重截：顶上多了「输入」一页，每张的页面切换行都变了；页面本身除了新的输入页没有改动。第五轮只重截了浮层页和对话框（悬停卡摘要、对话框副标题改按中文规则换行，摘要末尾的「。」现在悬挂在「旧港」后面，不再单独落到下一行），别的页面沿用。第六轮只重截了输入页：左边多了带框的多行输入，右下多了三个色标（故事线的短横、类目的折角、写出值的砂笔团）。
 
 | 页面 | 浅色 | 深色 |
 | --- | --- | --- |
@@ -106,20 +106,21 @@ gpui_platform::application()
 | `NumberField`（数字框） | 滑块旁边的小号等宽单行输入框，单位作为读数写在框尾，框里上下两枚平面细笔折微调；停用时连同笔折一起停用 | `NumberField::new(id, 值, 最小, 最大).decimals(2).unit("px").label(名字).on_change(…).disabled(b)`。打字时只有在范围内的数才立即预览；回车或离开时越界的收回到端点、不是数就恢复原值；↑↓ 和笔折按最后一位（整数为 1）加减 |
 | `Select`（下拉） | 触发器是一块单行输入框：当前项的记号、名字、末尾一笔折；展开是菜单外壳的列表，与触发器同宽、不窄于 240，当前项中等字重带勾 | `Select::new(id, vec![Choice::new(图标或记号, 名字)], i).on_change(…).disabled(bool)` |
 | `Menu` / `MenuItem` | 桌面色不透明底、16 px 圆角、静止细玻璃边、浮起投影；宽 240 / 320 / 420；每行左图标右文字，悬停时这一行沿自己的圆角流出发丝玻璃环，字色不变；分组用 0.5 px 发丝线 | `Menu::new(id).width(MenuWidth::Wide).item(MenuItem::new(id, 图标, 文字).checked(b).danger()).separator(&t).section("写作状态", &t)` |
-| `HoverCard` / `CardBody` / `CardAction` | 停 220 ms 出卡，离开有 220 ms 宽限；点对象、所在列表滚动都收起；卡宽 248、一个字号、只有标题加粗；能按的东西在卡底部一行一个，危险项在最后一节 | `HoverCard::new(id, 对象元素, \|w, cx\| CardBody::new(id, 标题).mark(…).count(…).summary(…).section(vec![CardAction…]))` |
+| `HoverCard` / `CardBody` / `CardAction` | 停 220 ms 出卡，离开有 220 ms 宽限；点对象、所在列表滚动都收起；卡宽 248、一个字号、只有标题加粗；能按的东西在卡底部一行一个，危险项在最后一节；`.beside()` 贴在对象旁边（侧栏里的卡用，F4d 第四轮）；`CardBody::quote(字, 附注)` 是一张稿纸色小纸条上的一段原文（旧版 `.hover-card__quote`） | `HoverCard::new(id, 对象元素, \|w, cx\| CardBody::new(id, 标题).mark(…).count(…).summary(…).section(vec![CardAction…]))` |
 | `overlay::float` / `Dialog` | 只有一个浮层层、一个定位函数（见下面的「浮层」）；对话框是直角桌面色、半像素墨线加投影，背后蒙一层桌面色薄雾 | `overlay::float(Place, Layer, 元素)`；`Dialog::new(id, 标题).eyebrow(…).subtitle(…).body(…).action(…).on_close(…).on_mist(…)`。`on_close` 是右上角的 ✕（给了才有 ✕）；点雾默认和 ✕ 一样，给了 `on_mist` 就改走它（写了一半的话时不关：`.on_mist(\|w, cx\| if 没写字 { 关 })`；`\|_, _\| {}` 让雾不响应） |
 | `NotificationPill` | 浮在工作上的一张不透明稿纸色小片，静止细玻璃线、小圆角；160 ms 上移 3 px 浮入，离开整块淡出 | `NotificationPill::new(id, 文字).icon(Icon).danger().action(Button).shown(bool)` |
 | `EmptyState` | 一句平实的话（次级墨、居中、不斜体），上面是缺的那类东西的空心记号或这个地方的淡图标，下面可跟一个文字按钮和「从哪里开始」的快捷键行 | `EmptyState::new(id, 话).mark(Kind)/.icon(Icon).action(Button).hint(动作, 快捷键)` |
 | `Loading` / `Progress` | 缺角圆相 0.9 s 一圈，等待超过 240 ms 才出现、再 0.16 s 淡入；块级 20 px 字在下，行内 14 px；进度是 1 px 轨道加 2 px 强调色填充，不知道总量时一小段来回走 | `Loading::new(id).inline().label(…)`；`Progress::new(Some(0.6) / None)` |
 | `TextField`（单行输入） | 稿纸色片加静止细玻璃线，悬停流动，光标在里面时是静止的选中玻璃；搜索框前有搜索图标、框尾有等宽读数。`.bare()` 是无边框的：没有玻璃、底色、内边距和自己的高度，字体、字号、字重、行高、颜色都用外面的字的，放在页面上和旁边的字一模一样，只有光标、选区和占位字（墨 4）是自己的 | `cx.new(\|cx\| TextField::new(id, window, cx).placeholder(…).icon(Icon::Search))`，订阅 `FieldEvent::{Changed, Submitted, Cancelled, Blurred}`；原地改书名：`TextField::new(id, window, cx).bare().with_text(书名)`，外面包一层定好字体字号的 `div`；`select_all_text(cx)` 全选 |
-| `TextArea`（多行输入） | 无边框，规则同 `.bare()` 的单行输入：字体字号颜色都跟外面；按自己的宽度自动换行，一行一行长高。断行用编辑器同一套中文规则（`prose-linebreak`：「。」和后引号不落行首、英文单词不拆、放不下的标点悬挂在行尾） | `TextArea::new(id, window, cx).placeholder(…).with_text(…)`，事件同上；`.submit_on_enter()` 给会换行的标题：回车就是提交，粘贴和输入法送来的换行变成空格。⌘↵ / Ctrl+Enter 两种都提交，Esc 取消；`rows()` 是上一次排出来几行，`select_all_text(cx)` 全选；另一种事件 `AreaEvent::PastEnd`：光标已经在最后时再按 ↓（章节标题借它进正文） |
+| `TextArea`（多行输入） | 无边框，规则同 `.bare()` 的单行输入：字体字号颜色都跟外面；按自己的宽度自动换行，一行一行长高。断行用编辑器同一套中文规则（`prose-linebreak`：「。」和后引号不落行首、英文单词不拆、放不下的标点悬挂在行尾）。`.framed(行数)` 是带框的（旧版 `ui-field--area`）：和单行框一样的稿纸片加静止细玻璃线，光标在里面时是选中玻璃，内边距 8 × 12、圆角 16、界面正文字，至少几行高、随字长高，点框的内边距也进框 | `TextArea::new(id, window, cx).placeholder(…).with_text(…)`，事件同上；`.submit_on_enter()` 给会换行的标题：回车就是提交，粘贴和输入法送来的换行变成空格。⌘↵ / Ctrl+Enter 两种都提交，Esc 取消；`rows()` 是上一次排出来几行，`select_all_text(cx)` 全选；另一种事件 `AreaEvent::PastEnd`：光标已经在最后时再按 ↓（章节标题借它进正文）；表单的梗概 `.framed(3.0)`，本书简介 `.framed(4.0)` |
+| `ColorSwatch`（色标与取色器，旧版的 `ColorPicker`） | 28 px 的圆形玻璃里一团这个颜色的砂笔（或这类东西自己的记号：故事线的短横、类目的折角），可以在旁边用等宽字写出 `#RRGGBB`。点一下打开系统自己的取色板，和旧版的 `<input type=color>` 一样：macOS 是共享的颜色面板（色轮、滑块、调色板；不关、拖着时颜色跟着变），Windows 是系统的颜色对话框 | `ColorSwatch::new(id, 颜色).mark(Kind::Storyline).label(读屏名).show_value().on_pick(\|颜色, w, cx\| …)`；存的时候用 `components::color::hex(颜色)`（`#rrggbb`），读用 `parse_hex`。测试里用 `color::set_color_picker(cx, \|当前, 回调, w, cx\| …)` 换掉系统的（测试窗口没有平台句柄，不换也什么都不开） |
 
 ### 浮层
 
 旧客户端有四套浮层外壳（悬停卡 `HoverCardShell`、图上点开能展开成编辑器的卡 `EntityCardPopoverShell`、菜单 `AnchoredPopover`、按点位弹出的 `ContextMenuSurface`）加 `Modal`，定位函数四个，共约 2.4k 行。dr-ui 只有一个浮层层和一个定位函数：
 
 - `overlay::float(Place, Layer, 元素)`：用 GPUI 的 `deferred` 画在整个窗口之上（相当于旧版 portal 到 `body`、`position: fixed`），`Layer` 是 `Popover` < `Dialog` < `Notice`。
-- `Place` 有三种锚：`Place::Rect { rect, align, gap }`（贴着一个矩形：下方，按起点 / 居中 / 终点对齐，下面放不下就翻到上面）、`Place::Point(点)`（左上角对着这个点，碰到窗口边就往左、往上翻）、`Place::Center`（窗口正中）。不管哪种都留在窗口里 8 px 以内。
+- `Place` 有四种锚：`Place::Rect { rect, align, gap }`（贴着一个矩形：下方，按起点 / 居中 / 终点对齐，下面放不下就翻到上面）、`Place::Beside { rect, gap }`（贴在矩形旁边、顶边对齐：右边放不下而左边更宽就放左边，旧版的 `right-start`；F4d 第四轮为审阅卡的来源卡加的）、`Place::Point(点)`（左上角对着这个点，碰到窗口边就往左、往上翻）、`Place::Center`（窗口正中）。不管哪种都留在窗口里 8 px 以内。
 - 落在哪里由纯函数 `overlay::place(place, 内容尺寸, 窗口尺寸)` 算，`components/overlay.rs` 的测试守着：下方、翻到上方、贴边、按点翻转、居中。
 - 菜单、悬停卡、下拉列表、对话框都走它；以后图上点开的卡（要素全景、故事图谱）用 `Place::Point` 或 `Place::Rect`，能展开成编辑器只是卡里的内容变大，不另起外壳。悬停的停留和宽限沿用 `tokens::motion::dwell`，数值与旧版 `src/renderer/lib/motion.ts` 相同。
 - `ContextMenuSurface` 主要是手机长按菜单，新版不做右键菜单，不搬。
@@ -297,12 +298,14 @@ M3 Pro，release 构建，1280×800 的样张、2 倍屏。帧时间是离屏（
 | 首帧 | 1.5 ms（0.9；离屏，不含开窗口） | — |
 | 体积 | 字体不编进可执行文件：样张 release 15.7 MB（P0-A 的空程序 8.9 MB），字体 72 MB 在缓存或应用包的 Resources 里，映射进内存按需读；静止时常驻 68 MB | — |
 
-行为由测试守着：`cargo test -p dr-ui` 跑 72 个测试。单元测试 50 个，其中有浮层定位的 5 个、滑块和数字框的取整与读写 3 个、Panel Tab 的推进时长和手里药丸的弹簧 2 个、菜单圆角不跨两块纹理 1 个、拖动让位与落位和药丸长出的 6 个（`components/reorder.rs`：前缘过半格就让位、宽的越过窄的、离行远了收拢、落下后各自的位置、弹簧中途改方向不跳、长出时宽度只增不减且字最后出来）、标签坞 2 个、字素边界和失焦规则 2 个、多行输入双击选词三击选段 1 个。GPUI 测试平台上的行为测试 22 个：
+行为由测试守着：`cargo test -p dr-ui` 跑 76 个测试。单元测试 51 个（第六轮加了颜色的十六进制往返 1 个），其中有浮层定位的 5 个、滑块和数字框的取整与读写 3 个、Panel Tab 的推进时长和手里药丸的弹簧 2 个、菜单圆角不跨两块纹理 1 个、拖动让位与落位和药丸长出的 6 个（`components/reorder.rs`：前缘过半格就让位、宽的越过窄的、离行远了收拢、落下后各自的位置、弹簧中途改方向不跳、长出时宽度只增不减且字最后出来）、标签坞 2 个、字素边界和失焦规则 2 个、多行输入双击选词三击选段 1 个。GPUI 测试平台上的行为测试 25 个：
 - 悬停卡 200 ms 时没出、230 ms 时出了，离开后 200 ms 还在、230 ms 走了；滚动收起、指针不动不会重新弹出、真正移动后才弹；
 - 单行输入组字中不报告、回车不提交；失焦丢掉拼音、只让系统丢弃一次、迟到的上屏不收；切应用丢掉；无边框的高度是外面的一行；
 - 对话框：不给 `on_mist` 时点雾和点 ✕ 都关；给了就各走各的，点卡片里面两个都不调；
 - 界面文字：十个字宽的栏里第十一个是「，」时它悬挂、不另起一行，第十一个是汉字时才换行；`max_lines`、外面的 `line_clamp` + `text_ellipsis`、不换行、分段的高度都对；
-- 多行输入（6 个）：按宽度换行并长高、上下键对准同一列、软换行处的 End 和 Home、回车换段与提交取消、标题回车提交且不换行、失焦丢掉拼音（细节见「输入框与组字」）；
+- 多行输入（7 个）：按宽度换行并长高、上下键对准同一列、软换行处的 End 和 Home、回车换段与提交取消、标题回车提交且不换行、失焦丢掉拼音（细节见「输入框与组字」）；带框的是三行高的稿纸片、随字长高、点内边距进框；
+- 翻页叠化告诉页面它的透明度：静止时 1，翻页时底下那页 1、新页从 0 起，中途在 0 和 1 之间，翻完回到 1；
+- 色标：点一下按色标的颜色打开取色器，拖过的每个颜色都回到调用方；停用时不开；
 - 点当前的 Panel Tab 只有 `report_selected` 时才回调；
 - 滑块按下跳到指针处、拖出两端停在端点、松手后不再跟、方向键和 End 生效、到头再按不算改变；
 - 数字框打「2」不预览、打成「24」预览、越界不预览而回车收回到 28、↓ 减一、乱打后离开保持原值；
@@ -351,6 +354,10 @@ M3 Pro，release 构建，1280×800 的样张、2 倍屏。帧时间是离屏（
   - M01 `dr-view-shelf/src/view.rs` 1076 行附近（`line_clamp(2)`）。
   
   不想逐处改的话，根本的修法是给 GPUI 的 `LineWrapper` 打补丁接上同一套规则（F4 的 GPUI 补丁台账）。
+- **F6：翻页叠化交给页面，删掉 `repaint_turning`。** `stage.rs` 的 `PageTurn::new` 换成 `PageTurn::with_level(id, 页键, \|键, 透明度, w, cx\| …)`，把透明度一路传到编辑器：章节和全书编辑器自己画 `ProseEditor::element`，要 F4 给 `ChapterEditor` / `BookEditor` 一个「这一帧在这个透明度下画」的入口（里面换成 `ProseEditor::element_at_opacity`）。翻页那几帧每帧都会重画一次，翻完再按 1 画一次，所以缓存视图不会留在开头那帧的淡色。
+- **M01：表单梗概和本书简介换成 `TextArea::framed`**，删掉 `dr_view_shelf::frame::area`（M02 的本书简介 `.framed(4.0)`）。
+- **M11 类目、M13 故事线：色标换成 `ColorSwatch`**（`.mark(Kind::Category)` / `.mark(Kind::Storyline)`，`on_pick` 里 `category.update` / `storyline.update` 写 `color::hex(颜色)`）。设置里的强调色、光标色、实体链接分类色以后也用它（`.show_value()`）。
+- **F7（平台）：取色器的系统调用放在 dr-ui 里。** 和输入法的「丢弃拼音」一样，GPUI 没有取色面板的接口，dr-ui 直接在窗口的平台句柄上调：macOS 用运行时注册的小类接 `NSColorPanel` 的动作，Windows 的 `ChooseColorW` 在单独线程上开、以窗口为主人（和 GPUI 开文件对话框一样）。Windows 那段只在本机单独做了类型检查（gpui 的 Windows 构建脚本在 Mac 上跑不了），要 CI 真编译；工作区的 `windows` 依赖为它加了 `Win32_UI_Controls_Dialogs`。F7 以后要把平台对话框收到 dr-platform，可以连它一起搬。
 - **F7：反馈对话框加回 ✕ 和点雾。** `Dialog::new(…).on_close(关).on_mist(\|w, cx\| 没写字时才关)`：✕ 总是关，点雾只在消息框是空的时候关（旧版的 `closeOnBackdrop`）。
 - **F7（打包）与字体**：已接上。`next/script/bundle-mac` 拷完可执行文件后调用 `crates/dr-ui/script/install-fonts "$APP/Contents/Resources"`（缺字体时它报错并说明怎么生成）；以后的 Windows 安装包同样把字体放进可执行文件旁边的 `fonts/`。
 - **CI**：`next.yml` 在编译前生成字体并缓存，缓存键是 `provenance.json` 和生成脚本的哈希（每个平台各一份）；测试步骤设了 `DR_UI_REQUIRE_FONTS=1`。Windows 上用 `tar` 还是 `7z` 解 7z 没有实测；dr-ui 新加的 Windows 输入法调用也是第一次在 CI 上真正编译。
@@ -406,12 +413,22 @@ M3 Pro，release 构建，1280×800 的样张、2 倍屏。帧时间是离屏（
 | 2 | 界面文字换行避头尾 | 完成：`text::wrapped`，dr-ui 自己的多行文字已换；各模块的几处见「待协调」 |
 | 3 | M03 章首章末 | 完成：新 crate `dr-view-page`，见 [m03-page.md](../modules/m03-page.md)；dr-ui 加了 `tokens::page`、`SandCell::icon` / `dense`、`AreaEvent::PastEnd` |
 
+第六轮（11-08，从 main `60d510a6`，先合进了 F4e 第四批 `87206943`，监管说下一批对一遍）：
+
+| # | 内容 | 状态 |
+| --- | --- | --- |
+| 1 | M03 接上 F4 的 `ActPage` 和构想页 | 完成：扉页「第一幕 / 幕名 / 干笔 / 9 章 · 3.3k 字」，构想页的标题和梗概；见 [m03-page.md](../modules/m03-page.md) |
+| 2 | `PageTurn` 把叠化进度交给子元素 | 完成：`PageTurn::with_level`；外壳和编辑器那头见「待协调」F6 |
+| 3 | 带框的多行输入 | 完成：`TextArea::framed(行数)` |
+| 4 | 取色器 | 完成：`ColorSwatch`，点开系统的取色板（macOS 在本机真开过一次、颜色回得来；Windows 单独做了类型检查） |
+| 5 | M25 书架封面与写作热力图 | 完成：新 crate `dr-view-shelf-art`，十四种画风逐行照旧版移植并和旧版逐张对照，热力图、近 30 天砂条、换画风按钮；见 [m25-shelf-art.md](../modules/m25-shelf-art.md)。放进书架是 M01 的事 |
+
 ## 下一步建议
 
 1. F6 下一轮换用 `TabDock`（见「待协调」）；M01、M02、M09 把多行界面文字换成 `text::wrapped`。
 2. 输入框还差的：撤销、按词移动和删除（⌥← / ⌥→ / ⌥⌫）、进读屏树（角色加文字段，参照编辑器的 `input/a11y.rs`）。
 3. 标签坞还差的几样：关掉一个标签时它的药丸缩回记号宽、两边合拢（旧版 `dock-leave.ts`）；按可用宽度分配药丸宽度（旧版 120–320 px 按比例）；拖着贴近两端时自动滚动；键盘焦点落在记号上时也长出药丸。
-4. 补完 `Segmented` 放不下时收成单个 tab、`Select` 多于 8 项时的搜索框、多选一的交接键（Super View 切换器用）；给设置注册表补上色板，同样是 `new(id, 值).on_change(…).disabled(…)`。
+4. 补完 `Segmented` 放不下时收成单个 tab、`Select` 多于 8 项时的搜索框、多选一的交接键（Super View 切换器用）；设置注册表的颜色项用 `ColorSwatch`。
 5. 玻璃控件的键盘焦点（`focus-visible` 与悬停同效）要等 F6 定下焦点和快捷键框架后一起做；`Range` 已经这样做了（键盘焦点在上面时晕出圆玻璃）。
 6. 输入法矩阵第 8 项（单行输入）请作者手测：标题、搜索、设置三种框，加上多行的简介和会换行的标题，各在系统拼音、搜狗、微信输入法下组字、选中替换、组字中点别处和切应用；看点别处时拼音是被丢掉还是被输入法自己上屏了（见「待协调」F4 第二条），以及多行里候选窗是不是贴着组字的那一行。
 
@@ -431,7 +448,8 @@ M3 Pro，release 构建，1280×800 的样张、2 倍屏。帧时间是离屏（
 | `src/components/` | 组件；`dock.rs` 是标签坞，`reorder.rs` 是拖动让位、落位和药丸长出的几何与时间（纯函数） |
 | `src/text.rs` | 按中文规则换行的界面文字（`wrapped`），以及多行输入共用的分段排版 |
 | `src/input/` | 单行输入（`field.rs`，含无边框的 `bare`）、多行输入（`area.rs`：排版、断行、上下移动、软换行处的光标）；`ime.rs` 是 `gpui-ime` 之外的两样：字素边界、让系统丢弃拼音 |
-| `src/transitions.rs` | 翻页、推进 |
+| `src/transitions.rs` | 翻页（`with_level` 把透明度交给页面）、推进 |
+| `src/components/color.rs` | 色标和系统取色器（macOS `NSColorPanel`、Windows `ChooseColorW`） |
 | `src/anim.rs` | 补间、截图时冻结时钟、只在动的时候要下一帧 |
 | `examples/gallery/` | 样张、离屏截图与测量 |
-| `tests/` | 单行和多行输入、悬停卡、取值控件（Panel Tab、滑块、数字框、拖药丸）、标签坞、对话框的两个关闭回调、界面文字换行的行为测试 |
+| `tests/` | 单行和多行输入、悬停卡、取值控件（Panel Tab、滑块、数字框、拖药丸）、标签坞、对话框的两个关闭回调、界面文字换行、翻页透明度、色标的行为测试 |

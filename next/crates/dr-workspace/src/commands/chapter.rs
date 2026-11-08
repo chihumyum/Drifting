@@ -194,7 +194,7 @@ pub(crate) fn seed_prose(
 
 op! {
     ChapterCreate = "chapter.create", Write, Book,
-    "Create a chapter (a taken title gets a numbered suffix; the final title is returned).",
+    "Create a chapter (a taken title gets a numbered suffix; the final title is returned). Given a storyline and no text, it starts from that storyline's chapter template.",
     fn(cx, input: ChapterCreateIn) -> ChapterCreated {
         let slot = cx.book(&input.book)?;
         let storyline: Option<StorylineId> = match &input.storyline {
@@ -211,7 +211,20 @@ op! {
         let order = order_for(&slot, input.place.as_ref().unwrap_or(&ChapterPlace::Last), None)?;
         let id = NodeId::new_v7();
         cx.summarize(format!("「{title}」"));
-        seed_prose(cx, &slot.book, &DocId::Node(id.clone()), input.text.as_deref())?;
+        // A new chapter without text starts from its main storyline's
+        // chapter template.
+        let template = match (&input.text, storyline.as_ref()) {
+            (None, Some(s)) => {
+                let legacy = storylines(&slot).iter().find(|x| &x.id == s).and_then(|x| x.chapter_template.clone());
+                super::template::template_of(cx, &dr_model::id::TemplateOwner::Storyline(s.clone()), legacy.as_deref())?
+            }
+            _ => None,
+        };
+        match template {
+            Some(t) => super::template::apply_template(cx, &slot.book, &DocId::Node(id.clone()), t)?,
+            None => seed_prose(cx, &slot.book, &DocId::Node(id.clone()), input.text.as_deref())?,
+        }
+        crate::autolink::backfill_title(cx, &slot, &id, &title)?;
         let (i2, t2, s2) = (id.clone(), title.clone(), input.summary.clone());
         cx.write_book(&slot, move |txn| {
             let w = txn.node(&i2)?;
@@ -298,6 +311,9 @@ op! {
             None if old.primary_storyline.as_ref().is_some_and(|p| remove.contains(p)) => Some(None),
             None => None,
         };
+        if let Some(t) = title.as_ref().filter(|t| **t != old.title) {
+            crate::autolink::backfill_title(cx, &slot, &old.id, t)?;
+        }
         let id = old.id.clone();
         let (t2, s2, st2, no, a2, r2, p2) = (title.clone(), input.summary.clone(), status.clone(), input.narrative_order, add.clone(), remove.clone(), primary.clone());
         cx.write_book(&slot, move |txn| {

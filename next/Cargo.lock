@@ -1359,6 +1359,7 @@ dependencies = [
  "base64 0.22.1",
  "dr-debug-protocol",
  "dr-doc",
+ "dr-import-v1",
  "dr-model",
  "dr-platform",
  "dr-store",
@@ -1368,6 +1369,7 @@ dependencies = [
  "rusqlite",
  "serde",
  "serde_json",
+ "sha2",
  "tempfile",
 ]
 
@@ -1381,12 +1383,16 @@ dependencies = [
  "dr-shell",
  "dr-store",
  "dr-testkit",
+ "dr-view-elements",
+ "dr-view-page",
  "dr-workspace",
  "futures",
  "gpui",
  "gpui_platform",
  "log",
+ "objc2 0.6.5",
  "png 0.18.1",
+ "raw-window-handle",
  "serde_json",
  "tempfile",
  "uuid",
@@ -1454,6 +1460,8 @@ dependencies = [
  "fontdb",
  "image",
  "krilla",
+ "loro",
+ "loro-common",
  "prose-linebreak",
  "roxmltree 0.20.0",
  "rustybuzz",
@@ -1709,6 +1717,7 @@ dependencies = [
  "dr-platform",
  "dr-shell",
  "dr-ui",
+ "dr-view-shelf",
  "gpui",
  "gpui_platform",
  "log",
@@ -1809,6 +1818,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "dr-view-plot"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "color_quant",
+ "dr-doc",
+ "dr-i18n",
+ "dr-model",
+ "dr-shell",
+ "dr-store",
+ "dr-testkit",
+ "dr-ui",
+ "dr-workspace",
+ "futures",
+ "gpui",
+ "gpui_platform",
+ "log",
+ "png 0.18.1",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "dr-view-review"
 version = "0.0.0"
 dependencies = [
@@ -1857,6 +1889,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "dr-view-shelf-art"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "dr-i18n",
+ "dr-shell",
+ "dr-store",
+ "dr-testkit",
+ "dr-ui",
+ "dr-workspace",
+ "gpui",
+ "gpui_platform",
+ "image",
+ "log",
+ "memmap2",
+ "serde",
+ "serde_json",
+ "smallvec",
+ "tempfile",
+ "tiny-skia",
+ "ttf-parser",
+]
+
+[[package]]
 name = "dr-view-stats"
 version = "0.0.0"
 dependencies = [
@@ -1874,6 +1930,49 @@ dependencies = [
  "serde_json",
  "tempfile",
  "windows 0.62.2",
+]
+
+[[package]]
+name = "dr-view-timeline"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "color_quant",
+ "dr-i18n",
+ "dr-shell",
+ "dr-store",
+ "dr-testkit",
+ "dr-ui",
+ "dr-workspace",
+ "gpui",
+ "gpui_platform",
+ "log",
+ "png 0.18.1",
+ "tempfile",
+]
+
+[[package]]
+name = "dr-view-transfer"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "color_quant",
+ "dr-export",
+ "dr-i18n",
+ "dr-shell",
+ "dr-store",
+ "dr-testkit",
+ "dr-ui",
+ "dr-view-shelf",
+ "dr-workspace",
+ "futures",
+ "gpui",
+ "gpui_platform",
+ "log",
+ "png 0.18.1",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]
@@ -1914,7 +2013,9 @@ dependencies = [
  "dr-view-import",
  "dr-view-page",
  "dr-view-shelf",
+ "dr-view-transfer",
  "dr-workspace",
+ "futures",
  "gpui",
  "gpui_platform",
  "log",

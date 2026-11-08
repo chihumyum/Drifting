@@ -21,7 +21,7 @@ use crate::{
     input::{Composition, KEY_CONTEXT, Selection},
     layout::{BlockMetrics, Book, HeightIndex, ProseLayout, column, shape_set},
     platform::PlatformHooks,
-    render::{CursorLayer, FrameCache, line_runs},
+    render::{CursorLayer, FrameCache},
     style::{EditorOptions, ProseStyle},
     text::{AnchorChange, BlockKind, MarkOverride, Marks, ProseDoc, segment},
 };
@@ -582,13 +582,14 @@ impl ProseEditor {
                 .iter()
                 .enumerate()
             {
-                // Set like the paragraph (block inset, first-line indent).
-                let (setting, inset) = self.row_setting(ix, line_ix);
+                // Set like the paragraph (block insets, first-line indent,
+                // the gaps and pads of its block).
+                let set = self.para_set(ix, line_ix);
                 items.push((
                     Some(line.text.clone()),
-                    self.style.metrics(line.kind),
-                    wrap - f32::from(inset),
-                    setting,
+                    set.metrics,
+                    wrap - f32::from(set.narrowing()),
+                    set.setting,
                 ));
             }
             if let Some(slots) = self.book.has_ends().then_some(()).and(self.slots.as_ref()) {
@@ -955,26 +956,20 @@ impl ProseEditor {
             return Some((painted.layout.clone(), painted.line_height));
         }
         let line = self.book.chapters[chapter].doc.line(line_ix).clone();
-        let metrics = self.style.metrics(line.kind);
-        // Set as the paragraph element sets it (block inset, row setting).
-        let (setting, inset) = self.row_setting(chapter, line_ix);
-        let wrap = (self.estimate_width.unwrap_or(self.style.max_width) - inset).max(px(40.));
-        let runs = line_runs(
-            line.text.len(),
-            &line.spans,
-            line.kind,
-            &self.style,
-            self.extension.as_deref(),
-        );
+        // Set as the paragraph element sets it (block insets, row setting).
+        let set = self.para_set(chapter, line_ix);
+        let wrap =
+            (self.estimate_width.unwrap_or(self.style.max_width) - set.narrowing()).max(px(40.));
+        let runs = self.paragraph_runs(&line, &set.look);
         let shaped = shape_set(
             &line.text,
-            px(metrics.font_size),
+            px(set.metrics.font_size),
             &runs,
             wrap,
-            setting,
+            set.setting,
             window,
         );
-        Some((Rc::new(shaped), px(metrics.line_height)))
+        Some((Rc::new(shaped), px(set.metrics.line_height)))
     }
 
     /// The chapter offset under a window position (nearest painted paragraph),

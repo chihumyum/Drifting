@@ -853,3 +853,128 @@ fn list_items_are_numbered_set_in_and_tasks_tick(cx: &mut TestAppContext) {
     );
     assert_eq!(editor.update(cx, |e, _| e.selection().head), caret);
 }
+
+#[gpui::test]
+fn lists_code_and_callouts_take_their_own_gaps(cx: &mut TestAppContext) {
+    let mut doc = ProseDoc::from_paragraphs([
+        (BlockKind::Body, "正文"),
+        (BlockKind::Body, "一"),
+        (BlockKind::Body, "二"),
+        (BlockKind::Body, "列表之后"),
+        (BlockKind::Body, "let a = 1;"),
+        (BlockKind::Body, "let b = 2;"),
+        (BlockKind::Body, "代码之后"),
+        (BlockKind::Body, "提示一"),
+        (BlockKind::Body, "提示二"),
+        (BlockKind::Body, "末尾"),
+    ]);
+    let set = |doc: &mut ProseDoc, line: usize, key: &str, value: LoroValue| {
+        doc.set_block_attr(line, key, Some(value), crate::text::ORIGIN_USER)
+    };
+    set(&mut doc, 1, block::LIST, "bullet".into());
+    set(&mut doc, 2, block::LIST, "bullet".into());
+    set(&mut doc, 4, block::CODE_BLOCK, "rust".into());
+    set(&mut doc, 5, block::CODE_BLOCK, "rust".into());
+    set(&mut doc, 7, block::CALLOUT, "note".into());
+    set(&mut doc, 8, block::CALLOUT, "note".into());
+    doc.drain();
+    let book = Book::new(vec![Chapter {
+        title: "第一章".into(),
+        doc,
+    }]);
+    let style = ProseStyle {
+        first_line_indent: 2.,
+        justify: true,
+        ..ProseStyle::default()
+    };
+    let (editor, cx) = cx.add_window_view(|window, cx| ProseEditor::new(book, style, window, cx));
+    cx.simulate_resize(size(px(900.), px(900.)));
+    draw(cx);
+
+    let blocks = super::blocks::BlockStyle::default();
+    let body = f32::from(ProseStyle::default().body_size);
+    let em = |ems: f32| (body * ems).round();
+    let spacing = em(ProseStyle::default().paragraph_spacing);
+    let m = |editor: &Entity<ProseEditor>, cx: &mut VisualTestContext, line: usize| {
+        editor.update(cx, |e, _| e.para_metrics(0, line))
+    };
+    // Adjacent items sit 0.15 em apart; the last takes the paragraph
+    // spacing.
+    assert_eq!(m(&editor, cx, 1).pad_bottom, em(blocks.list_gap));
+    assert_eq!(m(&editor, cx, 2).pad_bottom, spacing);
+    let (one, two) = (origins(&editor, cx, 1)[0], origins(&editor, cx, 2)[0]);
+    let lh = m(&editor, cx, 1).line_height;
+    assert_eq!(f32::from(two.y - one.y), lh + em(blocks.list_gap));
+    // A code block: a smaller face on tighter rows, padded at its ends and
+    // touching inside, set in by its padding, in the monospace face.
+    let (first, last) = (m(&editor, cx, 4), m(&editor, cx, 5));
+    assert!((first.font_size - body * blocks.code_size).abs() < 0.01);
+    assert_eq!(
+        first.line_height,
+        (body * blocks.code_size * blocks.code_line_height).round()
+    );
+    assert_eq!((first.pad_top, first.pad_bottom), (em(blocks.code_pad), 0.));
+    assert_eq!(
+        (last.pad_top, last.pad_bottom),
+        (0., em(blocks.code_pad) + spacing)
+    );
+    let plain = origins(&editor, cx, 3)[0];
+    let code = origins(&editor, cx, 4)[0];
+    assert!((f32::from(code.x - plain.x) - body * blocks.code_inset).abs() < 0.5);
+    let family = editor.update(cx, |e, _| e.display(0, 4).runs[0].font.family.clone());
+    assert_eq!(family, ProseStyle::default().mono_family);
+    // Only plain body paragraphs take the first-line indent; code is never
+    // justified.
+    editor.update(cx, |e, _| {
+        assert_eq!(e.para_set(0, 0).setting.first_indent, px(body * 2.));
+        assert_eq!(e.para_set(0, 1).setting.first_indent, px(0.));
+        let code = e.para_set(0, 4).setting;
+        assert_eq!(code.first_indent, px(0.));
+        assert!(!code.justify && !code.squeeze);
+    });
+    // A callout: padded at its ends, its paragraphs 0.4 em apart, set in on
+    // both sides.
+    let (first, last) = (m(&editor, cx, 7), m(&editor, cx, 8));
+    assert_eq!(
+        (first.pad_top, first.pad_bottom),
+        (em(blocks.callout_pad), em(blocks.callout_gap))
+    );
+    assert_eq!(
+        (last.pad_top, last.pad_bottom),
+        (0., em(blocks.callout_pad) + spacing)
+    );
+    let aside = origins(&editor, cx, 7)[0];
+    assert!((f32::from(aside.x - plain.x) - body * blocks.callout_inset).abs() < 0.5);
+    let (wrap_plain, wrap_aside) = editor.update(cx, |e, _| {
+        let frame = e.frame.borrow();
+        let wrap = |line: usize| {
+            frame
+                .lines
+                .iter()
+                .find(|l| l.line == line)
+                .map(|l| f32::from(l.layout.wrap_width))
+                .unwrap()
+        };
+        (wrap(3), wrap(7))
+    });
+    assert!((wrap_plain - wrap_aside - 2. * body * blocks.callout_inset).abs() < 0.5);
+    // The estimates know all of it: every one-row paragraph's estimate is
+    // its measured height.
+    editor.update(cx, |e, _| {
+        let heights = e.heights.borrow();
+        let column = (0..10)
+            .map(|line| {
+                let frame = e.frame.borrow();
+                let l = frame.lines.iter().find(|l| l.line == line).unwrap();
+                f32::from(l.layout.wrap_width) + f32::from(e.para_set(0, line).narrowing())
+            })
+            .next()
+            .unwrap();
+        for line in 0..10 {
+            // Item 0 is the chapter's title.
+            assert!(heights.is_measured(line + 1), "line {line}");
+            let estimate = e.estimate_set(0, line, column);
+            assert_eq!(estimate, heights.height(line + 1), "line {line}");
+        }
+    });
+}

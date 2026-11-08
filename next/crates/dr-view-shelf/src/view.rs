@@ -58,6 +58,14 @@ actions!(
     ]
 );
 
+/// Exports book `book` as a `.driftingbook` (M41, `dr-view-transfer`,
+/// handles it with `cx.on_action`; the book card only has the entry).
+#[derive(Clone, Debug, PartialEq, Eq, gpui::Action)]
+#[action(namespace = shelf, no_json)]
+pub struct ExportBook {
+    pub book: String,
+}
+
 /// The rail's width (`.pp__frame`'s first column).
 const RAIL_W: f32 = 232.0;
 /// The books' column: at most this wide (`.pp__frame > .pp__inner`).
@@ -686,9 +694,6 @@ impl Render for Shelf {
                     cx.propagate();
                 }
             }))
-            .on_action(|_: &ImportBook, _, _| {
-                log::debug!("importing a .driftingbook is not built yet (M41)")
-            })
             .child(rail)
             .child(books)
             .children(dialog)
@@ -1175,6 +1180,17 @@ fn card(book: ShelfBook, now: i64, window: &mut Window, cx: &mut Context<Shelf>)
             .label(t(cx, keys::common::EDIT))
             .on_click(edit),
         )
+        .child({
+            let id = book.id.clone();
+            PanelIconButton::new(
+                ElementId::Name(format!("shelf-export-{}", book.id).into()),
+                Icon::ArrowOut,
+            )
+            .label(t(cx, keys::project_picker::desk::EXPORT_BOOK))
+            .on_click(move |_, window, cx| {
+                window.dispatch_action(Box::new(ExportBook { book: id.clone() }), cx)
+            })
+        })
         .child(
             PanelIconButton::new(
                 ElementId::Name(format!("shelf-trash-{}", book.id).into()),

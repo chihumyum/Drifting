@@ -1801,6 +1801,42 @@ expression: json
     "summary": "Read a category's element template: the paragraphs (body text or H1/H2/H3) its new elements start with."
   },
   {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "category"
+      ],
+      "title": "CategoryIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "category_template.document",
+    "output": {
+      "properties": {
+        "doc": {
+          "description": "The template's prose document (`template:category:<id>` or\n`template:storyline:<id>`), to open in an editor.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "doc"
+      ],
+      "title": "TemplateDoc",
+      "type": "object"
+    },
+    "summary": "Make sure a category's element template has its own prose document and return its id, for an editor to open (the template is then edited like any page)."
+  },
+  {
     "access": "read",
     "concurrency": "shared",
     "input": {
@@ -2214,7 +2250,7 @@ expression: json
       "title": "ChapterCreated",
       "type": "object"
     },
-    "summary": "Create a chapter (a taken title gets a numbered suffix; the final title is returned)."
+    "summary": "Create a chapter (a taken title gets a numbered suffix; the final title is returned). Given a storyline and no text, it starts from that storyline's chapter template."
   },
   {
     "access": "read",
@@ -2663,6 +2699,163 @@ expression: json
       "type": "object"
     },
     "summary": "Change a chapter's title, summary, status, narrative position or storylines."
+  },
+  {
+    "access": "read",
+    "concurrency": "shared",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "storyline": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "storyline"
+      ],
+      "title": "StorylineIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "chapter_template.body",
+    "output": {
+      "$defs": {
+        "TemplateParagraph": {
+          "description": "One paragraph of a body template.",
+          "properties": {
+            "heading": {
+              "description": "1, 2 or 3 for H1/H2/H3; omitted for body text.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "text": {
+              "default": "",
+              "type": "string"
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/TemplateParagraph"
+      },
+      "title": "Array_of_TemplateParagraph",
+      "type": "array"
+    },
+    "summary": "Read a storyline's chapter template: the paragraphs (body text or H1/H2/H3) a new chapter whose main storyline it is starts with."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "storyline": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "storyline"
+      ],
+      "title": "StorylineIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "chapter_template.document",
+    "output": {
+      "properties": {
+        "doc": {
+          "description": "The template's prose document (`template:category:<id>` or\n`template:storyline:<id>`), to open in an editor.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "doc"
+      ],
+      "title": "TemplateDoc",
+      "type": "object"
+    },
+    "summary": "Make sure a storyline's chapter template has its own prose document and return its id, for an editor to open."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "TemplateParagraph": {
+          "description": "One paragraph of a body template.",
+          "properties": {
+            "heading": {
+              "description": "1, 2 or 3 for H1/H2/H3; omitted for body text.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "text": {
+              "default": "",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "paragraphs": {
+          "description": "The whole template; empty removes it.",
+          "items": {
+            "$ref": "#/$defs/TemplateParagraph"
+          },
+          "type": "array"
+        },
+        "storyline": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "storyline",
+        "paragraphs"
+      ],
+      "title": "SetChapterTemplateIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "chapter_template.set_body",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Replace a storyline's chapter template (the body new chapters on it start with; empty removes it). Existing chapters keep their text."
   },
   {
     "access": "read",
@@ -3359,6 +3552,14 @@ expression: json
                 "null"
               ]
             },
+            "created_at": {
+              "description": "Seconds since the epoch.",
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
             "fields": {
               "items": {
                 "$ref": "#/$defs/FieldInfo"
@@ -3413,6 +3614,14 @@ expression: json
             },
             "trashed": {
               "type": "boolean"
+            },
+            "updated_at": {
+              "description": "When it last changed, in seconds: its name, aliases, fields, summary,\ncategory, portrait or pin (stamped by `element.update`), or its body.",
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
             }
           },
           "required": [
@@ -3426,7 +3635,9 @@ expression: json
             "portrait",
             "relate_pin",
             "trashed",
-            "name_conflict"
+            "name_conflict",
+            "created_at",
+            "updated_at"
           ],
           "type": "object"
         },
@@ -6088,6 +6299,15 @@ expression: json
           ],
           "description": "Only what this entity's prose mentions (a chapter or idea is\n`node`)."
         },
+        "limit": {
+          "description": "At most this many rows, the most mentioned (a whole book has tens of\nthousands).",
+          "format": "uint",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
         "to": {
           "anyOf": [
             {
@@ -6176,7 +6396,7 @@ expression: json
       "title": "Array_of_MentionInfo",
       "type": "array"
     },
-    "summary": "List what prose mentions: entity links and embedded materials, from one entity's prose, to one entity, or in the whole book (live ends only, with paragraph and span counts)."
+    "summary": "List what prose mentions: entity links and embedded materials, from one entity's prose, to one entity, or in the whole book (live ends only, with paragraph and span counts, the most mentioned first; `limit` keeps the top rows)."
   },
   {
     "access": "write",
@@ -6860,7 +7080,7 @@ expression: json
           "type": "array"
         },
         "exists": {
-          "description": "Whether the grid is stored; when not, the rest is the empty 3 × 3\ngrid to show (no ids yet: `plot_grid.create` stores it).",
+          "description": "Whether the grid is stored; when not, the rest is the empty 3 × 3\ngrid to show, with the ids it will be stored with (any edit, or\n`plot_grid.create`, stores it).",
           "type": "boolean"
         },
         "node": {
@@ -6976,7 +7196,7 @@ expression: json
           "type": "array"
         },
         "exists": {
-          "description": "Whether the grid is stored; when not, the rest is the empty 3 × 3\ngrid to show (no ids yet: `plot_grid.create` stores it).",
+          "description": "Whether the grid is stored; when not, the rest is the empty 3 × 3\ngrid to show, with the ids it will be stored with (any edit, or\n`plot_grid.create`, stores it).",
           "type": "boolean"
         },
         "node": {
@@ -7253,6 +7473,88 @@ expression: json
     "summary": "Set the size of a plot grid's cells (120–440 wide, 56–380 high)."
   },
   {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "AnchorBytes": {
+          "description": "A comment's anchor as stored: the two Loro cursors dr-doc writes\n(`Cursor::encode()`, the start on the first anchored character, the end\non the last), each in base64 (standard alphabet, padded). The editor\nmoves these bytes between the book and the prose document unchanged.",
+          "properties": {
+            "end": {
+              "type": "string"
+            },
+            "start": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "start",
+            "end"
+          ],
+          "type": "object"
+        },
+        "Target": {
+          "description": "A reference to an entity (relation end, comment or memory target).",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "description": "`node`, `element`, `patch`, `category`, `storyline`, `comment`,\n`material`.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "anchors": {
+          "description": "The ranges, as anchors (two cursors each, as comments keep them), so\ntyping since moves nothing.",
+          "items": {
+            "$ref": "#/$defs/AnchorBytes"
+          },
+          "type": "array"
+        },
+        "doc": {
+          "type": "string"
+        },
+        "target": {
+          "$ref": "#/$defs/Target",
+          "description": "What the links point at (`element`, `node`, `storyline`, `category`,\n`material`)."
+        }
+      },
+      "required": [
+        "doc",
+        "target",
+        "anchors"
+      ],
+      "title": "LinkIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "prose.link",
+    "output": {
+      "properties": {
+        "ranges": {
+          "description": "Ranges whose link changed (an anchor whose text is gone counts for\nnothing).",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "ranges"
+      ],
+      "title": "LinksChanged",
+      "type": "object"
+    },
+    "summary": "Link anchored ranges of a prose document to an entity (anchors, not positions: the undo of automatic links that were taken off)."
+  },
+  {
     "access": "read",
     "concurrency": "shared",
     "input": {
@@ -7518,6 +7820,88 @@ expression: json
       "type": "object"
     },
     "summary": "Shape of a prose document: paragraphs, sentences, the share of dialogue, its checklist and the materials it embeds."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "AnchorBytes": {
+          "description": "A comment's anchor as stored: the two Loro cursors dr-doc writes\n(`Cursor::encode()`, the start on the first anchored character, the end\non the last), each in base64 (standard alphabet, padded). The editor\nmoves these bytes between the book and the prose document unchanged.",
+          "properties": {
+            "end": {
+              "type": "string"
+            },
+            "start": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "start",
+            "end"
+          ],
+          "type": "object"
+        },
+        "Target": {
+          "description": "A reference to an entity (relation end, comment or memory target).",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "description": "`node`, `element`, `patch`, `category`, `storyline`, `comment`,\n`material`.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "anchors": {
+          "description": "The ranges, as anchors (two cursors each, as comments keep them), so\ntyping since moves nothing.",
+          "items": {
+            "$ref": "#/$defs/AnchorBytes"
+          },
+          "type": "array"
+        },
+        "doc": {
+          "type": "string"
+        },
+        "target": {
+          "$ref": "#/$defs/Target",
+          "description": "What the links point at (`element`, `node`, `storyline`, `category`,\n`material`)."
+        }
+      },
+      "required": [
+        "doc",
+        "target",
+        "anchors"
+      ],
+      "title": "LinkIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "prose.unlink",
+    "output": {
+      "properties": {
+        "ranges": {
+          "description": "Ranges whose link changed (an anchor whose text is gone counts for\nnothing).",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "ranges"
+      ],
+      "title": "LinksChanged",
+      "type": "object"
+    },
+    "summary": "Take the links to an entity off anchored ranges of a prose document (anchors, not positions: the undo of automatic links)."
   },
   {
     "access": "read",
@@ -8329,6 +8713,10 @@ expression: json
               },
               "type": "array"
             },
+            "has_chapter_template": {
+              "description": "Whether it has a chapter template (the body new chapters on it start\nwith; `chapter_template.body`).",
+              "type": "boolean"
+            },
             "id": {
               "type": "string"
             },
@@ -8356,7 +8744,8 @@ expression: json
             "pos",
             "trashed",
             "chapters",
-            "fields"
+            "fields",
+            "has_chapter_template"
           ],
           "type": "object"
         }

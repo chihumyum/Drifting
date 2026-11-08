@@ -171,6 +171,13 @@ fn json<T: Serialize>(v: &T) -> rusqlite::Result<String> {
 /// What the receipt knows when an import starts.
 pub struct RunStart<'a> {
     pub started_ms: i64,
+    /// Where the 0.1 library is on this device: its database and data root.
+    /// Recorded in the run's `summary_json` (`source`) when it begins, so a
+    /// book left `importing` can be carried on from the same library
+    /// ([`unfinished`]). The receipt tables are device-local; nothing else
+    /// keeps a path.
+    pub source_database: &'a Path,
+    pub source_root: Option<&'a Path>,
     pub source_sha256: &'a str,
     pub source_bytes: u64,
     pub schema_level_before: usize,
@@ -182,8 +189,14 @@ pub struct RunStart<'a> {
 /// before anything is written: a book whose row still says `importing`
 /// later was interrupted on this device. Returns the run's id.
 pub fn begin_run(tx: &rusqlite::Transaction<'_>, start: &RunStart<'_>) -> rusqlite::Result<i64> {
+    let source = serde_json::json!({
+        "source": {
+            "database": start.source_database.to_string_lossy(),
+            "root": start.source_root.map(|r| r.to_string_lossy()),
+        }
+    });
     tx.execute(
-        "INSERT INTO import_run (importer, started_ms, finished_ms, source_sha256, source_bytes, schema_level_before, gate_json, accepted_json, summary_json) VALUES (?1, ?2, ?2, ?3, ?4, ?5, ?6, ?7, '{}')",
+        "INSERT INTO import_run (importer, started_ms, finished_ms, source_sha256, source_bytes, schema_level_before, gate_json, accepted_json, summary_json) VALUES (?1, ?2, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         params![
             crate::run::IMPORTER,
             start.started_ms,
@@ -192,6 +205,7 @@ pub fn begin_run(tx: &rusqlite::Transaction<'_>, start: &RunStart<'_>) -> rusqli
             start.schema_level_before as i64,
             json(start.gate)?,
             json(&start.accepted)?,
+            json(&source)?,
         ],
     )?;
     Ok(tx.last_insert_rowid())
@@ -222,6 +236,60 @@ pub fn book_state(conn: &Connection, book: &str) -> rusqlite::Result<(bool, bool
     )
 }
 
+/// A book an import on this device started and never finished: the app quit
+/// or stopped while it was written. Importing the same 0.1 library again
+/// carries it on ([`book_state`] says so to the import).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Unfinished {
+    pub book_id: String,
+    /// The book's name when it was imported.
+    pub name: String,
+    /// The 0.1 library it came from, as the latest run that started it
+    /// recorded ([`RunStart`]); `None` from a run that recorded none.
+    pub database: Option<PathBuf>,
+    pub root: Option<PathBuf>,
+}
+
+/// The books this device's imports left unfinished (`importing` and never
+/// `imported`), the most recently started first.
+pub fn unfinished(conn: &Connection) -> rusqlite::Result<Vec<Unfinished>> {
+    let mut stmt = conn.prepare(
+        "SELECT b.book_id, b.name, r.summary_json FROM import_book b JOIN import_run r ON r.id = b.run_id
+         WHERE b.status = 'importing'
+           AND NOT EXISTS (SELECT 1 FROM import_book d WHERE d.book_id = b.book_id AND d.status = 'imported')
+         ORDER BY b.run_id DESC, b.book_id",
+    )?;
+    let rows = stmt.query_map([], |r| {
+        Ok((
+            r.get::<_, String>(0)?,
+            r.get::<_, String>(1)?,
+            r.get::<_, String>(2)?,
+        ))
+    })?;
+    let mut seen = std::collections::HashSet::new();
+    let mut out = Vec::new();
+    for row in rows {
+        let (book_id, name, summary) = row?;
+        if !seen.insert(book_id.clone()) {
+            continue;
+        }
+        let summary: serde_json::Value = serde_json::from_str(&summary).unwrap_or_default();
+        let path = |key: &str| {
+            summary["source"][key]
+                .as_str()
+                .filter(|p| !p.is_empty())
+                .map(PathBuf::from)
+        };
+        out.push(Unfinished {
+            book_id,
+            name,
+            database: path("database"),
+            root: path("root"),
+        });
+    }
+    Ok(out)
+}
+
 /// Finish run `run` in the library's receipt tables (dr-store `0001`), in
 /// the transaction `tx` (from `Library::local_transaction`). (A JSON error
 /// surfaces as a SQLite conversion error, so the transaction's error type
@@ -231,8 +299,9 @@ pub fn write_records(
     run: i64,
     receipt: &Receipt,
 ) -> rusqlite::Result<()> {
+    // Merged into what `begin_run` recorded (the source).
     tx.execute(
-        "UPDATE import_run SET finished_ms = ?2, summary_json = ?3 WHERE id = ?1",
+        "UPDATE import_run SET finished_ms = ?2, summary_json = json_patch(summary_json, ?3) WHERE id = ?1",
         params![
             run,
             receipt.finished_ms,

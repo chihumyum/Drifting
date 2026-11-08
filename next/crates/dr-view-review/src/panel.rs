@@ -14,19 +14,22 @@
 //!   its sand again.
 //! - Double-click the body to edit it in place, on a slip of paper with
 //!   F5's multi-line input (Enter a new line, ⌘↵ saves, Esc cancels).
-//! - Resting on a card floats out its source card (the 0.1 client's
-//!   `CommentSourceHoverCard`): what it is on, with that thing's mark, and
-//!   the passage it is anchored to; the card's rows at the bottom: edit,
-//!   resolve or reopen, turn into a TODO or a note, delete (no right-click
-//!   menu).
+//! - Resting on a card floats out its source card beside it (the 0.1
+//!   client's `CommentSourceHoverCard`, right of the card or left when the
+//!   right has no room): what it is on, with that thing's mark, and the
+//!   passage it was written on (原文) on a slip of the page — the words
+//!   selected then, or the paragraphs it spanned, read when the card opens,
+//!   with 「已删除/改动」 under it when the prose there has changed since;
+//!   the card's rows at the bottom: edit, resolve or reopen, turn into a
+//!   TODO or a note, delete (no right-click menu).
 //! - A TODO's round button completes it: a check stroke is drawn in it
 //!   from left to right (0.38 s); undone, the stroke goes back. A note is
 //!   resolved and reopened with a text button.
 
-use std::collections::HashMap;
-use std::time::Duration;
+use std::collections::{HashMap, HashSet};
+use std::time::{Duration, Instant};
 
-use dr_editor::decor::ReviewFocus;
+use dr_editor::decor::{Original, ReviewFocus};
 use dr_i18n::{I18n, Locale, Platform, keys};
 use dr_ui::Theme;
 use dr_ui::anim::{self, Tween};
@@ -73,7 +76,15 @@ pub struct ReviewView {
     pending: Option<Task<()>>,
     loaded: bool,
     opener: Option<Opener>,
+    /// The passages source cards show (原文), read when a card opens, and
+    /// the ones being read.
+    originals: HashMap<String, (Instant, Option<Original>)>,
+    asking: HashSet<String>,
 }
+
+/// How long a source card trusts the passage it read (the prose may have
+/// changed under it since).
+const ORIGINAL_FRESH: Duration = Duration::from_secs(2);
 
 /// Where a comment is, as a tab: a chapter, an idea, an element ….
 fn nav_of(catalog: &dr_workspace::BookCatalog, target: &Target) -> Option<NavTarget> {
@@ -118,6 +129,8 @@ impl ReviewView {
             pending: None,
             loaded: false,
             opener: None,
+            originals: HashMap::new(),
+            asking: HashSet::new(),
         }
     }
 
@@ -362,6 +375,49 @@ impl ReviewView {
         let item = self.items.iter().find(|i| i.id == id)?;
         let source = self.source_of(item);
         Some((source.title, source.quote))
+    }
+
+    /// The passage comment `id` was written on, as last read (see
+    /// [`Self::want_original`]).
+    pub fn original_of(&self, id: &str) -> Option<&Original> {
+        self.originals.get(id).and_then(|(_, o)| o.as_ref())
+    }
+
+    /// Reads comment `id`'s passage (its 原文 snapshot, and whether the
+    /// prose has changed under it) unless a fresh one is at hand.
+    pub fn want_original(&mut self, id: &str, cx: &mut Context<Self>) {
+        let fresh = self
+            .originals
+            .get(id)
+            .is_some_and(|(at, _)| at.elapsed() < ORIGINAL_FRESH);
+        let Some(lib) = self.lib.clone() else {
+            return;
+        };
+        if fresh || !self.asking.insert(id.to_owned()) {
+            return;
+        }
+        let (book, comment) = (self.book.clone(), id.to_owned());
+        let task = cx
+            .background_executor()
+            .spawn(async move { dr_editor::decor::original(&lib, &book, &comment) });
+        let id = id.to_owned();
+        cx.spawn(async move |this, cx| {
+            let found = task.await;
+            this.update(cx, |this, cx| {
+                this.asking.remove(&id);
+                let found = found.unwrap_or_else(|e| {
+                    log::warn!("review: the passage of {id}: {e}");
+                    None
+                });
+                let changed = this.originals.get(&id).map(|(_, o)| o) != Some(&found);
+                this.originals.insert(id, (Instant::now(), found));
+                if changed {
+                    cx.notify();
+                }
+            })
+            .ok();
+        })
+        .detach();
     }
 
     /// What a card's source card shows: the thing it is on and the passage.
@@ -612,13 +668,26 @@ impl ReviewView {
                 .to_owned()
                 .into(),
             delete: self.i18n.t(keys::common::DELETE).to_owned().into(),
+            changed: self
+                .i18n
+                .t(keys::comment_rail::snapshot::CHANGED)
+                .to_owned()
+                .into(),
         };
         let card_id = format!("{}-src-{}", self.id, item.id);
         let (card_entity, card_comment) = (entity.clone(), comment.clone());
-        let source_card = move |_: &mut Window, _: &mut gpui::App| {
+        let source_card = move |window: &mut Window, cx: &mut gpui::App| {
+            // The passage is read when the card opens (and again once it is
+            // a little old): the prose may have changed under it.
+            let (view, id) = (card_entity.clone(), card_comment.clone());
+            window.defer(cx, move |_, cx| {
+                view.update(cx, |v, cx| v.want_original(&id, cx));
+            });
+            let original = card_entity.read(cx).original_of(&card_comment).cloned();
             source_card(
                 &card_id,
                 &source,
+                original.as_ref(),
                 &labels,
                 card_entity.clone(),
                 card_comment.clone(),
@@ -659,7 +728,9 @@ impl ReviewView {
             // No card over the slip being written on.
             return card.into_any_element();
         }
-        HoverCard::new(id("source"), card, source_card).into_any_element()
+        HoverCard::new(id("source"), card, source_card)
+            .beside()
+            .into_any_element()
     }
 
     /// A TODO's round completion button with its check stroke.
@@ -875,12 +946,18 @@ struct Labels {
     status: SharedString,
     convert: SharedString,
     delete: SharedString,
+    /// Under the passage when the prose under it has changed.
+    changed: SharedString,
 }
 
-/// The card beside a Review card: its source, then its rows.
+/// The card beside a Review card: its source, the passage it was written
+/// on (on a slip of the page; the words then, or the paragraphs it spanned,
+/// with a word when the prose has changed since), then its rows.
+#[allow(clippy::too_many_arguments)]
 fn source_card(
     id: &str,
     source: &Source,
+    original: Option<&Original>,
     labels: &Labels,
     view: Entity<ReviewView>,
     comment: String,
@@ -892,8 +969,13 @@ fn source_card(
     if let Some(mark) = source.mark {
         body = body.mark(mark, None);
     }
-    if let Some(quote) = &source.quote {
-        body = body.summary(quote.clone());
+    match (original, &source.quote) {
+        (Some(original), _) => {
+            let note = (original.changed == Some(true)).then(|| labels.changed.clone());
+            body = body.quote(original.text.clone(), note);
+        }
+        (None, Some(quote)) => body = body.quote(quote.clone(), None),
+        _ => {}
     }
     let (v1, c1) = (view.clone(), comment.clone());
     let (v2, c2) = (view.clone(), comment.clone());

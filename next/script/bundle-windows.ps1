@@ -3,8 +3,12 @@
   Builds the NSIS installer for the development identity ("Drifting Next").
 
 .DESCRIPTION
-  script/bundle-windows.ps1 [-BuildProfile release|debug] [-Target <triple>]
+  script/bundle-windows.ps1 [-BuildProfile release|dist|debug] [-Target <triple>]
                             [-Output <dir>] [-SkipBuild]
+
+  `dist` is the shipped build: release with line tables, whose drifting.pdb
+  (beside the executable, printed as `pdb=`) the release workflow uploads
+  to Sentry. The installer never carries it.
 
   The installer is unsigned (decision D10) and carries the development
   identity from script/windows/drifting.nsi, so it installs beside a Tauri
@@ -15,7 +19,7 @@
   Needs NSIS 3 (`makensis` on PATH or in Program Files). Windows only.
 #>
 param(
-  [ValidateSet('release', 'debug')]
+  [ValidateSet('release', 'dist', 'debug')]
   [string]$BuildProfile = 'release',
   [string]$Target = '',
   [string]$Output = '',
@@ -36,6 +40,7 @@ $numeric = "$($version.Split('-')[0]).0"
 if (-not $SkipBuild) {
   $cargo = @('build', '--locked', '-p', 'drifting')
   if ($BuildProfile -eq 'release') { $cargo += '--release' }
+  if ($BuildProfile -eq 'dist') { $cargo += @('--profile', 'dist') }
   if ($Target) { $cargo += @('--target', $Target) }
   Push-Location $next
   try { & cargo @cargo; if ($LASTEXITCODE -ne 0) { throw 'cargo build failed' } } finally { Pop-Location }
@@ -59,3 +64,5 @@ if ($LASTEXITCODE -ne 0) { throw 'makensis failed' }
 $size = [math]::Round((Get-Item $installer).Length / 1MB, 1)
 Write-Output "bundle-windows: $installer ($size MiB)"
 Write-Output "installer=$installer"
+$pdb = Join-Path $targetDir 'drifting.pdb'
+if ($BuildProfile -eq 'dist' -and (Test-Path $pdb)) { Write-Output "pdb=$pdb" }

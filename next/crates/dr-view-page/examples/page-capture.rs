@@ -4,7 +4,7 @@
 //! GPUI runs headless (its test platform with the real macOS text system
 //! and Metal drawing into a texture): nothing opens on screen. The library
 //! is dr-testkit's showcase; 《慢钟》 (with its acts) gets an empty chapter
-//! after its first one, through F3's commands.
+//! after its first one and an idea, through F3's commands.
 //!
 //! ```text
 //! cargo run -p dr-view-page --features capture --example page-capture -- ../docs/rust-rewrite/modules
@@ -30,16 +30,18 @@ fn call(ws: &dr_workspace::Workspace, name: &str, input: Value) -> Result<Value>
     Ok(ws.call(&Actor::User, name, input)?["output"].clone())
 }
 
-/// The showcase in a temporary library, 《慢钟》 with an empty chapter after
-/// its first. Returns the book, its first chapter
-/// and the empty one.
-fn library() -> Result<(
-    tempfile::TempDir,
-    dr_workspace::Workspace,
-    String,
-    String,
-    String,
-)> {
+/// The showcase in a temporary library.
+struct Lib {
+    _dir: tempfile::TempDir,
+    ws: dr_workspace::Workspace,
+    book: String,
+    first: String,
+    empty: String,
+    idea: String,
+}
+
+/// 《慢钟》 with an empty chapter after its first, and an idea.
+fn library() -> Result<Lib> {
     let dir = tempfile::tempdir()?;
     let root = dir.path().join("library");
     let lib = dr_store::Library::open(&root, dr_workspace::library_options(VERSION))?;
@@ -79,7 +81,27 @@ fn library() -> Result<(
         .as_str()
         .context("the new chapter")?
         .to_owned();
-    Ok((dir, ws, book, first, empty))
+    let idea = call(
+        &ws,
+        "idea.create",
+        json!({
+            "book": book,
+            "title": "钟表匠的学徒",
+            "summary": "学徒只会拆，不会装；也许这才是他留下的理由。",
+            "text": "他把每一枚齿轮都摆在绒布上，按大小排成一行。",
+        }),
+    )?["id"]
+        .as_str()
+        .context("the idea")?
+        .to_owned();
+    Ok(Lib {
+        _dir: dir,
+        ws,
+        book,
+        first,
+        empty,
+        idea,
+    })
 }
 
 struct Headless {
@@ -155,7 +177,14 @@ fn main() -> Result<()> {
     );
     let dir = root.join("m03");
     std::fs::create_dir_all(&dir)?;
-    let (_lib_dir, library, book, first, empty) = library()?;
+    let Lib {
+        _dir: _lib_dir,
+        ws: library,
+        book,
+        first,
+        empty,
+        idea,
+    } = library()?;
     let text_system = gpui_platform::current_platform(true).text_system();
     let mut cx = HeadlessAppContext::with_platform(
         text_system,
@@ -225,6 +254,12 @@ fn main() -> Result<()> {
         })
         .ok();
         h.save(&dir, &format!("page-empty-{a}.png"))?;
+        // An idea's page: 「构想」 in the folio, its title and synopsis.
+        let idea_doc = format!("node:{idea}");
+        let target = Target::from_key(&format!("idea:{idea}")).expect("an idea");
+        h.set(move |ws, _, cx| ws.open(target, Open::KEEP, cx));
+        h.wait("the idea's page", |h| h.page_ready(&idea_doc))?;
+        h.save(&dir, &format!("page-idea-{a}.png"))?;
         // The whole book: the act's title page above its first chapter.
         h.set(|ws, _, cx| ws.open(Target::Book, Open::KEEP, cx));
         h.settle()?;

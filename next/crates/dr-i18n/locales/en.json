@@ -12,6 +12,35 @@
     "storyGraph": "Story graph",
     "todoLibrary": "TODO & Library"
   },
+  "bottomTimeline": {
+    "act": {
+      "chapterCount": "{{count}} chapters",
+      "railLabel": "Act"
+    },
+    "axis": {
+      "time": "Time"
+    },
+    "empty": {
+      "noChaptersInStoryline": "No chapters in this storyline · double-click to create one"
+    },
+    "locateCurrent": "Locate current chapter",
+    "storyline": {
+      "chapterCount": "{{count}} ch"
+    },
+    "synthetic": {
+      "book": "Book",
+      "unaffiliated": "Unaffiliated"
+    },
+    "unplaced": {
+      "empty": "All chapters are on the narrative timeline",
+      "label": "Unplaced",
+      "title": "Chapters not placed on the narrative timeline"
+    },
+    "view": {
+      "book": "Book",
+      "narrative": "Narrative"
+    }
+  },
   "categoryEditor": {
     "actions": {
       "openElement": "Open element"
@@ -45,7 +74,8 @@
   },
   "chapterEditor": {
     "synopsisPlaceholder": "Synopsis…",
-    "untitledChapter": "Untitled chapter"
+    "untitledChapter": "Untitled chapter",
+    "untitledDrift": "Untitled idea"
   },
   "chapterEnd": {
     "defaultTitle": "New chapter",
@@ -64,6 +94,9 @@
     },
     "card": {
       "emptyComment": "Empty comment"
+    },
+    "snapshot": {
+      "changed": "Deleted/changed"
     }
   },
   "common": {
@@ -253,6 +286,10 @@
         "unproven_one": "{{count}} text can't be confirmed as the latest; it's listed below",
         "unproven_other": "{{count}} texts can't be confirmed as the latest; they're listed below"
       },
+      "notice": {
+        "carry_on": "Resume import",
+        "unfinished": "“{{name}}” didn't finish importing"
+      },
       "summary": {
         "account_libraries_left_one": "{{count}} account library in the folder waits for accounts",
         "account_libraries_left_other": "{{count}} account libraries in the folder wait for accounts",
@@ -265,13 +302,41 @@
     }
   },
   "importDialog": {
+    "categoryTitle": "Category",
+    "chooseFiles": "Choose files",
     "chooseFolder": "Choose folder",
+    "clear": "Clear",
+    "filesTitle": "Files",
+    "importing": "Importing…",
+    "start": "Start import ({{count}})",
     "status": {
-      "committed": "imported"
+      "committed": "imported",
+      "error": "error",
+      "parsing": "parsing",
+      "ready": "ready"
     },
+    "storylineTitle": "Storyline",
     "summary": {
-      "done": "Done"
-    }
+      "done": "Done",
+      "failed": "failed",
+      "ok": "imported"
+    },
+    "targetTitle": "Target",
+    "targets": {
+      "chapter": {
+        "desc": "Mainline node — goes on the timeline and counts toward word stats.",
+        "label": "Chapter"
+      },
+      "element": {
+        "desc": "Reference material such as characters, places, or items. Requires a category.",
+        "label": "Element"
+      },
+      "idea": {
+        "desc": "Floating idea card — independent from storylines.",
+        "label": "Idea"
+      }
+    },
+    "title": "Import files"
   },
   "kvEditor": {
     "addField": "Add field",
@@ -410,7 +475,8 @@
     },
     "folio": {
       "chapter": "Chapter",
-      "chapterNumber": "Chapter {{n}}"
+      "chapterNumber": "Chapter {{n}}",
+      "drift": "Idea"
     },
     "meta": {
       "words": "{{count}} words"
@@ -447,6 +513,33 @@
       "minutesAgo": "{{count}} min ago"
     },
     "title": "Notifications"
+  },
+  "plotGrid": {
+    "addColumnShort": "Column",
+    "addRowShort": "Row",
+    "clear": "Clear",
+    "clearConfirm": "Clear all row and column labels and cell text in this plot planner? The table structure, dimensions, and prose will be preserved. This cannot be undone.",
+    "clearTitle": "Clear plot planner contents",
+    "columnPlaceholder": "Column",
+    "deleteClears": "Clears {{count}} cells",
+    "deleteColumn": "Delete this column",
+    "deleteRow": "Delete this row",
+    "emptyCell": "Write something…",
+    "fit": "Fit",
+    "insertColumnLeft": "Insert a column to the left",
+    "insertColumnRight": "Insert a column to the right",
+    "insertRowAbove": "Insert a row above",
+    "insertRowBelow": "Insert a row below",
+    "moveDown": "Move down",
+    "moveLeft": "Move left",
+    "moveRight": "Move right",
+    "moveUp": "Move up",
+    "rename": "Rename",
+    "rowPlaceholder": "Row",
+    "title": "Plot"
+  },
+  "positionLink": {
+    "copied": "Location link copied"
   },
   "projectHome": {
     "book": {
@@ -486,7 +579,15 @@
   },
   "projectPicker": {
     "bookTransfer": {
-      "importFailedTitle": "Could not import"
+      "exportFailed": "The book could not be exported. Please try again.",
+      "exportFailedTitle": "Could not export",
+      "importFailed": "The book could not be imported. Please try again.",
+      "importFailedTitle": "Could not import",
+      "invalid": "This file is damaged and cannot be imported.",
+      "legacy": "This book was exported by Drifting 0.1. Import it there, then hand that library over to this version.",
+      "newer": "This book was exported by a newer Drifting. Update Drifting first.",
+      "notABook": "This is not a book exported from Drifting.",
+      "tooLarge": "This book is too large to import."
     },
     "delete": {
       "deleting": "Deleting…"
@@ -494,8 +595,28 @@
     "desk": {
       "chaptersUnit_one": "chapter",
       "chaptersUnit_other": "chapters",
+      "coverStyle": {
+        "names": {
+          "bauhaus": "Bauhaus",
+          "chars": "Sea of type",
+          "cutout": "Cut paper",
+          "cyanotype": "Cyanotype",
+          "field": "Color fields",
+          "quipu": "Knotted cords",
+          "ridge": "Ridgelines",
+          "rings": "Tree rings",
+          "riso": "Risograph",
+          "sand": "Sand",
+          "stars": "Star chart",
+          "strata": "Strata",
+          "topo": "Contours",
+          "weave": "Weave"
+        },
+        "turn": "Change cover style · now {{name}}"
+      },
       "elementsUnit_one": "element",
       "elementsUnit_other": "elements",
+      "exportBook": "Export this book (.driftingbook)",
       "form": {
         "createTitle": "New book",
         "editTitle": "Edit “{{name}}”",
@@ -532,7 +653,15 @@
     },
     "heat": {
       "daysUnit": "days",
-      "today": "Today"
+      "daysWritten": "Days",
+      "fri": "Fri",
+      "label": "Writing heatmap",
+      "mon": "Mon",
+      "streak": "Streak",
+      "summary": "{{words}} words over the past year, written on {{days}} days",
+      "today": "Today",
+      "wed": "Wed",
+      "year": "Past year"
     },
     "projectCount": "{{filtered}} / {{total}} books",
     "rail": {
@@ -871,12 +1000,27 @@
     "search_placeholder": "Search settings…",
     "sync": {
       "backup": {
+        "errors": {
+          "invalid": "This file is not a valid Drifting backup, or it is damaged. The current library was not changed.",
+          "legacy": "This is a Drifting 0.1 backup, which this version cannot restore directly. Restore it in Drifting 0.1, then import that library with “Import · Drifting 0.1” on the bookshelf.",
+          "newer": "This backup was made by a newer version of Drifting. Update the app before restoring it.",
+          "unknown": "The operation did not finish and the current library was not changed: {{detail}}"
+        },
         "exportButton": "Export backup…",
         "exportDesc": "Package every project's database together with original image and PDF files into one .drifting file. Use it to restore, or to move to another computer.",
         "exportTitle": "Library backup",
+        "exported": "Saved “{{file}}”.",
+        "exporting": "Backing up…",
+        "inspecting": "Verifying…",
+        "missingAssets": "{{count}} assets are missing on this device and were not backed up.",
+        "noProjects": "(no projects)",
         "restoreButton": "Choose backup…",
+        "restoreConfirm": "Replace the current library with “{{file}}”.\n\nCreated: {{date}}\nContents: {{summary}}\nProjects: {{projects}}\n\nThe current library is saved as a pre-restore copy first; find it under “Open pre-restore copies”. Drifting reloads when the restore finishes.",
+        "restoreConfirmButton": "Replace and restore",
         "restoreDesc": "Replace the current library with a .drifting backup. The current library is saved as a pre-restore copy first.",
-        "restoreTitle": "Restore from backup"
+        "restoreTitle": "Restore from backup",
+        "restoring": "Restoring…",
+        "summary": "{{projects}} projects, {{assets}} asset files, {{size}}."
       },
       "local_data": "Local data",
       "local_sub": "No Drifting account or hosted cloud is used. Export a readable copy whenever you want.",

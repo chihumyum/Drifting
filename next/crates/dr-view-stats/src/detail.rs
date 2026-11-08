@@ -333,6 +333,7 @@ fn mentions(
             from,
             to,
             to_kind: to_kind.map(str::to_owned),
+            limit: None,
         },
     )
 }

@@ -290,3 +290,38 @@ fn new_category_and_uncategorized(cx: &mut TestAppContext) {
         })
     });
 }
+
+/// The shell's left sidebar draws this panel on its 要素 tab
+/// (`pages::add_left_panel`, registered by `dr_view_elements::init`).
+#[gpui::test]
+fn the_left_sidebar_shows_the_panel_on_its_elements_tab(cx: &mut TestAppContext) {
+    use dr_shell::panes::PaneId;
+    use dr_shell::workspace::LeftTab;
+    let (_dir, library, _) = library();
+    let (view, _, cx) = setup(cx, library);
+    assert!(
+        cx.update(|_, cx| dr_view_elements::sidebar_panels(cx))
+            .is_empty()
+    );
+    view.update_in(cx, |ws, window, cx| {
+        if !ws.left.open {
+            ws.toggle_left(window, cx);
+        }
+        ws.left.reveal.set(1.0);
+        ws.left.panes.click(PaneId::Primary, LeftTab::Elements);
+    });
+    wait_for(cx, |cx| {
+        cx.update(|_, cx| {
+            dr_view_elements::sidebar_panels(cx)
+                .first()
+                .is_some_and(|p| p.read(cx).sections().len() > 1)
+        })
+    });
+    // Made once for the half and kept.
+    cx.update(|window, cx| window.draw(cx).clear(cx));
+    assert_eq!(
+        cx.update(|_, cx| dr_view_elements::sidebar_panels(cx))
+            .len(),
+        1
+    );
+}

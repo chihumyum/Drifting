@@ -24,6 +24,7 @@ mod review;
 mod sidebar;
 mod stage;
 mod super_view;
+pub mod toast;
 
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
@@ -82,20 +83,58 @@ pub(crate) fn init(cx: &mut App) {
     });
 }
 
-/// Runs `f` on the open workspace, if any.
+/// The workspace window an app-level action was dispatched to: the active
+/// window when it is a workspace (GPUI sends menu actions and shortcuts to
+/// it, and a click makes its window the active one), else the frontmost
+/// workspace window, else any. GPUI does not tell an app-level handler which
+/// window it was dispatched in.
+pub fn active_workspace(cx: &App) -> Option<gpui::WindowHandle<Workspace>> {
+    cx.active_window()
+        .and_then(|w| w.downcast::<Workspace>())
+        .or_else(|| {
+            cx.window_stack()?
+                .into_iter()
+                .find_map(|w| w.downcast::<Workspace>())
+        })
+        .or_else(|| {
+            cx.windows()
+                .into_iter()
+                .find_map(|w| w.downcast::<Workspace>())
+        })
+}
+
+/// Runs `f` on the workspace an action was dispatched to
+/// ([`active_workspace`]), if any.
 pub fn with_workspace(
     cx: &mut App,
     f: impl FnOnce(&mut Workspace, &mut Window, &mut Context<Workspace>) + 'static,
 ) {
-    let Some(handle) = cx
-        .windows()
-        .into_iter()
-        .find_map(|w| w.downcast::<Workspace>())
-    else {
+    let Some(handle) = active_workspace(cx) else {
         return;
     };
     if let Err(error) = handle.update(cx, |ws, window, cx| f(ws, window, cx)) {
         log::error!("could not reach the workspace: {error:#}");
+    }
+}
+
+/// Runs `f` on the workspace in `window` (one that started something long,
+/// such as an import); when that window is gone or is no workspace, on
+/// [`with_workspace`]'s.
+pub fn with_workspace_in(
+    window: gpui::AnyWindowHandle,
+    cx: &mut App,
+    f: impl FnOnce(&mut Workspace, &mut Window, &mut Context<Workspace>) + 'static,
+) {
+    let handle = window
+        .downcast::<Workspace>()
+        .filter(|h| cx.windows().iter().any(|w| w.window_id() == h.window_id()));
+    match handle {
+        Some(handle) => {
+            if let Err(error) = handle.update(cx, |ws, window, cx| f(ws, window, cx)) {
+                log::error!("could not reach the workspace: {error:#}");
+            }
+        }
+        None => with_workspace(cx, f),
     }
 }
 
@@ -251,6 +290,12 @@ pub struct Workspace {
     /// The page (its target key) opened with [`Open::at_title`]: its
     /// editor does not get the keyboard when it opens.
     title_first: Option<String>,
+    /// The left tabs modules draw, made the first time a pane shows them
+    /// (pane slug and tab; `None`: no module draws it).
+    left_panels: std::cell::RefCell<HashMap<(&'static str, LeftTab), Option<pages::LeftPanel>>>,
+    /// The notice at the bottom of the window, and the timer that ends it.
+    pub toast: Option<toast::Toast>,
+    toast_timer: Option<Task<()>>,
     /// The outline rail's 「…」 whose list is open, and the timer that
     /// closes it.
     pub outline_reveal: Option<outline::Reveal>,
@@ -287,9 +332,13 @@ pub struct Workspace {
     /// The chapter panel's view: the whole book, not by storyline.
     pub chapters_by_book: bool,
     pub chapter_sort: chapter_sort::ChapterSort,
-    /// The chapter panel's folded groups (storyline ids, `unaffiliated`);
-    /// this window's, not stored.
-    pub folded: std::collections::HashSet<String>,
+    /// The chapter panel's folded groups (storyline ids, `unaffiliated`)
+    /// per book and sidebar half, for this run (workspace.md: folds,
+    /// selection and scroll are kept while the app runs, not stored).
+    pub folded: HashMap<(String, crate::panes::PaneId), HashSet<String>>,
+    /// Where each sidebar list was scrolled, per book, side, half and tab,
+    /// for this run: a list closed with its sidebar comes back where it was.
+    list_scroll: std::cell::RefCell<HashMap<String, gpui::UniformListScrollHandle>>,
     /// The chapter panel whose sort menu is open (its pane's slug).
     pub chapter_sort_open: Option<String>,
     /// The page whose corner's ⋯ menu is open (its target key).
@@ -379,6 +428,9 @@ impl Workspace {
             editor_base,
             touched: None,
             title_first: None,
+            toast: None,
+            toast_timer: None,
+            left_panels: Default::default(),
             outline_reveal: None,
             outline_reveal_close: None,
             unchecked: Default::default(),
@@ -402,6 +454,7 @@ impl Workspace {
             chapter_sort: Default::default(),
             chapter_sort_open: None,
             folded: Default::default(),
+            list_scroll: Default::default(),
             corner_menu: None,
             super_view: None,
             settings: None,
@@ -478,7 +531,6 @@ impl Workspace {
         self.chapters_by_book = by_book;
         self.chapter_sort = sort;
         self.chapter_sort_open = None;
-        self.folded.clear();
         self.book_position = position;
         self.editors.clear();
         self.focused_editor = None;
@@ -849,6 +901,7 @@ impl Workspace {
         self.shelf = None;
         self.shelf_open = false;
         self.home = None;
+        self.left_panels.borrow_mut().clear();
         self.library = None;
         self.book_id = String::new();
         self.book = Rc::new(Book::default());
@@ -1315,6 +1368,7 @@ impl Render for Workspace {
             .when_some(self.search.clone(), |el, panel| el.child(panel))
             .children(self.composer_overlay())
             .when_some(self.dialog.clone(), |el, dialog| el.child(dialog))
+            .children(self.toast_overlay())
             .when_some(self.history.clone(), |el, dialog| el.child(dialog))
             .child(chrome::windows_caption(window, cx))
             .when(self.notifications_open, |el| {
@@ -1364,6 +1418,7 @@ impl Workspace {
             .child(strip)
             .when_some(self.settings.clone(), |el, panel| el.child(panel))
             .when_some(self.dialog.clone(), |el, dialog| el.child(dialog))
+            .children(self.toast_overlay())
             .child(chrome::windows_caption(window, cx))
             .when(self.notifications_open, |el| {
                 el.child(sidebar::notification_center(self, window, cx))

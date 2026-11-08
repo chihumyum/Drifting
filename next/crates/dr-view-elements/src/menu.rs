@@ -5,15 +5,19 @@
 //! 「删除故事线」 (M13). Each opens its dialog
 //! ([`crate::dialogs`]).
 //!
-//! The shell draws the ⋯ menu; it asks [`rows`] for the page in front once
-//! it has a place for a module's rows (m11-elements.md, 「待协调」 F6).
+//! The shell draws the ⋯ menu (and the sidebar's hover cards, from the same
+//! list); [`register`] gives it these rows through F6's
+//! `pages::add_page_menu`. The shell puts the danger rows last.
+//! 「更改类目」 carries the category's mark, as the 0.1 `{ kind: 'category' }`.
 
 use std::rc::Rc;
 
 use dr_i18n::keys;
 use dr_shell::nav::Target;
+use dr_shell::pages::{PageMenuItem, PageMenuSection};
 use dr_shell::{Workspace, t};
-use dr_ui::{components::menu::RowIcon, sand};
+use dr_ui::components::menu::RowIcon;
+use dr_ui::sand::{self, Icon};
 use gpui::{App, SharedString, WeakEntity, Window};
 
 use crate::dialogs::{self, AskFor};
@@ -52,14 +56,14 @@ pub fn rows(target: &Target, cx: &App) -> Vec<MenuRow> {
                 MenuRow {
                     id: "element-change-group",
                     label: t(cx, keys::editor_top_bar::menu::CHANGE_GROUP),
-                    icon: RowIcon::Brush(dr_ui::sand::Icon::Folder),
+                    icon: RowIcon::Brush(Icon::Folder),
                     danger: false,
                     run: ask(AskFor::ChangeGroup, &id),
                 },
                 MenuRow {
                     id: "element-delete",
                     label: t(cx, keys::editor_top_bar::menu::DELETE_ELEMENT),
-                    icon: RowIcon::Brush(dr_ui::sand::Icon::Trash),
+                    icon: RowIcon::Brush(Icon::Trash),
                     danger: true,
                     run: ask(AskFor::DeleteElement, &id),
                 },
@@ -70,7 +74,7 @@ pub fn rows(target: &Target, cx: &App) -> Vec<MenuRow> {
             vec![MenuRow {
                 id: "category-delete",
                 label: t(cx, keys::editor_top_bar::menu::DELETE_CATEGORY),
-                icon: RowIcon::Brush(dr_ui::sand::Icon::Trash),
+                icon: RowIcon::Brush(Icon::Trash),
                 danger: true,
                 run: Rc::new(move |ws, window, cx| {
                     dialogs::open(AskFor::DeleteCategory(id.clone()), ws, window, cx)
@@ -82,7 +86,7 @@ pub fn rows(target: &Target, cx: &App) -> Vec<MenuRow> {
             vec![MenuRow {
                 id: "storyline-delete",
                 label: t(cx, keys::editor_top_bar::menu::DELETE_STORYLINE),
-                icon: RowIcon::Brush(dr_ui::sand::Icon::Trash),
+                icon: RowIcon::Brush(Icon::Trash),
                 danger: true,
                 run: Rc::new(move |ws, window, cx| {
                     dialogs::open(AskFor::DeleteStoryline(id.clone()), ws, window, cx)
@@ -90,5 +94,33 @@ pub fn rows(target: &Target, cx: &App) -> Vec<MenuRow> {
             }]
         }
         _ => Vec::new(),
+    }
+}
+
+/// Gives the shell's ⋯ menus (and hover cards) the rows of element,
+/// category and storyline pages, in one section with no heading.
+pub fn register(cx: &mut App) {
+    dr_shell::pages::add_page_menu(cx, |target, host, cx| {
+        let items: Vec<PageMenuItem> = rows(target, cx)
+            .into_iter()
+            .map(|row| item(row, host.workspace.clone()))
+            .collect();
+        if items.is_empty() {
+            return Vec::new();
+        }
+        vec![PageMenuSection { title: None, items }]
+    });
+}
+
+/// A row as the shell's menu takes it.
+fn item(row: MenuRow, ws: WeakEntity<Workspace>) -> PageMenuItem {
+    let run = row.run;
+    PageMenuItem {
+        id: row.id.into(),
+        icon: row.icon,
+        label: row.label,
+        checked: false,
+        danger: row.danger,
+        run: Rc::new(move |window, cx| run(ws.clone(), window, cx)),
     }
 }

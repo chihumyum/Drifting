@@ -1,0 +1,49 @@
+{
+  "about": "M09 快照历史：在第一章开头打一个字（第一次提交打下一个历史点），再打几个字；稿纸 ⋯ 菜单 → 历史快照…；点一行看预览；恢复… → 确认覆盖当前版本；正文回到那个点、恢复前的样子存成新的点；点雾面关掉。界面用英文。",
+  "steps": [
+    { "seed": "showcase" },
+    { "call": "book.list", "save": "books" },
+    { "call": "chapter.list", "input": { "book": "${books.[name=慢钟].id}" }, "save": "chapters" },
+    { "call": "prose.read", "input": { "doc": "node:${chapters.0.id}" }, "save": "ch1" },
+    { "call": "history.points", "input": { "doc": "node:${chapters.0.id}" }, "expect": { "/points": [] }, "note": "种子写的书没有历史点" },
+
+    { "launch": { "env": { "DRIFTING_APPEARANCE": "light" }, "settings": { "account": { "language.ui_locale": "en" } } } },
+    { "app": "ui.wait", "params": { "until": "ready", "timeout_ms": 30000 } },
+    { "app": "window.focus" },
+    { "app": "book.open", "params": { "name": "慢钟" } },
+    { "app": "ui.wait", "params": { "until": "ready", "state": { "/shelf": false, "/book/name": "慢钟" } } },
+    { "app": "nav.open", "params": { "chapter": "${chapters.0.id}" } },
+    { "app": "ui.wait", "params": { "until": "ready", "state": { "/page": "chapter:${chapters.0.id}", "/focus/editor": true } } },
+
+    { "app": "input.type", "params": { "text": "甲" }, "note": "第一次提交：F2 打下一个 periodic 点" },
+    { "app": "ui.wait", "params": { "until": "time", "ms": 1500 } },
+    { "app": "input.type", "params": { "text": "乙丙。" }, "note": "15 分钟内不再打点" },
+    { "app": "ui.wait", "params": { "until": "time", "ms": 1000 } },
+    { "call": "history.points", "input": { "doc": "node:${chapters.0.id}" },
+      "expect": { "/points/0/kind": "auto", "/points/0/words": { "$sum": ["${chapters.0.words}", 1] } } },
+
+    { "app": "ui.press", "params": { "label": "More actions" }, "note": "稿纸右下角的 ⋯" },
+    { "app": "ui.press", "params": { "label": "History snapshots…" } },
+    { "app": "ui.wait", "params": { "until": "ready", "state": { "/history": true } } },
+    { "app": "ui.find", "params": { "label": "Restore…" }, "expect": { "/count": 1 } },
+    { "app": "ui.screenshot", "png": "01-history.png" },
+    { "app": "ui.press", "params": { "label": "Restore…", "dx": -300 }, "note": "点这一行（按钮左边的空处）：下面展开当时的全文" },
+    { "app": "ui.screenshot", "png": "02-preview.png" },
+
+    { "app": "ui.press", "params": { "label": "Restore…" } },
+    { "app": "ui.find", "params": { "label": "Cancel" }, "expect": { "/count": 1 }, "note": "原地变成「取消」和「确认覆盖当前版本」" },
+    { "app": "ui.press", "params": { "label": "Confirm overwrite current version" } },
+    { "app": "ui.wait", "params": { "until": "ready", "page": { "/paragraphs/0/text": "甲${ch1.paragraphs.0.text}" }, "timeout_ms": 5000 },
+      "note": "打开着的编辑器跟着回到那个点" },
+    { "app": "ui.find", "params": { "label": "Restore…", "count": 2 }, "note": "列表重读：最上面多出恢复前的那个点" },
+    { "call": "history.points", "input": { "doc": "node:${chapters.0.id}" },
+      "expect": { "/points/0/kind": "restore", "/points/0/words": { "$sum": ["${chapters.0.words}", 3] }, "/points/1/kind": "auto" } },
+    { "call": "prose.read", "input": { "doc": "node:${chapters.0.id}" },
+      "expect": { "/paragraphs/0/text": "甲${ch1.paragraphs.0.text}", "/total": "${ch1.total}" } },
+    { "app": "ui.screenshot", "png": "03-restored.png" },
+
+    { "app": "input.click", "params": { "x": 100, "y": 450 }, "note": "点雾面关掉（Esc 关不掉，见待协调）" },
+    { "app": "ui.wait", "params": { "until": "ready", "state": { "/history": false } } },
+    { "app": "app.quit", "expect": { "/quit": true } }
+  ]
+}

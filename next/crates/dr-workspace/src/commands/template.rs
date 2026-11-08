@@ -14,19 +14,37 @@
 //!   whole list and trimming keys; F3 has the interface's per-field commands
 //!   for both templates.
 //!
-//! A category's **element template** (要素模版) is the body its new elements
-//! start with: paragraphs, each body text or an H1/H2/H3 heading (the 0.1
-//! template editor had nothing else). It is kept in the category's
-//! `element_template` field in the 0.1 format (an editor JSON document,
-//! which M10 imports as it is); `category_template.body` reads it as
-//! paragraphs and `category_template.set_body` writes it whole. A new
-//! element with a category and no text of its own starts with it. The field
-//! is one value: two devices editing it at once keep the later one (merging
-//! needs a template document of its own, F1's 待协调 6). A storyline's
-//! chapter template is the same kind of value; no command reads it yet.
+//! **Body templates**: a category's element template (要素模版), the body
+//! its new elements start with, and a storyline's chapter template (章节模版),
+//! the body new chapters whose main storyline it is start with. Each is a
+//! prose document of its own (dr-doc's `template:category:<id>` /
+//! `template:storyline:<id>`), so two devices editing a template merge like
+//! any page, and an editor opens it like any page (`*.document` registers
+//! it and returns its id).
+//!
+//! - A new element with a category and no text, and a new chapter with a
+//!   storyline and no text, start with a copy of the template (dr-doc's
+//!   `insert_copy`: paragraph attributes, marks, entity links, tables), made
+//!   from a detached copy taken on the template's holder thread. Changing a
+//!   template later never changes existing pages.
+//! - `*.body` reads a template as paragraphs, each body text or an H1/H2/H3
+//!   heading (the 0.1 template editor had nothing else; tables are left
+//!   out); `*.set_body` writes it whole, keeping the paragraphs it shares at
+//!   the start and at the end, and is undone by restoring the document's
+//!   version before.
+//! - The 0.1 fields (`element_template`, `chapter_template`: editor JSON)
+//!   are only read: until a template document is registered, the field is
+//!   the template. M10 writes the field into the document when it imports
+//!   an old library; `*.document` and `*.set_body` do it for a library that
+//!   still has only the field. A registered document wins, even emptied.
+//! - A template document stays when its category or storyline is deleted
+//!   for good (purges are undone by restoring the book entity), like every
+//!   other page's prose; storage drops prose without an owner.
 
+use dr_doc::prose::{BorrowedProse, ProseReader, ProseTxn, ProseView};
+use dr_model::DocId;
 use dr_model::book::KvEntry;
-use dr_model::id::{CategoryId, KvEntryId};
+use dr_model::id::{CategoryId, KvEntryId, TemplateOwner};
 use dr_model::pos::PosKey;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -36,10 +54,15 @@ use crate::cx::{EffectAction, Invocation};
 use crate::dto::FieldInfo;
 use crate::naming::{Place, pos_for};
 use crate::registry::Registry;
+use crate::workspace::ProseSlot;
 
 pub(crate) fn register(r: &mut Registry) {
     r.add::<CategoryTemplateBody>()
         .add::<CategoryTemplateSetBody>()
+        .add::<CategoryTemplateDocument>()
+        .add::<ChapterTemplateBody>()
+        .add::<ChapterTemplateSetBody>()
+        .add::<ChapterTemplateDocument>()
         .add::<StorylineTemplateList>()
         .add::<StorylineTemplatePut>()
         .add::<StorylineTemplateRemove>()
@@ -275,7 +298,7 @@ op! {
     }
 }
 
-// ---- a category's element template (body) -------------------------------------------
+// ---- body templates ------------------------------------------------------------------
 
 /// One paragraph of a body template.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -408,12 +431,317 @@ pub(crate) fn seed_body(
     Ok(())
 }
 
+/// What a new page starts from: `owner`'s template document (dr-doc's
+/// `template:` documents), or the 0.1 field when the library has none yet.
+pub(crate) enum Template {
+    /// A detached copy of the template document, taken on its holder
+    /// thread, so a template being edited is never copied half-way.
+    Doc(DocId, loro::LoroDoc),
+    /// The 0.1 editor JSON (`element_template` / `chapter_template`), as
+    /// paragraphs.
+    Legacy(Vec<TemplateParagraph>),
+}
+
+/// `owner`'s template document, when it is registered.
+fn template_slot(cx: &Cx<'_>, owner: &TemplateOwner) -> Result<Option<Arc<ProseSlot>>> {
+    let doc = owner.doc_id();
+    if cx
+        .workspace()
+        .library()
+        .doc_info(&doc.to_string())?
+        .is_none()
+    {
+        return Ok(None);
+    }
+    Ok(Some(cx.prose(&doc)?))
+}
+
+/// A template document that holds nothing: one empty paragraph.
+fn blank(view: &ProseView<'_>) -> bool {
+    view.len() <= 1
+}
+
+/// The paragraphs of a template document (tables and other embeds left
+/// out); none when it is blank.
+fn paragraphs_of(view: &ProseView<'_>) -> Vec<TemplateParagraph> {
+    if blank(view) {
+        return Vec::new();
+    }
+    view.paragraphs()
+        .filter(|p| !p.runs.iter().any(|r| r.marks.embed.is_some()))
+        .map(|p| TemplateParagraph {
+            heading: p.attrs.heading.map(|h| h.level() as u8),
+            text: p.text(),
+        })
+        .collect()
+}
+
+/// `owner`'s template as paragraphs: its document when it has one (the
+/// document wins even when emptied), else the 0.1 field `legacy`.
+fn read_body(
+    cx: &Cx<'_>,
+    owner: &TemplateOwner,
+    legacy: Option<&str>,
+) -> Result<Vec<TemplateParagraph>> {
+    Ok(match template_slot(cx, owner)? {
+        Some(slot) => paragraphs_of(&slot.reader.view()),
+        None => body_of(legacy),
+    })
+}
+
+/// Whether `owner` has a template a new page would start from.
+pub(crate) fn has_template(
+    cx: &Cx<'_>,
+    owner: &TemplateOwner,
+    legacy: Option<&str>,
+) -> Result<bool> {
+    Ok(match template_slot(cx, owner)? {
+        Some(slot) => !blank(&slot.reader.view()),
+        None => !body_of(legacy).is_empty(),
+    })
+}
+
+/// `owner`'s template, or `None` when it is empty.
+pub(crate) fn template_of(
+    cx: &Cx<'_>,
+    owner: &TemplateOwner,
+    legacy: Option<&str>,
+) -> Result<Option<Template>> {
+    match template_slot(cx, owner)? {
+        Some(slot) => {
+            if blank(&slot.reader.view()) {
+                return Ok(None);
+            }
+            let copy = slot.handle.read(|d| d.fork())?;
+            Ok(Some(Template::Doc(slot.doc.clone(), copy)))
+        }
+        None => {
+            let p = body_of(legacy);
+            Ok((!p.is_empty()).then_some(Template::Legacy(p)))
+        }
+    }
+}
+
+/// Start new page `doc` from `template` (step 2 of the write order): a
+/// template document is copied whole with dr-doc's `insert_copy` (headings
+/// and other paragraph attributes, marks, entity links, tables); the 0.1
+/// field's paragraphs are written as text and H1/H2/H3.
+pub(crate) fn apply_template(
+    cx: &Cx<'_>,
+    book: &dr_model::id::BookId,
+    doc: &DocId,
+    template: Template,
+) -> Result<()> {
+    match template {
+        Template::Legacy(p) => seed_body(cx, book, doc, &p),
+        Template::Doc(from, copy) => {
+            cx.create_prose(book, doc)?;
+            let slot = cx.prose(doc)?;
+            cx.write_prose(&slot, move |txn| {
+                let reader = ProseReader::from_loro(from, &copy)?;
+                txn.insert_copy(0, &reader.view())?;
+                Ok(())
+            })
+        }
+    }
+}
+
+/// A paragraph as `set_body` compares it: (heading, text); an embed reads
+/// as U+FFFC, which no input text has.
+fn shape(view: &ProseView<'_>) -> Vec<(Option<u8>, String, std::ops::Range<usize>)> {
+    if blank(view) {
+        return Vec::new();
+    }
+    view.paragraphs()
+        .map(|p| {
+            (
+                p.attrs.heading.map(|h| h.level() as u8),
+                p.text(),
+                p.range.clone(),
+            )
+        })
+        .collect()
+}
+
+/// Make the template document hold exactly `new`: the paragraphs it shares
+/// at the start and at the end stay as they are (ids, marks, links), the
+/// ones between are replaced, so two devices changing different ends of a
+/// template merge. A document left with nothing is one empty paragraph.
+fn replace_paragraphs(txn: &mut ProseTxn<'_>, new: &[TemplateParagraph]) -> Result<()> {
+    let old = shape(&txn.view());
+    let want: Vec<(Option<u8>, String)> = new.iter().map(|p| (p.heading, p.text.clone())).collect();
+    let same = |o: &(Option<u8>, String, std::ops::Range<usize>), w: &(Option<u8>, String)| {
+        o.0 == w.0 && o.1 == w.1
+    };
+    let (n, m) = (old.len(), want.len());
+    let mut k = 0;
+    while k < n.min(m) && same(&old[k], &want[k]) {
+        k += 1;
+    }
+    let mut s = 0;
+    while s < n.min(m) - k && same(&old[n - 1 - s], &want[m - 1 - s]) {
+        s += 1;
+    }
+    if k == n && k == m {
+        return Ok(());
+    }
+    let joined = want[k..m - s]
+        .iter()
+        .map(|(_, t)| t.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
+    let inserting = m - s > k;
+    if s > 0 {
+        // Whole paragraphs out, the new ones in front of the shared end.
+        let at = old[k].2.start;
+        if n - s > k {
+            txn.delete(at..old[n - s].2.start)?;
+        }
+        if inserting {
+            txn.insert_paragraphs(at, &format!("{joined}\n"))?;
+        }
+    } else if k > 0 {
+        // From the end of the shared start to the end of the text.
+        let at = old[k - 1].2.end;
+        if n > k {
+            txn.delete(at..old[n - 1].2.end)?;
+        }
+        if inserting {
+            txn.insert_paragraphs(at, &format!("\n{joined}"))?;
+        }
+    } else {
+        if n > 0 {
+            txn.delete(0..old[n - 1].2.end)?;
+        }
+        if inserting {
+            txn.insert_paragraphs(0, &joined)?;
+        }
+    }
+    let heading_of = |i: usize| {
+        want.get(i).and_then(|(h, _)| match h {
+            Some(1) => Some(dr_model::prose::Heading::H1),
+            Some(2) => Some(dr_model::prose::Heading::H2),
+            Some(3) => Some(dr_model::prose::Heading::H3),
+            _ => None,
+        })
+    };
+    // The new paragraphs carry nothing of the ones they replaced; a kept
+    // empty paragraph next to them may have lost its heading to a split.
+    let now: Vec<(usize, Option<dr_model::prose::Heading>)> = txn
+        .view()
+        .paragraphs()
+        .map(|p| (p.range.start, p.attrs.heading))
+        .collect();
+    let fresh = if m == 0 { 0..1 } else { k..m - s };
+    for (i, (at, heading)) in now.into_iter().enumerate() {
+        if fresh.contains(&i) {
+            txn.set_block_attrs(
+                at,
+                &dr_model::prose::BlockAttrs {
+                    heading: heading_of(i),
+                    ..Default::default()
+                },
+            )?;
+        } else if heading != heading_of(i) && i < m {
+            txn.set_heading(at, heading_of(i))?;
+        }
+    }
+    Ok(())
+}
+
+/// Register `owner`'s template document (its genesis is written when it
+/// is first opened) and open it.
+fn ensure_template(
+    cx: &Cx<'_>,
+    book: &dr_model::id::BookId,
+    owner: &TemplateOwner,
+) -> Result<Arc<ProseSlot>> {
+    let doc = owner.doc_id();
+    cx.create_prose(book, &doc)?;
+    cx.prose(&doc)
+}
+
+/// The input's paragraphs as stored: a paragraph's text holds no line
+/// break or object character.
+fn clean(paragraphs: &[TemplateParagraph]) -> Vec<TemplateParagraph> {
+    paragraphs
+        .iter()
+        .map(|p| TemplateParagraph {
+            heading: p.heading,
+            text: p.text.replace(['\n', '\r', '\u{FFFC}'], " "),
+        })
+        .collect()
+}
+
+/// Write `paragraphs` into `owner`'s template document, registering it
+/// first. Returns the document and its version before.
+fn write_body(
+    cx: &Cx<'_>,
+    book: &dr_model::id::BookId,
+    owner: &TemplateOwner,
+    paragraphs: Vec<TemplateParagraph>,
+) -> Result<(DocId, loro::Frontiers)> {
+    let slot = ensure_template(cx, book, owner)?;
+    let doc = slot.doc.clone();
+    let pre = cx.write_prose_raw(&slot, move |d| {
+        let pre = d.oplog_frontiers();
+        let b = BorrowedProse::new(d, &doc)?;
+        let mut txn = b.txn();
+        replace_paragraphs(&mut txn, &paragraphs)?;
+        Ok(pre)
+    })?;
+    Ok((slot.doc.clone(), pre))
+}
+
+/// `*.set_body` for `owner` (its 0.1 field `legacy`): write `paragraphs`
+/// into its template document; undone by restoring the document's version
+/// before. Returns whether anything changed.
+fn set_body(
+    cx: &Cx<'_>,
+    book: &dr_model::id::BookId,
+    owner: &TemplateOwner,
+    legacy: Option<&str>,
+    paragraphs: &[TemplateParagraph],
+) -> Result<bool> {
+    if paragraphs
+        .iter()
+        .any(|p| p.heading.is_some_and(|h| !(1..=3).contains(&h)))
+    {
+        return Err(WsError::invalid("headings are H1, H2 or H3"));
+    }
+    let asked = clean(paragraphs);
+    if clean(&read_body(cx, owner, legacy)?) == asked {
+        cx.undo_nothing();
+        return Ok(false);
+    }
+    let (doc, pre) = write_body(cx, book, owner, asked)?;
+    cx.effect(EffectAction::Updated, "prose", doc.to_string(), None);
+    cx.undo_with(Invocation::new(
+        "prose.restore",
+        super::prose::ProseRestoreIn {
+            doc: doc.to_string(),
+            at: crate::naming::frontiers_hex(&pre),
+        },
+    ));
+    Ok(true)
+}
+
+#[derive(Clone, Debug, Serialize, JsonSchema)]
+pub struct TemplateDoc {
+    /// The template's prose document (`template:category:<id>` or
+    /// `template:storyline:<id>`), to open in an editor.
+    pub doc: String,
+}
+
+// ---- a category's element template ------------------------------------------------
+
 op! {
     CategoryTemplateBody = "category_template.body", Read, Shared,
     "Read a category's element template: the paragraphs (body text or H1/H2/H3) its new elements start with.",
     fn(cx, input: CategoryIn) -> Vec<TemplateParagraph> {
         let slot = cx.book(&input.book)?;
-        Ok(body_of(live_category(&slot, &input.category)?.element_template.as_deref()))
+        let cat = live_category(&slot, &input.category)?;
+        read_body(cx, &TemplateOwner::Category(cat.id.clone()), cat.element_template.as_deref())
     }
 }
 
@@ -431,17 +759,108 @@ op! {
     fn(cx, input: SetBodyIn) -> Done {
         let slot = cx.book(&input.book)?;
         let cat = live_category(&slot, &input.category)?;
-        if input.paragraphs.iter().any(|p| p.heading.is_some_and(|h| !(1..=3).contains(&h))) {
-            return Err(WsError::invalid("headings are H1, H2 or H3"));
+        let owner = TemplateOwner::Category(cat.id.clone());
+        if set_body(cx, &slot.book, &owner, cat.element_template.as_deref(), &input.paragraphs)? {
+            cx.effect(EffectAction::Updated, "category", cat.id.as_str(), Some(&cat.name));
         }
-        let value = (!input.paragraphs.is_empty()).then(|| body_json(&input.paragraphs));
-        let (c2, v2) = (cat.id.clone(), value.clone());
-        cx.write_book(&slot, move |txn| { txn.category(&c2)?.element_template(v2.as_deref())?; Ok(()) })?;
-        cx.effect(EffectAction::Updated, "category", cat.id.as_str(), Some(&cat.name));
-        cx.undo_with(Invocation::new("category_template.set_body", SetBodyIn {
-            book: input.book.clone(), category: input.category.clone(),
-            paragraphs: body_of(cat.element_template.as_deref()),
-        }));
         Ok(Done { id: input.category })
+    }
+}
+
+op! {
+    CategoryTemplateDocument = "category_template.document", Write, Book,
+    "Make sure a category's element template has its own prose document and return its id, for an editor to open (the template is then edited like any page).",
+    fn(cx, input: CategoryIn) -> TemplateDoc {
+        let slot = cx.book(&input.book)?;
+        let cat = live_category(&slot, &input.category)?;
+        let owner = TemplateOwner::Category(cat.id.clone());
+        let doc = open_template(cx, &slot.book, &owner, cat.element_template.as_deref())?;
+        Ok(TemplateDoc { doc })
+    }
+}
+
+/// `*.document`: the template document, registered; a library whose template
+/// is still only the 0.1 field gets it written into the document first, so
+/// the editor opens what new pages copy.
+fn open_template(
+    cx: &Cx<'_>,
+    book: &dr_model::id::BookId,
+    owner: &TemplateOwner,
+    legacy: Option<&str>,
+) -> Result<String> {
+    let doc = owner.doc_id().to_string();
+    if template_slot(cx, owner)?.is_some() {
+        cx.undo_nothing();
+        return Ok(doc);
+    }
+    // Not a step of the author's: no effect, nothing to undo (undoing it
+    // would leave an empty document in front of the 0.1 field).
+    let old = body_of(legacy);
+    if old.is_empty() {
+        ensure_template(cx, book, owner)?;
+    } else {
+        write_body(cx, book, owner, clean(&old))?;
+    }
+    cx.undo_nothing();
+    Ok(doc)
+}
+
+// ---- a storyline's chapter template -------------------------------------------------
+
+fn live_storyline(slot: &BookSlot, id: &str) -> Result<dr_model::book::Storyline> {
+    storylines(slot)
+        .iter()
+        .find(|s| s.id.as_str() == id && s.deleted_at.is_none())
+        .cloned()
+        .ok_or_else(|| WsError::not_found("storyline", id))
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct StorylineIn {
+    pub book: String,
+    pub storyline: String,
+}
+
+op! {
+    ChapterTemplateBody = "chapter_template.body", Read, Shared,
+    "Read a storyline's chapter template: the paragraphs (body text or H1/H2/H3) a new chapter whose main storyline it is starts with.",
+    fn(cx, input: StorylineIn) -> Vec<TemplateParagraph> {
+        let slot = cx.book(&input.book)?;
+        let line = live_storyline(&slot, &input.storyline)?;
+        read_body(cx, &TemplateOwner::Storyline(line.id.clone()), line.chapter_template.as_deref())
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct SetChapterTemplateIn {
+    pub book: String,
+    pub storyline: String,
+    /// The whole template; empty removes it.
+    pub paragraphs: Vec<TemplateParagraph>,
+}
+
+op! {
+    ChapterTemplateSetBody = "chapter_template.set_body", Write, Book,
+    "Replace a storyline's chapter template (the body new chapters on it start with; empty removes it). Existing chapters keep their text.",
+    fn(cx, input: SetChapterTemplateIn) -> Done {
+        let slot = cx.book(&input.book)?;
+        let line = live_storyline(&slot, &input.storyline)?;
+        let owner = TemplateOwner::Storyline(line.id.clone());
+        if set_body(cx, &slot.book, &owner, line.chapter_template.as_deref(), &input.paragraphs)? {
+            cx.effect(EffectAction::Updated, "storyline", line.id.as_str(), Some(&line.name));
+        }
+        Ok(Done { id: input.storyline })
+    }
+}
+
+op! {
+    ChapterTemplateDocument = "chapter_template.document", Write, Book,
+    "Make sure a storyline's chapter template has its own prose document and return its id, for an editor to open.",
+    fn(cx, input: StorylineIn) -> TemplateDoc {
+        let slot = cx.book(&input.book)?;
+        let line = live_storyline(&slot, &input.storyline)?;
+        let owner = TemplateOwner::Storyline(line.id.clone());
+        let doc = open_template(cx, &slot.book, &owner, line.chapter_template.as_deref())?;
+        Ok(TemplateDoc { doc })
     }
 }

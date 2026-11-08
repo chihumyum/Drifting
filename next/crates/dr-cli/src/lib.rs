@@ -195,8 +195,27 @@ fn live_scenario(
         .out
         .unwrap_or_else(|| PathBuf::from("target").join("acceptance").join(stem));
     let mut session = live::Session::new(live.app, live.profile, out, live.keep)?;
-    let result = scenario::run_on(&mut session, s);
+    let (report, failed) = scenario::run_report(&mut session, s);
     session.finish();
+    // Everything each step saved, for reading the run back (not evidence:
+    // the expectations are the check).
+    let report_file = session.out.join("result.json");
+    if let Ok(text) = serde_json::to_string_pretty(&report) {
+        let _ = std::fs::write(&report_file, text);
+    }
+    let result = match failed {
+        None => Ok(report),
+        Some(e) => {
+            let mut lines: Vec<String> = report["steps"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|l| l.as_str().map(str::to_string))
+                .collect();
+            lines.push(e);
+            Err(lines.join("\n"))
+        }
+    };
     let mut lines = vec![format!(
         "profile {} ({}); output in {}",
         session.profile,
@@ -214,11 +233,13 @@ fn live_scenario(
                     .filter_map(|l| l.as_str().map(str::to_string)),
             );
             lines.push(format!("{} steps, {} pending", s.steps.len(), v["pending"]));
+            lines.push(format!("saved: {}", report_file.display()));
             lines.extend(notes);
             Ok((0, lines.join("\n")))
         }
         Err(e) => {
             lines.push(e);
+            lines.push(format!("saved: {}", report_file.display()));
             lines.extend(notes);
             Err(lines.join("\n"))
         }

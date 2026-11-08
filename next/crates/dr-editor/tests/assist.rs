@@ -240,8 +240,17 @@ fn a_new_element_links_itself_in_text_already_written(cx: &mut TestAppContext) {
         std::thread::sleep(Duration::from_millis(10));
     }
     assert!(linked, "the closed chapter");
-    // In the open one it is a step of its own: one undo takes it back.
+    // The links are the command's step (F3 round seven: `element.create`
+    // links the new name in the text already written, as `user:command`):
+    // the editor's undo leaves them, the object-level undo takes them back.
     o.action(Undo);
+    assert!(o.linked(0, &shen));
+    e.ws.undo(&Actor::User).unwrap().unwrap();
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    while o.linked(0, &shen) && std::time::Instant::now() < deadline {
+        draw(o.cx);
+        std::thread::sleep(Duration::from_millis(5));
+    }
     assert!(!o.linked(0, &shen));
     assert_eq!(o.text(), "沈知微来了。\n");
 }

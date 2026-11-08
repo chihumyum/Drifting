@@ -12,6 +12,35 @@
     "storyGraph": "Graphe du récit",
     "todoLibrary": "Tâches et documentation"
   },
+  "bottomTimeline": {
+    "act": {
+      "chapterCount": "{{count}} chapitres",
+      "railLabel": "Acte"
+    },
+    "axis": {
+      "time": "Temps"
+    },
+    "empty": {
+      "noChaptersInStoryline": "Aucun chapitre dans cette intrigue · double-cliquez pour créer"
+    },
+    "locateCurrent": "Localiser le chapitre actuel",
+    "storyline": {
+      "chapterCount": "{{count}} chap."
+    },
+    "synthetic": {
+      "book": "Livre",
+      "unaffiliated": "Sans appartenance"
+    },
+    "unplaced": {
+      "empty": "Tous les chapitres sont placés sur la chronologie narrative",
+      "label": "Non placés",
+      "title": "Chapitres non placés sur la chronologie narrative"
+    },
+    "view": {
+      "book": "Livre",
+      "narrative": "Temps narratif"
+    }
+  },
   "categoryEditor": {
     "actions": {
       "openElement": "Ouvrir l’élément"
@@ -45,7 +74,8 @@
   },
   "chapterEditor": {
     "synopsisPlaceholder": "Synopsis…",
-    "untitledChapter": "Chapitre sans titre"
+    "untitledChapter": "Chapitre sans titre",
+    "untitledDrift": "Idée sans titre"
   },
   "chapterEnd": {
     "defaultTitle": "Nouveau chapitre",
@@ -64,6 +94,9 @@
     },
     "card": {
       "emptyComment": "Commentaire vide"
+    },
+    "snapshot": {
+      "changed": "Supprimé/modifié"
     }
   },
   "common": {
@@ -253,6 +286,10 @@
         "unproven_one": "{{count}} texte n’est peut-être pas le plus récent ; il figure ci-dessous",
         "unproven_other": "{{count}} textes ne sont peut-être pas les plus récents ; ils figurent ci-dessous"
       },
+      "notice": {
+        "carry_on": "Reprendre l’importation",
+        "unfinished": "« {{name}} » n’a pas fini d’être importé"
+      },
       "summary": {
         "account_libraries_left_one": "{{count}} bibliothèque de compte du dossier attend les comptes",
         "account_libraries_left_other": "{{count}} bibliothèques de compte du dossier attendent les comptes",
@@ -265,13 +302,41 @@
     }
   },
   "importDialog": {
+    "categoryTitle": "Catégorie",
+    "chooseFiles": "Choisir des fichiers",
     "chooseFolder": "Choisir un dossier",
+    "clear": "Effacer",
+    "filesTitle": "Fichiers",
+    "importing": "Importation…",
+    "start": "Démarrer l’importation ({{count}})",
     "status": {
-      "committed": "importé"
+      "committed": "importé",
+      "error": "erreur",
+      "parsing": "analyse",
+      "ready": "prêt"
     },
+    "storylineTitle": "Intrigue",
     "summary": {
-      "done": "Terminé"
-    }
+      "done": "Terminé",
+      "failed": "échec",
+      "ok": "importé"
+    },
+    "targetTitle": "Destination",
+    "targets": {
+      "chapter": {
+        "desc": "Nœud du texte principal : figure sur la chronologie et compte dans les statistiques.",
+        "label": "Chapitre"
+      },
+      "element": {
+        "desc": "Documentation sur personnages, lieux ou objets. Catégorie requise.",
+        "label": "Élément"
+      },
+      "idea": {
+        "desc": "Carte d’idée flottante, indépendante des intrigues.",
+        "label": "Idée"
+      }
+    },
+    "title": "Importer des fichiers"
   },
   "kvEditor": {
     "addField": "Ajouter un champ",
@@ -410,7 +475,8 @@
     },
     "folio": {
       "chapter": "Chapitre",
-      "chapterNumber": "Chapitre {{n}}"
+      "chapterNumber": "Chapitre {{n}}",
+      "drift": "Idée"
     },
     "meta": {
       "words": "{{count}} mots"
@@ -448,6 +514,33 @@
       "minutesAgo": "il y a {{count}} min"
     },
     "title": "Notifications"
+  },
+  "plotGrid": {
+    "addColumnShort": "Colonne",
+    "addRowShort": "Ligne",
+    "clear": "Effacer",
+    "clearConfirm": "Effacer tous les titres de lignes, colonnes et textes des cellules ? Structure, dimensions et manuscrit seront conservés. Action irréversible.",
+    "clearTitle": "Effacer le contenu du plan narratif",
+    "columnPlaceholder": "Colonne",
+    "deleteClears": "Efface {{count}} cellules",
+    "deleteColumn": "Supprimer cette colonne",
+    "deleteRow": "Supprimer cette ligne",
+    "emptyCell": "Écrivez quelque chose…",
+    "fit": "Ajuster",
+    "insertColumnLeft": "Insérer une colonne à gauche",
+    "insertColumnRight": "Insérer une colonne à droite",
+    "insertRowAbove": "Insérer une ligne au-dessus",
+    "insertRowBelow": "Insérer une ligne en dessous",
+    "moveDown": "Descendre",
+    "moveLeft": "Déplacer à gauche",
+    "moveRight": "Déplacer à droite",
+    "moveUp": "Monter",
+    "rename": "Renommer",
+    "rowPlaceholder": "Ligne",
+    "title": "Intrigue"
+  },
+  "positionLink": {
+    "copied": "Lien de position copié"
   },
   "projectHome": {
     "book": {
@@ -487,7 +580,15 @@
   },
   "projectPicker": {
     "bookTransfer": {
-      "importFailedTitle": "Importation impossible"
+      "exportFailed": "Impossible d’exporter le livre. Réessayez.",
+      "exportFailedTitle": "Exportation impossible",
+      "importFailed": "Impossible d’importer le livre. Réessayez.",
+      "importFailedTitle": "Importation impossible",
+      "invalid": "Ce fichier est endommagé et ne peut pas être importé.",
+      "legacy": "Ce livre a été exporté par Drifting 0.1. Importez-le là, puis transférez cette bibliothèque vers cette version.",
+      "newer": "Ce livre vient d’une version plus récente de Drifting. Mettez d’abord l’application à jour.",
+      "notABook": "Ce livre n’a pas été exporté depuis Drifting.",
+      "tooLarge": "Ce livre est trop volumineux pour être importé."
     },
     "delete": {
       "deleting": "Suppression…"
@@ -496,9 +597,29 @@
       "chaptersUnit_many": "chapitres",
       "chaptersUnit_one": "chapitre",
       "chaptersUnit_other": "chapitres",
+      "coverStyle": {
+        "names": {
+          "bauhaus": "Bauhaus",
+          "chars": "Mer de caractères",
+          "cutout": "Papier découpé",
+          "cyanotype": "Cyanotype",
+          "field": "Champs colorés",
+          "quipu": "Cordes nouées",
+          "ridge": "Crêtes",
+          "rings": "Cernes du bois",
+          "riso": "Risographie",
+          "sand": "Sable",
+          "stars": "Carte du ciel",
+          "strata": "Strates",
+          "topo": "Courbes de niveau",
+          "weave": "Tissage"
+        },
+        "turn": "Changer de couverture · actuelle : {{name}}"
+      },
       "elementsUnit_many": "éléments",
       "elementsUnit_one": "élément",
       "elementsUnit_other": "éléments",
+      "exportBook": "Exporter ce livre (.driftingbook)",
       "form": {
         "createTitle": "Nouveau livre",
         "editTitle": "Modifier « {{name}} »",
@@ -536,7 +657,15 @@
     },
     "heat": {
       "daysUnit": "jours",
-      "today": "Aujourd’hui"
+      "daysWritten": "Jours",
+      "fri": "ven.",
+      "label": "Carte d’activité d’écriture",
+      "mon": "lun.",
+      "streak": "Série",
+      "summary": "{{words}} mots au cours de l’année passée, écrits sur {{days}} jours",
+      "today": "Aujourd’hui",
+      "wed": "mer.",
+      "year": "Année passée"
     },
     "projectCount": "{{filtered}} / {{total}} livres",
     "rail": {
@@ -878,12 +1007,27 @@
     "search_placeholder": "Rechercher dans les réglages…",
     "sync": {
       "backup": {
+        "errors": {
+          "invalid": "Ce fichier n’est pas une sauvegarde Drifting valide ou il est endommagé. La bibliothèque actuelle n’a pas été modifiée.",
+          "legacy": "C’est une sauvegarde de Drifting 0.1, que cette version ne peut pas restaurer directement. Restaurez-la dans Drifting 0.1, puis importez cette bibliothèque avec « Importer · Drifting 0.1 » dans la bibliothèque.",
+          "newer": "Cette sauvegarde provient d’une version plus récente de Drifting. Mettez l’application à jour avant de la restaurer.",
+          "unknown": "L’opération n’a pas abouti et la bibliothèque actuelle n’a pas été modifiée : {{detail}}"
+        },
         "exportButton": "Exporter la sauvegarde…",
         "exportDesc": "Regroupe les bases de tous les projets et les images et PDF originaux dans un fichier .drifting, pour restaurer ou changer d’ordinateur.",
         "exportTitle": "Sauvegarde de la bibliothèque",
+        "exported": "« {{file}} » enregistré.",
+        "exporting": "Sauvegarde…",
+        "inspecting": "Vérification…",
+        "missingAssets": "{{count}} ressources absentes de cet appareil n’ont pas été sauvegardées.",
+        "noProjects": "(aucun projet)",
         "restoreButton": "Choisir une sauvegarde…",
+        "restoreConfirm": "Remplacer la bibliothèque actuelle par « {{file}} ».\n\nCréation : {{date}}\nContenu : {{summary}}\nProjets : {{projects}}\n\nUne copie préalable est conservée sous « Ouvrir les copies avant restauration ». Drifting sera rechargé à la fin.",
+        "restoreConfirmButton": "Remplacer et restaurer",
         "restoreDesc": "Remplace la bibliothèque actuelle par une sauvegarde .drifting. Une copie de la bibliothèque actuelle est d’abord conservée.",
-        "restoreTitle": "Restaurer une sauvegarde"
+        "restoreTitle": "Restaurer une sauvegarde",
+        "restoring": "Restauration…",
+        "summary": "{{projects}} projets, {{assets}} fichiers de ressources, {{size}}."
       },
       "local_data": "Données locales",
       "local_sub": "Sans compte Drifting ni cloud hébergé. Exportez une copie lisible quand vous voulez.",

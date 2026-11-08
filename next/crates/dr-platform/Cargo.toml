@@ -52,3 +52,9 @@ windows.workspace = true
 keyring.workspace = true
 minisign.workspace = true
 tempfile.workspace = true
+
+# Crash reports end to end against a stand-in for Sentry on 127.0.0.1. Its
+# own harness: the crash reporter re-runs the test executable.
+[[test]]
+name = "crash_report"
+harness = false

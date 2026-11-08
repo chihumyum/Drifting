@@ -25,17 +25,44 @@
         "account_libraries_left_one": "{{count}} account library in the folder waits for accounts",
         "account_libraries_left_other": "{{count}} account libraries in the folder wait for accounts",
         "carries_on": "Not finished; import this library again to carry on"
+      },
+      "notice": {
+        "unfinished": "“{{name}}” didn't finish importing",
+        "carry_on": "Resume import"
       }
     }
   },
   "settings": {
     "editor": {
       "justify": "Justify"
+    },
+    "sync": {
+      "backup": {
+        "errors": {
+          "legacy": "This is a Drifting 0.1 backup, which this version cannot restore directly. Restore it in Drifting 0.1, then import that library with “Import · Drifting 0.1” on the bookshelf."
+        }
+      }
     }
   },
   "findPanel": {
     "replacePlaceholder": "Replace with…",
     "replace": "Replace",
     "replaceAll": "Replace all"
+  },
+  "positionLink": {
+    "copied": "Location link copied"
+  },
+  "projectPicker": {
+    "bookTransfer": {
+      "legacy": "This book was exported by Drifting 0.1. Import it there, then hand that library over to this version."
+    }
+  },
+  "importDialog": {
+    "targets": {
+      "idea": {
+        "label": "Idea",
+        "desc": "Floating idea card — independent from storylines."
+      }
+    }
   }
 }

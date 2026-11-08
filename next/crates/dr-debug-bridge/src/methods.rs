@@ -9,6 +9,8 @@
 use std::time::{Duration, Instant};
 
 use dr_debug_protocol::BridgeError;
+
+use crate::a11y;
 use dr_debug_protocol::wire::codes;
 use dr_shell::nav::{Open, Page, Target};
 use dr_shell::workspace::editors::PageView;
@@ -65,11 +67,39 @@ pub const METHODS: &[(&str, &str)] = &[
     ),
     (
         "input.key",
-        "{keys}: press keys, e.g. \"secondary-z\" or \"enter escape\" (space-separated; secondary is ⌘ on macOS, Ctrl elsewhere)",
+        "{keys, times?}: press keys, e.g. \"secondary-z\" or \"enter escape\" (space-separated; secondary is ⌘ on macOS, Ctrl elsewhere), the whole sequence `times` times",
     ),
     (
         "input.click",
         "{x, y, button?, count?}: click at a window position, in logical pixels",
+    ),
+    (
+        "input.move",
+        "{x, y}: move the pointer to a window position (hover), in logical pixels",
+    ),
+    (
+        "input.drag",
+        "{from: [x, y], to: [x, y], steps?}: press the left button at from, move to to with it held (steps moves, default 8), let go there: selecting text with the mouse",
+    ),
+    (
+        "input.scroll",
+        "{x, y, dy, dx?}: scroll at a window position by pixels (positive dy scrolls the content up, towards the end), as a trackpad would",
+    ),
+    (
+        "ui.find",
+        "{label?, contains?, role?, count?, absent?, timeout_ms?}: the window's accessibility nodes (role, label, value, bounds, centre) that match: label exactly, contains in the label, value or help, role without its AX prefix (Button, RadioButton, Slider, Group …); waits until one does (with count, until exactly that many do; with absent, until none does); macOS",
+    ),
+    (
+        "ui.press",
+        "{label?, contains?, role?, nth?, via?, dx?, dy?, hover_ms?, settle_ms?}: press the nth node that matches: by default the pointer moves to its centre (moved by dx, dy), rests there hover_ms (120) and clicks (hover, hit test and click as a mouse would); via \"a11y\" asks AccessKit to press it instead, \"increment\" or \"decrement\" to step a slider or a number; waits for the node first; macOS",
+    ),
+    (
+        "ui.hover",
+        "{label?, contains?, role?, nth?, dx?, dy?}: move the pointer onto the nth node that matches (its centre moved by dx, dy); macOS",
+    ),
+    (
+        "ui.focus",
+        "{field, row?, select_all?}: give a text field the keyboard, as a click into it would (select_all: with its text selected, as a triple click), where dr-ui's fields are not yet in the accessibility tree: page.title, page.synopsis (the chapter page on the paper), element.name, element.alias, element.summary, element.field.key, element.field.value (row: an index, default the last), category.name, settings.search",
     ),
     (
         "nav.open",
@@ -90,11 +120,15 @@ pub const METHODS: &[(&str, &str)] = &[
     ),
     (
         "ui.wait",
-        "{until: \"ready\", text?, state?, timeout_ms?}: wait until the book and the pages on screen are read, and the page shows text, and state.get has the values at the JSON pointers in state",
+        "{until: \"ready\", text?, state?, page?, timeout_ms?}: wait until the book and the pages on screen are read, and the page shows text, and state.get (page.text) has the values at the JSON pointers in state (page); {until: \"time\", ms}: just wait",
     ),
     (
         "ui.screenshot",
         "{settle_ms?}: the window as a PNG (base64), drawn from inside the app after the transitions settle (default 500 ms; the longest dr-ui motion is 420 ms); a covered window is drawn first",
+    ),
+    (
+        "settings.get",
+        "{keys?}: the settings' values as the shell reads them (default: every one the registry knows), and the interface language",
     ),
     ("methods", "this list"),
 ];
@@ -176,6 +210,63 @@ pub async fn call(method: &str, params: Value, cx: &mut AsyncApp) -> Out {
         "input.type" => cx.update(|cx| type_text(&p, cx)),
         "input.key" => cx.update(|cx| press(&p, cx)),
         "input.click" => cx.update(|cx| click(&p, cx)),
+        "input.move" => cx.update(|cx| {
+            let (x, y) = (coord(&p, "x")?, coord(&p, "y")?);
+            in_window(cx, |_, window, cx| hover_at(x, y, window, cx))?;
+            Ok(json!({ "moved": [x, y] }))
+        }),
+        "input.drag" => cx.update(|cx| drag(&p, cx)),
+        "input.scroll" => cx.update(|cx| {
+            let (x, y) = (coord(&p, "x")?, coord(&p, "y")?);
+            let dy = coord(&p, "dy")?;
+            let dx = p.get("dx").and_then(Value::as_f64).unwrap_or(0.0) as f32;
+            in_window(cx, |_, window, cx| {
+                hover_at(x, y, window, cx);
+                window.dispatch_event(
+                    PlatformInput::Scroll(gpui::ScrollEvent {
+                        position: point(px(x), px(y)),
+                        delta: gpui::ScrollDelta::Pixels(point(px(-dx), px(-dy))),
+                        ..Default::default()
+                    }),
+                    cx,
+                );
+            })?;
+            Ok(json!({ "scrolled": [dx, dy] }))
+        }),
+        "ui.find" => find(&p, cx).await,
+        "ui.press" => press_node(&p, cx).await,
+        "ui.hover" => {
+            let node = wait_for_node(&p, cx).await?;
+            let (x, y) = offset(node.center(), &p);
+            cx.update(|cx| in_window(cx, |_, window, cx| hover_at(x, y, window, cx)))?;
+            Ok(json!({ "hovered": node.to_json() }))
+        }
+        "ui.focus" => cx.update(|cx| focus_field(&p, cx)),
+        "settings.get" => cx.update(|cx| {
+            let file = dr_shell::Settings::read(cx);
+            let keys: Vec<String> = match p.get("keys").and_then(Value::as_array) {
+                Some(keys) => keys
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .map(str::to_owned)
+                    .collect(),
+                None => dr_shell::settings::registry::REGISTRY
+                    .iter()
+                    .map(|d| d.key.to_owned())
+                    .collect(),
+            };
+            let values: serde_json::Map<String, Value> = keys
+                .into_iter()
+                .map(|k| {
+                    let v = file.get(&k);
+                    (k, v)
+                })
+                .collect();
+            Ok(json!({
+                "values": values,
+                "locale": dr_shell::Settings::locale(cx).code(),
+            }))
+        }),
         "nav.open" => cx.update(|cx| open(&p, cx)),
         "book.open" => open_book(&p, cx).await,
         "shelf.show" => cx.update(|cx| {
@@ -355,6 +446,12 @@ fn press(p: &Value, cx: &mut App) -> Out {
     if strokes.is_empty() {
         return Err(bad("params.keys: no key"));
     }
+    let times = p
+        .get("times")
+        .and_then(Value::as_u64)
+        .unwrap_or(1)
+        .clamp(1, 500) as usize;
+    let strokes: Vec<Keystroke> = std::iter::repeat_n(strokes, times).flatten().collect();
     in_window(cx, move |_, window, cx| {
         let handled: Vec<bool> = strokes
             .into_iter()
@@ -364,14 +461,26 @@ fn press(p: &Value, cx: &mut App) -> Out {
     })
 }
 
+fn coord(p: &Value, k: &str) -> Result<f32, BridgeError> {
+    p.get(k)
+        .and_then(Value::as_f64)
+        .map(|v| v as f32)
+        .ok_or_else(|| bad(format!("params.{k}: a number is needed")))
+}
+
+fn hover_at(x: f32, y: f32, window: &mut Window, cx: &mut App) {
+    window.dispatch_event(
+        PlatformInput::MouseMove(MouseMoveEvent {
+            position: point(px(x), px(y)),
+            pressed_button: None,
+            modifiers: Modifiers::none(),
+        }),
+        cx,
+    );
+}
+
 fn click(p: &Value, cx: &mut App) -> Out {
-    let coord = |k: &str| {
-        p.get(k)
-            .and_then(Value::as_f64)
-            .map(|v| v as f32)
-            .ok_or_else(|| bad(format!("params.{k}: a number is needed")))
-    };
-    let (x, y) = (coord("x")?, coord("y")?);
+    let (x, y) = (coord(p, "x")?, coord(p, "y")?);
     let button = match p.get("button").and_then(Value::as_str).unwrap_or("left") {
         "left" => MouseButton::Left,
         "right" => MouseButton::Right,
@@ -379,39 +488,98 @@ fn click(p: &Value, cx: &mut App) -> Out {
     };
     let count = p.get("count").and_then(Value::as_u64).unwrap_or(1).max(1) as usize;
     in_window(cx, move |_, window, cx| {
-        let position = point(px(x), px(y));
+        click_at(x, y, button, count, window, cx);
+        json!({ "clicked": [x, y], "count": count })
+    })
+}
+
+fn drag(p: &Value, cx: &mut App) -> Out {
+    let pair = |k: &str| -> Result<(f32, f32), BridgeError> {
+        let a = p
+            .get(k)
+            .and_then(Value::as_array)
+            .filter(|a| a.len() == 2)
+            .ok_or_else(|| bad(format!("params.{k}: [x, y]")))?;
+        let n = |v: &Value| {
+            v.as_f64()
+                .map(|v| v as f32)
+                .ok_or_else(|| bad(format!("params.{k}: numbers")))
+        };
+        Ok((n(&a[0])?, n(&a[1])?))
+    };
+    let (from, to) = (pair("from")?, pair("to")?);
+    let steps = p
+        .get("steps")
+        .and_then(Value::as_u64)
+        .unwrap_or(8)
+        .clamp(1, 100) as usize;
+    in_window(cx, move |_, window, cx| {
         let modifiers = Modifiers::none();
+        hover_at(from.0, from.1, window, cx);
         window.dispatch_event(
-            PlatformInput::MouseMove(MouseMoveEvent {
-                position,
-                pressed_button: None,
+            PlatformInput::MouseDown(MouseDownEvent {
+                button: MouseButton::Left,
+                position: point(px(from.0), px(from.1)),
                 modifiers,
+                click_count: 1,
+                first_mouse: false,
             }),
             cx,
         );
-        for click_count in 1..=count {
-            window.dispatch_event(
-                PlatformInput::MouseDown(MouseDownEvent {
-                    button,
-                    position,
-                    modifiers,
-                    click_count,
-                    first_mouse: false,
-                }),
-                cx,
+        for i in 1..=steps {
+            let t = i as f32 / steps as f32;
+            let at = point(
+                px(from.0 + (to.0 - from.0) * t),
+                px(from.1 + (to.1 - from.1) * t),
             );
             window.dispatch_event(
-                PlatformInput::MouseUp(MouseUpEvent {
-                    button,
-                    position,
+                PlatformInput::MouseMove(MouseMoveEvent {
+                    position: at,
+                    pressed_button: Some(MouseButton::Left),
                     modifiers,
-                    click_count,
                 }),
                 cx,
             );
         }
-        json!({ "clicked": [x, y], "count": count })
+        window.dispatch_event(
+            PlatformInput::MouseUp(MouseUpEvent {
+                button: MouseButton::Left,
+                position: point(px(to.0), px(to.1)),
+                modifiers,
+                click_count: 1,
+            }),
+            cx,
+        );
+        json!({ "dragged": [[from.0, from.1], [to.0, to.1]], "steps": steps })
     })
+}
+
+/// A pointer moving to (`x`, `y`) and clicking `count` times there.
+fn click_at(x: f32, y: f32, button: MouseButton, count: usize, window: &mut Window, cx: &mut App) {
+    let position = point(px(x), px(y));
+    let modifiers = Modifiers::none();
+    hover_at(x, y, window, cx);
+    for click_count in 1..=count {
+        window.dispatch_event(
+            PlatformInput::MouseDown(MouseDownEvent {
+                button,
+                position,
+                modifiers,
+                click_count,
+                first_mouse: false,
+            }),
+            cx,
+        );
+        window.dispatch_event(
+            PlatformInput::MouseUp(MouseUpEvent {
+                button,
+                position,
+                modifiers,
+                click_count,
+            }),
+            cx,
+        );
+    }
 }
 
 fn open(p: &Value, cx: &mut App) -> Out {
@@ -537,6 +705,15 @@ fn state_of(ws: &Workspace, window: &Window, cx: &App) -> Value {
         let handle = p.focus_handle(cx);
         window.focused(cx).is_some_and(|f| f == handle)
     });
+    // dr-editor's selection bar (F4e), shown over the page's selection.
+    let selection_bar = ws
+        .nav
+        .current()
+        .and_then(|t| ws.page_view(t))
+        .is_some_and(|v| match v {
+            PageView::Doc(e) => e.read(cx).assist().read(cx).bar().is_some(),
+            PageView::Book(e) => e.read(cx).assist().read(cx).bar().is_some(),
+        });
     let selection = prose.as_ref().map(|p| {
         let s = p.read(cx).selection();
         json!({ "anchor": s.anchor, "head": s.head })
@@ -569,6 +746,14 @@ fn state_of(ws: &Workspace, window: &Window, cx: &App) -> Value {
             "any": window.focused(cx).is_some(),
         },
         "selection": selection,
+        "selectionBar": selection_bar,
+        // What covers the page: a dialog (M10's import, M39's feedback, M41's
+        // export), the snapshot history (M09), the comment composer (M18),
+        // the ⋯ menu.
+        "dialog": ws.dialog.is_some(),
+        "history": ws.history.is_some(),
+        "composer": ws.composer.is_some(),
+        "cornerMenu": ws.corner_menu.is_some(),
         "window": {
             "active": window.is_window_active(),
             "visible": window.visibility() == WindowVisibility::Visible,
@@ -583,7 +768,7 @@ fn state(cx: &mut App) -> Out {
 
 fn page_text(p: &Value, cx: &mut App) -> Out {
     let wanted = p.get("target").and_then(Value::as_str).map(str::to_owned);
-    in_window(cx, move |view, _, cx| {
+    in_window(cx, move |view, window, cx| {
         let ws = view.read(cx);
         let target = match wanted {
             Some(k) => Target::from_key(&k).ok_or_else(|| bad(format!("{k} is not a page key")))?,
@@ -628,14 +813,94 @@ fn page_text(p: &Value, cx: &mut App) -> Out {
             }
         }
         let sel = prose.selection();
+        let head = page
+            .doc
+            .as_deref()
+            .map(|doc| head_of(&target, doc, window, cx))
+            .unwrap_or(Value::Null);
         Ok(json!({
             "target": target.key(), "title": title,
             "ready": page.loading.is_none(), "loading": page.loading.is_some(),
             "paragraphs": paragraphs, "text": lines.join("\n"),
             "selection": { "anchor": sel.anchor, "head": sel.head },
             "source": if whole_book { "book" } else { "editor" },
+            "head": head,
         }))
     })?
+}
+
+/// What a page shows around its text and which of its fields has the
+/// keyboard: a chapter page's title, synopsis and ⁂ (M03), an element
+/// page's name, aliases input, summary and field rows (M11).
+fn head_of(target: &Target, doc: &str, window: &Window, cx: &App) -> Value {
+    let focused = |h: gpui::FocusHandle| h.is_focused(window);
+    match target {
+        Target::Chapter(_) => {
+            let Some((head, end)) = dr_view_page::page_views(doc, cx) else {
+                return Value::Null;
+            };
+            let (h, e) = (head.read(cx), end.read(cx));
+            let (title, synopsis) = (h.title().read(cx), h.synopsis().read(cx));
+            let focus = if focused(h.title().focus_handle(cx)) {
+                json!("title")
+            } else if focused(h.synopsis().focus_handle(cx)) {
+                json!("synopsis")
+            } else {
+                Value::Null
+            };
+            json!({
+                "title": title.text(), "synopsis": synopsis.text(),
+                "status": e.page().status, "finished": e.page().finished(),
+                "number": e.page().number, "endOpen": e.is_open(),
+                "focus": focus,
+            })
+        }
+        Target::Element(id) => {
+            let Some((head, fields)) = dr_view_elements::element_page(id.as_ref(), cx) else {
+                return Value::Null;
+            };
+            let (name, alias, summary) = head.read(cx).fields();
+            let rows = fields.read(cx).rows();
+            let focus = if focused(name.focus_handle(cx)) {
+                json!("name")
+            } else if focused(alias.focus_handle(cx)) {
+                json!("alias")
+            } else if focused(summary.focus_handle(cx)) {
+                json!("summary")
+            } else {
+                rows.iter()
+                    .position(|(_, k, v)| {
+                        focused(k.focus_handle(cx)) || focused(v.focus_handle(cx))
+                    })
+                    .map(|i| json!(format!("field.{i}")))
+                    .unwrap_or(Value::Null)
+            };
+            json!({
+                "name": name.read(cx).text(),
+                "alias": alias.read(cx).text(),
+                "summary": summary.read(cx).text(),
+                "fields": rows.iter().map(|(id, k, v)| json!({
+                    "id": id, "key": k.read(cx).text(), "value": v.read(cx).text(),
+                })).collect::<Vec<_>>(),
+                // The 0.1 alert is the shell's dialog now (M11's
+                // `dr_view_elements::dialogs`), not a field of the head.
+                "alert": dr_view_elements::dialogs::dialogs(cx)
+                    .and_then(|d| d.read(cx).asking())
+                    .and_then(|a| match a {
+                        dr_view_elements::dialogs::Asking::Alert(m) => Some(m),
+                        _ => None,
+                    }),
+                "focus": focus,
+            })
+        }
+        Target::Category(id) => {
+            let Some((head, _)) = dr_view_elements::category_page(id.as_ref(), cx) else {
+                return Value::Null;
+            };
+            json!({ "name": head.read(cx).name_field().read(cx).text() })
+        }
+        _ => Value::Null,
+    }
 }
 
 /// A covered or minimized window draws no frames, and the shell starts
@@ -657,6 +922,7 @@ fn pump(cx: &mut App) -> Result<bool, BridgeError> {
 fn settled(
     text: Option<&str>,
     want: &[(String, Value)],
+    page_want: &[(String, Value)],
     cx: &mut App,
 ) -> Result<Option<String>, BridgeError> {
     pump(cx)?;
@@ -714,20 +980,45 @@ fn settled(
             return Ok(Some(format!("{pointer} is {got}, not {value}")));
         }
     }
+    if !page_want.is_empty() {
+        let page = page_text(&json!({}), cx)?;
+        for (pointer, value) in page_want {
+            let got = page.pointer(pointer).cloned().unwrap_or(Value::Null);
+            if &got != value {
+                return Ok(Some(format!("page {pointer} is {got}, not {value}")));
+            }
+        }
+    }
     Ok(None)
 }
 
 async fn wait(p: &Value, cx: &mut AsyncApp) -> Out {
     let until = p.get("until").and_then(Value::as_str).unwrap_or("ready");
-    if until != "ready" {
-        return Err(bad(format!("until {until}: only \"ready\" so far")));
+    match until {
+        "ready" => {}
+        // A pause (a history point waits for its commit, a toast for its
+        // timer): nothing on screen says when it is over.
+        "time" => {
+            let ms = p
+                .get("ms")
+                .and_then(Value::as_u64)
+                .unwrap_or(500)
+                .min(60_000);
+            cx.background_executor()
+                .timer(Duration::from_millis(ms))
+                .await;
+            return Ok(json!({ "waitedMs": ms }));
+        }
+        other => return Err(bad(format!("until {other}: \"ready\" or \"time\""))),
     }
     let text = p.get("text").and_then(Value::as_str).map(str::to_owned);
-    let want: Vec<(String, Value)> = p
-        .get("state")
-        .and_then(Value::as_object)
-        .map(|m| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
-        .unwrap_or_default();
+    let pairs = |key: &str| -> Vec<(String, Value)> {
+        p.get(key)
+            .and_then(Value::as_object)
+            .map(|m| m.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+            .unwrap_or_default()
+    };
+    let (want, page_want) = (pairs("state"), pairs("page"));
     let timeout = Duration::from_millis(
         p.get("timeout_ms")
             .and_then(Value::as_u64)
@@ -737,7 +1028,7 @@ async fn wait(p: &Value, cx: &mut AsyncApp) -> Out {
     let mut polls = 0u32;
     loop {
         polls += 1;
-        let pending = cx.update(|cx| settled(text.as_deref(), &want, cx))?;
+        let pending = cx.update(|cx| settled(text.as_deref(), &want, &page_want, cx))?;
         let Some(why) = pending else {
             return Ok(json!({ "waitedMs": started.elapsed().as_millis() as u64, "polls": polls }));
         };
@@ -750,6 +1041,411 @@ async fn wait(p: &Value, cx: &mut AsyncApp) -> Out {
         cx.background_executor()
             .timer(Duration::from_millis(20))
             .await;
+    }
+}
+
+/// What `ui.find`, `ui.press` and `ui.hover` look for.
+struct Query {
+    label: Option<String>,
+    contains: Option<String>,
+    role: Option<String>,
+}
+
+impl Query {
+    fn of(p: &Value) -> Query {
+        let s = |k: &str| p.get(k).and_then(Value::as_str).map(str::to_owned);
+        Query {
+            label: s("label"),
+            contains: s("contains"),
+            role: s("role").map(|r| r.trim_start_matches("AX").to_lowercase()),
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.label.is_none() && self.contains.is_none() && self.role.is_none()
+    }
+
+    fn matches(&self, n: &a11y::Node) -> bool {
+        if let Some(label) = &self.label
+            && n.label.as_deref() != Some(label.as_str())
+        {
+            return false;
+        }
+        if let Some(part) = &self.contains {
+            let has = |s: &Option<String>| s.as_deref().is_some_and(|s| s.contains(part.as_str()));
+            if !(has(&n.label) || has(&n.value) || has(&n.help)) {
+                return false;
+            }
+        }
+        if let Some(role) = &self.role
+            && n.role.to_lowercase() != *role
+        {
+            return false;
+        }
+        true
+    }
+
+    fn describe(&self) -> String {
+        let mut parts = Vec::new();
+        if let Some(l) = &self.label {
+            parts.push(format!("label {l:?}"));
+        }
+        if let Some(c) = &self.contains {
+            parts.push(format!("containing {c:?}"));
+        }
+        if let Some(r) = &self.role {
+            parts.push(format!("role {r}"));
+        }
+        parts.join(", ")
+    }
+}
+
+fn unsupported_a11y() -> Out {
+    Err(BridgeError::new(
+        codes::UNSUPPORTED,
+        "finding elements by their accessible name is macOS only so far",
+    ))
+}
+
+/// The nodes that match now (drawing a covered window first, so a tree
+/// that only now connected gets its first frame), and how many nodes the
+/// tree has; `None` while the tree is still connecting.
+fn matching(q: &Query, cx: &mut App) -> Result<Option<(Vec<a11y::Node>, usize)>, BridgeError> {
+    pump(cx)?;
+    in_window(cx, |_, window, _| {
+        let (all, current) = a11y::nodes(window);
+        current.then(|| {
+            let total = all.len();
+            (all.into_iter().filter(|n| q.matches(n)).collect(), total)
+        })
+    })
+}
+
+async fn find(p: &Value, cx: &mut AsyncApp) -> Out {
+    if !a11y::SUPPORTED {
+        return unsupported_a11y();
+    }
+    let q = Query::of(p);
+    let absent = p.get("absent") == Some(&json!(true));
+    let count = p.get("count").and_then(Value::as_u64).map(|c| c as usize);
+    let timeout =
+        Duration::from_millis(p.get("timeout_ms").and_then(Value::as_u64).unwrap_or(3_000));
+    let started = Instant::now();
+    loop {
+        let (found, current) = match cx.update(|cx| matching(&q, cx))? {
+            Some((found, _)) => (found, true),
+            None => (Vec::new(), false),
+        };
+        let done = current
+            && match count {
+                Some(n) => found.len() == n,
+                None => q.is_empty() || absent == found.is_empty(),
+            };
+        if done {
+            return Ok(json!({
+                "count": found.len(),
+                "nodes": found.iter().map(a11y::Node::to_json).collect::<Vec<_>>(),
+            }));
+        }
+        if started.elapsed() >= timeout {
+            return Err(BridgeError::new(
+                if absent || count.is_some() {
+                    codes::TIMEOUT
+                } else {
+                    codes::NOT_FOUND
+                },
+                if let Some(n) = count {
+                    format!(
+                        "{} node(s) match {} after {} ms, not {n}",
+                        found.len(),
+                        q.describe(),
+                        timeout.as_millis()
+                    )
+                } else if absent {
+                    format!(
+                        "still shown after {} ms: {}",
+                        timeout.as_millis(),
+                        q.describe()
+                    )
+                } else {
+                    format!(
+                        "nothing on screen matches {} after {} ms",
+                        q.describe(),
+                        timeout.as_millis()
+                    )
+                },
+            ));
+        }
+        cx.background_executor()
+            .timer(Duration::from_millis(50))
+            .await;
+    }
+}
+
+/// The `nth` node that matches, once it shows (up to `timeout_ms`, 3 s).
+async fn wait_for_node(p: &Value, cx: &mut AsyncApp) -> Result<a11y::Node, BridgeError> {
+    if !a11y::SUPPORTED {
+        return unsupported_a11y().map(|_| unreachable!());
+    }
+    let q = Query::of(p);
+    if q.is_empty() {
+        return Err(bad("give params.label, params.contains or params.role"));
+    }
+    let nth = p.get("nth").and_then(Value::as_u64).unwrap_or(0) as usize;
+    let timeout =
+        Duration::from_millis(p.get("timeout_ms").and_then(Value::as_u64).unwrap_or(3_000));
+    let started = Instant::now();
+    loop {
+        let found = cx
+            .update(|cx| matching(&q, cx))?
+            .map(|(found, _)| found)
+            .unwrap_or_default();
+        if let Some(node) = found.get(nth) {
+            return Ok(node.clone());
+        }
+        if started.elapsed() >= timeout {
+            return Err(not_found(format!(
+                "{} node(s) match {} after {} ms; wanted number {}",
+                found.len(),
+                q.describe(),
+                timeout.as_millis(),
+                nth + 1
+            )));
+        }
+        cx.background_executor()
+            .timer(Duration::from_millis(50))
+            .await;
+    }
+}
+
+/// A node's centre moved by `dx`, `dy` (a row's empty part beside its
+/// button, say).
+fn offset((x, y): (f32, f32), p: &Value) -> (f32, f32) {
+    let d = |k: &str| p.get(k).and_then(Value::as_f64).unwrap_or(0.0) as f32;
+    (x + d("dx"), y + d("dy"))
+}
+
+async fn press_node(p: &Value, cx: &mut AsyncApp) -> Out {
+    // Let a menu or a dialog finish moving in, so the node is where it
+    // stays (dr-ui's motions are 420 ms at most).
+    let settle = p.get("settle_ms").and_then(Value::as_u64).unwrap_or(300);
+    if settle > 0 {
+        cx.background_executor()
+            .timer(Duration::from_millis(settle))
+            .await;
+    }
+    let node = wait_for_node(p, cx).await?;
+    let via = p.get("via").and_then(Value::as_str).unwrap_or("pointer");
+    match via {
+        "pointer" => {
+            let (x, y) = offset(node.center(), p);
+            // The pointer rests there a moment first, as a hand does: a
+            // control that only shows while its row is hovered (an alias's
+            // ×) is drawn, and so can be hit, from the next frame on.
+            let rest = p.get("hover_ms").and_then(Value::as_u64).unwrap_or(120);
+            if rest > 0 {
+                cx.update(|cx| {
+                    in_window(cx, |_, window, cx| hover_at(x, y, window, cx))?;
+                    pump(cx).map(|_| ())
+                })?;
+                cx.background_executor()
+                    .timer(Duration::from_millis(rest))
+                    .await;
+                cx.update(pump)?;
+            }
+            cx.update(|cx| {
+                in_window(cx, |_, window, cx| {
+                    let size = window.viewport_size();
+                    if x < 0.0 || y < 0.0 || x >= f32::from(size.width) || y >= f32::from(size.height) {
+                        return Err(BridgeError::new(
+                            codes::NOT_FOUND,
+                            format!(
+                                "{} is at ({x:.0}, {y:.0}), outside the window ({:.0} × {:.0}): scroll it into view first",
+                                node.label.as_deref().unwrap_or(&node.role),
+                                f32::from(size.width),
+                                f32::from(size.height)
+                            ),
+                        ));
+                    }
+                    click_at(x, y, MouseButton::Left, 1, window, cx);
+                    Ok(())
+                })?
+            })?;
+        }
+        "a11y" | "increment" | "decrement" => {
+            let action = match via {
+                "increment" => a11y::Action::Increment,
+                "decrement" => a11y::Action::Decrement,
+                _ => a11y::Action::Press,
+            };
+            let q = Query::of(p);
+            let nth = p.get("nth").and_then(Value::as_u64).unwrap_or(0) as usize;
+            let pressed = cx.update(|cx| {
+                in_window(cx, |_, window, _| {
+                    a11y::perform(window, nth, action, |n| q.matches(n))
+                })
+            })?;
+            if pressed.is_none() {
+                return Err(not_found(format!(
+                    "{} went away before the press",
+                    q.describe()
+                )));
+            }
+        }
+        other => {
+            return Err(bad(format!(
+                "via {other}: pointer, a11y, increment or decrement"
+            )));
+        }
+    }
+    Ok(json!({ "pressed": node.to_json(), "via": via }))
+}
+
+/// Gives a text field the keyboard, as clicking into it would.
+fn focus_field(p: &Value, cx: &mut App) -> Out {
+    let field = string(p, "field")?.to_owned();
+    let row = p.get("row").and_then(Value::as_u64).map(|r| r as usize);
+    let select_all = p.get("select_all") == Some(&json!(true));
+    in_window(cx, move |view, window, cx| {
+        let ws = view.read(cx);
+        // Settings' search field: the panel's own focus call.
+        if field == "settings.search" {
+            let panel = ws
+                .settings
+                .clone()
+                .ok_or_else(|| not_found("Settings is not open"))?;
+            panel.update(cx, |panel, cx| panel.focus(window, cx));
+            return Ok(json!({ "focused": field }));
+        }
+        let target = ws
+            .nav
+            .current()
+            .cloned()
+            .ok_or_else(|| not_found("the paper shows the Project Home, not a page"))?;
+        let handle = match field.as_str() {
+            "page.title" | "page.synopsis" => {
+                let doc = ws
+                    .editors
+                    .get(&target.key())
+                    .and_then(|e| e.doc.clone())
+                    .ok_or_else(|| not_found(format!("{} has no editor open", target.key())))?;
+                let (head, _) = dr_view_page::page_views(&doc, cx).ok_or_else(|| {
+                    not_found(format!(
+                        "{doc}: no page head drawn (a chapter page has one)"
+                    ))
+                })?;
+                let head = head.read(cx);
+                if field == "page.title" {
+                    head.title().focus_handle(cx)
+                } else {
+                    head.synopsis().focus_handle(cx)
+                }
+            }
+            f if f.starts_with("element.") => {
+                let Target::Element(id) = &target else {
+                    return Err(not_found(format!(
+                        "{} is not an element's page",
+                        target.key()
+                    )));
+                };
+                let (head, fields) = dr_view_elements::element_page(id.as_ref(), cx)
+                    .ok_or_else(|| not_found("the element page's fields are not drawn yet"))?;
+                let (name, alias, summary) = head.read(cx).fields();
+                match f {
+                    "element.name" => name.focus_handle(cx),
+                    "element.alias" => alias.focus_handle(cx),
+                    "element.summary" => summary.focus_handle(cx),
+                    "element.field.key" | "element.field.value" => {
+                        let rows = fields.read(cx).rows();
+                        let ix = row.unwrap_or(rows.len().saturating_sub(1));
+                        let (_, key, value) = rows.get(ix).ok_or_else(|| {
+                            not_found(format!("no field row {ix} ({} rows)", rows.len()))
+                        })?;
+                        if f == "element.field.key" {
+                            key.focus_handle(cx)
+                        } else {
+                            value.focus_handle(cx)
+                        }
+                    }
+                    other => return Err(bad(format!("no field {other}"))),
+                }
+            }
+            "category.name" => {
+                let Target::Category(id) = &target else {
+                    return Err(not_found(format!(
+                        "{} is not a category's page",
+                        target.key()
+                    )));
+                };
+                let (head, _) = dr_view_elements::category_page(id.as_ref(), cx)
+                    .ok_or_else(|| not_found("the category page's head is not drawn yet"))?;
+                head.read(cx).name_field().focus_handle(cx)
+            }
+            other => return Err(bad(format!("no field {other}"))),
+        };
+        window.focus(&handle, cx);
+        if select_all {
+            select_all_in(&field, &target, row, window, cx);
+        }
+        Ok(json!({ "focused": field }))
+    })?
+}
+
+/// Selects a field's whole text, as a triple click would (⌘A in a field is
+/// the menu's Select All while the shell binds it without a context).
+fn select_all_in(field: &str, target: &Target, row: Option<usize>, _: &mut Window, cx: &mut App) {
+    match field {
+        "page.title" | "page.synopsis" => {
+            if let Some((head, _)) = dr_view_page::page_views(&doc_key(target), cx) {
+                let area = if field == "page.title" {
+                    head.read(cx).title().clone()
+                } else {
+                    head.read(cx).synopsis().clone()
+                };
+                area.update(cx, |a, cx| a.select_all_text(cx));
+            }
+        }
+        f if f.starts_with("element.") => {
+            let Target::Element(id) = target else { return };
+            let Some((head, fields)) = dr_view_elements::element_page(id.as_ref(), cx) else {
+                return;
+            };
+            let (name, alias, summary) = head.read(cx).fields();
+            match f {
+                "element.name" => name.update(cx, |a, cx| a.select_all_text(cx)),
+                "element.alias" => alias.update(cx, |a, cx| a.select_all_text(cx)),
+                "element.summary" => summary.update(cx, |a, cx| a.select_all_text(cx)),
+                "element.field.key" | "element.field.value" => {
+                    let rows = fields.read(cx).rows();
+                    let ix = row.unwrap_or(rows.len().saturating_sub(1));
+                    if let Some((_, key, value)) = rows.get(ix) {
+                        if f == "element.field.key" {
+                            key.update(cx, |a, cx| a.select_all_text(cx));
+                        } else {
+                            value.update(cx, |a, cx| a.select_all_text(cx));
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        "category.name" => {
+            if let Target::Category(id) = target
+                && let Some((head, _)) = dr_view_elements::category_page(id.as_ref(), cx)
+            {
+                let name = head.read(cx).name_field();
+                name.update(cx, |a, cx| a.select_all_text(cx));
+            }
+        }
+        _ => {}
+    }
+}
+
+/// The prose document of a chapter page (`node:<id>`).
+fn doc_key(target: &Target) -> String {
+    match target {
+        Target::Chapter(id) | Target::Idea(id) => format!("node:{id}"),
+        other => other.key(),
     }
 }
 

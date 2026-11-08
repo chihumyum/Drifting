@@ -212,6 +212,32 @@ struct State {
     books_written: BTreeSet<BookId>,
     phase: Option<Phase>,
     book_hint: Option<BookId>,
+    /// Elements whose `updated_at` the book write stamps
+    /// ([`Cx::touch_element`]).
+    touched_elements: Vec<String>,
+}
+
+/// The key of an element's last change of its own fields, in seconds
+/// (dr-model's `Timestamp`), as comments keep theirs. dr-doc's element has
+/// no such field yet (F1 待协调): F3 writes and reads the key itself, the
+/// encoding dr-doc gives timestamps, so a later `ElementWriter::updated_at`
+/// reads what is stored.
+pub(crate) const ELEMENT_UPDATED_AT: &str = "updated_at";
+
+/// Write [`ELEMENT_UPDATED_AT`] = now on each live element map of `ids`.
+fn stamp_elements(doc: &loro::LoroDoc, ids: &[String]) -> Result<()> {
+    if ids.is_empty() {
+        return Ok(());
+    }
+    let root = doc.get_map(dr_doc::book::Collection::Elements.root());
+    let now = loro::LoroValue::I64(dr_model::Timestamp::now().0);
+    for id in ids {
+        if let Some(loro::ValueOrContainer::Container(loro::Container::Map(m))) = root.get(id) {
+            m.insert(ELEMENT_UPDATED_AT, now.clone())
+                .map_err(|e| WsError::Internal(e.to_string()))?;
+        }
+    }
+    Ok(())
 }
 
 /// The context of one command or query.
@@ -394,13 +420,25 @@ impl<'a> Cx<'a> {
         self.faults().check("after_prose")?;
         let agent = self.actor.agent_write(&self.summary());
         let book = slot.book.clone();
+        let touched = std::mem::take(&mut self.st.borrow_mut().touched_elements);
         holder::write(&slot.handle, self.actor.store_origin(), agent, move |doc| {
             // The holder has settled the document: this is the stored head.
             let before = doc.oplog_frontiers();
-            let b = BorrowedBook::new(doc, &book)?;
-            let mut txn = b.txn();
-            Ok((f(&mut txn)?, before))
+            let r = {
+                let b = BorrowedBook::new(doc, &book)?;
+                let mut txn = b.txn();
+                f(&mut txn)?
+            };
+            stamp_elements(doc, &touched)?;
+            Ok((r, before))
         })
+    }
+
+    /// Stamp element `id`'s `updated_at` in this command's book write (a
+    /// rename, a field, an alias, a summary: what M11 shows as 「更新于」).
+    /// Call it before [`Self::write_book`].
+    pub(crate) fn touch_element(&self, id: &dr_model::id::ElementId) {
+        self.st.borrow_mut().touched_elements.push(id.to_string());
     }
 
     /// The open prose document `doc` (created from its genesis if only

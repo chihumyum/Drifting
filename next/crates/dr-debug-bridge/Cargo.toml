@@ -19,6 +19,10 @@ base64.workspace = true
 dr-debug-protocol.workspace = true
 dr-platform.workspace = true
 dr-shell.workspace = true
+# The chapter page's head and the element pages' fields, which `ui.focus`
+# and `page.text` reach (M03, M11).
+dr-view-elements.workspace = true
+dr-view-page.workspace = true
 dr-workspace.workspace = true
 futures.workspace = true
 gpui.workspace = true
@@ -29,6 +33,12 @@ log.workspace = true
 png = { workspace = true, optional = true }
 serde_json.workspace = true
 uuid.workspace = true
+
+# `ui.find` / `ui.press`: the window's accessibility tree, read from inside
+# the app through AppKit (the versions dr-ui already builds).
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2.workspace = true
+raw-window-handle.workspace = true
 
 [dev-dependencies]
 dr-store.workspace = true

@@ -163,6 +163,7 @@ pub struct HoverCard {
     target: AnyElement,
     card: super::Build,
     open: Option<bool>,
+    beside: bool,
 }
 
 impl HoverCard {
@@ -176,12 +177,21 @@ impl HoverCard {
             target: target.into_any_element(),
             card: Rc::new(card),
             open: None,
+            beside: false,
         }
     }
 
     /// Holds the card open (or closed) regardless of the pointer.
     pub fn force_open(mut self, open: bool) -> Self {
         self.open = Some(open);
+        self
+    }
+
+    /// Floats the card beside the thing, tops level (right of it, or left
+    /// when the right has no room), instead of below it: for a card in a
+    /// side column.
+    pub fn beside(mut self) -> Self {
+        self.beside = true;
         self
     }
 }
@@ -265,8 +275,16 @@ impl RenderOnce for HoverCard {
         let card = (open && anchor.is_some()).then(|| {
             let bounds = anchor.expect("checked");
             let (on_card, off_card) = (state.clone(), state.clone());
+            let place = if self.beside {
+                Place::Beside {
+                    rect: bounds,
+                    gap: m::HOVER_CARD_GAP,
+                }
+            } else {
+                Place::below(bounds, m::HOVER_CARD_GAP)
+            };
             overlay::float(
-                Place::below(bounds, m::HOVER_CARD_GAP),
+                place,
                 Layer::Popover,
                 div()
                     .id(crate::style::child_id(&self.id.clone(), "card"))
@@ -399,6 +417,7 @@ pub struct CardBody {
     count: Option<SharedString>,
     meta: Vec<AnyElement>,
     summary: Option<SharedString>,
+    quote: Option<(SharedString, Option<SharedString>)>,
     sections: Vec<Vec<AnyElement>>,
 }
 
@@ -411,6 +430,7 @@ impl CardBody {
             count: None,
             meta: Vec::new(),
             summary: None,
+            quote: None,
             sections: Vec::new(),
         }
     }
@@ -433,6 +453,13 @@ impl CardBody {
 
     pub fn summary(mut self, text: impl Into<SharedString>) -> Self {
         self.summary = Some(text.into());
+        self
+    }
+
+    /// A passage on a slip of the page, in the prose face (the 0.1
+    /// client's `.hover-card__quote`), with a quiet line under it.
+    pub fn quote(mut self, text: impl Into<SharedString>, note: Option<SharedString>) -> Self {
+        self.quote = Some((text.into(), note));
         self
     }
 
@@ -519,6 +546,32 @@ impl RenderOnce for CardBody {
                         .pb(px(4.0))
                         .child(crate::text::wrapped(t)),
                 )
+            })
+            .when_some(self.quote, |el, (text, note)| {
+                el.child(
+                    div()
+                        .mx(px(pad))
+                        .mt(px(8.0))
+                        .mb(px(4.0))
+                        .px(px(10.0))
+                        .py(px(7.0))
+                        .rounded(px(radius::MD))
+                        .bg(p.page.solid())
+                        .font_role(Role::Prose)
+                        .line_height(px(s.secondary * 1.7))
+                        .text_color(p.ink(2).solid())
+                        .child(crate::text::wrapped(text)),
+                )
+                .when_some(note, |el, note| {
+                    el.child(
+                        div()
+                            .px(px(pad))
+                            .pb(px(4.0))
+                            .font_role(Role::Index)
+                            .text_color(p.ink(3).solid())
+                            .child(note),
+                    )
+                })
             });
         for rows in self.sections {
             body = body

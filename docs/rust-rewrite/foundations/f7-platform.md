@@ -11,14 +11,14 @@
 | 件 | 现在能做什么 | 还差什么 |
 | --- | --- | --- |
 | 日志 | 开发时打到终端；装好的版本每天一个日志文件，留 14 天；GPUI 只走 `log` 的报错也接住了 | — |
-| 崩溃上报 | Rust 崩溃记下来、下次启动再送；原生崩溃由一个旁路进程抓 minidump 立刻送；正文和个人路径发送前抹掉；崩溃后的「你当时在做什么？」留好了接口 | 发版前配 DSN；F6 做同意开关和首次说明；发布时上传符号 |
+| 崩溃上报 | Rust 崩溃记下来、下次启动再送；原生崩溃由一个旁路进程抓 minidump 立刻送；正文和个人路径发送前抹掉；崩溃后的「你当时在做什么？」留好了接口。第三轮：发出去的包剥掉符号、符号单独留一份，本机假收件端上证明了剥过的程序报上来的崩溃能还原出函数名和行号 | 发版前配 DSN 和上传符号的密钥；F6 做同意开关和首次说明 |
 | 钥匙串 | 用的就是旧版的存法，旧版写的登录和 API Key 新版直接读得到，新版写的旧版也读得到；Windows 长令牌自动拆开存 | — |
 | 深链接与单实例 | 链接统一进一个队列，各取各的前缀；Windows 第二次启动把链接转给已开的那个再退出；开发版用 `drifting-next-dev:`，不抢正式版的链接 | F6 接上「来了链接就把窗口叫到前面」 |
 | 打包 | macOS 出 `.app`、`.dmg`、更新包 `.app.tar.gz`；Windows 有 NSIS 安装器，安装位置、卸载项、注册表和旧版 Tauri 安装器一样，CI 里装一遍、升级一遍、卸一遍 | 签名、公证、预编译着色器（发版前） |
 | 自动更新 | 读清单、比版本、下载、用现有公钥的格式验签、macOS 原地换包、Windows 交给安装器；本地用自造的密钥对和本地文件从头到尾走通了 | F6/M42 的界面和定时检查；旧版最后一版改一行更新地址 |
 | 外部 Agent 的命令行 | 新程序认旧版写进 Codex、Claude Code 配置里的 `drifting --mcp --connection <文件>`，在入口最先分流，不开窗口、不拿单实例锁 | M32 实现桥接（发 GPUI 版的前提） |
 | 设备身份（第二轮） | 应用打开库时带上这台设备的身份（和旧版同一个身份文件，换了机器算新设备），写作日真正存下来；开发 profile 各有一份 | — |
-| 反馈与崩溃跟进（第二轮，M39） | 反馈对话框，可附脱敏诊断摘要，走旧版的接口；崩溃后通知中心里点「上次出了故障」问一句；没有服务时交给邮件程序。脱敏规则补全成旧版的整套 | 账户菜单和「关于」的入口、多行输入框、登录会话（见 [m39-feedback.md](../modules/m39-feedback.md) 待协调） |
+| 反馈与崩溃跟进（第二轮，M39） | 反馈对话框，可附脱敏诊断摘要，走旧版的接口；崩溃后通知中心里点「上次出了故障」问一句；没有服务时交给邮件程序。脱敏规则补全成旧版的整套。第三轮：多行写话框，✕ 总能关、写了字点雾不关，和旧版一样 | 登录会话、摘要里的同步和更新状态（见 [m39-feedback.md](../modules/m39-feedback.md) 待协调） |
 | 发布流水线 | 草稿 `next/script/release-next.draft.yml`，不会被触发 | 交接时补全 |
 
 **最要紧的三个发现**：
@@ -125,17 +125,29 @@ dr_view_feedback::init(Service::for_build(platform, Some(&dirs.data), version), 
 
 每送出一个崩溃，`crashes/followups/` 里留一条 `{ id, kind: panic|native, occurred_at, app_version }`，`id` 同时是 Sentry 事件上的 `drifting.crash_id` 标签。F6 在启动稳定后调一次 `take_follow_up()`：拿到最新的一条，其余的丢掉，所以每次崩溃最多问一次，和旧版一致。通知是 F6 的 `check_crash_follow_up`；点通知打开反馈对话框、把 `id` 带进反馈是 M39（第二轮做了，见 [m39-feedback.md](../modules/m39-feedback.md)）。原生崩溃的「已送出」是乐观的：旁路进程开始上传时就记下了。
 
-### 符号文件（设计，未配密钥）
+### 符号文件（第三轮本机做完，上传未配密钥）
 
-- macOS：release 档加 `debug = "line-tables-only"` 和 `split-debuginfo = "packed"`，cargo 会生成 `.dSYM`；发出去的可执行文件再剥符号。`sentry-cli debug-files upload --include-sources <dSYM>`。
-- Windows：上传 `drifting.pdb`。
-- 只用 `SENTRY_AUTH_TOKEN`（secret）和 `SENTRY_ORG` / `SENTRY_PROJECT`（vars），都在 `release` 环境里；步骤写在草稿工作流里。
+- **发出去的构建用 `dist` 档案**（`next/Cargo.toml`）：继承 `release`，加 `debug = "line-tables-only"` 和 `split-debuginfo = "packed"`。macOS 上 cargo 在可执行文件旁边生成 `drifting.dSYM`，Windows 上是 `drifting.pdb`。`release` 档案本身不动，基准测试照旧用它（加了行号表编得慢一点、链接时多跑一次 `dsymutil`，不该算进别人的测量）。
+- **`script/bundle-mac --dist`**：用 `dist` 档案编，把 `.dSYM` 复制到包旁边的 `Drifting Next.app.dSYM`（不进包、不进 `.dmg` 和更新包），包里的可执行文件 `strip -S -x` 剥掉符号，再查一遍剥过的可执行文件和 `.dSYM` 的构建 UUID 相同，最后照常 ad-hoc 签名。Windows 是 `bundle-windows.ps1 -BuildProfile dist`，打印 `pdb=<路径>`，安装器不带它。
+- **上传**：发布工作流把 `Drifting Next.app.dSYM` 和 `target/<三元组>/dist/drifting.pdb` 交给 `sentry-cli debug-files upload`（草稿里写好了路径，命令仍是 TODO）。只用 `SENTRY_AUTH_TOKEN`（secret）和 `SENTRY_ORG` / `SENTRY_PROJECT`（vars），都在 `release` 环境里。
+- **Sentry 怎么对上号**：事件里每个加载的镜像带构建 UUID（`debug_meta.images[].id`）和加载地址，每帧带指令地址；Sentry 按 UUID 找到上传的 `.dSYM`，用「指令地址 − 加载地址」查函数和行号。剥符号不改 UUID，所以剥过的程序发出的事件能用没剥的那份符号还原。下面的本机测试就是照这条路走的。
+- 实测见「第三轮」。
 
-### 本机验证（`crash-probe`）
+### 本机验证
+
+`crash-probe`（第一轮，手动）：
 
 - 正常退出：旁路进程跟着起、跟着退，系统崩溃报告里没有它（Zed 遇到的 ⌘Q 崩溃没有出现，但见「发版前」4）。
 - 原生崩溃：旁路进程接住，记下 `kind: native` 的跟进。
 - Rust 崩溃：记录里的正文换成了 `[text]`，28 帧调用栈、389 个镜像；下次启动送出、删掉记录、给出一条跟进。
+
+`dr-platform/tests/crash_report.rs`（第三轮，自动，跟着 `cargo test` 跑；只在 macOS 上，别的平台报「跳过」）：本机 `127.0.0.1` 上起一个假的 Sentry 收件端，DSN 由测试按这个端口现拼，不从任何地方读。崩溃的程序是测试可执行文件的一份副本，`strip -S -x` 剥过符号，和发出去的包一样：
+
+1. 带一段正文 panic：记录落在 `pending/`，里面没有正文；
+2. 再启动一次：收件端收到一个信封（`POST /api/1/envelope/`，`X-Sentry-Auth` 里是测试的 key），事件是 `fatal`、`release`、`build.commit` 对、`drifting.crash_id` 等于跟进记录的 id，没有 `server_name`、`user`，整个信封里没有正文、没有家目录，异常文字是 `probe panic at 7 quoting prose: [text]…`；
+3. 符号：剥过的程序自己叫不出 `probe_panic`（没有一帧的函数名里有它）；事件里可执行文件那个镜像的 UUID 等于没剥的那份（`dwarfdump --uuid`）；`atos -o <没剥的> -l <事件里的加载地址> <事件里的指令地址…>` 还原出 `probe_panic`，在 `crash_report.rs:93`，正是 panic 那一行。
+
+加 `-- --native` 再测原生崩溃（`abort`）：旁路进程当场把事件和 minidump（以 `MDMP` 开头）一起送到收件端，事件的 `drifting.crash_id` 等于旁路进程写的 `kind: native` 跟进，minidump 的模块表里有同一个构建 UUID。默认不跑，因为每次原生崩溃 macOS 都会在作者的「诊断报告」里留一份崩溃记录。本机跑过一次：Rust 崩溃的事件 18 帧，原生崩溃的 minidump 180 KiB；连原生崩溃在内，测试本身 5–6 秒跑完（不算编译）。
 
 ## 钥匙串
 
@@ -201,6 +213,22 @@ dr_view_feedback::init(Service::for_build(platform, Some(&dirs.data), version), 
   - **更新**：下载、验签、换包都在作者点「安装并重启」之后、发起退出之前做完；重开用的等待进程（等本进程退出后 `open -n <包>`，照旧版 `macos_relaunch.rs`）也在退出前起好。Windows 先 `InstallerLaunch::spawn` 再退出，安装器自己等旧进程退干净。
   - **单实例**：互斥量和管道由系统在进程结束时回收。
 - 旧版退出前的刷新屏障（保存正文、交接、同步）要等几秒（原生总时限 5 s），新版的对应步骤（F2、F3）不能放进 `on_app_quit`，要由 F6 在发起退出之前自己跑完，再调 `cx.quit()`。这一条写进「待协调」。
+
+### 导入中途退出等多久（M10 待协调 19，第三轮定）
+
+M10 问：导入旧库时按 ⌘Q，退出钩子先请导入写完这本书、最多等 3 秒（`QUIT_WAIT_BOOK`），写不完就立刻停、再最多等 2 秒（`QUIT_WAIT_NOW`），一共最多 5 秒，要不要缩短。
+
+**定：缩短到各 1 秒，一共最多 2 秒。** 请 M10 把两个常量都改成 `Duration::from_secs(1)`，m10-import.md 里「3 秒」「2 秒」的说法跟着改。
+
+理由：
+
+1. **等的时候窗口是冻着的。** 退出钩子在主线程上、`cx.quit()` 之前跑（dr-shell `quit::run`），这段时间窗口还在屏幕上，不重画、不响应点击。按了 ⌘Q 之后五秒没动静，看起来就是卡死了，作者多半会强制退出。
+2. **多等换不来什么。** 立刻停下不丢东西：停下的那本书在回执里记 `importing`，下次再导这个库会接着导完，结果和一次导完逐字节相同（M10 的测试比过）。多等只是让这本书这次就完整，少一次「下次接着导」。
+3. **3 秒本来也只够小书。** M10 第四个里程碑的实测（release，M3 Pro）：样书整库连拷贝和建索引约 1 秒；重型书光写正文、存库、资源文件就要约 2.9 秒（0.97 + 1.07 + 0.85），3 秒也不一定等得完。1 秒能等完大多数普通书的剩余部分；重型书两种设置下都会落到「立刻停」。调试版导重型书要几十秒，基本都会立刻停，这不要紧（见第 2 条）。
+4. **立刻停 1 秒绰绰有余。** 「立刻停」在两篇正文之间、两个资源文件之间检查：写一篇正文约 1.6 ms（1.07 s / 679 篇），一个资源文件约 24 ms（0.85 s / 36 个，每个都落盘同步），1 秒是最慢一步的四十倍。万一还没停下，钩子记一条错误就照常退出；这和崩溃、系统直接结束进程一样安全：SQLite 事务回滚，回执里是 `importing`，下次接着导（M10 测过）。
+5. **和别处的时限对齐。** GPUI 自己给退出回调 200 ms；F3 的 `Workspace::before_quit` 关文档是毫秒级。2 秒是这一串里唯一长的一段，只在导入正在跑时才会出现。
+
+另外建议 F6（不急）：退出流程可以先把窗口藏起来（`cx.hide()`）再跑钩子，这样哪怕等 2 秒，作者看到的也是「已经退了」。
 
 ## Windows 托盘
 
@@ -355,6 +383,8 @@ CI（`next.yml` 的 Windows 任务，`script/check-windows-installer.ps1`）：�
 8. **M10**：没交接的库被拦下时，提示里给旧版最后一版的下载链接（旧程序已经被替换了）。
 9. **正式版身份怎么切换**：建议交接时给 `dr-platform` 加一个 `release-identity` 特性，只有发布工作流开它，`Identity::current()` 据此返回 `RELEASE`；`bundle-mac` 和 `bundle-windows.ps1` 加对应开关。现在照 `AGENTS.md` 不做。
 10. **`next/README.md`**：改了「开发开关」表的 `DRIFTING_LOG` 一行，加了 `DRIFTING_LOG_FILE`、`DRIFTING_PROFILE`、`DRIFTING_CRASH_REPORTS_IN_DEV`、两个开发更新变量，和打包一节的 `--dmg`、`--archive`、Windows 脚本，以及目录表。
+11. **M10（第三轮）：导入中途退出的等待改成各 1 秒**：`dr-view-import/src/flow.rs` 的 `QUIT_WAIT_BOOK`、`QUIT_WAIT_NOW` 都改成 `Duration::from_secs(1)`，m10-import.md 里的「3 秒」「2 秒」跟着改。理由见「退出时能做多少 → 导入中途退出等多久」。常量是 M10 的，我没改。
+12. **F6（第三轮，不急）**：退出流程先藏窗口（`cx.hide()`）再跑退出钩子，导入在跑时那最多 2 秒作者就看不到冻住的窗口。
 
 ## 数字
 
@@ -379,8 +409,29 @@ M3 Pro，release 构建，机器负载 15–18（其他会话在编译）。
 - **设备身份**：`app/drifting/src/library.rs` 打开库时把 `dr_store::Device::open(<应用本机数据目录>)` 放进 `LibraryOptions::device`。身份文件和 `library/` 同级、不在库里面；开发构建的数据目录本来就不是正式版的，`DRIFTING_PROFILE` 再把每个 worktree 分开。身份文件坏了库照样打开，只是写作日不存。三个单测证明打开后 `writing_device()` 有值，真机用临时 profile 跑过一次。
 - **M39 客户端**：`dr-platform` 加了 `diagnostics`、`feedback`，`sanitize` 补全成旧版整套；对话框是新 crate `dr-view-feedback`；外壳只加挂接点（`dialogs.rs`、`SendFeedback`、工作区的 `dialog` 栏位、通知行可点），逐条列在 m39-feedback.md。测试只对本机 `127.0.0.1` 上的假服务发。
 
+## 第三轮：反馈对话框收尾、导入退出等待、符号与上报的本机验收
+
+2026-11-08，监管会话交的三件事：
+
+- **M39 对话框改用 F5 的 `on_mist`**：✕ 总能关（发送中点 ✕，对话框立刻关、话照样发出去、到了照样收掉通知）；写了字点雾不关，没写字才关；发送中 Esc 和点雾都不关，和旧版一样。顺带把写话框换成 F5 的多行输入框（回车换行、⌘↩ 发送、至少五行高），F5 的两条待协调都收掉了。外壳没再改。详见 [m39-feedback.md](../modules/m39-feedback.md)。
+- **导入中途退出最多等多久**：定为各 1 秒、一共最多 2 秒，理由见「退出时能做多少 → 导入中途退出等多久」；常量是 M10 的，请 M10 改（待协调 11）。
+- **F7 计划里的下一项：符号与上报验收**（「下一个里程碑建议」第 2 条里不连真 Sentry 的部分）：`dist` 档案、`bundle-mac --dist` / `bundle-windows.ps1 -BuildProfile dist`、草稿工作流指向新的符号路径，以及 `dr-platform/tests/crash_report.rs` 这条本机端到端测试（见「符号文件」「本机验证」）。
+
+`bundle-mac --dist --dmg --archive` 实测（M3 Pro，负载 50–65，别的会话在编译）：
+
+| 项 | 数 |
+| --- | ---: |
+| `dist` 档案冷编整个 App | 12 分 36 秒（负载高；整个脚本 13 分 54 秒） |
+| 没剥的可执行文件 | 65.1 MiB（68,302,232 B），12.2 万个符号 |
+| 包里剥过的可执行文件 | 46.6 MiB（48,823,584 B），1.2 万个符号；`__TEXT` 两者都是 42.7 MiB |
+| 包旁边的 `.dSYM` | 253 MiB（只上传，不发） |
+| `.app` / `.dmg` / 更新包 | 124 MiB / 67.8 MiB / 80.9 MiB；`.app` 里字体占 73 MiB |
+
+- 剥过的可执行文件和 `.dSYM` 的构建 UUID 相同；拿没剥那份里 `dr_platform::crash::init` 的地址往后 64 字节，`atos -o "Drifting Next.app.dSYM" -l 0x100000000` 还原出 `crash.rs:201`，在 `init` 里面。
+- 和第一轮「数字」一节比，可执行文件大了很多，是这几批加进来的代码（代码段本身 42.7 MiB），不是符号：剥掉的部分是 18.6 MiB。`release` 档案这次没有重编来比；行号表按说不改生成的代码。
+
 ## 下一个里程碑建议
 
 1. **交接里程碑**：旧版最后一版改更新地址并发布；`release-identity` 特性和打包脚本开关；把草稿工作流补全、挪进 `.github/workflows`；在签名公证的正式包上把 Tauri → GPUI 在 macOS 和 Windows 上各真走一遍（用测试密钥对和一个私有的测试仓库或本地清单，不碰正式发布）。
-2. **符号与上报验收**：release 档的调试信息和 dSYM，接一个测试用的 Sentry 项目，看一次 Rust 崩溃和一次 minidump 在 Sentry 里还原出函数名和行号，同时验第「发版前」4 条。
+2. **符号与上报验收（剩下要连 Sentry 的部分）**：本机部分第三轮做完了（见上）。剩下的要作者同意后做：接一个测试用的 Sentry 项目，`sentry-cli` 上传 `dist` 的 `.dSYM`，看一次 Rust 崩溃和一次 minidump 在 Sentry 里还原出函数名和行号；同时验「发版前」4 条（要签名的正式包）。
 3. **Windows 实机**：虚拟机里过一遍深链接、单实例、钥匙串、安装器。

@@ -102,6 +102,7 @@ impl RenderOnce for Select {
         }
         let open = state.read(cx).open;
         let current = self.choices.get(self.selected).cloned();
+        let current_label = current.as_ref().map(|c| c.label.clone());
         let bounds_cell = overlay::use_bounds(child_id(&self.id, "bounds"), window, cx);
         let toggle = state.clone();
         let disabled = self.disabled;
@@ -134,6 +135,9 @@ impl RenderOnce for Select {
         .type_px(s.body, s.line_body)
         .text_color(if disabled { p.ink(4) } else { p.ink(1) }.solid())
         .when(!disabled, |el| el.cursor_pointer())
+        // In the accessibility tree as a combo box named by its choice.
+        .role(gpui::Role::ComboBox)
+        .when_some(current_label, |el, l| el.aria_label(l))
         .child(overlay::probe(bounds_cell.clone()))
         .when_some(current, |el, c| {
             el.child(row_icon(c.icon, &self.id, p.ink(2).solid()))

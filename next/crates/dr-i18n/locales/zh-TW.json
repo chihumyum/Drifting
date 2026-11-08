@@ -12,6 +12,35 @@
     "storyGraph": "故事圖譜",
     "todoLibrary": "審閱與素材"
   },
+  "bottomTimeline": {
+    "act": {
+      "chapterCount": "{{count}} 章",
+      "railLabel": "幕"
+    },
+    "axis": {
+      "time": "時間"
+    },
+    "empty": {
+      "noChaptersInStoryline": "此故事線尚無章節 · 按兩下建立"
+    },
+    "locateCurrent": "定位目前章節",
+    "storyline": {
+      "chapterCount": "{{count}} 章"
+    },
+    "synthetic": {
+      "book": "全書",
+      "unaffiliated": "無歸屬"
+    },
+    "unplaced": {
+      "empty": "所有章節皆已放置於敘事時間線",
+      "label": "尚未放置",
+      "title": "尚未放置於敘事時間線的章節"
+    },
+    "view": {
+      "book": "全書",
+      "narrative": "敘事時間"
+    }
+  },
   "categoryEditor": {
     "actions": {
       "openElement": "開啟要素"
@@ -45,7 +74,8 @@
   },
   "chapterEditor": {
     "synopsisPlaceholder": "梗概…",
-    "untitledChapter": "未命名章節"
+    "untitledChapter": "未命名章節",
+    "untitledDrift": "未命名構想"
   },
   "chapterEnd": {
     "defaultTitle": "新章節",
@@ -64,6 +94,9 @@
     },
     "card": {
       "emptyComment": "空白註解"
+    },
+    "snapshot": {
+      "changed": "已刪除／變更"
     }
   },
   "common": {
@@ -250,6 +283,10 @@
         "title": "有幾篇正文可能少了最後幾秒打的字",
         "unproven": "有 {{count}} 篇正文無法確認是最新的，列在下面"
       },
+      "notice": {
+        "carry_on": "接著匯入",
+        "unfinished": "《{{name}}》沒匯入完"
+      },
       "summary": {
         "account_libraries_left": "資料夾裡還有 {{count}} 個帳號資料庫沒匯入，等帳號功能做好",
         "already_imported": "這台裝置以前匯入過，這次沒再匯入",
@@ -260,13 +297,41 @@
     }
   },
   "importDialog": {
+    "categoryTitle": "類目",
+    "chooseFiles": "選擇檔案",
     "chooseFolder": "選擇資料夾",
+    "clear": "清除",
+    "filesTitle": "檔案",
+    "importing": "匯入中…",
+    "start": "開始匯入（{{count}}）",
     "status": {
-      "committed": "已匯入"
+      "committed": "已匯入",
+      "error": "錯誤",
+      "parsing": "解析中",
+      "ready": "已就緒"
     },
+    "storylineTitle": "故事線",
     "summary": {
-      "done": "完成"
-    }
+      "done": "完成",
+      "failed": "失敗",
+      "ok": "已匯入"
+    },
+    "targetTitle": "目標",
+    "targets": {
+      "chapter": {
+        "desc": "主線節點，會出現在時間線並計入字數。",
+        "label": "章節"
+      },
+      "element": {
+        "desc": "人物、地點、物品等參考資料，需選擇類目。",
+        "label": "要素"
+      },
+      "idea": {
+        "desc": "獨立於故事線的浮動構想卡片。",
+        "label": "構想"
+      }
+    },
+    "title": "匯入檔案"
   },
   "kvEditor": {
     "addField": "新增欄位",
@@ -405,7 +470,8 @@
     },
     "folio": {
       "chapter": "章節",
-      "chapterNumber": "第 {{n}} 章"
+      "chapterNumber": "第 {{n}} 章",
+      "drift": "構想"
     },
     "meta": {
       "words": "{{count}} 字"
@@ -442,6 +508,33 @@
       "minutesAgo": "{{count}} 分鐘前"
     },
     "title": "通知"
+  },
+  "plotGrid": {
+    "addColumnShort": "欄",
+    "addRowShort": "列",
+    "clear": "清除",
+    "clearConfirm": "清除情節規劃中全部列名、欄名與儲存格文字？表格結構、尺寸和正文會保留。此操作無法復原。",
+    "clearTitle": "清除情節規劃內容",
+    "columnPlaceholder": "欄",
+    "deleteClears": "清除 {{count}} 個儲存格",
+    "deleteColumn": "刪除此欄",
+    "deleteRow": "刪除此列",
+    "emptyCell": "寫點什麼…",
+    "fit": "符合視窗",
+    "insertColumnLeft": "在左側插入欄",
+    "insertColumnRight": "在右側插入欄",
+    "insertRowAbove": "在上方插入列",
+    "insertRowBelow": "在下方插入列",
+    "moveDown": "下移",
+    "moveLeft": "左移",
+    "moveRight": "右移",
+    "moveUp": "上移",
+    "rename": "重新命名",
+    "rowPlaceholder": "列",
+    "title": "情節"
+  },
+  "positionLink": {
+    "copied": "已複製位置連結"
   },
   "projectHome": {
     "book": {
@@ -481,7 +574,15 @@
   },
   "projectPicker": {
     "bookTransfer": {
-      "importFailedTitle": "無法匯入"
+      "exportFailed": "無法匯出作品，請重試。",
+      "exportFailedTitle": "無法匯出",
+      "importFailed": "無法匯入作品，請重試。",
+      "importFailedTitle": "無法匯入",
+      "invalid": "此檔案已損壞，無法匯入。",
+      "legacy": "這本書是 Drifting 0.1 匯出的。請在舊版裡匯入它，再把舊版資料庫交接給新版。",
+      "newer": "此作品由較新的 Drifting 匯出，請先更新。",
+      "notABook": "這不是從 Drifting 匯出的作品。",
+      "tooLarge": "作品過大，無法匯入。"
     },
     "delete": {
       "deleting": "正在刪除…"
@@ -489,8 +590,28 @@
     "desk": {
       "chaptersUnit_one": "章",
       "chaptersUnit_other": "章",
+      "coverStyle": {
+        "names": {
+          "bauhaus": "包浩斯",
+          "chars": "字海",
+          "cutout": "剪紙",
+          "cyanotype": "藍曬",
+          "field": "色域",
+          "quipu": "結繩",
+          "ridge": "山脊",
+          "rings": "年輪",
+          "riso": "孔版印刷",
+          "sand": "砂筆",
+          "stars": "星圖",
+          "strata": "地層",
+          "topo": "等高線",
+          "weave": "織紋"
+        },
+        "turn": "切換封面樣式 · 目前為{{name}}"
+      },
       "elementsUnit_one": "個要素",
       "elementsUnit_other": "個要素",
+      "exportBook": "匯出此作品（.driftingbook）",
       "form": {
         "createTitle": "新作品",
         "editTitle": "編輯「{{name}}」",
@@ -527,7 +648,15 @@
     },
     "heat": {
       "daysUnit": "天",
-      "today": "今天"
+      "daysWritten": "天數",
+      "fri": "週五",
+      "label": "寫作熱度圖",
+      "mon": "週一",
+      "streak": "連續寫作",
+      "summary": "過去一年寫了 {{words}} 字，共寫作 {{days}} 天",
+      "today": "今天",
+      "wed": "週三",
+      "year": "過去一年"
     },
     "projectCount": "{{filtered}}／{{total}} 部作品",
     "rail": {
@@ -866,12 +995,27 @@
     "search_placeholder": "搜尋設定…",
     "sync": {
       "backup": {
+        "errors": {
+          "invalid": "此檔案不是有效的 Drifting 備份，或已損壞。目前資料庫未變更。",
+          "legacy": "這是 Drifting 0.1 的備份，這一版不能直接還原。請先在 Drifting 0.1 裡還原它，再在書架上用「匯入 · Drifting 0.1」匯入那個資料庫。",
+          "newer": "此備份由較新的 Drifting 版本建立，請先更新應用程式再還原。",
+          "unknown": "操作未完成，目前資料庫未變更：{{detail}}"
+        },
         "exportButton": "匯出備份…",
         "exportDesc": "將所有作品的資料庫及原始圖片、PDF 檔案封裝為一個 .drifting 檔，用於還原或搬到另一部電腦。",
         "exportTitle": "資料庫備份",
+        "exported": "已儲存「{{file}}」。",
+        "exporting": "正在備份…",
+        "inspecting": "正在驗證…",
+        "missingAssets": "此裝置上缺少 {{count}} 個素材，未納入備份。",
+        "noProjects": "（沒有作品）",
         "restoreButton": "選擇備份…",
+        "restoreConfirm": "以「{{file}}」取代目前資料庫。\n\n建立時間：{{date}}\n內容：{{summary}}\n作品：{{projects}}\n\n會先保留目前資料庫的還原前副本，可由「開啟還原前副本」查看。還原完成後 Drifting 會重新載入。",
+        "restoreConfirmButton": "取代並還原",
         "restoreDesc": "用 .drifting 備份取代目前資料庫。還原前會先儲存目前資料庫的副本。",
-        "restoreTitle": "從備份還原"
+        "restoreTitle": "從備份還原",
+        "restoring": "正在還原…",
+        "summary": "{{projects}} 部作品、{{assets}} 個素材檔案，共 {{size}}。"
       },
       "local_data": "本機資料",
       "local_sub": "不使用 Drifting 帳號或託管雲端，隨時可匯出可讀副本。",

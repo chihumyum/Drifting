@@ -111,20 +111,7 @@ impl DecorLooks {
             agent_changed: agent_changed.solid(),
             external: external.solid(),
             strength: if palette.dark { 0.72 } else { 1.0 },
-            block: BlockStyle {
-                quote_wash: Some(palette.desk.alpha(if palette.dark { 0.7 } else { 0.5 })),
-                quote_ink: Some(palette.ink(2).solid()),
-                rule: palette.rule_strong.solid(),
-                // Lists (notes): marks in the second ink, a task's box in
-                // the rule colour, done in the accent with a paper tick,
-                // its text in the muted ink.
-                list_ink: Some(palette.ink(2).solid()),
-                task_box: palette.rule_strong.solid(),
-                task_done: palette.accent.solid(),
-                task_tick: palette.page.solid(),
-                task_done_ink: Some(palette.muted().solid()),
-                ..BlockStyle::default()
-            },
+            block: block_style(palette),
             reduce_motion,
             textures: TEXTURES.with(Textures::clone),
         }
@@ -179,5 +166,34 @@ impl DecorLooks {
     /// The scrollbar seals (`blob-0..5`).
     pub fn seals(&self) -> Vec<Rc<SandTexture>> {
         self.textures.seals.clone()
+    }
+}
+
+/// Quotes, rules, lists, code blocks and callouts in `palette`'s inks (the
+/// old client's `material-workbench.css`): the one block style the shell and
+/// the paint layers both hand the editor.
+pub fn block_style(palette: &Palette) -> BlockStyle {
+    BlockStyle {
+        quote_wash: Some(palette.desk.alpha(if palette.dark { 0.7 } else { 0.5 })),
+        quote_ink: Some(palette.ink(2).solid()),
+        rule: palette.rule_strong.solid(),
+        // Lists (notes): marks in the second ink, a task's box in the rule
+        // colour, done in the accent with a paper tick, its text in the
+        // muted ink.
+        list_ink: Some(palette.ink(2).solid()),
+        task_box: palette.rule_strong.solid(),
+        task_done: palette.accent.solid(),
+        task_tick: palette.page.solid(),
+        task_done_ink: Some(palette.muted().solid()),
+        // Code (notes): on the paper's deeper tone, in the first ink.
+        code_wash: Some(palette.desk.solid()),
+        code_ink: Some(palette.ink(1).solid()),
+        // Callouts (notes): a washed aside with a faint edge, both the
+        // accent.
+        callout_wash: Some(palette.accent.alpha(0.09)),
+        callout_edge: Some(palette.accent.alpha(0.18)),
+        // Washes keep the design system's small corner.
+        block_radius: gpui::px(dr_ui::tokens::radius::MD),
+        ..BlockStyle::default()
     }
 }

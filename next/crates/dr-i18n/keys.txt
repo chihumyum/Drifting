@@ -488,6 +488,7 @@ commentRail.actions.toNote
 commentRail.actions.toTodo
 reviewPanel.sourceFloating
 reviewPanel.sourceTextUnavailable
+commentRail.snapshot.changed
 
 
 # Settings → 编辑器: the typewriter's row and automatic element links (F4)
@@ -526,8 +527,10 @@ leftSidebar.sort.showNone
 # The chapter page's head and end (M03, dr-view-page)
 nodeEditor.folio.chapter
 nodeEditor.folio.chapterNumber
+nodeEditor.folio.drift
 nodeEditor.meta.words
 chapterEditor.untitledChapter
+chapterEditor.untitledDrift
 chapterEditor.synopsisPlaceholder
 chapterEnd.trigger
 chapterEnd.triggerFinished
@@ -537,6 +540,8 @@ chapterEnd.markDraft
 chapterEnd.defaultTitle
 guide.hints.search
 guide.hints.timeline
+storylineEditor.meta.chapters
+storylineEditor.meta.kWords
 
 
 # M11 elements and categories (dr-view-elements)
@@ -583,8 +588,6 @@ settings.sync.backup.restoreButton
 # The chapter panel's folding fan and its rows' hover cards (M04)
 leftSidebar.actions.collapseAll
 nodeEditor.empty.noStoryline
-storylineEditor.meta.chapters
-storylineEditor.meta.kWords
 
 # M11 round two: the element dialogs and the elements panel
 elementEditor.category.newOption
@@ -640,3 +643,92 @@ storylineEditor.actions.openChapter
 editorTopBar.menu.deleteStoryline
 common.confirm
 common.words
+
+# M14 the bottom timeline (dr-view-timeline)
+bottomTimeline.view.book
+bottomTimeline.view.narrative
+bottomTimeline.synthetic.book
+bottomTimeline.synthetic.unaffiliated
+bottomTimeline.unplaced.label
+bottomTimeline.unplaced.title
+bottomTimeline.unplaced.empty
+bottomTimeline.storyline.chapterCount
+bottomTimeline.empty.noChaptersInStoryline
+bottomTimeline.locateCurrent
+bottomTimeline.axis.time
+bottomTimeline.act.railLabel
+bottomTimeline.act.chapterCount
+
+# M15: the plot planner (dr-view-plot)
+plotGrid.title
+plotGrid.addRowShort
+plotGrid.addColumnShort
+plotGrid.fit
+plotGrid.clear
+plotGrid.clearTitle
+plotGrid.clearConfirm
+plotGrid.rowPlaceholder
+plotGrid.columnPlaceholder
+plotGrid.emptyCell
+plotGrid.rename
+plotGrid.moveUp
+plotGrid.moveDown
+plotGrid.moveLeft
+plotGrid.moveRight
+plotGrid.insertRowAbove
+plotGrid.insertRowBelow
+plotGrid.insertColumnLeft
+plotGrid.insertColumnRight
+plotGrid.deleteRow
+plotGrid.deleteColumn
+plotGrid.deleteClears
+
+
+# M25 the shelf's covers, heat map and strips (dr-view-shelf-art)
+projectPicker.heat.label
+projectPicker.heat.summary
+projectPicker.heat.year
+projectPicker.heat.daysWritten
+projectPicker.heat.streak
+projectPicker.heat.mon
+projectPicker.heat.wed
+projectPicker.heat.fri
+projectPicker.desk.coverStyle.turn
+projectPicker.desk.coverStyle.names.*
+
+# M41 moving books: .driftingbook from the bookshelf (dr-view-transfer)
+projectPicker.desk.exportBook
+projectPicker.bookTransfer.*
+
+# M41 whole-library backup and restore (dr-view-transfer)
+settings.sync.backup.exporting
+settings.sync.backup.exported
+settings.sync.backup.summary
+settings.sync.backup.missingAssets
+settings.sync.backup.noProjects
+settings.sync.backup.inspecting
+settings.sync.backup.restoring
+settings.sync.backup.restoreConfirm
+settings.sync.backup.restoreConfirmButton
+settings.sync.backup.errors.invalid
+settings.sync.backup.errors.newer
+settings.sync.backup.errors.unknown
+
+# M41 importing documents into a book (dr-view-transfer, dr-shell's account menu)
+importDialog.title
+importDialog.targetTitle
+importDialog.storylineTitle
+importDialog.categoryTitle
+importDialog.filesTitle
+importDialog.chooseFiles
+importDialog.clear
+importDialog.importing
+importDialog.start
+importDialog.targets.chapter.label
+importDialog.targets.chapter.desc
+importDialog.targets.element.label
+importDialog.targets.element.desc
+importDialog.status.parsing
+importDialog.status.ready
+importDialog.status.error
+importDialog.summary.*

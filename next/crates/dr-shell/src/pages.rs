@@ -18,6 +18,13 @@
 //! maker answers for the pages it knows and `None` for the rest, and the
 //! first answer wins.
 //!
+//! And a left sidebar tab drawn by a module ([`add_left_panel`]): M11's
+//! elements panel. The shell asks the makers once per pane the first time
+//! that pane shows the tab and keeps what it got; the first answer wins.
+//! The panel's head goes in the tab's header row (the shell keeps the row's
+//! height, padding and hairline), its body fills the pane and scrolls
+//! itself; the shell's own rows for that tab are not drawn.
+//!
 //! And the rows a module adds to a page's ⋯ menu ([`add_page_menu`]): an
 //! element's 更改类目 and 删除要素, a category's 删除类目 (M11). The shell
 //! keeps the menu's order: share and export, its own sections, the modules'
@@ -32,6 +39,7 @@ use gpui::{AnyView, App, Bounds, Entity, Global, Pixels, SharedString, WeakEntit
 use crate::Workspace;
 use crate::book::Book;
 use crate::nav::Target;
+use crate::workspace::LeftTab;
 
 /// The bookshelf a window shows: its view, and the cell its notification
 /// bell records its bounds in (the notification center opens from there).
@@ -46,6 +54,17 @@ type MakeHome = Rc<dyn Fn(WeakEntity<Workspace>, &mut Window, &mut App) -> AnyVi
 type MakeChrome =
     Rc<dyn Fn(&Target, PageHost, &mut Window, &mut App) -> Option<Rc<dyn PageChrome>>>;
 type MakeMenu = Rc<dyn Fn(&Target, &PageMenuHost, &App) -> Vec<PageMenuSection>>;
+type MakeLeftPanel =
+    Rc<dyn Fn(LeftTab, WeakEntity<Workspace>, &mut Window, &mut App) -> Option<LeftPanel>>;
+
+/// A left sidebar tab a module draws: the header row's content and the
+/// pane's body.
+#[derive(Clone)]
+pub struct LeftPanel {
+    pub head: AnyView,
+    pub body: AnyView,
+}
+
 /// What a ⋯ row does.
 pub type RunRow = Rc<dyn Fn(&mut Window, &mut App)>;
 
@@ -54,7 +73,9 @@ pub type RunRow = Rc<dyn Fn(&mut Window, &mut App)>;
 pub struct PageMenuItem {
     /// Unique in the menu.
     pub id: SharedString,
-    pub icon: dr_ui::sand::Icon,
+    /// A brush icon (`Icon::Folder.into()`) or the mark of the thing the
+    /// row names (`RowIcon::Mark(Kind::Category, None)`).
+    pub icon: dr_ui::components::menu::RowIcon,
     pub label: SharedString,
     /// The current choice of a single-choice section: a tick.
     pub checked: bool,
@@ -108,6 +129,7 @@ struct Pages {
     home: Option<MakeHome>,
     chrome: Vec<MakeChrome>,
     menus: Vec<MakeMenu>,
+    left_panels: Vec<MakeLeftPanel>,
 }
 
 impl Global for Pages {}
@@ -176,6 +198,29 @@ pub(crate) fn menu_for(target: &Target, host: &PageMenuHost, cx: &App) -> Vec<Pa
         .flat_map(|make| make(target, host, cx))
         .filter(|s| !s.items.is_empty())
         .collect()
+}
+
+/// Registers a left sidebar tab's panel: asked once per pane the first time
+/// that pane shows a tab (with the tab and the window's workspace), it
+/// gives that tab's [`LeftPanel`] or `None`.
+pub fn add_left_panel(
+    cx: &mut App,
+    make: impl Fn(LeftTab, WeakEntity<Workspace>, &mut Window, &mut App) -> Option<LeftPanel> + 'static,
+) {
+    cx.default_global::<Pages>().left_panels.push(Rc::new(make));
+}
+
+/// The panel registered for `tab`, made now, if any.
+pub(crate) fn left_panel_for(
+    tab: LeftTab,
+    ws: WeakEntity<Workspace>,
+    window: &mut Window,
+    cx: &mut App,
+) -> Option<LeftPanel> {
+    let makers = cx.try_global::<Pages>()?.left_panels.clone();
+    makers
+        .iter()
+        .find_map(|make| make(tab, ws.clone(), window, cx))
 }
 
 pub(crate) fn has_shelf(cx: &App) -> bool {

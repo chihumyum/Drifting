@@ -12,6 +12,35 @@
     "storyGraph": "物語グラフ",
     "todoLibrary": "TODOと資料庫"
   },
+  "bottomTimeline": {
+    "act": {
+      "chapterCount": "{{count}}章",
+      "railLabel": "幕"
+    },
+    "axis": {
+      "time": "時間"
+    },
+    "empty": {
+      "noChaptersInStoryline": "このストーリーラインに章なし・ダブルクリックで作成"
+    },
+    "locateCurrent": "現在の章へ移動",
+    "storyline": {
+      "chapterCount": "{{count}}章"
+    },
+    "synthetic": {
+      "book": "全編",
+      "unaffiliated": "所属なし"
+    },
+    "unplaced": {
+      "empty": "すべての章が物語のタイムラインに配置されています",
+      "label": "未配置",
+      "title": "物語のタイムラインに未配置の章"
+    },
+    "view": {
+      "book": "全編",
+      "narrative": "物語内の時間"
+    }
+  },
   "categoryEditor": {
     "actions": {
       "openElement": "要素を開く"
@@ -45,7 +74,8 @@
   },
   "chapterEditor": {
     "synopsisPlaceholder": "あらすじ…",
-    "untitledChapter": "無題の章"
+    "untitledChapter": "無題の章",
+    "untitledDrift": "無題のアイデア"
   },
   "chapterEnd": {
     "defaultTitle": "新しい章",
@@ -64,6 +94,9 @@
     },
     "card": {
       "emptyComment": "空のコメント"
+    },
+    "snapshot": {
+      "changed": "削除／変更済み"
     }
   },
   "common": {
@@ -250,6 +283,10 @@
         "title": "一部の本文で、最後の数秒の入力が抜けているかもしれません",
         "unproven": "最新か確認できない本文が {{count}} 件あります（下に一覧）"
       },
+      "notice": {
+        "carry_on": "インポートを再開",
+        "unfinished": "「{{name}}」のインポートが終わっていません"
+      },
       "summary": {
         "account_libraries_left": "フォルダー内のアカウントライブラリ {{count}} 件は、アカウント機能ができるまでインポートしません",
         "already_imported": "このデバイスで以前インポート済みのため、スキップしました",
@@ -260,13 +297,41 @@
     }
   },
   "importDialog": {
+    "categoryTitle": "カテゴリ",
+    "chooseFiles": "ファイルを選択",
     "chooseFolder": "フォルダを選択",
+    "clear": "消去",
+    "filesTitle": "ファイル",
+    "importing": "インポート中…",
+    "start": "インポート開始（{{count}}）",
     "status": {
-      "committed": "インポート済み"
+      "committed": "インポート済み",
+      "error": "エラー",
+      "parsing": "解析中",
+      "ready": "準備完了"
     },
+    "storylineTitle": "ストーリーライン",
     "summary": {
-      "done": "完了"
-    }
+      "done": "完了",
+      "failed": "失敗",
+      "ok": "インポート済み"
+    },
+    "targetTitle": "対象",
+    "targets": {
+      "chapter": {
+        "desc": "本編のノードです。タイムラインに入り、文字数に計上します。",
+        "label": "章"
+      },
+      "element": {
+        "desc": "人物・場所・物などの設定資料です。カテゴリが必要です。",
+        "label": "要素"
+      },
+      "idea": {
+        "desc": "ストーリーラインから独立したアイデアカード。",
+        "label": "アイデア"
+      }
+    },
+    "title": "ファイルをインポート"
   },
   "kvEditor": {
     "addField": "項目を追加",
@@ -405,7 +470,8 @@
     },
     "folio": {
       "chapter": "章",
-      "chapterNumber": "第{{n}}章"
+      "chapterNumber": "第{{n}}章",
+      "drift": "アイデア"
     },
     "meta": {
       "words": "{{count}}文字"
@@ -442,6 +508,33 @@
       "minutesAgo": "{{count}}分前"
     },
     "title": "通知"
+  },
+  "plotGrid": {
+    "addColumnShort": "列",
+    "addRowShort": "行",
+    "clear": "消去",
+    "clearConfirm": "プロット表の行名、列名、セル内テキストをすべて消去しますか？表の構造・寸法と本文は保ちます。取り消せません。",
+    "clearTitle": "プロット表の内容を消去",
+    "columnPlaceholder": "列",
+    "deleteClears": "{{count}}セルを消去",
+    "deleteColumn": "この列を削除",
+    "deleteRow": "この行を削除",
+    "emptyCell": "何か書いてみましょう…",
+    "fit": "画面に合わせる",
+    "insertColumnLeft": "左に列を挿入",
+    "insertColumnRight": "右に列を挿入",
+    "insertRowAbove": "上に行を挿入",
+    "insertRowBelow": "下に行を挿入",
+    "moveDown": "下へ移動",
+    "moveLeft": "左へ移動",
+    "moveRight": "右へ移動",
+    "moveUp": "上へ移動",
+    "rename": "名前を変更",
+    "rowPlaceholder": "行",
+    "title": "プロット"
+  },
+  "positionLink": {
+    "copied": "位置リンクをコピーしました"
   },
   "projectHome": {
     "book": {
@@ -481,7 +574,15 @@
   },
   "projectPicker": {
     "bookTransfer": {
-      "importFailedTitle": "インポートできませんでした"
+      "exportFailed": "作品をエクスポートできません。再試行してください。",
+      "exportFailedTitle": "エクスポートできませんでした",
+      "importFailed": "作品をインポートできません。再試行してください。",
+      "importFailedTitle": "インポートできませんでした",
+      "invalid": "ファイルが破損しており、インポートできません。",
+      "legacy": "この本は Drifting 0.1 で書き出されました。旧版で読み込んでから、そのライブラリを新しいバージョンに引き継いでください。",
+      "newer": "新しいDriftingから出力された作品です。先に更新してください。",
+      "notABook": "Driftingから出力した作品ではありません。",
+      "tooLarge": "作品が大きすぎてインポートできません。"
     },
     "delete": {
       "deleting": "削除中…"
@@ -489,8 +590,28 @@
     "desk": {
       "chaptersUnit_one": "章",
       "chaptersUnit_other": "章",
+      "coverStyle": {
+        "names": {
+          "bauhaus": "バウハウス",
+          "chars": "文字の海",
+          "cutout": "切り紙",
+          "cyanotype": "サイアノタイプ",
+          "field": "色面",
+          "quipu": "結び紐",
+          "ridge": "稜線",
+          "rings": "年輪",
+          "riso": "リソグラフ",
+          "sand": "砂の筆",
+          "stars": "星図",
+          "strata": "地層",
+          "topo": "等高線",
+          "weave": "織物"
+        },
+        "turn": "表紙スタイルを変更・現在{{name}}"
+      },
       "elementsUnit_one": "要素",
       "elementsUnit_other": "要素",
+      "exportBook": "この作品を出力（.driftingbook）",
       "form": {
         "createTitle": "新しい一冊",
         "editTitle": "「{{name}}」を編集",
@@ -527,7 +648,15 @@
     },
     "heat": {
       "daysUnit": "日",
-      "today": "今日"
+      "daysWritten": "日数",
+      "fri": "金",
+      "label": "執筆ヒートマップ",
+      "mon": "月",
+      "streak": "連続執筆",
+      "summary": "過去1年間で{{words}}語、{{days}}日間執筆",
+      "today": "今日",
+      "wed": "水",
+      "year": "過去1年間"
     },
     "projectCount": "{{filtered}} / {{total}}作品",
     "rail": {
@@ -866,12 +995,27 @@
     "search_placeholder": "設定を検索…",
     "sync": {
       "backup": {
+        "errors": {
+          "invalid": "有効なDriftingバックアップではないか、破損しています。現在のライブラリは変更されていません。",
+          "legacy": "これは Drifting 0.1 のバックアップで、このバージョンでは直接復元できません。Drifting 0.1 で復元してから、本棚の「読み込む · Drifting 0.1」でそのライブラリを読み込んでください。",
+          "newer": "新しいバージョンのDriftingで作成されたバックアップです。アプリを更新してから復元してください。",
+          "unknown": "操作を完了できませんでした。現在のライブラリは変更されていません：{{detail}}"
+        },
         "exportButton": "バックアップを出力…",
         "exportDesc": "全作品のデータベースと元の画像・PDFを1つの.driftingファイルにまとめます。復元や他のパソコンへの移行に使えます。",
         "exportTitle": "ライブラリのバックアップ",
+        "exported": "「{{file}}」を保存しました。",
+        "exporting": "バックアップ中…",
+        "inspecting": "検証中…",
+        "missingAssets": "この端末にない素材{{count}}件はバックアップされませんでした。",
+        "noProjects": "（作品なし）",
         "restoreButton": "バックアップを選択…",
+        "restoreConfirm": "「{{file}}」で現在のライブラリを置き換えます。\n\n作成日時：{{date}}\n内容：{{summary}}\n作品：{{projects}}\n\n現在のライブラリは復元前コピーとして保存します。「復元前のコピーを開く」から確認できます。完了後、Driftingを再読み込みします。",
+        "restoreConfirmButton": "置き換えて復元",
         "restoreDesc": ".driftingバックアップで現在のライブラリを置き換えます。実行前に現在のコピーを保存します。",
-        "restoreTitle": "バックアップから復元"
+        "restoreTitle": "バックアップから復元",
+        "restoring": "復元中…",
+        "summary": "{{projects}}作品、素材{{assets}}ファイル、{{size}}。"
       },
       "local_data": "ローカルデータ",
       "local_sub": "Driftingのアカウントやクラウドは使いません。いつでも読めるコピーを出力できます。",
