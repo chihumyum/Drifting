@@ -36,12 +36,15 @@ use crate::{Settings, t};
 /// Closes the menu (its owner's flag).
 pub type Close = Rc<dyn Fn(&mut Window, &mut App)>;
 
+/// Callback triggered from an account menu item or header.
+pub type AccountCallback = Rc<dyn Fn(&mut Window, &mut App)>;
+
 /// Optional action row contributed by `dr-view-account` at the bottom of the account menu.
 #[derive(Clone)]
 pub struct AccountMenuAction {
     pub label: SharedString,
     pub disabled: bool,
-    pub on_click: Rc<dyn Fn(&mut Window, &mut App)>,
+    pub on_click: AccountCallback,
 }
 
 /// Snapshot of the current account presentation contributed by `dr-view-account`.
@@ -52,7 +55,7 @@ pub struct AccountViewInfo {
     pub display_name: Option<SharedString>,
     pub status_line: Option<SharedString>,
     pub avatar: Option<Arc<RenderImage>>,
-    pub on_header_click: Option<Rc<dyn Fn(&mut Window, &mut App)>>,
+    pub on_header_click: Option<AccountCallback>,
     pub action: Option<AccountMenuAction>,
 }
 

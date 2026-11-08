@@ -117,14 +117,13 @@ impl LibraryRegistry {
                 },
             );
         }
-        if !self.entries.iter().any(|e| e.id == self.active_id) {
-            if let Some(local) = self
+        if !self.entries.iter().any(|e| e.id == self.active_id)
+            && let Some(local) = self
                 .entries
                 .iter()
                 .find(|e| matches!(e.owner, LibraryOwner::Local))
-            {
-                self.active_id = local.id.clone();
-            }
+        {
+            self.active_id = local.id.clone();
         }
     }
 

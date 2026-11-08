@@ -36,14 +36,14 @@ pub fn open(data: &Path, app_version: &str) -> dr_workspace::Result<Workspace> {
 /// Opens the currently active library from `<data>/libraries.json` (M35),
 /// falling back to `<data>/library` when no registry exists yet.
 pub fn open_active(data: &Path, app_version: &str) -> dr_workspace::Result<Workspace> {
-    let target = if data.join(dr_account::LIBRARIES_FILE).is_file() {
-        dr_account::LibraryRegistry::load_or_init(data)
+    if data.join(dr_account::LIBRARIES_FILE).is_file() {
+        let target = dr_account::LibraryRegistry::load_or_init(data)
             .map(|reg| reg.active_library_dir(data))
-            .unwrap_or_else(|_| data.join(LIBRARY_DIR))
+            .unwrap_or_else(|_| data.join(LIBRARY_DIR));
+        open_at(data, &target, app_version)
     } else {
-        data.join(LIBRARY_DIR)
-    };
-    open_at(data, &target, app_version)
+        open(data, app_version)
+    }
 }
 
 fn open_at(data: &Path, library_dir: &Path, app_version: &str) -> dr_workspace::Result<Workspace> {

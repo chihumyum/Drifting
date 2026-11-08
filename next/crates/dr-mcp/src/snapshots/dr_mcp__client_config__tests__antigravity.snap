@@ -1,0 +1,9 @@
+---
+source: crates/dr-mcp/src/client_config.rs
+expression: edited
+---
+{
+  "first": 1,
+  "mcpServers": {"other":{"disabled":true,"disabledTools":["synthetic"]},"drifting_synthetic":{"command":"/synthetic/writer","args":["--mcp","--connection","/synthetic/connection.json"]}},
+  "last": 900719925474099312345
+}

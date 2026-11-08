@@ -115,10 +115,10 @@ pub fn init(service: Service, cx: &mut App) {
     dr_view_feedback::Service::set_session(inner.current_token(), cx);
 
     // Seed built-in sample books only if the startup library is the local library.
-    if !initial_state.is_account_library {
-        if let Some(lib) = cx.try_global::<Services>().and_then(|s| s.library.clone()) {
-            first_run::write_samples(lib, cx).detach();
-        }
+    if !initial_state.is_account_library
+        && let Some(lib) = cx.try_global::<Services>().and_then(|s| s.library.clone())
+    {
+        first_run::write_samples(lib, cx).detach();
     }
 
     // First-run Welcome / Account step (before M40's FolderStep when `init` runs before `dr_view_sea::shell::init`).
@@ -154,11 +154,11 @@ pub fn init(service: Service, cx: &mut App) {
             SessionStatus::NeedsReauth => t(cx, sess::NEEDS_REAUTH),
         });
         let avatar = svc.avatar_cache.as_ref().map(|(_, img)| img.clone());
-        let on_header_click: Option<Rc<dyn Fn(&mut Window, &mut App)>> =
+        let on_header_click: Option<dr_shell::account::AccountCallback> =
             state.hosted_configured.then(|| {
                 Rc::new(|window: &mut Window, cx: &mut App| {
                     dr_shell::settings::open_section(Section::Account, window, cx);
-                }) as Rc<dyn Fn(&mut Window, &mut App)>
+                }) as dr_shell::account::AccountCallback
             });
 
         let action = if !state.hosted_configured {
@@ -179,7 +179,7 @@ pub fn init(service: Service, cx: &mut App) {
             Some(AccountMenuAction {
                 label: t(cx, keys::auth::SIGN_IN),
                 disabled: false,
-                on_click: Rc::new(|window, cx| open_auth_dialog(window, cx)),
+                on_click: Rc::new(open_auth_dialog),
             })
         };
 
@@ -353,10 +353,10 @@ fn switch_library_if_needed(target_dir: PathBuf, is_account_lib: bool, cx: &mut 
                 log::warn!("switching library failed: {err}");
                 return;
             }
-            if !is_account_lib {
-                if let Some(lib) = cx.try_global::<Services>().and_then(|s| s.library.clone()) {
-                    first_run::write_samples(lib, cx).detach();
-                }
+            if !is_account_lib
+                && let Some(lib) = cx.try_global::<Services>().and_then(|s| s.library.clone())
+            {
+                first_run::write_samples(lib, cx).detach();
             }
             cx.refresh_windows();
         },
@@ -538,7 +538,7 @@ mod tests {
             );
         });
 
-        let window = cx.add_window(|window, cx| AccountSettingsView::new(window, cx));
+        let window = cx.add_window(AccountSettingsView::new);
         window
             .update(cx, |view, _window, cx| {
                 assert_eq!(view.last_synced_user_id(), Some(expected_uid.as_str()));

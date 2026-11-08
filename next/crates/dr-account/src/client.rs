@@ -603,10 +603,10 @@ impl HostedClient {
                 return Err(parse_error_response(resp));
             }
             let text = resp.text().map_err(map_network_err)?;
-            if let Ok(parsed) = serde_json::from_str::<RawAuthTokenResponse>(&text) {
-                if let Some(u) = parsed.user {
-                    return Ok(Some(u.into_hosted_user()));
-                }
+            if let Ok(parsed) = serde_json::from_str::<RawAuthTokenResponse>(&text)
+                && let Some(u) = parsed.user
+            {
+                return Ok(Some(u.into_hosted_user()));
             }
             if let Ok(u) = serde_json::from_str::<RawAuthUser>(&text) {
                 return Ok(Some(u.into_hosted_user()));
@@ -936,11 +936,11 @@ impl AccountService {
     ) -> Result<SignUpOutcome, AccountError> {
         let origin = self.require_origin()?;
         let (user_opt, token_opt) = self.client.sign_up_email(origin, name, email, password)?;
-        if let (Some(user), Some(token)) = (user_opt.clone(), token_opt) {
-            if user.email_verified {
-                let state = self.finish_sign_in(origin, user, &token)?;
-                return Ok(SignUpOutcome::SignedIn(state));
-            }
+        if let (Some(user), Some(token)) = (user_opt.clone(), token_opt)
+            && user.email_verified
+        {
+            let state = self.finish_sign_in(origin, user, &token)?;
+            return Ok(SignUpOutcome::SignedIn(state));
         }
         // Account requires email OTP verification before signing in.
         let _ = self
@@ -1044,10 +1044,10 @@ impl AccountService {
             let _ = self.profile_cache.write(origin, &updated);
             guard.user = Some(updated);
         } else if let Some(existing) = guard.user.as_mut() {
-            if let Some(n) = name {
-                if let Ok(valid) = validate_profile_name(n) {
-                    existing.name = valid;
-                }
+            if let Some(n) = name
+                && let Ok(valid) = validate_profile_name(n)
+            {
+                existing.name = valid;
             }
             if let Some(img_opt) = image {
                 existing.image = img_opt.and_then(|s| normalize_avatar(Some(s)));

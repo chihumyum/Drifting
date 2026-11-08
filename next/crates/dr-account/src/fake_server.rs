@@ -211,23 +211,23 @@ fn handle_connection(
             break;
         }
         buf.extend_from_slice(&temp[..n]);
-        if header_end.is_none() {
-            if let Some(pos) = find_subslice(&buf, b"\r\n\r\n") {
-                header_end = Some(pos + 4);
-                let headers_str = String::from_utf8_lossy(&buf[..pos]);
-                for line in headers_str.lines() {
-                    if let Some((k, v)) = line.split_once(':') {
-                        if k.trim().eq_ignore_ascii_case("content-length") {
-                            content_length = v.trim().parse().unwrap_or(0);
-                        }
-                    }
+        if header_end.is_none()
+            && let Some(pos) = find_subslice(&buf, b"\r\n\r\n")
+        {
+            header_end = Some(pos + 4);
+            let headers_str = String::from_utf8_lossy(&buf[..pos]);
+            for line in headers_str.lines() {
+                if let Some((k, v)) = line.split_once(':')
+                    && k.trim().eq_ignore_ascii_case("content-length")
+                {
+                    content_length = v.trim().parse().unwrap_or(0);
                 }
             }
         }
-        if let Some(end) = header_end {
-            if buf.len() >= end + content_length {
-                break;
-            }
+        if let Some(end) = header_end
+            && buf.len() >= end + content_length
+        {
+            break;
         }
     }
 
@@ -244,15 +244,15 @@ fn handle_connection(
 
     let mut bearer_token: Option<String> = None;
     for line in lines {
-        if let Some((k, v)) = line.split_once(':') {
-            if k.trim().eq_ignore_ascii_case("authorization") {
-                let v = v.trim();
-                if let Some(rest) = v
-                    .strip_prefix("Bearer ")
-                    .or_else(|| v.strip_prefix("bearer "))
-                {
-                    bearer_token = Some(rest.trim().to_string());
-                }
+        if let Some((k, v)) = line.split_once(':')
+            && k.trim().eq_ignore_ascii_case("authorization")
+        {
+            let v = v.trim();
+            if let Some(rest) = v
+                .strip_prefix("Bearer ")
+                .or_else(|| v.strip_prefix("bearer "))
+            {
+                bearer_token = Some(rest.trim().to_string());
             }
         }
     }

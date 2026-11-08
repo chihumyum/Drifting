@@ -1,0 +1,106 @@
+From e71511ee22a2eb744bb918e7d68b6ef026ea0997 Mon Sep 17 00:00:00 2001
+From: Drifting <patches@example.invalid>
+Date: Mon, 9 Nov 2026 00:13:27 +0800
+Subject: [PATCH] gpui: expose per-window native composition cancellation
+
+---
+ crates/gpui/src/platform.rs       |  7 +++++++
+ crates/gpui/src/window.rs         |  8 ++++++++
+ crates/gpui_macos/src/window.rs   | 13 +++++++++++++
+ crates/gpui_windows/src/window.rs | 19 +++++++++++++++++++
+ 4 files changed, 47 insertions(+)
+
+diff --git a/crates/gpui/src/platform.rs b/crates/gpui/src/platform.rs
+index a99c4ba3e4..cb6e20b87d 100644
+--- a/crates/gpui/src/platform.rs
++++ b/crates/gpui/src/platform.rs
+@@ -1277,6 +1277,13 @@ pub trait PlatformWindow: HasWindowHandle + HasDisplayHandle {
+     fn capslock(&self) -> Capslock;
+     fn set_input_handler(&mut self, input_handler: PlatformInputHandler);
+     fn take_input_handler(&mut self) -> Option<PlatformInputHandler>;
++    /// Cancels this window's native IME composition without committing it.
++    /// The caller must first clear its own marked text. Implementations
++    /// must also work after native focus has left the window, and must not
++    /// hold input-handler/state borrows while the IME calls back.
++    /// Platforms without an implementation leave the native IME unchanged.
++    fn discard_marked_text(&self) {}
++
+     /// Apply the focused text region's [`TextInputConfiguration`] to the
+     /// platform's text input session (e.g. attributes of the hidden editable
+     /// element on web). Called only when the configuration changes, because
+diff --git a/crates/gpui/src/window.rs b/crates/gpui/src/window.rs
+index 0d83066db8..cfbc0d9d47 100644
+--- a/crates/gpui/src/window.rs
++++ b/crates/gpui/src/window.rs
+@@ -6721,6 +6721,14 @@ impl Window {
+         self.platform_window.toggle_simple_fullscreen();
+     }
+ 
++    /// Cancels this window's native IME composition without inserting it.
++    /// Clear the focused element's marked text first; native cancellation
++    /// can deliver synchronous input callbacks. This does not call the
++    /// element's `unmark_text`, which would commit its composition.
++    pub fn discard_marked_text(&self) {
++        self.platform_window.discard_marked_text();
++    }
++
+     /// Updates the IME panel position suggestions for languages like japanese, chinese.
+     pub fn invalidate_character_coordinates(&self) {
+         self.on_next_frame(|window, cx| {
+diff --git a/crates/gpui_macos/src/window.rs b/crates/gpui_macos/src/window.rs
+index 01807c773a..3edce580cc 100644
+--- a/crates/gpui_macos/src/window.rs
++++ b/crates/gpui_macos/src/window.rs
+@@ -1677,6 +1677,19 @@ impl PlatformWindow for MacWindow {
+         self.0.as_ref().lock().input_handler.take()
+     }
+ 
++    fn discard_marked_text(&self) {
++        // Release the lock before calling AppKit: an IME can call back.
++        let view = self.0.lock().native_view.as_ptr();
++        // SAFETY: this window's live view, on its main thread. The current
++        // input context may already belong to a different window.
++        unsafe {
++            let context: *mut AnyObject = msg_send![view, inputContext];
++            if !context.is_null() {
++                let _: () = msg_send![context, discardMarkedText];
++            }
++        }
++    }
++
+     fn prompt(
+         &self,
+         level: PromptLevel,
+diff --git a/crates/gpui_windows/src/window.rs b/crates/gpui_windows/src/window.rs
+index d6d1d26400..878ed87c75 100644
+--- a/crates/gpui_windows/src/window.rs
++++ b/crates/gpui_windows/src/window.rs
+@@ -718,6 +718,25 @@ impl PlatformWindow for WindowsWindow {
+         self.state.input_handler.take()
+     }
+ 
++    fn discard_marked_text(&self) {
++        use windows::Win32::UI::Input::Ime::{
++            CPS_CANCEL, ImmGetContext, ImmNotifyIME, ImmReleaseContext, NI_COMPOSITIONSTR,
++        };
++        // No GetFocus guard: blur can arrive after native focus has left,
++        // while this window's composition still needs to be cancelled.
++        // SAFETY: our live HWND on its UI thread, with no handler borrow
++        // held across the notification; release each acquired context.
++        unsafe {
++            let context = ImmGetContext(self.0.hwnd);
++            if !context.is_invalid() {
++                ImmNotifyIME(context, NI_COMPOSITIONSTR, CPS_CANCEL, 0)
++                    .ok()
++                    .log_err();
++                ImmReleaseContext(self.0.hwnd, context).ok().log_err();
++            }
++        }
++    }
++
+     fn prompt(
+         &self,
+         level: PromptLevel,
+-- 
+2.54.0 (Apple Git-157)
+

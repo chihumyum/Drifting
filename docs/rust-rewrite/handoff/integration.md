@@ -1,5 +1,7 @@
 # 整合者的做法
 
+> **2026-11-09：按 v3 分轨执行。** [kernel-v3-split.md](kernel-v3-split.md) 是最高优先级；下方旧批次和复审记录只保留历史，不再构成冻结模块的待办。作者此次交接顺序：先 M32 `codex/batch-30`，再轨道 2 截至 `335f3c00`；随后按作者正式转交顺序接轨道 3、轨道 6 K1+K2、轨道 7 K3、轨道 4，未交回的不接收、不进其工作区。整合者只修合并接口不一致，不扩工具清单。冻结分支与 WIP 原样保留，不删除、不 rebase，不再预审、复现、修复或合入。
+
 2026-11-08 起，监管会话（Claude）的整合工作交给外部代理接手。整合者负责四件事：
 - 把各分支合进 `main`；
 - 跑全套检查；
@@ -8,41 +10,55 @@
 
 整合者自己不写功能，只修合并时两边对不上的地方。
 
-## 现在的状态（2026-11-08）
+## 现在的状态（2026-11-09）
 
 - `main` 是本机的，**没推送**。推送要作者说。
-- 已经合进 `main` 的到第二十九批：F6 公共释放期间的输入屏障；第二十八批为 M31、M15 窄格换行及 F3 不变量测试修正；第二十七批为 M18 当前范围与来源刷新；第二十六批为 M14 叙事新建与 M19 素材页动作；第二十五批为 M29 修复、M03 分组路径、M15 块粘贴；第二十四批为 M41 真实进度，第二十三批为 M16 原面板验收。第二十一批为 F3 第十轮；第二十批接收 F2 第七轮和 M28 模型接入；M29 经复审后在第二十五批接收，见下方记录。
+- 已经合进 `main` 的到第三十一批：轨道 2 输入、G3 补丁、数字格式与公共播放接口；第三十批为 M32 共享运行时 MCP；第二十九批为 F6 公共释放期间的输入屏障；第二十八批为 M31、M15 窄格换行及 F3 不变量测试修正；第二十七批为 M18 当前范围与来源刷新；第二十六批为 M14 叙事新建与 M19 素材页动作；第二十五批为 M29 修复、M03 分组路径、M15 块粘贴；第二十四批为 M41 真实进度，第二十三批为 M16 原面板验收。第二十一批为 F3 第十轮；第二十批接收 F2 第七轮和 M28 模型接入；M29 经复审后在第二十五批接收，见下方记录。
 - 各分支的接收状态与下一批验收候选：
 
-| 分支 | 内容 | 状态 |
-| --- | --- | --- |
-| `claude/f3-workspace-88823a` | F3 第十轮：`chapter.create` 带叙事位置，M16 要的命令 | 截至 `cd10d66a` 已在第二十一批接收 |
-| `chihumyum/f4c-input-fa9d83` | F4c：Windows 输入法组字中失焦丢弃 | 截至 `7a21f7b9` 已在第二十二批接收；实机验收待做 |
-| `claude/m10-import-e63951` | M16 构想第二个里程碑 | `09e94777` 已在第二十三批接收；原会话停在 `7a4cc87d`，后两提交待旧模块会话修转换接口和托盘溢出，见 remaining.md |
-| `claude/f2-store-024ef7` | F2：审迁移 0007、持有者提交选项 | `8b012cba` 已在第二十批接收 |
-| `codex/m28-model-providers` | M28 模型接入 | 截至 `95a0ba7c` 已在第二十批接收 |
-| `codex/m29-agent-tools` | M29 工具与读取守卫 | 修复 `4d55f081`、交回 `44357606` 已在第二十五批接收 |
-| `codex/m31-agent-panel` 及之后的 `codex/m*` | Codex 的帮手一条 | `925597e4` / `b96f61c3`（合主线至 `505dead2`）已在第二十八批接收；控制、关系入口及批注滚动反馈关闭，生产会话已进入 M32 |
-| `codex/legacy-write-settlement` | F6 公共输入屏障 | 独立摘取 `967d073c`，第二十九批接收；不带 M02 祖先，模块排空仍由各自交回 |
-| `codex/legacy-m15-paste` | M15 矩形粘贴 | `31539543` 已在第二十五批接收 |
-| `codex/legacy-m15-details` | M15 窄格标点换行 | 独立摘取 `e814b53e`，第二十八批接收，不带暂缓的 M17 祖先 |
-| `codex/legacy-m03-group-path` | M03 构想分组路径与新建标题焦点 | `7bcf8210`（含 `1a20b714`）已在第二十五批接收 |
-| `codex/legacy-m02-home` | M02 六类基础新建 | `44b7f843` / `2a2fe965` 暂未接收；先修创建期间切到设定后抢焦点，并补构想标题焦点证据，见 remaining.md |
-| `codex/legacy-m14-create` | M14 叙事新建一步撤销 | `30c7715e` 已在第二十六批接收 |
-| `codex/legacy-m19-actions` | M19 素材页基础动作 | `fe7657a1` 已在第二十六批接收基本动作；纯键盘选既有素材夹／确认删除仍缺实现 |
-| `codex/legacy-m19-todos` / `codex/legacy-m19-release` | M19 任务投射与结算 | `0a643b92` 修好三项数据与即时来源问题；显式修复未进 drain、应用级退出接线仍待，继续暂缓 |
-| `codex/legacy-m11-templates` 及结算分支 | M11 分类模板与字段 | `fdd37546` 修好常见模板焦点和失败重试；覆盖层焦点、字段错误草稿和退出仍待，整链暂缓 |
-| `codex/legacy-m18-scope` | M18 当前范围与来源刷新 | 只摘取 `dabaea00` 为 `2c0bbda7`，第二十七批接收；不带祖先 M02 和旧队列 |
-| `codex/legacy-m17-relation-update` | M17 保 id 的关系更新与写入顺序 | `279d3155` 与后续 `c6e8e458` 暂缓；队列退出、连续类型保存、历史恢复校验和 M29 跨模块契约待补，见 remaining.md |
-| `codex/legacy-m24-samples` / `codex/legacy-m24-ownership` | M24 本机样书生产启动与所有权修复 | `ee14bff6` 修好 Failed 标记，但 Creating 释放落盘失败仍覆盖后来同 ID 用户书，已再次定向复现，继续暂缓，见 remaining.md |
-| `codex/legacy-m41-progress` | M41 备份、核对和恢复的真实进度 | `fab79905` 已在第二十四批接收；其工作树已转做 M19 |
-| `codex/m21-story-graph-review` 及后续接续分支 | 原 Antigravity 的 Super View、账号与 Windows 队列 | 作者已改由独立 Codex 会话接续，正式交回后由本会话验收；M21 原稿待修正和真窗口，M22 `786e39a9` 只是 WIP 检查点 |
+| 分支 | 内容 | 状态 | 后续去向 | 历史接收／审查 |
+| --- | --- | --- | --- | --- |
+| `claude/f3-workspace-88823a` | F3 第十轮：`chapter.create` 带叙事位置，M16 要的命令 | 冻结（v3） | 旧按种类命令冻结；v3 通用命令归轨道 6，切换前不扩 M29 目录。 | 截至 `cd10d66a` 已在第二十一批接收 |
+| `chihumyum/f4c-input-fa9d83` | F4c：Windows 输入法组字中失焦丢弃 | 继续 | 轨道 2 接输入法、dr-ui 对齐与 macOS inputContext；实机矩阵仍待作者。 | 截至 `7a21f7b9` 已在第二十二批接收；实机验收待做 |
+| `claude/m10-import-e63951` | M16 构想第二个里程碑 | 冻结（v3） | 最后两个提交保留，转换与托盘收尾等 v3 接回。 | `09e94777` 已在第二十三批接收；原会话停在 `7a4cc87d`，后两提交待旧模块会话修转换接口和托盘溢出，见 remaining.md |
+| `claude/f2-store-024ef7` | F2：审迁移 0007、持有者提交选项 | 继续 | 通用存储底层支撑轨道 3、4；v3 文档支持归轨道 6，双方按 main 对齐。 | `8b012cba` 已在第二十批接收 |
+| `codex/m28-model-providers` | M28 模型接入 | 继续 | 轨道 3 继续模型接入，小说提示词集中。 | 截至 `95a0ba7c` 已在第二十批接收 |
+| `codex/m29-agent-tools` | M29 工具与读取守卫 | 冻结（v3） | 新工具及清单扩展等 v3；轨道 3 仅可改既有执行管线。 | 修复 `4d55f081`、交回 `44357606` 已在第二十五批接收 |
+| `codex/m31-agent-panel` | Codex 的帮手一条 | 继续 | 轨道 3 继续运行时与面板机制，M30／M34 可继续；M33 和新工具冻结。 | `925597e4` / `b96f61c3`（合主线至 `505dead2`）已在第二十八批接收；控制、关系入口及批注滚动反馈关闭，生产会话已进入 M32 |
+| `codex/legacy-write-settlement` | F6 公共输入屏障 | 冻结（v3） | 公共屏障成果已合；旧模块专用排空收尾保留等 v3。 | 独立摘取 `967d073c`，第二十九批接收；不带 M02 祖先，模块排空仍由各自交回 |
+| `codex/legacy-m15-paste` | M15 矩形粘贴 | 冻结（v3） | 已合成果保留，后续等 v3 情节规划模块。 | `31539543` 已在第二十五批接收 |
+| `codex/legacy-m15-details` | M15 窄格标点换行 | 冻结（v3） | 已合成果保留，后续等 v3 情节规划模块。 | 独立摘取 `e814b53e`，第二十八批接收，不带暂缓的 M17 祖先 |
+| `codex/legacy-m03-group-path` | M03 构想分组路径与新建标题焦点 | 冻结（v3） | 已合成果保留，按种类页面后续等 v3。 | `7bcf8210`（含 `1a20b714`）已在第二十五批接收 |
+| `codex/legacy-m02-home` | M02 六类基础新建 | 冻结（v3） | 主页新建与落位分支保留，等 v3 条目树。 | `44b7f843` / `2a2fe965` 暂未接收；先修创建期间切到设定后抢焦点，并补构想标题焦点证据，见 remaining.md |
+| `codex/legacy-m14-create` | M14 叙事新建一步撤销 | 冻结（v3） | 已合成果保留，旧时间线收尾等 v3 作者自建视图、归属泳道与时间钉。 | `30c7715e` 已在第二十六批接收 |
+| `codex/legacy-m19-actions` | M19 素材页基础动作 | 冻结（v3） | 素材动作分支保留，等 v3 项目树外素材契约接回。 | `fe7657a1` 已在第二十六批接收基本动作；纯键盘选既有素材夹／确认删除仍缺实现 |
+| `codex/legacy-m19-todos` / `codex/legacy-m19-release` | M19 任务投射与结算 | 冻结（v3） | 任务投射与退出排空分支保留，等 v3 接回。 | `0a643b92` 修好三项数据与即时来源问题；显式修复未进 drain、应用级退出接线仍待，继续暂缓 |
+| `codex/legacy-m11-templates` 及结算分支 | M11 分类模板与字段 | 冻结（v3） | 字段恢复、模板与租约分支保留，with_book_lease 思路供 v3 参考。 | `fdd37546` 修好常见模板焦点和失败重试；覆盖层焦点、字段错误草稿和退出仍待，整链暂缓 |
+| `codex/legacy-m18-scope` | M18 当前范围与来源刷新 | 冻结（v3） | 已合成果保留，来源及关联收尾等 v3 审阅契约。 | 只摘取 `dabaea00` 为 `2c0bbda7`，第二十七批接收；不带祖先 M02 和旧队列 |
+| `codex/legacy-m17-relation-update` | M17 保 id 的关系更新与写入顺序 | 冻结（v3） | 关系与退出排空分支保留，等 v3 通用关系接回。 | `279d3155` 与后续 `c6e8e458` 暂缓；队列退出、连续类型保存、历史恢复校验和 M29 跨模块契约待补，见 remaining.md |
+| `codex/legacy-m24-samples` / `codex/legacy-m24-ownership` | M24 本机样书生产启动与所有权修复 | 冻结（v3） | 样书认领／释放分支保留，供 v3 样书实现参考。 | `ee14bff6` 修好 Failed 标记，但 Creating 释放落盘失败仍覆盖后来同 ID 用户书，已再次定向复现，继续暂缓，见 remaining.md |
+| `codex/legacy-m41-progress` | M41 备份、核对和恢复的真实进度 | 冻结（v3） | 旧分支已转做 M19，原样保留；通用导出排版不在此旧队列继续。 | `fab79905` 已在第二十四批接收；其工作树已转做 M19 |
+| `codex/m21-story-graph-review` 及后续接续分支 | 原 Antigravity 的 Super View、账号与 Windows 队列 | 冻结（v3） | Super View 与 WIP 原样保留；账号部分转轨道 4 的独立分支。 | 作者已改由独立 Codex 会话接续，正式交回后由本会话验收；M21 原稿待修正和真窗口，M22 `786e39a9` 只是 WIP 检查点 |
+| `codex/batch-30` | M32 共享运行时 MCP | 继续 | 传输与扩展客户端继续，M29 清单不扩。出站清理失败 P2 按作者安排交轨道 3 核对／收尾，不挡本批；候选已有两项故障注入契约通过。 | 第三十批接收 `0f3a1dc6`，同步 main 至 `671b3d61`，全套整合检查通过。 |
+| `codex/track2-editor-input` | 轨道 2：输入框组字对齐、G3 补丁、数字格式、M31 公共播放接口 | 继续 | 第 5 项空闲 prose-bench 待测，不算缺陷；G1 本轮不挂，M31 产品启用交轨道 3，通用 AX 禁用状态留轨道 2 后续。 | 第三十一批接收截至 `335f3c00`，基于第三十批 main `5596e6a8` 重跑全套检查通过。 |
+| `codex/m30-long-tasks-memory` | M30 长任务、记忆与主动建议 | 继续 | 轨道 3 续做；未提交改动留在 refs/wip/2026-11-08/m30-long-tasks-memory。 | 原工作区及 WIP 均保留。 |
+| `codex/legacy-m02-arrival` | M02 新建落位 | 冻结（v3） | 保留原工作区及同名 WIP，等 v3 条目页面接回。 | 此前复审仅作历史，不再复现。 |
+| `codex/legacy-m24-illustrations-owned` | M24 插图与认领释放 | 冻结（v3） | 保留原工作区及同名 WIP，认领／释放做法留给 v3 参考。 | 此前修复未接收。 |
+| `codex/legacy-m11-field-recovery` | M11 字段恢复与租约 | 冻结（v3） | 保留原工作区及同名 WIP，租约思路留给 v3 参考。 | 此前证据缺口不再追修。 |
+| `codex/legacy-m17-release` | M17 退出排空 | 冻结（v3） | 保留原工作区及同名 WIP，等 v3 通用关系接回。 | 此前修复未接收。 |
+| `antigravity/m21-story-graph、antigravity/m22-element-overview、codex/m22-element-overview-wip` | Super View 原稿与检查点 | 冻结（v3） | 原样保留，不删除、不 rebase，等 v3 通用条目视图。 | WIP 不当成果接收。 |
+| `codex/legacy-* 其余分支、codex/integration-*-review` | 旧模块与旧复审分支 | 冻结（v3） | 原样保留；停止预审、复现和修复，等 v3 重新接线。 | 不因已有审查结论恢复旧队列。 |
+| `codex/k1-kernel-v3` | 轨道 6：K1+K2 内核与通用命令 | 继续 | 作者正式转交后接收；共享 crate 以先合入 main 的版本为准，后到方调整。 | 尚未交回；v3 与 v2.2 并存，M29 清单不扩。 |
+| `codex/k3-import-v3` | 轨道 7：K3 导入与样书 | 继续 | K1 接口确定后开发；作者正式转交后验收导入和样书，不改 v3 结构。 | 尚未交回，不提前审查或接收。 |
+| `codex/track4-account-sync` | 轨道 4：账号、偏好同步、同步传输、Windows | 继续 | 按作者转交顺序接收；不透明文档 id 与资源传输，不扩按种类模型。 | 尚未交回，不提前审查或接收。 |
 
-分支上的提交如果比 `main` 新，就是还没合的（`git log main..<分支>`）。
+`git log main..<分支>` 用来列出尚未直接合入的提交（独立摘取另看历史记录），不是自动接收队列。先按上表与分轨页判断范围；冻结分支即使有更新也不预审。`claude/loro-upstream-issues` 与本次分轨无关，原样保留。
 
 ## 一批怎么合
 
-用一个常驻的整合 worktree，不要每批新建：新建会把依赖从头编一遍，很慢。
+产品批次使用常驻 `.claude/worktrees/f-integrate`，不要每批新建。此次 v3 状态标注按作者要求在短命 worktree 单独提交、检查并本地合入 main，再验收既有 batch-30。只合继续轨道正式交回的分支；不得用冻结分支的修复来补候选。
+
+收件只核对分轨允许的改动范围、全套检查，以及确定会丢作者数据的问题。范围或检查不合格就退回；确定的数据丢失问题写清复现后阻挡。其他意见归模块文档的「待协调」，不反复复审。K1 会改 `dr-model`、`dr-doc`、`dr-store`、`dr-testkit`、`dr-workspace`；共享文件以先合入 main 的一方为准，无法直接解决的合并冲突退给后到方。
 
 ```bash
 # 第一次：git worktree add .claude/worktrees/f-integrate main
@@ -54,6 +70,8 @@ git -c core.hooksPath=/dev/null merge --no-ff --no-edit <分支2>
 ```
 
 字体是构建产物，新 worktree 第一次要从别的 worktree 拷 `next/.cache/fonts`，或者构建一次，否则画字的测试会失败。
+
+Cargo 的 `target` 也按 checkout 隔离，短命 worktree 不借用常驻树的目录。`build.rs` 生成文件及编译期 `CARGO_MANIFEST_DIR` 可能留着另一棵树的内容或路径；跨树复用曾让 M32 读到旧语言键，并让 xtask 指向已删除的 worktree。遇到这种缓存不一致，只清理受影响目录中本工作区包的构建产物再重建，保留第三方依赖，不手改生成文件或产品代码。
 
 **常见冲突和解法**
 
@@ -81,10 +99,10 @@ cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo test --workspace --locked --no-fail-fast
 cargo xtask check
 cd ..
-node scripts/check-public-boundaries.mjs
-node scripts/check-ci-contract.mjs
-npx --no-install tsx scripts/generate-agent-capabilities.ts --check
-npx vitest run src/renderer/architecture/retired-client-integrations.acceptance.test.ts \
+pnpm public:check
+pnpm ci:contract:check
+pnpm agent:capabilities:check
+pnpm exec vitest run src/renderer/architecture/retired-client-integrations.acceptance.test.ts \
   src/renderer/lib/agent/runtime/acceptance/retired-shadow-arc-evolve.acceptance.test.ts \
   src/renderer/lib/ai/retired-copilot.acceptance.test.ts \
   src/renderer/locales/drift-terminology.acceptance.test.ts
@@ -109,7 +127,7 @@ git -c core.hooksPath=/dev/null merge --no-ff --no-edit -m "Merge branch '<整�
 
 ## 「待协调」怎么转
 
-各模块文档的「待协调」是写给别的一方的。整合时看一遍新合进来的：
+只处理继续轨道新交回模块的「待协调」；冻结模块历史问题原样留存，不再分派复现或修复。整合时看一遍新合进来的：
 - 归某个外部代理的模块：写进它的队列文件，或者告诉作者转达；
 - 要作者定的：汇总告诉作者。
 
@@ -262,3 +280,30 @@ git -c core.hooksPath=/dev/null merge --no-ff --no-edit -m "Merge branch '<整�
 - M21/M22 的独立嵌入编辑器及遮盖 AX 修复交接续会话；M17 类型菜单来源上下文交正在改同文件的旧模块会话。具体受控接口、焦点、退出和双宿主证据在两条队列，不允许直接双绘制同一缓存编辑器。
 - M11 新作品 lease 静态边界成立，针对 purge／同 ID 重导入；测试的外层 Gate 进入观测与实际迟到 worker 仍有证据缺口，准确写在 remaining，不误称已复现新产品漏洞。
 - 本次仅协调文档，main 产品树继续沿用第二十九批 1800 通过／22 忽略和同树 Clippy。文档在常驻整合树检查，M32 全量仍独立运行；用仅含这三份文档的独立提交合入，不接收 M32 或任何开发文件。
+
+## v3 状态标注批（2026-11-09）
+
+- 分支 `codex/kernel-v3-integration-status`，在短命 worktree 修改两份状态文档；旧记录逐项保留，冻结项写明去向，不取入冻结分支代码。
+- 验收期间 main 新增 v3 定稿与轨道 6、7 的文档（截至 `867cdf2e`），已合入本分支；产品代码与原基线一致。新内核工作另列，当前接收范围仍按本次作者指令限定为 M32、之后轨道 2、3、4；不据此接收轨道 6、7。
+- fmt、全工作区 Clippy 通过。`RUST_TEST_THREADS=1 cargo test --workspace --locked --no-fail-fast` 首轮 1799 通过、1 失败、22 忽略；唯一失败是既有书架封面渲染限时，同一产物单独重跑整个书架组 10 项全过（30.46 秒）。按本页既定限时重跑规则接收，不把首轮命令写成零退出码。
+- xtask 全部门禁与审计、`pnpm public:check`、CI 契约、旧 Agent 能力检查（15 项）、四个兼容验收文件（14 项）、生成语言检查通过。短命 worktree 首次缺 tsx／vitest，接上现有依赖目录后重跑通过；没有依赖或锁文件改动。审计 944 个锁定 crate、0 漏洞、12 条既有提示；14 份测量过期，未改写生成证据。
+
+
+## 第三十批验收记录（2026-11-09）
+
+- 常驻 `f-integrate` 的 `codex/batch-30` 接收 M32 实现 `0f3a1dc6`；补合 main 至 `671b3d61`（合并 `efe2954e`），仅同步 v3 定稿文档，无产品冲突修补。
+- 范围核对：MCP 传输、外部 Runtime、面板设置与所需应用／外壳／日志／语言挂接；`dr-agent-tools`、`dr-model`、`dr-doc`、`dr-workspace` 未改，M29 保持 110 开放／26 排除。未发现确定会丢作者数据的问题；未开展冻结分支复审。
+- 接续前首轮测试构建曾读到跨 worktree 共用 target 留下的旧语言键，xtask 也保留已删除 checkout 的路径；旧整合者只清理工作区包的缓存后，在常驻树完整重跑。接续时保留并等待该轮检查，没有修改产品代码或手改生成文件。
+- 最终 fmt、全工作区 Clippy、`RUST_TEST_THREADS=1 cargo test --workspace --locked --no-fail-fast` 全过：1873 通过、0 失败、22 忽略，测试命令正常退出。xtask（含审计）与根目录公开边界全过；审计 955 个锁定 crate、0 漏洞、12 条既有提示，14 份过期测量与 15 份旧格式证据保留。CI 契约、旧 Agent 能力 15 项、四个兼容验收文件 14 项及语言生成检查也通过。
+- M32 出站清理失败 P2 按作者决定不挡本批，后续仍归轨道 3；候选中的两项故障注入契约已在全量中通过，不另改产品。模块「待协调」已按新分轨标明：日志归轨道 3，Windows 原生验收归轨道 4／作者，按钮 AX 禁用状态归轨道 2，按种类的工具与旧界面等 K6／v3 接回。
+- 本轮不追加真窗口复验、不连接真实服务或改作者客户端配置；本批结论限于范围、上述检查与数据边界。冻结分支和 WIP 原样保留，不推送、不开 PR、不发版。接下来只收作者已交回的轨道 2 截至 `335f3c00`。
+
+
+## 第三十一批验收记录（2026-11-09）
+
+- 常驻 `f-integrate`，从第三十批 main `5596e6a8` 建 `codex/batch-31`，合入 `codex/track2-editor-input` 截至 `335f3c00`（合并 `255d850d`）。五个交回提交分别为 `bd40611f`、`7ab21fc8`、`adb68e5c`、`258b7edf`、`335f3c00`。代码和锁文件自动合并，无冲突修补。
+- 四项接收：dr-ui 与编辑器组字取消／迟到输入对齐、macOS 本窗 inputContext；G3 丢弃组字接口补丁文件；两处数字写法并入 `dr_i18n::number`；M31 所需的提交后公共播放接口。G3 尚未挂入 GPUI，G1 按作者决定继续保留补丁，工作区仍钉官方 Zed `v1.27.0`。
+- 范围核对：编辑、输入、播放和 i18n 在轨道 2 范围内。另两处 `dr-view-stats::model::grouped`、`dr-shell::chapter_sort::compact_words` 是作者原始任务书明确点名的迁移调用方，只迁移既有数字函数，不扩统计或外壳功能。没有新按种类数据、命令、人物链接或按种类画层；未发现确定会丢作者数据的问题。
+- fmt、全工作区 Clippy、`RUST_TEST_THREADS=1 cargo test --workspace --locked --no-fail-fast` 全过：1883 通过、0 失败、22 忽略，命令正常退出。xtask（含审计）、公开边界、CI 契约、旧 Agent 能力 15 项、四个兼容验收文件 14 项及语言生成检查全过。审计 955 个锁定 crate、0 漏洞、12 条既有提示；14 份测量过期、15 份旧格式证据保留。
+- 第 5 项空闲 prose-bench 记为待测，不是缺陷；没有在繁忙机器上重测或改写测量 JSON。真实输入法与动效观感仍是手测边界，本批自动契约不替代原生手测。
+- 待协调已落到接收方文档：M31 公共播放入口与实体切换后配置交轨道 3；M32 提出的 Button AX 禁用状态交轨道 2 后续。冻结模块不复审，未交回的轨道 3、6、7、4 继续等作者转交；共享 crate 以本批之后的 main 为准。

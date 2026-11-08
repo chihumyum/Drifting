@@ -26,6 +26,9 @@ prose-metrics.workspace = true
 serde_json.workspace = true
 
 [dev-dependencies]
+# Real scripted Runtime commits exercise the public post-commit player.
+dr-agent.workspace = true
+dr-agent-tools.workspace = true
 # The showcase library for the example and the tests.
 dr-platform.workspace = true
 dr-testkit.workspace = true

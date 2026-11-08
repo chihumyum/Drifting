@@ -5,6 +5,11 @@
     }
   },
   "settings": {
+    "agent": {
+      "extensions": {
+        "secretHint": "機密值僅寫入 Windows 認證管理員。現有欄位留白即可保留原值。"
+      }
+    },
     "codexSubscription": {
       "failure": {
         "storage_failed": "無法將登入資訊儲存至 Windows 認證管理員。"

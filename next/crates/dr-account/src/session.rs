@@ -91,10 +91,10 @@ impl SessionTokenStore {
     pub fn read(&self, origin: &HostedOrigin) -> Result<Option<String>, SecretError> {
         let key = Self::secret_key(origin);
         let mut guard = self.cached.lock().expect("token cache lock");
-        if let Some((cached_key, existing)) = guard.as_ref() {
-            if cached_key == &key {
-                return Ok(existing.clone());
-            }
+        if let Some((cached_key, existing)) = guard.as_ref()
+            && cached_key == &key
+        {
+            return Ok(existing.clone());
         }
         let loaded = Self::normalize(self.secrets.get(&key)?);
         *guard = Some((key, loaded.clone()));
@@ -174,10 +174,9 @@ impl ProfileCache {
     #[must_use]
     pub fn read(&self, origin: &HostedOrigin) -> Option<HostedUser> {
         if let Some((cached_origin, user)) = self.memory.lock().expect("profile cache lock").clone()
+            && cached_origin == origin.as_str()
         {
-            if cached_origin == origin.as_str() {
-                return Some(user);
-            }
+            return Some(user);
         }
         let bytes = fs::read(&self.file).ok()?;
         let parsed: StoredProfileCache = serde_json::from_slice(&bytes).ok()?;
