@@ -15,15 +15,36 @@
   "bottomTimeline": {
     "act": {
       "chapterCount": "{{count}}章",
-      "railLabel": "幕"
+      "deleteMergeNext": "この幕を削除して次の幕に統合",
+      "deleteMergePrev": "この幕を削除して前の幕に統合",
+      "newAct": "新しい幕",
+      "openActNote": "幕のメモを開く",
+      "railLabel": "幕",
+      "startHere": "ここから新しい幕を開始",
+      "unbindDrift": "アイデアの関連付けを解除"
     },
     "axis": {
+      "addPin": "時間マーカーを追加",
       "time": "時間"
     },
     "empty": {
       "noChaptersInStoryline": "このストーリーラインに章なし・ダブルクリックで作成"
     },
     "locateCurrent": "現在の章へ移動",
+    "marker": {
+      "defaultLabel": "マーカー"
+    },
+    "menu": {
+      "detachFromNarrative": "未配置に戻す",
+      "moveToUnaffiliated": "未所属に移動"
+    },
+    "pinMenu": {
+      "bindDrift": "アイデアを関連付け…",
+      "deleteMarker": "マーカーを削除",
+      "openDrift": "アイデアを開く",
+      "rename": "名前を変更",
+      "unbind": "関連付けを解除し、通常のラベルに戻す"
+    },
     "storyline": {
       "chapterCount": "{{count}}章"
     },
@@ -353,6 +374,7 @@
     },
     "groups": {
       "addElementToGroup": "このグループに要素を追加",
+      "newChapterInStoryline": "このストーリーラインに章を追加",
       "renameElementGroupTitle": "ダブルクリックでグループ名を変更",
       "unaffiliated": "所属なし"
     },

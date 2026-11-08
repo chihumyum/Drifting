@@ -662,6 +662,22 @@ bottomTimeline.locateCurrent
 bottomTimeline.axis.time
 bottomTimeline.act.railLabel
 bottomTimeline.act.chapterCount
+bottomTimeline.act.newAct
+bottomTimeline.act.startHere
+bottomTimeline.act.openActNote
+bottomTimeline.act.unbindDrift
+bottomTimeline.act.deleteMergeNext
+bottomTimeline.act.deleteMergePrev
+bottomTimeline.axis.addPin
+bottomTimeline.marker.defaultLabel
+bottomTimeline.pinMenu.openDrift
+bottomTimeline.pinMenu.unbind
+bottomTimeline.pinMenu.bindDrift
+bottomTimeline.pinMenu.rename
+bottomTimeline.pinMenu.deleteMarker
+bottomTimeline.menu.moveToUnaffiliated
+bottomTimeline.menu.detachFromNarrative
+leftSidebar.groups.newChapterInStoryline
 
 # M15: the plot planner (dr-view-plot)
 plotGrid.title

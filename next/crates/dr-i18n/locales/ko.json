@@ -15,15 +15,36 @@
   "bottomTimeline": {
     "act": {
       "chapterCount": "{{count}}개 장",
-      "railLabel": "막"
+      "deleteMergeNext": "이 막을 삭제하고 다음 막에 병합",
+      "deleteMergePrev": "이 막을 삭제하고 이전 막에 병합",
+      "newAct": "새 막",
+      "openActNote": "막 메모 열기",
+      "railLabel": "막",
+      "startHere": "여기서 새 막 시작",
+      "unbindDrift": "아이디어 연결 해제"
     },
     "axis": {
+      "addPin": "시간 마커 추가",
       "time": "시간"
     },
     "empty": {
       "noChaptersInStoryline": "스토리라인에 장 없음 · 두 번 눌러 만들기"
     },
     "locateCurrent": "현재 장 찾기",
+    "marker": {
+      "defaultLabel": "마커"
+    },
+    "menu": {
+      "detachFromNarrative": "미배치로 되돌리기",
+      "moveToUnaffiliated": "미소속으로 이동"
+    },
+    "pinMenu": {
+      "bindDrift": "아이디어 연결…",
+      "deleteMarker": "마커 삭제",
+      "openDrift": "아이디어 열기",
+      "rename": "이름 바꾸기",
+      "unbind": "연결을 해제하고 일반 레이블로 복원"
+    },
     "storyline": {
       "chapterCount": "{{count}}장"
     },
@@ -353,6 +374,7 @@
     },
     "groups": {
       "addElementToGroup": "이 그룹에 새 요소",
+      "newChapterInStoryline": "이 스토리라인에 새 장",
       "renameElementGroupTitle": "두 번 클릭하여 그룹 이름 바꾸기",
       "unaffiliated": "소속 없음"
     },

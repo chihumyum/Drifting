@@ -15,15 +15,36 @@
   "bottomTimeline": {
     "act": {
       "chapterCount": "{{count}} chapters",
-      "railLabel": "Act"
+      "deleteMergeNext": "Delete this act and merge into next",
+      "deleteMergePrev": "Delete this act and merge into previous",
+      "newAct": "New act",
+      "openActNote": "Open act note",
+      "railLabel": "Act",
+      "startHere": "Start new act here",
+      "unbindDrift": "Unbind idea"
     },
     "axis": {
+      "addPin": "Add time pin",
       "time": "Time"
     },
     "empty": {
       "noChaptersInStoryline": "No chapters in this storyline · double-click to create one"
     },
     "locateCurrent": "Locate current chapter",
+    "marker": {
+      "defaultLabel": "Marker"
+    },
+    "menu": {
+      "detachFromNarrative": "Return to unplaced",
+      "moveToUnaffiliated": "Move to unaffiliated"
+    },
+    "pinMenu": {
+      "bindDrift": "Bind idea…",
+      "deleteMarker": "Delete marker",
+      "openDrift": "Open idea",
+      "rename": "Rename",
+      "unbind": "Unbind and restore as plain label"
+    },
     "storyline": {
       "chapterCount": "{{count}} ch"
     },
@@ -358,6 +379,7 @@
     },
     "groups": {
       "addElementToGroup": "New element in this group",
+      "newChapterInStoryline": "New chapter in this storyline",
       "renameElementGroupTitle": "Double-click to rename group",
       "unaffiliated": "Unaffiliated"
     },

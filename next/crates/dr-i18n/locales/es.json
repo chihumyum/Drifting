@@ -15,15 +15,36 @@
   "bottomTimeline": {
     "act": {
       "chapterCount": "{{count}} capítulos",
-      "railLabel": "Acto"
+      "deleteMergeNext": "Eliminar este acto y unirlo al siguiente",
+      "deleteMergePrev": "Eliminar este acto y unirlo al anterior",
+      "newAct": "Nuevo acto",
+      "openActNote": "Abrir nota del acto",
+      "railLabel": "Acto",
+      "startHere": "Iniciar nuevo acto aquí",
+      "unbindDrift": "Desvincular idea"
     },
     "axis": {
+      "addPin": "Añadir marcador temporal",
       "time": "Tiempo"
     },
     "empty": {
       "noChaptersInStoryline": "Sin capítulos en esta trama · doble clic para crear"
     },
     "locateCurrent": "Localizar capítulo actual",
+    "marker": {
+      "defaultLabel": "Marcador"
+    },
+    "menu": {
+      "detachFromNarrative": "Volver a sin ubicar",
+      "moveToUnaffiliated": "Mover a sin asignar"
+    },
+    "pinMenu": {
+      "bindDrift": "Vincular idea…",
+      "deleteMarker": "Eliminar marcador",
+      "openDrift": "Abrir idea",
+      "rename": "Renombrar",
+      "unbind": "Desvincular y restaurar como etiqueta simple"
+    },
     "storyline": {
       "chapterCount": "{{count}} cap."
     },
@@ -358,6 +379,7 @@
     },
     "groups": {
       "addElementToGroup": "Nuevo elemento en este grupo",
+      "newChapterInStoryline": "Nuevo capítulo en esta trama",
       "renameElementGroupTitle": "Doble clic para renombrar el grupo",
       "unaffiliated": "Sin vincular"
     },

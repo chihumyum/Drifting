@@ -14,6 +14,8 @@ pub const GRID_UNIT: f32 = 20.0;
 /// A chapter's clip is this many order units wide (`NODE_DEFAULT_WIDTH`);
 /// new chapters are 5 apart (`CHAPTER_ORDER_STRIDE`).
 pub const CLIP_UNITS: f64 = 4.0;
+/// How far apart new chapters go (`CHAPTER_ORDER_STRIDE`).
+pub const CHAPTER_STRIDE: f64 = 5.0;
 /// Order units the axis runs past the last chapter or act (`RUNWAY_UNITS`).
 pub const RUNWAY_UNITS: f64 = 12.0;
 /// Px past the runway, so the last label is not cut (`extraSpace`).
@@ -108,6 +110,15 @@ pub struct Scale {
 }
 
 impl Scale {
+    /// The axis run on to `order` too (a time pin past the last chapter),
+    /// with the runway after it.
+    pub fn reaching(mut self, order: f64) -> Scale {
+        if order.is_finite() {
+            self.max_order = self.max_order.max(order + RUNWAY_UNITS);
+        }
+        self
+    }
+
     /// The axis for chapters at `orders`, reaching `extra` (the furthest act
     /// boundary or time pin) when that is further.
     pub fn new(orders: impl IntoIterator<Item = f64>, extra: Option<f64>, zoom: f32) -> Scale {

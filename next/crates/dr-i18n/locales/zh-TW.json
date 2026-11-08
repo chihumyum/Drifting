@@ -15,15 +15,36 @@
   "bottomTimeline": {
     "act": {
       "chapterCount": "{{count}} 章",
-      "railLabel": "幕"
+      "deleteMergeNext": "刪除此幕並合併至下一幕",
+      "deleteMergePrev": "刪除此幕並合併至上一幕",
+      "newAct": "新幕",
+      "openActNote": "開啟幕備註",
+      "railLabel": "幕",
+      "startHere": "在此開始新幕",
+      "unbindDrift": "解除構想綁定"
     },
     "axis": {
+      "addPin": "新增時間標記",
       "time": "時間"
     },
     "empty": {
       "noChaptersInStoryline": "此故事線尚無章節 · 按兩下建立"
     },
     "locateCurrent": "定位目前章節",
+    "marker": {
+      "defaultLabel": "標記"
+    },
+    "menu": {
+      "detachFromNarrative": "移回尚未放置",
+      "moveToUnaffiliated": "移至未歸屬項目"
+    },
+    "pinMenu": {
+      "bindDrift": "綁定構想…",
+      "deleteMarker": "刪除標記",
+      "openDrift": "開啟構想",
+      "rename": "重新命名",
+      "unbind": "解除綁定並還原為一般標籤"
+    },
     "storyline": {
       "chapterCount": "{{count}} 章"
     },
@@ -353,6 +374,7 @@
     },
     "groups": {
       "addElementToGroup": "在此分組新增要素",
+      "newChapterInStoryline": "在此故事線新增章節",
       "renameElementGroupTitle": "按兩下重新命名分組",
       "unaffiliated": "無歸屬"
     },
