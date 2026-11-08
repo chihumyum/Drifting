@@ -2,6 +2,15 @@
 
 2026-11-08，F5 这一路做（分支 `claude/f5-ui-254e54`，从 main `1652a95e`；第二轮从 main `60d510a6` 加上 F4e 第四批：幕扉页的序号和章数字数、构想页的章首）。代码在新 crate `next/crates/dr-view-page`，它实现 `dr-editor` 的 `PageChrome`（F4e 留的章首、章末位置，见 [f4e-editor.md](../foundations/f4e-editor.md)）。输入框、⁂ 菜单的 cell、页面上的字号间距都来自 dr-ui（F5，见 [f5-ui.md](../foundations/f5-ui.md)）。外壳只加了挂接点，逐条列在下面。M03 里工具栏的 ⋯ 菜单是 F6 做的，不在这里。
 
+## 旧模块收尾：构想页的分组路径（2026-11-08）
+
+- 构想页页眉补上旧版已有的「构想 · 组 - 子组 · 字数」，分组前沿用 `DriftGroup` 记号；不在分组里时不画这一项。路径写法来自 `NodeEditorView.tsx` 的 `driftGroupChain`，没有新增文案或导航。
+- 页保持打开时，改组名、移动构想、删除分组后路径跟着外壳的书目快照更新。只读 `PageHost.workspace` 的 `Book.ideas` / `idea_groups`；没有扩展 `PageInfo`、没有加查询，也不改 F3、F4c 或 M16 的转换流程。
+- 契约在 `dr-view-page/tests/idea_group_path.rs`：用 `dr_testkit::samples::a_q`，核对两层路径、改名、移出与移回、删除子组和父组，以及章节不显示构想组。真实窗口场景是 `dr-cli/scenarios/idea-group-path.json`，由调试桥读取实际界面路径并核对变化。
+- 真窗口浅色、深色各 25/25 步通过，场景退出时关闭应用；[浅色](m03/page-idea-group-light.png)、[深色](m03/page-idea-group-dark.png)是展示库《慢钟》中已有构想的实际窗口。
+- 验证基线为 main `f5ca535b`，交回分支 `codex/legacy-m03-group-path`。`cargo test -p dr-view-page --locked` 8 项通过；全工作区 `fmt --check`、`clippy --all-targets --locked -- -D warnings`、`test --locked`（1675 通过、22 忽略）、`cargo xtask check` 和根目录 `pnpm public:check` 全过。xtask 的既有性能证据过时提示与 12 条依赖维护/健全性 notice 保留，audit 为 0 vulnerabilities；本轮没有重跑空闲机器性能测量。
+- M03 仍未全部完成：⁂ 的键盘框架留给作者定设计；帮手审阅由 M30 接。这个里程碑只补构想页分组路径。
+
 ## 大白话
 
 每一章的正文上面和下面多了旧版章节页上的东西，跟着正文一起滚动：
@@ -64,7 +73,7 @@ cargo run -p dr-view-page --features capture --example page-capture -- ../docs/r
 
 - **页眉里没有幕和状态。** 旧版的页眉就是「第 N 章 · 故事线 · 字数」，完成与否看 ⁂ 的颜色；`PageInfo` 也只在开幕那一章带幕名。
 - **幕扉页的字距。** 旧版「第一幕」和幕名有字距（`letter-spacing`），GPUI 做不了。
-- **构想页的页眉没有构想组。** 旧版写「构想 · 组 - 子组 · 字数」，`PageInfo` 没有构想所在的组（见「待协调」F4）。
+- **构想页的分组路径已补齐**（旧模块收尾）：沿用旧版的「构想 · 组 - 子组 · 字数」。
 - **⁂ 菜单少了「帮手审阅」**，等 Agent 模块（M30）。键盘还打不开它（旧版能 Tab 到 ⁂ 再用方向键选）：等外壳的焦点框架，`PageEnd::open_actions` 和 `choose(EndAction)` 已经留好。
 - **⁂ 和动作之间的变换没有模糊**（GPUI 不能模糊元素），只有缩放、淡入淡出和展开。
 - **页眉下的点线是虚线**（GPUI 只有实线和虚线）。
@@ -72,7 +81,7 @@ cargo run -p dr-view-page --features capture --example page-capture -- ../docs/r
 
 ## 待协调
 
-1. **F6：「新建下一章」后打开并全选标题。** dr-view-page 在单章页面里调了外壳现成的 `Workspace::open(Target::Chapter(…), Open::KEEP)`，并记下「这一章的标题要拿光标」；新页第一次画出时标题拿到焦点、全选（测试守着）。这能成立是因为外壳的 `focus_page` 在新编辑器建好时先把键盘给编辑器，章首第一次画在那之后，标题的焦点又放在这一帧画完以后。外壳以后如果改成晚一步再给编辑器焦点，就会抢走标题的。更稳的做法是外壳认这个意图，比如打开时带上「聚焦标题」，`focus_page` 遇到它就跳过。
+1. ~~**F6：「新建下一章」后打开并全选标题。**~~ 外壳已提供 `Open::KEEP.at_title()`，⁂ 新建下一章已使用；外壳跳过正文聚焦，章首取走 `NewTitles` 意图后聚焦并全选标题。别的新建入口可以复用上面的 `focus_new_title` 接口。
 2. **F6：装了 chrome 的章节页不用再 `set_title`。** 章首代替了编辑器的标题行，外壳在 `editor_prepared` 里调的 `set_title` 对章节页已经多余（无害）。
 3. **F6：键盘进出 ⁂**（Tab 到 ⁂、方向键选、回车做），等外壳的焦点框架。
 4. ~~**F4（dr-editor）：**~~（F4e 第四批已做，见 [f4e-editor.md](../foundations/f4e-editor.md#第四批2026-11-08-夜)；dr-view-page 已照下面的用法接上：扉页、构想页的标题和梗概。F4 的分支在 F5 分支里先合了进来，见 f5-ui.md 第六轮。）
@@ -85,4 +94,4 @@ cargo run -p dr-view-page --features capture --example page-capture -- ../docs/r
      - `page::rename(lib, book, doc, title)` 和 `page::set_synopsis(lib, book, doc, text)` 现在认得构想页（`node:<构想 id>`），走 `idea.update`，规则和章节一样：去掉首尾空白，空标题不存，没变不写。
      - 构想页的 `PageInfo` 是 `kind: PageKind::Idea`，带 `title`、`synopsis` 和 `status`（`drifting` / `resting`）。所以 dr-view-page 可以照章节页接管构想页的标题和梗概。构想页没有 ⁂ 的完成和新建下一章（`set_finished` / `new_chapter_after` 仍只对章节）。
 5. **M30（Agent）：** ⁂ 菜单里的「帮手审阅」。
-6. **F4（dr-editor）：** 构想页的页眉要构想所在的组（旧版「构想 · 组 - 子组」），`PageInfo` 加一个组链就能画。
+6. ~~**F4（dr-editor）：** 构想页的页眉要构想所在的组。~~ 已在本模块补齐：直接读外壳已有的书目快照并监听更新，不必扩展 `PageInfo`。
