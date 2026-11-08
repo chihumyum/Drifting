@@ -369,6 +369,7 @@ pub(crate) fn require_live(slot: &BookSlot, kind: EntityKind, id: &str) -> Resul
                 EntityKind::Patch => "patch",
                 EntityKind::Comment => "comment",
                 EntityKind::Material => "material",
+                EntityKind::Entry => "entry",
                 EntityKind::Other(_) => "entity",
             },
             id,

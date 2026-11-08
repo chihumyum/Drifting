@@ -3,9 +3,12 @@
 
 use std::collections::BTreeMap;
 
+use dr_doc::v3::novel::{NovelRootEntries, TPL_CHAPTER, TPL_CHARACTER, TPL_GROUP};
+use dr_model::id::EntryTemplateId;
 use serde::Serialize;
 
 use super::build::SeededBook;
+use super::v3::SeededBookV3;
 use crate::digest::Fingerprint;
 use crate::text;
 
@@ -100,6 +103,74 @@ impl Shape {
             elements += v.elements().len();
             relations += v.relations().len();
             acts += v.acts().len();
+            days += v.writing_days().len();
+        }
+        let bodies: BTreeMap<String, GroupShape> = groups
+            .iter()
+            .map(|(g, b)| (g.to_string(), GroupShape::of(b)))
+            .collect();
+        let mut fp = Fingerprint::new();
+        for (g, s) in &bodies {
+            fp.part(g, s.corpus_sha256.as_bytes());
+        }
+        Self {
+            preset: preset.into(),
+            seed: format!("{seed:#x}"),
+            books: books.len(),
+            documents: books.iter().map(|b| b.prose.len() + 1).sum(),
+            bodies,
+            chapters,
+            elements,
+            relations,
+            acts,
+            writing_days: days,
+            entity_links: links,
+            headings,
+            tasks,
+            corpus_fingerprint: fp.finish(),
+        }
+    }
+
+    pub(crate) fn of_v3(preset: &str, seed: u64, books: &[SeededBookV3]) -> Self {
+        let mut groups: BTreeMap<&str, Vec<String>> = BTreeMap::new();
+        let mut links = 0;
+        let mut headings = [0; 3];
+        let mut tasks = 0;
+        let (mut chapters, mut elements, mut relations, mut acts, mut days) = (0, 0, 0, 0, 0);
+        let tpl_chapter = EntryTemplateId::parse(TPL_CHAPTER).expect("valid template id");
+        let tpl_character = EntryTemplateId::parse(TPL_CHARACTER).expect("valid template id");
+        let tpl_group = EntryTemplateId::parse(TPL_GROUP).expect("valid template id");
+        let roots = NovelRootEntries::new();
+
+        for b in books {
+            for (g, bodies) in b.groups() {
+                groups.entry(g).or_default().extend(bodies.iter().cloned());
+            }
+            let counters = b.counters();
+            links += counters.entity_links;
+            for (a, x) in headings.iter_mut().zip(counters.headings) {
+                *a += x;
+            }
+            tasks += counters.tasks;
+            let v = b.book.view();
+            let entries = v.entries();
+            chapters += entries
+                .iter()
+                .filter(|e| !e.is_trashed() && e.template.as_ref() == Some(&tpl_chapter))
+                .count();
+            elements += entries
+                .iter()
+                .filter(|e| !e.is_trashed() && e.template.as_ref() == Some(&tpl_character))
+                .count();
+            relations += v.relations().len();
+            acts += entries
+                .iter()
+                .filter(|e| {
+                    !e.is_trashed()
+                        && e.template.as_ref() == Some(&tpl_group)
+                        && e.parent.as_ref() == Some(&roots.manuscript)
+                })
+                .count();
             days += v.writing_days().len();
         }
         let bodies: BTreeMap<String, GroupShape> = groups

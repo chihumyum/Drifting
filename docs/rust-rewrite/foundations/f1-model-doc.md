@@ -347,10 +347,12 @@ cargo run --release -p dr-testkit --bin bench -- doc
 ```text
 next/crates/dr-model/src/
   id.rs kind.rs book.rs prose.rs order.rs origin.rs time.rs check.rs invariant.rs conversation.rs
+  v3/   mod.rs template.rs entry.rs module.rs timeline.rs check.rs tests.rs
 next/crates/dr-doc/src/
   schema.rs peer.rs pos.rs core.rs anchor.rs undo.rs error.rs
   prose/  mod.rs view.rs txn.rs attrs.rs embed.rs event.rs tests.rs
   book/   mod.rs read.rs write.rs seed.rs fields.rs tests.rs
+  v3/     mod.rs schema.rs read.rs write.rs novel_template.rs tests.rs
   conversation.rs conversation/tests.rs（M27 加）
 next/crates/dr-doc/tests/
   prose_convergence.rs book_convergence.rs prose_events.rs book_seeds.rs conversation_convergence.rs positions.rs invariant_tests_exist.rs
@@ -359,3 +361,81 @@ next/crates/dr-doc/fuzz/   load_bytes、bad_structure（独立工作区，不进
 next/crates/dr-testkit/src/bench/doc.rs   基准的 doc 套件
 docs/rust-rewrite/acceptance/f1-m3-doc-bench.json   第三轮的测量证据
 ```
+
+## 交回（K1+K2 第一批：第 1–2 步，`handback/k1`）
+
+### 包含哪几段
+
+1. **第 1 步 `dr-model` v3 模块**（`next/crates/dr-model/src/v3/`）：
+   - 条目（`Entry`）、模板（`Template`：分成层级模板 `TemplateKind::Level` 与叶子模板 `TemplateKind::Leaf`；层级设置 `LevelSettings` / `LevelSettingsOverride` 含 `default_template`、`allow`、`display`、`auto_link`、`accept`、`home`、`is_manuscript`、`format_shortcuts` 及沿祖先链继承规则 `resolve_level_settings`；泳道开关 `lane`；写给帮手的说明 `TemplateAgentConfig`；动作 `TemplateVerb`）、模块与字段定义/取值（`ModuleSpec`、`ModuleKind`、`FieldDef`、`FieldValue`、`PatchV3`、`PlotGridV3`、`RelationTypeV3`、`CommentV3`）、归属（`Membership`）、时间线视图（`TimelineView`、`TimelineLane`、`TimelinePlacement`、`TimelinePin`）。
+   - `kernel-v3.md` 不变量表全部 13 条登记进 `dr_model::invariant::INVARIANTS`（`V3-TREE-SINGLE-PARENT` 至 `V3-PROSE-ANCHOR-COMPAT`），并写成纯函数校验与单元测试断言。
+2. **第 2 步 `dr-doc` v3 模块**（`next/crates/dr-doc/src/v3/`）：
+   - 书目文档 v3 根容器（`meta` 的 `v = 3`、`entries` `LoroTree`、`templates`、`memberships`、`timeline_views`、`patches`、`plot_grids`、`relation_types`、`relations`、`comments`、`materials`、`assets`、`material_folders`、`facts`、`memory`、`writing_days`）、类型化读写（`BookDocV3`、`BorrowedBookV3`、`BookReaderV3`、`BookViewV3`、`BookTxnV3`）与收敛修复（`repair()`）。
+   - `body:<条目 id>/<模块 id>`（含层级的 `body:<条目 id>/about`）与 `template:<模板 id>/<模块 id>` 正文文档 ID；正文文档结构本身不改。
+   - 内置「小说项目模板」（`novel_project_template()` / `apply_novel_project_template()`）做成数据，模板 ID 稳定（层级：`manuscript`、`act`、`element_folder`、`drift_box`、`drift_group`；叶子：`chapter`、`storyline`、`character`、`location`、`item`、`faction`、`lore`、`subplot`、`foreshadow`、`drift`）。
+
+### 改了 v2.2 那边的哪些文件、为什么
+
+- `next/crates/dr-model/src/lib.rs`：挂上 `pub mod v3;` 并导出 `BodyDocId`、`TemplateModuleId`。
+- `next/crates/dr-model/src/id.rs`：新增 v3 ID 类型（`EntryId`、`TemplateId`、`ModuleId`、`MembershipId`、`TimelineViewId`、`TimelineLaneId`）、`BodyDocId`（`body:<条目 id>/<模块 id>`）、`TemplateModuleId`（`template:<模板 id>/<模块 id>`）、`TemplateOwner::Module`、`DocKind::Body`、`DocId::Body`。所有 v2.2 文档 ID 的解析与格式化行为保持不变。
+- `next/crates/dr-model/src/kind.rs`：`EntityKind` 新增 `Entry = "entry"`，供 v3 正文内的条目链接及批注/关系/记忆引用使用，并新增 `EntityKind::may_be_linked_v3()`（v3 允许链接 `Material`）；v2.2 的 `EntityKind::may_be_linked()` 返回值保持 100% 不变（`EntityKind::Material.may_be_linked() == false`，有单元测试钉住）。
+- `next/crates/dr-model/src/invariant.rs`：`INVARIANTS` 追加 v3 的 13 条不变量声明。
+- `next/crates/dr-doc/src/lib.rs`：挂上 `pub mod v3;`。
+- `next/crates/dr-doc/src/schema.rs`：`SCHEMA_MINOR` 从 `3` 升到 `4`，在 `CHANGELOG` 记录 v3 书目容器与 `body:` / `template:` 文档 ID。
+- `next/crates/dr-doc/src/book/write.rs`：将 `PlotGridWriter`、`RelationWriter`、`MaterialWriter`、`MemoryWriter` 的内部字段 `map: LoroMap` 从私有改为 `pub(crate)`，供 `dr_doc::v3::write` 复用同一套容器写入逻辑，不改变 v2.2 行为。
+- `next/crates/dr-workspace/src/commands/{comment.rs,mention.rs,mod.rs}`：像第五轮加 `DocId::Template` 时一样，在 3 处 `DocId` / `DocKind` / `EntityKind` 穷举匹配里补上 `DocId::Body`、`DocKind::Body`、`EntityKind::Entry` 分支，使工作区编译通过，不改变 v2.2 命令行为。
+
+### 检查结果
+
+- `cargo fmt --all --check`：通过
+- `CARGO_BUILD_JOBS=3 cargo clippy --workspace --all-targets --locked -- -D warnings`：通过
+- `CARGO_BUILD_JOBS=3 cargo test --workspace --locked`：通过（含 `dr-model` 48 项测试、`dr-doc` 104 项单元测试及 `invariant_tests_exist`）
+- `CARGO_BUILD_JOBS=3 cargo xtask check`：通过
+- `pnpm public:check`：通过
+
+### 待协调
+
+- **回应 K3（`m10-import.md` 待协调 24、25、27）**：
+  1. **待协调 24（项目级故事线字段模板）**：在内置小说项目模板（`dr_doc::v3::novel`）中，`TPL_STORYLINE`（`"tpl-storyline"`，泳道层级模板）自带两个模块：`MOD_FIELDS`（`"mod-fields"`，含 `color` 与 `summary` 字段）和 `MOD_KV`（`"mod-kv"`，`ModuleKind::KeyValue`）。旧版项目级的 `project.storyline_template_kv_json` + `entity_kv_entry(owner_kind=project, namespace=storyline-template)` 对应 `TPL_STORYLINE` 模板里 `MOD_KV` 模块的 `config.initial_kv`（通过 `TemplateWriterV3::put_module` 写入 `initial_kv`），各条故事线自己的键值行写进该故事线条目的 `kv:mod-kv`（`EntryWriterV3::put_kv(&mid(MOD_KV), &entry)`），无需新加结构。
+  2. **待协调 25（旧关系类型端点种类约束）**：`RelationTypeV3` 与 `RelationTypeWriterV3` 同时提供 `source_kinds` / `target_kinds`（`Vec<EntityKind>`）与 `source_templates` / `target_templates`（`Vec<EntryTemplateId>`）。旧 `material`、`comment`、`patch` 原样保留对应 `EntityKind`；旧 `element`、`node`、`storyline`、`category` 在 `source_kinds` / `target_kinds` 上统一映射为 `EntityKind::Entry`。是否同时把旧种类收窄进 `source_templates` / `target_templates` 属于语义取舍，照 `overnight.md` 留给作者拍板。
+  3. **待协调 27（旧层级颜色）**：在 `dr_doc::v3::novel` 中，需要各自颜色的层级模板——`TPL_IDEA_GROUP`（`"tpl-idea-group"`）、`TPL_CATEGORY`（`"tpl-category"`）、`TPL_GROUP`（`"tpl-group"`）和 `TPL_STORYLINE`（`"tpl-storyline"`）——都已经声明了 `MOD_FIELDS`（`"mod-fields"`，`ModuleKind::Fields`），内含 `"color"` 字段（`FieldType::Text`）并设 `color_field = Some("color")`。因此每个分类、构想分组、故事线、分组条目各自的颜色直接写在该条目的 `fields.mod-fields.color`（`EntryWriterV3::set_field(&mid(MOD_FIELDS), "color", Some(&FieldValue::Text(color)))`），既不混进模板公用颜色，也不用为每个分类复制层级模板。
+
+## 交回（K1+K2 第三批：第 4 步 `dr_testkit::seed` v3 四档，`handback/k1`）
+
+### 包含哪几段
+
+1. **修复退回项（不动 v2.2 既有返回值、不越界改 `dr-index`）**：
+   - `dr-model/src/kind.rs`：恢复 `EntityKind::may_be_linked()` 的 v2.2 既有行为（`EntityKind::Material.may_be_linked() == false`），把 v3 允许链接素材的判定独立为 `EntityKind::may_be_linked_v3()`，并在 `dr-doc/src/v3/write.rs` 与 `dr-doc/src/v3/read.rs` 中改调 `may_be_linked_v3()`；同时恢复 `dr-doc/src/book/seed.rs` 对非 v2.2 文档 ID 的既有 `NotInProfile` 返回值。
+   - 撤回对 `next/crates/dr-index/tests/library.rs` 的改动（`dr-index` 不在 K1 负责列表内），将跨层「条目 + 模块」派生与模板跳过测试收归 `next/crates/dr-testkit/tests/seed.rs`。
+2. **第 4 步 `dr_testkit::seed` v3 四档（`tiny` / `lite` / `heavy` / `showcase`）**（`next/crates/dr-testkit/src/seed/v3.rs`、`shape.rs`、`samples.rs`）：
+   - 新增 `SeededV3`、`SeededBookV3`、`BuilderV3`、`generate_v3(preset, seed)`、`write_book_v3`、`book_to_v3`、`digest_v3`，以及 `samples::{pride_and_prejudice_v3, a_q_v3, slow_clock_v3, showcase_v3}`（不触碰归属 K3 的 `dr-samples`）。
+   - `Shape::of_v3` 按 v3 条目树与模板统计章节、要素、幕（书稿下的 `tpl-group` 分组）、关系、写作日与正文分组指纹；`Tiny`、`Lite`、`Heavy`、`Showcase` 四档与 v2.2 的 `Shape` 及钉死指纹（`PINNED`）完全对齐，并通过全部 13 条 v3 不变量、`owns_prose` 与 `dr-store` 按「条目 + 模块」索引测试。
+3. **修正 `TPL_CATEGORY` 默认 `allow`**：
+   - `dr_doc::v3::novel` 中 `TPL_CATEGORY` 的 `settings.allow` 从 `None`（会从父层级 `TPL_ELEMENTS` 继承仅允许 `tpl-category`）修正为 `Some(Vec::new())`（不限制分类下的要素叶子模板，分类自身仍可通过 `overrides.allow` 收窄）。
+
+### 改了 v2.2 那边的哪些文件、为什么
+
+- `next/crates/dr-testkit/src/seed/mod.rs`：挂上 `pub mod v3;` 并导出 v3 种子生成函数，v2.2 的 `generate` / `generate_via_commands` / `digest` 保持原样。
+- `next/crates/dr-testkit/src/seed/shape.rs`：新增 `Shape::of_v3`，v2.2 的 `Shape::of` 不变。
+- `next/crates/dr-testkit/src/samples.rs`：新增 `*_v3` 辅助函数，v2.2 的样书与书架函数不变。
+
+### 检查结果
+
+- `cargo fmt --all --check`：通过
+- `CARGO_BUILD_JOBS=3 cargo clippy --workspace --all-targets --locked -- -D warnings`：通过
+- `CARGO_BUILD_JOBS=3 cargo test --workspace --locked`：通过（含 `dr-import-v1` 的 `retired_values_normalize_to_current_vocabulary` 及 `dr-testkit` 全部 v2.2 / v3 种子与样书测试）
+- `CARGO_BUILD_JOBS=3 cargo xtask check`：通过
+- `pnpm public:check`：通过
+
+### 待协调
+
+- 无新增待协调项（K3 问的 24、25、27 已在上方第一批交回小节逐条回应）。
+- `cargo fmt --all --check`：通过
+- `CARGO_BUILD_JOBS=3 cargo clippy --workspace --all-targets --locked -- -D warnings`：通过
+- `CARGO_BUILD_JOBS=3 cargo test --workspace --locked`：通过
+- `CARGO_BUILD_JOBS=3 cargo xtask check`：通过
+- `pnpm public:check`：通过
+
+### 待协调
+
+- 见上一节对 K3（`m10-import.md` 待协调 24、25、27）的落点确认。

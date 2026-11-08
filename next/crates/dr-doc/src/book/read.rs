@@ -681,7 +681,7 @@ impl<'a> BookView<'a> {
             }),
             EntityKind::Comment => self.entity_map(book::COMMENTS, &r.id).is_some(),
             EntityKind::Material => self.entity_map(book::MATERIALS, &r.id).is_some(),
-            EntityKind::Other(_) => false,
+            EntityKind::Entry | EntityKind::Other(_) => false,
         }
     }
 
@@ -1054,6 +1054,7 @@ impl<'a> BookView<'a> {
             DocId::Category(id) => has(book::CATEGORIES, id.as_str()),
             DocId::Material(id) => entity(self.doc, book::MATERIALS, id.as_str())
                 .is_some_and(|v| F(&v).str("kind").is_none_or(|k| k == "text")),
+            DocId::Body(_) => false,
             DocId::Template(id) => match id.owner() {
                 Some(TemplateOwner::Category(c)) => has(book::CATEGORIES, c.as_str()),
                 Some(TemplateOwner::Storyline(s)) => has(book::STORYLINES, s.as_str()),

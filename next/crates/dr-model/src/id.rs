@@ -252,6 +252,124 @@ id_type!(
     DeviceKey,
     reserved = ['|']
 );
+id_type!(
+    /// An entry (条目) in the universal kernel v3 (`entries` tree).
+    /// `/` and `|` are reserved because entry ids appear in `body:<entry>/<module>`,
+    /// `plot_grids` keys `<entry>/<module>`, and `memberships` keys `<host>|<member>`.
+    EntryId,
+    reserved = ['/', '|']
+);
+id_type!(
+    /// A module (模块) in an entry template's module manifest (`v3`).
+    /// `/` is reserved because module ids appear in `body:<entry>/<module>`
+    /// and `template:<template>/<module>`.
+    ModuleId,
+    reserved = ['/']
+);
+id_type!(
+    /// An entry template (条目模板) in `templates` (`v3`).
+    /// `/` and `:` are reserved so `template:<template>/<module>` is
+    /// unambiguous alongside v2.2 `template:category:<id>` and `template:storyline:<id>`.
+    EntryTemplateId,
+    reserved = ['/', ':']
+);
+id_type!(
+    /// A timeline view (时间线视图) in `timeline_views` (`v3`).
+    TimelineViewId
+);
+
+/// The `<entry_id>/<module_id>` payload of a v3 `body:` prose document id.
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(try_from = "String", into = "String")]
+pub struct BodyDocId {
+    raw: Arc<str>,
+    entry: EntryId,
+    module: ModuleId,
+}
+
+impl BodyDocId {
+    pub fn new(entry: EntryId, module: ModuleId) -> Self {
+        let raw: Arc<str> = format!("{entry}/{module}").into();
+        Self { raw, entry, module }
+    }
+
+    pub fn parse(s: &str) -> Result<Self, IdError> {
+        validate(s, &[])?;
+        let Some((e, m)) = s.split_once('/') else {
+            return Err(IdError::BadChar('/'));
+        };
+        let entry = EntryId::parse(e)?;
+        let module = ModuleId::parse(m)?;
+        Ok(Self {
+            raw: s.into(),
+            entry,
+            module,
+        })
+    }
+
+    pub fn entry(&self) -> &EntryId {
+        &self.entry
+    }
+
+    pub fn module(&self) -> &ModuleId {
+        &self.module
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.raw
+    }
+}
+
+impl fmt::Display for BodyDocId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.raw)
+    }
+}
+
+impl fmt::Debug for BodyDocId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "BodyDocId({:?})", &*self.raw)
+    }
+}
+
+impl FromStr for BodyDocId {
+    type Err = IdError;
+    fn from_str(s: &str) -> Result<Self, IdError> {
+        Self::parse(s)
+    }
+}
+
+impl TryFrom<String> for BodyDocId {
+    type Error = IdError;
+    fn try_from(s: String) -> Result<Self, IdError> {
+        Self::parse(&s)
+    }
+}
+
+impl TryFrom<&str> for BodyDocId {
+    type Error = IdError;
+    fn try_from(s: &str) -> Result<Self, IdError> {
+        Self::parse(s)
+    }
+}
+
+impl From<BodyDocId> for String {
+    fn from(id: BodyDocId) -> String {
+        id.raw.to_string()
+    }
+}
+
+impl AsRef<str> for BodyDocId {
+    fn as_ref(&self) -> &str {
+        &self.raw
+    }
+}
+
+impl Borrow<str> for BodyDocId {
+    fn borrow(&self) -> &str {
+        &self.raw
+    }
+}
 
 impl CommentId {
     /// The id of a TODO generated from prose: a function of what generated
@@ -272,13 +390,13 @@ impl CommentId {
 /// devices creating it before they sync get one 3 × 3 grid, not 6 × 6. A
 /// `/` in the chapter id (never in a uuid) is written `%2F`; an id that would
 /// be too long uses a hash of the chapter id instead.
-fn default_plot_line(chapter: &NodeId, axis: char, n: usize) -> String {
-    let s = format!("{}:{axis}{n}", chapter.as_str().replace('/', "%2F"));
+fn default_plot_line(key: &str, axis: char, n: usize) -> String {
+    let s = format!("{}:{axis}{n}", key.replace('/', "%2F"));
     if s.len() <= MAX_ID_LEN {
         return s;
     }
     use sha2::{Digest, Sha256};
-    let hash = Sha256::digest(chapter.as_str().as_bytes());
+    let hash = Sha256::digest(key.as_bytes());
     let hex: String = hash[..16].iter().map(|b| format!("{b:02x}")).collect();
     format!("{hex}:{axis}{n}")
 }
@@ -286,14 +404,26 @@ fn default_plot_line(chapter: &NodeId, axis: char, n: usize) -> String {
 impl PlotRowId {
     /// Default row `n` (1-based) of `chapter`'s plot grid.
     pub fn default_for(chapter: &NodeId, n: usize) -> Self {
-        Self::parse(&default_plot_line(chapter, 'r', n)).expect("valid id")
+        Self::parse(&default_plot_line(chapter.as_str(), 'r', n)).expect("valid id")
+    }
+
+    /// Default row `n` (1-based) of a v3 `(entry, module)` plot grid.
+    pub fn default_for_entry(entry: &EntryId, module: &ModuleId, n: usize) -> Self {
+        let key = format!("{entry}/{module}");
+        Self::parse(&default_plot_line(&key, 'r', n)).expect("valid id")
     }
 }
 
 impl PlotColId {
     /// Default column `n` (1-based) of `chapter`'s plot grid.
     pub fn default_for(chapter: &NodeId, n: usize) -> Self {
-        Self::parse(&default_plot_line(chapter, 'c', n)).expect("valid id")
+        Self::parse(&default_plot_line(chapter.as_str(), 'c', n)).expect("valid id")
+    }
+
+    /// Default column `n` (1-based) of a v3 `(entry, module)` plot grid.
+    pub fn default_for_entry(entry: &EntryId, module: &ModuleId, n: usize) -> Self {
+        let key = format!("{entry}/{module}");
+        Self::parse(&default_plot_line(&key, 'c', n)).expect("valid id")
     }
 }
 
@@ -317,6 +447,11 @@ impl TemplateId {
         Self::parse(&format!("storyline:{id}")).expect("valid id")
     }
 
+    /// A v3 entry template's prose module (`<template_id>/<module_id>`).
+    pub fn for_entry_module(template: &EntryTemplateId, module: &ModuleId) -> Self {
+        Self::parse(&format!("{template}/{module}")).expect("valid id")
+    }
+
     /// Whose template this is; `None` for an id this version does not know.
     pub fn owner(&self) -> Option<TemplateOwner> {
         let (kind, id) = self.as_str().split_once(':')?;
@@ -325,6 +460,15 @@ impl TemplateId {
             "storyline" => StorylineId::parse(id).ok().map(TemplateOwner::Storyline),
             _ => None,
         }
+    }
+
+    /// The `(template_id, module_id)` of a v3 template prose document.
+    pub fn entry_module(&self) -> Option<(EntryTemplateId, ModuleId)> {
+        if self.owner().is_some() {
+            return None;
+        }
+        let (t, m) = self.as_str().split_once('/')?;
+        Some((EntryTemplateId::parse(t).ok()?, ModuleId::parse(m).ok()?))
     }
 }
 
@@ -363,20 +507,23 @@ pub enum DocKind {
     Storyline,
     Category,
     Material,
-    /// A body template (`template:category:<id>` / `template:storyline:<id>`).
+    /// A v3 entry's prose module or level description (`body:<entry>/<module>`).
+    Body,
+    /// A body template (`template:category:<id>` / `template:storyline:<id>` / `template:<template>/<module>`).
     Template,
     /// An append-only Agent conversation, separate from prose.
     Conversation,
 }
 
 impl DocKind {
-    pub const ALL: [DocKind; 8] = [
+    pub const ALL: [DocKind; 9] = [
         DocKind::Book,
         DocKind::Node,
         DocKind::Element,
         DocKind::Storyline,
         DocKind::Category,
         DocKind::Material,
+        DocKind::Body,
         DocKind::Template,
         DocKind::Conversation,
     ];
@@ -390,6 +537,7 @@ impl DocKind {
             DocKind::Storyline => "storyline",
             DocKind::Category => "category",
             DocKind::Material => "material",
+            DocKind::Body => "body",
             DocKind::Template => "template",
             DocKind::Conversation => "conversation",
         }
@@ -445,6 +593,7 @@ pub enum DocId {
     Storyline(StorylineId),
     Category(CategoryId),
     Material(MaterialId),
+    Body(BodyDocId),
     Template(TemplateId),
     Conversation(ConversationId),
 }
@@ -478,6 +627,7 @@ impl DocId {
             DocId::Storyline(_) => DocKind::Storyline,
             DocId::Category(_) => DocKind::Category,
             DocId::Material(_) => DocKind::Material,
+            DocId::Body(_) => DocKind::Body,
             DocId::Template(_) => DocKind::Template,
             DocId::Conversation(_) => DocKind::Conversation,
         }
@@ -492,6 +642,7 @@ impl DocId {
             DocId::Storyline(id) => id.as_str(),
             DocId::Category(id) => id.as_str(),
             DocId::Material(id) => id.as_str(),
+            DocId::Body(id) => id.as_str(),
             DocId::Template(id) => id.as_str(),
             DocId::Conversation(id) => id.as_str(),
         }
@@ -515,10 +666,11 @@ impl DocId {
             "storyline" => DocId::Storyline(StorylineId::parse(id).map_err(e)?),
             "category" => DocId::Category(CategoryId::parse(id).map_err(e)?),
             "material" => DocId::Material(MaterialId::parse(id).map_err(e)?),
+            "body" => DocId::Body(BodyDocId::parse(id).map_err(e)?),
             "conversation" => DocId::Conversation(ConversationId::parse(id).map_err(e)?),
             "template" => {
                 let t = TemplateId::parse(id).map_err(e)?;
-                if t.owner().is_none() {
+                if t.owner().is_none() && t.entry_module().is_none() {
                     return Err(DocIdError::UnknownPrefix(s.to_string()));
                 }
                 DocId::Template(t)
@@ -590,6 +742,11 @@ impl From<MaterialId> for DocId {
         DocId::Material(id)
     }
 }
+impl From<BodyDocId> for DocId {
+    fn from(id: BodyDocId) -> Self {
+        DocId::Body(id)
+    }
+}
 impl From<TemplateId> for DocId {
     fn from(id: TemplateId) -> Self {
         DocId::Template(id)
@@ -650,9 +807,12 @@ mod tests {
             "storyline:s1",
             "category:c1",
             "material:m1",
+            "body:e1/m1",
+            "body:e1/about",
             "node:0199-x:y",
             "template:category:c1",
             "template:storyline:s1",
+            "template:tpl-chapter/mod-prose",
         ] {
             let id = DocId::parse(s).unwrap();
             assert_eq!(id.to_string(), s);
@@ -733,5 +893,17 @@ mod tests {
         let id = ElementId::parse("el-1").unwrap();
         assert_eq!(serde_json::to_string(&id).unwrap(), "\"el-1\"");
         assert!(serde_json::from_str::<ElementId>("\"\"").is_err());
+        let body = BodyDocId::parse("e1/m1").unwrap();
+        assert_eq!(body.entry().as_str(), "e1");
+        assert_eq!(body.module().as_str(), "m1");
+        assert!(BodyDocId::parse("e1").is_err());
+        assert_eq!(EntryId::parse("a/b"), Err(IdError::BadChar('/')));
+        assert_eq!(EntryId::parse("a|b"), Err(IdError::BadChar('|')));
+        assert_eq!(EntryTemplateId::parse("a:b"), Err(IdError::BadChar(':')));
+        let tpl = EntryTemplateId::parse("tpl-chapter").unwrap();
+        let m = ModuleId::parse("mod-prose").unwrap();
+        let tid = TemplateId::for_entry_module(&tpl, &m);
+        assert_eq!(tid.entry_module(), Some((tpl, m)));
+        assert_eq!(tid.owner(), None);
     }
 }
