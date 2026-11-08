@@ -1,6 +1,6 @@
 # M19 素材：查看器与素材库
 
-2026-11-08。第一部分：图片和 PDF 的缩放、平移、翻页，和画在上面的区域批注（下面前几节）。第二部分（同一天）：右栏「素材库」标签，素材夹树的拖放、多选、移动，拖入和粘贴文件导入，见[「第二部分：素材库」](#第二部分素材库)；给 M23 的接口写在[那一节的末尾](#给-m23-的接口)。计划见 [modules.md 的 M19](../modules.md)。代码在 `next/crates/dr-view-material/`。第三部分补素材页动作菜单，见本文末尾。素材笔记已使用 F4 的列表、任务块、表格和斜杠菜单；这不等于旧版笔记的任务 → TODO 自动投射已经补齐。M19 尚未完成，逐项缺口见「待协调」及第三部分的核对。
+2026-11-08。第一部分：图片和 PDF 的缩放、平移、翻页，和画在上面的区域批注（下面前几节）。第二部分（同一天）：右栏「素材库」标签，素材夹树的拖放、多选、移动，拖入和粘贴文件导入，见[「第二部分：素材库」](#第二部分素材库)；给 M23 的接口写在[那一节的末尾](#给-m23-的接口)。计划见 [modules.md 的 M19](../modules.md)。代码在 `next/crates/dr-view-material/`。第三部分补素材页动作菜单，见本文末尾。素材笔记已使用 F4 的列表、任务块、代码块、提示框、表格和斜杠菜单；这不等于旧版笔记的任务 → TODO 自动投射已经补齐。M19 尚未完成，逐项缺口见「待协调」及第三部分的核对。
 
 ## 做了什么（大白话）
 
@@ -189,12 +189,12 @@ M23「审阅与素材」可以直接用这些（都在 `dr_view_material` 下）
 
 | 类别 | 结论与代码依据 |
 | --- | --- |
-| 真缺：笔记任务自动投射 TODO 和开关 | 旧版 `MaterialNotePage.tsx` 调 `note-todo-links.ts`，按 `taskTodos` 扫描/同步任务；Rust `MaterialInfo.task_todos` 与 `MaterialUpdateIn.task_todos` 目前只有存取，`dr-editor` 仅能跳转已经带 TODO id 的任务块。先补投射与双向状态契约，再挂开关，避免空动作。 |
+| 真缺：笔记任务自动投射 TODO 和开关 | 旧版 `MaterialNotePage.tsx` 调 `note-todo-links.ts`，按 `taskTodos` 扫描/同步任务；Rust `MaterialInfo.task_todos` 与 `MaterialUpdateIn.task_todos` 目前只有存取；`dr-editor` 已能读取关联 TODO 状态，点击任务框会完成／重开对应 TODO，且有双向状态契约。剩余是自动创建／关联、对账和开关；现有 `todo.project` 只处理正文段首文字标记，并拒绝素材文档，不能直接充当这条投射。 |
 | 真缺：来源 | 模型 `dr-model/src/book.rs` 保留 `Material.provenance`，`dr-workspace/src/dto.rs::MaterialInfo` 未暴露。需一个只读来源 DTO（生成模型/日期/提示词及 former portrait 的要素 id），素材页按旧版只读展开，不引入生成产品。 |
 | 真缺：通用关联 | 旧 `MaterialRelations` 只显示通用关联的 chips 和 picker。当前素材整页/笔记页未挂；复用关系的选择/增删能力即可，不应直接把全关系管理塞进本页。素材库的行内关联与展开预览也仍缺。 |
 | 真缺：区域批注卡完整动作与定位 | 当前列只有选择、解决/重开；旧版有编辑、来源、删除、转 TODO。审阅箭头打开素材后还需模块级 `open-and-select-comment` 接口（含 PDF 页码），待外壳协调。 |
 | 真缺/作者决定：灯箱、格式支持 | 全屏灯箱未做；HEIC 尚无系统解码适配；加密 PDF 是 hayro 的已知限制，若换引擎涉及分发/安装，交作者决定。 |
-| 文档过时 | 导入 display/thumbnail 已做；F4 的列表、任务块、表格与斜杠菜单已存在，不能把整类编辑能力仍列为未做。 |
+| 文档过时 | 导入 display/thumbnail 已做；F4 的列表、任务块、代码块、提示框、表格与斜杠菜单已存在，不能把整类编辑能力仍列为未做。 |
 | 作者手测/设计 | 系统默认应用实际接管及系统失败反馈；触控板/拖放手感；深色主题白色 PDF 上批注框的对比度与视觉决定。 |
 
 接口核对还发现：`import_bytes` 虽有“图片或 PDF”的注释，实际 PDF 会带 0 × 0 尺寸写变体，被 F2 拒绝。当前 UI 的 PDF 导入/粘贴文件都走 `import_path`，原始剪贴板字节只传图片；本次 PDF 契约也使用真实文件入口。这是现有接口说明与能力不一致，不能凭它推断旧版产品缺了“原始 PDF 字节粘贴”，未来调用者需要字节入口时再补明确的无尺寸 source 接口。
@@ -204,3 +204,7 @@ M23「审阅与素材」可以直接用这些（都在 `dr_view_material` 下）
 契约检查菜单按素材类型分流、危险项末置、原件字节、缺失原件错误、移到既有素材夹/根/新建素材夹、空名称、取消与确认删除及标签关闭。定向测试 `cargo test --locked -p dr-view-material --test actions`：4/4 通过。真实窗口用 `workspace scenario crates/dr-cli/scenarios/material-actions.json --app target/full/debug/drifting`：61/61 步通过、0 pending、`app.quit` 正常退出；通过点击/输入和 F3 回读核对，四张截图中已检查素材夹选择和原件缺失提示。素材夹对话框无裁切、当前路径有勾，错误提示清晰。证据写入忽略的 `target/acceptance/legacy-m19-actions/`，不提交生成 JSON，不碰个人书库或外部服务。媒体模块页的 `ui.wait ready` 桥接口尚不识别，因此媒体末段使用 `ui.find` 等按钮和 `state.get` 核对，没有改共享调试桥。
 
 本分支按 AGENTS.md 完成：`cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、`cargo test --workspace --locked`（1684 passed / 0 failed / 22 ignored）、`cargo xtask check` 全通过；审计 942 个锁定 crate，0 漏洞、12 条既有 notice，既有 stale 测量证据保留，未手改。`pnpm public:check`：5228 个候选文件通过。旧版检查的共同基线由收尾主线运行并汇总，本分支单独复查公开边界。
+
+### 第二十六批整合边界
+
+`fe7657a1` 作为基础动作里程碑验收。现有／根素材夹的选择行虽然有 Button 角色，但没有焦点和键盘选择；新名称输入的 Enter 与 Esc 不能证明整个选择器能用键盘完成。删除确认依赖的共享按钮也需补键盘焦点。这两处仍是实现工作，已转交旧模块收尾；系统默认应用实际接管另保留作者手测。
