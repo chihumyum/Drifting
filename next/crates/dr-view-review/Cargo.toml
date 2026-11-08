@@ -21,6 +21,7 @@ log.workspace = true
 
 [dev-dependencies]
 dr-store.workspace = true
+dr-testkit.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
 serde_json.workspace = true
 tempfile.workspace = true
