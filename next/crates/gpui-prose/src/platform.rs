@@ -8,7 +8,7 @@ pub trait PlatformHooks: 'static {
     /// Tell the system input method to drop its marked text
     /// (`[NSTextInputContext discardMarkedText]` on macOS,
     /// `ImmNotifyIME(…, NI_COMPOSITIONSTR, CPS_CANCEL, 0)` on Windows).
-    fn discard_marked_text(&self);
+    fn discard_marked_text(&self, window: &Window);
 
     /// Whether the editor's window has the keyboard right now. Input that
     /// arrives while it has not (on Windows, an input method committing its

@@ -702,6 +702,9 @@ impl ProseEditor {
 
     /// Reduced motion: every paint-layer change lands at once.
     pub fn set_reduce_motion(&mut self, reduce: bool, cx: &mut Context<Self>) {
+        if reduce {
+            self.finish_commit_playback(cx);
+        }
         self.paint.reduce_motion = reduce;
         cx.notify();
     }

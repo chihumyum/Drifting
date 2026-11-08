@@ -1,0 +1,67 @@
+# 夜间队列（2026-11-09）
+
+作者睡觉期间，五个会话照这一页自己往下做，不等作者转话。分轨和规矩照 [kernel-v3-split.md](kernel-v3-split.md)，方案照 [kernel-v3.md](../kernel-v3.md)。这一页只管三件事：怎么交回、整合者怎么收、每个会话按什么顺序做。
+
+## 交回协议
+
+各轨道做完一段：
+
+1. 把这一段的改动全部提交在自己的分支上，`git merge main` 到最新，在 `next/` 跑全套检查（`cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、`cargo test --workspace --locked`、`cargo xtask check`），再在仓库根跑 `pnpm public:check`。
+2. 检查都过了，把交回指针挪到当前提交：`git branch -f handback/<轨道名> HEAD`。轨道名见下面的队列。
+3. 在自己的模块文档里写一小节「交回」：包含哪几段、检查结果、待协调。
+
+交回以后不用等，接着做队列里的下一段。每开始一段之前，先看一眼退回记录：`git show main:docs/rust-rewrite/handoff/overnight.md`，有退给自己的，先处理退回。
+
+编译时设 `CARGO_BUILD_JOBS=3`（整合者用 6）。机器 12 核，五路同时编译。
+
+## 整合者
+
+每 10 分钟看一次 `git for-each-ref refs/heads/handback`。指针所指的提交还不在 `main` 里的，就在常驻整合 worktree 开一批，照 [integration.md](integration.md) 合并、跑全套检查：
+
+- 过了：本地合进 `main`，更新 [progress.md](../progress.md) 和 integration.md 的分支表，在下面的「收进来的」记一行。
+- 不过、或者越出了它的 crate、或者有确定会丢作者数据的问题：不合，在下面的「退回」记一行，写清原因和复现。
+
+不推送。没有可收的就等下一轮，一直到作者回来。
+
+## 各会话的队列
+
+### 轨道 3 帮手运行时（Codex，指针 `handback/track3`）
+
+1. 做完 M34 口述（现在工作区里的改动），交回。之前已提交的 M30、小说提示词集中、M32 复验一起交。
+2. 写 K6 的方案文档 `docs/rust-rewrite/modules/k6-agent-tools.md`，只写文档，不写代码：帮手工具怎么换成 kernel-v3.md「帮手」一节说的通用一套（条目、模块、归属、时间线）；层级模板声明的动作怎么生成工具；帮手每次拿到的「这本书的结构说明」长什么样，从模板的写给帮手说明怎么拼出来；轨道 3 已经集中的小说提示词怎么挪进小说项目模板；哪些现有工具删掉、哪些改名、哪些照旧。交回。
+3. 然后停下，等作者。
+
+### K3 旧库导入（Codex，指针 `handback/k3`）
+
+1. 前半段（现在在做的）：补齐合成旧库、写导入清单，交回。
+2. 等 K1 的 `dr-doc` v3 合进 `main`：每 15 分钟看一次 `git cat-file -e main:next/crates/dr-doc/src/v3/mod.rs`，有了就 `git merge main` 接着做。
+3. 后半段：`dr-import-v1` 加一条导入成 v3 的路径，按映射表逐项导入，结果和导入清单逐项对上；导入完跑 v3 的不变量检查；`dr-samples` 两本样书改成生成 v3 的书，内容和现在一样。导入成 v2.2 的旧路径保留。不改 v3 的结构，映射表有问题写进 m10-import.md 的待协调。交回。
+4. 然后停下，等作者。
+
+### K1+K2 通用内核（Antigravity，指针 `handback/k1`）
+
+1. 第 2 步 `dr-doc` v3 做完就交回一次，K3 在等它。
+2. 接着做第 3–6 步（`dr-store`、`dr_testkit::seed` 的 v3 四档、`dr-workspace` 的通用命令、`loro-schema.md` 和 f1/f3 文档），每做完一步交回一次。
+3. 最后一步交回时，照 kernel-v3.md「分步」末尾那段改 AGENTS.md 的大纲规则：幕不再内置，默认结构是书稿 / 章 / H1 / H2 / H3，作者自己加的层级由作者命名，H1/H2/H3 的规矩不变。
+4. 改 v2.2 那边的文件（`dr-doc` 的 book、schema，`dr-model` 的 kind）只能是两边共用的接线，不能改变 v2.2 的行为；交回小节里列出改了哪些、为什么。
+5. 然后停下，等作者。
+
+### 轨道 4 账号与同步（Antigravity，指针 `handback/track4`）
+
+1. 按 M35 账号 → M37 偏好同步 → M36 同步 v2 → M43 Windows 补齐的顺序，**每做完一个模块交回一次**，不要攒到最后。
+2. 动 `dr-shell`、`dr-view-shelf` 只限挂账号入口的地方，交回小节里列出来。
+3. 做完四个就停下，等作者。
+
+## 收进来的
+
+整合者在这里记：时间、指针、合进 `main` 后的提交、检查结果。
+
+| 时间 | 指针 | main | 检查 |
+| --- | --- | --- | --- |
+
+## 退回
+
+整合者在这里记：时间、指针、原因和复现、退给谁。
+
+| 时间 | 指针 | 原因 | 处理 |
+| --- | --- | --- | --- |
