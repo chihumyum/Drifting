@@ -1,0 +1,27 @@
+{
+  "about": "M14 叙事轴双击新建：微型种子增加一条空故事线，在真实空泳道双击后，章节同时有书序末尾位置与故事线，随后打开。叙事坐标与一步撤销/重做由 dr-view-timeline 的 GPUI 契约核对。",
+  "steps": [
+    { "seed": "tiny" },
+    { "call": "book.list", "save": "books" },
+    { "call": "chapter.list", "input": { "book": "${books.0.id}" }, "save": "chapters" },
+    { "call": "storyline.list", "input": { "book": "${books.0.id}" }, "save": "lines" },
+    { "call": "storyline.create", "input": { "book": "${books.0.id}", "name": "${lines.0.name}" }, "save": "line" },
+    { "launch": { "settings": { "account": { "language.ui_locale": "zh-CN" } } } },
+    { "app": "ui.wait", "params": { "until": "ready", "timeout_ms": 30000 } },
+    { "app": "window.focus" },
+    { "app": "book.open", "params": { "name": "${books.0.name}" } },
+    { "app": "ui.wait", "params": { "until": "ready", "state": { "/shelf": false, "/book/name": "${books.0.name}" } } },
+    { "app": "nav.open", "params": { "chapter": "${chapters.0.id}" } },
+    { "app": "ui.wait", "params": { "until": "ready", "state": { "/page": "chapter:${chapters.0.id}", "/bottom/pane": "timeline" } } },
+    { "app": "ui.press", "params": { "label": "跳过导览" } },
+    { "app": "ui.press", "params": { "label": "叙事时" } },
+    { "app": "ui.find", "params": { "label": "这条故事线还没有章节 · 双击新建", "role": "StaticText", "count": 1 }, "save": "empty" },
+    { "app": "input.click", "params": { "x": "${empty.nodes.0.center.0}", "y": "${empty.nodes.0.center.1}", "count": 2 } },
+    { "app": "ui.find", "params": { "label": "这条故事线还没有章节 · 双击新建", "role": "StaticText", "absent": true }, "expect": { "/count": 0 } },
+    { "call": "chapter.list", "input": { "book": "${books.0.id}" }, "save": "after", "expect": { "/4/title": "Untitled", "/4/primary_storyline": "${line.id}", "/4/storylines/0": "${line.id}", "/4/book_order": 45.0 }, "note": "tiny 的四章书序为 10/20/30/40，F3 在末尾再加 5；场景的 $sum 只接受整数，坐标用精确浮点断言。" },
+    { "app": "ui.wait", "params": { "until": "ready", "state": { "/page": "chapter:${after.4.id}" } } },
+    { "app": "input.move", "params": { "x": 700, "y": 300 }, "note": "移开指针，让新片段的悬停卡收起，再拍整个时间线。" },
+    { "app": "ui.screenshot", "png": "01-timeline-created.png" },
+    { "app": "app.quit", "expect": { "/quit": true } }
+  ]
+}

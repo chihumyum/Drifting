@@ -406,6 +406,115 @@ fn a_double_click_on_an_empty_spot_makes_a_chapter_there(cx: &mut TestAppContext
     });
 }
 
+#[gpui::test]
+fn a_narrative_double_click_creates_and_undoes_the_whole_chapter_in_one_step(
+    cx: &mut TestAppContext,
+) {
+    let (_dir, library, book) = library();
+    let lib = library.clone();
+    let (host, cx) = setup(cx, library);
+    let t = timeline(&host, cx);
+    t.update(cx, |t, cx| t.set_axis(Axis::Narrative, cx));
+    frame(cx);
+    let before = chapters(&lib, &book);
+    let ids: Vec<_> = before.iter().map(|c| c.id.clone()).collect();
+    let last = before
+        .iter()
+        .filter_map(|c| c.book_order)
+        .fold(0.0, f64::max);
+    let layout = t.read_with(cx, |t, _| t.layout());
+    let LaneId::Storyline(on) = layout.lanes[1].id.clone() else {
+        unreachable!()
+    };
+    let clips: Vec<_> = layout.lanes[1]
+        .clips
+        .iter()
+        .filter_map(|c| c.narrative_order)
+        .collect();
+    let order = (0..200)
+        .map(|i| layout.scale.min_order + 1.0 + i as f64)
+        .find(|o| clips.iter().all(|c| *o < c - 0.5 || *o > c + 4.5))
+        .unwrap();
+    let spot = at(&t, 1, order, 0.0, cx);
+    cx.simulate_click(spot, Modifiers::none());
+    cx.simulate_event(gpui::MouseDownEvent {
+        position: spot,
+        button: MouseButton::Left,
+        modifiers: Modifiers::none(),
+        click_count: 2,
+        first_mouse: false,
+    });
+    cx.simulate_event(gpui::MouseUpEvent {
+        position: spot,
+        button: MouseButton::Left,
+        modifiers: Modifiers::none(),
+        click_count: 2,
+    });
+    wait_for(cx, |_| chapters(&lib, &book).len() == before.len() + 1);
+    let made = chapters(&lib, &book)
+        .into_iter()
+        .find(|c| !ids.contains(&c.id))
+        .unwrap();
+    assert_eq!(made.book_order, Some(last + 5.0));
+    assert!((made.narrative_order.unwrap() - order).abs() < 0.05);
+    assert_eq!(made.primary_storyline.as_deref(), Some(on.as_str()));
+    assert_eq!(made.storylines, vec![on.clone()]);
+    let ws = host.read_with(cx, |h, _| h.ws.clone());
+    let target = Target::Chapter(made.id.parse().unwrap());
+    wait_for(cx, |cx| {
+        ws.read_with(cx, |w, _| w.nav.current() == Some(&target))
+    });
+
+    // The first undo must remove the chapter, rather than only removing
+    // its narrative coordinate and leaving it in 未放置.
+    lib.undo(&Actor::User).unwrap().unwrap();
+    assert_eq!(
+        chapters(&lib, &book)
+            .into_iter()
+            .map(|c| c.id)
+            .collect::<Vec<_>>(),
+        ids
+    );
+    lib.redo(&Actor::User).unwrap().unwrap();
+    let restored = chapter(&lib, &book, &made.id);
+    assert_eq!(restored.book_order, made.book_order);
+    assert_eq!(restored.narrative_order, made.narrative_order);
+    assert_eq!(restored.primary_storyline, made.primary_storyline);
+    assert_eq!(restored.storylines, made.storylines);
+}
+
+#[gpui::test]
+fn creating_a_chapter_does_not_open_it_in_another_book(cx: &mut TestAppContext) {
+    use dr_workspace::commands::book::{BookCreate, BookCreateIn};
+    let (_dir, library, book) = library();
+    let lib = library.clone();
+    let (host, cx) = setup(cx, library);
+    let t = timeline(&host, cx);
+    let ws = host.read_with(cx, |h, _| h.ws.clone());
+    let other = lib
+        .run::<BookCreate>(
+            &Actor::User,
+            BookCreateIn {
+                name: dr_testkit::samples::a_q().unwrap().book.view().meta().name,
+                summary: String::new(),
+            },
+        )
+        .unwrap()
+        .output
+        .id;
+    let before = chapters(&lib, &book).len();
+    // Both changes happen before the background create callback can run.
+    cx.update(|window, cx| {
+        t.update(cx, |t, cx| t.create_at(&LaneId::Book, 33.0, cx));
+        ws.update(cx, |ws, cx| ws.open_book(&other, window, cx));
+    });
+    wait_for(cx, |cx| {
+        chapters(&lib, &book).len() == before + 1 && ws.read_with(cx, |ws, _| ws.book.id == other)
+    });
+    assert!(ws.read_with(cx, |ws, _| ws.nav.current().is_none()));
+    assert!(chapters(&lib, &other).is_empty());
+}
+
 /// What the timeline shows (书序 / 叙事时, 未归属, the zoom) is kept for the
 /// book in the shell's per-book memory, and a timeline made for the book
 /// again (the next run, another window) starts from it.
