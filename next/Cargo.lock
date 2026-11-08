@@ -2053,6 +2053,7 @@ dependencies = [
  "gpui_platform",
  "image",
  "log",
+ "serde",
  "serde_json",
  "smallvec",
  "tempfile",

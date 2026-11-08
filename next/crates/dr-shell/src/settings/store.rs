@@ -29,11 +29,9 @@
 //!   a crash leaves the old file or the new one. A file that cannot be read
 //!   is moved aside, never overwritten.
 
-use std::collections::BTreeMap;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
 
-use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
 use super::registry::{self, Initial, Scope, SettingDef};
@@ -50,24 +48,6 @@ pub const EXPORT_AUTHOR: &str = "export.author";
 const BOOK_EXPORT: &str = "export";
 /// The device entry's object of module values.
 const DEVICE_MODULES: &str = "modules";
-/// The top-level entry tracking per-key timestamps for M37 preference sync.
-const PREFERENCE_SYNC: &str = "preference_sync";
-
-/// Per-key timestamp and dirty bit for M37 preference sync.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PreferenceLedgerEntry {
-    pub changed_at: String,
-    pub pending: bool,
-}
-
-/// Local ledger of synced preference change timestamps (`settings.json`).
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PreferenceLedger {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub account_id: Option<String>,
-    #[serde(default)]
-    pub entries: BTreeMap<String, PreferenceLedgerEntry>,
-}
 
 #[derive(Debug)]
 pub struct SettingsFile {
@@ -195,9 +175,6 @@ impl SettingsFile {
             .scope_map_mut(def.scope, book)
             .ok_or(SetError::NoBook)?;
         map.insert(def.key.to_owned(), value);
-        if book.is_none() && def.follows_account() {
-            self.record_local_preference_change(def.key);
-        }
         self.dirty = true;
         Ok(true)
     }
@@ -211,9 +188,6 @@ impl SettingsFile {
             .scope_map_mut(def.scope, book)
             .and_then(|map| map.remove(def.key))
             .is_some();
-        if removed && book.is_none() && def.follows_account() {
-            self.record_local_preference_change(def.key);
-        }
         self.dirty |= removed;
         removed
     }
@@ -240,9 +214,6 @@ impl SettingsFile {
             Some(k) => bindings.insert(id.to_owned(), Value::from(k)) != Some(Value::from(k)),
             None => bindings.remove(id).is_some(),
         };
-        if changed {
-            self.record_local_preference_change(KEY_BINDINGS);
-        }
         self.dirty |= changed;
         changed
     }
@@ -250,124 +221,8 @@ impl SettingsFile {
     pub fn reset_key_bindings(&mut self) -> bool {
         let account = object_at(&mut self.data, "account");
         let changed = account.remove(KEY_BINDINGS).is_some();
-        if changed {
-            self.record_local_preference_change(KEY_BINDINGS);
-        }
         self.dirty |= changed;
         changed
-    }
-
-    /// Reads the M37 preference sync ledger stored in `settings.json`.
-    pub fn preference_ledger(&self) -> PreferenceLedger {
-        self.data
-            .get(PREFERENCE_SYNC)
-            .cloned()
-            .and_then(|v| serde_json::from_value(v).ok())
-            .unwrap_or_default()
-    }
-
-    /// Replaces the M37 preference sync ledger stored in `settings.json`.
-    pub fn set_preference_ledger(&mut self, ledger: &PreferenceLedger) {
-        if let Ok(value) = serde_json::to_value(ledger)
-            && self.data.get(PREFERENCE_SYNC) != Some(&value)
-        {
-            self.data.insert(PREFERENCE_SYNC.into(), value);
-            self.dirty = true;
-        }
-    }
-
-    /// Whether any account-synced preference has an unpushed local edit.
-    pub fn has_pending_synced_preferences(&self) -> bool {
-        self.preference_ledger()
-            .entries
-            .iter()
-            .any(|(key, entry)| entry.pending && registry::follows_account(key))
-    }
-
-    /// Records a local edit to `key` with the given ISO-8601 timestamp.
-    pub fn mark_synced_preference_changed(&mut self, key: &str, changed_at: &str) {
-        if !registry::follows_account(key) {
-            return;
-        }
-        let mut ledger = self.preference_ledger();
-        ledger.entries.insert(
-            key.to_owned(),
-            PreferenceLedgerEntry {
-                changed_at: changed_at.to_owned(),
-                pending: true,
-            },
-        );
-        self.set_preference_ledger(&ledger);
-    }
-
-    fn record_local_preference_change(&mut self, key: &str) {
-        let now = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
-        self.mark_synced_preference_changed(key, &now);
-    }
-
-    /// Reads a synced preference (`registry::follows_account(key) == true`).
-    /// Device-only and unknown keys return `None`.
-    pub fn read_synced_preference(&self, key: &str) -> Option<Value> {
-        if !registry::follows_account(key) {
-            return None;
-        }
-        if key == KEY_BINDINGS {
-            return Some(Value::Object(self.key_bindings()));
-        }
-        let def = registry::find(key)?;
-        Some(self.value(def, None))
-    }
-
-    /// Applies a remote preference value without marking the local ledger
-    /// pending. Device-only keys, unknown keys and invalid values are ignored
-    /// and return `false`.
-    pub fn apply_synced_preference(&mut self, key: &str, value: &Value) -> bool {
-        if !registry::follows_account(key) {
-            return false;
-        }
-        if key == KEY_BINDINGS {
-            let Some(map) = value.as_object() else {
-                return false;
-            };
-            if !map.values().all(Value::is_string) {
-                return false;
-            }
-            let current = self.key_bindings();
-            if &current == map {
-                return false;
-            }
-            let account = object_at(&mut self.data, "account");
-            if map.is_empty() {
-                account.remove(KEY_BINDINGS);
-            } else {
-                account.insert(KEY_BINDINGS.into(), Value::Object(map.clone()));
-            }
-            self.dirty = true;
-            return true;
-        }
-        let Some(def) = registry::find(key) else {
-            return false;
-        };
-        if def.default == Initial::Computed && value.is_null() {
-            let removed = self
-                .scope_map_mut(Scope::Account, None)
-                .and_then(|map| map.remove(def.key))
-                .is_some();
-            self.dirty |= removed;
-            return removed;
-        }
-        let Some(valid) = def.validate(value) else {
-            return false;
-        };
-        if self.stored(def, None).as_ref() == Some(&valid) {
-            return false;
-        }
-        let Some(map) = self.scope_map_mut(Scope::Account, None) else {
-            return false;
-        };
-        map.insert(def.key.to_owned(), valid);
-        self.dirty = true;
-        true
     }
 
     /// A book's saved local layout.
@@ -637,43 +492,5 @@ mod tests {
         assert_eq!(file.book_exports().len(), 1);
         assert!(file.set_export_author(""));
         assert_eq!(file.export_author(), None);
-    }
-
-    #[test]
-    fn synced_preferences_track_ledger_and_exclude_device_settings() {
-        use crate::settings::registry::{AGENT_PROVIDER, UI_LOCALE};
-
-        let mut file = SettingsFile::in_memory();
-        assert!(!file.has_pending_synced_preferences());
-
-        // Device-only and BYOK model keys do not enter the synced preference ledger.
-        file.set(TEXT_SIZE, Value::from("large"), None).unwrap();
-        file.set(CRASH_REPORTS, Value::from(false), None).unwrap();
-        file.set(AGENT_PROVIDER, Value::from("anthropic"), None)
-            .unwrap();
-        assert!(!file.has_pending_synced_preferences());
-        assert!(file.read_synced_preference(TEXT_SIZE).is_none());
-        assert!(file.read_synced_preference(AGENT_PROVIDER).is_none());
-        assert!(!file.apply_synced_preference(TEXT_SIZE, &Value::from("smallest")));
-        assert!(!file.apply_synced_preference(AGENT_PROVIDER, &Value::from("openai")));
-
-        // Synced keys mark the ledger pending on local edit, and remote apply does not.
-        file.set(THEME, Value::from("dark"), None).unwrap();
-        assert!(file.has_pending_synced_preferences());
-        assert!(file.preference_ledger().entries[THEME].pending);
-
-        let mut cleared = file.preference_ledger();
-        cleared.entries.get_mut(THEME).unwrap().pending = false;
-        file.set_preference_ledger(&cleared);
-        assert!(!file.has_pending_synced_preferences());
-
-        assert!(file.apply_synced_preference(THEME, &Value::from("light")));
-        assert_eq!(file.get(THEME), "light");
-        assert!(!file.has_pending_synced_preferences());
-
-        assert!(file.apply_synced_preference(UI_LOCALE, &Value::from("ja")));
-        assert_eq!(file.get(UI_LOCALE), "ja");
-        assert!(file.apply_synced_preference(UI_LOCALE, &Value::Null));
-        assert_eq!(file.get(UI_LOCALE), Value::Null);
     }
 }

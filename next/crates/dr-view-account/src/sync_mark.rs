@@ -31,6 +31,12 @@ use crate::open_auth_dialog;
 /// Inset from the lower-left corner of the paper, matching `corner::CORNER_INSET`.
 pub const PAPER_SYNC_CORNER_INSET: f32 = 18.0;
 
+/// Callback invoked when a retry button is clicked.
+pub type SyncRetryCallback = Rc<dyn Fn(&mut Window, &mut App)>;
+
+/// Callback invoked when any [`SyncStatusAction`] button is clicked.
+pub type SyncActionCallback = Rc<dyn Fn(SyncStatusAction, &mut Window, &mut App)>;
+
 /// Localized copy for the paper sync hover card and notification bell.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SyncStatusCopy {
@@ -161,7 +167,7 @@ impl Global for PinnedSyncNotices {}
 pub fn reconcile_sync_problem_notifications(
     snapshot: &SyncHealthSnapshot,
     now_ms: u64,
-    on_retry: Option<Rc<dyn Fn(&mut Window, &mut App)>>,
+    on_retry: Option<SyncRetryCallback>,
     cx: &mut App,
 ) {
     if !cx.has_global::<PinnedSyncNotices>() {
@@ -239,7 +245,7 @@ pub fn render_paper_sync_mark(
     presentation: &PaperSyncMarkPresentation,
     hovered: bool,
     locale: Locale,
-    on_action: Option<Rc<dyn Fn(SyncStatusAction, &mut Window, &mut App)>>,
+    on_action: Option<SyncActionCallback>,
     window: &Window,
     cx: &App,
 ) -> AnyElement {
@@ -369,7 +375,7 @@ pub fn paper_sync_mark_for(
     now_ms: u64,
     hovered: bool,
     locale: Locale,
-    on_action: Option<Rc<dyn Fn(SyncStatusAction, &mut Window, &mut App)>>,
+    on_action: Option<SyncActionCallback>,
     window: &Window,
     cx: &App,
 ) -> AnyElement {

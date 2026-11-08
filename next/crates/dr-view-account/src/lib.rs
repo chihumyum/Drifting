@@ -12,8 +12,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use dr_account::{
-    AccountService, AccountState, HostedConfig, PreferenceLedger, PreferenceLedgerEntry,
-    SessionStatus, decode_avatar_rgba,
+    AccountService, AccountState, HostedConfig, PreferenceLedger, SessionStatus, decode_avatar_rgba,
 };
 use dr_i18n::keys;
 use dr_platform::{Identity, SecretStore};
@@ -223,9 +222,6 @@ pub fn init(service: Service, cx: &mut App) {
         handle_oauth_deep_link(url.to_owned(), cx);
     });
 
-    // M37: schedule a debounced preference sync whenever an account-scoped setting changes locally.
-    dr_shell::settings::on_synced_preference_changed(cx, schedule_preference_sync);
-
     // Bootstrap session in background when Hosted is configured.
     if initial_state.hosted_configured {
         let bg_inner = inner;
@@ -368,6 +364,124 @@ pub fn schedule_preference_sync(cx: &mut App) {
     cx.global_mut::<Service>().preference_sync_task = Some(task);
 }
 
+/// Device-memory key storing the M37 preference sync ledger and last-synced baseline.
+pub const PREFERENCE_LEDGER_MEMORY_KEY: &str = "account.preference_ledger";
+
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
+struct StoredPreferenceState {
+    #[serde(default)]
+    ledger: PreferenceLedger,
+    #[serde(default)]
+    baseline: BTreeMap<String, serde_json::Value>,
+}
+
+/// Whether `key` is an account-synced preference (M37).
+///
+/// Account-scoped settings (`Scope::Account`, except BYOK model selection
+/// `agent.provider` / `agent.model` / `agent.thinking`) and `keys.bindings`
+/// follow the account; device-scoped (`Scope::Device`), book-scoped
+/// (`Scope::Book`), BYOK keys and `modules` device memory stay local to this
+/// device.
+pub fn follows_account(key: &str) -> bool {
+    if matches!(
+        key,
+        registry::AGENT_PROVIDER | registry::AGENT_MODEL | registry::AGENT_THINKING
+    ) {
+        return false;
+    }
+    key == dr_shell::settings::store::KEY_BINDINGS
+        || registry::find(key).is_some_and(|d| d.scope == registry::Scope::Account)
+}
+
+/// All setting keys that participate in M37 account preference sync.
+pub fn synced_preference_keys() -> Vec<&'static str> {
+    let mut keys: Vec<&'static str> = registry::REGISTRY
+        .iter()
+        .filter(|d| follows_account(d.key))
+        .map(|d| d.key)
+        .collect();
+    keys.push(dr_shell::settings::store::KEY_BINDINGS);
+    keys
+}
+
+/// Read the effective value of an account-synced preference from `file`.
+pub fn read_synced_preference(
+    file: &dr_shell::SettingsFile,
+    key: &str,
+) -> Option<serde_json::Value> {
+    if !follows_account(key) {
+        return None;
+    }
+    if key == dr_shell::settings::store::KEY_BINDINGS {
+        return Some(serde_json::Value::Object(file.key_bindings()));
+    }
+    let def = registry::find(key)?;
+    Some(file.value(def, None))
+}
+
+fn read_explicit_synced_preference(
+    file: &dr_shell::SettingsFile,
+    key: &str,
+) -> Option<serde_json::Value> {
+    if !follows_account(key) {
+        return None;
+    }
+    if key == dr_shell::settings::store::KEY_BINDINGS {
+        let bindings = file.key_bindings();
+        return (!bindings.is_empty()).then_some(serde_json::Value::Object(bindings));
+    }
+    let def = registry::find(key)?;
+    file.stored(def, None)
+}
+
+/// Apply a remote account-synced preference value to `file`.
+pub fn apply_synced_preference(
+    file: &mut dr_shell::SettingsFile,
+    key: &str,
+    value: &serde_json::Value,
+) -> bool {
+    if !follows_account(key) {
+        return false;
+    }
+    if key == dr_shell::settings::store::KEY_BINDINGS {
+        let existing: Vec<String> = file.key_bindings().keys().cloned().collect();
+        for id in existing {
+            file.set_key_binding(&id, None);
+        }
+        if let serde_json::Value::Object(map) = value {
+            for (id, v) in map {
+                if let Some(s) = v.as_str() {
+                    file.set_key_binding(id, Some(s));
+                }
+            }
+        }
+        return true;
+    }
+    if value.is_null() {
+        file.reset(key, None)
+    } else {
+        file.set(key, value.clone(), None).unwrap_or(false)
+    }
+}
+
+/// Whether `file` has any account-synced preference awaiting upload.
+pub fn has_pending_synced_preferences(file: &dr_shell::SettingsFile) -> bool {
+    let (_, _, ledger) = snapshot_synced_preferences(file);
+    ledger.entries.values().any(|e| e.pending)
+}
+
+fn load_stored_preference_state(file: &dr_shell::SettingsFile) -> StoredPreferenceState {
+    file.device_memory(PREFERENCE_LEDGER_MEMORY_KEY)
+        .and_then(|v| serde_json::from_value::<StoredPreferenceState>(v.clone()).ok())
+        .unwrap_or_default()
+}
+
+fn save_stored_preference_state(file: &mut dr_shell::SettingsFile, state: &StoredPreferenceState) {
+    if let Ok(val) = serde_json::to_value(state) {
+        file.set_device_memory(PREFERENCE_LEDGER_MEMORY_KEY, Some(val));
+    }
+}
+
 /// Runs an M37 preference sync round immediately on the background executor when connected.
 pub fn sync_preferences_now(cx: &mut App) {
     let Some(svc) = cx.try_global::<Service>() else {
@@ -392,6 +506,8 @@ pub fn sync_preferences_now(cx: &mut App) {
                 Settings::update(cx, |file| {
                     apply_preference_sync_outcome(file, &outcome);
                 });
+                let bindings = Settings::read(cx).key_bindings();
+                dr_shell::keymap::apply(&bindings, cx);
             }
         });
     });
@@ -419,30 +535,27 @@ fn snapshot_synced_preferences(
     BTreeMap<String, serde_json::Value>,
     PreferenceLedger,
 ) {
-    let keys = registry::synced_preference_keys();
+    let keys = synced_preference_keys();
     let mut local_values = BTreeMap::new();
     for &key in &keys {
-        if let Some(val) = file.read_synced_preference(key) {
+        if let Some(val) = read_synced_preference(file, key) {
             local_values.insert(key.to_owned(), val);
         }
     }
-    let shell_ledger = file.preference_ledger();
-    let ledger = PreferenceLedger {
-        account_id: shell_ledger.account_id,
-        entries: shell_ledger
-            .entries
-            .into_iter()
-            .map(|(k, v)| {
-                (
-                    k,
-                    PreferenceLedgerEntry {
-                        changed_at: v.changed_at,
-                        pending: v.pending,
-                    },
-                )
-            })
-            .collect(),
-    };
+    let stored = load_stored_preference_state(file);
+    let mut ledger = stored.ledger;
+    let now_iso = current_iso_timestamp();
+    for &key in &keys {
+        let cur = read_explicit_synced_preference(file, key);
+        let base = stored.baseline.get(key).cloned();
+        if cur != base {
+            let entry = ledger.entries.entry(key.to_owned()).or_default();
+            if !entry.pending || entry.changed_at.is_empty() {
+                entry.changed_at = now_iso.clone();
+                entry.pending = true;
+            }
+        }
+    }
     (keys, local_values, ledger)
 }
 
@@ -451,26 +564,43 @@ fn apply_preference_sync_outcome(
     outcome: &dr_account::PreferenceSyncOutcome,
 ) {
     for (key, value) in &outcome.applied {
-        file.apply_synced_preference(key, value);
+        apply_synced_preference(file, key, value);
     }
-    let shell_ledger = dr_shell::settings::store::PreferenceLedger {
-        account_id: outcome.ledger.account_id.clone(),
-        entries: outcome
-            .ledger
-            .entries
-            .iter()
-            .map(|(k, v)| {
-                (
-                    k.clone(),
-                    dr_shell::settings::store::PreferenceLedgerEntry {
-                        changed_at: v.changed_at.clone(),
-                        pending: v.pending,
-                    },
-                )
-            })
-            .collect(),
+    let mut baseline = BTreeMap::new();
+    for key in synced_preference_keys() {
+        if let Some(val) = read_explicit_synced_preference(file, key) {
+            baseline.insert(key.to_owned(), val);
+        }
+    }
+    let state = StoredPreferenceState {
+        ledger: outcome.ledger.clone(),
+        baseline,
     };
-    file.set_preference_ledger(&shell_ledger);
+    save_stored_preference_state(file, &state);
+}
+
+fn current_iso_timestamp() -> String {
+    let dur = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default();
+    let secs = dur.as_secs();
+    let millis = dur.subsec_millis();
+    let days = secs / 86_400;
+    let rem = secs % 86_400;
+    let hour = rem / 3600;
+    let min = (rem % 3600) / 60;
+    let sec = rem % 60;
+    let z = days as i64 + 719_468;
+    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
+    let doe = (z - era * 146_097) as u64;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146_096) / 365;
+    let y = yoe as i64 + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = if m <= 2 { y + 1 } else { y };
+    format!("{year:04}-{m:02}-{d:02}T{hour:02}:{min:02}:{sec:02}.{millis:03}Z")
 }
 
 fn switch_library_if_needed(target_dir: PathBuf, is_account_lib: bool, cx: &mut App) {
@@ -750,7 +880,7 @@ mod tests {
 
         let out_a = sync_preferences_blocking(&svc_a, &mut file_a).expect("sync a");
         assert!(out_a.supported);
-        assert!(!file_a.has_pending_synced_preferences());
+        assert!(!has_pending_synced_preferences(&file_a));
 
         // Inspect server storage: device-only keys must NEVER appear on the server.
         let stored_on_server = server.preferences_for("prefs@example.test");

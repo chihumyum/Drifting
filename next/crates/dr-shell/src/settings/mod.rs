@@ -36,30 +36,6 @@ type PanelClosed = Rc<dyn Fn(gpui::WindowId, &mut App)>;
 struct PanelClosedHooks(Vec<PanelClosed>);
 impl Global for PanelClosedHooks {}
 
-type SyncedPreferenceChanged = Rc<dyn Fn(&mut App)>;
-
-#[derive(Default)]
-struct SyncedPreferenceChangedHooks(Vec<SyncedPreferenceChanged>);
-impl Global for SyncedPreferenceChangedHooks {}
-
-/// Registers a callback invoked when an account-synced preference is modified
-/// locally (`Settings::read(cx).has_pending_synced_preferences()`).
-pub fn on_synced_preference_changed(cx: &mut App, hook: impl Fn(&mut App) + 'static) {
-    cx.default_global::<SyncedPreferenceChangedHooks>()
-        .0
-        .push(Rc::new(hook));
-}
-
-fn notify_synced_preference_changed(cx: &mut App) {
-    let hooks = cx
-        .try_global::<SyncedPreferenceChangedHooks>()
-        .map(|hooks| hooks.0.clone())
-        .unwrap_or_default();
-    for hook in hooks {
-        hook(cx);
-    }
-}
-
 /// Cancels work owned by a settings surface when it is dismissed. Module
 /// controls may remain cached, so dropping their view is not a close signal.
 pub fn on_panel_closed(cx: &mut App, hook: impl Fn(gpui::WindowId, &mut App) + 'static) {
@@ -173,7 +149,6 @@ struct Applied {
     text_size: Option<String>,
     locale: Option<Locale>,
     crash_reports: Option<bool>,
-    key_bindings: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
 impl Settings {
@@ -206,9 +181,6 @@ impl Settings {
             schedule_save(cx);
         }
         apply(cx);
-        if Settings::read(cx).has_pending_synced_preferences() {
-            notify_synced_preference_changed(cx);
-        }
         result
     }
 
@@ -256,7 +228,6 @@ fn apply(cx: &mut App) {
         text_size: file.str(registry::TEXT_SIZE),
         locale: Some(Settings::locale(cx)),
         crash_reports: Some(file.bool(registry::CRASH_REPORTS)),
-        key_bindings: Some(file.key_bindings()),
     };
     let before = cx.global::<Settings>().applied.clone();
     if now == before {
@@ -285,12 +256,6 @@ fn apply(cx: &mut App) {
     {
         // The launch already passed the stored consent to `crash::init`.
         reports.set_consent(now.crash_reports.unwrap_or(true));
-    }
-    if now.key_bindings != before.key_bindings
-        && before.key_bindings.is_some()
-        && let Some(bindings) = &now.key_bindings
-    {
-        crate::keymap::apply(bindings, cx);
     }
     cx.global_mut::<Settings>().applied = now;
     cx.refresh_windows();

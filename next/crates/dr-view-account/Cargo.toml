@@ -20,6 +20,7 @@ dr-view-sea.workspace = true
 gpui.workspace = true
 image.workspace = true
 log.workspace = true
+serde.workspace = true
 serde_json.workspace = true
 smallvec.workspace = true
 
