@@ -68,6 +68,7 @@ pub struct ProseEditor {
     pub(crate) options: EditorOptions,
     pub(crate) selection: Selection,
     pub(crate) composition: Option<Composition>,
+    pub(crate) playback: crate::playback::PlaybackState,
     /// Marks a bare caret's toggles (⌘B before typing) put on the next text.
     pub(crate) pending_marks: Vec<MarkOverride>,
     pub(crate) frame: Rc<RefCell<FrameCache>>,
@@ -157,6 +158,7 @@ impl ProseEditor {
             options,
             selection: Selection::caret(0, 0),
             composition: None,
+            playback: Default::default(),
             pending_marks: Vec::new(),
             frame: Rc::default(),
             heights: Rc::new(RefCell::new(heights)),
@@ -300,6 +302,7 @@ impl ProseEditor {
         if style == self.style {
             return;
         }
+        self.finish_commit_playback(cx);
         let cursor = style.cursor;
         self.realign_typewriter |=
             style.typewriter.is_some() && style.typewriter != self.style.typewriter;
@@ -662,7 +665,11 @@ impl ProseEditor {
 
     /// Folds a chapter's applied changes into the list, the height index, and
     /// (for changes the editor did not make) the selection and composition.
-    pub(crate) fn sync_chapter(&mut self, chapter: usize, cx: &mut Context<Self>) {
+    pub(crate) fn sync_chapter(
+        &mut self,
+        chapter: usize,
+        cx: &mut Context<Self>,
+    ) -> Vec<crate::text::ChangeSet> {
         let anchor_changes = self.book.chapters[chapter].doc.take_anchor_changes();
         if !anchor_changes.is_empty() {
             cx.emit(EditorEvent::AnchorsChanged {
@@ -672,8 +679,9 @@ impl ProseEditor {
         }
         let changes = self.book.chapters[chapter].doc.take_changes();
         if changes.is_empty() {
-            return;
+            return changes;
         }
+        self.finish_commit_playback(cx);
         for set in &changes {
             self.paint.follow(chapter, set, self.own_edit, cx);
             if !self.own_edit {
@@ -739,6 +747,7 @@ impl ProseEditor {
         }
         self.book.recompute_starts();
         self.clamp_selection();
+        changes
     }
 
     pub(crate) fn clamp_selection(&mut self) {
@@ -763,6 +772,7 @@ impl ProseEditor {
         cx: &mut Context<Self>,
         f: impl FnOnce(&mut ProseDoc, &mut Selection),
     ) {
+        self.finish_commit_playback(cx);
         // Edits of a selection across chapters go through `input/span.rs`;
         // here the selection is in one chapter.
         debug_assert!(!self.selection.spans_chapters());
@@ -832,6 +842,7 @@ impl ProseEditor {
         reveal: bool,
         cx: &mut Context<Self>,
     ) {
+        self.finish_commit_playback(cx);
         if selection != self.selection {
             self.pending_marks.clear();
             self.book.chapters[selection.chapter].doc.checkpoint();
@@ -875,8 +886,16 @@ impl ProseEditor {
     /// Folds in changes a chapter's source made outside the editor (sync, an
     /// Agent writing through the command layer): call after them.
     pub fn refresh_chapter(&mut self, chapter: usize, cx: &mut Context<Self>) {
+        let before = self
+            .playback
+            .options
+            .as_ref()
+            .map(|_| self.book.chapters[chapter].doc.lines().to_vec());
         self.book.chapters[chapter].doc.drain();
-        self.sync_chapter(chapter, cx);
+        let changes = self.sync_chapter(chapter, cx);
+        if let Some(before) = before {
+            self.play_commit(chapter, before, &changes, cx);
+        }
         cx.notify();
     }
 
@@ -956,6 +975,7 @@ impl ProseEditor {
     }
 
     fn on_blur(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.finish_commit_playback(cx);
         self.cursor_layer.update(cx, |layer, cx| layer.stop(cx));
         if self.composition.is_some() {
             // Leaving with marked text: drop it here and in the input method,

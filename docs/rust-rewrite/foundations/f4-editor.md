@@ -2,6 +2,20 @@
 
 2026-11-07 起。代码在 `next/crates/gpui-prose`（Drifting 自己的那一层在 `next/crates/dr-editor`，AGPL，见「第三轮」），加两个小 crate `next/crates/gpui-ime`（组字规则，只用标准库）和 `next/crates/prose-linebreak`（中文断行，只依赖 `icu_segmenter`），三个都是 `MIT OR Apache-2.0`。`gpui-prose` 依赖 `gpui`（和它自带的 `sum_tree`）、`loro`、这两个小 crate，默认特性 `icu` 另加 ICU4X 分词，不依赖任何 `dr-*`。计划见 [foundation.md 的 F4 一节](../foundation.md#f4-编辑引擎gpui-prose-与-dr-editor)，正文格式见 [loro-schema.md](../loro-schema.md)，起点是 [P0-B 探针](../spikes/p0-b-editor.md)。
 
+## 轨道 2：提交后的公共播放接口（2026-11-09）
+
+`gpui_prose::playback` 提供 `CommitPlaybackOptions` 和 `CommitPlaybackStatus`，`dr_editor` 重新导出。宿主给实际 `ProseEditor` 调 `set_commit_playback(Some(CommitPlaybackOptions::new("agent:")), cx)` 后，原有 `refresh_chapter` 在收到已提交的源事件时启动播放。默认关闭，不改 M31 面板或按种类的画层。
+
+- **真实写入先完成。** 播放只能从 `refresh_chapter` 消费到的真实事件启动，旧字来自该编辑器提交前的镜像，新字来自提交后的镜像；没有公开传入假文本、延后落盘或反复写字的入口。新正文、收据、撤销和对外读取都不等动画。
+- **只画覆盖层。** 整个新正文第一帧就按最终字体和宽度排好；尚未揭示的字素簇暂不画，替换前的旧墨只在这部分最终正文的几何范围内画出来。旧字不增加高度、不进读屏、复制、命中测试或 IME 坐标；原有 New／Changed／External 墨色仍由既有台账负责，本轮不改其种类逻辑。
+- **光标与输入。** 选区先按真实提交移动，播放不推着光标走；光标落在未揭示区时暂不画。作者移动选区、开始输入／组字、编辑、失焦或改变样式，就立即揭示全结果。更新窗口宽度时使用新正文的当前排版，覆盖层跟着同一宽度重排。
+- **生命周期。** 默认每字素簇 24 ms、总时长最多 1200 ms；可配置，硬上限 5 秒。下一笔正文变化先结束旧播放，混有其他来源的批次和 resync 不播放；纯删除／仅格式改变直接显示最终结果。减少动态效果开启时立即结束并跳过后续播放。后台计时只在播放期间通知视图，结束或视图释放即停止。
+- **公开查询与取消。** `commit_playback(cx)` 返回章索引、正文标量范围、揭示位置和字素簇进度；`finish_commit_playback(cx)` 立即结束，二者均不写正文。章索引只是该编辑器内文本源的位置，不新增文档种类或业务命令。
+- **验收。** GPUI 契约覆盖未提交输入不能播放、组合字符／ZWJ emoji／旗帜的边界、最终全文及布局稳定、播放不改变 frontiers／撤销、旧墨范围、后续提交、混合来源、删除、输入、选区和减少动态效果。`dr-editor/tests/playback.rs` 用 F8 tiny 种子、真实 Runtime + AgentTools、脚本模型验证持久正文和结算收据先到、播放期间不再写库、开始组字立即结束覆盖。
+
+M31 的产品入口仍由帮手轨道选择何时开启；本轮交付公共接口及真实 Runtime 的消费回归，不替换既有墨色台账。真实系统上的动效观感仍需窗口验收，不把 GPUI 测试平台当成实机输入法验证。
+
+
 ## 第四轮（F4e 第二批：交互）
 
 章首、章末给宿主留的位置和页的数据（M03），@ 选择器、斜杠菜单、自动人物链接和断链修复、选区浮条，以及 F6 提的三件，记在 [f4e-editor.md](f4e-editor.md)。

@@ -37,6 +37,7 @@ pub mod extension;
 pub mod input;
 pub mod layout;
 pub mod platform;
+pub mod playback;
 pub mod render;
 pub mod schema;
 pub mod slots;
