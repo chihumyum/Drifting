@@ -16,8 +16,8 @@ use dr_workspace::dto::{RelationInfo, RelationTypeInfo};
 use dr_workspace::{Workspace as Library, WsEvent};
 use gpui::{
     AnyElement, AnyWindowHandle, App, AppContext as _, Context, Entity, EventEmitter, FocusHandle,
-    Focusable, InteractiveElement as _, IntoElement, ParentElement as _, Render, SharedString,
-    StatefulInteractiveElement as _, Styled as _, Subscription, Task, WeakEntity, Window, div,
+    Focusable, InteractiveElement as _, IntoElement, ParentElement as _, Render, ScrollHandle,
+    SharedString, StatefulInteractiveElement as _, Styled as _, Subscription, Task, Window, div,
     prelude::FluentBuilder as _, px,
 };
 
@@ -61,6 +61,12 @@ pub struct TypeManager {
     editing: Option<Editing>,
     /// The type whose colour row is open.
     coloring: Option<String>,
+    /// The type list's scroll, and the row to bring into view on the next
+    /// frame (a type's id; empty for the new type's editor at the top): a
+    /// colour row or an editor opened at the end of a long list is not left
+    /// out of sight.
+    list: ScrollHandle,
+    reveal: Option<String>,
     focus: FocusHandle,
     window: AnyWindowHandle,
     _events: Option<dr_workspace::events::Subscription>,
@@ -109,6 +115,8 @@ impl TypeManager {
             writing: 0,
             editing: None,
             coloring: None,
+            list: ScrollHandle::new(),
+            reveal: None,
             focus: cx.focus_handle(),
             window: window.window_handle(),
             _events: None,
@@ -317,6 +325,7 @@ impl TypeManager {
             draft.target_kinds = targets;
         }
         self.open_editor(None, draft, window, cx);
+        self.reveal = Some(String::new());
     }
 
     /// A type's name: its editor (not the built-in type's).
@@ -325,11 +334,24 @@ impl TypeManager {
             return;
         };
         self.open_editor(Some(ty.id.clone()), Draft::of(&ty), window, cx);
+        self.reveal = Some(ty.id);
     }
 
     pub fn cancel(&mut self, cx: &mut Context<Self>) {
-        self.editing = None;
+        self.close_editor(cx);
         cx.notify();
+    }
+
+    /// The editor goes; the keyboard stays with the types (its field going
+    /// away would otherwise hand it to the page, which scrolls to its caret).
+    fn close_editor(&mut self, cx: &mut Context<Self>) {
+        self.editing = None;
+        let (handle, focus) = (self.window, self.focus.clone());
+        cx.defer(move |cx| {
+            handle
+                .update(cx, |_, window, cx| window.focus(&focus, cx))
+                .ok();
+        });
     }
 
     /// 有向 / 对称 (a new type only: F3 keeps a type's direction).
@@ -386,8 +408,10 @@ impl TypeManager {
                 m.writing -= 1;
                 match done {
                     Ok(made) => {
-                        m.editing = None;
+                        m.close_editor(cx);
                         if let Some(id) = made {
+                            // The new type is the last row: show it.
+                            m.reveal = Some(id.clone());
                             cx.emit(TypeEvent::Created(id));
                         }
                         m.reload(cx);
@@ -439,6 +463,7 @@ impl TypeManager {
         self.coloring = if self.coloring.as_deref() == Some(id) {
             None
         } else {
+            self.reveal = Some(id.to_owned());
             Some(id.to_owned())
         };
         cx.notify();
@@ -468,13 +493,16 @@ impl TypeManager {
         if self.usage(id) > 0 {
             return;
         }
-        let me = cx.entity().downgrade();
         let handle = self.window;
+        let (lib, book) = (self.lib.clone(), self.book.clone());
         let name = ty.name.clone();
         let id = ty.id.clone();
         let _ = window;
+        // The question is the window's dialog; the types close under it (0.1
+        // kept its popover open, but then two buttons would read 删除关系类型).
+        cx.emit(TypeEvent::Close);
         cx.defer(move |cx| {
-            let dialog = cx.new(|cx| DeleteTypeDialog::new(me, id, name, cx));
+            let dialog = cx.new(|cx| DeleteTypeDialog::new(lib, book, id, name, cx));
             dr_shell::dialogs::show_in(handle, cx, dialog.into());
         });
     }
@@ -523,6 +551,9 @@ impl TypeManager {
         let locked = ty.locked;
         let deletable = !locked && count == 0;
         let row = div()
+            .id(key("row"))
+            .role(gpui::Role::Group)
+            .aria_label(w.name.clone())
             .mx(px(6.0))
             .min_h(px(40.0))
             .px(px(8.0))
@@ -539,9 +570,12 @@ impl TypeManager {
                     .items_center()
                     .justify_center()
                     .when(!locked, |el| {
-                        el.cursor_pointer().on_click(cx.listener(
-                            move |m, _: &gpui::ClickEvent, _, cx| m.toggle_colors(&c_id, cx),
-                        ))
+                        el.cursor_pointer()
+                            .role(gpui::Role::Button)
+                            .aria_label(tf(cx, ekm::CHANGE_COLOR_LABEL, &[("label", &w.name)]))
+                            .on_click(cx.listener(move |m, _: &gpui::ClickEvent, _, cx| {
+                                m.toggle_colors(&c_id, cx)
+                            }))
                     })
                     .child(look::dash(key("dash-mark"), color)),
             )
@@ -553,11 +587,12 @@ impl TypeManager {
                     .flex()
                     .flex_col()
                     .when(!locked, |el| {
-                        el.cursor_pointer().on_click(cx.listener(
-                            move |m, _: &gpui::ClickEvent, window, cx| {
+                        el.cursor_pointer()
+                            .role(gpui::Role::Button)
+                            .aria_label(w.name.clone())
+                            .on_click(cx.listener(move |m, _: &gpui::ClickEvent, window, cx| {
                                 m.start_edit(&e_id, window, cx)
-                            },
-                        ))
+                            }))
                     })
                     .child(
                         div()
@@ -650,6 +685,7 @@ impl TypeManager {
                 .justify_center()
                 .cursor_pointer()
                 .role(gpui::Role::Button)
+                .aria_label(format!("{} {}", t(cx, ekm::CHANGE_COLOR), i + 1))
                 .on_click(cx.listener(move |m, _: &gpui::ClickEvent, _, cx| {
                     m.set_color(&id, Some(paint), cx)
                 }))
@@ -892,12 +928,32 @@ impl Render for TypeManager {
             );
         let editing_new = matches!(self.editing.as_ref(), Some(e) if e.id.is_none());
         let editing_id = self.editing.as_ref().and_then(|e| e.id.clone());
+        if let Some(key) = self.reveal.clone() {
+            let at = if key.is_empty() {
+                Some(0)
+            } else {
+                self.types
+                    .iter()
+                    .position(|t| t.id == key)
+                    .map(|i| i + usize::from(editing_new))
+            };
+            match at {
+                Some(ix) => {
+                    self.list.scroll_to_item(ix);
+                    self.reveal = None;
+                }
+                // A type just made shows once the list is read again.
+                None if self.reading.is_none() && !self.stale => self.reveal = None,
+                None => {}
+            }
+        }
         let mut list = div()
             .id("relation-types-list")
             .flex()
             .flex_col()
             .max_h(px(380.0))
-            .overflow_y_scroll();
+            .overflow_y_scroll()
+            .track_scroll(&self.list);
         if editing_new && let Some(editor) = self.editor(window, cx) {
             list = list.child(editor);
         }
@@ -932,9 +988,11 @@ impl Render for TypeManager {
     }
 }
 
-/// 「删除关系类型「{{name}}」？」.
+/// 「删除关系类型「{{name}}」？」: it deletes the type itself (the types it
+/// was asked from have closed).
 pub struct DeleteTypeDialog {
-    manager: WeakEntity<TypeManager>,
+    lib: Library,
+    book: String,
     id: String,
     name: String,
     focus: FocusHandle,
@@ -942,17 +1000,36 @@ pub struct DeleteTypeDialog {
 
 impl DeleteTypeDialog {
     pub fn new(
-        manager: WeakEntity<TypeManager>,
+        lib: Library,
+        book: String,
         id: String,
         name: String,
         cx: &mut Context<Self>,
     ) -> DeleteTypeDialog {
         DeleteTypeDialog {
-            manager,
+            lib,
+            book,
             id,
             name,
             focus: cx.focus_handle(),
         }
+    }
+
+    /// The type it asks about.
+    pub fn type_id(&self) -> &str {
+        &self.id
+    }
+
+    /// 删除关系类型: the type goes, off the main thread (F3's event reads
+    /// the lists again).
+    pub fn confirm(&self, cx: &mut App) {
+        let (lib, book, id) = (self.lib.clone(), self.book.clone(), self.id.clone());
+        cx.background_spawn(async move {
+            if let Err(error) = data::delete_type(&lib, &book, &id) {
+                log::warn!("deleting a relation type failed: {error}");
+            }
+        })
+        .detach();
     }
 }
 
@@ -968,7 +1045,7 @@ impl Render for DeleteTypeDialog {
         let close = move |_: &mut Window, cx: &mut App| {
             cx.defer(move |cx| dr_shell::dialogs::hide(cx, me));
         };
-        let (manager, id) = (self.manager.clone(), self.id.clone());
+        let me_view = cx.entity().downgrade();
         let _ = window;
         div()
             .track_focus(&self.focus)
@@ -988,7 +1065,7 @@ impl Render for DeleteTypeDialog {
                     Button::new("relation-type-delete-confirm", t(cx, rt::DELETE))
                         .danger()
                         .on_click(move |_, window, cx| {
-                            manager.update(cx, |m, cx| m.delete(&id, cx)).ok();
+                            me_view.update(cx, |d, cx| d.confirm(cx)).ok();
                             close(window, cx);
                         }),
                 ),

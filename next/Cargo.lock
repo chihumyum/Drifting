@@ -1777,6 +1777,7 @@ dependencies = [
  "dr-store",
  "dr-testkit",
  "dr-ui",
+ "dr-view-relations",
  "dr-workspace",
  "futures",
  "gpui",
@@ -1785,6 +1786,7 @@ dependencies = [
  "icu_locale_core",
  "log",
  "png 0.18.1",
+ "serde_json",
  "tempfile",
 ]
 

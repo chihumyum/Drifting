@@ -165,6 +165,8 @@
     "wordCount": "{{count}}자"
   },
   "edgeKindManager": {
+    "changeColor": "색상 변경",
+    "changeColorLabel": "{{label}} 색상 변경",
     "editTypes": "유형 편집",
     "resetColor": "기본 색상 복원",
     "summary": "유형 {{kinds}}개 · 관계 {{relations}}개",
@@ -882,6 +884,7 @@
     "save": "저장",
     "selectConfigured": "관계 유형 선택",
     "sourceRole": "출발점 역할",
+    "swap": "관계 끝점 맞바꾸기",
     "symmetric": "대칭",
     "symmetricSummary": "대칭 · {{role}}",
     "targetRole": "대상 역할",

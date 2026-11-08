@@ -165,6 +165,8 @@
     "wordCount": "{{count}} 字"
   },
   "edgeKindManager": {
+    "changeColor": "点击改色",
+    "changeColorLabel": "修改 {{label}} 的颜色",
     "editTypes": "编辑类型",
     "resetColor": "恢复默认色",
     "summary": "{{kinds}} 类 · {{relations}} 条关联",
@@ -876,6 +878,7 @@
     "save": "保存",
     "selectConfigured": "选择关系类型",
     "sourceRole": "源角色",
+    "swap": "交换关系两端",
     "symmetric": "对称",
     "symmetricSummary": "对称 · {{role}}",
     "targetRole": "目标角色",

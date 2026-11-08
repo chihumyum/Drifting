@@ -485,14 +485,20 @@ fn the_types_are_made_changed_coloured_and_deleted(cx: &mut TestAppContext) {
     let dialog = ws
         .read_with(cx, |w, _| w.dialog.clone())
         .expect("the question is the workspace window's dialog");
-    assert!(dialog.downcast::<DeleteTypeDialog>().is_ok());
+    let dialog = dialog
+        .downcast::<DeleteTypeDialog>()
+        .expect("the delete question");
+    assert_eq!(dialog.read_with(cx, |d, _| d.type_id().to_owned()), made.id);
+    assert!(
+        view.read_with(cx, |r, _| r.manager().is_none()),
+        "the types close under the question"
+    );
     assert!(
         stored_types(&s).iter().any(|t| t.id == made.id),
         "nothing gone yet"
     );
-    m.update(cx, |m, cx| m.delete(&made.id, cx));
-    settle_types(&m, cx);
-    assert!(!stored_types(&s).iter().any(|t| t.id == made.id));
+    dialog.update(cx, |d, cx| d.confirm(cx));
+    wait_for(cx, |_| !stored_types(&s).iter().any(|t| t.id == made.id));
 }
 
 #[gpui::test]

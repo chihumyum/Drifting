@@ -165,6 +165,8 @@
     "wordCount": "{{count}} palabras"
   },
   "edgeKindManager": {
+    "changeColor": "Cambiar color",
+    "changeColorLabel": "Cambiar color de {{label}}",
     "editTypes": "Editar tipos",
     "resetColor": "Restaurar color predeterminado",
     "summary": "{{kinds}} tipos · {{relations}} relaciones",
@@ -895,6 +897,7 @@
     "save": "Guardar",
     "selectConfigured": "Elegir tipo de relación",
     "sourceRole": "Rol de origen",
+    "swap": "Intercambiar extremos de la relación",
     "symmetric": "Simétrica",
     "symmetricSummary": "Simétrica · {{role}}",
     "targetRole": "Rol de destino",

@@ -819,6 +819,9 @@ edgeKindManager.title
 edgeKindManager.summary
 edgeKindManager.editTypes
 edgeKindManager.resetColor
+edgeKindManager.changeColor
+edgeKindManager.changeColorLabel
+relationTypes.swap
 
 # M24 the tour the first time a book opens (dr-view-sea)
 guide.skip

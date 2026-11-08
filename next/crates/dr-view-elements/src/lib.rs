@@ -6,7 +6,8 @@
 //! `CategoryEditorView` laid it out:
 //!
 //! - **Element**: above the text the folio (要素 · its category), the name,
-//!   the aliases, the summary and the head of 「记 · 传」; under it 「字段」.
+//!   the aliases, the summary and the head of 「记 · 传」; under it 「字段」
+//!   and 「关联」 (dr-view-relations, M17).
 //! - **Category**: above the text the folio (类目 · name · how many
 //!   elements), the name beside the big folded-corner mark, the count and
 //!   the colour, the head of 「札记」; under it 「要素清单」.
@@ -86,6 +87,8 @@ struct Views {
             WeakEntity<storyline::StorylineEnd>,
         ),
     >,
+    /// 「关联」 under each open element page's fields (M17).
+    relations: HashMap<String, WeakEntity<dr_view_relations::Relations>>,
     /// The panels the shell's left sidebars show.
     panels: Vec<WeakEntity<panel::ElementPanel>>,
 }
@@ -96,6 +99,30 @@ impl Global for Views {}
 pub fn element_page(id: &str, cx: &App) -> Option<(Entity<ElementHead>, Entity<Fields>)> {
     let (head, end) = cx.try_global::<Views>()?.elements.get(id)?;
     Some((head.upgrade()?, end.upgrade()?))
+}
+
+/// 「关联」 on element `id`'s page, while it is open.
+pub fn element_relations(id: &str, cx: &App) -> Option<Entity<dr_view_relations::Relations>> {
+    cx.try_global::<Views>()?.relations.get(id)?.upgrade()
+}
+
+/// An element page's end: 「字段」, then 「关联」 (M17, as the 0.1
+/// `ElementEditorView` put the relations section under the fields).
+pub struct ElementEnd {
+    pub fields: Entity<Fields>,
+    pub relations: Entity<dr_view_relations::Relations>,
+}
+
+impl gpui::Render for ElementEnd {
+    fn render(&mut self, _: &mut Window, _: &mut gpui::Context<Self>) -> impl gpui::IntoElement {
+        use gpui::{ParentElement as _, Styled as _};
+        gpui::div()
+            .w_full()
+            .flex()
+            .flex_col()
+            .child(self.fields.clone())
+            .child(self.relations.clone())
+    }
 }
 
 /// The head and element list of category `id`'s page, while it is open.
@@ -173,11 +200,22 @@ pub fn init(cx: &mut App) {
                     let (id, ws) = (id.clone(), ws.clone());
                     cx.new(|cx| ElementHead::new(id, ws, window, cx))
                 };
-                let end =
-                    cx.new(|cx| Fields::new(fields::Owner::Element(id.clone()), true, ws, cx));
-                cx.default_global::<Views>()
+                // 「字段」 is no longer the page's last section: 「关联」 follows.
+                let fields = cx.new(|cx| {
+                    Fields::new(fields::Owner::Element(id.clone()), false, ws.clone(), cx)
+                });
+                let relations = dr_view_relations::relations(
+                    dr_view_relations::model::end("element", &id),
+                    ws,
+                    window,
+                    cx,
+                );
+                let views = cx.default_global::<Views>();
+                views
                     .elements
-                    .insert(id, (head.downgrade(), end.downgrade()));
+                    .insert(id.clone(), (head.downgrade(), fields.downgrade()));
+                views.relations.insert(id, relations.downgrade());
+                let end = cx.new(|_| ElementEnd { fields, relations });
                 Chrome {
                     head: head.into(),
                     end: end.into(),

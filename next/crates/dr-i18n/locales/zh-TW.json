@@ -165,6 +165,8 @@
     "wordCount": "{{count}} 字"
   },
   "edgeKindManager": {
+    "changeColor": "變更顏色",
+    "changeColorLabel": "變更 {{label}} 的顏色",
     "editTypes": "編輯類型",
     "resetColor": "還原預設顏色",
     "summary": "{{kinds}} 種類型 · {{relations}} 個關係",
@@ -882,6 +884,7 @@
     "save": "儲存",
     "selectConfigured": "選擇關係類型",
     "sourceRole": "來源角色",
+    "swap": "交換關係端點",
     "symmetric": "對稱",
     "symmetricSummary": "對稱 · {{role}}",
     "targetRole": "目標角色",
