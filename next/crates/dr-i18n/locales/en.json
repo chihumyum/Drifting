@@ -74,7 +74,8 @@
   },
   "chapterEditor": {
     "synopsisPlaceholder": "Synopsis…",
-    "untitledChapter": "Untitled chapter"
+    "untitledChapter": "Untitled chapter",
+    "untitledDrift": "Untitled idea"
   },
   "chapterEnd": {
     "defaultTitle": "New chapter",
@@ -443,7 +444,8 @@
     },
     "folio": {
       "chapter": "Chapter",
-      "chapterNumber": "Chapter {{n}}"
+      "chapterNumber": "Chapter {{n}}",
+      "drift": "Idea"
     },
     "meta": {
       "words": "{{count}} words"
@@ -554,6 +556,25 @@
     "desk": {
       "chaptersUnit_one": "chapter",
       "chaptersUnit_other": "chapters",
+      "coverStyle": {
+        "names": {
+          "bauhaus": "Bauhaus",
+          "chars": "Sea of type",
+          "cutout": "Cut paper",
+          "cyanotype": "Cyanotype",
+          "field": "Color fields",
+          "quipu": "Knotted cords",
+          "ridge": "Ridgelines",
+          "rings": "Tree rings",
+          "riso": "Risograph",
+          "sand": "Sand",
+          "stars": "Star chart",
+          "strata": "Strata",
+          "topo": "Contours",
+          "weave": "Weave"
+        },
+        "turn": "Change cover style · now {{name}}"
+      },
       "elementsUnit_one": "element",
       "elementsUnit_other": "elements",
       "form": {
@@ -592,7 +613,15 @@
     },
     "heat": {
       "daysUnit": "days",
-      "today": "Today"
+      "daysWritten": "Days",
+      "fri": "Fri",
+      "label": "Writing heatmap",
+      "mon": "Mon",
+      "streak": "Streak",
+      "summary": "{{words}} words over the past year, written on {{days}} days",
+      "today": "Today",
+      "wed": "Wed",
+      "year": "Past year"
     },
     "projectCount": "{{filtered}} / {{total}} books",
     "rail": {

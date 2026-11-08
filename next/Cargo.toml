@@ -33,6 +33,7 @@ members = [
     "crates/dr-view-review",
     "crates/dr-view-search",
     "crates/dr-view-shelf",
+    "crates/dr-view-shelf-art",
     "crates/dr-view-stats",
     "crates/dr-view-timeline",
     "crates/dr-workspace",
@@ -150,6 +151,9 @@ base64 = "0.22.1"
 image = { version = "0.25.10", default-features = false, features = ["png"] }
 smallvec = "1.16"
 tiny-skia = "0.11.4"
+# M25 (dr-view-shelf-art): glyph outlines for the cover of characters, the
+# version usvg already builds.
+ttf-parser = "0.25.1"
 
 # Spike P0-B shell (process metrics, AppKit event posting).
 libc = "0.2.191"
@@ -196,6 +200,7 @@ windows = { version = "0.62", features = [
     "Win32_System_RemoteDesktop",
     "Win32_System_SystemInformation",
     "Win32_System_Threading",
+    "Win32_UI_Controls_Dialogs",
     "Win32_UI_Input_Ime",
     "Win32_UI_Input_KeyboardAndMouse",
     "Win32_UI_WindowsAndMessaging",
@@ -247,6 +252,8 @@ dr-view-page = { path = "crates/dr-view-page" }
 # M15: the plot planner, a chapter's grid of slips under the paper
 # (docs/rust-rewrite/modules/m15-plot.md).
 dr-view-plot = { path = "crates/dr-view-plot" }
+# M25: the bookshelf's covers, heat map and strips.
+dr-view-shelf-art = { path = "crates/dr-view-shelf-art" }
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
 # M41: manuscript export (EPUB, Word, PDF), Markdown share and covers, the
 # 0.1 client's writers ported as they were (docs/rust-rewrite/

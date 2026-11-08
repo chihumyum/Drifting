@@ -9,10 +9,10 @@ use gpui::{
 use dr_ui::{
     Theme,
     components::{
-        Button, CardAction, CardBody, Chip, Choice, Dialog, DockMark, DockTab, EmptyState,
-        HoverCard, IconButton, Loading, Menu, MenuItem, MenuWidth, NotificationPill, NumberField,
-        PanelIconButton, Pill, PillGroup, Progress, Range, RowIcon, SandCell, ScopeToggle,
-        Segmented, Select, Switch, TabDock, overlay,
+        Button, CardAction, CardBody, Chip, Choice, ColorSwatch, Dialog, DockMark, DockTab,
+        EmptyState, HoverCard, IconButton, Loading, Menu, MenuItem, MenuWidth, NotificationPill,
+        NumberField, PanelIconButton, Pill, PillGroup, Progress, Range, RowIcon, SandCell,
+        ScopeToggle, Segmented, Select, Switch, TabDock, overlay,
     },
     fonts::{self, Role, weight},
     glass::{self, Ground, Held, Kind, Mode, Spec, Tone},
@@ -766,9 +766,26 @@ pub fn inputs(g: &mut Gallery, window: &mut Window, cx: &mut Context<Gallery>) -
         .flex_row()
         .items_start()
         .gap(px(40.0))
-        .child(home)
-        .child(chapter)
+        .child(
+            col()
+                .gap(px(28.0))
+                .child(home)
+                .child(div().w(px(560.0)).child(g.summary.clone())),
+        )
+        .child(col().gap(px(28.0)).child(chapter).child(swatches(&t)))
         .child(card)
+}
+
+/// Colour swatches: a storyline's dash, a category's corner, a colour with
+/// its value written beside it.
+fn swatches(t: &Theme) -> impl IntoElement {
+    let p = t.palette;
+    row()
+        .gap(px(20.0))
+        .items_center()
+        .child(ColorSwatch::new("swatch-storyline", p.story(Story::S2)).mark(sand::Kind::Storyline))
+        .child(ColorSwatch::new("swatch-category", p.story(Story::S4)).mark(sand::Kind::Category))
+        .child(ColorSwatch::new("swatch-accent", p.accent).show_value())
 }
 
 // ── 浮层 ────────────────────────────────────────────────────────────────

@@ -74,7 +74,8 @@
   },
   "chapterEditor": {
     "synopsisPlaceholder": "Sinopsis…",
-    "untitledChapter": "Capítulo sin título"
+    "untitledChapter": "Capítulo sin título",
+    "untitledDrift": "Idea sin título"
   },
   "chapterEnd": {
     "defaultTitle": "Nuevo capítulo",
@@ -443,7 +444,8 @@
     },
     "folio": {
       "chapter": "Capítulo",
-      "chapterNumber": "Capítulo {{n}}"
+      "chapterNumber": "Capítulo {{n}}",
+      "drift": "Idea"
     },
     "meta": {
       "words": "{{count}} palabras"
@@ -556,6 +558,25 @@
       "chaptersUnit_many": "capítulos",
       "chaptersUnit_one": "capítulo",
       "chaptersUnit_other": "capítulos",
+      "coverStyle": {
+        "names": {
+          "bauhaus": "Bauhaus",
+          "chars": "Mar de letras",
+          "cutout": "Papel recortado",
+          "cyanotype": "Cianotipo",
+          "field": "Campos de color",
+          "quipu": "Cuerdas anudadas",
+          "ridge": "Crestas",
+          "rings": "Anillos de árbol",
+          "riso": "Risografía",
+          "sand": "Arena",
+          "stars": "Carta estelar",
+          "strata": "Estratos",
+          "topo": "Curvas de nivel",
+          "weave": "Tejido"
+        },
+        "turn": "Cambiar portada · actual {{name}}"
+      },
       "elementsUnit_many": "elementos",
       "elementsUnit_one": "elemento",
       "elementsUnit_other": "elementos",
@@ -596,7 +617,15 @@
     },
     "heat": {
       "daysUnit": "días",
-      "today": "Hoy"
+      "daysWritten": "Días",
+      "fri": "vie",
+      "label": "Mapa de actividad de escritura",
+      "mon": "lun",
+      "streak": "Racha",
+      "summary": "{{words}} palabras en el último año, escritas en {{days}} días",
+      "today": "Hoy",
+      "wed": "mié",
+      "year": "Último año"
     },
     "projectCount": "{{filtered}} / {{total}} libros",
     "rail": {

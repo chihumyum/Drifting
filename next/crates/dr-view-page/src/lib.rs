@@ -5,7 +5,8 @@
 //! breaks in `AllChaptersEditorView.tsx`).
 //!
 //! - **Head** ([`head::PageHead`]): in the whole book, an act's title page
-//!   above the chapter that opens it; the folio line 「第 N 章 · 故事线 ·
+//!   (「第一幕」, its name, a dry stroke, 「N 章 · x.xk 字」) above the
+//!   chapter that opens it; the folio line 「第 N 章 · 故事线 ·
 //!   字数」 over a dotted rule; the title, a borderless field that wraps
 //!   (Enter or ↓ at its end hands the caret to the text, Esc puts the stored
 //!   title back, leaving it stores it); the synopsis, a borderless multi-line
@@ -22,8 +23,8 @@
 //! back with the editor's next `PageInfo`.
 //!
 //! The app registers it once with [`init`], after `dr_shell::init`. Chapter
-//! pages get the head and end; an idea's page keeps the editor's own title
-//! row and gets the plain ⁂ and the empty hint; other pages get nothing.
+//! and idea pages get the head and end (an idea's folio says 「构想」, its ⁂
+//! has no actions); other pages get nothing.
 
 pub mod end;
 pub mod head;
@@ -102,7 +103,7 @@ impl Chrome {
 
 impl PageChrome for Chrome {
     fn head(&self, page: &PageInfo, window: &mut Window, cx: &mut App) -> Option<AnyElement> {
-        if page.kind != PageKind::Chapter {
+        if page.kind == PageKind::Other {
             return None;
         }
         let (head, _) = self.views(page, window, cx);
@@ -118,8 +119,16 @@ impl PageChrome for Chrome {
     }
 
     fn head_estimate(&self, page: &PageInfo) -> f32 {
-        let act = if page.act_opening.is_some() {
-            tk::ACT_TOP + tk::ACT_NAME_SIZE * tk::ACT_NAME_LINE + tk::ACT_GAP + tk::ACT_BOTTOM
+        let act = if page.act_page.is_some() {
+            tk::ACT_TOP
+                + tk::ACT_ORDINAL_SIZE
+                + tk::ACT_ORDINAL_GAP
+                + tk::ACT_NAME_SIZE * tk::ACT_NAME_LINE
+                + tk::ACT_GAP
+                + 10.0
+                + tk::ACT_GAP
+                + tk::ACT_META_LINE
+                + tk::ACT_BOTTOM
         } else {
             0.0
         };

@@ -1,0 +1,42 @@
+[package]
+name = "dr-view-shelf-art"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "The bookshelf's pictures (M25): covers in fourteen styles, the writing heat map and a card's last thirty days."
+
+[features]
+# Offscreen screenshots through GPUI's headless test platform.
+capture = ["gpui_platform/test-support"]
+
+[dependencies]
+dr-i18n.workspace = true
+dr-shell.workspace = true
+dr-ui.workspace = true
+dr-workspace.workspace = true
+gpui.workspace = true
+image.workspace = true
+log.workspace = true
+memmap2.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+smallvec.workspace = true
+tiny-skia.workspace = true
+ttf-parser.workspace = true
+
+[dev-dependencies]
+anyhow.workspace = true
+dr-store.workspace = true
+dr-testkit.workspace = true
+gpui = { workspace = true, features = ["test-support"] }
+gpui_platform.workspace = true
+tempfile.workspace = true
+
+[[example]]
+name = "covers"
+
+[[example]]
+name = "shelf-art-capture"
+required-features = ["capture"]

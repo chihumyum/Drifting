@@ -526,8 +526,10 @@ leftSidebar.sort.showNone
 # The chapter page's head and end (M03, dr-view-page)
 nodeEditor.folio.chapter
 nodeEditor.folio.chapterNumber
+nodeEditor.folio.drift
 nodeEditor.meta.words
 chapterEditor.untitledChapter
+chapterEditor.untitledDrift
 chapterEditor.synopsisPlaceholder
 chapterEnd.trigger
 chapterEnd.triggerFinished
@@ -537,6 +539,8 @@ chapterEnd.markDraft
 chapterEnd.defaultTitle
 guide.hints.search
 guide.hints.timeline
+storylineEditor.meta.chapters
+storylineEditor.meta.kWords
 
 
 # M11 elements and categories (dr-view-elements)
@@ -679,3 +683,16 @@ plotGrid.insertColumnRight
 plotGrid.deleteRow
 plotGrid.deleteColumn
 plotGrid.deleteClears
+
+
+# M25 the shelf's covers, heat map and strips (dr-view-shelf-art)
+projectPicker.heat.label
+projectPicker.heat.summary
+projectPicker.heat.year
+projectPicker.heat.daysWritten
+projectPicker.heat.streak
+projectPicker.heat.mon
+projectPicker.heat.wed
+projectPicker.heat.fri
+projectPicker.desk.coverStyle.turn
+projectPicker.desk.coverStyle.names.*

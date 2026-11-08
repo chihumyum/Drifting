@@ -74,7 +74,8 @@
   },
   "chapterEditor": {
     "synopsisPlaceholder": "あらすじ…",
-    "untitledChapter": "無題の章"
+    "untitledChapter": "無題の章",
+    "untitledDrift": "無題のアイデア"
   },
   "chapterEnd": {
     "defaultTitle": "新しい章",
@@ -438,7 +439,8 @@
     },
     "folio": {
       "chapter": "章",
-      "chapterNumber": "第{{n}}章"
+      "chapterNumber": "第{{n}}章",
+      "drift": "アイデア"
     },
     "meta": {
       "words": "{{count}}文字"
@@ -549,6 +551,25 @@
     "desk": {
       "chaptersUnit_one": "章",
       "chaptersUnit_other": "章",
+      "coverStyle": {
+        "names": {
+          "bauhaus": "バウハウス",
+          "chars": "文字の海",
+          "cutout": "切り紙",
+          "cyanotype": "サイアノタイプ",
+          "field": "色面",
+          "quipu": "結び紐",
+          "ridge": "稜線",
+          "rings": "年輪",
+          "riso": "リソグラフ",
+          "sand": "砂の筆",
+          "stars": "星図",
+          "strata": "地層",
+          "topo": "等高線",
+          "weave": "織物"
+        },
+        "turn": "表紙スタイルを変更・現在{{name}}"
+      },
       "elementsUnit_one": "要素",
       "elementsUnit_other": "要素",
       "form": {
@@ -587,7 +608,15 @@
     },
     "heat": {
       "daysUnit": "日",
-      "today": "今日"
+      "daysWritten": "日数",
+      "fri": "金",
+      "label": "執筆ヒートマップ",
+      "mon": "月",
+      "streak": "連続執筆",
+      "summary": "過去1年間で{{words}}語、{{days}}日間執筆",
+      "today": "今日",
+      "wed": "水",
+      "year": "過去1年間"
     },
     "projectCount": "{{filtered}} / {{total}}作品",
     "rail": {

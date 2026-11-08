@@ -2,7 +2,11 @@
 //! chapter title that wraps. It has no frame of its own and takes its face,
 //! size, weight, line height and colour from the text around it, so on a
 //! page it reads as the page's own words; only the caret, the selection and
-//! the placeholder (ink 4) are its own. It wraps to its width and grows a
+//! the placeholder (ink 4) are its own. [`TextArea::framed`] gives it the
+//! single-line field's slip instead (the 0.1 client's `ui-field--area`): a
+//! resting line of glass, selected while the caret is in it, 8 × 12 px
+//! inside, 16 px corners, the interface's body type, at least a few rows
+//! high (a form's summary, 本书简介). It wraps to its width and grows a
 //! row at a time; rows break by the editor's Chinese rules
 //! (`prose-linebreak`: no 「。」 or closing quote starts a row, Latin words
 //! stay whole, a mark that does not fit hangs past the edge).
@@ -44,9 +48,12 @@ use super::{
     ime::{self, Graphemes},
 };
 use crate::{
+    fonts::Role,
+    glass::{self, GlassState, Kind, Mode, Spec, Tone},
+    style::DrStyled as _,
     text::{Paragraph, shape},
     theme::Theme,
-    tokens::color::Palette,
+    tokens::{color::Palette, radius},
 };
 
 actions!(
@@ -113,6 +120,9 @@ pub struct TextArea {
     caret_on: bool,
     blink: Option<Task<()>>,
     id: ElementId,
+    /// In a slip at least this many rows high ([`TextArea::framed`]).
+    frame: Option<f32>,
+    glass: Option<Entity<GlassState>>,
 }
 
 impl EventEmitter<FieldEvent> for TextArea {}
@@ -153,7 +163,17 @@ impl TextArea {
             caret_on: true,
             blink: None,
             id: id.into(),
+            frame: None,
+            glass: None,
         }
+    }
+
+    /// In the single-line field's slip, at least `rows` rows high (the 0.1
+    /// client: 3 in a dialog, 4 for 本书简介), in the interface's body
+    /// type. A press on the slip's padding puts the caret in it too.
+    pub fn framed(mut self, rows: f32) -> Self {
+        self.frame = Some(rows);
+        self
     }
 
     pub fn placeholder(mut self, text: impl Into<SharedString>) -> Self {
@@ -273,6 +293,9 @@ impl TextArea {
         self.drop_composition(window, cx);
         self.blink = None;
         self.selecting = false;
+        if let Some(g) = &self.glass {
+            g.update(cx, |s, _| s.set_selected(false));
+        }
         cx.notify();
         cx.emit(FieldEvent::Blurred);
     }
@@ -704,11 +727,35 @@ impl EntityInputHandler for TextArea {
 
 impl Render for TextArea {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let p = Theme::of(window, cx).palette;
+        let theme = Theme::of(window, cx);
+        let p = theme.palette;
+        let s = theme.scale;
         let focused = self.focus.is_focused(window);
-        gpui::div()
-            .id(self.id.clone())
-            .key_context(KEY_CONTEXT)
+        let el = match self.frame {
+            None => gpui::div().id(self.id.clone()),
+            Some(_) => {
+                let mode = Mode {
+                    disabled: self.disabled,
+                    ..Mode::default()
+                };
+                let spec = Spec::new(Tone::Clear, radius::SHEET).filled(p.page);
+                self.glass = Some(glass::use_state(
+                    self.id.clone(),
+                    Kind::Rest,
+                    mode,
+                    focused,
+                    theme,
+                    window,
+                    cx,
+                ));
+                glass::glass_box(self.id.clone(), Kind::Rest, mode, focused, spec, window, cx)
+            }
+        };
+        let area = AreaElement {
+            area: cx.entity(),
+            focused,
+        };
+        el.key_context(KEY_CONTEXT)
             .track_focus(&self.focus)
             .cursor(CursorStyle::IBeam)
             .on_action(cx.listener(Self::backspace))
@@ -737,10 +784,28 @@ impl Render for TextArea {
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .on_mouse_move(cx.listener(Self::on_mouse_move))
             .w_full()
-            .when(self.disabled, |el| el.text_color(p.ink(4).solid()))
-            .child(AreaElement {
-                area: cx.entity(),
-                focused,
+            .map(|el| match self.frame {
+                None => el
+                    .when(self.disabled, |el| el.text_color(p.ink(4).solid()))
+                    .child(area),
+                Some(rows) => el
+                    .px(px(12.0))
+                    .py(px(8.0))
+                    .rounded(px(radius::SHEET))
+                    .bg(if self.disabled {
+                        p.page.alpha(0.45)
+                    } else {
+                        p.page.solid()
+                    })
+                    .font_role(Role::Ui)
+                    .type_px(s.body, s.line_body)
+                    .text_color(if self.disabled { p.ink(4) } else { p.ink(1) }.solid())
+                    .child(
+                        gpui::div()
+                            .w_full()
+                            .min_h(px(s.line_body * rows))
+                            .child(area),
+                    ),
             })
     }
 }

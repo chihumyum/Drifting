@@ -74,7 +74,8 @@
   },
   "chapterEditor": {
     "synopsisPlaceholder": "줄거리…",
-    "untitledChapter": "제목 없는 장"
+    "untitledChapter": "제목 없는 장",
+    "untitledDrift": "제목 없는 아이디어"
   },
   "chapterEnd": {
     "defaultTitle": "새 장",
@@ -438,7 +439,8 @@
     },
     "folio": {
       "chapter": "장",
-      "chapterNumber": "제{{n}}장"
+      "chapterNumber": "제{{n}}장",
+      "drift": "아이디어"
     },
     "meta": {
       "words": "{{count}}자"
@@ -549,6 +551,25 @@
     "desk": {
       "chaptersUnit_one": "장",
       "chaptersUnit_other": "장",
+      "coverStyle": {
+        "names": {
+          "bauhaus": "바우하우스",
+          "chars": "글자 바다",
+          "cutout": "종이 오리기",
+          "cyanotype": "시아노타이프",
+          "field": "색면",
+          "quipu": "매듭 끈",
+          "ridge": "능선",
+          "rings": "나이테",
+          "riso": "리소그래프",
+          "sand": "모래 붓",
+          "stars": "별자리 지도",
+          "strata": "지층",
+          "topo": "등고선",
+          "weave": "직조"
+        },
+        "turn": "표지 스타일 변경 · 현재 {{name}}"
+      },
       "elementsUnit_one": "요소",
       "elementsUnit_other": "요소",
       "form": {
@@ -587,7 +608,15 @@
     },
     "heat": {
       "daysUnit": "일",
-      "today": "오늘"
+      "daysWritten": "일수",
+      "fri": "금",
+      "label": "집필 히트맵",
+      "mon": "월",
+      "streak": "연속 집필",
+      "summary": "지난 1년간 {{days}}일 동안 {{words}}단어 작성",
+      "today": "오늘",
+      "wed": "수",
+      "year": "지난 1년"
     },
     "projectCount": "{{filtered}} / {{total}}개 작품",
     "rail": {
