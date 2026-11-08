@@ -1,0 +1,211 @@
+{
+  "about": "M15 表格块粘贴：在《慢钟》的一章格子里放入来自样书章名及要素名的制表符/换行文字，从真实格子全选复制，再粘回格子；应铺开为两行四列，保留其余行，焦点所在格子也立即显示第一项。剪贴板走窗口的复制、粘贴快捷键，没有调模块内部方法。",
+  "steps": [
+    {
+      "seed": "showcase"
+    },
+    {
+      "call": "book.list",
+      "save": "books"
+    },
+    {
+      "call": "chapter.list",
+      "input": {
+        "book": "${books.[name=慢钟].id}"
+      },
+      "save": "chapters"
+    },
+    {
+      "call": "element.list",
+      "input": {
+        "book": "${books.[name=慢钟].id}"
+      },
+      "save": "elements"
+    },
+    {
+      "call": "chapter.create",
+      "input": {
+        "book": "${books.[name=慢钟].id}",
+        "title": "${chapters.0.title}"
+      },
+      "save": "chapter"
+    },
+    {
+      "call": "plot_grid.get",
+      "input": {
+        "book": "${books.[name=慢钟].id}",
+        "node": "${chapter.id}"
+      },
+      "save": "grid"
+    },
+    {
+      "call": "plot_grid.clear",
+      "input": {
+        "book": "${books.[name=慢钟].id}",
+        "node": "${chapter.id}"
+      }
+    },
+    {
+      "call": "plot_grid.cell",
+      "input": {
+        "book": "${books.[name=慢钟].id}",
+        "node": "${chapter.id}",
+        "row": "${grid.rows.0.id}",
+        "column": "${grid.columns.0.id}",
+        "text": "${chapters.0.title}\t${chapters.1.title}\t${chapters.2.title}\t${chapters.3.title}\n${elements.0.name}\t${elements.1.name}\t${elements.2.name}\t${elements.3.name}\n"
+      }
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light"
+        },
+        "settings": {
+          "account": {
+            "language.ui_locale": "zh-CN"
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "name": "慢钟"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/shelf": false,
+          "/book/name": "慢钟"
+        }
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "chapter": "${chapter.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/page": "chapter:${chapter.id}"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "展开情节规划"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/bottom/pane": "planner"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Group",
+        "contains": "${chapters.0.title}\t${chapters.1.title}"
+      },
+      "note": "点进含有整块剪贴板文字的格子"
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-a secondary-c secondary-v"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "Group",
+        "label": "${chapters.0.title}",
+        "count": 1
+      },
+      "note": "焦点所在格子立即换成第一项"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 600
+      }
+    },
+    {
+      "call": "plot_grid.get",
+      "input": {
+        "book": "${books.[name=慢钟].id}",
+        "node": "${chapter.id}"
+      },
+      "save": "pasted",
+      "expect": {
+        "/exists": true,
+        "/rows/3": null,
+        "/columns/4": null,
+        "/columns/3/label": "",
+        "/cells/[text=${chapters.0.title}]/row": "${grid.rows.0.id}",
+        "/cells/[text=${chapters.0.title}]/column": "${grid.columns.0.id}"
+      }
+    },
+    {
+      "call": "plot_grid.get",
+      "input": {
+        "book": "${books.[name=慢钟].id}",
+        "node": "${chapter.id}"
+      },
+      "expect": {
+        "/cells/[text=${chapters.3.title}]/row": "${grid.rows.0.id}",
+        "/cells/[text=${chapters.3.title}]/column": "${pasted.columns.3.id}",
+        "/cells/[text=${elements.3.name}]/row": "${grid.rows.1.id}",
+        "/cells/[text=${elements.3.name}]/column": "${pasted.columns.3.id}",
+        "/cells/8": null
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "适应"
+      },
+      "note": "让四列都在窗口里，核对铺开后的画面"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 300
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "01-pasted.png"
+    },
+    {
+      "app": "app.quit",
+      "expect": {
+        "/quit": true
+      }
+    }
+  ]
+}
