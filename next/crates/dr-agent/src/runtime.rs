@@ -230,6 +230,7 @@ impl Runtime {
                     .lock()
                     .expect("active runs")
                     .remove(&session_id);
+                inner.tools.finish_session(&session_id);
                 drop(worker);
                 drop(inner);
                 let _ = finished_tx.send(result);
@@ -673,12 +674,13 @@ impl Worker {
         Ok(calls)
     }
 
-    fn descriptor(&self, name: &str) -> Option<ToolDescriptor> {
+    fn descriptor(&self, call: &ToolCall) -> Option<ToolDescriptor> {
         self.inner
             .descriptors
             .iter()
-            .find(|d| d.name == name)
-            .cloned()
+            .any(|d| d.name == call.name)
+            .then(|| self.inner.tools.describe(call))
+            .flatten()
     }
 
     async fn tools(&mut self, calls: Vec<ToolCall>) -> Result<()> {
@@ -689,7 +691,7 @@ impl Worker {
                 queue.push_front(call);
                 break;
             }
-            let Some(descriptor) = self.descriptor(&call.name) else {
+            let Some(descriptor) = self.descriptor(&call) else {
                 self.tool_result(&call, ToolStatus::Error, json!({"error":"unknown tool"}))?;
                 continue;
             };
@@ -713,7 +715,7 @@ impl Worker {
                     let Some(next) = queue.front() else {
                         break;
                     };
-                    let Some(d) = self.descriptor(&next.name) else {
+                    let Some(d) = self.descriptor(next) else {
                         break;
                     };
                     if d.access != ToolAccess::Read || d.policy != ToolPolicy::Local {
@@ -759,13 +761,7 @@ impl Worker {
             FuturesUnordered::new();
         let mut pending = HashMap::new();
         for (call, descriptor) in group {
-            if !self
-                .inner
-                .tools
-                .descriptors()
-                .iter()
-                .any(|current| current == &descriptor)
-            {
+            if self.inner.tools.describe(&call).as_ref() != Some(&descriptor) {
                 self.tool_result(
                     &call,
                     ToolStatus::Error,
@@ -818,6 +814,12 @@ impl Worker {
                     pending.remove(&call.id);
                     match output {
                         Ok(ToolOutput::Value(value)) => self.tool_result(&call, ToolStatus::Success, value)?,
+                        Ok(ToolOutput::Error(value)) => self.tool_result(&call, ToolStatus::Error, value)?,
+                        Ok(ToolOutput::Stop(value)) => {
+                            self.tool_result(&call, ToolStatus::Error, value)?;
+                            self.stopping = true;
+                            self.set_state(State::Stopping)?;
+                        }
                         Ok(ToolOutput::Question(question)) => questions.push((call, question)),
                         Err(error) => self.tool_result(&call, ToolStatus::Error, json!({"error":error.to_string()}))?,
                     }

@@ -111,6 +111,7 @@ pub struct Outcome<T> {
 pub(crate) struct ProseWriter {
     origin: dr_store::Origin,
     agent: Option<dr_store::AgentWrite>,
+    guards: Option<crate::guard::Guards>,
 }
 
 impl ProseWriter {
@@ -119,7 +120,19 @@ impl ProseWriter {
         F: FnOnce(&loro::LoroDoc) -> Result<R> + Send + 'static,
         R: Send + 'static,
     {
-        holder::write(&slot.handle, self.origin.clone(), self.agent.clone(), f)
+        let guards = self.guards.clone();
+        let id = slot.doc.to_string();
+        holder::write(
+            &slot.handle,
+            self.origin.clone(),
+            self.agent.clone(),
+            move |doc| {
+                if let Some(guards) = guards {
+                    guards.check(&id, doc)?;
+                }
+                f(doc)
+            },
+        )
     }
 }
 
@@ -265,6 +278,7 @@ pub struct Cx<'a> {
     actor: &'a Actor,
     pub(crate) spec: &'static Spec,
     st: RefCell<State>,
+    guards: Option<crate::guard::Guards>,
 }
 
 pub(crate) struct Finished {
@@ -283,11 +297,23 @@ impl<'a> Cx<'a> {
             actor,
             spec,
             st: RefCell::default(),
+            guards: None,
         };
         if spec.concurrency == Concurrency::Library {
             let lease = ws.inner.library_gate.enter();
             cx.st.borrow_mut().leases.push(lease);
         }
+        cx
+    }
+
+    pub(crate) fn guarded(
+        ws: &'a Workspace,
+        actor: &'a Actor,
+        spec: &'static Spec,
+        guards: crate::guard::Guards,
+    ) -> Self {
+        let mut cx = Self::new(ws, actor, spec);
+        cx.guards = Some(guards);
         cx
     }
 
@@ -373,10 +399,33 @@ impl<'a> Cx<'a> {
     /// is written when it is first opened, identically on every device).
     pub(crate) fn create_prose(&self, book: &BookId, doc: &DocId) -> Result<()> {
         self.check_phase(Phase::Prose)?;
+        let id = doc.to_string();
+        let fresh = self.guards.is_some() && self.ws.library().doc_info(&id)?.is_none();
+        if fresh {
+            let guards = self.guards.clone().expect("guarded creation");
+            let parent = format!("book:{book}");
+            let slot = self.book(book.as_str())?;
+            slot.handle
+                .read(move |doc| guards.check_required(&parent, doc))??;
+        }
         self.ws
             .inner
             .lib
-            .register(&doc.to_string(), doc.kind().prefix(), Some(book.as_str()))?;
+            .register(&id, doc.kind().prefix(), Some(book.as_str()))?;
+        if fresh {
+            let info = self.ws.library().doc_info(&id)?;
+            if info.as_ref().and_then(|i| i.book_id.as_deref()) != Some(book.as_str()) {
+                return Err(WsError::Conflict(format!(
+                    "document belongs to another book: {id}"
+                )));
+            }
+            let initial = loro::LoroDoc::new();
+            initial.import(&dr_doc::prose::genesis(doc))?;
+            self.guards
+                .as_ref()
+                .expect("guarded creation")
+                .created(id, initial.oplog_frontiers());
+        }
         Ok(())
     }
 
@@ -417,7 +466,14 @@ impl<'a> Cx<'a> {
             Actor::User => dr_store::Origin::Command,
             _ => self.actor.store_origin(),
         };
-        holder::write(&slot.handle, origin, agent, f)
+        let guards = self.guards.clone();
+        let id = slot.doc.to_string();
+        holder::write(&slot.handle, origin, agent, move |doc| {
+            if let Some(guards) = guards {
+                guards.check(&id, doc)?;
+            }
+            f(doc)
+        })
     }
 
     /// Step 2 for writes this command makes on other threads (one per
@@ -431,6 +487,7 @@ impl<'a> Cx<'a> {
                 _ => self.actor.store_origin(),
             },
             agent: self.actor.agent_write(&self.summary()),
+            guards: self.guards.clone(),
         })
     }
 
@@ -454,7 +511,11 @@ impl<'a> Cx<'a> {
         let agent = self.actor.agent_write(&self.summary());
         let book = slot.book.clone();
         let touched = std::mem::take(&mut self.st.borrow_mut().touched_elements);
+        let guards = self.guards.clone();
         holder::write(&slot.handle, self.actor.store_origin(), agent, move |doc| {
+            if let Some(guards) = guards {
+                guards.check(&format!("book:{book}"), doc)?;
+            }
             // The holder has settled the document: this is the stored head.
             let before = doc.oplog_frontiers();
             let r = {

@@ -65,22 +65,25 @@ op! {
     fn(cx, input: ProseReadIn) -> ProseText {
         let doc = doc_id(&input.doc)?;
         let slot = cx.prose(&doc)?;
-        let view = cx.prose_view(&slot);
-        let limit = input.limit.unwrap_or(200);
-        let mut total = 0;
-        let mut paragraphs = Vec::new();
-        for (i, p) in view.paragraphs().enumerate() {
-            total += 1;
-            if i >= input.from && paragraphs.len() < limit {
-                paragraphs.push(ParagraphInfo {
-                    index: i,
-                    block_id: p.id.as_ref().map(|b| b.to_string()),
-                    heading: p.attrs.heading.map(|h| h.level() as u8).unwrap_or(0),
-                    text: p.text(),
-                });
+        slot.handle.read(move |state| -> Result<ProseText> {
+            let body = dr_doc::prose::BorrowedProse::new(state, &doc)?;
+            let view = body.view();
+            let limit = input.limit.unwrap_or(200);
+            let mut total = 0;
+            let mut paragraphs = Vec::new();
+            for (i, p) in view.paragraphs().enumerate() {
+                total += 1;
+                if i >= input.from && paragraphs.len() < limit {
+                    paragraphs.push(ParagraphInfo {
+                        index: i,
+                        block_id: p.id.as_ref().map(|b| b.to_string()),
+                        heading: p.attrs.heading.map(|h| h.level() as u8).unwrap_or(0),
+                        text: p.text(),
+                    });
+                }
             }
-        }
-        Ok(ProseText { paragraphs, total, version: frontiers_hex(&slot.handle.doc().oplog_frontiers()) })
+            Ok(ProseText { paragraphs, total, version: frontiers_hex(&state.oplog_frontiers()) })
+        })?
     }
 }
 
@@ -129,7 +132,7 @@ op! {
         let slot = cx.prose(&doc)?;
         cx.summarize(format!("{} → {}", input.find, input.replace));
         let (find, replace, block) = (input.find.clone(), input.replace.clone(), input.block_id.clone());
-        let (at, bid, linked) = cx.write_prose(&slot, move |txn| {
+        let (at, bid, linked, changed) = cx.write_prose(&slot, move |txn| {
             // Validate on the state the edit applies to, before writing.
             let view = txn.view();
             let mut hits = Vec::new();
@@ -145,6 +148,7 @@ op! {
                 1 => hits.remove(0),
                 n => return Err(WsError::Ambiguous(format!("{find:?} occurs {n} times"))),
             };
+            if find == replace { return Ok((at, bid, 0, false)); }
             let len = find.chars().count();
             txn.delete(at..at + len)?;
             txn.insert_text(at, &replace)?;
@@ -154,8 +158,12 @@ op! {
                 Some(n) => crate::autolink::link_written(txn, n, at..at + replace.chars().count())?,
                 None => 0,
             };
-            Ok((at, bid, linked))
+            Ok((at, bid, linked, true))
         })?;
+        if !changed {
+            cx.undo_nothing();
+            return Ok(Replaced { at, block_id: bid.map(|b| b.to_string()), linked });
+        }
         cx.effect(EffectAction::Updated, "prose", input.doc.as_str(), None);
         if input.replace.is_empty() {
             cx.irreversible();

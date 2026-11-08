@@ -1,0 +1,26 @@
+[package]
+name = "dr-agent-tools"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "M29 registry-derived book-scoped Agent tools and prose projection"
+
+[dependencies]
+dr-agent.workspace = true
+dr-doc.workspace = true
+dr-model.workspace = true
+dr-store.workspace = true
+dr-workspace.workspace = true
+futures.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+dr-testkit.workspace = true
+insta.workspace = true
+loro.workspace = true
+tempfile.workspace = true
