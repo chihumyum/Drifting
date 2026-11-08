@@ -54,7 +54,7 @@
 
 ## 待协调分派
 
-- **K1 / K3**：收到 K3 前半段后，请对照 [m10-import.md 待协调 24、25、27](../modules/m10-import.md#待协调)，确认项目级故事线字段模板、旧关系端点种类约束、旧层级颜色在既定 v3 接口中的落点。先按已定结构回答；需要改变方案的部分留给作者，不由导入器自加字段或放宽约束。
+- **K3**：第三十六批已接 K1 第 1–4 步，`dr-doc/src/v3/mod.rs` 已在 main。K1 对 [m10 待协调 24、25、27](../modules/m10-import.md#待协调) 的回应已转回 m10：项目级故事线字段模板用模板 KV 初值，个别层级颜色用既有字段模块；后半段消费接口并逐项核对。25 的关系模板约束仍有作者语义取舍，不自行放宽。
 - **作者 / K3**：m10 待协调 22、23（幕绑定构想的关系类型与方向；「未归属」泳道的树上住处和模板设置）以及 25 的语义取舍等作者回来定。前半段只读清单保留来源和 pending，不挡本批；后半段不能把尚未决定的映射当作完成。
 - **K3**：m10 待协调 26 的异常旧数据继续保留并报告；真正导入时明确阻止／提示／修复的边界，不静默丢弃或覆盖。以上只分派新交回的协调项，不恢复旧导入分支的冻结待办。
 
@@ -73,6 +73,6 @@
 
 | 时间 | 指针 | 原因 | 处理 |
 | --- | --- | --- | --- |
-| 11-09 03:13 | `handback/k1` → `3f20c049`（第三十四批） | 全套检查通过（1920 通过／22 忽略／0 失败），但违反本页 K1 第 4 条：`dr-model/src/kind.rs::EntityKind::may_be_linked` 新放行既有 `Material`，改变 v2.2 正文链接及旧导入行为。临时 Rust 程序打印 `dr_model::kind::EntityKind::Material.may_be_linked()`，main `fb506d26` 为 false、候选为 true。 | 退 K1：保留 v2.2 原行为，把 v3 所需扩展限定到 v3 路径，补兼容契约并同步 main 后重交。整合者不代改功能；候选保留在 `codex/batch-34`，未合 main。 |
-| 11-09 03:13 | `handback/k1` → `72734432`（第 3 步续交） | 仍含上条未修的行为变化；新增 `next/crates/dr-index/tests/library.rs`，不在分轨给 K1 的 crate 列表（dr-model / dr-doc / dr-store / dr-testkit / dr-workspace）内。 | 退 K1：把跨层契约放到已授权的 dr-testkit 等合适位置，连同上条一起修后重交。此次先按范围退回，未合候选、未冒称已跑过这个续交 SHA 的全套检查。 |
+| 11-09 03:13 | `handback/k1` → `3f20c049`（第三十四批） | 全套检查通过（1920 通过／22 忽略／0 失败），但违反本页 K1 第 4 条：`dr-model/src/kind.rs::EntityKind::may_be_linked` 新放行既有 `Material`，改变 v2.2 正文链接及旧导入行为。临时 Rust 程序打印 `dr_model::kind::EntityKind::Material.may_be_linked()`，main `fb506d26` 为 false、候选为 true。 | 退 K1：保留 v2.2 原行为，把 v3 所需扩展限定到 v3 路径，补兼容契约并同步 main 后重交。整合者不代改功能；候选保留在 `codex/batch-34`，当时未合 main。**已由 `dd39c0bd` 修正，第三十六批接收。** |
+| 11-09 03:13 | `handback/k1` → `72734432`（第 3 步续交） | 仍含上条未修的行为变化；新增 `next/crates/dr-index/tests/library.rs`，不在分轨给 K1 的 crate 列表（dr-model / dr-doc / dr-store / dr-testkit / dr-workspace）内。 | 退 K1：把跨层契约放到已授权的 dr-testkit 等合适位置，连同上条一起修后重交。此次先按范围退回，未合候选、未冒称已跑过这个续交 SHA 的全套检查。**已由 `dd39c0bd` 撤回 dr-index 改动，第三十六批接收。** |
 | 11-09 03:28 | `handback/track4` → `c719a76d`（第三十五批：M37） | 全套检查通过（1905 通过／22 忽略／0 失败），但超出本页轨道 4 第 2 条的 dr-shell「只限挂账号入口」：`settings/store.rs` 新增持久化账本并修改 set/reset/快捷键写入，`settings/mod.rs` 新增同步回调与快捷键应用，`settings/registry.rs` 新增同步范围标记。`git diff e4722faa..c719a76d -- next/crates/dr-shell/src/settings` 可见范围。 | 退轨道 4：按夜间范围收敛共享改动，或把必要的 settings 接线单列为待协调，等作者明确范围后重交。旧 M37 任务书允许最小注册表标记，但本页更窄，整合者不自行扩大；候选保留 `codex/batch-35`，M35 已接成果不受影响。 |
