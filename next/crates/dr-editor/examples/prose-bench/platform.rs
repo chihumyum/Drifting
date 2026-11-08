@@ -107,18 +107,28 @@ impl gpui_prose::PlatformHooks for MacHooks {
         }
     }
 
-    fn discard_marked_text(&self) {
+    fn discard_marked_text(&self, window: &gpui::Window) {
         #[cfg(target_os = "macos")]
-        // SAFETY: class method lookup and a message to the current input
-        // context, on the main thread, exactly as GPUI's own
-        // `invalidateCharacterCoordinates` call does.
-        unsafe {
-            use objc2::{class, msg_send, runtime::AnyObject};
-            let context: *mut AnyObject =
-                msg_send![class!(NSTextInputContext), currentInputContext];
-            if !context.is_null() {
-                let _: () = msg_send![context, discardMarkedText];
+        {
+            use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+            let Ok(handle) = HasWindowHandle::window_handle(window) else {
+                return;
+            };
+            let RawWindowHandle::AppKit(appkit) = handle.as_raw() else {
+                return;
+            };
+            // SAFETY: this window's live content view, on GPUI's UI thread.
+            // The current context may already belong to another window.
+            unsafe {
+                use objc2::{msg_send, runtime::AnyObject};
+                let view = appkit.ns_view.as_ptr() as *mut AnyObject;
+                let context: *mut AnyObject = msg_send![view, inputContext];
+                if !context.is_null() {
+                    let _: () = msg_send![context, discardMarkedText];
+                }
             }
         }
+        #[cfg(not(target_os = "macos"))]
+        let _ = window;
     }
 }

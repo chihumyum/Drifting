@@ -2,6 +2,17 @@
 
 2026-11-08。F4 编辑引擎的输入子线（[f4-editor.md](f4-editor.md)「下一轮怎么拆」的 F4c 一行，和「GPUI 补丁台账」的 G4）。代码在 `next/crates/gpui-prose/src/input/`（MIT OR Apache-2.0，不依赖任何 `dr-*`），`editor.rs` 只加了一个字段、一行注册和一处视图包装（见「改了 editor.rs 的哪几行」）。
 
+## 轨道 2：输入对齐（2026-11-09）
+
+本轮从 `main` 的 `f930cd90` 分出 `codex/track2-editor-input`，只接编辑引擎、输入、数字格式、公共播放接口与性能测量；不改人物链接、按种类的画层或数据模型，不合 main、不推送。共享改动限于下述 `dr-ui` 输入入口和 `PlatformHooks` 调用方。
+
+- 待协调 12：单行、多行框的 `replace_text_in_range(None, "")` 有组字时清空组字，没有组字时保持文字和选区；带明确范围的删除以及剪切、删除键保持原语义。
+- 待协调 14：Windows `system_discard` 在窗口失活后仍取消该窗口的 IMM 上下文；三个 IME 入口先读原生键盘焦点，迟到输入连同组字丢弃，不发 `Changed`，随后失焦不重复取消。`set_window_has_keyboard` 与既有 discard hook 给宿主／测试提供替代平台调用。
+- `PlatformHooks::discard_marked_text(&Window)` 显式收到正在取消的窗口，编辑器和 `prose-bench` 都用其内容视图的 `inputContext`，不再使用会随切窗改变的 `currentInputContext`。
+- 回归：`dr-ui` 的 field／area 各补空无范围取消、明确删除、三个入口的原生焦点提前离开、重复迟到消息、取消只发一次以及返回继续输入；编辑器既有 IMM 消息契约跟随窗口参数继续验证。
+- 平台边界：这里验证的是 GPUI 测试平台的回调时序；真实微软拼音、日文 IME、macOS 两窗口候选窗仍按本文手测清单，不把模拟结果当实机结果。
+
+
 ## 一句话
 
 编辑器能查找替换了：一章（或编辑器里的整本书）里所有命中、前后跳、逐个或全部替换，全部替换是一次撤销；区分大小写、全字（中文按 ICU 词典分词）两个选项；命中随编辑、撤销、别人的写入自动更新，「当前项」就是选区。双击后拖动按词扩展、三击后拖动按段扩展。正文作为一个多行文本框交给读屏（AccessKit），整章可读、选区读得到也设得进去，在真窗口里用进程内探针核过；GPUI v1.27 刚接上 AccessKit，有两个坑：缓存视图会把读屏节点弄丢（`gpui-prose` 已绕开，另存补丁 G7），系统问「焦点在哪」时答的是窗口而不是正文（要改 GPUI，补丁 G8 只存文件）。Windows 上组字中失焦时用 IMM32 让输入法丢弃（台账 G4，不用改 GPUI），键位有 Windows 一套（Ctrl、Home/End、Ctrl+↑↓ 按段、F3）。
@@ -280,9 +291,9 @@ aarch64（Windows on ARM）是同一条命令，把三处 `x86_64` 换成 `aarch
 9. **F4 主会话 / M05：** [m05-book.md](../modules/m05-book.md) 待协调第 2 条（跨章选区、撤销要不要一起撤）已按本文「第三轮：跨章选区」定下并做完，那一条可以划掉、指到这里；`BookEditor` 的模块说明已改。`editor.rs` 改了哪几行见「改了 editor.rs 的哪几行」。
 10. **F4d：** 选区画法改从 `selected_in(章)` 来（`render/items.rs` 一处）；`f4d-lists-for-f4c.md` 里留给 F4c 的列表按键都做了。代码块、引注框（也是笔记专用）还没有样子，也就没做它们的按键。
 11. **F2 / F3：跨章删除不是一个事务。** 每章是一次独立的会话写入，几章之间没有共同提交；中途某一章写失败（`SessionSource` 记一条错误日志，那一章原样不动、也不留那一步），别的章照样删了。删了的每一章那一步都在同一组里，⌘Z 能一起撤回来；要不要做成跨文档的事务，等 F3 的会话层有这个能力再说。
-12. **F5（dr-ui）：输入法「清空组字」会删掉文字框里选中的字。** GPUI 的 Windows 后端把「组字清空」（`WM_IME_COMPOSITION` 不带标志：日文输入法按 Esc、回应 `CPS_CANCEL`）发成 `replace_text_in_range(None, "")`。dr-ui 的单行框、多行框照「用空字替换选区」处理（`LineComposer::replace(None, "")`），选中的字会被删掉。编辑器这一轮改成了「有组字就取消、没组字什么都不做」。dr-ui 不能改在 `LineComposer::replace` 里（剪切、删除自己也走 `replace(None, "")`），要改在两个框的 `replace_text_in_range` 入口：`range16` 是 `None`、文字是空的时候，有组字就当删光组字，没组字就返回。会碰到的场合：查找栏里原有的词被 Ctrl+F 选中，正好赶上编辑器失焦发的 `CPS_CANCEL` 的回声——回声同步回来的话 GPUI 会丢掉，碰不到；排队回来的才会，要真机看（手测第 5 条最后一项）。日文输入法在框里按 Esc 则一定会碰到。
+12. **已在轨道 2 修复（2026-11-09），实机仍待：** F5（dr-ui）输入法「清空组字」会删掉文字框里选中的字。** GPUI 的 Windows 后端把「组字清空」（`WM_IME_COMPOSITION` 不带标志：日文输入法按 Esc、回应 `CPS_CANCEL`）发成 `replace_text_in_range(None, "")`。dr-ui 的单行框、多行框照「用空字替换选区」处理（`LineComposer::replace(None, "")`），选中的字会被删掉。编辑器这一轮改成了「有组字就取消、没组字什么都不做」。dr-ui 不能改在 `LineComposer::replace` 里（剪切、删除自己也走 `replace(None, "")`），要改在两个框的 `replace_text_in_range` 入口：`range16` 是 `None`、文字是空的时候，有组字就当删光组字，没组字就返回。会碰到的场合：查找栏里原有的词被 Ctrl+F 选中，正好赶上编辑器失焦发的 `CPS_CANCEL` 的回声——回声同步回来的话 GPUI 会丢掉，碰不到；排队回来的才会，要真机看（手测第 5 条最后一项）。日文输入法在框里按 Esc 则一定会碰到。
 13. **监管会话 / 作者：组字中在正文别处点一下怎么办。** macOS 上 GPUI 先把鼠标交给输入法，输入法通常自己把组字上屏；Windows 后端不交，组字留在原处。P0-B 的「失焦就丢掉」管不到这里（焦点没走）。三种做法：照旧（Windows 上组字留在原处）、和失焦一样丢掉、和 macOS 常见的一样把拼音原样上屏。编辑器这边哪一种都好做（鼠标按下时先处理组字再挪光标），等定了再做；先看手测里两边实际各是什么样。
-14. **F5（dr-ui）：窗口失活时和编辑器不一致的两处，加上编辑器反过来该学的一处。**
+14. **已在轨道 2 修复（2026-11-09），实机仍待：** F5（dr-ui）窗口失活时和编辑器不一致的两处，加上编辑器反过来该学的一处。**
     - dr-ui 的 `system_discard` 在 Windows 上先看 `GetFocus() == hwnd`，不是就不发 `CPS_CANCEL`。窗口失活引起的失焦晚一帧才到，那时 `GetFocus()` 已经不是这个窗口，所以输入法把组字留着的话，dr-ui 的框不会让它丢掉，作者回来一打字半截拼音又冒出来。编辑器不看 `GetFocus()`（理由见「整个窗口没了键盘」）。
     - 输入法在焦点一走就上屏的话，那次上屏先于失焦到达；dr-ui 的 `takes_input` 看的是 GPUI 的焦点，那一刻还在框上，会收下拼音。编辑器在 `has_keyboard`（Windows 上 `GetFocus() == hwnd`）为假时丢掉输入。
     - 反过来，macOS 上 dr-ui 用的是窗口自己的视图的 `inputContext`（切窗口后 `currentInputContext` 已经是别的窗口的），比编辑器的 `currentInputContext` 准。编辑器的 macOS 那一段这一轮没动（只做 Windows），下一轮可以照 dr-ui 改。

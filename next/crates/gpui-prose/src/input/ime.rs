@@ -128,7 +128,7 @@ impl ProseEditor {
         if self.composition.is_some() {
             self.cancel_composition();
             if let Some(hooks) = &self.hooks {
-                hooks.discard_marked_text();
+                hooks.discard_marked_text(window);
             }
             cx.notify();
         }

@@ -955,7 +955,7 @@ impl ProseEditor {
         div().size_full().relative().child(view).child(layer)
     }
 
-    fn on_blur(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
+    fn on_blur(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.cursor_layer.update(cx, |layer, cx| layer.stop(cx));
         if self.composition.is_some() {
             // Leaving with marked text: drop it here and in the input method,
@@ -964,7 +964,7 @@ impl ProseEditor {
             self.log_ime(format_args!("blur: marked text dropped"));
             self.cancel_composition();
             if let Some(hooks) = &self.hooks {
-                hooks.discard_marked_text();
+                hooks.discard_marked_text(window);
             }
         }
         cx.notify();

@@ -219,7 +219,7 @@ Drifting 的正文能在新版里编辑并落盘了：新的 AGPL crate `next/cr
 
 ### 组字
 
-和 P0-B 一样：拼音只显示不写 Loro；确认时一次写入；组字中 ⌘Z 忽略；拼音删光就取消；别人的改动挪动组字位置；失焦清掉并调用 `PlatformHooks::discard_marked_text`。
+和 P0-B 一样：拼音只显示不写 Loro；确认时一次写入；组字中 ⌘Z 忽略；拼音删光就取消；别人的改动挪动组字位置；失焦清掉并调用 `PlatformHooks::discard_marked_text(&Window)`。2026-11-09 轨道 2 将窗口显式传入，macOS 用该窗口视图的 `inputContext`，避免切窗后取消另一窗口的组字；单行／多行输入对齐见 [F4c](f4c-input.md)。
 
 规则在 `gpui-ime`：`Overlay`（拼音的位置、被替换的长度、拼音、输入法的选区；`begin` / `mark` / `retarget` / `follow` / `target`）和 `Marked16`（输入法眼里的文字和已提交文字之间的 UTF-16 换算）。编辑器的 `Composition` 就是 `Overlay` 加所在章。`gpui-ime` 里还有单行输入框用的 `LineComposer`（从 F5 的 `Composer` 搬来，失焦改成丢弃）。
 
@@ -292,7 +292,7 @@ Drifting 的正文能在新版里编辑并落盘了：新的 AGPL crate `next/cr
 | `select(chapter, range, …)`、`jump_to_chapter`、`scroll_by_estimate`、`scroll_y`、`press_enter`、`press_backspace`、`paste_text`、`toggle_mark(key, …)`、`set_link(url, …)`、`mark_active(key)`、`undo`、`redo`、`word_range_at`、`marks_at` | 宿主和测试驱动编辑器 | v0 稳定 |
 | `agent_write(chapter, range, text, session, cx)`、`import_remote(chapter, bytes, cx)`、`refresh_chapter(chapter, cx)` | 别人的写入；文本源在编辑器外变了以后调 `refresh_chapter`；选区和组字跟着挪 | `agent_write` 可能变（F3 的命令总线定下 Agent 写入的入口后改成走它） |
 | `EditorEvent::{Edited, SelectionChanged, AnchorsChanged}`（`EventEmitter`） | 通知宿主 | v0 稳定（只加变体） |
-| `set_platform_hooks(Rc<dyn PlatformHooks>)`：`discard_marked_text`、`present_now` | 平台钩子 | 可能变（打了「丢弃组字接口」补丁后 `discard_marked_text` 可删） |
+| `set_platform_hooks(Rc<dyn PlatformHooks>)`：`discard_marked_text(&Window)`、`present_now` | 平台钩子 | 可能变（打了「丢弃组字接口」补丁后 `discard_marked_text` 可删） |
 | `set_extension(Rc<dyn ProseExtension>)`：`style_run` | 扩展点 | 可能变（F4e 会加：输入规则、装饰层、浮条位置） |
 | `ProseStyle`、`EditorOptions { present_now, cursor_blink, ime_log }` | 样式与选项 | 可能变（F5 的令牌接进来后换成从令牌来） |
 | `after_next_paint`、`painted_lines` | 给基准用 | 可能变 |
