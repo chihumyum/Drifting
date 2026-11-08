@@ -446,6 +446,7 @@ impl BottomTimeline {
                         summary: String::new(),
                         storyline,
                         text: None,
+                        narrative_order: None,
                     },
                 )?
                 .output;

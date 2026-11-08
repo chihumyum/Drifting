@@ -187,7 +187,7 @@ cargo run -p dr-view-timeline --features capture --example timeline-capture -- .
    - ⌘J（`ToggleBottomTimeline`，现在是空的）和稿纸角上的时间线开关负责开关；沉浸写作时收起；
    - 一次只显示时间线或情节规划里的一个；
    - 「书序 / 叙事时」「未归属开没开」「缩放」「横向滚动」要能记住：外壳给一个按书存的地方，或者在注册表里加这几项。
-2. ~~**F3：一次写完的「在时间线上放一章」**~~：**已做**（F3 第八轮的 `chapter.place`、`chapter.spread`），第三轮换上了。双击空白新建在叙事时里还是两步（`chapter.create` 建在书末，再 `chapter.update` 放到叙事轴上）：要一步的话 `chapter.create` 得能直接给叙事位置。
+2. ~~**F3：一次写完的「在时间线上放一章」**~~：**已做**（F3 第八轮的 `chapter.place`、`chapter.spread`），第三轮换上了。双击空白新建在叙事时里还是两步（`chapter.create` 建在书末，再 `chapter.update` 放到叙事轴上）：F3 第十轮已给 `chapter.create.narrative_order`，第二十一批整合；界面仍待换成一次调用。
 3. **F6：悬停卡**（第三轮换上了 `page_hover_card`，`extra` 放时间线自己的行，自己拼卡的那一段删了）。还差：
    - ~~「模块能在前面加行」~~：F6 第九轮把参数改成 `CardRows { lead, before_danger }`，第十九批整合时时间线自己的行改放进 `lead`；
    - 泳道名字的卡旧版开在名字旁边（`beside`），`page_hover_card` 现在只开在下面；
@@ -197,4 +197,4 @@ cargo run -p dr-view-timeline --features capture --example timeline-capture -- .
 ## 还没做的（下一轮）
 
 - 片段和泳道名字卡的截图（等外壳能固定打开卡）。
-- 叙事时双击新建一步撤销（等 F3 的 `chapter.create` 能给叙事位置）。
+- 叙事时双击新建一步撤销（F3 第十轮接口已到，界面仍需将后续 `chapter.update` 合入 `chapter.create`）。

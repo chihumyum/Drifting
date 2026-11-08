@@ -32,7 +32,7 @@ pub(crate) fn register(r: &mut Registry) {
         .add::<CategoryPurge>();
 }
 
-const NEW_ELEMENT: &str = "New Element";
+pub(crate) const NEW_ELEMENT: &str = "New Element";
 const UNTITLED_CATEGORY: &str = "Untitled";
 const DEFAULT_COLOR: &str = "#8A8A8A";
 
@@ -85,7 +85,7 @@ pub(crate) fn check_names<'a>(
     Ok(())
 }
 
-fn live_category(slot: &BookSlot, id: &str) -> Result<CategoryId> {
+pub(crate) fn live_category(slot: &BookSlot, id: &str) -> Result<CategoryId> {
     let cid: CategoryId = pid("category", id)?;
     if categories(slot)
         .iter()
