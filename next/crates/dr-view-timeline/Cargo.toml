@@ -18,6 +18,7 @@ dr-i18n.workspace = true
 dr-shell.workspace = true
 dr-ui.workspace = true
 dr-workspace.workspace = true
+futures.workspace = true
 gpui.workspace = true
 gpui_platform = { workspace = true, optional = true }
 log.workspace = true

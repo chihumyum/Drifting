@@ -154,6 +154,11 @@ pub struct BottomTimeline {
     /// keys have put one until the book shows it.
     act_focus: std::collections::HashMap<String, gpui::FocusHandle>,
     nudged: std::collections::HashMap<String, f64>,
+    /// The pins' and acts' writes, one after another.
+    writes: Option<(
+        futures::channel::mpsc::UnboundedSender<marks::WriteJob>,
+        gpui::Task<()>,
+    )>,
     _subs: Vec<Subscription>,
 }
 
@@ -192,6 +197,7 @@ impl BottomTimeline {
             edge_clock: None,
             act_focus: Default::default(),
             nudged: Default::default(),
+            writes: None,
             _subs: Vec::new(),
         }
     }

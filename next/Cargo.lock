@@ -2112,6 +2112,7 @@ dependencies = [
  "dr-testkit",
  "dr-ui",
  "dr-workspace",
+ "futures",
  "gpui",
  "gpui_platform",
  "log",

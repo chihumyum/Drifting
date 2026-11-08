@@ -33,6 +33,9 @@ use dr_workspace::commands::{
 };
 use gpui::{Focusable as _, Task};
 
+/// One write of the queue.
+pub(super) type WriteJob = Box<dyn FnOnce() + Send>;
+
 /// A time pin or an act.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Mark {
@@ -208,22 +211,49 @@ impl BottomTimeline {
 
     // ---- writing ------------------------------------------------------------
 
+    /// Runs `f` on the timeline's write queue: the pins' and acts' writes
+    /// land in the order they were asked for (four quick ←/→ presses end
+    /// where the last one put the boundary), each off the main thread.
     fn write(
-        &self,
+        &mut self,
         what: &'static str,
         cx: &mut Context<Self>,
         f: impl FnOnce(&Library, String) -> Result<(), dr_workspace::WsError> + Send + 'static,
     ) -> Option<Task<Result<(), dr_workspace::WsError>>> {
         let lib = self.lib.clone()?;
         let book = self.book.id.clone();
-        let task = cx.background_executor().spawn(async move { f(&lib, book) });
-        Some(cx.background_executor().spawn(async move {
-            let out = task.await;
-            if let Err(e) = &out {
+        let (done, out) = futures::channel::oneshot::channel();
+        let job: WriteJob = Box::new(move || {
+            let result = f(&lib, book);
+            if let Err(e) = &result {
                 log::warn!("timeline: {what} failed: {e}");
             }
-            out
-        }))
+            let _ = done.send(result);
+        });
+        self.writer(cx).unbounded_send(job).ok()?;
+        Some(
+            cx.background_executor()
+                .spawn(async move { out.await.unwrap_or(Ok(())) }),
+        )
+    }
+
+    /// The write queue, started the first time it is needed.
+    fn writer(
+        &mut self,
+        cx: &mut Context<Self>,
+    ) -> futures::channel::mpsc::UnboundedSender<WriteJob> {
+        if let Some((tx, _)) = &self.writes {
+            return tx.clone();
+        }
+        let (tx, mut rx) = futures::channel::mpsc::unbounded::<WriteJob>();
+        let task = cx.background_executor().spawn(async move {
+            use futures::StreamExt as _;
+            while let Some(job) = rx.next().await {
+                job();
+            }
+        });
+        self.writes = Some((tx.clone(), task));
+        tx
     }
 
     /// A new pin at `order`, its name ready to type.
