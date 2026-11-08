@@ -13,6 +13,7 @@ use std::time::{Duration, Instant};
 use dr_editor::ChapterEditor;
 use dr_platform::DeepLinks;
 use dr_shell::nav::{Open, Page, Target};
+use dr_shell::panes::PaneId;
 use dr_shell::settings::registry;
 use dr_shell::workspace::editors::PageView;
 use dr_shell::workspace::{Layer, SuperView};
@@ -1531,7 +1532,7 @@ fn page_actions_put_share_first_and_what_deletes_last(cx: &mut TestAppContext) {
             let seen = seen.clone();
             let row = |id: &'static str, danger: bool, run: dr_shell::pages::RunRow| PageMenuItem {
                 id: id.into(),
-                icon: dr_ui::sand::Icon::Folder,
+                icon: dr_ui::components::menu::RowIcon::Mark(dr_ui::sand::Kind::Category, None),
                 label: id.into(),
                 checked: false,
                 danger,
@@ -1667,20 +1668,22 @@ fn auto_links_reach_f3_and_the_chapter_panel_folds(cx: &mut TestAppContext) {
         if !ws.left.open {
             ws.toggle_left(window, cx);
         }
-        ws.fold_all(cx);
+        ws.fold_all(PaneId::Primary, cx);
     });
     draw(cx);
     assert_eq!(
-        view.read_with(cx, |ws, _| ws.folded.len()),
+        view.read_with(cx, |ws, _| ws.folded_in(PaneId::Primary).len()),
         storylines + 1,
         "every storyline and 未归属"
     );
-    view.update(cx, |ws, cx| ws.fold_all(cx));
-    assert!(view.read_with(cx, |ws, _| ws.folded.is_empty()));
+    view.update(cx, |ws, cx| ws.fold_all(PaneId::Primary, cx));
+    assert!(view.read_with(cx, |ws, _| ws.folded_in(PaneId::Primary).is_empty()));
     let first = view.read_with(cx, |ws, _| ws.book.storylines[0].id.clone());
-    view.update(cx, |ws, cx| ws.toggle_fold(&first, cx));
+    view.update(cx, |ws, cx| ws.toggle_fold(PaneId::Primary, &first, cx));
     draw(cx);
-    assert!(view.read_with(cx, |ws, _| ws.folded.contains(&first)));
+    assert!(view.read_with(cx, |ws, _| ws.folded_in(PaneId::Primary).contains(&first)));
+    // Another half keeps its own; the folds stay with the book.
+    assert!(view.read_with(cx, |ws, _| ws.folded_in(PaneId::Secondary).is_empty()));
 }
 
 /// Writing away a patch's source passage marks the patch 失效 once the
@@ -1825,4 +1828,175 @@ fn the_library_is_swapped_under_the_running_app(cx: &mut TestAppContext) {
     assert_eq!(failed, Err("备份坏了".into()));
     wait_for(&view, cx, |ws| ws.library.is_some() && !ws.book.is_empty());
     assert!(cx.update(|_, cx| cx.global::<Services>().library.is_some()));
+}
+
+/// workspace.md: a sidebar half keeps its list's scroll for the run, per
+/// book, side, half and tab: closed with its sidebar and opened again, the
+/// chapter list is where it was.
+#[gpui::test]
+fn a_sidebar_list_comes_back_where_it_was(cx: &mut TestAppContext) {
+    let (_dir, lib) = slow_clock();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    let open_left = |view: &Entity<Workspace>, cx: &mut VisualTestContext| {
+        view.update_in(cx, |ws, window, cx| {
+            if !ws.left.open {
+                ws.toggle_left(window, cx);
+            }
+            ws.left.reveal.set(1.0);
+        });
+        draw(cx);
+        draw(cx);
+    };
+    open_left(&view, cx);
+    let list = "left-primary-chapters";
+    let handle = view
+        .read_with(cx, |ws, _| ws.list_scroll(list))
+        .expect("the chapter list showed");
+    handle.scroll_to_item(30, gpui::ScrollStrategy::Top);
+    draw(cx);
+    draw(cx);
+    let scrolled = handle.0.borrow().base_handle.offset().y;
+    assert!(scrolled < gpui::px(0.0), "{scrolled:?}");
+    // Closed (the list is not drawn), then opened again.
+    view.update_in(cx, |ws, window, cx| {
+        ws.toggle_left(window, cx);
+        ws.left.reveal.set(0.0);
+    });
+    draw(cx);
+    draw(cx);
+    open_left(&view, cx);
+    let again = view
+        .read_with(cx, |ws, _| ws.list_scroll(list))
+        .unwrap()
+        .0
+        .borrow()
+        .base_handle
+        .offset()
+        .y;
+    assert_eq!(again, scrolled);
+}
+
+/// F4's link events: a click on a live entity link opens its page as a
+/// preview; the slash menu's 位置链接 shows 「已复制位置链接」 for a moment.
+#[gpui::test]
+fn entity_links_open_and_a_copied_location_link_is_told(cx: &mut TestAppContext) {
+    let (_dir, lib) = slow_clock();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    let (first, element) = view.read_with(cx, |ws, _| {
+        (chapter_of(ws, 0), ws.book.elements[0].id.clone())
+    });
+    let Target::Chapter(id) = &first else {
+        unreachable!()
+    };
+    let doc = format!("node:{id}");
+    view.update(cx, |ws, cx| ws.open(first.clone(), Open::KEEP, cx));
+    let editor = open_editor(&view, cx, &first);
+    editor.update(cx, |_, cx| {
+        cx.emit(dr_editor::EntityLinkOpened {
+            doc: doc.clone(),
+            kind: dr_model::kind::EntityKind::Element,
+            id: element.clone(),
+        })
+    });
+    cx.run_until_parked();
+    let opened = Target::Element(element.parse().unwrap());
+    assert_eq!(
+        view.read_with(cx, |ws, _| ws.nav.page()),
+        Page::Target(opened),
+        "the element's page is in front"
+    );
+    editor.update(cx, |_, cx| {
+        cx.emit(dr_editor::PositionLinkCopied {
+            doc,
+            link: "drifting:chapters/x/prose.md#L1".into(),
+        })
+    });
+    cx.run_until_parked();
+    let shown = view.read_with(cx, |ws, _| {
+        ws.toast.as_ref().map(|t| (t.text.clone(), t.shown))
+    });
+    let (text, on) = shown.expect("a notice");
+    assert!(on && !text.is_empty());
+    draw(cx);
+    cx.executor()
+        .advance_clock(dr_shell::workspace::toast::SHOWN + Duration::from_millis(500));
+    cx.run_until_parked();
+    assert!(
+        view.read_with(cx, |ws, _| ws.toast.is_none()),
+        "and it goes"
+    );
+}
+
+/// F4c's selection across chapters in the whole book: its words count (each
+/// chapter's part), not the empty range at the caret.
+#[gpui::test]
+fn a_selection_across_chapters_counts_its_words(cx: &mut TestAppContext) {
+    let (_dir, lib) = slow_clock();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    view.update(cx, |ws, cx| ws.open(Target::Book, Open::KEEP, cx));
+    let page = open_page(&view, cx, &Target::Book);
+    let prose = cx.update(|_, cx| page.prose(cx));
+    cx.update(|window, cx| {
+        prose.update(cx, |p, cx| {
+            let end = p.book().chapters[1].doc.line_start(1);
+            p.select_across(
+                gpui_prose::layout::BookPos {
+                    chapter: 0,
+                    offset: 0,
+                },
+                gpui_prose::layout::BookPos {
+                    chapter: 1,
+                    offset: end,
+                },
+                window,
+                cx,
+            )
+        })
+    });
+    cx.run_until_parked();
+    let words = cx.update(|_, cx| dr_view_stats::LiveWords::read(cx).selection);
+    assert!(words.is_some_and(|w| w > 100), "{words:?}");
+}
+
+/// A left tab a module draws (`pages::add_left_panel`): made once per half
+/// the first time it shows, then kept; the shell's own rows are not drawn.
+#[gpui::test]
+fn a_module_draws_a_left_tab(cx: &mut TestAppContext) {
+    use dr_shell::workspace::LeftTab;
+    let (_dir, lib) = slow_clock();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    let made = std::rc::Rc::new(std::cell::Cell::new(0));
+    let count = made.clone();
+    cx.update(|_, cx| {
+        dr_shell::pages::add_left_panel(cx, move |tab, _, _, cx| {
+            (tab == LeftTab::Drifts).then(|| {
+                count.set(count.get() + 1);
+                dr_shell::pages::LeftPanel {
+                    head: cx.new(|_| Blank).into(),
+                    body: cx.new(|_| Blank).into(),
+                }
+            })
+        });
+    });
+    view.update_in(cx, |ws, window, cx| {
+        if !ws.left.open {
+            ws.toggle_left(window, cx);
+        }
+        ws.left.reveal.set(1.0);
+        ws.left.panes.click(PaneId::Primary, LeftTab::Drifts);
+    });
+    draw(cx);
+    draw(cx);
+    draw(cx);
+    assert_eq!(made.get(), 1, "made once for the half, then kept");
+    view.update(cx, |ws, cx| {
+        ws.left.panes.click(PaneId::Primary, LeftTab::Chapters);
+        cx.notify();
+    });
+    draw(cx);
+    assert_eq!(made.get(), 1, "another tab asks nobody");
 }

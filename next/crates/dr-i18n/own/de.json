@@ -25,17 +25,44 @@
         "account_libraries_left_one": "{{count}} Kontobibliothek im Ordner wartet auf Konten",
         "account_libraries_left_other": "{{count}} Kontobibliotheken im Ordner warten auf Konten",
         "carries_on": "Nicht fertig; importiere diese Bibliothek noch einmal, um weiterzumachen"
+      },
+      "notice": {
+        "unfinished": "„{{name}}“ wurde nicht fertig importiert",
+        "carry_on": "Import fortsetzen"
       }
     }
   },
   "settings": {
     "editor": {
       "justify": "Blocksatz"
+    },
+    "sync": {
+      "backup": {
+        "errors": {
+          "legacy": "Das ist eine Sicherung aus Drifting 0.1, die diese Version nicht direkt wiederherstellen kann. Stelle sie in Drifting 0.1 wieder her und importiere die Bibliothek dann im Bücherregal mit „Importieren · Drifting 0.1“."
+        }
+      }
     }
   },
   "findPanel": {
     "replacePlaceholder": "Ersetzen durch…",
     "replace": "Ersetzen",
     "replaceAll": "Alle ersetzen"
+  },
+  "positionLink": {
+    "copied": "Positionslink kopiert"
+  },
+  "projectPicker": {
+    "bookTransfer": {
+      "legacy": "Dieses Buch wurde mit Drifting 0.1 exportiert. Importiere es dort und übergib die Bibliothek dann an diese Version."
+    }
+  },
+  "importDialog": {
+    "targets": {
+      "idea": {
+        "label": "Idee",
+        "desc": "Freie Ideenkarte, unabhängig von Handlungssträngen."
+      }
+    }
   }
 }

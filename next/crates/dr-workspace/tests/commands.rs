@@ -1378,6 +1378,15 @@ fn mentions_go_out_and_come_in() {
     // The whole book's mentions of elements.
     let all = e.out("mention.list", json!({"book": b, "to_kind": "element"}));
     assert_eq!(all.as_array().unwrap().len(), 3);
+    // Ties come in a fixed order (by the mentioning document); `limit`
+    // keeps the top rows.
+    let mut tied = [node(&one), node(&two)];
+    tied.sort_by_key(|v| format!("node:{}", v["id"].as_str().unwrap()));
+    assert_eq!(field(&all, "from")[1..], tied[..]);
+    assert_eq!(
+        e.out("mention.list", json!({"book": b, "limit": 1})),
+        json!([all[0]])
+    );
     assert!(
         e.out("mention.list", json!({"book": b, "to_kind": "material"}))
             .as_array()

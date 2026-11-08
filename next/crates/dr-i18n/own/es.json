@@ -25,17 +25,44 @@
         "account_libraries_left_one": "{{count}} biblioteca de cuenta de la carpeta espera a que haya cuentas",
         "account_libraries_left_other": "{{count}} bibliotecas de cuenta de la carpeta esperan a que haya cuentas",
         "carries_on": "Sin terminar; importe de nuevo esta biblioteca para continuar"
+      },
+      "notice": {
+        "unfinished": "«{{name}}» no terminó de importarse",
+        "carry_on": "Reanudar la importación"
       }
     }
   },
   "settings": {
     "editor": {
       "justify": "Justificar"
+    },
+    "sync": {
+      "backup": {
+        "errors": {
+          "legacy": "Es una copia de seguridad de Drifting 0.1 y esta versión no puede restaurarla directamente. Restáurala en Drifting 0.1 y después importa esa biblioteca con «Importar · Drifting 0.1» en la estantería."
+        }
+      }
     }
   },
   "findPanel": {
     "replacePlaceholder": "Reemplazar con…",
     "replace": "Reemplazar",
     "replaceAll": "Reemplazar todo"
+  },
+  "positionLink": {
+    "copied": "Enlace de posición copiado"
+  },
+  "projectPicker": {
+    "bookTransfer": {
+      "legacy": "Este libro se exportó con Drifting 0.1. Impórtalo allí y luego pasa esa biblioteca a esta versión."
+    }
+  },
+  "importDialog": {
+    "targets": {
+      "idea": {
+        "label": "Idea",
+        "desc": "Tarjeta de idea flotante, independiente de las tramas."
+      }
+    }
   }
 }

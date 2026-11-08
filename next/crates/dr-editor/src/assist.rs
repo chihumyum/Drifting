@@ -301,6 +301,10 @@ pub struct Assist {
     /// A trigger the author closed with Esc: chapter and offset.
     dismissed: Option<(usize, usize)>,
     bar: Option<(usize, Range<usize>)>,
+    /// The selection the bar shows for runs across chapters: it sits over
+    /// one chapter's part, and what writes to one chapter only (引用, 添加批注)
+    /// is greyed.
+    bar_across: bool,
     bar_task: Option<Task<()>>,
     /// The assist's own edit is running (its events are not the author's).
     writing: bool,
@@ -360,6 +364,7 @@ impl Assist {
             before: None,
             dismissed: None,
             bar: None,
+            bar_across: false,
             bar_task: None,
             writing: false,
             _editor_events: events,
@@ -1255,10 +1260,27 @@ impl Assist {
             return false;
         }
         let focused = gpui::Focusable::focus_handle(e, cx).is_focused(window);
-        let doc = &e.book().chapters[sel.chapter].doc;
-        let words = !doc.slice(sel.range()).trim().is_empty();
+        let across = sel.spans_chapters();
+        let (chapter, range, words) = if across {
+            // Over the caret's chapter's part, or the anchor's when the
+            // caret's holds none of it (it sits at that chapter's start).
+            let part = |c: usize| e.selected_in(c).filter(|(r, _)| !r.is_empty());
+            let (chapter, range) = match part(sel.chapter) {
+                Some((r, _)) => (sel.chapter, r),
+                None => match part(sel.anchor_chapter) {
+                    Some((r, _)) => (sel.anchor_chapter, r),
+                    None => return false,
+                },
+            };
+            (chapter, range, !e.selected_text().trim().is_empty())
+        } else {
+            let doc = &e.book().chapters[sel.chapter].doc;
+            let words = !doc.slice(sel.range()).trim().is_empty();
+            (sel.chapter, sel.range(), words)
+        };
         if focused && words {
-            self.bar = Some((sel.chapter, sel.range()));
+            self.bar = Some((chapter, range));
+            self.bar_across = across;
             self.bar_task = None;
             cx.notify();
         }
@@ -1269,7 +1291,7 @@ impl Assist {
     pub fn bar_block(&mut self, choice: BlockChoice, window: &mut Window, cx: &mut Context<Self>) {
         match choice {
             BlockChoice::Quote => {
-                let Some((chapter, range)) = self.bar.clone() else {
+                let Some((chapter, range)) = self.bar.clone().filter(|_| !self.bar_across) else {
                     return;
                 };
                 self.write(chapter, HostStep::Own, window, cx, move |doc| {
@@ -1308,6 +1330,10 @@ impl Assist {
 
     /// The bar's 添加批注.
     pub fn bar_comment(&mut self, cx: &mut Context<Self>) {
+        // A comment is on one document: not on a selection across chapters.
+        if self.bar_across {
+            return;
+        }
         if let Some((chapter, range)) = self.bar.take() {
             cx.emit(AssistEvent::Comment { chapter, range });
         }
@@ -1399,10 +1425,12 @@ impl Assist {
             .map(|k| e.mark_active(k))
             .collect()
         });
+        let across = self.bar_across;
         let block_button = |choice: BlockChoice, this: Entity<Assist>| {
             IconButton::new(("dr-editor-bar-block", choice as usize), choice.icon())
                 .label(choice.label())
                 .in_tray()
+                .disabled(across && choice == BlockChoice::Quote)
                 .on_click(move |_, window, cx| {
                     this.update(cx, |a, cx| a.bar_block(choice, window, cx))
                 })
@@ -1443,6 +1471,7 @@ impl Assist {
             IconButton::new("dr-editor-bar-comment", Icon::CommentPlus)
                 .label("添加批注")
                 .in_tray()
+                .disabled(across)
                 .on_click(move |_, _, cx| comment.update(cx, |a, cx| a.bar_comment(cx))),
         );
         dr_ui::glass::surface(

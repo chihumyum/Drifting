@@ -20,17 +20,44 @@
         "from_caches": "有 {{count}} 篇照缓存导入，可能少了最后几秒的字",
         "account_libraries_left": "文件夹里还有 {{count}} 个账号资料库没导入，等账号功能做好",
         "carries_on": "没导入完，再导入一次这个资料库会接着导入"
+      },
+      "notice": {
+        "unfinished": "《{{name}}》没导完",
+        "carry_on": "接着导入"
       }
     }
   },
   "settings": {
     "editor": {
       "justify": "两端对齐"
+    },
+    "sync": {
+      "backup": {
+        "errors": {
+          "legacy": "这是 Drifting 0.1 的备份，这一版不能直接恢复。请先在 Drifting 0.1 里恢复它，再在书架上用「导入 · Drifting 0.1」导入那个资料库。"
+        }
+      }
     }
   },
   "findPanel": {
     "replacePlaceholder": "替换为…",
     "replace": "替换",
     "replaceAll": "全部替换"
+  },
+  "positionLink": {
+    "copied": "已复制位置链接"
+  },
+  "projectPicker": {
+    "bookTransfer": {
+      "legacy": "这本书是 Drifting 0.1 导出的。请在旧版里导入它，再把旧版资料库交接给新版。"
+    }
+  },
+  "importDialog": {
+    "targets": {
+      "idea": {
+        "label": "构想",
+        "desc": "构想卡 — 不归属任何故事线，独立悬浮。"
+      }
+    }
   }
 }

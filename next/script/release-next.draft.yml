@@ -82,7 +82,9 @@ jobs:
       # TODO: `bundle-mac --release-identity`: "Drifting.app",
       # cc.drifting.client, the `drifting` scheme. Until the hand-over the
       # script builds the development identity only.
-      - run: script/bundle-mac --dmg --archive
+      # `--dist`: line tables in a .dSYM beside the bundle, the bundled
+      # executable stripped (the build UUID ties the two together).
+      - run: script/bundle-mac --dist --dmg --archive
       - name: Sign with the hardened runtime, notarize and staple
         run: |
           echo "TODO: codesign --options runtime --timestamp --entitlements <file> -s \"$APPLE_SIGNING_IDENTITY\" the app;"
@@ -102,11 +104,12 @@ jobs:
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
         run: |
-          # The release profile needs `debug = "line-tables-only"` (or full)
-          # and `split-debuginfo = "packed"` so a .dSYM exists; the shipped
-          # executable is stripped afterwards. TODO: set both in next/Cargo.toml.
-          dsymutil target/release/drifting -o "$RUNNER_TEMP/drifting.dSYM"
-          echo "TODO: sentry-cli debug-files upload --include-sources \"$RUNNER_TEMP/drifting.dSYM\""
+          # The `dist` profile's symbols, which bundle-mac --dist put beside
+          # the bundle; Sentry matches them to crashes by the build UUID
+          # (proven locally by dr-platform's tests/crash_report.rs).
+          dsym="target/bundle/Drifting Next.app.dSYM"
+          test -d "$dsym"
+          echo "TODO: sentry-cli debug-files upload --include-sources \"$dsym\""
       - name: Write update.json
         run: |
           version=$(sed -n 's/^version = "\(.*\)"$/\1/p' app/drifting/Cargo.toml | head -n 1)
@@ -161,7 +164,7 @@ jobs:
         run: |
           # TODO: the release identity (/DPRODUCT_NAME=Drifting /DBUNDLE_ID=cc.drifting.client
           # /DURL_SCHEME=drifting) once bundle-windows.ps1 takes it at the hand-over.
-          script/bundle-windows.ps1 -Target ${{ matrix.target }}
+          script/bundle-windows.ps1 -BuildProfile dist -Target ${{ matrix.target }}
       # Unsigned during the alpha (D10); Authenticode goes here when decided.
       - name: Sign the installer with the minisign key
         shell: bash
@@ -174,7 +177,7 @@ jobs:
       - name: Upload PDBs to Sentry
         shell: bash
         run: |
-          echo "TODO: sentry-cli debug-files upload target/${{ matrix.target }}/release/drifting.pdb"
+          echo "TODO: sentry-cli debug-files upload target/${{ matrix.target }}/dist/drifting.pdb"
       - name: Install and launch on the runner
         shell: pwsh
         run: |

@@ -92,32 +92,6 @@ pub(crate) fn repair_book(slot: &BookSlot) -> Result<()> {
     })
 }
 
-/// A TODO two devices projected from the same marker before they synced
-/// reads its seed twice (see `doubled_seed`): put each such body back to its
-/// seed, as one write with origin `repair` (both devices make the same
-/// deletion, so their repairs merge). After remote book updates arrive.
-pub(crate) fn repair_projections(slot: &BookSlot) -> Result<()> {
-    let fixes: Vec<(dr_model::id::CommentId, String)> = slot
-        .reader
-        .view()
-        .comments()
-        .iter()
-        .filter_map(|c| Some((c.id.clone(), crate::commands::comment::doubled_seed(c)?)))
-        .collect();
-    if fixes.is_empty() {
-        return Ok(());
-    }
-    let book = slot.book.clone();
-    holder::write(&slot.handle, dr_store::Origin::Repair, None, move |doc| {
-        let b = BorrowedBook::new(doc, &book)?;
-        let mut txn = b.txn();
-        for (id, seed) in &fixes {
-            txn.comment(id)?.body(seed)?;
-        }
-        Ok(())
-    })
-}
-
 /// dr-doc's block-id repair of a prose document (duplicate ids a merge can
 /// make), as one write with origin `repair`; nothing is stored when there is
 /// nothing to repair.
@@ -149,6 +123,37 @@ pub(crate) struct Inner {
     auto_links: std::sync::atomic::AtomicBool,
 }
 
+/// Listen to the library's events (the caches and the bus follow them),
+/// holding the workspace weakly.
+fn subscribe(inner: &Arc<Inner>) {
+    let weak: Weak<Inner> = Arc::downgrade(inner);
+    let sub = inner.lib.subscribe(move |e| {
+        if let Some(inner) = weak.upgrade() {
+            inner.on_store_event(e);
+        }
+    });
+    *lock(&inner.subscription) = Some(sub);
+}
+
+/// Why [`Workspace::try_shutdown`] did not close the library, with the
+/// workspace handed back.
+pub struct ShutdownRefused {
+    pub error: WsError,
+    /// The workspace, open as before. `None` only when the library refused
+    /// to close and a workspace could not be opened over it again (its
+    /// journal could not be read); the library is then dropped.
+    pub workspace: Option<Workspace>,
+}
+
+impl std::fmt::Debug for ShutdownRefused {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ShutdownRefused")
+            .field("error", &self.error)
+            .field("workspace", &self.workspace.is_some())
+            .finish()
+    }
+}
+
 /// The command and query layer over one library. Cheap to clone.
 #[derive(Clone)]
 pub struct Workspace {
@@ -172,13 +177,7 @@ impl Workspace {
             subscription: Mutex::new(None),
             auto_links: std::sync::atomic::AtomicBool::new(true),
         });
-        let weak: Weak<Inner> = Arc::downgrade(&inner);
-        let sub = inner.lib.subscribe(move |e| {
-            if let Some(inner) = weak.upgrade() {
-                inner.on_store_event(e);
-            }
-        });
-        *lock(&inner.subscription) = Some(sub);
+        subscribe(&inner);
         Ok(Self { inner })
     }
 
@@ -288,8 +287,19 @@ impl Workspace {
     }
 
     /// Close every document, then the library itself (this must be the last
-    /// clone of the workspace).
+    /// clone of the workspace). The workspace is gone either way;
+    /// [`Self::try_shutdown`] hands it back on refusal.
     pub fn shutdown(self) -> Result<()> {
+        self.try_shutdown().map_err(|r| r.error)
+    }
+
+    /// [`Self::shutdown`], but a refusal hands the workspace back, as
+    /// dr-store's `Library::try_close` hands the library back: still open
+    /// over the same library (its documents closed and reopened when next
+    /// asked for, its listener subscribed again, the author's setting
+    /// kept), so a library swap that cannot close the old library can carry
+    /// on with it.
+    pub fn try_shutdown(self) -> std::result::Result<(), ShutdownRefused> {
         self.close();
         // An event being delivered on a holder or index thread holds the
         // workspace for a moment (the listener upgrades its weak reference);
@@ -304,15 +314,37 @@ impl Workspace {
                     tries += 1;
                     std::thread::sleep(std::time::Duration::from_millis(1));
                 }
-                Err(_) => {
-                    return Err(WsError::Internal(
-                        "other clones of the workspace are alive".into(),
-                    ));
+                Err(back) => {
+                    subscribe(&back);
+                    return Err(ShutdownRefused {
+                        error: WsError::Internal("other clones of the workspace are alive".into()),
+                        workspace: Some(Workspace { inner: back }),
+                    });
                 }
             }
         };
+        let (options, auto_links) = (
+            inner.options.clone(),
+            inner.auto_links.load(std::sync::atomic::Ordering::Relaxed),
+        );
         let mut lib = inner.lib.clone();
         drop(inner);
+        // The library refused: a workspace over it again.
+        let hand_back = |lib: Library, error: WsError| {
+            let workspace = match Workspace::open(lib, options.clone()) {
+                Ok(ws) => {
+                    ws.set_auto_links(auto_links);
+                    Some(ws)
+                }
+                Err(e) => {
+                    log::error!(
+                        "the workspace could not be opened again after a refused close: {e}"
+                    );
+                    None
+                }
+            };
+            ShutdownRefused { error, workspace }
+        };
         // dr-store's background index rebuild (started when the library
         // opened) briefly holds a handle on a document it finds open; a close
         // that lands then is refused with the library handed back. Try again
@@ -324,10 +356,13 @@ impl Workspace {
                     lib = refused.library;
                     std::thread::sleep(std::time::Duration::from_millis(5));
                 }
-                Err(refused) => return Err(refused.error.into()),
+                Err(refused) => return Err(hand_back(refused.library, refused.error.into())),
             }
         }
-        Ok(lib.close()?)
+        match lib.try_close() {
+            Ok(()) => Ok(()),
+            Err(refused) => Err(hand_back(refused.library, refused.error.into())),
+        }
     }
 
     /// Run a command or query by type.
@@ -511,7 +546,6 @@ impl Workspace {
                 let slot = self.book_slot_or_create(book)?;
                 slot.handle.import(bytes, origin)?;
                 repair_book(&slot)?;
-                repair_projections(&slot)?;
             }
             _ => {
                 let slot = self.prose_slot(&doc)?;
@@ -656,6 +690,16 @@ impl Workspace {
             .or_insert(slot)
             .clone();
         Ok(slot)
+    }
+
+    /// The prose documents of `book` open here.
+    pub(crate) fn open_prose(&self, book: &BookId) -> Vec<DocId> {
+        lock(&self.inner.prose)
+            .map
+            .iter()
+            .filter(|(_, (_, s))| s.book.as_ref() == Some(book))
+            .map(|(d, _)| d.clone())
+            .collect()
     }
 
     pub(crate) fn prose_slot(&self, doc: &DocId) -> Result<Arc<ProseSlot>> {

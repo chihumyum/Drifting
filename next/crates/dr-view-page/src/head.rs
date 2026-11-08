@@ -1,7 +1,7 @@
-//! A chapter page's head: the act's title page (whole book only), the folio
-//! line, the title and synopsis fields, the rule.
+//! A chapter's or an idea's page head: the act's title page (whole book
+//! only), the folio line, the title and synopsis fields, the rule.
 
-use dr_editor::page::{self, PageInfo};
+use dr_editor::page::{self, ActPage, PageInfo, PageKind};
 use dr_i18n::keys;
 use dr_shell::pages::PageHost;
 use dr_shell::strings::{t, tf};
@@ -52,10 +52,15 @@ impl PageHead {
         cx: &mut Context<Self>,
     ) -> Self {
         let id = |what: &str| ElementId::Name(format!("page-{what}-{}", page.doc).into());
+        let untitled = if page.kind == PageKind::Idea {
+            keys::chapter_editor::UNTITLED_DRIFT
+        } else {
+            keys::chapter_editor::UNTITLED_CHAPTER
+        };
         let title = cx.new(|cx| {
             TextArea::new(id("title"), window, cx)
                 .submit_on_enter()
-                .placeholder(t(cx, keys::chapter_editor::UNTITLED_CHAPTER))
+                .placeholder(t(cx, untitled))
                 .with_text(page.title.clone())
         });
         let synopsis = cx.new(|cx| {
@@ -234,6 +239,135 @@ fn grouped(n: u64) -> String {
     out
 }
 
+/// An act's ordinal as the 0.1 client writes it in 「第{n}幕」: Chinese
+/// numerals for Chinese (1–99, then digits), Roman numerals otherwise.
+pub fn act_numeral(n: usize, chinese: bool) -> String {
+    if chinese {
+        chinese_numeral(n)
+    } else {
+        roman(n)
+    }
+}
+
+fn chinese_numeral(n: usize) -> String {
+    const DIGITS: [&str; 10] = ["零", "一", "二", "三", "四", "五", "六", "七", "八", "九"];
+    match n {
+        1..=9 => DIGITS[n].to_owned(),
+        10..=99 => {
+            let (tens, ones) = (n / 10, n % 10);
+            format!(
+                "{}十{}",
+                if tens == 1 { "" } else { DIGITS[tens] },
+                if ones == 0 { "" } else { DIGITS[ones] }
+            )
+        }
+        _ => n.to_string(),
+    }
+}
+
+fn roman(n: usize) -> String {
+    if n == 0 {
+        return n.to_string();
+    }
+    const MAP: [(usize, &str); 13] = [
+        (1000, "M"),
+        (900, "CM"),
+        (500, "D"),
+        (400, "CD"),
+        (100, "C"),
+        (90, "XC"),
+        (50, "L"),
+        (40, "XL"),
+        (10, "X"),
+        (9, "IX"),
+        (5, "V"),
+        (4, "IV"),
+        (1, "I"),
+    ];
+    let mut out = String::new();
+    let mut rest = n;
+    for (v, s) in MAP {
+        while rest >= v {
+            out.push_str(s);
+            rest -= v;
+        }
+    }
+    out
+}
+
+/// Words in thousands with one decimal, rounded half up as the 0.1
+/// client's `toFixed(1)`: 「12.3」 for 12 345, 「0.0」 for none.
+pub fn thousands(words: u64) -> String {
+    let tenths = (words + 50) / 100;
+    format!("{}.{}", tenths / 10, tenths % 10)
+}
+
+/// An act's title page above the chapter that opens it: 「第一幕」, the
+/// name, one dry stroke, 「N 章 · x.xk 字」, with room above and below.
+fn act_page(doc: &str, act: &ActPage, window: &Window, cx: &gpui::App) -> Div {
+    let p = Theme::of(window, cx).palette;
+    let chinese = matches!(
+        dr_shell::strings::Strings::get(cx).locale(),
+        dr_i18n::Locale::ZhCn | dr_i18n::Locale::ZhTw
+    );
+    let ordinal = tf(
+        cx,
+        keys::all_chapters::ACT_ORDINAL,
+        &[("n", &act_numeral(act.ordinal, chinese))],
+    );
+    let chapters = tf(
+        cx,
+        keys::storyline_editor::meta::CHAPTERS,
+        &[("count", &act.chapters)],
+    );
+    let words = tf(
+        cx,
+        keys::storyline_editor::meta::K_WORDS,
+        &[("count", &thousands(act.words))],
+    );
+    div()
+        .w_full()
+        .pt(px(tk::ACT_TOP))
+        .pb(px(tk::ACT_BOTTOM))
+        .flex()
+        .flex_col()
+        .items_center()
+        .child(
+            div()
+                .font_role(Role::Structure)
+                .type_px(tk::ACT_ORDINAL_SIZE, tk::ACT_ORDINAL_SIZE)
+                .text_color(p.ink(4).solid())
+                .child(ordinal),
+        )
+        .child(
+            div()
+                .mt(px(tk::ACT_ORDINAL_GAP))
+                .font_role(Role::Prose)
+                .type_px(tk::ACT_NAME_SIZE, tk::ACT_NAME_SIZE * tk::ACT_NAME_LINE)
+                .text_color(p.ink(1).solid())
+                .child(act.name.clone()),
+        )
+        .child(
+            div().mt(px(tk::ACT_GAP)).w(px(tk::ACT_STROKE)).child(
+                Readout::new(ElementId::Name(format!("page-act-{doc}").into()), 1.0)
+                    .bare()
+                    .color(p.ink(3)),
+            ),
+        )
+        .child(
+            div()
+                .mt(px(tk::ACT_GAP))
+                .flex()
+                .flex_row()
+                .font_role(Role::Index)
+                .type_px(tk::ACT_META_SIZE, tk::ACT_META_LINE)
+                .text_color(p.ink(4).solid())
+                .child(chapters)
+                .child(div().mx(px(8.0)).text_color(p.ink(5).solid()).child("·"))
+                .child(words),
+        )
+}
+
 impl Render for PageHead {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(window, cx);
@@ -241,9 +375,10 @@ impl Render for PageHead {
         let body = editor_settings(cx).font_size;
         let page = &self.page;
         // The folio line: 「第 N 章」, the storyline's dash and name, the words.
-        let number: SharedString = match page.number {
-            Some(n) => tf(cx, keys::node_editor::folio::CHAPTER_NUMBER, &[("n", &n)]),
-            None => t(cx, keys::node_editor::folio::CHAPTER),
+        let number: SharedString = match (page.kind, page.number) {
+            (PageKind::Idea, _) => t(cx, keys::node_editor::folio::DRIFT),
+            (_, Some(n)) => tf(cx, keys::node_editor::folio::CHAPTER_NUMBER, &[("n", &n)]),
+            (_, None) => t(cx, keys::node_editor::folio::CHAPTER),
         };
         let words = tf(
             cx,
@@ -312,34 +447,11 @@ impl Render for PageHead {
                     .child(self.synopsis.clone()),
             )
             .child(div().mb(px(tk::RULE_GAP)).h(px(1.0)).bg(p.rule.solid()));
-        // The act this chapter opens (the whole book): its name over one dry
-        // stroke, with room above and below.
-        let act = page.act_opening.clone().map(|name| {
-            div()
-                .w_full()
-                .pt(px(tk::ACT_TOP))
-                .pb(px(tk::ACT_BOTTOM))
-                .flex()
-                .flex_col()
-                .items_center()
-                .child(
-                    div()
-                        .font_role(Role::Prose)
-                        .type_px(tk::ACT_NAME_SIZE, tk::ACT_NAME_SIZE * tk::ACT_NAME_LINE)
-                        .text_color(p.ink(1).solid())
-                        .child(name),
-                )
-                .child(
-                    div().mt(px(tk::ACT_GAP)).w(px(tk::ACT_STROKE)).child(
-                        Readout::new(
-                            ElementId::Name(format!("page-act-{}", page.doc).into()),
-                            1.0,
-                        )
-                        .bare()
-                        .color(p.ink(3)),
-                    ),
-                )
-        });
+        // The act this chapter opens (the whole book).
+        let act = page
+            .act_page
+            .as_ref()
+            .map(|act| act_page(&page.doc, act, window, cx));
         div()
             .w_full()
             .flex()
@@ -351,6 +463,34 @@ impl Render for PageHead {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn acts_are_numbered_as_the_old_client_did() {
+        use super::act_numeral;
+        let zh: Vec<String> = [1, 9, 10, 11, 20, 21, 99, 100]
+            .iter()
+            .map(|&n| act_numeral(n, true))
+            .collect();
+        assert_eq!(
+            zh,
+            ["一", "九", "十", "十一", "二十", "二十一", "九十九", "100"]
+        );
+        let en: Vec<String> = [1, 4, 9, 14, 40, 1999]
+            .iter()
+            .map(|&n| act_numeral(n, false))
+            .collect();
+        assert_eq!(en, ["I", "IV", "IX", "XIV", "XL", "MCMXCIX"]);
+    }
+
+    #[test]
+    fn act_words_are_in_thousands_with_one_decimal() {
+        use super::thousands;
+        assert_eq!(thousands(0), "0.0");
+        assert_eq!(thousands(49), "0.0");
+        assert_eq!(thousands(50), "0.1");
+        assert_eq!(thousands(1250), "1.3");
+        assert_eq!(thousands(12_345), "12.3");
+    }
+
     #[test]
     fn counts_are_grouped_by_thousands() {
         assert_eq!(super::grouped(0), "0");

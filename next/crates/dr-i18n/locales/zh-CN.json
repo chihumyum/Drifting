@@ -12,6 +12,35 @@
     "storyGraph": "故事图谱",
     "todoLibrary": "审阅与素材"
   },
+  "bottomTimeline": {
+    "act": {
+      "chapterCount": "{{count}}章",
+      "railLabel": "幕"
+    },
+    "axis": {
+      "time": "时间"
+    },
+    "empty": {
+      "noChaptersInStoryline": "这条故事线还没有章节 · 双击新建"
+    },
+    "locateCurrent": "定位到当前章节",
+    "storyline": {
+      "chapterCount": "{{count}} 章"
+    },
+    "synthetic": {
+      "book": "本书",
+      "unaffiliated": "未归属"
+    },
+    "unplaced": {
+      "empty": "所有章节都在叙事时间轴上",
+      "label": "未放置",
+      "title": "未放置到叙事时间轴上的章节"
+    },
+    "view": {
+      "book": "书序",
+      "narrative": "叙事时"
+    }
+  },
   "categoryEditor": {
     "actions": {
       "openElement": "打开要素"
@@ -45,7 +74,8 @@
   },
   "chapterEditor": {
     "synopsisPlaceholder": "梗概…",
-    "untitledChapter": "无标题章节"
+    "untitledChapter": "无标题章节",
+    "untitledDrift": "无标题构想"
   },
   "chapterEnd": {
     "defaultTitle": "新章节",
@@ -64,6 +94,9 @@
     },
     "card": {
       "emptyComment": "空批注"
+    },
+    "snapshot": {
+      "changed": "已删除/改动"
     }
   },
   "common": {
@@ -250,6 +283,10 @@
         "title": "有几篇正文可能少了最后几秒打的字",
         "unproven": "有 {{count}} 篇正文无法确认是最新的，列在下面"
       },
+      "notice": {
+        "carry_on": "接着导入",
+        "unfinished": "《{{name}}》没导完"
+      },
       "summary": {
         "account_libraries_left": "文件夹里还有 {{count}} 个账号资料库没导入，等账号功能做好",
         "already_imported": "这台设备以前导入过，这次没再导入",
@@ -260,13 +297,41 @@
     }
   },
   "importDialog": {
+    "categoryTitle": "归属类别",
+    "chooseFiles": "选择文件",
     "chooseFolder": "选择文件夹",
+    "clear": "清空",
+    "filesTitle": "文件 · FILES",
+    "importing": "导入中…",
+    "start": "开始导入 ({{count}})",
     "status": {
-      "committed": "已导入"
+      "committed": "已导入",
+      "error": "错误",
+      "parsing": "解析中",
+      "ready": "就绪"
     },
+    "storylineTitle": "归属故事线",
     "summary": {
-      "done": "完成"
-    }
+      "done": "完成",
+      "failed": "失败",
+      "ok": "成功"
+    },
+    "targetTitle": "类型 · TARGET",
+    "targets": {
+      "chapter": {
+        "desc": "主线节点 — 进时间线、参与字数统计。",
+        "label": "章节"
+      },
+      "element": {
+        "desc": "人物 / 地点 / 物件等参考资料。需选择类别。",
+        "label": "要素"
+      },
+      "idea": {
+        "desc": "构想卡 — 不归属任何故事线，独立悬浮。",
+        "label": "构想"
+      }
+    },
+    "title": "导入文件"
   },
   "kvEditor": {
     "addField": "新增字段",
@@ -404,7 +469,8 @@
     },
     "folio": {
       "chapter": "章节",
-      "chapterNumber": "第 {{n}} 章"
+      "chapterNumber": "第 {{n}} 章",
+      "drift": "构想"
     },
     "meta": {
       "words": "{{count}} 字"
@@ -441,6 +507,33 @@
       "minutesAgo": "{{count}} 分钟前"
     },
     "title": "通知"
+  },
+  "plotGrid": {
+    "addColumnShort": "列",
+    "addRowShort": "行",
+    "clear": "清空",
+    "clearConfirm": "清空当前情节规划器的所有行列标题和单元格文字？表格结构、尺寸和正文将保留。此操作无法撤销。",
+    "clearTitle": "清空情节规划器内容",
+    "columnPlaceholder": "列",
+    "deleteClears": "会清空 {{count}} 格",
+    "deleteColumn": "删除此列",
+    "deleteRow": "删除此行",
+    "emptyCell": "写点什么…",
+    "fit": "适应",
+    "insertColumnLeft": "在左侧插入一列",
+    "insertColumnRight": "在右侧插入一列",
+    "insertRowAbove": "在上方插入一行",
+    "insertRowBelow": "在下方插入一行",
+    "moveDown": "下移",
+    "moveLeft": "左移",
+    "moveRight": "右移",
+    "moveUp": "上移",
+    "rename": "重命名",
+    "rowPlaceholder": "行",
+    "title": "情节"
+  },
+  "positionLink": {
+    "copied": "已复制位置链接"
   },
   "projectHome": {
     "book": {
@@ -480,14 +573,42 @@
   },
   "projectPicker": {
     "bookTransfer": {
-      "importFailedTitle": "无法导入"
+      "exportFailed": "这本书没能导出，请稍后再试。",
+      "exportFailedTitle": "无法导出",
+      "importFailed": "这本书没能导入，请稍后再试。",
+      "importFailedTitle": "无法导入",
+      "invalid": "这个文件已损坏，无法导入。",
+      "legacy": "这本书是 Drifting 0.1 导出的。请在旧版里导入它，再把旧版资料库交接给新版。",
+      "newer": "这本书由更新版本的 Drifting 导出，请先更新 Drifting。",
+      "notABook": "这不是 Drifting 导出的书。",
+      "tooLarge": "这本书太大，无法导入。"
     },
     "delete": {
       "deleting": "删除中…"
     },
     "desk": {
       "chaptersUnit": "章",
+      "coverStyle": {
+        "names": {
+          "bauhaus": "包豪斯",
+          "chars": "字海",
+          "cutout": "剪纸",
+          "cyanotype": "蓝晒",
+          "field": "色域",
+          "quipu": "结绳",
+          "ridge": "山脊",
+          "rings": "年轮",
+          "riso": "孔版",
+          "sand": "砂笔",
+          "stars": "星图",
+          "strata": "地层",
+          "topo": "等高线",
+          "weave": "织物"
+        },
+        "turn": "换封面画风 · 现在是{{name}}"
+      },
       "elementsUnit": "个要素",
+      "exportBook": "导出这本书（.driftingbook）",
       "form": {
         "createTitle": "新建一本书",
         "editTitle": "编辑《{{name}}》",
@@ -523,7 +644,15 @@
     },
     "heat": {
       "daysUnit": "天",
-      "today": "今天"
+      "daysWritten": "在写",
+      "fri": "五",
+      "label": "写作热力图",
+      "mon": "一",
+      "streak": "连续",
+      "summary": "过去一年写了 {{words}} 字，在写 {{days}} 天",
+      "today": "今天",
+      "wed": "三",
+      "year": "过去一年"
     },
     "projectCount": "{{filtered}} / {{total}} 本",
     "rail": {
@@ -860,12 +989,27 @@
     "search_placeholder": "搜索设定…",
     "sync": {
       "backup": {
+        "errors": {
+          "invalid": "这个文件不是有效的 Drifting 备份，或已经损坏。当前资料库没有改动。",
+          "legacy": "这是 Drifting 0.1 的备份，这一版不能直接恢复。请先在 Drifting 0.1 里恢复它，再在书架上用「导入 · Drifting 0.1」导入那个资料库。",
+          "newer": "这个备份来自更新版本的 Drifting。请先更新应用再恢复。",
+          "unknown": "操作没有完成，当前资料库没有改动：{{detail}}"
+        },
         "exportButton": "导出备份…",
         "exportDesc": "把所有项目的数据库，连同图片、PDF 原文件，打包成一个 .drifting 文件。可用来恢复，也可以带到另一台电脑。",
         "exportTitle": "资料库备份",
+        "exported": "已保存「{{file}}」。",
+        "exporting": "正在备份…",
+        "inspecting": "正在校验…",
+        "missingAssets": "有 {{count}} 个素材在本机缺失，未能备份。",
+        "noProjects": "（没有项目）",
         "restoreButton": "选择备份…",
+        "restoreConfirm": "将用「{{file}}」替换当前资料库。\n\n备份时间：{{date}}\n内容：{{summary}}\n项目：{{projects}}\n\n当前资料库会先自动存成恢复前副本，可在「打开恢复前副本」中找到。恢复完成后应用会重新载入。",
+        "restoreConfirmButton": "替换并恢复",
         "restoreDesc": "用 .drifting 备份替换当前资料库。恢复前，当前资料库会自动存成一份恢复前副本。",
-        "restoreTitle": "从备份恢复"
+        "restoreTitle": "从备份恢复",
+        "restoring": "正在恢复…",
+        "summary": "共 {{projects}} 个项目、{{assets}} 个素材文件，{{size}}。"
       },
       "local_data": "本地数据",
       "local_sub": "无需 Drifting 账号，也不连接托管云服务；你可以随时导出一份可阅读的副本。",

@@ -171,6 +171,38 @@ pub fn menu(
         window.dispatch_action(Box::new(crate::actions::SendFeedback), cx);
     })
     .child(row(Icon::Comment, t(cx, keys::user_menu::FEEDBACK), None));
+    // Inside a book: 「导入」 Markdown, text and Word files into it (M41; the
+    // 0.1 user menu's row).
+    let import = (id == "workspace-account").then(|| {
+        let to_import = close.clone();
+        glass::glass_box(
+            child("import"),
+            GlassKind::Hidden,
+            Mode::default(),
+            false,
+            Spec::new(Tone::Clear, radius::MENU_ROW),
+            window,
+            cx,
+        )
+        .cursor_pointer()
+        .on_click(move |_, window, cx| {
+            to_import(window, cx);
+            window.dispatch_action(Box::new(crate::actions::ImportDocuments), cx);
+        })
+        .child(row(
+            Icon::CaseDew,
+            t(cx, keys::user_menu::IMPORT),
+            Some(
+                div()
+                    .flex_none()
+                    .font_role(Role::Index)
+                    .type_px(s.caption, s.line_caption)
+                    .text_color(p.muted().solid())
+                    .child("MD · DOCX · TXT")
+                    .into_any_element(),
+            ),
+        ))
+    });
     let to_settings = close.clone();
     let settings = glass::glass_box(
         child("settings"),
@@ -210,6 +242,7 @@ pub fn menu(
                     .into_any_element(),
             ),
         ))
+        .children(import)
         .child(feedback)
         .child(settings);
     let place = match anchor {

@@ -87,6 +87,10 @@ pub enum Place {
         align: Align,
         gap: f32,
     },
+    /// Beside `rect`, its top level with `rect`'s, `gap` px away: on the
+    /// right, or on the left when it does not fit on the right and the left
+    /// has more room (the 0.1 client's `right-start`).
+    Beside { rect: Bounds<Pixels>, gap: f32 },
     /// Its top-left at a point; flips left or up at the window's edges.
     Point(Point<Pixels>),
     /// Centred in the window.
@@ -149,6 +153,17 @@ pub fn place(place: Place, content: Size<Pixels>, window: Size<Pixels>) -> Point
                 below
             };
             (clamp(x, w, ww), clamp(y, h, wh))
+        }
+        Place::Beside { rect, gap } => {
+            let (left, right) = (f32::from(rect.left()), f32::from(rect.right()));
+            let room_right = ww - MARGIN - right - gap;
+            let room_left = left - MARGIN - gap;
+            let x = if w > room_right && room_left > room_right {
+                left - gap - w
+            } else {
+                right + gap
+            };
+            (clamp(x, w, ww), clamp(f32::from(rect.top()), h, wh))
         }
     };
     point(px(x.round()), px(y.round()))
@@ -527,6 +542,40 @@ mod tests {
             WINDOW,
         );
         assert_eq!(at, point(px(20.0), px(30.0)));
+    }
+
+    #[test]
+    fn beside_goes_right_or_flips_left_top_aligned() {
+        // Room on the right: right of it, tops level.
+        let at = place(
+            Place::Beside {
+                rect: rect(100.0, 120.0, 200.0, 60.0),
+                gap: 8.0,
+            },
+            size(px(248.0), px(200.0)),
+            WINDOW,
+        );
+        assert_eq!(at, point(px(308.0), px(120.0)));
+        // A card in the right column: no room right, more on the left.
+        let at = place(
+            Place::Beside {
+                rect: rect(700.0, 120.0, 280.0, 60.0),
+                gap: 8.0,
+            },
+            size(px(248.0), px(200.0)),
+            WINDOW,
+        );
+        assert_eq!(at, point(px(700.0 - 8.0 - 248.0), px(120.0)));
+        // Low in the window: lifted to stay inside.
+        let at = place(
+            Place::Beside {
+                rect: rect(100.0, 650.0, 200.0, 40.0),
+                gap: 8.0,
+            },
+            size(px(248.0), px(200.0)),
+            WINDOW,
+        );
+        assert_eq!(at.y, px(700.0 - 8.0 - 200.0));
     }
 
     #[test]

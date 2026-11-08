@@ -12,6 +12,35 @@
     "storyGraph": "Grafo da história",
     "todoLibrary": "Tarefas e biblioteca de materiais"
   },
+  "bottomTimeline": {
+    "act": {
+      "chapterCount": "{{count}} capítulos",
+      "railLabel": "Ato"
+    },
+    "axis": {
+      "time": "Tempo"
+    },
+    "empty": {
+      "noChaptersInStoryline": "Sem capítulos nesta linha · clique duplo para criar"
+    },
+    "locateCurrent": "Localizar capítulo atual",
+    "storyline": {
+      "chapterCount": "{{count}} cap."
+    },
+    "synthetic": {
+      "book": "Livro",
+      "unaffiliated": "Sem vínculo"
+    },
+    "unplaced": {
+      "empty": "Todos os capítulos estão na linha do tempo narrativa",
+      "label": "Não posicionados",
+      "title": "Capítulos não posicionados na linha do tempo narrativa"
+    },
+    "view": {
+      "book": "Livro",
+      "narrative": "Tempo narrativo"
+    }
+  },
   "categoryEditor": {
     "actions": {
       "openElement": "Abrir elemento"
@@ -45,7 +74,8 @@
   },
   "chapterEditor": {
     "synopsisPlaceholder": "Sinopse…",
-    "untitledChapter": "Capítulo sem título"
+    "untitledChapter": "Capítulo sem título",
+    "untitledDrift": "Ideia sem título"
   },
   "chapterEnd": {
     "defaultTitle": "Novo capítulo",
@@ -64,6 +94,9 @@
     },
     "card": {
       "emptyComment": "Comentário vazio"
+    },
+    "snapshot": {
+      "changed": "Excluído/alterado"
     }
   },
   "common": {
@@ -253,6 +286,10 @@
         "unproven_one": "Não dá para confirmar que {{count}} texto é o mais recente; ele está abaixo",
         "unproven_other": "Não dá para confirmar que {{count}} textos são os mais recentes; eles estão abaixo"
       },
+      "notice": {
+        "carry_on": "Retomar importação",
+        "unfinished": "“{{name}}” não terminou de ser importado"
+      },
       "summary": {
         "account_libraries_left_one": "{{count}} biblioteca de conta na pasta espera pelas contas",
         "account_libraries_left_other": "{{count}} bibliotecas de conta na pasta esperam pelas contas",
@@ -265,13 +302,41 @@
     }
   },
   "importDialog": {
+    "categoryTitle": "Categoria",
+    "chooseFiles": "Escolher arquivos",
     "chooseFolder": "Escolher pasta",
+    "clear": "Limpar",
+    "filesTitle": "Arquivos",
+    "importing": "Importando…",
+    "start": "Iniciar importação ({{count}})",
     "status": {
-      "committed": "importado"
+      "committed": "importado",
+      "error": "erro",
+      "parsing": "analisando",
+      "ready": "pronto"
     },
+    "storylineTitle": "Linha narrativa",
     "summary": {
-      "done": "Concluir"
-    }
+      "done": "Concluir",
+      "failed": "falha",
+      "ok": "importado"
+    },
+    "targetTitle": "Destino",
+    "targets": {
+      "chapter": {
+        "desc": "Nó do texto principal: aparece na linha do tempo e conta nas estatísticas.",
+        "label": "Capítulo"
+      },
+      "element": {
+        "desc": "Referências como personagens, lugares ou objetos. Exige categoria.",
+        "label": "Elemento"
+      },
+      "idea": {
+        "desc": "Cartão de ideia flutuante, independente das linhas narrativas.",
+        "label": "Ideia"
+      }
+    },
+    "title": "Importar arquivos"
   },
   "kvEditor": {
     "addField": "Adicionar campo",
@@ -410,7 +475,8 @@
     },
     "folio": {
       "chapter": "Capítulo",
-      "chapterNumber": "Capítulo {{n}}"
+      "chapterNumber": "Capítulo {{n}}",
+      "drift": "Ideia"
     },
     "meta": {
       "words": "{{count}} palavras"
@@ -448,6 +514,33 @@
       "minutesAgo": "há {{count}} min"
     },
     "title": "Notificações"
+  },
+  "plotGrid": {
+    "addColumnShort": "Coluna",
+    "addRowShort": "Linha",
+    "clear": "Limpar",
+    "clearConfirm": "Limpar todos os nomes de linhas e colunas e textos das células? Estrutura, dimensões e manuscrito serão preservados. Não é possível desfazer.",
+    "clearTitle": "Limpar conteúdo do planejamento narrativo",
+    "columnPlaceholder": "Coluna",
+    "deleteClears": "Limpa {{count}} células",
+    "deleteColumn": "Excluir esta coluna",
+    "deleteRow": "Excluir esta linha",
+    "emptyCell": "Escreva algo…",
+    "fit": "Ajustar",
+    "insertColumnLeft": "Inserir coluna à esquerda",
+    "insertColumnRight": "Inserir coluna à direita",
+    "insertRowAbove": "Inserir linha acima",
+    "insertRowBelow": "Inserir linha abaixo",
+    "moveDown": "Mover para baixo",
+    "moveLeft": "Mover à esquerda",
+    "moveRight": "Mover à direita",
+    "moveUp": "Mover para cima",
+    "rename": "Renomear",
+    "rowPlaceholder": "Linha",
+    "title": "Enredo"
+  },
+  "positionLink": {
+    "copied": "Link de posição copiado"
   },
   "projectHome": {
     "book": {
@@ -487,7 +580,15 @@
   },
   "projectPicker": {
     "bookTransfer": {
-      "importFailedTitle": "Não foi possível importar"
+      "exportFailed": "Não foi possível exportar o livro. Tente novamente.",
+      "exportFailedTitle": "Não foi possível exportar",
+      "importFailed": "Não foi possível importar o livro. Tente novamente.",
+      "importFailedTitle": "Não foi possível importar",
+      "invalid": "Este arquivo está danificado e não pode ser importado.",
+      "legacy": "Este livro foi exportado pelo Drifting 0.1. Importe-o lá e depois transfira essa biblioteca para esta versão.",
+      "newer": "Este livro foi exportado por uma versão mais recente do Drifting. Atualize primeiro.",
+      "notABook": "Este livro não foi exportado do Drifting.",
+      "tooLarge": "Este livro é grande demais para importar."
     },
     "delete": {
       "deleting": "Excluindo…"
@@ -496,9 +597,29 @@
       "chaptersUnit_many": "capítulos",
       "chaptersUnit_one": "capítulo",
       "chaptersUnit_other": "capítulos",
+      "coverStyle": {
+        "names": {
+          "bauhaus": "Bauhaus",
+          "chars": "Mar de letras",
+          "cutout": "Papel recortado",
+          "cyanotype": "Cianotipia",
+          "field": "Campos de cor",
+          "quipu": "Cordões com nós",
+          "ridge": "Cristas",
+          "rings": "Anéis de árvore",
+          "riso": "Risografia",
+          "sand": "Areia",
+          "stars": "Mapa estelar",
+          "strata": "Estratos",
+          "topo": "Curvas de nível",
+          "weave": "Trama tecida"
+        },
+        "turn": "Mudar capa · atual {{name}}"
+      },
       "elementsUnit_many": "elementos",
       "elementsUnit_one": "elemento",
       "elementsUnit_other": "elementos",
+      "exportBook": "Exportar este livro (.driftingbook)",
       "form": {
         "createTitle": "Novo livro",
         "editTitle": "Editar “{{name}}”",
@@ -536,7 +657,15 @@
     },
     "heat": {
       "daysUnit": "dias",
-      "today": "Hoje"
+      "daysWritten": "Dias",
+      "fri": "sex.",
+      "label": "Mapa de atividade de escrita",
+      "mon": "seg.",
+      "streak": "Sequência",
+      "summary": "{{words}} palavras no último ano, escritas em {{days}} dias",
+      "today": "Hoje",
+      "wed": "qua.",
+      "year": "Último ano"
     },
     "projectCount": "{{filtered}} / {{total}} livros",
     "rail": {
@@ -878,12 +1007,27 @@
     "search_placeholder": "Buscar configurações…",
     "sync": {
       "backup": {
+        "errors": {
+          "invalid": "Este arquivo não é um backup válido do Drifting ou está danificado. A biblioteca atual não foi alterada.",
+          "legacy": "Este é um backup do Drifting 0.1, que esta versão não consegue restaurar diretamente. Restaure-o no Drifting 0.1 e depois importe essa biblioteca com “Importar · Drifting 0.1” na estante.",
+          "newer": "Este backup foi criado numa versão mais recente do Drifting. Atualize o aplicativo antes de restaurá-lo.",
+          "unknown": "A operação não foi concluída e a biblioteca atual não foi alterada: {{detail}}"
+        },
         "exportButton": "Exportar backup…",
         "exportDesc": "Reúne os bancos de todos os projetos, imagens e PDFs originais num arquivo .drifting, para restaurar ou mudar de computador.",
         "exportTitle": "Backup da biblioteca",
+        "exported": "“{{file}}” foi salvo.",
+        "exporting": "Fazendo backup…",
+        "inspecting": "Verificando…",
+        "missingAssets": "Faltam {{count}} recursos neste dispositivo; eles não foram incluídos no backup.",
+        "noProjects": "(sem projetos)",
         "restoreButton": "Escolher backup…",
+        "restoreConfirm": "Substituir a biblioteca atual por “{{file}}”.\n\nCriado em: {{date}}\nConteúdo: {{summary}}\nProjetos: {{projects}}\n\nUma cópia prévia da biblioteca atual será salva e poderá ser aberta em “Abrir cópias anteriores à restauração”. O Drifting será recarregado ao terminar.",
+        "restoreConfirmButton": "Substituir e restaurar",
         "restoreDesc": "Substitui a biblioteca atual por um backup .drifting. Antes, uma cópia da biblioteca atual é salva.",
-        "restoreTitle": "Restaurar de um backup"
+        "restoreTitle": "Restaurar de um backup",
+        "restoring": "Restaurando…",
+        "summary": "{{projects}} projetos, {{assets}} arquivos de recursos, {{size}}."
       },
       "local_data": "Dados locais",
       "local_sub": "Sem conta Drifting ou nuvem hospedada. Exporte uma cópia legível quando quiser.",

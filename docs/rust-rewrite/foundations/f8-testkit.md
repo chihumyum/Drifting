@@ -25,8 +25,9 @@
 | 门禁 | `next/xtask/` | 1、3 | 10 道（第三个里程碑加了「调试桥不进正式包」）和 `check-binary`，接进了 `next.yml` |
 | 开发实例隔离 | `cargo xtask dev` | 1、3 | 做完；`--debug-bridge` 带上调试桥 |
 | 开发命令行 | `next/crates/dr-cli/` | 1、2、3 | 接上 F3 的注册表：`describe`、`call`、脚本化 `scenario`、`inspect`；`app` 子命令，场景能启动和驱动应用 |
-| 调试桥 | `next/crates/dr-debug-bridge/`、`dr-debug-protocol/` | 3 | 做完：打开书和页、打字、按键、动作、F3 命令、读外壳状态和页面文字、等待、截图。按名字找元素和组字没做 |
+| 调试桥 | `next/crates/dr-debug-bridge/`、`dr-debug-protocol/` | 3、4 | 做完：打开书和页、打字、按键、动作、F3 命令、读外壳状态和页面文字、等待、截图；第四个里程碑加了按无障碍名字找元素和按它、悬停、拖选、滚动、点进输入框、读章首和要素页头、读设置。组字没做 |
 | 阶段 2「写作闭环」验收场景 | `next/crates/dr-cli/scenarios/writing-loop.json` | 3 | 在真实窗口上 46 步全过：从书架打开书、在编辑器里打字、回车、⌘Z、换章、关掉重开 |
+| 各模块的验收场景：M03、M09、M10、M11、M18、设置、M39 | `next/crates/dr-cli/scenarios/*.json` | 4 | 七个场景在真实窗口上全过（M18 有一步按待协调跳过）；跑的过程中找到的问题记在「待协调」 |
 | 收编编辑器的基准语料 | — | 4 | 等 F4 把基准搬进 `dr-editor` |
 
 ## 种子
@@ -403,18 +404,24 @@ cargo drifting app quit
 | `command.call` | `{name, input, actor?}`：在窗口打开的那个库上调 F3 的命令或查询，默认来源 `user`，也可以 `agent:<会话>/<轮>`；回答 F3 的结果（输出、影响、撤销方式、日志行），错误码沿用 F3 的 |
 | `action.list` / `action.dispatch` | 列出所有动作名；按名字触发一个动作，和按它的快捷键一样（发给有焦点的元素） |
 | `input.type` | 逐字打字，走 GPUI 的输入路径到有焦点的输入框；换行是回车；没人接就报 `no_input` |
-| `input.key` | 按键，空格隔开可以连按：`secondary-z`、`enter escape` |
+| `input.key` | 按键，空格隔开可以连按：`secondary-z`、`enter escape`；`times` 把整串按几遍 |
 | `input.click` | 在窗口坐标（逻辑像素）上点一下，可以连点 |
+| `input.move` / `input.drag` / `input.scroll` | 指针移过去（悬停）；按住左键从一点拖到另一点再松开（用鼠标选字）；在某处滚动若干像素 |
+| `ui.find` | 窗口无障碍树里的节点：角色、名字、值、位置、中心点。按 `label`（名字全等）、`contains`（名字、值、说明里含）、`role`（去掉 AX 前缀：Button、RadioButton、Slider、PopUpButton、MenuItem、TextArea…）挑；等到有一个（`count` 等到正好几个，`absent` 等到一个都没有）。只在 macOS |
+| `ui.press` | 按第几个（`nth`）符合的节点：默认指针移到它中心（`dx`、`dy` 可以挪开一点），停 120 ms 再点，和手一样，只在悬停时才出现的按钮（别名的 ×）也点得到；在窗口外就报错，叫先滚进来。`via: "a11y"` 改让 AccessKit 按，`increment` / `decrement` 拨滑杆 |
+| `ui.hover` | 指针停到符合的节点上 |
+| `ui.focus` | 把键盘交给一个还不在无障碍树里的输入框，和点进去一样：`page.title`、`page.synopsis`（稿纸上那一章的章首）、`element.name`、`element.alias`、`element.summary`、`element.field.key`、`element.field.value`（`row` 第几行，默认最后一行）、`category.name`、`settings.search`；`select_all` 连字一起选中（像三连击） |
+| `settings.get` | `{keys?}`：外壳读到的设置值（默认全部）和界面语言 |
 | `book.open` / `shelf.show` | `{name}`（书名或 id）：打开一本书，和在书架上点书卡一样，它存过的标签和侧栏回来；回到书架（⇧⌘W） |
 | `nav.open` | `{target}`（页面键）、`{chapter}`（章名或 id）或 `{link}`（位置链接）：开成留下的标签（`preview: true` 是预览） |
-| `state.get` | 外壳的状态：书、书架是否盖着、当前页、标签、侧栏、浮层、焦点（`focus.editor`：当前页的编辑器有没有拿到键盘）、当前页的选区、打开着的编辑器和只读页 |
-| `page.text` | 一页的段落（默认稿纸上那一页）：章节等正文页读编辑器里的文字（每个键都已经在里面）和选区，通览全书读外壳的只读行；带标题级别 |
-| `ui.wait` | 等到书目到了、当前标签里每一页的编辑器都打开了（打不开就报错）、书架盖着时不等书；还可以要求页上出现某段文字、`state.get` 的某些字段等于某些值；超时报 `timeout` 并说明还在等什么 |
+| `state.get` | 外壳的状态：书、书架是否盖着、当前页、标签、侧栏、浮层、焦点（`focus.editor`：当前页的编辑器有没有拿到键盘）、当前页的选区和选区浮条（`selectionBar`）、盖在稿纸上的东西（`dialog`、`history`、`composer`、`cornerMenu`）、打开着的编辑器 |
+| `page.text` | 一页的段落（默认稿纸上那一页）：编辑器里的文字（每个键都已经在里面）和选区，通览全书每章前面加章名；带标题级别。`head` 是正文外面那一圈：章节页的标题、梗概、状态、第几章、⁂ 展开没有；要素页的名字、别名输入框、简介、字段行、提示；类目页的名字；以及哪个框有键盘 |
+| `ui.wait` | 等到书目到了、当前标签里每一页的编辑器都打开了（打不开就报错）、书架盖着时不等书；还可以要求页上出现某段文字、`state.get`（`state`）或 `page.text`（`page`）的某些字段等于某些值；超时报 `timeout` 并说明还在等什么。`{until: "time", ms}` 只是等一会儿 |
 | `ui.screenshot` | 窗口的 PNG（base64），默认先等 500 ms 让动画走完 |
 
 ### 怎么做的
 
-- **读编辑器**：F6 第三个里程碑以后，章节、构想、要素等正文页是 `dr-editor` 的编辑器，放在 `Workspace::editors` 里，用 `editor_of(&Target)` 拿到；通览全书仍是只读行（`Workspace::pages`）。调试桥两边都读。换页时外壳自己把键盘交给当前页的编辑器（`focus_page`），所以 `nav.open` 之后直接 `input.type` 就进编辑器。
+- **读编辑器**：章节、构想、要素等正文页和通览全书都是 `dr-editor` 的编辑器，放在 `Workspace::editors` 里（`PageView::Doc` 或 `Book`），用 `page_view(&Target)` 拿到。换页时外壳自己把键盘交给当前页的编辑器（`focus_page`），所以 `nav.open` 之后直接 `input.type` 就进编辑器。正文外面那一圈（章首章末、要素页头）是 `pages::add_page_chrome` 挂进来的视图，调试桥从 `dr-view-page`、`dr-view-elements` 留的入口去读。
 - **两个 crate**：
   - `dr-debug-protocol`（平台层，不依赖 GPUI）：线上格式、连接文件在哪、令牌握手、阻塞的客户端、不带 GPUI 的监听线程，以及 profile 的规则。`dr-cli` 和 xtask 用它；
   - `dr-debug-bridge`（界面层）：把请求交到 GPUI 的主线程，实现上面的方法。读外壳只走 dr-shell 的公开接口。
@@ -426,11 +433,12 @@ cargo drifting app quit
 - **每个请求一个主线程任务**：一个长的 `ui.wait` 不挡别的请求。打字、按键、点击走 `Window::dispatch_keystroke` 和 `dispatch_event`，而且是在任何实体的更新之外调用的，所以外壳自己的动作处理器、输入框的输入处理器，收到的和真实按键一样。测试里就看得出来：设置的搜索框里有字时，第一次 Esc 先清空，第二次才关掉设置，和外壳的规则一致。
 - **截图在应用里画**：GPUI 的 `Window::render_to_image` 把最后一帧画进一张纹理，不用屏幕录制权限，窗口被挡着也能拍。这个调用在 GPUI 的 test-support 后面，所以 `dr-debug-bridge/screenshot` 特性只在带调试桥的构建里打开。截图前默认等 500 ms（dr-ui 最长的结构动画是 420 ms）：第一次在真窗口上拍的时候，拍到了翻页叠化到一半、两章的字叠在一起。
 - **被遮住的窗口**：GPUI 在 macOS 上，窗口完全被遮住时会停掉显示链接、不再画帧；而外壳是在渲染时才开始读一页的正文，于是这一页会一直停在「读取中」。`ui.wait` 和截图发现窗口不可见时，自己调一次 `Window::draw`（只画、不上屏）把这一步推过去，再把窗口标脏，等它露出来时正常重画。
-- **没做的两样**：
-  - **按名字找元素**（设计里的 `ui.query`、`ui.click`）：GPUI 的 `debug_selector` 只在 test-support 下记录元素位置，读位置的接口又只在测试上下文里有。要做，得 dr-ui 和外壳给元素起名字，再由 GPUI 补丁或外壳自己记录位置。第一版先用 `input.click` 按坐标点，配合截图找位置；
-  - **组字**（`input.ime`）：真实窗口的输入处理器握在平台窗口手里，GPUI 只对测试窗口开放 `replace_and_mark_text_in_range`，要 gpui-ime 给调试构建开一个口子。
-
-  两样都写进了「待协调」。
+- **按名字找元素：借无障碍树**（第四个里程碑）。设计里的 `ui.query` 原想靠调试名，可 GPUI 只在测试上下文里读得到 `debug_selector` 记下的位置。GPUI 自己有一棵 AccessKit 无障碍树：凡是带角色和 id 的元素都在里面，dr-ui 的按钮、单元格、标签、单选、滑杆、⁂ 和它的动作、选区浮条的按钮都有角色和名字。只是这棵树要等辅助技术（比如 VoiceOver）连上才建。调试桥在应用里面自己连：向窗口的内容视图要一次 `accessibilityChildren`，和 VoiceOver 一样，AccessKit 就向 GPUI 要树，从下一帧起每帧都建。然后：
+  - 一个个节点读角色、名字（AccessKit 放在 `accessibilityTitle`）、值、`accessibilityFrame`，把屏幕坐标换回窗口的逻辑像素；
+  - `ui.press` 默认用指针点中心，走的是真实的悬停、命中、点击，和手一样；`via: "a11y"` 才让 AccessKit 去按（GPUI 收到后也是在元素自己的位置上点一下）；
+  - 读的都是应用自己的对象，在它的主线程上，不需要系统的辅助功能权限。只做了 macOS；Windows 要读 UI Automation，等需要时再做；
+  - **还不在树里的**：dr-ui 的输入框（`TextField`、`TextArea`）、开关（`Switch`）、对话框右上角的 ×、几处列表行（历史点、导入时找到的库、审阅卡）。输入框由 `ui.focus` 按页面去拿（`dr_view_page::page_views`、`dr_view_elements::element_page` 本来就为测试和调试桥留着），其余按旁边按钮的位置挪 `dx`、`dy` 点，或点雾面关掉。这一轮给 dr-ui 的菜单行（`MenuItem` 角色、名字是行上的字）和下拉框（`ComboBox` 角色、名字是当前选项；macOS 上叫 PopUpButton）补了角色，⋯ 菜单和设置里的语言下拉才点得到。
+- **还没做的**：**组字**（`input.ime`）：真实窗口的输入处理器握在平台窗口手里，GPUI 只对测试窗口开放 `replace_and_mark_text_in_range`，要 gpui-ime 给调试构建开一个口子。写进了「待协调」。
 
 ### 不进正式包
 
@@ -476,6 +484,39 @@ cargo drifting workspace scenario crates/dr-cli/scenarios/writing-loop.json --ap
 - **结果**：2026-11-08 在这台 Mac 上，带调试桥的开发版，46 步全过、没有跳过的；临时 profile 跑完删干净了。截图 6 张，都在动画走完以后拍：书架、主页、第一章、打字回车以后、第二章、重开以后。另外用 `cargo xtask dev --debug-bridge` 在这个 worktree 自己的开发库（先写了 showcase 种子）上手动走了一遍：`app book 慢钟`、`app open 第三章 钟楼下`、打字、回车、⌘Z、截图、退出，结果一样。
 - **测试平台上也跑一遍**：`crates/dr-debug-bridge/tests/bridge.rs` 在 GPUI 的测试平台上做同样的事（打字、回车、⌘Z、窗口外的修改、⌘[ 回上一页、设置的搜索框），每次 `cargo test` 都跑，不用开窗口。
 
+## 阶段 2 各模块的验收场景
+
+第四个里程碑（2026-11-08）。每个场景一个文件，都在 `next/crates/dr-cli/scenarios/`，和写作闭环一样跑（每个场景自己一个临时 profile，跑完删掉）：
+
+```bash
+cd next
+cargo build -p drifting --features debug-bridge
+for f in crates/dr-cli/scenarios/*.json; do
+  cargo drifting workspace scenario "$f" --app target/debug/drifting --yes || break
+done
+```
+
+- **界面语言钉住**：`launch` 新加 `settings`，启动前并进这个 profile 的 `settings.json`。场景都写 `{"account": {"language.ui_locale": "en"}}`（反馈对话框中英各拍一次），按钮名字不随这台机器的系统语言变。
+- **新的步骤和写法**：
+  - `legacy`：造一个合成的 Drifting 0.1 库（就是 dr-import-v1 测试用的那份，见下），回答它的数据文件夹 `root`；
+  - 期望的 JSON 指针里可以有 `${…}`，也可以按字段挑数组元素：`/[name=沈知微]/aliases`；
+  - 每次跑完把每一步存下的输出写进输出目录的 `result.json`，失败时也写，方便回头看。
+- **各场景**：
+
+| 场景 | 文件 | 走了什么 | 步数 |
+| --- | --- | --- | ---: |
+| M03 章首章末 | `page-chrome.json` | 点进标题框、全选、改名、回车：标题存下（F3 读回来对），光标在正文开头，接着打的字进第一段；梗概改了 ⌘↵ 存；改了标题按 Esc 放回原样；滚到章末点 ⁂，「改回草稿」（F3 状态变 draft），「新建下一章」：新章开在第 2 章、光标在标题里且标题选中，直接打字起名、回车、写第一句，F3 里章序和正文都对 | 58 |
+| M09 快照历史 | `history.json` | 种子书没有历史点；在第一章打一个字（第一次提交打下一个点），隔一会儿再打几个；⋯ 菜单 →「历史快照…」：一个点；点这一行展开当时的全文；「恢复…」→「确认覆盖当前版本」：打开着的编辑器回到那个点，列表多出恢复前的点（F3：`restore` 在前、`auto` 在后，字数对），F3 读出的正文对；点雾面关掉 | 35 |
+| M10 导入旧库 | `import.json` | 合成的 0.1 库放在临时文件夹，用 `DRIFTING_APP_DATA_DIR` 让应用把它当成这台设备上的 0.1 库；新库是空的。书架「导入」→ 列出找到的库 → 点它 → 导入 → 总结（一本书、40 字、imported），书架上出现《阿Q正传》→「完成」；F3 里书名、简介、字数目标、章节、正文（H1、引文的两段、TODO 那一段）、要素和别名、批注和 TODO 都对；点书卡打开、开第一章，章首和正文对 | 29 |
+| M11 要素页 | `elements.json` | 打开「沈知微」：页头的名字、简介、字段和 F3 一致，别名带 ×；改名回车就存；改成「周阿婆」（别的要素已经叫这个）被拒，弹提示、名字放回；加别名「阿微」、去掉旧别名「知微」（× 悬停才出现）；改简介；「添加字段」新加一行写「籍贯：青梅镇」；F3 读回来全对；再开它的类目页，清单里是改过的名字 | 57 |
+| M18 批注 | `review.json` | 键盘选中第一段开头四个字：选区浮条的状态有了；⌘⌥M 打开撰写框，写批注、⌘↵ 存；在第二段另选六个字，⌘⌥M，写完点「TODOs」再点「Save」；F3 里两条都锚在选中的字上，种类、原文、状态对；打开右栏「审阅」截图。浮条的「添加批注」那一步跳过（见待协调） | 41（1 步跳过） |
+| 设置 | `settings.json` | 打开设置（`app::OpenSettings`，和 ⌘, 一样）；主题点「Dark」（设置值和窗口外观都变深）；字号滑杆加一档到 18，旁边的数字跟着变；搜「width」只剩「Page width」，Esc 清空搜索；语言下拉选「简体中文」，按钮立刻变中文；关掉重开，深色、18、简体中文都还在；Esc 关掉设置 | 46 |
+| M39 反馈对话框 | `feedback.json` | 只截图、不发送：中文浅色写一条合成的反馈、展开诊断摘要的预览；英文深色再拍一张；都按「取消」关掉。开发构建没有 Hosted 服务，发送键是「用邮件发送」，没点 | 25 |
+
+- **结果**：2026-11-08 在这台 Mac 上，带调试桥的开发版，七个场景都跑过（M18 一步按待协调跳过），写作闭环也重跑了一遍，46 步全过。截图在各自的输出目录（`target/acceptance/<场景>/`，不提交）；反馈对话框的三张真窗口截图提交在 [modules/m39/](../modules/m39/)：`window-feedback-zh-light.png`、`window-feedback-preview-zh-light.png`、`window-feedback-en-dark.png`。
+- **合成的 0.1 库从哪来**：dr-cli 用 `#[path]` 直接编进 `dr-import-v1/tests/common/mod.rs`（M10 测试用的构造器：用公开的 0.1 迁移和纯 SQL 造一本《阿Q正传》），不另写一份。它将来更适合放进 dr-testkit，见「待协调」。
+- **跑的过程中找到的问题**都在「待协调」里，按模块列。没有一处是改了别人的代码去绕过的：要么场景照作者真实会做的那样走（比如 ⌘↵ 离开多行框），要么那一步标成跳过并写明原因。
+
 ## 待协调
 
 ### dr-store（F2）
@@ -496,10 +537,15 @@ cargo drifting workspace scenario crates/dr-cli/scenarios/writing-loop.json --ap
 ### dr-shell 与应用入口（F6）
 
 - **调试桥挂在哪**：只在 `app/drifting/src/main.rs` 加了一行（`dr_shell::init` 之后，`#[cfg(feature = "debug-bridge")]`），`app/drifting/Cargo.toml` 加了 `debug-bridge` 特性。dr-shell 没改。
-- **调试桥读外壳用到的接口**：`Workspace` 的 `nav`、`editors`（`PageEditor` 的 `doc`、`editor`、`loading`、`failed`）、`editor_of`、`pages`（`PageSlot` 的 `items`、`ready`、`loading`）、`book`、`book_id`、`library`、`left`、`right`、`super_view`、`dock_locked`、`shelf_open`，以及 `open`、`open_link`、`open_book`、`show_shelf`、`top_layer`、`focus_handle`；编辑器那边是 `ChapterEditor::editor()`、`ProseEditor::{book, selection}`、`ProseDoc::{visible_lines, line}`；`title_of`、`Item`、`Layer`、`Target::{key, from_key}`、`Open`、`Page`；`quit::before_quit`、`quit::request`、`open_workspace`、`Services`、`ShellInfo`。改这些时请顺手改 `crates/dr-debug-bridge/src/methods.rs`（它在全工作区构建里，编不过 CI 会报）。
+- **调试桥读外壳用到的接口**：`Workspace` 的 `nav`、`editors`（`PageEditor` 的 `doc`、`view`、`loading`、`failed`）、`page_view`、`book`、`book_id`、`library`、`left`、`right`、`super_view`、`dock_locked`、`shelf_open`、`dialog`、`history`、`composer`、`corner_menu`、`settings`（`SettingsPanel::focus`），以及 `open`、`open_link`、`open_book`、`show_shelf`、`top_layer`、`focus_handle`；`PageView::{Doc, Book, prose}`，编辑器那边是 `ChapterEditor` / `BookEditor` 的 `assist()`（`Assist::bar`）、`ProseEditor::{book, selection}`、`ProseDoc::{visible_lines, line}`；`Settings::{read, locale}`、`SettingsFile::get`、`settings::registry::REGISTRY`；`title_of`、`Layer`、`Target::{key, from_key}`、`Open`、`Page`；`quit::before_quit`、`quit::request`、`open_workspace`、`Services`、`ShellInfo`。页面外圈从 `dr_view_page::page_views`（`PageHead::{title, synopsis}`、`PageEnd::{page, is_open}`）和 `dr_view_elements::{element_page, category_page}`（`ElementHead::{fields, alert}`、`Fields::rows`、`CategoryHead::name_field`）读。改这些时请顺手改 `crates/dr-debug-bridge/src/methods.rs`（它在全工作区构建里，编不过 CI 会报）。
 - **编辑器接进稿纸以后**：调试桥要的两样 F6 第三个里程碑都已经有了：打开一章时 `focus_page` 把键盘交给编辑器；`editor_of(&Target)` 拿到当前页的编辑器。所以这一轮 dr-shell 还是一行没改。
 - **一个小坑**（不用改，记一笔）：`ui.wait` 等的是「编辑器已经打开」，键盘交给编辑器要再晚一帧（下一次渲染里的 `focus_page`）。场景里打字之前多等一个 `/focus/editor: true`。
-- **调试名**：要按名字找元素、点元素，dr-ui 的组件和外壳要给可交互的元素起稳定的名字；GPUI 现在只在测试上下文里读得到元素位置，需要一个小补丁或者外壳自己记录。
+- **按名字找元素已经不靠调试名**：改用无障碍树（见「调试桥 → 怎么做的」）。所以元素要被找到，给它角色和名字就行（`.role(…)`、`.aria_label(…)`，顺带也是给读屏用的）。
+- **真窗口上找到的问题**（第四个里程碑跑场景时）：
+  1. **章首标题框里按 ⌘Z，撤的是正文**。复现：在一章里打一句话，点进标题框打一个字，⌘Z：标题里那个字还在，正文里刚打的那句没了。⌘A 也不行：标题没被全选（按下去走的也是外壳的 `edit::SelectAll`，编辑器那边接的是正文的全选）。外壳给 `edit::Undo`、`edit::SelectAll`（以及剪切、复制、粘贴）绑了不带上下文的快捷键，盖过了 dr-ui 输入框自己在 `DrTextArea` 里的 ⌘A；章首又画在编辑器里面，动作一路冒泡到编辑器的处理器。要素页头的名字、简介、字段，审阅的撰写框，凡是挂在编辑器里的输入框应该都一样。请和 F5 一起看：输入框自己接住 `edit::*`，或者这几个快捷键加上不在输入框里的上下文。场景里改用 `ui.focus … select_all` 绕开 ⌘A，⌘Z 没有绕，场景不按它。
+  2. **快照历史按 Esc 关不掉**：`dismiss` 不管 `history`；关掉以后键盘回到工作区（`ws.focus`），没有像导出对话框那样 `refocus` 回正文，作者得再点一下正文才能接着写。（`workspace/corner.rs` 的 `open_history`、`workspace/mod.rs` 的 `dismiss`。）
+  3. **保活的隐藏页还在无障碍树里**：别的标签里保活的编辑器（连同它的 ⁂）虽然看不见，节点都还在，读屏会读到看不见的东西；`ui.find` 也会找到它们，场景里只开一个标签或按名字区分。
+- **场景里写死的位置**：导入时找到的库那一行、历史点那一行不在无障碍树里，场景按旁边按钮挪 `dx`、`dy` 去点；那几行给了角色和名字以后改掉。
 
 ### gpui-prose、gpui-ime 与编辑器（F4、F5）
 
@@ -507,6 +553,8 @@ cargo drifting workspace scenario crates/dr-cli/scenarios/writing-loop.json --ap
 - **重测**：搬过去以后，按新格式重测 `f4-*.json`。语料指纹会变一次。
 - **收编编辑器的基准语料**（监管会话这一轮的第 3 条）：F4 把基准搬进 `dr-editor` 交回以后，F8 把它收成 `bench` 的一个套件（`editor`），语料用统一种子，再按新格式重测。等 F4。
 - **组字**：调试桥要模拟输入法（`setMarkedText` 再 `insertText` 那一路），需要 gpui-ime 在调试构建里开一个入口。真实窗口的输入处理器握在 GPUI 的平台窗口手里，外面拿不到。
+- **选区浮条在真窗口上不出来**（F4e，`dr-editor` 的 `assist`）：键盘选中、鼠标拖选、双击选词都试过，`Assist::bar()` 都有值（`state.get` 的 `selectionBar` 是 true），可是浮条没画出来，截图里没有，它的按钮也不在无障碍树里。M18 场景里点「添加批注」那一步因此跳过；⌘⌥M 那条路是好的。
+- **dr-ui 这一轮改的两处**（第四个里程碑，F8 改的，请过目）：`components/menu.rs` 的 `MenuItem` 加了 `.role(Role::MenuItem).aria_label(行上的字)`；`components/select.rs` 的下拉框加了 `.role(Role::ComboBox)`，名字是当前选项。都只是给无障碍树补角色，样子和行为没变。还没有角色的：输入框、`Switch`（设置里的开关点不到）、`Dialog` 右上角的 ×（`PanelIconButton` 没给 `label`）。
 
 ### dr-workspace（F3）
 
@@ -519,10 +567,18 @@ cargo drifting workspace scenario crates/dr-cli/scenarios/writing-loop.json --ap
 
 - **基准**：`examples/` 里的基准（读旧种子 JSON 的那个）改成 `bench` 的一个套件，用统一种子；改完以后门禁里「examples 下带 bench 的算基准」这条可以去掉。
 
-### dr-import-v1（M10）
+### dr-import-v1 与导入界面（M10）
 
 - **证据**：`m10-import.json` 在下一个里程碑换成新格式。
+- **合成旧库的构造器**：dr-cli 的 `legacy` 步骤用 `#[path]` 编进了 `tests/common/mod.rs`。改它的函数签名（`build`、`Old`、几个 ID 常量）时 dr-cli 会编不过；更好的做法是搬进 dr-testkit（`dr_testkit::legacy`），dr-import-v1、dr-view-import 和 dr-cli 都从那里用。
+- **找到的库那一行**不在无障碍树里（`dr-view-import` 的列表行没有角色和名字），场景是按「选择文件夹」的位置往上挪了一行点的。
 - **测试库**：旧库测试库的冻结（阶段 7 第 1 条）完成以后，测试里改为钉住那几份库的 SHA-256。
+
+### 快照历史（M09）、审阅（M18）、要素页（M11）
+
+- **M09**：英文界面里恢复成功那句「Restored to the selected version. …」比对话框宽，伸出了右边；历史点那一行和对话框的 × 不在无障碍树里。Esc 和关后焦点见上面 F6 第 2 条。
+- **M18**：在撰写框上点「批注 | TODO」，鼠标按下穿过撰写框落到了下面的正文：正文拿走键盘、光标挪到点的位置（场景里点完 `state.get` 看到 `focus.editor` 是 true、选区收成一个点）。这时候再打字就打进正文了。场景改成先写再选种类、再点「保存」。另外英文界面里右栏审阅的「Current」开关被裁掉一半；审阅卡不在无障碍树里。
+- **M11**：要素页没发现问题。别名的 × 只在悬停时出现（`invisible` + `group_hover`），所以调试桥点之前先让指针停一下。
 
 ### dr-platform（F7）
 
@@ -538,8 +594,8 @@ cargo drifting workspace scenario crates/dr-cli/scenarios/writing-loop.json --ap
 
 ## 下一个里程碑建议
 
-1. **写作闭环进 CI**：试着把 `writing-loop.json` 放进 CI 的 macOS 那一条（runner 有图形会话），先只在 `next/` 改动时跑；再加几条阶段 2 的场景（M03 章末 ⁂、M04 大纲、M06 搜索、M07 字数）。
-2. **按名字找元素**：和 F5、F6 商量调试名，做 `ui.query`、按名字点；和 F4、F5 商量组字的入口。
+1. **场景进 CI**：试着把 `scenarios/` 放进 CI 的 macOS 那一条（runner 有图形会话），先只在 `next/` 改动时跑；再补 M04 大纲、M06 搜索、M07 字数、M41 导出几条。
+2. **无障碍树补齐**：和 F5 一起给输入框、开关、对话框的 ×、列表行补角色和名字，场景里写死的偏移改成按名字点；Windows 那边读 UI Automation；和 F4、F5 商量组字的入口。
 3. **编辑器基准**：F4 交回以后，收成 `bench` 的 `editor` 套件。
 4. **补齐种子**：
    - 素材图片和 PDF（合成的小文件，或者从样书插图生成）；

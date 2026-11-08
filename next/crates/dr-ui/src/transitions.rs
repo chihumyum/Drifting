@@ -5,7 +5,9 @@
 //!   one in front stays whole underneath until it is covered, so the ink
 //!   never thins. Turned again mid-way, the page that was coming in stays
 //!   whole underneath and the next one carries on from the share it had
-//!   reached.
+//!   reached. [`PageTurn::with_level`] tells each page the opacity it is
+//!   drawn under, for a page whose content is a cached view
+//!   (`ProseEditor::element_at_opacity`).
 //! - [`Push`]: heavy ice. A whole block of content is pushed away and
 //!   another takes its place, slow to start and then fast (265ms); the
 //!   arriving block's four edges bleed a hairline of glass that fades
@@ -28,6 +30,7 @@ use crate::{
 };
 
 type Render = Rc<dyn Fn(&SharedString, &mut Window, &mut App) -> AnyElement>;
+type RenderAt = Rc<dyn Fn(&SharedString, f32, &mut Window, &mut App) -> AnyElement>;
 
 pub struct TurnState {
     current: SharedString,
@@ -39,7 +42,7 @@ pub struct TurnState {
 pub struct PageTurn {
     id: ElementId,
     page: SharedString,
-    render: Render,
+    render: RenderAt,
 }
 
 impl PageTurn {
@@ -48,6 +51,22 @@ impl PageTurn {
         id: impl Into<ElementId>,
         page: impl Into<SharedString>,
         render: impl Fn(&SharedString, &mut Window, &mut App) -> AnyElement + 'static,
+    ) -> PageTurn {
+        PageTurn::with_level(id, page, move |key, _, window, cx| render(key, window, cx))
+    }
+
+    /// [`PageTurn::new`] whose `render` is also told the opacity the page is
+    /// drawn under: the share the page coming in has reached while it turns
+    /// (from 0 or where an interrupted turn left it, up to 1), and 1 for the
+    /// page whole underneath and for a page at rest. Each frame of a turn
+    /// draws again with the new level, and once more at 1 when it ends, so a
+    /// cached view inside can be drawn afresh while the level moves
+    /// (`ProseEditor::element_at_opacity`) instead of replaying the faint
+    /// picture of its first frame.
+    pub fn with_level(
+        id: impl Into<ElementId>,
+        page: impl Into<SharedString>,
+        render: impl Fn(&SharedString, f32, &mut Window, &mut App) -> AnyElement + 'static,
     ) -> PageTurn {
         PageTurn {
             id: id.into(),
@@ -93,9 +112,13 @@ impl RenderOnce for PageTurn {
             }
         });
         let s = state.read(cx);
-        let level = s.level.value(now);
         let under = s.under.clone();
         let blending = under.is_some();
+        let level = if blending {
+            s.level.value(now).clamp(0.0, 1.0)
+        } else {
+            1.0
+        };
         if blending {
             window.request_animation_frame();
         }
@@ -110,7 +133,7 @@ impl RenderOnce for PageTurn {
                         .top_0()
                         .left_0()
                         .size_full()
-                        .child(render(&key, window, cx)),
+                        .child(render(&key, 1.0, window, cx)),
                 )
             })
             .child(
@@ -120,7 +143,7 @@ impl RenderOnce for PageTurn {
                     .left_0()
                     .size_full()
                     .when(blending, |el| el.opacity(level))
-                    .child((self.render)(&self.page, window, cx)),
+                    .child((self.render)(&self.page, level, window, cx)),
             )
     }
 }

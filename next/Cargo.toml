@@ -29,10 +29,14 @@ members = [
     "crates/dr-view-home",
     "crates/dr-view-import",
     "crates/dr-view-page",
+    "crates/dr-view-plot",
     "crates/dr-view-review",
     "crates/dr-view-search",
     "crates/dr-view-shelf",
+    "crates/dr-view-shelf-art",
     "crates/dr-view-stats",
+    "crates/dr-view-timeline",
+    "crates/dr-view-transfer",
     "crates/dr-workspace",
     "crates/gpui-ime",
     "crates/gpui-prose",
@@ -65,6 +69,8 @@ gpui_platform = { git = "https://github.com/zed-industries/zed", tag = "v1.27.0"
 
 # Loro is pinned exactly; its Rust API still has breaking changes.
 loro = "=1.17.1"
+# Pinned with loro: `.driftingbook` recomputes mergeable-child markers.
+loro-common = "=1.17.0"
 
 anyhow = "1"
 # gpui-prose (F4) and its two small crates, all MIT OR Apache-2.0.
@@ -148,6 +154,9 @@ base64 = "0.22.1"
 image = { version = "0.25.10", default-features = false, features = ["png"] }
 smallvec = "1.16"
 tiny-skia = "0.11.4"
+# M25 (dr-view-shelf-art): glyph outlines for the cover of characters, the
+# version usvg already builds.
+ttf-parser = "0.25.1"
 
 # Spike P0-B shell (process metrics, AppKit event posting).
 libc = "0.2.191"
@@ -194,6 +203,7 @@ windows = { version = "0.62", features = [
     "Win32_System_RemoteDesktop",
     "Win32_System_SystemInformation",
     "Win32_System_Threading",
+    "Win32_UI_Controls_Dialogs",
     "Win32_UI_Input_Ime",
     "Win32_UI_Input_KeyboardAndMouse",
     "Win32_UI_WindowsAndMessaging",
@@ -219,6 +229,8 @@ dr-view-search = { path = "crates/dr-view-search" }
 dr-view-stats = { path = "crates/dr-view-stats" }
 # M41: the manuscript export and Markdown share dialogs (over dr-export).
 dr-view-export = { path = "crates/dr-view-export" }
+# M41: .driftingbook, importing documents, backup and restore (over the shell).
+dr-view-transfer = { path = "crates/dr-view-transfer" }
 # M39: the feedback dialog and the crash follow-up.
 dr-view-feedback = { path = "crates/dr-view-feedback" }
 futures = "0.3"
@@ -235,11 +247,18 @@ dr-view-home = { path = "crates/dr-view-home" }
 dr-view-shelf = { path = "crates/dr-view-shelf" }
 # M11: the element and category pages (docs/rust-rewrite/modules/m11-elements.md).
 dr-view-elements = { path = "crates/dr-view-elements" }
+# M14: the bottom timeline (docs/rust-rewrite/modules/m14-timeline.md).
+dr-view-timeline = { path = "crates/dr-view-timeline" }
 # M10's interface: the 0.1 library import over the bookshelf
 # (docs/rust-rewrite/modules/m10-import.md).
 dr-view-import = { path = "crates/dr-view-import" }
 # M03: the chapter page's head and end around the editor (dr-editor's PageChrome).
 dr-view-page = { path = "crates/dr-view-page" }
+# M15: the plot planner, a chapter's grid of slips under the paper
+# (docs/rust-rewrite/modules/m15-plot.md).
+dr-view-plot = { path = "crates/dr-view-plot" }
+# M25: the bookshelf's covers, heat map and strips.
+dr-view-shelf-art = { path = "crates/dr-view-shelf-art" }
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
 # M41: manuscript export (EPUB, Word, PDF), Markdown share and covers, the
 # 0.1 client's writers ported as they were (docs/rust-rewrite/
@@ -278,3 +297,13 @@ opt-level = 2
 # timings honest in the gallery.
 [profile.dev.package.dr-ui]
 opt-level = 2
+
+# The shipped build: release plus line tables in a separate symbol file (a
+# .dSYM beside the executable on macOS, a .pdb on Windows), so Sentry can name
+# a crash's frames once the release workflow uploads it. `script/bundle-mac
+# --dist` strips the bundled executable and keeps the .dSYM beside the .app;
+# `release` itself stays as it is for benchmarks. f7-platform.md, 「符号文件」.
+[profile.dist]
+inherits = "release"
+debug = "line-tables-only"
+split-debuginfo = "packed"

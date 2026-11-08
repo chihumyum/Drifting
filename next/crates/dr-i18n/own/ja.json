@@ -20,17 +20,44 @@
         "from_caches": "{{count}} 件の本文をキャッシュからインポートしました。最後の数秒が抜けているかもしれません",
         "account_libraries_left": "フォルダー内のアカウントライブラリ {{count}} 件は、アカウント機能ができるまでインポートしません",
         "carries_on": "途中で止まりました。このライブラリをもう一度インポートすると続きから取り込みます"
+      },
+      "notice": {
+        "unfinished": "「{{name}}」のインポートが終わっていません",
+        "carry_on": "インポートを再開"
       }
     }
   },
   "settings": {
     "editor": {
       "justify": "両端揃え"
+    },
+    "sync": {
+      "backup": {
+        "errors": {
+          "legacy": "これは Drifting 0.1 のバックアップで、このバージョンでは直接復元できません。Drifting 0.1 で復元してから、本棚の「読み込む · Drifting 0.1」でそのライブラリを読み込んでください。"
+        }
+      }
     }
   },
   "findPanel": {
     "replacePlaceholder": "置換後の文字…",
     "replace": "置換",
     "replaceAll": "すべて置換"
+  },
+  "positionLink": {
+    "copied": "位置リンクをコピーしました"
+  },
+  "projectPicker": {
+    "bookTransfer": {
+      "legacy": "この本は Drifting 0.1 で書き出されました。旧版で読み込んでから、そのライブラリを新しいバージョンに引き継いでください。"
+    }
+  },
+  "importDialog": {
+    "targets": {
+      "idea": {
+        "label": "アイデア",
+        "desc": "ストーリーラインから独立したアイデアカード。"
+      }
+    }
   }
 }

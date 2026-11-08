@@ -600,3 +600,105 @@ fn task_items_tick_their_box_or_their_todo(cx: &mut TestAppContext) {
     assert!(wait_for(cx, |_| status(&e) == "open"));
     assert!(wait_for(cx, |cx| mark(cx, 1) == Some(ListMark::Task { done: false })));
 }
+
+#[test]
+fn a_comments_original_passage_says_when_the_prose_changed() {
+    let e = env();
+    let doc = chapter(&e, "雨夜，钟楼停了。楼下没人。");
+    // 「钟楼」, kept as it was written.
+    let note = comment(&e, &doc, "note", (3, 5));
+    let read = |e: &Env| {
+        dr_editor::decor::original(&e.ws, &e.book, &note)
+            .unwrap()
+            .unwrap()
+    };
+    let first = read(&e);
+    assert_eq!(first.text, "钟楼");
+    assert_eq!(first.changed, Some(false));
+    // Words elsewhere change nothing; the words under it do.
+    out(
+        &e.ws,
+        &Actor::agent("s", 1, "c"),
+        "prose.replace",
+        json!({"doc": doc, "find": "楼下", "replace": "街上"}),
+    );
+    assert_eq!(read(&e).changed, Some(false));
+    out(
+        &e.ws,
+        &Actor::agent("s", 1, "c"),
+        "prose.replace",
+        json!({"doc": doc, "find": "钟楼", "replace": "钟塔"}),
+    );
+    let after = read(&e);
+    assert_eq!(
+        after.text, "钟楼",
+        "the passage is the one it was written on"
+    );
+    assert_eq!(after.changed, Some(true));
+    // A comment on nothing keeps no passage.
+    let floating = out(
+        &e.ws,
+        &Actor::User,
+        "comment.create",
+        json!({"book": e.book, "kind": "note", "body": "浮动"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert_eq!(
+        dr_editor::decor::original(&e.ws, &e.book, &floating).unwrap(),
+        None
+    );
+}
+
+#[gpui::test]
+fn code_blocks_and_callouts_are_written_in_notes(cx: &mut TestAppContext) {
+    use gpui_prose::schema::block;
+    let e = env();
+    let material = out(
+        &e.ws,
+        &Actor::User,
+        "material.create",
+        json!({"book": e.book, "kind": "text", "title": "笔记", "text": "后盖    左上格\n拆之前先拍一张照。"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let (view, cx) = open(cx, &e, &format!("material:{material}"));
+    let editor = prose(&view, cx);
+    editor.update_in(cx, |e, window, cx| {
+        e.edit_chapter(0, gpui_prose::HostStep::Own, window, cx, move |d| {
+            d.set_block_attr(0, block::CODE_BLOCK, Some("".into()), "user");
+            d.set_block_attr(1, block::CALLOUT, Some("note".into()), "user");
+            None
+        });
+    });
+    let looks = |cx: &mut VisualTestContext| {
+        editor.read_with(cx, |e, _| {
+            (e.block_look(0, 0).code, e.block_look(0, 1).callout)
+        })
+    };
+    assert!(wait_for(cx, |cx| looks(cx) == (true, true)));
+    // Kept in the note's document, not only on the screen.
+    let stored =
+        e.ws.library()
+            .open_doc(&format!("material:{material}"), dr_store::OpenDoc::Existing)
+            .unwrap()
+            .read(|d| {
+                let text = d.get_text(dr_doc::schema::prose::BODY);
+                text.to_delta()
+                    .iter()
+                    .filter_map(|item| match item {
+                        loro::TextDelta::Insert {
+                            attributes: Some(a),
+                            ..
+                        } => Some(a.keys().cloned().collect::<Vec<_>>()),
+                        _ => None,
+                    })
+                    .flatten()
+                    .collect::<Vec<_>>()
+            })
+            .unwrap();
+    assert!(stored.iter().any(|k| k == block::CODE_BLOCK), "{stored:?}");
+    assert!(stored.iter().any(|k| k == block::CALLOUT), "{stored:?}");
+}

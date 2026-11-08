@@ -12,6 +12,9 @@
 //! - Transport and connection file: [`dr_debug_protocol`] (no GPUI).
 //! - Methods: [`call`]; each runs on GPUI's main thread, in a task of its
 //!   own, so a long `ui.wait` holds nobody up.
+//! - Finding what is on screen by its accessible name (`ui.find`,
+//!   `ui.press`): `a11y`, which connects to GPUI's AccessKit tree from
+//!   inside the app (macOS).
 //! - The shell is read through dr-shell's public interface
 //!   (`with_workspace`, `Workspace`'s fields, `nav`, `quit`); the app adds
 //!   one call after `dr_shell::init`:
@@ -27,6 +30,7 @@
 //! built binary for [`dr_debug_protocol::PROTOCOL`].
 //! Docs: `docs/rust-rewrite/foundations/f8-testkit.md` 「调试桥」.
 
+mod a11y;
 mod methods;
 
 use std::sync::Arc;

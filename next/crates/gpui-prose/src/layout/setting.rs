@@ -1,7 +1,8 @@
 //! How each paragraph of the editor is set, from the editor's style (first-line
 //! indent, justification, squeezing) and the paragraph's block look (its
-//! alignment, and how far an indent or quote sets it in); and typewriter
-//! scrolling.
+//! alignment, how far an indent, quote, list, code block or callout sets it
+//! in, and the gaps and pads of lists, code blocks and callouts in place of
+//! the paragraph spacing); and typewriter scrolling.
 //!
 //! Every place that lays a paragraph out — the paragraph element, the
 //! editor's off-screen `line_layout`, the input method's re-shaping, the
@@ -10,45 +11,124 @@
 use gpui::{Bounds, Pixels, point, px, size};
 
 use super::{BlockMetrics, RowAlign, RowSetting, estimate_height};
-use crate::{ProseEditor, render::blocks::Align, text::BlockKind};
+use crate::{
+    ProseEditor,
+    render::blocks::{Align, BlockLook},
+    text::BlockKind,
+};
+
+/// How one paragraph is set: its size, line height and spacing, how its
+/// rows are set, and its block look (how far it is set in from the column's
+/// edges, and what it draws).
+#[derive(Clone, Copy, Debug)]
+pub struct ParaSet {
+    pub metrics: BlockMetrics,
+    pub setting: RowSetting,
+    pub look: BlockLook,
+}
+
+impl ParaSet {
+    /// How much narrower than the column the paragraph wraps.
+    pub fn narrowing(&self) -> Pixels {
+        self.look.inset + self.look.inset_right
+    }
+}
 
 impl ProseEditor {
-    /// How paragraph `line` of `chapter` is set on its rows, and how far its
-    /// block (indent levels, a quote) sets it in from the column.
-    pub fn row_setting(&self, chapter: usize, line: usize) -> (RowSetting, Pixels) {
+    /// How paragraph `line` of `chapter` is set (see [`ParaSet`]).
+    pub fn para_set(&self, chapter: usize, line: usize) -> ParaSet {
         let look = self.block_look(chapter, line);
         let kind = self.book.chapters[chapter].doc.line(line).kind;
-        let first_indent = if kind == BlockKind::Body {
-            self.style.body_size * self.style.first_line_indent.clamp(0., 4.)
+        ParaSet {
+            metrics: self.metrics_of(&look, kind),
+            setting: self.setting_of(&look, kind),
+            look,
+        }
+    }
+
+    /// Paragraph `line`'s size, line height and spacing.
+    pub fn para_metrics(&self, chapter: usize, line: usize) -> BlockMetrics {
+        self.para_set(chapter, line).metrics
+    }
+
+    /// A paragraph of `kind`'s metrics as its block changes them: a code
+    /// line's smaller face and tighter rows, and the pads and gaps of code
+    /// blocks, callouts and lists in place of the paragraph spacing. The
+    /// pads of a block go to its first and last paragraph, so the block's
+    /// wash covers them and the paragraphs inside it touch.
+    pub(crate) fn metrics_of(&self, look: &BlockLook, kind: BlockKind) -> BlockMetrics {
+        let blocks = &self.paint.block_style;
+        let body = f32::from(self.style.body_size);
+        let em = |ems: f32| (body * ems).round();
+        let mut m = self.style.metrics(kind);
+        let spacing = m.pad_bottom;
+        if look.code {
+            // A heading's size and space above do not reach into code.
+            m.font_size = body * blocks.code_size;
+            m.line_height = (m.font_size * blocks.code_line_height).round();
+            m.pad_top = 0.;
+        }
+        if look.callout && !look.callout_above {
+            m.pad_top += em(blocks.callout_pad);
+        }
+        if look.code && !look.code_above {
+            m.pad_top += em(blocks.code_pad);
+        }
+        m.pad_bottom = if look.code && look.code_below {
+            0.
+        } else if look.list_below {
+            em(blocks.list_gap)
+        } else if look.callout && look.callout_below {
+            em(blocks.callout_gap)
         } else {
-            px(0.)
+            spacing
         };
+        if look.code && !look.code_below {
+            m.pad_bottom += em(blocks.code_pad);
+        }
+        if look.callout && !look.callout_below {
+            m.pad_bottom += em(blocks.callout_pad);
+        }
+        m
+    }
+
+    /// How a paragraph of `kind` with `look` is set on its rows. Only body
+    /// paragraphs take the first-line indent, and not list items, code or
+    /// rules; code is never justified or squeezed.
+    pub(crate) fn setting_of(&self, look: &BlockLook, kind: BlockKind) -> RowSetting {
+        let first_indent =
+            if kind == BlockKind::Body && look.list.is_none() && !look.code && !look.rule {
+                self.style.body_size * self.style.first_line_indent.clamp(0., 4.)
+            } else {
+                px(0.)
+            };
         let align = match look.align {
             Align::Left => RowAlign::Left,
             Align::Center => RowAlign::Center,
             Align::Right => RowAlign::Right,
         };
-        (
-            RowSetting {
-                first_indent,
-                align,
-                justify: self.style.justify,
-                squeeze: self.style.squeeze,
-            },
-            look.inset,
-        )
+        RowSetting {
+            first_indent,
+            align,
+            justify: self.style.justify && !look.code,
+            squeeze: self.style.squeeze && !look.code,
+        }
     }
 
     /// The estimated height of paragraph `line` of `chapter` in a column of
-    /// `column` (its block inset and first-line indent taken off).
+    /// `column` (its block insets and first-line indent taken off).
     pub(crate) fn estimate_set(&self, chapter: usize, line: usize, column: f32) -> f32 {
         let doc = &self.book.chapters[chapter].doc;
         let Some(text) = doc.lines().get(line).map(|l| l.text.clone()) else {
             return 0.;
         };
-        let metrics = self.style.metrics(doc.line(line).kind);
-        let (setting, inset) = self.row_setting(chapter, line);
-        estimate_indented(&text, &metrics, column - f32::from(inset), setting)
+        let set = self.para_set(chapter, line);
+        estimate_indented(
+            &text,
+            &set.metrics,
+            column - f32::from(set.narrowing()),
+            set.setting,
+        )
     }
 }
 

@@ -1,0 +1,31 @@
+{
+  "about": "M39 反馈对话框，只截图、不发送：中文浅色写一条合成的反馈，展开诊断摘要的预览；英文深色再截一张；都按「取消」关掉。开发构建没有 Hosted 服务，发送键是「用邮件发送」，这里不点。",
+  "steps": [
+    { "seed": "tiny" },
+    { "launch": { "env": { "DRIFTING_APPEARANCE": "light" }, "settings": { "account": { "language.ui_locale": "zh-CN" } } } },
+    { "app": "ui.wait", "params": { "until": "ready", "timeout_ms": 30000 } },
+    { "app": "window.focus" },
+    { "app": "action.dispatch", "params": { "name": "workspace::SendFeedback" }, "note": "书架上也能开（账户菜单、设置 → 关于）" },
+    { "app": "ui.wait", "params": { "until": "ready", "state": { "/dialog": true } } },
+    { "app": "ui.find", "params": { "role": "Button", "label": "用邮件发送" } },
+    { "app": "input.type", "params": { "text": "验收：一条合成的反馈，不会发出去。" }, "note": "键盘在留言框里" },
+    { "app": "ui.screenshot", "png": "feedback-zh-light.png" },
+    { "app": "ui.press", "params": { "role": "Button", "label": "预览" } },
+    { "app": "ui.find", "params": { "role": "Button", "label": "收起" }, "note": "诊断摘要展开" },
+    { "app": "ui.screenshot", "png": "feedback-preview-zh-light.png" },
+    { "app": "ui.press", "params": { "role": "Button", "label": "取消" } },
+    { "app": "ui.wait", "params": { "until": "ready", "state": { "/dialog": false } } },
+    { "app": "app.quit", "expect": { "/quit": true } },
+
+    { "launch": { "env": { "DRIFTING_APPEARANCE": "dark" }, "settings": { "account": { "language.ui_locale": "en" } } } },
+    { "app": "ui.wait", "params": { "until": "ready", "timeout_ms": 30000 } },
+    { "app": "window.focus" },
+    { "app": "action.dispatch", "params": { "name": "workspace::SendFeedback" } },
+    { "app": "ui.wait", "params": { "until": "ready", "state": { "/dialog": true } } },
+    { "app": "input.type", "params": { "text": "Acceptance: a synthetic note, never sent." } },
+    { "app": "ui.screenshot", "png": "feedback-en-dark.png" },
+    { "app": "ui.press", "params": { "role": "Button", "label": "Cancel" } },
+    { "app": "ui.wait", "params": { "until": "ready", "state": { "/dialog": false } } },
+    { "app": "app.quit", "expect": { "/quit": true } }
+  ]
+}

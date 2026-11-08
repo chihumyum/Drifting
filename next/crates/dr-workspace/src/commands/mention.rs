@@ -10,7 +10,7 @@
 //!   dialogue (dr-text's `shape`, the 0.1 rules), its checklist and the
 //!   materials it embeds, read from the document itself.
 
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 
 use dr_model::id::DocId;
 use dr_model::id::DocKind;
@@ -22,6 +22,7 @@ use serde::{Deserialize, Serialize};
 use super::*;
 use crate::dto::Target;
 use crate::registry::Registry;
+use crate::workspace::BookSlot;
 
 pub(crate) fn register(r: &mut Registry) {
     r.add::<MentionList>().add::<ProseShapeOp>();
@@ -40,6 +41,10 @@ pub struct MentionListIn {
     /// Only targets of this kind (`element`, `node`, `material`, …).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub to_kind: Option<String>,
+    /// At most this many rows, the most mentioned (a whole book has tens of
+    /// thousands).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit: Option<usize>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, JsonSchema)]
@@ -85,7 +90,7 @@ fn doc_of(t: &Target) -> Result<String> {
 
 op! {
     MentionList = "mention.list", Read, Shared,
-    "List what prose mentions: entity links and embedded materials, from one entity's prose, to one entity, or in the whole book (live ends only, with paragraph and span counts).",
+    "List what prose mentions: entity links and embedded materials, from one entity's prose, to one entity, or in the whole book (live ends only, with paragraph and span counts, the most mentioned first; `limit` keeps the top rows).",
     fn(cx, input: MentionListIn) -> Vec<MentionInfo> {
         let slot = cx.book(&input.book)?;
         let lib = cx.workspace().library();
@@ -94,35 +99,104 @@ op! {
             (None, Some(to)) => lib.references_to(&to.id)?,
             (None, None) => lib.references_in_book(&input.book)?,
         };
-        let mut grouped: BTreeMap<(Target, Target, &'static str), (u32, u32)> = BTreeMap::new();
-        let mut live: BTreeMap<EntityRef, bool> = BTreeMap::new();
-        let mut is_live_cached = |r: &EntityRef| *live.entry(r.clone()).or_insert_with(|| is_live(&slot, r));
-        for r in &rows {
-            if r.book_id.as_deref() != Some(input.book.as_str()) || r.kind == RefKind::Mention {
-                continue;
-            }
-            let Some(from) = owner(&r.source_doc) else { continue };
-            let to = EntityRef::new(EntityKind::parse(&r.target_kind), r.target_id.clone());
-            let (from_t, to_t) = (Target::from(&from), Target::from(&to));
-            if input.to.as_ref().is_some_and(|t| t.kind != to_t.kind || t.id != to_t.id)
-                || input.to_kind.as_ref().is_some_and(|k| k != &to_t.kind)
-                || !is_live_cached(&from)
-                || !is_live_cached(&to)
-            {
-                continue;
-            }
-            let e = grouped.entry((from_t, to_t, r.kind.as_str())).or_default();
-            e.0 += 1;
-            e.1 += r.count;
-        }
-        let mut out: Vec<MentionInfo> = grouped
-            .into_iter()
-            .map(|((from, to, kind), (blocks, count))| MentionInfo { from, to, kind: kind.to_owned(), blocks, count })
-            .collect();
-        // Most mentioned first.
-        out.sort_by(|a, b| b.count.cmp(&a.count).then(b.blocks.cmp(&a.blocks)));
-        Ok(out)
+        Ok(group(&slot, &input, &rows))
     }
+}
+
+/// `mention.list`'s rows from dr-store's: grouped first on the rows' own
+/// strings (no allocation per row), then each group's ends looked up once
+/// per entity, and only the rows kept turned into owned values.
+fn group(slot: &BookSlot, input: &MentionListIn, rows: &[Reference]) -> Vec<MentionInfo> {
+    // (source document, target kind, target id, kind) → (blocks, count).
+    let mut grouped: HashMap<(&str, &str, &str, &'static str), (u32, u32)> = HashMap::new();
+    for r in rows {
+        if r.book_id.as_deref() != Some(input.book.as_str()) || r.kind == RefKind::Mention {
+            continue;
+        }
+        let e = grouped
+            .entry((
+                r.source_doc.as_str(),
+                r.target_kind.as_str(),
+                r.target_id.as_str(),
+                r.kind.as_str(),
+            ))
+            .or_default();
+        e.0 += 1;
+        e.1 += r.count;
+    }
+    let to_kind = input.to_kind.as_deref().map(EntityKind::parse);
+    let only_to = input
+        .to
+        .as_ref()
+        .map(|t| (EntityKind::parse(&t.kind), t.id.as_str()));
+    let view = slot.reader.view();
+    let mut live: HashMap<(EntityKind, &str), bool> = HashMap::new();
+    let mut owners: HashMap<&str, Option<EntityKind>> = HashMap::new();
+    // The groups kept, still borrowed: (count, blocks, source document,
+    // target kind, target id, kind).
+    let mut kept: Vec<(u32, u32, &str, EntityKind, &str, &'static str)> = Vec::new();
+    for ((source, target_kind, target_id, kind), (blocks, count)) in grouped {
+        let to_k = EntityKind::parse(target_kind);
+        if only_to
+            .as_ref()
+            .is_some_and(|(k, id)| *k != to_k || *id != target_id)
+            || to_kind.as_ref().is_some_and(|k| *k != to_k)
+        {
+            continue;
+        }
+        let Some(from_k) = owners
+            .entry(source)
+            .or_insert_with(|| owner(source).map(|o| o.kind))
+            .clone()
+        else {
+            continue;
+        };
+        if !alive(&mut live, &view, from_k, source_id(source))
+            || !alive(&mut live, &view, to_k.clone(), target_id)
+        {
+            continue;
+        }
+        kept.push((count, blocks, source, to_k, target_id, kind));
+    }
+    // Most mentioned first; ties in a fixed order (source document, then
+    // target, then kind: a document id is its owner's kind and id).
+    kept.sort_unstable_by(|a, b| {
+        b.0.cmp(&a.0)
+            .then(b.1.cmp(&a.1))
+            .then_with(|| (a.2, a.3.as_str(), a.4, a.5).cmp(&(b.2, b.3.as_str(), b.4, b.5)))
+    });
+    kept.truncate(input.limit.unwrap_or(usize::MAX));
+    kept.into_iter()
+        .filter_map(|(count, blocks, source, to_k, target_id, kind)| {
+            Some(MentionInfo {
+                from: Target::from(&owner(source)?),
+                to: Target {
+                    kind: to_k.as_str().to_owned(),
+                    id: target_id.to_owned(),
+                },
+                kind: kind.to_owned(),
+                blocks,
+                count,
+            })
+        })
+        .collect()
+}
+
+/// Whether `kind`/`id` is live (`is_live`), asked once per entity.
+fn alive<'r>(
+    live: &mut HashMap<(EntityKind, &'r str), bool>,
+    view: &dr_doc::book::BookView<'_>,
+    kind: EntityKind,
+    id: &'r str,
+) -> bool {
+    *live
+        .entry((kind.clone(), id))
+        .or_insert_with(|| view.entity_exists(&EntityRef::new(kind, id.to_owned())))
+}
+
+/// The entity id part of a prose document id (`node:<id>` → `<id>`).
+fn source_id(doc: &str) -> &str {
+    doc.split_once(':').map_or(doc, |(_, id)| id)
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]

@@ -20,17 +20,44 @@
         "from_caches": "본문 {{count}}개를 캐시에서 가져왔습니다. 마지막 몇 초가 빠졌을 수 있습니다",
         "account_libraries_left": "폴더의 계정 라이브러리 {{count}}개는 계정 기능이 생길 때까지 가져오지 않았습니다",
         "carries_on": "다 가져오지 못했습니다. 이 라이브러리를 다시 가져오면 이어서 가져옵니다"
+      },
+      "notice": {
+        "unfinished": "“{{name}}” 가져오기가 끝나지 않았습니다",
+        "carry_on": "이어서 가져오기"
       }
     }
   },
   "settings": {
     "editor": {
       "justify": "양쪽 맞춤"
+    },
+    "sync": {
+      "backup": {
+        "errors": {
+          "legacy": "Drifting 0.1의 백업이라 이 버전에서는 바로 복원할 수 없습니다. Drifting 0.1에서 복원한 뒤 책장의 “가져오기 · Drifting 0.1”로 그 라이브러리를 가져오세요."
+        }
+      }
     }
   },
   "findPanel": {
     "replacePlaceholder": "바꿀 내용…",
     "replace": "바꾸기",
     "replaceAll": "모두 바꾸기"
+  },
+  "positionLink": {
+    "copied": "위치 링크를 복사했습니다"
+  },
+  "projectPicker": {
+    "bookTransfer": {
+      "legacy": "이 책은 Drifting 0.1에서 내보냈습니다. 이전 버전에서 가져온 뒤 그 라이브러리를 새 버전으로 넘겨 주세요."
+    }
+  },
+  "importDialog": {
+    "targets": {
+      "idea": {
+        "label": "아이디어",
+        "desc": "스토리라인과 독립된 아이디어 카드입니다."
+      }
+    }
   }
 }

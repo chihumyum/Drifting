@@ -25,17 +25,44 @@
         "account_libraries_left_one": "{{count}} bibliothèque de compte du dossier attend les comptes",
         "account_libraries_left_other": "{{count}} bibliothèques de compte du dossier attendent les comptes",
         "carries_on": "Pas terminé ; importez de nouveau cette bibliothèque pour reprendre"
+      },
+      "notice": {
+        "unfinished": "« {{name}} » n’a pas fini d’être importé",
+        "carry_on": "Reprendre l’importation"
       }
     }
   },
   "settings": {
     "editor": {
       "justify": "Justifier"
+    },
+    "sync": {
+      "backup": {
+        "errors": {
+          "legacy": "C’est une sauvegarde de Drifting 0.1, que cette version ne peut pas restaurer directement. Restaurez-la dans Drifting 0.1, puis importez cette bibliothèque avec « Importer · Drifting 0.1 » dans la bibliothèque."
+        }
+      }
     }
   },
   "findPanel": {
     "replacePlaceholder": "Remplacer par…",
     "replace": "Remplacer",
     "replaceAll": "Tout remplacer"
+  },
+  "positionLink": {
+    "copied": "Lien de position copié"
+  },
+  "projectPicker": {
+    "bookTransfer": {
+      "legacy": "Ce livre a été exporté par Drifting 0.1. Importez-le là, puis transférez cette bibliothèque vers cette version."
+    }
+  },
+  "importDialog": {
+    "targets": {
+      "idea": {
+        "label": "Idée",
+        "desc": "Carte d’idée flottante, indépendante des intrigues."
+      }
+    }
   }
 }

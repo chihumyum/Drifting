@@ -191,6 +191,29 @@ fn main() {
         );
         // M10: the bookshelf's 「导入 · Drifting 0.1」.
         dr_view_import::init(cx);
+        // M41: .driftingbook from the bookshelf, importing documents, backup
+        // and restore.
+        dr_view_transfer::init(cx);
+        // M41's restore swaps the library under the running app with the
+        // shell's `library::replace` (close what holds it, restore, reopen;
+        // the old one comes back on failure).
+        dr_view_transfer::backup::set_replace(
+            cx,
+            std::rc::Rc::new(|staged, cx| {
+                let (tx, rx) = futures::channel::oneshot::channel();
+                dr_shell::library::replace(
+                    cx,
+                    move |root, options| {
+                        dr_store::Library::restore_staged(root, &staged, options)
+                            .map(|(lib, _)| lib)
+                            .map_err(|e| e.to_string())
+                    },
+                    move |result, _| drop(tx.send(result)),
+                );
+                cx.background_executor()
+                    .spawn(async move { rx.await.unwrap_or_else(|_| Err("cancelled".into())) })
+            }),
+        );
         // F8's debug bridge, in `--features debug-bridge` builds only.
         #[cfg(feature = "debug-bridge")]
         dr_debug_bridge::start(cx);

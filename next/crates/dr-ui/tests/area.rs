@@ -222,3 +222,26 @@ fn losing_focus_discards_the_composition(cx: &mut TestAppContext) {
     assert_eq!(area.read_with(cx, |a, _| a.text()), "林");
     assert_eq!(*events.borrow(), vec![FieldEvent::Blurred]);
 }
+
+#[gpui::test]
+fn a_framed_area_is_a_slip_a_few_rows_high_that_grows(cx: &mut TestAppContext) {
+    let (area, _, cx) = host(cx, |a| a.framed(3.0));
+    let line = cx.update(|window, cx| dr_ui::Theme::of(window, cx).scale.line_body);
+    // 8px above and below, three rows of the interface's body type.
+    let empty = height(cx);
+    assert_eq!(empty, 16.0 + 3.0 * line);
+    // More than three rows of text: it grows with them.
+    type_in(&area, &"字".repeat(200), cx);
+    let full = height(cx);
+    assert!(full > empty, "{full} after {empty}");
+    let rows = area.read_with(cx, |a, _| a.rows()) as f32;
+    assert_eq!(full, 16.0 + rows * line);
+    // A press on the slip's padding puts the caret in it.
+    cx.update(|window, cx| window.blur(cx));
+    let origin = cx.debug_bounds("area").unwrap().origin;
+    cx.simulate_click(
+        origin + gpui::point(px(4.0), px(3.0)),
+        gpui::Modifiers::none(),
+    );
+    assert!(cx.update(|window, cx| area.focus_handle(cx).is_focused(window)));
+}
