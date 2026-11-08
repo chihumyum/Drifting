@@ -871,3 +871,7 @@ next/crates/dr-view-history/       M09 的对话框（见 modules/m09-history.md
   snapshots/       能力清单快照（registry__capabilities.snap、registry__capability_schemas.snap）
 docs/rust-rewrite/acceptance/f3-m2-workspace-bench.json
 ```
+
+### 收尾检查：构想仍是存活的投射目标（2026-11-08）
+
+不变量测试的 `check_tolerant` 原来只枚举存活章节/要素；构想转章节、投射待办、撤销转换后，仍是同一个存活 `node`，却被测试误判为孤立。补上 `idea.list`，保留 proptest 生成的失败种子，并增加 `regression_projected_todo_stays_located_when_conversion_is_undone`：相同 id 回到构想，待办及定位完全保留。这是测试口径修正，没有改变转换或投射产品逻辑。定向契约与修正后的完整工作区检查中该组通过。
