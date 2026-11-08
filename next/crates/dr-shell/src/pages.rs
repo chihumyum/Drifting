@@ -304,19 +304,34 @@ pub enum SeaHold {
     Loading,
 }
 
+/// Draws something for a window (the sea).
+pub type DrawFor = Rc<dyn Fn(&mut Window, &mut App) -> gpui::AnyElement>;
+/// Takes a hold on the sea; dropping the value lets go.
+pub type HoldSeaFn = Rc<dyn Fn(SeaHold, &mut Window, &mut App) -> Box<dyn std::any::Any>>;
+/// Asks something of a window (the sea ebbs).
+pub type AskWindow = Rc<dyn Fn(&mut Window, &mut App) -> bool>;
+/// Wraps an element (lays it on the sea, marks it for the tour).
+pub type WrapEl<K> = Rc<dyn Fn(K, gpui::AnyElement) -> gpui::AnyElement>;
+/// Does something in a window (starts the tour).
+pub type InWindow = Rc<dyn Fn(&mut Window, &mut App)>;
+/// The tour's layer.
+pub type LayerFn = Rc<dyn Fn(bool, &mut Window, &mut App) -> Option<gpui::AnyElement>>;
+/// Does something in the app (forgets the tour was seen).
+pub type InApp = Rc<dyn Fn(&mut App)>;
+
 /// The sea under every window (M24).
 #[derive(Clone)]
 pub struct Backdrop {
     /// What lies under the window's root (nothing while the sea is off).
-    pub draw: Rc<dyn Fn(&mut Window, &mut App) -> gpui::AnyElement>,
+    pub draw: DrawFor,
     /// Holds the sea in the window until the value is dropped.
-    pub hold: Rc<dyn Fn(SeaHold, &mut Window, &mut App) -> Box<dyn std::any::Any>>,
+    pub hold: HoldSeaFn,
     /// The sea is ebbing (its last hold let go): the workspace leaves its
     /// desk to it for those seconds.
-    pub ebbing: Rc<dyn Fn(&mut Window, &mut App) -> bool>,
+    pub ebbing: AskWindow,
     /// `el` lying on the sea as bare glass while it ebbs (the sidebars and
     /// the Bottom Panel).
-    pub on_sea: Rc<dyn Fn(SharedString, gpui::AnyElement) -> gpui::AnyElement>,
+    pub on_sea: WrapEl<SharedString>,
 }
 
 /// A first run over the bookshelf: its view, and whether the bookshelf is
@@ -328,21 +343,21 @@ pub struct FirstRunPage {
 }
 
 /// What a first run calls when it is over.
-pub type FirstRunDone = Rc<dyn Fn(&mut Window, &mut App)>;
+pub type FirstRunDone = InWindow;
 type MakeFirstRun = Rc<dyn Fn(FirstRunDone, &mut Window, &mut App) -> FirstRunPage>;
 
 /// The workspace tour (M24).
 #[derive(Clone)]
 pub struct Guide {
     /// `el` marked as the control the tour calls `id` ([`anchors`]).
-    pub anchor: Rc<dyn Fn(&'static str, gpui::AnyElement) -> gpui::AnyElement>,
+    pub anchor: WrapEl<&'static str>,
     /// A book's workspace shows: the tour starts unless this device saw it.
-    pub start: Rc<dyn Fn(&mut Window, &mut App)>,
+    pub start: InWindow,
     /// The tour's layer, the workspace root's last child; `covered` while a
     /// Super View or a full-window wait lies over the workspace.
-    pub layer: Rc<dyn Fn(bool, &mut Window, &mut App) -> Option<gpui::AnyElement>>,
+    pub layer: LayerFn,
     /// Settings' 重新显示.
-    pub reset: Rc<dyn Fn(&mut App)>,
+    pub reset: InApp,
 }
 
 /// The ids of the controls the workspace tour points at (`dr-view-sea`'s

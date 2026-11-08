@@ -197,7 +197,7 @@ fn tell(heard: Heard, cx: &mut App) {
 pub struct TurnOff {
     focus: FocusHandle,
     /// Called once it is off (the first run's step goes on).
-    after: Option<std::rc::Rc<dyn Fn(&mut App)>>,
+    after: Option<crate::pages::InApp>,
 }
 
 impl Focusable for TurnOff {
