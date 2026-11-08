@@ -5,15 +5,19 @@
 //!
 //! [`replace`]:
 //!
-//! 1. The Markdown folder makes a last pass and stops (M40). Every
+//! 1. The shared release gate freezes new service work and awaits every
+//!    registered asynchronous shutdown. If preparation fails, the original
+//!    library and windows stay in place and services resume.
+//! 2. The Markdown folder makes a last pass and stops (M40). Every
 //!    workspace window lets go: its open pages' editors, the
 //!    bookshelf and Project Home, search, snapshot history, the comment
 //!    composer, its subscription; M07's recorder stores its writing days and
 //!    stops, the Stats and Review tabs let go; `Services` no longer offers
 //!    the library. A dialog over the window (the one asking for the swap)
-//!    stays. The windows are told to draw again: what the last frame's
-//!    handlers held (an editor in a click handler) goes with that frame.
-//! 2. Off the main thread F3 brings the open documents' index up to date and
+//!    stays. The windows draw their empty-library frame before closing:
+//!    what the last frame's handlers held (an editor in a click handler)
+//!    goes with that frame.
+//! 3. Off the main thread F3 brings the open documents' index up to date and
 //!    closes the library (`Workspace::try_shutdown`, which waits for the
 //!    last holders), then the job runs with the library closed: given where
 //!    the library lives and how it is opened (this device's identity among
@@ -21,11 +25,12 @@
 //!    something still holds the library, F3 hands the workspace back open
 //!    and the job does not run: the windows take that workspace up again
 //!    and `done` hears why.
-//! 3. The new library is opened as F3's workspace and taken up: `Services`,
+//! 4. The new library is opened as F3's workspace and taken up: `Services`,
 //!    automatic links, the Stats and Review tabs, every window (which shows
 //!    the bookshelf, or without one the book opened last).
-//! 4. If the job fails, the library it left in place is opened again and
-//!    taken up the same way; `done` hears why.
+//! 5. If the job fails, the library it left in place is opened again and
+//!    taken up the same way; `done` hears why. In either case release hooks
+//!    resume against the current `Services` before `done` runs.
 //!
 //! The job's error and anything that goes wrong on the way reach `done` as
 //! words for the dialog. Should the library neither close nor come back
@@ -71,39 +76,74 @@ pub fn replace(
     job: impl FnOnce(&Path, LibraryOptions) -> Result<StoreLibrary, String> + Send + 'static,
     done: impl FnOnce(Result<(), String>, &mut App) + 'static,
 ) {
+    if crate::release::is_releasing(cx) {
+        cx.defer(move |cx| done(Err("a library release is already in progress".into()), cx));
+        return;
+    }
+    let Some(old) = cx.try_global::<Services>().and_then(|s| s.library.clone()) else {
+        cx.defer(move |cx| done(Err("no library is open".into()), cx));
+        return;
+    };
+    let prepare = crate::release::begin(cx).expect("release gate checked in this dispatch");
     cx.defer(move |cx| {
-        let Some(old) = cx.try_global::<Services>().and_then(|s| s.library.clone()) else {
-            done(Err("no library is open".into()), cx);
-            return;
-        };
-        let root = old.library().paths().root.clone();
-        let options = old.library().options().clone();
-        let_go(cx);
         cx.spawn(async move |cx| {
-            // Main-thread holders were let go above and are released as
-            // that update's effects settle; F3's shutdown waits for the
-            // last ones on other threads.
-            let swapped = cx
-                .background_executor()
-                .spawn(async move { swap(old, &root, options, job) })
-                .await;
-            cx.update(|cx| match swapped {
-                Swapped::New(lib) => {
-                    take_up(lib, cx);
-                    done(Ok(()), cx);
-                }
-                Swapped::Old(lib, why) => {
-                    take_up(lib, cx);
+            let prepared = prepare.await;
+            cx.update(move |cx| {
+                if let Err(why) = prepared {
+                    crate::release::finish(cx);
                     done(Err(why), cx);
+                    return;
                 }
-                Swapped::Lost(why) => {
-                    log::error!("the library is gone: {why}");
-                    done(Err(why), cx);
-                }
+                let root = old.library().paths().root.clone();
+                let options = old.library().options().clone();
+                let_go(cx);
+                release_frames(cx);
+                cx.spawn(async move |cx| {
+                    let swapped = cx
+                        .background_executor()
+                        .spawn(async move { swap(old, &root, options, job) })
+                        .await;
+                    cx.update(|cx| {
+                        let result = match swapped {
+                            Swapped::New(lib) => {
+                                take_up(lib, cx);
+                                Ok(())
+                            }
+                            Swapped::Old(lib, why) => {
+                                take_up(lib, cx);
+                                Err(why)
+                            }
+                            Swapped::Lost(why) => {
+                                log::error!("the library is gone: {why}");
+                                Err(why)
+                            }
+                        };
+                        crate::release::finish(cx);
+                        done(result, cx);
+                    });
+                })
+                .detach();
             });
         })
         .detach();
     });
+}
+
+/// The asynchronous prepare can finish after a window's current frame. Its
+/// old click/input handlers still own editors until a new frame replaces
+/// them. Draw that empty-library frame before starting shutdown, rather than
+/// relying on the platform's next frame racing the background close. Use the
+/// erased handle so the root entity is not checked out while it renders.
+fn release_frames(cx: &mut App) {
+    for handle in windows(cx) {
+        let handle: gpui::AnyWindowHandle = handle.into();
+        if let Err(error) = handle.update(cx, |_, window, cx| {
+            window.refresh();
+            window.draw(cx).clear(cx);
+        }) {
+            log::warn!("a window could not release its previous frame: {error:#}");
+        }
+    }
 }
 
 /// Everything in the app that holds the library lets go of it.

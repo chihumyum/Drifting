@@ -13,3 +13,4 @@ cc 91cbefe1eff34edd8a826cae59adf52c5325c42486e59b0c9f74d71870374f24 # shrinks to
 cc 554619aa768fa867a6fe3a6d1a6587b812e82b2abf4485ce4c72970713755ab4 # shrinks to a_ops = [Project(0, 1)], b_ops = [Project(0, 5)]
 cc adbe511cff07318d5b43a38f52cf44ab62ec0b40c843e5238650b0e1f57b844e # shrinks to a_ops = [Chapter(0), RestorePoint(161, 0)], b_ops = [RenameElement(0, 16)]
 cc 2f85c67d536a9c1d1ab94cf9c48b3122639a066c43ceb672e1cfb523a0d7d01b # shrinks to ops = [Chapter(0), Fault(144), PlotCell(0, 0)]
+cc bb4bc16b3ee66df4913767d6df84742be6a71a2603f8cedae5c7a4a7759dfd32 # shrinks to ops = [Idea(0), ConvertIdea(0, 2), Project(1, 197), Undo]

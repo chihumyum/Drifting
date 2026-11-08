@@ -141,6 +141,52 @@ fn wait_until(mut condition: impl FnMut() -> bool) {
 }
 
 #[test]
+fn steering_racing_with_completion_is_durably_acknowledged_or_explicitly_closed() {
+    for _ in 0..8 {
+        let f = Fixture::new();
+        let (release, waiting) = oneshot::channel();
+        let driver = Arc::new(ScriptedDriver::new(vec![
+            vec![
+                Step::Wait(waiting),
+                Step::Event(DriverEvent::Finish(FinishReason::Complete)),
+            ],
+            complete(),
+        ]));
+        let tools = Arc::new(Tools {
+            descriptors: Vec::new(),
+            execute: Arc::new(|_, _| unreachable!()),
+        });
+        let runtime =
+            Runtime::new(f.ws.clone(), driver.clone(), tools, Options::default()).unwrap();
+        let run = f.start(&runtime);
+        let session = run.session.clone();
+        wait_until(|| !driver.requests().is_empty());
+        let rendezvous = Arc::new(std::sync::Barrier::new(2));
+        let sender_ready = rendezvous.clone();
+        let control = run.control.clone();
+        let text = f.text.clone();
+        let sending = std::thread::spawn(move || {
+            sender_ready.wait();
+            block_on(control.steer(text))
+        });
+        rendezvous.wait();
+        release.send(()).unwrap();
+        let result = sending.join().unwrap();
+        assert_eq!(run.join().unwrap(), State::Completed);
+        let received = events(f.ws.library(), &session, 0).unwrap().into_iter().filter(|entry| {
+            matches!(&entry.event, Event::SteeringReceived {text, ..} if text == &f.text)
+        }).count();
+        match result {
+            Ok(()) => assert_eq!(received, 1, "an ACK requires its durable steering event"),
+            Err(Error::Closed) => {
+                assert_eq!(received, 0, "a racing rejected message was not accepted")
+            }
+            Err(error) => panic!("unexpected steering outcome: {error}"),
+        }
+    }
+}
+
+#[test]
 fn question_rejects_stale_answer_and_resumes_with_exact_response() {
     let f = Fixture::new();
     let question = Question {

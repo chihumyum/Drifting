@@ -100,7 +100,10 @@ pub fn search(query: &str, strings: &dr_i18n::I18n) -> Vec<(Section, Option<Vec<
             found.extend(
                 registry::info_in(section)
                     .filter(|r| {
-                        hit(r.label) || r.description.is_some_and(hit) || r.group.is_some_and(hit)
+                        hit(r.label)
+                            || r.description.is_some_and(hit)
+                            || r.group.is_some_and(hit)
+                            || normalize(r.id).contains(&q)
                     })
                     .map(|r| r.id),
             );
@@ -247,9 +250,27 @@ impl SettingsPanel {
 
 impl Render for SettingsPanel {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let requested = super::take_requested_section(window, cx);
+        if requested.is_some() {
+            self.query.clear();
+            self.search.update(cx, |field, cx| field.set_text("", cx));
+        }
         let theme = Theme::of(window, cx);
         let p = theme.palette;
-        let found = search(&self.query, Strings::get(cx));
+        let found: Vec<_> = search(&self.query, Strings::get(cx))
+            .into_iter()
+            .filter(|(section, _)| {
+                !matches!(section, Section::Models | Section::Agent)
+                    || super::has_module_section(*section, cx)
+            })
+            .collect();
+        if let Some(section) = requested
+            && let Some(index) = found
+                .iter()
+                .position(|(candidate, _)| *candidate == section)
+        {
+            self.scroll.scroll_to_item(index);
+        }
         let current = self.scroll.top_item();
         let rail = rail(&found, current, &self.search, &self.scroll, window, cx);
         let mut sections = div()
@@ -482,6 +503,18 @@ impl SettingsPanel {
                     cx,
                 );
                 for def in registry::in_section(section).filter(|d| wanted(d.key)) {
+                    if matches!(def.kind, Kind::Module(_)) {
+                        if let Some(control) = super::module_row(def.key, window, cx) {
+                            col = col.child(row(
+                                def.key,
+                                t(cx, def.label),
+                                def.description.map(|key| t(cx, key)),
+                                control,
+                                &theme,
+                            ));
+                        }
+                        continue;
+                    }
                     if let Some(group) = def.group
                         && def.group != heading
                     {
@@ -547,6 +580,12 @@ impl SettingsPanel {
         let markdown_on = crate::mirror::is_on(cx);
         let markdown_folder = crate::mirror::folder(cx);
         for info in registry::info_in(section).filter(|r| pick(r) && wanted(r.id)) {
+            if info.action == RowAction::Module {
+                if let Some(control) = super::module_row(info.id, window, cx) {
+                    col = col.child(control);
+                }
+                continue;
+            }
             // Where the Markdown folder is matters only while it is on; the
             // tour's row only when the app has a tour.
             if (info.action == RowAction::MarkdownLocation && !markdown_on)
@@ -614,6 +653,7 @@ impl SettingsPanel {
         let theme = Theme::of(window, cx);
         let (p, s) = (theme.palette, theme.scale);
         match info.action {
+            RowAction::Module => div().into_any_element(),
             RowAction::Open { url, button } => Button::new(
                 ElementId::Name(format!("open-{}", info.id).into()),
                 t(cx, button),
@@ -1122,6 +1162,7 @@ fn control(def: &'static SettingDef, _: &mut Window, cx: &mut App) -> AnyElement
     let file = Settings::read(cx);
     let key = def.key;
     match def.kind {
+        Kind::Module(_) => div().into_any_element(),
         Kind::Switch => Switch::new(key, file.bool(key))
             .on_change(move |on, _, cx| set(key, Value::Bool(on), cx))
             .into_any_element(),

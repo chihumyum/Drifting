@@ -1,5 +1,15 @@
 {
+  "agentPanel": {
+    "onboarding": {
+      "saveFailed": "Schlüssel konnte nicht in der Windows-Anmeldeinformationsverwaltung gespeichert werden."
+    }
+  },
   "settings": {
+    "codexSubscription": {
+      "failure": {
+        "storage_failed": "Die Anmeldung konnte nicht in der Windows-Anmeldeinformationsverwaltung gespeichert werden."
+      }
+    },
     "sync": {
       "projection": {
         "reveal": "Im Explorer anzeigen"

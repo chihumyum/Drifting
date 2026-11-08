@@ -1,8 +1,79 @@
 {
   "agentPanel": {
+    "checking": "Checking…",
+    "common": {
+      "none": "None"
+    },
+    "composer": {
+      "answer": "Answer",
+      "placeholder": "Ask the agent… (Enter to send, Shift+Enter for a new line)",
+      "send": "Send",
+      "steer": "Steer",
+      "stop": "Stop"
+    },
+    "config": {
+      "effort": "Effort · {{effort}}",
+      "effortLabel": "Effort",
+      "model": "Model",
+      "modelUnavailable": "The selected model is absent from the current catalog. Choose another model."
+    },
+    "context": {
+      "tokens": "{{count}} tokens"
+    },
+    "control": {
+      "allow": {
+        "once": "Allow once"
+      },
+      "deny": "Deny",
+      "permissionTitle": "Agent requests an action",
+      "questionTitle": "Agent needs your decision",
+      "recoveredTitle": "An interrupted wait was recovered"
+    },
+    "empty": {
+      "start": "Send Agent a message to start. It can read and write this project's chapters, elements, and relations."
+    },
+    "history": {
+      "empty": "No chat history yet",
+      "untitled": "Untitled"
+    },
+    "newConversation": "New chat",
+    "onboarding": {
+      "connect": "Connect a model",
+      "getKey": "Get an API key",
+      "history": "Version history",
+      "prompts": {
+        "castCharacters": "Create three main characters",
+        "commentChapter": "Leave two comments on “{{chapter}}”",
+        "completeElement": "Fill in the details of “{{element}}”",
+        "extractElements": "Find the people and places in “{{chapter}}” and add them as elements",
+        "interview": "Ask me a few questions to shape this story",
+        "outline": "Sketch a three-act chapter outline",
+        "relateElements": "Sort out how {{first}} and {{second}} are related",
+        "tightenChapter": "Tighten the opening paragraph of “{{chapter}}”"
+      },
+      "saveFailed": "Could not save the key to the Keychain.",
+      "try": "Try"
+    },
     "pending": {
-      "cancelling": "Stopping…"
-    }
+      "cancelling": "Stopping…",
+      "committing": "Saving…",
+      "now": "Thinking…"
+    },
+    "setup": {
+      "openSettings": "Open settings"
+    },
+    "thinking": {
+      "done": "Thinking trace",
+      "streaming": "Thinking…"
+    },
+    "tool": {
+      "result": "Result"
+    },
+    "toolbar": {
+      "history": "History"
+    },
+    "turnChanges": "Turn changes",
+    "unavailable": "Agent is unavailable."
   },
   "allChapters": {
     "actOrdinal": "Act {{n}}"
@@ -1124,6 +1195,27 @@
       "viewSource": "View source",
       "writeEmail": "Write email"
     },
+    "agent": {
+      "chatConfigDesc": "Choose the provider, model and reasoning effort from the configuration menu in the Agent composer in the right rail. Keys and the ChatGPT subscription are managed under Models & API.",
+      "effortOptions": {
+        "high": "High",
+        "low": "Low",
+        "max": "Max",
+        "medium": "Medium",
+        "minimal": "Minimal",
+        "ultra": "Ultra",
+        "xhigh": "Extra high"
+      },
+      "replayOnboarding": "Show the first-run guide again",
+      "title": "The agent in the right rail that can act."
+    },
+    "agentLimits": {
+      "desc": "Limits model calls in each conversation turn. At the limit, the turn stops; committed changes are kept. Changes apply to the next turn.",
+      "iterationLabel": "Max model iterations per turn",
+      "iterationOption": "{{value}} iterations",
+      "unlimited": "Unlimited",
+      "unlimitedHint": "Unlimited sets no model-call limit. You can stop the turn manually."
+    },
     "appearance": {
       "dark": "Dark",
       "guides": "Guides",
@@ -1141,8 +1233,38 @@
       "theme": "Theme",
       "theme_desc": "Light, dark, or follow the system."
     },
+    "byokProvider": {
+      "available": "Available",
+      "editKey": "Edit key",
+      "invalidKey": "Invalid key",
+      "keyPlaceholder": "Paste key...",
+      "notConnected": "Not connected",
+      "requestFailed": "Request failed (provider unavailable or network issue)"
+    },
+    "codexSubscription": {
+      "cancelled": "Sign-in cancelled.",
+      "codeHint": "enter it on the OpenAI device page; Drifting keeps checking until you approve",
+      "codeLabel": "One-time code",
+      "failure": {
+        "expired": "The code expired before it was approved.",
+        "invalid_response": "OpenAI returned an unexpected response.",
+        "network_failed": "OpenAI could not be reached.",
+        "provider_rejected": "OpenAI rejected the sign-in.",
+        "storage_failed": "The sign-in could not be saved to Keychain."
+      },
+      "name": "ChatGPT subscription",
+      "openVerification": "Open verification page",
+      "signOut": "Sign out",
+      "signedInAs": "Signed in"
+    },
     "common": {
-      "open_in_browser": "Open in browser"
+      "cancel": "Cancel",
+      "connect": "Connect",
+      "disconnect": "Disconnect",
+      "manageKeys": "Manage API keys",
+      "open_in_browser": "Open in browser",
+      "save": "Save",
+      "test_connection": "Test connection"
     },
     "editor": {
       "auto_element_link": "Auto element links",
@@ -1177,6 +1299,7 @@
     "groups": {
       "about": "About",
       "control": "Control",
+      "intelligence": "Intelligence",
       "preferences": "Preferences"
     },
     "hosted": {
@@ -1242,6 +1365,15 @@
       "ui_locale": "UI language",
       "ui_locale_desc": "The language of menus, buttons and messages. Your writing is not affected."
     },
+    "models": {
+      "providers": {
+        "anthropic": "Used by General Agent.",
+        "deepseek": "Used by General Agent.",
+        "openai": "Used by General Agent.",
+        "openaiCodex": "Sign in through OpenAI's Codex device flow to run General Agent on your own ChatGPT subscription, with whichever models your account offers; element art generation uses it too. OpenAI offers no third-party contract for this path, so it may stop working without notice; usage counts against your ChatGPT plan."
+      },
+      "title": "The services Drifting's AI features connect to."
+    },
     "privacy": {
       "copyDiagnostics": "Copy summary",
       "crashLogs": "Send fault diagnostics automatically",
@@ -1255,10 +1387,12 @@
     },
     "rail": {
       "about_app": "About Drifting",
+      "agent": "General Agent",
       "appearance": "Appearance",
       "editor": "Editor",
       "keys": "Keyboard",
-      "language": "Language"
+      "language": "Language",
+      "models": "Models & API"
     },
     "search_placeholder": "Search settings…",
     "sync": {

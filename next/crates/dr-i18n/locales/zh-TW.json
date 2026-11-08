@@ -1,8 +1,79 @@
 {
   "agentPanel": {
+    "checking": "正在檢查…",
+    "common": {
+      "none": "無"
+    },
+    "composer": {
+      "answer": "回答",
+      "placeholder": "向 Agent 提問…（Enter 傳送，Shift+Enter 換行）",
+      "send": "傳送",
+      "steer": "補充指示",
+      "stop": "停止"
+    },
+    "config": {
+      "effort": "強度 · {{effort}}",
+      "effortLabel": "強度",
+      "model": "模型",
+      "modelUnavailable": "目前目錄中沒有選取的模型，請選擇其他模型。"
+    },
+    "context": {
+      "tokens": "{{count}} 個 token"
+    },
+    "control": {
+      "allow": {
+        "once": "允許一次"
+      },
+      "deny": "拒絕",
+      "permissionTitle": "Agent 請求執行操作",
+      "questionTitle": "Agent 需要你做決定",
+      "recoveredTitle": "已找回中斷前的等待狀態"
+    },
+    "empty": {
+      "start": "傳送訊息給 Agent 即可開始，它能讀寫此作品的章節、要素與關係。"
+    },
+    "history": {
+      "empty": "尚無對話歷史",
+      "untitled": "未命名"
+    },
+    "newConversation": "新增對話",
+    "onboarding": {
+      "connect": "連接模型",
+      "getKey": "取得 API 金鑰",
+      "history": "版本歷史",
+      "prompts": {
+        "castCharacters": "建立三位主要角色",
+        "commentChapter": "在「{{chapter}}」留下兩則批註",
+        "completeElement": "補完整「{{element}}」的設定",
+        "extractElements": "找出「{{chapter}}」中的人物與地點，加入要素",
+        "interview": "問我幾個問題，一起塑造這個故事",
+        "outline": "擬一份三幕章節大綱",
+        "relateElements": "梳理 {{first}} 和 {{second}} 的關係",
+        "tightenChapter": "精簡「{{chapter}}」的開頭段落"
+      },
+      "saveFailed": "無法將金鑰儲存至鑰匙圈。",
+      "try": "試試看"
+    },
     "pending": {
-      "cancelling": "正在停止…"
-    }
+      "cancelling": "正在停止…",
+      "committing": "正在儲存…",
+      "now": "思考中…"
+    },
+    "setup": {
+      "openSettings": "開啟設定"
+    },
+    "thinking": {
+      "done": "思考過程",
+      "streaming": "思考中…"
+    },
+    "tool": {
+      "result": "結果"
+    },
+    "toolbar": {
+      "history": "歷史"
+    },
+    "turnChanges": "本回合變更",
+    "unavailable": "Agent 目前無法使用。"
   },
   "allChapters": {
     "actOrdinal": "第 {{n}} 幕"
@@ -1118,6 +1189,27 @@
       "viewSource": "檢視原始碼",
       "writeEmail": "撰寫電子郵件"
     },
+    "agent": {
+      "chatConfigDesc": "在右側 Agent 輸入框的設定選單中選擇服務商、模型和推理強度。金鑰與 ChatGPT 訂閱在「模型與 API」管理。",
+      "effortOptions": {
+        "high": "高",
+        "low": "低",
+        "max": "最大",
+        "medium": "中",
+        "minimal": "最低",
+        "ultra": "極高",
+        "xhigh": "很高"
+      },
+      "replayOnboarding": "再次顯示初次使用導覽",
+      "title": "右側可執行操作的 Agent。"
+    },
+    "agentLimits": {
+      "desc": "限制每輪對話中的模型呼叫次數。達到上限時本輪停止，已提交的變更保留。設定變更於下一輪對話生效。",
+      "iterationLabel": "每回合模型迭代上限",
+      "iterationOption": "{{value}} 次迭代",
+      "unlimited": "無上限",
+      "unlimitedHint": "「無上限」不設模型呼叫次數上限，你可以手動停止本輪。"
+    },
     "appearance": {
       "dark": "深色",
       "guides": "導覽",
@@ -1135,8 +1227,38 @@
       "theme": "主題",
       "theme_desc": "淺色、深色，或跟隨系統。"
     },
+    "byokProvider": {
+      "available": "可用",
+      "editKey": "編輯金鑰",
+      "invalidKey": "金鑰無效",
+      "keyPlaceholder": "貼上金鑰…",
+      "notConnected": "尚未連線",
+      "requestFailed": "請求失敗（服務商無法使用或網路問題）"
+    },
+    "codexSubscription": {
+      "cancelled": "已取消登入。",
+      "codeHint": "在 OpenAI 裝置頁面輸入驗證碼；Drifting 會持續確認，直到你核准為止",
+      "codeLabel": "一次性驗證碼",
+      "failure": {
+        "expired": "驗證碼在核准前已過期。",
+        "invalid_response": "OpenAI 傳回非預期的回應。",
+        "network_failed": "無法連線至 OpenAI。",
+        "provider_rejected": "OpenAI 拒絕了這次登入。",
+        "storage_failed": "無法將登入資訊儲存至鑰匙圈。"
+      },
+      "name": "ChatGPT 訂閱",
+      "openVerification": "開啟驗證頁面",
+      "signOut": "登出",
+      "signedInAs": "已登入"
+    },
     "common": {
-      "open_in_browser": "在瀏覽器中開啟"
+      "cancel": "取消",
+      "connect": "連線",
+      "disconnect": "中斷連線",
+      "manageKeys": "管理 API 金鑰",
+      "open_in_browser": "在瀏覽器中開啟",
+      "save": "儲存",
+      "test_connection": "測試連線"
     },
     "editor": {
       "auto_element_link": "自動連結要素",
@@ -1171,6 +1293,7 @@
     "groups": {
       "about": "關於",
       "control": "管理",
+      "intelligence": "智慧功能",
       "preferences": "偏好設定"
     },
     "hosted": {
@@ -1236,6 +1359,15 @@
       "ui_locale": "介面語言",
       "ui_locale_desc": "選單、按鈕與訊息的語言，不會影響你的寫作內容。"
     },
+    "models": {
+      "providers": {
+        "anthropic": "供通用 Agent 使用。",
+        "deepseek": "供通用 Agent 使用。",
+        "openai": "供通用 Agent 使用。",
+        "openaiCodex": "透過 OpenAI 的 Codex 裝置登入流程，以自己的 ChatGPT 訂閱執行通用 Agent，使用帳號提供的模型；要素設定圖也會使用此連線。OpenAI 未對此途徑提供第三方服務契約，可能隨時失效，用量計入你的 ChatGPT 方案。"
+      },
+      "title": "Drifting 的 AI 功能使用的服務。"
+    },
     "privacy": {
       "copyDiagnostics": "複製摘要",
       "crashLogs": "自動傳送故障診斷資訊",
@@ -1249,10 +1381,12 @@
     },
     "rail": {
       "about_app": "關於 Drifting",
+      "agent": "通用 Agent",
       "appearance": "外觀",
       "editor": "編輯器",
       "keys": "鍵盤",
-      "language": "語言"
+      "language": "語言",
+      "models": "模型與 API"
     },
     "search_placeholder": "搜尋設定…",
     "sync": {

@@ -722,11 +722,11 @@
     },
     "agentLimits": {
       "title": "Limites de execução",
-      "desc": "Limita iterações do modelo por trecho. Ao atingir o limite, salva o progresso e retoma automaticamente tarefas contínuas autorizadas; tarefas pausadas também podem continuar manualmente. Vale no próximo trecho.",
+      "desc": "Limita as chamadas ao modelo em cada turno da conversa. Ao atingir o limite, o turno para e as alterações salvas são mantidas. A configuração vale a partir do próximo turno.",
       "iterationLabel": "Máximo de iterações por turno",
       "iterationOption": "{{value}} iterações",
       "unlimited": "Ilimitado",
-      "unlimitedHint": "Sem limite, só para quando você interrompe o turno."
+      "unlimitedHint": "Sem limite não define um máximo de chamadas ao modelo. Você pode interromper o turno manualmente."
     },
     "agentMemory": {
       "title": "Memória do projeto"
@@ -1512,7 +1512,7 @@
       "endRecovered": "Encerrar etapa pendente"
     },
     "composer": {
-      "placeholder": "Pergunte ao Agent… (Cmd/Ctrl+Enter)",
+      "placeholder": "Pergunte ao Agent… (Enter para enviar, Shift+Enter para uma nova linha)",
       "steerPlaceholder": "Complemente ou corrija a tarefa em andamento…",
       "answerPlaceholder": "Responda à pergunta do Agent…",
       "stop": "Parar",

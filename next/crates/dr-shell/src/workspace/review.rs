@@ -29,6 +29,47 @@ impl Composer {
 }
 
 impl Workspace {
+    /// The same navigation as ShowProjectHome, for an accepted book change.
+    pub fn open_home(&mut self, cx: &mut Context<Self>) {
+        self.super_view = None;
+        self.nav.go_home();
+        self.changed(cx);
+    }
+
+    /// Reveal a comment which the caller has resolved in the current book.
+    /// Floating/unlocated comments belong in Review; located comments also
+    /// open their actual page and use M18's existing focus signal.
+    pub fn reveal_comment(
+        &mut self,
+        id: &str,
+        target: Option<Target>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Option<futures::channel::oneshot::Receiver<bool>> {
+        if dr_model::id::CommentId::parse(id).is_err()
+            || target
+                .as_ref()
+                .is_some_and(|target| self.book.entry(target).is_none())
+        {
+            return None;
+        }
+        self.super_view = None;
+        if let Some(target) = target {
+            self.open(target, Open::KEEP, cx);
+        }
+        let reduce = self.reduce_motion(window, cx);
+        self.right.set_open(true, reduce);
+        self.right.panes.reveal(super::RightTab::Review);
+        let pane = match self.right.panes.focused {
+            crate::panes::PaneId::Primary => "review-primary",
+            crate::panes::PaneId::Secondary => "review-secondary",
+        };
+        let revealed = dr_view_review::reveal_comment(pane, &self.book_id, id, cx)?;
+        dr_editor::decor::ReviewFocus::jump(id, cx);
+        self.changed(cx);
+        Some(revealed)
+    }
+
     /// A Review card's arrow: its entity's tab (the editor then shows the
     /// comment).
     pub(super) fn open_review_target(

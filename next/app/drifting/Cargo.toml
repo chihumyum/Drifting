@@ -29,6 +29,7 @@ dr-shell.workspace = true
 # F2's device identity for the library (writing days, epochs).
 dr-store.workspace = true
 dr-ui.workspace = true
+dr-view-agent.workspace = true
 dr-view-elements.workspace = true
 dr-view-ideas.workspace = true
 dr-view-feedback.workspace = true
@@ -53,4 +54,12 @@ log.workspace = true
 serde_json.workspace = true
 
 [dev-dependencies]
+dr-agent.workspace = true
+dr-agent-providers.workspace = true
+dr-model.workspace = true
+dr-testkit.workspace = true
 tempfile.workspace = true
+
+[[example]]
+name = "agent-acceptance"
+required-features = ["debug-bridge"]

@@ -1,8 +1,79 @@
 {
   "agentPanel": {
+    "checking": "確認中…",
+    "common": {
+      "none": "なし"
+    },
+    "composer": {
+      "answer": "回答",
+      "placeholder": "Agentに質問…（Enterで送信、Shift+Enterで改行）",
+      "send": "送信",
+      "steer": "追加指示",
+      "stop": "停止"
+    },
+    "config": {
+      "effort": "強度・{{effort}}",
+      "effortLabel": "強度",
+      "model": "モデル",
+      "modelUnavailable": "選択したモデルは現在の一覧にありません。別のモデルを選んでください。"
+    },
+    "context": {
+      "tokens": "{{count}}トークン"
+    },
+    "control": {
+      "allow": {
+        "once": "今回だけ許可"
+      },
+      "deny": "拒否",
+      "permissionTitle": "Agentが操作を求めています",
+      "questionTitle": "Agentが判断を求めています",
+      "recoveredTitle": "中断された待機を復旧しました"
+    },
+    "empty": {
+      "start": "Agentにメッセージを送って始めましょう。この作品の章、要素、関係を読み書きできます。"
+    },
+    "history": {
+      "empty": "チャット履歴なし",
+      "untitled": "無題"
+    },
+    "newConversation": "新しいチャット",
+    "onboarding": {
+      "connect": "モデルを接続",
+      "getKey": "APIキーを取得",
+      "history": "バージョン履歴",
+      "prompts": {
+        "castCharacters": "主要人物を3人作って",
+        "commentChapter": "「{{chapter}}」にコメントを2つ付けて",
+        "completeElement": "「{{element}}」の設定を補って",
+        "extractElements": "「{{chapter}}」の人物と場所を見つけて要素に追加して",
+        "interview": "いくつか質問して、この物語の形を整えて",
+        "outline": "三幕構成の章立てを考えて",
+        "relateElements": "{{first}}と{{second}}の関係を整理して",
+        "tightenChapter": "「{{chapter}}」の冒頭段落を引き締めて"
+      },
+      "saveFailed": "キーをキーチェーンに保存できませんでした。",
+      "try": "試す"
+    },
     "pending": {
-      "cancelling": "停止中…"
-    }
+      "cancelling": "停止中…",
+      "committing": "保存中…",
+      "now": "思考中…"
+    },
+    "setup": {
+      "openSettings": "設定を開く"
+    },
+    "thinking": {
+      "done": "思考の記録",
+      "streaming": "思考中…"
+    },
+    "tool": {
+      "result": "結果"
+    },
+    "toolbar": {
+      "history": "履歴"
+    },
+    "turnChanges": "ターンの変更",
+    "unavailable": "Agentを利用できません。"
   },
   "allChapters": {
     "actOrdinal": "第{{n}}幕"
@@ -1118,6 +1189,27 @@
       "viewSource": "ソースを見る",
       "writeEmail": "メールを作成"
     },
+    "agent": {
+      "chatConfigDesc": "右側のAgent入力欄で提供元、モデル、推論強度を選びます。キーとChatGPT契約は「モデルとAPI」で管理します。",
+      "effortOptions": {
+        "high": "高",
+        "low": "低",
+        "max": "最大",
+        "medium": "中",
+        "minimal": "最小",
+        "ultra": "極めて高い",
+        "xhigh": "非常に高い"
+      },
+      "replayOnboarding": "初回ガイドをもう一度表示",
+      "title": "右サイドバーで操作を行うAgent。"
+    },
+    "agentLimits": {
+      "desc": "会話の各ターンでのモデル呼び出し回数を制限します。上限に達するとターンが停止し、確定済みの変更は保持されます。設定の変更は次のターンから適用されます。",
+      "iterationLabel": "1ターンのモデル反復上限",
+      "iterationOption": "{{value}}回",
+      "unlimited": "無制限",
+      "unlimitedHint": "無制限ではモデル呼び出し回数に上限を設けません。ターンは手動で停止できます。"
+    },
     "appearance": {
       "dark": "ダーク",
       "guides": "ガイド",
@@ -1135,8 +1227,38 @@
       "theme": "テーマ",
       "theme_desc": "ライト、ダーク、またはシステムに合わせる。"
     },
+    "byokProvider": {
+      "available": "利用可能",
+      "editKey": "キーを編集",
+      "invalidKey": "無効なキー",
+      "keyPlaceholder": "キーを貼り付け…",
+      "notConnected": "未接続",
+      "requestFailed": "リクエスト失敗（提供元またはネットワークの問題）"
+    },
+    "codexSubscription": {
+      "cancelled": "ログインを取り消しました。",
+      "codeHint": "OpenAIの端末認証ページに入力してください。承認されるまでDriftingが確認します",
+      "codeLabel": "ワンタイムコード",
+      "failure": {
+        "expired": "承認される前にコードの期限が切れました。",
+        "invalid_response": "OpenAIから予期しない応答が返されました。",
+        "network_failed": "OpenAIに接続できませんでした。",
+        "provider_rejected": "OpenAIがログインを拒否しました。",
+        "storage_failed": "ログイン情報をキーチェーンに保存できませんでした。"
+      },
+      "name": "ChatGPTサブスクリプション",
+      "openVerification": "認証ページを開く",
+      "signOut": "ログアウト",
+      "signedInAs": "ログイン済み"
+    },
     "common": {
-      "open_in_browser": "ブラウザで開く"
+      "cancel": "キャンセル",
+      "connect": "接続",
+      "disconnect": "切断",
+      "manageKeys": "APIキーを管理",
+      "open_in_browser": "ブラウザで開く",
+      "save": "保存",
+      "test_connection": "接続をテスト"
     },
     "editor": {
       "auto_element_link": "要素を自動リンク",
@@ -1171,6 +1293,7 @@
     "groups": {
       "about": "このアプリについて",
       "control": "管理",
+      "intelligence": "AI機能",
       "preferences": "環境設定"
     },
     "hosted": {
@@ -1236,6 +1359,15 @@
       "ui_locale": "表示言語",
       "ui_locale_desc": "メニュー、ボタン、メッセージの言語です。執筆内容には影響しません。"
     },
+    "models": {
+      "providers": {
+        "anthropic": "汎用Agentで使用します。",
+        "deepseek": "汎用Agentで使用します。",
+        "openai": "汎用Agentで使用します。",
+        "openaiCodex": "OpenAIのCodex端末認証でログインし、ご自身のChatGPT契約と利用可能なモデルで汎用Agentを動かします。要素の設定画生成にも使います。この経路にOpenAIの第三者向け契約はなく、予告なく使えなくなる場合があります。使用量はChatGPTプランに計上されます。"
+      },
+      "title": "DriftingのAI機能が接続するサービス。"
+    },
     "privacy": {
       "copyDiagnostics": "概要をコピー",
       "crashLogs": "障害の診断情報を自動送信",
@@ -1249,10 +1381,12 @@
     },
     "rail": {
       "about_app": "Driftingについて",
+      "agent": "汎用Agent",
       "appearance": "外観",
       "editor": "エディタ",
       "keys": "キーボード",
-      "language": "言語"
+      "language": "言語",
+      "models": "モデルとAPI"
     },
     "search_placeholder": "設定を検索…",
     "sync": {

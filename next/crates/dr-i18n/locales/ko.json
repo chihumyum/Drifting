@@ -1,8 +1,79 @@
 {
   "agentPanel": {
+    "checking": "확인 중…",
+    "common": {
+      "none": "없음"
+    },
+    "composer": {
+      "answer": "답변",
+      "placeholder": "Agent에게 질문…(Enter로 전송, Shift+Enter로 줄바꿈)",
+      "send": "보내기",
+      "steer": "추가 지시",
+      "stop": "중지"
+    },
+    "config": {
+      "effort": "강도 · {{effort}}",
+      "effortLabel": "강도",
+      "model": "모델",
+      "modelUnavailable": "선택한 모델이 현재 목록에 없습니다. 다른 모델을 선택하세요."
+    },
+    "context": {
+      "tokens": "{{count}} 토큰"
+    },
+    "control": {
+      "allow": {
+        "once": "한 번 허용"
+      },
+      "deny": "거부",
+      "permissionTitle": "Agent가 작업을 요청합니다",
+      "questionTitle": "Agent의 결정 요청",
+      "recoveredTitle": "중단된 대기 상태를 복구했습니다"
+    },
+    "empty": {
+      "start": "Agent에게 메시지를 보내 시작하세요. 이 작품의 장·요소·관계를 읽고 쓸 수 있습니다."
+    },
+    "history": {
+      "empty": "아직 대화 기록이 없습니다",
+      "untitled": "제목 없음"
+    },
+    "newConversation": "새 대화",
+    "onboarding": {
+      "connect": "모델 연결",
+      "getKey": "API 키 받기",
+      "history": "버전 기록",
+      "prompts": {
+        "castCharacters": "주요 인물 세 명을 만들어 줘",
+        "commentChapter": "“{{chapter}}”에 댓글 두 개를 남겨 줘",
+        "completeElement": "“{{element}}”의 세부 설정을 채워 줘",
+        "extractElements": "“{{chapter}}”의 인물과 장소를 찾아 요소로 추가해 줘",
+        "interview": "이야기를 구체화할 수 있도록 몇 가지 질문해 줘",
+        "outline": "3막 구성의 장 개요를 만들어 줘",
+        "relateElements": "{{first}}와(과) {{second}}의 관계를 정리해 줘",
+        "tightenChapter": "“{{chapter}}”의 첫 문단을 간결하게 다듬어 줘"
+      },
+      "saveFailed": "키를 키체인에 저장할 수 없습니다.",
+      "try": "사용해 보기"
+    },
     "pending": {
-      "cancelling": "중지 중…"
-    }
+      "cancelling": "중지 중…",
+      "committing": "저장 중…",
+      "now": "생각 중…"
+    },
+    "setup": {
+      "openSettings": "설정 열기"
+    },
+    "thinking": {
+      "done": "사고 기록",
+      "streaming": "생각 중…"
+    },
+    "tool": {
+      "result": "결과"
+    },
+    "toolbar": {
+      "history": "기록"
+    },
+    "turnChanges": "턴 변경 사항",
+    "unavailable": "Agent를 사용할 수 없습니다."
   },
   "allChapters": {
     "actOrdinal": "제{{n}}막"
@@ -1118,6 +1189,27 @@
       "viewSource": "소스 보기",
       "writeEmail": "이메일 작성"
     },
+    "agent": {
+      "chatConfigDesc": "오른쪽 Agent 입력창의 설정 메뉴에서 제공업체·모델·추론 강도를 선택합니다. 키와 ChatGPT 구독은 ‘모델 및 API’에서 관리합니다.",
+      "effortOptions": {
+        "high": "높음",
+        "low": "낮음",
+        "max": "최대",
+        "medium": "중간",
+        "minimal": "최소",
+        "ultra": "극대",
+        "xhigh": "매우 높음"
+      },
+      "replayOnboarding": "첫 실행 가이드 다시 표시",
+      "title": "오른쪽 사이드바에서 작업을 수행하는 Agent."
+    },
+    "agentLimits": {
+      "desc": "대화의 각 턴에서 모델 호출 횟수를 제한합니다. 상한에 도달하면 해당 턴이 멈추며, 저장된 변경 사항은 유지됩니다. 설정 변경은 다음 턴부터 적용됩니다.",
+      "iterationLabel": "턴당 모델 반복 상한",
+      "iterationOption": "{{value}}회 반복",
+      "unlimited": "무제한",
+      "unlimitedHint": "무제한은 모델 호출 횟수에 상한을 두지 않습니다. 턴을 수동으로 중지할 수 있습니다."
+    },
     "appearance": {
       "dark": "어둡게",
       "guides": "가이드",
@@ -1135,8 +1227,38 @@
       "theme": "테마",
       "theme_desc": "밝게, 어둡게 또는 시스템 설정을 따릅니다."
     },
+    "byokProvider": {
+      "available": "사용 가능",
+      "editKey": "키 편집",
+      "invalidKey": "유효하지 않은 키",
+      "keyPlaceholder": "키 붙여넣기…",
+      "notConnected": "연결 안 됨",
+      "requestFailed": "요청 실패(제공업체 또는 네트워크 문제)"
+    },
+    "codexSubscription": {
+      "cancelled": "로그인을 취소했습니다.",
+      "codeHint": "OpenAI 기기 페이지에 입력하세요. 승인할 때까지 Drifting이 계속 확인합니다",
+      "codeLabel": "일회용 코드",
+      "failure": {
+        "expired": "승인하기 전에 코드가 만료되었습니다.",
+        "invalid_response": "OpenAI에서 예상치 못한 응답을 반환했습니다.",
+        "network_failed": "OpenAI에 연결할 수 없습니다.",
+        "provider_rejected": "OpenAI가 로그인을 거부했습니다.",
+        "storage_failed": "로그인 정보를 키체인에 저장할 수 없습니다."
+      },
+      "name": "ChatGPT 구독",
+      "openVerification": "인증 페이지 열기",
+      "signOut": "로그아웃",
+      "signedInAs": "로그인됨"
+    },
     "common": {
-      "open_in_browser": "브라우저에서 열기"
+      "cancel": "취소",
+      "connect": "연결",
+      "disconnect": "연결 해제",
+      "manageKeys": "API 키 관리",
+      "open_in_browser": "브라우저에서 열기",
+      "save": "저장",
+      "test_connection": "연결 테스트"
     },
     "editor": {
       "auto_element_link": "요소 자동 링크",
@@ -1171,6 +1293,7 @@
     "groups": {
       "about": "정보",
       "control": "관리",
+      "intelligence": "AI 기능",
       "preferences": "환경설정"
     },
     "hosted": {
@@ -1236,6 +1359,15 @@
       "ui_locale": "인터페이스 언어",
       "ui_locale_desc": "메뉴, 버튼, 메시지의 언어입니다. 집필 내용에는 영향을 주지 않습니다."
     },
+    "models": {
+      "providers": {
+        "anthropic": "범용 Agent에서 사용합니다.",
+        "deepseek": "범용 Agent에서 사용합니다.",
+        "openai": "범용 Agent에서 사용합니다.",
+        "openaiCodex": "OpenAI의 Codex 기기 로그인으로 본인의 ChatGPT 구독과 계정에서 제공하는 모델을 사용해 범용 Agent를 실행합니다. 요소 이미지 생성에도 사용됩니다. OpenAI는 이 경로에 대한 제3자 계약을 제공하지 않으므로 예고 없이 중단될 수 있습니다. 사용량은 ChatGPT 요금제에 반영됩니다."
+      },
+      "title": "Drifting의 AI 기능이 연결하는 서비스."
+    },
     "privacy": {
       "copyDiagnostics": "요약 복사",
       "crashLogs": "오류 진단 자동 전송",
@@ -1249,10 +1381,12 @@
     },
     "rail": {
       "about_app": "Drifting 정보",
+      "agent": "범용 Agent",
       "appearance": "모양",
       "editor": "편집기",
       "keys": "키보드",
-      "language": "언어"
+      "language": "언어",
+      "models": "모델 및 API"
     },
     "search_placeholder": "설정 검색…",
     "sync": {
