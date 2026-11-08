@@ -434,6 +434,24 @@ fn pane_slug(pane: PaneId) -> &'static str {
     }
 }
 
+impl Workspace {
+    /// Whether this cached companion body is still shown in its own pane.
+    /// Used to cancel UI-owned operations when a tab closes or is covered.
+    pub fn companion_visible(&self, body: gpui::EntityId) -> bool {
+        if !self.right.open || self.immersive || self.covered() {
+            return false;
+        }
+        let panels = self.companion.borrow();
+        self.right.panes.panes.iter().any(|pane| {
+            pane.tab == RightTab::Companion
+                && panels
+                    .get(pane_slug(pane.id))
+                    .and_then(Option::as_ref)
+                    .is_some_and(|panel| panel.body.entity_id() == body)
+        })
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn pane_view<T>(
     ws: &mut Workspace,

@@ -446,6 +446,12 @@ impl AgentController {
                     }
                 },
             );
+            if let Some(resources) = &resources {
+                // Run cancellation can drop a read future while its F3 OS
+                // worker still owns a cloned context. Starts/read reservations
+                // have drained, so no new execution can enter this barrier.
+                resources.runtime.drain_tools().await.map_err(string)?;
+            }
             drop(resources);
             reads?;
             for result in completed {

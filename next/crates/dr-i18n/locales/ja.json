@@ -6,10 +6,10 @@
     },
     "composer": {
       "answer": "回答",
-      "placeholder": "Agentに質問…（Cmd/Ctrl+Enter）",
       "send": "送信",
       "steer": "追加指示",
-      "stop": "停止"
+      "stop": "停止",
+      "touchPlaceholder": "Agentに質問…"
     },
     "config": {
       "effort": "強度・{{effort}}",

@@ -6,10 +6,10 @@
     },
     "composer": {
       "answer": "답변",
-      "placeholder": "Agent에게 질문…(Cmd/Ctrl+Enter)",
       "send": "보내기",
       "steer": "추가 지시",
-      "stop": "중지"
+      "stop": "중지",
+      "touchPlaceholder": "Agent에게 묻기…"
     },
     "config": {
       "effort": "강도 · {{effort}}",

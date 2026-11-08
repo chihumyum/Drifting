@@ -909,10 +909,10 @@ editorTopBar.menu.moveToGroup
 agentPanel.checking
 agentPanel.common.none
 agentPanel.composer.answer
-agentPanel.composer.placeholder
 agentPanel.composer.send
 agentPanel.composer.steer
 agentPanel.composer.stop
+agentPanel.composer.touchPlaceholder
 agentPanel.config.effort
 agentPanel.config.effortLabel
 agentPanel.config.model

@@ -1321,6 +1321,7 @@ impl Workspace {
             }
             Some(Layer::Settings) => {
                 self.settings = None;
+                crate::settings::panel_closed(window.window_handle().window_id(), cx);
                 self.refocus(window, cx);
             }
             Some(Layer::SuperView) => {
@@ -1343,6 +1344,7 @@ impl Workspace {
             cx.subscribe_in(&panel, window, |ws, _, event, window, cx| match event {
                 crate::settings::panel::PanelEvent::Close => {
                     ws.settings = None;
+                    crate::settings::panel_closed(window.window_handle().window_id(), cx);
                     ws.refocus(window, cx);
                 }
             })
@@ -1688,6 +1690,7 @@ impl Workspace {
 impl Workspace {
     /// Keeps both sidebars inside the window and splits or joins their halves.
     fn fit_sidebars(&mut self, window_w: f32, window: &mut Window, cx: &mut Context<Self>) {
+        let previous_right_panes = self.right.panes.panes.clone();
         let left_min = sidebar::min_width(sidebar::Side::Left, false, window, cx);
         let right_min = sidebar::min_width(sidebar::Side::Right, false, window, cx);
         let other = |s: f32, w: f32| if s > 0.0 { w } else { 0.0 };
@@ -1712,6 +1715,11 @@ impl Workspace {
         self.right
             .panes
             .resize(self.right.width >= right_split, &RightTab::ORDER);
+        if self.right.panes.panes != previous_right_panes {
+            // Cached module bodies observe visibility through Workspace.
+            // Resizing can hide a pane without a tab or toggle action.
+            cx.notify();
+        }
     }
 }
 

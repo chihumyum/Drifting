@@ -49,6 +49,7 @@ fn valid_secret(value: &str) -> bool {
 pub struct Credentials {
     store: Arc<SecretStore>,
     io: Arc<Mutex<()>>,
+    oauth_save_checkpoint: Option<Arc<dyn Fn() + Send + Sync>>,
 }
 
 impl Credentials {
@@ -56,7 +57,17 @@ impl Credentials {
         Self {
             store,
             io: Arc::new(Mutex::new(())),
+            oauth_save_checkpoint: None,
         }
+    }
+
+    /// Deterministic acceptance hook inside the native I/O lease, after the
+    /// generation check and immediately before OAuth persistence. It receives
+    /// no credential bytes. Production stores leave this unset.
+    #[doc(hidden)]
+    pub fn with_oauth_save_checkpoint(mut self, checkpoint: Arc<dyn Fn() + Send + Sync>) -> Self {
+        self.oauth_save_checkpoint = Some(checkpoint);
+        self
     }
 
     /// A candidate key for an explicit connectivity check. Nothing reaches the
@@ -182,11 +193,15 @@ impl Credentials {
         }
         let raw = serde_json::to_string(tokens)
             .map_err(|_| ProviderError::protocol("invalid OAuth credential"))?;
+        let checkpoint = self.oauth_save_checkpoint.clone();
         self.with_store(move |store| {
             if fence
                 .is_some_and(|(generation, expected)| generation.load(Ordering::SeqCst) != expected)
             {
                 return Err(ProviderError::cancelled());
+            }
+            if let Some(checkpoint) = checkpoint {
+                checkpoint();
             }
             store
                 .set(keys::CHATGPT_SUBSCRIPTION, &raw)

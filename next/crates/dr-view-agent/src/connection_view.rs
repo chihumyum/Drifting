@@ -65,7 +65,7 @@ pub struct ConnectionView {
     field: Entity<TextField>,
     open: Option<Provider>,
     pending_connect: bool,
-    pending_login: bool,
+    pending_login: Option<u64>,
     settings_provider: Option<Provider>,
     _subscriptions: Vec<Subscription>,
 }
@@ -103,7 +103,7 @@ impl ConnectionView {
                     && view
                         .open
                         .is_some_and(|provider| current.readiness(provider) == Readiness::Ready))
-                    || (view.pending_login
+                    || (view.pending_login.is_some()
                         && current.readiness(Provider::Chatgpt) == Readiness::Ready));
             view.field.update(cx, |field, cx| {
                 field.set_disabled(busy, cx);
@@ -122,7 +122,7 @@ impl ConnectionView {
             }
             if !busy {
                 view.pending_connect = false;
-                view.pending_login = false;
+                view.pending_login = None;
             }
             cx.notify();
         });
@@ -140,14 +140,41 @@ impl ConnectionView {
                 cx.notify();
             }
         });
+        let release = cx.on_release(|view, cx| view.cancel_login(cx));
+        let owner_window = window.window_handle().window_id();
+        let weak = cx.weak_entity();
+        let window_closed = cx.on_window_closed(move |cx, window| {
+            if window == owner_window {
+                weak.update(cx, |view, cx| view.cancel_login(cx)).ok();
+            }
+        });
         Self {
             connections,
             field,
             open: None,
             pending_connect: false,
-            pending_login: false,
+            pending_login: None,
             settings_provider: None,
-            _subscriptions: vec![state, input],
+            _subscriptions: vec![state, input, release, window_closed],
+        }
+    }
+
+    /// A hidden or released connection UI cancels only the login it started.
+    /// Another window's later login is identified by a different operation.
+    pub fn cancel_login(&mut self, cx: &mut App) {
+        if let Some(generation) = self.pending_login.take() {
+            self.connections.update(cx, |connections, cx| {
+                connections.cancel_owned_login(generation, cx)
+            });
+        }
+    }
+
+    pub fn start_login(&mut self, cx: &mut Context<Self>) {
+        if let Some(generation) = self
+            .connections
+            .update(cx, |connections, cx| connections.start_login(cx))
+        {
+            self.pending_login = Some(generation);
         }
     }
 
@@ -247,11 +274,7 @@ impl ConnectionView {
                     });
                 } else if provider == Provider::Chatgpt {
                     if !ready {
-                        entity.update(cx, |view, cx| {
-                            view.pending_login = view.connections.read(cx).operation.is_none();
-                            view.connections
-                                .update(cx, |connections, cx| connections.start_login(cx));
-                        });
+                        entity.update(cx, |view, cx| view.start_login(cx));
                     }
                 } else {
                     entity.update(cx, |view, cx| view.open(provider, window, cx));

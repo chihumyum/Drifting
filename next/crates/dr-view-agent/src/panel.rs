@@ -81,7 +81,7 @@ impl AgentPanel {
         let composer = cx.new(|cx| {
             TextArea::new("agent-composer", window, cx)
                 .framed(3.0)
-                .placeholder(t(cx, k::composer::PLACEHOLDER))
+                .placeholder(t(cx, k::composer::TOUCH_PLACEHOLDER))
         });
         let connect = cx.new(|cx| ConnectionView::new(connections.clone(), window, cx));
         let mut panel = Self {
@@ -151,6 +151,9 @@ impl AgentPanel {
     }
 
     fn follow_book(&mut self, ws: &Entity<Workspace>, cx: &mut Context<Self>) {
+        if !ws.read(cx).companion_visible(cx.entity_id()) {
+            self.connect.update(cx, |view, cx| view.cancel_login(cx));
+        }
         let state = ws.read(cx);
         let book = BookId::parse(&state.book_id).ok();
         let changed = self

@@ -6,10 +6,10 @@
     },
     "composer": {
       "answer": "Antworten",
-      "placeholder": "Agent fragen… (Cmd/Ctrl+Enter)",
       "send": "Senden",
       "steer": "Nachsteuern",
-      "stop": "Stoppen"
+      "stop": "Stoppen",
+      "touchPlaceholder": "Den Agent fragen…"
     },
     "config": {
       "effort": "Aufwand · {{effort}}",

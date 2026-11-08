@@ -100,6 +100,12 @@ let terminal = run.finish().await?; // 或非 UI 线程里的 join()
 
 丢弃 `RunHandle` 会请求中止，避免遗留一个永远等回答的工作线程；这只发出信号，确保写入已经停妥仍要等待 `finish/join`。
 
+M31 接入换库与退出后补充了资源释放边界：只读 future 可取消，但已交给 OS 线程的
+`ToolContext` 可能仍持有工作区。线程必须保留整个 context，私有执行 lease 随之释放。
+服务先冻结新运行并等待所有 run/start 完成，再等待 `Runtime::drain_tools()`，最后
+释放库；这不改变只读调用取消或 `RunHandle` 的完成语义。真实 M29 与 `workspace_call`
+读取的阻塞／关闭回归在 `dr-view-agent/tests/lifecycle_read.rs`。
+
 ## 测试与证据
 
 测试使用 `dr_testkit::seed::Tiny` 的书和正文、合成模型事件，契约在测试里断言，不提交 JSON 证据，不测忙碌机器上的性能。

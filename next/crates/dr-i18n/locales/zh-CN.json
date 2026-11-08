@@ -6,10 +6,10 @@
     },
     "composer": {
       "answer": "回答",
-      "placeholder": "询问 Agent…（Cmd/Ctrl+Enter）",
       "send": "发送",
       "steer": "补充",
-      "stop": "停止"
+      "stop": "停止",
+      "touchPlaceholder": "询问 Agent…"
     },
     "config": {
       "effort": "强度 · {{effort}}",

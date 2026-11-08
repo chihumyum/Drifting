@@ -14,6 +14,7 @@ pub mod tools;
 
 use dr_agent::{Driver, ToolExecutor};
 use dr_agent_providers::{HttpClient, ProviderDriver, credentials::Credentials};
+use futures::FutureExt as _;
 use gpui::{App, AppContext as _, Entity, Global, KeyBinding, WeakEntity};
 use std::sync::Arc;
 
@@ -90,6 +91,16 @@ pub fn init_with_service(
         connections: connections.clone(),
         hub: hub.clone(),
         panels: Vec::new(),
+    });
+    let weak = connections.downgrade();
+    dr_shell::release::before_release(cx, move |cx| {
+        weak.upgrade()
+            .map(|connections| {
+                connections
+                    .update(cx, |connections, cx| connections.prepare_release(cx))
+                    .boxed_local()
+            })
+            .unwrap_or_else(|| async { Ok(()) }.boxed_local())
     });
     settings::init(connections, cx);
     hub::install(&hub, cx);

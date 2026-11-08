@@ -7,6 +7,58 @@ use dr_model::id::BookId;
 use dr_workspace::{Actor, Workspace};
 use futures::{FutureExt, channel::oneshot, future::BoxFuture};
 use serde_json::Value;
+use std::sync::{Arc, Mutex};
+
+/// A cancelled read future may have handed its context to a synchronous
+/// worker. Keep library release separate from the model run's cancellation.
+#[derive(Default)]
+pub(crate) struct ToolExecutions(Mutex<ExecutionState>);
+
+#[derive(Default)]
+struct ExecutionState {
+    active: usize,
+    drained: Vec<oneshot::Sender<()>>,
+}
+
+impl ToolExecutions {
+    pub(crate) fn enter(self: &Arc<Self>) -> Arc<ToolExecutionLease> {
+        self.0.lock().expect("tool executions").active += 1;
+        Arc::new(ToolExecutionLease {
+            executions: self.clone(),
+        })
+    }
+
+    pub(crate) fn drain(&self) -> BoxFuture<'static, Result<()>> {
+        let mut state = self.0.lock().expect("tool executions");
+        if state.active == 0 {
+            return async { Ok(()) }.boxed();
+        }
+        let (send, receive) = oneshot::channel();
+        state.drained.push(send);
+        async move {
+            receive
+                .await
+                .map_err(|_| Error::Tool("tool execution barrier ended early".into()))
+        }
+        .boxed()
+    }
+}
+
+pub(crate) struct ToolExecutionLease {
+    executions: Arc<ToolExecutions>,
+}
+
+impl Drop for ToolExecutionLease {
+    fn drop(&mut self) {
+        let mut state = self.executions.0.lock().expect("tool executions");
+        state.active -= 1;
+        if state.active == 0 {
+            for waiter in std::mem::take(&mut state.drained) {
+                let _ = waiter.send(());
+            }
+        }
+    }
+}
 
 #[derive(Clone, Debug)]
 pub enum ToolOutput {
@@ -35,6 +87,8 @@ pub trait ToolExecutor: Send + Sync + 'static {
     /// `context.workspace_call`, which performs the call on a worker.
     /// Write futures MUST finish only after all their effects have settled.
     /// Read futures must be side-effect-free and safe to drop on abort.
+    /// Offloaded workers must retain their ToolContext (or a clone) until
+    /// they finish using its workspace, even if the caller drops the future.
     /// Execute the exact `context.descriptor.revision`, or reject it. Plugin
     /// reloads must change that revision, including handler-only changes.
     fn execute(
@@ -52,6 +106,9 @@ pub struct ToolContext {
     pub descriptor: ToolDescriptor,
     pub(crate) workspace: Workspace,
     pub(crate) access: ToolAccess,
+    // Keep this last: the context's Workspace must drop before a final lease
+    // wakes a library-release waiter. Clones share the same execution lease.
+    pub(crate) _execution: Arc<ToolExecutionLease>,
 }
 
 impl ToolContext {
@@ -103,6 +160,9 @@ impl ToolContext {
                             .call(&cx.actor, &name, input)
                             .map_err(|e| Error::Tool(e.to_string()))
                     };
+                    // Capture the whole context, not only its accessed fields:
+                    // its execution lease must follow this worker as well.
+                    drop(cx);
                     let _ = tx.send(result);
                 })
                 .map_err(|e| Error::Tool(e.to_string()))?;

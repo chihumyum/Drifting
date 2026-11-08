@@ -50,6 +50,7 @@ struct Inner {
     // Read groups overlap internally; whole groups and writes serialize
     // across all runs of this Runtime. F3 also keeps its own command gates.
     tool_gate: Arc<futures::lock::Mutex<()>>,
+    executions: Arc<crate::tools::ToolExecutions>,
 }
 
 #[derive(Clone)]
@@ -114,6 +115,7 @@ impl Runtime {
                 active: Mutex::default(),
                 lifecycle: Mutex::default(),
                 tool_gate: Arc::default(),
+                executions: Arc::default(),
             }),
         };
         runtimes.insert(path, Arc::downgrade(&runtime.inner));
@@ -248,6 +250,14 @@ impl Runtime {
             control,
             finished: Some(finished),
         })
+    }
+
+    /// Wait for every entered tool context, including synchronous workers
+    /// whose read futures were cancelled. The owner must first freeze new
+    /// starts and await all run handles; this does not change read cancellation
+    /// or a RunHandle's completion boundary.
+    pub fn drain_tools(&self) -> BoxFuture<'static, Result<()>> {
+        self.inner.executions.drain()
     }
 
     /// Startup recovery, before creating runs. Replays the conversation
@@ -779,6 +789,7 @@ impl Worker {
                 workspace: self.inner.ws.clone(),
                 access: descriptor.access,
                 descriptor,
+                _execution: self.inner.executions.enter(),
             };
             let executor = self.inner.tools.clone();
             active.push(

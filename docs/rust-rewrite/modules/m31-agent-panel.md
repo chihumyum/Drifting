@@ -1,6 +1,6 @@
 # M31 帮手面板与改动显现
 
-交回状态：`codex/m31-agent-panel`；首次实现已验收，待合入最新 main 及 M29 审查修复后填写最终提交；F4 逐字覆盖接口与真模型手测仍待后续。
+交回状态：`codex/m31-agent-panel`；实现与审查修复已验收，提交见下一次交回记录；F4 逐字覆盖接口与真模型手测仍待后续。
 
 2026-11-08。实现 [M31 任务书](../handoff/m31-agent-panel.md)，接在
 [M27 运行时](m27-agent-runtime.md)、[M28 模型接入](m28-model-providers.md)、
@@ -55,6 +55,11 @@ M27 的调度、读写屏障和结算。面板不保管 `RunHandle`，也不直�
 `join`。所有 prepare future 都会等完，一个失败不会丢弃另一个还在结算的服务。
 等待期间重复退出或换库被同一 gate 拦住。
 
+取消读取可以立即结束模型回合，但执行 F3 读取的线程可能仍持有 `Workspace`。
+`ToolContext` 的私有执行 lease 跟随线程；所有回合和开始请求结束以后，controller
+再等待 `Runtime::drain_tools()`，然后才释放库。`workspace_call` 也明确保留整个
+context，避免 Rust 的字段捕获把 lease 留在被取消的外层 future。
+
 准备失败时保留当前库；换库完成或失败重开后，先把当前库放回 `Services`，再通知服务
 重建，最后调用换库完成回调。成功退出不重建服务。换库还会清理已经画出的旧窗口帧，避免
 旧帧的点击回调继续持有编辑器和库，导致 F3 关闭失败。
@@ -66,6 +71,11 @@ M27 的调度、读写屏障和结算。面板不保管 `RunHandle`，也不直�
 已有且仍有效的记住会话会结束首次引导；显式重置不会被迁入规则覆盖。
 起手请求使用 F3 的 `recent.list` 节点记录；字数索引未就绪时从 canonical 正文判断
 章节是否有字，空态在书目更新或新建对话后重新读取，避免永久缓存初次的零字数。
+
+**取消登录等待最终存储。** 每个登录界面只拥有自己发起的操作代次。取消、关闭设置、
+帮手栏被隐藏或覆盖、释放界面及关闭窗口，均启动独立于界面任务的 OAuth `logout()`
+屏障；原生凭据写入已经开始时，等待它和清除操作都完成再放开下一次登录。正常退出或
+换库也等待同一屏障，不依赖界面任务的 Drop 恰好执行到清理代码。
 
 **墨色不改正文。** 新增、改写和外部来源分别使用 F4d 既有的绿色、紫色、蓝色映射。
 指针触碰只更新装饰和本机已读台账；正文的 Loro frontiers 不变。M31 不接管 F4 的绘制层，
@@ -114,6 +124,8 @@ is_releasing(cx);
   `let_go` 以前准备，普通 `quit::request` 在原有退出 hooks 以前准备。
 - 设置使用 `settings::set_module_row` 登记四个模型连接区、模型偏好和引导重置；
   模型选择器沿用 F5 的浮层组件，Key 输入复用安全输入模式。
+- `settings::on_panel_closed` 通知被缓存的连接界面；`Workspace::companion_visible`
+  按主体实体及所在栏判断可见性，避免另一个帮手栏仍打开时遗漏当前栏的取消。
 - 「本轮改动」沿用外壳导航，「版本历史」沿用 `Workspace::open_history`。正文装饰
   直接复用 `dr_editor::decor::AgentMarks`，没有第二套墨色台账。
 
@@ -128,11 +140,18 @@ is_releasing(cx);
   等待已进入的写入收据、被阻塞的读取以及正在 holder 中开始的回合。
 - `tests/connection.rs`：同一 M28 驱动测试临时 Key，成功才保留；失败、不完整响应和
   空 Key 不破坏原凭据；GPUI 实体在测试完成前不切路由，成功后才切；设备登录取消
-  不留 token；偏好范围和类型有断言。
+  不留 token；偏好范围和类型有断言。最终存储竞态使用无秘密参数的凭据检查点，
+  在真实 I/O lease 内、代次检查后阻塞，覆盖按钮、隐藏、界面释放、窗口关闭、正常
+  release 和连接服务释放；等待期间第二次登录被拒，结束后原路由与无关 Key 保留。
 - `tests/panel.rs`：真实 GPUI 面板、键盘和 M27 驱动跑通 Enter 发送、Shift+Enter 换行、
   提问、回答、当前工具后停；切书后旧任务仍可回来控制；开始等待期间新草稿不被清空。
 - `tests/hub.rs`：初始化未装入界面时就关闭，仍等待初始化并释放库；真实换库后从
   新 `Services` 重建服务，保留旧／新 controller 克隆也不阻止关闭。
+- `tests/lifecycle_read.rs`：用 F2 文档加载检查点阻塞真实 M29 读取和 `workspace_call`
+  读取；模型回合已记为 Aborted 时，关闭仍等待底层线程。放行后保留 controller 和
+  driver 克隆也能关闭 F3。修复前的回归实际复现了残留引用导致的 `try_shutdown` 拒绝。
+- `tests/visibility.rs`：多窗口设置的 Esc、dismiss 和关闭事件只通知对应窗口；真实缓存
+  帮手主体随所在栏显隐。缩窄窗口自动合栏时会通知观察者，另一栏可见不会掩盖当前栏关闭。
 - `src/data.rs`：未重建字数索引的 tiny 种子仍选有正文的章节，最近打开的第二章优先；
   外链只接受有主机的 HTTP(S) URL。
 - `tests/onboarding.rs`：没有模型、状态未查明、已有对话、已连接三种状态的显示规则；
@@ -151,7 +170,7 @@ is_releasing(cx);
 ```bash
 cargo build -p drifting --example agent-acceptance --features debug-bridge --locked
 cargo drifting workspace scenario crates/dr-view-agent/scenarios/companion.json \
-  --app target/debug/examples/agent-acceptance --out target/acceptance/m31-companion
+  --app target/debug/examples/agent-acceptance --out target/acceptance/m31-companion-integrated
 ```
 
 例程使用临时 tiny 种子库、内存凭据、本机回环短完成服务和 M27 假驱动；四家的
@@ -164,9 +183,11 @@ completion、catalog、OAuth 地址都指向回环。它不进入正式应用，
 集成时还修正 F5 `TextField` 的安全输入和 `Select` 的单行截断；设置连接视图及定向
 打开请求按窗口隔离。
 
-首次实现基线的 `cargo fmt --all --check`、全工作区 Clippy、`cargo xtask check` 与
-`pnpm public:check` 均通过；全工作区测试以 `RUST_TEST_THREADS=2` 执行，**1706 通过、20 忽略**。审计 0 漏洞、12 项已有提示；14 份已有测量过期，机器并行编译期间
-未重写测量数字。整合最新 main 和 M29 审查修复后再统一复验。
+合入 main 第二十二批和 M29 审查修复后的最终验证：`cargo fmt --all --check`、
+全工作区 Clippy、`cargo xtask check` 与 `pnpm public:check` 均通过；全工作区测试以
+`RUST_TEST_THREADS=2` 执行，**1759 通过、0 失败、22 忽略**（含文档测试）。
+`dr-view-agent` 的 32 项全部通过，真实窗口最终场景重建后再次 32 步通过。
+审计 0 漏洞、12 项已有提示；14 份已有测量过期，机器并行编译期间未重写测量数字。
 
 ## 待协调
 
@@ -177,8 +198,8 @@ completion、catalog、OAuth 地址都指向回环。它不进入正式应用，
    通过延迟实际持久写入来模拟动画。
 2. 真模型连接和真实 ChatGPT 登录留给作者手测；自动化仅使用本机假服务。M32 MCP、
    M30 长任务和 M33 生图不在本模块另开产品入口，继续组合共享 Runtime 的工具和控制。
-3. 最新队列的第二十／二十一批反馈已收到：M29 的隐藏关系删除、指定关系 id 覆盖与
-   新构想转换保护必须随依赖分支合入；M31 最终接收以该修复后的整合测试为准。
+3. M29 审查修复 `4d55f081`／`44357606` 已随本分支合入：排除隐藏级联删除和两项
+   构想转换，拒绝指定关系 id，更新目录及 `chapter.create` 修订回归。
 
 ## 代码位置
 

@@ -6,10 +6,10 @@
     },
     "composer": {
       "answer": "Responder",
-      "placeholder": "Pregunta a Agent… (Cmd/Ctrl+Enter)",
       "send": "Enviar",
       "steer": "Orientar",
-      "stop": "Detener"
+      "stop": "Detener",
+      "touchPlaceholder": "Pregunta al agente…"
     },
     "config": {
       "effort": "Esfuerzo · {{effort}}",

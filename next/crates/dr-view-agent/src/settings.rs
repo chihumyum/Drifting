@@ -34,6 +34,13 @@ pub fn init(connections: Entity<Connections>, cx: &mut App) {
     ] {
         let connections = connections.clone();
         let views: Rc<RefCell<HashMap<gpui::WindowId, Entity<ConnectionView>>>> = Rc::default();
+        let dismissed_views = views.clone();
+        settings::on_panel_closed(cx, move |window, cx| {
+            let view = dismissed_views.borrow().get(&window).cloned();
+            if let Some(view) = view {
+                view.update(cx, |view, cx| view.cancel_login(cx));
+            }
+        });
         let closed_views = views.clone();
         cx.on_window_closed(move |_, window| {
             closed_views.borrow_mut().remove(&window);

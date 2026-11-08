@@ -30,6 +30,30 @@ type MakeModuleRow = Rc<dyn Fn(&mut Window, &mut App) -> AnyElement>;
 struct ModuleRows(HashMap<&'static str, MakeModuleRow>);
 impl Global for ModuleRows {}
 
+type PanelClosed = Rc<dyn Fn(gpui::WindowId, &mut App)>;
+
+#[derive(Default)]
+struct PanelClosedHooks(Vec<PanelClosed>);
+impl Global for PanelClosedHooks {}
+
+/// Cancels work owned by a settings surface when it is dismissed. Module
+/// controls may remain cached, so dropping their view is not a close signal.
+pub fn on_panel_closed(cx: &mut App, hook: impl Fn(gpui::WindowId, &mut App) + 'static) {
+    cx.default_global::<PanelClosedHooks>()
+        .0
+        .push(Rc::new(hook));
+}
+
+pub(crate) fn panel_closed(window: gpui::WindowId, cx: &mut App) {
+    let hooks = cx
+        .try_global::<PanelClosedHooks>()
+        .map(|hooks| hooks.0.clone())
+        .unwrap_or_default();
+    for hook in hooks {
+        hook(window, cx);
+    }
+}
+
 /// Registers the control of a declared module row. The declaration remains
 /// the single source for type validation, account scope, ordering and search.
 pub fn set_module_row(

@@ -2,7 +2,11 @@
 //! enter serializable view state. Conversation sends still use M27's runtime;
 //! the only direct completion here is the author's explicit connection test.
 
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 use dr_agent::{
     Cancellation, Driver, DriverEvent, DriverRequest, FinishReason, ModelErrorCategory, ModelRoute,
@@ -16,7 +20,7 @@ use dr_agent_providers::{
 };
 use dr_model::conversation::{ConversationEntry, ConversationEntryKind};
 use dr_shell::{Settings, settings::registry};
-use futures::StreamExt;
+use futures::{FutureExt, StreamExt, future::BoxFuture, future::Shared};
 use gpui::{App, Context, Task};
 use serde::{Deserialize, Serialize};
 
@@ -308,6 +312,52 @@ impl From<&DeviceCode> for LoginCode {
     }
 }
 
+type LoginCleanup = Shared<BoxFuture<'static, dr_agent_providers::Result<()>>>;
+
+/// Cleanup is dispatched on the provider executor immediately, independently
+/// of the GPUI task. Dropping a login UI cannot abandon an in-flight native
+/// credential write. All cancellation paths await the same logout barrier.
+#[derive(Clone)]
+struct LoginCancellation {
+    cancel: OAuthCancellation,
+    driver: ProviderDriver,
+    cleanup: Arc<Mutex<Option<LoginCleanup>>>,
+}
+
+impl LoginCancellation {
+    fn new(driver: ProviderDriver) -> Self {
+        Self {
+            cancel: OAuthCancellation::default(),
+            driver,
+            cleanup: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    fn cancel(&self) -> LoginCleanup {
+        self.cancel.cancel();
+        let mut cleanup = self
+            .cleanup
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        cleanup
+            .get_or_insert_with(|| {
+                let oauth = self.driver.oauth().clone();
+                let task = self
+                    .driver
+                    .http()
+                    .spawn(async move { oauth.logout().await });
+                async move {
+                    task.await.map_err(|_| {
+                        dr_agent_providers::ProviderError::protocol("OAuth cleanup worker failed")
+                    })?
+                }
+                .boxed()
+                .shared()
+            })
+            .clone()
+    }
+}
+
 pub struct Connections {
     service: ConnectionService,
     preferences: Preferences,
@@ -322,7 +372,7 @@ pub struct Connections {
     generation: u64,
     refresh_generation: u64,
     catalog_generation: HashMap<Provider, u64>,
-    login_cancel: Option<OAuthCancellation>,
+    login_cancel: Option<LoginCancellation>,
     task: Option<Task<()>>,
 }
 
@@ -587,7 +637,7 @@ impl Connections {
     }
 
     fn begin(&mut self, operation: Operation, cx: &mut Context<Self>) -> Option<u64> {
-        if self.operation.is_some() {
+        if self.operation.is_some() || dr_shell::release::is_releasing(cx) {
             return None;
         }
         self.generation += 1;
@@ -734,13 +784,13 @@ impl Connections {
         }));
     }
 
-    pub fn start_login(&mut self, cx: &mut Context<Self>) {
-        let Some(generation) = self.begin(Operation::Login, cx) else {
-            return;
-        };
+    /// Returns the operation identity for the view that owns this login.
+    pub fn start_login(&mut self, cx: &mut Context<Self>) -> Option<u64> {
+        let generation = self.begin(Operation::Login, cx)?;
         let service = self.service.clone();
-        let cancel = OAuthCancellation::default();
-        self.login_cancel = Some(cancel.clone());
+        let cancellation = LoginCancellation::new(service.driver.clone());
+        let cancel = cancellation.cancel.clone();
+        self.login_cancel = Some(cancellation.clone());
         self.login = None;
         self.task = Some(cx.spawn(async move |this, cx| {
             let oauth = service.driver.oauth().clone();
@@ -755,7 +805,7 @@ impl Connections {
                 Ok(Ok(device)) => {
                     let current = this
                         .update(cx, |this, cx| {
-                            if this.generation != generation {
+                            if this.generation != generation || cancel.is_cancelled() {
                                 return false;
                             }
                             this.login = Some(LoginCode::from(&device));
@@ -764,33 +814,26 @@ impl Connections {
                         })
                         .unwrap_or(false);
                     if !current {
-                        cancel.cancel();
-                        return;
-                    }
-                    let finish_http = http.clone();
-                    let finish_oauth = oauth.clone();
-                    let check_cancel = cancel.clone();
-                    let result = http
-                        .spawn(async move {
-                            finish_oauth
-                                .complete(finish_http.raw(), &device, &cancel)
-                                .await
-                        })
-                        .await;
-                    // Native Keychain writes cannot be interrupted. If Cancel
-                    // arrived during that write, settle it, then clear the new
-                    // login under OAuth's generation/refresh fence.
-                    if check_cancel.is_cancelled() {
-                        match http.spawn(async move { oauth.logout().await }).await {
-                            Ok(Ok(())) => Ok(Err(dr_agent_providers::ProviderError::cancelled())),
-                            Ok(Err(error)) => Ok(Err(error)),
-                            Err(error) => Err(error),
-                        }
+                        cancellation.cancel().await.ok();
+                        Ok(Err(dr_agent_providers::ProviderError::cancelled()))
                     } else {
-                        result
+                        let finish_http = http.clone();
+                        http.spawn(async move {
+                            oauth.complete(finish_http.raw(), &device, &cancel).await
+                        })
+                        .await
                     }
                 }
                 other => other.map(|result| result.map(|_| unreachable!())),
+            };
+            let result = if cancellation.cancel.is_cancelled() {
+                // Keep the operation lease until native storage and the
+                // independently dispatched logout have both settled.
+                Ok(Err(cancellation.cancel().await.err().unwrap_or_else(
+                    dr_agent_providers::ProviderError::cancelled,
+                )))
+            } else {
+                result
             };
             this.update(cx, |this, cx| {
                 if this.generation != generation {
@@ -812,6 +855,11 @@ impl Connections {
                         this.load_catalog(Provider::Chatgpt, cx);
                     }
                     Ok(Err(error)) => {
+                        if error.category == ModelErrorCategory::Cancelled {
+                            this.account = None;
+                            this.readiness.insert(Provider::Chatgpt, Readiness::Missing);
+                            this.service.catalog.clear();
+                        }
                         this.failure = Some(
                             if expired && error.category != ModelErrorCategory::Cancelled {
                                 Failure::Expired
@@ -826,18 +874,41 @@ impl Connections {
             })
             .ok();
         }));
+        Some(generation)
     }
 
     pub fn cancel_login(&mut self, cx: &mut Context<Self>) {
         if self.operation != Some(Operation::Login) {
             return;
         }
-        if let Some(cancel) = self.login_cancel.take() {
-            cancel.cancel();
+        if let Some(cancel) = &self.login_cancel {
+            drop(cancel.cancel());
         }
         // Keep the operation lease until OAuth settles (including native I/O).
         self.login = None;
         cx.notify();
+    }
+
+    pub(crate) fn cancel_owned_login(&mut self, generation: u64, cx: &mut Context<Self>) {
+        if self.generation == generation {
+            self.cancel_login(cx);
+        }
+    }
+
+    /// Ordinary quit/library release must wait for the same native-I/O and
+    /// logout barrier as the login UI. The shell gate rejects new operations.
+    pub fn prepare_release(
+        &mut self,
+        cx: &mut Context<Self>,
+    ) -> BoxFuture<'static, Result<(), String>> {
+        self.cancel_login(cx);
+        match &self.login_cancel {
+            Some(cancel) => {
+                let cleanup = cancel.cancel();
+                async move { cleanup.await.map_err(|error| error.to_string()) }.boxed()
+            }
+            None => async { Ok(()) }.boxed(),
+        }
     }
 
     pub fn logout(&mut self, cx: &mut Context<Self>) {
@@ -866,5 +937,13 @@ impl Connections {
             })
             .ok();
         }));
+    }
+}
+
+impl Drop for Connections {
+    fn drop(&mut self) {
+        if let Some(cancel) = &self.login_cancel {
+            drop(cancel.cancel());
+        }
     }
 }
