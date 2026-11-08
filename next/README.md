@@ -47,6 +47,7 @@ script/bundle-mac
 - 产物是 `target/bundle/Drifting Next.app`：release 构建，带 `Info.plist`、旧版的 `.icns` 和分层图标（`Assets.car`，要 Xcode 26 以上的 `actool`）。
 - 加 `--open` 打包完就打开；加 `--debug` 打 dev 构建，快很多。
 - 加 `--dmg` 再出一个不签名的 `.dmg`，加 `--archive` 再出更新包 `.app.tar.gz`。
+- 加 `--dist` 打发出去的那种构建：`dist` 档案（release 加行号表），包里的可执行文件剥掉符号，符号留在包旁边的 `Drifting Next.app.dSYM`（给 Sentry 还原崩溃位置，不随包发）。Windows 是 `-BuildProfile dist`，符号是可执行文件旁边的 `drifting.pdb`。`release` 档案不变，照旧给基准测试用。
 - bundle id 是开发用的 `cc.drifting.next.dev`，链接协议是 `drifting-next-dev:`，和装着的正式版互不干扰。接管正式版身份、签名、公证在 F7 的交接里，见 [f7-platform.md](../docs/rust-rewrite/foundations/f7-platform.md)。
 - 不用开发者证书签名，只做 ad-hoc 签名（Apple 芯片要求改过的可执行文件至少有这个）。本机打的包双击就能开；从别处下载的副本会被 Gatekeeper 拦下。
 - 正式包要预编译着色器、去掉 `runtime_shaders`，脚本里记成了发版前的待办。

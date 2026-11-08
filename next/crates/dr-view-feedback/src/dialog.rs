@@ -9,11 +9,12 @@
 //! the primary button becomes 「用邮件发送」 with the outward arrow, which it
 //! is from the start without the Hosted service.
 //!
-//! Two departures from 0.1, until dr-ui has what they need (m39-feedback.md,
-//! 「待协调」): the message is dr-ui's single-line field (there is no
-//! multi-line one yet), and there is no ✕ and no closing by clicking the
-//! mist, because the dialog shell closes on both alike and 0.1 kept a typed
-//! message from being lost that way. Cancel, Esc and ⌘↩ work as in 0.1.
+//! Closing, as in 0.1: the ✕ always closes (a message already on its way
+//! still goes, and still retires its notice); a click on the mist closes
+//! only while nothing is written and nothing is being sent; Esc and Cancel
+//! close unless it is sending. The message is a multi-line field, at least
+//! five lines high: Enter starts a new line, ⌘↩ (Ctrl+Enter elsewhere)
+//! sends.
 
 use std::time::SystemTime;
 
@@ -27,15 +28,18 @@ use dr_ui::{
     Theme,
     components::{Button, Dialog, Switch},
     fonts::Role,
-    input::field::{FieldEvent, TextField},
+    input::{
+        area::TextArea,
+        field::{FieldEvent, TextField},
+    },
     sand::{self, Icon},
     style::DrStyled,
     tokens::space,
 };
 use gpui::{
     AppContext as _, Context, Entity, Focusable as _, InteractiveElement, IntoElement,
-    KeyDownEvent, ParentElement, Render, SharedString, StatefulInteractiveElement as _, Styled,
-    Subscription, Task, Window, div, prelude::FluentBuilder as _, px,
+    ParentElement, Render, SharedString, StatefulInteractiveElement as _, Styled, Subscription,
+    Task, Window, div, prelude::FluentBuilder as _, px,
 };
 
 use crate::Service;
@@ -44,6 +48,8 @@ use crate::Service;
 pub const KEY_CONTEXT: &str = "FeedbackDialog";
 /// 0.1's card width.
 pub const WIDTH: f32 = 520.0;
+/// The message field is at least this many lines high (0.1).
+pub const MESSAGE_ROWS: f32 = 5.0;
 
 /// Where the dialog is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -56,7 +62,7 @@ pub enum Phase {
 }
 
 pub struct FeedbackDialog {
-    message: Entity<TextField>,
+    message: Entity<TextArea>,
     contact: Entity<TextField>,
     follow_up: Option<FollowUpNotice>,
     /// Taken once as the dialog opens, so the preview is exactly what is sent.
@@ -90,15 +96,15 @@ impl FeedbackDialog {
         );
         let optional = t(cx, fb::CONTACT_PLACEHOLDER);
         let message =
-            cx.new(|cx| TextField::new("feedback-message", window, cx).placeholder(placeholder));
+            cx.new(|cx| TextArea::new("feedback-message", window, cx).placeholder(placeholder));
         let contact = cx.new(|cx| {
             TextField::new("feedback-contact", window, cx)
                 .small()
                 .placeholder(optional)
         });
         let subscriptions = vec![
-            cx.subscribe_in(&message, window, Self::on_field),
-            cx.subscribe_in(&contact, window, Self::on_field),
+            cx.subscribe_in(&message, window, Self::on_message),
+            cx.subscribe_in(&contact, window, Self::on_contact),
         ];
         let focus = message.read(cx).focus_handle(cx);
         window.focus(&focus, cx);
@@ -116,7 +122,7 @@ impl FeedbackDialog {
         }
     }
 
-    pub fn message_field(&self) -> &Entity<TextField> {
+    pub fn message_field(&self) -> &Entity<TextArea> {
         &self.message
     }
 
@@ -153,7 +159,24 @@ impl FeedbackDialog {
         cx.notify();
     }
 
-    fn on_field(
+    /// The message: ⌘↩ sends (Enter is a new line), Esc closes.
+    fn on_message(
+        &mut self,
+        _: &Entity<TextArea>,
+        event: &FieldEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        match event {
+            FieldEvent::Changed(_) => cx.notify(),
+            FieldEvent::Cancelled => self.dismiss(window, cx),
+            FieldEvent::Submitted(_) => self.submit(window, cx),
+            FieldEvent::Blurred => {}
+        }
+    }
+
+    /// The reply-to address: Esc closes; Enter does nothing (0.1).
+    fn on_contact(
         &mut self,
         _: &Entity<TextField>,
         event: &FieldEvent,
@@ -163,8 +186,6 @@ impl FeedbackDialog {
         match event {
             FieldEvent::Changed(_) => cx.notify(),
             FieldEvent::Cancelled => self.dismiss(window, cx),
-            // One line holds the whole message for now: Enter does not
-            // send by accident, ⌘↩ sends (as in 0.1's text area).
             FieldEvent::Submitted(_) | FieldEvent::Blurred => {}
         }
     }
@@ -228,12 +249,20 @@ impl FeedbackDialog {
         };
         let payload = feedback::payload(&draft, &service.sender(), SystemTime::now());
         let session = service.session.clone();
+        let notice = self.follow_up.as_ref().map(|f| f.notice);
         self.set_phase(Phase::Sending, cx);
         self.sending = Some(cx.spawn(async move |this, cx| {
             let result = cx
                 .background_executor()
                 .spawn(async move { feedback::send(&endpoint, session.as_deref(), &payload) })
                 .await;
+            // Retired here, not by the dialog: the ✕ may have closed it
+            // while the message was on its way (0.1 did the same).
+            if result.is_ok()
+                && let Some(notice) = notice
+            {
+                cx.update(|cx| Notifications::remove(notice, cx));
+            }
             this.update(cx, |dialog, cx| dialog.finish(result, cx)).ok();
         }));
     }
@@ -241,10 +270,7 @@ impl FeedbackDialog {
     fn finish(&mut self, result: Result<(), SendError>, cx: &mut Context<Self>) {
         self.sending = None;
         match result {
-            Ok(()) => {
-                self.set_phase(Phase::Sent, cx);
-                self.retire(cx);
-            }
+            Ok(()) => self.set_phase(Phase::Sent, cx),
             Err(error) => {
                 log::warn!("feedback was not sent: {error}");
                 self.set_phase(Phase::Failed, cx);
@@ -255,9 +281,8 @@ impl FeedbackDialog {
     fn set_phase(&mut self, phase: Phase, cx: &mut Context<Self>) {
         self.phase = phase;
         let locked = self.locked();
-        for field in [&self.message, &self.contact] {
-            field.update(cx, |f, cx| f.set_disabled(locked, cx));
-        }
+        self.message.update(cx, |f, cx| f.set_disabled(locked, cx));
+        self.contact.update(cx, |f, cx| f.set_disabled(locked, cx));
         cx.notify();
     }
 
@@ -272,6 +297,24 @@ impl FeedbackDialog {
     /// Cancel, Esc, Close: the notice stays. Not while sending.
     pub fn dismiss(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.phase != Phase::Sending {
+            (self.close.clone())(window, cx);
+        }
+    }
+
+    /// The ✕: always closes, the notice stays. A message already on its way
+    /// still goes, and still retires its notice once it arrives.
+    pub fn close_button(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(sending) = self.sending.take() {
+            sending.detach();
+        }
+        (self.close.clone())(window, cx);
+    }
+
+    /// A click on the mist: closes only while nothing is written (spaces
+    /// are nothing) and nothing is being sent, so no words are lost (0.1's
+    /// `closeOnBackdrop`).
+    pub fn mist(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.phase != Phase::Sending && self.message.read(cx).text().trim().is_empty() {
             (self.close.clone())(window, cx);
         }
     }
@@ -396,9 +439,24 @@ impl Render for FeedbackDialog {
                 .child(t(cx, key))
         });
 
+        let message = dr_view_shelf::frame::area(
+            "feedback-message-frame",
+            &self.message,
+            MESSAGE_ROWS,
+            window,
+            cx,
+        );
         let mut dialog = Dialog::new("feedback-dialog", title)
             .width(WIDTH)
-            .body(self.message.clone())
+            .on_close({
+                let entity = entity.clone();
+                move |window, cx| entity.update(cx, |d, cx| d.close_button(window, cx))
+            })
+            .on_mist({
+                let entity = entity.clone();
+                move |window, cx| entity.update(cx, |d, cx| d.mist(window, cx))
+            })
+            .body(message)
             .body(contact)
             .body(attach)
             .when_some(preview, |d, preview| d.body(preview));
@@ -458,23 +516,6 @@ impl Render for FeedbackDialog {
             dialog.action(cancel).action(send)
         };
 
-        div()
-            .key_context(KEY_CONTEXT)
-            // ⌘↩ (Ctrl+Enter elsewhere) sends from anywhere in the dialog,
-            // read as a key: the shell rebuilds the keymap from its own
-            // registry.
-            .on_key_down(cx.listener(|dialog, e: &KeyDownEvent, window, cx| {
-                let m = &e.keystroke.modifiers;
-                let command = if cfg!(target_os = "macos") {
-                    m.platform
-                } else {
-                    m.control
-                };
-                if e.keystroke.key == "enter" && command && !m.alt && !m.shift {
-                    dialog.submit(window, cx);
-                    cx.stop_propagation();
-                }
-            }))
-            .child(dialog)
+        div().key_context(KEY_CONTEXT).child(dialog)
     }
 }

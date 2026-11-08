@@ -31,7 +31,7 @@ use dr_platform::Identity;
 use dr_platform::feedback::{Delivery, Sender};
 use gpui::{App, AppContext as _, Global};
 
-pub use dialog::{FeedbackDialog, KEY_CONTEXT, Phase, WIDTH};
+pub use dialog::{FeedbackDialog, KEY_CONTEXT, MESSAGE_ROWS, Phase, WIDTH};
 
 /// Where feedback goes and who sends it.
 #[derive(Clone, Debug)]

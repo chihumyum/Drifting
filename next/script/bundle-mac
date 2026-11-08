@@ -2,9 +2,12 @@
 # Builds "Drifting Next.app", an unsigned macOS bundle for local testing,
 # and optionally the two files a release ships for it.
 #
-#   script/bundle-mac [--debug] [--open] [--dmg] [--archive] [--output <dir>]
+#   script/bundle-mac [--debug|--dist] [--open] [--dmg] [--archive] [--output <dir>]
 #
 #   --debug    bundle the dev profile instead of release
+#   --dist     bundle the shipped build: the `dist` profile (release with line
+#              tables), the executable stripped, its symbols in
+#              <name>.app.dSYM beside the bundle (for Sentry, never shipped)
 #   --open     open the bundle when it is built
 #   --dmg      also make <name>_<version>_macos_<arch>.dmg (first installs)
 #   --archive  also make <name>_<version>_<arch>.app.tar.gz (the updater's
@@ -53,6 +56,7 @@ output="$next_dir/target/bundle"
 while (($#)); do
   case "$1" in
     --debug) profile=debug ;;
+    --dist) profile=dist ;;
     --open) open_after=1 ;;
     --dmg) make_dmg=1 ;;
     --archive) make_archive=1 ;;
@@ -84,6 +88,7 @@ build_number=$(git -C "$repo_dir" rev-list --count HEAD 2>/dev/null || echo 1)
 
 cargo_args=(build --locked -p drifting)
 [[ $profile == release ]] && cargo_args+=(--release)
+[[ $profile == dist ]] && cargo_args+=(--profile dist)
 echo "bundle-mac: cargo ${cargo_args[*]}"
 # The executable's minimum macOS matches LSMinimumSystemVersion (Rust's
 # default would be 11.0).
@@ -97,6 +102,18 @@ contents="$app/Contents"
 rm -rf "$app"
 mkdir -p "$contents/MacOS" "$contents/Resources"
 cp "$binary" "$contents/MacOS/$EXECUTABLE"
+if [[ $profile == dist ]]; then
+  # The symbols stay here, keyed by the executable's build UUID, which
+  # stripping keeps; the release workflow uploads them to Sentry.
+  [[ -d $binary.dSYM ]] || die "cargo did not produce $binary.dSYM"
+  symbols="$output/$APP_NAME.app.dSYM"
+  rm -rf "$symbols"
+  ditto "$binary.dSYM" "$symbols"
+  strip -S -x "$contents/MacOS/$EXECUTABLE"
+  [[ $(dwarfdump --uuid "$contents/MacOS/$EXECUTABLE" | cut -d ' ' -f 2) == \
+    $(dwarfdump --uuid "$symbols" | cut -d ' ' -f 2) ]] ||
+    die "the stripped executable and $symbols name different builds"
+fi
 
 # The bundled fonts (dr-ui looks in Contents/Resources/fonts first). They
 # are built, not committed; install-fonts says how to build them if missing.
@@ -171,6 +188,9 @@ binary_kb=$(du -sk "$contents/MacOS/$EXECUTABLE" | cut -f 1)
 echo "bundle-mac: $app"
 echo "bundle-mac: $APP_NAME $version ($commit), $BUNDLE_ID, $profile"
 echo "bundle-mac: bundle ${size_kb} KiB, executable ${binary_kb} KiB"
+if [[ -n ${symbols:-} ]]; then
+  echo "bundle-mac: symbols $symbols ($(du -sk "$symbols" | cut -f 1) KiB)"
+fi
 
 # The disk image follows the released files' naming (`macos_arm64`); the
 # update archive uses the updater's target name (`aarch64`).

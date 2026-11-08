@@ -1708,6 +1708,7 @@ dependencies = [
  "dr-platform",
  "dr-shell",
  "dr-ui",
+ "dr-view-shelf",
  "gpui",
  "gpui_platform",
  "log",

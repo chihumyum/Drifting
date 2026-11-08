@@ -297,3 +297,13 @@ opt-level = 2
 # timings honest in the gallery.
 [profile.dev.package.dr-ui]
 opt-level = 2
+
+# The shipped build: release plus line tables in a separate symbol file (a
+# .dSYM beside the executable on macOS, a .pdb on Windows), so Sentry can name
+# a crash's frames once the release workflow uploads it. `script/bundle-mac
+# --dist` strips the bundled executable and keeps the .dSYM beside the .app;
+# `release` itself stays as it is for benchmarks. f7-platform.md, 「符号文件」.
+[profile.dist]
+inherits = "release"
+debug = "line-tables-only"
+split-debuginfo = "packed"
