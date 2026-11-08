@@ -347,6 +347,8 @@ M3 Pro，release 构建，1280×800 的样张、2 倍屏。帧时间是离屏（
 
 ## 待协调
 
+**2026-11-09 转轨道 2 后续：** M32 窗口验收发现 `Button::disabled` 已禁止点击并变灰，但原生 AX 仍报告 enabled，见 [M32 待协调第 5 条](../modules/m32-mcp.md#待协调)。由通用 dr-ui／GPUI 无障碍工作统一处理；不算本次四项交付的退回条件，也不为此解冻旧模块。
+
 - **F6（外壳）换用 `TabDock`**（F6 下一轮做，dr-ui 这边已经有了；第二个里程碑列的那几样 F6 已经换完）：
   - `workspace/dock.rs` 的 `dock()` 换成 `TabDock::new("dock", 标签, ws.nav.active_index())`：每个标签 `DockTab::new(现在的 pill(…))`，分屏标签加 `.marks([两半的 DockMark::new(kind, 颜色).hollow(preview)], 焦点在哪一半)`；`.locked(ws.dock_locked)`，`.leading(…)` 放锁的 `IconButton`，`.trailing(…)` 放 `+`，`.on_change`、`.draggable`、`.map_pill` 原样搬过去。外面那层定位（标题栏高度、避开两个上角的 `lead` / `trail`）留在外壳。
   - 悬停和收回交给组件：`Workspace` 里的 `dock_hovered`、`dock_collapse`、`hover_dock()` 可以删，`kind_group` 换成 `dr_ui::components::dock::kind_family`。外壳现在用 `cx.has_active_drag()` 撑开药丸行；组件自己的药丸在手里时已经会撑开，只有别的拖动（以后从侧栏拖条目）也要药丸时才传 `.held_open(cx.has_active_drag())`。
