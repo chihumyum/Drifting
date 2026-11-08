@@ -212,14 +212,19 @@ fn main() {
         // the old one comes back on failure).
         dr_view_transfer::backup::set_replace(
             cx,
-            std::rc::Rc::new(|staged, cx| {
+            std::rc::Rc::new(|staged, mut progress, cx| {
                 let (tx, rx) = futures::channel::oneshot::channel();
                 dr_shell::library::replace(
                     cx,
                     move |root, options| {
-                        dr_store::Library::restore_staged(root, &staged, options)
-                            .map(|(lib, _)| lib)
-                            .map_err(|e| e.to_string())
+                        dr_store::Library::restore_staged_with(
+                            root,
+                            &staged,
+                            options,
+                            &mut progress,
+                        )
+                        .map(|(lib, _)| lib)
+                        .map_err(|e| e.to_string())
                     },
                     move |result, _| drop(tx.send(result)),
                 );
