@@ -114,6 +114,12 @@ M19 任务投射仍在开发，本项基于 `671fec8d` 上 33 份冻结工作文
 - **必要契约**：目录 descriptor／搜索不暴露新命令；已有 `prose.shape` 或完整 `prose.read` 后直接调用仍在 mutation 前拒绝，正文、书和 settlements 不变。编辑器测试从真实 Agent 的上述三个元数据入口恢复旗标，不衍生无归属 User 写入；作者菜单启用及作者撤销仍正常。若选择支持 Agent 投射，另补完整读取、版本冲突、回执和按 Agent 撤销。
 - `history.restore_point` 和 `comment.delete` 继续保持已有排除；本轮未发现 `comment.update` 新直接级联，不扩大排除。最终冻结提交按实际改动重新审查，不仅机械更新 snapshot。
 
+### M19 正式交回复核
+
+`d21d02c6` / `1696afe3` 已复核：上面的**新内部维护命令误开放已修**，`note_tasks.project` 在 descriptor 查找时拒绝，早于 F3 的解析与写入；目录断言及生成 exclusions 随提交更新。M31 同项排除合入时保留一次即可。
+
+**Agent 元数据变化被当成作者启用的问题仍未修**：编辑器来源消费者及投射队列与预审快照逐字一致，三个已开放的元数据／历史入口仍可触发此链。直接排除命令不解决这条间接写入路径，作者 UI 启用／撤销仍应作为合法正例保留。三项数据问题已在冻结提交分别定向复现，详情见 remaining.md；模块继续暂缓，不把 68 步成功场景当作来源和退出契约。
+
 ## M17 类型编辑的历史接口（2026-11-08）
 
 `c6e8e458` 的前向 `relation_type.update` 仍只写类型，现存 raw relations 用于拒绝非法定义；M29 的类型读取覆盖和 book CAS 在该路径上足够，不额外要求读取所有隐藏关系。但通用历史恢复绕过了新校验，内建颜色恢复又被通用锁拒绝。Relations 的 restore_fields 也没有类型／端点／对称校验：Agent 把关系 A→B 后，作者收窄 A，再撤销回 A 会留下不合法关系；普通关系更新的逆命令同样走实体恢复，需一起补。修复由正在改 F3 的旧模块 M17 会话承接，细节在 remaining.md；接收时从真实 AgentTools 验证 `history.undo_agent` / `history.restore_entities`，不能只跑 `ws.undo(User)`。同时补祖先 `relation.update` 的读取与回执契约、改正映射表，目录快照更新本身不代表这些路径安全。
