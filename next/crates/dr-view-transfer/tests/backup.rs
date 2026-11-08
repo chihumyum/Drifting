@@ -109,7 +109,8 @@ fn a_backup_is_written_then_checked_asked_about_and_handed_over(cx: &mut TestApp
     };
     assert!(text.contains("Drifting-2026-11-08.drifting"), "{text}");
     assert!(file.exists());
-    cx.cx.update(|cx| d.update(cx, |d, cx| d.close(cx)));
+    // Closed from inside the window, as its Close button's click runs.
+    cx.update(|_, cx| d.update(cx, |d, cx| d.close(cx)));
     cx.run_until_parked();
     assert!(!shown(&view, cx));
 

@@ -15,6 +15,9 @@
 //! - Finding what is on screen by its accessible name (`ui.find`,
 //!   `ui.press`): `a11y`, which connects to GPUI's AccessKit tree from
 //!   inside the app (macOS).
+//! - The system's open and save panels (`panel.answer`): `panel`, which
+//!   answers the app's next panel where AppKit hands the author's choice
+//!   back (macOS).
 //! - The shell is read through dr-shell's public interface
 //!   (`with_workspace`, `Workspace`'s fields, `nav`, `quit`); the app adds
 //!   one call after `dr_shell::init`:
@@ -32,6 +35,7 @@
 
 mod a11y;
 mod methods;
+mod panel;
 
 use std::sync::Arc;
 

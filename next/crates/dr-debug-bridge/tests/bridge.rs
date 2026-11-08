@@ -454,3 +454,79 @@ fn the_socket_answers_with_the_token_only(cx: &mut TestAppContext) {
     cx.update(|_, cx| dr_debug_bridge::stop(cx));
     assert!(!paths.connection.exists());
 }
+
+#[gpui::test]
+fn the_transfer_dialog_files_and_panels_are_read(cx: &mut TestAppContext) {
+    let (view, cx, dir) = setup(cx);
+    let empty = call(cx, "state.get", json!({})).unwrap();
+    assert_eq!(empty["transfer"], Value::Null);
+    assert_eq!(empty["panel"]["last"], Value::Null);
+    assert_eq!(
+        call(cx, "library.info", json!({})).unwrap()["preRestore"],
+        json!([])
+    );
+
+    // M41's backup as the save panel's answer would start it: the dialog
+    // works, then says what it wrote; the file is there whole.
+    let path = dir.path().join("library.drifting");
+    let lib = cx.update(|_, cx| view.read(cx).library.clone().unwrap());
+    let target = path.clone();
+    // Outside the window's update, as the panel's answer arrives (the
+    // dialog is put into the window's workspace).
+    cx.update(|_, cx| {
+        cx.defer(move |cx| {
+            dr_view_transfer::backup::backup_path(lib, target, cx);
+        })
+    });
+    let done = call_until(cx, "state.get", json!({}), |s| {
+        s["transfer"]["state"] == json!("done")
+    });
+    assert_eq!(done["dialog"], json!(true));
+    assert_eq!(done["transfer"]["title"], json!("Library backup"));
+    assert!(
+        done["transfer"]["text"]
+            .as_str()
+            .unwrap()
+            .contains("library.drifting"),
+        "{done}"
+    );
+    let file = call(
+        cx,
+        "ui.wait",
+        json!({ "until": "file", "path": path.to_string_lossy(), "timeout_ms": 1000 }),
+    )
+    .unwrap();
+    assert!(file["bytes"].as_u64().unwrap() > 0);
+    let err = call(
+        cx,
+        "ui.wait",
+        json!({ "until": "file", "path": dir.path().join("none").to_string_lossy(), "timeout_ms": 60 }),
+    )
+    .unwrap_err();
+    assert_eq!(err.code, codes::TIMEOUT);
+
+    // The system panels: nothing asked for yet; an answer is armed for
+    // the next one (GPUI's test platform never begins an AppKit panel).
+    let state = call(cx, "panel.state", json!({})).unwrap();
+    assert_eq!(state["armed"], Value::Null);
+    assert_eq!(state["last"], Value::Null);
+    assert_eq!(state["shown"], json!(false));
+    let err = call(cx, "panel.answer", json!({ "path": "relative.drifting" })).unwrap_err();
+    assert_eq!(err.code, codes::BAD_REQUEST);
+    match call(
+        cx,
+        "panel.answer",
+        json!({ "path": path.to_string_lossy() }),
+    ) {
+        Ok(armed) => {
+            assert_eq!(armed["armed"], json!(path.to_string_lossy()));
+            let armed = call(cx, "panel.cancel", json!({})).unwrap();
+            assert_eq!(armed["armed"], json!("cancel"));
+            assert_eq!(
+                call(cx, "state.get", json!({})).unwrap()["panel"]["armed"],
+                json!("cancel")
+            );
+        }
+        Err(err) => assert_eq!(err.code, codes::UNSUPPORTED),
+    }
+}
