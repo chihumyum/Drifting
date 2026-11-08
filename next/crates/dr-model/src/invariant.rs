@@ -124,6 +124,25 @@ macro_rules! inv {
 }
 
 pub const INVARIANTS: &[Invariant] = &[
+    inv!(
+        "CONVERSATION-APPEND",
+        "对话内容只从已落盘运行事件追加；同一事件身份不变，重放不重复",
+        [Structure, Command, Read],
+        "ConversationEntry 不含控制状态；dr-doc 只公开追加，重复身份内容相同则忽略、不同则报错；并发重复由读取去重，顺序由 Loro 收敛",
+        ["docs/rust-rewrite/handoff/m27-agent-runtime.md"],
+        [
+            "conversation_replay_is_idempotent_and_content_is_immutable",
+            "conversation_concurrent_appends_converge"
+        ]
+    ),
+    inv!(
+        "CONVERSATION-NOT-PROSE",
+        "对话文档不作为书的正文编辑、计数、搜索和导出",
+        [Structure],
+        "DocKind::Conversation 没有 ProseProfile，is_book_text 为 false",
+        ["docs/rust-rewrite/handoff/m27-agent-runtime.md"],
+        ["doc_ids_round_trip", "conversation_is_not_a_prose_document"]
+    ),
     // ---- ids, documents, origins ---------------------------------------
     inv!(
         "ID-FORMAT",

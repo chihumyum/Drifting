@@ -53,6 +53,15 @@ impl Default for WorkspaceOptions {
 pub fn library_options(app_version: &str) -> LibraryOptions {
     let mut o = LibraryOptions::new(app_version);
     dr_index::attach(&mut o);
+    o.validate_import = Some(Arc::new(|id, doc, bytes| {
+        if matches!(DocId::parse(id), Ok(DocId::Conversation(_))) {
+            dr_doc::conversation::validate_update(doc, bytes).map_err(|e| StoreError::Invalid {
+                what: "conversation import",
+                value: e.to_string(),
+            })?;
+        }
+        Ok(())
+    }));
     o
 }
 
@@ -547,6 +556,21 @@ impl Workspace {
                 slot.handle.import(bytes, origin)?;
                 repair_book(&slot)?;
             }
+            DocId::Conversation(id) => {
+                let genesis = dr_doc::conversation::genesis(id);
+                let info = self.inner.lib.doc_info(doc_id)?;
+                let handle = self.inner.lib.open_doc(
+                    doc_id,
+                    OpenDoc::CreateIfMissing {
+                        kind: "conversation",
+                        book_id: info.as_ref().and_then(|i| i.book_id.as_deref()),
+                        genesis: &move |d| {
+                            d.import(&genesis).expect("conversation genesis");
+                        },
+                    },
+                )?;
+                handle.import(bytes, origin)?;
+            }
             _ => {
                 let slot = self.prose_slot(&doc)?;
                 slot.handle.import(bytes, origin)?;
@@ -740,7 +764,7 @@ impl Workspace {
         if let Some((_, s)) = lock(&self.inner.prose).map.get(doc) {
             return Ok(s.clone());
         }
-        if doc.is_book() {
+        if doc.profile().is_none() {
             return Err(WsError::invalid(format!("{doc} is not a prose document")));
         }
         let lib = &self.inner.lib;
@@ -774,7 +798,7 @@ impl Workspace {
                 return Ok(s.clone());
             }
         }
-        if doc.is_book() {
+        if doc.profile().is_none() {
             return Err(WsError::invalid(format!("{doc} is not a prose document")));
         }
         let lib = &self.inner.lib;
@@ -986,6 +1010,9 @@ impl Inner {
                             );
                         }
                     }
+                    // Conversation observers subscribe to their journal or
+                    // store document events; they are never prose events.
+                    DocId::Conversation(_) => {}
                     _ => {
                         let (ranges, embeds) = prose_ranges(&ev.changes);
                         let slot = lock(&self.prose).map.get(&doc).map(|(_, s)| s.clone());

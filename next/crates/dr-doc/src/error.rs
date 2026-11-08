@@ -46,6 +46,8 @@ pub enum DocError {
     },
     /// The built-in relation type cannot be changed or deleted.
     Locked(String),
+    /// Invalid conversation data or a repeated event id with different content.
+    Conversation(String),
 }
 
 impl fmt::Display for DocError {
@@ -70,6 +72,7 @@ impl fmt::Display for DocError {
             DocError::NotInitialized(id) => write!(f, "{id} has no genesis yet"),
             DocError::Missing { collection, id } => write!(f, "no {id:?} in {collection}"),
             DocError::Locked(id) => write!(f, "{id} is built in and locked"),
+            DocError::Conversation(reason) => write!(f, "conversation: {reason}"),
         }
     }
 }

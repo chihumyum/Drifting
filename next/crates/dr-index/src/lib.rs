@@ -241,9 +241,9 @@ impl Deriver for TextDeriver {
             return None;
         };
         if !doc_id.kind().is_book_text() {
-            // A book document has no paragraphs, and a body template is not
+            // Book and conversation documents have no prose, and a body template is not
             // the book's text (not searched, counted, linked from or turned
-            // into todos). Record either as indexed (empty) so it does not
+            // into todos). Record these as indexed (empty) so they do not
             // count as stale on every open.
             return Some(DerivedUpdate::Full(Derived::default()));
         }

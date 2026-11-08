@@ -94,10 +94,14 @@ pub(crate) fn record(
         params![doc_id, kind, book_id, now_ms()],
     )?;
     let mut changes = vec![LocalChange::new(TABLE, doc_id, LocalChangeKind::Insert)];
+    if kind == "conversation" {
+        changes.extend(crate::agent::forget(conn, Some(doc_id), None)?);
+    }
     if let Some(book) = book_id
         && book_purged(conn, book)?
     {
         changes.extend(crate::local_state::forget_book(conn, book)?);
+        changes.extend(crate::agent::forget(conn, None, Some(book))?);
     }
     Ok(changes)
 }

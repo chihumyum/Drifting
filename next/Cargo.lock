@@ -1404,6 +1404,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "dr-agent"
+version = "0.0.0"
+dependencies = [
+ "dr-doc",
+ "dr-model",
+ "dr-store",
+ "dr-testkit",
+ "dr-workspace",
+ "futures",
+ "loro",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "dr-cli"
 version = "0.0.0"
 dependencies = [
