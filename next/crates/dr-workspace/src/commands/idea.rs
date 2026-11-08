@@ -1,5 +1,6 @@
 //! Ideas (构想; internal name drift) and idea groups.
 
+use dr_doc::book::Collection;
 use dr_model::DocId;
 use dr_model::book::DriftGroup;
 use dr_model::id::{DriftGroupId, NodeId};
@@ -20,6 +21,8 @@ pub(crate) fn register(r: &mut Registry) {
         .add::<IdeaTrash>()
         .add::<IdeaRestore>()
         .add::<IdeaPurge>()
+        .add::<IdeaToChapter>()
+        .add::<IdeaToElement>()
         .add::<IdeaGroupList>()
         .add::<IdeaGroupCreate>()
         .add::<IdeaGroupUpdate>()
@@ -365,5 +368,152 @@ op! {
         cx.effect(EffectAction::Purged, "idea_group", &input.id, None);
         cx.undo_with(super::history::restore_invocation(&input.book, &before, touched));
         Ok(Done { id: input.id })
+    }
+}
+
+// ---- turning an idea into a chapter or an element ------------------------------
+//
+// The 0.1 editor's 「转换为章节…」 / 「转换为要素…」 (`NodeEditorView`'s
+// `handleConfirmConversion`), each one step here.
+
+/// A live (not trashed) idea.
+fn idea_to_convert(slot: &BookSlot, id: &str) -> Result<Node> {
+    let n = live_idea(slot, id)?;
+    if n.is_trashed() {
+        return Err(WsError::not_found("idea", id));
+    }
+    Ok(n)
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct IdeaToChapterIn {
+    pub book: String,
+    pub id: String,
+    /// The chapter's storyline (it becomes its primary one).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub storyline: Option<String>,
+}
+
+op! {
+    IdeaToChapter = "idea.to_chapter", Write, Book,
+    "Turn an idea into a chapter, keeping its page, text, comments and relations: it becomes a draft after the last chapter, on the given storyline and out of its idea group; acts and time pins bound to it are unbound (a pin with no label keeps the idea's title).",
+    fn(cx, input: IdeaToChapterIn) -> super::chapter::ChapterCreated {
+        let slot = cx.book(&input.book)?;
+        let old = idea_to_convert(&slot, &input.id)?;
+        let storyline: Option<dr_model::id::StorylineId> = match &input.storyline {
+            Some(s) => {
+                let id: dr_model::id::StorylineId = pid("storyline", s)?;
+                if !storylines(&slot).iter().any(|x| x.id == id && x.deleted_at.is_none()) {
+                    return Err(WsError::not_found("storyline", s));
+                }
+                Some(id)
+            }
+            None => None,
+        };
+        let order = super::chapter::order_for(&slot, &super::chapter::ChapterPlace::Last, None)?;
+        let pins: Vec<(dr_model::id::TimePinId, Option<String>)> = time_pins(&slot).iter()
+            .filter(|p| p.drift.as_ref() == Some(&old.id))
+            .map(|p| (p.id.clone(), p.label.trim().is_empty().then(|| {
+                let t = old.title.trim();
+                if t.is_empty() { super::chapter::UNTITLED.to_string() } else { t.to_string() }
+            })))
+            .collect();
+        let bound_acts: Vec<dr_model::id::ActId> = acts(&slot).iter()
+            .filter(|a| a.drift.as_ref() == Some(&old.id))
+            .map(|a| a.id.clone())
+            .collect();
+        cx.summarize(format!("「{}」", old.title));
+        let mut touched: Vec<(String, String)> = vec![(Collection::Nodes.root().to_string(), input.id.clone())];
+        touched.extend(pins.iter().map(|(p, _)| (Collection::TimePins.root().to_string(), p.to_string())));
+        touched.extend(bound_acts.iter().map(|a| (Collection::Acts.root().to_string(), a.to_string())));
+        let (id, s2, p2, a2) = (old.id.clone(), storyline.clone(), pins.clone(), bound_acts.clone());
+        let (_, before) = cx.write_book(&slot, move |txn| {
+            let w = txn.node(&id)?;
+            w.kind(&NodeKind::Chapter)?.status(&NodeStatus::Draft)?.book_order(Some(order))?.group(None)?;
+            if let Some(s) = &s2 {
+                w.add_storyline(s)?.primary_storyline(Some(s))?;
+            }
+            for (p, label) in &p2 {
+                let w = txn.time_pin(p)?;
+                w.drift(None)?;
+                if let Some(l) = label { w.label(l)?; }
+            }
+            for a in &a2 { txn.act(a)?.drift(None)?; }
+            Ok(())
+        })?;
+        cx.effect(EffectAction::Updated, "node", &input.id, Some(&old.title));
+        for (p, _) in &pins { cx.effect(EffectAction::Updated, "time_pin", p.as_str(), None); }
+        for a in &bound_acts { cx.effect(EffectAction::Updated, "act", a.as_str(), None); }
+        cx.undo_with(super::history::restore_invocation(&input.book, &before, touched));
+        Ok(super::chapter::ChapterCreated { id: input.id, title: old.title, book_order: order })
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct IdeaToElementIn {
+    pub book: String,
+    pub id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub category: Option<String>,
+    /// Default: the idea's title. A name another element has is refused.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+}
+
+op! {
+    IdeaToElement = "idea.to_element", Write, Book,
+    "Turn an idea into a new element: its title becomes the name, its summary and text move over (the element starts with its category's template fields), and the idea goes to the trash. A name another element has is refused.",
+    fn(cx, input: IdeaToElementIn) -> Named {
+        let slot = cx.book(&input.book)?;
+        let old = idea_to_convert(&slot, &input.id)?;
+        let asked = input.name.clone().unwrap_or_else(|| old.title.clone());
+        let name = if asked.trim().is_empty() {
+            let taken: Vec<String> = elements(&slot).iter().filter(|e| e.deleted_at.is_none())
+                .flat_map(|e| std::iter::once(e.name.clone()).chain(e.aliases.iter().cloned())).collect();
+            unique_name("", super::element::NEW_ELEMENT, taken.iter().map(String::as_str))
+        } else {
+            asked.trim().to_string()
+        };
+        super::element::check_names(&slot, None, std::iter::once(name.as_str()))?;
+        let category = input.category.as_deref().map(|c| super::element::live_category(&slot, c)).transpose()?;
+        let eid = dr_model::id::ElementId::new_v7();
+        cx.summarize(format!("「{name}」"));
+        // The idea's text, copied whole (marks and links too).
+        let src = DocId::Node(old.id.clone());
+        let body = match cx.workspace().library().doc_info(&src.to_string())? {
+            Some(_) => {
+                let ps = cx.prose(&src)?;
+                if super::template::blank(&ps.reader.view()) {
+                    None
+                } else {
+                    Some(ps.handle.read(|d| d.fork())?)
+                }
+            }
+            None => None,
+        };
+        match body {
+            Some(copy) => super::template::apply_template(cx, &slot.book, &DocId::Element(eid.clone()), super::template::Template::Doc(src, copy))?,
+            None => super::chapter::seed_prose(cx, &slot.book, &DocId::Element(eid.clone()), None)?,
+        }
+        // Its name, linked in the text already written; the idea's title
+        // (the same words) is leaving, so it does not hold the name.
+        crate::autolink::backfill_element_leaving(cx, &slot, &eid, &name, &[], std::slice::from_ref(&name), Some(old.id.as_str()))?;
+        let fields = category.as_ref()
+            .and_then(|c| categories(&slot).iter().find(|x| &x.id == c).map(|x| super::template::copied(&x.template_fields)))
+            .unwrap_or_default();
+        super::trash_effects(cx, &slot, &dr_model::book::EntityRef::new(dr_model::kind::EntityKind::Node, input.id.clone()), true);
+        let (e2, n2, s2, i2, at) = (eid.clone(), name.clone(), old.summary.clone(), old.id.clone(), now());
+        cx.write_book(&slot, move |txn| {
+            let w = txn.element(&e2)?;
+            w.name(&n2)?.summary(&s2)?.category(category.as_ref())?.created_at(Some(at))?;
+            for f in &fields { w.put_fact(f)?; }
+            txn.node(&i2)?.deleted_at(Some(at))?;
+            Ok(())
+        })?;
+        cx.effect(EffectAction::Created, "element", eid.as_str(), Some(&name));
+        cx.effect(EffectAction::Trashed, "node", &input.id, Some(&old.title));
+        cx.undo_with(Invocation::new("element.trash", EntityIn { book: input.book.clone(), id: eid.to_string() }));
+        cx.undo_with(Invocation::new("idea.restore", EntityIn { book: input.book, id: input.id }));
+        Ok(Named { id: eid.to_string(), name })
     }
 }

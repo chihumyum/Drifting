@@ -90,6 +90,7 @@
       "chapterCount": "{{count}} capítulos",
       "deleteMergeNext": "Excluir este ato e mesclar com o próximo",
       "deleteMergePrev": "Excluir este ato e mesclar com o anterior",
+      "dragBoundary": "Arraste para ajustar o limite do ato",
       "newAct": "Novo ato",
       "openActNote": "Abrir nota do ato",
       "railLabel": "Ato",
@@ -117,6 +118,10 @@
       "openDrift": "Abrir ideia",
       "rename": "Renomear",
       "unbind": "Desvincular e restaurar como rótulo simples"
+    },
+    "spread": {
+      "needTwo": "São necessários pelo menos dois capítulos para distribuir",
+      "title": "Distribuir: reorganizar {{mode}} para separar os nós sobrepostos"
     },
     "storyline": {
       "chapterCount": "{{count}} cap."
@@ -623,7 +628,13 @@
     "wholeBook": "Todos os capítulos na ordem de leitura"
   },
   "materialEditor": {
+    "deleteConfirm": "Excluir o material “{{title}}”? Esta ação não pode ser desfeita.",
     "descriptionPlaceholder": "Adicione uma descrição…",
+    "embed": {
+      "importFile": "Importar imagem ou PDF…",
+      "importing": "Importando…",
+      "pastedImage": "Imagem colada"
+    },
     "regions": {
       "draw": "Comentar uma região",
       "drawHint": "Arraste sobre a imagem para marcar uma região",
@@ -637,11 +648,43 @@
     "zoomOut": "Reduzir",
     "zoomReset": "Ajustar à visualização"
   },
+  "materialFolders": {
+    "deleteConfirm": "Excluir a pasta “{{name}}”? Todo o conteúdo sobe um nível; nenhum material é excluído.",
+    "deleteSelectionConfirm": "Excluir os {{count}} itens selecionados? Os materiais são excluídos; o conteúdo das pastas excluídas sobe um nível.",
+    "empty": "Ainda não há materiais. Use o botão Nova pasta acima para organizá-los.",
+    "menu": {
+      "collapseAll": "Recolher tudo dentro",
+      "delete": "Excluir pasta",
+      "deleteSelection": "Excluir {{count}} itens",
+      "expandAll": "Expandir tudo dentro",
+      "move": "Mover para pasta…",
+      "moveSelection": "Mover {{count}} itens para pasta…",
+      "newFolder": "Nova pasta",
+      "newSubfolder": "Nova pasta dentro",
+      "open": "Abrir",
+      "rename": "Renomear"
+    },
+    "root": "Todos os materiais",
+    "untitled": "Nova pasta"
+  },
   "memoMaterial": {
+    "card": {
+      "addSnippetBody": "Escreva nesta nota…"
+    },
+    "empty": {
+      "noRelated": "Nenhum material vinculado ao item atual."
+    },
+    "error": {
+      "pickFailed": "Não foi possível importar o arquivo: {{error}}"
+    },
     "kind": {
       "image": "Imagem",
       "pdf": "PDF",
       "text": "Nota"
+    },
+    "menu": {
+      "deleteMaterial": "Excluir material",
+      "openInSystem": "Abrir no aplicativo do sistema"
     },
     "preview": {
       "loading": "Carregando…",
@@ -652,6 +695,10 @@
       "openPdfFailed": "Não é possível abrir o PDF",
       "previousPage": "Anterior",
       "renderPdfFailed": "Não é possível renderizar o PDF"
+    },
+    "toolbar": {
+      "count": "{{count}} materiais",
+      "newMaterial": "Novo material"
     }
   },
   "mobileWorkspace": {

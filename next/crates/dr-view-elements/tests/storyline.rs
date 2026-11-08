@@ -383,6 +383,7 @@ fn the_chapter_template_opens_on_a_click_and_new_chapters_start_from_it(cx: &mut
                 summary: String::new(),
                 storyline: Some(tower.id.clone()),
                 text: None,
+                narrative_order: None,
             },
         )
         .unwrap()

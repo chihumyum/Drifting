@@ -90,6 +90,7 @@
       "chapterCount": "{{count}} Kapitel",
       "deleteMergeNext": "Diesen Akt löschen und mit dem nächsten zusammenführen",
       "deleteMergePrev": "Diesen Akt löschen und mit dem vorherigen zusammenführen",
+      "dragBoundary": "Ziehen, um die Aktgrenze anzupassen",
       "newAct": "Neuer Akt",
       "openActNote": "Aktnotiz öffnen",
       "railLabel": "Akt",
@@ -117,6 +118,10 @@
       "openDrift": "Idee öffnen",
       "rename": "Umbenennen",
       "unbind": "Verknüpfung aufheben und als einfache Beschriftung wiederherstellen"
+    },
+    "spread": {
+      "needTwo": "Zum Verteilen sind mindestens zwei Kapitel erforderlich",
+      "title": "Verteilen: {{mode}} neu anordnen, um überlappende Knoten zu trennen"
     },
     "storyline": {
       "chapterCount": "{{count}} Kap."
@@ -622,7 +627,13 @@
     "wholeBook": "Alle Kapitel in Lesereihenfolge"
   },
   "materialEditor": {
+    "deleteConfirm": "Material „{{title}}“ löschen? Dies kann nicht rückgängig gemacht werden.",
     "descriptionPlaceholder": "Beschreibung hinzufügen…",
+    "embed": {
+      "importFile": "Bild oder PDF importieren…",
+      "importing": "Wird importiert…",
+      "pastedImage": "Eingefügtes Bild"
+    },
     "regions": {
       "draw": "Bereich kommentieren",
       "drawHint": "Über das Bild ziehen, um einen Bereich zu markieren",
@@ -636,11 +647,43 @@
     "zoomOut": "Verkleinern",
     "zoomReset": "An Ansicht anpassen"
   },
+  "materialFolders": {
+    "deleteConfirm": "Ordner „{{name}}“ löschen? Der gesamte Inhalt wird eine Ebene nach oben verschoben; es wird kein Material gelöscht.",
+    "deleteSelectionConfirm": "Die {{count}} ausgewählten Einträge löschen? Materialien werden gelöscht; der Inhalt gelöschter Ordner wird eine Ebene nach oben verschoben.",
+    "empty": "Noch keine Materialien. Mit „Neuer Ordner“ oben lassen sie sich organisieren.",
+    "menu": {
+      "collapseAll": "Alle enthaltenen Einträge einklappen",
+      "delete": "Ordner löschen",
+      "deleteSelection": "{{count}} Einträge löschen",
+      "expandAll": "Alle enthaltenen Einträge ausklappen",
+      "move": "In Ordner verschieben…",
+      "moveSelection": "{{count}} Einträge in Ordner verschieben…",
+      "newFolder": "Neuer Ordner",
+      "newSubfolder": "Unterordner erstellen",
+      "open": "Öffnen",
+      "rename": "Umbenennen"
+    },
+    "root": "Alle Materialien",
+    "untitled": "Neuer Ordner"
+  },
   "memoMaterial": {
+    "card": {
+      "addSnippetBody": "In diese Notiz schreiben…"
+    },
+    "empty": {
+      "noRelated": "Keine Materialien mit dem aktuellen Eintrag verknüpft."
+    },
+    "error": {
+      "pickFailed": "Datei konnte nicht importiert werden: {{error}}"
+    },
     "kind": {
       "image": "Bild",
       "pdf": "PDF",
       "text": "Notiz"
+    },
+    "menu": {
+      "deleteMaterial": "Material löschen",
+      "openInSystem": "In System-App öffnen"
     },
     "preview": {
       "loading": "Wird geladen…",
@@ -651,6 +694,10 @@
       "openPdfFailed": "PDF kann nicht geöffnet werden",
       "previousPage": "Vorherige",
       "renderPdfFailed": "PDF kann nicht dargestellt werden"
+    },
+    "toolbar": {
+      "count": "{{count}} Materialien",
+      "newMaterial": "Neues Material"
     }
   },
   "mobileWorkspace": {

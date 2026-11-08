@@ -54,6 +54,9 @@ enum Op {
     Idea(u8),
     Group(u8, Option<u8>),
     MoveIdea(u8, u8),
+    /// A live idea turned into a chapter (with a storyline pick) or, odd
+    /// second byte, an element.
+    ConvertIdea(u8, u8),
     MoveGroup(u8, Option<u8>),
     DeleteGroup(u8),
     Comment(u8),
@@ -111,6 +114,7 @@ fn op() -> impl Strategy<Value = Op> {
         2 => i().prop_map(Op::Idea),
         1 => (i(), proptest::option::of(i())).prop_map(|(a, b)| Op::Group(a, b)),
         1 => (i(), i()).prop_map(|(a, b)| Op::MoveIdea(a, b)),
+        1 => (i(), i()).prop_map(|(a, k)| Op::ConvertIdea(a, k)),
         1 => (i(), proptest::option::of(i())).prop_map(|(a, b)| Op::MoveGroup(a, b)),
         1 => i().prop_map(Op::DeleteGroup),
         1 => i().prop_map(Op::Comment),
@@ -363,6 +367,17 @@ fn run(ws: &Workspace, faults: &Faults, book: &str, op: &Op, agent_turn: &mut u3
         Op::MoveIdea(i, g) => match (pick(&ideas(), *i), pick(&groups(), *g)) {
             (Some(id), Some(g)) => c("idea.update", json!({"book": b, "id": id, "group": g})),
             _ => Ok(()),
+        },
+        Op::ConvertIdea(i, k) => match pick(&ideas(), *i) {
+            Some(id) if k % 2 == 1 => c("idea.to_element", json!({"book": b, "id": id})),
+            Some(id) => {
+                let mut input = json!({"book": b, "id": id});
+                if let Some(s) = pick(&storylines(), *k / 2) {
+                    input["storyline"] = json!(s);
+                }
+                c("idea.to_chapter", input)
+            }
+            None => Ok(()),
         },
         Op::MoveGroup(i, p) => match pick(&groups(), *i) {
             Some(id) => c(

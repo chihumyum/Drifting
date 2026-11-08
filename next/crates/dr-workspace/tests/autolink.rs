@@ -465,3 +465,73 @@ fn a_books_link_matcher_is_kept_until_a_name_changes() {
     let m4 = e.ws().link_matcher(&d).unwrap().unwrap();
     assert_eq!(m4.find("灯塔").len(), 1);
 }
+
+#[test]
+fn an_idea_turns_into_an_element_that_takes_its_name() {
+    let e = env();
+    let b = e.book();
+    let u = Actor::User;
+    let cat = e.out("category.create", json!({"book": b, "name": "地点"}))["id"].clone();
+    e.call(
+        "category_template.put",
+        json!({"book": b, "category": cat, "key": "位置", "value": ""}),
+    );
+    // Written before the idea: its title links the idea there.
+    let before = authors_chapter(&e, &b, "一", "远处是灯塔。");
+    let idea = e.out(
+        "idea.create",
+        json!({"book": b, "title": "灯塔", "summary": "岬角上", "text": "白色的塔。"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(links(&e, &before), [("灯塔".to_string(), idea.clone())]);
+    // Written after: not linked yet (the author's own command).
+    let after = authors_chapter(&e, &b, "二", "灯塔亮了。");
+    assert!(links(&e, &after).is_empty());
+
+    let done = e.call(
+        "idea.to_element",
+        json!({"book": b, "id": idea, "category": cat}),
+    );
+    let el = done["output"]["id"].as_str().unwrap().to_string();
+    assert_eq!(done["output"]["name"], "灯塔");
+    let row = e.out("element.list", json!({"book": b}))[0].clone();
+    assert_eq!(row["summary"], "岬角上");
+    assert_eq!(row["category"], cat);
+    assert_eq!(row["fields"][0]["key"], "位置");
+    let body = field(
+        &e.out("prose.read", json!({"doc": format!("element:{el}")}))["paragraphs"],
+        "text",
+    );
+    assert_eq!(body, [json!("白色的塔。")]);
+    let trashed = e.out("idea.list", json!({"book": b, "trashed": true}));
+    assert_eq!(trashed[0]["trashed"], true);
+    // The name is the element's now in text not linked yet; a link to the
+    // idea stays where it was (as in 0.1, which deleted the idea).
+    assert_eq!(links(&e, &after), [("灯塔".to_string(), el.clone())]);
+    assert_eq!(links(&e, &before), [("灯塔".to_string(), idea.clone())]);
+
+    // One undo step: the element goes, the idea and the text come back.
+    e.ws().undo(&u).unwrap().unwrap();
+    assert!(
+        e.out("element.list", json!({"book": b}))
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(e.out("idea.list", json!({"book": b}))[0]["id"], idea);
+    assert!(links(&e, &after).is_empty());
+    e.ws().redo(&u).unwrap().unwrap();
+    assert_eq!(e.out("element.list", json!({"book": b}))[0]["id"], el);
+
+    // A name another element has is refused.
+    let other = e.out("idea.create", json!({"book": b, "title": "灯塔 2"}))["id"].clone();
+    match e.try_call(
+        "idea.to_element",
+        json!({"book": b, "id": other, "name": "灯塔"}),
+    ) {
+        Err(err) => assert_eq!(err.code(), "name_taken"),
+        Ok(v) => panic!("{v}"),
+    }
+}

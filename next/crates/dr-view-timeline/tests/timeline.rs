@@ -262,6 +262,12 @@ fn dragging_a_chapter_onto_another_lane_moves_it_there(cx: &mut TestAppContext) 
     wait_for(cx, |cx| {
         t.read_with(cx, |t, _| t.layout().lane_of(&id) == Some(1))
     });
+    // One drop is one step (F3's chapter.place): one undo puts back both
+    // the storylines and the place.
+    lib.undo(&Actor::User).unwrap();
+    let back = chapter(&lib, &book, &id);
+    assert_eq!(back.primary_storyline, c.primary_storyline);
+    assert!((back.book_order.unwrap() - from).abs() < 1e-9);
 }
 
 #[gpui::test]
@@ -687,5 +693,111 @@ fn the_card_rows_move_a_chapter_off_its_storylines_or_the_axis(cx: &mut TestAppC
         host.read_with(cx, |h, cx| {
             h.ws.read(cx).nav.current() == made.id.parse().ok().map(Target::Chapter).as_ref()
         })
+    });
+}
+
+#[gpui::test]
+fn spreading_sets_the_chapters_a_stride_apart_in_one_step(cx: &mut TestAppContext) {
+    let (_dir, library, book) = library();
+    let lib = library.clone();
+    let (host, cx) = setup(cx, library);
+    let t = timeline(&host, cx);
+    let before: Vec<f64> = chapters(&lib, &book)
+        .iter()
+        .filter_map(|c| c.book_order)
+        .collect();
+    t.update(cx, |t, cx| t.spread(cx));
+    let spread = |lib: &Library| {
+        let mut orders: Vec<f64> = chapters(lib, &book)
+            .iter()
+            .filter_map(|c| c.book_order)
+            .collect();
+        orders.sort_by(f64::total_cmp);
+        orders
+    };
+    wait_for(cx, |_| {
+        spread(&lib)
+            .windows(2)
+            .all(|w| (w[1] - w[0] - 5.0).abs() < 1e-9)
+    });
+    // One step back.
+    lib.undo(&Actor::User).unwrap();
+    let mut was = before.clone();
+    was.sort_by(f64::total_cmp);
+    assert_eq!(spread(&lib), was);
+    drop(host);
+}
+
+#[gpui::test]
+fn the_cards_carry_the_timelines_own_rows(cx: &mut TestAppContext) {
+    let (_dir, library, _book) = library();
+    let (host, cx) = setup(cx, library);
+    let t = timeline(&host, cx);
+    let layout = t.read_with(cx, |t, _| t.layout());
+    let c = layout.lanes[0].clips[0].clone();
+    let LaneId::Storyline(line) = layout.lanes[0].id.clone() else {
+        unreachable!()
+    };
+    let rows = t.update(cx, |t, cx| t.card_row_ids(&c.id, cx));
+    assert_eq!(rows, ["timeline-unaffiliated"]);
+    t.update(cx, |t, cx| t.set_axis(Axis::Narrative, cx));
+    let rows = t.update(cx, |t, cx| t.card_row_ids(&c.id, cx));
+    assert_eq!(rows, ["timeline-unaffiliated", "timeline-unplace"]);
+    let rows = t.update(cx, |t, cx| t.card_row_ids(&line, cx));
+    assert_eq!(rows, ["timeline-append"]);
+}
+
+#[gpui::test]
+fn a_chapter_held_at_the_right_edge_scrolls_the_tracks(cx: &mut TestAppContext) {
+    let (_dir, library, _book) = library();
+    let (host, cx) = setup(cx, library);
+    let t = timeline(&host, cx);
+    let c = t.read_with(cx, |t, _| t.layout().lanes[0].clips[0].clone());
+    assert_eq!(t.read_with(cx, |t, _| t.scroll_x()), 0.0);
+    let start = at(&t, 0, c.book_order.unwrap(), 10.0, cx);
+    let body = t.read_with(cx, |t, _| t.body_bounds().unwrap());
+    cx.simulate_mouse_down(start, MouseButton::Left, Modifiers::none());
+    cx.simulate_mouse_move(
+        point(start.x + px(6.0), start.y),
+        MouseButton::Left,
+        Modifiers::none(),
+    );
+    frame(cx);
+    // Held 4 px from the tracks' right edge: they scroll on their own.
+    let edge = point(body.origin.x + body.size.width - px(4.0), start.y);
+    cx.simulate_mouse_move(edge, MouseButton::Left, Modifiers::none());
+    wait_for(cx, |cx| t.read_with(cx, |t, _| t.scroll_x() > 60.0));
+    // Where it would land moved on with them.
+    let over = t.read_with(cx, |t, _| t.drop_target()).unwrap();
+    assert!(over.order > c.book_order.unwrap() + 40.0, "{over:?}");
+    cx.simulate_mouse_up(
+        point(start.x, px(5.0)),
+        MouseButton::Left,
+        Modifiers::none(),
+    );
+    frame(cx);
+}
+
+#[gpui::test]
+fn the_keys_move_a_focused_act_boundary(cx: &mut TestAppContext) {
+    let (_dir, library, book) = library();
+    let lib = library.clone();
+    let (host, cx) = setup(cx, library);
+    let t = timeline(&host, cx);
+    let second = acts(&lib, &book)[1].clone();
+    let from = second.start_order.unwrap();
+    frame(cx);
+    let focus = t
+        .read_with(cx, |t, _| t.act_focus(&second.id))
+        .expect("the boundary's focus");
+    cx.update(|window, cx| focus.focus(window, cx));
+    frame(cx);
+    cx.simulate_keystrokes("right right right left");
+    // Two pixels' worth on (a unit is 20 px at zoom 1).
+    let id = second.id.clone();
+    wait_for(cx, |_| {
+        acts(&lib, &book)
+            .iter()
+            .any(|a| a.id == id && (a.start_order.unwrap() - (from + 2.0 / 20.0)).abs() < 1e-9)
     });
 }

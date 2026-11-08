@@ -3,8 +3,8 @@
 //! ```text
 //! cargo xtask check [--only a,b] [--skip a,b] [--list]   every gate (CI runs all)
 //! cargo xtask evidence --check                            the evidence gate alone
-//! cargo xtask check-binary <file>…                        no debug bridge built in
-//! cargo xtask dev [--instance N] [--debug-bridge] [--print-config] [--release] [-- app args]
+//! cargo xtask check-binary <file>…                        no debug bridge or hot reload built in
+//! cargo xtask dev [--instance N] [--debug-bridge] [--hot] [--print-config] [--release] [-- app args]
 //! ```
 //!
 //! See `docs/rust-rewrite/foundations/f8-testkit.md`.
@@ -18,7 +18,7 @@ use std::process::ExitCode;
 const USAGE: &str = "usage: cargo xtask check [--only a,b] [--skip a,b] [--list]
        cargo xtask evidence --check
        cargo xtask check-binary <file>…
-       cargo xtask dev [--instance NAME] [--debug-bridge] [--print-config] [--release] [-- app args]";
+       cargo xtask dev [--instance NAME] [--debug-bridge] [--hot] [--print-config] [--release] [-- app args]";
 
 fn list_arg(args: &[String], name: &str) -> Vec<String> {
     args.iter()
@@ -90,10 +90,14 @@ fn main() -> ExitCode {
             check(&["--only".into(), "evidence".into()])
         }
         Some("check-binary") if args.len() > 1 => {
-            match gates::debug_bridge::check_binaries(&args[1..]) {
+            let found = gates::debug_bridge::check_binaries(&args[1..]).and_then(|mut f| {
+                f.extend(gates::hot_reload::check_binaries(&args[1..])?);
+                Ok(f)
+            });
+            match found {
                 Ok(f) if f.is_empty() => {
                     println!(
-                        "ok   {} file(s) without the debug bridge ({})",
+                        "ok   {} file(s) without the debug bridge ({}) or GPUI's hot reload",
                         args.len() - 1,
                         dr_debug_protocol::PROTOCOL
                     );

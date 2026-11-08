@@ -8,7 +8,10 @@
 //! suffix for parallel runs in one checkout. In the main checkout there is
 //! no profile unless `--instance` is given: that is the author's daily
 //! development build. `--debug-bridge` builds the app with F8's debug
-//! bridge (`cargo drifting app …` drives it).
+//! bridge (`cargo drifting app …` drives it). `--hot` runs it under
+//! `dx serve --hot-patch` with GPUI's hot reload (the app's `hot-reload`
+//! feature): a view's render function and the code it calls are patched
+//! into the running app when they change, without a restart.
 //!
 //! The profile rules live in `dr_debug_protocol::place`, which dr-cli uses
 //! to find the same build.
@@ -32,8 +35,13 @@ pub struct Options {
     pub print_config: bool,
     pub release: bool,
     pub debug_bridge: bool,
+    pub hot: bool,
     pub app_args: Vec<String>,
 }
+
+/// The dx that GPUI's hot reload speaks to: GPUI v1.27.0 pins
+/// `subsecond = "=0.7.10"`, and dx's patches must match it.
+pub const DX_VERSION: &str = "0.7.10";
 
 pub fn parse(args: &[String]) -> Result<Options, String> {
     let mut o = Options::default();
@@ -55,6 +63,7 @@ pub fn parse(args: &[String]) -> Result<Options, String> {
             "--print-config" => o.print_config = true,
             "--release" => o.release = true,
             "--debug-bridge" => o.debug_bridge = true,
+            "--hot" => o.hot = true,
             "--" => {
                 o.app_args = it.cloned().collect();
                 break;
@@ -62,7 +71,70 @@ pub fn parse(args: &[String]) -> Result<Options, String> {
             other => return Err(format!("cargo xtask dev: unknown option {other}")),
         }
     }
+    if o.hot && o.release {
+        return Err("--hot patches debug builds only; leave out --release".into());
+    }
     Ok(o)
+}
+
+/// dx's name for this system's desktop platform.
+fn dx_platform() -> &'static str {
+    if cfg!(target_os = "windows") {
+        "windows"
+    } else if cfg!(target_os = "linux") {
+        "linux"
+    } else {
+        "macos"
+    }
+}
+
+/// The command that runs the app: `cargo run`, or `dx serve --hot-patch`.
+pub fn command(o: &Options) -> Vec<String> {
+    let mut c: Vec<String> = if o.hot {
+        [
+            "dx",
+            "serve",
+            "--hot-patch",
+            "--package",
+            "drifting",
+            "--platform",
+            dx_platform(),
+            "--features",
+            "hot-reload",
+        ]
+        .map(str::to_string)
+        .to_vec()
+    } else {
+        ["cargo", "run", "-p", "drifting"]
+            .map(str::to_string)
+            .to_vec()
+    };
+    if o.release {
+        c.push("--release".into());
+    }
+    if o.debug_bridge {
+        c.extend(["--features".into(), "debug-bridge".into()]);
+    }
+    if !o.app_args.is_empty() {
+        if o.hot {
+            c.extend(["--args".into(), o.app_args.join(" ")]);
+        } else {
+            c.push("--".into());
+            c.extend(o.app_args.iter().cloned());
+        }
+    }
+    c
+}
+
+/// Where dx is: on `PATH`, else in cargo's bin folder.
+fn find_dx() -> Option<std::path::PathBuf> {
+    let name = if cfg!(windows) { "dx.exe" } else { "dx" };
+    std::env::var_os("PATH")
+        .iter()
+        .flat_map(std::env::split_paths)
+        .chain(dirs::home_dir().map(|h| h.join(".cargo/bin")))
+        .map(|d| d.join(name))
+        .find(|p| p.is_file())
 }
 
 /// The folders dr-platform gives `instance` (`paths::AppDirs`).
@@ -90,10 +162,6 @@ pub fn config(root: &Path, o: &Options) -> serde_json::Value {
     };
     let (data, logs) = folders(&instance);
     let bridge = Paths::for_instance(&instance).ok();
-    let mut command = vec!["cargo", "run", "-p", "drifting"];
-    if o.debug_bridge {
-        command.extend(["--features", "debug-bridge"]);
-    }
     json!({
         "worktree": worktree,
         "profile": profile,
@@ -102,7 +170,11 @@ pub fn config(root: &Path, o: &Options) -> serde_json::Value {
         "logDir": logs,
         "keychainService": keychain,
         "env": { PROFILE_ENV: profile },
-        "command": command,
+        "command": command(o),
+        "hotReload": {
+            "enabled": o.hot,
+            "dx": DX_VERSION,
+        },
         "debugBridge": bridge.map(|p| json!({
             "enabled": o.debug_bridge,
             "connectionFile": p.connection.to_string_lossy(),
@@ -111,9 +183,36 @@ pub fn config(root: &Path, o: &Options) -> serde_json::Value {
     })
 }
 
+/// The crates dx can hot-patch in the app `--hot` builds, and those it
+/// cannot (with the crates outside the app that depend on them).
+fn hot_patchable(next: &Path, o: &Options) -> Result<serde_json::Value, String> {
+    use crate::gates::{hot_reload, metadata::Metadata};
+    let mut features = vec!["drifting/hot-reload"];
+    if o.debug_bridge {
+        features.push("drifting/debug-bridge");
+    }
+    let repo = crate::repo::Repo {
+        root: next.parent().unwrap_or(next).to_path_buf(),
+        next: next.to_path_buf(),
+    };
+    let meta = Metadata::load_with(&repo, &features)?;
+    let (ok, blocked) = hot_reload::patchable(&meta, "drifting");
+    Ok(json!({
+        "patchable": ok,
+        "notPatchable": blocked.into_iter().map(|(c, by)| json!({ "crate": c, "dependedOnBy": by })).collect::<Vec<_>>(),
+    }))
+}
+
 pub fn run(root: &Path, next: &Path, args: &[String]) -> Result<i32, String> {
     let o = parse(args)?;
-    let cfg = config(root, &o);
+    let mut cfg = config(root, &o);
+    let patchable = if o.hot {
+        let p = hot_patchable(next, &o)?;
+        cfg["hotReload"]["crates"] = p.clone();
+        Some(p)
+    } else {
+        None
+    };
     if o.print_config {
         println!(
             "{}",
@@ -121,18 +220,46 @@ pub fn run(root: &Path, next: &Path, args: &[String]) -> Result<i32, String> {
         );
         return Ok(0);
     }
-    let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".into());
-    let mut cmd = Command::new(cargo);
-    cmd.current_dir(next).args(["run", "-p", "drifting"]);
-    if o.release {
-        cmd.arg("--release");
-    }
-    if o.debug_bridge {
-        cmd.args(["--features", "debug-bridge"]);
-    }
-    if !o.app_args.is_empty() {
-        cmd.arg("--").args(&o.app_args);
-    }
+    let argv = command(&o);
+    let program = if o.hot {
+        let dx = find_dx().ok_or_else(|| {
+            format!(
+                "cargo xtask dev --hot needs dx {DX_VERSION} (the version GPUI's hot reload speaks to): cargo install dioxus-cli --version {DX_VERSION} --locked"
+            )
+        })?;
+        let version = Command::new(&dx)
+            .arg("--version")
+            .output()
+            .map(|out| String::from_utf8_lossy(&out.stdout).into_owned())
+            .unwrap_or_default();
+        if !version.contains(DX_VERSION) {
+            eprintln!(
+                "cargo xtask dev: {} says {:?}; GPUI's hot reload expects dx {DX_VERSION}",
+                dx.display(),
+                version.trim()
+            );
+        }
+        if let Some(p) = &patchable {
+            let names = |v: &serde_json::Value| -> String {
+                v.as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|x| x.as_str().or_else(|| x["crate"].as_str()))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            };
+            eprintln!(
+                "cargo xtask dev --hot: changes patch in for {}; a change to {} needs a full rebuild (press r in dx)",
+                names(&p["patchable"]),
+                names(&p["notPatchable"])
+            );
+        }
+        dx.into_os_string()
+    } else {
+        std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into())
+    };
+    let mut cmd = Command::new(program);
+    cmd.current_dir(next).args(&argv[1..]);
     match cfg["profile"].as_str() {
         Some(p) => {
             eprintln!("cargo xtask dev: profile {p} ({})", cfg["instanceName"]);
@@ -140,7 +267,7 @@ pub fn run(root: &Path, next: &Path, args: &[String]) -> Result<i32, String> {
         }
         None => eprintln!("cargo xtask dev: main checkout, no profile"),
     }
-    let status = cmd.status().map_err(|e| format!("cargo run: {e}"))?;
+    let status = cmd.status().map_err(|e| format!("{}: {e}", argv[0]))?;
     Ok(status.code().unwrap_or(1))
 }
 
@@ -198,5 +325,31 @@ mod tests {
         assert_eq!(o.app_args, vec!["--mcp"]);
         assert!(parse(&a(&["--instance", "Bad Name"])).is_err());
         assert!(parse(&a(&["--what"])).is_err());
+        assert_eq!(
+            command(&o).join(" "),
+            "cargo run -p drifting --features debug-bridge -- --mcp"
+        );
+    }
+
+    #[test]
+    fn hot_runs_under_dx_serve() {
+        let a = |s: &[&str]| s.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+        let o = parse(&a(&["--hot", "--debug-bridge", "--", "--a", "b"])).unwrap();
+        let c = command(&o).join(" ");
+        assert!(
+            c.starts_with("dx serve --hot-patch --package drifting --platform "),
+            "{c}"
+        );
+        assert!(
+            c.ends_with("--features hot-reload --features debug-bridge --args --a b"),
+            "{c}"
+        );
+        assert!(
+            parse(&a(&["--hot", "--release"])).is_err(),
+            "debug builds only"
+        );
+        let cfg = config(Path::new("/nowhere"), &o);
+        assert_eq!(cfg["hotReload"]["enabled"], true);
+        assert_eq!(cfg["command"][0], "dx");
     }
 }

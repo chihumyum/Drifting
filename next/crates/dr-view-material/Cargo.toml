@@ -9,11 +9,12 @@ description = "Materials (M19): the image and PDF viewer (zoom, pan, PDF pages r
 
 [features]
 # Offscreen screenshots of the page in the shell (`examples/m19-capture`).
-capture = ["dep:gpui_platform", "gpui_platform/test-support", "dep:color_quant", "dep:png", "dep:anyhow", "dep:tempfile", "dep:dr-testkit", "dep:serde_json"]
+capture = ["dep:gpui_platform", "gpui_platform/test-support", "dep:color_quant", "dep:png", "dep:anyhow", "dep:tempfile", "dep:dr-testkit"]
 
 [dependencies]
 dr-doc.workspace = true
 dr-i18n.workspace = true
+dr-model.workspace = true
 dr-shell.workspace = true
 dr-store.workspace = true
 dr-ui.workspace = true
@@ -24,6 +25,7 @@ gpui.workspace = true
 hayro.workspace = true
 image = { workspace = true, features = ["bmp", "gif", "jpeg", "tiff", "webp"] }
 log.workspace = true
+serde_json.workspace = true
 smallvec.workspace = true
 # capture
 anyhow = { workspace = true, optional = true }
@@ -31,14 +33,11 @@ color_quant = { workspace = true, optional = true }
 dr-testkit = { workspace = true, optional = true }
 gpui_platform = { workspace = true, optional = true }
 png = { workspace = true, optional = true }
-serde_json = { workspace = true, optional = true }
 tempfile = { workspace = true, optional = true }
 
 [dev-dependencies]
-dr-model.workspace = true
 dr-testkit.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
-serde_json.workspace = true
 tempfile.workspace = true
 
 [[example]]

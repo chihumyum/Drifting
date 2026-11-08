@@ -10,6 +10,7 @@ members = [
     "crates/dr-agent-providers",
     "crates/dr-agent-tools",
     "crates/dr-cli",
+    "crates/dr-corpus",
     "crates/dr-debug-bridge",
     "crates/dr-debug-protocol",
     "crates/dr-doc",
@@ -136,6 +137,7 @@ dr-samples = { path = "crates/dr-samples" }
 dr-testkit = { path = "crates/dr-testkit" }
 # F8 debug bridge: the server (development builds with the app's
 # `debug-bridge` feature only) and its protocol and client (no GPUI).
+dr-corpus = { path = "crates/dr-corpus" }
 dr-debug-bridge = { path = "crates/dr-debug-bridge" }
 dr-debug-protocol = { path = "crates/dr-debug-protocol" }
 # xtask's text gates (the version GPUI's dependencies already lock).
@@ -147,7 +149,7 @@ uuid = { version = "1.29", default-features = false, features = ["std", "v4", "v
 # AppKit calls GPUI does not wrap, such as the app's own appearance. The same
 # versions GPUI's macOS backend already builds, so they add nothing new.
 objc2 = "0.6"
-objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSAppearance", "NSApplication", "NSResponder"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSAppearance", "NSApplication", "NSButton", "NSControl", "NSResponder", "NSView", "NSWindow", "objc2-core-foundation"] }
 
 proptest = "1.12"
 # SQLite for the Loro update log and snapshots (P0-C); bundled so every

@@ -1,6 +1,7 @@
 //! The input-method handler: GPUI's `EntityInputHandler`, which `insertText:`,
 //! `setMarkedText:`, `unmarkText`, `firstRectForCharacterRange` and friends
-//! turn into on macOS.
+//! turn into on macOS, and `WM_IME_COMPOSITION` and `WM_CHAR` on Windows
+//! (how, and where the editor hooks in: `system_ime.rs`).
 
 use std::ops::Range;
 
@@ -99,6 +100,39 @@ impl ProseEditor {
                 doc.offset_from_utf16(committed.start)..doc.offset_from_utf16(committed.end)
             }
         }
+    }
+
+    /// All marked text gone (deleted by the author, or cleared by the input
+    /// method): back to the committed text, untouched, with the caret where
+    /// the composition started.
+    fn drop_marked_text(&mut self) {
+        let Some(at) = self.composition.as_ref().map(|comp| comp.at) else {
+            return;
+        };
+        let chapter = self.input_chapter();
+        self.cancel_composition();
+        self.selection = Selection::caret(chapter, at);
+    }
+
+    /// Input that arrives while the window does not have the keyboard is
+    /// late (on Windows: an input method committing its composition as focus
+    /// moves to another window, before GPUI has told the editor it lost
+    /// focus): it is dropped, and so is the marked text, here and in the
+    /// input method ([`gpui_ime::BLUR_RULE`]: never commit half-typed
+    /// pinyin). Returns whether the input was late.
+    fn input_is_late(&mut self, window: &Window, cx: &mut Context<Self>) -> bool {
+        if self.window_has_keyboard(window) {
+            return false;
+        }
+        self.log_ime(format_args!("late: the window has no keyboard, dropped"));
+        if self.composition.is_some() {
+            self.cancel_composition();
+            if let Some(hooks) = &self.hooks {
+                hooks.discard_marked_text();
+            }
+            cx.notify();
+        }
+        true
     }
 
     /// Writes confirmed text in one commit (one undo step), ending any
@@ -368,6 +402,9 @@ impl EntityInputHandler for ProseEditor {
 
     fn unmark_text(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.log_ime(format_args!("unmark_text"));
+        if self.input_is_late(window, cx) {
+            return;
+        }
         // The input method accepts the marked text as it stands.
         if let Some(comp) = self.composition.clone() {
             self.commit_text(comp.at..comp.at + comp.replaced, &comp.text, window, cx);
@@ -382,6 +419,24 @@ impl EntityInputHandler for ProseEditor {
         cx: &mut Context<Self>,
     ) {
         self.log_ime(format_args!("replace_text_in_range({range16:?}, {text:?})"));
+        if self.input_is_late(window, cx) {
+            return;
+        }
+        if range16.is_none() && text.is_empty() {
+            // Nothing to write. GPUI's Windows backend sends this when the
+            // input method clears its composition (`WM_IME_COMPOSITION`
+            // with no flags: the Japanese IME on Esc, the answer to a
+            // `CPS_CANCEL`). Like deleting all marked text it cancels, the
+            // text untouched; without marked text it does nothing (it never
+            // deletes the selection, here or across chapters).
+            if self.composition.is_some() {
+                self.drop_marked_text();
+                self.reset_blink(cx);
+                cx.notify();
+                self.present_now(window);
+            }
+            return;
+        }
         // Typing with an embed selected types after it (`objects.rs`).
         let mut range16 = range16;
         self.leave_embed_for_text(&mut range16, window, cx);
@@ -432,6 +487,9 @@ impl EntityInputHandler for ProseEditor {
         self.log_ime(format_args!(
             "replace_and_mark_text_in_range({range16:?}, {new_text:?}, {new_selected_range16:?})"
         ));
+        if self.input_is_late(window, cx) {
+            return;
+        }
         let mut range16 = range16;
         if self.composition.is_none() {
             // Composing with an embed selected composes after it
@@ -475,11 +533,7 @@ impl EntityInputHandler for ProseEditor {
             .as_mut()
             .map(|comp| comp.mark(new_text, new_selected_range16));
         if marking == Some(Marking::Cancelled) {
-            // All marked text deleted: back to the committed text, untouched.
-            let at = self.composition.as_ref().map_or(0, |comp| comp.at);
-            let chapter = self.input_chapter();
-            self.cancel_composition();
-            self.selection = Selection::caret(chapter, at);
+            self.drop_marked_text();
         }
         self.autoscroll = true;
         self.reset_blink(cx);

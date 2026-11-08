@@ -13,6 +13,13 @@ publish.workspace = true
 # `debug-bridge`) keeps it out of the default features and the release
 # scripts, `cargo xtask check-binary` out of a built binary.
 debug-bridge = ["dep:dr-debug-bridge", "dr-debug-bridge/screenshot"]
+# GPUI's hot reload (`cargo xtask dev --hot`): run under `dx serve
+# --hot-patch`, a view's render function and the code it calls are patched
+# into the running app when they change. GPUI turns it on in debug builds
+# only; `cargo xtask check` (gate `hot-reload`) keeps it out of the default
+# features and the release scripts, `cargo xtask check-binary` out of a
+# built binary.
+hot-reload = ["gpui/hot-reload"]
 
 [dependencies]
 anyhow.workspace = true

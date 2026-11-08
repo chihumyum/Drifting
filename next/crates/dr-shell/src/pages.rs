@@ -40,6 +40,8 @@
 //! graph, M22's element overview, M23's review and materials), with two
 //! slots in the stage's header, and the right sidebar's 帮手 tab
 //! ([`set_companion`], M31). Without them the stage and the tab stay empty.
+//! The right sidebar's 素材库 tab is drawn the same way ([`set_library`],
+//! M19); without it the shell lists the folders and materials itself.
 //!
 //! And M24 (`dr-view-sea`): the sea of characters under every window
 //! ([`set_backdrop`]: drawn first, held by the bookshelf and the full-window
@@ -159,7 +161,9 @@ pub struct SuperViewPage {
     /// The header's left, after 返回 (M22's 群岛 / 关系 switch before its
     /// count).
     pub head_start: Option<AnyView>,
-    /// The header's right end (the line legend).
+    /// The header's right end, for a control of the view's own. Not the
+    /// line legend: the author put that at the top right of the content
+    /// (2026-11-03), so a view draws it in its body.
     pub head_end: Option<AnyView>,
 }
 
@@ -397,6 +401,7 @@ struct Pages {
     guide: Option<Guide>,
     super_views: Vec<(SuperView, MakeSuperView)>,
     companion: Option<MakeCompanion>,
+    library: Option<MakeCompanion>,
 }
 
 impl Global for Pages {}
@@ -597,6 +602,26 @@ pub(crate) fn companion_for(
     cx: &mut App,
 ) -> Option<LeftPanel> {
     let make = cx.try_global::<Pages>()?.companion.clone()?;
+    Some(make(ws, window, cx))
+}
+
+/// Registers the right sidebar's 素材库 tab (M19), as [`set_companion`]:
+/// asked once per pane the first time that pane shows the tab; its head
+/// goes in the tab's header row, its body fills the pane. Called while the
+/// workspace draws: do not read or update the workspace in `make`.
+pub fn set_library(
+    cx: &mut App,
+    make: impl Fn(WeakEntity<Workspace>, &mut Window, &mut App) -> LeftPanel + 'static,
+) {
+    cx.default_global::<Pages>().library = Some(Rc::new(make));
+}
+
+pub(crate) fn library_for(
+    ws: WeakEntity<Workspace>,
+    window: &mut Window,
+    cx: &mut App,
+) -> Option<LeftPanel> {
+    let make = cx.try_global::<Pages>()?.library.clone()?;
     Some(make(ws, window, cx))
 }
 
