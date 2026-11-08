@@ -1115,3 +1115,199 @@ fn a_books_references_are_read_through_its_own_index() {
     );
     lib.close().unwrap();
 }
+
+#[test]
+fn v3_entry_module_search_stats_outline_and_references() {
+    use dr_store::index::{
+        DOC_KIND_BODY, DOC_KIND_BOOK, DOC_KIND_TEMPLATE, format_body_doc_id,
+        format_template_module_doc_id, is_book_text_kind, is_known_doc_kind,
+    };
+
+    assert!(is_known_doc_kind(DOC_KIND_BOOK));
+    assert!(is_known_doc_kind(DOC_KIND_BODY));
+    assert!(is_known_doc_kind(DOC_KIND_TEMPLATE));
+    assert!(is_book_text_kind(DOC_KIND_BODY));
+    assert!(!is_book_text_kind(DOC_KIND_TEMPLATE));
+
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open(dir.path());
+
+    let doc_ch1_main = format_body_doc_id("entry-ch1", "main");
+    let doc_act1_about = format_body_doc_id("entry-act1", "about");
+    let doc_char_bio = format_body_doc_id("entry-anna", "bio");
+    let doc_char_notes = format_body_doc_id("entry-anna", "notes");
+    let doc_tpl = format_template_module_doc_id("character", "bio");
+
+    let index_v3 = |doc: &str, kind: &str, blocks: &[BlockRow], refs: &[RefRow]| {
+        lib.register(doc, kind, Some("book-v3")).unwrap();
+        let chars: u64 = blocks.iter().map(|b| b.chars as u64).sum();
+        let derived = Derived {
+            words: chars,
+            chars,
+            blocks: blocks.to_vec(),
+            references: refs.to_vec(),
+        };
+        assert!(
+            lib.index_doc(&DocIndex {
+                doc_id: doc,
+                book_id: Some("book-v3"),
+                seq: SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+                frontiers: &Frontiers::default(),
+                derived: &derived,
+            })
+            .unwrap()
+        );
+    };
+
+    let entry_link = |block: &str, target: &str| RefRow {
+        source_block: Some(block.into()),
+        target_kind: "entry".into(),
+        target_id: target.into(),
+        kind: RefKind::Link,
+        count: 1,
+    };
+
+    index_v3(
+        &doc_ch1_main,
+        DOC_KIND_BODY,
+        &[
+            block("p1", 1, "第一章 车站"),
+            block("p2", 0, "安娜走进了站台，窗外下着雪。"),
+        ],
+        &[entry_link("p2", "entry-anna")],
+    );
+    index_v3(
+        &doc_act1_about,
+        DOC_KIND_BODY,
+        &[block("a1", 0, "第一幕的说明：车站初遇。")],
+        &[entry_link("a1", "entry-anna")],
+    );
+    index_v3(
+        &doc_char_bio,
+        DOC_KIND_BODY,
+        &[block("b1", 2, "生平"), block("b2", 0, "安娜来自圣彼得堡。")],
+        &[],
+    );
+    index_v3(
+        &doc_char_notes,
+        DOC_KIND_BODY,
+        &[block("n1", 0, "人物备注：车站重逢。")],
+        &[entry_link("n1", "entry-ch1")],
+    );
+    // Template default prose is indexed as empty.
+    index_v3(&doc_tpl, DOC_KIND_TEMPLATE, &[], &[]);
+
+    // Search by (entry, module).
+    let hits = lib
+        .search_entry_modules(Some("book-v3"), None, None, "车站", 10)
+        .unwrap();
+    assert_eq!(
+        hits.iter()
+            .map(|h| (h.entry_id.as_str(), h.module_id.as_str(), h.ord))
+            .collect::<Vec<_>>(),
+        [
+            ("entry-act1", "about", 0),
+            ("entry-anna", "notes", 0),
+            ("entry-ch1", "main", 0),
+        ]
+    );
+
+    // Search in explicit (entry, module) order.
+    let ordered = lib
+        .search_entry_modules_in_order(
+            Some("book-v3"),
+            "车站",
+            2,
+            &[("entry-ch1", "main"), ("entry-act1", "about")],
+        )
+        .unwrap();
+    assert_eq!(
+        ordered
+            .iter()
+            .map(|h| (h.entry_id.as_str(), h.module_id.as_str()))
+            .collect::<Vec<_>>(),
+        [("entry-ch1", "main"), ("entry-act1", "about")]
+    );
+
+    // Outline and block lengths by (entry, module).
+    let outline = lib.entry_module_outline("entry-ch1", "main").unwrap();
+    assert_eq!(outline.len(), 1);
+    assert_eq!(
+        (outline[0].heading, outline[0].text.as_str()),
+        (1, "第一章 车站")
+    );
+    assert_eq!(
+        lib.entry_module_block_lengths("entry-ch1", "main").unwrap(),
+        vec![6, 14]
+    );
+
+    // Stats by (entry, module), per entry, per book, and manuscript subset.
+    let ch1_stats = lib
+        .entry_module_stats("entry-ch1", "main")
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        (
+            ch1_stats.entry_id.as_str(),
+            ch1_stats.module_id.as_str(),
+            ch1_stats.chars,
+            ch1_stats.paragraphs
+        ),
+        ("entry-ch1", "main", 20, 2)
+    );
+
+    let anna_modules = lib.entry_stats("entry-anna").unwrap();
+    assert_eq!(
+        anna_modules
+            .iter()
+            .map(|m| (m.module_id.as_str(), m.chars))
+            .collect::<Vec<_>>(),
+        [("bio", 11), ("notes", 10)]
+    );
+    let anna_total = lib.entry_total_stats("entry-anna").unwrap();
+    assert_eq!(
+        (anna_total.docs, anna_total.chars, anna_total.paragraphs),
+        (2, 21, 3)
+    );
+
+    let all_book_modules = lib.book_entry_module_stats("book-v3").unwrap();
+    assert_eq!(all_book_modules.len(), 4);
+
+    // Manuscript word count counts only manuscript chapters' prose modules.
+    let ms = lib
+        .manuscript_stats(Some("book-v3"), &[("entry-ch1", "main")])
+        .unwrap();
+    assert_eq!((ms.docs, ms.chars, ms.paragraphs), (1, 20, 2));
+
+    // References by (entry, module).
+    let from_ch1 = lib
+        .references_from_entry_module("entry-ch1", "main")
+        .unwrap();
+    assert_eq!(from_ch1.len(), 1);
+    assert_eq!(from_ch1[0].target_id, "entry-anna");
+
+    let from_anna = lib.references_from_entry("entry-anna").unwrap();
+    assert_eq!(from_anna.len(), 1);
+    assert_eq!(
+        (
+            from_anna[0].source_entry.as_str(),
+            from_anna[0].source_module.as_str(),
+            from_anna[0].target_id.as_str()
+        ),
+        ("entry-anna", "notes", "entry-ch1")
+    );
+
+    let to_anna = lib.entry_module_references_to("entry-anna").unwrap();
+    assert_eq!(
+        to_anna
+            .iter()
+            .map(|r| (r.source_entry.as_str(), r.source_module.as_str()))
+            .collect::<Vec<_>>(),
+        [("entry-act1", "about"), ("entry-ch1", "main")]
+    );
+
+    let in_book = lib.entry_module_references_in_book("book-v3").unwrap();
+    assert_eq!(in_book.len(), 3);
+
+    lib.close().unwrap();
+}

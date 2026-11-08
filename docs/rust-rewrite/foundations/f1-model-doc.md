@@ -395,4 +395,4 @@ docs/rust-rewrite/acceptance/f1-m3-doc-bench.json   第三轮的测量证据
 
 ### 待协调
 
-- 无（K3 可直接基于 `dr_doc::v3` 与 `dr_doc::v3::novel_template` 继续做后半段导入与样书切换；K1+K2 继续推进第 3–6 步）。
+- 无（K3 可直接基于 `dr_doc::v3` 与 `dr_doc::v3::novel_template` 继续做后半段导入与样书切换；K1+K2 已完成第 3 步 `dr-store` 按「条目 + 模块」索引，见 [f2-store.md](f2-store.md)「交回」）。

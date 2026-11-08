@@ -345,3 +345,94 @@ fn conversations_have_no_prose_index_or_word_count() {
     h.close();
     lib.close().unwrap();
 }
+
+#[test]
+fn v3_body_and_template_docs_derive_by_entry_and_module() {
+    let dir = tempfile::tempdir().unwrap();
+    let (lib, _) = open(dir.path(), true);
+
+    let ch1_main = DocId::parse("body:entry-ch1/main").unwrap();
+    let act1_about = DocId::parse("body:entry-act1/about").unwrap();
+    let tpl_bio = DocId::parse("template:character/bio").unwrap();
+
+    let h_main = open_doc(&lib, &ch1_main);
+    let mut p_main = ProseDoc::create(ch1_main.clone(), 5).unwrap();
+    write(&h_main, &mut p_main, |t| {
+        t.insert_paragraphs(0, "第一章\n安娜走进了站台。")?;
+        t.set_heading(0, Some(Heading::H1))?;
+        t.link_entity(
+            4..6,
+            &EntityLink {
+                target: "entry-anna".into(),
+                kind: EntityKind::Entry,
+                block: None,
+                end_block: None,
+            },
+        )?;
+        Ok(())
+    });
+    assert!(h_main.reindex_now().unwrap());
+
+    let h_about = open_doc(&lib, &act1_about);
+    let mut p_about = ProseDoc::create(act1_about.clone(), 5).unwrap();
+    write(&h_about, &mut p_about, |t| {
+        t.insert_paragraphs(0, "第一幕说明：站台重逢。")?;
+        t.link_entity(
+            6..8,
+            &EntityLink {
+                target: "entry-anna".into(),
+                kind: EntityKind::Entry,
+                block: None,
+                end_block: None,
+            },
+        )?;
+        Ok(())
+    });
+    assert!(h_about.reindex_now().unwrap());
+
+    let h_tpl = open_doc(&lib, &tpl_bio);
+    let mut p_tpl = ProseDoc::create(tpl_bio.clone(), 5).unwrap();
+    write(&h_tpl, &mut p_tpl, |t| {
+        t.insert_paragraphs(0, "外貌模板预设文字").map(|_| ())
+    });
+    assert!(h_tpl.reindex_now().unwrap());
+
+    // Template doc is indexed as empty.
+    let tpl_stats = lib.doc_stats(&tpl_bio.to_string()).unwrap().unwrap();
+    assert_eq!((tpl_stats.words, tpl_stats.paragraphs), (0, 0));
+    assert!(lib.search(Some("b1"), "预设文字", 10).unwrap().is_empty());
+
+    // Entry module search finds both body:<id>/main and body:<id>/about.
+    let hits = lib
+        .search_entry_modules(Some("b1"), None, None, "站台", 10)
+        .unwrap();
+    assert_eq!(
+        hits.iter()
+            .map(|h| (h.entry_id.as_str(), h.module_id.as_str()))
+            .collect::<Vec<_>>(),
+        [("entry-act1", "about"), ("entry-ch1", "main")]
+    );
+
+    // Entry module references point to EntityKind::Entry ("entry").
+    let refs = lib.entry_module_references_to("entry-anna").unwrap();
+    assert_eq!(refs.len(), 2);
+    assert!(refs.iter().all(|r| r.target_kind == "entry"));
+
+    // Manuscript stats sum only the manuscript chapter modules.
+    let ms = lib
+        .manuscript_stats(Some("b1"), &[("entry-ch1", "main")])
+        .unwrap();
+    let ch1_stats = lib
+        .entry_module_stats("entry-ch1", "main")
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        (ms.docs, ms.words, ms.chars),
+        (1, ch1_stats.words, ch1_stats.chars)
+    );
+
+    h_main.close();
+    h_about.close();
+    h_tpl.close();
+    lib.close().unwrap();
+}

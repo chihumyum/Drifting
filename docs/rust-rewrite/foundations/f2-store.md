@@ -737,3 +737,28 @@ cargo xtask check
 - 第三、四条是第七轮的备份测量（几百 MB，`DR_BACKUP_ASSET_MIB`、`DR_BACKUP_PRESET` 可调；只在空闲时跑，临时文件夹跑完就删）和帮手日志的写入成本，也只打到屏幕。
 - 第五条是 dr-testkit 的存储基准；加 `--milestone <名字>` 才写成测量证据，只在里程碑时做。
 - 测试数据全是合成的：dr-testkit 的随机流和语料（`dr_testkit::rng`、`dr_testkit::text`），不含任何书稿。
+
+## 交回（K1+K2 第二批：第 3 步 `dr-store` v3 索引，`handback/k1`）
+
+### 包含哪几段
+
+- **第 3 步 `dr-store`（及 `dr-index`）认得 v3 文档种类并按「条目 + 模块」建索引**：
+  - `dr-store::index` 新增 v3 与 v2.2 文档种类常量（`DOC_KIND_BOOK`、`DOC_KIND_BODY`、`DOC_KIND_TEMPLATE` 等）、`is_known_doc_kind`、`is_book_text_kind`、`format_body_doc_id` / `parse_body_doc_id`（`body:<条目 id>/<模块 id>`，含层级说明 `body:<条目 id>/about`）、`format_template_module_doc_id` / `parse_template_module_doc_id`（`template:<模板 id>/<模块 id>`）。
+  - 新增按「条目 + 模块」的索引结构（`EntryModuleStats`、`EntryModuleHit`、`EntryModuleReference`）及 `Library` 查询接口：`search_entry_modules`、`search_entry_modules_in_order`、`entry_module_outline`、`entry_module_block_lengths`、`entry_module_stats`、`entry_stats`、`entry_total_stats`、`book_entry_module_stats`、`manuscript_stats`（全书书稿字数只算勾选了「计入全书字数」的层级下的叶子条目正文模块）、`references_from_entry_module`、`references_from_entry`、`entry_module_references_to`、`entry_module_references_in_book`。
+  - `dr-index` 的 `TextDeriver` 对 `body:<条目 id>/<模块 id>`（含 `body:<条目 id>/about`）派生完整段落、字数与引用（`EntityKind::Entry`），对 `template:<模板 id>/<模块 id>` 记为已索引的空文档，不进搜索、不计字数。
+
+### 改了 v2.2 那边的哪些文件、为什么
+
+- `next/crates/dr-store/src/index.rs`：只新增 v3 文档种类常量与按「条目 + 模块」的辅助函数和查询方法，不修改任何现有 SQL 表结构或 v2.2 查询行为。
+
+### 检查结果
+
+- `cargo fmt --all --check`：通过
+- `CARGO_BUILD_JOBS=3 cargo clippy --workspace --all-targets --locked -- -D warnings`：通过
+- `CARGO_BUILD_JOBS=3 cargo test --workspace --locked`：通过（含 `dr-store` 与 `dr-index` 的 v3 条目+模块索引测试）
+- `CARGO_BUILD_JOBS=3 cargo xtask check`：通过
+- `pnpm public:check`：通过
+
+### 待协调
+
+- 无。
