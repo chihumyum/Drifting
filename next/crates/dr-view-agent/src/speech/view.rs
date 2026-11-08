@@ -16,7 +16,8 @@ use dr_ui::{
 use futures::{FutureExt as _, StreamExt as _, channel::oneshot, future::join_all};
 use gpui::{
     AppContext as _, Context, Entity, InteractiveElement as _, IntoElement, ParentElement as _,
-    Render, Styled as _, Window, div, prelude::FluentBuilder as _, px,
+    Render, StatefulInteractiveElement as _, Styled as _, Window, div, prelude::FluentBuilder as _,
+    px,
 };
 use std::{collections::VecDeque, sync::Arc};
 use tokio_util::sync::CancellationToken;
@@ -450,14 +451,21 @@ impl Render for Dictation {
                     )
                 })
                 .when(self.recording || self.preparing || self.sending, |row| {
-                    row.child(t(
+                    let status = t(
                         cx,
                         if self.recording {
                             k::RECORDING
                         } else {
                             k::TRANSCRIBING
                         },
-                    ))
+                    );
+                    row.child(
+                        div()
+                            .id("speech-status")
+                            .role(gpui::Role::Status)
+                            .aria_label(status.clone())
+                            .child(status),
+                    )
                 })
                 .child(
                     Button::new("speech-setup", t(cx, keys::settings::models::SPEECH_TITLE))
@@ -471,17 +479,22 @@ impl Render for Dictation {
                 ),
         );
         if let Some(error) = self.error {
-            body = body.child(div().child(text::wrapped(t(cx, error_key(error)))).when(
-                !self.queue.is_empty(),
-                |row| {
-                    row.child(
-                        Button::new("speech-retry", t(cx, k::RETRY))
-                            .small()
-                            .disabled(blocked || self.recording || self.sending)
-                            .on_click(cx.listener(|view, _, _, cx| view.retry(cx))),
-                    )
-                },
-            ));
+            let message = t(cx, error_key(error));
+            body = body.child(
+                div()
+                    .id("speech-error")
+                    .role(gpui::Role::Alert)
+                    .aria_label(message.clone())
+                    .child(text::wrapped(message))
+                    .when(!self.queue.is_empty(), |row| {
+                        row.child(
+                            Button::new("speech-retry", t(cx, k::RETRY))
+                                .small()
+                                .disabled(blocked || self.recording || self.sending)
+                                .on_click(cx.listener(|view, _, _, cx| view.retry(cx))),
+                        )
+                    }),
+            );
         }
         if self.setup {
             body = body.child(

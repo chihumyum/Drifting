@@ -45,37 +45,31 @@
 
 全轨道门禁结果见下文。代码位置：`dr-view-agent/src/speech/`，面板只负责绑定生命周期；系统提示词和 M29 目录不变。
 
-## 轨道 3 检查记录（2026-11-09）
+## 交回（M34，2026-11-09）
 
-四项工作在 `codex/m30-long-tasks-memory`；本次先将 `main` 合入本分支（`654da2a4`），未合回 `main`、未推送。前三项分别已提交于 `5b97462b`、`945e3632`、`f8f1f382`，本次没有重做。M32 的修复与永久故障注入已在祖先 `0f3a1dc6`。
+分支 `codex/m30-long-tasks-memory`，交回指针 `handback/track3`。包含此前已提交的 M30 机制 `5b97462b`、小说提示词集中 `945e3632`、M32 P2 复验 `f8f1f382`，以及本次 M34 实现 `d490bcd4`。前三项没有重做。先后将 main 合入本分支于 `654da2a4`、`4fac979f`；后者包含夜间协议和已接收的轨道 2 输入改动，没有合回 main 或推送。
 
-下面保留上一个会话的检查记录，**不代表本次补完后的代码**；本次结果在下一节汇总。
+夜间第一轮完整复核基于 `4fac979f`，macOS ARM64，所有编译设 `CARGO_BUILD_JOBS=3`；按整合者的既定方式设置 `RUST_TEST_THREADS=1`。未跳过新增契约，也未修改 F8 的限时断言。
 
-| 前会话检查 | 前会话结果 |
+| 检查 | 结果 |
 | --- | --- |
 | `cargo fmt --all --check` | 通过 |
 | `cargo clippy --workspace --all-targets --locked -- -D warnings` | 通过 |
-| `cargo xtask check` | 全部门禁通过，包含在线 audit：943 个锁定依赖、0 漏洞、12 条既有维护／健全性提示；测量证据仍有 14 stale、15 legacy，未手改或冒充新测量 |
-| 根目录 `pnpm public:check` | 通过，5,363 个候选文件 |
-| `cargo test -p dr-view-agent --lib --locked` | 最终代码 22 项通过，其中口述 10 项 |
-| `cargo test -p dr-shell --test strings --locked` | 最终代码通过；onboarding 的生成 Key 适配与集中登记逐项核对，并只登记实际使用的翻译叶子 |
-| `cargo test --workspace --doc --locked` | 最终代码顺序重建／复验通过，退出码 0；首轮的 18 个依赖产物查找错误未再出现 |
-| M30 运行时／提供商／工具／控制器、M32 出站故障注入 | 定向检查通过，见各模块的命令与契约说明；全量运行中这些目标也通过 |
+| `RUST_TEST_THREADS=1 cargo test --workspace --locked --no-fail-fast` | 退出码 0，1,932 通过、0 失败、22 忽略，包含全部文档测试 |
+| M34 契约（上述全量的一部分） | 16 项通过；帮手视图库共 28 项通过，包含模板本地化键与工具清单冻结契约 |
+| `cargo xtask check` | 全部门禁通过；943 个锁定依赖，0 漏洞、12 条既有提示；14 stale、15 legacy 测量证据保留，未手改 |
+| 根目录 `pnpm public:check` | 通过，5,370 个候选文件 |
+| `sync-locales.py --check`、plist 与 shell 语法 | 通过；资源用途文字与旧版键一致，九语言状态键与生成文件一致 |
+| `agent-acceptance`（显式 `debug-bridge`） | 专用 Clippy／构建通过；真实窗口 24 步、0 pending，五张截图核对；正常退出 |
+| `bundle-mac --debug`、Mach-O／包内隐私描述 | 待补记 |
 
-`cargo test --workspace --locked --no-fail-fast` 首轮退出码为 101，已产出的测试结果共 **1,911 通过、5 失败、19 忽略**，另有 18 个 rustdoc 目标报依赖产物查找错误。首轮失败及后续验证分别记录，不能把单项复验当作全工作区一次全绿：
+预检的普通并行全量运行（夜间 main 更新前）为 1,921 通过、1 失败、22 忽略，退出码 101：唯一失败是 `dr-debug-bridge::the_socket_answers_with_the_token_only` 的十秒限时。上一个会话也留过相同超时及并发构建造成的 rustdoc 依赖产物错误。这里没有把单项重试冒充全量通过：合入更新后的 main 后，整个工作区顺序构建、串行完整运行，含该 F8 契约和文档测试，实际以 0 退出。
 
-- 两项口述假服务失败：修正 macOS 接入 socket 的非阻塞继承问题，最终全部 22 项帮手视图库测试通过。
-- 翻译孤立键检查：修正类型化键适配和未使用键登记，单项通过。
-- `dr-view-import::quitting_stops_the_import_first`：未改该模块，用首轮同一测试二进制串行复验通过（1 项，5.35 秒）。
-- **仍未通过**：F8 `dr-debug-bridge::the_socket_answers_with_the_token_only` 在 `tests/bridge.rs:446` 超时；用首轮同一二进制单独复验仍超时。本轮未改调试桥实现／测试，未在基线重建验证，不能断言它是已知基线问题。
+窗口复核发现包装文字没有无障碍节点，已在口述视图内补 `Status`／`Alert` 和原文标签；既有提示能被桥读取，不新增文案。字段输入使用现有指针接口，没有扩展 F8 的固定字段表。此项修正后的最终全套与打包结果在下一轮 main 合并后补记。
 
-文档测试是在其他本工作区编译任务结束后顺序复验；首轮运行期间曾重建相同 target 中的依赖产物，因此保留两轮结果，不把首轮 rustdoc 报错当成未验证的源码结论。真实录音及 Windows 的边界见下节。
+共享改动限于既有键登记及翻译生成、onboarding 的生成 Key 适配、app 的隐私资源／构建脚本／打包脚本与已有验收示例的假 ASR 接线。没有修改 `dr-model`、`dr-doc`、`dr-workspace` 的实现；M29 目录与三个内建入口不变。窗口自动化只用内存占位凭据并在缺 Key 时点录音；硬件手测也有 loopback ASR 宿主，不要求真 Key 或真实语音服务。
 
-## 本次补完预检
-
-2026-11-09：新增的组字保护、采集尾帧／积压与请求失败边界补齐后，口述 16 项合成契约、帮手视图库 28 项通过；fmt、全工作区 Clippy、翻译生成校验与公开边界通过。本次首次全量运行（尚未合入夜间更新的 main）为 **1,921 通过、1 失败、22 忽略**，退出码 101；唯一失败仍是 `dr-debug-bridge::the_socket_answers_with_the_token_only` 的十秒限时，文档测试全部通过。没有绕过或修改该断言。
-
-夜间协议要求提交后合入最新 main，并以 `CARGO_BUILD_JOBS=3` 跑全套。整合记录现采用 `RUST_TEST_THREADS=1`；下一轮采用相同串行设置，完成结果再记入「交回」，通过以前不移动 `handback/track3`。
+待协调：系统麦克风授权、设备故障／切换和 Windows 原生采集仍留作者设备手测；本次只在 macOS 构建、运行，未声称 Windows 编译或实机通过。F7 正式签名／身份交接时按上表复核用途描述及 audio-input entitlement；v3 专名来源随 K6 的结构投影适配。交回指针在全部检查及下列窗口／打包复核完成、记录提交后移动。
 
 ## 作者手测（未执行）
 
