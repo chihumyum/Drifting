@@ -33,13 +33,21 @@ fn an_imported_library_is_indexed_when_it_opens() {
     options.rebuild_indexes_on_open = false;
     let lib = Library::open(&root, options).unwrap();
     let stale = lib.stale_index_docs().unwrap();
-    assert_eq!(stale.len(), 7, "six bodies and the book: {stale:?}");
-    assert_eq!(lib.rebuild_stale_indexes().unwrap(), 7);
+    assert_eq!(
+        stale.len(),
+        9,
+        "six bodies, the two body templates and the book: {stale:?}"
+    );
+    assert_eq!(lib.rebuild_stale_indexes().unwrap(), 9);
     assert!(lib.stale_index_docs().unwrap().is_empty());
 
-    // Every body's counts are what dr-doc reads from it.
+    // Every body's counts are what dr-doc reads from it; a template is not
+    // the book's text (`DocKind::is_book_text`).
     let mut total = 0;
-    for id in stale.iter().filter(|d| !d.starts_with("book:")) {
+    for id in stale
+        .iter()
+        .filter(|d| !d.starts_with("book:") && !d.starts_with("template:"))
+    {
         let doc_id = DocId::parse(id).unwrap();
         let snap = lib
             .load_copy(id)
@@ -53,6 +61,11 @@ fn an_imported_library_is_indexed_when_it_opens() {
         total += got.words;
     }
     assert_eq!(lib.book_stats(old::BOOK).unwrap().words, total);
+    // The templates are indexed empty: their words are not the book's.
+    for id in stale.iter().filter(|d| d.starts_with("template:")) {
+        assert_eq!(lib.doc_stats(id).unwrap().unwrap().words, 0, "{id}");
+    }
+    assert!(lib.search(Some(old::BOOK), "外貌", 10).unwrap().is_empty());
 
     let chapter = format!("node:{}", old::CHAPTER);
     // 第一章 序 / 我要给阿Q做正传，已经不止一两年了。 / 引文第一段 / 引文第二段 /

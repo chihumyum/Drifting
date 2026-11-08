@@ -142,6 +142,12 @@
     },
     "wordCount": "{{count}} palabras"
   },
+  "edgeKindManager": {
+    "editTypes": "Editar tipos",
+    "resetColor": "Restaurar color predeterminado",
+    "summary": "{{kinds}} tipos · {{relations}} relaciones",
+    "title": "Todos los tipos de relación"
+  },
   "editorOutline": {
     "aria": "Esquema",
     "hiddenItems": "{{count}} elementos lejanos; pasa el cursor para verlos"
@@ -704,24 +710,92 @@
     }
   },
   "referencesPanel": {
+    "actions": {
+      "linkEntity": "Vincular entidad",
+      "remove": "Quitar relación"
+    },
+    "deleted": {
+      "category": "(categoría eliminada)",
+      "element": "(elemento eliminado)",
+      "node": "(capítulo eliminado)",
+      "storyline": "(trama eliminada)"
+    },
     "empty": {
       "incoming": "Ningún contenido hace referencia a esto todavía",
-      "outgoing": "Este texto aún no hace referencia a otras entidades"
+      "outgoing": "Este texto aún no hace referencia a otras entidades",
+      "relations": "Aún no hay relaciones"
+    },
+    "filters": {
+      "all": "Todo"
     },
     "kind": {
-      "patch": "Evolución"
+      "category": "Categoría",
+      "element": "Elemento",
+      "node": "Capítulo",
+      "patch": "Evolución",
+      "storyline": "Trama"
     },
     "meta": {
       "blocksSpans": "{{blocks}} bloques · {{spans}} menciones",
       "spans": "{{count}} menciones"
     },
+    "picker": {
+      "empty": "Sin opciones",
+      "placeholder": "Buscar entidades vinculables…"
+    },
     "sections": {
       "incoming": "Enlaces entrantes",
-      "outgoing": "Referencias"
+      "outgoing": "Referencias",
+      "relations": "Relaciones"
     }
   },
+  "relationPicker": {
+    "untitledChapter": "Capítulo sin título",
+    "untitledDrift": "Idea sin título",
+    "untitledElement": "Elemento sin título",
+    "untitledStoryline": "Trama sin título"
+  },
   "relationTypes": {
-    "description": "Descripción"
+    "allowedEntities": "Entidades permitidas",
+    "allowedSources": "Entidades de origen permitidas",
+    "allowedTargets": "Entidades de destino permitidas",
+    "builtIn": "Integrado",
+    "cancel": "Cancelar",
+    "confirmDelete": "¿Eliminar el tipo de relación «{{name}}»?",
+    "create": "Nuevo",
+    "createInline": "Crear tipo de relación",
+    "defaultSourceRole": "Origen",
+    "defaultTargetRole": "Destino",
+    "delete": "Eliminar tipo de relación",
+    "description": "Descripción",
+    "directed": "Dirigida",
+    "direction": "Dirección",
+    "endpointRole": "Rol de los extremos",
+    "entityKinds": {
+      "category": "Categoría de elementos",
+      "comment": "Comentario",
+      "element": "Elemento",
+      "library_item": "Material",
+      "node": "Capítulo o idea",
+      "patch": "Evolución del elemento",
+      "storyline": "Trama"
+    },
+    "genericAssociation": {
+      "name": "Asociación",
+      "sourceRole": "Elemento asociado",
+      "targetRole": "Objeto"
+    },
+    "missing": "Falta el tipo de relación",
+    "name": "Nombre",
+    "pendingIncoming": "Esta entidad ← destino",
+    "pendingOutgoing": "Esta entidad → destino",
+    "save": "Guardar",
+    "selectConfigured": "Elegir tipo de relación",
+    "sourceRole": "Rol de origen",
+    "symmetric": "Simétrica",
+    "symmetricSummary": "Simétrica · {{role}}",
+    "targetRole": "Rol de destino",
+    "title": "Definiciones de tipos de relación"
   },
   "reviewPanel": {
     "commentPlaceholder": "Escribe un comentario…",

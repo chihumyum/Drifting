@@ -142,6 +142,12 @@
     },
     "wordCount": "{{count}} 字"
   },
+  "edgeKindManager": {
+    "editTypes": "編輯類型",
+    "resetColor": "還原預設顏色",
+    "summary": "{{kinds}} 種類型 · {{relations}} 個關係",
+    "title": "所有關係類型"
+  },
   "editorOutline": {
     "aria": "大綱",
     "hiddenItems": "{{count}} 個遠處大綱項目，游標停留以顯示"
@@ -692,24 +698,92 @@
     }
   },
   "referencesPanel": {
+    "actions": {
+      "linkEntity": "連結實體",
+      "remove": "移除關係"
+    },
+    "deleted": {
+      "category": "（已刪除的分類）",
+      "element": "（已刪除的要素）",
+      "node": "（已刪除的章節）",
+      "storyline": "（已刪除的故事線）"
+    },
     "empty": {
       "incoming": "尚無內容參照此項目",
-      "outgoing": "此正文尚未參照其他實體"
+      "outgoing": "此正文尚未參照其他實體",
+      "relations": "尚無關係"
+    },
+    "filters": {
+      "all": "全部"
     },
     "kind": {
-      "patch": "演化記錄"
+      "category": "類目",
+      "element": "要素",
+      "node": "章節",
+      "patch": "演化記錄",
+      "storyline": "故事線"
     },
     "meta": {
       "blocksSpans": "{{blocks}} 個區塊 · {{spans}} 處提及",
       "spans": "{{count}} 處提及"
     },
+    "picker": {
+      "empty": "沒有可選項目",
+      "placeholder": "搜尋可連結的實體…"
+    },
     "sections": {
       "incoming": "反向連結",
-      "outgoing": "引用"
+      "outgoing": "引用",
+      "relations": "關係"
     }
   },
+  "relationPicker": {
+    "untitledChapter": "未命名章節",
+    "untitledDrift": "未命名構想",
+    "untitledElement": "未命名要素",
+    "untitledStoryline": "未命名故事線"
+  },
   "relationTypes": {
-    "description": "說明"
+    "allowedEntities": "允許的實體",
+    "allowedSources": "允許的來源實體",
+    "allowedTargets": "允許的目標實體",
+    "builtIn": "內建",
+    "cancel": "取消",
+    "confirmDelete": "刪除關係類型「{{name}}」？",
+    "create": "新增",
+    "createInline": "建立關係類型",
+    "defaultSourceRole": "來源",
+    "defaultTargetRole": "目標",
+    "delete": "刪除關係類型",
+    "description": "說明",
+    "directed": "有方向",
+    "direction": "方向",
+    "endpointRole": "端點角色",
+    "entityKinds": {
+      "category": "要素類目",
+      "comment": "註解",
+      "element": "要素",
+      "library_item": "素材",
+      "node": "章節或構想",
+      "patch": "要素演化記錄",
+      "storyline": "故事線"
+    },
+    "genericAssociation": {
+      "name": "關聯",
+      "sourceRole": "關聯項目",
+      "targetRole": "物件"
+    },
+    "missing": "缺少關係類型",
+    "name": "名稱",
+    "pendingIncoming": "此實體 ← 目標",
+    "pendingOutgoing": "此實體 → 目標",
+    "save": "儲存",
+    "selectConfigured": "選擇關係類型",
+    "sourceRole": "來源角色",
+    "symmetric": "對稱",
+    "symmetricSummary": "對稱 · {{role}}",
+    "targetRole": "目標角色",
+    "title": "關係類型定義"
   },
   "reviewPanel": {
     "commentPlaceholder": "撰寫註解…",

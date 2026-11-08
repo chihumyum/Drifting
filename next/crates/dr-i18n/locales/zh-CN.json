@@ -142,6 +142,12 @@
     },
     "wordCount": "{{count}} 字"
   },
+  "edgeKindManager": {
+    "editTypes": "编辑类型",
+    "resetColor": "恢复默认色",
+    "summary": "{{kinds}} 类 · {{relations}} 条关联",
+    "title": "全部关联类型"
+  },
   "editorOutline": {
     "aria": "大纲",
     "hiddenItems": "远处 {{count}} 个目录项，悬停展开"
@@ -686,24 +692,92 @@
     }
   },
   "referencesPanel": {
+    "actions": {
+      "linkEntity": "关联实体",
+      "remove": "移除关联"
+    },
+    "deleted": {
+      "category": "(已删除分类)",
+      "element": "(已删除要素)",
+      "node": "(已删除章节)",
+      "storyline": "(已删除故事线)"
+    },
     "empty": {
       "incoming": "尚未被任何内容引用",
-      "outgoing": "正文中尚未引用其他实体"
+      "outgoing": "正文中尚未引用其他实体",
+      "relations": "尚无关联"
+    },
+    "filters": {
+      "all": "全部"
     },
     "kind": {
-      "patch": "补丁"
+      "category": "分类",
+      "element": "要素",
+      "node": "章节",
+      "patch": "补丁",
+      "storyline": "故事线"
     },
     "meta": {
       "blocksSpans": "{{blocks}} 处 · {{spans}} 次",
       "spans": "{{count}} 次"
     },
+    "picker": {
+      "empty": "没有可选项",
+      "placeholder": "搜索可关联的实体…"
+    },
     "sections": {
       "incoming": "被引用",
-      "outgoing": "引用其他"
+      "outgoing": "引用其他",
+      "relations": "关联"
     }
   },
+  "relationPicker": {
+    "untitledChapter": "无标题章节",
+    "untitledDrift": "无标题构想",
+    "untitledElement": "未命名要素",
+    "untitledStoryline": "未命名故事线"
+  },
   "relationTypes": {
-    "description": "说明"
+    "allowedEntities": "允许实体",
+    "allowedSources": "允许源实体",
+    "allowedTargets": "允许目标实体",
+    "builtIn": "内建",
+    "cancel": "取消",
+    "confirmDelete": "删除关系类型「{{name}}」？",
+    "create": "新建",
+    "createInline": "新建关系类型",
+    "defaultSourceRole": "源端",
+    "defaultTargetRole": "目标端",
+    "delete": "删除关系类型",
+    "description": "说明",
+    "directed": "有向",
+    "direction": "方向",
+    "endpointRole": "端点角色",
+    "entityKinds": {
+      "category": "要素类目",
+      "comment": "批注",
+      "element": "要素",
+      "library_item": "素材",
+      "node": "章节或构想",
+      "patch": "要素补丁",
+      "storyline": "故事线"
+    },
+    "genericAssociation": {
+      "name": "关联",
+      "sourceRole": "关联项",
+      "targetRole": "对象"
+    },
+    "missing": "缺失的关系类型",
+    "name": "名称",
+    "pendingIncoming": "该实体 ← 目标",
+    "pendingOutgoing": "该实体 → 目标",
+    "save": "保存",
+    "selectConfigured": "选择关系类型",
+    "sourceRole": "源角色",
+    "symmetric": "对称",
+    "symmetricSummary": "对称 · {{role}}",
+    "targetRole": "目标角色",
+    "title": "关系类型定义"
   },
   "reviewPanel": {
     "commentPlaceholder": "写批注…",

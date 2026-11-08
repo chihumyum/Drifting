@@ -19,7 +19,9 @@
 //!   glass and 「写点什么…」 only under the pointer or the caret.
 //! - **Size**: the grip on the table's corner sizes every cell by hand
 //!   (120–440 × 56–380, a live readout while dragged); the table never
-//!   squeezes, the overflowing axis scrolls.
+//!   squeezes, the overflowing axis scrolls. The shape a hand-set size
+//!   fixes is what 「适应」 keeps; it is kept per grid on this device
+//!   (dr-store's `local_state`, as 0.1 kept it in localStorage).
 //!
 //! Everything goes through F3's `plot_grid.*` commands, in order, on a
 //! background thread; typing is stored 400 ms after the last key or when
@@ -37,7 +39,9 @@ pub mod model;
 mod planner;
 
 pub use model::{CellSize, Grid, Line};
-pub use planner::{ClearDialog, Field, PlannerHost, PlotPlanner, STORE_AFTER, Write};
+pub use planner::{
+    ClearDialog, Field, PlannerHost, PlotPlanner, RATIO_SCOPE, STORE_AFTER, Write, ratio_key,
+};
 
 use dr_shell::nav::Target;
 use dr_shell::pages::{self, BottomPane, BottomPanel};

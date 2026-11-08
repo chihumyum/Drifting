@@ -15,6 +15,7 @@ use dr_import_v1::receipt::{self, Receipt};
 use dr_import_v1::run::{self, Options, Outcome};
 use dr_model::id::*;
 use dr_model::kind::*;
+use dr_model::prose::Heading;
 use dr_model::{DocId, Timestamp};
 use dr_store::history::LabelRetention;
 use dr_store::{Library, LibraryOptions};
@@ -193,6 +194,47 @@ fn a_handed_off_library_imports_completely() {
     assert_eq!(el.relate_pin, Some((12.5, -40.0)));
     assert_eq!(el.category.as_ref().map(|c| c.as_str()), Some(CATEGORY));
     assert_eq!(v.categories()[0].template_fields[0].key, "年龄");
+
+    // Body templates: the 0.1 fields stay as they were and are written into
+    // their template documents, headings, marks and links included.
+    assert_eq!(r.books[0].templates, 2);
+    assert_eq!(
+        v.categories()[0].element_template.as_deref(),
+        Some(CATEGORY_TEMPLATE)
+    );
+    assert_eq!(
+        storylines[0].chapter_template.as_deref(),
+        Some(STORYLINE_TEMPLATE)
+    );
+    let cat_t = prose_doc(&lib, &format!("template:category:{CATEGORY}"));
+    let paras: Vec<_> = cat_t.view().paragraphs().collect();
+    assert_eq!(paras.len(), 2);
+    assert_eq!(paras[0].attrs.heading, Some(Heading::H1));
+    assert_eq!(paras[0].text(), "外貌");
+    assert_eq!(paras[1].text(), "像阿Q那样");
+    let linked = paras[1]
+        .runs
+        .iter()
+        .find(|r| r.text == "阿Q")
+        .expect("the linked run");
+    assert_eq!(linked.marks.entities.len(), 1);
+    assert_eq!(linked.marks.entities[0].target, ELEMENT);
+    let line_t = prose_doc(&lib, &format!("template:storyline:{STORYLINE}"));
+    let paras: Vec<_> = line_t.view().paragraphs().collect();
+    assert_eq!(paras[0].attrs.heading, Some(Heading::H2));
+    assert_eq!(paras[0].text(), "开端");
+    assert!(
+        paras[1]
+            .runs
+            .iter()
+            .any(|r| r.text == "冲突：" && r.marks.bold)
+    );
+    assert!(
+        lib.doc_info(&format!("template:storyline:{STORYLINE}"))
+            .unwrap()
+            .is_some(),
+        "registered, so F3 copies it into new chapters"
+    );
 
     // Relation types and relations.
     let rt = v
@@ -639,8 +681,8 @@ fn the_import_reports_its_progress() {
         .unwrap();
     assert_eq!(
         (indexing.done, indexing.total),
-        (7, 7),
-        "six bodies and the book"
+        (9, 9),
+        "six bodies, two templates and the book"
     );
 }
 
@@ -651,7 +693,10 @@ fn an_imported_library_has_its_indexes() {
     let (outcome, timing) =
         run::import(&old.db, &new.root, &options(&old, &new, Accept::NOTHING)).unwrap();
     imported(outcome);
-    assert_eq!(timing.indexed_docs, 7);
+    assert_eq!(
+        timing.indexed_docs, 9,
+        "six bodies, two templates, the book"
+    );
     let mut o = LibraryOptions::new("0.2.0-test");
     dr_index::attach(&mut o);
     o.rebuild_indexes_on_open = false;

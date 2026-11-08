@@ -27,7 +27,7 @@ use dr_doc::book::{BookDoc, BookReader};
 use dr_doc::loro_types::{Frontiers, VersionVector};
 use dr_doc::peer::import_peer;
 use dr_doc::prose::ProseDoc;
-use dr_model::id::{BlockId, BookId, CommentId};
+use dr_model::id::{BlockId, BookId, CategoryId, CommentId, StorylineId, TemplateOwner};
 use dr_model::kind::ProjectionKind;
 use dr_model::{DocId, Origin, ProseProfile};
 use dr_store::history::{LabelRetention, NewLabel};
@@ -40,7 +40,7 @@ use crate::book;
 use crate::error::{ImportError, Result};
 use crate::gate::{Accept, Gate};
 use crate::handoff::BookSettings;
-use crate::legacy::{HistoryRow, Legacy, ProseKind, ProseOwner};
+use crate::legacy::{BookRows, HistoryRow, Legacy, ProseKind, ProseOwner};
 use crate::locate;
 use crate::meta::{self, Fields, Meta, Owner};
 use crate::progress::{Callback, Reporter, Step};
@@ -334,6 +334,70 @@ fn store_doc(
     import_into(&h, &doc_id.to_string(), bytes)?;
     h.close();
     Ok(())
+}
+
+/// The book's 0.1 body templates (a category's `element_template`, a
+/// storyline's `chapter_template`: editor JSON), each written into its
+/// template document (dr-doc's `template:category:<id>` /
+/// `template:storyline:<id>`) the way a body is: headings, marks, entity
+/// links, tables. F3 copies a registered template document into new
+/// elements and chapters; the field stays on the book document as it was,
+/// read only. An empty field (`{}`, or nothing but empty paragraphs) is no
+/// template. The import peer is deterministic, so a book carried on after
+/// an interruption stores the same updates again without change. Returns
+/// how many were written.
+fn write_templates(
+    lib: &Library,
+    book: &str,
+    rows: &BookRows,
+    span: &dyn Fn(&str) -> Option<BlockSpan>,
+    ts: i64,
+    notes: &mut Notes,
+) -> Result<usize> {
+    let owners = rows
+        .categories
+        .iter()
+        .filter_map(|c| {
+            let id = CategoryId::parse(&c.id).ok()?;
+            Some((TemplateOwner::Category(id), c.template_json.as_deref()?))
+        })
+        .chain(rows.storylines.iter().filter_map(|s| {
+            let id = StorylineId::parse(&s.id).ok()?;
+            Some((TemplateOwner::Storyline(id), s.template.as_str()))
+        }));
+    let mut written = 0;
+    for (owner, json) in owners {
+        let json = json.trim();
+        if json.is_empty() || json == "{}" {
+            continue;
+        }
+        let Ok(lines) = pm::parse(json) else {
+            notes.add("template-unreadable");
+            continue;
+        };
+        let blocks = prose::doc_blocks(&lines);
+        let ctx = Context {
+            profile: ProseProfile::Prose,
+            span,
+            todo: &|_| None,
+        };
+        let planned = prose::plan(&lines, &blocks, &ctx);
+        if planned.paras.iter().all(Para::is_empty) {
+            continue;
+        }
+        notes.merge(&planned.notes);
+        let doc_id = owner.doc_id();
+        let id_s = doc_id.to_string();
+        let mut doc = ProseDoc::create(doc_id.clone(), import_peer(&id_s))?;
+        let (r, _) = doc.edit_at(Origin::Import, Some(ts), |t| write::sync(t, &planned.paras));
+        r?;
+        let (r, _) = doc.edit_at(Origin::Repair, Some(ts), |t| t.repair_block_ids());
+        r?;
+        let bytes = doc.export_updates_since(&VersionVector::default())?;
+        store_doc(lib, &doc_id, book, dr_doc::prose::genesis(&doc_id), bytes)?;
+        written += 1;
+    }
+    Ok(written)
 }
 
 /// Bodies and assets of each book, for the overall estimate.
@@ -962,6 +1026,12 @@ fn write_library(
         if stopped || options.cancel.now_requested() {
             stop_in_book!();
         }
+        // Body templates, written when the book was last changed (0.1 kept
+        // no time for them).
+        let t0 = Instant::now();
+        let changed = secs(parse_iso_ms(&project.updated_at).unwrap_or(0));
+        rec.templates = write_templates(lib, &project.id, &rows, &span, changed, &mut notes)?;
+        timing.prose_ms += ms(t0);
 
         // The book document, with the snapshot history's metadata replayed:
         // stored after each history row, so every point is labelled while

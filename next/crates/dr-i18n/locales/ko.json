@@ -142,6 +142,12 @@
     },
     "wordCount": "{{count}}자"
   },
+  "edgeKindManager": {
+    "editTypes": "유형 편집",
+    "resetColor": "기본 색상 복원",
+    "summary": "유형 {{kinds}}개 · 관계 {{relations}}개",
+    "title": "모든 관계 유형"
+  },
   "editorOutline": {
     "aria": "개요",
     "hiddenItems": "멀리 있는 개요 항목 {{count}}개 · 마우스를 올려 표시"
@@ -692,24 +698,92 @@
     }
   },
   "referencesPanel": {
+    "actions": {
+      "linkEntity": "엔터티 연결",
+      "remove": "관계 제거"
+    },
+    "deleted": {
+      "category": "(삭제된 분류)",
+      "element": "(삭제된 요소)",
+      "node": "(삭제된 장)",
+      "storyline": "(삭제된 스토리라인)"
+    },
     "empty": {
       "incoming": "아직 이 항목을 참조하는 내용이 없습니다",
-      "outgoing": "이 본문은 아직 다른 엔터티를 참조하지 않습니다"
+      "outgoing": "이 본문은 아직 다른 엔터티를 참조하지 않습니다",
+      "relations": "아직 관계가 없습니다"
+    },
+    "filters": {
+      "all": "전체"
     },
     "kind": {
-      "patch": "변화 기록"
+      "category": "분류",
+      "element": "요소",
+      "node": "장",
+      "patch": "변화 기록",
+      "storyline": "스토리라인"
     },
     "meta": {
       "blocksSpans": "블록 {{blocks}}개 · 언급 {{spans}}개",
       "spans": "언급 {{count}}개"
     },
+    "picker": {
+      "empty": "선택 항목 없음",
+      "placeholder": "연결 가능한 엔터티 검색…"
+    },
     "sections": {
       "incoming": "백링크",
-      "outgoing": "참조"
+      "outgoing": "참조",
+      "relations": "관계"
     }
   },
+  "relationPicker": {
+    "untitledChapter": "제목 없는 장",
+    "untitledDrift": "제목 없는 아이디어",
+    "untitledElement": "이름 없는 요소",
+    "untitledStoryline": "이름 없는 스토리라인"
+  },
   "relationTypes": {
-    "description": "설명"
+    "allowedEntities": "허용된 엔터티",
+    "allowedSources": "허용된 출발점 엔터티",
+    "allowedTargets": "허용된 대상 엔터티",
+    "builtIn": "기본 제공",
+    "cancel": "취소",
+    "confirmDelete": "관계 유형 “{{name}}”을(를) 삭제할까요?",
+    "create": "새로 만들기",
+    "createInline": "관계 유형 만들기",
+    "defaultSourceRole": "출처",
+    "defaultTargetRole": "대상",
+    "delete": "관계 유형 삭제",
+    "description": "설명",
+    "directed": "방향 있음",
+    "direction": "방향",
+    "endpointRole": "끝점 역할",
+    "entityKinds": {
+      "category": "요소 분류",
+      "comment": "댓글",
+      "element": "요소",
+      "library_item": "자료",
+      "node": "장 또는 아이디어",
+      "patch": "요소 변화 기록",
+      "storyline": "스토리라인"
+    },
+    "genericAssociation": {
+      "name": "연관",
+      "sourceRole": "연관 항목",
+      "targetRole": "객체"
+    },
+    "missing": "관계 유형 누락",
+    "name": "이름",
+    "pendingIncoming": "이 엔터티 ← 대상",
+    "pendingOutgoing": "이 엔터티 → 대상",
+    "save": "저장",
+    "selectConfigured": "관계 유형 선택",
+    "sourceRole": "출발점 역할",
+    "symmetric": "대칭",
+    "symmetricSummary": "대칭 · {{role}}",
+    "targetRole": "대상 역할",
+    "title": "관계 유형 정의"
   },
   "reviewPanel": {
     "commentPlaceholder": "댓글 작성…",

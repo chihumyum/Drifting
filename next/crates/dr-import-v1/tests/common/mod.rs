@@ -54,6 +54,10 @@ pub const ELEMENT_META_V1: &str = r#"{"name":"阿Q","summary":"","aliases":["阿
 /// An earlier version of the element's body.
 pub const ELEMENT_V1: &str = r#"{"type":"doc","content":[{"type":"paragraph","attrs":{"id":"e-p1"},"content":[{"type":"text","text":"未庄的人。"}]}]}"#;
 
+/// A storyline's chapter template: an H2 and a paragraph with a bold run.
+pub const STORYLINE_TEMPLATE: &str = r#"{"type":"doc","content":[{"type":"heading","attrs":{"id":"t-h","level":2},"content":[{"type":"text","text":"开端"}]},{"type":"paragraph","attrs":{"id":"t-p"},"content":[{"type":"text","text":"冲突：","marks":[{"type":"bold"}]},{"type":"text","text":"写在这里"}]}]}"#;
+/// A category's element template: an H1 and a paragraph linking an element.
+pub const CATEGORY_TEMPLATE: &str = r#"{"type":"doc","content":[{"type":"heading","attrs":{"level":1},"content":[{"type":"text","text":"外貌"}]},{"type":"paragraph","content":[{"type":"text","text":"像"},{"type":"text","text":"阿Q","marks":[{"type":"entityLink","attrs":{"targetKind":"element","targetId":"01900000-0000-7000-8000-0000000000e1"}}]},{"type":"text","text":"那样"}]}]}"#;
 pub const ELEMENT_JSON: &str = r#"{"type":"doc","content":[{"type":"paragraph","attrs":{"id":"e-p1"},"content":[{"type":"text","text":"未庄的闲人。","marks":[{"type":"bold"}]}]}]}"#;
 pub const NOTE_JSON: &str = r#"{"type":"doc","content":[{"type":"taskList","attrs":{"id":"tl"},"content":[{"type":"taskItem","attrs":{"id":"ti1","checked":false,"todoId":"01900000-0000-7000-8000-000000000062"},"content":[{"type":"paragraph","attrs":{"id":"tp1"},"content":[{"type":"text","text":"核对称呼"}]}]},{"type":"taskItem","attrs":{"id":"ti2","checked":true},"content":[{"type":"paragraph","attrs":{"id":"tp2"},"content":[{"type":"text","text":"抄录告示"}]}]}]},{"type":"materialEmbed","attrs":{"id":"me","libraryItemId":"01900000-0000-7000-8000-0000000000f2"}}]}"#;
 pub const STORYLINE_JSON: &str = r#"{"type":"doc","content":[{"type":"paragraph","attrs":{"id":"s-p1"},"content":[{"type":"text","text":"阿Q 的一生。"}]}]}"#;
@@ -172,12 +176,13 @@ fn rows(c: &Connection, stamped: bool) {
     // Storyline.
     exec(
         c,
-        "INSERT INTO storylines (id, project_id, name, color, summary, order_key, content_json, kv_json, node_content_template_json, deleted_at, created_at, updated_at) VALUES (?1, ?2, '主线', '#336699', '', 0, ?3, ?4, '{}', NULL, ?5, ?5)",
+        "INSERT INTO storylines (id, project_id, name, color, summary, order_key, content_json, kv_json, node_content_template_json, deleted_at, created_at, updated_at) VALUES (?1, ?2, '主线', '#336699', '', 0, ?3, ?4, ?5, NULL, ?6, ?6)",
         params![
             STORYLINE,
             BOOK,
             STORYLINE_JSON,
             r#"[{"key":"起点","value":"未庄"}]"#,
+            STORYLINE_TEMPLATE,
             T0
         ],
     );
@@ -190,8 +195,14 @@ fn rows(c: &Connection, stamped: bool) {
     // Category and element.
     exec(
         c,
-        "INSERT INTO element_category (id, name, content_json, element_template_json, element_template_kv_json, color, project_id, layout_mode, grid_x, grid_y, deleted_at, created_at, updated_at) VALUES (?1, '人物', '{}', NULL, ?2, '#8B7355', ?3, 'auto', NULL, NULL, NULL, ?4, ?4)",
-        params![CATEGORY, r#"[{"key":"年龄","value":""}]"#, BOOK, T0],
+        "INSERT INTO element_category (id, name, content_json, element_template_json, element_template_kv_json, color, project_id, layout_mode, grid_x, grid_y, deleted_at, created_at, updated_at) VALUES (?1, '人物', '{}', ?2, ?3, '#8B7355', ?4, 'auto', NULL, NULL, NULL, ?5, ?5)",
+        params![
+            CATEGORY,
+            CATEGORY_TEMPLATE,
+            r#"[{"key":"年龄","value":""}]"#,
+            BOOK,
+            T0
+        ],
     );
     exec(
         c,
