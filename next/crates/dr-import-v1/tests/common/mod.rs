@@ -8,6 +8,8 @@
 
 #![allow(dead_code)]
 
+pub mod v3_fixture;
+
 use std::path::{Path, PathBuf};
 
 use dr_import_v1::handoff::sha256_hex;
