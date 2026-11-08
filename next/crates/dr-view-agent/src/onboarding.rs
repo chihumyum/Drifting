@@ -3,7 +3,8 @@
 
 use std::collections::HashMap;
 
-use dr_i18n::{Key, keys};
+use dr_agent::novel_template::Starter;
+use dr_i18n::Key;
 use dr_shell::Settings;
 use gpui::App;
 use serde::{Deserialize, Serialize};
@@ -131,7 +132,11 @@ pub enum StarterMark {
 }
 
 pub fn build_starter_prompts(source: &StarterSource) -> Vec<StarterPrompt> {
-    use keys::agent_panel::onboarding::prompts as k;
+    let key = |starter: Starter| {
+        Key::all()
+            .find(|key| key.name() == starter.key())
+            .expect("registered starter translation")
+    };
     let written: Vec<_> = source
         .chapters
         .iter()
@@ -148,14 +153,18 @@ pub fn build_starter_prompts(source: &StarterSource) -> Vec<StarterPrompt> {
                 .min_by_key(|chapter| chapter.book_order)
         });
     let Some(chapter) = chapter else {
-        return [k::OUTLINE, k::INTERVIEW, k::CAST_CHARACTERS]
-            .into_iter()
-            .map(|key| StarterPrompt {
-                key,
-                values: Vec::new(),
-                mark: None,
-            })
-            .collect();
+        return [
+            key(Starter::Outline),
+            key(Starter::Interview),
+            key(Starter::Cast),
+        ]
+        .into_iter()
+        .map(|key| StarterPrompt {
+            key,
+            values: Vec::new(),
+            mark: None,
+        })
+        .collect();
     };
     let chapter_prompt = |key| StarterPrompt {
         key,
@@ -163,8 +172,8 @@ pub fn build_starter_prompts(source: &StarterSource) -> Vec<StarterPrompt> {
         mark: Some(StarterMark::Chapter(chapter.id.clone())),
     };
     let mut prompts = vec![
-        chapter_prompt(k::COMMENT_CHAPTER),
-        chapter_prompt(k::TIGHTEN_CHAPTER),
+        chapter_prompt(key(Starter::Comment)),
+        chapter_prompt(key(Starter::Tighten)),
     ];
     let mut elements: Vec<_> = source
         .elements
@@ -183,7 +192,7 @@ pub fn build_starter_prompts(source: &StarterSource) -> Vec<StarterPrompt> {
     });
     prompts.push(match elements.as_slice() {
         [first, second, ..] => StarterPrompt {
-            key: k::RELATE_ELEMENTS,
+            key: key(Starter::Relate),
             values: vec![
                 ("first", first.name.clone()),
                 ("second", second.name.clone()),
@@ -191,11 +200,21 @@ pub fn build_starter_prompts(source: &StarterSource) -> Vec<StarterPrompt> {
             mark: Some(StarterMark::Element(first.id.clone())),
         },
         [first] => StarterPrompt {
-            key: k::COMPLETE_ELEMENT,
+            key: key(Starter::Complete),
             values: vec![("element", first.name.clone())],
             mark: Some(StarterMark::Element(first.id.clone())),
         },
-        [] => chapter_prompt(k::EXTRACT_ELEMENTS),
+        [] => chapter_prompt(key(Starter::Extract)),
     });
     prompts
+}
+
+#[cfg(test)]
+mod template_tests {
+    #[test]
+    fn novel_starters_keep_existing_translations() {
+        for starter in dr_agent::novel_template::Starter::ALL {
+            assert!(dr_i18n::Key::all().any(|key| key.name() == starter.key()));
+        }
+    }
 }

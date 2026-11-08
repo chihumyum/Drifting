@@ -59,3 +59,9 @@
 `dr-agent-providers/src/{conversation.rs,transport.rs}`；
 `dr-agent-tools/src/evidence.rs`；
 `dr-view-agent/src/{controller,project_memory.rs,working_memory.rs,panel/continuity.rs}`。
+
+## 小说模板的临时边界（轨道 3 第二项）
+
+当前小说专用的项目指导、H1/H2/H3 规则、check-in 提示、正文整理提示以及 onboarding 提示词绑定统一在 `dr-agent/src/novel_template.rs`；文件旁明确写了 v3 将它们移入小说模板。通用作者控制／工具诚实性／冲突规则仍在面板的通用 system prompt 组装处，机制不自行假定小说语义。既有翻译正文保留原本的本地化单一来源，由集中登记的键引用，不复制、手改生成翻译文件。当前 v2.2 数据适配器的种类字符串是读写映射，不是提示词，也未扩充。
+
+`novel_starters_keep_existing_translations` 与已有 onboarding／proactive 契约覆盖模板搬移；工具冻结断言保持三个内建入口。M30 机制提交：`5b97462b`。

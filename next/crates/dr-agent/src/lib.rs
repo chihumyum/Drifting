@@ -51,3 +51,5 @@ pub enum Error {
     #[error("stale or mismatched request")]
     StaleRequest,
 }
+
+pub mod novel_template;
