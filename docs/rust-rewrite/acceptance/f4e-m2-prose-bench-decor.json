@@ -4,12 +4,12 @@
   "milestone": "f4e-m2",
   "generatedBy": "cargo run --release -p dr-editor --example prose-bench -- decor --write",
   "inputs": {
-    "crates/dr-doc": "129aae42498f0b725ffdb4d7e2390a367544d991adf78d0e0475b623d4ebc8c0",
-    "crates/dr-editor": "a40be3da9c30cd98ece18beaeffaeaf410fb6c5a81512f4ce85ac2fbf68cba82",
-    "crates/dr-store": "3cdc85b5041c5f461c4ce528b0a752098d9eb15e6752b5b0c560a6a591cbbd1a",
+    "crates/dr-doc": "379328868d7efb39d391515b5655ff4438456eb5a8fcffa483425f7ac3598635",
+    "crates/dr-editor": "1b5c624ce375471a2f86c15ef1ce0fc2e2f183087693fd916fcd1b63924d09e1",
+    "crates/dr-store": "691facbf77899ae62a8013e758b0df17a96909ccb6b16e3f2c13660ada41d8ec",
     "crates/dr-testkit/src/seed": "a01def93a860c30e8b9ab3d7371b1766a53a14bf5c3e885821324d5c222caa6f",
-    "crates/dr-workspace": "6273286edaafb0d4202b39ae259943e0302d652c2ed5f3d14ef731fcd5102143",
-    "crates/gpui-prose": "e1aed90c9a1533d9ae93ba29888068a9033035cf4a9a190ebc10c42f4997c4f6"
+    "crates/dr-workspace": "0978d5b2438ec5be356987c346a7578730f18b3388b2abdeb561d4496e47f19a",
+    "crates/gpui-prose": "c997db126cb05dfd816abd3eeaa415291ba12c16ffdbda808b8669ae32ed8f23"
   },
   "corpus": {
     "preset": "heavy",
@@ -111,7 +111,7 @@
     "os": "macos",
     "osVersion": "27.0.1",
     "arch": "aarch64",
-    "loadAverage1m": 4.63,
+    "loadAverage1m": 3.97,
     "profile": "release"
   },
   "results": {
@@ -122,51 +122,51 @@
       "painted_in_one_view": 37,
       "set_all_groups": {
         "n": 3,
-        "p50": 0.871,
-        "p95": 0.888,
-        "max": 0.888,
-        "mean": 0.864
+        "p50": 0.841,
+        "p95": 0.886,
+        "max": 0.886,
+        "mean": 0.85
       }
     },
     "scroll_frame": {
       "plain": {
-        "n": 1356,
-        "p50": 0.139,
-        "p95": 0.157,
-        "max": 0.257,
-        "mean": 0.14
+        "n": 1353,
+        "p50": 0.151,
+        "p95": 0.168,
+        "max": 0.222,
+        "mean": 0.151
       },
       "decorated": {
-        "n": 1356,
-        "p50": 0.217,
-        "p95": 0.248,
-        "max": 0.669,
-        "mean": 0.221
+        "n": 1353,
+        "p50": 0.221,
+        "p95": 0.244,
+        "max": 0.378,
+        "mean": 0.223
       },
-      "p95_ratio": 1.58,
+      "p95_ratio": 1.45,
       "budget_p95_ms": 16.7
     },
     "keystroke_frame": {
       "plain": {
         "n": 360,
-        "p50": 0.637,
-        "p95": 2.366,
-        "max": 14.937,
-        "mean": 0.968
+        "p50": 0.406,
+        "p95": 0.465,
+        "max": 1.408,
+        "mean": 0.416
       },
       "decorated": {
         "n": 360,
-        "p50": 0.813,
-        "p95": 8.931,
-        "max": 19.673,
-        "mean": 1.771
+        "p50": 0.558,
+        "p95": 0.666,
+        "max": 9.22,
+        "mean": 0.816
       },
-      "p95_ratio": 3.77,
+      "p95_ratio": 1.43,
       "budget_p95_ms": 16.0
     },
     "load_average_1m": {
-      "start": 4.68,
-      "end": 4.63
+      "start": 3.97,
+      "end": 3.97
     },
     "conditions": {
       "busy_above_load_1m": 2.0,

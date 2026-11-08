@@ -4,13 +4,13 @@
   "milestone": "f6-m3",
   "generatedBy": "cargo run --release -p dr-shell --features capture --example shell-capture -- --bench ../docs/rust-rewrite/acceptance",
   "inputs": {
-    "crates/dr-editor": "95b14b3e4b31febf3846824a991b00ba780ab6d1c4947e0f0ba91099c7be7a7b",
-    "crates/dr-shell": "ac5eea6fb947c6720bff5fa6339051b848f4841ad49b68d514563eeff9115b99",
+    "crates/dr-editor": "1b5c624ce375471a2f86c15ef1ce0fc2e2f183087693fd916fcd1b63924d09e1",
+    "crates/dr-shell": "1ba54fa36ad12f20917fe4b7cb6a76df6ba6452724723a57eabc71034686e689",
     "crates/dr-testkit/fixtures/slow-clock.json": "3fa3ff0ac28ea90269e9734689c1d51446ea58b15d7f3e0bc8da301b9d66d9d8",
     "crates/dr-testkit/src/samples.rs": "d92b073fab71aafed3cf29f0a115def579ab2dd40e3da476356955f9017e874d",
-    "crates/dr-ui": "176fa019295dc71f89ea81c5e094ce116c60e7c24b91ab88910f5145485ef3fe",
-    "crates/dr-workspace": "6273286edaafb0d4202b39ae259943e0302d652c2ed5f3d14ef731fcd5102143",
-    "crates/gpui-prose": "c17d148071d2c2e85929a2c38991d8f922619681093868ea55b3f3c98d296048"
+    "crates/dr-ui": "bf9b6a2f01f35bd0ce6d187850e6eef50eeb6e43447cdbd4c0fee6e029344b60",
+    "crates/dr-workspace": "0978d5b2438ec5be356987c346a7578730f18b3388b2abdeb561d4496e47f19a",
+    "crates/gpui-prose": "c997db126cb05dfd816abd3eeaa415291ba12c16ffdbda808b8669ae32ed8f23"
   },
   "corpus": {
     "sample": "slow-clock"
@@ -22,90 +22,90 @@
     "os": "macos",
     "osVersion": "27.0.1",
     "arch": "aarch64",
-    "loadAverage1m": 19.2,
+    "loadAverage1m": 3.07,
     "profile": "release"
   },
   "results": {
     "note": "CPU time of window.draw (layout + paint) per frame, 1280x800 at 2x, headless Metal, 《慢钟》 read through F3",
     "start": {
-      "init_and_open_ms": 57.62,
+      "init_and_open_ms": 48.37,
       "first_frame_ms": 0.09,
-      "book_lists_ms": 62.14
+      "book_lists_ms": 52.2
     },
     "everyday_at_rest": {
-      "frame_requests": 0,
+      "frame_requests": 4,
       "full_redraw_ms": {
         "n": 60,
-        "p50": 0.917,
-        "p95": 2.84,
-        "max": 2.903
+        "p50": 1.025,
+        "p95": 1.082,
+        "max": 1.136
       },
-      "first_page_open_ms": 45.51
+      "first_page_open_ms": 43.14
     },
     "typing": {
       "input_ms": {
         "n": 80,
-        "p50": 0.293,
-        "p95": 1.952,
-        "max": 4.156
+        "p50": 0.078,
+        "p95": 0.184,
+        "max": 1.781
       },
       "frame_ms": {
         "n": 80,
-        "p50": 1.324,
-        "p95": 4.56,
-        "max": 19.555
+        "p50": 0.965,
+        "p95": 1.059,
+        "max": 1.201
       }
     },
     "whole_book_page": {
       "chapters": 24,
-      "open_ms": 24.31,
+      "open_ms": 16.17,
       "full_redraw_ms": {
         "n": 60,
-        "p50": 1.617,
-        "p95": 2.874,
-        "max": 3.823
+        "p50": 1.094,
+        "p95": 1.618,
+        "max": 1.886
       }
     },
     "tab_switch": {
       "frame_ms": {
         "n": 150,
-        "p50": 2.346,
-        "p95": 5.51,
-        "max": 6.65
+        "p50": 3.255,
+        "p95": 6.558,
+        "max": 9.022
       },
-      "frame_requests_after": 0
+      "frame_requests_after": 7
     },
     "sidebar_slide": {
       "frame_ms": {
         "n": 150,
-        "p50": 1.617,
-        "p95": 3.243,
-        "max": 5.295
+        "p50": 2.854,
+        "p95": 5.225,
+        "max": 9.609
       },
-      "frame_requests_after": 0
+      "frame_requests_after": 7
     },
     "panel_push": {
       "frame_ms": {
         "n": 168,
-        "p50": 0.998,
-        "p95": 1.993,
-        "max": 3.353
+        "p50": 3.429,
+        "p95": 5.471,
+        "max": 7.218
       }
     },
     "super_view_open": {
       "frame_ms": {
         "n": 30,
-        "p50": 0.912,
-        "p95": 1.372,
-        "max": 1.434
+        "p50": 2.441,
+        "p95": 3.327,
+        "max": 3.461
       }
     },
     "settings_open": {
       "frame_ms": {
         "n": 30,
-        "p50": 3.003,
-        "p95": 3.88,
-        "max": 4.353
+        "p50": 3.223,
+        "p95": 5.76,
+        "max": 6.722
       }
     }
   }
