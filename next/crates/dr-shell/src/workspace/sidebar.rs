@@ -500,6 +500,17 @@ where
     if split_at_start {
         tab_row = tab_row.child(split.take().expect("just checked"));
     }
+    // M24's tour rings the left tabs, and (until the Agent's own tab can be
+    // marked) the right ones.
+    let tabs = crate::pages::anchor(
+        if side == Side::Left {
+            crate::pages::anchors::LEFT_PANEL_TAB
+        } else {
+            crate::pages::anchors::AGENT_TAB
+        },
+        tabs,
+        cx,
+    );
     tab_row = tab_row.child(tabs).child(div().flex_1());
     if let Some(button) = split {
         tab_row = tab_row.child(button);
@@ -730,7 +741,8 @@ fn left_header(
                 .flex()
                 .items_center()
                 .child(meta(text, &theme))
-                .child(
+                .child(crate::pages::anchor(
+                    crate::pages::anchors::SUPER_VIEW_ENTRY,
                     IconButton::new(
                         SharedString::from(format!("elements-sv-{slug}")),
                         Icon::KnotLinks,
@@ -740,7 +752,8 @@ fn left_header(
                     .on_click(move |_, _, cx| {
                         entity.update(cx, |ws, cx| ws.toggle_super_view(SuperView::Elements, cx))
                     }),
-                )
+                    cx,
+                ))
                 .into_any_element()
         }
         LeftTab::Drifts => {
@@ -1869,21 +1882,28 @@ fn account_cell(
                     .child(t(cx, keys::common::LOCAL)),
             ),
         )
-        .child(
+        .child(crate::pages::anchor(
+            crate::pages::anchors::PROJECT_HOME,
             IconButton::new("home", Icon::Torii)
                 .label(t(cx, keys::project_home::KICKER))
                 .selected(home)
                 .on_click(|_, window, cx| window.dispatch_action(Box::new(ShowProjectHome), cx)),
-        )
+            cx,
+        ))
         .child(
-            div().relative().child(overlay::probe(bell)).child(
-                IconButton::new("notifications", Icon::Furin)
-                    .label(t(cx, keys::notifications::TITLE))
-                    .selected(open)
-                    .on_click(|_, window, cx| {
-                        window.dispatch_action(Box::new(ToggleNotifications), cx)
-                    }),
-            ),
+            div()
+                .relative()
+                .child(overlay::probe(bell))
+                .child(crate::pages::anchor(
+                    crate::pages::anchors::NOTIFICATIONS,
+                    IconButton::new("notifications", Icon::Furin)
+                        .label(t(cx, keys::notifications::TITLE))
+                        .selected(open)
+                        .on_click(|_, window, cx| {
+                            window.dispatch_action(Box::new(ToggleNotifications), cx)
+                        }),
+                    cx,
+                )),
         )
         .into_any_element()
 }

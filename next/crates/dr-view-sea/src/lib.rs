@@ -10,6 +10,7 @@
 //!   the card of steps that follows (language in the corner), and the
 //!   sample book landing on the shelf.
 //! - [`tour`]: the bubble tour the first time a book opens on this device.
+//! - [`shell`]: registers all of it with the shell (`dr_shell::pages`).
 //!
 //! docs/rust-rewrite/modules/m24-sea.md has the design, the numbers and how
 //! the shell and the shelf wire it.
@@ -19,6 +20,7 @@ pub mod first_run;
 pub mod glass;
 pub mod model;
 pub mod sea;
+pub mod shell;
 pub mod text;
 pub mod tour;
 

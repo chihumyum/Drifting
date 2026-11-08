@@ -1042,6 +1042,7 @@
     },
     "appearance": {
       "dark": "어둡게",
+      "guides": "가이드",
       "interface_text_large": "크게",
       "interface_text_largest": "가장 크게",
       "interface_text_size": "인터페이스 글자 크기",
@@ -1050,6 +1051,8 @@
       "interface_text_smallest": "가장 작게",
       "interface_text_standard": "표준",
       "light": "밝게",
+      "replay_guides": "작품을 처음 열 때 둘러보기",
+      "replay_guides_action": "다시 표시",
       "system": "시스템 설정 따르기",
       "theme": "테마",
       "theme_desc": "밝게, 어둡게 또는 시스템 설정을 따릅니다."

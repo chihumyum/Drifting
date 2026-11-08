@@ -1055,6 +1055,7 @@
     },
     "appearance": {
       "dark": "Sombre",
+      "guides": "Guides",
       "interface_text_large": "Grand",
       "interface_text_largest": "Très grand",
       "interface_text_size": "Taille du texte de l’interface",
@@ -1063,6 +1064,8 @@
       "interface_text_smallest": "Très petit",
       "interface_text_standard": "Standard",
       "light": "Clair",
+      "replay_guides": "Visite à la première ouverture d’un livre",
+      "replay_guides_action": "Afficher à nouveau",
       "system": "Suivre le système",
       "theme": "Thème",
       "theme_desc": "Clair, sombre ou selon le système."

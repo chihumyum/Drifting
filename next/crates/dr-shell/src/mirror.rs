@@ -196,6 +196,8 @@ fn tell(heard: Heard, cx: &mut App) {
 /// danger's 关闭 after; turning it off leaves the files where they are.
 pub struct TurnOff {
     focus: FocusHandle,
+    /// Called once it is off (the first run's step goes on).
+    after: Option<std::rc::Rc<dyn Fn(&mut App)>>,
 }
 
 impl Focusable for TurnOff {
@@ -208,6 +210,7 @@ impl Render for TurnOff {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         use keys::settings::sync::projection as k;
         let me = cx.entity_id();
+        let after = self.after.clone();
         Dialog::new("markdown-off", t(cx, k::OFF_TITLE))
             .body(div().child(t(cx, k::OFF_WARNING)))
             .action(
@@ -220,6 +223,9 @@ impl Render for TurnOff {
                     .on_click(move |_, _, cx| {
                         set_on(false, cx);
                         crate::dialogs::hide(cx, me);
+                        if let Some(after) = &after {
+                            after(cx);
+                        }
                     }),
             )
             .on_close(move |_, cx| crate::dialogs::hide(cx, me))
@@ -230,6 +236,17 @@ impl Render for TurnOff {
 pub fn ask_turn_off(cx: &mut App) {
     let view = cx.new(|cx| TurnOff {
         focus: cx.focus_handle(),
+        after: None,
+    });
+    crate::dialogs::show(cx, view.into());
+}
+
+/// Asks before turning the folder off; `after` runs once it is off (the
+/// first run's Markdown folder step).
+pub fn ask_turn_off_then(cx: &mut App, after: impl Fn(&mut App) + 'static) {
+    let view = cx.new(|cx| TurnOff {
+        focus: cx.focus_handle(),
+        after: Some(std::rc::Rc::new(after)),
     });
     crate::dialogs::show(cx, view.into());
 }

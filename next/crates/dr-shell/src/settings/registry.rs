@@ -106,6 +106,8 @@ pub enum RowAction {
     /// Where it is (all books): 选择文件夹 and the danger's 关闭 Markdown
     /// 文件夹. Only while it is on.
     MarkdownLocation,
+    /// 重新显示 the workspace tour (M24); only when the app has one.
+    ReplayGuides,
 }
 
 /// A row of the panel that is not a stored setting: a link, an action, a
@@ -169,6 +171,14 @@ pub static INFO_ROWS: &[InfoRow] = &[
         label: keys::settings::privacy::DIAGNOSTICS,
         description: Some(keys::settings::privacy::DIAGNOSTICS_DESC),
         action: RowAction::CopyDiagnostics,
+    },
+    InfoRow {
+        id: "appearance.replay_guides",
+        section: Section::Appearance,
+        group: Some(keys::settings::appearance::GUIDES),
+        label: keys::settings::appearance::REPLAY_GUIDES,
+        description: None,
+        action: RowAction::ReplayGuides,
     },
     InfoRow {
         id: "about.version",

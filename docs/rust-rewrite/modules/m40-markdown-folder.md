@@ -52,7 +52,7 @@ dr_mirror::sync::Pass { ws: &ws, root, installation, app, settle, thorough }.run
 
 ## 外壳里的挂接点（逐条）
 
-这一轮没有改外壳。要外壳（F6）和应用做的：
+这一轮没有改外壳。要外壳（F6）和应用做的（F6 第九轮都做了，见 f6-shell.md「第九轮」）：
 
 1. **设置「本地数据」加「Markdown 文件夹」一节**（旧版 `MarkdownFolderSettings`）：所有书的位置（没选时写「所有项目 · 未选择位置」，「选择文件夹」是主按钮）、「在访达中打开」、最后是危险按钮「关闭 Markdown 文件夹」（先确认，默认焦点在「取消」）。存成本机设置（建议 `markdown.folder` 路径、`markdown.disabled`），不同步。旧版的按书单独选位置这一版没有做。没选位置就什么都不写（旧版 11-06 起就是这样）。
 2. **应用起停**：库打开、设置里有位置且没关时 `Mirror::start(ws, Options::new(位置, Device::installation_id(), ShellInfo.bundle_id))`；改了位置或开关就 `stop` 再按新的起；换库（`dr_shell::library::replace`）和退出（`before_quit`）前先 `sync_now()` 再 `stop()`，必须在关库之前。
@@ -87,7 +87,7 @@ dr_mirror::sync::Pass { ws: &ws, root, installation, app, settle, thorough }.run
 
 ## 待协调
 
-1. **F6**：上面挂接点 1–3（设置一节、应用起停、通知）。
+1. ~~**F6**：上面挂接点 1–3（设置一节、应用起停、通知）~~：**F6 第九轮做了**（`dr_shell::mirror`，设置「本地数据」两行，首次运行的选文件夹一步也接上了）。
 2. **M09 / F2**：旧版「一次删掉正文一半以上（且超过 200 字）时先存一份快照历史」还没做：要一个在合并前给文档打历史标签的口子（`DocHandle::label` 在 F3 的槽里，dr-mirror 拿不到，标签的种类也要 M09 认）。`merge::Merged` 已经带着删了多少字和原来多长。
 3. **两边改了同一处时挂 TODO**（旧版「这一段同时在 Drifting 和外部文件里改过。」）还没做：要比较「基线 → 文件」和「基线 → 现在」在同一段里改的字有没有重叠，再经 F3 的批注命令挂一条。
 4. **要素、故事线、类目、素材的只读文件**和 `开始阅读.md`、`正文/目录.md`、`注释与待办.md`、`.drifting/manifest.json`：旧版写给 Agent（MCP）和外部读者看。新版的帮手不读磁盘；要不要给外部的 Agent 再写一份，等 M32（MCP）定。

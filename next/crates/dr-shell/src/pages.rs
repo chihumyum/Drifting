@@ -36,6 +36,12 @@
 //! keeps the menu's order: share and export, its own sections, the modules'
 //! sections, 历史快照…, then everything dangerous last.
 //!
+//! And M24 (`dr-view-sea`): the sea of characters under every window
+//! ([`set_backdrop`]: drawn first, held by the bookshelf and the full-window
+//! waits, ebbing under the workspace), the first run before the bookshelf
+//! ([`set_first_run`]) and the workspace tour ([`set_guide`], the controls
+//! marked with [`anchor`] under the ids in [`anchors`]).
+//!
 //! And what fills the Bottom Panel under the paper ([`add_bottom_panel`]):
 //! the timeline (M14) and the chapter in front's plot planner (M15), one
 //! at a time. The shell keeps the panel (its height, its top edge, the
@@ -236,6 +242,80 @@ pub struct PageViewHost {
     pub book: Rc<Book>,
 }
 
+/// What a page holds the sea as (M24's `HoldKind`, named here so the shell
+/// needs no `dr-view-sea`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SeaHold {
+    /// A page lying on the sea (the bookshelf).
+    Surface,
+    /// A full-window wait (opening a book, swapping the library).
+    Loading,
+}
+
+/// The sea under every window (M24).
+#[derive(Clone)]
+pub struct Backdrop {
+    /// What lies under the window's root (nothing while the sea is off).
+    pub draw: Rc<dyn Fn(&mut Window, &mut App) -> gpui::AnyElement>,
+    /// Holds the sea in the window until the value is dropped.
+    pub hold: Rc<dyn Fn(SeaHold, &mut Window, &mut App) -> Box<dyn std::any::Any>>,
+    /// The sea is ebbing (its last hold let go): the workspace leaves its
+    /// desk to it for those seconds.
+    pub ebbing: Rc<dyn Fn(&mut Window, &mut App) -> bool>,
+    /// `el` lying on the sea as bare glass while it ebbs (the sidebars and
+    /// the Bottom Panel).
+    pub on_sea: Rc<dyn Fn(SharedString, gpui::AnyElement) -> gpui::AnyElement>,
+}
+
+/// A first run over the bookshelf: its view, and whether the bookshelf is
+/// to be drawn under it yet.
+#[derive(Clone)]
+pub struct FirstRunPage {
+    pub view: AnyView,
+    pub shows_shelf: Rc<dyn Fn(&App) -> bool>,
+}
+
+/// What a first run calls when it is over.
+pub type FirstRunDone = Rc<dyn Fn(&mut Window, &mut App)>;
+type MakeFirstRun = Rc<dyn Fn(FirstRunDone, &mut Window, &mut App) -> FirstRunPage>;
+
+/// The workspace tour (M24).
+#[derive(Clone)]
+pub struct Guide {
+    /// `el` marked as the control the tour calls `id` ([`anchors`]).
+    pub anchor: Rc<dyn Fn(&'static str, gpui::AnyElement) -> gpui::AnyElement>,
+    /// A book's workspace shows: the tour starts unless this device saw it.
+    pub start: Rc<dyn Fn(&mut Window, &mut App)>,
+    /// The tour's layer, the workspace root's last child; `covered` while a
+    /// Super View or a full-window wait lies over the workspace.
+    pub layer: Rc<dyn Fn(bool, &mut Window, &mut App) -> Option<gpui::AnyElement>>,
+    /// Settings' 重新显示.
+    pub reset: Rc<dyn Fn(&mut App)>,
+}
+
+/// The ids of the controls the workspace tour points at (`dr-view-sea`'s
+/// `tour::ids` re-exports them).
+pub mod anchors {
+    /// The left sidebar's Panel Tabs (章节, 要素, 构想), each half's.
+    pub const LEFT_PANEL_TAB: &str = "left-panel-tab";
+    /// The left sidebar's toggle, marked only while the sidebar is closed.
+    pub const LEFT_SIDEBAR_CLOSED_TOGGLE: &str = "left-sidebar-closed-toggle";
+    /// The round button on a panel's head that opens its Super View.
+    pub const SUPER_VIEW_ENTRY: &str = "super-view-entry";
+    /// Project Home's 新建 section (M02 marks it).
+    pub const HOME_CREATE: &str = "home-create";
+    /// The timeline's toggle at the paper's bottom right.
+    pub const TIMELINE_TOGGLE: &str = "timeline-toggle";
+    /// The Agent's Panel Tab in the right sidebar (its tab row, for now).
+    pub const AGENT_TAB: &str = "agent-tab";
+    /// The right sidebar's toggle, marked only while the sidebar is closed.
+    pub const RIGHT_SIDEBAR_CLOSED_TOGGLE: &str = "right-sidebar-closed-toggle";
+    /// The torii in the account cell: back to Project Home.
+    pub const PROJECT_HOME: &str = "project-home";
+    /// The wind bell beside it: the notification center.
+    pub const NOTIFICATIONS: &str = "notifications";
+}
+
 #[derive(Clone, Default)]
 struct Pages {
     shelf: Option<MakeShelf>,
@@ -245,6 +325,9 @@ struct Pages {
     menus: Vec<MakeMenu>,
     left_panels: Vec<MakeLeftPanel>,
     bottom: Vec<(BottomPane, MakeBottom)>,
+    backdrop: Option<Backdrop>,
+    first_run: Option<MakeFirstRun>,
+    guide: Option<Guide>,
 }
 
 impl Global for Pages {}
@@ -397,6 +480,51 @@ pub(crate) fn bottom_panel_for(
         .map(|(_, make)| make.clone())
         .collect();
     makers.iter().find_map(|make| make(host, window, cx))
+}
+
+/// Registers the sea under every window (M24).
+pub fn set_backdrop(cx: &mut App, backdrop: Backdrop) {
+    cx.default_global::<Pages>().backdrop = Some(backdrop);
+}
+
+pub(crate) fn backdrop(cx: &App) -> Option<Backdrop> {
+    cx.try_global::<Pages>()?.backdrop.clone()
+}
+
+/// Registers the first run: made over the bookshelf the first time the app
+/// opens on this device; it calls `done` when it is over.
+pub fn set_first_run(
+    cx: &mut App,
+    make: impl Fn(FirstRunDone, &mut Window, &mut App) -> FirstRunPage + 'static,
+) {
+    cx.default_global::<Pages>().first_run = Some(Rc::new(make));
+}
+
+pub(crate) fn make_first_run(
+    done: FirstRunDone,
+    window: &mut Window,
+    cx: &mut App,
+) -> Option<FirstRunPage> {
+    let make = cx.try_global::<Pages>()?.first_run.clone()?;
+    Some(make(done, window, cx))
+}
+
+/// Registers the workspace tour.
+pub fn set_guide(cx: &mut App, guide: Guide) {
+    cx.default_global::<Pages>().guide = Some(guide);
+}
+
+pub(crate) fn guide(cx: &App) -> Option<Guide> {
+    cx.try_global::<Pages>()?.guide.clone()
+}
+
+/// `el` marked for the tour as `id` ([`anchors`]); itself without a tour.
+pub fn anchor(id: &'static str, el: impl gpui::IntoElement, cx: &App) -> gpui::AnyElement {
+    let el = el.into_any_element();
+    match cx.try_global::<Pages>().and_then(|p| p.guide.as_ref()) {
+        Some(guide) => (guide.anchor)(id, el),
+        None => el,
+    }
 }
 
 pub(crate) fn has_shelf(cx: &App) -> bool {

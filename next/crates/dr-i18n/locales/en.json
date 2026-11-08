@@ -1048,6 +1048,7 @@
     },
     "appearance": {
       "dark": "Dark",
+      "guides": "Guides",
       "interface_text_large": "Larger",
       "interface_text_largest": "Largest",
       "interface_text_size": "Interface text size",
@@ -1056,6 +1057,8 @@
       "interface_text_smallest": "Smallest",
       "interface_text_standard": "Standard",
       "light": "Light",
+      "replay_guides": "Tour when a book first opens",
+      "replay_guides_action": "Show again",
       "system": "Follow system",
       "theme": "Theme",
       "theme_desc": "Light, dark, or follow the system."

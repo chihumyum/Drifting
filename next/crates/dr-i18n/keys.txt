@@ -597,6 +597,9 @@ settings.sync.backup.restoreTitle
 settings.sync.backup.restoreDesc
 settings.sync.backup.restoreButton
 settings.sync.backup.openSafety
+settings.appearance.guides
+settings.appearance.replay_guides
+settings.appearance.replay_guides_action
 settings.sync.projection.title
 settings.sync.projection.description
 settings.sync.projection.turnOn

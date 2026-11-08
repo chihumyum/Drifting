@@ -2479,3 +2479,147 @@ fn the_markdown_folder_follows_the_library(cx: &mut TestAppContext) {
     assert!(running(cx));
     cx.update(|_, cx| dr_shell::mirror::stop(cx));
 }
+
+/// A stand-in hold on the sea: it lets go when dropped.
+struct Held(
+    dr_shell::pages::SeaHold,
+    std::rc::Rc<std::cell::RefCell<Vec<dr_shell::pages::SeaHold>>>,
+);
+
+impl Drop for Held {
+    fn drop(&mut self) {
+        let mut held = self.1.borrow_mut();
+        if let Some(at) = held.iter().position(|k| *k == self.0) {
+            held.remove(at);
+        }
+    }
+}
+
+/// M24 in the shell, with stand-ins for dr-view-sea: the bookshelf holds
+/// the sea; opening a book holds it as a wait until the page is ready, then
+/// both let go; the first run lies over the bookshelf until it is done (the
+/// device remembers); the tour starts once for the book, and the closed
+/// sidebar's toggle is marked for it.
+#[gpui::test]
+fn the_sea_lies_under_the_shelf_and_the_opening_wait(cx: &mut TestAppContext) {
+    use dr_shell::pages::{self, SeaHold};
+    use std::cell::RefCell;
+    use std::rc::Rc;
+    let (_dir, lib) = slow_clock();
+    cx.executor().allow_parking();
+    cx.update(|cx| {
+        dr_shell::init(
+            info(),
+            Services {
+                deep_links: None,
+                crash_reports: None,
+                library: Some(lib),
+                book: None,
+            },
+            SettingsFile::in_memory(),
+            cx,
+        );
+    });
+    let held: Rc<RefCell<Vec<SeaHold>>> = Rc::default();
+    let marked: Rc<RefCell<Vec<&'static str>>> = Rc::default();
+    let started = Rc::new(std::cell::Cell::new(0));
+    let finish: Rc<RefCell<Option<pages::FirstRunDone>>> = Rc::default();
+    cx.update(|cx| {
+        pages::set_shelf(cx, |_, _, cx| pages::ShelfPage {
+            view: cx.new(|_| Blank).into(),
+            bell: None,
+        });
+        let holds = held.clone();
+        pages::set_backdrop(
+            cx,
+            pages::Backdrop {
+                draw: Rc::new(|_, _| gpui::IntoElement::into_any_element(gpui::div())),
+                hold: Rc::new(move |kind, _, _| {
+                    holds.borrow_mut().push(kind);
+                    Box::new(Held(kind, holds.clone()))
+                }),
+                ebbing: Rc::new(|_, _| false),
+                on_sea: Rc::new(|_, el| el),
+            },
+        );
+        let keep = finish.clone();
+        pages::set_first_run(cx, move |done, _, cx| {
+            *keep.borrow_mut() = Some(done);
+            pages::FirstRunPage {
+                view: cx.new(|_| Blank).into(),
+                shows_shelf: Rc::new(|_| false),
+            }
+        });
+        let (marks, starts) = (marked.clone(), started.clone());
+        pages::set_guide(
+            cx,
+            pages::Guide {
+                anchor: Rc::new(move |id, el| {
+                    marks.borrow_mut().push(id);
+                    el
+                }),
+                start: Rc::new(move |_, _| starts.set(starts.get() + 1)),
+                layer: Rc::new(|_, _, _| None),
+                reset: Rc::new(|_| {}),
+            },
+        );
+    });
+    let (view, cx) = cx.add_window_view(Workspace::new);
+    cx.run_until_parked();
+    draw(cx);
+    assert!(view.read_with(cx, |ws, _| ws.shelf_open));
+    assert_eq!(
+        *held.borrow(),
+        [SeaHold::Surface],
+        "the bookshelf lies on the sea"
+    );
+    assert!(
+        view.read_with(cx, |ws, _| ws.sea.first_run_shows()),
+        "a first run"
+    );
+    let done = finish.borrow_mut().take().unwrap();
+    cx.update(|window, cx| done(window, cx));
+    cx.run_until_parked();
+    assert!(view.read_with(cx, |ws, _| !ws.sea.first_run_shows()));
+    let remembered =
+        cx.update(|_, cx| Settings::device_memory(cx, dr_shell::workspace::FIRST_RUN_DONE));
+    assert_eq!(remembered, Some(json!(true)));
+
+    let book = cx.update(|_, cx| {
+        cx.global::<Services>()
+            .library
+            .as_ref()
+            .unwrap()
+            .call(&Actor::User, "book.list", json!({}))
+            .unwrap()["output"][0]["id"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    });
+    view.update_in(cx, |ws, window, cx| ws.open_book(&book, window, cx));
+    assert!(
+        held.borrow().contains(&SeaHold::Loading),
+        "opening waits on the sea"
+    );
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !held.borrow().is_empty() {
+        draw(cx);
+        cx.run_until_parked();
+        assert!(
+            Instant::now() < deadline,
+            "the wait never let go: {:?}",
+            held.borrow()
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    draw(cx);
+    draw(cx);
+    assert_eq!(started.get(), 1, "the tour is offered once for the book");
+    assert!(
+        marked
+            .borrow()
+            .contains(&pages::anchors::LEFT_SIDEBAR_CLOSED_TOGGLE),
+        "{:?}",
+        marked.borrow()
+    );
+}

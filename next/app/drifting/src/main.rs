@@ -173,6 +173,8 @@ fn main() {
         dr_shell::init(info, services, settings, cx);
         // ⌘Q hides the app before the quit hooks run (F7).
         dr_shell::quit::hide_first(cx);
+        // M24: the sea under the windows, the first run, the tour.
+        dr_view_sea::shell::init(cx);
         // Stage 2 pages: the bookshelf opens first, Project Home is the
         // paper under no tab; the element and category pages' fields go
         // around their text (M11).

@@ -1036,6 +1036,7 @@
     },
     "appearance": {
       "dark": "深色",
+      "guides": "引导",
       "interface_text_large": "较大",
       "interface_text_largest": "最大",
       "interface_text_size": "界面字号",
@@ -1044,6 +1045,8 @@
       "interface_text_smallest": "最小",
       "interface_text_standard": "标准",
       "light": "浅色",
+      "replay_guides": "第一次打开书时的导览",
+      "replay_guides_action": "重新显示",
       "system": "跟随系统",
       "theme": "主题",
       "theme_desc": "浅色、深色，或跟随系统。"

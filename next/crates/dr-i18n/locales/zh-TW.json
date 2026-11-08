@@ -1042,6 +1042,7 @@
     },
     "appearance": {
       "dark": "深色",
+      "guides": "導覽",
       "interface_text_large": "較大",
       "interface_text_largest": "最大",
       "interface_text_size": "介面文字大小",
@@ -1050,6 +1051,8 @@
       "interface_text_smallest": "最小",
       "interface_text_standard": "標準",
       "light": "淺色",
+      "replay_guides": "首次開啟作品時顯示導覽",
+      "replay_guides_action": "再次顯示",
       "system": "跟隨系統",
       "theme": "主題",
       "theme_desc": "淺色、深色，或跟隨系統。"

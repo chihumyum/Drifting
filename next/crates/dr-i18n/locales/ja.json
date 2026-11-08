@@ -1042,6 +1042,7 @@
     },
     "appearance": {
       "dark": "ダーク",
+      "guides": "ガイド",
       "interface_text_large": "大きめ",
       "interface_text_largest": "最大",
       "interface_text_size": "画面の文字サイズ",
@@ -1050,6 +1051,8 @@
       "interface_text_smallest": "最小",
       "interface_text_standard": "標準",
       "light": "ライト",
+      "replay_guides": "作品を初めて開くときのガイド",
+      "replay_guides_action": "もう一度表示",
       "system": "システムに合わせる",
       "theme": "テーマ",
       "theme_desc": "ライト、ダーク、またはシステムに合わせる。"

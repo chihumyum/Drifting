@@ -2021,6 +2021,7 @@ dependencies = [
  "gpui_platform",
  "image",
  "log",
+ "serde_json",
  "smallvec",
  "tempfile",
 ]
@@ -2183,6 +2184,7 @@ dependencies = [
  "dr-view-material",
  "dr-view-page",
  "dr-view-plot",
+ "dr-view-sea",
  "dr-view-shelf",
  "dr-view-timeline",
  "dr-view-transfer",

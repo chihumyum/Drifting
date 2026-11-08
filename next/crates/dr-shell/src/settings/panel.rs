@@ -547,8 +547,11 @@ impl SettingsPanel {
         let markdown_on = crate::mirror::is_on(cx);
         let markdown_folder = crate::mirror::folder(cx);
         for info in registry::info_in(section).filter(|r| pick(r) && wanted(r.id)) {
-            // Where the Markdown folder is matters only while it is on.
-            if info.action == RowAction::MarkdownLocation && !markdown_on {
+            // Where the Markdown folder is matters only while it is on; the
+            // tour's row only when the app has a tour.
+            if (info.action == RowAction::MarkdownLocation && !markdown_on)
+                || (info.action == RowAction::ReplayGuides && crate::pages::guide(cx).is_none())
+            {
                 continue;
             }
             if info.group.is_some() && info.group != *heading {
@@ -749,6 +752,17 @@ impl SettingsPanel {
                     .child(off)
                     .into_any_element()
             }
+            RowAction::ReplayGuides => Button::new(
+                "replay-guides",
+                t(cx, keys::settings::appearance::REPLAY_GUIDES_ACTION),
+            )
+            .small()
+            .on_click(|_, _, cx| {
+                if let Some(guide) = crate::pages::guide(cx) {
+                    (guide.reset)(cx);
+                }
+            })
+            .into_any_element(),
             RowAction::Version => div()
                 .font_role(Role::Index)
                 .type_px(s.caption, s.line_caption)

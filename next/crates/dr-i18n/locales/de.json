@@ -1048,6 +1048,7 @@
     },
     "appearance": {
       "dark": "Dunkel",
+      "guides": "Anleitungen",
       "interface_text_large": "Größer",
       "interface_text_largest": "Am größten",
       "interface_text_size": "Schriftgröße der Oberfläche",
@@ -1056,6 +1057,8 @@
       "interface_text_smallest": "Am kleinsten",
       "interface_text_standard": "Standard",
       "light": "Hell",
+      "replay_guides": "Einführung beim ersten Öffnen eines Buchs",
+      "replay_guides_action": "Erneut anzeigen",
       "system": "Systemeinstellung",
       "theme": "Design",
       "theme_desc": "Hell, dunkel oder dem System folgen."

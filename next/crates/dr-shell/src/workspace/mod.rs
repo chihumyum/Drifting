@@ -22,6 +22,7 @@ pub mod find;
 pub mod outline;
 pub mod page_actions;
 mod review;
+mod sea;
 mod sidebar;
 mod stage;
 mod super_view;
@@ -67,6 +68,7 @@ pub use bottom::{BottomLayout, BottomResize};
 pub use chrome::{LEADING_INSET, TITLEBAR_HEIGHT, TRAFFIC_LIGHT_POSITION};
 pub use dock::DockDrag;
 pub use editors::PageEditor;
+pub use sea::{FIRST_RUN_DONE, SeaState};
 pub use sidebar::{LeftTab, RightTab, page_hover_card};
 pub use stage::EditorLook;
 pub use super_view::SuperView;
@@ -370,6 +372,10 @@ pub struct Workspace {
     pub find: Option<Entity<find::FindBar>>,
     /// The Bottom Panel under the paper ([`bottom`]).
     pub bottom: bottom::Bottom,
+    /// The sea under the window, the first run, the tour (M24, [`sea`]).
+    pub sea: sea::SeaState,
+    /// The sea ebbs under the workspace this frame.
+    ebbing: bool,
     /// What modules keep for the book shown ([`BOOK_MEMORY_SCOPE`]), as
     /// read when it opened and kept since.
     modules: std::collections::BTreeMap<String, serde_json::Value>,
@@ -501,6 +507,8 @@ impl Workspace {
             book_position: None,
             find: None,
             bottom: bottom::Bottom::new(BottomLayout::default()),
+            sea: Default::default(),
+            ebbing: false,
             modules: Default::default(),
             modules_for: None,
             modules_read: None,
@@ -539,6 +547,7 @@ impl Workspace {
         ws.home = pages::make_home(cx.weak_entity(), window, cx);
         if shelf_first {
             ws.show_shelf(window, cx);
+            ws.sea_first_run(window, cx);
         } else {
             ws.load_book(preferred, cx);
         }
@@ -919,6 +928,7 @@ impl Workspace {
         self.shelf_open = true;
         self.super_view = None;
         self.notifications_open = false;
+        self.sea_shelf(window, cx);
         cx.notify();
         true
     }
@@ -926,6 +936,10 @@ impl Workspace {
     /// Opens `book` from the bookshelf: its saved tabs and sidebars come
     /// back (or Home, the first time), and the bookshelf goes.
     pub fn open_book(&mut self, book: &str, window: &mut Window, cx: &mut Context<Self>) {
+        if book != self.book_id || self.book.is_empty() {
+            // M24: a full-window wait on the sea until the page is ready.
+            self.sea_opening(window, cx);
+        }
         self.shelf_open = false;
         self.notifications_open = false;
         self.super_view = None;
@@ -994,6 +1008,7 @@ impl Workspace {
         self.modules.clear();
         self.modules_for = None;
         self.modules_read = None;
+        self.sea_swapping(window, cx);
         self.library = None;
         self.book_id = String::new();
         self.book = Rc::new(Book::default());
@@ -1011,6 +1026,7 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         self.library = Some(lib.clone());
+        self.sea_swapped();
         self.listen_to_library(cx);
         self.home = pages::make_home(cx.weak_entity(), window, cx);
         if !self.show_shelf(window, cx) {
@@ -1508,10 +1524,31 @@ impl Render for Workspace {
         let window_w = f32::from(viewport.width);
         self.fit_sidebars(window_w, window, cx);
         self.ensure_pages(window, cx);
+        // M24: while a full-window wait holds the sea, only the sea shows
+        // (the page in front gets ready under it).
+        if self.sea_settle(window) {
+            let root = div()
+                .id("workspace")
+                .key_context(keymap::WORKSPACE)
+                .track_focus(&self.focus)
+                .relative()
+                .size_full()
+                .children(Self::backdrop(window, cx))
+                .child(chrome::windows_caption(window, cx));
+            let root = self.on_actions(root, cx);
+            return glass::surface(Ground::flat(p.desk), root).into_any_element();
+        }
+        self.ebbing = Self::sea_ebbs(window, cx);
+        let ebbing = self.ebbing;
+        self.sea_guide(window, cx);
 
         let immersive = self.immersive;
-        let left = (!immersive).then(|| sidebar::left(self, window, cx));
-        let right = (!immersive).then(|| sidebar::right(self, window, cx));
+        let left = (!immersive)
+            .then(|| sidebar::left(self, window, cx))
+            .map(|el| Self::on_sea("sea-left", el, ebbing, cx));
+        let right = (!immersive)
+            .then(|| sidebar::right(self, window, cx))
+            .map(|el| Self::on_sea("sea-right", el, ebbing, cx));
         let mid = stage::mid(self, window, cx);
         let row = div()
             .size_full()
@@ -1527,10 +1564,11 @@ impl Render for Workspace {
             .track_focus(&self.focus)
             .relative()
             .size_full()
-            .bg(p.desk.solid())
+            .when(!ebbing, |el| el.bg(p.desk.solid()))
             .text_color(p.ink(1).solid())
             .on_drag_move::<sidebar::ResizeDrag>(cx.listener(sidebar::on_resize))
             .on_drag_move::<BottomResize>(cx.listener(bottom::on_resize))
+            .children(Self::backdrop(window, cx))
             .child(row)
             .when(!immersive, |el| {
                 el.child(chrome::sidebar_toggles(self, window, cx))
@@ -1550,9 +1588,18 @@ impl Render for Workspace {
             })
             .when(self.account_open && !self.immersive, |el| {
                 el.child(sidebar::account_menu(self, window, cx))
-            });
+            })
+            .children(self.guide_layer(self.super_view.is_some(), window, cx));
         let root = self.on_actions(root, cx);
         glass::surface(Ground::flat(p.desk), root).into_any_element()
+    }
+}
+
+impl Workspace {
+    /// The sea ebbs under the workspace (M24): the paper's desk and the
+    /// Bottom Panel leave their colour to it.
+    pub fn ebbing(&self) -> bool {
+        self.ebbing
     }
 }
 
@@ -1580,6 +1627,11 @@ impl Workspace {
                 .h(px(chrome::TITLEBAR_HEIGHT)),
             cx,
         );
+        self.sea_shelf(window, cx);
+        // M24: the first run lies over the bookshelf, which shows under it
+        // once it says so.
+        let first_run = sea::first_run_layer(self, cx);
+        let shelf_shows = first_run.as_ref().is_none_or(|(_, shows)| *shows);
         let root = div()
             .id("workspace")
             .key_context(keymap::WORKSPACE)
@@ -1588,7 +1640,9 @@ impl Workspace {
             .size_full()
             .bg(p.desk.solid())
             .text_color(p.ink(1).solid())
-            .child(shelf.view)
+            .children(Self::backdrop(window, cx))
+            .when(shelf_shows, |el| el.child(shelf.view))
+            .children(first_run.map(|(view, _)| view))
             .child(strip)
             .when_some(self.settings.clone(), |el, panel| el.child(panel))
             .when_some(self.dialog.clone(), |el, dialog| el.child(dialog))
