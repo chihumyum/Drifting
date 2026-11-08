@@ -472,6 +472,9 @@
     },
     "title": "通知"
   },
+  "positionLink": {
+    "copied": "已複製位置連結"
+  },
   "projectHome": {
     "book": {
       "noStorylines": "尚無故事線。",

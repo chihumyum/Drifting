@@ -477,6 +477,9 @@
     },
     "title": "Notifications"
   },
+  "positionLink": {
+    "copied": "Location link copied"
+  },
   "projectHome": {
     "book": {
       "noStorylines": "No storylines yet.",

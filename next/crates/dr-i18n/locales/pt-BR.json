@@ -478,6 +478,9 @@
     },
     "title": "Notificações"
   },
+  "positionLink": {
+    "copied": "Link de posição copiado"
+  },
   "projectHome": {
     "book": {
       "noStorylines": "Ainda não há linhas narrativas.",

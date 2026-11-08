@@ -477,6 +477,9 @@
     },
     "title": "Benachrichtigungen"
   },
+  "positionLink": {
+    "copied": "Positionslink kopiert"
+  },
   "projectHome": {
     "book": {
       "noStorylines": "Noch keine Handlungsstränge.",

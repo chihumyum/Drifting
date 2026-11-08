@@ -471,6 +471,9 @@
     },
     "title": "通知"
   },
+  "positionLink": {
+    "copied": "已复制位置链接"
+  },
   "projectHome": {
     "book": {
       "noStorylines": "还没有故事线。",

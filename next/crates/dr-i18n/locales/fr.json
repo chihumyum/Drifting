@@ -478,6 +478,9 @@
     },
     "title": "Notifications"
   },
+  "positionLink": {
+    "copied": "Lien de position copié"
+  },
   "projectHome": {
     "book": {
       "noStorylines": "Pas encore d’intrigues.",

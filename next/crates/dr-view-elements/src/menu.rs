@@ -8,10 +8,7 @@
 //! The shell draws the ⋯ menu (and the sidebar's hover cards, from the same
 //! list); [`register`] gives it these rows through F6's
 //! `pages::add_page_menu`. The shell puts the danger rows last.
-//!
-//! The shell's rows take a brush icon only; 「更改类目」's mark (the 0.1
-//! `{ kind: 'category' }`) is drawn as [`Icon::Swap`] there until they take
-//! a mark too (m11-elements.md, 「待协调」).
+//! 「更改类目」 carries the category's mark, as the 0.1 `{ kind: 'category' }`.
 
 use std::rc::Rc;
 
@@ -59,14 +56,14 @@ pub fn rows(target: &Target, cx: &App) -> Vec<MenuRow> {
                 MenuRow {
                     id: "element-change-group",
                     label: t(cx, keys::editor_top_bar::menu::CHANGE_GROUP),
-                    icon: RowIcon::Brush(dr_ui::sand::Icon::Folder),
+                    icon: RowIcon::Brush(Icon::Folder),
                     danger: false,
                     run: ask(AskFor::ChangeGroup, &id),
                 },
                 MenuRow {
                     id: "element-delete",
                     label: t(cx, keys::editor_top_bar::menu::DELETE_ELEMENT),
-                    icon: RowIcon::Brush(dr_ui::sand::Icon::Trash),
+                    icon: RowIcon::Brush(Icon::Trash),
                     danger: true,
                     run: ask(AskFor::DeleteElement, &id),
                 },
@@ -77,7 +74,7 @@ pub fn rows(target: &Target, cx: &App) -> Vec<MenuRow> {
             vec![MenuRow {
                 id: "category-delete",
                 label: t(cx, keys::editor_top_bar::menu::DELETE_CATEGORY),
-                icon: RowIcon::Brush(dr_ui::sand::Icon::Trash),
+                icon: RowIcon::Brush(Icon::Trash),
                 danger: true,
                 run: Rc::new(move |ws, window, cx| {
                     dialogs::open(AskFor::DeleteCategory(id.clone()), ws, window, cx)
@@ -89,7 +86,7 @@ pub fn rows(target: &Target, cx: &App) -> Vec<MenuRow> {
             vec![MenuRow {
                 id: "storyline-delete",
                 label: t(cx, keys::editor_top_bar::menu::DELETE_STORYLINE),
-                icon: RowIcon::Brush(dr_ui::sand::Icon::Trash),
+                icon: RowIcon::Brush(Icon::Trash),
                 danger: true,
                 run: Rc::new(move |ws, window, cx| {
                     dialogs::open(AskFor::DeleteStoryline(id.clone()), ws, window, cx)
@@ -120,18 +117,10 @@ fn item(row: MenuRow, ws: WeakEntity<Workspace>) -> PageMenuItem {
     let run = row.run;
     PageMenuItem {
         id: row.id.into(),
-        icon: brush(&row.icon),
+        icon: row.icon,
         label: row.label,
         checked: false,
         danger: row.danger,
         run: Rc::new(move |window, cx| run(ws.clone(), window, cx)),
-    }
-}
-
-/// The brush a row's icon is drawn with in the shell's menu.
-pub fn brush(icon: &RowIcon) -> Icon {
-    match icon {
-        RowIcon::Brush(icon) => *icon,
-        RowIcon::Mark(..) => Icon::Swap,
     }
 }

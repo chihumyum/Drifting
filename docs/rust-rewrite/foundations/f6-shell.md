@@ -1,10 +1,20 @@
-# F6 dr-shell：外壳（第一至第六轮，M03、M04、M05 接入、M08）
+# F6 dr-shell：外壳（第一至第七轮，M03、M04、M05 接入、M08）
 
-2026-11-07 起，分支 `claude/f6-shell-80c9fb`。第一个里程碑从整合分支 `claude/f-batch2-integrate` 开工；第二个里程碑从 main `4c477ea0`（F3 第二个里程碑、F5 第二个里程碑已合）接着做；第三个里程碑（11-08）从 main `a039863f`（dr-editor、F5 的 `TabDock` 已合）接着做；第四轮（11-08）从 main `7444ff65`（M01/M02 书架与作品主页、M06/M07 搜索与字数、F4c 输入、F4d 画层、M05 全书视图已合）接着做；第六轮（11-08）从 main `60d510a6`（第十一批）接着做；第五轮（11-08）从 main `1652a95e`（第十批：F4e 第二批、F4d 画层与 M18、F3 第四轮与 M09、F7 设备与 M39、F8 调试桥、M10 导入界面）接着做。代码在 `next/crates/dr-shell`、`next/crates/dr-i18n`，应用入口 `next/app/drifting`。计划见 [foundation.md 的 F6](../foundation.md#f6-dr-shell)。
+2026-11-07 起，分支 `claude/f6-shell-80c9fb`。第一个里程碑从整合分支 `claude/f-batch2-integrate` 开工；第二个里程碑从 main `4c477ea0`（F3 第二个里程碑、F5 第二个里程碑已合）接着做；第三个里程碑（11-08）从 main `a039863f`（dr-editor、F5 的 `TabDock` 已合）接着做；第四轮（11-08）从 main `7444ff65`（M01/M02 书架与作品主页、M06/M07 搜索与字数、F4c 输入、F4d 画层、M05 全书视图已合）接着做；第七轮（11-08）从 main `77a957d3`（第十二批）接着做；第六轮（11-08）从 main `60d510a6`（第十一批）接着做；第五轮（11-08）从 main `1652a95e`（第十批：F4e 第二批、F4d 画层与 M18、F3 第四轮与 M09、F7 设备与 M39、F8 调试桥、M10 导入界面）接着做。代码在 `next/crates/dr-shell`、`next/crates/dr-i18n`，应用入口 `next/app/drifting`。计划见 [foundation.md 的 F6](../foundation.md#f6-dr-shell)。
 
 ## 一句话
 
 稿纸四周的那一圈搬到了 GPUI 上：三栏、两侧抽屉、稿纸顶上的标签坞、分栏、Super View 舞台、设置、通知、快捷键、退出流程，外加读旧版九种语言文案的 `dr-i18n`。第二个里程碑起，外壳打开的是**真的书**：面板列表从 F3 的查询来，别处（帮手、另一台设备）删了东西，对应的标签自己关掉。第三个里程碑起，**在 App 里打开一本书就能写字**：稿纸上是 F4 的编辑器，打的字、回车、撤销都经 F3 落盘，关掉 App 再开都在，搜索和字数跟着变。
+
+### 第七轮：链接、跨章选区、左栏给模块、侧栏记住滚动（大白话）
+
+- **人物链接点了就打开。** F4 的编辑器发 `EntityLinkOpened`（单击一个还在的人物、地点……链接），外壳把它当预览打开（旧版也是预览标签）；节点按书目分成章节或构想，补丁、批注没有页面。
+- **「已复制位置链接」。** 斜杠菜单的「位置链接」放进剪贴板时编辑器发 `PositionLinkCopied`，外壳在窗口下沿浮出一张小纸条（dr-ui 的 `NotificationPill`，带一个勾），1.6 秒后淡出。文案是新版自己的（`positionLink.copied`，九种语言）。小纸条是外壳的 `Workspace::toast(文字)`，别的地方要提示一句也能用。
+- **跨章选区。** 全书里选区越过章界时，`range()` 只给光标处的空范围。外壳的选区字数改用 `selected_text()`，各章的部分都算进去；dr-editor 的选区浮条也在跨章选区上出来，放在光标那一章的那段上（光标那一章没选到字时放在锚点那一章）。加粗这类和 H1/H2/H3 本来就按章分别改；「引用」和「添加批注」只能写一章，跨章时变灰、点了没反应。⌘A 照旧只选光标那一章。
+- **左栏给模块：`pages::add_left_panel`。** 和 `add_page_chrome` 一样登记：每个半栏第一次显示某个标签时问一遍，第一个答的算数，答案留着用。模块给 `LeftPanel { head, body }`：head 放进标签那一行的位置（行高、内边距和顶边的发丝线还是外壳的），body 铺满半栏、自己滚；登记了的标签不再画外壳自己的行。M11 的要素面板接上了（`dr_view_elements::init` 里登记，`make_panel`）。换库时这些面板放掉、重新做。
+- **⋯ 菜单的行收 `RowIcon`。** `PageMenuItem.icon` 改成 dr-ui 的 `RowIcon`：砂笔图标（`Icon::Folder.into()`）或某种东西的记号（`RowIcon::Mark(Kind::Category, None)`），M11 的「更改类目」可以带类目记号。M11 那边这一轮自己去登记。
+- **侧栏记住滚动和折叠（照 workspace.md）。** 每个半栏、每个标签的列表记住滚到哪里（按「书 × 侧栏 × 半栏 × 标签」，这次运行里有效）：侧栏收起再打开、换到别的书再换回来，列表还在原处。章节面板的折叠也改成按「书 × 半栏」记，两个半栏各折各的，换书再回来还在；都不写进文件。
+- 顺手：真窗口自检读字数前也让 F2 先补完没建好的索引（`rebuild_stale_indexes`），和监管会话改测试的做法一样；不然 F2 等作者停手 500 ms 才补，自检读到的字数会不全。
 
 ### 第六轮：全书不再 panic、⋯ 菜单给模块、记住导出、章节面板折叠和悬停卡（大白话）
 
@@ -309,7 +319,9 @@ app.run(|cx| {
 | `workspace::{find, outline, corner}` | 查找栏、大纲栏、稿纸角落 | `find::{FindBar, key_bindings}`（`FindBar::{set_query, step, status, set_replacing, set_replacement, replacement, replace_current, replace_all}`、字段 `replacing`）；`Workspace::{open_find, open_replace, close_find}`；`outline::{read(&PageView, cx), plan, jump_to}`；`corner::corner` |
 | `workspace::chapter_sort` | 章节面板 | `ChapterSort { book, inner, outer, primary_only, meta }`（`BookSort`、`InnerSort`、`OuterSort`、`CellMeta`）、`sort_book`、`sort_inner`、`readout`、`compact_words`、`short_date`；字段 `Workspace::chapter_sort`、`BookLayout::chapter_sort` |
 | `dialogs` | 要开模态对话框的模块（F7 反馈、M10 导入……） | `dialogs::show(cx, AnyView)`、`dialogs::hide(cx, EntityId)`；`Workspace::modal()`（对话框或快照历史开着，工作区快捷键停） |
-| `pages`（⋯ 菜单） | 要在页面 ⋯ 菜单里加行的模块（M11） | `add_page_menu(cx, \|target, &PageMenuHost, &App\| Vec<PageMenuSection>)`；`PageMenuItem { id, icon, label, checked, danger, run: RunRow }`、`PageMenuHost { workspace, library, book_id, book }` |
+| `pages`（⋯ 菜单） | 要在页面 ⋯ 菜单里加行的模块（M11） | `add_page_menu(cx, \|target, &PageMenuHost, &App\| Vec<PageMenuSection>)`；`PageMenuItem { id, icon: RowIcon, label, checked, danger, run: RunRow }`、`PageMenuHost { workspace, library, book_id, book }` |
+| `pages`（左栏） | 自己画左栏某个标签的模块（M11 的要素面板） | `add_left_panel(cx, \|LeftTab, WeakEntity<Workspace>, &mut Window, &mut App\| Option<LeftPanel>)`；`LeftPanel { head: AnyView, body: AnyView }` |
+| `workspace`（提示、侧栏状态） | 要提示一句的地方；测试 | `Workspace::toast(文字, cx)`；`folded_in(pane)`、`toggle_fold(pane, group, cx)`、`fold_all(pane, cx)`、`list_scroll(list)` |
 | `workspace::page_actions` | ⋯ 菜单、悬停卡 | `page_actions(&ws, &host, &target, cx) -> Vec<PageMenuSection>`（分享与导出、写作状态、模块的行、历史快照、最后是删除一类） |
 | `nav::Open` | 打开页面的人（dr-view-page 的 ⁂） | `Open::PREVIEW`、`Open::KEEP`、`Open::KEEP.at_title()`（这一页的编辑器打开时不拿键盘，交给章首的标题） |
 | `actions` | dr-text 的备份、恢复对话框 | `BackupLibrary`、`RestoreLibrary`（`workspace::` 命名空间；设置「本地数据」的两个按钮派发） |
@@ -401,11 +413,11 @@ M3 Pro，release 构建。离屏的帧时间是「重新渲染 + 排版 + 绘制
 
 ## 测试
 
-`cargo test -p dr-i18n -p dr-shell` 跑 92 个测试（其中 `tests/m06_m07.rs` 的 2 个是 M06/M07 会话写的）：
+`cargo test -p dr-i18n -p dr-shell` 跑 96 个测试（其中 `tests/m06_m07.rs` 的 2 个是 M06/M07 会话写的）：
 
 - **dr-i18n**（9 个）：每种语言每个键都有字、Windows 覆盖层、插值、按 CLDR 选复数形（英语、法语、日语、巴西葡语）、`indent_one` 这种不是复数、语言标签匹配、搜索的规整；拷贝和旧版逐条一致；文档里的例子。构建本身就是那几条编译期检查。
 - **dr-shell 单元**（47 个）：导航模型的预览 / 留下 / 分栏 / 关闭 / 历史 / 上限 / 重排 / 删除 / 恢复 / 链接行号；位置链接的三种写法、各种畸形、行到块、按名字和 id 找、重名和别的书；侧栏两半的自动分、手动收回被记住、关掉侧栏、按目标显露；宽度的上下限；设置注册表的键唯一和默认值合法、按类型校验；设置文件的分区往返、越界收回、坏文件挪开、改键、恢复默认；快捷键默认值（没有 ⌘S、两个系统都能解析）、改键与清空、录制的可移植写法、冲突；菜单；章节印章和旧版 `sealOf` 一致、颜色按作者存的十六进制读；角落菜单的三种写作状态和 F3 的一致；大纲栏按比例排、挤时让开不出界、放不下时先留正在读的那一支再开窗口（「…」两头加起来一个不少）、正在读的是阅读线以上的最后一个；设置搜索找得到不是设置的行（「许可证」只剩那一行、「诊断」是开关和摘要、「关于」整节、没找到时什么都没有），每个信息行都有字、id 不重。
-- **dr-shell 在 GPUI 测试平台上**（33 个）：按键经键位表到达动作（⌘[ ⌘] ⌘⌥← ⇧⌘] ⌘W ⌘N ⌘⌥2）；Esc 一层一层关，⌘[ 先关 Super View；改键立刻生效、旧键失效、存进文件；侧栏开合；设置生效并在 300 ms 后写盘；退出前跑钩子、写盘；每种状态都画得出来；Super View 盖着时动标签的键不生效；模块登记的键在改快捷键重建键位表后还在；还原推荐样式把编辑器设置都还原、诊断摘要有版本和系统而没有路径。下面 22 个在一个用 dr-testkit 生成的《慢钟》库上跑（每个测试一个临时库）：
+- **dr-shell 在 GPUI 测试平台上**（37 个）：按键经键位表到达动作（⌘[ ⌘] ⌘⌥← ⇧⌘] ⌘W ⌘N ⌘⌥2）；Esc 一层一层关，⌘[ 先关 Super View；改键立刻生效、旧键失效、存进文件；侧栏开合；设置生效并在 300 ms 后写盘；退出前跑钩子、写盘；每种状态都画得出来；Super View 盖着时动标签的键不生效；模块登记的键在改快捷键重建键位表后还在；还原推荐样式把编辑器设置都还原、诊断摘要有版本和系统而没有路径。下面 26 个在一个用 dr-testkit 生成的《慢钟》库上跑（每个测试一个临时库）：
   - **M05**：「全书」标签是一个 `BookEditor`，24 章；大纲栏有 3 个幕、24 个章；经大纲跳到第三章，打一个字写进第三章、⌘Z 在第三章撤回；读全书时点第五章的位置链接，就在全书里跳过去、不多开标签；阅读位置存进布局，关掉全书标签再打开回到那里；
   - **查找栏和实时字数**：打开第一章，统计拿到它的实时字数，打一个字多一个；⌘F 出查找栏，打「钟」有十几个命中、选中第一个，Enter 下一个、⇧Enter 回来，Esc 关掉、查询清掉、键盘回到稿纸；
   - **M04**：三卷是三幕、装下全部 24 章，全书看法画得出来；第一章放到第三章上就排到它后面、再放回第二章上就回到原样（经 F3，等 F3 的事件回来）；素材笔记的大纲是两个 H2（「四个部分」「常见毛病」），点第二个光标落到它开头；
@@ -418,6 +430,7 @@ M3 Pro，release 构建。离屏的帧时间是「重新渲染 + 排版 + 绘制
   - 布局按真书的 id 存、记住上次打开的书，新窗口在同一个库上恢复书、标签和页；
   - 退出流程跑 F3 的 `before_quit` 以后库还能用。
 - **第五轮加的**：模态对话框开着时 ⌘⌥4 和设置都不开、关掉后又开（`a_modal_dialog_turns_the_workspace_shortcuts_off`）；Esc 先关搜索面板再关 Super View；⌥⌘F 出替换行，替换一个少一个、全部替换换掉其余、关掉查找栏后一次 ⌘Z 全部回来；换前台页面后 F3 的 `recent.list` 第一条就是它；选区浮条的 `CommentRequested` 打开撰写框、保存后 `comment.list` 里有这一条且挂在那一章上；排序和格子读数在两种看法、四种读数下都画得出来，存进布局、旧布局读出来是默认值（后四个在《慢钟》库上）；排序的三种顺序和旧版一样、字数和日期的写法（`chapter_sort` 单元测试）；dr-editor 的两端对齐和输入行位置（25–75 % 收住）进了排版样式。
+- **第七轮加的**：单击人物链接（`EntityLinkOpened`）把那个要素当预览打开、「位置链接」复制后出小纸条、过一会儿消失；全书里跨两章的选区算出的字数是两章那段的；模块登记的左栏标签每个半栏只做一次、换了标签不再问；章节列表滚下去、侧栏收起再打开还在原处。
 - **换库**（`the_library_is_swapped_under_the_running_app`）：开着一章的编辑器和搜索面板时换库，`job` 自己能打开那个库（说明它确实关上了），换完窗口重新读出书、搜索面板没了、能在新库里打开一章；`job` 失败时原来的库重新在用，`done` 收到原因。
 - **第六轮加的**：以 `Open::at_title` 打开的页编辑器不拿键盘，照常打开的拿；页面动作的顺序（要素：分享 → 模块的行 → 历史快照 → 模块的删除；素材没有分享；章节：分享和导出 → 三种写作状态只勾一个 → … → 删除节点在最后），模块的行点了会跑，要素页的 ⋯ 画得出来；导出记住的选择写进设置文件、另一个应用用同一个文件启动后读得回来；「自动要素链接」关掉后 F3 的 `auto_links()` 跟着变，章节面板全部折起（故事线数 + 未归属）、再按一次全部展开、单个折起；在补丁出处那段话中间打一个字，光标还在那一段时补丁不变，离开那一段后补丁被标为失效（后五个在《慢钟》库上）。单元测试：「…」列出的十个、备份恢复两行在本地数据最上面、导出选择在设置文件里的存取、导出选择的 JSON 形状、素材不分享。
 - **孤儿检查**（1 个）：清单里每个键都被外壳的代码用到了。
@@ -471,7 +484,8 @@ M3 Pro，release 构建。离屏的帧时间是「重新渲染 + 排版 + 绘制
    - **dr-text（备份与恢复）**：两个动作名照它的计划定了；换库用 `dr_shell::library::replace`（接法见上面「第六轮」和共享笔记）。dr-view-transfer 合进来以前，按钮只关掉设置。
    - **F3（dr-workspace）**：`Workspace::shutdown` 失败时（还有别的克隆）把工作区也丢了，换库就没法退回原来的库，只能让作者重开 App。建议照 dr-store 的 `try_close` 给一个失败时把工作区交还的版本。外壳这边已经让该放手的都放手，测试里能关上。
    - **M41（导出）**：记住的选择第六轮跨重启了（`export_memory.rs`），`prefs.rs` 的模块文档顺手改了一句；m41-export.md「待协调」第 1、2 条可以划掉。
-   - **M11（要素）**：⋯ 菜单的挂接点是 `pages::add_page_menu`；要素页的提醒可以改走 `dialogs::show`。悬停卡现在只有章节面板有（章节和故事线），要素、构想、素材面板的卡跟各自的面板来，`page_actions` 可以直接用。
+   - **M11（要素）**：⋯ 菜单的挂接点是 `pages::add_page_menu`，`PageMenuItem.icon` 第七轮起收 `RowIcon`（`MenuRow` 原样搬过来，`run` 里把 `host.workspace` 交给它）；左栏的要素面板第七轮已接上。要素页的提醒可以改走 `dialogs::show`。
+   - **M01（作品主页）**：作品主页自己在前台页面变了时调 `recent.touch`，外壳第五轮起也调（`touch_front`），现在一次打开记两遍（结果一样）。主页那份可以删。悬停卡现在只有章节面板有（章节和故事线），要素、构想、素材面板的卡跟各自的面板来，`page_actions` 可以直接用。
    - **产品（作者定）**：点批注刻度时，右栏没开或不在「审阅」，要不要自动打开审阅？现在不开（F4d 只让那张卡亮）。
 6. **F8**：外壳的测量证据是 `acceptance/f6-m3-shell-bench.json`，由 `examples/shell-capture.rs --bench` 写；截图和测量的离屏写法可以并进 dr-testkit。`cargo xtask dev` 可以加一个 `--seed <预设>`，把「先生成库再启动」并成一步（现在是两条命令，见「怎么看」）。
 7. **F5（dr-view-page）**：⁂ 新建下一章改用 `Open::KEEP.at_title()`（外壳认这个意图，不再靠焦点先后），`NewTitles` 照旧负责标题全选。外壳在 `editor_prepared` 里不再给装了 chrome 的页设标题行。键盘进出 ⁂ 仍等外壳的焦点框架。
@@ -602,6 +616,7 @@ M04 章节面板、幕与大纲栏（`modules.md`）：
 | `crates/dr-shell/src/account.rs` | 共用的账户菜单和头像 |
 | `crates/dr-shell/src/export_memory.rs` | 导出记住的选择：设置文件和 dr-view-export 的 `Prefs` 之间来回 |
 | `crates/dr-shell/src/library.rs` | 换库：放手、关库、跑替换、装回新库（失败时装回原来的） |
+| `crates/dr-shell/src/workspace/toast.rs` | 窗口下沿的小纸条（`Workspace::toast`） |
 | `crates/dr-shell/src/workspace/` | 工作区根（`mod.rs`：状态、读书目、F3 事件、沉浸写作、挪章节、全书里的位置链接）、每个标签的编辑器（`editors.rs`：单章和全书、样式、键盘、实时字数、阅读位置）、查找栏和替换（`find.rs`）、章节面板的排序和格子读数（`chapter_sort.rs`）、页面能做的事（`page_actions.rs`：⋯ 菜单和悬停卡共用）、选区批注的撰写框（`review.rs`）、稿纸右下角（`corner.rs`）、大纲栏（`outline.rs`）、窗口边角与拖动区（`chrome.rs`）、侧栏（`sidebar.rs`）、标签坞（`dock.rs`）、稿纸（`stage.rs`）、Super View（`super_view.rs`） |
 | `crates/dr-shell/tests/`、`examples/shell-capture.rs` | GPUI 测试平台上的行为测试（含《慢钟》库上的 6 个）、孤儿键检查；离屏截图与测量（写测量证据） |
 | `app/drifting/src/main.rs`、`probe.rs`、`check.rs` | 入口：F7 的顺序不变，加上读设置、在线程上开库、装 dr-ui、交给外壳；启动探针多了 `library_opened`、`shell_ready`；开发构建的真窗口自检 `DRIFTING_CHECK` |

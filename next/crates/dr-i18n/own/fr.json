@@ -37,5 +37,8 @@
     "replacePlaceholder": "Remplacer par…",
     "replace": "Remplacer",
     "replaceAll": "Tout remplacer"
+  },
+  "positionLink": {
+    "copied": "Lien de position copié"
   }
 }
