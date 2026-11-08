@@ -29,6 +29,8 @@ pub struct Declared {
     /// `None` (normal), `Some("dev")` or `Some("build")`.
     pub kind: Option<String>,
     pub optional: bool,
+    /// The features it asks of the dependency (`features = […]`).
+    pub features: Vec<String>,
 }
 
 /// A dependency edge and the kinds it is used as.
@@ -48,10 +50,20 @@ pub struct Metadata {
 
 impl Metadata {
     pub fn load(repo: &Repo) -> Result<Self, String> {
+        Self::load_with(repo, &[])
+    }
+
+    /// [`Self::load`] resolved with `features` on (`drifting/hot-reload`).
+    pub fn load_with(repo: &Repo, features: &[&str]) -> Result<Self, String> {
         let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".into());
+        let mut args = vec!["metadata", "--format-version", "1", "--locked"];
+        let joined = features.join(",");
+        if !features.is_empty() {
+            args.extend(["--features", joined.as_str()]);
+        }
         let out = std::process::Command::new(cargo)
             .current_dir(&repo.next)
-            .args(["metadata", "--format-version", "1", "--locked"])
+            .args(&args)
             .output()
             .map_err(|e| format!("cargo metadata: {e}"))?;
         if !out.status.success() {
@@ -108,6 +120,12 @@ impl Metadata {
                     name: d["name"].as_str().unwrap_or_default().to_string(),
                     kind: d["kind"].as_str().map(str::to_string),
                     optional: d["optional"].as_bool().unwrap_or(false),
+                    features: d["features"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|f| f.as_str().map(str::to_string))
+                        .collect(),
                 })
                 .collect();
             m.packages.insert(

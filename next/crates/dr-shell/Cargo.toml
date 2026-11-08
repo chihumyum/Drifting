@@ -48,6 +48,8 @@ objc2.workspace = true
 objc2-app-kit.workspace = true
 
 [dev-dependencies]
+# M09's capture writes history points into the book's first chapter.
+dr-doc.workspace = true
 # A seeded library for the tests and the captures (the showcase's 《慢钟》).
 dr-testkit.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
@@ -66,4 +68,10 @@ required-features = ["capture"]
 # M18's screenshots (docs/rust-rewrite/modules/m18).
 [[example]]
 name = "m18-capture"
+required-features = ["capture"]
+
+# M09's screenshots (docs/rust-rewrite/modules/m09): the snapshot history
+# over the shell. Here and not in dr-view-history, which dr-shell depends on.
+[[example]]
+name = "history-capture"
 required-features = ["capture"]

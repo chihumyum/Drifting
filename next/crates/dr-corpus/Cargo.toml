@@ -1,0 +1,12 @@
+[package]
+name = "dr-corpus"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Drifting's store-free text building blocks: the one random number generator, paragraphs as the sample books and the seed lay them out, the synthetic corpus and the fingerprint"
+
+[dependencies]
+dr-model.workspace = true
+sha2.workspace = true

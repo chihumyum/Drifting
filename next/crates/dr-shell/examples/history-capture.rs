@@ -5,7 +5,7 @@
 //! then another, then renamed the chapter, over three days.
 //!
 //! ```text
-//! cargo run -p dr-view-history --features capture --example history-capture -- <docs/rust-rewrite/modules>
+//! cargo run -p dr-shell --features capture --example history-capture -- <docs/rust-rewrite/modules>
 //! ```
 //!
 //! Writes `m09/history-*.png` under the folder given, as 256-colour PNGs.

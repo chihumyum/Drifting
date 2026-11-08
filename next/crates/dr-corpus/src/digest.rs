@@ -5,7 +5,7 @@ use sha2::{Digest, Sha256};
 
 /// FNV-1a 64: stable across platforms and versions (dr-samples' own, which
 /// its RNG streams use).
-pub use dr_samples::rng::fnv1a64;
+pub use crate::rng::fnv1a64;
 
 pub fn sha256_hex(bytes: &[u8]) -> String {
     hex(&Sha256::digest(bytes))

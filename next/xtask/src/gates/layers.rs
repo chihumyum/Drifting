@@ -4,7 +4,7 @@
 //! interface (gpui-prose, dr-editor, dr-ui, dr-shell, dr-view-*)
 //!     → application services (dr-workspace, dr-agent, dr-mcp, dr-sync,
 //!       dr-export, dr-mirror, dr-import-v1, dr-samples)
-//!         → data (dr-model, dr-doc, dr-store, dr-text)
+//!         → data (dr-model, dr-doc, dr-store, dr-text, dr-corpus)
 //! platform (dr-platform, dr-i18n) and tools (dr-testkit, dr-cli, xtask) on the side
 //! ```
 //!
@@ -39,6 +39,10 @@ pub const LAYERS: &[(&str, Layer)] = &[
     ("dr-store", Layer::Data),
     ("dr-text", Layer::Data),
     ("dr-index", Layer::Data),
+    // The one RNG, the samples' and the seed's paragraphs, the synthetic
+    // corpus and the fingerprint, without a store (dr-samples, dr-testkit
+    // and dr-store's tests use it).
+    ("dr-corpus", Layer::Data),
     ("prose-metrics", Layer::Data),
     // Line breaking: the editor uses it now, dr-text and the PDF export later.
     ("prose-linebreak", Layer::Data),

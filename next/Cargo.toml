@@ -8,6 +8,7 @@ members = [
     "app/drifting",
     "crates/dr-agent",
     "crates/dr-cli",
+    "crates/dr-corpus",
     "crates/dr-debug-bridge",
     "crates/dr-debug-protocol",
     "crates/dr-doc",
@@ -129,6 +130,7 @@ dr-samples = { path = "crates/dr-samples" }
 dr-testkit = { path = "crates/dr-testkit" }
 # F8 debug bridge: the server (development builds with the app's
 # `debug-bridge` feature only) and its protocol and client (no GPUI).
+dr-corpus = { path = "crates/dr-corpus" }
 dr-debug-bridge = { path = "crates/dr-debug-bridge" }
 dr-debug-protocol = { path = "crates/dr-debug-protocol" }
 # xtask's text gates (the version GPUI's dependencies already lock).
