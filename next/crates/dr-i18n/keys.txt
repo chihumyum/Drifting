@@ -577,3 +577,16 @@ categoryEditor.empty.noFilteredElements
 categoryEditor.actions.openElement
 storylineEditor.labels.color
 storylineEditor.filters.all
+
+
+# M25 the shelf's covers, heat map and strips (dr-view-shelf-art)
+projectPicker.heat.label
+projectPicker.heat.summary
+projectPicker.heat.year
+projectPicker.heat.daysWritten
+projectPicker.heat.streak
+projectPicker.heat.mon
+projectPicker.heat.wed
+projectPicker.heat.fri
+projectPicker.desk.coverStyle.turn
+projectPicker.desk.coverStyle.names.*

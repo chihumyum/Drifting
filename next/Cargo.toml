@@ -32,6 +32,7 @@ members = [
     "crates/dr-view-review",
     "crates/dr-view-search",
     "crates/dr-view-shelf",
+    "crates/dr-view-shelf-art",
     "crates/dr-view-stats",
     "crates/dr-workspace",
     "crates/gpui-ime",
@@ -148,6 +149,9 @@ base64 = "0.22.1"
 image = { version = "0.25.10", default-features = false, features = ["png"] }
 smallvec = "1.16"
 tiny-skia = "0.11.4"
+# M25 (dr-view-shelf-art): glyph outlines for the cover of characters, the
+# version usvg already builds.
+ttf-parser = "0.25.1"
 
 # Spike P0-B shell (process metrics, AppKit event posting).
 libc = "0.2.191"
@@ -241,6 +245,8 @@ dr-view-elements = { path = "crates/dr-view-elements" }
 dr-view-import = { path = "crates/dr-view-import" }
 # M03: the chapter page's head and end around the editor (dr-editor's PageChrome).
 dr-view-page = { path = "crates/dr-view-page" }
+# M25: the bookshelf's covers, heat map and strips.
+dr-view-shelf-art = { path = "crates/dr-view-shelf-art" }
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
 # M41: manuscript export (EPUB, Word, PDF), Markdown share and covers, the
 # 0.1 client's writers ported as they were (docs/rust-rewrite/

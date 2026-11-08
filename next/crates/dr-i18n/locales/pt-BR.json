@@ -451,6 +451,25 @@
       "chaptersUnit_many": "capítulos",
       "chaptersUnit_one": "capítulo",
       "chaptersUnit_other": "capítulos",
+      "coverStyle": {
+        "names": {
+          "bauhaus": "Bauhaus",
+          "chars": "Mar de letras",
+          "cutout": "Papel recortado",
+          "cyanotype": "Cianotipia",
+          "field": "Campos de cor",
+          "quipu": "Cordões com nós",
+          "ridge": "Cristas",
+          "rings": "Anéis de árvore",
+          "riso": "Risografia",
+          "sand": "Areia",
+          "stars": "Mapa estelar",
+          "strata": "Estratos",
+          "topo": "Curvas de nível",
+          "weave": "Trama tecida"
+        },
+        "turn": "Mudar capa · atual {{name}}"
+      },
       "elementsUnit_many": "elementos",
       "elementsUnit_one": "elemento",
       "elementsUnit_other": "elementos",
@@ -491,7 +510,15 @@
     },
     "heat": {
       "daysUnit": "dias",
-      "today": "Hoje"
+      "daysWritten": "Dias",
+      "fri": "sex.",
+      "label": "Mapa de atividade de escrita",
+      "mon": "seg.",
+      "streak": "Sequência",
+      "summary": "{{words}} palavras no último ano, escritas em {{days}} dias",
+      "today": "Hoje",
+      "wed": "qua.",
+      "year": "Último ano"
     },
     "projectCount": "{{filtered}} / {{total}} livros",
     "rail": {

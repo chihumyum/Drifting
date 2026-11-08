@@ -444,6 +444,25 @@
     "desk": {
       "chaptersUnit_one": "章",
       "chaptersUnit_other": "章",
+      "coverStyle": {
+        "names": {
+          "bauhaus": "包浩斯",
+          "chars": "字海",
+          "cutout": "剪紙",
+          "cyanotype": "藍曬",
+          "field": "色域",
+          "quipu": "結繩",
+          "ridge": "山脊",
+          "rings": "年輪",
+          "riso": "孔版印刷",
+          "sand": "砂筆",
+          "stars": "星圖",
+          "strata": "地層",
+          "topo": "等高線",
+          "weave": "織紋"
+        },
+        "turn": "切換封面樣式 · 目前為{{name}}"
+      },
       "elementsUnit_one": "個要素",
       "elementsUnit_other": "個要素",
       "form": {
@@ -482,7 +501,15 @@
     },
     "heat": {
       "daysUnit": "天",
-      "today": "今天"
+      "daysWritten": "天數",
+      "fri": "週五",
+      "label": "寫作熱度圖",
+      "mon": "週一",
+      "streak": "連續寫作",
+      "summary": "過去一年寫了 {{words}} 字，共寫作 {{days}} 天",
+      "today": "今天",
+      "wed": "週三",
+      "year": "過去一年"
     },
     "projectCount": "{{filtered}}／{{total}} 部作品",
     "rail": {

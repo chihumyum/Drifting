@@ -449,6 +449,25 @@
     "desk": {
       "chaptersUnit_one": "Kapitel",
       "chaptersUnit_other": "Kapitel",
+      "coverStyle": {
+        "names": {
+          "bauhaus": "Bauhaus",
+          "chars": "Buchstabenmeer",
+          "cutout": "Scherenschnitt",
+          "cyanotype": "Cyanotypie",
+          "field": "Farbfelder",
+          "quipu": "Knotenschnüre",
+          "ridge": "Gratlinien",
+          "rings": "Jahresringe",
+          "riso": "Risografie",
+          "sand": "Sand",
+          "stars": "Sternkarte",
+          "strata": "Schichten",
+          "topo": "Höhenlinien",
+          "weave": "Gewebe"
+        },
+        "turn": "Coverstil ändern · aktuell {{name}}"
+      },
       "elementsUnit_one": "Element",
       "elementsUnit_other": "Elemente",
       "form": {
@@ -487,7 +506,15 @@
     },
     "heat": {
       "daysUnit": "Tage",
-      "today": "Heute"
+      "daysWritten": "Tage",
+      "fri": "Fr",
+      "label": "Schreib-Heatmap",
+      "mon": "Mo",
+      "streak": "Serie",
+      "summary": "{{words}} Wörter im letzten Jahr, geschrieben an {{days}} Tagen",
+      "today": "Heute",
+      "wed": "Mi",
+      "year": "Letztes Jahr"
     },
     "projectCount": "{{filtered}} / {{total}} Bücher",
     "rail": {
