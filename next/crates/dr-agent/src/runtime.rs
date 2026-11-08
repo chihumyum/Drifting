@@ -21,21 +21,19 @@ use crate::*;
 #[derive(Clone, Debug)]
 pub struct Options {
     pub max_parallel_reads: usize,
-    /// No implicit turn limit. An embedding may supply an author-selected cap.
-    pub max_model_rounds: Option<u32>,
 }
 
 impl Default for Options {
     fn default() -> Self {
         Self {
             max_parallel_reads: 4,
-            max_model_rounds: None,
         }
     }
 }
 
 #[derive(Clone, Debug)]
 pub struct Start {
+    pub config: RunConfig,
     pub book: BookId,
     pub conversation: ConversationId,
     pub input: String,
@@ -75,7 +73,7 @@ impl Runtime {
         tools: Arc<dyn ToolExecutor>,
         options: Options,
     ) -> Result<Self> {
-        if options.max_parallel_reads == 0 || options.max_model_rounds == Some(0) {
+        if options.max_parallel_reads == 0 {
             return Err(Error::Protocol("runtime limits must be positive".into()));
         }
         let descriptors = tools.descriptors();
@@ -124,6 +122,7 @@ impl Runtime {
 
     pub fn start(&self, start: Start) -> Result<RunHandle> {
         let _lifecycle = self.inner.lifecycle.lock().expect("runtime lifecycle");
+        start.config.validate()?;
         if start.input.trim().is_empty() {
             return Err(Error::Protocol("empty author message".into()));
         }
@@ -158,6 +157,9 @@ impl Runtime {
             Ok(())
         })?;
         let mut journal = Journal::open(lib.clone(), &session)?;
+        journal.append(Event::Configured {
+            config: start.config.clone(),
+        })?;
         journal.append(Event::UserMessage { text: start.input })?;
         let (sender, commands) = mpsc::unbounded();
         let (finished_tx, finished) = oneshot::channel();
@@ -181,6 +183,7 @@ impl Runtime {
             .name("dr-agent".into())
             .spawn(move || {
                 let mut worker = Worker {
+                    config: Arc::new(start.config),
                     inner: inner.clone(),
                     journal,
                     book: start.book,
@@ -205,6 +208,11 @@ impl Runtime {
                         }
                         // Do not claim durable failure if even the journal cannot
                         // be appended. Startup recovery will mark it interrupted.
+                        if let Error::Provider(failure) = &error {
+                            let _ = worker.journal.append(Event::ModelFailed {
+                                failure: failure.clone(),
+                            });
+                        }
                         let _ = worker.journal.append(Event::Failed {
                             error: error.to_string(),
                         });
@@ -333,6 +341,11 @@ fn reconcile(journal: &mut Journal, log: &[JournalEvent]) -> Result<()> {
                     message.usage = *usage;
                 }
             }
+            Event::ProviderReplay { replay } => {
+                if let Some(message) = &mut partial {
+                    message.replay = Some(replay.clone());
+                }
+            }
             Event::ToolProposed { call } => {
                 pending.insert(call.id.clone(), event.turn);
                 if let Some(message) = &mut partial {
@@ -398,6 +411,7 @@ enum Reply {
 }
 
 struct Worker {
+    config: Arc<RunConfig>,
     inner: Arc<Inner>,
     journal: Journal,
     book: BookId,
@@ -506,20 +520,26 @@ impl Worker {
 
     async fn run(&mut self) -> Result<State> {
         let mut round = 0_u32;
+        let mut budget_turn = self.journal.turn;
+        let mut turn_round = 0_u32;
         loop {
             self.drain()?;
             if self.halted() {
                 return self.finish_halted();
             }
             self.apply_steering()?;
+            if budget_turn != self.journal.turn {
+                budget_turn = self.journal.turn;
+                turn_round = 0;
+            }
+            turn_round = turn_round.saturating_add(1);
             round = round
                 .checked_add(1)
                 .ok_or_else(|| Error::Protocol("round overflow".into()))?;
             if self
-                .inner
-                .options
+                .config
                 .max_model_rounds
-                .is_some_and(|limit| round > limit)
+                .is_some_and(|limit| turn_round > limit)
             {
                 return Err(Error::Protocol(
                     "author-selected model round limit reached".into(),
@@ -572,6 +592,7 @@ impl Worker {
     async fn model(&mut self, round: u32) -> Result<Vec<ToolCall>> {
         self.set_state(State::Streaming)?;
         let request = DriverRequest {
+            config: self.config.clone(),
             session: self.journal.session.clone(),
             turn: self.journal.turn,
             round,
@@ -623,6 +644,13 @@ impl Worker {
                         DriverEvent::Usage(usage) => {
                             message.usage = usage;
                             self.journal.append(Event::Usage { usage })?;
+                        }
+                        DriverEvent::Replay { replay } => {
+                            message.replay = Some(replay.clone());
+                            self.journal.append(Event::ProviderReplay { replay })?;
+                        }
+                        DriverEvent::ProviderTool { activity } => {
+                            self.journal.append(Event::ProviderTool { activity })?;
                         }
                         DriverEvent::Finish(reason) => {
                             if (reason == FinishReason::Tools) == calls.is_empty() {

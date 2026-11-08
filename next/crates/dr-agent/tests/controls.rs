@@ -54,6 +54,7 @@ impl Fixture {
     fn start(&self, runtime: &Runtime) -> RunHandle {
         runtime
             .start(Start {
+                config: dr_agent::RunConfig::new(dr_agent::Provider::Openai, "synthetic-model"),
                 book: self.book.clone(),
                 conversation: ConversationId::new_v7(),
                 input: self.text.clone(),

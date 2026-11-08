@@ -264,3 +264,254 @@ fn import_guard_sees_settled_state_and_rejection_changes_nothing() {
     assert!(h.doc().get_map("guard").get("allowed").is_some());
     assert_eq!(calls.load(std::sync::atomic::Ordering::Relaxed), 2);
 }
+
+/// F2's review of M27 (2026-11-08): the journal of a purged conversation
+/// goes by the id its sessions name, whatever kind the document was stored
+/// with (the store knows no kind names).
+#[test]
+fn purging_the_conversation_a_session_names_drops_its_journal_whatever_its_kind() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open(dir.path());
+    create(&lib, "node:one").close();
+    lib.open_doc(
+        "chat:one",
+        OpenDoc::CreateIfMissing {
+            kind: "chat",
+            book_id: Some("book-1"),
+            genesis: &|_| {},
+        },
+    )
+    .unwrap()
+    .close();
+    lib.agent_create_session("session-1", "chat:one", "book-1")
+        .unwrap();
+    lib.agent_append_event(&request("session-1", 0)).unwrap();
+    lib.purge_doc("chat:one").unwrap();
+    assert!(lib.agent_session("session-1").unwrap().is_none());
+    assert!(lib.agent_events("session-1", 0).unwrap().is_empty());
+}
+
+/// Settlements outlive a document purged alone (the session that made them
+/// still shows them) but go with the book: once its last document is purged
+/// nothing of it can be undone, and their summaries are its last words.
+#[test]
+fn a_purged_books_settlements_go_with_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open(dir.path());
+    let book_doc = |id: &str, book: &str| {
+        lib.open_doc(
+            id,
+            OpenDoc::CreateIfMissing {
+                kind: "book",
+                book_id: Some(book),
+                genesis: &|_| {},
+            },
+        )
+        .unwrap()
+        .close();
+    };
+    book_doc("book:1", "book-1");
+    book_doc("book:2", "book-2");
+    let write = |doc_id: &str, book: &str, call: &str| {
+        let h = lib
+            .open_doc(
+                doc_id,
+                OpenDoc::CreateIfMissing {
+                    kind: "node",
+                    book_id: Some(book),
+                    genesis: &common::genesis,
+                },
+            )
+            .unwrap();
+        h.write_agent(
+            dr_store::AgentWrite {
+                session: "s".into(),
+                turn: "1".into(),
+                call: call.into(),
+                summary: format!("改了 {doc_id}"),
+            },
+            |doc| {
+                doc.get_text(common::synthetic::BODY)
+                    .insert(0, "写")
+                    .unwrap();
+            },
+        )
+        .unwrap();
+        h.close();
+    };
+    write("node:a", "book-1", "c1");
+    write("node:b", "book-2", "c2");
+    let docs = |lib: &Library| -> Vec<String> {
+        lib.settlements(Some("s"), None)
+            .unwrap()
+            .into_iter()
+            .map(|s| s.doc_id)
+            .collect()
+    };
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let _sub = {
+        let seen = seen.clone();
+        lib.subscribe(move |event| {
+            if let StoreEvent::Local(change) = event
+                && change.table == "agent_settlement"
+            {
+                seen.lock().unwrap().push(change.clone());
+            }
+        })
+    };
+    lib.purge_doc("node:a").unwrap();
+    assert_eq!(docs(&lib), ["node:a", "node:b"], "the book still lives");
+    assert!(seen.lock().unwrap().is_empty());
+    lib.purge_doc("book:1").unwrap();
+    assert_eq!(docs(&lib), ["node:b"], "book-1 is gone, book-2 is not");
+    let seen = seen.lock().unwrap();
+    assert_eq!(seen.len(), 1);
+    assert_eq!(seen[0].kind, dr_store::LocalChangeKind::Delete);
+}
+
+/// A book's sessions are read through `agent_session_by_book`, in order,
+/// without scanning every session of the library or sorting.
+#[test]
+fn a_books_sessions_are_read_through_its_own_index() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open(dir.path());
+    let plan: Vec<String> = lib
+        .local_read(|c| {
+            let mut s = c.prepare(
+                "EXPLAIN QUERY PLAN SELECT session, conversation, book_id, created_ms
+                 FROM agent_session WHERE book_id = ?1 ORDER BY created_ms, session",
+            )?;
+            let rows = s
+                .query_map(["book-1"], |r| r.get::<_, String>(3))?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            Ok(rows)
+        })
+        .unwrap();
+    assert_eq!(
+        plan,
+        ["SEARCH agent_session USING INDEX agent_session_by_book (book_id=?)"],
+        "{plan:?}"
+    );
+    for (session, book) in [("s3", "book-1"), ("s1", "book-2"), ("s2", "book-1")] {
+        lib.agent_create_session(session, &format!("conversation:{session}"), book)
+            .unwrap();
+    }
+    let names = |book: Option<&str>| -> Vec<String> {
+        lib.agent_sessions(book)
+            .unwrap()
+            .into_iter()
+            .map(|s| s.session)
+            .collect()
+    };
+    assert_eq!(names(Some("book-1")).len(), 2);
+    assert!(names(Some("book-1")).iter().all(|s| s != "s1"));
+    assert_eq!(names(None).len(), 3);
+}
+
+/// The import validator runs on the holder thread; a panic in it refuses
+/// the import and leaves the holder working, and anything it wrote into the
+/// live document (it must only read) is stored apart as an outside write,
+/// never inside the import's row.
+#[test]
+fn a_panicking_or_writing_import_validator_cannot_break_the_holder() {
+    let dir = tempfile::tempdir().unwrap();
+    let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let mut opts = options();
+    {
+        let calls = calls.clone();
+        opts.validate_import = Some(Arc::new(move |_, current, _| {
+            match calls.fetch_add(1, std::sync::atomic::Ordering::Relaxed) {
+                0 => panic!("validator bug"),
+                1 => {
+                    current.get_map("stray").insert("k", 1).unwrap();
+                    Ok(())
+                }
+                _ => Ok(()),
+            }
+        }));
+    }
+    let lib = Library::open(dir.path(), opts).unwrap();
+    let h = create(&lib, "node:one");
+    let before = lib.head("node:one").unwrap();
+    let remote = |text: &str| {
+        let d = loro::LoroDoc::new();
+        d.get_map("remote").insert(text, true).unwrap();
+        d.commit();
+        d.export(loro::ExportMode::all_updates()).unwrap()
+    };
+    assert!(matches!(
+        h.import(remote("first"), dr_store::Origin::Sync),
+        Err(StoreError::Invalid { what: "import", .. })
+    ));
+    assert_eq!(lib.head("node:one").unwrap(), before);
+    assert!(h.doc().get_map("remote").get("first").is_none());
+    h.import(remote("second"), dr_store::Origin::Sync).unwrap();
+    assert!(h.doc().get_map("remote").get("second").is_some());
+    let origins: Vec<String> = lib
+        .updates_since("node:one", 1)
+        .unwrap()
+        .into_iter()
+        .map(|r| r.origin)
+        .collect();
+    assert_eq!(origins, ["outside", "sync"]);
+    common::insert(&h, dr_store::Origin::User, 0, "还能写");
+    h.close();
+}
+
+/// Manual measurement for M27/M28 (reference only on a busy machine): what
+/// one streamed delta costs as its own journal transaction, how much the
+/// journal grows, and what a full replay read costs.
+/// `cargo test --release -p dr-store --test agent -- --ignored --nocapture`
+#[test]
+#[ignore = "manual measurement"]
+fn measure_journal_appends() {
+    use std::time::Instant;
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open(dir.path());
+    const SESSIONS: usize = 20;
+    const DELTAS: i64 = 1_000;
+    let size_before = lib.size_bytes().unwrap();
+    let mut each = Vec::new();
+    let text = "一段流式输出的文字，大约二十个字。";
+    for s in 0..SESSIONS {
+        let session = format!("session-{s}");
+        lib.agent_create_session(&session, &format!("conversation:{s}"), "book-1")
+            .unwrap();
+        for seq in 0..DELTAS {
+            let json = serde_json::json!({
+                "turn": 1,
+                "event": {"TextDelta": {"index": 0, "text": text}},
+            })
+            .to_string();
+            let t = Instant::now();
+            lib.agent_append_event(&AgentEventAppend {
+                session: session.clone(),
+                expected_seq: seq,
+                event_json: json,
+            })
+            .unwrap();
+            each.push(t.elapsed().as_secs_f64() * 1e3);
+        }
+    }
+    each.sort_by(f64::total_cmp);
+    let p = |q: f64| each[((each.len() - 1) as f64 * q) as usize];
+    let grown = lib.size_bytes().unwrap() - size_before;
+    let t = Instant::now();
+    let mut rows = 0;
+    for session in lib.agent_sessions(None).unwrap() {
+        rows += lib.agent_events(&session.session, 0).unwrap().len();
+    }
+    let replay = t.elapsed().as_secs_f64() * 1e3;
+    println!(
+        "appends: {} — p50 {:.3} ms, p95 {:.3} ms, p99 {:.3} ms, max {:.3} ms; \
+         journal +{:.1} KiB ({:.0} B/event); replaying {rows} events of {SESSIONS} sessions: {replay:.1} ms",
+        each.len(),
+        p(0.5),
+        p(0.95),
+        p(0.99),
+        p(1.0),
+        grown as f64 / 1024.0,
+        grown as f64 / each.len() as f64,
+    );
+    lib.close().unwrap();
+}

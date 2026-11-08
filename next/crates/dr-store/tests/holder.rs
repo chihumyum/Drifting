@@ -9,7 +9,7 @@ use std::time::Duration;
 use common::synthetic::{self, Rng};
 use common::*;
 use dr_store::history::labels;
-use dr_store::{Library, OpenDoc, Origin, StoreError};
+use dr_store::{COMMAND_ORIGIN, Library, OpenDoc, Origin, StoreError};
 use loro::{CommitOptions, ExportMode, LoroDoc};
 
 #[test]
@@ -682,4 +682,107 @@ fn the_authors_commands_keep_their_own_origin_from_commit_to_event() {
         .map(|l| l.label)
         .collect();
     assert_eq!(names.first().map(String::as_str), Some(labels::CLOSE));
+}
+
+/// The holder sets a write's commit options before the job runs (F1's
+/// request): Loro commits part-way through on its own (an import's barrier,
+/// as dr-doc's seeds do; resolving an anchor on deleted text), and that part
+/// carries the write's origin and commit message like the rest, without the
+/// job setting anything itself. Nothing carries over into the next write.
+#[test]
+fn a_part_way_commit_carries_the_writes_origin_and_message() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open(dir.path());
+    let h = create(&lib, "node:a");
+    let local: Arc<Mutex<Vec<String>>> = Arc::default();
+    {
+        let seen = local.clone();
+        h.read(move |doc| {
+            doc.subscribe_root(Arc::new(move |e| {
+                if e.triggered_by == loro::EventTriggerKind::Local {
+                    seen.lock().unwrap().push(e.origin.to_string());
+                }
+            }))
+            .detach();
+        })
+        .unwrap();
+    }
+    // Someone else's change, imported from inside the job.
+    let other = LoroDoc::new();
+    other.set_peer_id(77).unwrap();
+    other.get_text("seed").insert(0, "种").unwrap();
+    other.commit();
+    let foreign = other.export(ExportMode::all_updates()).unwrap();
+    let write = dr_store::AgentWrite {
+        session: "s".into(),
+        turn: "1".into(),
+        call: "c".into(),
+        summary: "两处".into(),
+    };
+    let agent = write.origin();
+    h.write_agent(write, move |doc| {
+        doc.get_text(synthetic::BODY).insert(0, "前").unwrap();
+        doc.import(&foreign).unwrap();
+        doc.get_text(synthetic::BODY).insert(0, "后").unwrap();
+    })
+    .unwrap();
+    h.write(Origin::Command, |doc| {
+        doc.get_text(synthetic::BODY).insert(0, "甲").unwrap();
+        doc.commit();
+        doc.get_text(synthetic::BODY).insert(0, "乙").unwrap();
+    })
+    .unwrap();
+    // A job that writes nothing, then typing: no options are left over.
+    h.write(Origin::Mirror, |_| {}).unwrap();
+    insert(&h, Origin::User, 0, "丙");
+    let agent_origin = agent.to_string();
+    assert_eq!(
+        *local.lock().unwrap(),
+        [
+            agent_origin.as_str(),
+            &agent_origin,
+            COMMAND_ORIGIN,
+            COMMAND_ORIGIN,
+            "user"
+        ],
+        "every local commit carries its write's origin"
+    );
+    h.close();
+    let doc = lib.load_copy("node:a").unwrap();
+    // Every change with what it inserted (Loro merges adjacent changes
+    // that share a message, so 甲, 乙 and 丙 may come as one).
+    let changes: Vec<(String, Option<String>)> = doc
+        .export_json_updates(&Default::default(), &doc.oplog_vv())
+        .unwrap()
+        .changes
+        .into_iter()
+        .map(|c| {
+            let text: String = c
+                .ops
+                .iter()
+                .filter_map(|o| match &o.content {
+                    loro::JsonOpContent::Text(loro::JsonTextOp::Insert { text, .. }) => {
+                        Some(text.as_str())
+                    }
+                    _ => None,
+                })
+                .collect();
+            (text, c.msg.as_deref().map(str::to_string))
+        })
+        .collect();
+    let message = agent.commit_message();
+    assert!(message.is_some());
+    let agents: String = changes
+        .iter()
+        .filter(|(_, m)| *m == message)
+        .map(|(t, _)| t.as_str())
+        .collect();
+    assert_eq!(
+        agents, "前后",
+        "both parts of the Agent write carry its message, nothing else does: {changes:?}"
+    );
+    assert!(
+        changes.iter().all(|(_, m)| m.is_none() || *m == message),
+        "{changes:?}"
+    );
 }

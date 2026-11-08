@@ -19,7 +19,7 @@
 5. **中止不等于撤销。** 模型流、未进入的调用、只读调用和作者等待可以取消；已进入的写入必须等到它的 future 结束并核对结算，再进入 `Aborted`。`RunHandle::join/finish` 返回后不得还有工具继续写。已写入的内容由 `history.undo_agent` 撤销。
 6. **停止与插话都有明确边界。** 插话先持久化、按接收顺序在下一次模型调用前应用；不会打断正在提交的工具。停止会完成当前已开始的调用组，取消批次里其余未开始的工具；流式输出期间没有工具在执行时直接停止。自然结束与新插话通过同一邮箱锁裁定，调用方要么收到已持久化的确认，要么收到 `Closed`。
 7. **有界并发，写入有屏障。** 相邻、无需许可的读工具组成一组，默认最多四个并行。写工具单独运行，不能穿过前一组读；后续读也不能穿过写。同一 Runtime 的不同 runs 共享组锁，组间保守串行。M29 仍负责 F3 操作级并发、作用域和修订 CAS；这里没有复制整套工具清单。
-8. **不默认限制模型轮数。** `max_model_rounds` 默认 `None`，只有嵌入方明确提供限制才停止；没有隐藏的输出 token 上限。M28 的模型与请求配置由具体 driver 实例持有。
+8. **不默认限制模型轮数。** `max_model_rounds` 默认 `None`，只有作者明确提供限制才停止；没有隐藏的输出 token 上限。[M28](m28-model-providers.md) 已将模型、能力和迭代上限移到每次 `Start` 接收的不可变 `RunConfig`，同一个驱动按该快照分派提供商。
 
 ## 事件和状态机
 
@@ -54,7 +54,7 @@
 ```rust
 let runtime = dr_agent::Runtime::new(ws.clone(), driver, tools, Options::default())?;
 runtime.recover()?; // 库打开后，开始新运行前
-let run = runtime.start(Start { book, conversation, input })?;
+let run = runtime.start(Start { book, conversation, input, config })?;
 let control = run.control.clone();
 control.steer(text).await?;
 control.answer(request_id, answer_json).await?;
@@ -64,7 +64,7 @@ control.abort().await?;
 let terminal = run.finish().await?; // 或非 UI 线程里的 join()
 ```
 
-- `Driver::stream(DriverRequest, Cancellation) -> BoxStream<Result<DriverEvent>>`：不能阻塞工作线程；丢弃流要取消 I/O。`DriverRequest` 带已同步的整个对话、当前 session/turn/round、冻结的工具描述。分片 JSON 的组装归 M28，给运行时的是完整 `ToolCall`。
+- `Driver::stream(DriverRequest, Cancellation) -> BoxStream<Result<DriverEvent>>`：不能阻塞工作线程；丢弃流要取消 I/O。`DriverRequest` 带已同步的整个对话、当前 session/turn/round、冻结的工具描述和运行配置。分片 JSON 的组装归 M28，给运行时的是完整 `ToolCall`。M28 新增原生搜索活动、完整 wire 回放及错误类别，见其模块文档。
 - `ToolExecutor::{descriptors, execute}`：执行返回 `Value` 或 `Question`。`ToolContext` 提供书、来源、取消标记、冻结描述和工作区；同步 F3 命令用 `workspace_call()` 转到独立工作线程，保持控制邮箱可响应。helper 拒绝把写命令标成读，并校验显式 `book`、`doc` 归属；它不是完整的 M29 对象作用域检查。
 - `events(library, session, after_seq)`：读已提交事件；M31 按事件投出消息和当前请求。没有第二套 UI 消息存储。
 - `conversation(library, id)`：读同步投影；文档模型接口与不变量见 [m27-conversation-schema.md](m27-conversation-schema.md)。
@@ -129,13 +129,27 @@ let terminal = run.finish().await?; // 或非 UI 线程里的 join()
 
 ## 待协调
 
-1. **F1 审核**：`DocKind::Conversation`、追加模型及不变量见单独的结构说明。为了让新种类能完整运行，本分支给正文分派补了明确的非正文分支，没有扩大书目/正文模型。
-2. **F2 审核迁移 0007**：此前迁移未改；hash 门禁已登记。`LibraryOptions.validate_import` 是无模型依赖的回调，F3 安装对话验证器；同步更新走 holder 线程先验证后导入。新增的事务内暂停/检查点仅供 F8 强杀试验，默认关闭。
-3. **M28**：实现 driver，按 `complete` 处理未完成消息；保留签名思考的原始 replay；输出 token/模型配置由 adapter 持有。当前一个 Runtime 绑定一个 driver，接多模型时应扩展不可变的每次运行路由/配置，不能在每轮读取可能被界面改过的全局设置；真实服务手测留给作者。
+1. **F1 审核（第十九批已合）**：`DocKind::Conversation`、追加模型及不变量见单独的结构说明。为了让新种类能完整运行，本分支给正文分派补了明确的非正文分支，没有扩大书目/正文模型。
+2. **F2 审核迁移 0007（第二十批已合）**：此前迁移未改；hash 门禁已登记。`LibraryOptions.validate_import` 是无模型依赖的回调，F3 安装对话验证器；同步更新走 holder 线程先验证后导入。新增的事务内暂停/检查点仅供 F8 强杀试验，默认关闭。（F2 已审，见第 8 条。）
+3. **M28（第二十批已合）**：已实现 driver 和不可变的每次运行配置，见 [m28-model-providers.md](m28-model-providers.md)。原要求：按 `complete` 处理未完成消息；保留签名思考的原始 replay；输出 token/模型配置由 adapter 持有。当前一个 Runtime 绑定一个 driver，接多模型时应扩展不可变的每次运行路由/配置，不能在每轮读取可能被界面改过的全局设置；真实服务手测留给作者。
 4. **M29**：从注册表生成工具描述和 schema，处理名称解析、所有参数的书作用域、修订 CAS、上下文筛选；保证只读工具没有副作用，写 future 结束时所有写入都已结束；不要绕过 Actor 或自己重试未知写入。
 5. **M31 / F6**：面板投影与运行生命周期挂接、插话未应用提示、中断继续入口。此模块没有 UI 验收要求，也不注册应用 init。
 6. **M32 / M33**：插件 revision 稳定性、外部结果内容筛选、付费图片请求使用两种许可合同；没有全局「以后都允许」状态。
 7. **M36**：按 `DocInfo.book_id` 把 conversation 文档随书同步；只传 Loro 字节，不能上传本机日志表、权限或结算行号。导入使用 F3 安装的验证回调，不能跳过只追加约束。
+8. **F2 审核结果**（2026-11-08，F2 第七轮）。大白话：迁移、事务、清除的做法都对，F2 顺手改了四处小地方，另有几条意见留给 M27、F1、M36。
+   - **迁移 `0007` 合规矩**：开库前拍安全快照、门禁 `PINNED` 已登记、只有基线的旧库升级测试和旧备份的升级夹具都覆盖到它，不用改。`agent_event` 对 `agent_session` 的外键是库里第一条外键：没有级联，`forget` 先删事件再删会话，没问题；以后动这两张表要记得外键检查开着。
+   - **事务边界没问题**：建会话和追加事件能在同一个 `LocalTx` 里，按序号比较后再写，排在同一把写锁后面，并发写不会分叉；提交后才发事件，回滚什么都不发。每条增量单独一个写事务也不贵：F2 量了 2 万条（`dr-store/tests/agent.rs` 里默认不跑的 `measure_journal_appends`，release，负载 40 多，只作参考），每条中位 0.016 ms、p99 0.15 ms，日志每条约 151 字节；整库读回 2 万条 7 ms。
+   - **F2 改了的四处**（各有测试，拿掉改动测试就失败）：
+     1. 清除一篇文档时，按会话记下的对话 id 删日志，不再看文档的种类名是不是 `conversation`（dr-store 不认种类名）。
+     2. 一本书的最后一篇文档被清除时，这本书各篇文档上的 Agent 结算记录一起删：书已经没了，撤销不了，摘要里可能还引着原文。只删一篇、书还在时，结算照旧留着（会话还要显示）。
+     3. `agent_sessions(Some(书))` 改成走 `agent_session_by_book`：原来 `?1 IS NULL OR book_id = ?1` 的写法会扫全表再排序。
+     4. 导入验证回调 panic 时，这次导入被拒（`StoreError::Invalid { what: "import" }`），什么都不导入，持有者照常工作；回调万一往文档里写了东西，单独存成 `outside` 一行，不混进导入那一行。
+   - **给 M27 的意见**（没改）：
+     - `recover()` 每次开库都把所有会话（包括早就结束的）的日志从头读一遍，还打开每个会话的对话文档。一次请求一个会话，常用的作者一年会有上万个，开库会越来越慢。建议只重放没结束的会话；要判断「结束了、投影也齐了」，可以向 F2 要一条「每个会话的最后一条事件」的查询，一条 SQL 就够。
+     - 日志只增不减。一段两千字的回答大约百来条增量、十几 KB。会话结束、`AssistantMessage` 封口以后，那些增量就重复了；可以结束时删掉，或者定个保留期。要做的话 F2 给一个「删某会话某段序号」的接口，序号不复用。
+     - 事件的键：插入是 `<会话>/<序号>`，清除时是整个 `<会话>`。监听方按表名分就行，别解析键。
+     - 日志在库里，所以跟着整库备份走；在另一台电脑上恢复备份后，没结束的会话会被 `recover()` 标成中断，这是对的。
+   - **给 F1、M36（第二十批按 F1 第七轮校正）**：旧的全快照比较已被替换。现在在文档 fork 上试导入并检查新增操作；删除记录、修改身份或缺少因果依赖都会拒绝。被拒的更新不存、不推进同步游标；缺依赖时先补齐再重送，非法操作要显示同步阻塞，不能静默跳过。仍可批量传输来减少 fork 和校验次数。F3 目前把这些错误都包装成 `what: "conversation import"`，M36 不能据此判定永久错误，需和 F1/F3 协调稳定分类。以 [对话结构说明](m27-conversation-schema.md) 的同步约定为准。
 
 ## 代码位置
 

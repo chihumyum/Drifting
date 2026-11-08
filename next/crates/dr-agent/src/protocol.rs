@@ -7,6 +7,59 @@ pub const PROTOCOL_VERSION: u32 = 1;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+pub enum ModelErrorCategory {
+    Authentication,
+    Quota,
+    Network,
+    Unsupported,
+    InvalidResponse,
+    Cancelled,
+}
+
+/// Safe, stable classification. Never persist raw HTTP bodies or credentials.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, thiserror::Error)]
+#[error("{message}")]
+pub struct ModelFailure {
+    pub category: ModelErrorCategory,
+    pub message: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ProviderReplay {
+    pub provider: crate::Provider,
+    pub items: Vec<Value>,
+    /// Records a provider rejection of native search so the next tool round
+    /// retains the same tool list that signed thinking was produced against.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub native_search: Option<bool>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderToolAction {
+    Search,
+    Open,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderToolStatus {
+    Started,
+    Completed,
+    Failed,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProviderTool {
+    pub id: String,
+    pub action: ProviderToolAction,
+    pub status: ProviderToolStatus,
+    pub query: Option<String>,
+    pub url: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum State {
     Streaming,
     RunningTools,
@@ -34,6 +87,8 @@ pub struct Usage {
     pub input_tokens: u64,
     pub output_tokens: u64,
     pub cached_input_tokens: u64,
+    #[serde(default)]
+    pub cache_write_tokens: u64,
     pub reasoning_tokens: u64,
 }
 
@@ -112,6 +167,8 @@ pub struct AssistantMessage {
     pub blocks: Vec<ContentBlock>,
     pub usage: Usage,
     pub complete: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub replay: Option<ProviderReplay>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -146,6 +203,18 @@ pub struct ToolResult {
 pub enum Event {
     Started {
         version: u32,
+    },
+    Configured {
+        config: crate::RunConfig,
+    },
+    ProviderReplay {
+        replay: ProviderReplay,
+    },
+    ProviderTool {
+        activity: ProviderTool,
+    },
+    ModelFailed {
+        failure: ModelFailure,
     },
     UserMessage {
         text: String,

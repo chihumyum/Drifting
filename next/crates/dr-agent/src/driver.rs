@@ -6,10 +6,11 @@ use dr_model::conversation::ConversationEntry;
 use futures::{StreamExt, channel::oneshot, stream::BoxStream};
 use serde_json::Value;
 use std::collections::VecDeque;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 #[derive(Clone, Debug)]
 pub struct DriverRequest {
+    pub config: Arc<crate::RunConfig>,
     pub session: String,
     pub turn: u32,
     pub round: u32,
@@ -41,6 +42,12 @@ pub enum DriverEvent {
     ToolCall(ToolCall),
     /// Cumulative totals for this model round, not token deltas.
     Usage(Usage),
+    Replay {
+        replay: crate::ProviderReplay,
+    },
+    ProviderTool {
+        activity: crate::ProviderTool,
+    },
     Finish(FinishReason),
 }
 
