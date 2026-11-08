@@ -172,6 +172,7 @@ fn main() {
                 .filter(|b| !b.trim().is_empty()),
         };
         dr_shell::init(info, services, settings, cx);
+        dr_view_agent::mcp::init(platform, dirs.as_ref(), cx);
         dr_view_agent::init(platform, cx);
         // ⌘Q hides the app before the quit hooks run (F7).
         dr_shell::quit::hide_first(cx);
@@ -265,8 +266,8 @@ fn main() {
 
 /// The stdio bridge to a running Drifting, M32's (the 0.1 version is
 /// `local::cli` in `src-tauri/src/mcp_server.rs`).
-fn run_mcp_bridge(_connection: &Path) -> Result<(), String> {
-    Err("this build has no MCP bridge yet".into())
+fn run_mcp_bridge(connection: &Path) -> Result<(), String> {
+    dr_mcp::bridge::run(connection)
 }
 
 fn open_workspace(cx: &mut App) {

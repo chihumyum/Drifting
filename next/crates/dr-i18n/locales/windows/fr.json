@@ -5,6 +5,11 @@
     }
   },
   "settings": {
+    "agent": {
+      "extensions": {
+        "secretHint": "Les secrets restent dans le Gestionnaire d’identification Windows. Laissez une valeur existante vide pour la conserver."
+      }
+    },
     "codexSubscription": {
       "failure": {
         "storage_failed": "Impossible d’enregistrer la connexion dans le Gestionnaire d’identification Windows."

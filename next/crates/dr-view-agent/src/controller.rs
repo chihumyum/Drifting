@@ -10,7 +10,9 @@ use std::{
     sync::{Arc, Mutex, Weak},
 };
 
-use dr_agent::{Control, Driver, Options, RunHandle, Runtime, Start, ToolExecutor};
+use dr_agent::{
+    Control, Driver, ExternalScope, ExternalStart, Options, RunHandle, Runtime, Start, ToolExecutor,
+};
 use dr_model::{
     DocId,
     id::{BookId, ConversationId},
@@ -43,6 +45,7 @@ struct Inner {
 struct ServiceState {
     resources: Option<Arc<Resources>>,
     runs: HashMap<String, ActiveRun>,
+    external: HashMap<String, ExternalScope>,
     starting: HashSet<ConversationId>,
     close: Option<Completion>,
 }
@@ -156,6 +159,7 @@ impl AgentController {
         let runtime =
             Runtime::new(workspace.clone(), driver, tools, Options::default()).map_err(string)?;
         runtime.recover().map_err(string)?;
+        runtime.recover_external().map_err(string)?;
         let (monitor, incoming) = mpsc::unbounded();
         let inner = Arc::new(Inner {
             state: Mutex::new(ServiceState {
@@ -167,6 +171,7 @@ impl AgentController {
                     reads: Arc::default(),
                 })),
                 runs: HashMap::new(),
+                external: HashMap::new(),
                 starting: HashSet::new(),
                 close: None,
             }),
@@ -272,6 +277,30 @@ impl AgentController {
             .runs
             .get(session)
             .map(|run| run.control.clone())
+    }
+
+    /// Background initialization with the same opening reservation as chat
+    /// starts. Public scopes contain no Workspace once their worker closes.
+    pub fn open_external(&self, start: ExternalStart) -> Result<ExternalScope, String> {
+        let lease = self.read_lease()?;
+        let scope = lease
+            .resources()
+            .runtime
+            .open_external(start)
+            .map_err(string)?;
+        let mut state = self.inner.state.lock().expect("Agent service");
+        if state.resources.is_none() {
+            drop(state);
+            futures::executor::block_on(scope.close()).map_err(string)?;
+            return Err(closed());
+        }
+        // Closed handles carry no library resources. Discard their registry
+        // slots when the next connection arrives; callers may retain clones.
+        state.external.retain(|_, scope| !scope.is_settled());
+        state
+            .external
+            .insert(scope.session().to_owned(), scope.clone());
+        Ok(scope)
     }
 
     pub fn is_closed(&self) -> bool {
@@ -422,6 +451,10 @@ impl AgentController {
             .as_ref()
             .map(|resources| resources.reads.drained());
         let runs = std::mem::take(&mut state.runs);
+        let external = std::mem::take(&mut state.external)
+            .into_values()
+            .map(|scope| scope.close())
+            .collect::<Vec<_>>();
         // Nonblocking delivery freezes and signals every run now. The returned
         // futures only wait for durable acknowledgements; none is polled while
         // the service mutex is held or before close returns to the UI.
@@ -433,7 +466,7 @@ impl AgentController {
             // An already terminal run may close its control mailbox before
             // its completion arrives; only the completion is the boundary.
             join_all(aborts).await;
-            let (completed, reads) = futures::join!(
+            let (completed, reads, external) = futures::join!(
                 join_all(runs.into_values().map(|run| run.completion)),
                 async move {
                     match reads {
@@ -441,6 +474,7 @@ impl AgentController {
                         None => Ok(()),
                     }
                 },
+                join_all(external),
             );
             if let Some(resources) = &resources {
                 // Run cancellation can drop a read future while its F3 OS
@@ -450,6 +484,9 @@ impl AgentController {
             }
             drop(resources);
             reads?;
+            for result in external {
+                result.map_err(string)?;
+            }
             for result in completed {
                 result?;
             }
@@ -482,6 +519,9 @@ impl Drop for Inner {
         // A missing shell close must not strand a question forever. This is
         // only a cancellation fallback; the shell still has to await close.
         if let Ok(state) = self.state.get_mut() {
+            for scope in state.external.values() {
+                drop(scope.close());
+            }
             for run in state.runs.values() {
                 drop(run.control.abort());
             }

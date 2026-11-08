@@ -164,3 +164,34 @@ M31 接入换库与退出后补充了资源释放边界：只读 future 可取�
 - `next/crates/dr-model/src/conversation.rs`、`dr-doc/src/conversation.rs`：同步对话结构。
 - `next/crates/dr-store/src/agent.rs`、`migrations/0007_agent_runtime.sql`：本机日志。
 - F3、dr-index、dr-export 中的新文档种类分派，以及相应回归测试。
+
+## M32 补充：外部工具入口与本机审计
+
+M32 的 MCP 入站调用复用同库的 `Runtime`、`ToolExecutor` 和 `tool_gate`。它们没有模型循环，也不创建对话文档或普通聊天日志；M31 的聊天列表因此不需要按来源过滤。MCP 只公开 M29 注册表生成的作者工具，服务端把规范名称和冻结的 revision 包进现有 `call_tool`，书作用域、读后写要求、冲突计数和按来源撤销仍由 M29/F3 执行。
+
+| 接口 | 合同 |
+| --- | --- |
+| `ExternalStart { client_id, book, connection_epoch }` | `client_id` 为非空、至多 256 字节的授权标识；书与应用选择代次在开作用域时冻结。每条新连接取得独立 session，固定 `turn = 1`；切书后切回也不能复用此前的读覆盖。 |
+| `Runtime::open_external(start)` / `AgentController::open_external(start)` | 在后台同步初始化持久 header；控制器用 opening reservation 覆盖尚未返回的初始化，关闭不会漏等。 |
+| `scope.call(ExternalCall { name, arguments, revision })` | 同步内存入队，运行时生成 call id；返回 `ExternalCallHandle`，`finish().await` 才确认执行与结算完成。输入 JSON 上限 512 KiB。 |
+| `scope.call_checked(request, guard)` | 拿到共享工具锁并写入 Started 后，进入执行器前调用短暂、无 I/O 的授权检查。MCP 在这里复核 grant、当前书和代次，排队时撤权的调用不会执行。 |
+| `handle.cancel()` / 丢弃 handle | 发出取消，不丢弃已进入的工作线程；不能据此推断写入未提交。 |
+| `scope.close()` | 当场冻结入队并取消待执行调用，后台立即推进清理；返回的 future 等实际工作线程、结算及资源释放。即使调用方不轮询此 future，清理仍继续。 |
+| `scope.session()` / `book()` / `connection_epoch()` / `is_closed()` / `is_settled()` | 提供来源与生命周期查询。closed 表示不再接受调用，settled 才表示工作资源已释放；保留已关闭的克隆不会持有 Workspace。 |
+
+外部入口只接受 `ToolPolicy::Local`，执行前重新核对冻结的工具描述和 revision；`Question` 输出明确失败，不能借外部 session 跳过插件或生图许可。`ToolOutput::Stop` 由核心冻结整个作用域；同一连接后续调用得到 Closed，MCP 保留终止记录，要求显式重连，不自动开新 session 绕过连续冲突限制。
+
+外部调用取消后仍等待已经进入的读与写。`ToolContext` 的私有执行 lease 随真实工作线程的最后一个 context 克隆释放；该调用的完成通知先等 Workspace 引用释放，再放开共享工具锁。作用域关闭只等自己的工作，控制器切库/退出则等全部 chat、external scope、opening/read reservations，最后调用 `Runtime::drain_tools()`，再释放库引用。原有聊天读取消语义不变。
+
+审计使用 F2 已有 `local_state` 的两个固定 scope：`agent.external.sessions` 与 `agent.external.events`，不增加迁移。header 格式版本为 1，`source = external_mcp`，含 session、冻结的 start、序号和状态；事件记录 accepted、started、receipts、finished、closed。每次追加通过同一 `LocalTx` 校验 header 的身份、状态和上一序号，将所有事件和新 header 原子提交。创建时在该事务内确认书还存在；header 消失后不得补建，因此已清除的书不会因迟到的调用复活审计。
+
+F2 每行上限仍是 1 MiB。超过 512 KiB 的结果正文在审计中保存明确的 `truncated`、字节数和 SHA-256；所有真实结算引用按每页 512 条拆分，与 finished 同一事务提交，不截断收据。RPC 自身的响应限制由 M32 传输层负责，不能把审计摘要误当成完整工具结果。
+
+`Runtime::recover_external()` 在控制器允许新调用前运行：校验 header 与连续日志；对 accepted 但没有 finished 的调用，按 session/turn/call 读取 F3/F2 的真实结算，补 Interrupted 结果并结束作用域。恢复不执行工具、不恢复读覆盖、不重放未知写入、不生成聊天投影；日志缺页或无法核对结算则报错，保留恢复机会。外部审计随书的本机数据清除，不上传同步。
+
+代码与契约测试：
+
+- `next/crates/dr-agent/src/runtime/external.rs`、`runtime/external/journal.rs`：入口、共享调度、关闭与恢复；`tools.rs`：每次执行的完成 lease。
+- `next/crates/dr-agent/src/runtime/external/tests.rs`：Local/Question/Stop、共享锁、冻结 revision、排队后撤权、真实收据恢复、CAS/缺页与超限结果及收据分页。
+- `next/crates/dr-view-agent/src/controller.rs`、`tests/external.rs`：开作用域 reservation、真实 M29 读写/撤销、切代次失去覆盖、受阻读写取消结算、关闭后 `try_shutdown`。
+- `next/crates/dr-mcp/src/{host,inbound,bridge}.rs`、`tests/inbound.rs`：应用选择与连接生命周期，真实 Unix/回环/stdio 桥的 M29 主链、断线和初始化中的关闭屏障。应用的 F6 挂接在 `dr-view-agent/src/mcp.rs`，外部授权和插件配置的独立边界见 M32 模块文档。

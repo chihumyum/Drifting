@@ -15,6 +15,7 @@ dr-agent-providers.workspace = true
 dr-agent-tools.workspace = true
 dr-doc.workspace = true
 dr-i18n.workspace = true
+dr-mcp.workspace = true
 dr-model.workspace = true
 dr-platform.workspace = true
 dr-shell.workspace = true
@@ -28,6 +29,7 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
+tokio-util.workspace = true
 url.workspace = true
 uuid.workspace = true
 

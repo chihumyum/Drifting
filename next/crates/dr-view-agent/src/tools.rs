@@ -13,6 +13,16 @@ use serde_json::json;
 #[derive(Default)]
 pub struct CompanionTools {
     book: AgentTools,
+    plugins: Option<dr_mcp::PluginTools>,
+}
+
+impl CompanionTools {
+    pub fn with_plugins(slot: dr_mcp::PluginSlot) -> Self {
+        Self {
+            book: AgentTools::new(),
+            plugins: Some(dr_mcp::PluginTools::new(slot)),
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -36,17 +46,27 @@ impl ToolExecutor for CompanionTools {
     fn descriptors(&self) -> Vec<ToolDescriptor> {
         let mut descriptors = self.book.descriptors();
         descriptors.push(ask_descriptor());
+        if let Some(plugins) = &self.plugins {
+            descriptors.extend(plugins.descriptors());
+        }
         descriptors
     }
     fn describe(&self, call: &ToolCall) -> Option<ToolDescriptor> {
         if call.name == "ask_user" {
             Some(ask_descriptor())
         } else {
-            self.book.describe(call)
+            self.book.describe(call).or_else(|| {
+                self.plugins
+                    .as_ref()
+                    .and_then(|plugins| plugins.describe(call))
+            })
         }
     }
     fn finish_session(&self, session: &str) {
         self.book.finish_session(session);
+        if let Some(plugins) = &self.plugins {
+            plugins.finish_session(session);
+        }
     }
     fn execute(
         &self,
@@ -54,6 +74,11 @@ impl ToolExecutor for CompanionTools {
         call: ToolCall,
     ) -> BoxFuture<'static, dr_agent::Result<ToolOutput>> {
         if call.name != "ask_user" {
+            if let Some(plugins) = &self.plugins
+                && plugins.describe(&call).is_some()
+            {
+                return plugins.execute(context, call);
+            }
             return self.book.execute(context, call);
         }
         async move {

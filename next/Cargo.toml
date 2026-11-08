@@ -19,6 +19,7 @@ members = [
     "crates/dr-i18n",
     "crates/dr-import-v1",
     "crates/dr-index",
+    "crates/dr-mcp",
     "crates/dr-mirror",
     "crates/dr-model",
     "crates/dr-platform",
@@ -73,6 +74,7 @@ publish = false
 dr-agent = { path = "crates/dr-agent" }
 dr-agent-providers = { path = "crates/dr-agent-providers" }
 dr-agent-tools = { path = "crates/dr-agent-tools" }
+dr-mcp = { path = "crates/dr-mcp" }
 dr-view-agent = { path = "crates/dr-view-agent" }
 url = "2.5"
 # GPUI is pinned to a Zed stable release tag (decision D1). Upgrade on a
@@ -264,7 +266,14 @@ dr-view-update = { path = "crates/dr-view-update" }
 futures = "0.3"
 httpdate = "1.0"
 # M28: one shared async transport executor, also used by catalog and OAuth.
-tokio = { version = "1.48", features = ["rt-multi-thread", "net", "time", "sync", "macros"] }
+tokio = { version = "1.48", features = ["rt-multi-thread", "net", "time", "sync", "macros", "io-util", "process"] }
+# M32: the official MCP protocol SDK; transports share one app-owned reactor.
+rmcp = { version = "3.9", default-features = false, features = ["client", "server", "transport-async-rw", "transport-io", "transport-child-process", "transport-streamable-http-client-reqwest"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+toml_edit = "0.25"
+process-wrap = { version = "10.0", features = ["tokio1"] }
+sse-stream = "0.2"
+bytes = "1.12"
 
 icu_plurals = { version = "2.4", default-features = false, features = ["compiled_data"] }
 # M40 names files as 0.1 did (NFKC first); already in the tree through url.

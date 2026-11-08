@@ -1,0 +1,12 @@
+---
+source: crates/dr-mcp/src/client_config.rs
+expression: edited
+---
+# Keep user comments
+model = 'synthetic-model'
+[mcp_servers.other]
+command = 'other' # owned by user
+
+[mcp_servers.drifting_synthetic]
+command = "/synthetic/writer"
+args = ["--mcp", "--connection", "/synthetic/connection.json"]
