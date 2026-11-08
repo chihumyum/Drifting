@@ -813,6 +813,10 @@ fn ambiguous_or_unsupported_sources_stop_before_v3_writes() {
             "field-default-value-interface-missing",
         ),
         (
+            "UPDATE element SET kv_json='{broken'",
+            "unreadable-source-kv-projection",
+        ),
+        (
             "UPDATE storylines SET node_content_template_json='{broken'",
             "unreadable-source-template",
         ),
@@ -828,6 +832,22 @@ fn ambiguous_or_unsupported_sources_stop_before_v3_writes() {
             "UPDATE timeline_marker SET drift_node_id='missing'",
             "pin-binding-missing-idea",
         ),
+        (
+            "UPDATE entity_snapshot_history SET meta_json='{broken' WHERE id='h-1'",
+            "unreadable-history-metadata",
+        ),
+        (
+            "UPDATE entity_snapshot_history SET meta_json='{\"writingStatus\":\"drifting\"}' WHERE id='h-1'",
+            "incompatible-history-node-status",
+        ),
+        (
+            "UPDATE entity_snapshot_history SET content_json=NULL WHERE id='h-1'",
+            "history-preview-missing",
+        ),
+        (
+            "UPDATE entity_snapshot_history SET entity_id='missing' WHERE id='h-1'",
+            "orphan-history-source",
+        ),
     ];
     for (sql, code) in cases {
         let old = fixture::build();
@@ -841,6 +861,38 @@ fn ambiguous_or_unsupported_sources_stop_before_v3_writes() {
         assert!(
             matches!(&error,dr_import_v1::ImportError::V3Pending(p) if p.iter().any(|p| p.code == code)),
             "{sql}: {error}"
+        );
+        assert!(!root.join("library.sqlite").exists());
+    }
+}
+
+#[test]
+fn duplicate_historical_values_do_not_overwrite_one_structured_field() {
+    use serde_json::json;
+    for (entity_kind, entity_id, metadata, code) in [
+        (
+            "element",
+            ELEMENT,
+            json!({"kvJson":json!([{"key":"年龄","value":"1"},{"key":"年龄","value":"2"}]).to_string()}),
+            "duplicate-history-value-for-template-field",
+        ),
+        (
+            "category",
+            CATEGORY,
+            json!({"elementTemplateKvJson":json!([{"key":"年龄","value":""},{"key":"年龄","value":""}]).to_string()}),
+            "ambiguous-history-template-field",
+        ),
+    ] {
+        let old = fixture::build();
+        let c = rusqlite::Connection::open(&old.db).unwrap();
+        c.execute("UPDATE entity_snapshot_history SET entity_kind=?1,entity_id=?2,meta_json=?3 WHERE id='h-3'",rusqlite::params![entity_kind,entity_id,metadata.to_string()]).unwrap();
+        drop(c);
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("library");
+        let error = run::import(&old.db, &root, &options(&old)).unwrap_err();
+        assert!(
+            matches!(&error,dr_import_v1::ImportError::V3Pending(p) if p.iter().any(|p| p.code == code)),
+            "{error}"
         );
         assert!(!root.join("library.sqlite").exists());
     }

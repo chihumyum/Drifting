@@ -57,14 +57,63 @@ pub(crate) fn plan(options: &Options, mut plan: Plan) -> Plan {
 /// identity, writes no receipt and never repairs the old library.
 pub fn pending(legacy: &Legacy, choices: &MappingChoices) -> Result<Vec<Pending>> {
     let mut pending = Vec::new();
+    let mut node_kinds = BTreeMap::new();
+    let mut element_categories = BTreeMap::new();
+    let mut category_fields: BTreeMap<_, BTreeSet<String>> = BTreeMap::new();
     for project in legacy.projects()? {
         let rows = legacy.book(&project.id)?;
+        for node in &rows.nodes {
+            node_kinds.insert(
+                (project.id.clone(), node.id.clone()),
+                dr_model::kind::NodeKind::parse(&node.kind),
+            );
+        }
+        for element in &rows.elements {
+            if let Some(category) = &element.category {
+                element_categories
+                    .insert((project.id.clone(), element.id.clone()), category.clone());
+            }
+        }
+        for field in rows
+            .kv
+            .iter()
+            .filter(|f| f.owner_kind == "element-category" && f.namespace == "element-template")
+        {
+            category_fields
+                .entry((project.id.clone(), field.owner_id.clone()))
+                .or_default()
+                .insert(field.key.clone());
+        }
         let mut add = |code: &str, source: &str| {
             pending.push(Pending {
                 code: code.into(),
                 source: source.into(),
             })
         };
+        for (owner, json) in [
+            (project.id.as_str(), rows.project_kv_json.as_str()),
+            (project.id.as_str(), rows.project_template_kv_json.as_str()),
+        ]
+        .into_iter()
+        .chain(
+            rows.categories
+                .iter()
+                .map(|r| (r.id.as_str(), r.template_kv_json.as_str())),
+        )
+        .chain(
+            rows.elements
+                .iter()
+                .map(|r| (r.id.as_str(), r.kv_json.as_str())),
+        )
+        .chain(
+            rows.storyline_kv_json
+                .iter()
+                .map(|(id, json)| (id.as_str(), json.as_str())),
+        ) {
+            if !valid_kv_json(json) {
+                add("unreadable-source-kv-projection", owner);
+            }
+        }
         let mut ids = BTreeSet::new();
         for id in rows
             .nodes
@@ -122,6 +171,9 @@ pub fn pending(legacy: &Legacy, choices: &MappingChoices) -> Result<Vec<Pending>
             }
         }
         for element in &rows.elements {
+            if serde_json::from_str::<Vec<String>>(&element.aliases_json).is_err() {
+                add("unreadable-source-aliases", &element.id);
+            }
             let Some(category) = element.category.as_ref().and_then(|c| {
                 rows.categories
                     .iter()
@@ -310,15 +362,101 @@ pub fn pending(legacy: &Legacy, choices: &MappingChoices) -> Result<Vec<Pending>
     }
     let (owners, _) = legacy.prose_owners()?;
     let history = legacy.history()?;
+    let sources: BTreeSet<_> = owners
+        .iter()
+        .map(|owner| (owner.project_id.clone(), owner.old_doc_id()))
+        .collect();
     for row in &history {
-        if let Some(meta) = row.meta.as_deref().and_then(crate::meta::parse)
-            && meta
-                .template_kv
-                .as_ref()
-                .is_some_and(|fields| fields.iter().any(|(_, value)| !value.is_empty()))
+        let mut add = |code: &str| {
+            pending.push(Pending {
+                code: code.into(),
+                source: row.id.clone(),
+            })
+        };
+        if !sources.contains(&(row.project_id.clone(), row.old_doc_id())) {
+            add("orphan-history-source");
+        }
+        if row.preview.is_none() {
+            add("history-preview-missing");
+        }
+        let Some(json) = row.meta.as_deref() else {
+            continue;
+        };
+        let Some(meta) = crate::meta::parse(json) else {
+            add("unreadable-history-metadata");
+            continue;
+        };
+        let value: Value = serde_json::from_str(json)?;
+        for key in ["kvJson", "elementTemplateKvJson"] {
+            if let Some(encoded) = value.get(key)
+                && encoded.as_str().is_none_or(|text| !valid_kv_json(text))
+            {
+                add("unreadable-history-metadata");
+            }
+        }
+        for key in ["title", "summary", "name", "writingStatus"] {
+            if value.get(key).is_some_and(|v| !v.is_string()) {
+                add("unreadable-history-metadata");
+            }
+        }
+        if value.get("aliases").is_some_and(|v| {
+            v.as_array()
+                .is_none_or(|aliases| aliases.iter().any(|a| !a.is_string()))
+        }) {
+            add("unreadable-history-metadata");
+        }
+        if value
+            .get("groupName")
+            .is_some_and(|v| !v.is_null() && !v.is_string())
+        {
+            add("unreadable-history-metadata");
+        }
+        if let Some(status) = meta.writing_status
+            && let Some(kind) = node_kinds.get(&(row.project_id.clone(), row.entity_id.clone()))
+            && !dr_model::kind::NodeStatus::parse(&status).fits(kind)
+        {
+            add("incompatible-history-node-status");
+        }
+        if let Some(fields) = meta.template_kv {
+            let mut names = BTreeSet::new();
+            for (key, value) in fields {
+                if !names.insert(key.clone()) {
+                    add("ambiguous-history-template-field");
+                }
+                if !value.is_empty() {
+                    add("field-default-value-interface-missing");
+                }
+                category_fields
+                    .entry((row.project_id.clone(), row.entity_id.clone()))
+                    .or_default()
+                    .insert(key);
+            }
+        }
+    }
+    for row in &history {
+        let Some(category) =
+            element_categories.get(&(row.project_id.clone(), row.entity_id.clone()))
+        else {
+            continue;
+        };
+        let Some(fields) = category_fields.get(&(row.project_id.clone(), category.clone())) else {
+            continue;
+        };
+        let Some(facts) = row
+            .meta
+            .as_deref()
+            .and_then(crate::meta::parse)
+            .and_then(|meta| meta.kv)
+        else {
+            continue;
+        };
+        let mut keys = BTreeSet::new();
+        if facts
+            .iter()
+            .any(|(key, _)| fields.contains(key) && !keys.insert(key))
         {
             pending.push(Pending {
-                code: "field-default-value-interface-missing".into(),
+                code: "duplicate-history-value-for-template-field".into(),
                 source: row.id.clone(),
             });
         }
@@ -337,6 +475,15 @@ pub fn pending(legacy: &Legacy, choices: &MappingChoices) -> Result<Vec<Pending>
     pending.sort_by(|a, b| (&a.code, &a.source).cmp(&(&b.code, &b.source)));
     pending.dedup();
     Ok(pending)
+}
+
+fn valid_kv_json(json: &str) -> bool {
+    serde_json::from_str::<Vec<Value>>(json).is_ok_and(|rows| {
+        rows.iter().all(|row| {
+            row.get("key").and_then(Value::as_str).is_some()
+                && row.get("value").and_then(Value::as_str).is_some()
+        })
+    })
 }
 
 fn inspect_json(source: &str, json: &str, pending: &mut Vec<Pending>) {
