@@ -70,6 +70,7 @@ fn owner(doc: &str) -> Option<EntityRef> {
         DocKind::Storyline => EntityKind::Storyline,
         DocKind::Category => EntityKind::Category,
         DocKind::Material => EntityKind::Material,
+        DocKind::Body => EntityKind::Entry,
         DocKind::Book | DocKind::Template | DocKind::Conversation => return None,
     };
     Some(EntityRef::new(kind, d.entity_id().to_owned()))

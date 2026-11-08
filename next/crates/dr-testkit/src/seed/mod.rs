@@ -21,6 +21,7 @@ mod digest;
 mod plan;
 mod preset;
 mod shape;
+pub mod v3;
 
 use dr_doc::Result;
 
@@ -29,6 +30,9 @@ pub use commands::CommandBook;
 pub use digest::digest;
 pub use preset::{Budget, Preset, Spec, allocate};
 pub use shape::{GroupShape, Shape};
+pub use v3::{
+    BuilderV3, SeededBookV3, SeededV3, book_to_v3, digest_v3, generate_v3, write_book_v3,
+};
 
 pub(crate) use build::{Builder, day_before_t0, id as build_id, positions};
 

@@ -33,6 +33,7 @@ pub mod pos;
 pub mod prose;
 pub mod schema;
 pub mod undo;
+pub mod v3;
 
 pub use crate::core::{Committed, Imported};
 pub use anchor::{Anchor, AnchorCache, Resolved};

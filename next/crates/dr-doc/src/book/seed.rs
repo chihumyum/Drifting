@@ -75,7 +75,7 @@ pub(super) fn projection_target(doc: &DocId) -> Result<EntityRef> {
         DocId::Element(_) => EntityKind::Element,
         DocId::Storyline(_) => EntityKind::Storyline,
         DocId::Category(_) => EntityKind::Category,
-        DocId::Book(_) | DocId::Template(_) | DocId::Conversation(_) => {
+        DocId::Book(_) | DocId::Body(_) | DocId::Template(_) | DocId::Conversation(_) => {
             return Err(DocError::NotInProfile(
                 "a TODO projected from a document that is not the book's text",
             ));

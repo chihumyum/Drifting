@@ -124,6 +124,16 @@ str_like!(
     MemoryKind,
     MemoryStatus,
     MemorySource,
+    EntryId,
+    ModuleId,
+    EntryTemplateId,
+    TimelineViewId,
+    BodyDocId,
+    dr_model::v3::TemplateKind,
+    dr_model::v3::ModuleKind,
+    dr_model::v3::ChildDisplayMode,
+    dr_model::v3::FormatShortcuts,
+    dr_model::v3::FieldType,
 );
 
 /// Set `key` on `map` to `v` (or remove it).
