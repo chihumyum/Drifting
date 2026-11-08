@@ -309,13 +309,28 @@ pub(crate) fn backfill_element(
     aliases: &[String],
     added: &[String],
 ) -> Result<usize> {
+    backfill_element_leaving(cx, slot, id, name, aliases, added, None)
+}
+
+/// [`backfill_element`] when entity `leaving` goes in the same command (an
+/// idea turned into this element): its names no longer count.
+pub(crate) fn backfill_element_leaving(
+    cx: &Cx<'_>,
+    slot: &BookSlot,
+    id: &dr_model::id::ElementId,
+    name: &str,
+    aliases: &[String],
+    added: &[String],
+    leaving: Option<&str>,
+) -> Result<usize> {
     if !backfills(cx) || added.is_empty() {
         return Ok(0);
     }
     let target = LinkTarget::new(EntityKind::Element, id.as_str());
-    let mut names: Vec<LinkName<LinkTarget>> = book_link_names(&slot.reader.view(), &[])
-        .into_iter()
-        .filter(|n| n.target != target)
+    let mut names: Vec<LinkName<LinkTarget>> = book_names(slot)
+        .iter()
+        .filter(|n| n.target != target && Some(n.target.id.as_str()) != leaving)
+        .cloned()
         .collect();
     // Its names among the elements', before the titles (the order dr-text
     // gives them once the book write lands).
@@ -341,9 +356,10 @@ pub(crate) fn backfill_title(
         return Ok(0);
     }
     let target = LinkTarget::new(EntityKind::Node, id.as_str());
-    let mut names: Vec<LinkName<LinkTarget>> = book_link_names(&slot.reader.view(), &[])
-        .into_iter()
+    let mut names: Vec<LinkName<LinkTarget>> = book_names(slot)
+        .iter()
         .filter(|n| n.target != target)
+        .cloned()
         .collect();
     names.push(LinkName::new(title, target.clone()));
     backfill(cx, slot, &target, &names, &[title.to_string()])

@@ -11,11 +11,8 @@
   - 备份在几百 MB 的合成库上量（空闲时）；
   - ~~迁移 0007 的审查意见~~：F2 第七轮已交，第二十批整合；M27 恢复与日志建议转 Codex 队列，M36 拒绝更新的处理以 M27 的现行文档为准。
 - **F3 dr-workspace**（[f3-workspace.md](../foundations/f3-workspace.md)）
-  - `chapter.create` 带叙事位置（分支上可能已做）；
-  - M16 要的「构想转章节、要素」「绑幕、时间钉」命令。M10 那一路已经按下面的形状接好了界面，名字或字段不同就改界面那一行：
-    - `idea.convert { book, id, to: "chapter", storyline }`：原地改成章节，同一个 id 和正文历史。kind=chapter，主故事线=storyline，状态 draft，书序排到最后，清掉分组，解绑绑着它的时间钉和幕（旧版 `NodeEditorView` 的 `handleConfirmConversion`）。返回 `{ id }`。
-    - `idea.convert { book, id, to: "element", category }`：新建要素（名字取构想标题，简介取构想简介，正文用 `insert_copy` 整篇抄过去，格式和链接都在），再把构想放进回收站。返回新要素的 `{ id }`。
-    - 两种都要一步撤销。
+  - ~~`chapter.create` 带叙事位置~~：F3 第十轮已做，第二十一批整合；时间线 UI 仍需改成一次调用。
+  - ~~M16 要的构想转换、绑幕和时间钉命令~~：F3 第十轮已交。实际接口为 `idea.to_chapter { book, id, storyline? }`（返回 `{ id, title, book_order }`）和 `idea.to_element { book, id, category?, name? }`（返回 `{ id, name }`），不是旧约定的 `idea.convert`。两种转换一步撤销；绑定使用已有 `act.update`、`time_pin.create/update`。M16 界面需按实际接口接线，见 F3 文档。
   - 空闲时跑 bench，补补链提速的证据。
   - F2 第七轮已提前设提交选项；F3 的相同设置可择机去重（不影响行为）。
   - M29 后续需要：按稳定 block id 和版本的结构／富文本编辑、恢复点标签与版本检查原子挂接、带版本的准确级联影响查询。M29 本批未合，先修 Codex 队列里的两个隐藏关系读写屏障问题。
@@ -41,7 +38,7 @@
 
 - **M01–M02**（[m01-shelf.md](../modules/m01-shelf.md)、[m02-home.md](../modules/m02-home.md)）
   - 时间线片段和泳道卡的截图（等 F6 能固定打开卡）；
-  - 叙事时双击新建一步撤销（等 F3）。
+  - 叙事时双击新建一步撤销（F3 第十轮已给 `chapter.create.narrative_order`，待 M14 换成一次调用）。
 - **M03**：⁂ 的键盘操作（等 F6 键盘框架）；构想页页眉写出它所在的组。
 - **M09**：帮手里进历史快照的入口（等 M31）。
 - **M16**（M10 那一路，分支上在做）：第二个里程碑：转成章节或要素、绑幕或时间钉、浮动托盘；真窗口点一遍。

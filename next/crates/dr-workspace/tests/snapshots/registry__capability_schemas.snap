@@ -2333,6 +2333,14 @@ expression: json
         "book": {
           "type": "string"
         },
+        "narrative_order": {
+          "description": "Its place on the narrative axis (story time), written with the\nchapter: a double click on the timeline's story time is one step.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
         "place": {
           "anyOf": [
             {
@@ -2398,7 +2406,7 @@ expression: json
       "title": "ChapterCreated",
       "type": "object"
     },
-    "summary": "Create a chapter (a taken title gets a numbered suffix; the final title is returned). Given a storyline and no text, it starts from that storyline's chapter template."
+    "summary": "Create a chapter (a taken title gets a numbered suffix; the final title is returned), optionally placed on story time too. Given a storyline and no text, it starts from that storyline's chapter template."
   },
   {
     "access": "read",
@@ -5478,6 +5486,111 @@ expression: json
       "type": "object"
     },
     "summary": "Bring an idea back from the trash (its bindings come back with it)."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "storyline": {
+          "description": "The chapter's storyline (it becomes its primary one).",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "IdeaToChapterIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "idea.to_chapter",
+    "output": {
+      "properties": {
+        "book_order": {
+          "format": "double",
+          "type": "number"
+        },
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "description": "The final title (with a suffix if the asked one was taken).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "book_order"
+      ],
+      "title": "ChapterCreated",
+      "type": "object"
+    },
+    "summary": "Turn an idea into a chapter, keeping its page, text, comments and relations: it becomes a draft after the last chapter, on the given storyline and out of its idea group; acts and time pins bound to it are unbound (a pin with no label keeps the idea's title)."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "category": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "description": "Default: the idea's title. A name another element has is refused.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "IdeaToElementIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "idea.to_element",
+    "output": {
+      "description": "The entity a command created or renamed, with its final name.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Named",
+      "type": "object"
+    },
+    "summary": "Turn an idea into a new element: its title becomes the name, its summary and text move over (the element starts with its category's template fields), and the idea goes to the trash. A name another element has is refused."
   },
   {
     "access": "write",
