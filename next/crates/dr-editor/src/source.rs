@@ -88,51 +88,6 @@ pub struct SessionSource {
     /// Write other origins straight through the holder (tests).
     foreign_writes: bool,
     _subscription: Subscription,
-    _open: OpenGuard,
-}
-
-/// The prose documents an editor has open in this process (a session's
-/// undo history would not survive another writer's author commit; see
-/// [`is_open`]), with how many sources each.
-fn open_docs() -> &'static std::sync::Mutex<std::collections::HashMap<String, usize>> {
-    static OPEN: std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<String, usize>>> =
-        std::sync::OnceLock::new();
-    OPEN.get_or_init(Default::default)
-}
-
-/// Whether an editor in this process has prose document `doc_id` open.
-pub fn is_open(doc_id: &str) -> bool {
-    open_docs()
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .get(doc_id)
-        .is_some_and(|n| *n > 0)
-}
-
-/// Counts a source in [`open_docs`] while it lives.
-struct OpenGuard(String);
-
-impl OpenGuard {
-    fn new(doc_id: &str) -> OpenGuard {
-        *open_docs()
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .entry(doc_id.to_owned())
-            .or_default() += 1;
-        OpenGuard(doc_id.to_owned())
-    }
-}
-
-impl Drop for OpenGuard {
-    fn drop(&mut self) {
-        let mut open = open_docs().lock().unwrap_or_else(|e| e.into_inner());
-        if let Some(n) = open.get_mut(&self.0) {
-            *n = n.saturating_sub(1);
-            if *n == 0 {
-                open.remove(&self.0);
-            }
-        }
-    }
 }
 
 impl SessionSource {
@@ -161,7 +116,6 @@ impl SessionSource {
             taken: 0,
             foreign_writes: false,
             _subscription: subscription,
-            _open: OpenGuard::new(doc_id),
         })
     }
 

@@ -8,12 +8,13 @@ use dr_editor::{ChapterEditor, EditorSettings, MaterialOpened};
 use dr_store::Library;
 use dr_workspace::{Actor, Workspace, WorkspaceOptions, library_options};
 use gpui::{
-    ClipboardItem, Entity, EntityInputHandler, Focusable, TestAppContext, VisualTestContext, px,
-    size,
+    ClipboardItem, Entity, EntityInputHandler, Focusable, Modifiers, MouseButton, Point,
+    TestAppContext, VisualTestContext, px, size,
 };
 use gpui_prose::ProseEditor;
 use gpui_prose::input::actions::{
-    Copy, IndentListItem, MoveDown, Newline, OutdentListItem, Paste, Undo,
+    Backspace, Copy, Cut, IndentListItem, MoveDown, MoveRight, Newline, OutdentListItem, Paste,
+    SelectAll, SelectDown, SelectRight, ToggleBold, Undo,
 };
 use serde_json::{Value, json};
 
@@ -229,6 +230,57 @@ impl Open<'_> {
         assert_eq!(rows, [MenuRow::Note(NoteChoice::Table)]);
         self.action(Newline);
     }
+
+    /// A 3 × 3 table filled 甲乙丙 / 丁戊己 / 庚辛壬, the caret in cell (0, 0).
+    fn filled_table(&mut self) {
+        self.slash_table();
+        let table = self.table();
+        table.update_in(self.cx, |t, window, cx| {
+            t.paste_grid(
+                0,
+                0,
+                grid(&[
+                    &["甲", "乙", "丙"],
+                    &["丁", "戊", "己"],
+                    &["庚", "辛", "壬"],
+                ]),
+                window,
+                cx,
+            );
+            t.focus_cell(0, 0, true, window, cx);
+        });
+        draw(self.cx);
+    }
+
+    /// The middle of cell (`row`, `col`) as drawn.
+    fn cell_point(&mut self, row: usize, col: usize) -> Point<gpui::Pixels> {
+        let table = self.table();
+        table
+            .read_with(self.cx, |t, _| t.cell_bounds(row, col))
+            .expect("the cell is drawn")
+            .center()
+    }
+
+    fn selected_cells(&mut self) -> Option<(std::ops::Range<usize>, std::ops::Range<usize>)> {
+        let table = self.table();
+        table.read_with(self.cx, |t, _| t.selected_cells())
+    }
+
+    /// Whether every character of cell (`row`, `col`) has mark `key`.
+    fn cell_has(&mut self, row: usize, col: usize, key: &str) -> bool {
+        let table = self.table();
+        table.read_with(self.cx, |t, cx| {
+            let doc = &t.cell_editor(row, col).unwrap().read(cx).book().chapters[0].doc;
+            let len = doc.max_cursor();
+            len > 0 && doc.range_has_mark(0..len, key)
+        })
+    }
+}
+
+fn grid(rows: &[&[&str]]) -> Vec<Vec<String>> {
+    rows.iter()
+        .map(|r| r.iter().map(|c| c.to_string()).collect())
+        .collect()
 }
 
 #[gpui::test]
@@ -530,4 +582,201 @@ fn a_chapter_has_none_of_it(cx: &mut TestAppContext) {
     assert_eq!(o.slash("表格"), [], "no table in a chapter's slash menu");
     o.type_text(" ==字==");
     assert_eq!(o.lines(), ["/表格 ==字=="], "== stays literal");
+}
+
+#[gpui::test]
+fn dragging_across_cells_selects_them_whole(cx: &mut TestAppContext) {
+    let e = env();
+    let doc = note(&e, "");
+    let mut o = open(cx, &e, &doc);
+    o.filled_table();
+    let (from, to) = (o.cell_point(0, 0), o.cell_point(1, 1));
+    o.cx.simulate_mouse_down(from, MouseButton::Left, Modifiers::none());
+    o.cx.simulate_mouse_move(to, MouseButton::Left, Modifiers::none());
+    draw(o.cx);
+    assert_eq!(o.selected_cells(), Some((0..2, 0..2)));
+    // Back into the first cell: a text selection there again.
+    o.cx.simulate_mouse_move(from, MouseButton::Left, Modifiers::none());
+    draw(o.cx);
+    assert_eq!(o.selected_cells(), None);
+    o.cx.simulate_mouse_move(to, MouseButton::Left, Modifiers::none());
+    o.cx.simulate_mouse_up(to, MouseButton::Left, Modifiers::none());
+    draw(o.cx);
+    assert_eq!(o.selected_cells(), Some((0..2, 0..2)));
+    assert_eq!(
+        o.focused_cell(),
+        Some((0, 0)),
+        "the focus stays where the drag began"
+    );
+    // ⌘C: the four cells as a table.
+    o.action(Copy);
+    let item = o.cx.read_from_clipboard().unwrap();
+    assert_eq!(item.text().as_deref(), Some("甲\t乙\n丁\t戊"));
+    assert_eq!(
+        dr_editor::table::clip::table_from_clipboard(&item),
+        Some(grid(&[&["甲", "乙"], &["丁", "戊"]]))
+    );
+    // Backspace empties them, as one step; the cells stay selected.
+    o.action(Backspace);
+    assert_eq!(
+        o.stored(),
+        grid(&[&["", "", "丙"], &["", "", "己"], &["庚", "辛", "壬"]])
+    );
+    assert_eq!(o.selected_cells(), Some((0..2, 0..2)));
+    o.action(Undo);
+    assert_eq!(o.stored()[1], ["丁", "戊", "己"]);
+    assert_eq!(o.selected_cells(), None, "undo ends it");
+    // A shift-click from the cell with the caret.
+    let corner = o.cell_point(2, 2);
+    let table = o.table();
+    table.update_in(o.cx, |t, window, cx| t.focus_cell(1, 1, false, window, cx));
+    draw(o.cx);
+    o.cx.simulate_click(corner, Modifiers::shift());
+    draw(o.cx);
+    assert_eq!(o.selected_cells(), Some((1..3, 1..3)));
+    // A plain click ends it.
+    o.cx.simulate_click(from, Modifiers::none());
+    draw(o.cx);
+    assert_eq!(o.selected_cells(), None);
+}
+
+#[gpui::test]
+fn shift_arrows_select_cells_and_format_them(cx: &mut TestAppContext) {
+    let e = env();
+    let doc = note(&e, "");
+    let mut o = open(cx, &e, &doc);
+    o.filled_table();
+    // The caret at the end of 甲: ⇧→ takes 甲 and 乙 whole, ⇧↓ the row below.
+    o.action(SelectRight);
+    assert_eq!(o.selected_cells(), Some((0..1, 0..2)));
+    o.action(SelectDown);
+    assert_eq!(o.selected_cells(), Some((0..2, 0..2)));
+    o.action(ToggleBold);
+    assert!(o.cell_has(0, 0, "bold") && o.cell_has(1, 1, "bold"));
+    assert!(!o.cell_has(0, 2, "bold"), "outside the selection");
+    o.action(ToggleBold);
+    assert!(!o.cell_has(0, 0, "bold") && !o.cell_has(1, 1, "bold"));
+    // The highlight too.
+    o.action(dr_editor::highlight::ToggleHighlight);
+    assert!(o.cell_has(1, 0, dr_editor::highlight::KEY));
+    // A plain → ends it, the caret at the end of the cell it reached.
+    o.action(MoveRight);
+    assert_eq!(o.selected_cells(), None);
+    assert_eq!(o.focused_cell(), Some((1, 1)));
+    // Esc ends it where it began.
+    o.action(SelectRight);
+    assert_eq!(o.selected_cells(), Some((1..2, 1..3)));
+    o.cx.simulate_keystrokes("escape");
+    draw(o.cx);
+    assert_eq!(o.selected_cells(), None);
+    assert_eq!(o.focused_cell(), Some((1, 1)));
+}
+
+#[gpui::test]
+fn pasting_and_typing_over_selected_cells(cx: &mut TestAppContext) {
+    let e = env();
+    let doc = note(&e, "");
+    let mut o = open(cx, &e, &doc);
+    o.filled_table();
+    let table = o.table();
+    // One value fills every selected cell.
+    table.update_in(o.cx, |t, window, cx| {
+        t.select_cells((0, 0), (1, 2), window, cx)
+    });
+    o.cx.write_to_clipboard(ClipboardItem::new_string("好".into()));
+    o.action(Paste);
+    assert_eq!(
+        o.stored(),
+        grid(&[
+            &["好", "好", "好"],
+            &["好", "好", "好"],
+            &["庚", "辛", "壬"]
+        ])
+    );
+    // A row of two repeats down and across the selection.
+    table.update_in(o.cx, |t, window, cx| {
+        t.select_cells((0, 0), (2, 1), window, cx)
+    });
+    o.cx.write_to_clipboard(ClipboardItem::new_string("a\tb".into()));
+    o.action(Paste);
+    assert_eq!(
+        o.stored(),
+        grid(&[&["a", "b", "好"], &["a", "b", "好"], &["a", "b", "壬"]])
+    );
+    assert_eq!(o.selected_cells(), Some((0..3, 0..2)));
+    // ⌘X: copied and emptied.
+    o.action(Cut);
+    assert_eq!(
+        dr_editor::table::clip::table_from_clipboard(&o.cx.read_from_clipboard().unwrap())
+            .map(|g| g.len()),
+        Some(3)
+    );
+    assert_eq!(o.stored()[0], ["", "", "好"]);
+    o.action(Undo);
+    // Typing replaces the selected cells: what was typed stays alone in the
+    // cell the selection began in, one step with the typing.
+    table.update_in(o.cx, |t, window, cx| {
+        t.focus_cell(0, 2, true, window, cx);
+        t.select_cells((0, 2), (1, 2), window, cx);
+    });
+    draw(o.cx);
+    o.type_text("新");
+    assert_eq!(o.selected_cells(), None);
+    let stored = o.stored();
+    assert_eq!((stored[0][2].as_str(), stored[1][2].as_str()), ("新", ""));
+    assert_eq!(stored[0][0], "a", "outside the selection");
+    o.action(Undo);
+    let stored = o.stored();
+    assert_eq!((stored[0][2].as_str(), stored[1][2].as_str()), ("好", "好"));
+    // Through the input method: the pinyin composes, the confirmed text
+    // replaces the cells.
+    table.update_in(o.cx, |t, window, cx| {
+        t.focus_cell(1, 0, false, window, cx);
+        t.select_cells((1, 0), (2, 0), window, cx);
+    });
+    draw(o.cx);
+    let cell = table.read_with(o.cx, |t, _| t.cell_editor(1, 0).unwrap().clone());
+    cell.update_in(o.cx, |e, window, cx| {
+        e.replace_and_mark_text_in_range(None, "jiu", None, window, cx)
+    });
+    draw(o.cx);
+    assert_eq!(
+        o.selected_cells(),
+        Some((1..3, 0..1)),
+        "still selected while composing"
+    );
+    cell.update_in(o.cx, |e, window, cx| {
+        e.replace_text_in_range(None, "旧", window, cx)
+    });
+    draw(o.cx);
+    let stored = o.stored();
+    assert_eq!((stored[1][0].as_str(), stored[2][0].as_str()), ("旧", ""));
+}
+
+#[gpui::test]
+fn select_all_twice_and_the_bar_on_selected_rows(cx: &mut TestAppContext) {
+    let e = env();
+    let doc = note(&e, "");
+    let mut o = open(cx, &e, &doc);
+    o.filled_table();
+    // ⌘A selects the cell's text, again every cell.
+    o.action(SelectAll);
+    assert_eq!(o.selected_cells(), None);
+    o.action(SelectAll);
+    assert_eq!(o.selected_cells(), Some((0..3, 0..3)));
+    // The bar's 删除行 on two selected rows: both go, as one step.
+    let table = o.table();
+    table.update_in(o.cx, |t, window, cx| {
+        t.select_cells((0, 1), (1, 1), window, cx);
+        let (rows, _) = t.selected_cells().unwrap();
+        t.delete_rows(rows, window, cx);
+    });
+    draw(o.cx);
+    assert_eq!(o.stored(), grid(&[&["庚", "辛", "壬"]]));
+    o.action(Undo);
+    assert_eq!(o.stored().len(), 3);
+    // All the rows: the table goes.
+    table.update_in(o.cx, |t, window, cx| t.delete_rows(0..3, window, cx));
+    draw(o.cx);
+    assert_eq!(o.lines(), [""]);
 }

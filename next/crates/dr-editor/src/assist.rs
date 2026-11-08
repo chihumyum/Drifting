@@ -381,8 +381,6 @@ pub struct Assist {
     menu: Option<OpenMenu>,
     /// The menu opened at a new trigger since it was last drawn.
     menu_fresh: bool,
-    /// The book's names changed since they were last read.
-    names_dirty: bool,
     /// The caret paragraph's link runs as they were before the next edit:
     /// chapter, block id, line, and `(target, text)` of each run.
     before: Option<BeforeEdit>,
@@ -451,7 +449,6 @@ impl Assist {
             line_counts,
             menu: None,
             menu_fresh: false,
-            names_dirty: false,
             before: None,
             dismissed: None,
             bar: None,
@@ -530,75 +527,12 @@ impl Assist {
     }
 
     /// The book's names changed (an element made or renamed, an alias, a
-    /// chapter …): names new since are linked in the existing text, at the
-    /// next frame ([`Assist::names_changed`]).
+    /// chapter …): they are read again when next needed. Linking a new
+    /// name in the text already written is the command's (F3's
+    /// `autolink`); its links reach this editor as someone else's write.
     pub fn invalidate_names(&mut self, cx: &mut Context<Self>) {
-        self.names_dirty = true;
+        self.names = None;
         cx.notify();
-    }
-
-    /// Links the names that are new in the book in the text that already
-    /// is (the 0.1 client's retroactive links): in this editor's documents
-    /// as one undo step of their own per chapter, and once in this process
-    /// in the documents no editor has open
-    /// ([`entity_links::backfill_closed`], on a background thread). Without
-    /// automatic links (the setting), only the names are read again.
-    pub fn names_changed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let old = self.names.take();
-        let Some(new) = self.names() else { return };
-        let Some(old) = old.filter(|_| self.auto_links) else {
-            return;
-        };
-        let added: std::collections::HashSet<(String, String)> =
-            new.pairs().difference(&old.pairs()).cloned().collect();
-        if added.is_empty() {
-            return;
-        }
-        let chapters = self.editor.read(cx).book().chapters.len();
-        for chapter in 0..chapters {
-            let own = self.own_id(chapter).map(str::to_owned);
-            let plans: Vec<(usize, Vec<entity_links::LinkEdit>)> = {
-                let doc = &self.editor.read(cx).book().chapters[chapter].doc;
-                (0..doc.visible_lines())
-                    .filter_map(|ix| {
-                        let line = doc.line(ix);
-                        if !added.iter().any(|(n, _)| line.text.contains(n.as_str())) {
-                            return None;
-                        }
-                        let runs = entity_links::link_runs(line);
-                        let edits: Vec<_> = entity_links::autolink(&line.text, &runs, &new)
-                            .into_iter()
-                            .filter(|e| match e {
-                                entity_links::LinkEdit::Link { target, .. } => {
-                                    Some(&target.id) != own.as_ref()
-                                }
-                                _ => true,
-                            })
-                            .collect();
-                        let edits = entity_links::only_added(&line.text, edits, &added);
-                        (!edits.is_empty()).then_some((ix, edits))
-                    })
-                    .collect()
-            };
-            if plans.is_empty() {
-                continue;
-            }
-            self.write(chapter, HostStep::Own, window, cx, move |doc| {
-                for (ix, edits) in &plans {
-                    entity_links::apply(doc, *ix, edits);
-                }
-                None
-            });
-        }
-        let mine = entity_links::claim_backfill(&self.book, &added);
-        if !mine.is_empty() {
-            let (ws, book) = (self.ws.clone(), self.book.clone());
-            std::thread::spawn(move || {
-                if let Err(e) = entity_links::backfill_closed(&ws, &book, &mine) {
-                    log::warn!("dr-editor: linking new names in {book}: {e}");
-                }
-            });
-        }
     }
 
     /// The setting `editor.auto_entity_links`.
@@ -1809,9 +1743,6 @@ impl Assist {
 
 impl Render for Assist {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        if std::mem::take(&mut self.names_dirty) {
-            cx.defer_in(window, |this, window, cx| this.names_changed(window, cx));
-        }
         let mut root = div().absolute().top_0().left_0().size_0();
         let focused = {
             let e = self.editor.read(cx);

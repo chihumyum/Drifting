@@ -19,14 +19,22 @@
 //!   target keeps it. Only the link at the caret is checked, so links on
 //!   text that never was a name stay.
 //!
+//! The rule itself is F3's ([`dr_workspace::autolink::plan`], which only
+//! computes): the editor gives it a paragraph's text and links and writes
+//! what comes back as the author, so the commands and the editor link by
+//! one rule.
+//!
 //! Changed on purpose: the editor only links what the author typed. The
 //! 0.1 client also scanned whole documents when they opened and after an
 //! Agent's or a sync's write, as the author, which put links into the
-//! author's undo history for text they did not type; linking other writers'
-//! text belongs to their commands (F3 / M12, see m03-page.md).
+//! author's undo history for text they did not type. Linking other writers'
+//! text belongs to their commands, and so does linking a name the book has
+//! just gained in the text already written (`element.create` / `update`,
+//! `chapter.*`, `idea.*`: F3's `autolink`, with the command's origin, so
+//! an editor open on the document shows the links as someone else's write,
+//! outside the author's ⌘Z, and the command's own undo takes them back).
 
 use std::collections::{HashMap, HashSet};
-use std::ops::Range;
 
 use dr_doc::book::BookReader;
 use dr_model::id::BookId;
@@ -34,6 +42,7 @@ use dr_model::kind::EntityKind;
 use dr_store::OpenDoc;
 use dr_text::autolink::{LinkMatcher, LinkName, LinkTarget, book_link_names};
 use dr_workspace::Workspace;
+pub use dr_workspace::autolink::{LinkEdit, LinkRun};
 use gpui_prose::text::{Line, ProseDoc};
 use loro::LoroValue;
 
@@ -156,15 +165,6 @@ impl NameIndex {
         self.matcher.is_empty()
     }
 
-    /// Every `(name, target id)` pair (to see which names are new).
-    pub fn pairs(&self) -> HashSet<(String, String)> {
-        self.matcher
-            .names()
-            .iter()
-            .map(|n| (n.name.clone(), n.target.id.clone()))
-            .collect()
-    }
-
     /// Whether `text` is a name or alias of target `id`.
     pub fn is_name_of(&self, text: &str, id: &str) -> bool {
         self.names
@@ -201,28 +201,6 @@ impl NameIndex {
     }
 }
 
-/// A link to put on or take off, in characters of one paragraph.
-#[derive(Clone, Debug, PartialEq)]
-pub enum LinkEdit {
-    Link {
-        range: Range<usize>,
-        target: LinkTarget,
-    },
-    Unlink {
-        range: Range<usize>,
-        /// The mark key (`entity:<id>`).
-        key: String,
-    },
-}
-
-/// A run of one entity link on a paragraph, in characters.
-#[derive(Clone, Debug, PartialEq)]
-pub struct LinkRun {
-    pub range: Range<usize>,
-    /// The target id.
-    pub target: String,
-}
-
 /// The entity-link runs of a paragraph (adjacent spans of one target
 /// joined), in characters.
 pub fn link_runs(line: &Line) -> Vec<LinkRun> {
@@ -249,46 +227,10 @@ pub fn link_runs(line: &Line) -> Vec<LinkRun> {
     runs
 }
 
-/// The automatic links paragraph `text` gains, given its link `runs`.
+/// The automatic links paragraph `text` gains, given its link `runs`: F3's
+/// rule ([`dr_workspace::autolink::plan`]) over the whole paragraph.
 pub fn autolink(text: &str, runs: &[LinkRun], index: &NameIndex) -> Vec<LinkEdit> {
-    let mut edits = Vec::new();
-    for m in index.matcher.find(text) {
-        let target = index.matcher.target(&m);
-        let r = m.range.clone();
-        let overlapping: Vec<&LinkRun> = runs
-            .iter()
-            .filter(|run| run.range.start < r.end && r.start < run.range.end)
-            .collect();
-        // Linked to its target all the way already.
-        let covered = |at: usize| {
-            overlapping
-                .iter()
-                .any(|run| run.target == target.id && run.range.contains(&at))
-        };
-        if r.clone().all(covered) {
-            continue;
-        }
-        // Someone else's link reaching outside the name, or covering exactly
-        // the name (an old name another entity has taken since: the text
-        // still means the one it links to): leave both alone.
-        if overlapping.iter().any(|run| {
-            run.target != target.id
-                && (run.range.start < r.start || run.range.end > r.end || run.range == r)
-        }) {
-            continue;
-        }
-        for run in overlapping.iter().filter(|run| run.target != target.id) {
-            edits.push(LinkEdit::Unlink {
-                range: run.range.clone(),
-                key: gpui_prose::schema::inline::entity_key(&run.target),
-            });
-        }
-        edits.push(LinkEdit::Link {
-            range: r,
-            target: target.clone(),
-        });
-    }
-    edits
+    dr_workspace::autolink::plan(text, runs, &index.matcher, 0..text.chars().count())
 }
 
 /// The text of each link run of a paragraph: `(target id, text)`.
@@ -342,159 +284,8 @@ pub fn repairs(
         })
         .map(|run| LinkEdit::Unlink {
             range: run.range.clone(),
-            key: gpui_prose::schema::inline::entity_key(&run.target),
+            target: run.target.clone(),
         })
-        .collect()
-}
-
-/// Keeps the edits of `edits` that link one of `added` (`(name, target
-/// id)`; the name read from `text`), with the shorter links each one
-/// replaces.
-pub fn only_added(
-    text: &str,
-    edits: Vec<LinkEdit>,
-    added: &HashSet<(String, String)>,
-) -> Vec<LinkEdit> {
-    let mut out = Vec::new();
-    let mut pending = Vec::new();
-    for edit in edits {
-        match &edit {
-            LinkEdit::Unlink { .. } => pending.push(edit),
-            LinkEdit::Link { range, target } => {
-                let name: String = text.chars().skip(range.start).take(range.len()).collect();
-                if added.contains(&(name, target.id.clone())) {
-                    out.append(&mut pending);
-                    out.push(edit);
-                } else {
-                    pending.clear();
-                }
-            }
-        }
-    }
-    out
-}
-
-/// Links names in the existing text of `book`'s prose documents that no
-/// editor here has open (chapters, ideas, element bodies, storyline and
-/// category descriptions; not material notes, as the 0.1 client's
-/// `element-name-backfill`): F3's rule (`dr_workspace::autolink::matcher`
-/// and `link_written` over each whole document), but only in documents
-/// whose text holds one of `added` (`(name, target id)`). One document at a
-/// time, a pause between, so the author's typing keeps the write lock. Each
-/// document is one commit of the author's, outside any editor's undo (no
-/// editor has it open). Returns how many links were written.
-pub fn backfill_closed(
-    ws: &Workspace,
-    book: &str,
-    added: &HashSet<(String, String)>,
-) -> Result<usize, String> {
-    use dr_model::DocId;
-    if added.is_empty() || !ws.auto_links() {
-        return Ok(0);
-    }
-    let call = |name: &str| -> Vec<serde_json::Value> {
-        ws.call(
-            &dr_workspace::Actor::User,
-            name,
-            serde_json::json!({ "book": book }),
-        )
-        .ok()
-        .and_then(|v| v["output"].as_array().cloned())
-        .unwrap_or_default()
-    };
-    let live = |v: &serde_json::Value| !v["trashed"].as_bool().unwrap_or(false);
-    let id = |v: &serde_json::Value| v["id"].as_str().unwrap_or_default().to_owned();
-    let mut docs: Vec<String> = Vec::new();
-    for c in call("chapter.list").iter().filter(|c| live(c)) {
-        docs.push(format!("node:{}", id(c)));
-    }
-    for i in call("idea.list").iter().filter(|i| live(i)) {
-        docs.push(format!("node:{}", id(i)));
-    }
-    for e in call("element.list").iter().filter(|e| live(e)) {
-        docs.push(format!("element:{}", id(e)));
-    }
-    for l in call("storyline.list").iter().filter(|l| live(l)) {
-        docs.push(format!("storyline:{}", id(l)));
-    }
-    for c in call("category.list").iter().filter(|c| live(c)) {
-        docs.push(format!("category:{}", id(c)));
-    }
-    // The matchers, one per document (its own entity left out), from the
-    // book as it is now.
-    let book_id = BookId::parse(book).map_err(|e| e.to_string())?;
-    let handle = ws
-        .library()
-        .open_doc(&format!("book:{book}"), OpenDoc::Existing)
-        .map_err(|e| e.to_string())?;
-    let parsed: Vec<(String, DocId)> = docs
-        .into_iter()
-        .filter_map(|d| DocId::parse(&d).ok().map(|id| (d, id)))
-        .collect();
-    let matchers = handle
-        .read(move |d| {
-            let reader = BookReader::from_loro(book_id, d)?;
-            let view = reader.view();
-            Ok::<_, dr_doc::DocError>(
-                parsed
-                    .into_iter()
-                    .map(|(doc, id)| {
-                        let m = dr_workspace::autolink::matcher(&view, &id);
-                        (doc, m)
-                    })
-                    .collect::<Vec<_>>(),
-            )
-        })
-        .map_err(|e| e.to_string())?
-        .map_err(|e| e.to_string())?;
-    let names: Vec<String> = added.iter().map(|(n, _)| n.clone()).collect();
-    let mut linked = 0;
-    for (doc, matcher) in matchers {
-        if crate::source::is_open(&doc) {
-            continue;
-        }
-        let Ok(handle) = ws.library().open_doc(&doc, OpenDoc::Existing) else {
-            continue;
-        };
-        // Only documents whose text holds a new name are written.
-        let wanted = names.clone();
-        let holds = handle
-            .read(move |d| {
-                let text = d.get_text(gpui_prose::schema::BODY).to_string();
-                wanted.iter().any(|n| text.contains(n.as_str()))
-            })
-            .unwrap_or(false);
-        if !holds {
-            continue;
-        }
-        let Ok(session) = ws.prose_session(&doc) else {
-            continue;
-        };
-        match session.edit(move |txn| {
-            let len = txn.view().len();
-            dr_workspace::autolink::link_written(txn, &matcher, 0..len)
-        }) {
-            Ok(n) => linked += n,
-            Err(e) => log::warn!("dr-editor: linking names in {doc}: {e}"),
-        }
-        std::thread::sleep(std::time::Duration::from_millis(5));
-    }
-    Ok(linked)
-}
-
-/// Each `(name, target)` pair is backfilled once in this process, whichever
-/// editor heard of it first. Returns the pairs this caller now owns.
-pub fn claim_backfill(book: &str, added: &HashSet<(String, String)>) -> HashSet<(String, String)> {
-    use std::sync::{Mutex, OnceLock};
-    static DONE: OnceLock<Mutex<HashSet<(String, String, String)>>> = OnceLock::new();
-    let mut done = DONE
-        .get_or_init(Default::default)
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
-    added
-        .iter()
-        .filter(|(n, t)| done.insert((book.to_owned(), n.clone(), t.clone())))
-        .cloned()
         .collect()
 }
 
@@ -513,9 +304,9 @@ pub fn apply(doc: &mut ProseDoc, line_ix: usize, edits: &[LinkEdit]) {
     let start = doc.line_start(line_ix);
     for edit in edits {
         match edit {
-            LinkEdit::Unlink { range, key } => doc.unmark(
+            LinkEdit::Unlink { range, target } => doc.unmark(
                 start + range.start..start + range.end,
-                key,
+                &gpui_prose::schema::inline::entity_key(target),
                 gpui_prose::text::ORIGIN_USER,
             ),
             LinkEdit::Link { range, target } => doc.mark(
@@ -530,6 +321,8 @@ pub fn apply(doc: &mut ProseDoc, line_ix: usize, edits: &[LinkEdit]) {
 
 #[cfg(test)]
 mod tests {
+    use std::ops::Range;
+
     use super::*;
 
     fn index() -> NameIndex {
@@ -586,7 +379,7 @@ mod tests {
             [
                 LinkEdit::Unlink {
                     range: 0..2,
-                    key: "entity:e1".into()
+                    target: "e1".into()
                 },
                 link(0..3, EntityKind::Element, "e2")
             ]
@@ -607,7 +400,7 @@ mod tests {
             repairs("约来了", &[run(0..1, "e3")], 1, &ix, &was("约格")),
             [LinkEdit::Unlink {
                 range: 0..1,
-                key: "entity:e3".into()
+                target: "e3".into()
             }]
         );
         // Another alias of the same target keeps it.
