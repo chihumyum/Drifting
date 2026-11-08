@@ -18,7 +18,7 @@
 | --- | --- | --- | --- |
 | 统一种子：tiny / lite / heavy / showcase | `next/crates/dr-testkit/src/seed/` | 1 | 做完，指纹钉在测试里 |
 | 种子也能通过 F3 的命令写入，和直写对拍一致 | `seed/commands.rs`、`seed/digest.rs` | 2 | 做完 |
-| 样书：《傲慢与偏见》《阿Q正传》，以及 showcase 的《慢钟》和书架 | `src/samples.rs`、`fixtures/` | 1 | 做完，只有文字，插图没拷 |
+| 样书：《傲慢与偏见》《阿Q正传》，以及 showcase 的《慢钟》和书架 | `src/samples.rs`、`fixtures/`；两本样书和摆书的代码在 `dr-samples` | 1 | 做完，只有文字，插图没拷 |
 | 测量证据和过期检查 | `src/evidence.rs`、`cargo xtask evidence --check` | 1 | 做完；旧证据待各自迁移 |
 | 崩溃试验台 | `src/crash.rs`，F2 示范在 `tests/crash_store.rs` | 1 | 做完 |
 | 基准约定和 `bench` 程序 | `src/bench.rs`、`src/bin/bench.rs` | 1、2 | 两个套件：dr-store、dr-workspace（收编 F3 的测量） |
@@ -80,14 +80,14 @@ cargo drifting workspace scenario seed:lite --library <目录> --yes
 | heavy | 性能、全书、导入、内存 | 100 章 150 万字（每章 2 千到 2 万）、300 个要素 50 万字、200 个构想 100 万字（最长 5 万）、60 篇素材笔记 50 万字、120 条待办、80 条批注、400 条关系、一年的写作日 |
 | showcase | 截图 | 《慢钟》、《阿Q正传》，再加书架上 6 本中文书（文字按字数合成），各带写作日 |
 
-另外两本样书单独取：`samples::pride_and_prejudice()`、`samples::a_q()`。
+另外两本样书单独取：`samples::pride_and_prejudice()`、`samples::a_q()`（转调 `dr-samples`，产品首次运行用同一份写进新库）。
 
 lite 和 heavy 的每一类正文，**篇数、总字数、最短、最长**都和旧版 `lite`、`stress` 种子完全一样（`docs/dev-cli/acceptance/seed-presets.json`）。这份旧文件还在的时候，测试会逐项对照；它随旧客户端删掉以后，数字留在 `preset.rs` 里。
 
 ### 怎么生成
 
 - **文字**：沿用旧版种子自己写的句库（`sample-project/prose.ts` 的地点、人物、物件、细节、标题和十句原创句子），由随机数重新组合。不含任何真实书稿。
-- **随机数**：只有一种，SplitMix64（`rng.rs`）。每篇正文有自己独立的随机流，所以加一类新东西，不会让已有的正文变样。
+- **随机数**：只有一种，SplitMix64（`dr-samples` 的 `rng.rs`，`dr_testkit::rng` 转出；样书的固定 ID 也从它来）。每篇正文有自己独立的随机流，所以加一类新东西，不会让已有的正文变样。
 - **字数**：一个汉字算一个词，标点、引号、换行不算。语料里没有拉丁文字，所以这和产品的字数统计一致。
 - **结构**：每篇正文先是一个标题，之后每九段一个标题，依次是 H2、H3、H1，长一些的正文三级都有。章节和构想里的人名链接到要素；素材笔记开头有一个三项的任务列表；批注和待办锚在章节正文的随机一段上，带原文快照。
 - **确定性**：对等方 ID 用 dr-doc 的导入对等方，提交时间从固定的「第零天」（2025-11-01）起算。同一个预设、同一个随机种子，生成的每个 Loro 文档**逐字节相同**，测试里比的就是快照字节。
@@ -102,9 +102,9 @@ lite 和 heavy 的每一类正文，**篇数、总字数、最短、最长**都�
 
 ### 样书
 
-`fixtures/` 里是四个 JSON：《傲慢与偏见》、《阿Q正传》、《慢钟》和截图书架。它们是 0.1 客户端样书定义逐字段导出的，出处和授权见 `fixtures/README.md` 和仓库根目录的 `ASSET_PROVENANCE.md`。
+四个 JSON：《傲慢与偏见》、《阿Q正传》在 `crates/dr-samples/books/`（产品要把它们写进新库，见 `dr_samples::ensure_built_in`），《慢钟》和截图书架在本 crate 的 `fixtures/`。它们是 0.1 客户端样书定义逐字段导出的，出处和授权见两处的 `README.md` 和仓库根目录的 `ASSET_PROVENANCE.md`。
 
-`samples.rs` 照 0.1 的样书写法把它们摆成书：
+`dr-samples` 的 `layout.rs` 照 0.1 的样书写法把它们摆成书（写书用的 `Builder` 也在 `dr-samples` 的 `build.rs`，种子的合成预设用同一个；测试工具箱转出 `seed::{SeededBook, T0, write_book}`、`text::{Para, Link, plain}`，外部接口不变）：
 
 - 幕、章、梗概、故事线；
 - 分类和要素（别名、事实）、关系类型和关系；
@@ -610,16 +610,17 @@ done
 
 ```text
 next/crates/dr-testkit/
-  src/rng.rs              唯一的随机数（SplitMix64）
+  src/rng.rs              唯一的随机数（SplitMix64，转出 dr-samples 的）
   src/text.rs             合成语料、字数口径
   src/digest.rs           唯一的指纹函数
   src/seed/               预设、长度分配、计划、直写、走命令写、对拍用的 digest、形状、写进库
-  src/samples.rs          样书和 showcase
+  src/samples.rs          样书（转调 dr-samples）和 showcase
   src/evidence.rs         测量证据、过期检查
   src/crash.rs            崩溃试验台
   src/bench.rs            基准约定，store 和 workspace 两个套件
   src/bin/bench.rs        bench 程序
-  fixtures/               样书 JSON 和来源说明
+  fixtures/               《慢钟》、截图书架的 JSON 和来源说明
+next/crates/dr-samples/   两本内置样书（books/）、摆书和写书（layout.rs、build.rs、store.rs）、新库只写一次（built_in.rs）
   tests/                  种子、两种写法对拍、样书、崩溃（F2 示范）、基准
 next/xtask/
   src/main.rs             cargo xtask check | evidence --check | check-binary | dev

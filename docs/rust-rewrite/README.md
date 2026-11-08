@@ -60,6 +60,7 @@ next/
       dr-export          EPUB / DOCX / PDF / Markdown / .driftingbook / 整库备份
       dr-mirror          Markdown 文件夹双向同步
       dr-import-v1       导入旧库（0.1.x）
+      dr-samples         内置示例书（傲慢与偏见、阿Q正传）：新库首次运行写入一次
     数据
       dr-doc             Loro 文档结构：书目文档、正文文档、位置换算、锚点
       dr-store           SQLite：Loro 更新日志与快照、派生索引、资源文件、迁移与安全快照

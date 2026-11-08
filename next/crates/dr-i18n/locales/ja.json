@@ -259,9 +259,41 @@
     "stats": "{{groups}}項目 · {{occurrences}}件一致"
   },
   "guide": {
+    "back": "戻る",
+    "done": "完了",
     "hints": {
       "search": "すべてを検索",
       "timeline": "タイムライン"
+    },
+    "next": "次へ",
+    "skip": "ツアーをスキップ",
+    "workspace": {
+      "agent": {
+        "body": "本全体を読み、検索し、編集します。変更は本文に表示され、履歴から元に戻せます。",
+        "closedBody": "Agent は右サイドバーにあり、本全体を読んだり検索・編集したりできます。ここから開きます。",
+        "title": "Agent"
+      },
+      "create": {
+        "body": "章、アイデア、要素、ストーリーライン、カテゴリ、資料はすべてここから作成します。",
+        "title": "新規"
+      },
+      "home": {
+        "body": "門のボタンでこのページに戻れます。隣の風鈴に通知が届きます。",
+        "title": "作品ホーム"
+      },
+      "panels": {
+        "body": "本の骨組みです。左サイドバーは2つに分割でき、それぞれに別のパネルを表示できます。",
+        "closedBody": "本の骨組みは左サイドバーにあります。章、要素、アイデアをここから開きます。",
+        "title": "章 · 要素 · アイデア"
+      },
+      "superViews": {
+        "body": "パネルの見出しにある丸いボタンから開きます。",
+        "title": "ウィンドウ全体のビュー"
+      },
+      "timeline": {
+        "body": "ページの下から引き出し、ストーリーラインを本の順序や物語内の時間で表示します。",
+        "title": "タイムライン"
+      }
     }
   },
   "immersiveWriting": {
@@ -430,6 +462,13 @@
     "untitledAct": "無題の幕",
     "untitledChapter": "無題の章",
     "wholeBook": "全編"
+  },
+  "markdownFolderGuide": {
+    "choose": "フォルダを選択…",
+    "chosen": "選択したフォルダ",
+    "continue": "続ける",
+    "intro": "各作品のMarkdownコピーを選んだフォルダに保存します。他のエディタで章やアイデアを編集すると、変更がDriftingに統合されます。",
+    "title": "Markdownフォルダの保存先は？"
   },
   "markdownShare": {
     "characters": "{{count}}文字",
@@ -1019,7 +1058,10 @@
       },
       "local_data": "ローカルデータ",
       "local_sub": "Driftingのアカウントやクラウドは使いません。いつでも読めるコピーを出力できます。",
-      "local_title": "作品はこの端末に。"
+      "local_title": "作品はこの端末に。",
+      "projection": {
+        "turnOff": "Markdownフォルダを無効化"
+      }
     },
     "title": "設定",
     "update": {

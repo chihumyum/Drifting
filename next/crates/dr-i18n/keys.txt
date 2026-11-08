@@ -732,3 +732,18 @@ importDialog.status.parsing
 importDialog.status.ready
 importDialog.status.error
 importDialog.summary.*
+
+# M24 the tour the first time a book opens (dr-view-sea)
+guide.skip
+guide.back
+guide.next
+guide.done
+guide.workspace.*
+
+# M24 the first run's card: the Markdown folder step M40 fills in (dr-view-sea)
+markdownFolderGuide.title
+markdownFolderGuide.intro
+markdownFolderGuide.chosen
+markdownFolderGuide.choose
+markdownFolderGuide.continue
+settings.sync.projection.turnOff

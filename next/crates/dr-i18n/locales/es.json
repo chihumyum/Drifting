@@ -259,9 +259,41 @@
     "stats": "{{groups}} elementos · {{occurrences}} coincidencias"
   },
   "guide": {
+    "back": "Volver",
+    "done": "Listo",
     "hints": {
       "search": "Buscar en todo",
       "timeline": "Cronología"
+    },
+    "next": "Siguiente",
+    "skip": "Omitir recorrido",
+    "workspace": {
+      "agent": {
+        "body": "Lee, busca y edita todo el libro. Sus cambios se marcan en el texto y se pueden deshacer desde el historial.",
+        "closedBody": "Agent está en la barra lateral derecha y puede leer, buscar y editar todo el libro. Ábrelo aquí.",
+        "title": "Agent"
+      },
+      "create": {
+        "body": "Capítulos, ideas, elementos, tramas, categorías y materiales se crean aquí.",
+        "title": "Nuevo"
+      },
+      "home": {
+        "body": "La puerta te trae de vuelta a esta página; la campanilla de al lado guarda las notificaciones.",
+        "title": "Inicio del proyecto"
+      },
+      "panels": {
+        "body": "El armazón del libro. La barra lateral izquierda se puede dividir en dos, cada parte con su propio panel.",
+        "closedBody": "El armazón del libro está en la barra lateral izquierda: capítulos, elementos e ideas. Ábrela aquí.",
+        "title": "Capítulos · Elementos · Ideas"
+      },
+      "superViews": {
+        "body": "Ábrelas desde el botón redondo de la cabecera de un panel.",
+        "title": "Vistas de ventana completa"
+      },
+      "timeline": {
+        "body": "Las tramas se despliegan bajo la página en orden del libro o del tiempo de la historia.",
+        "title": "Cronología"
+      }
     }
   },
   "immersiveWriting": {
@@ -435,6 +467,13 @@
     "untitledAct": "Acto sin título",
     "untitledChapter": "Capítulo sin título",
     "wholeBook": "Libro completo"
+  },
+  "markdownFolderGuide": {
+    "choose": "Elegir carpeta…",
+    "chosen": "Carpeta elegida",
+    "continue": "Continuar",
+    "intro": "Cada proyecto conserva una copia Markdown en la carpeta que elijas. Edita capítulos e ideas en cualquier editor y los cambios se integrarán en Drifting.",
+    "title": "¿Dónde guardar la carpeta Markdown?"
   },
   "markdownShare": {
     "characters": "{{count}} caracteres",
@@ -1031,7 +1070,10 @@
       },
       "local_data": "Datos locales",
       "local_sub": "No se usa ninguna cuenta Drifting ni nube alojada. Exporta una copia legible cuando quieras.",
-      "local_title": "Tu obra se queda en este dispositivo."
+      "local_title": "Tu obra se queda en este dispositivo.",
+      "projection": {
+        "turnOff": "Desactivar carpeta Markdown"
+      }
     },
     "title": "Ajustes",
     "update": {
