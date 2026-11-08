@@ -165,6 +165,8 @@
     "wordCount": "{{count}} words"
   },
   "edgeKindManager": {
+    "changeColor": "Change color",
+    "changeColorLabel": "Change color for {{label}}",
     "editTypes": "Edit types",
     "resetColor": "Restore default color",
     "summary": "{{kinds}} types · {{relations}} relations",
@@ -187,7 +189,8 @@
       "deleteElement": "Delete element",
       "deleteNode": "Delete node",
       "deleteStoryline": "Delete storyline",
-      "editStorylines": "Edit storylines"
+      "editStorylines": "Edit storylines",
+      "moveToGroup": "Move to group…"
     },
     "outlineRailMode": {
       "hidden": "Hide TOC",
@@ -196,10 +199,13 @@
     "status": {
       "discarded": "Discarded",
       "draft": "Draft",
-      "finished": "Finished"
+      "drifting": "Floating",
+      "finished": "Finished",
+      "resting": "Resting"
     },
     "statusSection": {
-      "chapter": "Writing status"
+      "chapter": "Writing status",
+      "drift": "Idea status"
     }
   },
   "elementCategoryCreateMenu": {
@@ -418,6 +424,8 @@
     "actions": {
       "collapseAll": "Expand or collapse all",
       "newCategory": "New category",
+      "newDrift": "New idea",
+      "newDriftGroup": "New group",
       "sort": "Sort"
     },
     "empty": {
@@ -427,7 +435,15 @@
     },
     "groups": {
       "addElementToGroup": "New element in this group",
+      "deleteGroup": "Delete group",
+      "driftCount_one": "{{count}} idea",
+      "driftCount_other": "{{count}} ideas",
+      "moveDriftToRoot": "Root level (move out of group)",
+      "moveGroupToRoot": "Root level (move to top level)",
       "newChapterInStoryline": "New chapter in this storyline",
+      "newDriftInGroup": "New idea here",
+      "newSubGroup": "New subgroup",
+      "rename": "Rename",
       "renameElementGroupTitle": "Double-click to rename group",
       "unaffiliated": "Unaffiliated"
     },
@@ -443,6 +459,7 @@
       "cellMetaGroup": "Cell right edge",
       "chapters": "Sort chapters",
       "createdAt": "Created time",
+      "drifts": "Sort ideas",
       "duplicatesAll": "Show in every linked group",
       "duplicatesGroup": "Multi-storyline chapters",
       "duplicatesPrimary": "Show only in primary storyline",
@@ -455,6 +472,7 @@
       "showWordCount": "Show word count",
       "storylineChapters": "Sort chapters within storylines",
       "storylineOrder": "Storyline order",
+      "title": "Title A-Z",
       "updatedAt": "Updated time"
     },
     "tabs": {
@@ -587,6 +605,8 @@
   },
   "notifications": {
     "appUpdate": {
+      "available": "Drifting {{version}} is available",
+      "installed": "Updated to Drifting {{version}}",
       "source": "Updates"
     },
     "clear": "Clear",
@@ -889,6 +909,7 @@
     "save": "Save",
     "selectConfigured": "Choose a relation type",
     "sourceRole": "Source role",
+    "swap": "Swap relation endpoints",
     "symmetric": "Symmetric",
     "symmetricSummary": "Symmetric · {{role}}",
     "targetRole": "Target role",
@@ -1228,7 +1249,26 @@
     },
     "title": "Settings",
     "update": {
-      "channel_desc": "Apple Silicon · macOS 13+"
+      "channel_desc": "Apple Silicon · macOS 13+",
+      "check": "New version",
+      "check_action": "Check for updates",
+      "check_failed": "Couldn't check for updates right now, perhaps there is no connection. Try again later; this version keeps working.",
+      "checking": "Checking…",
+      "downloading": "Downloading and verifying the signature…",
+      "downloading_progress": "Downloading and verifying… {{progress}}%",
+      "install_failed": "Drifting {{version}} couldn't be installed when you last quit. This version is unchanged; it tries again next time you quit.",
+      "install_failed_admin": "Drifting {{version}} couldn't be installed when you last quit: the folder Drifting is in can't be written to. This version is unchanged.",
+      "interrupted": "The update didn't finish downloading and was discarded. It downloads again at the next check.",
+      "local_error": "The update couldn't be saved on this computer and was stopped. This version keeps working.",
+      "no_update": "You're up to date.",
+      "older_offered": "You're up to date. The update service offers {{version}}, which is older than this version, so it won't be installed.",
+      "ready_on_quit": "Drifting {{version}} is downloaded and its signature verified. It installs when you quit.",
+      "refused_app": "The downloaded update isn't Drifting and was discarded. This version keeps working.",
+      "refused_signature": "The downloaded update failed signature verification and was discarded. This version keeps working.",
+      "refused_version": "The downloaded update isn't the version it claims to be, possibly an older one, and was refused. This version keeps working.",
+      "restart": "Restart to Update",
+      "server_error": "The update service has a problem right now. Try again later; this version keeps working.",
+      "unavailable": "This build has no updater signing key, so it cannot check for updates. Releases downloaded from GitHub can."
     }
   },
   "sidebarLayout": {

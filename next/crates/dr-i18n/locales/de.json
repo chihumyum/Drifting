@@ -165,6 +165,8 @@
     "wordCount": "{{count}} Wörter"
   },
   "edgeKindManager": {
+    "changeColor": "Farbe ändern",
+    "changeColorLabel": "Farbe für {{label}} ändern",
     "editTypes": "Typen bearbeiten",
     "resetColor": "Standardfarbe wiederherstellen",
     "summary": "{{kinds}} Typen · {{relations}} Beziehungen",
@@ -187,7 +189,8 @@
       "deleteElement": "Element löschen",
       "deleteNode": "Knoten löschen",
       "deleteStoryline": "Handlungsstrang löschen",
-      "editStorylines": "Handlungsstränge bearbeiten"
+      "editStorylines": "Handlungsstränge bearbeiten",
+      "moveToGroup": "In Gruppe verschieben…"
     },
     "outlineRailMode": {
       "hidden": "Inhaltsverzeichnis ausblenden",
@@ -196,10 +199,13 @@
     "status": {
       "discarded": "Verworfen",
       "draft": "Entwurf",
-      "finished": "Fertig"
+      "drifting": "Treibend",
+      "finished": "Fertig",
+      "resting": "Ruhend"
     },
     "statusSection": {
-      "chapter": "Schreibstatus"
+      "chapter": "Schreibstatus",
+      "drift": "Ideenstatus"
     }
   },
   "elementCategoryCreateMenu": {
@@ -418,6 +424,8 @@
     "actions": {
       "collapseAll": "Alle auf- oder einklappen",
       "newCategory": "Neue Kategorie",
+      "newDrift": "Neue Idee",
+      "newDriftGroup": "Neue Gruppe",
       "sort": "Sortieren"
     },
     "empty": {
@@ -427,7 +435,15 @@
     },
     "groups": {
       "addElementToGroup": "Neues Element in dieser Gruppe",
+      "deleteGroup": "Gruppe löschen",
+      "driftCount_one": "{{count}} Idee",
+      "driftCount_other": "{{count}} Ideen",
+      "moveDriftToRoot": "Oberste Ebene (aus Gruppe verschieben)",
+      "moveGroupToRoot": "Oberste Ebene (ganz nach oben verschieben)",
       "newChapterInStoryline": "Neues Kapitel in diesem Handlungsstrang",
+      "newDriftInGroup": "Neue Idee hier",
+      "newSubGroup": "Neue Untergruppe",
+      "rename": "Umbenennen",
       "renameElementGroupTitle": "Doppelklicken, um die Gruppe umzubenennen",
       "unaffiliated": "Ohne Zuordnung"
     },
@@ -443,6 +459,7 @@
       "cellMetaGroup": "Rechter Zellenrand",
       "chapters": "Kapitel sortieren",
       "createdAt": "Erstellungszeit",
+      "drifts": "Ideen sortieren",
       "duplicatesAll": "In jeder verknüpften Gruppe anzeigen",
       "duplicatesGroup": "Kapitel mit mehreren Handlungssträngen",
       "duplicatesPrimary": "Nur im Haupthandlungsstrang anzeigen",
@@ -455,6 +472,7 @@
       "showWordCount": "Wortzahl anzeigen",
       "storylineChapters": "Kapitel innerhalb der Handlungsstränge sortieren",
       "storylineOrder": "Handlungsstrang-Reihenfolge",
+      "title": "Titel A–Z",
       "updatedAt": "Änderungszeit"
     },
     "tabs": {
@@ -587,6 +605,8 @@
   },
   "notifications": {
     "appUpdate": {
+      "available": "Drifting {{version}} ist verfügbar",
+      "installed": "Auf Drifting {{version}} aktualisiert",
       "source": "Updates"
     },
     "clear": "Leeren",
@@ -889,6 +909,7 @@
     "save": "Speichern",
     "selectConfigured": "Beziehungstyp wählen",
     "sourceRole": "Quellrolle",
+    "swap": "Beziehungsendpunkte tauschen",
     "symmetric": "Symmetrisch",
     "symmetricSummary": "Symmetrisch · {{role}}",
     "targetRole": "Zielrolle",
@@ -1228,7 +1249,26 @@
     },
     "title": "Einstellungen",
     "update": {
-      "channel_desc": "Apple Silicon · macOS 13 oder neuer"
+      "channel_desc": "Apple Silicon · macOS 13 oder neuer",
+      "check": "Neue Version",
+      "check_action": "Nach Updates suchen",
+      "check_failed": "Updates können gerade nicht geprüft werden, möglicherweise fehlt die Verbindung. Versuche es später erneut; die aktuelle Version funktioniert weiter.",
+      "checking": "Wird geprüft…",
+      "downloading": "Download und Signaturprüfung…",
+      "downloading_progress": "Download und Prüfung… {{progress}}%",
+      "install_failed": "Drifting {{version}} konnte beim letzten Beenden nicht installiert werden. Die aktuelle Version ist unverändert; beim nächsten Beenden wird es erneut versucht.",
+      "install_failed_admin": "Drifting {{version}} konnte beim letzten Beenden nicht installiert werden: In den Ordner, in dem Drifting liegt, kann nicht geschrieben werden. Die aktuelle Version ist unverändert.",
+      "interrupted": "Das Update wurde nicht vollständig geladen und verworfen. Bei der nächsten Prüfung wird es erneut geladen.",
+      "local_error": "Das Update konnte auf diesem Computer nicht gespeichert werden und wurde angehalten. Die aktuelle Version funktioniert weiter.",
+      "no_update": "Du bist auf dem neuesten Stand.",
+      "older_offered": "Du bist auf dem neuesten Stand. Der Update-Dienst bietet {{version}} an, eine ältere Version; sie wird nicht installiert.",
+      "ready_on_quit": "Drifting {{version}} ist geladen und die Signatur geprüft. Es wird beim Beenden installiert.",
+      "refused_app": "Das geladene Update ist nicht Drifting und wurde verworfen. Die aktuelle Version funktioniert weiter.",
+      "refused_signature": "Das geladene Update hat die Signaturprüfung nicht bestanden und wurde verworfen. Die aktuelle Version funktioniert weiter.",
+      "refused_version": "Das geladene Update ist nicht die angegebene Version, möglicherweise eine ältere, und wurde abgelehnt. Die aktuelle Version funktioniert weiter.",
+      "restart": "Neu starten und aktualisieren",
+      "server_error": "Der Update-Dienst hat gerade ein Problem. Versuche es später erneut; die aktuelle Version funktioniert weiter.",
+      "unavailable": "Dieser Build hat keinen Updater-Signaturschlüssel und kann nicht nach Updates suchen. Von GitHub heruntergeladene Versionen können dies."
     }
   },
   "sidebarLayout": {

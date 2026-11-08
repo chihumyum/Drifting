@@ -15,10 +15,10 @@
 | 钥匙串 | 用的就是旧版的存法，旧版写的登录和 API Key 新版直接读得到，新版写的旧版也读得到；Windows 长令牌自动拆开存 | — |
 | 深链接与单实例 | 链接统一进一个队列，各取各的前缀；Windows 第二次启动把链接转给已开的那个再退出；开发版用 `drifting-next-dev:`，不抢正式版的链接 | F6 接上「来了链接就把窗口叫到前面」 |
 | 打包 | macOS 出 `.app`、`.dmg`、更新包 `.app.tar.gz`；Windows 有 NSIS 安装器，安装位置、卸载项、注册表和旧版 Tauri 安装器一样，CI 里装一遍、升级一遍、卸一遍 | 签名、公证、预编译着色器（发版前） |
-| 自动更新 | 读清单、比版本、下载、用现有公钥的格式验签、macOS 原地换包、Windows 交给安装器；本地用自造的密钥对和本地文件从头到尾走通了 | F6/M42 的界面和定时检查；旧版最后一版改一行更新地址 |
+| 自动更新 | 读清单、比版本、下载、用现有公钥的格式验签、macOS 原地换包、Windows 交给安装器；本地用自造的密钥对和本地文件从头到尾走通了。第四轮（M42）：启动后和每 3 小时自动查、设置里手动查，查到就后台下好验好，通知中心「重启以更新」，退出时换；坏签名、旧包冒充新版本、半截下载、断网都拒绝并说清楚，全对着本机假服务测过 | 旧版最后一版改更新地址（设计已写，见 [m42-update.md](../modules/m42-update.md)）；签名正式包上的交接演练 |
 | 外部 Agent 的命令行 | 新程序认旧版写进 Codex、Claude Code 配置里的 `drifting --mcp --connection <文件>`，在入口最先分流，不开窗口、不拿单实例锁 | M32 实现桥接（发 GPUI 版的前提） |
 | 设备身份（第二轮） | 应用打开库时带上这台设备的身份（和旧版同一个身份文件，换了机器算新设备），写作日真正存下来；开发 profile 各有一份 | — |
-| 反馈与崩溃跟进（第二轮，M39） | 反馈对话框，可附脱敏诊断摘要，走旧版的接口；崩溃后通知中心里点「上次出了故障」问一句；没有服务时交给邮件程序。脱敏规则补全成旧版的整套。第三轮：多行写话框，✕ 总能关、写了字点雾不关，和旧版一样 | 登录会话、摘要里的同步和更新状态（见 [m39-feedback.md](../modules/m39-feedback.md) 待协调） |
+| 反馈与崩溃跟进（第二轮，M39） | 反馈对话框，可附脱敏诊断摘要，走旧版的接口；崩溃后通知中心里点「上次出了故障」问一句；没有服务时交给邮件程序。脱敏规则补全成旧版的整套。第三轮：多行写话框，✕ 总能关、写了字点雾不关，和旧版一样。第四轮：摘要里的更新状态接上了 M42 | 登录会话、摘要里的同步状态（见 [m39-feedback.md](../modules/m39-feedback.md) 待协调） |
 | 发布流水线 | 草稿 `next/script/release-next.draft.yml`，不会被触发 | 交接时补全 |
 
 **最要紧的三个发现**：
@@ -63,7 +63,8 @@ dr_view_feedback::init(Service::for_build(platform, Some(&dirs.data), version), 
 | `secrets` | M35 账号、M37 帮手、扩展 | `SecretStore::for_identity(id)`；`.get/.contains/.set/.delete`；`SecretStore::in_memory()` 给别的 crate 测试；`secrets::keys::*` 旧版的键名 |
 | `deep_link` | F6、M35、跳转链接 | `DeepLinks::new(scheme)`；`.push_all/.push_args`、`.drain_matching("auth/")`、`.set_waker(f)` |
 | `single_instance` | app | `acquire(identity, args) -> Instance::{Primary, Forwarded, ForwardFailed}`；`Primary::listen(f)` |
-| `update` | M42 更新界面 | `UpdaterConfig::for_build(identity, version)`；`Updater::new(config, fetch)`；`.check() -> Option<Available>`、`.download(&available, dir, progress) -> Downloaded`；`Downloaded::replace_bundle(bundle)`（macOS）、`.installer_launch(args).spawn()`（Windows）；`update::running_bundle()`；`HttpFetch`、`LocalFetch` |
+| `update` | M42（`dr-view-update`） | `UpdaterConfig::for_build(identity, version)`；`Updater::new(config, UpdateFetch::new(policy, ua, stall))`；`.check() -> Offer::{Newer, Current, Older}`、`.download(&available, dir, progress) -> Downloaded`（验签并核对签名里的版本；已下好的验过就复用）；`Downloaded::replace_bundle(bundle)`（macOS，还核对 App 自己的版本）、`.installer_launch(args)[.without_relaunch()].spawn()`（Windows）；`UpdateError::problem()`；`Downloads`（更新文件夹和两张便条）；`update::running_bundle()`；`HttpFetch`、`LocalFetch`；`fetch::fake_server`、`signature::test_keys`、`install::test_bundles`（`test-support`） |
+| `relaunch` | M42 | `relaunch::after_exit(bundle)`（macOS：等本进程退出再 `open -n`，照旧版 `macos_relaunch.rs`）；`open_arguments` |
 
 两个只给发布和自测用的小程序（`examples/`，不进正式包）：
 
@@ -294,18 +295,18 @@ CI（`next.yml` 的 Windows 任务，`script/check-windows-installer.ps1`）：�
 
 ### 新版自己怎么更新
 
-1. `check`：读 `update.json`，只认比自己新的 SemVer 版本（预发布按 SemVer 排）；正式版只收 HTTPS 地址；重定向不能离开 HTTPS。
-2. `download`：边下边写到 `.partial`，最多 512 MiB，带进度；写完按流验签（要求预签哈希的 `ED` 签名，比 Tauri 严格，Tauri 签出来的都是这种）；验不过就删掉，不留文件。
+1. `check`：读 `update.json`，只认比自己新的 SemVer 版本（预发布按 SemVer 排），一样的是 `Offer::Current`、更旧的是 `Offer::Older`，都不下载；正式版只收 HTTPS 地址；重定向不能离开 HTTPS。
+2. `download`：边下边写到 `.partial`，最多 512 MiB，带进度；写完按流验签（要求预签哈希的 `ED` 签名，比 Tauri 严格，Tauri 签出来的都是这种），**再核对签名的受信注释里的文件名带着清单说的版本**（第四轮，防旧包冒充新版本号，见 [m42-update.md](../modules/m42-update.md)「降级」）；验不过就删掉，不留文件。连接中途断了、停 60 秒没动静、比服务器说的长度短，都算中断（第四轮），同样删掉。同一个版本已经下好的文件，重新验过就复用。
 3. 安装：
    - macOS：在包旁边解压（同一个卷，改名是原子的），查 `Info.plist` 的 bundle id 和可执行文件，然后旧包挪开、新包挪进、删旧包；任何一步失败都把旧包放回去。拒绝绝对路径、`..`、多个顶层项、经由包里自带的符号链接写出去的项。目录不可写（标准用户的「应用程序」）时返回「需要管理员」，什么也不改（旧版会弹 AppleScript 要密码，这里先不做，见「待协调」）。之后由 F6 走正常退出、再用 `open -n <包>` 重开，和旧版 `macos_relaunch.rs` 一样。
    - Windows：用 Tauri 的参数 `/P /R /UPDATE /ARGS …` 启动安装器，然后退出。
-4. 什么时候查、界面怎么提示、下载中不查：F6/M42。`update::CHECK_INTERVAL` 是旧版的 3 小时。
+4. 什么时候查、界面怎么提示、什么时候装：M42（第四轮，`dr-view-update`）。启动后 10 秒、之后每 3 小时（`update::CHECK_INTERVAL`，旧版的值）、设置里手动；查到就下，退出时装。
 
-开发版默认不更新；设了 `DRIFTING_DEV_UPDATE_MANIFEST` 和 `DRIFTING_DEV_UPDATER_PUBLIC_KEY` 才会，而且只有开发版能读本地文件。
+开发版默认不更新；设了 `DRIFTING_DEV_UPDATE_MANIFEST` 和 `DRIFTING_DEV_UPDATER_PUBLIC_KEY` 才会，而且只有开发版能读本地文件和本机的 `http://127.0.0.1` / `localhost` / `[::1]`（第四轮，`UrlPolicy::AllowLocal`）。
 
 ### 本机端到端
 
-- 单元测试：自造密钥对，把一个合成的 `.app` 打成更新包、签名、写清单（`file://` 地址），走完查、下、验、换；另有篡改过的包、别的密钥签的包、别的 App 的包、同版本和旧版本、`http://`、`file://` 在正式策略下、空签名、坏 JSON、坏版本号。
+- 单元测试：自造密钥对，把一个合成的 `.app` 打成更新包、签名、写清单（`file://` 地址），走完查、下、验、换；另有篡改过的包、别的密钥签的包、别的 App 的包、同版本和旧版本、`http://`、`file://` 在正式策略下、空签名、坏 JSON、坏版本号。第四轮加了 `127.0.0.1` 上的假 GitHub Releases（`fetch::fake_server`）：本机 HTTP 走完一遍、截断、停滞、连不上、503、旧包冒充新版本号、重开后复用。
 - 真包演练：`bundle-mac --archive` 打出的真更新包，`update-tool sign` 用一次性密钥签，`update-tool manifest --local` 写本地清单，`update-tool apply` 把它装进一份复制出来的 `Drifting Next.app`：旧包里多放的文件没了，换上的包 `codesign --verify --strict` 通过。全程没访问正式发布地址、没下载正式安装包。
 
 ## 交接设计
@@ -373,7 +374,7 @@ CI（`next.yml` 的 Windows 任务，`script/check-windows-installer.ps1`）：�
 2. **F6**：
    - 崩溃上报的同意开关（默认开）和首次说明，`set_consent`（`take_follow_up` 已接通知中心，反馈对话框第二轮做了）；
    - `DeepLinks::set_waker` 接到主线程：来了链接就把主窗口叫到前面、按前缀分发；
-   - 更新界面（M42）：定时检查、下载进度、装完的重开（macOS `open -n`，Windows 先 `spawn` 安装器再退出），以及 macOS 目录不可写时怎么办（旧版弹 AppleScript 要密码，我们要不要跟）；
+   - ~~更新界面（M42）：定时检查、下载进度、装完的重开~~：**第四轮 M42 做了**（`dr-view-update`，外壳只加了设置一行的挂接点）。剩下 macOS 目录不可写时要不要跟旧版弹 AppleScript 要密码，挪到 [m42-update.md](../modules/m42-update.md) 待协调 1；
    - Windows 上调 GPUI 的 `set_app_identity(bundle id, 名字)`，让通知和任务栏归到同一个应用；新装的开始菜单快捷方式没带 AppUserModelID（NSIS 不带插件做不到），更新时保留旧快捷方式所以不受影响。
 3. **F2**：正式版和旧版共用数据文件夹 `~/Library/Application Support/cc.drifting.client`（Windows `%LOCALAPPDATA%\cc.drifting.client`），新库放进自己的子文件夹，旧文件一个都不写。`crashes/` 已被 F7 占用。完整性事件用 `report_integrity`。
 4. **工作区（监管会话定）**：`runtime_shaders` 现在写在 `[workspace.dependencies]` 的 `gpui_platform` 上，所有成员都开着。正式包要关掉它，得改成各可执行文件自己的默认特性（发布时 `--no-default-features`）。动的是共用的 GPUI 依赖行，我没改。
@@ -383,7 +384,7 @@ CI（`next.yml` 的 Windows 任务，`script/check-windows-installer.ps1`）：�
 8. **M10**：没交接的库被拦下时，提示里给旧版最后一版的下载链接（旧程序已经被替换了）。
 9. **正式版身份怎么切换**：建议交接时给 `dr-platform` 加一个 `release-identity` 特性，只有发布工作流开它，`Identity::current()` 据此返回 `RELEASE`；`bundle-mac` 和 `bundle-windows.ps1` 加对应开关。现在照 `AGENTS.md` 不做。
 10. **`next/README.md`**：改了「开发开关」表的 `DRIFTING_LOG` 一行，加了 `DRIFTING_LOG_FILE`、`DRIFTING_PROFILE`、`DRIFTING_CRASH_REPORTS_IN_DEV`、两个开发更新变量，和打包一节的 `--dmg`、`--archive`、Windows 脚本，以及目录表。
-11. **M10（第三轮）：导入中途退出的等待改成各 1 秒**：`dr-view-import/src/flow.rs` 的 `QUIT_WAIT_BOOK`、`QUIT_WAIT_NOW` 都改成 `Duration::from_secs(1)`，m10-import.md 里的「3 秒」「2 秒」跟着改。理由见「退出时能做多少 → 导入中途退出等多久」。常量是 M10 的，我没改。
+11. ~~**M10（第三轮）：导入中途退出的等待改成各 1 秒**~~：**M10 已改**（`dr-view-import/src/flow.rs` 的 `QUIT_WAIT_BOOK`、`QUIT_WAIT_NOW` 现在都是 1 秒）。理由见「退出时能做多少 → 导入中途退出等多久」。
 12. ~~**F6（第三轮，不急）**：退出流程先藏窗口（`cx.hide()`）再跑退出钩子~~：**F6 第八轮做了**（`dr_shell::quit`）。
 
 ## 数字
@@ -430,8 +431,28 @@ M3 Pro，release 构建，机器负载 15–18（其他会话在编译）。
 - 剥过的可执行文件和 `.dSYM` 的构建 UUID 相同；拿没剥那份里 `dr_platform::crash::init` 的地址往后 64 字节，`atos -o "Drifting Next.app.dSYM" -l 0x100000000` 还原出 `crash.rs:201`，在 `init` 里面。
 - 和第一轮「数字」一节比，可执行文件大了很多，是这几批加进来的代码（代码段本身 42.7 MiB），不是符号：剥掉的部分是 18.6 MiB。`release` 档案这次没有重编来比；行号表按说不改生成的代码。
 
+## 第四轮：M42 自动更新的客户端
+
+2026-11-08，监管会话交的事：启动时和设置里检查更新，下载验签，通知中心「重启以更新」、退出时替换，坏签名、半截下载、断网、降级都拒绝并提示；对着本机假服务验收，不碰真发布、不改 `.github/workflows`、不连真服务、不用真签名密钥；旧版那头只写设计。详细在 [m42-update.md](../modules/m42-update.md)，这里只记 F7 这层动了什么：
+
+- `update::fetch`：`UpdateFetch`（按 `UrlPolicy` 选 HTTPS / 本地文件 / 本机 HTTP）；`HttpFetch::new(ua, HttpOptions { loopback, stall })`，停 60 秒算中断；`FetchError::Interrupted`、`Incomplete`；`is_loopback_http`；测试用的 `fake_server`。
+- `update::signature`：验签返回受信注释（`Verified::signed_file`）；`test_keys` 给别的 crate 测试用。
+- `update`：`Offer`、版本绑定（`UpdateError::VersionMismatch`）、复用已下好的文件、`Problem` 分类、`Downloads`（`store.rs`）。
+- `update::install`：换包前核对 `CFBundleShortVersionString`（`InstallError::WrongVersion`）；`InstallerLaunch::without_relaunch`；`test_bundles`。
+- `relaunch`：从旧版 `macos_relaunch.rs` 搬来的「等本进程退出再 `open -n`」。
+- `update-tool`：`apply` 跟着 `Offer` 改；`verify` 打印签名里的文件名。
+
+退出时换包要多久（本机演练：上一轮 `bundle-mac --dist --archive` 打的真更新包 66.7 MiB、解开 124 MiB，`update-tool sign` 用 scratchpad 里的一次性密钥签，`update-tool manifest --local` 写本地清单，`update-tool apply` 装进复制出来的 `Drifting Next.app`；依赖在开发档案里是 opt-level 2，和正式包差不多；别的会话在编译，负载约 100）：
+
+| 步骤 | 三次 |
+| --- | --- |
+| 下载（本地复制）+ 验签 + 核对签名里的版本 | 285 / 187 / 127 ms |
+| 换包（解压到包旁边、核对 bundle id 和版本、两次改名、删旧包），就是退出钩子做的事 | 1161 / 1703 / 2866 ms |
+
+换完 `codesign --verify --strict` 通过，包旁边没有留下临时文件夹。换包主要花在把 124 MiB 写到盘上，负载高时会到 3 秒；⌘Q 时 App 先藏起来，作者看不到这段，「重启以更新」的重开助手等进程退出后才打开新版。要更快可以把解压挪到下载验签之后（包旁边先解好、退出时只剩两次改名），代价是包旁边要留一个隐藏的临时文件夹、崩溃后要清理；这一轮没做，记在 m42-update.md 待协调 6。
+
 ## 下一个里程碑建议
 
-1. **交接里程碑**：旧版最后一版改更新地址并发布；`release-identity` 特性和打包脚本开关；把草稿工作流补全、挪进 `.github/workflows`；在签名公证的正式包上把 Tauri → GPUI 在 macOS 和 Windows 上各真走一遍（用测试密钥对和一个私有的测试仓库或本地清单，不碰正式发布）。
+1. **交接里程碑**：旧版最后一版改更新地址并发布（改法已写在 [m42-update.md](../modules/m42-update.md)「旧版那头的交接」）；`release-identity` 特性和打包脚本开关；把草稿工作流补全、挪进 `.github/workflows`；在签名公证的正式包上把 Tauri → GPUI 在 macOS 和 Windows 上各真走一遍（用测试密钥对和一个私有的测试仓库或本地清单，不碰正式发布）。
 2. **符号与上报验收（剩下要连 Sentry 的部分）**：本机部分第三轮做完了（见上）。剩下的要作者同意后做：接一个测试用的 Sentry 项目，`sentry-cli` 上传 `dist` 的 `.dSYM`，看一次 Rust 崩溃和一次 minidump 在 Sentry 里还原出函数名和行号；同时验「发版前」4 条（要签名的正式包）。
 3. **Windows 实机**：虚拟机里过一遍深链接、单实例、钥匙串、安装器。

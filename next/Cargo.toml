@@ -30,6 +30,7 @@ members = [
     "crates/dr-view-feedback",
     "crates/dr-view-history",
     "crates/dr-view-home",
+    "crates/dr-view-ideas",
     "crates/dr-view-import",
     "crates/dr-view-material",
     "crates/dr-view-page",
@@ -43,6 +44,7 @@ members = [
     "crates/dr-view-stats",
     "crates/dr-view-timeline",
     "crates/dr-view-transfer",
+    "crates/dr-view-update",
     "crates/dr-workspace",
     "crates/gpui-ime",
     "crates/gpui-prose",
@@ -248,6 +250,8 @@ dr-view-export = { path = "crates/dr-view-export" }
 dr-view-transfer = { path = "crates/dr-view-transfer" }
 # M39: the feedback dialog and the crash follow-up.
 dr-view-feedback = { path = "crates/dr-view-feedback" }
+# M42: automatic updates (over F7's dr_platform::update).
+dr-view-update = { path = "crates/dr-view-update" }
 futures = "0.3"
 icu_plurals = { version = "2.4", default-features = false, features = ["compiled_data"] }
 # M40 names files as 0.1 did (NFKC first); already in the tree through url.
@@ -282,6 +286,8 @@ hayro = "0.9.0"
 dr-view-plot = { path = "crates/dr-view-plot" }
 # M17: relations and relation types (the element page's 「关联」, the types).
 dr-view-relations = { path = "crates/dr-view-relations" }
+# M16: the 构想 panel, ideas in nested groups (docs/rust-rewrite/modules/m16-ideas.md).
+dr-view-ideas = { path = "crates/dr-view-ideas" }
 # M25: the bookshelf's covers, heat map and strips.
 dr-view-shelf-art = { path = "crates/dr-view-shelf-art" }
 # M24: the sea of characters, the first run and the tour.

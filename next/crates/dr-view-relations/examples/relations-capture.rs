@@ -318,9 +318,9 @@ fn capture(dir: PathBuf) -> Result<()> {
 
         // The delete question.
         if let Some(id) = first {
-            let weak = m.downgrade();
+            let (lib, book) = (h.library.clone(), h.book.clone());
             let dialog = h.cx.open_window(size(px(W), px(420.0)), move |_, cx| {
-                let d = cx.new(|cx| DeleteTypeDialog::new(weak, id, "冤家".into(), cx));
+                let d = cx.new(|cx| DeleteTypeDialog::new(lib, book, id, "冤家".into(), cx));
                 cx.new(|_| Dialog(d))
             })?;
             let dialog: AnyWindowHandle = dialog.into();

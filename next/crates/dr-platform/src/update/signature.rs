@@ -3,6 +3,11 @@
 //! workflow signs with `tauri signer`, which always makes prehashed (`ED`)
 //! signatures; unlike Tauri, this verifier refuses the legacy non-prehashed
 //! form, and it reads the artifact in pieces instead of holding it in memory.
+//!
+//! A good signature also hands back its trusted comment, which the key
+//! signed too: `tauri signer` and `update-tool sign` write
+//! `timestamp:<seconds>\tfile:<file name>`, and the file name carries the
+//! version ([`Verified::signed_file`]).
 
 use std::fs::File;
 use std::io::Read;
@@ -37,6 +42,24 @@ pub fn compiled_in_key() -> Option<&'static str> {
 
 pub struct UpdaterKey(PublicKey);
 
+/// What a good signature vouches for besides the bytes.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Verified {
+    /// The signed trusted comment.
+    pub trusted_comment: String,
+}
+
+impl Verified {
+    /// The `file:` the signer named in the trusted comment, if any.
+    pub fn signed_file(&self) -> Option<&str> {
+        self.trusted_comment
+            .split('\t')
+            .find_map(|field| field.strip_prefix("file:"))
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+    }
+}
+
 impl std::fmt::Debug for UpdaterKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("UpdaterKey(..)")
@@ -67,12 +90,15 @@ impl UpdaterKey {
             .map_err(|_| SignatureError::Key)
     }
 
-    pub fn verify_bytes(&self, bytes: &[u8], signature: &str) -> Result<(), SignatureError> {
+    pub fn verify_bytes(&self, bytes: &[u8], signature: &str) -> Result<Verified, SignatureError> {
         let signature = decode_signature(signature)?;
-        self.0.verify(bytes, &signature, false).map_err(classify)
+        self.0.verify(bytes, &signature, false).map_err(classify)?;
+        Ok(Verified {
+            trusted_comment: signature.trusted_comment().to_owned(),
+        })
     }
 
-    pub fn verify_file(&self, path: &Path, signature: &str) -> Result<(), SignatureError> {
+    pub fn verify_file(&self, path: &Path, signature: &str) -> Result<Verified, SignatureError> {
         let signature = decode_signature(signature)?;
         let mut verifier = self.0.verify_stream(&signature).map_err(classify)?;
         let mut file = File::open(path)?;
@@ -84,7 +110,10 @@ impl UpdaterKey {
             }
             verifier.update(&buffer[..read]);
         }
-        verifier.finalize().map_err(classify)
+        verifier.finalize().map_err(classify)?;
+        Ok(Verified {
+            trusted_comment: signature.trusted_comment().to_owned(),
+        })
     }
 }
 
@@ -101,38 +130,45 @@ fn classify(error: minisign_verify::Error) -> SignatureError {
     }
 }
 
-#[cfg(test)]
-pub(crate) mod test_keys {
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_keys {
     //! A throwaway key pair per test, in Tauri's wrapping. Nothing here is
-    //! the release key.
+    //! the release key. Other crates' tests get it with the `test-support`
+    //! feature.
 
     use base64::Engine as _;
     use base64::engine::general_purpose::STANDARD;
     use std::io::Cursor;
 
-    pub(crate) struct TestKey {
+    pub struct TestKey {
         pair: minisign::KeyPair,
     }
 
     impl TestKey {
-        pub(crate) fn generate() -> Self {
+        pub fn generate() -> Self {
             Self {
                 pair: minisign::KeyPair::generate_unencrypted_keypair().unwrap(),
             }
         }
 
         /// What `DRIFTING_UPDATER_PUBLIC_KEY` holds: base64 of the `.pub` text.
-        pub(crate) fn public_key(&self) -> String {
+        pub fn public_key(&self) -> String {
             STANDARD.encode(self.pair.pk.to_box().unwrap().into_string())
         }
 
         /// What a `.sig` file and a manifest's `signature` hold.
-        pub(crate) fn sign(&self, bytes: &[u8]) -> String {
+        pub fn sign(&self, bytes: &[u8]) -> String {
+            self.sign_as(bytes, "test")
+        }
+
+        /// Signed with `file:<name>` in the trusted comment, as
+        /// `tauri signer` and `update-tool sign` write it.
+        pub fn sign_as(&self, bytes: &[u8], file: &str) -> String {
             let signature = minisign::sign(
                 Some(&self.pair.pk),
                 &self.pair.sk,
                 Cursor::new(bytes),
-                Some("timestamp:0\tfile:test"),
+                Some(&format!("timestamp:0\tfile:{file}")),
                 None,
             )
             .unwrap();
@@ -151,12 +187,26 @@ mod tests {
         let key = TestKey::generate();
         let public = UpdaterKey::parse(&key.public_key()).unwrap();
         let artifact = b"a synthetic update".repeat(1000);
-        let signature = key.sign(&artifact);
-        public.verify_bytes(&artifact, &signature).unwrap();
+        let signature = key.sign_as(&artifact, "Drifting_0.2.1_aarch64.app.tar.gz");
+        let verified = public.verify_bytes(&artifact, &signature).unwrap();
+        assert_eq!(
+            verified.signed_file(),
+            Some("Drifting_0.2.1_aarch64.app.tar.gz")
+        );
 
         let file = tempfile::NamedTempFile::new().unwrap();
         std::fs::write(file.path(), &artifact).unwrap();
-        public.verify_file(file.path(), &signature).unwrap();
+        assert_eq!(
+            public.verify_file(file.path(), &signature).unwrap(),
+            verified
+        );
+        assert_eq!(
+            Verified {
+                trusted_comment: "timestamp:1".into()
+            }
+            .signed_file(),
+            None
+        );
     }
 
     #[test]
