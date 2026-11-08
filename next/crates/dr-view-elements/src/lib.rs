@@ -84,6 +84,8 @@ struct Views {
             WeakEntity<storyline::StorylineEnd>,
         ),
     >,
+    /// The panels the shell's left sidebars show.
+    panels: Vec<WeakEntity<panel::ElementPanel>>,
 }
 
 impl Global for Views {}
@@ -122,6 +124,14 @@ pub fn make_panel(
     (list, head)
 }
 
+/// The elements panels the shell's left sidebars show now (one per half
+/// that has shown the 要素 tab).
+pub fn sidebar_panels(cx: &App) -> Vec<Entity<panel::ElementPanel>> {
+    cx.try_global::<Views>()
+        .map(|v| v.panels.iter().filter_map(|p| p.upgrade()).collect())
+        .unwrap_or_default()
+}
+
 /// The head and end of storyline `id`'s page, while it is open.
 pub fn storyline_page(
     id: &str,
@@ -134,13 +144,18 @@ pub fn storyline_page(
     Some((head.upgrade()?, end.upgrade()?))
 }
 
-/// Registers the element and category pages' chrome and the left
-/// sidebar's 要素 panel with the shell, and makes their dialogs.
+/// Registers the element, category and storyline pages' chrome and ⋯
+/// rows and the left sidebar's 要素 panel with the shell, and makes their
+/// dialogs.
 pub fn init(cx: &mut App) {
     dialogs::init(cx);
+    menu::register(cx);
     dr_shell::pages::add_left_panel(cx, |tab, ws, _, cx| {
         (tab == dr_shell::workspace::LeftTab::Elements).then(|| {
             let (body, head) = make_panel(ws, cx);
+            let views = cx.default_global::<Views>();
+            views.panels.retain(|p| p.upgrade().is_some());
+            views.panels.push(body.downgrade());
             dr_shell::pages::LeftPanel {
                 head: head.into(),
                 body: body.into(),

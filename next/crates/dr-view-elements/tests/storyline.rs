@@ -8,6 +8,8 @@
 use std::time::{Duration, Instant};
 
 use dr_shell::nav::{Open, Target};
+use dr_shell::pages::PageMenuHost;
+use dr_shell::workspace::page_actions::page_actions;
 use dr_shell::{Services, SettingsFile, ShellInfo, Workspace};
 use dr_view_elements::dialogs::{AskFor, Asking};
 use dr_view_elements::storyline::{ChapterFilter, StorylineEnd, StorylineHead};
@@ -214,13 +216,31 @@ fn deleting_a_storyline_asks_then_trashes_it(cx: &mut TestAppContext) {
         .unwrap();
     open(&view, &late.id, cx);
     let target = Target::Storyline(late.id.parse().unwrap());
-    // The ⋯ menu's one row is the danger one.
-    let rows = cx.update(|_, cx| dr_view_elements::menu::rows(&target, cx));
-    assert_eq!(rows.len(), 1);
-    assert!(rows[0].danger);
-    let run = rows[0].run.clone();
-    let ws = view.downgrade();
-    cx.update(|window, cx| run(ws, window, cx));
+    // The ⋯ menu as the shell lists it: share, the snapshot history, then
+    // 删除故事线 with what deletes.
+    let host = view.read_with(cx, |ws, _| PageMenuHost {
+        workspace: view.downgrade(),
+        library: ws.library.clone(),
+        book_id: ws.book_id.clone(),
+        book: ws.book.clone(),
+    });
+    let sections = cx.update(|_, cx| page_actions(&view, &host, &target, cx));
+    let ids: Vec<Vec<String>> = sections
+        .iter()
+        .map(|s| s.items.iter().map(|i| i.id.to_string()).collect())
+        .collect();
+    assert_eq!(
+        ids,
+        [
+            vec!["page-share"],
+            vec!["page-history"],
+            vec!["storyline-delete"]
+        ]
+    );
+    let row = &sections[2].items[0];
+    assert!(row.danger);
+    let run = row.run.clone();
+    cx.update(|window, cx| run(window, cx));
     frame(cx);
     let dialogs = cx.update(|_, cx| dr_view_elements::dialogs::dialogs(cx).unwrap());
     assert_eq!(

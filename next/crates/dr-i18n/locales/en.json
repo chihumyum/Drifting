@@ -12,6 +12,35 @@
     "storyGraph": "Story graph",
     "todoLibrary": "TODO & Library"
   },
+  "bottomTimeline": {
+    "act": {
+      "chapterCount": "{{count}} chapters",
+      "railLabel": "Act"
+    },
+    "axis": {
+      "time": "Time"
+    },
+    "empty": {
+      "noChaptersInStoryline": "No chapters in this storyline · double-click to create one"
+    },
+    "locateCurrent": "Locate current chapter",
+    "storyline": {
+      "chapterCount": "{{count}} ch"
+    },
+    "synthetic": {
+      "book": "Book",
+      "unaffiliated": "Unaffiliated"
+    },
+    "unplaced": {
+      "empty": "All chapters are on the narrative timeline",
+      "label": "Unplaced",
+      "title": "Chapters not placed on the narrative timeline"
+    },
+    "view": {
+      "book": "Book",
+      "narrative": "Narrative"
+    }
+  },
   "categoryEditor": {
     "actions": {
       "openElement": "Open element"

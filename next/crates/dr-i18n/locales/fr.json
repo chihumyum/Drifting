@@ -12,6 +12,35 @@
     "storyGraph": "Graphe du récit",
     "todoLibrary": "Tâches et documentation"
   },
+  "bottomTimeline": {
+    "act": {
+      "chapterCount": "{{count}} chapitres",
+      "railLabel": "Acte"
+    },
+    "axis": {
+      "time": "Temps"
+    },
+    "empty": {
+      "noChaptersInStoryline": "Aucun chapitre dans cette intrigue · double-cliquez pour créer"
+    },
+    "locateCurrent": "Localiser le chapitre actuel",
+    "storyline": {
+      "chapterCount": "{{count}} chap."
+    },
+    "synthetic": {
+      "book": "Livre",
+      "unaffiliated": "Sans appartenance"
+    },
+    "unplaced": {
+      "empty": "Tous les chapitres sont placés sur la chronologie narrative",
+      "label": "Non placés",
+      "title": "Chapitres non placés sur la chronologie narrative"
+    },
+    "view": {
+      "book": "Livre",
+      "narrative": "Temps narratif"
+    }
+  },
   "categoryEditor": {
     "actions": {
       "openElement": "Ouvrir l’élément"

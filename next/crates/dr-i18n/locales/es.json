@@ -12,6 +12,35 @@
     "storyGraph": "Mapa de la historia",
     "todoLibrary": "Tareas y documentación"
   },
+  "bottomTimeline": {
+    "act": {
+      "chapterCount": "{{count}} capítulos",
+      "railLabel": "Acto"
+    },
+    "axis": {
+      "time": "Tiempo"
+    },
+    "empty": {
+      "noChaptersInStoryline": "Sin capítulos en esta trama · doble clic para crear"
+    },
+    "locateCurrent": "Localizar capítulo actual",
+    "storyline": {
+      "chapterCount": "{{count}} cap."
+    },
+    "synthetic": {
+      "book": "Libro",
+      "unaffiliated": "Sin vincular"
+    },
+    "unplaced": {
+      "empty": "Todos los capítulos están en la línea temporal narrativa",
+      "label": "Sin ubicar",
+      "title": "Capítulos sin ubicar en la línea temporal narrativa"
+    },
+    "view": {
+      "book": "Libro",
+      "narrative": "Tiempo narrativo"
+    }
+  },
   "categoryEditor": {
     "actions": {
       "openElement": "Abrir elemento"

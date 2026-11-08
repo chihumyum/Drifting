@@ -1876,6 +1876,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "dr-view-timeline"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "color_quant",
+ "dr-i18n",
+ "dr-shell",
+ "dr-store",
+ "dr-testkit",
+ "dr-ui",
+ "dr-workspace",
+ "gpui",
+ "gpui_platform",
+ "log",
+ "png 0.18.1",
+ "tempfile",
+]
+
+[[package]]
 name = "dr-workspace"
 version = "0.0.0"
 dependencies = [

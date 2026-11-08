@@ -12,6 +12,35 @@
     "storyGraph": "物語グラフ",
     "todoLibrary": "TODOと資料庫"
   },
+  "bottomTimeline": {
+    "act": {
+      "chapterCount": "{{count}}章",
+      "railLabel": "幕"
+    },
+    "axis": {
+      "time": "時間"
+    },
+    "empty": {
+      "noChaptersInStoryline": "このストーリーラインに章なし・ダブルクリックで作成"
+    },
+    "locateCurrent": "現在の章へ移動",
+    "storyline": {
+      "chapterCount": "{{count}}章"
+    },
+    "synthetic": {
+      "book": "全編",
+      "unaffiliated": "所属なし"
+    },
+    "unplaced": {
+      "empty": "すべての章が物語のタイムラインに配置されています",
+      "label": "未配置",
+      "title": "物語のタイムラインに未配置の章"
+    },
+    "view": {
+      "book": "全編",
+      "narrative": "物語内の時間"
+    }
+  },
   "categoryEditor": {
     "actions": {
       "openElement": "要素を開く"

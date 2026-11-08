@@ -12,6 +12,35 @@
     "storyGraph": "故事图谱",
     "todoLibrary": "审阅与素材"
   },
+  "bottomTimeline": {
+    "act": {
+      "chapterCount": "{{count}}章",
+      "railLabel": "幕"
+    },
+    "axis": {
+      "time": "时间"
+    },
+    "empty": {
+      "noChaptersInStoryline": "这条故事线还没有章节 · 双击新建"
+    },
+    "locateCurrent": "定位到当前章节",
+    "storyline": {
+      "chapterCount": "{{count}} 章"
+    },
+    "synthetic": {
+      "book": "本书",
+      "unaffiliated": "未归属"
+    },
+    "unplaced": {
+      "empty": "所有章节都在叙事时间轴上",
+      "label": "未放置",
+      "title": "未放置到叙事时间轴上的章节"
+    },
+    "view": {
+      "book": "书序",
+      "narrative": "叙事时"
+    }
+  },
   "categoryEditor": {
     "actions": {
       "openElement": "打开要素"

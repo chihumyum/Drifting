@@ -12,6 +12,35 @@
     "storyGraph": "이야기 그래프",
     "todoLibrary": "할 일 및 자료실"
   },
+  "bottomTimeline": {
+    "act": {
+      "chapterCount": "{{count}}개 장",
+      "railLabel": "막"
+    },
+    "axis": {
+      "time": "시간"
+    },
+    "empty": {
+      "noChaptersInStoryline": "스토리라인에 장 없음 · 두 번 눌러 만들기"
+    },
+    "locateCurrent": "현재 장 찾기",
+    "storyline": {
+      "chapterCount": "{{count}}장"
+    },
+    "synthetic": {
+      "book": "작품 전체",
+      "unaffiliated": "소속 없음"
+    },
+    "unplaced": {
+      "empty": "모든 장이 서사 타임라인에 배치되었습니다",
+      "label": "미배치",
+      "title": "서사 타임라인에 배치되지 않은 장"
+    },
+    "view": {
+      "book": "작품 전체",
+      "narrative": "서사 시간"
+    }
+  },
   "categoryEditor": {
     "actions": {
       "openElement": "요소 열기"

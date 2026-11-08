@@ -12,6 +12,35 @@
     "storyGraph": "故事圖譜",
     "todoLibrary": "審閱與素材"
   },
+  "bottomTimeline": {
+    "act": {
+      "chapterCount": "{{count}} 章",
+      "railLabel": "幕"
+    },
+    "axis": {
+      "time": "時間"
+    },
+    "empty": {
+      "noChaptersInStoryline": "此故事線尚無章節 · 按兩下建立"
+    },
+    "locateCurrent": "定位目前章節",
+    "storyline": {
+      "chapterCount": "{{count}} 章"
+    },
+    "synthetic": {
+      "book": "全書",
+      "unaffiliated": "無歸屬"
+    },
+    "unplaced": {
+      "empty": "所有章節皆已放置於敘事時間線",
+      "label": "尚未放置",
+      "title": "尚未放置於敘事時間線的章節"
+    },
+    "view": {
+      "book": "全書",
+      "narrative": "敘事時間"
+    }
+  },
   "categoryEditor": {
     "actions": {
       "openElement": "開啟要素"
