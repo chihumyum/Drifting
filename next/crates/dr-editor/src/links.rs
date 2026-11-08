@@ -58,6 +58,8 @@ pub struct DriftingExtension {
     targets: Option<Box<dyn LinkTargets>>,
     alive: RefCell<HashMap<String, bool>>,
     markdown: bool,
+    /// A material note's rules too (`==highlight==`).
+    note: std::cell::Cell<bool>,
     /// The paint layers draw the links' dry underline (crate::decor), so
     /// the run gets none of its own.
     dry_underline: std::cell::Cell<bool>,
@@ -67,12 +69,18 @@ pub struct DriftingExtension {
 }
 
 impl DriftingExtension {
+    /// Rules of a material note too (`==highlight==`); set per document.
+    pub fn set_note(&self, note: bool) {
+        self.note.set(note);
+    }
+
     /// `targets`: where to look link targets up (`None`: every link alive).
     pub fn new(targets: Option<Box<dyn LinkTargets>>) -> DriftingExtension {
         DriftingExtension {
             targets,
             alive: RefCell::default(),
             markdown: true,
+            note: std::cell::Cell::new(false),
             dry_underline: std::cell::Cell::new(false),
             todos: RefCell::default(),
         }
@@ -152,6 +160,11 @@ impl ProseExtension for DriftingExtension {
         if !self.markdown {
             return None;
         }
-        markdown_rule(typed)
+        markdown_rule(typed).or_else(|| {
+            self.note
+                .get()
+                .then(|| crate::rules::highlight_rule(typed))
+                .flatten()
+        })
     }
 }

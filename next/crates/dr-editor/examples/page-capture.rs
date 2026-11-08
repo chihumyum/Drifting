@@ -10,6 +10,10 @@
 //! `PageChrome`: the folio line, the title, the synopsis and a rule above
 //! the text, ⁂ with its two actions after it, the empty-chapter hint. The
 //! book is synthetic.
+//!
+//! A material note (fifth batch), light and dark: a highlight, a table with
+//! its bar, an embedded picture and a PDF card (`note-light.png`,
+//! `note-dark.png`); the picture is drawn here, the PDF is a stub.
 
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -149,14 +153,16 @@ impl PageChrome for Chrome {
 
 struct Page {
     view: Entity<ChapterEditor>,
+    ground: gpui::Hsla,
+    ink: gpui::Hsla,
 }
 
 impl Render for Page {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
         div()
             .size_full()
-            .bg(hsla(40. / 360., 0.2, 0.985, 1.))
-            .text_color(hsla(0., 0., 0.12, 1.))
+            .bg(self.ground)
+            .text_color(self.ink)
             .child(self.view.clone())
     }
 }
@@ -169,6 +175,18 @@ struct Shot {
 
 impl Shot {
     fn open(ws: &Workspace, book: &str, doc: &str) -> Shot {
+        Shot::open_with(ws, book, doc, true, None)
+    }
+
+    /// `doc` without the chapter chrome, in the theme of `palette` (the
+    /// shell's colours: `dr_shell::workspace::editors::base_style`).
+    fn open_with(
+        ws: &Workspace,
+        book: &str,
+        doc: &str,
+        chrome: bool,
+        palette: Option<&'static dr_ui::tokens::Palette>,
+    ) -> Shot {
         let text_system = gpui_platform::current_platform(true).text_system();
         let mut cx = HeadlessAppContext::with_platform(
             text_system,
@@ -181,7 +199,21 @@ impl Shot {
                 eprintln!("dr-ui fonts: {e} (menus fall back)");
             }
             gpui_prose::bind_keys(cx);
+            if let Some(p) = palette {
+                dr_ui::theme::force_appearance(
+                    Some(if p.dark {
+                        dr_ui::theme::Appearance::Dark
+                    } else {
+                        dr_ui::theme::Appearance::Light
+                    }),
+                    cx,
+                );
+            }
         });
+        let (ground, ink) = match palette {
+            Some(p) => (p.page.solid(), p.ink(1).solid()),
+            None => (hsla(40. / 360., 0.2, 0.985, 1.), hsla(0., 0., 0.12, 1.)),
+        };
         let mut slot = None;
         let (ws, book, doc) = (ws.clone(), book.to_owned(), doc.to_owned());
         let window = cx
@@ -190,20 +222,34 @@ impl Shot {
                     let mut v =
                         ChapterEditor::open(ws, &book, &doc, EditorSettings::default(), window, cx)
                             .expect("open the chapter");
-                    v.set_chrome(Some(Rc::new(Chrome)), cx);
+                    if chrome {
+                        v.set_chrome(Some(Rc::new(Chrome)), cx);
+                    }
+                    let p = palette.unwrap_or(&dr_ui::tokens::Palette::LIGHT);
+                    let link = match palette {
+                        Some(p) => p.accent.solid(),
+                        None => hsla(0.58, 0.55, 0.42, 1.),
+                    };
+                    if palette.is_some() {
+                        v.set_base_style(
+                            gpui_prose::ProseStyle {
+                                text: p.ink(1).solid(),
+                                muted: p.muted().solid(),
+                                background: gpui::transparent_black(),
+                                selection: p.accent.alpha(0.22),
+                                cursor: p.accent.solid(),
+                                link,
+                                ..gpui_prose::ProseStyle::default()
+                            },
+                            cx,
+                        );
+                    }
                     // The paint layers draw the links (and their cards).
-                    v.set_decor_looks(
-                        dr_editor::decor::DecorLooks::new(
-                            &dr_ui::tokens::Palette::LIGHT,
-                            hsla(0.58, 0.55, 0.42, 1.),
-                            false,
-                        ),
-                        cx,
-                    );
+                    v.set_decor_looks(dr_editor::decor::DecorLooks::new(p, link, false), cx);
                     v
                 });
                 slot = Some(view.clone());
-                cx.new(|_| Page { view })
+                cx.new(|_| Page { view, ground, ink })
             })
             .expect("the window");
         let mut shot = Shot {
@@ -275,6 +321,155 @@ impl Shot {
         image.save(dir.join(name)).expect("write the screenshot");
         eprintln!("wrote {}", dir.join(name).display());
     }
+}
+
+/// A synthetic picture: a harbour at dusk in flat bands.
+fn harbour_png(width: u32, height: u32) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    {
+        let mut encoder = png::Encoder::new(&mut bytes, width, height);
+        encoder.set_color(png::ColorType::Rgb);
+        encoder.set_depth(png::BitDepth::Eight);
+        let mut writer = encoder.write_header().expect("png header");
+        let horizon = height * 3 / 5;
+        let mut data = Vec::with_capacity((width * height * 3) as usize);
+        for y in 0..height {
+            for x in 0..width {
+                let t = y as f32 / horizon as f32;
+                let px = if y < horizon {
+                    // The sky: warm at the horizon, cooler above.
+                    [
+                        (120. + 110. * t) as u8,
+                        (130. + 70. * t) as u8,
+                        (170. - 30. * t) as u8,
+                    ]
+                } else {
+                    // The water, with a lamp's streak.
+                    let streak =
+                        (x as i32 - (width as i32) * 2 / 3).unsigned_abs() < 6 && (y / 4) % 2 == 0;
+                    if streak {
+                        [235, 205, 140]
+                    } else {
+                        let d = (y - horizon) as f32 / (height - horizon) as f32;
+                        [
+                            (70. - 30. * d) as u8,
+                            (90. - 35. * d) as u8,
+                            (110. - 30. * d) as u8,
+                        ]
+                    }
+                };
+                data.extend_from_slice(&px);
+            }
+        }
+        writer.write_image_data(&data).expect("png data");
+    }
+    bytes
+}
+
+/// A material whose asset is `bytes`: its id.
+fn material_with_asset(
+    ws: &Workspace,
+    book: &str,
+    dir: &Path,
+    (kind, mime, ext): (&str, &str, &str),
+    title: &str,
+    bytes: &[u8],
+    dimensions: Option<(u32, u32)>,
+) -> String {
+    let file = dir.join(format!("{title}.{ext}"));
+    std::fs::write(&file, bytes).expect("the asset file");
+    let asset = dr_model::id::new_uuid_v7();
+    let record = ws
+        .library()
+        .import_asset(&dr_store::asset::SourceImport {
+            book_id: book,
+            asset_id: &asset,
+            source: &file,
+            mime,
+            ext,
+            dimensions,
+            limit: 16 << 20,
+        })
+        .expect("import the asset");
+    let mut put = json!({"book": book, "id": asset, "kind": kind, "mime": mime,
+                         "size": bytes.len(), "sha256": record.sha256});
+    if let Some((w, h)) = dimensions {
+        put["width"] = w.into();
+        put["height"] = h.into();
+    }
+    out(ws, "asset.put", put);
+    out(
+        ws,
+        "material.create",
+        json!({"book": book, "kind": kind, "title": title, "asset": asset}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned()
+}
+
+/// A material note in `palette`'s theme: a highlight, a table (the caret in
+/// a cell, its bar up), a picture and a PDF.
+fn note_shot(
+    ws: &Workspace,
+    book: &str,
+    doc: &str,
+    materials: (&str, &str),
+    palette: &'static dr_ui::tokens::Palette,
+    dir: &Path,
+    name: &str,
+) {
+    let mut shot = Shot::open_with(ws, book, doc, false, Some(palette));
+    let view = shot.view.clone();
+    // The highlight: 整件事里少数可以重复核对的事实.
+    let text = shot.editor(|e, _, _| e.book().chapters[0].doc.plain_text());
+    let start = text.chars().position(|c| c == '整').unwrap_or(0);
+    let end = text
+        .chars()
+        .position(|c| c == '实')
+        .map_or(start, |i| i + 1);
+    shot.editor(|e, window, cx| e.select(0, start..end, window, cx));
+    shot.update(|window, cx| view.update(cx, |v, cx| v.toggle_highlight(window, cx)));
+    // The picture and the PDF after the second paragraph, the table after
+    // the first.
+    let second_end = shot.editor(|e, _, _| {
+        let d = &e.book().chapters[0].doc;
+        d.line_start(1) + d.line(1).chars
+    });
+    shot.editor(|e, window, cx| e.select(0, second_end..second_end, window, cx));
+    shot.update(|window, cx| {
+        view.update(cx, |v, cx| {
+            v.insert_material(materials.1, window, cx);
+        })
+    });
+    shot.editor(|e, window, cx| e.select(0, second_end..second_end, window, cx));
+    shot.update(|window, cx| {
+        view.update(cx, |v, cx| {
+            v.insert_material(materials.0, window, cx);
+        })
+    });
+    let first_end = shot.editor(|e, _, _| e.book().chapters[0].doc.line(0).chars);
+    let cells: Vec<Vec<String>> = [
+        ["人物", "时间", "说法"],
+        ["约格", "傍晚六点", "看见一艘没挂灯的船"],
+        ["许岚竹", "七点前后", "听见两声汽笛\n第二声更长"],
+    ]
+    .iter()
+    .map(|r| r.iter().map(|c| c.to_string()).collect())
+    .collect();
+    shot.update(|window, cx| {
+        let embeds = view.read(cx).note_embeds().expect("a note").clone();
+        dr_editor::embeds::insert_table(&embeds, first_end, cells, window, cx);
+    });
+    shot.settle();
+    // The caret at the end of 七点前后, the bar up.
+    let table = shot.update(|_, cx| view.read(cx).note_embeds().unwrap().tables()[0].clone());
+    shot.update(|window, cx| table.update(cx, |t, cx| t.focus_cell(2, 1, true, window, cx)));
+    shot.cx
+        .advance_clock(dr_editor::table::BAR_RETURN + Duration::from_millis(20));
+    shot.settle();
+    shot.cx.advance_clock(Duration::from_secs(1));
+    shot.save(dir, name);
 }
 
 fn main() {
@@ -417,5 +612,49 @@ fn main() {
     let mut shot = Shot::open(&ws, &book, &empty);
     shot.save(&dir, "empty.png");
     drop(shot);
+
+    // A material note, light and dark.
+    let picture = material_with_asset(
+        &ws,
+        &book,
+        tmp.path(),
+        ("image", "image/png", "png"),
+        "码头旧照",
+        &harbour_png(560, 180),
+        Some((560, 180)),
+    );
+    let pdf = material_with_asset(
+        &ws,
+        &book,
+        tmp.path(),
+        ("pdf", "application/pdf", "pdf"),
+        "潮汐表 1987",
+        b"%PDF-1.4\n% a stub for the capture\n%%EOF\n",
+        None,
+    );
+    for (palette, name) in [
+        (&dr_ui::tokens::Palette::LIGHT, "note-light.png"),
+        (&dr_ui::tokens::Palette::DARK, "note-dark.png"),
+    ] {
+        // Each shot on a fresh copy of the note.
+        let copy = out(
+            &ws,
+            "material.create",
+            json!({"book": book, "kind": "text", "title": "第三次走访",
+                   "text": "三个人说的时间对不上，先列在一起。\n灯光每隔九秒扫过一次窗户，这是整件事里少数可以重复核对的事实。\n"}),
+        )["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        note_shot(
+            &ws,
+            &book,
+            &format!("material:{copy}"),
+            (&picture, &pdf),
+            palette,
+            &dir,
+            name,
+        );
+    }
     let _ = ws.shutdown();
 }
