@@ -57,6 +57,8 @@ pub enum Layer {
     Dialog,
     /// Notices.
     Notice,
+    /// A temporary input barrier while the library is being released.
+    Blocking,
 }
 
 impl Layer {
@@ -65,6 +67,7 @@ impl Layer {
             Layer::Popover => 100,
             Layer::Dialog => 200,
             Layer::Notice => 300,
+            Layer::Blocking => 400,
         }
     }
 }

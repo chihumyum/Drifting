@@ -7,6 +7,9 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use futures::{FutureExt, future::LocalBoxFuture};
 use gpui::{App, Global};
 
+mod input;
+pub(crate) use input::curtain;
+
 type Prepare = Box<dyn FnMut(&mut App) -> LocalBoxFuture<'static, Result<(), String>>>;
 type Resume = Box<dyn FnMut(&mut App)>;
 
@@ -75,11 +78,16 @@ pub(crate) fn begin(cx: &mut App) -> Option<LocalBoxFuture<'static, Result<(), S
         .collect();
     before.append(&mut cx.default_global::<Hooks>().before);
     cx.default_global::<Hooks>().before = before;
+    let app = cx.to_async();
     Some(
         async move {
+            // The calling action has released its window now. Blur and draw
+            // every workspace before polling any service's flush/drain.
+            let frozen = app.update(input::pause);
             // A failing service must not drop another service's unfinished
             // shutdown: it may still be waiting for a durable tool write.
             let results = futures::future::join_all(futures).await;
+            frozen?;
             results
                 .into_iter()
                 .collect::<Result<Vec<_>, _>>()
@@ -101,4 +109,5 @@ pub(crate) fn finish(cx: &mut App) {
     }
     after.append(&mut cx.default_global::<Hooks>().after);
     cx.default_global::<Hooks>().after = after;
+    input::resume(cx);
 }

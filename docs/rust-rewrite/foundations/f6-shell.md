@@ -708,3 +708,14 @@ M04 章节面板、幕与大纲栏（`modules.md`）：
 | `crates/dr-shell/src/workspace/` | 工作区根（`mod.rs`：状态、读书目、F3 事件、沉浸写作、挪章节、全书里的位置链接）、每个标签的编辑器（`editors.rs`：单章和全书、样式、键盘、实时字数、阅读位置）、查找栏和替换（`find.rs`）、章节面板的排序和格子读数（`chapter_sort.rs`）、页面能做的事（`page_actions.rs`：⋯ 菜单和悬停卡共用）、选区批注的撰写框（`review.rs`）、稿纸右下角（`corner.rs`）、大纲栏（`outline.rs`）、窗口边角与拖动区（`chrome.rs`）、侧栏（`sidebar.rs`）、标签坞（`dock.rs`）、稿纸（`stage.rs`）、Super View（`super_view.rs`） |
 | `crates/dr-shell/tests/`、`examples/shell-capture.rs` | GPUI 测试平台上的行为测试（含《慢钟》库上的 6 个）、孤儿键检查；离屏截图与测量（写测量证据） |
 | `app/drifting/src/main.rs`、`probe.rs`、`check.rs` | 入口：F7 的顺序不变，加上读设置、在线程上开库、装 dr-ui、交给外壳；启动探针多了 `library_opened`、`shell_ready`；开发构建的真窗口自检 `DRIFTING_CHECK` |
+
+
+## 旧模块收尾：共享释放期间的作者输入（2026-11-08）
+
+`codex/legacy-write-settlement` 在已合入的 M31 `release` 门上补输入稳定边界：同步前缀只冻结模块 admission；当前窗口 dispatch 结束后，先对所有工作区记下弱焦点、失焦并重绘，移除上一帧的原生输入 handler，然后才轮询全部服务的 settle future。即使一个服务先 ACK，其余仍在等待，整个工作区（含已有浮层、书架和首次体验路径）的透明输入屏障也继续阻止点击和文字输入；工作区快捷动作同时停用。失败会等待其余服务结束，再恢复入口与仍在当前渲染树中的焦点。换库后的旧页焦点不重新激活；屏障不持有编辑器或资料库。
+
+`dr-shell/tests/release.rs` 的两条双窗口契约从普通 `quit::request` 和 `library::replace` 进入：一个服务立即 ACK、另一服务由 channel 保持等待，输入／点击／Tab 均不改变表单，失败后两个窗口重新可写。契约核对活动窗口 blur 先于服务 flush（非活动窗口在失活时已经 blur），并保留原有所有服务均须等待、成功/失败恢复、重复请求与换库关闭拒绝契约。这是 GPUI 测试平台上的真实外壳路径；不能据此声称操作系统强制终止或所有模块排空已完成。
+
+M11 字段、M17 关系、M19 任务投射分别拥有自己的草稿和持久 ACK，需在模块接线提交中完成 freeze/settle/resume；共享屏障不替代这些队列。M31 帮手产品行为没有在本轮重写。本轮验证：`cargo fmt --all --check`、全 workspace clippy（`-D warnings`）、测试（1808 passed / 0 failed / 22 ignored）、`cargo xtask check` 及 debug bridge 构建通过。旧客户端六项检查中五项直接通过；`pnpm test` 为 4715 passed / 1 failed / 15 skipped，唯一失败是 tool-selector 的既有 p95 20 ms 门槛（并行构建负载下实测 31.359 ms）；原测试文件不改阈值重跑 3/3 通过。lint 保留既有 44 条警告。
+
+开发版真实窗口运行现有 `restore.json`，64/64 步、0 pending，包含备份、换库恢复、损坏归档拒绝和正常退出；四张截图逐一目检，恢复后捕获到现有 Markdown 文件夹首次选择框，未把它误记为已展示完整书架。证据位于忽略目录 `next/target/acceptance/legacy-release-input/`。此回归没有人为阻塞真实窗口的服务；等待期间的双窗口输入冻结与失败后焦点恢复由上述 GPUI 契约直接断言。
