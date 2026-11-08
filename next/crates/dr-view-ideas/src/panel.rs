@@ -801,29 +801,14 @@ impl IdeaPanel {
         let Some(ws) = ws else {
             return row;
         };
-        let extra: Vec<PageMenuSection> = idea_move_section(
-            &self.book,
-            idea,
-            |group| {
-                let (entity, id) = (entity.clone(), idea.id.clone());
-                Rc::new(move |_: &mut Window, cx: &mut App| {
-                    let group = group.clone();
-                    entity.update(cx, |p, cx| p.move_idea(&id, group, cx));
-                })
-            },
-            cx,
-        )
-        .into_iter()
-        .collect();
+        // The page's own rows (an idea's ⋯ menu, [`crate::menu`]) already
+        // hold its status, 移动到分组 and 删除节点: nothing to add.
         dr_shell::workspace::page_hover_card(
             format!("idea-panel-row-card-{}", idea.id),
             row,
             &target,
             ws,
-            dr_shell::pages::CardRows {
-                before_danger: extra,
-                ..Default::default()
-            },
+            dr_shell::pages::CardRows::default(),
             cx,
         )
     }
