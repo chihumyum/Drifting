@@ -334,7 +334,17 @@ fn a_table_from_the_slash_menu_and_tab_through_its_cells(cx: &mut TestAppContext
         Some((0, 0)),
         "the caret in the first cell"
     );
+    // Typing in a cell is the author writing in the note (M26).
+    let seen: std::rc::Rc<std::cell::RefCell<Vec<String>>> = Default::default();
+    o.cx.update(|_, cx| {
+        let sink = seen.clone();
+        cx.subscribe(&o.view, move |_, e: &dr_editor::WritingTyped, _| {
+            sink.borrow_mut().push(e.doc.clone())
+        })
+        .detach()
+    });
     o.type_text("甲");
+    assert_eq!(*seen.borrow(), [doc.as_str()]);
     o.action(IndentListItem);
     assert_eq!(o.focused_cell(), Some((0, 1)));
     o.type_text("乙");
@@ -790,12 +800,18 @@ fn copied_cells_keep_their_marks(cx: &mut TestAppContext) {
     o.filled_table();
     let table = o.table();
     // 甲 bold, 乙 highlighted.
-    table.update_in(o.cx, |t, window, cx| t.select_cells((0, 0), (0, 0), window, cx));
+    table.update_in(o.cx, |t, window, cx| {
+        t.select_cells((0, 0), (0, 0), window, cx)
+    });
     o.action(ToggleBold);
-    table.update_in(o.cx, |t, window, cx| t.select_cells((0, 1), (0, 1), window, cx));
+    table.update_in(o.cx, |t, window, cx| {
+        t.select_cells((0, 1), (0, 1), window, cx)
+    });
     o.action(ToggleHighlight);
     // The two copied and pasted into the last row: their marks come along.
-    table.update_in(o.cx, |t, window, cx| t.select_cells((0, 0), (0, 1), window, cx));
+    table.update_in(o.cx, |t, window, cx| {
+        t.select_cells((0, 0), (0, 1), window, cx)
+    });
     o.action(Copy);
     table.update_in(o.cx, |t, window, cx| t.focus_cell(2, 0, false, window, cx));
     o.action(Paste);
@@ -804,7 +820,9 @@ fn copied_cells_keep_their_marks(cx: &mut TestAppContext) {
     assert!(o.cell_has(2, 1, KEY) && !o.cell_has(2, 1, "bold"));
     // Plain text over a bold cell: the bold goes with the old text.
     o.cx.write_to_clipboard(ClipboardItem::new_string("甲".into()));
-    table.update_in(o.cx, |t, window, cx| t.select_cells((0, 0), (0, 0), window, cx));
+    table.update_in(o.cx, |t, window, cx| {
+        t.select_cells((0, 0), (0, 0), window, cx)
+    });
     o.action(Paste);
     assert_eq!(o.stored()[0][0], "甲");
     assert!(!o.cell_has(0, 0, "bold"));
@@ -819,9 +837,9 @@ fn copied_cells_keep_their_marks(cx: &mut TestAppContext) {
     let id = o.editor.read_with(o.cx, |e, _| {
         e.book().chapters[0].doc.line(1).embed().unwrap().to_owned()
     });
-    let (cells, marks) = o
-        .view
-        .read_with(o.cx, |v, _| v.note_embeds().unwrap().table_grid(&id).unwrap());
+    let (cells, marks) = o.view.read_with(o.cx, |v, _| {
+        v.note_embeds().unwrap().table_grid(&id).unwrap()
+    });
     assert_eq!(cells[2], ["甲", "乙", "壬"]);
     assert!(marks[2][0].iter().any(|m| m.2 == "bold"));
     assert!(marks[2][1].iter().any(|m| m.2 == KEY));

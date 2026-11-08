@@ -47,5 +47,5 @@ pub use source::SessionSource;
 pub use todo::TodoMarker;
 pub use view::{
     ChapterEditor, ChapterEditorEvent, CommentRequested, EntityLinkOpened, MaterialOpened,
-    PositionLinkCopied,
+    PositionLinkCopied, WritingTyped,
 };

@@ -237,7 +237,9 @@ impl Element for ParagraphElement {
         if self.autoscroll
             && let Some(cursor) = cursor
         {
-            match self.typewriter {
+            // Not while the input method composes (the candidate window
+            // would move under the pinyin); the confirmed text realigns.
+            match self.typewriter.filter(|_| self.comp.is_none()) {
                 // Typewriter scrolling: the caret's row to the line.
                 Some(position) => {
                     let view = window.content_mask().bounds;

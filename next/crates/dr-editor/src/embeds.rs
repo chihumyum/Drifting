@@ -34,6 +34,8 @@ pub enum NoteEvent {
     Edited,
     /// Open material `id` (an embed's click).
     OpenMaterial(String),
+    /// The author typed in a cell ([`gpui_prose::AuthorTyped`]).
+    Typed,
 }
 
 /// How embeds report to the note's view.
@@ -57,6 +59,10 @@ pub struct NoteHost {
 impl NoteHost {
     pub(crate) fn edited(&self, cx: &mut App) {
         (self.notify)(NoteEvent::Edited, cx);
+    }
+
+    pub(crate) fn typed(&self, cx: &mut App) {
+        (self.notify)(NoteEvent::Typed, cx);
     }
 
     pub(crate) fn open_material(&self, id: &str, cx: &mut App) {

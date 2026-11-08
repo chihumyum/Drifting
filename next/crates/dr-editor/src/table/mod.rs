@@ -427,6 +427,10 @@ impl TableView {
         let events = cx.subscribe(&editor, move |this, _, event: &EditorEvent, cx| {
             this.on_cell(&watched, event, cx)
         });
+        let typed = cx.subscribe(&editor, |this, _, _: &gpui_prose::AuthorTyped, cx| {
+            this.host.typed(cx)
+        });
+        let events = Subscription::join(events, typed);
         CellView {
             editor,
             items,
