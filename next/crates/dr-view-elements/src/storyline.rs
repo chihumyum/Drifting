@@ -588,7 +588,7 @@ fn row(
                         .weight(weight::MEDIUM)
                         .type_px(11.5, 14.0)
                         .text_color(p.ink(2).solid())
-                        .child(dr_view_shelf::format::grouped(chapter.words, locale)),
+                        .child(dr_i18n::number::grouped(chapter.words, locale)),
                 )
                 .child(t(cx, keys::common::WORDS)),
         )

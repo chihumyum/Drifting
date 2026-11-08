@@ -269,9 +269,41 @@
     "stats": "{{groups}} itens · {{occurrences}} ocorrências"
   },
   "guide": {
+    "back": "Voltar",
+    "done": "Concluir",
     "hints": {
       "search": "Buscar em tudo",
       "timeline": "Linha do tempo"
+    },
+    "next": "Próxima",
+    "skip": "Pular apresentação",
+    "workspace": {
+      "agent": {
+        "body": "Lê, pesquisa e edita o livro inteiro. As alterações são marcadas no texto e podem ser desfeitas pelo histórico.",
+        "closedBody": "O Agent fica na barra lateral direita e pode ler, pesquisar e editar o livro inteiro. Abra aqui.",
+        "title": "Agent"
+      },
+      "create": {
+        "body": "Capítulos, ideias, elementos, linhas narrativas, categorias e materiais são criados aqui.",
+        "title": "Novo"
+      },
+      "home": {
+        "body": "A porta traz você de volta a esta página; o sino de vento ao lado reúne as notificações.",
+        "title": "Início do projeto"
+      },
+      "panels": {
+        "body": "A estrutura do livro. A barra lateral esquerda pode ser dividida em duas, cada metade com seu próprio painel.",
+        "closedBody": "A estrutura do livro fica na barra lateral esquerda: capítulos, elementos e ideias. Abra aqui.",
+        "title": "Capítulos · Elementos · Ideias"
+      },
+      "superViews": {
+        "body": "Abra pelo botão redondo no cabeçalho de um painel.",
+        "title": "Visualizações de janela inteira"
+      },
+      "timeline": {
+        "body": "As linhas narrativas aparecem sob a página, na ordem do livro ou no tempo da história.",
+        "title": "Linha do tempo"
+      }
     }
   },
   "immersiveWriting": {
@@ -445,6 +477,13 @@
     "untitledAct": "Ato sem título",
     "untitledChapter": "Capítulo sem título",
     "wholeBook": "Livro inteiro"
+  },
+  "markdownFolderGuide": {
+    "choose": "Escolher pasta…",
+    "chosen": "Pasta escolhida",
+    "continue": "Continuar",
+    "intro": "Cada projeto mantém uma cópia Markdown na pasta que você escolher. Edite capítulos e ideias em qualquer editor e as alterações serão mescladas no Drifting.",
+    "title": "Onde colocar a pasta Markdown?"
   },
   "markdownShare": {
     "characters": "{{count}} caracteres",
@@ -1110,7 +1149,10 @@
       },
       "local_data": "Dados locais",
       "local_sub": "Sem conta Drifting ou nuvem hospedada. Exporte uma cópia legível quando quiser.",
-      "local_title": "Seu trabalho fica neste dispositivo."
+      "local_title": "Seu trabalho fica neste dispositivo.",
+      "projection": {
+        "turnOff": "Desativar pasta Markdown"
+      }
     },
     "title": "Configurações",
     "update": {

@@ -41,7 +41,8 @@ use gpui::{
 };
 
 use crate::data::{ShelfBook, ShelfData, Status, TrashedBook, progress};
-use crate::format::{self, compact, grouped};
+use crate::format;
+use dr_i18n::number::{compact, grouped};
 
 actions!(
     shelf,

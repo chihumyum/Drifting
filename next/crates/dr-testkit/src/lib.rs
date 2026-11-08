@@ -4,10 +4,12 @@
 //!
 //! - [`seed`]: the deterministic seed generator, presets tiny / lite / heavy
 //!   / showcase, written through dr-doc and optionally into a dr-store
-//!   library; [`samples`]: the two sample books and the showcase books from
+//!   library; [`samples`]: the two sample books (dr-samples', which the
+//!   product writes into a new library) and the showcase books from
 //!   `fixtures/`;
 //! - [`rng`], [`text`], [`digest`]: one random number generator, one
-//!   synthetic corpus, one fingerprint;
+//!   synthetic corpus, one fingerprint (the generator, the book writer the
+//!   seed uses and a body's paragraphs are dr-samples', re-exported here);
 //! - [`evidence`]: measured evidence files and their freshness check
 //!   (`cargo xtask evidence --check`); contract evidence is asserted by tests
 //!   instead of committed;

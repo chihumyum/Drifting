@@ -7,8 +7,11 @@
 //! Punctuation, quotes and newlines are not words. The corpus has no Latin
 //! text, so this equals the product's word count on it.
 
-use dr_model::kind::ListKind;
-use dr_model::prose::{Heading, InlineStyle};
+use dr_model::prose::Heading;
+
+/// Paragraphs, links and their plain text are dr-samples' (the samples are
+/// made of them too).
+pub use dr_samples::para::{Link, Para, plain};
 
 use crate::rng::Rng;
 
@@ -106,30 +109,6 @@ const TASKS: &[&str] = &[
 const SURNAMES: &str = "林沈顾陆苏叶许程韩唐宋萧白江秦温";
 const GIVEN: &str = "潮岚默青远立晚禾川舟知微安澜若水星河月明清风远山晴云雪松竹";
 
-/// One paragraph of a body.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct Para {
-    pub text: String,
-    pub heading: Option<Heading>,
-    /// A task item (material notes): whether it is ticked.
-    pub task: Option<bool>,
-    /// A bullet or ordered list item (material notes).
-    pub list: Option<ListKind>,
-    pub quote: bool,
-    pub links: Vec<Link>,
-    /// Inline styles, in characters within the paragraph.
-    pub styles: Vec<(std::ops::Range<usize>, InlineStyle)>,
-}
-
-/// An entity link inside a paragraph, in characters.
-#[derive(Clone, Debug, PartialEq)]
-pub struct Link {
-    pub start: usize,
-    pub len: usize,
-    /// Index into the names the body was generated with.
-    pub target: usize,
-}
-
 /// What a body may contain.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct BodyShape<'a> {
@@ -225,18 +204,6 @@ pub fn body(rng: &mut Rng, words_wanted: usize, shape: BodyShape<'_>) -> Vec<Par
         paragraphs += 1;
     }
     out
-}
-
-/// The plain text of a body: paragraphs joined by `\n`.
-pub fn plain(paras: &[Para]) -> String {
-    let mut s = String::new();
-    for (i, p) in paras.iter().enumerate() {
-        if i > 0 {
-            s.push('\n');
-        }
-        s.push_str(&p.text);
-    }
-    s
 }
 
 /// `n` distinct two- or three-character personal names.

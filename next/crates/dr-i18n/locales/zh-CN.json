@@ -269,9 +269,41 @@
     "stats": "{{groups}} 个 · {{occurrences}} 处"
   },
   "guide": {
+    "back": "上一步",
+    "done": "完成",
     "hints": {
       "search": "全局搜索",
       "timeline": "时间线"
+    },
+    "next": "下一步",
+    "skip": "跳过导览",
+    "workspace": {
+      "agent": {
+        "body": "能读、能查、能改整本书。改过的地方标在正文里，可以从历史撤回。",
+        "closedBody": "右栏里有 Agent，能读、能查、能改整本书。点这里把右栏打开。",
+        "title": "Agent"
+      },
+      "create": {
+        "body": "章节、构想、要素、故事线、类目和素材都从这里开始。",
+        "title": "新建"
+      },
+      "home": {
+        "body": "鸟居回到这一页；旁边的风铃是通知。",
+        "title": "项目主页"
+      },
+      "panels": {
+        "body": "这本书的骨架。左栏还能分成两半，各开一个面板。",
+        "closedBody": "这本书的骨架都在左栏：章节、要素、构想。点这里把它打开。",
+        "title": "章节 · 要素 · 构想"
+      },
+      "superViews": {
+        "body": "整窗的全景视图，从对应面板头上的圆形按钮进入。",
+        "title": "全景视图"
+      },
+      "timeline": {
+        "body": "故事线按书序或叙事时间排开，从稿纸下方滑上来。",
+        "title": "时间线"
+      }
     }
   },
   "immersiveWriting": {
@@ -439,6 +471,13 @@
     "untitledAct": "未命名卷",
     "untitledChapter": "无标题章节",
     "wholeBook": "全书"
+  },
+  "markdownFolderGuide": {
+    "choose": "选择文件夹…",
+    "chosen": "已选择",
+    "continue": "继续",
+    "intro": "每个项目都会在你选择的文件夹里保存一份 Markdown。章节和构想可以用任何编辑器修改，修改会合并回 Drifting。",
+    "title": "Markdown 文件夹放在哪里？"
   },
   "markdownShare": {
     "characters": "{{count}} 字符",
@@ -1092,7 +1131,10 @@
       },
       "local_data": "本地数据",
       "local_sub": "无需 Drifting 账号，也不连接托管云服务；你可以随时导出一份可阅读的副本。",
-      "local_title": "作品只保存在这台设备上。"
+      "local_title": "作品只保存在这台设备上。",
+      "projection": {
+        "turnOff": "关闭 Markdown 文件夹"
+      }
     },
     "title": "设定",
     "update": {

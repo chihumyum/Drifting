@@ -1566,6 +1566,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "dr-samples"
+version = "0.0.0"
+dependencies = [
+ "dr-doc",
+ "dr-model",
+ "dr-store",
+ "dr-workspace",
+ "log",
+ "loro",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "dr-shell"
 version = "0.0.0"
 dependencies = [
@@ -1627,6 +1642,7 @@ dependencies = [
  "dr-doc",
  "dr-index",
  "dr-model",
+ "dr-samples",
  "dr-store",
  "dr-text",
  "dr-workspace",
@@ -1681,7 +1697,6 @@ dependencies = [
  "dr-store",
  "dr-testkit",
  "dr-ui",
- "dr-view-shelf",
  "dr-workspace",
  "gpui",
  "gpui_platform",
@@ -1879,6 +1894,25 @@ dependencies = [
  "gpui-prose",
  "log",
  "serde_json",
+ "tempfile",
+]
+
+[[package]]
+name = "dr-view-sea"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "dr-i18n",
+ "dr-samples",
+ "dr-shell",
+ "dr-store",
+ "dr-ui",
+ "dr-workspace",
+ "gpui",
+ "gpui_platform",
+ "image",
+ "log",
+ "smallvec",
  "tempfile",
 ]
 

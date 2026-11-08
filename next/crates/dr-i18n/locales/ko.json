@@ -269,9 +269,41 @@
     "stats": "항목 {{groups}}개 · 일치 {{occurrences}}개"
   },
   "guide": {
+    "back": "뒤로",
+    "done": "완료",
     "hints": {
       "search": "전체 검색",
       "timeline": "타임라인"
+    },
+    "next": "다음",
+    "skip": "둘러보기 건너뛰기",
+    "workspace": {
+      "agent": {
+        "body": "책 전체를 읽고 검색하고 편집합니다. 변경 사항은 본문에 표시되며 기록에서 되돌릴 수 있습니다.",
+        "closedBody": "Agent는 오른쪽 사이드바에서 책 전체를 읽고 검색하고 편집할 수 있습니다. 여기서 여세요.",
+        "title": "Agent"
+      },
+      "create": {
+        "body": "장, 아이디어, 요소, 스토리라인, 분류, 자료는 모두 여기서 만듭니다.",
+        "title": "새로 만들기"
+      },
+      "home": {
+        "body": "문 버튼으로 이 페이지에 돌아올 수 있고, 옆의 풍경에 알림이 모입니다.",
+        "title": "작품 홈"
+      },
+      "panels": {
+        "body": "책의 뼈대입니다. 왼쪽 사이드바를 둘로 나누어 각각 다른 패널을 표시할 수 있습니다.",
+        "closedBody": "책의 뼈대인 장, 요소, 아이디어는 왼쪽 사이드바에 있습니다. 여기서 여세요.",
+        "title": "장 · 요소 · 아이디어"
+      },
+      "superViews": {
+        "body": "패널 헤더의 원형 버튼으로 여세요.",
+        "title": "전체 창 보기"
+      },
+      "timeline": {
+        "body": "페이지 아래에서 올려서 책 순서나 이야기 시간순으로 배치된 스토리라인을 볼 수 있습니다.",
+        "title": "타임라인"
+      }
     }
   },
   "immersiveWriting": {
@@ -440,6 +472,13 @@
     "untitledAct": "제목 없는 막",
     "untitledChapter": "제목 없는 장",
     "wholeBook": "작품 전체"
+  },
+  "markdownFolderGuide": {
+    "choose": "폴더 선택…",
+    "chosen": "선택한 폴더",
+    "continue": "계속",
+    "intro": "각 작품의 Markdown 사본이 선택한 폴더에 저장됩니다. 다른 편집기로 장과 아이디어를 편집하면 변경 사항이 Drifting에 병합됩니다.",
+    "title": "Markdown 폴더를 어디에 둘까요?"
   },
   "markdownShare": {
     "characters": "{{count}}자",
@@ -1098,7 +1137,10 @@
       },
       "local_data": "로컬 데이터",
       "local_sub": "Drifting 계정이나 호스팅 클라우드를 사용하지 않습니다. 언제든 읽을 수 있는 사본을 내보낼 수 있습니다.",
-      "local_title": "작품은 이 기기에 보관됩니다."
+      "local_title": "작품은 이 기기에 보관됩니다.",
+      "projection": {
+        "turnOff": "Markdown 폴더 끄기"
+      }
     },
     "title": "설정",
     "update": {

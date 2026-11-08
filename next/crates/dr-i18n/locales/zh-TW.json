@@ -269,9 +269,41 @@
     "stats": "{{groups}} 個項目 · {{occurrences}} 處符合"
   },
   "guide": {
+    "back": "返回",
+    "done": "完成",
     "hints": {
       "search": "搜尋全部內容",
       "timeline": "時間線"
+    },
+    "next": "下一頁",
+    "skip": "略過導覽",
+    "workspace": {
+      "agent": {
+        "body": "可閱讀、搜尋與編輯全書。變更會標示在正文中，也可從歷史記錄復原。",
+        "closedBody": "Agent 位於右側欄，可閱讀、搜尋與編輯全書。從這裡開啟。",
+        "title": "Agent"
+      },
+      "create": {
+        "body": "章節、構想、要素、故事線、分類與素材，都從這裡建立。",
+        "title": "新增"
+      },
+      "home": {
+        "body": "門形按鈕會帶你回到此頁；旁邊的風鈴收納通知。",
+        "title": "作品首頁"
+      },
+      "panels": {
+        "body": "全書的骨架。左側欄可分為上下兩部分，各自顯示不同面板。",
+        "closedBody": "全書的骨架位於左側欄：章節、要素與構想。從這裡開啟。",
+        "title": "章節 · 要素 · 構想"
+      },
+      "superViews": {
+        "body": "從面板標頭的圓形按鈕開啟。",
+        "title": "全視窗檢視"
+      },
+      "timeline": {
+        "body": "從頁面下方滑出，依書中順序或故事時間排列故事線。",
+        "title": "時間線"
+      }
     }
   },
   "immersiveWriting": {
@@ -440,6 +472,13 @@
     "untitledAct": "未命名幕",
     "untitledChapter": "未命名章節",
     "wholeBook": "全書"
+  },
+  "markdownFolderGuide": {
+    "choose": "選擇資料夾…",
+    "chosen": "已選資料夾",
+    "continue": "繼續",
+    "intro": "每部作品都會在你選擇的資料夾裡保留 Markdown 副本。可用任何編輯器修改章節與構想，變更會合併回 Drifting。",
+    "title": "Markdown 資料夾要放在哪裡？"
   },
   "markdownShare": {
     "characters": "{{count}} 個字元",
@@ -1098,7 +1137,10 @@
       },
       "local_data": "本機資料",
       "local_sub": "不使用 Drifting 帳號或託管雲端，隨時可匯出可讀副本。",
-      "local_title": "作品留在這部裝置上。"
+      "local_title": "作品留在這部裝置上。",
+      "projection": {
+        "turnOff": "關閉 Markdown 資料夾"
+      }
     },
     "title": "設定",
     "update": {

@@ -11,6 +11,8 @@ description = "Drifting 0.2 test kit (F8): the one deterministic seed, sample bo
 dr-doc.workspace = true
 dr-index.workspace = true
 dr-model.workspace = true
+# The sample books, the book writer and the RNG the seed shares with them.
+dr-samples.workspace = true
 dr-store.workspace = true
 dr-text.workspace = true
 dr-workspace.workspace = true

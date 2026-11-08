@@ -3,15 +3,9 @@
 
 use sha2::{Digest, Sha256};
 
-/// FNV-1a 64: stable across platforms and versions.
-pub fn fnv1a64(bytes: &[u8]) -> u64 {
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-    for b in bytes {
-        h ^= *b as u64;
-        h = h.wrapping_mul(0x0100_0000_01b3);
-    }
-    h
-}
+/// FNV-1a 64: stable across platforms and versions (dr-samples' own, which
+/// its RNG streams use).
+pub use dr_samples::rng::fnv1a64;
 
 pub fn sha256_hex(bytes: &[u8]) -> String {
     hex(&Sha256::digest(bytes))

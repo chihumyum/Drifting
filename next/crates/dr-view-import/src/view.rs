@@ -6,6 +6,7 @@
 use std::collections::BTreeMap;
 
 use dr_i18n::keys;
+use dr_i18n::number::grouped;
 use dr_import_v1::gate::{BodyRef, Reason};
 use dr_import_v1::legacy::{Freshness, ProseKind};
 use dr_import_v1::progress::Step;
@@ -18,7 +19,6 @@ use dr_ui::{
     fonts::{Role, weight},
     style::DrStyled,
 };
-use dr_view_shelf::format::grouped;
 use gpui::{
     AnyElement, App, Context, InteractiveElement, IntoElement, ParentElement, Render, SharedString,
     StatefulInteractiveElement, Styled, Window, div, prelude::FluentBuilder as _, px,

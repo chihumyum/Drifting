@@ -86,14 +86,15 @@ impl Shape {
         let mut tasks = 0;
         let (mut chapters, mut elements, mut relations, mut acts, mut days) = (0, 0, 0, 0, 0);
         for b in books {
-            for (g, bodies) in &b.groups {
+            for (g, bodies) in b.groups() {
                 groups.entry(g).or_default().extend(bodies.iter().cloned());
             }
-            links += b.counters.entity_links;
-            for (a, x) in headings.iter_mut().zip(b.counters.headings) {
+            let counters = b.counters();
+            links += counters.entity_links;
+            for (a, x) in headings.iter_mut().zip(counters.headings) {
                 *a += x;
             }
-            tasks += b.counters.tasks;
+            tasks += counters.tasks;
             let v = b.book.view();
             chapters += v.chapters().len();
             elements += v.elements().len();

@@ -1,90 +1,9 @@
-//! Counts and dates as the shelf wrote them in the interface language.
-//!
-//! [`grouped`] and [`compact`] are the same rules as `dr_view_shelf::format`
-//! (the 0.1 client's `shared/locale-format.ts`); this crate is under the
-//! shelf, so it cannot use that one (待协调: one copy in dr-i18n). Months
-//! and days are `toLocaleString` / `toLocaleDateString` of the 0.1
-//! client's `views/shelf/shelf-format.ts`, written out for the nine
-//! interface languages.
+//! Dates as the shelf wrote them in the interface language (counts are
+//! `dr_i18n::number`). Months and days are `toLocaleString` /
+//! `toLocaleDateString` of the 0.1 client's `views/shelf/shelf-format.ts`,
+//! written out for the nine interface languages.
 
 use dr_i18n::Locale;
-
-fn separators(locale: Locale) -> (char, Option<char>) {
-    match locale {
-        Locale::De | Locale::Es | Locale::PtBr => (',', Some('.')),
-        Locale::Fr => (',', Some('\u{202f}')),
-        _ => ('.', Some(',')),
-    }
-}
-
-/// `n` with the language's thousands grouping (`toLocaleString`).
-pub fn grouped(n: u64, locale: Locale) -> String {
-    let digits = n.to_string();
-    let (_, group) = separators(locale);
-    let Some(group) = group else {
-        return digits;
-    };
-    if locale == Locale::Es && digits.len() <= 4 {
-        return digits;
-    }
-    let mut out = String::with_capacity(digits.len() + digits.len() / 3);
-    for (i, c) in digits.chars().enumerate() {
-        if i > 0 && (digits.len() - i).is_multiple_of(3) {
-            out.push(group);
-        }
-        out.push(c);
-    }
-    out
-}
-
-fn one_decimal(value: f64, locale: Locale) -> String {
-    let rounded = (value * 10.0).round() / 10.0;
-    let text = if rounded.fract() == 0.0 {
-        format!("{rounded:.0}")
-    } else {
-        format!("{rounded:.1}")
-    };
-    let (decimal, _) = separators(locale);
-    text.replace('.', &decimal.to_string())
-}
-
-/// `n` in the compact notation (`12.3万`, `12.3K`).
-pub fn compact(n: u64, locale: Locale) -> String {
-    let v = n as f64;
-    let east = |wan: &str, yi: &str, thousand: Option<&str>| {
-        if n >= 100_000_000 {
-            format!("{}{yi}", one_decimal(v / 1e8, locale))
-        } else if n >= 10_000 {
-            format!("{}{wan}", one_decimal(v / 1e4, locale))
-        } else if let (Some(k), true) = (thousand, n >= 1_000) {
-            format!("{}{k}", one_decimal(v / 1e3, locale))
-        } else {
-            n.to_string()
-        }
-    };
-    let west = |k: &str, m: &str, b: &str, space: &str, compact_thousands: bool| {
-        if n >= 1_000_000_000 {
-            format!("{}{space}{b}", one_decimal(v / 1e9, locale))
-        } else if n >= 1_000_000 {
-            format!("{}{space}{m}", one_decimal(v / 1e6, locale))
-        } else if n >= 1_000 && compact_thousands {
-            format!("{}{space}{k}", one_decimal(v / 1e3, locale))
-        } else {
-            grouped(n, locale)
-        }
-    };
-    match locale {
-        Locale::ZhCn => east("万", "亿", None),
-        Locale::ZhTw => east("萬", "億", None),
-        Locale::Ja => east("万", "億", None),
-        Locale::Ko => east("만", "억", Some("천")),
-        Locale::En => west("K", "M", "B", "", true),
-        Locale::Es => west("mil", "M", "mil M", "\u{a0}", true),
-        Locale::PtBr => west("mil", "mi", "bi", "\u{a0}", true),
-        Locale::Fr => west("k", "M", "Md", "\u{a0}", true),
-        Locale::De => west("", "Mio.", "Mrd.", "\u{a0}", false),
-    }
-}
 
 /// (year, month 1–12, day) of `YYYY-MM-DD`.
 pub fn ymd(day: &str) -> (i64, usize, u32) {
@@ -323,8 +242,5 @@ mod tests {
         assert_eq!(day("2024-11-23", Locale::PtBr), "sáb., 23 de novembro");
         assert_eq!(month("2024-11-01", Locale::ZhCn), "11月");
         assert_eq!(month("2024-11-01", Locale::Fr), "nov.");
-        assert_eq!(compact(123_456, Locale::ZhCn), "12.3万");
-        assert_eq!(compact(12_345, Locale::En), "12.3K");
-        assert_eq!(grouped(1_234_567, Locale::En), "1,234,567");
     }
 }

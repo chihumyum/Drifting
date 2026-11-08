@@ -269,9 +269,41 @@
     "stats": "{{groups}} Einträge · {{occurrences}} Treffer"
   },
   "guide": {
+    "back": "Zurück",
+    "done": "Fertig",
     "hints": {
       "search": "Alles durchsuchen",
       "timeline": "Zeitleiste"
+    },
+    "next": "Nächste",
+    "skip": "Tour überspringen",
+    "workspace": {
+      "agent": {
+        "body": "Liest, durchsucht und bearbeitet das ganze Buch. Änderungen werden im Text markiert und lassen sich über den Verlauf rückgängig machen.",
+        "closedBody": "Agent befindet sich in der rechten Seitenleiste und kann das ganze Buch lesen, durchsuchen und bearbeiten. Hier öffnen.",
+        "title": "Agent"
+      },
+      "create": {
+        "body": "Kapitel, Ideen, Elemente, Handlungsstränge, Kategorien und Materialien entstehen alle hier.",
+        "title": "Neu"
+      },
+      "home": {
+        "body": "Das Tor bringt dich auf diese Seite zurück; das Windspiel daneben enthält Benachrichtigungen.",
+        "title": "Projektstartseite"
+      },
+      "panels": {
+        "body": "Das Gerüst des Buches. Die linke Seitenleiste lässt sich teilen, jede Hälfte mit einem eigenen Bereich.",
+        "closedBody": "Das Gerüst des Buches liegt in der linken Seitenleiste: Kapitel, Elemente und Ideen. Hier öffnen.",
+        "title": "Kapitel · Elemente · Ideen"
+      },
+      "superViews": {
+        "body": "Über die runde Schaltfläche im Kopf eines Bereichs öffnen.",
+        "title": "Ansichten im ganzen Fenster"
+      },
+      "timeline": {
+        "body": "Handlungsstränge in Buchreihenfolge oder nach der Zeit der Geschichte, von unterhalb der Seite ausklappbar.",
+        "title": "Zeitleiste"
+      }
     }
   },
   "immersiveWriting": {
@@ -445,6 +477,13 @@
     "untitledAct": "Unbenannter Akt",
     "untitledChapter": "Unbenanntes Kapitel",
     "wholeBook": "Ganzes Buch"
+  },
+  "markdownFolderGuide": {
+    "choose": "Ordner auswählen…",
+    "chosen": "Gewählter Ordner",
+    "continue": "Weiter",
+    "intro": "In dem Ordner, den du wählst, liegt eine Markdown-Kopie jedes Projekts. Bearbeite Kapitel und Ideen in beliebigen Editoren; Änderungen werden in Drifting zusammengeführt.",
+    "title": "Wo soll der Markdown-Ordner liegen?"
   },
   "markdownShare": {
     "characters": "{{count}} Zeichen",
@@ -1103,7 +1142,10 @@
       },
       "local_data": "Lokale Daten",
       "local_sub": "Ohne Drifting-Konto oder gehostete Cloud. Exportiere jederzeit eine lesbare Kopie.",
-      "local_title": "Dein Werk bleibt auf diesem Gerät."
+      "local_title": "Dein Werk bleibt auf diesem Gerät.",
+      "projection": {
+        "turnOff": "Markdown-Ordner deaktivieren"
+      }
     },
     "title": "Einstellungen",
     "update": {

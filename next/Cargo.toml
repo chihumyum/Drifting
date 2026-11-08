@@ -17,6 +17,7 @@ members = [
     "crates/dr-index",
     "crates/dr-model",
     "crates/dr-platform",
+    "crates/dr-samples",
     "crates/dr-shell",
     "crates/dr-store",
     "crates/dr-testkit",
@@ -32,6 +33,7 @@ members = [
     "crates/dr-view-plot",
     "crates/dr-view-relations",
     "crates/dr-view-review",
+    "crates/dr-view-sea",
     "crates/dr-view-search",
     "crates/dr-view-shelf",
     "crates/dr-view-shelf-art",
@@ -113,6 +115,9 @@ prose-metrics = { path = "crates/prose-metrics" }
 # already carries).
 aho-corasick = "1.1"
 
+# The built-in sample books a new library receives once (services, no GPUI);
+# dr-testkit lays its seed out with the same writer.
+dr-samples = { path = "crates/dr-samples" }
 # F8 test kit: the seed, sample books, evidence, crash harness, benchmarks.
 dr-testkit = { path = "crates/dr-testkit" }
 # F8 debug bridge: the server (development builds with the app's
@@ -262,6 +267,8 @@ dr-view-plot = { path = "crates/dr-view-plot" }
 dr-view-relations = { path = "crates/dr-view-relations" }
 # M25: the bookshelf's covers, heat map and strips.
 dr-view-shelf-art = { path = "crates/dr-view-shelf-art" }
+# M24: the sea of characters, the first run and the tour.
+dr-view-sea = { path = "crates/dr-view-sea" }
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
 # M41: manuscript export (EPUB, Word, PDF), Markdown share and covers, the
 # 0.1 client's writers ported as they were (docs/rust-rewrite/
