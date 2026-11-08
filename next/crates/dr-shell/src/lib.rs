@@ -33,6 +33,7 @@ mod export_memory;
 pub mod keymap;
 pub mod library;
 pub mod menus;
+pub mod mirror;
 pub mod nav;
 pub mod notifications;
 pub mod pages;
@@ -85,6 +86,9 @@ impl Global for Services {}
 /// Installs the shell: strings, settings, shortcuts, menus, the app-wide
 /// actions and the quit flow. Call once, after `dr_ui::init`.
 pub fn init(info: ShellInfo, services: Services, file: SettingsFile, cx: &mut App) {
+    // M40: the Markdown folder makes a last pass and stops before anything
+    // lets go of the library.
+    quit::before_quit(cx, mirror::stop);
     // Before quitting, F3 brings the open documents' search index up to date
     // and lets each one close (nothing is lost without it). The hook finds
     // the library when it runs: holding a handle would keep it open.
@@ -129,6 +133,8 @@ pub fn init(info: ShellInfo, services: Services, file: SettingsFile, cx: &mut Ap
     keymap::add_bindings(cx, dr_editor::highlight::key_bindings);
     keymap::apply(&Settings::read(cx).key_bindings(), cx);
     export_memory::init(cx);
+    // M40: the Markdown folder over the library, when one is chosen.
+    mirror::restart(cx);
 }
 
 /// Opens the workspace window, or brings the open one forward.

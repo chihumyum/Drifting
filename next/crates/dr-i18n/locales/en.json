@@ -186,7 +186,8 @@
       "deleteCategory": "Delete category",
       "deleteElement": "Delete element",
       "deleteNode": "Delete node",
-      "deleteStoryline": "Delete storyline"
+      "deleteStoryline": "Delete storyline",
+      "editStorylines": "Edit storylines"
     },
     "outlineRailMode": {
       "hidden": "Hide TOC",
@@ -1208,7 +1209,18 @@
       "local_sub": "No Drifting account or hosted cloud is used. Export a readable copy whenever you want.",
       "local_title": "Your work stays on this device.",
       "projection": {
-        "turnOff": "Turn off Markdown folder"
+        "allProjects": "All projects",
+        "allProjectsUnset": "All projects · No location chosen",
+        "choose": "Choose folder",
+        "description": "Every project has structured Markdown for local reading, search and external tools. Chapters and ideas can be edited in any editor and merge back while Drifting runs; other files are generated and read-only.",
+        "locationHint": "One folder per project inside it, on this device only. When you switch, the old folders stay where they are.",
+        "offHint": "Off: projects no longer write Markdown and outside edits no longer merge back. Existing files stay where they are.",
+        "offTitle": "Turn off the Markdown folder?",
+        "offWarning": "No project writes Markdown anymore. Other editors and external Agents keep seeing today's files, and edits made there no longer merge back into Drifting. Existing files stay where they are; turn it back on in Settings → Sync & Data.",
+        "reveal": "Show in Finder",
+        "title": "Markdown folder",
+        "turnOff": "Turn off Markdown folder",
+        "turnOn": "Turn on"
       }
     },
     "title": "Settings",

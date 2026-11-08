@@ -169,6 +169,7 @@ editorTopBar.status.draft
 editorTopBar.status.finished
 editorTopBar.status.discarded
 editorTopBar.menu.deleteNode
+editorTopBar.menu.editStorylines
 immersiveWriting.enter
 immersiveWriting.leave
 
@@ -596,6 +597,18 @@ settings.sync.backup.restoreTitle
 settings.sync.backup.restoreDesc
 settings.sync.backup.restoreButton
 settings.sync.backup.openSafety
+settings.sync.projection.title
+settings.sync.projection.description
+settings.sync.projection.turnOn
+settings.sync.projection.reveal
+settings.sync.projection.offHint
+settings.sync.projection.allProjects
+settings.sync.projection.allProjectsUnset
+settings.sync.projection.locationHint
+settings.sync.projection.choose
+settings.sync.projection.turnOff
+settings.sync.projection.offTitle
+settings.sync.projection.offWarning
 
 # The chapter panel's folding fan and its rows' hover cards (M04)
 leftSidebar.actions.collapseAll

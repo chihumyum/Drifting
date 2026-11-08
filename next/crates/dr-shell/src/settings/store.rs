@@ -2,7 +2,8 @@
 //!
 //! ```json
 //! { "version": 1,
-//!   "device":  { "appearance.interface_text_size": "large", ... },
+//!   "device":  { "appearance.interface_text_size": "large", ...,
+//!                "modules": { "shelf.cover_style": "topo", ... } },
 //!   "account": { "appearance.theme": "dark", "keys.bindings": { ... }, ... },
 //!   "books":   { "<book id>": { "settings": { ... }, "layout": { ... },
 //!                               "export": { ... } } },
@@ -20,6 +21,10 @@
 //!   author's name is the account value `export.author`, each book's
 //!   choices its `export` entry. Not checked here either (dr-view-export
 //!   reads them).
+//! - What a module keeps on this device that is no setting (no row in the
+//!   panel, nothing the registry checks: the shelf's cover style, the
+//!   guides seen, the Markdown folder) sits in the device entry's `modules`
+//!   object ([`SettingsFile::device_memory`]). Never synced.
 //! - Writes replace the file atomically (write a sibling, flush, rename), so
 //!   a crash leaves the old file or the new one. A file that cannot be read
 //!   is moved aside, never overwritten.
@@ -41,6 +46,8 @@ const LAST_BOOK: &str = "last_book";
 pub const EXPORT_AUTHOR: &str = "export.author";
 /// A book's entry: its export choices (format, title switches, title).
 const BOOK_EXPORT: &str = "export";
+/// The device entry's object of module values.
+const DEVICE_MODULES: &str = "modules";
 
 #[derive(Debug)]
 pub struct SettingsFile {
@@ -249,6 +256,31 @@ impl SettingsFile {
             account.remove(EXPORT_AUTHOR);
         } else {
             account.insert(EXPORT_AUTHOR.into(), Value::from(name));
+        }
+        self.dirty = true;
+        true
+    }
+
+    /// What a module keeps on this device under `key` (not a setting).
+    pub fn device_memory(&self, key: &str) -> Option<&Value> {
+        self.data.get("device")?.get(DEVICE_MODULES)?.get(key)
+    }
+
+    /// Keeps `value` on this device under `key` (`None` forgets it).
+    /// Returns whether anything changed.
+    pub fn set_device_memory(&mut self, key: &str, value: Option<Value>) -> bool {
+        if self.device_memory(key) == value.as_ref() {
+            return false;
+        }
+        let device = object_at(&mut self.data, "device");
+        let modules = object_at(device, DEVICE_MODULES);
+        match value {
+            Some(value) => {
+                modules.insert(key.to_owned(), value);
+            }
+            None => {
+                modules.remove(key);
+            }
         }
         self.dirty = true;
         true

@@ -186,7 +186,8 @@
       "deleteCategory": "カテゴリを削除",
       "deleteElement": "要素を削除",
       "deleteNode": "ノードを削除",
-      "deleteStoryline": "ストーリーラインを削除"
+      "deleteStoryline": "ストーリーラインを削除",
+      "editStorylines": "ストーリーラインを編集"
     },
     "outlineRailMode": {
       "hidden": "目次を非表示",
@@ -1202,7 +1203,18 @@
       "local_sub": "Driftingのアカウントやクラウドは使いません。いつでも読めるコピーを出力できます。",
       "local_title": "作品はこの端末に。",
       "projection": {
-        "turnOff": "Markdownフォルダを無効化"
+        "allProjects": "全作品",
+        "allProjectsUnset": "全作品・場所が未選択",
+        "choose": "フォルダを選択",
+        "description": "各作品の構造化Markdownを、ローカル閲覧、検索、外部ツールに利用できます。Driftingの起動中は他のエディタで章やアイデアを編集し、変更を統合できます。他のファイルは自動生成・読み取り専用です。",
+        "locationHint": "この端末上で作品ごとにフォルダを作ります。場所を変更しても、以前のフォルダはそのまま残ります。",
+        "offHint": "無効：Markdownを出力せず、外部編集も統合しません。既存ファイルは元の場所に残ります。",
+        "offTitle": "Markdownフォルダを無効にしますか？",
+        "offWarning": "全作品のMarkdown出力を停止します。外部エディタやAgentには現在のファイルだけが残り、外部での編集はDriftingに統合されなくなります。既存ファイルは移動しません。「設定 → 同期とデータ」で再開できます。",
+        "reveal": "Finderで表示",
+        "title": "Markdownフォルダ",
+        "turnOff": "Markdownフォルダを無効化",
+        "turnOn": "有効にする"
       }
     },
     "title": "設定",

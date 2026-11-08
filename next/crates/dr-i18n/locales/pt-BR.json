@@ -186,7 +186,8 @@
       "deleteCategory": "Excluir categoria",
       "deleteElement": "Excluir elemento",
       "deleteNode": "Excluir nó",
-      "deleteStoryline": "Excluir linha narrativa"
+      "deleteStoryline": "Excluir linha narrativa",
+      "editStorylines": "Editar linhas narrativas"
     },
     "outlineRailMode": {
       "hidden": "Ocultar sumário",
@@ -1215,7 +1216,18 @@
       "local_sub": "Sem conta Drifting ou nuvem hospedada. Exporte uma cópia legível quando quiser.",
       "local_title": "Seu trabalho fica neste dispositivo.",
       "projection": {
-        "turnOff": "Desativar pasta Markdown"
+        "allProjects": "Todos os projetos",
+        "allProjectsUnset": "Todos os projetos · Nenhum local escolhido",
+        "choose": "Escolher pasta",
+        "description": "Cada projeto tem Markdown estruturado para leitura local, busca e ferramentas externas. Com o Drifting aberto, edições de capítulos e ideias em outros editores são mescladas. Os demais arquivos são gerados e somente leitura.",
+        "locationHint": "Dentro há uma pasta por projeto, apenas neste dispositivo. Ao trocar o local, as pastas antigas ficam onde estão.",
+        "offHint": "Desativada: não grava Markdown nem mescla edições externas. Os arquivos existentes permanecem.",
+        "offTitle": "Desativar a pasta Markdown?",
+        "offWarning": "Nenhum projeto gravará Markdown. Editores e Agents externos verão os arquivos atuais; edições externas não serão mais mescladas no Drifting. Os arquivos existentes permanecem. Reative em Configurações → Sincronização e dados.",
+        "reveal": "Mostrar no Finder",
+        "title": "Pasta Markdown",
+        "turnOff": "Desativar pasta Markdown",
+        "turnOn": "Ativar"
       }
     },
     "title": "Configurações",

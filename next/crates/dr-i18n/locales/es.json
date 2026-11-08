@@ -186,7 +186,8 @@
       "deleteCategory": "Eliminar categoría",
       "deleteElement": "Eliminar elemento",
       "deleteNode": "Eliminar nodo",
-      "deleteStoryline": "Eliminar trama"
+      "deleteStoryline": "Eliminar trama",
+      "editStorylines": "Editar tramas"
     },
     "outlineRailMode": {
       "hidden": "Ocultar índice",
@@ -1215,7 +1216,18 @@
       "local_sub": "No se usa ninguna cuenta Drifting ni nube alojada. Exporta una copia legible cuando quieras.",
       "local_title": "Tu obra se queda en este dispositivo.",
       "projection": {
-        "turnOff": "Desactivar carpeta Markdown"
+        "allProjects": "Todos los proyectos",
+        "allProjectsUnset": "Todos los proyectos · Sin ubicación elegida",
+        "choose": "Elegir carpeta",
+        "description": "Cada proyecto tiene Markdown estructurado para lectura local, búsquedas y herramientas externas. Con Drifting abierto, puedes editar capítulos e ideas en otro editor y combinar los cambios. Los demás archivos se generan y son de solo lectura.",
+        "locationHint": "Dentro hay una carpeta por proyecto, solo en este dispositivo. Al cambiar de ubicación, las carpetas antiguas no se mueven.",
+        "offHint": "Desactivada: no se escribe Markdown ni se integran ediciones externas. Los archivos existentes permanecen.",
+        "offTitle": "¿Desactivar la carpeta Markdown?",
+        "offWarning": "Ningún proyecto escribirá Markdown. Los editores y Agent externos verán los archivos actuales y sus ediciones dejarán de integrarse en Drifting. Los archivos existentes permanecen. Reactiva en Ajustes → Sincronización y datos.",
+        "reveal": "Mostrar en Finder",
+        "title": "Carpeta Markdown",
+        "turnOff": "Desactivar carpeta Markdown",
+        "turnOn": "Activar"
       }
     },
     "title": "Ajustes",

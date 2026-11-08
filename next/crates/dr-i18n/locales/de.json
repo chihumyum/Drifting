@@ -186,7 +186,8 @@
       "deleteCategory": "Kategorie löschen",
       "deleteElement": "Element löschen",
       "deleteNode": "Knoten löschen",
-      "deleteStoryline": "Handlungsstrang löschen"
+      "deleteStoryline": "Handlungsstrang löschen",
+      "editStorylines": "Handlungsstränge bearbeiten"
     },
     "outlineRailMode": {
       "hidden": "Inhaltsverzeichnis ausblenden",
@@ -1208,7 +1209,18 @@
       "local_sub": "Ohne Drifting-Konto oder gehostete Cloud. Exportiere jederzeit eine lesbare Kopie.",
       "local_title": "Dein Werk bleibt auf diesem Gerät.",
       "projection": {
-        "turnOff": "Markdown-Ordner deaktivieren"
+        "allProjects": "Alle Projekte",
+        "allProjectsUnset": "Alle Projekte · Kein Speicherort gewählt",
+        "choose": "Ordner auswählen",
+        "description": "Jedes Projekt hat strukturiertes Markdown zum lokalen Lesen, Suchen und für externe Werkzeuge. Während Drifting läuft, lassen sich Kapitel und Ideen extern bearbeiten und zusammenführen. Andere Dateien sind generiert und schreibgeschützt.",
+        "locationHint": "Darin liegt pro Projekt ein Ordner, nur auf diesem Gerät. Beim Wechsel bleiben die alten Ordner an ihrem Ort.",
+        "offHint": "Deaktiviert: kein Markdown-Export und keine Übernahme externer Änderungen. Vorhandene Dateien bleiben erhalten.",
+        "offTitle": "Markdown-Ordner deaktivieren?",
+        "offWarning": "Kein Projekt schreibt mehr Markdown. Externe Editoren und Agents sehen nur den heutigen Stand; externe Änderungen werden nicht mehr in Drifting übernommen. Vorhandene Dateien bleiben erhalten. Erneut aktivierbar unter Einstellungen → Synchronisierung und Daten.",
+        "reveal": "Im Finder anzeigen",
+        "title": "Markdown-Ordner",
+        "turnOff": "Markdown-Ordner deaktivieren",
+        "turnOn": "Aktivieren"
       }
     },
     "title": "Einstellungen",

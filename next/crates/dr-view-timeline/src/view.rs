@@ -239,7 +239,8 @@ impl BottomTimeline {
     fn read_workspace(&mut self, ws: &Entity<Workspace>, cx: &mut Context<Self>) {
         let (book, current) = {
             let w = ws.read(cx);
-            if self.kept_for.as_deref() != Some(w.book_id.as_str()) {
+            // What this book keeps, once the workspace has read it.
+            if w.book_memory_ready() && self.kept_for.as_deref() != Some(w.book_id.as_str()) {
                 let kept = Kept::read(w.book_memory(kept::KEY));
                 self.kept_for = Some(w.book_id.clone());
                 self.apply(kept);

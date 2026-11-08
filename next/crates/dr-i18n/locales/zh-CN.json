@@ -186,7 +186,8 @@
       "deleteCategory": "删除类目",
       "deleteElement": "删除要素",
       "deleteNode": "删除节点",
-      "deleteStoryline": "删除故事线"
+      "deleteStoryline": "删除故事线",
+      "editStorylines": "编辑故事线"
     },
     "outlineRailMode": {
       "hidden": "隐藏 TOC",
@@ -1196,7 +1197,18 @@
       "local_sub": "无需 Drifting 账号，也不连接托管云服务；你可以随时导出一份可阅读的副本。",
       "local_title": "作品只保存在这台设备上。",
       "projection": {
-        "turnOff": "关闭 Markdown 文件夹"
+        "allProjects": "所有项目",
+        "allProjectsUnset": "所有项目 · 未选择位置",
+        "choose": "选择文件夹",
+        "description": "每个项目都有一份结构化 Markdown，供本地阅读、检索和外部工具使用。章节和构想可以在任何编辑器里修改，Drifting 运行时会把修改合并回来；其余文件由 Drifting 生成，只读。",
+        "locationHint": "里面每个项目一个文件夹，只在本机生效。换位置后，旧文件夹留在原处。",
+        "offHint": "已关闭：项目不再写出 Markdown，外部修改也不再合并回来。已有文件留在原处。",
+        "offTitle": "关闭 Markdown 文件夹？",
+        "offWarning": "所有项目都不再写出 Markdown。其他编辑器和外部 Agent 看到的会停在现在的内容，在那里做的修改也不会再合并回 Drifting。已有文件留在原处；之后可以在 设置 → 同步与数据 重新开启。",
+        "reveal": "在访达中打开",
+        "title": "Markdown 文件夹",
+        "turnOff": "关闭 Markdown 文件夹",
+        "turnOn": "开启"
       }
     },
     "title": "设定",

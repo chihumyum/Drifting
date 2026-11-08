@@ -186,7 +186,8 @@
       "deleteCategory": "Supprimer la catégorie",
       "deleteElement": "Supprimer l’élément",
       "deleteNode": "Supprimer le nœud",
-      "deleteStoryline": "Supprimer l’intrigue"
+      "deleteStoryline": "Supprimer l’intrigue",
+      "editStorylines": "Modifier les intrigues"
     },
     "outlineRailMode": {
       "hidden": "Masquer la table des matières",
@@ -1215,7 +1216,18 @@
       "local_sub": "Sans compte Drifting ni cloud hébergé. Exportez une copie lisible quand vous voulez.",
       "local_title": "Votre travail reste sur cet appareil.",
       "projection": {
-        "turnOff": "Désactiver le dossier Markdown"
+        "allProjects": "Tous les projets",
+        "allProjectsUnset": "Tous les projets · Aucun emplacement choisi",
+        "choose": "Choisir un dossier",
+        "description": "Chaque projet dispose de Markdown structuré pour lecture locale, recherche et outils externes. Lorsque Drifting tourne, les modifications de chapitres et d’idées faites ailleurs sont intégrées. Les autres fichiers sont générés en lecture seule.",
+        "locationHint": "Un dossier par projet, uniquement sur cet appareil. Lors d’un changement, les anciens dossiers restent à leur emplacement.",
+        "offHint": "Désactivé : plus d’écriture Markdown ni d’intégration des éditions externes. Les fichiers existants restent en place.",
+        "offTitle": "Désactiver le dossier Markdown ?",
+        "offWarning": "Aucun projet n’écrira plus de Markdown. Les éditeurs et Agent externes verront les fichiers actuels ; leurs modifications ne seront plus intégrées à Drifting. Les fichiers restent en place. Réactivez dans Réglages → Synchronisation et données.",
+        "reveal": "Afficher dans le Finder",
+        "title": "Dossier Markdown",
+        "turnOff": "Désactiver le dossier Markdown",
+        "turnOn": "Activer"
       }
     },
     "title": "Réglages",

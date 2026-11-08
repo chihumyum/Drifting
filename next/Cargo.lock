@@ -1668,6 +1668,7 @@ dependencies = [
  "color_quant",
  "dr-editor",
  "dr-i18n",
+ "dr-mirror",
  "dr-model",
  "dr-platform",
  "dr-store",

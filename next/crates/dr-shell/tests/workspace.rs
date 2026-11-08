@@ -2138,24 +2138,48 @@ fn the_bottom_panel_is_dragged_by_its_top_edge(cx: &mut TestAppContext) {
 }
 
 /// What a module keeps for the book (`book_memory`, the timeline's order and
-/// zoom) goes into the book's layout in the settings file.
+/// zoom) is in F2's `local_state`, tied to the book, and a workspace opened
+/// on the book again reads it back.
 #[gpui::test]
 fn a_module_keeps_what_it_wants_for_the_book(cx: &mut TestAppContext) {
     let (_dir, lib) = slow_clock();
+    let store = lib.clone();
     let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
-    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    wait_for(&view, cx, |ws| {
+        !ws.book.is_empty() && ws.book_memory_ready()
+    });
     let kept = json!({"axis": "narrative", "zoom": 2.0});
     view.update(cx, |ws, cx| {
-        ws.set_book_memory("timeline", kept.clone(), cx);
-        ws.store_layout(cx);
+        ws.set_book_memory("timeline", kept.clone(), cx)
     });
     assert_eq!(
         view.read_with(cx, |ws, _| ws.book_memory("timeline").cloned()),
         Some(kept.clone())
     );
     let book = view.read_with(cx, |ws, _| ws.book_id.clone());
-    let stored = cx.update(|_, cx| Settings::read(cx).layout(&book).cloned());
-    assert_eq!(stored.unwrap()["modules"]["timeline"], kept);
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let rows = loop {
+        cx.run_until_parked();
+        let rows = store
+            .library()
+            .local_entries(dr_shell::workspace::BOOK_MEMORY_SCOPE, Some(&book))
+            .unwrap();
+        if !rows.is_empty() {
+            break rows;
+        }
+        assert!(Instant::now() < deadline, "not stored");
+        std::thread::sleep(Duration::from_millis(5));
+    };
+    assert_eq!(rows[0].key, format!("memory:{book}:timeline"));
+    assert_eq!(rows[0].book_id.as_deref(), Some(book.as_str()));
+    let again = cx.update(|window, cx| cx.new(|cx| Workspace::new(window, cx)));
+    wait_for(&again, cx, |ws| {
+        ws.book_id == book && ws.book_memory_ready()
+    });
+    assert_eq!(
+        again.read_with(cx, |ws, _| ws.book_memory("timeline").cloned()),
+        Some(kept)
+    );
 }
 
 /// A dialog closed from inside its own window's update (a click on its
@@ -2247,7 +2271,10 @@ impl gpui::Render for Carded {
                 div().w(px(400.0)).h(px(60.0)).child("slab"),
                 &self.target,
                 &self.ws,
-                vec![extra],
+                dr_shell::pages::CardRows {
+                    lead: vec![extra.clone()],
+                    before_danger: vec![extra],
+                },
                 cx,
             ))
     }
@@ -2404,4 +2431,51 @@ fn a_module_draws_a_whole_page_instead_of_an_editor(cx: &mut TestAppContext) {
     cx.run_until_parked();
     draw(cx);
     assert!(view.read_with(cx, |ws, _| ws.module_page(&material).is_none()));
+}
+
+/// M40: once a folder is chosen the library's books are written under it;
+/// turned off it stops (the folder stays chosen), on again it starts.
+#[gpui::test]
+fn the_markdown_folder_follows_the_library(cx: &mut TestAppContext) {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("library");
+    let mut options = dr_workspace::library_options(VERSION);
+    options.device = Some(dr_store::Device::open(dir.path().join("device")).unwrap());
+    let store = dr_store::Library::open(&root, options.clone()).unwrap();
+    dr_testkit::seed::write_book(&store, &dr_testkit::samples::slow_clock().unwrap()).unwrap();
+    store.close().unwrap();
+    let lib = Library::open(
+        dr_store::Library::open(&root, options).unwrap(),
+        dr_workspace::WorkspaceOptions::default(),
+    )
+    .unwrap();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    let running = |cx: &mut VisualTestContext| cx.update(|_, cx| dr_shell::mirror::is_running(cx));
+    assert!(!running(cx), "no folder chosen: nothing written");
+    let folder = dir.path().join("markdown");
+    let chosen = folder.clone();
+    cx.update(|_, cx| dr_shell::mirror::set_folder(chosen, cx));
+    assert!(running(cx));
+    let deadline = Instant::now() + Duration::from_secs(20);
+    loop {
+        cx.run_until_parked();
+        let written = std::fs::read_dir(&folder)
+            .map(|d| d.flatten().any(|e| e.path().join("正文").is_dir()))
+            .unwrap_or(false);
+        if written {
+            break;
+        }
+        assert!(Instant::now() < deadline, "the book was not written");
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    cx.update(|_, cx| dr_shell::mirror::set_on(false, cx));
+    assert!(!running(cx));
+    assert_eq!(
+        cx.update(|_, cx| dr_shell::mirror::folder(cx)),
+        Some(folder.clone())
+    );
+    cx.update(|_, cx| dr_shell::mirror::set_on(true, cx));
+    assert!(running(cx));
+    cx.update(|_, cx| dr_shell::mirror::stop(cx));
 }

@@ -165,6 +165,16 @@ pub struct PageMenuSection {
     pub items: Vec<PageMenuItem>,
 }
 
+/// A module's own rows on a page's hover card
+/// ([`crate::workspace::page_hover_card`]): `lead` above the page's rows
+/// (M14's 转移至未归属, 回到未放置, 在此故事线中新建章节), `before_danger`
+/// after them but before what deletes.
+#[derive(Clone, Default)]
+pub struct CardRows {
+    pub lead: Vec<PageMenuSection>,
+    pub before_danger: Vec<PageMenuSection>,
+}
+
 /// What a module's ⋯ rows are made with: the window's workspace (for the
 /// rows' `run`, not to read while the menu is made: it is drawing), the
 /// library, and the book's lists as the shell has them.

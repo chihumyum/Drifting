@@ -294,10 +294,16 @@ pub struct BookLayout {
     /// The Bottom Panel: which pane, its height.
     #[serde(default)]
     pub bottom: BottomLayout,
-    /// What modules keep for the book on this device
-    /// ([`Workspace::book_memory`]): the timeline's order, zoom, scroll.
-    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
-    pub modules: std::collections::BTreeMap<String, serde_json::Value>,
+}
+
+/// Where [`Workspace::book_memory`] lives: F2's `local_state` (scope
+/// `shell`, key `memory:<book>:<module key>`, the row tied to the book), so
+/// it goes when the book is purged, travels with its library and is one
+/// copy for every window. Never synced.
+pub const BOOK_MEMORY_SCOPE: &str = "shell";
+
+fn memory_prefix(book: &str) -> String {
+    format!("memory:{book}:")
 }
 
 /// What the Escape key closes, topmost first.
@@ -364,8 +370,13 @@ pub struct Workspace {
     pub find: Option<Entity<find::FindBar>>,
     /// The Bottom Panel under the paper ([`bottom`]).
     pub bottom: bottom::Bottom,
-    /// What modules keep for the book shown (in its layout).
+    /// What modules keep for the book shown ([`BOOK_MEMORY_SCOPE`]), as
+    /// read when it opened and kept since.
     modules: std::collections::BTreeMap<String, serde_json::Value>,
+    /// The book whose memory has been read (it is read off the main thread
+    /// when a book opens).
+    modules_for: Option<String>,
+    modules_read: Option<Task<()>>,
     turning_until: Option<Instant>,
     pub nav: Navigator,
     pub left: Sidebar<LeftTab>,
@@ -491,6 +502,8 @@ impl Workspace {
             find: None,
             bottom: bottom::Bottom::new(BottomLayout::default()),
             modules: Default::default(),
+            modules_for: None,
+            modules_read: None,
             turning_until: None,
             nav: Navigator::default(),
             left: Sidebar::new(None, LeftTab::Chapters, |_| true),
@@ -572,10 +585,9 @@ impl Workspace {
                 None,
             ),
         };
-        let (bottom, modules) = saved.map(|l| (l.bottom, l.modules)).unwrap_or_default();
-        self.bottom.layout = bottom;
+        self.bottom.layout = saved.map(|l| l.bottom).unwrap_or_default();
         self.bottom.forget();
-        self.modules = modules;
+        self.read_book_memory(cx);
         self.nav = nav;
         self.left = Sidebar::new(left, LeftTab::Chapters, |_| true);
         self.right = Sidebar::new(right, RightTab::Review, |_| true);
@@ -931,6 +943,29 @@ impl Workspace {
         cx.notify();
     }
 
+    /// A notice's document (M40's file that could not be merged): its page
+    /// in this book; in another book, that book opens.
+    pub(crate) fn open_noticed(
+        &mut self,
+        book: &str,
+        doc: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.notifications_open = false;
+        if book != self.book_id {
+            self.open_book(book, window, cx);
+            return;
+        }
+        let target = doc
+            .strip_prefix("node:")
+            .and_then(|id| editors::link_target(&self.book, &dr_model::kind::EntityKind::Node, id));
+        if let Some(target) = target {
+            self.open(target, Open::KEEP, cx);
+        }
+        cx.notify();
+    }
+
     /// The library is about to be swapped ([`crate::library::replace`]):
     /// everything here that holds it goes (the open pages' editors, the
     /// bookshelf, Project Home, search, snapshot history, the comment
@@ -956,6 +991,9 @@ impl Workspace {
         self.home = None;
         self.left_panels.borrow_mut().clear();
         self.bottom.forget();
+        self.modules.clear();
+        self.modules_for = None;
+        self.modules_read = None;
         self.library = None;
         self.book_id = String::new();
         self.book = Rc::new(Book::default());
@@ -1019,24 +1057,89 @@ impl Workspace {
             chapter_sort: self.chapter_sort,
             book_position: self.book_position.clone(),
             bottom: self.bottom.layout.clone(),
-            modules: self.modules.clone(),
         }
     }
 
-    /// What a module keeps for the book shown under `key` (kept with the
-    /// book's layout on this device, never in the book).
+    /// What a module keeps for the book shown under `key` on this device
+    /// (never in the book; [`BOOK_MEMORY_SCOPE`]). Read once
+    /// [`Workspace::book_memory_ready`].
     pub fn book_memory(&self, key: &str) -> Option<&serde_json::Value> {
         self.modules.get(key)
     }
 
-    /// Keeps `value` for the book shown under `key`; stored with the
-    /// layout a moment later.
+    /// Whether the book shown has had its memory read (a module applies
+    /// what it kept from then on; the workspace notifies when it is).
+    pub fn book_memory_ready(&self) -> bool {
+        self.library.is_none() || self.modules_for.as_deref() == Some(self.book_id.as_str())
+    }
+
+    /// Keeps `value` for the book shown under `key`: at once here, in F2's
+    /// `local_state` off the main thread.
     pub fn set_book_memory(&mut self, key: &str, value: serde_json::Value, cx: &mut Context<Self>) {
         if self.book_id.is_empty() || self.modules.get(key) == Some(&value) {
             return;
         }
-        self.modules.insert(key.to_owned(), value);
-        self.changed(cx);
+        self.modules.insert(key.to_owned(), value.clone());
+        let Some(lib) = self.library.clone() else {
+            return;
+        };
+        let (book, row) = (
+            self.book_id.clone(),
+            format!("{}{key}", memory_prefix(&self.book_id)),
+        );
+        cx.background_spawn(async move {
+            if let Err(error) =
+                lib.library()
+                    .local_set(BOOK_MEMORY_SCOPE, &row, &value.to_string(), Some(&book))
+            {
+                log::warn!("a module's memory could not be kept: {error}");
+            }
+        })
+        .detach();
+    }
+
+    /// Reads the book shown's memory off the main thread. What a module
+    /// kept while it was read wins over what was stored.
+    fn read_book_memory(&mut self, cx: &mut Context<Self>) {
+        self.modules.clear();
+        self.modules_for = None;
+        let Some(lib) = self.library.clone().filter(|_| !self.book_id.is_empty()) else {
+            self.modules_read = None;
+            return;
+        };
+        let book = self.book_id.clone();
+        self.modules_read = Some(cx.spawn(async move |this, cx| {
+            let prefix = memory_prefix(&book);
+            let read = {
+                let book = book.clone();
+                cx.background_spawn(async move {
+                    lib.library().local_entries(BOOK_MEMORY_SCOPE, Some(&book))
+                })
+                .await
+            };
+            let entries = read.unwrap_or_else(|error| {
+                log::warn!("the book's module memory could not be read: {error}");
+                Vec::new()
+            });
+            this.update(cx, |ws, cx| {
+                if ws.book_id != book {
+                    return;
+                }
+                for e in entries {
+                    let (Some(key), Ok(value)) = (
+                        e.key.strip_prefix(&prefix),
+                        serde_json::from_str::<serde_json::Value>(&e.value),
+                    ) else {
+                        continue;
+                    };
+                    ws.modules.entry(key.to_owned()).or_insert(value);
+                }
+                ws.modules_for = Some(book);
+                ws.modules_read = None;
+                cx.notify();
+            })
+            .ok();
+        }));
     }
 
     /// Writes the layout into the settings file now, if it changed.

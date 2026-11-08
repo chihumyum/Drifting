@@ -1177,7 +1177,7 @@ fn card(
     target: &Target,
     ws: &gpui::Entity<Workspace>,
     host: &crate::pages::PageMenuHost,
-    extra: Rc<Vec<crate::pages::PageMenuSection>>,
+    extra: Rc<crate::pages::CardRows>,
 ) -> AnyElement {
     let (target, ws, host) = (target.clone(), ws.clone(), host.clone());
     let card_id = id.clone();
@@ -1191,16 +1191,17 @@ fn card(
 
 /// A page's hover card around a module's own element (M14's slabs and lane
 /// names): the chapter panel's card for `target` (its name, words,
-/// storylines and summary, then what can be done to it, as its ⋯ menu), the
-/// module's `extra` sections before the dangerous rows. `id` is unique in
-/// the window. Call it while drawing the module's view, not inside the
-/// workspace's own drawing (it reads the workspace).
+/// storylines and summary, then what can be done to it, as its ⋯ menu),
+/// with the module's own rows ([`crate::pages::CardRows`]: above the page's,
+/// and before the dangerous ones). `id` is unique in the window. Call it
+/// while drawing the module's view, not inside the workspace's own drawing
+/// (it reads the workspace).
 pub fn page_hover_card(
     id: impl Into<SharedString>,
     el: impl IntoElement,
     target: &Target,
     ws: &gpui::Entity<Workspace>,
-    extra: Vec<crate::pages::PageMenuSection>,
+    rows: crate::pages::CardRows,
     cx: &App,
 ) -> AnyElement {
     let host = crate::pages::PageMenuHost::of(ws, cx);
@@ -1210,7 +1211,7 @@ pub fn page_hover_card(
         target,
         ws,
         &host,
-        Rc::new(extra),
+        Rc::new(rows),
     )
 }
 
@@ -1235,7 +1236,7 @@ fn card_body(
     target: &Target,
     ws: &gpui::Entity<Workspace>,
     host: &crate::pages::PageMenuHost,
-    extra: &[crate::pages::PageMenuSection],
+    extra: &crate::pages::CardRows,
     window: &mut Window,
     cx: &mut App,
 ) -> AnyElement {
@@ -1322,7 +1323,7 @@ fn card_body(
         }
         _ => {}
     }
-    let sections = super::page_actions::with_extra(
+    let sections = super::page_actions::with_rows(
         super::page_actions::page_actions(ws, host, target, cx),
         extra,
     );
@@ -1967,6 +1968,13 @@ pub fn notification_center(
                                 open_follow_up.update(cx, |ws, cx| {
                                     ws.open_feedback(Some(follow_up), window, cx)
                                 })
+                            })
+                        })
+                        .when_some(notice.opens.clone(), |el, (book, doc)| {
+                            let ws = entity.clone();
+                            el.cursor_pointer().on_click(move |_, window, cx| {
+                                let (book, doc) = (book.clone(), doc.clone());
+                                ws.update(cx, |ws, cx| ws.open_noticed(&book, &doc, window, cx))
                             })
                         })
                         .child(
