@@ -11,16 +11,17 @@
 ## 现在的状态（2026-11-08 下午）
 
 - `main` 是本机的，**没推送**。推送要作者说。
-- 已经合进 `main` 的到第十九批：热重载、对话文档审查、沉浸写作的外壳、素材库、书架躺字海、时间线第三轮。合入提交的说明写着 `batch nineteen`。
-- 还没合的分支，下一批（第二十批）要合的：
+- 已经合进 `main` 的到第二十批：F2 第七轮和 M28 模型接入；M29 经审查暂未接收，见下方记录。此前第十九批的热重载、对话文档审查、沉浸写作外壳、素材库、字海书架和时间线第三轮保持。
+- 各分支的接收状态与下一批验收候选：
 
 | 分支 | 内容 | 状态 |
 | --- | --- | --- |
 | `claude/f3-workspace-88823a` | F3 第十轮：`chapter.create` 带叙事位置，M16 要的命令 | Claude 会话收尾中，看分支上最新提交 |
 | `chihumyum/f4c-input-fa9d83` | F4c：Windows 输入法组字中失焦丢弃 | 同上 |
 | `claude/m10-import-e63951` | M16 构想第二个里程碑 | 同上 |
-| `claude/f2-store-024ef7` | F2：审迁移 0007、持有者提交选项 | 同上 |
-| `codex/m28-model-providers`、`codex/m29-agent-tools` 及之后的 `codex/m*` | Codex 的帮手一条 | 按 Codex 交回的顺序合 |
+| `claude/f2-store-024ef7` | F2：审迁移 0007、持有者提交选项 | `8b012cba` 已在第二十批接收 |
+| `codex/m28-model-providers` | M28 模型接入 | 截至 `95a0ba7c` 已在第二十批接收 |
+| `codex/m29-agent-tools` 及之后的 `codex/m*` | Codex 的帮手一条 | M29 暂不接收，先修 [Codex 队列](codex-queue.md) 的两处隐藏关系屏障；M31 仍在开发 |
 | `antigravity/m*` | Antigravity 的模块 | 同上 |
 
 分支上的提交如果比 `main` 新，就是还没合的（`git log main..<分支>`）。
@@ -104,3 +105,11 @@ git -c core.hooksPath=/dev/null merge --no-ff --no-edit -m "Merge branch '<整�
 - 装系统组件：Metal Toolchain、Windows 工具链等。连真服务。往真 Sentry 传符号。
 - 视觉和交互的取舍，以及 D7（服务端还用不用 TypeScript）。
 - 需要真人手测的，清单在 progress.md 的「待作者手测」。
+
+## 第二十批验收记录（2026-11-08）
+
+- 整合分支：`codex/batch-20`；仍用常驻 `f-integrate` worktree。
+- 接收 F2 `8b012cba` 和 M28 截至 `95a0ba7c`（实现 `ded56ed8`、交回 `6296180b`）。
+- M29 `c7905f4d`、`45853e51` 暂不接收：批注删除的隐藏关系级联、创建关系指定已有 id 的覆盖缺少读取保护；修复和回归要求在 Codex 队列。试合状态保留于 `codex/batch-20-candidate`，不是可发布分支。
+- 整合修复：F2 备份测量移到 `dr-testkit/tests/store_backup.rs`，保持热重载依赖图无环；F2 旧对话验证说明改为 F1 第七轮现行约定。已完成的提交选项、F1/F2 审查待办同步划掉，未完成事项转对应队列。
+- 验收通过：`cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、`RUST_TEST_THREADS=2 cargo test --workspace --locked --no-fail-fast`（1671 通过、22 忽略、无失败）、`cargo xtask check`；审计 0 vulnerabilities、12 条既有依赖提示，14 份测量证据仍过期。公开边界、CI 契约、旧 Agent 能力清单和四个退役产品／术语测试文件（14 项）均通过，语言生成校验通过。本机没有执行 Windows 或真实服务验收，也没有刷新忙碌机器上的测量证据。

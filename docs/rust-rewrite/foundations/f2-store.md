@@ -39,9 +39,9 @@
 | — | 第五轮：作者命令的来源 `user:command`、本机小状态表（`0004`）、彻底删除的记录（`0005`）、整库备份与恢复 | 完成 | `tests/holder.rs`、`tests/local.rs`（4 项）、`tests/backup.rs`、`backup.rs` 的单测；见「第五轮」 |
 | — | 第六轮：审 M10 的认领身份（库里加记机器）、后台补建索引给打字让路、`reference` 按书的索引（`0006`）、备份的进度和取消 | 完成 | `tests/device.rs`、`dr-testkit/tests/store_rebuild.rs`（3 项，另有 1 项手动测量）、`tests/index.rs`、`tests/backup.rs`（共 8 项）；见「第六轮」 |
 | — | 第七轮：审 M27 的帮手日志（`0007`）、写入前设好提交选项 | 完成 | `tests/agent.rs`（10 项，另有 1 项手动测量）、`tests/holder.rs`（21 项）；见「第七轮」 |
-| — | 第七轮：几百 MB 的备份测量 | 没做完：测量程序写好了，没等到机器空闲（见「下一步」） | `tests/backup.rs` 里默认不跑的 `measure_a_few_hundred_megabyte_backup` |
+| — | 第七轮：几百 MB 的备份测量 | 没做完：测量程序写好了，没等到机器空闲（见「下一步」） | `dr-testkit/tests/store_backup.rs` 里默认不跑的 `measure_a_few_hundred_megabyte_backup` |
 
-合计 154 项测试（macOS：34 项单测、120 项集成测试，其中 6 项是 M27 写的帮手日志测试），另有 4 项手动测量默认不跑。按平台条件算，Windows 上是 147 项：少了只在 Unix/macOS 上有意义的 8 项（符号链接、目录同步、`IOPlatformUUID`、子进程拿着锁文件），多 1 项写穿改名；没在 Windows 上跑过。
+按 F2 功能合计（含已移到 dr-testkit 的测试）154 项测试（macOS：34 项单测、120 项集成测试，其中 6 项是 M27 写的帮手日志测试），另有 4 项手动测量默认不跑。按平台条件算，Windows 上是 147 项：少了只在 Unix/macOS 上有意义的 8 项（符号链接、目录同步、`IOPlatformUUID`、子进程拿着锁文件），多 1 项写穿改名；没在 Windows 上跑过。
 
 ## 接口概览
 
@@ -276,7 +276,7 @@ DDL 以 `migrations/0000_baseline.sql` 为准：所有表 `STRICT`，时间一�
 - 来源不只记在 `loro_update.origin`（压缩会删）：`Agent`、`Mirror`、`Import`、`Repair`（以及 `Outside`）的提交都把来源写进 **Loro 提交信息**，作者自己的提交不带。远端的提交带着它们自己的提交信息过来。
 - `genesis` 和 `repair` 的行和别的行一样追加、一样上传：上传按 `remote_vv` 从文档导出，不看来源（`repair_and_genesis_rows_are_appended_and_uploaded_like_any_other`）。各设备的创世变更字节相同，服务器和 Loro 都会去重；修复是确定的，两台设备修出来的值相同。`repair` 不触发周期标签。
 - 「某时间起谁改了哪些文档」（主页签到）：`loro_head.ts` 找出改过的文档，再从每篇文档自己的 Loro 变更里读出对等方、时间和提交信息（`history::changes_since`、`Library::activity_since`）。对等方是不是本机，用 `peer_for` 比对。
-- **作者的命令**（`Origin::Command`，字符串 `user:command`，常量 `dr_store::COMMAND_ORIGIN`）：工作区（F3）的命令改正文时用它，比如命令面板、帮手代作者执行、对象级撤销。除了来源，它和作者打字完全一样：不写提交信息（署名是作者），照常打周期标签和关闭标签。持有者提交时 Loro 的来源就是 `user:command`，编辑器的撤销管理器排除这个前缀，就不会撤到命令；`DocEvent.origin` 和存下的那一行也是 `Command`，听事件的模块分得出是打字还是命令。写闭包中途隐式提交（解析锚点）时，用的是闭包自己先设好的提交选项，和别的来源一样。
+- **作者的命令**（`Origin::Command`，字符串 `user:command`，常量 `dr_store::COMMAND_ORIGIN`）：工作区（F3）的命令改正文时用它，比如命令面板、帮手代作者执行、对象级撤销。除了来源，它和作者打字完全一样：不写提交信息（署名是作者），照常打周期标签和关闭标签。持有者提交时 Loro 的来源就是 `user:command`，编辑器的撤销管理器排除这个前缀，就不会撤到命令；`DocEvent.origin` 和存下的那一行也是 `Command`，听事件的模块分得出是打字还是命令。写闭包中途隐式提交（解析锚点）时，用的是持有者在闭包开始前设好的提交选项，和别的来源一样。
 - Agent 结算记录（`agent_settlement`）和那次写入在同一个事务里写；作者撤销 Agent 的改动走历史（`revert_to` 到 `before`），由 F3 实现。
 - **这些都依赖「不做浅快照」**：来源、活动、历史标签、结算记录里的 frontiers，都要求完整历史还在。以后谁要加浅快照，得先给这些找别的存法。
 
@@ -653,14 +653,14 @@ M3 Pro（12 核，36 GB），release，Loro 1.17.1，2026-11-07，跑时 1 分�
 3. **按书列会话走索引**：`?1 IS NULL OR book_id = ?1` 会扫全表再排序，拆成两条语句。
 4. **导入验证回调出错不拖垮持有者**：回调 panic 就拒绝这次导入，持有者照常；回调往文档里写了东西，单独存成 `outside`。
 
-没改、写成意见的：`recover()` 每次开库重放全部会话、日志只增不减、插入和清除事件的键不一样、对话验证的成本跟对话长度成正比、验证拒绝是永久的（M36 别重试）。详见 M27 的待协调第 8 条。
+没改、写成意见的：`recover()` 每次开库重放全部会话、日志只增不减、插入和清除事件的键不一样、对话验证的批量导入建议（校验方式和拒绝处理已按 F1 第七轮更新，见 M27 第 8 条）。详见 M27 的待协调第 8 条。
 
 测试：
 - `tests/agent.rs` 新加四项：`purging_the_conversation_a_session_names_drops_its_journal_whatever_its_kind`、`a_purged_books_settlements_go_with_it`、`a_books_sessions_are_read_through_its_own_index`、`a_panicking_or_writing_import_validator_cannot_break_the_holder`。四处改动各拿掉一处，对应的测试就失败（逐个试过）。
 - `tests/holder.rs` 的 `a_part_way_commit_carries_the_writes_origin_and_message`：Agent 写入中途导入别人的更新、作者命令中途自己提交一次，每一次本机提交的 Loro 来源都对，Agent 写入两半都带提交信息，空写入之后作者打字不带任何东西。拿掉预先设选项这一行，测试就失败（中途那一半来源是空的）。
 - `tests/agent.rs` 里默认不跑的 `measure_journal_appends`：每条增量单独一个事务的成本，数字在 M27 的待协调里。
 
-**备份测量**（没做完）：`tests/backup.rs` 里默认不跑的 `measure_a_few_hundred_megabyte_backup` 写好了：heavy 种子（带派生索引，数据库约 55 MiB）加 `DR_BACKUP_ASSET_MIB` 个 1 MiB 的随机资源（默认 200，合计约 255 MiB），量导出、核对暂存、恢复各花多久，进度回调最长多久不响，每一步在库之外多占多少磁盘；全在临时文件夹里，跑完就删。只在负载 200 左右时用 3 个资源试跑过一次，确认程序能跑通；那次的数字不作数，只看出一件事：拍快照、校验、替换这几步数不出字节，回调会有一两秒不响，对话框在 `total` 为 0 时要显示不确定进度（第 25 条已经这样建议）。
+**备份测量**（没做完）：`dr-testkit/tests/store_backup.rs` 里默认不跑的 `measure_a_few_hundred_megabyte_backup` 写好了：heavy 种子（带派生索引，数据库约 55 MiB）加 `DR_BACKUP_ASSET_MIB` 个 1 MiB 的随机资源（默认 200，合计约 255 MiB），量导出、核对暂存、恢复各花多久，进度回调最长多久不响，每一步在库之外多占多少磁盘；全在临时文件夹里，跑完就删。只在负载 200 左右时用 3 个资源试跑过一次，确认程序能跑通；那次的数字不作数，只看出一件事：拍快照、校验、替换这几步数不出字节，回调会有一两秒不响，对话框在 `total` 为 0 时要显示不确定进度（第 25 条已经这样建议）。
 
 
 ## 待协调
@@ -706,14 +706,14 @@ M3 Pro（12 核，36 GB），release，Loro 1.17.1，2026-11-07，跑时 1 分�
 27. **给 M10**（第六轮）：`adopt_installation_id` 审过，接口和用法都不用改；dr-store 另在库里记了机器，堵上两台电脑共用一个 0.1 身份时认不出拷库的漏洞。M10「待协调」16 可以划掉。
 28. **给 F1**（第七轮）：持有者现在先设好提交选项再跑写闭包。F1 待协调里「写入前先设提交选项」那条可以划掉；`投待办` 不用再放在一次写入的最前面。
 29. **给 F3**（第七轮）：`holder::write` 里自己调的 `set_next_commit_options` 现在是多余的（值一样，留着也不出错），可以删。
-30. **给 M27、M36、F1**（第七轮）：见 m27-agent-runtime.md「待协调」第 8 条。M36 注意：验证回调拒绝的导入（`Invalid { what: "conversation import" }`）是永久的，不要重试；同步时攒成一批再导入。
+30. **给 M27、M36、F1**（第七轮）：见 m27-agent-runtime.md「待协调」第 8 条。M36 注意：拒绝的更新不落盘、不推进同步游标；缺依赖时先补齐再重送，非法操作要显示同步阻塞，不能静默跳过。`what: "conversation import"` 包含多种失败，不能据此判断永久失败；以 F1 第七轮的对话结构说明为准。
 
 ## 没做的、下一步建议
 
 - 图片管线（`image_pipeline.rs` 和各平台解码器）只有接口。
 - 大纲的 `paragraphs_after`（见第 11 条）。
 - 按账号分库（M36）。
-- **整库备份的测量没做**（第七轮第 3 条）：等机器空闲（负载个位数）时跑 `cargo test --release -p dr-store --test backup -- --ignored --nocapture measure_a_few`，把导出、核对、恢复的时间、回调最长不响的时间、多占的磁盘填进「第七轮」。几 GB 的资源文件也没量过。
+- **整库备份的测量没做**（第七轮第 3 条）：等机器空闲（负载个位数）时跑 `cargo test --release -p dr-testkit --test store_backup -- --ignored --nocapture measure_a_few`，把导出、核对、恢复的时间、回调最长不响的时间、多占的磁盘填进「第七轮」。几 GB 的资源文件也没量过。
 - 按书批量读字数和存盘时间（第五轮第 5 条：量过，现在不需要）。
 - WAL 自动 checkpoint 会让某一次提交多花约 1 ms；如果真实打字测到尾延迟，改在持有者空闲时做被动 checkpoint。
 - 普通 `search` 因为要现数段号慢了一点（见「第四轮」）。要是有人还在用它取很多条，可以给数段号换一种做法（比如按文档一次数完）。
@@ -726,7 +726,7 @@ M3 Pro（12 核，36 GB），release，Loro 1.17.1，2026-11-07，跑时 1 分�
 ```bash
 cargo test -p dr-store --locked
 cargo test --release -p dr-store --test index -- --ignored --nocapture measure_patch
-cargo test --release -p dr-store --test backup -- --ignored --nocapture measure_a_few
+cargo test --release -p dr-testkit --test store_backup -- --ignored --nocapture measure_a_few
 cargo test --release -p dr-store --test agent -- --ignored --nocapture measure_journal
 cargo run --release -p dr-testkit --bin bench -- store
 cargo xtask check

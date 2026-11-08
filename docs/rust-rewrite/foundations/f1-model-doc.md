@@ -287,13 +287,13 @@ cargo run --release -p dr-testkit --bin bench -- doc
    - 历史点（`history_label`）要同时记正文文档和书目文档的 frontiers，按对象恢复才拿得到当时的元数据。
    - 写作日的设备键用 `DeviceKey::from_installation_id(安装身份)`，安装身份文件归 F2。
    - 本机布局（视图模式、视口、滚动位置、手调比例、栏宽，见 loro-schema.md「不进书目文档的」）按书 id 存在本机文件里，格式由 F2 / F6 定。
-   - **第五轮：写入任务开始前先设好提交选项。** 建议持有者在 `job.run` 之前调一次 `doc.set_next_commit_options(这次的来源和提交信息)`（`dr-doc` 自己的 `edit` 就是这么做的），提交时照旧 `commit_with`。原因：Loro 的导入和解析已删文字上的锚点都会在中途隐式提交一次，种子变更就是在写入中途导入的；不先设好，中途提交的那一部分没有来源，Agent 写入的那一部分还会丢掉提交信息。现在 F3 只能把种子放在写入的最前面来躲开。
+   - ~~**第五轮：写入任务开始前先设好提交选项。**~~ F2 第七轮已实现，第二十批整合；原建议： 建议持有者在 `job.run` 之前调一次 `doc.set_next_commit_options(这次的来源和提交信息)`（`dr-doc` 自己的 `edit` 就是这么做的），提交时照旧 `commit_with`。原因：Loro 的导入和解析已删文字上的锚点都会在中途隐式提交一次，种子变更就是在写入中途导入的；不先设好，中途提交的那一部分没有来源，Agent 写入的那一部分还会丢掉提交信息。此前 F3 只能把种子放在写入的最前面来躲开；F2 第七轮以后不再要求这个顺序。
    - **`user:command`**：`dr_model::origin::COMMAND_ORIGIN` 和 `dr_store::COMMAND_ORIGIN` 是同一个字符串，F2 的来源测试里加一行 `assert_eq!` 对上。
    - **模板文档**（`template:` 开头）存法和别的正文一样，不用改表。它不是书的正文（`DocKind::is_book_text()` 为假）：派生索引（dr-index 的 `TextDeriver`）应当像书目文档那样记成「已索引、空的」，不进搜索、不计字数。
-   - **第六轮：写入前先设提交选项那条还没做**（2026-11-08 看过，持有者的 `job.run` 前面还没有 `set_next_commit_options`）；`COMMAND_ORIGIN` 的对拍也还没加。
+   - ~~**第六轮：写入前先设提交选项那条还没做**~~：F2 第七轮已实现，第二十批整合；`COMMAND_ORIGIN` 的对拍也还没加。
    - **第六轮：资源字节到了要让页面知道**（不变量 ASSET-BYTES 的后一半）。做资源同步时，字节落盘后发一个 `asset` 表的变化事件（`events.rs` 现成的「表 + 键」），素材页（M19 的 `MediaPage`）收到这个资源的事件就重读一次；现在它只在打开时读一次，字节后来才到的话要关了重开才显示。
 2. **F3（dr-workspace）**
-   - **可以拆镜像了**：在持有者的写入闭包里用 `BorrowedBook::new(doc, &book)` / `BorrowedProse::new(doc, &doc_id)` 开视图和事务，撤销用 `ProseUndo::on(doc)` + `undo_step`；读取用 `BookReader::from_loro` / `ProseReader::from_loro` 共享持有者的文档。两条规矩：写之前先 `set_next_commit_options`（带来源和提交信息），因为解析已删文字上的锚点会在中途隐式提交一次；文档要先过 `dr_doc::schema::configure`、带着创世。
+   - **可以拆镜像了**：在持有者的写入闭包里用 `BorrowedBook::new(doc, &book)` / `BorrowedProse::new(doc, &doc_id)` 开视图和事务，撤销用 `ProseUndo::on(doc)` + `undo_step`；读取用 `BookReader::from_loro` / `ProseReader::from_loro` 共享持有者的文档。两条规矩：写之前先 `set_next_commit_options`（带来源和提交信息；F2 第七轮已由持有者代设），因为解析已删文字上的锚点会在中途隐式提交一次；文档要先过 `dr_doc::schema::configure`、带着创世。
    - 清单里标「命令层」的 37 条是命令层的事，`dr_model::check` 有一部分现成的判断。
    - 9 处界面和 Agent 的分叉（`DIVERGENCES`）请照建议做成一条命令，或者改了建议再回来更新清单。
    - 新建要素前用 `element_name_key` 查重；合并后的重名读取时已经标出来（`name_conflict`），界面可以提示作者改名。
