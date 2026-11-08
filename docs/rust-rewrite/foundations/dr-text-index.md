@@ -28,7 +28,7 @@
 | --- | --- | --- | --- |
 | 1.1 | 字数：照 `packages/prose-metrics` 移植，和 TS 版对拍；故意不复现「加粗切开的英文词算两个」 | 完成 | `prose-metrics/tests/ts_parity.rs`：1545 个用例（45 个手写边界 + 1500 个固定种子随机串），期望值由 TS 原版生成（`tests/fixtures/generate.mts`）；差异用例 2 个 |
 | 1.2 | 纯文本与大纲：一段一行；H1/H2/H3 带块 ID | 完成 | `dr-text/src/tests.rs` |
-| 1.3 | 派生器：段落 → `BlockRow`、人物链接与素材嵌入 → `RefRow`、大纲、字数；按 Loro 差异增量；和 `index_state` 同一事务；打开库时重建落后的 | 完成 | `dr-index/tests/incremental.rs`、`tests/library.rs`、`tests/m10.rs` |
+| 1.3 | 派生器：段落 → `BlockRow`、人物链接与素材嵌入 → `RefRow`、大纲、字数；按 Loro 差异增量；和 `index_state` 同一事务；打开库时重建落后的 | 完成 | `dr-index/tests/incremental.rs`、`tests/library.rs`、`dr-import-v1/tests/index.rs` |
 | 1.4 | 人物自动链接匹配器 | 完成（只找位置） | `dr-text/src/tests.rs`：旧版自己的用例、和旧版逐字扫描的属性对拍、书目里的优先级和重名 |
 | 2.1 | 派生器直接读持有者的热文档（F1 的 `ProseReader::from_loro`、`paragraph_in`），只交改了的段（F2 的 `DerivedUpdate::Patch`）；重测按键后的一次派生 | 完成：打字 p50 0.21 ms | 3000 例属性测试（18 129 次按差异派生，每次都是补丁，补丁落到上一次的行上和整篇重读逐项相等，0 次退回）；真实持有者 120 步随机编辑（`patches_written_by_the_holder_keep_the_rows_right`）；[acceptance/dr-text-index-m2-index-bench.json](../acceptance/dr-text-index-m2-index-bench.json) |
 | 2.2 | 基准换进 F8 的 `dr-testkit` bench 套件，语料用 heavy 种子；证据换新格式 | 完成 | `bench index`；CI 里快跑比形状（`bench --check`、`dr-testkit/tests/bench.rs`）；`cargo xtask evidence --check` |
@@ -201,7 +201,7 @@ M07 的两个读数里，跟着编辑器走的那个按「选区 → 本章或�
 - **按键后的派生现在可以不管了**：0.21 ms 里派生本身只占四分之一，其余是 dr-store 写一行补丁和持有者线程收发消息。离 1 ms 的按键预算还有余量。
 - **回车是剩下唯一贵的**，而且贵在存储的段序是连续编号：插一段，后面每一行都要改编号（为了不撞唯一约束，还要改两遍）。一章 174 段平均挪 87 行，约 3 ms。只在作者敲回车时发生，一帧以内，但比按键预算高。
 - **全书重建在后台**，1.7 秒只发生在第一次打开导入的书、或者从没有派生器的版本升级上来时；平时打开库没有落后的文档，什么都不做。
-- **字数和种子相等**：种子按「一个汉字一个词、标点不算」数，它的语料里没有拉丁字母，所以和产品规则的结果应当一样。真实书稿里含英文的章节，新版可能比旧版略少（每个被加粗、斜体或链接切开的英文词少算一个）。和 0.1 原版逐篇相等的核对在 `tests/m10.rs`（M10 导入的 0.1 合成库）和 `prose-metrics` 的对拍里。
+- **字数和种子相等**：种子按「一个汉字一个词、标点不算」数，它的语料里没有拉丁字母，所以和产品规则的结果应当一样。真实书稿里含英文的章节，新版可能比旧版略少（每个被加粗、斜体或链接切开的英文词少算一个）。和 0.1 原版逐篇相等的核对在 `dr-import-v1/tests/index.rs`（M10 导入的 0.1 合成库；原来是 dr-index 的 `tests/m10.rs`）和 `prose-metrics` 的对拍里。
 - **搜索慢在一次取太多**：dr-store 先把全部命中排好序，再给取回的每一条切一段片段，所以命中越多、取得越多就越慢。上表 1–2 个字只取 50 条约 4 ms，取 1 万条 13–14 ms。换成 F8 测 `book.search` 用的查询词另测了一次（负载约 6，没进证据）：「灯塔亮」7340 条命中，取 1 万条 38 ms、取 50 条 4.2 ms；「灯」取 1 万条 30 ms、取 50 条 0.11 ms。F8 量到的 `book.search` 是 47 / 33 ms，所以大头就是这一步（待协调 3）。
 
 ## 测试

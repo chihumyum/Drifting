@@ -1,0 +1,12 @@
+[package]
+name = "dr-testkit-corpus"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "F8's random streams, synthetic corpus and fingerprint, without any store: dr-testkit re-exports them, and dr-store's own tests use them without a dependency cycle"
+
+[dependencies]
+dr-model.workspace = true
+sha2.workspace = true

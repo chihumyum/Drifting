@@ -20,6 +20,7 @@ members = [
     "crates/dr-shell",
     "crates/dr-store",
     "crates/dr-testkit",
+    "crates/dr-testkit-corpus",
     "crates/dr-text",
     "crates/dr-ui",
     "crates/dr-view-elements",
@@ -114,6 +115,7 @@ aho-corasick = "1.1"
 
 # F8 test kit: the seed, sample books, evidence, crash harness, benchmarks.
 dr-testkit = { path = "crates/dr-testkit" }
+dr-testkit-corpus = { path = "crates/dr-testkit-corpus" }
 # F8 debug bridge: the server (development builds with the app's
 # `debug-bridge` feature only) and its protocol and client (no GPUI).
 dr-debug-bridge = { path = "crates/dr-debug-bridge" }

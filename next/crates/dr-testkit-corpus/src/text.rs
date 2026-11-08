@@ -78,7 +78,8 @@ const DETAILS: &[&str] = &[
     "石阶上被潮水抹平的脚印",
     "灯镜边缘反复擦拭的痕迹",
 ];
-pub(crate) const HEADINGS: &[&str] = &[
+/// Short titles the seed gives chapters and ideas.
+pub const HEADINGS: &[&str] = &[
     "潮声与记录",
     "尚待核对的证词",
     "灯下的观察",

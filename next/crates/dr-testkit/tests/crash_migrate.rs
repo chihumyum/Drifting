@@ -1,5 +1,8 @@
 //! Migrations killed at every stage, on dr-testkit's crash harness. (Kills
-//! while editing are dr-testkit's own `crash_store` test, on a real holder.)
+//! while editing are `crash_store`, on a real holder.) This is dr-store's
+//! test; it lives here because the harness writes libraries through
+//! dr-store, and dr-store depending on dr-testkit, even for tests, would
+//! close a cycle that dx's hot patching refuses (see `dr-testkit-corpus`).
 //!
 //! For each stage a writer process opens a seeded library with a later
 //! build's migrations and pauses at that stage; the pause reports "ready" to
@@ -9,6 +12,7 @@
 //! newer build ends up migrated with the text intact, and the attempt's
 //! recovery receipt is settled.
 
+#[path = "../../dr-store/tests/common/mod.rs"]
 mod common;
 
 use std::path::Path;

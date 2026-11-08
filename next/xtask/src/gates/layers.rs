@@ -5,7 +5,8 @@
 //!     → application services (dr-workspace, dr-agent, dr-mcp, dr-sync,
 //!       dr-export, dr-mirror, dr-import-v1)
 //!         → data (dr-model, dr-doc, dr-store, dr-text)
-//! platform (dr-platform, dr-i18n) and tools (dr-testkit, dr-cli, xtask) on the side
+//! platform (dr-platform, dr-i18n) and tools (dr-testkit, dr-testkit-corpus,
+//! dr-cli, xtask) on the side
 //! ```
 //!
 //! - A crate's normal and build dependencies stay in its layer or below it.
@@ -69,6 +70,9 @@ pub const LAYERS: &[(&str, Layer)] = &[
     ("dr-view-elements", Layer::Interface),
     ("drifting", Layer::App),
     ("dr-testkit", Layer::Tools),
+    // The test kit's random streams and corpus, without a store (dr-store's
+    // tests use it; see dr-testkit-corpus).
+    ("dr-testkit-corpus", Layer::Tools),
     ("dr-cli", Layer::Tools),
     ("xtask", Layer::Tools),
 ];

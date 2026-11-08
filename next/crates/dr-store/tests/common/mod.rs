@@ -76,7 +76,7 @@ pub fn sha256_file(path: &Path) -> String {
 pub mod synthetic {
     use loro::{ExpandType, LoroDoc, StyleConfig, StyleConfigMap};
 
-    pub use dr_testkit::rng::Rng;
+    pub use dr_testkit_corpus::rng::Rng;
 
     /// The text container edits go to.
     pub const BODY: &str = "body";
@@ -102,8 +102,12 @@ pub mod synthetic {
 
     /// About `words` words of dr-testkit's corpus, one paragraph per line.
     pub fn chapter(rng: &mut Rng, words: usize) -> String {
-        let paras = dr_testkit::text::body(rng, words, dr_testkit::text::BodyShape::default());
-        dr_testkit::text::plain(&paras)
+        let paras = dr_testkit_corpus::text::body(
+            rng,
+            words,
+            dr_testkit_corpus::text::BodyShape::default(),
+        );
+        dr_testkit_corpus::text::plain(&paras)
     }
 
     /// One keystroke-sized edit near `cursor`: insert a few characters, or

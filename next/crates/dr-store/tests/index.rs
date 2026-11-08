@@ -269,7 +269,7 @@ fn an_index_never_moves_backwards_and_no_triggers_exist() {
 
 use dr_store::StoreError;
 use dr_store::index::{DerivedPatch, DocPatch, Splice};
-use dr_testkit::rng::Rng;
+use dr_testkit_corpus::rng::Rng;
 
 /// Every stored paragraph row, in order, and the FTS index checked against
 /// them.
@@ -603,7 +603,7 @@ fn a_patch_only_lands_on_the_rows_it_was_made_from() {
 #[test]
 #[ignore]
 fn measure_patch_against_full_rewrite() {
-    use dr_testkit::text;
+    use dr_testkit_corpus::text;
     let dir = tempfile::tempdir().unwrap();
     let lib = open(dir.path());
     lib.register("node:big", "node", None).unwrap();

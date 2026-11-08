@@ -1,8 +1,10 @@
 //! The rebuild of stale indexes on open must not hold up the author's
 //! typing: it writes only when no holder has written for a while, and each
 //! of its transactions is one document's.
-
-mod common;
+//!
+//! dr-store's test, on the seeds and the real deriver (dr-index); it lives
+//! here because dr-store depending on either, even for tests, would close a
+//! cycle that dx's hot patching refuses (see `dr-testkit-corpus`).
 
 use std::path::Path;
 use std::time::{Duration, Instant};

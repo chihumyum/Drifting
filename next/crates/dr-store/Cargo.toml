@@ -20,14 +20,13 @@ thiserror.workspace = true
 zip.workspace = true
 
 [dev-dependencies]
-# The real deriver, to measure typing while stale indexes are rebuilt
-# (integration tests only, like dr-testkit).
-dr-index.workspace = true
 # Only to check that both Origin types spell every origin the same way.
 dr-model.workspace = true
-# The shared seeds, random streams and crash harness; integration tests only
-# (dr-testkit depends on dr-store, so a unit test would see two dr-stores).
-dr-testkit.workspace = true
+# The shared random streams and corpus. Not dr-testkit, nor dr-index: they
+# depend on dr-store, and that cycle stops dx's hot patching (`cargo xtask
+# dev --hot`). The tests that need the seeds, the crash harness or the real
+# deriver are in dr-testkit's tests (crash_migrate, store_rebuild).
+dr-testkit-corpus.workspace = true
 # Only to check that the outline trims exactly what dr-text trims.
 prose-metrics.workspace = true
 tempfile.workspace = true

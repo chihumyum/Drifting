@@ -7,7 +7,9 @@
 //!   library; [`samples`]: the two sample books and the showcase books from
 //!   `fixtures/`;
 //! - [`rng`], [`text`], [`digest`]: one random number generator, one
-//!   synthetic corpus, one fingerprint;
+//!   synthetic corpus, one fingerprint (they live in `dr-testkit-corpus`,
+//!   which depends on no store, so dr-store's own tests can use them without
+//!   a dependency cycle; re-exported here);
 //! - [`evidence`]: measured evidence files and their freshness check
 //!   (`cargo xtask evidence --check`); contract evidence is asserted by tests
 //!   instead of committed;
@@ -20,9 +22,8 @@
 
 pub mod bench;
 pub mod crash;
-pub mod digest;
 pub mod evidence;
-pub mod rng;
 pub mod samples;
 pub mod seed;
-pub mod text;
+
+pub use dr_testkit_corpus::{digest, rng, text};
