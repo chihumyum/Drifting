@@ -961,6 +961,7 @@ impl ProseEditor {
             // Leaving with marked text: drop it here and in the input method,
             // so no half-typed pinyin stays behind (decided: discard, not
             // commit as typed).
+            self.log_ime(format_args!("blur: marked text dropped"));
             self.cancel_composition();
             if let Some(hooks) = &self.hooks {
                 hooks.discard_marked_text();
