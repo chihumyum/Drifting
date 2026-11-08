@@ -16,6 +16,18 @@
 M31 的产品入口仍由帮手轨道选择何时开启；本轮交付公共接口及真实 Runtime 的消费回归，不替换既有墨色台账。真实系统上的动效观感仍需窗口验收，不把 GPUI 测试平台当成实机输入法验证。
 
 
+### 本轮检查与性能重测
+
+2026-11-09，macOS，GPUI 仍为官方 `v1.27.0`：
+
+- `cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings` 通过。
+- `cargo test --workspace --locked`：1810 通过、22 忽略、0 失败，含真实 Runtime 的播放回归和 dr-ui 两种输入框回归。忽略项沿用原配置（实机凭据、手动测量和文档示例等）。
+- `cargo xtask check` 全部通过；审计 944 个锁定依赖，0 个漏洞、12 条通知。测量证据仍是 14 份过期、15 份旧格式，本轮没有把过期结果改称新结果。
+- 根目录 `pnpm public:check` 通过，5292 个候选文件。G3 补丁的干净应用、格式检查及打补丁后的 macOS GPUI 下游编译另已通过，见补丁台账。
+
+第 5 项空闲重测仍待满足条件：`cargo build --release --locked -p dr-editor --example prose-bench -j 2` 已通过。自己的编译／检查全部结束后继续等降载，一分钟负载仍先后为 17.42、38.70，超过 `prose-bench` 的 2.0 门槛，机器上仍有其他编译和高负载程序。没有启动测量子命令，没有运行高负载测量来覆盖旧数字，也没有手改测量 JSON。待机器空闲后按「重测上屏」跑官方 GPUI 的 `headless`、`decor`、`window`、`present`、`idle` 五项，再据生成的证据更新数字；本轮不挂 G1，不能把结果标成 G1。
+
+
 ## 第四轮（F4e 第二批：交互）
 
 章首、章末给宿主留的位置和页的数据（M03），@ 选择器、斜杠菜单、自动人物链接和断链修复、选区浮条，以及 F6 提的三件，记在 [f4e-editor.md](f4e-editor.md)。
