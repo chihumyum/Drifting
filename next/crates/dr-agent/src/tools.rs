@@ -25,7 +25,30 @@ impl ToolExecutions {
         self.0.lock().expect("tool executions").active += 1;
         Arc::new(ToolExecutionLease {
             executions: self.clone(),
+            completed: None,
         })
+    }
+
+    /// External calls keep their scheduler guard until the actual offloaded
+    /// worker releases its last context, even if its result arrives first.
+    pub(crate) fn enter_with_completion(
+        self: &Arc<Self>,
+    ) -> (Arc<ToolExecutionLease>, BoxFuture<'static, Result<()>>) {
+        let (send, receive) = oneshot::channel();
+        self.0.lock().expect("tool executions").active += 1;
+        let lease = Arc::new(ToolExecutionLease {
+            executions: self.clone(),
+            completed: Some(send),
+        });
+        (
+            lease,
+            async move {
+                receive
+                    .await
+                    .map_err(|_| Error::Tool("external execution barrier ended early".into()))
+            }
+            .boxed(),
+        )
     }
 
     pub(crate) fn drain(&self) -> BoxFuture<'static, Result<()>> {
@@ -46,6 +69,7 @@ impl ToolExecutions {
 
 pub(crate) struct ToolExecutionLease {
     executions: Arc<ToolExecutions>,
+    completed: Option<oneshot::Sender<()>>,
 }
 
 impl Drop for ToolExecutionLease {
@@ -56,6 +80,9 @@ impl Drop for ToolExecutionLease {
             for waiter in std::mem::take(&mut state.drained) {
                 let _ = waiter.send(());
             }
+        }
+        if let Some(completed) = self.completed.take() {
+            let _ = completed.send(());
         }
     }
 }

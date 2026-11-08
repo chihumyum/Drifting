@@ -5,6 +5,11 @@
     }
   },
   "settings": {
+    "agent": {
+      "extensions": {
+        "secretHint": "Los secretos solo se guardan en el Administrador de credenciales de Windows. Deja vacío un valor existente para conservarlo."
+      }
+    },
     "codexSubscription": {
       "failure": {
         "storage_failed": "No se pudo guardar la sesión en el Administrador de credenciales de Windows."

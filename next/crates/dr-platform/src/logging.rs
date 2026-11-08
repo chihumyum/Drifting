@@ -19,7 +19,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr as _;
 
 use tracing::level_filters::LevelFilter;
-use tracing_subscriber::filter::Targets;
+use tracing_subscriber::filter::{Targets, filter_fn};
 use tracing_subscriber::layer::SubscriberExt as _;
 use tracing_subscriber::util::SubscriberInitExt as _;
 use tracing_subscriber::{Layer as _, fmt};
@@ -114,6 +114,15 @@ fn most_verbose(targets: &Targets) -> LevelFilter {
         .unwrap_or(LevelFilter::OFF)
 }
 
+/// M32's MCP SDK logs complete requests, responses and malformed input at
+/// several levels. Keep those events and spans out of both output layers,
+/// independently of DRIFTING_LOG. Fixed, redacted failures remain available
+/// through dr_mcp and the UI; other dependency logs retain their normal filter.
+fn payload_safe(metadata: &tracing::Metadata<'_>) -> bool {
+    let target = metadata.target();
+    target != "rmcp" && !target.starts_with("rmcp::")
+}
+
 /// Installs the global subscriber. Call once, right after `crash::init`.
 pub fn init(config: &LogConfig) -> Logging {
     let stderr_filter = config.stderr.as_deref().map(parse);
@@ -140,6 +149,7 @@ pub fn init(config: &LogConfig) -> Logging {
             .with_writer(std::io::stderr)
             .with_target(true)
             .with_filter(filter)
+            .with_filter(filter_fn(payload_safe))
     });
     let log_dir = file.as_ref().map(|(dir, _, _)| dir.clone());
     let file_layer = file.map(|(_, appender, filter)| {
@@ -149,6 +159,7 @@ pub fn init(config: &LogConfig) -> Logging {
             .with_target(true)
             .with_thread_names(true)
             .with_filter(filter)
+            .with_filter(filter_fn(payload_safe))
     });
 
     let installed = tracing_subscriber::registry()
@@ -179,6 +190,78 @@ fn level_to_log(level: LevelFilter) -> log::LevelFilter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::{
+        io,
+        sync::{Arc, Mutex},
+    };
+
+    #[derive(Clone, Default)]
+    struct Capture(Arc<Mutex<Vec<u8>>>);
+    impl io::Write for Capture {
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(bytes);
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn sdk_payloads_never_reach_either_sink_even_with_specific_trace_overrides() {
+        for filter in [
+            "trace",
+            "warn,rmcp=trace,rmcp::service=trace,rmcp::service::client=trace,rmcp::transport::async_rw=trace,dr_mcp=trace,other_dependency=trace,rmcp_neighbor=trace",
+        ] {
+            let stderr = Capture::default();
+            let file = Capture::default();
+            let stderr_writer = stderr.clone();
+            let file_writer = file.clone();
+            let subscriber = tracing_subscriber::registry()
+                .with(
+                    fmt::layer()
+                        .with_ansi(false)
+                        .with_writer(move || stderr_writer.clone())
+                        .with_filter(parse(filter))
+                        .with_filter(filter_fn(payload_safe)),
+                )
+                .with(
+                    fmt::layer()
+                        .with_ansi(false)
+                        .with_writer(move || file_writer.clone())
+                        .with_filter(parse(filter))
+                        .with_filter(filter_fn(payload_safe)),
+                );
+            tracing::subscriber::with_default(subscriber, || {
+                tracing::warn!(target: "rmcp", secret = "synthetic-secret", "synthetic-body");
+                tracing::debug!(target: "rmcp::service", request = "synthetic-secret", "synthetic-body");
+                tracing::trace!(target: "rmcp::service::client", response = "synthetic-body", "synthetic-secret");
+                tracing::info!(target: "rmcp::service", notification = "synthetic-secret", "synthetic-body");
+                tracing::warn!(target: "rmcp::service::client", message = "synthetic-body", "synthetic-secret");
+                tracing::debug!(target: "rmcp::transport::async_rw", line = "synthetic-secret synthetic-body");
+                tracing::error!(target: "rmcp::transport::async_rw", error = "synthetic-secret synthetic-body");
+                let sdk_span = tracing::info_span!(target: "rmcp::service", "sdk", secret = "synthetic-secret");
+                let _entered = sdk_span.enter();
+                tracing::warn!(target: "dr_mcp::inbound", "fixed-local-error-kept");
+                tracing::debug!(target: "dr_mcp", "local-debug-kept");
+                tracing::trace!(target: "other_dependency", "other-trace-kept");
+                tracing::warn!(target: "rmcp_neighbor", "neighbor-target-kept");
+            });
+            for sink in [stderr, file] {
+                let output = String::from_utf8(sink.0.lock().unwrap().clone()).unwrap();
+                assert!(!output.contains("synthetic-secret"), "{filter}");
+                assert!(!output.contains("synthetic-body"), "{filter}");
+                for kept in [
+                    "fixed-local-error-kept",
+                    "local-debug-kept",
+                    "other-trace-kept",
+                    "neighbor-target-kept",
+                ] {
+                    assert!(output.contains(kept), "{filter}: {kept}");
+                }
+            }
+        }
+    }
 
     #[test]
     fn development_logs_to_stderr_and_installed_builds_to_files() {
