@@ -28,11 +28,11 @@ use dr_shell::{Services, Workspace, t};
 use dr_ui::{
     Theme,
     components::{
-        Segmented,
+        ColorSwatch, Segmented,
         cell::{RING_RIM, ring_tone},
     },
     fonts::{Role, weight},
-    glass::{self, Kind as GlassKind, Mode, Spec, Tone},
+    glass::{self, Kind as GlassKind, Mode, Spec},
     input::{area::TextArea, field::FieldEvent},
     sand::{self, Icon, KindMark},
     style::DrStyled,
@@ -48,6 +48,7 @@ use gpui::{
 use crate::data;
 use crate::element::field_id;
 use crate::page;
+use crate::swatch;
 
 /// The category page's head.
 pub struct CategoryHead {
@@ -57,6 +58,8 @@ pub struct CategoryHead {
     book: Rc<Book>,
     name: Entity<TextArea>,
     shown_name: Option<String>,
+    /// The colour being picked (dr-ui's swatch).
+    picked: swatch::Picked,
     _subs: Vec<Subscription>,
 }
 
@@ -96,8 +99,47 @@ impl CategoryHead {
             book: Rc::default(),
             name,
             shown_name: None,
+            picked: swatch::Picked::default(),
             _subs: vec![sub],
         }
+    }
+
+    /// A colour from the picker: shown at once, written once the picker has
+    /// been still for [`swatch::SETTLE`].
+    pub fn pick_color(&mut self, color: Rgb, cx: &mut Context<Self>) {
+        let timer = cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(swatch::SETTLE).await;
+            this.update(cx, |head, cx| head.save_color(cx)).ok();
+        });
+        self.picked.pick(color, timer);
+        cx.notify();
+    }
+
+    fn save_color(&mut self, cx: &mut Context<Self>) {
+        let stored = data::category(&self.book, &self.id).map(|c| c.color.clone());
+        let Some(color) = self.picked.settled(stored.as_deref()) else {
+            return;
+        };
+        let Some(lib) = self.lib.clone() else {
+            return;
+        };
+        let mut edit = data::category_edit(&self.book.id, &self.id);
+        edit.color = Some(color);
+        cx.spawn(async move |this, cx| {
+            let out = cx
+                .background_executor()
+                .spawn(async move { data::update_category(&lib, edit) })
+                .await;
+            if let Err(error) = out {
+                log::warn!("the category's colour could not be saved: {error}");
+                this.update(cx, |head, cx| {
+                    head.picked.forget();
+                    cx.notify();
+                })
+                .ok();
+            }
+        })
+        .detach();
     }
 
     fn follow(&mut self, cx: &mut Context<Self>) {
@@ -167,7 +209,9 @@ impl Render for CategoryHead {
         let theme = Theme::of(window, cx);
         let p = theme.palette;
         let look = page::look(cx);
-        let color = color_of(&category.color);
+        let color = self
+            .picked
+            .shown(Some(&category.color), color_of(&category.color));
         let count = category.elements as usize;
         let folio = page::folio(
             vec![
@@ -220,27 +264,17 @@ impl Render for CategoryHead {
                 .text_color(p.ink(4).solid())
                 .child(text)
         };
-        let swatch = glass::glass_box(
-            "category-color",
-            GlassKind::Rest,
-            Mode::default(),
-            false,
-            Spec::new(Tone::Clear, 9.0),
-            window,
-            cx,
-        )
-        .size(px(18.0))
-        .rounded(px(9.0))
-        .flex()
-        .items_center()
-        .justify_center()
-        .aria_label(t(cx, keys::storyline_editor::labels::COLOR))
-        .child(
-            div()
-                .size(px(10.0))
-                .rounded(px(5.0))
-                .bg(color.unwrap_or(p.accent).solid()),
-        );
+        let entity = cx.entity();
+        let swatch = div()
+            .self_start()
+            .debug_selector(|| "category-color".into())
+            .child(
+                ColorSwatch::new("category-color", color.unwrap_or(p.accent))
+                    .label(t(cx, keys::common::CUSTOM_COLOR))
+                    .on_pick(move |color, _, cx| {
+                        entity.update(cx, |head, cx| head.pick_color(color, cx))
+                    }),
+            );
         let facts = div()
             .mt(px(14.0))
             .flex()
@@ -255,7 +289,13 @@ impl Render for CategoryHead {
                         cx,
                         keys::category_editor::labels::ELEMENT_COUNT,
                     )))
-                    .child(fact_key(t(cx, keys::storyline_editor::labels::COLOR))),
+                    .child(
+                        div()
+                            .h(px(dr_ui::components::color::SWATCH))
+                            .flex()
+                            .items_center()
+                            .child(fact_key(t(cx, keys::storyline_editor::labels::COLOR))),
+                    ),
             )
             .child(
                 div()

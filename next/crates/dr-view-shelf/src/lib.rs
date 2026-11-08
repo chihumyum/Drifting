@@ -15,17 +15,20 @@
 //!
 //! The data comes from F3 (`dr-workspace`, one `book.shelf` read): [`data`]
 //! reads it off the main thread, again whenever F3 reports a change.
-//! Covers, the heat map, the 30-day strip and the sea of characters under
-//! the desk are M24 and M25.
+//! Each card carries its cover and its last 30 days in sand, and the year
+//! of writing days lies over the books; the pictures are M25's
+//! (`dr-view-shelf-art`), fed by [`art`]. The round button at the foot
+//! turns every cover to the next style. The sea of characters under the
+//! desk is M24.
 //!
 //! The app registers the bookshelf with [`init`]; the shell
 //! (`dr_shell::pages`) shows it.
 //!
 //! docs/rust-rewrite/modules/m01-shelf.md has the design and the numbers.
 
+pub mod art;
 pub mod data;
 pub mod format;
-pub mod frame;
 mod view;
 
 pub use view::{

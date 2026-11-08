@@ -369,6 +369,7 @@ userMenu.settings
 
 # M02 Project Home (dr-view-home)
 common.untitled
+common.customColor
 common.counting
 projectHome.since
 projectHome.views.overview
@@ -698,6 +699,8 @@ projectPicker.desk.coverStyle.names.*
 
 # M41 moving books: .driftingbook from the bookshelf (dr-view-transfer)
 projectPicker.desk.exportBook
+projectPicker.desk.recent
+projectPicker.desk.recentLabel
 projectPicker.bookTransfer.*
 
 # M41 whole-library backup and restore (dr-view-transfer)

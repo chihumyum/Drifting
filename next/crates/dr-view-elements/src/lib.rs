@@ -33,6 +33,7 @@ pub mod menu;
 mod page;
 pub mod panel;
 pub mod storyline;
+pub mod swatch;
 
 use std::collections::HashMap;
 use std::rc::Rc;

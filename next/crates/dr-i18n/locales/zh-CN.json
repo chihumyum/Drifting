@@ -105,6 +105,7 @@
     "confirm": "确认",
     "counting": "统计中…",
     "creating": "创建中…",
+    "customColor": "自定义颜色",
     "delete": "删除",
     "edit": "编辑",
     "local": "本地",
@@ -622,6 +623,8 @@
       "newCardSub": "从一张白纸开始",
       "open": "打开《{{name}}》",
       "progress": "进度",
+      "recent": "近 30 天",
+      "recentLabel": "近 30 天写了 {{words}} 字",
       "storylinesUnit": "条故事线",
       "trashEntry": "最近删除",
       "trashList": {

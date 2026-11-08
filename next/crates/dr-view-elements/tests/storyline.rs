@@ -3,7 +3,8 @@
 //! and chapter sequence around the text; the name and summary save as in
 //! the 0.1 client; fields write to the storyline; the sequence lists its
 //! chapters in reading order with the written / not started filter; the ⋯
-//! menu's delete asks with the 0.1 confirmation and trashes it.
+//! menu's delete asks with the 0.1 confirmation and trashes it; the colour
+//! swatch opens the picker and writes the colour once it is still.
 
 use std::time::{Duration, Instant};
 
@@ -18,7 +19,7 @@ use dr_workspace::{
     commands::{ListIn, chapter::ChapterList, storyline::StorylineList},
     dto::StorylineInfo,
 };
-use gpui::{Entity, Focusable as _, TestAppContext, VisualTestContext};
+use gpui::{Entity, Focusable as _, Modifiers, TestAppContext, VisualTestContext};
 
 const VERSION: &str = "0.2.0-dev";
 
@@ -263,4 +264,51 @@ fn deleting_a_storyline_asks_then_trashes_it(cx: &mut TestAppContext) {
     cx.simulate_keystrokes("escape");
     frame(cx);
     assert!(storylines(&lib, &book).iter().any(|l| l.id == other));
+}
+
+#[gpui::test]
+fn the_swatch_picks_a_colour_and_writes_it_once_still(cx: &mut TestAppContext) {
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    use dr_ui::components::color::{self, OnPick};
+    use dr_ui::tokens::Rgb;
+
+    let (_dir, library, book) = library();
+    let lib = library.clone();
+    let (view, cx) = setup(cx, library);
+    // The picker the swatch opens: it keeps the callback, as the system
+    // panel would while the author drags across it.
+    let opened: Rc<RefCell<Option<OnPick>>> = Rc::default();
+    cx.update(|_, cx| {
+        let opened = opened.clone();
+        color::set_color_picker(cx, move |_, on_pick, _, _| {
+            *opened.borrow_mut() = Some(on_pick);
+        });
+    });
+    let tower = storylines(&lib, &book)
+        .into_iter()
+        .find(|l| l.name == "钟楼")
+        .unwrap();
+    let (_head, _) = open(&view, &tower.id, cx);
+    frame(cx);
+    let swatch = cx
+        .debug_bounds("storyline-color")
+        .expect("the swatch is drawn");
+    cx.simulate_click(swatch.center(), Modifiers::none());
+    let on_pick = opened.borrow().clone().expect("the picker opened");
+    // Three colours in a row, as a drag across the panel gives them.
+    for hex in [0x112233, 0x445566, 0x8a3b2c] {
+        cx.update(|window, cx| on_pick(Rgb::hex(hex), window, cx));
+        frame(cx);
+    }
+    // Shown at once, written only once the picker is still.
+    let id = tower.id.clone();
+    assert_eq!(storyline(&lib, &book, &id).color, tower.color);
+    cx.executor()
+        .advance_clock(dr_view_elements::swatch::SETTLE);
+    wait_for(cx, |_| storyline(&lib, &book, &id).color == "#8a3b2c");
+    // One pick, one undo step: the colour before it comes back.
+    lib.undo(&Actor::User).unwrap();
+    assert_eq!(storyline(&lib, &book, &id).color, tower.color);
 }
