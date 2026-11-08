@@ -2703,3 +2703,91 @@ fn a_module_draws_the_companion_tab(cx: &mut TestAppContext) {
     draw(cx);
     assert_eq!(made.get(), 1, "then kept");
 }
+
+/// M26: with 「打字时自动沉浸」 on, the author typing (F4's `WritingTyped`)
+/// enters immersive writing, every open editor runs its typewriter line,
+/// and a press off the paper leaves; entered by hand, a press off the paper
+/// does not. The top band brings the tab dots back; a plain key puts them
+/// away.
+#[gpui::test]
+fn typing_enters_immersive_writing_and_a_press_off_the_paper_leaves(cx: &mut TestAppContext) {
+    use gpui::{Modifiers, MouseButton, point, px, size};
+    let (_dir, lib) = slow_clock();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    cx.simulate_resize(size(px(1200.0), px(800.0)));
+    let first = view.read_with(cx, |ws, _| chapter_of(ws, 0));
+    view.update(cx, |ws, cx| ws.open(first.clone(), Open::KEEP, cx));
+    let editor = open_editor(&view, cx, &first);
+    let Target::Chapter(id) = &first else {
+        unreachable!()
+    };
+    let doc = format!("node:{id}");
+    let typed = |cx: &mut VisualTestContext| {
+        editor.update(cx, |_, cx| {
+            cx.emit(dr_editor::WritingTyped { doc: doc.clone() })
+        });
+        cx.run_until_parked();
+    };
+    let state = |cx: &mut VisualTestContext| {
+        view.read_with(cx, |ws, _| (ws.immersive, ws.immersed_by_typing()))
+    };
+    typed(cx);
+    assert_eq!(state(cx), (false, false), "the setting is off");
+    cx.update(|_, cx| {
+        Settings::update(cx, |f| {
+            f.set(registry::AUTO_IMMERSIVE, Value::from(true), None)
+        })
+        .unwrap()
+    });
+    typed(cx);
+    assert_eq!(state(cx), (true, true), "typing entered");
+    draw(cx);
+    assert!(
+        editor.read_with(cx, |e, _| e.immersive()),
+        "the typewriter line runs"
+    );
+    // The paper is centred; the desk at the left is off it.
+    cx.simulate_mouse_down(
+        point(px(20.0), px(400.0)),
+        MouseButton::Left,
+        Modifiers::none(),
+    );
+    cx.simulate_mouse_up(
+        point(px(20.0), px(400.0)),
+        MouseButton::Left,
+        Modifiers::none(),
+    );
+    cx.run_until_parked();
+    assert_eq!(state(cx), (false, false), "a press off the paper left");
+    draw(cx);
+    assert!(!editor.read_with(cx, |e, _| e.immersive()));
+
+    view.update(cx, |ws, cx| ws.set_immersive(true, cx));
+    draw(cx);
+    cx.simulate_mouse_down(
+        point(px(20.0), px(400.0)),
+        MouseButton::Left,
+        Modifiers::none(),
+    );
+    cx.simulate_mouse_up(
+        point(px(20.0), px(400.0)),
+        MouseButton::Left,
+        Modifiers::none(),
+    );
+    cx.run_until_parked();
+    assert_eq!(state(cx), (true, false), "entered by hand: still in");
+    cx.simulate_mouse_move(point(px(600.0), px(10.0)), None, Modifiers::none());
+    cx.run_until_parked();
+    assert!(
+        view.read_with(cx, |ws, _| ws.immersion.top),
+        "the top band reveals"
+    );
+    keys(cx, "a");
+    assert!(
+        !view.read_with(cx, |ws, _| ws.immersion.top),
+        "a plain key conceals"
+    );
+    view.update(cx, |ws, cx| ws.toggle_super_view(SuperView::Elements, cx));
+    assert_eq!(state(cx), (false, false), "a Super View ends it");
+}

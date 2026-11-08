@@ -256,37 +256,6 @@ pub fn corner(
         .into_any_element()
 }
 
-/// In immersive writing the corner is gone; the incense stick comes back
-/// when the pointer nears the corner, and leaves immersive writing.
-pub fn leave_immersive(cx: &mut App) -> AnyElement {
-    div()
-        .id("immersive-leave-zone")
-        .group("immersive-leave")
-        .absolute()
-        .right_0()
-        .bottom_0()
-        .w(px(160.0))
-        .h(px(120.0))
-        .child(
-            div()
-                .absolute()
-                .right(px(CORNER_INSET))
-                .bottom(px(CORNER_INSET + 4.0))
-                .opacity(0.0)
-                .group_hover("immersive-leave", |st| st.opacity(1.0))
-                .child(
-                    IconButton::new("immersive-leave", Icon::Incense)
-                        .floating()
-                        .selected(true)
-                        .label(t(cx, keys::immersive_writing::LEAVE))
-                        .on_click(|_, window, cx| {
-                            window.dispatch_action(Box::new(ToggleImmersiveWriting), cx)
-                        }),
-                ),
-        )
-        .into_any_element()
-}
-
 /// 分享: the page (or the whole book) as Markdown (M41).
 fn share_item(
     ws: &Entity<Workspace>,

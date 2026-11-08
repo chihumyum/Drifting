@@ -215,7 +215,8 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
             .h(px(TITLEBAR_HEIGHT)),
         cx,
     );
-    let dock = (!immersive).then(|| dock::dock(ws, window, cx));
+    // Immersed, the tab dots come back with the top band (M26).
+    let dock = (!immersive || ws.immersion.top).then(|| dock::dock(ws, window, cx));
     // The find bar, at the paper's top right under the dock.
     let find = ws.find.clone().map(|bar| {
         div()
@@ -224,7 +225,7 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
             .right(px(corner::CORNER_INSET))
             .child(bar)
     });
-    let leave = immersive.then(|| corner::leave_immersive(cx));
+    let leave = immersive.then(|| super::immersive::exit(ws, window, cx));
     let dragging = cx.has_active_drag() && ws.nav.active_index().is_some();
     let pages = div()
         .relative()
@@ -332,6 +333,19 @@ fn paper(
         None => home(ws, window, cx),
         Some(target) => document(ws, target, window, cx),
     };
+    // Where this page's paper is (a press off it leaves typed immersion).
+    let papers = ws.read(cx).immersion.papers.clone();
+    let probe_key = key.to_string();
+    let probe = gpui::canvas(
+        move |bounds, _, _| {
+            papers.borrow_mut().insert(probe_key.clone(), bounds);
+        },
+        |_, _, _, _| {},
+    )
+    .absolute()
+    .top_0()
+    .left_0()
+    .size_full();
     let sheet = div()
         .id(ElementId::Name(format!("paper-{key}").into()))
         .h_full()
@@ -340,6 +354,8 @@ fn paper(
         .bg(p.page.solid())
         .rounded(px(surface::PAGE_RADIUS))
         .shadow(shadow)
+        .relative()
+        .child(probe)
         .child(content);
     // While the sea ebbs (M24) the desk leaves its colour to it.
     let ebbing = ws.read(cx).ebbing();

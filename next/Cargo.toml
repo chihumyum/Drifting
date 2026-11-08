@@ -142,7 +142,7 @@ uuid = { version = "1.29", default-features = false, features = ["std", "v4", "v
 # AppKit calls GPUI does not wrap, such as the app's own appearance. The same
 # versions GPUI's macOS backend already builds, so they add nothing new.
 objc2 = "0.6"
-objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSAppearance", "NSApplication", "NSResponder"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSAppearance", "NSApplication", "NSButton", "NSControl", "NSResponder", "NSView", "NSWindow", "objc2-core-foundation"] }
 
 proptest = "1.12"
 # SQLite for the Loro update log and snapshots (P0-C); bundled so every

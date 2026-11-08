@@ -19,6 +19,7 @@ pub mod corner;
 mod dock;
 pub mod editors;
 pub mod find;
+pub mod immersive;
 pub mod outline;
 pub mod page_actions;
 mod review;
@@ -42,9 +43,9 @@ use dr_ui::{
 };
 use gpui::{
     AnyView, App, AppContext as _, Bounds, Context, Entity, FocusHandle, Focusable,
-    InteractiveElement, IntoElement, ParentElement, Render, Size, Styled, Subscription, Task,
-    TitlebarOptions, Window, WindowBounds, WindowOptions, div, prelude::FluentBuilder as _, px,
-    size,
+    InteractiveElement, IntoElement, ParentElement, Render, Size, StatefulInteractiveElement as _,
+    Styled, Subscription, Task, TitlebarOptions, Window, WindowBounds, WindowOptions, div,
+    prelude::FluentBuilder as _, px, size,
 };
 use serde::{Deserialize, Serialize};
 
@@ -397,6 +398,8 @@ pub struct Workspace {
     pub outline_hidden: bool,
     /// Immersive writing: only the paper (the incense stick, ⌘⇧↩).
     pub immersive: bool,
+    /// How it was entered, the reveal, the words since ([`immersive`]).
+    pub immersion: immersive::Immersion,
     /// The chapter panel's view: the whole book, not by storyline.
     pub chapters_by_book: bool,
     pub chapter_sort: chapter_sort::ChapterSort,
@@ -526,6 +529,7 @@ impl Workspace {
             dock_locked: false,
             outline_hidden: false,
             immersive: false,
+            immersion: Default::default(),
             chapters_by_book: false,
             chapter_sort: Default::default(),
             chapter_sort_open: None,
@@ -932,6 +936,7 @@ impl Workspace {
             return false;
         }
         self.store_layout(cx);
+        self.set_immersive(false, cx);
         self.shelf_open = true;
         self.super_view = None;
         self.notifications_open = false;
@@ -1344,17 +1349,6 @@ impl Workspace {
         cx.notify();
     }
 
-    /// Immersive writing: the sidebars, the dock, the toggles and the
-    /// corner go; only the paper stays (M26 adds fading the paragraphs
-    /// around the caret and starting it by typing). Esc, ⌘⇧↩ or the incense
-    /// stick in the corner bring them back.
-    pub fn set_immersive(&mut self, on: bool, cx: &mut Context<Self>) {
-        if self.immersive != on {
-            self.immersive = on;
-            cx.notify();
-        }
-    }
-
     /// ⌘⇧F: M06's search panel. A hit opens its page through a location
     /// link (the paragraph scrolls into view) or, for a material, the page.
     pub fn toggle_search(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -1394,6 +1388,8 @@ impl Workspace {
 
     pub fn toggle_super_view(&mut self, view: SuperView, cx: &mut Context<Self>) {
         self.notifications_open = false;
+        // A Super View ends immersive writing (M26).
+        self.set_immersive(false, cx);
         self.super_view = if self.super_view == Some(view) {
             None
         } else {
@@ -1548,6 +1544,7 @@ impl Render for Workspace {
             return glass::surface(Ground::flat(p.desk), root).into_any_element();
         }
         self.ebbing = Self::sea_ebbs(window, cx);
+        self.sync_traffic_lights(window, cx);
         let ebbing = self.ebbing;
         self.sea_guide(window, cx);
 
@@ -1580,6 +1577,24 @@ impl Render for Workspace {
             .text_color(p.ink(1).solid())
             .on_drag_move::<sidebar::ResizeDrag>(cx.listener(sidebar::on_resize))
             .on_drag_move::<BottomResize>(cx.listener(bottom::on_resize))
+            // M26: a press off the paper leaves what typing began; the top
+            // band brings the traffic lights and tab dots back.
+            .capture_any_mouse_down(cx.listener(|ws, e: &gpui::MouseDownEvent, window, cx| {
+                ws.pressed_while_immersed(e.position, window, cx)
+            }))
+            .on_mouse_move(cx.listener(|ws, e: &gpui::MouseMoveEvent, _, cx| {
+                ws.pointer_while_immersed(f32::from(e.position.y), cx)
+            }))
+            .capture_key_down(cx.listener(|ws, e: &gpui::KeyDownEvent, _, cx| {
+                if !e.keystroke.modifiers.modified() {
+                    ws.conceal(cx)
+                }
+            }))
+            .on_hover(cx.listener(|ws, hovered: &bool, _, cx| {
+                if !hovered {
+                    ws.conceal(cx)
+                }
+            }))
             .children(Self::backdrop(window, cx))
             .child(row)
             .when(!immersive, |el| {
