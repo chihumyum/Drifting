@@ -72,3 +72,71 @@ fn the_showcase_is_a_shelf_of_books_with_writing_days() {
     let again = seed::generate(Preset::Showcase, seed::DEFAULT_SEED).unwrap();
     assert_eq!(again.shape(), shape);
 }
+
+#[test]
+fn v3_sample_books_and_showcase_lay_out_and_match_v2_shape() {
+    for (book, chapters, elements, name) in [
+        (
+            samples::pride_and_prejudice_v3().unwrap(),
+            61,
+            31,
+            "Pride and Prejudice (Sample)",
+        ),
+        (samples::a_q_v3().unwrap(), 9, 29, "阿Q正传（示例）"),
+        (samples::slow_clock_v3().unwrap(), 24, 24, "慢钟"),
+    ] {
+        let v = book.book.view();
+        assert_eq!(v.meta().name, name);
+        let roots = dr_doc::v3::novel::NovelRootEntries::new();
+        assert_eq!(
+            v.manuscript_leaves(&roots.manuscript).len(),
+            chapters,
+            "{name}"
+        );
+        let tpl_char =
+            dr_model::id::EntryTemplateId::parse(dr_doc::v3::novel::TPL_CHARACTER).unwrap();
+        let elem_count = v
+            .entries()
+            .iter()
+            .filter(|e| !e.is_trashed() && e.template.as_ref() == Some(&tpl_char))
+            .count();
+        assert_eq!(elem_count, elements, "{name}");
+        assert!(v.repair_plan().is_empty(), "{name} needs no repair");
+        assert!(v.autolink_name_conflicts().is_empty(), "{name}");
+        assert!(!v.relations().is_empty(), "{name}");
+        let entries_map = v.entries_map();
+        let templates_map = v.templates_map();
+        for e in entries_map.values().filter(|e| !e.is_trashed()) {
+            assert!(
+                dr_model::v3::check_parent_is_level(
+                    e.parent.as_ref(),
+                    &entries_map,
+                    &templates_map
+                )
+                .is_ok()
+            );
+            assert!(
+                dr_model::v3::check_level_allows_template(
+                    e.parent.as_ref(),
+                    e.template.as_ref(),
+                    &entries_map,
+                    &templates_map,
+                )
+                .is_ok()
+            );
+        }
+        for m in v.memberships_raw() {
+            assert!(
+                dr_model::v3::check_membership(&m.host, &m.member, &entries_map, &templates_map)
+                    .is_ok()
+            );
+        }
+        for p in &book.prose {
+            assert!(v.owns_prose(p.doc_id()), "{}", p.doc_id());
+        }
+    }
+
+    let s_v2 = seed::generate(Preset::Showcase, seed::DEFAULT_SEED).unwrap();
+    let s_v3 = seed::generate_v3(Preset::Showcase, seed::DEFAULT_SEED).unwrap();
+    assert_eq!(s_v3.shape(), s_v2.shape());
+}

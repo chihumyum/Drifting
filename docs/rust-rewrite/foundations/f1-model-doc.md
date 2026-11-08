@@ -395,4 +395,35 @@ docs/rust-rewrite/acceptance/f1-m3-doc-bench.json   第三轮的测量证据
 
 ### 待协调
 
-- 无（K3 可直接基于 `dr_doc::v3` 与 `dr_doc::v3::novel_template` 继续做后半段导入与样书切换；K1+K2 已完成第 3 步 `dr-store` 按「条目 + 模块」索引，见 [f2-store.md](f2-store.md)「交回」）。
+- **回应 K3（`m10-import.md` 待协调 24、25、27）**：
+  1. **待协调 24（项目级故事线字段模板）**：在内置小说项目模板（`dr_doc::v3::novel`）中，`TPL_STORYLINE`（`"tpl-storyline"`，泳道层级模板）自带两个模块：`MOD_FIELDS`（`"mod-fields"`，含 `color` 与 `summary` 字段）和 `MOD_KV`（`"mod-kv"`，`ModuleKind::KeyValue`）。旧版项目级的 `project.storyline_template_kv_json` + `entity_kv_entry(owner_kind=project, namespace=storyline-template)` 对应 `TPL_STORYLINE` 模板里 `MOD_KV` 模块的 `config.initial_kv`（通过 `TemplateWriterV3::put_module` 写入 `initial_kv`），各条故事线自己的键值行写进该故事线条目的 `kv:mod-kv`（`EntryWriterV3::put_kv(&mid(MOD_KV), &entry)`），无需新加结构。
+  2. **待协调 25（旧关系类型端点种类约束）**：`RelationTypeV3` 与 `RelationTypeWriterV3` 同时提供 `source_kinds` / `target_kinds`（`Vec<EntityKind>`）与 `source_templates` / `target_templates`（`Vec<EntryTemplateId>`）。旧 `material`、`comment`、`patch` 原样保留对应 `EntityKind`；旧 `element`、`node`、`storyline`、`category` 在 `source_kinds` / `target_kinds` 上统一映射为 `EntityKind::Entry`。是否同时把旧种类收窄进 `source_templates` / `target_templates` 属于语义取舍，照 `overnight.md` 留给作者拍板。
+  3. **待协调 27（旧层级颜色）**：在 `dr_doc::v3::novel` 中，需要各自颜色的层级模板——`TPL_IDEA_GROUP`（`"tpl-idea-group"`）、`TPL_CATEGORY`（`"tpl-category"`）、`TPL_GROUP`（`"tpl-group"`）和 `TPL_STORYLINE`（`"tpl-storyline"`）——都已经声明了 `MOD_FIELDS`（`"mod-fields"`，`ModuleKind::Fields`），内含 `"color"` 字段（`FieldType::Text`）并设 `color_field = Some("color")`。因此每个分类、构想分组、故事线、分组条目各自的颜色直接写在该条目的 `fields.mod-fields.color`（`EntryWriterV3::set_field(&mid(MOD_FIELDS), "color", Some(&FieldValue::Text(color)))`），既不混进模板公用颜色，也不用为每个分类复制层级模板。
+
+## 交回（K1+K2 第三批：第 4 步 `dr_testkit::seed` v3 四档，`handback/k1`）
+
+### 包含哪几段
+
+1. **第 4 步 `dr_testkit::seed` v3 四档（`tiny` / `lite` / `heavy` / `showcase`）**（`next/crates/dr-testkit/src/seed/v3.rs`、`shape.rs`、`samples.rs`）：
+   - 新增 `SeededV3`、`SeededBookV3`、`BuilderV3`、`generate_v3(preset, seed)`、`write_book_v3`、`book_to_v3`、`digest_v3`，以及 `samples::{pride_and_prejudice_v3, a_q_v3, slow_clock_v3, showcase_v3}`（不触碰归属 K3 的 `dr-samples`）。
+   - `Shape::of_v3` 按 v3 条目树与模板统计章节、要素、幕（书稿下的 `tpl-group` 分组）、关系、写作日与正文分组指纹；`Tiny`、`Lite`、`Heavy`、`Showcase` 四档与 v2.2 的 `Shape` 及钉死指纹（`PINNED`）完全对齐，并通过全部 13 条 v3 不变量、`owns_prose` 与 `dr-store` 按「条目 + 模块」索引测试。
+2. **修正 `TPL_CATEGORY` 默认 `allow`**：
+   - `dr_doc::v3::novel` 中 `TPL_CATEGORY` 的 `settings.allow` 从 `None`（会从父层级 `TPL_ELEMENTS` 继承仅允许 `tpl-category`）修正为 `Some(Vec::new())`（不限制分类下的要素叶子模板，分类自身仍可通过 `overrides.allow` 收窄）。
+
+### 改了 v2.2 那边的哪些文件、为什么
+
+- `next/crates/dr-testkit/src/seed/mod.rs`：挂上 `pub mod v3;` 并导出 v3 种子生成函数，v2.2 的 `generate` / `generate_via_commands` / `digest` 保持原样。
+- `next/crates/dr-testkit/src/seed/shape.rs`：新增 `Shape::of_v3`，v2.2 的 `Shape::of` 不变。
+- `next/crates/dr-testkit/src/samples.rs`：新增 `*_v3` 辅助函数，v2.2 的样书与书架函数不变。
+
+### 检查结果
+
+- `cargo fmt --all --check`：通过
+- `CARGO_BUILD_JOBS=3 cargo clippy --workspace --all-targets --locked -- -D warnings`：通过
+- `CARGO_BUILD_JOBS=3 cargo test --workspace --locked`：通过
+- `CARGO_BUILD_JOBS=3 cargo xtask check`：通过
+- `pnpm public:check`：通过
+
+### 待协调
+
+- 见上一节对 K3（`m10-import.md` 待协调 24、25、27）的落点确认。

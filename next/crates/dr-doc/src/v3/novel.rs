@@ -394,7 +394,7 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
             modules: vec![color_fields_module()],
             settings: LevelSettingsOverride {
                 default_template: Some(Some(tid(TPL_CHARACTER))),
-                allow: None,
+                allow: Some(Vec::new()),
                 display: Some(ChildDisplayMode::Grid),
                 auto_link: Some(true),
                 accept: Some(true),
