@@ -110,6 +110,7 @@ fn failed_abort_journal_waits_for_entered_write_before_join_and_failure() {
     let runtime = Runtime::new(ws.clone(), driver, tools, Options::default()).unwrap();
     let run = runtime
         .start(Start {
+            config: dr_agent::RunConfig::new(dr_agent::Provider::Openai, "synthetic-model"),
             book,
             conversation: ConversationId::new_v7(),
             input: text.into(),

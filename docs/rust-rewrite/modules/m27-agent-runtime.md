@@ -19,7 +19,7 @@
 5. **中止不等于撤销。** 模型流、未进入的调用、只读调用和作者等待可以取消；已进入的写入必须等到它的 future 结束并核对结算，再进入 `Aborted`。`RunHandle::join/finish` 返回后不得还有工具继续写。已写入的内容由 `history.undo_agent` 撤销。
 6. **停止与插话都有明确边界。** 插话先持久化、按接收顺序在下一次模型调用前应用；不会打断正在提交的工具。停止会完成当前已开始的调用组，取消批次里其余未开始的工具；流式输出期间没有工具在执行时直接停止。自然结束与新插话通过同一邮箱锁裁定，调用方要么收到已持久化的确认，要么收到 `Closed`。
 7. **有界并发，写入有屏障。** 相邻、无需许可的读工具组成一组，默认最多四个并行。写工具单独运行，不能穿过前一组读；后续读也不能穿过写。同一 Runtime 的不同 runs 共享组锁，组间保守串行。M29 仍负责 F3 操作级并发、作用域和修订 CAS；这里没有复制整套工具清单。
-8. **不默认限制模型轮数。** `max_model_rounds` 默认 `None`，只有嵌入方明确提供限制才停止；没有隐藏的输出 token 上限。M28 的模型与请求配置由具体 driver 实例持有。
+8. **不默认限制模型轮数。** `max_model_rounds` 默认 `None`，只有作者明确提供限制才停止；没有隐藏的输出 token 上限。[M28](m28-model-providers.md) 已将模型、能力和迭代上限移到每次 `Start` 接收的不可变 `RunConfig`，同一个驱动按该快照分派提供商。
 
 ## 事件和状态机
 
@@ -54,7 +54,7 @@
 ```rust
 let runtime = dr_agent::Runtime::new(ws.clone(), driver, tools, Options::default())?;
 runtime.recover()?; // 库打开后，开始新运行前
-let run = runtime.start(Start { book, conversation, input })?;
+let run = runtime.start(Start { book, conversation, input, config })?;
 let control = run.control.clone();
 control.steer(text).await?;
 control.answer(request_id, answer_json).await?;
@@ -64,7 +64,7 @@ control.abort().await?;
 let terminal = run.finish().await?; // 或非 UI 线程里的 join()
 ```
 
-- `Driver::stream(DriverRequest, Cancellation) -> BoxStream<Result<DriverEvent>>`：不能阻塞工作线程；丢弃流要取消 I/O。`DriverRequest` 带已同步的整个对话、当前 session/turn/round、冻结的工具描述。分片 JSON 的组装归 M28，给运行时的是完整 `ToolCall`。
+- `Driver::stream(DriverRequest, Cancellation) -> BoxStream<Result<DriverEvent>>`：不能阻塞工作线程；丢弃流要取消 I/O。`DriverRequest` 带已同步的整个对话、当前 session/turn/round、冻结的工具描述和运行配置。分片 JSON 的组装归 M28，给运行时的是完整 `ToolCall`。M28 新增原生搜索活动、完整 wire 回放及错误类别，见其模块文档。
 - `ToolExecutor::{descriptors, execute}`：执行返回 `Value` 或 `Question`。`ToolContext` 提供书、来源、取消标记、冻结描述和工作区；同步 F3 命令用 `workspace_call()` 转到独立工作线程，保持控制邮箱可响应。helper 拒绝把写命令标成读，并校验显式 `book`、`doc` 归属；它不是完整的 M29 对象作用域检查。
 - `events(library, session, after_seq)`：读已提交事件；M31 按事件投出消息和当前请求。没有第二套 UI 消息存储。
 - `conversation(library, id)`：读同步投影；文档模型接口与不变量见 [m27-conversation-schema.md](m27-conversation-schema.md)。

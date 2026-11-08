@@ -47,6 +47,7 @@ impl Fixture {
     fn start(&self, runtime: &Runtime, conversation: &ConversationId) -> RunHandle {
         runtime
             .start(Start {
+                config: dr_agent::RunConfig::new(dr_agent::Provider::Openai, "synthetic-model"),
                 book: self.book.clone(),
                 conversation: conversation.clone(),
                 input: self.text.clone(),
@@ -308,6 +309,7 @@ fn conversation_cannot_be_rebound_to_another_book_or_poison_recovery() {
     assert!(
         runtime
             .start(Start {
+                config: dr_agent::RunConfig::new(dr_agent::Provider::Openai, "synthetic-model"),
                 book: second_book,
                 conversation,
                 input: f.text.clone(),
