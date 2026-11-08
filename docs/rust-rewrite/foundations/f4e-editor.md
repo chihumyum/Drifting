@@ -6,6 +6,23 @@
 - **`gpui-prose` 的改动**：只加了挂钩，见「对 `gpui-prose` 的改动」。
 - **截图**：在 [f4e/](f4e/)，由 `cargo run -p dr-editor --example page-capture -- docs/rust-rewrite/foundations/f4e` 不开窗口画出来。
 
+## 轨道 2：公共播放接点（2026-11-09）
+
+`dr_editor::{CommitPlaybackOptions, CommitPlaybackStatus}` 重新导出 F4 的提交后播放器。`ChapterEditor`、`BookEditor` 的 `editor()` 返回的实体均可开启：
+
+```rust
+editor.update(cx, |editor, cx| {
+    editor.set_commit_playback(Some(CommitPlaybackOptions::new("agent:")), cx);
+});
+```
+
+`ChapterEditor` 既有的正文事件刷新和 `BookEditor` 的逐文档刷新就是提交边界，无须延迟 Runtime 或加写入队列。播放器默认关闭，新建／切换编辑器实体后由宿主重新配置；不读收据来伪造未提交文本，不重放历史。播放仅影响墨的绘制，最终正文排版和持久版本第一帧就有效；中途输入、光标操作或下一笔正文事件立即显出结果。旧墨只覆盖尚未揭示的最终正文范围，删除和格式直接完成。完整约束与 API 在 [F4 公共播放接口](f4-editor.md#轨道-2提交后的公共播放接口2026-11-09)。
+
+`tests/playback.rs` 依赖仅在 dev-dependencies 中增加 `dr-agent`／`dr-agent-tools`，使用 F8 tiny 种子和脚本驱动的真实 Runtime，验证播放还没结束时正文与收据已落地，推进动画和开始 IME 不增加正文版本或收据。未改人物链接、按种类画层或 M31 产品入口；帮手轨道可直接消费此接口。
+
+
+本轮全 workspace 检查通过（1810 测试通过、22 忽略），具体门禁和空闲基准的待测条件见 [F4 本轮检查](f4-editor.md#本轮检查与性能重测)。旧 `f4e-m2-prose-bench-*` 证据仍过期，尚无可替换的空闲测量数字。
+
 ## 第七批（2026-11-09）：@ 选择器按拼音首字母找；复制格子带上格式；M26 沉浸写作的编辑器部分
 
 先合了 main `eb221684`（第十五批，第六批已在里面，快进）。

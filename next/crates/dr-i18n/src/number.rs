@@ -43,6 +43,23 @@ pub fn grouped(n: u64, locale: Locale) -> String {
     out
 }
 
+/// Signed whole counts (including `i64::MIN`), without a plus sign on gains.
+pub fn grouped_signed(n: i64, locale: Locale) -> String {
+    let digits = grouped(n.unsigned_abs(), locale);
+    if n < 0 { format!("-{digits}") } else { digits }
+}
+
+/// The 0.1 client's cell count (`formatWordCount`): 521, 1.2k, 2.0k, 12k.
+/// Preserves its locale-independent lower-case suffix; use [`compact`]
+/// for localized compact totals.
+pub fn compact_words(n: u64) -> String {
+    match n {
+        0..=999 => n.to_string(),
+        1000..=9999 => format!("{:.1}k", n as f64 / 1000.0),
+        _ => format!("{}k", (n as f64 / 1000.0).round() as u64),
+    }
+}
+
 /// One decimal at most, trailing zero dropped, the language's decimal mark.
 fn one_decimal(value: f64, locale: Locale) -> String {
     let rounded = (value * 10.0).round() / 10.0;
@@ -99,6 +116,57 @@ pub fn compact(n: u64, locale: Locale) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn signed_counts_keep_locale_grouping_at_integer_limits() {
+        for locale in [
+            Locale::ZhCn,
+            Locale::ZhTw,
+            Locale::Ja,
+            Locale::Ko,
+            Locale::En,
+            Locale::Es,
+            Locale::PtBr,
+            Locale::Fr,
+            Locale::De,
+        ] {
+            assert_eq!(grouped_signed(0, locale), "0");
+            assert_eq!(grouped_signed(12_345, locale), grouped(12_345, locale));
+            assert_eq!(
+                grouped_signed(-12_345, locale),
+                format!("-{}", grouped(12_345, locale))
+            );
+            assert_eq!(
+                grouped_signed(i64::MIN, locale),
+                format!("-{}", grouped(1_u64 << 63, locale))
+            );
+        }
+        assert_eq!(grouped_signed(-1500, Locale::Fr), "-1\u{202f}500");
+        assert_eq!(grouped_signed(-1234, Locale::Es), "-1234");
+        assert_eq!(
+            grouped_signed(i64::MAX, Locale::En),
+            "9,223,372,036,854,775,807"
+        );
+    }
+
+    #[test]
+    fn cell_counts_preserve_the_legacy_thresholds_and_suffix() {
+        for (value, expected) in [
+            (0, "0"),
+            (521, "521"),
+            (999, "999"),
+            (1000, "1.0k"),
+            (1234, "1.2k"),
+            (2000, "2.0k"),
+            (9999, "10.0k"),
+            (10_000, "10k"),
+            (12_345, "12k"),
+            (12_500, "13k"),
+            (1_000_000, "1000k"),
+        ] {
+            assert_eq!(compact_words(value), expected);
+        }
+    }
 
     #[test]
     fn compact_counts_follow_intl() {

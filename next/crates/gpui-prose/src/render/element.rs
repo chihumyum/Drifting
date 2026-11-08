@@ -66,6 +66,7 @@ pub struct ParagraphElement {
     pub(crate) body_size: Pixels,
     /// Decorations on this paragraph this frame.
     pub(crate) decos: Vec<ParaDeco>,
+    pub(crate) playback: Option<crate::playback::ParagraphPlayback>,
     /// The share of its ink the text keeps (immersive writing).
     pub(crate) alpha: f32,
     pub(crate) editor: WeakEntity<ProseEditor>,
@@ -426,9 +427,49 @@ impl Element for ParagraphElement {
                     inks: &inks,
                     plain,
                     alpha: self.alpha,
+                    hidden: self
+                        .playback
+                        .as_ref()
+                        .map(|p| std::slice::from_ref(&p.hidden))
+                        .unwrap_or(&[]),
                 },
                 window,
             );
+            // Old ink is only an overlay inside the as-yet unrevealed
+            // committed range. It never contributes height or hit targets.
+            if let Some(playback) = &self.playback
+                && let Some(old) = &playback.old
+            {
+                let (width, _) = column(bounds.size.width, self.max_width, self.gutter);
+                let old_layout = shape_set(
+                    &old.text,
+                    self.font_size,
+                    &old.runs,
+                    (width - self.block.inset - self.block.inset_right).max(px(40.)),
+                    self.setting,
+                    window,
+                );
+                let hidden = [0..old.visible.start, old.visible.end..old.text.len()];
+                for rect in lay.selection_rects(playback.hidden.clone(), false, lh) {
+                    let clip = Bounds::new(origin + rect.origin, rect.size);
+                    window.with_content_mask(Some(gpui::ContentMask { bounds: clip }), |window| {
+                        paint_text(
+                            &old_layout,
+                            origin,
+                            lh,
+                            &TextPaint {
+                                runs: &old.runs,
+                                fallback: self.text_color,
+                                inks: &[],
+                                plain,
+                                alpha: self.alpha,
+                                hidden: &hidden,
+                            },
+                            window,
+                        );
+                    });
+                }
+            }
             if self.block.rule {
                 let (column, _) = column(bounds.size.width, self.max_width, self.gutter);
                 let width = column * self.block_style.rule_width.clamp(0.05, 1.);

@@ -4,6 +4,16 @@
 
 M15 旧模块收尾增加 `TextArea::wrap_punctuation()`：窄格会裁切行尾悬挂标点，因此可选择退到合法断点换行，保留完整字形，不做压缩。只有情节格子启用；普通多行框、`text::wrapped` 和正文默认行为不变。测量、绘制、光标及选区使用同一份断行结果，见 [M15 第四轮](../modules/m15-plot.md)。
 
+## 轨道 2：输入取消与迟到消息（2026-11-09）
+
+`TextField` 和 `TextArea` 已对齐 F4c 待协调 12、14：空无范围上屏只取消组字，不删选区；Windows 失活后的取消仍发往原窗口，先于 GPUI 失焦通知到来的输入由同步原生焦点查询拦下。每种框的三个输入入口都有模拟时序回归，正常带范围删除不受影响。平台实机边界及编辑器 macOS 同步改动见 [F4c 轨道 2](f4c-input.md#轨道-2输入对齐2026-11-09)。
+
+
+## 轨道 2：数字格式收口（2026-11-09）
+
+剩下两份实现已并到 `dr_i18n::number`：统计调用 `grouped_signed(i64, Locale)`，保留负号和九种语言的分组规则（含 `i64::MIN`）；外壳 `chapter_sort` 重新导出并调用 `compact_words(u64)`。后者保留旧侧栏的 `1.2k`／`2.0k`／`12k` 写法，不借去重改变既有显示；需要本地化紧凑总数仍用 `compact`。公共格式测试覆盖九种语言、整数边界、999／1000／9999／10000 和舍入临界值；原外壳单元测试继续覆盖调用方。
+
+
 ## 一句话
 
 旧客户端的「砂笔 + 素玻璃」搬到了 GPUI 上，做成一个 crate：令牌、字体、两种材料、全部基础组件和三种共享过渡。外壳（F6）和以后所有界面都只从这里取东西，自己不写颜色、字号、时长，也不自己画玻璃。
@@ -337,6 +347,8 @@ M3 Pro，release 构建，1280×800 的样张、2 倍屏。帧时间是离屏（
 
 ## 待协调
 
+**2026-11-09 转轨道 2 后续：** M32 窗口验收发现 `Button::disabled` 已禁止点击并变灰，但原生 AX 仍报告 enabled，见 [M32 待协调第 5 条](../modules/m32-mcp.md#待协调)。由通用 dr-ui／GPUI 无障碍工作统一处理；不算本次四项交付的退回条件，也不为此解冻旧模块。
+
 - **F6（外壳）换用 `TabDock`**（F6 下一轮做，dr-ui 这边已经有了；第二个里程碑列的那几样 F6 已经换完）：
   - `workspace/dock.rs` 的 `dock()` 换成 `TabDock::new("dock", 标签, ws.nav.active_index())`：每个标签 `DockTab::new(现在的 pill(…))`，分屏标签加 `.marks([两半的 DockMark::new(kind, 颜色).hollow(preview)], 焦点在哪一半)`；`.locked(ws.dock_locked)`，`.leading(…)` 放锁的 `IconButton`，`.trailing(…)` 放 `+`，`.on_change`、`.draggable`、`.map_pill` 原样搬过去。外面那层定位（标题栏高度、避开两个上角的 `lead` / `trail`）留在外壳。
   - 悬停和收回交给组件：`Workspace` 里的 `dock_hovered`、`dock_collapse`、`hover_dock()` 可以删，`kind_group` 换成 `dr_ui::components::dock::kind_family`。外壳现在用 `cx.has_active_drag()` 撑开药丸行；组件自己的药丸在手里时已经会撑开，只有别的拖动（以后从侧栏拖条目）也要药丸时才传 `.held_open(cx.has_active_drag())`。
@@ -429,7 +441,7 @@ M3 Pro，release 构建，1280×800 的样张、2 倍屏。帧时间是离屏（
 
 | # | 内容 | 状态 |
 | --- | --- | --- |
-| 1 | `format::compact` / `grouped` 挪进 dr-i18n | 完成：`dr_i18n::number`，书架、书架的画、作品主页、导入、故事线页、统计、页眉都改用它；统计的 `grouped` 带正负号，包了一层；要素面板不再需要依赖书架 |
+| 1 | `format::compact` / `grouped` 挪进 dr-i18n | 完成：`dr_i18n::number`，书架、书架的画、作品主页、导入、故事线页、统计、页眉都改用它；统计的带符号版也已收进 `grouped_signed`（轨道 2）；要素面板不再需要依赖书架 |
 | 2 | M24 字海、加载与首次体验 | 完成组件和流程：新 crate `dr-view-sea`（字海、整窗等待、首次运行、样书落位、导览）、`dr-samples`（两本内置样书，从测试工具里搬出来，种子摘要不变）；见 [m24-sea.md](../modules/m24-sea.md)。放进外壳和书架要 F6 开登记口、M01 改书架，接法写在那份文档里 |
 
 ## 下一步建议

@@ -1668,6 +1668,8 @@ dependencies = [
 name = "dr-editor"
 version = "0.0.0"
 dependencies = [
+ "dr-agent",
+ "dr-agent-tools",
  "dr-doc",
  "dr-model",
  "dr-platform",
