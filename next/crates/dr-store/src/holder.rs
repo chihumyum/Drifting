@@ -999,11 +999,18 @@ impl Holder {
         // Refuse new edits while earlier ones cannot be stored.
         self.settle()?;
         let before = self.doc.oplog_frontiers();
-        let ok = job.run(&self.doc);
         let mut options = CommitOptions::new().origin(&origin.to_string());
         if let Some(message) = origin.commit_message() {
             options = options.commit_msg(&message);
         }
+        // Set before the job runs: Loro commits part-way through on its own
+        // (an import's barrier, resolving an anchor on deleted text), and
+        // that part must carry the origin and message too. After such a
+        // commit the rest waits in a fresh transaction for the final one.
+        // An empty final commit drops the options, so none leak into the
+        // next write.
+        self.doc.set_next_commit_options(options.clone());
+        let ok = job.run(&self.doc);
         self.doc.commit_with(options);
         // The version just before an Agent write, so it can be undone.
         let before = before.encode();
@@ -1023,8 +1030,23 @@ impl Holder {
 
     fn import(&mut self, origin: &Origin, bytes: &[u8]) -> Result<Imported> {
         self.settle()?;
-        if let Some(validate) = &self.lib.options.validate_import {
-            validate(&self.doc_id, &self.doc, bytes)?;
+        if let Some(validate) = self.lib.options.validate_import.clone() {
+            let verdict = std::panic::catch_unwind(AssertUnwindSafe(|| {
+                validate(&self.doc_id, &self.doc, bytes)
+            }));
+            // A validator must only read; whatever it wrote anyway is
+            // stored apart, as any write outside the holder.
+            self.absorb_outside()?;
+            match verdict {
+                Ok(verdict) => verdict?,
+                Err(_) => {
+                    log::error!("{}: the import validator panicked", self.doc_id);
+                    return Err(StoreError::invalid(
+                        "import",
+                        "the import validator panicked; nothing was imported",
+                    ));
+                }
+            }
         }
         let status = self.doc.import_with(bytes, &origin.to_string())?;
         self.import_since_idle = true;

@@ -5,7 +5,10 @@
 //!   and, in the same transaction, records it here.
 //! - A **book** counts as purged once its last stored document has been
 //!   purged: some purged document names it and no stored one does. Its
-//!   device-local state ([`crate::local_state`]) goes then too.
+//!   device-local state ([`crate::local_state`]), its Agent journals
+//!   ([`crate::agent`]) and the Agent settlements of its documents go then
+//!   too. Purging a document an Agent session names as its conversation
+//!   drops that session's journal at once.
 //! - Creating a purged document again ([`crate::OpenDoc::CreateIfMissing`],
 //!   [`Library::register`]), or creating any document in a purged book, is
 //!   refused with [`StoreError::Purged`]: a remote update for a deleted book
@@ -94,16 +97,39 @@ pub(crate) fn record(
         params![doc_id, kind, book_id, now_ms()],
     )?;
     let mut changes = vec![LocalChange::new(TABLE, doc_id, LocalChangeKind::Insert)];
-    if kind == "conversation" {
-        changes.extend(crate::agent::forget(conn, Some(doc_id), None)?);
-    }
+    // The Agent sessions whose conversation this document was. By the id
+    // the sessions name, not by the kind: the store knows no kind names.
+    changes.extend(crate::agent::forget(conn, Some(doc_id), None)?);
     if let Some(book) = book_id
         && book_purged(conn, book)?
     {
         changes.extend(crate::local_state::forget_book(conn, book)?);
         changes.extend(crate::agent::forget(conn, None, Some(book))?);
+        changes.extend(forget_settlements(conn, book)?);
     }
     Ok(changes)
+}
+
+/// Drop the Agent settlements of a purged book's documents. While the book
+/// lives they stay, even for a document purged alone (the sessions that
+/// made them still show them); once the book is gone nothing can be undone
+/// and their summaries are the book's last words on this device.
+fn forget_settlements(conn: &Connection, book_id: &str) -> Result<Vec<LocalChange>> {
+    let deleted = conn
+        .prepare_cached(
+            "DELETE FROM agent_settlement
+             WHERE doc_id IN (SELECT doc_id FROM purged_doc WHERE book_id = ?1)",
+        )?
+        .execute([book_id])?;
+    Ok(if deleted > 0 {
+        vec![LocalChange::new(
+            "agent_settlement",
+            book_id,
+            LocalChangeKind::Delete,
+        )]
+    } else {
+        Vec::new()
+    })
 }
 
 impl Library {

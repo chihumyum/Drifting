@@ -207,13 +207,25 @@ impl Library {
     /// Sessions to replay on open, oldest first; optionally limited to a book.
     pub fn agent_sessions(&self, book_id: Option<&str>) -> Result<Vec<AgentSession>> {
         let conn = self.reader();
-        Ok(conn
-            .prepare_cached(
-                "SELECT session, conversation, book_id, created_ms FROM agent_session
-             WHERE (?1 IS NULL OR book_id = ?1) ORDER BY created_ms, session",
-            )?
-            .query_map([book_id], session_row)?
-            .collect::<rusqlite::Result<_>>()?)
+        // Two statements: `?1 IS NULL OR book_id = ?1` would scan the table
+        // and sort, while a book's sessions are read from
+        // `agent_session_by_book` in order.
+        Ok(match book_id {
+            Some(book) => conn
+                .prepare_cached(
+                    "SELECT session, conversation, book_id, created_ms FROM agent_session
+                     WHERE book_id = ?1 ORDER BY created_ms, session",
+                )?
+                .query_map([book], session_row)?
+                .collect::<rusqlite::Result<_>>()?,
+            None => conn
+                .prepare_cached(
+                    "SELECT session, conversation, book_id, created_ms FROM agent_session
+                     ORDER BY created_ms, session",
+                )?
+                .query_map([], session_row)?
+                .collect::<rusqlite::Result<_>>()?,
+        })
     }
 
     /// One immutable event by identity, without reading the journal prefix.
