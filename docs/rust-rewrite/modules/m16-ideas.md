@@ -1,6 +1,6 @@
 # M16 构想面板
 
-2026-11-08，第一个里程碑。计划见 [modules.md 的 M16](../modules.md#阶段-3故事工坊)。界面在 `next/crates/dr-view-ideas/`，读外壳的书快照（`Book::ideas`、`Book::idea_groups`），写全走 F3 的 `idea.*` 和 `idea_group.*`（`next/crates/dr-workspace/src/commands/idea.rs`）。对照的旧版是桌面端 `src/renderer/components/leftBars/DriftPanel.tsx`、`LeftSidebarSubHeader.tsx` 里构想那一半、`usecase/useDriftGroup.ts`、`domain/drift-group.ts`，以及 `EditorTopBar.tsx` 里构想的菜单项。截图在 [m16/](m16/)。
+2026-11-08，第一个里程碑；第二十三批补原面板的真实窗口验收。计划见 [modules.md 的 M16](../modules.md#阶段-3故事工坊)。界面在 `next/crates/dr-view-ideas/`，读外壳的书快照（`Book::ideas`、`Book::idea_groups`），写全走 F3 的 `idea.*` 和 `idea_group.*`（`next/crates/dr-workspace/src/commands/idea.rs`）。对照的旧版是桌面端 `src/renderer/components/leftBars/DriftPanel.tsx`、`LeftSidebarSubHeader.tsx` 里构想那一半、`usecase/useDriftGroup.ts`、`domain/drift-group.ts`，以及 `EditorTopBar.tsx` 里构想的菜单项。截图在 [m16/](m16/)。
 
 ## 做了什么（大白话）
 
@@ -33,7 +33,7 @@
 
 | 旧版 | 新版 | 为什么 |
 | --- | --- | --- |
-| 排序方式、单元格右侧存在侧栏偏好里（每个侧栏半边一份） | 只在这次打开里记住 | 侧栏偏好还没有接口（待协调 2） |
+| 排序方式、单元格右侧存在侧栏偏好里（每个侧栏半边一份） | 只在这次打开里记住 | F6 已有 `book_memory`，M16 还没接上（待协调 2） |
 | 分组头、按钮有悬停说明（「单击折叠 · 双击重命名」「在此新建构想」） | 按钮有读屏名字，没有悬停说明 | dr-ui 还没有悬停提示 |
 | 构想格子上有帮手（Agent）改动的 A / M 标记、正在改时漩涡转动 | 没有 | 帮手的改动标记是 Agent 模块的事，等它有了统一的「最近改过」接口再接 |
 | 构想菜单里有「转成章节…」「转成要素…」 | 没有 | 计划里的下一步（见「没做的」） |
@@ -72,6 +72,8 @@
 ```bash
 cargo test -p dr-view-ideas --locked
 cargo clippy -p dr-view-ideas --all-targets --features capture --locked -- -D warnings
+cargo build -p drifting --features debug-bridge --locked
+cargo drifting workspace scenario crates/dr-cli/scenarios/ideas.json --app target/debug/drifting --yes
 ```
 
 | 测试 | 内容 |
@@ -79,18 +81,20 @@ cargo clippy -p dr-view-ideas --all-targets --features capture --locked -- -D wa
 | 单元测试（4，`model.rs`） | 树嵌两层，父不见了、嵌太深、自己是自己父的分组到顶层，分组不见了的构想到「不在分组里」，数字算上子分组；按创建、更新、标题排序（数字按大小）；分组能移到哪里（两层的分组不能进别的分组，不能进自己的子分组）、谁能有子分组、「父 / 子」的写法；字数的短写 |
 | `tests/ideas.rs`（3） | GPUI 测试平台，F3 经 dr-store 的真库，书是《阿Q正传》，外壳的工作区窗口打开书：「新构想」建出「新构想」并作为标签打开；「新建分组」「新建子分组」，子分组下不能再建；在子分组里新建构想；构想移进分组和子分组后树对、数字对；就地改名（打字、回车）存进 F3；分组移到放得下的地方、放不下的不动；删除分组后它的构想和子分组上移；全部折起再全部展开；按标题排序；构想的 ⋯ 行：漂流打勾，点「休息」后 F3 里是 resting、面板里还在，有分组后多出「移动到分组」并能移进去，「删除节点」后进了回收站 |
 
+第二十三批在隔离的临时 profile 上重跑 `ideas.json`：**54 步、0 pending**。原 53 步之外增加了移动目标的唯一性断言，确认共享菜单不再重复列出同一分组；菜单动作带有 `MenuItem` 角色和名字。场景覆盖分组创建／改名／嵌套、构想移动／休息、删除分组后的上移，并从 F3 读回核对。排序部分只验证选择入口和菜单收起，排序结果仍由单元测试验证；本轮是真窗口英文浅色模式，不代表完整读屏、键盘或九语言布局验收。已检查构想卡片和删除后的截图；英文的根层级长标签仍超出卡片右边界，交 dr-ui／旧模块收尾处理，不是本次去重引入。
+
 ## 待协调
 
 1. **F6**：外壳原来给「构想」标签画的平列表（`sidebar.rs` 的 `LeftTab::Drifts`）现在被这个面板盖过；外壳那段可以删掉（外壳的事，这里没动）。
-2. **F6**：侧栏偏好（排序方式、单元格右侧，旧版每个侧栏半边一份）要一个存放的地方，可以和要素面板的排序一起做（M11 也只在打开期间记住）。
-3. **F5（dr-ui）**：悬停提示。
+2. **M16／旧模块收尾**：F6 的 `book_memory` 已有存放接口；侧栏偏好（排序方式、单元格右侧，旧版每个侧栏半边一份）接上它，可以和要素面板的排序一起做（M11 也只在打开期间记住）。
+3. **F5（dr-ui）／旧模块收尾**：悬停提示；`CardAction` 的长标签要受卡片宽度约束（真窗口英文 “Root level (move out of group)” 已观察到越出右边界）。
 
 ## 没做的
 
 - 构想转成章节、转成要素（旧版「转成章节…」「转成要素…」）；绑到幕或时间钉（`DriftBindModal`）；故事图和要素全景里的浮动构想托盘（`components/DriftPanel.tsx`，M21 / M22 的事）；
 - 帮手改动的 A / M 标记；
 - 拖动构想进分组（旧版也没有，靠「移动到分组」）；
-- 没在真窗口里点过（单元测试和 GPUI 测试平台上的测试、离屏截图都做了）；
+- 原面板的真窗口场景见上面的验收命令；读屏及完整键盘路径仍待验收；
 - 手机端。
 
 ## 代码位置

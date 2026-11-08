@@ -39,6 +39,7 @@
       "expect": { "/[name=新分组]/parent": "${groups.[name=结构].id}" } },
 
     { "app": "ui.hover", "params": { "label": "时间是证词" }, "note": "构想的卡片：外壳的页面卡，带构想的几行" },
+    { "app": "ui.find", "params": { "role": "MenuItem", "label": "结构", "count": 1 }, "note": "共享页面菜单只列一次移动目标，面板不再追加重复的行" },
     { "app": "ui.screenshot", "png": "03-idea-card.png" },
     { "app": "ui.press", "params": { "role": "MenuItem", "label": "结构" }, "note": "移动到分组：结构" },
     { "app": "ui.wait", "params": { "until": "time", "ms": 500 } },
