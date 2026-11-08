@@ -159,7 +159,9 @@ pub struct SuperViewPage {
     /// The header's left, after 返回 (M22's 群岛 / 关系 switch before its
     /// count).
     pub head_start: Option<AnyView>,
-    /// The header's right end (the line legend).
+    /// The header's right end, for a control of the view's own. Not the
+    /// line legend: the author put that at the top right of the content
+    /// (2026-11-03), so a view draws it in its body.
     pub head_end: Option<AnyView>,
 }
 
