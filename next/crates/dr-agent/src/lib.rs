@@ -16,6 +16,10 @@ pub use control::{Cancellation, Control, RunHandle};
 pub use driver::{Driver, DriverEvent, DriverRequest, FinishReason};
 pub use journal::{JournalEvent, conversation, events};
 pub use protocol::*;
+pub use runtime::{
+    ExternalCall, ExternalCallHandle, ExternalScope, ExternalStart, ExternalState,
+    RecoveredExternal,
+};
 pub use runtime::{Options, RecoveredRun, Runtime, Start};
 pub use tools::{ToolContext, ToolExecutor};
 

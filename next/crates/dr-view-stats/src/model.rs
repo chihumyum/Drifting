@@ -136,13 +136,6 @@ pub fn progress(value: u64, target: Option<i64>) -> Option<f32> {
     Some((value as f64 / target as f64).clamp(0.0, 1.0) as f32)
 }
 
-/// Digits grouped by three the way `locale` writes them (the 0.1 client
-/// used `toLocaleString`; `dr_i18n::number::grouped` with a sign).
-pub fn grouped(n: i64, locale: dr_i18n::Locale) -> String {
-    let digits = dr_i18n::number::grouped(n.unsigned_abs(), locale);
-    if n < 0 { format!("-{digits}") } else { digits }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -248,16 +241,5 @@ mod tests {
         assert_eq!(progress(3000, Some(1500)), Some(1.0));
         assert_eq!(progress(10, None), None);
         assert_eq!(progress(10, Some(0)), None);
-    }
-
-    #[test]
-    fn numbers_are_grouped_by_locale() {
-        use dr_i18n::Locale as L;
-        assert_eq!(grouped(1_234_567, L::ZhCn), "1,234,567");
-        assert_eq!(grouped(999, L::En), "999");
-        assert_eq!(grouped(1234, L::De), "1.234");
-        assert_eq!(grouped(1234, L::Es), "1234");
-        assert_eq!(grouped(12_345, L::Es), "12.345");
-        assert_eq!(grouped(-1500, L::Fr), "-1\u{202f}500");
     }
 }

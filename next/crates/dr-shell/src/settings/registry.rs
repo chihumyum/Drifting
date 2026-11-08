@@ -184,6 +184,22 @@ pub static INFO_ROWS: &[InfoRow] = &[
         description: Some(keys::settings::agent::CHAT_CONFIG_DESC),
         action: RowAction::Module,
     },
+    InfoRow {
+        id: "agent.mcpAccess",
+        section: Section::Agent,
+        group: None,
+        label: keys::settings::agent::mcp_access::TITLE,
+        description: Some(keys::settings::agent::mcp_access::DESC),
+        action: RowAction::Module,
+    },
+    InfoRow {
+        id: "agent.extensions",
+        section: Section::Agent,
+        group: None,
+        label: keys::settings::agent::extensions::TITLE,
+        description: None,
+        action: RowAction::Module,
+    },
     // At the top of 本地数据, as in the 0.1 client (LibraryBackupSettings).
     InfoRow {
         id: "local.backup",

@@ -5,6 +5,11 @@
     }
   },
   "settings": {
+    "agent": {
+      "extensions": {
+        "secretHint": "비밀 값은 Windows 자격 증명 관리자에만 저장됩니다. 기존 값을 유지하려면 비워 두세요."
+      }
+    },
     "codexSubscription": {
       "failure": {
         "storage_failed": "로그인 정보를 Windows 자격 증명 관리자에 저장할 수 없습니다."

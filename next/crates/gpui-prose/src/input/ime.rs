@@ -128,7 +128,7 @@ impl ProseEditor {
         if self.composition.is_some() {
             self.cancel_composition();
             if let Some(hooks) = &self.hooks {
-                hooks.discard_marked_text();
+                hooks.discard_marked_text(window);
             }
             cx.notify();
         }
@@ -402,6 +402,7 @@ impl EntityInputHandler for ProseEditor {
 
     fn unmark_text(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.log_ime(format_args!("unmark_text"));
+        self.finish_commit_playback(cx);
         if self.input_is_late(window, cx) {
             return;
         }
@@ -419,6 +420,7 @@ impl EntityInputHandler for ProseEditor {
         cx: &mut Context<Self>,
     ) {
         self.log_ime(format_args!("replace_text_in_range({range16:?}, {text:?})"));
+        self.finish_commit_playback(cx);
         if self.input_is_late(window, cx) {
             return;
         }
@@ -487,6 +489,7 @@ impl EntityInputHandler for ProseEditor {
         self.log_ime(format_args!(
             "replace_and_mark_text_in_range({range16:?}, {new_text:?}, {new_selected_range16:?})"
         ));
+        self.finish_commit_playback(cx);
         if self.input_is_late(window, cx) {
             return;
         }

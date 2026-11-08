@@ -319,8 +319,11 @@ impl ProseEditor {
         let (block, setting) = (set.look, set.setting);
         let last = item_ix + 1 == self.book.item_count();
 
-        let show_cursor =
-            display.cursor.is_some() && (self.selection.is_empty() || display.comp.is_some());
+        let playback = self.paragraph_playback(chapter, line_ix, now);
+        let show_cursor = display
+            .cursor
+            .is_some_and(|(at, _)| playback.as_ref().is_none_or(|p| !p.hidden.contains(&at)))
+            && (self.selection.is_empty() || display.comp.is_some());
         ParagraphElement {
             item_ix,
             chapter,
@@ -347,6 +350,7 @@ impl ProseEditor {
             block_style: self.paint.block_style.clone(),
             body_size: self.style.body_size,
             decos,
+            playback,
             alpha,
             editor: cx.weak_entity(),
             shared: self.paint.shared.clone(),
