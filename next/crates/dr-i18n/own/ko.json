@@ -30,6 +30,13 @@
   "settings": {
     "editor": {
       "justify": "양쪽 맞춤"
+    },
+    "sync": {
+      "backup": {
+        "errors": {
+          "legacy": "Drifting 0.1의 백업이라 이 버전에서는 바로 복원할 수 없습니다. Drifting 0.1에서 복원한 뒤 책장의 “가져오기 · Drifting 0.1”로 그 라이브러리를 가져오세요."
+        }
+      }
     }
   },
   "findPanel": {
@@ -39,5 +46,18 @@
   },
   "positionLink": {
     "copied": "위치 링크를 복사했습니다"
+  },
+  "projectPicker": {
+    "bookTransfer": {
+      "legacy": "이 책은 Drifting 0.1에서 내보냈습니다. 이전 버전에서 가져온 뒤 그 라이브러리를 새 버전으로 넘겨 주세요."
+    }
+  },
+  "importDialog": {
+    "targets": {
+      "idea": {
+        "label": "아이디어",
+        "desc": "스토리라인과 독립된 아이디어 카드입니다."
+      }
+    }
   }
 }

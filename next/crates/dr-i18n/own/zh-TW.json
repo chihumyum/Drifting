@@ -30,6 +30,13 @@
   "settings": {
     "editor": {
       "justify": "兩端對齊"
+    },
+    "sync": {
+      "backup": {
+        "errors": {
+          "legacy": "這是 Drifting 0.1 的備份，這一版不能直接還原。請先在 Drifting 0.1 裡還原它，再在書架上用「匯入 · Drifting 0.1」匯入那個資料庫。"
+        }
+      }
     }
   },
   "findPanel": {
@@ -39,5 +46,18 @@
   },
   "positionLink": {
     "copied": "已複製位置連結"
+  },
+  "projectPicker": {
+    "bookTransfer": {
+      "legacy": "這本書是 Drifting 0.1 匯出的。請在舊版裡匯入它，再把舊版資料庫交接給新版。"
+    }
+  },
+  "importDialog": {
+    "targets": {
+      "idea": {
+        "label": "構想",
+        "desc": "獨立於故事線的浮動構想卡片。"
+      }
+    }
   }
 }

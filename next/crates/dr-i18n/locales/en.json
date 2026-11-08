@@ -302,13 +302,41 @@
     }
   },
   "importDialog": {
+    "categoryTitle": "Category",
+    "chooseFiles": "Choose files",
     "chooseFolder": "Choose folder",
+    "clear": "Clear",
+    "filesTitle": "Files",
+    "importing": "Importing…",
+    "start": "Start import ({{count}})",
     "status": {
-      "committed": "imported"
+      "committed": "imported",
+      "error": "error",
+      "parsing": "parsing",
+      "ready": "ready"
     },
+    "storylineTitle": "Storyline",
     "summary": {
-      "done": "Done"
-    }
+      "done": "Done",
+      "failed": "failed",
+      "ok": "imported"
+    },
+    "targetTitle": "Target",
+    "targets": {
+      "chapter": {
+        "desc": "Mainline node — goes on the timeline and counts toward word stats.",
+        "label": "Chapter"
+      },
+      "element": {
+        "desc": "Reference material such as characters, places, or items. Requires a category.",
+        "label": "Element"
+      },
+      "idea": {
+        "desc": "Floating idea card — independent from storylines.",
+        "label": "Idea"
+      }
+    },
+    "title": "Import files"
   },
   "kvEditor": {
     "addField": "Add field",
@@ -551,7 +579,15 @@
   },
   "projectPicker": {
     "bookTransfer": {
-      "importFailedTitle": "Could not import"
+      "exportFailed": "The book could not be exported. Please try again.",
+      "exportFailedTitle": "Could not export",
+      "importFailed": "The book could not be imported. Please try again.",
+      "importFailedTitle": "Could not import",
+      "invalid": "This file is damaged and cannot be imported.",
+      "legacy": "This book was exported by Drifting 0.1. Import it there, then hand that library over to this version.",
+      "newer": "This book was exported by a newer Drifting. Update Drifting first.",
+      "notABook": "This is not a book exported from Drifting.",
+      "tooLarge": "This book is too large to import."
     },
     "delete": {
       "deleting": "Deleting…"
@@ -580,6 +616,7 @@
       },
       "elementsUnit_one": "element",
       "elementsUnit_other": "elements",
+      "exportBook": "Export this book (.driftingbook)",
       "form": {
         "createTitle": "New book",
         "editTitle": "Edit “{{name}}”",
@@ -963,12 +1000,27 @@
     "search_placeholder": "Search settings…",
     "sync": {
       "backup": {
+        "errors": {
+          "invalid": "This file is not a valid Drifting backup, or it is damaged. The current library was not changed.",
+          "legacy": "This is a Drifting 0.1 backup, which this version cannot restore directly. Restore it in Drifting 0.1, then import that library with “Import · Drifting 0.1” on the bookshelf.",
+          "newer": "This backup was made by a newer version of Drifting. Update the app before restoring it.",
+          "unknown": "The operation did not finish and the current library was not changed: {{detail}}"
+        },
         "exportButton": "Export backup…",
         "exportDesc": "Package every project's database together with original image and PDF files into one .drifting file. Use it to restore, or to move to another computer.",
         "exportTitle": "Library backup",
+        "exported": "Saved “{{file}}”.",
+        "exporting": "Backing up…",
+        "inspecting": "Verifying…",
+        "missingAssets": "{{count}} assets are missing on this device and were not backed up.",
+        "noProjects": "(no projects)",
         "restoreButton": "Choose backup…",
+        "restoreConfirm": "Replace the current library with “{{file}}”.\n\nCreated: {{date}}\nContents: {{summary}}\nProjects: {{projects}}\n\nThe current library is saved as a pre-restore copy first; find it under “Open pre-restore copies”. Drifting reloads when the restore finishes.",
+        "restoreConfirmButton": "Replace and restore",
         "restoreDesc": "Replace the current library with a .drifting backup. The current library is saved as a pre-restore copy first.",
-        "restoreTitle": "Restore from backup"
+        "restoreTitle": "Restore from backup",
+        "restoring": "Restoring…",
+        "summary": "{{projects}} projects, {{assets}} asset files, {{size}}."
       },
       "local_data": "Local data",
       "local_sub": "No Drifting account or hosted cloud is used. Export a readable copy whenever you want.",

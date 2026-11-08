@@ -297,13 +297,41 @@
     }
   },
   "importDialog": {
+    "categoryTitle": "归属类别",
+    "chooseFiles": "选择文件",
     "chooseFolder": "选择文件夹",
+    "clear": "清空",
+    "filesTitle": "文件 · FILES",
+    "importing": "导入中…",
+    "start": "开始导入 ({{count}})",
     "status": {
-      "committed": "已导入"
+      "committed": "已导入",
+      "error": "错误",
+      "parsing": "解析中",
+      "ready": "就绪"
     },
+    "storylineTitle": "归属故事线",
     "summary": {
-      "done": "完成"
-    }
+      "done": "完成",
+      "failed": "失败",
+      "ok": "成功"
+    },
+    "targetTitle": "类型 · TARGET",
+    "targets": {
+      "chapter": {
+        "desc": "主线节点 — 进时间线、参与字数统计。",
+        "label": "章节"
+      },
+      "element": {
+        "desc": "人物 / 地点 / 物件等参考资料。需选择类别。",
+        "label": "要素"
+      },
+      "idea": {
+        "desc": "构想卡 — 不归属任何故事线，独立悬浮。",
+        "label": "构想"
+      }
+    },
+    "title": "导入文件"
   },
   "kvEditor": {
     "addField": "新增字段",
@@ -545,7 +573,15 @@
   },
   "projectPicker": {
     "bookTransfer": {
-      "importFailedTitle": "无法导入"
+      "exportFailed": "这本书没能导出，请稍后再试。",
+      "exportFailedTitle": "无法导出",
+      "importFailed": "这本书没能导入，请稍后再试。",
+      "importFailedTitle": "无法导入",
+      "invalid": "这个文件已损坏，无法导入。",
+      "legacy": "这本书是 Drifting 0.1 导出的。请在旧版里导入它，再把旧版资料库交接给新版。",
+      "newer": "这本书由更新版本的 Drifting 导出，请先更新 Drifting。",
+      "notABook": "这不是 Drifting 导出的书。",
+      "tooLarge": "这本书太大，无法导入。"
     },
     "delete": {
       "deleting": "删除中…"
@@ -572,6 +608,7 @@
         "turn": "换封面画风 · 现在是{{name}}"
       },
       "elementsUnit": "个要素",
+      "exportBook": "导出这本书（.driftingbook）",
       "form": {
         "createTitle": "新建一本书",
         "editTitle": "编辑《{{name}}》",
@@ -952,12 +989,27 @@
     "search_placeholder": "搜索设定…",
     "sync": {
       "backup": {
+        "errors": {
+          "invalid": "这个文件不是有效的 Drifting 备份，或已经损坏。当前资料库没有改动。",
+          "legacy": "这是 Drifting 0.1 的备份，这一版不能直接恢复。请先在 Drifting 0.1 里恢复它，再在书架上用「导入 · Drifting 0.1」导入那个资料库。",
+          "newer": "这个备份来自更新版本的 Drifting。请先更新应用再恢复。",
+          "unknown": "操作没有完成，当前资料库没有改动：{{detail}}"
+        },
         "exportButton": "导出备份…",
         "exportDesc": "把所有项目的数据库，连同图片、PDF 原文件，打包成一个 .drifting 文件。可用来恢复，也可以带到另一台电脑。",
         "exportTitle": "资料库备份",
+        "exported": "已保存「{{file}}」。",
+        "exporting": "正在备份…",
+        "inspecting": "正在校验…",
+        "missingAssets": "有 {{count}} 个素材在本机缺失，未能备份。",
+        "noProjects": "（没有项目）",
         "restoreButton": "选择备份…",
+        "restoreConfirm": "将用「{{file}}」替换当前资料库。\n\n备份时间：{{date}}\n内容：{{summary}}\n项目：{{projects}}\n\n当前资料库会先自动存成恢复前副本，可在「打开恢复前副本」中找到。恢复完成后应用会重新载入。",
+        "restoreConfirmButton": "替换并恢复",
         "restoreDesc": "用 .drifting 备份替换当前资料库。恢复前，当前资料库会自动存成一份恢复前副本。",
-        "restoreTitle": "从备份恢复"
+        "restoreTitle": "从备份恢复",
+        "restoring": "正在恢复…",
+        "summary": "共 {{projects}} 个项目、{{assets}} 个素材文件，{{size}}。"
       },
       "local_data": "本地数据",
       "local_sub": "无需 Drifting 账号，也不连接托管云服务；你可以随时导出一份可阅读的副本。",

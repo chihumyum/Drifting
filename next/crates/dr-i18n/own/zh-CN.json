@@ -30,6 +30,13 @@
   "settings": {
     "editor": {
       "justify": "两端对齐"
+    },
+    "sync": {
+      "backup": {
+        "errors": {
+          "legacy": "这是 Drifting 0.1 的备份，这一版不能直接恢复。请先在 Drifting 0.1 里恢复它，再在书架上用「导入 · Drifting 0.1」导入那个资料库。"
+        }
+      }
     }
   },
   "findPanel": {
@@ -39,5 +46,18 @@
   },
   "positionLink": {
     "copied": "已复制位置链接"
+  },
+  "projectPicker": {
+    "bookTransfer": {
+      "legacy": "这本书是 Drifting 0.1 导出的。请在旧版里导入它，再把旧版资料库交接给新版。"
+    }
+  },
+  "importDialog": {
+    "targets": {
+      "idea": {
+        "label": "构想",
+        "desc": "构想卡 — 不归属任何故事线，独立悬浮。"
+      }
+    }
   }
 }

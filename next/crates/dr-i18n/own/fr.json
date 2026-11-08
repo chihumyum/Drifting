@@ -35,6 +35,13 @@
   "settings": {
     "editor": {
       "justify": "Justifier"
+    },
+    "sync": {
+      "backup": {
+        "errors": {
+          "legacy": "C’est une sauvegarde de Drifting 0.1, que cette version ne peut pas restaurer directement. Restaurez-la dans Drifting 0.1, puis importez cette bibliothèque avec « Importer · Drifting 0.1 » dans la bibliothèque."
+        }
+      }
     }
   },
   "findPanel": {
@@ -44,5 +51,18 @@
   },
   "positionLink": {
     "copied": "Lien de position copié"
+  },
+  "projectPicker": {
+    "bookTransfer": {
+      "legacy": "Ce livre a été exporté par Drifting 0.1. Importez-le là, puis transférez cette bibliothèque vers cette version."
+    }
+  },
+  "importDialog": {
+    "targets": {
+      "idea": {
+        "label": "Idée",
+        "desc": "Carte d’idée flottante, indépendante des intrigues."
+      }
+    }
   }
 }

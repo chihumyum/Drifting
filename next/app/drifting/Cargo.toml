@@ -26,9 +26,12 @@ dr-view-elements.workspace = true
 dr-view-feedback.workspace = true
 dr-view-home.workspace = true
 dr-view-import.workspace = true
+dr-view-transfer.workspace = true
 dr-view-page.workspace = true
 dr-view-shelf.workspace = true
 dr-workspace.workspace = true
+# M41's restore waits on the shell's library swap.
+futures.workspace = true
 gpui.workspace = true
 gpui_platform.workspace = true
 log.workspace = true

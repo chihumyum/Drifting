@@ -302,13 +302,41 @@
     }
   },
   "importDialog": {
+    "categoryTitle": "Categoría",
+    "chooseFiles": "Elegir archivos",
     "chooseFolder": "Elegir carpeta",
+    "clear": "Limpiar",
+    "filesTitle": "Archivos",
+    "importing": "Importando…",
+    "start": "Iniciar importación ({{count}})",
     "status": {
-      "committed": "importado"
+      "committed": "importado",
+      "error": "error",
+      "parsing": "analizando",
+      "ready": "listo"
     },
+    "storylineTitle": "Trama",
     "summary": {
-      "done": "Listo"
-    }
+      "done": "Listo",
+      "failed": "fallido",
+      "ok": "importado"
+    },
+    "targetTitle": "Destino",
+    "targets": {
+      "chapter": {
+        "desc": "Nodo del texto principal: aparece en la cronología y cuenta en las estadísticas.",
+        "label": "Capítulo"
+      },
+      "element": {
+        "desc": "Documentación de personajes, lugares u objetos. Requiere categoría.",
+        "label": "Elemento"
+      },
+      "idea": {
+        "desc": "Tarjeta de idea flotante, independiente de las tramas.",
+        "label": "Idea"
+      }
+    },
+    "title": "Importar archivos"
   },
   "kvEditor": {
     "addField": "Añadir campo",
@@ -552,7 +580,15 @@
   },
   "projectPicker": {
     "bookTransfer": {
-      "importFailedTitle": "No se pudo importar"
+      "exportFailed": "No se pudo exportar el libro. Reintenta.",
+      "exportFailedTitle": "No se pudo exportar",
+      "importFailed": "No se pudo importar el libro. Reintenta.",
+      "importFailedTitle": "No se pudo importar",
+      "invalid": "El archivo está dañado y no se puede importar.",
+      "legacy": "Este libro se exportó con Drifting 0.1. Impórtalo allí y luego pasa esa biblioteca a esta versión.",
+      "newer": "Este libro se exportó con un Drifting más reciente. Actualiza primero.",
+      "notABook": "Este libro no se exportó desde Drifting.",
+      "tooLarge": "Este libro es demasiado grande para importarlo."
     },
     "delete": {
       "deleting": "Eliminando…"
@@ -583,6 +619,7 @@
       "elementsUnit_many": "elementos",
       "elementsUnit_one": "elemento",
       "elementsUnit_other": "elementos",
+      "exportBook": "Exportar este libro (.driftingbook)",
       "form": {
         "createTitle": "Nuevo libro",
         "editTitle": "Editar «{{name}}»",
@@ -970,12 +1007,27 @@
     "search_placeholder": "Buscar ajustes…",
     "sync": {
       "backup": {
+        "errors": {
+          "invalid": "Este archivo no es una copia válida de Drifting o está dañado. La biblioteca actual no ha cambiado.",
+          "legacy": "Es una copia de seguridad de Drifting 0.1 y esta versión no puede restaurarla directamente. Restáurala en Drifting 0.1 y después importa esa biblioteca con «Importar · Drifting 0.1» en la estantería.",
+          "newer": "Esta copia se creó con una versión más reciente de Drifting. Actualiza la aplicación antes de restaurarla.",
+          "unknown": "La operación no se completó y la biblioteca actual no ha cambiado: {{detail}}"
+        },
         "exportButton": "Exportar copia…",
         "exportDesc": "Empaqueta las bases de todos los proyectos y sus imágenes y PDF originales en un archivo .drifting. Sirve para restaurar o cambiar de ordenador.",
         "exportTitle": "Copia de la biblioteca",
+        "exported": "Se ha guardado «{{file}}».",
+        "exporting": "Creando copia…",
+        "inspecting": "Verificando…",
+        "missingAssets": "Faltan {{count}} recursos en este dispositivo y no se han incluido en la copia.",
+        "noProjects": "(sin proyectos)",
         "restoreButton": "Elegir copia…",
+        "restoreConfirm": "Sustituir la biblioteca actual por «{{file}}».\n\nCreada: {{date}}\nContenido: {{summary}}\nProyectos: {{projects}}\n\nPrimero se guarda una copia previa de la biblioteca actual, disponible en «Abrir copias previas a la restauración». Drifting se recargará al terminar.",
+        "restoreConfirmButton": "Sustituir y restaurar",
         "restoreDesc": "Sustituye la biblioteca actual por una copia .drifting. Antes se guarda una copia de la biblioteca actual.",
-        "restoreTitle": "Restaurar desde una copia"
+        "restoreTitle": "Restaurar desde una copia",
+        "restoring": "Restaurando…",
+        "summary": "{{projects}} proyectos, {{assets}} archivos de recursos, {{size}}."
       },
       "local_data": "Datos locales",
       "local_sub": "No se usa ninguna cuenta Drifting ni nube alojada. Exporta una copia legible cuando quieras.",
