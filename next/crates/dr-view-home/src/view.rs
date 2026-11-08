@@ -3,6 +3,7 @@
 use std::rc::Rc;
 
 use dr_i18n::keys;
+use dr_i18n::number::{compact, grouped};
 use dr_shell::actions::{ShowWholeBook, ToggleElementOverview, ToggleStoryGraph};
 use dr_shell::book::{Book, color_of};
 use dr_shell::nav::{Open, Target};
@@ -24,7 +25,7 @@ use dr_ui::{
     style::DrStyled,
     tokens::radius,
 };
-use dr_view_shelf::format::{self, compact, grouped};
+use dr_view_shelf::format;
 use dr_workspace::{
     Actor, Workspace as Library, WsEvent,
     commands::book::{BookUpdate, BookUpdateIn},

@@ -137,32 +137,10 @@ pub fn progress(value: u64, target: Option<i64>) -> Option<f32> {
 }
 
 /// Digits grouped by three the way `locale` writes them (the 0.1 client
-/// used `toLocaleString`).
+/// used `toLocaleString`; `dr_i18n::number::grouped` with a sign).
 pub fn grouped(n: i64, locale: dr_i18n::Locale) -> String {
-    use dr_i18n::Locale as L;
-    let sep = match locale {
-        L::De | L::Es | L::PtBr => ".",
-        L::Fr => "\u{202f}",
-        _ => ",",
-    };
-    let digits = n.unsigned_abs().to_string();
-    // Spanish leaves four-digit numbers whole (CLDR's minimum grouping).
-    let min = if locale == L::Es { 5 } else { 4 };
-    let mut out = String::new();
-    if n < 0 {
-        out.push('-');
-    }
-    if digits.len() < min {
-        out.push_str(&digits);
-        return out;
-    }
-    for (i, c) in digits.chars().enumerate() {
-        if i > 0 && (digits.len() - i).is_multiple_of(3) {
-            out.push_str(sep);
-        }
-        out.push(c);
-    }
-    out
+    let digits = dr_i18n::number::grouped(n.unsigned_abs(), locale);
+    if n < 0 { format!("-{digits}") } else { digits }
 }
 
 #[cfg(test)]

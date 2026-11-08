@@ -21,12 +21,17 @@
 //! assert_eq!(en.fmt(keys::left_sidebar::meta::DRIFTS, &[("count", &3)]), "3 ideas");
 //! ```
 //!
+//! [`number`] writes counts the way the interface language does (grouped
+//! thousands, the compact 万 / K notation).
+//!
 //! Nothing here depends on GPUI; the shell keeps one [`I18n`] as a global.
 
 use std::borrow::Cow;
 use std::fmt::Display;
 
 use icu_plurals::{PluralCategory, PluralRules};
+
+pub mod number;
 
 include!(concat!(env!("OUT_DIR"), "/strings.rs"));
 

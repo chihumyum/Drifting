@@ -259,7 +259,7 @@ impl RenderOnce for WritingHeatmap {
                 cx,
                 keys::project_picker::heat::SUMMARY,
                 &[
-                    ("words", &format::compact(summary.words, locale)),
+                    ("words", &dr_i18n::number::compact(summary.words, locale)),
                     ("days", &summary.days_written),
                 ],
             ))
@@ -390,8 +390,11 @@ impl RenderOnce for WritingHeatmap {
             .mb(px(2.0))
             .child(line(
                 first_term,
-                figure(format::compact(summary.words, locale), words_unit.clone())
-                    .into_any_element(),
+                figure(
+                    dr_i18n::number::compact(summary.words, locale),
+                    words_unit.clone(),
+                )
+                .into_any_element(),
             ))
             .child(line(
                 term(t(cx, keys::project_picker::heat::DAYS_WRITTEN)).into_any_element(),
@@ -403,8 +406,11 @@ impl RenderOnce for WritingHeatmap {
             ))
             .child(line(
                 term(t(cx, keys::project_picker::heat::TODAY)).into_any_element(),
-                figure(format::grouped(summary.today, locale), words_unit.clone())
-                    .into_any_element(),
+                figure(
+                    dr_i18n::number::grouped(summary.today, locale),
+                    words_unit.clone(),
+                )
+                .into_any_element(),
             ));
 
         // A day's card.
@@ -418,7 +424,10 @@ impl RenderOnce for WritingHeatmap {
                 size: size(px(13.0), px(13.0)),
             };
             let title = format::day(&year.days[i], locale);
-            let count = format!("{} {words_unit}", format::grouped(daily[i], locale));
+            let count = format!(
+                "{} {words_unit}",
+                dr_i18n::number::grouped(daily[i], locale)
+            );
             let mut rows: Vec<(HeatmapBook, u64)> = if focus.is_some() {
                 Vec::new()
             } else {
@@ -464,7 +473,7 @@ impl RenderOnce for WritingHeatmap {
                                     div()
                                         .font_role(Role::Index)
                                         .text_color(p.ink(1).solid())
-                                        .child(format::grouped(words, locale)),
+                                        .child(dr_i18n::number::grouped(words, locale)),
                                 )
                                 .into_any_element()
                         })

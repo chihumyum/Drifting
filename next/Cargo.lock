@@ -1680,7 +1680,6 @@ dependencies = [
  "dr-store",
  "dr-testkit",
  "dr-ui",
- "dr-view-shelf",
  "dr-workspace",
  "gpui",
  "gpui_platform",

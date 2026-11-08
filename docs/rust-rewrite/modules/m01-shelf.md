@@ -38,7 +38,7 @@
    - 书的顺序是 F3 排的：最近编辑的在前；最近删除里最近删掉的在前。
    - 全部在后台线程读，读完整份换进来；F3 总线上有书目、删除、正文的变化，或者 dr-store 报某篇文档的派生索引写好了（字数要等索引写好才变；刚生成或刚导入的库在后台补建索引，书卡上的字数会跟着涨上来），就记一笔，书架下次露出来时重读（藏着的时候不读，作者在书里打字不会让书架跟着重读）。
 10. **文案**：全部是旧版九种语言里已有的字符串（`projectPicker.*`、`userMenu.*`、`common.*`），经 `dr-i18n/keys.txt` 拷过来。
-11. **数字的写法**照旧版：字数用 `Intl.NumberFormat` 的紧凑写法（12.3万、123.5K、1,2 mil），其余数字按界面语言分组（`toLocaleString`）。只有九种语言，规则直接写在 `format.rs` 里，测试对过每种语言的结果。
+11. **数字的写法**照旧版：字数用 `Intl.NumberFormat` 的紧凑写法（12.3万、123.5K、1,2 mil），其余数字按界面语言分组（`toLocaleString`）。只有九种语言，规则直接写在 `dr_i18n::number` 里（2026-11-08 从这里挪过去，和 M25、M07 共用一份），测试对过每种语言的结果。
 
 **要作者定的事：没有。** 规范没写的地方取了最克制的做法，都记在下面「和旧版不一样的地方」。
 
@@ -117,7 +117,7 @@ cargo run --release -p dr-view-home --features capture --example shelf-home-capt
 | M25（封面、近 30 天） | `dr_view_shelf::data::ShelfBook`（加字段）、`view.rs` 的 `card`（封面放在卡的左边，旧版 126×226） |
 | M24（字海、首次体验） | `Shelf` 是一个普通的 GPUI 视图，书架底色在 `view.rs` 的根上；示例书落位要的「哪本是新写的示例」现在没有 |
 | M35（账号） | 账号格子和账户菜单在 `view.rs` 的 `rail_foot`、`account_menu` |
-| 测试、调试桥 | `Shelf::{data, dialog(), form_fields(), open, start_create, start_edit, submit_form, ask_trash, confirm_trash, open_deleted, restore, ask_purge, confirm_purge, close_dialog, toggle_menu, menu_open, cards_ms, expired_runs}`；`dr_view_shelf::PURGE_EXPIRED_AFTER`；`dr_view_shelf::data::{ShelfData::load, Status, progress}`；`dr_view_shelf::format::{compact, grouped, ago}` |
+| 测试、调试桥 | `Shelf::{data, dialog(), form_fields(), open, start_create, start_edit, submit_form, ask_trash, confirm_trash, open_deleted, restore, ask_purge, confirm_purge, close_dialog, toggle_menu, menu_open, cards_ms, expired_runs}`；`dr_view_shelf::PURGE_EXPIRED_AFTER`；`dr_view_shelf::data::{ShelfData::load, Status, progress}`；`dr_view_shelf::format::ago`；`dr_i18n::number::{compact, grouped}` |
 | 要带框多行输入的地方（作品主页的本书简介） | `dr_view_shelf::frame::area(id, &text_area, rows, window, cx)`：F5 有了带框的多行输入以后换掉 |
 
 外壳这一侧（`dr_shell::pages`）：`set_shelf(cx, |ws, window, cx| ShelfPage { view, bell })`、`set_home(cx, |ws, window, cx| view)`；`Workspace::{show_shelf, open_book, shelf_open, shelf, home}`。账户菜单在外壳（`dr_shell::account`），书架的账号格子打开的就是它。
