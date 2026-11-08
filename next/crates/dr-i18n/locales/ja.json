@@ -140,6 +140,12 @@
     },
     "wordCount": "{{count}}文字"
   },
+  "edgeKindManager": {
+    "editTypes": "種類を編集",
+    "resetColor": "既定の色に戻す",
+    "summary": "{{kinds}}種類 · {{relations}}件の関係",
+    "title": "すべての関係の種類"
+  },
   "editorOutline": {
     "aria": "アウトライン",
     "hiddenItems": "離れた項目{{count}}件・ホバーで表示"
@@ -688,24 +694,92 @@
     }
   },
   "referencesPanel": {
+    "actions": {
+      "linkEntity": "エンティティをリンク",
+      "remove": "関係を削除"
+    },
+    "deleted": {
+      "category": "（削除されたカテゴリ）",
+      "element": "（削除された要素）",
+      "node": "（削除された章）",
+      "storyline": "（削除されたストーリーライン）"
+    },
     "empty": {
       "incoming": "この項目を参照する内容はまだありません",
-      "outgoing": "この本文には他のエンティティへの参照がまだありません"
+      "outgoing": "この本文には他のエンティティへの参照がまだありません",
+      "relations": "関係はまだありません"
+    },
+    "filters": {
+      "all": "すべて"
     },
     "kind": {
-      "patch": "変化記録"
+      "category": "カテゴリ",
+      "element": "要素",
+      "node": "章",
+      "patch": "変化記録",
+      "storyline": "ストーリーライン"
     },
     "meta": {
       "blocksSpans": "{{blocks}}ブロック · {{spans}}件の言及",
       "spans": "{{count}}件の言及"
     },
+    "picker": {
+      "empty": "選択肢がありません",
+      "placeholder": "リンク可能なエンティティを検索…"
+    },
     "sections": {
       "incoming": "バックリンク",
-      "outgoing": "参照"
+      "outgoing": "参照",
+      "relations": "関係"
     }
   },
+  "relationPicker": {
+    "untitledChapter": "無題の章",
+    "untitledDrift": "無題のアイデア",
+    "untitledElement": "無題の要素",
+    "untitledStoryline": "無題のストーリーライン"
+  },
   "relationTypes": {
-    "description": "説明"
+    "allowedEntities": "許可するエンティティ",
+    "allowedSources": "始点として許可するエンティティ",
+    "allowedTargets": "終点として許可するエンティティ",
+    "builtIn": "組み込み",
+    "cancel": "キャンセル",
+    "confirmDelete": "関係の種類「{{name}}」を削除しますか？",
+    "create": "新規",
+    "createInline": "関係の種類を作成",
+    "defaultSourceRole": "出典",
+    "defaultTargetRole": "対象",
+    "delete": "関係の種類を削除",
+    "description": "説明",
+    "directed": "有向",
+    "direction": "方向",
+    "endpointRole": "端点の役割",
+    "entityKinds": {
+      "category": "要素カテゴリ",
+      "comment": "コメント",
+      "element": "要素",
+      "library_item": "資料",
+      "node": "章またはアイデア",
+      "patch": "要素の変化記録",
+      "storyline": "ストーリーライン"
+    },
+    "genericAssociation": {
+      "name": "関連",
+      "sourceRole": "関連する項目",
+      "targetRole": "対象"
+    },
+    "missing": "関係の種類が見つかりません",
+    "name": "名前",
+    "pendingIncoming": "このエンティティ ← 対象",
+    "pendingOutgoing": "このエンティティ → 対象",
+    "save": "保存",
+    "selectConfigured": "関係の種類を選択",
+    "sourceRole": "始点の役割",
+    "symmetric": "対称",
+    "symmetricSummary": "対称 · {{role}}",
+    "targetRole": "終点の役割",
+    "title": "関係の種類の定義"
   },
   "reviewPanel": {
     "commentPlaceholder": "コメントを入力…",

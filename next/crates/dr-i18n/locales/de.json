@@ -140,6 +140,12 @@
     },
     "wordCount": "{{count}} Wörter"
   },
+  "edgeKindManager": {
+    "editTypes": "Typen bearbeiten",
+    "resetColor": "Standardfarbe wiederherstellen",
+    "summary": "{{kinds}} Typen · {{relations}} Beziehungen",
+    "title": "Alle Beziehungstypen"
+  },
   "editorOutline": {
     "aria": "Gliederung",
     "hiddenItems": "{{count}} entfernte Einträge; zum Anzeigen darüberfahren"
@@ -693,24 +699,92 @@
     }
   },
   "referencesPanel": {
+    "actions": {
+      "linkEntity": "Entität verknüpfen",
+      "remove": "Beziehung entfernen"
+    },
+    "deleted": {
+      "category": "(gelöschte Kategorie)",
+      "element": "(gelöschtes Element)",
+      "node": "(gelöschtes Kapitel)",
+      "storyline": "(gelöschter Handlungsstrang)"
+    },
     "empty": {
       "incoming": "Noch keine Inhalte verweisen darauf",
-      "outgoing": "Dieser Text verweist noch nicht auf andere Entitäten"
+      "outgoing": "Dieser Text verweist noch nicht auf andere Entitäten",
+      "relations": "Noch keine Beziehungen"
+    },
+    "filters": {
+      "all": "Alle"
     },
     "kind": {
-      "patch": "Entwicklung"
+      "category": "Kategorie",
+      "element": "Element",
+      "node": "Kapitel",
+      "patch": "Entwicklung",
+      "storyline": "Handlungsstrang"
     },
     "meta": {
       "blocksSpans": "{{blocks}} Blöcke · {{spans}} Erwähnungen",
       "spans": "{{count}} Erwähnungen"
     },
+    "picker": {
+      "empty": "Keine Optionen",
+      "placeholder": "Verknüpfbare Entitäten suchen…"
+    },
     "sections": {
       "incoming": "Rückverweise",
-      "outgoing": "Referenzen"
+      "outgoing": "Referenzen",
+      "relations": "Beziehungen"
     }
   },
+  "relationPicker": {
+    "untitledChapter": "Unbenanntes Kapitel",
+    "untitledDrift": "Unbenannte Idee",
+    "untitledElement": "Unbenanntes Element",
+    "untitledStoryline": "Unbenannter Handlungsstrang"
+  },
   "relationTypes": {
-    "description": "Beschreibung"
+    "allowedEntities": "Erlaubte Entitäten",
+    "allowedSources": "Erlaubte Quellentitäten",
+    "allowedTargets": "Erlaubte Zielentitäten",
+    "builtIn": "Integriert",
+    "cancel": "Abbrechen",
+    "confirmDelete": "Beziehungstyp „{{name}}“ löschen?",
+    "create": "Neu",
+    "createInline": "Beziehungstyp erstellen",
+    "defaultSourceRole": "Quelle",
+    "defaultTargetRole": "Ziel",
+    "delete": "Beziehungstyp löschen",
+    "description": "Beschreibung",
+    "directed": "Gerichtet",
+    "direction": "Richtung",
+    "endpointRole": "Rolle der Endpunkte",
+    "entityKinds": {
+      "category": "Elementkategorie",
+      "comment": "Kommentar",
+      "element": "Element",
+      "library_item": "Material",
+      "node": "Kapitel oder Idee",
+      "patch": "Elemententwicklung",
+      "storyline": "Handlungsstrang"
+    },
+    "genericAssociation": {
+      "name": "Zuordnung",
+      "sourceRole": "Zugeordneter Eintrag",
+      "targetRole": "Objekt"
+    },
+    "missing": "Beziehungstyp fehlt",
+    "name": "Name",
+    "pendingIncoming": "Diese Entität ← Ziel",
+    "pendingOutgoing": "Diese Entität → Ziel",
+    "save": "Speichern",
+    "selectConfigured": "Beziehungstyp wählen",
+    "sourceRole": "Quellrolle",
+    "symmetric": "Symmetrisch",
+    "symmetricSummary": "Symmetrisch · {{role}}",
+    "targetRole": "Zielrolle",
+    "title": "Definitionen der Beziehungstypen"
   },
   "reviewPanel": {
     "commentPlaceholder": "Kommentar schreiben…",

@@ -1,0 +1,40 @@
+[package]
+name = "dr-view-relations"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Drifting's relations (M17): an entity's 「关联」 with the picker that makes them, and the book's relation types with their roles, directions and allowed kinds"
+
+[features]
+# Offscreen screenshots (`examples/relations-capture.rs`), through GPUI's
+# headless test platform.
+capture = ["dep:gpui_platform", "gpui_platform/test-support", "dep:color_quant", "dep:png"]
+
+[dependencies]
+color_quant = { workspace = true, optional = true }
+dr-doc.workspace = true
+dr-i18n.workspace = true
+dr-model.workspace = true
+dr-shell.workspace = true
+dr-ui.workspace = true
+dr-workspace.workspace = true
+futures.workspace = true
+gpui.workspace = true
+gpui_platform = { workspace = true, optional = true }
+log.workspace = true
+png = { workspace = true, optional = true }
+
+[dev-dependencies]
+anyhow.workspace = true
+dr-store.workspace = true
+dr-testkit.workspace = true
+gpui = { workspace = true, features = ["test-support"] }
+gpui_platform.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
+
+[[example]]
+name = "relations-capture"
+required-features = ["capture"]

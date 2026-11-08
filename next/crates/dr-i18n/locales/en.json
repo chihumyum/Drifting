@@ -140,6 +140,12 @@
     },
     "wordCount": "{{count}} words"
   },
+  "edgeKindManager": {
+    "editTypes": "Edit types",
+    "resetColor": "Restore default color",
+    "summary": "{{kinds}} types · {{relations}} relations",
+    "title": "All relation types"
+  },
   "editorOutline": {
     "aria": "Outline",
     "hiddenItems": "{{count}} distant outline items; hover to reveal"
@@ -693,24 +699,92 @@
     }
   },
   "referencesPanel": {
+    "actions": {
+      "linkEntity": "Link entity",
+      "remove": "Remove relation"
+    },
+    "deleted": {
+      "category": "(deleted category)",
+      "element": "(deleted element)",
+      "node": "(deleted chapter)",
+      "storyline": "(deleted storyline)"
+    },
     "empty": {
       "incoming": "No content references this yet",
-      "outgoing": "This prose does not reference other entities yet"
+      "outgoing": "This prose does not reference other entities yet",
+      "relations": "No relations yet"
+    },
+    "filters": {
+      "all": "All"
     },
     "kind": {
-      "patch": "Patch"
+      "category": "Category",
+      "element": "Element",
+      "node": "Chapter",
+      "patch": "Patch",
+      "storyline": "Storyline"
     },
     "meta": {
       "blocksSpans": "{{blocks}} blocks · {{spans}} mentions",
       "spans": "{{count}} mentions"
     },
+    "picker": {
+      "empty": "No options",
+      "placeholder": "Search linkable entities…"
+    },
     "sections": {
       "incoming": "Backlinks",
-      "outgoing": "References"
+      "outgoing": "References",
+      "relations": "Relations"
     }
   },
+  "relationPicker": {
+    "untitledChapter": "Untitled chapter",
+    "untitledDrift": "Untitled idea",
+    "untitledElement": "Untitled element",
+    "untitledStoryline": "Untitled storyline"
+  },
   "relationTypes": {
-    "description": "Description"
+    "allowedEntities": "Allowed entities",
+    "allowedSources": "Allowed source entities",
+    "allowedTargets": "Allowed target entities",
+    "builtIn": "Built-in",
+    "cancel": "Cancel",
+    "confirmDelete": "Delete relation type \"{{name}}\"?",
+    "create": "New",
+    "createInline": "Create relation type",
+    "defaultSourceRole": "Source",
+    "defaultTargetRole": "Target",
+    "delete": "Delete relation type",
+    "description": "Description",
+    "directed": "Directed",
+    "direction": "Direction",
+    "endpointRole": "Endpoint role",
+    "entityKinds": {
+      "category": "Element category",
+      "comment": "Comment",
+      "element": "Element",
+      "library_item": "Material",
+      "node": "Chapter or idea",
+      "patch": "Element patch",
+      "storyline": "Storyline"
+    },
+    "genericAssociation": {
+      "name": "Association",
+      "sourceRole": "Associated item",
+      "targetRole": "Object"
+    },
+    "missing": "Missing relation type",
+    "name": "Name",
+    "pendingIncoming": "This entity ← target",
+    "pendingOutgoing": "This entity → target",
+    "save": "Save",
+    "selectConfigured": "Choose a relation type",
+    "sourceRole": "Source role",
+    "symmetric": "Symmetric",
+    "symmetricSummary": "Symmetric · {{role}}",
+    "targetRole": "Target role",
+    "title": "Relation type definitions"
   },
   "reviewPanel": {
     "commentPlaceholder": "Write a comment…",

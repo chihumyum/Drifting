@@ -30,6 +30,7 @@ members = [
     "crates/dr-view-import",
     "crates/dr-view-page",
     "crates/dr-view-plot",
+    "crates/dr-view-relations",
     "crates/dr-view-review",
     "crates/dr-view-search",
     "crates/dr-view-shelf",
@@ -257,6 +258,8 @@ dr-view-page = { path = "crates/dr-view-page" }
 # M15: the plot planner, a chapter's grid of slips under the paper
 # (docs/rust-rewrite/modules/m15-plot.md).
 dr-view-plot = { path = "crates/dr-view-plot" }
+# M17: relations and relation types (the element page's 「关联」, the types).
+dr-view-relations = { path = "crates/dr-view-relations" }
 # M25: the bookshelf's covers, heat map and strips.
 dr-view-shelf-art = { path = "crates/dr-view-shelf-art" }
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
