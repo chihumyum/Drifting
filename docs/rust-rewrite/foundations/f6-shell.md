@@ -348,6 +348,7 @@ app.run(|cx| {
 | `workspace`（按书记住） | 想在本机按书记点什么的模块（时间线；情节规划的宽高比也可以） | `Workspace::book_memory(key) -> Option<&Value>`、`set_book_memory(key, Value, cx)`（存进 `BookLayout.modules`，跟布局一起写设置文件） |
 | `workspace`（悬停卡） | 自己画东西、要同一张页面卡的模块（M14 的片段和泳道名） | `page_hover_card(id, el, &target, &ws, extra: Vec<PageMenuSection>, cx)`；`PageMenuHost::of(&ws, cx)` |
 | `pages`（⋯ 菜单） | 要在页面 ⋯ 菜单里加行的模块（M11） | `add_page_menu(cx, \|target, &PageMenuHost, &App\| Vec<PageMenuSection>)`；`PageMenuItem { id, icon: RowIcon, label, checked, danger, run: RunRow }`、`PageMenuHost { workspace, library, book_id, book }` |
+| `pages`（整页） | 自己画一整页、不用正文编辑器的模块（M19 的图片和 PDF 素材） | `add_page_view(cx, \|&Target, PageViewHost, &mut Window, &mut App\| Option<ModulePage>)`；`ModulePage { view, focus }`、`PageViewHost { workspace, library, book_id, book }`；`Workspace::module_page(&Target)`。开编辑器前先问，答了的页存成 `PageEditor::module`，铺在桌面上、全宽、不画稿纸；在前面时 `focus` 拿键盘，和编辑器一样；关标签照旧放掉（[m19-materials.md](../modules/m19-materials.md)） |
 | `pages`（左栏） | 自己画左栏某个标签的模块（M11 的要素面板） | `add_left_panel(cx, \|LeftTab, WeakEntity<Workspace>, &mut Window, &mut App\| Option<LeftPanel>)`；`LeftPanel { head: AnyView, body: AnyView }` |
 | `workspace`（提示、侧栏状态） | 要提示一句的地方；测试 | `Workspace::toast(文字, cx)`；`folded_in(pane)`、`toggle_fold(pane, group, cx)`、`fold_all(pane, cx)`、`list_scroll(list)` |
 | `workspace::page_actions` | ⋯ 菜单、悬停卡 | `page_actions(&ws, &host, &target, cx) -> Vec<PageMenuSection>`（分享与导出、写作状态、模块的行、历史快照、最后是删除一类） |

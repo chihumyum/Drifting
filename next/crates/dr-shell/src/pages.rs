@@ -25,6 +25,12 @@
 //! height, padding and hairline), its body fills the pane and scrolls
 //! itself; the shell's own rows for that tab are not drawn.
 //!
+//! And a page a module draws whole, with no prose editor
+//! ([`add_page_view`]): M19's image and PDF materials (the viewer and its
+//! region comments). The shell asks the makers before it opens a page's
+//! editor; the first answer wins, and the page keeps that view while its
+//! tab stays open.
+//!
 //! And the rows a module adds to a page's ⋯ menu ([`add_page_menu`]): an
 //! element's 更改类目 and 删除要素, a category's 删除类目 (M11). The shell
 //! keeps the menu's order: share and export, its own sections, the modules'
@@ -39,7 +45,9 @@ use std::rc::Rc;
 
 use dr_editor::page::PageChrome;
 use dr_editor::{BookEditor, ChapterEditor};
-use gpui::{AnyView, App, Bounds, Entity, Global, Pixels, SharedString, WeakEntity, Window};
+use gpui::{
+    AnyView, App, Bounds, Entity, FocusHandle, Global, Pixels, SharedString, WeakEntity, Window,
+};
 
 use crate::Workspace;
 use crate::book::Book;
@@ -59,6 +67,7 @@ type MakeHome = Rc<dyn Fn(WeakEntity<Workspace>, &mut Window, &mut App) -> AnyVi
 type MakeChrome =
     Rc<dyn Fn(&Target, PageHost, &mut Window, &mut App) -> Option<Rc<dyn PageChrome>>>;
 type MakeMenu = Rc<dyn Fn(&Target, &PageMenuHost, &App) -> Vec<PageMenuSection>>;
+type MakeView = Rc<dyn Fn(&Target, PageViewHost, &mut Window, &mut App) -> Option<ModulePage>>;
 type MakeLeftPanel =
     Rc<dyn Fn(LeftTab, WeakEntity<Workspace>, &mut Window, &mut App) -> Option<LeftPanel>>;
 type MakeBottom = Rc<dyn Fn(&BottomHost, &mut Window, &mut App) -> Option<BottomPanel>>;
@@ -199,11 +208,30 @@ pub struct PageHost {
     pub editor: PageEditorRef,
 }
 
+/// A page a module draws whole: its view, and what takes the keyboard when
+/// the page comes to the front (as an editor's text does).
+#[derive(Clone)]
+pub struct ModulePage {
+    pub view: AnyView,
+    pub focus: FocusHandle,
+}
+
+/// What a module's whole page is made with: the window's workspace, the
+/// library, and the book (its id and its lists as the shell has them).
+#[derive(Clone)]
+pub struct PageViewHost {
+    pub workspace: WeakEntity<Workspace>,
+    pub library: dr_workspace::Workspace,
+    pub book_id: String,
+    pub book: Rc<Book>,
+}
+
 #[derive(Clone, Default)]
 struct Pages {
     shelf: Option<MakeShelf>,
     home: Option<MakeHome>,
     chrome: Vec<MakeChrome>,
+    views: Vec<MakeView>,
     menus: Vec<MakeMenu>,
     left_panels: Vec<MakeLeftPanel>,
     bottom: Vec<(BottomPane, MakeBottom)>,
@@ -247,6 +275,29 @@ pub(crate) fn chrome_for(
     cx: &mut App,
 ) -> Option<Rc<dyn PageChrome>> {
     let makers = cx.try_global::<Pages>()?.chrome.clone();
+    makers
+        .iter()
+        .find_map(|make| make(target, host.clone(), window, cx))
+}
+
+/// Registers pages a module draws whole: asked before the shell opens a
+/// page's editor (its target and a [`PageViewHost`]), it gives that page
+/// ([`ModulePage`]), or `None` to leave the page to the editor.
+pub fn add_page_view(
+    cx: &mut App,
+    make: impl Fn(&Target, PageViewHost, &mut Window, &mut App) -> Option<ModulePage> + 'static,
+) {
+    cx.default_global::<Pages>().views.push(Rc::new(make));
+}
+
+/// The page a module draws for `target`, if any.
+pub(crate) fn page_view_for(
+    target: &Target,
+    host: PageViewHost,
+    window: &mut Window,
+    cx: &mut App,
+) -> Option<ModulePage> {
+    let makers = cx.try_global::<Pages>()?.views.clone();
     makers
         .iter()
         .find_map(|make| make(target, host.clone(), window, cx))

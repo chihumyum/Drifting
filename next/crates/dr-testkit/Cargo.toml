@@ -17,6 +17,7 @@ dr-store.workspace = true
 dr-text.workspace = true
 dr-workspace.workspace = true
 loro.workspace = true
+png.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true

@@ -2325,4 +2325,81 @@ fn an_embedded_material_opens_and_the_highlight_key_is_bound(cx: &mut TestAppCon
     assert_eq!(bound(cx), 1);
     cx.update(|_, cx| dr_shell::keymap::apply(&Default::default(), cx));
     assert_eq!(bound(cx), 1, "still bound after the keymap is rebuilt");
+/// A page a module draws whole (M19's image and PDF materials): asked
+/// before an editor is opened, it lies on the desk instead of the sheet,
+/// and goes when its tab closes; the pages it does not take still open in
+/// an editor.
+#[gpui::test]
+fn a_module_draws_a_whole_page_instead_of_an_editor(cx: &mut TestAppContext) {
+    struct Whole;
+    impl gpui::Render for Whole {
+        fn render(
+            &mut self,
+            _: &mut gpui::Window,
+            _: &mut gpui::Context<Self>,
+        ) -> impl gpui::IntoElement {
+            use gpui::Styled as _;
+            gpui::div().size_full()
+        }
+    }
+    let (_dir, lib) = slow_clock();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    let asked = std::rc::Rc::new(std::cell::Cell::new(0));
+    let seen = asked.clone();
+    cx.update(|_, cx| {
+        dr_shell::pages::add_page_view(cx, move |target, host, _, cx| {
+            seen.set(seen.get() + 1);
+            assert!(!host.book.is_empty(), "the maker sees the book's lists");
+            matches!(target, Target::Material(_)).then(|| dr_shell::pages::ModulePage {
+                view: cx.new(|_| Whole).into(),
+                focus: cx.focus_handle(),
+            })
+        });
+    });
+    let (material, chapter) = view.read_with(cx, |ws, _| {
+        (
+            Target::Material(ws.book.materials[0].id.parse().unwrap()),
+            chapter_of(ws, 0),
+        )
+    });
+    view.update(cx, |ws, cx| ws.open(material.clone(), Open::KEEP, cx));
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while view.read_with(cx, |ws, _| ws.module_page(&material).is_none()) {
+        draw(cx);
+        cx.run_until_parked();
+        assert!(Instant::now() < deadline, "the module's page did not open");
+    }
+    draw(cx);
+    assert!(
+        view.read_with(cx, |ws, _| ws.page_view(&material).is_none()),
+        "no editor"
+    );
+    // In front, the module's page has the keyboard, as an editor would.
+    let module_focused = cx.update(|window, cx| {
+        let ws = view.read(cx);
+        let focus = ws.editors[&material.key()]
+            .module
+            .as_ref()
+            .unwrap()
+            .focus
+            .clone();
+        focus.is_focused(window)
+    });
+    assert!(module_focused, "the module's page takes the keyboard");
+    assert!(asked.get() >= 1);
+    // A chapter is not the module's: it opens in an editor, which gets the
+    // keyboard back from the module's page.
+    view.update(cx, |ws, cx| ws.open(chapter.clone(), Open::KEEP, cx));
+    open_page(&view, cx, &chapter);
+    assert!(view.read_with(cx, |ws, _| ws.module_page(&chapter).is_none()));
+    // Closing the material's tab lets its page go.
+    view.update(cx, |ws, cx| {
+        ws.nav.forget(&material);
+        cx.notify();
+    });
+    draw(cx);
+    cx.run_until_parked();
+    draw(cx);
+    assert!(view.read_with(cx, |ws, _| ws.module_page(&material).is_none()));
 }

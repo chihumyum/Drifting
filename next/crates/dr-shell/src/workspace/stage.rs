@@ -317,6 +317,17 @@ fn paper(
         },
     ];
     let key = page_key(target);
+    // A page a module draws whole lies on the desk at full width, with no
+    // sheet: M19's picture is itself the raised paper (the 0.1 client's
+    // shell mode).
+    if let Some(view) = target.and_then(|t| ws.read(cx).module_page(t).cloned()) {
+        return div()
+            .id(ElementId::Name(format!("desk-{key}").into()))
+            .size_full()
+            .bg(p.desk.solid())
+            .child(view)
+            .into_any_element();
+    }
     let content = match target {
         None => home(ws, window, cx),
         Some(target) => document(ws, target, window, cx),

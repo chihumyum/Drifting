@@ -498,11 +498,36 @@
     "title": "分享 Markdown",
     "wholeBook": "依書稿順序分享全部章節"
   },
+  "materialEditor": {
+    "descriptionPlaceholder": "新增說明…",
+    "regions": {
+      "draw": "註解區域",
+      "drawHint": "在圖片上拖曳以標記區域",
+      "empty": "在圖片或頁面上拖曳，即可新增第一則註解。",
+      "listLabel": "此素材的註解",
+      "page": "第 {{page}} 頁",
+      "stopDrawing": "停止註解",
+      "whole": "整份素材"
+    },
+    "zoomIn": "放大",
+    "zoomOut": "縮小",
+    "zoomReset": "符合檢視範圍"
+  },
   "memoMaterial": {
     "kind": {
       "image": "圖片",
       "pdf": "PDF",
       "text": "筆記"
+    },
+    "preview": {
+      "loading": "載入中…",
+      "loadingPdf": "正在載入 PDF…",
+      "nextPage": "下一頁",
+      "noImage": "無法預覽圖片",
+      "noPdf": "無法預覽 PDF",
+      "openPdfFailed": "無法開啟 PDF",
+      "previousPage": "上一頁",
+      "renderPdfFailed": "無法繪製 PDF"
     }
   },
   "mobileWorkspace": {

@@ -503,11 +503,36 @@
     "title": "Markdown teilen",
     "wholeBook": "Alle Kapitel in Lesereihenfolge"
   },
+  "materialEditor": {
+    "descriptionPlaceholder": "Beschreibung hinzufügen…",
+    "regions": {
+      "draw": "Bereich kommentieren",
+      "drawHint": "Über das Bild ziehen, um einen Bereich zu markieren",
+      "empty": "Über das Bild oder die Seite ziehen, um den ersten Kommentar hinzuzufügen.",
+      "listLabel": "Kommentare zu diesem Material",
+      "page": "Seite {{page}}",
+      "stopDrawing": "Kommentieren beenden",
+      "whole": "Gesamtes Material"
+    },
+    "zoomIn": "Vergrößern",
+    "zoomOut": "Verkleinern",
+    "zoomReset": "An Ansicht anpassen"
+  },
   "memoMaterial": {
     "kind": {
       "image": "Bild",
       "pdf": "PDF",
       "text": "Notiz"
+    },
+    "preview": {
+      "loading": "Wird geladen…",
+      "loadingPdf": "PDF wird geladen…",
+      "nextPage": "Nächste",
+      "noImage": "Bildvorschau nicht möglich",
+      "noPdf": "PDF-Vorschau nicht möglich",
+      "openPdfFailed": "PDF kann nicht geöffnet werden",
+      "previousPage": "Vorherige",
+      "renderPdfFailed": "PDF kann nicht dargestellt werden"
     }
   },
   "mobileWorkspace": {

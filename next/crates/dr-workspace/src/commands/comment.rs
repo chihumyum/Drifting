@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 
 use super::*;
 use crate::cx::{EffectAction, Invocation};
-use crate::dto::{AnchorBytes, CommentAnchor, CommentInfo, Target};
+use crate::dto::{AnchorBytes, CommentAnchor, CommentInfo, Region, Target};
 use crate::registry::Registry;
 
 pub(crate) fn register(r: &mut Registry) {
@@ -75,6 +75,9 @@ pub struct CommentCreateIn {
     /// Anchor it to characters `[start, end)` of the target's prose.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub range: Option<(usize, usize)>,
+    /// Mark a rectangle on an image or PDF material (its target).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub region: Option<Region>,
     #[serde(default)]
     pub body: String,
     /// `low`, `med` or `high`.
@@ -92,7 +95,7 @@ fn prose_of(t: &Target) -> Option<DocId> {
 
 op! {
     CommentCreate = "comment.create", Write, Book,
-    "Add a comment or TODO, on an entity, a paragraph, a passage of its prose, or floating.",
+    "Add a comment or TODO, on an entity, a paragraph, a passage of its prose, a region of an image or PDF, or floating.",
     fn(cx, input: CommentCreateIn) -> Done {
         let slot = cx.book(&input.book)?;
         let kind = CommentKind::parse(input.kind.as_deref().unwrap_or("note"));
@@ -107,6 +110,18 @@ op! {
         let mut anchor = None;
         let mut quote = None;
         let mut snapshots = Vec::new();
+        let region = match &input.region {
+            None => None,
+            Some(r) => {
+                let t = input.target.as_ref().ok_or_else(|| WsError::invalid("a region needs a target"))?;
+                if input.range.is_some() { return Err(WsError::invalid("a comment has a range or a region, not both")); }
+                let file = (t.kind == "material")
+                    .then(|| materials(&slot).iter().find(|m| m.id.as_str() == t.id).map(|m| m.kind.needs_asset()))
+                    .flatten();
+                if file != Some(true) { return Err(WsError::invalid("a region is on an image or PDF material")); }
+                Some(r.to_model().ok_or_else(|| WsError::invalid("the region does not fit its picture or page"))?)
+            }
+        };
         if let Some((start, end)) = input.range {
             let t = input.target.as_ref().ok_or_else(|| WsError::invalid("a range needs a target"))?;
             let doc = prose_of(t).ok_or_else(|| WsError::invalid(format!("{} has no prose", t.kind)))?;
@@ -135,6 +150,7 @@ op! {
                 .source(if agent { &CommentSource::Api } else { &CommentSource::Manual })?
                 .created_at(Some(now()))?.updated_at(Some(now()))?;
             if !snapshots.is_empty() { w.snapshots(&snapshots)?; }
+            if region.is_some() { w.region(region.as_ref())?; }
             Ok(())
         })?;
         cx.effect(EffectAction::Created, "comment", id.as_str(), None);

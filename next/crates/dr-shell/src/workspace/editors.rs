@@ -117,6 +117,9 @@ pub struct PageEditor {
     /// A module draws the page's head (M03, M11): the editor's own title
     /// row is not shown, so the shell does not set it.
     pub chrome: bool,
+    /// A module draws the whole page instead of an editor (M19's image
+    /// and PDF materials; [`crate::pages::add_page_view`]).
+    pub module: Option<crate::pages::ModulePage>,
     /// Live word counts, per document the editor holds.
     tallies: HashMap<String, Tally>,
     _prepare: Option<Task<()>>,
@@ -132,9 +135,26 @@ impl PageEditor {
             loading: Some(Instant::now()),
             failed: false,
             chrome: false,
+            module: None,
             tallies: HashMap::new(),
             _prepare: Some(prepare),
             _timer: Some(timer),
+            _events: Vec::new(),
+        }
+    }
+
+    /// A page a module draws whole.
+    fn module(page: crate::pages::ModulePage) -> PageEditor {
+        PageEditor {
+            doc: None,
+            view: None,
+            loading: None,
+            failed: false,
+            chrome: true,
+            module: Some(page),
+            tallies: HashMap::new(),
+            _prepare: None,
+            _timer: None,
             _events: Vec::new(),
         }
     }
@@ -278,6 +298,17 @@ impl Workspace {
         let Some(lib) = self.library.clone() else {
             return;
         };
+        // A page a module draws whole (M19's image and PDF materials).
+        let host = crate::pages::PageViewHost {
+            workspace: cx.entity().downgrade(),
+            library: lib.clone(),
+            book_id: self.book_id.clone(),
+            book: self.book.clone(),
+        };
+        if let Some(page) = crate::pages::page_view_for(target, host, window, cx) {
+            self.editors.insert(target.key(), PageEditor::module(page));
+            return;
+        }
         let doc = book::doc_of(target);
         let key = target.key();
         let prepared = key.clone();
@@ -674,6 +705,11 @@ impl Workspace {
         self.editors.get(&target.key())?.view.as_ref()
     }
 
+    /// The view a module draws for `target`'s whole page, if it does.
+    pub fn module_page(&self, target: &Target) -> Option<&AnyView> {
+        Some(&self.editors.get(&target.key())?.module.as_ref()?.view)
+    }
+
     /// The editors of the pages on screen: opened when first shown, a
     /// location link's line selected once open, the focused page's editor
     /// given the keyboard when it changes.
@@ -765,6 +801,17 @@ impl Workspace {
         Some(self.page_view(&target)?.prose(cx))
     }
 
+    /// What takes the keyboard on the focused page: its editor's text, or
+    /// a module's whole page (with the entity that tells them apart).
+    fn front_focus(&self, cx: &App) -> Option<(gpui::EntityId, gpui::FocusHandle)> {
+        if let Some(prose) = self.focused_prose(cx) {
+            return Some((prose.entity_id(), prose.focus_handle(cx)));
+        }
+        let target = self.nav.active_tab()?.focused().target.clone();
+        let page = self.editors.get(&target.key())?.module.as_ref()?;
+        Some((page.view.entity_id(), page.focus.clone()))
+    }
+
     /// Gives the focused page's editor the keyboard when the page (or its
     /// editor) changes, unless something over the workspace or in a sidebar
     /// has it.
@@ -774,6 +821,11 @@ impl Workspace {
             self.all_prose(cx)
                 .iter()
                 .any(|p| p.focus_handle(cx) == *handle)
+                || self
+                    .editors
+                    .values()
+                    .filter_map(|p| p.module.as_ref())
+                    .any(|m| m.focus == *handle)
         });
         if self.covered() || self.search.is_some() || self.find.is_some() {
             // Nothing under Settings, a Super View or a search takes typing.
@@ -785,15 +837,15 @@ impl Workspace {
             }
             return;
         }
-        let editor = self.focused_prose(cx);
-        let want = editor.as_ref().map(|e| e.entity_id());
+        let front = self.front_focus(cx);
+        let want = front.as_ref().map(|(id, _)| *id);
         if want == self.focused_editor {
             return;
         }
         // Opened at its title (`Open::at_title`): the page's head gives the
         // title the caret; the editor is left alone this once.
-        let front = self.nav.active_tab().map(|t| t.focused().target.key());
-        if want.is_some() && front.is_some() && front == self.title_first {
+        let key = self.nav.active_tab().map(|t| t.focused().target.key());
+        if want.is_some() && key.is_some() && key == self.title_first {
             self.title_first = None;
             self.focused_editor = want;
             return;
@@ -808,9 +860,8 @@ impl Workspace {
             return;
         }
         self.focused_editor = want;
-        match editor {
-            Some(editor) => {
-                let handle = editor.focus_handle(cx);
+        match front {
+            Some((_, handle)) => {
                 window.focus(&handle, cx);
                 self.gave_focus = Some(handle);
             }

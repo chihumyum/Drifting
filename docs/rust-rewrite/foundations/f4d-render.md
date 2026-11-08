@@ -1,6 +1,6 @@
 # F4d 渲染：画层、块样式、沉浸淡出、滚动条刻度
 
-2026-11-08。F4 编辑引擎的渲染子线，代码在 `next/crates/gpui-prose/src/render/`（MIT OR Apache-2.0，只依赖 gpui 和 loro，不碰任何 `dr-*`）。第二轮（同一天）把画层接进了 Drifting，代码在 `next/crates/dr-editor/src/decor/`，见文末[「第二轮：接进 Drifting」](#第二轮接进-drifting)；第三轮接进全书视图、给列表画了样子，见[「第三轮」](#第三轮全书视图列表来源悬停卡)；第四轮让段距跟着块走（列表收紧）、给代码块和提示框画了样子，见[「第四轮」](#第四轮段距跟着块走代码块和提示框)；审阅面板是 [M18](../modules/m18-review.md)。总的架构、文本源和别的子线见 [f4-editor.md](f4-editor.md)；计划见 [foundation.md 的 F4 一节](../foundation.md#f4-编辑引擎gpui-prose-与-dr-editor)。
+2026-11-08。F4 编辑引擎的渲染子线，代码在 `next/crates/gpui-prose/src/render/`（MIT OR Apache-2.0，只依赖 gpui 和 loro，不碰任何 `dr-*`）。第二轮（同一天）把画层接进了 Drifting，代码在 `next/crates/dr-editor/src/decor/`，见文末[「第二轮：接进 Drifting」](#第二轮接进-drifting)；第三轮接进全书视图、给列表画了样子，见[「第三轮」](#第三轮全书视图列表来源悬停卡)；第四轮让段距跟着块走（列表收紧）、给代码块和提示框画了样子，见[「第四轮」](#第四轮段距跟着块走代码块和提示框)；第五轮做的是 [M19 的图片和 PDF 查看器](../modules/m19-materials.md)；审阅面板是 [M18](../modules/m18-review.md)。总的架构、文本源和别的子线见 [f4-editor.md](f4-editor.md)；计划见 [foundation.md 的 F4 一节](../foundation.md#f4-编辑引擎gpui-prose-与-dr-editor)。
 
 ## 一句话
 
@@ -331,3 +331,7 @@
 2. **代码块不横向滚动。** 旧版 `pre` 超宽时横向滚；新版照段落换行。笔记里的代码多是短行，先这样。
 3. **行内代码**（`code` 标记）还没有样子（旧版纸色更深的底、等宽小一号），属于标记到字样那一层，下一轮可以一起做。
 4. **章节里的引文底色变了一点。** 块样式合成一份以后，打开章节时引文的底色从外壳那份（第一档墨 0.04）换成画层那份（纸色更深 0.5，旧版素材笔记的值），比之前略深；原来换一次主题以后就已经是这一份。要哪一份请外壳定，改 `dr_editor::decor::block_style` 一处就行。
+
+## 第五轮：M19 的图片和 PDF 查看器
+
+这一轮做的是模块，不是画层：图片和 PDF 素材的整页（缩放、平移、翻页、区域批注），PDF 用 hayro 渲染（为什么不用 pdfium-render 也在那里）。全部写在 [m19-materials.md](../modules/m19-materials.md)。和这条子线有关的只有一处：dr-ui 的 `SandFrame` 多了 `.rest` 和 `.seed`，区域批注的干框用它（见 [f5-ui.md](f5-ui.md)）。
