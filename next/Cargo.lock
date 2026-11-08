@@ -1681,6 +1681,7 @@ dependencies = [
  "log",
  "loro",
  "proptest",
+ "serde_json",
  "tempfile",
 ]
 

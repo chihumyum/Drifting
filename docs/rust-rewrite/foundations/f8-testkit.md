@@ -349,10 +349,10 @@ cargo xtask dev --hot --print-config                 # 看会跑什么命令，�
   - 结构体加减字段、改类型（内存里的旧对象还是旧的样子）；
   - 加新依赖、改 `Cargo.toml`、改构建脚本；
   - 启动时只跑一次的代码（`main`、`init` 里注册的东西、快捷键表）：换了也不会再跑。
-- **哪些 crate 改了能热替换**：dx 0.7.10 打补丁时，要把改了的 crate 和**所有**依赖它的工作区 crate（测试用的依赖也算）按第一次全量构建时记下的编译参数重编一遍；应用没编进去的 crate 没有这份参数，补丁就失败（「Missing rustc args for replay: 'dr_testkit'」），窗口里还是旧代码，在 dx 的终端按 `r` 全量重编（或者重启 `cargo xtask dev --hot`）。所以只有「依赖它的 crate 全在应用里」的 crate 才能热替换。`cargo xtask dev --hot` 启动时把这一份名单打印出来（`--print-config` 里是 `hotReload.crates`，按当时的工作区和特性现算）。合进 main `c81de0fa` 以后是：
-  - 能：`dr-view-shelf`、`dr-view-shelf-art`、`dr-view-home`、`dr-view-page`、`dr-view-elements`、`dr-view-material`、`dr-view-plot`、`dr-view-timeline`、`dr-view-import`、`dr-view-transfer`、`dr-view-feedback`、`dr-debug-bridge`；
-  - 暂时不能：`dr-shell`、`dr-ui`、`dr-editor`、`gpui-prose` 和其余的 `dr-view-*`，只因为依赖它们的 `dr-view-relations`、`dr-view-sea` 还没接进应用；接上以后它们就能了（第一次算的时候挡着的是 plot、shelf-art、timeline，这批已经接上）；
-  - 一直不能：数据和服务层（`dr-store`、`dr-doc`、`dr-model`、`dr-index`、`dr-text`、`dr-workspace`、`prose-metrics`、`dr-platform`、`dr-import-v1` 等），命令行和测试工具（`dr-cli`、`dr-testkit`、`xtask`）和还没接进应用的 `dr-samples`、`dr-mirror` 依赖它们，而应用不编这些。这是 dx 的限制（它不把补丁限在应用编进去的 crate 里），热替换本来就是给界面用的。
+- **哪些 crate 改了能热替换**：dx 0.7.10 打补丁时，要把改了的 crate 和**所有**依赖它的工作区 crate（测试用的依赖也算）按第一次全量构建时记下的编译参数重编一遍；应用没编进去的 crate 没有这份参数，补丁就失败（「Missing rustc args for replay: 'dr_testkit'」），窗口里还是旧代码，在 dx 的终端按 `r` 全量重编（或者重启 `cargo xtask dev --hot`）。所以只有「依赖它的 crate 全在应用里」的 crate 才能热替换。`cargo xtask dev --hot` 启动时把这一份名单打印出来（`--print-config` 里是 `hotReload.crates`，按当时的工作区和特性现算）。合进 main `069caa5e`（第十八批）以后是：
+  - 能：整个界面层：`dr-shell`、`dr-ui`、`dr-editor`、`gpui-prose`、`gpui-ime`、`prose-linebreak`、所有 `dr-view-*`、`dr-i18n`、`dr-export`、`dr-mirror`、`dr-debug-bridge`；
+  - 一直不能：数据和服务层（`dr-store`、`dr-doc`、`dr-model`、`dr-index`、`dr-text`、`dr-workspace`、`dr-corpus`、`prose-metrics`、`dr-platform`、`dr-import-v1` 等），命令行和测试工具（`dr-cli`、`dr-testkit`、`xtask`）和还没接进应用的 `dr-agent` 依赖它们，而应用不编这些。这是 dx 的限制（它不把补丁限在应用编进去的 crate 里），热替换本来就是给界面用的；
+  - 一个新 crate 还没接进应用时，它依赖的界面 crate 也会暂时不能（第一次算时 `dr-shell`、`dr-ui`、编辑器就是被当时没接上的 plot、shelf-art、timeline、relations、sea 挡住的）。
 - **快多少（2026-11-08，M3 Pro，机器负载 16–90，只作参考）**：改的是书架左栏格子（`dr-view-shelf` 的 `rail_cell`，书架的渲染函数调到的那个函数）读屏用的名字，再用调试桥轮询 `ui.find` 看到新名字为止：
   | 做法 | 从保存到窗口里变了 |
   | --- | ---: |

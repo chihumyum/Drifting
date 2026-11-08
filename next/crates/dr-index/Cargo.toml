@@ -17,4 +17,6 @@ loro.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true
+# The library test writes a conversation entry with a JSON payload.
+serde_json.workspace = true
 tempfile.workspace = true
