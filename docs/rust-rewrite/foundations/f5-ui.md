@@ -1,6 +1,6 @@
 # F5 dr-ui：设计系统
 
-2026-11-07 起，分支 `claude/f5-ui-254e54`。代码在 `next/crates/dr-ui`，样张程序是它的 `examples/gallery`，截图在 [f5/](f5/)。第二个里程碑（同日）把 F6 外壳用底层件拼的几样收了进来：Panel Tab 用的推进版多选一、cell 的悬停环、数值滑块和数字框、图标按钮的读屏名字、能拖的药丸组。第三个里程碑（11-08）：单行输入的组字改用 F4 拆出来的共用 crate `gpui-ime`，失焦一律「清掉 + 让系统丢弃」；标签坞整个做成了组件 `TabDock`（小点长成药丸、其余药丸让位、拖离药丸行时原位收拢）。第四个里程碑（同日，main `15299820` 之后）给书架、作品主页和章节页出了三样：没有边框、字号字重跟着外面的字走的单行输入（`TextField::bare`），同样没有边框、自动换行、按内容长高的多行输入 `TextArea`（回车换段，或者对标题来说回车就是提交），悬停变危险色的图标按钮（`PanelIconButton::danger`）；还查了 GPUI 读屏树的缓存视图问题 G7，dr-ui 碰不到。第五轮（同日，main `1652a95e` 之后）：对话框的「点 ✕」和「点外面的雾」分成两个回调；界面文字有了按中文规则换行的文字元素 `text::wrapped`（「，」「。」不落行首）；章节页的章首章末（M03）做成了新 crate `dr-view-page`，见 [m03-page.md](../modules/m03-page.md)，dr-ui 为它加了页面的字号间距令牌 `tokens::page`、带图标的紧凑 cell、多行输入的「↓ 到底」事件。第六轮（同日，main `60d510a6` 之后，先合进了 F4e 第四批）：章节页接上 F4 的幕扉页数据和构想页；翻页叠化把进度交给页面（`PageTurn::with_level`）；带框的多行输入（`TextArea::framed`）；色标和取色器（`ColorSwatch`，点开系统自己的取色板，和旧版一样）；书架的封面、写作热力图和近 30 天砂条（M25）做成新 crate `dr-view-shelf-art`，见 [m25-shelf-art.md](../modules/m25-shelf-art.md)。
+2026-11-07 起，分支 `claude/f5-ui-254e54`。代码在 `next/crates/dr-ui`，样张程序是它的 `examples/gallery`，截图在 [f5/](f5/)。第二个里程碑（同日）把 F6 外壳用底层件拼的几样收了进来：Panel Tab 用的推进版多选一、cell 的悬停环、数值滑块和数字框、图标按钮的读屏名字、能拖的药丸组。第三个里程碑（11-08）：单行输入的组字改用 F4 拆出来的共用 crate `gpui-ime`，失焦一律「清掉 + 让系统丢弃」；标签坞整个做成了组件 `TabDock`（小点长成药丸、其余药丸让位、拖离药丸行时原位收拢）。第四个里程碑（同日，main `15299820` 之后）给书架、作品主页和章节页出了三样：没有边框、字号字重跟着外面的字走的单行输入（`TextField::bare`），同样没有边框、自动换行、按内容长高的多行输入 `TextArea`（回车换段，或者对标题来说回车就是提交），悬停变危险色的图标按钮（`PanelIconButton::danger`）；还查了 GPUI 读屏树的缓存视图问题 G7，dr-ui 碰不到。第五轮（同日，main `1652a95e` 之后）：对话框的「点 ✕」和「点外面的雾」分成两个回调；界面文字有了按中文规则换行的文字元素 `text::wrapped`（「，」「。」不落行首）；章节页的章首章末（M03）做成了新 crate `dr-view-page`，见 [m03-page.md](../modules/m03-page.md)，dr-ui 为它加了页面的字号间距令牌 `tokens::page`、带图标的紧凑 cell、多行输入的「↓ 到底」事件。第六轮（同日，main `60d510a6` 之后，先合进了 F4e 第四批）：章节页接上 F4 的幕扉页数据和构想页；翻页叠化把进度交给页面（`PageTurn::with_level`）；带框的多行输入（`TextArea::framed`）；色标和取色器（`ColorSwatch`，点开系统自己的取色板，和旧版一样）；书架的封面、写作热力图和近 30 天砂条（M25）做成新 crate `dr-view-shelf-art`，见 [m25-shelf-art.md](../modules/m25-shelf-art.md)。第七轮（同日，main `2eb865fa` 之后）：界面语言的数字写法（分组、紧凑的「12.3万」）收成 `dr_i18n::number` 一份；字海、整窗等待、首次运行和导览（M24）做成新 crate `dr-view-sea`，内置样书做成新 crate `dr-samples`，见 [m24-sea.md](../modules/m24-sea.md)。
 
 ## 一句话
 
@@ -422,6 +422,13 @@ M3 Pro，release 构建，1280×800 的样张、2 倍屏。帧时间是离屏（
 | 3 | 带框的多行输入 | 完成：`TextArea::framed(行数)` |
 | 4 | 取色器 | 完成：`ColorSwatch`，点开系统的取色板（macOS 在本机真开过一次、颜色回得来；Windows 单独做了类型检查） |
 | 5 | M25 书架封面与写作热力图 | 完成：新 crate `dr-view-shelf-art`，十四种画风逐行照旧版移植并和旧版逐张对照，热力图、近 30 天砂条、换画风按钮；见 [m25-shelf-art.md](../modules/m25-shelf-art.md)。放进书架是 M01 的事 |
+
+第七轮（11-08，从 main `2eb865fa`）：
+
+| # | 内容 | 状态 |
+| --- | --- | --- |
+| 1 | `format::compact` / `grouped` 挪进 dr-i18n | 完成：`dr_i18n::number`，书架、书架的画、作品主页、导入、故事线页、统计、页眉都改用它；统计的 `grouped` 带正负号，包了一层；要素面板不再需要依赖书架 |
+| 2 | M24 字海、加载与首次体验 | 完成组件和流程：新 crate `dr-view-sea`（字海、整窗等待、首次运行、样书落位、导览）、`dr-samples`（两本内置样书，从测试工具里搬出来，种子摘要不变）；见 [m24-sea.md](../modules/m24-sea.md)。放进外壳和书架要 F6 开登记口、M01 改书架，接法写在那份文档里 |
 
 ## 下一步建议
 

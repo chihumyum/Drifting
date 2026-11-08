@@ -115,7 +115,7 @@ cargo run --release -p dr-view-home --features capture --example shelf-home-capt
 | 应用 | `dr_view_shelf::init(cx)`，在 `dr_shell::init` 之后调一次 |
 | M10、M41 | 动作 `dr_view_shelf::ImportLegacyLibrary`、`ImportBook`：用 `cx.on_action(|_: &ImportLegacyLibrary, cx| …)` 接 |
 | M25（封面、近 30 天） | `dr_view_shelf::data::ShelfBook`（加字段）、`view.rs` 的 `card`（封面放在卡的左边，旧版 126×226） |
-| M24（字海、首次体验） | `Shelf` 是一个普通的 GPUI 视图，书架底色在 `view.rs` 的根上；示例书落位要的「哪本是新写的示例」现在没有 |
+| M24（字海、首次体验） | `Shelf` 是一个普通的 GPUI 视图，书架底色在 `view.rs` 的根上；示例书落位要的「哪本是新写的示例」现在由 `dr_view_sea::first_run::sample_on_shelf` 给（写样书的是 `first_run::write_samples`），接法见 [m24-sea.md](m24-sea.md) |
 | M35（账号） | 账号格子和账户菜单在 `view.rs` 的 `rail_foot`、`account_menu` |
 | 测试、调试桥 | `Shelf::{data, dialog(), form_fields(), open, start_create, start_edit, submit_form, ask_trash, confirm_trash, open_deleted, restore, ask_purge, confirm_purge, close_dialog, toggle_menu, menu_open, cards_ms, expired_runs}`；`dr_view_shelf::PURGE_EXPIRED_AFTER`；`dr_view_shelf::data::{ShelfData::load, Status, progress}`；`dr_view_shelf::format::ago`；`dr_i18n::number::{compact, grouped}` |
 | 要带框多行输入的地方（作品主页的本书简介） | `dr_view_shelf::frame::area(id, &text_area, rows, window, cx)`：F5 有了带框的多行输入以后换掉 |
