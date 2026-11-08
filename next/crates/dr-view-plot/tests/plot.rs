@@ -216,6 +216,117 @@ fn the_sample_grid_is_read_and_a_slip_is_stored_as_typed(cx: &mut TestAppContext
     assert_eq!(cell_text(&stored(&s, 3), &r1, &c3), "答应了");
 }
 
+/// The clipboard goes through the actual field shortcut; a module API
+/// call alone would miss capture/bubble propagation and the focused field.
+fn paste(text: &str, cx: &mut VisualTestContext) {
+    cx.update(|_, cx| cx.write_to_clipboard(gpui::ClipboardItem::new_string(text.to_owned())));
+    cx.simulate_keystrokes(if cfg!(target_os = "macos") {
+        "cmd-v"
+    } else {
+        "ctrl-v"
+    });
+    cx.run_until_parked();
+}
+
+#[gpui::test]
+fn spreadsheet_paste_grows_both_axes_and_replaces_the_focused_slip(cx: &mut TestAppContext) {
+    let s = seeded();
+    let (view, cx) = open(cx, &s, 3);
+    let grid = view.read_with(cx, |p, _| p.grid().clone());
+    let field = Field::Cell(grid.rows[3].id.clone(), grid.cols[3].id.clone());
+    // Existing, still-unsaved typing must not overwrite the pasted block
+    // when the debounce fires. Use the sample's existing labels as text.
+    type_into(&view, field.clone(), &grid.rows[0].label, cx);
+    let text = format!(
+        "\t{}\r\n{}\t{}\t{}\r\n",
+        grid.cols[1].label, grid.rows[0].label, grid.rows[1].label, grid.rows[2].label
+    );
+    paste(&text, cx);
+    assert_eq!(
+        view.read_with(cx, |p, cx| p.field(&field).unwrap().read(cx).text()),
+        ""
+    );
+    settle(&view, cx);
+    let info = stored(&s, 3);
+    assert_eq!((info.rows.len(), info.columns.len()), (5, 6));
+    let value = |r: usize, c: usize| cell_text(&info, &info.rows[r].id, &info.columns[c].id);
+    assert_eq!(value(3, 3), "", "empty clipboard cell clears the old text");
+    assert_eq!(value(3, 4), grid.cols[1].label);
+    assert_eq!(value(4, 3), grid.rows[0].label);
+    assert_eq!(value(4, 4), grid.rows[1].label);
+    assert_eq!(value(4, 5), grid.rows[2].label);
+    assert_eq!(value(0, 1), grid.cell(&grid.rows[0].id, &grid.cols[1].id));
+    assert!(info.rows[4].label.is_empty());
+    assert!(info.columns[4..].iter().all(|c| c.label.is_empty()));
+}
+
+#[gpui::test]
+fn spreadsheet_paste_is_the_first_edit_and_plain_paste_still_inserts(cx: &mut TestAppContext) {
+    let s = seeded();
+    let (view, cx) = open(cx, &s, 0);
+    let grid = view.read_with(cx, |p, _| p.grid().clone());
+    assert!(!grid.exists);
+    let field = Field::Cell(grid.rows[2].id.clone(), grid.cols[2].id.clone());
+    // Focus without typing so the paste itself creates the grid.
+    let area = view.read_with(cx, |p, _| p.field(&field).unwrap());
+    cx.update(|window, cx| window.focus(&area.focus_handle(cx), cx));
+    cx.run_until_parked();
+    paste("阿Q\t吴妈\n赵家\t地保\n", cx);
+    settle(&view, cx);
+    let info = stored(&s, 0);
+    assert_eq!((info.rows.len(), info.columns.len()), (4, 4));
+    assert_eq!(
+        cell_text(&info, &info.rows[2].id, &info.columns[2].id),
+        "阿Q"
+    );
+    assert_eq!(
+        cell_text(&info, &info.rows[3].id, &info.columns[3].id),
+        "地保"
+    );
+    assert_eq!(area.read_with(cx, |a, _| a.text()), "阿Q");
+
+    // The field's subscription began with temporary ids; both an ordinary
+    // paste and the next block paste still address its adopted stored ids.
+    cx.simulate_keystrokes(if cfg!(target_os = "macos") {
+        "cmd-right"
+    } else {
+        "ctrl-end"
+    });
+    paste("吴妈", cx);
+    settle(&view, cx);
+    assert_eq!(area.read_with(cx, |a, _| a.text()), "阿Q吴妈");
+    assert_eq!(
+        cell_text(&stored(&s, 0), &info.rows[2].id, &info.columns[2].id),
+        "阿Q吴妈"
+    );
+    cx.simulate_keystrokes(if cfg!(target_os = "macos") {
+        "cmd-a"
+    } else {
+        "ctrl-a"
+    });
+    paste("地保", cx);
+    settle(&view, cx);
+    assert_eq!(area.read_with(cx, |a, _| a.text()), "地保");
+    paste("赵家\n\n", cx);
+    settle(&view, cx);
+    let info = stored(&s, 0);
+    assert_eq!((info.rows.len(), info.columns.len()), (4, 4));
+    assert_eq!(
+        cell_text(&info, &info.rows[2].id, &info.columns[2].id),
+        "赵家"
+    );
+    assert_eq!(
+        cell_text(&info, &info.rows[3].id, &info.columns[2].id),
+        "",
+        "only one trailing newline is ignored"
+    );
+    assert_eq!(
+        cell_text(&info, &info.rows[2].id, &info.columns[3].id),
+        "吴妈",
+        "short clipboard rows leave other cells alone"
+    );
+}
+
 #[gpui::test]
 fn headers_insert_move_rename_and_delete(cx: &mut TestAppContext) {
     let s = seeded();

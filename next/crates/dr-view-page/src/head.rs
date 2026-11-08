@@ -15,8 +15,9 @@ use dr_ui::{
     tokens::page as tk,
 };
 use gpui::{
-    AnyElement, AppContext as _, Context, Div, ElementId, Entity, Focusable as _, IntoElement,
-    ParentElement as _, Render, SharedString, Styled as _, Subscription, Window, div,
+    AnyElement, AppContext as _, Context, Div, ElementId, Entity, Focusable as _,
+    InteractiveElement as _, IntoElement, ParentElement as _, Render, SharedString,
+    StatefulInteractiveElement as _, Styled as _, Subscription, Window, div,
     prelude::FluentBuilder as _, px,
 };
 
@@ -41,6 +42,8 @@ pub struct PageHead {
     /// What the workspace last said the title and synopsis are.
     stored_title: String,
     stored_synopsis: String,
+    /// The current idea group breadcrumb, from the shell's book snapshot.
+    group_path: Option<String>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -68,13 +71,21 @@ impl PageHead {
                 .placeholder(t(cx, keys::chapter_editor::SYNOPSIS_PLACEHOLDER))
                 .with_text(page.synopsis.clone())
         });
-        let subscriptions = vec![
+        let mut subscriptions = vec![
             cx.subscribe_in(&title, window, Self::on_title),
             cx.subscribe_in(&title, window, |head, _, _: &AreaEvent, window, cx| {
                 head.hand_over(window, cx)
             }),
             cx.subscribe_in(&synopsis, window, Self::on_synopsis),
         ];
+        if let Some(workspace) = host.workspace.upgrade() {
+            subscriptions.push(cx.observe(&workspace, |head, _, cx| {
+                if head.refresh_group_path(cx) {
+                    cx.notify();
+                }
+            }));
+        }
+        let group_path = read_group_path(&host, page, cx);
         // A chapter ⁂ just made: its title takes the caret, selected, once
         // this frame is drawn.
         if NewTitles::take(&page.doc, cx) {
@@ -91,6 +102,7 @@ impl PageHead {
             synopsis,
             stored_title: page.title.clone(),
             stored_synopsis: page.synopsis.clone(),
+            group_path,
             _subscriptions: subscriptions,
         }
     }
@@ -102,6 +114,20 @@ impl PageHead {
 
     pub fn synopsis(&self) -> &Entity<TextArea> {
         &self.synopsis
+    }
+
+    /// The idea's groups, top down, as shown in its folio line.
+    pub fn group_path(&self) -> Option<&str> {
+        self.group_path.as_deref()
+    }
+
+    fn refresh_group_path(&mut self, cx: &gpui::App) -> bool {
+        let path = read_group_path(&self.host, &self.page, cx);
+        if self.group_path == path {
+            return false;
+        }
+        self.group_path = path;
+        true
     }
 
     /// The editor's latest facts: a field shows a new stored value unless
@@ -122,6 +148,9 @@ impl PageHead {
             }
         }
         self.page = page.clone();
+        if self.refresh_group_path(cx) {
+            cx.notify();
+        }
     }
 
     fn hand_over(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -222,6 +251,37 @@ impl PageHead {
             }
         })
         .detach();
+    }
+}
+
+/// Like NodeEditorView's `driftGroupChain`: follow parents, stop at a
+/// missing group or a cycle, and show the surviving chain from the top.
+fn read_group_path(host: &PageHost, page: &PageInfo, cx: &gpui::App) -> Option<String> {
+    if page.kind != PageKind::Idea {
+        return None;
+    }
+    let workspace = host.workspace.upgrade()?;
+    let book = &workspace.read(cx).book;
+    let id = page.doc.strip_prefix("node:")?;
+    let idea = book.ideas.iter().find(|idea| idea.id == id)?;
+    let mut current = idea.group.as_deref();
+    let mut chain = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    while let Some(id) = current {
+        if !seen.insert(id) {
+            break;
+        }
+        let Some(group) = book.idea_groups.iter().find(|group| group.id == id) else {
+            break;
+        };
+        chain.push(group.name.as_str());
+        current = group.parent.as_deref();
+    }
+    if chain.is_empty() {
+        None
+    } else {
+        chain.reverse();
+        Some(chain.join(" - "))
     }
 }
 
@@ -412,6 +472,28 @@ impl Render for PageHead {
             .child(number)
             .when_some(storyline, |el, s| {
                 el.child(div().flex().flex_row().items_center().child(dot()).child(s))
+            })
+            .when_some(self.group_path.as_ref(), |el, path| {
+                el.child(
+                    div().flex().flex_row().items_center().child(dot()).child(
+                        div()
+                            .id(ElementId::Name(
+                                format!("page-folio-group-path-{}", page.doc).into(),
+                            ))
+                            .flex()
+                            .flex_row()
+                            .items_center()
+                            .gap(px(tk::FOLIO_MARK_GAP))
+                            .text_color(p.ink(3).solid())
+                            .role(gpui::Role::Label)
+                            .aria_label(path.clone())
+                            .child(KindMark::new(
+                                ElementId::Name(format!("page-folio-group-{}", page.doc).into()),
+                                sand::Kind::DriftGroup,
+                            ))
+                            .child(path.clone()),
+                    ),
+                )
             })
             .child(div().flex().flex_row().child(dot()).child(words));
         let synopsis_size = body - tk::SYNOPSIS_LESS;

@@ -23,11 +23,11 @@
 
 ## 定下的事
 
-- **入口**：只有章节和「通览全书」的 ⋯ 有这两行。旧版的构想、要素等页面的 ⋯ 也有「分享」；新版这些页面还没有 ⋯ 菜单（外壳只给章节画了），等它们有了再加同一组两行（`export_items`）。
+- **入口**：章节和「通览全书」的 ⋯ 有「分享」「导出成稿」。F6 第六轮已在 `workspace::page_actions` 给构想、要素、故事线、类目页接上「分享」；它们不增加成稿导出入口。
 - **对话框放在外壳给别的 crate 用的对话框位置**（`Workspace::dialog`，M39 的反馈也在这里），外壳没有为导出新加字段。
 - **记住的选择存在设置文件里**：旧版存在 WebView 的 `localStorage`；新版由外壳（F6 第六轮）存进设置文件，跨重启有效。
 - **保存面板从用户主目录开始**，建议的文件名是书名（旧版 `manuscriptFilename`：去掉文件名里不能用的字符，最多 35 个字）。
-- **PDF 用的字体**：旧版会先试作者在设置里选的编辑器字体；新版还没有这个设置，先按 `dr-export` 的系统字体链。
+- **PDF 用的字体**：旧版会先试作者在设置里选的编辑器字体；新版还没有字体家族选择（只有字号等排版设置），先按 `dr-export` 的系统字体链。
 - **`sync-locales.py` 修了一处**：按 `前缀.*` 整棵搬文案时，英文有 `_one`/`_other` 而中文只有不带后缀的键（`manuscriptExport.chapterCount`），原来会漏掉中文那一个，构建报「zh-CN.json lacks …_other」。现在整棵搬时也带上它（和逐个列出的键同一条规则，build.rs 本来就把它当作这门语言的 `_other`）。
 - **PDF 断行改用编辑器的那一套**（`prose-linebreak`，simplifications.md 第 19 条「断行只写一套」）：比旧版的 `unicode-linebreak` 更严，「——」「……」不会被拆开，开引号不落在行尾；行内排版、标点挤压、两端对齐还是旧版的代码。旧版 PDF 的 `unicode-linebreak` 依赖不要了。
 - **表格和嵌入**：旧版 ProseMirror 里表格是节点，新版是嵌入物。表格保留字：每个非空单元格的每一行一段，先行后列；素材嵌入和认不出的嵌入去掉（它们没有自己的字）。
@@ -129,7 +129,7 @@ next/crates/dr-view-transfer/examples/transfer-capture.rs  第二部分的截图
    - 恢复：选文件，「正在核对…」（检查每个校验和、数据库完好，旧了就在旁边升级；库照常开着），然后问旧版那一句：用哪个文件替换、备份时间、内容、有哪些书，以及「当前资料库会先自动存成恢复前副本」。「替换并恢复」交给外壳去关库、换库、重开；「取消」把核对出来的副本删掉。
    - 0.1 的整库备份（格式 1）不能直接恢复，会说「这是 Drifting 0.1 的备份…请先在 Drifting 0.1 里恢复它，再在书架上用「导入 · Drifting 0.1」导入那个资料库。」（新写的一句）。
    - **入口**：设置「本地数据」的两行按钮派发 `dr_shell::actions::{BackupLibrary, RestoreLibrary}`（监管会话和 F6 定的名字；这条分支上先加了这两个动作，F6 第六轮的分支也加了同名的，合并时留一份），`dr_view_transfer::init` 接住。
-   - **换库还没接上**：要外壳关掉所有拿着库的地方再重开，F6 已在它第六轮的分支上做了（`dr_shell::library::replace`）。两边合进 main 后，应用用 `dr_view_transfer::backup::set_replace(cx, …)` 登记一下就通了；没登记时恢复照样核对、照样问，确认后说「操作没有完成，当前资料库没有改动」，库不动。
+   - **换库已接上**：第十三批整合在应用里用 `dr_view_transfer::backup::set_replace(cx, …)` 登记了 `dr_shell::library::replace`，由外壳关库、替换、重开。没有登记替换步骤的测试宿主仍会核对、询问，确认后说明没能替换，库不动。
 
 截图在 [m41/](m41/)：`transfer-book-importing`、`transfer-book-refused`、`transfer-documents`、`transfer-backup`、`transfer-restore`，浅色深色各一套。
 
@@ -182,7 +182,9 @@ import::{parse_file, import_docs, files_in_folder, order_import_files, ImportTar
 book::{export, import, export_path, import_path}
 documents::{open, show, DocumentsDialog}
 backup::{backup, backup_path, restore, restore_path, Replace, set_replace, replacer}
-// Replace = Rc<dyn Fn(StagedBackup, &mut App) -> Task<Result<(), String>>>：外壳关库、Library::restore_staged、重开
+// Replace = Rc<dyn Fn(StagedBackup, ReportProgress, &mut App) -> Task<Result<(), String>>>
+// ReportProgress = Box<dyn FnMut(&dr_store::backup::Progress) -> bool + Send>
+// 外壳关库、Library::restore_staged_with（传入 ReportProgress）、重开
 ```
 
 ### 测量（只作参考）
@@ -209,6 +211,23 @@ release，机器负载 21–25，导出到同一个库再导回来（新 id）�
 ### 待协调
 
 1. ~~**F6**：旧版文案里的「打开恢复前副本」按钮~~：F6 第八轮做了，「恢复…」旁边的淡按钮，在访达里打开恢复前副本的文件夹（`dr_store::Library::pre_restore_dir`，没有就先建）。换库（`dr_shell::library::replace`）第十三批整合时已用 `set_replace` 接上。
-2. **F2**：备份、核对、恢复的进度回调加上以后，对话框的进度条从「不确定」换成真进度。
+2. ~~**F2**：备份、核对、恢复的真进度~~：旧模块收尾里程碑已接 F2 的三个 `_with` 接口，见下。
 3. **M01（书架）**：书卡多了导出箭头、`ImportBook` 的占位删了；导入完书架靠索引事件重读，F2 的导入不发书目事件。
 
+
+## 旧模块收尾：备份与恢复的真实进度
+
+2026-11-08，分支 `codex/legacy-m41-progress`。这是 M41 的一个收尾里程碑，不代表整个模块结项。旧版 `LibraryBackupSettings.tsx` 只显示忙碌文案；此处依据交接任务明确要求，把已存在的 F2 进度回调接到对话框。
+
+- 备份改用 `Library::export_backup_with`，核对改用 `backup::stage_with`；复制的数据达到多少就画多少，不按时间模拟。
+- 恢复的 `Replace` 接口多接一个可跨线程的 `ReportProgress`；应用把它原样传进 `Library::restore_staged_with`。外壳的关库、换库、重开流程没有改。
+- 进度是**当前阶段**的字节比例：打包、解包、保存恢复前副本、复制素材有总字节数；快照、数据库核验、原子替换没有可用总数，仍是不定进度。恢复前副本阶段用旧文案「正在备份…」，复制与替换用「正在恢复…」。没有新增取消行为或说明句。
+- 每次操作有独立的进度通道。完成、失败、核对后的确认，都会先收完本次通道，迟到的核对进度不会盖掉恢复进度或最终结果。窗口消失不取消已经启动的备份或替换。
+
+契约在 `dr-view-transfer/tests/backup.rs`：真实备份、核对必须在结果之前报告非零字节进度；替换回调跨保存副本、复制素材、原子替换阶段显示对应进度，某一阶段到 100% 不代表操作完成，失败结果不会被迟到报告覆盖。已有取消、无效备份和设置入口测试继续覆盖。真实窗口沿用 `dr-cli/scenarios/restore.json`，验证设置入口、确认、换库、恢复前副本、无效文件拒绝；瞬时进度的阶段转换由可控制的契约测试断言。
+
+仍留给后续：编辑器字体家族设置尚无可传给 PDF 的选择（只有字号设置），不能把它误记成已接；真实账号服务、签名发布和作者观感手测不在本里程碑。
+
+本轮真实窗口验收（`f5ca535b` 基线，2026-11-08）：`restore.json` 64 步通过、0 跳过；恢复确认、恢复后书架、无效备份的截图在 `next/target/acceptance/legacy-m41-restore/`，结果与截图只留作本机产物，不提交。
+
+交回前检查：`cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、`cargo test --workspace --locked`（1675 通过、22 忽略）、`cargo xtask check`、`pnpm public:check` 全部通过。审计 0 漏洞，既有 12 条依赖提示及过期测量提示保留；本轮没有重测性能。

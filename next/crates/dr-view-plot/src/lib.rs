@@ -17,6 +17,8 @@
 //!   it clears; the last row or column stays).
 //! - **Slips**: text as typed, new lines allowed; an empty slip shows its
 //!   glass and 「写点什么…」 only under the pointer or the caret.
+//!   Pasted tabs/newlines spread over slips, growing rows and columns as
+//!   needed; plain text still inserts at the caret.
 //! - **Size**: the grip on the table's corner sizes every cell by hand
 //!   (120–440 × 56–380, a live readout while dragged); the table never
 //!   squeezes, the overflowing axis scrolls. The shape a hand-set size
