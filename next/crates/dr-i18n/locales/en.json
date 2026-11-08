@@ -533,7 +533,13 @@
     "wholeBook": "All chapters in reading order"
   },
   "materialEditor": {
+    "deleteConfirm": "Delete the material “{{title}}”? This cannot be undone.",
     "descriptionPlaceholder": "Add a description…",
+    "embed": {
+      "importFile": "Import an image or PDF…",
+      "importing": "Importing…",
+      "pastedImage": "Pasted image"
+    },
     "regions": {
       "draw": "Comment on a region",
       "drawHint": "Drag over the image to mark a region",
@@ -547,11 +553,43 @@
     "zoomOut": "Zoom out",
     "zoomReset": "Fit to view"
   },
+  "materialFolders": {
+    "deleteConfirm": "Delete the folder “{{name}}”? Everything in it moves up one level; no material is deleted.",
+    "deleteSelectionConfirm": "Delete the {{count}} selected items? Materials are deleted; whatever is in a deleted folder moves up one level.",
+    "empty": "No materials yet. Use the New folder button above to organize them.",
+    "menu": {
+      "collapseAll": "Collapse all inside",
+      "delete": "Delete folder",
+      "deleteSelection": "Delete {{count}} items",
+      "expandAll": "Expand all inside",
+      "move": "Move to folder…",
+      "moveSelection": "Move {{count}} items to folder…",
+      "newFolder": "New folder",
+      "newSubfolder": "New folder inside",
+      "open": "Open",
+      "rename": "Rename"
+    },
+    "root": "All materials",
+    "untitled": "New folder"
+  },
   "memoMaterial": {
+    "card": {
+      "addSnippetBody": "Write in this note…"
+    },
+    "empty": {
+      "noRelated": "No materials are linked to the current item."
+    },
+    "error": {
+      "pickFailed": "Could not import file: {{error}}"
+    },
     "kind": {
       "image": "Image",
       "pdf": "PDF",
       "text": "Note"
+    },
+    "menu": {
+      "deleteMaterial": "Delete material",
+      "openInSystem": "Open in system app"
     },
     "preview": {
       "loading": "Loading…",
@@ -562,6 +600,10 @@
       "openPdfFailed": "Cannot open PDF",
       "previousPage": "Previous",
       "renderPdfFailed": "Cannot render PDF"
+    },
+    "toolbar": {
+      "count": "{{count}} materials",
+      "newMaterial": "New material"
     }
   },
   "mobileWorkspace": {

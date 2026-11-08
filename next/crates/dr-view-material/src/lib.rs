@@ -11,12 +11,28 @@
 //! - [`viewport`] and [`regions`]: the arithmetic of zoom, pan and fitting,
 //!   and of the rectangles and their order, tested on their own.
 //!
-//! [`init`] registers the page with the shell: an image or PDF material
-//! opens here instead of in a prose editor. A text material (the author's
-//! note) still opens in the editor.
+//! - [`library`]: the right sidebar's 素材库 tab — the folders (素材夹)
+//!   and materials as a tree, selected several at a time, dragged into
+//!   folders, renamed, moved and deleted from their hover cards; files
+//!   dropped in from the system or pasted become materials ([`import`]).
+//! - For M23 (审阅与素材) and any other view that lists materials:
+//!   [`card`] (a material's thumbnail, its second line, a tile card),
+//!   [`folders`] (the folder tree, selection, and the move / rename /
+//!   delete commands), [`previews`] (thumbnails and a note's first words,
+//!   shared), [`library::MaterialDrag`] (what a dragged material carries).
+//!
+//! [`init`] registers the page and the tab with the shell: an image or PDF
+//! material opens in the viewer instead of a prose editor (a text material,
+//! the author's note, still opens in the editor), and the 素材库 tab shows
+//! [`library::LibraryPanel`].
 
+pub mod card;
+pub mod folders;
+pub mod import;
+pub mod library;
 pub mod media;
 pub mod page;
+pub mod previews;
 pub mod regions;
 pub mod viewport;
 
@@ -25,9 +41,11 @@ use gpui::{App, AppContext, Focusable};
 
 pub use page::{MediaKind, MediaPage};
 
-/// Registers the image and PDF material page with the shell. Call once,
-/// after `dr_shell::init`.
+/// Registers the image and PDF material page and the 素材库 tab with the
+/// shell, and the library's shortcuts. Call once, after `dr_shell::init`.
 pub fn init(cx: &mut App) {
+    cx.bind_keys(library::bindings());
+    dr_shell::pages::set_library(cx, library::make);
     dr_shell::pages::add_page_view(cx, |target, host, window, cx| {
         let Target::Material(id) = target else {
             return None;
