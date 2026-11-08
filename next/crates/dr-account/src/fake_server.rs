@@ -230,7 +230,9 @@ fn handle_connection(
     mut stream: TcpStream,
     state: &Arc<Mutex<ServerState>>,
 ) -> std::io::Result<()> {
+    stream.set_nonblocking(false)?;
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
+    stream.set_write_timeout(Some(Duration::from_secs(2)))?;
     let mut buf = Vec::with_capacity(8192);
     let mut temp = [0u8; 4096];
     let mut header_end = None;
