@@ -1,0 +1,29 @@
+[package]
+name = "dr-view-account"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Hosted account sign-in, first-run welcome step, profile editor, password change, and per-account library switching (M35)"
+
+[dependencies]
+dr-account.workspace = true
+dr-i18n.workspace = true
+dr-platform.workspace = true
+dr-shell.workspace = true
+dr-store.workspace = true
+dr-ui.workspace = true
+dr-view-feedback.workspace = true
+dr-view-sea.workspace = true
+gpui.workspace = true
+image.workspace = true
+log.workspace = true
+smallvec.workspace = true
+
+[dev-dependencies]
+dr-account = { workspace = true, features = ["test-support"] }
+dr-platform = { workspace = true, features = ["test-support"] }
+gpui = { workspace = true, features = ["test-support"] }
+gpui_platform.workspace = true
+tempfile.workspace = true

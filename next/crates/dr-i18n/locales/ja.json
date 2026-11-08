@@ -78,6 +78,71 @@
   "allChapters": {
     "actOrdinal": "第{{n}}幕"
   },
+  "auth": {
+    "back": "戻る",
+    "backToSignIn": "ログインへ戻る",
+    "createAccount": "アカウントを作成",
+    "creating": "作成中…",
+    "dialogLabel": "アカウント",
+    "errors": {
+      "oauthExpired": "ログインがタイムアウトしました。やり直してください。",
+      "oauthFailed": "ログインが完了しませんでした。再試行してください。",
+      "sendCodeFailed": "認証コードを送信できません",
+      "signInCheck": "ログインできません。メールアドレスとパスワードを確認してください。",
+      "signUpRetry": "登録できません。後ほど再試行してください。",
+      "verifyFailed": "認証失敗"
+    },
+    "fields": {
+      "code": "認証コード",
+      "codePlaceholder": "6桁の数字",
+      "email": "メールアドレス",
+      "emailPlaceholder": "your@email.com",
+      "password": "パスワード",
+      "passwordSignupPlaceholder": "10文字以上",
+      "penName": "ペンネーム",
+      "penNamePlaceholder": "例：Ada"
+    },
+    "forgot": {
+      "codeSub": "{{email}}にコードを送りました。コードと新しいパスワードを入力してください。",
+      "confirmPassword": "新しいパスワードを確認",
+      "done": "パスワードをリセットしました。ログインできます。",
+      "newPassword": "新しいパスワード",
+      "passwordMismatch": "パスワードが一致しません。",
+      "resetFailed": "リセットできませんでした。コードを確認して再試行してください。",
+      "resetSubmit": "パスワードをリセット",
+      "sub": "アカウントのメールアドレスを入力すると、認証コードを送ります。"
+    },
+    "forgotPassword": "パスワードをお忘れですか？",
+    "hasAccount": "アカウントをお持ちの方",
+    "noAccount": "アカウントをお持ちでない方",
+    "otp": {
+      "codeSub": "{{email}}へ送信済み。コードは10分間有効です。",
+      "emailSub": "有効期限10分の6桁コードを送ります。"
+    },
+    "resend": "コードを再送",
+    "sendCode": "コードを送信",
+    "signIn": "ログイン",
+    "signUp": "登録",
+    "signingIn": "ログイン中…",
+    "social": {
+      "continueWith": "{{provider}}で続ける",
+      "or": "または",
+      "waiting": "ブラウザでの認証待ち…"
+    },
+    "titles": {
+      "forgot": "パスワードをリセット",
+      "otp": "コードでログイン",
+      "signin": "Driftingにログイン",
+      "signup": "アカウントを作成",
+      "verify": "メールアドレスを確認"
+    },
+    "useOtp": "メールのコードでログイン",
+    "verify": {
+      "sent": "{{email}}へ送信済み。コードは10分間有効です。",
+      "submit": "確認してログイン",
+      "verifying": "検証中…"
+    }
+  },
   "bottomStatusBar": {
     "collapseTimeline": "ストーリーラインのタイムラインを折りたたむ",
     "elements": "要素",
@@ -365,6 +430,10 @@
     "replace": "置換",
     "replaceAll": "すべて置換",
     "replacePlaceholder": "置換後の文字…"
+  },
+  "firstRun": {
+    "email": "メールで続ける",
+    "local": "ローカルで続ける"
   },
   "globalSearch": {
     "closeTitle": "閉じる（Esc）",
@@ -794,6 +863,10 @@
   },
   "positionLink": {
     "copied": "位置リンクをコピーしました"
+  },
+  "preAlphaGuide": {
+    "crashReports": "問題の修正に役立てるため、原稿を含まない障害レポートを送信します。「設定 → プライバシー」で無効にできます。",
+    "title": "Drifting Alphaへようこそ"
   },
   "projectHome": {
     "book": {
@@ -1341,14 +1414,57 @@
     },
     "groups": {
       "about": "このアプリについて",
+      "account": "アカウント",
       "control": "管理",
       "intelligence": "AI機能",
       "preferences": "環境設定"
     },
     "hosted": {
+      "account_errors": {
+        "AVATAR_FILE_SIZE": "5 MB以下の画像を選んでください。",
+        "AVATAR_FILE_TYPE": "JPG、PNG、WebPを選んでください。",
+        "CURRENT_PASSWORD_REQUIRED": "現在のパスワードを入力してください。",
+        "INVALID_AVATAR": "この画像は使えません。別のJPG、PNG、WebPを選んでください。",
+        "INVALID_PASSWORD": "現在のパスワードが正しくありません。",
+        "INVALID_PASSWORD_LENGTH": "新しいパスワードは8〜128文字にしてください。",
+        "INVALID_PROFILE_NAME": "表示名は1〜80文字で入力してください。",
+        "PASSWORD_MISMATCH": "新しいパスワードが一致しません。",
+        "PASSWORD_UNCHANGED": "別のパスワードを選んでください。",
+        "UNAUTHORIZED": "セッションが切れました。再ログインしてください。",
+        "generic": "リクエストを完了できません。接続を確認して再試行してください。"
+      },
+      "avatar": "アバター",
+      "avatar_description": "JPG、PNG、WebP。最大5 MB。",
+      "change_password": "パスワードを変更",
+      "choose_avatar": "画像を選択",
+      "confirm_password": "新しいパスワードを確認",
       "connect_errors": {
         "cancelled": "取り消しました。"
-      }
+      },
+      "current_password": "現在のパスワード",
+      "description": "原稿はまずこの端末に保存します。アカウントを接続すると、自分の端末間で作品を同期できます。",
+      "display_name": "表示名",
+      "new_password": "新しいパスワード",
+      "no_account": "未ログイン",
+      "password_description": "8〜128文字。",
+      "password_saved": "パスワードを変更しました。他の端末では再ログインが必要です。",
+      "password_sessions": "パスワードを変えると他の端末からログアウトします。この端末はログインを保ちます。",
+      "password_title": "パスワード",
+      "profile_saved": "プロフィールを保存しました。",
+      "profile_title": "プロフィール",
+      "remove_avatar": "削除",
+      "save_profile": "プロフィールを保存",
+      "session": {
+        "checking": "アカウントを確認中…",
+        "connected": "アカウント接続済み",
+        "needs-reauth": "セッションが切れました。同じアカウントで再ログインしてください。",
+        "offline": "オフラインです。ローカルで執筆を続けられます。",
+        "signed-out": "ローカル執筆にアカウントは不要です。"
+      },
+      "sign_in": "ログイン／登録",
+      "sign_out": "ログアウト",
+      "title": "アカウントとHosted同期",
+      "working": "処理中…"
     },
     "keys": {
       "actions": {
@@ -1430,6 +1546,7 @@
     },
     "rail": {
       "about_app": "Driftingについて",
+      "account": "アカウント",
       "agent": "汎用Agent",
       "appearance": "外観",
       "editor": "エディタ",
@@ -1586,6 +1703,7 @@
     }
   },
   "userMenu": {
+    "accountMenu": "アカウントメニュー",
     "feedback": "フィードバックを送る",
     "import": "インポート",
     "importBook": "作品をインポート（.driftingbook）",
@@ -1593,6 +1711,8 @@
     "localMenu": "ローカルライブラリのメニュー",
     "localStatus": "ローカル・この端末に保存",
     "settings": "設定",
+    "signOut": "ログアウト",
+    "signingOut": "ログアウト中…",
     "theme": "テーマ",
     "themeDark": "ダーク",
     "themeDarkShort": "ダーク",

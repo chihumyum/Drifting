@@ -51,6 +51,7 @@ pub const LAYERS: &[(&str, Layer)] = &[
     // F8: the debug bridge's protocol and client, no GPUI (dr-cli, xtask).
     ("dr-debug-protocol", Layer::Platform),
     ("dr-workspace", Layer::Services),
+    ("dr-account", Layer::Services),
     ("dr-agent", Layer::Services),
     ("dr-agent-providers", Layer::Services),
     ("dr-agent-tools", Layer::Services),
