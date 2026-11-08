@@ -373,7 +373,11 @@
         "label": "아이디어"
       }
     },
-    "title": "파일 가져오기"
+    "title": "파일 가져오기",
+    "warnings": {
+      "imagesDropped": "이미지 {{count}}개는 가져오지 않았습니다",
+      "notUtf8": "UTF-8 텍스트가 아니어서 일부 문자를 바꿨습니다"
+    }
   },
   "kvEditor": {
     "addField": "필드 추가",
@@ -564,6 +568,15 @@
     },
     "empty": "알림 없음",
     "markdownFolder": {
+      "issue": {
+        "empty": "본문이 비어 있어 병합하지 않고 파일을 보존했습니다",
+        "encoding": "UTF-8이 아니어서 읽지 않고 파일을 보존했습니다",
+        "frontmatter": "상단 속성 형식이 잘못되어 수정 전에는 병합하거나 덮어쓰지 않습니다",
+        "identity": "drifting-id가 다른 장을 가리켜 병합하지 않고 파일을 보존했습니다",
+        "lineage": "장을 복원하거나 초기화하여 자동 병합할 수 없고 파일은 보존했습니다",
+        "owned": "다른 Drifting이 관리하는 폴더라서 읽거나 쓰지 않았습니다",
+        "too-large": "너무 커서 읽지 않고 파일을 보존했습니다"
+      },
       "preserved_one": "수정된 파일 {{count}}개를 .drifting/preserved에 보존함",
       "preserved_other": "수정된 파일 {{count}}개를 .drifting/preserved에 보존함",
       "source": "Markdown 폴더"

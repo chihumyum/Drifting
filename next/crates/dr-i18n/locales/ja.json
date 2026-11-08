@@ -373,7 +373,11 @@
         "label": "アイデア"
       }
     },
-    "title": "ファイルをインポート"
+    "title": "ファイルをインポート",
+    "warnings": {
+      "imagesDropped": "{{count}} 枚の画像はインポートされませんでした",
+      "notUtf8": "UTF-8 のテキストではないため、一部の文字を置き換えました"
+    }
   },
   "kvEditor": {
     "addField": "項目を追加",
@@ -564,6 +568,15 @@
     },
     "empty": "通知なし",
     "markdownFolder": {
+      "issue": {
+        "empty": "本文が空です。統合せずファイルを保存しました",
+        "encoding": "UTF-8ではありません。読み込まずファイルを保存しました",
+        "frontmatter": "冒頭のプロパティ形式が不正です。修正まで統合も上書きもしません",
+        "identity": "drifting-idが別の章を指しています。統合せずファイルを保存しました",
+        "lineage": "章が復元・リセットされています。自動統合せずファイルを保存しました",
+        "owned": "このフォルダーは別の Drifting が管理しているため、読み書きしていません",
+        "too-large": "大きすぎます。読み込まずファイルを保存しました"
+      },
       "preserved_one": "編集済みファイル{{count}}件を.drifting/preservedに保存",
       "preserved_other": "編集済みファイル{{count}}件を.drifting/preservedに保存",
       "source": "Markdownフォルダ"

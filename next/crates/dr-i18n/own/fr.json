@@ -63,6 +63,18 @@
         "label": "Idée",
         "desc": "Carte d’idée flottante, indépendante des intrigues."
       }
+    },
+    "warnings": {
+      "imagesDropped_one": "{{count}} image n'a pas été importée",
+      "imagesDropped_other": "{{count}} images n'ont pas été importées",
+      "notUtf8": "Ce n'est pas du texte UTF-8 ; certains caractères ont été remplacés"
+    }
+  },
+  "notifications": {
+    "markdownFolder": {
+      "issue": {
+        "owned": "Une autre installation de Drifting gère ce dossier ; rien n’a été lu ni écrit"
+      }
     }
   }
 }

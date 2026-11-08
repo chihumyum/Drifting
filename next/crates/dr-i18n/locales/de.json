@@ -378,7 +378,12 @@
         "label": "Idee"
       }
     },
-    "title": "Dateien importieren"
+    "title": "Dateien importieren",
+    "warnings": {
+      "imagesDropped_one": "{{count}} Bild wurde nicht importiert",
+      "imagesDropped_other": "{{count}} Bilder wurden nicht importiert",
+      "notUtf8": "Kein UTF-8-Text; einige Zeichen wurden ersetzt"
+    }
   },
   "kvEditor": {
     "addField": "Feld hinzufügen",
@@ -569,6 +574,15 @@
     },
     "empty": "Keine Benachrichtigungen",
     "markdownFolder": {
+      "issue": {
+        "empty": "Text geleert; nicht zusammengeführt, Datei aufbewahrt",
+        "encoding": "Kein UTF-8; nicht gelesen, Datei aufbewahrt",
+        "frontmatter": "Fehlerhafte Eigenschaften am Anfang; bis zur Korrektur weder zusammengeführt noch überschrieben",
+        "identity": "drifting-id verweist auf ein anderes Kapitel; nicht zusammengeführt, Datei aufbewahrt",
+        "lineage": "Kapitel wiederhergestellt oder zurückgesetzt; keine automatische Zusammenführung, Datei aufbewahrt",
+        "owned": "Diesen Ordner verwaltet eine andere Drifting-Installation; nichts wurde gelesen oder geschrieben",
+        "too-large": "Zu groß; nicht gelesen, Datei aufbewahrt"
+      },
       "preserved_one": "{{count}} bearbeitete Datei unter .drifting/preserved aufbewahrt",
       "preserved_other": "{{count}} bearbeitete Dateien unter .drifting/preserved aufbewahrt",
       "source": "Markdown-Ordner"

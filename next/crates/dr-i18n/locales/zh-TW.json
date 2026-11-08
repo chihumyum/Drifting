@@ -373,7 +373,11 @@
         "label": "構想"
       }
     },
-    "title": "匯入檔案"
+    "title": "匯入檔案",
+    "warnings": {
+      "imagesDropped": "{{count}} 張圖片沒有匯入",
+      "notUtf8": "不是 UTF-8 文字，有些字元被替換了"
+    }
   },
   "kvEditor": {
     "addField": "新增欄位",
@@ -564,6 +568,15 @@
     },
     "empty": "沒有通知",
     "markdownFolder": {
+      "issue": {
+        "empty": "正文已清空，未合併，檔案已保留",
+        "encoding": "不是 UTF-8，未讀取，檔案已保留",
+        "frontmatter": "頂端屬性格式錯誤，修正前不合併或覆寫",
+        "identity": "drifting-id 指向另一章，未合併，檔案已保留",
+        "lineage": "此章曾還原或重設，無法自動合併，檔案已保留",
+        "owned": "這個資料夾由另一個 Drifting 管理，沒有讀寫",
+        "too-large": "檔案過大，未讀取，檔案已保留"
+      },
       "preserved_one": "已將 {{count}} 個編輯過的檔案保留在 .drifting/preserved",
       "preserved_other": "已將 {{count}} 個編輯過的檔案保留在 .drifting/preserved",
       "source": "Markdown 資料夾"
