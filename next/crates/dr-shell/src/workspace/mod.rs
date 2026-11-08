@@ -829,6 +829,9 @@ impl Workspace {
         else {
             return;
         };
+        for link in links.drain_matching("auth/") {
+            crate::account::handle_auth_link(&link, window, cx);
+        }
         for link in links.drain_matching("open/") {
             self.open_link(&link, window, cx);
         }

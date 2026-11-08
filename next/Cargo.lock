@@ -1527,6 +1527,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "dr-account"
+version = "0.2.0-dev"
+dependencies = [
+ "base64 0.22.1",
+ "dr-platform",
+ "dr-store",
+ "getrandom 0.4.3",
+ "image",
+ "log",
+ "reqwest",
+ "rustls",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tempfile",
+ "thiserror 2.0.21",
+ "url",
+]
+
+[[package]]
 name = "dr-agent"
 version = "0.0.0"
 dependencies = [
@@ -1994,6 +2014,26 @@ dependencies = [
  "smallvec",
  "unicode-segmentation",
  "windows 0.62.2",
+]
+
+[[package]]
+name = "dr-view-account"
+version = "0.0.0"
+dependencies = [
+ "dr-account",
+ "dr-i18n",
+ "dr-platform",
+ "dr-shell",
+ "dr-store",
+ "dr-ui",
+ "dr-view-feedback",
+ "dr-view-sea",
+ "gpui",
+ "gpui_platform",
+ "image",
+ "log",
+ "smallvec",
+ "tempfile",
 ]
 
 [[package]]
@@ -2470,6 +2510,7 @@ name = "drifting"
 version = "0.2.0-dev"
 dependencies = [
  "anyhow",
+ "dr-account",
  "dr-agent",
  "dr-agent-providers",
  "dr-debug-bridge",
@@ -2480,6 +2521,7 @@ dependencies = [
  "dr-store",
  "dr-testkit",
  "dr-ui",
+ "dr-view-account",
  "dr-view-agent",
  "dr-view-elements",
  "dr-view-feedback",

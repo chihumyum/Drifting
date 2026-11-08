@@ -260,7 +260,7 @@ impl Render for SettingsPanel {
         let found: Vec<_> = search(&self.query, Strings::get(cx))
             .into_iter()
             .filter(|(section, _)| {
-                !matches!(section, Section::Models | Section::Agent)
+                !matches!(section, Section::Account | Section::Models | Section::Agent)
                     || super::has_module_section(*section, cx)
             })
             .collect();

@@ -25,9 +25,10 @@ pub enum Scope {
     Book,
 }
 
-/// The settings panel's sections, in rail order (M08's first batch).
+/// The settings panel's sections, in rail order (M08's first batch + M35 Account).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Section {
+    Account,
     Appearance,
     Editor,
     Language,
@@ -42,7 +43,8 @@ pub enum Section {
 }
 
 impl Section {
-    pub const ALL: [Section; 8] = [
+    pub const ALL: [Section; 9] = [
+        Section::Account,
         Section::Appearance,
         Section::Editor,
         Section::Language,
@@ -55,6 +57,7 @@ impl Section {
 
     pub fn label(self) -> Key {
         match self {
+            Section::Account => keys::settings::rail::ACCOUNT,
             Section::Appearance => keys::settings::rail::APPEARANCE,
             Section::Editor => keys::settings::rail::EDITOR,
             Section::Language => keys::settings::rail::LANGUAGE,
@@ -69,6 +72,7 @@ impl Section {
     /// The rail group a section sits under (`settings.groups.*`).
     pub fn group(self) -> Key {
         match self {
+            Section::Account => keys::settings::groups::ACCOUNT,
             Section::Appearance | Section::Editor | Section::Language | Section::Keys => {
                 keys::settings::groups::PREFERENCES
             }
@@ -80,6 +84,7 @@ impl Section {
 
     pub fn slug(self) -> &'static str {
         match self {
+            Section::Account => "account",
             Section::Appearance => "appearance",
             Section::Editor => "editor",
             Section::Language => "language",
@@ -144,6 +149,14 @@ pub const SUPPORT_EMAIL: &str = "support@drifting.cc";
 
 /// Every [`InfoRow`], in panel order.
 pub static INFO_ROWS: &[InfoRow] = &[
+    InfoRow {
+        id: "account.hosted",
+        section: Section::Account,
+        group: None,
+        label: keys::settings::hosted::TITLE,
+        description: Some(keys::settings::hosted::DESCRIPTION),
+        action: RowAction::Module,
+    },
     InfoRow {
         id: "models.chatgpt",
         section: Section::Models,

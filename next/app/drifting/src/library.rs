@@ -30,6 +30,23 @@ pub const LIBRARY_DIR: &str = "library";
 
 /// Opens (or creates) the library in `<data>/library` with this device.
 pub fn open(data: &Path, app_version: &str) -> dr_workspace::Result<Workspace> {
+    open_at(data, &data.join(LIBRARY_DIR), app_version)
+}
+
+/// Opens the currently active library from `<data>/libraries.json` (M35),
+/// falling back to `<data>/library` when no registry exists yet.
+pub fn open_active(data: &Path, app_version: &str) -> dr_workspace::Result<Workspace> {
+    if data.join(dr_account::LIBRARIES_FILE).is_file() {
+        let target = dr_account::LibraryRegistry::load_or_init(data)
+            .map(|reg| reg.active_library_dir(data))
+            .unwrap_or_else(|_| data.join(LIBRARY_DIR));
+        open_at(data, &target, app_version)
+    } else {
+        open(data, app_version)
+    }
+}
+
+fn open_at(data: &Path, library_dir: &Path, app_version: &str) -> dr_workspace::Result<Workspace> {
     let mut options = dr_workspace::library_options(app_version);
     match dr_store::Device::open(data) {
         Ok(device) => {
@@ -44,7 +61,7 @@ pub fn open(data: &Path, app_version: &str) -> dr_workspace::Result<Workspace> {
             )
         }
     }
-    let lib = dr_store::Library::open(data.join(LIBRARY_DIR), options)?;
+    let lib = dr_store::Library::open(library_dir, options)?;
     Workspace::open(lib, WorkspaceOptions::default())
 }
 
