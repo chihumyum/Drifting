@@ -58,6 +58,10 @@
         "label": "构想",
         "desc": "构想卡 — 不归属任何故事线，独立悬浮。"
       }
+    },
+    "warnings": {
+      "imagesDropped": "{{count}} 张图片没有导入",
+      "notUtf8": "不是 UTF-8 文本，有些字符被替换了"
     }
   }
 }

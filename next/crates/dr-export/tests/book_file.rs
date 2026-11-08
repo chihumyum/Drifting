@@ -147,6 +147,17 @@ fn book(ws: &Workspace) -> String {
         json!({"book": b, "kind": "image", "title": "钟面", "asset": asset}),
     );
     out(ws, "element.trash", json!({"book": b, "id": gone}));
+    // Body templates: prose documents of their own, carried with the book.
+    out(
+        ws,
+        "category_template.set_body",
+        json!({"book": b, "category": cat, "paragraphs": [{"heading": 1, "text": "外貌"}, {"text": ""}]}),
+    );
+    out(
+        ws,
+        "chapter_template.set_body",
+        json!({"book": b, "storyline": line, "paragraphs": [{"heading": 2, "text": "开场"}]}),
+    );
     out(
         ws,
         "writing_day.record",
@@ -206,7 +217,28 @@ fn shape(ws: &Workspace, b: &str) -> Value {
         "comments": comments.as_array().unwrap().iter().map(|c| json!([c["body"], c["quote"], c["anchored"]])).collect::<Vec<_>>(),
         "relations": out(ws, "relation.list", json!({"book": b})).as_array().unwrap().len(),
         "days": out(ws, "book.writing_days", json!({"book": b, "today": "2026-11-08"}))["today"],
+        "templates": templates(ws, b),
     })
+}
+
+/// The book's body templates: each category's and storyline's.
+fn templates(ws: &Workspace, b: &str) -> Value {
+    let mut all = Vec::new();
+    for c in ids(&out(ws, "category.list", json!({"book": b}))) {
+        all.push(out(
+            ws,
+            "category_template.body",
+            json!({"book": b, "category": c}),
+        ));
+    }
+    for s in ids(&out(ws, "storyline.list", json!({"book": b}))) {
+        all.push(out(
+            ws,
+            "chapter_template.body",
+            json!({"book": b, "storyline": s}),
+        ));
+    }
+    Value::from(all)
 }
 
 #[test]
@@ -222,8 +254,8 @@ fn a_book_goes_out_and_comes_back_as_a_new_book() {
     assert_eq!(wrote.title, "慢钟");
     assert_eq!(wrote.assets, 1);
     assert_eq!(
-        wrote.documents, 4,
-        "the book and three written prose documents: {wrote:?}"
+        wrote.documents, 6,
+        "the book, three written prose documents and two templates: {wrote:?}"
     );
     let last = *steps.borrow().last().unwrap();
     assert_eq!(last.done, last.total);
@@ -272,6 +304,31 @@ fn a_book_goes_out_and_comes_back_as_a_new_book() {
     assert_eq!(
         out(&e.ws, "chapter.list", json!({"book": got.book}))[0]["storylines"],
         json!(lines)
+    );
+    // The templates are the copy's own documents, under its owners' ids.
+    let cat = ids(&out(&e.ws, "category.list", json!({"book": got.book})))[0].clone();
+    assert_eq!(
+        out(
+            &e.ws,
+            "category_template.document",
+            json!({"book": got.book, "category": cat})
+        )["doc"],
+        format!("template:category:{cat}")
+    );
+    let docs: BTreeSet<String> =
+        e.ws.library()
+            .docs(Some(&got.book), None)
+            .unwrap()
+            .into_iter()
+            .map(|d| d.doc_id)
+            .collect();
+    assert!(
+        docs.contains(&format!("template:category:{cat}")),
+        "{docs:?}"
+    );
+    assert!(
+        docs.contains(&format!("template:storyline:{}", lines[0])),
+        "{docs:?}"
     );
     // The image's file came along under the copy's ids.
     let material = &out(&e.ws, "material.list", json!({"book": got.book}))[0];

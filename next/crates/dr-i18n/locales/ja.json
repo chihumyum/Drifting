@@ -331,7 +331,11 @@
         "label": "アイデア"
       }
     },
-    "title": "ファイルをインポート"
+    "title": "ファイルをインポート",
+    "warnings": {
+      "imagesDropped": "{{count}} 枚の画像はインポートされませんでした",
+      "notUtf8": "UTF-8 のテキストではないため、一部の文字を置き換えました"
+    }
   },
   "kvEditor": {
     "addField": "項目を追加",

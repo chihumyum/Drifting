@@ -331,7 +331,11 @@
         "label": "构想"
       }
     },
-    "title": "导入文件"
+    "title": "导入文件",
+    "warnings": {
+      "imagesDropped": "{{count}} 张图片没有导入",
+      "notUtf8": "不是 UTF-8 文本，有些字符被替换了"
+    }
   },
   "kvEditor": {
     "addField": "新增字段",

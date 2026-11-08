@@ -63,6 +63,11 @@
         "label": "Idea",
         "desc": "Tarjeta de idea flotante, independiente de las tramas."
       }
+    },
+    "warnings": {
+      "imagesDropped_one": "No se importó {{count}} imagen",
+      "imagesDropped_other": "No se importaron {{count}} imágenes",
+      "notUtf8": "No es texto UTF-8; se reemplazaron algunos caracteres"
     }
   }
 }

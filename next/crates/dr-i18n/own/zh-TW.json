@@ -58,6 +58,10 @@
         "label": "構想",
         "desc": "獨立於故事線的浮動構想卡片。"
       }
+    },
+    "warnings": {
+      "imagesDropped": "{{count}} 張圖片沒有匯入",
+      "notUtf8": "不是 UTF-8 文字，有些字元被替換了"
     }
   }
 }

@@ -331,7 +331,11 @@
         "label": "構想"
       }
     },
-    "title": "匯入檔案"
+    "title": "匯入檔案",
+    "warnings": {
+      "imagesDropped": "{{count}} 張圖片沒有匯入",
+      "notUtf8": "不是 UTF-8 文字，有些字元被替換了"
+    }
   },
   "kvEditor": {
     "addField": "新增欄位",

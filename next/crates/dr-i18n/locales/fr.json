@@ -336,7 +336,12 @@
         "label": "Idée"
       }
     },
-    "title": "Importer des fichiers"
+    "title": "Importer des fichiers",
+    "warnings": {
+      "imagesDropped_one": "{{count}} image n'a pas été importée",
+      "imagesDropped_other": "{{count}} images n'ont pas été importées",
+      "notUtf8": "Ce n'est pas du texte UTF-8 ; certains caractères ont été remplacés"
+    }
   },
   "kvEditor": {
     "addField": "Ajouter un champ",

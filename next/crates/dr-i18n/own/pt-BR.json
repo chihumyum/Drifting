@@ -63,6 +63,11 @@
         "label": "Ideia",
         "desc": "Cartão de ideia flutuante, independente das linhas narrativas."
       }
+    },
+    "warnings": {
+      "imagesDropped_one": "{{count}} imagem não foi importada",
+      "imagesDropped_other": "{{count}} imagens não foram importadas",
+      "notUtf8": "Não é texto UTF-8; alguns caracteres foram substituídos"
     }
   }
 }
