@@ -47,29 +47,30 @@
 
 ## 交回（M34，2026-11-09）
 
-分支 `codex/m30-long-tasks-memory`，交回指针 `handback/track3`。包含此前已提交的 M30 机制 `5b97462b`、小说提示词集中 `945e3632`、M32 P2 复验 `f8f1f382`，以及本次 M34 实现 `d490bcd4`。前三项没有重做。先后将 main 合入本分支于 `654da2a4`、`4fac979f`；后者包含夜间协议和已接收的轨道 2 输入改动，没有合回 main 或推送。
+分支 `codex/m30-long-tasks-memory`，交回指针 `handback/track3`。包含此前已提交的 M30 机制 `5b97462b`、小说提示词集中 `945e3632`、M32 P2 复验 `f8f1f382`，以及本次 M34 实现 `d490bcd4`、窗口无障碍与验收补充 `218d7fa6`。前三项没有重做。先后将 main 合入本分支于 `654da2a4`、`4fac979f`、`5eec4cb9`、`45674a2f`；最后一次接到 main `ac9b2500` 的夜间记录，未带入被退回的 K1／M37 实现。没有合回 main 或推送。
 
-夜间第一轮完整复核基于 `4fac979f`，macOS ARM64，所有编译设 `CARGO_BUILD_JOBS=3`；按整合者的既定方式设置 `RUST_TEST_THREADS=1`。未跳过新增契约，也未修改 F8 的限时断言。
+最终完整复核的 Rust 代码基于 `5eec4cb9`；期间 `45674a2f` 只合入三份夜间协调文档，Rust／依赖／脚本均未改变。macOS ARM64，所有编译设 `CARGO_BUILD_JOBS=3`；按整合者的既定方式设置 `RUST_TEST_THREADS=1`。未跳过新增契约，也未修改 F8 的限时断言。此前 `4fac979f` 的整轮结果为 1,932 通过、0 失败、22 忽略。
 
 | 检查 | 结果 |
 | --- | --- |
 | `cargo fmt --all --check` | 通过 |
 | `cargo clippy --workspace --all-targets --locked -- -D warnings` | 通过 |
-| `RUST_TEST_THREADS=1 cargo test --workspace --locked --no-fail-fast` | 退出码 0，1,932 通过、0 失败、22 忽略，包含全部文档测试 |
+| `RUST_TEST_THREADS=1 cargo test --workspace --locked --no-fail-fast` | 退出码 0，1,950 通过、0 失败、22 忽略，包含全部文档测试 |
 | M34 契约（上述全量的一部分） | 16 项通过；帮手视图库共 28 项通过，包含模板本地化键与工具清单冻结契约 |
-| `cargo xtask check` | 全部门禁通过；943 个锁定依赖，0 漏洞、12 条既有提示；14 stale、15 legacy 测量证据保留，未手改 |
-| 根目录 `pnpm public:check` | 通过，5,370 个候选文件 |
+| `cargo xtask check` | 全部门禁通过；970 个锁定依赖，0 漏洞、12 条提示；14 stale、15 legacy 测量证据保留，未手改 |
+| 根目录 `pnpm public:check` | 通过，5,387 个候选文件 |
 | `sync-locales.py --check`、plist 与 shell 语法 | 通过；资源用途文字与旧版键一致，九语言状态键与生成文件一致 |
-| `agent-acceptance`（显式 `debug-bridge`） | 专用 Clippy／构建通过；真实窗口 24 步、0 pending，五张截图核对；正常退出 |
-| `bundle-mac --debug`、Mach-O／包内隐私描述 | 待补记 |
+| `agent-acceptance`（显式 `debug-bridge`） | 在 `45674a2f` 再次专用 Clippy／构建并复跑；真实窗口 24 步、0 pending，五张截图核对；正常退出 |
+| `bundle-mac --debug`、Mach-O／包内隐私描述 | 在 `5eec4cb9` 实际构建 ad-hoc `.app`，签名验证通过；裸 app、包内 app 的 `__info_plist` 与资源逐项一致，外层 Info.plist 的身份／用途一致，且用途等于旧版英文键 |
+| `xtask check-binary target/debug/drifting` | 通过；默认 app 无调试桥协议及热更新。验收示例单独显式启用 `debug-bridge` |
 
 预检的普通并行全量运行（夜间 main 更新前）为 1,921 通过、1 失败、22 忽略，退出码 101：唯一失败是 `dr-debug-bridge::the_socket_answers_with_the_token_only` 的十秒限时。上一个会话也留过相同超时及并发构建造成的 rustdoc 依赖产物错误。这里没有把单项重试冒充全量通过：合入更新后的 main 后，整个工作区顺序构建、串行完整运行，含该 F8 契约和文档测试，实际以 0 退出。
 
-窗口复核发现包装文字没有无障碍节点，已在口述视图内补 `Status`／`Alert` 和原文标签；既有提示能被桥读取，不新增文案。字段输入使用现有指针接口，没有扩展 F8 的固定字段表。此项修正后的最终全套与打包结果在下一轮 main 合并后补记。
+窗口复核发现包装文字没有无障碍节点，已在口述视图内补 `Status`／`Alert` 和原文标签；既有提示能被桥读取，不新增文案。字段输入使用现有指针接口，没有扩展 F8 的固定字段表。打包复核实际运行 `--debug`；release／dist 的接线按同一个脚本与 build.rs 核对，没有声称实际构建或签署正式发布包。
 
 共享改动限于既有键登记及翻译生成、onboarding 的生成 Key 适配、app 的隐私资源／构建脚本／打包脚本与已有验收示例的假 ASR 接线。没有修改 `dr-model`、`dr-doc`、`dr-workspace` 的实现；M29 目录与三个内建入口不变。窗口自动化只用内存占位凭据并在缺 Key 时点录音；硬件手测也有 loopback ASR 宿主，不要求真 Key 或真实语音服务。
 
-待协调：系统麦克风授权、设备故障／切换和 Windows 原生采集仍留作者设备手测；本次只在 macOS 构建、运行，未声称 Windows 编译或实机通过。F7 正式签名／身份交接时按上表复核用途描述及 audio-input entitlement；v3 专名来源随 K6 的结构投影适配。交回指针在全部检查及下列窗口／打包复核完成、记录提交后移动。
+待协调：系统麦克风授权、设备故障／切换和 Windows 原生采集仍留作者设备手测；本次只在 macOS 构建、运行，未声称 Windows 编译或实机通过。F7 正式签名／身份交接时按上表复核用途描述及 audio-input entitlement；v3 专名来源随 K6 的结构投影适配。本段软件检查及窗口／打包复核已完成，提交本节记录后移动交回指针，再按夜间队列单独交回 K6 方案。指针随下一段前移时，本段证据仍保留在本节所在提交。
 
 ## 作者手测（未执行）
 
