@@ -457,7 +457,7 @@ fn template_slot(cx: &Cx<'_>, owner: &TemplateOwner) -> Result<Option<Arc<ProseS
 }
 
 /// A template document that holds nothing: one empty paragraph.
-fn blank(view: &ProseView<'_>) -> bool {
+pub(crate) fn blank(view: &ProseView<'_>) -> bool {
     view.len() <= 1
 }
 
@@ -496,7 +496,11 @@ pub(crate) fn has_template(
     legacy: Option<&str>,
 ) -> Result<bool> {
     Ok(match template_slot(cx, owner)? {
-        Some(slot) => !blank(&slot.reader.view()),
+        Some(slot) => {
+            let has = !blank(&slot.reader.view());
+            cx.workspace().inner.seen_template(&slot.doc, has);
+            has
+        }
         None => !body_of(legacy).is_empty(),
     })
 }
