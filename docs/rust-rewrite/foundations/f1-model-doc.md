@@ -347,10 +347,12 @@ cargo run --release -p dr-testkit --bin bench -- doc
 ```text
 next/crates/dr-model/src/
   id.rs kind.rs book.rs prose.rs order.rs origin.rs time.rs check.rs invariant.rs conversation.rs
+  v3/   mod.rs template.rs entry.rs module.rs timeline.rs check.rs tests.rs
 next/crates/dr-doc/src/
   schema.rs peer.rs pos.rs core.rs anchor.rs undo.rs error.rs
   prose/  mod.rs view.rs txn.rs attrs.rs embed.rs event.rs tests.rs
   book/   mod.rs read.rs write.rs seed.rs fields.rs tests.rs
+  v3/     mod.rs schema.rs read.rs write.rs novel_template.rs tests.rs
   conversation.rs conversation/tests.rs（M27 加）
 next/crates/dr-doc/tests/
   prose_convergence.rs book_convergence.rs prose_events.rs book_seeds.rs conversation_convergence.rs positions.rs invariant_tests_exist.rs
@@ -359,3 +361,38 @@ next/crates/dr-doc/fuzz/   load_bytes、bad_structure（独立工作区，不进
 next/crates/dr-testkit/src/bench/doc.rs   基准的 doc 套件
 docs/rust-rewrite/acceptance/f1-m3-doc-bench.json   第三轮的测量证据
 ```
+
+## 交回（K1+K2 第一批：第 1–2 步，`handback/k1`）
+
+### 包含哪几段
+
+1. **第 1 步 `dr-model` v3 模块**（`next/crates/dr-model/src/v3/`）：
+   - 条目（`Entry`）、模板（`Template`：分成层级模板 `TemplateKind::Level` 与叶子模板 `TemplateKind::Leaf`；层级设置 `LevelSettings` / `LevelSettingsOverride` 含 `default_template`、`allow`、`display`、`auto_link`、`accept`、`home`、`is_manuscript`、`format_shortcuts` 及沿祖先链继承规则 `resolve_level_settings`；泳道开关 `lane`；写给帮手的说明 `TemplateAgentConfig`；动作 `TemplateVerb`）、模块与字段定义/取值（`ModuleSpec`、`ModuleKind`、`FieldDef`、`FieldValue`、`PatchV3`、`PlotGridV3`、`RelationTypeV3`、`CommentV3`）、归属（`Membership`）、时间线视图（`TimelineView`、`TimelineLane`、`TimelinePlacement`、`TimelinePin`）。
+   - `kernel-v3.md` 不变量表全部 13 条登记进 `dr_model::invariant::INVARIANTS`（`V3-TREE-SINGLE-PARENT` 至 `V3-PROSE-ANCHOR-COMPAT`），并写成纯函数校验与单元测试断言。
+2. **第 2 步 `dr-doc` v3 模块**（`next/crates/dr-doc/src/v3/`）：
+   - 书目文档 v3 根容器（`meta` 的 `v = 3`、`entries` `LoroTree`、`templates`、`memberships`、`timeline_views`、`patches`、`plot_grids`、`relation_types`、`relations`、`comments`、`materials`、`assets`、`material_folders`、`facts`、`memory`、`writing_days`）、类型化读写（`BookDocV3`、`BorrowedBookV3`、`BookReaderV3`、`BookViewV3`、`BookTxnV3`）与收敛修复（`repair()`）。
+   - `body:<条目 id>/<模块 id>`（含层级的 `body:<条目 id>/about`）与 `template:<模板 id>/<模块 id>` 正文文档 ID；正文文档结构本身不改。
+   - 内置「小说项目模板」（`novel_project_template()` / `apply_novel_project_template()`）做成数据，模板 ID 稳定（层级：`manuscript`、`act`、`element_folder`、`drift_box`、`drift_group`；叶子：`chapter`、`storyline`、`character`、`location`、`item`、`faction`、`lore`、`subplot`、`foreshadow`、`drift`）。
+
+### 改了 v2.2 那边的哪些文件、为什么
+
+- `next/crates/dr-model/src/lib.rs`：挂上 `pub mod v3;` 并导出 `BodyDocId`、`TemplateModuleId`。
+- `next/crates/dr-model/src/id.rs`：新增 v3 ID 类型（`EntryId`、`TemplateId`、`ModuleId`、`MembershipId`、`TimelineViewId`、`TimelineLaneId`）、`BodyDocId`（`body:<条目 id>/<模块 id>`）、`TemplateModuleId`（`template:<模板 id>/<模块 id>`）、`TemplateOwner::Module`、`DocKind::Body`、`DocId::Body`。所有 v2.2 文档 ID 的解析与格式化行为保持不变。
+- `next/crates/dr-model/src/kind.rs`：`EntityKind` 新增 `Entry = "entry"`，供 v3 正文内的条目链接及批注/关系/记忆引用使用；v2.2 分支不变。
+- `next/crates/dr-model/src/invariant.rs`：`INVARIANTS` 追加 v3 的 13 条不变量声明。
+- `next/crates/dr-doc/src/lib.rs`：挂上 `pub mod v3;`。
+- `next/crates/dr-doc/src/schema.rs`：`SCHEMA_MINOR` 从 `3` 升到 `4`，在 `CHANGELOG` 记录 v3 书目容器与 `body:` / `template:` 文档 ID。
+- `next/crates/dr-doc/src/book/write.rs`：将 `PlotGridWriter`、`RelationWriter`、`MaterialWriter`、`MemoryWriter` 的内部字段 `map: LoroMap` 从私有改为 `pub(crate)`，供 `dr_doc::v3::write` 复用同一套容器写入逻辑，不改变 v2.2 行为。
+- `next/crates/dr-workspace/src/commands/{comment.rs,mention.rs,mod.rs}`：像第五轮加 `DocId::Template` 时一样，在 3 处 `DocId` / `DocKind` / `EntityKind` 穷举匹配里补上 `DocId::Body`、`DocKind::Body`、`EntityKind::Entry` 分支，使工作区编译通过，不改变 v2.2 命令行为。
+
+### 检查结果
+
+- `cargo fmt --all --check`：通过
+- `CARGO_BUILD_JOBS=3 cargo clippy --workspace --all-targets --locked -- -D warnings`：通过
+- `CARGO_BUILD_JOBS=3 cargo test --workspace --locked`：通过（含 `dr-model` 48 项测试、`dr-doc` 104 项单元测试及 `invariant_tests_exist`）
+- `CARGO_BUILD_JOBS=3 cargo xtask check`：通过
+- `pnpm public:check`：通过
+
+### 待协调
+
+- 无（K3 可直接基于 `dr_doc::v3` 与 `dr_doc::v3::novel_template` 继续做后半段导入与样书切换；K1+K2 继续推进第 3–6 步）。
