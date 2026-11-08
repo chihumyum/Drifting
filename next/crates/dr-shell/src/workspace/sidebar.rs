@@ -435,6 +435,21 @@ fn pane_slug(pane: PaneId) -> &'static str {
 }
 
 impl Workspace {
+    /// Whether this exact Review pane still owns a visible destination.
+    /// Requests may wait for its first render; hiding or replacing the pane
+    /// cancels that wait without depending on the cached body rendering again.
+    pub fn review_visible(&self, pane: PaneId) -> bool {
+        self.right.open
+            && !self.immersive
+            && !self.covered()
+            && self
+                .right
+                .panes
+                .panes
+                .iter()
+                .any(|shown| shown.id == pane && shown.tab == RightTab::Review)
+    }
+
     /// Whether this cached companion body is still shown in its own pane.
     /// Used to cancel UI-owned operations when a tab closes or is covered.
     pub fn companion_visible(&self, body: gpui::EntityId) -> bool {

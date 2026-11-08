@@ -43,6 +43,7 @@ impl Workspace {
         &mut self,
         id: &str,
         target: Option<Target>,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Option<futures::channel::oneshot::Receiver<bool>> {
         if dr_model::id::CommentId::parse(id).is_err()
@@ -56,7 +57,8 @@ impl Workspace {
         if let Some(target) = target {
             self.open(target, Open::KEEP, cx);
         }
-        self.right.open = true;
+        let reduce = self.reduce_motion(window, cx);
+        self.right.set_open(true, reduce);
         self.right.panes.reveal(super::RightTab::Review);
         let pane = match self.right.panes.focused {
             crate::panes::PaneId::Primary => "review-primary",

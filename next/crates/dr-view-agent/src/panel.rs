@@ -24,7 +24,11 @@ use dr_ui::{
     style::DrStyled as _,
     text,
 };
-use futures::{StreamExt as _, channel::mpsc, future::BoxFuture};
+use futures::{
+    StreamExt as _,
+    channel::{mpsc, oneshot},
+    future::{BoxFuture, Either, select},
+};
 use gpui::{
     AnyElement, App, AppContext as _, Context, Entity, Focusable as _, InteractiveElement as _,
     IntoElement, ParentElement as _, Render, ScrollHandle, SharedString,
@@ -47,6 +51,13 @@ use crate::{
 
 const MEMORY: &str = "agent.conversation";
 
+struct Navigation {
+    /// Dropping this ticket cancels the view-owned wait, independently of
+    /// whether M18's globally cached view is ever rendered again.
+    _cancel: oneshot::Sender<()>,
+    review_pane: Option<dr_shell::panes::PaneId>,
+}
+
 pub struct AgentPanel {
     ws: WeakEntity<Workspace>,
     hub: Entity<AgentHub>,
@@ -66,7 +77,8 @@ pub struct AgentPanel {
     expanded: HashSet<String>,
     busy: bool,
     loading: bool,
-    navigation_pending: usize,
+    navigation: HashMap<u64, Navigation>,
+    navigation_serial: u64,
     again: bool,
     generation: u64,
     error: Option<String>,
@@ -109,7 +121,8 @@ impl AgentPanel {
             expanded: HashSet::new(),
             busy: false,
             loading: false,
-            navigation_pending: 0,
+            navigation: HashMap::new(),
+            navigation_serial: 0,
             again: false,
             generation: 0,
             error: None,
@@ -162,6 +175,13 @@ impl AgentPanel {
             self.connect.update(cx, |view, cx| view.cancel_login(cx));
         }
         let state = ws.read(cx);
+        let navigating = self.navigation.len();
+        self.navigation.retain(|_, request| {
+            request
+                .review_pane
+                .is_none_or(|pane| state.review_visible(pane))
+        });
+        let cancelled = self.navigation.len() != navigating;
         let book = BookId::parse(&state.book_id).ok();
         let changed = self
             .book_view
@@ -190,6 +210,9 @@ impl AgentPanel {
             {
                 self.starters = StarterSource::default();
                 self.refresh(cx);
+            }
+            if cancelled {
+                cx.notify();
             }
             return;
         }
@@ -232,6 +255,7 @@ impl AgentPanel {
 
     fn invalidate(&mut self) {
         self.generation += 1;
+        self.navigation.clear();
         self.busy = false;
         self.loading = false;
         self.again = false;
@@ -364,7 +388,7 @@ impl AgentPanel {
         self.composer.clone()
     }
     pub fn is_settled(&self) -> bool {
-        !self.busy && !self.loading && self.navigation_pending == 0 && self.active().is_none()
+        !self.busy && !self.loading && self.navigation.is_empty() && self.active().is_none()
     }
     pub fn active(&self) -> Option<&RunSnapshot> {
         self.snapshot
@@ -541,11 +565,23 @@ impl AgentPanel {
             return;
         };
         let (generation, change) = (self.generation, change.clone());
-        self.navigation_pending += 1;
+        // A later author click owns navigation, including while an earlier
+        // target is still resolving on a worker.
+        self.navigation.clear();
+        self.navigation_serial += 1;
+        let navigation = self.navigation_serial;
+        let (cancel, cancelled) = oneshot::channel();
+        self.navigation.insert(
+            navigation,
+            Navigation {
+                _cancel: cancel,
+                review_pane: None,
+            },
+        );
         cx.spawn_in(window, async move |this, cx| {
             enum Opened {
                 Page,
-                Review(futures::channel::oneshot::Receiver<bool>),
+                Review(oneshot::Receiver<bool>, dr_shell::panes::PaneId),
             }
             let (reader, owner) = (controller.clone(), book.clone());
             let resolved = cx
@@ -561,13 +597,14 @@ impl AgentPanel {
                     if panel.generation != generation
                         || panel.book.as_ref() != Some(&book)
                         || controller.is_closed()
+                        || !panel.navigation.contains_key(&navigation)
                     {
                         return None;
                     }
                     let (Ok(location), Some(ws)) = (resolved, panel.ws.upgrade()) else {
                         return None;
                     };
-                    ws.update(cx, |ws, cx| {
+                    let opened = ws.update(cx, |ws, cx| {
                         if ws.book_id != book.as_str() || ws.book.id != book.as_str() {
                             return None;
                         }
@@ -583,7 +620,8 @@ impl AgentPanel {
                                 Some(Opened::Page)
                             }
                             data::ChangeLocation::Comment { id, target } => {
-                                ws.reveal_comment(&id, target, cx).map(Opened::Review)
+                                let revealed = ws.reveal_comment(&id, target, window, cx)?;
+                                Some(Opened::Review(revealed, ws.right.panes.focused))
                             }
                             data::ChangeLocation::History { doc, name, target } => {
                                 ws.book.entry(&target)?;
@@ -591,24 +629,41 @@ impl AgentPanel {
                                 Some(Opened::Page)
                             }
                         }
-                    })
+                    });
+                    if let Some(Opened::Review(_, pane)) = &opened
+                        && let Some(request) = panel.navigation.get_mut(&navigation)
+                    {
+                        request.review_pane = Some(*pane);
+                    }
+                    opened
                 })
                 .ok()
                 .flatten();
             let opened = match opened {
                 Some(Opened::Page) => true,
-                Some(Opened::Review(revealed)) => revealed.await.unwrap_or(false),
+                Some(Opened::Review(revealed, _)) => {
+                    matches!(
+                        select(revealed, cancelled).await,
+                        Either::Left((Ok(true), _))
+                    )
+                }
                 None => false,
             };
             this.update_in(cx, |panel, _, cx| {
-                panel.navigation_pending -= 1;
+                let current = panel.navigation.remove(&navigation);
                 cx.notify();
-                if opened
+                if let Some(request) = current
+                    && opened
                     && panel.generation == generation
                     && panel.book.as_ref() == Some(&book)
                     && !controller.is_closed()
                     && panel.ws.upgrade().is_some_and(|ws| {
-                        ws.read(cx).book_id == book.as_str() && ws.read(cx).book.id == book.as_str()
+                        let ws = ws.read(cx);
+                        ws.book_id == book.as_str()
+                            && ws.book.id == book.as_str()
+                            && request
+                                .review_pane
+                                .is_none_or(|pane| ws.review_visible(pane))
                     })
                 {
                     onboarding::note(cx, onboarding::Event::ChangeSeen);

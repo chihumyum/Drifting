@@ -244,6 +244,7 @@ fn exclusion(spec: &Spec) -> Option<&'static str> {
             | "writing_day.record"
             | "patch.check_sources"
             | "todo.project"
+            | "note_tasks.project"
     ) || spec.name.ends_with("_template.document")
     {
         return Some("storage, editor, or derived-state maintenance");
@@ -319,4 +320,44 @@ fn digest(value: &Value) -> String {
     let mut bytes = Vec::new();
     append(value, &mut bytes);
     format!("{:x}", Sha256::digest(bytes))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use dr_workspace::{Cx, Op, Registry, commands::comment::TodoProjectIn};
+
+    // Reserve the M19 maintenance name before its owner implementation is
+    // merged. A recognized doc boundary alone must never open it to agents.
+    struct PendingNoteTasks;
+
+    impl Op for PendingNoteTasks {
+        const NAME: &'static str = "note_tasks.project";
+        const ACCESS: Access = Access::Write;
+        const CONCURRENCY: Concurrency = Concurrency::Book;
+        const SUMMARY: &'static str = "Internal note task projection";
+        type Input = TodoProjectIn;
+        type Output = Value;
+
+        fn run(_: &Cx<'_>, _: Self::Input) -> dr_workspace::Result<Self::Output> {
+            unreachable!("the synthetic registration must never be dispatched")
+        }
+    }
+
+    #[test]
+    fn note_task_projection_is_excluded_even_with_a_scoped_write_schema() {
+        let mut registry = Registry::default();
+        registry.add::<PendingNoteTasks>();
+        let spec = registry.get("note_tasks.project").unwrap();
+        assert!(
+            spec.input_schema().as_value()["properties"]
+                .get("doc")
+                .is_some()
+        );
+        assert_eq!(
+            exclusion(spec),
+            Some("storage, editor, or derived-state maintenance")
+        );
+        assert!(!allowed(spec));
+    }
 }

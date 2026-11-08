@@ -39,6 +39,13 @@ pub fn change_targets(run: &crate::state::RunSnapshot, turn: u32) -> Vec<ChangeT
         let Ok(doc) = dr_model::DocId::parse(&receipt.document) else {
             continue;
         };
+        // Template prose has history in F3, but the shell has no template
+        // navigation target or exact embedded-editor reveal hook yet.
+        // Do not offer a change/history button that resolve_change cannot
+        // open, or silently substitute the owner's unrelated prose.
+        if matches!(doc, dr_model::DocId::Template(_)) {
+            continue;
+        }
         if doc.profile().is_some() {
             if let Some((kind, id)) = receipt.document.split_once(':') {
                 add(ChangeTarget {
@@ -68,12 +75,33 @@ pub fn change_targets(run: &crate::state::RunSnapshot, turn: u32) -> Vec<ChangeT
             continue;
         };
         for effect in effects {
+            // History commands report collection roots; ordinary commands
+            // report singular entity kinds. Both identify the same object.
+            // `meta` stays distinct: its id names a field, not the book.
+            use dr_doc::book::Collection;
+            let kind = match Collection::from_root(&effect.kind) {
+                Some(Collection::Nodes) => "node",
+                Some(Collection::Elements) => "element",
+                Some(Collection::Categories) => "category",
+                Some(Collection::Storylines) => "storyline",
+                Some(Collection::Materials) => "material",
+                Some(Collection::Comments) => "comment",
+                Some(Collection::Relations) => "relation",
+                _ => effect.kind.as_str(),
+            };
             if matches!(
-                effect.kind.as_str(),
-                "book" | "node" | "element" | "category" | "storyline" | "material" | "comment"
+                kind,
+                "book"
+                    | "node"
+                    | "element"
+                    | "category"
+                    | "storyline"
+                    | "material"
+                    | "comment"
+                    | "relation"
             ) {
                 add(ChangeTarget {
-                    kind: effect.kind,
+                    kind: kind.into(),
                     id: effect.id,
                     history: None,
                     book: Some(book.into()),
@@ -169,6 +197,34 @@ pub fn resolve_change(
     if change.kind == "book" {
         return (change.id == book)
             .then_some(ChangeLocation::Home)
+            .ok_or_else(missing);
+    }
+    if change.kind == "relation" {
+        let result = ws
+            .call(&Actor::User, "relation.list", json!({"book":book}))
+            .map_err(|error| error.to_string())?;
+        let relation = result["output"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .find(|relation| relation["id"].as_str() == Some(change.id.as_str()))
+            .ok_or_else(missing)?;
+        // Relations have no standalone prose document. Open one of this
+        // exact live relation's endpoints, preferring an element because
+        // its page hosts M17's relations section. Never borrow endpoints
+        // from another edge or fall back to the book's storage document.
+        let ends = [&relation["from"], &relation["to"]];
+        return ends
+            .iter()
+            .filter(|end| end["kind"] == "element")
+            .chain(ends.iter().filter(|end| end["kind"] != "element"))
+            .find_map(|end| {
+                end["kind"]
+                    .as_str()
+                    .zip(end["id"].as_str())
+                    .and_then(|(kind, id)| locate(kind, id))
+            })
+            .map(|(target, _)| ChangeLocation::Page(target))
             .ok_or_else(missing);
     }
     if change.kind == "comment" {
@@ -305,6 +361,89 @@ mod tests {
     use dr_agent::{SettlementRef, ToolResult, ToolStatus};
     use dr_i18n::keys::agent_panel::onboarding::prompts;
     use dr_testkit::seed::{self, Preset};
+
+    #[test]
+    fn template_settlements_do_not_offer_unimplemented_navigation_or_history() {
+        let directory = tempfile::tempdir().unwrap();
+        let workspace = Workspace::open_dir(directory.path(), "m31-template-navigation").unwrap();
+        let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+        let book = seeded.books[0].book_id().to_string();
+        let text = seeded.books[0].prose[0].view().plain_text();
+        seeded.write_to(workspace.library()).unwrap();
+        for (kind, prefix) in [
+            ("category", "category_template"),
+            ("storyline", "chapter_template"),
+        ] {
+            let owner = workspace
+                .call(&Actor::User, &format!("{kind}.list"), json!({"book":book}))
+                .unwrap()["output"][0]["id"]
+                .as_str()
+                .unwrap()
+                .to_owned();
+            let mut arguments = json!({"book":book});
+            arguments[kind] = owner.into();
+            let doc = workspace
+                .call(
+                    &Actor::User,
+                    &format!("{prefix}.document"),
+                    arguments.clone(),
+                )
+                .unwrap()["output"]["doc"]
+                .as_str()
+                .unwrap()
+                .to_owned();
+            let session = format!("m31-template-{kind}");
+            arguments["paragraphs"] = json!([{"text":text}]);
+            let output = workspace
+                .call(
+                    &Actor::agent(&session, 1, "write"),
+                    &format!("{prefix}.set_body"),
+                    arguments,
+                )
+                .unwrap();
+            let settlements = workspace
+                .library()
+                .settlements(Some(&session), None)
+                .unwrap();
+            assert_eq!(settlements.len(), 1);
+            assert_eq!(settlements[0].doc_id, doc);
+            // The history capability is real; only a precise UI destination
+            // is missing. These are actual F3 receipts, not test-only ids.
+            workspace
+                .call(&Actor::User, "history.points", json!({"doc":doc}))
+                .unwrap();
+            let receipts: Vec<_> = settlements
+                .into_iter()
+                .map(|row| SettlementRef {
+                    id: row.id,
+                    document: row.doc_id,
+                    seq: row.seq,
+                })
+                .collect();
+            let mut run = ChatState::new(session).snapshot();
+            run.changes = receipts
+                .iter()
+                .cloned()
+                .map(|receipt| ChangedReceipt { turn: 1, receipt })
+                .collect();
+            run.tools.push(ToolActivity {
+                id: "write".into(),
+                call: None,
+                started: true,
+                result: Some(ToolResult {
+                    call: "write".into(),
+                    status: ToolStatus::Success,
+                    output,
+                    settlements: receipts,
+                }),
+            });
+            assert!(
+                change_targets(&run, 1).is_empty(),
+                "{doc} has no working UI destination"
+            );
+        }
+        workspace.shutdown().unwrap();
+    }
 
     #[test]
     fn metadata_targets_use_their_own_call_and_turn_effects() {

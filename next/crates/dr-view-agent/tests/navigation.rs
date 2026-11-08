@@ -86,10 +86,25 @@ fn tool(id: &str, name: &str, arguments: Value) -> Vec<Step> {
 }
 
 fn draw(cx: &mut VisualTestContext) {
+    cx.executor().advance_clock(Duration::from_millis(20));
     cx.run_until_parked();
     cx.update(|window, cx| {
         window.simulate_next_frame(cx);
         window.draw(cx).clear(cx);
+        // The Agent and shell are separate real windows in this fixture.
+        // Inspection acknowledgement belongs to the destination's drawn
+        // card, so keep its frames advancing as the application would.
+        let current = window.window_handle().window_id();
+        for other in cx.windows() {
+            if other.window_id() != current {
+                other
+                    .update(cx, |_, window, cx| {
+                        window.simulate_next_frame(cx);
+                        window.draw(cx).clear(cx);
+                    })
+                    .unwrap();
+            }
+        }
     });
     cx.run_until_parked();
 }
@@ -253,6 +268,390 @@ fn close(fixture: &Fixture, cx: &mut VisualTestContext) {
     let hub = cx.update(|_, cx| cx.global::<dr_view_agent::AgentViews>().hub.clone());
     block_on(hub.update(cx, |hub, cx| hub.prepare_close(cx))).unwrap();
     fixture.ws.close();
+}
+
+fn comment_rounds(book: &str, chapter: &str, words: &str) -> Vec<Vec<Step>> {
+    vec![
+        tool("chapters", "chapter.list", json!({"book":book})),
+        tool("comments", "comment.list", json!({"book":book})),
+        tool(
+            "write",
+            "comment.create",
+            json!({"book":book,"target":{"kind":"node","id":chapter},"body":words}),
+        ),
+    ]
+}
+
+fn comment_change(panel: &Entity<AgentPanel>, cx: &mut VisualTestContext) -> (String, String) {
+    let comment = panel.read_with(cx, |panel, _| {
+        panel.snapshot().unwrap().runs[0]
+            .tools
+            .iter()
+            .find_map(|tool| {
+                tool.result.as_ref()?.output["effects"]
+                    .as_array()?
+                    .iter()
+                    .find(|effect| effect["kind"] == "comment")?["id"]
+                    .as_str()
+                    .map(str::to_owned)
+            })
+            .unwrap()
+    });
+    let id = changed(panel, &format!("comment:{comment}"), cx);
+    (comment, id)
+}
+
+fn begin_comment_without_paint(panel: &Entity<AgentPanel>, cx: &mut VisualTestContext) -> String {
+    let (comment, id) = comment_change(panel, cx);
+    click(&id, cx);
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        // Let actual resolution/load work run, but hold the destination's
+        // first frame so this request cannot have a display acknowledgement.
+        cx.run_until_parked();
+        if cx.update(|_, cx| {
+            ReviewFocus::get(cx)
+                .jump
+                .is_some_and(|jump| jump.comment == comment)
+        }) {
+            break;
+        }
+        assert!(Instant::now() < deadline, "comment reveal did not begin");
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    assert!(!panel.read_with(cx, |panel, _| panel.is_settled()));
+    assert_eq!(
+        cx.update(|_, cx| onboarding::step(cx)),
+        onboarding::Step::Change
+    );
+    id
+}
+
+fn cancelled_navigation_settles(panel: &Entity<AgentPanel>, cx: &mut VisualTestContext) {
+    let deadline = Instant::now() + Duration::from_secs(3);
+    loop {
+        draw(cx);
+        if panel.read_with(cx, |panel, _| panel.is_settled()) {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "hidden or stale navigation kept waiting"
+        );
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    assert_eq!(
+        cx.update(|_, cx| onboarding::step(cx)),
+        onboarding::Step::Change
+    );
+}
+
+#[gpui::test]
+fn switching_books_cancels_unpainted_navigation_without_canceling_the_new_books_request(
+    cx: &mut TestAppContext,
+) {
+    let fixture = Fixture::new();
+    let second = seed::generate(Preset::Tiny, seed::DEFAULT_SEED + 1).unwrap();
+    let book = second.books[0].book_id().to_string();
+    second.write_to(fixture.ws.library()).unwrap();
+    let chapter = fixture
+        .ws
+        .call(&Actor::User, "chapter.list", json!({"book":book}))
+        .unwrap()["output"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let mut rounds = comment_rounds(&fixture.book, &fixture.chapter, &fixture.words);
+    rounds.push(vec![Step::Event(DriverEvent::Finish(
+        FinishReason::Complete,
+    ))]);
+    rounds.extend(comment_rounds(&book, &chapter, &fixture.words));
+    let (shell, panel, cx) = open(cx, &fixture, rounds);
+    begin_comment_without_paint(&panel, cx);
+    shell.update_in(cx, |shell, window, cx| {
+        shell.open_book(&book, window, cx);
+        shell
+            .right
+            .panes
+            .reveal(dr_shell::workspace::RightTab::Companion);
+        cx.notify();
+    });
+    cancelled_navigation_settles(&panel, cx);
+    assert_eq!(shell.read_with(cx, |shell, _| shell.book_id.clone()), book);
+    assert_eq!(
+        shell.read_with(cx, |shell, _| shell.right.panes.focused_tab()),
+        dr_shell::workspace::RightTab::Companion
+    );
+    assert!(shell.read_with(cx, |shell, _| shell.nav.current().is_none()));
+    let composer = panel.read_with(cx, |panel, _| panel.composer());
+    composer.update(cx, |field, cx| field.set_text(&fixture.words, cx));
+    panel.update(cx, |panel, cx| panel.send(cx));
+    wait(cx, |cx| {
+        panel.read_with(cx, |panel, _| {
+            panel.snapshot().is_some_and(|snapshot| {
+                snapshot
+                    .runs
+                    .first()
+                    .is_some_and(|run| run.state == State::Completed)
+            })
+        })
+    });
+    let (comment, id) = comment_change(&panel, cx);
+    click(&id, cx);
+    wait(cx, |cx| {
+        cx.update(|_, cx| onboarding::step(cx)) == onboarding::Step::Done
+    });
+    assert_eq!(
+        shell.read_with(cx, |shell, _| shell.nav.current().cloned()),
+        Some(Target::Chapter(chapter.parse().unwrap()))
+    );
+    assert_eq!(
+        cx.update(|_, cx| ReviewFocus::get(cx).jump.unwrap().comment),
+        comment
+    );
+    close(&fixture, cx);
+}
+
+fn hides_review_before_paint(cx: &mut TestAppContext, close_sidebar: bool) {
+    let fixture = Fixture::new();
+    let rounds = comment_rounds(&fixture.book, &fixture.chapter, &fixture.words);
+    let (shell, panel, cx) = open(cx, &fixture, rounds);
+    let id = begin_comment_without_paint(&panel, cx);
+    shell.update_in(cx, |shell, window, cx| {
+        if close_sidebar {
+            shell.toggle_right(window, cx);
+        } else {
+            shell
+                .right
+                .panes
+                .reveal(dr_shell::workspace::RightTab::Companion);
+            cx.notify();
+        }
+    });
+    cancelled_navigation_settles(&panel, cx);
+    // A later deliberate inspection is a fresh request, and an old task
+    // finishing late must not remove it or consume its acknowledgement.
+    click(&id, cx);
+    wait(cx, |cx| {
+        cx.update(|_, cx| onboarding::step(cx)) == onboarding::Step::Done
+    });
+    close(&fixture, cx);
+}
+
+#[gpui::test]
+fn closing_review_cancels_unpainted_navigation_and_allows_a_new_inspection(
+    cx: &mut TestAppContext,
+) {
+    hides_review_before_paint(cx, true);
+}
+
+#[gpui::test]
+fn changing_right_tab_cancels_unpainted_navigation_and_allows_a_new_inspection(
+    cx: &mut TestAppContext,
+) {
+    hides_review_before_paint(cx, false);
+}
+
+fn relation_rounds(fixture: &Fixture) -> (Vec<Vec<Step>>, String) {
+    let read = |name| {
+        fixture
+            .ws
+            .call(&Actor::User, name, json!({"book":fixture.book}))
+            .unwrap()["output"]
+            .clone()
+    };
+    let elements = read("element.list");
+    let types = read("relation_type.list");
+    let relations = read("relation.list");
+    let kind = types
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|kind| {
+            kind["source_kinds"] == json!(["element"]) && kind["target_kinds"] == json!(["element"])
+        })
+        .unwrap();
+    let elements = elements.as_array().unwrap();
+    let (from, to) = elements
+        .iter()
+        .flat_map(|from| elements.iter().map(move |to| (from, to)))
+        .find(|(from, to)| {
+            from["id"] != to["id"]
+                && !relations.as_array().unwrap().iter().any(|relation| {
+                    relation["relation_type"] == kind["id"]
+                        && relation["from"]["id"] == from["id"]
+                        && relation["to"]["id"] == to["id"]
+                })
+        })
+        .expect("the synthetic book has an unrelated directed pair");
+    let from = from["id"].as_str().unwrap().to_owned();
+    (
+        vec![
+            tool("elements", "element.list", json!({"book":fixture.book})),
+            tool("types", "relation_type.list", json!({"book":fixture.book})),
+            tool("relations", "relation.list", json!({"book":fixture.book})),
+            tool(
+                "write",
+                "relation.create",
+                json!({"book":fixture.book,"from":{"kind":"element","id":from},"to":{"kind":"element","id":to["id"]},"relation_type":kind["id"]}),
+            ),
+        ],
+        from,
+    )
+}
+
+fn created_relation(panel: &Entity<AgentPanel>, cx: &VisualTestContext) -> String {
+    panel.read_with(cx, |panel, _| {
+        let run = &panel.snapshot().unwrap().runs[0];
+        let effects = run
+            .tools
+            .iter()
+            .filter_map(|tool| tool.result.as_ref())
+            .flat_map(|result| result.output["effects"].as_array().into_iter().flatten())
+            .collect::<Vec<_>>();
+        assert_eq!(effects.len(), 1, "the first run only creates a relation");
+        assert_eq!(effects[0]["kind"], "relation");
+        effects[0]["id"].as_str().unwrap().to_owned()
+    })
+}
+
+#[gpui::test]
+fn first_relation_only_change_opens_its_live_endpoint_without_prose_history(
+    cx: &mut TestAppContext,
+) {
+    let fixture = Fixture::new();
+    let (rounds, endpoint) = relation_rounds(&fixture);
+    let (shell, panel, cx) = open(cx, &fixture, rounds);
+    let relation = created_relation(&panel, cx);
+    let id = changed(&panel, &format!("relation:{relation}"), cx);
+    click(&id, cx);
+    wait(cx, |cx| {
+        cx.update(|_, cx| onboarding::step(cx)) == onboarding::Step::Done
+    });
+    assert_eq!(
+        shell.read_with(cx, |shell, _| shell.nav.current().cloned()),
+        Some(Target::Element(endpoint.parse().unwrap()))
+    );
+    assert!(shell.read_with(cx, |shell, _| shell.history.is_none()));
+    close(&fixture, cx);
+}
+
+#[gpui::test]
+fn agent_undo_metadata_effect_uses_the_restored_element_without_prose_history(
+    cx: &mut TestAppContext,
+) {
+    let fixture = Fixture::new();
+    let source = "m31-navigation-prior-agent";
+    let actor = Actor::agent(source, 1, "metadata");
+    let tools = dr_agent_tools::AgentTools::new();
+    let book = fixture.book.parse().unwrap();
+    let invoke = |name: &str, arguments| {
+        tools
+            .invoke(
+                &fixture.ws,
+                &book,
+                &actor,
+                dr_agent_tools::CallRequest {
+                    name: name.into(),
+                    arguments,
+                    revision: None,
+                    edited_text: None,
+                },
+            )
+            .unwrap()
+    };
+    let before = invoke("element.list", json!({"book":fixture.book}));
+    let summary = before["output"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|element| element["id"] == fixture.element)
+        .unwrap()["summary"]
+        .clone();
+    invoke(
+        "element.update",
+        json!({"book":fixture.book,"id":fixture.element,"summary":fixture.words}),
+    );
+    assert!(
+        !fixture
+            .ws
+            .library()
+            .settlements(Some(source), None)
+            .unwrap()
+            .is_empty()
+    );
+    let scope = json!({"session":source,"turn":1});
+    let (shell, panel, cx) = open(
+        cx,
+        &fixture,
+        vec![
+            tool("changes", "history.agent_changes", scope.clone()),
+            tool("undo", "history.undo_agent", scope),
+        ],
+    );
+    assert!(panel.read_with(cx, |panel, _| {
+        panel.snapshot().unwrap().runs[0]
+            .tools
+            .iter()
+            .filter_map(|tool| tool.result.as_ref())
+            .flat_map(|result| result.output["effects"].as_array().into_iter().flatten())
+            .any(|effect| effect["kind"] == "elements" && effect["id"] == fixture.element)
+    }));
+    let now = fixture
+        .ws
+        .call(&Actor::User, "element.list", json!({"book":fixture.book}))
+        .unwrap();
+    assert_eq!(
+        now["output"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|element| element["id"] == fixture.element)
+            .unwrap()["summary"],
+        summary
+    );
+    let id = changed(&panel, &format!("element:{}", fixture.element), cx);
+    click(&id, cx);
+    wait(cx, |cx| {
+        cx.update(|_, cx| onboarding::step(cx)) == onboarding::Step::Done
+    });
+    assert_eq!(
+        shell.read_with(cx, |shell, _| shell.nav.current().cloned()),
+        Some(Target::Element(fixture.element.parse().unwrap()))
+    );
+    assert!(shell.read_with(cx, |shell, _| shell.history.is_none()));
+    close(&fixture, cx);
+}
+
+#[gpui::test]
+fn a_relation_deleted_before_inspection_does_not_open_an_endpoint_or_finish_the_guide(
+    cx: &mut TestAppContext,
+) {
+    let fixture = Fixture::new();
+    let (rounds, _) = relation_rounds(&fixture);
+    let (shell, panel, cx) = open(cx, &fixture, rounds);
+    let relation = created_relation(&panel, cx);
+    let id = changed(&panel, &format!("relation:{relation}"), cx);
+    fixture
+        .ws
+        .call(
+            &Actor::User,
+            "relation.delete",
+            json!({"book":fixture.book,"id":relation}),
+        )
+        .unwrap();
+    click(&id, cx);
+    wait(cx, |cx| panel.read_with(cx, |panel, _| panel.is_settled()));
+    assert_eq!(
+        cx.update(|_, cx| onboarding::step(cx)),
+        onboarding::Step::Change
+    );
+    assert_eq!(
+        shell.read_with(cx, |shell, _| shell.nav.current().cloned()),
+        Some(Target::Chapter(fixture.chapter.parse().unwrap()))
+    );
+    assert!(shell.read_with(cx, |shell, _| shell.history.is_none()));
+    close(&fixture, cx);
 }
 
 #[gpui::test]

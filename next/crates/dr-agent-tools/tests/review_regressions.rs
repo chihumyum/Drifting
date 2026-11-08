@@ -99,6 +99,50 @@ fn unavailable(result: dr_agent_tools::Result<Value>) {
 }
 
 #[test]
+fn internal_note_task_projection_is_never_discovered_or_authorized_by_prose_reads() {
+    let f = Fixture::new();
+    let material = f.author(
+        "material.create",
+        json!({"book":f.book,"kind":"text","title":f.text,"text":f.text}),
+    );
+    let doc = format!("material:{}", material["id"].as_str().unwrap());
+    let tools = AgentTools::new();
+    assert!(tools.catalog().descriptor("note_tasks.project").is_none());
+    assert_eq!(
+        tools.catalog().search(Search {
+            query: "note_tasks.project".into(),
+            ..Search::default()
+        })["total"],
+        0
+    );
+    // Before M19 lands this checks the unavailable name; once it is registered
+    // the same public-facade test must still reject before parsing or mutation.
+    for (index, read) in ["prose.shape", "prose.read"].into_iter().enumerate() {
+        let session = format!("review-note-maintenance-{index}");
+        let actor = Actor::agent(&session, 1, "project");
+        let arguments = if read == "prose.read" {
+            json!({"doc":doc,"limit":usize::MAX})
+        } else {
+            json!({"doc":doc})
+        };
+        f.invoke(&tools, &actor, read, arguments).unwrap();
+        let before = f.documents();
+        unavailable(f.invoke(&tools, &actor, "note_tasks.project", json!({"doc":doc})));
+        assert_eq!(
+            f.documents(),
+            before,
+            "{read} cannot authorize maintenance writes"
+        );
+        assert!(
+            f.ws.library()
+                .settlements(Some(&session), None)
+                .unwrap()
+                .is_empty()
+        );
+    }
+}
+
+#[test]
 fn deleting_a_read_comment_cannot_purge_its_unread_hidden_relation() {
     let f = Fixture::new();
     let chapter = f.author("chapter.list", json!({"book":f.book}))[0]["id"].clone();

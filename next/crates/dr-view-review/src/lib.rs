@@ -160,7 +160,7 @@ pub fn panel(
 
 /// Reveal a specific comment in the named pane. The request survives the
 /// pane's initial asynchronous load and does not affect other Review panes.
-/// Acknowledges only after loading and exposing the target. Missing/failed
+/// Acknowledges only after loading, scrolling and painting the target visibly. Missing/failed
 /// reads return false; a replacement, book switch or view release closes it.
 pub fn reveal_comment(
     id: &str,
