@@ -17,12 +17,17 @@ screenshot = ["gpui/test-support", "dep:gpui_platform", "gpui_platform/test-supp
 [dependencies]
 base64.workspace = true
 dr-debug-protocol.workspace = true
+dr-i18n.workspace = true
 dr-platform.workspace = true
 dr-shell.workspace = true
+# The library's pre-restore copies (`library.info`, M41).
+dr-store.workspace = true
 # The chapter page's head and the element pages' fields, which `ui.focus`
 # and `page.text` reach (M03, M11).
 dr-view-elements.workspace = true
 dr-view-page.workspace = true
+# M41's dialog, read in `state.get` (`transfer`).
+dr-view-transfer.workspace = true
 dr-workspace.workspace = true
 futures.workspace = true
 gpui.workspace = true
@@ -41,7 +46,6 @@ objc2.workspace = true
 raw-window-handle.workspace = true
 
 [dev-dependencies]
-dr-store.workspace = true
 dr-testkit.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
 tempfile.workspace = true

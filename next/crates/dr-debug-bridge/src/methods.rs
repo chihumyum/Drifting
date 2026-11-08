@@ -87,15 +87,15 @@ pub const METHODS: &[(&str, &str)] = &[
     ),
     (
         "ui.find",
-        "{label?, contains?, role?, count?, absent?, timeout_ms?}: the window's accessibility nodes (role, label, value, bounds, centre) that match: label exactly, contains in the label, value or help, role without its AX prefix (Button, RadioButton, Slider, Group …); waits until one does (with count, until exactly that many do; with absent, until none does); macOS",
+        "{label?, contains?, role?, within?, count?, absent?, timeout_ms?}: the window's accessibility nodes (role, label, value, bounds, centre) that match: label exactly, contains in the label, value or help, role without its AX prefix (Button, RadioButton, Slider, Group …), within (the same keys) inside the first node that matches it; waits until one does (with count, until exactly that many do; with absent, until none does); macOS",
     ),
     (
         "ui.press",
-        "{label?, contains?, role?, nth?, via?, dx?, dy?, hover_ms?, settle_ms?}: press the nth node that matches: by default the pointer moves to its centre (moved by dx, dy), rests there hover_ms (120) and clicks (hover, hit test and click as a mouse would); via \"a11y\" asks AccessKit to press it instead, \"increment\" or \"decrement\" to step a slider or a number; waits for the node first; macOS",
+        "{label?, contains?, role?, within?, nth?, via?, dx?, dy?, hover_ms?, settle_ms?}: press the nth node that matches: by default the pointer moves to its centre (moved by dx, dy), rests there hover_ms (120) and clicks (hover, hit test and click as a mouse would); via \"a11y\" asks AccessKit to press it instead, \"increment\" or \"decrement\" to step a slider or a number; waits for the node first; macOS",
     ),
     (
         "ui.hover",
-        "{label?, contains?, role?, nth?, dx?, dy?}: move the pointer onto the nth node that matches (its centre moved by dx, dy); macOS",
+        "{label?, contains?, role?, within?, nth?, dx?, dy?}: move the pointer onto the nth node that matches (its centre moved by dx, dy); macOS",
     ),
     (
         "ui.focus",
@@ -120,7 +120,23 @@ pub const METHODS: &[(&str, &str)] = &[
     ),
     (
         "ui.wait",
-        "{until: \"ready\", text?, state?, page?, timeout_ms?}: wait until the book and the pages on screen are read, and the page shows text, and state.get (page.text) has the values at the JSON pointers in state (page); {until: \"time\", ms}: just wait",
+        "{until: \"ready\", text?, state?, page?, timeout_ms?}: wait until the window has a library (it has none for a moment while a restore replaces it), the book and the pages on screen are read, and the page shows text, and state.get (page.text) has the values at the JSON pointers in state (page); {until: \"time\", ms}: just wait; {until: \"file\", path, timeout_ms?}: until a file the app writes is there",
+    ),
+    (
+        "panel.state",
+        "the system's open and save panels: the answer armed for the next one, the last one the app asked for ({kind: open|save, directory, name, prompt, answer}), and whether a real one is on screen; macOS",
+    ),
+    (
+        "panel.answer",
+        "{path}: arm the answer for the next open or save panel the app begins (press the app's button after this): it is not shown, the app's handler gets path at once, as after the author's choice; macOS",
+    ),
+    (
+        "panel.cancel",
+        "arm Cancel for the next open or save panel the app begins; macOS",
+    ),
+    (
+        "library.info",
+        "the open library's folder and the copies a restore saved first (pre-restore backups, newest first)",
     ),
     (
         "ui.screenshot",
@@ -272,6 +288,28 @@ pub async fn call(method: &str, params: Value, cx: &mut AsyncApp) -> Out {
         "shelf.show" => cx.update(|cx| {
             update_workspace(cx, |ws, window, cx| ws.show_shelf(window, cx))
                 .map(|shown| json!({ "shown": shown }))
+        }),
+        "panel.state" => cx.update(|_| Ok(crate::panel::state())),
+        "panel.answer" => cx.update(|_| {
+            let path = std::path::PathBuf::from(string(&p, "path")?);
+            if !path.is_absolute() {
+                return Err(bad("params.path: an absolute path is needed"));
+            }
+            arm(Some(crate::panel::Answer::Path(path)))
+        }),
+        "panel.cancel" => cx.update(|_| arm(Some(crate::panel::Answer::Cancel))),
+        "library.info" => cx.update(|cx| {
+            let lib = cx
+                .try_global::<Services>()
+                .and_then(|s| s.library.clone())
+                .ok_or_else(|| not_found("no library is open"))?;
+            let root = lib.library().paths().root.clone();
+            let pre: Vec<String> = dr_store::Library::pre_restore_backups(&root)
+                .unwrap_or_default()
+                .iter()
+                .filter_map(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
+                .collect();
+            Ok(json!({ "root": root.to_string_lossy(), "preRestore": pre }))
         }),
         "state.get" => cx.update(state),
         "page.text" => cx.update(|cx| page_text(&p, cx)),
@@ -762,6 +800,10 @@ fn state_of(ws: &Workspace, window: &Window, cx: &App) -> Value {
         "history": ws.history.is_some(),
         "composer": ws.composer.is_some(),
         "cornerMenu": ws.corner_menu.is_some(),
+        // M41's dialog when it is the one up, and the system's open or save
+        // panel (a window of AppKit's over the app's).
+        "transfer": transfer_of(ws, cx),
+        "panel": crate::panel::state(),
         "window": {
             "active": window.is_window_active(),
             "visible": window.visibility() == WindowVisibility::Visible,
@@ -936,18 +978,22 @@ fn settled(
     pump(cx)?;
     let s = state(cx)?;
     if s["library"] != json!(true) {
-        return Err(BridgeError::new(
-            codes::NO_LIBRARY,
-            "the app runs without a library",
+        // Between letting the library go and taking the next one up (M41's
+        // restore swaps it under the window), or none could be opened.
+        return Ok(Some(
+            "the window has no library (being replaced, or none opened)".into(),
         ));
     }
-    if s["shelf"] == json!(true) {
-        // The bookshelf covers the window: nothing of a book to wait for.
-    } else if s["book"]["loaded"] != json!(true) {
+    // The bookshelf covers the window: nothing of a book to wait for (the
+    // tabs under it keep their pages, which have no editors while it is up:
+    // after a restore swapped the library, say).
+    let covered = s["shelf"] == json!(true);
+    if !covered && s["book"]["loaded"] != json!(true) {
         return Ok(Some("the book's lists have not arrived".into()));
     }
     let shown: Vec<String> = s["activeTab"]
         .as_u64()
+        .filter(|_| !covered)
         .and_then(|i| s["tabs"].get(i as usize))
         .map(|t| {
             t["leaves"]
@@ -1017,7 +1063,40 @@ async fn wait(p: &Value, cx: &mut AsyncApp) -> Out {
                 .await;
             return Ok(json!({ "waitedMs": ms }));
         }
-        other => return Err(bad(format!("until {other}: \"ready\" or \"time\""))),
+        // A file the app writes in the background with nothing on screen
+        // when it is done (M41's book export: written whole, then renamed
+        // into place).
+        "file" => {
+            let path = std::path::PathBuf::from(string(p, "path")?);
+            let timeout = Duration::from_millis(
+                p.get("timeout_ms")
+                    .and_then(Value::as_u64)
+                    .unwrap_or(10_000),
+            );
+            let started = Instant::now();
+            while !path.exists() {
+                if started.elapsed() >= timeout {
+                    return Err(BridgeError::new(
+                        codes::TIMEOUT,
+                        format!(
+                            "{} is not there after {} ms",
+                            path.display(),
+                            timeout.as_millis()
+                        ),
+                    ));
+                }
+                cx.background_executor()
+                    .timer(Duration::from_millis(50))
+                    .await;
+            }
+            let bytes = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+            return Ok(json!({ "waitedMs": started.elapsed().as_millis() as u64, "bytes": bytes }));
+        }
+        other => {
+            return Err(bad(format!(
+                "until {other}: \"ready\", \"time\" or \"file\""
+            )));
+        }
     }
     let text = p.get("text").and_then(Value::as_str).map(str::to_owned);
     let pairs = |key: &str| -> Vec<(String, Value)> {
@@ -1057,6 +1136,9 @@ struct Query {
     label: Option<String>,
     contains: Option<String>,
     role: Option<String>,
+    /// Only nodes inside the first node this matches (their centre within
+    /// its bounds): one book card's buttons among every card's.
+    within: Option<Box<Query>>,
 }
 
 impl Query {
@@ -1066,7 +1148,33 @@ impl Query {
             label: s("label"),
             contains: s("contains"),
             role: s("role").map(|r| r.trim_start_matches("AX").to_lowercase()),
+            within: p
+                .get("within")
+                .filter(|w| w.is_object())
+                .map(|w| Box::new(Query::of(w))),
         }
+    }
+
+    /// The nodes of `all` that match, in the tree's order.
+    fn select(&self, all: &[a11y::Node]) -> Vec<a11y::Node> {
+        let inside = match &self.within {
+            None => None,
+            Some(w) => match w.select(all).into_iter().next() {
+                Some(container) => Some(container),
+                None => return Vec::new(),
+            },
+        };
+        all.iter()
+            .filter(|n| self.matches(n))
+            .filter(|n| {
+                inside.as_ref().is_none_or(|c| {
+                    let (x, y) = n.center();
+                    let [cx, cy, w, h] = c.bounds;
+                    *n != c && x >= cx && x <= cx + w && y >= cy && y <= cy + h
+                })
+            })
+            .cloned()
+            .collect()
     }
 
     fn is_empty(&self) -> bool {
@@ -1104,6 +1212,9 @@ impl Query {
         if let Some(r) = &self.role {
             parts.push(format!("role {r}"));
         }
+        if let Some(w) = &self.within {
+            parts.push(format!("inside ({})", w.describe()));
+        }
         parts.join(", ")
     }
 }
@@ -1124,7 +1235,7 @@ fn matching(q: &Query, cx: &mut App) -> Result<Option<(Vec<a11y::Node>, usize)>,
         let (all, current) = a11y::nodes(window);
         current.then(|| {
             let total = all.len();
-            (all.into_iter().filter(|n| q.matches(n)).collect(), total)
+            (q.select(&all), total)
         })
     })
 }
@@ -1287,10 +1398,12 @@ async fn press_node(p: &Value, cx: &mut AsyncApp) -> Out {
                 _ => a11y::Action::Press,
             };
             let q = Query::of(p);
-            let nth = p.get("nth").and_then(Value::as_u64).unwrap_or(0) as usize;
             let pressed = cx.update(|cx| {
                 in_window(cx, |_, window, _| {
-                    a11y::perform(window, nth, action, |n| q.matches(n))
+                    // The node found above (`nth` and `within` chose it).
+                    a11y::perform(window, 0, action, |n| {
+                        q.matches(n) && n.bounds == node.bounds
+                    })
                 })
             })?;
             if pressed.is_none() {
@@ -1491,6 +1604,99 @@ fn screenshot(_: &mut App) -> Out {
         codes::UNSUPPORTED,
         "this build has no screenshots (the app's debug-bridge feature turns on dr-debug-bridge/screenshot)",
     ))
+}
+
+/// Arms the answer for the next system panel.
+fn arm(answer: Option<crate::panel::Answer>) -> Out {
+    if !crate::panel::arm(answer) {
+        return Err(BridgeError::new(
+            codes::UNSUPPORTED,
+            "the system's open and save panels are answered on macOS only",
+        ));
+    }
+    Ok(crate::panel::state())
+}
+
+/// M41's dialog (book import, backup, restore) when it is the one over the
+/// window: its state, title and sentences.
+fn transfer_of(ws: &Workspace, cx: &App) -> Value {
+    use dr_view_transfer::{State, TransferDialog};
+    let Some(dialog) = ws
+        .dialog
+        .clone()
+        .and_then(|v| v.downcast::<TransferDialog>().ok())
+    else {
+        return Value::Null;
+    };
+    let t = |k: dr_i18n::Key| dr_shell::t(cx, k).to_string();
+    match &dialog.read(cx).state {
+        State::Working {
+            title,
+            name,
+            progress,
+        } => json!({ "state": "working", "title": t(*title), "text": name, "progress": progress }),
+        State::Done { title, text } => json!({ "state": "done", "title": t(*title), "text": text }),
+        State::Confirm {
+            title,
+            text,
+            confirm,
+        } => {
+            json!({ "state": "confirm", "title": t(*title), "text": text, "confirm": t(*confirm) })
+        }
+        State::Failed {
+            title,
+            reason,
+            text,
+        } => {
+            json!({ "state": "failed", "title": t(*title), "reason": reason.name(), "text": text })
+        }
+    }
+}
+
+#[cfg(test)]
+mod query_tests {
+    use super::*;
+
+    fn node(role: &str, label: &str, bounds: [f32; 4]) -> a11y::Node {
+        a11y::Node {
+            role: role.into(),
+            label: Some(label.into()),
+            value: None,
+            help: None,
+            bounds,
+            focused: false,
+            enabled: true,
+            depth: 0,
+        }
+    }
+
+    #[test]
+    fn within_picks_the_buttons_inside_one_card() {
+        let all = vec![
+            node("Button", "Open 夜车", [0.0, 0.0, 200.0, 300.0]),
+            node("Button", "Export", [150.0, 10.0, 20.0, 20.0]),
+            node("Button", "Open 慢钟", [220.0, 0.0, 200.0, 300.0]),
+            node("Button", "Export", [370.0, 10.0, 20.0, 20.0]),
+        ];
+        let q = Query::of(&json!({ "label": "Export", "within": { "label": "Open 慢钟" } }));
+        let found = q.select(&all);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].bounds[0], 370.0);
+        assert_eq!(
+            q.describe(),
+            "label \"Export\", inside (label \"Open 慢钟\")"
+        );
+        // Without the card nothing is inside it; without `within`, both.
+        let none = Query::of(&json!({ "label": "Export", "within": { "label": "Open 无书" } }));
+        assert!(none.select(&all).is_empty());
+        assert_eq!(
+            Query::of(&json!({ "label": "Export" })).select(&all).len(),
+            2
+        );
+        // The card itself is not inside itself.
+        let cards = Query::of(&json!({ "role": "Button", "within": { "label": "Open 慢钟" } }));
+        assert_eq!(cards.select(&all).len(), 1);
+    }
 }
 
 #[cfg(test)]

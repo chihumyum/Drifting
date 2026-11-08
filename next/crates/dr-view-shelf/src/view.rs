@@ -1189,6 +1189,9 @@ fn card(book: ShelfBook, now: i64, window: &mut Window, cx: &mut Context<Shelf>)
             )
             .label(t(cx, keys::project_picker::desk::EXPORT_BOOK))
             .on_click(move |_, window, cx| {
+                // Not the card's click too (that would open the book), as
+                // edit and trash.
+                cx.stop_propagation();
                 window.dispatch_action(Box::new(ExportBook { book: id.clone() }), cx)
             })
         })

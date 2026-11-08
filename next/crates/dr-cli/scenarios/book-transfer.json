@@ -1,0 +1,39 @@
+{
+  "about": "M41 一本书存成文件再导回来（.driftingbook）：书架上《慢钟》书卡悬停出来的导出箭头，应用要系统的保存面板时桥答上路径，写出 慢钟.driftingbook；左栏「Import book」选这个文件，「Importing」对话框走完就消失，书架上多出一本《慢钟》（新书，原书不动）；再选一个不是书的文件，说不是 Drifting 导出的书，书一本没多。界面用英文。",
+  "steps": [
+    { "seed": "showcase" },
+    { "call": "book.list", "save": "books" },
+
+    { "launch": { "env": { "DRIFTING_APPEARANCE": "light" }, "settings": { "account": { "language.ui_locale": "en" } } }, "save": "app" },
+    { "app": "ui.wait", "params": { "until": "ready", "state": { "/shelf": true }, "timeout_ms": 30000 } },
+    { "app": "window.focus" },
+    { "app": "ui.find", "params": { "role": "Button", "label": "Open “慢钟”" }, "expect": { "/count": 1 } },
+
+    { "app": "panel.answer", "params": { "path": "${app.out}/慢钟.driftingbook" } },
+    { "app": "ui.press", "params": { "label": "Export this book (.driftingbook)", "within": { "label": "Open “慢钟”" } },
+      "note": "指针先停在《慢钟》书卡上，悬停才出来的导出箭头" },
+    { "app": "ui.wait", "params": { "until": "file", "path": "${app.out}/慢钟.driftingbook", "timeout_ms": 30000 }, "note": "写完才改名到位：文件出现就是写完了" },
+    { "app": "panel.state", "expect": { "/last/kind": "save", "/last/name": "慢钟.driftingbook", "/last/answer": "${app.out}/慢钟.driftingbook" } },
+    { "app": "state.get", "expect": { "/dialog": false, "/shelf": true }, "note": "导出成功不弹东西" },
+
+    { "app": "panel.answer", "params": { "path": "${app.out}/慢钟.driftingbook" } },
+    { "app": "ui.press", "params": { "role": "Button", "contains": "Import book" }, "note": "书架左栏「Import book .driftingbook」" },
+    { "app": "ui.wait", "params": { "until": "ready", "state": { "/dialog": false }, "timeout_ms": 60000 }, "note": "「Importing」带进度条，导完就消失" },
+    { "app": "panel.state", "expect": { "/last/kind": "open", "/last/prompt": "Import book (.driftingbook)" } },
+    { "app": "ui.find", "params": { "role": "Button", "label": "Open “慢钟”", "count": 2, "timeout_ms": 10000 }, "note": "书架读到新书：两本《慢钟》并排" },
+    { "app": "ui.screenshot", "png": "01-two-books.png" },
+    { "call": "book.get", "input": { "book": "${books.[name=慢钟].id}" }, "expect": { "/name": "慢钟", "/chapters": 24 }, "note": "原书没动" },
+
+    { "app": "panel.answer", "params": { "path": "${app.log}" }, "note": "选一个不是书的文件（应用自己的日志）" },
+    { "app": "ui.press", "params": { "role": "Button", "contains": "Import book" } },
+    { "app": "ui.wait", "params": { "until": "ready", "state": { "/transfer/state": "failed" }, "timeout_ms": 30000 } },
+    { "app": "state.get",
+      "expect": { "/transfer/title": "Could not import", "/transfer/reason": "projectPicker.bookTransfer.notABook" },
+      "contains": { "/transfer/text": "not a book exported from Drifting" } },
+    { "app": "ui.screenshot", "png": "02-not-a-book.png" },
+    { "app": "ui.press", "params": { "role": "Button", "label": "Close" } },
+    { "app": "ui.wait", "params": { "until": "ready", "state": { "/dialog": false } } },
+    { "app": "ui.find", "params": { "role": "Button", "label": "Open “慢钟”", "count": 2 }, "note": "书一本没多" },
+    { "app": "app.quit", "expect": { "/quit": true } }
+  ]
+}

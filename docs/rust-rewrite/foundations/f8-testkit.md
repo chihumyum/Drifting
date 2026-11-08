@@ -26,9 +26,10 @@
 | 门禁 | `next/xtask/` | 1、3 | 10 道（第三个里程碑加了「调试桥不进正式包」）和 `check-binary`，接进了 `next.yml` |
 | 开发实例隔离 | `cargo xtask dev` | 1、3 | 做完；`--debug-bridge` 带上调试桥 |
 | 开发命令行 | `next/crates/dr-cli/` | 1、2、3 | 接上 F3 的注册表：`describe`、`call`、脚本化 `scenario`、`inspect`；`app` 子命令，场景能启动和驱动应用 |
-| 调试桥 | `next/crates/dr-debug-bridge/`、`dr-debug-protocol/` | 3、4 | 做完：打开书和页、打字、按键、动作、F3 命令、读外壳状态和页面文字、等待、截图；第四个里程碑加了按无障碍名字找元素和按它、悬停、拖选、滚动、点进输入框、读章首和要素页头、读设置。组字没做 |
+| 调试桥 | `next/crates/dr-debug-bridge/`、`dr-debug-protocol/` | 3、4 | 做完：打开书和页、打字、按键、动作、F3 命令、读外壳状态和页面文字、等待、截图；第四个里程碑加了按无障碍名字找元素和按它、悬停、拖选、滚动、点进输入框、读章首和要素页头、读设置；第五个里程碑加了答系统的打开、存储面板（`panel.*`）、按卡挑按钮（`within`）、等后台写的文件、读 M41 的对话框和恢复前副本（`library.info`）。组字没做 |
 | 阶段 2「写作闭环」验收场景 | `next/crates/dr-cli/scenarios/writing-loop.json` | 3 | 在真实窗口上 46 步全过：从书架打开书、在编辑器里打字、回车、⌘Z、换章、关掉重开 |
 | 各模块的验收场景：M03、M09、M10、M11、M18、设置、M39 | `next/crates/dr-cli/scenarios/*.json` | 4 | 七个场景在真实窗口上全过（M18 有一步按待协调跳过）；跑的过程中找到的问题记在「待协调」 |
+| M41 恢复备份、一本书导出再导入；系统的打开、存储面板 | `scenarios/restore.json`、`book-transfer.json`，`dr-debug-bridge/src/panel.rs` | 5 | 两个场景在真实窗口上全过；顺手修了 M41 的两处（见「待协调」） |
 | 收编编辑器的基准语料 | — | 4 | 等 F4 把基准搬进 `dr-editor` |
 
 ## 种子
@@ -363,11 +364,12 @@ cargo drifting app <动作> …                     # 正在跑的开发版，�
 
   `call` 和 `scenario` 都走这一套。
 - **`inspect`**：
-  - 先把库一致地复制到临时目录，再用 dr-store 打开这份副本，原库从不以写方式打开，应用开着也能看；
+  - 用 F2 的只读打开（`Library::open_read_only`：不拿锁、不迁移、不写安全快照、什么都不写）直接读库，应用开着也能看，也不用先复制；
+  - 这一版要先迁移的旧库只读打不开，就照原来那样一致地复制到临时目录、在副本上迁移再读，原库不动；输出里 `opened` 说是哪一种（`read-only` / `copy`）；
   - 默认列出文档数、每本书的章节、构想、要素、关系、批注、素材、写作日和正文字数；
   - `--doc` 打印一个文档的完整内容。
 
-  dr-store 现在没有只读打开，所以用副本代替，见「待协调」。
+  查询（`call` 一个查询、全是查询的场景）还在副本上跑：F3 的查询经可编辑的文档句柄读书目和正文，只读的库不给这种句柄，见「待协调 → dr-workspace」。
 - **内置场景**：`seed:<预设>` 直写种子，`seed-commands:<预设>` 走命令写种子。
 - **打开库时的版本号**：用和应用一样的版本号（`0.2.0-dev`）打开库，免得命令行打开一次，库就多一份安全快照。
 
@@ -414,16 +416,20 @@ cargo drifting app quit
 | `input.key` | 按键，空格隔开可以连按：`secondary-z`、`enter escape`；`times` 把整串按几遍 |
 | `input.click` | 在窗口坐标（逻辑像素）上点一下，可以连点 |
 | `input.move` / `input.drag` / `input.scroll` | 指针移过去（悬停）；按住左键从一点拖到另一点再松开（用鼠标选字）；在某处滚动若干像素 |
-| `ui.find` | 窗口无障碍树里的节点：角色、名字、值、位置、中心点。按 `label`（名字全等）、`contains`（名字、值、说明里含）、`role`（去掉 AX 前缀：Button、RadioButton、Slider、PopUpButton、MenuItem、TextArea…）挑；等到有一个（`count` 等到正好几个，`absent` 等到一个都没有）。只在 macOS |
+| `ui.find` | 窗口无障碍树里的节点：角色、名字、值、位置、中心点。按 `label`（名字全等）、`contains`（名字、值、说明里含）、`role`（去掉 AX 前缀：Button、RadioButton、Slider、PopUpButton、MenuItem、TextArea…）挑；`within`（同样几个键）只要落在第一个符合它的节点里面的（中心点在它的框里）：比如某一张书卡上的导出箭头。等到有一个（`count` 等到正好几个，`absent` 等到一个都没有）。只在 macOS |
 | `ui.press` | 按第几个（`nth`）符合的节点：默认指针移到它中心（`dx`、`dy` 可以挪开一点），停 120 ms 再点，和手一样，只在悬停时才出现的按钮（别名的 ×）也点得到；在窗口外就报错，叫先滚进来。`via: "a11y"` 改让 AccessKit 按，`increment` / `decrement` 拨滑杆 |
 | `ui.hover` | 指针停到符合的节点上 |
 | `ui.focus` | 把键盘交给一个还不在无障碍树里的输入框，和点进去一样：`page.title`、`page.synopsis`（稿纸上那一章的章首）、`element.name`、`element.alias`、`element.summary`、`element.field.key`、`element.field.value`（`row` 第几行，默认最后一行）、`category.name`、`settings.search`；`select_all` 连字一起选中（像三连击） |
 | `settings.get` | `{keys?}`：外壳读到的设置值（默认全部）和界面语言 |
 | `book.open` / `shelf.show` | `{name}`（书名或 id）：打开一本书，和在书架上点书卡一样，它存过的标签和侧栏回来；回到书架（⇧⌘W） |
 | `nav.open` | `{target}`（页面键）、`{chapter}`（章名或 id）或 `{link}`（位置链接）：开成留下的标签（`preview: true` 是预览） |
-| `state.get` | 外壳的状态：书、书架是否盖着、当前页、标签、侧栏、浮层、焦点（`focus.editor`：当前页的编辑器有没有拿到键盘）、当前页的选区和选区浮条（`selectionBar`）、盖在稿纸上的东西（`dialog`、`history`、`composer`、`cornerMenu`）、打开着的编辑器 |
+| `state.get` | 外壳的状态：书、书架是否盖着、当前页、标签、侧栏、浮层、焦点（`focus.editor`：当前页的编辑器有没有拿到键盘）、当前页的选区和选区浮条（`selectionBar`）、盖在稿纸上的东西（`dialog`、`history`、`composer`、`cornerMenu`）、打开着的编辑器；M41 的对话框是盖着的那一个时，`transfer` 是它的状态（`working` / `done` / `confirm` / `failed`）、标题、正文、确认键、失败的原因键；`panel` 同 `panel.state` |
 | `page.text` | 一页的段落（默认稿纸上那一页）：编辑器里的文字（每个键都已经在里面）和选区，通览全书每章前面加章名；带标题级别。`head` 是正文外面那一圈：章节页的标题、梗概、状态、第几章、⁂ 展开没有；要素页的名字、别名输入框、简介、字段行、提示；类目页的名字；以及哪个框有键盘 |
-| `ui.wait` | 等到书目到了、当前标签里每一页的编辑器都打开了（打不开就报错）、书架盖着时不等书；还可以要求页上出现某段文字、`state.get`（`state`）或 `page.text`（`page`）的某些字段等于某些值；超时报 `timeout` 并说明还在等什么。`{until: "time", ms}` 只是等一会儿 |
+| `ui.wait` | 等到窗口有库（恢复备份换库时会有一会儿没有）、书目到了、当前标签里每一页的编辑器都打开了（打不开就报错）、书架盖着时不等书；还可以要求页上出现某段文字、`state.get`（`state`）或 `page.text`（`page`）的某些字段等于某些值；超时报 `timeout` 并说明还在等什么。`{until: "time", ms}` 只是等一会儿；`{until: "file", path}` 等到应用在后台写的一个文件出现（书的导出写完以后不弹什么，只有文件），回答它的大小 |
+| `panel.state` | 系统的打开、存储面板：给下一个面板想好的答案（`armed`）、应用上一次要的面板（`last`：`kind` 是 `open` 还是 `save`、文件夹、建议的文件名、按钮上的字、答了什么）、屏幕上有没有一个真面板（`shown`）。只在 macOS |
+| `panel.answer` | `{path}`：给应用下一个要的打开或存储面板想好答案，之后再按应用的按钮：面板不显示，应用的回调马上拿到这个路径，和作者选完一样。只在 macOS |
+| `panel.cancel` | 给下一个面板想好「取消」 |
+| `library.info` | 打开着的库在哪个文件夹，恢复前存下的副本（新的在前） |
 | `ui.screenshot` | 窗口的 PNG（base64），默认先等 500 ms 让动画走完 |
 
 ### 怎么做的
@@ -438,6 +444,7 @@ cargo drifting app quit
   - Windows 用本机回环 TCP，端口由系统分配。设计里写的是命名管道，改成回环 TCP 是因为标准库就够，令牌照样挡住别的程序。Windows 那一份由 CI 的 Windows 那一条编译，还没在 Windows 上跑过；
   - 连接文件 `debug-bridge.json`（0600）放在开发版的**数据文件夹**里，写明地址、进程号和令牌。客户端按 profile 就能找到它，不受 `TMPDIR` 影响；应用退出时删掉。
 - **每个请求一个主线程任务**：一个长的 `ui.wait` 不挡别的请求。打字、按键、点击走 `Window::dispatch_keystroke` 和 `dispatch_event`，而且是在任何实体的更新之外调用的，所以外壳自己的动作处理器、输入框的输入处理器，收到的和真实按键一样。测试里就看得出来：设置的搜索框里有字时，第一次 Esc 先清空，第二次才关掉设置，和外壳的规则一致。
+- **系统的打开、存储面板**：GPUI 在 macOS 上用 AppKit 的 `NSOpenPanel` / `NSSavePanel`（`beginWithCompletionHandler:`），作者选好以后它的回调读面板的 `URLs` / `URL`。这一版 macOS 上面板的内容在系统服务的进程里，应用里谁也按不了它的按钮（第一次试，调 `-[NSSavePanel ok:]`，AppKit 抛「not implemented」，应用直接退出），调试桥的指针也够不着。所以在 AppKit 把答案交回来的地方答：场景先 `panel.answer {path}`（或 `panel.cancel`）想好答什么，再按应用自己的按钮；应用开始下一个面板时，调试桥换上的 `beginWithCompletionHandler:`（`NSOpenPanel` 继承它）记下应用要的是什么（打开还是存储、哪个文件夹、建议的文件名、按钮上的字），什么也不显示，马上用「好」调应用的回调，回调读到的 `URL` / `URLs` 就是想好的路径。之后全是应用自己的路，和作者点完一样。没想好答案时直接交给 AppKit 原来的实现，真面板照常出来（`panel.state` 的 `shown`）。这三个方法只在第一次 `panel.answer` 时换上，只在带调试桥的构建里有；不用系统权限：换的是应用进程里自己的类。
 - **截图在应用里画**：GPUI 的 `Window::render_to_image` 把最后一帧画进一张纹理，不用屏幕录制权限，窗口被挡着也能拍。这个调用在 GPUI 的 test-support 后面，所以 `dr-debug-bridge/screenshot` 特性只在带调试桥的构建里打开。截图前默认等 500 ms（dr-ui 最长的结构动画是 420 ms）：第一次在真窗口上拍的时候，拍到了翻页叠化到一半、两章的字叠在一起。
 - **被遮住的窗口**：GPUI 在 macOS 上，窗口完全被遮住时会停掉显示链接、不再画帧；而外壳是在渲染时才开始读一页的正文，于是这一页会一直停在「读取中」。`ui.wait` 和截图发现窗口不可见时，自己调一次 `Window::draw`（只画、不上屏）把这一步推过去，再把窗口标脏，等它露出来时正常重画。
 - **按名字找元素：借无障碍树**（第四个里程碑）。设计里的 `ui.query` 原想靠调试名，可 GPUI 只在测试上下文里读得到 `debug_selector` 记下的位置。GPUI 自己有一棵 AccessKit 无障碍树：凡是带角色和 id 的元素都在里面，dr-ui 的按钮、单元格、标签、单选、滑杆、⁂ 和它的动作、选区浮条的按钮都有角色和名字。只是这棵树要等辅助技术（比如 VoiceOver）连上才建。调试桥在应用里面自己连：向窗口的内容视图要一次 `accessibilityChildren`，和 VoiceOver 一样，AccessKit 就向 GPUI 要树，从下一帧起每帧都建。然后：
@@ -508,6 +515,7 @@ done
   - `legacy`：造一个合成的 Drifting 0.1 库（就是 dr-import-v1 测试用的那份，见下），回答它的数据文件夹 `root`；
   - 期望的 JSON 指针里可以有 `${…}`，也可以按字段挑数组元素：`/[name=沈知微]/aliases`；
   - 每次跑完把每一步存下的输出写进输出目录的 `result.json`，失败时也写，方便回头看。
+  - 第五个里程碑：`launch` 的回答多了 `out`（这次跑的输出目录，绝对路径），要应用写的文件（备份、导出的书）就放这里，`${app.out}/library.drifting`；系统的打开、存储面板先 `panel.answer` 再按应用的按钮（见「调试桥 → 怎么做的」）；`ui.find` / `ui.press` 的 `within` 挑某一张卡里的按钮；`ui.wait {until: "file"}` 等后台写的文件。
 - **各场景**：
 
 | 场景 | 文件 | 走了什么 | 步数 |
@@ -519,8 +527,11 @@ done
 | M18 批注 | `review.json` | 键盘选中第一段开头四个字：选区浮条的状态有了；⌘⌥M 打开撰写框，写批注、⌘↵ 存；在第二段另选六个字，⌘⌥M，写完点「TODOs」再点「Save」；F3 里两条都锚在选中的字上，种类、原文、状态对；打开右栏「审阅」截图。浮条的「添加批注」那一步跳过（见待协调） | 41（1 步跳过） |
 | 设置 | `settings.json` | 打开设置（`app::OpenSettings`，和 ⌘, 一样）；主题点「Dark」（设置值和窗口外观都变深）；字号滑杆加一档到 18，旁边的数字跟着变；搜「width」只剩「Page width」，Esc 清空搜索；语言下拉选「简体中文」，按钮立刻变中文；关掉重开，深色、18、简体中文都还在；Esc 关掉设置 | 46 |
 | M39 反馈对话框 | `feedback.json` | 只截图、不发送：中文浅色写一条合成的反馈、展开诊断摘要的预览；英文深色再拍一张；都按「取消」关掉。开发构建没有 Hosted 服务，发送键是「用邮件发送」，没点 | 25 |
+| M41 整库备份与恢复 | `restore.json` | 设置里搜「backup」，点「Export backup…」：应用要的是存储面板、建议的文件名是 `Drifting-<日期>.drifting`，桥答上输出目录里的路径，对话框说「Saved …」和几本书、多大，点「Close」关掉；备份以后在第一章开头打字、新建一本书；「Choose backup…」答那个备份：先核对，再问「Replace and restore」（文件名、几本书、书名）；按下去外壳关库、换库、重开，窗口回到书架：新建的书没了（F3 `not_found`），第一章回到备份时，换掉的库存成了恢复前副本；再打开《慢钟》第一章，编辑器里也是备份时的字；最后答一个不是备份的文件：说「not a valid Drifting backup」（原因键 `errors.invalid`），库没动 | 64 |
+| M41 一本书导出再导入 | `book-transfer.json` | 书架上《慢钟》书卡悬停才出来的导出箭头（`within` 挑这一张卡）：存储面板建议 `慢钟.driftingbook`，答上路径，文件写出，书架还在；左栏「Import book」答这个文件：「Importing」走完就消失，书架上两本《慢钟》并排，原书 24 章没动；再答一个不是书的文件：「Could not import」「not a book exported from Drifting」（原因键 `notABook`），关掉以后还是两本 | 27 |
 
 - **结果**：2026-11-08 在这台 Mac 上，带调试桥的开发版，七个场景都跑过（M18 一步按待协调跳过），写作闭环也重跑了一遍，46 步全过。截图在各自的输出目录（`target/acceptance/<场景>/`，不提交）；反馈对话框的三张真窗口截图提交在 [modules/m39/](../modules/m39/)：`window-feedback-zh-light.png`、`window-feedback-preview-zh-light.png`、`window-feedback-en-dark.png`。
+- **第五个里程碑的结果**：2026-11-08，同一台 Mac，`restore.json` 64 步、`book-transfer.json` 27 步全过，没有跳过的步。截图在 `target/acceptance/restore/`、`target/acceptance/book-transfer/`（不提交）。
 - **合成的 0.1 库从哪来**：dr-cli 用 `#[path]` 直接编进 `dr-import-v1/tests/common/mod.rs`（M10 测试用的构造器：用公开的 0.1 迁移和纯 SQL 造一本《阿Q正传》），不另写一份。它将来更适合放进 dr-testkit，见「待协调」。
 - **跑的过程中找到的问题**都在「待协调」里，按模块列。没有一处是改了别人的代码去绕过的：要么场景照作者真实会做的那样走（比如 ⌘↵ 离开多行框），要么那一步标成跳过并写明原因。
 
@@ -533,7 +544,7 @@ done
   - 「迁移各阶段被杀」那一半是 dr-store 专有的，可以留着，用 `crash::Harness::with_args` 改写；
   - `f2-store-bench.json` 已经由 `f8-m1-store-bench.json` 接替；
   - `f2-crash-recovery.json` 在下一个里程碑换成新格式。
-- **只读打开**：给库加一个只读打开（不迁移、不拿锁、不写安全快照），`dr-cli inspect` 就不用先复制。
+- ~~**只读打开**~~：已有（`Library::open_read_only`），`dr-cli inspect` 已经改用它（2026-11-08）。
 - **冻结基线**：`0000_baseline.sql` 随第一个 0.2 版本发布时，把它的哈希填进 `xtask/src/gates/migrations.rs`。
 
 ### dr-model / dr-doc（F1）
@@ -569,6 +580,7 @@ done
 - **缺两个命令**：时间钉（`time_pin.*`）和写作日。没有它们，走命令写的种子里就没有这两样，对拍只好不比。
 - **删掉旧测量**：`tests/measure.rs` 和 `f3-workspace-measure.json` 已经由 `bench` 的 `workspace` 套件接替，可以删掉（`measure_evidence_has_its_shape` 一起删）。
 - **快照**：能力清单的快照先排好键再比（合并时已经这样改了），以后新的快照照这个做。
+- **查询能在只读的库上跑**：F2 的只读打开不给可编辑的文档句柄（`open_doc` 报 `ReadOnly`），而 F3 的查询经 `BookSlot` / `ProseSlot` 打开文档，所以 dr-cli 的查询还得先复制一份库再开工作区。工作区要是能在只读的库上开，查询改读副本（`load_copy`），命令行的查询就不用复制了（库越大，这一份复制越慢）。
 
 ### dr-index / dr-text
 
@@ -586,6 +598,15 @@ done
 - **M09**：英文界面里恢复成功那句「Restored to the selected version. …」比对话框宽，伸出了右边；历史点那一行和对话框的 × 不在无障碍树里。Esc 和关后焦点见上面 F6 第 2 条。
 - **M18**：在撰写框上点「批注 | TODO」，鼠标按下穿过撰写框落到了下面的正文：正文拿走键盘、光标挪到点的位置（场景里点完 `state.get` 看到 `focus.editor` 是 true、选区收成一个点）。这时候再打字就打进正文了。场景改成先写再选种类、再点「保存」。另外英文界面里右栏审阅的「Current」开关被裁掉一半；审阅卡不在无障碍树里。
 - **M11**：要素页没发现问题。别名的 × 只在悬停时出现（`invisible` + `group_hover`），所以调试桥点之前先让指针停一下。
+
+### 搬运与恢复（M41）
+
+第五个里程碑在真窗口上跑 M41 时找到两处，都是一行的事，**在这条分支上顺手改了**，请 M41 的维护者过目：
+
+1. **「Close」和 × 关不掉搬运的对话框**（恢复、备份、导入书失败时都是这一个对话框；导入文件的对话框同理）。`TransferDialog::close` 在点击的处理器里直接调 `dr_shell::dialogs::hide`，这时窗口正忙着处理这次点击，外壳够不着它的工作区（`handle.update` 失败，错误被吞掉），对话框就一直在。M15 的清空确认早就这样写了（`cx.defer` 一下，「the window is busy with the click or key」），M10、M11 是在观察者里关。改成 `cx.defer(…hide…)`（`dr-view-transfer/src/dialog.rs`、`documents.rs`）。原来的测试是从窗口外面调 `close` 的，所以没发现；`tests/backup.rs` 改成从窗口里面关（和点击一样），不改代码时它失败。
+2. **点书卡上的导出箭头，书也跟着打开了**：编辑、移进最近删除两个按钮都 `stop_propagation`，导出箭头没有，点击一路冒到书卡上。作者点完，保存面板后面书已经开了。补上（`dr-view-shelf/src/view.rs`）。
+
+另外给 F6 的一个建议（没改）：`dialogs::hide` 从点击、按键里调就够不着窗口，三个模块各自绕了一遍（defer、观察者）。`hide` 自己 defer 一下，别的模块就不用知道这件事。
 
 ### dr-platform（F7）
 
@@ -610,7 +631,7 @@ done
    - 样书和 showcase 也走一遍命令，对拍；
    - F3 补上时间钉和写作日的命令以后，对拍把它们也比上。
 5. **迁移旧证据**：F1、F2、F4、M10、dr-index 的旧证据和基准迁进 `bench` 和新证据格式，迁完以后把「旧格式」改成失败。
-6. **`inspect` 换只读打开**：F2 的只读打开合进来以后，`inspect` 和查询不再先复制库。
+6. ~~**`inspect` 换只读打开**~~：`inspect` 已经改了（2026-11-08）；查询要等 F3 能在只读的库上开工作区（见「待协调 → dr-workspace」）。
 7. **旧库测试库**：冻结旧库测试库（阶段 7 第 1 条），钉住 SHA-256。
 
 ## 代码位置

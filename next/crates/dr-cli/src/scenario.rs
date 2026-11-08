@@ -27,7 +27,9 @@
 //!   library), `legacy` (build a synthetic Drifting 0.1 library to import,
 //!   `sample` or `sample-stale`; answers its data folder as `root`),
 //!   `launch` (start the app: `{"book": id, "env": {…}, "settings": {…}}`,
-//!   settings merged into the profile's `settings.json` first).
+//!   settings merged into the profile's `settings.json` first; answers
+//!   `pid`, `profile`, `log` and `out`, the run's output folder, where
+//!   files the app is to write can go).
 //! - `save` keeps a step's output under a name; `${name.key.key}` in any
 //!   string of a later step's input, params, launch or expectations is
 //!   replaced by that part of it (a string that is only the reference
