@@ -63,5 +63,12 @@
       "imagesDropped": "이미지 {{count}}개는 가져오지 않았습니다",
       "notUtf8": "UTF-8 텍스트가 아니어서 일부 문자를 바꿨습니다"
     }
+  },
+  "notifications": {
+    "markdownFolder": {
+      "issue": {
+        "owned": "다른 Drifting이 관리하는 폴더라서 읽거나 쓰지 않았습니다"
+      }
+    }
   }
 }

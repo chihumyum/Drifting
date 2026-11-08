@@ -493,6 +493,15 @@
     },
     "empty": "暂无通知",
     "markdownFolder": {
+      "issue": {
+        "empty": "正文被清空，未合并，原文件已另存",
+        "encoding": "不是 UTF-8 编码，未读取，原文件已另存",
+        "frontmatter": "开头的属性写法有误，修好之前不合并也不覆盖",
+        "identity": "drifting-id 指向别的章节，未合并，原文件已另存",
+        "lineage": "这一章被恢复或重置过，无法自动合并，原文件已另存",
+        "owned": "这个文件夹由另一个 Drifting 管理，没有读写",
+        "too-large": "文件太大，未读取，原文件已另存"
+      },
       "preserved_one": "{{count}} 个改过的文件另存到了 .drifting/preserved",
       "preserved_other": "{{count}} 个改过的文件另存到了 .drifting/preserved",
       "source": "Markdown 文件夹"

@@ -159,6 +159,13 @@ fn parse_as(name: &str, bytes: &[u8], format: ImportFormat) -> Result<ParsedDoc,
     })
 }
 
+/// Markdown text as manuscript blocks, by the same reader as a `.md` file
+/// (no title taken off). M40's Markdown folder reads the paragraphs an
+/// author changed with it.
+pub fn markdown_blocks(text: &str) -> Vec<Block> {
+    markdown::parse(text, &mut Vec::new())
+}
+
 /// UTF-8 (a BOM dropped), or UTF-16 with its BOM; anything else is read as
 /// UTF-8 with replacements, and says so.
 fn decode_text(bytes: &[u8], warnings: &mut Vec<ImportWarning>) -> String {

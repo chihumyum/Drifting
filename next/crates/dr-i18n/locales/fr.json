@@ -500,6 +500,15 @@
     },
     "empty": "Aucune notification",
     "markdownFolder": {
+      "issue": {
+        "empty": "Texte vidé ; non fusionné, fichier conservé",
+        "encoding": "Pas en UTF-8 ; non lu, fichier conservé",
+        "frontmatter": "Propriétés initiales mal formées ; ni fusion ni écrasement avant correction",
+        "identity": "drifting-id désigne un autre chapitre ; non fusionné, fichier conservé",
+        "lineage": "Chapitre restauré ou réinitialisé ; pas de fusion automatique, fichier conservé",
+        "owned": "Une autre installation de Drifting gère ce dossier ; rien n’a été lu ni écrit",
+        "too-large": "Trop volumineux ; non lu, fichier conservé"
+      },
       "preserved_many": "{{count}} fichiers modifiés conservés dans .drifting/preserved",
       "preserved_one": "{{count}} fichier modifié conservé dans .drifting/preserved",
       "preserved_other": "{{count}} fichiers modifiés conservés dans .drifting/preserved",

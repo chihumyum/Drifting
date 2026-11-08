@@ -500,6 +500,15 @@
     },
     "empty": "No notifications",
     "markdownFolder": {
+      "issue": {
+        "empty": "The text was emptied; not merged, file kept",
+        "encoding": "Not UTF-8; not read, file kept",
+        "frontmatter": "The properties at the top are malformed; neither merged nor overwritten until fixed",
+        "identity": "drifting-id names another chapter; not merged, file kept",
+        "lineage": "This chapter was restored or reset; cannot merge automatically, file kept",
+        "owned": "Another Drifting installation keeps this folder; nothing was read or written",
+        "too-large": "Too large; not read, file kept"
+      },
       "preserved_one": "{{count}} edited file was kept in .drifting/preserved",
       "preserved_other": "{{count}} edited files were kept in .drifting/preserved",
       "source": "Markdown folder"

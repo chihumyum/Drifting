@@ -65,6 +65,12 @@ notifications.markdownFolder.source
 notifications.appUpdate.source
 notifications.crashFollowUp.source
 notifications.markdownFolder.preserved
+notifications.markdownFolder.issue.frontmatter
+notifications.markdownFolder.issue.identity
+notifications.markdownFolder.issue.empty
+notifications.markdownFolder.issue.lineage
+notifications.markdownFolder.issue.encoding
+notifications.markdownFolder.issue.too-large
 
 # Feedback and the crash follow-up (M39, dr-view-feedback)
 feedback.*

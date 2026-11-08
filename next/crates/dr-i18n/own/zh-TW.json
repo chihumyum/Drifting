@@ -63,5 +63,12 @@
       "imagesDropped": "{{count}} 張圖片沒有匯入",
       "notUtf8": "不是 UTF-8 文字，有些字元被替換了"
     }
+  },
+  "notifications": {
+    "markdownFolder": {
+      "issue": {
+        "owned": "這個資料夾由另一個 Drifting 管理，沒有讀寫"
+      }
+    }
   }
 }

@@ -15,6 +15,7 @@ members = [
     "crates/dr-i18n",
     "crates/dr-import-v1",
     "crates/dr-index",
+    "crates/dr-mirror",
     "crates/dr-model",
     "crates/dr-platform",
     "crates/dr-shell",
@@ -136,6 +137,10 @@ rusqlite = { version = "0.41", features = ["bundled"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha2 = "0.10"
+# M40's diffs (paragraphs, characters); already in the tree through insta.
+similar = "2.7"
+# M40 watches the Markdown folder.
+notify = { version = "8.2", default-features = false, features = ["macos_fsevent"] }
 # dr-store: typed errors, temporary directories in tests, OS randomness for
 # peer and installation ids, and text ZIPs (zip pinned exactly as in the 0.1
 # client, which audited this version).
@@ -235,6 +240,8 @@ dr-view-transfer = { path = "crates/dr-view-transfer" }
 dr-view-feedback = { path = "crates/dr-view-feedback" }
 futures = "0.3"
 icu_plurals = { version = "2.4", default-features = false, features = ["compiled_data"] }
+# M40 names files as 0.1 did (NFKC first); already in the tree through url.
+icu_normalizer = { version = "2.4", default-features = false, features = ["compiled_data"] }
 icu_locale_core = { version = "2.4", default-features = false }
 # F4e: the @ picker sorts names the way Chinese readers expect (pinyin, the
 # zh collation), same 2.4 line as the other icu_* crates.
@@ -266,6 +273,7 @@ chrono = { version = "0.4.45", default-features = false, features = ["clock", "s
 # database are the versions the 0.1 client audited; roxmltree reads the
 # EPUB and Word files back in the format checks.
 dr-export = { path = "crates/dr-export" }
+dr-mirror = { path = "crates/dr-mirror" }
 fontdb = "0.23"
 krilla = "0.8.2"
 roxmltree = "0.20"

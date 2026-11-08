@@ -69,5 +69,12 @@
       "imagesDropped_other": "No se importaron {{count}} imágenes",
       "notUtf8": "No es texto UTF-8; se reemplazaron algunos caracteres"
     }
+  },
+  "notifications": {
+    "markdownFolder": {
+      "issue": {
+        "owned": "Otra instalación de Drifting gestiona esta carpeta; no se leyó ni se escribió nada"
+      }
+    }
   }
 }

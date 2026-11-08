@@ -500,6 +500,15 @@
     },
     "empty": "Nenhuma notificação",
     "markdownFolder": {
+      "issue": {
+        "empty": "Texto esvaziado; não mesclado, arquivo preservado",
+        "encoding": "Não está em UTF-8; não lido, arquivo preservado",
+        "frontmatter": "Propriedades iniciais malformadas; sem mescla nem sobrescrita até a correção",
+        "identity": "drifting-id aponta para outro capítulo; não mesclado, arquivo preservado",
+        "lineage": "Capítulo restaurado ou redefinido; sem mescla automática, arquivo preservado",
+        "owned": "Outra instalação do Drifting gerencia esta pasta; nada foi lido nem escrito",
+        "too-large": "Grande demais; não lido, arquivo preservado"
+      },
       "preserved_many": "{{count}} arquivos editados preservados em .drifting/preserved",
       "preserved_one": "{{count}} arquivo editado preservado em .drifting/preserved",
       "preserved_other": "{{count}} arquivos editados preservados em .drifting/preserved",

@@ -500,6 +500,15 @@
     },
     "empty": "Sin notificaciones",
     "markdownFolder": {
+      "issue": {
+        "empty": "Texto vaciado; sin combinar, archivo conservado",
+        "encoding": "No es UTF-8; no leído, archivo conservado",
+        "frontmatter": "Propiedades iniciales mal formadas; no se combina ni sobrescribe hasta corregirlas",
+        "identity": "drifting-id identifica otro capítulo; sin combinar, archivo conservado",
+        "lineage": "Capítulo restaurado o restablecido; sin combinación automática, archivo conservado",
+        "owned": "Otra instalación de Drifting gestiona esta carpeta; no se leyó ni se escribió nada",
+        "too-large": "Demasiado grande; no leído, archivo conservado"
+      },
       "preserved_many": "{{count}} archivos editados conservados en .drifting/preserved",
       "preserved_one": "{{count}} archivo editado conservado en .drifting/preserved",
       "preserved_other": "{{count}} archivos editados conservados en .drifting/preserved",
