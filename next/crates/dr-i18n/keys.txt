@@ -488,6 +488,7 @@ commentRail.actions.toNote
 commentRail.actions.toTodo
 reviewPanel.sourceFloating
 reviewPanel.sourceTextUnavailable
+commentRail.snapshot.changed
 
 
 # Settings → 编辑器: the typewriter's row and automatic element links (F4)

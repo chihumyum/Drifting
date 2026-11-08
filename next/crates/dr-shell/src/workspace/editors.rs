@@ -240,6 +240,7 @@ pub fn base_style(theme: &Theme) -> ProseStyle {
     let p = theme.palette;
     ProseStyle {
         font_family: Role::Prose.shared_family(),
+        mono_family: Role::Index.shared_family(),
         gutter: px(PAGE_GUTTER),
         title_size: px(TITLE_SIZE),
         text: p.ink(1).solid(),
@@ -252,15 +253,11 @@ pub fn base_style(theme: &Theme) -> ProseStyle {
     }
 }
 
-/// Quotes, indents and rules in the theme's inks.
+/// Quotes, indents, rules, lists, code blocks and callouts in the theme's
+/// inks: dr-editor's, so the shell and the paint layers hand the editor the
+/// same style.
 pub fn block_style(theme: &Theme) -> BlockStyle {
-    let p = theme.palette;
-    BlockStyle {
-        quote_wash: Some(p.ink(1).alpha(if p.dark { 0.06 } else { 0.04 })),
-        quote_ink: Some(p.ink(2).solid()),
-        rule: p.rule_strong.solid(),
-        ..BlockStyle::default()
-    }
+    dr_editor::decor::block_style(theme.palette)
 }
 
 /// How comments, Agent changes, links and find hits look on the prose in

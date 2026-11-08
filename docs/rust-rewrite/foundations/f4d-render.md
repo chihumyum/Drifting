@@ -1,6 +1,6 @@
 # F4d 渲染：画层、块样式、沉浸淡出、滚动条刻度
 
-2026-11-08。F4 编辑引擎的渲染子线，代码在 `next/crates/gpui-prose/src/render/`（MIT OR Apache-2.0，只依赖 gpui 和 loro，不碰任何 `dr-*`）。第二轮（同一天）把画层接进了 Drifting，代码在 `next/crates/dr-editor/src/decor/`，见文末[「第二轮：接进 Drifting」](#第二轮接进-drifting)；第三轮接进全书视图、给列表画了样子，见[「第三轮」](#第三轮全书视图列表来源悬停卡)；审阅面板是 [M18](../modules/m18-review.md)。总的架构、文本源和别的子线见 [f4-editor.md](f4-editor.md)；计划见 [foundation.md 的 F4 一节](../foundation.md#f4-编辑引擎gpui-prose-与-dr-editor)。
+2026-11-08。F4 编辑引擎的渲染子线，代码在 `next/crates/gpui-prose/src/render/`（MIT OR Apache-2.0，只依赖 gpui 和 loro，不碰任何 `dr-*`）。第二轮（同一天）把画层接进了 Drifting，代码在 `next/crates/dr-editor/src/decor/`，见文末[「第二轮：接进 Drifting」](#第二轮接进-drifting)；第三轮接进全书视图、给列表画了样子，见[「第三轮」](#第三轮全书视图列表来源悬停卡)；第四轮让段距跟着块走（列表收紧）、给代码块和提示框画了样子，见[「第四轮」](#第四轮段距跟着块走代码块和提示框)；审阅面板是 [M18](../modules/m18-review.md)。总的架构、文本源和别的子线见 [f4-editor.md](f4-editor.md)；计划见 [foundation.md 的 F4 一节](../foundation.md#f4-编辑引擎gpui-prose-与-dr-editor)。
 
 ## 一句话
 
@@ -273,8 +273,61 @@
 
 ### 待协调（第三轮）
 
-1. **F4c：列表的输入**，见上和共享笔记。代码块、提示框（也只在笔记里）还没有样子。
-2. **列表项之间的间距**用的是段落间距，比旧版的列表松（旧版项与项之间 0.15 个字）；要收紧得让排版的高度估算也知道块样式（第一轮待协调 2）。
+1. **F4c：列表的输入**，见上和共享笔记。~~代码块、提示框还没有样子~~：第四轮画了。
+2. ~~**列表项之间的间距**用的是段落间距~~：第四轮收紧到旧版的 0.15 个字，高度估算也知道了块样式。
 3. **F4e：基准**：`prose-bench decor` 的打字一项建议等索引重建完再量、把写入和画分开报（共享笔记）。`gpui-prose` 渲染层的源码这一轮改了，`f4e-m2-prose-bench-decor.json` 的指纹会算过期，到下一个里程碑重测。
 4. **幕的扉页**（M05）还没画。
 
+## 第四轮：段距跟着块走、代码块和提示框
+
+2026-11-08。
+
+### 大白话
+
+- **段距跟着块走。** 原来每段的上下留白只看它是正文还是 H1/H2/H3，块样式只管左右收进多少。现在编辑器每段先算一份「这段怎么放」（`ProseEditor::para_set`：字号、行高、上下留白、换行时的首行缩进和两端对齐、左右收进多少），离屏排版、输入法重新排、整篇的高度估算和真画的段落元素都从这一份取，所以估的高度和画出来的一样（测试里每个一行的段落估算值等于量出来的值）。
+- **列表收紧。** 列表项下面紧跟着还是列表项（哪一级都算），两项之间只留 0.15 个字（旧版素材笔记 `li + li` 的间距），最后一项照常留段距。列表项不再吃首行缩进。
+- **代码块**（只在素材笔记里，每行一段，`code_block` 是语言、可为空）：相邻的代码行连成一块（语言不同也连，照 loro-schema 的说法）；整块铺一层纸色更深的底（旧版的 `--paper-deep`）、小圆角，上下左右各留一圈（旧版 10 / 12 px，按正文字号折成 0.65 / 0.75 个字），字换成等宽字体（Drifting 用 dr-ui 的索引字体 Sarasa Mono SC，`ProseStyle::mono_family`），小一号（0.84）、行更紧（1.55）；行与行之间不留段距；不首行缩进、不两端对齐、不挤压标点。
+- **提示框**（同样只在笔记里，`callout` 是种类）：相邻同种的段连成一个框；整框铺一层很淡的强调色、外加一圈淡强调色细边，四周留白（旧版 10 / 14 px）；框里的段与段之间 0.4 个字；左边不画竖条。细边每段画自己那一截：一个画了圆角上边、往下伸出去的框，再裁到这一段的高度，所以中间的段只露出两条竖边，最后一段露出圆角下边。
+- **一个来源。** 外壳原来自己有一份块样式（引文底色是第一档墨 0.04），画层另有一份（纸色更深 0.5，照旧版），打开时外壳那份后到、把列表的颜色盖掉了，换主题时又是画层那份后到。现在两边都用 `dr_editor::decor::block_style(palette)`：引文、分隔线、列表、代码块、提示框的颜色和圆角（dr-ui 的 `radius::MD`）一处定。
+- **dr-editor 写得进代码块和提示框了。** `convert.rs` 的 `set_block_attr` 原来对这两个键只打警告不写。
+- **打字带装饰的基准，重新看了一遍。** F2 第六轮（还在 F2 的分支上）让库打开时的补建索引等别的写入停 500 ms 才写，所以第三轮建议的「先等索引建完再量」在它合进来以后就不需要了。把这一轮和 F2 第六轮合在一个临时目录里跑了两次 `prose-bench decor`（不写证据），机器不空（负载 24–27，别的会话在编译），**只作参考**：打字一帧 p50 不带装饰 0.91–1.10 ms、带 1000 处装饰 1.04–1.50 ms；p95 两次一次带装饰高（5.42 对 2.50 ms）、一次不带装饰高（5.67 对 3.53 ms），还是和第三轮一样随负载翻来翻去。空闲时的一次还欠着。数字和给基准的建议在共享笔记 `f4d-typing-with-decorations.md`。
+
+### 接口变化
+
+| 项 | 说明 |
+| --- | --- |
+| `ProseEditor::{para_set, para_metrics}`、`layout::ParaSet { metrics, setting, look }`、`ParaSet::narrowing()` | 一段怎么放；替掉了 `row_setting` |
+| `BlockLook::{list_below, code, code_above, code_below, callout, callout_above, callout_below, inset_right}` | 和上下邻段连没连成一块、右边收进多少 |
+| `BlockStyle::{list_gap, code_wash, code_ink, code_size, code_line_height, code_pad, code_inset, callout_wash, callout_edge, callout_pad, callout_inset, callout_gap, block_radius}` | 列表间距、代码块和提示框的样子；单位是正文字号的几个字 |
+| `ProseStyle::mono_family` | 代码块的字体，默认 Menlo |
+| `set_block_style` | 现在也让高度重新估一遍（收进和留白都算排版） |
+| `dr_editor::decor::block_style(&Palette)` | Drifting 的块样式，外壳和画层共用 |
+
+### 共用文件里改的地方
+
+| 文件 | 改了什么 |
+| --- | --- |
+| `gpui-prose/src/editor.rs` | 整篇估高度、离屏排版改用 `para_set`；`line_runs` 换成 `paragraph_runs`（代码行换等宽字） |
+| `gpui-prose/src/render/items.rs` | `display` 的字样、`paragraph` 的字号行高留白取 `para_set`（两处，各一两行） |
+| `gpui-prose/src/input/ime.rs` | 重新排时的字号取 `para_metrics` |
+| `dr-editor/src/convert.rs` | `set_block_attr` 认 `code_block`、`callout` |
+| `dr-shell/src/workspace/editors.rs` | `block_style(theme)` 改成调 dr-editor 那份；`base_style` 交等宽字体 |
+| `dr-ui/src/components/overlay.rs` | `Place::Beside { rect, gap }`（M18 的来源卡，见 [M18 第三个里程碑](../modules/m18-review.md#第三个里程碑)） |
+| `dr-ui/src/components/hover_card.rs` | `HoverCard::beside()`、`CardBody::quote(text, note)` |
+| `dr-i18n/keys.txt` | 加 `commentRail.snapshot.changed`（旧版「已删除/改动」） |
+
+### 测试
+
+- `gpui-prose`：`lists_code_and_callouts_take_their_own_gaps`（相邻列表项 0.15 个字、最后一项段距、两项之间的实际距离；代码块的字号行高、两端留白、中间不留、收进、等宽字体；只有普通正文段吃首行缩进、代码不两端对齐不挤压；提示框两端留白、中间 0.4 个字、两边收进、换行宽度窄了两边的留白；十段每段的估算高度等于量出来的高度）。原来的块样式、列表测试照样过。
+- `dr-editor/tests/decor.rs`：`code_blocks_and_callouts_are_written_in_notes`（素材笔记里设成代码行和提示框，编辑器认出来、笔记的文档里存下了这两个键）。
+
+### 截图
+
+`list-*.png`（[m18/](../modules/m18/)）换成了第四轮的：列表项挨紧，下面是一个三行的代码块和一个两段的提示框。
+
+### 待协调（第四轮）
+
+1. **F4c：** 代码块和提示框的输入（回车在代码块里续行、空行退出；进出提示框；代码里的 Tab）归输入一侧，块样式这边只管画。
+2. **代码块不横向滚动。** 旧版 `pre` 超宽时横向滚；新版照段落换行。笔记里的代码多是短行，先这样。
+3. **行内代码**（`code` 标记）还没有样子（旧版纸色更深的底、等宽小一号），属于标记到字样那一层，下一轮可以一起做。
+4. **章节里的引文底色变了一点。** 块样式合成一份以后，打开章节时引文的底色从外壳那份（第一档墨 0.04）换成画层那份（纸色更深 0.5，旧版素材笔记的值），比之前略深；原来换一次主题以后就已经是这一份。要哪一份请外壳定，改 `dr_editor::decor::block_style` 一处就行。

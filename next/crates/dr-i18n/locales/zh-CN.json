@@ -94,6 +94,9 @@
     },
     "card": {
       "emptyComment": "空批注"
+    },
+    "snapshot": {
+      "changed": "已删除/改动"
     }
   },
   "common": {

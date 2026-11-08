@@ -196,7 +196,7 @@ impl Element for ParagraphElement {
                     _ => max_width + gutter * 2.,
                 });
                 let (column_width, left) = column(width, max_width, gutter);
-                let wrap_width = (column_width - block.inset).max(px(40.));
+                let wrap_width = (column_width - block.inset - block.inset_right).max(px(40.));
                 // Alignment, indent, squeezing and justification are the
                 // layout's, so every position it answers is placed.
                 let layout = shape_set(&text, font_size, &runs, wrap_width, setting, window);
@@ -326,6 +326,7 @@ impl Element for ParagraphElement {
         };
 
         window.paint_layer(layer_bounds, |window| {
+            self.paint_block_washes(bounds, shaped, origin, rows, window);
             self.paint_quote_wash(bounds, shaped.left, origin, rows, window);
             for deco in &self.decos {
                 let reach = match &deco.kind {
@@ -404,6 +405,8 @@ impl Element for ParagraphElement {
             );
             let plain = if done {
                 self.block_style.task_done_ink
+            } else if self.block.code && self.block_style.code_ink.is_some() {
+                self.block_style.code_ink
             } else {
                 self.block
                     .quote
@@ -576,6 +579,120 @@ fn paint_brush(
 }
 
 impl ParagraphElement {
+    /// A callout's wash and edge, and a code block's wash, under the text:
+    /// a paragraph inside the block paints its whole height, the first and
+    /// the last only their part of the pads, so the block reads as one.
+    fn paint_block_washes(
+        &self,
+        bounds: Bounds<Pixels>,
+        shaped: &Shaped,
+        origin: Point<Pixels>,
+        rows: usize,
+        window: &mut Window,
+    ) {
+        let (look, style, body) = (&self.block, &self.block_style, self.body_size);
+        if !look.code && !look.callout {
+            return;
+        }
+        let em = |ems: f32| (body * ems).round();
+        let text_bottom = origin.y + self.line_height * rows as f32;
+        let code_pad = em(style.code_pad);
+        let (code_top, code_bottom) = (
+            if look.code && !look.code_above {
+                code_pad
+            } else {
+                px(0.)
+            },
+            if look.code && !look.code_below {
+                code_pad
+            } else {
+                px(0.)
+            },
+        );
+        let (column_width, column_left) = column(bounds.size.width, self.max_width, self.gutter);
+        let column_left = bounds.left() + column_left;
+        let corners = |radius: Pixels, above: bool, below: bool| gpui::Corners {
+            top_left: if above { px(0.) } else { radius },
+            top_right: if above { px(0.) } else { radius },
+            bottom_left: if below { px(0.) } else { radius },
+            bottom_right: if below { px(0.) } else { radius },
+        };
+        if look.callout {
+            let top = if look.callout_above {
+                bounds.top()
+            } else {
+                origin.y - code_top - em(style.callout_pad)
+            };
+            let bottom = if look.callout_below {
+                bounds.bottom()
+            } else {
+                text_bottom + code_bottom + em(style.callout_pad)
+            };
+            let left = column_left + body * (f32::from(look.indent) * style.indent_step);
+            let rect =
+                Bounds::from_corners(point(left, top), point(column_left + column_width, bottom));
+            let radii = corners(style.block_radius, look.callout_above, look.callout_below);
+            if let Some(wash) = style.callout_wash {
+                window.paint_quad(fill(rect, wash).corner_radii(radii));
+            }
+            if let Some(edge) = style.callout_edge {
+                // The edge runs round the whole aside: each paragraph paints
+                // a framed box reaching past its joined sides, clipped to
+                // itself, so the middle shows the sides, the ends their
+                // rounded top or bottom.
+                let w = px(1.);
+                let reach = |joined: bool| if joined { px(12.) } else { px(0.) };
+                let framed = Bounds::from_corners(
+                    point(rect.left(), rect.top() - reach(look.callout_above)),
+                    point(rect.right(), rect.bottom() + reach(look.callout_below)),
+                );
+                let clip = Bounds::from_corners(
+                    point(rect.left() - w, rect.top()),
+                    point(rect.right() + w, rect.bottom()),
+                )
+                .intersect(&window.content_mask().bounds);
+                window.with_content_mask(Some(gpui::ContentMask { bounds: clip }), |window| {
+                    window.paint_quad(quad(
+                        framed,
+                        style.block_radius,
+                        gpui::transparent_black(),
+                        w,
+                        edge,
+                        gpui::BorderStyle::Solid,
+                    ));
+                });
+            }
+        }
+        if look.code
+            && let Some(wash) = style.code_wash
+        {
+            let top = if look.code_above {
+                bounds.top()
+            } else {
+                origin.y - code_top
+            };
+            let bottom = if look.code_below {
+                bounds.bottom()
+            } else {
+                text_bottom + code_bottom
+            };
+            let inset = em(style.code_inset);
+            let left = shaped.left + bounds.left() - inset;
+            let right = shaped.left + bounds.left() + shaped.layout.wrap_width + inset;
+            window.paint_quad(
+                fill(
+                    Bounds::from_corners(point(left, top), point(right, bottom)),
+                    wash,
+                )
+                .corner_radii(corners(
+                    style.block_radius,
+                    look.code_above,
+                    look.code_below,
+                )),
+            );
+        }
+    }
+
     /// The quote's wash, running through the gaps to its neighbours.
     fn paint_quote_wash(
         &self,
@@ -604,7 +721,8 @@ impl ParagraphElement {
         let left = (bounds.left() + left - self.body_size * self.block_style.quote_inset)
             .max(bounds.left());
         let right = bounds.left() + (bounds.size.width - width) / 2. + width;
-        let round = |square: bool| if square { px(0.) } else { px(4.) };
+        let radius = self.block_style.block_radius;
+        let round = |square: bool| if square { px(0.) } else { radius };
         window.paint_quad(
             fill(
                 Bounds::from_corners(point(left, top), point(right, bottom)),

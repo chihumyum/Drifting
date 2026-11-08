@@ -19,7 +19,20 @@
 //!   items do not break the count); a box for a task, ticked when done,
 //!   its text then fainter and struck through. A task linked to a TODO
 //!   shows the TODO's state (the host's [`crate::ProseExtension::task_done`]),
-//!   never a `checked` of its own.
+//!   never a `checked` of its own. Adjacent items sit closer than
+//!   paragraphs (`list_gap`, the old note editor's 0.15 em).
+//! - **Code blocks** (notes; `code_block`, its language): one line a
+//!   paragraph, adjacent code lines read as one block — a
+//!   rounded wash of the paper's deeper tone, padded on every side, the
+//!   text in the monospace face, smaller and tighter, never indented,
+//!   justified or squeezed.
+//! - **Callouts** (notes; `callout`, its kind): adjacent paragraphs of one
+//!   kind read as one aside — a rounded wash with a faint edge, padded,
+//!   paragraphs inside a little closer (no bar at the left edge either).
+//!
+//! These are layout too: the editor's paragraph metrics
+//! ([`crate::ProseEditor::para_metrics`]) take the gaps and pads from here,
+//! so the height estimates and the painted paragraphs agree.
 
 use gpui::{Hsla, Pixels, hsla, px};
 use loro::LoroValue;
@@ -54,6 +67,30 @@ pub struct BlockStyle {
     pub task_tick: Hsla,
     /// A done task's text colour; `None`: unchanged.
     pub task_done_ink: Option<Hsla>,
+    /// The gap between adjacent list items, in ems of the body size (in
+    /// place of the paragraph spacing).
+    pub list_gap: f32,
+    /// A code block's wash; `None` for none.
+    pub code_wash: Option<Hsla>,
+    /// A code block's text colour; `None`: unchanged.
+    pub code_ink: Option<Hsla>,
+    /// Code's size, as a share of the body size, and its line height.
+    pub code_size: f32,
+    pub code_line_height: f32,
+    /// A code block's padding above and below its text, and left and right
+    /// of it, in ems of the body size.
+    pub code_pad: f32,
+    pub code_inset: f32,
+    /// A callout's wash and edge; `None` for none.
+    pub callout_wash: Option<Hsla>,
+    pub callout_edge: Option<Hsla>,
+    /// A callout's padding above and below, and left and right, and the gap
+    /// between its paragraphs, in ems of the body size.
+    pub callout_pad: f32,
+    pub callout_inset: f32,
+    pub callout_gap: f32,
+    /// The corner of a quote's, a code block's and a callout's wash.
+    pub block_radius: Pixels,
 }
 
 impl Default for BlockStyle {
@@ -71,6 +108,22 @@ impl Default for BlockStyle {
             task_done: hsla(0.58, 0.6, 0.45, 1.),
             task_tick: hsla(0., 0., 1., 1.),
             task_done_ink: Some(hsla(0., 0., 0.55, 1.)),
+            // The old note editor (material-workbench.css) at its 15.5 px:
+            // items 0.15 em apart; code 13 px on 1.55, padded 10 / 12 px;
+            // callouts padded 10 / 14 px, paragraphs 0.4 em apart.
+            list_gap: 0.15,
+            code_wash: Some(hsla(40. / 360., 0.2, 0.45, 0.08)),
+            code_ink: None,
+            code_size: 0.84,
+            code_line_height: 1.55,
+            code_pad: 0.65,
+            code_inset: 0.75,
+            callout_wash: Some(hsla(210. / 360., 0.9, 0.55, 0.09)),
+            callout_edge: Some(hsla(210. / 360., 0.9, 0.55, 0.18)),
+            callout_pad: 0.65,
+            callout_inset: 0.9,
+            callout_gap: 0.4,
+            block_radius: px(4.),
         }
     }
 }
@@ -116,9 +169,21 @@ pub struct BlockLook {
     pub rule: bool,
     /// A list item, with its mark.
     pub list: Option<ListItem>,
-    /// Left inset of the text inside the column (indent, quote inset and
-    /// list levels).
+    /// The paragraph below is a list item too (the gap is `list_gap`).
+    pub list_below: bool,
+    /// A code line; the code block goes on above / below it.
+    pub code: bool,
+    pub code_above: bool,
+    pub code_below: bool,
+    /// In a callout; the callout goes on above / below it.
+    pub callout: bool,
+    pub callout_above: bool,
+    pub callout_below: bool,
+    /// Left inset of the text inside the column (indent, a callout's and a
+    /// code block's padding, quote inset and list levels).
     pub inset: Pixels,
+    /// Right inset of the text (a callout's and a code block's padding).
+    pub inset_right: Pixels,
 }
 
 impl BlockLook {
@@ -136,12 +201,25 @@ impl BlockLook {
         };
         let rule = truthy(attrs.get(block::RULE));
         let list = list_item(attrs);
+        let code = code_language(attrs).is_some();
+        let callout = callout_kind(attrs).is_some();
+        // Outside in: the indent, the callout's padding, the quote, the
+        // list's levels, the code block's padding.
         let mut inset = body_size * (f32::from(indent) * style.indent_step);
+        let mut inset_right = px(0.);
+        if callout {
+            inset += body_size * style.callout_inset;
+            inset_right += body_size * style.callout_inset;
+        }
         if quote {
             inset += body_size * style.quote_inset;
         }
         if let Some(item) = list {
             inset += body_size * (style.list_step * f32::from(item.level + 1));
+        }
+        if code {
+            inset += body_size * style.code_inset;
+            inset_right += body_size * style.code_inset;
         }
         BlockLook {
             indent,
@@ -151,7 +229,42 @@ impl BlockLook {
             align,
             rule,
             list,
+            list_below: false,
+            code,
+            code_above: false,
+            code_below: false,
+            callout,
+            callout_above: false,
+            callout_below: false,
             inset,
+            inset_right,
+        }
+    }
+
+    /// Sets the flags that join this paragraph to its neighbours' blocks
+    /// (`above` / `below`: the attributes of the paragraphs around it).
+    pub(crate) fn join(
+        &mut self,
+        attrs: &BlockAttrs,
+        above: Option<&BlockAttrs>,
+        below: Option<&BlockAttrs>,
+    ) {
+        let quote = |a: Option<&BlockAttrs>| a.is_some_and(|a| truthy(a.get(block::QUOTE)));
+        if self.quote {
+            self.quote_above = quote(above);
+            self.quote_below = quote(below);
+        }
+        self.list_below = self.list.is_some() && below.and_then(list_item).is_some();
+        // Adjacent code lines are one block whatever their language;
+        // adjacent callout paragraphs only when of one kind (loro-schema.md).
+        if self.code {
+            self.code_above = above.and_then(code_language).is_some();
+            self.code_below = below.and_then(code_language).is_some();
+        }
+        if self.callout {
+            let kind = callout_kind(attrs);
+            self.callout_above = above.and_then(callout_kind) == kind;
+            self.callout_below = below.and_then(callout_kind) == kind;
         }
     }
 
@@ -192,6 +305,22 @@ pub(crate) fn list_item(attrs: &BlockAttrs) -> Option<ListItem> {
         _ => 0,
     };
     Some(ListItem { mark, level })
+}
+
+/// A code line's language (empty when none is named).
+pub(crate) fn code_language(attrs: &BlockAttrs) -> Option<&str> {
+    match attrs.get(block::CODE_BLOCK) {
+        Some(LoroValue::String(lang)) => Some(lang.as_str()),
+        _ => None,
+    }
+}
+
+/// A callout paragraph's kind.
+pub(crate) fn callout_kind(attrs: &BlockAttrs) -> Option<&str> {
+    match attrs.get(block::CALLOUT) {
+        Some(LoroValue::String(kind)) => Some(kind.as_str()),
+        _ => None,
+    }
 }
 
 /// The TODO a task item is linked to.

@@ -94,6 +94,9 @@
     },
     "card": {
       "emptyComment": "Empty comment"
+    },
+    "snapshot": {
+      "changed": "Deleted/changed"
     }
   },
   "common": {

@@ -403,8 +403,9 @@ fn run(out: PathBuf) -> Result<()> {
         });
         h.still()?;
 
-        // The pointer rests on the first Review card: its source card.
-        h.pointer(1100.0, 200.0);
+        // The pointer rests on the second Review card (a comment on words
+        // in chapter 11): its source card beside it, with the passage.
+        h.pointer(1100.0, 380.0);
         h.still()?;
         h.save(&dir, &format!("source-{a}.png"))?;
         h.pointer(640.0, 790.0);
@@ -431,7 +432,8 @@ fn run(out: PathBuf) -> Result<()> {
         h.still()?;
         h.save(&dir, &format!("book-{a}.png"))?;
 
-        // A material note with a list of each kind.
+        // A material note with a list of each kind, a code block and a
+        // callout.
         h.set(|ws, _, cx| ws.open(note.clone(), Open::KEEP, cx));
         let target = note.clone();
         h.wait(move |ws, _| ws.editor_of(&target).is_some())?;
@@ -443,6 +445,18 @@ fn run(out: PathBuf) -> Result<()> {
             h.set(move |_, window, cx| make_lists(&editor, &todo, window, cx));
             listed = true;
         }
+        h.still()?;
+        // Down far enough that the code block and the callout show whole.
+        let editor =
+            h.cx.update(|cx| h.view.read(cx).editor_of(&note).cloned())
+                .expect("the note's editor");
+        h.set(move |_, _, cx| {
+            let prose = editor.read(cx).editor().clone();
+            prose.update(cx, |p, cx| {
+                let (y, _) = p.scroll_y();
+                p.scroll_by_estimate(240.0 - y, cx);
+            });
+        });
         h.still()?;
         h.save(&dir, &format!("list-{a}.png"))?;
         h.set(|ws, _, cx| ws.open(first.clone(), Open::KEEP, cx));
@@ -462,7 +476,7 @@ fn run(out: PathBuf) -> Result<()> {
 /// is the only one with lists), and a resolved TODO for a task to link to.
 fn list_note(lib: &dr_workspace::Workspace, h: &mut Headless) -> Result<(Target, String)> {
     let book = h.cx.update(|cx| h.view.read(cx).book_id.clone());
-    let text = "修表要准备的\n镊子\n起子\n放大镜\n一字\n十字\n先后\n拆后盖\n上油\n今天\n买灯芯\n问钟楼的年代\n把十七张单子抄一遍";
+    let text = "修表要准备的\n镊子\n起子\n放大镜\n一字\n十字\n先后\n拆后盖\n上油\n今天\n买灯芯\n问钟楼的年代\n把十七张单子抄一遍\n零件放哪一格\n后盖    左上格\n摆轮    中间格\n发条    右下格\n拆之前先拍一张照。\n零件按拆下的顺序放，装回去时倒过来。";
     let made = lib.call(
         &dr_workspace::Actor::User,
         "material.create",
@@ -483,8 +497,8 @@ fn list_note(lib: &dr_workspace::Workspace, h: &mut Headless) -> Result<(Target,
     Ok((Target::Material(id.parse()?), todo))
 }
 
-/// Bullets (two levels), an ordered list, and tasks (one ticked, one linked
-/// to a done TODO, one open).
+/// Bullets (two levels), an ordered list, tasks (one ticked, one linked to
+/// a done TODO, one open), a code block and a callout.
 fn make_lists(
     editor: &Entity<dr_editor::ChapterEditor>,
     todo: &str,
@@ -516,6 +530,12 @@ fn make_lists(
                 d.set_block_attr(line, block::LIST_LEVEL, Some(1i64.into()), "user");
             }
             d.set_block_attr(10, block::CHECKED, Some(true.into()), "user");
+            for line in [14, 15, 16] {
+                d.set_block_attr(line, block::CODE_BLOCK, Some("".into()), "user");
+            }
+            for line in [17, 18] {
+                d.set_block_attr(line, block::CALLOUT, Some("note".into()), "user");
+            }
             None
         });
     });

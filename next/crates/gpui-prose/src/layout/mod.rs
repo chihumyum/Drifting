@@ -17,7 +17,7 @@ pub mod setting;
 pub use book::{Book, BookPos, BookRange, Chapter, Item};
 pub use heights::{BlockMetrics, HeightIndex, estimate_height};
 pub use paragraph::{Affinity, ProseLayout, RowAlign, RowSetting, column, shape, shape_set};
-pub use setting::{estimate_indented, typewriter_bounds, typewriter_tail};
+pub use setting::{ParaSet, estimate_indented, typewriter_bounds, typewriter_tail};
 
 #[cfg(test)]
 mod tests;

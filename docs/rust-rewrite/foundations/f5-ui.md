@@ -106,7 +106,7 @@ gpui_platform::application()
 | `NumberField`（数字框） | 滑块旁边的小号等宽单行输入框，单位作为读数写在框尾，框里上下两枚平面细笔折微调；停用时连同笔折一起停用 | `NumberField::new(id, 值, 最小, 最大).decimals(2).unit("px").label(名字).on_change(…).disabled(b)`。打字时只有在范围内的数才立即预览；回车或离开时越界的收回到端点、不是数就恢复原值；↑↓ 和笔折按最后一位（整数为 1）加减 |
 | `Select`（下拉） | 触发器是一块单行输入框：当前项的记号、名字、末尾一笔折；展开是菜单外壳的列表，与触发器同宽、不窄于 240，当前项中等字重带勾 | `Select::new(id, vec![Choice::new(图标或记号, 名字)], i).on_change(…).disabled(bool)` |
 | `Menu` / `MenuItem` | 桌面色不透明底、16 px 圆角、静止细玻璃边、浮起投影；宽 240 / 320 / 420；每行左图标右文字，悬停时这一行沿自己的圆角流出发丝玻璃环，字色不变；分组用 0.5 px 发丝线 | `Menu::new(id).width(MenuWidth::Wide).item(MenuItem::new(id, 图标, 文字).checked(b).danger()).separator(&t).section("写作状态", &t)` |
-| `HoverCard` / `CardBody` / `CardAction` | 停 220 ms 出卡，离开有 220 ms 宽限；点对象、所在列表滚动都收起；卡宽 248、一个字号、只有标题加粗；能按的东西在卡底部一行一个，危险项在最后一节 | `HoverCard::new(id, 对象元素, \|w, cx\| CardBody::new(id, 标题).mark(…).count(…).summary(…).section(vec![CardAction…]))` |
+| `HoverCard` / `CardBody` / `CardAction` | 停 220 ms 出卡，离开有 220 ms 宽限；点对象、所在列表滚动都收起；卡宽 248、一个字号、只有标题加粗；能按的东西在卡底部一行一个，危险项在最后一节；`.beside()` 贴在对象旁边（侧栏里的卡用，F4d 第四轮）；`CardBody::quote(字, 附注)` 是一张稿纸色小纸条上的一段原文（旧版 `.hover-card__quote`） | `HoverCard::new(id, 对象元素, \|w, cx\| CardBody::new(id, 标题).mark(…).count(…).summary(…).section(vec![CardAction…]))` |
 | `overlay::float` / `Dialog` | 只有一个浮层层、一个定位函数（见下面的「浮层」）；对话框是直角桌面色、半像素墨线加投影，背后蒙一层桌面色薄雾 | `overlay::float(Place, Layer, 元素)`；`Dialog::new(id, 标题).eyebrow(…).subtitle(…).body(…).action(…).on_close(…).on_mist(…)`。`on_close` 是右上角的 ✕（给了才有 ✕）；点雾默认和 ✕ 一样，给了 `on_mist` 就改走它（写了一半的话时不关：`.on_mist(\|w, cx\| if 没写字 { 关 })`；`\|_, _\| {}` 让雾不响应） |
 | `NotificationPill` | 浮在工作上的一张不透明稿纸色小片，静止细玻璃线、小圆角；160 ms 上移 3 px 浮入，离开整块淡出 | `NotificationPill::new(id, 文字).icon(Icon).danger().action(Button).shown(bool)` |
 | `EmptyState` | 一句平实的话（次级墨、居中、不斜体），上面是缺的那类东西的空心记号或这个地方的淡图标，下面可跟一个文字按钮和「从哪里开始」的快捷键行 | `EmptyState::new(id, 话).mark(Kind)/.icon(Icon).action(Button).hint(动作, 快捷键)` |
@@ -120,7 +120,7 @@ gpui_platform::application()
 旧客户端有四套浮层外壳（悬停卡 `HoverCardShell`、图上点开能展开成编辑器的卡 `EntityCardPopoverShell`、菜单 `AnchoredPopover`、按点位弹出的 `ContextMenuSurface`）加 `Modal`，定位函数四个，共约 2.4k 行。dr-ui 只有一个浮层层和一个定位函数：
 
 - `overlay::float(Place, Layer, 元素)`：用 GPUI 的 `deferred` 画在整个窗口之上（相当于旧版 portal 到 `body`、`position: fixed`），`Layer` 是 `Popover` < `Dialog` < `Notice`。
-- `Place` 有三种锚：`Place::Rect { rect, align, gap }`（贴着一个矩形：下方，按起点 / 居中 / 终点对齐，下面放不下就翻到上面）、`Place::Point(点)`（左上角对着这个点，碰到窗口边就往左、往上翻）、`Place::Center`（窗口正中）。不管哪种都留在窗口里 8 px 以内。
+- `Place` 有四种锚：`Place::Rect { rect, align, gap }`（贴着一个矩形：下方，按起点 / 居中 / 终点对齐，下面放不下就翻到上面）、`Place::Beside { rect, gap }`（贴在矩形旁边、顶边对齐：右边放不下而左边更宽就放左边，旧版的 `right-start`；F4d 第四轮为审阅卡的来源卡加的）、`Place::Point(点)`（左上角对着这个点，碰到窗口边就往左、往上翻）、`Place::Center`（窗口正中）。不管哪种都留在窗口里 8 px 以内。
 - 落在哪里由纯函数 `overlay::place(place, 内容尺寸, 窗口尺寸)` 算，`components/overlay.rs` 的测试守着：下方、翻到上方、贴边、按点翻转、居中。
 - 菜单、悬停卡、下拉列表、对话框都走它；以后图上点开的卡（要素全景、故事图谱）用 `Place::Point` 或 `Place::Rect`，能展开成编辑器只是卡里的内容变大，不另起外壳。悬停的停留和宽限沿用 `tokens::motion::dwell`，数值与旧版 `src/renderer/lib/motion.ts` 相同。
 - `ContextMenuSurface` 主要是手机长按菜单，新版不做右键菜单，不搬。
