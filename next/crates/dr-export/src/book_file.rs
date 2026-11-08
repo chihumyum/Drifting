@@ -627,14 +627,36 @@ impl Rewrite {
     /// One change, rewritten in place: its ids, every container, key and
     /// value; the text a text insert carries (the prose itself) and binary
     /// values stay, except mergeable markers, which follow their key.
-    fn change(&self, change: &mut JsonChange) -> Result<()> {
+    fn change(&self, change: &mut JsonChange, conversation: bool) -> Result<()> {
         self.id(&mut change.id);
         change.deps.iter_mut().for_each(|d| self.id(d));
         for op in &mut change.ops {
-            op.container = self.container(&op.container);
+            // Conversation roots are schema names, even if a legacy id
+            // happens to be "entries" or "meta".
+            let conversation_root = conversation
+                && matches!(&op.container,
+                ContainerID::Root { name, .. } if name.as_str() == schema::conversation::ENTRIES || name.as_str() == schema::conversation::META);
+            if !conversation_root {
+                op.container = self.container(&op.container);
+            }
             match &mut op.content {
                 JsonOpContent::Map(MapOp::Insert { key, value }) => {
-                    *key = self.text(key);
+                    if conversation
+                        && key == schema::meta::DOC
+                        && matches!(&op.container, ContainerID::Root { name, .. } if name.as_str() == schema::conversation::META)
+                        && let LoroValue::String(old) = value
+                    {
+                        *value = self
+                            .doc_id(old)
+                            .ok_or_else(|| {
+                                BookFileError::Damaged("conversation has no new id".into())
+                            })?
+                            .into();
+                        continue;
+                    }
+                    if !conversation_root {
+                        *key = self.text(key);
+                    }
                     *value = match marker_kind(value) {
                         Some(kind) => loro_common::mergeable_marker(&op.container, key, kind),
                         None => self.loro_value(value),
@@ -643,8 +665,16 @@ impl Rewrite {
                 JsonOpContent::Map(MapOp::Delete { key }) => *key = self.text(key),
                 JsonOpContent::List(ListOp::Insert { value, .. })
                 | JsonOpContent::MovableList(MovableListOp::Insert { value, .. }) => {
-                    for v in value.iter_mut() {
-                        *v = self.loro_value(v);
+                    // Conversation entries are historical, immutable payloads:
+                    // ids inside messages, signatures and tool arguments must
+                    // remain exactly as recorded, not become new-book ids.
+                    let transcript = conversation
+                        && matches!(&op.container,
+                        ContainerID::Root { name, .. } if name.as_str() == schema::conversation::ENTRIES);
+                    if !transcript {
+                        for v in value.iter_mut() {
+                            *v = self.loro_value(v);
+                        }
                     }
                 }
                 JsonOpContent::List(ListOp::Delete { start_id, .. })
@@ -694,6 +724,9 @@ impl Rewrite {
         source
             .import(bytes)
             .map_err(|e| BookFileError::Damaged(e.to_string()))?;
+        let conversation = source.get_map(schema::conversation::META)
+            .get(schema::meta::DOC)
+            .is_some_and(|v| matches!(v, loro::ValueOrContainer::Value(LoroValue::String(id)) if id.starts_with("conversation:")));
         let mut json = source
             .export_json_updates_without_peer_compression(
                 &VersionVector::default(),
@@ -701,7 +734,7 @@ impl Rewrite {
             )
             .map_err(|e| BookFileError::Damaged(e.to_string()))?;
         for change in &mut json.changes {
-            self.change(change)?;
+            self.change(change, conversation)?;
         }
         let out = LoroDoc::new();
         schema::configure(&out);
@@ -894,6 +927,10 @@ pub fn import_book(
             let genesis = match doc_id.kind() {
                 DocKind::Book => dr_doc::book::genesis(match &doc_id {
                     DocId::Book(b) => b,
+                    _ => unreachable!(),
+                }),
+                DocKind::Conversation => dr_doc::conversation::genesis(match &doc_id {
+                    DocId::Conversation(id) => id,
                     _ => unreachable!(),
                 }),
                 _ => dr_doc::prose::genesis(&doc_id),
