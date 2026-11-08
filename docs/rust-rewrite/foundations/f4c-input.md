@@ -214,7 +214,7 @@ cargo clippy -p gpui-prose -p gpui-ime --target x86_64-pc-windows-msvc --all-tar
 
 本机 2026-11-08 跑过，通过（含 IMM32 那段代码、测试和例子）；第四轮加了 `GetFocus` 以后再跑一次，通过。
 
-aarch64（Windows on ARM）是同一条命令，把三处 `x86_64` 换成 `aarch64`（`CFLAGS_aarch64_pc_windows_msvc`、`AR_aarch64_pc_windows_msvc`、`--target aarch64-pc-windows-msvc`）。`psm` 在不是 Windows 的机器上改用 GAS 写法的汇编（`aarch_aapcs64.s`），用 LLVM 编，不需要微软的 `armasm64`。要先有这个 target 的标准库：`rustup target add aarch64-pc-windows-msvc --toolchain 1.98.1`。本机 2026-11-08 没装，按规矩没自己装，等监管会话定。
+aarch64（Windows on ARM）是同一条命令，把三处 `x86_64` 换成 `aarch64`（`CFLAGS_aarch64_pc_windows_msvc`、`AR_aarch64_pc_windows_msvc`、`--target aarch64-pc-windows-msvc`）。`psm` 在不是 Windows 的机器上改用 GAS 写法的汇编（`aarch_aapcs64.s`），用 LLVM 编，不需要微软的 `armasm64`。要先有这个 target 的标准库：`rustup target add aarch64-pc-windows-msvc --toolchain 1.98.1`。本机 2026-11-08 没装；监管会话定了这一轮不装，留给作者定，见「下一步」第 1 条。
 
 ## 要作者手测的
 
@@ -251,6 +251,21 @@ aarch64（Windows on ARM）是同一条命令，把三处 `x86_64` 换成 `aarch
    - **键位。** 逐个过一遍：Ctrl+←/→ 按词、Home/End 到屏幕行头尾、Ctrl+Home/End 到章首章尾、Ctrl+↑/↓ 按段、Ctrl+Backspace/Delete 删词、Ctrl+Z/Y 撤销重做、Ctrl+Shift+Z 重做、Shift+方向键选字。
    - **在 Drifting 里再来一遍。** 在 `next/` 的开发版（`cargo xtask dev`）里打开一章：组字中按 Ctrl+F 打开查找栏、点侧栏、切到别的程序，拼音都不应上屏，也不应跟进查找栏；先在查找栏里留一个词，回正文组字到一半再按 Ctrl+F：查找栏里原来的词还在、没被清掉（待协调 12 说的是这一处）。
    - **结果怎么报。** 哪一步不对，把终端里那一段 `[ime]` 记录连同用的输入法和版本一起贴回来。
+
+## 下一步（第四轮之后，交给接手的人）
+
+2026-11-08 停在提交 296f60ca 之后。按先后：
+
+1. **aarch64 交叉检查（作者定装不装）。** 本机工具链 1.98.1 没有这个 target，要先装：`rustup target add aarch64-pc-windows-msvc --toolchain 1.98.1`。装好后跑「检查」里那条 x86_64 命令，把三处 `x86_64` 换成 `aarch64`（`CFLAGS_aarch64_pc_windows_msvc`、`AR_aarch64_pc_windows_msvc`、`--target aarch64-pc-windows-msvc`）。`psm` 的 armasm64：监管会话的消息里说要用桩顶过去，但读 `psm-0.1.32/build.rs` 的结果是不用——它只在主机是 Windows 时才用 MASM（`masm = msvc && HOST 含 windows`），在 Mac 上改编 GAS 写法的 `src/arch/aarch_aapcs64.s`，用 LLVM 就能编。真报了 `armasm64` 找不到，再在 scratchpad 放一个同名脚本，用 `llvm-mc -filetype=obj -triple aarch64-pc-windows-msvc` 出一个空的目标文件顶过去，不进仓库。`stacker` 那个 `windows.h` 桩照旧。
+2. **微软拼音真机验收**（作者在虚拟机里做，手测第 5 条）。看「组字中切走整个窗口」那一步的日志：
+   - 出现 `late: …` 且记事本、正文里都没有拼音：这条路走通了。
+   - 只有 `blur: …` 且没有拼音残留：输入法把组字留着，也对。
+   - 切走后正文里多了拼音、日志里没有 `late:`：说明输入法上屏时 `GetFocus()` 还是这个窗口，`has_keyboard` 拦不住。那就要在窗口失活的那一刻同步取消：在 `SystemIme` 里用 `SetWindowLongPtrW(hwnd, GWLP_WNDPROC, …)` 套一层窗口过程（旧的过程存在一张以 hwnd 为键的表里，用 `CallWindowProcW` 转回去，`WM_NCDESTROY` 时还原），收到 `WM_ACTIVATE`（`WA_INACTIVE`）或 `WM_KILLFOCUS` 时，如果 `ImmGetCompositionStringW(himc, GCS_COMPSTR, None, 0) > 0` 就先发 `CPS_CANCEL`，再交给 GPUI。不要用 comctl32 的 `SetWindowSubclass`（没有 v6 清单时它可能只按序号导出，程序会起不来）。不想套窗口过程的话，退路是照 G7、G8 的办法在 `next/patches/gpui/` 存一个补丁，在 `gpui_windows` 的 `handle_activate_msg` 里同步做同一件事；工作区仍指向官方 v1.27.0。
+   - 「盖着选区组字、按 Esc」后选中的字没了：说明还有别的路径把空字当替换，带着 `[ime]` 日志查 `ime.rs` 的 `replace_text_in_range`。
+3. **dr-ui 对齐（待协调 12、14，F5 的文件）。** `dr-ui/src/input/field.rs` 和 `area.rs` 的 `replace_text_in_range`：`range16` 是 `None` 且文字为空时，有组字就当删光组字（`replace_and_mark(None, "", None)`），没组字直接返回；`ime.rs` 的 `system_discard` 在 Windows 上去掉 `GetFocus() != hwnd` 就返回的那一句；两个框的三个输入入口在 `GetFocus() != hwnd` 时丢掉输入和组字（照 `gpui-prose` 的 `input_is_late`）。各补一个单元测试，照 `input/tests/windows_ime.rs` 的写法。
+4. **编辑器的 macOS 那一段（待协调 14 第三点）。** `SystemIme` 的 macOS 分支改用窗口自己的视图的 `inputContext`（dr-ui `ime.rs` 的 `system_discard` 就是这样做的）。`PlatformHooks::discard_marked_text` 现在不带窗口，要么给它加一个 `&Window` 参数（`dr-editor/examples/prose-bench/platform.rs` 的 `MacHooks` 跟着改），要么在 `SystemIme::for_window` 时记下视图的指针；前一种更稳。
+5. **组字中在正文别处点一下（待协调 13）。** 等作者定了做法，在 `input/mouse.rs` 的鼠标按下处理里，挪光标之前先处理组字：丢掉就调 `cancel_composition` 再调钩子的 `discard_marked_text`；上屏就照 `unmark_text` 写入，再发 `CPS_CANCEL` 让输入法丢掉它那份。
+6. **台账（待协调 15）。** `f4-editor.md` 的 G4 一行、`progress.md` 的 F4 一行补上第四轮。
 
 ## 待协调
 
