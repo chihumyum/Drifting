@@ -650,13 +650,19 @@ pub(crate) fn holds(view: &BookViewV3<'_>, owner: &Owner, want: &Fields) -> bool
             .get(&ModuleId::parse(MOD_KV).unwrap())
             .cloned()
             .unwrap_or_default();
-        let template = entry.template.as_ref().and_then(|id| view.template(id));
+        // Only category-template fields receive legacy facts. A storyline
+        // KV named "摘要" is independent of its built-in summary field;
+        // an element's custom field may have that same display name too.
+        let template = matches!(owner, Owner::Element(_))
+            .then(|| entry.template.as_ref().and_then(|id| view.template(id)))
+            .flatten();
+        let custom = |id: &str| !["aliases", "summary", "portrait"].contains(&id);
         for fact in facts {
             if let Some(def) = template.as_ref().and_then(|t| {
                 t.modules
                     .iter()
                     .flat_map(|m| &m.config.defs)
-                    .find(|d| d.name == fact.key)
+                    .find(|d| custom(&d.id) && d.name == fact.key)
             }) {
                 if field(&entry, &def.id).as_str() != Some(fact.value.as_str()) {
                     return false;
@@ -675,7 +681,7 @@ pub(crate) fn holds(view: &BookViewV3<'_>, owner: &Owner, want: &Fields) -> bool
                         t.modules
                             .iter()
                             .flat_map(|m| &m.config.defs)
-                            .any(|d| d.name == f.key)
+                            .any(|d| custom(&d.id) && d.name == f.key)
                     })
                 })
                 .count()

@@ -899,6 +899,61 @@ fn duplicate_historical_values_do_not_overwrite_one_structured_field() {
 }
 
 #[test]
+fn historical_kv_and_custom_fields_can_share_the_builtin_summarys_display_name() {
+    use serde_json::json;
+    for storyline in [false, true] {
+        let old = fixture::build();
+        let c = rusqlite::Connection::open(&old.db).unwrap();
+        let (kind, id, metadata) = if storyline {
+            c.execute("UPDATE entity_kv_entry SET key='摘要' WHERE id='kv-4'", [])
+                .unwrap();
+            c.execute(
+                "UPDATE storylines SET kv_json=replace(kv_json,'起点','摘要') WHERE id=?1",
+                [STORYLINE],
+            )
+            .unwrap();
+            (
+                "storyline",
+                STORYLINE,
+                json!({"name":"主线","summary":"主人公","kvJson":json!([{"key":"摘要","value":"未庄"}]).to_string()}),
+            )
+        } else {
+            c.execute(
+                "UPDATE entity_kv_entry SET key='摘要' WHERE id IN ('kv-7','kv-8')",
+                [],
+            )
+            .unwrap();
+            c.execute("UPDATE element_category SET element_template_kv_json=replace(element_template_kv_json,'年龄','摘要') WHERE id=?1",[CATEGORY]).unwrap();
+            c.execute(
+                "UPDATE element SET kv_json=replace(kv_json,'年龄','摘要') WHERE id=?1",
+                [ELEMENT],
+            )
+            .unwrap();
+            let mut metadata: serde_json::Value = serde_json::from_str(ELEMENT_META_V1).unwrap();
+            metadata["kvJson"] = json!(
+                json!([{"key":"摘要","value":"30"},{"key":"职业","value":"短工"}]).to_string()
+            );
+            ("element", ELEMENT, metadata)
+        };
+        c.execute("UPDATE entity_snapshot_history SET entity_kind=?1,entity_id=?2,meta_json=?3 WHERE id='h-3'",rusqlite::params![kind,id,metadata.to_string()]).unwrap();
+        drop(c);
+        let temp = tempfile::tempdir().unwrap();
+        let (outcome, _) =
+            run::import(&old.db, &temp.path().join("library"), &options(&old)).unwrap();
+        let Outcome::Imported(receipt) = outcome else {
+            panic!("import")
+        };
+        assert_eq!(receipt.books[0].history_meta_checked, 3);
+        assert!(
+            !receipt.books[0]
+                .notes
+                .0
+                .contains_key("history-meta-differs")
+        );
+    }
+}
+
+#[test]
 fn the_development_cli_exposes_v3_preflight_without_choosing_policy() {
     let old = fixture::build();
     let temp = tempfile::tempdir().unwrap();
