@@ -1079,11 +1079,14 @@
     "meta": {
       "chapters": "{{count}}章",
       "chaptersWords": "{{chapters}}章 · {{words}}千語",
-      "kWords": "{{count}}千語"
+      "kWords": "{{count}}千語",
+      "nodeTemplate": "新しい章の既定の構成"
     },
+    "nodeTemplatePlaceholder": "H1 / H2 / H3 で章のひな形を作成。新しい章に適用されます…",
     "sections": {
       "chapters": "章の順序",
       "facts": "設定情報",
+      "nodeTemplate": "章のテンプレート",
       "scratch": "走り書き"
     },
     "summaryPlaceholder": "このストーリーラインを一文で要約…",

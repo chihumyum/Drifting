@@ -641,6 +641,9 @@ storylineEditor.empty.noFacts
 storylineEditor.empty.noChapterSummary
 storylineEditor.empty.noFilteredChapters
 storylineEditor.actions.openChapter
+storylineEditor.sections.nodeTemplate
+storylineEditor.meta.nodeTemplate
+storylineEditor.nodeTemplatePlaceholder
 editorTopBar.menu.deleteStoryline
 common.confirm
 common.words

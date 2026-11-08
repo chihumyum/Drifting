@@ -1079,11 +1079,14 @@
     "meta": {
       "chapters": "{{count}} 章",
       "chaptersWords": "{{chapters}} 章 · {{words}} 千字",
-      "kWords": "{{count}} 千字"
+      "kWords": "{{count}} 千字",
+      "nodeTemplate": "新章節的預設骨架"
     },
+    "nodeTemplatePlaceholder": "以 H1／H2／H3 撰寫預設章節骨架；新章節將使用此範本…",
     "sections": {
       "chapters": "章節順序",
       "facts": "設定資料",
+      "nodeTemplate": "章節範本",
       "scratch": "隨筆"
     },
     "summaryPlaceholder": "此故事線的一句話摘要…",

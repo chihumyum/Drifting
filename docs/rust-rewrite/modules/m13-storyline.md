@@ -1,10 +1,10 @@
 # M13 故事线页（第一个里程碑）
 
-2026-11-08，分支 `chihumyum/m01-shelf-home-3bf938`（main `60d510a6` 之后，和 M11 第二个里程碑在同一个分支上；第三轮在 `77a957d3` 之后，⋯ 那一行登记进外壳）。计划见 [modules.md](../modules.md)。旧版是 `views/StorylineEditorView.tsx`、`KvEditor.tsx`，产品规则见 components.md 的「实体编辑器」。代码和 M11 放在一起（`next/crates/dr-view-elements/src/storyline.rs`）：故事线页和要素页、类目页是同一套实体页，共用页眉、节头、字段列表、对话框；外壳没有改，和 M11 一样经 `pages::add_page_chrome` 认 `Target::Storyline`。
+2026-11-08，分支 `chihumyum/m01-shelf-home-3bf938`（main `60d510a6` 之后，和 M11 第二个里程碑在同一个分支上；第三轮在 `77a957d3` 之后，⋯ 那一行登记进外壳；第四轮在 `2eb865fa` 之后，加了「章节模版」一节、色标能点开取色器）。计划见 [modules.md](../modules.md)。旧版是 `views/StorylineEditorView.tsx`、`KvEditor.tsx`，产品规则见 components.md 的「实体编辑器」。代码和 M11 放在一起（`next/crates/dr-view-elements/src/storyline.rs`）：故事线页和要素页、类目页是同一套实体页，共用页眉、节头、字段列表、对话框；外壳没有改，和 M11 一样经 `pages::add_page_chrome` 认 `Target::Storyline`。
 
 ## 一句话
 
-打开一条故事线，正文上面是页眉、大的砂笔短横和名字、说明、色标、「札记」的节头，正文下面是「字段」和「章节序列」；名字、说明、字段都能直接改、照旧版的时机保存；⋯ 菜单里的「删除故事线」先问再删。旧版这一页没有设主故事线、加减章节的地方（章节序列是只读的），新版也没有。
+打开一条故事线，正文上面是页眉、大的砂笔短横和名字、说明、色标、「札记」的节头，正文下面是「字段」「章节模版」和「章节序列」；名字、说明、字段都能直接改、照旧版的时机保存；⋯ 菜单里的「删除故事线」先问再删。旧版这一页没有设主故事线、加减章节的地方（章节序列是只读的），新版也没有。
 
 ## 做了什么（大白话）
 
@@ -16,6 +16,10 @@
    - 一条细线，然后「札记」的节头；正文就是编辑器。
 2. **正文下面**：
    - **字段**：和要素页同一个字段列表（`fields.rs`，现在分「要素的」和「故事线的」），写的是 F3 的 `storyline.update`（`put_fields` / `remove_fields`）。空着时写旧版那句「尚无字段。新建故事线时，项目主页的「故事线字段模版」会自动填入」。
+   - **章节模版**（第四轮）：节头「章节模版」，右边「新章节的默认骨架」。下面是一份真的正文：这条故事线的章节模版文档（F3 的 `template:storyline:<id>`），用和章节一样的编辑器（F4 的 `ChapterEditor`）写，H1/H2/H3、正文、撤销、斜杠菜单都有，每改一下就存（旧版也是每次改动都存）。主故事线是这一条的新章节，一建好就是这份模版的样子（F3 在 `chapter.create` 里拷过去）；已有的章节不变。
+     - 还没有模版时，这里只写旧版那句提示「用 H1 / H2 / H3 写一份默认的章节骨架，新建章节时自动填充…」；点一下才建模版文档（F3 的 `chapter_template.document`），光标放进去。只是打开故事线页什么也不写。
+     - 已经有模版的，跟着页一起打开；页开着时别处（帮手、另一个窗口、同步）写了模版，也会自己打开。这两样都直接问 F3（`chapter_template.body`，再听模版文档自己的正文事件）：模版只在自己的文档里变时，外壳那份书目里的 `has_chapter_template` 不跟着变（见「待协调」）。
+     - 编辑器铺在稿纸上，和正文一样宽（页边距是编辑器自己的），有多少段就多高，自己不滚，跟着页一起滚。模版写空了，提示语重新出现在上面。
    - **章节序列**（这条线上有章节时才有）：节头右边「15 章 · 2.6k 字」；下面多选一「全部 15 / 已写 8 / 未起 7」（有字就是已写）。每章一行：章的印章（故事线的颜色，没字是空心的）、「§01」（在筛出来的列表里排第几）、章名、两行梗概（没有就写「尚未填写一句话摘要」）、一行「885字 · 已写」，右边「0.9k」和「字」，指针下一个箭头。按阅读顺序，主线、副线的章节一样列。单击预览、双击留下。
 3. **⋯ 菜单**：一行危险色的「删除故事线」（`menu.rs`）。第三轮经外壳的 `pages::add_page_menu` 登记进去：外壳的 ⋯ 是「分享」「历史快照…」，最后「删除故事线」；章节面板里故事线行的悬停卡也读这份清单。旧版的「确认」框：「删除故事线「钟楼」？」，「取消」在前、危险色的「确认」在后。确认后故事线进废纸篓（F3 的 `storyline.trash`），外壳关掉它的标签；失败照旧版弹「删除故事线失败，请重试。」。
 4. **文案**全是旧版九种语言的原话（`storylineEditor.*`、`common.confirm`、`common.words`、`editorTopBar.menu.deleteStoryline`）。
@@ -29,7 +33,7 @@
 | 画面 | 浅色 | 深色 |
 | --- | --- | --- |
 | 故事线页 | [storyline-light](m13/storyline-light.png) | [storyline-dark](m13/storyline-dark.png) |
-| 往下滚到章节序列 | [storyline-sequence-light](m13/storyline-sequence-light.png) | [storyline-sequence-dark](m13/storyline-sequence-dark.png) |
+| 往下滚到章节模版和章节序列（截图程序先给「钟楼」写了一份章节模版：两个 H2 和一句正文） | [storyline-sequence-light](m13/storyline-sequence-light.png) | [storyline-sequence-dark](m13/storyline-sequence-dark.png) |
 | ⋯ 删除故事线 | [storyline-delete-light](m13/storyline-delete-light.png) | [storyline-delete-dark](m13/storyline-delete-dark.png) |
 
 ```bash
@@ -44,7 +48,7 @@ cargo run -p dr-view-elements --features capture --example elements-capture -- .
 | 短横记号和名字、说明、色标（点开系统取色器） | 有 |
 | 札记（正文） | 有（编辑器） |
 | 字段 | 有 |
-| 章节模版（新章节的默认骨架） | 没有：F3 还不写正文模版（`template.rs` 的说明：要先有自己的正文文档） |
+| 章节模版（新章节的默认骨架） | 有（第四轮）；还没有模版时点进去才建文档 |
 | 章节序列：筛选、每章一行、点开 | 有 |
 | 主故事线、加减章节 | 旧版这一页就没有（在章节的 ⋯「编辑故事线」、悬停卡、时间线里），新版也没有 |
 | 目录栏：概述、札记、字段、章节模版、章节序列 | 没有：大纲栏是外壳的，只读正文里的标题 |
@@ -56,31 +60,35 @@ cargo run -p dr-view-elements --features capture --example elements-capture -- .
 - **说明的字号**：旧版是 `calc(var(--entity-body-font-size, 16px) - 4px)`；这里取编辑器字号小 4 px（默认 17 px 的正文就是 13 px），跟着作者设的正文大小走。
 - **「已写 / 未起」一开始就有数**：旧版要等每章的字数都算好才显示（之前写「统计中…」）；新版的字数来自派生索引，读书目时就带着。
 - **单击预览、双击留下**：旧版点一下就打开；新版和侧栏、作品主页、要素清单一样分预览和留下。
+- **章节模版点进去才建**：旧版的模版是故事线上的一个 JSON 字段，编辑器一挂上就有；新版的模版是一篇自己的文档，为了「只是看看不写东西」，没有模版时先放提示语，点进去才建。看起来和旧版一样（空编辑器上的提示语）。
 
 ## 接口（给别的模块）
 
 | 谁 | 接口 |
 | --- | --- |
-| 测试、调试桥 | `dr_view_elements::storyline_page(id, cx)` → `(StorylineHead, StorylineEnd)`；`StorylineHead::fields`、`StorylineEnd::{fields, listed, set_filter, filter}`；`storyline::{chapters_of, thousands}` |
+| 测试、调试桥 | `dr_view_elements::storyline_page(id, cx)` → `(StorylineHead, StorylineEnd)`；`StorylineHead::{fields, pick_color}`、`StorylineEnd::{fields, template, listed, set_filter, filter}`；`template::ChapterTemplate::{is_open, editor, open}`；`swatch::SETTLE`；`storyline::{chapters_of, thousands}` |
+| M11 的要素模版（以后） | `template::ChapterTemplate` 的做法（`Bare` 页框 + 按段落高度的 `ChapterEditor`）可以照搬到 `template:category:<id>` |
 | ⋯ 菜单 | `dr_view_elements::menu::register`（`init` 调）；`menu::rows(&Target::Storyline(..), cx)` |
 | 对话框 | `dr_view_elements::dialogs::open(AskFor::DeleteStoryline(id), ws, window, cx)` |
 
 ## 测试
 
-`cargo test -p dr-view-elements --test storyline`，GPUI 测试平台上用 dr-testkit 生成的《慢钟》（经 F3 读写，4 个）：
+`cargo test -p dr-view-elements --test storyline`，GPUI 测试平台上用 dr-testkit 生成的《慢钟》（经 F3 读写，6 个）：
 
 - 打开「钟楼」：名字和说明是存着的值；改名离开就存进 F3；两行的说明离开就存，换行原样；「新增字段」加的字段存进这条故事线。
 - 章节序列：就是这条线上的章节，按阅读顺序；「已写」都有字，「未起」都没字，两边加起来是全部。
 - 删除：⋯ 菜单照外壳列的样子是「分享」「历史快照…」「删除故事线」，最后一行是危险的；点它打开的是「删除故事线」的确认；确认后故事线进废纸篓，外壳关掉它的标签；另开一次按 Esc，什么也没删。
+- 章节模版：打开「钟楼」时什么也没写（F3 里没有模版、显示提示语）；点提示语，建好模版、光标在里面；打「# 起因」变成 H1，F3 的 `chapter_template.body` 里就是它，故事线有了模版；在这条线上新建一章，第一段就是 H1「起因」。
+- 页开着时用 F3 写一份模版（外壳的书目不变）：模版自己打开，编辑器里就是写进去的字。
 - 色标：点它打开取色器（测试换上自己的取色器）；连着给三个颜色，停下之前 F3 里还是原来的颜色，停下以后是最后那个；撤销一步就回到原来的颜色（一次选色一步撤销）。
 
 ## 待协调
 
-1. **F3（dr-workspace）**：故事线的章节模版（`template:storyline:<id>` 文档）要能读写，才能做「章节模版」一节。F3 这一轮在加，2026-11-08 早上还没交，这一节先跳过。
+1. ~~**F3**：章节模版文档~~：**已做**（F3 第七轮的 `chapter_template.*`），第四轮接上了。
 2. ~~**F5 / F7**：取色器~~：**已做**（F5 的 `ColorSwatch`，第四轮换上）。
+3. **F3 / F6：`has_chapter_template` 会过时。** 模版写在自己的文档里（`template:storyline:<id>`），书目文档不变，F3 只发这篇文档的正文事件，外壳不重读书目，所以外壳那份书目里的 `has_chapter_template` 一直是旧的。故事线页自己直接问 F3、听正文事件，不受影响；别处（侧栏、帮手的上下文）要用这个标志的话，F3 在模版文档从空变成非空（或反过来）时发一个书目事件，或者外壳听到 `template:*` 的正文事件也重读一次。
 
 ## 还没做的
 
-- 章节模版一节。
 - 目录栏里这一页的几项。
 - 帮手改说明、改字段的演示（阶段 5）。

@@ -1682,6 +1682,7 @@ dependencies = [
  "dr-ui",
  "dr-view-shelf",
  "dr-workspace",
+ "futures",
  "gpui",
  "gpui_platform",
  "icu_collator",

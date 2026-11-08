@@ -677,7 +677,7 @@ fn row(
                     .type_px(13.5, 13.5 * 1.55)
                     .text_color(p.ink(3).solid())
                     .line_clamp(2)
-                    .child(summary.clone())
+                    .child(dr_ui::text::wrapped(summary.clone()))
             }),
     )
     .child(

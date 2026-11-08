@@ -1091,11 +1091,14 @@
     "meta": {
       "chapters": "{{count}} capítulos",
       "chaptersWords": "{{chapters}} capítulos · {{words}} mil palavras",
-      "kWords": "{{count}} mil palavras"
+      "kWords": "{{count}} mil palavras",
+      "nodeTemplate": "Estrutura padrão para novos capítulos"
     },
+    "nodeTemplatePlaceholder": "Crie uma estrutura padrão de capítulo com H1 / H2 / H3; novos capítulos a usarão…",
     "sections": {
       "chapters": "Sequência de capítulos",
       "facts": "Dados",
+      "nodeTemplate": "Modelo de capítulo",
       "scratch": "Anotações"
     },
     "summaryPlaceholder": "Resumo desta linha narrativa em uma frase…",

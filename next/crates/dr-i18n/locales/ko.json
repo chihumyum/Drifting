@@ -1079,11 +1079,14 @@
     "meta": {
       "chapters": "{{count}}개 장",
       "chaptersWords": "{{chapters}}장 · {{words}}천 단어",
-      "kWords": "{{count}}천 단어"
+      "kWords": "{{count}}천 단어",
+      "nodeTemplate": "새 장의 기본 구조"
     },
+    "nodeTemplatePlaceholder": "H1 / H2 / H3으로 기본 장 구조를 작성하세요. 새 장에 적용됩니다…",
     "sections": {
       "chapters": "장 순서",
       "facts": "설정 정보",
+      "nodeTemplate": "장 템플릿",
       "scratch": "임시 메모"
     },
     "summaryPlaceholder": "이 스토리라인의 한 문장 요약…",

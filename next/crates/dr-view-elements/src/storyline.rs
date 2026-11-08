@@ -55,6 +55,7 @@ use crate::element::field_id;
 use crate::fields::{Fields, Owner};
 use crate::page;
 use crate::swatch;
+use crate::template::ChapterTemplate;
 
 /// 「2.3」: thousands of words with one decimal (the 0.1 `kWords`).
 pub fn thousands(words: u64) -> String {
@@ -399,6 +400,8 @@ pub struct StorylineEnd {
     pub id: String,
     book: Rc<Book>,
     pub fields: Entity<Fields>,
+    /// 章节模版, made on the first frame the book is there.
+    pub template: Option<Entity<ChapterTemplate>>,
     pub filter: ChapterFilter,
     _ws: Option<Subscription>,
 }
@@ -416,6 +419,7 @@ impl StorylineEnd {
             id,
             book: Rc::default(),
             fields,
+            template: None,
             filter: ChapterFilter::default(),
             _ws: None,
         }
@@ -469,10 +473,42 @@ impl Render for StorylineEnd {
             return div().into_any_element();
         };
         let fields = self.fields.clone();
+        let template = self
+            .template
+            .get_or_insert_with(|| {
+                let (book, id) = (self.book.id.clone(), self.id.clone());
+                let exists = line.has_chapter_template;
+                cx.new(|cx| ChapterTemplate::new(book, id, exists, window, cx))
+            })
+            .clone();
+        template.update(cx, |t, cx| t.follow(line.has_chapter_template, window, cx));
+        // 章节模版: what a new chapter on this storyline starts with.
+        let template = div()
+            .flex()
+            .flex_col()
+            .child(page::column(
+                look,
+                page::section(
+                    t(cx, keys::storyline_editor::sections::NODE_TEMPLATE),
+                    Some(page::meta(
+                        t(cx, keys::storyline_editor::meta::NODE_TEMPLATE),
+                        window,
+                        cx,
+                    )),
+                    false,
+                    window,
+                    cx,
+                ),
+            ))
+            .child(template);
         let chapters = chapters_of(&self.book, &self.id);
         if chapters.is_empty() {
             // The 0.1 page shows the sequence only when there is a chapter.
-            return div().pb(px(80.0)).child(fields).into_any_element();
+            return div()
+                .pb(px(80.0))
+                .child(fields)
+                .child(template)
+                .into_any_element();
         }
         let color = color_of(&line.color);
         let total = chapters.len();
@@ -542,6 +578,7 @@ impl Render for StorylineEnd {
             .flex()
             .flex_col()
             .child(fields)
+            .child(template)
             .child(
                 page::column(
                     look,
@@ -724,7 +761,7 @@ fn row(
                     .type_px(13.5, 13.5 * 1.55)
                     .text_color(p.ink(3).solid())
                     .line_clamp(2)
-                    .child(summary)
+                    .child(dr_ui::text::wrapped(summary))
             })
             .child(meta),
     )

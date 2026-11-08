@@ -1091,11 +1091,14 @@
     "meta": {
       "chapters": "{{count}} chapitres",
       "chaptersWords": "{{chapters}} chapitres · {{words}} k mots",
-      "kWords": "{{count}} k mots"
+      "kWords": "{{count}} k mots",
+      "nodeTemplate": "Structure par défaut des nouveaux chapitres"
     },
+    "nodeTemplatePlaceholder": "Créez une structure de chapitre avec H1 / H2 / H3 ; les nouveaux chapitres l’utiliseront…",
     "sections": {
       "chapters": "Séquence des chapitres",
       "facts": "Faits",
+      "nodeTemplate": "Modèle de chapitre",
       "scratch": "Brouillon"
     },
     "summaryPlaceholder": "Résumé de cette intrigue en une phrase…",

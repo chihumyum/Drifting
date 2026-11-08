@@ -1073,11 +1073,14 @@
     "meta": {
       "chapters": "{{count}} 章",
       "chaptersWords": "{{chapters}} 章 · {{words}}k 字",
-      "kWords": "{{count}}k 字"
+      "kWords": "{{count}}k 字",
+      "nodeTemplate": "新章节的默认骨架"
     },
+    "nodeTemplatePlaceholder": "用 H1 / H2 / H3 写一份默认的章节骨架，新建章节时自动填充…",
     "sections": {
       "chapters": "章节序列",
       "facts": "字段",
+      "nodeTemplate": "章节模版",
       "scratch": "札记"
     },
     "summaryPlaceholder": "一句话概述本线…",

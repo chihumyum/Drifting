@@ -34,6 +34,7 @@ mod page;
 pub mod panel;
 pub mod storyline;
 pub mod swatch;
+pub mod template;
 
 use std::collections::HashMap;
 use std::rc::Rc;

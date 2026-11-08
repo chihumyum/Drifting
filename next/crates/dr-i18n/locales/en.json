@@ -1084,11 +1084,14 @@
     "meta": {
       "chapters": "{{count}} chapters",
       "chaptersWords": "{{chapters}} chapters · {{words}}k words",
-      "kWords": "{{count}}k words"
+      "kWords": "{{count}}k words",
+      "nodeTemplate": "Default skeleton for new chapters"
     },
+    "nodeTemplatePlaceholder": "Write a default chapter skeleton with H1 / H2 / H3; new chapters will use it…",
     "sections": {
       "chapters": "Chapter sequence",
       "facts": "Facts",
+      "nodeTemplate": "Chapter template",
       "scratch": "Scratch"
     },
     "summaryPlaceholder": "One-sentence summary for this storyline…",

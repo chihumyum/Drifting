@@ -1084,11 +1084,14 @@
     "meta": {
       "chapters": "{{count}} Kapitel",
       "chaptersWords": "{{chapters}} Kapitel · {{words}} Tsd. Wörter",
-      "kWords": "{{count}} Tsd. Wörter"
+      "kWords": "{{count}} Tsd. Wörter",
+      "nodeTemplate": "Standardstruktur für neue Kapitel"
     },
+    "nodeTemplatePlaceholder": "Standardstruktur mit H1 / H2 / H3 erstellen; neue Kapitel verwenden diese Vorlage…",
     "sections": {
       "chapters": "Kapitelreihenfolge",
       "facts": "Fakten",
+      "nodeTemplate": "Kapitelvorlage",
       "scratch": "Notizen"
     },
     "summaryPlaceholder": "Diesen Handlungsstrang in einem Satz zusammenfassen…",
