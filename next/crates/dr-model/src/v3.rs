@@ -1034,6 +1034,15 @@ pub struct PatchV3 {
     pub pos: Option<PosKey>,
 }
 
+/// Sort v3 patches by `(entry, module, pos, id)`.
+pub fn sort_patches_v3(patches: &mut [PatchV3]) {
+    patches.sort_by(|a, b| {
+        (&a.entry, &a.module)
+            .cmp(&(&b.entry, &b.module))
+            .then_with(|| cmp_pos((a.pos.as_ref(), &a.id), (b.pos.as_ref(), &b.id)))
+    });
+}
+
 /// A 2D plot grid attached to an entry's `plot_grid` module (`plot_grids` map
 /// in v3, keyed `"<entry_id>/<module_id>"`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -2012,7 +2021,7 @@ pub fn plan_entry_write_order(
 ) -> Vec<String> {
     let mut steps: Vec<String> = prose_modules
         .iter()
-        .map(|m| format!("body:{}", BodyDocId::new(entry_id.clone(), m.clone())))
+        .map(|m| DocId::Body(BodyDocId::new(entry_id.clone(), m.clone())).to_string())
         .collect();
     steps.push(DocId::Book(book_id.clone()).to_string());
     steps

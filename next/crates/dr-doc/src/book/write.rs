@@ -310,7 +310,7 @@ impl RelationTypeWriter {
 }
 
 pub struct RelationWriter {
-    map: LoroMap,
+    pub(crate) map: LoroMap,
 }
 setters!(RelationWriter {
     relation_type: &RelationTypeId => "type",
@@ -336,7 +336,7 @@ setters!(TimePinWriter {
 });
 
 pub struct PlotGridWriter {
-    pub(super) map: LoroMap,
+    pub(crate) map: LoroMap,
 }
 setters!(PlotGridWriter {
     cell_w: f64 => "cell_w",
@@ -460,7 +460,7 @@ impl CommentWriter {
 }
 
 pub struct MaterialWriter {
-    map: LoroMap,
+    pub(crate) map: LoroMap,
 }
 setters!(MaterialWriter {
     title: &str => "title",
@@ -481,7 +481,7 @@ impl MaterialWriter {
 }
 
 pub struct MemoryWriter {
-    map: LoroMap,
+    pub(crate) map: LoroMap,
 }
 setters!(MemoryWriter {
     kind: &MemoryKind => "kind",
