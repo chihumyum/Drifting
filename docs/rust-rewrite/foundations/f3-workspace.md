@@ -830,8 +830,14 @@ F8 的 `bench workspace`，heavy 种子（100 章，正文共约 360 万字，30
   2. 正文的修订 CAS（带版本的写入），以及作者也改过同一篇正文时按段撤销 Agent 的改动（现在只报冲突，请作者从历史恢复）；
   3. 清理没人认领的正文文档（彻底删除后留下的，和中途失败留下的）；
   4. 补链要把每篇候选文档读进来：名字在几百篇长章节里出现时还要一两秒（第八轮第 3 条，再快要 F2 的接口，见 F2-7）；
-  6. 要素的 `updated_at` 暂由 F3 自己写键（F1-5）。
   5. TODO 标记只在编辑器打开那篇正文时才投（和旧版一样）：Agent 用命令写进去的标记、同步来的标记，要等作者打开那一章。识别标记的规则现在只在 `dr-editor` 里；要在后台投，得把规则挪到下层一处（比如 dr-text），再由工作区在正文变化时自己找。素材笔记的任务行（`NoteTask`）还没做。
+  6. 要素的 `updated_at` 暂由 F3 自己写键（F1-5）。
+  7. 构想转成要素时，别的正文里已经链到这个构想的字不改指向新要素（和旧版一样，第十轮第 2 条）；M16 要的话，在同一步里把指向构想的链接换成指向要素。
+- **下一步（2026-11-08 交接）**：作者的 Claude 用量快用完了，F3 后面的活转给 Codex / Antigravity。第十轮（`84192217`）是最后一次提交，手上没有做了一半的东西。接手时按顺序：
+  1. 先读这一页第十轮到第七轮的小节和「待协调」，再读共享笔记里的 `f3-workspace-interface.md`（各轮的接口摘要）；
+  2. 等别人做的：M14 把叙事时双击新建换成一步（`chapter.create` 带 `narrative_order`）、M14 的拖放换成 `chapter.place`、打散用 `chapter.spread`；F4 删编辑器里的后台补链、换用 `Workspace::link_matcher`；F6 的 `swap` 换用 `try_shutdown`；F8 在 `bench workspace` 里加补链那一项（第九轮待协调 F8）；
+  3. F8 加好以后，在负载低于 5 时跑 `cargo run --release -p dr-testkit --bin bench -- workspace --milestone f3-m3`，把第八轮补链的数字（heavy 上新建常见名字的要素从 13–18 s 到约 2 s）写成证据；
+  4. 每轮的检查照「测试与证据」一节；改了命令要 `INSTA_UPDATE=always cargo test -p dr-workspace --test registry` 更新能力清单快照，新命令要在 `tests/commands.rs` 等文件里被调到（清单测试会查）。
 - **建议的下一个里程碑**：
   1. 加后台清理（第 3 条）；F2 的 `purge_book` 到了就换上（F2-6）；
   2. 重测「改了以后列关系」「冷读批注」（按键读取已换上）；heavy 种子上的补链（建要素、改名、撤销）加进 `bench workspace`，探针这次没提交；
