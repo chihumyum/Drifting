@@ -32,6 +32,7 @@ use dr_model::kind::ProjectionKind;
 use dr_model::{DocId, Origin, ProseProfile};
 use dr_store::history::{LabelRetention, NewLabel};
 use dr_store::{Device, DocHandle, Library, LibraryOptions, OpenDoc};
+use rusqlite::OptionalExtension;
 use serde::Serialize;
 use serde_json::Value;
 
@@ -55,6 +56,9 @@ pub const IMPORTER: &str = concat!("dr-import-v1 ", env!("CARGO_PKG_VERSION"));
 /// How to import.
 #[derive(Clone, Debug)]
 pub struct Options {
+    /// None retains the v2.2 import. v3 has explicit author policy and a
+    /// separate integrity preflight; no novel defaults are inferred here.
+    pub v3: Option<crate::v3::MappingChoices>,
     /// What the author accepted when the gate stopped ("仍然导入").
     pub accept: Accept,
     /// The 0.2 app version (dr-store's safety snapshots and library meta).
@@ -122,6 +126,7 @@ impl Cancel {
 impl Options {
     pub fn new(app_version: impl Into<String>) -> Self {
         Self {
+            v3: None,
             accept: Accept::NOTHING,
             app_version: app_version.into(),
             old_root: None,
@@ -353,6 +358,7 @@ fn write_templates(
     span: &dyn Fn(&str) -> Option<BlockSpan>,
     ts: i64,
     notes: &mut Notes,
+    options: &Options,
 ) -> Result<usize> {
     let owners = rows
         .categories
@@ -381,12 +387,12 @@ fn write_templates(
             span,
             todo: &|_| None,
         };
-        let planned = prose::plan(&lines, &blocks, &ctx);
+        let planned = crate::v3::plan(options, prose::plan(&lines, &blocks, &ctx));
         if planned.paras.iter().all(Para::is_empty) {
             continue;
         }
         notes.merge(&planned.notes);
-        let doc_id = owner.doc_id();
+        let doc_id = crate::v3::doc_id(options, &owner.doc_id());
         let id_s = doc_id.to_string();
         let mut doc = ProseDoc::create(doc_id.clone(), import_peer(&id_s))?;
         let (r, _) = doc.edit_at(Origin::Import, Some(ts), |t| write::sync(t, &planned.paras));
@@ -443,6 +449,7 @@ pub fn import_with(
             return Ok((stopped.outcome(), timing));
         }
     };
+    crate::v3::preflight(&analysed.legacy, options)?;
     let adopted = match &options.device_dir {
         Some(dir) => adopt_identity(options.old_root.as_deref(), dir),
         None => false,
@@ -459,7 +466,7 @@ pub fn import_with(
     let written = write_library(&lib, analysed, options, adopted, &mut reporter, &mut timing)?;
     lib.close()?;
     let receipt = finish(target, written, options, &mut timing)?;
-    if options.index && !options.cancel.now_requested() {
+    if options.index && options.v3.is_none() && !options.cancel.now_requested() {
         let t9 = Instant::now();
         let mut o = library_options()?;
         dr_index::attach(&mut o);
@@ -489,6 +496,11 @@ pub fn import_into_library(
     options: &Options,
     progress: Callback<'_>,
 ) -> Result<(Outcome, Timing)> {
+    if options.v3.is_some() && lib.options().deriver.is_some() {
+        return Err(ImportError::Blocked(
+            "v3 import requires a library without the v2 index deriver until K4".into(),
+        ));
+    }
     let mut reporter = Reporter::new(progress);
     let started = Instant::now();
     let mut timing = Timing::default();
@@ -497,10 +509,15 @@ pub fn import_into_library(
         Gated::Clear(a) => a,
         stopped => return Ok((stopped.outcome(), timing)),
     };
+    crate::v3::preflight(&analysed.legacy, options)?;
     let adopted = take_over_identity(options.old_root.as_deref(), lib);
     let written = write_library(lib, analysed, options, adopted, &mut reporter, &mut timing)?;
     let receipt = finish(&root, written, options, &mut timing)?;
-    if options.index && lib.options().deriver.is_some() && !options.cancel.now_requested() {
+    if options.index
+        && options.v3.is_none()
+        && lib.options().deriver.is_some()
+        && !options.cancel.now_requested()
+    {
         let t9 = Instant::now();
         timing.indexed_docs = build_indexes(lib, &mut reporter)?;
         timing.index_ms = ms(t9);
@@ -684,7 +701,25 @@ fn write_library(
             continue;
         }
         let resuming = exists || interrupted;
+        let wanted = crate::v3::mapping_key(options)?;
+        let previous: Option<String> = lib.local_read(|c| {
+            Ok(c.query_row(
+                "SELECT value FROM local_state WHERE scope='import-v1-kernel' AND key=?1",
+                [&project.id],
+                |r| r.get(0),
+            )
+            .optional()?)
+        })?;
+        if interrupted && previous.as_deref().unwrap_or("2") != wanted {
+            return Err(ImportError::Invalid(
+                "interrupted book belongs to another import path or mapping policy".into(),
+            ));
+        }
         lib.local_transaction(|tx| {
+            // A quit can leave prose before the catalog exists. Its
+            // kernel is recorded atomically with begin_book, so retrying
+            // with the other path cannot mix documents or histories.
+            if options.v3.is_some() { tx.execute("INSERT INTO local_state (scope,key,value,book_id,changed_ms) VALUES ('import-v1-kernel',?1,?2,?1,?3) ON CONFLICT(scope,key) DO UPDATE SET value=excluded.value,changed_ms=excluded.changed_ms", rusqlite::params![project.id,wanted,started_ms])?; }
             Ok(receipt::begin_book(tx, run_id, &project.id, &project.name)?)
         })?;
         let rows = legacy.book(&project.id)?;
@@ -704,6 +739,9 @@ fn write_library(
         if resuming {
             notes.add("resumed-after-interruption");
         }
+        if options.v3.is_some() && options.index {
+            notes.add("v3-index-awaits-k4");
+        }
         // Whether a history point is already there (an interrupted import
         // wrote it): the same label on the same version (and, for the 0.1
         // points, at the same time).
@@ -722,7 +760,9 @@ fn write_library(
         // Pass 1: every body's lines and block ids.
         let mut bodies: Vec<Body<'_>> = Vec::new();
         for o in owners.iter().filter(|o| o.project_id == project.id) {
-            let Ok(doc_id) = DocId::parse(&o.new_doc_id()) else {
+            let Ok(doc_id) =
+                DocId::parse(&o.new_doc_id()).map(|id| crate::v3::doc_id(options, &id))
+            else {
                 notes.add("invalid-id");
                 continue;
             };
@@ -783,6 +823,7 @@ fn write_library(
                     ProseKind::from_doc_id(&o).map(|(k, id)| format!("{}:{id}", k.new_prefix()))
                 })
                 .and_then(|d| DocId::parse(&d).ok())
+                .map(|id| crate::v3::doc_id(options, &id))
             else {
                 notes.add("projected-todo-without-target");
                 continue;
@@ -822,7 +863,7 @@ fn write_library(
                 span: &span,
                 todo: &todo,
             };
-            let current = prose::plan(&b.lines, &b.blocks, &ctx);
+            let current = crate::v3::plan(options, prose::plan(&b.lines, &b.blocks, &ctx));
             let mut versions: Vec<(Plan, &HistoryRow, i64)> = Vec::new();
             for h in &b.history {
                 let Some(preview) = h.preview.as_deref() else {
@@ -835,7 +876,11 @@ fn write_library(
                 };
                 let blocks = prose::doc_blocks(&lines);
                 let ts = parse_iso_ms(&h.created_at).unwrap_or(0);
-                versions.push((prose::plan(&lines, &blocks, &ctx), h, ts));
+                versions.push((
+                    crate::v3::plan(options, prose::plan(&lines, &blocks, &ctx)),
+                    h,
+                    ts,
+                ));
             }
             let final_ms = parse_iso_ms(&b.owner.updated_at)
                 .unwrap_or(0)
@@ -1030,7 +1075,8 @@ fn write_library(
         // no time for them).
         let t0 = Instant::now();
         let changed = secs(parse_iso_ms(&project.updated_at).unwrap_or(0));
-        rec.templates = write_templates(lib, &project.id, &rows, &span, changed, &mut notes)?;
+        rec.templates =
+            write_templates(lib, &project.id, &rows, &span, changed, &mut notes, options)?;
         timing.prose_ms += ms(t0);
 
         // The book document, with the snapshot history's metadata replayed:
@@ -1071,12 +1117,20 @@ fn write_library(
 
         let t2 = Instant::now();
         let mut bdoc = BookDoc::create(book_id.clone(), import_peer(&book_doc_s))?;
+        // The legacy catalog is an in-memory replay model only. All stored
+        // book frontiers and history labels below belong to the v3 writer.
+        let mut v3doc = options
+            .v3
+            .as_ref()
+            .map(|_| dr_doc::v3::BookDocV3::create(book_id.clone(), import_peer(&book_doc_s)))
+            .transpose()?;
+        let catalog_projected = crate::v3::catalog_projections(options, &projected, &rows);
         let inputs = book::Inputs {
             book: &book_id,
             project,
             rows: &rows,
             settings: Some(settings),
-            projected: &projected,
+            projected: &catalog_projected,
             anchors: &anchors_made,
             span: &span,
         };
@@ -1104,18 +1158,35 @@ fn write_library(
             lib,
             &book_doc_id,
             &project.id,
-            dr_doc::book::genesis(&book_id),
+            if options.v3.is_some() {
+                dr_doc::v3::genesis_v3(&book_id)
+            } else {
+                dr_doc::book::genesis(&book_id)
+            },
         )?;
         let mut stored = VersionVector::default();
-        let push = |bdoc: &BookDoc, stored: &mut VersionVector| -> Result<()> {
+        let mut push = |bdoc: &BookDoc, stored: &mut VersionVector, ts: i64| -> Result<Frontiers> {
+            if let (Some(target), Some(choices)) = (&mut v3doc, &options.v3) {
+                let (r, _) = target.edit_at(Origin::Import, Some(ts), |t| {
+                    dr_samples::v3::sync_catalog(t, &bdoc.view(), choices)
+                });
+                r?;
+                dr_samples::v3::validate(&target.view()).map_err(ImportError::Invalid)?;
+                let now = target.version();
+                if now != *stored {
+                    import_into(&bh, &book_doc_s, target.export_updates_since(stored)?)?;
+                    *stored = now;
+                }
+                return Ok(target.frontiers());
+            }
             let now = bdoc.version();
             if now != *stored {
                 import_into(&bh, &book_doc_s, bdoc.export_updates_since(stored)?)?;
                 *stored = now;
             }
-            Ok(())
+            Ok(bdoc.frontiers())
         };
-        push(&bdoc, &mut stored)?;
+        push(&bdoc, &mut stored, base_ts)?;
         timing.store_ms += ms(t3);
         let mut expected: Vec<(Frontiers, Owner, Fields)> = Vec::new();
         let n_points = points.len() as u64;
@@ -1132,10 +1203,10 @@ fn write_library(
                 state.insert(o.clone(), after.clone());
                 timing.book_ms += ms(t);
                 let t = Instant::now();
-                push(&bdoc, &mut stored)?;
+                let frontiers = push(&bdoc, &mut stored, secs(p.ts_ms))?;
                 timing.store_ms += ms(t);
                 rec.history_meta_replayed += 1;
-                expected.push((bdoc.frontiers(), o.clone(), after));
+                expected.push((frontiers, o.clone(), after));
             }
             let t = Instant::now();
             let periodic = dr_store::history::labels::PERIODIC;
@@ -1161,14 +1232,23 @@ fn write_library(
         r?;
         timing.book_ms += ms(t4);
         let t5 = Instant::now();
-        push(&bdoc, &mut stored)?;
+        push(&bdoc, &mut stored, final_ts)?;
         bh.close();
         timing.store_ms += ms(t5);
         if options.verify_history && !expected.is_empty() {
-            let snapshot = vec![bdoc.export_snapshot()?];
+            let snapshot = vec![match &v3doc {
+                Some(doc) => doc.export_snapshot()?,
+                None => bdoc.export_snapshot()?,
+            }];
             for (at, o, want) in &expected {
-                let reader = BookReader::load_at(book_id.clone(), &snapshot, at)?;
-                if meta::holds(&reader.view(), o, want) {
+                let holds = if v3doc.is_some() {
+                    let reader = dr_doc::v3::BookReaderV3::load_at(book_id.clone(), &snapshot, at)?;
+                    crate::v3::holds(&reader.view(), o, want)
+                } else {
+                    let reader = BookReader::load_at(book_id.clone(), &snapshot, at)?;
+                    meta::holds(&reader.view(), o, want)
+                };
+                if holds {
                     rec.history_meta_checked += 1;
                 } else {
                     notes.add("history-meta-differs");

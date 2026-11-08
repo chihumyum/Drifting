@@ -1759,6 +1759,7 @@ dependencies = [
  "dr-doc",
  "dr-index",
  "dr-model",
+ "dr-samples",
  "dr-store",
  "dr-testkit",
  "libc",
