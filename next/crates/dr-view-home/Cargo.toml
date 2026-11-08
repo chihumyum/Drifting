@@ -32,6 +32,7 @@ png = { workspace = true, optional = true }
 [dev-dependencies]
 dr-store.workspace = true
 dr-testkit.workspace = true
+dr-view-shelf-art.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
 gpui_platform.workspace = true
 serde_json.workspace = true

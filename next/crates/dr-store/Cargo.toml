@@ -22,11 +22,12 @@ zip.workspace = true
 [dev-dependencies]
 # Only to check that both Origin types spell every origin the same way.
 dr-model.workspace = true
-# The shared random streams and corpus. Not dr-testkit, nor dr-index: they
-# depend on dr-store, and that cycle stops dx's hot patching (`cargo xtask
-# dev --hot`). The tests that need the seeds, the crash harness or the real
-# deriver are in dr-testkit's tests (crash_migrate, store_rebuild).
-dr-testkit-corpus.workspace = true
+# The shared random streams and corpus (dr-corpus, no store). Not
+# dr-testkit, dr-samples or dr-index: they depend on dr-store, and that
+# cycle stops dx's hot patching (`cargo xtask dev --hot`). The tests that
+# need the seeds, the crash harness or the real deriver are in dr-testkit's
+# tests (crash_migrate, store_rebuild).
+dr-corpus.workspace = true
 # Only to check that the outline trims exactly what dr-text trims.
 prose-metrics.workspace = true
 tempfile.workspace = true

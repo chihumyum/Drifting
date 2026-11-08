@@ -3,10 +3,9 @@
 //! ```text
 //! interface (gpui-prose, dr-editor, dr-ui, dr-shell, dr-view-*)
 //!     → application services (dr-workspace, dr-agent, dr-mcp, dr-sync,
-//!       dr-export, dr-mirror, dr-import-v1)
-//!         → data (dr-model, dr-doc, dr-store, dr-text)
-//! platform (dr-platform, dr-i18n) and tools (dr-testkit, dr-testkit-corpus,
-//! dr-cli, xtask) on the side
+//!       dr-export, dr-mirror, dr-import-v1, dr-samples)
+//!         → data (dr-model, dr-doc, dr-store, dr-text, dr-corpus)
+//! platform (dr-platform, dr-i18n) and tools (dr-testkit, dr-cli, xtask) on the side
 //! ```
 //!
 //! - A crate's normal and build dependencies stay in its layer or below it.
@@ -40,6 +39,10 @@ pub const LAYERS: &[(&str, Layer)] = &[
     ("dr-store", Layer::Data),
     ("dr-text", Layer::Data),
     ("dr-index", Layer::Data),
+    // The one RNG, the samples' and the seed's paragraphs, the synthetic
+    // corpus and the fingerprint, without a store (dr-samples, dr-testkit
+    // and dr-store's tests use it).
+    ("dr-corpus", Layer::Data),
     ("prose-metrics", Layer::Data),
     // Line breaking: the editor uses it now, dr-text and the PDF export later.
     ("prose-linebreak", Layer::Data),
@@ -54,6 +57,8 @@ pub const LAYERS: &[(&str, Layer)] = &[
     ("dr-export", Layer::Services),
     ("dr-mirror", Layer::Services),
     ("dr-import-v1", Layer::Services),
+    // The built-in sample books (and the book writer dr-testkit's seed shares).
+    ("dr-samples", Layer::Services),
     ("gpui-prose", Layer::Interface),
     ("gpui-ime", Layer::Interface),
     ("dr-editor", Layer::Interface),
@@ -70,9 +75,6 @@ pub const LAYERS: &[(&str, Layer)] = &[
     ("dr-view-elements", Layer::Interface),
     ("drifting", Layer::App),
     ("dr-testkit", Layer::Tools),
-    // The test kit's random streams and corpus, without a store (dr-store's
-    // tests use it; see dr-testkit-corpus).
-    ("dr-testkit-corpus", Layer::Tools),
     ("dr-cli", Layer::Tools),
     ("xtask", Layer::Tools),
 ];

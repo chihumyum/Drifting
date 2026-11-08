@@ -63,13 +63,14 @@ fn every_copied_key_is_used() {
     let here = Path::new(env!("CARGO_MANIFEST_DIR"));
     sources(&here.join("src"), &mut source);
     // The views the shell hosts (dr-view-*: the bookshelf, Project Home, …)
-    // take their strings from the same list.
+    // take their strings from the same list; so does the Markdown folder's
+    // service (M40's notification lines).
     for entry in std::fs::read_dir(here.parent().unwrap()).unwrap() {
         let path = entry.unwrap().path();
         let view = path
             .file_name()
             .and_then(|n| n.to_str())
-            .is_some_and(|n| n.starts_with("dr-view-"));
+            .is_some_and(|n| n.starts_with("dr-view-") || n == "dr-mirror");
         if view && path.join("src").is_dir() {
             sources(&path.join("src"), &mut source);
         }

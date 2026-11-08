@@ -10,8 +10,14 @@
 //! ```
 //!
 //! Prints one line per N; the per-item undo cost growing with N (time
-//! roughly ×4 when N doubles) is the quadratic behaviour. Not reported
-//! upstream (see docs/rust-rewrite/foundations/f4c-input.md, "测量").
+//! roughly ×4 when N doubles) is the quadratic behaviour.
+//!
+//! Reported upstream as loro-dev/loro#1263 (2026-11-08), with a smaller
+//! reproduction. Each `undo()` replays the text's whole history, so its cost
+//! follows the number of separate runs in that history, not the stack
+//! length: here the N replacements sit in N paragraphs and the text grows
+//! with N, so all three grow together. Rerun this before upgrading Loro and
+//! check the issue (docs/rust-rewrite/foundations/f4b-layout.md).
 
 use std::time::Instant;
 

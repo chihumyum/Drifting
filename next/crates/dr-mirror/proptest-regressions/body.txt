@@ -1,0 +1,10 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 9b4516d514d3364c502291889c7c3f9c14c730fd10795f4a64906394e6c427aa # shrinks to p = Para { kind: Text { heading: None, quote: false }, chars: ['!', 'a'], marks: [Marks { bold: false, italic: false, underline: false, strike: false, link: None }, Marks { bold: false, italic: false, underline: false, strike: false, link: Some("https://example.com/x") }] }
+cc e5378d5c653796bd4a2dbbe1776f66368b1e0cc4ec49226b85b84a24739ee028 # shrinks to p = Para { kind: Text { heading: None, quote: false }, chars: ['a', '，'], marks: [Marks { bold: true, italic: false, underline: false, strike: false, link: None }, Marks { bold: false, italic: true, underline: false, strike: false, link: None }] }
+cc 99f15f0ecafc2f19efb0c18143d4c8df67cf3a69572ccbcdcb5c39c061d2d658 # shrinks to p = Para { kind: Text { heading: Some(1), quote: false }, chars: ['#'], marks: [Marks { bold: false, italic: false, underline: false, strike: false, link: None }] }
+cc f231377a8b796330a980e7a6c26cff20db062cbf73f162e7f579d1b2517cf945 # shrinks to p = Para { kind: Text { heading: None, quote: false }, chars: [']', ':'], marks: [Marks { bold: false, italic: false, underline: false, strike: false, link: Some("https://example.com/x") }, Marks { bold: false, italic: false, underline: false, strike: false, link: Some("https://example.com/x") }] }

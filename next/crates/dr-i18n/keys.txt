@@ -48,6 +48,8 @@ projectHome.kicker
 bottomStatusBar.storyGraph
 bottomStatusBar.elements
 bottomStatusBar.todoLibrary
+bottomStatusBar.expandTimeline
+bottomStatusBar.collapseTimeline
 
 # Notifications
 notifications.title
@@ -65,6 +67,12 @@ notifications.markdownFolder.source
 notifications.appUpdate.source
 notifications.crashFollowUp.source
 notifications.markdownFolder.preserved
+notifications.markdownFolder.issue.frontmatter
+notifications.markdownFolder.issue.identity
+notifications.markdownFolder.issue.empty
+notifications.markdownFolder.issue.lineage
+notifications.markdownFolder.issue.encoding
+notifications.markdownFolder.issue.too-large
 
 # Feedback and the crash follow-up (M39, dr-view-feedback)
 feedback.*
@@ -154,6 +162,8 @@ settings.update.channel_desc
 # The paper's corner (M03): the ⋯ menu, a chapter's writing status, the
 # trash, immersive writing
 editorTopBar.actions.more
+editorTopBar.actions.expandPlotPlanner
+editorTopBar.actions.collapsePlotPlanner
 editorTopBar.statusSection.chapter
 editorTopBar.status.draft
 editorTopBar.status.finished
@@ -369,6 +379,7 @@ userMenu.settings
 
 # M02 Project Home (dr-view-home)
 common.untitled
+common.customColor
 common.counting
 projectHome.since
 projectHome.views.overview
@@ -584,6 +595,7 @@ settings.sync.backup.exportButton
 settings.sync.backup.restoreTitle
 settings.sync.backup.restoreDesc
 settings.sync.backup.restoreButton
+settings.sync.backup.openSafety
 
 # The chapter panel's folding fan and its rows' hover cards (M04)
 leftSidebar.actions.collapseAll
@@ -640,6 +652,9 @@ storylineEditor.empty.noFacts
 storylineEditor.empty.noChapterSummary
 storylineEditor.empty.noFilteredChapters
 storylineEditor.actions.openChapter
+storylineEditor.sections.nodeTemplate
+storylineEditor.meta.nodeTemplate
+storylineEditor.nodeTemplatePlaceholder
 editorTopBar.menu.deleteStoryline
 common.confirm
 common.words
@@ -658,6 +673,22 @@ bottomTimeline.locateCurrent
 bottomTimeline.axis.time
 bottomTimeline.act.railLabel
 bottomTimeline.act.chapterCount
+bottomTimeline.act.newAct
+bottomTimeline.act.startHere
+bottomTimeline.act.openActNote
+bottomTimeline.act.unbindDrift
+bottomTimeline.act.deleteMergeNext
+bottomTimeline.act.deleteMergePrev
+bottomTimeline.axis.addPin
+bottomTimeline.marker.defaultLabel
+bottomTimeline.pinMenu.openDrift
+bottomTimeline.pinMenu.unbind
+bottomTimeline.pinMenu.bindDrift
+bottomTimeline.pinMenu.rename
+bottomTimeline.pinMenu.deleteMarker
+bottomTimeline.menu.moveToUnaffiliated
+bottomTimeline.menu.detachFromNarrative
+leftSidebar.groups.newChapterInStoryline
 
 # M15: the plot planner (dr-view-plot)
 plotGrid.title
@@ -698,6 +729,8 @@ projectPicker.desk.coverStyle.names.*
 
 # M41 moving books: .driftingbook from the bookshelf (dr-view-transfer)
 projectPicker.desk.exportBook
+projectPicker.desk.recent
+projectPicker.desk.recentLabel
 projectPicker.bookTransfer.*
 
 # M41 whole-library backup and restore (dr-view-transfer)
@@ -732,3 +765,93 @@ importDialog.status.parsing
 importDialog.status.ready
 importDialog.status.error
 importDialog.summary.*
+
+# M17 relations and relation types (dr-view-relations)
+referencesPanel.sections.relations
+referencesPanel.actions.linkEntity
+referencesPanel.actions.remove
+referencesPanel.filters.all
+referencesPanel.picker.placeholder
+referencesPanel.picker.empty
+referencesPanel.empty.relations
+referencesPanel.kind.element
+referencesPanel.kind.node
+referencesPanel.kind.category
+referencesPanel.kind.storyline
+referencesPanel.deleted.element
+referencesPanel.deleted.node
+referencesPanel.deleted.category
+referencesPanel.deleted.storyline
+relationPicker.untitledChapter
+relationPicker.untitledDrift
+relationPicker.untitledElement
+relationPicker.untitledStoryline
+relationTypes.title
+relationTypes.create
+relationTypes.createInline
+relationTypes.name
+relationTypes.direction
+relationTypes.directed
+relationTypes.symmetric
+relationTypes.endpointRole
+relationTypes.sourceRole
+relationTypes.targetRole
+relationTypes.defaultSourceRole
+relationTypes.defaultTargetRole
+relationTypes.allowedEntities
+relationTypes.allowedSources
+relationTypes.allowedTargets
+relationTypes.cancel
+relationTypes.save
+relationTypes.symmetricSummary
+relationTypes.delete
+relationTypes.builtIn
+relationTypes.missing
+relationTypes.confirmDelete
+relationTypes.pendingIncoming
+relationTypes.pendingOutgoing
+relationTypes.selectConfigured
+relationTypes.genericAssociation.name
+relationTypes.genericAssociation.sourceRole
+relationTypes.genericAssociation.targetRole
+relationTypes.entityKinds.*
+edgeKindManager.title
+edgeKindManager.summary
+edgeKindManager.editTypes
+edgeKindManager.resetColor
+
+# M24 the tour the first time a book opens (dr-view-sea)
+guide.skip
+guide.back
+guide.next
+guide.done
+guide.workspace.*
+
+# M24 the first run's card: the Markdown folder step M40 fills in (dr-view-sea)
+markdownFolderGuide.title
+markdownFolderGuide.intro
+markdownFolderGuide.chosen
+markdownFolderGuide.choose
+markdownFolderGuide.continue
+settings.sync.projection.turnOff
+
+# M19 the image and PDF viewer and its region comments (dr-view-material)
+materialEditor.descriptionPlaceholder
+materialEditor.zoomIn
+materialEditor.zoomOut
+materialEditor.zoomReset
+materialEditor.regions.draw
+materialEditor.regions.stopDrawing
+materialEditor.regions.drawHint
+materialEditor.regions.listLabel
+materialEditor.regions.empty
+materialEditor.regions.page
+materialEditor.regions.whole
+memoMaterial.preview.noImage
+memoMaterial.preview.noPdf
+memoMaterial.preview.openPdfFailed
+memoMaterial.preview.renderPdfFailed
+memoMaterial.preview.loadingPdf
+memoMaterial.preview.loading
+memoMaterial.preview.previousPage
+memoMaterial.preview.nextPage

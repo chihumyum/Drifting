@@ -18,7 +18,8 @@
 | --- | --- | --- | --- |
 | 统一种子：tiny / lite / heavy / showcase | `next/crates/dr-testkit/src/seed/` | 1 | 做完，指纹钉在测试里 |
 | 种子也能通过 F3 的命令写入，和直写对拍一致 | `seed/commands.rs`、`seed/digest.rs` | 2 | 做完 |
-| 样书：《傲慢与偏见》《阿Q正传》，以及 showcase 的《慢钟》和书架 | `src/samples.rs`、`fixtures/` | 1 | 做完，只有文字，插图没拷 |
+| 样书：《傲慢与偏见》《阿Q正传》，以及 showcase 的《慢钟》和书架 | `src/samples.rs`、`fixtures/`；两本样书和摆书的代码在 `dr-samples` | 1 | 做完，只有文字，插图没拷 |
+| 合成素材：一张 PNG 地图、三页 A5 的 PDF（Helvetica 和没嵌字体的中文），给 M19 的查看器 | `src/media.rs` | — | 做完（2026-11-08） |
 | 测量证据和过期检查 | `src/evidence.rs`、`cargo xtask evidence --check` | 1 | 做完；旧证据待各自迁移 |
 | 崩溃试验台 | `src/crash.rs`，F2 示范在 `tests/crash_store.rs` | 1 | 做完 |
 | 基准约定和 `bench` 程序 | `src/bench.rs`、`src/bin/bench.rs` | 1、2 | 两个套件：dr-store、dr-workspace（收编 F3 的测量） |
@@ -81,14 +82,14 @@ cargo drifting workspace scenario seed:lite --library <目录> --yes
 | heavy | 性能、全书、导入、内存 | 100 章 150 万字（每章 2 千到 2 万）、300 个要素 50 万字、200 个构想 100 万字（最长 5 万）、60 篇素材笔记 50 万字、120 条待办、80 条批注、400 条关系、一年的写作日 |
 | showcase | 截图 | 《慢钟》、《阿Q正传》，再加书架上 6 本中文书（文字按字数合成），各带写作日 |
 
-另外两本样书单独取：`samples::pride_and_prejudice()`、`samples::a_q()`。
+另外两本样书单独取：`samples::pride_and_prejudice()`、`samples::a_q()`（转调 `dr-samples`，产品首次运行用同一份写进新库）。
 
 lite 和 heavy 的每一类正文，**篇数、总字数、最短、最长**都和旧版 `lite`、`stress` 种子完全一样（`docs/dev-cli/acceptance/seed-presets.json`）。这份旧文件还在的时候，测试会逐项对照；它随旧客户端删掉以后，数字留在 `preset.rs` 里。
 
 ### 怎么生成
 
 - **文字**：沿用旧版种子自己写的句库（`sample-project/prose.ts` 的地点、人物、物件、细节、标题和十句原创句子），由随机数重新组合。不含任何真实书稿。
-- **随机数**：只有一种，SplitMix64（`rng.rs`）。每篇正文有自己独立的随机流，所以加一类新东西，不会让已有的正文变样。
+- **随机数**：只有一种，SplitMix64（`dr-samples` 的 `rng.rs`，`dr_testkit::rng` 转出；样书的固定 ID 也从它来）。每篇正文有自己独立的随机流，所以加一类新东西，不会让已有的正文变样。
 - **字数**：一个汉字算一个词，标点、引号、换行不算。语料里没有拉丁文字，所以这和产品的字数统计一致。
 - **结构**：每篇正文先是一个标题，之后每九段一个标题，依次是 H2、H3、H1，长一些的正文三级都有。章节和构想里的人名链接到要素；素材笔记开头有一个三项的任务列表；批注和待办锚在章节正文的随机一段上，带原文快照。
 - **确定性**：对等方 ID 用 dr-doc 的导入对等方，提交时间从固定的「第零天」（2025-11-01）起算。同一个预设、同一个随机种子，生成的每个 Loro 文档**逐字节相同**，测试里比的就是快照字节。
@@ -103,9 +104,9 @@ lite 和 heavy 的每一类正文，**篇数、总字数、最短、最长**都�
 
 ### 样书
 
-`fixtures/` 里是四个 JSON：《傲慢与偏见》、《阿Q正传》、《慢钟》和截图书架。它们是 0.1 客户端样书定义逐字段导出的，出处和授权见 `fixtures/README.md` 和仓库根目录的 `ASSET_PROVENANCE.md`。
+四个 JSON：《傲慢与偏见》、《阿Q正传》在 `crates/dr-samples/books/`（产品要把它们写进新库，见 `dr_samples::ensure_built_in`），《慢钟》和截图书架在本 crate 的 `fixtures/`。它们是 0.1 客户端样书定义逐字段导出的，出处和授权见两处的 `README.md` 和仓库根目录的 `ASSET_PROVENANCE.md`。
 
-`samples.rs` 照 0.1 的样书写法把它们摆成书：
+`dr-samples` 的 `layout.rs` 照 0.1 的样书写法把它们摆成书（写书用的 `Builder` 也在 `dr-samples` 的 `build.rs`，种子的合成预设用同一个；测试工具箱转出 `seed::{SeededBook, T0, write_book}`、`text::{Para, Link, plain}`，外部接口不变）：
 
 - 幕、章、梗概、故事线；
 - 分类和要素（别名、事实）、关系类型和关系；
@@ -348,10 +349,10 @@ cargo xtask dev --hot --print-config                 # 看会跑什么命令，�
   - 结构体加减字段、改类型（内存里的旧对象还是旧的样子）；
   - 加新依赖、改 `Cargo.toml`、改构建脚本；
   - 启动时只跑一次的代码（`main`、`init` 里注册的东西、快捷键表）：换了也不会再跑。
-- **哪些 crate 改了能热替换**：dx 0.7.10 打补丁时，要把改了的 crate 和**所有**依赖它的工作区 crate（测试用的依赖也算）按第一次全量构建时记下的编译参数重编一遍；应用没编进去的 crate 没有这份参数，补丁就失败（「Missing rustc args for replay: 'dr_testkit'」），窗口里还是旧代码，在 dx 的终端按 `r` 全量重编（或者重启 `cargo xtask dev --hot`）。所以只有「依赖它的 crate 全在应用里」的 crate 才能热替换。`cargo xtask dev --hot` 启动时把这一份名单打印出来（`--print-config` 里是 `hotReload.crates`，按当时的工作区和特性现算）。2026-11-08 是：
-  - 能：`dr-view-shelf`、`dr-view-home`、`dr-view-page`、`dr-view-elements`、`dr-view-import`、`dr-view-transfer`、`dr-view-feedback`、`dr-debug-bridge`；
-  - 暂时不能：`dr-shell`、`dr-ui`、`dr-editor`、`gpui-prose` 和其余的 `dr-view-*`。依赖它们的 `dr-view-plot`、`dr-view-shelf-art`、`dr-view-timeline` 还没接进应用；M01、F6 接上以后它们就能了；
-  - 一直不能：数据和服务层（`dr-store`、`dr-doc`、`dr-model`、`dr-index`、`dr-text`、`dr-workspace`、`prose-metrics`、`dr-platform`、`dr-import-v1` 等），命令行和测试工具（`dr-cli`、`dr-testkit`、`xtask`）依赖它们，而应用不编这些工具。这是 dx 的限制（它不把补丁限在应用编进去的 crate 里），热替换本来就是给界面用的。
+- **哪些 crate 改了能热替换**：dx 0.7.10 打补丁时，要把改了的 crate 和**所有**依赖它的工作区 crate（测试用的依赖也算）按第一次全量构建时记下的编译参数重编一遍；应用没编进去的 crate 没有这份参数，补丁就失败（「Missing rustc args for replay: 'dr_testkit'」），窗口里还是旧代码，在 dx 的终端按 `r` 全量重编（或者重启 `cargo xtask dev --hot`）。所以只有「依赖它的 crate 全在应用里」的 crate 才能热替换。`cargo xtask dev --hot` 启动时把这一份名单打印出来（`--print-config` 里是 `hotReload.crates`，按当时的工作区和特性现算）。合进 main `c81de0fa` 以后是：
+  - 能：`dr-view-shelf`、`dr-view-shelf-art`、`dr-view-home`、`dr-view-page`、`dr-view-elements`、`dr-view-material`、`dr-view-plot`、`dr-view-timeline`、`dr-view-import`、`dr-view-transfer`、`dr-view-feedback`、`dr-debug-bridge`；
+  - 暂时不能：`dr-shell`、`dr-ui`、`dr-editor`、`gpui-prose` 和其余的 `dr-view-*`，只因为依赖它们的 `dr-view-relations`、`dr-view-sea` 还没接进应用；接上以后它们就能了（第一次算的时候挡着的是 plot、shelf-art、timeline，这批已经接上）；
+  - 一直不能：数据和服务层（`dr-store`、`dr-doc`、`dr-model`、`dr-index`、`dr-text`、`dr-workspace`、`prose-metrics`、`dr-platform`、`dr-import-v1` 等），命令行和测试工具（`dr-cli`、`dr-testkit`、`xtask`）和还没接进应用的 `dr-samples`、`dr-mirror` 依赖它们，而应用不编这些。这是 dx 的限制（它不把补丁限在应用编进去的 crate 里），热替换本来就是给界面用的。
 - **快多少（2026-11-08，M3 Pro，机器负载 16–90，只作参考）**：改的是书架左栏格子（`dr-view-shelf` 的 `rail_cell`，书架的渲染函数调到的那个函数）读屏用的名字，再用调试桥轮询 `ui.find` 看到新名字为止：
   | 做法 | 从保存到窗口里变了 |
   | --- | ---: |
@@ -361,13 +362,13 @@ cargo xtask dev --hot --print-config                 # 看会跑什么命令，�
   热替换不重启，所以开着的书、页、对话框、滚动位置都还在；重启要再点回去，上表没算这一段。dx 用自己的构建目录（`target/dx/`），第一次 `--hot` 要全量编一遍（这次 335 s），之后改了别的再起是 56 s。
 - **只在调试构建里**：GPUI 的构建脚本只在打开特性、而且有调试断言时才编进补丁的接收端，`--hot` 和 `--release` 一起给会被拒绝。
 - **依赖不能成环，连测试用的依赖也算**：dx 打补丁时，把改了的 crate 和所有依赖它的工作区 crate 一起重编，按依赖图排先后；它的依赖图连开发依赖（dev-dependencies）也算，遇到环就停（「Cycle in workspace dependency graph — cannot determine replay order」）。Cargo 允许「A 依赖 B，B 的测试又依赖 A」，dx 不行。实测：改书架（dr-view-shelf）一切正常，改 dr-store 就报这句。工作区里原来有四个这样的环，都只是测试或示例，2026-11-08 解开了，办法都是把那个测试或示例挪到环的另一头：
-  1. dr-store 的测试用 dr-testkit 的随机数和语料，dr-testkit 又写 dr-store：随机数、语料、指纹三个文件（`rng.rs`、`text.rs`、`digest.rs`）挪进新的 `dr-testkit-corpus`，它不依赖任何库；dr-testkit 原样转出（`dr_testkit::{rng, text, digest}` 照旧能用），dr-store 的测试改用 `dr_testkit_corpus`。语料只有一份，没有另写；
+  1. dr-store 的测试用 dr-testkit 的随机数和语料，dr-testkit 又写 dr-store：不碰库的那几样收进新的 `dr-corpus`（数据层，只依赖 dr-model）：随机数（`rng.rs`）和段落（`para.rs`）从 dr-samples 挪过来（F5 第七轮刚把它们放进 dr-samples，而 dr-samples 写库），合成语料（`text.rs`）和指纹（`digest.rs`）从 dr-testkit 挪过来。dr-samples 转出 `rng`、`para`，dr-testkit 转出 `rng`、`text`、`digest`，原来的写法照旧能用，随机数还是同一个类型；dr-store 的测试改用 `dr_corpus`。语料只有一份，种子的指纹不变（只是挪了位置）；
   2. dr-store 里要种子、崩溃试验台或真派生器的两个测试，挪进 dr-testkit 的 `tests/`：`crash_migrate.rs`（迁移各阶段被杀，和原有的 `crash_store.rs` 放在一起）、`store_rebuild.rs`（后台重建不挡打字）。它们照旧用 dr-store 的 `tests/common`（按路径引入）；
   3. dr-index 的 `tests/m10.rs`（导入的 0.1 库打开时建索引）挪到 dr-import-v1 的 `tests/index.rs`：dr-import-v1 本来就依赖 dr-index；
   4. dr-view-history 的 `history-capture` 截图示例挪到 dr-shell 的 `examples/`（M06、M07、M18 的截图示例也在那里）：它要在外壳里显示对话框，而外壳依赖 dr-view-history。
 
   `cargo xtask check` 的 `hot-reload` 门禁从此查工作区依赖图（各种依赖都算）里没有环，再有就报出环上的 crate。解开以后，改 dr-store 不再报环，而是报上一条的「Missing rustc args」：环是第一道坎，第二道是 dx 本身的限制。
-- **代价**：这次挪动改了 dr-store、dr-index、dr-testkit 的目录，以及 `rng.rs`、`text.rs` 的位置，14 份测量证据都按「输入变了」报过期（不是失败）。都是测试和示例的挪动，测的代码没有变；下一次机器空闲时按各自的 `generatedBy` 重测。
+- **代价**：这次挪动改了 dr-store、dr-index、dr-testkit、dr-samples 的目录，以及 `rng.rs`、`para.rs`、`text.rs` 的位置，14 份测量证据都按「输入变了」报过期（不是失败）。挪的是测试、示例和不带逻辑变化的模块，测的代码没有变，种子的指纹测试照旧通过；下一次机器空闲时按各自的 `generatedBy` 重测。
 - **不进正式包**：照调试桥的守法，`cargo xtask check` 的 `hot-reload` 门禁查：没有哪个成员默认打开 `gpui/hot-reload`，也没有在普通依赖里直接要它；`next/script/` 下的发布脚本不提 `hot-reload`、`dx serve`。`cargo xtask check-binary` 同时查这个：编进了补丁接收端的程序里有它的日志句子「GPUI hot reload」，有就失败。
 
 
@@ -678,18 +679,20 @@ done
 
 ```text
 next/crates/dr-testkit/
-  src/lib.rs              转出 dr-testkit-corpus 的 rng、text、digest
+  src/lib.rs              转出 dr-corpus 的 rng、text、digest
   src/seed/               预设、长度分配、计划、直写、走命令写、对拍用的 digest、形状、写进库
-  src/samples.rs          样书和 showcase
+  src/samples.rs          样书（转调 dr-samples）和 showcase
   src/evidence.rs         测量证据、过期检查
   src/crash.rs            崩溃试验台
   src/bench.rs            基准约定，store 和 workspace 两个套件
   src/bin/bench.rs        bench 程序
-  fixtures/               样书 JSON 和来源说明
+  fixtures/               《慢钟》、截图书架的 JSON 和来源说明
   tests/                  种子、两种写法对拍、样书、崩溃（编辑中被杀 crash_store、迁移中被杀 crash_migrate）、
                           后台重建不挡打字（store_rebuild，dr-store 的）、基准
-next/crates/dr-testkit-corpus/
-  src/rng.rs              唯一的随机数（SplitMix64）
+next/crates/dr-samples/   两本内置样书（books/）、摆书和写书（layout.rs、build.rs、store.rs）、新库只写一次（built_in.rs）
+next/crates/dr-corpus/    不碰库的那部分，dr-samples、dr-testkit 和 dr-store 的测试共用
+  src/rng.rs              唯一的随机数（SplitMix64；dr-samples、dr-testkit 都转出它）
+  src/para.rs             样书和种子摆书用的段落
   src/text.rs             合成语料、字数口径
   src/digest.rs           唯一的指纹函数
 next/xtask/

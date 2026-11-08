@@ -12,8 +12,8 @@
 use std::path::PathBuf;
 
 use dr_export::import::{
-    IMPORT_EXTENSIONS, ImportTarget, ImportedItem, ParsedDoc, files_in_folder, import_docs,
-    order_import_files, parse_file,
+    IMPORT_EXTENSIONS, ImportTarget, ImportWarning, ImportedItem, ParsedDoc, files_in_folder,
+    import_docs, order_import_files, parse_file,
 };
 use dr_i18n::{I18n, Key, keys};
 use dr_ui::components::{Button, Choice, Dialog, RowIcon, Segmented, Select};
@@ -72,6 +72,14 @@ pub enum Status {
     Ready,
     Committed,
     Error(String),
+}
+
+/// What the file held that the import leaves out or changed, in words.
+pub fn warning(i18n: &I18n, w: &ImportWarning) -> String {
+    match w {
+        ImportWarning::ImagesDropped(n) => i18n.plural(k::warnings::IMAGES_DROPPED, *n as u64, &[]),
+        ImportWarning::NotUtf8 => i18n.t(k::warnings::NOT_UTF8).to_owned(),
+    }
 }
 
 pub struct Item {
@@ -226,12 +234,21 @@ impl DocumentsDialog {
         parsed: Result<ParsedDoc, dr_export::import::ImportError>,
         cx: &mut Context<Self>,
     ) {
+        let warnings: Vec<String> = parsed.as_ref().map_or_else(
+            |_| Vec::new(),
+            |doc| {
+                doc.warnings
+                    .iter()
+                    .map(|w| warning(&self.i18n, w))
+                    .collect()
+            },
+        );
         let Some(item) = self.items.get_mut(index) else {
             return;
         };
         match parsed {
             Ok(doc) => {
-                item.warnings = doc.warnings.iter().map(|w| w.to_string()).collect();
+                item.warnings = warnings;
                 let title = doc.title.clone();
                 item.title.update(cx, |f, cx| f.set_text(title, cx));
                 item.parsed = Some(doc);

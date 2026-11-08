@@ -25,16 +25,29 @@
 //! height, padding and hairline), its body fills the pane and scrolls
 //! itself; the shell's own rows for that tab are not drawn.
 //!
+//! And a page a module draws whole, with no prose editor
+//! ([`add_page_view`]): M19's image and PDF materials (the viewer and its
+//! region comments). The shell asks the makers before it opens a page's
+//! editor; the first answer wins, and the page keeps that view while its
+//! tab stays open.
+//!
 //! And the rows a module adds to a page's ⋯ menu ([`add_page_menu`]): an
 //! element's 更改类目 and 删除要素, a category's 删除类目 (M11). The shell
 //! keeps the menu's order: share and export, its own sections, the modules'
 //! sections, 历史快照…, then everything dangerous last.
+//!
+//! And what fills the Bottom Panel under the paper ([`add_bottom_panel`]):
+//! the timeline (M14) and the chapter in front's plot planner (M15), one
+//! at a time. The shell keeps the panel (its height, its top edge, the
+//! slide, the toggles); a module gives the view for its [`BottomPane`].
 
 use std::rc::Rc;
 
 use dr_editor::page::PageChrome;
 use dr_editor::{BookEditor, ChapterEditor};
-use gpui::{AnyView, App, Bounds, Entity, Global, Pixels, SharedString, WeakEntity, Window};
+use gpui::{
+    AnyView, App, Bounds, Entity, FocusHandle, Global, Pixels, SharedString, WeakEntity, Window,
+};
 
 use crate::Workspace;
 use crate::book::Book;
@@ -54,8 +67,67 @@ type MakeHome = Rc<dyn Fn(WeakEntity<Workspace>, &mut Window, &mut App) -> AnyVi
 type MakeChrome =
     Rc<dyn Fn(&Target, PageHost, &mut Window, &mut App) -> Option<Rc<dyn PageChrome>>>;
 type MakeMenu = Rc<dyn Fn(&Target, &PageMenuHost, &App) -> Vec<PageMenuSection>>;
+type MakeView = Rc<dyn Fn(&Target, PageViewHost, &mut Window, &mut App) -> Option<ModulePage>>;
 type MakeLeftPanel =
     Rc<dyn Fn(LeftTab, WeakEntity<Workspace>, &mut Window, &mut App) -> Option<LeftPanel>>;
+type MakeBottom = Rc<dyn Fn(&BottomHost, &mut Window, &mut App) -> Option<BottomPanel>>;
+
+/// What the Bottom Panel holds, top to bottom as the 0.1 client stacked
+/// them: the timeline, or the plot planner of the chapter in front.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum BottomPane {
+    Timeline,
+    Planner,
+}
+
+/// What a Bottom Panel pane is made for: the window's workspace, the
+/// library, the book's lists as the shell has them, and the page in front
+/// (the chapter or idea a planner plans).
+#[derive(Clone)]
+pub struct BottomHost {
+    pub workspace: WeakEntity<Workspace>,
+    pub library: Option<dr_workspace::Workspace>,
+    pub book_id: String,
+    pub book: Rc<Book>,
+    pub target: Option<Target>,
+}
+
+/// Called with the book's new lists while a pane is kept (a planner's
+/// chapter renamed).
+pub type RefreshBottom = Rc<dyn Fn(&BottomHost, &mut App)>;
+
+/// The least height the panel can be dragged to while a pane shows.
+pub type MinHeight = Rc<dyn Fn(&App) -> f32>;
+
+/// A pane a module draws in the Bottom Panel. Its view fills the panel's
+/// box (the panel's full height, whatever part of it the slide shows).
+#[derive(Clone)]
+pub struct BottomPanel {
+    pub view: AnyView,
+    /// Above the panel's own least height (180), e.g. the timeline's lanes.
+    pub min_height: Option<MinHeight>,
+    pub refresh: Option<RefreshBottom>,
+}
+
+impl BottomPanel {
+    pub fn new(view: impl Into<AnyView>) -> BottomPanel {
+        BottomPanel {
+            view: view.into(),
+            min_height: None,
+            refresh: None,
+        }
+    }
+
+    pub fn min_height(mut self, f: impl Fn(&App) -> f32 + 'static) -> BottomPanel {
+        self.min_height = Some(Rc::new(f));
+        self
+    }
+
+    pub fn on_refresh(mut self, f: impl Fn(&BottomHost, &mut App) + 'static) -> BottomPanel {
+        self.refresh = Some(Rc::new(f));
+        self
+    }
+}
 
 /// A left sidebar tab a module draws: the header row's content and the
 /// pane's body.
@@ -104,6 +176,19 @@ pub struct PageMenuHost {
     pub book: Rc<Book>,
 }
 
+impl PageMenuHost {
+    /// The host for `ws`'s window as it is now (not while it draws).
+    pub fn of(ws: &Entity<Workspace>, cx: &App) -> PageMenuHost {
+        let w = ws.read(cx);
+        PageMenuHost {
+            workspace: ws.downgrade(),
+            library: w.library.clone(),
+            book_id: w.book_id.clone(),
+            book: w.book.clone(),
+        }
+    }
+}
+
 /// The editor a page's chrome sits in.
 #[derive(Clone)]
 pub enum PageEditorRef {
@@ -123,13 +208,33 @@ pub struct PageHost {
     pub editor: PageEditorRef,
 }
 
+/// A page a module draws whole: its view, and what takes the keyboard when
+/// the page comes to the front (as an editor's text does).
+#[derive(Clone)]
+pub struct ModulePage {
+    pub view: AnyView,
+    pub focus: FocusHandle,
+}
+
+/// What a module's whole page is made with: the window's workspace, the
+/// library, and the book (its id and its lists as the shell has them).
+#[derive(Clone)]
+pub struct PageViewHost {
+    pub workspace: WeakEntity<Workspace>,
+    pub library: dr_workspace::Workspace,
+    pub book_id: String,
+    pub book: Rc<Book>,
+}
+
 #[derive(Clone, Default)]
 struct Pages {
     shelf: Option<MakeShelf>,
     home: Option<MakeHome>,
     chrome: Vec<MakeChrome>,
+    views: Vec<MakeView>,
     menus: Vec<MakeMenu>,
     left_panels: Vec<MakeLeftPanel>,
+    bottom: Vec<(BottomPane, MakeBottom)>,
 }
 
 impl Global for Pages {}
@@ -170,6 +275,29 @@ pub(crate) fn chrome_for(
     cx: &mut App,
 ) -> Option<Rc<dyn PageChrome>> {
     let makers = cx.try_global::<Pages>()?.chrome.clone();
+    makers
+        .iter()
+        .find_map(|make| make(target, host.clone(), window, cx))
+}
+
+/// Registers pages a module draws whole: asked before the shell opens a
+/// page's editor (its target and a [`PageViewHost`]), it gives that page
+/// ([`ModulePage`]), or `None` to leave the page to the editor.
+pub fn add_page_view(
+    cx: &mut App,
+    make: impl Fn(&Target, PageViewHost, &mut Window, &mut App) -> Option<ModulePage> + 'static,
+) {
+    cx.default_global::<Pages>().views.push(Rc::new(make));
+}
+
+/// The page a module draws for `target`, if any.
+pub(crate) fn page_view_for(
+    target: &Target,
+    host: PageViewHost,
+    window: &mut Window,
+    cx: &mut App,
+) -> Option<ModulePage> {
+    let makers = cx.try_global::<Pages>()?.views.clone();
     makers
         .iter()
         .find_map(|make| make(target, host.clone(), window, cx))
@@ -221,6 +349,44 @@ pub(crate) fn left_panel_for(
     makers
         .iter()
         .find_map(|make| make(tab, ws.clone(), window, cx))
+}
+
+/// Registers what fills the Bottom Panel as `pane`: asked when the pane is
+/// to show (the timeline once per window and book; a planner each time
+/// another chapter or idea comes to the front), it gives the view or
+/// `None` (a page it does not plan). Called while the workspace draws: do
+/// not read or update the workspace in `make`.
+pub fn add_bottom_panel(
+    cx: &mut App,
+    pane: BottomPane,
+    make: impl Fn(&BottomHost, &mut Window, &mut App) -> Option<BottomPanel> + 'static,
+) {
+    cx.default_global::<Pages>()
+        .bottom
+        .push((pane, Rc::new(make)));
+}
+
+/// Whether a module draws `pane` (its toggle shows only then).
+pub fn has_bottom_panel(pane: BottomPane, cx: &App) -> bool {
+    cx.try_global::<Pages>()
+        .is_some_and(|p| p.bottom.iter().any(|(at, _)| *at == pane))
+}
+
+/// The view registered for `pane` and `host`, made now, if any.
+pub(crate) fn bottom_panel_for(
+    pane: BottomPane,
+    host: &BottomHost,
+    window: &mut Window,
+    cx: &mut App,
+) -> Option<BottomPanel> {
+    let makers: Vec<MakeBottom> = cx
+        .try_global::<Pages>()?
+        .bottom
+        .iter()
+        .filter(|(at, _)| *at == pane)
+        .map(|(_, make)| make.clone())
+        .collect();
+    makers.iter().find_map(|make| make(host, window, cx))
 }
 
 pub(crate) fn has_shelf(cx: &App) -> bool {

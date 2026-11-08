@@ -1,10 +1,20 @@
 # M01 书架（基础）
 
-2026-11-08，分支 `chihumyum/m01-shelf-home-3bf938`。第一个里程碑从 main `07964df6` 开工（已合进 main `15299820`）；第二轮从 main `1652a95e`（第十批：F3 的 `book.shelf`、`book.purge`，F5 的无框输入和危险色图标按钮，F6 的共用账户菜单已合）接着做。计划见 [modules.md 的 M01](../modules.md#阶段-2写作闭环)。代码在 `next/crates/dr-view-shelf/`，外壳里的接入点在 `next/crates/dr-shell/src/pages.rs`。作品主页（M02）在同一个分支上，见 [m02-home.md](m02-home.md)。
+2026-11-08，分支 `chihumyum/m01-shelf-home-3bf938`。第一个里程碑从 main `07964df6` 开工（已合进 main `15299820`）；第二轮从 main `1652a95e`（第十批：F3 的 `book.shelf`、`book.purge`，F5 的无框输入和危险色图标按钮，F6 的共用账户菜单已合）接着做；第三轮从 main `2eb865fa`（第十三批：F5 的 M25 和带框多行输入已合）把封面、热力图、砂条和换画风放了进来。计划见 [modules.md 的 M01](../modules.md#阶段-2写作闭环)。代码在 `next/crates/dr-view-shelf/`，外壳里的接入点在 `next/crates/dr-shell/src/pages.rs`。作品主页（M02）在同一个分支上，见 [m02-home.md](m02-home.md)。
 
 ## 一句话
 
-新版打开就是书架了：左边一条栏，右边是本机库里的书。点一本书进入它的工作区，⇧⌘W 或红灯回到书架。可以新建、改名、移到最近删除、从最近删除恢复或立即删除；书在最近删除里放满 30 天，书架打开两分钟后就把它永久删掉，和旧版一样。封面、热力图、近 30 天的砂笔小图、字海是阶段 4（M24、M25）的事，这一轮书架底下是平的桌面色。
+新版打开就是书架了：左边一条栏，右边是本机库里的书。点一本书进入它的工作区，⇧⌘W 或红灯回到书架。可以新建、改名、移到最近删除、从最近删除恢复或立即删除；书在最近删除里放满 30 天，书架打开两分钟后就把它永久删掉，和旧版一样。每张书卡左边是这本书的封面，下面一条近 30 天的砂条；书上面是一年的写作热力图；书架底部一个圆按钮把所有封面换到下一种画风。字海是 M24 的事，书架底下还是平的桌面色。
+
+### 第三轮（大白话）：M25 的画放进书架
+
+- **封面。** 每张卡左边一张 126 × 226 的封面，画风是书架选的那一种（默认等高线）。画的是这本书自己：章节、故事线和颜色、每章多长（F5 的 M25，`dr-view-shelf-art`）。画之前是一张白纸（稿纸色），画好才出现；换画风时先留着旧的那张，新的画好再换。项目设定里有「体裁」时，封面底部写一行小字，和旧版一样。卡因此高到 250 px（旧版带封面的高度）。
+- **近 30 天。** 卡上进度上面一行「近 30 天　+20,225 字」（一个字没写就是「—」），下面一条砂条：写过字的一天是一笔竖着的短砂笔，没写的一天是两粒散砂。读屏念「近 30 天写了 20,225 字」。
+- **写作热力图。** 书的上面，一年 53 周，所有书加在一起；右边四个数：过去一年、在写、连续、今天。指针放在某本书的卡上，图只画这本书、用它的颜色，数字也换成它的。每本书的颜色照旧版：按书的 id 在六种故事线颜色里取一种（`hashToColor`）。
+- **换画风。** 书都排完以后，底部正中一个圆的玻璃按钮，点一下所有封面换到下一种（十四种，旧版的顺序），读屏念「换封面画风 · 现在是等高线」。
+- **数据**：书架读完 `book.shelf` 以后，在后台线程再读一次每本书的 `chapter.list`、`storyline.list`、`fact.list`（体裁）和 `book.writing_days`（过去 371 天）。F3 总线上有变化时和书架一起重读（写作日记在书目文档里，也走这条）。
+- **梗概框**换成 F5 的 `TextArea::framed(3)`，书架自己套的那圈（`frame.rs`）删了；作品主页的本书简介（`framed(4)`）和反馈对话框的留言框（`framed(5)`）也一起换了，它们原来借的就是书架这个文件。
+- 书卡梗概按中文规则断行（F5 的 `dr_ui::text::wrapped`）：以前「。」会落到下一行开头。
 
 ### 第二轮（大白话）
 
@@ -38,7 +48,7 @@
    - 书的顺序是 F3 排的：最近编辑的在前；最近删除里最近删掉的在前。
    - 全部在后台线程读，读完整份换进来；F3 总线上有书目、删除、正文的变化，或者 dr-store 报某篇文档的派生索引写好了（字数要等索引写好才变；刚生成或刚导入的库在后台补建索引，书卡上的字数会跟着涨上来），就记一笔，书架下次露出来时重读（藏着的时候不读，作者在书里打字不会让书架跟着重读）。
 10. **文案**：全部是旧版九种语言里已有的字符串（`projectPicker.*`、`userMenu.*`、`common.*`），经 `dr-i18n/keys.txt` 拷过来。
-11. **数字的写法**照旧版：字数用 `Intl.NumberFormat` 的紧凑写法（12.3万、123.5K、1,2 mil），其余数字按界面语言分组（`toLocaleString`）。只有九种语言，规则直接写在 `format.rs` 里，测试对过每种语言的结果。
+11. **数字的写法**照旧版：字数用 `Intl.NumberFormat` 的紧凑写法（12.3万、123.5K、1,2 mil），其余数字按界面语言分组（`toLocaleString`）。只有九种语言，规则直接写在 `dr_i18n::number` 里（2026-11-08 从这里挪过去，和 M25、M07 共用一份），测试对过每种语言的结果。
 
 **要作者定的事：没有。** 规范没写的地方取了最克制的做法，都记在下面「和旧版不一样的地方」。
 
@@ -66,11 +76,12 @@ cargo run --release -p dr-view-home --features capture --example shelf-home-capt
 
 ## 截图
 
-2 倍像素、1280×800、256 色，内容是 dr-testkit 的 showcase（《慢钟》《阿Q正传（示例）》和六本合成的书）。离屏截图里没有红绿灯，也没有指针，所以卡上的悬停图标看不到。种子库里每本书的文档都是同一刻写进去的，所以「最近编辑」都是「刚刚」、状态都是「在写」。
+2 倍像素、1280×800、256 色，内容是 dr-testkit 的 showcase（《慢钟》《阿Q正传（示例）》和六本合成的书）。离屏截图里没有红绿灯，也没有指针，所以卡上的悬停图标看不到。种子库里每本书的文档都是同一刻写进去的，所以「最近编辑」都是「刚刚」、状态都是「在写」。写作日是种子写进去的，截到 dr-testkit 的 T0 那天为止（截图程序把书架的「今天」定在那天）；那天本身没写，所以「连续」「今天」是 0。换画风的按钮在书的最下面，一屏放不下，截图里看不到。
 
 | 画面 | 浅色 | 深色 |
 | --- | --- | --- |
-| 书架 | [shelf-light](m01/shelf-light.png) | [shelf-dark](m01/shelf-dark.png) |
+| 书架：等高线封面、近 30 天、全部书的热力图 | [shelf-light](m01/shelf-light.png) | [shelf-dark](m01/shelf-dark.png) |
+| 指着《夜车》：热力图只画它（它的颜色和数字），封面换成砂笔 | [shelf-pointed-light](m01/shelf-pointed-light.png) | [shelf-pointed-dark](m01/shelf-pointed-dark.png) |
 | 新建一本 | [shelf-new-light](m01/shelf-new-light.png) | [shelf-new-dark](m01/shelf-new-dark.png) |
 | 移到最近删除 | [shelf-trash-light](m01/shelf-trash-light.png) | [shelf-trash-dark](m01/shelf-trash-dark.png) |
 | 最近删除（里面有一本） | [shelf-deleted-light](m01/shelf-deleted-light.png) | [shelf-deleted-dark](m01/shelf-deleted-dark.png) |
@@ -85,14 +96,16 @@ cargo run --release -p dr-view-home --features capture --example shelf-home-capt
 | 左栏：书架、几本共多少字、导入书、最近删除、账号格子、通知铃铛 | 有；多一个「导入 Drifting 0.1」的入口（M10） |
 | 账户菜单：主题、语言、设定、反馈、登出 | 主题、语言、设定；反馈是 M39，登录登出是 M35 |
 | 书卡：书名、副标题、梗概、四项读数、进度、状态与最近编辑 | 有 |
-| 书卡：封面、体裁、近 30 天砂笔小图 | 没有，M25 |
-| 悬停出编辑、导出、移到最近删除 | 编辑、移到最近删除；导出是 M41 |
+| 书卡：封面、体裁、近 30 天砂笔小图 | 有（画是 M25 的） |
+| 悬停出编辑、导出、移到最近删除 | 有（导出由 M41 接） |
 | 新建一本；空白处双击新建（产品规则） | 有 |
 | 新建 / 编辑对话框（梗概是多行框），⌘↵ 提交 | 有；书名框里回车也提交 |
 | 移到最近删除的确认，焦点在取消 | 有（焦点在书架上，回车不会直接删） |
 | 最近删除：恢复、立即删除、N 天后永久删除，书架打开 2 分钟后删掉到期的 | 有；只删这台设备上的（Hosted 那边是 M36） |
 | 立即删除确认里 Hosted 的那段说明（「此版本未启用 Hosted……」） | 没有：新版还没有同步，这句话说的事不存在 |
-| 写作热力图、字海、示例书落位、换封面画风的按钮 | 没有，M24、M25 |
+| 写作热力图（指着书卡只看这本）、换封面画风的按钮 | 有 |
+| 选的画风记在这台设备上（`shelf:cover-style`） | 只记到关掉程序：外壳还没有给模块存本机值的地方（见「待协调」） |
+| 字海、示例书落位 | 没有，M24 |
 | 打开书时的字海等待 | 没有，M24 |
 | 红灯和 ⇧⌘W 回书架，书架上红灯关窗 | 有 |
 | 九种语言 | 有（全是旧版的字符串） |
@@ -106,7 +119,8 @@ cargo run --release -p dr-view-home --features capture --example shelf-home-capt
 - **书名框里回车也提交。** 旧版只有 ⌘↵；第一个里程碑时模块加不了键，先用了回车，F6 第四轮接回 ⌘↵ 以后两样都留着。旧版操作区左边那个写着 `⌘↵` 的小键帽没有画。
 - **立即删除失败时**用旧版手机版那句「删除未完成，请重试。」（`mobileWorkspace.projectActions.deleteFailed`）。桌面版那句说的是检查网络和服务端，新版只删本机，对不上。
 - **相对时间用通知中心的写法**（刚刚、3 分钟前、2 小时前、5 天前），旧版书架用的是 `Intl.RelativeTimeFormat`，会写「3 个月前」。
-- **卡没有封面，所以矮一些**（最小 196 px，旧版带封面是 250 px）。
+- **画风只记到关掉程序。** 旧版存在本机的 `localStorage`（`shelf:cover-style`）。新版该放在设置文件的本机那一段（`device`），可那是外壳的文件、只收注册表里有的键；这一轮先放在内存里，所有书架一起跟着变，外壳给出地方以后接上（见「待协调」）。
+- **热力图上双击不新建书。** 「空白处双击新建」只算空桌面；热力图和换画风按钮不是空白。
 
 ## 接口（给别的模块）
 
@@ -114,11 +128,10 @@ cargo run --release -p dr-view-home --features capture --example shelf-home-capt
 | --- | --- |
 | 应用 | `dr_view_shelf::init(cx)`，在 `dr_shell::init` 之后调一次 |
 | M10、M41 | 动作 `dr_view_shelf::ImportLegacyLibrary`、`ImportBook`：用 `cx.on_action(|_: &ImportLegacyLibrary, cx| …)` 接 |
-| M25（封面、近 30 天） | `dr_view_shelf::data::ShelfBook`（加字段）、`view.rs` 的 `card`（封面放在卡的左边，旧版 126×226） |
-| M24（字海、首次体验） | `Shelf` 是一个普通的 GPUI 视图，书架底色在 `view.rs` 的根上；示例书落位要的「哪本是新写的示例」现在没有 |
+| M25 的画 | `dr_view_shelf::art::{ShelfArt, BookArt, cover_style, set_cover_style, book_color, book_story, set_today, today}`；`Shelf::{art, pointed, point_at, turn_covers}`；`ShelfArt::drawn(style, cx)`（所有封面都画好了，截图和测试等它） |
+| M24（字海、首次体验） | `Shelf` 是一个普通的 GPUI 视图，书架底色在 `view.rs` 的根上；示例书落位要的「哪本是新写的示例」现在由 `dr_view_sea::first_run::sample_on_shelf` 给（写样书的是 `first_run::write_samples`），接法见 [m24-sea.md](m24-sea.md) |
 | M35（账号） | 账号格子和账户菜单在 `view.rs` 的 `rail_foot`、`account_menu` |
-| 测试、调试桥 | `Shelf::{data, dialog(), form_fields(), open, start_create, start_edit, submit_form, ask_trash, confirm_trash, open_deleted, restore, ask_purge, confirm_purge, close_dialog, toggle_menu, menu_open, cards_ms, expired_runs}`；`dr_view_shelf::PURGE_EXPIRED_AFTER`；`dr_view_shelf::data::{ShelfData::load, Status, progress}`；`dr_view_shelf::format::{compact, grouped, ago}` |
-| 要带框多行输入的地方（作品主页的本书简介） | `dr_view_shelf::frame::area(id, &text_area, rows, window, cx)`：F5 有了带框的多行输入以后换掉 |
+| 测试、调试桥 | `Shelf::{data, dialog(), form_fields(), open, start_create, start_edit, submit_form, ask_trash, confirm_trash, open_deleted, restore, ask_purge, confirm_purge, close_dialog, toggle_menu, menu_open, cards_ms, expired_runs}`；`dr_view_shelf::PURGE_EXPIRED_AFTER`；`dr_view_shelf::data::{ShelfData::load, Status, progress}`；`dr_view_shelf::format::ago`；`dr_i18n::number::{compact, grouped}` |
 
 外壳这一侧（`dr_shell::pages`）：`set_shelf(cx, |ws, window, cx| ShelfPage { view, bell })`、`set_home(cx, |ws, window, cx| view)`；`Workspace::{show_shelf, open_book, shelf_open, shelf, home}`。账户菜单在外壳（`dr_shell::account`），书架的账号格子打开的就是它。
 
@@ -147,8 +160,8 @@ M3 Pro，release，离屏（GPUI 的测试平台，真的 macOS 排字和 Metal 
 
 `cargo test -p dr-view-shelf`：
 
-- **单元**（4 个）：九种语言的紧凑字数和分组写法；在写 / 草稿 / 搁置按最近编辑分；进度要有目标。
-- **GPUI 测试平台上，用 dr-testkit 生成的真库**（《慢钟》《阿Q正传（示例）》，经 F3 读，8 个）：
+- **单元**（5 个）：九种语言的紧凑字数和分组写法；在写 / 草稿 / 搁置按最近编辑分；进度要有目标；书的颜色和旧版 `hashToColor` 一样。
+- **GPUI 测试平台上，用 dr-testkit 生成的真库**（《慢钟》《阿Q正传（示例）》，经 F3 读，9 个）：
   - 窗口一开就是书架，列出两本书；每本的章数和字数和 F3 的 `chapter.list` 一样（字数等于派生索引里各章字数之和）；
   - 点卡打开书，进的是作品主页；⇧⌘W 回书架；再打开另一本；在书里按红灯回书架、窗口不关，在书架上按红灯才关窗口；
   - 新建一本（回车提交）就打开它，回书架能看到它和它的梗概；
@@ -157,16 +170,17 @@ M3 Pro，release，离屏（GPUI 的测试平台，真的 macOS 排字和 Metal 
   - 到期清理：书架露出来不到两分钟不调，到两分钟调一次；打开书以后不数；回书架重新从零数（中途离开又回来也重新数）；
   - 在空桌面上双击打开新建对话框，Esc 关掉、什么也没建；
   - 没有库时书架是空的，照样画得出来；账户菜单从账号格子打开，Esc 关掉。
+  - 封面、体裁、近 30 天：给《慢钟》写上「体裁」和两天的字数，书架读到两本书的封面数据、体裁（去掉空格）、近 30 天的最后两天；等高线封面在后台画好；指针移到《慢钟》的卡上，热力图跟着它；点底部的圆按钮，画风换到下一种（不会打开新建），新画风的封面也画好。
   - 书架和主页都听 dr-store 的「索引写好了」：刚生成的库在后台补建索引，测试先等索引建完，再等书架上的字数和派生索引对上。
 - 外壳的孤儿文案检查（`dr-shell/tests/strings.rs`）也扫 `dr-view-*`，书架用到的键都在。
 
 ## 待协调
 
-1. **F5（dr-ui）**：带框的多行输入。旧版的 `ui-field--area` 是单行框那圈玻璃线加多行；dr-ui 只有无框的 `TextArea`，书架和作品主页先用 `dr_view_shelf::frame::area` 自己套了一圈（静止玻璃线、光标在里面时选中，点内边距也把光标放进去）。dr-ui 有了以后换掉这个文件。
+1. **F6（dr-shell）：本机的画风。** 旧版把书架的画风存在这台设备上（`shelf:cover-style`）。设置文件里有本机那一段（`device`），但 `SettingsFile::set` 只收注册表里的键，模块没法自己加。要么在注册表加一项不显示在设置面板里的本机键 `shelf.cover_style`（十四种画风的名字，默认 `topo`），要么像 `export.author` 那样给一对 `cover_style()` / `set_cover_style()`。有了以后 `dr_view_shelf::art::{cover_style, set_cover_style}` 改成读写它，别处不用动。写在共享笔记 `m01-m02-shelf-home.md`。
 2. **F6（dr-shell、dr-i18n）**：新版自己的文案（旧版没有的话，比如「导入旧库」）还没有来源，`sync-locales.py` 只从旧版拷。
 3. **M36（同步）**：「立即删除」和到期清理都只删这台设备上的（F3 的 `book.purge` 现在就是这样）。同步做好以后，旧版确认里那段 Hosted 说明和「删除本地及远端」按钮跟着回来。
 
 ## 下一步
 
-1. M25 的封面和近 30 天、M24 的字海与打开书的等待，都挂在现在的卡和根上。
+1. M24 的字海与打开书的等待，挂在现在的卡和根上。
 2. 冷启动：书架的数据现在等窗口建好才开始读。库本来就在自己的线程上和 AppKit 启动同时打开（F6），书架可以在那时就开始读，书卡和第一帧一起出来；机器空闲时用真程序把「进程启动到书卡出现」量一次。

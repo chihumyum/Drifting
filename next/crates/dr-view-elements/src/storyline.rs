@@ -33,11 +33,11 @@ use dr_shell::{Services, Workspace, t};
 use dr_ui::{
     Theme,
     components::{
-        Segmented,
+        ColorSwatch, Segmented,
         cell::{RING_RIM, ring_tone},
     },
     fonts::{Role, weight},
-    glass::{self, Kind as GlassKind, Mode, Spec, Tone},
+    glass::{self, Kind as GlassKind, Mode, Spec},
     input::{area::TextArea, field::FieldEvent},
     sand::{self, Icon, KindMark},
     style::DrStyled,
@@ -54,6 +54,8 @@ use crate::data;
 use crate::element::field_id;
 use crate::fields::{Fields, Owner};
 use crate::page;
+use crate::swatch;
+use crate::template::ChapterTemplate;
 
 /// 「2.3」: thousands of words with one decimal (the 0.1 `kWords`).
 pub fn thousands(words: u64) -> String {
@@ -78,6 +80,8 @@ pub struct StorylineHead {
     summary: Entity<TextArea>,
     shown_name: Option<String>,
     shown_summary: Option<String>,
+    /// The colour being picked (dr-ui's swatch).
+    picked: swatch::Picked,
     _subs: Vec<Subscription>,
 }
 
@@ -136,6 +140,7 @@ impl StorylineHead {
             summary,
             shown_name: None,
             shown_summary: None,
+            picked: swatch::Picked::default(),
             _subs: vec![on_name, on_summary],
         }
     }
@@ -206,6 +211,44 @@ impl StorylineHead {
         edit.summary = Some(text);
         self.write(edit, cx);
     }
+
+    /// A colour from the picker: shown at once, written once the picker has
+    /// been still for [`swatch::SETTLE`].
+    pub fn pick_color(&mut self, color: Rgb, cx: &mut Context<Self>) {
+        let timer = cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(swatch::SETTLE).await;
+            this.update(cx, |head, cx| head.save_color(cx)).ok();
+        });
+        self.picked.pick(color, timer);
+        cx.notify();
+    }
+
+    fn save_color(&mut self, cx: &mut Context<Self>) {
+        let stored = data::storyline(&self.book, &self.id).map(|l| l.color.clone());
+        let Some(color) = self.picked.settled(stored.as_deref()) else {
+            return;
+        };
+        let Some(lib) = self.lib.clone() else {
+            return;
+        };
+        let mut edit = data::storyline_edit(&self.book.id, &self.id);
+        edit.color = Some(color);
+        cx.spawn(async move |this, cx| {
+            let out = cx
+                .background_executor()
+                .spawn(async move { data::update_storyline(&lib, edit) })
+                .await;
+            if let Err(error) = out {
+                log::warn!("the storyline's colour could not be saved: {error}");
+                this.update(cx, |head, cx| {
+                    head.picked.forget();
+                    cx.notify();
+                })
+                .ok();
+            }
+        })
+        .detach();
+    }
 }
 
 impl Render for StorylineHead {
@@ -230,7 +273,7 @@ impl Render for StorylineHead {
         let theme = Theme::of(window, cx);
         let p = theme.palette;
         let look = page::look(cx);
-        let color = color_of(&line.color);
+        let color = self.picked.shown(Some(&line.color), color_of(&line.color));
         let chapters = chapters_of(&self.book, &self.id);
         let words: u64 = chapters.iter().map(|c| c.words).sum();
         let folio = page::folio(
@@ -284,27 +327,17 @@ impl Render for StorylineHead {
                     .child(self.name.clone()),
             );
         let summary_size = look.font_size - 4.0;
-        let swatch = glass::glass_box(
-            "storyline-color",
-            GlassKind::Rest,
-            Mode::default(),
-            false,
-            Spec::new(Tone::Clear, 14.0),
-            window,
-            cx,
-        )
-        .size(px(28.0))
-        .rounded(px(14.0))
-        .flex()
-        .items_center()
-        .justify_center()
-        .aria_label(t(cx, keys::storyline_editor::labels::COLOR))
-        .child(
-            div()
-                .size(px(14.0))
-                .rounded(px(7.0))
-                .bg(color.unwrap_or(p.accent).solid()),
-        );
+        let entity = cx.entity();
+        let swatch = div()
+            .self_start()
+            .debug_selector(|| "storyline-color".into())
+            .child(
+                ColorSwatch::new("storyline-color", color.unwrap_or(p.accent))
+                    .label(t(cx, keys::common::CUSTOM_COLOR))
+                    .on_pick(move |color, _, cx| {
+                        entity.update(cx, |head, cx| head.pick_color(color, cx))
+                    }),
+            );
         let facts = div()
             .mt(px(14.0))
             .flex()
@@ -367,6 +400,8 @@ pub struct StorylineEnd {
     pub id: String,
     book: Rc<Book>,
     pub fields: Entity<Fields>,
+    /// 章节模版, made on the first frame the book is there.
+    pub template: Option<Entity<ChapterTemplate>>,
     pub filter: ChapterFilter,
     _ws: Option<Subscription>,
 }
@@ -384,6 +419,7 @@ impl StorylineEnd {
             id,
             book: Rc::default(),
             fields,
+            template: None,
             filter: ChapterFilter::default(),
             _ws: None,
         }
@@ -437,10 +473,42 @@ impl Render for StorylineEnd {
             return div().into_any_element();
         };
         let fields = self.fields.clone();
+        let template = self
+            .template
+            .get_or_insert_with(|| {
+                let (book, id) = (self.book.id.clone(), self.id.clone());
+                let exists = line.has_chapter_template;
+                cx.new(|cx| ChapterTemplate::new(book, id, exists, window, cx))
+            })
+            .clone();
+        template.update(cx, |t, cx| t.follow(line.has_chapter_template, window, cx));
+        // 章节模版: what a new chapter on this storyline starts with.
+        let template = div()
+            .flex()
+            .flex_col()
+            .child(page::column(
+                look,
+                page::section(
+                    t(cx, keys::storyline_editor::sections::NODE_TEMPLATE),
+                    Some(page::meta(
+                        t(cx, keys::storyline_editor::meta::NODE_TEMPLATE),
+                        window,
+                        cx,
+                    )),
+                    false,
+                    window,
+                    cx,
+                ),
+            ))
+            .child(template);
         let chapters = chapters_of(&self.book, &self.id);
         if chapters.is_empty() {
             // The 0.1 page shows the sequence only when there is a chapter.
-            return div().pb(px(80.0)).child(fields).into_any_element();
+            return div()
+                .pb(px(80.0))
+                .child(fields)
+                .child(template)
+                .into_any_element();
         }
         let color = color_of(&line.color);
         let total = chapters.len();
@@ -510,6 +578,7 @@ impl Render for StorylineEnd {
             .flex()
             .flex_col()
             .child(fields)
+            .child(template)
             .child(
                 page::column(
                     look,
@@ -588,7 +657,7 @@ fn row(
                         .weight(weight::MEDIUM)
                         .type_px(11.5, 14.0)
                         .text_color(p.ink(2).solid())
-                        .child(dr_view_shelf::format::grouped(chapter.words, locale)),
+                        .child(dr_i18n::number::grouped(chapter.words, locale)),
                 )
                 .child(t(cx, keys::common::WORDS)),
         )
@@ -692,7 +761,7 @@ fn row(
                     .type_px(13.5, 13.5 * 1.55)
                     .text_color(p.ink(3).solid())
                     .line_clamp(2)
-                    .child(summary)
+                    .child(dr_ui::text::wrapped(summary))
             })
             .child(meta),
     )

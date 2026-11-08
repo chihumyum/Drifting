@@ -24,8 +24,13 @@ use dr_doc::book::{BookView, Collection};
 use dr_model::book::Node;
 use dr_model::id::NodeId;
 
+use dr_text::autolink::{LinkMatcher, LinkName, LinkTarget};
+
 use crate::events::EntityChange;
 use crate::holder::lock;
+
+/// How many link matchers a book keeps (one per document entity asked for).
+const MATCHERS: usize = 32;
 
 /// What is cached.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -47,6 +52,9 @@ pub(crate) enum Key {
     Facts,
     Memory,
     TimePins,
+    /// dr-text's `book_link_names` (every element name and alias, every
+    /// chapter and idea title): dropped by any change to elements or nodes.
+    LinkNames,
 }
 
 /// Fields whose change can make an entity appear or disappear for other
@@ -127,6 +135,9 @@ struct State {
     nodes_dirty: BTreeSet<String>,
     nodes_full: bool,
     nodes_stamp: u64,
+    /// Link matchers by the entity whose names they leave out, each with
+    /// the `LinkNames` value it was built from (by address).
+    matchers: HashMap<String, (usize, Arc<LinkMatcher<LinkTarget>>)>,
 }
 
 #[derive(Default)]
@@ -154,6 +165,9 @@ impl BookCache {
                 own(c.collection)
             };
             keys.extend(ks.iter().copied());
+            if matches!(c.collection, Collection::Elements | Collection::Nodes) {
+                keys.insert(Key::LinkNames);
+            }
             match (c.collection, &c.id) {
                 (Collection::Nodes, Some(id)) => {
                     s.nodes_dirty.insert(id.clone());
@@ -170,10 +184,40 @@ impl BookCache {
                 _ => {}
             }
         }
+        if keys.contains(&Key::LinkNames) {
+            s.matchers.clear();
+        }
         for k in keys {
             s.entries.remove(&k);
             s.stamps.insert(k, g);
         }
+    }
+
+    /// The matcher over `names` (the book's `LinkNames`) without the names
+    /// of entity `own`, built once per value of `names`.
+    pub(crate) fn matcher(
+        &self,
+        own: &str,
+        names: &Arc<Vec<LinkName<LinkTarget>>>,
+    ) -> Arc<LinkMatcher<LinkTarget>> {
+        let at = Arc::as_ptr(names) as usize;
+        if let Some((a, m)) = lock(&self.state).matchers.get(own)
+            && *a == at
+        {
+            self.hits.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            return m.clone();
+        }
+        self.misses
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let m = Arc::new(LinkMatcher::new(
+            names.iter().filter(|n| n.target.id != own).cloned(),
+        ));
+        let mut s = lock(&self.state);
+        if s.matchers.len() >= MATCHERS {
+            s.matchers.clear();
+        }
+        s.matchers.insert(own.to_string(), (at, m.clone()));
+        m
     }
 
     /// The cached value of `key` when there is one; never fills it.

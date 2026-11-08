@@ -10,10 +10,16 @@
 //! - Undo and redo are local writes. They go through [`ProseUndo::undo`] /
 //!   [`ProseUndo::redo`] with the document's writer, so the step comes back as
 //!   a [`Committed`] for storage like any other edit.
-//! - No stack limit (Loro's default). The editor learns how many items an
-//!   edit pushed from [`ProseUndo::undo_count`] before and after it
-//!   (gpui-prose's `EditResult::undo_items`); a limit would make a full stack
-//!   report 0. Do not set one.
+//! - No stack limit, set explicitly: `loro::UndoManager::new` keeps only 100
+//!   items (only `loro-internal`'s own default is unlimited), which would
+//!   leave the author about 100 keystrokes of undo. The editor groups items
+//!   into steps of its own and pops them one by one, so every item it
+//!   counted must still be on the stack; and a host that counts an edit's
+//!   items from [`ProseUndo::undo_count`] before and after it
+//!   (gpui-prose's `EditResult::undo_items`) would read 0 once a limited
+//!   stack is full. Not gpui-prose's `UndoConfig::max_items` either: that is
+//!   a limit too, only a later one. The stack lives as long as the editing
+//!   session and holds one inverse diff per commit.
 //!
 //! Known: Loro #1229 is not avoidable — undoing the author's own formatting
 //! change also clears another device's later change of the same key. Only
@@ -43,6 +49,8 @@ impl ProseUndo {
 
     pub(crate) fn new(doc: &LoroDoc) -> Self {
         let mut um = UndoManager::new(doc);
+        // `UndoManager::new` caps the stack at 100; see the module comment.
+        um.set_max_undo_steps(usize::MAX);
         um.set_merge_interval(0);
         for p in UNDO_EXCLUDED_ORIGIN_PREFIXES {
             um.add_exclude_origin_prefix(p);

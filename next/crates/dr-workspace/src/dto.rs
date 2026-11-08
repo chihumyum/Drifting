@@ -349,8 +349,42 @@ pub struct CommentInfo {
     pub agent_conversation: Option<String>,
     /// Generated from prose (`marker` or `note_task`).
     pub projection: Option<String>,
+    /// The rectangle it marks on an image or a PDF page.
+    pub region: Option<Region>,
     pub created_at: Option<i64>,
     pub updated_at: Option<i64>,
+}
+
+/// A rectangle on an image, or on one page of a PDF, as fractions (0–1) of
+/// the picture or the page, so it stays put at any size and zoom.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct Region {
+    /// The PDF page, from 1; omitted on an image.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub page: Option<u32>,
+    pub x: f64,
+    pub y: f64,
+    pub w: f64,
+    pub h: f64,
+}
+
+impl Region {
+    /// The model's region; `None` unless it lies inside the box.
+    pub fn to_model(&self) -> Option<MaterialRegion> {
+        MaterialRegion::new(self.page, self.x, self.y, self.w, self.h)
+    }
+}
+
+impl From<&MaterialRegion> for Region {
+    fn from(r: &MaterialRegion) -> Self {
+        Region {
+            page: r.page,
+            x: r.x,
+            y: r.y,
+            w: r.w,
+            h: r.h,
+        }
+    }
 }
 
 impl From<&Comment> for CommentInfo {
@@ -371,6 +405,7 @@ impl From<&Comment> for CommentInfo {
             source: c.source.as_str().to_string(),
             agent_conversation: c.agent_conversation.clone(),
             projection: c.projection.as_ref().map(|p| p.kind.as_str().to_string()),
+            region: c.region.as_ref().map(Region::from),
             created_at: c.created_at.map(|t| t.0),
             updated_at: c.updated_at.map(|t| t.0),
         }

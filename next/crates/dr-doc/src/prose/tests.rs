@@ -1175,6 +1175,26 @@ fn the_editors_undo_leaves_the_authors_commands_out() {
     assert_eq!(b.view().plain_text(), "【命令】\n");
 }
 
+/// `loro::UndoManager::new` keeps 100 items; the author's undo keeps them
+/// all: every commit adds one item past 100 and all of them undo.
+#[test]
+fn the_authors_undo_stack_has_no_limit() {
+    const COMMITS: usize = 250;
+    let mut p = doc("ul", 7);
+    let mut um = p.undo_manager();
+    for i in 0..COMMITS {
+        user(&mut p, |t| t.insert_text(i, "字"));
+        assert_eq!(um.undo_count(), i + 1, "commit {i} pushed one item");
+    }
+    let mut undone = 0;
+    while um.can_undo() {
+        um.undo(&mut p).unwrap();
+        undone += 1;
+    }
+    assert_eq!(undone, COMMITS);
+    assert_eq!(texts(&p), vec![""], "every keystroke undone");
+}
+
 #[test]
 fn reading_paragraphs_from_the_middle_needs_nothing_before() {
     let mut p = doc("pin", 7);

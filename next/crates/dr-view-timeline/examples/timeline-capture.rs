@@ -37,11 +37,20 @@ const VERSION: &str = "0.2.0-dev";
 struct Host {
     _ws: Entity<Workspace>,
     timeline: Entity<BottomTimeline>,
+    /// Empty room above the timeline (where a hover card rises).
+    above: f32,
 }
 
 impl Render for Host {
-    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        div().size_full().child(self.timeline.clone())
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let p = dr_ui::Theme::of(window, cx).palette;
+        div()
+            .size_full()
+            .flex()
+            .flex_col()
+            .bg(p.desk.solid())
+            .child(div().h(px(self.above)).flex_none())
+            .child(div().flex_1().min_h_0().child(self.timeline.clone()))
     }
 }
 
@@ -101,10 +110,19 @@ impl Headless {
 
     /// A window `height` high with the timeline and its workspace.
     fn window(&mut self, height: f32) -> Result<(AnyWindowHandle, Entity<Host>)> {
+        self.window_above(height, 0.0)
+    }
+
+    /// The same, the timeline under `above` px of room.
+    fn window_above(&mut self, height: f32, above: f32) -> Result<(AnyWindowHandle, Entity<Host>)> {
         let window = self.cx.open_window(size(px(W), px(height)), |window, cx| {
             let ws = cx.new(|cx| Workspace::new(window, cx));
             let timeline = dr_view_timeline::make(ws.downgrade(), cx);
-            cx.new(|_| Host { _ws: ws, timeline })
+            cx.new(|_| Host {
+                _ws: ws,
+                timeline,
+                above,
+            })
         })?;
         let host = window.entity(&self.cx)?;
         let window: AnyWindowHandle = window.into();
@@ -291,7 +309,12 @@ fn capture(dir: PathBuf) -> Result<()> {
             )?;
             h.draw(window)?;
         }
-        h.settle(window)?;
+        // Caught mid-way: the slab trails the hand on its spring.
+        let started = Instant::now();
+        while started.elapsed() < Duration::from_millis(70) {
+            h.draw(window)?;
+            std::thread::sleep(Duration::from_millis(8));
+        }
         h.save(window, &out, &format!("timeline-drag-{suffix}.png"))?;
         // Let go over the header: no lane, nothing moves.
         h.input(
@@ -314,13 +337,49 @@ fn capture(dir: PathBuf) -> Result<()> {
         h.cx.update(|cx| {
             t.update(cx, |t, cx| {
                 t.set_axis(Axis::Narrative, cx);
+                // Zoomed out so the pins show.
+                t.set_zoom(0.5, cx);
                 t.toggle_unaffiliated(cx);
                 t.toggle_unplaced(cx);
             })
         });
+        h.wait(window, |h| h.cx.update(|cx| t.read(cx).pins().len() >= 5))?;
         h.settle(window)?;
         h.save(window, &out, &format!("timeline-narrative-{suffix}.png"))?;
         h.cx.update_window(window, |_, window, _| window.remove_window())?;
+
+        // Hover cards: a chapter's, an act's (reading order), a pin's
+        // (narrative order), each rising over the room above.
+        for (name, axis) in [
+            ("clip", Axis::Book),
+            ("act", Axis::Book),
+            ("pin", Axis::Narrative),
+        ] {
+            let (window, host) = h.window_above(470.0, 290.0)?;
+            let t = timeline(&mut h, &host);
+            h.wait(window, |h| {
+                h.cx.update(|cx| t.read(cx).layout().placed > 0 && t.read(cx).pins().len() >= 5)
+            })?;
+            let key = h.cx.update(|cx| {
+                let t = t.read(cx);
+                let book = host.read(cx)._ws.read(cx).book.clone();
+                match name {
+                    "clip" => format!("timeline-clip-card-{}", t.layout().lanes[0].clips[1].id),
+                    "act" => format!("timeline-act-card-{}", book.acts[1].id),
+                    _ => format!("timeline-pin-card-{}", t.pins()[1].id),
+                }
+            });
+            h.cx.update(|cx| {
+                t.update(cx, |t, cx| {
+                    t.set_axis(axis, cx);
+                    t.set_zoom(0.5, cx);
+                    t.hold_card(Some(key), cx);
+                })
+            });
+            h.settle(window)?;
+            h.save(window, &out, &format!("timeline-card-{name}-{suffix}.png"))?;
+            h.cx.update_window(window, |_, window, _| window.remove_window())?;
+        }
     }
     Ok(())
 }

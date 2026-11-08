@@ -8,22 +8,45 @@
     "actOrdinal": "Act {{n}}"
   },
   "bottomStatusBar": {
+    "collapseTimeline": "Collapse Storyline Timeline",
     "elements": "Elements",
+    "expandTimeline": "Expand Storyline Timeline",
     "storyGraph": "Story graph",
     "todoLibrary": "TODO & Library"
   },
   "bottomTimeline": {
     "act": {
       "chapterCount": "{{count}} chapters",
-      "railLabel": "Act"
+      "deleteMergeNext": "Delete this act and merge into next",
+      "deleteMergePrev": "Delete this act and merge into previous",
+      "newAct": "New act",
+      "openActNote": "Open act note",
+      "railLabel": "Act",
+      "startHere": "Start new act here",
+      "unbindDrift": "Unbind idea"
     },
     "axis": {
+      "addPin": "Add time pin",
       "time": "Time"
     },
     "empty": {
       "noChaptersInStoryline": "No chapters in this storyline · double-click to create one"
     },
     "locateCurrent": "Locate current chapter",
+    "marker": {
+      "defaultLabel": "Marker"
+    },
+    "menu": {
+      "detachFromNarrative": "Return to unplaced",
+      "moveToUnaffiliated": "Move to unaffiliated"
+    },
+    "pinMenu": {
+      "bindDrift": "Bind idea…",
+      "deleteMarker": "Delete marker",
+      "openDrift": "Open idea",
+      "rename": "Rename",
+      "unbind": "Unbind and restore as plain label"
+    },
     "storyline": {
       "chapterCount": "{{count}} ch"
     },
@@ -105,6 +128,7 @@
     "confirm": "Confirm",
     "counting": "Counting…",
     "creating": "Creating…",
+    "customColor": "Custom color",
     "delete": "Delete",
     "edit": "Edit",
     "local": "Local",
@@ -140,12 +164,20 @@
     },
     "wordCount": "{{count}} words"
   },
+  "edgeKindManager": {
+    "editTypes": "Edit types",
+    "resetColor": "Restore default color",
+    "summary": "{{kinds}} types · {{relations}} relations",
+    "title": "All relation types"
+  },
   "editorOutline": {
     "aria": "Outline",
     "hiddenItems": "{{count}} distant outline items; hover to reveal"
   },
   "editorTopBar": {
     "actions": {
+      "collapsePlotPlanner": "Collapse plot planner",
+      "expandPlotPlanner": "Expand plot planner",
       "more": "More actions"
     },
     "menu": {
@@ -259,9 +291,41 @@
     "stats": "{{groups}} items · {{occurrences}} matches"
   },
   "guide": {
+    "back": "Back",
+    "done": "Done",
     "hints": {
       "search": "Search everything",
       "timeline": "Timeline"
+    },
+    "next": "Next",
+    "skip": "Skip tour",
+    "workspace": {
+      "agent": {
+        "body": "Reads, searches and edits the whole book. Its changes are marked in the text and can be undone from history.",
+        "closedBody": "The Agent lives in the right sidebar and can read, search and edit the whole book. Open it here.",
+        "title": "Agent"
+      },
+      "create": {
+        "body": "Chapters, ideas, elements, storylines, categories and materials all start here.",
+        "title": "New"
+      },
+      "home": {
+        "body": "The gate brings you back to this page; the wind chime beside it holds notifications.",
+        "title": "Project home"
+      },
+      "panels": {
+        "body": "The book's frame. The left sidebar can split in two, each half with its own panel.",
+        "closedBody": "The book's frame lives in the left sidebar: chapters, elements and ideas. Open it here.",
+        "title": "Chapters · Elements · Ideas"
+      },
+      "superViews": {
+        "body": "Open them from the round button in a panel's header.",
+        "title": "Whole-window views"
+      },
+      "timeline": {
+        "body": "Storylines laid out in book order or story time, sliding up from under the page.",
+        "title": "Timeline"
+      }
     }
   },
   "immersiveWriting": {
@@ -336,7 +400,12 @@
         "label": "Idea"
       }
     },
-    "title": "Import files"
+    "title": "Import files",
+    "warnings": {
+      "imagesDropped_one": "{{count}} image wasn't imported",
+      "imagesDropped_other": "{{count}} images weren't imported",
+      "notUtf8": "Not UTF-8 text; some characters were replaced"
+    }
   },
   "kvEditor": {
     "addField": "Add field",
@@ -357,6 +426,7 @@
     },
     "groups": {
       "addElementToGroup": "New element in this group",
+      "newChapterInStoryline": "New chapter in this storyline",
       "renameElementGroupTitle": "Double-click to rename group",
       "unaffiliated": "Unaffiliated"
     },
@@ -436,6 +506,13 @@
     "untitledChapter": "Untitled chapter",
     "wholeBook": "Whole book"
   },
+  "markdownFolderGuide": {
+    "choose": "Choose folder…",
+    "chosen": "Chosen folder",
+    "continue": "Continue",
+    "intro": "Every project keeps a Markdown copy in the folder you choose. Edit chapters and ideas in any editor and the changes merge back into Drifting.",
+    "title": "Where should the Markdown folder go?"
+  },
   "markdownShare": {
     "characters": "{{count}} characters",
     "copied": "All Markdown copied",
@@ -454,11 +531,36 @@
     "title": "Share Markdown",
     "wholeBook": "All chapters in reading order"
   },
+  "materialEditor": {
+    "descriptionPlaceholder": "Add a description…",
+    "regions": {
+      "draw": "Comment on a region",
+      "drawHint": "Drag over the image to mark a region",
+      "empty": "Drag over the image or page to add the first comment.",
+      "listLabel": "Comments on this material",
+      "page": "Page {{page}}",
+      "stopDrawing": "Stop commenting",
+      "whole": "Whole material"
+    },
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "zoomReset": "Fit to view"
+  },
   "memoMaterial": {
     "kind": {
       "image": "Image",
       "pdf": "PDF",
       "text": "Note"
+    },
+    "preview": {
+      "loading": "Loading…",
+      "loadingPdf": "Loading PDF…",
+      "nextPage": "Next",
+      "noImage": "Cannot preview image",
+      "noPdf": "Cannot preview PDF",
+      "openPdfFailed": "Cannot open PDF",
+      "previousPage": "Previous",
+      "renderPdfFailed": "Cannot render PDF"
     }
   },
   "mobileWorkspace": {
@@ -495,6 +597,15 @@
     },
     "empty": "No notifications",
     "markdownFolder": {
+      "issue": {
+        "empty": "The text was emptied; not merged, file kept",
+        "encoding": "Not UTF-8; not read, file kept",
+        "frontmatter": "The properties at the top are malformed; neither merged nor overwritten until fixed",
+        "identity": "drifting-id names another chapter; not merged, file kept",
+        "lineage": "This chapter was restored or reset; cannot merge automatically, file kept",
+        "owned": "Another Drifting installation keeps this folder; nothing was read or written",
+        "too-large": "Too large; not read, file kept"
+      },
       "preserved_one": "{{count}} edited file was kept in .drifting/preserved",
       "preserved_other": "{{count}} edited files were kept in .drifting/preserved",
       "source": "Markdown folder"
@@ -630,6 +741,8 @@
       "newCardSub": "Start from a blank page",
       "open": "Open “{{name}}”",
       "progress": "Progress",
+      "recent": "Last 30 days",
+      "recentLabel": "{{words}} words in the last 30 days",
       "storylinesUnit_one": "storyline",
       "storylinesUnit_other": "storylines",
       "trashEntry": "Recently Deleted",
@@ -693,24 +806,92 @@
     }
   },
   "referencesPanel": {
+    "actions": {
+      "linkEntity": "Link entity",
+      "remove": "Remove relation"
+    },
+    "deleted": {
+      "category": "(deleted category)",
+      "element": "(deleted element)",
+      "node": "(deleted chapter)",
+      "storyline": "(deleted storyline)"
+    },
     "empty": {
       "incoming": "No content references this yet",
-      "outgoing": "This prose does not reference other entities yet"
+      "outgoing": "This prose does not reference other entities yet",
+      "relations": "No relations yet"
+    },
+    "filters": {
+      "all": "All"
     },
     "kind": {
-      "patch": "Patch"
+      "category": "Category",
+      "element": "Element",
+      "node": "Chapter",
+      "patch": "Patch",
+      "storyline": "Storyline"
     },
     "meta": {
       "blocksSpans": "{{blocks}} blocks · {{spans}} mentions",
       "spans": "{{count}} mentions"
     },
+    "picker": {
+      "empty": "No options",
+      "placeholder": "Search linkable entities…"
+    },
     "sections": {
       "incoming": "Backlinks",
-      "outgoing": "References"
+      "outgoing": "References",
+      "relations": "Relations"
     }
   },
+  "relationPicker": {
+    "untitledChapter": "Untitled chapter",
+    "untitledDrift": "Untitled idea",
+    "untitledElement": "Untitled element",
+    "untitledStoryline": "Untitled storyline"
+  },
   "relationTypes": {
-    "description": "Description"
+    "allowedEntities": "Allowed entities",
+    "allowedSources": "Allowed source entities",
+    "allowedTargets": "Allowed target entities",
+    "builtIn": "Built-in",
+    "cancel": "Cancel",
+    "confirmDelete": "Delete relation type \"{{name}}\"?",
+    "create": "New",
+    "createInline": "Create relation type",
+    "defaultSourceRole": "Source",
+    "defaultTargetRole": "Target",
+    "delete": "Delete relation type",
+    "description": "Description",
+    "directed": "Directed",
+    "direction": "Direction",
+    "endpointRole": "Endpoint role",
+    "entityKinds": {
+      "category": "Element category",
+      "comment": "Comment",
+      "element": "Element",
+      "library_item": "Material",
+      "node": "Chapter or idea",
+      "patch": "Element patch",
+      "storyline": "Storyline"
+    },
+    "genericAssociation": {
+      "name": "Association",
+      "sourceRole": "Associated item",
+      "targetRole": "Object"
+    },
+    "missing": "Missing relation type",
+    "name": "Name",
+    "pendingIncoming": "This entity ← target",
+    "pendingOutgoing": "This entity → target",
+    "save": "Save",
+    "selectConfigured": "Choose a relation type",
+    "sourceRole": "Source role",
+    "symmetric": "Symmetric",
+    "symmetricSummary": "Symmetric · {{role}}",
+    "targetRole": "Target role",
+    "title": "Relation type definitions"
   },
   "reviewPanel": {
     "commentPlaceholder": "Write a comment…",
@@ -1014,6 +1195,7 @@
         "inspecting": "Verifying…",
         "missingAssets": "{{count}} assets are missing on this device and were not backed up.",
         "noProjects": "(no projects)",
+        "openSafety": "Open pre-restore copies",
         "restoreButton": "Choose backup…",
         "restoreConfirm": "Replace the current library with “{{file}}”.\n\nCreated: {{date}}\nContents: {{summary}}\nProjects: {{projects}}\n\nThe current library is saved as a pre-restore copy first; find it under “Open pre-restore copies”. Drifting reloads when the restore finishes.",
         "restoreConfirmButton": "Replace and restore",
@@ -1024,7 +1206,10 @@
       },
       "local_data": "Local data",
       "local_sub": "No Drifting account or hosted cloud is used. Export a readable copy whenever you want.",
-      "local_title": "Your work stays on this device."
+      "local_title": "Your work stays on this device.",
+      "projection": {
+        "turnOff": "Turn off Markdown folder"
+      }
     },
     "title": "Settings",
     "update": {
@@ -1081,11 +1266,14 @@
     "meta": {
       "chapters": "{{count}} chapters",
       "chaptersWords": "{{chapters}} chapters · {{words}}k words",
-      "kWords": "{{count}}k words"
+      "kWords": "{{count}}k words",
+      "nodeTemplate": "Default skeleton for new chapters"
     },
+    "nodeTemplatePlaceholder": "Write a default chapter skeleton with H1 / H2 / H3; new chapters will use it…",
     "sections": {
       "chapters": "Chapter sequence",
       "facts": "Facts",
+      "nodeTemplate": "Chapter template",
       "scratch": "Scratch"
     },
     "summaryPlaceholder": "One-sentence summary for this storyline…",

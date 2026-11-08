@@ -146,6 +146,7 @@ mod tests {
             source: "manual".into(),
             agent_conversation: None,
             projection: None,
+            region: None,
             created_at: Some(at),
             updated_at: None,
         }

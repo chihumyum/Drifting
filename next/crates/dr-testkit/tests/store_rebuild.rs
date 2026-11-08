@@ -4,7 +4,7 @@
 //!
 //! dr-store's test, on the seeds and the real deriver (dr-index); it lives
 //! here because dr-store depending on either, even for tests, would close a
-//! cycle that dx's hot patching refuses (see `dr-testkit-corpus`).
+//! cycle that dx's hot patching refuses (see `dr-corpus`).
 
 use std::path::Path;
 use std::time::{Duration, Instant};

@@ -28,6 +28,11 @@ enum Op {
     ChapterText(u8),
     RenameChapter(u8, u8),
     MoveChapter(u8, u8),
+    /// `chapter.place` (the timeline's drop): a live chapter, a storyline
+    /// pick (or none, or off every line), an order and the axis.
+    PlaceChapter(u8, u8, u8),
+    /// `chapter.spread` on reading order (`false`) or story time.
+    Spread(bool),
     TrashChapter(u8),
     RestoreChapter(u8),
     PurgeChapter(u8),
@@ -83,6 +88,8 @@ fn op() -> impl Strategy<Value = Op> {
         1 => i().prop_map(Op::ChapterText),
         2 => (i(), i()).prop_map(|(a, b)| Op::RenameChapter(a, b)),
         2 => (i(), i()).prop_map(|(a, b)| Op::MoveChapter(a, b)),
+        2 => (i(), i(), i()).prop_map(|(a, b, k)| Op::PlaceChapter(a, b, k)),
+        1 => any::<bool>().prop_map(Op::Spread),
         1 => i().prop_map(Op::TrashChapter),
         1 => i().prop_map(Op::RestoreChapter),
         1 => i().prop_map(Op::PurgeChapter),
@@ -222,6 +229,28 @@ fn run(ws: &Workspace, faults: &Faults, book: &str, op: &Op, agent_turn: &mut u3
             ),
             _ => Ok(()),
         },
+        Op::PlaceChapter(i, j, k) => match pick(&live_chapters(), *i) {
+            Some(id) => {
+                let axis = if k % 2 == 0 { "book" } else { "narrative" };
+                let order = f64::from(*k) * 2.5 - 50.0;
+                let mut input = json!({"book": b, "id": id, "axis": axis, "order": order});
+                match j % 3 {
+                    0 => {}
+                    1 => input["storyline"] = Value::Null,
+                    _ => {
+                        if let Some(s) = pick(&storylines(), *j / 3) {
+                            input["storyline"] = json!(s);
+                        }
+                    }
+                }
+                c("chapter.place", input)
+            }
+            None => Ok(()),
+        },
+        Op::Spread(narrative) => c(
+            "chapter.spread",
+            json!({"book": b, "axis": if *narrative { "narrative" } else { "book" }}),
+        ),
         Op::TrashChapter(i) => match pick(&chapters(), *i) {
             Some(id) => c("chapter.trash", json!({"book": b, "id": id})),
             None => Ok(()),

@@ -12,6 +12,8 @@
 //!   in the right place.
 //! - The grip sizes the cells within the bounds and fixes their shape; 清空
 //!   empties labels and slips, rows and columns stay.
+//! - A shape set by hand is kept per grid on this device (`local_state`,
+//!   tied to the book) and known when the grid opens again.
 //! - Another writer's change shows (F3's events); a slip with typing not
 //!   yet stored keeps it.
 //! - 清空 asks first, as the workspace window's dialog; Esc closes the
@@ -21,7 +23,9 @@ use std::time::{Duration, Instant};
 
 use dr_shell::{Services, SettingsFile, ShellInfo};
 use dr_ui::sand;
-use dr_view_plot::{CellSize, Field, PlannerHost, PlotPlanner, STORE_AFTER};
+use dr_view_plot::{
+    CellSize, Field, PlannerHost, PlotPlanner, RATIO_SCOPE, STORE_AFTER, ratio_key,
+};
 use dr_workspace::commands::plot_grid::{
     Axis, CellIn, GridIn, PlotGridCell, PlotGridGet, PlotGridInfo,
 };
@@ -354,6 +358,55 @@ fn the_grip_sizes_the_cells_and_clear_empties_them(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn a_hand_set_shape_is_kept_on_this_device(cx: &mut TestAppContext) {
+    let s = seeded();
+    let (view, cx) = open(cx, &s, 3);
+    wait_for(cx, |cx| view.read_with(cx, |p, _| p.is_ratio_settled()));
+    assert_eq!(view.read_with(cx, |p, _| p.ratio()), None);
+    let key = ratio_key(&s.chapters[3]);
+    let kept = || s.lib.library().local_get(RATIO_SCOPE, &key).unwrap();
+    assert_eq!(kept(), None);
+
+    // Sized by hand: three times as wide as high, kept for this grid and
+    // tied to its book.
+    cx.update(|window, cx| {
+        view.update(cx, |p, cx| {
+            p.set_size(CellSize { w: 300.0, h: 100.0 }, true, window, cx)
+        })
+    });
+    settle(&view, cx);
+    wait_for(cx, |_| kept().is_some());
+    assert_eq!(kept().unwrap().parse::<f32>().unwrap(), 3.0);
+    let rows = s
+        .lib
+        .library()
+        .local_entries(RATIO_SCOPE, Some(&s.book))
+        .unwrap();
+    assert_eq!(rows.len(), 1);
+    // A fit is not by hand: the shape stays.
+    cx.update(|window, cx| {
+        view.update(cx, |p, cx| {
+            p.set_size(CellSize { w: 200.0, h: 200.0 }, false, window, cx)
+        })
+    });
+    settle(&view, cx);
+    assert_eq!(kept().unwrap().parse::<f32>().unwrap(), 3.0);
+
+    // The grid opened again (another chapter came and went) knows it.
+    let same = host(&s, 3);
+    let again = cx.update(|window, cx| dr_view_plot::planner(same, window, cx));
+    wait_for(cx, |cx| {
+        again.read_with(cx, |p, _| p.is_loaded() && p.is_ratio_settled())
+    });
+    assert_eq!(again.read_with(cx, |p, _| p.ratio()), Some(3.0));
+    // Another grid has its own.
+    let other = host(&s, 2);
+    let other = cx.update(|window, cx| dr_view_plot::planner(other, window, cx));
+    wait_for(cx, |cx| other.read_with(cx, |p, _| p.is_ratio_settled()));
+    assert_eq!(other.read_with(cx, |p, _| p.ratio()), None);
+}
+
+#[gpui::test]
 fn another_writers_change_shows_and_typing_is_kept(cx: &mut TestAppContext) {
     let s = seeded();
     let (view, cx) = open(cx, &s, 3);
@@ -413,4 +466,44 @@ fn clear_asks_first_in_the_workspace_window(cx: &mut TestAppContext) {
     cx.run_until_parked();
     assert!(ws.read_with(cx, |w, _| w.dialog.is_none()));
     assert_eq!(stored(&s, 3).cells.len(), 11);
+}
+
+/// In the shell's Bottom Panel ([`dr_view_plot::init`]): opened with a
+/// chapter in front it is that chapter's planner; the chapter renamed, its
+/// header follows.
+#[gpui::test]
+fn the_shell_shows_the_planner_of_the_chapter_in_front(cx: &mut TestAppContext) {
+    use dr_shell::nav::{Open, Target};
+    use dr_shell::pages::BottomPane;
+    let s = seeded();
+    init(cx, &s);
+    cx.update(dr_view_plot::init);
+    let (ws, cx) = cx.add_window_view(dr_shell::Workspace::new);
+    wait_for(cx, |cx| ws.read_with(cx, |ws, _| !ws.book.is_empty()));
+    let fourth = Target::Chapter(s.chapters[3].parse().unwrap());
+    ws.update(cx, |ws, cx| {
+        ws.open(fourth.clone(), Open::KEEP, cx);
+        ws.toggle_planner(cx);
+    });
+    cx.update(|window, cx| window.draw(cx).clear(cx));
+    let planner = ws
+        .read_with(cx, |ws, _| ws.bottom_view(BottomPane::Planner))
+        .expect("the planner is made")
+        .downcast::<PlotPlanner>()
+        .unwrap();
+    assert_eq!(
+        planner.read_with(cx, |p, _| p.host().node.clone()),
+        s.chapters[3]
+    );
+    s.lib
+        .call(
+            &Actor::User,
+            "chapter.update",
+            serde_json::json!({"book": s.book, "id": s.chapters[3], "title": "改了名"}),
+        )
+        .unwrap();
+    wait_for(cx, |cx| {
+        cx.update(|window, cx| window.draw(cx).clear(cx));
+        planner.read_with(cx, |p, _| p.host().title == "改了名")
+    });
 }

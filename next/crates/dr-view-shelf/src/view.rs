@@ -40,8 +40,14 @@ use gpui::{
     prelude::FluentBuilder as _, px,
 };
 
+use dr_view_shelf_art::{
+    CoverStyle, CoverTurn, HeatmapBook, SandStrip, ShelfCover, WritingHeatmap, cover_seed,
+};
+
+use crate::art::{self, ShelfArt};
 use crate::data::{ShelfBook, ShelfData, Status, TrashedBook, progress};
-use crate::format::{self, compact, grouped};
+use crate::format;
+use dr_i18n::number::{compact, grouped};
 
 actions!(
     shelf,
@@ -72,9 +78,8 @@ const RAIL_W: f32 = 232.0;
 const BOOKS_MAX_W: f32 = 1180.0;
 /// Below this window width the books stand in one column.
 const ONE_COLUMN_BELOW: f32 = 1080.0;
-/// A card's least height (`.pp-card` with its cover is 250px; without the
-/// cover, which is M25, the body sets it).
-const CARD_MIN_H: f32 = 196.0;
+/// A card's least height (`.pp-card`: its cover, 226, and 12 around).
+const CARD_MIN_H: f32 = 250.0;
 /// How long the bookshelf shows before the books whose 30 days in Recently
 /// Deleted are over go for good (the 0.1 shelf's
 /// `EXPIRED_TRASH_PURGE_DELAY_MS`: a restore made on another device can
@@ -116,6 +121,12 @@ pub struct Shelf {
     /// The shelf as last read; `None` until the first read lands.
     pub data: Option<Rc<ShelfData>>,
     task: Option<Task<()>>,
+    /// What the covers, the heat map and the strips are drawn from (M25),
+    /// read after each read of the shelf; `None` until the first lands.
+    pub art: Option<Rc<ShelfArt>>,
+    art_task: Option<Task<()>>,
+    /// The book whose card the pointer is on: the heat map shows it alone.
+    pub pointed: Option<String>,
     /// Something changed since the last read.
     stale: bool,
     dialog: Option<DialogState>,
@@ -151,6 +162,9 @@ impl Shelf {
             focus: cx.focus_handle(),
             data: None,
             task: None,
+            art: None,
+            art_task: None,
+            pointed: None,
             stale: true,
             dialog: None,
             busy: false,
@@ -327,6 +341,7 @@ impl Shelf {
                             data.books.len()
                         );
                         shelf.data = Some(Rc::new(data));
+                        shelf.load_art(cx);
                     }
                     Err(error) => log::warn!("the shelf could not be read: {error}"),
                 }
@@ -334,6 +349,56 @@ impl Shelf {
             })
             .ok();
         }));
+    }
+
+    /// Reads the books' covers, genres and writing days off the main thread
+    /// (M25). A read still running for older data is dropped.
+    fn load_art(&mut self, cx: &mut Context<Self>) {
+        let (Some(lib), Some(data)) = (self.lib.clone(), self.data.clone()) else {
+            return;
+        };
+        let books: Vec<(String, String)> = data
+            .books
+            .iter()
+            .map(|b| (b.id.clone(), b.name.clone()))
+            .collect();
+        let today = art::today(cx);
+        self.art_task = Some(cx.spawn(async move |this, cx| {
+            let started = Instant::now();
+            let loaded = cx
+                .background_executor()
+                .spawn(async move { ShelfArt::load(&lib, &books, &today) })
+                .await;
+            this.update(cx, |shelf, cx| {
+                log::debug!(
+                    "shelf pictures read in {:.1} ms",
+                    started.elapsed().as_secs_f64() * 1e3
+                );
+                shelf.art_task = None;
+                shelf.art = Some(Rc::new(ShelfArt::from_loaded(loaded)));
+                cx.notify();
+            })
+            .ok();
+        }));
+    }
+
+    /// The pointer came onto `book`'s card (or left it).
+    pub fn point_at(&mut self, book: &str, on: bool, cx: &mut Context<Self>) {
+        let pointed = match (on, self.pointed.as_deref()) {
+            (true, _) => Some(book.to_owned()),
+            (false, Some(current)) if current == book => None,
+            (false, current) => current.map(str::to_owned),
+        };
+        if pointed != self.pointed {
+            self.pointed = pointed;
+            cx.notify();
+        }
+    }
+
+    /// Turns every cover to `style` (the shelf's round button).
+    pub fn turn_covers(&mut self, style: CoverStyle, cx: &mut Context<Self>) {
+        art::set_cover_style(style, cx);
+        cx.notify();
     }
 
     // Acting.
@@ -374,6 +439,7 @@ impl Shelf {
         });
         let summary = cx.new(|cx| {
             TextArea::new("shelf-form-summary", window, cx)
+                .framed(3.0)
                 .placeholder(summary_hint)
                 .with_text(summary_text)
         });
@@ -958,17 +1024,59 @@ fn books(
     cx: &mut Context<Shelf>,
 ) -> AnyElement {
     let now = format::now_ms();
+    let p = Theme::of(window, cx).palette;
+    let art = shelf.art.clone();
+    let style = art::cover_style(cx);
     let cards: Vec<AnyElement> = match &shelf.data {
         Some(data) => data
             .books
             .clone()
             .into_iter()
-            .map(|book| card(book, now, window, cx))
+            .map(|book| card(book, now, art.as_deref(), style, window, cx))
             .collect(),
         None => Vec::new(),
     };
     let ready = shelf.data.is_some();
+    // A year of writing days over the books, every book together; the book
+    // under the pointer alone, in its colour.
+    let heat = match (&art, &shelf.data) {
+        (Some(art), Some(data)) => {
+            let books: Vec<HeatmapBook> = data
+                .books
+                .iter()
+                .map(|b| HeatmapBook {
+                    id: b.id.clone().into(),
+                    name: if b.name.trim().is_empty() {
+                        t(cx, keys::project_picker::desk::UNTITLED)
+                    } else {
+                        b.name.clone().into()
+                    },
+                    color: art::book_color(&b.id, p),
+                })
+                .collect();
+            Some(
+                div()
+                    .id("shelf-heat-place")
+                    .mb(px(14.0))
+                    // Not the empty desk: a double click starts nothing.
+                    .on_click(|_, _, cx| cx.stop_propagation())
+                    .child(WritingHeatmap::new(
+                        "shelf-heat",
+                        art.year.clone(),
+                        Rc::new(books),
+                        shelf.pointed.clone().map(SharedString::from),
+                    )),
+            )
+        }
+        _ => None,
+    };
     let entity = cx.entity();
+    let turn = {
+        let entity = entity.clone();
+        CoverTurn::new(style, move |next, _, cx| {
+            entity.update(cx, |shelf, cx| shelf.turn_covers(next, cx))
+        })
+    };
     div()
         .id("shelf-books")
         .flex_1()
@@ -984,11 +1092,15 @@ fn books(
         .child(
             div()
                 .w_full()
+                .min_h_full()
                 .max_w(px(BOOKS_MAX_W))
                 .pt(px(44.0))
                 .pr(px(40.0))
                 .pb(px(32.0))
                 .pl(px(16.0))
+                .flex()
+                .flex_col()
+                .children(heat)
                 .when(ready, |el| {
                     el.child(
                         div()
@@ -998,6 +1110,17 @@ fn books(
                             .children(cards)
                             .child(new_card(window, cx)),
                     )
+                    // At the foot, below the books however many: the round
+                    // button that turns every cover to the next style.
+                    .child(
+                        div().mt_auto().pt(px(28.0)).flex().justify_center().child(
+                            div()
+                                .id("shelf-cover-style")
+                                .debug_selector(|| "shelf-cover-style".into())
+                                .on_click(|_, _, cx| cx.stop_propagation())
+                                .child(turn),
+                        ),
+                    )
                 }),
         )
         .into_any_element()
@@ -1005,7 +1128,14 @@ fn books(
 
 /// One book: a card with only a resting line of glass. The whole card opens
 /// the book; edit and Recently Deleted show under the pointer.
-fn card(book: ShelfBook, now: i64, window: &mut Window, cx: &mut Context<Shelf>) -> AnyElement {
+fn card(
+    book: ShelfBook,
+    now: i64,
+    art: Option<&ShelfArt>,
+    style: CoverStyle,
+    window: &mut Window,
+    cx: &mut Context<Shelf>,
+) -> AnyElement {
     let theme = Theme::of(window, cx);
     let p = theme.palette;
     let s = theme.scale;
@@ -1141,6 +1271,52 @@ fn card(book: ShelfBook, now: i64, window: &mut Window, cx: &mut Context<Shelf>)
                 .color(p.ink(2)),
             )
     });
+    // The last 30 days: their words and a strip of sand.
+    let strip = art.map(|art| {
+        let recent = art.recent(&book.id);
+        let total: u64 = recent.iter().sum();
+        let words = grouped(total, locale);
+        let sum: SharedString = if total > 0 {
+            format!("+{words} {}", t(cx, keys::project_picker::desk::WORDS_UNIT)).into()
+        } else {
+            "—".into()
+        };
+        div()
+            .mt_auto()
+            .pt(px(14.0))
+            .flex()
+            .flex_col()
+            .gap(px(6.0))
+            .child(
+                div()
+                    .flex()
+                    .flex_row()
+                    .justify_between()
+                    .font_role(Role::Index)
+                    .type_px(11.0, 11.0)
+                    .text_color(p.ink(4).solid())
+                    .child(t(cx, keys::project_picker::desk::RECENT))
+                    .child(sum),
+            )
+            .child(SandStrip::new(
+                ElementId::Name(format!("shelf-strip-{}", book.id).into()),
+                Rc::new(recent),
+                cover_seed(&book.id),
+                tf(
+                    cx,
+                    keys::project_picker::desk::RECENT_LABEL,
+                    &[("words", &words)],
+                ),
+            ))
+    });
+    let has_strip = strip.is_some();
+    let progress_row = progress_row.map(|row| {
+        if has_strip {
+            row.mt_0().pt(px(12.0))
+        } else {
+            row
+        }
+    });
     let has_progress = progress_row.is_some();
     let status = Status::of(book.edited_ms, now);
     let (status_key, status_ink) = match status {
@@ -1149,8 +1325,8 @@ fn card(book: ShelfBook, now: i64, window: &mut Window, cx: &mut Context<Shelf>)
         Status::Paused => (keys::project_picker::status::PAUSED, p.ink(4)),
     };
     let foot = div()
-        .when(has_progress, |el| el.mt(px(10.0)))
-        .when(!has_progress, |el| el.mt_auto())
+        .when(has_progress || has_strip, |el| el.mt(px(10.0)))
+        .when(!has_progress && !has_strip, |el| el.mt_auto())
         .flex()
         .flex_row()
         .items_center()
@@ -1233,6 +1409,33 @@ fn card(book: ShelfBook, now: i64, window: &mut Window, cx: &mut Context<Shelf>)
                 }),
         )
         .child(acts);
+    // The cover: a slip of paper until its picture is drawn (M25).
+    let cover = div()
+        .flex_none()
+        .w(px(dr_view_shelf_art::cover::COVER_W))
+        .h(px(dr_view_shelf_art::cover::COVER_H))
+        .rounded(px(2.0))
+        .overflow_hidden()
+        .bg(p.page.solid())
+        .when_some(art.and_then(|a| a.books.get(&book.id)), |el, drawn| {
+            let mut cover = ShelfCover::new(
+                ElementId::Name(format!("shelf-cover-{}", book.id).into()),
+                book.id.clone(),
+                style,
+                drawn.cover.clone(),
+            );
+            if let Some(genre) = &drawn.genre {
+                cover = cover.label(genre.clone());
+            }
+            el.child(cover)
+        });
+    let pointed = {
+        let entity = entity.clone();
+        let id = book.id.clone();
+        move |on: &bool, _: &mut Window, cx: &mut App| {
+            entity.update(cx, |shelf, cx| shelf.point_at(&id, *on, cx))
+        }
+    };
     let summary = (!book.summary.trim().is_empty()).then(|| {
         div()
             .mt(px(10.0))
@@ -1240,9 +1443,9 @@ fn card(book: ShelfBook, now: i64, window: &mut Window, cx: &mut Context<Shelf>)
             .type_px(s.secondary, s.secondary * 1.6)
             .text_color(p.muted().solid())
             .line_clamp(2)
-            .child(book.summary.clone())
+            .child(dr_ui::text::wrapped(book.summary.clone()))
     });
-    glass::glass_box(
+    let card = glass::glass_box(
         id,
         GlassKind::Rest,
         Mode::default(),
@@ -1255,7 +1458,8 @@ fn card(book: ShelfBook, now: i64, window: &mut Window, cx: &mut Context<Shelf>)
     .min_h(px(CARD_MIN_H))
     .p(px(12.0))
     .flex()
-    .flex_col()
+    .flex_row()
+    .gap(px(16.0))
     .cursor_pointer()
     .role(gpui::Role::Button)
     .aria_label(tf(
@@ -1264,6 +1468,7 @@ fn card(book: ShelfBook, now: i64, window: &mut Window, cx: &mut Context<Shelf>)
         &[("name", &title)],
     ))
     .on_click(open)
+    .child(cover)
     .child(
         div()
             .flex_1()
@@ -1276,10 +1481,25 @@ fn card(book: ShelfBook, now: i64, window: &mut Window, cx: &mut Context<Shelf>)
             .child(head)
             .children(summary)
             .child(meta)
+            .children(strip)
             .children(progress_row)
             .child(foot),
     )
-    .into_any_element()
+    .flex_1();
+    // The glass keeps its own hover; the heat map's follows the pointer here.
+    div()
+        .id(ElementId::Name(
+            format!("shelf-card-place-{}", book.id).into(),
+        ))
+        .debug_selector({
+            let id = book.id.clone();
+            move || format!("shelf-card-{id}")
+        })
+        .flex()
+        .flex_col()
+        .on_hover(pointed)
+        .child(card)
+        .into_any_element()
 }
 
 /// The last place in the grid: a cross and a line; only the pointer brings
@@ -1407,7 +1627,7 @@ fn dialog(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) -> An
                 ))
                 .body(section(
                     t(cx, keys::project_picker::desk::form::SUMMARY_LABEL),
-                    crate::frame::area("shelf-form-summary-frame", summary, 3.0, window, cx),
+                    summary.clone().into_any_element(),
                 ))
                 .when_some(error, |d, e| d.status(e))
                 .action(

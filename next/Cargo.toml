@@ -7,6 +7,7 @@ resolver = "3"
 members = [
     "app/drifting",
     "crates/dr-cli",
+    "crates/dr-corpus",
     "crates/dr-debug-bridge",
     "crates/dr-debug-protocol",
     "crates/dr-doc",
@@ -15,12 +16,13 @@ members = [
     "crates/dr-i18n",
     "crates/dr-import-v1",
     "crates/dr-index",
+    "crates/dr-mirror",
     "crates/dr-model",
     "crates/dr-platform",
+    "crates/dr-samples",
     "crates/dr-shell",
     "crates/dr-store",
     "crates/dr-testkit",
-    "crates/dr-testkit-corpus",
     "crates/dr-text",
     "crates/dr-ui",
     "crates/dr-view-elements",
@@ -29,9 +31,12 @@ members = [
     "crates/dr-view-history",
     "crates/dr-view-home",
     "crates/dr-view-import",
+    "crates/dr-view-material",
     "crates/dr-view-page",
     "crates/dr-view-plot",
+    "crates/dr-view-relations",
     "crates/dr-view-review",
+    "crates/dr-view-sea",
     "crates/dr-view-search",
     "crates/dr-view-shelf",
     "crates/dr-view-shelf-art",
@@ -113,11 +118,14 @@ prose-metrics = { path = "crates/prose-metrics" }
 # already carries).
 aho-corasick = "1.1"
 
+# The built-in sample books a new library receives once (services, no GPUI);
+# dr-testkit lays its seed out with the same writer.
+dr-samples = { path = "crates/dr-samples" }
 # F8 test kit: the seed, sample books, evidence, crash harness, benchmarks.
 dr-testkit = { path = "crates/dr-testkit" }
-dr-testkit-corpus = { path = "crates/dr-testkit-corpus" }
 # F8 debug bridge: the server (development builds with the app's
 # `debug-bridge` feature only) and its protocol and client (no GPUI).
+dr-corpus = { path = "crates/dr-corpus" }
 dr-debug-bridge = { path = "crates/dr-debug-bridge" }
 dr-debug-protocol = { path = "crates/dr-debug-protocol" }
 # xtask's text gates (the version GPUI's dependencies already lock).
@@ -138,6 +146,10 @@ rusqlite = { version = "0.41", features = ["bundled"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha2 = "0.10"
+# M40's diffs (paragraphs, characters); already in the tree through insta.
+similar = "2.7"
+# M40 watches the Markdown folder.
+notify = { version = "8.2", default-features = false, features = ["macos_fsevent"] }
 # dr-store: typed errors, temporary directories in tests, OS randomness for
 # peer and installation ids, and text ZIPs (zip pinned exactly as in the 0.1
 # client, which audited this version).
@@ -237,6 +249,8 @@ dr-view-transfer = { path = "crates/dr-view-transfer" }
 dr-view-feedback = { path = "crates/dr-view-feedback" }
 futures = "0.3"
 icu_plurals = { version = "2.4", default-features = false, features = ["compiled_data"] }
+# M40 names files as 0.1 did (NFKC first); already in the tree through url.
+icu_normalizer = { version = "2.4", default-features = false, features = ["compiled_data"] }
 icu_locale_core = { version = "2.4", default-features = false }
 # F4e: the @ picker sorts names the way Chinese readers expect (pinyin, the
 # zh collation), same 2.4 line as the other icu_* crates.
@@ -256,11 +270,21 @@ dr-view-timeline = { path = "crates/dr-view-timeline" }
 dr-view-import = { path = "crates/dr-view-import" }
 # M03: the chapter page's head and end around the editor (dr-editor's PageChrome).
 dr-view-page = { path = "crates/dr-view-page" }
+# M19: the image and PDF viewer and its region comments
+# (docs/rust-rewrite/modules/m19-materials.md). hayro renders PDF pages in
+# pure Rust (Apache-2.0 OR MIT): nothing to download or install beside the
+# app, unlike pdfium-render's separate PDFium library.
+dr-view-material = { path = "crates/dr-view-material" }
+hayro = "0.9.0"
 # M15: the plot planner, a chapter's grid of slips under the paper
 # (docs/rust-rewrite/modules/m15-plot.md).
 dr-view-plot = { path = "crates/dr-view-plot" }
+# M17: relations and relation types (the element page's 「关联」, the types).
+dr-view-relations = { path = "crates/dr-view-relations" }
 # M25: the bookshelf's covers, heat map and strips.
 dr-view-shelf-art = { path = "crates/dr-view-shelf-art" }
+# M24: the sea of characters, the first run and the tour.
+dr-view-sea = { path = "crates/dr-view-sea" }
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
 # M41: manuscript export (EPUB, Word, PDF), Markdown share and covers, the
 # 0.1 client's writers ported as they were (docs/rust-rewrite/
@@ -268,6 +292,7 @@ chrono = { version = "0.4.45", default-features = false, features = ["clock", "s
 # database are the versions the 0.1 client audited; roxmltree reads the
 # EPUB and Word files back in the format checks.
 dr-export = { path = "crates/dr-export" }
+dr-mirror = { path = "crates/dr-mirror" }
 fontdb = "0.23"
 krilla = "0.8.2"
 roxmltree = "0.20"

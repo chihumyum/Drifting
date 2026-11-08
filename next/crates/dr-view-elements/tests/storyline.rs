@@ -3,7 +3,9 @@
 //! and chapter sequence around the text; the name and summary save as in
 //! the 0.1 client; fields write to the storyline; the sequence lists its
 //! chapters in reading order with the written / not started filter; the ⋯
-//! menu's delete asks with the 0.1 confirmation and trashes it.
+//! menu's delete asks with the 0.1 confirmation and trashes it; the colour
+//! swatch opens the picker and writes the colour once it is still; the
+//! chapter template opens on a click and is what a new chapter starts with.
 
 use std::time::{Duration, Instant};
 
@@ -18,7 +20,7 @@ use dr_workspace::{
     commands::{ListIn, chapter::ChapterList, storyline::StorylineList},
     dto::StorylineInfo,
 };
-use gpui::{Entity, Focusable as _, TestAppContext, VisualTestContext};
+use gpui::{Entity, Focusable as _, Modifiers, TestAppContext, VisualTestContext};
 
 const VERSION: &str = "0.2.0-dev";
 
@@ -263,4 +265,188 @@ fn deleting_a_storyline_asks_then_trashes_it(cx: &mut TestAppContext) {
     cx.simulate_keystrokes("escape");
     frame(cx);
     assert!(storylines(&lib, &book).iter().any(|l| l.id == other));
+}
+
+#[gpui::test]
+fn the_swatch_picks_a_colour_and_writes_it_once_still(cx: &mut TestAppContext) {
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    use dr_ui::components::color::{self, OnPick};
+    use dr_ui::tokens::Rgb;
+
+    let (_dir, library, book) = library();
+    let lib = library.clone();
+    let (view, cx) = setup(cx, library);
+    // The picker the swatch opens: it keeps the callback, as the system
+    // panel would while the author drags across it.
+    let opened: Rc<RefCell<Option<OnPick>>> = Rc::default();
+    cx.update(|_, cx| {
+        let opened = opened.clone();
+        color::set_color_picker(cx, move |_, on_pick, _, _| {
+            *opened.borrow_mut() = Some(on_pick);
+        });
+    });
+    let tower = storylines(&lib, &book)
+        .into_iter()
+        .find(|l| l.name == "钟楼")
+        .unwrap();
+    let (_head, _) = open(&view, &tower.id, cx);
+    frame(cx);
+    let swatch = cx
+        .debug_bounds("storyline-color")
+        .expect("the swatch is drawn");
+    cx.simulate_click(swatch.center(), Modifiers::none());
+    let on_pick = opened.borrow().clone().expect("the picker opened");
+    // Three colours in a row, as a drag across the panel gives them.
+    for hex in [0x112233, 0x445566, 0x8a3b2c] {
+        cx.update(|window, cx| on_pick(Rgb::hex(hex), window, cx));
+        frame(cx);
+    }
+    // Shown at once, written only once the picker is still.
+    let id = tower.id.clone();
+    assert_eq!(storyline(&lib, &book, &id).color, tower.color);
+    cx.executor()
+        .advance_clock(dr_view_elements::swatch::SETTLE);
+    wait_for(cx, |_| storyline(&lib, &book, &id).color == "#8a3b2c");
+    // One pick, one undo step: the colour before it comes back.
+    lib.undo(&Actor::User).unwrap();
+    assert_eq!(storyline(&lib, &book, &id).color, tower.color);
+}
+
+#[gpui::test]
+fn the_chapter_template_opens_on_a_click_and_new_chapters_start_from_it(cx: &mut TestAppContext) {
+    use dr_workspace::commands::{
+        chapter::{ChapterCreate, ChapterCreateIn},
+        template::{ChapterTemplateBody, StorylineIn},
+    };
+    use gpui::EntityInputHandler as _;
+
+    let (_dir, library, book) = library();
+    let lib = library.clone();
+    let (view, cx) = setup(cx, library);
+    let tower = storylines(&lib, &book)
+        .into_iter()
+        .find(|l| l.name == "钟楼")
+        .unwrap();
+    assert!(!tower.has_chapter_template);
+    let (_, end) = open(&view, &tower.id, cx);
+    frame(cx);
+    let template = end
+        .read_with(cx, |e, _| e.template.clone())
+        .expect("the section is drawn");
+    // Opening the page wrote nothing: the placeholder, no document yet.
+    assert!(!template.read_with(cx, |t, _| t.is_open()));
+    let body = |lib: &Library| {
+        lib.run::<ChapterTemplateBody>(
+            &Actor::User,
+            StorylineIn {
+                book: book.clone(),
+                storyline: tower.id.clone(),
+            },
+        )
+        .unwrap()
+        .output
+    };
+    assert!(body(&lib).is_empty());
+    // A click on it makes the document and puts the caret in.
+    let closed = cx
+        .debug_bounds("storyline-template-closed")
+        .expect("the placeholder is drawn");
+    cx.simulate_click(closed.center(), Modifiers::none());
+    wait_for(cx, |cx| template.read_with(cx, |t, _| t.is_open()));
+    let editor = template.read_with(cx, |t, _| t.editor().unwrap());
+    let prose = editor.read_with(cx, |e, _| e.editor().clone());
+    assert!(cx.update(|window, cx| prose.focus_handle(cx).is_focused(window)));
+    // An H1 typed as Markdown, then body text.
+    for c in "# 起因".chars() {
+        let s = c.to_string();
+        prose.update_in(cx, |e, window, cx| {
+            e.replace_text_in_range(None, &s, window, cx)
+        });
+    }
+    frame(cx);
+    wait_for(cx, |_| {
+        body(&lib)
+            .first()
+            .is_some_and(|p| p.heading == Some(1) && p.text == "起因")
+    });
+    assert!(storyline(&lib, &book, &tower.id).has_chapter_template);
+    // A new chapter on this storyline starts from it.
+    let made = lib
+        .run::<ChapterCreate>(
+            &Actor::User,
+            ChapterCreateIn {
+                book: book.clone(),
+                title: String::new(),
+                place: None,
+                summary: String::new(),
+                storyline: Some(tower.id.clone()),
+                text: None,
+            },
+        )
+        .unwrap()
+        .output;
+    let first = lib
+        .run::<dr_workspace::commands::prose::ProseRead>(
+            &Actor::User,
+            dr_workspace::commands::prose::ProseReadIn {
+                doc: format!("node:{}", made.id),
+                from: 0,
+                limit: None,
+            },
+        )
+        .unwrap()
+        .output
+        .paragraphs
+        .into_iter()
+        .next()
+        .expect("a paragraph");
+    assert_eq!((first.heading, first.text.as_str()), (1, "起因"));
+}
+
+#[gpui::test]
+fn a_template_written_elsewhere_opens_when_it_arrives(cx: &mut TestAppContext) {
+    use dr_workspace::commands::template::{
+        ChapterTemplateSetBody, SetChapterTemplateIn, TemplateParagraph,
+    };
+
+    let (_dir, library, book) = library();
+    let lib = library.clone();
+    let tower = storylines(&lib, &book)
+        .into_iter()
+        .find(|l| l.name == "钟楼")
+        .unwrap();
+    let (view, cx) = setup(cx, library);
+    let (_, end) = open(&view, &tower.id, cx);
+    frame(cx);
+    let template = end.read_with(cx, |e, _| e.template.clone().unwrap());
+    assert!(!template.read_with(cx, |t, _| t.is_open()));
+    // Written while the page is open (the Agent, another window): only the
+    // template's own document changes, the book's facts do not.
+    lib.run::<ChapterTemplateSetBody>(
+        &Actor::User,
+        SetChapterTemplateIn {
+            book: book.clone(),
+            storyline: tower.id.clone(),
+            paragraphs: vec![
+                TemplateParagraph {
+                    heading: Some(2),
+                    text: "钟楼里".into(),
+                },
+                TemplateParagraph {
+                    heading: None,
+                    text: "从钟声停下写起。".into(),
+                },
+            ],
+        },
+    )
+    .unwrap();
+    wait_for(cx, |cx| template.read_with(cx, |t, _| t.is_open()));
+    let editor = template.read_with(cx, |t, _| t.editor().unwrap());
+    wait_for(cx, |cx| {
+        editor
+            .read_with(cx, |e, cx| e.plain_text(cx))
+            .contains("钟楼里")
+    });
 }

@@ -3,7 +3,11 @@
 //! storyline's lane; 未归属 on request; the narrative axis and 未放置; a
 //! chapter dragged with the mouse onto another lane changes its main
 //! storyline and its place; dropped on 未归属 it leaves every storyline; a
-//! double click on an empty spot makes a chapter there.
+//! double click on an empty spot makes a chapter there; time pins are made,
+//! renamed, moved, bound to an idea and deleted; act boundaries are dragged
+//! between their neighbours, acts made by place, renamed and deleted; the
+//! hover cards' own rows take a chapter off its storylines or the narrative
+//! axis and add one to a storyline.
 
 use std::time::{Duration, Instant};
 
@@ -218,7 +222,9 @@ fn dragging_a_chapter_onto_another_lane_moves_it_there(cx: &mut TestAppContext) 
     // Taken 10px in, the drag starts 6px on: the clip is held 16px in from
     // its left edge, and lands where its slab is seen.
     let start = at(&t, 0, from, 10.0, cx);
+    // Past the middle of the second lane: the weighted slab goes over.
     let end = at(&t, 1, target, 16.0, cx);
+    let end = point(end.x, end.y + px(2.0));
     cx.simulate_mouse_down(start, MouseButton::Left, Modifiers::none());
     cx.simulate_mouse_move(
         point(start.x + px(6.0), start.y),
@@ -391,5 +397,295 @@ fn a_double_click_on_an_empty_spot_makes_a_chapter_there(cx: &mut TestAppContext
     let target = Target::Chapter(made.id.parse().unwrap());
     wait_for(cx, |cx| {
         ws.read_with(cx, |w, _| w.nav.current() == Some(&target))
+    });
+}
+
+/// What the timeline shows (书序 / 叙事时, 未归属, the zoom) is kept for the
+/// book in the shell's per-book memory, and a timeline made for the book
+/// again (the next run, another window) starts from it.
+#[gpui::test]
+fn what_the_timeline_shows_is_kept_for_the_book(cx: &mut TestAppContext) {
+    let (_dir, library, _book) = library();
+    let (host, cx) = setup(cx, library);
+    let t = timeline(&host, cx);
+    t.update(cx, |t, cx| {
+        t.set_axis(Axis::Narrative, cx);
+        t.toggle_unaffiliated(cx);
+        t.set_zoom(2.0, cx);
+    });
+    let ws = host.read_with(cx, |h, _| h.ws.clone());
+    let kept = ws.read_with(cx, |ws, _| {
+        ws.book_memory(dr_view_timeline::kept::KEY).cloned()
+    });
+    let kept = dr_view_timeline::kept::Kept::read(kept.as_ref());
+    assert_eq!(
+        (kept.axis, kept.unaffiliated, kept.zoom),
+        (Axis::Narrative, true, 2.0)
+    );
+    let again = cx.update(|_, cx| dr_view_timeline::make(ws.downgrade(), cx));
+    cx.run_until_parked();
+    let shown = again.read_with(cx, |t, _| (t.axis(), t.unaffiliated_shown(), t.zoom()));
+    assert_eq!(shown, (Axis::Narrative, true, 2.0));
+}
+
+fn pins(lib: &Library, book: &str) -> Vec<dr_workspace::commands::time_pin::TimePinInfo> {
+    lib.run::<dr_workspace::commands::time_pin::TimePinList>(
+        &Actor::User,
+        dr_workspace::commands::BookIn {
+            book: book.to_owned(),
+        },
+    )
+    .unwrap()
+    .output
+}
+
+fn acts(lib: &Library, book: &str) -> Vec<dr_workspace::dto::ActInfo> {
+    lib.run::<dr_workspace::commands::chapter::ActList>(
+        &Actor::User,
+        dr_workspace::commands::BookIn {
+            book: book.to_owned(),
+        },
+    )
+    .unwrap()
+    .output
+}
+
+fn double_click(cx: &mut VisualTestContext, at: gpui::Point<gpui::Pixels>) {
+    for click_count in [1, 2] {
+        cx.simulate_event(gpui::MouseDownEvent {
+            position: at,
+            modifiers: Modifiers::none(),
+            button: MouseButton::Left,
+            click_count,
+            first_mouse: false,
+        });
+        cx.simulate_event(gpui::MouseUpEvent {
+            position: at,
+            modifiers: Modifiers::none(),
+            button: MouseButton::Left,
+            click_count,
+        });
+    }
+}
+
+#[gpui::test]
+fn time_pins_are_made_renamed_moved_bound_and_deleted(cx: &mut TestAppContext) {
+    use dr_view_timeline::Mark;
+
+    let (_dir, library, book) = library();
+    let lib = library.clone();
+    let (host, cx) = setup(cx, library);
+    let t = timeline(&host, cx);
+    t.update(cx, |t, cx| t.set_axis(Axis::Narrative, cx));
+    // 《慢钟》's five pins.
+    wait_for(cx, |cx| t.read_with(cx, |t, _| t.pins().len() == 5));
+    // A double click on the bare axis, far right of what shows: a pin there,
+    // its name ready to type.
+    let body = t.read_with(cx, |t, _| t.body_bounds().unwrap());
+    let axis = cx.debug_bounds("timeline-time-axis").unwrap();
+    let at = point(
+        body.origin.x + body.size.width - px(30.0),
+        axis.origin.y + px(STRIP_HEIGHT / 2.0),
+    );
+    let seeded: Vec<String> = pins(&lib, &book).into_iter().map(|p| p.id).collect();
+    double_click(cx, at);
+    wait_for(cx, |_| pins(&lib, &book).len() == 6);
+    let made = pins(&lib, &book)
+        .into_iter()
+        .find(|p| !seeded.contains(&p.id))
+        .expect("a new pin");
+    assert!(!made.label.is_empty(), "the default label");
+    wait_for(cx, |cx| {
+        t.read_with(cx, |t, _| t.editing()) == Some(Mark::Pin(made.id.clone()))
+    });
+    cx.simulate_input("钟停");
+    cx.simulate_keystrokes("enter");
+    let id = made.id.clone();
+    wait_for(cx, |_| {
+        pins(&lib, &book)
+            .iter()
+            .any(|p| p.id == id && p.label.ends_with("钟停"))
+    });
+    // Moved along the axis.
+    t.update(cx, |t, cx| t.move_mark(Mark::Pin(id.clone()), 3.5, cx));
+    wait_for(cx, |_| {
+        pins(&lib, &book)
+            .iter()
+            .any(|p| p.id == id && (p.narrative_order - 3.5).abs() < 1e-9)
+    });
+    // Bound to an idea no pin or act holds, then unbound: the label stays.
+    let idea = host.read_with(cx, |h, cx| h.ws.read(cx).book.ideas[0].id.clone());
+    t.update(cx, |t, cx| {
+        t.bind(&Mark::Pin(id.clone()), Some(idea.clone()), cx)
+    });
+    wait_for(cx, |_| {
+        pins(&lib, &book)
+            .iter()
+            .any(|p| p.id == id && p.idea.as_deref() == Some(idea.as_str()))
+    });
+    t.update(cx, |t, cx| t.bind(&Mark::Pin(id.clone()), None, cx));
+    wait_for(cx, |_| {
+        pins(&lib, &book)
+            .iter()
+            .any(|p| p.id == id && p.idea.is_none() && p.label.ends_with("钟停"))
+    });
+    // Deleted.
+    t.update(cx, |t, cx| t.delete_pin(&id, cx));
+    wait_for(cx, |_| pins(&lib, &book).len() == 5);
+    wait_for(cx, |cx| t.read_with(cx, |t, _| t.pins().len() == 5));
+}
+
+#[gpui::test]
+fn an_act_boundary_drags_between_its_neighbours_and_acts_are_made_by_place(
+    cx: &mut TestAppContext,
+) {
+    use dr_view_timeline::Mark;
+
+    let (_dir, library, book) = library();
+    let lib = library.clone();
+    let (host, cx) = setup(cx, library);
+    let t = timeline(&host, cx);
+    let before = acts(&lib, &book);
+    assert_eq!(before.len(), 3);
+    let second = before[1].clone();
+    // Zoomed out so the second boundary shows.
+    t.update(cx, |t, cx| t.set_zoom(0.5, cx));
+    frame(cx);
+    let from = second.start_order.unwrap();
+    // The second act's boundary, dragged two units on with the mouse.
+    let edge = cx
+        .debug_bounds(Box::leak(
+            format!("timeline-act-edge-{}", second.id).into_boxed_str(),
+        ))
+        .expect("the boundary's handle");
+    let unit = t.read_with(cx, |t, _| t.layout().scale.unit());
+    let start = edge.center();
+    cx.simulate_mouse_down(start, MouseButton::Left, Modifiers::none());
+    cx.simulate_mouse_move(
+        point(start.x + px(6.0), start.y),
+        MouseButton::Left,
+        Modifiers::none(),
+    );
+    frame(cx);
+    let end = point(start.x + px(6.0 + 2.0 * unit), start.y);
+    cx.simulate_mouse_move(end, MouseButton::Left, Modifiers::none());
+    frame(cx);
+    let held = t
+        .read_with(cx, |t, _| t.mark_in_hand())
+        .expect("the boundary is in the hand");
+    assert_eq!(held.mark, Mark::Act(second.id.clone()));
+    assert!((held.order - (from + 2.0)).abs() < 0.05, "{}", held.order);
+    cx.simulate_mouse_up(end, MouseButton::Left, Modifiers::none());
+    let id = second.id.clone();
+    wait_for(cx, |_| {
+        acts(&lib, &book)
+            .iter()
+            .any(|a| a.id == id && (a.start_order.unwrap() - (from + 2.0)).abs() < 0.05)
+    });
+    // Never past a neighbour: dragged far on, it stops just before the
+    // third act; far back past the head act, at the axis's start.
+    let third = before[2].start_order.unwrap();
+    t.update(cx, |t, cx| {
+        t.move_mark(Mark::Act(id.clone()), third + 50.0, cx)
+    });
+    wait_for(cx, |_| {
+        acts(&lib, &book).iter().any(|a| {
+            a.id == id && {
+                let s = a.start_order.unwrap();
+                s < third && third - s < 0.05
+            }
+        })
+    });
+    assert!(before[0].start_order.is_none(), "卷一 is the head act");
+    let axis_start = t.read_with(cx, |t, _| t.layout().scale.min_order);
+    t.update(cx, |t, cx| {
+        t.move_mark(Mark::Act(id.clone()), axis_start - 50.0, cx)
+    });
+    wait_for(cx, |_| {
+        acts(&lib, &book)
+            .iter()
+            .any(|a| a.id == id && (a.start_order.unwrap() - axis_start).abs() < 1e-6)
+    });
+    // A double click on the bare rail: an act there, named by its place.
+    let body = t.read_with(cx, |t, _| t.body_bounds().unwrap());
+    let rail = cx.debug_bounds("timeline-act-rail").unwrap();
+    let at = point(
+        body.origin.x + body.size.width - px(30.0),
+        rail.origin.y + px(STRIP_HEIGHT / 2.0),
+    );
+    double_click(cx, at);
+    wait_for(cx, |_| acts(&lib, &book).len() == 4);
+    let now = acts(&lib, &book);
+    let place = now
+        .iter()
+        .position(|a| before.iter().all(|b| b.id != a.id))
+        .expect("a new act");
+    let made = now[place].clone();
+    assert_eq!(made.name, dr_view_timeline::default_act_name(place + 1));
+    // Renamed, then deleted.
+    host.read_with(cx, |_, _| ());
+    wait_for(cx, |cx| {
+        host.read_with(cx, |h, cx| h.ws.read(cx).book.acts.len() == 4)
+    });
+    let mark = Mark::Act(made.id.clone());
+    cx.update(|window, cx| t.update(cx, |t, cx| t.start_rename(mark, window, cx)));
+    cx.simulate_keystrokes("cmd-a");
+    cx.simulate_input("尾声");
+    cx.simulate_keystrokes("enter");
+    let made_id = made.id.clone();
+    wait_for(cx, |_| {
+        acts(&lib, &book)
+            .iter()
+            .any(|a| a.id == made_id && a.name == "尾声")
+    });
+    t.update(cx, |t, cx| t.delete_act(&made_id, cx));
+    wait_for(cx, |_| acts(&lib, &book).len() == 3);
+}
+
+#[gpui::test]
+fn the_card_rows_move_a_chapter_off_its_storylines_or_the_axis(cx: &mut TestAppContext) {
+    let (_dir, library, book) = library();
+    let lib = library.clone();
+    let (host, cx) = setup(cx, library);
+    let t = timeline(&host, cx);
+    let layout = t.read_with(cx, |t, _| t.layout());
+    let c = layout.lanes[0].clips[0].clone();
+    // 转移至未归属.
+    t.update(cx, |t, cx| t.move_to_unaffiliated(&c.id, cx));
+    let id = c.id.clone();
+    wait_for(cx, |_| chapter(&lib, &book, &id).storylines.is_empty());
+    // 回到未放置.
+    t.update(cx, |t, cx| t.set_axis(Axis::Narrative, cx));
+    let other = layout.lanes[1].clips[0].clone();
+    assert!(other.narrative_order.is_some());
+    t.update(cx, |t, cx| t.detach_from_narrative(&other.id, cx));
+    let other_id = other.id.clone();
+    wait_for(cx, |_| {
+        chapter(&lib, &book, &other_id).narrative_order.is_none()
+    });
+    // 在此故事线中新建章节: on that storyline, past the last on the axis.
+    let LaneId::Storyline(line) = layout.lanes[1].id.clone() else {
+        unreachable!()
+    };
+    let count = chapters(&lib, &book).len();
+    let last = chapters(&lib, &book)
+        .iter()
+        .filter_map(|c| c.narrative_order)
+        .fold(f64::NEG_INFINITY, f64::max);
+    t.update(cx, |t, cx| t.append_chapter(&line, cx));
+    wait_for(cx, |_| chapters(&lib, &book).len() == count + 1);
+    let made = chapters(&lib, &book)
+        .into_iter()
+        .max_by(|a, b| a.created_at.cmp(&b.created_at))
+        .unwrap();
+    wait_for(cx, |_| {
+        let c = chapter(&lib, &book, &made.id);
+        c.storylines.contains(&line) && c.narrative_order == Some(last + 5.0)
+    });
+    // It opens.
+    wait_for(cx, |cx| {
+        host.read_with(cx, |h, cx| {
+            h.ws.read(cx).nav.current() == made.id.parse().ok().map(Target::Chapter).as_ref()
+        })
     });
 }

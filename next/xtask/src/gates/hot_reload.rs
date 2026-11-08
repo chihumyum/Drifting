@@ -281,11 +281,11 @@ mod tests {
         let dep = |name: &str, kind: Option<&str>| json!({ "name": name, "kind": kind, "optional": false, "features": [] });
         let store = |dev: serde_json::Value| crate_("dr-store", dev);
         let testkit = crate_("dr-testkit", json!([dep("dr-store", None)]));
-        let corpus = crate_("dr-testkit-corpus", json!([]));
+        let corpus = crate_("dr-corpus", json!([]));
         let mut o = Outcome::default();
         check_acyclic(
             &meta(json!([
-                store(json!([dep("dr-testkit-corpus", Some("dev"))])),
+                store(json!([dep("dr-corpus", Some("dev"))])),
                 testkit.clone(),
                 corpus.clone()
             ])),

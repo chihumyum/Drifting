@@ -1,0 +1,38 @@
+[package]
+name = "dr-view-sea"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "字海 (M24): the sea of characters under the bookshelf and the full-window waits, the first run and the workspace tour."
+
+[features]
+# Offscreen screenshots through GPUI's headless test platform.
+capture = ["gpui_platform/test-support"]
+
+[dependencies]
+dr-i18n.workspace = true
+dr-samples.workspace = true
+dr-shell.workspace = true
+dr-ui.workspace = true
+dr-workspace.workspace = true
+gpui.workspace = true
+image.workspace = true
+log.workspace = true
+smallvec.workspace = true
+
+[dev-dependencies]
+anyhow.workspace = true
+dr-store.workspace = true
+tempfile.workspace = true
+gpui = { workspace = true, features = ["test-support"] }
+gpui_platform.workspace = true
+
+[[example]]
+name = "sea-capture"
+required-features = ["capture"]
+
+[[example]]
+name = "tour-capture"
+required-features = ["capture"]

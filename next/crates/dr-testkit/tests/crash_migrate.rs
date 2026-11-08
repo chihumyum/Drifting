@@ -2,7 +2,7 @@
 //! while editing are `crash_store`, on a real holder.) This is dr-store's
 //! test; it lives here because the harness writes libraries through
 //! dr-store, and dr-store depending on dr-testkit, even for tests, would
-//! close a cycle that dx's hot patching refuses (see `dr-testkit-corpus`).
+//! close a cycle that dx's hot patching refuses (see `dr-corpus`).
 //!
 //! For each stage a writer process opens a seeded library with a later
 //! build's migrations and pauses at that stage; the pause reports "ready" to

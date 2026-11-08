@@ -8,22 +8,45 @@
     "actOrdinal": "Akt {{n}}"
   },
   "bottomStatusBar": {
+    "collapseTimeline": "Handlungsstrang-Zeitleiste einklappen",
     "elements": "Elemente",
+    "expandTimeline": "Handlungsstrang-Zeitleiste aufklappen",
     "storyGraph": "Geschichtsgraph",
     "todoLibrary": "Aufgaben und Materialsammlung"
   },
   "bottomTimeline": {
     "act": {
       "chapterCount": "{{count}} Kapitel",
-      "railLabel": "Akt"
+      "deleteMergeNext": "Diesen Akt löschen und mit dem nächsten zusammenführen",
+      "deleteMergePrev": "Diesen Akt löschen und mit dem vorherigen zusammenführen",
+      "newAct": "Neuer Akt",
+      "openActNote": "Aktnotiz öffnen",
+      "railLabel": "Akt",
+      "startHere": "Hier neuen Akt beginnen",
+      "unbindDrift": "Idee trennen"
     },
     "axis": {
+      "addPin": "Zeitmarke hinzufügen",
       "time": "Zeit"
     },
     "empty": {
       "noChaptersInStoryline": "Keine Kapitel in diesem Strang · Doppelklick zum Erstellen"
     },
     "locateCurrent": "Aktuelles Kapitel finden",
+    "marker": {
+      "defaultLabel": "Markierung"
+    },
+    "menu": {
+      "detachFromNarrative": "Zu nicht platziert zurücksetzen",
+      "moveToUnaffiliated": "Zu nicht zugeordnet verschieben"
+    },
+    "pinMenu": {
+      "bindDrift": "Idee verknüpfen…",
+      "deleteMarker": "Markierung löschen",
+      "openDrift": "Idee öffnen",
+      "rename": "Umbenennen",
+      "unbind": "Verknüpfung aufheben und als einfache Beschriftung wiederherstellen"
+    },
     "storyline": {
       "chapterCount": "{{count}} Kap."
     },
@@ -105,6 +128,7 @@
     "confirm": "Bestätigen",
     "counting": "Wird gezählt…",
     "creating": "Wird erstellt…",
+    "customColor": "Eigene Farbe",
     "delete": "Löschen",
     "edit": "Bearbeiten",
     "local": "Lokal",
@@ -140,12 +164,20 @@
     },
     "wordCount": "{{count}} Wörter"
   },
+  "edgeKindManager": {
+    "editTypes": "Typen bearbeiten",
+    "resetColor": "Standardfarbe wiederherstellen",
+    "summary": "{{kinds}} Typen · {{relations}} Beziehungen",
+    "title": "Alle Beziehungstypen"
+  },
   "editorOutline": {
     "aria": "Gliederung",
     "hiddenItems": "{{count}} entfernte Einträge; zum Anzeigen darüberfahren"
   },
   "editorTopBar": {
     "actions": {
+      "collapsePlotPlanner": "Handlungsplaner einklappen",
+      "expandPlotPlanner": "Handlungsplaner ausklappen",
       "more": "Weitere Aktionen"
     },
     "menu": {
@@ -259,9 +291,41 @@
     "stats": "{{groups}} Einträge · {{occurrences}} Treffer"
   },
   "guide": {
+    "back": "Zurück",
+    "done": "Fertig",
     "hints": {
       "search": "Alles durchsuchen",
       "timeline": "Zeitleiste"
+    },
+    "next": "Nächste",
+    "skip": "Tour überspringen",
+    "workspace": {
+      "agent": {
+        "body": "Liest, durchsucht und bearbeitet das ganze Buch. Änderungen werden im Text markiert und lassen sich über den Verlauf rückgängig machen.",
+        "closedBody": "Agent befindet sich in der rechten Seitenleiste und kann das ganze Buch lesen, durchsuchen und bearbeiten. Hier öffnen.",
+        "title": "Agent"
+      },
+      "create": {
+        "body": "Kapitel, Ideen, Elemente, Handlungsstränge, Kategorien und Materialien entstehen alle hier.",
+        "title": "Neu"
+      },
+      "home": {
+        "body": "Das Tor bringt dich auf diese Seite zurück; das Windspiel daneben enthält Benachrichtigungen.",
+        "title": "Projektstartseite"
+      },
+      "panels": {
+        "body": "Das Gerüst des Buches. Die linke Seitenleiste lässt sich teilen, jede Hälfte mit einem eigenen Bereich.",
+        "closedBody": "Das Gerüst des Buches liegt in der linken Seitenleiste: Kapitel, Elemente und Ideen. Hier öffnen.",
+        "title": "Kapitel · Elemente · Ideen"
+      },
+      "superViews": {
+        "body": "Über die runde Schaltfläche im Kopf eines Bereichs öffnen.",
+        "title": "Ansichten im ganzen Fenster"
+      },
+      "timeline": {
+        "body": "Handlungsstränge in Buchreihenfolge oder nach der Zeit der Geschichte, von unterhalb der Seite ausklappbar.",
+        "title": "Zeitleiste"
+      }
     }
   },
   "immersiveWriting": {
@@ -336,7 +400,12 @@
         "label": "Idee"
       }
     },
-    "title": "Dateien importieren"
+    "title": "Dateien importieren",
+    "warnings": {
+      "imagesDropped_one": "{{count}} Bild wurde nicht importiert",
+      "imagesDropped_other": "{{count}} Bilder wurden nicht importiert",
+      "notUtf8": "Kein UTF-8-Text; einige Zeichen wurden ersetzt"
+    }
   },
   "kvEditor": {
     "addField": "Feld hinzufügen",
@@ -357,6 +426,7 @@
     },
     "groups": {
       "addElementToGroup": "Neues Element in dieser Gruppe",
+      "newChapterInStoryline": "Neues Kapitel in diesem Handlungsstrang",
       "renameElementGroupTitle": "Doppelklicken, um die Gruppe umzubenennen",
       "unaffiliated": "Ohne Zuordnung"
     },
@@ -436,6 +506,13 @@
     "untitledChapter": "Unbenanntes Kapitel",
     "wholeBook": "Ganzes Buch"
   },
+  "markdownFolderGuide": {
+    "choose": "Ordner auswählen…",
+    "chosen": "Gewählter Ordner",
+    "continue": "Weiter",
+    "intro": "In dem Ordner, den du wählst, liegt eine Markdown-Kopie jedes Projekts. Bearbeite Kapitel und Ideen in beliebigen Editoren; Änderungen werden in Drifting zusammengeführt.",
+    "title": "Wo soll der Markdown-Ordner liegen?"
+  },
   "markdownShare": {
     "characters": "{{count}} Zeichen",
     "copied": "Vollständiges Markdown kopiert",
@@ -454,11 +531,36 @@
     "title": "Markdown teilen",
     "wholeBook": "Alle Kapitel in Lesereihenfolge"
   },
+  "materialEditor": {
+    "descriptionPlaceholder": "Beschreibung hinzufügen…",
+    "regions": {
+      "draw": "Bereich kommentieren",
+      "drawHint": "Über das Bild ziehen, um einen Bereich zu markieren",
+      "empty": "Über das Bild oder die Seite ziehen, um den ersten Kommentar hinzuzufügen.",
+      "listLabel": "Kommentare zu diesem Material",
+      "page": "Seite {{page}}",
+      "stopDrawing": "Kommentieren beenden",
+      "whole": "Gesamtes Material"
+    },
+    "zoomIn": "Vergrößern",
+    "zoomOut": "Verkleinern",
+    "zoomReset": "An Ansicht anpassen"
+  },
   "memoMaterial": {
     "kind": {
       "image": "Bild",
       "pdf": "PDF",
       "text": "Notiz"
+    },
+    "preview": {
+      "loading": "Wird geladen…",
+      "loadingPdf": "PDF wird geladen…",
+      "nextPage": "Nächste",
+      "noImage": "Bildvorschau nicht möglich",
+      "noPdf": "PDF-Vorschau nicht möglich",
+      "openPdfFailed": "PDF kann nicht geöffnet werden",
+      "previousPage": "Vorherige",
+      "renderPdfFailed": "PDF kann nicht dargestellt werden"
     }
   },
   "mobileWorkspace": {
@@ -495,6 +597,15 @@
     },
     "empty": "Keine Benachrichtigungen",
     "markdownFolder": {
+      "issue": {
+        "empty": "Text geleert; nicht zusammengeführt, Datei aufbewahrt",
+        "encoding": "Kein UTF-8; nicht gelesen, Datei aufbewahrt",
+        "frontmatter": "Fehlerhafte Eigenschaften am Anfang; bis zur Korrektur weder zusammengeführt noch überschrieben",
+        "identity": "drifting-id verweist auf ein anderes Kapitel; nicht zusammengeführt, Datei aufbewahrt",
+        "lineage": "Kapitel wiederhergestellt oder zurückgesetzt; keine automatische Zusammenführung, Datei aufbewahrt",
+        "owned": "Diesen Ordner verwaltet eine andere Drifting-Installation; nichts wurde gelesen oder geschrieben",
+        "too-large": "Zu groß; nicht gelesen, Datei aufbewahrt"
+      },
       "preserved_one": "{{count}} bearbeitete Datei unter .drifting/preserved aufbewahrt",
       "preserved_other": "{{count}} bearbeitete Dateien unter .drifting/preserved aufbewahrt",
       "source": "Markdown-Ordner"
@@ -630,6 +741,8 @@
       "newCardSub": "Beginne mit einer leeren Seite",
       "open": "„{{name}}“ öffnen",
       "progress": "Fortschritt",
+      "recent": "Letzte 30 Tage",
+      "recentLabel": "{{words}} Wörter in den letzten 30 Tagen",
       "storylinesUnit_one": "Handlungsstrang",
       "storylinesUnit_other": "Handlungsstränge",
       "trashEntry": "Kürzlich gelöscht",
@@ -693,24 +806,92 @@
     }
   },
   "referencesPanel": {
+    "actions": {
+      "linkEntity": "Entität verknüpfen",
+      "remove": "Beziehung entfernen"
+    },
+    "deleted": {
+      "category": "(gelöschte Kategorie)",
+      "element": "(gelöschtes Element)",
+      "node": "(gelöschtes Kapitel)",
+      "storyline": "(gelöschter Handlungsstrang)"
+    },
     "empty": {
       "incoming": "Noch keine Inhalte verweisen darauf",
-      "outgoing": "Dieser Text verweist noch nicht auf andere Entitäten"
+      "outgoing": "Dieser Text verweist noch nicht auf andere Entitäten",
+      "relations": "Noch keine Beziehungen"
+    },
+    "filters": {
+      "all": "Alle"
     },
     "kind": {
-      "patch": "Entwicklung"
+      "category": "Kategorie",
+      "element": "Element",
+      "node": "Kapitel",
+      "patch": "Entwicklung",
+      "storyline": "Handlungsstrang"
     },
     "meta": {
       "blocksSpans": "{{blocks}} Blöcke · {{spans}} Erwähnungen",
       "spans": "{{count}} Erwähnungen"
     },
+    "picker": {
+      "empty": "Keine Optionen",
+      "placeholder": "Verknüpfbare Entitäten suchen…"
+    },
     "sections": {
       "incoming": "Rückverweise",
-      "outgoing": "Referenzen"
+      "outgoing": "Referenzen",
+      "relations": "Beziehungen"
     }
   },
+  "relationPicker": {
+    "untitledChapter": "Unbenanntes Kapitel",
+    "untitledDrift": "Unbenannte Idee",
+    "untitledElement": "Unbenanntes Element",
+    "untitledStoryline": "Unbenannter Handlungsstrang"
+  },
   "relationTypes": {
-    "description": "Beschreibung"
+    "allowedEntities": "Erlaubte Entitäten",
+    "allowedSources": "Erlaubte Quellentitäten",
+    "allowedTargets": "Erlaubte Zielentitäten",
+    "builtIn": "Integriert",
+    "cancel": "Abbrechen",
+    "confirmDelete": "Beziehungstyp „{{name}}“ löschen?",
+    "create": "Neu",
+    "createInline": "Beziehungstyp erstellen",
+    "defaultSourceRole": "Quelle",
+    "defaultTargetRole": "Ziel",
+    "delete": "Beziehungstyp löschen",
+    "description": "Beschreibung",
+    "directed": "Gerichtet",
+    "direction": "Richtung",
+    "endpointRole": "Rolle der Endpunkte",
+    "entityKinds": {
+      "category": "Elementkategorie",
+      "comment": "Kommentar",
+      "element": "Element",
+      "library_item": "Material",
+      "node": "Kapitel oder Idee",
+      "patch": "Elemententwicklung",
+      "storyline": "Handlungsstrang"
+    },
+    "genericAssociation": {
+      "name": "Zuordnung",
+      "sourceRole": "Zugeordneter Eintrag",
+      "targetRole": "Objekt"
+    },
+    "missing": "Beziehungstyp fehlt",
+    "name": "Name",
+    "pendingIncoming": "Diese Entität ← Ziel",
+    "pendingOutgoing": "Diese Entität → Ziel",
+    "save": "Speichern",
+    "selectConfigured": "Beziehungstyp wählen",
+    "sourceRole": "Quellrolle",
+    "symmetric": "Symmetrisch",
+    "symmetricSummary": "Symmetrisch · {{role}}",
+    "targetRole": "Zielrolle",
+    "title": "Definitionen der Beziehungstypen"
   },
   "reviewPanel": {
     "commentPlaceholder": "Kommentar schreiben…",
@@ -1014,6 +1195,7 @@
         "inspecting": "Wird geprüft…",
         "missingAssets": "{{count}} Medien fehlen auf diesem Gerät und wurden nicht gesichert.",
         "noProjects": "(keine Projekte)",
+        "openSafety": "Kopien vor der Wiederherstellung öffnen",
         "restoreButton": "Sicherung auswählen…",
         "restoreConfirm": "Aktuelle Bibliothek durch „{{file}}“ ersetzen.\n\nErstellt: {{date}}\nInhalt: {{summary}}\nProjekte: {{projects}}\n\nZuvor wird eine Kopie der aktuellen Bibliothek gespeichert, erreichbar unter „Kopien vor der Wiederherstellung öffnen“. Danach wird Drifting neu geladen.",
         "restoreConfirmButton": "Ersetzen und wiederherstellen",
@@ -1024,7 +1206,10 @@
       },
       "local_data": "Lokale Daten",
       "local_sub": "Ohne Drifting-Konto oder gehostete Cloud. Exportiere jederzeit eine lesbare Kopie.",
-      "local_title": "Dein Werk bleibt auf diesem Gerät."
+      "local_title": "Dein Werk bleibt auf diesem Gerät.",
+      "projection": {
+        "turnOff": "Markdown-Ordner deaktivieren"
+      }
     },
     "title": "Einstellungen",
     "update": {
@@ -1081,11 +1266,14 @@
     "meta": {
       "chapters": "{{count}} Kapitel",
       "chaptersWords": "{{chapters}} Kapitel · {{words}} Tsd. Wörter",
-      "kWords": "{{count}} Tsd. Wörter"
+      "kWords": "{{count}} Tsd. Wörter",
+      "nodeTemplate": "Standardstruktur für neue Kapitel"
     },
+    "nodeTemplatePlaceholder": "Standardstruktur mit H1 / H2 / H3 erstellen; neue Kapitel verwenden diese Vorlage…",
     "sections": {
       "chapters": "Kapitelreihenfolge",
       "facts": "Fakten",
+      "nodeTemplate": "Kapitelvorlage",
       "scratch": "Notizen"
     },
     "summaryPlaceholder": "Diesen Handlungsstrang in einem Satz zusammenfassen…",

@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 
 use super::*;
 use crate::cx::{EffectAction, Invocation};
-use crate::dto::{AnchorBytes, CommentAnchor, CommentInfo, Target};
+use crate::dto::{AnchorBytes, CommentAnchor, CommentInfo, Region, Target};
 use crate::registry::Registry;
 
 pub(crate) fn register(r: &mut Registry) {
@@ -75,6 +75,9 @@ pub struct CommentCreateIn {
     /// Anchor it to characters `[start, end)` of the target's prose.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub range: Option<(usize, usize)>,
+    /// Mark a rectangle on an image or PDF material (its target).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub region: Option<Region>,
     #[serde(default)]
     pub body: String,
     /// `low`, `med` or `high`.
@@ -92,7 +95,7 @@ fn prose_of(t: &Target) -> Option<DocId> {
 
 op! {
     CommentCreate = "comment.create", Write, Book,
-    "Add a comment or TODO, on an entity, a paragraph, a passage of its prose, or floating.",
+    "Add a comment or TODO, on an entity, a paragraph, a passage of its prose, a region of an image or PDF, or floating.",
     fn(cx, input: CommentCreateIn) -> Done {
         let slot = cx.book(&input.book)?;
         let kind = CommentKind::parse(input.kind.as_deref().unwrap_or("note"));
@@ -107,6 +110,18 @@ op! {
         let mut anchor = None;
         let mut quote = None;
         let mut snapshots = Vec::new();
+        let region = match &input.region {
+            None => None,
+            Some(r) => {
+                let t = input.target.as_ref().ok_or_else(|| WsError::invalid("a region needs a target"))?;
+                if input.range.is_some() { return Err(WsError::invalid("a comment has a range or a region, not both")); }
+                let file = (t.kind == "material")
+                    .then(|| materials(&slot).iter().find(|m| m.id.as_str() == t.id).map(|m| m.kind.needs_asset()))
+                    .flatten();
+                if file != Some(true) { return Err(WsError::invalid("a region is on an image or PDF material")); }
+                Some(r.to_model().ok_or_else(|| WsError::invalid("the region does not fit its picture or page"))?)
+            }
+        };
         if let Some((start, end)) = input.range {
             let t = input.target.as_ref().ok_or_else(|| WsError::invalid("a range needs a target"))?;
             let doc = prose_of(t).ok_or_else(|| WsError::invalid(format!("{} has no prose", t.kind)))?;
@@ -135,6 +150,7 @@ op! {
                 .source(if agent { &CommentSource::Api } else { &CommentSource::Manual })?
                 .created_at(Some(now()))?.updated_at(Some(now()))?;
             if !snapshots.is_empty() { w.snapshots(&snapshots)?; }
+            if region.is_some() { w.region(region.as_ref())?; }
             Ok(())
         })?;
         cx.effect(EffectAction::Created, "comment", id.as_str(), None);
@@ -290,22 +306,43 @@ impl JsonSchema for AnchorOrNull {
 /// prose body of `doc` (a character this device has seen, or an empty
 /// body).
 pub(crate) fn anchor_in(cx: &Cx<'_>, doc: &DocId, bytes: &AnchorBytes) -> Result<Anchor> {
+    let a = decode_anchor(bytes)?;
+    anchor_known(&*cx.prose_passing(doc)?, doc, &a)?;
+    Ok(a)
+}
+
+/// `bytes` as dr-doc's anchor: two cursors in a prose body.
+pub(crate) fn decode_anchor(bytes: &AnchorBytes) -> Result<Anchor> {
     let bad = || WsError::invalid("the anchor is not two cursors of dr-doc's encoding");
     let a = Anchor::decode(&bytes.bytes().ok_or_else(bad)?).ok_or_else(bad)?;
     let body = loro::ContainerID::new_root(dr_doc::schema::prose::BODY, loro::ContainerType::Text);
-    let ps = cx.prose(doc)?;
-    let vv = ps.handle.doc().with_doc(|d| d.oplog_vv());
     for c in [&a.start, &a.end] {
         if c.container != body {
             return Err(WsError::invalid("the anchor is not in a prose body"));
         }
+    }
+    Ok(a)
+}
+
+/// Whether `a`'s cursors are of `doc` (open in `ps`) as far as it knows.
+pub(crate) fn anchor_known(
+    ps: &crate::workspace::ProseSlot,
+    doc: &DocId,
+    a: &Anchor,
+) -> Result<()> {
+    anchor_known_in(&ps.handle.doc().with_doc(|d| d.oplog_vv()), doc, a)
+}
+
+/// Whether `a`'s cursors are within version `vv` of `doc`.
+pub(crate) fn anchor_known_in(vv: &loro::VersionVector, doc: &DocId, a: &Anchor) -> Result<()> {
+    for c in [&a.start, &a.end] {
         if let Some(id) = c.id
             && !vv.includes_id(id)
         {
             return Err(WsError::invalid(format!("the anchor is not in {doc}")));
         }
     }
-    Ok(a)
+    Ok(())
 }
 
 op! {

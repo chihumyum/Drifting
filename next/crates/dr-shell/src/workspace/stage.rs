@@ -1,5 +1,7 @@
 //! The middle column: the paper (one page, or two side by side in a split),
-//! the dock over its top edge, and the window-drag strip under the dock.
+//! the dock over its top edge, the window-drag strip under the dock, and
+//! at its foot the Bottom Panel (the timeline or the plot planner,
+//! [`super::bottom`]), which the pages make room for.
 //!
 //! The page is the one raised surface (surfaces.md). Changing pages
 //! dissolves in place (`PageTurn`, 180 ms). A page is its editor
@@ -23,7 +25,7 @@ use gpui::{
 
 use super::chrome::{self, TITLEBAR_HEIGHT};
 use super::dock::DockDrag;
-use super::{PageSide, Workspace, corner, dock, outline};
+use super::{PageSide, Workspace, bottom, corner, dock, outline};
 use crate::Settings;
 use crate::nav::{Tab, Target};
 use crate::settings::registry as r;
@@ -88,7 +90,9 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
         } else {
             beside(ws.left.width, ws.left.shown()) + beside(ws.right.width, ws.right.shown())
         };
-    let column_h = f32::from(viewport.height);
+    // The Bottom Panel takes the column's foot; the pages have the rest.
+    let panel = bottom::panel(ws, f32::from(viewport.height), window, cx);
+    let column_h = f32::from(viewport.height) - panel.as_ref().map_or(0.0, |(_, h)| *h);
     let active = ws.nav.active_index();
     let pages: AnyElement = match ws.nav.active_tab().cloned() {
         Some(Tab::Split(split)) => {
@@ -221,20 +225,27 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
             .child(bar)
     });
     let leave = immersive.then(|| corner::leave_immersive(cx));
-    let dragging = cx.has_active_drag();
+    let dragging = cx.has_active_drag() && ws.nav.active_index().is_some();
+    let pages = div()
+        .relative()
+        .flex_1()
+        .min_h_0()
+        .w_full()
+        .child(pages)
+        .when(dragging, |el| el.child(drop_zones(window, cx)));
     div()
         .relative()
         .flex_1()
         .min_w_0()
         .h_full()
+        .flex()
+        .flex_col()
         .child(pages)
+        .children(panel.map(|(el, _)| el))
         .child(strip)
         .children(dock)
         .children(find)
         .children(leave)
-        .when(dragging && ws.nav.active_index().is_some(), |el| {
-            el.child(drop_zones(window, cx))
-        })
         .into_any_element()
 }
 
@@ -306,6 +317,17 @@ fn paper(
         },
     ];
     let key = page_key(target);
+    // A page a module draws whole lies on the desk at full width, with no
+    // sheet: M19's picture is itself the raised paper (the 0.1 client's
+    // shell mode).
+    if let Some(view) = target.and_then(|t| ws.read(cx).module_page(t).cloned()) {
+        return div()
+            .id(ElementId::Name(format!("desk-{key}").into()))
+            .size_full()
+            .bg(p.desk.solid())
+            .child(view)
+            .into_any_element();
+    }
     let content = match target {
         None => home(ws, window, cx),
         Some(target) => document(ws, target, window, cx),
