@@ -3,6 +3,7 @@
 
 pub mod dialog;
 pub mod settings_view;
+pub mod sync_mark;
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -39,6 +40,11 @@ use smallvec::SmallVec;
 
 pub use dialog::{AuthDialog, AuthMode};
 pub use settings_view::AccountSettingsView;
+pub use sync_mark::{
+    PAPER_SYNC_CORNER_INSET, PinnedSyncNotices, SyncStatusCopy, paper_sync_mark_for,
+    reconcile_sync_problem_notifications, render_paper_sync_mark, sync_action_label,
+    sync_status_copy,
+};
 
 /// Device-memory key remembering that the first-run account choice has been answered.
 pub const FIRST_RUN_ACCOUNT_SEEN_KEY: &str = "account.first_run_seen";
@@ -771,5 +777,34 @@ mod tests {
         // Device B's device-only settings remain at their local defaults:
         assert_eq!(file_b.get(TEXT_SIZE), Value::from("standard"));
         assert_eq!(file_b.get(AGENT_PROVIDER), Value::from("deepseek"));
+    }
+
+    #[test]
+    fn sync_status_hover_copy_and_action_labels_cover_all_states() {
+        use dr_i18n::Locale;
+        use dr_sync::{SyncCornerState, SyncProblem, SyncStatusAction};
+
+        for locale in [Locale::ZhCn, Locale::En] {
+            for state in [
+                SyncCornerState::Syncing,
+                SyncCornerState::Retrying,
+                SyncCornerState::Offline,
+                SyncCornerState::Problem(SyncProblem::NotStarted),
+                SyncCornerState::Problem(SyncProblem::Reauth),
+                SyncCornerState::Problem(SyncProblem::Quota),
+                SyncCornerState::Problem(SyncProblem::Failing),
+            ] {
+                let copy = sync_status_copy(state, locale);
+                assert!(!copy.title.is_empty());
+                assert!(!copy.detail.is_empty());
+            }
+            for action in [
+                SyncStatusAction::Retry,
+                SyncStatusAction::SignIn,
+                SyncStatusAction::OpenSettings,
+            ] {
+                assert!(!sync_action_label(action, locale).is_empty());
+            }
+        }
     }
 }

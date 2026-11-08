@@ -27,6 +27,7 @@ members = [
     "crates/dr-samples",
     "crates/dr-shell",
     "crates/dr-store",
+    "crates/dr-sync",
     "crates/dr-testkit",
     "crates/dr-text",
     "crates/dr-ui",
@@ -74,6 +75,7 @@ publish = false
 [workspace.dependencies]
 # M35: Hosted account, session, PKCE OAuth and account-isolated library registry.
 dr-account = { path = "crates/dr-account" }
+dr-sync = { path = "crates/dr-sync" }
 dr-view-account = { path = "crates/dr-view-account" }
 # M27: provider-neutral, in-process Agent runtime (no GPUI).
 dr-agent = { path = "crates/dr-agent" }

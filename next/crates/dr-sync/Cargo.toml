@@ -1,0 +1,25 @@
+[package]
+name = "dr-sync"
+version = "0.2.0-dev"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "M36 Hosted Sync v2 object-log transport, Loro/asset engine and sync health state machine"
+
+[dependencies]
+base64.workspace = true
+dr-account.workspace = true
+dr-store.workspace = true
+log.workspace = true
+loro.workspace = true
+reqwest.workspace = true
+rustls.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
