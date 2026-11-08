@@ -582,6 +582,23 @@ fn module_panel(
     made
 }
 
+/// The 帮手 tab a module draws for `pane` ([`crate::pages::set_companion`]),
+/// made the first time the pane shows it, then kept.
+fn companion_panel(
+    ws: &Workspace,
+    pane: PaneId,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) -> Option<crate::pages::LeftPanel> {
+    let key = pane_slug(pane);
+    if let Some(made) = ws.companion.borrow().get(key) {
+        return made.clone();
+    }
+    let made = crate::pages::companion_for(cx.weak_entity(), window, cx);
+    ws.companion.borrow_mut().insert(key, made.clone());
+    made
+}
+
 fn left_header(
     tab: LeftTab,
     ws: &Workspace,
@@ -815,7 +832,10 @@ fn right_header(
             };
             row.child(meta(t(cx, key), &theme)).into_any_element()
         }
-        RightTab::Companion => row.into_any_element(),
+        RightTab::Companion => match companion_panel(ws, pane, window, cx) {
+            Some(panel) => div().size_full().child(panel.head).into_any_element(),
+            None => row.into_any_element(),
+        },
     }
 }
 
@@ -1701,10 +1721,15 @@ fn right_body(
     tab: RightTab,
     ws: &Workspace,
     pane: PaneId,
-    _window: &mut Window,
+    window: &mut Window,
     cx: &mut Context<Workspace>,
 ) -> AnyElement {
     match tab {
+        // M31: the 帮手 panel, when the app has one.
+        RightTab::Companion => match companion_panel(ws, pane, window, cx) {
+            Some(panel) => div().size_full().child(panel.body).into_any_element(),
+            None => div().size_full().into_any_element(),
+        },
         RightTab::Library => {
             let book = ws.book.clone();
             let material = |id: &str| id.parse().ok().map(Target::Material);
@@ -1804,8 +1829,6 @@ fn right_body(
                 cx,
             )
         }
-        // Its module fills this: the Agent (M27).
-        _ => div().size_full().into_any_element(),
     }
 }
 

@@ -2623,3 +2623,83 @@ fn the_sea_lies_under_the_shelf_and_the_opening_wait(cx: &mut TestAppContext) {
         marked.borrow()
     );
 }
+
+/// A Super View a module draws (`pages::add_super_view`): made once for the
+/// book the first time the stage shows it, with its header slots; a view
+/// nobody registered stays an empty sheet.
+#[gpui::test]
+fn a_module_draws_a_super_view(cx: &mut TestAppContext) {
+    let (_dir, lib) = slow_clock();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    let made = std::rc::Rc::new(std::cell::Cell::new(0));
+    let count = made.clone();
+    cx.update(|_, cx| {
+        dr_shell::pages::add_super_view(cx, SuperView::Elements, move |host, _, cx| {
+            assert!(!host.book_id.is_empty());
+            count.set(count.get() + 1);
+            dr_shell::pages::SuperViewPage::new(cx.new(|_| Blank))
+                .head_start(cx.new(|_| Blank))
+                .head_end(cx.new(|_| Blank))
+        });
+    });
+    view.update(cx, |ws, cx| ws.toggle_super_view(SuperView::Elements, cx));
+    draw(cx);
+    draw(cx);
+    assert_eq!(made.get(), 1);
+    let page = view.read_with(cx, |ws, _| ws.super_view_content(SuperView::Elements));
+    let page = page.expect("the module's content");
+    assert!(page.head_start.is_some() && page.head_end.is_some());
+    view.update(cx, |ws, cx| ws.toggle_super_view(SuperView::StoryGraph, cx));
+    draw(cx);
+    assert!(
+        view.read_with(cx, |ws, _| ws.super_view_content(SuperView::StoryGraph))
+            .is_none(),
+        "nobody draws the story graph: an empty sheet"
+    );
+    view.update(cx, |ws, cx| ws.toggle_super_view(SuperView::Elements, cx));
+    draw(cx);
+    assert_eq!(made.get(), 1, "kept for the book");
+}
+
+/// The 帮手 tab a module draws (`pages::set_companion`): made once for the
+/// half the first time it shows, then kept.
+#[gpui::test]
+fn a_module_draws_the_companion_tab(cx: &mut TestAppContext) {
+    use dr_shell::workspace::RightTab;
+    let (_dir, lib) = slow_clock();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    let made = std::rc::Rc::new(std::cell::Cell::new(0));
+    let count = made.clone();
+    cx.update(|_, cx| {
+        dr_shell::pages::set_companion(cx, move |_, _, cx| {
+            count.set(count.get() + 1);
+            dr_shell::pages::LeftPanel {
+                head: cx.new(|_| Blank).into(),
+                body: cx.new(|_| Blank).into(),
+            }
+        });
+    });
+    view.update_in(cx, |ws, window, cx| {
+        if !ws.right.open {
+            ws.toggle_right(window, cx);
+        }
+        ws.right.reveal.set(1.0);
+        ws.right.panes.click(PaneId::Primary, RightTab::Companion);
+    });
+    draw(cx);
+    draw(cx);
+    assert_eq!(made.get(), 1, "made once for the half");
+    view.update(cx, |ws, cx| {
+        ws.right.panes.click(PaneId::Primary, RightTab::Review);
+        cx.notify();
+    });
+    draw(cx);
+    view.update(cx, |ws, cx| {
+        ws.right.panes.click(PaneId::Primary, RightTab::Companion);
+        cx.notify();
+    });
+    draw(cx);
+    assert_eq!(made.get(), 1, "then kept");
+}

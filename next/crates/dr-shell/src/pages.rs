@@ -36,6 +36,11 @@
 //! keeps the menu's order: share and export, its own sections, the modules'
 //! sections, 历史快照…, then everything dangerous last.
 //!
+//! And the bodies of the three Super Views ([`add_super_view`]: M21's story
+//! graph, M22's element overview, M23's review and materials), with two
+//! slots in the stage's header, and the right sidebar's 帮手 tab
+//! ([`set_companion`], M31). Without them the stage and the tab stay empty.
+//!
 //! And M24 (`dr-view-sea`): the sea of characters under every window
 //! ([`set_backdrop`]: drawn first, held by the bookshelf and the full-window
 //! waits, ebbing under the workspace), the first run before the bookshelf
@@ -58,7 +63,7 @@ use gpui::{
 use crate::Workspace;
 use crate::book::Book;
 use crate::nav::Target;
-use crate::workspace::LeftTab;
+use crate::workspace::{LeftTab, SuperView};
 
 /// The bookshelf a window shows: its view, and the cell its notification
 /// bell records its bounds in (the notification center opens from there).
@@ -135,8 +140,55 @@ impl BottomPanel {
     }
 }
 
+/// What a Super View's content is made with: the window's workspace (to
+/// open pages, close the stage), the library, the book's id and its lists
+/// as the shell has them.
+#[derive(Clone)]
+pub struct SuperViewHost {
+    pub workspace: WeakEntity<Workspace>,
+    pub library: Option<dr_workspace::Workspace>,
+    pub book_id: String,
+    pub book: Rc<Book>,
+}
+
+/// A Super View a module draws: its body under the stage's header, and
+/// two slots in that header.
+#[derive(Clone)]
+pub struct SuperViewPage {
+    pub body: AnyView,
+    /// The header's left, after 返回 (M22's 群岛 / 关系 switch before its
+    /// count).
+    pub head_start: Option<AnyView>,
+    /// The header's right end (the line legend).
+    pub head_end: Option<AnyView>,
+}
+
+impl SuperViewPage {
+    pub fn new(body: impl Into<AnyView>) -> SuperViewPage {
+        SuperViewPage {
+            body: body.into(),
+            head_start: None,
+            head_end: None,
+        }
+    }
+
+    pub fn head_start(mut self, view: impl Into<AnyView>) -> SuperViewPage {
+        self.head_start = Some(view.into());
+        self
+    }
+
+    pub fn head_end(mut self, view: impl Into<AnyView>) -> SuperViewPage {
+        self.head_end = Some(view.into());
+        self
+    }
+}
+
+type MakeSuperView = Rc<dyn Fn(&SuperViewHost, &mut Window, &mut App) -> SuperViewPage>;
+type MakeCompanion = Rc<dyn Fn(WeakEntity<Workspace>, &mut Window, &mut App) -> LeftPanel>;
+
 /// A left sidebar tab a module draws: the header row's content and the
-/// pane's body.
+/// pane's body. The right sidebar's 帮手 tab is drawn the same way
+/// ([`set_companion`]).
 #[derive(Clone)]
 pub struct LeftPanel {
     pub head: AnyView,
@@ -328,6 +380,8 @@ struct Pages {
     backdrop: Option<Backdrop>,
     first_run: Option<MakeFirstRun>,
     guide: Option<Guide>,
+    super_views: Vec<(SuperView, MakeSuperView)>,
+    companion: Option<MakeCompanion>,
 }
 
 impl Global for Pages {}
@@ -480,6 +534,55 @@ pub(crate) fn bottom_panel_for(
         .map(|(_, make)| make.clone())
         .collect();
     makers.iter().find_map(|make| make(host, window, cx))
+}
+
+/// Registers `view`'s content (M21, M22, M23): made the first time the
+/// stage shows `view` for a book in a window, then kept until another book
+/// or library; the first registration for a view wins. Called while the
+/// workspace draws: do not read or update the workspace in `make`.
+pub fn add_super_view(
+    cx: &mut App,
+    view: SuperView,
+    make: impl Fn(&SuperViewHost, &mut Window, &mut App) -> SuperViewPage + 'static,
+) {
+    cx.default_global::<Pages>()
+        .super_views
+        .push((view, Rc::new(make)));
+}
+
+pub(crate) fn super_view_for(
+    view: SuperView,
+    host: &SuperViewHost,
+    window: &mut Window,
+    cx: &mut App,
+) -> Option<SuperViewPage> {
+    let make = cx
+        .try_global::<Pages>()?
+        .super_views
+        .iter()
+        .find(|(v, _)| *v == view)
+        .map(|(_, make)| make.clone())?;
+    Some(make(host, window, cx))
+}
+
+/// Registers the right sidebar's 帮手 tab (M31): asked once per pane the
+/// first time that pane shows the tab, as [`add_left_panel`]; its head
+/// goes in the tab's header row, its body fills the pane. Called while the
+/// workspace draws: do not read or update the workspace in `make`.
+pub fn set_companion(
+    cx: &mut App,
+    make: impl Fn(WeakEntity<Workspace>, &mut Window, &mut App) -> LeftPanel + 'static,
+) {
+    cx.default_global::<Pages>().companion = Some(Rc::new(make));
+}
+
+pub(crate) fn companion_for(
+    ws: WeakEntity<Workspace>,
+    window: &mut Window,
+    cx: &mut App,
+) -> Option<LeftPanel> {
+    let make = cx.try_global::<Pages>()?.companion.clone()?;
+    Some(make(ws, window, cx))
 }
 
 /// Registers the sea under every window (M24).

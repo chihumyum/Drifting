@@ -343,6 +343,11 @@ pub struct Workspace {
     /// The left tabs modules draw, made the first time a pane shows them
     /// (pane slug and tab; `None`: no module draws it).
     left_panels: std::cell::RefCell<HashMap<(&'static str, LeftTab), Option<pages::LeftPanel>>>,
+    /// The 帮手 tab a module draws, per pane slug (as the left panels).
+    companion: std::cell::RefCell<HashMap<&'static str, Option<pages::LeftPanel>>>,
+    /// The Super Views' content modules draw, with the book each was made
+    /// for.
+    super_views: std::cell::RefCell<HashMap<SuperView, (String, Option<pages::SuperViewPage>)>>,
     /// The notice at the bottom of the window, and the timer that ends it.
     pub toast: Option<toast::Toast>,
     toast_timer: Option<Task<()>>,
@@ -494,6 +499,8 @@ impl Workspace {
             toast: None,
             toast_timer: None,
             left_panels: Default::default(),
+            companion: Default::default(),
+            super_views: Default::default(),
             outline_reveal: None,
             outline_reveal_close: None,
             unchecked: Default::default(),
@@ -1004,6 +1011,8 @@ impl Workspace {
         self.shelf_open = false;
         self.home = None;
         self.left_panels.borrow_mut().clear();
+        self.companion.borrow_mut().clear();
+        self.super_views.borrow_mut().clear();
         self.bottom.forget();
         self.modules.clear();
         self.modules_for = None;
@@ -1558,6 +1567,9 @@ impl Render for Workspace {
             .child(mid)
             .children(right);
 
+        let stage = self
+            .super_view
+            .map(|view| super_view::stage(self, view, window, cx));
         let root = div()
             .id("workspace")
             .key_context(keymap::WORKSPACE)
@@ -1573,9 +1585,7 @@ impl Render for Workspace {
             .when(!immersive, |el| {
                 el.child(chrome::sidebar_toggles(self, window, cx))
             })
-            .when_some(self.super_view, |el, view| {
-                el.child(super_view::stage(view, window, cx))
-            })
+            .children(stage)
             .when_some(self.settings.clone(), |el, panel| el.child(panel))
             .when_some(self.search.clone(), |el, panel| el.child(panel))
             .children(self.composer_overlay())
