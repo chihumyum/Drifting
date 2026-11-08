@@ -8,7 +8,9 @@
     "actOrdinal": "Acto {{n}}"
   },
   "bottomStatusBar": {
+    "collapseTimeline": "Contraer cronología de tramas",
     "elements": "Elementos",
+    "expandTimeline": "Expandir cronología de tramas",
     "storyGraph": "Mapa de la historia",
     "todoLibrary": "Tareas y documentación"
   },
@@ -146,6 +148,8 @@
   },
   "editorTopBar": {
     "actions": {
+      "collapsePlotPlanner": "Contraer planificador de trama",
+      "expandPlotPlanner": "Expandir planificador de trama",
       "more": "Más acciones"
     },
     "menu": {
@@ -1021,6 +1025,7 @@
         "inspecting": "Verificando…",
         "missingAssets": "Faltan {{count}} recursos en este dispositivo y no se han incluido en la copia.",
         "noProjects": "(sin proyectos)",
+        "openSafety": "Abrir copias previas a la restauración",
         "restoreButton": "Elegir copia…",
         "restoreConfirm": "Sustituir la biblioteca actual por «{{file}}».\n\nCreada: {{date}}\nContenido: {{summary}}\nProyectos: {{projects}}\n\nPrimero se guarda una copia previa de la biblioteca actual, disponible en «Abrir copias previas a la restauración». Drifting se recargará al terminar.",
         "restoreConfirmButton": "Sustituir y restaurar",

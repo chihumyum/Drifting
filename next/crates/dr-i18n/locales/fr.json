@@ -8,7 +8,9 @@
     "actOrdinal": "Acte {{n}}"
   },
   "bottomStatusBar": {
+    "collapseTimeline": "Réduire la chronologie des intrigues",
     "elements": "Éléments",
+    "expandTimeline": "Développer la chronologie des intrigues",
     "storyGraph": "Graphe du récit",
     "todoLibrary": "Tâches et documentation"
   },
@@ -146,6 +148,8 @@
   },
   "editorTopBar": {
     "actions": {
+      "collapsePlotPlanner": "Réduire le planificateur d’intrigue",
+      "expandPlotPlanner": "Développer le planificateur d’intrigue",
       "more": "Autres actions"
     },
     "menu": {
@@ -1021,6 +1025,7 @@
         "inspecting": "Vérification…",
         "missingAssets": "{{count}} ressources absentes de cet appareil n’ont pas été sauvegardées.",
         "noProjects": "(aucun projet)",
+        "openSafety": "Ouvrir les copies avant restauration",
         "restoreButton": "Choisir une sauvegarde…",
         "restoreConfirm": "Remplacer la bibliothèque actuelle par « {{file}} ».\n\nCréation : {{date}}\nContenu : {{summary}}\nProjets : {{projects}}\n\nUne copie préalable est conservée sous « Ouvrir les copies avant restauration ». Drifting sera rechargé à la fin.",
         "restoreConfirmButton": "Remplacer et restaurer",

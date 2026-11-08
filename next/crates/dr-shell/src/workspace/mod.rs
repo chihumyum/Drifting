@@ -12,6 +12,7 @@
 //! document's, or the whole book's (M05). Things that go to the trash or are
 //! deleted, by anyone, close their tabs.
 
+mod bottom;
 pub mod chapter_sort;
 mod chrome;
 pub mod corner;
@@ -62,10 +63,11 @@ use crate::panes::{self, Panes};
 use crate::settings::panel::SettingsPanel;
 use crate::{Services, Settings, ShellInfo, keymap, menus};
 
+pub use bottom::{BottomLayout, BottomResize};
 pub use chrome::{LEADING_INSET, TITLEBAR_HEIGHT, TRAFFIC_LIGHT_POSITION};
 pub use dock::DockDrag;
 pub use editors::PageEditor;
-pub use sidebar::{LeftTab, RightTab};
+pub use sidebar::{LeftTab, RightTab, page_hover_card};
 pub use stage::EditorLook;
 pub use super_view::SuperView;
 
@@ -112,9 +114,46 @@ pub fn with_workspace(
     let Some(handle) = active_workspace(cx) else {
         return;
     };
-    if let Err(error) = handle.update(cx, |ws, window, cx| f(ws, window, cx)) {
-        log::error!("could not reach the workspace: {error:#}");
+    update_workspace(handle, cx, f);
+}
+
+/// Runs `f` on the workspace in `handle`: now, or, when the call comes from
+/// inside that window's own update (a click in it, which has the window
+/// checked out, so GPUI cannot hand it out again), once that update is over.
+pub fn update_workspace(
+    handle: gpui::WindowHandle<Workspace>,
+    cx: &mut App,
+    f: impl FnOnce(&mut Workspace, &mut Window, &mut Context<Workspace>) + 'static,
+) {
+    let slot = Rc::new(std::cell::Cell::new(Some(f)));
+    let now = slot.clone();
+    let done = handle.update(cx, move |ws, window, cx| {
+        if let Some(f) = now.take() {
+            f(ws, window, cx)
+        }
+    });
+    if done.is_ok() {
+        return;
     }
+    // Still listed: it is busy, not gone.
+    let busy = cx
+        .windows()
+        .iter()
+        .any(|w| w.window_id() == handle.window_id());
+    if !busy {
+        log::warn!("the workspace window is gone");
+        return;
+    }
+    cx.defer(move |cx| {
+        let later = handle.update(cx, move |ws, window, cx| {
+            if let Some(f) = slot.take() {
+                f(ws, window, cx)
+            }
+        });
+        if let Err(error) = later {
+            log::error!("could not reach the workspace: {error:#}");
+        }
+    });
 }
 
 /// Runs `f` on the workspace in `window` (one that started something long,
@@ -129,11 +168,7 @@ pub fn with_workspace_in(
         .downcast::<Workspace>()
         .filter(|h| cx.windows().iter().any(|w| w.window_id() == h.window_id()));
     match handle {
-        Some(handle) => {
-            if let Err(error) = handle.update(cx, |ws, window, cx| f(ws, window, cx)) {
-                log::error!("could not reach the workspace: {error:#}");
-            }
-        }
+        Some(handle) => update_workspace(handle, cx, f),
         None => with_workspace(cx, f),
     }
 }
@@ -256,6 +291,13 @@ pub struct BookLayout {
     /// Where the whole book's page was being read (M05).
     #[serde(default)]
     pub book_position: Option<editors::SavedPosition>,
+    /// The Bottom Panel: which pane, its height.
+    #[serde(default)]
+    pub bottom: BottomLayout,
+    /// What modules keep for the book on this device
+    /// ([`Workspace::book_memory`]): the timeline's order, zoom, scroll.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub modules: std::collections::BTreeMap<String, serde_json::Value>,
 }
 
 /// What the Escape key closes, topmost first.
@@ -320,6 +362,10 @@ pub struct Workspace {
     book_position: Option<editors::SavedPosition>,
     /// The find bar over the focused page, while open.
     pub find: Option<Entity<find::FindBar>>,
+    /// The Bottom Panel under the paper ([`bottom`]).
+    pub bottom: bottom::Bottom,
+    /// What modules keep for the book shown (in its layout).
+    modules: std::collections::BTreeMap<String, serde_json::Value>,
     turning_until: Option<Instant>,
     pub nav: Navigator,
     pub left: Sidebar<LeftTab>,
@@ -443,6 +489,8 @@ impl Workspace {
             live_docs: HashSet::new(),
             book_position: None,
             find: None,
+            bottom: bottom::Bottom::new(BottomLayout::default()),
+            modules: Default::default(),
             turning_until: None,
             nav: Navigator::default(),
             left: Sidebar::new(None, LeftTab::Chapters, |_| true),
@@ -501,16 +549,17 @@ impl Workspace {
         let saved: Option<BookLayout> = Settings::read(cx)
             .layout(&self.book_id)
             .and_then(|v| serde_json::from_value(v.clone()).ok());
-        let (nav, left, right, dock_locked, outline_hidden, by_book, sort, position) = match saved {
+        let (nav, left, right, dock_locked, outline_hidden, by_book, sort, position) = match &saved
+        {
             Some(l) => (
-                Navigator::restored(l.nav, |_| true),
-                Some(l.left),
-                Some(l.right),
+                Navigator::restored(l.nav.clone(), |_| true),
+                Some(l.left.clone()),
+                Some(l.right.clone()),
                 l.dock_locked,
                 l.outline_hidden,
                 l.chapters_by_book,
                 l.chapter_sort,
-                l.book_position,
+                l.book_position.clone(),
             ),
             None => (
                 Navigator::default(),
@@ -523,6 +572,10 @@ impl Workspace {
                 None,
             ),
         };
+        let (bottom, modules) = saved.map(|l| (l.bottom, l.modules)).unwrap_or_default();
+        self.bottom.layout = bottom;
+        self.bottom.forget();
+        self.modules = modules;
         self.nav = nav;
         self.left = Sidebar::new(left, LeftTab::Chapters, |_| true);
         self.right = Sidebar::new(right, RightTab::Review, |_| true);
@@ -902,6 +955,7 @@ impl Workspace {
         self.shelf_open = false;
         self.home = None;
         self.left_panels.borrow_mut().clear();
+        self.bottom.forget();
         self.library = None;
         self.book_id = String::new();
         self.book = Rc::new(Book::default());
@@ -964,7 +1018,25 @@ impl Workspace {
             chapters_by_book: self.chapters_by_book,
             chapter_sort: self.chapter_sort,
             book_position: self.book_position.clone(),
+            bottom: self.bottom.layout.clone(),
+            modules: self.modules.clone(),
         }
+    }
+
+    /// What a module keeps for the book shown under `key` (kept with the
+    /// book's layout on this device, never in the book).
+    pub fn book_memory(&self, key: &str) -> Option<&serde_json::Value> {
+        self.modules.get(key)
+    }
+
+    /// Keeps `value` for the book shown under `key`; stored with the
+    /// layout a moment later.
+    pub fn set_book_memory(&mut self, key: &str, value: serde_json::Value, cx: &mut Context<Self>) {
+        if self.book_id.is_empty() || self.modules.get(key) == Some(&value) {
+            return;
+        }
+        self.modules.insert(key.to_owned(), value);
+        self.changed(cx);
     }
 
     /// Writes the layout into the settings file now, if it changed.
@@ -1297,10 +1369,8 @@ impl Workspace {
                 cx.propagate();
             }
         }))
-        // Each of these arrives with its module (F4e, M-timeline, the
-        // immersive mode, the bookshelf). The shortcut is bound
-        // already so the keymap and Settings → Keys are complete.
-        .on_action(|_: &ToggleBottomTimeline, _, _| log::debug!("the timeline is not built yet"))
+        // ⌘J: the timeline in the Bottom Panel (`bottom.rs`).
+        .on_action(cx.listener(|ws, _: &ToggleBottomTimeline, _, cx| ws.toggle_timeline(cx)))
         .on_action(
             cx.listener(|ws, _: &ToggleImmersiveWriting, _, cx| {
                 ws.set_immersive(!ws.immersive, cx)
@@ -1357,6 +1427,7 @@ impl Render for Workspace {
             .bg(p.desk.solid())
             .text_color(p.ink(1).solid())
             .on_drag_move::<sidebar::ResizeDrag>(cx.listener(sidebar::on_resize))
+            .on_drag_move::<BottomResize>(cx.listener(bottom::on_resize))
             .child(row)
             .when(!immersive, |el| {
                 el.child(chrome::sidebar_toggles(self, window, cx))

@@ -8,7 +8,9 @@
     "actOrdinal": "Akt {{n}}"
   },
   "bottomStatusBar": {
+    "collapseTimeline": "Handlungsstrang-Zeitleiste einklappen",
     "elements": "Elemente",
+    "expandTimeline": "Handlungsstrang-Zeitleiste aufklappen",
     "storyGraph": "Geschichtsgraph",
     "todoLibrary": "Aufgaben und Materialsammlung"
   },
@@ -146,6 +148,8 @@
   },
   "editorTopBar": {
     "actions": {
+      "collapsePlotPlanner": "Handlungsplaner einklappen",
+      "expandPlotPlanner": "Handlungsplaner ausklappen",
       "more": "Weitere Aktionen"
     },
     "menu": {
@@ -1014,6 +1018,7 @@
         "inspecting": "Wird geprüft…",
         "missingAssets": "{{count}} Medien fehlen auf diesem Gerät und wurden nicht gesichert.",
         "noProjects": "(keine Projekte)",
+        "openSafety": "Kopien vor der Wiederherstellung öffnen",
         "restoreButton": "Sicherung auswählen…",
         "restoreConfirm": "Aktuelle Bibliothek durch „{{file}}“ ersetzen.\n\nErstellt: {{date}}\nInhalt: {{summary}}\nProjekte: {{projects}}\n\nZuvor wird eine Kopie der aktuellen Bibliothek gespeichert, erreichbar unter „Kopien vor der Wiederherstellung öffnen“. Danach wird Drifting neu geladen.",
         "restoreConfirmButton": "Ersetzen und wiederherstellen",

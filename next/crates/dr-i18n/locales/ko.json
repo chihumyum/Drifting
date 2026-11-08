@@ -8,7 +8,9 @@
     "actOrdinal": "제{{n}}막"
   },
   "bottomStatusBar": {
+    "collapseTimeline": "스토리라인 타임라인 접기",
     "elements": "요소",
+    "expandTimeline": "스토리라인 타임라인 펼치기",
     "storyGraph": "이야기 그래프",
     "todoLibrary": "할 일 및 자료실"
   },
@@ -146,6 +148,8 @@
   },
   "editorTopBar": {
     "actions": {
+      "collapsePlotPlanner": "플롯 계획기 접기",
+      "expandPlotPlanner": "플롯 계획기 펼치기",
       "more": "추가 작업"
     },
     "menu": {
@@ -1009,6 +1013,7 @@
         "inspecting": "검증 중…",
         "missingAssets": "이 기기에 없는 자료 {{count}}개는 백업되지 않았습니다.",
         "noProjects": "(작품 없음)",
+        "openSafety": "복원 전 사본 열기",
         "restoreButton": "백업 선택…",
         "restoreConfirm": "“{{file}}”로 현재 라이브러리를 교체합니다.\n\n생성일: {{date}}\n내용: {{summary}}\n작품: {{projects}}\n\n먼저 현재 라이브러리를 복원 전 사본으로 저장합니다. ‘복원 전 사본 열기’에서 확인하세요. 복원이 끝나면 Drifting을 다시 불러옵니다.",
         "restoreConfirmButton": "교체 후 복원",

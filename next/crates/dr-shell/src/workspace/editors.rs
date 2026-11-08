@@ -375,6 +375,17 @@ impl Workspace {
                 );
                 page._events.push(comments);
                 page._events.extend(link_events(&editor, cx));
+                // F4e: a material embedded in a note opens in a preview tab
+                // (the 0.1 note's embed opened it the same way).
+                page._events.push(cx.subscribe(
+                    &editor,
+                    |ws, _, e: &dr_editor::MaterialOpened, cx| {
+                        if let Some(target) = Target::from_key(&format!("material:{}", e.material))
+                        {
+                            ws.open(target, crate::nav::Open::PREVIEW, cx);
+                        }
+                    },
+                ));
                 PageView::Doc(editor)
             }
             (None, Prepared::Book(prepared)) => {

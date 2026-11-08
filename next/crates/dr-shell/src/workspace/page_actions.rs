@@ -193,9 +193,71 @@ pub fn page_actions(
     sections
 }
 
+/// `sections` with a module's `extra` ones (a hover card's own rows, M14)
+/// before the dangerous rows, which stay last.
+pub(crate) fn with_extra(
+    mut sections: Vec<PageMenuSection>,
+    extra: &[PageMenuSection],
+) -> Vec<PageMenuSection> {
+    let dangerous = sections
+        .last()
+        .is_some_and(|s| !s.items.is_empty() && s.items.iter().all(|i| i.danger));
+    let at = sections.len() - usize::from(dangerous);
+    sections.splice(
+        at..at,
+        extra.iter().filter(|s| !s.items.is_empty()).cloned(),
+    );
+    sections
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn section(ids: &[(&str, bool)]) -> PageMenuSection {
+        PageMenuSection {
+            title: None,
+            items: ids
+                .iter()
+                .map(|&(id, danger)| PageMenuItem {
+                    danger,
+                    ..row(id, Icon::More, id.to_owned().into(), |_, _| {})
+                })
+                .collect(),
+        }
+    }
+
+    fn ids(sections: &[PageMenuSection]) -> Vec<Vec<String>> {
+        sections
+            .iter()
+            .map(|s| s.items.iter().map(|i| i.id.to_string()).collect())
+            .collect()
+    }
+
+    #[test]
+    fn a_modules_rows_go_before_what_deletes() {
+        let page = vec![
+            section(&[("share", false)]),
+            section(&[("history", false)]),
+            section(&[("trash", true)]),
+        ];
+        let extra = [section(&[("to-unaffiliated", false)]), section(&[])];
+        assert_eq!(
+            ids(&with_extra(page, &extra)),
+            [
+                vec!["share"],
+                vec!["history"],
+                vec!["to-unaffiliated"],
+                vec!["trash"]
+            ]
+        );
+        // Nothing dangerous: at the end.
+        let page = vec![section(&[("history", false)])];
+        assert_eq!(
+            ids(&with_extra(page, &extra)),
+            [vec!["history"], vec!["to-unaffiliated"]]
+        );
+    }
 
     #[test]
     fn materials_are_not_shared() {

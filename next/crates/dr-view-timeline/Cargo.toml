@@ -22,6 +22,8 @@ gpui.workspace = true
 gpui_platform = { workspace = true, optional = true }
 log.workspace = true
 png = { workspace = true, optional = true }
+serde.workspace = true
+serde_json.workspace = true
 
 [dev-dependencies]
 anyhow.workspace = true

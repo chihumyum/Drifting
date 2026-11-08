@@ -13,10 +13,13 @@
 //!    stays. The windows are told to draw again: what the last frame's
 //!    handlers held (an editor in a click handler) goes with that frame.
 //! 2. Off the main thread F3 brings the open documents' index up to date and
-//!    closes the library (`Workspace::shutdown`, which waits for the last
-//!    holders), then the job runs with the library closed: given where the
-//!    library lives and how it is opened (this device's identity among it),
-//!    it returns the library to use (`Library::restore_staged`).
+//!    closes the library (`Workspace::try_shutdown`, which waits for the
+//!    last holders), then the job runs with the library closed: given where
+//!    the library lives and how it is opened (this device's identity among
+//!    it), it returns the library to use (`Library::restore_staged`). When
+//!    something still holds the library, F3 hands the workspace back open
+//!    and the job does not run: the windows take that workspace up again
+//!    and `done` hears why.
 //! 3. The new library is opened as F3's workspace and taken up: `Services`,
 //!    automatic links, the Stats and Review tabs, every window (which shows
 //!    the bookshelf, or without one the book opened last).
@@ -24,9 +27,10 @@
 //!    taken up the same way; `done` hears why.
 //!
 //! The job's error and anything that goes wrong on the way reach `done` as
-//! words for the dialog. Should the library not close (something still
-//! holds it) or not open again, `done` hears that too and the windows stay
-//! without a library: quitting and starting again is the way back.
+//! words for the dialog. Should the library neither close nor come back
+//! (F3 could not reopen the workspace it refused to close), or not open
+//! again after the job, `done` hears that too and the windows stay without
+//! a library: quitting and starting again is the way back.
 
 use std::path::Path;
 
@@ -41,7 +45,8 @@ use crate::workspace::Workspace;
 enum Swapped {
     /// The job's library.
     New(Library),
-    /// The library it left in place, opened again, and why the job failed.
+    /// The library it left in place, opened again (or never closed), and
+    /// why the job failed or did not run.
     Old(Library, String),
     /// No library could be opened.
     Lost(String),
@@ -129,9 +134,6 @@ fn swap(
         report.closed,
         report.in_use
     );
-    if let Err(error) = old.shutdown() {
-        return Swapped::Lost(format!("the library could not be closed: {error}"));
-    }
     let reopen = |why: String, options: LibraryOptions| match StoreLibrary::open(root, options)
         .map_err(|e| e.to_string())
         .and_then(|lib| Library::open(lib, WorkspaceOptions::default()).map_err(|e| e.to_string()))
@@ -141,6 +143,15 @@ fn swap(
             "{why}; the library could not be opened again: {error}"
         )),
     };
+    if let Err(refused) = old.try_shutdown() {
+        let why = format!("the library could not be closed: {}", refused.error);
+        return match refused.workspace {
+            // Still open as before: carry on with it.
+            Some(kept) => Swapped::Old(kept, why),
+            // F3 let go of it and could not open a workspace over it again.
+            None => reopen(why, options),
+        };
+    }
     match job(root, options.clone()) {
         Ok(lib) => match Library::open(lib, WorkspaceOptions::default()) {
             Ok(lib) => Swapped::New(lib),

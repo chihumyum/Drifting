@@ -740,6 +740,14 @@ fn state_of(ws: &Workspace, window: &Window, cx: &App) -> Value {
             "panes": serde_json::to_value(&ws.right.panes).unwrap_or(Value::Null),
         },
         "dockLocked": ws.dock_locked,
+        // The Bottom Panel under the paper (M14's timeline, M15's planner).
+        "bottom": {
+            "pane": ws.bottom_pane(cx).map(|p| match p {
+                dr_shell::pages::BottomPane::Timeline => "timeline",
+                dr_shell::pages::BottomPane::Planner => "planner",
+            }),
+            "height": ws.bottom_height(),
+        },
         "focus": {
             "workspace": ws.focus_handle().contains_focused(window, cx),
             "editor": editor_focused,

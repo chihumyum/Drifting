@@ -393,3 +393,31 @@ fn a_double_click_on_an_empty_spot_makes_a_chapter_there(cx: &mut TestAppContext
         ws.read_with(cx, |w, _| w.nav.current() == Some(&target))
     });
 }
+
+/// What the timeline shows (书序 / 叙事时, 未归属, the zoom) is kept for the
+/// book in the shell's per-book memory, and a timeline made for the book
+/// again (the next run, another window) starts from it.
+#[gpui::test]
+fn what_the_timeline_shows_is_kept_for_the_book(cx: &mut TestAppContext) {
+    let (_dir, library, _book) = library();
+    let (host, cx) = setup(cx, library);
+    let t = timeline(&host, cx);
+    t.update(cx, |t, cx| {
+        t.set_axis(Axis::Narrative, cx);
+        t.toggle_unaffiliated(cx);
+        t.set_zoom(2.0, cx);
+    });
+    let ws = host.read_with(cx, |h, _| h.ws.clone());
+    let kept = ws.read_with(cx, |ws, _| {
+        ws.book_memory(dr_view_timeline::kept::KEY).cloned()
+    });
+    let kept = dr_view_timeline::kept::Kept::read(kept.as_ref());
+    assert_eq!(
+        (kept.axis, kept.unaffiliated, kept.zoom),
+        (Axis::Narrative, true, 2.0)
+    );
+    let again = cx.update(|_, cx| dr_view_timeline::make(ws.downgrade(), cx));
+    cx.run_until_parked();
+    let shown = again.read_with(cx, |t, _| (t.axis(), t.unaffiliated_shown(), t.zoom()));
+    assert_eq!(shown, (Axis::Narrative, true, 2.0));
+}

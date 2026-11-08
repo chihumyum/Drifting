@@ -171,6 +171,8 @@ fn main() {
                 .filter(|b| !b.trim().is_empty()),
         };
         dr_shell::init(info, services, settings, cx);
+        // ⌘Q hides the app before the quit hooks run (F7).
+        dr_shell::quit::hide_first(cx);
         // Stage 2 pages: the bookshelf opens first, Project Home is the
         // paper under no tab; the element and category pages' fields go
         // around their text (M11).
@@ -179,6 +181,10 @@ fn main() {
         // M03: the chapter page's head and end around every editor.
         dr_view_page::init(cx);
         dr_view_elements::init(cx);
+        // M14 and M15: the Bottom Panel's timeline (⌘J) and the chapter in
+        // front's plot planner.
+        dr_view_timeline::init(cx);
+        dr_view_plot::init(cx);
         // M39: the feedback dialog (`SendFeedback`, a crash follow-up in the
         // notification center), by mail unless built with the Hosted service.
         dr_view_feedback::init(

@@ -8,7 +8,9 @@
     "actOrdinal": "第{{n}}幕"
   },
   "bottomStatusBar": {
+    "collapseTimeline": "ストーリーラインのタイムラインを折りたたむ",
     "elements": "要素",
+    "expandTimeline": "ストーリーラインのタイムラインを展開",
     "storyGraph": "物語グラフ",
     "todoLibrary": "TODOと資料庫"
   },
@@ -146,6 +148,8 @@
   },
   "editorTopBar": {
     "actions": {
+      "collapsePlotPlanner": "プロットプランナーを折りたたむ",
+      "expandPlotPlanner": "プロットプランナーを展開",
       "more": "その他の操作"
     },
     "menu": {
@@ -1009,6 +1013,7 @@
         "inspecting": "検証中…",
         "missingAssets": "この端末にない素材{{count}}件はバックアップされませんでした。",
         "noProjects": "（作品なし）",
+        "openSafety": "復元前のコピーを開く",
         "restoreButton": "バックアップを選択…",
         "restoreConfirm": "「{{file}}」で現在のライブラリを置き換えます。\n\n作成日時：{{date}}\n内容：{{summary}}\n作品：{{projects}}\n\n現在のライブラリは復元前コピーとして保存します。「復元前のコピーを開く」から確認できます。完了後、Driftingを再読み込みします。",
         "restoreConfirmButton": "置き換えて復元",

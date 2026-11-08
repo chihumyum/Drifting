@@ -48,6 +48,8 @@ projectHome.kicker
 bottomStatusBar.storyGraph
 bottomStatusBar.elements
 bottomStatusBar.todoLibrary
+bottomStatusBar.expandTimeline
+bottomStatusBar.collapseTimeline
 
 # Notifications
 notifications.title
@@ -154,6 +156,8 @@ settings.update.channel_desc
 # The paper's corner (M03): the ⋯ menu, a chapter's writing status, the
 # trash, immersive writing
 editorTopBar.actions.more
+editorTopBar.actions.expandPlotPlanner
+editorTopBar.actions.collapsePlotPlanner
 editorTopBar.statusSection.chapter
 editorTopBar.status.draft
 editorTopBar.status.finished
@@ -584,6 +588,7 @@ settings.sync.backup.exportButton
 settings.sync.backup.restoreTitle
 settings.sync.backup.restoreDesc
 settings.sync.backup.restoreButton
+settings.sync.backup.openSafety
 
 # The chapter panel's folding fan and its rows' hover cards (M04)
 leftSidebar.actions.collapseAll
