@@ -44,7 +44,7 @@ fn enables_bridge(entry: &str) -> bool {
 }
 
 /// The features `default` turns on in `p`, transitively.
-fn default_closure(p: &Package) -> Vec<String> {
+pub(crate) fn default_closure(p: &Package) -> Vec<String> {
     let mut seen: Vec<String> = Vec::new();
     let mut stack = vec!["default".to_string()];
     while let Some(f) = stack.pop() {
@@ -82,6 +82,22 @@ pub fn check_manifests(meta: &Metadata, o: &mut Outcome) {
 }
 
 fn check_scripts(dir: &Path, o: &mut Outcome) -> Result<usize, String> {
+    scan_scripts(
+        dir,
+        &[FEATURE],
+        "release builds never carry the debug bridge",
+        o,
+    )
+}
+
+/// Every file under `dir` (the release scripts), failing on any that
+/// mentions one of `needles`; how many files were read.
+pub(crate) fn scan_scripts(
+    dir: &Path,
+    needles: &[&str],
+    why: &str,
+    o: &mut Outcome,
+) -> Result<usize, String> {
     let mut n = 0;
     let mut stack = vec![dir.to_path_buf()];
     while let Some(d) = stack.pop() {
@@ -100,11 +116,8 @@ fn check_scripts(dir: &Path, o: &mut Outcome) -> Result<usize, String> {
                 continue;
             };
             n += 1;
-            if text.contains(FEATURE) {
-                o.fail(format!(
-                    "{} mentions {FEATURE}: release builds never carry the debug bridge",
-                    path.display()
-                ));
+            for needle in needles.iter().filter(|n| text.contains(**n)) {
+                o.fail(format!("{} mentions {needle}: {why}", path.display()));
             }
         }
     }

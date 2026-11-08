@@ -1583,3 +1583,34 @@ fn json_fields_are_kept_whole() {
     });
     assert_eq!(read(&a)[0], None, "cleared");
 }
+
+/// A conversation belongs to its book like the book document does (storage
+/// records which book): never an orphan to clean up. Only the book's text
+/// projects TODOs, not the book document, a template or a conversation.
+#[test]
+fn conversations_belong_to_the_book_and_project_no_todos() {
+    let mut a = book(1);
+    let conversation = DocId::Conversation(ConversationId::parse("cv1").unwrap());
+    assert!(a.view().owns_prose(&conversation));
+    let block = BlockId::parse("b@1").unwrap();
+    let cat = CategoryId::parse("c").unwrap();
+    let before = a.version();
+    for doc in [
+        conversation,
+        TemplateOwner::Category(cat).doc_id(),
+        DocId::Book(bid()),
+    ] {
+        let (r, _) = a.edit(Origin::User, |t| {
+            t.project_todo(&ProjectionKind::Marker, &doc, &block, "任务")
+                .map(|_| ())
+        });
+        assert!(matches!(r, Err(DocError::NotInProfile(_))), "{doc}");
+        let (r, _) = a.edit(Origin::User, |t| {
+            t.projected_todo(&ProjectionKind::Marker, &doc, &block)
+                .map(|_| ())
+        });
+        assert!(matches!(r, Err(DocError::NotInProfile(_))), "{doc}");
+    }
+    assert_eq!(a.version(), before, "nothing written");
+    assert!(a.view().comments().is_empty());
+}

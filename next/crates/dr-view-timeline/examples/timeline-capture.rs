@@ -348,13 +348,11 @@ fn capture(dir: PathBuf) -> Result<()> {
         h.save(window, &out, &format!("timeline-narrative-{suffix}.png"))?;
         h.cx.update_window(window, |_, window, _| window.remove_window())?;
 
-        // Hover cards: a chapter's, an act's (reading order), a pin's
-        // (narrative order), each rising over the room above.
-        for (name, axis) in [
-            ("clip", Axis::Book),
-            ("act", Axis::Book),
-            ("pin", Axis::Narrative),
-        ] {
+        // Hover cards: an act's (reading order) and a pin's (narrative
+        // order), each rising over the room above. A slab's and a lane's
+        // card are the shell's page card, which nothing can hold open
+        // offscreen yet.
+        for (name, axis) in [("act", Axis::Book), ("pin", Axis::Narrative)] {
             let (window, host) = h.window_above(470.0, 290.0)?;
             let t = timeline(&mut h, &host);
             h.wait(window, |h| {
@@ -364,7 +362,6 @@ fn capture(dir: PathBuf) -> Result<()> {
                 let t = t.read(cx);
                 let book = host.read(cx)._ws.read(cx).book.clone();
                 match name {
-                    "clip" => format!("timeline-clip-card-{}", t.layout().lanes[0].clips[1].id),
                     "act" => format!("timeline-act-card-{}", book.acts[1].id),
                     _ => format!("timeline-pin-card-{}", t.pins()[1].id),
                 }

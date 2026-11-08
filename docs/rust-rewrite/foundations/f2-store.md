@@ -34,10 +34,10 @@
 | — | 机器指纹：换了机器就当新设备（监管会话批准待协调第 8 条） | 完成 | `machine.rs`、`identity.rs` 的单测（7 项）、`tests/device.rs` |
 | — | `file_io.rs`、`archive.rs` 原样搬入并补单测 | 完成 | `tests/file_io.rs`（8 项，Windows 另有 1 项在 CI 跑） |
 | — | M10 要的接口：`label_at`、`Device::adopt`、导入回执表（`0001`）、`repair` 来源 | 完成 | `tests/labels.rs`（3 项）、`identity.rs` 单测、`tests/migrate.rs`、`tests/sync.rs`、`tests/records.rs` |
-| — | 第三轮（监管会话）：按段写派生索引、类型化读取、本机表 `ws_journal`（`0003`）、书序搜索、关库被拒时交还、大纲规则、只读打开、换用 dr-testkit | 完成 | `tests/index.rs`、`tests/holder.rs`、`tests/records.rs`、`tests/crash.rs`；见「第三轮」 |
+| — | 第三轮（监管会话）：按段写派生索引、类型化读取、本机表 `ws_journal`（`0003`）、书序搜索、关库被拒时交还、大纲规则、只读打开、换用 dr-testkit | 完成 | `tests/index.rs`、`tests/holder.rs`、`tests/records.rs`、`dr-testkit/tests/crash_migrate.rs`；见「第三轮」 |
 | — | 第四轮（性能）：按书序搜索、带空隙的段序键、引用只写变了的、关库不被后台重建挡住、派生单独的空闲等待 | 完成 | `tests/index.rs`、`tests/records.rs`；证据 `f2-m4-*-bench.json`；见「第四轮」 |
 | — | 第五轮：作者命令的来源 `user:command`、本机小状态表（`0004`）、彻底删除的记录（`0005`）、整库备份与恢复 | 完成 | `tests/holder.rs`、`tests/local.rs`（4 项）、`tests/backup.rs`、`backup.rs` 的单测；见「第五轮」 |
-| — | 第六轮：审 M10 的认领身份（库里加记机器）、后台补建索引给打字让路、`reference` 按书的索引（`0006`）、备份的进度和取消 | 完成 | `tests/device.rs`、`tests/rebuild.rs`（3 项，另有 1 项手动测量）、`tests/index.rs`、`tests/backup.rs`（共 8 项）；见「第六轮」 |
+| — | 第六轮：审 M10 的认领身份（库里加记机器）、后台补建索引给打字让路、`reference` 按书的索引（`0006`）、备份的进度和取消 | 完成 | `tests/device.rs`、`dr-testkit/tests/store_rebuild.rs`（3 项，另有 1 项手动测量）、`tests/index.rs`、`tests/backup.rs`（共 8 项）；见「第六轮」 |
 
 合计 143 项测试（macOS：34 项单测、109 项集成测试），另有 2 项手动测量默认不跑。按平台条件算，Windows 上是 136 项：少了只在 Unix/macOS 上有意义的 8 项（符号链接、目录同步、`IOPlatformUUID`、子进程拿着锁文件），多 1 项写穿改名；没在 Windows 上跑过。
 
@@ -441,7 +441,7 @@ M3 Pro（12 核，36 GB），release，Loro 1.17.1，2026-11-07，跑时 1 分�
 崩溃试验用 dr-testkit 的统一试验台（`dr_testkit::crash`）：测试程序把自己再启动一次当写入进程，到点强杀（macOS 上 SIGKILL，Windows 上 TerminateProcess），再由父进程重开、核对。
 
 - **编辑中被杀**：归 dr-testkit 的 `tests/crash_store.rs`，在真实的持有者上做。第一轮 F2 自己的 `f2-crash` 杀过 60 次（35 次落在压缩事务中间），零丢失、零不一致；那个程序和 `f2-crash-recovery.json` 这一轮删了。
-- **迁移中被杀**（`tests/crash.rs`，dr-store 专有，留着）：写入进程用「再多一条迁移」的新版本打开一个有正文的库，停在指定的阶段。停下时通过 `migrate::on_migration_pause` 向试验台报告，试验台就在这时杀掉它。六个阶段各杀一次，每次之后核对：
+- **迁移中被杀**（dr-store 专有；2026-11-08 起在 `dr-testkit/tests/crash_migrate.rs`：dr-store 的测试再依赖 dr-testkit 会成环，热重载用的 dx 不认，见 [f8-testkit.md](f8-testkit.md)「热重载」）：写入进程用「再多一条迁移」的新版本打开一个有正文的库，停在指定的阶段。停下时通过 `migrate::on_migration_pause` 向试验台报告，试验台就在这时杀掉它。六个阶段各杀一次，每次之后核对：
 
   | 停在 | 原库字节 | 旧版本打开 | 下一次新版本打开 |
   | --- | --- | --- | --- |
@@ -598,11 +598,11 @@ M3 Pro（12 核，36 GB），release，Loro 1.17.1，2026-11-07，跑时 1 分�
 
 测试：
 - `a_library_copied_between_machines_sharing_a_0_1_identity_gets_a_new_epoch`（`tests/device.rs`）：两台电脑认领同一个 0.1 身份，库从一台拷到另一台：换代、对等方换了，再开不再换。拿掉机器比对就失败。
-- `the_rebuild_waits_while_the_author_types_and_catches_up_after`（`tests/rebuild.rs`，用真的派生器和 tiny 种子）：作者连写 3 秒，过期的文档一篇都没被重建；停手以后全部补完。让后台重建不等空闲，这项就失败。`closing_does_not_wait_for_a_quiet_moment`：等空闲的时间设成 10 分钟，关库照样立刻返回。`a_dropped_library_is_released_while_the_rebuild_waits`：同样设成 10 分钟，不调 `close` 直接丢掉库，马上就能再打开；让重建线程一直握着库，这项就失败（第一版就是这样，dr-cli 的测试先发现的）。
+- `the_rebuild_waits_while_the_author_types_and_catches_up_after`（`dr-testkit/tests/store_rebuild.rs`，用真的派生器和 tiny 种子）：作者连写 3 秒，过期的文档一篇都没被重建；停手以后全部补完。让后台重建不等空闲，这项就失败。`closing_does_not_wait_for_a_quiet_moment`：等空闲的时间设成 10 分钟，关库照样立刻返回。`a_dropped_library_is_released_while_the_rebuild_waits`：同样设成 10 分钟，不调 `close` 直接丢掉库，马上就能再打开；让重建线程一直握着库，这项就失败（第一版就是这样，dr-cli 的测试先发现的）。
 - `a_books_references_are_read_through_its_own_index`（`tests/index.rs`）：按书查引用的查询计划只走 `reference_by_book`，没有排序。
 - `backups_report_their_progress_step_by_step`、`a_cancelled_backup_leaves_nothing_behind`（`tests/backup.rs`）：三个操作的步骤顺序，每步的字节只增不减、最后等于总数，3 MiB 的资源打包时报多次；三种取消各自什么都不留，恢复取消后库不变、再恢复照样成，`Replace` 时要求取消也会做完。
 
-**打字被卡的测量**（`tests/rebuild.rs` 里默认不跑的 `measure_typing_while_stale_indexes_are_rebuilt`）：heavy 种子写进库、不建索引（680 篇全过期），用真的派生器打开，马上在一章里打字（每 10 ms 写一个字，400 次），量每次写入等多久。release，M3 Pro，2026-11-08，负载 20–37，只作参考。
+**打字被卡的测量**（`dr-testkit/tests/store_rebuild.rs` 里默认不跑的 `measure_typing_while_stale_indexes_are_rebuilt`）：heavy 种子写进库、不建索引（680 篇全过期），用真的派生器打开，马上在一章里打字（每 10 ms 写一个字，400 次），量每次写入等多久。release，M3 Pro，2026-11-08，负载 20–37，只作参考。
 
 | 情形 | 写入 p50 / p95 / p99 / 最慢（ms） |
 | --- | ---: |
@@ -687,7 +687,7 @@ cargo run --release -p dr-testkit --bin bench -- store
 cargo xtask check
 ```
 
-- 第一条包括迁移各阶段被杀（`tests/crash.rs`）；编辑中被杀在 `cargo test -p dr-testkit --test crash_store`。
+- 第一条包括迁移各阶段被杀（`cargo test -p dr-testkit --test crash_migrate`）；编辑中被杀在 `cargo test -p dr-testkit --test crash_store`。
 - 第二条是按段写索引和整篇重写的对比，只打到屏幕，不写证据。
 - 第三条是 dr-testkit 的存储基准；加 `--milestone <名字>` 才写成测量证据，只在里程碑时做。
 - 测试数据全是合成的：dr-testkit 的随机流和语料（`dr_testkit::rng`、`dr_testkit::text`），不含任何书稿。

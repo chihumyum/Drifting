@@ -406,6 +406,11 @@ impl Workspace {
                 );
                 page._events.push(comments);
                 page._events.extend(link_events(&editor, cx));
+                page._events.push(
+                    cx.subscribe(&editor, |ws, _, _: &dr_editor::WritingTyped, cx| {
+                        ws.author_wrote(cx)
+                    }),
+                );
                 // F4e: a material embedded in a note opens in a preview tab
                 // (the 0.1 note's embed opened it the same way).
                 page._events.push(cx.subscribe(
@@ -449,6 +454,11 @@ impl Workspace {
                 );
                 page._events.push(comments);
                 page._events.extend(link_events(&editor, cx));
+                page._events.push(
+                    cx.subscribe(&editor, |ws, _, _: &dr_editor::WritingTyped, cx| {
+                        ws.author_wrote(cx)
+                    }),
+                );
                 PageView::Book(editor)
             }
             _ => return,
@@ -872,6 +882,20 @@ impl Workspace {
     /// Immersive writing fades every paragraph but the caret's, in the
     /// focused page's editor only.
     fn dim_for_immersive(&mut self, cx: &mut Context<Self>) {
+        // M26: every open editor (both pages of a split, new ones too) runs
+        // its typewriter line while the window is immersed.
+        let on = self.immersive;
+        for page in self.editors.values() {
+            match &page.view {
+                Some(PageView::Doc(e)) if e.read(cx).immersive() != on => {
+                    e.update(cx, |e, cx| e.set_immersive(on, cx))
+                }
+                Some(PageView::Book(e)) if e.read(cx).immersive() != on => {
+                    e.update(cx, |e, cx| e.set_immersive(on, cx))
+                }
+                _ => {}
+            }
+        }
         let want = if self.immersive {
             self.focused_prose(cx).map(|p| p.entity_id())
         } else {

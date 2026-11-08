@@ -7,33 +7,14 @@ license.workspace = true
 publish.workspace = true
 description = "Snapshot history (M09): a page's history points over F3's history.points, a preview of one, restoring one per entity"
 
-[features]
-# Offscreen screenshots of the dialog in the shell
-# (`examples/history-capture.rs`), through GPUI's headless test platform.
-capture = ["dep:gpui_platform", "gpui_platform/test-support", "dep:color_quant", "dep:png"]
+# The screenshots of the dialog over the shell are dr-shell's
+# `examples/history-capture.rs`: an example here needs dr-shell, which
+# depends on this crate, and that cycle stops dx's hot patching.
 
 [dependencies]
 chrono.workspace = true
-color_quant = { workspace = true, optional = true }
 dr-i18n.workspace = true
 dr-ui.workspace = true
 dr-workspace.workspace = true
 gpui.workspace = true
-gpui_platform = { workspace = true, optional = true }
 log.workspace = true
-png = { workspace = true, optional = true }
-
-[dev-dependencies]
-anyhow.workspace = true
-# The captures show the dialog where the author meets it: over the shell.
-dr-doc.workspace = true
-dr-model.workspace = true
-dr-shell.workspace = true
-dr-store.workspace = true
-dr-testkit.workspace = true
-serde_json.workspace = true
-tempfile.workspace = true
-
-[[example]]
-name = "history-capture"
-required-features = ["capture"]

@@ -701,6 +701,7 @@ bottomTimeline.axis.time
 bottomTimeline.act.railLabel
 bottomTimeline.act.chapterCount
 bottomTimeline.act.newAct
+bottomTimeline.act.dragBoundary
 bottomTimeline.act.startHere
 bottomTimeline.act.openActNote
 bottomTimeline.act.unbindDrift
@@ -715,6 +716,8 @@ bottomTimeline.pinMenu.rename
 bottomTimeline.pinMenu.deleteMarker
 bottomTimeline.menu.moveToUnaffiliated
 bottomTimeline.menu.detachFromNarrative
+bottomTimeline.spread.title
+bottomTimeline.spread.needTwo
 leftSidebar.groups.newChapterInStoryline
 
 # M15: the plot planner (dr-view-plot)
@@ -901,3 +904,31 @@ editorTopBar.status.drifting
 editorTopBar.status.resting
 editorTopBar.statusSection.drift
 editorTopBar.menu.moveToGroup
+
+# M19 the 素材库 panel: folders, moving, importing (dr-view-material)
+materialFolders.root
+materialFolders.untitled
+materialFolders.empty
+materialFolders.deleteConfirm
+materialFolders.deleteSelectionConfirm
+materialFolders.menu.newFolder
+materialFolders.menu.newSubfolder
+materialFolders.menu.rename
+materialFolders.menu.delete
+materialFolders.menu.open
+materialFolders.menu.move
+materialFolders.menu.moveSelection
+materialFolders.menu.deleteSelection
+materialFolders.menu.expandAll
+materialFolders.menu.collapseAll
+memoMaterial.toolbar.count
+memoMaterial.toolbar.newMaterial
+memoMaterial.menu.openInSystem
+memoMaterial.menu.deleteMaterial
+memoMaterial.empty.noRelated
+memoMaterial.card.addSnippetBody
+memoMaterial.error.pickFailed
+materialEditor.deleteConfirm
+materialEditor.embed.importFile
+materialEditor.embed.importing
+materialEditor.embed.pastedImage

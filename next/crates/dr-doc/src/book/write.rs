@@ -721,10 +721,11 @@ impl<'a> BookTxn<'a> {
         doc: &dr_model::DocId,
         block: &BlockId,
     ) -> Result<(CommentId, CommentWriter)> {
+        let target = super::seed::projection_target(doc)?;
         let id = CommentId::for_projection(kind, doc, block);
         let w = self.comment(&id)?;
         w.kind(&CommentKind::Todo)?
-            .target(Some(&super::seed::projection_target(doc)))?
+            .target(Some(&target))?
             .target_block(Some(block))?;
         set(&w.map, "projection", kind)?;
         set(&w.map, "projection_block", block)?;

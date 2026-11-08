@@ -8,6 +8,8 @@ publish.workspace = true
 description = "Drifting 0.2: the two built-in sample books (Pride and Prejudice, 阿Q正传), laid out through dr-doc and written once into a new library"
 
 [dependencies]
+# The random number generator and the paragraph model (store-free).
+dr-corpus.workspace = true
 dr-doc.workspace = true
 dr-model.workspace = true
 dr-store.workspace = true

@@ -38,8 +38,8 @@ use dr_ui::{
 use dr_workspace::{
     Actor, Workspace as Library,
     commands::chapter::{
-        ChapterCreate, ChapterCreateIn, ChapterMove, ChapterMoveIn, ChapterPlace, ChapterUpdate,
-        ChapterUpdateIn,
+        ChapterCreate, ChapterCreateIn, ChapterPlace, ChapterPlaceIn, ChapterSetPlace,
+        ChapterSpread, ChapterSpreadIn, ChapterUpdate, ChapterUpdateIn, OrderAxis,
     },
     dto::ChapterInfo,
 };
@@ -146,6 +146,19 @@ pub struct BottomTimeline {
     act_spot: Rc<Cell<f64>>,
     /// A hover card held open regardless of the pointer (captures).
     held_card: Option<String>,
+    /// Where the pointer is while something is dragged, and when the edge
+    /// last scrolled the tracks.
+    drag_pointer: Option<gpui::Point<Pixels>>,
+    edge_clock: Option<Instant>,
+    /// Each act boundary's focus (←/→ move a focused one), and where the
+    /// keys have put one until the book shows it.
+    act_focus: std::collections::HashMap<String, gpui::FocusHandle>,
+    nudged: std::collections::HashMap<String, f64>,
+    /// The pins' and acts' writes, one after another.
+    writes: Option<(
+        futures::channel::mpsc::UnboundedSender<marks::WriteJob>,
+        gpui::Task<()>,
+    )>,
     _subs: Vec<Subscription>,
 }
 
@@ -180,6 +193,11 @@ impl BottomTimeline {
             bind_open: None,
             act_spot: Rc::default(),
             held_card: None,
+            drag_pointer: None,
+            edge_clock: None,
+            act_focus: Default::default(),
+            nudged: Default::default(),
+            writes: None,
             _subs: Vec::new(),
         }
     }
@@ -249,6 +267,13 @@ impl BottomTimeline {
         };
         if !Rc::ptr_eq(&book, &self.book) {
             self.book = book;
+            // Boundaries the keys moved, once the book has them.
+            let acts = self.book.acts.clone();
+            self.nudged.retain(|id, at| {
+                !acts
+                    .iter()
+                    .any(|a| &a.id == id && a.start_order.is_some_and(|s| (s - *at).abs() < 1e-9))
+            });
             // The pins live in the book's document: read them again.
             self.load_pins(cx);
             // The move is in the snapshot once the chapter is where it went.
@@ -358,34 +383,29 @@ impl BottomTimeline {
         });
         cx.notify();
         let book = self.book.id.clone();
+        // The storylines and the place in one commit, one undo step (F3's
+        // chapter.place, the 0.1 client's persistChapterTimelineMove).
+        let storyline = if membership.is_empty() {
+            None
+        } else {
+            match &to.lane {
+                LaneId::Book => None,
+                LaneId::Unaffiliated => Some(None),
+                LaneId::Storyline(s) => Some(Some(s.clone())),
+            }
+        };
         let task = cx.background_executor().spawn(async move {
-            // The storylines and, on the narrative axis, the place in one
-            // write; reading order is chapter.move's.
-            if !membership.is_empty() || axis == Axis::Narrative {
-                lib.run::<ChapterUpdate>(
-                    &Actor::User,
-                    ChapterUpdateIn {
-                        book: book.clone(),
-                        id: info.id.clone(),
-                        narrative_order: (axis == Axis::Narrative).then_some(Some(to.order)),
-                        add_storylines: membership.add.clone(),
-                        remove_storylines: membership.remove.clone(),
-                        primary_storyline: membership.primary.clone(),
-                        ..ChapterUpdateIn::default()
-                    },
-                )?;
-            }
-            if axis == Axis::Book {
-                lib.run::<ChapterMove>(
-                    &Actor::User,
-                    ChapterMoveIn {
-                        book,
-                        id: info.id.clone(),
-                        place: ChapterPlace::Order(to.order),
-                    },
-                )?;
-            }
-            Ok::<_, dr_workspace::WsError>(())
+            lib.run::<ChapterSetPlace>(
+                &Actor::User,
+                ChapterPlaceIn {
+                    book,
+                    id: info.id.clone(),
+                    axis: order_axis(axis),
+                    order: to.order,
+                    storyline,
+                },
+            )
+            .map(|_| ())
         });
         cx.spawn(async move |this, cx| {
             if let Err(e) = task.await {
@@ -482,6 +502,25 @@ impl BottomTimeline {
         cx.notify();
     }
 
+    /// 打散: the placed chapters on the axis shown, same order, one stride
+    /// apart; on reading order the act boundaries move along. One step
+    /// (F3's chapter.spread).
+    pub fn spread(&mut self, cx: &mut Context<Self>) {
+        let Some(lib) = self.lib.clone() else {
+            return;
+        };
+        let (book, axis) = (self.book.id.clone(), order_axis(self.axis));
+        cx.background_executor()
+            .spawn(async move {
+                if let Err(e) =
+                    lib.run::<ChapterSpread>(&Actor::User, ChapterSpreadIn { book, axis })
+                {
+                    log::warn!("timeline: spreading the chapters failed: {e}");
+                }
+            })
+            .detach();
+    }
+
     /// The lanes' box (names and tracks) as last drawn (tests).
     pub fn body_bounds(&self) -> Option<Bounds<Pixels>> {
         self.body.get()
@@ -541,6 +580,15 @@ impl BottomTimeline {
     }
 
     fn drag_moved(&mut self, e: &DragMoveEvent<ClipDrag>, cx: &mut Context<Self>) {
+        self.drag_pointer = Some(e.event.position);
+        self.aim_clip(e.event.position, cx);
+        // Near an edge the next frame scrolls.
+        cx.notify();
+    }
+
+    /// Where the chapter in the hand would land with the pointer at
+    /// `position` (window coordinates).
+    fn aim_clip(&mut self, position: gpui::Point<Pixels>, cx: &mut Context<Self>) {
         let layout = self.layout();
         let Some((grab_x, grab_y, weight)) = self
             .dragging
@@ -549,7 +597,6 @@ impl BottomTimeline {
         else {
             return;
         };
-        let position = e.event.position;
         let over = match weight {
             // The lane the weighted slab is in; carried clear of the lanes,
             // where the pointer is.
@@ -597,6 +644,41 @@ impl BottomTimeline {
         cx.notify();
     }
 
+    /// While something is dragged near the tracks' left or right edge, the
+    /// tracks scroll that way, faster the closer, and what is in the hand
+    /// aims again at what is now under it.
+    fn edge_scroll(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let dragging = self.dragging.is_some() || self.mark_drag.is_some();
+        let (Some(pointer), Some(body), true) = (self.drag_pointer, self.body.get(), dragging)
+        else {
+            self.drag_pointer = None;
+            self.edge_clock = None;
+            return;
+        };
+        let now = Instant::now();
+        let dt = self
+            .edge_clock
+            .map_or(1.0 / 60.0, |t| now.duration_since(t).as_secs_f32());
+        let left = f32::from(body.origin.x) + RAIL_WIDTH;
+        let right = f32::from(body.origin.x + body.size.width);
+        let max = self.layout().scale.width() - (right - left);
+        let scroll = self.scroll_x();
+        let step = model::edge_step(f32::from(pointer.x), left, right, scroll, max, dt);
+        if step == 0.0 {
+            self.edge_clock = None;
+            return;
+        }
+        self.edge_clock = Some(now);
+        self.scroll.set_offset(point(px(-(scroll + step)), px(0.0)));
+        if self.dragging.is_some() {
+            self.aim_clip(pointer, cx);
+        }
+        if self.mark_drag.is_some() {
+            self.aim_mark(pointer, cx);
+        }
+        window.request_animation_frame();
+    }
+
     /// ⌘ or Ctrl and the wheel: zoom, the spot under the pointer staying put.
     fn wheel(&mut self, e: &ScrollEvent, window: &mut Window, cx: &mut Context<Self>) {
         if !(e.modifiers.platform || e.modifiers.control) {
@@ -627,6 +709,14 @@ impl BottomTimeline {
         self.zoom = zoom.clamp(MIN_ZOOM, MAX_ZOOM);
         self.remember(cx);
         cx.notify();
+    }
+}
+
+/// F3's name for an axis.
+fn order_axis(axis: Axis) -> OrderAxis {
+    match axis {
+        Axis::Book => OrderAxis::Book,
+        Axis::Narrative => OrderAxis::Narrative,
     }
 }
 
@@ -793,6 +883,8 @@ impl Render for BottomTimeline {
         if self.mark_drag.is_some() && !cx.has_active_drag() {
             self.mark_drag = None;
         }
+        self.edge_scroll(window, cx);
+        self.keep_act_focus(cx);
         // A pin just made: its name ready to type once it shows.
         if let Some(mark) = self.rename_next.clone()
             && let Mark::Pin(id) = &mark
@@ -917,6 +1009,31 @@ impl BottomTimeline {
                 .map(|rect| self.unplaced_list(layout, rect, window, cx));
             div().child(button).children(list).into_any_element()
         });
+        // 打散 (needs two placed chapters).
+        let mode = t(
+            cx,
+            match self.axis {
+                Axis::Book => keys::bottom_timeline::view::BOOK,
+                Axis::Narrative => keys::bottom_timeline::view::NARRATIVE,
+            },
+        );
+        let can_spread = layout.placed >= 2;
+        let spread = PanelIconButton::new("timeline-spread", Icon::Spread)
+            .label(if can_spread {
+                tf(cx, keys::bottom_timeline::spread::TITLE, &[("mode", &mode)])
+            } else {
+                t(cx, keys::bottom_timeline::spread::NEED_TWO)
+            })
+            // dr-ui's panel icon button has no disabled look: with fewer
+            // than two it does nothing and says why.
+            .on_click({
+                let entity = entity.clone();
+                move |_, _, cx| {
+                    if can_spread {
+                        entity.update(cx, |t, cx| t.spread(cx))
+                    }
+                }
+            });
         let locate = PanelIconButton::new("timeline-locate", Icon::Locate)
             .label(t(cx, keys::bottom_timeline::LOCATE_CURRENT))
             .on_click({
@@ -944,6 +1061,7 @@ impl BottomTimeline {
             .children(unaffiliated)
             .children(unplaced)
             .child(div().flex_1())
+            .child(spread)
             .child(locate)
             .child(graph)
             .into_any_element()
@@ -1214,7 +1332,6 @@ impl BottomTimeline {
                         format!("timeline-rail-card-{id}"),
                         cell,
                         cards::CardOf::Storyline(id.clone()),
-                        true,
                         cx,
                     )
                 }
@@ -1519,7 +1636,6 @@ impl BottomTimeline {
                 format!("timeline-clip-card-{}", c.id),
                 slab,
                 cards::CardOf::Chapter(c.id.clone()),
-                false,
                 cx,
             ))
             .into_any_element()

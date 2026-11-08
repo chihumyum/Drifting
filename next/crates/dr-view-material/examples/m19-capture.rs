@@ -17,7 +17,7 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Result, anyhow, bail};
 use dr_shell::nav::{Open, Target};
-use dr_shell::workspace::LeftTab;
+use dr_shell::workspace::{LeftTab, RightTab};
 use dr_shell::{Services, SettingsFile, ShellInfo, Workspace};
 use dr_store::asset::{SourceImport, Variant};
 use dr_ui::{Appearance, anim, theme};
@@ -330,6 +330,17 @@ fn layout(ws: &mut Workspace, window: &mut gpui::Window, cx: &mut Context<Worksp
     ws.dock_locked = true;
 }
 
+/// The chapters on the left, the 素材库 tab on the right.
+fn library_layout(ws: &mut Workspace, window: &mut gpui::Window, cx: &mut Context<Workspace>) {
+    layout(ws, window, cx);
+    if !ws.right.open {
+        ws.toggle_right(window, cx);
+    }
+    ws.right.width = 300.0;
+    ws.right.reveal.set(1.0);
+    ws.right.panes = dr_shell::panes::Panes::single(RightTab::Library);
+}
+
 /// The window point at fractions `(u, v)` of the picture on `page`.
 fn at(h: &mut Headless, page: &Entity<MediaPage>, (u, v): (f32, f32)) -> (f32, f32) {
     h.cx.update(|cx| {
@@ -407,7 +418,53 @@ fn run(modules: PathBuf) -> Result<()> {
         json!({"page": 2, "x": 0.08, "y": 0.12, "w": 0.84, "h": 0.2}),
         "核对头三天的潮位。",
     )?;
-    h.wait(|ws, _| ws.book.materials.len() >= 2)?;
+    // The library's folders: 东岸 (with 旧城 in it) and 潮汐; two more
+    // pictures imported into 旧城 (thumbnails made on the way in) and two
+    // notes.
+    let folder = |name: &str, parent: Option<&str>| -> Result<String> {
+        let mut input = json!({"book": book, "name": name});
+        if let Some(p) = parent {
+            input["parent"] = json!(p);
+        }
+        Ok(id(&out(&lib, "material_folder.create", input)?))
+    };
+    let east = folder("东岸", None)?;
+    let old_town = folder("旧城", Some(&east))?;
+    let tide = folder("潮汐", None)?;
+    let file = |m: &str, f: &str| -> Result<()> {
+        out(
+            &lib,
+            "material.update",
+            json!({"book": book, "id": m, "folder": f}),
+        )?;
+        Ok(())
+    };
+    file(&image, &east)?;
+    file(&pdf, &tide)?;
+    for title in ["旧城地图", "码头草图"] {
+        dr_view_material::import::import_bytes(
+            &lib,
+            &book,
+            Some(&old_town),
+            dr_testkit::media::png(900, 640),
+            title,
+        )
+        .map_err(|e| anyhow!(e))?;
+    }
+    let note = |title: &str, text: &str, f: Option<&str>| -> Result<String> {
+        let mut input = json!({"book": book, "kind": "text", "title": title, "text": text});
+        if let Some(f) = f {
+            input["folder"] = json!(f);
+        }
+        Ok(id(&out(&lib, "material.create", input)?))
+    };
+    let clue = note(
+        "第四章线索",
+        "潮水退后，礁石露出三处，老周说那是旧城的城墙。",
+        Some(&east),
+    )?;
+    let bio = note("人物小传 · 林汐", "海边长大，记得每一次大潮的日子。", None)?;
+    h.wait(|ws, _| ws.book.materials.len() >= 6)?;
     let image_target = Target::Material(image.parse().map_err(|_| anyhow!("material id"))?);
     let pdf_target = Target::Material(pdf.parse().map_err(|_| anyhow!("material id"))?);
 
@@ -497,6 +554,52 @@ fn run(modules: PathBuf) -> Result<()> {
             p.close_composer(cx);
             p.set_drawing(false, cx);
             p.reset_zoom(cx);
+        });
+        h.still()?;
+
+        // The 素材库 tab beside the open image: the folders open, the
+        // thumbnails, two notes selected (the wash), and a picture's hover
+        // card held open with where it can move.
+        h.set(|ws, window, cx| {
+            library_layout(ws, window, cx);
+            ws.open(image_target.clone(), Open::KEEP, cx);
+        });
+        h.still()?;
+        let panel =
+            h.cx.update(|cx| dr_view_material::library::panels(cx).first().cloned())
+                .ok_or_else(|| anyhow!("the library panel"))?;
+        let (e, o, t, c, b) = (
+            east.clone(),
+            old_town.clone(),
+            tide.clone(),
+            clue.clone(),
+            bio.clone(),
+        );
+        h.cx.update(|cx| {
+            panel.update(cx, |p, cx| {
+                p.set_open(&e, true, cx);
+                p.set_open(&o, true, cx);
+                p.set_open(&t, true, cx);
+                p.select(
+                    vec![
+                        dr_view_material::folders::material_key(&c),
+                        dr_view_material::folders::material_key(&b),
+                    ],
+                    cx,
+                );
+            })
+        });
+        h.still()?;
+        h.save(&dir, &format!("library-{a}.png"))?;
+        let card = dr_view_material::folders::material_key(&pdf);
+        h.cx.update(|cx| panel.update(cx, |p, cx| p.show_card(Some(card), cx)));
+        h.still()?;
+        h.save(&dir, &format!("library-card-{a}.png"))?;
+        h.cx.update(|cx| {
+            panel.update(cx, |p, cx| {
+                p.show_card(None, cx);
+                p.clear_selection(cx);
+            })
         });
         h.still()?;
     }

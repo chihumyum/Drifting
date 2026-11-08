@@ -40,9 +40,11 @@
 pub mod build;
 mod built_in;
 pub mod layout;
-pub mod para;
-pub mod rng;
 mod store;
+
+/// The random number generator and the paragraph model, in `dr-corpus`
+/// (no store) so dr-store's tests can use them too.
+pub use dr_corpus::{para, rng};
 
 pub use build::SeededBook;
 pub use built_in::{

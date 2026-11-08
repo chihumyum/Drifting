@@ -9,6 +9,11 @@
 //! beside the mark and goes round the cell once ([`SandFrame`]); when the
 //! selection moves on the frame fades out whole. A cell has no press state.
 //! A cell that opens nothing (`disabled`) never shows the ring.
+//!
+//! A cell can also lead with its own element (a disclosure and an icon, a
+//! thumbnail: [`SandCell::lead`]) and carry a quieter second line under
+//! its name ([`SandCell::subline`]: a material's kind or first words); with a
+//! second line the row grows to fit it.
 
 use std::rc::Rc;
 
@@ -47,6 +52,8 @@ pub struct SandCell {
     font: Role,
     italic: bool,
     children: SmallVec<[AnyElement; 2]>,
+    lead: Option<AnyElement>,
+    sub: Option<SharedString>,
     on_click: Option<OnClick>,
 }
 
@@ -65,6 +72,8 @@ impl SandCell {
             font: Role::Ui,
             italic: false,
             children: SmallVec::new(),
+            lead: None,
+            sub: None,
             on_click: None,
         }
     }
@@ -140,6 +149,18 @@ impl SandCell {
         self.on_click = Some(Rc::new(f));
         self
     }
+
+    /// An element before everything else in the row (before the mark).
+    pub fn lead(mut self, lead: impl IntoElement) -> Self {
+        self.lead = Some(lead.into_any_element());
+        self
+    }
+
+    /// A second line under the name, in the index face, quieter.
+    pub fn subline(mut self, sub: impl Into<SharedString>) -> Self {
+        self.sub = Some(sub.into());
+        self
+    }
 }
 
 /// Things after the name (a count, a trailing mark), in the row.
@@ -204,10 +225,40 @@ impl RenderOnce for SandCell {
         let icon = self
             .icon
             .map(|i| sand::icon(i, if dense { 14.0 } else { 16.0 }, ink.solid()));
+        let two_lines = self.sub.is_some();
+        let label = div()
+            // A dense row sizes to its words (a column of actions as wide
+            // as its longest); a list row fills its width.
+            .when(!dense, |el| el.flex_1().min_w_0().overflow_hidden())
+            .whitespace_nowrap()
+            .when(self.italic, |el| el.italic())
+            .child(self.label.clone());
+        let label = match self.sub {
+            None => label.into_any_element(),
+            Some(sub) => div()
+                .flex_1()
+                .min_w_0()
+                .flex()
+                .flex_col()
+                .child(label)
+                .child(
+                    div()
+                        .overflow_hidden()
+                        .whitespace_nowrap()
+                        .font_role(Role::Index)
+                        .type_px(s.caption, s.line_caption)
+                        .text_color(p.muted().solid())
+                        .child(sub),
+                )
+                .into_any_element(),
+        };
         div()
             .id(self.id.clone())
             .relative()
-            .h(px(if dense { 22.0 } else { s.row_height }))
+            .when(!two_lines, |el| {
+                el.h(px(if dense { 22.0 } else { s.row_height }))
+            })
+            .when(two_lines, |el| el.min_h(px(s.row_height)).py(px(5.0)))
             .px(px(if dense { 8.0 } else { 10.0 }))
             .flex()
             .flex_row()
@@ -219,17 +270,10 @@ impl RenderOnce for SandCell {
             .text_color(ink.solid())
             .child(glass::layer(ring, spec, theme))
             .child(frame)
+            .children(self.lead)
             .children(mark)
             .children(icon)
-            .child(
-                div()
-                    // A dense row sizes to its words (a column of actions
-                    // as wide as its longest); a list row fills its width.
-                    .when(!dense, |el| el.flex_1().min_w_0().overflow_hidden())
-                    .whitespace_nowrap()
-                    .when(self.italic, |el| el.italic())
-                    .child(self.label.clone()),
-            )
+            .child(label)
             .children(self.children)
             .role(gpui::Role::ListItem)
             .aria_label(self.label)

@@ -23,8 +23,8 @@
 | 测量证据和过期检查 | `src/evidence.rs`、`cargo xtask evidence --check` | 1 | 做完；旧证据待各自迁移 |
 | 崩溃试验台 | `src/crash.rs`，F2 示范在 `tests/crash_store.rs` | 1 | 做完 |
 | 基准约定和 `bench` 程序 | `src/bench.rs`、`src/bin/bench.rs` | 1、2 | 两个套件：dr-store、dr-workspace（收编 F3 的测量） |
-| 门禁 | `next/xtask/` | 1、3 | 10 道（第三个里程碑加了「调试桥不进正式包」）和 `check-binary`，接进了 `next.yml` |
-| 开发实例隔离 | `cargo xtask dev` | 1、3 | 做完；`--debug-bridge` 带上调试桥 |
+| 门禁 | `next/xtask/` | 1、3、6 | 11 道（第三个里程碑加了「调试桥不进正式包」，第六个加了「热重载不进正式包、依赖不成环」）和 `check-binary`，接进了 `next.yml` |
+| 开发实例隔离 | `cargo xtask dev` | 1、3、6 | 做完；`--debug-bridge` 带上调试桥，`--hot` 经 dx 热重载 |
 | 开发命令行 | `next/crates/dr-cli/` | 1、2、3 | 接上 F3 的注册表：`describe`、`call`、脚本化 `scenario`、`inspect`；`app` 子命令，场景能启动和驱动应用 |
 | 调试桥 | `next/crates/dr-debug-bridge/`、`dr-debug-protocol/` | 3、4 | 做完：打开书和页、打字、按键、动作、F3 命令、读外壳状态和页面文字、等待、截图；第四个里程碑加了按无障碍名字找元素和按它、悬停、拖选、滚动、点进输入框、读章首和要素页头、读设置；第五个里程碑加了答系统的打开、存储面板（`panel.*`）、按卡挑按钮（`within`）、等后台写的文件、读 M41 的对话框和恢复前副本（`library.info`）。组字没做 |
 | 阶段 2「写作闭环」验收场景 | `next/crates/dr-cli/scenarios/writing-loop.json` | 3 | 在真实窗口上 46 步全过：从书架打开书、在编辑器里打字、回车、⌘Z、换章、关掉重开 |
@@ -270,6 +270,7 @@ cargo xtask check --skip audit         # 离线时跳过漏洞审计（它要联
 | licenses | 用 `cargo metadata` 查：工作区默认 AGPL-3.0-or-later；`gpui-prose` 是 MIT OR Apache-2.0，它的任何依赖（包括 dev-dependencies）都不能是 `dr-*`；第三方 crate 的许可证表达式必须能用白名单满足（813 个全过） | 3 |
 | layers | 依赖方向：界面 → 应用服务 → 数据，平台和工具在旁边。数据、应用服务、平台和工具都不能编进 GPUI，直接间接都不行；产品 crate 不依赖工具和探针（dev-dependencies 用测试工具可以）；每个成员都要在 `layers.rs` 里归了类 | 4 |
 | debug-bridge | 调试桥只能主动打开：没有哪个成员非可选地依赖 `dr-debug-bridge`（dev-dependencies 可以），没有哪个成员的 `default` 特性顺着特性表展开后会打开它，`next/script/` 下的打包脚本和发布流程草稿里不出现 `debug-bridge`。另有 `cargo xtask check-binary <文件>…` 查打好的可执行文件，见「调试桥」 | 9 |
+| hot-reload | GPUI 的热重载只能主动打开：没有哪个成员在普通依赖里直接要 `gpui/hot-reload`，没有哪个成员的 `default` 特性展开后会打开它，`next/script/` 下不出现 `hot-reload`、`dx serve`；工作区依赖图（普通、构建、开发依赖都算）里没有环，dx 打补丁要按这个图排先后。`cargo xtask check-binary` 也查这个（程序里有「GPUI hot reload」就失败），见「热重载」 | 9 |
 | evidence | 见上面「证据」 | 第五节 |
 | audit | 对 `next/Cargo.lock` 跑 `cargo audit`：有漏洞就失败；「不再维护」「不健全」只列出来，现在有 12 条：4 个来自 Loro（`im`、`sized-chunks`、`bitmaps`、`atomic-polyfill`，其中 `im` 和 `sized-chunks` 标了「不健全」），其余来自 GPUI。取不到漏洞数据库也算失败 | 5 |
 
@@ -319,6 +320,7 @@ cargo xtask check --skip audit         # 离线时跳过漏洞审计（它要联
 cargo xtask dev                       # 这个 worktree 自己的 profile
 cargo xtask dev --instance two        # 同一个 checkout 再开一个：<worktree>-two
 cargo xtask dev --debug-bridge        # 带上调试桥（cargo run -p drifting --features debug-bridge）
+cargo xtask dev --hot                 # 热重载：经 dx serve --hot-patch 起应用（见下）
 cargo xtask dev --print-config        # 打印 profile、文件夹、钥匙串服务、调试桥的连接文件，不启动
 cargo xtask dev --release -- --mcp …  # 参数原样交给程序
 ```
@@ -329,7 +331,46 @@ cargo xtask dev --release -- --mcp …  # 参数原样交给程序
 - **端口**：旧版每个实例还分端口；新版的调试桥按 profile 分开（连接文件在 profile 的数据文件夹里，socket 名带实例名的哈希）。
 - **规则只有一份**：profile 怎么从 worktree 名算出来，写在 `dr_debug_protocol::place`，xtask 和 `cargo drifting app` 共用。
 
-## 开发命令行：`dr-cli`
+### 热重载：`cargo xtask dev --hot`
+
+改了界面的代码，不用重编、重启、再点回原来的地方：存盘以后，正开着的窗口里那一块原地换成新的。
+
+```bash
+cargo install dioxus-cli --version 0.7.10 --locked   # 一次；版本要和 GPUI 钉的 subsecond 一样
+cargo xtask dev --hot                                # 经 dx serve --hot-patch 起应用，profile 照旧隔离
+cargo xtask dev --hot --debug-bridge                 # 再带上调试桥
+cargo xtask dev --hot --print-config                 # 看会跑什么命令，不启动
+```
+
+- **原理**：钉住的 GPUI v1.27.0 带 `hot-reload` 特性（Zed PR #65738，用 Dioxus 的 subsecond）。应用经 `dx serve --hot-patch` 启动时，dx 盯着源码，改了就只编改动的那几个函数，打成补丁发给正在跑的应用；GPUI 在两次更新之间换上补丁，再让所有窗口重画。应用这边只是打开 GPUI 的这个特性（`drifting` 的 `hot-reload` 特性，`--hot` 会带上）。
+- **能换的**：视图和组件的渲染函数（`Render::render`、`RenderOnce::render`），以及它们调用到的代码：布局、颜色、文字、哪些子元素、点击处理器里写的逻辑。
+- **换不了的**（要重启，dx 会说要整个重来）：
+  - 自定义元素的 `request_layout` / `prepaint` / `paint`（GPUI 不经过补丁表调它们；编辑器的正文就是这种元素）；
+  - 结构体加减字段、改类型（内存里的旧对象还是旧的样子）；
+  - 加新依赖、改 `Cargo.toml`、改构建脚本；
+  - 启动时只跑一次的代码（`main`、`init` 里注册的东西、快捷键表）：换了也不会再跑。
+- **哪些 crate 改了能热替换**：dx 0.7.10 打补丁时，要把改了的 crate 和**所有**依赖它的工作区 crate（测试用的依赖也算）按第一次全量构建时记下的编译参数重编一遍；应用没编进去的 crate 没有这份参数，补丁就失败（「Missing rustc args for replay: 'dr_testkit'」），窗口里还是旧代码，在 dx 的终端按 `r` 全量重编（或者重启 `cargo xtask dev --hot`）。所以只有「依赖它的 crate 全在应用里」的 crate 才能热替换。`cargo xtask dev --hot` 启动时把这一份名单打印出来（`--print-config` 里是 `hotReload.crates`，按当时的工作区和特性现算）。合进 main `069caa5e`（第十八批）以后是：
+  - 能：整个界面层：`dr-shell`、`dr-ui`、`dr-editor`、`gpui-prose`、`gpui-ime`、`prose-linebreak`、所有 `dr-view-*`、`dr-i18n`、`dr-export`、`dr-mirror`、`dr-debug-bridge`；
+  - 一直不能：数据和服务层（`dr-store`、`dr-doc`、`dr-model`、`dr-index`、`dr-text`、`dr-workspace`、`dr-corpus`、`prose-metrics`、`dr-platform`、`dr-import-v1` 等），命令行和测试工具（`dr-cli`、`dr-testkit`、`xtask`）和还没接进应用的 `dr-agent` 依赖它们，而应用不编这些。这是 dx 的限制（它不把补丁限在应用编进去的 crate 里），热替换本来就是给界面用的；
+  - 一个新 crate 还没接进应用时，它依赖的界面 crate 也会暂时不能（第一次算时 `dr-shell`、`dr-ui`、编辑器就是被当时没接上的 plot、shelf-art、timeline、relations、sea 挡住的）。
+- **快多少（2026-11-08，M3 Pro，机器负载 16–90，只作参考）**：改的是书架左栏格子（`dr-view-shelf` 的 `rail_cell`，书架的渲染函数调到的那个函数）读屏用的名字，再用调试桥轮询 `ui.find` 看到新名字为止：
+  | 做法 | 从保存到窗口里变了 |
+  | --- | ---: |
+  | `cargo xtask dev --hot`，热替换（6 次） | 3.9–8.4 s，多数 6 s 左右；dx 自己报的「编补丁」0.8–2.1 s，其余是 dx 发现文件变了、窗口画下一帧 |
+  | `cargo xtask dev`，关掉、重编、再启动（2 次） | 19.6 s、20.4 s |
+
+  热替换不重启，所以开着的书、页、对话框、滚动位置都还在；重启要再点回去，上表没算这一段。dx 用自己的构建目录（`target/dx/`），第一次 `--hot` 要全量编一遍（这次 335 s），之后改了别的再起是 56 s。
+- **只在调试构建里**：GPUI 的构建脚本只在打开特性、而且有调试断言时才编进补丁的接收端，`--hot` 和 `--release` 一起给会被拒绝。
+- **依赖不能成环，连测试用的依赖也算**：dx 打补丁时，把改了的 crate 和所有依赖它的工作区 crate 一起重编，按依赖图排先后；它的依赖图连开发依赖（dev-dependencies）也算，遇到环就停（「Cycle in workspace dependency graph — cannot determine replay order」）。Cargo 允许「A 依赖 B，B 的测试又依赖 A」，dx 不行。实测：改书架（dr-view-shelf）一切正常，改 dr-store 就报这句。工作区里原来有四个这样的环，都只是测试或示例，2026-11-08 解开了，办法都是把那个测试或示例挪到环的另一头：
+  1. dr-store 的测试用 dr-testkit 的随机数和语料，dr-testkit 又写 dr-store：不碰库的那几样收进新的 `dr-corpus`（数据层，只依赖 dr-model）：随机数（`rng.rs`）和段落（`para.rs`）从 dr-samples 挪过来（F5 第七轮刚把它们放进 dr-samples，而 dr-samples 写库），合成语料（`text.rs`）和指纹（`digest.rs`）从 dr-testkit 挪过来。dr-samples 转出 `rng`、`para`，dr-testkit 转出 `rng`、`text`、`digest`，原来的写法照旧能用，随机数还是同一个类型；dr-store 的测试改用 `dr_corpus`。语料只有一份，种子的指纹不变（只是挪了位置）；
+  2. dr-store 里要种子、崩溃试验台或真派生器的两个测试，挪进 dr-testkit 的 `tests/`：`crash_migrate.rs`（迁移各阶段被杀，和原有的 `crash_store.rs` 放在一起）、`store_rebuild.rs`（后台重建不挡打字）。它们照旧用 dr-store 的 `tests/common`（按路径引入）；
+  3. dr-index 的 `tests/m10.rs`（导入的 0.1 库打开时建索引）挪到 dr-import-v1 的 `tests/index.rs`：dr-import-v1 本来就依赖 dr-index；
+  4. dr-view-history 的 `history-capture` 截图示例挪到 dr-shell 的 `examples/`（M06、M07、M18 的截图示例也在那里）：它要在外壳里显示对话框，而外壳依赖 dr-view-history。
+
+  `cargo xtask check` 的 `hot-reload` 门禁从此查工作区依赖图（各种依赖都算）里没有环，再有就报出环上的 crate。解开以后，改 dr-store 不再报环，而是报上一条的「Missing rustc args」：环是第一道坎，第二道是 dx 本身的限制。
+- **代价**：这次挪动改了 dr-store、dr-index、dr-testkit、dr-samples 的目录，以及 `rng.rs`、`para.rs`、`text.rs` 的位置，14 份测量证据都按「输入变了」报过期（不是失败）。挪的是测试、示例和不带逻辑变化的模块，测的代码没有变，种子的指纹测试照旧通过；下一次机器空闲时按各自的 `generatedBy` 重测。
+- **不进正式包**：照调试桥的守法，`cargo xtask check` 的 `hot-reload` 门禁查：没有哪个成员默认打开 `gpui/hot-reload`，也没有在普通依赖里直接要它；`next/script/` 下的发布脚本不提 `hot-reload`、`dx serve`。`cargo xtask check-binary` 同时查这个：编进了补丁接收端的程序里有它的日志句子「GPUI hot reload」，有就失败。
+
 
 `cargo drifting …` 是 `cargo run -p dr-cli --` 的别名。第二个里程碑接上了 F3 的命令注册表：
 
@@ -639,9 +680,7 @@ done
 
 ```text
 next/crates/dr-testkit/
-  src/rng.rs              唯一的随机数（SplitMix64，转出 dr-samples 的）
-  src/text.rs             合成语料、字数口径
-  src/digest.rs           唯一的指纹函数
+  src/lib.rs              转出 dr-corpus 的 rng、text、digest
   src/seed/               预设、长度分配、计划、直写、走命令写、对拍用的 digest、形状、写进库
   src/samples.rs          样书（转调 dr-samples）和 showcase
   src/evidence.rs         测量证据、过期检查
@@ -649,12 +688,18 @@ next/crates/dr-testkit/
   src/bench.rs            基准约定，store 和 workspace 两个套件
   src/bin/bench.rs        bench 程序
   fixtures/               《慢钟》、截图书架的 JSON 和来源说明
+  tests/                  种子、两种写法对拍、样书、崩溃（编辑中被杀 crash_store、迁移中被杀 crash_migrate）、
+                          后台重建不挡打字（store_rebuild，dr-store 的）、基准
 next/crates/dr-samples/   两本内置样书（books/）、摆书和写书（layout.rs、build.rs、store.rs）、新库只写一次（built_in.rs）
-  tests/                  种子、两种写法对拍、样书、崩溃（F2 示范）、基准
+next/crates/dr-corpus/    不碰库的那部分，dr-samples、dr-testkit 和 dr-store 的测试共用
+  src/rng.rs              唯一的随机数（SplitMix64；dr-samples、dr-testkit 都转出它）
+  src/para.rs             样书和种子摆书用的段落
+  src/text.rs             合成语料、字数口径
+  src/digest.rs           唯一的指纹函数
 next/xtask/
   src/main.rs             cargo xtask check | evidence --check | check-binary | dev
-  src/gates/              10 道门禁（调试桥那道在 debug_bridge.rs）
-  src/dev.rs              开发实例隔离、--debug-bridge
+  src/gates/              11 道门禁（调试桥那道在 debug_bridge.rs，热重载和依赖环那道在 hot_reload.rs）
+  src/dev.rs              开发实例隔离、--debug-bridge、--hot
 next/crates/dr-cli/       开发命令行：describe、call、scenario（src/scenario.rs、src/live.rs）、inspect、app（src/app.rs）
   scenarios/              验收场景：writing-loop.json（阶段 2 写作闭环）
 next/crates/dr-debug-protocol/   调试桥的线上格式、连接文件、客户端、监听线程、profile 规则（不依赖 GPUI）

@@ -599,6 +599,23 @@ fn companion_panel(
     made
 }
 
+/// The 素材库 tab a module draws for `pane` ([`crate::pages::set_library`]),
+/// made the first time the pane shows it, then kept.
+fn library_panel(
+    ws: &Workspace,
+    pane: PaneId,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) -> Option<crate::pages::LeftPanel> {
+    let key = pane_slug(pane);
+    if let Some(made) = ws.library_panel.borrow().get(key) {
+        return made.clone();
+    }
+    let made = crate::pages::library_for(cx.weak_entity(), window, cx);
+    ws.library_panel.borrow_mut().insert(key, made.clone());
+    made
+}
+
 fn left_header(
     tab: LeftTab,
     ws: &Workspace,
@@ -813,10 +830,14 @@ fn right_header(
             .child(meta(t(cx, keys::right_sidebar::kickers::REVIEW), &theme))
             .child(super_entry(ws, cx, "review"))
             .into_any_element(),
-        RightTab::Library => row
-            .child(meta(t(cx, keys::right_sidebar::kickers::LIBRARY), &theme))
-            .child(super_entry(ws, cx, "library"))
-            .into_any_element(),
+        RightTab::Library => match library_panel(ws, pane, window, cx) {
+            // M19: the module's head row.
+            Some(panel) => div().size_full().child(panel.head).into_any_element(),
+            None => row
+                .child(meta(t(cx, keys::right_sidebar::kickers::LIBRARY), &theme))
+                .child(super_entry(ws, cx, "library"))
+                .into_any_element(),
+        },
         RightTab::Stats => {
             use keys::right_sidebar::kickers::stats as k;
             // Read from the navigation model: what the stats follow.
@@ -1730,6 +1751,10 @@ fn right_body(
             Some(panel) => div().size_full().child(panel.body).into_any_element(),
             None => div().size_full().into_any_element(),
         },
+        // M19: the module's panel, when the app has one.
+        RightTab::Library if let Some(panel) = library_panel(ws, pane, window, cx) => {
+            div().size_full().child(panel.body).into_any_element()
+        }
         RightTab::Library => {
             let book = ws.book.clone();
             let material = |id: &str| id.parse().ok().map(Target::Material);

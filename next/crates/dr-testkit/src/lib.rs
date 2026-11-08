@@ -8,8 +8,10 @@
 //!   product writes into a new library) and the showcase books from
 //!   `fixtures/`; [`media`]: synthetic images and PDFs for materials;
 //! - [`rng`], [`text`], [`digest`]: one random number generator, one
-//!   synthetic corpus, one fingerprint (the generator, the book writer the
-//!   seed uses and a body's paragraphs are dr-samples', re-exported here);
+//!   synthetic corpus, one fingerprint. They live in `dr-corpus` (with
+//!   the paragraphs the samples and the seed lay out), which depends on no
+//!   store, so dr-store's own tests can use them without a dependency
+//!   cycle; re-exported here;
 //! - [`evidence`]: measured evidence files and their freshness check
 //!   (`cargo xtask evidence --check`); contract evidence is asserted by tests
 //!   instead of committed;
@@ -22,10 +24,9 @@
 
 pub mod bench;
 pub mod crash;
-pub mod digest;
 pub mod evidence;
 pub mod media;
-pub mod rng;
 pub mod samples;
 pub mod seed;
-pub mod text;
+
+pub use dr_corpus::{digest, rng, text};
