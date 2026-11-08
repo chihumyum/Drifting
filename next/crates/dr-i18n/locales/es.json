@@ -606,6 +606,8 @@
   },
   "notifications": {
     "appUpdate": {
+      "available": "Drifting {{version}} está disponible",
+      "installed": "Actualizado a Drifting {{version}}",
       "source": "Actualizaciones"
     },
     "clear": "Limpiar",
@@ -1255,7 +1257,26 @@
     },
     "title": "Ajustes",
     "update": {
-      "channel_desc": "Apple Silicon · macOS 13 o posterior"
+      "channel_desc": "Apple Silicon · macOS 13 o posterior",
+      "check": "Nueva versión",
+      "check_action": "Buscar actualizaciones",
+      "check_failed": "No se pueden buscar actualizaciones ahora; quizá no haya conexión. Inténtalo más tarde. Esta versión sigue funcionando.",
+      "checking": "Comprobando…",
+      "downloading": "Descargando y verificando la firma…",
+      "downloading_progress": "Descargando y verificando… {{progress}}%",
+      "install_failed": "No se pudo instalar Drifting {{version}} al salir la última vez. Esta versión no ha cambiado; se volverá a intentar al salir.",
+      "install_failed_admin": "No se pudo instalar Drifting {{version}} al salir la última vez: no se puede escribir en la carpeta donde está Drifting. Esta versión no ha cambiado.",
+      "interrupted": "La actualización no terminó de descargarse y se descartó. Se volverá a descargar en la próxima comprobación.",
+      "local_error": "No se pudo guardar la actualización en este equipo y se detuvo. Esta versión sigue funcionando.",
+      "no_update": "Ya tienes la última versión.",
+      "older_offered": "Ya tienes la última versión. El servicio de actualizaciones ofrece {{version}}, que es anterior a esta, así que no se instalará.",
+      "ready_on_quit": "Drifting {{version}} está descargado y su firma verificada. Se instala al salir.",
+      "refused_app": "La actualización descargada no es Drifting y se descartó. Esta versión sigue funcionando.",
+      "refused_signature": "La actualización descargada no superó la verificación de firma y se descartó. Esta versión sigue funcionando.",
+      "refused_version": "La actualización descargada no es la versión que dice ser, quizá una anterior, y se rechazó. Esta versión sigue funcionando.",
+      "restart": "Reiniciar para actualizar",
+      "server_error": "El servicio de actualizaciones tiene un problema ahora. Inténtalo más tarde. Esta versión sigue funcionando.",
+      "unavailable": "Esta compilación no tiene clave de firma del actualizador y no puede buscar actualizaciones. Las versiones descargadas de GitHub sí pueden."
     }
   },
   "sidebarLayout": {

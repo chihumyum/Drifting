@@ -44,6 +44,7 @@ members = [
     "crates/dr-view-stats",
     "crates/dr-view-timeline",
     "crates/dr-view-transfer",
+    "crates/dr-view-update",
     "crates/dr-workspace",
     "crates/gpui-ime",
     "crates/gpui-prose",
@@ -249,6 +250,8 @@ dr-view-export = { path = "crates/dr-view-export" }
 dr-view-transfer = { path = "crates/dr-view-transfer" }
 # M39: the feedback dialog and the crash follow-up.
 dr-view-feedback = { path = "crates/dr-view-feedback" }
+# M42: automatic updates (over F7's dr_platform::update).
+dr-view-update = { path = "crates/dr-view-update" }
 futures = "0.3"
 icu_plurals = { version = "2.4", default-features = false, features = ["compiled_data"] }
 # M40 names files as 0.1 did (NFKC first); already in the tree through url.

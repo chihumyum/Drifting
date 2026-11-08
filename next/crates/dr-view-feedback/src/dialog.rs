@@ -85,7 +85,10 @@ impl FeedbackDialog {
         let version = cx
             .try_global::<ShellInfo>()
             .map_or(env!("CARGO_PKG_VERSION"), |info| info.version);
-        let summary = diagnostics::summary(&SummaryInput::current(version));
+        let mut input = SummaryInput::current(version);
+        // M42's state, as 0.1 reported its updater's.
+        input.update = dr_view_update::snapshot(cx);
+        let summary = diagnostics::summary(&input);
         let placeholder = t(
             cx,
             if follow_up.is_some() {

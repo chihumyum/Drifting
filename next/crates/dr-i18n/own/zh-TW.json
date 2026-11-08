@@ -37,6 +37,19 @@
           "legacy": "這是 Drifting 0.1 的備份，這一版不能直接還原。請先在 Drifting 0.1 裡還原它，再在書架上用「匯入 · Drifting 0.1」匯入那個資料庫。"
         }
       }
+    },
+    "update": {
+      "restart": "重新啟動以更新",
+      "ready_on_quit": "Drifting {{version}} 已下載並通過簽章驗證，結束時安裝。",
+      "older_offered": "目前已是最新版本。更新服務提供的 {{version}} 比這一版舊，不會安裝。",
+      "refused_signature": "下載的更新未通過簽章驗證，已捨棄。目前版本仍可繼續使用。",
+      "refused_version": "下載的更新不是它標示的版本，可能是舊版本，已拒絕。目前版本仍可繼續使用。",
+      "refused_app": "下載的更新不是 Drifting，已捨棄。目前版本仍可繼續使用。",
+      "interrupted": "更新沒有下載完整，已捨棄。下次檢查時會重新下載。",
+      "server_error": "更新服務暫時出了問題，請稍後重試。目前版本仍可繼續使用。",
+      "local_error": "更新無法存進這台電腦，已停止。目前版本仍可繼續使用。",
+      "install_failed": "上次結束時沒能安裝 Drifting {{version}}，目前版本未變更。下次結束時會再試。",
+      "install_failed_admin": "上次結束時沒能安裝 Drifting {{version}}：Drifting 所在的資料夾無法寫入。目前版本未變更。"
     }
   },
   "findPanel": {

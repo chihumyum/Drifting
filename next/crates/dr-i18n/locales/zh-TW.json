@@ -599,6 +599,8 @@
   },
   "notifications": {
     "appUpdate": {
+      "available": "Drifting {{version}} 已推出",
+      "installed": "已更新至 Drifting {{version}}",
       "source": "更新"
     },
     "clear": "清除",
@@ -1241,7 +1243,26 @@
     },
     "title": "設定",
     "update": {
-      "channel_desc": "Apple Silicon · macOS 13 以上"
+      "channel_desc": "Apple Silicon · macOS 13 以上",
+      "check": "新版本",
+      "check_action": "檢查更新",
+      "check_failed": "目前無法檢查更新，可能是網路未連線。請稍後重試，目前版本仍可繼續使用。",
+      "checking": "正在檢查…",
+      "downloading": "正在下載並驗證簽章…",
+      "downloading_progress": "正在下載並驗證… {{progress}}%",
+      "install_failed": "上次結束時沒能安裝 Drifting {{version}}，目前版本未變更。下次結束時會再試。",
+      "install_failed_admin": "上次結束時沒能安裝 Drifting {{version}}：Drifting 所在的資料夾無法寫入。目前版本未變更。",
+      "interrupted": "更新沒有下載完整，已捨棄。下次檢查時會重新下載。",
+      "local_error": "更新無法存進這台電腦，已停止。目前版本仍可繼續使用。",
+      "no_update": "目前已是最新版本。",
+      "older_offered": "目前已是最新版本。更新服務提供的 {{version}} 比這一版舊，不會安裝。",
+      "ready_on_quit": "Drifting {{version}} 已下載並通過簽章驗證，結束時安裝。",
+      "refused_app": "下載的更新不是 Drifting，已捨棄。目前版本仍可繼續使用。",
+      "refused_signature": "下載的更新未通過簽章驗證，已捨棄。目前版本仍可繼續使用。",
+      "refused_version": "下載的更新不是它標示的版本，可能是舊版本，已拒絕。目前版本仍可繼續使用。",
+      "restart": "重新啟動以更新",
+      "server_error": "更新服務暫時出了問題，請稍後重試。目前版本仍可繼續使用。",
+      "unavailable": "此版本沒有更新簽署金鑰，無法檢查更新。從 GitHub 下載的發行版可使用更新功能。"
     }
   },
   "sidebarLayout": {
