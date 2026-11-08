@@ -1,6 +1,7 @@
 //! The minimal prose interface: read paragraphs, replace an exact passage,
-//! restore a version. Editing proper is the editor's (F4); the Agent's
-//! projection of prose into editable text is M29.
+//! restore a version, put entity links on or off anchored ranges (the undo
+//! of automatic links, `crate::autolink`). Editing proper is the editor's
+//! (F4); the Agent's projection of prose into editable text is M29.
 
 use dr_model::DocId;
 use schemars::JsonSchema;
@@ -15,6 +16,8 @@ pub(crate) fn register(r: &mut Registry) {
     r.add::<ProseRead>()
         .add::<ProseReplace>()
         .add::<ProseRestore>()
+        .add::<ProseLink>()
+        .add::<ProseUnlink>()
         .add::<Search>();
 }
 
@@ -190,6 +193,100 @@ op! {
         cx.effect(EffectAction::Restored, "prose", input.doc.as_str(), None);
         cx.undo_with(Invocation::new("prose.restore", ProseRestoreIn { doc: input.doc.clone(), at: frontiers_hex(&pre) }));
         Ok(Done { id: input.doc })
+    }
+}
+
+// ---- entity links on anchored ranges ------------------------------------------
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct LinkIn {
+    pub doc: String,
+    /// What the links point at (`element`, `node`, `storyline`, `category`,
+    /// `material`).
+    pub target: crate::dto::Target,
+    /// The ranges, as anchors (two cursors each, as comments keep them), so
+    /// typing since moves nothing.
+    pub anchors: Vec<crate::dto::AnchorBytes>,
+}
+
+#[derive(Clone, Debug, Serialize, JsonSchema)]
+pub struct LinksChanged {
+    /// Ranges whose link changed (an anchor whose text is gone counts for
+    /// nothing).
+    pub ranges: usize,
+}
+
+/// Put links to `input.target` on (`on`) or off its anchored ranges.
+fn set_links(cx: &Cx<'_>, input: &LinkIn, on: bool) -> Result<LinksChanged> {
+    let doc = doc_id(&input.doc)?;
+    let kind = dr_model::kind::EntityKind::parse(&input.target.kind);
+    if !kind.may_be_linked() {
+        return Err(WsError::invalid(format!(
+            "{:?} cannot be linked",
+            input.target.kind
+        )));
+    }
+    if input.target.id.is_empty() {
+        return Err(WsError::invalid("target id is empty"));
+    }
+    if let Some(info) = cx.workspace().library().doc_info(&input.doc)?
+        && let Some(b) = info.book_id
+    {
+        cx.book(&b)?;
+    }
+    let anchors: Vec<dr_doc::anchor::Anchor> = input
+        .anchors
+        .iter()
+        .map(|a| super::comment::anchor_in(cx, &doc, a))
+        .collect::<Result<_>>()?;
+    let slot = cx.prose(&doc)?;
+    let link = dr_model::prose::EntityLink {
+        target: input.target.id.clone(),
+        kind,
+        block: None,
+        end_block: None,
+    };
+    let ranges = cx.write_prose(&slot, move |txn| {
+        let found: Vec<std::ops::Range<usize>> = anchors
+            .iter()
+            .filter_map(|a| txn.view().resolve(a))
+            .filter(|r| !r.collapsed)
+            .map(|r| r.range)
+            .collect();
+        for r in &found {
+            if on {
+                txn.link_entity(r.clone(), &link)?;
+            } else {
+                txn.unlink_entity(r.clone(), &link.target)?;
+            }
+        }
+        Ok(found.len())
+    })?;
+    if ranges > 0 {
+        cx.effect(EffectAction::Updated, "prose", input.doc.as_str(), None);
+        cx.undo_with(Invocation::new(
+            if on { "prose.unlink" } else { "prose.link" },
+            input.clone(),
+        ));
+    } else {
+        cx.undo_nothing();
+    }
+    Ok(LinksChanged { ranges })
+}
+
+op! {
+    ProseLink = "prose.link", Write, Book,
+    "Link anchored ranges of a prose document to an entity (anchors, not positions: the undo of automatic links that were taken off).",
+    fn(cx, input: LinkIn) -> LinksChanged {
+        set_links(cx, &input, true)
+    }
+}
+
+op! {
+    ProseUnlink = "prose.unlink", Write, Book,
+    "Take the links to an entity off anchored ranges of a prose document (anchors, not positions: the undo of automatic links).",
+    fn(cx, input: LinkIn) -> LinksChanged {
+        set_links(cx, &input, false)
     }
 }
 

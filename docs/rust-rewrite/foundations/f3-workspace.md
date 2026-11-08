@@ -1,8 +1,72 @@
 # F3：dr-workspace（命令、查询、事件、撤销）
 
-2026-11-07 两个里程碑，2026-11-08 第三轮（给编辑器的三样）、第四轮（各模块要的小命令、M09 快照历史）、第五轮（情节规划、补丁、模板的命令，别人写的字自动链人物，换上 F1 的按键读取）和第六轮（换上 F2 的作者命令来源和删书记录，提交事件只读改到的段落，M11 要的三样）。计划见 [foundation.md 的 F3](../foundation.md#f3-dr-workspace)，代码在 `next/crates/dr-workspace/`。它建在 F1（[f1-model-doc.md](f1-model-doc.md)）、F2（[f2-store.md](f2-store.md)）和 dr-index（[dr-text-index.md](dr-text-index.md)）之上，不依赖 GPUI。
+2026-11-07 两个里程碑，2026-11-08 第三轮（给编辑器的三样）、第四轮（各模块要的小命令、M09 快照历史）、第五轮（情节规划、补丁、模板的命令，别人写的字自动链人物，换上 F1 的按键读取）、第六轮（换上 F2 的作者命令来源和删书记录，提交事件只读改到的段落，M11 要的三样）和第七轮（换上 F1 的种子写法和模板文档，自动链人物补齐已有正文，换库失败交还工作区，`mention.list` 提速，要素带更新时间）。计划见 [foundation.md 的 F3](../foundation.md#f3-dr-workspace)，代码在 `next/crates/dr-workspace/`。它建在 F1（[f1-model-doc.md](f1-model-doc.md)）、F2（[f2-store.md](f2-store.md)）和 dr-index（[dr-text-index.md](dr-text-index.md)）之上，不依赖 GPUI。
 
 ## 做了什么（大白话）
+
+### 第七轮：种子写法、模板文档、补链、交还工作区、提及提速、要素更新时间
+
+1. **投待办、建情节规划表换上 F1 的种子写法。**
+   - **投待办**：`todo.project` 改用 `BookTxn::project_todo`。种类、目标、所在段、任务文字和「未解决」由 dr-doc 写成一份种子变更，每台设备写出来一模一样，Loro 只留一份；工作区只再写作者、来源、metadata 和时间。
+     - 第三轮的事后修复删了：导入书目后的 `repair_projections`、判断「正文是种子重复几遍」的 `doubled_seed`、metadata 里的 `seed`。旧数据里的 `seed` 读的时候忽略。
+     - 两台设备同时投同一个标记，一次交换就只剩一条、正文只读一遍（以前要等修复再交换一次）。
+     - 新测试：A 投了待办、改了正文并标成已解决，离线的 B 后来也投了同一个标记；合并后两边都是已解决、正文是 A 改过的。种子的操作在历史最底下，任何一次真正的编辑都压过它。
+     - F1 说「投待办要放在一次写入的最前面」，因为 F2 的持有者还没在写入任务开始前设好提交选项。F3 的写入一直是自己先设的（`holder::write`，第三轮起），种子导入时的中途提交也带着来源和提交信息，所以不用挪位置。
+   - **情节规划表**：`plot_grid.create` 改用 `BookTxn::create_plot_grid`，默认三行三列的 id 是 `PlotRowId::default_for` / `PlotColId::default_for`，不再写格子大小（没写就读成 184 × 96）。
+     - `plot_grid.get` 在表还没存时就给出这些 id（`exists: false`），界面第一次动手前就能用。
+     - 每个写表的命令都先调 `create_plot_grid`（表在就什么也不写），所以界面不用先单独调 `plot_grid.create`：第一次打字、加行、改大小，表就存下了。没存过的表「清空」什么也不写。
+     - 新测试：两台设备同时从默认表开始，一台写格子、一台改行名，合并后仍是一张 3 × 3 的表，两样改动都在。
+2. **正文模板改成 F1 的模板文档。**
+   - 类目的要素模板是 `template:category:<类目>`，故事线的章节模板是 `template:storyline:<故事线>`，各是一篇正文。两台设备同时改，像改章节一样合并。
+   - **新建时套用**：新建要素时有类目、自己没给正文，新建章节时给了故事线（就是它的主故事线）、自己没给正文，就把模板整篇抄进去（dr-doc 的 `insert_copy`：标题级别等段落属性、加粗等标记、人物链接、表格都抄，块 ID 是新的）。抄之前先在模板自己的持有者线程上取一份副本，作者正在改模板时也不会抄到一半。以后再改模板，已经建好的页面不变。
+   - **命令**：
+     - `category_template.body` / `chapter_template.body` 把模板读成「段落 + H1/H2/H3」（旧版模板编辑器只有这些；表格不列）；
+     - `category_template.set_body` / `chapter_template.set_body` 整份写回，开头和结尾没变的段落原样留着（块 ID、标记、链接都不动），只换中间变了的，两台设备改不同的地方能合起来；撤销是把模板退回改之前的版本。和现在一样就什么也不写；
+     - `category_template.document` / `chapter_template.document` 登记这篇文档并返回它的 id，给编辑器打开（`ws.prose_session(id)`），模板就和普通页面一样编辑。
+     - `category.list` 照旧带 `has_element_template`，`storyline.list` 多了 `has_chapter_template`：文档存在并且不只是一个空段才算有。
+   - **旧版的 JSON 字段**（`element_template`、`chapter_template`）只读：模板文档还没登记时，读、套用都认这个字段；一旦登记了，以文档为准，清空了也是清空。`*.document`、`*.set_body` 遇到只有旧字段的库，先把旧字段写进文档（这一步不算作者的一步，不进日志）。M10 导入时自己转（见待协调 M10）。
+   - 类目、故事线彻底删除时，模板文档和别的页面的正文一样留着：删除能撤销（恢复书目里的实体），没有主人的正文由存储清掉（F1 的 `owns_prose` 已经认模板的主人）。
+3. **F4 要的自动链人物三件事**（`f4e-editor.md` 第四批待协调）：
+   - **规则补了一条**：指向别人、恰好盖住这个名字的链接不让出去。这种情况是名字后来被别的对象拿走了，原文指的还是原来那个人。现在 `link_written` 和编辑器一样。
+   - **公开了只算不写的规划**：`dr_workspace::autolink::plan(段落文字, 段落里的链接, 匹配器, 范围)` 返回这一段要加哪些链接、要去哪些链接（`LinkEdit`），一处写明规则；`link_runs` 从 dr-doc 的段落读出链接，`keep_added` 只留新名字的，`apply` 写进事务。编辑器可以直接用，不用自己留一份同样的规则。
+   - **补链挪进命令**：书里多了名字，已经写好的正文也链上：新建要素（名字和别名）、改名、加别名，新建章节或构想、改它们的标题。
+     - 只看活着的章节、构想、要素正文、故事线和分类的说明，不碰素材笔记（旧版也不碰），不碰自己的正文；只链新名字。哪些文档要看：dr-store 的段落索引里搜得到这个名字的，加上这台设备上开着的（它最新的字可能还没进索引）。
+     - 每篇一次提交，来源是命令自己的（作者是 `user:command`），不进任何编辑器的撤销栈，开着的编辑器的撤销也不受影响；撤销进日志：新命令 `prose.unlink` 去掉这次加的链接、`prose.link` 放回这次让出去的短链接，都按锚点（两个光标）找位置，作者之后打的字不会让它们找错。
+     - 只有作者和帮手的命令补链；导入、镜像、同步不补（导入自己决定，见待协调 M10）。设置「自动要素链接」关掉时也不补。
+     - 编辑器里的后台补链可以删掉了，怎么删见待协调 F4；已经发消息告诉 F4。
+4. **换库失败时交还工作区**（F6 要的）：`Workspace::try_shutdown()` 关不掉时返回 `ShutdownRefused { error, workspace }`，照 dr-store 的 `try_close`：
+   - 还有别的克隆拿着工作区：交还原来那个，重新订阅库的事件，开着的文档已经关掉、下次用到再开；
+   - 库本身拒绝关：在交还的库上重新开一个工作区，作者的自动链接设置照旧；只有连撤销日志都读不出来时 `workspace` 才是 `None`。
+   - `shutdown()` 照旧，就是 `try_shutdown()` 去掉交还的部分。
+   - 新测试：别的克隆拿着时被拒、交还的工作区还能写、缓存还跟着事件走、设置还在；别的克隆放手后能关、重开后数据都在。
+5. **`mention.list` 提速。** 先按 dr-store 返回的行里本来的字符串分组（每行不再新建字符串），每组只查一次两头还在不在、每个对象只查一次，排序也在借来的数据上做，最后只为要返回的行建结果。
+   - 新加 `limit`：只要提及最多的前几条（帮手问「谁被提到最多」时用），只为这几条建结果、转 JSON。
+   - 同次数、同段数的行按来源文档、目标、种类排，结果是确定的。
+   - heavy 种子上量的数在下面的表里。
+   - M20 量到的 687 ms 是在负载 56–111、F2 加索引之前；这一轮在空一些的机器上量不出那么慢。剩下的时间一半是把 2 万多行转成 JSON（`Workspace::call` 的事，2 万行就得这么多），一半是取行和分组。
+
+`mention.list` 整本书，heavy 种子（一本书，22057 行引用），release，负载 13–18，同一台机器上改前、改后背靠背各跑 9 次取中位数（只作参考）：
+
+| 项 | 改前 | 改后 |
+| --- | ---: | ---: |
+| dr-store 取行 | 15.0 ms | 13.5 ms |
+| 按类型调用（取行 + 处理） | 37.4 ms | 28.0 ms |
+| 按名字调用（再转成 JSON） | 80.6 ms | 50.0 ms |
+| 按名字调用，`limit: 50` | — | 24.2 ms |
+
+6. **要素带 `updated_at`**（M11 要的）：`element.list` 每条多了 `created_at` 和 `updated_at`（秒）。
+   - `element.update` 改任何一样（名字、别名、字段、梗概、类目、肖像、固定位置）都在同一次书目提交里盖一个时间戳；`updated_at` 取这个时间戳（没有时用创建时间）和正文最后一次存盘的时间里晚的那个，所以作者在编辑器里改正文也算，不用每次打字都写书目。
+   - dr-doc 的要素还没有这个字段：F3 自己写、自己读这个键（`updated_at`，和批注的一样用秒），编码和 dr-doc 的时间一致。等 F1 加上 `Element.updated_at` 和写入器，读写换成它就行，已经存的不用改（待协调 F1-5）。
+
+命令和查询从 125 条变成 131 条：95 条命令，36 条查询。新加 `category_template.document`、`chapter_template.body`、`chapter_template.set_body`、`chapter_template.document`、`prose.link`、`prose.unlink`；`mention.list` 多了 `limit`，`element.list`、`storyline.list` 多了字段，`chapter.create` 的说明加了套用章节模板。能力清单快照已更新。
+
+**改了别的 crate 的两处**（都是跟着接口变，不改行为）：
+- `dr-view-stats/src/detail.rs` 里建 `MentionListIn` 的地方补了 `limit: None`（结构体多了字段，不补编译不过）。
+- `dr-editor/tests/assist.rs` 的 `a_new_element_links_itself_in_text_already_written` 最后一段：补链现在是命令的一步，编辑器的 ⌘Z 不再撤掉它，改成断言「编辑器撤销后链接还在、对象级撤销后没了」。编辑器自己的后台补链还在，碰到已经链好的就什么也不做；F4 删掉它时这个测试一起改。
+
+**性能**：负载在 13 到 140 之间跳，没跑 `bench workspace --milestone f3-m3`。上面第 5 条的数字是单独粗量的。
+
+**检查**（合了 main 77a957d3 以后）：`cargo fmt --all --check`、全工作区 clippy 干净；全工作区 `--no-fail-fast` 1225 个测试通过、0 个失败（18 个默认忽略）；release 下单设备、两设备属性测试各 3000 例通过（164.5 秒，上一轮 56 秒：补链让每次建改要素、章节多做一次索引搜索和几次写入）；`cargo xtask check` 10 道门全过；公开边界检查、文档守护测试（14 项）通过。
 
 ### 第六轮：作者命令的来源、删书记录、提交事件提速、M11 要的三样
 
@@ -302,23 +366,23 @@ quit::before_quit(cx, move |_| {
 | 最近打开（只在本机） | `recent.list` | `recent.touch` |
 | 项目设定 | `fact.list` | `fact.put`（新建或修改，可指定位置）、`fact.remove` |
 | Project Memory | `memory.list` | `memory.add`、`memory.update`、`memory.remove`、`memory.restore` |
-| 章节 | `chapter.list`（书序、所在的幕、故事线、字数、建章和最近修改时间） | `chapter.create`（可带初始正文，正文里的名字自动链接）、`chapter.update`（标题、梗概、状态、叙事序、故事线和主故事线）、`chapter.move`、`chapter.trash`、`chapter.restore`、`chapter.purge` |
+| 章节 | `chapter.list`（书序、所在的幕、故事线、字数、建章和最近修改时间） | `chapter.create`（可带初始正文，正文里的名字自动链接；给了故事线又没给正文就套它的章节模板）、`chapter.update`（标题、梗概、状态、叙事序、故事线和主故事线）、`chapter.move`、`chapter.trash`、`chapter.restore`、`chapter.purge` |
 | 幕 | `act.list`（带各幕的章节） | `act.create`、`act.update`（改名、颜色、分界、绑定构想）、`act.delete` |
-| 故事线 | `storyline.list`（带字段） | `storyline.create`（照抄故事线字段模板）、`storyline.update`（含字段）、`storyline.move`、`storyline.trash`、`storyline.restore`、`storyline.purge` |
-| 要素 | `element.list`（标出合并后重名的） | `element.create`（照抄分类的字段模板，没给正文就套要素模板）、`element.update`（名字、梗概、分类、别名、字段、肖像、关系图固定位置）、`element.trash`、`element.restore`、`element.purge` |
+| 故事线 | `storyline.list`（带字段、有没有章节模板） | `storyline.create`（照抄故事线字段模板）、`storyline.update`（含字段）、`storyline.move`、`storyline.trash`、`storyline.restore`、`storyline.purge` |
+| 要素 | `element.list`（标出合并后重名的；建立和最近修改时间） | `element.create`（照抄分类的字段模板，没给正文就套要素模板；名字补链进已有正文）、`element.update`（名字、梗概、分类、别名、字段、肖像、关系图固定位置；新名字补链）、`element.trash`、`element.restore`、`element.purge` |
 | 分类 | `category.list`（带字段模板、有没有要素模板） | `category.create`、`category.update`、`category.trash`、`category.restore`、`category.purge` |
 | 关系 | `relation.list`、`relation_type.list` | `relation.create`（对称类型按规范顺序存，已有就返回已有的）、`relation.delete`、`relation_type.create`、`relation_type.update`、`relation_type.delete`（连同用它的关系） |
 | 构想 | `idea.list`、`idea_group.list` | `idea.create`、`idea.update`、`idea.trash`、`idea.restore`、`idea.purge`、`idea_group.create`、`idea_group.update`、`idea_group.delete` |
 | 时间钉 | `time_pin.list` | `time_pin.create`、`time_pin.update`（移动、改标签、绑定或解绑构想）、`time_pin.delete` |
-| 情节规划 | `plot_grid.get`（还没存时给空的 3 × 3） | `plot_grid.create`、`plot_grid.size`、`plot_grid.line_add`、`plot_grid.line_update`（改名、移动）、`plot_grid.line_remove`（连同格子，最后一行一列不能删）、`plot_grid.cell`、`plot_grid.clear` |
+| 情节规划 | `plot_grid.get`（还没存时给空的 3 × 3，行列已有确定的 id） | `plot_grid.create`（任何一次写表也会建）、`plot_grid.size`、`plot_grid.line_add`、`plot_grid.line_update`（改名、移动）、`plot_grid.line_remove`（连同格子，最后一行一列不能删）、`plot_grid.cell`、`plot_grid.clear` |
 | 补丁 | `patch.list`（按来源章节的书序，浮动的最后） | `patch.create`、`patch.update`（标题、正文、改章节归属）、`patch.move`、`patch.delete`（不拒绝，关系一起删、批注浮动）、`patch.check_sources`（失效的标上、回来的去掉；不进日志） |
-| 模板 | `storyline_template.list`、`category_template.list`、`category_template.body`（要素模板，段落 + H1/H2/H3） | `storyline_template.put`、`storyline_template.remove`、`category_template.put`、`category_template.remove`、`category_template.set_body` |
+| 模板 | `storyline_template.list`、`category_template.list`、`category_template.body`（要素模板，段落 + H1/H2/H3）、`chapter_template.body`（故事线的章节模板） | `storyline_template.put`、`storyline_template.remove`、`category_template.put`、`category_template.remove`、`category_template.set_body`、`category_template.document`、`chapter_template.set_body`、`chapter_template.document`（后两种 `document` 返回模板文档的 id，给编辑器开） |
 | 批注与待办 | `comment.list`（目标不在的标「未定位」）、`comment.anchors`（一个对象正文上的锚点，给编辑器） | `comment.create`（挂在对象、段落、一段文字上，或浮动）、`comment.update`（正文、解决或重开、优先级、种类、关联的 Agent 对话）、`comment.reanchor`（编辑器撤销带回的锚点）、`comment.delete`、`todo.project`（正文里的 TODO 标记投成待办） |
 | 素材 | `material.list`、`material_folder.list` | `material.create`（文本笔记、图片、PDF）、`material.update`、`material.move`、`material.delete`、`material_folder.create`、`material_folder.update`、`material_folder.delete`、`asset.put`（资源元数据，写一次） |
-| 正文 | `prose.read`（段落：块 ID、H1/H2/H3 级别、文字、版本） | `prose.replace`（一段里唯一出现的原文 → 新文字，新文字里的名字自动链接）、`prose.restore`（退回某个版本） |
+| 正文 | `prose.read`（段落：块 ID、H1/H2/H3 级别、文字、版本）、`prose.shape`、`mention.list`（可带 `limit`） | `prose.replace`（一段里唯一出现的原文 → 新文字，新文字里的名字自动链接）、`prose.restore`（退回某个版本）、`prose.link` / `prose.unlink`（按锚点加上、去掉链接；补链的撤销用） |
 | 历史 | `history.agent_changes`、`history.points`（一篇正文的历史点）、`history.preview`（某个点的正文和当时的标题梗概） | `history.restore_entities`、`history.undo_agent`、`history.restore_point`（按实体恢复到某个点） |
 
-一共 125 条：90 条命令，35 条查询（含 dr-text 加的 `mention.list`、`prose.shape`、`asset.get`）。`book.create`、`book.purge`、`book.purge_expired` 是 `library`，其余写命令都是 `book`；查询都是 `shared`。`comment.reanchor` 和 `todo.project` 跟着正文走，不进对象级撤销的日志（见第三轮第 1 条）；`recent.touch`、`patch.check_sources` 不是作者的一步，也不记日志；`book.purge`、`book.purge_expired` 不能撤销。
+一共 131 条：95 条命令，36 条查询（含 dr-text 加的 `mention.list`、`prose.shape`、`asset.get`）。`book.create`、`book.purge`、`book.purge_expired` 是 `library`，其余写命令都是 `book`；查询都是 `shared`。`comment.reanchor` 和 `todo.project` 跟着正文走，不进对象级撤销的日志（见第三轮第 1 条）；`recent.touch`、`patch.check_sources` 不是作者的一步，也不记日志；`book.purge`、`book.purge_expired` 不能撤销。
 
 
 ## 写入顺序与补偿
@@ -431,19 +495,19 @@ DR_FOOTPRINT_DIR=<同一个> cargo test --release -p dr-workspace --test footpri
 
 | 测试 | 内容 | 结果 |
 | --- | --- | --- |
-| `tests/commands.rs`（26 项） | 每条命令和查询至少调一次，包括报错的情形；`null` 清空字段、撤销把空字段变回空；搜索按书序、废纸篓里的不占名额；有一项检查登记表里的每条都在这个文件或 `editor.rs`、`shelf.rs`、`points.rs`、`autolink.rs`、`workshop.rs` 里被调用过 | 全过 |
+| `tests/commands.rs`（28 项） | 每条命令和查询至少调一次，包括报错的情形；`mention.list` 同数的按来源排、`limit` 取前几条；`null` 清空字段、撤销把空字段变回空；搜索按书序、废纸篓里的不占名额；有一项检查登记表里的每条都在这个文件或 `editor.rs`、`shelf.rs`、`points.rs`、`autolink.rs`、`workshop.rs` 里被调用过 | 全过 |
 | `tests/shelf.rs`（9 项） | 彻底删除的书在另一台设备的更新到来时不回来、解除记录后才回来；`chapter.list` 的字数和日期（废纸篓里的也有）；书架一次读完：只算章节的字数、副标题、数目、日期、还剩几天，废纸篓里的在后面；还剩几天向上取整、到 0 为止；彻底删除只删最近删除里的，文档、日志、最近打开都删掉，别的书不动，再删一次找不到；没到期的书 `book.purge_expired` 不删；最近打开每本书留 10 条、挪到最前不重复、不记日志、废纸篓里的不给、重启后还在；时间钉的标签规则、一个构想一个钉、移动和改名能撤销、构想进废纸篓读成没绑、删除能撤销（同一个 id、绑定还在） | 全过 |
 | `tests/points.rs`（5 项） | 历史点新的在前，带当时的标题、字数、前 120 个字；预览给出 H1 级别、当时的标题和梗概；恢复退回正文和标题梗概，恢复前的版本成了一个 `restore` 点，预览显示「和现在一样」；对象级撤销一步撤回、重做再来；恢复现在这个版本什么也不改；要素旧名字被占了就不动名字和别名；章节旧标题被占了就加后缀；书目文档、不存在的点、没给点都被拒 | 全过 |
-| `tests/autolink.rs`（7 项） | 作者自己的命令不链；帮手建的素材笔记、故事线带的正文也链；帮手替换进来的字里的名字链上、作者原有的字不动、Agent 撤销连链接一起撤；帮手那一步的对象级撤销连链接一起撤；章节标题也链、一篇正文不链自己、最长优先不重叠；一半旧字一半新字的名字不链；作者关掉设置就不链；废纸篓里的要素不链 | 全过 |
-| `tests/workshop.rs`（7 项） | 要素模板：整份读写、新建要素按模板写正文（标题级别照旧）、自带正文优先、空的去掉并能撤回、坏的标题级别被拒；旧版 JSON（标题、换行、引用、分隔线、空段）读成段落、写回再读一样；书带创建时间；`mention.list` 列出要素被谁提到（一章两处、一个要素一处）和它提到了谁。情节规划：空表 3 × 3、建表、格子照原样存和清掉、标签不修剪、插在最前面和某行之后、移动和撤销、不能移到自己后面、删行连同格子并能撤回、最后一列不能删；构想也有表、格子大小超出被拒、清空只清文字并能撤回、彻底删除构想连表一起删。补丁：浮动的空补丁、取自两章的补丁按书序排、段落没有章节被拒、改章节归属清掉段落并能撤回、失效和恢复只写变化且不进日志、带关系和批注也照删并能全部撤回、移动。模板：不修剪、键可重复、键值都空被拒、照抄成新 id、改模板不影响已有的、删字段撤回同一个 id、分类模板照抄进新要素、挪进分类不套用 | 全过 |
-| `tests/editor.rs`（7 项） | 给编辑器的：撤销以后写回锚点、去掉锚点、同一个锚点不写、反操作放回原来的、不进日志；坏字节、浮动批注、别的设备的光标被拒；锚点同步到另一台设备。TODO 标记按旧版规则建、留、删，正在打字的段先不建，已解决的冻结，过时的清单不建，书和素材的正文被拒；投影不进日志、不吃掉重做；两台设备投出同一个待办（正文不重复）；先收到书目、后收到正文的设备先留着待办 | 全过 |
+| `tests/autolink.rs`（14 项） | 规划：恰好盖住名字的别人的链接、伸出名字的别人的链接都不动，里面更短的让出去，链了一半的补全，范围外的不算；补链：新要素链上已有正文，开着的编辑器撤销只撤自己打的字、链接还在，对象级撤销去掉、重做再来；更长的新名字接过短链接，撤销还给短的；加别名、改名、新章节标题都补；名字被别人拿走后原文的链接不让；素材笔记、废纸篓、关掉设置都不补；`prose.link` / `prose.unlink` 按锚点找位置（前面打了字也对）、能撤销、别的文档的锚点被拒；作者自己的命令不链；帮手建的素材笔记、故事线带的正文也链；帮手替换进来的字里的名字链上、作者原有的字不动、Agent 撤销连链接一起撤；帮手那一步的对象级撤销连链接一起撤；章节标题也链、一篇正文不链自己、最长优先不重叠；一半旧字一半新字的名字不链；作者关掉设置就不链；废纸篓里的要素不链 | 全过 |
+| `tests/workshop.rs`（14 项） | 模板文档：在编辑器里写的模板（标题、加粗、人物链接）整篇抄进新要素、块 ID 是新的；`set_body` 开头没变的段落留着原来的块 ID 和加粗，和现在一样就不写，撤销退回；前后加段、中间换段、末尾删段、两头是空标题段，写回再读都一样；改模板不影响已建的；故事线的章节模板套进新章节（标题级别照旧），自带正文的、没给故事线的不套；只有旧 JSON 字段时照它读和套用，`document` 把它写进文档且不进日志，之后以文档为准（清空了就没有）；两台设备改同一个模板的不同地方合并。情节规划：没存时就有确定的行列 id、两台设备一样，写一格就存下，两台设备合并后仍是 3 × 3，没存过的表清空不写。要素的更新时间：改名、改字段都盖时间戳，列表取它和正文存盘时间里晚的。要素模板：整份读写、新建要素按模板写正文（标题级别照旧）、自带正文优先、空的去掉并能撤回、坏的标题级别被拒；旧版 JSON（标题、换行、引用、分隔线、空段）读成段落、写回再读一样；书带创建时间；`mention.list` 列出要素被谁提到（一章两处、一个要素一处）和它提到了谁。情节规划：空表 3 × 3、建表、格子照原样存和清掉、标签不修剪、插在最前面和某行之后、移动和撤销、不能移到自己后面、删行连同格子并能撤回、最后一列不能删；构想也有表、格子大小超出被拒、清空只清文字并能撤回、彻底删除构想连表一起删。补丁：浮动的空补丁、取自两章的补丁按书序排、段落没有章节被拒、改章节归属清掉段落并能撤回、失效和恢复只写变化且不进日志、带关系和批注也照删并能全部撤回、移动。模板：不修剪、键可重复、键值都空被拒、照抄成新 id、改模板不影响已有的、删字段撤回同一个 id、分类模板照抄进新要素、挪进分类不套用 | 全过 |
+| `tests/editor.rs`（8 项） | 给编辑器的：撤销以后写回锚点、去掉锚点、同一个锚点不写、反操作放回原来的、不进日志；坏字节、浮动批注、别的设备的光标被拒；锚点同步到另一台设备。TODO 标记按旧版规则建、留、删，正在打字的段先不建，已解决的冻结，过时的清单不建，书和素材的正文被拒；投影不进日志、不吃掉重做；两台设备投出同一个待办（一次交换后只一条、正文不重复）；一台已解决并改了正文、另一台晚投，合并后仍是已解决；先收到书目、后收到正文的设备先留着待办 | 全过 |
 | `tests/registry.rs`（4 项） | 能力清单的两份快照（先排好键再比）；每条说明是一句话；读的都是 `shared`，写的都不是；输入都是带字段名的对象；清单里不出现 H1–H3 的禁用叫法、退役产品的名字和构想的旧叫法 | 全过 |
 | `tests/events.rs`（4 项） | 书目事件点名实体；正文事件只点名被改的那一段；Agent 写入带结算事件；缓存跟着事件走 | 全过 |
 | `tests/shell.rs`（4 项） | 目录按名字、按 id 找，组和组分开，重名（两台设备合并出来的）都返回，废纸篓里的找不到，改名立刻生效；进废纸篓、彻底删除、Agent 删除、删素材、删整本书都发 `Removed`，恢复不发；另一台设备同步过来的删除也发，没读过的被删节点两种都报；`before_quit` 补齐索引、关掉没人占着的文档，之后还能照常用 | 全过 |
-| `tests/write_order.rs`（6 项） | 上面「写入顺序与补偿」表里的四种失败，加上重开后正文还在、不冲刷也全落盘 | 全过 |
+| `tests/write_order.rs`（7 项） | 上面「写入顺序与补偿」表里的四种失败，加上重开后正文还在、不冲刷也全落盘；关不掉时交还工作区 | 全过 |
 | `tests/undo.rs`（10 项） | 三层撤销；作者的命令不进编辑器的撤销栈（两种先后顺序）；日志重启后还在；每人只留最近的记录 | 全过 |
 | `tests/invariants.rs` 单设备属性测试（另有两条从失败例子固定下来的回归测试） | 每例最多 35 步随机命令（42 种，包括撤销、重做、Agent 改名和撤销、TODO 标记投影、打历史点和恢复到历史点、建删补丁、写情节规划和删行、故障注入、从磁盘重开），每一步后检查：章节和构想标题、故事线名、分类名、要素名和别名都不重复；每个实体的正文文档都在；显示的关系两端都活着；批注目标要么显示、要么标「未定位」；章节都有书序；构想分组不超过两层；投出的待办 id 由文档和块算出、正文就是种子一遍；情节规划至少一行一列、格子都指向现有的行列；补丁属于它的要素、来源存在；重开前后读出来一样 | 3000 例全过（release） |
-| `tests/invariants.rs` 两设备属性测试 | 同一本书（带一章共有的章节）的两份副本各自跑随机命令，再互相交换全部文档；两边读出来逐项相同；合并后可能出现的重名由读取标出，只有一个保留名字；两边对同一段投出的待办合并后正文不重复（拿掉导入后的修复，这条会失败，确认过） | 3000 例全过 |
+| `tests/invariants.rs` 两设备属性测试 | 同一本书（带一章共有的章节）的两份副本各自跑随机命令，再互相交换全部文档；两边读出来逐项相同；合并后可能出现的重名由读取标出，只有一个保留名字；两边对同一段投出的待办合并后正文不重复（第七轮起靠 dr-doc 的种子变更，导入后的修复已删） | 3000 例全过 |
 | `concurrent_creates_of_one_name_are_flagged_not_lost` | 两台设备同时建同名要素、同名章节：都保留，要素标出冲突，章节标题允许重复，下一次改名加后缀 | 过 |
 | `tests/footprint.rs`（2 项，默认忽略） | 上面那组内存和单次提交的测量 | 手动跑 |
 | 各模块单测（6 项，含一个性质测试） | 只读改动附近算出的受影响段落和读整篇算出的一样（随机正文、随机改动范围）；来源字符串一致、名字后缀、位置键、版本编码、事件里的段落换算 | 全过 |
@@ -529,7 +593,7 @@ F8 的 `bench workspace`，heavy 种子（100 章，正文共约 360 万字，30
 | 2.4 | 给 F6：`Catalog` 用的目录、删除事件、退出钩子 | 完成；`dr-shell` 里的三行接法见上 |
 | 2.5 | 测量改用 F8 的 `bench` 套件 | 完成 |
 | 3.1 | `comment.reanchor`：编辑器撤销带回的锚点写回书目（base64，作者的改动，同步出去）；加 `comment.anchors` 查询 | 完成；不进日志，理由见第三轮第 1 条 |
-| 3.2 | `todo.project`：按旧版 `useTodoAutoParse` 的规则建、留、删，id 用 `CommentId::for_projection`，两台设备是同一个实体 | 完成；另补了「先收到书目」的等待和「两边同时投」的正文修复 |
+| 3.2 | `todo.project`：按旧版 `useTodoAutoParse` 的规则建、留、删，id 用 `CommentId::for_projection`，两台设备是同一个实体 | 完成；另补了「先收到书目」的等待；「两边同时投」第七轮起靠 F1 的种子变更 |
 | 3.3 | 作者命令改正开着的正文时不进编辑器的撤销栈 | 完成（`user:command`）；长久做法见 F2-3、F1-2 |
 | 4.1 | `chapter.list` 带字数、建章和最近修改时间 | 完成；改标题不算「修改」，见第四轮第 1 条 |
 | 4.2 | 书架一次读完（`book.shelf`） | 完成 |
@@ -547,7 +611,14 @@ F8 的 `bench workspace`，heavy 种子（100 章，正文共约 360 万字，30
 | 6.2 | 删书防拉回：对照 F2 的 `purged_doc`，收掉规格 | 完成；`import_remote` 遇到已删的返回 false |
 | 6.3 | 提交事件从改动直接算受影响的段落 | 完成；20250 字一章改一字 462 µs → 10 µs（参考） |
 | 6.4 | M11：`BookInfo.created_at`、类目的要素模板和字段模板、引用查询 | 完成；引用用 `mention.list` |
-| 6.5 | 情节规划默认行列换上 F1 的确定 id | 等 F1 |
+| 6.5 | 情节规划默认行列换上 F1 的确定 id | 第七轮完成 |
+| 7.1 | 投待办用 `project_todo`、建表用 `create_plot_grid`，删掉事后修复 | 完成 |
+| 7.2 | 正文模板换成模板文档 + `insert_copy`；故事线的章节模板命令，新建章节按主故事线套用；旧字段只读 | 完成 |
+| 7.3 | F4：让位规则、只算不写的规划函数、补链挪进建改要素（还有章节、构想的标题） | 完成；编辑器的后台补链可以删 |
+| 7.4 | F6：`try_shutdown` 关不掉时交还工作区 | 完成 |
+| 7.5 | `mention.list` 提速，加 `limit` | 完成；heavy 上按类型调用 37 → 28 ms（参考） |
+| 7.6 | 要素带 `updated_at` | 完成；字段暂由 F3 自己写，见 F1-5 |
+| 7.7 | `bench workspace --milestone f3-m3` | 没跑：负载 13–140 |
 
 ## 待协调
 
@@ -555,10 +626,12 @@ F8 的 `bench workspace`，heavy 种子（100 章，正文共约 360 万字，30
 
 ### F1（dr-model、dr-doc），第三轮、第五轮提的
 
-1. **投出的待办，正文应该写成一份确定的改动**（像文档的创世那样）。`BookTxn::projected_todo` 给了确定的 id，但正文是可合并的文字，两台设备同时投同一个标记，合起来正文读两遍。工作区现在在导入书目以后把「恰好是种子重复几遍」的正文改回种子（`repair_projections`，种子记在 metadata 里），两边种子不一样（比如两边的任务文字刚好不同）就修不了。建议 dr-doc 用固定的对等方 ID 写种子（同样的标记、同样的操作），或者把种子放进修复计划。 **F1 第五轮已做**（2026-11-08）：`BookTxn::project_todo(种类, 文档, 块, 任务文字)` 把投出的内容写成种子变更，任务文字是一个值 `projection_text`，正文没人改过就读它；两边文字不一样也只留一个，晚到的投影也不会重新打开已解决的。换法（见 [f1-model-doc.md 的待协调](f1-model-doc.md#待协调) 第 2 条）。
-2. **`UNDO_EXCLUDED_ORIGIN_PREFIXES` 可以加上 `user:command`**，这样任何 `ProseUndo` 都自动排除作者的命令，工作区就不用在会话上另外加前缀（现在用的是 `ProseUndo::hooks()`）。不急。 **F1 第五轮已做**：任何 `ProseUndo` 都自动排除 `user:command`。
-3. **正文模板**（第五轮提的，第六轮部分做了）：要素模板现在按旧版的 JSON 读写、新建要素时套用（见第六轮第 4 条），但它是一个整值，两台设备同时改后写的胜出；章节模板还没有命令。要能合并，还是要 F1 待协调 6 说的新正文文档（`template:<id>`）。 **F1 第五轮已做**：文档种类 `template:category:<id>` / `template:storyline:<id>`（`TemplateOwner::doc_id`），套用用 `ProseTxn::insert_copy`；用法见 [f1-model-doc.md 的待协调](f1-model-doc.md#待协调) 第 2 条。
-4. **情节规划默认行列的确定 id**（第五轮提的）：两台设备同时第一次建同一张表会合并出六行六列。F1 给出确定的默认行列 id 后，F3 在 `plot_grid.create` 里换上。 **F1 第五轮已做**：`BookTxn::create_plot_grid`（`PlotRowId::default_for` / `PlotColId::default_for`），等 F3 换上。
+1. **投出的待办，正文应该写成一份确定的改动**（像文档的创世那样）。`BookTxn::projected_todo` 给了确定的 id，但正文是可合并的文字，两台设备同时投同一个标记，合起来正文读两遍。工作区现在在导入书目以后把「恰好是种子重复几遍」的正文改回种子（`repair_projections`，种子记在 metadata 里），两边种子不一样（比如两边的任务文字刚好不同）就修不了。建议 dr-doc 用固定的对等方 ID 写种子（同样的标记、同样的操作），或者把种子放进修复计划。 **F1 第五轮已做**（2026-11-08）：`BookTxn::project_todo(种类, 文档, 块, 任务文字)` 把投出的内容写成种子变更，任务文字是一个值 `projection_text`，正文没人改过就读它；两边文字不一样也只留一个，晚到的投影也不会重新打开已解决的。换法（见 [f1-model-doc.md 的待协调](f1-model-doc.md#待协调) 第 2 条）。**F3 第七轮已换上**，事后修复删了。
+2. **`UNDO_EXCLUDED_ORIGIN_PREFIXES` 可以加上 `user:command`**，这样任何 `ProseUndo` 都自动排除作者的命令，工作区就不用在会话上另外加前缀（现在用的是 `ProseUndo::hooks()`）。不急。 **F1 第五轮已做**：任何 `ProseUndo` 都自动排除 `user:command`。会话上另加的那个前缀留着，没坏处。
+3. **正文模板**（第五轮提的，第六轮部分做了）：要素模板现在按旧版的 JSON 读写、新建要素时套用（见第六轮第 4 条），但它是一个整值，两台设备同时改后写的胜出；章节模板还没有命令。要能合并，还是要 F1 待协调 6 说的新正文文档（`template:<id>`）。 **F1 第五轮已做**：文档种类 `template:category:<id>` / `template:storyline:<id>`（`TemplateOwner::doc_id`），套用用 `ProseTxn::insert_copy`；用法见 [f1-model-doc.md 的待协调](f1-model-doc.md#待协调) 第 2 条。**F3 第七轮已换上**（第七轮第 2 条）。
+4. **情节规划默认行列的确定 id**（第五轮提的）：两台设备同时第一次建同一张表会合并出六行六列。F1 给出确定的默认行列 id 后，F3 在 `plot_grid.create` 里换上。 **F1 第五轮已做**：`BookTxn::create_plot_grid`（`PlotRowId::default_for` / `PlotColId::default_for`）。**F3 第七轮已换上**。
+5. **要素的 `updated_at`**（第七轮提的）：M11 要显示要素什么时候改过。dr-model 的 `Element` 没有这个字段（`Node` 是有意不要的，因为每次打字都会变；要素的字段只在命令里改，不会每次打字都写）。F3 现在在 `element.update` 的书目提交里自己写这个键（要素的映射里 `updated_at`，`I64` 秒，和批注的、dr-doc 的时间编码一样），读的时候也自己读（`cx.rs` 的 `ELEMENT_UPDATED_AT`）。建议 F1 给 `Element` 加 `updated_at: Option<Timestamp>`、`ElementWriter` 加 `updated_at` 的写入器，用同一个键，F3 换过去，已经存的照样读。要不要在 loro-schema.md 里记一笔，由 F1 定。
+6. **`insert_copy` 不抄表格格子里的标记**（F1 自己记着的）：模板里的表格抄进新页面时格子里的加粗等会丢。模板很少带表格，不急。
 
 ### F2（dr-store）
 
@@ -574,6 +647,7 @@ F8 的 `bench workspace`，heavy 种子（100 章，正文共约 360 万字，30
 
 ### F6（dr-shell）
 
+- **第七轮：换库失败退回旧库**：`swap` 里把 `old.shutdown()` 换成 `old.try_shutdown()`。被拒时 `refused.workspace` 是还开着的旧工作区（`Some`），直接 `Swapped::Old(ws, 原因)` 交回去，不用再从磁盘重开；只有它是 `None`（库关不掉、又连撤销日志都读不出）时才是 `Swapped::Lost`。
 - **第四轮在 `dr-shell` 里改了这几处**（M09 的入口，越少越好）：
   1. `Cargo.toml`：加 `dr-view-history` 依赖一行；
   2. `src/workspace/mod.rs`：`Workspace` 加一个字段 `history: Option<Entity<dr_view_history::HistoryDialog>>`，初始化 `history: None`，渲染时 `.when_some(self.history.clone(), …)` 挂上对话框，共三处各一两行；
@@ -590,6 +664,10 @@ F8 的 `bench workspace`，heavy 种子（100 章，正文共约 360 万字，30
 
 ### F4（编辑器）
 
+- **第七轮：自动链人物（`f4e-editor.md` 第四批待协调）**
+  - 规则一处写明：`dr_workspace::autolink::plan(段落文字, 链接, 匹配器, 范围)` → `Vec<LinkEdit>`。`LinkRun { range, target }` 和编辑器的 `LinkRun` 一样（段内字符位置，目标 id），`LinkEdit::Unlink` 带的是目标 id（编辑器自己换成 `entity_key`）。范围给 `0..段长` 就是整段。`keep_added(文字, 规划, 新名字集合)` 和编辑器的 `only_added` 一样。编辑器的 `autolink()` 可以换成它，规则就只有一份（包括这一轮补的「恰好盖住名字的别人的链接不让」）。
+  - 补链由命令做了：`element.create`、`element.update`（改名、加别名）、`chapter.create` / `chapter.update`、`idea.create` / `idea.update`（标题）在命令里把新名字链进已有的正文，来源是命令自己的（作者是 `user:command`），编辑器的撤销栈里没有它，开着的文档也照写（编辑器会像收到别人的改动一样看到）。对象级撤销用 `prose.unlink` / `prose.link` 按锚点撤。所以 `entity_links.rs` 的 `backfill_closed`、`claim_backfill` 和开着的文档的补链都可以删；作者打字时的自动链接（只链作者打的段）照旧。
+  - 匹配范围和旧版一样：章节、构想、要素正文、故事线和分类的说明，不含素材笔记。
 - **第三轮的三样怎么接：**
   - `AnchorsChanged` 的每一项调 `comment.reanchor { book, id, anchor }`。`anchor` 用 `dr_workspace::dto::AnchorBytes::from(&encoded)`（dr-doc 的 `EncodedAnchor`）。同一个锚点再写一次什么也不做，可以放心多发。它不进日志，编辑器重做时如果锚点又变了，再发一次。
   - 加载锚点可以改用 `comment.anchors { book, target }`（走缓存），不用在持有者线程上直接读书目文档。
@@ -624,27 +702,35 @@ F8 的 `bench workspace`，heavy 种子（100 章，正文共约 360 万字，30
 
 - M15：打开没有表的章节或构想时显示 `plot_grid.get` 给的空 3 × 3；作者第一次动手（打字、加行、改大小）之前先调 `plot_grid.create` 拿到 id。粘贴一块（带制表符、换行的文字）在旧版会把表撑大：界面先 `line_add` 补够行列，再逐格 `plot_grid.cell`。格子宽高比是本机偏好，不进书目。
 - 两台设备同时第一次建同一张表，会合并出六行六列（行列 id 各自新建）。旧版也是这样（表的 id 确定、行列 id 随机）；要避免得让默认的三行三列用确定的 id，属于 F1 的事，先记着。 **F1 第五轮已做**：`BookTxn::create_plot_grid` 用确定的 id（`PlotRowId::default_for` / `PlotColId::default_for`）写成种子变更，两台设备同时建还是三行三列（见 [f1-model-doc.md 的待协调](f1-model-doc.md#待协调) 第 2 条）。
+- M11（第七轮）：`element.list` 每条有 `created_at`、`updated_at`（秒，`updated_at` 已经算上正文的修改）。要素模板现在是一篇正文：类目页要编辑它时调 `category_template.document { book, category }` 拿到文档 id，用 `ws.prose_session(id)` 开编辑器；简单的读写照旧用 `category_template.body` / `set_body`。新建要素会把它整篇抄进去（含标记和链接）。
+- M13（第七轮）：故事线的章节模板：`chapter_template.body` / `set_body` / `document { book, storyline }`，用法同上；`storyline.list` 的 `has_chapter_template`。`chapter.create` 给了 `storyline`、没给 `text` 就套它。
+- M15（第七轮）：没存的表 `plot_grid.get` 就给出确定的行列 id，界面不用先调 `plot_grid.create`，直接写格子、改行名就行，第一次写就存下。
+- M20（第七轮）：`mention.list` 多了 `limit`；`dr-view-stats` 里建输入的地方我补了 `limit: None`。
 - M11（第六轮）：类目页的字段模版用 `category.list` 的 `template_fields` 和 `category_template.put/remove`；要素模版用 `category_template.body` / `set_body`（段落 + H1/H2/H3，整份写回）；书的创建时间在 `BookInfo.created_at`；右栏的「被引用 / 引用其他」和要素页的关联节用 `mention.list`（`to` / `from` 给要素，每条带 `blocks`、`count`），名字由界面从书目快照里找。
 - M11：补丁区「+ 新建」调 `patch.create`（浮动，可空）；从选区建时带上 `source`、`source_block`、`source_text` 和 `anchor`（编辑器的锚点字节）。旧版界面的补丁正文是富文本（带人物链接），新版书目文档里只有纯文字（F1 待协调 4）。
 - M13：故事线页的字段用 `storyline.list` 的 `fields` 和 `storyline.update` 的 `put_fields` / `remove_fields`；主页上的「故事线字段模板」用 `storyline_template.*`。
 
 ### M10（导入）/ Markdown 镜像
 
+- **正文模板**（第七轮）：旧库的 `element_category.element_template`、`storyline.chapter_template`（编辑器 JSON）用和章节正文同一个转换器写进模板文档（`TemplateOwner::Category(..).doc_id()` / `TemplateOwner::Storyline(..).doc_id()`，导入对等方），书目里的旧字段原样留着。没转之前 F3 照旧字段读和套用，转了以后以文档为准。
+- **自动链接规则补了一条**（第七轮）：恰好盖住名字的、指向别人的链接不让出去；`link_written` 已经照这条，导入、镜像不用改代码。
 - **别人写的字自动链人物**（第五轮）：导入、镜像合回不走 F3 的命令，在自己的写入事务里调 `dr_workspace::autolink::matcher(&书目视图, &文档)` 建匹配器，写完一段字以后调 `link_written(&mut 事务, &匹配器, 写入的范围)`；规则和编辑器、F3 的命令一样，只链写入范围里完整出现的名字。0.1 的正文本来就带着旧版链好的链接，导入要不要再补链，由 M10 定（旧版是打开文档时以作者名义扫全文，新版不这么做）。
 
 ### M36（同步）
 
 - **彻底删除一本书**（`book.purge`）现在只删本机。旧版先删 Hosted 上的、确认了再删本地，离线时书留在「最近删除」里下次再试。同步做好以后，`book.purge` 要先走服务器，或者由 M36 包一层；同时要防止服务器上的旧文档把删掉的书拉回来（见 F2-6）。
-- 远端更新一律走 `Workspace::import_remote`：它走 F2 的 `import`（自动记下服务器已有的版本），然后跑 dr-doc 的修复（重复的块 ID、语义重复的关系、缺书序的章节），书目还会修两边同时投出的待办正文。直接调持有者的 `import` 会跳过修复。
+- 远端更新一律走 `Workspace::import_remote`：它走 F2 的 `import`（自动记下服务器已有的版本），然后跑 dr-doc 的修复（重复的块 ID、语义重复的关系、缺书序的章节）。直接调持有者的 `import` 会跳过修复。第七轮起不再修待办正文（种子变更本身就不会重复）。返回 `false` 表示这本书在本机彻底删过（第六轮）。
+- 模板文档（`template:` 开头，种类 `template`）和别的正文一样同步。
 - 书目和正文分开到达是正常的：`todo.project` 已经按「正文还没到」等着，不会误删待办。
 
 ## 没做的，和下一个里程碑建议
 
 - **没做**：
-  1. 正文模板（要素模板、章节模板）的命令和新建时套用（等 F1 定新文档种类）；
+  1. 补链匹配的是 dr-store 的段落索引：刚导入、索引还在后台补建时，没开着的文档可能漏补（开着的照样补）；
   2. 正文的修订 CAS（带版本的写入），以及作者也改过同一篇正文时按段撤销 Agent 的改动（现在只报冲突，请作者从历史恢复）；
   3. 清理没人认领的正文文档（彻底删除后留下的，和中途失败留下的）；
-  4. 自动链人物的匹配器每条命令现建，没有按书缓存；heavy 种子上建一次要多久还没量。
+  4. 自动链人物的匹配器每条命令现建，没有按书缓存；补链每篇候选文档再建一个（去掉它自己）。heavy 种子上建一次要多久还没量；
+  6. 要素的 `updated_at` 暂由 F3 自己写键（F1-5）。
   5. TODO 标记只在编辑器打开那篇正文时才投（和旧版一样）：Agent 用命令写进去的标记、同步来的标记，要等作者打开那一章。识别标记的规则现在只在 `dr-editor` 里；要在后台投，得把规则挪到下层一处（比如 dr-text），再由工作区在正文变化时自己找。素材笔记的任务行（`NoteTask`）还没做。
 - **建议的下一个里程碑**：
   1. 加后台清理（第 3 条）；F2 的 `purge_book` 到了就换上（F2-6）；
@@ -667,11 +753,12 @@ next/crates/dr-workspace/src/
   journal.rs       撤销日志（ws_journal）
   editor.rs        ProseSession（编辑器层撤销；作者命令的 user:command 不进它的栈）
   actor.rs dto.rs naming.rs error.rs
-  autolink.rs      别人写的字自动链人物（命令、导入、镜像共用）
+  autolink.rs      自动链人物：规划（给编辑器）、别人写的字、补链已有正文
   commands/        book（含书架、彻底删除）chapter storyline element relation idea comment（含锚点和 TODO 投影）
                    material prose history points（M09 快照历史）recent（最近打开）time_pin stats（M07）
                    plot_grid patch template（第五轮）
 next/crates/dr-workspace/tests/
+  （第七轮的新测试在 autolink.rs、workshop.rs、editor.rs、write_order.rs、commands.rs 里）
   commands.rs registry.rs events.rs shell.rs editor.rs shelf.rs points.rs autolink.rs workshop.rs write_order.rs undo.rs
   invariants.rs footprint.rs
 next/crates/dr-view-history/       M09 的对话框（见 modules/m09-history.md）

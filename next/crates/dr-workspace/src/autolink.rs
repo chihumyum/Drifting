@@ -1,42 +1,66 @@
-//! Automatic entity links (人物自动链接) in text other writers put in: an
-//! Agent's `prose.replace` or new chapter with text, and, through the public
-//! functions here, the 0.1 import and the Markdown mirror.
+//! Automatic entity links (人物自动链接): in text other writers put in, and
+//! in the text already written when the book gains a name.
 //!
-//! The rule is dr-text's (`dr_text::autolink`), the one the editor applies
-//! half a second after the author stops typing (`dr-editor`'s
-//! `entity_links.rs`): every live element's name and aliases and every live
-//! chapter's and idea's title, matched verbatim, leftmost-longest, never a
-//! document's own entity; a name already linked to its target is left
-//! alone; a shorter name inside it linked to someone else gives way; a link
-//! of someone else that reaches outside the name is never crossed.
+//! **The rule** is dr-text's matcher (`dr_text::autolink`) with the editor's
+//! choices (`dr-editor`'s `entity_links.rs`), and [`plan`] is the one place
+//! it is written down, for the editor too: every live element's name and
+//! aliases and every live chapter's and idea's title, matched verbatim,
+//! leftmost-longest, never a document's own entity.
 //!
-//! One difference, on purpose: a command links only names lying **wholly
-//! inside the text it wrote**. The editor links whole paragraphs the author
-//! typed in because they are the author's; a command's writer (an Agent, an
-//! import) has no business linking the author's text around it (f4e-editor.md
-//! 「自动链接只链作者打的字」). It also makes the links leave with the text: the
-//! links are written in the same commit as the text, and undoing the command
-//! (its inverse deletes that text, or history reverts the commit) takes them
-//! away, with nothing left on the author's words. A name split across the
-//! written text and the text around it stays unlinked.
+//! - A name already linked to its target all the way is left alone; one
+//!   linked part of the way is linked whole (a split link heals).
+//! - A shorter link of someone else lying inside the name gives way to the
+//!   longer name.
+//! - Someone else's link reaching outside the name, or covering exactly the
+//!   name, is left alone with the name: the second is an old name another
+//!   entity has taken since, and the text still means the one it links to.
 //!
+//! **Text other writers put in.** A command links only names lying wholly
+//! inside the text it wrote ([`link_written`]), in the same commit, so
+//! undoing the command takes the links with the text. The editor links
+//! whole paragraphs the author typed in because they are the author's; a
+//! command's writer (an Agent, an import) has no business linking the
+//! author's text around it (f4e-editor.md 「自动链接只链作者打的字」). A name
+//! split across the written text and the text around it stays unlinked.
 //! Whose writes get links: an Agent's, the Markdown mirror's and an
 //! import's ([`links_for`]). Not the author's own commands (the author's
-//! text is linked by the editor as they type, and an author's command is
-//! theirs to link), and not sync (the other device linked its text already).
+//! text is linked by the editor as they type), and not sync (the other
+//! device linked its text already).
+//!
+//! **Text already written** (0.1's `retroactive-entity-links` and
+//! `element-name-backfill`): when a command gives the book a new name (an
+//! element created, renamed or given an alias; a chapter or idea created
+//! or retitled), the text of every live chapter, idea, element, storyline
+//! and category that holds the name gains its links, the new name's only,
+//! by the same rule (`backfill`). Material notes are left alone, as in
+//! 0.1. Each document is one commit with the command's origin (the author's
+//! is `user:command`, outside every editor's undo, so an editor open on the
+//! document keeps its own steps), and the command's journal entry undoes
+//! them: `prose.unlink` on the links it wrote, `prose.link` on the shorter
+//! links of others it removed, both by anchor, so the author's typing since
+//! moves nothing. Which documents: the ones dr-store's paragraph index
+//! finds the name in, and every document open here (its newest text may not
+//! be indexed yet).
 //!
 //! The author's setting `editor.auto_entity_links` (on by default) governs
 //! all of it: the shell passes it on with [`crate::Workspace::set_auto_links`].
 
+use std::collections::{BTreeSet, HashSet};
 use std::ops::Range;
 
+use dr_doc::anchor::Anchor;
 use dr_doc::book::BookView;
-use dr_doc::prose::ProseTxn;
+use dr_doc::prose::{BorrowedProse, Paragraph, ProseTxn};
 use dr_model::DocId;
+use dr_model::kind::EntityKind;
 use dr_model::prose::EntityLink;
-use dr_text::autolink::{LinkMatcher, LinkTarget, book_link_names};
+use dr_text::autolink::{LinkMatcher, LinkName, LinkTarget, book_link_names};
 
 use crate::Actor;
+use crate::cx::{Cx, EffectAction, Invocation};
+use crate::dto::AnchorBytes;
+use crate::error::Result;
+use crate::workspace::BookSlot;
 
 /// Whether text `actor` writes gets automatic links.
 pub fn links_for(actor: &Actor) -> bool {
@@ -49,92 +73,150 @@ pub fn matcher(book: &BookView<'_>, doc: &DocId) -> LinkMatcher<LinkTarget> {
     LinkMatcher::new(book_link_names(book, &[doc.entity_id()]))
 }
 
-/// One change to the links of a paragraph.
-#[derive(Clone, Debug, PartialEq)]
-enum Edit {
-    Unlink(Range<usize>, String),
-    Link(Range<usize>, LinkTarget),
+/// A run of one entity link on a paragraph (adjacent spans of one target
+/// joined), in characters of the paragraph.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LinkRun {
+    pub range: Range<usize>,
+    /// The target id.
+    pub target: String,
 }
 
-/// Link every name lying wholly inside `written` (character positions in
-/// `txn`'s document, the text the caller has just written in this
-/// transaction). Returns how many links were written. Nothing outside
-/// `written` changes, except a shorter link of someone else lying wholly
-/// inside a name that is linked now (the editor's rule).
-pub fn link_written(
-    txn: &mut ProseTxn<'_>,
-    names: &LinkMatcher<LinkTarget>,
-    written: Range<usize>,
-) -> dr_doc::Result<usize> {
-    if names.is_empty() || written.is_empty() {
-        return Ok(0);
+/// One change to a paragraph's links, in characters of the paragraph.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum LinkEdit {
+    Link {
+        range: Range<usize>,
+        target: LinkTarget,
+    },
+    Unlink {
+        range: Range<usize>,
+        /// The target id.
+        target: String,
+    },
+}
+
+/// The link runs of dr-doc paragraph `p`, in characters of the paragraph,
+/// sorted by position.
+pub fn link_runs(p: &Paragraph) -> Vec<LinkRun> {
+    let mut runs: Vec<LinkRun> = Vec::new();
+    let mut at = 0;
+    for r in &p.runs {
+        let span = at..at + r.text.chars().count();
+        for l in &r.marks.entities {
+            match runs
+                .iter_mut()
+                .rev()
+                .find(|o| o.target == l.target && o.range.end == span.start)
+            {
+                Some(o) => o.range.end = span.end,
+                None => runs.push(LinkRun {
+                    range: span.clone(),
+                    target: l.target.clone(),
+                }),
+            }
+        }
+        at = span.end;
     }
+    runs.sort_by_key(|r| (r.range.start, r.range.end));
+    runs
+}
+
+/// The links one paragraph gains (the rule in the module documentation),
+/// computing only: `text` is the paragraph's text, `runs` its links
+/// ([`link_runs`]), and only names lying wholly inside `within` count
+/// (characters of the paragraph; `0..len` for all of it). Each link comes
+/// right after the shorter links of others it replaces.
+pub fn plan(
+    text: &str,
+    runs: &[LinkRun],
+    names: &LinkMatcher<LinkTarget>,
+    within: Range<usize>,
+) -> Vec<LinkEdit> {
     let mut edits = Vec::new();
-    {
-        let view = txn.view();
-        for p in view.paragraphs() {
-            if p.range.end <= written.start || written.end <= p.range.start {
-                continue;
-            }
-            // The paragraph's links as maximal runs of one target (adjacent
-            // spans joined), in document positions, as the editor reads them.
-            let mut runs: Vec<(Range<usize>, String)> = Vec::new();
-            let mut at = p.range.start;
-            for r in &p.runs {
-                let span = at..at + r.text.chars().count();
-                for l in &r.marks.entities {
-                    match runs
-                        .iter_mut()
-                        .rev()
-                        .find(|(o, t)| *t == l.target && o.end == span.start)
-                    {
-                        Some((o, _)) => o.end = span.end,
-                        None => runs.push((span.clone(), l.target.clone())),
-                    }
+    for m in names.find(text) {
+        let r = m.range.clone();
+        if r.start < within.start || r.end > within.end {
+            continue;
+        }
+        let target = names.target(&m);
+        let over: Vec<&LinkRun> = runs
+            .iter()
+            .filter(|o| o.range.start < r.end && r.start < o.range.end)
+            .collect();
+        // Linked to its target all the way already.
+        let covered = |i: usize| {
+            over.iter()
+                .any(|o| o.target == target.id && o.range.contains(&i))
+        };
+        if r.clone().all(covered) {
+            continue;
+        }
+        // Someone else's link reaching outside the name, or covering
+        // exactly the name: leave both alone.
+        if over.iter().any(|o| {
+            o.target != target.id
+                && (o.range.start < r.start || o.range.end > r.end || o.range == r)
+        }) {
+            continue;
+        }
+        for o in over.iter().filter(|o| o.target != target.id) {
+            edits.push(LinkEdit::Unlink {
+                range: o.range.clone(),
+                target: o.target.clone(),
+            });
+        }
+        edits.push(LinkEdit::Link {
+            range: r,
+            target: target.clone(),
+        });
+    }
+    edits
+}
+
+/// Keeps the edits of [`plan`] that link one of `added` (`(name, target
+/// id)`; the name as `text` spells it), each with the shorter links it
+/// replaces: a new name's links only, the others the book already had are
+/// the editor's business.
+pub fn keep_added(
+    text: &str,
+    edits: Vec<LinkEdit>,
+    added: &HashSet<(String, String)>,
+) -> Vec<LinkEdit> {
+    let mut out = Vec::new();
+    let mut pending = Vec::new();
+    for edit in edits {
+        match &edit {
+            LinkEdit::Unlink { .. } => pending.push(edit),
+            LinkEdit::Link { range, target } => {
+                let name: String = text.chars().skip(range.start).take(range.len()).collect();
+                if added.contains(&(name, target.id.clone())) {
+                    out.append(&mut pending);
+                    out.push(edit);
+                } else {
+                    pending.clear();
                 }
-                at = span.end;
-            }
-            let text: String = p.runs.iter().map(|r| r.text.as_str()).collect();
-            for m in names.find(&text) {
-                let r = p.range.start + m.range.start..p.range.start + m.range.end;
-                if r.start < written.start || r.end > written.end {
-                    continue;
-                }
-                let target = names.target(&m);
-                let over: Vec<&(Range<usize>, String)> = runs
-                    .iter()
-                    .filter(|(o, _)| o.start < r.end && r.start < o.end)
-                    .collect();
-                // Linked to its target all the way already.
-                let covered =
-                    |i: usize| over.iter().any(|(o, t)| *t == target.id && o.contains(&i));
-                if r.clone().all(covered) {
-                    continue;
-                }
-                // Someone else's link reaching outside the name: leave both.
-                if over
-                    .iter()
-                    .any(|(o, t)| *t != target.id && (o.start < r.start || o.end > r.end))
-                {
-                    continue;
-                }
-                for (o, t) in over.iter().filter(|(_, t)| *t != target.id) {
-                    edits.push(Edit::Unlink(o.clone(), t.clone()));
-                }
-                edits.push(Edit::Link(r, target.clone()));
             }
         }
     }
+    out
+}
+
+/// Write `edits` of the paragraph starting at `start`. Returns how many
+/// links were written.
+pub fn apply(txn: &mut ProseTxn<'_>, start: usize, edits: &[LinkEdit]) -> dr_doc::Result<usize> {
     let mut linked = 0;
     for e in edits {
         match e {
-            Edit::Unlink(r, target) => txn.unlink_entity(r, &target)?,
-            Edit::Link(r, target) => {
+            LinkEdit::Unlink { range, target } => {
+                txn.unlink_entity(start + range.start..start + range.end, target)?
+            }
+            LinkEdit::Link { range, target } => {
                 txn.link_entity(
-                    r,
+                    start + range.start..start + range.end,
                     &EntityLink {
-                        target: target.id,
-                        kind: target.kind,
+                        target: target.id.clone(),
+                        kind: target.kind.clone(),
                         block: None,
                         end_block: None,
                     },
@@ -144,4 +226,259 @@ pub fn link_written(
         }
     }
     Ok(linked)
+}
+
+/// Link every name lying wholly inside `written` (character positions in
+/// `txn`'s document, the text the caller has just written in this
+/// transaction). Returns how many links were written. Nothing outside
+/// `written` changes, except a shorter link of someone else lying wholly
+/// inside a name that is linked now.
+pub fn link_written(
+    txn: &mut ProseTxn<'_>,
+    names: &LinkMatcher<LinkTarget>,
+    written: Range<usize>,
+) -> dr_doc::Result<usize> {
+    if names.is_empty() || written.is_empty() {
+        return Ok(0);
+    }
+    let mut todo: Vec<(usize, Vec<LinkEdit>)> = Vec::new();
+    for p in txn.view().paragraphs() {
+        if p.range.end <= written.start || written.end <= p.range.start {
+            continue;
+        }
+        let within = written.start.max(p.range.start) - p.range.start
+            ..written.end.min(p.range.end) - p.range.start;
+        let edits = plan(&p.text(), &link_runs(&p), names, within);
+        if !edits.is_empty() {
+            todo.push((p.range.start, edits));
+        }
+    }
+    let mut linked = 0;
+    for (start, edits) in todo {
+        linked += apply(txn, start, &edits)?;
+    }
+    Ok(linked)
+}
+
+/// What a backfill wrote in one document: the links (target, ranges) it
+/// added and the links of others it removed.
+#[derive(Default)]
+struct Written {
+    linked: Vec<(LinkTarget, Vec<Range<usize>>)>,
+    unlinked: Vec<(LinkTarget, Vec<Range<usize>>)>,
+}
+
+fn push_range(list: &mut Vec<(LinkTarget, Vec<Range<usize>>)>, t: LinkTarget, r: Range<usize>) {
+    match list.iter_mut().find(|(x, _)| *x == t) {
+        Some((_, v)) => v.push(r),
+        None => list.push((t, vec![r])),
+    }
+}
+
+/// Whether a command by this actor fills in links for a new name.
+fn backfills(cx: &Cx<'_>) -> bool {
+    cx.workspace().auto_links() && matches!(cx.actor(), Actor::User | Actor::Agent { .. })
+}
+
+/// [`backfill`] for element `id`, now named `name` with `aliases`, that
+/// gained the names `added` (it is new, renamed or given aliases).
+pub(crate) fn backfill_element(
+    cx: &Cx<'_>,
+    slot: &BookSlot,
+    id: &dr_model::id::ElementId,
+    name: &str,
+    aliases: &[String],
+    added: &[String],
+) -> Result<usize> {
+    if !backfills(cx) || added.is_empty() {
+        return Ok(0);
+    }
+    let target = LinkTarget::new(EntityKind::Element, id.as_str());
+    let mut names: Vec<LinkName<LinkTarget>> = book_link_names(&slot.reader.view(), &[])
+        .into_iter()
+        .filter(|n| n.target != target)
+        .collect();
+    // Its names among the elements', before the titles (the order dr-text
+    // gives them once the book write lands).
+    let at = names
+        .iter()
+        .position(|n| n.target.kind != EntityKind::Element)
+        .unwrap_or(names.len());
+    let own = std::iter::once(name.to_string())
+        .chain(aliases.iter().cloned())
+        .map(|n| LinkName::new(n, target.clone()));
+    names.splice(at..at, own);
+    backfill(cx, slot, &target, &names, added)
+}
+
+/// [`backfill`] for chapter or idea `id`, new or retitled `title`.
+pub(crate) fn backfill_title(
+    cx: &Cx<'_>,
+    slot: &BookSlot,
+    id: &dr_model::id::NodeId,
+    title: &str,
+) -> Result<usize> {
+    if !backfills(cx) {
+        return Ok(0);
+    }
+    let target = LinkTarget::new(EntityKind::Node, id.as_str());
+    let mut names: Vec<LinkName<LinkTarget>> = book_link_names(&slot.reader.view(), &[])
+        .into_iter()
+        .filter(|n| n.target != target)
+        .collect();
+    names.push(LinkName::new(title, target.clone()));
+    backfill(cx, slot, &target, &names, &[title.to_string()])
+}
+
+/// Link `added` (names `target` gained in this command) in the text
+/// already written in `slot`'s book; `names` is every name of the book as
+/// it will be once the command's book write lands. Step 2 of the write
+/// order: call it before the book write. Declares each document's undo.
+/// Returns how many links were written.
+fn backfill(
+    cx: &Cx<'_>,
+    slot: &BookSlot,
+    target: &LinkTarget,
+    names: &[LinkName<LinkTarget>],
+    added: &[String],
+) -> Result<usize> {
+    let added: Vec<String> = added
+        .iter()
+        .map(|n| n.trim().to_string())
+        .filter(|n| !n.is_empty())
+        .collect();
+    if added.is_empty() {
+        return Ok(0);
+    }
+    let pairs: HashSet<(String, String)> = added
+        .iter()
+        .map(|n| (n.clone(), target.id.clone()))
+        .collect();
+    // The documents that may hold a new name.
+    let ws = cx.workspace();
+    let book = slot.book.as_str();
+    let mut docs: BTreeSet<String> = BTreeSet::new();
+    for n in &added {
+        for h in ws.library().search(Some(book), n, usize::MAX >> 1)? {
+            docs.insert(h.doc_id);
+        }
+    }
+    docs.extend(ws.open_prose(&slot.book).into_iter().map(|d| d.to_string()));
+    // Only live pages of these kinds, never the target's own.
+    let view = slot.reader.view();
+    let (lines, cats) = (
+        crate::commands::storylines(slot),
+        crate::commands::categories(slot),
+    );
+    let live = |d: &DocId| -> bool {
+        match d {
+            DocId::Node(id) => view.node(id).is_some_and(|n| !n.is_trashed()),
+            DocId::Element(id) => view.element(id).is_some_and(|e| e.deleted_at.is_none()),
+            DocId::Storyline(id) => lines.iter().any(|s| &s.id == id && s.deleted_at.is_none()),
+            DocId::Category(id) => cats.iter().any(|c| &c.id == id && c.deleted_at.is_none()),
+            _ => false,
+        }
+    };
+    let docs: Vec<DocId> = docs
+        .iter()
+        .filter_map(|d| DocId::parse(d).ok())
+        .filter(|d| d.entity_id() != target.id && live(d))
+        .collect();
+    let mut total = 0;
+    for doc in docs {
+        let ps = cx.prose(&doc)?;
+        let text = ps.reader.view().plain_text();
+        if !added.iter().any(|n| text.contains(n.as_str())) {
+            continue;
+        }
+        let own = doc.entity_id().to_string();
+        let matcher = LinkMatcher::new(names.iter().filter(|n| n.target.id != own).cloned());
+        let (d2, pairs2) = (doc.clone(), pairs.clone());
+        let (written, anchors) = cx.write_prose_raw(&ps, move |d| {
+            let b = BorrowedProse::new(d, &d2)?;
+            let mut txn = b.txn();
+            let mut todo: Vec<(usize, Vec<LinkEdit>)> = Vec::new();
+            let mut w = Written::default();
+            for p in txn.view().paragraphs() {
+                let text = p.text();
+                let edits = keep_added(
+                    &text,
+                    plan(&text, &link_runs(&p), &matcher, 0..p.len()),
+                    &pairs2,
+                );
+                for e in &edits {
+                    let at = p.range.start;
+                    match e {
+                        LinkEdit::Link { range, target } => push_range(
+                            &mut w.linked,
+                            target.clone(),
+                            at + range.start..at + range.end,
+                        ),
+                        LinkEdit::Unlink { range, target } => {
+                            // The kind, from the link being taken off.
+                            let kind = p
+                                .runs
+                                .iter()
+                                .flat_map(|r| r.marks.entities.iter())
+                                .find(|l| l.target == *target)
+                                .map(|l| l.kind.clone())
+                                .unwrap_or(EntityKind::Element);
+                            push_range(
+                                &mut w.unlinked,
+                                LinkTarget::new(kind, target.clone()),
+                                at + range.start..at + range.end,
+                            )
+                        }
+                    }
+                }
+                if !edits.is_empty() {
+                    todo.push((p.range.start, edits));
+                }
+            }
+            let mut n = 0;
+            for (start, edits) in &todo {
+                n += apply(&mut txn, *start, edits)?;
+            }
+            // Anchors on what was written, for the undo.
+            let body = d.get_text(dr_doc::schema::prose::BODY);
+            let anchor = |r: &Range<usize>| {
+                Anchor::new(&body, r.clone()).map(|a| AnchorBytes::from(&a.encode()))
+            };
+            let anchors =
+                |l: &[(LinkTarget, Vec<Range<usize>>)]| -> Vec<(LinkTarget, Vec<AnchorBytes>)> {
+                    l.iter()
+                        .map(|(t, rs)| (t.clone(), rs.iter().filter_map(anchor).collect()))
+                        .collect()
+                };
+            Ok((n, (anchors(&w.linked), anchors(&w.unlinked))))
+        })?;
+        if written == 0 {
+            continue;
+        }
+        total += written;
+        let doc_s = doc.to_string();
+        cx.effect(EffectAction::Updated, "prose", doc_s.clone(), None);
+        let (linked, unlinked) = anchors;
+        for (t, a) in linked {
+            cx.undo_with(Invocation::new(
+                "prose.unlink",
+                crate::commands::prose::LinkIn {
+                    doc: doc_s.clone(),
+                    target: (&t).into(),
+                    anchors: a,
+                },
+            ));
+        }
+        for (t, a) in unlinked {
+            cx.undo_with(Invocation::new(
+                "prose.link",
+                crate::commands::prose::LinkIn {
+                    doc: doc_s.clone(),
+                    target: (&t).into(),
+                    anchors: a,
+                },
+            ));
+        }
+    }
+    Ok(total)
 }

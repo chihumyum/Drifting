@@ -370,10 +370,8 @@ fn two_devices_project_one_todo() {
     // Both editors find the marker and project it before they sync.
     project(&a, &ch, &[(1, "补一场雨")], None);
     project(&b_dev, &ch, &[(1, "补一场雨")], None);
-    sync_doc(a.ws(), b_dev.ws(), &format!("book:{b}"));
-    sync_doc(b_dev.ws(), a.ws(), &format!("book:{b}"));
-    // Both inserted the seed into the one body; the import's repair puts
-    // it back, the same way on both devices, so the two repairs merge.
+    // One exchange: both wrote the same seed change (dr-doc's
+    // `project_todo`), which Loro keeps once, so the body reads once.
     sync_doc(a.ws(), b_dev.ws(), &format!("book:{b}"));
     sync_doc(b_dev.ws(), a.ws(), &format!("book:{b}"));
     for dev in [&a, &b_dev] {
@@ -381,6 +379,36 @@ fn two_devices_project_one_todo() {
         assert_eq!(list.len(), 1, "one entity");
         assert_eq!(list[0]["id"], todo_id(&ch, 1).as_str());
         assert_eq!(list[0]["body"], "补一场雨");
+        assert_eq!(list[0]["status"], "open");
+    }
+}
+
+#[test]
+fn a_todo_resolved_on_one_device_stays_resolved_when_another_projects_it_late() {
+    let a = env();
+    let b_dev = env();
+    let b = a.book();
+    let ch = chapter(&a, &b, "第一段。\nTODO: 补一场雨\n");
+    sync(a.ws(), b_dev.ws());
+    project(&a, &ch, &[(1, "补一场雨")], None);
+    let id = todo_id(&ch, 1);
+    a.call(
+        "comment.update",
+        json!({"book": b, "id": id, "status": "resolved", "body": "下一场雨"}),
+    );
+    // B, offline all along, finds the marker and projects it too.
+    project(&b_dev, &ch, &[(1, "补一场雨")], None);
+    sync_doc(a.ws(), b_dev.ws(), &format!("book:{b}"));
+    sync_doc(b_dev.ws(), a.ws(), &format!("book:{b}"));
+    for dev in [&a, &b_dev] {
+        let list = todos(dev, &ch);
+        assert_eq!(list.len(), 1, "one entity");
+        assert_eq!(list[0]["id"], id.as_str());
+        assert_eq!(
+            list[0]["status"], "resolved",
+            "the author's edit wins over a seed"
+        );
+        assert_eq!(list[0]["body"], "下一场雨");
     }
 }
 

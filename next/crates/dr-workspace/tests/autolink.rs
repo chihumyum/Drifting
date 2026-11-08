@@ -217,3 +217,215 @@ fn every_page_an_agent_creates_with_text_links_names() {
     let doc = format!("storyline:{}", line["id"].as_str().unwrap());
     assert_eq!(links(&e, &doc), [("安娜".to_string(), anna)]);
 }
+
+/// A chapter the author writes, with `text` (the author's command links
+/// nothing).
+fn authors_chapter(e: &Env, b: &str, title: &str, text: &str) -> String {
+    let id = e.out(
+        "chapter.create",
+        json!({"book": b, "title": title, "text": text}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    format!("node:{id}")
+}
+
+#[test]
+fn the_plan_leaves_a_name_someone_else_links_exactly() {
+    use dr_model::kind::EntityKind;
+    use dr_text::autolink::{LinkMatcher, LinkName, LinkTarget};
+    use dr_workspace::autolink::{LinkEdit, LinkRun, plan};
+    let t = |id: &str| LinkTarget::new(EntityKind::Element, id);
+    let names = LinkMatcher::new([
+        LinkName::new("安娜", t("new")),
+        LinkName::new("沈知微", t("long")),
+        LinkName::new("知微", t("short")),
+    ]);
+    let run = |r: std::ops::Range<usize>, id: &str| LinkRun {
+        range: r,
+        target: id.into(),
+    };
+    // 「安娜」 linked to the one who had the name before: theirs.
+    assert!(plan("安娜来了", &[run(0..2, "old")], &names, 0..4).is_empty());
+    // A link reaching outside the name: left alone too.
+    assert!(plan("安娜来了", &[run(0..3, "old")], &names, 0..4).is_empty());
+    // A shorter link inside a longer name gives way.
+    assert_eq!(
+        plan("沈知微", &[run(1..3, "short")], &names, 0..3),
+        [
+            LinkEdit::Unlink {
+                range: 1..3,
+                target: "short".into()
+            },
+            LinkEdit::Link {
+                range: 0..3,
+                target: t("long")
+            },
+        ]
+    );
+    // Half linked to its target: linked whole; outside `within`: nothing.
+    assert_eq!(
+        plan("安娜", &[run(0..1, "new")], &names, 0..2),
+        [LinkEdit::Link {
+            range: 0..2,
+            target: t("new")
+        }]
+    );
+    assert!(plan("安娜", &[], &names, 0..1).is_empty());
+}
+
+#[test]
+fn a_new_element_links_itself_in_the_text_already_written() {
+    let e = env();
+    let b = e.book();
+    let one = authors_chapter(&e, &b, "一", "沈知微来了。");
+    let two = authors_chapter(&e, &b, "二", "雨。");
+    // An editor is open on chapter one, the author typing in it.
+    let s = e.ws().prose_session(&one).unwrap();
+    s.edit(|t| t.insert_text(6, "她说")).unwrap();
+    let o = e.call(
+        "element.create",
+        json!({"book": b, "name": "沈知微", "aliases": ["知微"]}),
+    );
+    let id = o["output"]["id"].as_str().unwrap().to_string();
+    assert_eq!(links(&e, &one), [("沈知微".to_string(), id.clone())]);
+    assert!(links(&e, &two).is_empty());
+    assert!(effects(&o).contains(&"updated prose".to_string()));
+    // The editor's undo takes back its own typing, not the links.
+    assert!(s.undo().unwrap());
+    assert_eq!(links(&e, &one), [("沈知微".to_string(), id.clone())]);
+    drop(s);
+    // The command's undo takes them back, redo brings them again.
+    e.ws().undo(&Actor::User).unwrap().unwrap();
+    assert!(links(&e, &one).is_empty());
+    e.ws().redo(&Actor::User).unwrap().unwrap();
+    assert_eq!(links(&e, &one), [("沈知微".to_string(), id)]);
+}
+
+#[test]
+fn a_new_longer_name_takes_over_and_undo_gives_it_back() {
+    let e = env();
+    let b = e.book();
+    let short = element(&e, &b, "知微");
+    let doc = chapter(&e, &b, "一", "沈知微来了。");
+    assert_eq!(links(&e, &doc), [("知微".to_string(), short.clone())]);
+    let long = element(&e, &b, "沈知微");
+    assert_eq!(links(&e, &doc), [("沈知微".to_string(), long)]);
+    e.ws().undo(&Actor::User).unwrap().unwrap();
+    assert_eq!(links(&e, &doc), [("知微".to_string(), short)]);
+}
+
+#[test]
+fn renames_aliases_and_titles_fill_in_their_links() {
+    let e = env();
+    let b = e.book();
+    let anna = element(&e, &b, "安娜");
+    let doc = authors_chapter(&e, &b, "一", "安妮和小安去了钟楼。");
+    assert!(links(&e, &doc).is_empty());
+    e.call(
+        "element.update",
+        json!({"book": b, "id": anna, "add_aliases": ["小安"]}),
+    );
+    assert_eq!(links(&e, &doc), [("小安".to_string(), anna.clone())]);
+    e.call(
+        "element.update",
+        json!({"book": b, "id": anna, "name": "安妮"}),
+    );
+    let mut want = vec![
+        ("安妮".to_string(), anna.clone()),
+        ("小安".to_string(), anna.clone()),
+    ];
+    want.sort();
+    let mut got = links(&e, &doc);
+    got.sort();
+    assert_eq!(got, want);
+    // A chapter titled with a name in the text links it too.
+    let tower = e.out("chapter.create", json!({"book": b, "title": "钟楼"}))["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(links(&e, &doc).contains(&("钟楼".to_string(), tower)));
+}
+
+#[test]
+fn a_name_someone_had_before_stays_theirs() {
+    let e = env();
+    let b = e.book();
+    let first = element(&e, &b, "安娜");
+    let doc = chapter(&e, &b, "一", "安娜来了。");
+    assert_eq!(links(&e, &doc), [("安娜".to_string(), first.clone())]);
+    // She is renamed; a new element takes the old name. The text still
+    // means the first one.
+    e.call(
+        "element.update",
+        json!({"book": b, "id": first, "name": "安妮"}),
+    );
+    element(&e, &b, "安娜");
+    assert_eq!(links(&e, &doc), [("安娜".to_string(), first)]);
+}
+
+#[test]
+fn backfill_leaves_notes_trash_and_the_setting_alone() {
+    let e = env();
+    let b = e.book();
+    let note = e.out(
+        "material.create",
+        json!({"book": b, "kind": "text", "title": "笔记", "text": "安娜的笔记。"}),
+    );
+    let note = format!("material:{}", note["id"].as_str().unwrap());
+    let gone = authors_chapter(&e, &b, "旧", "安娜。");
+    e.call(
+        "chapter.trash",
+        json!({"book": b, "id": gone.trim_start_matches("node:")}),
+    );
+    let off = authors_chapter(&e, &b, "关", "贝雅。");
+    element(&e, &b, "安娜");
+    assert!(links(&e, &note).is_empty(), "material notes are left alone");
+    assert!(links(&e, &gone).is_empty(), "the trash is left alone");
+    e.ws().set_auto_links(false);
+    element(&e, &b, "贝雅");
+    assert!(links(&e, &off).is_empty());
+}
+
+#[test]
+fn links_go_on_and_off_anchored_ranges() {
+    use dr_doc::anchor::Anchor;
+    use dr_store::OpenDoc;
+    use dr_workspace::dto::AnchorBytes;
+    let e = env();
+    let b = e.book();
+    let anna = element(&e, &b, "安娜");
+    let doc = authors_chapter(&e, &b, "一", "她说安娜来了。");
+    let h = e.ws().library().open_doc(&doc, OpenDoc::Existing).unwrap();
+    let a = h
+        .read(|d| Anchor::new(&d.get_text("body"), 2..4))
+        .unwrap()
+        .unwrap();
+    drop(h);
+    let input = json!({
+        "doc": doc,
+        "target": {"kind": "element", "id": anna},
+        "anchors": [AnchorBytes::from(&a.encode())],
+    });
+    // Typing in front of the range moves nothing.
+    let s = e.ws().prose_session(&doc).unwrap();
+    s.edit(|t| t.insert_text(0, "那天")).unwrap();
+    drop(s);
+    let o = e.call("prose.link", input.clone());
+    assert_eq!(o["output"]["ranges"], 1);
+    assert_eq!(links(&e, &doc), [("安娜".to_string(), anna.clone())]);
+    e.ws().undo(&Actor::User).unwrap().unwrap();
+    assert!(links(&e, &doc).is_empty());
+    e.call("prose.link", input.clone());
+    e.call("prose.unlink", input.clone());
+    assert!(links(&e, &doc).is_empty());
+    // Only what can be linked; anchors of another document are refused.
+    let mut bad = input.clone();
+    bad["target"]["kind"] = json!("relation");
+    assert!(e.try_call("prose.link", bad).is_err());
+    let other = authors_chapter(&e, &b, "二", "雨。");
+    let mut elsewhere = input;
+    elsewhere["doc"] = json!(other);
+    assert!(e.try_call("prose.unlink", elsewhere).is_err());
+}

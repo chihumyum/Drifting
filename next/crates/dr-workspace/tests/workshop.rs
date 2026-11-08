@@ -140,6 +140,62 @@ fn a_plot_grid_starts_three_by_three_and_is_edited_by_id() {
 }
 
 #[test]
+fn a_plot_grid_has_its_ids_before_it_is_stored_and_two_devices_get_one() {
+    use loro::ExportMode;
+    let a = env();
+    let z = env();
+    let b = a.book();
+    let c = chapter(&a, &b, "一", "");
+    let sync = |from: &Env, to: &Env| {
+        for d in from.ws().library().docs(None, None).unwrap() {
+            // A chapter without text has nothing stored yet.
+            let Ok(copy) = from.ws().library().load_copy(&d.doc_id) else {
+                continue;
+            };
+            let bytes = copy.export(ExportMode::all_updates()).unwrap();
+            let book = d.book_id.clone().unwrap_or_default();
+            to.ws()
+                .import_remote(&d.doc_id, Some((&d.kind, &book)), bytes, &Actor::Sync)
+                .unwrap();
+        }
+    };
+    sync(&a, &z);
+    // Not stored, but its rows and columns have their ids already: the
+    // first cell typed stores the grid.
+    let g = grid(&a, &b, &c);
+    assert_eq!(g["exists"], false);
+    let (rows, cols) = (ids(&g["rows"]), ids(&g["columns"]));
+    assert_eq!((rows.len(), cols.len()), (3, 3));
+    assert_eq!(grid(&z, &b, &c), g, "the same ids on every device");
+    a.call(
+        "plot_grid.cell",
+        json!({"book": b, "node": c, "row": rows[0], "column": cols[0], "text": "开场"}),
+    );
+    let stored = grid(&a, &b, &c);
+    assert_eq!(stored["exists"], true);
+    assert_eq!(ids(&stored["rows"]), rows);
+    // The other device, offline, labels a row of its own default grid.
+    z.call(
+        "plot_grid.line_update",
+        json!({"book": b, "node": c, "axis": "row", "id": rows[1], "label": "伏笔"}),
+    );
+    sync(&a, &z);
+    sync(&z, &a);
+    for dev in [&a, &z] {
+        let g = grid(dev, &b, &c);
+        assert_eq!(ids(&g["rows"]), rows, "one 3 × 3 grid");
+        assert_eq!(ids(&g["columns"]), cols);
+        assert_eq!(field(&g["rows"], "label")[1], "伏笔");
+        assert_eq!(field(&g["cells"], "text"), [json!("开场")]);
+    }
+    // Clearing a grid never stored writes nothing.
+    let other = chapter(&a, &b, "二", "");
+    let o = a.call("plot_grid.clear", json!({"book": b, "node": other}));
+    assert!(o["journal"].is_null());
+    assert_eq!(grid(&a, &b, &other)["exists"], false);
+}
+
+#[test]
 fn plot_grid_size_and_clear() {
     let e = env();
     let b = e.book();
@@ -625,4 +681,423 @@ fn books_carry_their_creation_and_elements_their_references() {
         json!({"book": b, "from": {"kind": "element", "id": bea}}),
     );
     assert_eq!(out[0]["to"]["id"], json!(anna));
+}
+
+/// The entity links of `doc` as (linked text, target id).
+fn links_of(e: &Env, doc: &str) -> Vec<(String, String)> {
+    let s = e.ws().prose_session(doc).unwrap();
+    let r = s.reader();
+    let v = r.view();
+    let text: Vec<char> = v.plain_text().chars().collect();
+    v.entity_links()
+        .into_iter()
+        .map(|(range, l)| (text[range].iter().collect(), l.target))
+        .collect()
+}
+
+fn paragraphs(e: &Env, doc: &str) -> Value {
+    e.out("prose.read", json!({"doc": doc}))["paragraphs"].clone()
+}
+
+#[test]
+fn a_template_is_a_page_of_its_own_copied_whole_into_new_pages() {
+    use dr_model::kind::EntityKind;
+    use dr_model::prose::{EntityLink, Heading, InlineStyle};
+    let e = env();
+    let b = e.book();
+    let cat = id(&e.out("category.create", json!({"book": b, "name": "人物"})));
+    let anna = id(&e.out("element.create", json!({"book": b, "name": "安娜"})));
+    let doc = e.out(
+        "category_template.document",
+        json!({"book": b, "category": cat}),
+    )["doc"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(doc, format!("template:category:{cat}"));
+    assert_eq!(
+        e.out("category.list", json!({"book": b}))[0]["has_element_template"],
+        false,
+        "a blank template is no template"
+    );
+    // The author writes the template in an editor: a heading, bold, a link.
+    let s = e.ws().prose_session(&doc).unwrap();
+    let target = anna.clone();
+    s.edit(move |t| {
+        t.insert_paragraphs(0, "外貌\n安娜的姐姐")?;
+        t.set_heading(0, Some(Heading::H1))?;
+        t.set_style(0..2, &InlineStyle::Bold)?;
+        t.link_entity(
+            3..5,
+            &EntityLink {
+                target,
+                kind: EntityKind::Element,
+                block: None,
+                end_block: None,
+            },
+        )
+    })
+    .unwrap();
+    drop(s);
+    assert_eq!(
+        e.out("category.list", json!({"book": b}))[0]["has_element_template"],
+        true
+    );
+    assert_eq!(
+        e.out(
+            "category_template.body",
+            json!({"book": b, "category": cat})
+        ),
+        json!([{"heading": 1, "text": "外貌"}, {"text": "安娜的姐姐"}])
+    );
+    // A new element of the category starts with a copy: marks and links
+    // too, under block ids of its own.
+    let bea = id(&e.out(
+        "element.create",
+        json!({"book": b, "name": "贝雅", "category": cat}),
+    ));
+    let page = format!("element:{bea}");
+    let p = paragraphs(&e, &page);
+    assert_eq!(field(&p, "text"), [json!("外貌"), json!("安娜的姐姐")]);
+    assert_eq!(field(&p, "heading"), [json!(1), json!(0)]);
+    assert_eq!(links_of(&e, &page), [("安娜".to_string(), anna.clone())]);
+    let t = paragraphs(&e, &doc);
+    assert_ne!(p[0]["block_id"], t[0]["block_id"]);
+    {
+        let s = e.ws().prose_session(&page).unwrap();
+        let r = s.reader();
+        let first = r.view().paragraphs().next().unwrap();
+        assert!(first.runs[0].marks.bold);
+    }
+    // `set_body` keeps the paragraphs it shares: the heading keeps its id
+    // and its bold; undo brings the old text back.
+    e.call(
+        "category_template.set_body",
+        json!({"book": b, "category": cat, "paragraphs": [
+            {"heading": 1, "text": "外貌"}, {"text": "（写一两句）"},
+        ]}),
+    );
+    let t2 = paragraphs(&e, &doc);
+    assert_eq!(t2[0]["block_id"], t[0]["block_id"]);
+    assert_eq!(field(&t2, "text"), [json!("外貌"), json!("（写一两句）")]);
+    assert_eq!(field(&t2, "heading"), [json!(1), json!(0)]);
+    // Setting what is there writes nothing.
+    let o = e.call(
+        "category_template.set_body",
+        json!({"book": b, "category": cat, "paragraphs": [
+            {"heading": 1, "text": "外貌"}, {"text": "（写一两句）"},
+        ]}),
+    );
+    assert!(effects(&o).is_empty());
+    undo(&e);
+    assert_eq!(
+        field(&paragraphs(&e, &doc), "text"),
+        [json!("外貌"), json!("安娜的姐姐")]
+    );
+    // The element made from it never changes with it.
+    e.call(
+        "category_template.set_body",
+        json!({"book": b, "category": cat, "paragraphs": []}),
+    );
+    assert_eq!(field(&paragraphs(&e, &doc), "text"), [json!("")]);
+    assert_eq!(
+        e.out("category.list", json!({"book": b}))[0]["has_element_template"],
+        false
+    );
+    assert_eq!(
+        field(&paragraphs(&e, &page), "text"),
+        [json!("外貌"), json!("安娜的姐姐")]
+    );
+}
+
+#[test]
+fn a_storylines_chapter_template_starts_its_new_chapters() {
+    let e = env();
+    let b = e.book();
+    let line = id(&e.out("storyline.create", json!({"book": b, "name": "主线"})));
+    assert_eq!(
+        e.out("storyline.list", json!({"book": b}))[0]["has_chapter_template"],
+        false
+    );
+    let body =
+        json!([{"heading": 2, "text": "开场"}, {"text": ""}, {"heading": 3, "text": "收束"}]);
+    e.call(
+        "chapter_template.set_body",
+        json!({"book": b, "storyline": line, "paragraphs": body}),
+    );
+    assert_eq!(
+        e.out(
+            "chapter_template.body",
+            json!({"book": b, "storyline": line})
+        ),
+        body
+    );
+    assert_eq!(
+        e.out("storyline.list", json!({"book": b}))[0]["has_chapter_template"],
+        true
+    );
+    assert_eq!(
+        e.out(
+            "chapter_template.document",
+            json!({"book": b, "storyline": line})
+        )["doc"],
+        format!("template:storyline:{line}")
+    );
+    // A chapter on it with no text starts from the template.
+    let one = id(&e.out(
+        "chapter.create",
+        json!({"book": b, "title": "一", "storyline": line}),
+    ));
+    let p = paragraphs(&e, &format!("node:{one}"));
+    assert_eq!(field(&p, "text"), [json!("开场"), json!(""), json!("收束")]);
+    assert_eq!(field(&p, "heading"), [json!(2), json!(0), json!(3)]);
+    // Its own text wins; a chapter on no storyline starts empty.
+    let two = id(&e.out(
+        "chapter.create",
+        json!({"book": b, "title": "二", "storyline": line, "text": "雨。"}),
+    ));
+    assert_eq!(
+        field(&paragraphs(&e, &format!("node:{two}")), "text"),
+        [json!("雨。")]
+    );
+    let three = id(&e.out("chapter.create", json!({"book": b, "title": "三"})));
+    assert_eq!(
+        field(&paragraphs(&e, &format!("node:{three}")), "text"),
+        [json!("")]
+    );
+    assert!(matches!(
+        e.try_call(
+            "chapter_template.set_body",
+            json!({"book": b, "storyline": line, "paragraphs": [{"heading": 0, "text": "x"}]})
+        ),
+        Err(WsError::Invalid(_))
+    ));
+}
+
+#[test]
+fn the_01_field_is_the_template_until_a_document_takes_over() {
+    use dr_doc::book::BorrowedBook;
+    use dr_model::id::{BookId, CategoryId};
+    use dr_store::OpenDoc;
+    use dr_workspace::commands::template::{TemplateParagraph, body_json};
+    let e = env();
+    let b = e.book();
+    let cat = id(&e.out("category.create", json!({"book": b, "name": "地点"})));
+    // An old library's field, as an import leaves it.
+    let p = |h: Option<u8>, t: &str| TemplateParagraph {
+        heading: h,
+        text: t.into(),
+    };
+    let json = body_json(&[p(Some(1), "方位"), p(None, "（写一两句）")]);
+    let (book, cid) = (BookId::parse(&b).unwrap(), CategoryId::parse(&cat).unwrap());
+    let h = e
+        .ws()
+        .library()
+        .open_doc(&format!("book:{b}"), OpenDoc::Existing)
+        .unwrap();
+    h.write(dr_store::Origin::Import, move |d| {
+        let bb = BorrowedBook::new(d, &book).unwrap();
+        let mut txn = bb.txn();
+        txn.category(&cid)
+            .unwrap()
+            .element_template(Some(&json))
+            .unwrap();
+    })
+    .unwrap();
+    drop(h);
+    let want = json!([{"heading": 1, "text": "方位"}, {"text": "（写一两句）"}]);
+    assert_eq!(
+        e.out(
+            "category_template.body",
+            json!({"book": b, "category": cat})
+        ),
+        want
+    );
+    assert_eq!(
+        e.out("category.list", json!({"book": b}))[0]["has_element_template"],
+        true
+    );
+    let inn = id(&e.out(
+        "element.create",
+        json!({"book": b, "name": "客栈", "category": cat}),
+    ));
+    assert_eq!(
+        field(&paragraphs(&e, &format!("element:{inn}")), "text"),
+        [json!("方位"), json!("（写一两句）")]
+    );
+    // Opening it for the editor writes the field into the document; that
+    // is not a step of the author's.
+    let o = e.call(
+        "category_template.document",
+        json!({"book": b, "category": cat}),
+    );
+    assert!(o["journal"].is_null());
+    let doc = o["output"]["doc"].as_str().unwrap().to_string();
+    assert_eq!(
+        field(&paragraphs(&e, &doc), "heading"),
+        [json!(1), json!(0)]
+    );
+    assert_eq!(
+        e.out(
+            "category_template.body",
+            json!({"book": b, "category": cat})
+        ),
+        want
+    );
+    // From now on the document is the template, even emptied.
+    e.call(
+        "category_template.set_body",
+        json!({"book": b, "category": cat, "paragraphs": []}),
+    );
+    assert_eq!(
+        e.out("category.list", json!({"book": b}))[0]["has_element_template"],
+        false
+    );
+    let well = id(&e.out(
+        "element.create",
+        json!({"book": b, "name": "古井", "category": cat}),
+    ));
+    assert_eq!(
+        field(&paragraphs(&e, &format!("element:{well}")), "text"),
+        [json!("")]
+    );
+}
+
+#[test]
+fn two_devices_changing_one_template_merge() {
+    use loro::ExportMode;
+    let a = env();
+    let z = env();
+    let b = a.book();
+    let cat = id(&a.out("category.create", json!({"book": b, "name": "人物"})));
+    let sync = |from: &Env, to: &Env| {
+        for d in from.ws().library().docs(None, None).unwrap() {
+            let Ok(copy) = from.ws().library().load_copy(&d.doc_id) else {
+                continue;
+            };
+            let bytes = copy.export(ExportMode::all_updates()).unwrap();
+            let book = d.book_id.clone().unwrap_or_default();
+            to.ws()
+                .import_remote(&d.doc_id, Some((&d.kind, &book)), bytes, &Actor::Sync)
+                .unwrap();
+        }
+    };
+    let set = |e: &Env, body: Value| {
+        e.call(
+            "category_template.set_body",
+            json!({"book": b, "category": cat, "paragraphs": body}),
+        );
+    };
+    set(
+        &a,
+        json!([{"heading": 1, "text": "外貌"}, {"text": "一句"}, {"heading": 1, "text": "经历"}]),
+    );
+    sync(&a, &z);
+    // A rewrites the middle, Z adds a paragraph at the end, offline.
+    set(
+        &a,
+        json!([{"heading": 1, "text": "外貌"}, {"text": "两句"}, {"heading": 1, "text": "经历"}]),
+    );
+    set(
+        &z,
+        json!([{"heading": 1, "text": "外貌"}, {"text": "一句"}, {"heading": 1, "text": "经历"}, {"text": "生于雨季"}]),
+    );
+    sync(&a, &z);
+    sync(&z, &a);
+    let want = json!([
+        {"heading": 1, "text": "外貌"}, {"text": "两句"},
+        {"heading": 1, "text": "经历"}, {"text": "生于雨季"},
+    ]);
+    for dev in [&a, &z] {
+        assert_eq!(
+            dev.out(
+                "category_template.body",
+                json!({"book": b, "category": cat})
+            ),
+            want
+        );
+    }
+}
+
+#[test]
+fn an_element_says_when_it_last_changed() {
+    use dr_store::OpenDoc;
+    let e = env();
+    let b = e.book();
+    let anna = id(&e.out("element.create", json!({"book": b, "name": "安娜"})));
+    let row = |e: &Env| e.out("element.list", json!({"book": b}))[0].clone();
+    let first = row(&e);
+    let created = first["created_at"].as_i64().unwrap();
+    assert!(first["updated_at"].as_i64().unwrap() >= created);
+    // The stamp element.update writes on the element (its own key, until
+    // dr-doc has the field).
+    let stamp = |e: &Env| {
+        let h = e
+            .ws()
+            .library()
+            .open_doc(&format!("book:{b}"), OpenDoc::Existing)
+            .unwrap();
+        let id = anna.clone();
+        h.read(move |d| match d.get_map("elements").get(&id) {
+            Some(loro::ValueOrContainer::Container(loro::Container::Map(m))) => {
+                match m.get("updated_at") {
+                    Some(loro::ValueOrContainer::Value(loro::LoroValue::I64(t))) => Some(t),
+                    _ => None,
+                }
+            }
+            _ => None,
+        })
+        .unwrap()
+    };
+    assert_eq!(stamp(&e), None, "creating is not updating");
+    // A rename, a field: both stamp it; the list reads the later of the
+    // stamp and the body's last edit.
+    e.call(
+        "element.update",
+        json!({"book": b, "id": anna, "name": "安妮"}),
+    );
+    let after_rename = stamp(&e).expect("stamped");
+    assert!(after_rename >= created);
+    e.call(
+        "element.update",
+        json!({"book": b, "id": anna, "put_fields": [{"key": "年龄", "value": "十七"}]}),
+    );
+    let t = stamp(&e).unwrap();
+    assert!(t >= after_rename);
+    assert!(row(&e)["updated_at"].as_i64().unwrap() >= t);
+    // Undo puts the fields back; the stamp stays a stamp.
+    undo(&e);
+    assert_eq!(row(&e)["fields"], json!([]));
+}
+
+#[test]
+fn set_body_keeps_empty_headings_next_to_what_changed() {
+    let e = env();
+    let b = e.book();
+    let cat = id(&e.out("category.create", json!({"book": b, "name": "人物"})));
+    let set = |body: Value| {
+        e.call(
+            "category_template.set_body",
+            json!({"book": b, "category": cat, "paragraphs": body}),
+        );
+        e.out(
+            "category_template.body",
+            json!({"book": b, "category": cat}),
+        )
+    };
+    // Every way round: append after, insert before, replace between,
+    // delete at the end, empty headings at the edges.
+    // (A lone empty paragraph, heading or not, is no template.)
+    for body in [
+        json!([{"heading": 1, "text": ""}, {"text": "一"}]),
+        json!([{"heading": 1, "text": ""}, {"text": "一"}, {"heading": 2, "text": ""}]),
+        json!([{"text": "零"}, {"heading": 1, "text": ""}, {"text": "一"}, {"heading": 2, "text": ""}]),
+        json!([{"text": "零"}, {"heading": 3, "text": "中"}, {"heading": 2, "text": ""}]),
+        json!([{"text": "零"}]),
+        json!([{"heading": 2, "text": ""}, {"text": "零"}]),
+        json!([]),
+        json!([{"text": "末"}]),
+    ] {
+        assert_eq!(set(body.clone()), body);
+    }
 }
