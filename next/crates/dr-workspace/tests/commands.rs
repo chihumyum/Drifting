@@ -1429,3 +1429,221 @@ fn prose_has_a_shape() {
         other => panic!("{other:?}"),
     }
 }
+
+/// One chapter as `chapter.list` shows it.
+fn chapter_row(e: &Env, b: &str, id: &Value) -> Value {
+    e.out("chapter.list", json!({"book": b}))
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| &c["id"] == id)
+        .cloned()
+        .unwrap()
+}
+
+#[test]
+fn a_timeline_drop_moves_and_reroutes_a_chapter_in_one_step() {
+    let e = env();
+    let b = e.book();
+    let u = Actor::User;
+    let sa = e.out("storyline.create", json!({"book": b, "name": "A"}))["id"].clone();
+    let sb = e.out("storyline.create", json!({"book": b, "name": "B"}))["id"].clone();
+    let sc = e.out("storyline.create", json!({"book": b, "name": "C"}))["id"].clone();
+    let c1 = e.out(
+        "chapter.create",
+        json!({"book": b, "title": "One", "storyline": sa}),
+    )["id"]
+        .clone();
+    let c2 = e.out(
+        "chapter.create",
+        json!({"book": b, "title": "Two", "storyline": sa}),
+    )["id"]
+        .clone();
+    e.call(
+        "chapter.update",
+        json!({"book": b, "id": c1, "add_storylines": [sb]}),
+    );
+    let before = chapter_row(&e, &b, &c1);
+    assert_eq!(before["primary_storyline"], sa);
+
+    // Onto lane C, after Two: C is primary, A (the old primary) goes, B stays.
+    let done = e.call(
+        "chapter.place",
+        json!({"book": b, "id": c1, "axis": "book", "order": 12.5, "storyline": sc}),
+    );
+    assert_eq!(done["output"]["primary_storyline"], sc);
+    assert_eq!(done["undo"].as_array().unwrap().len(), 1, "{done}");
+    assert_eq!(effects(&done), ["moved node"]);
+    let row = chapter_row(&e, &b, &c1);
+    assert_eq!(row["book_order"], 12.5);
+    assert_eq!(row["primary_storyline"], sc);
+    let mut members: Vec<String> = row["storylines"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|s| s.as_str().unwrap().to_string())
+        .collect();
+    members.sort();
+    let mut want = vec![
+        sb.as_str().unwrap().to_string(),
+        sc.as_str().unwrap().to_string(),
+    ];
+    want.sort();
+    assert_eq!(members, want);
+    assert_eq!(
+        ids(&e.out("chapter.list", json!({"book": b}))),
+        [c2.as_str().unwrap(), c1.as_str().unwrap()]
+    );
+
+    // One undo step brings back both the place and the storylines.
+    e.ws().undo(&u).unwrap().unwrap();
+    assert_eq!(chapter_row(&e, &b, &c1), before);
+    e.ws().redo(&u).unwrap().unwrap();
+    assert_eq!(chapter_row(&e, &b, &c1), row);
+
+    // The same drop again changes nothing and leaves no step.
+    let same = e.call(
+        "chapter.place",
+        json!({"book": b, "id": c1, "order": 12.5, "storyline": sc}),
+    );
+    assert!(effects(&same).is_empty(), "{same}");
+    assert!(same["journal"].is_null());
+
+    // 未归属: off every storyline.
+    e.call(
+        "chapter.place",
+        json!({"book": b, "id": c1, "order": 12.5, "storyline": null}),
+    );
+    let row = chapter_row(&e, &b, &c1);
+    assert_eq!(row["storylines"], json!([]));
+    assert!(row["primary_storyline"].is_null());
+    e.ws().undo(&u).unwrap().unwrap();
+    assert_eq!(chapter_row(&e, &b, &c1)["primary_storyline"], sc);
+
+    // Story time: the narrative place moves, reading order does not.
+    let order = chapter_row(&e, &b, &c2)["book_order"].clone();
+    e.call(
+        "chapter.place",
+        json!({"book": b, "id": c2, "axis": "narrative", "order": 33.0, "storyline": sb}),
+    );
+    let row = chapter_row(&e, &b, &c2);
+    assert_eq!(row["narrative_order"], 33.0);
+    assert_eq!(row["book_order"], order);
+    assert_eq!(row["primary_storyline"], sb);
+    e.ws().undo(&u).unwrap().unwrap();
+    let row = chapter_row(&e, &b, &c2);
+    assert!(row["narrative_order"].is_null());
+    assert_eq!(row["primary_storyline"], sa);
+
+    // A deleted storyline is refused.
+    e.call("storyline.trash", json!({"book": b, "id": sb}));
+    assert!(
+        e.try_call(
+            "chapter.place",
+            json!({"book": b, "id": c2, "order": 1.0, "storyline": sb})
+        )
+        .is_err()
+    );
+
+    // chapter.update takes an exact reading place too.
+    e.call(
+        "chapter.update",
+        json!({"book": b, "id": c2, "book_order": 99.0}),
+    );
+    assert_eq!(chapter_row(&e, &b, &c2)["book_order"], 99.0);
+    e.ws().undo(&u).unwrap().unwrap();
+    assert_eq!(chapter_row(&e, &b, &c2)["book_order"], order);
+}
+
+#[test]
+fn spreading_respaces_chapters_and_their_act_boundaries_in_one_step() {
+    let e = env();
+    let b = e.book();
+    let u = Actor::User;
+    let mut cs = Vec::new();
+    for (i, o) in [5.0, 5.1, 5.2, 20.0].into_iter().enumerate() {
+        let c = e.out(
+            "chapter.create",
+            json!({"book": b, "title": format!("C{i}")}),
+        )["id"]
+            .clone();
+        e.call("chapter.place", json!({"book": b, "id": c, "order": o}));
+        cs.push(c);
+    }
+    e.call("act.create", json!({"book": b, "name": "Head"}));
+    let act = e.out(
+        "act.create",
+        json!({"book": b, "name": "Two", "start_chapter": cs[2]}),
+    )["id"]
+        .clone();
+    let list_before = e.out("chapter.list", json!({"book": b}));
+    let acts_before = e.out("act.list", json!({"book": b}));
+
+    let done = e.call("chapter.spread", json!({"book": b, "axis": "book"}));
+    assert_eq!(done["undo"].as_array().unwrap().len(), 1, "{done}");
+    let orders = field(&e.out("chapter.list", json!({"book": b})), "book_order");
+    assert_eq!(orders, [json!(1.0), json!(6.0), json!(11.0), json!(16.0)]);
+    let acts = e.out("act.list", json!({"book": b}));
+    let two = acts
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|a| a["id"] == act)
+        .unwrap();
+    // Halfway between the chapters it fell between; the head act stays.
+    assert_eq!(two["start_order"], 8.5);
+    assert_eq!(two["chapters"], json!([cs[2], cs[3]]));
+    assert!(
+        acts.as_array()
+            .unwrap()
+            .iter()
+            .any(|a| a["start_order"].is_null())
+    );
+
+    // Spread again: nothing to do, no step.
+    let again = e.call("chapter.spread", json!({"book": b}));
+    assert!(effects(&again).is_empty());
+    assert!(again["journal"].is_null());
+
+    // One undo step.
+    e.ws().undo(&u).unwrap().unwrap();
+    assert_eq!(e.out("chapter.list", json!({"book": b})), list_before);
+    assert_eq!(e.out("act.list", json!({"book": b})), acts_before);
+    e.ws().redo(&u).unwrap().unwrap();
+    assert_eq!(
+        field(&e.out("chapter.list", json!({"book": b})), "book_order")[3],
+        16.0
+    );
+
+    // Story time: only the chapters placed on it, no acts.
+    e.call(
+        "chapter.place",
+        json!({"book": b, "id": cs[3], "axis": "narrative", "order": 40.0}),
+    );
+    e.call(
+        "chapter.place",
+        json!({"book": b, "id": cs[0], "axis": "narrative", "order": 40.0}),
+    );
+    let spread = e.out("chapter.spread", json!({"book": b, "axis": "narrative"}));
+    assert!(spread["acts"].as_array().unwrap().is_empty());
+    let row = |c: &Value| chapter_row(&e, &b, c)["narrative_order"].clone();
+    // Ties go by id, as everywhere: cs[0] was made first.
+    assert_eq!((row(&cs[0]), row(&cs[3])), (json!(1.0), json!(6.0)));
+    assert!(row(&cs[1]).is_null());
+
+    // chapter.arrange sets exact coordinates; acts are reading order only.
+    e.call(
+        "chapter.arrange",
+        json!({"book": b, "axis": "book", "chapters": [{"id": cs[0], "order": 2.0}], "acts": [{"id": act, "start_order": 10.0}]}),
+    );
+    assert_eq!(chapter_row(&e, &b, &cs[0])["book_order"], 2.0);
+    e.ws().undo(&u).unwrap().unwrap();
+    assert_eq!(chapter_row(&e, &b, &cs[0])["book_order"], 1.0);
+    assert!(
+        e.try_call(
+            "chapter.arrange",
+            json!({"book": b, "axis": "narrative", "acts": [{"id": act, "start_order": 1.0}]}),
+        )
+        .is_err()
+    );
+}

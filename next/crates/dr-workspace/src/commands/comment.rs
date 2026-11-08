@@ -290,22 +290,43 @@ impl JsonSchema for AnchorOrNull {
 /// prose body of `doc` (a character this device has seen, or an empty
 /// body).
 pub(crate) fn anchor_in(cx: &Cx<'_>, doc: &DocId, bytes: &AnchorBytes) -> Result<Anchor> {
+    let a = decode_anchor(bytes)?;
+    anchor_known(&*cx.prose_passing(doc)?, doc, &a)?;
+    Ok(a)
+}
+
+/// `bytes` as dr-doc's anchor: two cursors in a prose body.
+pub(crate) fn decode_anchor(bytes: &AnchorBytes) -> Result<Anchor> {
     let bad = || WsError::invalid("the anchor is not two cursors of dr-doc's encoding");
     let a = Anchor::decode(&bytes.bytes().ok_or_else(bad)?).ok_or_else(bad)?;
     let body = loro::ContainerID::new_root(dr_doc::schema::prose::BODY, loro::ContainerType::Text);
-    let ps = cx.prose(doc)?;
-    let vv = ps.handle.doc().with_doc(|d| d.oplog_vv());
     for c in [&a.start, &a.end] {
         if c.container != body {
             return Err(WsError::invalid("the anchor is not in a prose body"));
         }
+    }
+    Ok(a)
+}
+
+/// Whether `a`'s cursors are of `doc` (open in `ps`) as far as it knows.
+pub(crate) fn anchor_known(
+    ps: &crate::workspace::ProseSlot,
+    doc: &DocId,
+    a: &Anchor,
+) -> Result<()> {
+    anchor_known_in(&ps.handle.doc().with_doc(|d| d.oplog_vv()), doc, a)
+}
+
+/// Whether `a`'s cursors are within version `vv` of `doc`.
+pub(crate) fn anchor_known_in(vv: &loro::VersionVector, doc: &DocId, a: &Anchor) -> Result<()> {
+    for c in [&a.start, &a.end] {
         if let Some(id) = c.id
             && !vv.includes_id(id)
         {
             return Err(WsError::invalid(format!("the anchor is not in {doc}")));
         }
     }
-    Ok(a)
+    Ok(())
 }
 
 op! {

@@ -125,7 +125,7 @@ op! {
             _ => None,
         };
         let names = book.filter(|_| cx.workspace().auto_links() && crate::autolink::links_for(cx.actor()))
-            .map(|b| crate::autolink::matcher(&b.reader.view(), &doc));
+            .map(|b| crate::autolink::book_matcher(&b, &doc));
         let slot = cx.prose(&doc)?;
         cx.summarize(format!("{} → {}", input.find, input.replace));
         let (find, replace, block) = (input.find.clone(), input.replace.clone(), input.block_id.clone());
@@ -198,6 +198,7 @@ op! {
 
 // ---- entity links on anchored ranges ------------------------------------------
 
+/// Links to one entity on anchored ranges of one prose document.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct LinkIn {
     pub doc: String,
@@ -209,61 +210,121 @@ pub struct LinkIn {
     pub anchors: Vec<crate::dto::AnchorBytes>,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct LinksIn {
+    /// Any number of documents and targets: each document is written once.
+    pub links: Vec<LinkIn>,
+}
+
 #[derive(Clone, Debug, Serialize, JsonSchema)]
 pub struct LinksChanged {
     /// Ranges whose link changed (an anchor whose text is gone counts for
     /// nothing).
     pub ranges: usize,
+    /// Documents written.
+    pub docs: usize,
 }
 
-/// Put links to `input.target` on (`on`) or off its anchored ranges.
-fn set_links(cx: &Cx<'_>, input: &LinkIn, on: bool) -> Result<LinksChanged> {
-    let doc = doc_id(&input.doc)?;
-    let kind = dr_model::kind::EntityKind::parse(&input.target.kind);
-    if !kind.may_be_linked() {
-        return Err(WsError::invalid(format!(
-            "{:?} cannot be linked",
-            input.target.kind
-        )));
-    }
-    if input.target.id.is_empty() {
-        return Err(WsError::invalid("target id is empty"));
-    }
-    if let Some(info) = cx.workspace().library().doc_info(&input.doc)?
-        && let Some(b) = info.book_id
-    {
-        cx.book(&b)?;
-    }
-    let anchors: Vec<dr_doc::anchor::Anchor> = input
-        .anchors
-        .iter()
-        .map(|a| super::comment::anchor_in(cx, &doc, a))
-        .collect::<Result<_>>()?;
-    let slot = cx.prose(&doc)?;
-    let link = dr_model::prose::EntityLink {
-        target: input.target.id.clone(),
-        kind,
-        block: None,
-        end_block: None,
-    };
-    let ranges = cx.write_prose(&slot, move |txn| {
-        let found: Vec<std::ops::Range<usize>> = anchors
+/// One document's links of a [`LinksIn`]: each target with its anchors.
+type DocLinks = Vec<(dr_model::prose::EntityLink, Vec<dr_doc::anchor::Anchor>)>;
+
+/// Put the links of `input` on (`on`) or off. Documents are opened and
+/// written a few at a time (an automatic backfill's undo touches hundreds).
+fn set_links(cx: &Cx<'_>, input: &LinksIn, on: bool) -> Result<LinksChanged> {
+    use dr_model::prose::EntityLink;
+    // Validate everything before writing anything.
+    let mut by_doc: Vec<(DocId, DocLinks)> = Vec::new();
+    for l in &input.links {
+        let doc = doc_id(&l.doc)?;
+        let kind = dr_model::kind::EntityKind::parse(&l.target.kind);
+        if !kind.may_be_linked() {
+            return Err(WsError::invalid(format!(
+                "{:?} cannot be linked",
+                l.target.kind
+            )));
+        }
+        if l.target.id.is_empty() {
+            return Err(WsError::invalid("target id is empty"));
+        }
+        let anchors = l
+            .anchors
             .iter()
-            .filter_map(|a| txn.view().resolve(a))
-            .filter(|r| !r.collapsed)
-            .map(|r| r.range)
-            .collect();
-        for r in &found {
-            if on {
-                txn.link_entity(r.clone(), &link)?;
-            } else {
-                txn.unlink_entity(r.clone(), &link.target)?;
+            .map(super::comment::decode_anchor)
+            .collect::<Result<Vec<_>>>()?;
+        let link = EntityLink {
+            target: l.target.id.clone(),
+            kind,
+            block: None,
+            end_block: None,
+        };
+        match by_doc.iter_mut().find(|(d, _)| *d == doc) {
+            Some((_, v)) => v.push((link, anchors)),
+            None => by_doc.push((doc, vec![(link, anchors)])),
+        }
+    }
+    let lib = cx.workspace().library();
+    for (doc, _) in &by_doc {
+        let info = lib
+            .doc_info(&doc.to_string())?
+            .ok_or_else(|| WsError::not_found("document", doc.to_string()))?;
+        if let Some(b) = info.book_id {
+            cx.book(&b)?;
+        }
+    }
+    let ws = cx.workspace();
+    // Each anchor must be of its document before anything is written: an
+    // open document's own version, a closed one's stored head (no load).
+    for (doc, links) in &by_doc {
+        let vv = match ws.open_prose_slot(doc) {
+            Some(ps) => ps.handle.doc().with_doc(|d| d.oplog_vv()),
+            None => lib
+                .head(&doc.to_string())?
+                .map(|h| h.vv)
+                .unwrap_or_default(),
+        };
+        for (_, anchors) in links {
+            for a in anchors {
+                super::comment::anchor_known_in(&vv, doc, a)?;
             }
         }
-        Ok(found.len())
+    }
+    let writer = cx.prose_writer()?;
+    // Then a few documents at a time, each opened, written and let go.
+    let counts = crate::holder::par_map(&by_doc, |(doc, links)| {
+        let ps = ws.prose_slot_passing(doc)?;
+        let (doc, links) = (doc.clone(), links.clone());
+        writer.write(&ps, move |d| {
+            let b = dr_doc::prose::BorrowedProse::new(d, &doc)?;
+            let mut txn = b.txn();
+            let mut n = 0;
+            for (link, anchors) in &links {
+                let found: Vec<std::ops::Range<usize>> = anchors
+                    .iter()
+                    .filter_map(|a| txn.view().resolve(a))
+                    .filter(|r| !r.collapsed)
+                    .map(|r| r.range)
+                    .collect();
+                for r in &found {
+                    if on {
+                        txn.link_entity(r.clone(), link)?;
+                    } else {
+                        txn.unlink_entity(r.clone(), &link.target)?;
+                    }
+                }
+                n += found.len();
+            }
+            Ok(n)
+        })
     })?;
-    if ranges > 0 {
-        cx.effect(EffectAction::Updated, "prose", input.doc.as_str(), None);
+    let mut out = LinksChanged { ranges: 0, docs: 0 };
+    for ((doc, _), n) in by_doc.iter().zip(&counts) {
+        if *n > 0 {
+            out.ranges += n;
+            out.docs += 1;
+            cx.effect(EffectAction::Updated, "prose", doc.to_string(), None);
+        }
+    }
+    if out.ranges > 0 {
         cx.undo_with(Invocation::new(
             if on { "prose.unlink" } else { "prose.link" },
             input.clone(),
@@ -271,21 +332,21 @@ fn set_links(cx: &Cx<'_>, input: &LinkIn, on: bool) -> Result<LinksChanged> {
     } else {
         cx.undo_nothing();
     }
-    Ok(LinksChanged { ranges })
+    Ok(out)
 }
 
 op! {
     ProseLink = "prose.link", Write, Book,
-    "Link anchored ranges of a prose document to an entity (anchors, not positions: the undo of automatic links that were taken off).",
-    fn(cx, input: LinkIn) -> LinksChanged {
+    "Link anchored ranges of prose documents to entities (anchors, not positions: the undo of automatic links that were taken off).",
+    fn(cx, input: LinksIn) -> LinksChanged {
         set_links(cx, &input, true)
     }
 }
 
 op! {
     ProseUnlink = "prose.unlink", Write, Book,
-    "Take the links to an entity off anchored ranges of a prose document (anchors, not positions: the undo of automatic links).",
-    fn(cx, input: LinkIn) -> LinksChanged {
+    "Take links to entities off anchored ranges of prose documents (anchors, not positions: the undo of automatic links).",
+    fn(cx, input: LinksIn) -> LinksChanged {
         set_links(cx, &input, false)
     }
 }

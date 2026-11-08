@@ -403,17 +403,18 @@ fn links_go_on_and_off_anchored_ranges() {
         .unwrap()
         .unwrap();
     drop(h);
-    let input = json!({
+    let input = json!({"links": [{
         "doc": doc,
         "target": {"kind": "element", "id": anna},
         "anchors": [AnchorBytes::from(&a.encode())],
-    });
+    }]});
     // Typing in front of the range moves nothing.
     let s = e.ws().prose_session(&doc).unwrap();
     s.edit(|t| t.insert_text(0, "那天")).unwrap();
     drop(s);
     let o = e.call("prose.link", input.clone());
     assert_eq!(o["output"]["ranges"], 1);
+    assert_eq!(o["output"]["docs"], 1);
     assert_eq!(links(&e, &doc), [("安娜".to_string(), anna.clone())]);
     e.ws().undo(&Actor::User).unwrap().unwrap();
     assert!(links(&e, &doc).is_empty());
@@ -422,10 +423,45 @@ fn links_go_on_and_off_anchored_ranges() {
     assert!(links(&e, &doc).is_empty());
     // Only what can be linked; anchors of another document are refused.
     let mut bad = input.clone();
-    bad["target"]["kind"] = json!("relation");
+    bad["links"][0]["target"]["kind"] = json!("relation");
     assert!(e.try_call("prose.link", bad).is_err());
     let other = authors_chapter(&e, &b, "二", "雨。");
-    let mut elsewhere = input;
-    elsewhere["doc"] = json!(other);
-    assert!(e.try_call("prose.unlink", elsewhere).is_err());
+    let mut elsewhere = input.clone();
+    elsewhere["links"][0]["doc"] = json!(other);
+    assert!(e.try_call("prose.unlink", elsewhere.clone()).is_err());
+    // One command for several documents, refused whole when one is wrong.
+    let mut both = input.clone();
+    both["links"]
+        .as_array_mut()
+        .unwrap()
+        .push(elsewhere["links"][0].clone());
+    assert!(e.try_call("prose.link", both).is_err());
+    assert!(links(&e, &doc).is_empty());
+}
+
+#[test]
+fn a_books_link_matcher_is_kept_until_a_name_changes() {
+    let e = env();
+    let b = e.book();
+    let anna = element(&e, &b, "安娜");
+    let doc = authors_chapter(&e, &b, "一", "她说安娜来了。");
+    let d: dr_model::DocId = doc.parse().unwrap();
+    let m1 = e.ws().link_matcher(&d).unwrap().unwrap();
+    let m2 = e.ws().link_matcher(&d).unwrap().unwrap();
+    assert!(std::sync::Arc::ptr_eq(&m1, &m2));
+    // The chapter's own title is left out of its own matcher.
+    assert!(m1.find("一").is_empty());
+    assert_eq!(m1.find("安娜").len(), 1);
+    // A rename makes a new one; so does a new chapter title.
+    e.call(
+        "element.update",
+        json!({"book": b, "id": anna, "name": "安妮"}),
+    );
+    let m3 = e.ws().link_matcher(&d).unwrap().unwrap();
+    assert!(!std::sync::Arc::ptr_eq(&m1, &m3));
+    assert!(m3.find("安娜").is_empty());
+    assert_eq!(m3.find("安妮").len(), 1);
+    e.call("chapter.create", json!({"book": b, "title": "灯塔"}));
+    let m4 = e.ws().link_matcher(&d).unwrap().unwrap();
+    assert_eq!(m4.find("灯塔").len(), 1);
 }
