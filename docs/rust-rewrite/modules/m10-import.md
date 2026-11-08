@@ -46,7 +46,9 @@ cargo test -p dr-import-v1 --test v3_manifest --locked
 - 包含：前半段的完整合成旧库、只读导入清单、逐行契约和待协调 22–27。后半段尚未开始。
 - 同步 main 前的检查：fmt、完整 workspace Clippy、xtask、根目录 public:check 均通过；单线程全 workspace 测试 1809 通过、22 忽略、0 失败。新增清单 9 项、原导入 41 项单元／15 项整库／1 项索引、导入界面 8 项均通过。
 - 默认并发的首次全套在 `dr-view-shelf` 的 `the_cards_carry_their_covers_and_days_and_the_button_turns_them` 等待 10 秒处超时（当时一分钟负载约 91）；同一测试二进制原样单项复测通过，随后 `cargo test --workspace --locked --no-fail-fast -- --test-threads=1` 全部通过。未改书架代码或超时。审计 0 个漏洞、12 条现有通知；14 份过期测量和 15 份旧格式证据照旧保留。
-- 交回指针：按 overnight 协议，同步 main 并验证后更新 `handback/k3`；同步后的结果另记于此。后续编译使用 `CARGO_BUILD_JOBS=3`。
+- 同步后检查：已用 `4d5e11eb` 合并 main `42999fa3`，在 `CARGO_BUILD_JOBS=3`、`RUST_TEST_THREADS=1` 下依次跑 overnight 要求的四条 Cargo 命令，全部通过；完整 workspace 测试 **1892 通过、22 忽略、0 失败**。根目录 public:check 通过（5338 个候选文件）。xtask 审计 955 个锁定依赖，0 个漏洞、12 条现有通知；14 份过期／15 份旧格式测量照旧。
+- 前半段交回：`handback/k3` 包含功能提交 `72bc9bb2`、同步 main 的 `4d5e11eb` 及本节验收记录。相对 main 只改本模块文档和 dr-import-v1 的四个测试文件；没有改五个受保护 crate、样书或依赖文件。交回前核对 overnight 的退回记录为空。待协调仍为 22–27；本段不自行改方案。
+- 下一段：按 overnight 每 15 分钟检查 main 中的 `next/crates/dr-doc/src/v3/mod.rs`，接口合入后先查退回记录，再同步 main 做真正 v3 导入和样书；保留 v2.2 导入路径。
 
 ## 做了什么（大白话）
 
