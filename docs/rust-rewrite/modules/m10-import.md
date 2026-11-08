@@ -72,7 +72,11 @@ cargo test -p dr-import-v1 --test v3_manifest --locked
 
 - 范围：v3 可选导入路径、前置未决／完整性门槛、v3 历史与取消续导、独立清单读回契约、两本样书 v3 入口与契约；v2.2 路径保留。
 - 待协调：22、23、25 仍等作者；24、27 已消费 K1 接口并逐项断言；26 的边界为预检阻止、保留原始数据、不自动修复。新增 28–31 明列接口／接线边界，尚不宣称这些输入或 App 全面切换已完成。
-- 检查结果在交回指针更新前补齐；所有 Cargo 命令均设 `CARGO_BUILD_JOBS=3`，全 workspace 测试用 `RUST_TEST_THREADS=1` 避免夜间并发下的窗口等待超时。
+- 提交与同步：实现 `d0aa4001`，历史预检补强 `83367661`，同名字段回读修正 `abb6928b`；已同步 main `fe0d7472`，交回前再次 `git merge main` 为已最新，overnight 没有退给 K3 的记录。相对 main 只改两个业务 crate、本页和 Cargo.lock 的一条依赖接线。
+- 最终代码检查（`abb6928b`）：`cargo fmt --all --check`、全 workspace Clippy（all-targets／locked／拒绝 warnings）、`cargo test --workspace --locked`、`cargo xtask check` 以及根目录 `pnpm public:check` 全过。**1937 通过、22 忽略、0 失败**，包括本段导入 10 项、样书 2 项、独立清单 9 项。所有 Cargo 命令设 `CARGO_BUILD_JOBS=3`；最终全量测试另设 `RUST_TEST_THREADS=1 RUST_TEST_NOCAPTURE=1`。公开边界检查通过 5365 个候选文件。
+- 门槛附带信息：xtask 审计 957 个锁定依赖，0 个漏洞、12 条既有通知；14 份过期测量和 15 份旧格式证据保留，没有以本次契约测试冒充性能重测。
+- 过程失败记录：两次全量重跑在 `dr-account::tests::account_library_isolation_preserves_local_and_each_account_separately` 的本地假认证 signup 请求报 Network；另一次在 `dr-view-account::tests::hosted_sign_in_updates_display_name_and_renders_dialogs_and_settings` 报同类错误。相同测试二进制单项原样复测、账号包整包复测均通过；最终关闭输出捕获的全量运行也通过。原因未定，本段没有修改账号 crate，也不把复测通过写成已修复假服务。
+- `handback/k3` 对齐本分支 HEAD，包含上述实现及本节最终验收记录；按队列交回后停下，等待作者决定未决映射。
 
 ## 做了什么（大白话）
 
