@@ -105,6 +105,71 @@
   "allChapters": {
     "actOrdinal": "Act {{n}}"
   },
+  "auth": {
+    "back": "Back",
+    "backToSignIn": "Back to sign in",
+    "createAccount": "Create account",
+    "creating": "Creating…",
+    "dialogLabel": "Account",
+    "errors": {
+      "oauthExpired": "Sign-in timed out. Please start again.",
+      "oauthFailed": "Sign-in didn't finish. Please try again.",
+      "sendCodeFailed": "Could not send the verification code",
+      "signInCheck": "Sign in failed. Check your email and password.",
+      "signUpRetry": "Sign up failed. Please try again later.",
+      "verifyFailed": "Verification failed"
+    },
+    "fields": {
+      "code": "Verification code",
+      "codePlaceholder": "6 digits",
+      "email": "Email",
+      "emailPlaceholder": "your@email.com",
+      "password": "Password",
+      "passwordSignupPlaceholder": "At least 10 characters",
+      "penName": "Pen name",
+      "penNamePlaceholder": "e.g. Ada"
+    },
+    "forgot": {
+      "codeSub": "A code was sent to {{email}}. Enter it and choose a new password.",
+      "confirmPassword": "Confirm new password",
+      "done": "Your password has been reset. You can sign in now.",
+      "newPassword": "New password",
+      "passwordMismatch": "The passwords do not match.",
+      "resetFailed": "Password reset failed. Check the code and try again.",
+      "resetSubmit": "Reset password",
+      "sub": "Enter your account email and we'll send a verification code."
+    },
+    "forgotPassword": "Forgot password?",
+    "hasAccount": "Already have an account?",
+    "noAccount": "No account yet?",
+    "otp": {
+      "codeSub": "Sent to {{email}}. The code is valid for 10 minutes.",
+      "emailSub": "We'll send a 6-digit code that's valid for 10 minutes."
+    },
+    "resend": "Resend code",
+    "sendCode": "Send code",
+    "signIn": "Sign in",
+    "signUp": "Sign up",
+    "signingIn": "Signing in…",
+    "social": {
+      "continueWith": "Continue with {{provider}}",
+      "or": "or",
+      "waiting": "Waiting for browser authorization…"
+    },
+    "titles": {
+      "forgot": "Reset password",
+      "otp": "Sign in with a code",
+      "signin": "Sign in to Drifting",
+      "signup": "Create account",
+      "verify": "Verify your email"
+    },
+    "useOtp": "Sign in with an email code",
+    "verify": {
+      "sent": "Sent to {{email}}. The code is valid for 10 minutes.",
+      "submit": "Verify and sign in",
+      "verifying": "Verifying…"
+    }
+  },
   "bottomStatusBar": {
     "collapseTimeline": "Collapse Storyline Timeline",
     "elements": "Elements",
@@ -392,6 +457,10 @@
     "replace": "Replace",
     "replaceAll": "Replace all",
     "replacePlaceholder": "Replace with…"
+  },
+  "firstRun": {
+    "email": "Continue with email",
+    "local": "Continue locally"
   },
   "globalSearch": {
     "closeTitle": "Close (Esc)",
@@ -827,6 +896,10 @@
   },
   "positionLink": {
     "copied": "Location link copied"
+  },
+  "preAlphaGuide": {
+    "crashReports": "The app sends fault reports without manuscript text so problems can be fixed; turn this off in Settings → Privacy.",
+    "title": "Welcome to Drifting Alpha"
   },
   "projectHome": {
     "book": {
@@ -1388,14 +1461,57 @@
     },
     "groups": {
       "about": "About",
+      "account": "Account",
       "control": "Control",
       "intelligence": "Intelligence",
       "preferences": "Preferences"
     },
     "hosted": {
+      "account_errors": {
+        "AVATAR_FILE_SIZE": "Choose an image up to 5 MB.",
+        "AVATAR_FILE_TYPE": "Choose a JPG, PNG or WebP image.",
+        "CURRENT_PASSWORD_REQUIRED": "Enter your current password.",
+        "INVALID_AVATAR": "This image could not be used. Choose another JPG, PNG or WebP.",
+        "INVALID_PASSWORD": "The current password is incorrect.",
+        "INVALID_PASSWORD_LENGTH": "The new password must contain 8–128 characters.",
+        "INVALID_PROFILE_NAME": "Enter a display name of 1–80 characters.",
+        "PASSWORD_MISMATCH": "The new passwords do not match.",
+        "PASSWORD_UNCHANGED": "Choose a different password.",
+        "UNAUTHORIZED": "Your session expired. Sign in again.",
+        "generic": "Could not complete the request. Check your connection and try again."
+      },
+      "avatar": "Avatar",
+      "avatar_description": "JPG, PNG or WebP, up to 5 MB.",
+      "change_password": "Change password",
+      "choose_avatar": "Choose image",
+      "confirm_password": "Confirm new password",
       "connect_errors": {
         "cancelled": "Cancelled."
-      }
+      },
+      "current_password": "Current password",
+      "description": "Writing is saved on this device first. Connect an account to sync projects between your devices.",
+      "display_name": "Display name",
+      "new_password": "New password",
+      "no_account": "Not signed in",
+      "password_description": "8–128 characters.",
+      "password_saved": "Password changed. Other devices need to sign in again.",
+      "password_sessions": "Changing your password signs out other devices. This device stays signed in.",
+      "password_title": "Password",
+      "profile_saved": "Profile saved.",
+      "profile_title": "Profile",
+      "remove_avatar": "Remove",
+      "save_profile": "Save profile",
+      "session": {
+        "checking": "Checking account…",
+        "connected": "Account connected",
+        "needs-reauth": "Session expired. Sign in to the same account again.",
+        "offline": "Offline. You can continue writing locally.",
+        "signed-out": "Local writing does not require an account."
+      },
+      "sign_in": "Sign in / Register",
+      "sign_out": "Sign out",
+      "title": "Account and hosted sync",
+      "working": "Working…"
     },
     "keys": {
       "actions": {
@@ -1479,6 +1595,7 @@
     },
     "rail": {
       "about_app": "About Drifting",
+      "account": "Account",
       "agent": "General Agent",
       "appearance": "Appearance",
       "editor": "Editor",
@@ -1638,6 +1755,7 @@
     }
   },
   "userMenu": {
+    "accountMenu": "Account menu",
     "feedback": "Send feedback",
     "import": "Import",
     "importBook": "Import book (.driftingbook)",
@@ -1645,6 +1763,8 @@
     "localMenu": "Local library menu",
     "localStatus": "LOCAL · ON DEVICE",
     "settings": "Settings",
+    "signOut": "Sign out",
+    "signingOut": "Signing out…",
     "theme": "Theme",
     "themeDark": "Dark",
     "themeDarkShort": "Dark",

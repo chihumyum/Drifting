@@ -105,6 +105,71 @@
   "allChapters": {
     "actOrdinal": "Akt {{n}}"
   },
+  "auth": {
+    "back": "Zurück",
+    "backToSignIn": "Zurück zur Anmeldung",
+    "createAccount": "Konto erstellen",
+    "creating": "Wird erstellt…",
+    "dialogLabel": "Konto",
+    "errors": {
+      "oauthExpired": "Zeitlimit der Anmeldung überschritten. Bitte neu starten.",
+      "oauthFailed": "Anmeldung nicht abgeschlossen. Bitte erneut versuchen.",
+      "sendCodeFailed": "Bestätigungscode konnte nicht gesendet werden",
+      "signInCheck": "Anmeldung fehlgeschlagen. Prüfe E-Mail und Passwort.",
+      "signUpRetry": "Registrierung fehlgeschlagen. Versuche es später erneut.",
+      "verifyFailed": "Bestätigung fehlgeschlagen"
+    },
+    "fields": {
+      "code": "Bestätigungscode",
+      "codePlaceholder": "6 Ziffern",
+      "email": "E-Mail",
+      "emailPlaceholder": "your@email.com",
+      "password": "Passwort",
+      "passwordSignupPlaceholder": "Mindestens 10 Zeichen",
+      "penName": "Pseudonym",
+      "penNamePlaceholder": "z. B. Ada"
+    },
+    "forgot": {
+      "codeSub": "Code an {{email}} gesendet. Gib ihn ein und wähle ein neues Passwort.",
+      "confirmPassword": "Neues Passwort bestätigen",
+      "done": "Passwort zurückgesetzt. Du kannst dich jetzt anmelden.",
+      "newPassword": "Neues Passwort",
+      "passwordMismatch": "Die Passwörter stimmen nicht überein.",
+      "resetFailed": "Zurücksetzen fehlgeschlagen. Prüfe den Code und versuche es erneut.",
+      "resetSubmit": "Passwort zurücksetzen",
+      "sub": "Gib deine Konto-E-Mail ein, um einen Code zu erhalten."
+    },
+    "forgotPassword": "Passwort vergessen?",
+    "hasAccount": "Bereits ein Konto?",
+    "noAccount": "Noch kein Konto?",
+    "otp": {
+      "codeSub": "An {{email}} gesendet. Der Code gilt 10 Minuten.",
+      "emailSub": "Wir senden einen 6-stelligen Code, gültig für 10 Minuten."
+    },
+    "resend": "Code erneut senden",
+    "sendCode": "Code senden",
+    "signIn": "Anmelden",
+    "signUp": "Registrieren",
+    "signingIn": "Anmeldung läuft…",
+    "social": {
+      "continueWith": "Mit {{provider}} fortfahren",
+      "or": "oder",
+      "waiting": "Wartet auf Browserautorisierung…"
+    },
+    "titles": {
+      "forgot": "Passwort zurücksetzen",
+      "otp": "Mit Code anmelden",
+      "signin": "Bei Drifting anmelden",
+      "signup": "Konto erstellen",
+      "verify": "E-Mail bestätigen"
+    },
+    "useOtp": "Mit E-Mail-Code anmelden",
+    "verify": {
+      "sent": "An {{email}} gesendet. Der Code gilt 10 Minuten.",
+      "submit": "Bestätigen und anmelden",
+      "verifying": "Wird geprüft…"
+    }
+  },
   "bottomStatusBar": {
     "collapseTimeline": "Handlungsstrang-Zeitleiste einklappen",
     "elements": "Elemente",
@@ -392,6 +457,10 @@
     "replace": "Ersetzen",
     "replaceAll": "Alle ersetzen",
     "replacePlaceholder": "Ersetzen durch…"
+  },
+  "firstRun": {
+    "email": "Mit E-Mail fortfahren",
+    "local": "Lokal fortfahren"
   },
   "globalSearch": {
     "closeTitle": "Schließen (Esc)",
@@ -827,6 +896,10 @@
   },
   "positionLink": {
     "copied": "Positionslink kopiert"
+  },
+  "preAlphaGuide": {
+    "crashReports": "Die App sendet Fehlerberichte ohne Manuskripttext, damit Probleme behoben werden können. Abschaltbar unter Einstellungen → Datenschutz.",
+    "title": "Willkommen bei Drifting Alpha"
   },
   "projectHome": {
     "book": {
@@ -1388,14 +1461,57 @@
     },
     "groups": {
       "about": "Info",
+      "account": "Konto",
       "control": "Verwaltung",
       "intelligence": "KI-Funktionen",
       "preferences": "Voreinstellungen"
     },
     "hosted": {
+      "account_errors": {
+        "AVATAR_FILE_SIZE": "Wähle ein Bild bis 5 MB.",
+        "AVATAR_FILE_TYPE": "Wähle ein JPG-, PNG- oder WebP-Bild.",
+        "CURRENT_PASSWORD_REQUIRED": "Gib dein aktuelles Passwort ein.",
+        "INVALID_AVATAR": "Dieses Bild kann nicht verwendet werden. Wähle ein anderes JPG, PNG oder WebP.",
+        "INVALID_PASSWORD": "Das aktuelle Passwort ist falsch.",
+        "INVALID_PASSWORD_LENGTH": "Das neue Passwort muss 8–128 Zeichen enthalten.",
+        "INVALID_PROFILE_NAME": "Gib einen Anzeigenamen mit 1–80 Zeichen ein.",
+        "PASSWORD_MISMATCH": "Die neuen Passwörter stimmen nicht überein.",
+        "PASSWORD_UNCHANGED": "Wähle ein anderes Passwort.",
+        "UNAUTHORIZED": "Deine Sitzung ist abgelaufen. Bitte erneut anmelden.",
+        "generic": "Die Anfrage konnte nicht abgeschlossen werden. Verbindung prüfen und erneut versuchen."
+      },
+      "avatar": "Profilbild",
+      "avatar_description": "JPG, PNG oder WebP, bis 5 MB.",
+      "change_password": "Passwort ändern",
+      "choose_avatar": "Bild auswählen",
+      "confirm_password": "Neues Passwort bestätigen",
       "connect_errors": {
         "cancelled": "Abgebrochen."
-      }
+      },
+      "current_password": "Aktuelles Passwort",
+      "description": "Deine Texte werden zuerst auf diesem Gerät gespeichert. Verbinde ein Konto, um Projekte zwischen deinen Geräten zu synchronisieren.",
+      "display_name": "Anzeigename",
+      "new_password": "Neues Passwort",
+      "no_account": "Nicht angemeldet",
+      "password_description": "8–128 Zeichen.",
+      "password_saved": "Passwort geändert. Andere Geräte müssen sich neu anmelden.",
+      "password_sessions": "Beim Passwortwechsel werden andere Geräte abgemeldet. Dieses Gerät bleibt angemeldet.",
+      "password_title": "Passwort",
+      "profile_saved": "Profil gespeichert.",
+      "profile_title": "Profil",
+      "remove_avatar": "Entfernen",
+      "save_profile": "Profil speichern",
+      "session": {
+        "checking": "Konto wird geprüft…",
+        "connected": "Konto verbunden",
+        "needs-reauth": "Sitzung abgelaufen. Melde dich wieder mit demselben Konto an.",
+        "offline": "Offline. Du kannst lokal weiterschreiben.",
+        "signed-out": "Lokales Schreiben benötigt kein Konto."
+      },
+      "sign_in": "Anmelden / Registrieren",
+      "sign_out": "Abmelden",
+      "title": "Konto und Hosted-Synchronisierung",
+      "working": "In Arbeit…"
     },
     "keys": {
       "actions": {
@@ -1479,6 +1595,7 @@
     },
     "rail": {
       "about_app": "Über Drifting",
+      "account": "Konto",
       "agent": "Allgemeiner Agent",
       "appearance": "Darstellung",
       "editor": "Editor",
@@ -1638,6 +1755,7 @@
     }
   },
   "userMenu": {
+    "accountMenu": "Kontomenü",
     "feedback": "Feedback senden",
     "import": "Importieren",
     "importBook": "Buch importieren (.driftingbook)",
@@ -1645,6 +1763,8 @@
     "localMenu": "Menü der lokalen Bibliothek",
     "localStatus": "LOKAL · AUF DIESEM GERÄT",
     "settings": "Einstellungen",
+    "signOut": "Abmelden",
+    "signingOut": "Abmeldung läuft…",
     "theme": "Design",
     "themeDark": "Dunkel",
     "themeDarkShort": "Dunkel",

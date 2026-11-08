@@ -105,6 +105,71 @@
   "allChapters": {
     "actOrdinal": "第{{n}}幕"
   },
+  "auth": {
+    "back": "返回",
+    "backToSignIn": "返回登录",
+    "createAccount": "创建账号",
+    "creating": "创建中…",
+    "dialogLabel": "账号",
+    "errors": {
+      "oauthExpired": "登录等待超时，请重新开始。",
+      "oauthFailed": "登录没有完成，请重试。",
+      "sendCodeFailed": "发送验证码失败",
+      "signInCheck": "登录失败，请检查邮箱和密码",
+      "signUpRetry": "注册失败，请稍后重试",
+      "verifyFailed": "验证失败"
+    },
+    "fields": {
+      "code": "验证码",
+      "codePlaceholder": "6 位数字",
+      "email": "邮箱",
+      "emailPlaceholder": "your@email.com",
+      "password": "密码",
+      "passwordSignupPlaceholder": "至少 10 个字符",
+      "penName": "笔名",
+      "penNamePlaceholder": "例：望舒"
+    },
+    "forgot": {
+      "codeSub": "验证码已发送到 {{email}}。输入验证码并设置新密码。",
+      "confirmPassword": "确认新密码",
+      "done": "密码已重置，现在可以返回登录。",
+      "newPassword": "新密码",
+      "passwordMismatch": "两次输入的密码不一致。",
+      "resetFailed": "密码重置失败，请检查验证码后重试。",
+      "resetSubmit": "重置密码",
+      "sub": "输入账号邮箱，我们会发送验证码。"
+    },
+    "forgotPassword": "忘记密码？",
+    "hasAccount": "已经有账号？",
+    "noAccount": "还没有账号？",
+    "otp": {
+      "codeSub": "验证码已发送到 {{email}}，10 分钟内有效。",
+      "emailSub": "我们会发送 6 位验证码，10 分钟内有效。"
+    },
+    "resend": "重新发送",
+    "sendCode": "发送验证码",
+    "signIn": "登录",
+    "signUp": "注册",
+    "signingIn": "登录中…",
+    "social": {
+      "continueWith": "用 {{provider}} 继续",
+      "or": "或",
+      "waiting": "等待浏览器授权…"
+    },
+    "titles": {
+      "forgot": "重置密码",
+      "otp": "验证码登录",
+      "signin": "登录 Drifting",
+      "signup": "创建账号",
+      "verify": "验证邮箱"
+    },
+    "useOtp": "用邮箱验证码登录",
+    "verify": {
+      "sent": "验证码已发送到 {{email}}，10 分钟内有效。",
+      "submit": "验证并登录",
+      "verifying": "验证中…"
+    }
+  },
   "bottomStatusBar": {
     "collapseTimeline": "收起 Storyline Timeline",
     "elements": "要素全景",
@@ -392,6 +457,10 @@
     "replace": "替换",
     "replaceAll": "全部替换",
     "replacePlaceholder": "替换为…"
+  },
+  "firstRun": {
+    "email": "用邮箱继续",
+    "local": "本地继续"
   },
   "globalSearch": {
     "closeTitle": "关闭 (Esc)",
@@ -820,6 +889,10 @@
   },
   "positionLink": {
     "copied": "已复制位置链接"
+  },
+  "preAlphaGuide": {
+    "crashReports": "应用会自动发送不含正文的故障报告，方便排查问题；可以在 设置 → 隐私 中关闭。",
+    "title": "欢迎使用 Drifting Alpha"
   },
   "projectHome": {
     "book": {
@@ -1376,14 +1449,57 @@
     },
     "groups": {
       "about": "关于",
+      "account": "我的账号",
       "control": "控制",
       "intelligence": "智能",
       "preferences": "偏好"
     },
     "hosted": {
+      "account_errors": {
+        "AVATAR_FILE_SIZE": "请选择不超过 5 MB 的图片。",
+        "AVATAR_FILE_TYPE": "请选择 JPG、PNG 或 WebP 图片。",
+        "CURRENT_PASSWORD_REQUIRED": "请输入当前密码。",
+        "INVALID_AVATAR": "无法使用这张图片，请另选 JPG、PNG 或 WebP 图片。",
+        "INVALID_PASSWORD": "当前密码不正确。",
+        "INVALID_PASSWORD_LENGTH": "新密码需要 8–128 个字符。",
+        "INVALID_PROFILE_NAME": "请输入 1–80 个字符的昵称。",
+        "PASSWORD_MISMATCH": "两次输入的新密码不一致。",
+        "PASSWORD_UNCHANGED": "新密码不能与当前密码相同。",
+        "UNAUTHORIZED": "登录已过期，请重新登录。",
+        "generic": "未能完成操作，请检查网络后重试。"
+      },
+      "avatar": "头像",
+      "avatar_description": "支持 JPG、PNG、WebP，最大 5 MB。",
+      "change_password": "修改密码",
+      "choose_avatar": "选择图片",
+      "confirm_password": "确认新密码",
       "connect_errors": {
         "cancelled": "已取消。"
-      }
+      },
+      "current_password": "当前密码",
+      "description": "正文始终先保存在本机。连接账号后，在你的设备之间同步项目。",
+      "display_name": "昵称",
+      "new_password": "新密码",
+      "no_account": "尚未登录",
+      "password_description": "8–128 个字符。",
+      "password_saved": "密码已修改，其他设备需要重新登录。",
+      "password_sessions": "修改密码后，其他设备需要重新登录，本机保持登录。",
+      "password_title": "密码",
+      "profile_saved": "资料已保存。",
+      "profile_title": "个人资料",
+      "remove_avatar": "移除",
+      "save_profile": "保存资料",
+      "session": {
+        "checking": "正在检查账号连接…",
+        "connected": "账号已连接",
+        "needs-reauth": "登录已过期，请重新登录同一账号。",
+        "offline": "网络暂不可用，你可以继续在本地写作。",
+        "signed-out": "本地写作不需要登录。"
+      },
+      "sign_in": "登录 / 注册",
+      "sign_out": "退出账号",
+      "title": "账号与托管同步",
+      "working": "正在处理…"
     },
     "keys": {
       "actions": {
@@ -1467,6 +1583,7 @@
     },
     "rail": {
       "about_app": "关于 Drifting",
+      "account": "账号",
       "agent": "General Agent",
       "appearance": "外观",
       "editor": "编辑器",
@@ -1626,6 +1743,7 @@
     }
   },
   "userMenu": {
+    "accountMenu": "账号菜单",
     "feedback": "提交反馈",
     "import": "导入",
     "importBook": "导入书（.driftingbook）",
@@ -1633,6 +1751,8 @@
     "localMenu": "本地书库菜单",
     "localStatus": "本地 · 本机存储",
     "settings": "设定",
+    "signOut": "登出账号",
+    "signingOut": "登出中…",
     "theme": "主题",
     "themeDark": "深色",
     "themeDarkShort": "暗",
