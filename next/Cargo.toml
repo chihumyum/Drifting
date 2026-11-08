@@ -33,6 +33,7 @@ members = [
     "crates/dr-view-search",
     "crates/dr-view-shelf",
     "crates/dr-view-stats",
+    "crates/dr-view-timeline",
     "crates/dr-workspace",
     "crates/gpui-ime",
     "crates/gpui-prose",
@@ -235,6 +236,8 @@ dr-view-home = { path = "crates/dr-view-home" }
 dr-view-shelf = { path = "crates/dr-view-shelf" }
 # M11: the element and category pages (docs/rust-rewrite/modules/m11-elements.md).
 dr-view-elements = { path = "crates/dr-view-elements" }
+# M14: the bottom timeline (docs/rust-rewrite/modules/m14-timeline.md).
+dr-view-timeline = { path = "crates/dr-view-timeline" }
 # M10's interface: the 0.1 library import over the bookshelf
 # (docs/rust-rewrite/modules/m10-import.md).
 dr-view-import = { path = "crates/dr-view-import" }

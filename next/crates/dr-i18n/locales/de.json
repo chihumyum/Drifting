@@ -12,6 +12,35 @@
     "storyGraph": "Geschichtsgraph",
     "todoLibrary": "Aufgaben und Materialsammlung"
   },
+  "bottomTimeline": {
+    "act": {
+      "chapterCount": "{{count}} Kapitel",
+      "railLabel": "Akt"
+    },
+    "axis": {
+      "time": "Zeit"
+    },
+    "empty": {
+      "noChaptersInStoryline": "Keine Kapitel in diesem Strang · Doppelklick zum Erstellen"
+    },
+    "locateCurrent": "Aktuelles Kapitel finden",
+    "storyline": {
+      "chapterCount": "{{count}} Kap."
+    },
+    "synthetic": {
+      "book": "Buch",
+      "unaffiliated": "Ohne Zuordnung"
+    },
+    "unplaced": {
+      "empty": "Alle Kapitel sind auf der Erzählzeitleiste platziert",
+      "label": "Nicht platziert",
+      "title": "Noch nicht auf der Erzählzeitleiste platzierte Kapitel"
+    },
+    "view": {
+      "book": "Buch",
+      "narrative": "Erzählzeit"
+    }
+  },
   "categoryEditor": {
     "actions": {
       "openElement": "Element öffnen"

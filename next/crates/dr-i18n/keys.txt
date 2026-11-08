@@ -640,3 +640,18 @@ storylineEditor.actions.openChapter
 editorTopBar.menu.deleteStoryline
 common.confirm
 common.words
+
+# M14 the bottom timeline (dr-view-timeline)
+bottomTimeline.view.book
+bottomTimeline.view.narrative
+bottomTimeline.synthetic.book
+bottomTimeline.synthetic.unaffiliated
+bottomTimeline.unplaced.label
+bottomTimeline.unplaced.title
+bottomTimeline.unplaced.empty
+bottomTimeline.storyline.chapterCount
+bottomTimeline.empty.noChaptersInStoryline
+bottomTimeline.locateCurrent
+bottomTimeline.axis.time
+bottomTimeline.act.railLabel
+bottomTimeline.act.chapterCount
