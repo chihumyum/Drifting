@@ -31,6 +31,7 @@ pub mod folders;
 pub mod import;
 pub mod library;
 pub mod media;
+pub mod menu;
 pub mod page;
 pub mod previews;
 pub mod regions;
@@ -45,6 +46,7 @@ pub use page::{MediaKind, MediaPage};
 /// shell, and the library's shortcuts. Call once, after `dr_shell::init`.
 pub fn init(cx: &mut App) {
     cx.bind_keys(library::bindings());
+    menu::register(cx);
     dr_shell::pages::set_library(cx, library::make);
     dr_shell::pages::add_page_view(cx, |target, host, window, cx| {
         let Target::Material(id) = target else {

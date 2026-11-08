@@ -192,10 +192,13 @@
       "changeGroup": "變更群組",
       "deleteCategory": "刪除分類",
       "deleteElement": "刪除要素",
+      "deleteMaterial": "刪除素材",
       "deleteNode": "刪除節點",
       "deleteStoryline": "刪除故事線",
       "editStorylines": "編輯故事線",
-      "moveToGroup": "移至分組…"
+      "moveMaterialToFolder": "移至素材夾…",
+      "moveToGroup": "移至分組…",
+      "openMaterialInSystem": "以預設應用程式開啟"
     },
     "outlineRailMode": {
       "hidden": "隱藏目錄",
@@ -551,6 +554,7 @@
   },
   "materialEditor": {
     "deleteConfirm": "刪除素材「{{title}}」？此操作無法復原。",
+    "deleteFailed": "無法刪除素材。",
     "descriptionPlaceholder": "新增說明…",
     "embed": {
       "importFile": "匯入圖片或 PDF…",
@@ -586,6 +590,11 @@
       "open": "開啟",
       "rename": "重新命名"
     },
+    "picker": {
+      "createAndMove": "建立並移動",
+      "newPlaceholder": "新素材夾名稱",
+      "title": "移至素材夾"
+    },
     "root": "所有素材",
     "untitled": "新素材夾"
   },
@@ -597,6 +606,7 @@
       "noRelated": "目前項目未連結任何素材。"
     },
     "error": {
+      "openFile": "無法開啟檔案：{{error}}",
       "pickFailed": "無法匯入檔案：{{error}}"
     },
     "kind": {

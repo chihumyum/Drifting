@@ -192,10 +192,13 @@
       "changeGroup": "Change group",
       "deleteCategory": "Delete category",
       "deleteElement": "Delete element",
+      "deleteMaterial": "Delete material",
       "deleteNode": "Delete node",
       "deleteStoryline": "Delete storyline",
       "editStorylines": "Edit storylines",
-      "moveToGroup": "Move to group…"
+      "moveMaterialToFolder": "Move to folder…",
+      "moveToGroup": "Move to group…",
+      "openMaterialInSystem": "Open in default app"
     },
     "outlineRailMode": {
       "hidden": "Hide TOC",
@@ -557,6 +560,7 @@
   },
   "materialEditor": {
     "deleteConfirm": "Delete the material “{{title}}”? This cannot be undone.",
+    "deleteFailed": "The material could not be deleted.",
     "descriptionPlaceholder": "Add a description…",
     "embed": {
       "importFile": "Import an image or PDF…",
@@ -592,6 +596,11 @@
       "open": "Open",
       "rename": "Rename"
     },
+    "picker": {
+      "createAndMove": "Create and move",
+      "newPlaceholder": "New folder name",
+      "title": "Move to folder"
+    },
     "root": "All materials",
     "untitled": "New folder"
   },
@@ -603,6 +612,7 @@
       "noRelated": "No materials are linked to the current item."
     },
     "error": {
+      "openFile": "Could not open file: {{error}}",
       "pickFailed": "Could not import file: {{error}}"
     },
     "kind": {

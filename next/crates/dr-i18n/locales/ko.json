@@ -192,10 +192,13 @@
       "changeGroup": "그룹 변경",
       "deleteCategory": "분류 삭제",
       "deleteElement": "요소 삭제",
+      "deleteMaterial": "자료 삭제",
       "deleteNode": "노드 삭제",
       "deleteStoryline": "스토리라인 삭제",
       "editStorylines": "스토리라인 편집",
-      "moveToGroup": "그룹으로 이동…"
+      "moveMaterialToFolder": "폴더로 이동…",
+      "moveToGroup": "그룹으로 이동…",
+      "openMaterialInSystem": "기본 앱으로 열기"
     },
     "outlineRailMode": {
       "hidden": "목차 숨기기",
@@ -551,6 +554,7 @@
   },
   "materialEditor": {
     "deleteConfirm": "자료 “{{title}}”을(를) 삭제할까요? 이 작업은 되돌릴 수 없습니다.",
+    "deleteFailed": "자료를 삭제하지 못했습니다.",
     "descriptionPlaceholder": "설명 추가…",
     "embed": {
       "importFile": "이미지 또는 PDF 가져오기…",
@@ -586,6 +590,11 @@
       "open": "열기",
       "rename": "이름 바꾸기"
     },
+    "picker": {
+      "createAndMove": "만들고 이동",
+      "newPlaceholder": "새 폴더 이름",
+      "title": "폴더로 이동"
+    },
     "root": "모든 자료",
     "untitled": "새 폴더"
   },
@@ -597,6 +606,7 @@
       "noRelated": "현재 항목에 연결된 자료가 없습니다."
     },
     "error": {
+      "openFile": "파일을 열 수 없음: {{error}}",
       "pickFailed": "파일을 가져올 수 없음: {{error}}"
     },
     "kind": {

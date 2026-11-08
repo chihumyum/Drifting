@@ -192,10 +192,13 @@
       "changeGroup": "更改分组",
       "deleteCategory": "删除类目",
       "deleteElement": "删除要素",
+      "deleteMaterial": "删除素材",
       "deleteNode": "删除节点",
       "deleteStoryline": "删除故事线",
       "editStorylines": "编辑故事线",
-      "moveToGroup": "移动到分组…"
+      "moveMaterialToFolder": "移动到素材夹…",
+      "moveToGroup": "移动到分组…",
+      "openMaterialInSystem": "用默认应用打开"
     },
     "outlineRailMode": {
       "hidden": "隐藏 TOC",
@@ -550,6 +553,7 @@
   },
   "materialEditor": {
     "deleteConfirm": "删除素材「{{title}}」？此操作无法撤销。",
+    "deleteFailed": "素材删除失败。",
     "descriptionPlaceholder": "添加说明…",
     "embed": {
       "importFile": "从文件导入图片或 PDF…",
@@ -585,6 +589,11 @@
       "open": "打开",
       "rename": "重命名"
     },
+    "picker": {
+      "createAndMove": "新建并移入",
+      "newPlaceholder": "新素材夹名称",
+      "title": "移动到素材夹"
+    },
     "root": "素材库",
     "untitled": "新素材夹"
   },
@@ -596,6 +605,7 @@
       "noRelated": "当前条目没有关联的素材。"
     },
     "error": {
+      "openFile": "无法打开文件：{{error}}",
       "pickFailed": "无法导入文件：{{error}}"
     },
     "kind": {
