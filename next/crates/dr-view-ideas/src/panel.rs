@@ -820,7 +820,10 @@ impl IdeaPanel {
             row,
             &target,
             ws,
-            extra,
+            dr_shell::pages::CardRows {
+                before_danger: extra,
+                ..Default::default()
+            },
             cx,
         )
     }
