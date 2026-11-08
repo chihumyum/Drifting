@@ -1,0 +1,285 @@
+{
+  "about": "M18 当前范围：直接批注、通用关联待办及另一章关联批注同时显示；新增/移除关联即时刷新，切回全书仍有未挂载待办。",
+  "steps": [
+    {
+      "seed": "showcase"
+    },
+    {
+      "call": "book.list",
+      "save": "books"
+    },
+    {
+      "call": "chapter.list",
+      "input": {
+        "book": "${books.[name=慢钟].id}"
+      },
+      "save": "chapters"
+    },
+    {
+      "call": "comment.create",
+      "input": {
+        "book": "${books.[name=慢钟].id}",
+        "kind": "note",
+        "body": "慢钟 · 直接批注",
+        "target": {
+          "kind": "node",
+          "id": "${chapters.0.id}"
+        }
+      },
+      "save": "direct"
+    },
+    {
+      "call": "comment.create",
+      "input": {
+        "book": "${books.[name=慢钟].id}",
+        "kind": "todo",
+        "body": "慢钟 · 关联待办"
+      },
+      "save": "floating"
+    },
+    {
+      "call": "comment.create",
+      "input": {
+        "book": "${books.[name=慢钟].id}",
+        "kind": "note",
+        "body": "慢钟 · 另一章批注",
+        "target": {
+          "kind": "node",
+          "id": "${chapters.1.id}"
+        }
+      },
+      "save": "source"
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light"
+        },
+        "settings": {
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "name": "慢钟"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/shelf": false
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Skip tour"
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "chapter": "${chapters.0.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/page": "chapter:${chapters.0.id}"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Open right sidebar"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/right/open": true
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Current"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "label": "慢钟 · 直接批注",
+        "count": 1
+      },
+      "expect": {
+        "/count": 1
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "label": "慢钟 · 关联待办",
+        "absent": true
+      },
+      "expect": {
+        "/count": 0
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "label": "慢钟 · 另一章批注",
+        "absent": true
+      },
+      "expect": {
+        "/count": 0
+      }
+    },
+    {
+      "call": "relation.create",
+      "input": {
+        "book": "${books.[name=慢钟].id}",
+        "from": {
+          "kind": "comment",
+          "id": "${floating.id}"
+        },
+        "to": {
+          "kind": "node",
+          "id": "${chapters.0.id}"
+        }
+      },
+      "save": "link"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "label": "慢钟 · 关联待办",
+        "count": 1
+      },
+      "expect": {
+        "/count": 1
+      }
+    },
+    {
+      "call": "relation.create",
+      "input": {
+        "book": "${books.[name=慢钟].id}",
+        "from": {
+          "kind": "comment",
+          "id": "${source.id}"
+        },
+        "to": {
+          "kind": "node",
+          "id": "${chapters.0.id}"
+        }
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "label": "慢钟 · 另一章批注",
+        "count": 1
+      },
+      "expect": {
+        "/count": 1
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "review-related.png"
+    },
+    {
+      "call": "relation.delete",
+      "input": {
+        "book": "${books.[name=慢钟].id}",
+        "id": "${link.id}"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "label": "慢钟 · 关联待办",
+        "absent": true
+      },
+      "expect": {
+        "/count": 0
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "label": "慢钟 · 直接批注",
+        "count": 1
+      },
+      "expect": {
+        "/count": 1
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "label": "慢钟 · 另一章批注",
+        "count": 1
+      },
+      "expect": {
+        "/count": 1
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Current"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "StaticText",
+        "label": "慢钟 · 关联待办",
+        "count": 1
+      },
+      "expect": {
+        "/count": 1
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "review-project.png"
+    },
+    {
+      "app": "app.quit"
+    }
+  ]
+}

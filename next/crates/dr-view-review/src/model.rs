@@ -10,6 +10,8 @@
 //!   Inside a group the newest item comes first.
 //! - Resolved items are listed apart (the folded 「已解决」 section).
 
+use std::collections::HashSet;
+
 use dr_workspace::dto::{CommentInfo, Target};
 
 /// Which kinds are listed.
@@ -84,10 +86,22 @@ fn place_of(item: &CommentInfo) -> Place {
 
 /// Groups `items` (in any order) for the tab.
 pub fn arrange(items: &[CommentInfo], filter: Filter, scope: Option<&Target>) -> Listing {
+    arrange_with_related(items, filter, scope, &HashSet::new())
+}
+
+/// Current scope includes comments pointing at the entity through a generic
+/// association, as well as comments directly attached to it. Associations
+/// affect inclusion only; grouping still describes each comment's source.
+pub fn arrange_with_related(
+    items: &[CommentInfo],
+    filter: Filter,
+    scope: Option<&Target>,
+    related: &HashSet<String>,
+) -> Listing {
     let mut chosen: Vec<&CommentInfo> = items
         .iter()
         .filter(|i| filter.admits(i))
-        .filter(|i| scope.is_none_or(|s| i.target.as_ref() == Some(s)))
+        .filter(|i| scope.is_none_or(|s| i.target.as_ref() == Some(s) || related.contains(&i.id)))
         .collect();
     // Newest first; the id breaks ties so the order is stable.
     chosen.sort_by(|a, b| b.created_at.cmp(&a.created_at).then(b.id.cmp(&a.id)));
@@ -192,5 +206,42 @@ mod tests {
         gone.unlocated = true;
         let listing = arrange(&[gone], Filter::All, None);
         assert_eq!(listing.open[0].place, Place::Gone);
+    }
+
+    #[test]
+    fn associated_items_enter_current_scope_once_and_keep_their_source_group() {
+        let here = Target {
+            kind: "node".into(),
+            id: "c1".into(),
+        };
+        let items = vec![
+            item("a", "note", Some("c1"), "open", 1),
+            item("b", "todo", None, "open", 2),
+            item("c", "note", Some("c2"), "resolved", 3),
+            item("d", "note", Some("c2"), "open", 4),
+        ];
+        let related = HashSet::from(["a".into(), "b".into(), "c".into()]);
+        let listing = arrange_with_related(&items, Filter::All, Some(&here), &related);
+        assert_eq!(
+            listing
+                .open
+                .iter()
+                .flat_map(|g| &g.items)
+                .map(|i| i.id.as_str())
+                .collect::<Vec<_>>(),
+            ["a", "b"]
+        );
+        assert_eq!(listing.open[1].place, Place::Floating);
+        assert_eq!(listing.resolved_count, 1);
+        assert_eq!(listing.resolved[0].key(), "node:c2");
+        let todos = arrange_with_related(&items, Filter::Todos, Some(&here), &related);
+        assert_eq!(todos.open[0].items[0].id, "b");
+        assert_eq!(todos.resolved_count, 0);
+        assert_eq!(
+            arrange(&items, Filter::All, Some(&here)).open[0]
+                .items
+                .len(),
+            1
+        );
     }
 }

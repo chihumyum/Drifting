@@ -263,10 +263,13 @@
       "changeGroup": "Cambiar grupo",
       "deleteCategory": "Eliminar categoría",
       "deleteElement": "Eliminar elemento",
+      "deleteMaterial": "Eliminar material",
       "deleteNode": "Eliminar nodo",
       "deleteStoryline": "Eliminar trama",
       "editStorylines": "Editar tramas",
-      "moveToGroup": "Mover a grupo…"
+      "moveMaterialToFolder": "Mover a carpeta…",
+      "moveToGroup": "Mover a grupo…",
+      "openMaterialInSystem": "Abrir con la aplicación predeterminada"
     },
     "outlineRailMode": {
       "hidden": "Ocultar índice",
@@ -629,6 +632,7 @@
   },
   "materialEditor": {
     "deleteConfirm": "¿Eliminar el material «{{title}}»? Esta acción no se puede deshacer.",
+    "deleteFailed": "No se pudo eliminar el material.",
     "descriptionPlaceholder": "Añade una descripción…",
     "embed": {
       "importFile": "Importar imagen o PDF…",
@@ -664,6 +668,11 @@
       "open": "Abrir",
       "rename": "Renombrar"
     },
+    "picker": {
+      "createAndMove": "Crear y mover",
+      "newPlaceholder": "Nombre de la nueva carpeta",
+      "title": "Mover a carpeta"
+    },
     "root": "Todos los materiales",
     "untitled": "Nueva carpeta"
   },
@@ -675,6 +684,7 @@
       "noRelated": "No hay materiales vinculados al elemento actual."
     },
     "error": {
+      "openFile": "No se pudo abrir el archivo: {{error}}",
       "pickFailed": "No se pudo importar el archivo: {{error}}"
     },
     "kind": {

@@ -1021,6 +1021,14 @@ memoMaterial.empty.noRelated
 memoMaterial.card.addSnippetBody
 memoMaterial.error.pickFailed
 materialEditor.deleteConfirm
+materialEditor.deleteFailed
+editorTopBar.menu.openMaterialInSystem
+editorTopBar.menu.moveMaterialToFolder
+editorTopBar.menu.deleteMaterial
+materialFolders.picker.title
+materialFolders.picker.newPlaceholder
+materialFolders.picker.createAndMove
+memoMaterial.error.openFile
 materialEditor.embed.importFile
 materialEditor.embed.importing
 materialEditor.embed.pastedImage

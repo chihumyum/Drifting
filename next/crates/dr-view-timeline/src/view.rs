@@ -431,13 +431,14 @@ impl BottomTimeline {
         }
         let axis = self.axis;
         let book = self.book.id.clone();
+        let opened_in = book.clone();
         let storyline = lane.storyline().map(str::to_owned);
         let task = cx.background_executor().spawn(async move {
             let made = lib
                 .run::<ChapterCreate>(
                     &Actor::User,
                     ChapterCreateIn {
-                        book: book.clone(),
+                        book,
                         title: String::new(),
                         place: Some(match axis {
                             Axis::Book => ChapterPlace::Order(order),
@@ -446,26 +447,24 @@ impl BottomTimeline {
                         summary: String::new(),
                         storyline,
                         text: None,
-                        narrative_order: None,
+                        narrative_order: (axis == Axis::Narrative).then_some(order),
                     },
                 )?
                 .output;
-            if axis == Axis::Narrative {
-                lib.run::<ChapterUpdate>(
-                    &Actor::User,
-                    ChapterUpdateIn {
-                        book,
-                        id: made.id.clone(),
-                        narrative_order: Some(Some(order)),
-                        ..ChapterUpdateIn::default()
-                    },
-                )?;
-            }
             Ok::<_, dr_workspace::WsError>(made.id)
         });
         cx.spawn(async move |this, cx| match task.await {
             Ok(id) => {
                 this.update(cx, |t, cx| {
+                    // The write belongs to the book where it began. Opening
+                    // another book while it runs must not navigate back.
+                    if !t
+                        .ws
+                        .upgrade()
+                        .is_some_and(|ws| ws.read(cx).book_id == opened_in)
+                    {
+                        return;
+                    }
                     if let Ok(id) = id.parse() {
                         t.open(Target::Chapter(id), Open::KEEP, cx);
                     }
@@ -1485,8 +1484,12 @@ impl BottomTimeline {
                 ));
             }
             if lane.clips.is_empty() {
+                let empty = t(cx, keys::bottom_timeline::empty::NO_CHAPTERS_IN_STORYLINE);
                 track = track.child(
                     div()
+                        .id(ElementId::Name(format!("timeline-empty-{i}").into()))
+                        .role(gpui::Role::Label)
+                        .aria_label(empty.clone())
                         .absolute()
                         .top_0()
                         .bottom_0()
@@ -1499,10 +1502,7 @@ impl BottomTimeline {
                         .font_role(Role::Ui)
                         .type_px(s.secondary - 1.0, s.secondary)
                         .text_color(p.muted().solid())
-                        .child(t(
-                            cx,
-                            keys::bottom_timeline::empty::NO_CHAPTERS_IN_STORYLINE,
-                        )),
+                        .child(empty),
                 );
             }
             lanes = lanes.child(track);

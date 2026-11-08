@@ -79,9 +79,19 @@ pub fn init(lib: Option<Workspace>, cx: &mut App) {
     let subscription = lib.as_ref().map(|lib| {
         lib.subscribe(move |e| {
             if let WsEvent::Book(b) = e
-                && b.changes
-                    .iter()
-                    .any(|c| c.collection == Collection::Comments)
+                && b.changes.iter().any(|c| {
+                    matches!(
+                        c.collection,
+                        Collection::Comments
+                            | Collection::Relations
+                            | Collection::RelationTypes
+                            | Collection::Nodes
+                            | Collection::Elements
+                            | Collection::Categories
+                            | Collection::Storylines
+                            | Collection::Materials
+                    )
+                })
             {
                 let _ = tx.unbounded_send(b.book.to_string());
             }
