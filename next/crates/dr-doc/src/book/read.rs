@@ -1041,12 +1041,13 @@ impl<'a> BookView<'a> {
     /// node, element, storyline, category or text material that exists, the
     /// trash included; for a template, its category or storyline). Storage
     /// drops prose documents without one; they appear when a purge races an
-    /// edit on another device.
+    /// edit on another device. A conversation belongs to the book itself
+    /// (storage records which), like the book document: never an orphan.
     pub fn owns_prose(&self, doc: &DocId) -> bool {
         let has = |root: &str, id: &str| self.doc.get_map(root).get(id).is_some();
         match doc {
             DocId::Book(b) => b == self.book,
-            DocId::Conversation(_) => false,
+            DocId::Conversation(_) => true,
             DocId::Node(id) => has(book::NODES, id.as_str()),
             DocId::Element(id) => has(book::ELEMENTS, id.as_str()),
             DocId::Storyline(id) => has(book::STORYLINES, id.as_str()),

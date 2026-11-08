@@ -6,7 +6,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::id::{ConversationId, IdError};
+use crate::id::{IdError, check_id};
 pub use crate::kind::ConversationEntryKind;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -22,10 +22,12 @@ pub struct ConversationEntry {
 }
 
 impl ConversationEntry {
+    /// The event id, the session and the kind follow the rules of ids
+    /// ([`check_id`]).
     pub fn validate(&self) -> Result<(), IdError> {
-        ConversationId::parse(&self.id)?;
-        ConversationId::parse(&self.session)?;
-        ConversationId::parse(self.kind.as_str())?;
+        check_id(&self.id)?;
+        check_id(&self.session)?;
+        check_id(self.kind.as_str())?;
         Ok(())
     }
 }

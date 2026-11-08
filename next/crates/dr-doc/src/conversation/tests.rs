@@ -89,14 +89,20 @@ fn conversation_is_not_a_prose_document() {
     assert!(crate::prose::ProseDoc::create(doc_id, 1).is_err());
 }
 
+/// A copy of `doc` to write on as another device would, with no typed API
+/// in the way.
+fn raw_copy(doc: &ConversationDoc, peer: u64) -> LoroDoc {
+    let raw = configured();
+    raw.import(&doc.export_snapshot().unwrap()).unwrap();
+    raw.set_peer_id(peer).unwrap();
+    raw
+}
+
 #[test]
-fn conversation_import_rejects_deletion_and_conflicting_replay() {
+fn conversation_import_rejects_deletion_and_reads_a_conflict_alike() {
     let mut a = ConversationDoc::create(id(), 1).unwrap();
     a.append(Origin::User, &entry(1)).0.unwrap();
-    let before = a.export_snapshot().unwrap();
-    let invalid = configured();
-    invalid.import(&before).unwrap();
-    invalid.set_peer_id(2).unwrap();
+    let invalid = raw_copy(&a, 2);
     invalid
         .get_list(schema::conversation::ENTRIES)
         .delete(0, 1)
@@ -108,15 +114,120 @@ fn conversation_import_rejects_deletion_and_conflicting_replay() {
     );
     assert_eq!(a.entries().unwrap(), vec![entry(1)]);
 
+    // The same event with other content, appended on another device (only a
+    // bug makes one): accepted, and both devices read the same one.
     let mut b = ConversationDoc::create(id(), 3).unwrap();
     let mut conflict = entry(1);
     conflict.payload = json!({"sequence": 99});
     b.append(Origin::User, &conflict).0.unwrap();
+    let (sa, sb) = (a.export_snapshot().unwrap(), b.export_snapshot().unwrap());
+    a.import(&sb, Origin::Sync).unwrap();
+    b.import(&sa, Origin::Sync).unwrap();
+    let read = a.entries().unwrap();
+    assert_eq!(read, b.entries().unwrap());
+    assert_eq!(read.len(), 1);
+    assert!(read[0] == entry(1) || read[0] == conflict);
+    for d in [&a, &b] {
+        assert_eq!(
+            d.problems(),
+            ConversationProblems {
+                unreadable: vec![],
+                conflicting: vec!["session-1:1".into()],
+            }
+        );
+    }
+}
+
+/// The guard judges an update by its own operations: a device that never
+/// saw an entry refuses its deletion as well, so devices never split over
+/// what one accepted and another refused.
+#[test]
+fn a_deletion_is_refused_whatever_the_receiver_has_seen() {
+    let mut a = ConversationDoc::create(id(), 1).unwrap();
+    let start = a.version();
+    a.append(Origin::User, &entry(1)).0.unwrap();
+    let with_one = a.version();
+    let u1 = a.export_updates_since(&start).unwrap();
+    let raw = raw_copy(&a, 2);
+    raw.get_list(schema::conversation::ENTRIES)
+        .delete(0, 1)
+        .unwrap();
+    raw.commit();
+    let u2 = raw.export(ExportMode::updates(&with_one)).unwrap();
+    let whole = raw.export(ExportMode::Snapshot).unwrap();
+
+    // C has only the genesis: inserted then deleted is still a deletion.
+    let mut c = ConversationDoc::create(id(), 3).unwrap();
+    assert!(c.import(&whole, Origin::Sync).is_err());
+    // Out of order: the deletion alone waits on what it deletes, refused
+    // rather than kept pending and applied unchecked later.
+    assert!(c.import(&u2, Origin::Sync).is_err());
+    c.import(&u1, Origin::Sync).unwrap();
+    assert!(c.import(&u2, Origin::Sync).is_err());
+    assert_eq!(c.entries().unwrap(), vec![entry(1)]);
+
+    // Rewriting the identity, or another conversation's bytes.
+    let renamed = raw_copy(&a, 4);
+    renamed
+        .get_map(schema::conversation::META)
+        .insert(schema::meta::DOC, "conversation:other")
+        .unwrap();
+    renamed.commit();
     assert!(
-        a.import(&b.export_snapshot().unwrap(), Origin::User)
+        a.import(
+            &renamed.export(ExportMode::updates(&a.version())).unwrap(),
+            Origin::Sync
+        )
+        .is_err()
+    );
+    let other = ConversationDoc::create(ConversationId::parse("other").unwrap(), 5).unwrap();
+    assert!(
+        a.import(&other.export_snapshot().unwrap(), Origin::Sync)
             .is_err()
     );
+    // Other meta keys and other root containers are a later version's to add.
+    let later = raw_copy(&a, 6);
+    later
+        .get_map(schema::conversation::META)
+        .insert("title", "以后的字段")
+        .unwrap();
+    later.get_map("summary").insert("k", 1).unwrap();
+    later.commit();
+    a.import(
+        &later.export(ExportMode::updates(&a.version())).unwrap(),
+        Origin::Sync,
+    )
+    .unwrap();
     assert_eq!(a.entries().unwrap(), vec![entry(1)]);
+}
+
+/// Entries this version cannot read (not JSON, a later envelope, a
+/// container) never stop the conversation from opening, syncing or taking
+/// new entries; they are kept and reported.
+#[test]
+fn a_conversation_with_entries_it_cannot_read_still_opens_and_syncs() {
+    let mut a = ConversationDoc::create(id(), 1).unwrap();
+    let raw = raw_copy(&a, 2);
+    let list = raw.get_list(schema::conversation::ENTRIES);
+    list.push("不是 JSON").unwrap();
+    list.push(r#"{"id":"s:9","session":"s","turn":"三","kind":"assistant","payload":{}}"#)
+        .unwrap();
+    list.push_container(loro::LoroMap::new()).unwrap();
+    list.push(serde_json::to_string(&entry(1)).unwrap())
+        .unwrap();
+    raw.commit();
+    a.import(&raw.export(ExportMode::Snapshot).unwrap(), Origin::Sync)
+        .unwrap();
+    assert_eq!(a.entries().unwrap(), vec![entry(1)]);
+    assert_eq!(a.problems().unreadable, vec![0, 1, 2]);
+    assert!(a.append(Origin::User, &entry(2)).0.unwrap());
+    let reopened = ConversationDoc::load(id(), 3, &[a.export_snapshot().unwrap()]).unwrap();
+    assert_eq!(reopened.entries().unwrap(), vec![entry(1), entry(2)]);
+    assert_eq!(reopened.problems().unreadable, vec![0, 1, 2]);
+    let raw_list = raw_copy(&reopened, 4)
+        .get_list(schema::conversation::ENTRIES)
+        .len();
+    assert_eq!(raw_list, 5, "nothing dropped");
 }
 
 #[test]
