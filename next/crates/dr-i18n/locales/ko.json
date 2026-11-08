@@ -66,10 +66,7 @@
       "openSettings": "설정 열기"
     },
     "slice": {
-      "continuing": "진행 상황을 저장했습니다. 계속 실행 중…",
-      "paused": "계속하면 저장된 진행 상황에서 재개합니다.",
-      "preparing": "진행 상황을 저장했습니다. 계속할 준비 중…",
-      "saved": "진행 상황 저장됨"
+      "paused": "계속하면 저장된 진행 상황에서 재개합니다."
     },
     "thinking": {
       "done": "사고 기록",
@@ -86,7 +83,6 @@
     "workingMemory": {
       "agent": "Agent",
       "author": "작가",
-      "budgetTitle": "제한 없음. 20k·40k 토큰 초과 시 한 번씩, 80k 초과 후에는 매 턴 정리하도록 요청합니다",
       "clear": "지우기",
       "clearConfirm": "작업 메모리를 지울까요? 원고·장기 규칙·대화 기록은 삭제되지 않습니다.",
       "cleared": "작업 메모리를 지웠습니다.",
@@ -95,8 +91,6 @@
       "create": "작업 메모리 만들기",
       "description": "모든 범용 Agent 대화가 공유하는 최근의 중요한 작업 맥락입니다. 오래된 맥락은 자동으로 압축하거나 잊습니다.",
       "edit": "편집",
-      "editorLabel": "WORKING_MEMORY.md 편집",
-      "emptyBody": "Agent는 이후 작업에 영향을 줄 수 있는 최근의 중요한 변경만 기록합니다.",
       "emptyTitle": "아직 작업 메모리가 없습니다",
       "failed": "작업 메모리를 저장할 수 없습니다.",
       "filename": "WORKING_MEMORY.md",
@@ -874,10 +868,8 @@
     "edit": "편집",
     "empty": "아직 작품 기억이 없습니다.",
     "enable": "사용",
-    "inactive": "비활성",
     "placeholder": "기억할 내용 작성… ({{shortcut}}로 저장)",
     "save": "저장",
-    "short": "메모리",
     "title": "작품 메모리"
   },
   "projectPicker": {
@@ -1464,6 +1456,8 @@
         "openai": "범용 Agent에서 사용합니다.",
         "openaiCodex": "OpenAI의 Codex 기기 로그인으로 본인의 ChatGPT 구독과 계정에서 제공하는 모델을 사용해 범용 Agent를 실행합니다. 요소 이미지 생성에도 사용됩니다. OpenAI는 이 경로에 대한 제3자 계약을 제공하지 않으므로 예고 없이 중단될 수 있습니다. 사용량은 ChatGPT 요금제에 반영됩니다."
       },
+      "speechDesc": "위의 채팅 제공업체와 별개인 음성 입력 전사 인증 정보입니다. 고유명사 교정을 위해 작품의 요소·설정 이름을 함께 보냅니다. 요청은 기기에서 Bailian으로 직접 전송되며 키는 시스템 키체인에만 저장됩니다.",
+      "speechTitle": "음성 전사",
       "title": "Drifting의 AI 기능이 연결하는 서비스."
     },
     "privacy": {
@@ -1574,6 +1568,9 @@
     "restoring": "복원 중…",
     "title": "기록 스냅샷 · 30일"
   },
+  "speech": {
+    "backlog": "전사 처리 지연"
+  },
   "storyGraph": {
     "edge": {
       "create": "만들기"
@@ -1649,6 +1646,20 @@
     "themeLightShort": "밝게",
     "themeSystem": "시스템 설정 따르기",
     "themeSystemShort": "시스템"
+  },
+  "voiceAgent": {
+    "error": {
+      "auth": "전사 키가 유효하지 않거나 만료되었습니다",
+      "micDenied": "마이크를 사용할 수 없습니다. 시스템 권한을 확인하세요",
+      "noKey": "전사 키가 설정되지 않음(Alibaba Cloud Bailian)",
+      "segmentRejected": "전사 서비스가 이 구간을 거부했습니다",
+      "transcribeFailed": "전사에 실패했습니다. 녹음은 보존되어 다시 시도할 수 있습니다"
+    },
+    "record": "녹음 시작",
+    "recording": "기록 중",
+    "retry": "전사 다시 시도",
+    "stopRecord": "녹음 중지",
+    "transcribing": "전사 중…"
   },
   "windowCaption": {
     "close": "닫기",

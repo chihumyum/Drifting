@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 
 use dr_agent::novel_template::Starter;
-use dr_i18n::Key;
+use dr_i18n::{Key, keys};
 use dr_shell::Settings;
 use gpui::App;
 use serde::{Deserialize, Serialize};
@@ -131,12 +131,24 @@ pub enum StarterMark {
     Element(String),
 }
 
+// Typed localization adapter: prompt ownership stays in novel_template,
+// while the native locale inventory can verify every key is actually used.
+fn starter_key(starter: Starter) -> Key {
+    use keys::agent_panel::onboarding::prompts as k;
+    match starter {
+        Starter::Outline => k::OUTLINE,
+        Starter::Interview => k::INTERVIEW,
+        Starter::Cast => k::CAST_CHARACTERS,
+        Starter::Comment => k::COMMENT_CHAPTER,
+        Starter::Tighten => k::TIGHTEN_CHAPTER,
+        Starter::Relate => k::RELATE_ELEMENTS,
+        Starter::Complete => k::COMPLETE_ELEMENT,
+        Starter::Extract => k::EXTRACT_ELEMENTS,
+    }
+}
+
 pub fn build_starter_prompts(source: &StarterSource) -> Vec<StarterPrompt> {
-    let key = |starter: Starter| {
-        Key::all()
-            .find(|key| key.name() == starter.key())
-            .expect("registered starter translation")
-    };
+    let key = starter_key;
     let written: Vec<_> = source
         .chapters
         .iter()
@@ -214,7 +226,7 @@ mod template_tests {
     #[test]
     fn novel_starters_keep_existing_translations() {
         for starter in dr_agent::novel_template::Starter::ALL {
-            assert!(dr_i18n::Key::all().any(|key| key.name() == starter.key()));
+            assert_eq!(super::starter_key(starter).name(), starter.key());
         }
     }
 }

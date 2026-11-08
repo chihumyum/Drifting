@@ -66,6 +66,7 @@ pub struct AgentPanel {
     connections: Entity<Connections>,
     connect: Entity<ConnectionView>,
     composer: Entity<TextArea>,
+    dictation: Entity<crate::speech::Dictation>,
     controller: Option<AgentController>,
     book: Option<BookId>,
     name: String,
@@ -104,6 +105,7 @@ impl AgentPanel {
                 .framed(3.0)
                 .placeholder(t(cx, k::composer::PLACEHOLDER))
         });
+        let dictation = cx.new(|cx| crate::speech::Dictation::new(composer.clone(), window, cx));
         let connect = cx.new(|cx| ConnectionView::new(connections.clone(), window, cx));
         let mut panel = Self {
             ws,
@@ -111,6 +113,7 @@ impl AgentPanel {
             connections: connections.clone(),
             connect: connect.clone(),
             composer: composer.clone(),
+            dictation: dictation.clone(),
             controller: None,
             book: None,
             name: String::new(),
@@ -135,6 +138,9 @@ impl AgentPanel {
             _subs: Vec::new(),
             continuity: Default::default(),
         };
+        panel
+            ._subs
+            .push(cx.observe(&dictation, |_, _, cx| cx.notify()));
         panel._subs.push(
             cx.subscribe_in(&composer, window, |panel, _, event, _, cx| {
                 if matches!(event, FieldEvent::Submitted(_)) {
@@ -184,6 +190,7 @@ impl AgentPanel {
     fn follow_book(&mut self, ws: &Entity<Workspace>, cx: &mut Context<Self>) {
         if !ws.read(cx).companion_visible(cx.entity_id()) {
             self.connect.update(cx, |view, cx| view.cancel_login(cx));
+            self.dictation.update(cx, |view, cx| view.cancel(cx));
         }
         let state = ws.read(cx);
         let navigating = self.navigation.len();
@@ -234,6 +241,9 @@ impl AgentPanel {
             .and_then(|id| ConversationId::parse(id).ok());
         self.close_memory(cx);
         self.continuity = Default::default();
+        self.dictation.update(cx, |view, cx| {
+            view.bind(self.controller.clone(), book.clone(), cx)
+        });
         self.book = book;
         self.name = name;
         self.selected = selected;
@@ -252,6 +262,9 @@ impl AgentPanel {
         self._signal = None;
         self.close_memory(cx);
         self.controller = self.hub.read(cx).controller.clone();
+        self.dictation.update(cx, |view, cx| {
+            view.bind(self.controller.clone(), self.book.clone(), cx)
+        });
         self.invalidate();
         if let Some(controller) = &self.controller {
             let (send, mut receive) = mpsc::unbounded();
@@ -384,6 +397,7 @@ impl AgentPanel {
     }
 
     pub fn new_conversation(&mut self, cx: &mut Context<Self>) {
+        self.dictation.update(cx, |view, cx| view.cancel(cx));
         self.selected = None;
         self.fresh = true;
         self.snapshot = None;
@@ -398,6 +412,7 @@ impl AgentPanel {
     }
 
     pub fn select_conversation(&mut self, id: ConversationId, cx: &mut Context<Self>) {
+        self.dictation.update(cx, |view, cx| view.cancel(cx));
         self.selected = Some(id);
         self.fresh = false;
         self.show_list = false;
@@ -429,7 +444,11 @@ impl AgentPanel {
 
     pub fn send(&mut self, cx: &mut Context<Self>) {
         let text = self.composer.read(cx).text();
-        if text.trim().is_empty() || self.busy || dr_shell::release::is_releasing(cx) {
+        if text.trim().is_empty()
+            || self.busy
+            || self.dictation.read(cx).pending()
+            || dr_shell::release::is_releasing(cx)
+        {
             return;
         }
         let (Some(controller), Some(book)) = (self.controller.clone(), self.book.clone()) else {
@@ -1405,6 +1424,7 @@ impl Render for AgentPanel {
             );
         }
         footer = footer
+            .child(self.dictation.clone())
             .child(connection_view::composer_controls(
                 self.connections.clone(),
                 window,
@@ -1447,6 +1467,7 @@ impl Render for AgentPanel {
                         .small()
                         .disabled(
                             self.busy
+                                || self.dictation.read(cx).pending()
                                 || self.book.is_none()
                                 || self.controller.is_none()
                                 || dr_shell::release::is_releasing(cx),

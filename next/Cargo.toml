@@ -70,6 +70,8 @@ license = "AGPL-3.0-or-later"
 publish = false
 
 [workspace.dependencies]
+# M34 native CoreAudio/WASAPI capture, Apache-2.0.
+cpal = "0.18.2"
 # M27: provider-neutral, in-process Agent runtime (no GPUI).
 dr-agent = { path = "crates/dr-agent" }
 dr-agent-providers = { path = "crates/dr-agent-providers" }

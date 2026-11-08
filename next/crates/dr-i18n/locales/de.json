@@ -66,10 +66,7 @@
       "openSettings": "Einstellungen öffnen"
     },
     "slice": {
-      "continuing": "Fortschritt gespeichert. Wird fortgesetzt…",
-      "paused": "Fortsetzen, um vom gespeicherten Fortschritt weiterzumachen.",
-      "preparing": "Fortschritt gespeichert. Fortsetzung wird vorbereitet…",
-      "saved": "Fortschritt gespeichert"
+      "paused": "Fortsetzen, um vom gespeicherten Fortschritt weiterzumachen."
     },
     "thinking": {
       "done": "Denkprotokoll",
@@ -86,7 +83,6 @@
     "workingMemory": {
       "agent": "Agent",
       "author": "Autor",
-      "budgetTitle": "Unbegrenzt; Konsolidierung wird bei über 20k und 40k Tokens sowie in jeder Runde über 80k angefordert",
       "clear": "Leeren",
       "clearConfirm": "Arbeitsgedächtnis leeren? Manuskript, langfristige Regeln und Chatverlauf bleiben erhalten.",
       "cleared": "Arbeitsgedächtnis geleert.",
@@ -95,8 +91,6 @@
       "create": "Arbeitsgedächtnis erstellen",
       "description": "Aktueller wichtiger Arbeitskontext für alle Chats des allgemeinen Agent. Älterer Kontext wird automatisch verdichtet oder vergessen.",
       "edit": "Bearbeiten",
-      "editorLabel": "WORKING_MEMORY.md bearbeiten",
-      "emptyBody": "Agent hält nur aktuelle wichtige Änderungen fest, die spätere Arbeit beeinflussen können.",
       "emptyTitle": "Noch kein Arbeitsgedächtnis",
       "failed": "Arbeitsgedächtnis konnte nicht gespeichert werden.",
       "filename": "WORKING_MEMORY.md",
@@ -880,10 +874,8 @@
     "edit": "Bearbeiten",
     "empty": "Noch keine Projekterinnerungen.",
     "enable": "Aktivieren",
-    "inactive": "Inaktiv",
     "placeholder": "Etwas zum Merken schreiben… ({{shortcut}} zum Speichern)",
     "save": "Speichern",
-    "short": "Gedächtnis",
     "title": "Projektgedächtnis"
   },
   "projectPicker": {
@@ -1470,6 +1462,8 @@
         "openai": "Vom allgemeinen Agent verwendet.",
         "openaiCodex": "Anmeldung über OpenAIs Codex-Geräteablauf, um den allgemeinen Agent mit deinem ChatGPT-Abo und den verfügbaren Kontomodellen zu nutzen; auch für Elementbilder. OpenAI bietet für diesen Weg keinen Drittanbietervertrag. Er kann ohne Vorankündigung ausfallen; die Nutzung zählt zu deinem ChatGPT-Tarif."
       },
+      "speechDesc": "Transkriptionszugang für Spracheingabe, getrennt von den Chat-Anbietern. Element- und Weltdetailsnamen werden zur Korrektur von Eigennamen mitgesendet. Anfragen gehen direkt an Bailian; der Schlüssel liegt nur im Systemschlüsselbund.",
+      "speechTitle": "Sprachtranskription",
       "title": "Die Dienste, mit denen sich Driftings KI-Funktionen verbinden."
     },
     "privacy": {
@@ -1580,6 +1574,9 @@
     "restoring": "Wird wiederhergestellt…",
     "title": "Verlaufsschnappschüsse · 30 Tage"
   },
+  "speech": {
+    "backlog": "Transkriptionsrückstand"
+  },
   "storyGraph": {
     "edge": {
       "create": "Erstellen"
@@ -1655,6 +1652,20 @@
     "themeLightShort": "Hell",
     "themeSystem": "Systemeinstellung",
     "themeSystemShort": "System"
+  },
+  "voiceAgent": {
+    "error": {
+      "auth": "Transkriptionsschlüssel ungültig oder abgelaufen",
+      "micDenied": "Mikrofon nicht verfügbar; Systemberechtigungen prüfen",
+      "noKey": "Kein Transkriptionsschlüssel (Alibaba Cloud Bailian)",
+      "segmentRejected": "Transkriptionsdienst hat dieses Segment abgelehnt",
+      "transcribeFailed": "Transkription fehlgeschlagen; Aufnahme aufbewahrt. Erneut versuchen"
+    },
+    "record": "Aufnahme starten",
+    "recording": "Aufzeichnung",
+    "retry": "Transkription erneut versuchen",
+    "stopRecord": "Aufnahme stoppen",
+    "transcribing": "Wird transkribiert…"
   },
   "windowCaption": {
     "close": "Schließen",

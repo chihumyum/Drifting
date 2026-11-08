@@ -83,5 +83,8 @@
         "owned": "這個資料夾由另一個 Drifting 管理，沒有讀寫"
       }
     }
+  },
+  "speech": {
+    "backlog": "轉錄積壓"
   }
 }

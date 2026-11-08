@@ -66,10 +66,7 @@
       "openSettings": "Ouvrir les réglages"
     },
     "slice": {
-      "continuing": "Progression enregistrée. Reprise…",
-      "paused": "Continuez pour reprendre la progression enregistrée.",
-      "preparing": "Progression enregistrée. Préparation de la reprise…",
-      "saved": "Progression enregistrée"
+      "paused": "Continuez pour reprendre la progression enregistrée."
     },
     "thinking": {
       "done": "Trace du raisonnement",
@@ -86,7 +83,6 @@
     "workingMemory": {
       "agent": "Agent",
       "author": "auteur",
-      "budgetTitle": "Sans limite ; consolidation demandée après 20k et 40k tokens, puis à chaque tour au-delà de 80k",
       "clear": "Effacer",
       "clearConfirm": "Effacer la mémoire de travail ? Le manuscrit, les règles à long terme et l’historique ne seront pas supprimés.",
       "cleared": "Mémoire de travail effacée.",
@@ -95,8 +91,6 @@
       "create": "Créer la mémoire de travail",
       "description": "Contexte de travail récent et pertinent partagé par toutes les conversations d’Agent général. L’ancien contexte est condensé ou oublié automatiquement.",
       "edit": "Modifier",
-      "editorLabel": "Modifier WORKING_MEMORY.md",
-      "emptyBody": "Agent note seulement les changements récents importants susceptibles d’influencer la suite.",
       "emptyTitle": "Aucune mémoire de travail",
       "failed": "Impossible d’enregistrer la mémoire de travail.",
       "filename": "WORKING_MEMORY.md",
@@ -882,10 +876,8 @@
     "edit": "Modifier",
     "empty": "Aucune mémoire de projet pour le moment.",
     "enable": "Activer",
-    "inactive": "Inactive",
     "placeholder": "Écrivez quelque chose à retenir… ({{shortcut}} pour enregistrer)",
     "save": "Enregistrer",
-    "short": "Mémoire",
     "title": "Mémoire du projet"
   },
   "projectPicker": {
@@ -1478,6 +1470,8 @@
         "openai": "Utilisé par Agent général.",
         "openaiCodex": "Connectez-vous via le flux appareil Codex d’OpenAI pour utiliser Agent général avec votre abonnement ChatGPT et les modèles proposés à votre compte. Sert aussi aux illustrations d’éléments. OpenAI n’offre aucun contrat tiers pour cette voie : elle peut cesser sans préavis et l’usage est décompté de votre forfait ChatGPT."
       },
+      "speechDesc": "Identifiant de transcription vocale, distinct des fournisseurs de chat. Les noms d’éléments et de contexte du projet sont transmis pour corriger les noms propres. Les requêtes vont directement à Bailian ; la clé reste dans le trousseau système.",
+      "speechTitle": "Transcription vocale",
       "title": "Les services auxquels se connecte l’IA de Drifting."
     },
     "privacy": {
@@ -1588,6 +1582,9 @@
     "restoring": "Restauration…",
     "title": "Instantanés historiques · 30 jours"
   },
+  "speech": {
+    "backlog": "Transcriptions en attente"
+  },
   "storyGraph": {
     "edge": {
       "create": "Créer"
@@ -1663,6 +1660,20 @@
     "themeLightShort": "Clair",
     "themeSystem": "Suivre le système",
     "themeSystemShort": "Système"
+  },
+  "voiceAgent": {
+    "error": {
+      "auth": "Clé de transcription invalide ou expirée",
+      "micDenied": "Microphone indisponible ; vérifiez les autorisations système",
+      "noKey": "Clé de transcription absente (Alibaba Cloud Bailian)",
+      "segmentRejected": "Le service de transcription a refusé ce segment",
+      "transcribeFailed": "Échec de transcription ; enregistrement conservé. Réessayez"
+    },
+    "record": "Démarrer l’enregistrement",
+    "recording": "Capture",
+    "retry": "Réessayer la transcription",
+    "stopRecord": "Arrêter l’enregistrement",
+    "transcribing": "Transcription…"
   },
   "windowCaption": {
     "close": "Fermer",

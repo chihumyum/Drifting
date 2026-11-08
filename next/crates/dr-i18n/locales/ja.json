@@ -66,10 +66,7 @@
       "openSettings": "設定を開く"
     },
     "slice": {
-      "continuing": "進捗を保存しました。続行中…",
-      "paused": "続行すると保存した進捗から再開します。",
-      "preparing": "進捗を保存しました。続行を準備中…",
-      "saved": "進捗を保存しました"
+      "paused": "続行すると保存した進捗から再開します。"
     },
     "thinking": {
       "done": "思考の記録",
@@ -86,7 +83,6 @@
     "workingMemory": {
       "agent": "Agent",
       "author": "作者",
-      "budgetTitle": "上限なし。2万・4万トークン超で各1回、8万超では毎ターン整理を依頼します",
       "clear": "消去",
       "clearConfirm": "作業記憶を消去しますか？原稿、長期ルール、チャット履歴は削除しません。",
       "cleared": "作業記憶を消去しました。",
@@ -95,8 +91,6 @@
       "create": "作業記憶を作成",
       "description": "汎用Agentの全チャットで共有する最近の重要な作業背景です。古い情報は自動圧縮・忘却されます。",
       "edit": "編集",
-      "editorLabel": "WORKING_MEMORY.mdを編集",
-      "emptyBody": "Agentは後の作業に影響する最近の重要な変更だけを記録します。",
       "emptyTitle": "作業記憶はまだありません",
       "failed": "作業記憶を保存できませんでした。",
       "filename": "WORKING_MEMORY.md",
@@ -874,10 +868,8 @@
     "edit": "編集",
     "empty": "作品のメモリーはまだありません。",
     "enable": "有効化",
-    "inactive": "無効",
     "placeholder": "覚えておくことを入力…（{{shortcut}} で保存）",
     "save": "保存",
-    "short": "記憶",
     "title": "作品の記憶"
   },
   "projectPicker": {
@@ -1464,6 +1456,8 @@
         "openai": "汎用Agentで使用します。",
         "openaiCodex": "OpenAIのCodex端末認証でログインし、ご自身のChatGPT契約と利用可能なモデルで汎用Agentを動かします。要素の設定画生成にも使います。この経路にOpenAIの第三者向け契約はなく、予告なく使えなくなる場合があります。使用量はChatGPTプランに計上されます。"
       },
+      "speechDesc": "上のチャット提供元とは別の、音声入力用認証情報です。固有名詞の補正のため作品の要素名や設定名を添えます。端末からBailianへ直接送信し、キーはシステムキーチェーンだけに保存します。",
+      "speechTitle": "音声文字起こし",
       "title": "DriftingのAI機能が接続するサービス。"
     },
     "privacy": {
@@ -1574,6 +1568,9 @@
     "restoring": "復元中…",
     "title": "履歴スナップショット・30日間"
   },
+  "speech": {
+    "backlog": "文字起こしの処理待ち"
+  },
   "storyGraph": {
     "edge": {
       "create": "作成"
@@ -1649,6 +1646,20 @@
     "themeLightShort": "ライト",
     "themeSystem": "システムに合わせる",
     "themeSystemShort": "システム"
+  },
+  "voiceAgent": {
+    "error": {
+      "auth": "文字起こし用キーが無効か期限切れです",
+      "micDenied": "マイクを利用できません。システム権限を確認してください",
+      "noKey": "文字起こし用キー未設定（Alibaba Cloud Bailian）",
+      "segmentRejected": "文字起こしサービスがこの部分を拒否しました",
+      "transcribeFailed": "文字起こしに失敗しました。録音は保持しています。再試行できます"
+    },
+    "record": "録音開始",
+    "recording": "記録中",
+    "retry": "文字起こしを再試行",
+    "stopRecord": "録音停止",
+    "transcribing": "文字起こし中…"
   },
   "windowCaption": {
     "close": "閉じる",

@@ -15,6 +15,9 @@
         "storage_failed": "The sign-in could not be saved to Windows Credential Manager."
       }
     },
+    "models": {
+      "speechDesc": "The transcription credential for voice input, separate from the chat providers above. Transcription carries this project's element and setting names to correct proper nouns; requests go directly from this device to Bailian and the key lives only in the system keychain."
+    },
     "sync": {
       "projection": {
         "reveal": "Show in File Explorer"

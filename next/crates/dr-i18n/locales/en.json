@@ -66,10 +66,7 @@
       "openSettings": "Open settings"
     },
     "slice": {
-      "continuing": "Progress saved. Continuing…",
-      "paused": "Continue to resume from saved progress.",
-      "preparing": "Progress saved. Preparing to continue…",
-      "saved": "Progress saved"
+      "paused": "Continue to resume from saved progress."
     },
     "thinking": {
       "done": "Thinking trace",
@@ -86,7 +83,6 @@
     "workingMemory": {
       "agent": "Agent",
       "author": "author",
-      "budgetTitle": "No limit; the Agent is asked to consolidate once past 20k and 40k tokens, and on every turn past 80k",
       "clear": "Clear",
       "clearConfirm": "Clear Working Memory? This does not delete manuscript content, long-term rules, or chat history.",
       "cleared": "Working memory cleared.",
@@ -95,8 +91,6 @@
       "create": "Create working memory",
       "description": "Recent high-signal work context shared by every General Agent chat. Older context is compacted or forgotten automatically.",
       "edit": "Edit",
-      "editorLabel": "Edit WORKING_MEMORY.md",
-      "emptyBody": "Agent writes only recent important changes that may affect later work.",
       "emptyTitle": "No working memory yet",
       "failed": "Working Memory could not be saved.",
       "filename": "WORKING_MEMORY.md",
@@ -880,10 +874,8 @@
     "edit": "Edit",
     "empty": "No project memory yet.",
     "enable": "Enable",
-    "inactive": "Inactive",
     "placeholder": "Write something to remember… ({{shortcut}} to save)",
     "save": "Save",
-    "short": "Memory",
     "title": "Project memory"
   },
   "projectPicker": {
@@ -1470,6 +1462,8 @@
         "openai": "Used by General Agent.",
         "openaiCodex": "Sign in through OpenAI's Codex device flow to run General Agent on your own ChatGPT subscription, with whichever models your account offers; element art generation uses it too. OpenAI offers no third-party contract for this path, so it may stop working without notice; usage counts against your ChatGPT plan."
       },
+      "speechDesc": "The transcription credential for voice input, separate from the chat providers above. Transcription carries this project's element and setting names to correct proper nouns; requests go directly from this device to Bailian and the key lives only in the system keychain.",
+      "speechTitle": "Voice transcription",
       "title": "The services Drifting's AI features connect to."
     },
     "privacy": {
@@ -1580,6 +1574,9 @@
     "restoring": "Restoring…",
     "title": "History snapshots · 30 days"
   },
+  "speech": {
+    "backlog": "Transcription backlog"
+  },
   "storyGraph": {
     "edge": {
       "create": "Create"
@@ -1655,6 +1652,20 @@
     "themeLightShort": "Light",
     "themeSystem": "Follow system",
     "themeSystemShort": "System"
+  },
+  "voiceAgent": {
+    "error": {
+      "auth": "The transcription key is invalid or expired",
+      "micDenied": "Microphone unavailable — check system permissions",
+      "noKey": "No transcription key configured (Alibaba Cloud Bailian)",
+      "segmentRejected": "The transcription service rejected this segment",
+      "transcribeFailed": "Transcription failed; the recording is kept — retry"
+    },
+    "record": "Start recording",
+    "recording": "Recording",
+    "retry": "Retry transcription",
+    "stopRecord": "Stop recording",
+    "transcribing": "Transcribing…"
   },
   "windowCaption": {
     "close": "Close",

@@ -66,10 +66,7 @@
       "openSettings": "開啟設定"
     },
     "slice": {
-      "continuing": "進度已儲存，正在接續…",
-      "paused": "繼續即可從已儲存進度接續。",
-      "preparing": "進度已儲存，正在準備接續…",
-      "saved": "進度已儲存"
+      "paused": "繼續即可從已儲存進度接續。"
     },
     "thinking": {
       "done": "思考過程",
@@ -86,7 +83,6 @@
     "workingMemory": {
       "agent": "Agent",
       "author": "作者",
-      "budgetTitle": "無上限；超過 20k、40k token 時請 Agent 整理一次，超過 80k 後每回合都請它整理",
       "clear": "清除",
       "clearConfirm": "清除工作記憶？這不會刪除書稿、長期規則或對話歷史。",
       "cleared": "工作記憶已清除。",
@@ -95,8 +91,6 @@
       "create": "建立工作記憶",
       "description": "所有通用 Agent 對話共用的近期重要工作脈絡。較舊內容會自動壓縮或遺忘。",
       "edit": "編輯",
-      "editorLabel": "編輯 WORKING_MEMORY.md",
-      "emptyBody": "Agent 只記錄近期可能影響後續工作的重大變更。",
       "emptyTitle": "尚無工作記憶",
       "failed": "無法儲存工作記憶。",
       "filename": "WORKING_MEMORY.md",
@@ -874,10 +868,8 @@
     "edit": "編輯",
     "empty": "尚無作品記憶。",
     "enable": "啟用",
-    "inactive": "未啟用",
     "placeholder": "寫下需要記住的事…（{{shortcut}} 儲存）",
     "save": "儲存",
-    "short": "記憶",
     "title": "作品記憶"
   },
   "projectPicker": {
@@ -1464,6 +1456,8 @@
         "openai": "供通用 Agent 使用。",
         "openaiCodex": "透過 OpenAI 的 Codex 裝置登入流程，以自己的 ChatGPT 訂閱執行通用 Agent，使用帳號提供的模型；要素設定圖也會使用此連線。OpenAI 未對此途徑提供第三方服務契約，可能隨時失效，用量計入你的 ChatGPT 方案。"
       },
+      "speechDesc": "語音輸入的轉錄憑證，與上方聊天服務商分開。轉錄時會附上此作品的要素與設定名稱，以校正專有名詞；請求從本裝置直接送往百鍊，金鑰僅存在系統鑰匙圈。",
+      "speechTitle": "語音轉錄",
       "title": "Drifting 的 AI 功能使用的服務。"
     },
     "privacy": {
@@ -1574,6 +1568,9 @@
     "restoring": "正在還原…",
     "title": "歷史快照 · 30 天"
   },
+  "speech": {
+    "backlog": "轉錄積壓"
+  },
   "storyGraph": {
     "edge": {
       "create": "建立"
@@ -1649,6 +1646,20 @@
     "themeLightShort": "淺色",
     "themeSystem": "跟隨系統",
     "themeSystemShort": "系統"
+  },
+  "voiceAgent": {
+    "error": {
+      "auth": "轉錄金鑰無效或已過期",
+      "micDenied": "麥克風無法使用，請檢查系統權限",
+      "noKey": "尚未設定轉錄金鑰（阿里雲百鍊）",
+      "segmentRejected": "轉錄服務拒絕了此片段",
+      "transcribeFailed": "轉錄失敗，錄音已保留，可重試"
+    },
+    "record": "開始錄音",
+    "recording": "錄製中",
+    "retry": "重試轉錄",
+    "stopRecord": "停止錄音",
+    "transcribing": "正在轉錄…"
   },
   "windowCaption": {
     "close": "關閉",

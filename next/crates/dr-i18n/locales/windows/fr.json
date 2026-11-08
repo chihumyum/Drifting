@@ -15,6 +15,9 @@
         "storage_failed": "Impossible d’enregistrer la connexion dans le Gestionnaire d’identification Windows."
       }
     },
+    "models": {
+      "speechDesc": "Identifiant de transcription vocale, distinct des fournisseurs de chat. Les noms d’éléments et de contexte du projet sont transmis pour corriger les noms propres. Les requêtes vont directement à Bailian ; la clé reste dans le Gestionnaire d’identification Windows."
+    },
     "sync": {
       "projection": {
         "reveal": "Afficher dans l’Explorateur de fichiers"

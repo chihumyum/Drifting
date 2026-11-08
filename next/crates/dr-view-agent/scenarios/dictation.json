@@ -1,0 +1,28 @@
+{
+  "about": "M34 entry and credential controls in a real window. Use only agent-acceptance: tiny synthetic library, in-memory secrets and loopback model endpoints. Never start capture with a configured speech key; native microphone and real ASR are not used.",
+  "steps": [
+    {"launch": {}},
+    {"app": "ui.wait", "params": {"until": "ready", "timeout_ms": 30000}},
+    {"app": "window.focus"},
+    {"app": "ui.press", "params": {"label": "展开右侧栏"}},
+    {"app": "ui.wait", "params": {"until": "ready", "state": {"/right/open": true}}},
+    {"app": "ui.find", "params": {"label": "开始录音", "role": "Button", "count": 1}},
+    {"app": "ui.find", "params": {"label": "语音转写", "role": "Button", "count": 1}},
+    {"app": "ui.screenshot", "png": "01-composer.png"},
+    {"app": "ui.press", "params": {"label": "开始录音", "role": "Button"}},
+    {"app": "ui.find", "params": {"label": "尚未配置语音转写 Key（阿里云百炼）"}},
+    {"app": "ui.focus", "params": {"field": "speech-key"}},
+    {"app": "input.type", "params": {"text": "synthetic-m34-window-key"}},
+    {"app": "ui.find", "params": {"contains": "synthetic-m34-window-key", "absent": true}},
+    {"app": "ui.screenshot", "png": "02-masked-key.png"},
+    {"app": "ui.press", "params": {"label": "保存", "role": "Button"}},
+    {"app": "ui.find", "params": {"label": "保存", "role": "Button", "absent": true}},
+    {"app": "ui.press", "params": {"label": "语音转写", "role": "Button"}},
+    {"app": "ui.screenshot", "png": "03-cleared-key.png"},
+    {"app": "ui.press", "params": {"label": "删除", "role": "Button"}},
+    {"app": "ui.press", "params": {"label": "开始录音", "role": "Button"}},
+    {"app": "ui.find", "params": {"label": "尚未配置语音转写 Key（阿里云百炼）"}},
+    {"app": "ui.screenshot", "png": "04-key-removed.png"},
+    {"app": "app.quit", "expect": {"/quit": true, "/exitCode": 0, "/connectionFileLeft": false}}
+  ]
+}

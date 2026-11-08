@@ -66,10 +66,7 @@
       "openSettings": "前往设置"
     },
     "slice": {
-      "continuing": "进度已保存，正在继续…",
-      "paused": "继续后，Agent 会从已保存的进度接着处理。",
-      "preparing": "进度已保存，正在准备继续…",
-      "saved": "进度已保存"
+      "paused": "继续后，Agent 会从已保存的进度接着处理。"
     },
     "thinking": {
       "done": "思考过程",
@@ -86,7 +83,6 @@
     "workingMemory": {
       "agent": "Agent",
       "author": "用户",
-      "budgetTitle": "没有上限；超过 2 万、4 万 tokens 时各提示 Agent 整理一次，超过 8 万后每轮都提示",
       "clear": "清空",
       "clearConfirm": "清空工作记忆？这不会删除作品内容、长期规则或对话记录。",
       "cleared": "工作记忆已清空。",
@@ -95,8 +91,6 @@
       "create": "创建工作记忆",
       "description": "所有 General Agent 对话共享的近期重要工作上下文。旧内容会自动收缩或遗忘。",
       "edit": "编辑",
-      "editorLabel": "编辑 WORKING_MEMORY.md",
-      "emptyBody": "Agent 只会把可能影响后续工作的近期重要变化写在这里。",
       "emptyTitle": "还没有工作记忆",
       "failed": "无法保存工作记忆。",
       "filename": "WORKING_MEMORY.md",
@@ -873,10 +867,8 @@
     "edit": "编辑",
     "empty": "还没有项目记忆。",
     "enable": "启用",
-    "inactive": "未启用",
     "placeholder": "记下一条……（{{shortcut}} 保存）",
     "save": "保存",
-    "short": "记忆",
     "title": "项目记忆"
   },
   "projectPicker": {
@@ -1458,6 +1450,8 @@
         "openai": "供 General Agent 使用。",
         "openaiCodex": "通过 OpenAI 的 Codex 设备登录，用你的 ChatGPT 订阅运行 General Agent，可用模型以你的账号为准；生成设定图也用它。OpenAI 没有向第三方应用开放这条路径，可能随时失效；用量计入你的 ChatGPT 套餐。"
       },
+      "speechDesc": "语音输入的转写凭据，独立于上方对话模型。转写会携带本项目的要素与设定名以纠正专有名词；请求从本机直连百炼，Key 仅存系统钥匙串。",
+      "speechTitle": "语音转写",
       "title": "AI 功能连接的服务。"
     },
     "privacy": {
@@ -1568,6 +1562,9 @@
     "restoring": "恢复中…",
     "title": "历史快照 · 30 天"
   },
+  "speech": {
+    "backlog": "转写积压"
+  },
   "storyGraph": {
     "edge": {
       "create": "创建"
@@ -1643,6 +1640,20 @@
     "themeLightShort": "明",
     "themeSystem": "跟随系统",
     "themeSystemShort": "系统"
+  },
+  "voiceAgent": {
+    "error": {
+      "auth": "转写 Key 无效或已过期",
+      "micDenied": "无法访问麦克风，请检查系统权限",
+      "noKey": "尚未配置语音转写 Key（阿里云百炼）",
+      "segmentRejected": "这段录音被转写服务拒绝",
+      "transcribeFailed": "转写失败，录音仍保留，可重试"
+    },
+    "record": "开始录音",
+    "recording": "录音中",
+    "retry": "重试转写",
+    "stopRecord": "停止录音",
+    "transcribing": "转写中…"
   },
   "windowCaption": {
     "close": "关闭",
