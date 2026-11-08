@@ -835,7 +835,7 @@ F8 的 `bench workspace`，heavy 种子（100 章，正文共约 360 万字，30
   7. 构想转成要素时，别的正文里已经链到这个构想的字不改指向新要素（和旧版一样，第十轮第 2 条）；M16 要的话，在同一步里把指向构想的链接换成指向要素。
 - **下一步（2026-11-08 交接）**：作者的 Claude 用量快用完了，F3 后面的活转给 Codex / Antigravity。第十轮（`84192217`）是最后一次提交，手上没有做了一半的东西。接手时按顺序：
   1. 先读这一页第十轮到第七轮的小节和「待协调」，再读共享笔记里的 `f3-workspace-interface.md`（各轮的接口摘要）；
-  2. 等别人做的：M14 把叙事时双击新建换成一步（`chapter.create` 带 `narrative_order`）、M14 的拖放换成 `chapter.place`、打散用 `chapter.spread`；F4 删编辑器里的后台补链、换用 `Workspace::link_matcher`；F6 的 `swap` 换用 `try_shutdown`；F8 在 `bench workspace` 里加补链那一项（第九轮待协调 F8）；
+  2. 等别人做的：M14 把叙事时双击新建换成一步（`chapter.create` 带 `narrative_order`）、~~M14 的拖放换成 `chapter.place`、打散用 `chapter.spread`~~（M14 第三轮已接，第二十一批核对）；F4 删编辑器里的后台补链、换用 `Workspace::link_matcher`；~~F6 的 `swap` 换用 `try_shutdown`~~（F6 第八轮已接，第二十一批核对）；F8 在 `bench workspace` 里加补链那一项（第九轮待协调 F8）；
   3. F8 加好以后，在负载低于 5 时跑 `cargo run --release -p dr-testkit --bin bench -- workspace --milestone f3-m3`，把第八轮补链的数字（heavy 上新建常见名字的要素从 13–18 s 到约 2 s）写成证据；
   4. 每轮的检查照「测试与证据」一节；改了命令要 `INSTA_UPDATE=always cargo test -p dr-workspace --test registry` 更新能力清单快照，新命令要在 `tests/commands.rs` 等文件里被调到（清单测试会查）。
 - **建议的下一个里程碑**：
