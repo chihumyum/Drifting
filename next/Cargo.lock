@@ -1947,6 +1947,8 @@ dependencies = [
  "gpui_platform",
  "log",
  "png 0.18.1",
+ "serde",
+ "serde_json",
  "tempfile",
 ]
 
@@ -2011,7 +2013,9 @@ dependencies = [
  "dr-view-home",
  "dr-view-import",
  "dr-view-page",
+ "dr-view-plot",
  "dr-view-shelf",
+ "dr-view-timeline",
  "dr-view-transfer",
  "dr-workspace",
  "futures",

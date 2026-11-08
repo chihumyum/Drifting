@@ -2000,3 +2000,287 @@ fn a_module_draws_a_left_tab(cx: &mut TestAppContext) {
     draw(cx);
     assert_eq!(made.get(), 1, "another tab asks nobody");
 }
+
+/// Registers a stand-in timeline (dragged no lower than 260) and planner
+/// (for chapters and ideas) in the Bottom Panel; returns what was made.
+fn bottom_modules(cx: &mut VisualTestContext) -> std::rc::Rc<std::cell::RefCell<Vec<String>>> {
+    use dr_shell::pages::{BottomPane, BottomPanel};
+    let made = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    cx.update(|_, cx| {
+        let log = made.clone();
+        dr_shell::pages::add_bottom_panel(cx, BottomPane::Timeline, move |host, _, cx| {
+            log.borrow_mut().push(format!("timeline {}", host.book_id));
+            Some(BottomPanel::new(cx.new(|_| Blank)).min_height(|_| 260.0))
+        });
+        let log = made.clone();
+        dr_shell::pages::add_bottom_panel(cx, BottomPane::Planner, move |host, _, cx| {
+            let target = host.target.clone()?;
+            matches!(target, Target::Chapter(_) | Target::Idea(_)).then(|| {
+                log.borrow_mut().push(target.key());
+                BottomPanel::new(cx.new(|_| Blank))
+            })
+        });
+    });
+    made
+}
+
+/// The Bottom Panel (M14, M15): the timeline at first, 180 tall; ⌘J puts it
+/// away and brings it back (closing the planner); the planner shows with a
+/// chapter in front and steps aside elsewhere, its choice kept; nothing in
+/// immersive writing; what was chosen is kept with the book's layout.
+#[gpui::test]
+fn the_bottom_panel_holds_the_timeline_or_the_planner(cx: &mut TestAppContext) {
+    use dr_shell::pages::BottomPane;
+    use dr_shell::workspace::BottomLayout;
+    let (_dir, lib) = slow_clock();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    let pane = |cx: &mut VisualTestContext| view.read_with(cx, |ws, cx| ws.bottom_pane(cx));
+    assert_eq!(pane(cx), None, "no module draws it: no panel");
+    let made = bottom_modules(cx);
+    draw(cx);
+    assert_eq!(pane(cx), Some(BottomPane::Timeline));
+    assert_eq!(view.read_with(cx, |ws, _| ws.bottom_height()), 180.0);
+    assert!(view.read_with(cx, |ws, _| ws.bottom_view(BottomPane::Timeline).is_some()));
+
+    keys(cx, "cmd-j");
+    assert_eq!(pane(cx), None, "⌘J puts the timeline away");
+    keys(cx, "cmd-j");
+    assert_eq!(pane(cx), Some(BottomPane::Timeline));
+
+    let first = view.read_with(cx, |ws, _| chapter_of(ws, 0));
+    view.update(cx, |ws, cx| {
+        ws.open(first.clone(), Open::KEEP, cx);
+        ws.toggle_planner(cx);
+    });
+    draw(cx);
+    assert_eq!(
+        pane(cx),
+        Some(BottomPane::Planner),
+        "the timeline makes way"
+    );
+    view.update(cx, |ws, cx| ws.open(Target::Book, Open::KEEP, cx));
+    draw(cx);
+    assert_eq!(
+        pane(cx),
+        None,
+        "no chapter in front: the planner steps aside"
+    );
+    view.update(cx, |ws, cx| ws.open(first.clone(), Open::KEEP, cx));
+    draw(cx);
+    assert_eq!(
+        pane(cx),
+        Some(BottomPane::Planner),
+        "and comes back with it"
+    );
+    assert!(made.borrow().contains(&first.key()));
+
+    keys(cx, "cmd-j");
+    assert_eq!(
+        pane(cx),
+        Some(BottomPane::Timeline),
+        "⌘J closes the planner"
+    );
+    view.update(cx, |ws, cx| ws.set_immersive(true, cx));
+    assert_eq!(pane(cx), None, "immersive writing keeps only the paper");
+    view.update(cx, |ws, cx| {
+        ws.set_immersive(false, cx);
+        ws.toggle_planner(cx);
+        ws.set_bottom_height(300.0, cx);
+    });
+    let kept = view.read_with(cx, |ws, _| ws.layout().bottom);
+    assert_eq!(
+        kept,
+        BottomLayout {
+            timeline_hidden: true,
+            planner_open: true,
+            height: 300.0
+        }
+    );
+    let value = serde_json::to_value(view.read_with(cx, |ws, _| ws.layout())).unwrap();
+    assert_eq!(value["bottom"]["planner_open"], json!(true));
+}
+
+/// The panel's top edge drags its height: the grabbed point stays under
+/// the pointer, no lower than the pane needs (the stand-in timeline's 260),
+/// no higher than leaves the paper 240.
+#[gpui::test]
+fn the_bottom_panel_is_dragged_by_its_top_edge(cx: &mut TestAppContext) {
+    use gpui::{Modifiers, MouseButton, point, px, size};
+    let (_dir, lib) = slow_clock();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    bottom_modules(cx);
+    cx.simulate_resize(size(px(1200.0), px(800.0)));
+    draw(cx);
+    // Once it has slid open.
+    dr_ui::anim::freeze(Some(Instant::now() + Duration::from_secs(2)));
+    draw(cx);
+    let height = |cx: &mut VisualTestContext| view.read_with(cx, |ws, _| ws.bottom_height());
+    // The edge is at 800 - 180 = 620; taken 1px below it.
+    let x = px(600.0);
+    cx.simulate_mouse_down(point(x, px(621.0)), MouseButton::Left, Modifiers::none());
+    cx.simulate_mouse_move(point(x, px(617.0)), MouseButton::Left, Modifiers::none());
+    draw(cx);
+    cx.simulate_mouse_move(point(x, px(521.0)), MouseButton::Left, Modifiers::none());
+    draw(cx);
+    assert_eq!(height(cx), 280.0);
+    cx.simulate_mouse_move(point(x, px(760.0)), MouseButton::Left, Modifiers::none());
+    draw(cx);
+    assert_eq!(height(cx), 260.0, "no lower than the pane needs");
+    cx.simulate_mouse_move(point(x, px(10.0)), MouseButton::Left, Modifiers::none());
+    draw(cx);
+    assert_eq!(height(cx), 560.0, "the paper keeps 240");
+    cx.simulate_mouse_up(point(x, px(10.0)), MouseButton::Left, Modifiers::none());
+    draw(cx);
+    dr_ui::anim::freeze(None);
+    assert_eq!(view.read_with(cx, |ws, _| ws.layout().bottom.height), 560.0);
+}
+
+/// What a module keeps for the book (`book_memory`, the timeline's order and
+/// zoom) goes into the book's layout in the settings file.
+#[gpui::test]
+fn a_module_keeps_what_it_wants_for_the_book(cx: &mut TestAppContext) {
+    let (_dir, lib) = slow_clock();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    let kept = json!({"axis": "narrative", "zoom": 2.0});
+    view.update(cx, |ws, cx| {
+        ws.set_book_memory("timeline", kept.clone(), cx);
+        ws.store_layout(cx);
+    });
+    assert_eq!(
+        view.read_with(cx, |ws, _| ws.book_memory("timeline").cloned()),
+        Some(kept.clone())
+    );
+    let book = view.read_with(cx, |ws, _| ws.book_id.clone());
+    let stored = cx.update(|_, cx| Settings::read(cx).layout(&book).cloned());
+    assert_eq!(stored.unwrap()["modules"]["timeline"], kept);
+}
+
+/// A dialog closed from inside its own window's update (a click on its
+/// button) goes once that update is over.
+#[gpui::test]
+fn a_dialog_closes_from_a_click_in_its_window(cx: &mut TestAppContext) {
+    let (view, cx) = setup(cx, SettingsFile::in_memory(), None);
+    let blank = cx.update(|_, cx| cx.new(|_| Blank));
+    let id = blank.entity_id();
+    TestAppContext::update(cx, |cx| dr_shell::dialogs::show(cx, blank.into()));
+    cx.run_until_parked();
+    assert!(view.read_with(cx, |ws, _| ws.modal()));
+    view.update_in(cx, |_, _, cx| dr_shell::dialogs::hide(cx, id));
+    cx.run_until_parked();
+    assert!(!view.read_with(cx, |ws, _| ws.modal()));
+}
+
+/// A swap whose library cannot be closed (something still holds it) does
+/// not run its job: F3 hands the workspace back and the window carries on
+/// with it.
+#[gpui::test]
+fn a_library_that_will_not_close_is_kept(cx: &mut TestAppContext) {
+    let (_dir, lib) = slow_clock();
+    let held = lib.clone();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    let ran = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let job_ran = ran.clone();
+    let swapped = swap_library(cx, move |root, options| {
+        job_ran.store(true, std::sync::atomic::Ordering::SeqCst);
+        dr_store::Library::open(root, options).map_err(|e| e.to_string())
+    });
+    let why = swapped.unwrap_err();
+    assert!(why.contains("could not be closed"), "{why}");
+    assert!(
+        !ran.load(std::sync::atomic::Ordering::SeqCst),
+        "the job did not run"
+    );
+    wait_for(&view, cx, |ws| ws.library.is_some() && !ws.book.is_empty());
+    // The same library, still open.
+    let first = view.read_with(cx, |ws, _| chapter_of(ws, 0));
+    view.update(cx, |ws, cx| ws.open(first.clone(), Open::KEEP, cx));
+    open_page(&view, cx, &first);
+    drop(held);
+}
+
+/// 「打开恢复前副本」 opens the folder M41's restore saves the library in
+/// before replacing it, made if it is not there yet.
+#[gpui::test]
+fn the_pre_restore_folder_is_made_to_open(cx: &mut TestAppContext) {
+    let (_dir, lib) = slow_clock();
+    let root = lib.library().paths().root.clone();
+    let (_view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
+    let folder = cx
+        .update(|_, cx| dr_shell::settings::panel::pre_restore_folder(cx))
+        .unwrap();
+    assert_eq!(folder, dr_store::Library::pre_restore_dir(&root));
+    assert!(folder.is_dir());
+}
+
+/// A module's own element with a page's hover card (M14's slabs).
+struct Carded {
+    ws: Entity<Workspace>,
+    target: Target,
+}
+
+impl gpui::Render for Carded {
+    fn render(
+        &mut self,
+        _: &mut gpui::Window,
+        cx: &mut gpui::Context<Self>,
+    ) -> impl gpui::IntoElement {
+        use gpui::{ParentElement as _, Styled as _, div, px};
+        let extra = dr_shell::pages::PageMenuSection {
+            title: None,
+            items: vec![dr_shell::pages::PageMenuItem {
+                id: "to-unaffiliated".into(),
+                icon: dr_ui::sand::Icon::Close.into(),
+                label: "未归属".into(),
+                checked: false,
+                danger: false,
+                run: std::rc::Rc::new(|_, _| {}),
+            }],
+        };
+        div()
+            .size_full()
+            .child(dr_shell::workspace::page_hover_card(
+                "slab",
+                div().w(px(400.0)).h(px(60.0)).child("slab"),
+                &self.target,
+                &self.ws,
+                vec![extra],
+                cx,
+            ))
+    }
+}
+
+/// `page_hover_card` in a module's own view (here the Bottom Panel's): it
+/// reads the workspace while the module draws, and its card opens under
+/// the pointer with the page's rows and the module's.
+#[gpui::test]
+fn a_module_draws_a_pages_hover_card(cx: &mut TestAppContext) {
+    use dr_shell::pages::{BottomPane, BottomPanel};
+    use gpui::{Modifiers, point, px, size};
+    let (_dir, lib) = slow_clock();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    let first = view.read_with(cx, |ws, _| chapter_of(ws, 0));
+    let ws = view.clone();
+    cx.update(|_, cx| {
+        dr_shell::pages::add_bottom_panel(cx, BottomPane::Timeline, move |_, _, cx| {
+            let (ws, target) = (ws.clone(), first.clone());
+            Some(BottomPanel::new(cx.new(|_| Carded { ws, target })))
+        });
+    });
+    cx.simulate_resize(size(px(1200.0), px(800.0)));
+    draw(cx);
+    dr_ui::anim::freeze(Some(Instant::now() + Duration::from_secs(2)));
+    draw(cx);
+    cx.simulate_mouse_move(point(px(500.0), px(650.0)), None, Modifiers::none());
+    for _ in 0..10 {
+        draw(cx);
+        cx.executor().advance_clock(Duration::from_millis(100));
+        cx.run_until_parked();
+    }
+    draw(cx);
+    dr_ui::anim::freeze(None);
+}

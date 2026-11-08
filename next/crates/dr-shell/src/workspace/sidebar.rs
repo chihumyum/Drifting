@@ -19,6 +19,7 @@
 //!   (F3's `chapter.move`), into that act if the place is in another.
 
 use std::collections::HashSet;
+use std::rc::Rc;
 use std::time::SystemTime;
 
 use dr_i18n::{Key, keys};
@@ -1166,14 +1167,51 @@ fn hover_card(
     ws: &gpui::Entity<Workspace>,
     host: &crate::pages::PageMenuHost,
 ) -> AnyElement {
+    card(id, el, target, ws, host, Rc::default())
+}
+
+/// `el` with `target`'s hover card, `extra` rows before the dangerous ones.
+fn card(
+    id: SharedString,
+    el: AnyElement,
+    target: &Target,
+    ws: &gpui::Entity<Workspace>,
+    host: &crate::pages::PageMenuHost,
+    extra: Rc<Vec<crate::pages::PageMenuSection>>,
+) -> AnyElement {
     let (target, ws, host) = (target.clone(), ws.clone(), host.clone());
     let card_id = id.clone();
     dr_ui::components::HoverCard::new(
         ElementId::Name(format!("{id}-card").into()),
         el,
-        move |window, cx| card_body(&card_id, &target, &ws, &host, window, cx),
+        move |window, cx| card_body(&card_id, &target, &ws, &host, &extra, window, cx),
     )
     .into_any_element()
+}
+
+/// A page's hover card around a module's own element (M14's slabs and lane
+/// names): the chapter panel's card for `target` (its name, words,
+/// storylines and summary, then what can be done to it, as its ⋯ menu), the
+/// module's `extra` sections before the dangerous rows. `id` is unique in
+/// the window. Call it while drawing the module's view, not inside the
+/// workspace's own drawing (it reads the workspace).
+pub fn page_hover_card(
+    id: impl Into<SharedString>,
+    el: impl IntoElement,
+    target: &Target,
+    ws: &gpui::Entity<Workspace>,
+    extra: Vec<crate::pages::PageMenuSection>,
+    cx: &App,
+) -> AnyElement {
+    let host = crate::pages::PageMenuHost::of(ws, cx);
+    card(
+        id.into(),
+        el.into_any_element(),
+        target,
+        ws,
+        &host,
+        Rc::new(extra),
+    )
 }
 
 /// Words as the 0.1 client wrote them (`toLocaleString`): 12,345.
@@ -1197,6 +1235,7 @@ fn card_body(
     target: &Target,
     ws: &gpui::Entity<Workspace>,
     host: &crate::pages::PageMenuHost,
+    extra: &[crate::pages::PageMenuSection],
     window: &mut Window,
     cx: &mut App,
 ) -> AnyElement {
@@ -1283,7 +1322,11 @@ fn card_body(
         }
         _ => {}
     }
-    for section in super::page_actions::page_actions(ws, host, target, cx) {
+    let sections = super::page_actions::with_extra(
+        super::page_actions::page_actions(ws, host, target, cx),
+        extra,
+    );
+    for section in sections {
         let rows = section
             .items
             .into_iter()
@@ -1954,7 +1997,14 @@ pub fn notification_center(
                                     )
                                     .text()
                                     .small()
-                                    .on_click(move |_, window, cx| run(id, window, cx)),
+                                    .on_click(
+                                        move |_, window, cx| {
+                                            // Not the row's click as well (a
+                                            // crash follow-up's).
+                                            cx.stop_propagation();
+                                            run(id, window, cx)
+                                        },
+                                    ),
                                 ),
                             )
                         }),

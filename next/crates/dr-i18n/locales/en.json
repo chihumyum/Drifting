@@ -8,7 +8,9 @@
     "actOrdinal": "Act {{n}}"
   },
   "bottomStatusBar": {
+    "collapseTimeline": "Collapse Storyline Timeline",
     "elements": "Elements",
+    "expandTimeline": "Expand Storyline Timeline",
     "storyGraph": "Story graph",
     "todoLibrary": "TODO & Library"
   },
@@ -146,6 +148,8 @@
   },
   "editorTopBar": {
     "actions": {
+      "collapsePlotPlanner": "Collapse plot planner",
+      "expandPlotPlanner": "Expand plot planner",
       "more": "More actions"
     },
     "menu": {
@@ -1014,6 +1018,7 @@
         "inspecting": "Verifying…",
         "missingAssets": "{{count}} assets are missing on this device and were not backed up.",
         "noProjects": "(no projects)",
+        "openSafety": "Open pre-restore copies",
         "restoreButton": "Choose backup…",
         "restoreConfirm": "Replace the current library with “{{file}}”.\n\nCreated: {{date}}\nContents: {{summary}}\nProjects: {{projects}}\n\nThe current library is saved as a pre-restore copy first; find it under “Open pre-restore copies”. Drifting reloads when the restore finishes.",
         "restoreConfirmButton": "Replace and restore",

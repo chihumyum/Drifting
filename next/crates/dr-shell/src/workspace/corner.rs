@@ -1,8 +1,15 @@
 //! The paper's bottom-right corner (the 0.1 client's `.editor-corner`,
-//! M03): a glass tray of page tools and, to its right, the incense stick
-//! that enters immersive writing. Always there, never hidden under the hand;
-//! it stands on the desk beside the page and does not scroll.
+//! M03): the timeline's bamboo, a glass tray of page tools and, to its
+//! right, the incense stick that enters immersive writing. Always there,
+//! never hidden under the hand; it stands on the desk beside the page and
+//! does not scroll (and rides above the Bottom Panel when that is open).
 //!
+//! - **Bamboo** (`bamboo`): [`ToggleBottomTimeline`] (⌘J), the timeline in
+//!   the Bottom Panel. Like the incense stick, only on the right page of a
+//!   split; only when a module draws the timeline.
+//! - **Plot planner** (`plan-go`), first in the tray on a chapter or idea
+//!   when a module draws the planner: opens or closes it in the Bottom
+//!   Panel (the timeline makes way).
 //! - **Outline** (`toc-raked`): shows or hides the outline rail in the
 //!   page's left margin (M04). Kept in the book's local layout.
 //! - **⋯** (`more`): the page's menu, top to bottom:
@@ -42,8 +49,9 @@ use gpui::{
 };
 
 use super::Workspace;
-use crate::actions::ToggleImmersiveWriting;
+use crate::actions::{ToggleBottomTimeline, ToggleImmersiveWriting};
 use crate::nav::Target;
+use crate::pages::{self, BottomPane};
 use crate::strings::t;
 
 /// How far the corner stands from the column's right and bottom edges.
@@ -80,6 +88,29 @@ pub fn corner(
     );
 
     let mut tools: Vec<AnyElement> = Vec::new();
+    let planned = matches!(target, Some(Target::Chapter(_) | Target::Idea(_)));
+    if planned && pages::has_bottom_panel(BottomPane::Planner, cx) {
+        let toggle = ws.clone();
+        let open = w.bottom.layout.planner_open;
+        tools.push(
+            IconButton::new(
+                gpui::ElementId::Name(format!("corner-planner-{key}").into()),
+                Icon::PlanGo,
+            )
+            .in_tray()
+            .selected(open)
+            .label(t(
+                cx,
+                if open {
+                    keys::editor_top_bar::actions::COLLAPSE_PLOT_PLANNER
+                } else {
+                    keys::editor_top_bar::actions::EXPAND_PLOT_PLANNER
+                },
+            ))
+            .on_click(move |_, _, cx| toggle.update(cx, |ws, cx| ws.toggle_planner(cx)))
+            .into_any_element(),
+        );
+    }
     if target.is_some() {
         let toggle = ws.clone();
         let shown = !w.outline_hidden;
@@ -163,6 +194,25 @@ pub fn corner(
         .children(tools)
     });
 
+    let timeline = (trailing && pages::has_bottom_panel(BottomPane::Timeline, cx)).then(|| {
+        let shown = !w.bottom.layout.timeline_hidden && !w.bottom.layout.planner_open;
+        IconButton::new(
+            gpui::ElementId::Name(format!("corner-timeline-{key}").into()),
+            Icon::Bamboo,
+        )
+        .floating()
+        .selected(shown)
+        .label(t(
+            cx,
+            if shown {
+                keys::bottom_status_bar::COLLAPSE_TIMELINE
+            } else {
+                keys::bottom_status_bar::EXPAND_TIMELINE
+            },
+        ))
+        .on_click(|_, window, cx| window.dispatch_action(Box::new(ToggleBottomTimeline), cx))
+    });
+
     let incense = trailing.then(|| {
         IconButton::new(
             gpui::ElementId::Name(format!("corner-incense-{key}").into()),
@@ -197,6 +247,7 @@ pub fn corner(
         .flex_row()
         .items_center()
         .gap(px(8.0))
+        .children(timeline)
         .children(tray)
         .children(incense)
         .children(menu)

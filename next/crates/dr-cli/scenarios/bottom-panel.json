@@ -1,0 +1,32 @@
+{
+  "about": "F6 底部面板：打开一章，稿纸下面是时间线（默认 180 高）；工具托盘第一个按钮打开这一章的情节规划，时间线让位；⌘J 换回时间线、再按收起。上沿拖高在 dr-shell 的 GPUI 测试里（窗口大小在这里不定）。",
+  "steps": [
+    { "seed": "showcase" },
+    { "call": "book.list", "save": "books" },
+    { "call": "chapter.list", "input": { "book": "${books.[name=慢钟].id}" }, "save": "chapters" },
+
+    { "launch": { "env": { "DRIFTING_APPEARANCE": "light" }, "settings": { "account": { "language.ui_locale": "zh-CN" } } } },
+    { "app": "ui.wait", "params": { "until": "ready", "timeout_ms": 30000 } },
+    { "app": "window.focus" },
+    { "app": "book.open", "params": { "name": "慢钟" } },
+    { "app": "ui.wait", "params": { "until": "ready", "state": { "/shelf": false, "/book/name": "慢钟" } } },
+    { "app": "nav.open", "params": { "chapter": "${chapters.1.id}" } },
+    { "app": "ui.wait", "params": { "until": "ready", "state": { "/page": "chapter:${chapters.1.id}", "/bottom/pane": "timeline", "/bottom/height": 180.0 } } },
+    { "app": "ui.screenshot", "png": "01-timeline.png", "note": "稿纸下面是时间线，角上竹子按着" },
+
+    { "app": "ui.press", "params": { "label": "展开情节规划" }, "note": "工具托盘第一个：这一章的情节规划" },
+    { "app": "ui.wait", "params": { "until": "ready", "state": { "/bottom/pane": "planner" } } },
+    { "app": "ui.find", "params": { "label": "收起情节规划" }, "expect": { "/count": 1 } },
+    { "app": "ui.screenshot", "png": "02-planner.png" },
+
+    { "app": "input.key", "params": { "keys": "secondary-j" }, "note": "⌘J：时间线回来，情节规划收起" },
+    { "app": "ui.wait", "params": { "until": "ready", "state": { "/bottom/pane": "timeline" } } },
+    { "app": "input.key", "params": { "keys": "secondary-j" }, "note": "再按：收起" },
+    { "app": "ui.wait", "params": { "until": "ready", "state": { "/bottom/pane": null } } },
+    { "app": "ui.wait", "params": { "until": "time", "ms": 1000 }, "note": "收起要滑 420 ms；调试版在忙的机器上出帧慢" },
+    { "app": "ui.screenshot", "png": "03-closed.png" },
+    { "app": "input.key", "params": { "keys": "secondary-j" } },
+    { "app": "ui.wait", "params": { "until": "ready", "state": { "/bottom/pane": "timeline" } } },
+    { "app": "app.quit", "expect": { "/quit": true } }
+  ]
+}

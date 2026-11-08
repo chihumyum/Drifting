@@ -8,7 +8,9 @@
     "actOrdinal": "第 {{n}} 幕"
   },
   "bottomStatusBar": {
+    "collapseTimeline": "收合故事線時間線",
     "elements": "要素",
+    "expandTimeline": "展開故事線時間線",
     "storyGraph": "故事圖譜",
     "todoLibrary": "審閱與素材"
   },
@@ -146,6 +148,8 @@
   },
   "editorTopBar": {
     "actions": {
+      "collapsePlotPlanner": "收合情節規劃器",
+      "expandPlotPlanner": "展開情節規劃器",
       "more": "更多操作"
     },
     "menu": {
@@ -1009,6 +1013,7 @@
         "inspecting": "正在驗證…",
         "missingAssets": "此裝置上缺少 {{count}} 個素材，未納入備份。",
         "noProjects": "（沒有作品）",
+        "openSafety": "開啟還原前副本",
         "restoreButton": "選擇備份…",
         "restoreConfirm": "以「{{file}}」取代目前資料庫。\n\n建立時間：{{date}}\n內容：{{summary}}\n作品：{{projects}}\n\n會先保留目前資料庫的還原前副本，可由「開啟還原前副本」查看。還原完成後 Drifting 會重新載入。",
         "restoreConfirmButton": "取代並還原",

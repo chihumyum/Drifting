@@ -384,7 +384,7 @@ CI（`next.yml` 的 Windows 任务，`script/check-windows-installer.ps1`）：�
 9. **正式版身份怎么切换**：建议交接时给 `dr-platform` 加一个 `release-identity` 特性，只有发布工作流开它，`Identity::current()` 据此返回 `RELEASE`；`bundle-mac` 和 `bundle-windows.ps1` 加对应开关。现在照 `AGENTS.md` 不做。
 10. **`next/README.md`**：改了「开发开关」表的 `DRIFTING_LOG` 一行，加了 `DRIFTING_LOG_FILE`、`DRIFTING_PROFILE`、`DRIFTING_CRASH_REPORTS_IN_DEV`、两个开发更新变量，和打包一节的 `--dmg`、`--archive`、Windows 脚本，以及目录表。
 11. **M10（第三轮）：导入中途退出的等待改成各 1 秒**：`dr-view-import/src/flow.rs` 的 `QUIT_WAIT_BOOK`、`QUIT_WAIT_NOW` 都改成 `Duration::from_secs(1)`，m10-import.md 里的「3 秒」「2 秒」跟着改。理由见「退出时能做多少 → 导入中途退出等多久」。常量是 M10 的，我没改。
-12. **F6（第三轮，不急）**：退出流程先藏窗口（`cx.hide()`）再跑退出钩子，导入在跑时那最多 2 秒作者就看不到冻住的窗口。
+12. ~~**F6（第三轮，不急）**：退出流程先藏窗口（`cx.hide()`）再跑退出钩子~~：**F6 第八轮做了**（`dr_shell::quit`）。
 
 ## 数字
 

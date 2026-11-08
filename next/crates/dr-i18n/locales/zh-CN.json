@@ -8,7 +8,9 @@
     "actOrdinal": "第{{n}}幕"
   },
   "bottomStatusBar": {
+    "collapseTimeline": "收起 Storyline Timeline",
     "elements": "要素全景",
+    "expandTimeline": "展开 Storyline Timeline",
     "storyGraph": "故事图谱",
     "todoLibrary": "审阅与素材"
   },
@@ -146,6 +148,8 @@
   },
   "editorTopBar": {
     "actions": {
+      "collapsePlotPlanner": "收起情节规划",
+      "expandPlotPlanner": "展开情节规划",
       "more": "更多操作"
     },
     "menu": {
@@ -1003,6 +1007,7 @@
         "inspecting": "正在校验…",
         "missingAssets": "有 {{count}} 个素材在本机缺失，未能备份。",
         "noProjects": "（没有项目）",
+        "openSafety": "打开恢复前副本",
         "restoreButton": "选择备份…",
         "restoreConfirm": "将用「{{file}}」替换当前资料库。\n\n备份时间：{{date}}\n内容：{{summary}}\n项目：{{projects}}\n\n当前资料库会先自动存成恢复前副本，可在「打开恢复前副本」中找到。恢复完成后应用会重新载入。",
         "restoreConfirmButton": "替换并恢复",

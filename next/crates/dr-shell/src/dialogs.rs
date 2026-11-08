@@ -6,7 +6,10 @@
 //!   shortcuts (it is `covered()`); Esc and its own buttons close it.
 //! - [`show`] / [`show_in`] / [`hide`]: a crate opens or closes its view
 //!   (M10's import shows its list, progress, gate and summary this way, in
-//!   the window the author started it in).
+//!   the window the author started it in). Callable from anywhere, a click
+//!   in the dialog itself included: a window busy with that click is
+//!   reached once the click is over
+//!   ([`crate::workspace::update_workspace`]).
 //! - [`set_feedback`]: the feedback dialog (M39, `dr-view-feedback`) is
 //!   made when [`crate::actions::SendFeedback`] is dispatched (the account
 //!   menu, Settings → About) or a crash follow-up is clicked, and dropped
@@ -85,7 +88,7 @@ pub fn hide(cx: &mut App, view: gpui::EntityId) {
         .filter_map(|w| w.downcast::<crate::Workspace>())
         .collect();
     for handle in shown {
-        let _ = handle.update(cx, |ws, window, cx| {
+        crate::workspace::update_workspace(handle, cx, move |ws, window, cx| {
             if ws.dialog.as_ref().is_some_and(|d| d.entity_id() == view) {
                 ws.dialog = None;
                 ws.refocus(window, cx);

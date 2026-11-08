@@ -414,3 +414,43 @@ fn clear_asks_first_in_the_workspace_window(cx: &mut TestAppContext) {
     assert!(ws.read_with(cx, |w, _| w.dialog.is_none()));
     assert_eq!(stored(&s, 3).cells.len(), 11);
 }
+
+/// In the shell's Bottom Panel ([`dr_view_plot::init`]): opened with a
+/// chapter in front it is that chapter's planner; the chapter renamed, its
+/// header follows.
+#[gpui::test]
+fn the_shell_shows_the_planner_of_the_chapter_in_front(cx: &mut TestAppContext) {
+    use dr_shell::nav::{Open, Target};
+    use dr_shell::pages::BottomPane;
+    let s = seeded();
+    init(cx, &s);
+    cx.update(dr_view_plot::init);
+    let (ws, cx) = cx.add_window_view(dr_shell::Workspace::new);
+    wait_for(cx, |cx| ws.read_with(cx, |ws, _| !ws.book.is_empty()));
+    let fourth = Target::Chapter(s.chapters[3].parse().unwrap());
+    ws.update(cx, |ws, cx| {
+        ws.open(fourth.clone(), Open::KEEP, cx);
+        ws.toggle_planner(cx);
+    });
+    cx.update(|window, cx| window.draw(cx).clear(cx));
+    let planner = ws
+        .read_with(cx, |ws, _| ws.bottom_view(BottomPane::Planner))
+        .expect("the planner is made")
+        .downcast::<PlotPlanner>()
+        .unwrap();
+    assert_eq!(
+        planner.read_with(cx, |p, _| p.host().node.clone()),
+        s.chapters[3]
+    );
+    s.lib
+        .call(
+            &Actor::User,
+            "chapter.update",
+            serde_json::json!({"book": s.book, "id": s.chapters[3], "title": "改了名"}),
+        )
+        .unwrap();
+    wait_for(cx, |cx| {
+        cx.update(|window, cx| window.draw(cx).clear(cx));
+        planner.read_with(cx, |p, _| p.host().title == "改了名")
+    });
+}

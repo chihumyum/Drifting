@@ -41,7 +41,8 @@ pub const WHEEL_SENSITIVITY: f32 = 0.002;
 pub const SYNTHETIC_CLIP: u32 = 0x2D4A6B;
 
 /// Which order the axis follows.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Axis {
     /// 书序: reading order (`bookOrder`).
     #[default]
