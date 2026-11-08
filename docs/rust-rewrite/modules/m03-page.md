@@ -44,6 +44,7 @@ cargo run -p dr-view-page --features capture --example page-capture -- ../docs/r
 3. **`app/drifting`**：依赖加 `dr-view-page`，`main.rs` 在 `dr_view_home::init` 后面调 `dr_view_page::init(cx)`。
 4. **`dr-i18n/keys.txt`**：加了旧版的 13 个键（页眉、标题和梗概的占位、⁂ 的动作、空章提示），`locales/` 由 `script/sync-locales.py` 重新生成。
 5. **`next/Cargo.toml`**：成员和依赖各一行。
+6. **新建入口（M02 等）**：打开新章节或构想前，调 `dr_view_page::focus_new_title(doc, cx)`，然后用外壳的 `Open::KEEP.at_title()` 打开；章首第一次画出来时取走这个意图，把键盘交给标题框并全选。沿用 ⁂ 的同一套 `NewTitles`，不另造聚焦机制。
 
 没装 chrome 的地方（外壳自己的测试、截图）照旧画编辑器自己的标题行。
 
