@@ -39,6 +39,7 @@
 //! structure (dr-doc) plugs in through [`LibraryOptions::configure_doc`], the
 //! genesis closure of [`OpenDoc::CreateIfMissing`] and the deriver.
 
+pub mod agent;
 pub mod archive;
 pub mod asset;
 pub mod backup;
@@ -67,7 +68,7 @@ pub use identity::Device;
 pub use library::{
     CloseRefused, CompactStats, CompactionPolicy, DocActivity, DocHead, DocInfo, EpochChange,
     Library, LibraryOptions, LibraryPaths, LoadStats, LocalTx, OpenDoc, Settlement, StoredUpdate,
-    UploadBatch,
+    UploadBatch, ValidateImport,
 };
 pub use migrate::{Durability, MIGRATIONS, Migration, MigrationStage, OpenReport};
 pub use origin::{AGENT_PREFIX, COMMAND_ORIGIN, Origin};

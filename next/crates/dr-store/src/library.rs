@@ -56,6 +56,9 @@ impl Default for CompactionPolicy {
 }
 
 pub type ConfigureDoc = Arc<dyn Fn(&LoroDoc) + Send + Sync>;
+/// An application schema guard for incoming Loro bytes, run on the holder
+/// thread against the settled document before the import mutates it.
+pub type ValidateImport = Arc<dyn Fn(&str, &LoroDoc, &[u8]) -> Result<()> + Send + Sync>;
 
 #[derive(Clone)]
 pub struct LibraryOptions {
@@ -68,6 +71,10 @@ pub struct LibraryOptions {
     /// document) before anything is imported: dr-doc's style configuration
     /// (loro-schema.md). The store itself turns on timestamps.
     pub configure_doc: Option<ConfigureDoc>,
+    /// Application-owned document invariants for incoming updates. The
+    /// store remains schema-neutral; validation must not mutate the live
+    /// document or call back into the library. Rejection imports nothing.
+    pub validate_import: Option<ValidateImport>,
     /// This device (identity and library watermarks, outside the library).
     /// With it the library notices when it was moved to another device or
     /// replaced by an older copy, and starts a new epoch. Tests may omit it.
@@ -97,6 +104,14 @@ pub struct LibraryOptions {
     /// Test hook: fail this many update appends (as a full disk would).
     #[doc(hidden)]
     pub append_faults: Option<Arc<std::sync::atomic::AtomicUsize>>,
+    /// Test hook: pause inside each update transaction after its Loro row
+    /// and before its settlement. Crash tests kill the process here.
+    #[doc(hidden)]
+    pub append_pause: Option<Duration>,
+    /// Test hook: mark the same midpoint before `append_pause`. Must not
+    /// read or write this library (the writer transaction is held).
+    #[doc(hidden)]
+    pub append_checkpoint: Option<Arc<dyn Fn() + Send + Sync>>,
 }
 
 impl LibraryOptions {
@@ -106,6 +121,7 @@ impl LibraryOptions {
             durability: Durability::Normal,
             compaction: CompactionPolicy::default(),
             configure_doc: None,
+            validate_import: None,
             device: None,
             deriver: None,
             derive_idle: Duration::from_millis(150),
@@ -114,6 +130,8 @@ impl LibraryOptions {
             migration_fault: None,
             compaction_pause: None,
             append_faults: None,
+            append_pause: None,
+            append_checkpoint: None,
         }
     }
 }
@@ -125,6 +143,7 @@ impl std::fmt::Debug for LibraryOptions {
             .field("durability", &self.durability)
             .field("compaction", &self.compaction)
             .field("configure_doc", &self.configure_doc.is_some())
+            .field("validate_import", &self.validate_import.is_some())
             .field("device", &self.device)
             .field("deriver", &self.deriver.is_some())
             .finish_non_exhaustive()

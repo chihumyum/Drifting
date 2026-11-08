@@ -1,6 +1,6 @@
-//! Every test the invariant checklist (`dr_model::invariant`) names exists in
-//! dr-model, dr-doc or dr-workspace, so the checklist cannot claim a check
-//! nobody runs.
+//! Every test the invariant checklist (`dr_model::invariant`) names exists
+//! in a crate of the workspace (`next/crates/*`), so the checklist cannot
+//! claim a check nobody runs.
 
 use std::path::Path;
 
@@ -20,12 +20,12 @@ fn sources(dir: &Path, out: &mut String) {
 
 #[test]
 fn every_named_test_exists() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    // dr-model and dr-doc hold the rules' own tests; the command layer
+    // (dr-workspace), storage (dr-store) and the pages (dr-view-*) hold the
+    // rest.
+    let crates = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
     let mut src = String::new();
-    sources(root, &mut src);
-    sources(&root.join("../dr-model"), &mut src);
-    // The command layer's tests (F3).
-    sources(&root.join("../dr-workspace"), &mut src);
+    sources(&crates, &mut src);
     let mut missing = Vec::new();
     let named = dr_model::invariant::INVARIANTS
         .iter()

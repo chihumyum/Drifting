@@ -21,7 +21,7 @@
 //! single meaning the new command implements (unified by F3). The crate's
 //! tests assert the checklist's shape (every rule tested or listed in
 //! [`NOT_YET_TESTED`]); `dr-doc`'s tests check that every test named here
-//! exists, in dr-model, dr-doc or dr-workspace.
+//! exists in a crate of the workspace.
 
 use serde::Serialize;
 
@@ -51,7 +51,9 @@ pub struct Invariant {
     pub how: &'static str,
     /// Where the old client enforced it (`path` or `path:trigger`).
     pub legacy: &'static [&'static str],
-    /// Tests in `dr-model` / `dr-doc` that exercise the new mechanism.
+    /// Tests that exercise the new mechanism, in any crate of the workspace
+    /// (the checklist's own rules live in `dr-model` / `dr-doc`, commands in
+    /// `dr-workspace`, storage in `dr-store`, pages in the `dr-view-*` crates).
     pub tests: &'static [&'static str],
 }
 
@@ -124,6 +126,25 @@ macro_rules! inv {
 }
 
 pub const INVARIANTS: &[Invariant] = &[
+    inv!(
+        "CONVERSATION-APPEND",
+        "对话内容只从已落盘运行事件追加；同一事件身份不变，重放不重复",
+        [Structure, Command, Read],
+        "ConversationEntry 不含控制状态；dr-doc 只公开追加，重复身份内容相同则忽略、不同则报错；并发重复由读取去重，顺序由 Loro 收敛",
+        ["docs/rust-rewrite/handoff/m27-agent-runtime.md"],
+        [
+            "conversation_replay_is_idempotent_and_content_is_immutable",
+            "conversation_concurrent_appends_converge"
+        ]
+    ),
+    inv!(
+        "CONVERSATION-NOT-PROSE",
+        "对话文档不作为书的正文编辑、计数、搜索和导出",
+        [Structure],
+        "DocKind::Conversation 没有 ProseProfile，is_book_text 为 false",
+        ["docs/rust-rewrite/handoff/m27-agent-runtime.md"],
+        ["doc_ids_round_trip", "conversation_is_not_a_prose_document"]
+    ),
     // ---- ids, documents, origins ---------------------------------------
     inv!(
         "ID-FORMAT",
@@ -234,9 +255,12 @@ pub const INVARIANTS: &[Invariant] = &[
         "JSON-FIELDS",
         "模板、元数据、来源这几个字段是 JSON 文本",
         [Command, Read],
-        "dr-doc 原样存字符串；F3 写前校验；读的地方解析失败当作没有",
+        "dr-doc 把每个字段存成一个整值、原样不校验，两台设备同时写各自完整的 JSON，合并后留下其中一个、不会拼成坏的（不是文本合并）；F3 自己生成要写的 JSON（待办元数据用 serde 序列化）；读的地方解析失败当作没有（旧模板 JSON 读成空模板，待办元数据读不出当作没有要等的版本）。正文模板从 v2.1 起是 template: 文档，旧的两个模板字段只读；来源（provenance）只有 M10 导入时原样写",
         ["K:179-187", "K:215-301", "M00:861-862"],
-        []
+        [
+            "json_fields_are_kept_whole",
+            "a_01_element_template_reads_as_paragraphs"
+        ]
     ),
     inv!(
         "NAME-NONEMPTY",
@@ -262,12 +286,15 @@ pub const INVARIANTS: &[Invariant] = &[
         "BOOK-PURGE",
         "彻底删书时，属于它的一切都删掉",
         [Structure, Command],
-        "一本书就是它的书目文档加正文文档；F2 按文档 id 一起删，不需要外键级联",
+        "一本书就是它的书目文档加正文文档（模板文档也在里面）；F3 的 book.purge 只删「最近删除」里的书：关掉它打开的文档，按存储（F2）登记的这本书的文档逐篇删、书目文档最后删，再删它的资源和日志行，不能撤销；存储记下删过的文档，同步再送来的副本不收，不需要外键级联",
         [
             "K:913-921",
             "src/renderer/sqlite-repo/project-deletion-repo.ts:186-221"
         ],
-        []
+        [
+            "purging_a_book_deletes_it_for_good",
+            "a_purged_book_does_not_come_back_with_sync"
+        ]
     ),
     inv!(
         "TRASH-AND-PURGE",
@@ -728,9 +755,9 @@ pub const INVARIANTS: &[Invariant] = &[
         "ASSET-BYTES",
         "资源字节到了才能显示",
         [Read],
-        "元数据和字节分开同步（字节在 F2）；字节还没到时界面显示加载中，不报错",
+        "元数据（书目文档的 assets）和字节（存储的本机资源目录，F2）分开；素材页读不到字节时在画面上说一句没有这个文件（M19 的 Trouble::Missing），不报错、不崩。字节同步到达后自动重新显示要等 F2 的资源同步，现在是打开页面时读一次",
         ["K:875-877"],
-        []
+        ["a_material_without_its_file_says_so"]
     ),
     inv!(
         "TREE-NO-CYCLE",
@@ -1234,20 +1261,7 @@ pub const NOT_CARRIED: &[NotCarried] = &[
 /// Invariants nothing tests yet, and why. The checklist's test keeps this
 /// list exact: an untested rule must be named here, and a rule that gains a
 /// test must leave it.
-pub const NOT_YET_TESTED: &[(&str, &str)] = &[
-    (
-        "JSON-FIELDS",
-        "templates and metadata have no commands yet (F3 next milestone)",
-    ),
-    (
-        "BOOK-PURGE",
-        "deleting a whole book for good is not implemented yet (F2 / F3)",
-    ),
-    (
-        "ASSET-BYTES",
-        "asset bytes and their loading state belong to dr-store and the interface",
-    ),
-];
+pub const NOT_YET_TESTED: &[(&str, &str)] = &[];
 
 #[cfg(test)]
 mod tests {

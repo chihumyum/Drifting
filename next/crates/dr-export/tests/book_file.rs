@@ -473,3 +473,68 @@ fn seeded_books_come_back_with_the_same_digest() {
     }
     ws.close();
 }
+
+#[test]
+fn conversation_archive_copy_preserves_immutable_payloads() {
+    use dr_doc::conversation::BorrowedConversation;
+    use dr_model::DocId;
+    use dr_model::conversation::{ConversationEntry, ConversationEntryKind};
+    use dr_model::id::ConversationId;
+
+    let e = env();
+    let b = book(&e.ws);
+    // A valid imported id may be short and collide with a schema root.
+    let conversation = ConversationId::parse("entries").unwrap();
+    let doc_id = DocId::Conversation(conversation.clone()).to_string();
+    let genesis = dr_doc::conversation::genesis(&conversation);
+    let h =
+        e.ws.library()
+            .open_doc(
+                &doc_id,
+                dr_store::OpenDoc::CreateIfMissing {
+                    kind: "conversation",
+                    book_id: Some(&b),
+                    genesis: &move |doc| {
+                        doc.import(&genesis).unwrap();
+                    },
+                },
+            )
+            .unwrap();
+    let entry = ConversationEntry {
+        id: "session-1:1".into(),
+        session: "session-1".into(),
+        turn: 1,
+        kind: ConversationEntryKind::ToolResult,
+        payload: json!({"book": b, "conversation": conversation.as_str(), "signature": doc_id}),
+    };
+    let written = entry.clone();
+    h.write(dr_store::Origin::User, move |doc| {
+        BorrowedConversation::new(doc, &conversation)
+            .unwrap()
+            .append(&written)
+            .unwrap();
+    })
+    .unwrap();
+    h.close();
+    let archive = e.dir.path().join("conversation.driftingbook");
+    book_file::export_book(&e.ws, &b, &archive, &|_| {}).unwrap();
+    let imported = book_file::import_book(&e.ws, &archive, &|_| {}).unwrap();
+    let docs =
+        e.ws.library()
+            .docs(Some(&imported.book), Some("conversation"))
+            .unwrap();
+    assert_eq!(docs.len(), 1);
+    assert_ne!(docs[0].doc_id, doc_id);
+    let DocId::Conversation(new_id) = DocId::parse(&docs[0].doc_id).unwrap() else {
+        unreachable!()
+    };
+    let copied = e.ws.library().load_copy(&docs[0].doc_id).unwrap();
+    assert_eq!(
+        BorrowedConversation::new(&copied, &new_id)
+            .unwrap()
+            .entries()
+            .unwrap(),
+        vec![entry]
+    );
+    assert_eq!(copied.get_text("body").len_unicode(), 0);
+}

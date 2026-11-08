@@ -322,6 +322,17 @@ open_enum!(
     }
 );
 
+open_enum!(
+    /// Immutable contents projected from the local Agent event journal.
+    ConversationEntryKind {
+        User = "user",
+        Assistant = "assistant",
+        Thinking = "thinking",
+        ToolCall = "tool_call",
+        ToolResult = "tool_result",
+    }
+);
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -125,7 +125,7 @@ pub struct HistoryPointsOut {
 /// A prose document named by a command: parsed, and stored.
 fn prose_doc(cx: &Cx<'_>, s: &str) -> Result<(DocId, Option<BookId>)> {
     let doc = DocId::parse(s).map_err(|e| WsError::invalid(format!("{s:?}: {e}")))?;
-    if doc.is_book() {
+    if doc.profile().is_none() {
         return Err(WsError::invalid(format!("{s} is not a prose document")));
     }
     let info = cx

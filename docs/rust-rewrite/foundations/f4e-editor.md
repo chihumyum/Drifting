@@ -6,6 +6,71 @@
 - **`gpui-prose` 的改动**：只加了挂钩，见「对 `gpui-prose` 的改动」。
 - **截图**：在 [f4e/](f4e/)，由 `cargo run -p dr-editor --example page-capture -- docs/rust-rewrite/foundations/f4e` 不开窗口画出来。
 
+## 第七批（2026-11-09）：@ 选择器按拼音首字母找；复制格子带上格式；M26 沉浸写作的编辑器部分
+
+先合了 main `eb221684`（第十五批，第六批已在里面，快进）。
+
+**大白话：**
+- @ 选择器里打拼音首字母也能找到名字：打 `yg` 就有「约格」。
+- 素材笔记里复制表格或选中的格子，粗体、高亮、链接都跟着走，粘回去还在；粘贴的格子用粘贴进来的格式，纯文字贴到粗体格子上，粗体就没了。
+- 沉浸写作和打字机滚动里编辑器的那一半做完了，外壳那一半写成了给 F6 的接口说明，在 [m26-immersive.md](../modules/m26-immersive.md)。
+
+1. **拼音首字母筛选**（`src/pinyin.rs`）
+   - **规则**：名字里每个字代表它能开头的字母。
+     - 汉字是它每个读音的首字母，多音字几个都算：「重庆」打 `cq`、`zq` 都行。
+     - 拉丁字母、数字代表自己；空格和「·」这类符号跳过。
+   - **匹配**：查询全是字母和数字时，在名字里连着的几个字上对得上就算：「安娜·约格」打 `anyg`、`ny`、`yg` 都能找到，`ay` 不行。别的查询还是照旧，按包含找。
+   - **排序**：每组里，名字直接包含查询的排在只靠首字母对上的前面，然后照旧按拼音排。
+   - **拼音表**：`pinyin` 0.11（MIT），表来自 mozillazg 的 pinyin-data（MIT，取自 Unihan）。只开了 `plain` 和 `heteronym` 两个特性，不带声调。加在 `[workspace.dependencies]`，许可门禁通过。
+   - **为什么没自己生成表**：生成要先下 Unihan，再写一个生成脚本，而这个 crate 就是从同一份数据生成的、许可宽松、没有别的依赖。
+   - 每个名字的首字母在建名字表时算好（每个字一个 36 位的位集），打字时只做比较。
+   - 只用在 @ 选择器；斜杠菜单要不要也按拼音找，见待协调。
+2. **复制格子带上格式**
+   - **复制**：整张表（正文里选中表格复制）和选中的格子（第六批的格子选区）都一样：剪贴板的元数据里除了格子的字，还有每个格子的行内标记 `drifting_table_marks`（字符范围、键、值；Loro 的值本来就能转 JSON）。表格本身的文字仍是制表符分隔，别的程序照旧能读。
+   - **粘贴**：
+     - 粘进格子、粘成新表格、铺满格子选区（标记跟着字一起重复）都会把标记放回去。
+     - 粘贴的格子先清空再写进去，原来的格式随原来的字一起走（以前用 Loro 的 `update` 比较差异，字一样时原来的粗体会留下）。
+     - 文档不认识的标记键跳过，记一行日志。
+   - **人物链接也带**：贴到另一本书里就指向那本书里没有的对象，和 F1 的 `insert_copy` 一样处理。
+3. **M26 沉浸写作的编辑器部分**（细节、接口和给 F6 的说明都在 [m26-immersive.md](../modules/m26-immersive.md)）
+   - **`gpui-prose`**：
+     - 新事件 `AuthorTyped`：作者在写（打字、输入法确认、回车），不包括粘贴、删除、撤销、组字中。
+     - 打字机滚动的三处补充：组字时不滚到线上；「输入行位置」改了马上回线上；窗口高度变了马上回线上。
+   - **`dr-editor`**：
+     - `set_immersive`：沉浸时强制打开打字机滚动，用设置的位置。
+     - `WritingTyped { doc }`：从 `AuthorTyped` 转出来，素材笔记的格子里也报。
+   - **截图**：[immersive-light](../modules/m26/immersive-light.png)、[immersive-dark](../modules/m26/immersive-dark.png)。
+4. **新测试**：
+   - `entity_links` 单元测试：按首字母找、直接包含的排前面。
+   - `pinyin` 单元测试（3 个）：连着的字、多音字、拉丁字母和数字。
+   - `tests/assist.rs`：`@yg` 插入「约格」的链接。
+   - `table::clip` 单元测试：标记的往返。
+   - `tests/note.rs`：
+     - `copied_cells_keep_their_marks`：选中的格子复制粘贴带格式、纯文字贴到粗体格子上没有粗体、整张表复制成新表带格式；
+     - 格子里打字报 `WritingTyped`。
+   - `tests/immersive.rs`（3 个）、`gpui-prose` 的两个，见 m26-immersive.md。
+
+**这一批的待协调：**
+
+- **给 F6**：M26 外壳那一半，见 [m26-immersive.md 的「给 F6 的接口」](../modules/m26-immersive.md#给-f6-的接口外壳这一半f6-接)。最要紧的是进出时对每个编辑器调 `set_immersive`，以及订阅 `WritingTyped` 接上「打字时自动沉浸」。
+- **给 F4b、F4c、F4d**：`gpui-prose` 里动了你们的几处，都是加的：
+  - `editor.rs`：`AuthorTyped`，字段 `realign_typewriter`、`drawn_height`，`set_style` 和 `after_paint` 各几行；
+  - `render/element.rs`：组字时不用打字机的那一行；
+  - `input/ime.rs` 的 `run_input_rule`、`input/editing.rs` 的 `on_newline`：各发一次事件。
+- **斜杠菜单的拼音**：要不要也按首字母找（`/yy` 找「引用」），没做；作者或 F6 定了再加，`pinyin::Initials` 现成。
+
+**检查**：
+- **通过**：
+  - `cargo fmt --all --check`；
+  - 全工作区 clippy（`-D warnings`）干净；
+  - `cargo check -p gpui-prose --no-default-features`；
+  - `cargo xtask check` 全过（许可门禁 860 个第三方 crate，含新的 `pinyin`；audit 0 个漏洞）；
+  - 公开边界检查、文档守护测试（7 项）。
+- **测试**：全工作区 `--no-fail-fast`，1457 个通过、2 个失败（另有 19 个默认忽略），单独重跑都通过：
+  - `dr-editor/tests/source.rs` 的 `the_session_source_behaves_like_the_built_in_one`：「undo steps differ」，当时负载约 170。撤销按时间间隔合并按键，机器太忙时两边分步不一样。单独重跑通过（10.5 秒）。
+  - `dr-view-shelf-art` 的封面测试：缺字体，同第六批。
+- **测量**：负载约 50（12 核），`prose-bench` 的证据没有重跑，等空闲。
+
 ## 第六批（2026-11-09 凌晨）：自动链接只剩一份规则；表格的格子选区
 
 先合了 main `2eb865fa`（F3 第七轮的 `autolink` 已在里面）；做完以后又合了 main `4e40ee20`（第十四批，第五批已在里面），没有冲突。
@@ -35,7 +100,7 @@
    - **截图**：[note-cells-light](f4e/note-cells-light.png)、[note-cells-dark](f4e/note-cells-dark.png)，选中两行两格，浮条在上方。
    - **限制**：
      - 拖到表格外面，选区停在最后经过的那一格，不会自动滚动。
-     - 复制格子只带文字，格子里的行内标记（粗体、高亮）不带（GPUI 的剪贴板只有文字和元数据；元数据里带标记以后再说）。
+     - ~~复制格子只带文字~~：第七批起元数据里带上了格子的行内标记。
      - 隐藏光标的做法是表格画格子时不挂光标层，依赖 `ProseEditor::element` 在贴合内容模式下的结构（一个 `div` 里放编辑器和光标层）。F4d 要是改了这个结构，这里要跟着改；更好的是 `gpui-prose` 给一个「不画光标」的开关。
 3. **新测试**：
    - `dr-editor/tests/note.rs` 加了 4 个：
@@ -373,6 +438,7 @@
 | `ChapterEditor::{note_embeds, insert_table, insert_material, toggle_highlight, focused_prose}`（第五批） | 素材笔记的表格和素材、⌘⇧H；`focused_prose` 是正文或格子里正拿着光标的那个编辑器 |
 | `dr_editor::highlight::{ToggleHighlight, key_bindings}`（第五批） | ⌘⇧H 的动作和按键表 |
 | `TableView::{selected_cells, select_cells, delete_rows, delete_cols, cell_bounds}`（第六批） | 格子选区：读、设；按选区删行列；格子画在哪（测试和截图用） |
+| `ChapterEditor::set_immersive` / `BookEditor::set_immersive`、`WritingTyped`（第七批） | M26：沉浸时强制打字机滚动；作者在写，「打字时自动沉浸」用。见 [m26-immersive.md](../modules/m26-immersive.md) |
 
 ## 对 `gpui-prose` 的改动
 
@@ -397,6 +463,7 @@
     - `caret_bounds`、`range_bounds`、`is_selecting`。
 - **`src/text/doc.rs`、`src/text/undo.rs`**：`ProseDoc::join_last_step()`，下一次提交并进上一步撤销，不管隔了多久。
 - **测试**：`slots.rs` 里三个，见下。
+- **第七批（M26）：**`AuthorTyped` 事件；打字机滚动在组字时不滚、线挪了或高度变了就回线上（`editor.rs`、`render/element.rs`、`input/ime.rs`、`input/editing.rs`），见 [m26-immersive.md](../modules/m26-immersive.md)。
 - **第五批（对象段、紧凑编辑器）：**
   - **新文件 `src/embeds.rs`**：
     - `EmbedViews { view, enter }`：宿主画对象段，↑ ↓ 时可以把光标接进去；
@@ -515,6 +582,6 @@
 
 | 子线 | 下一轮的活 |
 | --- | --- |
-| F4e 交互 | 选择器的拼音首字母筛选（要一张拼音表，ICU 不给）；章末 ⁂ 的帮手审阅（等帮手搬过来）；表格复制时带上格子里的行内标记；空闲时重跑 `prose-bench` 的证据 |
+| F4e 交互 | 章末 ⁂ 的帮手审阅（等帮手搬过来）；空闲时重跑 `prose-bench` 的证据 |
 | F6 | 上面「待协调」1 |
 | F5 | 无框多行输入 |

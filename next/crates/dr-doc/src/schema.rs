@@ -32,6 +32,12 @@ pub mod prose {
     pub const META: &str = "meta";
 }
 
+/// Root containers of an append-only Agent conversation.
+pub mod conversation {
+    pub const META: &str = "meta";
+    pub const ENTRIES: &str = "entries";
+}
+
 /// Root containers of the book document.
 pub mod book {
     pub const META: &str = "meta";

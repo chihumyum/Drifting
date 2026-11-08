@@ -171,11 +171,11 @@ cargo run -p dr-view-timeline --features capture --example timeline-capture -- .
    - 一次只显示时间线或情节规划里的一个；
    - 「书序 / 叙事时」「未归属开没开」「缩放」「横向滚动」要能记住：外壳给一个按书存的地方，或者在注册表里加这几项。
 2. ~~**F3（dr-workspace）：一次写完的「在时间线上放一章」**~~（F3 第八轮做了 `chapter.place`、`chapter.spread`，第十五批已合；时间线换上它是下一轮的事）（旧版 `persistChapterTimelineMove`）。比如 `chapter.place {book, id, axis: book|narrative, order, storyline: 不变|无|id}`：改故事线和挪位置是一次提交、一步撤销。有了它，打散也能做成一步。
-3. ~~**F6：悬停卡**~~：**F6 第八轮给了** `dr_shell::workspace::page_hover_card(id, el, target, ws, extra, cx)`。时间线这一轮照着章节面板的卡，用 dr-ui 的 `HoverCard` 和外壳的 `page_actions` 自己拼了一张（`view/cards.rs`）；下一轮换成外壳的，删掉 `cards.rs` 里的那一段（要能在前面加时间线自己的行，`extra` 是不是够用到时再看）。
+3. ~~**F6：悬停卡**~~：**F6 第八轮给了** `dr_shell::workspace::page_hover_card(id, el, target, ws, extra, cx)`。时间线这一轮照着章节面板的卡，用 dr-ui 的 `HoverCard` 和外壳的 `page_actions` 自己拼了一张（`view/cards.rs`）；下一轮换成外壳的，删掉 `cards.rs` 里的那一段。F6 第九轮把参数改成了 `CardRows { lead, before_danger }`：时间线自己的行放 `lead` 就在最前面；章节的「编辑故事线」也进了外壳的 `page_actions`。
 
 ## 还没做的（下一轮）
 
 - 打散（等 F3 一次写完的命令）。
 - 拖到边上自动横滚。
 - 幕边界的键盘移动。
-- 记住书序 / 叙事时、缩放、横向滚动、未归属开没开（等外壳给按书存的地方）。
+- ~~记住书序 / 叙事时、缩放、横向滚动、未归属开没开~~：F6 第八轮接上了（`kept.rs`）；第九轮起存在 F2 的 `local_state`，书打开、读完记忆后才套用。

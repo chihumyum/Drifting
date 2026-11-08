@@ -1404,6 +1404,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "dr-agent"
+version = "0.0.0"
+dependencies = [
+ "dr-doc",
+ "dr-model",
+ "dr-store",
+ "dr-testkit",
+ "dr-workspace",
+ "futures",
+ "loro",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "dr-cli"
 version = "0.0.0"
 dependencies = [
@@ -1493,6 +1510,7 @@ dependencies = [
  "log",
  "loro",
  "objc2 0.6.5",
+ "pinyin",
  "png 0.18.1",
  "prose-metrics",
  "raw-window-handle",
@@ -1668,6 +1686,7 @@ dependencies = [
  "color_quant",
  "dr-editor",
  "dr-i18n",
+ "dr-mirror",
  "dr-model",
  "dr-platform",
  "dr-store",
@@ -2020,6 +2039,7 @@ dependencies = [
  "gpui_platform",
  "image",
  "log",
+ "serde_json",
  "smallvec",
  "tempfile",
 ]
@@ -2182,6 +2202,7 @@ dependencies = [
  "dr-view-material",
  "dr-view-page",
  "dr-view-plot",
+ "dr-view-sea",
  "dr-view-shelf",
  "dr-view-timeline",
  "dr-view-transfer",
@@ -5850,6 +5871,12 @@ name = "pin-project-lite"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
+
+[[package]]
+name = "pinyin"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e225f595052d9c46045755be4b8d7950b6d9f3c33e0c0b74ba58f11bbfa8c64b"
 
 [[package]]
 name = "piper"

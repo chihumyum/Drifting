@@ -97,6 +97,8 @@ pub struct ChapterEditor {
     pub(crate) decor: crate::decor::Decor,
     /// A material note's tables and materials (`None` elsewhere).
     embeds: Option<Rc<NoteEmbeds>>,
+    /// Immersive writing: typewriter scrolling forced on (M26).
+    immersive: bool,
     _editor_events: Subscription,
     _ws_events: dr_workspace::events::Subscription,
 }
@@ -106,6 +108,17 @@ impl EventEmitter<CommentRequested> for ChapterEditor {}
 impl EventEmitter<PositionLinkCopied> for ChapterEditor {}
 impl EventEmitter<EntityLinkOpened> for ChapterEditor {}
 impl EventEmitter<MaterialOpened> for ChapterEditor {}
+impl EventEmitter<WritingTyped> for ChapterEditor {}
+
+/// The author started writing in `doc`: typed text, an input method's
+/// confirmed text, Enter (in a note's table cells too); not a paste, a
+/// deletion or an undo ([`gpui_prose::AuthorTyped`]). The shell begins
+/// immersive writing on it when 「打字时自动沉浸」 is on (M26). Both views
+/// emit it; its own event type, like [`CommentRequested`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct WritingTyped {
+    pub doc: String,
+}
 
 /// A click on a material embedded in note `doc`: the host opens material
 /// `material` (in a tab, as the 0.1 client did). Its own event type, like
@@ -196,6 +209,7 @@ impl ChapterEditor {
             _assist_events: assist_events,
             decor,
             embeds,
+            immersive: false,
             _editor_events: editor_events,
             _ws_events: ws_events,
         };
@@ -335,6 +349,12 @@ impl ChapterEditor {
         let events = cx.subscribe(&editor, |this, _, event: &EditorEvent, cx| {
             this.on_editor(event, cx)
         });
+        let typed = cx.subscribe(&editor, |this, _, _: &gpui_prose::AuthorTyped, cx| {
+            cx.emit(WritingTyped {
+                doc: this.doc_id.clone(),
+            })
+        });
+        let events = Subscription::join(events, typed);
         let embeds = shared.map(|(session, handle)| {
             let weak = cx.weak_entity();
             let host = NoteHost {
@@ -375,6 +395,9 @@ impl ChapterEditor {
             NoteEvent::OpenMaterial(material) => cx.emit(MaterialOpened {
                 doc: self.doc_id.clone(),
                 material,
+            }),
+            NoteEvent::Typed => cx.emit(WritingTyped {
+                doc: self.doc_id.clone(),
             }),
         }
     }
@@ -490,7 +513,7 @@ impl ChapterEditor {
         if doc_id == self.doc_id {
             return Ok(());
         }
-        let style = self.settings.style(&self.base_style);
+        let style = self.settings.style_for(&self.base_style, self.immersive);
         let (editor, events, embeds) = Self::make_editor(
             &self.ws,
             &self.book,
@@ -530,7 +553,7 @@ impl ChapterEditor {
             return;
         }
         self.settings = settings;
-        let style = self.settings.style(&self.base_style);
+        let style = self.settings.style_for(&self.base_style, self.immersive);
         if let Some(embeds) = &self.embeds {
             embeds.restyle(style.clone(), cx);
         }
@@ -543,7 +566,7 @@ impl ChapterEditor {
     /// Colours and fonts (the shell's theme); the settings still apply.
     pub fn set_base_style(&mut self, style: ProseStyle, cx: &mut Context<Self>) {
         self.base_style = style;
-        let style = self.settings.style(&self.base_style);
+        let style = self.settings.style_for(&self.base_style, self.immersive);
         if let Some(embeds) = &self.embeds {
             embeds.restyle(style.clone(), cx);
         }
@@ -555,6 +578,25 @@ impl ChapterEditor {
             }
         });
         cx.notify();
+    }
+
+    /// Immersive writing (M26), which the shell turns on and off with its
+    /// chrome: typewriter scrolling is on whatever its setting says, on the
+    /// setting's line (the caret goes there at once); off, the setting's own
+    /// switch again. The paragraph fade stays with the editor that has the
+    /// keyboard ([`ProseEditor::set_paragraph_focus`], the shell's call).
+    pub fn set_immersive(&mut self, on: bool, cx: &mut Context<Self>) {
+        if self.immersive == on {
+            return;
+        }
+        self.immersive = on;
+        let style = self.settings.style_for(&self.base_style, on);
+        self.editor.update(cx, |e, cx| e.set_style(style, cx));
+        cx.notify();
+    }
+
+    pub fn immersive(&self) -> bool {
+        self.immersive
     }
 
     pub fn doc_id(&self) -> &str {
@@ -658,7 +700,7 @@ impl ChapterEditor {
             return false;
         };
         let offset = self.editor.read(cx).selection().head;
-        crate::embeds::insert_table(&embeds, offset, Vec::new(), window, cx).is_some()
+        crate::embeds::insert_table(&embeds, offset, Vec::new(), Vec::new(), window, cx).is_some()
     }
 
     /// Embeds material `material` (an image or a PDF) at the caret of a
@@ -738,8 +780,8 @@ impl ChapterEditor {
         }
         let item = match parts.as_slice() {
             [(Some(id), _)] => embeds
-                .table_cells(id)
-                .map(|cells| crate::table::clip::table_item(&cells))
+                .table_grid(id)
+                .map(|(cells, marks)| crate::table::clip::table_item(&cells, &marks))
                 .unwrap_or_else(|| gpui::ClipboardItem::new_string(embeds.embed_text(id))),
             _ => gpui::ClipboardItem::new_string(
                 parts
@@ -786,7 +828,8 @@ impl ChapterEditor {
                 .update(cx, |e, cx| e.press_backspace(window, cx));
         }
         let offset = self.editor.read(cx).selection().head;
-        crate::embeds::insert_table(&embeds, offset, cells, window, cx);
+        let marks = crate::table::clip::marks_from_clipboard(&item);
+        crate::embeds::insert_table(&embeds, offset, cells, marks, window, cx);
         true
     }
 }
