@@ -30,6 +30,8 @@
 6. [M33 生图](m33-image-generation.md)
 7. [M34 语音口述](m34-dictation.md)
 
+**（2026-11-08 改：下面二、三、四交给 Antigravity，见 [antigravity-queue.md](antigravity-queue.md)。Codex 做完第一部分以后，看 [remaining.md](remaining.md) 和 [integration.md](integration.md)，按作者的安排接整合或剩下的活。）**
+
 **二、三个 Super View**
 
 外壳的挂接点已经在 `main` 里：`dr_shell::pages::add_super_view(cx, SuperView::…, |host, window, cx| -> SuperViewPage)`。`SuperViewPage` 有 `body`、`head_start`（头部左边，M22 的群岛 / 关系切换器放这里，在计数左边）、`head_end`。注意：关系线图例作者 2026-11-03 定在**内容区右上角**，不在头部；由模块画在 `body` 里，不要放进 `head_end`。

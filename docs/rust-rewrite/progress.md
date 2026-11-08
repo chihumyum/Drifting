@@ -84,6 +84,7 @@
 
 - 帮手只留本机这一种接法，不保留 `sidecar` / `remote` 接缝（2026-11-07）。
 - 剩下的独立模块交给 Codex 做（2026-11-08）：M21–M23 三个 Super View，帮手一组 M27–M34，账号一组 M35–M38，M43 Windows 补齐。任务书在 [handoff/](handoff/README.md)，仓库里的会话不再接这些模块；Codex 交回的分支由作者转给监管会话，照常整合。
+- Claude 用量快用完（2026-11-08 下午）：仓库里的 Claude 会话收尾停下，监管和整合也交出去。Codex 做帮手那一条；Antigravity 做 Super View、账号、Windows；基座和已开工模块的剩余见 [handoff/remaining.md](handoff/remaining.md)；整合者照 [handoff/integration.md](handoff/integration.md) 合 `main`、维护这一页。
 
 ## 监管会话替作者定下的小事
 
