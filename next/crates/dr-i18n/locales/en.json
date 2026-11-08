@@ -282,6 +282,10 @@
         "unproven_one": "{{count}} text can't be confirmed as the latest; it's listed below",
         "unproven_other": "{{count}} texts can't be confirmed as the latest; they're listed below"
       },
+      "notice": {
+        "carry_on": "Resume import",
+        "unfinished": "“{{name}}” didn't finish importing"
+      },
       "summary": {
         "account_libraries_left_one": "{{count}} account library in the folder waits for accounts",
         "account_libraries_left_other": "{{count}} account libraries in the folder wait for accounts",
@@ -476,6 +480,30 @@
       "minutesAgo": "{{count}} min ago"
     },
     "title": "Notifications"
+  },
+  "plotGrid": {
+    "addColumnShort": "Column",
+    "addRowShort": "Row",
+    "clear": "Clear",
+    "clearConfirm": "Clear all row and column labels and cell text in this plot planner? The table structure, dimensions, and prose will be preserved. This cannot be undone.",
+    "clearTitle": "Clear plot planner contents",
+    "columnPlaceholder": "Column",
+    "deleteClears": "Clears {{count}} cells",
+    "deleteColumn": "Delete this column",
+    "deleteRow": "Delete this row",
+    "emptyCell": "Write something…",
+    "fit": "Fit",
+    "insertColumnLeft": "Insert a column to the left",
+    "insertColumnRight": "Insert a column to the right",
+    "insertRowAbove": "Insert a row above",
+    "insertRowBelow": "Insert a row below",
+    "moveDown": "Move down",
+    "moveLeft": "Move left",
+    "moveRight": "Move right",
+    "moveUp": "Move up",
+    "rename": "Rename",
+    "rowPlaceholder": "Row",
+    "title": "Plot"
   },
   "positionLink": {
     "copied": "Location link copied"

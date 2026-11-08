@@ -29,6 +29,7 @@ members = [
     "crates/dr-view-home",
     "crates/dr-view-import",
     "crates/dr-view-page",
+    "crates/dr-view-plot",
     "crates/dr-view-review",
     "crates/dr-view-search",
     "crates/dr-view-shelf",
@@ -243,6 +244,9 @@ dr-view-timeline = { path = "crates/dr-view-timeline" }
 dr-view-import = { path = "crates/dr-view-import" }
 # M03: the chapter page's head and end around the editor (dr-editor's PageChrome).
 dr-view-page = { path = "crates/dr-view-page" }
+# M15: the plot planner, a chapter's grid of slips under the paper
+# (docs/rust-rewrite/modules/m15-plot.md).
+dr-view-plot = { path = "crates/dr-view-plot" }
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
 # M41: manuscript export (EPUB, Word, PDF), Markdown share and covers, the
 # 0.1 client's writers ported as they were (docs/rust-rewrite/

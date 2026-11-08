@@ -279,6 +279,10 @@
         "title": "一部の本文で、最後の数秒の入力が抜けているかもしれません",
         "unproven": "最新か確認できない本文が {{count}} 件あります（下に一覧）"
       },
+      "notice": {
+        "carry_on": "インポートを再開",
+        "unfinished": "「{{name}}」のインポートが終わっていません"
+      },
       "summary": {
         "account_libraries_left": "フォルダー内のアカウントライブラリ {{count}} 件は、アカウント機能ができるまでインポートしません",
         "already_imported": "このデバイスで以前インポート済みのため、スキップしました",
@@ -471,6 +475,30 @@
       "minutesAgo": "{{count}}分前"
     },
     "title": "通知"
+  },
+  "plotGrid": {
+    "addColumnShort": "列",
+    "addRowShort": "行",
+    "clear": "消去",
+    "clearConfirm": "プロット表の行名、列名、セル内テキストをすべて消去しますか？表の構造・寸法と本文は保ちます。取り消せません。",
+    "clearTitle": "プロット表の内容を消去",
+    "columnPlaceholder": "列",
+    "deleteClears": "{{count}}セルを消去",
+    "deleteColumn": "この列を削除",
+    "deleteRow": "この行を削除",
+    "emptyCell": "何か書いてみましょう…",
+    "fit": "画面に合わせる",
+    "insertColumnLeft": "左に列を挿入",
+    "insertColumnRight": "右に列を挿入",
+    "insertRowAbove": "上に行を挿入",
+    "insertRowBelow": "下に行を挿入",
+    "moveDown": "下へ移動",
+    "moveLeft": "左へ移動",
+    "moveRight": "右へ移動",
+    "moveUp": "上へ移動",
+    "rename": "名前を変更",
+    "rowPlaceholder": "行",
+    "title": "プロット"
   },
   "positionLink": {
     "copied": "位置リンクをコピーしました"

@@ -25,6 +25,10 @@
         "account_libraries_left_one": "{{count}} bibliothèque de compte du dossier attend les comptes",
         "account_libraries_left_other": "{{count}} bibliothèques de compte du dossier attendent les comptes",
         "carries_on": "Pas terminé ; importez de nouveau cette bibliothèque pour reprendre"
+      },
+      "notice": {
+        "unfinished": "« {{name}} » n’a pas fini d’être importé",
+        "carry_on": "Reprendre l’importation"
       }
     }
   },

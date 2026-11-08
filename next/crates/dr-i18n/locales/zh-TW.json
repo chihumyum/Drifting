@@ -279,6 +279,10 @@
         "title": "有幾篇正文可能少了最後幾秒打的字",
         "unproven": "有 {{count}} 篇正文無法確認是最新的，列在下面"
       },
+      "notice": {
+        "carry_on": "接著匯入",
+        "unfinished": "《{{name}}》沒匯入完"
+      },
       "summary": {
         "account_libraries_left": "資料夾裡還有 {{count}} 個帳號資料庫沒匯入，等帳號功能做好",
         "already_imported": "這台裝置以前匯入過，這次沒再匯入",
@@ -471,6 +475,30 @@
       "minutesAgo": "{{count}} 分鐘前"
     },
     "title": "通知"
+  },
+  "plotGrid": {
+    "addColumnShort": "欄",
+    "addRowShort": "列",
+    "clear": "清除",
+    "clearConfirm": "清除情節規劃中全部列名、欄名與儲存格文字？表格結構、尺寸和正文會保留。此操作無法復原。",
+    "clearTitle": "清除情節規劃內容",
+    "columnPlaceholder": "欄",
+    "deleteClears": "清除 {{count}} 個儲存格",
+    "deleteColumn": "刪除此欄",
+    "deleteRow": "刪除此列",
+    "emptyCell": "寫點什麼…",
+    "fit": "符合視窗",
+    "insertColumnLeft": "在左側插入欄",
+    "insertColumnRight": "在右側插入欄",
+    "insertRowAbove": "在上方插入列",
+    "insertRowBelow": "在下方插入列",
+    "moveDown": "下移",
+    "moveLeft": "左移",
+    "moveRight": "右移",
+    "moveUp": "上移",
+    "rename": "重新命名",
+    "rowPlaceholder": "列",
+    "title": "情節"
   },
   "positionLink": {
     "copied": "已複製位置連結"

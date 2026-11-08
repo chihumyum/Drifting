@@ -489,7 +489,7 @@ M3 Pro，release 构建。离屏的帧时间是「重新渲染 + 排版 + 绘制
    - **产品（作者定）**：点批注刻度时，右栏没开或不在「审阅」，要不要自动打开审阅？现在不开（F4d 只让那张卡亮）。
 6. **F8**：外壳的测量证据是 `acceptance/f6-m3-shell-bench.json`，由 `examples/shell-capture.rs --bench` 写；截图和测量的离屏写法可以并进 dr-testkit。`cargo xtask dev` 可以加一个 `--seed <预设>`，把「先生成库再启动」并成一步（现在是两条命令，见「怎么看」）。
 7. **F5（dr-view-page）**：⁂ 新建下一章改用 `Open::KEEP.at_title()`（外壳认这个意图，不再靠焦点先后），`NewTitles` 照旧负责标题全选。外壳在 `editor_prepared` 里不再给装了 chrome 的页设标题行。键盘进出 ⁂ 仍等外壳的焦点框架。
-8. **M10**：m10-import.md「待协调」第 13 条（13 句文案）和第 14 条（外壳里的那一层、对话框开着时快捷键停不停）第五轮都做了：文案在 `dr-i18n/own/`，那一层并进 `dialogs::show` / `hide`，快捷键停。第 14 条的「多窗口时应该找派发动作的那个窗口」还留着：`with_workspace` 仍找第一个工作区窗口，有多个窗口时再改。
+8. **M10**：m10-import.md「待协调」第 13 条（13 句文案）和第 14 条（外壳里的那一层、对话框开着时快捷键停不停）第五轮都做了：文案在 `dr-i18n/own/`，那一层并进 `dialogs::show` / `hide`，快捷键停。第 14 条的「多窗口时应该找派发动作的那个窗口」M10 第五个里程碑做了：`with_workspace` 先找活跃窗口（`active_workspace`），加了 `with_workspace_in` 和 `dialogs::show_in`；通知也能带一个按钮（`NoticeAction`，M10 的「接着导入」）。这几处改在外壳里，请 F6 审（m10-import.md 待协调 20）。
    - **新版自己的文案来源**是 F6 定的（`dr-i18n/own/`）：以后各模块要旧版没有的句子，都写进这里，九种语言齐全。中日韩只写一句，其余五种语言有数字的句子要写 `_one` / `_other`。
 9. **监管会话**：
    - 菜单本地化仍要先给 GPUI 打个小补丁，这一轮菜单保持英文。

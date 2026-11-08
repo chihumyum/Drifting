@@ -282,6 +282,10 @@
         "unproven_one": "Bei {{count}} Text ist nicht sicher, dass er aktuell ist; er steht unten",
         "unproven_other": "Bei {{count}} Texten ist nicht sicher, dass sie aktuell sind; sie stehen unten"
       },
+      "notice": {
+        "carry_on": "Import fortsetzen",
+        "unfinished": "„{{name}}“ wurde nicht fertig importiert"
+      },
       "summary": {
         "account_libraries_left_one": "{{count}} Kontobibliothek im Ordner wartet auf Konten",
         "account_libraries_left_other": "{{count}} Kontobibliotheken im Ordner warten auf Konten",
@@ -476,6 +480,30 @@
       "minutesAgo": "vor {{count}} Min."
     },
     "title": "Benachrichtigungen"
+  },
+  "plotGrid": {
+    "addColumnShort": "Spalte",
+    "addRowShort": "Zeile",
+    "clear": "Leeren",
+    "clearConfirm": "Alle Zeilen- und Spaltennamen sowie Zelltexte löschen? Tabellenstruktur, Maße und Manuskript bleiben erhalten. Dies kann nicht rückgängig gemacht werden.",
+    "clearTitle": "Inhalt der Handlungsplanung leeren",
+    "columnPlaceholder": "Spalte",
+    "deleteClears": "Leert {{count}} Zellen",
+    "deleteColumn": "Diese Spalte löschen",
+    "deleteRow": "Diese Zeile löschen",
+    "emptyCell": "Schreib etwas…",
+    "fit": "Einpassen",
+    "insertColumnLeft": "Spalte links einfügen",
+    "insertColumnRight": "Spalte rechts einfügen",
+    "insertRowAbove": "Zeile darüber einfügen",
+    "insertRowBelow": "Zeile darunter einfügen",
+    "moveDown": "Nach unten",
+    "moveLeft": "Nach links",
+    "moveRight": "Nach rechts",
+    "moveUp": "Nach oben",
+    "rename": "Umbenennen",
+    "rowPlaceholder": "Zeile",
+    "title": "Handlung"
   },
   "positionLink": {
     "copied": "Positionslink kopiert"

@@ -279,6 +279,10 @@
         "title": "일부 본문에 마지막 몇 초 동안 입력한 내용이 빠졌을 수 있습니다",
         "unproven": "최신인지 확인할 수 없는 본문이 {{count}}개 있습니다. 아래에 있습니다"
       },
+      "notice": {
+        "carry_on": "이어서 가져오기",
+        "unfinished": "“{{name}}” 가져오기가 끝나지 않았습니다"
+      },
       "summary": {
         "account_libraries_left": "폴더의 계정 라이브러리 {{count}}개는 계정 기능이 생길 때까지 가져오지 않았습니다",
         "already_imported": "이 기기에서 이미 가져온 적이 있어 건너뛰었습니다",
@@ -471,6 +475,30 @@
       "minutesAgo": "{{count}}분 전"
     },
     "title": "알림"
+  },
+  "plotGrid": {
+    "addColumnShort": "열",
+    "addRowShort": "행",
+    "clear": "지우기",
+    "clearConfirm": "플롯 계획의 행·열 이름과 셀 텍스트를 모두 지울까요? 표 구조·크기와 본문은 유지됩니다. 되돌릴 수 없습니다.",
+    "clearTitle": "플롯 계획 내용 지우기",
+    "columnPlaceholder": "열",
+    "deleteClears": "셀 {{count}}개 지우기",
+    "deleteColumn": "이 열 삭제",
+    "deleteRow": "이 행 삭제",
+    "emptyCell": "무언가 써 보세요…",
+    "fit": "화면에 맞춤",
+    "insertColumnLeft": "왼쪽에 열 삽입",
+    "insertColumnRight": "오른쪽에 열 삽입",
+    "insertRowAbove": "위에 행 삽입",
+    "insertRowBelow": "아래에 행 삽입",
+    "moveDown": "아래로 이동",
+    "moveLeft": "왼쪽으로 이동",
+    "moveRight": "오른쪽으로 이동",
+    "moveUp": "위로 이동",
+    "rename": "이름 바꾸기",
+    "rowPlaceholder": "행",
+    "title": "플롯"
   },
   "positionLink": {
     "copied": "위치 링크를 복사했습니다"

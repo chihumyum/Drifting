@@ -282,6 +282,10 @@
         "unproven_one": "No se puede confirmar que {{count}} texto sea el más reciente; aparece abajo",
         "unproven_other": "No se puede confirmar que {{count}} textos sean los más recientes; aparecen abajo"
       },
+      "notice": {
+        "carry_on": "Reanudar la importación",
+        "unfinished": "«{{name}}» no terminó de importarse"
+      },
       "summary": {
         "account_libraries_left_one": "{{count}} biblioteca de cuenta de la carpeta espera a que haya cuentas",
         "account_libraries_left_other": "{{count}} bibliotecas de cuenta de la carpeta esperan a que haya cuentas",
@@ -477,6 +481,30 @@
       "minutesAgo": "hace {{count}} min"
     },
     "title": "Notificaciones"
+  },
+  "plotGrid": {
+    "addColumnShort": "Columna",
+    "addRowShort": "Fila",
+    "clear": "Limpiar",
+    "clearConfirm": "¿Borrar todos los nombres de filas, columnas y textos de celdas? Se conservarán estructura, dimensiones y manuscrito. No se puede deshacer.",
+    "clearTitle": "Limpiar contenido de planificación",
+    "columnPlaceholder": "Columna",
+    "deleteClears": "Borra {{count}} celdas",
+    "deleteColumn": "Eliminar esta columna",
+    "deleteRow": "Eliminar esta fila",
+    "emptyCell": "Escribe algo…",
+    "fit": "Ajustar",
+    "insertColumnLeft": "Insertar columna a la izquierda",
+    "insertColumnRight": "Insertar columna a la derecha",
+    "insertRowAbove": "Insertar fila arriba",
+    "insertRowBelow": "Insertar fila abajo",
+    "moveDown": "Bajar",
+    "moveLeft": "Mover a la izquierda",
+    "moveRight": "Mover a la derecha",
+    "moveUp": "Subir",
+    "rename": "Renombrar",
+    "rowPlaceholder": "Fila",
+    "title": "Trama"
   },
   "positionLink": {
     "copied": "Enlace de posición copiado"

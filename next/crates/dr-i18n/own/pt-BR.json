@@ -25,6 +25,10 @@
         "account_libraries_left_one": "{{count}} biblioteca de conta na pasta espera pelas contas",
         "account_libraries_left_other": "{{count}} bibliotecas de conta na pasta esperam pelas contas",
         "carries_on": "Não terminou; importe esta biblioteca de novo para continuar"
+      },
+      "notice": {
+        "unfinished": "“{{name}}” não terminou de ser importado",
+        "carry_on": "Retomar importação"
       }
     }
   },

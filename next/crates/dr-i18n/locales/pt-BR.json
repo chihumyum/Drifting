@@ -282,6 +282,10 @@
         "unproven_one": "Não dá para confirmar que {{count}} texto é o mais recente; ele está abaixo",
         "unproven_other": "Não dá para confirmar que {{count}} textos são os mais recentes; eles estão abaixo"
       },
+      "notice": {
+        "carry_on": "Retomar importação",
+        "unfinished": "“{{name}}” não terminou de ser importado"
+      },
       "summary": {
         "account_libraries_left_one": "{{count}} biblioteca de conta na pasta espera pelas contas",
         "account_libraries_left_other": "{{count}} bibliotecas de conta na pasta esperam pelas contas",
@@ -477,6 +481,30 @@
       "minutesAgo": "há {{count}} min"
     },
     "title": "Notificações"
+  },
+  "plotGrid": {
+    "addColumnShort": "Coluna",
+    "addRowShort": "Linha",
+    "clear": "Limpar",
+    "clearConfirm": "Limpar todos os nomes de linhas e colunas e textos das células? Estrutura, dimensões e manuscrito serão preservados. Não é possível desfazer.",
+    "clearTitle": "Limpar conteúdo do planejamento narrativo",
+    "columnPlaceholder": "Coluna",
+    "deleteClears": "Limpa {{count}} células",
+    "deleteColumn": "Excluir esta coluna",
+    "deleteRow": "Excluir esta linha",
+    "emptyCell": "Escreva algo…",
+    "fit": "Ajustar",
+    "insertColumnLeft": "Inserir coluna à esquerda",
+    "insertColumnRight": "Inserir coluna à direita",
+    "insertRowAbove": "Inserir linha acima",
+    "insertRowBelow": "Inserir linha abaixo",
+    "moveDown": "Mover para baixo",
+    "moveLeft": "Mover à esquerda",
+    "moveRight": "Mover à direita",
+    "moveUp": "Mover para cima",
+    "rename": "Renomear",
+    "rowPlaceholder": "Linha",
+    "title": "Enredo"
   },
   "positionLink": {
     "copied": "Link de posição copiado"

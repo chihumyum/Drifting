@@ -655,3 +655,27 @@ bottomTimeline.locateCurrent
 bottomTimeline.axis.time
 bottomTimeline.act.railLabel
 bottomTimeline.act.chapterCount
+
+# M15: the plot planner (dr-view-plot)
+plotGrid.title
+plotGrid.addRowShort
+plotGrid.addColumnShort
+plotGrid.fit
+plotGrid.clear
+plotGrid.clearTitle
+plotGrid.clearConfirm
+plotGrid.rowPlaceholder
+plotGrid.columnPlaceholder
+plotGrid.emptyCell
+plotGrid.rename
+plotGrid.moveUp
+plotGrid.moveDown
+plotGrid.moveLeft
+plotGrid.moveRight
+plotGrid.insertRowAbove
+plotGrid.insertRowBelow
+plotGrid.insertColumnLeft
+plotGrid.insertColumnRight
+plotGrid.deleteRow
+plotGrid.deleteColumn
+plotGrid.deleteClears

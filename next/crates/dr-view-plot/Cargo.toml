@@ -1,0 +1,40 @@
+[package]
+name = "dr-view-plot"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Drifting's plot planner (M15): one grid per chapter, rows by columns, each cell a slip; headers insert, move, rename and delete; the cells sized by hand or to fit"
+
+[features]
+# Offscreen screenshots of the planner (`examples/plot-capture.rs`), through
+# GPUI's headless test platform.
+capture = ["dep:gpui_platform", "gpui_platform/test-support", "dep:color_quant", "dep:png"]
+
+[dependencies]
+color_quant = { workspace = true, optional = true }
+dr-doc.workspace = true
+dr-i18n.workspace = true
+dr-model.workspace = true
+dr-shell.workspace = true
+dr-ui.workspace = true
+dr-workspace.workspace = true
+futures.workspace = true
+gpui.workspace = true
+gpui_platform = { workspace = true, optional = true }
+log.workspace = true
+png = { workspace = true, optional = true }
+
+[dev-dependencies]
+anyhow.workspace = true
+dr-store.workspace = true
+dr-testkit.workspace = true
+gpui = { workspace = true, features = ["test-support"] }
+gpui_platform.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
+
+[[example]]
+name = "plot-capture"
+required-features = ["capture"]

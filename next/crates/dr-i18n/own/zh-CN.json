@@ -20,6 +20,10 @@
         "from_caches": "有 {{count}} 篇照缓存导入，可能少了最后几秒的字",
         "account_libraries_left": "文件夹里还有 {{count}} 个账号资料库没导入，等账号功能做好",
         "carries_on": "没导入完，再导入一次这个资料库会接着导入"
+      },
+      "notice": {
+        "unfinished": "《{{name}}》没导完",
+        "carry_on": "接着导入"
       }
     }
   },

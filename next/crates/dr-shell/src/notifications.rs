@@ -8,11 +8,17 @@
 //! The crash follow-up comes from `dr_platform`: once the app has settled
 //! after launch, [`check_crash_follow_up`] takes the newest crash reported
 //! since the last run (each crash is asked about once) and posts it.
+//!
+//! A notice can carry one action ([`NoticeAction`], [`Notifications::post_with`]):
+//! a small text button under its words, which runs the poster's callback in
+//! the window it was clicked in (M10's 「接着导入」 for a book an import left
+//! unfinished).
 
+use std::rc::Rc;
 use std::time::{Duration, SystemTime};
 
 use dr_i18n::{Key, keys};
-use gpui::{App, Global, SharedString};
+use gpui::{App, Global, SharedString, Window};
 
 use crate::{Services, strings};
 
@@ -27,6 +33,8 @@ pub enum Source {
     MarkdownFolder,
     Update,
     CrashFollowUp,
+    /// The 0.1 library import (M10): a book it left unfinished.
+    Import,
 }
 
 impl Source {
@@ -39,7 +47,34 @@ impl Source {
             Source::MarkdownFolder => n::markdown_folder::SOURCE,
             Source::Update => n::app_update::SOURCE,
             Source::CrashFollowUp => n::crash_follow_up::SOURCE,
+            Source::Import => keys::user_menu::IMPORT,
         }
+    }
+}
+
+/// A notice button's callback: `(notice_id, window, cx)`.
+pub type RunNotice = Rc<dyn Fn(u64, &mut Window, &mut App)>;
+
+/// What a notice's button does: `run(notice_id, window, cx)` in the window
+/// the notification center was clicked in. The callback removes the notice
+/// when it is done with it.
+#[derive(Clone)]
+pub struct NoticeAction {
+    pub label: SharedString,
+    pub run: RunNotice,
+}
+
+impl std::fmt::Debug for NoticeAction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NoticeAction")
+            .field("label", &self.label)
+            .finish_non_exhaustive()
+    }
+}
+
+impl PartialEq for NoticeAction {
+    fn eq(&self, other: &Self) -> bool {
+        self.label == other.label && Rc::ptr_eq(&self.run, &other.run)
     }
 }
 
@@ -51,6 +86,8 @@ pub struct Notice {
     pub at: SystemTime,
     /// The crash id a follow-up is about (for the feedback dialog, M39).
     pub crash_id: Option<String>,
+    /// The notice's one button, if it has one.
+    pub action: Option<NoticeAction>,
 }
 
 #[derive(Default)]
@@ -86,6 +123,34 @@ impl Notifications {
         crash_id: Option<String>,
         cx: &mut App,
     ) -> u64 {
+        Notifications::insert(source, text.into(), at, crash_id, None, cx)
+    }
+
+    /// Posts a notice with a button ([`NoticeAction`]), newest first.
+    pub fn post_with(
+        source: Source,
+        text: impl Into<SharedString>,
+        action: NoticeAction,
+        cx: &mut App,
+    ) -> u64 {
+        Notifications::insert(
+            source,
+            text.into(),
+            SystemTime::now(),
+            None,
+            Some(action),
+            cx,
+        )
+    }
+
+    fn insert(
+        source: Source,
+        text: SharedString,
+        at: SystemTime,
+        crash_id: Option<String>,
+        action: Option<NoticeAction>,
+        cx: &mut App,
+    ) -> u64 {
         let n = cx.global_mut::<Notifications>();
         n.next += 1;
         let id = n.next;
@@ -94,9 +159,10 @@ impl Notifications {
             Notice {
                 id,
                 source,
-                text: text.into(),
+                text,
                 at,
                 crash_id,
+                action,
             },
         );
         n.items.truncate(LIMIT);

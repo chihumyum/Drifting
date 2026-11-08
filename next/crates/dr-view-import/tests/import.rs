@@ -11,6 +11,11 @@
 //!   bodies by book; 取消 leaves the library empty; 「仍然导入」 imports.
 //! - The same library again: the book is left alone.
 //! - A folder without a 0.1 library fails, and says so.
+//! - A book an earlier import left unfinished is a reminder at launch whose
+//!   「接着导入」 imports its 0.1 library again (or, when it is gone, opens
+//!   the choice); the reminder goes once the book is imported.
+//! - With two windows, the import's dialogs show in the one it was started
+//!   in.
 
 #[path = "../../dr-import-v1/tests/common/mod.rs"]
 mod common;
@@ -18,7 +23,9 @@ mod common;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
+use dr_import_v1::progress::Step;
 use dr_shell::actions::Dismiss;
+use dr_shell::notifications::{Notifications, Source};
 use dr_shell::{Services, SettingsFile, ShellInfo, Workspace};
 use dr_view_import::{LegacyImport, State};
 use dr_view_shelf::{ImportLegacyLibrary, Shelf};
@@ -45,6 +52,14 @@ fn library() -> (tempfile::TempDir, Library) {
 }
 
 fn setup(cx: &mut TestAppContext, library: Library) -> (Entity<Workspace>, &mut VisualTestContext) {
+    init(cx, library);
+    let (view, cx) = cx.add_window_view(Workspace::new);
+    cx.run_until_parked();
+    (view, cx)
+}
+
+/// The shell, the bookshelf and the import over `library`, no window yet.
+fn init(cx: &mut TestAppContext, library: Library) {
     // F3 and the import run on their own threads.
     cx.executor().allow_parking();
     cx.update(|cx| {
@@ -67,9 +82,6 @@ fn setup(cx: &mut TestAppContext, library: Library) -> (Entity<Workspace>, &mut 
         dr_view_shelf::init(cx);
         dr_view_import::init(cx);
     });
-    let (view, cx) = cx.add_window_view(Workspace::new);
-    cx.run_until_parked();
-    (view, cx)
 }
 
 /// Runs the app until `done` holds, at most thirty seconds.
@@ -428,4 +440,155 @@ fn quitting_stops_the_import_first(cx: &mut TestAppContext) {
         .unwrap();
     assert!(statuses.iter().all(|s| s != "importing"), "{statuses:?}");
     settled(cx);
+}
+
+/// A library holding the synthetic 0.1 library's book half-written: an
+/// import stopped at once after its first body, as quitting does.
+fn library_with_an_unfinished_book(old: &common::Old) -> (tempfile::TempDir, Library) {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("library");
+    let mut opts = dr_import_v1::run::Options::new(VERSION);
+    opts.old_root = Some(old.root.clone());
+    let cancel = opts.cancel.clone();
+    let (outcome, _) = dr_import_v1::run::import_with(&old.db, &root, &opts, &mut |p| {
+        if p.step == Step::Bodies && p.done == 1 {
+            cancel.now();
+        }
+    })
+    .unwrap();
+    let dr_import_v1::run::Outcome::Imported(receipt) = outcome else {
+        panic!("not imported")
+    };
+    assert_eq!(receipt.books[0].status, "importing");
+    let library = Library::open_dir(&root, VERSION).unwrap();
+    (dir, library)
+}
+
+fn import_notices(cx: &mut VisualTestContext) -> Vec<dr_shell::notifications::Notice> {
+    cx.update(|_, cx| {
+        Notifications::items(cx)
+            .iter()
+            .filter(|n| n.source == Source::Import)
+            .cloned()
+            .collect()
+    })
+}
+
+#[gpui::test]
+fn an_unfinished_book_is_a_reminder_that_carries_it_on(cx: &mut TestAppContext) {
+    let old = common::build(true);
+    let (_dir, library) = library_with_an_unfinished_book(&old);
+    let lib = library.clone();
+    let (view, cx) = setup(cx, library);
+    look_in(cx, Path::new("/nonexistent-0.1-data-folder"));
+
+    // At launch: one reminder, with its button.
+    let notices = import_notices(cx);
+    assert_eq!(notices.len(), 1, "{notices:?}");
+    let notice = notices[0].clone();
+    assert_eq!(notice.text.as_ref(), "《阿Q正传》没导完");
+    let action = notice.action.clone().expect("a button");
+    assert_eq!(action.label.as_ref(), "接着导入");
+    let import = importer(cx);
+    assert_eq!(
+        import.read_with(cx, |i, _| i.reminders().to_vec()),
+        vec![(notice.id, common::BOOK.to_owned())]
+    );
+
+    // The 0.1 library moved away: the button opens the choice (no library
+    // found here, so the folder panel); cancelled, the reminder stays.
+    let moved = old.root.with_file_name("moved-away");
+    std::fs::rename(&old.root, &moved).unwrap();
+    cx.update(|window, cx| (action.run)(notice.id, window, cx));
+    cx.run_until_parked();
+    assert!(matches!(state(cx), State::Picking));
+    assert!(cx.did_prompt_for_paths());
+    cx.simulate_path_prompt_response(|_| None);
+    cx.run_until_parked();
+    assert!(matches!(state(cx), State::Idle));
+    assert_eq!(import_notices(cx).len(), 1);
+
+    // Back where it was: the same library is imported again, the book is
+    // carried on, and the reminder goes.
+    std::fs::rename(&moved, &old.root).unwrap();
+    cx.update(|window, cx| (action.run)(notice.id, window, cx));
+    cx.run_until_parked();
+    assert!(view.read_with(cx, |ws, _| ws.dialog.is_some()));
+    let State::Done(done) = settled(cx) else {
+        panic!("not done: {:?}", state(cx))
+    };
+    assert_eq!(done.books.len(), 1);
+    assert_eq!(done.books[0].status, "imported");
+    assert!(import_notices(cx).is_empty());
+    assert!(import.read_with(cx, |i, _| i.reminders().is_empty()));
+    assert!(
+        lib.library()
+            .local_read(|c| Ok(dr_import_v1::receipt::unfinished(c)?))
+            .unwrap()
+            .is_empty()
+    );
+    assert!(
+        lib.library()
+            .doc_info(&format!("book:{}", common::BOOK))
+            .unwrap()
+            .is_some()
+    );
+}
+
+#[gpui::test]
+fn the_dialogs_show_in_the_window_the_import_was_started_in(cx: &mut TestAppContext) {
+    let (_dir, library) = library();
+    init(cx, library);
+    let first = cx.add_window(Workspace::new);
+    let second = cx.add_window(Workspace::new);
+    cx.run_until_parked();
+    let mut vcx = VisualTestContext::from_window(second.into(), cx);
+    look_in(&mut vcx, Path::new("/nonexistent-0.1-data-folder"));
+    let dialog_in = |handle: gpui::WindowHandle<Workspace>, cx: &mut TestAppContext| {
+        cx.update(|cx| handle.read(cx).unwrap().dialog.is_some())
+    };
+
+    // The bookshelf entry in the second window (the active one): the folder
+    // panel for that window.
+    second
+        .update(cx, |_, window, _| window.activate_window())
+        .unwrap();
+    second
+        .update(cx, |_, window, cx| {
+            window.dispatch_action(Box::new(ImportLegacyLibrary), cx)
+        })
+        .unwrap();
+    cx.run_until_parked();
+    assert!(matches!(state(&mut vcx), State::Picking));
+    let import = importer(&mut vcx);
+    assert_eq!(import.read_with(cx, |i, _| i.window()), Some(second.into()));
+
+    // The author goes to the first window while the panel is up; the
+    // import's dialogs still show in the second.
+    first
+        .update(cx, |_, window, _| window.activate_window())
+        .unwrap();
+    let old = common::build(true);
+    let root = old.root.clone();
+    cx.simulate_path_prompt_response(move |_| Some(vec![root]));
+    cx.run_until_parked();
+    assert!(dialog_in(second, cx));
+    assert!(!dialog_in(first, cx));
+    let State::Done(_) = settled(&mut vcx) else {
+        panic!("not done: {:?}", state(&mut vcx))
+    };
+    assert!(dialog_in(second, cx));
+    assert!(!dialog_in(first, cx));
+
+    // An app-level action now goes to the first window, the active one.
+    vcx.dispatch_action(Dismiss);
+    cx.run_until_parked();
+    assert!(matches!(state(&mut vcx), State::Idle));
+    assert!(!dialog_in(second, cx));
+    cx.dispatch_action(first.into(), ImportLegacyLibrary);
+    cx.run_until_parked();
+    assert!(matches!(state(&mut vcx), State::Picking));
+    assert_eq!(import.read_with(cx, |i, _| i.window()), Some(first.into()));
+    cx.simulate_path_prompt_response(|_| None);
+    cx.run_until_parked();
 }

@@ -25,6 +25,10 @@
         "account_libraries_left_one": "{{count}} Kontobibliothek im Ordner wartet auf Konten",
         "account_libraries_left_other": "{{count}} Kontobibliotheken im Ordner warten auf Konten",
         "carries_on": "Nicht fertig; importiere diese Bibliothek noch einmal, um weiterzumachen"
+      },
+      "notice": {
+        "unfinished": "„{{name}}“ wurde nicht fertig importiert",
+        "carry_on": "Import fortsetzen"
       }
     }
   },
