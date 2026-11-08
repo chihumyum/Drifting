@@ -1942,7 +1942,7 @@ fn account_cell(
             .gap(px(8.0))
             .cursor_pointer()
             .role(gpui::Role::Button)
-            .aria_label(t(cx, keys::user_menu::LOCAL_MENU))
+            .aria_label(crate::account::menu_aria_label(cx))
             .on_click(move |_, _, cx| {
                 toggle.update(cx, |ws, cx| {
                     ws.account_open = !ws.account_open;
@@ -1960,7 +1960,7 @@ fn account_cell(
                     .type_px(theme.scale.secondary, theme.scale.line_body)
                     .text_color(p.ink(2).solid())
                     .truncate()
-                    .child(t(cx, keys::common::LOCAL)),
+                    .child(crate::account::display_name(cx)),
             ),
         )
         .child(crate::pages::anchor(

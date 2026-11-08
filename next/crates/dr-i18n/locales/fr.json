@@ -78,6 +78,71 @@
   "allChapters": {
     "actOrdinal": "Acte {{n}}"
   },
+  "auth": {
+    "back": "Retour",
+    "backToSignIn": "Retour à la connexion",
+    "createAccount": "Créer un compte",
+    "creating": "Création…",
+    "dialogLabel": "Compte",
+    "errors": {
+      "oauthExpired": "Délai de connexion dépassé. Recommencez.",
+      "oauthFailed": "La connexion n’a pas abouti. Réessayez.",
+      "sendCodeFailed": "Impossible d’envoyer le code",
+      "signInCheck": "Échec de connexion. Vérifiez l’e-mail et le mot de passe.",
+      "signUpRetry": "Échec de l’inscription. Réessayez plus tard.",
+      "verifyFailed": "Échec de vérification"
+    },
+    "fields": {
+      "code": "Code de vérification",
+      "codePlaceholder": "6 chiffres",
+      "email": "E-mail",
+      "emailPlaceholder": "your@email.com",
+      "password": "Mot de passe",
+      "passwordSignupPlaceholder": "Au moins 10 caractères",
+      "penName": "Nom de plume",
+      "penNamePlaceholder": "p. ex. Ada"
+    },
+    "forgot": {
+      "codeSub": "Code envoyé à {{email}}. Saisissez-le et choisissez un nouveau mot de passe.",
+      "confirmPassword": "Confirmer le nouveau mot de passe",
+      "done": "Mot de passe réinitialisé. Vous pouvez vous connecter.",
+      "newPassword": "Nouveau mot de passe",
+      "passwordMismatch": "Les mots de passe ne correspondent pas.",
+      "resetFailed": "Échec de réinitialisation. Vérifiez le code et réessayez.",
+      "resetSubmit": "Réinitialiser le mot de passe",
+      "sub": "Saisissez votre e-mail pour recevoir un code."
+    },
+    "forgotPassword": "Mot de passe oublié ?",
+    "hasAccount": "Déjà un compte ?",
+    "noAccount": "Pas encore de compte ?",
+    "otp": {
+      "codeSub": "Envoyé à {{email}}. Code valable 10 minutes.",
+      "emailSub": "Un code à 6 chiffres valable 10 minutes vous sera envoyé."
+    },
+    "resend": "Renvoyer le code",
+    "sendCode": "Envoyer le code",
+    "signIn": "Se connecter",
+    "signUp": "S’inscrire",
+    "signingIn": "Connexion…",
+    "social": {
+      "continueWith": "Continuer avec {{provider}}",
+      "or": "ou",
+      "waiting": "En attente d’autorisation du navigateur…"
+    },
+    "titles": {
+      "forgot": "Réinitialiser le mot de passe",
+      "otp": "Se connecter avec un code",
+      "signin": "Se connecter à Drifting",
+      "signup": "Créer un compte",
+      "verify": "Vérifiez votre e-mail"
+    },
+    "useOtp": "Se connecter avec un code par e-mail",
+    "verify": {
+      "sent": "Envoyé à {{email}}. Code valable 10 minutes.",
+      "submit": "Vérifier et se connecter",
+      "verifying": "Vérification…"
+    }
+  },
   "bottomStatusBar": {
     "collapseTimeline": "Réduire la chronologie des intrigues",
     "elements": "Éléments",
@@ -365,6 +430,10 @@
     "replace": "Remplacer",
     "replaceAll": "Tout remplacer",
     "replacePlaceholder": "Remplacer par…"
+  },
+  "firstRun": {
+    "email": "Continuer avec l’e-mail",
+    "local": "Continuer en local"
   },
   "globalSearch": {
     "closeTitle": "Fermer (Échap)",
@@ -802,6 +871,10 @@
   },
   "positionLink": {
     "copied": "Lien de position copié"
+  },
+  "preAlphaGuide": {
+    "crashReports": "L’application envoie des rapports d’erreur sans texte du manuscrit pour corriger les problèmes. Désactivez-les dans Réglages → Confidentialité.",
+    "title": "Bienvenue dans Drifting Alpha"
   },
   "projectHome": {
     "book": {
@@ -1355,14 +1428,57 @@
     },
     "groups": {
       "about": "À propos",
+      "account": "Compte",
       "control": "Gestion",
       "intelligence": "Intelligence",
       "preferences": "Préférences"
     },
     "hosted": {
+      "account_errors": {
+        "AVATAR_FILE_SIZE": "Choisissez une image de 5 Mo maximum.",
+        "AVATAR_FILE_TYPE": "Choisissez une image JPG, PNG ou WebP.",
+        "CURRENT_PASSWORD_REQUIRED": "Saisissez votre mot de passe actuel.",
+        "INVALID_AVATAR": "Cette image ne peut pas être utilisée. Choisissez un autre JPG, PNG ou WebP.",
+        "INVALID_PASSWORD": "Le mot de passe actuel est incorrect.",
+        "INVALID_PASSWORD_LENGTH": "Le nouveau mot de passe doit contenir de 8 à 128 caractères.",
+        "INVALID_PROFILE_NAME": "Saisissez un nom affiché de 1 à 80 caractères.",
+        "PASSWORD_MISMATCH": "Les nouveaux mots de passe ne correspondent pas.",
+        "PASSWORD_UNCHANGED": "Choisissez un autre mot de passe.",
+        "UNAUTHORIZED": "Votre session a expiré. Reconnectez-vous.",
+        "generic": "La requête n’a pas abouti. Vérifiez la connexion et réessayez."
+      },
+      "avatar": "Avatar",
+      "avatar_description": "JPG, PNG ou WebP, jusqu’à 5 Mo.",
+      "change_password": "Changer le mot de passe",
+      "choose_avatar": "Choisir une image",
+      "confirm_password": "Confirmer le nouveau mot de passe",
       "connect_errors": {
         "cancelled": "Annulé."
-      }
+      },
+      "current_password": "Mot de passe actuel",
+      "description": "Vos textes sont d’abord enregistrés sur cet appareil. Connectez un compte pour synchroniser vos projets entre vos appareils.",
+      "display_name": "Nom affiché",
+      "new_password": "Nouveau mot de passe",
+      "no_account": "Non connecté",
+      "password_description": "8 à 128 caractères.",
+      "password_saved": "Mot de passe modifié. Les autres appareils doivent se reconnecter.",
+      "password_sessions": "Changer le mot de passe déconnecte les autres appareils. Celui-ci reste connecté.",
+      "password_title": "Mot de passe",
+      "profile_saved": "Profil enregistré.",
+      "profile_title": "Profil",
+      "remove_avatar": "Retirer",
+      "save_profile": "Enregistrer le profil",
+      "session": {
+        "checking": "Vérification du compte…",
+        "connected": "Compte connecté",
+        "needs-reauth": "Session expirée. Reconnectez-vous au même compte.",
+        "offline": "Hors ligne. Vous pouvez continuer à écrire en local.",
+        "signed-out": "Écrire en local ne nécessite aucun compte."
+      },
+      "sign_in": "Se connecter / S’inscrire",
+      "sign_out": "Se déconnecter",
+      "title": "Compte et synchronisation Hosted",
+      "working": "En cours…"
     },
     "keys": {
       "actions": {
@@ -1444,6 +1560,7 @@
     },
     "rail": {
       "about_app": "À propos de Drifting",
+      "account": "Compte",
       "agent": "Agent général",
       "appearance": "Apparence",
       "editor": "Éditeur",
@@ -1600,6 +1717,7 @@
     }
   },
   "userMenu": {
+    "accountMenu": "Menu du compte",
     "feedback": "Envoyer un retour",
     "import": "Importer",
     "importBook": "Importer un livre (.driftingbook)",
@@ -1607,6 +1725,8 @@
     "localMenu": "Menu de la bibliothèque locale",
     "localStatus": "LOCAL · SUR CET APPAREIL",
     "settings": "Réglages",
+    "signOut": "Se déconnecter",
+    "signingOut": "Déconnexion…",
     "theme": "Thème",
     "themeDark": "Sombre",
     "themeDarkShort": "Sombre",

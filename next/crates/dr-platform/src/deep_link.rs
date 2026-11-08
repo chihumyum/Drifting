@@ -58,10 +58,18 @@ impl DeepLinks {
             return None;
         }
         let (scheme, rest) = url.split_once(':')?;
-        if !scheme.eq_ignore_ascii_case(&self.scheme) || rest.is_empty() {
+        let is_auth = scheme.eq_ignore_ascii_case("drifting")
+            && rest.len() >= 7
+            && rest[..7].eq_ignore_ascii_case("//auth/");
+        if (!scheme.eq_ignore_ascii_case(&self.scheme) && !is_auth) || rest.is_empty() {
             return None;
         }
-        Some(format!("{}:{rest}", self.scheme))
+        let norm_scheme = if is_auth {
+            "drifting"
+        } else {
+            self.scheme.as_str()
+        };
+        Some(format!("{norm_scheme}:{rest}"))
     }
 
     /// Queues the links that are ours and wakes the consumer. Returns how
@@ -111,8 +119,12 @@ impl DeepLinks {
     /// `auth/` or `open/`) and leaves the rest for their own consumer.
     pub fn drain_matching(&self, prefix: &str) -> Vec<String> {
         let full = format!("{}://{prefix}", self.scheme);
+        let release_auth = format!("drifting://{prefix}");
+        let is_auth_prefix = prefix.starts_with("auth/");
         let mut queue = self.queue.lock().unwrap_or_else(|e| e.into_inner());
-        let (taken, kept) = queue.drain(..).partition(|url| url.starts_with(&full));
+        let (taken, kept) = queue.drain(..).partition(|url| {
+            url.starts_with(&full) || (is_auth_prefix && url.starts_with(&release_auth))
+        });
         *queue = kept;
         taken
     }

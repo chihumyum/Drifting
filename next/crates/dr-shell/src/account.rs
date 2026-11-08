@@ -1,10 +1,13 @@
 //! The account menu (the 0.1 client's user menu), shared by the bookshelf's
-//! account cell (M01) and the left sidebar's: who (this build is local
-//! only: 本地), then the theme, the language and Settings. It opens upward
-//! from the cell that owns it; each owner keeps whether it is open.
+//! account cell (M01) and the left sidebar's: who (`本地` in local mode, or the
+//! signed-in Hosted user's display name and avatar in M35), then the theme,
+//! the language, feedback, and Settings (plus sign-in / sign-out when Hosted
+//! is configured). It opens upward from the cell that owns it; each owner
+//! keeps whether it is open.
 //! 提交反馈 opens F7's feedback dialog (`SendFeedback`).
 
 use std::rc::Rc;
+use std::sync::Arc;
 
 use dr_i18n::{Locale, keys};
 use dr_ui::{
@@ -20,9 +23,10 @@ use dr_ui::{
     tokens::{Story, menu as m, radius},
 };
 use gpui::{
-    AnyElement, App, Bounds, Div, InteractiveElement, IntoElement, ParentElement, Pixels,
-    SharedString, StatefulInteractiveElement, Styled, Window, div, linear_color_stop,
-    linear_gradient, px,
+    AnyElement, App, Bounds, Div, Global, ImageSource, InteractiveElement, IntoElement, ObjectFit,
+    ParentElement, Pixels, RenderImage, SharedString, StatefulInteractiveElement, Styled,
+    StyledImage, Window, div, img, linear_color_stop, linear_gradient, prelude::FluentBuilder as _,
+    px,
 };
 
 use crate::actions::OpenSettings;
@@ -32,12 +36,106 @@ use crate::{Settings, t};
 /// Closes the menu (its owner's flag).
 pub type Close = Rc<dyn Fn(&mut Window, &mut App)>;
 
-/// The account's round avatar: the first letter of its name on the
-/// storylines' first and fifth colours.
+/// Callback triggered from an account menu item or header.
+pub type AccountCallback = Rc<dyn Fn(&mut Window, &mut App)>;
+
+/// Optional action row contributed by `dr-view-account` at the bottom of the account menu.
+#[derive(Clone)]
+pub struct AccountMenuAction {
+    pub label: SharedString,
+    pub disabled: bool,
+    pub on_click: AccountCallback,
+}
+
+/// Snapshot of the current account presentation contributed by `dr-view-account`.
+#[derive(Clone, Default)]
+pub struct AccountViewInfo {
+    pub signed_in: bool,
+    pub hosted_configured: bool,
+    pub display_name: Option<SharedString>,
+    pub status_line: Option<SharedString>,
+    pub avatar: Option<Arc<RenderImage>>,
+    pub on_header_click: Option<AccountCallback>,
+    pub action: Option<AccountMenuAction>,
+}
+
+type AccountHookFn = Rc<dyn Fn(&App) -> AccountViewInfo>;
+type AuthLinkFn = Rc<dyn Fn(&str, &mut Window, &mut App)>;
+
+struct AccountHook(AccountHookFn);
+
+impl Global for AccountHook {}
+
+struct AuthLinkHook(AuthLinkFn);
+
+impl Global for AuthLinkHook {}
+
+/// Registers the Hosted account hook (`dr-view-account`).
+pub fn set_hook(cx: &mut App, hook: impl Fn(&App) -> AccountViewInfo + 'static) {
+    cx.set_global(AccountHook(Rc::new(hook)));
+}
+
+/// Registers the `auth/` deep-link handler (`dr-view-account`).
+pub fn set_auth_link_handler(
+    cx: &mut App,
+    handler: impl Fn(&str, &mut Window, &mut App) + 'static,
+) {
+    cx.set_global(AuthLinkHook(Rc::new(handler)));
+}
+
+pub(crate) fn handle_auth_link(url: &str, window: &mut Window, cx: &mut App) {
+    if let Some(h) = cx.try_global::<AuthLinkHook>().map(|h| h.0.clone()) {
+        h(url, window, cx);
+    }
+}
+
+fn current_info(cx: &App) -> AccountViewInfo {
+    cx.try_global::<AccountHook>()
+        .map(|h| (h.0)(cx))
+        .unwrap_or_default()
+}
+
+/// Display name shown in the sidebar and shelf account cell (`本地` when signed out).
+pub fn display_name(cx: &App) -> SharedString {
+    current_info(cx)
+        .display_name
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| t(cx, keys::common::LOCAL))
+}
+
+/// Accessible label for the account cell button (`账号菜单` when signed in, else `本地书库菜单`).
+pub fn menu_aria_label(cx: &App) -> SharedString {
+    if current_info(cx).signed_in {
+        t(cx, keys::user_menu::ACCOUNT_MENU)
+    } else {
+        t(cx, keys::user_menu::LOCAL_MENU)
+    }
+}
+
+/// The account's round avatar: either the user's cropped 256×256 JPEG avatar
+/// or the first letter of its display name on the storylines' first and fifth colours.
 pub fn avatar(size: f32, window: &Window, cx: &App) -> Div {
     let theme = Theme::of(window, cx);
     let p = theme.palette;
-    let initial: String = t(cx, keys::common::LOCAL)
+    let info = current_info(cx);
+    if let Some(render_img) = info.avatar {
+        return div()
+            .flex_none()
+            .size(px(size))
+            .rounded_full()
+            .overflow_hidden()
+            .child(
+                img(ImageSource::Render(render_img))
+                    .size(px(size))
+                    .rounded_full()
+                    .object_fit(ObjectFit::Cover),
+            );
+    }
+    let name = info
+        .display_name
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| t(cx, keys::common::LOCAL));
+    let initial: String = name
         .chars()
         .next()
         .map(|c| c.to_uppercase().collect())
@@ -74,6 +172,7 @@ pub fn menu(
     let theme = Theme::of(window, cx);
     let p = theme.palette;
     let s = theme.scale;
+    let info = current_info(cx);
     let file = Settings::read(cx);
     let modes = ["light", "dark", "system"];
     let mode = file.str(registry::THEME).unwrap_or_else(|| "system".into());
@@ -102,7 +201,19 @@ pub fn menu(
             .child(div().flex_1().child(label))
             .children(tail)
     };
+    let header_name = info
+        .display_name
+        .clone()
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| t(cx, keys::common::LOCAL));
+    let header_status = info
+        .status_line
+        .clone()
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| t(cx, keys::user_menu::LOCAL_STATUS));
+    let header_close = close.clone();
     let header = div()
+        .id(child("header"))
         .px(px(m::HOVER_CARD_PAD))
         .pt(px(10.0))
         .pb(px(8.0))
@@ -110,9 +221,17 @@ pub fn menu(
         .flex_row()
         .items_center()
         .gap(px(10.0))
+        .when_some(info.on_header_click.clone(), |el, on_click| {
+            el.cursor_pointer().on_click(move |_, window, cx| {
+                header_close(window, cx);
+                on_click(window, cx);
+            })
+        })
         .child(avatar(32.0, window, cx))
         .child(
             div()
+                .min_w_0()
+                .flex_1()
                 .flex()
                 .flex_col()
                 .child(
@@ -120,14 +239,16 @@ pub fn menu(
                         .font_role(Role::Ui)
                         .type_px(s.body, s.line_body)
                         .text_color(p.ink(1).solid())
-                        .child(t(cx, keys::common::LOCAL)),
+                        .truncate()
+                        .child(header_name),
                 )
                 .child(
                     div()
                         .font_role(Role::Index)
                         .type_px(s.caption, s.line_caption)
                         .text_color(p.muted().solid())
-                        .child(t(cx, keys::user_menu::LOCAL_STATUS)),
+                        .truncate()
+                        .child(header_status),
                 ),
         );
     let themes = Segmented::new(
@@ -223,6 +344,27 @@ pub fn menu(
         t(cx, keys::user_menu::SETTINGS),
         None,
     ));
+    let account_action = info.action.map(|act| {
+        let to_act = close.clone();
+        let on_click = act.on_click.clone();
+        let disabled = act.disabled;
+        glass::glass_box(
+            child("account-action"),
+            GlassKind::Hidden,
+            Mode::default(),
+            false,
+            Spec::new(Tone::Clear, radius::MENU_ROW),
+            window,
+            cx,
+        )
+        .when(!disabled, |el| {
+            el.cursor_pointer().on_click(move |_, window, cx| {
+                to_act(window, cx);
+                on_click(window, cx);
+            })
+        })
+        .child(row(Icon::Torii, act.label, None))
+    });
     let menu = Menu::new(child("menu"))
         .width(MenuWidth::Wide)
         .child(header)
@@ -244,7 +386,8 @@ pub fn menu(
         ))
         .children(import)
         .child(feedback)
-        .child(settings);
+        .child(settings)
+        .children(account_action);
     let place = match anchor {
         Some(rect) => Place::Rect {
             rect,
