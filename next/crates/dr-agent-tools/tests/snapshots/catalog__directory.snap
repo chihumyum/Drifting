@@ -1,0 +1,255 @@
+---
+source: crates/dr-agent-tools/tests/catalog.rs
+expression: table
+---
+act.create [write] Create an act starting at a chapter (or at the head of the book).
+act.delete [write] Delete an act boundary (its chapters join the act before).
+act.list [read] List acts in reading order, each with its chapters.
+act.update [write] Rename an act, recolour it, move its boundary or bind an idea to it.
+asset.get [read] Read an asset's recorded metadata: kind, media type, size and pixel dimensions (the Stats tab's file readings).
+book.get [read] Read a book's name, summary, word targets and counts.
+book.search [read] Search a book: titles, summaries, prose, material descriptions and element patches (chapters in reading order first, then ideas, elements, storylines, categories, materials). One- and two-character queries work.
+book.update [write] Change a book's name, summary or word targets.
+book.word_counts [read] Word counts of a book from the derived index: each chapter, idea and storyline, the book (its chapters), and the word targets.
+book.writing_days [read] A book's writing days: words written per day (all devices), today, the last seven days, active days and the streak.
+category.create [write] Create an element category (a taken name gets a numbered suffix; the final name is returned).
+category.list [read] List element categories, with how many live elements each has.
+category.restore [write] Bring a category back from the trash, with its elements.
+category.trash [write] Move a category to the trash. Never refused: its elements read as uncategorized until it is restored.
+category.update [write] Rename a category (a taken name gets a suffix), recolour it or change its layout.
+category_template.body [read] Read a category's element template: the paragraphs (body text or H1/H2/H3) its new elements start with.
+category_template.list [read] List the fields every new element of a category starts with, in order.
+category_template.put [write] Add a field to a category's template or change one (key, value, position). Existing elements keep their fields.
+category_template.remove [write] Remove a field from a category's template. Existing elements keep theirs.
+category_template.set_body [write] Replace a category's element template (the body its new elements start with; empty removes it). Existing elements keep their bodies. Available for existing template documents; creation is not exposed by the Agent facade yet.
+chapter.arrange [write] Set exact coordinates of several chapters on one axis, and move act boundaries with them, in one step (undo of a spread uses it).
+chapter.create [write] Create a chapter (a taken title gets a numbered suffix; the final title is returned), optionally placed on story time too. Given a storyline and no text, it starts from that storyline's chapter template.
+chapter.list [read] List chapters in reading order, with their act, storylines, words, creation and last change (trashed ones after, when asked).
+chapter.move [write] Move a chapter in reading order (it lands before the next chapter or act boundary).
+chapter.place [write] Put a chapter at an exact place on the reading-order or story-time axis and, optionally, on another storyline (as the primary one) or on none, in one step.
+chapter.restore [write] Bring a chapter back from the trash (its relations and comments come back with it).
+chapter.spread [write] Spread out (打散) the chapters on one axis: same order, evenly spaced, act boundaries moved along, in one step.
+chapter.trash [write] Move a chapter to the trash. Never refused: its relations are hidden and comments on it shown as unlocated until it is restored; the result lists them.
+chapter.update [write] Change a chapter's title, summary, status, place in reading order, narrative position or storylines.
+chapter_template.body [read] Read a storyline's chapter template: the paragraphs (body text or H1/H2/H3) a new chapter whose main storyline it is starts with.
+chapter_template.set_body [write] Replace a storyline's chapter template (the body new chapters on it start with; empty removes it). Existing chapters keep their text. Available for existing template documents; creation is not exposed by the Agent facade yet.
+comment.anchors [read] The stored anchors of the comments on one entity's prose, for an editor laying them out (comments without an anchor are not listed).
+comment.create [write] Add a comment or TODO, on an entity, a paragraph, a passage of its prose, a region of an image or PDF, or floating.
+comment.list [read] List comments and TODOs (a target in the trash or gone shows as unlocated).
+comment.reanchor [write] Put a comment's anchor back where the editor's undo brought its text back (the author's change, synced; it follows the editor's undo, so it is not an entry of the object-level undo).
+comment.update [write] Change a comment or TODO: its text, status (resolve / reopen), priority, kind or linked Agent conversation.
+element.create [write] Create an element (it starts with its category's template fields, and its element template as the body when no text is given). A name or alias another element already has is refused (automatic links find people by name); the error names that element.
+element.list [read] List elements (with a mark on names a merge left duplicated).
+element.restore [write] Bring an element back from the trash (a name taken meanwhile gets a suffix).
+element.trash [write] Move an element to the trash. Never refused: its relations are hidden and comments on it unlocated until it is restored.
+element.update [write] Change an element: name, summary, category, aliases, fields, portrait, relation-graph pin. A name or alias another element has is refused.
+fact.list [read] List the book's project facts (项目设定), in order.
+fact.put [write] Add a project fact or change one (key, value, position).
+fact.remove [write] Remove a project fact.
+history.agent_changes [read] List what an Agent session (or one turn) wrote: one entry per settled write, oldest first.
+history.points [read] List a prose document's history points (kept 30 days, at most one every 15 minutes of writing), newest first, with the words at each.
+history.preview [read] Read a prose document as it was at a history point: its paragraphs (with H1/H2/H3 levels) and its owner's title and summary then.
+history.restore_entities [write] Make named entities of a book equal to an earlier version (one commit; the rest of the book is untouched). The undo of every purge.
+history.undo_agent [write] Undo what an Agent session (or one turn) wrote: book fields nobody changed since go back, entities it created go to the trash, entities it deleted come back, and prose untouched since is reverted; the rest is reported as conflicts.
+idea.create [write] Create an idea (构想); a taken title gets a numbered suffix and the final title is returned.
+idea.list [read] List ideas (构想), optionally of one group.
+idea.restore [write] Bring an idea back from the trash (its bindings come back with it).
+idea.trash [write] Move an idea to the trash. Never refused: acts and time pins bound to it read as unbound until it is restored.
+idea.update [write] Change an idea's title, summary, status, group, board position or narrative position.
+idea_group.create [write] Create an idea group (groups nest at most two levels).
+idea_group.delete [write] Delete an idea group: its sub-groups and ideas move up to its parent.
+idea_group.list [read] List idea groups, parents before children.
+idea_group.update [write] Rename, recolour or move an idea group (at most two levels).
+material.create [write] Add a material: a text note, or an image or PDF whose asset is registered.
+material.list [read] List materials in order, optionally of one folder.
+material.move [write] Move a material in the list (only its own position changes).
+material.update [write] Change a material's title, description, folder or TODO projection.
+material_folder.create [write] Create a material folder.
+material_folder.delete [write] Delete a material folder: its sub-folders and materials move up to its parent.
+material_folder.list [read] List material folders (素材夹), parents before children.
+material_folder.update [write] Rename or move a material folder.
+memory.add [write] Add a Project Memory entry (plain text; takes effect at once).
+memory.list [read] List the book's Project Memory entries.
+memory.remove [write] Remove a Project Memory entry (kept as removed; restorable).
+memory.restore [write] Bring back a removed Project Memory entry.
+memory.update [write] Change a Project Memory entry's text, kind or status.
+mention.list [read] List what prose mentions: entity links and embedded materials, from one entity's prose, to one entity, or in the whole book (live ends only, with paragraph and span counts, the most mentioned first; `limit` keeps the top rows).
+patch.create [write] Add a patch to an element: a title (optional) and a body, floating or taken from a passage of a chapter or idea.
+patch.list [read] List an element's patches: by their source chapter's reading order, then their own order; floating ones last. Invalidated ones are listed too.
+patch.move [write] Move a patch among its element's patches (within the same source chapter the order is the patches' own).
+patch.update [write] Change a patch's title or body, or the chapter it belongs to (none detaches it).
+plot_grid.cell [write] Write one cell of a plot grid (empty text clears it).
+plot_grid.clear [write] 清空: clear every label and every cell of a plot grid; its rows, columns and size stay.
+plot_grid.create [write] Store a chapter's or idea's plot grid, three rows by three columns with empty labels, before its first edit; an existing grid is returned as it is.
+plot_grid.get [read] Read a chapter's or idea's plot grid: rows, columns and the cells' text (an empty 3 × 3 grid when none is stored yet).
+plot_grid.line_add [write] Insert a row or column into a plot grid, first or right after another, with a label (empty shows the placeholder).
+plot_grid.line_remove [write] Remove a plot grid's row or column with its cells (the last row or column cannot go).
+plot_grid.line_update [write] Rename or move a plot grid's row or column (first, or right after another).
+plot_grid.size [write] Set the size of a plot grid's cells (120–440 wide, 56–380 high).
+prose.link [write] Link anchored ranges of prose documents to entities (anchors, not positions: the undo of automatic links that were taken off).
+prose.read [read] Read paragraphs of a prose document (text, block id, heading level).
+prose.replace [write] Replace one exact passage of prose with new text (it must occur exactly once, in one paragraph).
+prose.restore [write] Restore a prose document to an earlier version, as a new change (history stays).
+prose.shape [read] Shape of a prose document: paragraphs, sentences, the share of dialogue, its checklist and the materials it embeds.
+prose.unlink [write] Take links to entities off anchored ranges of prose documents (anchors, not positions: the undo of automatic links).
+recent.list [read] List the pages of a book the author opened recently on this device, newest first (what is in the trash or gone is left out).
+relation.create [write] Relate two entities (a symmetric type stores its ends in canonical order; an existing identical relation is returned instead).
+relation.delete [write] Delete a relation.
+relation.list [read] List the relations to show (both ends live, one per semantic edge).
+relation_type.create [write] Create a relation type. A name another type has is refused (`RT-NAME`); the error names that type.
+relation_type.list [read] List relation types (the built-in one is marked locked).
+relation_type.update [write] Rename a relation type or change its description, role names or colour (the built-in type is locked).
+storyline.create [write] Create a storyline (a taken name gets a numbered suffix; the final name is returned). It starts with the book's storyline template fields.
+storyline.list [read] List storylines in order, with how many live chapters each has.
+storyline.move [write] Move a storyline in the list (only its own position changes).
+storyline.restore [write] Bring a storyline back from the trash, with its chapters' membership.
+storyline.trash [write] Move a storyline to the trash. Never refused: chapters keep their membership, hidden until it is restored.
+storyline.update [write] Rename a storyline (a taken name gets a suffix), recolour it, change its summary or its fields.
+storyline_template.list [read] List the fields every new storyline starts with, in order.
+storyline_template.put [write] Add a field to the storyline template or change one (key, value, position). Existing storylines keep their fields.
+storyline_template.remove [write] Remove a field from the storyline template. Existing storylines keep theirs.
+time_pin.create [write] Put a time pin on the narrative axis, with a label or bound to an idea.
+time_pin.delete [write] Delete a time pin.
+time_pin.list [read] List the book's time pins along the narrative axis, with the ideas bound to them.
+time_pin.update [write] Move a time pin, change its label, or bind it to an idea or unbind it.
+
+Schema and facade revisions:
+act.create book 7e4e6ee577c2cd4038f8614fb0e777f670d7214c3575f896307db8c94932b752
+act.delete book e5b45da8e48d106704f95b7eefec1bbddbd6113b3bfdaacaaddee936b6b84745
+act.list shared 7c59c9f427afe85574fa47700b2ce956b1520724093ff2cf8857de5191c5353e
+act.update book 811cc660067c3d3010293c0e3fc6f46a41ecbbe8069fa090db4232d8c10481c5
+asset.get shared ffbbb9a504b6171042e50b0753cd394e2bd4cf17c60e7d19ba259cd21fb3b9b7
+book.get shared 4c06fc7b59bac2a4247654f00d633c9cfc1a2154010fb783558621ac7de23865
+book.search shared dae1097a0c0adaeb061c3a31e4cb717090d864614d2178e95e63835c841c4d88
+book.update book edca973f215489d9e7448720bcdd4c745ff87af9db83bef9832a6241e6e33cf9
+book.word_counts shared da7544f1f53eddbfd89c292a76200d26f4cdcba416e704efde7e06d0d1b4eeb8
+book.writing_days shared c538ffffd359a935fec3f74d97fe6bf7985eef38f753d685ac01f92f038ee349
+category.create book 0089217e4a0f2c9ca89c4b8cdc7f60ed6796f475203e5dba5bc6fa4430711dd2
+category.list shared 7d78d0330c2c330f27241159e69ad81ae221959ee00d78b025534113cee493ca
+category.restore book 3e3debf5dc6e0c6eac6ac640fbf3d80e389f9c856a64591b78cbcd88f6b1768b
+category.trash book c9e75267918d3ac92a04e7901bfd1e60abc3c6442a4a2365aad3822574507734
+category.update book f0469da53bc7ef4d0f5007320d2d3d89a7301fe73c84d9a6ffc0f8a345ba7b15
+category_template.body shared 1abb278a592b16b1a4d75cc73477578d1d4280102ff26d82e1a53557bcb1bc7e
+category_template.list shared da9e8726f5f2c37204cc30efcf88ec6f6f596bbb741cff25052e0c02df96ef52
+category_template.put book 471e690215b28c81db9b6e2ae65d62a0db8589be8c201cd4e5d18d3dbb1cf1d4
+category_template.remove book 51d0d61e34f394f3e0254da64ff50843e7b01a92fb6204635f817586beee55ed
+category_template.set_body book a698de10021f5489e1eea718e8368bd055c28b148f4b873209ed2e58eaff1c1c
+chapter.arrange book 1f3a3f94f80e2ad6865ff32f7ac49663e13d280002da2fff30e2fea172d7e86b
+chapter.create book f2d46fbd337142a732d085d53ea844cb826c78b0a68c8add4c71f744f18b8355
+chapter.list shared 0ed71175340d1d8997c376ac57d403f38cddfccfb49cfd98cad5d5e9dea6235d
+chapter.move book f5a1975753dc81340a69aad4e5f4f88d942c3b8ee0b470219e335b05c2e52484
+chapter.place book 7f0a2ecdda4b81bb2f6d86bd12e71a2f1427c1f0778148d871323a5ff7efdcc6
+chapter.restore book 6f500eee80cec29bf56aaf271a1704233045fbae055d623a70c17d897714c9a0
+chapter.spread book efaca280adac8e3346da8fd174299136c54afc4e91ef3ff5fe578a06ca80e1c0
+chapter.trash book cc623a88179c5ee981bee0f9844c293d60c92eb864e3a37f80ab8889f42c93cf
+chapter.update book b2e2ec769bcab5a8dc11d19410b5feebe13c6739ef79f2ceefd457fd3fd7b062
+chapter_template.body shared afb064328e29a536e467997bfd7aeeef271cb901b6a3fe323d39fe4fb84bb2d7
+chapter_template.set_body book a79086d112f2cd7d45e2ab816326e7f40e3cb176e045715a1340c8add9668c87
+comment.anchors shared 4811a12494cc153321cb6eb816abfd4a516b134005cef4aa62f868f63cb02082
+comment.create book f0e98cf91349363c776844452f7ca80195b63d9f014b1c0a86953947be49f28b
+comment.list shared 6aff1fa0bc7cb0833ca476af83fba5545d98816cd9c7d41bc890c29a485d072f
+comment.reanchor book 4eec7717f72ddb3f99ebd5f3782394ceed8d4b0d96a1fc49b6eb51e7ba42ca17
+comment.update book c5ae189973b992b089165196b59a431a64630e396c6e2d50a5214ae0a2b81c68
+element.create book 71ad388220a76cef9e93465874321c55ce29d8c0876c4fd6faa302d8b3d816fb
+element.list shared ef4aab46c60bf7a80417f616ac8264f725a40a03c47ddb205cc6e702bdcca3e3
+element.restore book 7833f956cd5a6b4e5d3a3695464057e4d2be44985cf0b6a565e6b438dfac3675
+element.trash book 0383d01009a0e0f28d163fd413a99eb51c56dc5465ba2a981f0c3c6e63d6da1f
+element.update book c02e0f86b838b02303f2f9358fd25af11755bbb8b40456bc8a70a1219445f5f4
+fact.list shared 3d6a6ab2ae4355c541dbf2d75a30242b8112a828ab4ca22d040e38e0919d4086
+fact.put book 8d69187b9f8eb9d04a8cc86b8ae77ca19f33942ce57e5d992248893b3e68b0e1
+fact.remove book a35c83c5798ba1518b36506f05243e0a3ea969bfbfbb40886371aca57205bf42
+history.agent_changes shared 86bbfc91932579714c8e45de13ca92e7c37a676d7021529344091634d7e19630
+history.points shared 0357de191f2c65d1e530ddc1fe58d134d9694be71d55eb4bd0053719dfb9a211
+history.preview shared 7ebff5d59bdbbd204254f2667000d97295d0bab6111a4e7021e204506675f55c
+history.restore_entities book c0c05aec907e433f3f59c945f088ae32b6d7414e78caad568c22cdb583da0043
+history.undo_agent book ed2441bf29174154b1d82d776509d2030db4bfbcecbc07413dcdc153d4861d6a
+idea.create book 544bf21b1d3623b9c8bc848c4dd984d9b4eb1b5645154fd97d5ac210bfceee77
+idea.list shared 9de7e2972512607d1916e67d88c14fe431560d3aa5ff61fa3139ddc6261f7aed
+idea.restore book 13631ea678af8adacbd1efa4442f044543b57229e1a513c9b22e199c31207c07
+idea.trash book 8b9b5b6dd612f22467ded376d1e4c93d3ccc2b8dbdaff13fbf0651d952e96393
+idea.update book 72cd1f1350ec3460752c7c9858bbaad274610b4383a25c27281a79dc677de1e1
+idea_group.create book 68cf00f0b66411b586c758bc4010ebbdd47d10b3c65569f9cc26e56366bfaa11
+idea_group.delete book 95752eb403b020959c63bb62fa373f4d2947a586ed203ef5d7844e82520223d6
+idea_group.list shared ba5b6245a02d2dddf26912e3ad89444c0ed87106968b2a546db225f8da723664
+idea_group.update book 485c2825c65b7a18f65495eab9def390fbbc5a5481aff9ab17720c15772746d4
+material.create book b3b1fde8ab68f13b2f044b7810f4c69b7e9130a6d1186c593f9dfac1d9718e4e
+material.list shared 70c888cce8596bd41875f050a560f268d388f7075d38f255077d6e0aee411375
+material.move book db3e5bdd5bc8900e5cbb9020956f557f5fca1f5d17c0bb7ca2b6fb3c1d46db2d
+material.update book 23805719a16ce54954071d144a542bdfc54003cb953d202b1f908a56b443b388
+material_folder.create book b9a510f2db332e075e6204e5473484f717e573f22bbd86b1fa23470776a026f3
+material_folder.delete book 07fbd5c395a9576ff15c57e67f8b0bb932ad678cd2d46a7a76135498f2be9d2a
+material_folder.list shared 2fafe8767c2a8d5a9cbd90383fb6fb7a5c7749172e9fd0c0000c5831b7e02e1a
+material_folder.update book d26d877505128eff2cae01c6d23592536bea6bd817a626104e4ee1bef19e7ddf
+memory.add book 8a6b0217841ed8c84cdb8c276aab04890c9de024f684facb111e1bbc5d00dc45
+memory.list shared 87d4ac62bf22f01efc685f4b6ba182a4c6af62e0d54ae5c99b69b12b67b04a1e
+memory.remove book ffe1104f1b0f9a89f26881693dd66379d33d55d0e5e0e586e612be9153df6587
+memory.restore book c45b5c04885c403e9e5c1329d9b0f96d9d6d164ac1bf6c7503c86e9bbc3cc34a
+memory.update book a4ba2b289510f5496d2aad25bb1a850f208a4d17bc5cb12191e56bcb1ffd979c
+mention.list shared c4b290cd98d3107d10f18c5dc26b5f7d5e3b8bb527805bba539ff458ea8eeb69
+patch.create book 285c0f2004f68aba0317bda64a67e2d0fe5c0523431d72587fd81626961adb1f
+patch.list shared 307a9c989aecdf20cf8769d6bf239574c09c04cd36fa946e75f57692fcfc7a1e
+patch.move book ad3d48b3d312fc4f9dcfc4acd22ee0f67b60b672faedf62de3e2a1f40d264aa9
+patch.update book de1c984aa38b3752b20ea4a0e0270a7e12796d7c06573d7a942397dccfbfb56c
+plot_grid.cell book 923b6f48e22abe5c803e27b82aac91047c81208c3744b5c97077aad5b691326c
+plot_grid.clear book 3091aec2f633ffa68fab39c6a7815e4f5ceb7b595a77bf1b1d89b9d1c9769d35
+plot_grid.create book 48fef47c21adb6d55f297eb0571f2a5677235991fc35bff877a7ff52868e3fdd
+plot_grid.get shared 3b22b3d0d8e9f232a2ee08b2d122a04c9bb9ca4d8e0ecddcd32c0f69dce3d473
+plot_grid.line_add book 2e1cbb2da117a3880b699350154759f76a9abaa19e328af3f4fbbc50e7a1cc26
+plot_grid.line_remove book 87575711bac66c3cd6c2aa5688634255dbe5536fa25d34d243050c34c6040ec9
+plot_grid.line_update book 7879339160fab49718b74778c2da088d146bb8471e9fb04dc24d10216e360cee
+plot_grid.size book 3d5ebecca431a187a94aa50413d3385255b05bf6d294dbdb75f261449c470f8c
+prose.link book 6f602bedf143e22cb19d7b0188f7c4a70cf050a7d9b049ee59e2715818d002f0
+prose.read shared 6e279af278c3ae0cbfbae4306da2f76320fcc21f2bdb69793bee614f06c75155
+prose.replace book 8f1173920126c8296a47f888159dd7219186af09dce836eae89fb9573020cadd
+prose.restore book 7a9cfbe1e4d6aeb2eb7d9759d0ebe80b0b04f22291b6206beabab42687ee5d1e
+prose.shape shared cce5b2a5012fdabf40e1312cf8174d81acba88c32cfacd6e85955e4281d497a7
+prose.unlink book 2282ad743cd9b43d1e4fc5363d8dc933ca1da8fe2b7fae5207e62e54bd79be72
+recent.list shared 9ad80de4fd20029587e0d67e697de229a149546372e0b2e9be833c7b88b891e8
+relation.create book a3281af23a537e5e05a0a14f22838f775350cde7492985e27e707d03b2f82ab5
+relation.delete book bace94fc3a895dee2208fb3e4e0fba82fd71fefaaebe4df6b6eaf66998402555
+relation.list shared eb9925f9a7236f0545734eb3cf29349bf9f19e297d99fdf2b4bf871d87697776
+relation_type.create book 7cf50e7ec6429142d53d9d1704b3b6900b3b283db71e66e8dc2410eb90c681dd
+relation_type.list shared bdd4cfdf39f3d4f8d347ba5120571bf9065255347c960329e42c4927e47868f6
+relation_type.update book fe14e34a0af02ec912679e47ecd7915c88392a2fa74142c3de4511b17a225942
+storyline.create book a1dd75d064d0e756c52e3b0e65be940d54e7d07e2ef39b9302bc2cb2aed5b59f
+storyline.list shared 6f5eb70059ff8bd40026e614abee34b3c2748818b284a4c822988d12ee7f439d
+storyline.move book 7626c583d85a4bdf69b0716df89b9f03bb0f063569e898a1327624e51cee81d6
+storyline.restore book ee7c3b70595d507cac858443173e8ff9043f0c79560f59d076032a5c0b277c23
+storyline.trash book 79a2dbc8ca82852dd51fd9b90461fba0014697a3a5ac1e7bf1c6b7e0975492a2
+storyline.update book 35717f70bd4887e2603bd28260e2aea1f17a4aad96b301d0183116241ef1d813
+storyline_template.list shared 09fe752ba0d1b229a3d95323985477be0791ce88aa418d49494e1b4b4b4a4b4f
+storyline_template.put book f72185eab5ff643f2a1583d66a0e17396416b912b0ef6226d620b4647f8bac3d
+storyline_template.remove book 91c0691e0dc922e63d4bd232f64d6112712b3e9f38644b647ed965eb66187aa8
+time_pin.create book f7a85d74c628820f1b2da96a379f50a2013b1797bd778d8c5357c1b78abe2d77
+time_pin.delete book 6fbba6476730549f786c4f67cdd7b175af8174c7aad9f42a8b537ab814d04385
+time_pin.list shared 54048fe706cf77d8582c6e5d4a80d9ab50f61220d4700968c6f06228d0d5a0f7
+time_pin.update book 872cf97525bffb5165318ded8288e2c535f8fe69dbc84c28869b2dfbff47d9dc
+
+
+Excluded registry operations:
+asset.put: storage, editor, or derived-state maintenance
+book.create: library-wide lifecycle operation
+book.list: no current-book input boundary
+book.purge: library-wide lifecycle operation
+book.purge_expired: library-wide lifecycle operation
+book.restore: book lifecycle belongs to the library
+book.shelf: no current-book input boundary
+book.trash: book lifecycle belongs to the library
+category.purge: cascade needs an F3 query exposing affected relations, including hidden endpoints
+category_template.document: storage, editor, or derived-state maintenance
+chapter.purge: cascade needs an F3 query exposing affected relations, including hidden endpoints
+chapter_template.document: storage, editor, or derived-state maintenance
+comment.delete: cascade needs an F3 query exposing affected relations, including hidden endpoints
+element.purge: cascade needs an F3 query exposing affected relations, including hidden endpoints
+history.restore_point: history restore labels require an atomic guarded owner hook
+idea.purge: cascade needs an F3 query exposing affected relations, including hidden endpoints
+idea.to_chapter: conversion needs exact affected act and time-pin coverage before mutation
+idea.to_element: conversion needs version-checked full source prose and guarded automatic-link effects
+material.delete: cascade needs an F3 query exposing affected relations, including hidden endpoints
+patch.check_sources: storage, editor, or derived-state maintenance
+patch.delete: cascade needs an F3 query exposing affected relations, including hidden endpoints
+recent.touch: storage, editor, or derived-state maintenance
+relation_type.delete: cascade needs an F3 query exposing affected relations, including hidden endpoints
+storyline.purge: cascade needs an F3 query exposing affected relations, including hidden endpoints
+todo.project: storage, editor, or derived-state maintenance
+writing_day.record: storage, editor, or derived-state maintenance

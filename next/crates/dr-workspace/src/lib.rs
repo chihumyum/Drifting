@@ -38,6 +38,7 @@ pub mod dto;
 pub mod editor;
 pub mod error;
 pub mod events;
+mod guard;
 mod holder;
 pub mod journal;
 pub mod naming;
@@ -52,6 +53,7 @@ pub use error::{Result, WsError};
 pub use events::{
     BookChanged, EntityChange, ProseChanged, Removed, RemovedEntity, Subscription, WsEvent,
 };
+pub use guard::{Observation, WritePreconditions};
 pub use holder::COMMAND_ORIGIN;
 pub use nav::{BookCatalog, LinkGroup, NavTarget};
 pub use registry::{Access, Concurrency, Op, Registry, Spec, registry};

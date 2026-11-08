@@ -550,6 +550,84 @@ impl PlotPlanner {
         self.pump(cx);
     }
 
+    /// Paste a spreadsheet block at a slip, as 0.1's `PlotGrid` did:
+    /// tabs divide columns, newlines divide rows, and one final newline
+    /// is ignored. A plain string still belongs to the field's ordinary
+    /// paste (inserting at the caret, not replacing the slip).
+    pub fn paste_block(
+        &mut self,
+        field: &Field,
+        text: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        if !text.contains(['\t', '\n']) {
+            return false;
+        }
+        let Field::Cell(row, col) = field.renamed(&self.aliases) else {
+            return false;
+        };
+        let (Some(row), Some(col)) = (
+            self.grid.index(Axis::Row, &row),
+            self.grid.index(Axis::Column, &col),
+        ) else {
+            return false;
+        };
+        let text = text.replace("\r\n", "\n").replace('\r', "\n");
+        let mut rows: Vec<&str> = text.split('\n').collect();
+        if rows.len() > 1 && rows.last() == Some(&"") {
+            rows.pop();
+        }
+        let cells: Vec<Vec<&str>> = rows.iter().map(|r| r.split('\t').collect()).collect();
+        let width = cells.iter().map(Vec::len).max().unwrap_or(0);
+
+        // Earlier typing must reach F3 before the block overwrites it.
+        // Queue all new lines before their cells, including the first
+        // edit of a still-unstored grid (whose ids `pump` will adopt).
+        self.store_typed(cx);
+        for (axis, count) in [(Axis::Row, row + cells.len()), (Axis::Column, col + width)] {
+            while self.grid.lines(axis).len() < count {
+                let at = self.grid.lines(axis).len();
+                let after = self.grid.after_for(axis, at);
+                let id = new_id(axis);
+                self.grid.insert(
+                    axis,
+                    at,
+                    Line {
+                        id: id.clone(),
+                        label: String::new(),
+                    },
+                );
+                self.queue.push_back(Write::Add { axis, id, after });
+            }
+        }
+        let mut pasted = Vec::new();
+        for (dr, cells) in cells.iter().enumerate() {
+            for (dc, text) in cells.iter().enumerate() {
+                let row = self.grid.rows[row + dr].id.clone();
+                let col = self.grid.cols[col + dc].id.clone();
+                self.grid.set_cell(&row, &col, text);
+                pasted.push((Field::Cell(row.clone(), col.clone()), (*text).to_owned()));
+                self.queue.push_back(Write::Cell {
+                    row,
+                    col,
+                    text: (*text).to_owned(),
+                });
+            }
+        }
+        self.sync_fields(window, cx);
+        // `sync_fields` protects the focused field from outside writes;
+        // this is the author's own paste, so it replaces that field too.
+        for (field, text) in pasted {
+            if let Some(area) = self.fields.get(&field) {
+                area.update(cx, |a, cx| a.set_text(text, cx));
+            }
+        }
+        self.pump(cx);
+        cx.notify();
+        true
+    }
+
     // ── writing ─────────────────────────────────────────────────────────
 
     fn push(&mut self, write: Write, window: &mut Window, cx: &mut Context<Self>) {
@@ -1423,6 +1501,12 @@ impl PlotPlanner {
             .border_color(p.desk.solid())
             .child(
                 slip.group(id)
+                    .role(gpui::Role::Group)
+                    .aria_label(if empty {
+                        t(cx, k::EMPTY_CELL)
+                    } else {
+                        self.grid.cell(&row.id, &col.id).to_owned().into()
+                    })
                     .relative()
                     .size_full()
                     .px(px(9.0))
@@ -1435,6 +1519,16 @@ impl PlotPlanner {
                     .font_role(Role::Ui)
                     .type_px(CELL_PX, CELL_LINE)
                     .text_color(p.ink(2).solid())
+                    .capture_action(cx.listener(
+                        move |p, _: &dr_ui::input::field::Paste, window, cx| {
+                            if let Some(text) =
+                                cx.read_from_clipboard().and_then(|item| item.text())
+                                && p.paste_block(&field, &text, window, cx)
+                            {
+                                cx.stop_propagation();
+                            }
+                        },
+                    ))
                     .when_some(to_focus, |el, handle| {
                         el.on_mouse_down(MouseButton::Left, move |_, window, cx| {
                             if !handle.is_focused(window) {

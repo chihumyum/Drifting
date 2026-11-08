@@ -180,6 +180,13 @@ pub(crate) fn focus_body(host: &PageHost, doc: &str, window: &mut Window, cx: &m
 
 /// Chapters ⁂ just made, whose title takes the caret, selected, when their
 /// page is first drawn.
+/// Select the title the first time a newly created chapter or idea is drawn.
+/// Pair this with the shell's `Open::KEEP.at_title()` so its editor does not
+/// take the keyboard before the page head does (M02's create row, M03's ⁂).
+pub fn focus_new_title(doc: String, cx: &mut App) {
+    NewTitles::add(doc, cx);
+}
+
 #[derive(Default)]
 pub(crate) struct NewTitles(Vec<String>);
 
