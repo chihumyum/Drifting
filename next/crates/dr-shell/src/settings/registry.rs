@@ -462,6 +462,15 @@ impl SettingDef {
             Initial::Computed => Value::Null,
         }
     }
+
+    /// Whether this setting follows the signed-in account across devices
+    /// (M37, `docs/hosted-sync/preferences.md`). Provider, model and
+    /// reasoning effort live in `settings.json`'s `account` object but stay
+    /// on this device with its API keys.
+    pub fn follows_account(&self) -> bool {
+        self.scope == Scope::Account
+            && !matches!(self.key, AGENT_PROVIDER | AGENT_MODEL | AGENT_THINKING)
+    }
 }
 
 pub const THEME: &str = "appearance.theme";
@@ -780,6 +789,24 @@ pub fn in_section(section: Section) -> impl Iterator<Item = &'static SettingDef>
     REGISTRY.iter().filter(move |d| d.section == section)
 }
 
+/// Whether `key` is a preference that syncs across devices with the
+/// signed-in account (M37).
+pub fn follows_account(key: &str) -> bool {
+    key == super::store::KEY_BINDINGS || find(key).is_some_and(SettingDef::follows_account)
+}
+
+/// Every preference key that syncs with the signed-in account, in
+/// deterministic order.
+pub fn synced_preference_keys() -> Vec<&'static str> {
+    let mut keys: Vec<&'static str> = REGISTRY
+        .iter()
+        .filter(|def| def.follows_account())
+        .map(|def| def.key)
+        .collect();
+    keys.push(super::store::KEY_BINDINGS);
+    keys
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -844,5 +871,21 @@ mod tests {
                 .count(),
             2
         );
+    }
+
+    #[test]
+    fn synced_preferences_exclude_device_and_byok_model_keys() {
+        let synced = synced_preference_keys();
+        assert!(synced.contains(&THEME));
+        assert!(synced.contains(&UI_LOCALE));
+        assert!(synced.contains(&FONT_SIZE));
+        assert!(synced.contains(&AGENT_MAX_MODEL_ROUNDS));
+        assert!(synced.contains(&super::super::store::KEY_BINDINGS));
+
+        assert!(!follows_account(TEXT_SIZE));
+        assert!(!follows_account(CRASH_REPORTS));
+        assert!(!follows_account(AGENT_PROVIDER));
+        assert!(!follows_account(AGENT_MODEL));
+        assert!(!follows_account(AGENT_THINKING));
     }
 }

@@ -4,17 +4,22 @@
 pub mod dialog;
 pub mod settings_view;
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
+use std::time::Duration;
 
-use dr_account::{AccountService, AccountState, HostedConfig, SessionStatus, decode_avatar_rgba};
+use dr_account::{
+    AccountService, AccountState, HostedConfig, PreferenceLedger, PreferenceLedgerEntry,
+    SessionStatus, decode_avatar_rgba,
+};
 use dr_i18n::keys;
 use dr_platform::{Identity, SecretStore};
 use dr_shell::{
     Services, Settings,
     account::{AccountMenuAction, AccountViewInfo},
-    settings::registry::Section,
+    settings::registry::{self, Section},
     t,
 };
 use dr_ui::{
@@ -38,12 +43,16 @@ pub use settings_view::AccountSettingsView;
 /// Device-memory key remembering that the first-run account choice has been answered.
 pub const FIRST_RUN_ACCOUNT_SEEN_KEY: &str = "account.first_run_seen";
 
+/// Debounce delay before pushing local preference edits to Hosted.
+pub const PREFERENCE_SYNC_DEBOUNCE: Duration = Duration::from_secs(1);
+
 /// Global state for `dr-view-account`.
 pub struct Service {
     pub inner: Arc<AccountService>,
     pub state: AccountState,
     pub avatar_cache: Option<(String, Arc<RenderImage>)>,
     pub signing_out: bool,
+    preference_sync_task: Option<gpui::Task<()>>,
 }
 
 impl Global for Service {}
@@ -84,6 +93,7 @@ impl Service {
             state,
             avatar_cache,
             signing_out: false,
+            preference_sync_task: None,
         }
     }
 }
@@ -207,6 +217,9 @@ pub fn init(service: Service, cx: &mut App) {
         handle_oauth_deep_link(url.to_owned(), cx);
     });
 
+    // M37: schedule a debounced preference sync whenever an account-scoped setting changes locally.
+    dr_shell::settings::on_synced_preference_changed(cx, schedule_preference_sync);
+
     // Bootstrap session in background when Hosted is configured.
     if initial_state.hosted_configured {
         let bg_inner = inner;
@@ -301,6 +314,7 @@ pub fn apply_account_state(state: AccountState, cx: &mut App) {
     let target_dir = state.active_library_dir.clone();
     let is_account_lib = state.is_account_library;
 
+    let is_connected = state.status == SessionStatus::Connected;
     cx.update_global::<Service, _>(|svc, _| {
         let next_avatar_url = state
             .user
@@ -325,7 +339,136 @@ pub fn apply_account_state(state: AccountState, cx: &mut App) {
     });
 
     switch_library_if_needed(target_dir, is_account_lib, cx);
+    if is_connected {
+        sync_preferences_now(cx);
+    }
     cx.refresh_windows();
+}
+
+/// Schedules a debounced (1s) M37 preference sync round when connected.
+pub fn schedule_preference_sync(cx: &mut App) {
+    let Some(svc) = cx.try_global::<Service>() else {
+        return;
+    };
+    if svc.state.status != SessionStatus::Connected {
+        return;
+    }
+    let task = cx.spawn(async move |cx| {
+        cx.background_executor()
+            .timer(PREFERENCE_SYNC_DEBOUNCE)
+            .await;
+        cx.update(sync_preferences_now);
+    });
+    cx.global_mut::<Service>().preference_sync_task = Some(task);
+}
+
+/// Runs an M37 preference sync round immediately on the background executor when connected.
+pub fn sync_preferences_now(cx: &mut App) {
+    let Some(svc) = cx.try_global::<Service>() else {
+        return;
+    };
+    if svc.state.status != SessionStatus::Connected || !cx.has_global::<Settings>() {
+        return;
+    }
+    let inner = svc.inner.clone();
+    let (keys, local_values, ledger) = snapshot_synced_preferences(Settings::read(cx));
+
+    let task = cx.spawn(async move |cx| {
+        let res = cx
+            .background_executor()
+            .spawn(async move {
+                let key_refs: Vec<&str> = keys.iter().copied().collect();
+                inner.sync_preferences(&key_refs, &local_values, &ledger)
+            })
+            .await;
+        cx.update(|cx| {
+            if let Ok(outcome) = res
+                && outcome.supported
+                && cx.has_global::<Settings>()
+            {
+                Settings::update(cx, |file| {
+                    apply_preference_sync_outcome(file, &outcome);
+                });
+            }
+        });
+    });
+    cx.global_mut::<Service>().preference_sync_task = Some(task);
+}
+
+/// Synchronously runs one M37 preference sync round against `service` and applies the outcome
+/// to `file`.
+pub fn sync_preferences_blocking(
+    service: &AccountService,
+    file: &mut dr_shell::SettingsFile,
+) -> Result<dr_account::PreferenceSyncOutcome, dr_account::AccountError> {
+    let (keys, local_values, ledger) = snapshot_synced_preferences(file);
+    let key_refs: Vec<&str> = keys.iter().copied().collect();
+    let outcome = service.sync_preferences(&key_refs, &local_values, &ledger)?;
+    if outcome.supported {
+        apply_preference_sync_outcome(file, &outcome);
+    }
+    Ok(outcome)
+}
+
+fn snapshot_synced_preferences(
+    file: &dr_shell::SettingsFile,
+) -> (
+    Vec<&'static str>,
+    BTreeMap<String, serde_json::Value>,
+    PreferenceLedger,
+) {
+    let keys = registry::synced_preference_keys();
+    let mut local_values = BTreeMap::new();
+    for &key in &keys {
+        if let Some(val) = file.read_synced_preference(key) {
+            local_values.insert(key.to_owned(), val);
+        }
+    }
+    let shell_ledger = file.preference_ledger();
+    let ledger = PreferenceLedger {
+        account_id: shell_ledger.account_id,
+        entries: shell_ledger
+            .entries
+            .into_iter()
+            .map(|(k, v)| {
+                (
+                    k,
+                    PreferenceLedgerEntry {
+                        changed_at: v.changed_at,
+                        pending: v.pending,
+                    },
+                )
+            })
+            .collect(),
+    };
+    (keys, local_values, ledger)
+}
+
+fn apply_preference_sync_outcome(
+    file: &mut dr_shell::SettingsFile,
+    outcome: &dr_account::PreferenceSyncOutcome,
+) {
+    for (key, value) in &outcome.applied {
+        file.apply_synced_preference(key, value);
+    }
+    let shell_ledger = dr_shell::settings::store::PreferenceLedger {
+        account_id: outcome.ledger.account_id.clone(),
+        entries: outcome
+            .ledger
+            .entries
+            .iter()
+            .map(|(k, v)| {
+                (
+                    k.clone(),
+                    dr_shell::settings::store::PreferenceLedgerEntry {
+                        changed_at: v.changed_at.clone(),
+                        pending: v.pending,
+                    },
+                )
+            })
+            .collect(),
+    };
+    file.set_preference_ledger(&shell_ledger);
 }
 
 fn switch_library_if_needed(target_dir: PathBuf, is_account_lib: bool, cx: &mut App) {
@@ -545,5 +688,92 @@ mod tests {
                 let _ = cx;
             })
             .expect("update window");
+    }
+
+    #[test]
+    fn settings_file_preference_sync_never_uploads_device_or_byok_keys() {
+        use dr_shell::settings::registry::{
+            AGENT_MAX_MODEL_ROUNDS, AGENT_MODEL, AGENT_PROVIDER, CRASH_REPORTS, FONT_SIZE,
+            TEXT_SIZE, THEME, UI_LOCALE,
+        };
+        use serde_json::Value;
+
+        let server = FakeAuthServer::start();
+        server.set_require_signup_verification(false);
+        let tmp_a = TempDir::new().expect("tempdir a");
+        let tmp_b = TempDir::new().expect("tempdir b");
+
+        let svc_a = AccountService::new(
+            server.config(),
+            tmp_a.path(),
+            "cc.drifting.next.dev",
+            Arc::new(SecretStore::in_memory()),
+        )
+        .expect("svc a");
+        let svc_b = AccountService::new(
+            server.config(),
+            tmp_b.path(),
+            "cc.drifting.next.dev",
+            Arc::new(SecretStore::in_memory()),
+        )
+        .expect("svc b");
+
+        svc_a
+            .sign_up_email("Author", "prefs@example.test", "prefs-password-123")
+            .expect("sign up a");
+        svc_b
+            .sign_in_email("prefs@example.test", "prefs-password-123")
+            .expect("sign in b");
+
+        // Device A edits synced preferences AND device-only preferences.
+        let mut file_a = SettingsFile::in_memory();
+        file_a.set(THEME, Value::from("dark"), None).unwrap();
+        file_a.set(FONT_SIZE, Value::from(21.0), None).unwrap();
+        file_a.set(UI_LOCALE, Value::from("ja"), None).unwrap();
+        file_a
+            .set(AGENT_MAX_MODEL_ROUNDS, Value::from(80), None)
+            .unwrap();
+        file_a.set_key_binding("goBack", Some("cmd-alt-left"));
+
+        // Device-only settings:
+        file_a.set(TEXT_SIZE, Value::from("largest"), None).unwrap();
+        file_a.set(CRASH_REPORTS, Value::from(false), None).unwrap();
+        file_a
+            .set(AGENT_PROVIDER, Value::from("anthropic"), None)
+            .unwrap();
+        file_a
+            .set(AGENT_MODEL, Value::from("claude-sonnet"), None)
+            .unwrap();
+        file_a.set_device_memory("shelf.cover_style", Some(Value::from("topo")));
+
+        let out_a = sync_preferences_blocking(&svc_a, &mut file_a).expect("sync a");
+        assert!(out_a.supported);
+        assert!(!file_a.has_pending_synced_preferences());
+
+        // Inspect server storage: device-only keys must NEVER appear on the server.
+        let stored_on_server = server.preferences_for("prefs@example.test");
+        assert!(stored_on_server.contains_key(THEME));
+        assert!(stored_on_server.contains_key(FONT_SIZE));
+        assert!(stored_on_server.contains_key(UI_LOCALE));
+        assert!(stored_on_server.contains_key(AGENT_MAX_MODEL_ROUNDS));
+        assert!(stored_on_server.contains_key(dr_shell::settings::store::KEY_BINDINGS));
+        assert!(!stored_on_server.contains_key(TEXT_SIZE));
+        assert!(!stored_on_server.contains_key(CRASH_REPORTS));
+        assert!(!stored_on_server.contains_key(AGENT_PROVIDER));
+        assert!(!stored_on_server.contains_key(AGENT_MODEL));
+        assert!(!stored_on_server.contains_key("shelf.cover_style"));
+
+        // Device B syncs and receives all account-synced settings, while keeping its own device settings.
+        let mut file_b = SettingsFile::in_memory();
+        let out_b = sync_preferences_blocking(&svc_b, &mut file_b).expect("sync b");
+        assert!(out_b.supported);
+        assert_eq!(file_b.get(THEME), Value::from("dark"));
+        assert_eq!(file_b.number(FONT_SIZE), 21.0);
+        assert_eq!(file_b.get(UI_LOCALE), Value::from("ja"));
+        assert_eq!(file_b.get(AGENT_MAX_MODEL_ROUNDS), Value::from(80));
+        assert_eq!(file_b.key_bindings()["goBack"], Value::from("cmd-alt-left"));
+        // Device B's device-only settings remain at their local defaults:
+        assert_eq!(file_b.get(TEXT_SIZE), Value::from("standard"));
+        assert_eq!(file_b.get(AGENT_PROVIDER), Value::from("deepseek"));
     }
 }

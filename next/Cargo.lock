@@ -1531,6 +1531,7 @@ name = "dr-account"
 version = "0.2.0-dev"
 dependencies = [
  "base64 0.22.1",
+ "chrono",
  "dr-platform",
  "dr-store",
  "getrandom 0.4.3",
@@ -2032,6 +2033,7 @@ dependencies = [
  "gpui_platform",
  "image",
  "log",
+ "serde_json",
  "smallvec",
  "tempfile",
 ]

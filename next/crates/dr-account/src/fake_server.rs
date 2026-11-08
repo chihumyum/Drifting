@@ -2,7 +2,8 @@
 //!
 //! Never connects to `api.drifting.cc` or any external host.
 
-use std::collections::HashMap;
+use std::cmp::Ordering as CmpOrdering;
+use std::collections::{BTreeMap, HashMap};
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -14,6 +15,9 @@ use serde_json::{Value, json};
 
 use crate::endpoint::{HostedConfig, HostedOrigin};
 use crate::oauth::pkce_s256_challenge;
+use crate::preferences::{
+    RemotePreference, clamp_to_server_clock, compare_iso_timestamps, now_iso8601,
+};
 use crate::profile::{HostedUser, is_allowed_avatar_data_url, validate_profile_name};
 
 #[derive(Debug, Clone)]
@@ -35,9 +39,12 @@ struct ServerState {
     sessions_by_token: HashMap<String, String>, // token -> email
     otps_by_email: HashMap<String, String>,     // email -> otp
     oauth_codes: HashMap<String, PendingOAuthCode>,
+    preferences_by_email: HashMap<String, BTreeMap<String, RemotePreference>>,
     next_id: u64,
     require_signup_verification: bool,
     google_enabled: bool,
+    preferences_supported: bool,
+    server_clock_override: Option<String>,
 }
 
 /// Loopback fake server running on `127.0.0.1:0`.
@@ -64,6 +71,7 @@ impl FakeAuthServer {
         let state = Arc::new(Mutex::new(ServerState {
             require_signup_verification: true,
             google_enabled: true,
+            preferences_supported: true,
             ..ServerState::default()
         }));
         let stop = Arc::new(AtomicBool::new(false));
@@ -148,6 +156,29 @@ impl FakeAuthServer {
             .expect("fake state")
             .sessions_by_token
             .remove(token.trim());
+    }
+
+    /// Configure whether `/api/account/v1/preferences` is enabled or returns `404 Not Found`.
+    pub fn set_preferences_supported(&self, supported: bool) {
+        self.state.lock().expect("fake state").preferences_supported = supported;
+    }
+
+    /// Pin the server's clock (`ISO-8601`) used to clamp future `changedAt` timestamps.
+    pub fn set_server_clock(&self, clock_iso: Option<&str>) {
+        self.state.lock().expect("fake state").server_clock_override =
+            clock_iso.map(ToOwned::to_owned);
+    }
+
+    /// Inspect stored preferences for `email` on the fake server.
+    #[must_use]
+    pub fn preferences_for(&self, email: &str) -> BTreeMap<String, RemotePreference> {
+        self.state
+            .lock()
+            .expect("fake state")
+            .preferences_by_email
+            .get(&email.trim().to_ascii_lowercase())
+            .cloned()
+            .unwrap_or_default()
     }
 
     /// Simulate the browser leg of `/api/auth/native-start?...` and return the deep-link
@@ -748,6 +779,85 @@ fn route_request(
                 guard.sessions_by_token.remove(tok);
             }
             (200, None, json!({ "success": true }))
+        }
+
+        ("GET", "/api/account/v1/preferences") => {
+            if !guard.preferences_supported {
+                return (
+                    404,
+                    None,
+                    json!({ "code": "NOT_FOUND", "message": "Preferences endpoint not supported" }),
+                );
+            }
+            let Some(token) = bearer else {
+                return (401, None, json!({ "code": "UNAUTHORIZED" }));
+            };
+            let Some(email) = guard.sessions_by_token.get(token).cloned() else {
+                return (401, None, json!({ "code": "UNAUTHORIZED" }));
+            };
+            let prefs = guard
+                .preferences_by_email
+                .get(&email)
+                .cloned()
+                .unwrap_or_default();
+            (200, None, json!({ "preferences": prefs }))
+        }
+
+        ("PUT", "/api/account/v1/preferences") => {
+            if !guard.preferences_supported {
+                return (
+                    404,
+                    None,
+                    json!({ "code": "NOT_FOUND", "message": "Preferences endpoint not supported" }),
+                );
+            }
+            let Some(token) = bearer else {
+                return (401, None, json!({ "code": "UNAUTHORIZED" }));
+            };
+            let Some(email) = guard.sessions_by_token.get(token).cloned() else {
+                return (401, None, json!({ "code": "UNAUTHORIZED" }));
+            };
+            let server_now = guard
+                .server_clock_override
+                .clone()
+                .unwrap_or_else(now_iso8601);
+            let entries = body
+                .get("entries")
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default();
+            let store = guard.preferences_by_email.entry(email).or_default();
+            for item in entries {
+                let Some(key) = item.get("key").and_then(Value::as_str) else {
+                    continue;
+                };
+                let Some(value) = item.get("value") else {
+                    continue;
+                };
+                let raw_at = item
+                    .get("changedAt")
+                    .and_then(Value::as_str)
+                    .unwrap_or(&server_now);
+                let effective_at = clamp_to_server_clock(raw_at, &server_now);
+                let should_write = match store.get(key) {
+                    Some(existing) => {
+                        compare_iso_timestamps(&effective_at, &existing.changed_at)
+                            != CmpOrdering::Less
+                    }
+                    None => true,
+                };
+                if should_write {
+                    store.insert(
+                        key.to_owned(),
+                        RemotePreference {
+                            value: value.clone(),
+                            changed_at: effective_at,
+                        },
+                    );
+                }
+            }
+            let snapshot = store.clone();
+            (200, None, json!({ "preferences": snapshot }))
         }
 
         _ => (
