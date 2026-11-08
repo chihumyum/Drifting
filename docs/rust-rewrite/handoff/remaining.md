@@ -12,7 +12,10 @@
   - 迁移 0007 的审查意见（看 F2 分支是否已交）。
 - **F3 dr-workspace**（[f3-workspace.md](../foundations/f3-workspace.md)）
   - `chapter.create` 带叙事位置（分支上可能已做）；
-  - M16 要的「构想转章节、要素」「绑幕、时间钉」命令；
+  - M16 要的「构想转章节、要素」「绑幕、时间钉」命令。M10 那一路已经按下面的形状接好了界面，名字或字段不同就改界面那一行：
+    - `idea.convert { book, id, to: "chapter", storyline }`：原地改成章节，同一个 id 和正文历史。kind=chapter，主故事线=storyline，状态 draft，书序排到最后，清掉分组，解绑绑着它的时间钉和幕（旧版 `NodeEditorView` 的 `handleConfirmConversion`）。返回 `{ id }`。
+    - `idea.convert { book, id, to: "element", category }`：新建要素（名字取构想标题，简介取构想简介，正文用 `insert_copy` 整篇抄过去，格式和链接都在），再把构想放进回收站。返回新要素的 `{ id }`。
+    - 两种都要一步撤销。
   - 空闲时跑 bench，补补链提速的证据。
 - **F4 编辑引擎**（[f4e-editor.md](../foundations/f4e-editor.md)「下一轮怎么拆」）
   - 章末 ⁂ 的帮手审阅（等 M30）；
