@@ -2284,3 +2284,45 @@ fn a_module_draws_a_pages_hover_card(cx: &mut TestAppContext) {
     draw(cx);
     dr_ui::anim::freeze(None);
 }
+
+/// F4e's material notes: a click on an embedded material (`MaterialOpened`)
+/// opens it as a preview tab; ⌘⇧H is bound to the editor's highlight, and
+/// stays bound after the keymap is built again.
+#[gpui::test]
+fn an_embedded_material_opens_and_the_highlight_key_is_bound(cx: &mut TestAppContext) {
+    let (_dir, lib) = slow_clock();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    let (first, material) = view.read_with(cx, |ws, _| {
+        (chapter_of(ws, 0), ws.book.materials[0].id.clone())
+    });
+    view.update(cx, |ws, cx| ws.open(first.clone(), Open::KEEP, cx));
+    let editor = open_editor(&view, cx, &first);
+    editor.update(cx, |_, cx| {
+        cx.emit(dr_editor::MaterialOpened {
+            doc: "material:note".into(),
+            material: material.clone(),
+        })
+    });
+    cx.run_until_parked();
+    let opened = Target::from_key(&format!("material:{material}")).unwrap();
+    let (page, previewed) = view.read_with(cx, |ws, _| {
+        (
+            ws.nav.page(),
+            ws.nav.active_tab().is_some_and(|t| t.focused().preview),
+        )
+    });
+    assert_eq!(page, Page::Target(opened));
+    assert!(previewed, "a preview tab, as the 0.1 note opened it");
+    let bound = |cx: &mut VisualTestContext| {
+        cx.update(|_, cx| {
+            cx.key_bindings()
+                .borrow()
+                .bindings_for_action(&dr_editor::highlight::ToggleHighlight)
+                .count()
+        })
+    };
+    assert_eq!(bound(cx), 1);
+    cx.update(|_, cx| dr_shell::keymap::apply(&Default::default(), cx));
+    assert_eq!(bound(cx), 1, "still bound after the keymap is rebuilt");
+}

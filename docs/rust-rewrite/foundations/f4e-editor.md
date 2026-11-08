@@ -103,8 +103,8 @@
 **这一批的待协调：**
 
 - **给 F6：**
-  - 把 `dr_editor::highlight::key_bindings()` 加进按键登记表（`add_bindings`）。
-  - 订阅 `MaterialOpened`，打开素材标签。
+  - ~~把 `dr_editor::highlight::key_bindings()` 加进按键登记表（`add_bindings`）~~：F6 第八轮做了。
+  - ~~订阅 `MaterialOpened`，打开素材标签~~：F6 第八轮做了（预览标签，和旧版一样）。
   - 素材笔记的编辑器和章节一样用 `ChapterEditor::open` / `with_session`，打开时自己认出是笔记。
 - **给 M19：**
   - 拖入、粘贴图片和 PDF 文件导入成素材（资源导入、生成缩略图），导入以后调 `ChapterEditor::insert_material(素材 id, …)`。

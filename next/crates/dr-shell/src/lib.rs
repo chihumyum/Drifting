@@ -124,6 +124,9 @@ pub fn init(info: ShellInfo, services: Services, file: SettingsFile, cx: &mut Ap
     keymap::add_bindings(cx, dr_view_search::key_bindings);
     // The find bar: ⇧Enter, ⌘G / ⇧⌘G.
     keymap::add_bindings(cx, workspace::find::key_bindings);
+    // F4e: ⌘⇧H highlights in material notes (the editor's own key, not one
+    // the author rebinds: the 0.1 note's Mod-Shift-H).
+    keymap::add_bindings(cx, dr_editor::highlight::key_bindings);
     keymap::apply(&Settings::read(cx).key_bindings(), cx);
     export_memory::init(cx);
 }
