@@ -1046,6 +1046,7 @@ impl<'a> BookView<'a> {
         let has = |root: &str, id: &str| self.doc.get_map(root).get(id).is_some();
         match doc {
             DocId::Book(b) => b == self.book,
+            DocId::Conversation(_) => false,
             DocId::Node(id) => has(book::NODES, id.as_str()),
             DocId::Element(id) => has(book::ELEMENTS, id.as_str()),
             DocId::Storyline(id) => has(book::STORYLINES, id.as_str()),

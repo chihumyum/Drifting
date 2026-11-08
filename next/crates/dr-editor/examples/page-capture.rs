@@ -459,7 +459,7 @@ fn note_shot(
     .collect();
     shot.update(|window, cx| {
         let embeds = view.read(cx).note_embeds().expect("a note").clone();
-        dr_editor::embeds::insert_table(&embeds, first_end, cells, window, cx);
+        dr_editor::embeds::insert_table(&embeds, first_end, cells, Vec::new(), window, cx);
     });
     shot.settle();
     // The caret at the end of 七点前后, the bar up.
@@ -474,6 +474,58 @@ fn note_shot(
     shot.cx
         .advance_clock(dr_editor::table::BAR_RETURN + Duration::from_millis(20));
     shot.settle();
+    shot.cx.advance_clock(Duration::from_secs(1));
+    shot.save(dir, name);
+}
+
+/// Immersive writing's page (M26): the paper alone (the shell hides the
+/// rest), every paragraph but the caret's faded, the caret's row held on
+/// the typewriter line.
+fn immersive_shot(
+    ws: &Workspace,
+    book: &str,
+    palette: &'static dr_ui::tokens::Palette,
+    dir: &Path,
+    (name, title): (&str, &str),
+) {
+    let text = [
+        "潮水退到第三道石阶的时候，叶青知才把值班表合上。",
+        "码头上只剩一盏灯还亮着，灯罩上的锈把光切成了几块，落在湿漉漉的木板上，像有人随手丢下的纸片。",
+        "她想起约格说过，这盏灯是整座码头最老的东西，比石阶还老，比他自己守在这里的年头还要长。",
+        "远处传来两声汽笛，第二声更长。她数了数，和昨晚一样，中间隔着九秒。",
+        "她没有回头，只是把手里的铅笔换到左手，在本子边上画了一道短线，又画了一道。",
+        "风从海面上推过来，带着铁锈和海藻的味道。灯光又一次扫过窗户，玻璃里那个影子还在，比刚才近了一点。",
+        "她终于站起来，把本子塞进外套口袋，沿着石阶往下走，脚步声很轻，轻得像是怕吵醒什么。",
+        "第三道石阶上有一枚铁钉，钉帽朝上，亮得不像是在水里泡过一夜。",
+        "她弯腰捡起来，攥在手心里，冰凉的。",
+        "灯又亮了一下。",
+    ]
+    .join("\n");
+    let id = out(
+        ws,
+        "chapter.create",
+        json!({"book": book, "title": title, "text": text, "summary": "潮退之后，叶青知在码头数汽笛。"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let mut shot = Shot::open_with(ws, book, &format!("node:{id}"), true, Some(palette));
+    let view = shot.view.clone();
+    shot.update(|_, cx| {
+        view.update(cx, |v, cx| {
+            v.set_immersive(true, cx);
+            v.editor()
+                .clone()
+                .update(cx, |e, cx| e.set_paragraph_focus(true, cx));
+        })
+    });
+    // The caret at the end of the sixth paragraph, a word typed there.
+    let end = shot.editor(|e, _, _| {
+        let d = &e.book().chapters[0].doc;
+        d.line_start(5) + d.line(5).chars
+    });
+    shot.editor(|e, window, cx| e.select(0, end..end, window, cx));
+    shot.type_text("她数到九。");
     shot.cx.advance_clock(Duration::from_secs(1));
     shot.save(dir, name);
 }
@@ -663,6 +715,21 @@ fn main() {
             &dir,
             (name, cells_selected),
         );
+    }
+    // Titles the text does not hold (a title is a name the text links to).
+    for (palette, name, title) in [
+        (
+            &dr_ui::tokens::Palette::LIGHT,
+            "immersive-light.png",
+            "石阶以下",
+        ),
+        (
+            &dr_ui::tokens::Palette::DARK,
+            "immersive-dark.png",
+            "数汽笛的人",
+        ),
+    ] {
+        immersive_shot(&ws, &book, palette, &dir, (name, title));
     }
     let _ = ws.shutdown();
 }

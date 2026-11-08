@@ -23,7 +23,7 @@ pub(crate) fn register(r: &mut Registry) {
 
 fn doc_id(s: &str) -> Result<DocId> {
     let d = DocId::parse(s).map_err(|e| WsError::invalid(format!("{s:?}: {e}")))?;
-    if d.is_book() {
+    if d.profile().is_none() {
         return Err(WsError::invalid(format!("{s} is not a prose document")));
     }
     Ok(d)

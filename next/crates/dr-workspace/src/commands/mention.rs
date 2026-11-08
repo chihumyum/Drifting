@@ -70,7 +70,7 @@ fn owner(doc: &str) -> Option<EntityRef> {
         DocKind::Storyline => EntityKind::Storyline,
         DocKind::Category => EntityKind::Category,
         DocKind::Material => EntityKind::Material,
-        DocKind::Book | DocKind::Template => return None,
+        DocKind::Book | DocKind::Template | DocKind::Conversation => return None,
     };
     Some(EntityRef::new(kind, d.entity_id().to_owned()))
 }
@@ -225,7 +225,7 @@ op! {
     "Shape of a prose document: paragraphs, sentences, the share of dialogue, its checklist and the materials it embeds.",
     fn(cx, input: ProseShapeIn) -> ProseShapeOut {
         let doc = DocId::parse(&input.doc).map_err(|e| WsError::invalid(format!("{:?}: {e}", input.doc)))?;
-        if doc.is_book() {
+        if doc.profile().is_none() {
             return Err(WsError::invalid(format!("{} is not a prose document", input.doc)));
         }
         let slot = cx.prose(&doc)?;

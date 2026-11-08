@@ -116,15 +116,40 @@ pub fn sidebar_toggles(
                 .absolute()
                 .top(px(top))
                 .left(px(LEADING_INSET))
-                .child(left),
+                .child(closed_anchor(
+                    !ws.left.open,
+                    crate::pages::anchors::LEFT_SIDEBAR_CLOSED_TOGGLE,
+                    left,
+                    cx,
+                )),
         )
         .child(
             div()
                 .absolute()
                 .top(px(top))
                 .right(px(TRAILING_INSET))
-                .child(right),
+                .child(closed_anchor(
+                    !ws.right.open,
+                    crate::pages::anchors::RIGHT_SIDEBAR_CLOSED_TOGGLE,
+                    right,
+                    cx,
+                )),
         )
+}
+
+/// A sidebar's toggle, marked for M24's tour only while the sidebar is
+/// closed (it floats then).
+fn closed_anchor(
+    closed: bool,
+    id: &'static str,
+    toggle: impl IntoElement,
+    cx: &App,
+) -> gpui::AnyElement {
+    if closed {
+        crate::pages::anchor(id, toggle, cx)
+    } else {
+        toggle.into_any_element()
+    }
 }
 
 /// Windows: close, minimize, maximize as a glass pill in the top-left

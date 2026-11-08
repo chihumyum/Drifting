@@ -625,9 +625,13 @@ impl Relations {
             .font_role(Role::Prose)
             .type_px(if bare { 12.0 } else { 12.5 }, 18.0)
             .text_color(p.ink(2).solid());
+        // What the field reads as (the debug bridge and assistive tools find
+        // it by this): the chosen type's name, or the placeholder.
+        let label: SharedString;
         match chosen {
             Some(ty) => {
                 let (name, summary) = self.summary_of(ty, cx);
+                label = name.clone();
                 let color = look::rgb(model::paint_of(ty), window, cx);
                 row = row
                     .child(look::dash(SharedString::from(format!("{id}-dash")), color))
@@ -647,6 +651,7 @@ impl Relations {
                 } else {
                     t(cx, rt::SELECT_CONFIGURED)
                 };
+                label = words.clone();
                 row = row.child(div().text_color(p.ink(4).solid()).child(words));
             }
         }
@@ -685,7 +690,7 @@ impl Relations {
             .relative()
             .min_w_0()
             .flex_1()
-            .child(body.role(gpui::Role::ComboBox))
+            .child(body.role(gpui::Role::ComboBox).aria_label(label))
             .child(overlay::probe(anchor))
             .into_any_element()
     }
@@ -939,6 +944,8 @@ impl Relations {
             cx,
         )
         .group(group.clone())
+        .role(gpui::Role::Group)
+        .aria_label(title.clone())
         .w(px(width))
         .pt(px(10.0))
         .px(px(11.0))
@@ -999,6 +1006,8 @@ impl Relations {
                 .text_color(p.ink(1).solid())
                 .when(shown.live, |el| {
                     el.cursor_pointer()
+                        .role(gpui::Role::Link)
+                        .aria_label(title.clone())
                         .hover(|s| s.text_color(p.ink(2).solid()).underline())
                         .on_click(
                             cx.listener(move |r, _: &gpui::ClickEvent, _, cx| r.open(&other, cx)),
@@ -1024,6 +1033,7 @@ impl Relations {
                             .justify_center()
                             .cursor_pointer()
                             .role(gpui::Role::Button)
+                            .aria_label(t(cx, rt::SWAP))
                             .on_click(cx.listener(move |r, _: &gpui::ClickEvent, _, cx| {
                                 r.swap(&swap_id, cx)
                             }))
@@ -1239,7 +1249,9 @@ impl Render for Relations {
         let manager = self.manager_float(window, cx);
         let _ = p;
         look::column(look, body)
-            .pb(px(24.0))
+            // The page's last section (0.1: the element page's patches came
+            // after it; they are not here yet).
+            .pb(px(80.0))
             .children(menu)
             .children(manager)
     }

@@ -43,7 +43,7 @@ pub mod slots;
 pub mod style;
 pub mod text;
 
-pub use editor::{EditorEvent, HostStep, ProseEditor};
+pub use editor::{AuthorTyped, EditorEvent, HostStep, ProseEditor};
 pub use embeds::EmbedViews;
 pub use extension::{InputRule, ProseExtension, Typed};
 pub use input::{Composition, Selection, bind_keys};

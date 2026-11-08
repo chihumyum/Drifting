@@ -232,6 +232,83 @@ fn typewriter_scrolling_keeps_the_caret_on_its_line(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn typewriter_scrolling_follows_its_line_and_waits_for_the_input_method(cx: &mut TestAppContext) {
+    use gpui::Focusable;
+    let paragraphs: Vec<(BlockKind, &str)> = (0..60).map(|_| (BlockKind::Body, LONG)).collect();
+    let doc = ProseDoc::from_paragraphs(paragraphs);
+    let style = ProseStyle {
+        typewriter: Some(0.5),
+        ..ProseStyle::default()
+    };
+    let (editor, cx) = editor(cx, doc, style);
+    let focus = editor.update(cx, |e, cx| e.focus_handle(cx));
+    cx.update(|window, cx| window.focus(&focus, cx));
+    let caret_y = |editor: &Entity<ProseEditor>, cx: &mut VisualTestContext| {
+        draw(cx);
+        draw(cx);
+        editor
+            .update(cx, |e, _| e.cursor_rect.get().map(|c| c.center().y))
+            .expect("the caret is painted")
+    };
+    let line = |editor: &Entity<ProseEditor>, cx: &mut VisualTestContext, at: f32| {
+        let view = editor.update(cx, |e, _| e.list_state().viewport_bounds());
+        view.top() + view.size.height * at
+    };
+    let set_line = |editor: &Entity<ProseEditor>, cx: &mut VisualTestContext, at: Option<f32>| {
+        editor.update(cx, |e, cx| {
+            let mut style = e.style().clone();
+            style.typewriter = at;
+            e.set_style(style, cx);
+        });
+    };
+    editor.update_in(cx, |e, window, cx| {
+        let at = e.book().chapters[0].doc.line_start(30) + 3;
+        e.select(0, at..at, window, cx);
+        e.replace_text_in_range(None, "字", window, cx);
+    });
+    let y = caret_y(&editor, cx);
+    assert!((y - line(&editor, cx, 0.5)).abs() < px(2.), "{y:?}");
+    // The line moves (the setting): the caret follows without a keystroke.
+    set_line(&editor, cx, Some(0.3));
+    let y = caret_y(&editor, cx);
+    assert!((y - line(&editor, cx, 0.3)).abs() < px(2.), "{y:?}");
+    // The window gets shorter: the caret stays on the line.
+    cx.simulate_resize(size(px(900.), px(480.)));
+    let y = caret_y(&editor, cx);
+    assert!(
+        (y - line(&editor, cx, 0.3)).abs() < px(2.),
+        "after a resize: {y:?}"
+    );
+    // While the input method composes, nothing scrolls to the line (the
+    // candidate window would move under the pinyin); the confirmed text
+    // goes to it.
+    set_line(&editor, cx, None);
+    editor.update_in(cx, |e, window, cx| {
+        let at = e.book().chapters[0].doc.line_start(45);
+        e.select(0, at..at, window, cx);
+    });
+    let off = caret_y(&editor, cx);
+    assert!((off - line(&editor, cx, 0.5)).abs() > px(40.), "{off:?}");
+    editor.update_in(cx, |e, window, cx| {
+        e.replace_and_mark_text_in_range(None, "zh", Some(2..2), window, cx)
+    });
+    set_line(&editor, cx, Some(0.5));
+    let y = caret_y(&editor, cx);
+    assert!(
+        (y - line(&editor, cx, 0.5)).abs() > px(40.),
+        "composing: {y:?}"
+    );
+    editor.update_in(cx, |e, window, cx| {
+        e.replace_text_in_range(None, "中", window, cx)
+    });
+    let y = caret_y(&editor, cx);
+    assert!(
+        (y - line(&editor, cx, 0.5)).abs() < px(2.),
+        "confirmed: {y:?}"
+    );
+}
+
+#[gpui::test]
 fn estimates_and_off_screen_layouts_take_the_block_inset_off(cx: &mut TestAppContext) {
     let mut doc = ProseDoc::from_paragraphs([(BlockKind::Body, LONG), (BlockKind::Body, LONG)]);
     doc.set_block_attr(1, block::INDENT, Some(8i64.into()), ORIGIN_USER);

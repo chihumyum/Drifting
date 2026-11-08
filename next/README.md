@@ -27,7 +27,7 @@ cargo run -p drifting
 | `DRIFTING_PROFILE=<名字>` | 开发版的数据、日志文件夹、钥匙串服务和单实例锁都加上这个名字，几个 worktree 的开发版互不干扰 |
 | `DRIFTING_CRASH_REPORTS_IN_DEV=1` | 开发构建也发崩溃报告（还要构建时带 DSN，平时没有）；反馈也改走服务而不是邮件（还要有服务地址） |
 | `DRIFTING_DEV_API_BASE_URL` | 开发构建的反馈发到这个服务，只认 `https://` 或本机 `http://127.0.0.1:<端口>`，用于对着本机服务验收；见 [m39-feedback.md](../docs/rust-rewrite/modules/m39-feedback.md) |
-| `DRIFTING_DEV_UPDATE_MANIFEST`、`DRIFTING_DEV_UPDATER_PUBLIC_KEY` | 开发构建从本地清单更新，只用于自测；见 F7 文档 |
+| `DRIFTING_DEV_UPDATE_MANIFEST`、`DRIFTING_DEV_UPDATER_PUBLIC_KEY` | 开发构建从测试清单更新（本地文件，或本机 `http://127.0.0.1:<端口>/…`），只用于自测；不设就不查更新。见 F7 文档和 `docs/rust-rewrite/modules/m42-update.md` |
 | `DRIFTING_APPEARANCE=light\|dark` | 强制浅色或深色，不动系统设置。macOS 上设的是本应用自己的外观，和系统切换走同一条路 |
 | `DRIFTING_DEV_PROBE=<文件>` | 把启动各阶段的时间和外观变化按 JSON 行追加到文件；`-` 表示写到 stderr |
 | `DRIFTING_DEV_EXIT_AFTER_FIRST_FRAME=1` | 画完首帧就退出，给测启动时间用 |

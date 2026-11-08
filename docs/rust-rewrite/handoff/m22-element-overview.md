@@ -48,7 +48,7 @@
   - 改分类：`element.update`
   - 拖动固定的位置：本机记忆，存进 F2 的 `local_state`，挂在书下。F6 正在把按书的本机记忆收成一处，等它定了再跟。
 - 岛卡展开成编辑器：要素页（M11，`dr-view-elements`）已经有了，照它的公开接口嵌，不复制。
-- 外壳挂接：F6 正在加 `dr_shell::pages::add_super_view`，头部计数左边和内容区右上各留一个槽。
+- 外壳挂接：F6 正在加 `dr_shell::pages::add_super_view`，切换器放进头部的 `head_start` 槽（计数左边）；图例画在正文的右上角。
 
 ## 完成标准
 

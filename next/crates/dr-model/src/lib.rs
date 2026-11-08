@@ -18,6 +18,7 @@
 
 pub mod book;
 pub mod check;
+pub mod conversation;
 pub mod id;
 pub mod invariant;
 pub mod kind;

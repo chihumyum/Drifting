@@ -159,6 +159,10 @@ id_type!(
 );
 id_type!(StorylineId);
 id_type!(
+    /// A synchronized Agent conversation (`conversation:<id>`).
+    ConversationId
+);
+id_type!(
     /// An element category (分类).
     CategoryId
 );
@@ -354,10 +358,12 @@ pub enum DocKind {
     Material,
     /// A body template (`template:category:<id>` / `template:storyline:<id>`).
     Template,
+    /// An append-only Agent conversation, separate from prose.
+    Conversation,
 }
 
 impl DocKind {
-    pub const ALL: [DocKind; 7] = [
+    pub const ALL: [DocKind; 8] = [
         DocKind::Book,
         DocKind::Node,
         DocKind::Element,
@@ -365,6 +371,7 @@ impl DocKind {
         DocKind::Category,
         DocKind::Material,
         DocKind::Template,
+        DocKind::Conversation,
     ];
 
     /// The prefix of the document id (`book`, `node`, …).
@@ -377,24 +384,28 @@ impl DocKind {
             DocKind::Category => "category",
             DocKind::Material => "material",
             DocKind::Template => "template",
+            DocKind::Conversation => "conversation",
         }
     }
 
     /// Whether the document's text is part of the book: searched, counted,
-    /// exported, mirrored. The book document has no text, and a template is
+    /// exported, mirrored. Book and conversation documents have no prose, and a template is
     /// not the book's text: it is copied into new chapters and elements.
     pub fn is_book_text(self) -> bool {
-        !matches!(self, DocKind::Book | DocKind::Template)
+        !matches!(
+            self,
+            DocKind::Book | DocKind::Template | DocKind::Conversation
+        )
     }
 
     /// The editing profile of a prose document of this kind; `None` for the
-    /// book document. Material notes use the note profile, everything else
+    /// book or conversation document. Material notes use the note profile, everything else
     /// the prose profile (as the old `editor-schema-profile.ts`: the profile
     /// follows the document, not the view); templates the prose profile of
     /// the chapters and elements made from them.
     pub fn profile(self) -> Option<ProseProfile> {
         match self {
-            DocKind::Book => None,
+            DocKind::Book | DocKind::Conversation => None,
             DocKind::Material => Some(ProseProfile::Note),
             _ => Some(ProseProfile::Prose),
         }
@@ -415,7 +426,8 @@ pub enum ProseProfile {
 /// The id of a Loro document: `book:<id>` for the book (catalog) document,
 /// `node:<id>` / `element:<id>` / `storyline:<id>` / `category:<id>` /
 /// `material:<id>` for prose documents, `template:category:<id>` /
-/// `template:storyline:<id>` for body templates. The string form is what
+/// `template:storyline:<id>` for body templates, `conversation:<id>` for
+/// append-only Agent conversation content. The string form is what
 /// storage keys documents by.
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
@@ -427,6 +439,7 @@ pub enum DocId {
     Category(CategoryId),
     Material(MaterialId),
     Template(TemplateId),
+    Conversation(ConversationId),
 }
 
 /// Why a string is not a document id.
@@ -459,6 +472,7 @@ impl DocId {
             DocId::Category(_) => DocKind::Category,
             DocId::Material(_) => DocKind::Material,
             DocId::Template(_) => DocKind::Template,
+            DocId::Conversation(_) => DocKind::Conversation,
         }
     }
 
@@ -472,6 +486,7 @@ impl DocId {
             DocId::Category(id) => id.as_str(),
             DocId::Material(id) => id.as_str(),
             DocId::Template(id) => id.as_str(),
+            DocId::Conversation(id) => id.as_str(),
         }
     }
 
@@ -493,6 +508,7 @@ impl DocId {
             "storyline" => DocId::Storyline(StorylineId::parse(id).map_err(e)?),
             "category" => DocId::Category(CategoryId::parse(id).map_err(e)?),
             "material" => DocId::Material(MaterialId::parse(id).map_err(e)?),
+            "conversation" => DocId::Conversation(ConversationId::parse(id).map_err(e)?),
             "template" => {
                 let t = TemplateId::parse(id).map_err(e)?;
                 if t.owner().is_none() {
@@ -573,6 +589,12 @@ impl From<TemplateId> for DocId {
     }
 }
 
+impl From<ConversationId> for DocId {
+    fn from(id: ConversationId) -> Self {
+        DocId::Conversation(id)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -615,6 +637,7 @@ mod tests {
     fn doc_ids_round_trip() {
         for s in [
             "book:b1",
+            "conversation:c1",
             "node:n1",
             "element:e1",
             "storyline:s1",
@@ -643,6 +666,8 @@ mod tests {
             Some(ProseProfile::Prose)
         );
         assert_eq!(DocId::parse("book:m").unwrap().profile(), None);
+        assert_eq!(DocId::parse("conversation:c1").unwrap().profile(), None);
+        assert!(!DocKind::Conversation.is_book_text());
         // Templates: one per category or storyline, derived from it.
         let c = CategoryId::parse("c1").unwrap();
         let t = TemplateOwner::Category(c.clone()).doc_id();
@@ -667,7 +692,7 @@ mod tests {
         assert!(
             DocKind::ALL
                 .iter()
-                .filter(|k| !matches!(k, DocKind::Book | DocKind::Template))
+                .filter(|k| !matches!(k, DocKind::Book | DocKind::Template | DocKind::Conversation))
                 .all(|k| k.is_book_text())
         );
     }

@@ -90,7 +90,7 @@ pub struct CommentCreateIn {
 fn prose_of(t: &Target) -> Option<DocId> {
     DocId::parse(&format!("{}:{}", t.kind, t.id))
         .ok()
-        .filter(|d| !d.is_book())
+        .filter(|d| d.profile().is_some())
 }
 
 op! {
@@ -443,7 +443,9 @@ fn owner_of(doc: &DocId) -> Option<EntityRef> {
         DocId::Element(_) => EntityKind::Element,
         DocId::Storyline(_) => EntityKind::Storyline,
         DocId::Category(_) => EntityKind::Category,
-        DocId::Book(_) | DocId::Material(_) | DocId::Template(_) => return None,
+        DocId::Book(_) | DocId::Material(_) | DocId::Template(_) | DocId::Conversation(_) => {
+            return None;
+        }
     };
     Some(EntityRef::new(kind, doc.entity_id()))
 }

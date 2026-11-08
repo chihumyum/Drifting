@@ -306,21 +306,14 @@ impl<'a> ProseView<'a> {
 
     pub(crate) fn read_paragraph(&self, start: usize, nl: Option<usize>) -> Paragraph {
         let end = nl.unwrap_or_else(|| self.len());
-        let mut runs: Vec<Run> = Vec::new();
-        if end > start
-            && let Ok(delta) = self.text.slice_delta(start, end, PosType::Unicode)
-        {
-            for d in delta {
-                if let TextDelta::Insert { insert, attributes } = d {
-                    let a: RawAttrs = attributes
-                        .as_ref()
-                        .map(|a| raw(a.iter()))
-                        .unwrap_or_default();
-                    let marks = decode_inline(&a, self.profile);
-                    push_run(&mut runs, insert, marks);
-                }
-            }
-        }
+        let runs = if end > start {
+            self.text
+                .slice_delta(start, end, PosType::Unicode)
+                .map(|d| runs_of(d, self.profile))
+                .unwrap_or_default()
+        } else {
+            Vec::new()
+        };
         let (stored_id, attrs) = match nl {
             Some(n) => self.newline_block(n),
             None => (None, BlockAttrs::default()),
@@ -489,6 +482,26 @@ impl<'a> ProseView<'a> {
         }
     }
 
+    /// Cell (`row`, `col`) of table `table` as runs, with the inline marks
+    /// this document's profile reads (a material note's table keeps
+    /// highlight and inline code; line breaks are U+2028). `None` when the
+    /// table, the row or the cell does not exist; an existing cell whose
+    /// column is gone is still read ([`EmbedView::Table`] leaves it out).
+    ///
+    /// [`EmbedView::Table`]: super::embed::EmbedView::Table
+    pub fn table_cell(&self, table: &EmbedId, row: &str, col: &str) -> Option<Vec<Run>> {
+        let sub = |m: &LoroMap, k: &str| match m.get(k)? {
+            ValueOrContainer::Container(loro::Container::Map(m)) => Some(m),
+            _ => None,
+        };
+        let entry = sub(self.embeds, table.as_str())?;
+        let cells = sub(&sub(&sub(&entry, "rows")?, row)?, "cells")?;
+        let ValueOrContainer::Container(loro::Container::Text(t)) = cells.get(col)? else {
+            return None;
+        };
+        Some(runs_of(t.to_delta(), self.profile))
+    }
+
     /// Embed entries no placeholder points at (kept so Undo can bring a
     /// deleted placeholder back; a background cleanup may drop them).
     pub fn orphan_embeds(&self) -> Vec<EmbedId> {
@@ -558,6 +571,22 @@ impl Iterator for Paragraphs<'_> {
         }
         Some(p)
     }
+}
+
+/// A text's delta as runs: the inline marks `profile` reads, adjacent runs
+/// with the same marks joined.
+fn runs_of(delta: Vec<TextDelta>, profile: ProseProfile) -> Vec<Run> {
+    let mut runs = Vec::new();
+    for d in delta {
+        if let TextDelta::Insert { insert, attributes } = d {
+            let a: RawAttrs = attributes
+                .as_ref()
+                .map(|a| raw(a.iter()))
+                .unwrap_or_default();
+            push_run(&mut runs, insert, decode_inline(&a, profile));
+        }
+    }
+    runs
 }
 
 fn push_run(runs: &mut Vec<Run>, text: String, marks: InlineMarks) {

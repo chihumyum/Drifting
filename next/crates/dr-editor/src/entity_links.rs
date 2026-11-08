@@ -88,6 +88,8 @@ pub fn compare_names(a: &str, b: &str) -> std::cmp::Ordering {
 /// Every name a link can point at, compiled.
 pub struct NameIndex {
     matcher: LinkMatcher<LinkTarget>,
+    /// The pinyin initials of each of the matcher's names, in its order.
+    initials: Vec<crate::pinyin::Initials>,
     /// The names of each target id.
     names: HashMap<String, HashSet<String>>,
     /// The group of each target id that is not an element.
@@ -103,8 +105,15 @@ impl NameIndex {
                 .or_default()
                 .insert(n.name.trim().to_owned());
         }
+        let matcher = LinkMatcher::new(names);
+        let initials = matcher
+            .names()
+            .iter()
+            .map(|n| crate::pinyin::Initials::of(&n.name))
+            .collect();
         NameIndex {
-            matcher: LinkMatcher::new(names),
+            matcher,
+            initials,
             names: by_target,
             groups: HashMap::new(),
         }
@@ -172,22 +181,37 @@ impl NameIndex {
             .is_some_and(|names| names.contains(text.trim()))
     }
 
-    /// Names that contain `query` (case-insensitive), grouped (elements,
-    /// then chapters, then ideas) and sorted by pinyin within a group: the
-    /// @ picker's rows. Each row is `(name, target, group)`; an alias is a
-    /// row of its own.
+    /// Names that contain `query` (case-insensitive) or whose pinyin
+    /// initials it spells ([`crate::pinyin`]: `yg` for 约格), grouped
+    /// (elements, then chapters, then ideas); within a group the names that
+    /// contain it first, then by pinyin: the @ picker's rows. Each row is
+    /// `(name, target, group)`; an alias is a row of its own.
     pub fn search(&self, query: &str, limit: usize) -> Vec<(String, LinkTarget, NameGroup)> {
         let q = query.to_lowercase();
-        let mut rows: Vec<(String, LinkTarget, NameGroup)> = self
+        let mut rows: Vec<(bool, String, LinkTarget, NameGroup)> = self
             .matcher
             .names()
             .iter()
-            .filter(|n| n.name.to_lowercase().contains(&q))
-            .map(|n| (n.name.clone(), n.target.clone(), self.group(&n.target)))
+            .zip(&self.initials)
+            .filter_map(|(n, initials)| {
+                let contains = n.name.to_lowercase().contains(&q);
+                (contains || initials.matches(&q)).then(|| {
+                    (
+                        contains,
+                        n.name.clone(),
+                        n.target.clone(),
+                        self.group(&n.target),
+                    )
+                })
+            })
             .collect();
-        rows.sort_by(|a, b| a.2.cmp(&b.2).then_with(|| compare_names(&a.0, &b.0)));
+        rows.sort_by(|a, b| {
+            a.3.cmp(&b.3)
+                .then_with(|| b.0.cmp(&a.0))
+                .then_with(|| compare_names(&a.1, &b.1))
+        });
         rows.truncate(limit);
-        rows
+        rows.into_iter().map(|(_, n, t, g)| (n, t, g)).collect()
     }
 
     /// Whether an element is called `name` exactly (case-insensitive), for
@@ -438,6 +462,22 @@ mod tests {
             "elements first"
         );
         assert!(ix.has_element_named("约格") && !ix.has_element_named("约"));
+    }
+
+    #[test]
+    fn the_picker_finds_names_by_their_pinyin_initials() {
+        let ix = index();
+        let rows: Vec<String> = ix.search("yg", 30).into_iter().map(|r| r.0).collect();
+        assert_eq!(rows, ["约格"]);
+        let rows: Vec<String> = ix.search("YQ", 30).into_iter().map(|r| r.0).collect();
+        assert_eq!(rows, ["叶青", "叶青知"]);
+        // A name that holds the query comes before one that only spells it.
+        let ix = NameIndex::new(vec![
+            LinkName::new("林雨", LinkTarget::new(EntityKind::Element, "e1")),
+            LinkName::new("Lynn", LinkTarget::new(EntityKind::Element, "e2")),
+        ]);
+        let rows: Vec<String> = ix.search("ly", 30).into_iter().map(|r| r.0).collect();
+        assert_eq!(rows, ["Lynn", "林雨"]);
     }
 
     #[test]

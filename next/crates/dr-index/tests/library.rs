@@ -304,3 +304,44 @@ fn patches_written_by_the_holder_keep_the_rows_right() {
         );
     }
 }
+
+#[test]
+fn conversations_have_no_prose_index_or_word_count() {
+    let dir = tempfile::tempdir().unwrap();
+    let (lib, _) = open(dir.path(), true);
+    let id = dr_model::id::ConversationId::new_v7();
+    let doc_id = DocId::Conversation(id.clone()).to_string();
+    let genesis = dr_doc::conversation::genesis(&id);
+    let h = lib
+        .open_doc(
+            &doc_id,
+            OpenDoc::CreateIfMissing {
+                kind: "conversation",
+                book_id: Some("b1"),
+                genesis: &move |doc| {
+                    doc.import(&genesis).unwrap();
+                },
+            },
+        )
+        .unwrap();
+    h.write(dr_store::Origin::User, move |doc| {
+        dr_doc::conversation::BorrowedConversation::new(doc, &id)
+            .unwrap()
+            .append(&dr_model::conversation::ConversationEntry {
+                id: "session-1:1".into(),
+                session: "session-1".into(),
+                turn: 1,
+                kind: dr_model::conversation::ConversationEntryKind::Assistant,
+                payload: serde_json::json!({"sequence": 1}),
+            })
+            .unwrap();
+    })
+    .unwrap();
+    h.reindex_now().unwrap();
+    let stats = lib.doc_stats(&doc_id).unwrap().unwrap();
+    assert_eq!((stats.words, stats.paragraphs), (0, 0));
+    assert!(lib.outline(&doc_id).unwrap().is_empty());
+    assert!(lib.stale_index_docs().unwrap().is_empty());
+    h.close();
+    lib.close().unwrap();
+}

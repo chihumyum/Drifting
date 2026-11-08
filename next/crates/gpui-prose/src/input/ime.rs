@@ -130,6 +130,11 @@ impl ProseEditor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if !typed.is_empty() {
+            cx.emit(crate::AuthorTyped {
+                chapter: self.selection.chapter,
+            });
+        }
         if typed.is_empty() || typed.contains('\n') || !self.selection.is_empty() {
             return;
         }

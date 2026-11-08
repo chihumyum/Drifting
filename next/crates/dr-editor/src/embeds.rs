@@ -34,6 +34,8 @@ pub enum NoteEvent {
     Edited,
     /// Open material `id` (an embed's click).
     OpenMaterial(String),
+    /// The author typed in a cell ([`gpui_prose::AuthorTyped`]).
+    Typed,
 }
 
 /// How embeds report to the note's view.
@@ -57,6 +59,10 @@ pub struct NoteHost {
 impl NoteHost {
     pub(crate) fn edited(&self, cx: &mut App) {
         (self.notify)(NoteEvent::Edited, cx);
+    }
+
+    pub(crate) fn typed(&self, cx: &mut App) {
+        (self.notify)(NoteEvent::Typed, cx);
     }
 
     pub(crate) fn open_material(&self, id: &str, cx: &mut App) {
@@ -150,6 +156,21 @@ impl NoteEmbeds {
         self.host
             .handle
             .read(move |doc| crate::table::read_cells(doc, &embed))
+            .ok()
+    }
+
+    /// Table `id`'s cells and their inline marks, row by row.
+    pub fn table_grid(
+        &self,
+        id: &str,
+    ) -> Option<(Vec<Vec<String>>, crate::table::clip::GridMarks)> {
+        if self.kind(id)? != Kind::Table {
+            return None;
+        }
+        let embed = id.to_owned();
+        self.host
+            .handle
+            .read(move |doc| crate::table::read_grid(doc, &embed))
             .ok()
     }
 
@@ -339,12 +360,14 @@ fn insert_embed(
     Some(id)
 }
 
-/// Inserts a table of `cells` (rows of cell texts; empty: 3 × 3) at the
-/// body caret and puts the caret in its first cell.
+/// Inserts a table of `cells` (rows of cell texts; empty: 3 × 3) with
+/// their `marks` (none: plain) at the body caret and puts the caret in its
+/// first cell.
 pub fn insert_table(
     embeds: &NoteEmbeds,
     offset: usize,
     cells: Vec<Vec<String>>,
+    marks: crate::table::clip::GridMarks,
     window: &mut Window,
     cx: &mut App,
 ) -> Option<EmbedId> {
@@ -357,7 +380,7 @@ pub fn insert_table(
         &embeds.host,
         offset,
         EmbedKind::Table,
-        move |w| crate::table::write_grid(w, &cells),
+        move |w| crate::table::write_grid(w, &cells, &marks),
         cx,
     )?;
     if let Some(table) = embeds.table(id.as_str(), cx) {

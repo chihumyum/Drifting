@@ -94,12 +94,23 @@ pub enum RowAction {
     Version,
     /// Opens the feedback dialog (F7's, [`crate::actions::SendFeedback`]).
     Feedback,
+    /// 检查更新, and what the last check found (M42's, through
+    /// [`super::set_updates_row`]); left out when no updater is installed.
+    Updates,
     /// Backs the library up ([`crate::actions::BackupLibrary`]).
     Backup,
     /// Restores the library from a backup ([`crate::actions::RestoreLibrary`]);
     /// beside it, 「打开恢复前副本」 opens the folder the copies saved
     /// before each restore are kept in (as the 0.1 client did).
     Restore,
+    /// The Markdown folder (M40, [`crate::mirror`]): 开启 while it is off,
+    /// else 在访达中打开.
+    MarkdownFolder,
+    /// Where it is (all books): 选择文件夹 and the danger's 关闭 Markdown
+    /// 文件夹. Only while it is on.
+    MarkdownLocation,
+    /// 重新显示 the workspace tour (M24); only when the app has one.
+    ReplayGuides,
 }
 
 /// A row of the panel that is not a stored setting: a link, an action, a
@@ -139,6 +150,23 @@ pub static INFO_ROWS: &[InfoRow] = &[
         description: Some(keys::settings::sync::backup::RESTORE_DESC),
         action: RowAction::Restore,
     },
+    // The Markdown folder (0.1's MarkdownProjectionSettings).
+    InfoRow {
+        id: "local.markdown",
+        section: Section::LocalData,
+        group: None,
+        label: keys::settings::sync::projection::TITLE,
+        description: Some(keys::settings::sync::projection::DESCRIPTION),
+        action: RowAction::MarkdownFolder,
+    },
+    InfoRow {
+        id: "local.markdown_location",
+        section: Section::LocalData,
+        group: None,
+        label: keys::settings::sync::projection::ALL_PROJECTS,
+        description: Some(keys::settings::sync::projection::LOCATION_HINT),
+        action: RowAction::MarkdownLocation,
+    },
     InfoRow {
         id: "local.diagnostics",
         section: Section::LocalData,
@@ -148,12 +176,28 @@ pub static INFO_ROWS: &[InfoRow] = &[
         action: RowAction::CopyDiagnostics,
     },
     InfoRow {
+        id: "appearance.replay_guides",
+        section: Section::Appearance,
+        group: Some(keys::settings::appearance::GUIDES),
+        label: keys::settings::appearance::REPLAY_GUIDES,
+        description: None,
+        action: RowAction::ReplayGuides,
+    },
+    InfoRow {
         id: "about.version",
         section: Section::About,
         group: None,
         label: keys::settings::about::VERSION,
         description: None,
         action: RowAction::Version,
+    },
+    InfoRow {
+        id: "about.update",
+        section: Section::About,
+        group: None,
+        label: keys::settings::update::CHECK,
+        description: None,
+        action: RowAction::Updates,
     },
     InfoRow {
         id: "about.open_source",

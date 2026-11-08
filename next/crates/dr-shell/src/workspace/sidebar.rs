@@ -500,6 +500,17 @@ where
     if split_at_start {
         tab_row = tab_row.child(split.take().expect("just checked"));
     }
+    // M24's tour rings the left tabs, and (until the Agent's own tab can be
+    // marked) the right ones.
+    let tabs = crate::pages::anchor(
+        if side == Side::Left {
+            crate::pages::anchors::LEFT_PANEL_TAB
+        } else {
+            crate::pages::anchors::AGENT_TAB
+        },
+        tabs,
+        cx,
+    );
     tab_row = tab_row.child(tabs).child(div().flex_1());
     if let Some(button) = split {
         tab_row = tab_row.child(button);
@@ -568,6 +579,23 @@ fn module_panel(
     }
     let made = crate::pages::left_panel_for(tab, cx.weak_entity(), window, cx);
     ws.left_panels.borrow_mut().insert(key, made.clone());
+    made
+}
+
+/// The 帮手 tab a module draws for `pane` ([`crate::pages::set_companion`]),
+/// made the first time the pane shows it, then kept.
+fn companion_panel(
+    ws: &Workspace,
+    pane: PaneId,
+    window: &mut Window,
+    cx: &mut Context<Workspace>,
+) -> Option<crate::pages::LeftPanel> {
+    let key = pane_slug(pane);
+    if let Some(made) = ws.companion.borrow().get(key) {
+        return made.clone();
+    }
+    let made = crate::pages::companion_for(cx.weak_entity(), window, cx);
+    ws.companion.borrow_mut().insert(key, made.clone());
     made
 }
 
@@ -730,7 +758,8 @@ fn left_header(
                 .flex()
                 .items_center()
                 .child(meta(text, &theme))
-                .child(
+                .child(crate::pages::anchor(
+                    crate::pages::anchors::SUPER_VIEW_ENTRY,
                     IconButton::new(
                         SharedString::from(format!("elements-sv-{slug}")),
                         Icon::KnotLinks,
@@ -740,7 +769,8 @@ fn left_header(
                     .on_click(move |_, _, cx| {
                         entity.update(cx, |ws, cx| ws.toggle_super_view(SuperView::Elements, cx))
                     }),
-                )
+                    cx,
+                ))
                 .into_any_element()
         }
         LeftTab::Drifts => {
@@ -802,7 +832,10 @@ fn right_header(
             };
             row.child(meta(t(cx, key), &theme)).into_any_element()
         }
-        RightTab::Companion => row.into_any_element(),
+        RightTab::Companion => match companion_panel(ws, pane, window, cx) {
+            Some(panel) => div().size_full().child(panel.head).into_any_element(),
+            None => row.into_any_element(),
+        },
     }
 }
 
@@ -1177,7 +1210,7 @@ fn card(
     target: &Target,
     ws: &gpui::Entity<Workspace>,
     host: &crate::pages::PageMenuHost,
-    extra: Rc<Vec<crate::pages::PageMenuSection>>,
+    extra: Rc<crate::pages::CardRows>,
 ) -> AnyElement {
     let (target, ws, host) = (target.clone(), ws.clone(), host.clone());
     let card_id = id.clone();
@@ -1191,16 +1224,17 @@ fn card(
 
 /// A page's hover card around a module's own element (M14's slabs and lane
 /// names): the chapter panel's card for `target` (its name, words,
-/// storylines and summary, then what can be done to it, as its ⋯ menu), the
-/// module's `extra` sections before the dangerous rows. `id` is unique in
-/// the window. Call it while drawing the module's view, not inside the
-/// workspace's own drawing (it reads the workspace).
+/// storylines and summary, then what can be done to it, as its ⋯ menu),
+/// with the module's own rows ([`crate::pages::CardRows`]: above the page's,
+/// and before the dangerous ones). `id` is unique in the window. Call it
+/// while drawing the module's view, not inside the workspace's own drawing
+/// (it reads the workspace).
 pub fn page_hover_card(
     id: impl Into<SharedString>,
     el: impl IntoElement,
     target: &Target,
     ws: &gpui::Entity<Workspace>,
-    extra: Vec<crate::pages::PageMenuSection>,
+    rows: crate::pages::CardRows,
     cx: &App,
 ) -> AnyElement {
     let host = crate::pages::PageMenuHost::of(ws, cx);
@@ -1210,7 +1244,7 @@ pub fn page_hover_card(
         target,
         ws,
         &host,
-        Rc::new(extra),
+        Rc::new(rows),
     )
 }
 
@@ -1235,7 +1269,7 @@ fn card_body(
     target: &Target,
     ws: &gpui::Entity<Workspace>,
     host: &crate::pages::PageMenuHost,
-    extra: &[crate::pages::PageMenuSection],
+    extra: &crate::pages::CardRows,
     window: &mut Window,
     cx: &mut App,
 ) -> AnyElement {
@@ -1322,7 +1356,7 @@ fn card_body(
         }
         _ => {}
     }
-    let sections = super::page_actions::with_extra(
+    let sections = super::page_actions::with_rows(
         super::page_actions::page_actions(ws, host, target, cx),
         extra,
     );
@@ -1687,10 +1721,15 @@ fn right_body(
     tab: RightTab,
     ws: &Workspace,
     pane: PaneId,
-    _window: &mut Window,
+    window: &mut Window,
     cx: &mut Context<Workspace>,
 ) -> AnyElement {
     match tab {
+        // M31: the 帮手 panel, when the app has one.
+        RightTab::Companion => match companion_panel(ws, pane, window, cx) {
+            Some(panel) => div().size_full().child(panel.body).into_any_element(),
+            None => div().size_full().into_any_element(),
+        },
         RightTab::Library => {
             let book = ws.book.clone();
             let material = |id: &str| id.parse().ok().map(Target::Material);
@@ -1790,8 +1829,6 @@ fn right_body(
                 cx,
             )
         }
-        // Its module fills this: the Agent (M27).
-        _ => div().size_full().into_any_element(),
     }
 }
 
@@ -1868,21 +1905,28 @@ fn account_cell(
                     .child(t(cx, keys::common::LOCAL)),
             ),
         )
-        .child(
+        .child(crate::pages::anchor(
+            crate::pages::anchors::PROJECT_HOME,
             IconButton::new("home", Icon::Torii)
                 .label(t(cx, keys::project_home::KICKER))
                 .selected(home)
                 .on_click(|_, window, cx| window.dispatch_action(Box::new(ShowProjectHome), cx)),
-        )
+            cx,
+        ))
         .child(
-            div().relative().child(overlay::probe(bell)).child(
-                IconButton::new("notifications", Icon::Furin)
-                    .label(t(cx, keys::notifications::TITLE))
-                    .selected(open)
-                    .on_click(|_, window, cx| {
-                        window.dispatch_action(Box::new(ToggleNotifications), cx)
-                    }),
-            ),
+            div()
+                .relative()
+                .child(overlay::probe(bell))
+                .child(crate::pages::anchor(
+                    crate::pages::anchors::NOTIFICATIONS,
+                    IconButton::new("notifications", Icon::Furin)
+                        .label(t(cx, keys::notifications::TITLE))
+                        .selected(open)
+                        .on_click(|_, window, cx| {
+                            window.dispatch_action(Box::new(ToggleNotifications), cx)
+                        }),
+                    cx,
+                )),
         )
         .into_any_element()
 }
@@ -1967,6 +2011,13 @@ pub fn notification_center(
                                 open_follow_up.update(cx, |ws, cx| {
                                     ws.open_feedback(Some(follow_up), window, cx)
                                 })
+                            })
+                        })
+                        .when_some(notice.opens.clone(), |el, (book, doc)| {
+                            let ws = entity.clone();
+                            el.cursor_pointer().on_click(move |_, window, cx| {
+                                let (book, doc) = (book.clone(), doc.clone());
+                                ws.update(cx, |ws, cx| ws.open_noticed(&book, &doc, window, cx))
                             })
                         })
                         .child(

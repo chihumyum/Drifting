@@ -42,6 +42,19 @@
           "legacy": "C’est une sauvegarde de Drifting 0.1, que cette version ne peut pas restaurer directement. Restaurez-la dans Drifting 0.1, puis importez cette bibliothèque avec « Importer · Drifting 0.1 » dans la bibliothèque."
         }
       }
+    },
+    "update": {
+      "restart": "Redémarrer pour mettre à jour",
+      "ready_on_quit": "Drifting {{version}} est téléchargé et sa signature vérifiée. Il s'installe quand vous quittez.",
+      "older_offered": "Vous êtes à jour. Le service de mise à jour propose {{version}}, plus ancienne que cette version : elle ne sera pas installée.",
+      "refused_signature": "La mise à jour téléchargée n'a pas passé la vérification de signature et a été supprimée. Cette version reste utilisable.",
+      "refused_version": "La mise à jour téléchargée n'est pas la version annoncée, peut-être une plus ancienne, et a été refusée. Cette version reste utilisable.",
+      "refused_app": "La mise à jour téléchargée n'est pas Drifting et a été supprimée. Cette version reste utilisable.",
+      "interrupted": "Le téléchargement de la mise à jour n'a pas abouti et a été supprimé. Elle sera retéléchargée à la prochaine vérification.",
+      "server_error": "Le service de mise à jour rencontre un problème. Réessayez plus tard ; cette version reste utilisable.",
+      "local_error": "La mise à jour n'a pas pu être enregistrée sur cet ordinateur et a été arrêtée. Cette version reste utilisable.",
+      "install_failed": "Drifting {{version}} n'a pas pu être installé lorsque vous avez quitté. Cette version est inchangée ; nouvel essai la prochaine fois que vous quitterez.",
+      "install_failed_admin": "Drifting {{version}} n'a pas pu être installé lorsque vous avez quitté : le dossier où se trouve Drifting n'est pas accessible en écriture. Cette version est inchangée."
     }
   },
   "findPanel": {

@@ -65,6 +65,8 @@ notifications.shareComments.source
 notifications.organize.source
 notifications.markdownFolder.source
 notifications.appUpdate.source
+notifications.appUpdate.available
+notifications.appUpdate.installed
 notifications.crashFollowUp.source
 notifications.markdownFolder.preserved
 notifications.markdownFolder.issue.frontmatter
@@ -158,6 +160,15 @@ windowCaption.restore
 
 # Settings → Updates (the version row; channel_desc has a Windows overlay)
 settings.update.channel_desc
+# M42 (dr-view-update): the update row of 关于 and its states
+settings.update.check
+settings.update.check_action
+settings.update.checking
+settings.update.no_update
+settings.update.downloading
+settings.update.downloading_progress
+settings.update.unavailable
+settings.update.check_failed
 
 # The paper's corner (M03): the ⋯ menu, a chapter's writing status, the
 # trash, immersive writing
@@ -169,6 +180,7 @@ editorTopBar.status.draft
 editorTopBar.status.finished
 editorTopBar.status.discarded
 editorTopBar.menu.deleteNode
+editorTopBar.menu.editStorylines
 immersiveWriting.enter
 immersiveWriting.leave
 
@@ -596,6 +608,21 @@ settings.sync.backup.restoreTitle
 settings.sync.backup.restoreDesc
 settings.sync.backup.restoreButton
 settings.sync.backup.openSafety
+settings.appearance.guides
+settings.appearance.replay_guides
+settings.appearance.replay_guides_action
+settings.sync.projection.title
+settings.sync.projection.description
+settings.sync.projection.turnOn
+settings.sync.projection.reveal
+settings.sync.projection.offHint
+settings.sync.projection.allProjects
+settings.sync.projection.allProjectsUnset
+settings.sync.projection.locationHint
+settings.sync.projection.choose
+settings.sync.projection.turnOff
+settings.sync.projection.offTitle
+settings.sync.projection.offWarning
 
 # The chapter panel's folding fan and its rows' hover cards (M04)
 leftSidebar.actions.collapseAll
@@ -819,6 +846,9 @@ edgeKindManager.title
 edgeKindManager.summary
 edgeKindManager.editTypes
 edgeKindManager.resetColor
+edgeKindManager.changeColor
+edgeKindManager.changeColorLabel
+relationTypes.swap
 
 # M24 the tour the first time a book opens (dr-view-sea)
 guide.skip
@@ -833,7 +863,6 @@ markdownFolderGuide.intro
 markdownFolderGuide.chosen
 markdownFolderGuide.choose
 markdownFolderGuide.continue
-settings.sync.projection.turnOff
 
 # M19 the image and PDF viewer and its region comments (dr-view-material)
 materialEditor.descriptionPlaceholder
@@ -855,3 +884,20 @@ memoMaterial.preview.loadingPdf
 memoMaterial.preview.loading
 memoMaterial.preview.previousPage
 memoMaterial.preview.nextPage
+
+# M16 the ideas panel (dr-view-ideas)
+leftSidebar.actions.newDrift
+leftSidebar.actions.newDriftGroup
+leftSidebar.sort.drifts
+leftSidebar.sort.title
+leftSidebar.groups.newDriftInGroup
+leftSidebar.groups.newSubGroup
+leftSidebar.groups.moveDriftToRoot
+leftSidebar.groups.moveGroupToRoot
+leftSidebar.groups.rename
+leftSidebar.groups.deleteGroup
+leftSidebar.groups.driftCount
+editorTopBar.status.drifting
+editorTopBar.status.resting
+editorTopBar.statusSection.drift
+editorTopBar.menu.moveToGroup

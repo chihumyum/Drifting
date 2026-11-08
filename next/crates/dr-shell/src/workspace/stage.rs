@@ -241,7 +241,7 @@ pub fn mid(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>)
         .flex()
         .flex_col()
         .child(pages)
-        .children(panel.map(|(el, _)| el))
+        .children(panel.map(|(el, _)| Workspace::on_sea("sea-bottom", el, ws.ebbing(), cx)))
         .child(strip)
         .children(dock)
         .children(find)
@@ -341,9 +341,11 @@ fn paper(
         .rounded(px(surface::PAGE_RADIUS))
         .shadow(shadow)
         .child(content);
+    // While the sea ebbs (M24) the desk leaves its colour to it.
+    let ebbing = ws.read(cx).ebbing();
     div()
         .size_full()
-        .bg(p.desk.solid())
+        .when(!ebbing, |el| el.bg(p.desk.solid()))
         .flex()
         .justify_center()
         .child(glass::surface(Ground::flat(p.page), sheet))

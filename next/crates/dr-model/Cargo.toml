@@ -9,8 +9,6 @@ description = "Drifting domain types: ids, entity records, ordering, write origi
 
 [dependencies]
 serde.workspace = true
+serde_json.workspace = true
 sha2.workspace = true
 uuid.workspace = true
-
-[dev-dependencies]
-serde_json.workspace = true

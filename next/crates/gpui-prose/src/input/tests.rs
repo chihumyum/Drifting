@@ -1032,6 +1032,40 @@ fn mac_keys_for_paragraphs_and_find(cx: &mut TestAppContext) {
 
 // ----- F4c: screen readers ------------------------------------------------------------------
 
+#[gpui::test]
+fn the_author_typing_is_told_apart(cx: &mut TestAppContext) {
+    use std::{cell::RefCell, rc::Rc};
+    let (editor, cx) = editor(cx, &[&[(BlockKind::Body, "开头")]]);
+    let typed: Rc<RefCell<Vec<usize>>> = Rc::default();
+    cx.update(|_, cx| {
+        let typed = typed.clone();
+        cx.subscribe(&editor, move |_, e: &crate::AuthorTyped, _| {
+            typed.borrow_mut().push(e.chapter)
+        })
+        .detach();
+    });
+    let count = |cx: &mut VisualTestContext| {
+        cx.run_until_parked();
+        typed.borrow().len()
+    };
+    select(&editor, cx, 0, 2);
+    commit(&editor, cx, "字");
+    assert_eq!(count(cx), 1, "a typed character");
+    // The input method composing is not writing yet; its confirmed text is.
+    mark(&editor, cx, "ni");
+    assert_eq!(count(cx), 1);
+    commit(&editor, cx, "你");
+    assert_eq!(count(cx), 2);
+    editor.update_in(cx, |e, window, cx| e.press_enter(window, cx));
+    assert_eq!(count(cx), 3, "Enter");
+    // Not writing: a paste, a deletion, an undo.
+    editor.update_in(cx, |e, window, cx| e.paste_text("贴进来", window, cx));
+    editor.update_in(cx, |e, window, cx| e.press_backspace(window, cx));
+    undo(&editor, cx);
+    assert_eq!(count(cx), 3);
+    assert_eq!(*typed.borrow(), [0, 0, 0]);
+}
+
 mod a11y {
     use accesskit_consumer::Tree;
     use gpui::accesskit::{

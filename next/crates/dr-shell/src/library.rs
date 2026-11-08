@@ -5,7 +5,8 @@
 //!
 //! [`replace`]:
 //!
-//! 1. Every workspace window lets go: its open pages' editors, the
+//! 1. The Markdown folder makes a last pass and stops (M40). Every
+//!    workspace window lets go: its open pages' editors, the
 //!    bookshelf and Project Home, search, snapshot history, the comment
 //!    composer, its subscription; M07's recorder stores its writing days and
 //!    stops, the Stats and Review tabs let go; `Services` no longer offers
@@ -107,6 +108,8 @@ pub fn replace(
 
 /// Everything in the app that holds the library lets go of it.
 fn let_go(cx: &mut App) {
+    // The Markdown folder first: a last pass while the library is open.
+    crate::mirror::stop(cx);
     for handle in windows(cx) {
         if let Err(error) = handle.update(cx, |ws, window, cx| ws.let_go_of_library(window, cx)) {
             log::warn!("a window could not let go of the library: {error:#}");
@@ -170,6 +173,7 @@ fn take_up(lib: Library, cx: &mut App) {
     }
     dr_view_stats::init(Some(lib.clone()), cx);
     dr_view_review::init(Some(lib.clone()), cx);
+    crate::mirror::restart(cx);
     for handle in windows(cx) {
         let lib = lib.clone();
         if let Err(error) = handle.update(cx, |ws, window, cx| ws.adopt_library(lib, window, cx)) {

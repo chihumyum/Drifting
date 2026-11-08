@@ -39,7 +39,12 @@ pub struct EntityChange {
     pub fields: Option<Vec<String>>,
 }
 
-/// A persisted change to a book document.
+/// A persisted change to a book document. Also sent when a commit to a
+/// template document makes it start or stop holding a template: then the
+/// one change names the owner (a storyline with field `chapter_template`,
+/// a category with `element_template`), since its `has_chapter_template` /
+/// `has_element_template` in the lists changed, and `seq` and `origin` are
+/// the template document's.
 #[derive(Clone, Debug)]
 pub struct BookChanged {
     pub book: BookId,

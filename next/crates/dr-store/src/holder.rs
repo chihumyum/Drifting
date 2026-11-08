@@ -1023,6 +1023,9 @@ impl Holder {
 
     fn import(&mut self, origin: &Origin, bytes: &[u8]) -> Result<Imported> {
         self.settle()?;
+        if let Some(validate) = &self.lib.options.validate_import {
+            validate(&self.doc_id, &self.doc, bytes)?;
+        }
         let status = self.doc.import_with(bytes, &origin.to_string())?;
         self.import_since_idle = true;
         // Everything in a blob from the server is on the server, including
@@ -1109,6 +1112,12 @@ impl Holder {
             let conn = self.lib.writer();
             let tx = conn.unchecked_transaction()?;
             record_append(&tx, &self.doc_id, seq, &bytes, origin, now, &vv, &frontiers)?;
+            if let Some(checkpoint) = &self.lib.options.append_checkpoint {
+                checkpoint();
+            }
+            if let Some(pause) = self.lib.options.append_pause {
+                std::thread::sleep(pause);
+            }
             for (f, label) in &labels_to_write {
                 history::insert(&tx, &self.doc_id, self.book_doc.as_deref(), f, label, now)?;
             }

@@ -1,6 +1,6 @@
 # M17 关系与关系类型
 
-2026-11-08，第一个里程碑。计划见 [modules.md 的 M17](../modules.md#阶段-3故事工坊)。界面在 `next/crates/dr-view-relations/`，数据全走 F3 的 `relation.*`（列出、建立、删除）和 `relation_type.*`（列出、新建、修改、删除），在 `next/crates/dr-workspace/src/commands/relation.rs`。对照的旧版是桌面端 `src/renderer/components/editor/ReferencesPanel.tsx` 的「关联」一节、`components/ui/RelationTypeField.tsx`、`components/ui/RelationKindMenu.tsx`（类型管理和 `RelationTypeEditor`）、`src/styles/entity-editors.css` 和 [docs/relation-types.md](../../relation-types.md)。截图在 [m17/](m17/)。
+2026-11-08，第一个里程碑；同日第二个里程碑：挂到要素页上，用调试桥在真窗口里点了一遍。计划见 [modules.md 的 M17](../modules.md#阶段-3故事工坊)。界面在 `next/crates/dr-view-relations/`，数据全走 F3 的 `relation.*`（列出、建立、删除）和 `relation_type.*`（列出、新建、修改、删除），在 `next/crates/dr-workspace/src/commands/relation.rs`。对照的旧版是桌面端 `src/renderer/components/editor/ReferencesPanel.tsx` 的「关联」一节、`components/ui/RelationTypeField.tsx`、`components/ui/RelationKindMenu.tsx`（类型管理和 `RelationTypeEditor`）、`src/styles/entity-editors.css` 和 [docs/relation-types.md](../../relation-types.md)。截图在 [m17/](m17/)。
 
 ## 做了什么（大白话）
 
@@ -14,7 +14,17 @@
    - 内建的「关联」（批注、素材一键关联用的）不能改、不能删、不能换颜色。
 5. **别处的改动会显示出来。** 另一个窗口、帮手（Agent）建了或删了关系、改了类型，F3 发出事件，这一节和类型列表重新读一遍。
 
-**要作者定的事：没有。** 和旧版不一样的地方列在「和旧版的差别」，要别的模块配合的在「外壳要接的」和「待协调」。
+**要作者定的事：没有。** 和旧版不一样的地方列在「和旧版的差别」，要别的模块配合的在「待协调」。
+
+### 第二个里程碑：挂上要素页、真窗口验收
+
+1. **要素页上有了「关联」。** 和旧版一样放在「字段」下面，是页面的最后一节（底下留 80 的空）。章节页、构想页旧版没有这一节，这里也不加。
+2. **真窗口里点了一遍。** 用 F8 的调试桥写成场景 `next/crates/dr-cli/scenarios/relations.json`（57 步，界面英文），在这台 Mac 上全过：打开《慢钟》的「沈知微」，滚到页尾，11 张卡片；「编辑类型」→「新建」→ 写「宿敌」→「保存」，F3 里是有向、角色 Source / Target；点「宿敌」的色条换第三个颜色，F3 里存成 `hsl(var(--story-3))`；「关联实体」搜「林晚秋」、选上、类型下拉选「宿敌」、「创建」，F3 里有沈知微 → 林晚秋；× 移除；再开类型，把列表滚到底，点「宿敌」的垃圾桶：类型面板收起、对话框问「删除关系类型」，确认后 F3 里没有了，卡片回到 11 张。截图在 `target/acceptance/relations/`（不提交）。
+3. **点的过程中找到并修了三处：**
+   - 新建的类型排在列表最后，列表高度有限，它被挡在下面，色条点不到：保存后、点开颜色或编辑时，把那一行滚进来；
+   - 点「保存」后整页跳回顶上：编辑区的输入框一消失键盘就没了主人，外壳把键盘交回正文，正文滚到光标那里。现在编辑区关掉时键盘留在类型面板上；
+   - 删除的确认弹出时类型面板收起（旧版的弹窗下面面板还开着；这里对话框和面板上的垃圾桶都叫「删除关系类型」，留着两个分不清），确认框自己拿着库去删。
+4. **给调试桥和读屏的名字**：卡片是一组（名字是对方的名字），卡片名字是链接，类型字段是下拉（名字是选中的类型或「选择关系类型」），⇄ 是「交换关系两端」；类型面板每一行是一组（名字是类型名），色条「修改 {{label}} 的颜色」，七个颜色「点击改色 N」，名字是按钮。用的是旧版这几处的 `title` / `aria-label` 文案（加了 3 个键）。
 
 ## 规则（定稿）
 
@@ -42,20 +52,20 @@
 | 类型管理里「当前画布 N 条 / 项目共 M 条」 | 只有全书的条数 | 这里不在画布上；画布的筛选和计数是 M21 / M22 的事 |
 | 空名字的分类写它的 id | 写「分类」 | id 对作者没有意义 |
 
-## 外壳要接的（给 M11）
+## 怎么挂的
 
-旧版的「关联」只在要素页上，放在「字段」下面、补丁上面。dr-view-relations 只提供视图，挂在哪里由要素页决定：
+旧版的「关联」只在要素页上，放在「字段」下面、补丁上面（补丁还没做）。第二个里程碑在 dr-view-elements 里挂好了（`ElementEnd`，`element_relations(id)` 给测试和调试桥拿到它）：
 
 1. 用 `dr_view_relations::relations(End { kind: "element", id }, ws, window, cx)` 做出 `Entity<Relations>`，放在要素页的页尾、「字段」下面（`Fields` 的 `last` 改成 `false`）。它自己从 `ws` 读书快照、从 `Services` 拿库，别的不用传；节头（「关联」、条数、「编辑类型」「＋ 关联实体」）和「字段」同一个样式，排在正文那一栏里。
 2. 要素页的页尾现在只有 `Fields` 一个视图，要改成 `Fields` 和 `Relations` 上下两个；`end_estimate` 大约多 200。
 3. 类型管理从「编辑类型」浮出来，删除的确认走 `dr_shell::dialogs::show_in`，要素页都不用管。
 4. M11 计划里的「关联（ReferencesPanel 的关联节、关联选择器）」就是这一块，不用再写一遍；「被引用 / 引用其他」两节还是 M11 / M20 的。
 
-这些也写进了共享笔记（`m17-relations-hooks.md`），由监管会话转给 M11。
+dr-view-elements 依赖 dr-view-relations（界面层之间可以依赖，门禁 `layers` 认可）。
 
 ## 文案
 
-全部是旧版九种语言里现成的，`dr-i18n/keys.txt` 加了 52 行：51 个键一个个列出，`relationTypes.entityKinds.*` 一组 7 个（用到的旧键 `common.cancel`、`storyGraph.edge.create`、`referencesPanel.kind.patch`、`relationTypes.description` 原来就有）：
+全部是旧版九种语言里现成的，`dr-i18n/keys.txt` 第一个里程碑加了 52 行：51 个键一个个列出，`relationTypes.entityKinds.*` 一组 7 个（用到的旧键 `common.cancel`、`storyGraph.edge.create`、`referencesPanel.kind.patch`、`relationTypes.description` 原来就有）：
 
 | 用在哪 | 键 | 中文 |
 | --- | --- | --- |
@@ -67,6 +77,7 @@
 | 类型管理 | `edgeKindManager.title`、`summary`、`resetColor`；`relationTypes.title`、`create`、`builtIn`、`delete`、`confirmDelete` | 全部关联类型、{{kinds}} 类 · {{relations}} 条关联、恢复默认色、关系类型定义、新建、内建、删除关系类型、删除关系类型「{{name}}」？ |
 | 类型编辑器 | `relationTypes.name`、`direction`、`directed`、`symmetric`、`sourceRole`、`targetRole`、`endpointRole`、`description`、`allowedSources`、`allowedTargets`、`allowedEntities`、`entityKinds.*`、`defaultSourceRole`、`defaultTargetRole`、`cancel`、`save` | 名称、方向、有向、对称、源角色、目标角色、端点角色、说明、允许源实体、允许目标实体、允许实体、章节或构想……、源端、目标端、取消、保存 |
 | 内建类型 | `relationTypes.genericAssociation.name` / `sourceRole` / `targetRole` | 关联、关联项、对象 |
+| 读屏和调试桥用的名字（第二个里程碑） | `edgeKindManager.changeColor`、`changeColorLabel`、`relationTypes.swap` | 点击改色、修改 {{label}} 的颜色、交换关系两端 |
 
 ## 截图
 
@@ -95,6 +106,8 @@ cargo clippy -p dr-view-relations --all-targets --features capture --locked -- -
 | --- | --- |
 | 单元测试（5，`model.rs`） | 关系按新到旧、自己连自己只显示一次、两端的顺序；类型按方向和种类合不合（要素 → 章节、反过来、对称、自己连自己），改类型时哪些能选、要不要掉头、能不能掉头；颜色读旧版写法和 `#RRGGBB`，默认色和旧版的算法逐个对得上；编辑器切对称时两端种类一致、对称只有一个角色；内建类型用作者语言的名字和角色 |
 | `tests/relations.rs`（5） | GPUI 测试平台，F3 经 dr-store 的真库，书是《阿Q正传》，外壳的工作区窗口打开书：阿Q 的 15 条关系按新到旧、类型 10 个（9 个加内建）、赵太爷 → 阿Q 是「欺辱」；帮手给阿Q 建一条关系，这一节马上多一张、排在最前；选择器排除阿Q 自己和已有关系的 12 个要素，按种类、按名字（「赵」只剩三个）筛，选一章时下拉只有「关键章节」、掉头后一个都没有，赵白眼 → 阿Q 选「欺辱」创建后 F3 里有、选择器收起；「土谷祠」那张从「住在」换成「持有」（方向不变、旧的删了），⇄ 后变成土谷祠 → 阿Q，× 后没了；类型管理：和「本家」重名被拒、原因写在编辑区，新建对称的「师徒」（一个角色、两端种类一样、没有批注），改名「师生」（方向没变），改颜色存成 `hsl(var(--story-3))`、恢复默认色清空，内建类型不能编辑不能改色，在用的「欺辱」点垃圾桶什么都不问，新类型点垃圾桶时工作区窗口出现确认对话框、确认前没删、确认后删了；一章 → 阿Q 没有合适的类型时，下拉的「新建关系类型」打开的编辑器两端种类是章节 / 要素，保存后新类型自动选上、类型面板收起，创建成功 |
+| `dr-view-elements/tests/pages.rs` | 打开「沈知微」的要素页，「字段」下面有「关联」，条数和 F3 列出的一样 |
+| `dr-cli/scenarios/relations.json`（真窗口，57 步） | 见上面「第二个里程碑」；`cargo build -p drifting --features debug-bridge`，再 `cargo drifting workspace scenario crates/dr-cli/scenarios/relations.json --app target/debug/drifting --yes` |
 
 ## 待协调
 
@@ -102,12 +115,11 @@ cargo clippy -p dr-view-relations --all-targets --features capture --locked -- -
 2. **F3：改类型的方向和允许种类**。旧版能改（会逐条检查已有关系，不合规矩的拒绝）。F3 的 `relation_type.update` 没有这几项，编辑器里灰着。
 3. **F3：内建类型的颜色**。旧版的颜色是本机偏好，内建类型也能换色；新版颜色在类型里，F3 把内建类型整个锁住，连颜色也不能改。要不要放开颜色，F3 定。
 4. **F5（dr-ui）**：悬停提示（垃圾桶为什么灰、色条、⇄、卡片名字）；`Chip` 加记号（类型编辑器的种类）。
-5. **M11**：把这一节挂到要素页「字段」下面，见「外壳要接的」。
+5. ~~M11：把这一节挂到要素页「字段」下面~~：第二个里程碑做了（改了 dr-view-elements 的 `lib.rs`、`Cargo.toml` 和 `tests/pages.rs`，请 M11 知悉）。
 6. **M18 / M19**：批注、待办、素材卡片上的一键关联（旧版 `EntityRelationPicker`，用内建的「关联」类型）这一轮没做，等那两张卡片做出来时可以用这里的选择器和 `data::create`（F3 的 `relation.create` 对批注和素材省略类型时自动用内建类型）。
 
 ## 没做的
 
-- 要素页里的挂接（见上），所以还不能在真窗口里点；
 - 批注、待办、素材上的一键关联（`EntityRelationPicker`），见待协调 6；
 - 画布上的关系筛选（`RelationKindMenu` 的「画布筛选」那一半）和故事图里按住 Shift 连线，是 M21 / M22；
 - 手机端。

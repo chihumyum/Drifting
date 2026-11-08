@@ -109,6 +109,9 @@ impl ProseEditor {
         if self.composition.is_some() {
             return;
         }
+        cx.emit(crate::AuthorTyped {
+            chapter: self.selection.chapter,
+        });
         self.pending_marks.clear();
         // In an empty list item: out of the list (`lists.rs`).
         if self.newline_in_list(window, cx) {

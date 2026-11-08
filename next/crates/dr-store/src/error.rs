@@ -86,6 +86,13 @@ pub enum StoreError {
         stored: u64,
         expected: u64,
     },
+    /// Another runtime writer appended after the caller's observed event.
+    #[error("agent session {session} expects event {expected}, but {stored} is stored")]
+    AgentSequence {
+        session: String,
+        expected: i64,
+        stored: i64,
+    },
 }
 
 impl StoreError {

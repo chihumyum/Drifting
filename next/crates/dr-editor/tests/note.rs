@@ -334,7 +334,17 @@ fn a_table_from_the_slash_menu_and_tab_through_its_cells(cx: &mut TestAppContext
         Some((0, 0)),
         "the caret in the first cell"
     );
+    // Typing in a cell is the author writing in the note (M26).
+    let seen: std::rc::Rc<std::cell::RefCell<Vec<String>>> = Default::default();
+    o.cx.update(|_, cx| {
+        let sink = seen.clone();
+        cx.subscribe(&o.view, move |_, e: &dr_editor::WritingTyped, _| {
+            sink.borrow_mut().push(e.doc.clone())
+        })
+        .detach()
+    });
     o.type_text("甲");
+    assert_eq!(*seen.borrow(), [doc.as_str()]);
     o.action(IndentListItem);
     assert_eq!(o.focused_cell(), Some((0, 1)));
     o.type_text("乙");
@@ -779,4 +789,59 @@ fn select_all_twice_and_the_bar_on_selected_rows(cx: &mut TestAppContext) {
     table.update_in(o.cx, |t, window, cx| t.delete_rows(0..3, window, cx));
     draw(o.cx);
     assert_eq!(o.lines(), [""]);
+}
+
+#[gpui::test]
+fn copied_cells_keep_their_marks(cx: &mut TestAppContext) {
+    use dr_editor::highlight::{KEY, ToggleHighlight};
+    let e = env();
+    let doc = note(&e, "");
+    let mut o = open(cx, &e, &doc);
+    o.filled_table();
+    let table = o.table();
+    // 甲 bold, 乙 highlighted.
+    table.update_in(o.cx, |t, window, cx| {
+        t.select_cells((0, 0), (0, 0), window, cx)
+    });
+    o.action(ToggleBold);
+    table.update_in(o.cx, |t, window, cx| {
+        t.select_cells((0, 1), (0, 1), window, cx)
+    });
+    o.action(ToggleHighlight);
+    // The two copied and pasted into the last row: their marks come along.
+    table.update_in(o.cx, |t, window, cx| {
+        t.select_cells((0, 0), (0, 1), window, cx)
+    });
+    o.action(Copy);
+    table.update_in(o.cx, |t, window, cx| t.focus_cell(2, 0, false, window, cx));
+    o.action(Paste);
+    assert_eq!(o.stored()[2], ["甲", "乙", "壬"]);
+    assert!(o.cell_has(2, 0, "bold") && !o.cell_has(2, 0, KEY));
+    assert!(o.cell_has(2, 1, KEY) && !o.cell_has(2, 1, "bold"));
+    // Plain text over a bold cell: the bold goes with the old text.
+    o.cx.write_to_clipboard(ClipboardItem::new_string("甲".into()));
+    table.update_in(o.cx, |t, window, cx| {
+        t.select_cells((0, 0), (0, 0), window, cx)
+    });
+    o.action(Paste);
+    assert_eq!(o.stored()[0][0], "甲");
+    assert!(!o.cell_has(0, 0, "bold"));
+    // The whole table copied from the text and pasted as a new one keeps
+    // them too.
+    o.editor
+        .update_in(o.cx, |e, window, cx| e.select_embed(0, 0, window, cx));
+    o.action(Copy);
+    o.caret(2);
+    o.action(Paste);
+    assert_eq!(o.lines(), [OBJ, OBJ, ""]);
+    let id = o.editor.read_with(o.cx, |e, _| {
+        e.book().chapters[0].doc.line(1).embed().unwrap().to_owned()
+    });
+    let (cells, marks) = o.view.read_with(o.cx, |v, _| {
+        v.note_embeds().unwrap().table_grid(&id).unwrap()
+    });
+    assert_eq!(cells[2], ["甲", "乙", "壬"]);
+    assert!(marks[2][0].iter().any(|m| m.2 == "bold"));
+    assert!(marks[2][1].iter().any(|m| m.2 == KEY));
+    assert!(marks[0][0].is_empty());
 }

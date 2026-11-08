@@ -53,6 +53,15 @@ impl Default for WorkspaceOptions {
 pub fn library_options(app_version: &str) -> LibraryOptions {
     let mut o = LibraryOptions::new(app_version);
     dr_index::attach(&mut o);
+    o.validate_import = Some(Arc::new(|id, doc, bytes| {
+        if matches!(DocId::parse(id), Ok(DocId::Conversation(_))) {
+            dr_doc::conversation::validate_update(doc, bytes).map_err(|e| StoreError::Invalid {
+                what: "conversation import",
+                value: e.to_string(),
+            })?;
+        }
+        Ok(())
+    }));
     o
 }
 
@@ -119,6 +128,11 @@ pub(crate) struct Inner {
     pub journal: Journal,
     pub library_gate: Arc<Gate>,
     subscription: Mutex<Option<LibrarySubscription>>,
+    /// Whether each template document held a template when last seen (by
+    /// `storyline.list` / `category.list`, or after its last commit): a
+    /// commit that flips it is reported as a change to its owner
+    /// ([`Inner::template_flip`]).
+    templates: Mutex<HashMap<DocId, bool>>,
     /// The author's `editor.auto_entity_links` (`crate::autolink`).
     auto_links: std::sync::atomic::AtomicBool,
 }
@@ -175,6 +189,7 @@ impl Workspace {
             bus: Bus::default(),
             library_gate: Arc::default(),
             subscription: Mutex::new(None),
+            templates: Mutex::new(HashMap::new()),
             auto_links: std::sync::atomic::AtomicBool::new(true),
         });
         subscribe(&inner);
@@ -547,6 +562,21 @@ impl Workspace {
                 slot.handle.import(bytes, origin)?;
                 repair_book(&slot)?;
             }
+            DocId::Conversation(id) => {
+                let genesis = dr_doc::conversation::genesis(id);
+                let info = self.inner.lib.doc_info(doc_id)?;
+                let handle = self.inner.lib.open_doc(
+                    doc_id,
+                    OpenDoc::CreateIfMissing {
+                        kind: "conversation",
+                        book_id: info.as_ref().and_then(|i| i.book_id.as_deref()),
+                        genesis: &move |d| {
+                            d.import(&genesis).expect("conversation genesis");
+                        },
+                    },
+                )?;
+                handle.import(bytes, origin)?;
+            }
             _ => {
                 let slot = self.prose_slot(&doc)?;
                 slot.handle.import(bytes, origin)?;
@@ -740,7 +770,7 @@ impl Workspace {
         if let Some((_, s)) = lock(&self.inner.prose).map.get(doc) {
             return Ok(s.clone());
         }
-        if doc.is_book() {
+        if doc.profile().is_none() {
             return Err(WsError::invalid(format!("{doc} is not a prose document")));
         }
         let lib = &self.inner.lib;
@@ -774,7 +804,7 @@ impl Workspace {
                 return Ok(s.clone());
             }
         }
-        if doc.is_book() {
+        if doc.profile().is_none() {
             return Err(WsError::invalid(format!("{doc} is not a prose document")));
         }
         let lib = &self.inner.lib;
@@ -947,6 +977,66 @@ fn removed_by(slot: &BookSlot, changes: &[EntityChange]) -> Vec<RemovedEntity> {
 }
 
 impl Inner {
+    /// Remember whether template document `doc` holds a template, unless
+    /// a commit already told (the list queries seed it; commits, on the
+    /// holder thread in their order, are what count).
+    pub(crate) fn seen_template(&self, doc: &DocId, has: bool) {
+        lock(&self.templates).entry(doc.clone()).or_insert(has);
+    }
+
+    /// After a commit to template document `doc`: when whether it holds a
+    /// template flipped (blank ↔ not, or not known yet), the owner's
+    /// `has_chapter_template` / `has_element_template` changed for every
+    /// reader of the book's lists, so the change is also reported as a
+    /// [`BookChanged`] naming the owner, field `chapter_template` (a
+    /// storyline) or `element_template` (a category): the 0.1 fields that
+    /// held the templates. The shell reloads its snapshot on it as on any
+    /// change to the book. Typing inside a template sends no such event.
+    fn template_flip(
+        &self,
+        doc: &DocId,
+        t: &dr_model::id::TemplateId,
+        book: BookId,
+        ev: &dr_store::DocEvent,
+    ) {
+        let Some(owner) = t.owner() else { return };
+        let open = lock(&self.prose).map.get(doc).map(|(_, s)| s.clone());
+        let has = match open {
+            // On the holder thread, right after the commit.
+            Some(s) => !crate::commands::template::blank(&s.reader.view()),
+            None => match self.lib.load_copy(&doc.to_string()) {
+                Ok(d) => ProseReader::from_loro(doc.clone(), &d)
+                    .map(|r| !crate::commands::template::blank(&r.view()))
+                    .unwrap_or(false),
+                Err(_) => return,
+            },
+        };
+        if lock(&self.templates).insert(doc.clone(), has) == Some(has) {
+            return;
+        }
+        let (collection, id, field) = match owner {
+            dr_model::id::TemplateOwner::Storyline(s) => {
+                (Collection::Storylines, s.to_string(), "chapter_template")
+            }
+            dr_model::id::TemplateOwner::Category(c) => {
+                (Collection::Categories, c.to_string(), "element_template")
+            }
+        };
+        events::publish(
+            &self.bus,
+            &WsEvent::Book(BookChanged {
+                book,
+                seq: ev.seq,
+                origin: ev.origin.clone(),
+                changes: vec![EntityChange {
+                    collection,
+                    id: Some(id),
+                    fields: Some(vec![field.to_string()]),
+                }],
+            }),
+        );
+    }
+
     fn on_store_event(&self, e: &StoreEvent) {
         match e {
             StoreEvent::Doc(ev) => {
@@ -986,6 +1076,9 @@ impl Inner {
                             );
                         }
                     }
+                    // Conversation observers subscribe to their journal or
+                    // store document events; they are never prose events.
+                    DocId::Conversation(_) => {}
                     _ => {
                         let (ranges, embeds) = prose_ranges(&ev.changes);
                         let slot = lock(&self.prose).map.get(&doc).map(|(_, s)| s.clone());
@@ -1013,8 +1106,8 @@ impl Inner {
                         events::publish(
                             &self.bus,
                             &WsEvent::Prose(ProseChanged {
-                                doc,
-                                book,
+                                doc: doc.clone(),
+                                book: book.clone(),
                                 seq: ev.seq,
                                 origin: ev.origin.clone(),
                                 ranges,
@@ -1022,6 +1115,9 @@ impl Inner {
                                 embeds,
                             }),
                         );
+                        if let (DocId::Template(t), Some(book)) = (&doc, book) {
+                            self.template_flip(&doc, t, book, ev);
+                        }
                     }
                 }
             }

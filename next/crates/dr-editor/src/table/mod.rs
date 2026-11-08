@@ -121,20 +121,94 @@ pub(crate) fn read_structure(
 
 /// Every cell's plain text, row by row (`""` for a missing cell).
 pub(crate) fn read_cells(doc: &LoroDoc, embed: &str) -> Vec<Vec<String>> {
+    read_grid(doc, embed).0
+}
+
+/// A cell's text and its inline marks (adjacent runs of one mark joined).
+fn cell_content(t: &loro::LoroText) -> (String, Vec<clip::CellMark>) {
+    let mut text = String::new();
+    let mut marks: Vec<clip::CellMark> = Vec::new();
+    let mut at = 0;
+    for d in t.to_delta() {
+        let loro::TextDelta::Insert { insert, attributes } = d else {
+            continue;
+        };
+        let n = insert.chars().count();
+        let mut attrs: Vec<(String, loro::LoroValue)> = attributes
+            .into_iter()
+            .flatten()
+            .filter(|(_, v)| !matches!(v, loro::LoroValue::Null))
+            .collect();
+        attrs.sort_by(|a, b| a.0.cmp(&b.0));
+        for (key, value) in attrs {
+            match marks
+                .iter_mut()
+                .rev()
+                .find(|m| m.1 == at && m.2 == key && m.3 == value)
+            {
+                Some(m) => m.1 = at + n,
+                None => marks.push((at, at + n, key, value)),
+            }
+        }
+        text.push_str(&insert);
+        at += n;
+    }
+    marks.sort_by(|a, b| (a.0, a.1, &a.2).cmp(&(b.0, b.1, &b.2)));
+    (text, marks)
+}
+
+/// Every cell's text and marks, row by row.
+pub(crate) fn read_grid(doc: &LoroDoc, embed: &str) -> (Vec<Vec<String>>, clip::GridMarks) {
     let Some((cols, rows)) = read_structure(doc, embed) else {
-        return Vec::new();
+        return Default::default();
     };
-    rows.iter()
-        .map(|r| {
-            cols.iter()
-                .map(|c| {
-                    cell::cell_text(doc, embed, &r.id, &c.id)
-                        .map(|t| t.to_string())
-                        .unwrap_or_default()
-                })
-                .collect()
-        })
-        .collect()
+    let mut cells = Vec::with_capacity(rows.len());
+    let mut marks = Vec::with_capacity(rows.len());
+    for r in &rows {
+        let (texts, row_marks): (Vec<String>, Vec<Vec<clip::CellMark>>) = cols
+            .iter()
+            .map(|c| {
+                cell::cell_text(doc, embed, &r.id, &c.id)
+                    .map(|t| cell_content(&t))
+                    .unwrap_or_default()
+            })
+            .unzip();
+        cells.push(texts);
+        marks.push(row_marks);
+    }
+    (cells, marks)
+}
+
+/// Replaces cell (`row`, `col`)'s text and marks: the old formatting goes
+/// with the old text. A mark the document does not know is left off.
+fn put_cell(
+    w: &TableWriter,
+    row: &str,
+    col: &str,
+    text: &str,
+    marks: &[clip::CellMark],
+) -> dr_doc::Result<()> {
+    let t = w.cell(row, col)?;
+    let len = t.len_unicode();
+    if len > 0 {
+        t.delete(0, len)?;
+    }
+    let text = cell_line(text);
+    if text.is_empty() {
+        return Ok(());
+    }
+    t.insert(0, &text)?;
+    let n = text.chars().count();
+    for (start, end, key, value) in marks {
+        let range = (*start).min(n)..(*end).min(n);
+        if range.is_empty() || key == gpui_prose::schema::inline::EMBED {
+            continue;
+        }
+        if let Err(e) = t.mark(range, key, value.clone()) {
+            log::warn!("dr-editor: a pasted cell's {key} mark: {e}");
+        }
+    }
+    Ok(())
 }
 
 /// `n` position keys after `after` and before `before`.
@@ -156,8 +230,13 @@ fn line_id() -> String {
     dr_model::id::new_uuid_v7()
 }
 
-/// Fills table `w` with `cells` (rows of column texts), creating every cell.
-pub(crate) fn write_grid(w: &TableWriter, cells: &[Vec<String>]) -> dr_doc::Result<()> {
+/// Fills table `w` with `cells` (rows of column texts) and their `marks`,
+/// creating every cell.
+pub(crate) fn write_grid(
+    w: &TableWriter,
+    cells: &[Vec<String>],
+    marks: &clip::GridMarks,
+) -> dr_doc::Result<()> {
     let ncols = cells.iter().map(Vec::len).max().unwrap_or(0).max(1);
     let nrows = cells.len().max(1);
     let cols: Vec<String> = (0..ncols).map(|_| line_id()).collect();
@@ -173,13 +252,9 @@ pub(crate) fn write_grid(w: &TableWriter, cells: &[Vec<String>]) -> dr_doc::Resu
             let text = cells
                 .get(r)
                 .and_then(|cells| cells.get(c))
-                .map(|t| cell_line(t))
+                .map(String::as_str)
                 .unwrap_or_default();
-            if text.is_empty() {
-                w.cell(row, col)?;
-            } else {
-                w.set_cell(row, col, &text)?;
-            }
+            put_cell(w, row, col, text, clip::marks_at(marks, r, c))?;
         }
     }
     Ok(())
@@ -352,6 +427,10 @@ impl TableView {
         let events = cx.subscribe(&editor, move |this, _, event: &EditorEvent, cx| {
             this.on_cell(&watched, event, cx)
         });
+        let typed = cx.subscribe(&editor, |this, _, _: &gpui_prose::AuthorTyped, cx| {
+            this.host.typed(cx)
+        });
+        let events = Subscription::join(events, typed);
         CellView {
             editor,
             items,
@@ -825,6 +904,20 @@ impl TableView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.paste_marked(row, col, grid, Vec::new(), window, cx);
+    }
+
+    /// [`TableView::paste_grid`] with each cell's `marks` (a table Drifting
+    /// copied): pasted cells take the pasted text's formatting.
+    pub fn paste_marked(
+        &mut self,
+        row: usize,
+        col: usize,
+        grid: Vec<Vec<String>>,
+        marks: clip::GridMarks,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let need_rows = (row + grid.len()).saturating_sub(self.rows.len());
         let width = grid.iter().map(Vec::len).max().unwrap_or(0);
         let need_cols = (col + width).saturating_sub(self.cols.len());
@@ -849,7 +942,13 @@ impl TableView {
             }
             for (dr, line) in grid.iter().enumerate() {
                 for (dc, text) in line.iter().enumerate() {
-                    w.set_cell(&row_ids[row + dr], &col_ids[col + dc], &cell_line(text))?;
+                    put_cell(
+                        w,
+                        &row_ids[row + dr],
+                        &col_ids[col + dc],
+                        text,
+                        clip::marks_at(&marks, dr, dc),
+                    )?;
                 }
             }
             Ok(())
@@ -875,7 +974,7 @@ impl TableView {
         let Some((r, c)) = self.focused(window, cx).and_then(|k| self.index_of(&k)) else {
             return false;
         };
-        self.paste_grid(r, c, grid, window, cx);
+        self.paste_marked(r, c, grid, clip::marks_from_clipboard(&item), window, cx);
         true
     }
 

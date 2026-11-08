@@ -2138,24 +2138,48 @@ fn the_bottom_panel_is_dragged_by_its_top_edge(cx: &mut TestAppContext) {
 }
 
 /// What a module keeps for the book (`book_memory`, the timeline's order and
-/// zoom) goes into the book's layout in the settings file.
+/// zoom) is in F2's `local_state`, tied to the book, and a workspace opened
+/// on the book again reads it back.
 #[gpui::test]
 fn a_module_keeps_what_it_wants_for_the_book(cx: &mut TestAppContext) {
     let (_dir, lib) = slow_clock();
+    let store = lib.clone();
     let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
-    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    wait_for(&view, cx, |ws| {
+        !ws.book.is_empty() && ws.book_memory_ready()
+    });
     let kept = json!({"axis": "narrative", "zoom": 2.0});
     view.update(cx, |ws, cx| {
-        ws.set_book_memory("timeline", kept.clone(), cx);
-        ws.store_layout(cx);
+        ws.set_book_memory("timeline", kept.clone(), cx)
     });
     assert_eq!(
         view.read_with(cx, |ws, _| ws.book_memory("timeline").cloned()),
         Some(kept.clone())
     );
     let book = view.read_with(cx, |ws, _| ws.book_id.clone());
-    let stored = cx.update(|_, cx| Settings::read(cx).layout(&book).cloned());
-    assert_eq!(stored.unwrap()["modules"]["timeline"], kept);
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let rows = loop {
+        cx.run_until_parked();
+        let rows = store
+            .library()
+            .local_entries(dr_shell::workspace::BOOK_MEMORY_SCOPE, Some(&book))
+            .unwrap();
+        if !rows.is_empty() {
+            break rows;
+        }
+        assert!(Instant::now() < deadline, "not stored");
+        std::thread::sleep(Duration::from_millis(5));
+    };
+    assert_eq!(rows[0].key, format!("memory:{book}:timeline"));
+    assert_eq!(rows[0].book_id.as_deref(), Some(book.as_str()));
+    let again = cx.update(|window, cx| cx.new(|cx| Workspace::new(window, cx)));
+    wait_for(&again, cx, |ws| {
+        ws.book_id == book && ws.book_memory_ready()
+    });
+    assert_eq!(
+        again.read_with(cx, |ws, _| ws.book_memory("timeline").cloned()),
+        Some(kept)
+    );
 }
 
 /// A dialog closed from inside its own window's update (a click on its
@@ -2247,7 +2271,10 @@ impl gpui::Render for Carded {
                 div().w(px(400.0)).h(px(60.0)).child("slab"),
                 &self.target,
                 &self.ws,
-                vec![extra],
+                dr_shell::pages::CardRows {
+                    lead: vec![extra.clone()],
+                    before_danger: vec![extra],
+                },
                 cx,
             ))
     }
@@ -2404,4 +2431,275 @@ fn a_module_draws_a_whole_page_instead_of_an_editor(cx: &mut TestAppContext) {
     cx.run_until_parked();
     draw(cx);
     assert!(view.read_with(cx, |ws, _| ws.module_page(&material).is_none()));
+}
+
+/// M40: once a folder is chosen the library's books are written under it;
+/// turned off it stops (the folder stays chosen), on again it starts.
+#[gpui::test]
+fn the_markdown_folder_follows_the_library(cx: &mut TestAppContext) {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("library");
+    let mut options = dr_workspace::library_options(VERSION);
+    options.device = Some(dr_store::Device::open(dir.path().join("device")).unwrap());
+    let store = dr_store::Library::open(&root, options.clone()).unwrap();
+    dr_testkit::seed::write_book(&store, &dr_testkit::samples::slow_clock().unwrap()).unwrap();
+    store.close().unwrap();
+    let lib = Library::open(
+        dr_store::Library::open(&root, options).unwrap(),
+        dr_workspace::WorkspaceOptions::default(),
+    )
+    .unwrap();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    let running = |cx: &mut VisualTestContext| cx.update(|_, cx| dr_shell::mirror::is_running(cx));
+    assert!(!running(cx), "no folder chosen: nothing written");
+    let folder = dir.path().join("markdown");
+    let chosen = folder.clone();
+    cx.update(|_, cx| dr_shell::mirror::set_folder(chosen, cx));
+    assert!(running(cx));
+    let deadline = Instant::now() + Duration::from_secs(20);
+    loop {
+        cx.run_until_parked();
+        let written = std::fs::read_dir(&folder)
+            .map(|d| d.flatten().any(|e| e.path().join("正文").is_dir()))
+            .unwrap_or(false);
+        if written {
+            break;
+        }
+        assert!(Instant::now() < deadline, "the book was not written");
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    cx.update(|_, cx| dr_shell::mirror::set_on(false, cx));
+    assert!(!running(cx));
+    assert_eq!(
+        cx.update(|_, cx| dr_shell::mirror::folder(cx)),
+        Some(folder.clone())
+    );
+    cx.update(|_, cx| dr_shell::mirror::set_on(true, cx));
+    assert!(running(cx));
+    cx.update(|_, cx| dr_shell::mirror::stop(cx));
+}
+
+/// A stand-in hold on the sea: it lets go when dropped.
+struct Held(
+    dr_shell::pages::SeaHold,
+    std::rc::Rc<std::cell::RefCell<Vec<dr_shell::pages::SeaHold>>>,
+);
+
+impl Drop for Held {
+    fn drop(&mut self) {
+        let mut held = self.1.borrow_mut();
+        if let Some(at) = held.iter().position(|k| *k == self.0) {
+            held.remove(at);
+        }
+    }
+}
+
+/// M24 in the shell, with stand-ins for dr-view-sea: the bookshelf holds
+/// the sea; opening a book holds it as a wait until the page is ready, then
+/// both let go; the first run lies over the bookshelf until it is done (the
+/// device remembers); the tour starts once for the book, and the closed
+/// sidebar's toggle is marked for it.
+#[gpui::test]
+fn the_sea_lies_under_the_shelf_and_the_opening_wait(cx: &mut TestAppContext) {
+    use dr_shell::pages::{self, SeaHold};
+    use std::cell::RefCell;
+    use std::rc::Rc;
+    let (_dir, lib) = slow_clock();
+    cx.executor().allow_parking();
+    cx.update(|cx| {
+        dr_shell::init(
+            info(),
+            Services {
+                deep_links: None,
+                crash_reports: None,
+                library: Some(lib),
+                book: None,
+            },
+            SettingsFile::in_memory(),
+            cx,
+        );
+    });
+    let held: Rc<RefCell<Vec<SeaHold>>> = Rc::default();
+    let marked: Rc<RefCell<Vec<&'static str>>> = Rc::default();
+    let started = Rc::new(std::cell::Cell::new(0));
+    let finish: Rc<RefCell<Option<pages::FirstRunDone>>> = Rc::default();
+    cx.update(|cx| {
+        pages::set_shelf(cx, |_, _, cx| pages::ShelfPage {
+            view: cx.new(|_| Blank).into(),
+            bell: None,
+        });
+        let holds = held.clone();
+        pages::set_backdrop(
+            cx,
+            pages::Backdrop {
+                draw: Rc::new(|_, _| gpui::IntoElement::into_any_element(gpui::div())),
+                hold: Rc::new(move |kind, _, _| {
+                    holds.borrow_mut().push(kind);
+                    Box::new(Held(kind, holds.clone()))
+                }),
+                ebbing: Rc::new(|_, _| false),
+                on_sea: Rc::new(|_, el| el),
+            },
+        );
+        let keep = finish.clone();
+        pages::set_first_run(cx, move |done, _, cx| {
+            *keep.borrow_mut() = Some(done);
+            pages::FirstRunPage {
+                view: cx.new(|_| Blank).into(),
+                shows_shelf: Rc::new(|_| false),
+            }
+        });
+        let (marks, starts) = (marked.clone(), started.clone());
+        pages::set_guide(
+            cx,
+            pages::Guide {
+                anchor: Rc::new(move |id, el| {
+                    marks.borrow_mut().push(id);
+                    el
+                }),
+                start: Rc::new(move |_, _| starts.set(starts.get() + 1)),
+                layer: Rc::new(|_, _, _| None),
+                reset: Rc::new(|_| {}),
+            },
+        );
+    });
+    let (view, cx) = cx.add_window_view(Workspace::new);
+    cx.run_until_parked();
+    draw(cx);
+    assert!(view.read_with(cx, |ws, _| ws.shelf_open));
+    assert_eq!(
+        *held.borrow(),
+        [SeaHold::Surface],
+        "the bookshelf lies on the sea"
+    );
+    assert!(
+        view.read_with(cx, |ws, _| ws.sea.first_run_shows()),
+        "a first run"
+    );
+    let done = finish.borrow_mut().take().unwrap();
+    cx.update(|window, cx| done(window, cx));
+    cx.run_until_parked();
+    assert!(view.read_with(cx, |ws, _| !ws.sea.first_run_shows()));
+    let remembered =
+        cx.update(|_, cx| Settings::device_memory(cx, dr_shell::workspace::FIRST_RUN_DONE));
+    assert_eq!(remembered, Some(json!(true)));
+
+    let book = cx.update(|_, cx| {
+        cx.global::<Services>()
+            .library
+            .as_ref()
+            .unwrap()
+            .call(&Actor::User, "book.list", json!({}))
+            .unwrap()["output"][0]["id"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    });
+    view.update_in(cx, |ws, window, cx| ws.open_book(&book, window, cx));
+    assert!(
+        held.borrow().contains(&SeaHold::Loading),
+        "opening waits on the sea"
+    );
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !held.borrow().is_empty() {
+        draw(cx);
+        cx.run_until_parked();
+        assert!(
+            Instant::now() < deadline,
+            "the wait never let go: {:?}",
+            held.borrow()
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    draw(cx);
+    draw(cx);
+    assert_eq!(started.get(), 1, "the tour is offered once for the book");
+    assert!(
+        marked
+            .borrow()
+            .contains(&pages::anchors::LEFT_SIDEBAR_CLOSED_TOGGLE),
+        "{:?}",
+        marked.borrow()
+    );
+}
+
+/// A Super View a module draws (`pages::add_super_view`): made once for the
+/// book the first time the stage shows it, with its header slots; a view
+/// nobody registered stays an empty sheet.
+#[gpui::test]
+fn a_module_draws_a_super_view(cx: &mut TestAppContext) {
+    let (_dir, lib) = slow_clock();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    let made = std::rc::Rc::new(std::cell::Cell::new(0));
+    let count = made.clone();
+    cx.update(|_, cx| {
+        dr_shell::pages::add_super_view(cx, SuperView::Elements, move |host, _, cx| {
+            assert!(!host.book_id.is_empty());
+            count.set(count.get() + 1);
+            dr_shell::pages::SuperViewPage::new(cx.new(|_| Blank))
+                .head_start(cx.new(|_| Blank))
+                .head_end(cx.new(|_| Blank))
+        });
+    });
+    view.update(cx, |ws, cx| ws.toggle_super_view(SuperView::Elements, cx));
+    draw(cx);
+    draw(cx);
+    assert_eq!(made.get(), 1);
+    let page = view.read_with(cx, |ws, _| ws.super_view_content(SuperView::Elements));
+    let page = page.expect("the module's content");
+    assert!(page.head_start.is_some() && page.head_end.is_some());
+    view.update(cx, |ws, cx| ws.toggle_super_view(SuperView::StoryGraph, cx));
+    draw(cx);
+    assert!(
+        view.read_with(cx, |ws, _| ws.super_view_content(SuperView::StoryGraph))
+            .is_none(),
+        "nobody draws the story graph: an empty sheet"
+    );
+    view.update(cx, |ws, cx| ws.toggle_super_view(SuperView::Elements, cx));
+    draw(cx);
+    assert_eq!(made.get(), 1, "kept for the book");
+}
+
+/// The 帮手 tab a module draws (`pages::set_companion`): made once for the
+/// half the first time it shows, then kept.
+#[gpui::test]
+fn a_module_draws_the_companion_tab(cx: &mut TestAppContext) {
+    use dr_shell::workspace::RightTab;
+    let (_dir, lib) = slow_clock();
+    let (view, cx) = setup_with(cx, SettingsFile::in_memory(), None, Some(lib));
+    wait_for(&view, cx, |ws| !ws.book.is_empty());
+    let made = std::rc::Rc::new(std::cell::Cell::new(0));
+    let count = made.clone();
+    cx.update(|_, cx| {
+        dr_shell::pages::set_companion(cx, move |_, _, cx| {
+            count.set(count.get() + 1);
+            dr_shell::pages::LeftPanel {
+                head: cx.new(|_| Blank).into(),
+                body: cx.new(|_| Blank).into(),
+            }
+        });
+    });
+    view.update_in(cx, |ws, window, cx| {
+        if !ws.right.open {
+            ws.toggle_right(window, cx);
+        }
+        ws.right.reveal.set(1.0);
+        ws.right.panes.click(PaneId::Primary, RightTab::Companion);
+    });
+    draw(cx);
+    draw(cx);
+    assert_eq!(made.get(), 1, "made once for the half");
+    view.update(cx, |ws, cx| {
+        ws.right.panes.click(PaneId::Primary, RightTab::Review);
+        cx.notify();
+    });
+    draw(cx);
+    view.update(cx, |ws, cx| {
+        ws.right.panes.click(PaneId::Primary, RightTab::Companion);
+        cx.notify();
+    });
+    draw(cx);
+    assert_eq!(made.get(), 1, "then kept");
 }

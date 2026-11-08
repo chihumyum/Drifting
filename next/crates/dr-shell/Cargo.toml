@@ -18,6 +18,7 @@ chrono.workspace = true
 color_quant = { workspace = true, optional = true }
 dr-editor.workspace = true
 dr-i18n.workspace = true
+dr-mirror.workspace = true
 dr-model.workspace = true
 dr-platform.workspace = true
 # The library's root and options when the shell swaps it (`library.rs`).
