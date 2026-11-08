@@ -24,7 +24,10 @@
 //! - A step is one of: `call` (an F3 command or query), `undo` / `redo` (the
 //!   actor's last step; offline only), `app` (a debug-bridge method with
 //!   `params`), `seed` (write a seed preset into the scenario's empty
-//!   library), `launch` (start the app: `{"book": id, "env": {…}}`).
+//!   library), `legacy` (build a synthetic Drifting 0.1 library to import,
+//!   `sample` or `sample-stale`; answers its data folder as `root`),
+//!   `launch` (start the app: `{"book": id, "env": {…}, "settings": {…}}`,
+//!   settings merged into the profile's `settings.json` first).
 //! - `save` keeps a step's output under a name; `${name.key.key}` in any
 //!   string of a later step's input, params, launch or expectations is
 //!   replaced by that part of it (a string that is only the reference
@@ -33,7 +36,8 @@
 //! - `expect` maps JSON pointers into the output to the values they must
 //!   have (`{"$sum": [a, b]}` adds numbers); `contains` maps pointers to
 //!   text the string there must contain; `expect_error` names the error code
-//!   the step must fail with.
+//!   the step must fail with. A pointer may hold `${…}` references and
+//!   `[key=value]` segments (`/[name=沈知微]/aliases/0`).
 //! - `actor` is `user` (default), `import` (offline only) or
 //!   `agent:<session>/<turn>`.
 //! - `pending` skips a step and says why (work another module has not
@@ -68,6 +72,10 @@ pub struct Step {
     pub app: Option<String>,
     #[serde(default)]
     pub seed: Option<String>,
+    /// A synthetic Drifting 0.1 library to import (M10): `sample` (handed
+    /// off) or `sample-stale` (without the handoff).
+    #[serde(default)]
+    pub legacy: Option<String>,
     #[serde(default)]
     pub launch: Option<Value>,
     #[serde(default)]
@@ -105,6 +113,8 @@ impl Step {
             format!("app {m}")
         } else if let Some(p) = &self.seed {
             format!("seed {p}")
+        } else if let Some(k) = &self.legacy {
+            format!("legacy {k}")
         } else {
             "launch".into()
         }
@@ -112,7 +122,7 @@ impl Step {
 
     /// Drives the app (or writes a seed into the scenario's own library).
     fn is_live(&self) -> bool {
-        self.app.is_some() || self.launch.is_some() || self.seed.is_some()
+        self.app.is_some() || self.launch.is_some() || self.seed.is_some() || self.legacy.is_some()
     }
 }
 
@@ -145,6 +155,9 @@ pub trait Backend {
     fn undo(&mut self, actor: Option<&str>, redo: bool) -> Result<Value, StepError>;
     fn app(&mut self, method: &str, params: Value) -> Result<Value, StepError>;
     fn seed(&mut self, preset: &str) -> Result<Value, StepError>;
+    /// Builds a synthetic 0.1 library outside the profile; answers its
+    /// data folder (`root`), database and book.
+    fn legacy(&mut self, kind: &str) -> Result<Value, StepError>;
     fn launch(&mut self, params: Value) -> Result<Value, StepError>;
     /// Writes a screenshot; answers where.
     fn save_png(&mut self, name: &str, png_base64: &str) -> Result<String, StepError>;
@@ -188,6 +201,10 @@ impl Backend for Offline<'_> {
         Err(needs_app())
     }
 
+    fn legacy(&mut self, _: &str) -> Result<Value, StepError> {
+        Err(needs_app())
+    }
+
     fn launch(&mut self, _: Value) -> Result<Value, StepError> {
         Err(needs_app())
     }
@@ -205,10 +222,11 @@ pub fn parse(text: &str) -> Result<Scenario, String> {
             + usize::from(step.redo)
             + usize::from(step.app.is_some())
             + usize::from(step.seed.is_some())
+            + usize::from(step.legacy.is_some())
             + usize::from(step.launch.is_some());
         if kinds != 1 {
             return Err(format!(
-                "step {i}: give exactly one of call, undo, redo, app, seed, launch"
+                "step {i}: give exactly one of call, undo, redo, app, seed, legacy, launch"
             ));
         }
         if let Some(c) = &step.call
@@ -324,6 +342,39 @@ pub fn substitute(v: &Value, saved: &BTreeMap<String, Value>) -> Result<Value, S
     })
 }
 
+/// An expectation's pointer with its `${…}` references filled in.
+fn key_of(pointer: &str, saved: &BTreeMap<String, Value>) -> Result<String, String> {
+    match substitute(&json!(pointer), saved)? {
+        Value::String(s) => Ok(s),
+        other => Ok(other.to_string()),
+    }
+}
+
+/// A JSON pointer whose segments may also be `[key=value]`: the first array
+/// element whose `key` is `value` (`/[name=沈知微]/aliases`).
+fn at_pointer<'a>(v: &'a Value, pointer: &str) -> Option<&'a Value> {
+    if !pointer.contains('[') {
+        return v.pointer(pointer);
+    }
+    let mut v = v;
+    for seg in pointer.split('/').skip(1) {
+        let seg = seg.replace("~1", "/").replace("~0", "~");
+        v = if let Some(filter) = seg.strip_prefix('[').and_then(|f| f.strip_suffix(']')) {
+            let (key, want) = filter.split_once('=')?;
+            v.as_array()?.iter().find(|x| match &x[key] {
+                Value::String(s) => s == want,
+                other => serde_json::from_str::<Value>(want).is_ok_and(|w| &w == other),
+            })?
+        } else {
+            match v {
+                Value::Array(a) => a.get(seg.parse::<usize>().ok()?)?,
+                _ => v.get(seg.as_str())?,
+            }
+        };
+    }
+    Some(v)
+}
+
 /// `{"$sum": [a, b, …]}` is the sum of its numbers; anything else is itself.
 fn evaluate(v: Value) -> Result<Value, String> {
     if let Some(terms) = v
@@ -353,7 +404,8 @@ fn check(
         let want = substitute(want, saved)
             .and_then(evaluate)
             .map_err(|e| format!("step {i} ({label}): {e}"))?;
-        let got = out.pointer(pointer).cloned().unwrap_or(Value::Null);
+        let pointer = &key_of(pointer, saved).map_err(|e| format!("step {i} ({label}): {e}"))?;
+        let got = at_pointer(out, pointer).cloned().unwrap_or(Value::Null);
         if got != want {
             return Err(format!(
                 "step {i} ({label}): expected {pointer} = {want}, got {got}"
@@ -367,8 +419,8 @@ fn check(
             Value::String(s) => s,
             other => other.to_string(),
         };
-        let got = out
-            .pointer(pointer)
+        let pointer = &key_of(pointer, saved).map_err(|e| format!("step {i} ({label}): {e}"))?;
+        let got = at_pointer(out, pointer)
             .and_then(Value::as_str)
             .unwrap_or_default();
         if !got.contains(&part) {
@@ -385,17 +437,41 @@ fn check(
 /// not hold. Returns one line per step, what was saved and how many steps
 /// were pending.
 pub fn run_on(backend: &mut dyn Backend, s: &Scenario) -> Result<Value, String> {
+    let (report, failed) = run_report(backend, s);
+    match failed {
+        None => Ok(report),
+        Some(e) => Err(e),
+    }
+}
+
+/// [`run_on`], keeping what ran and was saved up to a failure: the report
+/// (`about`, `steps`, `saved`, `pending`) and the failure, if any.
+pub fn run_report(backend: &mut dyn Backend, s: &Scenario) -> (Value, Option<String>) {
     let mut saved: BTreeMap<String, Value> = BTreeMap::new();
     let mut lines = Vec::new();
     let mut pending = 0usize;
+    let failed = steps(backend, s, &mut saved, &mut lines, &mut pending).err();
+    (
+        json!({ "about": s.about, "steps": lines, "saved": saved, "pending": pending }),
+        failed,
+    )
+}
+
+fn steps(
+    backend: &mut dyn Backend,
+    s: &Scenario,
+    saved: &mut BTreeMap<String, Value>,
+    lines: &mut Vec<String>,
+    pending: &mut usize,
+) -> Result<(), String> {
     for (i, step) in s.steps.iter().enumerate() {
         let label = step.label();
         if let Some(why) = &step.pending {
             lines.push(format!("{i:3} {label}: pending ({why})"));
-            pending += 1;
+            *pending += 1;
             continue;
         }
-        let fill = |v: &Value| substitute(v, &saved).map_err(|e| format!("step {i}: {e}"));
+        let fill = |v: &Value| substitute(v, saved).map_err(|e| format!("step {i}: {e}"));
         let object = |v: Value| if v.is_null() { json!({}) } else { v };
         let actor = step.actor.as_deref();
         let result = if let Some(c) = &step.call {
@@ -406,6 +482,8 @@ pub fn run_on(backend: &mut dyn Backend, s: &Scenario) -> Result<Value, String> 
             backend.app(m, object(fill(&step.params)?))
         } else if let Some(p) = &step.seed {
             backend.seed(p)
+        } else if let Some(k) = &step.legacy {
+            backend.legacy(k)
         } else {
             backend.launch(object(fill(step.launch.as_ref().unwrap_or(&Value::Null))?))
         };
@@ -430,7 +508,7 @@ pub fn run_on(backend: &mut dyn Backend, s: &Scenario) -> Result<Value, String> 
                         .map_err(|e| format!("step {i} ({label}): {e}"))?;
                     out["png"] = json!(at);
                 }
-                check(i, &label, &out, step, &saved)?;
+                check(i, &label, &out, step, saved)?;
                 let checked = !step.expect.is_empty() || !step.contains.is_empty();
                 lines.push(format!(
                     "{i:3} {label}: ok{}{}",
@@ -446,7 +524,7 @@ pub fn run_on(backend: &mut dyn Backend, s: &Scenario) -> Result<Value, String> 
             }
         }
     }
-    Ok(json!({ "about": s.about, "steps": lines, "saved": saved, "pending": pending }))
+    Ok(())
 }
 
 /// Run an offline scenario on `ws`.
@@ -457,6 +535,34 @@ pub fn run(ws: &Workspace, s: &Scenario) -> Result<Value, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pointers_pick_array_elements_by_a_field() {
+        let out = json!([
+            { "name": "甲", "aliases": ["a"] },
+            { "name": "沈知微", "aliases": ["知微", "阿微"], "n": 2 }
+        ]);
+        assert_eq!(
+            at_pointer(&out, "/[name=沈知微]/aliases/1"),
+            Some(&json!("阿微"))
+        );
+        assert_eq!(at_pointer(&out, "/[n=2]/name"), Some(&json!("沈知微")));
+        assert_eq!(at_pointer(&out, "/[name=乙]/aliases"), None);
+        assert_eq!(at_pointer(&out, "/0/name"), Some(&json!("甲")));
+        assert_eq!(at_pointer(&out, ""), Some(&out));
+        let saved = BTreeMap::from([("el".to_owned(), json!({ "id": "沈知微" }))]);
+        assert_eq!(
+            key_of("/[name=${el.id}]/n", &saved).unwrap(),
+            "/[name=沈知微]/n"
+        );
+    }
+
+    #[test]
+    fn a_legacy_step_is_one_kind_of_step() {
+        let s = parse(r#"{ "steps": [ { "legacy": "sample", "save": "old" } ] }"#).unwrap();
+        assert!(is_live(&s));
+        assert!(parse(r#"{ "steps": [ { "legacy": "sample", "seed": "tiny" } ] }"#).is_err());
+    }
 
     #[test]
     fn references_are_replaced() {

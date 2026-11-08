@@ -25,6 +25,12 @@ use dr_workspace::Workspace;
 use serde_json::{Value, json};
 
 use crate::offline::APP_VERSION;
+
+/// M10's synthetic 0.1 library (dr-import-v1's test fixture: one book,
+/// 《阿Q正传》, built from the published 0.1 migrations and plain SQL).
+#[allow(clippy::all, unused)]
+#[path = "../../dr-import-v1/tests/common/mod.rs"]
+mod legacy_fixture;
 use crate::scenario::{Backend, Offline, StepError};
 
 const LAUNCH_TIMEOUT: Duration = Duration::from_secs(90);
@@ -59,6 +65,8 @@ pub struct Session {
     ws: Option<Workspace>,
     app: Option<Running>,
     launches: usize,
+    /// The synthetic 0.1 libraries built for this run (removed with it).
+    legacy: Vec<legacy_fixture::Old>,
     pub notes: Vec<String>,
 }
 
@@ -115,6 +123,7 @@ impl Session {
             ws: None,
             app: None,
             launches: 0,
+            legacy: Vec::new(),
             notes: Vec::new(),
         })
     }
@@ -196,6 +205,37 @@ impl Session {
         }
     }
 
+    /// Merges `patch` into the profile's `settings.json` (the shell's
+    /// settings file: `{"account": {"language.ui_locale": "zh-CN"}}`), so the
+    /// next launch starts with those settings.
+    fn merge_settings(&mut self, patch: &Value) -> Result<(), StepError> {
+        fn merge(into: &mut Value, patch: &Value) {
+            match (into, patch) {
+                (Value::Object(a), Value::Object(b)) => {
+                    for (k, v) in b {
+                        merge(a.entry(k.clone()).or_insert(Value::Null), v);
+                    }
+                }
+                (slot, v) => *slot = v.clone(),
+            }
+        }
+        if !patch.is_object() {
+            return Err(StepError::new(
+                "bad_request",
+                "launch.settings: an object merged into settings.json",
+            ));
+        }
+        std::fs::create_dir_all(&self.data).map_err(io)?;
+        let file = self.data.join("settings.json");
+        let mut current = std::fs::read_to_string(&file)
+            .ok()
+            .and_then(|t| serde_json::from_str::<Value>(&t).ok())
+            .unwrap_or_else(|| serde_json::json!({ "version": 1 }));
+        merge(&mut current, patch);
+        let text = serde_json::to_string_pretty(&current).map_err(io)?;
+        std::fs::write(&file, text).map_err(io)
+    }
+
     /// Quits a running app and removes a fresh profile's folders.
     pub fn finish(&mut self) {
         if self.app.is_some() {
@@ -206,6 +246,11 @@ impl Session {
         }
         if let Err(e) = self.close_offline() {
             self.notes.push(format!("closing the library: {e}"));
+        }
+        if self.keep {
+            for old in self.legacy.drain(..) {
+                let _ = old.dir.keep();
+            }
         }
         if self.throwaway {
             if self.keep {
@@ -276,6 +321,34 @@ impl Backend for Session {
         self.running()?.client.call(method, params).map_err(bridge)
     }
 
+    fn legacy(&mut self, kind: &str) -> Result<Value, StepError> {
+        let stamped = match kind {
+            "sample" => true,
+            "sample-stale" => false,
+            other => {
+                return Err(StepError::new(
+                    "bad_request",
+                    format!("legacy {other}: sample or sample-stale"),
+                ));
+            }
+        };
+        let old = legacy_fixture::build(stamped);
+        let out = json!({
+            "root": old.root.display().to_string(),
+            "db": old.db.display().to_string(),
+            "book": legacy_fixture::BOOK,
+            "name": "阿Q正传",
+            "chapter": legacy_fixture::CHAPTER,
+            "element": legacy_fixture::ELEMENT,
+        });
+        if self.keep {
+            self.notes
+                .push(format!("kept the 0.1 library at {}", old.root.display()));
+        }
+        self.legacy.push(old);
+        Ok(out)
+    }
+
     fn seed(&mut self, preset: &str) -> Result<Value, StepError> {
         use dr_testkit::seed;
         if self.app.is_some() {
@@ -320,6 +393,9 @@ impl Backend for Session {
             )
         })?;
         self.close_offline()?;
+        if let Some(settings) = params.get("settings") {
+            self.merge_settings(settings)?;
+        }
         let paths = Paths::for_instance(&self.instance).map_err(bridge)?;
         // A connection file left by a run that never quit.
         let _ = std::fs::remove_file(&paths.connection);

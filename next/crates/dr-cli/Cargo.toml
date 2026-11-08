@@ -15,6 +15,9 @@ path = "src/main.rs"
 base64.workspace = true
 dr-debug-protocol.workspace = true
 dr-doc.workspace = true
+# M10's synthetic 0.1 library for import scenarios (its schema and handoff
+# hash; the fixture itself is dr-import-v1's tests/common).
+dr-import-v1.workspace = true
 dr-model.workspace = true
 dr-platform.workspace = true
 dr-store.workspace = true
@@ -24,4 +27,5 @@ loro.workspace = true
 rusqlite.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
 tempfile.workspace = true

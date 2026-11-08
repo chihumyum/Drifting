@@ -328,9 +328,23 @@ fn the_shipped_scenarios_parse() {
         let s = dr_cli::scenario::parse(&std::fs::read_to_string(&path).unwrap())
             .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
         assert!(!s.about.is_empty(), "{}", path.display());
+        // Every shipped scenario drives the app and quits it at the end; a
+        // step it skips says which module's work it waits for.
+        assert!(dr_cli::scenario::is_live(&s), "{}", path.display());
+        assert!(
+            s.steps.last().and_then(|l| l.app.as_deref()) == Some("app.quit"),
+            "{} does not end by quitting the app",
+            path.display()
+        );
+        for step in &s.steps {
+            if let Some(why) = &step.pending {
+                assert!(why.contains("待协调"), "{}: {why}", path.display());
+            }
+        }
         n += 1;
     }
-    assert!(n >= 1);
+    // The phase 2 loop, M03, M09, M10, M11, M18, settings and M39.
+    assert!(n >= 8, "{n} scenarios");
     let loop_ =
         dr_cli::scenario::parse(&std::fs::read_to_string(dir.join("writing-loop.json")).unwrap())
             .unwrap();

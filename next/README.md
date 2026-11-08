@@ -128,16 +128,19 @@ cargo drifting workspace inspect --library <目录>  # 只读查看一个库
 
 ## 调试桥：照脚本操作真实窗口
 
-开发版带上调试桥以后，Agent 会话或脚本能打开书和章、打字、按键、触发动作、调 F3 的命令，读回稿纸上的文字、外壳的状态和截图。正式包里没有它（`cargo xtask check` 的 `debug-bridge` 门禁、`cargo xtask check-binary`）。
+开发版带上调试桥以后，Agent 会话或脚本能打开书和章、打字、按键、触发动作、按名字（无障碍树里的名字）点按钮和菜单、调 F3 的命令，读回稿纸上的文字、章首和要素页头、外壳的状态、设置和截图。正式包里没有它（`cargo xtask check` 的 `debug-bridge` 门禁、`cargo xtask check-binary`）。
 
 ```bash
 cargo xtask dev --debug-bridge                    # 这个 worktree 的开发版，带调试桥
 cargo drifting app state                          # 连上正在跑的那个（按 profile 找）
 cargo drifting app book 慢钟                       # 从书架打开一本书
 cargo drifting app open 第一章                     # 还有 type、key、dispatch、call、text、wait、screenshot、quit
+cargo drifting app raw ui.press --params '{"label":"More actions"}'   # 按无障碍名字点（macOS）
 cargo build -p drifting --features debug-bridge
 cargo drifting workspace scenario crates/dr-cli/scenarios/writing-loop.json --app target/debug/drifting
                                                   # 阶段 2 写作闭环（打字、回车、⌘Z、换章、重开），在临时 profile 里跑完再删掉
+                                                  # 同一目录下还有 M03 章首章末、M09 快照历史、M10 导入、M11 要素页、
+                                                  # M18 批注、设置、M39 反馈对话框
 ```
 
 方法表、场景的写法、被遮住的窗口和截图的细节见 [f8-testkit.md](../docs/rust-rewrite/foundations/f8-testkit.md)「调试桥」。

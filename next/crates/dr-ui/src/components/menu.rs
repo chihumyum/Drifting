@@ -165,6 +165,7 @@ impl RenderOnce for MenuItem {
         };
         let interactive = !self.disabled;
         let id = self.id.clone();
+        let label = self.label.clone();
         glass::glass_box(
             self.id,
             Kind::Hidden,
@@ -206,6 +207,10 @@ impl RenderOnce for MenuItem {
             el.child(sand::icon(Icon::Check, m::ICON, ink.solid()))
         })
         .when(interactive, |el| el.cursor_pointer())
+        // In the accessibility tree by its words (VoiceOver, and the debug
+        // bridge's `ui.press`).
+        .role(gpui::Role::MenuItem)
+        .aria_label(label)
         .when_some(self.on_click.filter(|_| interactive), |el, f| {
             el.on_click(move |e, w, cx| f(e, w, cx))
         })
