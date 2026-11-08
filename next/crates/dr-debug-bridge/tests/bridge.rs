@@ -3,7 +3,8 @@
 //! page's text, opens pages, presses keys through the keymap, types into a
 //! focused field and nowhere else, calls F3's commands on the window's
 //! library (and the page follows the change), and answers over the socket
-//! with the token only.
+//! with the token only. With M03's page chrome registered it reads the
+//! chapter page's head and reaches its title field the way a click would.
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -340,6 +341,72 @@ fn the_shell_is_read_and_driven(cx: &mut TestAppContext) {
     let info = call(cx, "app.info", json!({})).unwrap();
     assert_eq!(info["library"], true);
     assert_eq!(info["windows"][0]["workspace"], true);
+}
+
+#[gpui::test]
+fn the_chapter_page_head_is_read_and_its_title_reached(cx: &mut TestAppContext) {
+    cx.update(dr_view_page::init);
+    let (view, cx, _dir) = setup(cx);
+    let book = cx.update(|_, cx| view.read(cx).book_id.clone());
+    let chapters = call(
+        cx,
+        "command.call",
+        json!({ "name": "chapter.list", "input": { "book": book } }),
+    )
+    .unwrap();
+    let first = chapters["output"][0].clone();
+    let id = first["id"].as_str().unwrap().to_owned();
+    call(cx, "nav.open", json!({ "chapter": id })).unwrap();
+    wait_for(&view, cx, editor_ready);
+
+    // The head is drawn with the editor's first frame.
+    let page = call_until(cx, "page.text", json!({}), |p| !p["head"].is_null());
+    assert_eq!(page["head"]["title"], first["title"]);
+    assert_eq!(page["head"]["number"], json!(1));
+    assert_eq!(page["head"]["focus"], Value::Null);
+
+    // Into the title, everything selected; typing replaces it; Enter hands
+    // the caret to the text.
+    call(
+        cx,
+        "ui.focus",
+        json!({ "field": "page.title", "select_all": true }),
+    )
+    .unwrap();
+    assert_eq!(
+        call(cx, "page.text", json!({})).unwrap()["head"]["focus"],
+        json!("title")
+    );
+    call(cx, "input.type", json!({ "text": "桥改的标题" })).unwrap();
+    let head = call(cx, "page.text", json!({})).unwrap()["head"].clone();
+    assert_eq!(
+        head["title"],
+        json!("桥改的标题"),
+        "the whole title was replaced"
+    );
+    call(cx, "input.key", json!({ "keys": "enter" })).unwrap();
+    // Enter leaves the field for the text (storing it is the page's own
+    // business, checked on the real window by scenarios/page-chrome.json).
+    let state = call_until(cx, "state.get", json!({}), |s| {
+        s["focus"]["editor"] == json!(true)
+    });
+    assert_eq!(state["selection"]["head"], json!(0));
+    assert_eq!(
+        call(cx, "page.text", json!({})).unwrap()["head"]["focus"],
+        Value::Null
+    );
+
+    // Fields the page does not have, and settings.
+    let err = call(cx, "ui.focus", json!({ "field": "element.name" })).unwrap_err();
+    assert_eq!(err.code, codes::NOT_FOUND);
+    let settings = call(cx, "settings.get", json!({ "keys": ["editor.font_size"] })).unwrap();
+    assert_eq!(settings["values"]["editor.font_size"], json!(17.0));
+    // GPUI's test platform has no accessibility adapter: nothing is found.
+    let err = call(cx, "ui.find", json!({ "label": "x", "timeout_ms": 30 })).unwrap_err();
+    assert!(
+        [codes::NOT_FOUND, codes::UNSUPPORTED].contains(&err.code.as_str()),
+        "{err:?}"
+    );
 }
 
 #[gpui::test]
