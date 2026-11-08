@@ -21,6 +21,7 @@ icu_collator.workspace = true
 icu_locale_core.workspace = true
 log.workspace = true
 loro.workspace = true
+pinyin.workspace = true
 prose-metrics.workspace = true
 serde_json.workspace = true
 

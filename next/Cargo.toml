@@ -291,6 +291,10 @@ rustybuzz = "0.20.1"
 # (the versions GPUI's image stack already builds).
 color_quant = "1.1"
 png = "0.18"
+# F4e: the @ picker matches pinyin initials (约格 by `yg`). MIT; its table
+# is mozillazg's pinyin-data (MIT, from Unihan). Only the plain spellings
+# and every reading of a polyphone.
+pinyin = { version = "0.11.0", default-features = false, features = ["plain", "heteronym"] }
 
 # Zed patches these crates.io crates in its own workspace; a git dependency
 # does not inherit [patch], so GPUI's consumers repeat the ones it needs.

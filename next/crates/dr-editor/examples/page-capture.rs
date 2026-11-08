@@ -459,7 +459,7 @@ fn note_shot(
     .collect();
     shot.update(|window, cx| {
         let embeds = view.read(cx).note_embeds().expect("a note").clone();
-        dr_editor::embeds::insert_table(&embeds, first_end, cells, window, cx);
+        dr_editor::embeds::insert_table(&embeds, first_end, cells, Vec::new(), window, cx);
     });
     shot.settle();
     // The caret at the end of 七点前后, the bar up.

@@ -658,7 +658,7 @@ impl ChapterEditor {
             return false;
         };
         let offset = self.editor.read(cx).selection().head;
-        crate::embeds::insert_table(&embeds, offset, Vec::new(), window, cx).is_some()
+        crate::embeds::insert_table(&embeds, offset, Vec::new(), Vec::new(), window, cx).is_some()
     }
 
     /// Embeds material `material` (an image or a PDF) at the caret of a
@@ -738,8 +738,8 @@ impl ChapterEditor {
         }
         let item = match parts.as_slice() {
             [(Some(id), _)] => embeds
-                .table_cells(id)
-                .map(|cells| crate::table::clip::table_item(&cells))
+                .table_grid(id)
+                .map(|(cells, marks)| crate::table::clip::table_item(&cells, &marks))
                 .unwrap_or_else(|| gpui::ClipboardItem::new_string(embeds.embed_text(id))),
             _ => gpui::ClipboardItem::new_string(
                 parts
@@ -786,7 +786,8 @@ impl ChapterEditor {
                 .update(cx, |e, cx| e.press_backspace(window, cx));
         }
         let offset = self.editor.read(cx).selection().head;
-        crate::embeds::insert_table(&embeds, offset, cells, window, cx);
+        let marks = crate::table::clip::marks_from_clipboard(&item);
+        crate::embeds::insert_table(&embeds, offset, cells, marks, window, cx);
         true
     }
 }

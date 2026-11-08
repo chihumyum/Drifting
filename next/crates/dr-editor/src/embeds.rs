@@ -153,6 +153,21 @@ impl NoteEmbeds {
             .ok()
     }
 
+    /// Table `id`'s cells and their inline marks, row by row.
+    pub fn table_grid(
+        &self,
+        id: &str,
+    ) -> Option<(Vec<Vec<String>>, crate::table::clip::GridMarks)> {
+        if self.kind(id)? != Kind::Table {
+            return None;
+        }
+        let embed = id.to_owned();
+        self.host
+            .handle
+            .read(move |doc| crate::table::read_grid(doc, &embed))
+            .ok()
+    }
+
     /// Embed `id` as plain text: a table's rows (tab-separated), a
     /// material's title.
     pub fn embed_text(&self, id: &str) -> String {
@@ -339,12 +354,14 @@ fn insert_embed(
     Some(id)
 }
 
-/// Inserts a table of `cells` (rows of cell texts; empty: 3 × 3) at the
-/// body caret and puts the caret in its first cell.
+/// Inserts a table of `cells` (rows of cell texts; empty: 3 × 3) with
+/// their `marks` (none: plain) at the body caret and puts the caret in its
+/// first cell.
 pub fn insert_table(
     embeds: &NoteEmbeds,
     offset: usize,
     cells: Vec<Vec<String>>,
+    marks: crate::table::clip::GridMarks,
     window: &mut Window,
     cx: &mut App,
 ) -> Option<EmbedId> {
@@ -357,7 +374,7 @@ pub fn insert_table(
         &embeds.host,
         offset,
         EmbedKind::Table,
-        move |w| crate::table::write_grid(w, &cells),
+        move |w| crate::table::write_grid(w, &cells, &marks),
         cx,
     )?;
     if let Some(table) = embeds.table(id.as_str(), cx) {
