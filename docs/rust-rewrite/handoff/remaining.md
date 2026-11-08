@@ -30,7 +30,7 @@
 - **F5 dr-ui**（[f5-ui.md](../foundations/f5-ui.md)）：数字写法还有两份没并：`dr-view-stats` 的 `model::grouped`（带符号）、`dr-shell` 的 `chapter_sort::compact_words`，并进 `dr_i18n::number`。
 - **F6 dr-shell**（[f6-shell.md](../foundations/f6-shell.md)）
   - 悬停卡能固定打开（截图用），泳道名字的卡开在名字旁边（M14 要）；
-  - M31 的 `before_release`／`after_release` 异步门已在第二十八批接入，作为旧模块退出与换库排空接点；同步冻结新写入，先 flush 草稿及计时器，再等不依赖视图存活的 worker ACK，成功后才进 F3 退出／关闭。冻结也须覆盖等待期间的编辑输入，失败后恢复入口，不能在自己的 worker 排空后又接受未结算输入。M11、M17、M19 及 M15 的旧队列需消费此接点；只把回调追加到旧退出 hooks 末尾不足以保证顺序。
+  - M31 的 `before_release`／`after_release` 异步门已在第二十八批接入，作为旧模块退出与换库排空接点；同步冻结新写入，先 flush 草稿及计时器，再等不依赖视图存活的 worker ACK，成功后才进 F3 退出／关闭。~~公共释放等待期间还可编辑输入~~（第二十九批已接 `967d073c`：全部工作区先失焦重绘，整个等待期挡输入，失败恢复有效焦点）。模块仍不能在自己的 worker 排空后又接受未结算输入。M11、M17、M19 及 M15 的旧队列需消费此接点；只把回调追加到旧退出 hooks 末尾不足以保证顺序。
   - 键盘框架（Tab 进出 ⁂、侧栏方向键）要等作者定设计；
   - 冷启动空闲时重测。
 - **F7 dr-platform**（[f7-platform.md](../foundations/f7-platform.md)「下一个里程碑建议」）：交接、符号上传、Windows 实机、发布档关掉 `runtime_shaders`，这些都要作者同意或动手，先列给作者。
