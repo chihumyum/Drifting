@@ -287,5 +287,5 @@ aarch64（Windows on ARM）是同一条命令，把三处 `x86_64` 换成 `aarch
     - 输入法在焦点一走就上屏的话，那次上屏先于失焦到达；dr-ui 的 `takes_input` 看的是 GPUI 的焦点，那一刻还在框上，会收下拼音。编辑器在 `has_keyboard`（Windows 上 `GetFocus() == hwnd`）为假时丢掉输入。
     - 反过来，macOS 上 dr-ui 用的是窗口自己的视图的 `inputContext`（切窗口后 `currentInputContext` 已经是别的窗口的），比编辑器的 `currentInputContext` 准。编辑器的 macOS 那一段这一轮没动（只做 Windows），下一轮可以照 dr-ui 改。
     - 这些最好收成一份共用的「系统输入法」小代码；`gpui-ime` 不带依赖放不进去，放在 `gpui-prose` 让 dr-ui 依赖也不合适（dr-ui 不依赖编辑器）。先各自对齐，真机结果出来再定。
-15. **F4 台账：** G4 一行补上「第四轮：窗口失活、迟到的上屏、空上屏；仍不改 GPUI」。`progress.md` 的 F4 一行同理。不是本子线的文件，留给监管会话合并时改。
+15. ~~**F4 台账：** G4 一行和 `progress.md` 的 F4 一行补第四轮~~：第二十二批已更新，明确实现已合、Windows 实机验收待做。
 
