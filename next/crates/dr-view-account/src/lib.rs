@@ -376,10 +376,7 @@ pub fn sync_preferences_now(cx: &mut App) {
     let task = cx.spawn(async move |cx| {
         let res = cx
             .background_executor()
-            .spawn(async move {
-                let key_refs: Vec<&str> = keys.iter().copied().collect();
-                inner.sync_preferences(&key_refs, &local_values, &ledger)
-            })
+            .spawn(async move { inner.sync_preferences(&keys, &local_values, &ledger) })
             .await;
         cx.update(|cx| {
             if let Ok(outcome) = res
@@ -402,8 +399,7 @@ pub fn sync_preferences_blocking(
     file: &mut dr_shell::SettingsFile,
 ) -> Result<dr_account::PreferenceSyncOutcome, dr_account::AccountError> {
     let (keys, local_values, ledger) = snapshot_synced_preferences(file);
-    let key_refs: Vec<&str> = keys.iter().copied().collect();
-    let outcome = service.sync_preferences(&key_refs, &local_values, &ledger)?;
+    let outcome = service.sync_preferences(&keys, &local_values, &ledger)?;
     if outcome.supported {
         apply_preference_sync_outcome(file, &outcome);
     }
