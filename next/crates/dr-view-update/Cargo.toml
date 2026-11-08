@@ -1,0 +1,25 @@
+[package]
+name = "dr-view-update"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Automatic updates (M42): a check at launch and every three hours, a manual check in Settings, the download verified in the background, 「重启以更新」 in the notification center, the update installed as the app quits"
+
+[dependencies]
+dr-i18n.workspace = true
+dr-platform.workspace = true
+dr-shell.workspace = true
+dr-ui.workspace = true
+gpui.workspace = true
+log.workspace = true
+semver.workspace = true
+
+[dev-dependencies]
+# Stand-ins on 127.0.0.1 for GitHub Releases, throwaway updater keys and
+# synthetic bundles: nothing here reaches a real server or the release key.
+dr-platform = { workspace = true, features = ["test-support"] }
+gpui = { workspace = true, features = ["test-support"] }
+serde_json.workspace = true
+tempfile.workspace = true

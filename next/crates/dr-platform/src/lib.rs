@@ -17,6 +17,10 @@
 //! 2. [`logging::init`];
 //! 3. [`single_instance::acquire`]: exit when another copy took the arguments;
 //! 4. [`DeepLinks`]: queue the launch arguments, then GPUI's `on_open_urls`.
+//!
+//! Updates ([`update`]) are checked, downloaded and installed by M42
+//! (`dr-view-update`); the app reopens itself after an update with
+//! [`relaunch`].
 
 pub mod cli;
 pub mod crash;
@@ -26,6 +30,7 @@ pub mod feedback;
 pub mod identity;
 pub mod logging;
 pub mod paths;
+pub mod relaunch;
 pub mod sanitize;
 pub mod secrets;
 pub mod single_instance;

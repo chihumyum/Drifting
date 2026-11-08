@@ -1787,6 +1787,7 @@ dependencies = [
  "dr-shell",
  "dr-ui",
  "dr-view-shelf",
+ "dr-view-update",
  "gpui",
  "gpui_platform",
  "log",
@@ -2116,6 +2117,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "dr-view-update"
+version = "0.0.0"
+dependencies = [
+ "dr-i18n",
+ "dr-platform",
+ "dr-shell",
+ "dr-ui",
+ "gpui",
+ "log",
+ "semver",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "dr-workspace"
 version = "0.0.0"
 dependencies = [
@@ -2157,6 +2173,7 @@ dependencies = [
  "dr-view-shelf",
  "dr-view-timeline",
  "dr-view-transfer",
+ "dr-view-update",
  "dr-workspace",
  "futures",
  "gpui",

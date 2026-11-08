@@ -13,9 +13,10 @@ default = ["network"]
 # builds, which lets `cargo check --target x86_64-pc-windows-msvc` run on a Mac
 # without a Windows C toolchain for the TLS stack.
 network = ["dep:reqwest", "dep:rustls", "sentry/reqwest", "sentry/rustls-no-provider"]
-# `feedback::fake_service`, a stand-in for the Hosted service on 127.0.0.1
-# for other crates' tests.
-test-support = []
+# For other crates' tests: `feedback::fake_service`, a stand-in for the
+# Hosted service on 127.0.0.1; `update::fetch::fake_server`, one for GitHub
+# Releases; throwaway updater keys and synthetic bundles.
+test-support = ["dep:minisign"]
 
 [dependencies]
 anyhow.workspace = true
@@ -24,6 +25,7 @@ chrono.workspace = true
 dirs.workspace = true
 flate2.workspace = true
 log.workspace = true
+minisign = { workspace = true, optional = true }
 minisign-verify.workspace = true
 regex.workspace = true
 reqwest = { workspace = true, optional = true }

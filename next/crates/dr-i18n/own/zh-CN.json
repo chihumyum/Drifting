@@ -37,6 +37,19 @@
           "legacy": "这是 Drifting 0.1 的备份，这一版不能直接恢复。请先在 Drifting 0.1 里恢复它，再在书架上用「导入 · Drifting 0.1」导入那个资料库。"
         }
       }
+    },
+    "update": {
+      "restart": "重启以更新",
+      "ready_on_quit": "Drifting {{version}} 已下载并通过签名校验，退出时安装。",
+      "older_offered": "已是最新版本。更新服务提供的 {{version}} 比这一版旧，不会安装。",
+      "refused_signature": "下载的更新没有通过签名校验，已丢弃。当前版本照常可用。",
+      "refused_version": "下载的更新不是它标明的版本，可能是旧版本，已拒绝。当前版本照常可用。",
+      "refused_app": "下载的更新不是 Drifting，已丢弃。当前版本照常可用。",
+      "interrupted": "更新没有下载完整，已丢弃。下次检查时会重新下载。",
+      "server_error": "更新服务暂时出了问题，稍后再试。当前版本照常可用。",
+      "local_error": "更新没能存进这台电脑，已停止。当前版本照常可用。",
+      "install_failed": "上次退出时没能装上 Drifting {{version}}，当前版本没有改动。下次退出时再试。",
+      "install_failed_admin": "上次退出时没能装上 Drifting {{version}}：Drifting 所在的文件夹不能写入。当前版本没有改动。"
     }
   },
   "findPanel": {

@@ -42,6 +42,19 @@
           "legacy": "Das ist eine Sicherung aus Drifting 0.1, die diese Version nicht direkt wiederherstellen kann. Stelle sie in Drifting 0.1 wieder her und importiere die Bibliothek dann im Bücherregal mit „Importieren · Drifting 0.1“."
         }
       }
+    },
+    "update": {
+      "restart": "Neu starten und aktualisieren",
+      "ready_on_quit": "Drifting {{version}} ist geladen und die Signatur geprüft. Es wird beim Beenden installiert.",
+      "older_offered": "Du bist auf dem neuesten Stand. Der Update-Dienst bietet {{version}} an, eine ältere Version; sie wird nicht installiert.",
+      "refused_signature": "Das geladene Update hat die Signaturprüfung nicht bestanden und wurde verworfen. Die aktuelle Version funktioniert weiter.",
+      "refused_version": "Das geladene Update ist nicht die angegebene Version, möglicherweise eine ältere, und wurde abgelehnt. Die aktuelle Version funktioniert weiter.",
+      "refused_app": "Das geladene Update ist nicht Drifting und wurde verworfen. Die aktuelle Version funktioniert weiter.",
+      "interrupted": "Das Update wurde nicht vollständig geladen und verworfen. Bei der nächsten Prüfung wird es erneut geladen.",
+      "server_error": "Der Update-Dienst hat gerade ein Problem. Versuche es später erneut; die aktuelle Version funktioniert weiter.",
+      "local_error": "Das Update konnte auf diesem Computer nicht gespeichert werden und wurde angehalten. Die aktuelle Version funktioniert weiter.",
+      "install_failed": "Drifting {{version}} konnte beim letzten Beenden nicht installiert werden. Die aktuelle Version ist unverändert; beim nächsten Beenden wird es erneut versucht.",
+      "install_failed_admin": "Drifting {{version}} konnte beim letzten Beenden nicht installiert werden: In den Ordner, in dem Drifting liegt, kann nicht geschrieben werden. Die aktuelle Version ist unverändert."
     }
   },
   "findPanel": {

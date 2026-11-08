@@ -545,11 +545,26 @@ impl SettingsPanel {
     ) -> gpui::Stateful<gpui::Div> {
         let theme = Theme::of(window, cx);
         for info in registry::info_in(section).filter(|r| pick(r) && wanted(r.id)) {
+            if info.action == RowAction::Updates && !super::has_updates_row(cx) {
+                continue;
+            }
             if info.group.is_some() && info.group != *heading {
                 *heading = info.group;
                 if let Some(group) = info.group {
                     col = col.child(sub_heading(t(cx, group), &theme));
                 }
+            }
+            if info.action == RowAction::Updates {
+                if let Some(updates) = super::updates_row(window, cx) {
+                    col = col.child(row(
+                        info.id,
+                        t(cx, info.label),
+                        updates.description,
+                        updates.control.unwrap_or_else(|| div().into_any_element()),
+                        &theme,
+                    ));
+                }
+                continue;
             }
             let control = self.info_control(info, window, cx);
             let description = match (info.action, self.copied) {
@@ -661,6 +676,8 @@ impl SettingsPanel {
                     .child(copies)
                     .into_any_element()
             }
+            // Drawn from M42's hook in `info_rows`.
+            RowAction::Updates => div().into_any_element(),
             RowAction::Version => div()
                 .font_role(Role::Index)
                 .type_px(s.caption, s.line_caption)

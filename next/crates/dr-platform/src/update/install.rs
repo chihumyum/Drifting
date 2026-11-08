@@ -7,6 +7,11 @@
 //! - **Windows**: the artifact is the NSIS installer. It runs with the flags
 //!   Tauri's updater passes (`/P /R /UPDATE /ARGS …`), so the installer
 //!   behaves the same whichever client started it; this process then quits.
+//!   Installing as the app quits, without reopening it, drops `/R`.
+//!
+//! The bundle's own `CFBundleShortVersionString` must be the version the
+//! update was offered as (`replace_bundle`'s `expected_version`), so a
+//! signed older bundle cannot come in under a newer number.
 
 use std::ffi::OsString;
 use std::io;
@@ -18,6 +23,8 @@ pub enum InstallError {
     Archive(String),
     #[error("the update is a different app ({found}, expected {expected})")]
     WrongApp { expected: String, found: String },
+    #[error("the update is version {found}, not the offered {expected}")]
+    WrongVersion { expected: String, found: String },
     /// The bundle's folder is not writable by this user (for example
     /// `/Applications` on a standard account). Nothing was changed.
     #[error("installing the update needs an administrator")]
@@ -40,13 +47,15 @@ pub fn bundle_of(executable: &Path) -> Option<&Path> {
     (bundle.extension()? == "app").then_some(bundle)
 }
 
-/// Extracts `archive` beside `bundle`, checks it is the same app, and swaps
-/// it in. An error before the swap leaves `bundle` untouched; an error during
-/// the swap puts the previous bundle back.
+/// Extracts `archive` beside `bundle`, checks it is the same app (and, given
+/// `expected_version`, that version), and swaps it in. An error before the
+/// swap leaves `bundle` untouched; an error during the swap puts the
+/// previous bundle back.
 pub fn replace_bundle(
     archive: &Path,
     bundle: &Path,
     expected_bundle_id: &str,
+    expected_version: Option<&semver::Version>,
 ) -> Result<(), InstallError> {
     let parent = bundle
         .parent()
@@ -70,7 +79,7 @@ pub fn replace_bundle(
     }
     let staged = (|| {
         extract_app_archive(archive, &staging)?;
-        check_bundle(&staging, expected_bundle_id)
+        check_bundle(&staging, expected_bundle_id, expected_version)
     })();
     if let Err(error) = staged {
         let _ = std::fs::remove_dir_all(&staging);
@@ -193,9 +202,15 @@ fn archive_error(error: io::Error) -> InstallError {
     InstallError::Archive(error.to_string())
 }
 
-/// `Contents/Info.plist` names the same bundle id and an executable that is
-/// there.
-fn check_bundle(bundle: &Path, expected_bundle_id: &str) -> Result<(), InstallError> {
+/// `Contents/Info.plist` names the same bundle id, the expected version and
+/// an executable that is there. `bundle-mac` writes the version's
+/// `major.minor.patch` (`CFBundleShortVersionString` takes digits and dots
+/// only), so that is what is compared.
+fn check_bundle(
+    bundle: &Path,
+    expected_bundle_id: &str,
+    expected_version: Option<&semver::Version>,
+) -> Result<(), InstallError> {
     let plist = bundle.join("Contents/Info.plist");
     let text = std::fs::read_to_string(&plist)
         .map_err(|_| InstallError::Archive("the app has no readable Info.plist".into()))?;
@@ -206,6 +221,13 @@ fn check_bundle(bundle: &Path, expected_bundle_id: &str) -> Result<(), InstallEr
             expected: expected_bundle_id.into(),
             found,
         });
+    }
+    if let Some(version) = expected_version {
+        let expected = format!("{}.{}.{}", version.major, version.minor, version.patch);
+        let found = plist_string(&text, "CFBundleShortVersionString").unwrap_or_default();
+        if found != expected {
+            return Err(InstallError::WrongVersion { expected, found });
+        }
     }
     let executable = plist_string(&text, "CFBundleExecutable")
         .ok_or_else(|| InstallError::Archive("Info.plist names no executable".into()))?;
@@ -252,6 +274,13 @@ pub fn installer_launch(installer: &Path, relaunch_args: &[OsString]) -> Install
 }
 
 impl InstallerLaunch {
+    /// Installs without reopening the app afterwards (an update installed as
+    /// the author quits): Tauri's flags without `/R`.
+    pub fn without_relaunch(mut self) -> Self {
+        self.args.retain(|arg| arg != "/R");
+        self
+    }
+
     /// Starts the installer. The caller then quits so the installer can
     /// replace the executable.
     pub fn spawn(&self) -> io::Result<()> {
@@ -262,18 +291,22 @@ impl InstallerLaunch {
     }
 }
 
-#[cfg(test)]
-pub(crate) mod tests {
-    use super::*;
-    use std::io::Write as _;
+/// Synthetic bundles and update archives for tests (other crates' with the
+/// `test-support` feature). Nothing here is a real build.
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_bundles {
+    use std::path::{Path, PathBuf};
 
-    pub(crate) fn write_app(dir: &Path, bundle_id: &str, marker: &str) -> PathBuf {
+    /// A synthetic bundle whose executable holds `marker`, at `version`
+    /// (written as `bundle-mac` writes it: `major.minor.patch`).
+    pub fn write_app(dir: &Path, bundle_id: &str, marker: &str, version: &str) -> PathBuf {
         let app = dir.join("Drifting.app");
         std::fs::create_dir_all(app.join("Contents/MacOS")).unwrap();
+        let short = version.split('-').next().unwrap();
         std::fs::write(
             app.join("Contents/Info.plist"),
             format!(
-                "<?xml version=\"1.0\"?>\n<plist version=\"1.0\"><dict>\n  <key>CFBundleExecutable</key><string>drifting</string>\n  <key>CFBundleIdentifier</key>\n  <string>{bundle_id}</string>\n</dict></plist>\n"
+                "<?xml version=\"1.0\"?>\n<plist version=\"1.0\"><dict>\n  <key>CFBundleExecutable</key><string>drifting</string>\n  <key>CFBundleIdentifier</key>\n  <string>{bundle_id}</string>\n  <key>CFBundleShortVersionString</key><string>{short}</string>\n</dict></plist>\n"
             ),
         )
         .unwrap();
@@ -282,7 +315,7 @@ pub(crate) mod tests {
     }
 
     /// A `.app.tar.gz` laid out as Tauri's bundler and `bundle-mac` make it.
-    pub(crate) fn archive_of(app: &Path, output: &Path) {
+    pub fn archive_of(app: &Path, output: &Path) {
         let file = std::fs::File::create(output).unwrap();
         let mut builder = tar::Builder::new(flate2::write::GzEncoder::new(
             file,
@@ -293,18 +326,26 @@ pub(crate) mod tests {
             .unwrap();
         builder.into_inner().unwrap().finish().unwrap();
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::test_bundles::{archive_of, write_app};
+    use super::*;
+    use std::io::Write as _;
 
     #[test]
     fn replaces_the_bundle_in_place() {
         let dir = tempfile::tempdir().unwrap();
         let built = tempfile::tempdir().unwrap();
-        let installed = write_app(dir.path(), "cc.drifting.next.dev", "old");
+        let installed = write_app(dir.path(), "cc.drifting.next.dev", "old", "0.2.0");
         std::fs::write(installed.join("Contents/stale-file"), "x").unwrap();
-        let app = write_app(built.path(), "cc.drifting.next.dev", "new");
+        let app = write_app(built.path(), "cc.drifting.next.dev", "new", "0.2.1");
         let archive = built.path().join("Drifting.app.tar.gz");
         archive_of(&app, &archive);
 
-        replace_bundle(&archive, &installed, "cc.drifting.next.dev").unwrap();
+        let offered = semver::Version::parse("0.2.1").unwrap();
+        replace_bundle(&archive, &installed, "cc.drifting.next.dev", Some(&offered)).unwrap();
         assert_eq!(
             std::fs::read_to_string(installed.join("Contents/MacOS/drifting")).unwrap(),
             "new"
@@ -321,13 +362,34 @@ pub(crate) mod tests {
     fn refuses_another_app_and_leaves_the_bundle_alone() {
         let dir = tempfile::tempdir().unwrap();
         let built = tempfile::tempdir().unwrap();
-        let installed = write_app(dir.path(), "cc.drifting.next.dev", "old");
-        let app = write_app(built.path(), "com.example.other", "evil");
+        let installed = write_app(dir.path(), "cc.drifting.next.dev", "old", "0.2.0");
+        let app = write_app(built.path(), "com.example.other", "evil", "0.2.1");
         let archive = built.path().join("Other.app.tar.gz");
         archive_of(&app, &archive);
         assert!(matches!(
-            replace_bundle(&archive, &installed, "cc.drifting.next.dev"),
+            replace_bundle(&archive, &installed, "cc.drifting.next.dev", None),
             Err(InstallError::WrongApp { .. })
+        ));
+        assert_eq!(
+            std::fs::read_to_string(installed.join("Contents/MacOS/drifting")).unwrap(),
+            "old"
+        );
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn refuses_an_older_bundle_offered_as_a_newer_version() {
+        let dir = tempfile::tempdir().unwrap();
+        let built = tempfile::tempdir().unwrap();
+        let installed = write_app(dir.path(), "cc.drifting.next.dev", "old", "0.2.1");
+        let app = write_app(built.path(), "cc.drifting.next.dev", "older", "0.2.0");
+        let archive = built.path().join("Drifting.app.tar.gz");
+        archive_of(&app, &archive);
+        let offered = semver::Version::parse("0.2.2").unwrap();
+        assert!(matches!(
+            replace_bundle(&archive, &installed, "cc.drifting.next.dev", Some(&offered)),
+            Err(InstallError::WrongVersion { ref expected, ref found })
+                if expected == "0.2.2" && found == "0.2.0"
         ));
         assert_eq!(
             std::fs::read_to_string(installed.join("Contents/MacOS/drifting")).unwrap(),
@@ -432,6 +494,12 @@ pub(crate) mod tests {
         assert_eq!(
             launch.args,
             ["/P", "/R", "/UPDATE", "/ARGS", "--from-update"]
+                .map(OsString::from)
+                .to_vec()
+        );
+        assert_eq!(
+            launch.without_relaunch().args,
+            ["/P", "/UPDATE", "/ARGS", "--from-update"]
                 .map(OsString::from)
                 .to_vec()
         );

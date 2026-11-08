@@ -42,6 +42,19 @@
           "legacy": "Este é um backup do Drifting 0.1, que esta versão não consegue restaurar diretamente. Restaure-o no Drifting 0.1 e depois importe essa biblioteca com “Importar · Drifting 0.1” na estante."
         }
       }
+    },
+    "update": {
+      "restart": "Reiniciar para atualizar",
+      "ready_on_quit": "O Drifting {{version}} foi baixado e a assinatura verificada. Ele é instalado quando você sai.",
+      "older_offered": "Você está atualizado. O serviço de atualização oferece a {{version}}, mais antiga que esta, então ela não será instalada.",
+      "refused_signature": "A atualização baixada não passou na verificação de assinatura e foi descartada. Esta versão continua funcionando.",
+      "refused_version": "A atualização baixada não é a versão que diz ser, talvez uma mais antiga, e foi recusada. Esta versão continua funcionando.",
+      "refused_app": "A atualização baixada não é o Drifting e foi descartada. Esta versão continua funcionando.",
+      "interrupted": "A atualização não terminou de baixar e foi descartada. Ela será baixada de novo na próxima verificação.",
+      "server_error": "O serviço de atualização está com problema agora. Tente mais tarde; esta versão continua funcionando.",
+      "local_error": "Não foi possível salvar a atualização neste computador, e ela foi interrompida. Esta versão continua funcionando.",
+      "install_failed": "Não foi possível instalar o Drifting {{version}} quando você saiu da última vez. Esta versão não mudou; será tentado de novo na próxima saída.",
+      "install_failed_admin": "Não foi possível instalar o Drifting {{version}} quando você saiu: a pasta onde o Drifting está não pode ser gravada. Esta versão não mudou."
     }
   },
   "findPanel": {

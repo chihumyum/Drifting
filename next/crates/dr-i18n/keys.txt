@@ -65,6 +65,8 @@ notifications.shareComments.source
 notifications.organize.source
 notifications.markdownFolder.source
 notifications.appUpdate.source
+notifications.appUpdate.available
+notifications.appUpdate.installed
 notifications.crashFollowUp.source
 notifications.markdownFolder.preserved
 
@@ -152,6 +154,15 @@ windowCaption.restore
 
 # Settings → Updates (the version row; channel_desc has a Windows overlay)
 settings.update.channel_desc
+# M42 (dr-view-update): the update row of 关于 and its states
+settings.update.check
+settings.update.check_action
+settings.update.checking
+settings.update.no_update
+settings.update.downloading
+settings.update.downloading_progress
+settings.update.unavailable
+settings.update.check_failed
 
 # The paper's corner (M03): the ⋯ menu, a chapter's writing status, the
 # trash, immersive writing

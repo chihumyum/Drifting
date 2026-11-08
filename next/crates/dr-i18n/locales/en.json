@@ -558,6 +558,8 @@
   },
   "notifications": {
     "appUpdate": {
+      "available": "Drifting {{version}} is available",
+      "installed": "Updated to Drifting {{version}}",
       "source": "Updates"
     },
     "clear": "Clear",
@@ -1174,7 +1176,26 @@
     },
     "title": "Settings",
     "update": {
-      "channel_desc": "Apple Silicon · macOS 13+"
+      "channel_desc": "Apple Silicon · macOS 13+",
+      "check": "New version",
+      "check_action": "Check for updates",
+      "check_failed": "Couldn't check for updates right now, perhaps there is no connection. Try again later; this version keeps working.",
+      "checking": "Checking…",
+      "downloading": "Downloading and verifying the signature…",
+      "downloading_progress": "Downloading and verifying… {{progress}}%",
+      "install_failed": "Drifting {{version}} couldn't be installed when you last quit. This version is unchanged; it tries again next time you quit.",
+      "install_failed_admin": "Drifting {{version}} couldn't be installed when you last quit: the folder Drifting is in can't be written to. This version is unchanged.",
+      "interrupted": "The update didn't finish downloading and was discarded. It downloads again at the next check.",
+      "local_error": "The update couldn't be saved on this computer and was stopped. This version keeps working.",
+      "no_update": "You're up to date.",
+      "older_offered": "You're up to date. The update service offers {{version}}, which is older than this version, so it won't be installed.",
+      "ready_on_quit": "Drifting {{version}} is downloaded and its signature verified. It installs when you quit.",
+      "refused_app": "The downloaded update isn't Drifting and was discarded. This version keeps working.",
+      "refused_signature": "The downloaded update failed signature verification and was discarded. This version keeps working.",
+      "refused_version": "The downloaded update isn't the version it claims to be, possibly an older one, and was refused. This version keeps working.",
+      "restart": "Restart to Update",
+      "server_error": "The update service has a problem right now. Try again later; this version keeps working.",
+      "unavailable": "This build has no updater signing key, so it cannot check for updates. Releases downloaded from GitHub can."
     }
   },
   "sidebarLayout": {

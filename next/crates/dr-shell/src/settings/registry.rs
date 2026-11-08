@@ -94,6 +94,9 @@ pub enum RowAction {
     Version,
     /// Opens the feedback dialog (F7's, [`crate::actions::SendFeedback`]).
     Feedback,
+    /// 检查更新, and what the last check found (M42's, through
+    /// [`super::set_updates_row`]); left out when no updater is installed.
+    Updates,
     /// Backs the library up ([`crate::actions::BackupLibrary`]).
     Backup,
     /// Restores the library from a backup ([`crate::actions::RestoreLibrary`]);
@@ -154,6 +157,14 @@ pub static INFO_ROWS: &[InfoRow] = &[
         label: keys::settings::about::VERSION,
         description: None,
         action: RowAction::Version,
+    },
+    InfoRow {
+        id: "about.update",
+        section: Section::About,
+        group: None,
+        label: keys::settings::update::CHECK,
+        description: None,
+        action: RowAction::Updates,
     },
     InfoRow {
         id: "about.open_source",
