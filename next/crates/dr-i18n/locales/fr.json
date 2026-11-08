@@ -192,10 +192,13 @@
       "changeGroup": "Changer de groupe",
       "deleteCategory": "Supprimer la catégorie",
       "deleteElement": "Supprimer l’élément",
+      "deleteMaterial": "Supprimer la ressource",
       "deleteNode": "Supprimer le nœud",
       "deleteStoryline": "Supprimer l’intrigue",
       "editStorylines": "Modifier les intrigues",
-      "moveToGroup": "Déplacer vers un groupe…"
+      "moveMaterialToFolder": "Déplacer vers un dossier…",
+      "moveToGroup": "Déplacer vers un groupe…",
+      "openMaterialInSystem": "Ouvrir dans l’application par défaut"
     },
     "outlineRailMode": {
       "hidden": "Masquer la table des matières",
@@ -558,6 +561,7 @@
   },
   "materialEditor": {
     "deleteConfirm": "Supprimer la ressource « {{title}} » ? Cette action est irréversible.",
+    "deleteFailed": "Impossible de supprimer la ressource.",
     "descriptionPlaceholder": "Ajouter une description…",
     "embed": {
       "importFile": "Importer une image ou un PDF…",
@@ -593,6 +597,11 @@
       "open": "Ouvrir",
       "rename": "Renommer"
     },
+    "picker": {
+      "createAndMove": "Créer et déplacer",
+      "newPlaceholder": "Nom du nouveau dossier",
+      "title": "Déplacer vers un dossier"
+    },
     "root": "Toutes les ressources",
     "untitled": "Nouveau dossier"
   },
@@ -604,6 +613,7 @@
       "noRelated": "Aucune ressource liée à l’élément actuel."
     },
     "error": {
+      "openFile": "Impossible d’ouvrir le fichier : {{error}}",
       "pickFailed": "Impossible d’importer le fichier : {{error}}"
     },
     "kind": {

@@ -192,10 +192,13 @@
       "changeGroup": "グループを変更",
       "deleteCategory": "カテゴリを削除",
       "deleteElement": "要素を削除",
+      "deleteMaterial": "資料を削除",
       "deleteNode": "ノードを削除",
       "deleteStoryline": "ストーリーラインを削除",
       "editStorylines": "ストーリーラインを編集",
-      "moveToGroup": "グループへ移動…"
+      "moveMaterialToFolder": "フォルダーに移動…",
+      "moveToGroup": "グループへ移動…",
+      "openMaterialInSystem": "既定のアプリで開く"
     },
     "outlineRailMode": {
       "hidden": "目次を非表示",
@@ -551,6 +554,7 @@
   },
   "materialEditor": {
     "deleteConfirm": "資料「{{title}}」を削除しますか？この操作は取り消せません。",
+    "deleteFailed": "資料を削除できませんでした。",
     "descriptionPlaceholder": "説明を追加…",
     "embed": {
       "importFile": "画像または PDF を読み込む…",
@@ -586,6 +590,11 @@
       "open": "開く",
       "rename": "名前を変更"
     },
+    "picker": {
+      "createAndMove": "作成して移動",
+      "newPlaceholder": "新しいフォルダー名",
+      "title": "フォルダーに移動"
+    },
     "root": "すべての資料",
     "untitled": "新しいフォルダー"
   },
@@ -597,6 +606,7 @@
       "noRelated": "現在の項目に関連資料はありません。"
     },
     "error": {
+      "openFile": "ファイルを開けません：{{error}}",
       "pickFailed": "ファイルをインポートできません：{{error}}"
     },
     "kind": {
