@@ -7,7 +7,9 @@
 //! after the shelf shows; a double click on the empty desk starts a new
 //! book; Esc closes a dialog; each card carries its cover, its genre and
 //! its last 30 days, the heat map follows the card under the pointer, and
-//! the round button turns every cover.
+//! the round button turns every cover; on the sea of characters a press on
+//! the bare desk rings through it and a sample lands once, waiting until it
+//! is opened.
 
 use std::time::{Duration, Instant};
 
@@ -542,4 +544,120 @@ fn yesterday(day: &str) -> String {
     (d - chrono::Duration::days(1))
         .format("%Y-%m-%d")
         .to_string()
+}
+
+#[gpui::test]
+fn on_the_sea_the_desk_rings_and_a_sample_lands_until_opened(cx: &mut TestAppContext) {
+    use dr_view_sea::{HoldKind, Sea, first_run};
+
+    let (_dir, library) = library();
+    let lib = library.clone();
+    let books = lib
+        .run::<dr_workspace::commands::book::BookList>(&Actor::User, Default::default())
+        .unwrap()
+        .output;
+    let slow = books.iter().find(|b| b.name == "慢钟").unwrap().id.clone();
+    let (view, cx) = setup_on_sea(cx, library);
+    // 《慢钟》 is a sample this launch wrote; the shell holds the sea while
+    // the shelf shows (here the test does).
+    cx.update(|_, cx| first_run::note_samples_created(vec![slow.clone()], cx));
+    let hold = cx.update(|window, cx| Sea::of(window, cx).hold(HoldKind::Surface, window));
+    let shelf = shelf_of(&view, cx);
+    shelf_until(&shelf, cx, |d| d.books.len() == 2);
+    wait_for(cx, |cx| {
+        cx.update(|window, cx| {
+            window.refresh();
+            Sea::of(window, cx).is_on()
+        })
+    });
+    // Its card lands once it is drawn, and waits for the author.
+    wait_for(cx, |cx| {
+        cx.update(|window, cx| {
+            window.refresh();
+            !first_run::sample_on_shelf(&slow, cx).landing
+        })
+    });
+    assert!(cx.update(|_, cx| first_run::sample_on_shelf(&slow, cx).waiting));
+    // A press on the bare desk, far below the cards, rings through the sea.
+    let size = cx.update(|window, _| window.viewport_size());
+    let at = point(size.width - px(60.0), size.height - px(30.0));
+    cx.simulate_event(MouseDownEvent {
+        position: at,
+        modifiers: Modifiers::default(),
+        button: MouseButton::Left,
+        click_count: 1,
+        first_mouse: false,
+    });
+    cx.simulate_event(MouseUpEvent {
+        position: at,
+        modifiers: Modifiers::default(),
+        button: MouseButton::Left,
+        click_count: 1,
+    });
+    assert!(cx.update(|window, cx| Sea::of(window, cx).is_moving()));
+    assert_eq!(shelf.read_with(cx, |s, _| s.dialog()), None);
+    // Opened, the sample waits no longer.
+    let card = cx
+        .debug_bounds(Box::leak(format!("shelf-card-{slow}").into_boxed_str()))
+        .expect("the sample's card");
+    cx.simulate_click(card.center(), Modifiers::none());
+    cx.run_until_parked();
+    assert!(!cx.update(|_, cx| first_run::sample_on_shelf(&slow, cx).waiting));
+    drop(hold);
+}
+
+/// The sea under the whole window, the workspace over it (what the shell's
+/// backdrop will do, M24).
+struct OnSeaRoot {
+    ws: Entity<Workspace>,
+}
+
+impl gpui::Render for OnSeaRoot {
+    fn render(
+        &mut self,
+        window: &mut gpui::Window,
+        cx: &mut gpui::Context<Self>,
+    ) -> impl gpui::IntoElement {
+        use gpui::{ParentElement as _, Styled as _};
+        let sea = dr_view_sea::Sea::of(window, cx);
+        gpui::div()
+            .size_full()
+            .relative()
+            .child(dr_view_sea::char_sea(&sea))
+            .child(
+                gpui::div()
+                    .absolute()
+                    .top_0()
+                    .left_0()
+                    .size_full()
+                    .child(self.ws.clone()),
+            )
+    }
+}
+
+fn setup_on_sea(
+    cx: &mut TestAppContext,
+    library: Library,
+) -> (Entity<Workspace>, &mut VisualTestContext) {
+    use gpui::AppContext as _;
+    cx.executor().allow_parking();
+    cx.update(|cx| {
+        dr_shell::init(
+            info(),
+            Services {
+                library: Some(library),
+                ..Services::default()
+            },
+            SettingsFile::in_memory(),
+            cx,
+        );
+        dr_view_shelf::init(cx);
+    });
+    let (root, cx) = cx.add_window_view(|window, cx| OnSeaRoot {
+        ws: cx.new(|cx| Workspace::new(window, cx)),
+    });
+    cx.update(|window, _| window.activate_window());
+    cx.run_until_parked();
+    let ws = root.read_with(cx, |r, _| r.ws.clone());
+    (ws, cx)
 }

@@ -701,6 +701,7 @@ bottomTimeline.axis.time
 bottomTimeline.act.railLabel
 bottomTimeline.act.chapterCount
 bottomTimeline.act.newAct
+bottomTimeline.act.dragBoundary
 bottomTimeline.act.startHere
 bottomTimeline.act.openActNote
 bottomTimeline.act.unbindDrift
@@ -715,6 +716,8 @@ bottomTimeline.pinMenu.rename
 bottomTimeline.pinMenu.deleteMarker
 bottomTimeline.menu.moveToUnaffiliated
 bottomTimeline.menu.detachFromNarrative
+bottomTimeline.spread.title
+bottomTimeline.spread.needTwo
 leftSidebar.groups.newChapterInStoryline
 
 # M15: the plot planner (dr-view-plot)

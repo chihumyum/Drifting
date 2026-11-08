@@ -19,6 +19,7 @@
       "chapterCount": "{{count}} chapitres",
       "deleteMergeNext": "Supprimer cet acte et le fusionner avec le suivant",
       "deleteMergePrev": "Supprimer cet acte et le fusionner avec le précédent",
+      "dragBoundary": "Faites glisser pour ajuster la limite de l’acte",
       "newAct": "Nouvel acte",
       "openActNote": "Ouvrir la note de l’acte",
       "railLabel": "Acte",
@@ -46,6 +47,10 @@
       "openDrift": "Ouvrir l’idée",
       "rename": "Renommer",
       "unbind": "Dissocier et rétablir comme simple libellé"
+    },
+    "spread": {
+      "needTwo": "Il faut au moins deux chapitres pour les répartir",
+      "title": "Répartir : réorganiser {{mode}} pour séparer les nœuds superposés"
     },
     "storyline": {
       "chapterCount": "{{count}} chap."

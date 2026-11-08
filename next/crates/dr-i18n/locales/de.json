@@ -19,6 +19,7 @@
       "chapterCount": "{{count}} Kapitel",
       "deleteMergeNext": "Diesen Akt löschen und mit dem nächsten zusammenführen",
       "deleteMergePrev": "Diesen Akt löschen und mit dem vorherigen zusammenführen",
+      "dragBoundary": "Ziehen, um die Aktgrenze anzupassen",
       "newAct": "Neuer Akt",
       "openActNote": "Aktnotiz öffnen",
       "railLabel": "Akt",
@@ -46,6 +47,10 @@
       "openDrift": "Idee öffnen",
       "rename": "Umbenennen",
       "unbind": "Verknüpfung aufheben und als einfache Beschriftung wiederherstellen"
+    },
+    "spread": {
+      "needTwo": "Zum Verteilen sind mindestens zwei Kapitel erforderlich",
+      "title": "Verteilen: {{mode}} neu anordnen, um überlappende Knoten zu trennen"
     },
     "storyline": {
       "chapterCount": "{{count}} Kap."

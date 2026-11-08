@@ -19,6 +19,7 @@
       "chapterCount": "{{count}}개 장",
       "deleteMergeNext": "이 막을 삭제하고 다음 막에 병합",
       "deleteMergePrev": "이 막을 삭제하고 이전 막에 병합",
+      "dragBoundary": "드래그하여 막 경계 조정",
       "newAct": "새 막",
       "openActNote": "막 메모 열기",
       "railLabel": "막",
@@ -46,6 +47,10 @@
       "openDrift": "아이디어 열기",
       "rename": "이름 바꾸기",
       "unbind": "연결을 해제하고 일반 레이블로 복원"
+    },
+    "spread": {
+      "needTwo": "분산하려면 장이 두 개 이상 필요합니다",
+      "title": "분산: {{mode}}을(를) 재배치하여 겹친 노드를 분리합니다"
     },
     "storyline": {
       "chapterCount": "{{count}}장"

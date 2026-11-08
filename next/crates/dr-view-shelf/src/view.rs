@@ -1,5 +1,6 @@
 //! The bookshelf view: the rail, the books, the dialogs.
 
+use std::cell::Cell;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
@@ -36,10 +37,11 @@ use dr_workspace::{
 use gpui::{
     AnyElement, App, AppContext as _, Bounds, ClickEvent, Context, ElementId, Entity, FocusHandle,
     Focusable, InteractiveElement, IntoElement, ParentElement, Pixels, Render, SharedString,
-    StatefulInteractiveElement, Styled, Subscription, Task, WeakEntity, Window, actions, div,
-    prelude::FluentBuilder as _, px,
+    StatefulInteractiveElement, Styled, Subscription, Task, WeakEntity, Window, actions, canvas,
+    div, prelude::FluentBuilder as _, px,
 };
 
+use dr_view_sea::{Sea, SeaGlass, first_run, on_sea};
 use dr_view_shelf_art::{
     CoverStyle, CoverTurn, HeatmapBook, SandStrip, ShelfCover, WritingHeatmap, cover_seed,
 };
@@ -127,6 +129,9 @@ pub struct Shelf {
     art_task: Option<Task<()>>,
     /// The book whose card the pointer is on: the heat map shows it alone.
     pub pointed: Option<String>,
+    /// A press this frame landed on something of the desk's (a card, the
+    /// map, a button), not the bare desk: no ring of its own (M24).
+    press_taken: Rc<Cell<bool>>,
     /// Something changed since the last read.
     stale: bool,
     dialog: Option<DialogState>,
@@ -165,6 +170,7 @@ impl Shelf {
             art: None,
             art_task: None,
             pointed: None,
+            press_taken: Rc::default(),
             stale: true,
             dialog: None,
             busy: false,
@@ -406,6 +412,8 @@ impl Shelf {
     /// Opens `book` in the window: the bookshelf gives way to its tabs.
     pub fn open(&mut self, book: &str, window: &mut Window, cx: &mut Context<Self>) {
         self.menu_open = false;
+        // A sample opened: the samples wait no longer (M24).
+        first_run::note_book_opened(book, cx);
         let book = book.to_owned();
         self.ws
             .update(cx, |ws, cx| ws.open_book(&book, window, cx))
@@ -733,6 +741,8 @@ impl Render for Shelf {
         }
         let theme = Theme::of(window, cx);
         let p = theme.palette;
+        // On the sea of characters (M24) the shelf leaves its ground clear.
+        let on_sea = Sea::of(window, cx).is_on();
         let wide = f32::from(window.viewport_size().width) >= ONE_COLUMN_BELOW;
         let rail = rail(self, window, cx);
         let books = books(self, wide, window, cx);
@@ -745,7 +755,7 @@ impl Render for Shelf {
             .size_full()
             .flex()
             .flex_row()
-            .bg(p.desk.solid())
+            .when(!on_sea, |el| el.bg(p.desk.solid()))
             .text_color(p.ink(1).solid())
             .on_action(
                 cx.listener(|shelf, _: &SubmitDialog, window, cx| shelf.submit_form(window, cx)),
@@ -764,7 +774,11 @@ impl Render for Shelf {
             .child(books)
             .children(dialog)
             .children(menu);
-        glass::surface(Ground::flat(p.desk), root)
+        if on_sea {
+            glass::surface(Ground::Uneven, root)
+        } else {
+            glass::surface(Ground::flat(p.desk), root)
+        }
     }
 }
 
@@ -1032,7 +1046,17 @@ fn books(
             .books
             .clone()
             .into_iter()
-            .map(|book| card(book, now, art.as_deref(), style, window, cx))
+            .map(|book| {
+                card(
+                    book,
+                    now,
+                    art.as_deref(),
+                    style,
+                    shelf.press_taken.clone(),
+                    window,
+                    cx,
+                )
+            })
             .collect(),
         None => Vec::new(),
     };
@@ -1054,10 +1078,12 @@ fn books(
                     color: art::book_color(&b.id, p),
                 })
                 .collect();
+            let taken = shelf.press_taken.clone();
             Some(
                 div()
                     .id("shelf-heat-place")
                     .mb(px(14.0))
+                    .on_mouse_down(gpui::MouseButton::Left, move |_, _, _| taken.set(true))
                     // Not the empty desk: a double click starts nothing.
                     .on_click(|_, _, cx| cx.stop_propagation())
                     .child(WritingHeatmap::new(
@@ -1077,12 +1103,19 @@ fn books(
             entity.update(cx, |shelf, cx| shelf.turn_covers(next, cx))
         })
     };
+    let taken = shelf.press_taken.clone();
     div()
         .id("shelf-books")
         .flex_1()
         .min_w_0()
         .h_full()
         .overflow_y_scroll()
+        // A press on the bare desk sends a ring through the sea (M24).
+        .on_mouse_down(gpui::MouseButton::Left, move |e, window, cx| {
+            if !taken.replace(false) {
+                Sea::of(window, cx).press(e.position, 1.2, window);
+            }
+        })
         // A double click on the empty desk starts a new book.
         .on_click(move |e, window, cx| {
             if e.click_count() == 2 {
@@ -1108,7 +1141,7 @@ fn books(
                             .grid_cols(if wide { 2 } else { 1 })
                             .gap(px(14.0))
                             .children(cards)
-                            .child(new_card(window, cx)),
+                            .child(new_card(shelf.press_taken.clone(), window, cx)),
                     )
                     // At the foot, below the books however many: the round
                     // button that turns every cover to the next style.
@@ -1117,6 +1150,10 @@ fn books(
                             div()
                                 .id("shelf-cover-style")
                                 .debug_selector(|| "shelf-cover-style".into())
+                                .on_mouse_down(gpui::MouseButton::Left, {
+                                    let taken = shelf.press_taken.clone();
+                                    move |_, _, _| taken.set(true)
+                                })
                                 .on_click(|_, _, cx| cx.stop_propagation())
                                 .child(turn),
                         ),
@@ -1128,11 +1165,13 @@ fn books(
 
 /// One book: a card with only a resting line of glass. The whole card opens
 /// the book; edit and Recently Deleted show under the pointer.
+#[allow(clippy::too_many_arguments)]
 fn card(
     book: ShelfBook,
     now: i64,
     art: Option<&ShelfArt>,
     style: CoverStyle,
+    taken: Rc<Cell<bool>>,
     window: &mut Window,
     cx: &mut Context<Shelf>,
 ) -> AnyElement {
@@ -1151,8 +1190,10 @@ fn card(
     let open_id = book.id.clone();
     let open = {
         let entity = entity.clone();
-        move |_: &ClickEvent, window: &mut Window, cx: &mut App| {
+        move |e: &ClickEvent, window: &mut Window, cx: &mut App| {
             cx.stop_propagation();
+            // Opening a book sends its ring through the sea (M24).
+            Sea::of(window, cx).press(e.position(), 1.3, window);
             entity.update(cx, |shelf, cx| shelf.open(&open_id, window, cx));
         }
     };
@@ -1445,15 +1486,23 @@ fn card(
             .line_clamp(2)
             .child(dr_ui::text::wrapped(book.summary.clone()))
     });
-    let card = glass::glass_box(
-        id,
-        GlassKind::Rest,
-        Mode::default(),
-        false,
-        Spec::new(Tone::Clear, radius::SM),
-        window,
-        cx,
-    )
+    // On the sea the sea draws the card's resting line (M24): the card is
+    // bare, wrapped below.
+    let sea_on = Sea::of(window, cx).is_on();
+    let sample = first_run::sample_on_shelf(&book.id, cx);
+    let card = if sea_on {
+        div().id(id)
+    } else {
+        glass::glass_box(
+            id,
+            GlassKind::Rest,
+            Mode::default(),
+            false,
+            Spec::new(Tone::Clear, radius::SM),
+            window,
+            cx,
+        )
+    }
     .group(group)
     .min_h(px(CARD_MIN_H))
     .p(px(12.0))
@@ -1468,6 +1517,7 @@ fn card(
         &[("name", &title)],
     ))
     .on_click(open)
+    .on_mouse_down(gpui::MouseButton::Left, move |_, _, _| taken.set(true))
     .child(cover)
     .child(
         div()
@@ -1485,7 +1535,33 @@ fn card(
             .children(progress_row)
             .child(foot),
     )
-    .flex_1();
+    .flex_1()
+    // A sample written this launch lands on its own ring once its card is
+    // first drawn (M24).
+    .when(sample.landing, |el| {
+        el.child(
+            canvas(
+                |_, _, _| {},
+                |bounds, _, window, cx| first_run::land_sample(bounds.center(), window, cx),
+            )
+            .absolute()
+            .top_0()
+            .left_0()
+            .size_full(),
+        )
+    });
+    let card: AnyElement = if sea_on {
+        on_sea(
+            ElementId::Name(format!("shelf-card-sea-{}", book.id).into()),
+            SeaGlass::resting(2.0)
+                .arrive(first_run::arriving(cx))
+                .waiting(sample.waiting),
+            card,
+        )
+        .into_any_element()
+    } else {
+        card.into_any_element()
+    };
     // The glass keeps its own hover; the heat map's follows the pointer here.
     div()
         .id(ElementId::Name(
@@ -1504,20 +1580,26 @@ fn card(
 
 /// The last place in the grid: a cross and a line; only the pointer brings
 /// its ring of glass.
-fn new_card(window: &mut Window, cx: &mut Context<Shelf>) -> AnyElement {
+fn new_card(taken: Rc<Cell<bool>>, window: &mut Window, cx: &mut Context<Shelf>) -> AnyElement {
     let theme = Theme::of(window, cx);
     let p = theme.palette;
     let s = theme.scale;
     let entity = cx.entity();
-    glass::glass_box(
-        "shelf-new",
-        GlassKind::Hidden,
-        Mode::default(),
-        false,
-        Spec::new(Tone::Clear, radius::SM),
-        window,
-        cx,
-    )
+    let sea_on = Sea::of(window, cx).is_on();
+    let slot = if sea_on {
+        div().id("shelf-new")
+    } else {
+        glass::glass_box(
+            "shelf-new",
+            GlassKind::Hidden,
+            Mode::default(),
+            false,
+            Spec::new(Tone::Clear, radius::SM),
+            window,
+            cx,
+        )
+    }
+    .on_mouse_down(gpui::MouseButton::Left, move |_, _, _| taken.set(true))
     .group("shelf-new")
     .min_h(px(CARD_MIN_H))
     .p(px(12.0))
@@ -1548,8 +1630,13 @@ fn new_card(window: &mut Window, cx: &mut Context<Shelf>) -> AnyElement {
             .type_px(s.caption, s.caption)
             .text_color(p.ink(4).solid())
             .child(t(cx, keys::project_picker::desk::NEW_CARD_SUB)),
-    )
-    .into_any_element()
+    );
+    if sea_on {
+        // Only what the water brings: no line at rest.
+        on_sea("shelf-new-sea", SeaGlass::bare(2.0), slot).into_any_element()
+    } else {
+        slot.into_any_element()
+    }
 }
 
 // The dialogs.

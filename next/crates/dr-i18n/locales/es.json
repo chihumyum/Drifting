@@ -19,6 +19,7 @@
       "chapterCount": "{{count}} capítulos",
       "deleteMergeNext": "Eliminar este acto y unirlo al siguiente",
       "deleteMergePrev": "Eliminar este acto y unirlo al anterior",
+      "dragBoundary": "Arrastra para ajustar el límite del acto",
       "newAct": "Nuevo acto",
       "openActNote": "Abrir nota del acto",
       "railLabel": "Acto",
@@ -46,6 +47,10 @@
       "openDrift": "Abrir idea",
       "rename": "Renombrar",
       "unbind": "Desvincular y restaurar como etiqueta simple"
+    },
+    "spread": {
+      "needTwo": "Se necesitan al menos dos capítulos para distribuir",
+      "title": "Distribuir: reorganizar {{mode}} para separar los nodos superpuestos"
     },
     "storyline": {
       "chapterCount": "{{count}} cap."

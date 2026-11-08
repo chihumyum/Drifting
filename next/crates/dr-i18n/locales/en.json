@@ -19,6 +19,7 @@
       "chapterCount": "{{count}} chapters",
       "deleteMergeNext": "Delete this act and merge into next",
       "deleteMergePrev": "Delete this act and merge into previous",
+      "dragBoundary": "Drag to adjust act boundary",
       "newAct": "New act",
       "openActNote": "Open act note",
       "railLabel": "Act",
@@ -46,6 +47,10 @@
       "openDrift": "Open idea",
       "rename": "Rename",
       "unbind": "Unbind and restore as plain label"
+    },
+    "spread": {
+      "needTwo": "At least two chapters are required to spread",
+      "title": "Spread: rearrange {{mode}} so overlapping nodes move apart"
     },
     "storyline": {
       "chapterCount": "{{count}} ch"

@@ -1,11 +1,17 @@
 # M01 书架（基础）
 
-2026-11-08，分支 `chihumyum/m01-shelf-home-3bf938`。第一个里程碑从 main `07964df6` 开工（已合进 main `15299820`）；第二轮从 main `1652a95e`（第十批：F3 的 `book.shelf`、`book.purge`，F5 的无框输入和危险色图标按钮，F6 的共用账户菜单已合）接着做；第三轮从 main `2eb865fa`（第十三批：F5 的 M25 和带框多行输入已合）把封面、热力图、砂条和换画风放了进来。计划见 [modules.md 的 M01](../modules.md#阶段-2写作闭环)。代码在 `next/crates/dr-view-shelf/`，外壳里的接入点在 `next/crates/dr-shell/src/pages.rs`。作品主页（M02）在同一个分支上，见 [m02-home.md](m02-home.md)。
+2026-11-08，分支 `chihumyum/m01-shelf-home-3bf938`。第一个里程碑从 main `07964df6` 开工（已合进 main `15299820`）；第二轮从 main `1652a95e`（第十批：F3 的 `book.shelf`、`book.purge`，F5 的无框输入和危险色图标按钮，F6 的共用账户菜单已合）接着做；第三轮从 main `2eb865fa`（第十三批：F5 的 M25 和带框多行输入已合）把封面、热力图、砂条和换画风放了进来；第四轮从 main `0f9b86b0` 把书架这一侧接到 M24 的字海上。计划见 [modules.md 的 M01](../modules.md#阶段-2写作闭环)。代码在 `next/crates/dr-view-shelf/`，外壳里的接入点在 `next/crates/dr-shell/src/pages.rs`。作品主页（M02）在同一个分支上，见 [m02-home.md](m02-home.md)。
 
 ## 一句话
 
-新版打开就是书架了：左边一条栏，右边是本机库里的书。点一本书进入它的工作区，⇧⌘W 或红灯回到书架。可以新建、改名、移到最近删除、从最近删除恢复或立即删除；书在最近删除里放满 30 天，书架打开两分钟后就把它永久删掉，和旧版一样。每张书卡左边是这本书的封面，下面一条近 30 天的砂条；书上面是一年的写作热力图；书架底部一个圆按钮把所有封面换到下一种画风。字海是 M24 的事，书架底下还是平的桌面色。
+新版打开就是书架了：左边一条栏，右边是本机库里的书。点一本书进入它的工作区，⇧⌘W 或红灯回到书架。可以新建、改名、移到最近删除、从最近删除恢复或立即删除；书在最近删除里放满 30 天，书架打开两分钟后就把它永久删掉，和旧版一样。每张书卡左边是这本书的封面，下面一条近 30 天的砂条；书上面是一年的写作热力图；书架底部一个圆按钮把所有封面换到下一种画风。字海开着时（M24），书架躺在字海上：自己不铺桌面色，书卡的玻璃线由字海画。
 
+### 第四轮（大白话）：书架躺在字海上（M24 书架这一侧）
+
+- **字海开着时让开。** 书架的根不铺桌面色（`Ground::Uneven`），书卡不画自己的玻璃线：每张卡包一层 M24 的 `on_sea`（静止细线，从首次运行的卡下来时「落下」，样书在等你时线一直流动），「新建一本」用 `SeaGlass::bare`（平时没有线，水过来才显出边）。字海关着时和以前一样。
+- **按下起波。** 在空桌面上按下，从那一点起一圈（1.2）；点开一本书，从点的地方起一圈（1.3），和旧版一样。按在书卡、「新建一本」、热力图、换画风按钮上不算空桌面；对话框、菜单盖着时按不到桌面。
+- **样书落位。** 这次启动新写进库里的样书（M24 的 `first_run::sample_on_shelf`），它的卡第一次画出来时调 `first_run::land_sample`：240 ms 后从卡的中心荡起一圈，只一次；之后它的玻璃一直流动，直到打开它（`Shelf::open` 调 `first_run::note_book_opened`）。
+- **谁按住字海、谁把它铺在窗口底下、工作区的根什么时候不铺桌面色**，都是外壳的（F6 这一轮在做），见「待协调」。
 ### 第三轮（大白话）：M25 的画放进书架
 
 - **封面。** 每张卡左边一张 126 × 226 的封面，画风是书架选的那一种（默认等高线）。画的是这本书自己：章节、故事线和颜色、每章多长（F5 的 M25，`dr-view-shelf-art`）。画之前是一张白纸（稿纸色），画好才出现；换画风时先留着旧的那张，新的画好再换。项目设定里有「体裁」时，封面底部写一行小字，和旧版一样。卡因此高到 250 px（旧版带封面的高度）。
@@ -76,12 +82,14 @@ cargo run --release -p dr-view-home --features capture --example shelf-home-capt
 
 ## 截图
 
-2 倍像素、1280×800、256 色，内容是 dr-testkit 的 showcase（《慢钟》《阿Q正传（示例）》和六本合成的书）。离屏截图里没有红绿灯，也没有指针，所以卡上的悬停图标看不到。种子库里每本书的文档都是同一刻写进去的，所以「最近编辑」都是「刚刚」、状态都是「在写」。写作日是种子写进去的，截到 dr-testkit 的 T0 那天为止（截图程序把书架的「今天」定在那天）；那天本身没写，所以「连续」「今天」是 0。换画风的按钮在书的最下面，一屏放不下，截图里看不到。
+2 倍像素、1280×800、256 色，内容是 dr-testkit 的 showcase（《慢钟》《阿Q正传（示例）》和六本合成的书）。离屏截图里没有红绿灯，也没有指针，所以卡上的悬停图标看不到。种子库里每本书的文档都是同一刻写进去的，所以「最近编辑」都是「刚刚」、状态都是「在写」。字海那两张：外壳还没有把字海铺在窗口底下，工作区的根也还铺着桌面色，所以截图程序自己在窗口底下画字海、把书架视图直接放在上面，并按住字海（外壳以后做的事）。写作日是种子写进去的，截到 dr-testkit 的 T0 那天为止（截图程序把书架的「今天」定在那天）；那天本身没写，所以「连续」「今天」是 0。换画风的按钮在书的最下面，一屏放不下，截图里看不到。
 
 | 画面 | 浅色 | 深色 |
 | --- | --- | --- |
 | 书架：等高线封面、近 30 天、全部书的热力图 | [shelf-light](m01/shelf-light.png) | [shelf-dark](m01/shelf-dark.png) |
 | 指着《夜车》：热力图只画它（它的颜色和数字），封面换成砂笔 | [shelf-pointed-light](m01/shelf-pointed-light.png) | [shelf-pointed-dark](m01/shelf-pointed-dark.png) |
+| 字海开着、静止（第四轮）：底下是稿纸的点阵，书卡的线是字海画的 | [shelf-sea-light](m01/shelf-sea-light.png) | [shelf-sea-dark](m01/shelf-sea-dark.png) |
+| 字海动起来：浅色是样书《慢钟》落位那一圈（卡在最下面，它的线比别的卡重，在等你打开），深色是在空桌面上按下的一圈（两张卡之间浮起字来） | [shelf-sea-ring-light](m01/shelf-sea-ring-light.png) | [shelf-sea-ring-dark](m01/shelf-sea-ring-dark.png) |
 | 新建一本 | [shelf-new-light](m01/shelf-new-light.png) | [shelf-new-dark](m01/shelf-new-dark.png) |
 | 移到最近删除 | [shelf-trash-light](m01/shelf-trash-light.png) | [shelf-trash-dark](m01/shelf-trash-dark.png) |
 | 最近删除（里面有一本） | [shelf-deleted-light](m01/shelf-deleted-light.png) | [shelf-deleted-dark](m01/shelf-deleted-dark.png) |
@@ -128,6 +136,7 @@ cargo run --release -p dr-view-home --features capture --example shelf-home-capt
 | --- | --- |
 | 应用 | `dr_view_shelf::init(cx)`，在 `dr_shell::init` 之后调一次 |
 | M10、M41 | 动作 `dr_view_shelf::ImportLegacyLibrary`、`ImportBook`：用 `cx.on_action(|_: &ImportLegacyLibrary, cx| …)` 接 |
+| M24（字海） | 书架只用 M24 公开的：`Sea::of(window, cx).is_on()` / `press`、`on_sea` + `SeaGlass`、`first_run::{sample_on_shelf, land_sample, note_book_opened, arriving}` |
 | M25 的画 | `dr_view_shelf::art::{ShelfArt, BookArt, cover_style, set_cover_style, book_color, book_story, set_today, today}`；`Shelf::{art, pointed, point_at, turn_covers}`；`ShelfArt::drawn(style, cx)`（所有封面都画好了，截图和测试等它） |
 | M24（字海、首次体验） | `Shelf` 是一个普通的 GPUI 视图，书架底色在 `view.rs` 的根上；示例书落位要的「哪本是新写的示例」现在由 `dr_view_sea::first_run::sample_on_shelf` 给（写样书的是 `first_run::write_samples`），接法见 [m24-sea.md](m24-sea.md) |
 | M35（账号） | 账号格子和账户菜单在 `view.rs` 的 `rail_foot`、`account_menu` |
@@ -161,7 +170,7 @@ M3 Pro，release，离屏（GPUI 的测试平台，真的 macOS 排字和 Metal 
 `cargo test -p dr-view-shelf`：
 
 - **单元**（5 个）：九种语言的紧凑字数和分组写法；在写 / 草稿 / 搁置按最近编辑分；进度要有目标；书的颜色和旧版 `hashToColor` 一样。
-- **GPUI 测试平台上，用 dr-testkit 生成的真库**（《慢钟》《阿Q正传（示例）》，经 F3 读，9 个）：
+- **GPUI 测试平台上，用 dr-testkit 生成的真库**（《慢钟》《阿Q正传（示例）》，经 F3 读，10 个）：
   - 窗口一开就是书架，列出两本书；每本的章数和字数和 F3 的 `chapter.list` 一样（字数等于派生索引里各章字数之和）；
   - 点卡打开书，进的是作品主页；⇧⌘W 回书架；再打开另一本；在书里按红灯回书架、窗口不关，在书架上按红灯才关窗口；
   - 新建一本（回车提交）就打开它，回书架能看到它和它的梗概；
@@ -170,17 +179,19 @@ M3 Pro，release，离屏（GPUI 的测试平台，真的 macOS 排字和 Metal 
   - 到期清理：书架露出来不到两分钟不调，到两分钟调一次；打开书以后不数；回书架重新从零数（中途离开又回来也重新数）；
   - 在空桌面上双击打开新建对话框，Esc 关掉、什么也没建；
   - 没有库时书架是空的，照样画得出来；账户菜单从账号格子打开，Esc 关掉。
+  - 字海（第四轮）：窗口底下画字海、测试按住它；《慢钟》记作这次写的样书：卡第一次画出来就落位、之后还在等；在空桌面上按下，字海动起来、没打开新建；点开《慢钟》，它不再等。
   - 封面、体裁、近 30 天：给《慢钟》写上「体裁」和两天的字数，书架读到两本书的封面数据、体裁（去掉空格）、近 30 天的最后两天；等高线封面在后台画好；指针移到《慢钟》的卡上，热力图跟着它；点底部的圆按钮，画风换到下一种（不会打开新建），新画风的封面也画好。
   - 书架和主页都听 dr-store 的「索引写好了」：刚生成的库在后台补建索引，测试先等索引建完，再等书架上的字数和派生索引对上。
 - 外壳的孤儿文案检查（`dr-shell/tests/strings.rs`）也扫 `dr-view-*`，书架用到的键都在。
 
 ## 待协调
 
-1. ~~**F6（dr-shell）：本机的画风。**~~ **F6 第九轮做了**：`dr_shell::Settings::{device_memory, set_device_memory}`，`dr_view_shelf::art::{cover_style, set_cover_style}` 已改成读写它（键 `shelf.cover_style`）。原来的说明： 旧版把书架的画风存在这台设备上（`shelf:cover-style`）。设置文件里有本机那一段（`device`），但 `SettingsFile::set` 只收注册表里的键，模块没法自己加。要么在注册表加一项不显示在设置面板里的本机键 `shelf.cover_style`（十四种画风的名字，默认 `topo`），要么像 `export.author` 那样给一对 `cover_style()` / `set_cover_style()`。有了以后 `dr_view_shelf::art::{cover_style, set_cover_style}` 改成读写它，别处不用动。写在共享笔记 `m01-m02-shelf-home.md`。
-2. **F6（dr-shell、dr-i18n）**：新版自己的文案（旧版没有的话，比如「导入旧库」）还没有来源，`sync-locales.py` 只从旧版拷。
-3. **M36（同步）**：「立即删除」和到期清理都只删这台设备上的（F3 的 `book.purge` 现在就是这样）。同步做好以后，旧版确认里那段 Hosted 说明和「删除本地及远端」按钮跟着回来。
+1. ~~**F6（dr-shell）：字海的登记口**~~：**F6 第九轮做了**（`pages::set_backdrop`、`set_first_run`、`set_guide`），书架这一侧这一轮接上了（书架躺在字海上）。
+2. ~~**F6（dr-shell）：本机的画风。**~~ **F6 第九轮做了**：`dr_shell::Settings::{device_memory, set_device_memory}`，`dr_view_shelf::art::{cover_style, set_cover_style}` 已改成读写它（键 `shelf.cover_style`）。原来的说明： 旧版把书架的画风存在这台设备上（`shelf:cover-style`）。设置文件里有本机那一段（`device`），但 `SettingsFile::set` 只收注册表里的键，模块没法自己加。要么在注册表加一项不显示在设置面板里的本机键 `shelf.cover_style`（十四种画风的名字，默认 `topo`），要么像 `export.author` 那样给一对 `cover_style()` / `set_cover_style()`。有了以后 `dr_view_shelf::art::{cover_style, set_cover_style}` 改成读写它，别处不用动。写在共享笔记 `m01-m02-shelf-home.md`。
+3. **F6（dr-shell、dr-i18n）**：新版自己的文案（旧版没有的话，比如「导入旧库」）还没有来源，`sync-locales.py` 只从旧版拷。
+4. **M36（同步）**：「立即删除」和到期清理都只删这台设备上的（F3 的 `book.purge` 现在就是这样）。同步做好以后，旧版确认里那段 Hosted 说明和「删除本地及远端」按钮跟着回来。
 
 ## 下一步
 
-1. M24 的字海与打开书的等待，挂在现在的卡和根上。
+1. 打开书时的整窗等待（字海的「Loading」）是外壳的（`open_book` 时按住「等待」），书架这边不用动。
 2. 冷启动：书架的数据现在等窗口建好才开始读。库本来就在自己的线程上和 AppKit 启动同时打开（F6），书架可以在那时就开始读，书卡和第一帧一起出来；机器空闲时用真程序把「进程启动到书卡出现」量一次。
