@@ -1796,6 +1796,7 @@ dependencies = [
  "dr-store",
  "dr-testkit",
  "dr-ui",
+ "dr-view-relations",
  "dr-workspace",
  "futures",
  "gpui",
@@ -1804,6 +1805,7 @@ dependencies = [
  "icu_locale_core",
  "log",
  "png 0.18.1",
+ "serde_json",
  "tempfile",
 ]
 
@@ -1879,6 +1881,27 @@ dependencies = [
  "dr-view-shelf-art",
  "dr-workspace",
  "futures",
+ "gpui",
+ "gpui_platform",
+ "log",
+ "png 0.18.1",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
+name = "dr-view-ideas"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "color_quant",
+ "dr-i18n",
+ "dr-shell",
+ "dr-store",
+ "dr-testkit",
+ "dr-ui",
+ "dr-view-elements",
+ "dr-workspace",
  "gpui",
  "gpui_platform",
  "log",
@@ -2198,6 +2221,7 @@ dependencies = [
  "dr-view-elements",
  "dr-view-feedback",
  "dr-view-home",
+ "dr-view-ideas",
  "dr-view-import",
  "dr-view-material",
  "dr-view-page",

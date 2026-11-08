@@ -165,6 +165,8 @@
     "wordCount": "{{count}} words"
   },
   "edgeKindManager": {
+    "changeColor": "Change color",
+    "changeColorLabel": "Change color for {{label}}",
     "editTypes": "Edit types",
     "resetColor": "Restore default color",
     "summary": "{{kinds}} types · {{relations}} relations",
@@ -187,7 +189,8 @@
       "deleteElement": "Delete element",
       "deleteNode": "Delete node",
       "deleteStoryline": "Delete storyline",
-      "editStorylines": "Edit storylines"
+      "editStorylines": "Edit storylines",
+      "moveToGroup": "Move to group…"
     },
     "outlineRailMode": {
       "hidden": "Hide TOC",
@@ -196,10 +199,13 @@
     "status": {
       "discarded": "Discarded",
       "draft": "Draft",
-      "finished": "Finished"
+      "drifting": "Floating",
+      "finished": "Finished",
+      "resting": "Resting"
     },
     "statusSection": {
-      "chapter": "Writing status"
+      "chapter": "Writing status",
+      "drift": "Idea status"
     }
   },
   "elementCategoryCreateMenu": {
@@ -418,6 +424,8 @@
     "actions": {
       "collapseAll": "Expand or collapse all",
       "newCategory": "New category",
+      "newDrift": "New idea",
+      "newDriftGroup": "New group",
       "sort": "Sort"
     },
     "empty": {
@@ -427,7 +435,15 @@
     },
     "groups": {
       "addElementToGroup": "New element in this group",
+      "deleteGroup": "Delete group",
+      "driftCount_one": "{{count}} idea",
+      "driftCount_other": "{{count}} ideas",
+      "moveDriftToRoot": "Root level (move out of group)",
+      "moveGroupToRoot": "Root level (move to top level)",
       "newChapterInStoryline": "New chapter in this storyline",
+      "newDriftInGroup": "New idea here",
+      "newSubGroup": "New subgroup",
+      "rename": "Rename",
       "renameElementGroupTitle": "Double-click to rename group",
       "unaffiliated": "Unaffiliated"
     },
@@ -443,6 +459,7 @@
       "cellMetaGroup": "Cell right edge",
       "chapters": "Sort chapters",
       "createdAt": "Created time",
+      "drifts": "Sort ideas",
       "duplicatesAll": "Show in every linked group",
       "duplicatesGroup": "Multi-storyline chapters",
       "duplicatesPrimary": "Show only in primary storyline",
@@ -455,6 +472,7 @@
       "showWordCount": "Show word count",
       "storylineChapters": "Sort chapters within storylines",
       "storylineOrder": "Storyline order",
+      "title": "Title A-Z",
       "updatedAt": "Updated time"
     },
     "tabs": {
@@ -889,6 +907,7 @@
     "save": "Save",
     "selectConfigured": "Choose a relation type",
     "sourceRole": "Source role",
+    "swap": "Swap relation endpoints",
     "symmetric": "Symmetric",
     "symmetricSummary": "Symmetric · {{role}}",
     "targetRole": "Target role",

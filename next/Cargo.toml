@@ -30,6 +30,7 @@ members = [
     "crates/dr-view-feedback",
     "crates/dr-view-history",
     "crates/dr-view-home",
+    "crates/dr-view-ideas",
     "crates/dr-view-import",
     "crates/dr-view-material",
     "crates/dr-view-page",
@@ -282,6 +283,8 @@ hayro = "0.9.0"
 dr-view-plot = { path = "crates/dr-view-plot" }
 # M17: relations and relation types (the element page's 「关联」, the types).
 dr-view-relations = { path = "crates/dr-view-relations" }
+# M16: the 构想 panel, ideas in nested groups (docs/rust-rewrite/modules/m16-ideas.md).
+dr-view-ideas = { path = "crates/dr-view-ideas" }
 # M25: the bookshelf's covers, heat map and strips.
 dr-view-shelf-art = { path = "crates/dr-view-shelf-art" }
 # M24: the sea of characters, the first run and the tour.

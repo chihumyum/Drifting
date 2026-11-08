@@ -165,6 +165,8 @@
     "wordCount": "{{count}}자"
   },
   "edgeKindManager": {
+    "changeColor": "색상 변경",
+    "changeColorLabel": "{{label}} 색상 변경",
     "editTypes": "유형 편집",
     "resetColor": "기본 색상 복원",
     "summary": "유형 {{kinds}}개 · 관계 {{relations}}개",
@@ -187,7 +189,8 @@
       "deleteElement": "요소 삭제",
       "deleteNode": "노드 삭제",
       "deleteStoryline": "스토리라인 삭제",
-      "editStorylines": "스토리라인 편집"
+      "editStorylines": "스토리라인 편집",
+      "moveToGroup": "그룹으로 이동…"
     },
     "outlineRailMode": {
       "hidden": "목차 숨기기",
@@ -196,10 +199,13 @@
     "status": {
       "discarded": "폐기됨",
       "draft": "초안",
-      "finished": "완료"
+      "drifting": "떠다니는 중",
+      "finished": "완료",
+      "resting": "정박 중"
     },
     "statusSection": {
-      "chapter": "집필 상태"
+      "chapter": "집필 상태",
+      "drift": "아이디어 상태"
     }
   },
   "elementCategoryCreateMenu": {
@@ -412,6 +418,8 @@
     "actions": {
       "collapseAll": "모두 펼치기 또는 접기",
       "newCategory": "새 분류",
+      "newDrift": "새 아이디어",
+      "newDriftGroup": "새 그룹",
       "sort": "정렬"
     },
     "empty": {
@@ -421,7 +429,15 @@
     },
     "groups": {
       "addElementToGroup": "이 그룹에 새 요소",
+      "deleteGroup": "그룹 삭제",
+      "driftCount_one": "아이디어 {{count}}개",
+      "driftCount_other": "아이디어 {{count}}개",
+      "moveDriftToRoot": "최상위(그룹 밖으로 이동)",
+      "moveGroupToRoot": "최상위(맨 위 수준으로 이동)",
       "newChapterInStoryline": "이 스토리라인에 새 장",
+      "newDriftInGroup": "여기에 새 아이디어",
+      "newSubGroup": "새 하위 그룹",
+      "rename": "이름 바꾸기",
       "renameElementGroupTitle": "두 번 클릭하여 그룹 이름 바꾸기",
       "unaffiliated": "소속 없음"
     },
@@ -437,6 +453,7 @@
       "cellMetaGroup": "셀 오른쪽",
       "chapters": "장 정렬",
       "createdAt": "생성일",
+      "drifts": "아이디어 정렬",
       "duplicatesAll": "연결된 모든 그룹에 표시",
       "duplicatesGroup": "여러 스토리라인의 장",
       "duplicatesPrimary": "주요 스토리라인에만 표시",
@@ -449,6 +466,7 @@
       "showWordCount": "글자 수 표시",
       "storylineChapters": "스토리라인 내 장 정렬",
       "storylineOrder": "스토리라인 순서",
+      "title": "제목 A–Z",
       "updatedAt": "수정일"
     },
     "tabs": {
@@ -883,6 +901,7 @@
     "save": "저장",
     "selectConfigured": "관계 유형 선택",
     "sourceRole": "출발점 역할",
+    "swap": "관계 끝점 맞바꾸기",
     "symmetric": "대칭",
     "symmetricSummary": "대칭 · {{role}}",
     "targetRole": "대상 역할",

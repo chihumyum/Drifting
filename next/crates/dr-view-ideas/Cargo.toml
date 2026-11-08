@@ -1,0 +1,39 @@
+[package]
+name = "dr-view-ideas"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Drifting's 构想 panel (M16): ideas in groups nested two levels, resting ideas muted in place, the groups' and ideas' cards, the head's sort menu"
+
+[features]
+# Offscreen screenshots (`examples/ideas-capture.rs`), through GPUI's
+# headless test platform.
+capture = ["dep:gpui_platform", "gpui_platform/test-support", "dep:color_quant", "dep:png"]
+
+[dependencies]
+color_quant = { workspace = true, optional = true }
+dr-i18n.workspace = true
+dr-shell.workspace = true
+dr-ui.workspace = true
+# The panel's shared rules: names by pinyin with numbers by value, short dates.
+dr-view-elements.workspace = true
+dr-workspace.workspace = true
+gpui.workspace = true
+gpui_platform = { workspace = true, optional = true }
+log.workspace = true
+png = { workspace = true, optional = true }
+
+[dev-dependencies]
+anyhow.workspace = true
+dr-store.workspace = true
+dr-testkit.workspace = true
+gpui = { workspace = true, features = ["test-support"] }
+gpui_platform.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
+
+[[example]]
+name = "ideas-capture"
+required-features = ["capture"]
