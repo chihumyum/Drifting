@@ -692,6 +692,28 @@ impl Workspace {
         Ok(slot)
     }
 
+    /// The automatic-link matcher for text written in `doc`: every name of
+    /// its book without `doc`'s own entity, as [`crate::autolink::matcher`]
+    /// builds it, but kept per book until an element or a node changes (a
+    /// build is about 50 ms on the heavy seed). `None` for a document
+    /// outside any book.
+    pub fn link_matcher(
+        &self,
+        doc: &DocId,
+    ) -> Result<Option<Arc<dr_text::autolink::LinkMatcher<dr_text::autolink::LinkTarget>>>> {
+        let Some(book) = self
+            .inner
+            .lib
+            .doc_info(&doc.to_string())?
+            .and_then(|i| i.book_id)
+            .and_then(|b| BookId::parse(&b).ok())
+        else {
+            return Ok(None);
+        };
+        let slot = self.book_slot(&book)?;
+        Ok(Some(crate::autolink::book_matcher(&slot, doc)))
+    }
+
     /// The prose documents of `book` open here.
     pub(crate) fn open_prose(&self, book: &BookId) -> Vec<DocId> {
         lock(&self.inner.prose)
@@ -700,6 +722,46 @@ impl Workspace {
             .filter(|(_, (_, s))| s.book.as_ref() == Some(book))
             .map(|(d, _)| d.clone())
             .collect()
+    }
+
+    /// `doc`'s slot if it is open here.
+    pub(crate) fn open_prose_slot(&self, doc: &DocId) -> Option<Arc<ProseSlot>> {
+        lock(&self.inner.prose).map.get(doc).map(|(_, s)| s.clone())
+    }
+
+    /// `doc`'s open slot, or one opened for the caller alone: not kept among
+    /// the open documents (so it never pushes the author's out of them) and
+    /// without the block-id repair (the callers only read and change
+    /// marks). Dropping the last one closes the holder. For commands that
+    /// touch many documents once, like the autolink backfill and its undo
+    /// (opening through the open-document cache cost 12 ms a document on
+    /// the heavy seed, mostly the repair and closing the evicted ones).
+    pub(crate) fn prose_slot_passing(&self, doc: &DocId) -> Result<Arc<ProseSlot>> {
+        if let Some((_, s)) = lock(&self.inner.prose).map.get(doc) {
+            return Ok(s.clone());
+        }
+        if doc.is_book() {
+            return Err(WsError::invalid(format!("{doc} is not a prose document")));
+        }
+        let lib = &self.inner.lib;
+        let id = doc.to_string();
+        let info = lib
+            .doc_info(&id)?
+            .ok_or_else(|| WsError::not_found("document", id.clone()))?;
+        // Registered but never written: the full path writes its genesis.
+        if lib.head(&id)?.is_none() {
+            return self.prose_slot(doc);
+        }
+        let handle = lib.open_doc(&id, OpenDoc::Existing)?;
+        let reader = handle
+            .doc()
+            .with_doc(|d| ProseReader::from_loro(doc.clone(), d))?;
+        Ok(Arc::new(ProseSlot {
+            doc: doc.clone(),
+            book: info.book_id.as_deref().and_then(|b| BookId::parse(b).ok()),
+            handle,
+            reader,
+        }))
     }
 
     pub(crate) fn prose_slot(&self, doc: &DocId) -> Result<Arc<ProseSlot>> {

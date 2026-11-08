@@ -2125,6 +2125,154 @@ expression: json
     "concurrency": "book",
     "input": {
       "$defs": {
+        "ActAt": {
+          "description": "An act boundary's place in reading order.",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "start_order": {
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "id",
+            "start_order"
+          ],
+          "type": "object"
+        },
+        "ChapterAt": {
+          "description": "A chapter's coordinate on one axis.",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "order": {
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "id",
+            "order"
+          ],
+          "type": "object"
+        },
+        "OrderAxis": {
+          "description": "The axis a chapter's coordinate is on.",
+          "oneOf": [
+            {
+              "const": "book",
+              "description": "Reading order (`book_order`).",
+              "type": "string"
+            },
+            {
+              "const": "narrative",
+              "description": "Story time (`narrative_order`).",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "properties": {
+        "acts": {
+          "description": "Act boundaries to move with them (reading order only).",
+          "items": {
+            "$ref": "#/$defs/ActAt"
+          },
+          "type": "array"
+        },
+        "axis": {
+          "$ref": "#/$defs/OrderAxis",
+          "default": "book"
+        },
+        "book": {
+          "type": "string"
+        },
+        "chapters": {
+          "default": [],
+          "description": "Exact coordinates for these chapters.",
+          "items": {
+            "$ref": "#/$defs/ChapterAt"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "ChapterArrangeIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "chapter.arrange",
+    "output": {
+      "$defs": {
+        "ActAt": {
+          "description": "An act boundary's place in reading order.",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "start_order": {
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "id",
+            "start_order"
+          ],
+          "type": "object"
+        },
+        "ChapterAt": {
+          "description": "A chapter's coordinate on one axis.",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "order": {
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "id",
+            "order"
+          ],
+          "type": "object"
+        }
+      },
+      "description": "What an arrangement or a spread changed: the new coordinates.",
+      "properties": {
+        "acts": {
+          "items": {
+            "$ref": "#/$defs/ActAt"
+          },
+          "type": "array"
+        },
+        "chapters": {
+          "items": {
+            "$ref": "#/$defs/ChapterAt"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "chapters",
+        "acts"
+      ],
+      "title": "Arranged",
+      "type": "object"
+    },
+    "summary": "Set exact coordinates of several chapters on one axis, and move act boundaries with them, in one step (undo of a spread uses it)."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
+      "$defs": {
         "ChapterPlace": {
           "description": "Where a chapter goes in reading order.",
           "oneOf": [
@@ -2498,6 +2646,116 @@ expression: json
     "access": "write",
     "concurrency": "book",
     "input": {
+      "$defs": {
+        "OrderAxis": {
+          "description": "The axis a chapter's coordinate is on.",
+          "oneOf": [
+            {
+              "const": "book",
+              "description": "Reading order (`book_order`).",
+              "type": "string"
+            },
+            {
+              "const": "narrative",
+              "description": "Story time (`narrative_order`).",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "properties": {
+        "axis": {
+          "$ref": "#/$defs/OrderAxis",
+          "default": "book"
+        },
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "order": {
+          "description": "The exact coordinate on that axis (a drop's, not snapped).",
+          "format": "double",
+          "type": "number"
+        },
+        "storyline": {
+          "description": "Absent: storylines stay. `null`: off every storyline. An id: that\nstoryline becomes the primary one and the old primary is dropped;\nthe other storylines stay.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book",
+        "id",
+        "order"
+      ],
+      "title": "ChapterPlaceIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "chapter.place",
+    "output": {
+      "$defs": {
+        "OrderAxis": {
+          "description": "The axis a chapter's coordinate is on.",
+          "oneOf": [
+            {
+              "const": "book",
+              "description": "Reading order (`book_order`).",
+              "type": "string"
+            },
+            {
+              "const": "narrative",
+              "description": "Story time (`narrative_order`).",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "properties": {
+        "axis": {
+          "$ref": "#/$defs/OrderAxis"
+        },
+        "id": {
+          "type": "string"
+        },
+        "order": {
+          "format": "double",
+          "type": "number"
+        },
+        "primary_storyline": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "storylines": {
+          "description": "The chapter's storylines afterwards, sorted.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "axis",
+        "order",
+        "storylines",
+        "primary_storyline"
+      ],
+      "title": "ChapterPlaced",
+      "type": "object"
+    },
+    "summary": "Put a chapter at an exact place on the reading-order or story-time axis and, optionally, on another storyline (as the primary one) or on none, in one step."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
       "description": "One entity of a book.",
       "properties": {
         "book": {
@@ -2576,6 +2834,105 @@ expression: json
     "access": "write",
     "concurrency": "book",
     "input": {
+      "$defs": {
+        "OrderAxis": {
+          "description": "The axis a chapter's coordinate is on.",
+          "oneOf": [
+            {
+              "const": "book",
+              "description": "Reading order (`book_order`).",
+              "type": "string"
+            },
+            {
+              "const": "narrative",
+              "description": "Story time (`narrative_order`).",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "properties": {
+        "axis": {
+          "$ref": "#/$defs/OrderAxis",
+          "default": "book"
+        },
+        "book": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "ChapterSpreadIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "chapter.spread",
+    "output": {
+      "$defs": {
+        "ActAt": {
+          "description": "An act boundary's place in reading order.",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "start_order": {
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "id",
+            "start_order"
+          ],
+          "type": "object"
+        },
+        "ChapterAt": {
+          "description": "A chapter's coordinate on one axis.",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "order": {
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "id",
+            "order"
+          ],
+          "type": "object"
+        }
+      },
+      "description": "What an arrangement or a spread changed: the new coordinates.",
+      "properties": {
+        "acts": {
+          "items": {
+            "$ref": "#/$defs/ActAt"
+          },
+          "type": "array"
+        },
+        "chapters": {
+          "items": {
+            "$ref": "#/$defs/ChapterAt"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "chapters",
+        "acts"
+      ],
+      "title": "Arranged",
+      "type": "object"
+    },
+    "summary": "Spread out (打散) the chapters on one axis: same order, evenly spaced, act boundaries moved along, in one step."
+  },
+  {
+    "access": "write",
+    "concurrency": "book",
+    "input": {
       "description": "One entity of a book.",
       "properties": {
         "book": {
@@ -2626,6 +2983,14 @@ expression: json
         },
         "book": {
           "type": "string"
+        },
+        "book_order": {
+          "description": "Exact place in reading order (`null` takes it out: it sorts after\nevery chapter). `chapter.move` places it relative to others.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
         },
         "id": {
           "type": "string"
@@ -2698,7 +3063,7 @@ expression: json
       "title": "Named",
       "type": "object"
     },
-    "summary": "Change a chapter's title, summary, status, narrative position or storylines."
+    "summary": "Change a chapter's title, summary, status, place in reading order, narrative position or storylines."
   },
   {
     "access": "read",
@@ -7493,6 +7858,31 @@ expression: json
           ],
           "type": "object"
         },
+        "LinkIn": {
+          "description": "Links to one entity on anchored ranges of one prose document.",
+          "properties": {
+            "anchors": {
+              "description": "The ranges, as anchors (two cursors each, as comments keep them), so\ntyping since moves nothing.",
+              "items": {
+                "$ref": "#/$defs/AnchorBytes"
+              },
+              "type": "array"
+            },
+            "doc": {
+              "type": "string"
+            },
+            "target": {
+              "$ref": "#/$defs/Target",
+              "description": "What the links point at (`element`, `node`, `storyline`, `category`,\n`material`)."
+            }
+          },
+          "required": [
+            "doc",
+            "target",
+            "anchors"
+          ],
+          "type": "object"
+        },
         "Target": {
           "description": "A reference to an entity (relation end, comment or memory target).",
           "properties": {
@@ -7512,33 +7902,30 @@ expression: json
         }
       },
       "properties": {
-        "anchors": {
-          "description": "The ranges, as anchors (two cursors each, as comments keep them), so\ntyping since moves nothing.",
+        "links": {
+          "description": "Any number of documents and targets: each document is written once.",
           "items": {
-            "$ref": "#/$defs/AnchorBytes"
+            "$ref": "#/$defs/LinkIn"
           },
           "type": "array"
-        },
-        "doc": {
-          "type": "string"
-        },
-        "target": {
-          "$ref": "#/$defs/Target",
-          "description": "What the links point at (`element`, `node`, `storyline`, `category`,\n`material`)."
         }
       },
       "required": [
-        "doc",
-        "target",
-        "anchors"
+        "links"
       ],
-      "title": "LinkIn",
+      "title": "LinksIn",
       "type": "object"
     },
     "kind": "command",
     "name": "prose.link",
     "output": {
       "properties": {
+        "docs": {
+          "description": "Documents written.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
         "ranges": {
           "description": "Ranges whose link changed (an anchor whose text is gone counts for\nnothing).",
           "format": "uint",
@@ -7547,12 +7934,13 @@ expression: json
         }
       },
       "required": [
-        "ranges"
+        "ranges",
+        "docs"
       ],
       "title": "LinksChanged",
       "type": "object"
     },
-    "summary": "Link anchored ranges of a prose document to an entity (anchors, not positions: the undo of automatic links that were taken off)."
+    "summary": "Link anchored ranges of prose documents to entities (anchors, not positions: the undo of automatic links that were taken off)."
   },
   {
     "access": "read",
@@ -7842,6 +8230,31 @@ expression: json
           ],
           "type": "object"
         },
+        "LinkIn": {
+          "description": "Links to one entity on anchored ranges of one prose document.",
+          "properties": {
+            "anchors": {
+              "description": "The ranges, as anchors (two cursors each, as comments keep them), so\ntyping since moves nothing.",
+              "items": {
+                "$ref": "#/$defs/AnchorBytes"
+              },
+              "type": "array"
+            },
+            "doc": {
+              "type": "string"
+            },
+            "target": {
+              "$ref": "#/$defs/Target",
+              "description": "What the links point at (`element`, `node`, `storyline`, `category`,\n`material`)."
+            }
+          },
+          "required": [
+            "doc",
+            "target",
+            "anchors"
+          ],
+          "type": "object"
+        },
         "Target": {
           "description": "A reference to an entity (relation end, comment or memory target).",
           "properties": {
@@ -7861,33 +8274,30 @@ expression: json
         }
       },
       "properties": {
-        "anchors": {
-          "description": "The ranges, as anchors (two cursors each, as comments keep them), so\ntyping since moves nothing.",
+        "links": {
+          "description": "Any number of documents and targets: each document is written once.",
           "items": {
-            "$ref": "#/$defs/AnchorBytes"
+            "$ref": "#/$defs/LinkIn"
           },
           "type": "array"
-        },
-        "doc": {
-          "type": "string"
-        },
-        "target": {
-          "$ref": "#/$defs/Target",
-          "description": "What the links point at (`element`, `node`, `storyline`, `category`,\n`material`)."
         }
       },
       "required": [
-        "doc",
-        "target",
-        "anchors"
+        "links"
       ],
-      "title": "LinkIn",
+      "title": "LinksIn",
       "type": "object"
     },
     "kind": "command",
     "name": "prose.unlink",
     "output": {
       "properties": {
+        "docs": {
+          "description": "Documents written.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
         "ranges": {
           "description": "Ranges whose link changed (an anchor whose text is gone counts for\nnothing).",
           "format": "uint",
@@ -7896,12 +8306,13 @@ expression: json
         }
       },
       "required": [
-        "ranges"
+        "ranges",
+        "docs"
       ],
       "title": "LinksChanged",
       "type": "object"
     },
-    "summary": "Take the links to an entity off anchored ranges of a prose document (anchors, not positions: the undo of automatic links)."
+    "summary": "Take links to entities off anchored ranges of prose documents (anchors, not positions: the undo of automatic links)."
   },
   {
     "access": "read",

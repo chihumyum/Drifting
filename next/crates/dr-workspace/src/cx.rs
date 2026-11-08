@@ -19,7 +19,7 @@
 //! sweep, so a book entity never names a prose document that is gone.
 
 use std::cell::RefCell;
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::ThreadId;
 
@@ -104,6 +104,23 @@ pub struct Outcome<T> {
     pub undo: Option<Vec<Invocation>>,
     /// The journal row (absent for reads, no-ops and inverse runs).
     pub journal: Option<i64>,
+}
+
+/// Writes a command makes to prose documents from other threads
+/// ([`Cx::prose_writer`]).
+pub(crate) struct ProseWriter {
+    origin: dr_store::Origin,
+    agent: Option<dr_store::AgentWrite>,
+}
+
+impl ProseWriter {
+    pub(crate) fn write<R, F>(&self, slot: &ProseSlot, f: F) -> Result<R>
+    where
+        F: FnOnce(&loro::LoroDoc) -> Result<R> + Send + 'static,
+        R: Send + 'static,
+    {
+        holder::write(&slot.handle, self.origin.clone(), self.agent.clone(), f)
+    }
 }
 
 /// Test hook: make one named point of the write path fail once.
@@ -215,6 +232,8 @@ struct State {
     /// Elements whose `updated_at` the book write stamps
     /// ([`Cx::touch_element`]).
     touched_elements: Vec<String>,
+    /// Documents opened for this command alone ([`Cx::prose_passing`]).
+    passing: HashMap<DocId, Arc<ProseSlot>>,
 }
 
 /// The key of an element's last change of its own fields, in seconds
@@ -401,6 +420,20 @@ impl<'a> Cx<'a> {
         holder::write(&slot.handle, origin, agent, f)
     }
 
+    /// Step 2 for writes this command makes on other threads (one per
+    /// document, `holder::par_map`): the origin and the Agent record
+    /// [`Cx::write_prose_raw`] would use.
+    pub(crate) fn prose_writer(&self) -> Result<ProseWriter> {
+        self.check_phase(Phase::Prose)?;
+        Ok(ProseWriter {
+            origin: match self.actor {
+                Actor::User => dr_store::Origin::Command,
+                _ => self.actor.store_origin(),
+            },
+            agent: self.actor.agent_write(&self.summary()),
+        })
+    }
+
     /// Step 3: the book document, one commit. Returns `f`'s value and the
     /// book's version just before the commit (what a purge's undo restores
     /// from). Whatever `f` applied before failing is committed too (dr-doc
@@ -445,6 +478,18 @@ impl<'a> Cx<'a> {
     /// registered).
     pub(crate) fn prose(&self, doc: &DocId) -> Result<Arc<ProseSlot>> {
         self.ws.prose_slot(doc)
+    }
+
+    /// [`Cx::prose`] for a command that touches a document in passing: its
+    /// open slot, or one held for this command only
+    /// (`Workspace::prose_slot_passing`).
+    pub(crate) fn prose_passing(&self, doc: &DocId) -> Result<Arc<ProseSlot>> {
+        if let Some(s) = self.st.borrow().passing.get(doc) {
+            return Ok(s.clone());
+        }
+        let s = self.ws.prose_slot_passing(doc)?;
+        self.st.borrow_mut().passing.insert(doc.clone(), s.clone());
+        Ok(s)
     }
 
     pub(crate) fn prose_view<'s>(&self, slot: &'s ProseSlot) -> ProseView<'s> {
