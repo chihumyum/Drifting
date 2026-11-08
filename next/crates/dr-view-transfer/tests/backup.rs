@@ -9,9 +9,11 @@ use std::time::{Duration, Instant};
 
 use dr_shell::{Services, SettingsFile, ShellInfo, Workspace};
 use dr_store::Library;
+use dr_store::backup::{Progress, Step};
 use dr_view_transfer::backup::{self, Replace};
 use dr_view_transfer::{State, TransferDialog};
 use dr_workspace::{Actor, Workspace as Lib, WorkspaceOptions, library_options};
+use futures::StreamExt as _;
 use gpui::{Entity, TestAppContext, VisualTestContext};
 use serde_json::json;
 
@@ -81,11 +83,25 @@ fn shown(view: &Entity<Workspace>, cx: &mut VisualTestContext) -> bool {
     cx.read(|cx| view.read(cx).dialog.is_some())
 }
 
+fn record_progress(
+    d: &Entity<TransferDialog>,
+    cx: &mut VisualTestContext,
+) -> (Rc<RefCell<Vec<State>>>, gpui::Subscription) {
+    let states = Rc::new(RefCell::new(Vec::new()));
+    let recorded = states.clone();
+    let subscription = cx.cx.update(|cx| {
+        cx.observe(d, move |dialog, cx| {
+            recorded.borrow_mut().push(dialog.read(cx).state.clone());
+        })
+    });
+    (states, subscription)
+}
+
 /// A replace step that only records what it was handed.
 fn recording(result: Result<(), String>) -> (Replace, Rc<RefCell<Vec<usize>>>) {
     let seen: Rc<RefCell<Vec<usize>>> = Rc::default();
     let s = seen.clone();
-    let replace: Replace = Rc::new(move |staged, cx| {
+    let replace: Replace = Rc::new(move |staged, _, cx| {
         s.borrow_mut().push(staged.summary().books.len());
         let result = result.clone();
         cx.background_executor().spawn(async move { result })
@@ -102,6 +118,7 @@ fn a_backup_is_written_then_checked_asked_about_and_handed_over(cx: &mut TestApp
     let d = cx
         .cx
         .update(|cx| backup::backup_path(lib.clone(), file.clone(), cx));
+    let (backup_states, _backup_subscription) = record_progress(&d, cx);
     assert!(shown(&view, cx));
     wait(cx, |cx| !d.read_with(cx, |d, _| d.is_working()));
     let State::Done { text, .. } = state(&d, cx) else {
@@ -109,6 +126,13 @@ fn a_backup_is_written_then_checked_asked_about_and_handed_over(cx: &mut TestApp
     };
     assert!(text.contains("Drifting-2026-11-08.drifting"), "{text}");
     assert!(file.exists());
+    assert!(
+        backup_states
+            .borrow()
+            .iter()
+            .any(|s| { matches!(s, State::Working { progress: Some(p), .. } if *p > 0.0) }),
+        "packing must report actual bytes before the result"
+    );
     // Closed from inside the window, as its Close button's click runs.
     cx.update(|_, cx| d.update(cx, |d, cx| d.close(cx)));
     cx.run_until_parked();
@@ -119,11 +143,19 @@ fn a_backup_is_written_then_checked_asked_about_and_handed_over(cx: &mut TestApp
     let d = cx
         .cx
         .update(|cx| backup::restore_path(lib.clone(), file.clone(), replace, cx));
+    let (inspect_states, _inspect_subscription) = record_progress(&d, cx);
     wait(cx, |cx| !d.read_with(cx, |d, _| d.is_working()));
     let State::Confirm { text, .. } = state(&d, cx) else {
         panic!("{:?}", state(&d, cx))
     };
     assert!(text.contains("慢钟"), "the books by name: {text}");
+    assert!(
+        inspect_states
+            .borrow()
+            .iter()
+            .any(|s| { matches!(s, State::Working { progress: Some(p), .. } if *p > 0.0) }),
+        "extraction must report actual bytes before confirmation"
+    );
     cx.cx.update(|cx| d.update(cx, |d, cx| d.confirm(cx)));
     wait(cx, |cx| !shown(&view, cx));
     assert_eq!(*seen.borrow(), vec![1]);
@@ -253,4 +285,56 @@ fn the_settings_actions_back_up_and_restore(cx: &mut TestAppContext) {
     restore(cx);
     wait(cx, |cx| !shown(&view, cx));
     assert_eq!(*seen.borrow(), vec![1]);
+}
+
+/// A restore reports the bytes of its current step, then returns to an
+/// indeterminate bar for the atomic replacement. It is never considered
+/// finished just because one step reached its byte total.
+#[gpui::test]
+fn restore_progress_crosses_steps_and_does_not_replace_the_outcome(cx: &mut TestAppContext) {
+    let (dir, lib) = library();
+    let (_view, cx) = setup(cx, lib.clone());
+    let file = dir.path().join("progress.drifting");
+    lib.library()
+        .export_backup(&file, &Default::default())
+        .unwrap();
+    let (tx, rx) = futures::channel::mpsc::unbounded::<Progress>();
+    let receiver = RefCell::new(Some(rx));
+    let replace: Replace = Rc::new(move |_, mut report, cx| {
+        let mut rx = receiver.borrow_mut().take().unwrap();
+        cx.background_executor().spawn(async move {
+            while let Some(p) = rx.next().await {
+                assert!(report(&p), "closing a view must not cancel a restore");
+            }
+            Err("replace failed".into())
+        })
+    });
+    let d = cx
+        .cx
+        .update(|cx| backup::restore_path(lib, file, replace, cx));
+    wait(cx, |cx| matches!(state(&d, cx), State::Confirm { .. }));
+    cx.cx.update(|cx| d.update(cx, |d, cx| d.confirm(cx)));
+
+    use dr_i18n::keys::settings::sync::backup as k;
+    for (step, done, total, fraction, label) in [
+        (Step::SaveCurrent, 1, 4, Some(0.25), k::EXPORTING),
+        (Step::SaveCurrent, 4, 4, Some(1.0), k::EXPORTING),
+        (Step::CopyAssets, 1, 2, Some(0.5), k::RESTORING),
+        (Step::Replace, 0, 0, None, k::RESTORING),
+    ] {
+        tx.unbounded_send(Progress { step, done, total }).unwrap();
+        wait(
+            cx,
+            |cx| matches!(state(&d, cx), State::Working { progress, .. } if progress == fraction),
+        );
+        let State::Working { name, .. } = state(&d, cx) else {
+            unreachable!()
+        };
+        let expected = cx.read(|cx| dr_shell::Strings::get(cx).t(label).to_owned());
+        assert_eq!(name, expected);
+    }
+    drop(tx);
+    wait(cx, |cx| matches!(state(&d, cx), State::Failed { .. }));
+    cx.run_until_parked();
+    assert!(matches!(state(&d, cx), State::Failed { text, .. } if text.contains("replace failed")));
 }

@@ -242,7 +242,7 @@ fn run(out: PathBuf) -> Result<()> {
         h.save(&m41, &format!("transfer-backup-{a}.png"))?;
         h.close_dialog()?;
         let lib = h.library.clone();
-        let replace: backup::Replace = std::rc::Rc::new(|_, cx| {
+        let replace: backup::Replace = std::rc::Rc::new(|_, _, cx| {
             cx.background_executor()
                 .spawn(async { Err("not in a picture".to_owned()) })
         });
