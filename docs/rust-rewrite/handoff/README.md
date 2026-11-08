@@ -1,5 +1,14 @@
 # 交给外部代理的模块任务书
 
+> **2026-11-08 更新**：Claude 的用量快用完了，仓库里的 Claude 会话停下，后面的活全交给外部代理。
+>
+> - Codex：帮手那一条，见 [codex-queue.md](codex-queue.md)。
+> - Antigravity：Super View、账号、Windows，见 [antigravity-queue.md](antigravity-queue.md)。
+> - 基座和已开工模块的剩余：见 [remaining.md](remaining.md)。
+> - 合并 `main` 的整合者：照 [integration.md](integration.md) 做。
+>
+> 下面「谁管哪里」的分工不再适用，以 remaining.md 为准。
+
 2026-11-08。`next/` 重写里还没人做的独立模块，一个文件一个任务，给 Codex 这类外部编码代理做。仓库里另有一组 Claude 会话在做基座和别的模块，由监管会话统一审、统一合进 `main`。这一页是所有任务共用的约定，每份任务书只写自己的那部分。
 
 ## 先读

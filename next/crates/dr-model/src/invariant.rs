@@ -126,25 +126,6 @@ macro_rules! inv {
 }
 
 pub const INVARIANTS: &[Invariant] = &[
-    inv!(
-        "CONVERSATION-APPEND",
-        "对话内容只从已落盘运行事件追加；同一事件身份不变，重放不重复",
-        [Structure, Command, Read],
-        "ConversationEntry 不含控制状态；dr-doc 只公开追加，重复身份内容相同则忽略、不同则报错；并发重复由读取去重，顺序由 Loro 收敛",
-        ["docs/rust-rewrite/handoff/m27-agent-runtime.md"],
-        [
-            "conversation_replay_is_idempotent_and_content_is_immutable",
-            "conversation_concurrent_appends_converge"
-        ]
-    ),
-    inv!(
-        "CONVERSATION-NOT-PROSE",
-        "对话文档不作为书的正文编辑、计数、搜索和导出",
-        [Structure],
-        "DocKind::Conversation 没有 ProseProfile，is_book_text 为 false",
-        ["docs/rust-rewrite/handoff/m27-agent-runtime.md"],
-        ["doc_ids_round_trip", "conversation_is_not_a_prose_document"]
-    ),
     // ---- ids, documents, origins ---------------------------------------
     inv!(
         "ID-FORMAT",
@@ -165,9 +146,13 @@ pub const INVARIANTS: &[Invariant] = &[
         "UNKNOWN-KEPT",
         "不认识的字段、取值、标记原样保留，不丢、不改写",
         [Structure, Read],
-        "枚举都是开放的（Other 原样读写）；书目写入逐字段，不重写整个实体；未配置的标记键按 None 扩展",
+        "枚举都是开放的（Other 原样读写）；书目写入逐字段，不重写整个实体；未配置的标记键按 None 扩展；对话条目是不可变的 JSON 字符串，读不懂的整条保留、跳过（CONVERSATION-READ）",
         ["K:520-550 (旧版反过来：fail closed)"],
-        ["unknown_values_survive", "unknown_fields_survive_an_edit"]
+        [
+            "unknown_values_survive",
+            "unknown_fields_survive_an_edit",
+            "conversation_unknown_content_is_preserved_and_invalid_ids_rejected"
+        ]
     ),
     inv!(
         "DOC-IDENTITY",
@@ -1036,6 +1021,59 @@ pub const INVARIANTS: &[Invariant] = &[
             "chapter_with_text_writes_prose_first",
             "a_failure_after_the_prose_leaves_only_an_orphan",
             "prose_written_before_the_book_survives_a_reopen"
+        ]
+    ),
+    // ---- Agent conversations (M27) -----------------------------------------
+    inv!(
+        "CONVERSATION-APPEND",
+        "对话只从已落盘的运行事件追加；一个事件身份只对应一份内容，重放不重复写",
+        [Structure, Command],
+        "dr-doc 只公开追加（ConversationDoc::append / BorrowedConversation::append），没有删、改、挪的接口；追加前按事件身份查，已有且相同就什么都不写，不同就报错；事件身份、会话、种类守 id 的规则（check_id）。权限请求、运行状态这些本机控制不进对话（M27）",
+        [],
+        [
+            "conversation_replay_is_idempotent_and_content_is_immutable",
+            "conversation_unknown_content_is_preserved_and_invalid_ids_rejected",
+            "honest_devices_converge_and_are_never_refused"
+        ]
+    ),
+    inv!(
+        "CONVERSATION-HISTORY",
+        "已有的对话条目不删、不改、不挪，对话的身份不变",
+        [Command],
+        "导入前 conversation::validate_update 只看这份更新自己的操作：删条目（改和挪也是删加插）、创世以外的人改 meta.v / meta.doc、依赖本机还没有的变更，一律拒；同一份字节在每台设备上得到同一个答案，老实设备之间不会因为各自见过的不同而分叉。F3 的 library_options 把它装进 F2 的导入校验。被拒的更新会挡住同一设备之后的更新，所以同步要按因果顺序送，提前到的等依赖到了再送一次",
+        [],
+        [
+            "conversation_import_rejects_deletion_and_reads_a_conflict_alike",
+            "a_deletion_is_refused_whatever_the_receiver_has_seen",
+            "conversation_import_rejects_reordered_existing_entries",
+            "sync_conversation_uses_append_only_document_without_prose_events",
+            "honest_devices_converge_and_are_never_refused"
+        ]
+    ),
+    inv!(
+        "CONVERSATION-READ",
+        "每台设备读出同一份对话；读不懂的条目不挡打开和同步",
+        [Read],
+        "按列表顺序读，每个事件身份只读第一次出现的那条（内容不同时也读第一条，身份报在 problems().conflicting）；不是字符串、不是 JSON、信封是以后版本的条目跳过并原样保留（problems().unreadable）；读取和载入都不因内容失败；并发追加的先后由 Loro 列表收敛",
+        [],
+        [
+            "conversation_concurrent_appends_converge",
+            "a_conversation_with_entries_it_cannot_read_still_opens_and_syncs",
+            "conversation_import_rejects_deletion_and_reads_a_conflict_alike",
+            "honest_devices_converge_and_are_never_refused"
+        ]
+    ),
+    inv!(
+        "CONVERSATION-NOT-PROSE",
+        "对话文档不是正文：不编辑、不计字数、不搜索、不导出、不投待办，也不会被当成没主人的正文清掉",
+        [Structure, Read],
+        "DocKind::Conversation 没有 ProseProfile、is_book_text 为假（ProseDoc / BorrowedProse 拒绝打开它）；owns_prose 认它属于书（哪本书由存储记着）；project_todo / projected_todo 只收书的正文",
+        [],
+        [
+            "doc_ids_round_trip",
+            "conversation_is_not_a_prose_document",
+            "conversations_belong_to_the_book_and_project_no_todos",
+            "prose_commands_and_editor_reject_conversations_without_writing"
         ]
     ),
 ];

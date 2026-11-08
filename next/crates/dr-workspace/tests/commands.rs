@@ -1704,3 +1704,116 @@ fn region_comments_sit_on_image_and_pdf_materials() {
                            "region": region, "range": [0, 1]})
     ));
 }
+
+#[test]
+fn a_chapter_made_on_story_time_is_one_step() {
+    let e = env();
+    let b = e.book();
+    let u = Actor::User;
+    let done = e.call(
+        "chapter.create",
+        json!({"book": b, "title": "夜", "narrative_order": 33.0}),
+    );
+    let c = done["output"]["id"].clone();
+    assert_eq!(done["undo"].as_array().unwrap().len(), 1, "{done}");
+    assert_eq!(chapter_row(&e, &b, &c)["narrative_order"], 33.0);
+    e.ws().undo(&u).unwrap().unwrap();
+    assert!(
+        e.out("chapter.list", json!({"book": b}))
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    e.ws().redo(&u).unwrap().unwrap();
+    assert_eq!(chapter_row(&e, &b, &c)["narrative_order"], 33.0);
+    assert!(
+        e.try_call(
+            "chapter.create",
+            json!({"book": b, "title": "x", "narrative_order": "never"}),
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn an_idea_turns_into_a_chapter_in_one_step() {
+    let e = env();
+    let b = e.book();
+    let u = Actor::User;
+    let line = e.out("storyline.create", json!({"book": b, "name": "主线"}))["id"].clone();
+    let first = e.out("chapter.create", json!({"book": b, "title": "一"}))["id"].clone();
+    let group = e.out("idea_group.create", json!({"book": b, "name": "灵光"}))["id"].clone();
+    let idea = e.out(
+        "idea.create",
+        json!({"book": b, "title": "夜航", "summary": "船", "group": group, "text": "雾里有灯。"}),
+    )["id"]
+        .clone();
+    let pin = e.out(
+        "time_pin.create",
+        json!({"book": b, "narrative_order": 7.0, "idea": idea}),
+    )["id"]
+        .clone();
+    let act = e.out("act.create", json!({"book": b, "name": "第一幕"}))["id"].clone();
+    e.call("act.update", json!({"book": b, "id": act, "drift": idea}));
+    let text = |e: &Env| {
+        field(
+            &e.out(
+                "prose.read",
+                json!({"doc": format!("node:{}", idea.as_str().unwrap())}),
+            )["paragraphs"],
+            "text",
+        )
+    };
+    let before = (
+        e.out("idea.list", json!({"book": b})),
+        e.out("time_pin.list", json!({"book": b})),
+        e.out("act.list", json!({"book": b})),
+        text(&e),
+    );
+
+    let done = e.call(
+        "idea.to_chapter",
+        json!({"book": b, "id": idea, "storyline": line}),
+    );
+    assert_eq!(done["undo"].as_array().unwrap().len(), 1, "{done}");
+    // The same page, now the last chapter: a draft on the storyline.
+    assert_eq!(
+        ids(&e.out("chapter.list", json!({"book": b}))),
+        [first.as_str().unwrap(), idea.as_str().unwrap()]
+    );
+    let row = chapter_row(&e, &b, &idea);
+    assert_eq!(row["status"], "draft");
+    assert_eq!(row["summary"], "船");
+    assert_eq!(row["storylines"], json!([line]));
+    assert_eq!(row["primary_storyline"], line);
+    assert_eq!(text(&e), before.3);
+    assert!(
+        e.out("idea.list", json!({"book": b}))
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    // What was bound to the idea lets go; a pin without a label keeps its title.
+    let pins = e.out("time_pin.list", json!({"book": b}));
+    assert!(pins[0]["idea"].is_null());
+    assert_eq!(pins[0]["label"], "夜航");
+    assert!(e.out("act.list", json!({"book": b}))[0]["drift"].is_null());
+
+    // One undo step brings the idea back as it was.
+    e.ws().undo(&u).unwrap().unwrap();
+    assert_eq!(e.out("idea.list", json!({"book": b})), before.0);
+    assert_eq!(e.out("time_pin.list", json!({"book": b})), before.1);
+    assert_eq!(e.out("act.list", json!({"book": b})), before.2);
+    assert_eq!(
+        ids(&e.out("chapter.list", json!({"book": b}))),
+        [first.as_str().unwrap()]
+    );
+    assert_eq!(pin, before.1[0]["id"]);
+    e.ws().redo(&u).unwrap().unwrap();
+    assert_eq!(chapter_row(&e, &b, &idea)["primary_storyline"], line);
+    // A chapter, or an idea in the trash, is not an idea to turn.
+    assert!(
+        e.try_call("idea.to_chapter", json!({"book": b, "id": idea}))
+            .is_err()
+    );
+}

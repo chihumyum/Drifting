@@ -5,6 +5,7 @@ use crate::repo::Repo;
 mod audit;
 pub mod debug_bridge;
 mod evidence;
+pub mod hot_reload;
 mod large_files;
 mod layers;
 mod licenses;
@@ -84,6 +85,11 @@ pub fn all() -> Vec<Gate> {
             name: "debug-bridge",
             about: "the debug bridge is opt-in: no default feature or release script turns it on",
             run: debug_bridge::run,
+        },
+        Gate {
+            name: "hot-reload",
+            about: "GPUI's hot reload is opt-in (no default feature or release script turns it on); no dependency cycle, dev-dependencies counted (dx patches in that order)",
+            run: hot_reload::run,
         },
         Gate {
             name: "evidence",

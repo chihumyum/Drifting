@@ -116,6 +116,7 @@ CI 是 [`.github/workflows/next.yml`](../.github/workflows/next.yml)：
 ```bash
 cargo xtask dev                                   # 按 worktree 设 DRIFTING_PROFILE 再启动
 cargo xtask dev --instance two --print-config     # 同一 checkout 的第二个实例；只打印配置
+cargo xtask dev --hot                             # 热重载：经 dx serve --hot-patch 起，界面代码存盘即换（要 dx 0.7.10）
 cargo drifting workspace describe                  # F3 的命令和查询（--json 带 Schema）
 cargo drifting workspace call chapter.list --library <目录> --input '{"book": "…"}'
 cargo drifting workspace scenario 验收.json --library <目录> --yes   # 脚本化的一串调用

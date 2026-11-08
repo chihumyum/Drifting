@@ -44,10 +44,10 @@ sum_tree.workspace = true
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2.workspace = true
 
-# IMM32, to cancel a composition (G4); GPUI's Windows backend builds the same
-# crate.
+# IMM32, to cancel a composition (G4), and `GetFocus`, to tell late input
+# (input/system_ime.rs); GPUI's Windows backend builds the same crate.
 [target.'cfg(target_os = "windows")'.dependencies]
-windows = { workspace = true, features = ["Win32_Globalization", "Win32_UI_Input_Ime"] }
+windows = { workspace = true, features = ["Win32_Globalization", "Win32_UI_Input_Ime", "Win32_UI_Input_KeyboardAndMouse"] }
 
 [dev-dependencies]
 # AccessKit's own reading of a tree, to check the text screen readers get.

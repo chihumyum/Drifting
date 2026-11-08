@@ -11,7 +11,7 @@ use dr_model::prose::Heading;
 
 /// Paragraphs, links and their plain text are dr-samples' (the samples are
 /// made of them too).
-pub use dr_samples::para::{Link, Para, plain};
+pub use crate::para::{Link, Para, plain};
 
 use crate::rng::Rng;
 
@@ -81,7 +81,8 @@ const DETAILS: &[&str] = &[
     "石阶上被潮水抹平的脚印",
     "灯镜边缘反复擦拭的痕迹",
 ];
-pub(crate) const HEADINGS: &[&str] = &[
+/// Short titles the seed gives chapters and ideas.
+pub const HEADINGS: &[&str] = &[
     "潮声与记录",
     "尚待核对的证词",
     "灯下的观察",

@@ -59,7 +59,11 @@ fn live_chapter(slot: &BookSlot, id: &str) -> Result<Node> {
 }
 
 /// The book order for `place`, leaving `moving` out of the neighbours.
-fn order_for(slot: &BookSlot, place: &ChapterPlace, moving: Option<&NodeId>) -> Result<f64> {
+pub(crate) fn order_for(
+    slot: &BookSlot,
+    place: &ChapterPlace,
+    moving: Option<&NodeId>,
+) -> Result<f64> {
     let chs: Vec<Node> = chapters(slot)
         .into_iter()
         .filter(|c| Some(&c.id) != moving)
@@ -150,6 +154,10 @@ pub struct ChapterCreateIn {
     /// Initial text; a newline starts a new paragraph.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
+    /// Its place on the narrative axis (story time), written with the
+    /// chapter: a double click on the timeline's story time is one step.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub narrative_order: Option<f64>,
 }
 
 #[derive(Clone, Debug, Serialize, JsonSchema)]
@@ -197,7 +205,7 @@ pub(crate) fn seed_prose(
 
 op! {
     ChapterCreate = "chapter.create", Write, Book,
-    "Create a chapter (a taken title gets a numbered suffix; the final title is returned). Given a storyline and no text, it starts from that storyline's chapter template.",
+    "Create a chapter (a taken title gets a numbered suffix; the final title is returned), optionally placed on story time too. Given a storyline and no text, it starts from that storyline's chapter template.",
     fn(cx, input: ChapterCreateIn) -> ChapterCreated {
         let slot = cx.book(&input.book)?;
         let storyline: Option<StorylineId> = match &input.storyline {
@@ -210,6 +218,9 @@ op! {
             }
             None => None,
         };
+        if input.narrative_order.is_some_and(|o| !o.is_finite()) {
+            return Err(WsError::invalid("narrative order must be finite"));
+        }
         let title = unique_name(&input.title, UNTITLED, node_titles(&slot, None).iter().map(String::as_str));
         let order = order_for(&slot, input.place.as_ref().unwrap_or(&ChapterPlace::Last), None)?;
         let id = NodeId::new_v7();
@@ -228,11 +239,14 @@ op! {
             None => seed_prose(cx, &slot.book, &DocId::Node(id.clone()), input.text.as_deref())?,
         }
         crate::autolink::backfill_title(cx, &slot, &id, &title)?;
-        let (i2, t2, s2) = (id.clone(), title.clone(), input.summary.clone());
+        let (i2, t2, s2, n2) = (id.clone(), title.clone(), input.summary.clone(), input.narrative_order);
         cx.write_book(&slot, move |txn| {
             let w = txn.node(&i2)?;
             w.kind(&NodeKind::Chapter)?.title(&t2)?.summary(&s2)?.book_order(Some(order))?
                 .status(&NodeStatus::Draft)?.x(0.0)?.y(0.0)?.created_at(Some(now()))?;
+            if let Some(o) = n2 {
+                w.narrative_order(Some(o))?;
+            }
             if let Some(s) = &storyline {
                 w.add_storyline(s)?.primary_storyline(Some(s))?;
             }

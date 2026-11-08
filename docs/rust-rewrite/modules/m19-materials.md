@@ -1,6 +1,6 @@
-# M19 素材：图片和 PDF 查看器
+# M19 素材：查看器与素材库
 
-2026-11-08，第一部分：图片和 PDF 的缩放、平移、翻页，和画在上面的区域批注。计划见 [modules.md 的 M19](../modules.md)。代码在新 crate `next/crates/dr-view-material/`；M19 的其余部分（素材笔记的编辑配置、素材夹树的拖放和多选、右栏素材库、拖入或粘贴导入）还没做。
+2026-11-08。第一部分：图片和 PDF 的缩放、平移、翻页，和画在上面的区域批注（下面前几节）。第二部分（同一天）：右栏「素材库」标签，素材夹树的拖放、多选、移动，拖入和粘贴文件导入，见[「第二部分：素材库」](#第二部分素材库)；给 M23 的接口写在[那一节的末尾](#给-m23-的接口)。计划见 [modules.md 的 M19](../modules.md)。代码在 `next/crates/dr-view-material/`。M19 还没做的：素材笔记的编辑配置（列表、任务、表格等在 F4 的编辑器里，另算）。
 
 ## 做了什么（大白话）
 
@@ -104,3 +104,72 @@ debug 构建里 hayro 和图片解码都没优化，发布版会快很多（试�
 - `next/crates/dr-view-material/src/media.rs`：读文件、解码图片、hayro 渲染 PDF、中文回退字体。
 - `next/crates/dr-view-material/src/viewport.rs`、`regions.rs`：缩放平移和矩形的计算。
 - `next/crates/dr-view-material/examples/m19-capture.rs`：截图。
+
+## 第二部分：素材库
+
+### 做了什么（大白话）
+
+1. **右栏「素材库」标签有了自己的面板。** 以前外壳只是把素材夹和素材一行行列出来；现在由 `dr-view-material` 画（外壳新加的登记口 `pages::set_library`，和「帮手」标签同一种写法，单独一个提交）。
+2. **头一行。** 左边「当前」：打开后只列和前面那一页（章节、要素、素材……）有关联的素材；中间「8 素材」；右边三个按钮：审阅与素材（打开那个全屏视图）、新建素材夹、+（下拉两项：「笔记」新建一条笔记并打开来写，「从文件导入图片或 PDF…」打开系统的选文件框）。
+3. **一棵素材夹树。** 素材夹是细行，用结构字体，前面是展开箭头和文件夹图标，后面是它下面一共有几条素材；素材是高一点的格子：素材记号、一个 32 px 的缩略图（笔记是一个纸的图标）、标题，标题下面一行淡字——笔记显示开头几个字，图片和 PDF 显示「图片」「PDF」。素材夹按名字排，素材有标题的在前、按标题排（数字按大小），没标题的在后。前面正打开的那条素材，砂笔框围着它。
+4. **点击。** 点素材打开它（双击保持标签），点素材夹展开或收起；⌘ 点一下加选或减选，⇧ 点一下选一段，被选中的几行底下有一层淡色；⌥ 点素材夹把它里面的全部展开或收起；⌘A 全选，Esc 取消。新建的素材夹、笔记和导入的文件，都放进最后点过的那个素材夹（点列表底下的空白处回到最外层）。
+5. **悬停卡**（和别处一样，没有右键菜单）：素材有「打开」「在系统 app 中打开」（图片和 PDF）「重命名」，素材夹有「在其中新建素材夹」「全部展开」「全部收起」「重命名」；都有「移动到素材夹…」——卡里直接列出最外层和每个素材夹的路径（「东岸 / 旧城」），点一下就移过去，它现在所在的那一个是亮着的、点不了；最后是删除（红字）。如果这一行在一组多选里，卡就对整组：「将 3 项移动到素材夹…」「删除 3 项」。删除前先问一句（旧版的原话）；素材夹删掉时，里面的东西挪到上一层，不会删素材。
+6. **重命名**就在行里：名字变成输入框，回车或点别处保存，Esc 放弃。新建的素材夹一出现就进入重命名。
+7. **拖动。** 把一行（或它所在的那组）拖到素材夹上就移进去，拖到某条素材上就移进那条素材所在的素材夹，拖到列表空白处就移到最外层；拖着的时候指针下面跟着一张小卡（标题，或「3 素材」），能放的地方底下浮起一层淡色。素材夹不会被移进它自己或它下面的素材夹（F3 会拒绝，它留在原地）。
+8. **导入文件。** 从系统里把文件拖进来（拖到哪个素材夹就进哪个），或者复制了图片或文件以后在面板里按 ⌘V，或者用 + 里的选文件框：图片（PNG、JPEG、GIF、WebP、BMP、TIFF）和 PDF 变成素材，标题是文件名去掉扩展名；导入时就生成显示用的副本（最长边 2048 px）和缩略图（256 px），PDF 生成第一页的缩略图。别的文件（Word、HEIC 等）跳过，底部提示「无法导入文件：……」列出名字。导入期间面板顶上有一行「导入中…」。
+
+### 定下的事
+
+- **素材库的面板由模块画。** 外壳只负责在标签里放它（`set_library`），没有登记模块时照旧自己列。
+- **移动是一条一条的命令。** 移 3 项就是 3 步撤销，和 F3 现在的命令粒度一致；以后需要可以合成一步。
+- **缩略图在导入时就做。** 现成没有缩略图的旧素材，面板第一次要显示时在后台做一个（不写回库里）。
+- **「当前」按关系筛。** 读 F3 的 `relation.list`（前面那一页的全部关系），另一端是素材的就算。
+
+### 外壳和共用文件里的挂接点
+
+| 文件 | 改了什么 |
+| --- | --- |
+| `dr-shell/src/pages.rs`、`workspace/{mod,sidebar}.rs` | 单独提交 ab2a2c6f：`set_library`、`library_for`；`Workspace.library_panel`（每个半栏一份，换书时清空）；`right_header` / `right_body` 的「素材库」先问模块 |
+| `dr-ui/src/components/cell.rs` | `SandCell` 加了 `.lead(元素)`（最前面放自己的东西：展开箭头和图标、缩略图）和 `.subline(文字)`（名字下面一行淡字，行高跟着变）；不用时和原来一样 |
+| `dr-i18n/keys.txt` | 26 个旧版词条（素材夹的菜单和提示、导入、删除确认、数量） |
+| `dr-view-material` | 新模块 `library`、`folders`、`import`、`previews`、`card`；`init` 里登记素材库和快捷键 |
+
+### 截图
+
+同一个截图程序（`m19-capture`）多拍两组。
+
+| 画面 | 浅色 | 深色 |
+| --- | --- | --- |
+| 中间是打开的「东岸速写」，右栏素材库：东岸（里面是旧城）和潮汐展开，缩略图，正打开的那条有砂笔框，两条笔记被多选（底下一层淡色），笔记显示开头几个字 | [library-light](m19/library-light.png) | [library-dark](m19/library-dark.png) |
+| 指着「潮汐笔记」的悬停卡：打开、在系统 app 中打开、重命名、移动到素材夹（最外层和每个素材夹，「潮汐」亮着）、删除素材 | [library-card-light](m19/library-card-light.png) | [library-card-dark](m19/library-card-dark.png) |
+
+### 测试
+
+- `folders` 单元测试：数字按大小排；素材夹在前、有标题的素材在前；素材夹的数是它下面全部的；只看关联时没有内容的素材夹不列；素材夹不能移进自己下面；路径；点击、⌘ 点、⇧ 点、全选、清空、对整组还是单行。
+- `import` 单元测试：按扩展名和文件头认图片和 PDF，Word、HEIC 不认；显示副本和缩略图的尺寸，不透明的存 JPEG；PDF 第一页缩略图。
+- `previews` 单元测试：开头几个字的截取。
+- `tests/library.rs`（GPUI 测试平台，真书库）：拖进来的两张图和一个 PDF 变成素材、进了那个素材夹、Word 文件跳过、显示副本和缩略图都在；复制的图片按 ⌘V 变成「粘贴的图片」；新建素材夹进入重命名、输入名字回车后改名；多选移进素材夹、它展开、父素材夹不动；素材夹移进自己下面时留在原地；删除；⌥ 展开全部、全选、Esc 取消。
+- `dr-shell`：`a_module_draws_the_library_tab`（登记后每个半栏问一次，之后留着用）。
+
+### 待协调
+
+1. **「展开预览」**（旧版行内展开大图或整段笔记）和**关联**（行内的关系标签、「关联…」）没做；关联在 M23 和要素页里有，以后可以把同一个选择器放进悬停卡。
+2. **拖动的截图没有。** 离屏截图程序模拟不了从系统拖文件进来；行与行之间的拖动在测试里用 `move_to` 覆盖了，真窗口里的拖动手感没看过。
+3. **移动不是一步撤销**（见上）。
+4. **审阅里的区域批注卡**（第一部分的待协调）还在。
+
+### 给 M23 的接口
+
+M23「审阅与素材」可以直接用这些（都在 `dr_view_material` 下）：
+
+| 用来做什么 | 接口 |
+| --- | --- |
+| 一张素材卡 | `card::MaterialCard::new(id, &MaterialInfo).width(168.0).selected(bool).on_click(…)`：缩略图（或笔记开头几个字）、素材记号和标题、下面一行淡字；选中时砂笔框围着 |
+| 卡的零件 | `card::thumb(&MaterialInfo, 边长, window, cx)`（方形缩略图或图标）、`card::subline(&MaterialInfo, cx)`（笔记开头几个字 / 「图片」「PDF」）、`card::kind_label(kind, cx)` |
+| 缩略图和开头几个字 | `previews::thumbnail(asset, MediaKind, cx) -> Option<Picture>`、`previews::first_words(material, cx) -> Option<String>`：没做好时返回 `None` 并在后台做，做好了重画窗口；全应用共用一份 |
+| 素材夹树 | `folders::Tree::new(&book.folders, &book.materials, 只看这些: Option<&HashSet<String>>)`，然后 `.entries(&展开的, 收窄)`（`Entry::Folder { id, name, depth, open, count }` / `Entry::Material { id, depth }`）、`.total(素材夹)`、`.subtree(素材夹)`、`.within(甲, 乙)`、`.path(素材夹)`、`.choices(&Selection, 当前, 最外层的名字) -> Vec<Choice { folder, path, current }>` |
+| 选择 | `folders::Selection { materials, folders }`、`Selection::of(&行键)`、`folder_key(id)` / `material_key(id)`（`f:` / `i:`）、`folders::Picker`（`click(键, ⌘, ⇧, &顺序)`、`all`、`clear`、`target(键)`、`keep(&顺序)`） |
+| 命令（放后台线程跑） | `folders::move_to(lib, book, &sel, Option<&str>)`、`create_folder(lib, book, 名字, 父)`、`rename_folder`、`rename_material`、`delete(lib, book, &sel)` |
+| 导入 | `import::import_paths(lib, book, 素材夹, &[PathBuf]) -> Report { imported, skipped }`、`import_path`、`import_bytes(lib, book, 素材夹, 字节, 标题)`、`kind_of_path`、`kind_of_bytes` |
+| 拖动 | `library::MaterialDrag { selection, label }`：M23 的卡用 `.on_drag(MaterialDrag { … })` 拖出来，放到素材库的素材夹上就会移进去；反过来素材库拖出来的也是它，M23 可以接 |
+| 打开着的素材库面板 | `library::panels(cx)`；`LibraryPanel` 的 `select`、`set_open`、`set_open_all`、`move_to`、`import_paths`、`paste`、`new_folder`、`new_note`、`ask_delete` 都是公开的 |

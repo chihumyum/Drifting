@@ -8,6 +8,8 @@ publish.workspace = true
 description = "Drifting 0.2 test kit (F8): the one deterministic seed, sample books, measured evidence, the crash harness and the bench convention"
 
 [dependencies]
+# The random number generator, the corpus and the fingerprint (store-free).
+dr-corpus.workspace = true
 dr-doc.workspace = true
 dr-index.workspace = true
 dr-model.workspace = true

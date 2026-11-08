@@ -1757,10 +1757,12 @@ impl Library {
     /// Delete a document and everything stored for it (updates, snapshot,
     /// head, peer, sync state, history labels, derived rows) in one
     /// transaction, and record it as purged so sync cannot bring it back
-    /// ([`crate::purge`]); purging a book's last document also drops the
-    /// book's device-local state. Agent settlements stay: they are the
-    /// durable record of what an Agent did. Refused while the document is
-    /// open; a document that is not stored is left alone.
+    /// ([`crate::purge`]); the Agent journals of a conversation it was go
+    /// too. Purging a book's last document also drops the book's
+    /// device-local state, Agent journals and the Agent settlements of its
+    /// documents; while the book lives, settlements stay (the durable record
+    /// of what an Agent did). Refused while the document is open; a
+    /// document that is not stored is left alone.
     pub fn purge_doc(&self, doc_id: &str) -> Result<()> {
         let changes = {
             let docs = self.inner.docs.lock().unwrap_or_else(|e| e.into_inner());

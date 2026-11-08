@@ -1,8 +1,12 @@
 //! A library imported from 0.1 (M10) gets search, outlines, references and
 //! word counts when it opens: the imported documents have no index yet, so
 //! the open rebuilds them. The 0.1 library is M10's own synthetic builder.
+//!
+//! dr-index's end-to-end check; it lives here (dr-import-v1 depends on
+//! dr-index) because dr-index depending on dr-import-v1, even for tests,
+//! would close a cycle that dx's hot patching refuses.
 
-#[path = "../../dr-import-v1/tests/common/mod.rs"]
+#[path = "common/mod.rs"]
 mod old;
 
 use dr_doc::prose::ProseDoc;

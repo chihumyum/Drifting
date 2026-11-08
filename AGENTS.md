@@ -86,8 +86,13 @@ Guidance for coding agents working in this standalone Drifting client repository
 - Run a `next/` development build with `cargo xtask dev`: in a linked worktree
   it sets `DRIFTING_PROFILE` to the worktree's name, so parallel builds never
   share a library or a lock (`--instance <name>` for a second one,
-  `--print-config` to inspect). Offline library changes go through
-  `cargo drifting workspace …`: the app closed, a backup first, `--yes`.
+  `--print-config` to inspect). `cargo xtask dev --hot` runs it under
+  `dx serve --hot-patch` (dx 0.7.10, GPUI's `hot-reload`): a view's render
+  code patches into the running window without a restart; debug builds
+  only, and like the bridge never on by default or in a release script
+  (gate `hot-reload`, `cargo xtask check-binary`). Offline library changes
+  go through `cargo drifting workspace …`: the app closed, a backup first,
+  `--yes`.
 - Desktop acceptance of `next/` drives the real window through F8's debug
   bridge: `cargo xtask dev --debug-bridge`, then `cargo drifting app …`
   (open, type, key, text, state, screenshot), or a scenario with

@@ -19,6 +19,7 @@
       "chapterCount": "{{count}}章",
       "deleteMergeNext": "この幕を削除して次の幕に統合",
       "deleteMergePrev": "この幕を削除して前の幕に統合",
+      "dragBoundary": "ドラッグして幕の境界を調整",
       "newAct": "新しい幕",
       "openActNote": "幕のメモを開く",
       "railLabel": "幕",
@@ -46,6 +47,10 @@
       "openDrift": "アイデアを開く",
       "rename": "名前を変更",
       "unbind": "関連付けを解除し、通常のラベルに戻す"
+    },
+    "spread": {
+      "needTwo": "分散するには章が2つ以上必要です",
+      "title": "分散：{{mode}}を並べ直し、ノードの重なりを解消"
     },
     "storyline": {
       "chapterCount": "{{count}}章"
@@ -545,7 +550,13 @@
     "wholeBook": "すべての章を原稿順に"
   },
   "materialEditor": {
+    "deleteConfirm": "資料「{{title}}」を削除しますか？この操作は取り消せません。",
     "descriptionPlaceholder": "説明を追加…",
+    "embed": {
+      "importFile": "画像または PDF を読み込む…",
+      "importing": "インポート中…",
+      "pastedImage": "貼り付けた画像"
+    },
     "regions": {
       "draw": "範囲にコメント",
       "drawHint": "画像上をドラッグして範囲を指定",
@@ -559,11 +570,43 @@
     "zoomOut": "縮小",
     "zoomReset": "表示範囲に合わせる"
   },
+  "materialFolders": {
+    "deleteConfirm": "フォルダー「{{name}}」を削除しますか？中の項目はすべて1つ上の階層に移ります。資料は削除されません。",
+    "deleteSelectionConfirm": "選択した{{count}}項目を削除しますか？資料は削除されます。削除したフォルダーの中身は1つ上の階層に移ります。",
+    "empty": "資料はまだありません。上の「新しいフォルダー」ボタンで整理できます。",
+    "menu": {
+      "collapseAll": "中の項目をすべて折りたたむ",
+      "delete": "フォルダーを削除",
+      "deleteSelection": "{{count}}項目を削除",
+      "expandAll": "中の項目をすべて展開",
+      "move": "フォルダーに移動…",
+      "moveSelection": "{{count}}項目をフォルダーに移動…",
+      "newFolder": "新しいフォルダー",
+      "newSubfolder": "中にフォルダーを作成",
+      "open": "開く",
+      "rename": "名前を変更"
+    },
+    "root": "すべての資料",
+    "untitled": "新しいフォルダー"
+  },
   "memoMaterial": {
+    "card": {
+      "addSnippetBody": "このメモに書く…"
+    },
+    "empty": {
+      "noRelated": "現在の項目に関連資料はありません。"
+    },
+    "error": {
+      "pickFailed": "ファイルをインポートできません：{{error}}"
+    },
     "kind": {
       "image": "画像",
       "pdf": "PDF",
       "text": "メモ"
+    },
+    "menu": {
+      "deleteMaterial": "資料を削除",
+      "openInSystem": "システムのアプリで開く"
     },
     "preview": {
       "loading": "読み込み中…",
@@ -574,6 +617,10 @@
       "openPdfFailed": "PDFを開けません",
       "previousPage": "前へ",
       "renderPdfFailed": "PDFを描画できません"
+    },
+    "toolbar": {
+      "count": "{{count}}件の資料",
+      "newMaterial": "新しい資料"
     }
   },
   "mobileWorkspace": {

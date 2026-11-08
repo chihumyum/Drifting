@@ -19,6 +19,7 @@
       "chapterCount": "{{count}} chapitres",
       "deleteMergeNext": "Supprimer cet acte et le fusionner avec le suivant",
       "deleteMergePrev": "Supprimer cet acte et le fusionner avec le précédent",
+      "dragBoundary": "Faites glisser pour ajuster la limite de l’acte",
       "newAct": "Nouvel acte",
       "openActNote": "Ouvrir la note de l’acte",
       "railLabel": "Acte",
@@ -46,6 +47,10 @@
       "openDrift": "Ouvrir l’idée",
       "rename": "Renommer",
       "unbind": "Dissocier et rétablir comme simple libellé"
+    },
+    "spread": {
+      "needTwo": "Il faut au moins deux chapitres pour les répartir",
+      "title": "Répartir : réorganiser {{mode}} pour séparer les nœuds superposés"
     },
     "storyline": {
       "chapterCount": "{{count}} chap."
@@ -552,7 +557,13 @@
     "wholeBook": "Tous les chapitres dans l’ordre de lecture"
   },
   "materialEditor": {
+    "deleteConfirm": "Supprimer la ressource « {{title}} » ? Cette action est irréversible.",
     "descriptionPlaceholder": "Ajouter une description…",
+    "embed": {
+      "importFile": "Importer une image ou un PDF…",
+      "importing": "Importation…",
+      "pastedImage": "Image collée"
+    },
     "regions": {
       "draw": "Commenter une zone",
       "drawHint": "Faites glisser sur l’image pour marquer une zone",
@@ -566,11 +577,43 @@
     "zoomOut": "Zoom arrière",
     "zoomReset": "Ajuster à la vue"
   },
+  "materialFolders": {
+    "deleteConfirm": "Supprimer le dossier « {{name}} » ? Son contenu sera déplacé d’un niveau vers le haut ; aucune ressource ne sera supprimée.",
+    "deleteSelectionConfirm": "Supprimer les {{count}} éléments sélectionnés ? Les ressources seront supprimées ; le contenu des dossiers supprimés remontera d’un niveau.",
+    "empty": "Aucune ressource pour le moment. Utilisez le bouton Nouveau dossier ci-dessus pour les organiser.",
+    "menu": {
+      "collapseAll": "Tout réduire à l’intérieur",
+      "delete": "Supprimer le dossier",
+      "deleteSelection": "Supprimer {{count}} éléments",
+      "expandAll": "Tout développer à l’intérieur",
+      "move": "Déplacer vers un dossier…",
+      "moveSelection": "Déplacer {{count}} éléments vers un dossier…",
+      "newFolder": "Nouveau dossier",
+      "newSubfolder": "Créer un sous-dossier",
+      "open": "Ouvrir",
+      "rename": "Renommer"
+    },
+    "root": "Toutes les ressources",
+    "untitled": "Nouveau dossier"
+  },
   "memoMaterial": {
+    "card": {
+      "addSnippetBody": "Écrivez dans cette note…"
+    },
+    "empty": {
+      "noRelated": "Aucune ressource liée à l’élément actuel."
+    },
+    "error": {
+      "pickFailed": "Impossible d’importer le fichier : {{error}}"
+    },
     "kind": {
       "image": "Image",
       "pdf": "PDF",
       "text": "Note"
+    },
+    "menu": {
+      "deleteMaterial": "Supprimer la ressource",
+      "openInSystem": "Ouvrir dans l’application système"
     },
     "preview": {
       "loading": "Chargement…",
@@ -581,6 +624,10 @@
       "openPdfFailed": "Impossible d’ouvrir le PDF",
       "previousPage": "Précédent",
       "renderPdfFailed": "Impossible d’afficher le PDF"
+    },
+    "toolbar": {
+      "count": "{{count}} ressources",
+      "newMaterial": "Nouvelle ressource"
     }
   },
   "mobileWorkspace": {
