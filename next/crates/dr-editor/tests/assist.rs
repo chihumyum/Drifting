@@ -221,25 +221,18 @@ fn a_new_element_links_itself_in_text_already_written(cx: &mut TestAppContext) {
     let open_doc = chapter(&e, "一", "沈知微来了。");
     let closed = chapter(&e, "二", "沈知微在码头等着。");
     let mut o = open(cx, &e, &open_doc);
-    // The element appears (made in its own page, say).
+    // The element appears (made in its own page, say). `element.create`
+    // links its name in the text already written before it returns (F3's
+    // `autolink`): the chapter no editor has open at once, the open one as
+    // a write of someone else's that the editor draws.
     let shen = element(&e, "沈知微", &[]);
-    let deadline = std::time::Instant::now() + Duration::from_secs(5);
-    while !o.linked(0, &shen) && std::time::Instant::now() < deadline {
-        draw(o.cx);
-        std::thread::sleep(Duration::from_millis(5));
-    }
-    assert!(o.linked(0, &shen) && o.linked(2, &shen) && !o.linked(3, &shen));
-    // A document no editor has open: linked on a background thread.
     let key = gpui_prose::schema::inline::entity_key(&shen);
-    let mut linked = false;
-    while !linked && std::time::Instant::now() < deadline {
-        let doc = gpui_prose::ProseDoc::open(Box::new(
-            dr_editor::SessionSource::open(&e.ws, &closed).unwrap(),
-        ));
-        linked = doc.marks_before(1).has(&key);
-        std::thread::sleep(Duration::from_millis(10));
-    }
-    assert!(linked, "the closed chapter");
+    let doc = gpui_prose::ProseDoc::open(Box::new(
+        dr_editor::SessionSource::open(&e.ws, &closed).unwrap(),
+    ));
+    assert!(doc.marks_before(1).has(&key), "the closed chapter");
+    draw(o.cx);
+    assert!(o.linked(0, &shen) && o.linked(2, &shen) && !o.linked(3, &shen));
     // The links are the command's step (F3 round seven: `element.create`
     // links the new name in the text already written, as `user:command`):
     // the editor's undo leaves them, the object-level undo takes them back.
