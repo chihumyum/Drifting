@@ -3,7 +3,7 @@
 > **2026-11-08 更新**：Claude 的用量快用完了，仓库里的 Claude 会话停下，后面的活全交给外部代理。
 >
 > - Codex：帮手那一条，见 [codex-queue.md](codex-queue.md)。
-> - Antigravity：Super View、账号、Windows，见 [antigravity-queue.md](antigravity-queue.md)。
+> - Super View、账号、Windows：作者已另开 Codex 接续会话承接原 Antigravity 队列，见 [antigravity-queue.md](antigravity-queue.md)；原文件名保留。
 > - 基座和已开工模块的剩余：见 [remaining.md](remaining.md)。
 > - 合并 `main` 的整合者：照 [integration.md](integration.md) 做。
 >
