@@ -51,8 +51,8 @@ use dr_workspace::dto::{CommentInfo, RelationInfo, Target};
 use dr_workspace::{Actor, LinkGroup, NavTarget, Workspace};
 use gpui::{
     AnyElement, AppContext, ClickEvent, Context, ElementId, Entity, FontWeight, InteractiveElement,
-    IntoElement, ParentElement, Render, SharedString, StatefulInteractiveElement, Styled,
-    Subscription, Task, Window, div, prelude::FluentBuilder, px,
+    IntoElement, ParentElement, Render, ScrollHandle, SharedString, StatefulInteractiveElement,
+    Styled, Subscription, Task, Window, canvas, div, prelude::FluentBuilder, px,
 };
 
 use crate::Opener;
@@ -73,6 +73,9 @@ pub struct ReviewView {
     filter: Filter,
     current_only: bool,
     resolved_open: bool,
+    reveal: Option<Reveal>,
+    reveal_serial: u64,
+    scroll: ScrollHandle,
     editing: Option<(String, Entity<TextArea>, Subscription)>,
     /// TODOs completed or undone here: their check strokes are drawn.
     checks: HashMap<String, Tween>,
@@ -88,6 +91,13 @@ pub struct ReviewView {
 /// How long a source card trusts the passage it read (the prose may have
 /// changed under it since).
 const ORIGINAL_FRESH: Duration = Duration::from_secs(2);
+
+struct Reveal {
+    id: String,
+    serial: u64,
+    ready: bool,
+    reply: futures::channel::oneshot::Sender<bool>,
+}
 
 /// Where a comment is, as a tab: a chapter, an idea, an element ….
 fn nav_of(catalog: &dr_workspace::BookCatalog, target: &Target) -> Option<NavTarget> {
@@ -132,6 +142,9 @@ impl ReviewView {
             filter: Filter::All,
             current_only: false,
             resolved_open: false,
+            reveal: None,
+            reveal_serial: 0,
+            scroll: ScrollHandle::new(),
             editing: None,
             checks: HashMap::new(),
             pending: None,
@@ -145,6 +158,74 @@ impl ReviewView {
     /// How the arrows open an entity's tab.
     pub fn set_opener(&mut self, open: Opener) {
         self.opener = Some(open);
+    }
+
+    /// Accept navigation to a comment, including when this pane has not yet
+    /// loaded it. Only filters which conceal this item are relaxed.
+    pub fn reveal_comment(
+        &mut self,
+        book: &str,
+        id: &str,
+        cx: &mut Context<Self>,
+    ) -> futures::channel::oneshot::Receiver<bool> {
+        if self.book != book {
+            self.book = book.to_owned();
+            self.items.clear();
+            self.associations.clear();
+            self.places.clear();
+            self.loaded = false;
+        }
+        let (reply, received) = futures::channel::oneshot::channel();
+        if self.lib.is_none() || book.is_empty() {
+            self.reveal = None;
+            let _ = reply.send(false);
+            return received;
+        }
+        self.reveal_serial += 1;
+        self.reveal = Some(Reveal {
+            id: id.to_owned(),
+            serial: self.reveal_serial,
+            ready: false,
+            reply,
+        });
+        self.reload(cx);
+        received
+    }
+
+    fn apply_reveal(&mut self) {
+        let Some(mut reveal) = self.reveal.take() else {
+            return;
+        };
+        if reveal.reply.is_canceled() {
+            return;
+        }
+        let Some(item) = self.items.iter().find(|item| item.id == reveal.id) else {
+            let _ = reveal.reply.send(false);
+            return;
+        };
+        if matches!((self.filter, item.kind.as_str()), (Filter::Todos, kind) if kind != "todo")
+            || (self.filter == Filter::Comments && item.kind == "todo")
+        {
+            self.filter = Filter::All;
+        }
+        if item.status == "resolved" {
+            self.resolved_open = true;
+        }
+        // Current includes both the direct source and generic associations.
+        // Relax it only if the actual merged listing still hides this card.
+        let listing = self.listing();
+        if self.current_only
+            && !listing
+                .open
+                .iter()
+                .chain(&listing.resolved)
+                .flat_map(|group| &group.items)
+                .any(|item| item.id == reveal.id)
+        {
+            self.current_only = false;
+        }
+        reveal.ready = true;
+        self.reveal = Some(reveal);
     }
 
     /// Shows `book`, following the page `target`.
@@ -165,6 +246,7 @@ impl ReviewView {
         }
         if self.book != book {
             self.book = book.to_owned();
+            self.reveal = None;
             self.items.clear();
             self.associations.clear();
             self.loaded = false;
@@ -244,6 +326,7 @@ impl ReviewView {
                 this.associations = associations;
                 this.places = places;
                 this.loaded = true;
+                this.apply_reveal();
                 cx.notify();
             })
             .ok();
@@ -745,6 +828,8 @@ impl ReviewView {
         // the prose which card the pointer is on.
         let card = div()
             .id(id("wrap"))
+            .debug_selector(|| format!("{}-comment-{}", self.id, item.id))
+            .relative()
             .w_full()
             .on_hover(move |hovered, _, cx| {
                 let ids = if *hovered {
@@ -768,6 +853,53 @@ impl ReviewView {
                 .p(px(10.0))
                 .when(resolved, |d| d.opacity(0.55))
                 .child(body),
+            )
+            .when_some(
+                self.reveal
+                    .as_ref()
+                    .filter(|request| request.ready && request.id == item.id),
+                |card, request| {
+                    let serial = request.serial;
+                    let book = self.book.clone();
+                    let view = cx.weak_entity();
+                    card.child(
+                        canvas(
+                            |_, _, _| (),
+                            move |bounds, _, window, cx| {
+                                let mask = window.content_mask().bounds;
+                                let visible = bounds.intersect(&mask);
+                                // For a card taller than the viewport, reveal its header
+                                // and as much of its body as the viewport can display.
+                                if !visible.is_empty()
+                                    && bounds.top() >= mask.top() - px(1.0)
+                                    && visible.size.width >= bounds.size.width - px(1.0)
+                                    && visible.size.height
+                                        >= bounds.size.height.min(mask.size.height) - px(1.0)
+                                {
+                                    window.defer(cx, move |_, cx| {
+                                        view.update(cx, |view, _| {
+                                            if view.book == book
+                                                && view.reveal.as_ref().is_some_and(|request| {
+                                                    request.ready
+                                                        && request.serial == serial
+                                                        && !request.reply.is_canceled()
+                                                })
+                                                && let Some(request) = view.reveal.take()
+                                            {
+                                                let _ = request.reply.send(true);
+                                            }
+                                        })
+                                        .ok();
+                                    });
+                                }
+                            },
+                        )
+                        .absolute()
+                        .top_0()
+                        .left_0()
+                        .size_full(),
+                    )
+                },
             );
         let editing = self.editing.as_ref().is_some_and(|(e, _, _)| *e == item.id);
         if editing {
@@ -843,6 +975,13 @@ impl ReviewView {
 
 impl Render for ReviewView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if self
+            .reveal
+            .as_ref()
+            .is_some_and(|request| request.reply.is_canceled())
+        {
+            self.reveal = None;
+        }
         let theme = Theme::of(window, cx);
         let (p, s) = (theme.palette, theme.scale);
         let listing = self.listing();
@@ -885,20 +1024,20 @@ impl Render for ReviewView {
             .py(px(8.0))
             .child(filters)
             .child(scope);
-        let mut list = div()
-            .flex()
-            .flex_col()
-            .gap(px(10.0))
-            .px(px(12.0))
-            .pb(px(16.0));
+        let mut rows: Vec<AnyElement> = Vec::new();
+        let mut reveal_index = None;
         if self.loaded && listing.open.is_empty() && listing.resolved_count == 0 {
-            list = list.child(EmptyState::new(
-                ElementId::Name(format!("{}-empty", self.id).into()),
-                self.i18n.t(keys::review_panel::EMPTY).to_owned(),
-            ));
+            rows.push(
+                EmptyState::new(
+                    ElementId::Name(format!("{}-empty", self.id).into()),
+                    self.i18n.t(keys::review_panel::EMPTY).to_owned(),
+                )
+                .into_any_element(),
+            );
         }
         let header = |title: SharedString| {
             div()
+                .flex_none()
                 .pt(px(4.0))
                 .font_role(Role::Structure)
                 .type_px(s.secondary, s.line_body)
@@ -908,18 +1047,31 @@ impl Render for ReviewView {
         for group in &listing.open {
             // One target needs no header (the current entity alone).
             if !(self.current_only && listing.open.len() == 1) {
-                list = list.child(header(self.group_title(group)));
+                rows.push(header(self.group_title(group)).into_any_element());
             }
             for item in &group.items {
-                list = list.child(self.card(item, false, window, cx));
+                if self
+                    .reveal
+                    .as_ref()
+                    .is_some_and(|request| request.ready && request.id == item.id)
+                {
+                    reveal_index = Some(rows.len());
+                }
+                rows.push(
+                    div()
+                        .flex_none()
+                        .child(self.card(item, false, window, cx))
+                        .into_any_element(),
+                );
             }
         }
         if listing.resolved_count > 0 {
             let open = self.resolved_open;
             let toggle = entity.clone();
-            list = list.child(
+            rows.push(
                 div()
                     .id(ElementId::Name(format!("{}-resolved", self.id).into()))
+                    .flex_none()
                     .flex()
                     .flex_row()
                     .items_center()
@@ -951,24 +1103,46 @@ impl Render for ReviewView {
                             this.resolved_open = !this.resolved_open;
                             cx.notify();
                         });
-                    }),
+                    })
+                    .into_any_element(),
             );
             if open {
                 for group in &listing.resolved {
-                    list = list.child(header(self.group_title(group)));
+                    rows.push(header(self.group_title(group)).into_any_element());
                     for item in &group.items {
-                        list = list.child(self.card(item, true, window, cx));
+                        if self
+                            .reveal
+                            .as_ref()
+                            .is_some_and(|request| request.ready && request.id == item.id)
+                        {
+                            reveal_index = Some(rows.len());
+                        }
+                        rows.push(
+                            div()
+                                .flex_none()
+                                .child(self.card(item, true, window, cx))
+                                .into_any_element(),
+                        );
                     }
                 }
             }
+        }
+        if let Some(index) = reveal_index {
+            self.scroll.scroll_to_item(index);
         }
         div().size_full().flex().flex_col().child(toolbar).child(
             div()
                 .id(ElementId::Name(format!("{}-list", self.id).into()))
                 .flex_1()
                 .min_h_0()
+                .flex()
+                .flex_col()
+                .gap(px(10.0))
+                .px(px(12.0))
+                .pb(px(16.0))
                 .overflow_y_scroll()
-                .child(list),
+                .track_scroll(&self.scroll)
+                .children(rows),
         )
     }
 }
@@ -1073,4 +1247,477 @@ fn seal_of(id: &str) -> u8 {
         hash = hash.wrapping_mul(31).wrapping_add(unit as i32);
     }
     ((hash as i64).abs() % 6) as u8
+}
+
+#[cfg(test)]
+mod reveal_tests {
+    use super::*;
+    use dr_testkit::seed::{self, Preset};
+    use gpui::{TestAppContext, VisualTestContext, size};
+    use serde_json::json;
+
+    fn wait(cx: &mut TestAppContext, view: &Entity<ReviewView>) {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            cx.executor().advance_clock(Duration::from_millis(20));
+            cx.run_until_parked();
+            if view.read_with(cx, |view, _| view.loaded && view.reveal.is_none()) {
+                return;
+            }
+            assert!(Instant::now() < deadline, "comment reveal did not load");
+            std::thread::sleep(Duration::from_millis(2));
+        }
+    }
+
+    fn visible(view: &ReviewView, id: &str) -> bool {
+        let listing = view.listing();
+        listing
+            .open
+            .iter()
+            .flat_map(|group| &group.items)
+            .any(|item| item.id == id)
+            || (view.resolved_open
+                && listing
+                    .resolved
+                    .iter()
+                    .flat_map(|group| &group.items)
+                    .any(|item| item.id == id))
+    }
+
+    struct Frame(Entity<ReviewView>, bool);
+
+    impl Render for Frame {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+            div()
+                .size_full()
+                .when(self.1, |frame| frame.child(self.0.clone()))
+        }
+    }
+
+    fn draw(cx: &mut VisualTestContext) {
+        cx.executor().advance_clock(Duration::from_millis(20));
+        cx.run_until_parked();
+        cx.update(|window, cx| {
+            window.simulate_next_frame(cx);
+            window.draw(cx).clear(cx);
+        });
+        cx.run_until_parked();
+    }
+
+    fn painted(cx: &mut VisualTestContext, view: &Entity<ReviewView>) {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            draw(cx);
+            if view.read_with(cx, |view, _| view.loaded && view.reveal.is_none()) {
+                return;
+            }
+            assert!(Instant::now() < deadline, "target card was not painted");
+            std::thread::sleep(Duration::from_millis(2));
+        }
+    }
+
+    #[gpui::test]
+    fn reveal_relaxes_only_filters_hiding_the_target_and_expands_resolved(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        let directory = tempfile::tempdir().unwrap();
+        let ws = Workspace::open_dir(directory.path(), "m31-review-reveal-test").unwrap();
+        let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+        let book = seeded.books[0].book_id().to_string();
+        let body = seeded.books[0]
+            .groups()
+            .values()
+            .flatten()
+            .next()
+            .unwrap()
+            .clone();
+        seeded.write_to(ws.library()).unwrap();
+        let chapters = ws
+            .call(&Actor::User, "chapter.list", json!({"book":book}))
+            .unwrap();
+        let chapter = chapters["output"][0]["id"].as_str().unwrap();
+        let located = ws
+            .call(
+                &Actor::User,
+                "comment.create",
+                json!({
+                    "book":book,"body":body,"target":{"kind":"node","id":chapter}
+                }),
+            )
+            .unwrap()["output"]["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        let floating = ws
+            .call(
+                &Actor::User,
+                "comment.create",
+                json!({
+                    "book":book,"body":body
+                }),
+            )
+            .unwrap()["output"]["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        let resolved = ws
+            .call(
+                &Actor::User,
+                "comment.create",
+                json!({
+                    "book":book,"body":body,"target":{"kind":"node","id":chapter}
+                }),
+            )
+            .unwrap()["output"]["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        ws.call(
+            &Actor::User,
+            "comment.update",
+            json!({"book":book,"id":resolved,"status":"resolved"}),
+        )
+        .unwrap();
+        cx.update(|cx| crate::init(Some(ws.clone()), cx));
+        // The first request arrives before the pane exists in a window.
+        let mut first = cx
+            .update(|cx| crate::reveal_comment("reveal", &book, &located, cx))
+            .unwrap();
+        let view = cx.update(|cx| crate::view("reveal", cx)).unwrap();
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !view.read_with(cx, |view, _| {
+            view.reveal.as_ref().is_some_and(|request| request.ready)
+        }) {
+            cx.run_until_parked();
+            assert!(
+                Instant::now() < deadline,
+                "reveal did not load before mounting"
+            );
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        assert_eq!(
+            first.try_recv().unwrap(),
+            None,
+            "loading an unmounted pane must not acknowledge navigation"
+        );
+        let shown = view.clone();
+        let (_, cx) = cx.add_window_view(move |_, _| Frame(shown, true));
+        cx.simulate_resize(size(px(360.0), px(280.0)));
+        painted(cx, &view);
+        assert_eq!(first.try_recv().unwrap(), Some(true));
+        for (index, id) in [&located, &floating, &resolved].into_iter().enumerate() {
+            view.update(cx, |view, cx| {
+                view.target = Some(NavTarget::Chapter(chapter.parse().unwrap()));
+                view.set_filter(
+                    if index == 0 {
+                        Filter::Todos
+                    } else {
+                        Filter::Comments
+                    },
+                    cx,
+                );
+                view.set_current_only(true, cx);
+                view.resolved_open = false;
+            });
+            assert!(
+                !view.read_with(cx, |view, _| visible(view, id)),
+                "precondition {index}"
+            );
+            let mut ack = cx
+                .update(|_, cx| crate::reveal_comment("reveal", &book, id, cx))
+                .unwrap();
+            painted(cx, &view);
+            assert_eq!(ack.try_recv().unwrap(), Some(true));
+            view.read_with(cx, |view, _| {
+                assert!(visible(view, id), "target {index} remains hidden");
+                assert_eq!(
+                    view.filter,
+                    if index == 0 {
+                        Filter::All
+                    } else {
+                        Filter::Comments
+                    }
+                );
+                assert_eq!(view.current_only, index != 1);
+                assert_eq!(view.resolved_open, index == 2);
+            });
+        }
+        ws.call(
+            &Actor::User,
+            "relation.create",
+            json!({
+                "book":book,"from":{"kind":"comment","id":floating},
+                "to":{"kind":"node","id":chapter}
+            }),
+        )
+        .unwrap();
+        view.update(cx, |view, cx| view.set_current_only(true, cx));
+        let mut related = cx
+            .update(|_, cx| crate::reveal_comment("reveal", &book, &floating, cx))
+            .unwrap();
+        painted(cx, &view);
+        assert_eq!(related.try_recv().unwrap(), Some(true));
+        view.read_with(cx, |view, _| {
+            assert!(
+                view.current_only,
+                "generic association already includes this card"
+            );
+            assert!(!view.associations.is_empty());
+        });
+        let other_book = dr_model::id::BookId::new_v7().to_string();
+        let mut switched = cx
+            .update(|_, cx| crate::reveal_comment("reveal", &other_book, &floating, cx))
+            .unwrap();
+        assert!(
+            view.read_with(cx, |view, _| view.associations.is_empty()),
+            "reveal book switch clears the old associations immediately"
+        );
+        painted(cx, &view);
+        assert_eq!(switched.try_recv().unwrap(), Some(false));
+        cx.update(|_, cx| crate::release(cx));
+        ws.close();
+    }
+
+    #[gpui::test]
+    fn reveal_scrolls_long_floating_and_folded_resolved_cards_before_ack(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        let directory = tempfile::tempdir().unwrap();
+        let ws = Workspace::open_dir(directory.path(), "m31-review-scroll-test").unwrap();
+        let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+        let book = seeded.books[0].book_id().to_string();
+        let body: String = seeded.books[0]
+            .groups()
+            .values()
+            .flatten()
+            .next()
+            .unwrap()
+            .chars()
+            .take(48)
+            .collect();
+        seeded.write_to(ws.library()).unwrap();
+        let chapters = ws
+            .call(&Actor::User, "chapter.list", json!({"book":book}))
+            .unwrap();
+        let chapter = chapters["output"][0]["id"].as_str().unwrap();
+        let mut located = String::new();
+        for _ in 0..48 {
+            located = ws
+                .call(
+                    &Actor::User,
+                    "comment.create",
+                    json!({
+                        "book":book,"body":body,"target":{"kind":"node","id":chapter}
+                    }),
+                )
+                .unwrap()["output"]["id"]
+                .as_str()
+                .unwrap()
+                .to_owned();
+        }
+        let floating = ws
+            .call(
+                &Actor::User,
+                "comment.create",
+                json!({"book":book,"body":body}),
+            )
+            .unwrap()["output"]["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        let resolved = ws
+            .call(
+                &Actor::User,
+                "comment.create",
+                json!({"book":book,"body":body}),
+            )
+            .unwrap()["output"]["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        ws.call(
+            &Actor::User,
+            "comment.update",
+            json!({"book":book,"id":resolved,"status":"resolved"}),
+        )
+        .unwrap();
+        cx.update(|cx| crate::init(Some(ws.clone()), cx));
+        let mut first = cx
+            .update(|cx| crate::reveal_comment("long", &book, &located, cx))
+            .unwrap();
+        let view = cx.update(|cx| crate::view("long", cx)).unwrap();
+        let shown = view.clone();
+        let (frame, cx) = cx.add_window_view(move |_, _| Frame(shown, true));
+        cx.simulate_resize(size(px(360.0), px(320.0)));
+        painted(cx, &view);
+        assert_eq!(first.try_recv().unwrap(), Some(true));
+        for id in [&floating, &resolved] {
+            view.update(cx, |view, cx| {
+                view.resolved_open = false;
+                view.scroll.scroll_to_item(0);
+                cx.notify();
+            });
+            draw(cx);
+            let selector = Box::leak(format!("long-comment-{id}").into_boxed_str());
+            let viewport = view.read_with(cx, |view, _| view.scroll.bounds());
+            assert!(view.read_with(cx, |view, _| view.scroll.max_offset().y) > px(1000.0));
+            assert!(
+                cx.debug_bounds(selector)
+                    .is_none_or(|bounds| bounds.intersect(&viewport).is_empty()),
+                "the target must begin outside the painted viewport"
+            );
+            let mut ack = cx
+                .update(|_, cx| crate::reveal_comment("long", &book, id, cx))
+                .unwrap();
+            assert_eq!(
+                ack.try_recv().unwrap(),
+                None,
+                "queuing a reveal must not complete navigation"
+            );
+            painted(cx, &view);
+            assert_eq!(ack.try_recv().unwrap(), Some(true));
+            let bounds = cx.debug_bounds(selector).expect("target card painted");
+            let viewport = view.read_with(cx, |view, _| view.scroll.bounds());
+            assert!(bounds.top() >= viewport.top() - px(1.0));
+            assert!(bounds.bottom() <= viewport.bottom() + px(1.0));
+            assert!(view.read_with(cx, |view, _| view.scroll.offset().y) < -px(100.0));
+        }
+        // A retained Review view is hidden while the caller drops its ACK.
+        // Cancellation before load must not relax filters or expand folds.
+        view.update(cx, |view, cx| {
+            view.resolved_open = false;
+            view.scroll.scroll_to_item(0);
+            cx.notify();
+        });
+        draw(cx);
+        let before = view.read_with(cx, |view, _| view.scroll.offset());
+        frame.update(cx, |frame, cx| {
+            frame.1 = false;
+            cx.notify();
+        });
+        draw(cx);
+        cx.update(|_, cx| {
+            drop(crate::reveal_comment("long", &book, &resolved, cx));
+        });
+        painted(cx, &view);
+        assert!(!view.read_with(cx, |view, _| view.resolved_open));
+
+        // Cancellation after load but before any paint must not replay the
+        // old scroll when this retained view is mounted again.
+        let canceled = cx
+            .update(|_, cx| crate::reveal_comment("long", &book, &floating, cx))
+            .unwrap();
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while !view.read_with(cx, |view, _| {
+            view.reveal.as_ref().is_some_and(|request| request.ready)
+        }) {
+            draw(cx);
+            assert!(Instant::now() < deadline, "hidden reveal did not load");
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        drop(canceled);
+        frame.update(cx, |frame, cx| {
+            frame.1 = true;
+            cx.notify();
+        });
+        draw(cx);
+        assert!(view.read_with(cx, |view, _| view.reveal.is_none()));
+        assert_eq!(view.read_with(cx, |view, _| view.scroll.offset()), before);
+
+        // Dropping an older receiver cannot clear a replacement request.
+        let mut fresh = cx.update(|_, cx| {
+            let old = crate::reveal_comment("long", &book, &resolved, cx).unwrap();
+            let fresh = crate::reveal_comment("long", &book, &floating, cx).unwrap();
+            drop(old);
+            fresh
+        });
+        painted(cx, &view);
+        assert_eq!(fresh.try_recv().unwrap(), Some(true));
+        cx.update(|_, cx| crate::release(cx));
+        ws.close();
+    }
+
+    #[gpui::test]
+    fn reveal_ack_rejects_missing_failed_and_superseded_loads(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        let directory = tempfile::tempdir().unwrap();
+        let ws = Workspace::open_dir(directory.path(), "m31-review-ack-test").unwrap();
+        let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+        let book = seeded.books[0].book_id().to_string();
+        let body = seeded.books[0]
+            .groups()
+            .values()
+            .flatten()
+            .next()
+            .unwrap()
+            .clone();
+        seeded.write_to(ws.library()).unwrap();
+        let comment = ws
+            .call(
+                &Actor::User,
+                "comment.create",
+                json!({"book":book,"body":body}),
+            )
+            .unwrap()["output"]["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        cx.update(|cx| crate::init(Some(ws.clone()), cx));
+        let (mut first, mut replaced, view) = cx.update(|cx| {
+            let first = crate::reveal_comment("ack", &book, &comment, cx).unwrap();
+            let view = crate::view("ack", cx).unwrap();
+            let replaced = crate::reveal_comment("ack", &book, &comment, cx).unwrap();
+            view.update(cx, |view, cx| {
+                view.show("", None, Locale::En, Platform::current(), cx)
+            });
+            (first, replaced, view)
+        });
+        assert!(
+            first.try_recv().is_err(),
+            "replacement closes the previous ACK"
+        );
+        assert!(
+            replaced.try_recv().is_err(),
+            "book change closes the pending ACK"
+        );
+
+        // A valid target from the caller's earlier read was removed before
+        // Review's load: finding an empty list must never acknowledge success.
+        ws.call(
+            &Actor::User,
+            "comment.delete",
+            json!({"book":book,"id":comment}),
+        )
+        .unwrap();
+        let mut missing = cx
+            .update(|cx| crate::reveal_comment("ack", &book, &comment, cx))
+            .unwrap();
+        wait(cx, &view);
+        assert_eq!(missing.try_recv().unwrap(), Some(false));
+
+        let unavailable = dr_model::id::BookId::new_v7().to_string();
+        assert!(
+            ws.call(&Actor::User, "comment.list", json!({"book":unavailable}))
+                .is_err()
+        );
+        let mut failed = cx
+            .update(|cx| crate::reveal_comment("ack", &unavailable, &comment, cx))
+            .unwrap();
+        wait(cx, &view);
+        assert_eq!(
+            failed.try_recv().unwrap(),
+            Some(false),
+            "failed F3 read is not a reveal"
+        );
+
+        let mut dropped = cx.update(|cx| {
+            let receiver = crate::reveal_comment("drop", &book, &comment, cx).unwrap();
+            crate::release(cx);
+            receiver
+        });
+        cx.run_until_parked();
+        assert!(
+            dropped.try_recv().is_err(),
+            "dropping the view closes its ACK"
+        );
+        ws.close();
+    }
 }

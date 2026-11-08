@@ -176,6 +176,16 @@ impl ProviderDriver {
         &self.credentials
     }
 
+    /// Uses candidate BYOK credentials with the same HTTP client and endpoints.
+    /// OAuth remains the original subscription connection; this is for API-key
+    /// connectivity checks, not for creating another subscription identity.
+    pub fn with_credentials(&self, credentials: Credentials) -> Self {
+        Self {
+            credentials,
+            ..self.clone()
+        }
+    }
+
     async fn run(
         &self,
         request: DriverRequest,

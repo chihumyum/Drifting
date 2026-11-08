@@ -49,6 +49,7 @@ fn valid_secret(value: &str) -> bool {
 pub struct Credentials {
     store: Arc<SecretStore>,
     io: Arc<Mutex<()>>,
+    oauth_save_checkpoint: Option<Arc<dyn Fn() + Send + Sync>>,
 }
 
 impl Credentials {
@@ -56,7 +57,42 @@ impl Credentials {
         Self {
             store,
             io: Arc::new(Mutex::new(())),
+            oauth_save_checkpoint: None,
         }
+    }
+
+    /// Deterministic acceptance hook inside the native I/O lease, after the
+    /// generation check and immediately before OAuth persistence. It receives
+    /// no credential bytes. Production stores leave this unset.
+    #[doc(hidden)]
+    pub fn with_oauth_save_checkpoint(mut self, checkpoint: Arc<dyn Fn() + Send + Sync>) -> Self {
+        self.oauth_save_checkpoint = Some(checkpoint);
+        self
+    }
+
+    /// A candidate key for an explicit connectivity check. Nothing reaches the
+    /// operating system store until the caller accepts the successful check.
+    pub fn candidate(provider: Provider, value: &str) -> Result<Self> {
+        let key = api_key_id(provider)?;
+        let value = value.trim();
+        if !valid_secret(value) {
+            return Err(ProviderError::protocol("invalid API key"));
+        }
+        let store = Arc::new(SecretStore::in_memory());
+        store.set(key, value)?;
+        Ok(Self::new(store))
+    }
+
+    /// Presence only: drawing a connection row must not decrypt a secret or
+    /// prompt on macOS. The legacy Anthropic key is migrated on explicit use.
+    pub async fn has_api_key(&self, provider: Provider) -> Result<bool> {
+        let key = api_key_id(provider)?;
+        self.with_store(move |store| {
+            Ok(store.contains(key)?
+                || (provider == Provider::Anthropic
+                    && store.contains(keys::LEGACY_AGENT_ANTHROPIC)?))
+        })
+        .await
     }
 
     /// Blocking platform I/O stays off the shared async runtime.
@@ -157,11 +193,15 @@ impl Credentials {
         }
         let raw = serde_json::to_string(tokens)
             .map_err(|_| ProviderError::protocol("invalid OAuth credential"))?;
+        let checkpoint = self.oauth_save_checkpoint.clone();
         self.with_store(move |store| {
             if fence
                 .is_some_and(|(generation, expected)| generation.load(Ordering::SeqCst) != expected)
             {
                 return Err(ProviderError::cancelled());
+            }
+            if let Some(checkpoint) = checkpoint {
+                checkpoint();
             }
             store
                 .set(keys::CHATGPT_SUBSCRIPTION, &raw)
@@ -195,6 +235,32 @@ pub fn api_key_id(provider: Provider) -> Result<&'static str> {
 mod tests {
     use super::*;
     use dr_agent::ModelErrorCategory;
+
+    #[tokio::test]
+    async fn presence_does_not_migrate_legacy_and_candidate_never_changes_the_store() {
+        let store = Arc::new(SecretStore::in_memory());
+        store
+            .set(keys::LEGACY_AGENT_ANTHROPIC, "synthetic-old")
+            .unwrap();
+        let credentials = Credentials::new(store.clone());
+        assert!(credentials.has_api_key(Provider::Anthropic).await.unwrap());
+        assert!(!store.contains("byok.anthropic").unwrap());
+        let candidate = Credentials::candidate(Provider::Anthropic, "synthetic-candidate").unwrap();
+        assert_eq!(
+            candidate
+                .api_key(Provider::Anthropic)
+                .await
+                .unwrap()
+                .as_deref(),
+            Some("synthetic-candidate")
+        );
+        assert_eq!(
+            store.get(keys::LEGACY_AGENT_ANTHROPIC).unwrap().as_deref(),
+            Some("synthetic-old")
+        );
+        assert!(!store.contains("byok.anthropic").unwrap());
+        assert!(Credentials::candidate(Provider::Chatgpt, "synthetic-key").is_err());
+    }
 
     #[tokio::test]
     async fn abandoned_platform_write_settles_before_clear_and_stale_save_is_fenced() {

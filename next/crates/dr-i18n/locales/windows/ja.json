@@ -1,5 +1,15 @@
 {
+  "agentPanel": {
+    "onboarding": {
+      "saveFailed": "キーをWindows 資格情報マネージャーに保存できませんでした。"
+    }
+  },
   "settings": {
+    "codexSubscription": {
+      "failure": {
+        "storage_failed": "ログイン情報をWindows 資格情報マネージャーに保存できませんでした。"
+      }
+    },
     "sync": {
       "projection": {
         "reveal": "エクスプローラーで表示"

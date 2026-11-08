@@ -720,11 +720,11 @@
     },
     "agentLimits": {
       "title": "執行限制",
-      "desc": "限制每段執行中的模型迭代次數。到上限會儲存進度，已授權的持續任務會自動接續；暫停的任務也能手動繼續。變更於下一段生效。",
+      "desc": "限制每輪對話中的模型呼叫次數。達到上限時本輪停止，已提交的變更保留。設定變更於下一輪對話生效。",
       "iterationLabel": "每回合模型迭代上限",
       "iterationOption": "{{value}} 次迭代",
       "unlimited": "無上限",
-      "unlimitedHint": "無上限時，只有你手動停止才能中斷回合。"
+      "unlimitedHint": "「無上限」不設模型呼叫次數上限，你可以手動停止本輪。"
     },
     "agentMemory": {
       "title": "作品記憶"
@@ -1508,7 +1508,7 @@
       "endRecovered": "結束待處理步驟"
     },
     "composer": {
-      "placeholder": "向 Agent 提問…（Cmd/Ctrl+Enter）",
+      "placeholder": "向 Agent 提問…（Enter 傳送，Shift+Enter 換行）",
       "steerPlaceholder": "補充或修正進行中的任務…",
       "answerPlaceholder": "回答 Agent 的問題…",
       "stop": "停止",

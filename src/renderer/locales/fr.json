@@ -722,11 +722,11 @@
     },
     "agentLimits": {
       "title": "Limites d’exécution",
-      "desc": "Limite les itérations du modèle par segment. À la limite, la progression est enregistrée et les tâches continues autorisées reprennent automatiquement ; les tâches en pause peuvent aussi reprendre manuellement. Prend effet au prochain segment.",
+      "desc": "Limite les appels au modèle à chaque tour de conversation. À la limite, le tour s’arrête ; les modifications enregistrées sont conservées. Le réglage s’applique au prochain tour.",
       "iterationLabel": "Itérations maximales par tour",
       "iterationOption": "{{value}} itérations",
       "unlimited": "Illimité",
-      "unlimitedHint": "Sans limite, seul votre arrêt manuel interrompt le tour."
+      "unlimitedHint": "Sans limite ne fixe aucun maximum d’appels au modèle. Vous pouvez arrêter le tour manuellement."
     },
     "agentMemory": {
       "title": "Mémoire du projet"
@@ -1512,7 +1512,7 @@
       "endRecovered": "Terminer l’étape en attente"
     },
     "composer": {
-      "placeholder": "Demandez à Agent… (Cmd/Ctrl+Entrée)",
+      "placeholder": "Demandez à Agent… (Entrée pour envoyer, Maj+Entrée pour une nouvelle ligne)",
       "steerPlaceholder": "Complétez ou corrigez la tâche en cours…",
       "answerPlaceholder": "Répondez à la question d’Agent…",
       "stop": "Arrêter",

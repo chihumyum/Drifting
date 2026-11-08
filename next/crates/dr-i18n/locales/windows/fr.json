@@ -1,5 +1,15 @@
 {
+  "agentPanel": {
+    "onboarding": {
+      "saveFailed": "Impossible d’enregistrer la clé dans le Gestionnaire d’identification Windows."
+    }
+  },
   "settings": {
+    "codexSubscription": {
+      "failure": {
+        "storage_failed": "Impossible d’enregistrer la connexion dans le Gestionnaire d’identification Windows."
+      }
+    },
     "sync": {
       "projection": {
         "reveal": "Afficher dans l’Explorateur de fichiers"

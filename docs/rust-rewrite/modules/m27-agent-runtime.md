@@ -17,7 +17,7 @@
 3. **只把对话内容放进同步文档。** 作者消息、助手完整或未完成的消息、工具结果；思考签名和 opaque replay 字段随助手消息保留。权限请求、控制指令、运行状态、本机结算行号不进入同步文档。工具输出自身应由 M29/M32 做隐私与内容筛选。
 4. **不分权限档。** 本机读写和删除直接进入执行器。只有 `PaidImage` 和 `ExternalPlugin` 在执行前提问。一次许可绑定 session、turn、call、随机请求 id，以及日志中的完整参数；执行前重新核对冻结的工具描述和 revision。动态插件改变实现或 schema 必须改变 revision，执行器也必须执行该 revision 或拒绝。
 5. **中止不等于撤销。** 模型流、未进入的调用、只读调用和作者等待可以取消；已进入的写入必须等到它的 future 结束并核对结算，再进入 `Aborted`。`RunHandle::join/finish` 返回后不得还有工具继续写。已写入的内容由 `history.undo_agent` 撤销。
-6. **停止与插话都有明确边界。** 插话先持久化、按接收顺序在下一次模型调用前应用；不会打断正在提交的工具。停止会完成当前已开始的调用组，取消批次里其余未开始的工具；流式输出期间没有工具在执行时直接停止。自然结束与新插话通过同一邮箱锁裁定，调用方要么收到已持久化的确认，要么收到 `Closed`。
+6. **停止与插话都有明确边界。** 插话先持久化、按接收顺序在下一次模型调用前应用；不会打断正在提交的工具。停止会完成当前已开始的调用组，取消批次里其余未开始的工具；流式输出期间没有工具在执行时直接停止。控制调用同步只做非阻塞投递，返回的 future 等待持久确认；自然结束先关闭邮箱作为裁定点，尚未持久确认的竞态请求明确得到 `Closed`，不与终态存储共用锁。
 7. **有界并发，写入有屏障。** 相邻、无需许可的读工具组成一组，默认最多四个并行。写工具单独运行，不能穿过前一组读；后续读也不能穿过写。同一 Runtime 的不同 runs 共享组锁，组间保守串行。M29 仍负责 F3 操作级并发、作用域和修订 CAS；这里没有复制整套工具清单。
 8. **不默认限制模型轮数。** `max_model_rounds` 默认 `None`，只有作者明确提供限制才停止；没有隐藏的输出 token 上限。[M28](m28-model-providers.md) 已将模型、能力和迭代上限移到每次 `Start` 接收的不可变 `RunConfig`，同一个驱动按该快照分派提供商。
 
@@ -47,7 +47,7 @@
 | `Stopping` | 禁止启动下一调用；已进入的写入结算完毕后终止 |
 | `Completed / Stopped / Aborted / Failed / Interrupted` | 终态；旧控制请求不能复活运行 |
 
-回答错 session、turn、call 或 nonce 会得到 `StaleRequest`，不会消耗真实问题。所有控制确认在日志持久化之后发出。驱动必须以 `Finish(Complete|Tools)` 明确结束，连接突然结束是失败，不能算成功。流式文字与思考按 block index 合并；同一个 index 改变类型会报协议错误。
+回答错 session、turn、call 或 nonce 会得到 `StaleRequest`，不会消耗真实问题。所有控制确认在日志持久化之后发出；仅成功投递不代表已接受，调用方仍须等返回的 future。驱动必须以 `Finish(Complete|Tools)` 明确结束，连接突然结束是失败，不能算成功。流式文字与思考按 block index 合并；同一个 index 改变类型会报协议错误。
 
 ## 接口
 
@@ -100,12 +100,19 @@ let terminal = run.finish().await?; // 或非 UI 线程里的 join()
 
 丢弃 `RunHandle` 会请求中止，避免遗留一个永远等回答的工作线程；这只发出信号，确保写入已经停妥仍要等待 `finish/join`。
 
+M31 接入换库与退出后补充了资源释放边界：只读 future 可取消，但已交给 OS 线程的
+`ToolContext` 可能仍持有工作区。线程必须保留整个 context，私有执行 lease 随之释放。
+服务先冻结新运行并等待所有 run/start 完成，再等待 `Runtime::drain_tools()`，最后
+释放库；这不改变只读调用取消或 `RunHandle` 的完成语义。真实 M29 与 `workspace_call`
+读取的阻塞／关闭回归在 `dr-view-agent/tests/lifecycle_read.rs`。
+
 ## 测试与证据
 
 测试使用 `dr_testkit::seed::Tiny` 的书和正文、合成模型事件，契约在测试里断言，不提交 JSON 证据，不测忙碌机器上的性能。
 
 - `dr-agent/tests/runtime.rs`：普通轮次、签名思考回放、跨 run 对话上下文、真实 F3 工具写入与来源撤销、投影缺失与结算后崩溃恢复、重复恢复、流异常结束。
-- `dr-agent/tests/controls.rs`：提问及过期回答、权限拒绝及过期许可、插件 revision 改变、插话、当前写工具后停止、中止等待写结算、读工具并发与写屏障、结束后的控制拒绝。
+- `dr-agent/tests/controls.rs`：提问及过期回答、权限拒绝及过期许可、插件 revision 改变、插话、当前写工具后停止、中止等待写结算、读工具并发与写屏障、结束后的控制拒绝；与完成竞态的插话只有持久确认或明确拒绝两种结果。
+- `dr-view-agent/tests/control_delivery.rs`：阻塞真实 Completed 追加调用中的 F2 存储通知时，控制与 close 立即返回，窗口快捷键仍响应；关闭 future 继续等待，放行后真实换库成功。
 - `dr-agent/tests/settlement.rs`：写入后重开、按来源撤销；删除直接执行，按 F3 的界面语义让批注暂时浮置，撤销恢复原绑定。
 - `dr-agent/tests/crash.rs`：F8 子进程试验台，F2 更新行已插入、结算还没插入的事务中途强杀六次，核对正文、更新行、结算的 before/after frontiers 及重开结果。
 - `dr-agent/tests/failure.rs`：日志写入失败与正在进行的写入同时发生，终态必须等真实写入结算。

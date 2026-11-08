@@ -1924,6 +1924,39 @@ dependencies = [
 ]
 
 [[package]]
+name = "dr-view-agent"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "dr-agent",
+ "dr-agent-providers",
+ "dr-agent-tools",
+ "dr-doc",
+ "dr-editor",
+ "dr-i18n",
+ "dr-model",
+ "dr-platform",
+ "dr-shell",
+ "dr-store",
+ "dr-testkit",
+ "dr-ui",
+ "dr-workspace",
+ "futures",
+ "gpui",
+ "gpui-prose",
+ "gpui_platform",
+ "log",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "url",
+ "uuid",
+]
+
+[[package]]
 name = "dr-view-elements"
 version = "0.0.0"
 dependencies = [
@@ -2362,11 +2395,16 @@ name = "drifting"
 version = "0.2.0-dev"
 dependencies = [
  "anyhow",
+ "dr-agent",
+ "dr-agent-providers",
  "dr-debug-bridge",
+ "dr-model",
  "dr-platform",
  "dr-shell",
  "dr-store",
+ "dr-testkit",
  "dr-ui",
+ "dr-view-agent",
  "dr-view-elements",
  "dr-view-feedback",
  "dr-view-home",

@@ -148,11 +148,34 @@ pub fn panel(
     open: Opener,
     cx: &mut App,
 ) -> AnyElement {
+    let Some(view) = ensure_view(id, cx) else {
+        return gpui::Empty.into_any_element();
+    };
+    view.update(cx, |v, cx| {
+        v.set_opener(open);
+        v.show(book, target, locale, platform, cx);
+    });
+    view.into_any_element()
+}
+
+/// Reveal a specific comment in the named pane. The request survives the
+/// pane's initial asynchronous load and does not affect other Review panes.
+/// Acknowledges only after loading, scrolling and painting the target visibly. Missing/failed
+/// reads return false; a replacement, book switch or view release closes it.
+pub fn reveal_comment(
+    id: &str,
+    book: &str,
+    comment: &str,
+    cx: &mut App,
+) -> Option<futures::channel::oneshot::Receiver<bool>> {
+    let view = ensure_view(id, cx)?;
+    Some(view.update(cx, |view, cx| view.reveal_comment(book, comment, cx)))
+}
+
+fn ensure_view(id: &str, cx: &mut App) -> Option<Entity<ReviewView>> {
     let id = SharedString::from(id.to_owned());
     let (view, lib) = {
-        let Some(hub) = cx.try_global::<Hub>() else {
-            return gpui::Empty.into_any_element();
-        };
+        let hub = cx.try_global::<Hub>()?;
         (hub.views.get(&id).cloned(), hub.lib.clone())
     };
     let view = match view {
@@ -171,11 +194,7 @@ pub fn panel(
             v
         }
     };
-    view.update(cx, |v, cx| {
-        v.set_opener(open);
-        v.show(book, target, locale, platform, cx);
-    });
-    view.into_any_element()
+    Some(view)
 }
 
 /// The Review tab shown as `id`, once [`panel`] has drawn it.

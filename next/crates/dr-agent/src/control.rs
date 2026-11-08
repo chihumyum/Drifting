@@ -1,5 +1,9 @@
 use crate::{Error, RequestId, Result, State};
-use futures::channel::{mpsc, oneshot};
+use futures::{
+    FutureExt,
+    channel::{mpsc, oneshot},
+    future::BoxFuture,
+};
 use serde_json::Value;
 use std::sync::{
     Arc, Mutex,
@@ -31,12 +35,13 @@ pub(crate) struct Command {
     pub reply: oneshot::Sender<Result<()>>,
 }
 
+/// Requests are enqueued when a method is called. The returned future waits
+/// for durable acknowledgement; dropping it does not withdraw the request.
 #[derive(Clone)]
 pub struct Control {
     pub(crate) sender: mpsc::UnboundedSender<Command>,
     pub(crate) cancel: Cancellation,
     pub(crate) state: Arc<Mutex<State>>,
-    pub(crate) accepting: Arc<Mutex<bool>>,
 }
 
 impl Control {
@@ -46,44 +51,41 @@ impl Control {
 
     fn request(&self, action: Action) -> Result<oneshot::Receiver<Result<()>>> {
         let (tx, rx) = oneshot::channel();
-        {
-            let accepting = self.accepting.lock().expect("control mailbox");
-            if !*accepting {
-                return Err(Error::Closed);
-            }
-            let aborting = matches!(action, Action::Abort);
-            self.sender
-                .unbounded_send(Command { action, reply: tx })
-                .map_err(|_| Error::Closed)?;
-            if aborting {
-                self.cancel.cancel();
-            }
+        let aborting = matches!(action, Action::Abort);
+        self.sender
+            .unbounded_send(Command { action, reply: tx })
+            .map_err(|_| Error::Closed)?;
+        if aborting {
+            self.cancel.cancel();
         }
         Ok(rx)
     }
 
-    async fn send(&self, action: Action) -> Result<()> {
-        self.request(action)?.await.map_err(|_| Error::Closed)?
+    fn send(&self, action: Action) -> BoxFuture<'static, Result<()>> {
+        // Enqueue immediately without any lock shared with journal/holder
+        // work. Polling the returned future only waits for the durable ACK.
+        let reply = self.request(action);
+        async move { reply?.await.map_err(|_| Error::Closed)? }.boxed()
     }
 
     /// Acknowledged only after the steering text is durably journaled.
-    pub async fn steer(&self, text: impl Into<String>) -> Result<()> {
-        self.send(Action::Steer(text.into())).await
+    pub fn steer(&self, text: impl Into<String>) -> BoxFuture<'static, Result<()>> {
+        self.send(Action::Steer(text.into()))
     }
-    pub async fn answer(&self, request: RequestId, answer: Value) -> Result<()> {
-        self.send(Action::Answer(request, answer)).await
+    pub fn answer(&self, request: RequestId, answer: Value) -> BoxFuture<'static, Result<()>> {
+        self.send(Action::Answer(request, answer))
     }
-    pub async fn permit(&self, request: RequestId, allow: bool) -> Result<()> {
-        self.send(Action::Permission(request, allow)).await
+    pub fn permit(&self, request: RequestId, allow: bool) -> BoxFuture<'static, Result<()>> {
+        self.send(Action::Permission(request, allow))
     }
-    pub async fn stop_after_tool(&self) -> Result<()> {
-        self.send(Action::Stop).await
+    pub fn stop_after_tool(&self) -> BoxFuture<'static, Result<()>> {
+        self.send(Action::Stop)
     }
 
     /// Immediately signals the driver and tools. An entered write must still
     /// settle; `join` is the boundary after which no tool can keep writing.
-    pub async fn abort(&self) -> Result<()> {
-        self.send(Action::Abort).await
+    pub fn abort(&self) -> BoxFuture<'static, Result<()>> {
+        self.send(Action::Abort)
     }
 }
 
