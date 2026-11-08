@@ -91,8 +91,18 @@ impl Catalog {
                 excluded.push((spec.name.to_owned(), reason.to_owned()));
                 continue;
             }
-            let input_schema =
+            let mut input_schema =
                 crate::resolve::facade_schema(spec.name, spec.input_schema().as_value().clone());
+            if spec.name == "relation.create" {
+                // F3's optional caller id can name an existing hidden edge.
+                // The facade only creates fresh identities; omitting a
+                // property alone would still accept it in an open schema.
+                input_schema["properties"]
+                    .as_object_mut()
+                    .expect("registered command properties")
+                    .remove("id");
+                input_schema["not"] = json!({"required":["id"]});
+            }
             let output_schema = outcome_schema(spec.name, spec.output_schema().as_value().clone());
             let description = if spec.name.ends_with("_template.set_body") {
                 format!(
@@ -203,11 +213,19 @@ fn exclusion(spec: &Spec) -> Option<&'static str> {
     if (spec.name.ends_with(".purge") && spec.concurrency != Concurrency::Library)
         || matches!(
             spec.name,
-            "material.delete" | "patch.delete" | "relation_type.delete"
+            "comment.delete" | "material.delete" | "patch.delete" | "relation_type.delete"
         )
     {
         return Some(
             "cascade needs an F3 query exposing affected relations, including hidden endpoints",
+        );
+    }
+    if spec.name == "idea.to_chapter" {
+        return Some("conversion needs exact affected act and time-pin coverage before mutation");
+    }
+    if spec.name == "idea.to_element" {
+        return Some(
+            "conversion needs version-checked full source prose and guarded automatic-link effects",
         );
     }
     if spec.name == "history.restore_point" {

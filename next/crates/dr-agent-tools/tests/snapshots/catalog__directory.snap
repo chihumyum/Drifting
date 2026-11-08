@@ -23,7 +23,7 @@ category_template.put [write] Add a field to a category's template or change one
 category_template.remove [write] Remove a field from a category's template. Existing elements keep theirs.
 category_template.set_body [write] Replace a category's element template (the body its new elements start with; empty removes it). Existing elements keep their bodies. Available for existing template documents; creation is not exposed by the Agent facade yet.
 chapter.arrange [write] Set exact coordinates of several chapters on one axis, and move act boundaries with them, in one step (undo of a spread uses it).
-chapter.create [write] Create a chapter (a taken title gets a numbered suffix; the final title is returned). Given a storyline and no text, it starts from that storyline's chapter template.
+chapter.create [write] Create a chapter (a taken title gets a numbered suffix; the final title is returned), optionally placed on story time too. Given a storyline and no text, it starts from that storyline's chapter template.
 chapter.list [read] List chapters in reading order, with their act, storylines, words, creation and last change (trashed ones after, when asked).
 chapter.move [write] Move a chapter in reading order (it lands before the next chapter or act boundary).
 chapter.place [write] Put a chapter at an exact place on the reading-order or story-time axis and, optionally, on another storyline (as the primary one) or on none, in one step.
@@ -35,7 +35,6 @@ chapter_template.body [read] Read a storyline's chapter template: the paragraphs
 chapter_template.set_body [write] Replace a storyline's chapter template (the body new chapters on it start with; empty removes it). Existing chapters keep their text. Available for existing template documents; creation is not exposed by the Agent facade yet.
 comment.anchors [read] The stored anchors of the comments on one entity's prose, for an editor laying them out (comments without an anchor are not listed).
 comment.create [write] Add a comment or TODO, on an entity, a paragraph, a passage of its prose, a region of an image or PDF, or floating.
-comment.delete [write] Delete a comment or TODO (its relations go with it).
 comment.list [read] List comments and TODOs (a target in the trash or gone shows as unlocated).
 comment.reanchor [write] Put a comment's anchor back where the editor's undo brought its text back (the author's change, synced; it follows the editor's undo, so it is not an entry of the object-level undo).
 comment.update [write] Change a comment or TODO: its text, status (resolve / reopen), priority, kind or linked Agent conversation.
@@ -136,7 +135,7 @@ category_template.put book 471e690215b28c81db9b6e2ae65d62a0db8589be8c201cd4e5d18
 category_template.remove book 51d0d61e34f394f3e0254da64ff50843e7b01a92fb6204635f817586beee55ed
 category_template.set_body book a698de10021f5489e1eea718e8368bd055c28b148f4b873209ed2e58eaff1c1c
 chapter.arrange book 1f3a3f94f80e2ad6865ff32f7ac49663e13d280002da2fff30e2fea172d7e86b
-chapter.create book 39973049c7515d17c3cc5ac6acce6645cee63857285f9c3d8d7eae1388856f9e
+chapter.create book f2d46fbd337142a732d085d53ea844cb826c78b0a68c8add4c71f744f18b8355
 chapter.list shared 0ed71175340d1d8997c376ac57d403f38cddfccfb49cfd98cad5d5e9dea6235d
 chapter.move book f5a1975753dc81340a69aad4e5f4f88d942c3b8ee0b470219e335b05c2e52484
 chapter.place book 7f0a2ecdda4b81bb2f6d86bd12e71a2f1427c1f0778148d871323a5ff7efdcc6
@@ -148,7 +147,6 @@ chapter_template.body shared afb064328e29a536e467997bfd7aeeef271cb901b6a3fe323d3
 chapter_template.set_body book a79086d112f2cd7d45e2ab816326e7f40e3cb176e045715a1340c8add9668c87
 comment.anchors shared 4811a12494cc153321cb6eb816abfd4a516b134005cef4aa62f868f63cb02082
 comment.create book f0e98cf91349363c776844452f7ca80195b63d9f014b1c0a86953947be49f28b
-comment.delete book f35808102fa14b91f903bfd99d0cefddd304c43d9306046ed99573e16a9e45d5
 comment.list shared 6aff1fa0bc7cb0833ca476af83fba5545d98816cd9c7d41bc890c29a485d072f
 comment.reanchor book 4eec7717f72ddb3f99ebd5f3782394ceed8d4b0d96a1fc49b6eb51e7ba42ca17
 comment.update book c5ae189973b992b089165196b59a431a64630e396c6e2d50a5214ae0a2b81c68
@@ -207,7 +205,7 @@ prose.restore book 7a9cfbe1e4d6aeb2eb7d9759d0ebe80b0b04f22291b6206beabab42687ee5
 prose.shape shared cce5b2a5012fdabf40e1312cf8174d81acba88c32cfacd6e85955e4281d497a7
 prose.unlink book 2282ad743cd9b43d1e4fc5363d8dc933ca1da8fe2b7fae5207e62e54bd79be72
 recent.list shared 9ad80de4fd20029587e0d67e697de229a149546372e0b2e9be833c7b88b891e8
-relation.create book 1087c0da17f7ac9b60c8dc421e7f27764989a9b44a571f0eca88e2222f582720
+relation.create book a3281af23a537e5e05a0a14f22838f775350cde7492985e27e707d03b2f82ab5
 relation.delete book bace94fc3a895dee2208fb3e4e0fba82fd71fefaaebe4df6b6eaf66998402555
 relation.list shared eb9925f9a7236f0545734eb3cf29349bf9f19e297d99fdf2b4bf871d87697776
 relation_type.create book 7cf50e7ec6429142d53d9d1704b3b6900b3b283db71e66e8dc2410eb90c681dd
@@ -241,9 +239,12 @@ category.purge: cascade needs an F3 query exposing affected relations, including
 category_template.document: storage, editor, or derived-state maintenance
 chapter.purge: cascade needs an F3 query exposing affected relations, including hidden endpoints
 chapter_template.document: storage, editor, or derived-state maintenance
+comment.delete: cascade needs an F3 query exposing affected relations, including hidden endpoints
 element.purge: cascade needs an F3 query exposing affected relations, including hidden endpoints
 history.restore_point: history restore labels require an atomic guarded owner hook
 idea.purge: cascade needs an F3 query exposing affected relations, including hidden endpoints
+idea.to_chapter: conversion needs exact affected act and time-pin coverage before mutation
+idea.to_element: conversion needs version-checked full source prose and guarded automatic-link effects
 material.delete: cascade needs an F3 query exposing affected relations, including hidden endpoints
 patch.check_sources: storage, editor, or derived-state maintenance
 patch.delete: cascade needs an F3 query exposing affected relations, including hidden endpoints
