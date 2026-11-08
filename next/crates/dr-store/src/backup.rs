@@ -659,9 +659,7 @@ impl Library {
     /// The pre-restore backups of the library in `root`, newest first (each
     /// can be staged and restored like any backup).
     pub fn pre_restore_backups(root: impl Into<PathBuf>) -> Result<Vec<PathBuf>> {
-        let dir = LibraryPaths::new(root)
-            .safety_snapshots
-            .join(PRE_RESTORE_DIR);
+        let dir = Library::pre_restore_dir(root);
         let mut found = match fs::read_dir(&dir) {
             Ok(entries) => entries
                 .filter_map(|e| e.ok())
@@ -677,6 +675,14 @@ impl Library {
         // Names carry a zero-padded millisecond time: they sort by age.
         found.sort_by(|a, b| b.0.cmp(&a.0));
         Ok(found.into_iter().map(|(_, p)| p).collect())
+    }
+
+    /// The folder the pre-restore backups of the library in `root` are kept
+    /// in (Settings' 「打开恢复前副本」 opens it); it may not exist yet.
+    pub fn pre_restore_dir(root: impl Into<PathBuf>) -> PathBuf {
+        LibraryPaths::new(root)
+            .safety_snapshots
+            .join(PRE_RESTORE_DIR)
     }
 }
 

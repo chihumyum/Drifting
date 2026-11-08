@@ -14,6 +14,7 @@
 
 use std::cell::Cell;
 use std::rc::Rc;
+use std::time::Duration;
 
 use dr_i18n::keys;
 use dr_shell::book::{Book, color_of, seal_of};
@@ -45,9 +46,10 @@ use gpui::{
     AnyElement, App, AppContext as _, Bounds, ClickEvent, Context, DragMoveEvent, ElementId,
     Entity, InteractiveElement as _, IntoElement, ParentElement as _, PathBuilder, Pixels, Render,
     ScrollEvent, ScrollHandle, SharedString, StatefulInteractiveElement as _, Styled as _,
-    Subscription, WeakEntity, Window, canvas, div, point, prelude::FluentBuilder as _, px,
+    Subscription, Task, WeakEntity, Window, canvas, div, point, prelude::FluentBuilder as _, px,
 };
 
+use crate::kept::{self, Kept};
 use crate::model::{
     self, Axis, HEAD_HEIGHT, LaneId, Layout, MAX_ZOOM, MIN_ZOOM, Membership, RAIL_WIDTH,
     ROW_MIN_HEIGHT, STRIP_HEIGHT, SYNTHETIC_CLIP, WHEEL_SENSITIVITY,
@@ -105,8 +107,15 @@ pub struct BottomTimeline {
     body: Rc<Cell<Option<Bounds<Pixels>>>>,
     dragging: Option<Dragging>,
     moved: Option<Moved>,
+    /// The book whose kept settings ([`Kept`]) are in force.
+    kept_for: Option<String>,
+    /// Keeps the scroll a moment after the wheel stops.
+    keep_soon: Option<Task<()>>,
     _subs: Vec<Subscription>,
 }
+
+/// How long after the wheel stops the scroll and zoom are kept.
+const KEEP_AFTER: Duration = Duration::from_millis(400);
 
 impl BottomTimeline {
     pub fn new(ws: WeakEntity<Workspace>, cx: &mut Context<Self>) -> BottomTimeline {
@@ -126,8 +135,50 @@ impl BottomTimeline {
             body: Rc::default(),
             dragging: None,
             moved: None,
+            kept_for: None,
+            keep_soon: None,
             _subs: Vec::new(),
         }
+    }
+
+    /// What this book keeps (another book's settings stay with it).
+    fn apply(&mut self, kept: Kept) {
+        self.axis = kept.axis;
+        self.unaffiliated_shown = kept.unaffiliated;
+        self.zoom = kept.zoom;
+        self.unplaced_open = false;
+        self.scroll.set_offset(point(px(-kept.scroll_x), px(0.0)));
+    }
+
+    /// Keeps the order, 未归属, the zoom and the scroll for the book shown.
+    fn remember(&mut self, cx: &mut Context<Self>) {
+        self.keep_soon = None;
+        let Some(book) = self.kept_for.clone() else {
+            return;
+        };
+        let kept = Kept {
+            axis: self.axis,
+            unaffiliated: self.unaffiliated_shown,
+            zoom: self.zoom,
+            scroll_x: self.scroll_x().max(0.0).round(),
+        };
+        let Ok(value) = serde_json::to_value(kept) else {
+            return;
+        };
+        self.ws
+            .update(cx, |ws, cx| {
+                if ws.book_id == book {
+                    ws.set_book_memory(kept::KEY, value, cx);
+                }
+            })
+            .ok();
+    }
+
+    fn remember_soon(&mut self, cx: &mut Context<Self>) {
+        self.keep_soon = Some(cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(KEEP_AFTER).await;
+            this.update(cx, |t, cx| t.remember(cx)).ok();
+        }));
     }
 
     fn follow(&mut self, cx: &mut Context<Self>) {
@@ -144,6 +195,11 @@ impl BottomTimeline {
 
     fn read_workspace(&mut self, ws: &Entity<Workspace>, cx: &mut Context<Self>) {
         let w = ws.read(cx);
+        if self.kept_for.as_deref() != Some(w.book_id.as_str()) {
+            self.kept_for = Some(w.book_id.clone());
+            let kept = Kept::read(w.book_memory(kept::KEY));
+            self.apply(kept);
+        }
         if !Rc::ptr_eq(&w.book, &self.book) {
             self.book = w.book.clone();
             // The move is in the snapshot once the chapter is where it went.
@@ -179,6 +235,7 @@ impl BottomTimeline {
     pub fn set_axis(&mut self, axis: Axis, cx: &mut Context<Self>) {
         self.axis = axis;
         self.unplaced_open = false;
+        self.remember(cx);
         cx.notify();
     }
 
@@ -188,6 +245,7 @@ impl BottomTimeline {
 
     pub fn toggle_unaffiliated(&mut self, cx: &mut Context<Self>) {
         self.unaffiliated_shown = !self.unaffiliated_shown;
+        self.remember(cx);
         cx.notify();
     }
 
@@ -360,6 +418,7 @@ impl BottomTimeline {
             .unwrap_or(0.0);
         let left = layout.scale.x(order) - view_w / 2.0 + layout.scale.clip_width() / 2.0;
         self.scroll.set_offset(point(px(-left.max(0.0)), px(0.0)));
+        self.remember(cx);
         cx.notify();
     }
 
@@ -434,6 +493,8 @@ impl BottomTimeline {
     /// ⌘ or Ctrl and the wheel: zoom, the spot under the pointer staying put.
     fn wheel(&mut self, e: &ScrollEvent, window: &mut Window, cx: &mut Context<Self>) {
         if !(e.modifiers.platform || e.modifiers.control) {
+            // A plain scroll: kept once the wheel stops.
+            self.remember_soon(cx);
             return;
         }
         let Some(body) = self.body.get() else {
@@ -450,12 +511,14 @@ impl BottomTimeline {
         self.zoom = zoom;
         let left = (anchor * zoom - local).max(0.0);
         self.scroll.set_offset(point(px(-left), px(0.0)));
+        self.remember_soon(cx);
         cx.stop_propagation();
         cx.notify();
     }
 
     pub fn set_zoom(&mut self, zoom: f32, cx: &mut Context<Self>) {
         self.zoom = zoom.clamp(MIN_ZOOM, MAX_ZOOM);
+        self.remember(cx);
         cx.notify();
     }
 }

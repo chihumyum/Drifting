@@ -96,7 +96,9 @@ pub enum RowAction {
     Feedback,
     /// Backs the library up ([`crate::actions::BackupLibrary`]).
     Backup,
-    /// Restores the library from a backup ([`crate::actions::RestoreLibrary`]).
+    /// Restores the library from a backup ([`crate::actions::RestoreLibrary`]);
+    /// beside it, 「打开恢复前副本」 opens the folder the copies saved
+    /// before each restore are kept in (as the 0.1 client did).
     Restore,
 }
 

@@ -4,9 +4,14 @@
 //! callbacks 200 ms in all (`SHUTDOWN_TIMEOUT`); `app.run` never returns, so
 //! nothing in `main` is dropped. So the work happens before the quit:
 //!
-//! 1. [`request`] (⌘Q, the menu) runs every hook registered with
-//!    [`before_quit`] (F2/F3's saving and the hand-over, sync's last push),
-//!    then writes the settings file, then calls `cx.quit()`;
+//! 1. [`request`] (⌘Q, the menu) hides the app first when the app asked
+//!    for it with [`hide_first`] (F7: the hooks may take a moment, an import
+//!    finishing its book up to two seconds, and a window standing frozen
+//!    meanwhile looks hung; GPUI's test platform cannot hide, so tests and
+//!    captures leave it off), runs every hook
+//!    registered with [`before_quit`] (F2/F3's saving and the hand-over,
+//!    sync's last push), then writes the settings file, then calls
+//!    `cx.quit()`;
 //! 2. the quit callback itself only sends queued crash reports, waiting at
 //!    most 100 ms (f7-platform.md, 「退出时能做多少」).
 //!
@@ -31,6 +36,17 @@ struct Hooks(Vec<Hook>);
 
 impl Global for Hooks {}
 
+/// The app hides itself before the hooks run.
+struct HideFirst;
+
+impl Global for HideFirst {}
+
+/// Asks [`request`] to hide the app before it runs the hooks. The app calls
+/// it once at start-up.
+pub fn hide_first(cx: &mut App) {
+    cx.set_global(HideFirst);
+}
+
 /// Runs `hook` when the author quits, before the app goes.
 pub fn before_quit(cx: &mut App, hook: impl FnMut(&mut App) + 'static) {
     cx.default_global::<Hooks>().0.push(Box::new(hook));
@@ -43,6 +59,9 @@ pub fn request(cx: &mut App) {
 }
 
 fn run(cx: &mut App) {
+    if cx.has_global::<HideFirst>() {
+        cx.hide();
+    }
     let mut hooks = std::mem::take(&mut cx.default_global::<Hooks>().0);
     for hook in &mut hooks {
         hook(cx);

@@ -21,11 +21,16 @@
 //!   are folded into the body editor's steps, and ⌘Z in a cell undoes there.
 //! - Copy and paste ([`clip`]): a grid pasted into a cell fills the cells
 //!   from there, adding rows and columns as needed.
+//! - Whole cells selected by a drag across them, a shift-click or ⇧ arrows
+//!   at a cell's edge ([`select`]): copied, emptied, filled, formatted and
+//!   their rows and columns deleted together.
 
 mod cell;
 pub mod clip;
+mod select;
 
 use std::collections::HashMap;
+use std::ops::Range;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -38,17 +43,22 @@ use dr_ui::components::{Button, Layer, Place};
 use dr_ui::theme::Theme;
 use gpui::{
     AnyElement, App, AppContext, Bounds, Context, Entity, EventEmitter, InteractiveElement,
-    IntoElement, MouseButton, ParentElement, Pixels, Render, Styled, Subscription, Task, Window,
-    canvas, div, point, prelude::FluentBuilder as _, px,
+    IntoElement, KeyDownEvent, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
+    ParentElement, Pixels, Render, Styled, Subscription, Task, Window, canvas, div, point,
+    prelude::FluentBuilder as _, px,
 };
 use gpui_prose::input::actions::{
-    IndentListItem, MoveDown, MoveLeft, MoveRight, MoveUp, OutdentListItem, Paste, Redo,
-    ToggleTask, Undo,
+    Backspace, Copy, Cut, Delete, DeleteToLineStart, DeleteWordBackward, DeleteWordForward,
+    IndentListItem, MoveDown, MoveLeft, MoveRight, MoveUp, Newline, OutdentListItem, Paste, Redo,
+    SelectAll, SelectDown, SelectLeft, SelectRight, SelectUp, ToggleBold, ToggleItalic,
+    ToggleStrikethrough, ToggleTask, ToggleUnderline, Undo,
 };
+use gpui_prose::schema::inline;
 use gpui_prose::{Book, Chapter, EditorEvent, EditorOptions, ProseDoc, ProseEditor, ProseStyle};
 use loro::LoroDoc;
 
 pub use cell::{CELL_BREAK, CellKey, CellSource, TableFeed, cell_line};
+use select::{CellRange, Parked};
 
 use crate::embeds::NoteHost;
 
@@ -208,6 +218,12 @@ pub struct TableView {
     /// Where the table was drawn (the bar goes above it).
     bounds: Rc<std::cell::Cell<Option<Bounds<Pixels>>>>,
     pub(crate) selected: bool,
+    /// Whole cells selected ([`select`]).
+    cell_sel: Option<CellRange>,
+    /// The cell a press went down in, while the button is down.
+    drag_from: Option<CellKey>,
+    /// The focused cell's caret while cells are selected.
+    parked: Option<Parked>,
 }
 
 impl EventEmitter<TableEvent> for TableView {}
@@ -238,6 +254,9 @@ impl TableView {
             _bar_timer: None,
             bounds: Rc::default(),
             selected: false,
+            cell_sel: None,
+            drag_from: None,
+            parked: None,
         })
     }
 
@@ -361,10 +380,16 @@ impl TableView {
                     let _ = this.update(cx, |_, cx| cx.notify());
                 }));
                 self.host.edited(cx);
+                if !self.typed_over(key, cx) {
+                    self.end_cell_selection(cx);
+                }
                 cx.emit(TableEvent::Edited);
                 cx.notify();
             }
-            EditorEvent::SelectionChanged => cx.notify(),
+            EditorEvent::SelectionChanged => {
+                self.cell_selection_moved(key, cx);
+                cx.notify()
+            }
             EditorEvent::AnchorsChanged { .. } => {}
         }
     }
@@ -421,6 +446,26 @@ impl TableView {
                     crate::highlight::decorate(e, 0, cx);
                 });
             }
+            // The table's own writes move the parked caret (its text was
+            // emptied or filled): the cells stay selected.
+            if let Some(p) = self.parked.as_mut() {
+                match self.cells.get(&p.key) {
+                    Some(v) => {
+                        let e = v.editor.read(cx);
+                        p.sel = e.selection();
+                        p.len = e.book().chapters[0].doc.max_cursor();
+                    }
+                    None => {
+                        self.cell_sel = None;
+                        self.parked = None;
+                    }
+                }
+            }
+        }
+        if self.cell_sel.is_some() && self.selected_cells().is_none() {
+            // A row or column of the selection went.
+            self.cell_sel = None;
+            self.parked = None;
         }
         self.style = Some(style);
     }
@@ -529,6 +574,9 @@ impl TableView {
     /// ← → ↑ ↓ at a cell's edge: the neighbouring cell, or out of the
     /// table. Returns whether the key was taken.
     fn arrow(&mut self, dir: Dir, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        if self.collapse(dir, window, cx) {
+            return true;
+        }
         let Some(key) = self.focused(window, cx) else {
             return false;
         };
@@ -606,6 +654,16 @@ impl TableView {
         cx: &mut Context<Self>,
         f: impl FnOnce(&TableWriter) -> dr_doc::Result<R> + Send + 'static,
     ) -> Option<R> {
+        self.write_step(cx, true, f)
+    }
+
+    /// [`TableView::write`], as a step of its own or joined to the last.
+    fn write_step<R: Send + 'static>(
+        &mut self,
+        cx: &mut Context<Self>,
+        new_step: bool,
+        f: impl FnOnce(&TableWriter) -> dr_doc::Result<R> + Send + 'static,
+    ) -> Option<R> {
         let before = self.feed.user_commits();
         let embed = self.embed.clone();
         let written = self.host.session.edit(move |txn| {
@@ -613,7 +671,7 @@ impl TableView {
             f(&w)
         });
         let pushed = (self.feed.user_commits() - before) as usize;
-        self.fold(pushed, true, cx);
+        self.fold(pushed, new_step, cx);
         self.last_edited = None;
         self.host.edited(cx);
         cx.emit(TableEvent::Edited);
@@ -663,40 +721,85 @@ impl TableView {
 
     /// 删除行: row `row` (the last row takes the table with it).
     pub fn delete_row(&mut self, row: usize, window: &mut Window, cx: &mut Context<Self>) {
-        if self.rows.len() <= 1 {
+        self.delete_rows(row..row + 1, window, cx);
+    }
+
+    /// 删除行 with cells selected: their rows, as one step (all of them
+    /// take the table with them).
+    pub fn delete_rows(&mut self, rows: Range<usize>, window: &mut Window, cx: &mut Context<Self>) {
+        let rows = rows.start.min(self.rows.len())..rows.end.min(self.rows.len());
+        if rows.is_empty() {
+            return;
+        }
+        if rows.len() >= self.rows.len() {
             self.delete_table(window, cx);
             return;
         }
-        let Some(id) = self.rows.get(row).map(|l| l.id.clone()) else {
-            return;
-        };
+        let ids: Vec<String> = self.rows[rows.clone()]
+            .iter()
+            .map(|l| l.id.clone())
+            .collect();
         let col = self
             .focused(window, cx)
             .and_then(|k| self.index_of(&k))
             .map_or(0, |(_, c)| c);
-        self.write(cx, move |w| w.remove_row(&id));
+        self.end_cell_selection(cx);
+        self.write(cx, move |w| {
+            for id in &ids {
+                w.remove_row(id)?;
+            }
+            Ok(())
+        });
         self.sync(window, cx);
-        let row = row.min(self.rows.len().saturating_sub(1));
-        self.focus_cell(row, col, false, window, cx);
+        let row = rows.start.min(self.rows.len().saturating_sub(1));
+        self.focus_cell(
+            row,
+            col.min(self.cols.len().saturating_sub(1)),
+            false,
+            window,
+            cx,
+        );
     }
 
     /// 删除列: column `col` (the last column takes the table with it).
     pub fn delete_col(&mut self, col: usize, window: &mut Window, cx: &mut Context<Self>) {
-        if self.cols.len() <= 1 {
+        self.delete_cols(col..col + 1, window, cx);
+    }
+
+    /// 删除列 with cells selected: their columns, as one step.
+    pub fn delete_cols(&mut self, cols: Range<usize>, window: &mut Window, cx: &mut Context<Self>) {
+        let cols = cols.start.min(self.cols.len())..cols.end.min(self.cols.len());
+        if cols.is_empty() {
+            return;
+        }
+        if cols.len() >= self.cols.len() {
             self.delete_table(window, cx);
             return;
         }
-        let Some(id) = self.cols.get(col).map(|l| l.id.clone()) else {
-            return;
-        };
+        let ids: Vec<String> = self.cols[cols.clone()]
+            .iter()
+            .map(|l| l.id.clone())
+            .collect();
         let row = self
             .focused(window, cx)
             .and_then(|k| self.index_of(&k))
             .map_or(0, |(r, _)| r);
-        self.write(cx, move |w| w.remove_col(&id));
+        self.end_cell_selection(cx);
+        self.write(cx, move |w| {
+            for id in &ids {
+                w.remove_col(id)?;
+            }
+            Ok(())
+        });
         self.sync(window, cx);
-        let col = col.min(self.cols.len().saturating_sub(1));
-        self.focus_cell(row, col, false, window, cx);
+        let col = cols.start.min(self.cols.len().saturating_sub(1));
+        self.focus_cell(
+            row.min(self.rows.len().saturating_sub(1)),
+            col,
+            false,
+            window,
+            cx,
+        );
     }
 
     /// 删除表格: the embed paragraph goes (its entry stays for undo).
@@ -758,6 +861,9 @@ impl TableView {
         let Some(item) = cx.read_from_clipboard() else {
             return false;
         };
+        if self.paste_cells(&item, window, cx) {
+            return true;
+        }
         let grid = clip::table_from_clipboard(&item).or_else(|| {
             item.text()
                 .and_then(|t| clip::parse_grid(&t))
@@ -774,6 +880,7 @@ impl TableView {
     }
 
     fn history(&mut self, redo: bool, window: &mut Window, cx: &mut Context<Self>) {
+        self.end_cell_selection(cx);
         let chapter = self.host.chapter;
         if let Some(body) = self.host.body.upgrade() {
             body.update(cx, |e, cx| {
@@ -819,28 +926,38 @@ impl TableView {
             .child(button(
                 "dr-editor-table-add-row",
                 "加一行",
-                |t, r, _, w, cx| {
-                    t.add_row(r, w, cx);
-                    t.focus_cell(r + 1, 0, false, w, cx);
+                |t, r, c, w, cx| {
+                    let (rows, _) = t.bar_span(r, c);
+                    t.end_cell_selection(cx);
+                    t.add_row(rows.end - 1, w, cx);
+                    t.focus_cell(rows.end, 0, false, w, cx);
                 },
             ))
             .child(button(
                 "dr-editor-table-add-col",
                 "加一列",
                 |t, r, c, w, cx| {
-                    t.add_col(c, w, cx);
-                    t.focus_cell(r, c + 1, false, w, cx);
+                    let (_, cols) = t.bar_span(r, c);
+                    t.end_cell_selection(cx);
+                    t.add_col(cols.end - 1, w, cx);
+                    t.focus_cell(r, cols.end, false, w, cx);
                 },
             ))
             .child(button(
                 "dr-editor-table-delete-row",
                 "删除行",
-                |t, r, _, w, cx| t.delete_row(r, w, cx),
+                |t, r, c, w, cx| {
+                    let (rows, _) = t.bar_span(r, c);
+                    t.delete_rows(rows, w, cx)
+                },
             ))
             .child(button(
                 "dr-editor-table-delete-col",
                 "删除列",
-                |t, _, c, w, cx| t.delete_col(c, w, cx),
+                |t, r, c, w, cx| {
+                    let (_, cols) = t.bar_span(r, c);
+                    t.delete_cols(cols, w, cx)
+                },
             ))
             .child(
                 Button::new("dr-editor-table-delete", "删除表格")
@@ -888,7 +1005,7 @@ impl TableView {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Dir {
+pub(crate) enum Dir {
     Left,
     Right,
     Up,
@@ -901,6 +1018,12 @@ impl Render for TableView {
         let style = self.style.clone().unwrap_or_default();
         let rule = style.text.opacity(0.14);
         let focused = self.focused(window, cx);
+        if focused.is_none() && self.cell_sel.is_some() {
+            // The author went elsewhere.
+            self.cell_sel = None;
+            self.parked = None;
+        }
+        let hide_caret = self.hides_caret();
         let mut grid = div()
             .w_full()
             .border_t_1()
@@ -918,6 +1041,31 @@ impl Render for TableView {
                 let bounds = view.bounds.clone();
                 let me = cx.entity().downgrade();
                 let editor = view.editor.clone();
+                let washed = self.is_cell_selected(&key);
+                let pressed = {
+                    let (this, key) = (cx.entity().downgrade(), key.clone());
+                    move |event: &MouseDownEvent, window: &mut Window, cx: &mut App| {
+                        if event.button != MouseButton::Left {
+                            return;
+                        }
+                        let taken = this
+                            .update(cx, |t, cx| t.press(&key, event.modifiers.shift, window, cx))
+                            .unwrap_or(false);
+                        if taken {
+                            cx.stop_propagation();
+                        }
+                    }
+                };
+                let text = if hide_caret {
+                    // The caret stays in its cell, unseen.
+                    div()
+                        .w_full()
+                        .relative()
+                        .child(view.editor.clone())
+                        .into_any_element()
+                } else {
+                    ProseEditor::element(&view.editor, cx).into_any_element()
+                };
                 line = line.child(
                     div()
                         .flex_1()
@@ -927,6 +1075,7 @@ impl Render for TableView {
                         .border_b_1()
                         .border_color(rule)
                         .relative()
+                        .capture_any_mouse_down(pressed)
                         .on_mouse_down(MouseButton::Left, move |_, window, cx| {
                             // The cell's padding: the caret at its end.
                             if !gpui::Focusable::focus_handle(editor.read(cx), cx)
@@ -938,7 +1087,9 @@ impl Render for TableView {
                                 });
                             }
                         })
-                        .child(ProseEditor::element(&view.editor, cx))
+                        // Under the text and the rules, as a text selection is.
+                        .when(washed, |cell| cell.bg(style.selection))
+                        .child(text)
                         .child(
                             canvas(
                                 move |b, _, cx| {
@@ -1024,6 +1175,116 @@ impl Render for TableView {
                     cx.stop_propagation();
                 }
             })
+            .capture_action(cx.listener(|t, _: &SelectLeft, window, cx| {
+                if t.extend(Dir::Left, window, cx) {
+                    cx.stop_propagation();
+                }
+            }))
+            .capture_action(cx.listener(|t, _: &SelectRight, window, cx| {
+                if t.extend(Dir::Right, window, cx) {
+                    cx.stop_propagation();
+                }
+            }))
+            .capture_action(cx.listener(|t, _: &SelectUp, window, cx| {
+                if t.extend(Dir::Up, window, cx) {
+                    cx.stop_propagation();
+                }
+            }))
+            .capture_action(cx.listener(|t, _: &SelectDown, window, cx| {
+                if t.extend(Dir::Down, window, cx) {
+                    cx.stop_propagation();
+                }
+            }))
+            .capture_action(cx.listener(|t, _: &Newline, _, cx| {
+                if t.newline(cx) {
+                    cx.stop_propagation();
+                }
+            }))
+            .capture_action(cx.listener(|t, _: &SelectAll, window, cx| {
+                if t.select_all(window, cx) {
+                    cx.stop_propagation();
+                }
+            }))
+            .capture_action(cx.listener(|t, _: &Copy, _, cx| {
+                if t.copy_cells(false, cx) {
+                    cx.stop_propagation();
+                }
+            }))
+            .capture_action(cx.listener(|t, _: &Cut, _, cx| {
+                if t.copy_cells(true, cx) {
+                    cx.stop_propagation();
+                }
+            }))
+            .capture_action(cx.listener(|t, _: &Backspace, _, cx| {
+                if t.clear_cells(cx) {
+                    cx.stop_propagation();
+                }
+            }))
+            .capture_action(cx.listener(|t, _: &Delete, _, cx| {
+                if t.clear_cells(cx) {
+                    cx.stop_propagation();
+                }
+            }))
+            .capture_action(cx.listener(|t, _: &DeleteWordBackward, _, cx| {
+                if t.clear_cells(cx) {
+                    cx.stop_propagation();
+                }
+            }))
+            .capture_action(cx.listener(|t, _: &DeleteWordForward, _, cx| {
+                if t.clear_cells(cx) {
+                    cx.stop_propagation();
+                }
+            }))
+            .capture_action(cx.listener(|t, _: &DeleteToLineStart, _, cx| {
+                if t.clear_cells(cx) {
+                    cx.stop_propagation();
+                }
+            }))
+            .capture_action(cx.listener(|t, _: &ToggleBold, _, cx| {
+                if t.format_cells(inline::BOLD, true.into(), cx) {
+                    cx.stop_propagation();
+                }
+            }))
+            .capture_action(cx.listener(|t, _: &ToggleItalic, _, cx| {
+                if t.format_cells(inline::ITALIC, true.into(), cx) {
+                    cx.stop_propagation();
+                }
+            }))
+            .capture_action(cx.listener(|t, _: &ToggleUnderline, _, cx| {
+                if t.format_cells(inline::UNDERLINE, true.into(), cx) {
+                    cx.stop_propagation();
+                }
+            }))
+            .capture_action(cx.listener(|t, _: &ToggleStrikethrough, _, cx| {
+                if t.format_cells(inline::STRIKE, true.into(), cx) {
+                    cx.stop_propagation();
+                }
+            }))
+            .capture_action(
+                cx.listener(|t, _: &crate::highlight::ToggleHighlight, _, cx| {
+                    if t.format_cells(crate::highlight::KEY, crate::highlight::value(), cx) {
+                        cx.stop_propagation();
+                    }
+                }),
+            )
+            .capture_key_down(cx.listener(|t, e: &KeyDownEvent, _, cx| {
+                if e.keystroke.key == "escape" && t.escape(cx) {
+                    cx.stop_propagation();
+                }
+            }))
+            .on_mouse_move(cx.listener(|t, e: &MouseMoveEvent, window, cx| {
+                if e.pressed_button == Some(MouseButton::Left) {
+                    t.drag_over(e.position, window, cx);
+                }
+            }))
+            .on_mouse_up(
+                MouseButton::Left,
+                cx.listener(|t, _: &MouseUpEvent, _, _| t.release()),
+            )
+            .on_mouse_up_out(
+                MouseButton::Left,
+                cx.listener(|t, _: &MouseUpEvent, _, _| t.release()),
+            )
             .child(grid)
             .child({
                 let bounds = self.bounds.clone();

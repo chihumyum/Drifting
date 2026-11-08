@@ -11,15 +11,20 @@
 //! - [`model`]: lanes, the axis, links and what a drop changes (no GPUI).
 //! - [`view`]: [`BottomTimeline`], the view.
 //!
-//! The shell has no Bottom Panel yet; [`make`] gives the view for the place
-//! F6 will open under the paper (docs/rust-rewrite/modules/m14-timeline.md,
-//! 「待协调」). The act rail's dragging, time pins, the spring of a dragged
-//! slab, hover cards and 打散 are later milestones.
+//! - [`kept`]: what it keeps for each book on this device (the order, 未归属,
+//!   the zoom, the scroll), in the shell's per-book memory.
+//!
+//! [`init`] puts it in the shell's Bottom Panel under the paper (F6): the
+//! shell keeps the panel, its height and ⌘J. The act rail's dragging, time
+//! pins, the spring of a dragged slab, hover cards and 打散 are later
+//! milestones.
 
+pub mod kept;
 pub mod model;
 pub mod view;
 
 use dr_shell::Workspace;
+use dr_shell::pages::{self, BottomPane, BottomPanel};
 use gpui::{App, AppContext as _, Entity, WeakEntity};
 
 pub use view::{BottomTimeline, ClipDrag, DropAt};
@@ -27,4 +32,19 @@ pub use view::{BottomTimeline, ClipDrag, DropAt};
 /// The timeline for the window of `ws`.
 pub fn make(ws: WeakEntity<Workspace>, cx: &mut App) -> Entity<BottomTimeline> {
     cx.new(|cx| BottomTimeline::new(ws, cx))
+}
+
+/// Registers the timeline as the shell's Bottom Panel's timeline pane (one
+/// per window and book; dragged no lower than its lanes need). Once, after
+/// `dr_shell::init`.
+pub fn init(cx: &mut App) {
+    pages::add_bottom_panel(cx, BottomPane::Timeline, |host, _, cx| {
+        let timeline = make(host.workspace.clone(), cx);
+        let lanes = timeline.downgrade();
+        Some(BottomPanel::new(timeline).min_height(move |cx| {
+            lanes
+                .upgrade()
+                .map_or(0.0, |timeline| timeline.read(cx).min_height())
+        }))
+    });
 }

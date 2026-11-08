@@ -5,8 +5,9 @@
 //!
 //! - The bookshelf's entry opens the folder panel; the chosen folder is
 //!   imported with progress; the summary lists the book with the words the
-//!   bookshelf shows, and the book is on the bookshelf; the 0.1 database is
-//!   unchanged; Esc closes the summary.
+//!   bookshelf shows, and the book is on the bookshelf; a new element starts
+//!   with the imported element template; the 0.1 database is unchanged; Esc
+//!   closes the summary.
 //! - Without the handoff the gate stops it with nothing written and lists the
 //!   bodies by book; 取消 leaves the library empty; 「仍然导入」 imports.
 //! - The same library again: the book is left alone.
@@ -195,6 +196,27 @@ fn the_shelf_entry_imports_a_handed_off_library(cx: &mut TestAppContext) {
     assert_eq!(Some(on_shelf.words), book.words);
     assert!(on_shelf.words > 0);
     assert!(lib.library().stale_index_docs().unwrap().is_empty());
+
+    // The 0.1 body templates are template documents: a new element of the
+    // category starts with the element template, its link included (F3).
+    let user = dr_workspace::Actor::User;
+    let call = |name: &str, input: serde_json::Value| {
+        lib.call(&user, name, input).unwrap()["output"].clone()
+    };
+    let made = call(
+        "element.create",
+        serde_json::json!({"book": common::BOOK, "name": "王胡", "category": common::CATEGORY}),
+    );
+    let doc = format!("element:{}", made["id"].as_str().unwrap());
+    let body = call("prose.read", serde_json::json!({"doc": doc}));
+    let texts: Vec<&str> = body["paragraphs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|p| p["text"].as_str().unwrap())
+        .collect();
+    assert_eq!(texts, ["外貌", "像阿Q那样"]);
+    assert_eq!(body["paragraphs"][0]["heading"], 1);
 
     // The 0.1 library was only read.
     let after = (

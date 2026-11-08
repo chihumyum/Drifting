@@ -38,6 +38,17 @@ use crate::model::{
 /// cadence in 0.1, `PERSIST_DEBOUNCE_MS`), and at once when the field is
 /// left.
 pub const STORE_AFTER: Duration = Duration::from_millis(400);
+/// Where a grid's hand-set shape is kept on this device (dr-store's
+/// `local_state`, never synced, as 0.1 kept it in localStorage per chapter):
+/// scope [`RATIO_SCOPE`], key `ratio:<chapter>`, tied to the book so purging
+/// it drops the row.
+pub const RATIO_SCOPE: &str = "plot";
+
+/// The `local_state` key of `node`'s hand-set shape.
+pub fn ratio_key(node: &str) -> String {
+    format!("ratio:{node}")
+}
+
 /// The panel's header row.
 pub const BAR_H: f32 = 34.0;
 /// The space right of and below the table (the grip sits on its corner).
@@ -182,8 +193,11 @@ pub struct PlotPlanner {
     drag: Option<Drag>,
     /// The size while the grip is dragged.
     live: Option<CellSize>,
-    /// The shape a hand-set size fixed (width over height), for 「适应」.
+    /// The shape a hand-set size fixed (width over height), for 「适应」;
+    /// kept on this device ([`RATIO_SCOPE`]).
     ratio: Option<f32>,
+    /// The stored shape being read.
+    ratio_io: Option<Task<()>>,
     body: Entity<Option<Bounds<Pixels>>>,
     scroll: ScrollHandle,
     /// A line added at an end: scroll it into view on the next frames.
@@ -224,6 +238,7 @@ impl PlotPlanner {
             drag: None,
             live: None,
             ratio: None,
+            ratio_io: None,
             body,
             scroll: ScrollHandle::new(),
             reveal: None,
@@ -234,7 +249,65 @@ impl PlotPlanner {
         };
         planner.listen(window, cx);
         planner.reload(window, cx);
+        planner.read_ratio(cx);
         planner
+    }
+
+    /// The hand-set shape kept on this device for this grid; a size set by
+    /// hand before it arrives wins.
+    fn read_ratio(&mut self, cx: &mut Context<Self>) {
+        let lib = self.host.library.clone();
+        let key = ratio_key(&self.host.node);
+        let read = cx.background_spawn(async move {
+            lib.library()
+                .local_get(RATIO_SCOPE, &key)
+                .map_err(|e| e.to_string())
+        });
+        self.ratio_io = Some(cx.spawn(async move |this, cx| {
+            let stored = read.await;
+            this.update(cx, |p, _| {
+                p.ratio_io = None;
+                match stored {
+                    Ok(Some(raw)) if p.ratio.is_none() => {
+                        p.ratio = raw
+                            .parse::<f32>()
+                            .ok()
+                            .filter(|r| r.is_finite() && *r > 0.0);
+                    }
+                    Ok(_) => {}
+                    Err(error) => log::warn!("the plot grid's shape could not be read: {error}"),
+                }
+            })
+            .ok();
+        }));
+    }
+
+    /// Keep `ratio` as this grid's hand-set shape on this device (detached:
+    /// the planner may be gone, another chapter in front, before it lands).
+    fn store_ratio(&mut self, ratio: f32, cx: &mut Context<Self>) {
+        // A stored shape still being read is older than this one.
+        self.ratio_io = None;
+        let lib = self.host.library.clone();
+        let (book, key) = (self.host.book.clone(), ratio_key(&self.host.node));
+        cx.background_spawn(async move {
+            if let Err(error) =
+                lib.library()
+                    .local_set(RATIO_SCOPE, &key, &ratio.to_string(), Some(&book))
+            {
+                log::warn!("the plot grid's shape could not be kept: {error}");
+            }
+        })
+        .detach();
+    }
+
+    /// The hand-set shape 「适应」 keeps (width over height), if any.
+    pub fn ratio(&self) -> Option<f32> {
+        self.ratio
+    }
+
+    /// Whether the kept shape is still being read.
+    pub fn is_ratio_settled(&self) -> bool {
+        self.ratio_io.is_none()
     }
 
     pub fn host(&self) -> &PlannerHost {
@@ -866,7 +939,11 @@ impl PlotPlanner {
     ) {
         let size = clamp_size(size);
         if by_hand {
-            self.ratio = Some(size.w / size.h);
+            let ratio = size.w / size.h;
+            if self.ratio != Some(ratio) {
+                self.ratio = Some(ratio);
+                self.store_ratio(ratio, cx);
+            }
         }
         if size == self.grid.size {
             cx.notify();

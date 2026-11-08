@@ -76,3 +76,48 @@ where
     };
     r
 }
+
+/// `f` over `items` on a few threads (at most 8, never more than the
+/// machine's parallelism or the items), results in `items`' order. After an
+/// error no new item starts; the first error in `items`' order is returned.
+/// For work that waits on many documents' holders: opening one loads it
+/// from SQLite, which on a long chapter is most of the time.
+pub(crate) fn par_map<T, R, F>(items: &[T], f: F) -> Result<Vec<R>>
+where
+    T: Sync,
+    R: Send,
+    F: Fn(&T) -> Result<R> + Sync,
+{
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+    let threads = std::thread::available_parallelism()
+        .map_or(4, |n| n.get())
+        .clamp(1, 8)
+        .min(items.len());
+    if threads <= 1 {
+        return items.iter().map(&f).collect();
+    }
+    let next = AtomicUsize::new(0);
+    let failed = AtomicBool::new(false);
+    let done: Mutex<Vec<(usize, Result<R>)>> = Mutex::new(Vec::with_capacity(items.len()));
+    std::thread::scope(|s| {
+        for _ in 0..threads {
+            s.spawn(|| {
+                loop {
+                    if failed.load(Ordering::Relaxed) {
+                        break;
+                    }
+                    let i = next.fetch_add(1, Ordering::Relaxed);
+                    let Some(item) = items.get(i) else { break };
+                    let r = f(item);
+                    if r.is_err() {
+                        failed.store(true, Ordering::Relaxed);
+                    }
+                    lock(&done).push((i, r));
+                }
+            });
+        }
+    });
+    let mut done = done.into_inner().unwrap_or_else(|e| e.into_inner());
+    done.sort_by_key(|(i, _)| *i);
+    done.into_iter().map(|(_, r)| r).collect()
+}

@@ -225,20 +225,6 @@ impl PageHead {
     }
 }
 
-/// `n` with its thousands grouped (the 0.1 client's `toLocaleString` for
-/// the languages it ships).
-fn grouped(n: u64) -> String {
-    let digits = n.to_string();
-    let mut out = String::new();
-    for (i, c) in digits.chars().enumerate() {
-        if i > 0 && (digits.len() - i).is_multiple_of(3) {
-            out.push(',');
-        }
-        out.push(c);
-    }
-    out
-}
-
 /// An act's ordinal as the 0.1 client writes it in 「第{n}幕」: Chinese
 /// numerals for Chinese (1–99, then digits), Roman numerals otherwise.
 pub fn act_numeral(n: usize, chinese: bool) -> String {
@@ -383,7 +369,10 @@ impl Render for PageHead {
         let words = tf(
             cx,
             keys::node_editor::meta::WORDS,
-            &[("count", &grouped(page.words))],
+            &[(
+                "count",
+                &dr_i18n::number::grouped(page.words, dr_shell::strings::Strings::get(cx).locale()),
+            )],
         );
         let storyline: Option<AnyElement> = page.storyline.as_ref().map(|s| {
             let mark = KindMark::new(
@@ -489,13 +478,5 @@ mod tests {
         assert_eq!(thousands(50), "0.1");
         assert_eq!(thousands(1250), "1.3");
         assert_eq!(thousands(12_345), "12.3");
-    }
-
-    #[test]
-    fn counts_are_grouped_by_thousands() {
-        assert_eq!(super::grouped(0), "0");
-        assert_eq!(super::grouped(999), "999");
-        assert_eq!(super::grouped(1000), "1,000");
-        assert_eq!(super::grouped(1234567), "1,234,567");
     }
 }

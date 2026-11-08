@@ -117,6 +117,9 @@ pub struct BookRecord {
     pub projected_todos: usize,
     pub anchors_with_cursors: usize,
     pub anchors_without_cursors: usize,
+    /// 0.1 body templates (a category's element template, a storyline's
+    /// chapter template) written into their template documents.
+    pub templates: usize,
 }
 
 /// Everything one import did.
@@ -426,6 +429,7 @@ fn explain(key: &str) -> Option<&'static str> {
         "entity-link-same-target-overlap" => {
             "同一段文字上有两条指向同一对象、但范围不同的链接，保留了后一条"
         }
+        "template-unreadable" => "有模版读不出来，没有导入（旧的字段原样留着）",
         "material-embed-dropped" => "素材嵌入找不到对应的素材，按空段落导入",
         "heading-level-clamped" | "indent-clamped" => "标题层级或缩进超出范围，已收进 H1–H3、0–8",
         "built-in-relation-color-dropped" => "内置关系类型的颜色没有导入（它不能改）",
@@ -515,6 +519,12 @@ pub fn summary_zh(r: &Receipt) -> String {
             b.history_points,
             b.assets_copied
         ));
+        if b.templates > 0 {
+            s.push_str(&format!(
+                "{} 个要素模版和章节模版写成了模版文档，新建的要素和章节照它开头。\n\n",
+                b.templates
+            ));
+        }
         if b.history_meta_replayed > 0 {
             s.push_str("旧版快照历史里当时的标题、梗概等也一起搬了过来：从历史点恢复一个对象时，这些也会恢复。\n\n");
         }

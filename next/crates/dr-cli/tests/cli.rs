@@ -130,16 +130,26 @@ fn writes_need_yes_a_closed_app_and_leave_a_backup() {
     .unwrap_err();
     assert!(e.contains("quit it first"), "{e}");
     assert!(offline::guarded_write(&lib, true, "x", |_| Ok(String::new())).is_err());
-    // … and reading works anyway, on a copy: inspect, and queries.
+    // … and reading works anyway: inspect opens it read-only beside the
+    // app, queries read a copy.
     let out = run(Command::Inspect {
         library: lib.clone(),
         doc: None,
         json: true,
     });
     let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+    assert_eq!(v["opened"], "read-only");
     assert_eq!(v["books"][0]["name"], "微型种子");
     assert_eq!(v["books"][0]["chapters"], 4);
     let book = v["books"][0]["id"].as_str().unwrap().to_string();
+    let doc: serde_json::Value = serde_json::from_str(&run(Command::Inspect {
+        library: lib.clone(),
+        doc: Some(format!("book:{book}")),
+        json: true,
+    }))
+    .unwrap();
+    assert_eq!(doc["opened"], "read-only");
+    assert!(doc["value"].is_object(), "{doc}");
     let list: serde_json::Value = serde_json::from_str(&call(
         &lib,
         "chapter.list",
@@ -153,6 +163,40 @@ fn writes_need_yes_a_closed_app_and_leave_a_backup() {
         offline::guarded_write(&lib, false, "x", |_| Ok(String::new())).unwrap(),
         Guarded::DryRun(_)
     ));
+}
+
+#[test]
+fn inspect_reads_a_library_to_be_migrated_from_a_copy_and_leaves_it() {
+    let tmp = tempfile::tempdir().unwrap();
+    let lib = tmp.path().join("library");
+    let options = || dr_workspace::library_options(offline::APP_VERSION);
+    // A library an earlier build wrote: only the first migration applied.
+    dr_store::Library::open_with_migrations(&lib, options(), &dr_store::MIGRATIONS[..1])
+        .unwrap()
+        .close()
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_str(&run(Command::Inspect {
+        library: lib.clone(),
+        doc: None,
+        json: true,
+    }))
+    .unwrap();
+    assert_eq!(v["opened"], "copy");
+    assert_eq!(v["books"], serde_json::json!([]));
+    assert!(
+        matches!(
+            dr_store::Library::open_read_only(&lib, options()),
+            Err(dr_store::StoreError::NeedsMigration { applied: 1, .. })
+        ),
+        "the library itself was not migrated"
+    );
+    assert!(!lib.join("backups").exists());
+    let human = run(Command::Inspect {
+        library: lib,
+        doc: None,
+        json: false,
+    });
+    assert!(human.contains("read from a migrated copy"), "{human}");
 }
 
 #[test]

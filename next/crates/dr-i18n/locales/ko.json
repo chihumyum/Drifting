@@ -8,7 +8,9 @@
     "actOrdinal": "제{{n}}막"
   },
   "bottomStatusBar": {
+    "collapseTimeline": "스토리라인 타임라인 접기",
     "elements": "요소",
+    "expandTimeline": "스토리라인 타임라인 펼치기",
     "storyGraph": "이야기 그래프",
     "todoLibrary": "할 일 및 자료실"
   },
@@ -140,12 +142,20 @@
     },
     "wordCount": "{{count}}자"
   },
+  "edgeKindManager": {
+    "editTypes": "유형 편집",
+    "resetColor": "기본 색상 복원",
+    "summary": "유형 {{kinds}}개 · 관계 {{relations}}개",
+    "title": "모든 관계 유형"
+  },
   "editorOutline": {
     "aria": "개요",
     "hiddenItems": "멀리 있는 개요 항목 {{count}}개 · 마우스를 올려 표시"
   },
   "editorTopBar": {
     "actions": {
+      "collapsePlotPlanner": "플롯 계획기 접기",
+      "expandPlotPlanner": "플롯 계획기 펼치기",
       "more": "추가 작업"
     },
     "menu": {
@@ -259,9 +269,41 @@
     "stats": "항목 {{groups}}개 · 일치 {{occurrences}}개"
   },
   "guide": {
+    "back": "뒤로",
+    "done": "완료",
     "hints": {
       "search": "전체 검색",
       "timeline": "타임라인"
+    },
+    "next": "다음",
+    "skip": "둘러보기 건너뛰기",
+    "workspace": {
+      "agent": {
+        "body": "책 전체를 읽고 검색하고 편집합니다. 변경 사항은 본문에 표시되며 기록에서 되돌릴 수 있습니다.",
+        "closedBody": "Agent는 오른쪽 사이드바에서 책 전체를 읽고 검색하고 편집할 수 있습니다. 여기서 여세요.",
+        "title": "Agent"
+      },
+      "create": {
+        "body": "장, 아이디어, 요소, 스토리라인, 분류, 자료는 모두 여기서 만듭니다.",
+        "title": "새로 만들기"
+      },
+      "home": {
+        "body": "문 버튼으로 이 페이지에 돌아올 수 있고, 옆의 풍경에 알림이 모입니다.",
+        "title": "작품 홈"
+      },
+      "panels": {
+        "body": "책의 뼈대입니다. 왼쪽 사이드바를 둘로 나누어 각각 다른 패널을 표시할 수 있습니다.",
+        "closedBody": "책의 뼈대인 장, 요소, 아이디어는 왼쪽 사이드바에 있습니다. 여기서 여세요.",
+        "title": "장 · 요소 · 아이디어"
+      },
+      "superViews": {
+        "body": "패널 헤더의 원형 버튼으로 여세요.",
+        "title": "전체 창 보기"
+      },
+      "timeline": {
+        "body": "페이지 아래에서 올려서 책 순서나 이야기 시간순으로 배치된 스토리라인을 볼 수 있습니다.",
+        "title": "타임라인"
+      }
     }
   },
   "immersiveWriting": {
@@ -431,6 +473,13 @@
     "untitledChapter": "제목 없는 장",
     "wholeBook": "작품 전체"
   },
+  "markdownFolderGuide": {
+    "choose": "폴더 선택…",
+    "chosen": "선택한 폴더",
+    "continue": "계속",
+    "intro": "각 작품의 Markdown 사본이 선택한 폴더에 저장됩니다. 다른 편집기로 장과 아이디어를 편집하면 변경 사항이 Drifting에 병합됩니다.",
+    "title": "Markdown 폴더를 어디에 둘까요?"
+  },
   "markdownShare": {
     "characters": "{{count}}자",
     "copied": "전체 Markdown을 복사했습니다",
@@ -449,11 +498,36 @@
     "title": "Markdown 공유",
     "wholeBook": "원고 순서대로 모든 장"
   },
+  "materialEditor": {
+    "descriptionPlaceholder": "설명 추가…",
+    "regions": {
+      "draw": "영역에 댓글 달기",
+      "drawHint": "이미지 위를 드래그하여 영역 표시",
+      "empty": "이미지나 페이지 위를 드래그하여 첫 댓글을 추가하세요.",
+      "listLabel": "이 자료의 댓글",
+      "page": "{{page}}페이지",
+      "stopDrawing": "댓글 달기 종료",
+      "whole": "자료 전체"
+    },
+    "zoomIn": "확대",
+    "zoomOut": "축소",
+    "zoomReset": "화면에 맞추기"
+  },
   "memoMaterial": {
     "kind": {
       "image": "이미지",
       "pdf": "PDF",
       "text": "메모"
+    },
+    "preview": {
+      "loading": "불러오는 중…",
+      "loadingPdf": "PDF 불러오는 중…",
+      "nextPage": "다음",
+      "noImage": "이미지를 미리 볼 수 없습니다",
+      "noPdf": "PDF를 미리 볼 수 없습니다",
+      "openPdfFailed": "PDF를 열 수 없습니다",
+      "previousPage": "이전",
+      "renderPdfFailed": "PDF를 렌더링할 수 없습니다"
     }
   },
   "mobileWorkspace": {
@@ -688,24 +762,92 @@
     }
   },
   "referencesPanel": {
+    "actions": {
+      "linkEntity": "엔터티 연결",
+      "remove": "관계 제거"
+    },
+    "deleted": {
+      "category": "(삭제된 분류)",
+      "element": "(삭제된 요소)",
+      "node": "(삭제된 장)",
+      "storyline": "(삭제된 스토리라인)"
+    },
     "empty": {
       "incoming": "아직 이 항목을 참조하는 내용이 없습니다",
-      "outgoing": "이 본문은 아직 다른 엔터티를 참조하지 않습니다"
+      "outgoing": "이 본문은 아직 다른 엔터티를 참조하지 않습니다",
+      "relations": "아직 관계가 없습니다"
+    },
+    "filters": {
+      "all": "전체"
     },
     "kind": {
-      "patch": "변화 기록"
+      "category": "분류",
+      "element": "요소",
+      "node": "장",
+      "patch": "변화 기록",
+      "storyline": "스토리라인"
     },
     "meta": {
       "blocksSpans": "블록 {{blocks}}개 · 언급 {{spans}}개",
       "spans": "언급 {{count}}개"
     },
+    "picker": {
+      "empty": "선택 항목 없음",
+      "placeholder": "연결 가능한 엔터티 검색…"
+    },
     "sections": {
       "incoming": "백링크",
-      "outgoing": "참조"
+      "outgoing": "참조",
+      "relations": "관계"
     }
   },
+  "relationPicker": {
+    "untitledChapter": "제목 없는 장",
+    "untitledDrift": "제목 없는 아이디어",
+    "untitledElement": "이름 없는 요소",
+    "untitledStoryline": "이름 없는 스토리라인"
+  },
   "relationTypes": {
-    "description": "설명"
+    "allowedEntities": "허용된 엔터티",
+    "allowedSources": "허용된 출발점 엔터티",
+    "allowedTargets": "허용된 대상 엔터티",
+    "builtIn": "기본 제공",
+    "cancel": "취소",
+    "confirmDelete": "관계 유형 “{{name}}”을(를) 삭제할까요?",
+    "create": "새로 만들기",
+    "createInline": "관계 유형 만들기",
+    "defaultSourceRole": "출처",
+    "defaultTargetRole": "대상",
+    "delete": "관계 유형 삭제",
+    "description": "설명",
+    "directed": "방향 있음",
+    "direction": "방향",
+    "endpointRole": "끝점 역할",
+    "entityKinds": {
+      "category": "요소 분류",
+      "comment": "댓글",
+      "element": "요소",
+      "library_item": "자료",
+      "node": "장 또는 아이디어",
+      "patch": "요소 변화 기록",
+      "storyline": "스토리라인"
+    },
+    "genericAssociation": {
+      "name": "연관",
+      "sourceRole": "연관 항목",
+      "targetRole": "객체"
+    },
+    "missing": "관계 유형 누락",
+    "name": "이름",
+    "pendingIncoming": "이 엔터티 ← 대상",
+    "pendingOutgoing": "이 엔터티 → 대상",
+    "save": "저장",
+    "selectConfigured": "관계 유형 선택",
+    "sourceRole": "출발점 역할",
+    "symmetric": "대칭",
+    "symmetricSummary": "대칭 · {{role}}",
+    "targetRole": "대상 역할",
+    "title": "관계 유형 정의"
   },
   "reviewPanel": {
     "commentPlaceholder": "댓글 작성…",
@@ -1009,6 +1151,7 @@
         "inspecting": "검증 중…",
         "missingAssets": "이 기기에 없는 자료 {{count}}개는 백업되지 않았습니다.",
         "noProjects": "(작품 없음)",
+        "openSafety": "복원 전 사본 열기",
         "restoreButton": "백업 선택…",
         "restoreConfirm": "“{{file}}”로 현재 라이브러리를 교체합니다.\n\n생성일: {{date}}\n내용: {{summary}}\n작품: {{projects}}\n\n먼저 현재 라이브러리를 복원 전 사본으로 저장합니다. ‘복원 전 사본 열기’에서 확인하세요. 복원이 끝나면 Drifting을 다시 불러옵니다.",
         "restoreConfirmButton": "교체 후 복원",
@@ -1019,7 +1162,10 @@
       },
       "local_data": "로컬 데이터",
       "local_sub": "Drifting 계정이나 호스팅 클라우드를 사용하지 않습니다. 언제든 읽을 수 있는 사본을 내보낼 수 있습니다.",
-      "local_title": "작품은 이 기기에 보관됩니다."
+      "local_title": "작품은 이 기기에 보관됩니다.",
+      "projection": {
+        "turnOff": "Markdown 폴더 끄기"
+      }
     },
     "title": "설정",
     "update": {

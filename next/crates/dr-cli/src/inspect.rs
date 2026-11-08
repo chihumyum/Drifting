@@ -1,6 +1,9 @@
-//! `workspace inspect`: what a library holds, read from a consistent copy so
-//! the library itself is never opened for writing (it may even be open in
-//! the app). The 0.1 client's `db:inspect`.
+//! `workspace inspect`: what a library holds, the 0.1 client's
+//! `db:inspect`. The library is opened read-only (F2's `open_read_only`: no
+//! lock, no migration, no writes), so it works while the app has it open and
+//! copies nothing. A library this build would first migrate cannot be opened
+//! that way; it is read from a consistent copy instead, migrated there, and
+//! the library itself is left as it is. `opened` says which.
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -19,21 +22,36 @@ fn err(e: impl std::fmt::Display) -> String {
 
 /// A summary of the library, or one document's value with `doc`.
 pub fn inspect(library: &Path, doc: Option<&str>) -> Result<Value, String> {
-    offline::on_copy(library, |copy| {
-        let lib = dr_store::Library::open(copy, dr_workspace::library_options(APP_VERSION))
-            .map_err(err)?;
-        let out = match doc {
-            Some(id) => {
-                let d = lib.load_copy(id).map_err(err)?;
-                let value: Value =
-                    serde_json::from_str(&d.get_deep_value().to_json()).map_err(err)?;
-                json!({ "doc": id, "value": value })
-            }
-            None => summary(&lib)?,
-        };
-        lib.close().map_err(err)?;
-        Ok(out)
-    })
+    if !offline::db_path(library).exists() {
+        return Err(format!(
+            "{} is not a library (no library.sqlite)",
+            library.display()
+        ));
+    }
+    let options = || dr_workspace::library_options(APP_VERSION);
+    match dr_store::Library::open_read_only(library, options()) {
+        Ok(lib) => read(lib, doc, "read-only"),
+        Err(dr_store::StoreError::NeedsMigration { .. }) => offline::on_copy(library, |copy| {
+            let lib = dr_store::Library::open(copy, options()).map_err(err)?;
+            read(lib, doc, "copy")
+        }),
+        Err(e) => Err(err(e)),
+    }
+}
+
+/// Reads what was asked for and closes `lib`.
+fn read(lib: dr_store::Library, doc: Option<&str>, opened: &str) -> Result<Value, String> {
+    let out = match doc {
+        Some(id) => lib.load_copy(id).map_err(err).and_then(|d| {
+            let value: Value = serde_json::from_str(&d.get_deep_value().to_json()).map_err(err)?;
+            Ok(json!({ "doc": id, "value": value }))
+        }),
+        None => summary(&lib),
+    };
+    lib.close().map_err(err)?;
+    let mut out = out?;
+    out["opened"] = json!(opened);
+    Ok(out)
 }
 
 fn summary(lib: &dr_store::Library) -> Result<Value, String> {
@@ -92,9 +110,13 @@ pub fn human(v: &Value) -> String {
         return serde_json::to_string_pretty(v).unwrap_or_default();
     }
     let mut s = format!(
-        "library {}  ({} bytes)\ndocuments: {}\n",
+        "library {}  ({} bytes, read from {})\ndocuments: {}\n",
         v["libraryId"].as_str().unwrap_or("?"),
         v["sqliteBytes"],
+        match v["opened"].as_str() {
+            Some("copy") => "a migrated copy",
+            _ => "the library itself, read-only",
+        },
         v["documents"]
     );
     for b in v["books"].as_array().into_iter().flatten() {

@@ -342,7 +342,9 @@ impl DocumentsDialog {
     pub fn close(&mut self, cx: &mut Context<Self>) {
         if !self.running {
             let id = cx.entity_id();
-            dr_shell::dialogs::hide(cx, id);
+            // Once the click or key that closes it is over (see
+            // `TransferDialog::close`).
+            cx.defer(move |cx| dr_shell::dialogs::hide(cx, id));
         }
     }
 

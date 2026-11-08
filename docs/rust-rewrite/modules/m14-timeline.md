@@ -2,7 +2,7 @@
 
 2026-11-08，分支 `chihumyum/m01-shelf-home-3bf938`（main `77a957d3` 之后）。计划见 [modules.md 的 M14](../modules.md)。代码在新 crate `next/crates/dr-view-timeline/`。旧版是 `shells/desktop/views/DesktopBottomTimeline.tsx`、`components/BottomTimeline/*`、`features/graph/chapter-lane-drag.ts`、`usecase/chapter-timeline-move.ts`，样式在 `bottom-timeline.css`、`act-rail.css`。
 
-这一轮先做看得见的泳道和拖动。弹簧吸附、幕轨的拖动和新建、时间钉留到下一轮。外壳还没有稿纸下面的「底部面板」，所以时间线现在是一个独立的视图，外壳要加的位置写在「待协调」。
+这一轮先做看得见的泳道和拖动。弹簧吸附、幕轨的拖动和新建、时间钉留到下一轮。外壳第八轮（F6，分支 `claude/f6-shell-80c9fb`）给了稿纸下面的「底部面板」：`dr_view_timeline::init` 把时间线登记进去，⌘J 和稿纸角上的竹子开关它，看法、缩放、滚动按书记住（`kept.rs`）。这两处是 F6 写的。
 
 ## 一句话
 
@@ -89,7 +89,7 @@ cargo run -p dr-view-timeline --features capture --example timeline-capture -- .
 | 叙事时间轴的时间钉：新建、拖动、改名、绑定构想 | 没有（下一轮；F3 已有 `time_pin.*`） |
 | 片段和泳道名字的悬停卡（梗概、编辑故事线、转移至未归属、回到未放置） | 没有：外壳的悬停卡还在 sidebar.rs 里，要外壳给出来（下一轮） |
 | ⌘ / Ctrl 滚轮缩放 | 有 |
-| 记住书序 / 叙事时、横向滚动位置、缩放、未归属开没开 | 没有：外壳还没给模块存这些的地方，这一轮只在内存里 |
+| 记住书序 / 叙事时、横向滚动位置、缩放、未归属开没开 | 有：按书存在外壳给的本机布局里（`Workspace::book_memory("timeline")`，F6 第八轮）；滚动在滚轮停下 400 ms 后存 |
 | 手机的竖排时间线 | 不做（短期不管手机端） |
 
 ## 和旧版不一样的地方
@@ -102,7 +102,7 @@ cargo run -p dr-view-timeline --features capture --example timeline-capture -- .
 
 | 谁 | 接口 |
 | --- | --- |
-| 外壳（底部面板） | `dr_view_timeline::make(ws, cx) -> Entity<BottomTimeline>`；`BottomTimeline::min_height()` |
+| 外壳（底部面板） | `dr_view_timeline::init(cx)`（登记成外壳底部面板的时间线，F6 第八轮）；`make(ws, cx) -> Entity<BottomTimeline>`；`BottomTimeline::min_height()`；`kept::{KEY, Kept}` |
 | 测试、调试桥 | `BottomTimeline::{layout, set_axis, toggle_unaffiliated, toggle_unplaced, move_chapter, create_at, locate_current, drop_target, body_bounds, scroll_x, set_zoom}`；`model::{layout, membership, main_storyline, Scale, Layout, Lane, LaneId, Axis}` |
 | 故事图谱（M21） | `model::membership` 就是旧版两处共用的拖放规则（`canDropChapterOnLane` / `resolveChapterTimelineMembership`）；`model::Scale` 是同一套坐标 |
 
@@ -123,14 +123,14 @@ cargo run -p dr-view-timeline --features capture --example timeline-capture -- .
 
 ## 待协调
 
-1. **F6（dr-shell）：稿纸下面的底部面板**（旧版 `TimelineDrawer` + `BottomPanel`）。写在共享笔记 `m14-timeline.md`，和 M15 情节规划要的是同一块地方：
+1. ~~**F6（dr-shell）：稿纸下面的底部面板**~~：**F6 第八轮做了**（`pages::add_bottom_panel`，见 f6-shell.md「第八轮」）。下面是当时提的要求，留作对照（旧版 `TimelineDrawer` + `BottomPanel`）。写在共享笔记 `m14-timeline.md`，和 M15 情节规划要的是同一块地方：
    - 在中栏、稿纸下面，左右栏之间；
    - 默认高 180，上沿可以拖，最低到 `BottomTimeline::min_height()`；高度和情节规划共用，按书存；
    - ⌘J（`ToggleBottomTimeline`，现在是空的）和稿纸角上的时间线开关负责开关；沉浸写作时收起；
    - 一次只显示时间线或情节规划里的一个；
    - 「书序 / 叙事时」「未归属开没开」「缩放」「横向滚动」要能记住：外壳给一个按书存的地方，或者在注册表里加这几项。
 2. **F3（dr-workspace）：一次写完的「在时间线上放一章」**（旧版 `persistChapterTimelineMove`）。比如 `chapter.place {book, id, axis: book|narrative, order, storyline: 不变|无|id}`：改故事线和挪位置是一次提交、一步撤销。有了它，打散也能做成一步。
-3. **F6：悬停卡**。章节面板的悬停卡（`card_body`）现在是外壳私有的；时间线的片段和泳道名字要同一张卡，外壳可以把它做成 `dr_shell::workspace::hover_card(target, …)` 给模块用。
+3. ~~**F6：悬停卡**~~：**F6 第八轮给了** `dr_shell::workspace::page_hover_card(id, el, target, ws, extra, cx)`，片段和泳道名字接上它是这边下一轮的事。原来的说明：章节面板的悬停卡（`card_body`）现在是外壳私有的；时间线的片段和泳道名字要同一张卡，外壳可以把它做成 `dr_shell::workspace::hover_card(target, …)` 给模块用。
 
 ## 还没做的（下一轮）
 

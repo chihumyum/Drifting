@@ -23,8 +23,6 @@ mod preset;
 mod shape;
 
 use dr_doc::Result;
-use dr_doc::loro_types::VersionVector;
-use dr_model::DocId;
 
 pub use build::{SeededBook, T0};
 pub use commands::CommandBook;
@@ -101,80 +99,9 @@ impl Seeded {
     }
 }
 
-/// Store one seeded book; see [`Seeded::write_to`].
-pub fn write_book(
-    lib: &dr_store::Library,
-    b: &SeededBook,
-) -> std::result::Result<usize, WriteError> {
-    let book = b.book_id().as_str();
-    let mut written = 0;
-    let mut store = |doc_id: &DocId, genesis: Vec<u8>, bytes: Vec<u8>| -> dr_store::Result<()> {
-        let id = doc_id.to_string();
-        if lib.doc_info(&id)?.is_some() {
-            return Ok(());
-        }
-        let h = lib.open_doc(
-            &id,
-            dr_store::OpenDoc::CreateIfMissing {
-                kind: doc_id.kind().prefix(),
-                book_id: Some(book),
-                genesis: &move |d: &loro::LoroDoc| {
-                    d.import(&genesis)
-                        .expect("dr-doc's genesis imports into an empty document");
-                },
-            },
-        )?;
-        h.import(bytes, dr_store::Origin::Import)?;
-        h.compact_now()?;
-        h.close();
-        written += 1;
-        Ok(())
-    };
-    let all = VersionVector::default();
-    for p in &b.prose {
-        store(
-            p.doc_id(),
-            dr_doc::prose::genesis(p.doc_id()),
-            p.export_updates_since(&all)?,
-        )?;
-    }
-    store(
-        b.book.doc_id(),
-        dr_doc::book::genesis(b.book_id()),
-        b.book.export_updates_since(&all)?,
-    )?;
-    Ok(written)
-}
-
-/// Why storing a seed failed.
-#[derive(Debug)]
-pub enum WriteError {
-    Doc(dr_doc::DocError),
-    Store(dr_store::StoreError),
-}
-
-impl std::fmt::Display for WriteError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            WriteError::Doc(e) => write!(f, "{e}"),
-            WriteError::Store(e) => write!(f, "{e}"),
-        }
-    }
-}
-
-impl std::error::Error for WriteError {}
-
-impl From<dr_doc::DocError> for WriteError {
-    fn from(e: dr_doc::DocError) -> Self {
-        WriteError::Doc(e)
-    }
-}
-
-impl From<dr_store::StoreError> for WriteError {
-    fn from(e: dr_store::StoreError) -> Self {
-        WriteError::Store(e)
-    }
-}
+// Store one seeded book (see `Seeded::write_to`): dr-samples' writer, which
+// the product uses for the built-in samples.
+pub use dr_samples::{WriteError, write_book};
 
 /// Library options for a seeded library: dr-doc's style configuration.
 pub fn library_options(app_version: &str) -> dr_store::LibraryOptions {

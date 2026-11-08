@@ -222,7 +222,7 @@ release，机器负载 21–25，导出到同一个库再导回来（新 id）�
 
 ### 待协调
 
-1. **整合**：F6 的换库函数 `dr_shell::library::replace` 在它第六轮的分支上，合进 main 后在应用里用 `set_replace` 登记（见上面挂接点 5，监管会话整合时对一遍）。旧版文案里的「打开恢复前副本」按钮（`Library::pre_restore_backups` 有）也在设置那两行旁边，归 F6。
+1. **整合**：F6 的换库函数 `dr_shell::library::replace` 在它第六轮的分支上，合进 main 后在应用里用 `set_replace` 登记（见上面挂接点 5，监管会话整合时对一遍）。旧版文案里的「打开恢复前副本」按钮：**F6 第八轮做了**，「恢复…」旁边的淡按钮，在访达里打开恢复前副本的文件夹（`dr_store::Library::pre_restore_dir`，没有就先建）。
 2. **F2**：备份、核对、恢复的进度回调加上以后，对话框的进度条从「不确定」换成真进度。
 3. **合并**：F6 第六轮也在 `dr-shell/src/actions.rs` 加了 `BackupLibrary`、`RestoreLibrary`，这条分支也加了（同名、同一个列表），合并时留一份，`ImportDocuments` 留着。
 4. **M01（书架）**：书卡多了导出箭头、`ImportBook` 的占位删了；导入完书架靠索引事件重读，F2 的导入不发书目事件。

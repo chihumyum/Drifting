@@ -110,6 +110,8 @@ impl Session {
             ));
         }
         std::fs::create_dir_all(&out).map_err(|e| format!("{}: {e}", out.display()))?;
+        // Absolute: the app is given paths in it (`launch` answers `out`).
+        let out = std::path::absolute(&out).map_err(|e| format!("{}: {e}", out.display()))?;
         Ok(Session {
             library: data.join("library"),
             logs: place::logs_dir(&instance),
@@ -466,6 +468,9 @@ impl Backend for Session {
             "pid": pid,
             "profile": self.profile,
             "instance": self.instance,
+            // The run's output folder: files a scenario has the app write
+            // (a backup, an exported book) go here, beside the screenshots.
+            "out": self.out.to_string_lossy(),
             "ms": started.elapsed().as_millis() as u64,
             "log": log_path.to_string_lossy(),
         }))

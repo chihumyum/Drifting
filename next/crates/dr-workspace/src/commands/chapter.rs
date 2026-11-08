@@ -20,6 +20,9 @@ pub(crate) fn register(r: &mut Registry) {
         .add::<ChapterCreate>()
         .add::<ChapterUpdate>()
         .add::<ChapterMove>()
+        .add::<ChapterSetPlace>()
+        .add::<ChapterSpread>()
+        .add::<ChapterArrange>()
         .add::<ChapterTrash>()
         .add::<ChapterRestore>()
         .add::<ChapterPurge>()
@@ -170,8 +173,8 @@ pub(crate) fn seed_prose(
             return Err(WsError::invalid("text may not contain U+FFFC"));
         }
         let names = if cx.workspace().auto_links() && crate::autolink::links_for(cx.actor()) {
-            Some(crate::autolink::matcher(
-                &cx.book(book.as_str())?.reader.view(),
+            Some(crate::autolink::book_matcher(
+                &*cx.book(book.as_str())?,
                 doc,
             ))
         } else {
@@ -255,6 +258,14 @@ pub struct ChapterUpdateIn {
     /// `draft`, `finished` or `discarded`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub status: Option<String>,
+    /// Exact place in reading order (`null` takes it out: it sorts after
+    /// every chapter). `chapter.move` places it relative to others.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::commands::double_option"
+    )]
+    pub book_order: Option<Option<f64>>,
     /// Place on the narrative axis (`null` takes it off).
     #[serde(
         default,
@@ -277,7 +288,7 @@ pub struct ChapterUpdateIn {
 
 op! {
     ChapterUpdate = "chapter.update", Write, Book,
-    "Change a chapter's title, summary, status, narrative position or storylines.",
+    "Change a chapter's title, summary, status, place in reading order, narrative position or storylines.",
     fn(cx, input: ChapterUpdateIn) -> Named {
         let slot = cx.book(&input.book)?;
         let old = live_chapter(&slot, &input.id)?;
@@ -288,6 +299,9 @@ op! {
         }
         if let Some(Some(o)) = input.narrative_order && !o.is_finite() {
             return Err(WsError::invalid("narrative order must be finite"));
+        }
+        if let Some(Some(o)) = input.book_order && !o.is_finite() {
+            return Err(WsError::invalid("book order must be finite"));
         }
         let live: Vec<StorylineId> = storylines(&slot).iter().filter(|s| s.deleted_at.is_none()).map(|s| s.id.clone()).collect();
         let add: Vec<StorylineId> = input.add_storylines.iter().map(|s| {
@@ -315,12 +329,13 @@ op! {
             crate::autolink::backfill_title(cx, &slot, &old.id, t)?;
         }
         let id = old.id.clone();
-        let (t2, s2, st2, no, a2, r2, p2) = (title.clone(), input.summary.clone(), status.clone(), input.narrative_order, add.clone(), remove.clone(), primary.clone());
+        let (t2, s2, st2, bo, no, a2, r2, p2) = (title.clone(), input.summary.clone(), status.clone(), input.book_order, input.narrative_order, add.clone(), remove.clone(), primary.clone());
         cx.write_book(&slot, move |txn| {
             let w = txn.node(&id)?;
             if let Some(t) = &t2 { w.title(t)?; }
             if let Some(s) = &s2 { w.summary(s)?; }
             if let Some(s) = &st2 { w.status(s)?; }
+            if let Some(o) = bo { w.book_order(o)?; }
             if let Some(o) = no { w.narrative_order(o)?; }
             for s in &a2 { w.add_storyline(s)?; }
             for s in &r2 { w.remove_storyline(s)?; }
@@ -335,6 +350,7 @@ op! {
             title: title.as_ref().map(|_| old.title.clone()),
             summary: input.summary.as_ref().map(|_| old.summary.clone()),
             status: status.as_ref().map(|_| old.status.as_str().to_string()),
+            book_order: input.book_order.map(|_| old.book_order),
             narrative_order: input.narrative_order.map(|_| old.narrative_order),
             add_storylines: remove.iter().filter(|s| old.storylines.contains(*s)).map(|s| s.to_string()).collect(),
             remove_storylines: add.iter().filter(|s| !old.storylines.contains(*s)).map(|s| s.to_string()).collect(),
@@ -369,6 +385,398 @@ op! {
         let back = old.effective_book_order().map(ChapterPlace::Order).unwrap_or(ChapterPlace::Last);
         cx.undo_with(Invocation::new("chapter.move", ChapterMoveIn { book: input.book.clone(), id: input.id.clone(), place: back }));
         Ok(ChapterCreated { id: input.id, title: old.title, book_order: order })
+    }
+}
+
+// ---- place, spread, arrange ---------------------------------------------------
+//
+// The timeline's writes (M14, and M21's story graph): a drop puts a chapter
+// at an exact coordinate of the axis shown and, when it lands on another
+// lane, on that storyline, in one write and one undo step (the old
+// `persistChapterTimelineMove`); 打散 respaces every placed chapter of an
+// axis, moving the act boundaries along on the book axis, in one write too
+// (the old `spreadTimelineNodes` + `remapActBoundariesForSpread`).
+
+/// The axis a chapter's coordinate is on.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum OrderAxis {
+    /// Reading order (`book_order`).
+    #[default]
+    Book,
+    /// Story time (`narrative_order`).
+    Narrative,
+}
+
+impl OrderAxis {
+    fn of(self, n: &Node) -> Option<f64> {
+        match self {
+            OrderAxis::Book => n.effective_book_order(),
+            OrderAxis::Narrative => n.narrative_order.filter(|o| o.is_finite()),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct ChapterPlaceIn {
+    pub book: String,
+    pub id: String,
+    #[serde(default)]
+    pub axis: OrderAxis,
+    /// The exact coordinate on that axis (a drop's, not snapped).
+    pub order: f64,
+    /// Absent: storylines stay. `null`: off every storyline. An id: that
+    /// storyline becomes the primary one and the old primary is dropped;
+    /// the other storylines stay.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::commands::double_option"
+    )]
+    pub storyline: Option<Option<String>>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct ChapterPlaced {
+    pub id: String,
+    pub axis: OrderAxis,
+    pub order: f64,
+    /// The chapter's storylines afterwards, sorted.
+    pub storylines: Vec<String>,
+    pub primary_storyline: Option<String>,
+}
+
+/// The storylines a chapter ends up on when dropped on `target`'s lane
+/// (`resolveChapterTimelineMembership`): the members and the primary one.
+fn lane_membership(
+    old: &Node,
+    target: &Option<Option<StorylineId>>,
+) -> (std::collections::BTreeSet<StorylineId>, Option<StorylineId>) {
+    let members: std::collections::BTreeSet<StorylineId> = old.storylines.iter().cloned().collect();
+    let primary = old.effective_primary_storyline().cloned();
+    match target {
+        None => (members, primary),
+        Some(None) => (Default::default(), None),
+        Some(Some(to)) => {
+            let mut m: std::collections::BTreeSet<StorylineId> = members
+                .into_iter()
+                .filter(|s| Some(s) != primary.as_ref())
+                .collect();
+            m.insert(to.clone());
+            (m, Some(to.clone()))
+        }
+    }
+}
+
+op! {
+    ChapterSetPlace = "chapter.place", Write, Book,
+    "Put a chapter at an exact place on the reading-order or story-time axis and, optionally, on another storyline (as the primary one) or on none, in one step.",
+    fn(cx, input: ChapterPlaceIn) -> ChapterPlaced {
+        let slot = cx.book(&input.book)?;
+        let old = live_chapter(&slot, &input.id)?;
+        if !input.order.is_finite() {
+            return Err(WsError::invalid("the order must be finite"));
+        }
+        let target: Option<Option<StorylineId>> = match &input.storyline {
+            Some(Some(s)) => {
+                let id: StorylineId = pid("storyline", s)?;
+                if !storylines(&slot).iter().any(|l| l.id == id && l.deleted_at.is_none()) {
+                    return Err(WsError::not_found("storyline", s));
+                }
+                Some(Some(id))
+            }
+            Some(None) => Some(None),
+            None => None,
+        };
+        let (members, primary) = lane_membership(&old, &target);
+        let before: std::collections::BTreeSet<StorylineId> = old.storylines.iter().cloned().collect();
+        let old_primary = old.effective_primary_storyline().cloned();
+        let add: Vec<StorylineId> = members.difference(&before).cloned().collect();
+        let remove: Vec<StorylineId> = before.difference(&members).cloned().collect();
+        let set_primary = primary != old_primary || (primary.is_none() && old.primary_storyline.is_some() && target.is_some());
+        let moved = input.axis.of(&old) != Some(input.order);
+        let out = ChapterPlaced {
+            id: input.id.clone(),
+            axis: input.axis,
+            order: input.order,
+            storylines: members.iter().map(|s| s.to_string()).collect(),
+            primary_storyline: primary.as_ref().map(|s| s.to_string()),
+        };
+        if !moved && add.is_empty() && remove.is_empty() && !set_primary {
+            cx.undo_nothing();
+            return Ok(out);
+        }
+        let (id, axis, order, a2, r2, p2) = (old.id.clone(), input.axis, input.order, add.clone(), remove.clone(), primary.clone());
+        cx.write_book(&slot, move |txn| {
+            let w = txn.node(&id)?;
+            if moved {
+                match axis {
+                    OrderAxis::Book => w.book_order(Some(order))?,
+                    OrderAxis::Narrative => w.narrative_order(Some(order))?,
+                };
+            }
+            for s in &a2 { w.add_storyline(s)?; }
+            for s in &r2 { w.remove_storyline(s)?; }
+            if set_primary { w.primary_storyline(p2.as_ref())?; }
+            Ok(())
+        })?;
+        cx.effect(EffectAction::Moved, "node", &input.id, Some(&old.title));
+        cx.undo_with(Invocation::new("chapter.update", ChapterUpdateIn {
+            book: input.book.clone(),
+            id: input.id.clone(),
+            book_order: (moved && axis == OrderAxis::Book).then_some(old.book_order),
+            narrative_order: (moved && axis == OrderAxis::Narrative).then_some(old.narrative_order),
+            add_storylines: remove.iter().map(|s| s.to_string()).collect(),
+            remove_storylines: add.iter().map(|s| s.to_string()).collect(),
+            primary_storyline: set_primary.then(|| old_primary.as_ref().map(|s| s.to_string())),
+            ..ChapterUpdateIn::default()
+        }));
+        Ok(out)
+    }
+}
+
+/// A chapter's coordinate on one axis.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct ChapterAt {
+    pub id: String,
+    pub order: f64,
+}
+
+/// An act boundary's place in reading order.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct ActAt {
+    pub id: String,
+    pub start_order: f64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct ChapterArrangeIn {
+    pub book: String,
+    #[serde(default)]
+    pub axis: OrderAxis,
+    /// Exact coordinates for these chapters.
+    #[serde(default)]
+    pub chapters: Vec<ChapterAt>,
+    /// Act boundaries to move with them (reading order only).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub acts: Vec<ActAt>,
+}
+
+/// What an arrangement or a spread changed: the new coordinates.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct Arranged {
+    pub chapters: Vec<ChapterAt>,
+    pub acts: Vec<ActAt>,
+}
+
+/// Writes `plan` in one book write and declares its exact inverse.
+fn arrange(
+    cx: &Cx<'_>,
+    slot: &BookSlot,
+    book: &str,
+    axis: OrderAxis,
+    plan: Arranged,
+) -> Result<Arranged> {
+    if axis == OrderAxis::Narrative && !plan.acts.is_empty() {
+        return Err(WsError::invalid("acts are on the reading-order axis"));
+    }
+    let all = nodes(slot);
+    let all_acts = acts(slot);
+    let mut ch: Vec<(Node, f64)> = Vec::new();
+    for c in &plan.chapters {
+        let nid: NodeId = pid("chapter", &c.id)?;
+        let n = all
+            .get(&nid)
+            .filter(|n| n.is_chapter())
+            .ok_or_else(|| WsError::not_found("chapter", &c.id))?;
+        if !c.order.is_finite() {
+            return Err(WsError::invalid("the order must be finite"));
+        }
+        if ch.iter().any(|(m, _)| m.id == n.id) {
+            return Err(WsError::invalid(format!(
+                "chapter {} is listed twice",
+                c.id
+            )));
+        }
+        let now = match axis {
+            OrderAxis::Book => n.book_order,
+            OrderAxis::Narrative => n.narrative_order,
+        };
+        if now != Some(c.order) {
+            ch.push((n.clone(), c.order));
+        }
+    }
+    let mut ac: Vec<(dr_model::book::Act, f64)> = Vec::new();
+    for a in &plan.acts {
+        let old = all_acts
+            .iter()
+            .find(|x| x.id.as_str() == a.id)
+            .ok_or_else(|| WsError::not_found("act", &a.id))?;
+        if !a.start_order.is_finite() {
+            return Err(WsError::invalid("act start must be finite"));
+        }
+        if ac.iter().any(|(m, _)| m.id == old.id) {
+            return Err(WsError::invalid(format!("act {} is listed twice", a.id)));
+        }
+        if old.start_order != Some(a.start_order) {
+            ac.push((old.clone(), a.start_order));
+        }
+    }
+    let done = Arranged {
+        chapters: ch
+            .iter()
+            .map(|(n, o)| ChapterAt {
+                id: n.id.to_string(),
+                order: *o,
+            })
+            .collect(),
+        acts: ac
+            .iter()
+            .map(|(a, o)| ActAt {
+                id: a.id.to_string(),
+                start_order: *o,
+            })
+            .collect(),
+    };
+    if ch.is_empty() && ac.is_empty() {
+        cx.undo_nothing();
+        return Ok(done);
+    }
+    let writes: Vec<(NodeId, f64)> = ch.iter().map(|(n, o)| (n.id.clone(), *o)).collect();
+    let act_writes: Vec<(ActId, f64)> = ac.iter().map(|(a, o)| (a.id.clone(), *o)).collect();
+    cx.write_book(slot, move |txn| {
+        for (id, o) in &writes {
+            let w = txn.node(id)?;
+            match axis {
+                OrderAxis::Book => w.book_order(Some(*o))?,
+                OrderAxis::Narrative => w.narrative_order(Some(*o))?,
+            };
+        }
+        for (id, o) in &act_writes {
+            txn.act(id)?.start_order(Some(*o))?;
+        }
+        Ok(())
+    })?;
+    for (n, _) in &ch {
+        cx.effect(EffectAction::Moved, "node", n.id.as_str(), Some(&n.title));
+    }
+    for (a, _) in &ac {
+        cx.effect(EffectAction::Updated, "act", a.id.as_str(), Some(&a.name));
+    }
+    // Only coordinates that were there come back exactly; one that was
+    // missing is not taken off again (a live chapter always has a reading
+    // place, and a spread only touches placed chapters).
+    let back_ch: Vec<ChapterAt> = ch
+        .iter()
+        .filter_map(|(n, _)| {
+            let was = match axis {
+                OrderAxis::Book => n.book_order,
+                OrderAxis::Narrative => n.narrative_order,
+            };
+            was.filter(|o| o.is_finite()).map(|o| ChapterAt {
+                id: n.id.to_string(),
+                order: o,
+            })
+        })
+        .collect();
+    let back_acts: Vec<ActAt> = ac
+        .iter()
+        .filter_map(|(a, _)| {
+            a.start_order.filter(|o| o.is_finite()).map(|o| ActAt {
+                id: a.id.to_string(),
+                start_order: o,
+            })
+        })
+        .collect();
+    cx.undo_with(Invocation::new(
+        "chapter.arrange",
+        ChapterArrangeIn {
+            book: book.to_string(),
+            axis,
+            chapters: back_ch,
+            acts: back_acts,
+        },
+    ));
+    Ok(done)
+}
+
+op! {
+    ChapterArrange = "chapter.arrange", Write, Book,
+    "Set exact coordinates of several chapters on one axis, and move act boundaries with them, in one step (undo of a spread uses it).",
+    fn(cx, input: ChapterArrangeIn) -> Arranged {
+        let slot = cx.book(&input.book)?;
+        arrange(cx, &slot, &input.book, input.axis, Arranged { chapters: input.chapters, acts: input.acts })
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct ChapterSpreadIn {
+    pub book: String,
+    #[serde(default)]
+    pub axis: OrderAxis,
+}
+
+/// The 打散 plan: every live chapter placed on `axis`, kept in order and
+/// set one stride apart from `min(first, 1)`; on the reading-order axis
+/// each act boundary lands halfway between the chapters it fell between
+/// (half a stride before the first, or after the last).
+fn spread_plan(slot: &BookSlot, axis: OrderAxis) -> Arranged {
+    let mut placed: Vec<(Node, f64)> = chapters(slot)
+        .into_iter()
+        .filter_map(|n| axis.of(&n).map(|o| (n, o)))
+        .collect();
+    placed.sort_by(|a, b| cmp_order((Some(a.1), &a.0.id), (Some(b.1), &b.0.id)));
+    if placed.len() < 2 {
+        return Arranged::default();
+    }
+    let stride = dr_model::order::CHAPTER_ORDER_STRIDE;
+    let start = placed[0].1.min(1.0);
+    let moved: Vec<(f64, f64)> = placed
+        .iter()
+        .enumerate()
+        .map(|(i, (_, o))| (*o, start + i as f64 * stride))
+        .collect();
+    let chapters = placed
+        .iter()
+        .zip(&moved)
+        .map(|((n, _), (_, new))| ChapterAt {
+            id: n.id.to_string(),
+            order: *new,
+        })
+        .collect();
+    let mut out_acts = Vec::new();
+    if axis == OrderAxis::Book {
+        for a in acts(slot).iter() {
+            let Some(s) = a.start_order.filter(|o| o.is_finite()) else {
+                continue;
+            };
+            let before = moved.iter().rev().find(|(o, _)| *o < s);
+            let after = moved.iter().find(|(o, _)| *o >= s);
+            let next = match (before, after) {
+                (Some(b), Some(a)) => (b.1 + a.1) / 2.0,
+                (None, Some(a)) => a.1 - stride / 2.0,
+                (Some(b), None) => b.1 + stride / 2.0,
+                (None, None) => continue,
+            };
+            out_acts.push(ActAt {
+                id: a.id.to_string(),
+                start_order: next,
+            });
+        }
+    }
+    Arranged {
+        chapters,
+        acts: out_acts,
+    }
+}
+
+op! {
+    ChapterSpread = "chapter.spread", Write, Book,
+    "Spread out (打散) the chapters on one axis: same order, evenly spaced, act boundaries moved along, in one step.",
+    fn(cx, input: ChapterSpreadIn) -> Arranged {
+        let slot = cx.book(&input.book)?;
+        let plan = spread_plan(&slot, input.axis);
+        arrange(cx, &slot, &input.book, input.axis, plan)
     }
 }
 

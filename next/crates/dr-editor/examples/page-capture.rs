@@ -417,7 +417,7 @@ fn note_shot(
     materials: (&str, &str),
     palette: &'static dr_ui::tokens::Palette,
     dir: &Path,
-    name: &str,
+    (name, cells_selected): (&str, bool),
 ) {
     let mut shot = Shot::open_with(ws, book, doc, false, Some(palette));
     let view = shot.view.clone();
@@ -465,6 +465,12 @@ fn note_shot(
     // The caret at the end of 七点前后, the bar up.
     let table = shot.update(|_, cx| view.read(cx).note_embeds().unwrap().tables()[0].clone());
     shot.update(|window, cx| table.update(cx, |t, cx| t.focus_cell(2, 1, true, window, cx)));
+    if cells_selected {
+        // Two rows of two cells, selected whole.
+        shot.update(|window, cx| {
+            table.update(cx, |t, cx| t.select_cells((1, 0), (2, 1), window, cx))
+        });
+    }
     shot.cx
         .advance_clock(dr_editor::table::BAR_RETURN + Duration::from_millis(20));
     shot.settle();
@@ -632,9 +638,11 @@ fn main() {
         b"%PDF-1.4\n% a stub for the capture\n%%EOF\n",
         None,
     );
-    for (palette, name) in [
-        (&dr_ui::tokens::Palette::LIGHT, "note-light.png"),
-        (&dr_ui::tokens::Palette::DARK, "note-dark.png"),
+    for (palette, name, cells_selected) in [
+        (&dr_ui::tokens::Palette::LIGHT, "note-light.png", false),
+        (&dr_ui::tokens::Palette::DARK, "note-dark.png", false),
+        (&dr_ui::tokens::Palette::LIGHT, "note-cells-light.png", true),
+        (&dr_ui::tokens::Palette::DARK, "note-cells-dark.png", true),
     ] {
         // Each shot on a fresh copy of the note.
         let copy = out(
@@ -653,7 +661,7 @@ fn main() {
             (&picture, &pdf),
             palette,
             &dir,
-            name,
+            (name, cells_selected),
         );
     }
     let _ = ws.shutdown();

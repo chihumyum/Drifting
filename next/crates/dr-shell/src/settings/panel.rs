@@ -624,17 +624,41 @@ impl SettingsPanel {
                 };
                 let panel = cx.entity();
                 let backup = info.action == RowAction::Backup;
-                Button::new(id, t(cx, label))
-                    .small()
-                    .on_click(move |_, window, cx| {
-                        // Settings closes; the dialog comes up over the page.
-                        panel.update(cx, |_, cx| cx.emit(PanelEvent::Close));
-                        if backup {
-                            window.dispatch_action(Box::new(crate::actions::BackupLibrary), cx);
-                        } else {
-                            window.dispatch_action(Box::new(crate::actions::RestoreLibrary), cx);
-                        }
-                    })
+                let button =
+                    Button::new(id, t(cx, label))
+                        .small()
+                        .on_click(move |_, window, cx| {
+                            // Settings closes; the dialog comes up over the page.
+                            panel.update(cx, |_, cx| cx.emit(PanelEvent::Close));
+                            if backup {
+                                window.dispatch_action(Box::new(crate::actions::BackupLibrary), cx);
+                            } else {
+                                window
+                                    .dispatch_action(Box::new(crate::actions::RestoreLibrary), cx);
+                            }
+                        });
+                if backup {
+                    return button.into_any_element();
+                }
+                // 「打开恢复前副本」, the 0.1 ghost button beside 恢复….
+                let copies = Button::new(
+                    "open-pre-restore",
+                    t(cx, keys::settings::sync::backup::OPEN_SAFETY),
+                )
+                .text()
+                .small()
+                .on_click(|_, _, cx| {
+                    if let Some(folder) = pre_restore_folder(cx) {
+                        cx.open_with_system(&folder);
+                    }
+                });
+                div()
+                    .flex()
+                    .flex_row()
+                    .items_center()
+                    .gap(px(6.0))
+                    .child(button)
+                    .child(copies)
                     .into_any_element()
             }
             RowAction::Version => div()
@@ -750,6 +774,23 @@ pub fn version_line(cx: &App) -> String {
         t(cx, keys::settings::about::ENGINE),
         t(cx, keys::settings::update::CHANNEL_DESC),
     )
+}
+
+/// The folder the library's pre-restore backups are kept in, made when it
+/// is not there yet (the 0.1 client opened it all the same); `None`
+/// without a library or when it cannot be made.
+pub fn pre_restore_folder(cx: &App) -> Option<std::path::PathBuf> {
+    let lib = cx
+        .try_global::<crate::Services>()
+        .and_then(|s| s.library.as_ref())?;
+    let folder = dr_store::Library::pre_restore_dir(lib.library().paths().root.clone());
+    match std::fs::create_dir_all(&folder) {
+        Ok(()) => Some(folder),
+        Err(error) => {
+            log::warn!("the pre-restore folder could not be made: {error}");
+            None
+        }
+    }
 }
 
 /// The de-identified diagnostics summary (the 0.1 client's 脱敏诊断摘要):

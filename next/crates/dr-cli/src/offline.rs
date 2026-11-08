@@ -9,7 +9,9 @@
 //! 3. **Only with `--yes`.** Without it the command prints what it would do
 //!    and where the backup would go, and changes nothing.
 //!
-//! Reading never needs any of this: `inspect` works on a copy.
+//! Reading never needs any of this: `inspect` opens the library read-only,
+//! queries and read-only scenarios work on a copy ([`on_copy`]; F3 opens
+//! documents through editing handles, which a read-only library refuses).
 
 use std::fs::{File, OpenOptions, TryLockError};
 use std::path::{Path, PathBuf};

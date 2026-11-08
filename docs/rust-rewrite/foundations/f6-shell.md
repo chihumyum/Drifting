@@ -1,10 +1,27 @@
-# F6 dr-shell：外壳（第一至第七轮，M03、M04、M05 接入、M08）
+# F6 dr-shell：外壳（第一至第八轮，M03、M04、M05 接入、M08）
 
-2026-11-07 起，分支 `claude/f6-shell-80c9fb`。第一个里程碑从整合分支 `claude/f-batch2-integrate` 开工；第二个里程碑从 main `4c477ea0`（F3 第二个里程碑、F5 第二个里程碑已合）接着做；第三个里程碑（11-08）从 main `a039863f`（dr-editor、F5 的 `TabDock` 已合）接着做；第四轮（11-08）从 main `7444ff65`（M01/M02 书架与作品主页、M06/M07 搜索与字数、F4c 输入、F4d 画层、M05 全书视图已合）接着做；第七轮（11-08）从 main `77a957d3`（第十二批）接着做；第六轮（11-08）从 main `60d510a6`（第十一批）接着做；第五轮（11-08）从 main `1652a95e`（第十批：F4e 第二批、F4d 画层与 M18、F3 第四轮与 M09、F7 设备与 M39、F8 调试桥、M10 导入界面）接着做。代码在 `next/crates/dr-shell`、`next/crates/dr-i18n`，应用入口 `next/app/drifting`。计划见 [foundation.md 的 F6](../foundation.md#f6-dr-shell)。
+2026-11-07 起，分支 `claude/f6-shell-80c9fb`。第一个里程碑从整合分支 `claude/f-batch2-integrate` 开工；第二个里程碑从 main `4c477ea0`（F3 第二个里程碑、F5 第二个里程碑已合）接着做；第三个里程碑（11-08）从 main `a039863f`（dr-editor、F5 的 `TabDock` 已合）接着做；第四轮（11-08）从 main `7444ff65`（M01/M02 书架与作品主页、M06/M07 搜索与字数、F4c 输入、F4d 画层、M05 全书视图已合）接着做；第八轮（11-08）从 main `2eb865fa`（第十三批）接着做，中途合了 main `4e40ee20`（第十四批，F4 第五批）；第七轮（11-08）从 main `77a957d3`（第十二批）接着做；第六轮（11-08）从 main `60d510a6`（第十一批）接着做；第五轮（11-08）从 main `1652a95e`（第十批：F4e 第二批、F4d 画层与 M18、F3 第四轮与 M09、F7 设备与 M39、F8 调试桥、M10 导入界面）接着做。代码在 `next/crates/dr-shell`、`next/crates/dr-i18n`，应用入口 `next/app/drifting`。计划见 [foundation.md 的 F6](../foundation.md#f6-dr-shell)。
 
 ## 一句话
 
 稿纸四周的那一圈搬到了 GPUI 上：三栏、两侧抽屉、稿纸顶上的标签坞、分栏、Super View 舞台、设置、通知、快捷键、退出流程，外加读旧版九种语言文案的 `dr-i18n`。第二个里程碑起，外壳打开的是**真的书**：面板列表从 F3 的查询来，别处（帮手、另一台设备）删了东西，对应的标签自己关掉。第三个里程碑起，**在 App 里打开一本书就能写字**：稿纸上是 F4 的编辑器，打的字、回车、撤销都经 F3 落盘，关掉 App 再开都在，搜索和字数跟着变。
+
+### 第八轮：底部面板、按书记住、换库交还、恢复前副本、悬停卡给模块（大白话）
+
+- **底部面板。** 稿纸下面、两侧栏之间的一块地方，一次只放一样：时间线（M14），或者前面这一章的情节规划（M15）。默认 180 高，上沿能拖：拖住的那一点一直在指针下面，最低 180（时间线泳道多时以它要的高度为准），最高给稿纸留 240。开、关和侧栏一样滑（420 ms），收起时还画着刚才那一块；一本书第一次画出来时不滑。
+- **开关。** ⌘J 和稿纸角上的竹子（在工具托盘左边，分栏时只在右边那页）开关时间线；情节规划的按钮在工具托盘第一个，只在章节或构想在前面时出现。打开情节规划，时间线让位；⌘J 又把时间线换回来、情节规划收起。别的页面在前面时情节规划让开，回到章节或构想再出来，作者的选择留着；沉浸写作时整块收起。开没开、哪一块、多高，跟这本书的布局一起存在本机（`BookLayout.bottom`）。只有登记了的模块才有对应的开关。
+- **给模块的登记口：`pages::add_bottom_panel(cx, BottomPane, make)`。** 照 `add_left_panel` 的样子：时间线每个窗口、每本书做一次（面板开始滑出时就做，边滑边读），情节规划每换一个章节或构想做一个（时间线换上来时放掉）；换库时全部放掉重做。模块给 `BottomPanel { view, min_height, refresh }`：`min_height` 是拖的时候最低能到多高，`refresh` 在书目快照变了时叫（情节规划用它在改名后换标题）。时间线和情节规划的 `init` 我顺手写了（dr-view-timeline、dr-view-plot 各加一个 `init`，应用里调用）。
+- **时间线按书记住。** 外壳给模块一个按书存的小地方：`Workspace::book_memory(key)` / `set_book_memory(key, value, cx)`，存在这本书的本机布局里（`BookLayout.modules`），不进书。时间线把「书序还是叙事时、未归属开没开、缩放、横向滚动」存在 `timeline` 下（`dr_view_timeline::kept::Kept`）：换书各用各的，重开还在；滚动在滚轮停下 400 ms 后存。
+- **审 M10 改的外壳三处。** 通知带按钮（`NoticeAction`）、`with_workspace` 先找活跃窗口、`dialogs::show_in`：做法都对，留着。改了两处：
+  - 在对话框自己的按钮里关它时（M41 备份对话框的「关闭」「完成」就是这么调的），GPUI 正把这个窗口借出去处理这次点击，`hide` 再去改它会失败；以前是悄悄失败，对话框关不掉。现在外壳的 `workspace::update_workspace` 先试着马上改，窗口正忙就等这次点击结束再改；`show`、`show_in`、`hide`、`with_workspace`、`with_workspace_in` 都走它。
+  - 通知上的按钮点了，不再连带触发整行的点击（崩溃回访那一行整行能点）。
+- **换库关不掉就交还。** `library::replace` 改用 F3 的 `try_shutdown`：还有别人拿着库时，F3 把工作区原样交回，外壳就不跑替换任务，窗口接着用原来的库，对话框听到「关不掉」。F3 连原样都开不回来时，照旧从目录再开一次。
+- **「打开恢复前副本」。** 设置「本地数据」里「恢复…」旁边一个淡按钮（旧版文案 `settings.sync.backup.openSafety`），在访达里打开 M41 恢复前存副本的文件夹，没有就先建，和旧版一样。文件夹在哪由 F2 说了算：dr-store 加了 `Library::pre_restore_dir(root)`。
+- **悬停卡给模块。** `dr_shell::workspace::page_hover_card(id, el, target, ws, extra, cx)`：就是章节面板那张卡（名字、字数、故事线、梗概，下面是和 ⋯ 菜单一样的动作），模块自己的行（比如时间线的「转移至未归属」）排在删除一类前面。在模块自己的视图里画的时候调（它要读工作区）。
+- **退出顺序。** 照 F7 的建议，⌘Q 先把应用藏起来，再跑退出钩子：导入收尾最多两秒，窗口不再呆站在那里。由应用启动时调一次 `quit::hide_first(cx)` 打开（GPUI 的测试平台不会藏，测试和离屏截图不开）。
+- 调试桥的窗口状态多了 `bottom: {pane, height}`；真窗口场景 `crates/dr-cli/scenarios/bottom-panel.json`。
+- **素材笔记（F4 第五批，合 main `4e40ee20` 后做）。** ⌘⇧H 的高亮键（`dr_editor::highlight::key_bindings()`）经 `keymap::add_bindings` 登记，改快捷键重建键位表后还在；点素材笔记里嵌入的素材（`MaterialOpened`）用预览标签打开那个素材，和旧版一样。
+- 还没做：两块互换时旧版那种「往上推」的动画没画，直接换；时间线自己的片段还没用悬停卡（M14 下一轮）。
 
 ### 第七轮：链接、跨章选区、左栏给模块、侧栏记住滚动（大白话）
 
@@ -192,6 +209,14 @@ cargo run --release -p dr-shell --features capture --example shell-capture -- --
 | 通知中心（崩溃跟进、Markdown 文件夹的复数文案、更新） | [notifications-light](f6/notifications-light.png) | [notifications-dark](f6/notifications-dark.png) |
 | 过渡进行中 | [motion-midway-light](f6/motion-midway-light.png) | [motion-midway-dark](f6/motion-midway-dark.png) |
 
+底部面板（第八轮）是真窗口里拍的：带调试桥的开发版跑场景 `crates/dr-cli/scenarios/bottom-panel.json`（临时 profile、showcase 生成的《慢钟》），应用自己画出的窗口截图，缩到 1440×900，只有浅色。
+
+| 画面 | 截图 |
+| --- | --- |
+| 第二章在前，稿纸下面是时间线（180 高，四条故事线泳道、卷一的幕轨），角上竹子、工具托盘、一炷香浮在面板上方 | [bottom-timeline](f6/bottom-timeline.png) |
+| 托盘第一个按钮打开这一章的情节规划（空的 3 × 3），时间线让位 | [bottom-planner](f6/bottom-planner.png) |
+| ⌘J 两次：时间线回来、再收起，稿纸回到整栏高 | [bottom-closed](f6/bottom-closed.png) |
+
 ## 做了什么
 
 ### 1. dr-i18n：文案
@@ -318,19 +343,24 @@ app.run(|cx| {
 | `workspace::editors` | 以后要在稿纸上加东西的模块（批注栏、沉浸写作） | `editor_settings(cx)`、`base_style(&theme)`、`block_style(&theme)`、`forward_edit_actions(el)`、`PageView::{prose, view}`、`SavedPosition`、`PAGE_GUTTER`、`TITLE_SIZE`；`pub use dr_editor::{BookEditor, ChapterEditor, …}` |
 | `workspace::{find, outline, corner}` | 查找栏、大纲栏、稿纸角落 | `find::{FindBar, key_bindings}`（`FindBar::{set_query, step, status, set_replacing, set_replacement, replacement, replace_current, replace_all}`、字段 `replacing`）；`Workspace::{open_find, open_replace, close_find}`；`outline::{read(&PageView, cx), plan, jump_to}`；`corner::corner` |
 | `workspace::chapter_sort` | 章节面板 | `ChapterSort { book, inner, outer, primary_only, meta }`（`BookSort`、`InnerSort`、`OuterSort`、`CellMeta`）、`sort_book`、`sort_inner`、`readout`、`compact_words`、`short_date`；字段 `Workspace::chapter_sort`、`BookLayout::chapter_sort` |
-| `dialogs` | 要开模态对话框的模块（F7 反馈、M10 导入……） | `dialogs::show(cx, AnyView)`、`dialogs::hide(cx, EntityId)`；`Workspace::modal()`（对话框或快照历史开着，工作区快捷键停） |
+| `dialogs` | 要开模态对话框的模块（F7 反馈、M10 导入……） | `dialogs::show(cx, AnyView)`、`dialogs::show_in(window, cx, AnyView)`、`dialogs::hide(cx, EntityId)`（在哪里调都行，对话框自己的按钮里也行）；`Workspace::modal()`（对话框或快照历史开着，工作区快捷键停）；`workspace::{with_workspace, with_workspace_in, update_workspace, active_workspace}` |
+| `pages`（底部面板） | 时间线（M14）、情节规划（M15） | `add_bottom_panel(cx, BottomPane::{Timeline, Planner}, \|&BottomHost, &mut Window, &mut App\| Option<BottomPanel>)`；`BottomHost { workspace, library, book_id, book, target }`；`BottomPanel::new(view).min_height(\|cx\| f32).on_refresh(\|host, cx\| …)`；`has_bottom_panel(pane, cx)`；`Workspace::{bottom_pane(cx), toggle_timeline, toggle_planner, bottom_height, set_bottom_height, bottom_view(pane)}`；`workspace::{BottomLayout, BottomResize}` |
+| `workspace`（按书记住） | 想在本机按书记点什么的模块（时间线；情节规划的宽高比也可以） | `Workspace::book_memory(key) -> Option<&Value>`、`set_book_memory(key, Value, cx)`（存进 `BookLayout.modules`，跟布局一起写设置文件） |
+| `workspace`（悬停卡） | 自己画东西、要同一张页面卡的模块（M14 的片段和泳道名） | `page_hover_card(id, el, &target, &ws, extra: Vec<PageMenuSection>, cx)`；`PageMenuHost::of(&ws, cx)` |
 | `pages`（⋯ 菜单） | 要在页面 ⋯ 菜单里加行的模块（M11） | `add_page_menu(cx, \|target, &PageMenuHost, &App\| Vec<PageMenuSection>)`；`PageMenuItem { id, icon: RowIcon, label, checked, danger, run: RunRow }`、`PageMenuHost { workspace, library, book_id, book }` |
+| `pages`（整页） | 自己画一整页、不用正文编辑器的模块（M19 的图片和 PDF 素材） | `add_page_view(cx, \|&Target, PageViewHost, &mut Window, &mut App\| Option<ModulePage>)`；`ModulePage { view, focus }`、`PageViewHost { workspace, library, book_id, book }`；`Workspace::module_page(&Target)`。开编辑器前先问，答了的页存成 `PageEditor::module`，铺在桌面上、全宽、不画稿纸；在前面时 `focus` 拿键盘，和编辑器一样；关标签照旧放掉（[m19-materials.md](../modules/m19-materials.md)） |
 | `pages`（左栏） | 自己画左栏某个标签的模块（M11 的要素面板） | `add_left_panel(cx, \|LeftTab, WeakEntity<Workspace>, &mut Window, &mut App\| Option<LeftPanel>)`；`LeftPanel { head: AnyView, body: AnyView }` |
 | `workspace`（提示、侧栏状态） | 要提示一句的地方；测试 | `Workspace::toast(文字, cx)`；`folded_in(pane)`、`toggle_fold(pane, group, cx)`、`fold_all(pane, cx)`、`list_scroll(list)` |
 | `workspace::page_actions` | ⋯ 菜单、悬停卡 | `page_actions(&ws, &host, &target, cx) -> Vec<PageMenuSection>`（分享与导出、写作状态、模块的行、历史快照、最后是删除一类） |
 | `nav::Open` | 打开页面的人（dr-view-page 的 ⁂） | `Open::PREVIEW`、`Open::KEEP`、`Open::KEEP.at_title()`（这一页的编辑器打开时不拿键盘，交给章首的标题） |
 | `actions` | dr-text 的备份、恢复对话框 | `BackupLibrary`、`RestoreLibrary`（`workspace::` 命名空间；设置「本地数据」的两个按钮派发） |
-| `library` | dr-view-transfer（恢复备份） | `replace(cx, job: FnOnce(&Path, LibraryOptions) -> Result<dr_store::Library, String> + Send, done: FnOnce(Result<(), String>, &mut App))` |
+| `library` | dr-view-transfer（恢复备份） | `replace(cx, job: FnOnce(&Path, LibraryOptions) -> Result<dr_store::Library, String> + Send, done: FnOnce(Result<(), String>, &mut App))`（库关不掉时不跑 `job`，原来的工作区接着用，`done` 听到原因） |
+| `settings::panel` | 设置「本地数据」 | `pre_restore_folder(cx) -> Option<PathBuf>`（恢复前副本的文件夹，没有就建） |
 | `account` | 书架、工作区左栏 | `account::menu(id, anchor, close, window, cx)`、`account::avatar(size, window, cx)` |
 | `keymap` | 想加快捷键的模块 | 在 `REGISTRY` 加一行（动作名、默认键、上下文、要不要列进设置）；模块自己上下文里的键（对话框的 ⌘↵、列表的 ↑↓，不是作者能改的快捷键）用 `add_bindings(cx, \|\| vec![KeyBinding::new(…)])`，`apply` 重建键位表时会一起重新绑上；`apply(&overrides, cx)`、`display(keys, os)`、`portable(keystroke, os)`、`conflict(...)` |
 | `settings` | 想加设置的模块、M37 偏好同步、M10 导入映射 | 在 `registry::REGISTRY` 加一项；`Settings::{read(cx), update(cx, \|file\| …), flush(cx), locale(cx)}`；`SettingsFile::{get, bool, str, number, set, reset, is_changed, key_bindings, set_key_binding, layout, set_layout, last_book, set_last_book, save}` |
 | `notifications` | 同步、分享、整理、Markdown 文件夹、更新 | `Notifications::post(Source::…, 文字, cx)`、`post_at`、`remove`、`clear`、`items`、`unread` |
-| `quit` | F2 / F3 / 同步 / 更新 | `quit::before_quit(cx, \|cx\| …)`：退出前要做完的事登记在这里；`quit::request(cx)` |
+| `quit` | F2 / F3 / 同步 / 更新 | `quit::before_quit(cx, \|cx\| …)`：退出前要做完的事登记在这里；`quit::request(cx)`；`quit::hide_first(cx)`（应用开：先藏起来再跑钩子） |
 | `strings` | 所有界面 | `t(cx, key)`、`tf(cx, key, &[("count", &3)])`、`tp(cx, plural_key, n, &[])`；旧版没有的句子写进 `crates/dr-i18n/own/<语言>.json`（九种语言齐全、不和旧版重名、复数键带 `_one` / `_other`，中日韩写不带后缀的一个），再跑 `sync-locales.py` |
 | `dr_i18n` | 不在 GPUI 里的地方（导出、命令行） | `I18n::new(Locale, Platform)`、`.t / .fmt / .plural / .contains`、`Locale::{ALL, code, native_name, match_tag, detect, from_system}`、`keys::…` |
 
@@ -413,11 +443,11 @@ M3 Pro，release 构建。离屏的帧时间是「重新渲染 + 排版 + 绘制
 
 ## 测试
 
-`cargo test -p dr-i18n -p dr-shell` 跑 96 个测试（其中 `tests/m06_m07.rs` 的 2 个是 M06/M07 会话写的）：
+`cargo test -p dr-i18n -p dr-shell` 跑 105 个测试（其中 `tests/m06_m07.rs` 的 2 个是 M06/M07 会话写的）：
 
 - **dr-i18n**（9 个）：每种语言每个键都有字、Windows 覆盖层、插值、按 CLDR 选复数形（英语、法语、日语、巴西葡语）、`indent_one` 这种不是复数、语言标签匹配、搜索的规整；拷贝和旧版逐条一致；文档里的例子。构建本身就是那几条编译期检查。
-- **dr-shell 单元**（47 个）：导航模型的预览 / 留下 / 分栏 / 关闭 / 历史 / 上限 / 重排 / 删除 / 恢复 / 链接行号；位置链接的三种写法、各种畸形、行到块、按名字和 id 找、重名和别的书；侧栏两半的自动分、手动收回被记住、关掉侧栏、按目标显露；宽度的上下限；设置注册表的键唯一和默认值合法、按类型校验；设置文件的分区往返、越界收回、坏文件挪开、改键、恢复默认；快捷键默认值（没有 ⌘S、两个系统都能解析）、改键与清空、录制的可移植写法、冲突；菜单；章节印章和旧版 `sealOf` 一致、颜色按作者存的十六进制读；角落菜单的三种写作状态和 F3 的一致；大纲栏按比例排、挤时让开不出界、放不下时先留正在读的那一支再开窗口（「…」两头加起来一个不少）、正在读的是阅读线以上的最后一个；设置搜索找得到不是设置的行（「许可证」只剩那一行、「诊断」是开关和摘要、「关于」整节、没找到时什么都没有），每个信息行都有字、id 不重。
-- **dr-shell 在 GPUI 测试平台上**（37 个）：按键经键位表到达动作（⌘[ ⌘] ⌘⌥← ⇧⌘] ⌘W ⌘N ⌘⌥2）；Esc 一层一层关，⌘[ 先关 Super View；改键立刻生效、旧键失效、存进文件；侧栏开合；设置生效并在 300 ms 后写盘；退出前跑钩子、写盘；每种状态都画得出来；Super View 盖着时动标签的键不生效；模块登记的键在改快捷键重建键位表后还在；还原推荐样式把编辑器设置都还原、诊断摘要有版本和系统而没有路径。下面 26 个在一个用 dr-testkit 生成的《慢钟》库上跑（每个测试一个临时库）：
+- **dr-shell 单元**（48 个）：导航模型的预览 / 留下 / 分栏 / 关闭 / 历史 / 上限 / 重排 / 删除 / 恢复 / 链接行号；位置链接的三种写法、各种畸形、行到块、按名字和 id 找、重名和别的书；侧栏两半的自动分、手动收回被记住、关掉侧栏、按目标显露；宽度的上下限；设置注册表的键唯一和默认值合法、按类型校验；设置文件的分区往返、越界收回、坏文件挪开、改键、恢复默认；快捷键默认值（没有 ⌘S、两个系统都能解析）、改键与清空、录制的可移植写法、冲突；菜单；章节印章和旧版 `sealOf` 一致、颜色按作者存的十六进制读；角落菜单的三种写作状态和 F3 的一致；大纲栏按比例排、挤时让开不出界、放不下时先留正在读的那一支再开窗口（「…」两头加起来一个不少）、正在读的是阅读线以上的最后一个；设置搜索找得到不是设置的行（「许可证」只剩那一行、「诊断」是开关和摘要、「关于」整节、没找到时什么都没有），每个信息行都有字、id 不重。
+- **dr-shell 在 GPUI 测试平台上**（45 个）：按键经键位表到达动作（⌘[ ⌘] ⌘⌥← ⇧⌘] ⌘W ⌘N ⌘⌥2）；Esc 一层一层关，⌘[ 先关 Super View；改键立刻生效、旧键失效、存进文件；侧栏开合；设置生效并在 300 ms 后写盘；退出前跑钩子、写盘；每种状态都画得出来；Super View 盖着时动标签的键不生效；模块登记的键在改快捷键重建键位表后还在；还原推荐样式把编辑器设置都还原、诊断摘要有版本和系统而没有路径。下面 33 个在一个用 dr-testkit 生成的《慢钟》库上跑（每个测试一个临时库）：
   - **M05**：「全书」标签是一个 `BookEditor`，24 章；大纲栏有 3 个幕、24 个章；经大纲跳到第三章，打一个字写进第三章、⌘Z 在第三章撤回；读全书时点第五章的位置链接，就在全书里跳过去、不多开标签；阅读位置存进布局，关掉全书标签再打开回到那里；
   - **查找栏和实时字数**：打开第一章，统计拿到它的实时字数，打一个字多一个；⌘F 出查找栏，打「钟」有十几个命中、选中第一个，Enter 下一个、⇧Enter 回来，Esc 关掉、查询清掉、键盘回到稿纸；
   - **M04**：三卷是三幕、装下全部 24 章，全书看法画得出来；第一章放到第三章上就排到它后面、再放回第二章上就回到原样（经 F3，等 F3 的事件回来）；素材笔记的大纲是两个 H2（「四个部分」「常见毛病」），点第二个光标落到它开头；
@@ -431,6 +461,7 @@ M3 Pro，release 构建。离屏的帧时间是「重新渲染 + 排版 + 绘制
   - 退出流程跑 F3 的 `before_quit` 以后库还能用。
 - **第五轮加的**：模态对话框开着时 ⌘⌥4 和设置都不开、关掉后又开（`a_modal_dialog_turns_the_workspace_shortcuts_off`）；Esc 先关搜索面板再关 Super View；⌥⌘F 出替换行，替换一个少一个、全部替换换掉其余、关掉查找栏后一次 ⌘Z 全部回来；换前台页面后 F3 的 `recent.list` 第一条就是它；选区浮条的 `CommentRequested` 打开撰写框、保存后 `comment.list` 里有这一条且挂在那一章上；排序和格子读数在两种看法、四种读数下都画得出来，存进布局、旧布局读出来是默认值（后四个在《慢钟》库上）；排序的三种顺序和旧版一样、字数和日期的写法（`chapter_sort` 单元测试）；dr-editor 的两端对齐和输入行位置（25–75 % 收住）进了排版样式。
 - **第七轮加的**：单击人物链接（`EntityLinkOpened`）把那个要素当预览打开、「位置链接」复制后出小纸条、过一会儿消失；全书里跨两章的选区算出的字数是两章那段的；模块登记的左栏标签每个半栏只做一次、换了标签不再问；章节列表滚下去、侧栏收起再打开还在原处。
+- **第八轮加的**：底部面板没有模块登记时不出现；登记了先是时间线、180 高，⌘J 收起又回来，情节规划在章节前面时出来、时间线让位，全书页在前时让开、回到这一章又出来，⌘J 把时间线换回来，沉浸写作时收起，开关和高度在布局里；上沿拖高时拖住的点跟着指针、最低是模块给的 260、最高给稿纸留 240，松手后高度在布局里；模块按书记的东西进了设置文件里这本书的布局；在窗口自己的更新里（对话框按钮里）关对话框也关得掉；库还被别人拿着时换库不跑替换、原来的库接着用；「打开恢复前副本」的文件夹建好了、在库的安全快照目录下；模块在自己的视图里画页面悬停卡、指针停上去打开不出错；素材笔记里点嵌入的素材，那个素材在预览标签里打开，⌘⇧H 绑在编辑器的高亮上、重建键位表后还在（后七个在《慢钟》库上）。单元测试：模块的悬停卡行排在删除一类前面。别的 crate 里：时间线的设置按书记住、新做的时间线照着来（dr-view-timeline）；外壳的底部面板里打开的是前面这一章的情节规划、改名后标题跟着变（dr-view-plot）。
 - **换库**（`the_library_is_swapped_under_the_running_app`）：开着一章的编辑器和搜索面板时换库，`job` 自己能打开那个库（说明它确实关上了），换完窗口重新读出书、搜索面板没了、能在新库里打开一章；`job` 失败时原来的库重新在用，`done` 收到原因。
 - **第六轮加的**：以 `Open::at_title` 打开的页编辑器不拿键盘，照常打开的拿；页面动作的顺序（要素：分享 → 模块的行 → 历史快照 → 模块的删除；素材没有分享；章节：分享和导出 → 三种写作状态只勾一个 → … → 删除节点在最后），模块的行点了会跑，要素页的 ⋯ 画得出来；导出记住的选择写进设置文件、另一个应用用同一个文件启动后读得回来；「自动要素链接」关掉后 F3 的 `auto_links()` 跟着变，章节面板全部折起（故事线数 + 未归属）、再按一次全部展开、单个折起；在补丁出处那段话中间打一个字，光标还在那一段时补丁不变，离开那一段后补丁被标为失效（后五个在《慢钟》库上）。单元测试：「…」列出的十个、备份恢复两行在本地数据最上面、导出选择在设置文件里的存取、导出选择的 JSON 形状、素材不分享。
 - **孤儿检查**（1 个）：清单里每个键都被外壳的代码用到了。
@@ -482,14 +513,17 @@ M3 Pro，release 构建。离屏的帧时间是「重新渲染 + 排版 + 绘制
    - **大纲栏只和高度估算一样准。** 标签按「标题以上的高度 / 全文高度」排，没排过的段落用 F4b 的估算。全书视图里只有前几章真排过，后面的章估得偏矮，大纲栏下半部分的章就挤在一起（截图 `whole-book`）。估算准了（待协调 F4d-2 那一条）这里自然好；或者编辑器空闲时在后台把高度量完。
 5. **F7**：首次启动时故障诊断的那一句说明仍属于首次体验；Windows 上 `set_app_identity` 仍等实测。「提交反馈」第五轮在设置「关于」和账户菜单里都接上了（派发 `SendFeedback`）。
    - **dr-text（备份与恢复）**：两个动作名照它的计划定了；换库用 `dr_shell::library::replace`（接法见上面「第六轮」和共享笔记）。dr-view-transfer 合进来以前，按钮只关掉设置。
-   - **F3（dr-workspace）**：`Workspace::shutdown` 失败时（还有别的克隆）把工作区也丢了，换库就没法退回原来的库，只能让作者重开 App。建议照 dr-store 的 `try_close` 给一个失败时把工作区交还的版本。外壳这边已经让该放手的都放手，测试里能关上。
+   - ~~**F3（dr-workspace）**：`shutdown` 失败时把工作区交还~~：F3 第七轮给了 `try_shutdown`，外壳第八轮换上了，关不掉时原来的库接着用（`a_library_that_will_not_close_is_kept`）。
+   - **F2（dr-store）**：外壳第八轮在 `backup.rs` 加了一个小函数 `Library::pre_restore_dir(root)`（恢复前副本的文件夹，`pre_restore_backups` 也改用它），请知悉。
    - **M41（导出）**：记住的选择第六轮跨重启了（`export_memory.rs`），`prefs.rs` 的模块文档顺手改了一句；m41-export.md「待协调」第 1、2 条可以划掉。
    - **M11（要素）**：⋯ 菜单的挂接点是 `pages::add_page_menu`，`PageMenuItem.icon` 第七轮起收 `RowIcon`（`MenuRow` 原样搬过来，`run` 里把 `host.workspace` 交给它）；左栏的要素面板第七轮已接上。要素页的提醒可以改走 `dialogs::show`。
+   - **M14（时间线）**：底部面板、⌘J、竹子开关、按书记住第八轮都接上了（`dr_view_timeline::init`、`kept.rs`，这两处是外壳这边写进 dr-view-timeline 的）。片段和泳道名字的悬停卡用 `workspace::page_hover_card`（「转移至未归属」「回到未放置」这类放进 `extra`）。
+   - **M15（情节规划）**：底部面板和工具托盘里的开关第八轮接上了（`dr_view_plot::init` 是外壳这边写的：按前面的章节或构想做一个，改名时 `set_title`）。按表记住宽高比可以用 `book_memory`（比如键 `plot`，里面按节点存）。
    - **M01（作品主页）**：作品主页自己在前台页面变了时调 `recent.touch`，外壳第五轮起也调（`touch_front`），现在一次打开记两遍（结果一样）。主页那份可以删。悬停卡现在只有章节面板有（章节和故事线），要素、构想、素材面板的卡跟各自的面板来，`page_actions` 可以直接用。
    - **产品（作者定）**：点批注刻度时，右栏没开或不在「审阅」，要不要自动打开审阅？现在不开（F4d 只让那张卡亮）。
 6. **F8**：外壳的测量证据是 `acceptance/f6-m3-shell-bench.json`，由 `examples/shell-capture.rs --bench` 写；截图和测量的离屏写法可以并进 dr-testkit。`cargo xtask dev` 可以加一个 `--seed <预设>`，把「先生成库再启动」并成一步（现在是两条命令，见「怎么看」）。
 7. **F5（dr-view-page）**：⁂ 新建下一章改用 `Open::KEEP.at_title()`（外壳认这个意图，不再靠焦点先后），`NewTitles` 照旧负责标题全选。外壳在 `editor_prepared` 里不再给装了 chrome 的页设标题行。键盘进出 ⁂ 仍等外壳的焦点框架。
-8. **M10**：m10-import.md「待协调」第 13 条（13 句文案）和第 14 条（外壳里的那一层、对话框开着时快捷键停不停）第五轮都做了：文案在 `dr-i18n/own/`，那一层并进 `dialogs::show` / `hide`，快捷键停。第 14 条的「多窗口时应该找派发动作的那个窗口」M10 第五个里程碑做了：`with_workspace` 先找活跃窗口（`active_workspace`），加了 `with_workspace_in` 和 `dialogs::show_in`；通知也能带一个按钮（`NoticeAction`，M10 的「接着导入」）。这几处改在外壳里，请 F6 审（m10-import.md 待协调 20）。
+8. **M10**：m10-import.md「待协调」第 13 条（13 句文案）和第 14 条（外壳里的那一层、对话框开着时快捷键停不停）第五轮都做了：文案在 `dr-i18n/own/`，那一层并进 `dialogs::show` / `hide`，快捷键停。第 14 条的「多窗口时应该找派发动作的那个窗口」M10 第五个里程碑做了：`with_workspace` 先找活跃窗口（`active_workspace`），加了 `with_workspace_in` 和 `dialogs::show_in`；通知也能带一个按钮（`NoticeAction`，M10 的「接着导入」）。这几处改在外壳里，请 F6 审（m10-import.md 待协调 20）。**第八轮审过**：三处做法都留下；外壳改了两处：对话框在自己的按钮里关（窗口正借出去处理这次点击）时以前会悄悄关不掉，现在经 `update_workspace` 等点击结束再关；通知的按钮点了不再连带触发整行。
    - **新版自己的文案来源**是 F6 定的（`dr-i18n/own/`）：以后各模块要旧版没有的句子，都写进这里，九种语言齐全。中日韩只写一句，其余五种语言有数字的句子要写 `_one` / `_other`。
 9. **监管会话**：
    - 菜单本地化仍要先给 GPUI 打个小补丁，这一轮菜单保持英文。
@@ -594,12 +628,13 @@ M04 章节面板、幕与大纲栏（`modules.md`）：
 
 ## 下一步建议
 
-1. **键盘框架**：Tab 进出 ⁂、侧栏列表的方向键、悬停卡的键盘打开（`HoverCardState::open_now`），一起做成外壳的焦点框架。
-2. **作品主页、书架、首次体验**：主页现在只有书名；书架（换书、红灯回书架）、首次说明（含故障诊断那一句）、库打不开时的恢复界面一起做。书架做了以后 `DRIFTING_BOOK` 可以删。
-3. **面板做全**（M-章节 / M-要素 / M-构想 / M-素材库）：悬停卡、排序、折叠、行尾读数、新建和改名；侧栏收起再打开时保留滚动位置（按「书 × 侧栏 × 半栏 × 标签」存）。
-4. **标签坞做完**：和 F5 一起做成组件（小点长成药丸 340 ms、让位、拖离收拢）。
-5. **冷启动**：机器空闲时再测一次（`script/bundle-mac && script/measure-startup-mac --runs 9`，以及直接运行可执行文件）；建窗口那 90 ms 里有一部分是运行时编译 Metal 着色器（`runtime_shaders`），发布包预编译以后会少。
-6. **Windows 实测**：标题栏药丸、Snap 布局、`set_app_identity`、托盘（M43）。
+1. **键盘框架**：Tab 进出 ⁂、侧栏列表的方向键、悬停卡的键盘打开（`HoverCardState::open_now`），一起做成外壳的焦点框架；等设计先定。
+2. **底部面板两块互换时的「推」**（旧版 265 ms，从下往上推进来、边上的线泛玻璃），以及时间线泳道多到放不下时面板自己长高。
+3. **作品主页、书架、首次体验**：主页现在只有书名；书架（换书、红灯回书架）、首次说明（含故障诊断那一句）、库打不开时的恢复界面一起做。书架做了以后 `DRIFTING_BOOK` 可以删。
+4. **面板做全**（M-章节 / M-要素 / M-构想 / M-素材库）：悬停卡、排序、折叠、行尾读数、新建和改名；侧栏收起再打开时保留滚动位置（按「书 × 侧栏 × 半栏 × 标签」存）。
+5. **标签坞做完**：和 F5 一起做成组件（小点长成药丸 340 ms、让位、拖离收拢）。
+6. **冷启动**：机器空闲时再测一次（`script/bundle-mac && script/measure-startup-mac --runs 9`，以及直接运行可执行文件）；建窗口那 90 ms 里有一部分是运行时编译 Metal 着色器（`runtime_shaders`），发布包预编译以后会少。
+7. **Windows 实测**：标题栏药丸、Snap 布局、`set_app_identity`、托盘（M43）。
 
 ## 代码位置
 
@@ -615,7 +650,8 @@ M04 章节面板、幕与大纲栏（`modules.md`）：
 | `crates/dr-shell/src/book.rs` | 打开的书：F3 列表的快照、一页的正文、F3 目标与外壳目标的对应、`Catalog` 适配 |
 | `crates/dr-shell/src/account.rs` | 共用的账户菜单和头像 |
 | `crates/dr-shell/src/export_memory.rs` | 导出记住的选择：设置文件和 dr-view-export 的 `Prefs` 之间来回 |
-| `crates/dr-shell/src/library.rs` | 换库：放手、关库、跑替换、装回新库（失败时装回原来的） |
+| `crates/dr-shell/src/library.rs` | 换库：放手、关库（`try_shutdown`，关不掉就接着用原来的）、跑替换、装回新库（失败时装回原来的） |
+| `crates/dr-shell/src/workspace/bottom.rs` | 稿纸下面的底部面板：显示哪块、开关、高度和拖动、滑动、模块的视图 |
 | `crates/dr-shell/src/workspace/toast.rs` | 窗口下沿的小纸条（`Workspace::toast`） |
 | `crates/dr-shell/src/workspace/` | 工作区根（`mod.rs`：状态、读书目、F3 事件、沉浸写作、挪章节、全书里的位置链接）、每个标签的编辑器（`editors.rs`：单章和全书、样式、键盘、实时字数、阅读位置）、查找栏和替换（`find.rs`）、章节面板的排序和格子读数（`chapter_sort.rs`）、页面能做的事（`page_actions.rs`：⋯ 菜单和悬停卡共用）、选区批注的撰写框（`review.rs`）、稿纸右下角（`corner.rs`）、大纲栏（`outline.rs`）、窗口边角与拖动区（`chrome.rs`）、侧栏（`sidebar.rs`）、标签坞（`dock.rs`）、稿纸（`stage.rs`）、Super View（`super_view.rs`） |
 | `crates/dr-shell/tests/`、`examples/shell-capture.rs` | GPUI 测试平台上的行为测试（含《慢钟》库上的 6 个）、孤儿键检查；离屏截图与测量（写测量证据） |

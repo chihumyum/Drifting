@@ -119,7 +119,9 @@ impl TransferDialog {
         if !self.is_working() {
             self.proceed = None;
             let id = cx.entity_id();
-            dr_shell::dialogs::hide(cx, id);
+            // The window is busy with the click or key that closes it (the
+            // shell could not reach its workspace): once that is over.
+            cx.defer(move |cx| dr_shell::dialogs::hide(cx, id));
         }
     }
 

@@ -106,6 +106,7 @@ dr_index::derive_view(&prose_view) -> Derived; // 不经存储，整篇算一遍
 | `RefRow`（`mention`） | 没做：派生器看不到书里的名字，见待协调 5 |
 | `Derived.words` / `chars` | 各段之和 |
 | 书目文档 | 交一份空的结果：书目文档没有段落，但记成「已索引」，免得每次打开都被当成落后的重读一遍 |
+| 模版文档（`template:category:<id>` / `template:storyline:<id>`） | 也交一份空的结果：模版不是书的正文（`DocKind::is_book_text`），不算字数、不进搜索和引用（2026-11-08，M10 第六个里程碑发现后补上，请审） |
 
 **读文档：** dr-store 交来的 `LoroDoc` 用 dr-doc 的 `ProseReader::from_loro` 原地读，不复制、不写。持有者那里读的是它手里的热文档；后台重建读的是 dr-store 从 SQLite 载入的副本。
 

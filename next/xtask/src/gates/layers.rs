@@ -3,7 +3,7 @@
 //! ```text
 //! interface (gpui-prose, dr-editor, dr-ui, dr-shell, dr-view-*)
 //!     → application services (dr-workspace, dr-agent, dr-mcp, dr-sync,
-//!       dr-export, dr-mirror, dr-import-v1)
+//!       dr-export, dr-mirror, dr-import-v1, dr-samples)
 //!         → data (dr-model, dr-doc, dr-store, dr-text)
 //! platform (dr-platform, dr-i18n) and tools (dr-testkit, dr-cli, xtask) on the side
 //! ```
@@ -53,6 +53,8 @@ pub const LAYERS: &[(&str, Layer)] = &[
     ("dr-export", Layer::Services),
     ("dr-mirror", Layer::Services),
     ("dr-import-v1", Layer::Services),
+    // The built-in sample books (and the book writer dr-testkit's seed shares).
+    ("dr-samples", Layer::Services),
     ("gpui-prose", Layer::Interface),
     ("gpui-ime", Layer::Interface),
     ("dr-editor", Layer::Interface),
