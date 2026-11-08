@@ -12,9 +12,10 @@
 //! storyline; where it is let go is its new place on the axis. A double
 //! click on an empty spot of a track makes a chapter there.
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::Duration;
+use std::time::Instant;
 
 use dr_i18n::keys;
 use dr_shell::book::{Book, color_of, seal_of};
@@ -54,6 +55,12 @@ use crate::model::{
     self, Axis, HEAD_HEIGHT, LaneId, Layout, MAX_ZOOM, MIN_ZOOM, Membership, RAIL_WIDTH,
     ROW_MIN_HEIGHT, STRIP_HEIGHT, SYNTHETIC_CLIP, WHEEL_SENSITIVITY,
 };
+use crate::spring::{Row, SlabSpring};
+
+mod cards;
+mod marks;
+
+pub use marks::{Mark, MarkDrag, default_act_name};
 
 /// A chapter in the hand: from a lane, or from 未放置's list.
 #[derive(Clone)]
@@ -75,12 +82,25 @@ pub struct DropAt {
     pub order: f64,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 struct Dragging {
     chapter: String,
     /// How far into the clip it was taken, so it lands where it is seen.
     grab_x: f32,
+    grab_y: f32,
     over: Option<DropAt>,
+    /// A slab taken from a lane has weight ([`crate::spring`]); one from
+    /// 未放置's list follows the hand.
+    weight: Option<Weight>,
+}
+
+/// The weighted slab's spring, shared with the slab in the hand.
+#[derive(Clone)]
+struct Weight {
+    spring: Rc<RefCell<SlabSpring>>,
+    /// Where the pointer took it (window y).
+    start_y: f32,
+    clock: Instant,
 }
 
 /// A move written but not yet in the book's snapshot: drawn where it went
@@ -111,6 +131,21 @@ pub struct BottomTimeline {
     kept_for: Option<String>,
     /// Keeps the scroll a moment after the wheel stops.
     keep_soon: Option<Task<()>>,
+    /// The narrative axis's time pins, read with each book snapshot.
+    pins: Rc<Vec<dr_workspace::commands::time_pin::TimePinInfo>>,
+    pins_task: Option<gpui::Task<()>>,
+    /// A pin or an act boundary in the hand.
+    mark_drag: Option<MarkDrag>,
+    /// A mark being renamed.
+    editing: Option<marks::Editing>,
+    /// A pin just made: renamed once it shows.
+    rename_next: Option<Mark>,
+    /// The card whose 绑定构想… list is unfolded.
+    bind_open: Option<Mark>,
+    /// Where the pointer is on an act chip (its card's 在此处开始新幕).
+    act_spot: Rc<Cell<f64>>,
+    /// A hover card held open regardless of the pointer (captures).
+    held_card: Option<String>,
     _subs: Vec<Subscription>,
 }
 
@@ -137,6 +172,14 @@ impl BottomTimeline {
             moved: None,
             kept_for: None,
             keep_soon: None,
+            pins: Rc::default(),
+            pins_task: None,
+            mark_drag: None,
+            editing: None,
+            rename_next: None,
+            bind_open: None,
+            act_spot: Rc::default(),
+            held_card: None,
             _subs: Vec::new(),
         }
     }
@@ -194,14 +237,19 @@ impl BottomTimeline {
     }
 
     fn read_workspace(&mut self, ws: &Entity<Workspace>, cx: &mut Context<Self>) {
-        let w = ws.read(cx);
-        if self.kept_for.as_deref() != Some(w.book_id.as_str()) {
-            self.kept_for = Some(w.book_id.clone());
-            let kept = Kept::read(w.book_memory(kept::KEY));
-            self.apply(kept);
-        }
-        if !Rc::ptr_eq(&w.book, &self.book) {
-            self.book = w.book.clone();
+        let (book, current) = {
+            let w = ws.read(cx);
+            if self.kept_for.as_deref() != Some(w.book_id.as_str()) {
+                let kept = Kept::read(w.book_memory(kept::KEY));
+                self.kept_for = Some(w.book_id.clone());
+                self.apply(kept);
+            }
+            (w.book.clone(), w.nav.current().cloned())
+        };
+        if !Rc::ptr_eq(&book, &self.book) {
+            self.book = book;
+            // The pins live in the book's document: read them again.
+            self.load_pins(cx);
             // The move is in the snapshot once the chapter is where it went.
             if let Some(m) = &self.moved
                 && let Some(c) = self.book.chapters.iter().find(|c| c.id == m.chapter)
@@ -210,7 +258,7 @@ impl BottomTimeline {
                 self.moved = None;
             }
         }
-        self.current = w.nav.current().cloned();
+        self.current = current;
     }
 
     /// What is drawn now (tests).
@@ -219,13 +267,24 @@ impl BottomTimeline {
             .moved
             .as_ref()
             .and_then(|m| moved_chapter(&self.book, m));
-        model::layout(
+        let mut layout = model::layout(
             &self.book,
             self.axis,
             self.unaffiliated_shown,
             self.zoom,
             moved.as_ref(),
-        )
+        );
+        // The narrative axis runs past its last pin too.
+        if self.axis == Axis::Narrative {
+            let last = self
+                .pins
+                .iter()
+                .map(|p| p.narrative_order)
+                .chain(self.mark_drag.as_ref().map(|d| d.order))
+                .fold(f64::NEG_INFINITY, f64::max);
+            layout.scale = layout.scale.reaching(last);
+        }
+        layout
     }
 
     pub fn axis(&self) -> Axis {
@@ -461,12 +520,59 @@ impl BottomTimeline {
         })
     }
 
+    /// The lanes' boxes in window coordinates, top to bottom.
+    fn rows(&self, layout: &Layout) -> Vec<Row> {
+        let Some(body) = self.body.get() else {
+            return Vec::new();
+        };
+        let n = layout.lanes.len();
+        if n == 0 {
+            return Vec::new();
+        }
+        let top = f32::from(body.origin.y) + STRIP_HEIGHT;
+        let height = (f32::from(body.size.height) - STRIP_HEIGHT) / n as f32;
+        (0..n)
+            .map(|i| Row {
+                top: top + height * i as f32,
+                height,
+            })
+            .collect()
+    }
+
     fn drag_moved(&mut self, e: &DragMoveEvent<ClipDrag>, cx: &mut Context<Self>) {
         let layout = self.layout();
-        let Some(grab) = self.dragging.as_ref().map(|d| d.grab_x) else {
+        let Some((grab_x, grab_y, weight)) = self
+            .dragging
+            .as_ref()
+            .map(|d| (d.grab_x, d.grab_y, d.weight.clone()))
+        else {
             return;
         };
-        let over = self.target_at(&layout, e.event.position, grab);
+        let position = e.event.position;
+        let over = match weight {
+            // The lane the weighted slab is in; carried clear of the lanes,
+            // where the pointer is.
+            Some(w) => {
+                let rows = self.rows(&layout);
+                let pointer = (f32::from(position.x), f32::from(position.y));
+                let now = w.clock.elapsed().as_secs_f32();
+                let row =
+                    w.spring
+                        .borrow_mut()
+                        .aim(pointer, (grab_x, grab_y), &rows, w.start_y, now);
+                match row {
+                    Some(row) => self.body.get().map(|body| {
+                        let track_left = f32::from(body.origin.x) + RAIL_WIDTH - self.scroll_x();
+                        DropAt {
+                            lane: layout.lanes[row].id.clone(),
+                            order: layout.scale.order_at(pointer.0 - track_left - grab_x),
+                        }
+                    }),
+                    None => self.target_at(&layout, position, grab_x),
+                }
+            }
+            None => self.target_at(&layout, position, grab_x),
+        };
         if let Some(d) = self.dragging.as_mut()
             && d.over != over
         {
@@ -560,10 +666,29 @@ fn moved_chapter(book: &Book, m: &Moved) -> Option<ChapterInfo> {
 /// lane it would land on (its own off every lane).
 struct Ghost {
     drag: ClipDrag,
+    /// Where it was taken: GPUI draws the hand's view at the pointer less
+    /// this.
+    grab: (f32, f32),
+    weight: Option<Weight>,
 }
 
 impl Render for Ghost {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // A weighted slab is drawn where its spring is, off GPUI's anchor.
+        let (dx, dy) = match &self.weight {
+            Some(w) => {
+                let mut spring = w.spring.borrow_mut();
+                if spring.step(w.clock.elapsed().as_secs_f32()) {
+                    window.request_animation_frame();
+                }
+                let mouse = window.mouse_position();
+                (
+                    spring.x - (f32::from(mouse.x) - self.grab.0),
+                    spring.y - (f32::from(mouse.y) - self.grab.1),
+                )
+            }
+            None => (0.0, 0.0),
+        };
         let color = self
             .drag
             .timeline
@@ -575,17 +700,19 @@ impl Render for Ghost {
             })
             .unwrap_or(self.drag.color);
         let (w, h) = self.drag.size;
-        slab(
-            ElementId::Name(format!("timeline-ghost-{}", self.drag.chapter).into()),
-            self.drag.title.clone(),
-            &self.drag.status,
-            color,
-            true,
-            window,
-            cx,
+        div().relative().left(px(dx)).top(px(dy)).child(
+            slab(
+                ElementId::Name(format!("timeline-ghost-{}", self.drag.chapter).into()),
+                self.drag.title.clone(),
+                &self.drag.status,
+                color,
+                true,
+                window,
+                cx,
+            )
+            .w(px(w))
+            .h(px(h)),
         )
-        .w(px(w))
-        .h(px(h))
     }
 }
 
@@ -662,6 +789,17 @@ impl Render for BottomTimeline {
         if self.dragging.is_some() && !cx.has_active_drag() {
             self.dragging = None;
         }
+        if self.mark_drag.is_some() && !cx.has_active_drag() {
+            self.mark_drag = None;
+        }
+        // A pin just made: its name ready to type once it shows.
+        if let Some(mark) = self.rename_next.clone()
+            && let Mark::Pin(id) = &mark
+            && self.pins.iter().any(|p| &p.id == id)
+        {
+            self.rename_next = None;
+            self.start_rename(mark, window, cx);
+        }
         let layout = self.layout();
         let entity = cx.entity();
         let head = self.head(&layout, window, cx);
@@ -697,6 +835,14 @@ impl Render for BottomTimeline {
             glass::Ground::flat(p.desk),
             div()
                 .id("bottom-timeline")
+                .on_drag_move::<MarkDrag>({
+                    let entity = entity.clone();
+                    move |e, _, cx| entity.update(cx, |t, cx| t.mark_drag_moved(e, cx))
+                })
+                .on_drop::<MarkDrag>({
+                    let entity = entity.clone();
+                    move |_, _, cx| entity.update(cx, |t, cx| t.mark_dropped(cx))
+                })
                 .size_full()
                 .flex()
                 .flex_col()
@@ -919,15 +1065,25 @@ impl BottomTimeline {
                 let entity = entity.clone();
                 move |drag, offset, _, cx| {
                     let drag = drag.clone();
+                    let grab = (
+                        f32::from(offset.x).min(drag.size.0),
+                        f32::from(offset.y).min(drag.size.1),
+                    );
                     entity.update(cx, |t, cx| {
                         t.dragging = Some(Dragging {
                             chapter: drag.chapter.clone(),
-                            grab_x: f32::from(offset.x).min(drag.size.0),
+                            grab_x: grab.0,
+                            grab_y: grab.1,
                             over: None,
+                            weight: None,
                         });
                         cx.notify();
                     });
-                    cx.new(|_| Ghost { drag })
+                    cx.new(|_| Ghost {
+                        drag,
+                        grab,
+                        weight: None,
+                    })
                 }
             });
             menu = menu.child(row);
@@ -965,13 +1121,40 @@ impl BottomTimeline {
             .font_role(Role::Index)
             .type_px(s.caption - 2.5, s.caption)
             .text_color(p.ink(4).solid())
-            .child(t(
+            .child(div().flex_1().child(t(
                 cx,
                 match layout.axis {
                     Axis::Book => keys::bottom_timeline::act::RAIL_LABEL,
                     Axis::Narrative => keys::bottom_timeline::axis::TIME,
                 },
-            ));
+            )))
+            .child(
+                // ＋: a new act (the first at the axis's head) or a pin, in
+                // the middle of what shows.
+                PanelIconButton::new("timeline-strip-add", Icon::Plus)
+                    .label(t(
+                        cx,
+                        match layout.axis {
+                            Axis::Book => keys::bottom_timeline::act::NEW_ACT,
+                            Axis::Narrative => keys::bottom_timeline::axis::ADD_PIN,
+                        },
+                    ))
+                    .on_click({
+                        let entity = entity.clone();
+                        let axis = layout.axis;
+                        let head = layout.scale.min_order;
+                        move |_, _, cx| {
+                            entity.update(cx, |t, cx| {
+                                let middle = t.middle_order().unwrap_or(head);
+                                match axis {
+                                    Axis::Book if t.book.acts.is_empty() => t.add_act(head, cx),
+                                    Axis::Book => t.add_act(middle, cx),
+                                    Axis::Narrative => t.add_pin(middle, cx),
+                                }
+                            })
+                        }
+                    }),
+            );
         let mut col = div()
             .w(px(RAIL_WIDTH))
             .flex_none()
@@ -1005,27 +1188,34 @@ impl BottomTimeline {
                         .filter(|n| !n.trim().is_empty())
                         .map(SharedString::from)
                         .unwrap_or_else(|| t(cx, keys::top_timeline::untitled::STORYLINE));
-                    SandCell::new(ElementId::Name(format!("timeline-rail-{id}").into()), name)
-                        .mark(sand::Kind::Storyline)
-                        .color_opt(Some(color.unwrap_or(p.ink(4))))
-                        .italic(true)
-                        .selected(selected)
-                        .children([readout.into_any_element()])
-                        .on_click({
-                            let entity = entity.clone();
-                            move |e: &ClickEvent, _, cx| {
-                                let Some(target) = target.clone() else {
-                                    return;
-                                };
-                                let how = if e.click_count() > 1 {
-                                    Open::KEEP
-                                } else {
-                                    Open::PREVIEW
-                                };
-                                entity.update(cx, |t, cx| t.open(target, how, cx));
-                            }
-                        })
-                        .into_any_element()
+                    let cell =
+                        SandCell::new(ElementId::Name(format!("timeline-rail-{id}").into()), name)
+                            .mark(sand::Kind::Storyline)
+                            .color_opt(Some(color.unwrap_or(p.ink(4))))
+                            .italic(true)
+                            .selected(selected)
+                            .children([readout.into_any_element()])
+                            .on_click({
+                                let entity = entity.clone();
+                                move |e: &ClickEvent, _, cx| {
+                                    let Some(target) = target.clone() else {
+                                        return;
+                                    };
+                                    let how = if e.click_count() > 1 {
+                                        Open::KEEP
+                                    } else {
+                                        Open::PREVIEW
+                                    };
+                                    entity.update(cx, |t, cx| t.open(target, how, cx));
+                                }
+                            });
+                    self.with_card(
+                        format!("timeline-rail-card-{id}"),
+                        cell,
+                        cards::CardOf::Storyline(id.clone()),
+                        true,
+                        cx,
+                    )
                 }
                 synthetic => {
                     let (name, color) = match synthetic {
@@ -1091,12 +1281,18 @@ impl BottomTimeline {
         let width = scale.width();
         let strip = match layout.axis {
             Axis::Book => self.act_rail(layout, window, cx),
-            Axis::Narrative => div()
-                .h(px(STRIP_HEIGHT))
-                .flex_none()
-                .w(px(width))
-                .bg(p.paper.solid())
-                .into_any_element(),
+            Axis::Narrative => self.time_axis(layout, window, cx),
+        };
+        // The pins' lines run down every track.
+        let pin_lines: Vec<f32> = match layout.axis {
+            Axis::Narrative => self
+                .pins
+                .iter()
+                .map(|pin| {
+                    scale.x(self.mark_order(&Mark::Pin(pin.id.clone()), pin.narrative_order))
+                })
+                .collect(),
+            Axis::Book => Vec::new(),
         };
         let dragging = self.dragging.as_ref().map(|d| d.chapter.clone());
         let mut lanes = div().flex_1().min_h_0().w(px(width)).flex().flex_col();
@@ -1133,16 +1329,26 @@ impl BottomTimeline {
                         });
                     }
                 });
-            // Act boundaries run down every track.
-            for a in layout.acts.iter().filter_map(|a| a.start) {
+            // Act boundaries (where the hand has one, while dragged) and
+            // the pins run down every track.
+            let acts = self
+                .book
+                .acts
+                .iter()
+                .filter_map(|a| {
+                    a.start_order
+                        .map(|s| self.mark_order(&Mark::Act(a.id.clone()), s))
+                })
+                .map(|o| (scale.x(o), p.desk));
+            for (x, color) in acts.chain(pin_lines.iter().map(|x| (*x, p.rule))) {
                 track = track.child(
                     div()
                         .absolute()
                         .top_0()
                         .bottom_0()
-                        .left(px(scale.x(a)))
-                        .w(px(0.5))
-                        .bg(p.desk.solid()),
+                        .left(px(x))
+                        .w(px(if color == p.rule { 1.0 } else { 0.5 }))
+                        .bg(color.solid()),
                 );
             }
             for c in &lane.clips {
@@ -1232,7 +1438,13 @@ impl BottomTimeline {
             from_drawer: false,
             timeline: entity.downgrade(),
         };
-        slab(
+        // As high as its lane (the card's wrapper has no height of its own).
+        let h = self
+            .rows(layout)
+            .first()
+            .map_or(ROW_MIN_HEIGHT, |r| r.height)
+            - 1.0;
+        let slab = slab(
             ElementId::Name(format!("timeline-clip-{}", c.id).into()),
             title,
             &c.status,
@@ -1241,11 +1453,8 @@ impl BottomTimeline {
             window,
             cx,
         )
-        .absolute()
-        .top_0()
-        .bottom(px(1.0))
-        .left(px(scale.x(order)))
         .w(px(w))
+        .h(px(h))
         .cursor_grab()
         .when(dragging == Some(c.id.as_str()), |el| el.opacity(0.0))
         .on_click({
@@ -1265,8 +1474,20 @@ impl BottomTimeline {
         })
         .on_drag(drag, {
             let entity = entity.clone();
-            move |drag, offset, _, cx| {
+            move |drag, offset, window, cx| {
                 let mut drag = drag.clone();
+                let mouse = window.mouse_position();
+                let grab = (f32::from(offset.x), f32::from(offset.y));
+                // Taken where the slab is: its top left under the pointer
+                // less the grab.
+                let weight = Weight {
+                    spring: Rc::new(RefCell::new(SlabSpring::new(
+                        f32::from(mouse.x) - grab.0,
+                        f32::from(mouse.y) - grab.1,
+                    ))),
+                    start_y: f32::from(mouse.y),
+                    clock: Instant::now(),
+                };
                 entity.update(cx, |t, cx| {
                     // The slab is as high as its lane.
                     if let Some(body) = t.body.get() {
@@ -1275,96 +1496,32 @@ impl BottomTimeline {
                     }
                     t.dragging = Some(Dragging {
                         chapter: drag.chapter.clone(),
-                        grab_x: f32::from(offset.x).clamp(0.0, drag.size.0),
+                        grab_x: grab.0.clamp(0.0, drag.size.0),
+                        grab_y: grab.1,
                         over: None,
+                        weight: Some(weight.clone()),
                     });
                     cx.notify();
                 });
-                cx.new(|_| Ghost { drag })
+                cx.new(|_| Ghost {
+                    drag,
+                    grab,
+                    weight: Some(weight),
+                })
             }
-        })
-        .into_any_element()
-    }
-
-    /// The act rail, read only for now: each act's name and chapter count at
-    /// its boundary, a line where it starts (`ActRail`).
-    fn act_rail(&self, layout: &Layout, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
-        let theme = Theme::of(window, cx);
-        let p = theme.palette;
-        let scale = layout.scale;
-        let mut rail = div()
-            .relative()
-            .h(px(STRIP_HEIGHT))
-            .flex_none()
-            .w(px(scale.width()))
-            .bg(p.paper.solid())
-            .border_b_1()
-            .border_color(p.rule.solid());
-        for (i, (act, info)) in layout.acts.iter().zip(&self.book.acts).enumerate() {
-            let x = act.start.map_or(0.0, |o| scale.x(o));
-            if act.start.is_some() {
-                rail = rail.child(
-                    div()
-                        .absolute()
-                        .top_0()
-                        .bottom_0()
-                        .left(px(x))
-                        .w(px(0.5))
-                        .bg(p.desk.solid()),
-                );
-            }
-            let color = info.color.as_deref().and_then(color_of);
-            let chip = glass::glass_box(
-                ElementId::Name(format!("timeline-act-{i}").into()),
-                GlassKind::Rest,
-                Mode::default(),
+        });
+        div()
+            .absolute()
+            .top_0()
+            .left(px(scale.x(order)))
+            .child(self.with_card(
+                format!("timeline-clip-card-{}", c.id),
+                slab,
+                cards::CardOf::Chapter(c.id.clone()),
                 false,
-                Spec::new(
-                    color.map_or(Tone::Color(p.glass_clear.mix(p.ink(3), 0.5)), Tone::Color),
-                    2.0,
-                ),
-                window,
                 cx,
-            )
-            .px(px(7.0))
-            .py(px(2.0))
-            .rounded(px(2.0))
-            .flex()
-            .flex_row()
-            .items_center()
-            .gap(px(5.0))
-            .child(
-                div()
-                    .font_role(Role::Structure)
-                    .type_px(11.0, 13.0)
-                    .weight(weight::MEDIUM)
-                    .text_color(p.ink(2).solid())
-                    .child(act.name.clone()),
-            )
-            .child(
-                div()
-                    .font_role(Role::Index)
-                    .type_px(9.0, 13.0)
-                    .text_color(p.ink(4).solid())
-                    .child(tf(
-                        cx,
-                        keys::bottom_timeline::act::CHAPTER_COUNT,
-                        &[("count", &info.chapters.len())],
-                    )),
-            );
-            rail = rail.child(
-                div()
-                    .absolute()
-                    .top(px(2.0))
-                    .bottom(px(2.0))
-                    .left(px(x))
-                    .px(px(6.0))
-                    .flex()
-                    .items_center()
-                    .child(chip),
-            );
-        }
-        rail.into_any_element()
+            ))
+            .into_any_element()
     }
 
     /// The dashed curves between lanes (`btl-crosslinks`).

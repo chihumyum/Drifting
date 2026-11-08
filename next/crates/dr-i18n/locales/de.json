@@ -17,15 +17,36 @@
   "bottomTimeline": {
     "act": {
       "chapterCount": "{{count}} Kapitel",
-      "railLabel": "Akt"
+      "deleteMergeNext": "Diesen Akt löschen und mit dem nächsten zusammenführen",
+      "deleteMergePrev": "Diesen Akt löschen und mit dem vorherigen zusammenführen",
+      "newAct": "Neuer Akt",
+      "openActNote": "Aktnotiz öffnen",
+      "railLabel": "Akt",
+      "startHere": "Hier neuen Akt beginnen",
+      "unbindDrift": "Idee trennen"
     },
     "axis": {
+      "addPin": "Zeitmarke hinzufügen",
       "time": "Zeit"
     },
     "empty": {
       "noChaptersInStoryline": "Keine Kapitel in diesem Strang · Doppelklick zum Erstellen"
     },
     "locateCurrent": "Aktuelles Kapitel finden",
+    "marker": {
+      "defaultLabel": "Markierung"
+    },
+    "menu": {
+      "detachFromNarrative": "Zu nicht platziert zurücksetzen",
+      "moveToUnaffiliated": "Zu nicht zugeordnet verschieben"
+    },
+    "pinMenu": {
+      "bindDrift": "Idee verknüpfen…",
+      "deleteMarker": "Markierung löschen",
+      "openDrift": "Idee öffnen",
+      "rename": "Umbenennen",
+      "unbind": "Verknüpfung aufheben und als einfache Beschriftung wiederherstellen"
+    },
     "storyline": {
       "chapterCount": "{{count}} Kap."
     },
@@ -107,6 +128,7 @@
     "confirm": "Bestätigen",
     "counting": "Wird gezählt…",
     "creating": "Wird erstellt…",
+    "customColor": "Eigene Farbe",
     "delete": "Löschen",
     "edit": "Bearbeiten",
     "local": "Lokal",
@@ -404,6 +426,7 @@
     },
     "groups": {
       "addElementToGroup": "Neues Element in dieser Gruppe",
+      "newChapterInStoryline": "Neues Kapitel in diesem Handlungsstrang",
       "renameElementGroupTitle": "Doppelklicken, um die Gruppe umzubenennen",
       "unaffiliated": "Ohne Zuordnung"
     },
@@ -718,6 +741,8 @@
       "newCardSub": "Beginne mit einer leeren Seite",
       "open": "„{{name}}“ öffnen",
       "progress": "Fortschritt",
+      "recent": "Letzte 30 Tage",
+      "recentLabel": "{{words}} Wörter in den letzten 30 Tagen",
       "storylinesUnit_one": "Handlungsstrang",
       "storylinesUnit_other": "Handlungsstränge",
       "trashEntry": "Kürzlich gelöscht",
@@ -1241,11 +1266,14 @@
     "meta": {
       "chapters": "{{count}} Kapitel",
       "chaptersWords": "{{chapters}} Kapitel · {{words}} Tsd. Wörter",
-      "kWords": "{{count}} Tsd. Wörter"
+      "kWords": "{{count}} Tsd. Wörter",
+      "nodeTemplate": "Standardstruktur für neue Kapitel"
     },
+    "nodeTemplatePlaceholder": "Standardstruktur mit H1 / H2 / H3 erstellen; neue Kapitel verwenden diese Vorlage…",
     "sections": {
       "chapters": "Kapitelreihenfolge",
       "facts": "Fakten",
+      "nodeTemplate": "Kapitelvorlage",
       "scratch": "Notizen"
     },
     "summaryPlaceholder": "Diesen Handlungsstrang in einem Satz zusammenfassen…",

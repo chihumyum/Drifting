@@ -17,15 +17,36 @@
   "bottomTimeline": {
     "act": {
       "chapterCount": "{{count}} 章",
-      "railLabel": "幕"
+      "deleteMergeNext": "刪除此幕並合併至下一幕",
+      "deleteMergePrev": "刪除此幕並合併至上一幕",
+      "newAct": "新幕",
+      "openActNote": "開啟幕備註",
+      "railLabel": "幕",
+      "startHere": "在此開始新幕",
+      "unbindDrift": "解除構想綁定"
     },
     "axis": {
+      "addPin": "新增時間標記",
       "time": "時間"
     },
     "empty": {
       "noChaptersInStoryline": "此故事線尚無章節 · 按兩下建立"
     },
     "locateCurrent": "定位目前章節",
+    "marker": {
+      "defaultLabel": "標記"
+    },
+    "menu": {
+      "detachFromNarrative": "移回尚未放置",
+      "moveToUnaffiliated": "移至未歸屬項目"
+    },
+    "pinMenu": {
+      "bindDrift": "綁定構想…",
+      "deleteMarker": "刪除標記",
+      "openDrift": "開啟構想",
+      "rename": "重新命名",
+      "unbind": "解除綁定並還原為一般標籤"
+    },
     "storyline": {
       "chapterCount": "{{count}} 章"
     },
@@ -107,6 +128,7 @@
     "confirm": "確認",
     "counting": "計算中…",
     "creating": "正在建立…",
+    "customColor": "自訂顏色",
     "delete": "刪除",
     "edit": "編輯",
     "local": "本機",
@@ -398,6 +420,7 @@
     },
     "groups": {
       "addElementToGroup": "在此分組新增要素",
+      "newChapterInStoryline": "在此故事線新增章節",
       "renameElementGroupTitle": "按兩下重新命名分組",
       "unaffiliated": "無歸屬"
     },
@@ -712,6 +735,8 @@
       "newCardSub": "從空白頁開始",
       "open": "開啟「{{name}}」",
       "progress": "進度",
+      "recent": "最近 30 天",
+      "recentLabel": "最近 30 天寫了 {{words}} 字",
       "storylinesUnit_one": "條故事線",
       "storylinesUnit_other": "條故事線",
       "trashEntry": "最近刪除",
@@ -1235,11 +1260,14 @@
     "meta": {
       "chapters": "{{count}} 章",
       "chaptersWords": "{{chapters}} 章 · {{words}} 千字",
-      "kWords": "{{count}} 千字"
+      "kWords": "{{count}} 千字",
+      "nodeTemplate": "新章節的預設骨架"
     },
+    "nodeTemplatePlaceholder": "以 H1／H2／H3 撰寫預設章節骨架；新章節將使用此範本…",
     "sections": {
       "chapters": "章節順序",
       "facts": "設定資料",
+      "nodeTemplate": "章節範本",
       "scratch": "隨筆"
     },
     "summaryPlaceholder": "此故事線的一句話摘要…",

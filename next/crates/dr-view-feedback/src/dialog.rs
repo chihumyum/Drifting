@@ -95,8 +95,11 @@ impl FeedbackDialog {
             },
         );
         let optional = t(cx, fb::CONTACT_PLACEHOLDER);
-        let message =
-            cx.new(|cx| TextArea::new("feedback-message", window, cx).placeholder(placeholder));
+        let message = cx.new(|cx| {
+            TextArea::new("feedback-message", window, cx)
+                .framed(MESSAGE_ROWS)
+                .placeholder(placeholder)
+        });
         let contact = cx.new(|cx| {
             TextField::new("feedback-contact", window, cx)
                 .small()
@@ -439,13 +442,7 @@ impl Render for FeedbackDialog {
                 .child(t(cx, key))
         });
 
-        let message = dr_view_shelf::frame::area(
-            "feedback-message-frame",
-            &self.message,
-            MESSAGE_ROWS,
-            window,
-            cx,
-        );
+        let message = self.message.clone();
         let mut dialog = Dialog::new("feedback-dialog", title)
             .width(WIDTH)
             .on_close({

@@ -17,15 +17,36 @@
   "bottomTimeline": {
     "act": {
       "chapterCount": "{{count}} chapitres",
-      "railLabel": "Acte"
+      "deleteMergeNext": "Supprimer cet acte et le fusionner avec le suivant",
+      "deleteMergePrev": "Supprimer cet acte et le fusionner avec le précédent",
+      "newAct": "Nouvel acte",
+      "openActNote": "Ouvrir la note de l’acte",
+      "railLabel": "Acte",
+      "startHere": "Commencer un nouvel acte ici",
+      "unbindDrift": "Dissocier l’idée"
     },
     "axis": {
+      "addPin": "Ajouter un repère temporel",
       "time": "Temps"
     },
     "empty": {
       "noChaptersInStoryline": "Aucun chapitre dans cette intrigue · double-cliquez pour créer"
     },
     "locateCurrent": "Localiser le chapitre actuel",
+    "marker": {
+      "defaultLabel": "Repère"
+    },
+    "menu": {
+      "detachFromNarrative": "Replacer parmi les non placés",
+      "moveToUnaffiliated": "Déplacer vers les éléments non attribués"
+    },
+    "pinMenu": {
+      "bindDrift": "Associer une idée…",
+      "deleteMarker": "Supprimer le repère",
+      "openDrift": "Ouvrir l’idée",
+      "rename": "Renommer",
+      "unbind": "Dissocier et rétablir comme simple libellé"
+    },
     "storyline": {
       "chapterCount": "{{count}} chap."
     },
@@ -107,6 +128,7 @@
     "confirm": "Confirmer",
     "counting": "Comptage…",
     "creating": "Création…",
+    "customColor": "Couleur personnalisée",
     "delete": "Supprimer",
     "edit": "Modifier",
     "local": "Local",
@@ -404,6 +426,7 @@
     },
     "groups": {
       "addElementToGroup": "Nouvel élément dans ce groupe",
+      "newChapterInStoryline": "Nouveau chapitre dans cette intrigue",
       "renameElementGroupTitle": "Double-cliquez pour renommer le groupe",
       "unaffiliated": "Sans appartenance"
     },
@@ -721,6 +744,8 @@
       "newCardSub": "Commencez par une page blanche",
       "open": "Ouvrir « {{name}} »",
       "progress": "Progression",
+      "recent": "30 derniers jours",
+      "recentLabel": "{{words}} mots au cours des 30 derniers jours",
       "storylinesUnit_many": "intrigues",
       "storylinesUnit_one": "intrigue",
       "storylinesUnit_other": "intrigues",
@@ -1248,11 +1273,14 @@
     "meta": {
       "chapters": "{{count}} chapitres",
       "chaptersWords": "{{chapters}} chapitres · {{words}} k mots",
-      "kWords": "{{count}} k mots"
+      "kWords": "{{count}} k mots",
+      "nodeTemplate": "Structure par défaut des nouveaux chapitres"
     },
+    "nodeTemplatePlaceholder": "Créez une structure de chapitre avec H1 / H2 / H3 ; les nouveaux chapitres l’utiliseront…",
     "sections": {
       "chapters": "Séquence des chapitres",
       "facts": "Faits",
+      "nodeTemplate": "Modèle de chapitre",
       "scratch": "Brouillon"
     },
     "summaryPlaceholder": "Résumé de cette intrigue en une phrase…",

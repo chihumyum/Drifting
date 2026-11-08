@@ -17,15 +17,36 @@
   "bottomTimeline": {
     "act": {
       "chapterCount": "{{count}} capítulos",
-      "railLabel": "Acto"
+      "deleteMergeNext": "Eliminar este acto y unirlo al siguiente",
+      "deleteMergePrev": "Eliminar este acto y unirlo al anterior",
+      "newAct": "Nuevo acto",
+      "openActNote": "Abrir nota del acto",
+      "railLabel": "Acto",
+      "startHere": "Iniciar nuevo acto aquí",
+      "unbindDrift": "Desvincular idea"
     },
     "axis": {
+      "addPin": "Añadir marcador temporal",
       "time": "Tiempo"
     },
     "empty": {
       "noChaptersInStoryline": "Sin capítulos en esta trama · doble clic para crear"
     },
     "locateCurrent": "Localizar capítulo actual",
+    "marker": {
+      "defaultLabel": "Marcador"
+    },
+    "menu": {
+      "detachFromNarrative": "Volver a sin ubicar",
+      "moveToUnaffiliated": "Mover a sin asignar"
+    },
+    "pinMenu": {
+      "bindDrift": "Vincular idea…",
+      "deleteMarker": "Eliminar marcador",
+      "openDrift": "Abrir idea",
+      "rename": "Renombrar",
+      "unbind": "Desvincular y restaurar como etiqueta simple"
+    },
     "storyline": {
       "chapterCount": "{{count}} cap."
     },
@@ -107,6 +128,7 @@
     "confirm": "Confirmar",
     "counting": "Contando…",
     "creating": "Creando…",
+    "customColor": "Color personalizado",
     "delete": "Eliminar",
     "edit": "Editar",
     "local": "Local",
@@ -404,6 +426,7 @@
     },
     "groups": {
       "addElementToGroup": "Nuevo elemento en este grupo",
+      "newChapterInStoryline": "Nuevo capítulo en esta trama",
       "renameElementGroupTitle": "Doble clic para renombrar el grupo",
       "unaffiliated": "Sin vincular"
     },
@@ -721,6 +744,8 @@
       "newCardSub": "Empieza con una página en blanco",
       "open": "Abrir «{{name}}»",
       "progress": "Progreso",
+      "recent": "Últimos 30 días",
+      "recentLabel": "{{words}} palabras en los últimos 30 días",
       "storylinesUnit_many": "tramas",
       "storylinesUnit_one": "trama",
       "storylinesUnit_other": "tramas",
@@ -1248,11 +1273,14 @@
     "meta": {
       "chapters": "{{count}} capítulos",
       "chaptersWords": "{{chapters}} capítulos · {{words}} mil palabras",
-      "kWords": "{{count}} mil palabras"
+      "kWords": "{{count}} mil palabras",
+      "nodeTemplate": "Estructura predeterminada de capítulos nuevos"
     },
+    "nodeTemplatePlaceholder": "Crea una estructura de capítulo con H1 / H2 / H3; los capítulos nuevos la usarán…",
     "sections": {
       "chapters": "Secuencia de capítulos",
       "facts": "Datos",
+      "nodeTemplate": "Plantilla de capítulo",
       "scratch": "Apuntes"
     },
     "summaryPlaceholder": "Resumen de esta trama en una frase…",

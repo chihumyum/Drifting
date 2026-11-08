@@ -17,15 +17,36 @@
   "bottomTimeline": {
     "act": {
       "chapterCount": "{{count}}章",
-      "railLabel": "幕"
+      "deleteMergeNext": "删除此幕（并入下一幕）",
+      "deleteMergePrev": "删除此幕（并入前一幕）",
+      "newAct": "新建幕",
+      "openActNote": "打开幕笔记",
+      "railLabel": "幕",
+      "startHere": "在此处开始新幕",
+      "unbindDrift": "解绑构想"
     },
     "axis": {
+      "addPin": "添加时间 pin",
       "time": "时间"
     },
     "empty": {
       "noChaptersInStoryline": "这条故事线还没有章节 · 双击新建"
     },
     "locateCurrent": "定位到当前章节",
+    "marker": {
+      "defaultLabel": "标记"
+    },
+    "menu": {
+      "detachFromNarrative": "回到未放置",
+      "moveToUnaffiliated": "转移至未归属"
+    },
+    "pinMenu": {
+      "bindDrift": "绑定构想…",
+      "deleteMarker": "删除标记",
+      "openDrift": "打开构想",
+      "rename": "重命名",
+      "unbind": "解绑（恢复为纯标签）"
+    },
     "storyline": {
       "chapterCount": "{{count}} 章"
     },
@@ -107,6 +128,7 @@
     "confirm": "确认",
     "counting": "统计中…",
     "creating": "创建中…",
+    "customColor": "自定义颜色",
     "delete": "删除",
     "edit": "编辑",
     "local": "本地",
@@ -398,6 +420,7 @@
     },
     "groups": {
       "addElementToGroup": "在此分组新建要素",
+      "newChapterInStoryline": "在此故事线中新建章节",
       "renameElementGroupTitle": "双击重命名分组",
       "unaffiliated": "未归属"
     },
@@ -709,6 +732,8 @@
       "newCardSub": "从一张白纸开始",
       "open": "打开《{{name}}》",
       "progress": "进度",
+      "recent": "近 30 天",
+      "recentLabel": "近 30 天写了 {{words}} 字",
       "storylinesUnit": "条故事线",
       "trashEntry": "最近删除",
       "trashList": {
@@ -1229,11 +1254,14 @@
     "meta": {
       "chapters": "{{count}} 章",
       "chaptersWords": "{{chapters}} 章 · {{words}}k 字",
-      "kWords": "{{count}}k 字"
+      "kWords": "{{count}}k 字",
+      "nodeTemplate": "新章节的默认骨架"
     },
+    "nodeTemplatePlaceholder": "用 H1 / H2 / H3 写一份默认的章节骨架，新建章节时自动填充…",
     "sections": {
       "chapters": "章节序列",
       "facts": "字段",
+      "nodeTemplate": "章节模版",
       "scratch": "札记"
     },
     "summaryPlaceholder": "一句话概述本线…",
