@@ -454,11 +454,36 @@
     "title": "Partager le Markdown",
     "wholeBook": "Tous les chapitres dans l’ordre de lecture"
   },
+  "materialEditor": {
+    "descriptionPlaceholder": "Ajouter une description…",
+    "regions": {
+      "draw": "Commenter une zone",
+      "drawHint": "Faites glisser sur l’image pour marquer une zone",
+      "empty": "Faites glisser sur l’image ou la page pour ajouter le premier commentaire.",
+      "listLabel": "Commentaires de cette ressource",
+      "page": "Page {{page}}",
+      "stopDrawing": "Arrêter les commentaires",
+      "whole": "Ressource entière"
+    },
+    "zoomIn": "Zoom avant",
+    "zoomOut": "Zoom arrière",
+    "zoomReset": "Ajuster à la vue"
+  },
   "memoMaterial": {
     "kind": {
       "image": "Image",
       "pdf": "PDF",
       "text": "Note"
+    },
+    "preview": {
+      "loading": "Chargement…",
+      "loadingPdf": "Chargement du PDF…",
+      "nextPage": "Suivant",
+      "noImage": "Aperçu de l’image impossible",
+      "noPdf": "Aperçu PDF impossible",
+      "openPdfFailed": "Impossible d’ouvrir le PDF",
+      "previousPage": "Précédent",
+      "renderPdfFailed": "Impossible d’afficher le PDF"
     }
   },
   "mobileWorkspace": {

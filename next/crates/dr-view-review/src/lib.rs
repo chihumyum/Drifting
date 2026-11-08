@@ -29,7 +29,7 @@ use gpui::{
     AnyElement, App, AppContext, Entity, Global, IntoElement, KeyBinding, SharedString, actions,
 };
 
-pub use composer::{CommentComposer, ComposerEvent};
+pub use composer::{Anchor, CommentComposer, ComposerEvent};
 pub use model::{Filter, Group, Listing, Place};
 pub use panel::{ReviewView, target_of};
 

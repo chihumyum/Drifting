@@ -4,7 +4,9 @@
 //! two, 取消 as a text button and 保存 as the primary one. Enter starts a
 //! new line, ⌘↵ (Ctrl+Enter) saves, Esc cancels. The new comment is
 //! anchored to the selected characters; once written it counts as chosen,
-//! so its sand is drawn along its rows in the prose.
+//! so its sand is drawn along its rows in the prose. The same composer
+//! comes up beside a rectangle just drawn on an image or a PDF page (M19,
+//! [`CommentComposer::for_region`]); that comment marks the rectangle.
 
 use dr_editor::ChapterEditor;
 use dr_editor::decor::ReviewFocus;
@@ -16,7 +18,7 @@ use dr_ui::input::{FieldEvent, TextArea};
 use dr_ui::style::DrStyled;
 use dr_ui::tokens::radius;
 use dr_workspace::commands::comment::{CommentCreate, CommentCreateIn};
-use dr_workspace::dto::Target;
+use dr_workspace::dto::{Region, Target};
 use dr_workspace::{Actor, Workspace};
 use gpui::{
     AppContext, Bounds, Context, ElementId, Entity, EntityInputHandler, EventEmitter, Focusable,
@@ -33,11 +35,20 @@ pub enum ComposerEvent {
     Saved(String),
 }
 
+/// What the new comment is on, beyond its target.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Anchor {
+    /// Characters `[start, end)` of the target's prose.
+    Range(usize, usize),
+    /// A rectangle on an image or a PDF page.
+    Region(Region),
+}
+
 pub struct CommentComposer {
     ws: Workspace,
     book: String,
     target: Target,
-    range: (usize, usize),
+    anchor: Anchor,
     todo: bool,
     field: Entity<TextArea>,
     at: Point<Pixels>,
@@ -122,12 +133,46 @@ impl CommentComposer {
         Some(cx.new(|cx| CommentComposer::new(ws, book, target, range, below, locale, window, cx)))
     }
 
+    /// A composer for characters `range` of `target`'s prose, its top left
+    /// corner at `at`.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         ws: Workspace,
         book: String,
         target: Target,
         range: (usize, usize),
+        at: Point<Pixels>,
+        locale: Locale,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> CommentComposer {
+        let anchor = Anchor::Range(range.0, range.1);
+        Self::with_anchor(ws, book, target, anchor, at, locale, window, cx)
+    }
+
+    /// A composer for a rectangle on an image or PDF material (`target`),
+    /// its top left corner at `at`.
+    #[allow(clippy::too_many_arguments)]
+    pub fn for_region(
+        ws: Workspace,
+        book: String,
+        target: Target,
+        region: Region,
+        at: Point<Pixels>,
+        locale: Locale,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> CommentComposer {
+        let anchor = Anchor::Region(region);
+        Self::with_anchor(ws, book, target, anchor, at, locale, window, cx)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn with_anchor(
+        ws: Workspace,
+        book: String,
+        target: Target,
+        anchor: Anchor,
         at: Point<Pixels>,
         locale: Locale,
         window: &mut Window,
@@ -148,7 +193,7 @@ impl CommentComposer {
             ws,
             book,
             target,
-            range,
+            anchor,
             todo: false,
             field,
             at,
@@ -162,6 +207,11 @@ impl CommentComposer {
         self.at
     }
 
+    /// What the new comment will be on.
+    pub fn anchor(&self) -> Anchor {
+        self.anchor
+    }
+
     pub fn set_todo(&mut self, todo: bool, cx: &mut Context<Self>) {
         self.todo = todo;
         cx.notify();
@@ -171,15 +221,21 @@ impl CommentComposer {
         self.field.update(cx, |f, cx| f.set_text(text, cx));
     }
 
-    /// Writes the comment (on the selected characters) and closes.
+    /// Writes the comment (on the selected characters, or the rectangle)
+    /// and closes.
     pub fn save(&mut self, cx: &mut Context<Self>) {
         let body = self.field.read(cx).text();
+        let (range, region) = match self.anchor {
+            Anchor::Range(start, end) => (Some((start, end)), None),
+            Anchor::Region(r) => (None, Some(r)),
+        };
         let input = CommentCreateIn {
             book: self.book.clone(),
             kind: Some(if self.todo { "todo" } else { "note" }.into()),
             target: Some(self.target.clone()),
             block_id: None,
-            range: Some(self.range),
+            range,
+            region,
             body,
             priority: None,
             author_name: None,

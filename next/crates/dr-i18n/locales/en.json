@@ -454,11 +454,36 @@
     "title": "Share Markdown",
     "wholeBook": "All chapters in reading order"
   },
+  "materialEditor": {
+    "descriptionPlaceholder": "Add a description…",
+    "regions": {
+      "draw": "Comment on a region",
+      "drawHint": "Drag over the image to mark a region",
+      "empty": "Drag over the image or page to add the first comment.",
+      "listLabel": "Comments on this material",
+      "page": "Page {{page}}",
+      "stopDrawing": "Stop commenting",
+      "whole": "Whole material"
+    },
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "zoomReset": "Fit to view"
+  },
   "memoMaterial": {
     "kind": {
       "image": "Image",
       "pdf": "PDF",
       "text": "Note"
+    },
+    "preview": {
+      "loading": "Loading…",
+      "loadingPdf": "Loading PDF…",
+      "nextPage": "Next",
+      "noImage": "Cannot preview image",
+      "noPdf": "Cannot preview PDF",
+      "openPdfFailed": "Cannot open PDF",
+      "previousPage": "Previous",
+      "renderPdfFailed": "Cannot render PDF"
     }
   },
   "mobileWorkspace": {

@@ -449,11 +449,36 @@
     "title": "Markdownを共有",
     "wholeBook": "すべての章を原稿順に"
   },
+  "materialEditor": {
+    "descriptionPlaceholder": "説明を追加…",
+    "regions": {
+      "draw": "範囲にコメント",
+      "drawHint": "画像上をドラッグして範囲を指定",
+      "empty": "画像やページ上をドラッグして、最初のコメントを追加します。",
+      "listLabel": "この資料へのコメント",
+      "page": "{{page}}ページ",
+      "stopDrawing": "コメントを終了",
+      "whole": "資料全体"
+    },
+    "zoomIn": "拡大",
+    "zoomOut": "縮小",
+    "zoomReset": "表示範囲に合わせる"
+  },
   "memoMaterial": {
     "kind": {
       "image": "画像",
       "pdf": "PDF",
       "text": "メモ"
+    },
+    "preview": {
+      "loading": "読み込み中…",
+      "loadingPdf": "PDFを読み込み中…",
+      "nextPage": "次へ",
+      "noImage": "画像をプレビューできません",
+      "noPdf": "PDFをプレビューできません",
+      "openPdfFailed": "PDFを開けません",
+      "previousPage": "前へ",
+      "renderPdfFailed": "PDFを描画できません"
     }
   },
   "mobileWorkspace": {

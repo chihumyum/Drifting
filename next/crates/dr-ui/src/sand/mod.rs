@@ -382,11 +382,18 @@ pub fn paint_mask(
 /// is a new stroke drawn along its path from the mark over 0.38s; a frame
 /// already selected when it first renders shows at once. When the
 /// selection moves on the frame fades out whole (0.3s).
+///
+/// A frame can also stay at rest, faint, while it is not selected (a
+/// region comment on a picture, M19: [`SandFrame::rest`]), and keep one
+/// stroke for good ([`SandFrame::seed`]); it fades between its rest
+/// levels and is drawn round again each time it is selected.
 #[derive(IntoElement)]
 pub struct SandFrame {
     id: ElementId,
     selected: bool,
     color: Option<Rgb>,
+    rest: f32,
+    seed: Option<u32>,
 }
 
 impl SandFrame {
@@ -395,11 +402,26 @@ impl SandFrame {
             id: id.into(),
             selected,
             color: None,
+            rest: 0.0,
+            seed: None,
         }
     }
 
     pub fn color(mut self, color: Rgb) -> Self {
         self.color = Some(color);
+        self
+    }
+
+    /// How strong the frame stays while it is not selected (0–1; 0, the
+    /// default, is gone).
+    pub fn rest(mut self, rest: f32) -> Self {
+        self.rest = rest.clamp(0.0, 1.0);
+        self
+    }
+
+    /// The stroke's seed: the same stroke every time it is drawn.
+    pub fn seed(mut self, seed: u32) -> Self {
+        self.seed = Some(seed);
         self
     }
 }
@@ -411,6 +433,8 @@ const FRAME_DRAW_DELAY: Duration = Duration::from_millis(60);
 
 pub struct FrameState {
     selected: bool,
+    rest: f32,
+    fixed: Option<u32>,
     seed: u32,
     began: Option<Instant>,
     fade: Tween,
@@ -432,36 +456,44 @@ fn new_seed() -> u32 {
 }
 
 impl FrameState {
-    fn new(selected: bool) -> FrameState {
+    fn new(selected: bool, rest: f32, fixed: Option<u32>) -> FrameState {
         FrameState {
             selected,
-            seed: new_seed(),
+            rest,
+            fixed,
+            seed: fixed.unwrap_or_else(new_seed),
             // Already selected on first render: shown drawn, no stroke.
             began: None,
-            fade: Tween::still(if selected { 1.0 } else { 0.0 }),
+            fade: Tween::still(if selected { 1.0 } else { rest }),
             nominal_w: None,
             cache: None,
         }
     }
 
-    fn select(&mut self, selected: bool, reduce: bool) {
+    fn select(&mut self, selected: bool, rest: f32, reduce: bool) {
+        let at = anim::now();
+        let d = if reduce {
+            Duration::ZERO
+        } else {
+            motion::sand::FADE
+        };
         if selected == self.selected {
+            // Resting at another strength (pointed at, resolved).
+            if !selected && rest != self.rest {
+                self.rest = rest;
+                self.fade.retarget(rest, at, d, Easing::EASE_OUT);
+            }
             return;
         }
         self.selected = selected;
-        let at = anim::now();
+        self.rest = rest;
         if selected {
-            self.seed = new_seed();
+            self.seed = self.fixed.unwrap_or_else(new_seed);
             self.nominal_w = None;
             self.began = (!reduce).then_some(at);
             self.fade.set(1.0);
         } else {
-            let d = if reduce {
-                Duration::ZERO
-            } else {
-                motion::sand::FADE
-            };
-            self.fade.retarget(0.0, at, d, Easing::EASE_OUT);
+            self.fade.retarget(rest, at, d, Easing::EASE_OUT);
         }
     }
 
@@ -481,9 +513,11 @@ impl RenderOnce for SandFrame {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = Theme::of(window, cx);
         let palette = theme.palette;
-        let selected = self.selected;
-        let state = window.use_keyed_state(self.id.clone(), cx, |_, _| FrameState::new(selected));
-        state.update(cx, |s, _| s.select(selected, theme.reduce_motion));
+        let (selected, rest, fixed) = (self.selected, self.rest, self.seed);
+        let state = window.use_keyed_state(self.id.clone(), cx, |_, _| {
+            FrameState::new(selected, rest, fixed)
+        });
+        state.update(cx, |s, _| s.select(selected, rest, theme.reduce_motion));
         let color = self.color.unwrap_or(palette.ink(3));
         let (ox, oy) = FRAME_OUT;
         div()
@@ -741,5 +775,30 @@ fn paint_loose(bounds: Bounds<Pixels>, color: Hsla, window: &mut Window) {
         );
         x += 6.0;
         i += 1;
+    }
+}
+
+#[cfg(test)]
+mod frame_tests {
+    use super::*;
+
+    #[test]
+    fn a_resting_frame_stays_faint_and_keeps_its_stroke() {
+        let now = anim::now;
+        let near = |a: f32, b: f32| (a - b).abs() < 1e-4;
+        let mut s = FrameState::new(false, 0.5, Some(7));
+        assert!(s.seed == 7 && near(s.fade.value(now()), 0.5));
+        // Chosen (reduced motion: no draw-in): full, the same stroke.
+        s.select(true, 0.5, true);
+        assert!(s.seed == 7 && near(s.fade.value(now()), 1.0));
+        // Let go, pointed at, resolved: its rest levels.
+        s.select(false, 0.8, true);
+        assert!(near(s.fade.value(now()), 0.8));
+        s.select(false, 0.28, true);
+        assert!(near(s.fade.value(now()), 0.28));
+        // Without a rest level a frame fades out as before.
+        let mut plain = FrameState::new(true, 0.0, None);
+        plain.select(false, 0.0, true);
+        assert!(near(plain.fade.value(now()), 0.0));
     }
 }

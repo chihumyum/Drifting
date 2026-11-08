@@ -2956,6 +2956,43 @@ expression: json
     "concurrency": "book",
     "input": {
       "$defs": {
+        "Region": {
+          "description": "A rectangle on an image, or on one page of a PDF, as fractions (0–1) of\nthe picture or the page, so it stays put at any size and zoom.",
+          "properties": {
+            "h": {
+              "format": "double",
+              "type": "number"
+            },
+            "page": {
+              "description": "The PDF page, from 1; omitted on an image.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "w": {
+              "format": "double",
+              "type": "number"
+            },
+            "x": {
+              "format": "double",
+              "type": "number"
+            },
+            "y": {
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "x",
+            "y",
+            "w",
+            "h"
+          ],
+          "type": "object"
+        },
         "Target": {
           "description": "A reference to an entity (relation end, comment or memory target).",
           "properties": {
@@ -3030,6 +3067,17 @@ expression: json
             "null"
           ]
         },
+        "region": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Region"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Mark a rectangle on an image or PDF material (its target)."
+        },
         "target": {
           "anyOf": [
             {
@@ -3063,7 +3111,7 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Add a comment or TODO, on an entity, a paragraph, a passage of its prose, or floating."
+    "summary": "Add a comment or TODO, on an entity, a paragraph, a passage of its prose, a region of an image or PDF, or floating."
   },
   {
     "access": "write",
@@ -3222,6 +3270,17 @@ expression: json
                 "null"
               ]
             },
+            "region": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Region"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The rectangle it marks on an image or a PDF page."
+            },
             "source": {
               "description": "`manual` or `api`.",
               "type": "string"
@@ -3274,8 +3333,46 @@ expression: json
             "source",
             "agent_conversation",
             "projection",
+            "region",
             "created_at",
             "updated_at"
+          ],
+          "type": "object"
+        },
+        "Region": {
+          "description": "A rectangle on an image, or on one page of a PDF, as fractions (0–1) of\nthe picture or the page, so it stays put at any size and zoom.",
+          "properties": {
+            "h": {
+              "format": "double",
+              "type": "number"
+            },
+            "page": {
+              "description": "The PDF page, from 1; omitted on an image.",
+              "format": "uint32",
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "w": {
+              "format": "double",
+              "type": "number"
+            },
+            "x": {
+              "format": "double",
+              "type": "number"
+            },
+            "y": {
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "x",
+            "y",
+            "w",
+            "h"
           ],
           "type": "object"
         },

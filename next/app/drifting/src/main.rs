@@ -179,6 +179,8 @@ fn main() {
         // M03: the chapter page's head and end around every editor.
         dr_view_page::init(cx);
         dr_view_elements::init(cx);
+        // M19: image and PDF materials open in their viewer, not an editor.
+        dr_view_material::init(cx);
         // M39: the feedback dialog (`SendFeedback`, a crash follow-up in the
         // notification center), by mail unless built with the Hosted service.
         dr_view_feedback::init(

@@ -5,7 +5,7 @@
 //! - [`seed`]: the deterministic seed generator, presets tiny / lite / heavy
 //!   / showcase, written through dr-doc and optionally into a dr-store
 //!   library; [`samples`]: the two sample books and the showcase books from
-//!   `fixtures/`;
+//!   `fixtures/`; [`media`]: synthetic images and PDFs for materials;
 //! - [`rng`], [`text`], [`digest`]: one random number generator, one
 //!   synthetic corpus, one fingerprint;
 //! - [`evidence`]: measured evidence files and their freshness check
@@ -22,6 +22,7 @@ pub mod bench;
 pub mod crash;
 pub mod digest;
 pub mod evidence;
+pub mod media;
 pub mod rng;
 pub mod samples;
 pub mod seed;

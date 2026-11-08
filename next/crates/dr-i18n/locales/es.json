@@ -454,11 +454,36 @@
     "title": "Compartir Markdown",
     "wholeBook": "Todos los capítulos en orden de lectura"
   },
+  "materialEditor": {
+    "descriptionPlaceholder": "Añade una descripción…",
+    "regions": {
+      "draw": "Comentar una región",
+      "drawHint": "Arrastra sobre la imagen para marcar una región",
+      "empty": "Arrastra sobre la imagen o página para añadir el primer comentario.",
+      "listLabel": "Comentarios de este material",
+      "page": "Página {{page}}",
+      "stopDrawing": "Dejar de comentar",
+      "whole": "Todo el material"
+    },
+    "zoomIn": "Acercar",
+    "zoomOut": "Alejar",
+    "zoomReset": "Ajustar a la vista"
+  },
   "memoMaterial": {
     "kind": {
       "image": "Imagen",
       "pdf": "PDF",
       "text": "Nota"
+    },
+    "preview": {
+      "loading": "Cargando…",
+      "loadingPdf": "Cargando PDF…",
+      "nextPage": "Siguiente",
+      "noImage": "No se puede previsualizar la imagen",
+      "noPdf": "No se puede previsualizar el PDF",
+      "openPdfFailed": "No se puede abrir el PDF",
+      "previousPage": "Anterior",
+      "renderPdfFailed": "No se puede representar el PDF"
     }
   },
   "mobileWorkspace": {

@@ -1429,3 +1429,60 @@ fn prose_has_a_shape() {
         other => panic!("{other:?}"),
     }
 }
+
+/// M19: a comment can mark a rectangle on an image or a PDF page; it is
+/// listed with its region, and refused anywhere else, with a range, or
+/// outside the picture.
+#[test]
+fn region_comments_sit_on_image_and_pdf_materials() {
+    let e = env();
+    let b = e.out("book.create", json!({"name": "Regions"}))["id"].clone();
+    let sha = "b".repeat(64);
+    e.call("asset.put", json!({"book": b, "id": "asset-pdf", "kind": "pdf", "mime": "application/pdf", "size": 10, "sha256": sha}));
+    let pdf = e.out(
+        "material.create",
+        json!({"book": b, "kind": "pdf", "title": "notes", "asset": "asset-pdf"}),
+    )["id"]
+        .clone();
+    let note = e.out(
+        "material.create",
+        json!({"book": b, "kind": "text", "title": "note", "text": "a note"}),
+    )["id"]
+        .clone();
+    let on = |id: &Value| json!({"kind": "material", "id": id});
+    let region = json!({"page": 2, "x": 0.1, "y": 0.2, "w": 0.3, "h": 0.4});
+    let c = e.out(
+        "comment.create",
+        json!({"book": b, "target": on(&pdf), "region": region, "body": "tide"}),
+    )["id"]
+        .clone();
+    let listed = e.out("comment.list", json!({"book": b}));
+    assert_eq!(listed[0]["id"], c);
+    assert_eq!(listed[0]["region"], region);
+    assert!(!listed[0]["anchored"].as_bool().unwrap());
+    let refused = |input: Value| {
+        matches!(
+            e.try_call("comment.create", input),
+            Err(WsError::Invalid(_))
+        )
+    };
+    assert!(refused(
+        json!({"book": b, "region": region, "body": "floating"})
+    ));
+    assert!(refused(
+        json!({"book": b, "target": on(&note), "region": region, "body": "text"})
+    ));
+    let chapter = chapter(&e, b.as_str().unwrap(), "One");
+    assert!(refused(
+        json!({"book": b, "target": {"kind": "node", "id": chapter},
+                           "region": region, "body": "prose"})
+    ));
+    assert!(refused(
+        json!({"book": b, "target": on(&pdf), "body": "outside",
+                           "region": {"x": 0.8, "y": 0.0, "w": 0.5, "h": 0.1}})
+    ));
+    assert!(refused(
+        json!({"book": b, "target": on(&pdf), "body": "both",
+                           "region": region, "range": [0, 1]})
+    ));
+}

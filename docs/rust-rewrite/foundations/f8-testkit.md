@@ -19,6 +19,7 @@
 | 统一种子：tiny / lite / heavy / showcase | `next/crates/dr-testkit/src/seed/` | 1 | 做完，指纹钉在测试里 |
 | 种子也能通过 F3 的命令写入，和直写对拍一致 | `seed/commands.rs`、`seed/digest.rs` | 2 | 做完 |
 | 样书：《傲慢与偏见》《阿Q正传》，以及 showcase 的《慢钟》和书架 | `src/samples.rs`、`fixtures/` | 1 | 做完，只有文字，插图没拷 |
+| 合成素材：一张 PNG 地图、三页 A5 的 PDF（Helvetica 和没嵌字体的中文），给 M19 的查看器 | `src/media.rs` | — | 做完（2026-11-08） |
 | 测量证据和过期检查 | `src/evidence.rs`、`cargo xtask evidence --check` | 1 | 做完；旧证据待各自迁移 |
 | 崩溃试验台 | `src/crash.rs`，F2 示范在 `tests/crash_store.rs` | 1 | 做完 |
 | 基准约定和 `bench` 程序 | `src/bench.rs`、`src/bin/bench.rs` | 1、2 | 两个套件：dr-store、dr-workspace（收编 F3 的测量） |

@@ -448,11 +448,36 @@
     "title": "分享 Markdown",
     "wholeBook": "按书稿顺序分享全部章节"
   },
+  "materialEditor": {
+    "descriptionPlaceholder": "添加说明…",
+    "regions": {
+      "draw": "框选批注",
+      "drawHint": "在画面上拖出一个区域来批注",
+      "empty": "在画面或页面上拖出区域，写下第一条批注。",
+      "listLabel": "这条素材的批注",
+      "page": "第 {{page}} 页",
+      "stopDrawing": "结束批注",
+      "whole": "整条素材"
+    },
+    "zoomIn": "放大",
+    "zoomOut": "缩小",
+    "zoomReset": "适配窗口"
+  },
   "memoMaterial": {
     "kind": {
       "image": "图片",
       "pdf": "PDF",
       "text": "笔记"
+    },
+    "preview": {
+      "loading": "加载中…",
+      "loadingPdf": "加载 PDF…",
+      "nextPage": "下一页",
+      "noImage": "无法预览图片",
+      "noPdf": "无法预览 PDF",
+      "openPdfFailed": "无法打开 PDF",
+      "previousPage": "上一页",
+      "renderPdfFailed": "无法渲染 PDF"
     }
   },
   "mobileWorkspace": {

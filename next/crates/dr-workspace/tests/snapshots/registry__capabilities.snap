@@ -43,7 +43,7 @@ chapter_template.body        query    shared   Read a storyline's chapter templa
 chapter_template.document    command  book     Make sure a storyline's chapter template has its own prose document and return its id, for an editor to open.
 chapter_template.set_body    command  book     Replace a storyline's chapter template (the body new chapters on it start with; empty removes it). Existing chapters keep their text.
 comment.anchors              query    shared   The stored anchors of the comments on one entity's prose, for an editor laying them out (comments without an anchor are not listed).
-comment.create               command  book     Add a comment or TODO, on an entity, a paragraph, a passage of its prose, or floating.
+comment.create               command  book     Add a comment or TODO, on an entity, a paragraph, a passage of its prose, a region of an image or PDF, or floating.
 comment.delete               command  book     Delete a comment or TODO (its relations go with it).
 comment.list                 query    shared   List comments and TODOs (a target in the trash or gone shows as unlocated).
 comment.reanchor             command  book     Put a comment's anchor back where the editor's undo brought its text back (the author's change, synced; it follows the editor's undo, so it is not an entry of the object-level undo).

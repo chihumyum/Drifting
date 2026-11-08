@@ -732,3 +732,24 @@ importDialog.status.parsing
 importDialog.status.ready
 importDialog.status.error
 importDialog.summary.*
+
+# M19 the image and PDF viewer and its region comments (dr-view-material)
+materialEditor.descriptionPlaceholder
+materialEditor.zoomIn
+materialEditor.zoomOut
+materialEditor.zoomReset
+materialEditor.regions.draw
+materialEditor.regions.stopDrawing
+materialEditor.regions.drawHint
+materialEditor.regions.listLabel
+materialEditor.regions.empty
+materialEditor.regions.page
+materialEditor.regions.whole
+memoMaterial.preview.noImage
+memoMaterial.preview.noPdf
+memoMaterial.preview.openPdfFailed
+memoMaterial.preview.renderPdfFailed
+memoMaterial.preview.loadingPdf
+memoMaterial.preview.loading
+memoMaterial.preview.previousPage
+memoMaterial.preview.nextPage

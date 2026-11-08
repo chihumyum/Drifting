@@ -320,6 +320,7 @@ app.run(|cx| {
 | `workspace::chapter_sort` | 章节面板 | `ChapterSort { book, inner, outer, primary_only, meta }`（`BookSort`、`InnerSort`、`OuterSort`、`CellMeta`）、`sort_book`、`sort_inner`、`readout`、`compact_words`、`short_date`；字段 `Workspace::chapter_sort`、`BookLayout::chapter_sort` |
 | `dialogs` | 要开模态对话框的模块（F7 反馈、M10 导入……） | `dialogs::show(cx, AnyView)`、`dialogs::hide(cx, EntityId)`；`Workspace::modal()`（对话框或快照历史开着，工作区快捷键停） |
 | `pages`（⋯ 菜单） | 要在页面 ⋯ 菜单里加行的模块（M11） | `add_page_menu(cx, \|target, &PageMenuHost, &App\| Vec<PageMenuSection>)`；`PageMenuItem { id, icon: RowIcon, label, checked, danger, run: RunRow }`、`PageMenuHost { workspace, library, book_id, book }` |
+| `pages`（整页） | 自己画一整页、不用正文编辑器的模块（M19 的图片和 PDF 素材） | `add_page_view(cx, \|&Target, PageViewHost, &mut Window, &mut App\| Option<ModulePage>)`；`ModulePage { view, focus }`、`PageViewHost { workspace, library, book_id, book }`；`Workspace::module_page(&Target)`。开编辑器前先问，答了的页存成 `PageEditor::module`，铺在桌面上、全宽、不画稿纸；在前面时 `focus` 拿键盘，和编辑器一样；关标签照旧放掉（[m19-materials.md](../modules/m19-materials.md)） |
 | `pages`（左栏） | 自己画左栏某个标签的模块（M11 的要素面板） | `add_left_panel(cx, \|LeftTab, WeakEntity<Workspace>, &mut Window, &mut App\| Option<LeftPanel>)`；`LeftPanel { head: AnyView, body: AnyView }` |
 | `workspace`（提示、侧栏状态） | 要提示一句的地方；测试 | `Workspace::toast(文字, cx)`；`folded_in(pane)`、`toggle_fold(pane, group, cx)`、`fold_all(pane, cx)`、`list_scroll(list)` |
 | `workspace::page_actions` | ⋯ 菜单、悬停卡 | `page_actions(&ws, &host, &target, cx) -> Vec<PageMenuSection>`（分享与导出、写作状态、模块的行、历史快照、最后是删除一类） |
