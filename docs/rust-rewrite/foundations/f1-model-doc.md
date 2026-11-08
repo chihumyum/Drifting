@@ -378,7 +378,7 @@ docs/rust-rewrite/acceptance/f1-m3-doc-bench.json   第三轮的测量证据
 
 - `next/crates/dr-model/src/lib.rs`：挂上 `pub mod v3;` 并导出 `BodyDocId`、`TemplateModuleId`。
 - `next/crates/dr-model/src/id.rs`：新增 v3 ID 类型（`EntryId`、`TemplateId`、`ModuleId`、`MembershipId`、`TimelineViewId`、`TimelineLaneId`）、`BodyDocId`（`body:<条目 id>/<模块 id>`）、`TemplateModuleId`（`template:<模板 id>/<模块 id>`）、`TemplateOwner::Module`、`DocKind::Body`、`DocId::Body`。所有 v2.2 文档 ID 的解析与格式化行为保持不变。
-- `next/crates/dr-model/src/kind.rs`：`EntityKind` 新增 `Entry = "entry"`，供 v3 正文内的条目链接及批注/关系/记忆引用使用；v2.2 分支不变。
+- `next/crates/dr-model/src/kind.rs`：`EntityKind` 新增 `Entry = "entry"`，供 v3 正文内的条目链接及批注/关系/记忆引用使用，并新增 `EntityKind::may_be_linked_v3()`（v3 允许链接 `Material`）；v2.2 的 `EntityKind::may_be_linked()` 返回值保持 100% 不变（`EntityKind::Material.may_be_linked() == false`，有单元测试钉住）。
 - `next/crates/dr-model/src/invariant.rs`：`INVARIANTS` 追加 v3 的 13 条不变量声明。
 - `next/crates/dr-doc/src/lib.rs`：挂上 `pub mod v3;`。
 - `next/crates/dr-doc/src/schema.rs`：`SCHEMA_MINOR` 从 `3` 升到 `4`，在 `CHANGELOG` 记录 v3 书目容器与 `body:` / `template:` 文档 ID。
@@ -404,10 +404,13 @@ docs/rust-rewrite/acceptance/f1-m3-doc-bench.json   第三轮的测量证据
 
 ### 包含哪几段
 
-1. **第 4 步 `dr_testkit::seed` v3 四档（`tiny` / `lite` / `heavy` / `showcase`）**（`next/crates/dr-testkit/src/seed/v3.rs`、`shape.rs`、`samples.rs`）：
+1. **修复退回项（不动 v2.2 既有返回值、不越界改 `dr-index`）**：
+   - `dr-model/src/kind.rs`：恢复 `EntityKind::may_be_linked()` 的 v2.2 既有行为（`EntityKind::Material.may_be_linked() == false`），把 v3 允许链接素材的判定独立为 `EntityKind::may_be_linked_v3()`，并在 `dr-doc/src/v3/write.rs` 与 `dr-doc/src/v3/read.rs` 中改调 `may_be_linked_v3()`；同时恢复 `dr-doc/src/book/seed.rs` 对非 v2.2 文档 ID 的既有 `NotInProfile` 返回值。
+   - 撤回对 `next/crates/dr-index/tests/library.rs` 的改动（`dr-index` 不在 K1 负责列表内），将跨层「条目 + 模块」派生与模板跳过测试收归 `next/crates/dr-testkit/tests/seed.rs`。
+2. **第 4 步 `dr_testkit::seed` v3 四档（`tiny` / `lite` / `heavy` / `showcase`）**（`next/crates/dr-testkit/src/seed/v3.rs`、`shape.rs`、`samples.rs`）：
    - 新增 `SeededV3`、`SeededBookV3`、`BuilderV3`、`generate_v3(preset, seed)`、`write_book_v3`、`book_to_v3`、`digest_v3`，以及 `samples::{pride_and_prejudice_v3, a_q_v3, slow_clock_v3, showcase_v3}`（不触碰归属 K3 的 `dr-samples`）。
    - `Shape::of_v3` 按 v3 条目树与模板统计章节、要素、幕（书稿下的 `tpl-group` 分组）、关系、写作日与正文分组指纹；`Tiny`、`Lite`、`Heavy`、`Showcase` 四档与 v2.2 的 `Shape` 及钉死指纹（`PINNED`）完全对齐，并通过全部 13 条 v3 不变量、`owns_prose` 与 `dr-store` 按「条目 + 模块」索引测试。
-2. **修正 `TPL_CATEGORY` 默认 `allow`**：
+3. **修正 `TPL_CATEGORY` 默认 `allow`**：
    - `dr_doc::v3::novel` 中 `TPL_CATEGORY` 的 `settings.allow` 从 `None`（会从父层级 `TPL_ELEMENTS` 继承仅允许 `tpl-category`）修正为 `Some(Vec::new())`（不限制分类下的要素叶子模板，分类自身仍可通过 `overrides.allow` 收窄）。
 
 ### 改了 v2.2 那边的哪些文件、为什么
@@ -418,6 +421,15 @@ docs/rust-rewrite/acceptance/f1-m3-doc-bench.json   第三轮的测量证据
 
 ### 检查结果
 
+- `cargo fmt --all --check`：通过
+- `CARGO_BUILD_JOBS=3 cargo clippy --workspace --all-targets --locked -- -D warnings`：通过
+- `CARGO_BUILD_JOBS=3 cargo test --workspace --locked`：通过（含 `dr-import-v1` 的 `retired_values_normalize_to_current_vocabulary` 及 `dr-testkit` 全部 v2.2 / v3 种子与样书测试）
+- `CARGO_BUILD_JOBS=3 cargo xtask check`：通过
+- `pnpm public:check`：通过
+
+### 待协调
+
+- 无新增待协调项（K3 问的 24、25、27 已在上方第一批交回小节逐条回应）。
 - `cargo fmt --all --check`：通过
 - `CARGO_BUILD_JOBS=3 cargo clippy --workspace --all-targets --locked -- -D warnings`：通过
 - `CARGO_BUILD_JOBS=3 cargo test --workspace --locked`：通过

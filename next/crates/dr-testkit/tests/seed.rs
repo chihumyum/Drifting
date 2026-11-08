@@ -357,6 +357,35 @@ fn v3_seed_writes_into_a_store_and_indexes_by_entry_and_module() {
     let d2 = seed::digest_v3(&lib2, id).unwrap();
     assert_eq!(d1, d2);
 
+    // Also verify template:<tid>/<mid> skips text indexing while body:<eid>/about is indexed.
+    let tpl_doc_id = dr_model::id::DocId::parse("template:tpl-chapter/mod-prose").unwrap();
+    let mut tpl_doc = ProseDoc::create(tpl_doc_id, 1).unwrap();
+    let (r, _) = tpl_doc.edit(dr_model::origin::Origin::User, |t| {
+        t.insert_paragraphs(0, "模板默认字")
+    });
+    r.unwrap();
+    let tpl_id_str = tpl_doc.doc_id().to_string();
+    let h_tpl = lib
+        .open_doc(
+            &tpl_id_str,
+            dr_store::OpenDoc::CreateIfMissing {
+                kind: dr_store::index::DOC_KIND_TEMPLATE,
+                book_id: Some(id),
+                genesis: &move |d| {
+                    d.import(&tpl_doc.export_snapshot().unwrap()).unwrap();
+                },
+            },
+        )
+        .unwrap();
+    drop(h_tpl);
+    lib.rebuild_stale_indexes().unwrap();
+    assert!(
+        lib.search_entry_modules(Some(id), None, None, "模板默认字", 10)
+            .unwrap()
+            .is_empty(),
+        "template:<tid>/<mid> must not enter search or manuscript stats"
+    );
+
     lib.close().unwrap();
     lib2.close().unwrap();
 }

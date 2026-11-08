@@ -186,8 +186,13 @@ impl EntityKind {
                 | EntityKind::Storyline
                 | EntityKind::Category
                 | EntityKind::Entry
-                | EntityKind::Material
         )
+    }
+
+    /// Kinds a v3 entity reference or inline link may point at (`kernel-v3.md`:
+    /// `entry` and `material`).
+    pub fn may_be_linked_v3(&self) -> bool {
+        matches!(self, EntityKind::Entry | EntityKind::Material)
     }
 }
 
@@ -383,6 +388,11 @@ mod tests {
         assert!(EntityKind::Material.may_be_commented());
         assert!(!EntityKind::Comment.may_be_commented());
         assert!(!EntityKind::Patch.may_be_linked());
+        assert!(!EntityKind::Material.may_be_linked());
+        assert!(EntityKind::Entry.may_be_linked());
+        assert!(EntityKind::Entry.may_be_linked_v3());
+        assert!(EntityKind::Material.may_be_linked_v3());
+        assert!(!EntityKind::Element.may_be_linked_v3());
     }
 
     #[test]

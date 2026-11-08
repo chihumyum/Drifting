@@ -363,11 +363,7 @@ pub(crate) fn write_direct_v3(p: &Plan) -> Result<SeededBookV3> {
                 Some(&FieldValue::Text(e.summary.clone())),
             )?;
             if !e.aliases.is_empty() {
-                w.set_field(
-                    &fmod,
-                    "aliases",
-                    Some(&FieldValue::List(e.aliases.iter().cloned().collect())),
-                )?;
+                w.set_field(&fmod, "aliases", Some(&FieldValue::List(e.aliases.clone())))?;
             }
             for (key, value) in &e.facts {
                 w.put_kv(

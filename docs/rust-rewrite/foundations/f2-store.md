@@ -742,10 +742,10 @@ cargo xtask check
 
 ### 包含哪几段
 
-- **第 3 步 `dr-store`（及 `dr-index`）认得 v3 文档种类并按「条目 + 模块」建索引**：
+- **第 3 步 `dr-store` 认得 v3 文档种类并按「条目 + 模块」建索引**：
   - `dr-store::index` 新增 v3 与 v2.2 文档种类常量（`DOC_KIND_BOOK`、`DOC_KIND_BODY`、`DOC_KIND_TEMPLATE` 等）、`is_known_doc_kind`、`is_book_text_kind`、`format_body_doc_id` / `parse_body_doc_id`（`body:<条目 id>/<模块 id>`，含层级说明 `body:<条目 id>/about`）、`format_template_module_doc_id` / `parse_template_module_doc_id`（`template:<模板 id>/<模块 id>`）。
   - 新增按「条目 + 模块」的索引结构（`EntryModuleStats`、`EntryModuleHit`、`EntryModuleReference`）及 `Library` 查询接口：`search_entry_modules`、`search_entry_modules_in_order`、`entry_module_outline`、`entry_module_block_lengths`、`entry_module_stats`、`entry_stats`、`entry_total_stats`、`book_entry_module_stats`、`manuscript_stats`（全书书稿字数只算勾选了「计入全书字数」的层级下的叶子条目正文模块）、`references_from_entry_module`、`references_from_entry`、`entry_module_references_to`、`entry_module_references_in_book`。
-  - `dr-index` 的 `TextDeriver` 对 `body:<条目 id>/<模块 id>`（含 `body:<条目 id>/about`）派生完整段落、字数与引用（`EntityKind::Entry`），对 `template:<模板 id>/<模块 id>` 记为已索引的空文档，不进搜索、不计字数。
+  - `dr-index` 原本就经 `DocId::parse` 和 `DocId::kind().is_book_text()` 分发，无需改动 `dr-index` 即可对 `body:<条目 id>/<模块 id>` 派生完整段落、字数与引用（`EntityKind::Entry`），对 `template:<模板 id>/<模块 id>` 记为空索引（跨层测试放在 `dr-testkit/tests/seed.rs`）。
 
 ### 改了 v2.2 那边的哪些文件、为什么
 
