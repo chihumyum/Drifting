@@ -192,10 +192,13 @@
       "changeGroup": "Gruppe ändern",
       "deleteCategory": "Kategorie löschen",
       "deleteElement": "Element löschen",
+      "deleteMaterial": "Material löschen",
       "deleteNode": "Knoten löschen",
       "deleteStoryline": "Handlungsstrang löschen",
       "editStorylines": "Handlungsstränge bearbeiten",
-      "moveToGroup": "In Gruppe verschieben…"
+      "moveMaterialToFolder": "In Ordner verschieben…",
+      "moveToGroup": "In Gruppe verschieben…",
+      "openMaterialInSystem": "In Standard-App öffnen"
     },
     "outlineRailMode": {
       "hidden": "Inhaltsverzeichnis ausblenden",
@@ -557,6 +560,7 @@
   },
   "materialEditor": {
     "deleteConfirm": "Material „{{title}}“ löschen? Dies kann nicht rückgängig gemacht werden.",
+    "deleteFailed": "Material konnte nicht gelöscht werden.",
     "descriptionPlaceholder": "Beschreibung hinzufügen…",
     "embed": {
       "importFile": "Bild oder PDF importieren…",
@@ -592,6 +596,11 @@
       "open": "Öffnen",
       "rename": "Umbenennen"
     },
+    "picker": {
+      "createAndMove": "Erstellen und verschieben",
+      "newPlaceholder": "Name des neuen Ordners",
+      "title": "In Ordner verschieben"
+    },
     "root": "Alle Materialien",
     "untitled": "Neuer Ordner"
   },
@@ -603,6 +612,7 @@
       "noRelated": "Keine Materialien mit dem aktuellen Eintrag verknüpft."
     },
     "error": {
+      "openFile": "Datei konnte nicht geöffnet werden: {{error}}",
       "pickFailed": "Datei konnte nicht importiert werden: {{error}}"
     },
     "kind": {

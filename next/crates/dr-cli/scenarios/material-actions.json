@@ -1,0 +1,458 @@
+{
+  "about": "M19 素材页动作：笔记没有原件打开；通过真实菜单移动到既有素材夹、根和新建素材夹；取消删除保留、确认后移除；图片/PDF 原件缺失显示错误。只用 showcase 与合成缺失元数据，不调用外部默认应用。",
+  "steps": [
+    {
+      "seed": "showcase"
+    },
+    {
+      "call": "book.list",
+      "save": "books"
+    },
+    {
+      "call": "material.list",
+      "input": {
+        "book": "${books.[name=慢钟].id}"
+      },
+      "save": "materials"
+    },
+    {
+      "call": "material_folder.create",
+      "input": {
+        "book": "${books.[name=慢钟].id}",
+        "name": "素材菜单验收"
+      },
+      "save": "folder"
+    },
+    {
+      "call": "asset.put",
+      "input": {
+        "book": "${books.[name=慢钟].id}",
+        "id": "00000000-0000-7000-8000-000000000041",
+        "kind": "pdf",
+        "mime": "application/pdf",
+        "size": 1,
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "note": "故意只有合成元数据，没有原件：检查打开失败提示"
+    },
+    {
+      "call": "material.create",
+      "input": {
+        "book": "${books.[name=慢钟].id}",
+        "kind": "pdf",
+        "asset": "00000000-0000-7000-8000-000000000041",
+        "title": "缺失的原件"
+      },
+      "save": "missing"
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light"
+        },
+        "settings": {
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "name": "慢钟"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/book/name": "慢钟",
+          "/shelf": false
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "material:${materials.[kind=text].id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/page": "material:${materials.[kind=text].id}"
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "More actions"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Open in default app",
+        "count": 0
+      },
+      "expect": {
+        "/count": 0
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "01-note-menu.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Move to folder…"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/dialog": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "02-folders.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "素材菜单验收"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/dialog": false
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "call": "material.list",
+      "input": {
+        "book": "${books.[name=慢钟].id}"
+      },
+      "expect": {
+        "/[id=${materials.[kind=text].id}]/folder": "${folder.id}"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "More actions"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Move to folder…"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/dialog": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "All materials"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/dialog": false
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "call": "material.list",
+      "input": {
+        "book": "${books.[name=慢钟].id}"
+      },
+      "expect": {
+        "/[id=${materials.[kind=text].id}]/folder": null
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "More actions"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Move to folder…"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/dialog": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "菜单新建素材夹"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Create and move"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/dialog": false
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "call": "material_folder.list",
+      "input": {
+        "book": "${books.[name=慢钟].id}"
+      },
+      "save": "folders"
+    },
+    {
+      "call": "material.list",
+      "input": {
+        "book": "${books.[name=慢钟].id}"
+      },
+      "expect": {
+        "/[id=${materials.[kind=text].id}]/folder": "${folders.[name=菜单新建素材夹].id}"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "More actions"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Delete material"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/dialog": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "03-delete-confirm.png"
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "escape"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/dialog": false
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "call": "material.list",
+      "input": {
+        "book": "${books.[name=慢钟].id}"
+      },
+      "expect": {
+        "/[id=${materials.[kind=text].id}]/id": "${materials.[kind=text].id}"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "More actions"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Delete material"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/dialog": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Confirm",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/dialog": false
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "call": "material.list",
+      "input": {
+        "book": "${books.[name=慢钟].id}",
+        "folder": "${folders.[name=菜单新建素材夹].id}"
+      },
+      "expect": {
+        "": []
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "material:${missing.id}"
+      }
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/page": "material:${missing.id}"
+      },
+      "note": "媒体是模块页，桥的 ready 目前只认正文页；菜单/按钮以 ui.find 自己等待"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "More actions"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Open in default app",
+        "count": 1
+      },
+      "expect": {
+        "/count": 1
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Open in default app"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "Button",
+        "label": "Close",
+        "count": 1
+      }
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/dialog": true
+      },
+      "note": "媒体是模块页，桥的 ready 目前只认正文页；菜单/按钮以 ui.find 自己等待"
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "04-original-missing.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Close",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "Button",
+        "label": "Close",
+        "count": 0
+      }
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/dialog": false
+      },
+      "note": "媒体是模块页，桥的 ready 目前只认正文页；菜单/按钮以 ui.find 自己等待"
+    },
+    {
+      "app": "app.quit",
+      "expect": {
+        "/quit": true
+      }
+    }
+  ]
+}
