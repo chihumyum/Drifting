@@ -1,5 +1,10 @@
 {
   "settings": {
+    "sync": {
+      "projection": {
+        "reveal": "Im Explorer anzeigen"
+      }
+    },
     "update": {
       "channel_desc": "Windows 10/11 · x64 und ARM64"
     }

@@ -22,6 +22,7 @@ pub mod find;
 pub mod outline;
 pub mod page_actions;
 mod review;
+mod sea;
 mod sidebar;
 mod stage;
 mod super_view;
@@ -67,6 +68,7 @@ pub use bottom::{BottomLayout, BottomResize};
 pub use chrome::{LEADING_INSET, TITLEBAR_HEIGHT, TRAFFIC_LIGHT_POSITION};
 pub use dock::DockDrag;
 pub use editors::PageEditor;
+pub use sea::{FIRST_RUN_DONE, SeaState};
 pub use sidebar::{LeftTab, RightTab, page_hover_card};
 pub use stage::EditorLook;
 pub use super_view::SuperView;
@@ -294,10 +296,16 @@ pub struct BookLayout {
     /// The Bottom Panel: which pane, its height.
     #[serde(default)]
     pub bottom: BottomLayout,
-    /// What modules keep for the book on this device
-    /// ([`Workspace::book_memory`]): the timeline's order, zoom, scroll.
-    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
-    pub modules: std::collections::BTreeMap<String, serde_json::Value>,
+}
+
+/// Where [`Workspace::book_memory`] lives: F2's `local_state` (scope
+/// `shell`, key `memory:<book>:<module key>`, the row tied to the book), so
+/// it goes when the book is purged, travels with its library and is one
+/// copy for every window. Never synced.
+pub const BOOK_MEMORY_SCOPE: &str = "shell";
+
+fn memory_prefix(book: &str) -> String {
+    format!("memory:{book}:")
 }
 
 /// What the Escape key closes, topmost first.
@@ -335,6 +343,11 @@ pub struct Workspace {
     /// The left tabs modules draw, made the first time a pane shows them
     /// (pane slug and tab; `None`: no module draws it).
     left_panels: std::cell::RefCell<HashMap<(&'static str, LeftTab), Option<pages::LeftPanel>>>,
+    /// The 帮手 tab a module draws, per pane slug (as the left panels).
+    companion: std::cell::RefCell<HashMap<&'static str, Option<pages::LeftPanel>>>,
+    /// The Super Views' content modules draw, with the book each was made
+    /// for.
+    super_views: std::cell::RefCell<HashMap<SuperView, (String, Option<pages::SuperViewPage>)>>,
     /// The notice at the bottom of the window, and the timer that ends it.
     pub toast: Option<toast::Toast>,
     toast_timer: Option<Task<()>>,
@@ -364,8 +377,17 @@ pub struct Workspace {
     pub find: Option<Entity<find::FindBar>>,
     /// The Bottom Panel under the paper ([`bottom`]).
     pub bottom: bottom::Bottom,
-    /// What modules keep for the book shown (in its layout).
+    /// The sea under the window, the first run, the tour (M24, [`sea`]).
+    pub sea: sea::SeaState,
+    /// The sea ebbs under the workspace this frame.
+    ebbing: bool,
+    /// What modules keep for the book shown ([`BOOK_MEMORY_SCOPE`]), as
+    /// read when it opened and kept since.
     modules: std::collections::BTreeMap<String, serde_json::Value>,
+    /// The book whose memory has been read (it is read off the main thread
+    /// when a book opens).
+    modules_for: Option<String>,
+    modules_read: Option<Task<()>>,
     turning_until: Option<Instant>,
     pub nav: Navigator,
     pub left: Sidebar<LeftTab>,
@@ -477,6 +499,8 @@ impl Workspace {
             toast: None,
             toast_timer: None,
             left_panels: Default::default(),
+            companion: Default::default(),
+            super_views: Default::default(),
             outline_reveal: None,
             outline_reveal_close: None,
             unchecked: Default::default(),
@@ -490,7 +514,11 @@ impl Workspace {
             book_position: None,
             find: None,
             bottom: bottom::Bottom::new(BottomLayout::default()),
+            sea: Default::default(),
+            ebbing: false,
             modules: Default::default(),
+            modules_for: None,
+            modules_read: None,
             turning_until: None,
             nav: Navigator::default(),
             left: Sidebar::new(None, LeftTab::Chapters, |_| true),
@@ -526,6 +554,7 @@ impl Workspace {
         ws.home = pages::make_home(cx.weak_entity(), window, cx);
         if shelf_first {
             ws.show_shelf(window, cx);
+            ws.sea_first_run(window, cx);
         } else {
             ws.load_book(preferred, cx);
         }
@@ -572,10 +601,9 @@ impl Workspace {
                 None,
             ),
         };
-        let (bottom, modules) = saved.map(|l| (l.bottom, l.modules)).unwrap_or_default();
-        self.bottom.layout = bottom;
+        self.bottom.layout = saved.map(|l| l.bottom).unwrap_or_default();
         self.bottom.forget();
-        self.modules = modules;
+        self.read_book_memory(cx);
         self.nav = nav;
         self.left = Sidebar::new(left, LeftTab::Chapters, |_| true);
         self.right = Sidebar::new(right, RightTab::Review, |_| true);
@@ -907,6 +935,7 @@ impl Workspace {
         self.shelf_open = true;
         self.super_view = None;
         self.notifications_open = false;
+        self.sea_shelf(window, cx);
         cx.notify();
         true
     }
@@ -914,6 +943,10 @@ impl Workspace {
     /// Opens `book` from the bookshelf: its saved tabs and sidebars come
     /// back (or Home, the first time), and the bookshelf goes.
     pub fn open_book(&mut self, book: &str, window: &mut Window, cx: &mut Context<Self>) {
+        if book != self.book_id || self.book.is_empty() {
+            // M24: a full-window wait on the sea until the page is ready.
+            self.sea_opening(window, cx);
+        }
         self.shelf_open = false;
         self.notifications_open = false;
         self.super_view = None;
@@ -927,6 +960,29 @@ impl Workspace {
             self.book = Rc::new(Book::default());
             self.restore_layout(cx);
             self.load_book(None, cx);
+        }
+        cx.notify();
+    }
+
+    /// A notice's document (M40's file that could not be merged): its page
+    /// in this book; in another book, that book opens.
+    pub(crate) fn open_noticed(
+        &mut self,
+        book: &str,
+        doc: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.notifications_open = false;
+        if book != self.book_id {
+            self.open_book(book, window, cx);
+            return;
+        }
+        let target = doc
+            .strip_prefix("node:")
+            .and_then(|id| editors::link_target(&self.book, &dr_model::kind::EntityKind::Node, id));
+        if let Some(target) = target {
+            self.open(target, Open::KEEP, cx);
         }
         cx.notify();
     }
@@ -955,7 +1011,13 @@ impl Workspace {
         self.shelf_open = false;
         self.home = None;
         self.left_panels.borrow_mut().clear();
+        self.companion.borrow_mut().clear();
+        self.super_views.borrow_mut().clear();
         self.bottom.forget();
+        self.modules.clear();
+        self.modules_for = None;
+        self.modules_read = None;
+        self.sea_swapping(window, cx);
         self.library = None;
         self.book_id = String::new();
         self.book = Rc::new(Book::default());
@@ -973,6 +1035,7 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         self.library = Some(lib.clone());
+        self.sea_swapped();
         self.listen_to_library(cx);
         self.home = pages::make_home(cx.weak_entity(), window, cx);
         if !self.show_shelf(window, cx) {
@@ -1019,24 +1082,89 @@ impl Workspace {
             chapter_sort: self.chapter_sort,
             book_position: self.book_position.clone(),
             bottom: self.bottom.layout.clone(),
-            modules: self.modules.clone(),
         }
     }
 
-    /// What a module keeps for the book shown under `key` (kept with the
-    /// book's layout on this device, never in the book).
+    /// What a module keeps for the book shown under `key` on this device
+    /// (never in the book; [`BOOK_MEMORY_SCOPE`]). Read once
+    /// [`Workspace::book_memory_ready`].
     pub fn book_memory(&self, key: &str) -> Option<&serde_json::Value> {
         self.modules.get(key)
     }
 
-    /// Keeps `value` for the book shown under `key`; stored with the
-    /// layout a moment later.
+    /// Whether the book shown has had its memory read (a module applies
+    /// what it kept from then on; the workspace notifies when it is).
+    pub fn book_memory_ready(&self) -> bool {
+        self.library.is_none() || self.modules_for.as_deref() == Some(self.book_id.as_str())
+    }
+
+    /// Keeps `value` for the book shown under `key`: at once here, in F2's
+    /// `local_state` off the main thread.
     pub fn set_book_memory(&mut self, key: &str, value: serde_json::Value, cx: &mut Context<Self>) {
         if self.book_id.is_empty() || self.modules.get(key) == Some(&value) {
             return;
         }
-        self.modules.insert(key.to_owned(), value);
-        self.changed(cx);
+        self.modules.insert(key.to_owned(), value.clone());
+        let Some(lib) = self.library.clone() else {
+            return;
+        };
+        let (book, row) = (
+            self.book_id.clone(),
+            format!("{}{key}", memory_prefix(&self.book_id)),
+        );
+        cx.background_spawn(async move {
+            if let Err(error) =
+                lib.library()
+                    .local_set(BOOK_MEMORY_SCOPE, &row, &value.to_string(), Some(&book))
+            {
+                log::warn!("a module's memory could not be kept: {error}");
+            }
+        })
+        .detach();
+    }
+
+    /// Reads the book shown's memory off the main thread. What a module
+    /// kept while it was read wins over what was stored.
+    fn read_book_memory(&mut self, cx: &mut Context<Self>) {
+        self.modules.clear();
+        self.modules_for = None;
+        let Some(lib) = self.library.clone().filter(|_| !self.book_id.is_empty()) else {
+            self.modules_read = None;
+            return;
+        };
+        let book = self.book_id.clone();
+        self.modules_read = Some(cx.spawn(async move |this, cx| {
+            let prefix = memory_prefix(&book);
+            let read = {
+                let book = book.clone();
+                cx.background_spawn(async move {
+                    lib.library().local_entries(BOOK_MEMORY_SCOPE, Some(&book))
+                })
+                .await
+            };
+            let entries = read.unwrap_or_else(|error| {
+                log::warn!("the book's module memory could not be read: {error}");
+                Vec::new()
+            });
+            this.update(cx, |ws, cx| {
+                if ws.book_id != book {
+                    return;
+                }
+                for e in entries {
+                    let (Some(key), Ok(value)) = (
+                        e.key.strip_prefix(&prefix),
+                        serde_json::from_str::<serde_json::Value>(&e.value),
+                    ) else {
+                        continue;
+                    };
+                    ws.modules.entry(key.to_owned()).or_insert(value);
+                }
+                ws.modules_for = Some(book);
+                ws.modules_read = None;
+                cx.notify();
+            })
+            .ok();
+        }));
     }
 
     /// Writes the layout into the settings file now, if it changed.
@@ -1405,10 +1533,31 @@ impl Render for Workspace {
         let window_w = f32::from(viewport.width);
         self.fit_sidebars(window_w, window, cx);
         self.ensure_pages(window, cx);
+        // M24: while a full-window wait holds the sea, only the sea shows
+        // (the page in front gets ready under it).
+        if self.sea_settle(window) {
+            let root = div()
+                .id("workspace")
+                .key_context(keymap::WORKSPACE)
+                .track_focus(&self.focus)
+                .relative()
+                .size_full()
+                .children(Self::backdrop(window, cx))
+                .child(chrome::windows_caption(window, cx));
+            let root = self.on_actions(root, cx);
+            return glass::surface(Ground::flat(p.desk), root).into_any_element();
+        }
+        self.ebbing = Self::sea_ebbs(window, cx);
+        let ebbing = self.ebbing;
+        self.sea_guide(window, cx);
 
         let immersive = self.immersive;
-        let left = (!immersive).then(|| sidebar::left(self, window, cx));
-        let right = (!immersive).then(|| sidebar::right(self, window, cx));
+        let left = (!immersive)
+            .then(|| sidebar::left(self, window, cx))
+            .map(|el| Self::on_sea("sea-left", el, ebbing, cx));
+        let right = (!immersive)
+            .then(|| sidebar::right(self, window, cx))
+            .map(|el| Self::on_sea("sea-right", el, ebbing, cx));
         let mid = stage::mid(self, window, cx);
         let row = div()
             .size_full()
@@ -1418,23 +1567,25 @@ impl Render for Workspace {
             .child(mid)
             .children(right);
 
+        let stage = self
+            .super_view
+            .map(|view| super_view::stage(self, view, window, cx));
         let root = div()
             .id("workspace")
             .key_context(keymap::WORKSPACE)
             .track_focus(&self.focus)
             .relative()
             .size_full()
-            .bg(p.desk.solid())
+            .when(!ebbing, |el| el.bg(p.desk.solid()))
             .text_color(p.ink(1).solid())
             .on_drag_move::<sidebar::ResizeDrag>(cx.listener(sidebar::on_resize))
             .on_drag_move::<BottomResize>(cx.listener(bottom::on_resize))
+            .children(Self::backdrop(window, cx))
             .child(row)
             .when(!immersive, |el| {
                 el.child(chrome::sidebar_toggles(self, window, cx))
             })
-            .when_some(self.super_view, |el, view| {
-                el.child(super_view::stage(view, window, cx))
-            })
+            .children(stage)
             .when_some(self.settings.clone(), |el, panel| el.child(panel))
             .when_some(self.search.clone(), |el, panel| el.child(panel))
             .children(self.composer_overlay())
@@ -1447,9 +1598,18 @@ impl Render for Workspace {
             })
             .when(self.account_open && !self.immersive, |el| {
                 el.child(sidebar::account_menu(self, window, cx))
-            });
+            })
+            .children(self.guide_layer(self.super_view.is_some(), window, cx));
         let root = self.on_actions(root, cx);
         glass::surface(Ground::flat(p.desk), root).into_any_element()
+    }
+}
+
+impl Workspace {
+    /// The sea ebbs under the workspace (M24): the paper's desk and the
+    /// Bottom Panel leave their colour to it.
+    pub fn ebbing(&self) -> bool {
+        self.ebbing
     }
 }
 
@@ -1477,6 +1637,11 @@ impl Workspace {
                 .h(px(chrome::TITLEBAR_HEIGHT)),
             cx,
         );
+        self.sea_shelf(window, cx);
+        // M24: the first run lies over the bookshelf, which shows under it
+        // once it says so.
+        let first_run = sea::first_run_layer(self, cx);
+        let shelf_shows = first_run.as_ref().is_none_or(|(_, shows)| *shows);
         let root = div()
             .id("workspace")
             .key_context(keymap::WORKSPACE)
@@ -1485,7 +1650,9 @@ impl Workspace {
             .size_full()
             .bg(p.desk.solid())
             .text_color(p.ink(1).solid())
-            .child(shelf.view)
+            .children(Self::backdrop(window, cx))
+            .when(shelf_shows, |el| el.child(shelf.view))
+            .children(first_run.map(|(view, _)| view))
             .child(strip)
             .when_some(self.settings.clone(), |el, panel| el.child(panel))
             .when_some(self.dialog.clone(), |el, dialog| el.child(dialog))

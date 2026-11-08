@@ -186,7 +186,8 @@
       "deleteCategory": "분류 삭제",
       "deleteElement": "요소 삭제",
       "deleteNode": "노드 삭제",
-      "deleteStoryline": "스토리라인 삭제"
+      "deleteStoryline": "스토리라인 삭제",
+      "editStorylines": "스토리라인 편집"
     },
     "outlineRailMode": {
       "hidden": "목차 숨기기",
@@ -1041,6 +1042,7 @@
     },
     "appearance": {
       "dark": "어둡게",
+      "guides": "가이드",
       "interface_text_large": "크게",
       "interface_text_largest": "가장 크게",
       "interface_text_size": "인터페이스 글자 크기",
@@ -1049,6 +1051,8 @@
       "interface_text_smallest": "가장 작게",
       "interface_text_standard": "표준",
       "light": "밝게",
+      "replay_guides": "작품을 처음 열 때 둘러보기",
+      "replay_guides_action": "다시 표시",
       "system": "시스템 설정 따르기",
       "theme": "테마",
       "theme_desc": "밝게, 어둡게 또는 시스템 설정을 따릅니다."
@@ -1202,7 +1206,18 @@
       "local_sub": "Drifting 계정이나 호스팅 클라우드를 사용하지 않습니다. 언제든 읽을 수 있는 사본을 내보낼 수 있습니다.",
       "local_title": "작품은 이 기기에 보관됩니다.",
       "projection": {
-        "turnOff": "Markdown 폴더 끄기"
+        "allProjects": "모든 작품",
+        "allProjectsUnset": "모든 작품 · 위치를 선택하지 않음",
+        "choose": "폴더 선택",
+        "description": "각 작품에는 로컬 읽기·검색·외부 도구용 구조화된 Markdown이 있습니다. Drifting 실행 중 다른 편집기에서 장과 아이디어를 편집하면 병합됩니다. 다른 파일은 자동 생성되며 읽기 전용입니다.",
+        "locationHint": "이 기기에 작품마다 폴더를 만듭니다. 위치를 바꿔도 기존 폴더는 원래 위치에 남습니다.",
+        "offHint": "꺼짐: Markdown을 기록하지 않고 외부 수정도 병합하지 않습니다. 기존 파일은 그대로 남습니다.",
+        "offTitle": "Markdown 폴더를 끌까요?",
+        "offWarning": "모든 작품의 Markdown 기록을 중지합니다. 외부 편집기와 Agent는 현재 파일만 보게 되며 외부 수정은 Drifting에 병합되지 않습니다. 기존 파일은 그대로 남습니다. 설정 → 동기화 및 데이터에서 다시 켤 수 있습니다.",
+        "reveal": "Finder에서 보기",
+        "title": "Markdown 폴더",
+        "turnOff": "Markdown 폴더 끄기",
+        "turnOn": "켜기"
       }
     },
     "title": "설정",

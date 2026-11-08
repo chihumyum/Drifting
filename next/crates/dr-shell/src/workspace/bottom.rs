@@ -36,7 +36,7 @@ use dr_ui::{Theme, anim, tokens::motion};
 use gpui::{
     AnyElement, App, AppContext as _, Context, DragMoveEvent, InteractiveElement as _,
     IntoElement as _, MouseButton, ParentElement as _, StatefulInteractiveElement as _,
-    Styled as _, Window, div, px,
+    Styled as _, Window, div, prelude::FluentBuilder as _, px,
 };
 use serde::{Deserialize, Serialize};
 
@@ -354,7 +354,7 @@ pub(super) fn panel(
             .w_full()
             .h(px(visible))
             .overflow_hidden()
-            .bg(p.desk.solid())
+            .when(!ws.ebbing(), |el| el.bg(p.desk.solid()))
             .border_t_1()
             .border_color(p.local_hairline())
             .child(

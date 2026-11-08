@@ -544,7 +544,16 @@ impl SettingsPanel {
         cx: &mut Context<Self>,
     ) -> gpui::Stateful<gpui::Div> {
         let theme = Theme::of(window, cx);
+        let markdown_on = crate::mirror::is_on(cx);
+        let markdown_folder = crate::mirror::folder(cx);
         for info in registry::info_in(section).filter(|r| pick(r) && wanted(r.id)) {
+            // Where the Markdown folder is matters only while it is on; the
+            // tour's row only when the app has a tour.
+            if (info.action == RowAction::MarkdownLocation && !markdown_on)
+                || (info.action == RowAction::ReplayGuides && crate::pages::guide(cx).is_none())
+            {
+                continue;
+            }
             if info.group.is_some() && info.group != *heading {
                 *heading = info.group;
                 if let Some(group) = info.group {
@@ -559,15 +568,26 @@ impl SettingsPanel {
                 (RowAction::CopyDiagnostics, Some(false)) => {
                     Some(t(cx, keys::settings::privacy::DIAGNOSTICS_COPY_FAILED))
                 }
+                (RowAction::MarkdownFolder, _) if !markdown_on => {
+                    use keys::settings::sync::projection as k;
+                    Some(format!("{}\n{}", t(cx, k::DESCRIPTION), t(cx, k::OFF_HINT)).into())
+                }
+                (RowAction::MarkdownLocation, _) => {
+                    let hint = t(cx, keys::settings::sync::projection::LOCATION_HINT);
+                    Some(match &markdown_folder {
+                        Some(folder) => format!("{}\n{hint}", folder.display()).into(),
+                        None => hint,
+                    })
+                }
                 _ => info.description.map(|d| t(cx, d)),
             };
-            col = col.child(row(
-                info.id,
-                t(cx, info.label),
-                description,
-                control,
-                &theme,
-            ));
+            let label = match info.action {
+                RowAction::MarkdownLocation if markdown_folder.is_none() => {
+                    t(cx, keys::settings::sync::projection::ALL_PROJECTS_UNSET)
+                }
+                _ => t(cx, info.label),
+            };
+            col = col.child(row(info.id, label, description, control, &theme));
         }
         col
     }
@@ -661,6 +681,88 @@ impl SettingsPanel {
                     .child(copies)
                     .into_any_element()
             }
+            RowAction::MarkdownFolder => {
+                use keys::settings::sync::projection as k;
+                let panel = cx.entity();
+                if !crate::mirror::is_on(cx) {
+                    return Button::new("markdown-on", t(cx, k::TURN_ON))
+                        .primary()
+                        .small()
+                        .on_click(move |_, _, cx| {
+                            crate::mirror::set_on(true, cx);
+                            panel.update(cx, |_, cx| cx.notify());
+                        })
+                        .into_any_element();
+                }
+                let folder = crate::mirror::folder(cx);
+                Button::new("markdown-reveal", t(cx, k::REVEAL))
+                    .small()
+                    .disabled(folder.is_none())
+                    .on_click(move |_, _, cx| {
+                        if let Some(folder) = &folder {
+                            if let Err(error) = std::fs::create_dir_all(folder) {
+                                log::warn!("the Markdown folder could not be made: {error}");
+                            }
+                            cx.open_with_system(folder);
+                        }
+                    })
+                    .into_any_element()
+            }
+            RowAction::MarkdownLocation => {
+                use keys::settings::sync::projection as k;
+                let unset = crate::mirror::folder(cx).is_none();
+                let prompt = t(cx, k::CHOOSE);
+                let panel = cx.entity();
+                let mut choose = Button::new("markdown-choose", prompt.clone()).small();
+                if unset {
+                    choose = choose.primary();
+                }
+                let choose = choose.on_click(move |_, _, cx| {
+                    let picked = cx.prompt_for_paths(gpui::PathPromptOptions {
+                        files: false,
+                        directories: true,
+                        multiple: false,
+                        prompt: Some(prompt.clone()),
+                    });
+                    let panel = panel.clone();
+                    cx.spawn(async move |cx| {
+                        let Ok(Ok(Some(paths))) = picked.await else {
+                            return;
+                        };
+                        let Some(folder) = paths.into_iter().next() else {
+                            return;
+                        };
+                        cx.update(|cx| {
+                            crate::mirror::set_folder(folder, cx);
+                            panel.update(cx, |_, cx| cx.notify());
+                        });
+                    })
+                    .detach();
+                });
+                let off = Button::new("markdown-off", t(cx, k::TURN_OFF))
+                    .danger()
+                    .small()
+                    .on_click(|_, _, cx| crate::mirror::ask_turn_off(cx));
+                div()
+                    .flex()
+                    .flex_row()
+                    .items_center()
+                    .gap(px(6.0))
+                    .child(choose)
+                    .child(off)
+                    .into_any_element()
+            }
+            RowAction::ReplayGuides => Button::new(
+                "replay-guides",
+                t(cx, keys::settings::appearance::REPLAY_GUIDES_ACTION),
+            )
+            .small()
+            .on_click(|_, _, cx| {
+                if let Some(guide) = crate::pages::guide(cx) {
+                    (guide.reset)(cx);
+                }
+            })
+            .into_any_element(),
             RowAction::Version => div()
                 .font_role(Role::Index)
                 .type_px(s.caption, s.line_caption)

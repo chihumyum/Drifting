@@ -104,7 +104,7 @@ cargo run --release -p dr-view-home --features capture --example shelf-home-capt
 | 最近删除：恢复、立即删除、N 天后永久删除，书架打开 2 分钟后删掉到期的 | 有；只删这台设备上的（Hosted 那边是 M36） |
 | 立即删除确认里 Hosted 的那段说明（「此版本未启用 Hosted……」） | 没有：新版还没有同步，这句话说的事不存在 |
 | 写作热力图（指着书卡只看这本）、换封面画风的按钮 | 有 |
-| 选的画风记在这台设备上（`shelf:cover-style`） | 只记到关掉程序：外壳还没有给模块存本机值的地方（见「待协调」） |
+| 选的画风记在这台设备上（`shelf:cover-style`） | 有：存在外壳设置文件的本机值里（`shelf.cover_style`，F6 第九轮） |
 | 字海、示例书落位 | 没有，M24 |
 | 打开书时的字海等待 | 没有，M24 |
 | 红灯和 ⇧⌘W 回书架，书架上红灯关窗 | 有 |
@@ -176,7 +176,7 @@ M3 Pro，release，离屏（GPUI 的测试平台，真的 macOS 排字和 Metal 
 
 ## 待协调
 
-1. **F6（dr-shell）：本机的画风。** 旧版把书架的画风存在这台设备上（`shelf:cover-style`）。设置文件里有本机那一段（`device`），但 `SettingsFile::set` 只收注册表里的键，模块没法自己加。要么在注册表加一项不显示在设置面板里的本机键 `shelf.cover_style`（十四种画风的名字，默认 `topo`），要么像 `export.author` 那样给一对 `cover_style()` / `set_cover_style()`。有了以后 `dr_view_shelf::art::{cover_style, set_cover_style}` 改成读写它，别处不用动。写在共享笔记 `m01-m02-shelf-home.md`。
+1. ~~**F6（dr-shell）：本机的画风。**~~ **F6 第九轮做了**：`dr_shell::Settings::{device_memory, set_device_memory}`，`dr_view_shelf::art::{cover_style, set_cover_style}` 已改成读写它（键 `shelf.cover_style`）。原来的说明： 旧版把书架的画风存在这台设备上（`shelf:cover-style`）。设置文件里有本机那一段（`device`），但 `SettingsFile::set` 只收注册表里的键，模块没法自己加。要么在注册表加一项不显示在设置面板里的本机键 `shelf.cover_style`（十四种画风的名字，默认 `topo`），要么像 `export.author` 那样给一对 `cover_style()` / `set_cover_style()`。有了以后 `dr_view_shelf::art::{cover_style, set_cover_style}` 改成读写它，别处不用动。写在共享笔记 `m01-m02-shelf-home.md`。
 2. **F6（dr-shell、dr-i18n）**：新版自己的文案（旧版没有的话，比如「导入旧库」）还没有来源，`sync-locales.py` 只从旧版拷。
 3. **M36（同步）**：「立即删除」和到期清理都只删这台设备上的（F3 的 `book.purge` 现在就是这样）。同步做好以后，旧版确认里那段 Hosted 说明和「删除本地及远端」按钮跟着回来。
 

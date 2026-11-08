@@ -1685,6 +1685,7 @@ dependencies = [
  "color_quant",
  "dr-editor",
  "dr-i18n",
+ "dr-mirror",
  "dr-model",
  "dr-platform",
  "dr-store",
@@ -2037,6 +2038,7 @@ dependencies = [
  "gpui_platform",
  "image",
  "log",
+ "serde_json",
  "smallvec",
  "tempfile",
 ]
@@ -2199,6 +2201,7 @@ dependencies = [
  "dr-view-material",
  "dr-view-page",
  "dr-view-plot",
+ "dr-view-sea",
  "dr-view-shelf",
  "dr-view-timeline",
  "dr-view-transfer",

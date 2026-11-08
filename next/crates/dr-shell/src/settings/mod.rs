@@ -44,6 +44,24 @@ impl Settings {
         &cx.global::<Settings>().file
     }
 
+    /// What a module keeps on this device under `key`
+    /// ([`SettingsFile::device_memory`]); `None` without the settings
+    /// (a module's own tests).
+    pub fn device_memory(cx: &App, key: &str) -> Option<serde_json::Value> {
+        cx.try_global::<Settings>()?
+            .file
+            .device_memory(key)
+            .cloned()
+    }
+
+    /// Keeps `value` on this device under `key` (`None` forgets it); the
+    /// file is written a moment later. Does nothing without the settings.
+    pub fn set_device_memory(cx: &mut App, key: &str, value: Option<serde_json::Value>) {
+        if cx.has_global::<Settings>() {
+            Settings::update(cx, |file| file.set_device_memory(key, value));
+        }
+    }
+
     /// Changes the file, applies the change and schedules the write.
     pub fn update<R>(cx: &mut App, f: impl FnOnce(&mut SettingsFile) -> R) -> R {
         let result = cx.update_global::<Settings, _>(|settings, _| f(&mut settings.file));

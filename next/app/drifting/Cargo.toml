@@ -30,6 +30,7 @@ dr-view-material.workspace = true
 dr-view-transfer.workspace = true
 dr-view-page.workspace = true
 dr-view-plot.workspace = true
+dr-view-sea.workspace = true
 dr-view-shelf.workspace = true
 dr-view-timeline.workspace = true
 dr-workspace.workspace = true

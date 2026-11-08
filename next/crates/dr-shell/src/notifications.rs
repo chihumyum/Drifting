@@ -88,6 +88,9 @@ pub struct Notice {
     pub crash_id: Option<String>,
     /// The notice's one button, if it has one.
     pub action: Option<NoticeAction>,
+    /// What clicking it opens: a book's document (`node:<id>`; M40's file
+    /// that could not be merged opens its chapter).
+    pub opens: Option<(String, String)>,
 }
 
 #[derive(Default)]
@@ -123,7 +126,25 @@ impl Notifications {
         crash_id: Option<String>,
         cx: &mut App,
     ) -> u64 {
-        Notifications::insert(source, text.into(), at, crash_id, None, cx)
+        Notifications::insert(source, text.into(), at, crash_id, None, None, cx)
+    }
+
+    /// Posts a notice that opens `doc` of `book` when clicked, newest first.
+    pub fn post_opening(
+        source: Source,
+        text: impl Into<SharedString>,
+        opens: Option<(String, String)>,
+        cx: &mut App,
+    ) -> u64 {
+        Notifications::insert(
+            source,
+            text.into(),
+            SystemTime::now(),
+            None,
+            None,
+            opens,
+            cx,
+        )
     }
 
     /// Posts a notice with a button ([`NoticeAction`]), newest first.
@@ -139,6 +160,7 @@ impl Notifications {
             SystemTime::now(),
             None,
             Some(action),
+            None,
             cx,
         )
     }
@@ -149,6 +171,7 @@ impl Notifications {
         at: SystemTime,
         crash_id: Option<String>,
         action: Option<NoticeAction>,
+        opens: Option<(String, String)>,
         cx: &mut App,
     ) -> u64 {
         let n = cx.global_mut::<Notifications>();
@@ -163,6 +186,7 @@ impl Notifications {
                 at,
                 crash_id,
                 action,
+                opens,
             },
         );
         n.items.truncate(LIMIT);

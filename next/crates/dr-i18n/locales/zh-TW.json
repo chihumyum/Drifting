@@ -186,7 +186,8 @@
       "deleteCategory": "刪除分類",
       "deleteElement": "刪除要素",
       "deleteNode": "刪除節點",
-      "deleteStoryline": "刪除故事線"
+      "deleteStoryline": "刪除故事線",
+      "editStorylines": "編輯故事線"
     },
     "outlineRailMode": {
       "hidden": "隱藏目錄",
@@ -1041,6 +1042,7 @@
     },
     "appearance": {
       "dark": "深色",
+      "guides": "導覽",
       "interface_text_large": "較大",
       "interface_text_largest": "最大",
       "interface_text_size": "介面文字大小",
@@ -1049,6 +1051,8 @@
       "interface_text_smallest": "最小",
       "interface_text_standard": "標準",
       "light": "淺色",
+      "replay_guides": "首次開啟作品時顯示導覽",
+      "replay_guides_action": "再次顯示",
       "system": "跟隨系統",
       "theme": "主題",
       "theme_desc": "淺色、深色，或跟隨系統。"
@@ -1202,7 +1206,18 @@
       "local_sub": "不使用 Drifting 帳號或託管雲端，隨時可匯出可讀副本。",
       "local_title": "作品留在這部裝置上。",
       "projection": {
-        "turnOff": "關閉 Markdown 資料夾"
+        "allProjects": "所有作品",
+        "allProjectsUnset": "所有作品 · 未選擇位置",
+        "choose": "選擇資料夾",
+        "description": "每部作品都有結構化 Markdown，方便本機閱讀、搜尋及外部工具使用。Drifting 執行時，可在其他編輯器修改章節與構想，變更會合併回來；其餘檔案為自動產生且唯讀。",
+        "locationHint": "其中每部作品各有一個資料夾，僅存在這部裝置上。切換位置後，舊資料夾仍留在原處。",
+        "offHint": "已關閉：作品不再寫入 Markdown，外部修改也不再合併回來。現有檔案保留原處。",
+        "offTitle": "要關閉 Markdown 資料夾嗎？",
+        "offWarning": "所有作品都會停止寫入 Markdown。其他編輯器及外部 Agent 只會看到今天的檔案，外部修改也不再合併回 Drifting。現有檔案仍保留原處，可在「設定 → 同步與資料」重新開啟。",
+        "reveal": "在 Finder 中顯示",
+        "title": "Markdown 資料夾",
+        "turnOff": "關閉 Markdown 資料夾",
+        "turnOn": "開啟"
       }
     },
     "title": "設定",
