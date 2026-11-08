@@ -244,6 +244,7 @@ fn import_one(
                         summary: String::new(),
                         storyline: storyline.clone(),
                         text,
+                        narrative_order: None,
                     },
                 )?
                 .output;
