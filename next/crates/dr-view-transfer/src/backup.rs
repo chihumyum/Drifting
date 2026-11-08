@@ -20,9 +20,10 @@ use std::rc::Rc;
 
 use dr_i18n::keys;
 use dr_store::StoreError;
-use dr_store::backup::{self as store_backup, BackupSummary, StagedBackup};
+use dr_store::backup::{self as store_backup, BackupSummary, Progress, StagedBackup, Step};
 use dr_workspace::commands::book::{BookList, ListBooksIn};
 use dr_workspace::{Actor, Workspace};
+use futures::StreamExt as _;
 use gpui::{App, Entity, PathPromptOptions, Task};
 
 use crate::book::start_dir;
@@ -34,7 +35,47 @@ use keys::settings::sync::backup as k;
 /// (everything holding it), calls `Library::restore_staged` and opens the
 /// restored one (dr-store leaves the old one as it was on failure). The
 /// dialog shows 「正在恢复…」 until the task ends; `Err` is said in it.
-pub type Replace = Rc<dyn Fn(StagedBackup, &mut App) -> Task<Result<(), String>>>;
+pub type Replace = Rc<dyn Fn(StagedBackup, ReportProgress, &mut App) -> Task<Result<(), String>>>;
+
+/// Reports the store's current step from its worker thread. Keep this only
+/// for the operation's lifetime; dropping it lets the dialog drain the last
+/// reports before displaying the outcome. Losing a window does not cancel
+/// the backup or interrupt a library replacement.
+pub type ReportProgress = Box<dyn FnMut(&Progress) -> bool + Send>;
+
+/// One receiver per operation. Completion waits for this task, so an old
+/// inspection report cannot overwrite the subsequent restore's progress.
+fn report_to(dialog: &Entity<TransferDialog>, cx: &mut App) -> (ReportProgress, Task<()>) {
+    let (tx, mut rx) = futures::channel::mpsc::unbounded::<Progress>();
+    let shown = dialog.downgrade();
+    let updates = cx.spawn(async move |cx| {
+        while let Some(p) = rx.next().await {
+            shown
+                .update(cx, |d, cx| {
+                    if let State::Working { name, progress, .. } = &mut d.state {
+                        let key = match p.step {
+                            Step::Snapshot | Step::Pack | Step::SaveCurrent => k::EXPORTING,
+                            Step::Extract | Step::Verify => k::INSPECTING,
+                            Step::CopyAssets | Step::Replace => k::RESTORING,
+                        };
+                        *name = d.i18n.t(key).to_owned();
+                        // The total belongs to this step, not the whole
+                        // operation. Snapshot/verification/replacement have
+                        // no byte total and remain indeterminate.
+                        *progress = (p.total > 0)
+                            .then(|| (p.done as f64 / p.total as f64).clamp(0.0, 1.0) as f32);
+                        cx.notify();
+                    }
+                })
+                .ok();
+        }
+    });
+    let report = Box::new(move |p: &Progress| {
+        let _ = tx.unbounded_send(*p);
+        true
+    });
+    (report, updates)
+}
 
 struct Replacer(Replace);
 
@@ -53,7 +94,7 @@ pub fn replacer(cx: &App) -> Replace {
     cx.try_global::<Replacer>()
         .map(|r| r.0.clone())
         .unwrap_or_else(|| {
-            Rc::new(|_, cx| {
+            Rc::new(|_, _, cx| {
                 cx.background_executor().spawn(async {
                     Err("this build cannot replace the open library yet".to_owned())
                 })
@@ -123,16 +164,18 @@ pub fn backup_path(lib: Workspace, path: PathBuf, cx: &mut App) -> Entity<Transf
         },
         cx,
     );
+    let (mut report, updates) = report_to(&dialog, cx);
     let job = cx.background_executor().spawn(async move {
         let names: HashMap<String, String> = lib
             .run::<BookList>(&Actor::User, ListBooksIn { trashed: true })
             .map(|o| o.output.into_iter().map(|b| (b.id, b.name)).collect())
             .unwrap_or_default();
-        lib.library().export_backup(&path, &names)
+        lib.library().export_backup_with(&path, &names, &mut report)
     });
     let shown = dialog.clone();
     cx.spawn(async move |cx| {
         let result = job.await;
+        updates.await;
         shown.update(cx, |d, cx| match result {
             Ok(summary) => {
                 let mut text = format!(
@@ -225,12 +268,14 @@ pub fn restore_path(
     );
     let root = lib.library().paths().root.clone();
     let version = lib.library().options().app_version.clone();
+    let (mut report, updates) = report_to(&dialog, cx);
     let job = cx
         .background_executor()
-        .spawn(async move { store_backup::stage(root, &path, &version) });
+        .spawn(async move { store_backup::stage_with(root, &path, &version, &mut report) });
     let shown = dialog.clone();
     cx.spawn(async move |cx| {
         let staged = job.await;
+        updates.await;
         shown.update(cx, |d, cx| match staged {
             Ok(staged) => {
                 let s = staged.summary();
@@ -293,9 +338,11 @@ fn run_replace(
             cx,
         )
     });
-    let task = replace(staged, cx);
+    let (report, updates) = report_to(&dialog, cx);
+    let task = replace(staged, report, cx);
     cx.spawn(async move |cx| {
         let result = task.await;
+        updates.await;
         dialog.update(cx, |d, cx| match result {
             Ok(()) => d.done(cx),
             Err(e) => d.fail(k::RESTORE_TITLE, k::errors::UNKNOWN, e, cx),
