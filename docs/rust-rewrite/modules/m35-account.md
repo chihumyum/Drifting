@@ -63,6 +63,8 @@ dr_view_account::apply_account_state(state, cx);
 ## 待协调
 
 - 无阻塞项。M37 偏好同步与 M36 同步 v2 直接复用 `dr_account::AccountService` 的会话令牌与 `HostedClient`。
+- **轨道 4（整合协调）**：`apply_account_state` 先更新账号展示，随后异步换库；换库失败或已有释放过程时，目前只记日志，旧库仍保留。请在后续会话状态接线时核对账号展示与实际打开书库的一致性及失败提示；本次没有据此认定数据丢失，也不扩成一轮界面复审。
+- **轨道 4 / 作者**：本批证据来自合成账号、本机假服务与 GPUI 契约；真实 Hosted、浏览器 OAuth／深链及跨平台系统钥匙串仍留给后续授权验收。
 
 ## 交回
 
@@ -70,8 +72,8 @@ dr_view_account::apply_account_state(state, cx);
 - **对 `dr-shell`、`dr-view-shelf` 的改动清单**：
   - `next/crates/dr-shell/src/account.rs`：新增 `AccountViewInfo`、`AccountMenuAction`、`set_hook`、`set_auth_link_handler`、`display_name`、`menu_aria_label`，支持渲染用户头像 `RenderImage` 与底部登录/退出项。
   - `next/crates/dr-shell/src/workspace/sidebar.rs`：左下角账号按钮改调 `account::display_name(cx)` 与 `account::menu_aria_label(cx)`。
-  - `next/crates/dr-shell/src/workspace/mod.rs`：`drain_deep_links` 增加 `drain_matching("auth/")` 转发给 `account::handle_auth_link`，并把首次运行的样本书种子移交 `dr-view-account::init`（仅对本地书库触发）。
-  - `next/crates/dr-shell/src/settings/registry.rs`、`panel.rs`、`mod.rs`：新增 `Section::Account`、`"account.hosted"` 挂载点及 `set_module_row` / `open_section` 辅助函数。
+  - `next/crates/dr-shell/src/workspace/mod.rs`：`drain_deep_links` 增加 `drain_matching("auth/")` 转发给 `account::handle_auth_link`。本批样书触发位于新增的 `dr-view-account::init`，不是这个文件的改动。
+  - `next/crates/dr-shell/src/settings/registry.rs`、`panel.rs`：新增 `Section::Account`、`"account.hosted"` 挂载点并更新分组；`set_module_row` / `open_section` 复用 main 既有接口，`settings/mod.rs` 未改。
   - `next/crates/dr-view-shelf/src/view.rs`：书架左下角账号按钮改调 `dr_shell::account::display_name(cx)` 与 `dr_shell::account::menu_aria_label(cx)`。
 - **检查结果**：`cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、`cargo test --workspace --locked`、`cargo xtask check`、`pnpm public:check` 全部通过。
 - **待协调**：无。

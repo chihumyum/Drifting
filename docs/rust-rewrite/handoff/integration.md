@@ -15,7 +15,7 @@
 ## 现在的状态（2026-11-09）
 
 - `main` 是本机的，**没推送**。推送要作者说。
-- 已经合进 `main` 的到第三十二批：K3 前半段合成旧库与只读导入清单；第三十一批为轨道 2 输入、G3 补丁、数字格式与公共播放接口；第三十批为 M32 共享运行时 MCP；第二十九批为 F6 公共释放期间的输入屏障；第二十八批为 M31、M15 窄格换行及 F3 不变量测试修正；第二十七批为 M18 当前范围与来源刷新；第二十六批为 M14 叙事新建与 M19 素材页动作；第二十五批为 M29 修复、M03 分组路径、M15 块粘贴；第二十四批为 M41 真实进度，第二十三批为 M16 原面板验收。第二十一批为 F3 第十轮；第二十批接收 F2 第七轮和 M28 模型接入；M29 经复审后在第二十五批接收，见下方记录。
+- 已经合进 `main` 的到第三十三批：轨道 4 M35 账号、登录与隔离书库；第三十二批为K3 前半段合成旧库与只读导入清单；第三十一批为轨道 2 输入、G3 补丁、数字格式与公共播放接口；第三十批为 M32 共享运行时 MCP；第二十九批为 F6 公共释放期间的输入屏障；第二十八批为 M31、M15 窄格换行及 F3 不变量测试修正；第二十七批为 M18 当前范围与来源刷新；第二十六批为 M14 叙事新建与 M19 素材页动作；第二十五批为 M29 修复、M03 分组路径、M15 块粘贴；第二十四批为 M41 真实进度，第二十三批为 M16 原面板验收。第二十一批为 F3 第十轮；第二十批接收 F2 第七轮和 M28 模型接入；M29 经复审后在第二十五批接收，见下方记录。
 - 各分支的接收状态与下一批验收候选：
 
 | 分支 | 内容 | 状态 | 后续去向 | 历史接收／审查 |
@@ -50,9 +50,9 @@
 | `codex/legacy-m17-release` | M17 退出排空 | 冻结（v3） | 保留原工作区及同名 WIP，等 v3 通用关系接回。 | 此前修复未接收。 |
 | `antigravity/m21-story-graph、antigravity/m22-element-overview、codex/m22-element-overview-wip` | Super View 原稿与检查点 | 冻结（v3） | 原样保留，不删除、不 rebase，等 v3 通用条目视图。 | WIP 不当成果接收。 |
 | `codex/legacy-* 其余分支、codex/integration-*-review` | 旧模块与旧复审分支 | 冻结（v3） | 原样保留；停止预审、复现和修复，等 v3 重新接线。 | 不因已有审查结论恢复旧队列。 |
-| `codex/k1-kernel-v3` | 轨道 6：K1+K2 内核与通用命令 | 继续 | 作者正式转交后接收；共享 crate 以先合入 main 的版本为准，后到方调整。 | 尚未交回；v3 与 v2.2 并存，M29 清单不扩。 |
+| `codex/k1-kernel-v3` / `handback/k1` | 轨道 6：K1+K2 内核与通用命令 | 继续（本次退回） | 先修 overnight 退回项：保持 v2.2 链接种类原行为，跨层测试留在授权 crate；共享文件按 main 调整后重交。 | 第三十四批 `3f20c049` 全套检查通过，但旧 Material 链接被放行，违反夜间边界；续交 `72734432` 另含越界的 dr-index 测试，均未接收。 |
 | `codex/k3-import-v3` / `handback/k3` | 轨道 7：K3 导入与样书 | 继续 | 前半段已接；等 K1 的 dr-doc v3 合入 main 后做实际 v3 导入和样书，保留 v2.2 路径。m10 待协调 22–27 已按 overnight 分派。 | 第三十二批接收 `4d9c3d8b`（含 `72bc9bb2`），基于 main `42999fa3` 无冲突，全套检查通过；尚未交付真正 v3 导入。 |
-| `codex/track4-account-sync` | 轨道 4：账号、偏好同步、同步传输、Windows | 继续 | 按作者转交顺序接收；不透明文档 id 与资源传输，不扩按种类模型。 | 尚未交回，不提前审查或接收。 |
+| `codex/track4-account-sync` / `handback/track4` | 轨道 4：账号、偏好同步、同步传输、Windows | 继续（M37 本次退回） | M35 已接；M37 先按 overnight 收敛 dr-shell/settings 范围，必要接线单列协调或等作者明确。之后 M36 → M43；真服务／实机留作者。 | 第三十三批已接 `e4722faa`。第三十五批 `c719a76d` 全套检查通过（1905 通过／22 忽略），因共享设置改动超出夜间账号入口限制退回，未接收 M37。 |
 
 `git log main..<分支>` 用来列出尚未直接合入的提交（独立摘取另看历史记录），不是自动接收队列。先按上表与分轨页判断范围；冻结分支即使有更新也不预审。`claude/loro-upstream-issues` 与本次分轨无关，原样保留。
 
@@ -315,3 +315,21 @@ git -c core.hooksPath=/dev/null merge --no-ff --no-edit -m "Merge branch '<整�
 - 整合分支 `codex/batch-32`；接收 `handback/k3` → `4d9c3d8b`，基于 main `42999fa3`，无合并冲突或代码修补。范围只有 dr-import-v1 四个测试文件和 m10 文档；夹具写入临时目录，清单只读 SQLite，未改生产导入路径，未发现确定的数据丢失问题。
 - 新增九项清单契约；实际 v3 导入、ID／锚点重写、目标不变量和样书等 K1 接口后由 K3 交回，不把清单当作导入已经完成。待协调 22–27 的责任分派在 overnight.md，作者语义取舍保持未定。
 - `CARGO_BUILD_JOBS=6`，整合全套检查通过：fmt、Clippy、`RUST_TEST_THREADS=1 cargo test --workspace --locked --no-fail-fast`（1892 通过、0 失败、22 忽略）、xtask、public、CI 契约、旧 Agent 能力、四个兼容验收文件和语言生成。审计 0 漏洞、12 条既有提示；14 份过期测量与 15 份旧证据只记录，未重测。
+
+## 第三十三批验收记录（2026-11-09 夜间）
+
+- 整合分支 `codex/batch-33`；接收 `handback/track4` → `e4722faa`（M35 `de86d2bd`），基于 main `859434e6`，无合并冲突或代码修补。新增 dr-account、dr-view-account；App、平台深链、外壳／书架只接账号入口及书库切换，i18n、清单和依赖门禁为必要接线，未动冻结页面结构或数据模型。
+- 本机假服务与合成独立书库覆盖登录／验证码／找回、PKCE 防重放、资料与改密、账号库往返、离线与令牌过期。换库复用 main 的公共释放门，未发现确定的数据丢失问题。交回文档中两处挂接文件描述按实际 diff 校正，换库失败后的展示一致性与反馈记入 m35 待协调，不阻挡本批。未连真实 Hosted 或新增实机验收。
+- `CARGO_BUILD_JOBS=6`，整合全套检查通过：fmt、Clippy、`RUST_TEST_THREADS=1 cargo test --workspace --locked --no-fail-fast`（1901 通过、0 失败、22 忽略）、xtask、public、CI 契约、旧 Agent 能力、四个兼容验收文件和语言生成。审计 957 个锁定包、0 漏洞、12 条既有提示；过期测量仍只记录。
+
+## 第三十四批退回记录（2026-11-09 夜间）
+
+- `codex/batch-34` 基于 main `fb506d26` 验收 `handback/k1` → `3f20c049`，合并无冲突；并发 6、测试单线程，fmt、Clippy、全工作区测试（1920 通过、0 失败、22 忽略）、xtask、public 及附加兼容检查全部通过。
+- 范围边界未满足：`EntityKind::Material.may_be_linked()` 从 main 的 false 变为候选 true。临时 Rust 可执行直接打印该表达式已两边对照；现有 `dr-workspace/src/commands/prose.rs::set_links`、`dr-doc/src/prose/txn.rs::check_link`、`dr-import-v1/src/prose/plan.rs::entity_link` 都读取它，因此改变 v2.2 行为，违反 overnight 的 K1 第 4 条。退原轨道限定 v3 行为并补兼容契约，整合者不代写。
+- 检查期间指针续到 `72734432`（第 3 步 dr-store）：该函数没有修正，又新增清单外的 `dr-index/tests/library.rs`。按范围退回，未混入第三十四批、未重跑该续交 SHA；要求把跨层契约放到授权 crate，并一起重交。两次退回写在 overnight；main 只收退回文档，产品仍到第三十三批。
+
+## 第三十五批退回记录（2026-11-09 夜间）
+
+- `codex/batch-35` 基于 main `7c4399af` 验收 `handback/track4` → `c719a76d`，无合并冲突。并发 6、测试单线程，fmt、Clippy、全工作区测试（1905 通过、0 失败、22 忽略）、xtask、public 及附加兼容检查全部通过。
+- 依 overnight 的轨道 4 第 2 条按范围退回：候选在 dr-shell/settings 的 store.rs 新增本机账本及写入跟踪，mod.rs 新增同步通知及快捷键应用，registry.rs 新增同步标记，已超过账号入口挂接。`git diff e4722faa..c719a76d -- next/crates/dr-shell/src/settings` 可重查；没有因测试失败或确定的数据丢失退回。
+- M37 原任务书允许最小注册表标记，但夜间页给了更窄范围。交轨道 4 收敛，必要共享接线另列协调，若仍需超出则等作者明确；整合者不据此放宽范围。候选和 M35 已接历史均保留，main 只合退回记录。
