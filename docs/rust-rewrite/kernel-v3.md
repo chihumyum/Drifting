@@ -1,6 +1,6 @@
 # 通用内核 v3（方案）
 
-2026-11-09 起草，同日按作者的决定改了时间线、幕和泳道。状态：**等作者定稿**。定稿以后数据层照这一页做，做完把结构记进 [loro-schema.md](loro-schema.md)，版本记成 v3。这一页怎么分轨推进，见 [handoff/kernel-v3-split.md](handoff/kernel-v3-split.md)。
+2026-11-09 起草，同日按作者的决定改了时间线、幕和泳道，**作者已定稿**。数据层照这一页做（K1+K2 已开工），做完把结构记进 [loro-schema.md](loro-schema.md)，版本记成 v3。这一页怎么分轨推进，见 [handoff/kernel-v3-split.md](handoff/kernel-v3-split.md)。
 
 ## 一句话
 
