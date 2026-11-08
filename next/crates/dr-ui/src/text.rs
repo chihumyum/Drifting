@@ -49,13 +49,14 @@ pub(crate) fn runs_in(runs: &[TextRun], range: Range<usize>) -> Vec<TextRun> {
 }
 
 /// Shapes `text` a paragraph at a time and breaks each into rows `wrap`
-/// wide (none: one row a paragraph) by `prose-linebreak`, letting a mark
-/// that may not start the next row hang past the edge.
+/// wide (none: one row a paragraph) by `prose-linebreak`. The caller chooses
+/// whether closing marks hang or move with the preceding text to a new row.
 pub(crate) fn shape(
     text: &str,
     runs: &[TextRun],
     font_size: Pixels,
     wrap: Option<Pixels>,
+    overflow: linebreak::Overflow,
     window: &Window,
 ) -> Vec<Paragraph> {
     let starts = std::iter::once(0).chain(text.match_indices('\n').map(|(i, _)| i + 1));
@@ -90,7 +91,7 @@ pub(crate) fn shape(
                         f32::from(line.width()),
                         f32::from(wrap),
                         f32::from(font_size),
-                        linebreak::Overflow::Hang,
+                        overflow,
                     )
                     .into_iter()
                     .map(|row| (row.range, px(row.start_x)))
@@ -227,6 +228,7 @@ impl gpui::Element for Wrapped {
                 std::slice::from_ref(&look.run),
                 look.font_size,
                 wrap.filter(|_| look.wraps),
+                linebreak::Overflow::Hang,
                 window,
             );
             let width = wrap.unwrap_or_else(|| {
@@ -259,6 +261,7 @@ impl gpui::Element for Wrapped {
             std::slice::from_ref(&look.run),
             look.font_size,
             look.wraps.then_some(width),
+            linebreak::Overflow::Hang,
             window,
         );
         let total: usize = paragraphs.iter().map(|p| p.breaks.len()).sum();

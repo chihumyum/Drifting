@@ -10,6 +10,8 @@
 //! row at a time; rows break by the editor's Chinese rules
 //! (`prose-linebreak`: no 「。」 or closing quote starts a row, Latin words
 //! stay whole, a mark that does not fit hangs past the edge).
+//! [`TextArea::wrap_punctuation`] instead moves closing marks with the
+//! preceding text to the next row, for a field whose sides are clipped.
 //!
 //! Enter starts a new paragraph, or with [`TextArea::submit_on_enter`] (a
 //! title: one paragraph that wraps) submits instead, and newlines that are
@@ -111,6 +113,7 @@ pub struct TextArea {
     placeholder: SharedString,
     disabled: bool,
     submit_on_enter: bool,
+    overflow: prose_linebreak::Overflow,
     layout: Option<Rc<Layout>>,
     /// At a soft wrap, the caret is at the end of the upper row.
     upstream: bool,
@@ -156,6 +159,7 @@ impl TextArea {
             placeholder: SharedString::default(),
             disabled: false,
             submit_on_enter: false,
+            overflow: prose_linebreak::Overflow::Hang,
             layout: None,
             upstream: false,
             goal_x: None,
@@ -178,6 +182,14 @@ impl TextArea {
 
     pub fn placeholder(mut self, text: impl Into<SharedString>) -> Self {
         self.placeholder = text.into();
+        self
+    }
+
+    /// Move closing marks with their preceding text to the next row instead
+    /// of hanging them beyond the width. A segment without a legal break
+    /// stays together; glyphs are never squeezed. Used by plot-grid slips.
+    pub fn wrap_punctuation(mut self) -> Self {
+        self.overflow = prose_linebreak::Overflow::Wrap;
         self
     }
 
@@ -1035,6 +1047,7 @@ impl gpui::Element for AreaElement {
     ) -> (LayoutId, ()) {
         let p = Theme::of(window, cx).palette;
         let (text, runs, _) = self.area.read(cx).shaping(&window.text_style(), p);
+        let overflow = self.area.read(cx).overflow;
         let (font_size, line_height) = metrics(window);
         let mut style = Style::default();
         style.size.width = relative(1.).into();
@@ -1043,7 +1056,7 @@ impl gpui::Element for AreaElement {
                 AvailableSpace::Definite(w) => Some(w),
                 _ => None,
             });
-            let paragraphs = shape(&text, &runs, font_size, wrap, window);
+            let paragraphs = shape(&text, &runs, font_size, wrap, overflow, window);
             let rows: usize = paragraphs.iter().map(|p| p.breaks.len()).sum();
             let width = wrap.unwrap_or_else(|| {
                 paragraphs
@@ -1069,7 +1082,14 @@ impl gpui::Element for AreaElement {
         let area = self.area.read(cx);
         let (text, runs, placeholder) = area.shaping(&window.text_style(), p);
         let (font_size, line_height) = metrics(window);
-        let paragraphs = shape(&text, &runs, font_size, Some(bounds.size.width), window);
+        let paragraphs = shape(
+            &text,
+            &runs,
+            font_size,
+            Some(bounds.size.width),
+            area.overflow,
+            window,
+        );
         let layout = Rc::new(Layout::new(bounds, line_height, paragraphs, placeholder));
         let composer = &area.composer;
         let selection = composer.selection();

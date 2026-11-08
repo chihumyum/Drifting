@@ -727,6 +727,7 @@ fn check_tolerant(ws: &Workspace, b: &str) {
     let live: HashSet<String> = ids(&list(ws, "chapter.list", json!({"book": b})))
         .into_iter()
         .chain(ids(&list(ws, "element.list", json!({"book": b}))))
+        .chain(ids(&list(ws, "idea.list", json!({"book": b}))))
         .collect();
     for r in list(ws, "relation.list", json!({"book": b}))
         .as_array()
@@ -870,6 +871,31 @@ fn play(ops: &[Op]) {
     e.reopen();
     assert_eq!(snapshot(&e), before, "reopened from disk at the end");
     check_single(e.ws(), &b);
+}
+
+/// A chapter converted back to its idea is still a live node. A projection
+/// made after conversion keeps its location; it is not an orphan merely
+/// because the node moved out of chapter.list.
+#[test]
+fn regression_projected_todo_stays_located_when_conversion_is_undone() {
+    let e = env();
+    let book = e.book();
+    let mut turn = 0;
+    for op in [Op::Idea(0), Op::ConvertIdea(0, 2), Op::Project(1, 197)] {
+        run(e.ws(), &e.faults, &book, &op, &mut turn);
+    }
+    let chapter = ids(&list(e.ws(), "chapter.list", json!({"book": book})))[0].clone();
+    let before = list(e.ws(), "comment.list", json!({"book": book}));
+    assert!(!before.as_array().unwrap().is_empty());
+    run(e.ws(), &e.faults, &book, &Op::Undo, &mut turn);
+    assert!(ids(&list(e.ws(), "idea.list", json!({"book": book}))).contains(&chapter));
+    let after = list(e.ws(), "comment.list", json!({"book": book}));
+    assert_eq!(before, after);
+    for comment in after.as_array().unwrap() {
+        assert_eq!(comment["target"], json!({"kind": "node", "id": chapter}));
+        assert_eq!(comment["unlocated"], false);
+    }
+    check_single(e.ws(), &book);
 }
 
 #[test]

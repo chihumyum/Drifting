@@ -487,7 +487,7 @@ impl PlotPlanner {
             match placeholder {
                 // A label is one paragraph that wraps; Enter leaves it.
                 Some(placeholder) if label => a.placeholder(placeholder).submit_on_enter(),
-                _ => a,
+                _ => a.wrap_punctuation(),
             }
         });
         let key = field.clone();
@@ -1512,8 +1512,8 @@ impl PlotPlanner {
                     .px(px(9.0))
                     .py(px(6.0))
                     .rounded(px(radius::SM))
-                    // Long text is cut at the bottom; a hanging mark keeps
-                    // the slip's padding.
+                    // Long text is cut at the bottom. Closing punctuation
+                    // wraps inside the slip, as in the old contenteditable.
                     .overflow_y_hidden()
                     .cursor_text()
                     .font_role(Role::Ui)
@@ -1537,9 +1537,7 @@ impl PlotPlanner {
                         })
                     })
                     .children(placeholder)
-                    // Room on the right for a mark that hangs past a row's
-                    // end (the editor's line-break rule).
-                    .child(div().pr(px(4.0)).children(area)),
+                    .children(area),
             )
             .into_any_element()
     }

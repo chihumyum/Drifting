@@ -17,7 +17,7 @@
 //!    overflow, the editor lets it *hang* past the edge (no reflow of earlier
 //!    text while typing); print may instead *squeeze* away the blank half of
 //!    a full-width closing mark to make it fit, and break earlier if it still
-//!    does not.
+//!    does not. A clipped interface field may *wrap* earlier without squeezing.
 //! 4. **Punctuation squeezing** inside a row ([`punctuation_squeeze`]): a
 //!    full-width closing mark followed by another mark, or an opening mark
 //!    after another opening mark, loses its blank half (「。」」 → 「。」」 at
@@ -165,6 +165,10 @@ pub enum Overflow {
     /// typing).
     #[default]
     Hang,
+    /// Break before the last legal opportunity, keeping the closing marks
+    /// with the preceding text and their full advances (clipped UI fields).
+    /// A segment with no legal break still stays together.
+    Wrap,
     /// Drop the blank half of a full-width closing mark if that makes it fit;
     /// otherwise break before the last opportunity (print).
     Squeeze,
@@ -258,9 +262,10 @@ pub fn break_rows(
             ix = glyphs.partition_point(|(b, _)| *b < start);
             continue;
         }
-        if overflows && overflow == Overflow::Squeeze && NO_START.contains(c) {
+        if overflows && overflow != Overflow::Hang && NO_START.contains(c) {
             let width = next_x - x;
-            let squeezable = closing_full_width(c) && width >= em * 0.9;
+            let squeezable =
+                overflow == Overflow::Squeeze && closing_full_width(c) && width >= em * 0.9;
             if !(squeezable && next_x - start_x - em * 0.5 <= wrap_width + 0.01) {
                 // Cannot fit even squeezed: break before the last opportunity.
                 if let Some((at, at_x)) = candidate.filter(|(at, _)| *at > start) {
@@ -494,6 +499,82 @@ mod tests {
         assert_eq!(rows_text(text, &rows), ["一二三四五六七八九十，", "下一行"]);
         assert!((rows[0].squeeze - 5.).abs() < 0.01);
         assert_eq!(rows[0].hang, 0.);
+    }
+
+    #[test]
+    fn rows_wrap_closing_marks_without_squeezing_or_changing_the_editor() {
+        // The plot-cell regression: an excerpt from the bundled 阿Q sample.
+        let text = "你算是什么东西！”";
+        let (g, width) = glyphs(text, 10.);
+        let hung = break_rows(text, &g, width, 70., 10., Overflow::Hang);
+        assert_eq!(rows_text(text, &hung), [text]);
+        assert!(hung[0].hang > 0.);
+        for wrap in [70., 75.] {
+            let rows = break_rows(text, &g, width, wrap, 10., Overflow::Wrap);
+            assert_eq!(rows_text(text, &rows), ["你算是什么东", "西！”"]);
+            assert!(rows.iter().all(|r| r.hang == 0. && r.squeeze == 0.));
+            for row in &rows {
+                let end_x = g
+                    .iter()
+                    .find(|(byte, _)| *byte == row.range.end)
+                    .map_or(width, |(_, x)| *x);
+                assert!(end_x - row.start_x <= wrap, "the full glyph advances fit");
+            }
+        }
+    }
+
+    #[test]
+    fn wrapping_keeps_legal_clusters_and_mandatory_breaks() {
+        let text = "一二三四五“Hello！”\u{2028}👩‍💻！”";
+        // The emoji is one shaped cluster. Its continuation code points
+        // must never become row starts when a closing mark overflows.
+        let clusters = [
+            "一",
+            "二",
+            "三",
+            "四",
+            "五",
+            "“",
+            "H",
+            "e",
+            "l",
+            "l",
+            "o",
+            "！",
+            "”",
+            "\u{2028}",
+            "👩‍💻",
+            "！",
+            "”",
+        ];
+        let mut at = 0;
+        let mut x = 0.;
+        let g: Vec<_> = clusters
+            .iter()
+            .map(|c| {
+                let glyph = (at, x);
+                at += c.len();
+                x += 10.;
+                glyph
+            })
+            .collect();
+        let rows = break_rows(text, &g, x, 100., 10., Overflow::Wrap);
+        assert_eq!(
+            rows_text(text, &rows),
+            ["一二三四五", "“Hello！”\u{2028}", "👩‍💻！”"]
+        );
+        assert!(rows.iter().all(|r| r.hang == 0. && r.squeeze == 0.));
+        // If the whole cluster and its marks are wider than the field,
+        // there is no legal split; preserve them and terminate normally.
+        let rows = break_rows(
+            "👩‍💻！”",
+            &[(0, 0.), (11, 10.), (14, 20.)],
+            30.,
+            10.,
+            10.,
+            Overflow::Wrap,
+        );
+        assert_eq!(rows_text("👩‍💻！”", &rows), ["👩‍💻！”"]);
     }
 
     #[test]

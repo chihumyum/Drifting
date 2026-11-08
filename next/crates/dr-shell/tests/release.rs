@@ -388,3 +388,224 @@ fn refused_shutdown_restores_the_gate_and_service_without_running_the_job(cx: &m
     drop(held);
     close(cx);
 }
+
+struct InputProbe {
+    input: gpui::Entity<dr_ui::input::TextField>,
+    clicks: Rc<Cell<usize>>,
+    _blur: gpui::Subscription,
+}
+
+impl gpui::Render for InputProbe {
+    fn render(
+        &mut self,
+        _: &mut gpui::Window,
+        _: &mut gpui::Context<Self>,
+    ) -> impl gpui::IntoElement {
+        use gpui::{
+            InteractiveElement as _, ParentElement as _, StatefulInteractiveElement as _,
+            Styled as _,
+        };
+        let clicks = self.clicks.clone();
+        gpui::div()
+            .p(gpui::px(40.0))
+            .flex()
+            .flex_col()
+            .child(self.input.clone())
+            .child(
+                gpui::div()
+                    .id("release-test-write")
+                    .debug_selector(|| "release-test-write".into())
+                    .w(gpui::px(100.0))
+                    .h(gpui::px(30.0))
+                    .child("+")
+                    .on_click(move |_, _, _| clicks.set(clicks.get() + 1)),
+            )
+    }
+}
+
+fn pending_release_blocks_author_input(cx: &mut TestAppContext, quitting: bool) {
+    use gpui::{AppContext as _, Focusable as _};
+    let _dir = setup(cx);
+    let form = Rc::new(RefCell::new(None));
+    let made = form.clone();
+    let clicks = Rc::new(Cell::new(0));
+    let clicked = clicks.clone();
+    let blurs = Rc::new(Cell::new(0));
+    let blurred = blurs.clone();
+    let name = cx.update(|cx| {
+        let ws = cx.global::<Services>().library.as_ref().unwrap();
+        ws.call(&Actor::User, "book.list", json!({})).unwrap()["output"][0]["name"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    });
+    cx.update(|cx| {
+        dr_shell::pages::set_home(cx, move |_, window, cx| {
+            let view = cx.new(|cx| {
+                let input =
+                    cx.new(|cx| dr_ui::input::TextField::new("release-test-input", window, cx));
+                let blurred = blurred.clone();
+                let sub = cx.subscribe(&input, move |_, _, event, _| {
+                    if matches!(event, dr_ui::input::FieldEvent::Blurred) {
+                        blurred.set(blurred.get() + 1);
+                    }
+                });
+                InputProbe {
+                    input,
+                    clicks: clicked.clone(),
+                    _blur: sub,
+                }
+            });
+            *made.borrow_mut() = Some(view.clone());
+            view.into()
+        });
+    });
+    let (_workspace, cx) = cx.add_window_view(dr_shell::Workspace::new);
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while form.borrow().is_none() {
+        cx.update(|window, cx| window.draw(cx).clear(cx));
+        cx.run_until_parked();
+        assert!(Instant::now() < deadline, "the workspace did not open Home");
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    let first_form = form.borrow().clone().unwrap();
+    let input = first_form.read_with(cx, |f, _| f.input.clone());
+    let other_window = cx.cx.add_window(dr_shell::Workspace::new);
+    let mut other = gpui::VisualTestContext::from_window(other_window.into(), &cx.cx);
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while form.borrow().as_ref() == Some(&first_form) {
+        other.update(|window, cx| window.draw(cx).clear(cx));
+        other.run_until_parked();
+        assert!(
+            Instant::now() < deadline,
+            "the second workspace did not open Home"
+        );
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    let other_input = form
+        .borrow()
+        .as_ref()
+        .unwrap()
+        .read_with(&other, |f, _| f.input.clone());
+    other.update(|window, cx| {
+        window.activate_window();
+        other_input.focus_handle(cx).focus(window, cx);
+        window.draw(cx).clear(cx);
+    });
+    other.simulate_input(&name);
+    other.update(|window, cx| window.draw(cx).clear(cx));
+    let other_button = other.debug_bounds("release-test-write").unwrap();
+    cx.update(|window, cx| {
+        window.activate_window();
+        input.focus_handle(cx).focus(window, cx);
+        window.draw(cx).clear(cx);
+    });
+    cx.simulate_input(&name);
+    cx.update(|window, cx| window.draw(cx).clear(cx));
+    let button = cx.debug_bounds("release-test-write").unwrap();
+    assert!(
+        cx.update(|window, cx| input.focus_handle(cx).is_focused(window)),
+        "first window focused before release"
+    );
+    assert!(
+        other.update(|window, cx| other_input.focus_handle(cx).is_focused(window)),
+        "second window focused before release"
+    );
+    assert_eq!(other_input.read_with(&other, |input, _| input.text()), name);
+    let prior_blurs = blurs.get();
+    // An inactive window has already emitted blur on deactivation. GPUI
+    // suppresses duplicate blur events for its remembered focus handle.
+    let active_windows = usize::from(cx.update(|w, _| w.is_window_active()))
+        + usize::from(other.update(|w, _| w.is_window_active()));
+    let (finish, waiting) = oneshot::channel();
+    let mut waiting = Some(waiting);
+    let quick = Rc::new(Cell::new(false));
+    let ack = quick.clone();
+    let observed_blurs = Rc::new(Cell::new(0));
+    let seen = observed_blurs.clone();
+    let resumed = Rc::new(Cell::new(false));
+    let did_resume = resumed.clone();
+    // This starts inside a checked-out window, as a menu or keyboard action
+    // does. The release's synchronous prefix must not check it out again.
+    cx.update(|_, cx| {
+        release::before_release(cx, move |_| {
+            let (ack, blurs, seen) = (ack.clone(), blurs.clone(), seen.clone());
+            async move {
+                seen.set(blurs.get());
+                ack.set(true);
+                Ok(())
+            }
+            .boxed_local()
+        });
+        release::before_release(cx, move |_| {
+            let waiting = waiting.take().unwrap();
+            async move { waiting.await.unwrap() }.boxed_local()
+        });
+        release::after_release(cx, move |_| did_resume.set(true));
+        if quitting {
+            quit::request(cx);
+        } else {
+            library::replace(cx, |_, _| unreachable!("preparation will fail"), |_, _| {});
+        }
+    });
+    cx.run_until_parked();
+    assert!(
+        quick.get(),
+        "the fast service acknowledged while the other waits"
+    );
+    assert_eq!(
+        observed_blurs.get() - prior_blurs,
+        active_windows,
+        "active inputs blur before every service's flush"
+    );
+    assert!(cx.debug_bounds("release-input-barrier").is_some());
+    cx.simulate_input(&name);
+    cx.simulate_click(button.center(), gpui::Modifiers::none());
+    cx.simulate_keystrokes("tab");
+    cx.simulate_input(&name);
+    assert_eq!(input.read_with(cx, |input, _| input.text()), name);
+    assert!(other.debug_bounds("release-input-barrier").is_some());
+    other.simulate_input(&name);
+    other.simulate_click(other_button.center(), gpui::Modifiers::none());
+    other.simulate_keystrokes("tab");
+    other.simulate_input(&name);
+    assert_eq!(other_input.read_with(&other, |input, _| input.text()), name);
+    assert_eq!(
+        clicks.get(),
+        0,
+        "a drained service cannot receive another click"
+    );
+    finish.send(Err("keep the library open".into())).unwrap();
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while !resumed.get() {
+        cx.run_until_parked();
+        assert!(Instant::now() < deadline, "release did not resume");
+    }
+    cx.update(|window, cx| window.draw(cx).clear(cx));
+    assert!(cx.debug_bounds("release-input-barrier").is_none());
+    assert!(cx.update(|window, cx| input.focus_handle(cx).is_focused(window)));
+    cx.simulate_input(&name);
+    cx.simulate_click(button.center(), gpui::Modifiers::none());
+    assert_eq!(input.read_with(cx, |input, _| input.text()), name.repeat(2));
+    assert_eq!(clicks.get(), 1);
+    other.update(|window, cx| window.draw(cx).clear(cx));
+    assert!(other.debug_bounds("release-input-barrier").is_none());
+    assert!(other.update(|window, cx| other_input.focus_handle(cx).is_focused(window)));
+    other.simulate_input(&name);
+    other.simulate_click(other_button.center(), gpui::Modifiers::none());
+    assert_eq!(
+        other_input.read_with(&other, |input, _| input.text()),
+        name.repeat(2)
+    );
+    assert_eq!(clicks.get(), 2);
+}
+
+#[gpui::test]
+fn ordinary_quit_freezes_input_until_every_service_finishes(cx: &mut TestAppContext) {
+    pending_release_blocks_author_input(cx, true);
+}
+
+#[gpui::test]
+fn replacement_freezes_input_until_every_service_finishes(cx: &mut TestAppContext) {
+    pending_release_blocks_author_input(cx, false);
+}
