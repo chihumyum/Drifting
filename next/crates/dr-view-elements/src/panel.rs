@@ -1836,6 +1836,37 @@ pub mod v3 {
         out
     }
 
+    /// The page distinguishes residence from membership even when the same
+    /// entry has both records. The sidebar remains one compact navigation canvas.
+    pub fn board_sections(
+        book: &Book,
+        level: &str,
+        surface: DisplaySurface,
+    ) -> Vec<(Option<Section>, Vec<String>)> {
+        let Some(level) = book.v3().and_then(|v| v.levels.get(level)) else {
+            return vec![];
+        };
+        if surface == DisplaySurface::Page {
+            let mut sections = vec![(Some(Section::Residents), level.children.clone())];
+            if !level.members.is_empty() {
+                sections.push((Some(Section::Members), level.members.clone()));
+            }
+            sections
+        } else {
+            let mut seen = BTreeSet::new();
+            vec![(
+                None,
+                level
+                    .children
+                    .iter()
+                    .chain(&level.members)
+                    .filter(|id| seen.insert(*id))
+                    .cloned()
+                    .collect(),
+            )]
+        }
+    }
+
     pub struct LevelDisplay {
         pub host: LevelHost,
         pub display: Display,
@@ -2175,19 +2206,41 @@ pub mod v3 {
             }
         }
         fn board(&self, window: &mut Window, cx: &mut App) -> AnyElement {
+            let mut content = div().flex().flex_col().gap_3();
+            for (section, ids) in
+                board_sections(&self.host.page.book, &self.host.level, self.host.surface)
+            {
+                if let Some(section) = section {
+                    let label = t(
+                        cx,
+                        match section {
+                            Section::Residents => keys::v3_levels::RESIDENTS,
+                            Section::Members => keys::v3_levels::MEMBERS,
+                            Section::Unassigned => keys::v3_levels::UNASSIGNED,
+                        },
+                    );
+                    content = content.child(
+                        div()
+                            .id(SharedString::from(format!("g2-board-section-{section:?}")))
+                            .role(gpui::Role::Heading)
+                            .aria_label(label.clone())
+                            .child(label),
+                    );
+                }
+                content = content.child(self.board_canvas(&ids, window, cx));
+            }
+            div()
+                .id("g2-board-scroll")
+                .overflow_scroll()
+                .track_scroll(&self.scroll)
+                .size_full()
+                .child(content)
+                .into_any_element()
+        }
+        fn board_canvas(&self, ids: &[String], window: &mut Window, cx: &mut App) -> AnyElement {
             let Some(v) = self.host.page.book.v3() else {
                 return div().into_any_element();
             };
-            let Some(level) = v.levels.get(&self.host.level) else {
-                return div().into_any_element();
-            };
-            let mut seen = BTreeSet::new();
-            let ids: Vec<_> = level
-                .children
-                .iter()
-                .chain(&level.members)
-                .filter(|id| seen.insert(*id))
-                .collect();
             let positions: Vec<_> = ids
                 .iter()
                 .enumerate()
@@ -2222,13 +2275,7 @@ pub mod v3 {
                         .child(self.entry(id, 0, false, window, cx)),
                 );
             }
-            div()
-                .id("g2-board-scroll")
-                .overflow_scroll()
-                .track_scroll(&self.scroll)
-                .size_full()
-                .child(board.w(px(width)).h(px(height)))
-                .into_any_element()
+            board.w(px(width)).h(px(height)).into_any_element()
         }
     }
 
