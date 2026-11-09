@@ -259,3 +259,39 @@ fn changing_books_drops_the_panel_and_refuses_its_late_event(cx: &mut TestAppCon
         )
     });
 }
+
+#[gpui::test]
+fn opening_search_wins_over_an_older_renderer_focus_handoff(cx: &mut TestAppContext) {
+    let (_dir, lib, books) = fixture();
+    let id = chapter(&lib, &books[0]);
+    let (view, cx) = setup(cx, &lib, &books[0]);
+    let target = Target::from_key(&format!("entry:{id}/mod-prose")).unwrap();
+    view.update(cx, |ws, cx| {
+        ws.open(target.clone(), dr_shell::nav::Open::KEEP, cx)
+    });
+    wait(&view, cx, |ws, _| {
+        ws.editors
+            .get(&target.key())
+            .is_some_and(|p| p.v3.is_some())
+    });
+    view.update_in(cx, |ws, window, cx| {
+        let focus = ws.editors[&target.key()]
+            .v3
+            .as_ref()
+            .unwrap()
+            .read(cx)
+            .preferred_focus();
+        // A prose renderer queues this when its wrapper receives focus.
+        // Opening a newer overlay must take precedence over that old request.
+        window.defer(cx, move |window, cx| focus.focus(window, cx));
+        ws.toggle_search(window, cx);
+    });
+    cx.run_until_parked();
+    let focus = view.read_with(cx, |ws, cx| ws.search.as_ref().unwrap().focus_handle(cx));
+    cx.update(|window, _| {
+        assert!(
+            focus.is_focused(window),
+            "the newer search keeps the keyboard"
+        )
+    });
+}

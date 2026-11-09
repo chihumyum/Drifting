@@ -83,7 +83,25 @@ impl Workspace {
         })
         .detach();
         panel.update(cx, |p, cx| p.focus(window, cx));
+        let workspace = cx.entity().downgrade();
+        let pending = panel.downgrade();
         self.search = Some(panel);
+        // A page renderer may already have queued its own prose handoff.
+        // The newer search request wins, provided this panel is still on top.
+        window.defer(cx, move |window, cx| {
+            let (Some(workspace), Some(panel)) = (workspace.upgrade(), pending.upgrade()) else {
+                return;
+            };
+            let current = workspace.read(cx);
+            if current.top_layer() == Some(Layer::Search)
+                && current
+                    .search
+                    .as_ref()
+                    .is_some_and(|p| p.entity_id() == panel.entity_id())
+            {
+                panel.update(cx, |p, cx| p.focus(window, cx));
+            }
+        });
         cx.notify();
     }
 

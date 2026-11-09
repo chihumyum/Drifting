@@ -766,6 +766,20 @@ fn state_of(ws: &Workspace, window: &Window, cx: &App) -> Value {
         let s = p.read(cx).selection();
         json!({ "anchor": s.anchor, "head": s.head })
     });
+    let v3_page = ws
+        .nav
+        .current()
+        .and_then(|t| ws.editors.get(&t.key()))
+        .and_then(|p| p.v3.as_ref())
+        .map(|p| {
+            let page = p.read(cx);
+            let focus = page.preferred_focus();
+            let within = focus.contains_focused(window, cx);
+            let mut state = page.state();
+            state["focus"] =
+                json!({"within": within, "child": within && !focus.is_focused(window)});
+            state
+        });
     json!({
         "library": ws.library.is_some(),
         "book": {
@@ -775,7 +789,7 @@ fn state_of(ws: &Workspace, window: &Window, cx: &App) -> Value {
         },
         "v3": book.v3(),
         "v3Sidebar": ws.v3_sidebar.as_ref().map(|s| s.read(cx).state()),
-        "v3Page": ws.nav.current().and_then(|t| ws.editors.get(&t.key())).and_then(|p| p.v3.as_ref()).map(|p| p.read(cx).state()),
+        "v3Page": v3_page,
         "v3Appearance": ws.nav.current().and_then(|t| match t { Target::Entry { id, .. } => book.v3()?.appearance(id.as_str()), _ => None }).map(|a| json!({ "mark": a.mark, "color": a.color })),
         "shelf": ws.shelf_open,
         "page": page,
@@ -804,6 +818,7 @@ fn state_of(ws: &Workspace, window: &Window, cx: &App) -> Value {
         },
         "focus": {
             "workspace": ws.focus_handle().contains_focused(window, cx),
+            "search": ws.search.as_ref().is_some_and(|p| p.focus_handle(cx).is_focused(window)),
             "editor": editor_focused,
             "any": window.focused(cx).is_some(),
         },

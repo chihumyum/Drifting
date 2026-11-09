@@ -130,7 +130,8 @@
         "timeout_ms": 30000,
         "state": {
           "/layer": "search",
-          "/search/version": 3
+          "/search/version": 3,
+          "/focus/search": true
         }
       }
     },
@@ -180,7 +181,8 @@
         "timeout_ms": 30000,
         "state": {
           "/layer": "search",
-          "/search/version": 3
+          "/search/version": 3,
+          "/focus/search": true
         }
       }
     },
@@ -215,7 +217,8 @@
           "/layer": null,
           "/page": "entry:${entries.[template=tpl-chapter].id}/search-second-body",
           "/v3Page/module": "search-second-body",
-          "/v3Page/reveal/start": 3
+          "/v3Page/reveal/start": 3,
+          "/v3Page/focus/child": true
         }
       }
     },
@@ -236,7 +239,8 @@
       "app": "ui.wait",
       "params": {
         "state": {
-          "/layer": "search"
+          "/layer": "search",
+          "/focus/search": true
         },
         "timeout_ms": 30000
       }
@@ -268,7 +272,8 @@
       "params": {
         "state": {
           "/layer": null,
-          "/page": "entry:${entries.[template=tpl-chapter].id}/search-second-body"
+          "/page": "entry:${entries.[template=tpl-chapter].id}/search-second-body",
+          "/v3Page/focus/child": true
         },
         "timeout_ms": 30000
       }
@@ -352,7 +357,8 @@
       "params": {
         "timeout_ms": 30000,
         "state": {
-          "/page": "entry:${entries.[template=tpl-chapter].id}/search-second-body"
+          "/page": "entry:${entries.[template=tpl-chapter].id}/search-second-body",
+          "/v3Page/focus/child": true
         }
       }
     },
@@ -394,7 +400,8 @@
         "timeout_ms": 30000,
         "state": {
           "/layer": "search",
-          "/search/version": 3
+          "/search/version": 3,
+          "/focus/search": true
         }
       }
     },
@@ -469,7 +476,8 @@
         "timeout_ms": 30000,
         "state": {
           "/layer": "search",
-          "/search/version": 3
+          "/search/version": 3,
+          "/focus/search": true
         }
       }
     },
