@@ -1,0 +1,536 @@
+{
+  "about": "F6 导航回归：v3-lite 的 Book/Material 目标、重排刷新后保留标签与真实全书输入撤销、关开恢复，以及 v2.2 原路由。正文来自共享种子。",
+  "steps": [
+    {
+      "seed": "v3-lite"
+    },
+    {
+      "call": "book.list",
+      "save": "books"
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}",
+        "all": true
+      },
+      "save": "entries"
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "save": "original"
+    },
+    {
+      "call": "book.create",
+      "input": {
+        "name": "Synthetic v2 navigation"
+      },
+      "save": "legacy"
+    },
+    {
+      "call": "chapter.create",
+      "input": {
+        "book": "${legacy.id}",
+        "title": "Synthetic legacy chapter",
+        "text": "${original.paragraphs.0.text}"
+      },
+      "save": "legacyChapter"
+    },
+    {
+      "call": "material.create",
+      "input": {
+        "book": "${legacy.id}",
+        "kind": "text",
+        "title": "Synthetic legacy material",
+        "text": "${original.paragraphs.0.text}"
+      },
+      "save": "legacyMaterial"
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${books.0.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/book/version": 3,
+          "/book/loaded": true
+        }
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "state.get",
+      "save": "loaded"
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-chapter].id}/mod-prose"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/page": "entry:${entries.[template=tpl-chapter].id}/mod-prose"
+        }
+      }
+    },
+    {
+      "app": "nav.open",
+      "expect": {
+        "/opened": "material:${loaded.v3.materials.[kind=text].id}"
+      },
+      "params": {
+        "target": "material:${loaded.v3.materials.[kind=text].id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/page": "material:${loaded.v3.materials.[kind=text].id}"
+        }
+      }
+    },
+    {
+      "app": "nav.open",
+      "expect_error": "not_found",
+      "params": {
+        "target": "material:missing-material"
+      }
+    },
+    {
+      "app": "nav.open",
+      "expect_error": "not_found",
+      "params": {
+        "target": "chapter:${entries.[template=tpl-chapter].id}"
+      }
+    },
+    {
+      "app": "nav.open",
+      "expect": {
+        "/opened": "book"
+      },
+      "params": {
+        "target": "book"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/page": "book"
+        }
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "TextArea",
+        "count": 1,
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 1200
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "01-whole-book-before.png"
+    },
+    {
+      "call": "entry.move",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${entries.[template=tpl-chapter].id}",
+        "parent": "${entries.[template=tpl-chapter].parent}",
+        "index": 1
+      }
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}",
+        "all": true
+      },
+      "save": "reordered"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/v3/entries": "${reordered}",
+          "/page": "book"
+        }
+      }
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/tabs/[key=book]/leaves/0/target": "book",
+        "/pages/[key=book]/ready": true,
+        "/tabs/[key=material:${loaded.v3.materials.[kind=text].id}]/leaves/0/target": "material:${loaded.v3.materials.[kind=text].id}"
+      },
+      "note": "重排已进入外壳快照，全书及素材标签仍保留"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "TextArea",
+        "count": 1,
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "02-whole-book-reordered.png"
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${reordered.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "save": "firstAfterMove"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "TextArea"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-up"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "F6Reordered "
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${reordered.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "F6Reordered ${firstAfterMove.paragraphs.0.text}"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-z"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${reordered.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs": "${firstAfterMove.paragraphs}"
+      }
+    },
+    {
+      "call": "book.update",
+      "input": {
+        "book": "${books.0.id}",
+        "name": "Synthetic v3 refreshed"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/book/name": "Synthetic v3 refreshed",
+          "/page": "book"
+        }
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "material:${loaded.v3.materials.[kind=text].id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/page": "material:${loaded.v3.materials.[kind=text].id}"
+        }
+      }
+    },
+    {
+      "call": "book.update",
+      "input": {
+        "book": "${books.0.id}",
+        "name": "Synthetic v3 material refreshed"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/book/name": "Synthetic v3 material refreshed",
+          "/page": "material:${loaded.v3.materials.[kind=text].id}"
+        }
+      }
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/pageTitle": "${loaded.v3.materials.[kind=text].title}",
+        "/tabs/[key=book]/leaves/0/target": "book",
+        "/pages/[key=book]/ready": true
+      }
+    },
+    {
+      "app": "app.quit"
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${books.0.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/book/version": 3,
+          "/page": "material:${loaded.v3.materials.[kind=text].id}"
+        }
+      }
+    },
+    {
+      "app": "nav.open",
+      "expect": {
+        "/opened": "book"
+      },
+      "params": {
+        "target": "book"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/page": "book"
+        }
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "TextArea",
+        "count": 1,
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 1200
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "03-whole-book-reopened.png"
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${legacy.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/book/version": 2,
+          "/v3": null
+        }
+      }
+    },
+    {
+      "app": "nav.open",
+      "expect": {
+        "/opened": "book"
+      },
+      "params": {
+        "target": "book"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/page": "book"
+        }
+      }
+    },
+    {
+      "app": "nav.open",
+      "expect": {
+        "/opened": "material:${legacyMaterial.id}"
+      },
+      "params": {
+        "target": "material:${legacyMaterial.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/page": "material:${legacyMaterial.id}"
+        }
+      }
+    },
+    {
+      "call": "book.update",
+      "input": {
+        "book": "${legacy.id}",
+        "name": "Synthetic v2 refreshed"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/book/name": "Synthetic v2 refreshed",
+          "/page": "material:${legacyMaterial.id}"
+        }
+      }
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/pageTitle": "Synthetic legacy material",
+        "/tabs/[key=book]/leaves/0/target": "book"
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "book"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/page": "book",
+          "/pageTitle": "Synthetic v2 refreshed"
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 1200
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "04-v22-book.png"
+    },
+    {
+      "app": "app.quit"
+    }
+  ]
+}

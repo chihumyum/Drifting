@@ -882,14 +882,29 @@ G2 三种回调及 K5 新建委托。v3-lite 真窗口场景 **84/84 步、0 pen
 右栏／大纲继续由 G2 负责。等待 G4 稳定接口进入 main 后消费
 `SearchPanel::new_v3`／`SearchEvent::JumpV3`，不取未交回工作区的实现。
 
-先补素材目标的存在性：v3 快照增加当前书的素材元数据，并在共同的名称／记号
+素材前置修复并入下面的导航续交。搜索宿主仍待 G4 稳定接口正式进入 main，
+本次导航修复不声明搜索接线或真窗口搜索验收完成。
+
+### Book／Material 导航修复（2026-11-10）
+
+G2 在 `c033ce2d` 上的联合窗口重排后，Book 从 tabs／pages 同时消失，当前页
+退回 Entry/module。外壳在书快照刷新时用 `BookV3::exists` 清理目标；它没有
+认可全书页，误把文稿重排当作页面已不存在。已加载的活书现在认可 `Target::Book`，
+即使尚无正文条目；v2.2 判断保持原状，v3 仍拒绝旧 Chapter／Idea／Element／
+Storyline／Category 路由。
+
+v3 快照增加当前书的素材元数据，并在共同的名称／记号
 索引登记。合法素材不会在书刷新时被关掉；只剩 `material:<id>` 正文文档不能
 证明素材仍存在。当前 `material.list` 的 v3 facade 尚由 K2 补齐，因此临时使用
 `BorrowedBookV3::view().materials()` 的只读查询，纳入同一次 frontier 校验；
 不写 Loro，不向 v2.2 兼容快照塞 v3 数据。K2 facade 进入 main 后再统一消费。
 
-永久契约在 `dr-shell/tests/v3.rs`；窗口场景源
-`dr-cli/scenarios/k4-0-search.json` 已准备，完整接线和真窗口结果尚未声明通过。
-素材部分的定向契约 7/7、dr-shell Clippy 通过；临时隔离窗口探针 19/19、
-0 pending，验证打开素材及改书名刷新后保留标签（忽略目录
-`next/target/acceptance/k4-0-material-smoke/`）。这不是搜索宿主的交回验收。
+永久契约在 `dr-shell/tests/v3.rs`：真实外壳接收 `entry.move` 后的新快照，
+Book 当前页、已挂载实例、素材及模块标签仍保留；素材元数据删除后关闭目标，
+不以残留正文文档推断其存在。新增 GPUI 契约在修复前 0/1 失败，观察到当前页
+从 Book 退回 Material。窗口场景源为 `dr-cli/scenarios/k4-0-navigation.json`，
+覆盖 v3-lite 的导航、重排刷新、全书实际输入／撤销、素材刷新、关开恢复和
+v2.2 原路由。最终检查与窗口结果在正式交回时记录。
+
+范围只含外壳导航和快照。G2 的其余联合大纲验收、通用编辑器登记／正文布局、
+G4 搜索，以及等待内核批量查询的 heavy 接线继续按各自协调项处理。

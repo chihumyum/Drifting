@@ -80,6 +80,9 @@ impl BookV3 {
     }
     pub fn exists(&self, target: &Target) -> bool {
         match target {
+            // This snapshot belongs to a loaded, live book. Its manuscript
+            // page remains valid when entries move or the book is empty.
+            Target::Book => true,
             // A switched template may leave a retained prose module. Its page
             // renderer resolves module.list; removing a definition must not
             // close the author's tab while the entry and its content survive.
