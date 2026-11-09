@@ -116,10 +116,15 @@ pub(crate) fn begin(cx: &mut App) -> Option<LocalBoxFuture<'static, Result<(), S
             // Markdown may merge another final write. Its worker must stop
             // after the other writers, and before capturing their final state.
             let mirror = app.update(crate::mirror::drain_for_release);
+            let failed =
+                app.update(|cx| crate::t(cx, dr_i18n::keys::k4_pages::SAVE_FAILED).to_string());
             AssertUnwindSafe(mirror)
                 .catch_unwind()
                 .await
-                .unwrap_or_else(|_| Err("Markdown folder release panicked".into()))?;
+                .unwrap_or_else(|_| {
+                    log::error!("Markdown folder release panicked");
+                    Err(failed.clone())
+                })?;
             // Construct checkpoint futures only now. Capturing a frontier in
             // their prefix before the writers settled would still be stale.
             let mut checkpoints =
@@ -131,8 +136,14 @@ pub(crate) fn begin(cx: &mut App) -> Option<LocalBoxFuture<'static, Result<(), S
                     Ok(future) => AssertUnwindSafe(future)
                         .catch_unwind()
                         .await
-                        .unwrap_or_else(|_| Err("final library checkpoint panicked".into())),
-                    Err(_) => Err("final library checkpoint panicked".into()),
+                        .unwrap_or_else(|_| {
+                            log::error!("final library checkpoint future panicked");
+                            Err(failed.clone())
+                        }),
+                    Err(_) => {
+                        log::error!("final library checkpoint prefix panicked");
+                        Err(failed.clone())
+                    }
                 };
                 if result.is_err() {
                     break;
