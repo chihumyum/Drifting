@@ -159,19 +159,21 @@ pub fn suites() -> Vec<Suite> {
         index::suite(),
         store::suite(),
         workspace::suite(),
+        v3_levels::suite(true),
+        v3_levels::suite(false),
     ]
 }
 
 pub mod doc;
 pub mod index;
+pub mod v3_levels;
 
 /// Inputs every suite's fingerprint includes: this convention and the seed.
 pub const COMMON_INPUTS: &[&str] = &[
     "crates/dr-testkit/src/bench.rs",
     "crates/dr-testkit/src/bin/bench.rs",
-    "crates/dr-testkit/src/rng.rs",
+    "crates/dr-corpus/src",
     "crates/dr-testkit/src/seed",
-    "crates/dr-testkit/src/text.rs",
 ];
 
 /// Run every suite quick and compare shapes: CI's part of benchmarking.
