@@ -347,6 +347,7 @@ fmt、全 workspace Clippy `-D warnings`、全 workspace test
 - 新建视图与时间钉同样带版本守卫，原始 id 已存在就拒绝，不能借新建入口替换已有记录。
 - 保存失败把同一文字编辑器与草稿交还作者；恢复目标后可显式重试，不自动重放写入。
   回执核对编辑器身份与书，旧输入框的延迟 blur／cancel 不消费新的编辑。
+  草稿容器的无障碍标签跟随实际输入文字，供读屏与窗口验收读取。
   错误继续使用现有九语保存失败通知，没有增加界面说明文字。
 
 永久测试新增六条：`tests/v3.rs` 四条真实 Timeline 控件契约覆盖等数量隐藏绑定、
@@ -354,4 +355,41 @@ fmt、全 workspace Clippy `-D warnings`、全 workspace test
 两个独立控件成功编辑的合并；`v3/write.rs` 两条核对全部覆盖字段／记录身份，
 并确定性插入另一成功写入，验证旧版本必须 Conflict、显式重读后两方数据均保留。
 新真窗口场景 `scenarios/k4-g3-hidden-binding.json` 使用 v3-lite，验证拒绝、草稿保留、
-恢复条目与显式重试；最终结果补在本轮交回记录。
+恢复条目与显式重试；最终结果见本轮交回记录。
+
+### 返修检查（同步第 57 批 K6 前）
+
+分支仍为 `codex/k4-g3-timeline`，本轮检查基于 main `2f80ac40`，尚未前移 `handback/k4-g3`。
+本轮提交 `7bbb2846`（完整投影保护、失败草稿及六条永久回归）、
+`8679892a`（同步 main `2f80ac40`）、`4047645b`（窗口等待恢复后的快照）及本记录。
+第 45、48 批的接收历史保留；本会话没有合入 main、推送或手改 progress.md。
+相对 main 的改动仅在 dr-view-timeline 与本文。
+
+同步 K6 前的全套检查通过，编译并发均为 3，测试单线程：fmt、全 workspace Clippy
+`--all-targets --locked -- -D warnings`、全 workspace test
+**2067 passed / 0 failed / 22 ignored**、xtask check（含 audit，
+0 vulnerabilities、12 条既有通知、14 份过期测量提示）、根目录 `pnpm public:check`。
+新六条契约全部通过。带调试桥的应用与 CLI 构建通过；debug 链接器保留一条
+`__eh_frame` 超过 compact unwind 表大小的提示，未改构建配置消除它。
+
+该构建的三套真窗口一次顺序运行全部通过，均为 0 pending：
+
+- 视图／泳道 **45/45**，含 v2.2 切回；
+- 摆放／时间钉 **89/89**，含双向长度调整、最后泳道移除、泳道颜色和成员显示；
+- 隐藏绑定返修 **50/50**：等数量投影下泳道排序／视图改名被拒绝，恢复条目后绑定仍在；
+  视图和 pin 的失败草稿都不重输，恢复后点击输入框显式提交，最终 pin 的绑定、颜色、位置保留。
+
+八张关键截图已目检：前两套各两张结果图，新场景的两张失败草稿与两张恢复结果图。
+最终自动证据在忽略目录 `next/target/acceptance/k4-g3-repair-views-lanes/`、
+`k4-g3-repair-placement-pins/`、`k4-g3-repair-hidden-binding/`；
+全量日志为 `next/target/k4-g3-repair-*.log`。
+
+窗口准备阶段曾分别停在通知的 AX 查询、草稿的 AX 查询和保存后的 pin 按钮查询。
+公共通知使用桥的绘制等待；草稿补实际文字标签；保存后先按快照字段等待再找按钮。
+49 步采证版通过后，最终 50 步版本复验通过。此前失败／采证输出完整保留在
+`next/target/acceptance/k4-g3-hidden-binding*` 与对应 `k4-g3-hidden-window*` 日志中。
+本轮原探针仍按「排序应成功」编写；修复后的安全策略是 Conflict 拒绝不完整投影，
+永久契约断言拒绝且原始值和版本均不变，恢复目标后再显式重试。
+
+字段级命令、公共树拖动来源与 heavy 加载仍按前述待协调分派；本轮没有重测 heavy，
+不将本次数据保护返修算作重型性能通过或 K4 切换完成。
