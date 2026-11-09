@@ -2032,6 +2032,14 @@ pub mod v3 {
                         let weak = entity.downgrade();
                         let id = id.clone();
                         let folded = self.folded.contains(&id);
+                        let name = self
+                            .host
+                            .page
+                            .book
+                            .v3()
+                            .and_then(|v| v.entry(&id))
+                            .map(|e| e.title.clone())
+                            .unwrap_or_default();
                         row = row.child(
                             IconButton::new(
                                 SharedString::from(format!("g2-fold-{id}")),
@@ -2048,17 +2056,7 @@ pub mod v3 {
                                 } else {
                                     keys::v3_levels::COLLAPSE
                                 },
-                                &[(
-                                    "name",
-                                    self.host
-                                        .page
-                                        .book
-                                        .v3()
-                                        .and_then(|v| v.entry(&id))
-                                        .map(|e| e.title.as_str())
-                                        .unwrap_or("")
-                                        .into(),
-                                )],
+                                &[("name", &name)],
                             ))
                             .on_click(move |_, _, cx| {
                                 let _ = weak.update(cx, |this, cx| this.toggle(&id, cx));
@@ -2175,7 +2173,7 @@ pub mod v3 {
     }
 
     impl Render for LevelDisplay {
-        fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
             let mut root = div()
                 .flex()
                 .flex_col()
