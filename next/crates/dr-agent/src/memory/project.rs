@@ -34,21 +34,44 @@ pub fn project(ws: &Workspace, book: &BookId) -> MemoryResult<ProjectSnapshot> {
     let error = |e: dr_workspace::WsError| MemoryError::Invalid(e.to_string());
     for _ in 0..3 {
         let before = ws.observe(&doc).map_err(error)?;
-        let detail = ws
-            .call(&Actor::User, "book.get", json!({"book":book}))
-            .map_err(error)?;
-        if detail["output"]["trashed"].as_bool() != Some(false) {
-            return Err(MemoryError::Invalid("book is unavailable".into()));
-        }
-        let rows = ws
-            .call(&Actor::User, "memory.list", json!({"book":book}))
-            .map_err(error)?;
+        let copy = ws
+            .library()
+            .load_copy(&doc)
+            .map_err(|e| MemoryError::Invalid(e.to_string()))?;
+        let mut entries: Vec<ProjectEntry> = if dr_doc::v3::is_v3_doc(&copy) {
+            let borrowed = dr_doc::v3::BorrowedBookV3::new(&copy, book)
+                .map_err(|e| MemoryError::Invalid(e.to_string()))?;
+            let view = borrowed.view();
+            if view.trashed_at().is_some() {
+                return Err(MemoryError::Invalid("book is unavailable".into()));
+            }
+            view.memory()
+                .into_iter()
+                .map(|m| ProjectEntry {
+                    id: m.id,
+                    body: m.body,
+                    kind: m.kind.as_str().to_owned(),
+                    status: m.status.as_str().to_owned(),
+                    source: m.source.as_str().to_owned(),
+                    removed: m.deleted_at.is_some(),
+                })
+                .collect()
+        } else {
+            let detail = ws
+                .call(&Actor::User, "book.get", json!({"book":book}))
+                .map_err(error)?;
+            if detail["output"]["trashed"].as_bool() != Some(false) {
+                return Err(MemoryError::Invalid("book is unavailable".into()));
+            }
+            let rows = ws
+                .call(&Actor::User, "memory.list", json!({"book":book}))
+                .map_err(error)?;
+            serde_json::from_value(rows["output"].clone()).map_err(|_| MemoryError::Corrupt)?
+        };
         let after = ws.observe(&doc).map_err(error)?;
         if before.version != after.version {
             continue;
         }
-        let mut entries: Vec<ProjectEntry> =
-            serde_json::from_value(rows["output"].clone()).map_err(|_| MemoryError::Corrupt)?;
         entries.retain(|e| !e.removed);
         entries.sort_by(|a, b| a.id.cmp(&b.id));
         let mut markdown = String::from("# PROJECT_MEMORY.md\n");
