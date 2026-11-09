@@ -8,6 +8,7 @@ publish.workspace = true
 description = "The chapter page around its text (M03): the folio line, the title and synopsis fields, an act's title page, ⁂ and its menu, the empty-page hint, drawn through dr-editor's PageChrome"
 
 [features]
+test-support = []
 # Offscreen screenshots of the page in the shell (`examples/page-capture`).
 capture = ["gpui_platform/test-support"]
 
@@ -20,7 +21,9 @@ dr-ui.workspace = true
 dr-view-history.workspace = true
 dr-workspace.workspace = true
 gpui.workspace = true
+futures.workspace = true
 log.workspace = true
+serde_json.workspace = true
 
 [dev-dependencies]
 anyhow.workspace = true

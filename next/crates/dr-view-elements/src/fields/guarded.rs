@@ -186,3 +186,31 @@ pub(super) fn remove_kv(
     )?;
     Ok(())
 }
+
+pub(crate) fn remove_patch(
+    lib: &Workspace,
+    target: In,
+    id: String,
+    base: Pair,
+    retry: bool,
+) -> Result<(), WsError> {
+    let observed = lib.observe(&format!("book:{}", target.book))?;
+    let data = lib.run::<ModuleRead>(&Actor::User, target.clone())?.output;
+    let current = data
+        .patches
+        .into_iter()
+        .find(|p| p.id == id)
+        .ok_or_else(|| WsError::Conflict("patch was removed".into()))?;
+    if !retry && (current.title.unwrap_or_default(), current.body) != base {
+        return Err(WsError::Conflict("patch changed before removal".into()));
+    }
+    lib.call_guarded(
+        &Actor::User,
+        "module.remove_patch",
+        serde_json::json!({
+            "book": target.book, "entry":target.entry, "module":target.module, "id":id
+        }),
+        WritePreconditions::from_observations([observed]),
+    )?;
+    Ok(())
+}

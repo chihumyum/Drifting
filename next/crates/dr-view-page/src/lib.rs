@@ -29,6 +29,7 @@
 pub mod end;
 pub mod head;
 mod history;
+pub mod settlement;
 pub mod v3;
 pub mod whole;
 
@@ -49,6 +50,7 @@ pub use head::PageHead;
 /// Registers the chrome with the shell: every chapter, idea and whole-book
 /// editor it opens gets one.
 pub fn init(cx: &mut App) {
+    settlement::init(cx);
     history::init(cx);
     v3::register(cx);
     dr_shell::v3::history::register(cx);
@@ -67,6 +69,7 @@ type Views = (Entity<PageHead>, Entity<PageEnd>);
 /// the first time the page is drawn and kept while the editor lives.
 pub struct Chrome {
     host: PageHost,
+    book: Option<Rc<dr_shell::book::Book>>,
     pages: RefCell<HashMap<String, Views>>,
 }
 
@@ -74,6 +77,15 @@ impl Chrome {
     pub fn new(host: PageHost) -> Chrome {
         Chrome {
             host,
+            book: None,
+            pages: RefCell::default(),
+        }
+    }
+
+    pub(crate) fn with_book(host: PageHost, book: Rc<dr_shell::book::Book>) -> Self {
+        Self {
+            host,
+            book: Some(book),
             pages: RefCell::default(),
         }
     }
@@ -90,7 +102,9 @@ impl Chrome {
             Some(views) => views,
             None => {
                 let host = self.host.clone();
-                let head = cx.new(|cx| PageHead::new(host.clone(), page, window, cx));
+                let head = cx.new(|cx| {
+                    PageHead::new_with_book(host.clone(), page, self.book.clone(), window, cx)
+                });
                 let end = cx.new(|_| PageEnd::new(host, page));
                 self.pages
                     .borrow_mut()

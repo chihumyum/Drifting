@@ -16,6 +16,7 @@ use dr_ui::sand::{self, Icon, KindMark};
 use dr_ui::style::DrStyled as _;
 use dr_ui::tokens::{Rgb, radius};
 use dr_ui::{Theme, sand::Kind as MarkKind};
+use dr_view_page::settlement::{self, Drafts, Drain};
 use dr_workspace::commands::plot_grid::{
     Axis, CellIn, GridIn, GridSizeIn, LineAddIn, LineIn, LineUpdateIn, PlotGridCell, PlotGridClear,
     PlotGridCreate, PlotGridGet, PlotGridInfo, PlotGridLineAdd, PlotGridLineRemove,
@@ -166,6 +167,7 @@ struct Written {
     refused: Vec<String>,
     /// V3 batches are all-or-nothing. Keep a refused batch until explicit retry.
     retained: Vec<Write>,
+    baseline: Option<Grid>,
 }
 
 /// The grip being dragged: where it started and the size then.
@@ -179,6 +181,10 @@ pub struct PlotPlanner {
     module: Option<String>,
     host: PlannerHost,
     grid: Grid,
+    baseline: Grid,
+    field_bases: HashMap<Field, String>,
+    pending_bases: BTreeMap<Field, String>,
+    retrying: bool,
     loaded: bool,
     focus: FocusHandle,
     fields: HashMap<Field, Entity<TextArea>>,
@@ -202,6 +208,9 @@ pub struct PlotPlanner {
     ratio: Option<f32>,
     /// The stored shape being read.
     ratio_io: Option<Task<()>>,
+    ratio_pending: Option<f32>,
+    ratio_writing: bool,
+    ratio_failed: bool,
     body: Entity<Option<Bounds<Pixels>>>,
     scroll: ScrollHandle,
     /// A line added at an end: scroll it into view on the next frames.
@@ -242,11 +251,18 @@ impl PlotPlanner {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> PlotPlanner {
+        if module.is_some() {
+            settlement::register(&host.library, window.window_handle(), cx);
+        }
         let body = cx.new(|_| None);
         let mut planner = PlotPlanner {
             module,
             host,
             grid: Grid::unstored(),
+            baseline: Grid::unstored(),
+            field_bases: HashMap::new(),
+            pending_bases: BTreeMap::new(),
+            retrying: false,
             loaded: false,
             focus: cx.focus_handle(),
             fields: HashMap::new(),
@@ -263,6 +279,9 @@ impl PlotPlanner {
             live: None,
             ratio: None,
             ratio_io: None,
+            ratio_pending: None,
+            ratio_writing: false,
+            ratio_failed: false,
             body,
             scroll: ScrollHandle::new(),
             reveal: None,
@@ -315,6 +334,14 @@ impl PlotPlanner {
     /// Keep `ratio` as this grid's hand-set shape on this device (detached:
     /// the planner may be gone, another chapter in front, before it lands).
     fn store_ratio(&mut self, ratio: f32, cx: &mut Context<Self>) {
+        if self.module.is_some() {
+            if !self.accepts(cx) {
+                return;
+            }
+            self.ratio_pending = Some(ratio);
+            self.pump_ratio(cx);
+            return;
+        }
         // A stored shape still being read is older than this one.
         self.ratio_io = None;
         let lib = self.host.library.clone();
@@ -339,6 +366,58 @@ impl PlotPlanner {
         .detach();
     }
 
+    fn accepts(&self, cx: &App) -> bool {
+        self.module.is_none() || settlement::accepts(cx)
+    }
+    fn pump_ratio(&mut self, cx: &mut Context<Self>) {
+        if self.ratio_writing || self.ratio_failed {
+            return;
+        }
+        let Some(ratio) = self.ratio_pending else {
+            return;
+        };
+        self.ratio_writing = true;
+        let lib = self.host.library.clone();
+        let worker = lib.clone();
+        let book = self.host.book.clone();
+        let key = ratio_key(&format!(
+            "{}/{}",
+            self.host.node,
+            self.module.as_deref().unwrap_or_default()
+        ));
+        let (job, ticket) = settlement::write(&lib, cx, async move {
+            worker
+                .library()
+                .local_set(RATIO_SCOPE, &key, &ratio.to_string(), Some(&book))
+        });
+        cx.spawn(async move |this, cx| {
+            let result = job.await;
+            if this
+                .update(cx, |p, cx| {
+                    p.ratio_writing = false;
+                    match result {
+                        Ok(()) => {
+                            if p.ratio_pending == Some(ratio) {
+                                p.ratio_pending = None;
+                            } else {
+                                p.pump_ratio(cx);
+                            }
+                        }
+                        Err(e) => {
+                            log::warn!("plot ratio: {e}");
+                            p.ratio_failed = true;
+                        }
+                    }
+                    cx.notify();
+                })
+                .is_ok()
+            {
+                ticket.acknowledge();
+            }
+        })
+        .detach();
+    }
+
     /// The hand-set shape 「适应」 keeps (width over height), if any.
     pub fn ratio(&self) -> Option<f32> {
         self.ratio
@@ -346,7 +425,7 @@ impl PlotPlanner {
 
     /// Whether the kept shape is still being read.
     pub fn is_ratio_settled(&self) -> bool {
-        self.ratio_io.is_none()
+        self.ratio_io.is_none() && !self.ratio_writing && self.ratio_pending.is_none()
     }
 
     pub fn host(&self) -> &PlannerHost {
@@ -373,12 +452,18 @@ impl PlotPlanner {
 
     /// A v3 write failed; local edits remain queued and visible.
     pub fn save_failed(&self) -> bool {
-        self.save_failed
+        self.save_failed || self.ratio_failed
     }
 
     /// Explicitly re-read and apply the retained edits to the latest grid.
     pub fn retry_save(&mut self, cx: &mut Context<Self>) {
-        if self.module.is_some() && self.save_failed {
+        if !self.accepts(cx) {
+            return;
+        }
+        if self.module.is_some() && (self.save_failed || self.ratio_failed) {
+            self.retrying = self.save_failed;
+            self.ratio_failed = false;
+            self.pump_ratio(cx);
             self.save_failed = false;
             self.store_typed(cx);
             cx.notify();
@@ -436,6 +521,10 @@ impl PlotPlanner {
 
     /// Reads the grid from F3, once nothing of the author's is on its way.
     pub fn reload(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.accepts(cx) {
+            self.stale = true;
+            return;
+        }
         if self.writing.is_some() || !self.queue.is_empty() || !self.typed.is_empty() {
             self.stale = true;
             return;
@@ -476,6 +565,7 @@ impl PlotPlanner {
         let grid = Grid::from_info(info);
         // A stored grid is never unstored again (it is only cleared).
         if grid.exists || !self.grid.exists {
+            self.baseline = grid.clone();
             self.grid = grid;
         }
         self.loaded = true;
@@ -508,14 +598,20 @@ impl PlotPlanner {
             match self.fields.get(&field) {
                 Some(area) => {
                     let typing = self.typed.contains_key(&field);
+                    let mut displayed = false;
                     area.update(cx, |a, cx| {
                         let focused = a.focus_handle(cx).is_focused(window);
                         if !typing && !focused && a.text() != text {
-                            a.set_text(text, cx);
+                            a.set_text(text.clone(), cx);
                         }
+                        displayed = !typing && !focused;
                     });
+                    if displayed {
+                        self.field_bases.insert(field.clone(), text);
+                    }
                 }
                 None => {
+                    self.field_bases.insert(field.clone(), text.clone());
                     let area = self.make_field(&field, text, window, cx);
                     self.fields.insert(field, area);
                 }
@@ -565,8 +661,38 @@ impl PlotPlanner {
         cx: &mut Context<Self>,
     ) {
         let field = &field.renamed(&self.aliases);
+        if !self.accepts(cx) {
+            if matches!(event, FieldEvent::Changed(_))
+                && let Some(area) = self.fields.get(field)
+            {
+                let text = match field {
+                    Field::Cell(r, c) => self.grid.cell(r, c).to_owned(),
+                    Field::Row(id) => self
+                        .grid
+                        .rows
+                        .iter()
+                        .find(|l| &l.id == id)
+                        .map(|l| l.label.clone())
+                        .unwrap_or_default(),
+                    Field::Col(id) => self
+                        .grid
+                        .cols
+                        .iter()
+                        .find(|l| &l.id == id)
+                        .map(|l| l.label.clone())
+                        .unwrap_or_default(),
+                };
+                area.update(cx, |a, cx| a.set_text(text, cx));
+            }
+            return;
+        }
         match event {
             FieldEvent::Changed(text) => {
+                if self.module.is_some() {
+                    self.pending_bases.entry(field.clone()).or_insert_with(|| {
+                        self.field_bases.get(field).cloned().unwrap_or_default()
+                    });
+                }
                 match field {
                     Field::Cell(r, c) => self.grid.set_cell(r, c, text),
                     Field::Row(id) => self.grid.set_label(Axis::Row, id, text),
@@ -590,6 +716,9 @@ impl PlotPlanner {
     /// Queues what was typed, in the order of the fields (each holds its
     /// latest text).
     pub fn store_typed(&mut self, cx: &mut Context<Self>) {
+        if !self.accepts(cx) {
+            return;
+        }
         self.store_timer = None;
         for (field, text) in std::mem::take(&mut self.typed) {
             self.queue.push_back(match field {
@@ -620,6 +749,9 @@ impl PlotPlanner {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> bool {
+        if !self.accepts(cx) {
+            return false;
+        }
         if !text.contains(['\t', '\n']) {
             return false;
         }
@@ -710,19 +842,81 @@ impl PlotPlanner {
         let (book, node) = (self.host.book.clone(), self.host.node.clone());
         let create = !self.grid.exists;
         let module = self.module.clone();
-        let job = cx.background_spawn(async move {
-            if let Some(module) = module {
-                return match crate::v3::write(&lib, &book, &node, &module, batch.clone()) {
-                    Ok(()) => Written::default(),
-                    Err(error) => Written {
-                        refused: vec![error.to_string()],
-                        retained: batch,
-                        ..Default::default()
-                    },
-                };
+        if let Some(module) = module {
+            let mut baseline = self.baseline.clone();
+            for (field, value) in &self.pending_bases {
+                match field {
+                    Field::Cell(r, c) => baseline.set_cell(r, c, value),
+                    Field::Row(id) => baseline.set_label(Axis::Row, id, value),
+                    Field::Col(id) => baseline.set_label(Axis::Column, id, value),
+                }
             }
-            write_batch(&lib, &book, &node, create, batch)
-        });
+            let retry = std::mem::take(&mut self.retrying);
+            let worker = lib.clone();
+            let retained = batch.clone();
+            let sent = batch.clone();
+            let (job, ticket) = settlement::write(&lib, cx, async move {
+                crate::v3::write_from(
+                    &worker,
+                    &book,
+                    &node,
+                    &module,
+                    batch,
+                    (!retry).then_some(&baseline),
+                )
+            });
+            // The foreground acknowledgement is detached, so leaving this page
+            // cannot cancel delivery of an already accepted durable job.
+            let ack = cx.spawn(async move |this, cx| {
+                let result = job.await;
+                if this
+                    .update(cx, |p, cx| {
+                        let written = match result {
+                            Ok(grid) => {
+                                for write in sent {
+                                    match write {
+                                        Write::Cell { row, col, text } => {
+                                            let f = Field::Cell(row, col);
+                                            p.field_bases.insert(f.clone(), text.clone());
+                                            if p.pending_bases.contains_key(&f) {
+                                                p.pending_bases.insert(f, text);
+                                            }
+                                        }
+                                        Write::Label { axis, id, label } => {
+                                            let f = Field::label(axis, &id);
+                                            p.field_bases.insert(f.clone(), label.clone());
+                                            if p.pending_bases.contains_key(&f) {
+                                                p.pending_bases.insert(f, label);
+                                            }
+                                        }
+                                        _ => {}
+                                    }
+                                }
+                                Written {
+                                    baseline: Some(grid),
+                                    ..Default::default()
+                                }
+                            }
+                            Err(e) => Written {
+                                refused: vec![e.to_string()],
+                                retained,
+                                ..Default::default()
+                            },
+                        };
+                        p.written(written, cx);
+                    })
+                    .is_ok()
+                {
+                    ticket.acknowledge();
+                }
+            });
+            // Keep the existing busy marker without making it own the ACK.
+            ack.detach();
+            self.writing = Some(Task::ready(()));
+            return;
+        }
+        let job =
+            cx.background_spawn(async move { write_batch(&lib, &book, &node, create, batch) });
         self.writing = Some(cx.spawn(async move |this, cx| {
             let written = job.await;
             this.update(cx, |p, cx| p.written(written, cx)).ok();
@@ -731,6 +925,9 @@ impl PlotPlanner {
 
     fn written(&mut self, written: Written, cx: &mut Context<Self>) {
         self.writing = None;
+        if let Some(baseline) = written.baseline {
+            self.baseline = baseline;
+        }
         if written.created {
             self.adopt_ids(&written.stored);
         }
@@ -750,6 +947,9 @@ impl PlotPlanner {
         }
         if !written.refused.is_empty() {
             self.stale = true;
+        }
+        if self.queue.is_empty() && self.typed.is_empty() {
+            self.pending_bases.clear();
         }
         self.pump(cx);
         if self.writing.is_none() && self.queue.is_empty() && self.typed.is_empty() && self.stale {
@@ -925,6 +1125,9 @@ impl PlotPlanner {
     /// 「＋ 行」 / 「＋ 列」: a new row or column at the end, scrolled into
     /// view.
     pub fn add_line(&mut self, axis: Axis, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.accepts(cx) {
+            return;
+        }
         let id = new_id(axis);
         let lines = self.grid.lines(axis);
         let after = lines.last().map(|l| l.id.clone());
@@ -950,6 +1153,9 @@ impl PlotPlanner {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if !self.accepts(cx) {
+            return;
+        }
         self.menu = None;
         let Some(i) = self.grid.index(axis, beside) else {
             return;
@@ -977,6 +1183,9 @@ impl PlotPlanner {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if !self.accepts(cx) {
+            return;
+        }
         let Some(i) = self.grid.index(axis, id) else {
             return;
         };
@@ -1006,6 +1215,9 @@ impl PlotPlanner {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if !self.accepts(cx) {
+            return;
+        }
         self.menu = None;
         if !self.grid.remove(axis, id) {
             return;
@@ -1033,6 +1245,9 @@ impl PlotPlanner {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if !self.accepts(cx) {
+            return;
+        }
         self.menu = None;
         if let Some(area) = self.fields.get(&Field::label(axis, id)).cloned() {
             let handle = area.focus_handle(cx);
@@ -1045,6 +1260,9 @@ impl PlotPlanner {
     /// 清空 pressed: asks first (`plotGrid.clearConfirm`), as a dialog over
     /// the window.
     pub fn ask_clear(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.accepts(cx) {
+            return;
+        }
         let planner = cx.entity().downgrade();
         let dialog = cx.new(|cx| ClearDialog::new(planner, cx));
         let handle = window.window_handle();
@@ -1060,6 +1278,9 @@ impl PlotPlanner {
 
     /// 清空: every label and every cell; rows, columns and size stay.
     pub fn clear(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.accepts(cx) {
+            return;
+        }
         self.menu = None;
         self.typed.clear();
         self.store_timer = None;
@@ -1073,6 +1294,9 @@ impl PlotPlanner {
     /// 适应: the cells sized so the table fills the panel (keeping a
     /// hand-set shape), stored.
     pub fn fit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.accepts(cx) {
+            return;
+        }
         let Some(bounds) = *self.body.read(cx) else {
             return;
         };
@@ -1097,6 +1321,9 @@ impl PlotPlanner {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if !self.accepts(cx) {
+            return;
+        }
         let size = clamp_size(size);
         if by_hand {
             let ratio = size.w / size.h;
@@ -1119,6 +1346,9 @@ impl PlotPlanner {
     }
 
     pub fn start_drag(&mut self, at: Point<Pixels>, cx: &mut Context<Self>) {
+        if !self.accepts(cx) {
+            return;
+        }
         self.drag = Some(Drag {
             from: at,
             start: self.grid.size,
@@ -1128,6 +1358,9 @@ impl PlotPlanner {
     }
 
     pub fn drag_to(&mut self, at: Point<Pixels>, cx: &mut Context<Self>) {
+        if !self.accepts(cx) {
+            return;
+        }
         let Some(drag) = self.drag else {
             return;
         };
@@ -1143,6 +1376,9 @@ impl PlotPlanner {
     }
 
     pub fn end_drag(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.accepts(cx) {
+            return;
+        }
         self.drag = None;
         if let Some(size) = self.live.take() {
             self.set_size(size, true, window, cx);
@@ -1152,6 +1388,9 @@ impl PlotPlanner {
 
     /// The ⋯ of a header: opens its menu, or closes it when open.
     pub fn toggle_menu(&mut self, axis: Axis, id: &str, cx: &mut Context<Self>) {
+        if !self.accepts(cx) {
+            return;
+        }
         let same = self
             .menu
             .as_ref()
@@ -1231,7 +1470,7 @@ impl Render for PlotPlanner {
             .bg(p.desk.solid())
             .font_role(Role::Ui)
             .child(self.bar(window, cx))
-            .when(self.save_failed, |el| {
+            .when(self.save_failed || self.ratio_failed, |el| {
                 el.child(
                     div()
                         .flex()
@@ -1871,5 +2110,28 @@ impl Render for ClearDialog {
                             }),
                     ),
             )
+    }
+}
+
+impl Drafts for PlotPlanner {
+    fn drain(&mut self, _: &mut Window, cx: &mut Context<Self>) -> Drain {
+        self.store_typed(cx);
+        self.pump_ratio(cx);
+        if self.writing.is_some()
+            || self.reading.is_some()
+            || self.ratio_writing
+            || self.ratio_io.is_some()
+        {
+            return Drain::Pending;
+        }
+        if self.save_failed
+            || self.ratio_failed
+            || !self.queue.is_empty()
+            || !self.typed.is_empty()
+            || self.ratio_pending.is_some()
+        {
+            return Drain::Failed(t(cx, keys::k4_pages::SAVE_FAILED).to_string());
+        }
+        Drain::Ready
     }
 }

@@ -136,7 +136,13 @@ impl BodyModule {
                             });
                             e.set_base_style(base, cx);
                             e.set_decor_looks(looks, cx);
-                            e.set_chrome(Some(Rc::new(crate::Chrome::new(page))), cx);
+                            e.set_chrome(
+                                Some(Rc::new(crate::Chrome::with_book(
+                                    page,
+                                    host.page.book.clone(),
+                                ))),
+                                cx,
+                            );
                         });
                         let assist = editor.read(cx).assist().clone();
                         view._links = Some(bind_links(&assist, &host.page, window, cx));

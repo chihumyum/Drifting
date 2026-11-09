@@ -12,12 +12,10 @@ use dr_ui::{
     sand::Icon,
     style::DrStyled,
 };
-use dr_workspace::{
-    Actor,
-    commands::v3::{
-        module::{FieldIn, FieldSet, In},
-        types::{FieldDef, FieldValue},
-    },
+use dr_view_page::settlement::{self, Drafts, Drain};
+use dr_workspace::commands::v3::{
+    module::In,
+    types::{FieldDef, FieldValue},
 };
 use gpui::{prelude::*, *};
 use std::{
@@ -79,6 +77,8 @@ fn text(value: &FieldValue) -> String {
 struct Input {
     area: Entity<TextArea>,
     dirty: bool,
+    draft: String,
+    base: FieldValue,
     _event: Subscription,
 }
 
@@ -87,6 +87,8 @@ pub struct TypedFields {
     inputs: BTreeMap<String, Input>,
     desired: BTreeMap<String, FieldValue>,
     writing: BTreeSet<String>,
+    bases: BTreeMap<String, FieldValue>,
+    stale_revisions: BTreeSet<String>,
     errors: BTreeMap<String, dr_i18n::Key>,
     images: Vec<(String, String)>,
     images_reading: bool,
@@ -94,11 +96,14 @@ pub struct TypedFields {
 }
 impl TypedFields {
     pub fn new(host: ModuleHost, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        settlement::register(&host.page.library, window.window_handle(), cx);
         let mut this = Self {
             host,
             inputs: BTreeMap::new(),
             desired: BTreeMap::new(),
             writing: BTreeSet::new(),
+            bases: BTreeMap::new(),
+            stale_revisions: BTreeSet::new(),
             errors: BTreeMap::new(),
             images: Vec::new(),
             images_reading: false,
@@ -109,6 +114,9 @@ impl TypedFields {
         this
     }
     fn reload_images(&mut self, cx: &mut Context<Self>) {
+        if !settlement::accepts(cx) {
+            return;
+        }
         if self.images_reading {
             self.images_stale = true;
             return;
@@ -144,6 +152,21 @@ impl TypedFields {
         .detach();
     }
     pub fn refresh(&mut self, book: Rc<Book>, cx: &mut Context<Self>) {
+        if let Some(incoming) = book.v3() {
+            if self.stale_revisions.contains(&incoming.revision)
+                && self
+                    .host
+                    .page
+                    .book
+                    .v3()
+                    .is_some_and(|b| b.revision != incoming.revision)
+            {
+                return;
+            }
+            if !self.writing.is_empty() {
+                self.stale_revisions.insert(incoming.revision.clone());
+            }
+        }
         if let Some(module) = book
             .v3()
             .and_then(|b| b.template_of(&self.host.entry))
@@ -153,22 +176,16 @@ impl TypedFields {
         }
         self.host.page.book = book;
         self.reload_images(cx);
-        let confirmed: Vec<_> = self
-            .desired
-            .iter()
-            .filter(|(id, value)| !self.writing.contains(*id) && self.stored(id) == **value)
-            .map(|(id, _)| id.clone())
-            .collect();
-        for id in confirmed {
-            self.confirm(&id, cx);
-        }
         cx.notify();
     }
     pub fn input(&self, id: &str) -> Option<Entity<TextArea>> {
         self.inputs.get(id).map(|i| i.area.clone())
     }
     pub fn is_settled(&self) -> bool {
-        self.writing.is_empty() && self.desired.is_empty() && self.errors.is_empty()
+        self.writing.is_empty()
+            && self.desired.is_empty()
+            && self.errors.is_empty()
+            && self.inputs.values().all(|i| !i.dirty)
     }
     fn stored(&self, id: &str) -> FieldValue {
         self.host
@@ -189,14 +206,17 @@ impl TypedFields {
             ) {
                 continue;
             }
-            let value = text(&self.stored(&def.id));
-            if let Some(input) = self.inputs.get(&def.id) {
+            let base = self.stored(&def.id);
+            let value = text(&base);
+            if let Some(input) = self.inputs.get_mut(&def.id) {
                 if !input.dirty
                     && !self.desired.contains_key(&def.id)
                     && !self.writing.contains(&def.id)
                     && !input.area.focus_handle(cx).is_focused(window)
                     && input.area.read(cx).text() != value
                 {
+                    input.draft = value.clone();
+                    input.base = base;
                     input.area.update(cx, |a, cx| a.set_text(value, cx));
                 }
             } else {
@@ -206,34 +226,33 @@ impl TypedFields {
                         window,
                         cx,
                     )
-                    .with_text(value)
+                    .with_text(value.clone())
                 });
                 let id = def.id.clone();
                 let event =
                     cx.subscribe_in(&area, window, move |v, area, event, _, cx| match event {
-                        FieldEvent::Changed(_) => {
+                        FieldEvent::Changed(value) => {
                             if let Some(input) = v.inputs.get_mut(&id) {
-                                input.dirty = true;
+                                if settlement::accepts(cx) {
+                                    input.draft = value.clone();
+                                    input.dirty = true;
+                                } else {
+                                    area.update(cx, |a, cx| a.set_text(input.draft.clone(), cx));
+                                }
                             }
                         }
-                        FieldEvent::Blurred | FieldEvent::Submitted(_) => {
-                            let Some(def) = v.host.module.config.defs.iter().find(|d| d.id == id)
-                            else {
-                                return;
-                            };
-                            if let Some(value) = parse(def, &area.read(cx).text()) {
-                                v.set(&id, value, cx);
-                            } else {
-                                v.errors
-                                    .insert(id.clone(), dr_i18n::keys::k4_pages::INVALID_VALUE);
-                                cx.notify();
-                            }
-                        }
+                        FieldEvent::Blurred | FieldEvent::Submitted(_) => v.flush(&id, cx),
                         FieldEvent::Cancelled => {
-                            let value = text(&v.stored(&id));
-                            area.update(cx, |a, cx| a.set_text(value, cx));
+                            if !settlement::accepts(cx) {
+                                return;
+                            }
+                            let base = v.stored(&id);
+                            let value = text(&base);
+                            area.update(cx, |a, cx| a.set_text(value.clone(), cx));
                             if let Some(input) = v.inputs.get_mut(&id) {
                                 input.dirty = false;
+                                input.draft = value;
+                                input.base = base;
                             }
                             v.errors.remove(&id);
                             cx.notify();
@@ -244,81 +263,161 @@ impl TypedFields {
                     Input {
                         area,
                         dirty: false,
+                        draft: value,
+                        base,
                         _event: event,
                     },
                 );
             }
         }
     }
+    fn flush(&mut self, id: &str, cx: &mut Context<Self>) {
+        if !settlement::accepts(cx)
+            || self.errors.get(id) == Some(&dr_i18n::keys::k4_pages::SAVE_FAILED)
+        {
+            return;
+        }
+        let Some(input) = self.inputs.get(id).filter(|i| i.dirty) else {
+            return;
+        };
+        let Some(def) = self.host.module.config.defs.iter().find(|d| d.id == id) else {
+            return;
+        };
+        if let Some(value) = parse(def, &input.draft) {
+            self.set_from(id, value, input.base.clone(), false, cx);
+        } else {
+            self.errors
+                .insert(id.into(), dr_i18n::keys::k4_pages::INVALID_VALUE);
+            cx.notify();
+        }
+    }
     pub fn set(&mut self, id: &str, value: FieldValue, cx: &mut Context<Self>) {
-        self.errors.remove(id);
-        if value == self.stored(id) && !self.writing.contains(id) {
-            if let Some(input) = self.inputs.get_mut(id) {
-                input.dirty = false;
-            }
-            self.desired.remove(id);
+        let base = self
+            .inputs
+            .get(id)
+            .map(|i| i.base.clone())
+            .unwrap_or_else(|| self.stored(id));
+        self.set_from(id, value, base, false, cx);
+    }
+    fn set_from(
+        &mut self,
+        id: &str,
+        value: FieldValue,
+        base: FieldValue,
+        retry: bool,
+        cx: &mut Context<Self>,
+    ) {
+        if !settlement::accepts(cx) {
+            return;
+        }
+        self.bases.entry(id.into()).or_insert(base.clone());
+        self.desired.insert(id.into(), value.clone());
+        if self.errors.get(id) == Some(&dr_i18n::keys::k4_pages::SAVE_FAILED) && !retry {
             cx.notify();
             return;
         }
-        self.desired.insert(id.into(), value);
-        self.pump(id, cx);
+        self.errors.remove(id);
+        if value == base && !self.writing.contains(id) && !retry {
+            self.desired.remove(id);
+            self.bases.remove(id);
+            if let Some(input) = self.inputs.get_mut(id) {
+                input.dirty = false;
+            }
+        } else {
+            self.pump(id, retry, cx);
+        }
         cx.notify();
     }
-    fn confirm(&mut self, id: &str, cx: &mut Context<Self>) {
-        let sent = self.desired.remove(id);
-        if let Some(input) = self.inputs.get_mut(id)
-            && self
+    fn retry(&mut self, id: &str, cx: &mut Context<Self>) {
+        if !settlement::accepts(cx) {
+            return;
+        }
+        if let Some(input) = self.inputs.get(id) {
+            let Some(value) = self
                 .host
                 .module
                 .config
                 .defs
                 .iter()
                 .find(|d| d.id == id)
-                .and_then(|d| parse(d, &input.area.read(cx).text()))
-                == sent
-        {
-            input.dirty = false;
+                .and_then(|d| parse(d, &input.draft))
+            else {
+                return;
+            };
+            self.desired.insert(id.into(), value);
         }
+        self.errors.remove(id);
+        self.pump(id, true, cx);
     }
-    fn pump(&mut self, id: &str, cx: &mut Context<Self>) {
+    fn pump(&mut self, id: &str, retry: bool, cx: &mut Context<Self>) {
         if self.writing.contains(id) {
             return;
         }
         let Some(value) = self.desired.get(id).cloned() else {
             return;
         };
+        let base = self
+            .bases
+            .get(id)
+            .cloned()
+            .unwrap_or_else(|| self.stored(id));
+        if let Some(book) = self.host.page.book.v3() {
+            self.stale_revisions.insert(book.revision.clone());
+        }
         self.writing.insert(id.into());
         let (field, sent) = (id.to_owned(), value.clone());
-        let input = FieldIn {
-            target: In {
-                book: self.host.page.book_id.clone(),
-                entry: self.host.entry.clone(),
-                module: self.host.module.id.clone(),
-            },
-            field: field.clone(),
-            value,
+        let target = In {
+            book: self.host.page.book_id.clone(),
+            entry: self.host.entry.clone(),
+            module: self.host.module.id.clone(),
         };
         let lib = self.host.page.library.clone();
-        let job = cx.background_spawn(async move { lib.run::<FieldSet>(&Actor::User, input) });
+        let worker = lib.clone();
+        let field_id = field.clone();
+        let (job, ticket) = settlement::write(&lib, cx, async move {
+            let book = target.book.clone();
+            settlement::field(&worker, target, field_id, base, value, retry)?;
+            Book::load(&worker, &book)
+        });
         cx.spawn(async move |this, cx| {
             let result = job.await;
-            this.update(cx, |v, cx| {
-                v.writing.remove(&field);
-                match result {
-                    Ok(_) if v.desired.get(&field) == Some(&sent) => {
-                        if v.stored(&field) == sent {
-                            v.confirm(&field, cx);
+            if this
+                .update(cx, |v, cx| {
+                    v.writing.remove(&field);
+                    match result {
+                        Ok(book) => {
+                            v.host.page.book = Rc::new(book);
+                            v.bases.insert(field.clone(), sent.clone());
+                            if let Some(input) = v.inputs.get_mut(&field) {
+                                input.base = sent.clone();
+                                input.dirty = v
+                                    .host
+                                    .module
+                                    .config
+                                    .defs
+                                    .iter()
+                                    .find(|d| d.id == field)
+                                    .and_then(|d| parse(d, &input.draft))
+                                    != Some(sent.clone());
+                            }
+                            if v.desired.get(&field) == Some(&sent) {
+                                v.desired.remove(&field);
+                                v.bases.remove(&field);
+                            } else {
+                                v.pump(&field, false, cx);
+                            }
+                        }
+                        Err(error) => {
+                            log::warn!("v3 field: {error}");
+                            v.errors.insert(field, dr_i18n::keys::k4_pages::SAVE_FAILED);
                         }
                     }
-                    Ok(_) => v.pump(&field, cx),
-                    Err(error) => {
-                        log::warn!("v3 field: {error}");
-                        v.errors.insert(field, dr_i18n::keys::k4_pages::SAVE_FAILED);
-                    }
-                }
-                cx.notify();
-            })
-            .ok();
+                    cx.notify();
+                })
+                .is_ok()
+            {
+                ticket.acknowledge();
+            }
         })
         .detach();
     }
@@ -410,7 +509,10 @@ impl Render for TypedFields {
                                     }
                                     FieldValue::List(xs)
                                 };
-                                weak.update(cx, |v, cx| v.set(&id, next, cx)).ok();
+                                weak.update(cx, |v, cx| {
+                                    v.set_from(&id, next, old.clone(), false, cx)
+                                })
+                                .ok();
                             }),
                     );
                 }
@@ -425,6 +527,7 @@ impl Render for TypedFields {
                     .iter()
                     .position(|(id, _)| *id == text(&value))
                     .unwrap_or(0);
+                let value_before = value.clone();
                 Select::new(
                     SharedString::from(format!("v3-select-{}-{id}", self.host.module.id)),
                     choices
@@ -441,7 +544,10 @@ impl Render for TypedFields {
                         } else {
                             FieldValue::Text(choice.clone())
                         };
-                        weak.update(cx, |v, cx| v.set(&id, value, cx)).ok();
+                        weak.update(cx, |v, cx| {
+                            v.set_from(&id, value, value_before.clone(), false, cx)
+                        })
+                        .ok();
                     }
                 })
                 .into_any_element()
@@ -470,10 +576,48 @@ impl Render for TypedFields {
                             .flex_1()
                             .min_w_0()
                             .child(field)
-                            .children(self.errors.get(&def.id).map(|k| div().child(t(cx, *k)))),
+                            .children(self.errors.get(&def.id).map(|k| div().child(t(cx, *k))))
+                            .children(
+                                (self.errors.get(&def.id)
+                                    == Some(&dr_i18n::keys::k4_pages::SAVE_FAILED))
+                                .then(|| {
+                                    let id = def.id.clone();
+                                    dr_ui::components::Button::new(
+                                        SharedString::from(format!("retry-field-{id}")),
+                                        t(cx, dr_i18n::keys::markdown_share::RETRY),
+                                    )
+                                    .on_click(cx.listener(move |v, _, _, cx| v.retry(&id, cx)))
+                                }),
+                            ),
                     ),
             );
         }
         list.font_role(Role::Prose).text_color(p.ink(1).solid())
+    }
+}
+
+impl Drafts for TypedFields {
+    fn drain(&mut self, _: &mut Window, cx: &mut Context<Self>) -> Drain {
+        for id in self.inputs.keys().cloned().collect::<Vec<_>>() {
+            self.flush(&id, cx);
+        }
+        if !self.writing.is_empty() || self.images_reading {
+            return Drain::Pending;
+        }
+        if let Some(error) = self.errors.values().next() {
+            return Drain::Failed(t(cx, *error).to_string());
+        }
+        if self.is_settled() {
+            Drain::Ready
+        } else {
+            Drain::Failed(t(cx, dr_i18n::keys::k4_pages::SAVE_FAILED).to_string())
+        }
+    }
+}
+
+#[cfg(test)]
+impl TypedFields {
+    pub(crate) fn release_test_retry(&mut self, cx: &mut Context<Self>) {
+        self.retry("text", cx);
     }
 }

@@ -112,7 +112,10 @@ impl WholeBook {
                             });
                             e.set_base_style(base, cx);
                             e.set_decor_looks(looks, cx);
-                            e.set_chrome(Some(Rc::new(crate::Chrome::new(host))), cx);
+                            e.set_chrome(
+                                Some(Rc::new(crate::Chrome::with_book(host, v.host.book.clone()))),
+                                cx,
+                            );
                         });
                         let assist = editor.read(cx).assist().clone();
                         v._links = Some(crate::v3::bind_links(&assist, &v.host, window, cx));

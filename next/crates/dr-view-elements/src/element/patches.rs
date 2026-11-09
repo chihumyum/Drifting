@@ -8,10 +8,11 @@ use dr_ui::{
     components::Button,
     input::{FieldEvent, TextArea},
 };
+use dr_view_page::settlement::{self, Drafts, Drain};
 use dr_workspace::{
     Actor,
     commands::v3::{
-        content::{Patch, PatchIn, PatchPut, PatchRemove, RecordIn},
+        content::{Patch, PatchIn, PatchPut},
         module::{In, ModuleRead},
     },
 };
@@ -25,6 +26,8 @@ struct Row {
     title: Entity<TextArea>,
     body: Entity<TextArea>,
     stored: (String, String),
+    draft: (String, String),
+    removing: bool,
     dirty: bool,
     writing: bool,
     queued: bool,
@@ -41,6 +44,7 @@ pub struct Patches {
     read_epoch: u64,
     pending_add: usize,
     adding: bool,
+    add_failed: bool,
 }
 pub fn register(cx: &mut App) {
     dr_shell::v3::add_module_view(cx, "patches", |host, window, cx| {
@@ -56,7 +60,8 @@ pub fn register(cx: &mut App) {
     });
 }
 impl Patches {
-    fn new(host: ModuleHost, _window: &mut Window, cx: &mut Context<Self>) -> Self {
+    pub(crate) fn new(host: ModuleHost, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        settlement::register(&host.page.library, window.window_handle(), cx);
         let mut v = Self {
             host,
             records: Vec::new(),
@@ -67,6 +72,7 @@ impl Patches {
             read_epoch: 0,
             pending_add: 0,
             adding: false,
+            add_failed: false,
         };
         v.reload(cx);
         v
@@ -79,6 +85,9 @@ impl Patches {
         }
     }
     fn reload(&mut self, cx: &mut Context<Self>) {
+        if !settlement::accepts(cx) {
+            return;
+        }
         if self.reading {
             self.stale = true;
             return;
@@ -116,8 +125,13 @@ impl Patches {
         .detach();
     }
     fn sync(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.rows
-            .retain(|id, row| row.dirty || row.writing || self.records.iter().any(|p| &p.id == id));
+        self.rows.retain(|id, row| {
+            row.dirty
+                || row.writing
+                || row.error
+                || row.removing
+                || self.records.iter().any(|p| &p.id == id)
+        });
         for patch in &self.records {
             let stored = (patch.title.clone().unwrap_or_default(), patch.body.clone());
             if let Some(row) = self.rows.get_mut(&patch.id) {
@@ -132,6 +146,7 @@ impl Patches {
                         .update(cx, |f, cx| f.set_text(stored.0.clone(), cx));
                     row.body
                         .update(cx, |f, cx| f.set_text(stored.1.clone(), cx));
+                    row.draft = stored.clone();
                     row.stored = stored;
                 }
                 continue;
@@ -157,21 +172,40 @@ impl Patches {
             });
             let events = [title.clone(), body.clone()]
                 .into_iter()
-                .map(|field| {
+                .enumerate()
+                .map(|(index, field)| {
                     let id = patch.id.clone();
-                    cx.subscribe(&field, move |v, _, event, cx| match event {
-                        FieldEvent::Changed(_) => {
+                    cx.subscribe(&field, move |v, field, event, cx| match event {
+                        FieldEvent::Changed(value) => {
                             if let Some(row) = v.rows.get_mut(&id) {
-                                row.dirty = true;
+                                if settlement::accepts(cx) {
+                                    if index == 0 {
+                                        row.draft.0 = value.clone();
+                                    } else {
+                                        row.draft.1 = value.clone();
+                                    }
+                                    row.dirty = true;
+                                } else {
+                                    let text = if index == 0 {
+                                        &row.draft.0
+                                    } else {
+                                        &row.draft.1
+                                    };
+                                    field.update(cx, |a, cx| a.set_text(text.clone(), cx));
+                                }
                             }
                         }
                         FieldEvent::Blurred | FieldEvent::Submitted(_) => v.save(&id, cx),
                         FieldEvent::Cancelled => {
+                            if !settlement::accepts(cx) {
+                                return;
+                            }
                             if let Some(row) = v.rows.get_mut(&id) {
                                 row.title
                                     .update(cx, |f, cx| f.set_text(row.stored.0.clone(), cx));
                                 row.body
                                     .update(cx, |f, cx| f.set_text(row.stored.1.clone(), cx));
+                                row.draft = row.stored.clone();
                                 row.dirty = false;
                                 row.error = false;
                             }
@@ -184,7 +218,9 @@ impl Patches {
                 Row {
                     title,
                     body,
+                    draft: stored.clone(),
                     stored,
+                    removing: false,
                     dirty: false,
                     writing: false,
                     queued: false,
@@ -198,6 +234,13 @@ impl Patches {
         self.save_draft(id, false, cx);
     }
     fn save_draft(&mut self, id: &str, retry: bool, cx: &mut Context<Self>) {
+        if !settlement::accepts(cx) {
+            return;
+        }
+        if self.rows.get(id).is_some_and(|r| r.removing) {
+            self.remove_draft(id, retry, cx);
+            return;
+        }
         let input = self.target();
         let Some(row) = self.rows.get_mut(id) else {
             return;
@@ -209,67 +252,77 @@ impl Patches {
         if !row.dirty || (row.error && !retry) {
             return;
         }
-        let sent = (row.title.read(cx).text(), row.body.read(cx).text());
+        let sent = row.draft.clone();
         let base = row.stored.clone();
         row.writing = true;
         row.queued = false;
         row.error = false;
         let (lib, id) = (self.host.page.library.clone(), id.to_owned());
         let (draft, patch_id) = (sent.clone(), id.clone());
-        let job = cx.background_spawn(async move {
-            guarded::patch(&lib, input, patch_id, base, draft, retry)?.commit(&lib)
+        let worker = lib.clone();
+        let (job, ticket) = settlement::write(&lib, cx, async move {
+            guarded::patch(&worker, input, patch_id, base, draft, retry)?.commit(&worker)
         });
         cx.spawn(async move |this, cx| {
             let result = job.await;
-            this.update(cx, |v, cx| {
-                let mut again = false;
-                if let Some(row) = v.rows.get_mut(&id) {
-                    row.writing = false;
-                    match result {
-                        Ok(saved) => {
-                            let baseline = guarded::acknowledged_base(
-                                &sent,
-                                saved.clone(),
-                                &(row.title.read(cx).text(), row.body.read(cx).text()),
-                            );
-                            // Keep typing that happened while the command was in
-                            // flight, but refresh fields merged from the fresh read.
-                            if sent.0 != saved.0 && row.title.read(cx).text() == sent.0 {
-                                row.title
-                                    .update(cx, |f, cx| f.set_text(saved.0.clone(), cx));
+            if this
+                .update(cx, |v, cx| {
+                    let mut again = false;
+                    if let Some(row) = v.rows.get_mut(&id) {
+                        row.writing = false;
+                        match result {
+                            Ok(saved) => {
+                                let baseline =
+                                    guarded::acknowledged_base(&sent, saved.clone(), &row.draft);
+                                // Keep typing that happened while the command was in
+                                // flight, but refresh fields merged from the fresh read.
+                                if sent.0 != saved.0 && row.draft.0 == sent.0 {
+                                    row.draft.0 = saved.0.clone();
+                                    row.title
+                                        .update(cx, |f, cx| f.set_text(saved.0.clone(), cx));
+                                }
+                                if sent.1 != saved.1 && row.draft.1 == sent.1 {
+                                    row.draft.1 = saved.1.clone();
+                                    row.body.update(cx, |f, cx| f.set_text(saved.1.clone(), cx));
+                                }
+                                row.stored = baseline;
+                                row.dirty = row.draft != row.stored;
+                                again = row.queued && row.dirty;
+                                v.read_epoch += 1;
                             }
-                            if sent.1 != saved.1 && row.body.read(cx).text() == sent.1 {
-                                row.body.update(cx, |f, cx| f.set_text(saved.1.clone(), cx));
+                            Err(e) => {
+                                log::warn!("patch write: {e}");
+                                row.error = true;
                             }
-                            row.stored = baseline;
-                            row.dirty =
-                                (row.title.read(cx).text(), row.body.read(cx).text()) != row.stored;
-                            again = row.queued && row.dirty;
-                            v.read_epoch += 1;
-                        }
-                        Err(e) => {
-                            log::warn!("patch write: {e}");
-                            row.error = true;
                         }
                     }
-                }
-                if again {
-                    v.save(&id, cx);
-                }
-                v.pump_add(cx);
-                v.reload(cx);
-                cx.notify();
-            })
-            .ok();
+                    if again {
+                        v.save(&id, cx);
+                    }
+                    v.pump_add(cx);
+                    v.reload(cx);
+                    cx.notify();
+                })
+                .is_ok()
+            {
+                ticket.acknowledge();
+            }
         })
         .detach();
     }
     fn add(&mut self, cx: &mut Context<Self>) {
+        if !settlement::accepts(cx) {
+            return;
+        }
         self.pending_add += 1;
         self.pump_add(cx);
     }
     fn pump_add(&mut self, cx: &mut Context<Self>) {
-        if self.pending_add == 0 || self.adding || self.rows.values().any(|r| r.writing) {
+        if self.add_failed
+            || self.pending_add == 0
+            || self.adding
+            || self.rows.values().any(|r| r.writing)
+        {
             return;
         }
         // A click on New patch also blurs the current field. Finish that save
@@ -286,8 +339,9 @@ impl Patches {
         self.pending_add -= 1;
         self.adding = true;
         let (lib, target) = (self.host.page.library.clone(), self.target());
-        let job = cx.background_spawn(async move {
-            lib.run::<PatchPut>(
+        let worker = lib.clone();
+        let (job, ticket) = settlement::write(&lib, cx, async move {
+            worker.run::<PatchPut>(
                 &Actor::User,
                 PatchIn {
                     target,
@@ -300,58 +354,87 @@ impl Patches {
         });
         cx.spawn(async move |this, cx| {
             let result = job.await;
-            this.update(cx, |v, cx| {
-                v.adding = false;
-                match result {
-                    Ok(_) => {
-                        v.read_epoch += 1;
-                        v.reload(cx);
+            if this
+                .update(cx, |v, cx| {
+                    v.adding = false;
+                    match result {
+                        Ok(_) => {
+                            v.read_epoch += 1;
+                            v.reload(cx);
+                        }
+                        Err(e) => {
+                            log::warn!("new patch: {e}");
+                            v.pending_add += 1;
+                            v.add_failed = true;
+                        }
                     }
-                    Err(e) => {
-                        log::warn!("new patch: {e}");
-                        v.error = true;
+                    let queued = v
+                        .rows
+                        .iter()
+                        .filter(|(_, r)| r.queued && r.dirty && !r.error)
+                        .map(|(id, _)| id.clone())
+                        .collect::<Vec<_>>();
+                    for id in queued {
+                        v.save(&id, cx);
                     }
-                }
-                let queued = v
-                    .rows
-                    .iter()
-                    .filter(|(_, r)| r.queued && r.dirty && !r.error)
-                    .map(|(id, _)| id.clone())
-                    .collect::<Vec<_>>();
-                for id in queued {
-                    v.save(&id, cx);
-                }
-                v.pump_add(cx);
-                cx.notify();
-            })
-            .ok();
+                    v.pump_add(cx);
+                    cx.notify();
+                })
+                .is_ok()
+            {
+                ticket.acknowledge();
+            }
         })
         .detach();
     }
     fn remove(&mut self, id: &str, cx: &mut Context<Self>) {
-        if self.rows.get(id).is_some_and(|r| r.writing) {
+        self.remove_draft(id, false, cx);
+    }
+    fn remove_draft(&mut self, id: &str, retry: bool, cx: &mut Context<Self>) {
+        if !settlement::accepts(cx) {
             return;
         }
-        let (lib, target, id) = (self.host.page.library.clone(), self.target(), id.to_owned());
-        let job = cx.background_spawn(async move {
-            lib.run::<PatchRemove>(&Actor::User, RecordIn { target, id })
+        let target = self.target();
+        let Some(row) = self.rows.get_mut(id) else {
+            return;
+        };
+        if row.writing || (row.error && !retry) {
+            return;
+        }
+        row.removing = true;
+        row.writing = true;
+        row.error = false;
+        let base = row.stored.clone();
+        let (lib, id) = (self.host.page.library.clone(), id.to_owned());
+        let (worker, patch_id) = (lib.clone(), id.clone());
+        let (job, ticket) = settlement::write(&lib, cx, async move {
+            guarded::remove_patch(&worker, target, patch_id, base, retry)
         });
         cx.spawn(async move |this, cx| {
             let result = job.await;
-            this.update(cx, |v, cx| {
-                match result {
-                    Ok(_) => {
-                        v.read_epoch += 1;
-                        v.reload(cx);
+            if this
+                .update(cx, |v, cx| {
+                    match result {
+                        Ok(()) => {
+                            v.rows.remove(&id);
+                            v.records.retain(|r| r.id != id);
+                            v.read_epoch += 1;
+                            v.reload(cx);
+                        }
+                        Err(e) => {
+                            log::warn!("remove patch: {e}");
+                            if let Some(row) = v.rows.get_mut(&id) {
+                                row.writing = false;
+                                row.error = true;
+                            }
+                        }
                     }
-                    Err(e) => {
-                        log::warn!("remove patch: {e}");
-                        v.error = true;
-                    }
-                }
-                cx.notify();
-            })
-            .ok();
+                    cx.notify();
+                })
+                .is_ok()
+            {
+                ticket.acknowledge();
+            }
         })
         .detach();
     }
@@ -431,8 +514,56 @@ impl Render for Patches {
                 .on_click(cx.listener(|v, _, _, cx| v.add(cx))),
         )
         .children(
-            self.error
-                .then(|| t(cx, dr_i18n::keys::k4_pages::SAVE_FAILED)),
+            (self.error || self.add_failed).then(|| t(cx, dr_i18n::keys::k4_pages::SAVE_FAILED)),
         )
+        .children(self.add_failed.then(|| {
+            Button::new(
+                "retry-new-patch",
+                t(cx, dr_i18n::keys::markdown_share::RETRY),
+            )
+            .on_click(cx.listener(|v, _, _, cx| {
+                if settlement::accepts(cx) {
+                    v.add_failed = false;
+                    v.pump_add(cx);
+                }
+            }))
+        }))
+    }
+}
+
+impl Drafts for Patches {
+    fn drain(&mut self, _: &mut Window, cx: &mut Context<Self>) -> Drain {
+        for id in self.rows.keys().cloned().collect::<Vec<_>>() {
+            self.save(&id, cx);
+        }
+        self.pump_add(cx);
+        if self.reading || self.adding || self.rows.values().any(|r| r.writing) {
+            return Drain::Pending;
+        }
+        if self.add_failed
+            || self.pending_add != 0
+            || self.rows.values().any(|r| r.error || r.dirty || r.removing)
+        {
+            return Drain::Failed(t(cx, dr_i18n::keys::k4_pages::SAVE_FAILED).to_string());
+        }
+        Drain::Ready
+    }
+}
+
+#[cfg(test)]
+impl Patches {
+    pub(crate) fn release_test_refresh(
+        &mut self,
+        book: std::rc::Rc<dr_shell::book::Book>,
+        cx: &mut Context<Self>,
+    ) {
+        self.host.page.book = book;
+        self.reload(cx);
+    }
+    pub(crate) fn release_test_input(&self) -> Option<Entity<TextArea>> {
+        self.rows.get("release-record").map(|r| r.body.clone())
+    }
+    pub(crate) fn release_test_retry(&mut self, cx: &mut Context<Self>) {
+        self.save_draft("release-record", true, cx);
     }
 }

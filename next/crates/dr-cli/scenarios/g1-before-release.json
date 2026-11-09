@@ -1,0 +1,458 @@
+{
+  "about": "G1 mounted v3 Fields/KV/Patches/Planner writes: real inputs, navigation blur, focused-field quit, final checkpoint and reopen. Secondary display and synthetic isolated profile; correctness only, no heavy or visual/style acceptance.",
+  "steps": [
+    {
+      "seed": "v3-tiny"
+    },
+    {
+      "call": "book.list",
+      "save": "books"
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}",
+        "all": true
+      },
+      "save": "entries"
+    },
+    {
+      "call": "entry_template.put_module",
+      "input": {
+        "book": "${books.0.id}",
+        "template": "tpl-chapter",
+        "module": {
+          "id": "g1-drain-fields",
+          "name": "Drain fields",
+          "kind": "fields",
+          "pos": "b0",
+          "config": {
+            "defs": [
+              {
+                "id": "text",
+                "name": "Drain text",
+                "field_type": "long_text"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "call": "entry_template.put_module",
+      "input": {
+        "book": "${books.0.id}",
+        "template": "tpl-chapter",
+        "module": {
+          "id": "g1-drain-kv",
+          "name": "Drain kv",
+          "kind": "kv",
+          "pos": "b1"
+        }
+      }
+    },
+    {
+      "call": "entry_template.put_module",
+      "input": {
+        "book": "${books.0.id}",
+        "template": "tpl-chapter",
+        "module": {
+          "id": "g1-drain-patches",
+          "name": "Drain patches",
+          "kind": "patches",
+          "pos": "b2"
+        }
+      }
+    },
+    {
+      "call": "module.set_field",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${entries.[template=tpl-chapter].id}",
+        "module": "g1-drain-fields",
+        "field": "text",
+        "value": "Fields original"
+      }
+    },
+    {
+      "call": "module.put_kv",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${entries.[template=tpl-chapter].id}",
+        "module": "g1-drain-kv",
+        "row": {
+          "id": "release-record",
+          "key": "Drain key",
+          "value": "KV original",
+          "pos": "a0"
+        }
+      }
+    },
+    {
+      "call": "module.put_patch",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${entries.[template=tpl-chapter].id}",
+        "module": "g1-drain-patches",
+        "id": "release-record",
+        "title": "Drain patch",
+        "body": "Patch original"
+      }
+    },
+    {
+      "call": "module.read",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-plot-grid"
+      },
+      "save": "plot"
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light",
+          "DRIFTING_WINDOW_DISPLAY": "secondary"
+        },
+        "settings": {
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      },
+      "save": "launched"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "app.info",
+      "save": "environment"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 3000
+      }
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "id": "${books.0.id}",
+        "name": "${books.0.name}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/shelf": false,
+          "/book/id": "${books.0.id}"
+        }
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-chapter].id}/g1-drain-kv"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/page": "entry:${entries.[template=tpl-chapter].id}/g1-drain-kv"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Value",
+        "role": "group"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-a"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "KV accepted before navigation"
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-chapter].id}/g1-drain-patches"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/page": "entry:${entries.[template=tpl-chapter].id}/g1-drain-patches"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Body",
+        "role": "group"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-a"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "Patch accepted before navigation"
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-chapter].id}/mod-plot-grid"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/page": "entry:${entries.[template=tpl-chapter].id}/mod-plot-grid"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "${plot.grid.cells.0.text}",
+        "role": "group"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-a"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "Grid accepted before navigation"
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-chapter].id}/g1-drain-fields"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/page": "entry:${entries.[template=tpl-chapter].id}/g1-drain-fields"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Drain text",
+        "role": "group"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-a"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "Fields accepted on quit"
+      }
+    },
+    {
+      "app": "app.info",
+      "save": "before_quit"
+    },
+    {
+      "app": "app.quit",
+      "expect": {
+        "/quit": true,
+        "/exitCode": 0,
+        "/connectionFileLeft": false
+      },
+      "note": "No blur or explicit save: release must drain the focused author input."
+    },
+    {
+      "call": "module.read",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${entries.[template=tpl-chapter].id}",
+        "module": "g1-drain-fields"
+      },
+      "expect": {
+        "/fields/text": "Fields accepted on quit"
+      }
+    },
+    {
+      "call": "module.read",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${entries.[template=tpl-chapter].id}",
+        "module": "g1-drain-kv"
+      },
+      "expect": {
+        "/kv/0/value": "KV accepted before navigation"
+      }
+    },
+    {
+      "call": "module.read",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${entries.[template=tpl-chapter].id}",
+        "module": "g1-drain-patches"
+      },
+      "expect": {
+        "/patches/0/body": "Patch accepted before navigation"
+      }
+    },
+    {
+      "call": "module.read",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-plot-grid"
+      },
+      "expect": {
+        "/grid/cells/0/text": "Grid accepted before navigation"
+      }
+    },
+    {
+      "call": "entry_snapshot.list",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${entries.[template=tpl-chapter].id}"
+      },
+      "save": "points"
+    },
+    {
+      "call": "entry_snapshot.preview",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${entries.[template=tpl-chapter].id}",
+        "point": "${points.0.id}"
+      },
+      "expect": {
+        "/metadata/fields/g1-drain-fields/text": "Fields accepted on quit"
+      },
+      "save": "final_checkpoint"
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light",
+          "DRIFTING_WINDOW_DISPLAY": "secondary"
+        }
+      },
+      "save": "reopened"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "app.info",
+      "save": "reopen_environment"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 2000
+      }
+    },
+    {
+      "call": "module.read",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${entries.[template=tpl-chapter].id}",
+        "module": "g1-drain-fields"
+      },
+      "expect": {
+        "/fields/text": "Fields accepted on quit"
+      }
+    },
+    {
+      "call": "module.read",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${entries.[template=tpl-chapter].id}",
+        "module": "g1-drain-kv"
+      },
+      "expect": {
+        "/kv/0/value": "KV accepted before navigation"
+      }
+    },
+    {
+      "call": "module.read",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${entries.[template=tpl-chapter].id}",
+        "module": "g1-drain-patches"
+      },
+      "expect": {
+        "/patches/0/body": "Patch accepted before navigation"
+      }
+    },
+    {
+      "call": "module.read",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-plot-grid"
+      },
+      "expect": {
+        "/grid/cells/0/text": "Grid accepted before navigation"
+      }
+    },
+    {
+      "app": "app.quit",
+      "expect": {
+        "/quit": true,
+        "/exitCode": 0
+      }
+    }
+  ]
+}
