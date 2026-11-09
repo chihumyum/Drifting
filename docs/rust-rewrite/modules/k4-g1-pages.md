@@ -259,9 +259,10 @@ G2 大纲编辑器登记。快照历史只包含接口边界复现与待协调�
 相对第一段 `d85ee968` 的实现／证据提交：`5b21d710`（通览与链接）、`3549c08c`
 （已有正文直接开会话）、`ec869ee4`（桌面背景前后截图）、`accdbaae`（情节规划
 版本守卫与失败草稿）、`c2939bcd`（快照边界）、`d68d04e5`（G2 大纲接线）。
-同步 main 的提交：`bfaba8c8`、`39acc926`、`1af4cc74`、`0f33255c`、`3341b922`。
+同步 main 的提交：`bfaba8c8`、`39acc926`、`1af4cc74`、`0f33255c`、`3341b922`、
+`7b6818ac`（最后一次仅同步第五十三批退回记录，Rust 源码未变）。
 
-最终 Rust 检查基于 `3341b922`：`CARGO_BUILD_JOBS=3`，完整测试单线程；fmt、
+最终全套检查在 `7b6818ac` 合入最新 main 后重跑：`CARGO_BUILD_JOBS=3`，完整测试单线程；fmt、
 workspace/all-targets Clippy（-D warnings）、workspace 测试 **2076 通过／0 失败／
 22 忽略**、xtask check（含 audit）、public:check（5483 个候选）全部通过。
 审计 0 vulnerabilities、12 条既有 notices；证据门禁的旧测量过时提示保留，没有
