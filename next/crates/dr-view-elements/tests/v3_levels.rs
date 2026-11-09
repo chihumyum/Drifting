@@ -136,6 +136,31 @@ fn grouped_list_uses_primary_lane_once_and_keeps_unassigned_leaves() {
         "entry.create",
         json!({"book":book,"parent":manuscript.id,"title":"Synthetic unassigned"}),
     );
+    let host = call(
+        &ws,
+        "entry.create",
+        json!({"book":book,"parent":manuscript.id,"template":"tpl-group","title":"Synthetic non-lane membership"}),
+    );
+    let member = v
+        .entries
+        .iter()
+        .find(|e| e.template.as_deref() == Some("tpl-chapter"))
+        .unwrap();
+    call(
+        &ws,
+        "entry.update",
+        json!({"book":book,"id":host["id"],"overrides":{"accept":true}}),
+    );
+    call(
+        &ws,
+        "membership.add",
+        json!({"book":book,"host":host["id"],"member":member.id}),
+    );
+    call(
+        &ws,
+        "membership.primary",
+        json!({"book":book,"host":host["id"],"member":member.id}),
+    );
     let snapshot = Book::load(&ws, &book).unwrap();
     let shown = rows(
         &snapshot,
@@ -154,7 +179,17 @@ fn grouped_list_uses_primary_lane_once_and_keeps_unassigned_leaves() {
     {
         assert!(all.contains(&child.id.as_str()));
     }
-    assert!(shown.contains(&Row::Section(Section::Unassigned)));
+    let unassigned = shown
+        .iter()
+        .position(|row| *row == Row::Section(Section::Unassigned))
+        .unwrap();
+    assert!(
+        shown
+            .iter()
+            .position(|row| matches!(row,Row::Entry{id,..} if *id==member.id))
+            .unwrap()
+            > unassigned
+    );
     assert_eq!(all.last().copied(), loose["id"].as_str());
     ws.shutdown().unwrap();
 }
@@ -276,5 +311,7 @@ fn refresh_keeps_the_visible_entry_when_rows_are_inserted_above_it(cx: &mut gpui
     });
     drop(view);
     cx.run_until_parked();
-    ws.shutdown().unwrap();
+    // The test App retains released entities until teardown, including the
+    // display host's workspace lease, as in the other panel GPUI tests.
+    drop(ws);
 }

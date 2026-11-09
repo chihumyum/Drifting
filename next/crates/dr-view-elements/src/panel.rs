@@ -1722,12 +1722,10 @@ pub mod v3 {
                 let members: Vec<_> = leaves
                     .iter()
                     .filter(|id| {
-                        let accepted: Vec<_> = v
+                        let accepted: BTreeSet<_> = v
                             .memberships
                             .iter()
-                            .filter(|m| {
-                                m.member == **id && v.template_of(&m.host).is_some_and(|t| t.lane)
-                            })
+                            .filter(|m| m.member == **id)
                             .map(|m| m.host.as_str())
                             .collect();
                         let primary = v
