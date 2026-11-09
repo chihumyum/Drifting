@@ -183,6 +183,103 @@ struct Canonical {
 }
 fn canonical(lib: &Library, book: &BookId) -> Result<Canonical> {
     let copy = lib.load_copy(&format!("book:{book}"))?;
+    if dr_doc::v3::is_v3_doc(&copy) {
+        let borrowed = dr_doc::v3::BorrowedBookV3::new(&copy, book)?;
+        let view = borrowed.view();
+        let templates = view.templates_map();
+        if view.trashed_at().is_some() {
+            return Err(Error::Closed);
+        }
+        let ordered_entries = view.entries();
+        let documents = lib.docs(Some(book.as_str()), None)?;
+        let module_targets = |entry: &dr_model::v3::Entry| -> Vec<Target> {
+            let template = entry.effective_template(&templates);
+            let mut modules = Vec::new();
+            if entry.is_level(&templates) {
+                modules.push((dr_model::v3::level_about_module_id(), "about".to_owned()));
+            }
+            if let Some(template) = template {
+                modules.extend(
+                    template
+                        .modules
+                        .iter()
+                        .filter(|m| {
+                            m.kind == dr_model::v3::ModuleKind::Prose && !template.is_level()
+                        })
+                        .map(|m| (m.id.clone(), m.name.clone())),
+                );
+            }
+            // A removed definition does not remove its persisted body. Keep the
+            // original module identity instead of rebinding by a display name.
+            for info in &documents {
+                if let Ok(dr_model::DocId::Body(body)) = dr_model::DocId::parse(&info.doc_id)
+                    && body.entry() == &entry.id
+                    && !modules.iter().any(|(id, _)| id == body.module())
+                {
+                    modules.push((body.module().clone(), body.module().to_string()));
+                }
+            }
+            modules
+                .into_iter()
+                .map(|(module, name)| Target {
+                    kind: "module".into(),
+                    id: format!("{}/{}", entry.id, module),
+                    name: format!("{}/{}", entry.title, name),
+                    doc: Some(
+                        dr_model::DocId::Body(dr_model::id::BodyDocId::new(
+                            entry.id.clone(),
+                            module,
+                        ))
+                        .to_string(),
+                    ),
+                })
+                .collect()
+        };
+        let manuscript_levels = view.manuscript_levels();
+        let manuscript_entries: BTreeSet<_> = manuscript_levels
+            .iter()
+            .flat_map(|root| view.manuscript_leaves(root))
+            .map(|entry| entry.id)
+            .collect();
+        let mut manifest = Vec::new();
+        let mut targets = Vec::new();
+        for entry in ordered_entries.iter().filter(|e| !e.is_trashed()) {
+            let modules = module_targets(entry);
+            targets.push(Target {
+                kind: "entry".into(),
+                id: entry.id.to_string(),
+                name: entry.title.clone(),
+                // Multiple bodies require an explicit module, never the first.
+                doc: (modules.len() == 1)
+                    .then(|| modules[0].doc.clone())
+                    .flatten(),
+            });
+            if manuscript_entries.contains(&entry.id)
+                || (manuscript_levels.is_empty() && entry.is_leaf(&templates))
+            {
+                for target in &modules {
+                    manifest.push(ManifestEntry {
+                        target: target.clone(),
+                        ordinal: manifest.len(),
+                    });
+                }
+            }
+            targets.extend(modules);
+        }
+        for row in view.materials() {
+            targets.push(Target {
+                kind: "material".into(),
+                id: row.id.to_string(),
+                name: row.title,
+                doc: Some(format!("material:{}", row.id)),
+            });
+        }
+        return Ok(Canonical {
+            version: evidence::version(&copy.oplog_frontiers()),
+            manifest,
+            targets,
+        });
+    }
     let borrowed = BorrowedBook::new(&copy, book)?;
     let view = borrowed.view();
     let node_target = |node: dr_model::book::Node| Target {
@@ -239,7 +336,10 @@ fn drift(frozen: &[ManifestEntry], current: &[ManifestEntry]) -> ManifestState {
         match frozen.iter().find(|old| old.target.id == entry.target.id) {
             None => state.added.push(entry.target.name.clone()),
             Some(old) => {
-                if old.target.name != entry.target.name {
+                if old.target.name != entry.target.name
+                    || old.target.kind != entry.target.kind
+                    || old.target.doc != entry.target.doc
+                {
                     state.renamed.push(entry.target.name.clone());
                 }
                 if old.ordinal != entry.ordinal {
@@ -277,6 +377,13 @@ fn new_step(target: Target, ordinal: usize) -> Step {
     }
 }
 fn resolve_target(canonical: &Canonical, spec: &TargetSpec) -> dr_store::Result<Target> {
+    if let Some(exact) = canonical.targets.iter().find(|target| {
+        matches!(target.kind.as_str(), "entry" | "module")
+            && target.kind == spec.kind
+            && target.id == spec.name
+    }) {
+        return Ok(exact.clone());
+    }
     let mut matching = canonical
         .targets
         .iter()

@@ -117,6 +117,16 @@ pub trait ToolExecutor: Send + Sync + 'static {
     fn describe(&self, call: &ToolCall) -> Option<ToolDescriptor> {
         self.descriptors().into_iter().find(|d| d.name == call.name)
     }
+    /// Resolve a lazy call's actual access/policy within the active book's
+    /// kernel version and template action catalog.
+    fn describe_in_book(
+        &self,
+        _workspace: &Workspace,
+        _book: &BookId,
+        call: &ToolCall,
+    ) -> Option<ToolDescriptor> {
+        self.describe(call)
+    }
     /// Discard per-run observations after entered tools and writes settle.
     fn finish_session(&self, _session: &str) {}
     /// Product-owned local context. Runs on the existing runtime worker, never
