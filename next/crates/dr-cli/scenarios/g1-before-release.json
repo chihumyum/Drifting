@@ -253,9 +253,27 @@
       }
     },
     {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 120
+      }
+    },
+    {
+      "app": "state.get",
+      "save": "focused_input_0",
+      "expect": {
+        "/focus/any": true
+      }
+    },
+    {
       "app": "input.key",
       "params": {
         "keys": "secondary-a"
+      },
+      "save": "select_all_1",
+      "expect": {
+        "/handled/0": true
       }
     },
     {
@@ -327,9 +345,27 @@
       }
     },
     {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 120
+      }
+    },
+    {
+      "app": "state.get",
+      "save": "focused_input_1",
+      "expect": {
+        "/focus/any": true
+      }
+    },
+    {
       "app": "input.key",
       "params": {
         "keys": "secondary-a"
+      },
+      "save": "select_all_2",
+      "expect": {
+        "/handled/0": true
       }
     },
     {
@@ -397,13 +433,32 @@
       "app": "ui.press",
       "params": {
         "label": "${plot.grid.cells.0.text}",
-        "role": "group"
+        "role": "group",
+        "dy": -30
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 120
+      }
+    },
+    {
+      "app": "state.get",
+      "save": "focused_input_2",
+      "expect": {
+        "/focus/any": true
       }
     },
     {
       "app": "input.key",
       "params": {
         "keys": "secondary-a"
+      },
+      "save": "select_all_3",
+      "expect": {
+        "/handled/0": true
       }
     },
     {
@@ -475,9 +530,27 @@
       }
     },
     {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 120
+      }
+    },
+    {
+      "app": "state.get",
+      "save": "focused_input_3",
+      "expect": {
+        "/focus/any": true
+      }
+    },
+    {
       "app": "input.key",
       "params": {
         "keys": "secondary-a"
+      },
+      "save": "select_all_4",
+      "expect": {
+        "/handled/0": true
       }
     },
     {
