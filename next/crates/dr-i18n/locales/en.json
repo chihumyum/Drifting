@@ -589,6 +589,12 @@
       "notUtf8": "Not UTF-8 text; some characters were replaced"
     }
   },
+  "k4Book": {
+    "entry_words": "Entry words",
+    "leaf_count": "Leaf count",
+    "material_words": "Material words",
+    "retained_content": "Retained content"
+  },
   "k4Pages": {
     "body": "Body",
     "entries": "Entries",

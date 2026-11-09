@@ -67,6 +67,7 @@ pub const WIDTH: f32 = 600.0;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SearchEvent {
     Jump(Jump),
+    JumpV3(crate::v3::Jump),
     Close,
 }
 
@@ -79,6 +80,7 @@ pub struct SearchPanel {
     field: Entity<TextField>,
     query: String,
     groups: Rc<Vec<Group>>,
+    v3: Option<V3State>,
     lines: Rc<Vec<Line>>,
     hits: usize,
     /// The line the keyboard is on (a hit).
@@ -89,6 +91,24 @@ pub struct SearchPanel {
     scroll: UniformListScrollHandle,
     search: Option<Task<()>>,
     _subscriptions: Vec<Subscription>,
+}
+
+struct V3State {
+    groups: Rc<Vec<crate::v3::Group>>,
+    marks: crate::v3::Marks,
+}
+
+enum Results {
+    Legacy(Vec<dr_workspace::commands::prose::SearchHitInfo>),
+    V3(Vec<crate::v3::Group>),
+}
+
+struct DisplayGroup {
+    title: String,
+    rows: Vec<model::Row>,
+    mark: (sand::Kind, Option<Rgb>),
+    kind: SharedString,
+    fields: Vec<SharedString>,
 }
 
 impl EventEmitter<SearchEvent> for SearchPanel {}
@@ -122,6 +142,7 @@ impl SearchPanel {
             field,
             query: String::new(),
             groups: Rc::default(),
+            v3: None,
             lines: Rc::default(),
             hits: 0,
             selected: None,
@@ -132,6 +153,37 @@ impl SearchPanel {
             search: None,
             _subscriptions: vec![sub],
         }
+    }
+
+    /// Version-specific host entry point. The shell handles JumpV3 directly
+    /// with Target::Entry { id, module } and open_at for its optional line.
+    pub fn new_v3(
+        lib: Option<Workspace>,
+        book: String,
+        marks: crate::v3::Marks,
+        locale: Locale,
+        platform: Platform,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        let mut panel = Self::new(
+            lib,
+            book,
+            Rc::new(|_| (sand::Kind::Element, None)),
+            locale,
+            platform,
+            window,
+            cx,
+        );
+        panel.v3 = Some(V3State {
+            groups: Rc::default(),
+            marks,
+        });
+        panel
+    }
+
+    pub fn v3_groups(&self) -> Option<&[crate::v3::Group]> {
+        self.v3.as_ref().map(|s| s.groups.as_slice())
     }
 
     pub fn focus(&self, window: &mut Window, cx: &mut App) {
@@ -174,7 +226,11 @@ impl SearchPanel {
         self.query = text.trim().to_owned();
         if self.query.is_empty() {
             self.search = None;
-            self.set_results(Vec::new(), false, cx);
+            if self.v3.is_some() {
+                self.set_v3_results(Vec::new(), false, cx);
+            } else {
+                self.set_results(Vec::new(), false, cx);
+            }
             return;
         }
         let (Some(lib), book, query) = (self.lib.clone(), self.book.clone(), self.query.clone())
@@ -182,6 +238,7 @@ impl SearchPanel {
             return;
         };
         // A newer search drops the one still waiting or running.
+        let v3 = self.v3.is_some();
         self.search = Some(cx.spawn(async move |this, cx| {
             if !wait.is_zero() {
                 cx.background_executor().timer(wait).await;
@@ -190,6 +247,9 @@ impl SearchPanel {
             let hits = cx
                 .background_executor()
                 .spawn(async move {
+                    if v3 {
+                        return crate::v3::search(&lib, &book, &query, LIMIT).map(Results::V3);
+                    }
                     lib.run::<Search>(
                         &Actor::User,
                         SearchIn {
@@ -198,7 +258,7 @@ impl SearchPanel {
                             limit: Some(LIMIT),
                         },
                     )
-                    .map(|o| o.output)
+                    .map(|o| Results::Legacy(o.output))
                 })
                 .await;
             this.update(cx, |panel, cx| {
@@ -207,12 +267,58 @@ impl SearchPanel {
                 }
                 panel.search = None;
                 match hits {
-                    Ok(hits) => panel.set_results(hits, true, cx),
-                    Err(error) => log::warn!("search failed: {error}"),
+                    Ok(Results::Legacy(hits)) => panel.set_results(hits, true, cx),
+                    Ok(Results::V3(groups)) => panel.set_v3_results(groups, true, cx),
+                    Err(error) => {
+                        log::warn!("search failed: {error}");
+                        if v3 {
+                            panel.set_v3_results(Vec::new(), false, cx);
+                        }
+                    }
                 }
             })
             .ok();
         }));
+    }
+
+    fn set_v3_results(
+        &mut self,
+        groups: Vec<crate::v3::Group>,
+        searched: bool,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(state) = &mut self.v3 else {
+            return;
+        };
+        self.hits = groups.iter().map(|g| g.rows.len()).sum();
+        let mut lines = Vec::new();
+        for (g, group) in groups.iter().enumerate() {
+            lines.push(Line::Header(g));
+            lines.extend((0..group.rows.len()).map(|r| Line::Hit(g, r)));
+        }
+        self.selected = lines.iter().position(|l| matches!(l, Line::Hit(..)));
+        self.lines = Rc::new(lines);
+        let meta = (self.hits > 0).then(|| {
+            SharedString::from(self.i18n.fmt(
+                keys::global_search::STATS,
+                &[
+                    ("groups", &groups.len()),
+                    (
+                        "occurrences",
+                        &if self.hits >= LIMIT {
+                            format!("{LIMIT}+")
+                        } else {
+                            self.hits.to_string()
+                        },
+                    ),
+                ],
+            ))
+        });
+        state.groups = Rc::new(groups);
+        self.searched = searched;
+        self.field.update(cx, |f, cx| f.set_meta(meta, cx));
+        self.scroll.scroll_to_item(0, ScrollStrategy::Top);
+        cx.notify();
     }
 
     /// Shows `hits` (in book order).
@@ -273,6 +379,17 @@ impl SearchPanel {
     }
 
     fn choose(&mut self, line: usize, cx: &mut Context<Self>) {
+        if let Some(state) = &self.v3 {
+            let jump = match self.lines.get(line) {
+                Some(Line::Header(g)) => crate::v3::jump(&state.groups[*g], None),
+                Some(Line::Hit(g, r)) => {
+                    crate::v3::jump(&state.groups[*g], state.groups[*g].rows.get(*r))
+                }
+                None => return,
+            };
+            cx.emit(SearchEvent::JumpV3(jump));
+            return;
+        }
         let jump = match self.lines.get(line) {
             Some(Line::Header(g)) => model::jump(&self.groups[*g], None),
             Some(Line::Hit(g, r)) => {
@@ -362,24 +479,43 @@ impl Render for SearchPanel {
                     }),
             );
 
-        let groups = self.groups.clone();
+        let groups: Vec<DisplayGroup> = if let Some(state) = &self.v3 {
+            state
+                .groups
+                .iter()
+                .map(|g| DisplayGroup {
+                    title: g.title.clone(),
+                    rows: g.rows.clone(),
+                    mark: (state.marks)(&g.target),
+                    kind: g.module_name.clone().unwrap_or_default().into(),
+                    fields: g
+                        .rows
+                        .iter()
+                        .map(|r| self.i18n.t(field_label(Owner::Material, r.field)).into())
+                        .collect(),
+                })
+                .collect()
+        } else {
+            self.groups
+                .iter()
+                .map(|g| DisplayGroup {
+                    title: g.title.clone(),
+                    rows: g.rows.clone(),
+                    mark: (self.marks)(&g.target),
+                    kind: self.i18n.t(kind_label(g.owner)).into(),
+                    fields: g
+                        .rows
+                        .iter()
+                        .map(|r| self.i18n.t(field_label(g.owner, r.field)).into())
+                        .collect(),
+                })
+                .collect()
+        };
         let lines = self.lines.clone();
         let selected = self.selected;
-        let marks = self.marks.clone();
         let query = self.query.clone();
-        let kinds: Vec<SharedString> = groups
-            .iter()
-            .map(|g| self.i18n.t(kind_label(g.owner)).into())
-            .collect();
-        let fields: Vec<Vec<SharedString>> = groups
-            .iter()
-            .map(|g| {
-                g.rows
-                    .iter()
-                    .map(|r| self.i18n.t(field_label(g.owner, r.field)).into())
-                    .collect()
-            })
-            .collect();
+        let kinds: Vec<SharedString> = groups.iter().map(|g| g.kind.clone()).collect();
+        let fields: Vec<Vec<SharedString>> = groups.iter().map(|g| g.fields.clone()).collect();
         let list_entity = entity.clone();
         let list = uniform_list("search-results", lines.len(), move |range, window, cx| {
             range
@@ -413,7 +549,7 @@ impl Render for SearchPanel {
                     let row = match line {
                         Line::Header(g) => {
                             let group = &groups[g];
-                            let (kind, color) = marks(&group.target);
+                            let (kind, color) = group.mark;
                             let mut mark = KindMark::new(
                                 ElementId::Name(format!("search-mark-{i}").into()),
                                 kind,

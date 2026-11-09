@@ -253,5 +253,11 @@
     "formatFull": "Full",
     "formatNotes": "Notes",
     "formatPlain": "Plain text"
+  },
+  "k4Book": {
+    "entry_words": "Entry words",
+    "material_words": "Material words",
+    "leaf_count": "Leaf count",
+    "retained_content": "Retained content"
   }
 }
