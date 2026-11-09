@@ -96,6 +96,17 @@ impl Guards {
         self.check(id, doc)
     }
 
+    /// A reserved read source is not a write target, but an explicit caller
+    /// observation of it must still be honored before deriving new content.
+    pub(crate) fn check_if_observed(&self, id: &str, doc: &LoroDoc) -> Result<()> {
+        if let Some(expected) = crate::holder::lock(&self.0.versions).get(id)
+            && *expected != doc.oplog_frontiers()
+        {
+            return Err(WsError::Conflict(format!("stale observation: {id}")));
+        }
+        Ok(())
+    }
+
     /// Only for a document this invocation has just registered. Its first
     /// write may replace genesis, never any pre-existing or intervening edit.
     pub(crate) fn created(&self, id: String, genesis: Frontiers) {

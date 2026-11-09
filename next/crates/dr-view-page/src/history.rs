@@ -19,7 +19,7 @@ pub fn init(cx: &mut App) {
         let finish = cx
             .background_executor()
             .spawn(async move { service.map(AutomaticHistory::finish).unwrap_or(Ok(())) });
-        Box::pin(async move { finish.await })
+        Box::pin(finish)
     });
     dr_shell::release::after_release(cx, start);
     dr_shell::quit::before_quit(cx, |cx| {

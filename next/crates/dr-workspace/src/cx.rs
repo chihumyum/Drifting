@@ -451,6 +451,13 @@ impl<'a> Cx<'a> {
         Ok(())
     }
 
+    pub(crate) fn check_atomic_read_guard(&self, id: &str, doc: &loro::LoroDoc) -> Result<()> {
+        if let Some(guards) = &self.guards {
+            guards.check_if_observed(id, doc)?;
+        }
+        Ok(())
+    }
+
     /// Step 2: make sure prose document `doc` exists (registered; its genesis
     /// is written when it is first opened, identically on every device).
     pub(crate) fn create_prose(&self, book: &BookId, doc: &DocId) -> Result<()> {

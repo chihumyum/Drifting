@@ -464,6 +464,32 @@ fn missing_default_bodies_and_checkpoint_commit_together_and_respect_caller_guar
         Err(dr_store::StoreError::NotFound(_))
     ));
     same(&data(&e, &b, &id), &before);
+    // A template is reserved read-only. When the caller observed that source,
+    // honor its version too, before either lazy or pre-registered body is seeded.
+    let observations = [
+        format!("book:{b}"),
+        format!("body:{id}/mod-prose"),
+        format!("body:{id}/second"),
+        format!("template:{b}/tpl-chapter/lazy"),
+    ]
+    .iter()
+    .map(|d| e.ws().observe(d).unwrap())
+    .collect::<Vec<_>>();
+    e.call("module.set_prose",json!({"book":b,"owner":"tpl-chapter","template":true,"module":"lazy","paragraphs":[{"text":"Template newest"}]}));
+    let before = data(&e, &b, &id);
+    let r = e.ws().call_guarded(
+        &Actor::User,
+        "entry_snapshot.create",
+        json!({"book":b,"entry":id}),
+        dr_workspace::WritePreconditions::from_observations(observations),
+    );
+    assert!(matches!(r, Err(dr_workspace::WsError::Conflict(_))));
+    assert!(e.ws().library().doc_info(&lazy).unwrap().is_none());
+    assert!(matches!(
+        e.ws().library().load_copy(&unwritten),
+        Err(dr_store::StoreError::NotFound(_))
+    ));
+    same(&data(&e, &b, &id), &before);
     e.faults.arm("snapshot_create_after_body");
     assert!(
         e.try_call("entry_snapshot.create", json!({"book":b,"entry":id}))
@@ -513,7 +539,7 @@ fn missing_default_bodies_and_checkpoint_commit_together_and_respect_caller_guar
         .as_str()
         .unwrap()
         .to_owned();
-    assert_eq!(body(&e, &b, &id, "lazy")[0]["text"], "Template default");
+    assert_eq!(body(&e, &b, &id, "lazy")[0]["text"], "Template newest");
     assert!(e.ws().library().load_copy(&unwritten).is_ok());
     e.reopen();
     assert!(
@@ -521,7 +547,7 @@ fn missing_default_bodies_and_checkpoint_commit_together_and_respect_caller_guar
             .as_array()
             .unwrap()
             .iter()
-            .any(|v| v["text"].as_str().unwrap().contains("Template default"))
+            .any(|v| v["text"].as_str().unwrap().contains("Template newest"))
     );
 }
 

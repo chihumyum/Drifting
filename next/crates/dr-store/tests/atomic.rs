@@ -130,7 +130,7 @@ fn new_documents_and_existing_updates_share_one_commit_or_no_commit() {
     lib.local_transaction(|tx| { tx.execute_batch("CREATE TRIGGER reject_new BEFORE INSERT ON loro_update WHEN NEW.doc_id='node:c' BEGIN SELECT RAISE(ABORT, 'last append'); END;")?; Ok(()) }).unwrap();
     let run = || {
         DocHandle::atomic_scoped(
-            &[a.clone()],
+            std::slice::from_ref(&a),
             Origin::Command,
             scope(),
             &[new_doc("node:b"), new_doc("node:c")],
@@ -168,7 +168,7 @@ fn registry_changes_during_staging_are_rejected_and_the_new_authors_data_survive
     let lib = open(dir.path());
     let a = create(&lib, "node:a");
     let result = DocHandle::atomic_scoped(
-        &[a.clone()],
+        std::slice::from_ref(&a),
         Origin::Command,
         scope(),
         &[],
@@ -202,7 +202,7 @@ fn foreign_registry_owner_and_duplicate_handles_refuse_all_writes() {
     lib.register("node:foreign", "node", Some("book-2"))
         .unwrap();
     let result = DocHandle::atomic_scoped(
-        &[a.clone()],
+        std::slice::from_ref(&a),
         Origin::Command,
         scope(),
         &[],
@@ -264,7 +264,7 @@ fn pre_registered_empty_document_is_guarded_against_a_racing_first_writer() {
     let mut new = new_doc("node:b");
     new.pre_registered = true;
     let result = DocHandle::atomic_scoped(
-        &[a.clone()],
+        std::slice::from_ref(&a),
         Origin::Command,
         scope(),
         &[new],

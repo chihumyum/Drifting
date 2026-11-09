@@ -361,6 +361,11 @@ fn create(cx: &Cx<'_>, input: EntryIn, automatic: Option<CaptureReason>) -> Resu
                 .map(|(id, d)| (id.clone(), d.clone()))
                 .collect();
             cx.check_atomic_guards(&observed)?;
+            for (id, doc) in docs {
+                if matches!(DocId::parse(id), Ok(DocId::Template(_))) {
+                    cx.check_atomic_read_guard(id, doc)?;
+                }
+            }
             if frontiers_hex(&docs[&book_doc(&input.book)].oplog_frontiers()) != version {
                 return Err(WsError::Conflict(
                     "entry changed while preparing checkpoint".into(),
