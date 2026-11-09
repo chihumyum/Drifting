@@ -27,7 +27,8 @@ pub struct Observation {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WritePreconditions {
     pub versions: HashMap<String, String>,
-    /// Refuse writes to any document absent from `versions`.
+    /// Refuse writes to any document absent from `versions`. Explicit source
+    /// dependencies (v3 comment prose) remain required even when this is false.
     pub require_all: bool,
 }
 
