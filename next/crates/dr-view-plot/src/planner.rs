@@ -164,6 +164,8 @@ struct Written {
     created: bool,
     stored: BTreeMap<String, String>,
     refused: Vec<String>,
+    /// V3 batches are all-or-nothing. Keep a refused batch until explicit retry.
+    retained: Vec<Write>,
 }
 
 /// The grip being dragged: where it started and the size then.
@@ -186,6 +188,7 @@ pub struct PlotPlanner {
     store_timer: Option<Task<()>>,
     queue: VecDeque<Write>,
     writing: Option<Task<()>>,
+    save_failed: bool,
     /// F3 said the grid changed while writes were out: read it after them.
     stale: bool,
     reading: Option<Task<()>>,
@@ -252,6 +255,7 @@ impl PlotPlanner {
             store_timer: None,
             queue: VecDeque::new(),
             writing: None,
+            save_failed: false,
             stale: false,
             reading: None,
             menu: None,
@@ -365,6 +369,20 @@ impl PlotPlanner {
             && self.queue.is_empty()
             && self.writing.is_none()
             && self.reading.is_none()
+    }
+
+    /// A v3 write failed; local edits remain queued and visible.
+    pub fn save_failed(&self) -> bool {
+        self.save_failed
+    }
+
+    /// Explicitly re-read and apply the retained edits to the latest grid.
+    pub fn retry_save(&mut self, cx: &mut Context<Self>) {
+        if self.module.is_some() && self.save_failed {
+            self.save_failed = false;
+            self.store_typed(cx);
+            cx.notify();
+        }
     }
 
     /// The text field of `field` (tests type into it).
@@ -684,7 +702,7 @@ impl PlotPlanner {
     /// time, in order. An unstored grid is stored first
     /// (`plot_grid.create`) and its `~` lines take the ids it was given.
     fn pump(&mut self, cx: &mut Context<Self>) {
-        if self.writing.is_some() || self.queue.is_empty() {
+        if self.writing.is_some() || self.queue.is_empty() || self.save_failed {
             return;
         }
         let batch: Vec<Write> = self.queue.drain(..).collect();
@@ -694,10 +712,11 @@ impl PlotPlanner {
         let module = self.module.clone();
         let job = cx.background_spawn(async move {
             if let Some(module) = module {
-                return match crate::v3::write(&lib, &book, &node, &module, batch) {
+                return match crate::v3::write(&lib, &book, &node, &module, batch.clone()) {
                     Ok(()) => Written::default(),
                     Err(error) => Written {
                         refused: vec![error.to_string()],
+                        retained: batch,
                         ..Default::default()
                     },
                 };
@@ -717,6 +736,17 @@ impl PlotPlanner {
         }
         for refused in &written.refused {
             log::warn!("the plot grid refused a change: {refused}");
+        }
+        if self.module.is_some() && !written.refused.is_empty() {
+            // Earlier edits go before anything typed while the call was out.
+            // The nonempty queue prevents a refresh from discarding either.
+            for write in written.retained.into_iter().rev() {
+                self.queue.push_front(write);
+            }
+            self.save_failed = true;
+            self.stale = true;
+            cx.notify();
+            return;
         }
         if !written.refused.is_empty() {
             self.stale = true;
@@ -1201,6 +1231,20 @@ impl Render for PlotPlanner {
             .bg(p.desk.solid())
             .font_role(Role::Ui)
             .child(self.bar(window, cx))
+            .when(self.save_failed, |el| {
+                el.child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(8.0))
+                        .px(px(14.0))
+                        .child(t(cx, keys::k4_pages::SAVE_FAILED))
+                        .child(
+                            Button::new("retry-plot", t(cx, keys::markdown_share::RETRY))
+                                .on_click(cx.listener(|p, _, _, cx| p.retry_save(cx))),
+                        ),
+                )
+            })
             // The column heads sit on the header's colour: a hairline parts
             // them.
             .child(div().h(px(0.5)).w_full().flex_none().bg(p.hairline()))

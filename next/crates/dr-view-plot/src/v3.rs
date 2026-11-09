@@ -2,7 +2,7 @@
 use crate::{Grid, Line, PlannerHost, PlotPlanner, Write};
 use dr_model::pos::PosKey;
 use dr_workspace::{
-    Actor, Workspace, WsError,
+    Actor, Workspace, WritePreconditions, WsError,
     commands::{
         plot_grid::{Axis, CellInfo, LineInfo, PlotGridInfo},
         v3::{content, module},
@@ -59,6 +59,36 @@ pub fn write(
     module: &str,
     writes: Vec<Write>,
 ) -> Result<(), WsError> {
+    prepare(lib, book, entry, module, writes)?.commit(lib, &Actor::User)
+}
+
+struct PreparedWrite {
+    input: content::GridIn,
+    guard: WritePreconditions,
+}
+
+impl PreparedWrite {
+    fn commit(self, lib: &Workspace, actor: &Actor) -> Result<(), WsError> {
+        lib.call_guarded(
+            actor,
+            "module.put_grid",
+            serde_json::to_value(self.input).map_err(|e| WsError::Internal(e.to_string()))?,
+            self.guard,
+        )?;
+        Ok(())
+    }
+}
+
+fn prepare(
+    lib: &Workspace,
+    book: &str,
+    entry: &str,
+    module: &str,
+    writes: Vec<Write>,
+) -> Result<PreparedWrite, WsError> {
+    // Observe before reading: any intervening book change invalidates this
+    // whole-grid replacement. Never retry a failed guarded command here.
+    let observed = lib.observe(&format!("book:{book}"))?;
     let mut grid = Grid::from_info(&read(lib, book, entry, module)?);
     for write in writes {
         match write {
@@ -119,9 +149,8 @@ pub fn write(
             })
             .collect()
     };
-    lib.run::<content::GridPut>(
-        &Actor::User,
-        content::GridIn {
+    Ok(PreparedWrite {
+        input: content::GridIn {
             target: target(book, entry, module),
             grid: content::Grid {
                 cell_w: grid.size.w as f64,
@@ -135,8 +164,8 @@ pub fn write(
                     .collect(),
             },
         },
-    )?;
-    Ok(())
+        guard: WritePreconditions::from_observations([observed]),
+    })
 }
 struct ModuleView(Entity<PlotPlanner>);
 impl Render for ModuleView {
@@ -177,4 +206,88 @@ pub fn register(cx: &mut App) {
                 }
             })
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{prepare, read, write};
+    use crate::Write;
+    use dr_workspace::{Actor, Workspace, WsError};
+
+    #[test]
+    fn stale_whole_grid_never_overwrites_an_agents_committed_cell() {
+        let dir = tempfile::tempdir().unwrap();
+        let store =
+            dr_store::Library::open(dir.path(), dr_workspace::library_options("test")).unwrap();
+        let seed = dr_testkit::seed::generate_v3(
+            dr_testkit::seed::Preset::Tiny,
+            dr_testkit::seed::DEFAULT_SEED,
+        )
+        .unwrap();
+        let book = seed.books[0].book_id().to_string();
+        seed.write_to(&store).unwrap();
+        store.close().unwrap();
+        let ws = Workspace::open_dir(dir.path(), "test").unwrap();
+        let entries = ws
+            .call(
+                &Actor::User,
+                "entry.list",
+                serde_json::json!({"book":book,"all":true}),
+            )
+            .unwrap();
+        let entry = entries["output"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|e| e["template"] == "tpl-chapter")
+            .unwrap()["id"]
+            .as_str()
+            .unwrap();
+        let grid = read(&ws, &book, entry, "mod-plot-grid").unwrap();
+        let row = &grid.rows[0].id;
+        let columns = [&grid.columns[0].id, &grid.columns[1].id];
+        let batch = |n: usize| {
+            vec![Write::Cell {
+                row: row.clone(),
+                col: columns[n].clone(),
+                text: format!("G1 {n}"),
+            }]
+        };
+        let author = prepare(&ws, &book, entry, "mod-plot-grid", batch(0)).unwrap();
+        let agent = prepare(&ws, &book, entry, "mod-plot-grid", batch(1)).unwrap();
+        agent
+            .commit(&ws, &Actor::agent("g1-grid", 1, "cell"))
+            .unwrap();
+        assert!(matches!(
+            author.commit(&ws, &Actor::User),
+            Err(WsError::Conflict(_))
+        ));
+        let after = read(&ws, &book, entry, "mod-plot-grid").unwrap();
+        assert_eq!(
+            after
+                .cells
+                .iter()
+                .find(|c| c.row == *row && c.column == *columns[0]),
+            grid.cells
+                .iter()
+                .find(|c| c.row == *row && c.column == *columns[0]),
+        );
+        assert!(
+            after
+                .cells
+                .iter()
+                .any(|c| c.row == *row && c.column == *columns[1] && c.text == "G1 1")
+        );
+        // Only an explicit new attempt reads and rebases the author's patch.
+        write(&ws, &book, entry, "mod-plot-grid", batch(0)).unwrap();
+        let after = read(&ws, &book, entry, "mod-plot-grid").unwrap();
+        for (n, col) in columns.into_iter().enumerate() {
+            assert!(
+                after
+                    .cells
+                    .iter()
+                    .any(|c| c.row == *row && c.column == *col && c.text == format!("G1 {n}"))
+            );
+        }
+    }
 }
