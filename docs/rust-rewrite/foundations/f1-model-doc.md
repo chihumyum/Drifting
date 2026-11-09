@@ -525,3 +525,11 @@ docs/rust-rewrite/acceptance/f1-m3-doc-bench.json   第三轮的测量证据
 **检查结果：** `5b34abef` 实现与永久回归，`ba07975f` 同步 main `ee372789`，`731598da` 收入已交回的大书优化，`d68b341d` 同步 main `742f9393`，`3b8564ad` 补 TODO 编辑中契约，`191c8677` 同步 main `39ba3fe8` 的四份规则文档、`e81ca24e` 同步 main `e7caf226` 的夜间协调文档，加本节记录。fmt、全工作区 Clippy（all-targets／locked／D warnings）、全工作区测试（2,131 通过／0 失败／22 忽略）、xtask（含审计）和 public 全部通过；最后两次 main 合并只有文档，受检代码未变；记录补齐后重跑 public（5,507 个候选文件）。编译并发 3、测试单线程；审计 972 个依赖，0 漏洞、12 条已有提示，已有 stale／legacy 证据及 debug 大二进制的 `__eh_frame` linker 提示保留。本批不启动窗口；没有向 main 合并或推送。本节提交后移动指针并主动通知整合者。
 
 **待协调：** G4／G1 消费 v3 批注类型和模块后各自接面板／锚点并验收；原 typed `todo.project` 已支持 v3。`note_tasks.project` 此前未注册，本批不发明新协议，已导入 `note_task` 原样保留。搜索／字数仍用 G4 只读适配。K6 的模块批注工具须消费 `Spec.v3`，由其轨道接线。继续已排队的主页元数据与最近访问段：明确 v3 reader／事务，最近目标保留条目＋模块，完成后另交。
+
+## 交回（K2 主页元数据与最近访问，2026-11-10，`handback/k1`）
+
+**做了什么：** `codex/k1-v3` 提供 `commands::v3::book::BookGet/BookUpdate` 与 `commands::v3::recent::RecentTouch/RecentList`，同名 JSON 命令依据实际书版本分派，注册表追加四个 `Spec.v3` 签名。主页只返回 v3 元数据，不带旧分类的计数；只更新指定字段，撤销保留其他来源的独立字段，目标的缺键／0／null 分别为保持／关闭／恢复默认。最近访问保留 Entry＋module（含说明和旧模块）或 Material，最多每书十项；本机每书一行，书目 frontier／journal／undo 不变，不打断 redo，损坏行拒绝重写，彻底删除书由存储事务清理所属行。共用接线仅 `commands/book.rs` 的同名注册、旧 typed Get 拒绝及 Update 分派，`commands/recent.rs` 的同名注册和旧 typed 入口拒绝，以及 v3 模块导出；没有改 dr-doc、dr-store、UI、帮手或迁移。没有新增或删除 v2.2 测试；三项新契约均在 v3 书上验证，旧本机记录用合成原值验证保留。
+
+**检查结果：** 实现、契约、生成的注册快照与 F3 使用表同在 `2b604d12`；开工及提交后 `git merge main` 确认同步 `e7caf226`，随后 `72d01052` 同步 main `6d86ffce` 的三份验收规则文档（受检代码未变），加本节记录。fmt、全工作区 Clippy（all-targets／locked／D warnings）、全工作区测试（2,134 通过／0 失败／22 忽略）、xtask（含审计）和 public（5,510 个候选文件）全部通过；编译并发 3、测试单线程。审计 972 个依赖、0 漏洞、12 条已有提示；已有 stale／legacy 证据与 debug 大二进制的 `__eh_frame` linker 提示保留。未启动窗口；没有向 main 合并或推送。本节提交后更新指针并主动通知整合者。
+
+**待协调：** G4 接主页元数据，F6 接 `record_recent` 和继续写导航；旧 typed `BookGet` 不再被用来读取 v3 的旧种类计数，旧 typed `RecentTouch/List` 无模块信息，调用方使用 F3 表里的 v3 类型。K6 的元数据工具消费 `Spec.v3`，本批不改帮手目录。搜索／字数仍由 G4 只读适配提供；这些核心接口通过不代表主页或最近访问已经完成真窗口验收。已排队的 K2 接口段至此交回，后续消费与副屏主流程冒烟由各组／整合者继续。按作者最新规则，性能、heavy、截图目检和样式打磨暂缓；没有将未做的验收记作通过。
