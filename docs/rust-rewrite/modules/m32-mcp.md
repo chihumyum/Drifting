@@ -1,6 +1,6 @@
 # M32 MCP
 
-交回状态：分支 `codex/m32-mcp`，实现完成，交回提交号在随后的文档提交补记。入站、出站及设置验收已完成；真实客户端和 Windows 原生运行仍见「待协调」。
+交回状态：分支 `codex/m32-mcp`，实现提交 `0f3a1dc6`，本提交补记交回。入站、出站及设置验收已完成；全量检查中的书架超时与通过的串行复验见「验收」，真实客户端和 Windows 原生运行仍见「待协调」。
 
 2026-11-08。实现 [任务书](../handoff/m32-mcp.md)，复用 [M27](m27-agent-runtime.md) 的调度与结算、[M29](m29-agent-tools.md) 的唯一作者工具目录，以及 [M31](m31-agent-panel.md) 的库级 Controller。没有另建 CRUD 注册表或模型驱动。
 
@@ -108,3 +108,11 @@ Windows `x86_64-pc-windows-msvc` 的 `dr-mcp --all-targets` 已用 cargo-xwin、
 - `next/crates/dr-view-agent/src/mcp.rs`、`mcp_settings/`、`tools.rs`、`controller.rs`：应用生命周期、设置与同 Runtime 接线。
 - `next/app/drifting/src/main.rs`、`examples/mcp-acceptance.rs`：正式命令入口和隔离的窗口验收入口。
 - `next/crates/dr-platform/src/logging.rs`：M32 所需的 SDK 原文日志过滤；仅改两种输出的过滤挂接点。
+
+## 轨道 3：出站清理 P2 复验（2026-11-09）
+
+交回分支 `codex/m30-long-tasks-memory`，合入 main 后核对：队列描述的是预审冻结副本，修复及永久故障注入已经在本分支祖先 `0f3a1dc6` 中。本项不重复改写传输实现或扩大工具目录。
+
+当前错误路径在等待 `close` 前设置 stale 与内存 `Status::Failed`，无论清理或状态落盘是否失败都使目录和旧确认修订失效。原始调用的“远端结果未知”保留；清理与状态落盘错误追加经过脱敏的说明，不覆盖原结果、不自动重放。
+
+执行 `cargo test -p dr-mcp --locked` 全部通过，包括真实回环 HTTP／Runtime 的 `call_cleanup_failure_preserves_unknown_outcome_and_invalidates_catalog` 和 `call_cleanup_and_status_failure_still_invalidates_catalog`：清理阻塞期间即不可用，清理失败、状态保存也失败时仍不可用；原调用、初始化均只有一次；原始私密错误不外泄。测试是本机合成服务，不代表真实第三方 MCP 客户端或 Windows 实机验收。

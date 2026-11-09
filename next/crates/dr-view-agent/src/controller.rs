@@ -28,6 +28,10 @@ use futures::{
 
 use crate::state::{ChatMessage, ChatSnapshot, ChatState, ConversationSummary};
 
+mod long_tasks;
+pub mod proactive;
+pub use long_tasks::TaskView;
+
 type Completion = Shared<BoxFuture<'static, Result<(), String>>>;
 type Listener = Arc<dyn Fn() + Send + Sync>;
 
@@ -47,12 +51,17 @@ struct ServiceState {
     runs: HashMap<String, ActiveRun>,
     external: HashMap<String, ExternalScope>,
     starting: HashSet<ConversationId>,
+    authorizations: HashMap<ConversationId, long_tasks::Authorization>,
+    suggestion_jobs: HashMap<BookId, dr_agent::Cancellation>,
+    organize_runs: HashMap<ConversationId, proactive::OrganizeRun>,
+    proactive_enabled: bool,
     close: Option<Completion>,
 }
 
 struct Resources {
     workspace: Workspace,
     runtime: Runtime,
+    driver: Arc<dyn Driver>,
     monitor: mpsc::UnboundedSender<WatchedRun>,
     _subscription: Option<LibrarySubscription>,
     reads: Arc<ReadTracker>,
@@ -123,6 +132,8 @@ struct ActiveRun {
     conversation: ConversationId,
     control: Control,
     completion: Completion,
+    authorization: String,
+    automatic: bool,
 }
 
 struct WatchedRun {
@@ -156,16 +167,27 @@ impl AgentController {
         driver: Arc<dyn Driver>,
         tools: Arc<dyn ToolExecutor>,
     ) -> Result<Self, String> {
-        let runtime =
-            Runtime::new(workspace.clone(), driver, tools, Options::default()).map_err(string)?;
+        let runtime = Runtime::new(workspace.clone(), driver.clone(), tools, Options::default())
+            .map_err(string)?;
         runtime.recover().map_err(string)?;
         runtime.recover_external().map_err(string)?;
+        for doc in workspace
+            .library()
+            .docs(None, Some("book"))
+            .map_err(string)?
+        {
+            if let Ok(DocId::Book(book)) = DocId::parse(&doc.doc_id) {
+                dr_agent::proactive::ProactiveStore::recover(workspace.library(), &book)
+                    .map_err(string)?;
+            }
+        }
         let (monitor, incoming) = mpsc::unbounded();
         let inner = Arc::new(Inner {
             state: Mutex::new(ServiceState {
                 resources: Some(Arc::new(Resources {
                     workspace,
                     runtime,
+                    driver,
                     monitor,
                     _subscription: None,
                     reads: Arc::default(),
@@ -173,6 +195,10 @@ impl AgentController {
                 runs: HashMap::new(),
                 external: HashMap::new(),
                 starting: HashSet::new(),
+                authorizations: HashMap::new(),
+                suggestion_jobs: HashMap::new(),
+                organize_runs: HashMap::new(),
+                proactive_enabled: true,
                 close: None,
             }),
             listeners: Mutex::new(BTreeMap::new()),
@@ -204,69 +230,15 @@ impl AgentController {
         Ok(Self { inner })
     }
 
-    /// One turn per conversation; different conversations may run together.
-    /// `Start` already owns the complete frozen route and model capabilities.
+    /// Background synchronous entry. UI callers use `start_job`, which
+    /// reserves its close lease before scheduling any background work.
     pub fn start(&self, start: Start) -> Result<String, String> {
-        let conversation = start.conversation.clone();
-        let lease = {
-            let mut state = self.inner.state.lock().expect("Agent service");
-            let resources = state.resources.as_ref().ok_or_else(closed)?.clone();
-            if state.starting.contains(&conversation)
-                || state
-                    .runs
-                    .values()
-                    .any(|run| run.conversation == conversation)
-            {
-                return Err("this conversation already has a running turn".into());
-            }
-            state.starting.insert(conversation.clone());
-            resources.reads.enter();
-            ReadLease {
-                tracker: resources.reads.clone(),
-                resources: Some(resources),
-            }
-        };
-        // The holder may be busy. No service lock is held during any of the
-        // journal's database/projection writes; close still freezes promptly.
-        let started = lease.resources().runtime.start(start);
-        let mut state = self.inner.state.lock().expect("Agent service");
-        state.starting.remove(&conversation);
-        let handle = started.map_err(string)?;
-        if state.resources.is_none() {
-            drop(state);
-            // Close took its initial run list before this handle existed.
-            // Settle it here, still covered by the startup lease. start is a
-            // synchronous background API, never called on the GPUI thread.
-            futures::executor::block_on(async move {
-                let _ = handle.control.abort().await;
-                let _ = handle.finish().await;
-            });
-            return Err(closed());
-        }
-        let session = handle.session.clone();
-        let (completed, wait) = oneshot::channel();
-        let completion = async move {
-            wait.await
-                .map_err(|_| "Agent completion monitor stopped before settlement".to_owned())
-        }
-        .boxed()
-        .shared();
-        let monitor = lease.resources().monitor.clone();
-        state.runs.insert(
-            session.clone(),
-            ActiveRun {
-                conversation,
-                control: handle.control.clone(),
-                completion,
-            },
-        );
-        // The monitor exists before any run can start. If it unexpectedly
-        // disappears, dropping this handle requests abort and close fails
-        // rather than claiming an unobserved write has finished.
-        monitor
-            .unbounded_send(WatchedRun { handle, completed })
-            .map_err(|_| "Agent completion monitor is unavailable".to_owned())?;
-        Ok(session)
+        self.prepare_start(long_tasks::StartRequest::Author(start), None)?
+            .run()
+    }
+
+    pub fn start_job(&self, start: Start) -> BoxFuture<'static, Result<String, String>> {
+        long_tasks::spawn_start(self.prepare_start(long_tasks::StartRequest::Author(start), None))
     }
 
     pub fn control(&self, session: &str) -> Option<Control> {
@@ -314,7 +286,7 @@ impl AgentController {
 
     pub fn active_count(&self) -> usize {
         let state = self.inner.state.lock().expect("Agent service");
-        state.runs.len() + state.starting.len()
+        state.runs.len() + state.starting.len() + state.suggestion_jobs.len()
     }
 
     /// The callback can run on a store or monitor thread. It must only signal
@@ -426,6 +398,44 @@ impl AgentController {
         read(&lease.resources().workspace)
     }
 
+    /// An already-background synchronous operation. Return owned values only;
+    /// never retain the Workspace or start detached work from the closure.
+    pub fn with_workspace<T>(
+        &self,
+        job: impl FnOnce(&Workspace) -> Result<T, String>,
+    ) -> Result<T, String> {
+        self.with_workspace_read(job)
+    }
+
+    /// Accept a background operation now, before returning its waiter. The
+    /// independent worker retains the close lease even when its view or waiter
+    /// disappears. Its Workspace reference is released before acknowledgement.
+    /// The closure must return owned data, not another Workspace handle.
+    pub fn workspace_job<T: Send + 'static>(
+        &self,
+        job: impl FnOnce(&Workspace) -> Result<T, String> + Send + 'static,
+    ) -> BoxFuture<'static, Result<T, String>> {
+        let lease = match self.read_lease() {
+            Ok(lease) => lease,
+            Err(error) => return async move { Err(error) }.boxed(),
+        };
+        let (send, receive) = oneshot::channel();
+        let spawned = std::thread::Builder::new()
+            .name("agent-workspace-job".into())
+            .spawn(move || {
+                let result = job(&lease.resources().workspace);
+                drop(lease);
+                let _ = send.send(result);
+            });
+        async move {
+            spawned.map_err(string)?;
+            receive
+                .await
+                .map_err(|_| "Agent workspace operation ended before acknowledgement".to_owned())?
+        }
+        .boxed()
+    }
+
     fn read_lease(&self) -> Result<ReadLease, String> {
         let state = self.inner.state.lock().expect("Agent service");
         let resources = state.resources.as_ref().ok_or_else(closed)?;
@@ -447,6 +457,12 @@ impl AgentController {
             return close.clone().boxed();
         }
         let resources = state.resources.take();
+        for authorization in state.authorizations.values_mut() {
+            authorization.enabled = false;
+        }
+        for cancellation in state.suggestion_jobs.values() {
+            cancellation.cancel();
+        }
         let reads = resources
             .as_ref()
             .map(|resources| resources.reads.drained());
@@ -558,13 +574,26 @@ fn watch(run: WatchedRun, inner: Weak<Inner>) -> BoxFuture<'static, ()> {
         // proves its worker released all writes even when the model failed.
         let _ = run.handle.finish().await;
         if let Some(inner) = inner.upgrade() {
-            inner
-                .state
-                .lock()
-                .expect("Agent service")
-                .runs
-                .remove(&session);
-            inner.notify();
+            // Follow-up inspection can touch the F3 holder. It must not block
+            // unrelated completions on the single monitor executor.
+            let (send, receive) = oneshot::channel();
+            let controller = AgentController { inner };
+            let fallback = controller.clone();
+            let failed_session = session.clone();
+            let spawned = std::thread::Builder::new()
+                .name("agent-continuation".into())
+                .spawn(move || {
+                    controller.after_run(&session);
+                    let _ = send.send(());
+                });
+            if spawned.is_ok() {
+                let _ = receive.await;
+            } else {
+                fallback.retire_run(
+                    &failed_session,
+                    Some("continuation worker unavailable".into()),
+                );
+            }
         }
         let _ = run.completed.send(());
     }
@@ -613,7 +642,18 @@ fn read_snapshot(
         }
         runs.push(state.snapshot());
     }
-    let messages = entries.iter().map(ChatMessage::from).collect();
+    let messages = entries
+        .iter()
+        .filter(|e| {
+            !(e.payload["version"] == 1
+                && matches!(
+                    e.kind.as_str(),
+                    dr_agent::long_task::CONTINUATION_ENTRY_KIND
+                        | dr_agent::long_task::CHECKPOINT_ENTRY_KIND
+                ))
+        })
+        .map(ChatMessage::from)
+        .collect();
     Ok(ChatSnapshot {
         conversation: id.clone(),
         entries,

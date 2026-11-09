@@ -9,6 +9,8 @@ description = "M31 Agent companion, model connections and settled run lifecycle"
 
 [dependencies]
 anyhow.workspace = true
+base64.workspace = true
+cpal.workspace = true
 chrono.workspace = true
 dr-agent.workspace = true
 dr-agent-providers.workspace = true

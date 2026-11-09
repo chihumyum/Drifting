@@ -1,5 +1,8 @@
 {
   "agentPanel": {
+    "budget": {
+      "continue": "繼續任務"
+    },
     "checking": "正在檢查…",
     "common": {
       "none": "無"
@@ -62,6 +65,9 @@
     "setup": {
       "openSettings": "開啟設定"
     },
+    "slice": {
+      "paused": "繼續即可從已儲存進度接續。"
+    },
     "thinking": {
       "done": "思考過程",
       "streaming": "思考中…"
@@ -73,7 +79,28 @@
       "history": "歷史"
     },
     "turnChanges": "本回合變更",
-    "unavailable": "Agent 目前無法使用。"
+    "unavailable": "Agent 目前無法使用。",
+    "workingMemory": {
+      "agent": "Agent",
+      "author": "作者",
+      "clear": "清除",
+      "clearConfirm": "清除工作記憶？這不會刪除書稿、長期規則或對話歷史。",
+      "cleared": "工作記憶已清除。",
+      "conflictClear": "另一個 Agent 已更新工作記憶，因此未清除。請檢查最新內容後重試。",
+      "conflictDraftPreserved": "另一個 Agent 已更新工作記憶。你的草稿已保留，請先複製，再重新開啟工作記憶，與最新版本合併。",
+      "create": "建立工作記憶",
+      "description": "所有通用 Agent 對話共用的近期重要工作脈絡。較舊內容會自動壓縮或遺忘。",
+      "edit": "編輯",
+      "emptyTitle": "尚無工作記憶",
+      "failed": "無法儲存工作記憶。",
+      "filename": "WORKING_MEMORY.md",
+      "loading": "正在載入工作記憶…",
+      "neverUpdated": "尚未寫入",
+      "saved": "工作記憶已儲存。",
+      "title": "工作記憶",
+      "tokens": "約 {{count}} 個 token",
+      "updated": "{{time}} · 由 {{by}} 更新"
+    }
   },
   "allChapters": {
     "actOrdinal": "第 {{n}} 幕"
@@ -892,6 +919,7 @@
     "readout": "{{chapters}} 章 · {{storylines}} 條故事線 · {{elements}} 個要素",
     "settings": {
       "dailyGoal": "每日目標",
+      "proactive": "主動建議",
       "projectTarget": "全書目標"
     },
     "since": "作品首頁 · 自 {{date}} 起",
@@ -903,6 +931,19 @@
     },
     "words": "{{words}} 字",
     "wordsOfTarget": "{{words}}／{{target}} 字"
+  },
+  "projectMemory": {
+    "add": "新增",
+    "cancel": "取消",
+    "delete": "刪除",
+    "deleteConfirm": "刪除此記憶？之後的對話將不再讀取。",
+    "desc": "記錄你對這部作品的想法、意圖、習慣與長期指示。你與 Agent 都能編輯，每次對話都會讀取。故事事實請放在要素、故事線及其他物件中。",
+    "edit": "編輯",
+    "empty": "尚無作品記憶。",
+    "enable": "啟用",
+    "placeholder": "寫下需要記住的事…（{{shortcut}} 儲存）",
+    "save": "儲存",
+    "title": "作品記憶"
   },
   "projectPicker": {
     "bookTransfer": {
@@ -1531,6 +1572,8 @@
         "openai": "供通用 Agent 使用。",
         "openaiCodex": "透過 OpenAI 的 Codex 裝置登入流程，以自己的 ChatGPT 訂閱執行通用 Agent，使用帳號提供的模型；要素設定圖也會使用此連線。OpenAI 未對此途徑提供第三方服務契約，可能隨時失效，用量計入你的 ChatGPT 方案。"
       },
+      "speechDesc": "語音輸入的轉錄憑證，與上方聊天服務商分開。轉錄時會附上此作品的要素與設定名稱，以校正專有名詞；請求從本裝置直接送往百鍊，金鑰僅存在系統鑰匙圈。",
+      "speechTitle": "語音轉錄",
       "title": "Drifting 的 AI 功能使用的服務。"
     },
     "privacy": {
@@ -1642,6 +1685,9 @@
     "restoring": "正在還原…",
     "title": "歷史快照 · 30 天"
   },
+  "speech": {
+    "backlog": "轉錄積壓"
+  },
   "storyGraph": {
     "edge": {
       "create": "建立"
@@ -1720,6 +1766,20 @@
     "themeLightShort": "淺色",
     "themeSystem": "跟隨系統",
     "themeSystemShort": "系統"
+  },
+  "voiceAgent": {
+    "error": {
+      "auth": "轉錄金鑰無效或已過期",
+      "micDenied": "麥克風無法使用，請檢查系統權限",
+      "noKey": "尚未設定轉錄金鑰（阿里雲百鍊）",
+      "segmentRejected": "轉錄服務拒絕了此片段",
+      "transcribeFailed": "轉錄失敗，錄音已保留，可重試"
+    },
+    "record": "開始錄音",
+    "recording": "錄製中",
+    "retry": "重試轉錄",
+    "stopRecord": "停止錄音",
+    "transcribing": "正在轉錄…"
   },
   "windowCaption": {
     "close": "關閉",
