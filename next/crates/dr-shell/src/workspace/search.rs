@@ -21,6 +21,11 @@ impl Workspace {
             self.refocus(window, cx);
             return;
         }
+        // While a book is loading its version is unknown; an empty snapshot
+        // must not be mistaken for a v2.2 book.
+        if self.book.is_empty() {
+            return;
+        }
         let strings = crate::Strings::get(cx);
         let (locale, platform) = (strings.locale(), strings.platform());
         let book = self.book.clone();

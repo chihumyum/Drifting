@@ -225,7 +225,14 @@ fn changing_books_drops_the_panel_and_refuses_its_late_event(cx: &mut TestAppCon
     let (view, cx) = setup(cx, &lib, &books[0]);
     search(&view, cx, "F6IsolatedSearch");
     let old = view.read_with(cx, |ws, _| ws.search.clone().unwrap());
-    view.update_in(cx, |ws, w, cx| ws.open_book(&books[1], w, cx));
+    view.update_in(cx, |ws, w, cx| {
+        ws.open_book(&books[1], w, cx);
+        ws.toggle_search(w, cx);
+        assert!(
+            ws.search.is_none(),
+            "loading a book must not guess a legacy search panel"
+        );
+    });
     wait(&view, cx, |ws, _| {
         ws.book_id == books[1] && ws.book.v3().is_some()
     });
