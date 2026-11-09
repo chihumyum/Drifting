@@ -1060,3 +1060,85 @@ G4 的可选稳定锚点创建分支需使用同一帮手，不另作一次观�
 独立书目冲突与清空锚点；`cx/source_tests.rs` 用两个真实并发参与方和已排队写入，
 验证守卫与派生之间不能插入正文写入，读后编辑仍保留锚点身份和历史摘录。
 没有添加生产暂停钩子，没有改 v2.2 批注行为或删除其测试。
+
+## K2 归属取消与局部撤销（2026-11-10，修复第 63 批退回）
+
+`membership.remove` 的位置清理现在只处理本次取消真正造成的变化：原归属存在，
+视图未回收、确实列着被取消的泳道，该成员的位置原先有效，而且取消后在该视图的
+其他**原始泳道归属**一个不剩，才删除那一项位置。已经隐藏／回收的视图或位置、
+另一条隐藏泳道的原始归属、未知位置数据均保留；不存在的归属且未清主归属时不写 journal。
+`timeline_view.remove` 继续委托同一逻辑。计划与路径预检在通过 book guard 的同一次
+holder 写 job 中完成；未知不可写表示会在任何修改之前拒绝。
+
+取消的逆操作改为 v3 专用 `membership.restore`，输入类型
+`commands::v3::membership::RestoreIn`：`book, host, member, at, expected`，两个选择标志
+`membership`／`primary`，以及需要恢复该成员位置的 `views`。只恢复原归属记录、
+实际清掉的 primary 字段和实际删掉的单成员 placement；没有整份 entry 或 timeline view
+恢复。撤销与重做都使用同一字段范围，保留别的来源后来改的标题、其他成员位置、时间钉、
+视图字段及可无损恢复的未知数据。逆操作同时保存目标历史 `at` 和原操作完成后的 `expected`
+frontier；在同一次 holder 写任务内逐项比较所选字段的预期原值，任一字段已被其他来源接管
+就整次 conflict，不能覆盖其成功写入；重做使用同样规则。比较只限定所选记录，不把其他
+标题、时间钉、成员或视图变化升级成全书冲突。
+
+深值不携带真实容器类型、富文本格式和列表身份，因此取消前及恢复前都检查所选实际路径：
+只支持可合并 Map 和可原样恢复的原子叶值，primary 只支持缺键／null／字符串。所选未知字段
+含 LoroText、MovableList、其他 CRDT 容器、非可合并 Map 或原子 Map 时，首个修改前整次拒绝，
+保留原始内容；历史目标与 expected 同样检查。归属原始根键先检查，再判断快照是否存在：
+LoroText／原子 Map／标量／null／其他容器不得因过滤读取返回 None 而跳过检查，或在仅清
+primary 时顺手删除。未选中的未知字段、隐藏位置不受这一限制。
+`BookViewV3::state_frontiers` 在 holder 内捕获尚待提交操作后的 frontier，不提前提交；另外新增
+`check_membership_snapshot_restore`、`check_primary_restore` 和 `check_timeline_placement_restore`
+供同一预检使用。`membership_restore_state`／`timeline_placement_restore_state` 同时读取
+可见键和取消后仍保留的底层 Map 状态：另一台设备在尚未见到取消时修改同一记录，随后
+同步进来，即使记录暂时不可见，undo 也须 conflict／拒绝，不能重新挂回旧数据并删掉
+那次成功编辑。所选 placements 父映射必须仍为原可合并路径，避免换过的父映射或其
+其他记录被撤销操作重新挂回；不比较父映射里其他成员的内容。
+历史仍限定在该书，恢复前验证所有当前路径及最终归属图，再开始写入。
+
+新增 dr-doc 小接口：`BookViewV3::timeline_placement_snapshot`／
+`check_timeline_placement_write`，`TimelineViewWriterV3::restore_placement`，
+`EntryWriterV3::restore_primary`，`BookTxnV3::restore_membership_snapshot`。
+快照读取深值，配合真实容器预检后恢复单个记录，保留可无损恢复的未知数据与可编辑映射；原有 v2.2 签名和行为不动。
+`membership.restore` 供工作区逆操作使用，暂不开放给帮手；M29 的 v3 排除表单独列名，
+带目录缺席与调用拒绝回归，正式 facade 由 K6 后续适配。
+
+永久回归包括整合方 Tiny 种子探针，以及隐藏备用泳道／已回收视图／未知位置与字段、
+两书和重开隔离、`timeline_view.remove` 委托、取消与另一来源修改交错后的撤销／重做、
+缺失归属不误清、旧 guards 和多路径预检失败不部分写入；另外覆盖真实 Workspace::undo/redo
+遇到同一 placement／primary 接管时保留成功写入，历史版本随 journal 重开继续有效。真实
+LoroText（含 bold）／MovableList 的归属与位置四种组合验证无损恢复或事前拒绝，深 JSON
+相等但真实容器被替换的重做也拒绝。归属根键的 Text／原子 Map／字符串／null／可移动列表，
+分别在有、无 primary 的十个组合中验证错误先于原值、版本和 journal 的任何变化。
+双 Loro peer 的真实同步验证暂时不可见记录中的普通字段／富文本新写入不被 undo 抹掉，
+原始 placements 父容器被替换但 deep JSON 相同的重做也拒绝。原误删、整份撤销覆盖、同字段接管和容器降级均先复现失败，
+再验证修复；本批不包含 M14 的改名或泳道编辑新功能，也未做真窗口或性能验收。
+
+## K2 v3 正文链接接口（2026-11-10，G1 待协调 2）
+
+正文仍使用共用的 Loro 格式；由所属书决定调用哪套语义。旧
+`dr_model::prose::EntityLink`／`ProseTxn::link_entity`／旧读取器不改。
+新增 `dr_model::v3::EntityLinkV3`，保留 target、kind、block、end_block，另有可选
+`module: ModuleId`。新写入只接受 entry／material；素材不带 module。条目 id 与
+模块 id 分开存储，键仍为 `entity:<target>`，不会把模块或 URL 偷塞进目标 id。
+这里只检查链接表示是否合法，不据此授予跨书访问或保证目标存在；导航消费者仍按书解析目标。
+
+| 接口 | 用法 |
+| --- | --- |
+| `ProseTxn::link_entity_v3` | 先验证所有受影响段，再写正文链接；跳过段落换行，仅替换该目标的已知字段，保留每段不同的未知字段 |
+| `ProseView::entity_links_v3` | 一份 delta 中读取链接；相邻同目标但 module／block 范围不同的链接分别返回，样式切段不拆散相同目标；未知或损坏链接不作导航目标 |
+| `link_table_cell_entity_v3`／`table_cell_entity_links_v3` | 对应的表格单元格读写；缺失格子不因失败写入而被创建 |
+| `dr_doc::prose::v3::{decode_entity_link, encode_entity_link}` | Loro 值编解码；编辑已有标记时将原始值传给 encoder，保留未知字段；只保存领域类型不足以保留未知字段 |
+| `copy_entity_links_v3`／`copy_table_cell_entity_links_v3` | 取得拥有自身数据的 `EntityLinkMarksV3`，偏移为相对 Unicode scalar；保留原始值，包括当前版本不认识的字段或 kind |
+| `apply_entity_links_v3`／`apply_table_cell_entity_links_v3` | 在已插入的目标文本区间内替换 entity 标记，校验完成再动；文本、样式和区间外标记不变 |
+| `ProseTxn::insert_copy_v3` | v3 默认正文复制：正文和格子链接保留模块、素材与未知标记数据；块／嵌入 id 换新；不支持的 profile／嵌入在复制前拒绝 |
+
+剪贴消费者保留原始 mark 值，再用 `EntityLinkMarksV3::from_marks` 校验范围和键，不能
+经旧 `EntityLink` 往返丢掉 module。通用 LoroValue JSON 往返不保证保留 Binary 等未知类型，消费方须保留类型或明确拒绝不支持的值。这里没有新增 OS 剪贴板格式；读写 UI 和 URL 由 G1
+消费这些接口。读取者仍须在 holder 读任务中获得一致来源，命令继续使用原始观察和
+既有 guard；新查询和复制值不会凭空授予旧范围写入新版正文的权限。
+`commands/v3/module.rs` 的默认正文初始化改用 `insert_copy_v3`，包括嵌入占位符上的链接。新增 `autolink::link_written_v3` 供 v3 模块写入使用：自动名称匹配保留已有 module／块范围／素材／未知元数据链接，不会用裸条目链接覆盖；裸条目名称仍按既有规则补齐。v2.2 路由不变。
+
+契约覆盖相邻不同模块／重叠目标、合法素材与非法种类拒绝、模块及块范围编码、按段保留
+未知字段、Unicode 剪贴区间与区间外数据、表格复制、导出重开与两 peer 合并；工作区验证
+模板复制后模块仍在、编辑撤销／重做／重开，以及另一书的结构和模板正文不变。
+这些核心接口验证不代表 G1 的链接面板、导航或剪贴 UI 已验收；真窗口消费冒烟由 G1／整合方完成。

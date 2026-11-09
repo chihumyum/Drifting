@@ -176,6 +176,63 @@ impl<'a> ProseTxn<'a> {
     /// Marks and attributes `from` has but this document's profile does not
     /// allow are refused (a note's list copied into a chapter).
     pub fn insert_copy(&mut self, pos: usize, from: &ProseView<'_>) -> Result<usize> {
+        self.insert_copy_with_links(pos, from, false)
+    }
+
+    /// Copy a v3 template, including module/material links and unknown link
+    /// fields in body and table cells. Source reads are frozen before writes;
+    /// callers still obtain the source under its document-holder read guard.
+    pub fn insert_copy_v3(&mut self, pos: usize, from: &ProseView<'_>) -> Result<usize> {
+        let frozen = from.doc.fork();
+        let text = frozen.get_text(crate::schema::prose::BODY);
+        let embeds = frozen.get_map(crate::schema::prose::EMBEDS);
+        let from = ProseView {
+            doc: &frozen,
+            text: &text,
+            embeds: &embeds,
+            profile: from.profile,
+        };
+        // The legacy copy API's behavior is frozen. The v3 entry point
+        // preflights profile restrictions before inserting any source text.
+        for paragraph in from.paragraphs() {
+            self.check_profile(&paragraph.attrs)?;
+            for run in &paragraph.runs {
+                for style in styles_of(&run.marks) {
+                    self.check_style(&style)?;
+                }
+            }
+            if paragraph.runs.iter().any(|run| run.marks.embed.is_some())
+                && paragraph.embed().is_none()
+            {
+                return Err(DocError::NotInProfile("invalid embed paragraph in v3 copy"));
+            }
+            if let Some(id) = paragraph.embed() {
+                match from.embed(id) {
+                    Some(EmbedView::Table { cells, .. }) => {
+                        for (row, col) in cells.keys() {
+                            for run in from.table_cell(id, row, col).unwrap_or_default() {
+                                for style in styles_of(&run.marks) {
+                                    self.check_style(&style)?;
+                                }
+                            }
+                        }
+                    }
+                    Some(EmbedView::Material {
+                        material: Some(_), ..
+                    }) => {}
+                    _ => return Err(DocError::NotInProfile("unsupported embed in v3 copy")),
+                }
+            }
+        }
+        self.insert_copy_with_links(pos, &from, true)
+    }
+
+    fn insert_copy_with_links(
+        &mut self,
+        pos: usize,
+        from: &ProseView<'_>,
+        v3: bool,
+    ) -> Result<usize> {
         self.check_insert_pos(pos)?;
         let target = self.view.paragraph_at(pos)?;
         if target.range.start != pos || target.runs.iter().any(|r| r.marks.embed.is_some()) {
@@ -190,7 +247,12 @@ impl<'a> ProseTxn<'a> {
         let mut caret = pos;
         for (i, p) in source.iter().enumerate() {
             if let Some(embed) = p.runs.iter().find_map(|r| r.marks.embed.clone()) {
-                caret = self.copy_embed(caret, from, &embed)?;
+                let start = caret;
+                caret = self.copy_embed(caret, from, &embed, v3)?;
+                if v3 {
+                    super::v3::EntityLinkMarksV3::read(from.text, p.range.clone())?
+                        .apply(self.view.text, start)?;
+                }
                 continue;
             }
             let start = caret;
@@ -199,8 +261,12 @@ impl<'a> ProseTxn<'a> {
             let mut at = start;
             for r in &p.runs {
                 let n = r.text.chars().count();
-                self.copy_marks(at..at + n, &r.marks)?;
+                self.copy_marks(at..at + n, &r.marks, v3)?;
                 at += n;
+            }
+            if v3 {
+                super::v3::EntityLinkMarksV3::read(from.text, p.range.clone())?
+                    .apply(self.view.text, start)?;
             }
             caret = start + text.chars().count();
             if !(replace_last && i + 1 == source.len()) {
@@ -211,15 +277,17 @@ impl<'a> ProseTxn<'a> {
         Ok(caret)
     }
 
-    fn copy_marks(&mut self, range: Range<usize>, m: &InlineMarks) -> Result<()> {
+    fn copy_marks(&mut self, range: Range<usize>, m: &InlineMarks, v3: bool) -> Result<()> {
         if range.is_empty() {
             return Ok(());
         }
         for s in styles_of(m) {
             self.set_style(range.clone(), &s)?;
         }
-        for e in &m.entities {
-            self.link_entity(range.clone(), e)?;
+        if !v3 {
+            for e in &m.entities {
+                self.link_entity(range.clone(), e)?;
+            }
         }
         Ok(())
     }
@@ -228,7 +296,12 @@ impl<'a> ProseTxn<'a> {
     /// rules of [`Self::set_style`] and [`Self::link_entity`]. The whole text
     /// goes in before any mark, so a mark that grows at its end (bold) does
     /// not spread to the next run.
-    fn copy_cell(&self, cell: &LoroText, runs: &[Run]) -> Result<()> {
+    fn copy_cell(
+        &self,
+        cell: &LoroText,
+        runs: &[Run],
+        links: Option<&super::v3::EntityLinkMarksV3>,
+    ) -> Result<()> {
         let text: String = runs.iter().map(|r| r.text.as_str()).collect();
         if text.is_empty() {
             return Ok(());
@@ -246,14 +319,19 @@ impl<'a> ProseTxn<'a> {
                 let (key, value) = style_mark(&s);
                 cell.mark(range.clone(), key, value)?;
             }
-            for e in &r.marks.entities {
-                check_link(e)?;
-                cell.mark(
-                    range.clone(),
-                    &inline::entity_key(&e.target),
-                    encode_entity(e),
-                )?;
+            if links.is_none() {
+                for e in &r.marks.entities {
+                    check_link(e)?;
+                    cell.mark(
+                        range.clone(),
+                        &inline::entity_key(&e.target),
+                        encode_entity(e),
+                    )?;
+                }
             }
+        }
+        if let Some(links) = links {
+            links.apply(cell, 0)?;
         }
         Ok(())
     }
@@ -265,6 +343,7 @@ impl<'a> ProseTxn<'a> {
         para_start: usize,
         from: &ProseView<'_>,
         id: &EmbedId,
+        v3: bool,
     ) -> Result<usize> {
         let fresh = EmbedId::new_v7();
         match from.embed(id) {
@@ -289,7 +368,16 @@ impl<'a> ProseTxn<'a> {
                 }
                 for (r, c) in cells.keys() {
                     let runs = from.table_cell(id, r, c).unwrap_or_default();
-                    self.copy_cell(&t.cell(r, c)?, &runs)?;
+                    let links = if v3 {
+                        from.table_cell_text(id, r, c)
+                            .map(|cell| {
+                                super::v3::EntityLinkMarksV3::read(&cell, 0..cell.len_unicode())
+                            })
+                            .transpose()?
+                    } else {
+                        None
+                    };
+                    self.copy_cell(&t.cell(r, c)?, &runs, links.as_ref())?;
                 }
             }
             Some(EmbedView::Material {

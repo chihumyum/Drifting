@@ -9,6 +9,7 @@ mod attrs;
 pub mod embed;
 pub mod event;
 pub mod txn;
+pub mod v3;
 pub mod view;
 
 use dr_model::{DocId, Origin, ProseProfile};

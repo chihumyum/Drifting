@@ -116,6 +116,7 @@ membership.add               command  book     Add or order a v3 membership with
 membership.list              query    shared   List valid v3 memberships in a book.
 membership.primary           command  book     Choose an existing v3 membership as primary, or clear the primary membership.
 membership.remove            command  book     Remove a v3 membership and any timeline placements left without a lane.
+membership.restore           command  book     Restore the selected effects of a v3 membership cancellation without replacing entries or timeline views.
 memory.add                   command  book     Add a Project Memory entry (plain text; takes effect at once).
 memory.list                  query    shared   List the book's Project Memory entries.
 memory.remove                command  book     Remove a Project Memory entry (kept as removed; restorable).

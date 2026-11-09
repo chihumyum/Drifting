@@ -38,6 +38,23 @@ use crate::order::cmp_order;
 use crate::pos::{PosKey, cmp_pos};
 use crate::time::Timestamp;
 
+/// An inline v3 link to an entry (optionally one prose module) or a material.
+/// The persisted mark key remains `entity:<target>`. Module and block range
+/// are separate value fields; ids never encode a navigation URL or module.
+/// `dr-doc` validates v3 link kinds when writing. The legacy
+/// [`crate::prose::EntityLink`] and its v2.2 codec remain unchanged.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct EntityLinkV3 {
+    pub target: String,
+    pub kind: EntityKind,
+    #[serde(default)]
+    pub module: Option<ModuleId>,
+    #[serde(default)]
+    pub block: Option<BlockId>,
+    #[serde(default)]
+    pub end_block: Option<BlockId>,
+}
+
 /// Reserved module id for a level entry's own description prose (`body:<entry_id>/about`).
 pub const LEVEL_ABOUT_MODULE: &str = "about";
 
