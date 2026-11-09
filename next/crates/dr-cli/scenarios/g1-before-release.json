@@ -214,6 +214,30 @@
       "save": "input_state_0"
     },
     {
+      "app": "ui.find",
+      "params": {
+        "label": "Content",
+        "role": "group"
+      },
+      "save": "input_bounds_0"
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 1420,
+        "y": 400,
+        "dy": 1100
+      },
+      "note": "Scroll the entry page margin so the mounted module input is in the viewport."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 120
+      }
+    },
+    {
       "app": "ui.press",
       "params": {
         "label": "Content",
@@ -254,6 +278,30 @@
     {
       "app": "state.get",
       "save": "input_state_1"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Body",
+        "role": "group"
+      },
+      "save": "input_bounds_1"
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 1420,
+        "y": 400,
+        "dy": 1300
+      },
+      "note": "Scroll the entry page margin so the mounted module input is in the viewport."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 120
+      }
     },
     {
       "app": "ui.press",
@@ -298,6 +346,30 @@
       "save": "input_state_2"
     },
     {
+      "app": "ui.find",
+      "params": {
+        "label": "${plot.grid.cells.0.text}",
+        "role": "group"
+      },
+      "save": "input_bounds_2"
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 1420,
+        "y": 400,
+        "dy": 550
+      },
+      "note": "Scroll the entry page margin so the mounted module input is in the viewport."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 120
+      }
+    },
+    {
       "app": "ui.press",
       "params": {
         "label": "${plot.grid.cells.0.text}",
@@ -338,6 +410,30 @@
     {
       "app": "state.get",
       "save": "input_state_3"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Drain text",
+        "role": "group"
+      },
+      "save": "input_bounds_3"
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 1420,
+        "y": 400,
+        "dy": 1000
+      },
+      "note": "Scroll the entry page margin so the mounted module input is in the viewport."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 120
+      }
     },
     {
       "app": "ui.press",
