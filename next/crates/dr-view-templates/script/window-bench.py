@@ -147,8 +147,14 @@ def measure(phase):
             x, y = bounds["x"] + 4, bounds["y"] + 10
             start = time.perf_counter()
             call("input.scroll", {"x": x, "y": y, "dy": 4000})
-            bottom = screenshot("bottom" if index == 0 else None)
+            # Let the scroll event reach layout before reading the frame;
+            # without this, an immediate PNG can still be the previous frame.
+            bottom = screenshot("bottom" if index == 0 else None, settle_ms=50)
             if top == bottom:
+                (OUT / f"{phase}-failed-scroll.json").write_text(json.dumps({
+                    "pointer": [x, y], "module_bounds": bounds,
+                    "app": call("app.info"), "sample": index,
+                }, indent=2))
                 raise RuntimeError("scroll did not change the rendered window")
             scrolls.append((time.perf_counter() - start) * 1000)
             call("input.scroll", {"x": x, "y": y, "dy": -10000})
@@ -157,7 +163,7 @@ def measure(phase):
         result = {"phase": phase, "seed": "v3-heavy", "build": os.environ.get("DRIFTING_BENCH_BUILD", "debug-bridge"), "samples": 7,
                   "binary_sha256": hashlib.sha256(binary.read_bytes()).hexdigest(),
                   "machine": {"architecture": os.uname().machine, "cpus": os.cpu_count(), "load_average": os.getloadavg()},
-                  "includes": "bridge and PNG readback; open also waits 200 ms for navigation animation", "open": summary(opened), "scroll": summary(scrolls)}
+                  "includes": "bridge and PNG readback; open waits 200 ms for navigation animation; scroll waits 50 ms for layout", "open": summary(opened), "scroll": summary(scrolls)}
         (OUT / f"{phase}.json").write_text(json.dumps(result, indent=2) + "\n")
         print(json.dumps(result))
         call("app.quit")
