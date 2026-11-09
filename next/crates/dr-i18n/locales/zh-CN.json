@@ -1778,6 +1778,17 @@
     "templates": "模板集合",
     "trash": "放进最近删除"
   },
+  "v3Timeline": {
+    "addLane": "添加泳道",
+    "deleteView": "删除视图",
+    "members": "{{count}} 个成员",
+    "moveDown": "下移",
+    "moveUp": "上移",
+    "newView": "新建视图",
+    "removeLane": "移出视图",
+    "renameView": "重命名视图",
+    "views": "时间线视图"
+  },
   "voiceAgent": {
     "error": {
       "auth": "转写 Key 无效或已过期",

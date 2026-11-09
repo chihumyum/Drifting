@@ -109,5 +109,16 @@
     "changeTemplate": "Cambiar plantilla",
     "belongTo": "Asignar a",
     "trash": "Mover a Eliminados recientemente"
+  },
+  "v3Timeline": {
+    "views": "Vistas de cronología",
+    "newView": "Nueva vista",
+    "renameView": "Renombrar vista",
+    "deleteView": "Eliminar vista",
+    "addLane": "Añadir carril",
+    "removeLane": "Quitar de la vista",
+    "moveUp": "Subir",
+    "moveDown": "Bajar",
+    "members": "{{count}} miembros"
   }
 }

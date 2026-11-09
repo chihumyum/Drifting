@@ -2528,6 +2528,7 @@ dependencies = [
  "anyhow",
  "color_quant",
  "dr-i18n",
+ "dr-model",
  "dr-shell",
  "dr-store",
  "dr-testkit",

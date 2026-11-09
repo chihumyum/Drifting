@@ -1784,6 +1784,17 @@
     "templates": "템플릿",
     "trash": "최근 삭제 항목으로 이동"
   },
+  "v3Timeline": {
+    "addLane": "레인 추가",
+    "deleteView": "보기 삭제",
+    "members": "구성원 {{count}}개",
+    "moveDown": "아래로 이동",
+    "moveUp": "위로 이동",
+    "newView": "새 보기",
+    "removeLane": "보기에서 제거",
+    "renameView": "보기 이름 변경",
+    "views": "타임라인 보기"
+  },
   "voiceAgent": {
     "error": {
       "auth": "전사 키가 유효하지 않거나 만료되었습니다",

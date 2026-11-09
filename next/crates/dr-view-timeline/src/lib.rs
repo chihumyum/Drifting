@@ -22,6 +22,7 @@
 pub mod kept;
 pub mod model;
 pub mod spring;
+pub mod v3;
 pub mod view;
 
 use dr_shell::Workspace;
@@ -39,6 +40,7 @@ pub fn make(ws: WeakEntity<Workspace>, cx: &mut App) -> Entity<BottomTimeline> {
 /// per window and book; dragged no lower than its lanes need). Once, after
 /// `dr_shell::init`.
 pub fn init(cx: &mut App) {
+    v3::init(cx);
     pages::add_bottom_panel(cx, BottomPane::Timeline, |host, _, cx| {
         let timeline = make(host.workspace.clone(), cx);
         let lanes = timeline.downgrade();
