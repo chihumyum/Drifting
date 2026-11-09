@@ -358,9 +358,34 @@ impl<'a> Cx<'a> {
             }
         }
         let slot = self.ws.book_slot(&book)?;
+        // Common book lifecycle/meta and prose operations keep their storage
+        // contracts. Kind-specific v2.2 commands must never create old roots in v3.
+        if slot.is_v3()
+            && self.spec.book_version != Some(3)
+            && !self.spec.name.starts_with("prose.")
+            && !matches!(
+                self.spec.name,
+                "book.get" | "book.update" | "book.trash" | "book.restore"
+            )
+        {
+            return Err(WsError::invalid(
+                "this operation requires a v2.2 book; use the v3 entry commands",
+            ));
+        }
         let mut st = self.st.borrow_mut();
         if st.book_hint.is_none() {
             st.book_hint = Some(book);
+        }
+        Ok(slot)
+    }
+
+    /// Open a v3 book (`is_v3_doc` is true); refuses v2.2 books with `WsError::Invalid`.
+    pub(crate) fn book_v3(&self, id: &str) -> Result<Arc<BookSlot>> {
+        let slot = self.book(id)?;
+        if !slot.is_v3() {
+            return Err(WsError::invalid(format!(
+                "book {id:?} is a v2.2 book; v3 commands only apply to v3 books"
+            )));
         }
         Ok(slot)
     }
@@ -524,6 +549,37 @@ impl<'a> Cx<'a> {
                 f(&mut txn)?
             };
             stamp_elements(doc, &touched)?;
+            Ok((r, before))
+        })
+    }
+
+    /// Step 3 on a v3 book document (`BookTxnV3`), one commit.
+    pub(crate) fn write_book_v3<R, F>(&self, slot: &BookSlot, f: F) -> Result<(R, Frontiers)>
+    where
+        F: FnOnce(&mut dr_doc::v3::BookTxnV3<'_>) -> Result<R> + Send + 'static,
+        R: Send + 'static,
+    {
+        self.check_phase(Phase::Book)?;
+        if !self.st.borrow_mut().books_written.insert(slot.book.clone()) {
+            return Err(WsError::Internal(format!(
+                "{}: a second book commit in one command",
+                self.spec.name
+            )));
+        }
+        self.faults().check("after_prose")?;
+        let agent = self.actor.agent_write(&self.summary());
+        let book = slot.book.clone();
+        let guards = self.guards.clone();
+        holder::write(&slot.handle, self.actor.store_origin(), agent, move |doc| {
+            if let Some(guards) = guards {
+                guards.check(&format!("book:{book}"), doc)?;
+            }
+            let before = doc.oplog_frontiers();
+            let r = {
+                let b = dr_doc::v3::BorrowedBookV3::new(doc, &book)?;
+                let mut txn = b.txn();
+                f(&mut txn)?
+            };
             Ok((r, before))
         })
     }

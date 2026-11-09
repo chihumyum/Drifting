@@ -50,6 +50,8 @@ pub enum Concurrency {
 /// A command or query, statically typed.
 pub trait Op: 'static {
     /// Dotted lower-case name, e.g. `chapter.create`.
+    /// Required book schema version; None denotes the existing common/v2.2 surface.
+    const BOOK_VERSION: Option<i64> = None;
     const NAME: &'static str;
     const ACCESS: Access;
     const CONCURRENCY: Concurrency;
@@ -62,6 +64,7 @@ pub trait Op: 'static {
 
 /// One registered entry.
 pub struct Spec {
+    pub book_version: Option<i64>,
     pub name: &'static str,
     pub access: Access,
     pub concurrency: Concurrency,
@@ -134,6 +137,7 @@ impl Registry {
         let prev = self.specs.insert(
             O::NAME,
             Spec {
+                book_version: O::BOOK_VERSION,
                 name: O::NAME,
                 access: O::ACCESS,
                 concurrency: O::CONCURRENCY,
@@ -168,7 +172,7 @@ impl Registry {
         Value::Array(
             self.iter()
                 .map(|s| {
-                    serde_json::json!({
+                    let mut value = serde_json::json!({
                         "name": s.name,
                         "kind": if s.is_query() { "query" } else { "command" },
                         "access": s.access,
@@ -176,7 +180,11 @@ impl Registry {
                         "summary": s.summary,
                         "input": s.input_schema(),
                         "output": s.output_schema(),
-                    })
+                    });
+                    if let Some(version) = s.book_version {
+                        value["book_version"] = version.into();
+                    }
+                    value
                 })
                 .collect(),
         )

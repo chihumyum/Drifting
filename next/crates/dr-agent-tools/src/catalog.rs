@@ -210,6 +210,9 @@ impl Catalog {
 /// A small scope policy, not a second capability inventory. New registered
 /// operations enter automatically if they have a recognized book boundary.
 fn exclusion(spec: &Spec) -> Option<&'static str> {
+    if spec.book_version == Some(3) {
+        return Some("v3 commands remain excluded until K6 opens the versioned catalog");
+    }
     if (spec.name.ends_with(".purge") && spec.concurrency != Concurrency::Library)
         || matches!(
             spec.name,

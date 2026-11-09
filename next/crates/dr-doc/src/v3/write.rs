@@ -1414,16 +1414,40 @@ impl<'a> BookTxnV3<'a> {
         .delete_material_folder(id)
     }
 
-    /// Restore an entry's metadata (`title`, `template`, `overrides`, `fields`,
-    /// and all `kv:<module_id>` tables) from `old` (`BookViewV3::entry_snapshot`).
+    /// Restore an entry's metadata (`title`, `template`, `primary`, timestamps,
+    /// `layout`, `overrides`, `fields`, and all `kv:<module_id>` tables) from
+    /// `old` (`BookViewV3::entry_snapshot`).
     pub fn restore_entry(&mut self, id: &EntryId, old: &EntrySnapshotV3) -> Result<()> {
-        let w = self.entries().entry(id)?;
+        let w = match self.entries().entry(id) {
+            Ok(w) => w,
+            Err(_) => self.entries().create(id, None, "", None)?,
+        };
         let map = &w.map;
 
-        for scalar_key in ["title", "template", "primary"] {
+        for scalar_key in [
+            "title",
+            "template",
+            "primary",
+            "created_at",
+            "updated_at",
+            "deleted_at",
+        ] {
             match old.field(scalar_key) {
                 Some(v) => map.insert(scalar_key, v.clone())?,
                 None => set(map, scalar_key, None::<&str>)?,
+            }
+        }
+
+        // Restore `layout`
+        match old.field("layout") {
+            Some(LoroValue::Map(want)) => {
+                let sub = map.ensure_mergeable_map("layout")?;
+                sync_nested_map(&sub, want)?;
+            }
+            _ => {
+                if map.get("layout").is_some() {
+                    map.delete("layout")?;
+                }
             }
         }
 
@@ -1440,7 +1464,7 @@ impl<'a> BookTxnV3<'a> {
             }
         }
 
-        // Restore `fields` (`module_id -> { field_id -> tagged value }`)
+        // Restore `fields` (`module_id -> { field_id -> value }`)
         match old.field("fields") {
             Some(LoroValue::Map(want_mods)) => {
                 let fields_map = map.ensure_mergeable_map("fields")?;
@@ -1485,6 +1509,74 @@ impl<'a> BookTxnV3<'a> {
                 let sub = map.ensure_mergeable_map(k)?;
                 sync_nested_map(&sub, want_rows)?;
             }
+        }
+        Ok(())
+    }
+
+    /// Restore an entry's metadata and tree parent (falling back to root if
+    /// `parent` no longer exists in `entries`).
+    pub fn restore_entry_with_parent(
+        &mut self,
+        id: &EntryId,
+        parent: Option<&EntryId>,
+        old: &EntrySnapshotV3,
+    ) -> Result<()> {
+        let target_parent =
+            parent.filter(|p| self.view.entry(p).is_some() && p.as_str() != id.as_str());
+        if self.view.entry(id).is_some() {
+            if self.view.entry(id).and_then(|e| e.parent).as_ref() != target_parent {
+                self.entries().move_to(id, target_parent)?;
+            }
+        } else {
+            self.entries().create(id, target_parent, "", None)?;
+        }
+        self.restore_entry(id, old)
+    }
+
+    /// Restore one structural v3 record, keeping mergeable nested map identities.
+    pub fn restore_map_snapshot(
+        &mut self,
+        collection: CollectionV3,
+        id: &str,
+        old: Option<&EntrySnapshotV3>,
+    ) -> Result<()> {
+        if !matches!(
+            collection,
+            CollectionV3::Templates
+                | CollectionV3::Memberships
+                | CollectionV3::TimelineViews
+                | CollectionV3::Patches
+                | CollectionV3::PlotGrids
+                | CollectionV3::Relations
+                | CollectionV3::RelationTypes
+        ) {
+            return Err(DocError::NotInProfile("not a structural v3 map"));
+        }
+        let root = self.view.doc.get_map(collection.root());
+        if let Some(old) = old {
+            let LoroValue::Map(want) = &old.value else {
+                return Err(DocError::NotInProfile("snapshot is not a map"));
+            };
+            if collection == CollectionV3::RelationTypes {
+                self.refuse_locked(
+                    &RelationTypeId::parse(id)
+                        .map_err(|_| DocError::NotInProfile("invalid relation type"))?,
+                )?;
+            }
+            let map = root.ensure_mergeable_map(id)?;
+            sync_record(
+                &map,
+                want,
+                (collection == CollectionV3::Patches).then_some("body"),
+            )?;
+        } else if root.get(id).is_some() {
+            if collection == CollectionV3::RelationTypes {
+                self.refuse_locked(
+                    &RelationTypeId::parse(id)
+                        .map_err(|_| DocError::NotInProfile("invalid relation type"))?,
+                )?;
+            }
+            root.delete(id)?;
         }
         Ok(())
     }
@@ -1540,6 +1632,10 @@ impl<'a> BookTxnV3<'a> {
 }
 
 fn sync_nested_map(sub: &LoroMap, want: &loro::LoroMapValue) -> Result<()> {
+    sync_record(sub, want, None)
+}
+
+fn sync_record(sub: &LoroMap, want: &loro::LoroMapValue, text_key: Option<&str>) -> Result<()> {
     let have: Vec<String> = sub.keys().map(|k| k.to_string()).collect();
     for k in have {
         if !want.contains_key(&k) {
@@ -1547,6 +1643,12 @@ fn sync_nested_map(sub: &LoroMap, want: &loro::LoroMapValue) -> Result<()> {
         }
     }
     for (k, v) in want.iter() {
+        if text_key == Some(k.as_str())
+            && let LoroValue::String(text) = v
+        {
+            set_text(sub, k, text)?;
+            continue;
+        }
         match v {
             LoroValue::Map(entry) => {
                 // Only use a mergeable sub-map for kv rows (`{key, value, pos}`);
@@ -1556,15 +1658,7 @@ fn sync_nested_map(sub: &LoroMap, want: &loro::LoroMapValue) -> Result<()> {
                     sub.insert(k, v.clone())?;
                 } else {
                     let e = sub.ensure_mergeable_map(k)?;
-                    let e_have: Vec<String> = e.keys().map(|ek| ek.to_string()).collect();
-                    for ek in e_have {
-                        if !entry.contains_key(&ek) {
-                            e.delete(&ek)?;
-                        }
-                    }
-                    for (ek, ev) in entry.iter() {
-                        e.insert(ek, ev.clone())?;
-                    }
+                    sync_nested_map(&e, entry)?;
                 }
             }
             v => sub.insert(k, v.clone())?,

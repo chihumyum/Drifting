@@ -348,3 +348,49 @@ fn read_coverage_names_returned_objects_and_never_treats_a_book_token_as_all_ent
         vec!["prose:template:category:category-id"]
     );
 }
+
+#[test]
+fn v3_registry_commands_are_absent_and_invocation_is_refused_until_k6() {
+    use dr_agent_tools::{AgentTools, CallRequest, Error};
+    let f = Fixture::new();
+    let tools = AgentTools::new();
+    let actor = Actor::agent("k1-catalog", 1, "refused");
+    let before =
+        f.ws.library()
+            .load_copy(&format!("book:{}", f.book))
+            .unwrap()
+            .get_deep_value();
+    let mut checked = 0;
+    for spec in registry().iter().filter(|s| s.book_version == Some(3)) {
+        checked += 1;
+        assert!(
+            tools.catalog().descriptor(spec.name).is_none(),
+            "{}",
+            spec.name
+        );
+        let result = tools.invoke(
+            &f.ws,
+            &f.book,
+            &actor,
+            CallRequest {
+                name: spec.name.into(),
+                arguments: json!({}),
+                revision: None,
+                edited_text: None,
+            },
+        );
+        assert!(
+            matches!(result, Err(Error::Invalid(message)) if message == "unknown book tool"),
+            "{}",
+            spec.name
+        );
+    }
+    assert!(checked > 0);
+    assert_eq!(
+        before,
+        f.ws.library()
+            .load_copy(&format!("book:{}", f.book))
+            .unwrap()
+            .get_deep_value()
+    );
+}

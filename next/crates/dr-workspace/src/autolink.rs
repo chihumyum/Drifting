@@ -78,9 +78,33 @@ pub fn matcher(book: &BookView<'_>, doc: &DocId) -> LinkMatcher<LinkTarget> {
     LinkMatcher::new(book_link_names(book, &[doc.entity_id()]))
 }
 
+fn book_link_names_v3(v: &dr_doc::v3::BookViewV3<'_>) -> Vec<LinkName<LinkTarget>> {
+    let entries = v.entries_map();
+    let templates = v.templates_map();
+    let memberships = v.memberships();
+    let mut out = Vec::new();
+    for e in v.entries() {
+        if !dr_model::v3::is_autolink_leaf(&e, &memberships, &entries, &templates)
+            || e.name_conflict.is_some()
+        {
+            continue;
+        }
+        let target = LinkTarget::new(EntityKind::Entry, e.id.as_str());
+        for name in std::iter::once(e.title.clone()).chain(e.aliases(&templates)) {
+            if !name.trim().is_empty() {
+                out.push(LinkName::new(name, target.clone()));
+            }
+        }
+    }
+    out
+}
+
 /// Every name of `slot`'s book (dr-text's `book_link_names`), read once
 /// until an element or a node changes.
 pub(crate) fn book_names(slot: &BookSlot) -> Arc<Vec<LinkName<LinkTarget>>> {
+    if slot.is_v3() {
+        return Arc::new(book_link_names_v3(&slot.reader_v3.view()));
+    }
     slot.cache
         .get(crate::cache::Key::LinkNames, &slot.reader.view(), |v| {
             book_link_names(v, &[])
@@ -89,7 +113,21 @@ pub(crate) fn book_names(slot: &BookSlot) -> Arc<Vec<LinkName<LinkTarget>>> {
 
 /// [`matcher`] for `doc` in `slot`'s book, from the book's cache.
 pub(crate) fn book_matcher(slot: &BookSlot, doc: &DocId) -> Arc<LinkMatcher<LinkTarget>> {
-    slot.cache.matcher(doc.entity_id(), &book_names(slot))
+    let self_id = match doc {
+        DocId::Body(b) => b.entry().as_str(),
+        _ => doc.entity_id(),
+    };
+    if slot.is_v3() {
+        // The v2 cache invalidator knows no v3 roots. Build from current v3
+        // templates and memberships until the v3 view integration owns a cache.
+        return Arc::new(LinkMatcher::new(
+            book_names(slot)
+                .iter()
+                .filter(|n| n.target.id != self_id)
+                .cloned(),
+        ));
+    }
+    slot.cache.matcher(self_id, &book_names(slot))
 }
 
 /// A run of one entity link on a paragraph (adjacent spans of one target

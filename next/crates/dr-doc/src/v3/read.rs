@@ -89,7 +89,13 @@ fn entity(doc: &LoroDoc, root: &str, id: &str) -> Option<LoroValue> {
 }
 
 pub(crate) fn decode_level_settings_override(f: F<'_>) -> LevelSettingsOverride {
-    let default_template = match f.get("default_template") {
+    // The v2 field codec treats null as absent. In a v3 override it means
+    // explicitly clear, so inspect these two keys without that normalization.
+    let raw = |key: &str| match f.0 {
+        LoroValue::Map(map) => map.get(key),
+        _ => None,
+    };
+    let default_template = match raw("default_template") {
         Some(LoroValue::Null) => Some(None),
         Some(LoroValue::String(s)) => EntryTemplateId::parse(s).ok().map(Some),
         _ => None,
@@ -105,7 +111,7 @@ pub(crate) fn decode_level_settings_override(f: F<'_>) -> LevelSettingsOverride 
         ),
         _ => None,
     };
-    let home = match f.get("home") {
+    let home = match raw("home") {
         Some(LoroValue::Null) => Some(None),
         Some(LoroValue::String(s)) => EntryId::parse(s).ok().map(Some),
         _ => None,
@@ -1327,6 +1333,24 @@ impl<'a> BookViewV3<'a> {
         let tree = self.tree(book_v3::ENTRIES);
         let node = forest(&tree).into_iter().find(|n| n.id == id.as_str())?;
         Some(EntrySnapshotV3 { value: node.meta })
+    }
+
+    /// Snapshot of a v3 structural map record, including nested maps.
+    /// Patch text is restored through its mergeable text container by the writer.
+    pub fn map_snapshot(&self, collection: CollectionV3, id: &str) -> Option<EntrySnapshotV3> {
+        if !matches!(
+            collection,
+            CollectionV3::Templates
+                | CollectionV3::Memberships
+                | CollectionV3::TimelineViews
+                | CollectionV3::Patches
+                | CollectionV3::PlotGrids
+                | CollectionV3::Relations
+                | CollectionV3::RelationTypes
+        ) {
+            return None;
+        }
+        entity(self.doc, collection.root(), id).map(|value| EntrySnapshotV3 { value })
     }
 
     /// Snapshot of a map-backed entity (e.g. `Materials`) at this view's frontiers.
