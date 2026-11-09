@@ -25,6 +25,7 @@ gpui.workspace = true
 gpui_platform = { workspace = true, optional = true }
 log.workspace = true
 png = { workspace = true, optional = true }
+serde_json.workspace = true
 
 [dev-dependencies]
 anyhow.workspace = true
@@ -32,7 +33,6 @@ dr-store.workspace = true
 dr-testkit.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
 gpui_platform.workspace = true
-serde_json.workspace = true
 tempfile.workspace = true
 
 [[example]]

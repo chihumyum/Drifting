@@ -36,6 +36,10 @@ use gpui::{
     Styled as _, Subscription, WeakEntity, Window, div, prelude::FluentBuilder as _, px,
 };
 
+pub(crate) mod guarded;
+mod module;
+pub mod v3;
+
 use crate::data;
 use crate::page;
 
@@ -50,6 +54,11 @@ struct Row {
     stored: (String, String),
     /// Sent as a new field, not back yet: no further writes until it is.
     pending: bool,
+    failed: bool,
+    awaiting: bool,
+    queued: bool,
+    module_new: bool,
+    removing: bool,
     _subs: [Subscription; 2],
 }
 
@@ -59,6 +68,7 @@ struct Row {
 pub enum Owner {
     Element(String),
     Storyline(String),
+    Module { entry: String, module: String },
 }
 
 /// An element's or a storyline's fields.
@@ -74,6 +84,10 @@ pub struct Fields {
     /// Makes each new row's element ids unique.
     made: usize,
     _ws: Option<Subscription>,
+    module_rows: Vec<FieldInfo>,
+    module_reading: bool,
+    module_stale: bool,
+    module_epoch: u64,
 }
 
 impl Fields {
@@ -95,7 +109,33 @@ impl Fields {
             rows: Vec::new(),
             made: 0,
             _ws: None,
+            module_rows: Vec::new(),
+            module_reading: false,
+            module_stale: false,
+            module_epoch: 0,
         }
+    }
+
+    pub fn for_module(host: dr_shell::v3::ModuleHost, cx: &mut Context<Self>) -> Self {
+        let mut view = Self::new(
+            Owner::Module {
+                entry: host.entry,
+                module: host.module.id,
+            },
+            false,
+            host.page.workspace,
+            cx,
+        );
+        view.lib = Some(host.page.library);
+        view.book = host.page.book;
+        view.reload_module(cx);
+        view
+    }
+
+    pub fn refresh_module(&mut self, book: Rc<Book>, cx: &mut Context<Self>) {
+        self.book = book;
+        self.reload_module(cx);
+        cx.notify();
     }
 
     fn follow(&mut self, cx: &mut Context<Self>) {
@@ -107,6 +147,7 @@ impl Fields {
             let book = ws.read(cx).book.clone();
             if !Rc::ptr_eq(&book, &f.book) {
                 f.book = book;
+                f.reload_module(cx);
                 cx.notify();
             }
         }));
@@ -125,6 +166,7 @@ impl Fields {
         match &self.owner {
             Owner::Element(id) => data::element(&self.book, id).map(|e| e.fields.clone()),
             Owner::Storyline(id) => data::storyline(&self.book, id).map(|l| l.fields.clone()),
+            Owner::Module { .. } => Some(self.module_rows.clone()),
         }
         .unwrap_or_default()
     }
@@ -174,11 +216,16 @@ impl Fields {
         });
         Row {
             n,
+            module_new: id.is_none(),
+            removing: false,
             id,
             key: key_field,
             value: value_field,
             stored: (key, value),
             pending: false,
+            failed: false,
+            awaiting: false,
+            queued: false,
             _subs: [on_key, on_value],
         }
     }
@@ -190,6 +237,10 @@ impl Fields {
 
     /// Saves a row the caret left.
     fn commit(&mut self, n: usize, window: &mut Window, cx: &mut Context<Self>) {
+        if matches!(self.owner, Owner::Module { .. }) {
+            self.commit_module(n, false, window, cx);
+            return;
+        }
         let Some(ix) = self.row_ix(n) else {
             return;
         };
@@ -212,7 +263,7 @@ impl Fields {
                 }
             }
             (id, false) => {
-                if now == row.stored {
+                if now == row.stored && !row.failed {
                     return;
                 }
                 let put = FieldIn {
@@ -224,6 +275,9 @@ impl Fields {
                 };
                 let row = &mut self.rows[ix];
                 row.pending = row.id.is_none();
+                row.failed = false;
+                row.awaiting = false;
+                row.queued = false;
                 row.stored = now;
                 self.write(vec![put], Vec::new(), cx);
             }
@@ -234,6 +288,10 @@ impl Fields {
     /// Removes a row (its ×).
     pub fn remove(&mut self, ix: usize, cx: &mut Context<Self>) {
         if ix >= self.rows.len() {
+            return;
+        }
+        if matches!(self.owner, Owner::Module { .. }) {
+            self.remove_module(ix, false, cx);
             return;
         }
         let row = self.rows.remove(ix);
@@ -276,6 +334,7 @@ impl Fields {
                         edit.remove_fields = remove;
                         data::update_element(&lib, edit)
                     }
+                    Owner::Module { .. } => unreachable!("handled above"),
                     Owner::Storyline(id) => {
                         let mut edit = data::storyline_edit(&book, &id);
                         edit.put_fields = put;
@@ -297,6 +356,7 @@ impl Fields {
         let stored = self.stored();
         let mut rows = std::mem::take(&mut self.rows);
         let mut next = Vec::with_capacity(stored.len());
+        let mut resave = Vec::new();
         for field in &stored {
             let pair = (field.key.clone(), field.value.clone());
             let found = rows
@@ -310,12 +370,33 @@ impl Fields {
                 Some(i) => {
                     let mut row = rows.remove(i);
                     row.id = Some(field.id.clone());
-                    row.pending = false;
-                    if row.stored != pair && !Self::row_focused(&row, window, cx) {
+                    if !matches!(self.owner, Owner::Module { .. }) {
+                        row.pending = false;
+                    }
+                    if row.stored == pair {
+                        row.awaiting = false;
+                    }
+                    if row.stored != pair
+                        && !row.pending
+                        && !row.failed
+                        && !row.awaiting
+                        && (!matches!(self.owner, Owner::Module { .. })
+                            || (row.key.read(cx).text(), row.value.read(cx).text()) == row.stored)
+                        && !Self::row_focused(&row, window, cx)
+                    {
                         let (k, v) = pair.clone();
                         row.key.update(cx, |f, cx| f.set_text(k, cx));
                         row.value.update(cx, |f, cx| f.set_text(v, cx));
                         row.stored = pair;
+                    }
+                    if matches!(self.owner, Owner::Module { .. })
+                        && !row.failed
+                        && row.queued
+                        && !row.pending
+                        && !Self::row_focused(&row, window, cx)
+                        && (row.key.read(cx).text(), row.value.read(cx).text()) != row.stored
+                    {
+                        resave.push(row.n);
                     }
                     next.push(row);
                 }
@@ -334,11 +415,21 @@ impl Fields {
         // Rows not stored: new ones stay; stored ones removed elsewhere go,
         // unless the caret is in them.
         for row in rows {
-            if row.id.is_none() || Self::row_focused(&row, window, cx) {
+            if row.id.is_none()
+                || Self::row_focused(&row, window, cx)
+                || (matches!(self.owner, Owner::Module { .. })
+                    && (row.pending
+                        || row.awaiting
+                        || row.failed
+                        || (row.key.read(cx).text(), row.value.read(cx).text()) != row.stored))
+            {
                 next.push(row);
             }
         }
         self.rows = next;
+        for n in resave {
+            self.commit(n, window, cx);
+        }
     }
 }
 
@@ -363,7 +454,9 @@ impl Render for Fields {
             t(
                 cx,
                 match self.owner {
-                    Owner::Element(_) => keys::element_editor::sections::FACTS,
+                    Owner::Element(_) | Owner::Module { .. } => {
+                        keys::element_editor::sections::FACTS
+                    }
                     Owner::Storyline(_) => keys::storyline_editor::sections::FACTS,
                 },
             ),
@@ -379,7 +472,9 @@ impl Render for Fields {
                 t(
                     cx,
                     match self.owner {
-                        Owner::Element(_) => keys::element_editor::empty::NO_FACTS,
+                        Owner::Element(_) | Owner::Module { .. } => {
+                            keys::element_editor::empty::NO_FACTS
+                        }
                         Owner::Storyline(_) => keys::storyline_editor::empty::NO_FACTS,
                     },
                 ),
@@ -390,6 +485,7 @@ impl Render for Fields {
         }
         for (ix, row) in self.rows.iter().enumerate() {
             let focused = Self::row_focused(row, window, cx);
+            let retry_n = row.n;
             let group: SharedString = format!("field-row-{}", row.n).into();
             let remove = {
                 let entity = entity.clone();
@@ -437,22 +533,44 @@ impl Render for Fields {
                 .gap(px(10.0))
                 .child(
                     div()
+                        .id(ElementId::Name(format!("field-key-group-{}", row.n).into()))
                         .w(px(140.0))
                         .flex_none()
                         .pt(px(2.0))
                         .font_role(Role::Index)
                         .type_px(12.0, 18.0)
                         .text_color(p.ink(3).solid())
+                        .when(matches!(self.owner, Owner::Module { .. }), |d| {
+                            d.role(gpui::Role::Group)
+                                .aria_label(t(cx, keys::kv_editor::KEY_PLACEHOLDER))
+                        })
                         .child(row.key.clone()),
                 )
                 .child(
                     div()
+                        .id(ElementId::Name(
+                            format!("field-value-group-{}", row.n).into(),
+                        ))
                         .flex_1()
                         .min_w_0()
                         .font_role(Role::Prose)
                         .type_px(14.0, 14.0 * 1.6)
                         .text_color(p.ink(1).solid())
-                        .child(row.value.clone()),
+                        .when(matches!(self.owner, Owner::Module { .. }), |d| {
+                            d.role(gpui::Role::Group)
+                                .aria_label(t(cx, keys::kv_editor::VALUE_PLACEHOLDER))
+                        })
+                        .child(row.value.clone())
+                        .children(row.failed.then(|| t(cx, keys::k4_pages::SAVE_FAILED)))
+                        .children(row.failed.then(|| {
+                            dr_ui::components::Button::new(
+                                ElementId::Name(format!("retry-kv-{retry_n}").into()),
+                                t(cx, keys::markdown_share::RETRY),
+                            )
+                            .on_click(cx.listener(
+                                move |v, _, window, cx| v.commit_module(retry_n, true, window, cx),
+                            ))
+                        })),
                 )
                 .child(x),
             );

@@ -1,0 +1,280 @@
+{
+  "about": "K4 G1: v3-lite entry relations add and navigate.",
+  "steps": [
+    {
+      "seed": "v3-lite"
+    },
+    {
+      "call": "book.list",
+      "save": "books"
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}",
+        "all": true
+      },
+      "save": "entries"
+    },
+    {
+      "call": "entry_relation_type.put",
+      "input": {
+        "book": "${books.0.id}",
+        "definition": {
+          "id": "g1-relation",
+          "name": "G1",
+          "source_kinds": [
+            "entry"
+          ],
+          "target_kinds": [
+            "entry",
+            "material"
+          ]
+        }
+      }
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "window.focus",
+      "params": {}
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${books.0.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/version": 3,
+          "/book/loaded": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "call": "entry_relation_type.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "types"
+    },
+    {
+      "call": "module.read",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${entries.[template=tpl-character].id}",
+        "module": "mod-relations"
+      },
+      "save": "before"
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-character].id}/mod-relations"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 700
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-j"
+      },
+      "note": "Close the default timeline so the G1 page uses the whole paper."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/bottom/pane": null
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 700
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 380,
+        "y": 550,
+        "dy": 3000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 700
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "relations-before.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "PopUpButton",
+        "label": "Not set",
+        "nth": 1
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "${entries.[template=tpl-chapter].title}"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "PopUpButton",
+        "label": "Not set",
+        "nth": 1
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "MenuItem",
+        "label": "G1"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Link entity"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 1000
+      }
+    },
+    {
+      "call": "module.read",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${entries.[template=tpl-character].id}",
+        "module": "mod-relations"
+      },
+      "save": "after",
+      "expect": {
+        "/relations/[relation_type=g1-relation]/to/id": "${entries.[template=tpl-chapter].id}"
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "linked.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "${entries.[template=tpl-chapter].title}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "entry:${entries.[template=tpl-chapter].id}"
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-character].id}/mod-relations"
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 380,
+        "y": 550,
+        "dy": 3000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 700
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Delete",
+        "nth": 4
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 1000
+      }
+    },
+    {
+      "call": "module.read",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${entries.[template=tpl-character].id}",
+        "module": "mod-relations"
+      },
+      "expect": {
+        "/relations": "${before.relations}"
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "unlinked.png"
+    },
+    {
+      "app": "app.quit"
+    }
+  ]
+}

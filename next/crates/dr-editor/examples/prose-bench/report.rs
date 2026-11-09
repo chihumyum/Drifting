@@ -127,7 +127,11 @@ pub fn finish(
     };
     let mut e = Evidence::new(
         &file,
-        MILESTONE,
+        if args.iter().any(|a| a == "--v3") {
+            "k4-g1-modules"
+        } else {
+            MILESTONE
+        },
         &format!(
             "cargo run --release -p dr-editor --example prose-bench -- {}",
             args.join(" ")

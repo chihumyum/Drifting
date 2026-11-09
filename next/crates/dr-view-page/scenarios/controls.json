@@ -1,0 +1,441 @@
+{
+  "about": "K4 G1: v3-lite KV, patches and plot changes from real controls, read back through public commands.",
+  "steps": [
+    {
+      "seed": "v3-lite"
+    },
+    {
+      "call": "book.list",
+      "save": "books"
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}",
+        "all": true
+      },
+      "save": "entries"
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "window.focus",
+      "params": {}
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${books.0.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/version": 3,
+          "/book/loaded": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-character].id}/mod-kv"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 700
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-j"
+      },
+      "note": "Close the default timeline so the G1 page uses the whole paper."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/bottom/pane": null
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 700
+      }
+    },
+    {
+      "app": "input.click",
+      "params": {
+        "x": 710,
+        "y": 443
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      },
+      "note": "Allow the next frame to register the focused native input handler and deliver field events."
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-a"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "G1 value"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      },
+      "note": "Allow the next frame to register the focused native input handler and deliver field events."
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Add field"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      },
+      "note": "Allow the next frame to register the focused native input handler and deliver field events."
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "G1 key"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      },
+      "note": "Allow the next frame to register the focused native input handler and deliver field events."
+    },
+    {
+      "app": "input.click",
+      "params": {
+        "x": 710,
+        "y": 443
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      },
+      "note": "Allow the next frame to register the focused native input handler and deliver field events."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 700
+      }
+    },
+    {
+      "call": "module.read",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${entries.[template=tpl-character].id}",
+        "module": "mod-kv"
+      },
+      "expect": {
+        "/kv/[id=fact-0]/value": "G1 value",
+        "/kv/[id=fact-0]/pos": "a0",
+        "/kv/1/key": "G1 key"
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "kv.png"
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 380,
+        "y": 550,
+        "dy": 650
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 700
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "New patch"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      },
+      "note": "Allow the next frame to register the focused native input handler and deliver field events."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 700
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Group",
+        "label": "Title"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      },
+      "note": "Allow the next frame to register the focused native input handler and deliver field events."
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-a"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "G1"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      },
+      "note": "Allow the next frame to register the focused native input handler and deliver field events."
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Group",
+        "label": "Body"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      },
+      "note": "Allow the next frame to register the focused native input handler and deliver field events."
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "G1 patch"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      },
+      "note": "Allow the next frame to register the focused native input handler and deliver field events."
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "New patch"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      },
+      "note": "Allow the next frame to register the focused native input handler and deliver field events."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 700
+      }
+    },
+    {
+      "call": "module.read",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${entries.[template=tpl-character].id}",
+        "module": "mod-patches"
+      },
+      "expect": {
+        "/patches/[title=G1]/body": "G1 patch"
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "patches.png"
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-chapter].id}/mod-plot-grid"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 700
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 380,
+        "y": 550,
+        "dy": 650
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 700
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Group",
+        "label": "Write something…",
+        "nth": 0,
+        "dy": -32
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      },
+      "note": "Allow the next frame to register the focused native input handler and deliver field events."
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "G1 plot"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      },
+      "note": "Allow the next frame to register the focused native input handler and deliver field events."
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "Row"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      },
+      "note": "Allow the next frame to register the focused native input handler and deliver field events."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 700
+      }
+    },
+    {
+      "call": "module.read",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-plot-grid"
+      },
+      "save": "plot",
+      "expect": {
+        "/grid/cells/0/text": "G1 plot"
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "plot.png"
+    },
+    {
+      "app": "app.quit",
+      "params": {}
+    }
+  ]
+}
