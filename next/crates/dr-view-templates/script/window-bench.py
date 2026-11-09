@@ -113,6 +113,12 @@ def measure(phase):
         call("window.focus")
         call("book.open", {"book": config["book"]})
         call("ui.wait", {"state": {"/book/version": 3}})
+        # Later K4 integrations may register a visible timeline. Keep the
+        # comparison's paper height identical in both executable versions.
+        if call("state.get")["bottom"]["pane"] is not None:
+            call("action.dispatch", {"name": "workspace::ToggleBottomTimeline"})
+            call("ui.wait", {"state": {"/bottom/pane": None}})
+            call("ui.wait", {"until": "time", "ms": 500})
         templates = call("command.call", {"name": "entry_template.list", "input": {"book": config["book"]}})["output"]
         template = next(t for t in templates if t["id"] == "tpl-chapter")
         if phase == "leaf":
