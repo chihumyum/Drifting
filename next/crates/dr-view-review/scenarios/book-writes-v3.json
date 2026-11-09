@@ -1,0 +1,224 @@
+{
+  "about": "G4 v3-lite 主流程：主页保存书名，打开素材笔记，在原文选区新建批注并读回持久记录。仅副屏隔离 profile；无 heavy 或截图验收。",
+  "steps": [
+    {
+      "seed": "v3-lite"
+    },
+    {
+      "call": "book.list",
+      "save": "books"
+    },
+    {
+      "call": "material.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "materials"
+    },
+    {
+      "call": "comment.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "seed_comments"
+    },
+    {
+      "call": "prose.read",
+      "input": {
+        "doc": "material:${materials.[kind=text].id}",
+        "limit": 1
+      },
+      "save": "sample"
+    },
+    {
+      "call": "material.create",
+      "input": {
+        "book": "${books.0.id}",
+        "kind": "text",
+        "title": "G4 synthetic note",
+        "text": "${sample.paragraphs.0.text}"
+      },
+      "save": "note"
+    },
+    {
+      "launch": {
+        "book": "${books.0.id}",
+        "env": {
+          "DRIFTING_APPEARANCE": "light",
+          "DRIFTING_WINDOW_DISPLAY": "secondary"
+        },
+        "settings": {
+          "account": {
+            "language.ui_locale": "en"
+          },
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          }
+        }
+      },
+      "save": "app"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/book/version": 3,
+          "/book/loaded": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "app.info",
+      "save": "environment"
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ShowProjectHome"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "Settings"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-a"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "G4 synthetic book"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "Save"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/dialog": false
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "call": "book.get",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "expect": {
+        "/name": "G4 synthetic book"
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "material:${note.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 800
+      }
+    },
+    {
+      "app": "page.text",
+      "save": "source"
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-up"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "shift-right",
+        "times": 4
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "review::NewComment"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/composer": true
+        },
+        "timeout_ms": 5000
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "${seed_comments.0.body}"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "Save"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/composer": false
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "call": "comment.list",
+      "input": {
+        "book": "${books.0.id}",
+        "target": {
+          "kind": "material",
+          "id": "${note.id}"
+        }
+      },
+      "save": "comments",
+      "expect": {
+        "/0/body": "${seed_comments.0.body}",
+        "/0/anchored": true,
+        "/0/target/kind": "material",
+        "/0/target/id": "${note.id}",
+        "/1": null
+      }
+    },
+    {
+      "app": "app.info",
+      "save": "final_environment"
+    }
+  ]
+}

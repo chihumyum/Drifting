@@ -83,6 +83,11 @@ struct Hub {
 
 impl Global for Hub {}
 
+/// A notification for Home when this device's unflushed daily tally moves.
+#[derive(Default)]
+pub struct WritingDaysChanged(u64);
+impl Global for WritingDaysChanged {}
+
 /// Installs the recorder over the library (when there is one) and routes
 /// the library's events to the Stats tabs. Call once, at start-up.
 pub fn init(lib: Option<Workspace>, cx: &mut App) {
@@ -147,8 +152,19 @@ fn route(batch: Vec<Msg>, cx: &mut App) {
             .and_then(|r| r.today(book))
     };
     for msg in batch {
+        if matches!(msg, Msg::Today(_)) {
+            cx.default_global::<WritingDaysChanged>().0 += 1;
+        }
         for view in &v3_views {
             match &msg {
+                Msg::Today(book) => {
+                    let mine = today(book, cx);
+                    view.update(cx, |v, cx| {
+                        if &v.book == book {
+                            v.set_mine(mine, cx);
+                        }
+                    });
+                }
                 Msg::Event(WsEvent::Book(b)) => view.update(cx, |v, cx| {
                     if v.book == b.book.as_str() {
                         v.reload(cx);
@@ -273,6 +289,13 @@ pub fn today_live(book: &str, cx: &App) -> Option<i64> {
     cx.try_global::<Hub>()
         .and_then(|h| h.recorder.as_ref())
         .and_then(|r| r.today(book))
+}
+
+/// Establish the current manuscript baseline when Home opens, before typing.
+pub fn track_book(book: &str, cx: &App) {
+    if let Some(r) = cx.try_global::<Hub>().and_then(|h| h.recorder.as_ref()) {
+        r.track(book);
+    }
 }
 
 /// A book's writing goals and how far they are (M02's Project Home).

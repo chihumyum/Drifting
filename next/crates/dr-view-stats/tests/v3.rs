@@ -217,3 +217,84 @@ fn changing_the_front_page_keeps_the_latest_scope(cx: &mut gpui::TestAppContext)
             .is_none()
     );
 }
+
+#[test]
+fn writing_days_follow_only_manuscript_modules_and_survive_reopening() {
+    use dr_view_stats::recorder::{Source, Tracker, WorkspaceSource};
+    use std::time::{Duration, Instant};
+    let (_dir, ws, book) = fixture();
+    let day = dr_model::Day::parse("2026-11-10").unwrap();
+    let device = "g4-synthetic-recorder";
+    let source = WorkspaceSource {
+        ws: ws.clone(),
+        device: Some(device.into()),
+    };
+    let original = v3::load_at(&ws, &book, Scope::Book, &day).unwrap();
+    let first = original.manuscript[0].clone();
+    let stored = source.stored(&book, &day);
+    let mut tracker = Tracker::new(source);
+    assert!(tracker.track(&book, &day));
+    let before = tracker.today(&book).unwrap();
+    assert_eq!(before, stored);
+    let paragraph = ws
+        .prose_session(&first.id)
+        .unwrap()
+        .reader()
+        .view()
+        .paragraphs()
+        .find(|p| !p.text().is_empty())
+        .unwrap();
+    let text = paragraph.text();
+    let now = Instant::now();
+    tracker.prose(&first.id, Some(&book), true, &day, now);
+    call(
+        &ws,
+        "prose.replace",
+        json!({"doc":first.id,"block_id":paragraph.id,
+        "find":text,"replace":format!("{text} {text}")}),
+    );
+    ws.library().reindex_doc(&first.id).unwrap();
+    tracker.indexed(&first.id, &day, now);
+    let after = tracker.today(&book).unwrap();
+    assert!(after > before);
+    // Imported, off-manuscript and hidden documents never become local writing.
+    let entries = call(&ws, "entry.list", json!({"book":book,"all":true}));
+    let idea = entries
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|e| e["template"] == "tpl-idea")
+        .unwrap()["id"]
+        .as_str()
+        .unwrap();
+    let off = v3::load_at(
+        &ws,
+        &book,
+        Scope::Entry {
+            id: idea.into(),
+            module: None,
+        },
+        &day,
+    )
+    .unwrap();
+    for document in off.documents {
+        tracker.prose(&document.id, Some(&book), true, &day, now);
+        tracker.indexed(&document.id, &day, now);
+    }
+    call(&ws, "entry.trash", json!({"book":book,"id":first.entry}));
+    tracker.chapters_changed(&book, &day, now);
+    call(&ws, "entry.restore", json!({"book":book,"id":first.entry}));
+    tracker.chapters_changed(&book, &day, now);
+    assert_eq!(tracker.today(&book), Some(after));
+    tracker.persist(now, Duration::ZERO);
+    let mut reopened = Tracker::new(WorkspaceSource {
+        ws: ws.clone(),
+        device: Some(device.into()),
+    });
+    assert!(reopened.track(&book, &day));
+    assert_eq!(reopened.today(&book), Some(after));
+    let days = v3::load_at(&ws, &book, Scope::Book, &day).unwrap().days;
+    assert_eq!(days.today, original.days.today + after - stored);
+    assert_eq!(days.days.last().unwrap().words, days.today);
+    ws.close();
+}

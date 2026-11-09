@@ -96,6 +96,23 @@ impl std::ops::Deref for Book {
     }
 }
 
+impl Book {
+    /// Versioned material metadata, without exposing frozen v2.2 rows to v3 views.
+    pub fn material_items(&self) -> &[MaterialInfo] {
+        match &self.snapshot {
+            Snapshot::V22(book) => &book.materials,
+            Snapshot::V3(book) => &book.materials,
+        }
+    }
+
+    pub fn material_folders(&self) -> &[GroupInfo] {
+        match &self.snapshot {
+            Snapshot::V22(book) => &book.folders,
+            Snapshot::V3(book) => &book.material_folders,
+        }
+    }
+}
+
 /// `#RRGGBB` as the author chose it; anything else has no colour.
 pub fn color_of(hex: &str) -> Option<Rgb> {
     let digits = hex.trim().strip_prefix('#')?;
