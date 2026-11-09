@@ -18,11 +18,8 @@ fn seed() -> (tempfile::TempDir, Workspace, String) {
     let id = seed.books[0].book_id().to_string();
     seed.write_to(&store).unwrap();
     store.close().unwrap();
-    (
-        dir,
-        Workspace::open_dir(dir.path(), "0.2.0-dev").unwrap(),
-        id,
-    )
+    let ws = Workspace::open_dir(dir.path(), "0.2.0-dev").unwrap();
+    (dir, ws, id)
 }
 fn call(ws: &Workspace, name: &str, input: Value) -> Value {
     ws.call(&Actor::User, name, input).unwrap()["output"].clone()
