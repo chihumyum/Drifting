@@ -90,15 +90,14 @@ fn author_edit_after_checkpoint_never_rebases_old_coverage_and_retry_recaptures(
                 .is_empty()
         );
         assert!(
-            tools
+            !tools
                 .turns
                 .lock()
                 .unwrap()
                 .get(&key)
                 .unwrap()
                 .reads
-                .get(&format!("book:{book}"))
-                .is_none()
+                .contains_key(&format!("book:{book}"))
         );
         tools.read(&ws, &actor, &key, &metadata, &lease).unwrap();
         let retry = resolve::resolve(
