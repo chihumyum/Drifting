@@ -80,7 +80,7 @@ pub fn convert(source: &crate::SeededBook, choices: &MappingChoices) -> Result<S
                 }
             }
         }
-        let id = prose_id(old.doc_id());
+        let id = prose_id(source.book_id(), old.doc_id());
         let mut doc = ProseDoc::create(id.clone(), import_peer(&id.to_string()))?;
         let (r, _) = doc.edit_at(
             Origin::Import,

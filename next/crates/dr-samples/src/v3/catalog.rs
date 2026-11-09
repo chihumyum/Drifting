@@ -21,7 +21,11 @@ pub(crate) fn invalid(message: impl Into<String>) -> DocError {
 
 /// The mapping's required templates. Unused built-in leaf templates are
 /// harmless, but default category entries must never be added on import.
-fn templates(source: &BookView<'_>, choices: &MappingChoices) -> Result<Vec<EntryTemplate>> {
+fn templates(
+    source: &BookView<'_>,
+    choices: &MappingChoices,
+    manuscript: &EntryId,
+) -> Result<Vec<EntryTemplate>> {
     let mut all = novel_project_templates();
     let base_element = all
         .iter()
@@ -35,6 +39,7 @@ fn templates(source: &BookView<'_>, choices: &MappingChoices) -> Result<Vec<Entr
         .clone();
     for tpl in &mut all {
         if tpl.id.as_str() == TPL_STORYLINE {
+            tpl.settings.home = Some(Some(manuscript.clone()));
             tpl.modules
                 .iter_mut()
                 .find(|m| m.id.as_str() == MOD_KV)
@@ -198,6 +203,47 @@ fn restrictions(kinds: &[EntityKind]) -> Vec<EntityKind> {
         .collect()
 }
 
+/// Import replaces the default categories with the source categories. After
+/// initialization, look up just the four roots by template: the novel helper
+/// also requires its default categories, which no longer belong in this book.
+struct Roots {
+    manuscript: EntryId,
+    ideas: EntryId,
+    elements: EntryId,
+    storylines: EntryId,
+    narrative_view: TimelineViewId,
+}
+
+fn roots(txn: &mut BookTxnV3<'_>) -> Result<Roots> {
+    if txn.view().entries_raw().is_empty() {
+        let ids = apply_novel_project_template(txn)?;
+        return Ok(Roots {
+            manuscript: ids.manuscript,
+            ideas: ids.ideas,
+            elements: ids.elements,
+            storylines: ids.storylines,
+            narrative_view: ids.narrative_view,
+        });
+    }
+    let view = txn.view();
+    let root = |template| {
+        view.root_entry_by_template(&tid(template))
+            .map(|e| e.id)
+            .ok_or_else(|| invalid(format!("missing imported root template {template}")))
+    };
+    let views = view.timeline_views_raw();
+    if views.len() != 1 {
+        return Err(invalid("imported catalog must have one narrative view"));
+    }
+    Ok(Roots {
+        manuscript: root(TPL_MANUSCRIPT)?,
+        ideas: root(TPL_IDEAS)?,
+        elements: root(TPL_ELEMENTS)?,
+        storylines: root(TPL_STORYLINES)?,
+        narrative_view: views[0].id.clone(),
+    })
+}
+
 /// Copy the source catalog. Anchors must already refer to the target prose
 /// documents (the importer writes there directly; sample conversion remakes
 /// anchors by resolving their exact source ranges).
@@ -217,7 +263,7 @@ pub fn sync_catalog(
     if !pending.is_empty() {
         return Err(invalid(format!("unresolved v3 mapping: {pending:?}")));
     }
-    let roots = NovelRootEntries::new();
+    let roots = roots(txn)?;
     let meta = source.meta();
     txn.meta()
         .name(&meta.name)?
@@ -230,7 +276,7 @@ pub fn sync_catalog(
             id: NOVEL_PROJECT_TEMPLATE_ID.into(),
             version: NOVEL_PROJECT_TEMPLATE_VERSION,
         }))?;
-    for template in templates(source, choices)? {
+    for template in templates(source, choices, &roots.manuscript)? {
         txn.template(&template.id)?.set_full(&template)?;
     }
 
@@ -238,6 +284,27 @@ pub fn sync_catalog(
     let nodes = source.nodes();
     let storylines = source.storylines();
     let acts = source.acts();
+    let existing = txn.view().entries_raw();
+    // Synthetic entries are new entries, too. Reuse them during metadata
+    // replay by their source meaning, and generate UUIDv7 on first creation.
+    let unaffiliated = choices.unaffiliated.as_ref().map(|choice| {
+        existing
+            .iter()
+            .find(|e| {
+                e.template.as_ref() == Some(&choice.template.id)
+                    && e.title == "未归属"
+                    && !storylines.iter().any(|s| s.id.as_str() == e.id.as_str())
+                    && !categories.iter().any(|c| c.id.as_str() == e.id.as_str())
+                    && ![
+                        &roots.manuscript,
+                        &roots.ideas,
+                        &roots.elements,
+                        &roots.storylines,
+                    ]
+                    .contains(&&e.id)
+            })
+            .map_or_else(EntryId::new_v7, |e| e.id.clone())
+    });
     let mut entries = Entries {
         txn,
         wanted: BTreeSet::new(),
@@ -358,19 +425,24 @@ pub fn sync_catalog(
             .iter()
             .filter_map(|e| e.group_name.clone())
             .collect();
+        let mut group_ids = BTreeMap::new();
         for name in groups {
-            entries.put(
-                &element_group(category.id.as_str(), &name),
-                Some(&id),
-                &name,
-                &tid(TPL_GROUP),
-            )?;
+            let group = existing
+                .iter()
+                .find(|e| {
+                    e.parent.as_ref() == Some(&id)
+                        && e.template.as_ref() == Some(&tid(TPL_GROUP))
+                        && e.title == name
+                })
+                .map_or_else(EntryId::new_v7, |e| e.id.clone());
+            entries.put(&group, Some(&id), &name, &tid(TPL_GROUP))?;
+            group_ids.insert(name, group);
         }
         for element in members {
             let parent = element
                 .group_name
                 .as_ref()
-                .map(|g| element_group(category.id.as_str(), g))
+                .map(|g| group_ids[g].clone())
                 .unwrap_or_else(|| id.clone());
             let w = entries.put(
                 &eid(element.id.as_str()),
@@ -427,7 +499,7 @@ pub fn sync_catalog(
     if needs_unaffiliated {
         let choice = choices.unaffiliated.as_ref().unwrap();
         entries.put(
-            &eid(UNAFFILIATED),
+            unaffiliated.as_ref().unwrap(),
             choice.parent.as_ref(),
             "未归属",
             &choice.template.id,
@@ -463,7 +535,7 @@ pub fn sync_catalog(
         }
     }
     if needs_unaffiliated {
-        view.put_lane(&eid(UNAFFILIATED), positions.last())?;
+        view.put_lane(unaffiliated.as_ref().unwrap(), positions.last())?;
     }
     for n in &nodes {
         let id = eid(n.id.as_str());
@@ -471,7 +543,7 @@ pub fn sync_catalog(
             txn.put_membership(&eid(host.as_str()), &id, None, None)?;
         }
         if n.storylines.is_empty() && n.narrative_order.is_some() {
-            txn.put_membership(&eid(UNAFFILIATED), &id, None, None)?;
+            txn.put_membership(unaffiliated.as_ref().unwrap(), &id, None, None)?;
         }
         // Preserve None: a secondary membership never becomes primary.
         txn.entries().entry(&id)?.primary(
@@ -538,7 +610,11 @@ fn copy_rest(
             let doc = target_doc(c.target.as_ref()?)?;
             Some((
                 c.id.to_string(),
-                CommentId::for_projection(&projection.kind, &prose_id(&doc), &projection.block),
+                CommentId::for_projection(
+                    &projection.kind,
+                    &prose_id(source.book_id(), &doc),
+                    &projection.block,
+                ),
             ))
         })
         .collect();
@@ -645,7 +721,7 @@ fn copy_rest(
             let old = target_doc(target);
             let new = old
                 .as_ref()
-                .map(prose_id)
+                .map(|id| prose_id(source.book_id(), id))
                 .ok_or_else(|| invalid("projected TODO without prose target"))?;
             let (_, w) = txn.projected_todo(&projection.kind, &new, &projection.block)?;
             w

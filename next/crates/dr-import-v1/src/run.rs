@@ -353,7 +353,7 @@ fn store_doc(
 /// how many were written.
 fn write_templates(
     lib: &Library,
-    book: &str,
+    book: &BookId,
     rows: &BookRows,
     span: &dyn Fn(&str) -> Option<BlockSpan>,
     ts: i64,
@@ -392,7 +392,7 @@ fn write_templates(
             continue;
         }
         notes.merge(&planned.notes);
-        let doc_id = crate::v3::doc_id(options, &owner.doc_id());
+        let doc_id = crate::v3::doc_id(options, book, &owner.doc_id());
         let id_s = doc_id.to_string();
         let mut doc = ProseDoc::create(doc_id.clone(), import_peer(&id_s))?;
         let (r, _) = doc.edit_at(Origin::Import, Some(ts), |t| write::sync(t, &planned.paras));
@@ -400,7 +400,13 @@ fn write_templates(
         let (r, _) = doc.edit_at(Origin::Repair, Some(ts), |t| t.repair_block_ids());
         r?;
         let bytes = doc.export_updates_since(&VersionVector::default())?;
-        store_doc(lib, &doc_id, book, dr_doc::prose::genesis(&doc_id), bytes)?;
+        store_doc(
+            lib,
+            &doc_id,
+            book.as_str(),
+            dr_doc::prose::genesis(&doc_id),
+            bytes,
+        )?;
         written += 1;
     }
     Ok(written)
@@ -761,7 +767,7 @@ fn write_library(
         let mut bodies: Vec<Body<'_>> = Vec::new();
         for o in owners.iter().filter(|o| o.project_id == project.id) {
             let Ok(doc_id) =
-                DocId::parse(&o.new_doc_id()).map(|id| crate::v3::doc_id(options, &id))
+                DocId::parse(&o.new_doc_id()).map(|id| crate::v3::doc_id(options, &book_id, &id))
             else {
                 notes.add("invalid-id");
                 continue;
@@ -823,7 +829,7 @@ fn write_library(
                     ProseKind::from_doc_id(&o).map(|(k, id)| format!("{}:{id}", k.new_prefix()))
                 })
                 .and_then(|d| DocId::parse(&d).ok())
-                .map(|id| crate::v3::doc_id(options, &id))
+                .map(|id| crate::v3::doc_id(options, &book_id, &id))
             else {
                 notes.add("projected-todo-without-target");
                 continue;
@@ -1075,8 +1081,7 @@ fn write_library(
         // no time for them).
         let t0 = Instant::now();
         let changed = secs(parse_iso_ms(&project.updated_at).unwrap_or(0));
-        rec.templates =
-            write_templates(lib, &project.id, &rows, &span, changed, &mut notes, options)?;
+        rec.templates = write_templates(lib, &book_id, &rows, &span, changed, &mut notes, options)?;
         timing.prose_ms += ms(t0);
 
         // The book document, with the snapshot history's metadata replayed:
@@ -1119,11 +1124,26 @@ fn write_library(
         let mut bdoc = BookDoc::create(book_id.clone(), import_peer(&book_doc_s))?;
         // The legacy catalog is an in-memory replay model only. All stored
         // book frontiers and history labels below belong to the v3 writer.
-        let mut v3doc = options
-            .v3
-            .as_ref()
-            .map(|_| dr_doc::v3::BookDocV3::create(book_id.clone(), import_peer(&book_doc_s)))
-            .transpose()?;
+        let mut v3doc = if options.v3.is_none() {
+            None
+        } else if exists {
+            // Fresh root UUIDs belong to the first catalog transaction. A
+            // retry must keep that stored catalog, rather than generating
+            // different roots under the same deterministic import peer.
+            let bytes = lib
+                .load_copy(&book_doc_s)?
+                .export(loro::ExportMode::Snapshot)?;
+            Some(dr_doc::v3::BookDocV3::load(
+                book_id.clone(),
+                import_peer(&book_doc_s),
+                &[bytes],
+            )?)
+        } else {
+            Some(dr_doc::v3::BookDocV3::create(
+                book_id.clone(),
+                import_peer(&book_doc_s),
+            )?)
+        };
         let catalog_projected = crate::v3::catalog_projections(options, &projected, &rows);
         let inputs = book::Inputs {
             book: &book_id,

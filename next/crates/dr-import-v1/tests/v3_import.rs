@@ -82,16 +82,29 @@ fn choices() -> MappingChoices {
     choice
 }
 
-fn entry_id(entry: &manifest::Entry) -> EntryId {
+fn entry_id(view: &BookViewV3<'_>, entry: &manifest::Entry) -> EntryId {
     use manifest::Entry::*;
+    let root = |template| view.root_entry_by_template(&tid(template)).unwrap().id;
     match entry {
-        Manuscript => eid(ROOT_MANUSCRIPT),
-        Ideas => eid(ROOT_IDEAS),
-        Elements => eid(ROOT_ELEMENTS),
-        Storylines => eid(ROOT_STORYLINES),
+        Manuscript => root(TPL_MANUSCRIPT),
+        Ideas => root(TPL_IDEAS),
+        Elements => root(TPL_ELEMENTS),
+        Storylines => root(TPL_STORYLINES),
         Act(id) | Node(id) | IdeaGroup(id) | Category(id) | Element(id) | Storyline(id) => eid(id),
-        ElementGroup { category, name } => adapter::element_group(category, name),
-        Unaffiliated => eid(adapter::UNAFFILIATED),
+        ElementGroup { category, name } => {
+            view.children_of(Some(&eid(category)))
+                .into_iter()
+                .find(|e| e.template == Some(tid(TPL_GROUP)) && &e.title == name)
+                .unwrap()
+                .id
+        }
+        Unaffiliated => {
+            view.entries_raw()
+                .into_iter()
+                .find(|e| e.template == Some(tid("test-unaffiliated-template")))
+                .unwrap()
+                .id
+        }
     }
 }
 
@@ -104,12 +117,13 @@ fn template_id(template: &manifest::LeafTemplate) -> EntryTemplateId {
     }
 }
 
-fn body_id(body: &manifest::Body) -> DocId {
+fn body_id(view: &BookViewV3<'_>, body: &manifest::Body) -> DocId {
     match body {
-        manifest::Body::Leaf(entry) => adapter::body_id(entry_id(entry).as_str(), MOD_PROSE),
-        manifest::Body::About(entry) => adapter::body_id(entry_id(entry).as_str(), MOD_ABOUT),
+        manifest::Body::Leaf(entry) => adapter::body_id(entry_id(view, entry).as_str(), MOD_PROSE),
+        manifest::Body::About(entry) => adapter::body_id(entry_id(view, entry).as_str(), MOD_ABOUT),
         manifest::Body::Material(id) => DocId::Material(MaterialId::parse(id).unwrap()),
         manifest::Body::Template(template) => DocId::Template(TemplateId::for_entry_module(
+            view.book_id(),
             &template_id(template),
             &mid(MOD_PROSE),
         )),
@@ -176,10 +190,10 @@ fn comment_id(old: &str) -> CommentId {
     }
 }
 
-fn endpoint(endpoint: &manifest::Endpoint) -> dr_model::book::EntityRef {
+fn endpoint(view: &BookViewV3<'_>, endpoint: &manifest::Endpoint) -> dr_model::book::EntityRef {
     use manifest::Endpoint::*;
     let (kind, id) = match endpoint {
-        Entry(e) => (EntityKind::Entry, entry_id(e).to_string()),
+        Entry(e) => (EntityKind::Entry, entry_id(view, e).to_string()),
         Material(id) => (EntityKind::Material, id.clone()),
         Comment(id) => (EntityKind::Comment, comment_id(id).to_string()),
         Patch(id) => (EntityKind::Patch, id.clone()),
@@ -194,7 +208,7 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
     assert_eq!(view.entries_raw().len(), counts.levels + counts.leaves);
     assert_eq!(view.meta().schema_version, 3);
     assert_eq!(
-        view.manuscript_leaves(&eid(ROOT_MANUSCRIPT))
+        view.manuscript_leaves(&entry_id(view, &manifest::Entry::Manuscript))
             .iter()
             .map(|e| e.id.as_str())
             .collect::<Vec<_>>(),
@@ -206,7 +220,7 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
         ]
     );
     assert_eq!(
-        view.children_of(Some(&eid(ROOT_MANUSCRIPT)))
+        view.children_of(Some(&entry_id(view, &manifest::Entry::Manuscript)))
             .iter()
             .map(|e| e.id.as_str())
             .collect::<Vec<_>>(),
@@ -218,12 +232,15 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
         expected.settings.daily_word_target
     );
     for level in &expected.levels {
-        let actual = view.entry(&entry_id(&level.entry)).unwrap();
+        let actual = view.entry(&entry_id(view, &level.entry)).unwrap();
         assert_eq!(actual.title, level.title, "{:?}", level.entry);
         // The independent oracle intentionally leaves the synthetic home
         // undecided. Only this test supplies its explicit home/template.
         if level.entry != manifest::Entry::Unaffiliated {
-            assert_eq!(actual.parent, level.parent.as_ref().map(entry_id));
+            assert_eq!(
+                actual.parent,
+                level.parent.as_ref().map(|e| entry_id(view, e))
+            );
         }
         assert!(actual.is_level(&view.templates_map()));
         assert_eq!(actual.is_lane_level(&view.templates_map()), level.lane);
@@ -241,9 +258,9 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
         }
     }
     for leaf in &expected.leaves {
-        let actual = view.entry(&entry_id(&leaf.entry)).unwrap();
+        let actual = view.entry(&entry_id(view, &leaf.entry)).unwrap();
         assert_eq!(actual.title, leaf.title);
-        assert_eq!(actual.parent, leaf.home.as_ref().map(entry_id));
+        assert_eq!(actual.parent, leaf.home.as_ref().map(|e| entry_id(view, e)));
         assert_eq!(actual.template, leaf.template.as_ref().map(template_id));
         assert_eq!(
             text(&actual, "summary").as_deref(),
@@ -323,7 +340,13 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
     let mut want: Vec<_> = expected
         .memberships
         .iter()
-        .map(|m| (entry_id(&m.level), entry_id(&m.member), m.primary))
+        .map(|m| {
+            (
+                entry_id(view, &m.level),
+                entry_id(view, &m.member),
+                m.primary,
+            )
+        })
         .collect();
     want.sort();
     assert_eq!(memberships, want);
@@ -340,7 +363,7 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
             .default_view
             .lanes
             .iter()
-            .map(entry_id)
+            .map(|e| entry_id(view, e))
             .collect::<Vec<_>>()
     );
     let mut positions: Vec<_> = timeline
@@ -353,7 +376,7 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
         .default_view
         .placements
         .iter()
-        .map(|p| (entry_id(&p.entry), p.at, p.span))
+        .map(|p| (entry_id(view, &p.entry), p.at, p.span))
         .collect();
     want.sort_by(|a, b| a.0.cmp(&b.0));
     assert_eq!(positions, want);
@@ -369,7 +392,7 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
                 pin.at,
                 &pin.label,
                 &pin.color,
-                &pin.entry.as_ref().map(entry_id)
+                &pin.entry.as_ref().map(|e| entry_id(view, e))
             )
         );
     }
@@ -380,12 +403,12 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
             .into_iter()
             .find(|p| p.id.as_str() == patch.old_id)
             .unwrap();
-        assert_eq!(actual.entry, entry_id(&patch.owner));
+        assert_eq!(actual.entry, entry_id(view, &patch.owner));
         assert_eq!(actual.module, mid(MOD_PATCHES));
         assert_eq!(
             actual.source_entry,
             patch.source.as_ref().and_then(|b| match b {
-                manifest::Body::Leaf(e) => Some(entry_id(e)),
+                manifest::Body::Leaf(e) => Some(entry_id(view, e)),
                 _ => None,
             })
         );
@@ -406,7 +429,7 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
     }
     for grid in &expected.plot_grids {
         let actual = view
-            .plot_grid(&entry_id(&grid.entry), &mid(MOD_PLOT_GRID))
+            .plot_grid(&entry_id(view, &grid.entry), &mid(MOD_PLOT_GRID))
             .unwrap();
         let row = expected.source_rows["plot_grid_document"]
             .iter()
@@ -439,10 +462,13 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
             .into_iter()
             .find(|c| c.id == comment_id(&comment.old_id))
             .unwrap();
-        assert_eq!(actual.target, comment.target.as_ref().map(endpoint));
+        assert_eq!(
+            actual.target,
+            comment.target.as_ref().map(|e| endpoint(view, e))
+        );
         assert_eq!(actual.kind.as_str(), comment.kind);
         if let Some(body) = &comment.body
-            && let DocId::Body(id) = body_id(body)
+            && let DocId::Body(id) = body_id(view, body)
         {
             assert_eq!(actual.target_module.as_ref(), Some(id.module()));
         }
@@ -467,9 +493,12 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
             .find(|r| r.id.as_str() == relation.old_id)
             .unwrap();
         let (from, to) = if relation.orientation == "symmetric" {
-            dr_model::book::canonical_symmetric(endpoint(&relation.from), endpoint(&relation.to))
+            dr_model::book::canonical_symmetric(
+                endpoint(view, &relation.from),
+                endpoint(view, &relation.to),
+            )
         } else {
-            (endpoint(&relation.from), endpoint(&relation.to))
+            (endpoint(view, &relation.from), endpoint(view, &relation.to))
         };
         assert_eq!(
             (actual.from, actual.to, actual.relation_type.to_string()),
@@ -481,8 +510,8 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
             view.relations_raw()
                 .iter()
                 .any(|r| r.relation_type.as_str() == "test-act-binding"
-                    && r.from.id == entry_id(&binding.act).as_str()
-                    && r.to.id == entry_id(&binding.idea).as_str())
+                    && r.from.id == entry_id(view, &binding.act).as_str()
+                    && r.to.id == entry_id(view, &binding.idea).as_str())
         );
     }
     assert_eq!(
@@ -598,7 +627,7 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
         {
             continue;
         }
-        let id = body_id(&body.target);
+        let id = body_id(view, &body.target);
         let doc = load_prose(lib, &id);
         let json = body.json.as_deref().unwrap_or("{}");
         let lines = dr_import_v1::prose::pm::parse(json).unwrap();
@@ -729,6 +758,75 @@ fn malformed_source_is_reported_without_automatic_repairs() {
         matches!(error,dr_import_v1::ImportError::V3Pending(p) if p.iter().any(|p| p.code == "element-missing-category"))
     );
     assert!(!root.join("library.sqlite").exists());
+}
+
+#[test]
+fn a_long_legacy_id_is_reported_before_constructing_a_scoped_template_doc_id() {
+    let old = fixture::build();
+    let c = rusqlite::Connection::open(&old.db).unwrap();
+    c.pragma_update(None, "foreign_keys", false).unwrap();
+    let long = "c".repeat(220);
+    c.execute(
+        "UPDATE element_category SET id=?1 WHERE id=?2",
+        [&long, CATEGORY],
+    )
+    .unwrap();
+    drop(c);
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("library");
+    let error = run::import(&old.db, &root, &options(&old)).unwrap_err();
+    assert!(
+        matches!(error, dr_import_v1::ImportError::V3Pending(p) if p.iter().any(|p| p.code == "template-prose-id-not-representable"))
+    );
+    assert!(!root.join("library.sqlite").exists());
+}
+
+#[test]
+fn catalog_already_stored_before_interruption_keeps_its_generated_roots_on_resume() {
+    let old = fixture::build();
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("library");
+    let opts = options(&old);
+    let cancel = opts.cancel.clone();
+    let (first, _) = run::import_with(&old.db, &root, &opts, &mut |p| {
+        if p.step == dr_import_v1::progress::Step::Assets && p.done == 0 {
+            cancel.now();
+        }
+    })
+    .unwrap();
+    assert!(matches!(first, Outcome::Imported(r) if r.books[0].status == "importing"));
+    let load = |lib: &Library| {
+        let bytes = lib
+            .load_copy(&format!("book:{BOOK}"))
+            .unwrap()
+            .export(loro::ExportMode::Snapshot)
+            .unwrap();
+        BookDocV3::load(BookId::parse(BOOK).unwrap(), random_device_peer(), &[bytes]).unwrap()
+    };
+    let roots = |book: &BookDocV3| -> Vec<EntryId> {
+        [TPL_MANUSCRIPT, TPL_IDEAS, TPL_ELEMENTS, TPL_STORYLINES]
+            .iter()
+            .map(|tpl| book.view().root_entry_by_template(&tid(tpl)).unwrap().id)
+            .collect()
+    };
+    let lib = open(&root);
+    let before = load(&lib);
+    let expected = manifest::read(&old.db, BOOK).unwrap();
+    adapter::validate(&before.view()).unwrap();
+    lib.close().unwrap();
+    let (second, _) = run::import(&old.db, &root, &options(&old)).unwrap();
+    assert!(matches!(second, Outcome::Imported(r) if r.books[0].status == "imported"));
+    let lib = open(&root);
+    let after = load(&lib);
+    assert_eq!(roots(&before), roots(&after));
+    assert_eq!(
+        before.view().timeline_views_raw()[0].id,
+        after.view().timeline_views_raw()[0].id
+    );
+    compare(&after.view(), &expected, &lib);
+    let chapter = adapter::body_id(CHAPTER, MOD_PROSE);
+    assert_eq!(lib.history(&chapter.to_string()).unwrap().len(), 3);
+    lib.close().unwrap();
 }
 
 #[test]

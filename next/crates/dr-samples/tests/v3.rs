@@ -93,7 +93,7 @@ fn both_sample_recipes_keep_their_text_marks_structure_and_exact_anchors() {
         );
         assert_eq!(source.prose.len(), sample.prose.len());
         for (old, new) in source.prose.iter().zip(&sample.prose) {
-            assert_eq!(new.doc_id(), &prose_id(old.doc_id()));
+            assert_eq!(new.doc_id(), &prose_id(source.book_id(), old.doc_id()));
             assert_eq!(
                 new.view().plain_text(),
                 old.view().plain_text(),
@@ -174,11 +174,17 @@ fn both_sample_recipes_keep_their_text_marks_structure_and_exact_anchors() {
         );
         let all = dr_doc::loro_types::VersionVector::default();
         let repeat = convert(&source, &choices).unwrap();
-        assert!(
-            repeat.book.export_updates_since(&all).unwrap()
-                == sample.book.export_updates_since(&all).unwrap(),
-            "same v3 catalog updates"
-        );
+        validate(&repeat.book.view()).unwrap();
+        for template in [TPL_MANUSCRIPT, TPL_IDEAS, TPL_ELEMENTS, TPL_STORYLINES] {
+            let a = view.root_entry_by_template(&tid(template)).unwrap();
+            let b = repeat
+                .book
+                .view()
+                .root_entry_by_template(&tid(template))
+                .unwrap();
+            assert_ne!(a.id, b.id, "new conversions generate fresh roots");
+            assert_eq!(a.title, b.title);
+        }
         for (a, b) in repeat.prose.iter().zip(&sample.prose) {
             assert!(
                 a.export_updates_since(&all).unwrap() == b.export_updates_since(&all).unwrap(),
@@ -214,4 +220,135 @@ fn v3_sample_documents_store_body_first_and_reopen_as_v3() {
         "an existing sample is not overwritten"
     );
     lib.close().unwrap();
+}
+
+#[test]
+fn two_samples_in_one_library_survive_permanent_deletion_of_either_book() {
+    use dr_doc::peer::random_device_peer;
+    use dr_doc::prose::ProseDoc;
+    use dr_model::{DocId, Origin};
+    use std::collections::{BTreeMap, BTreeSet};
+
+    let mut samples: Vec<_> = [
+        dr_samples::a_q().unwrap(),
+        dr_samples::pride_and_prejudice().unwrap(),
+    ]
+    .iter()
+    .map(|source| convert(source, &test_choices(source)).unwrap())
+    .collect();
+    for sample in &mut samples {
+        let view = sample.book.view();
+        let root = view
+            .root_entry_by_template(&tid(TPL_MANUSCRIPT))
+            .unwrap()
+            .id;
+        let module = ModuleId::parse(MOD_PROSE).unwrap();
+        // Exercise both previously colliding document forms with actual
+        // stored bytes. Reuse this sample's licensed prose, no new corpus.
+        for id in [
+            body_id(root.as_str(), MOD_ABOUT),
+            DocId::Template(TemplateId::for_entry_module(
+                sample.book_id(),
+                &tid(TPL_CHAPTER),
+                &module,
+            )),
+        ] {
+            assert!(view.owns_prose(&id));
+            let mut prose = ProseDoc::create(id, random_device_peer()).unwrap();
+            let (r, _) = prose.edit(Origin::User, |t| t.insert_copy(0, &sample.prose[0].view()));
+            r.unwrap();
+            sample.prose.push(prose);
+        }
+    }
+    let entries = |sample: &SampleBookV3| -> BTreeSet<_> {
+        sample
+            .book
+            .view()
+            .entries_raw()
+            .into_iter()
+            .map(|e| e.id)
+            .collect()
+    };
+    assert!(entries(&samples[0]).is_disjoint(&entries(&samples[1])));
+    for deleted in 0..2 {
+        let survivor = &samples[1 - deleted];
+        let temp = tempfile::tempdir().unwrap();
+        let lib = dr_store::Library::open(
+            temp.path(),
+            dr_store::LibraryOptions::new("k3-v3-two-samples"),
+        )
+        .unwrap();
+        for sample in &samples {
+            write_book(&lib, sample).unwrap();
+        }
+        let documents = |book: &BookId| -> BTreeSet<String> {
+            lib.docs(Some(book.as_str()), None)
+                .unwrap()
+                .into_iter()
+                .map(|d| d.doc_id)
+                .collect()
+        };
+        let removed = documents(samples[deleted].book_id());
+        let kept = documents(survivor.book_id());
+        assert_eq!(removed.len(), samples[deleted].prose.len() + 1);
+        assert_eq!(kept.len(), survivor.prose.len() + 1);
+        assert!(removed.is_disjoint(&kept));
+        let before: BTreeMap<_, _> = kept
+            .iter()
+            .map(|id| {
+                let copy = lib.load_copy(id).unwrap();
+                (
+                    id.clone(),
+                    (
+                        copy.oplog_vv(),
+                        copy.export(loro::ExportMode::all_updates()).unwrap(),
+                    ),
+                )
+            })
+            .collect();
+        let mut removed: Vec<_> = removed.into_iter().collect();
+        removed.sort_by_key(|id| id.starts_with("book:"));
+        for id in &removed {
+            lib.purge_doc(id).unwrap();
+            assert!(lib.doc_info(id).unwrap().is_none());
+        }
+        assert!(
+            lib.book_purged(samples[deleted].book_id().as_str())
+                .unwrap()
+        );
+        assert_eq!(documents(survivor.book_id()), kept);
+        for (id, want) in before {
+            let copy = lib.load_copy(&id).unwrap();
+            assert_eq!(copy.oplog_vv(), want.0, "unchanged version: {id}");
+            assert_eq!(
+                copy.export(loro::ExportMode::all_updates()).unwrap(),
+                want.1,
+                "unchanged content: {id}"
+            );
+        }
+        let bytes = lib
+            .load_copy(&survivor.book.doc_id().to_string())
+            .unwrap()
+            .export(loro::ExportMode::Snapshot)
+            .unwrap();
+        let loaded =
+            dr_doc::v3::BookDocV3::load(survivor.book_id().clone(), random_device_peer(), &[bytes])
+                .unwrap();
+        validate(&loaded.view()).unwrap();
+        assert_eq!(
+            loaded.view().entries_raw(),
+            survivor.book.view().entries_raw()
+        );
+        for expected in &survivor.prose {
+            let bytes = lib
+                .load_copy(&expected.doc_id().to_string())
+                .unwrap()
+                .export(loro::ExportMode::Snapshot)
+                .unwrap();
+            let prose =
+                ProseDoc::load(expected.doc_id().clone(), random_device_peer(), &[bytes]).unwrap();
+            assert_eq!(prose.view().plain_text(), expected.view().plain_text());
+        }
+        lib.close().unwrap();
+    }
 }

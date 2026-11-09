@@ -63,8 +63,6 @@ pub(crate) fn mid(s: &str) -> ModuleId {
     ModuleId::parse(s).expect("checked module id")
 }
 
-pub const UNAFFILIATED: &str = "import-unaffiliated";
-
 fn template_id(namespace: &str, source: &str) -> EntryTemplateId {
     let full = format!("import-{namespace}-{source}");
     EntryTemplateId::parse(&full)
@@ -82,18 +80,6 @@ pub fn category_template(id: &str) -> EntryTemplateId {
 }
 pub fn storyline_template(id: &str) -> EntryTemplateId {
     template_id("storyline", id)
-}
-
-/// Length-framed UTF-8 avoids concatenation collisions; names never become
-/// ids themselves. FNV-1a is only an id derivation, not a security boundary.
-pub fn element_group(category: &str, name: &str) -> EntryId {
-    let mut hash = 0xcbf29ce484222325_u64;
-    for bytes in [category.as_bytes(), name.as_bytes()] {
-        for byte in (bytes.len() as u64).to_le_bytes().iter().chain(bytes) {
-            hash = (hash ^ u64::from(*byte)).wrapping_mul(0x100000001b3);
-        }
-    }
-    eid(&format!("import-element-group-{hash:016x}"))
 }
 
 pub fn map_kind(kind: &EntityKind) -> EntityKind {
@@ -115,7 +101,7 @@ pub fn body_id(entry: &str, module: &str) -> DocId {
 
 /// The id map is shared by body writing, history, TODO projections and
 /// template ownership. It does not change material document identities.
-pub fn prose_id(old: &DocId) -> DocId {
+pub fn prose_id(book: &BookId, old: &DocId) -> DocId {
     match old {
         DocId::Node(id) => body_id(id.as_str(), MOD_PROSE),
         DocId::Element(id) => body_id(id.as_str(), MOD_PROSE),
@@ -123,10 +109,12 @@ pub fn prose_id(old: &DocId) -> DocId {
         DocId::Storyline(id) => body_id(id.as_str(), MOD_ABOUT),
         DocId::Template(id) => match id.owner() {
             Some(TemplateOwner::Category(id)) => DocId::Template(TemplateId::for_entry_module(
+                book,
                 &category_template(id.as_str()),
                 &mid(MOD_PROSE),
             )),
             Some(TemplateOwner::Storyline(id)) => DocId::Template(TemplateId::for_entry_module(
+                book,
                 &storyline_template(id.as_str()),
                 &mid(MOD_PROSE),
             )),

@@ -32,9 +32,9 @@ pub(crate) fn mapping_key(options: &Options) -> Result<String> {
     })
 }
 
-pub(crate) fn doc_id(options: &Options, old: &DocId) -> DocId {
+pub(crate) fn doc_id(options: &Options, book: &BookId, old: &DocId) -> DocId {
     if options.v3.is_some() {
-        dr_samples::v3::prose_id(old)
+        dr_samples::v3::prose_id(book, old)
     } else {
         old.clone()
     }
@@ -282,6 +282,30 @@ pub fn pending(legacy: &Legacy, choices: &MappingChoices) -> Result<Vec<Pending>
             add("invalid-book-id", &project.id);
             continue;
         };
+        for (owner, template) in rows
+            .categories
+            .iter()
+            .map(|c| (&c.id, dr_samples::v3::category_template(&c.id)))
+            .chain(
+                rows.storylines
+                    .iter()
+                    .map(|s| (&s.id, dr_samples::v3::storyline_template(&s.id))),
+            )
+        {
+            // The public constructor expects valid compound ids. Historical
+            // ids may be long or contain separators: report before writes,
+            // rather than panic or silently change their identity.
+            let encoded = format!("{id}/{template}/{}", dr_doc::v3::novel::MOD_PROSE);
+            let decoded = TemplateId::parse(&encoded)
+                .ok()
+                .and_then(|t| t.entry_module());
+            if decoded
+                .as_ref()
+                .is_none_or(|(b, t, _)| b != &id || t != &template)
+            {
+                add("template-prose-id-not-representable", owner);
+            }
+        }
         let mut catalog = BookDoc::create(id.clone(), import_peer(&format!("preflight:{id}")))?;
         let mut notes = Notes::default();
         let empty = crate::handoff::BookSettings::default();
@@ -638,7 +662,11 @@ pub(crate) fn holds(view: &BookViewV3<'_>, owner: &Owner, want: &Fields) -> bool
             .parent
             .as_ref()
             .and_then(|p| view.entry(p))
-            .filter(|p| p.id.as_str().starts_with("import-element-group-"))
+            .filter(|p| {
+                p.template
+                    .as_ref()
+                    .is_some_and(|t| t.as_str() == dr_doc::v3::novel::TPL_GROUP)
+            })
             .map(|p| p.title);
         if &actual != group {
             return false;
