@@ -10,8 +10,11 @@ use gpui::{AnyView, App, FocusHandle, Global, Window};
 use std::{collections::BTreeMap, rc::Rc};
 
 pub mod card;
+mod drag;
 pub mod page;
 pub mod sidebar;
+
+pub use drag::EntryDrag;
 
 #[derive(Clone)]
 pub struct ModuleHost {

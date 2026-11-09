@@ -1648,7 +1648,7 @@ pub mod v3 {
         book::Book,
         nav::Open,
         strings::t,
-        v3::{DisplaySurface, LevelHost, Rendered, entry_target},
+        v3::{DisplaySurface, EntryDrag, LevelHost, Rendered, entry_target},
     };
     use dr_ui::{
         Theme,
@@ -1866,19 +1866,9 @@ pub mod v3 {
     }
 
     #[derive(Clone)]
-    struct EntryDrag {
-        page: dr_shell::pages::PageViewHost,
-        id: String,
+    struct EntryDragSource {
         start: Entity<Option<Point<Pixels>>>,
         board: Option<(String, (f64, f64))>,
-    }
-    impl EntryDrag {
-        fn same(&self, page: &dr_shell::pages::PageViewHost) -> bool {
-            self.page.workspace.entity_id() == page.workspace.entity_id()
-                && self.page.book_id == page.book_id
-                && std::ptr::eq(self.page.library.library(), page.library.library())
-                && self.page.book.v3().map(|v| &v.revision) == page.book.v3().map(|v| &v.revision)
-        }
     }
     fn admit_drag(
         host: &dr_shell::pages::PageViewHost,
@@ -1926,11 +1916,12 @@ pub mod v3 {
         after: bool,
         cx: &mut App,
     ) {
-        if !drag.same(page) || crate::data::v3::fresh(&drag.page, cx).is_none() {
+        if !drag.matches(page) || !drag.is_current(cx) {
             return;
         }
-        if let Ok(edit) = crate::data::v3::prepare_drop(&drag.page.book, &drag.id, onto, after) {
-            admit_drag(&drag.page, move |lib| edit.commit(&lib), cx);
+        if let Ok(edit) = crate::data::v3::prepare_drop(&drag.page().book, &drag.entry, onto, after)
+        {
+            admit_drag(drag.page(), move |lib| edit.commit(&lib), cx);
         }
     }
     fn drop_on_board(
@@ -1940,13 +1931,14 @@ pub mod v3 {
         window: &Window,
         cx: &mut App,
     ) {
-        if !drag.same(page) || crate::data::v3::fresh(&drag.page, cx).is_none() {
+        if !drag.matches(page) || !drag.is_current(cx) {
             return;
         }
-        if let Some((origin, position)) = &drag.board
+        if let Some(source) = drag.source::<EntryDragSource>()
+            && let Some((origin, position)) = &source.board
             && origin == level
         {
-            let Some(start) = *drag.start.read(cx) else {
+            let Some(start) = *source.start.read(cx) else {
                 return;
             };
             let delta = window.mouse_position() - start;
@@ -1954,8 +1946,10 @@ pub mod v3 {
                 position.0 + f64::from(f32::from(delta.x)),
                 position.1 + f64::from(f32::from(delta.y)),
             );
-            if let Ok(edit) = crate::data::v3::prepare_board(&drag.page.book, &drag.id, position) {
-                admit_drag(&drag.page, move |lib| edit.commit(&lib), cx);
+            if let Ok(edit) =
+                crate::data::v3::prepare_board(&drag.page().book, &drag.entry, position)
+            {
+                admit_drag(drag.page(), move |lib| edit.commit(&lib), cx);
             }
         } else {
             drop_on_entry(page, drag, level, true, cx);
@@ -2244,6 +2238,7 @@ pub mod v3 {
                 cx,
             );
             let drop_bounds = bounds.clone();
+            let grab_bounds = bounds.clone();
             let in_board = board.is_some();
             let start = window.use_keyed_state(
                 SharedString::from(format!("g2-drag-start-{}-{scope}-{id}", self.host.level)),
@@ -2251,12 +2246,8 @@ pub mod v3 {
                 |_, _| None::<Point<Pixels>>,
             );
             let pressed = start.clone();
-            let drag = EntryDrag {
-                page: self.host.page.clone(),
-                id: id.into(),
-                start,
-                board,
-            };
+            let drag = EntryDrag::new(self.host.page.clone(), id, entry.title.clone())
+                .with_source(EntryDragSource { start, board });
             let ghost = entry.title.clone();
             let page = self.host.page.clone();
             let can_page = page.clone();
@@ -2281,9 +2272,16 @@ pub mod v3 {
                     pressed.update(cx, |start, _| *start = Some(event.position));
                 })
                 .on_drag(drag, move |drag, _, window, cx| {
-                    if drag.start.read(cx).is_none() {
-                        drag.start
+                    let source = drag.source::<EntryDragSource>().expect("G2 drag source");
+                    if source.start.read(cx).is_none() {
+                        source
+                            .start
                             .update(cx, |start, _| *start = Some(window.mouse_position()));
+                    }
+                    if let Some(press) = *source.start.read(cx)
+                        && let Some(bounds) = grab_bounds.read(cx).as_ref()
+                    {
+                        drag.set_grab(f32::from(press.x - bounds.origin.x));
                     }
                     let pill = Pill::new(ghost.clone()).mark(mark, color);
                     let at = window.mouse_position();
@@ -2292,10 +2290,10 @@ pub mod v3 {
                 .when(!in_board, |el| {
                     el.can_drop(move |value, _, _| {
                         value.downcast_ref::<EntryDrag>().is_some_and(|drag| {
-                            drag.same(&can_page)
+                            drag.matches(&can_page)
                                 && crate::data::v3::drop_target(
-                                    &drag.page.book,
-                                    &drag.id,
+                                    &drag.page().book,
+                                    &drag.entry,
                                     &can_onto,
                                     true,
                                 )
@@ -2497,14 +2495,14 @@ pub mod v3 {
                 .aria_label(t(cx, keys::v3_shell::ENTRIES))
                 .can_drop(move |value, _, _| {
                     value.downcast_ref::<EntryDrag>().is_some_and(|drag| {
-                        drag.same(&can_page)
+                        drag.matches(&can_page)
                             && (drag
-                                .board
-                                .as_ref()
+                                .source::<EntryDragSource>()
+                                .and_then(|source| source.board.as_ref())
                                 .is_some_and(|(level, _)| level == &can_level)
                                 || crate::data::v3::drop_target(
-                                    &drag.page.book,
-                                    &drag.id,
+                                    &drag.page().book,
+                                    &drag.entry,
                                     &can_level,
                                     true,
                                 )
