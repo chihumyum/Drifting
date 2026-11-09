@@ -109,6 +109,36 @@
       "save": "plot"
     },
     {
+      "call": "module.put_grid",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-plot-grid",
+        "grid": {
+          "cell_w": "${plot.grid.cell_w}",
+          "cell_h": "${plot.grid.cell_h}",
+          "rows": "${plot.grid.rows}",
+          "columns": "${plot.grid.columns}",
+          "cells": [
+            {
+              "row": "${plot.grid.rows.0.id}",
+              "column": "${plot.grid.columns.0.id}",
+              "text": "Grid original"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "call": "module.read",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-plot-grid"
+      },
+      "save": "plot"
+    },
+    {
       "launch": {
         "env": {
           "DRIFTING_APPEARANCE": "light",
