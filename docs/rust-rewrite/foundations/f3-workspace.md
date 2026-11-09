@@ -943,8 +943,8 @@ import／checkout。读取不提交事务。`entry.list` 和 `level.get` 使用�
 不是只测打开一个空 Workspace。修前证据的源文件指纹在运行开始时冻结；公共基准
 输入路径同步 dr-corpus 拆分，debug 证据不再误标成 release 命令。
 
-本批不改外壳。整合后由外壳消费 `level.list` 并移除独立来源算法，再安排 G3／K5
-标准 debug heavy 窗口复验；本批的查询完成时间不能当成窗口 `book.loaded=true` 的验收。
+本批不改外壳。整合后由外壳消费 `level.list` 并移除独立来源算法，再由整合者在各组和 K6 合齐后安排
+标准 debug heavy 的统一窗口验收；本批的查询完成时间不能当成窗口 `book.loaded=true` 的验收。
 
 ### v3-heavy 修前／修后测量
 
