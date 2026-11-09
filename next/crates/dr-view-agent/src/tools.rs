@@ -62,6 +62,24 @@ impl ToolExecutor for CompanionTools {
             })
         }
     }
+    fn describe_in_book(
+        &self,
+        workspace: &dr_workspace::Workspace,
+        book: &dr_model::id::BookId,
+        call: &ToolCall,
+    ) -> Option<ToolDescriptor> {
+        if call.name == "ask_user" {
+            Some(ask_descriptor())
+        } else {
+            self.book
+                .describe_in_book(workspace, book, call)
+                .or_else(|| {
+                    self.plugins
+                        .as_ref()
+                        .and_then(|plugins| plugins.describe_in_book(workspace, book, call))
+                })
+        }
+    }
     fn finish_session(&self, session: &str) {
         self.book.finish_session(session);
         if let Some(plugins) = &self.plugins {

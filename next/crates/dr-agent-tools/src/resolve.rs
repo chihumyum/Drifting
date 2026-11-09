@@ -9,6 +9,11 @@ use serde_json::{Value, json};
 
 use crate::{Error, Result, catalog::allowed};
 
+#[path = "resolve_v3.rs"]
+mod v3;
+
+pub(crate) use v3::{action_input_schema_v3, facade_schema_v3, prose_doc_from_module_args};
+
 #[derive(Clone, Debug)]
 pub struct ResolvedCall {
     pub name: String,
@@ -23,6 +28,9 @@ pub struct ResolvedCall {
 }
 
 pub fn resolve(ws: &Workspace, book: &BookId, name: &str, mut args: Value) -> Result<ResolvedCall> {
+    if crate::catalog::is_v3_book(ws, book)? {
+        return v3::resolve_v3(ws, book, name, args);
+    }
     let spec = registry()
         .get(name)
         .filter(|spec| allowed(spec))
@@ -225,6 +233,9 @@ pub fn resolve(ws: &Workspace, book: &BookId, name: &str, mut args: Value) -> Re
 /// can establish observations for its returned rows, never for absent rows
 /// or the entire collection. Call this with F3's output (or its Outcome).
 pub fn coverage(name: &str, args: &Value, output: &Value) -> Vec<String> {
+    if let Some(read) = v3::coverage_v3(name, args, output) {
+        return read;
+    }
     let output = output.get("output").unwrap_or(output);
     let Some((domain, verb)) = name.split_once('.') else {
         return Vec::new();
@@ -281,6 +292,10 @@ pub fn coverage(name: &str, args: &Value, output: &Value) -> Vec<String> {
         read.insert(format!("{domain}:{id}"));
     }
     read.into_iter().collect()
+}
+
+pub(crate) fn subjects_v2(name: &str, args: &Value) -> Vec<String> {
+    subjects(name, args)
 }
 
 fn subjects(name: &str, args: &Value) -> Vec<String> {

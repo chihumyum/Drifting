@@ -395,7 +395,13 @@ impl Worker {
             .descriptors
             .iter()
             .any(|d| d.name == call.name)
-            .then(|| self.inner.tools.describe(call))
+            .then(|| {
+                self.inner.tools.describe_in_book(
+                    &self.inner.ws,
+                    &self.journal.header.start.book,
+                    call,
+                )
+            })
             .flatten()
     }
 
@@ -443,7 +449,13 @@ impl Worker {
             self.journal.finish(&result)?;
             return Ok(result);
         }
-        if self.inner.tools.describe(&call).as_ref() != Some(&descriptor) {
+        if self
+            .inner
+            .tools
+            .describe_in_book(&self.inner.ws, &self.journal.header.start.book, &call)
+            .as_ref()
+            != Some(&descriptor)
+        {
             result.status = ToolStatus::Error;
             result.output = json!({"error":"tool definition changed; request it again"});
         } else {
