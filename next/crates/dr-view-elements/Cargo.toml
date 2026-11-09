@@ -29,6 +29,7 @@ icu_collator.workspace = true
 icu_locale_core.workspace = true
 log.workspace = true
 png = { workspace = true, optional = true }
+serde_json.workspace = true
 
 [dev-dependencies]
 anyhow.workspace = true

@@ -315,3 +315,225 @@ fn refresh_keeps_the_visible_entry_when_rows_are_inserted_above_it(cx: &mut gpui
     // display host's workspace lease, as in the other panel GPUI tests.
     drop(ws);
 }
+
+#[test]
+fn setting_override_clear_restore_and_provenance_preserve_other_data() {
+    use dr_shell::book::v3::SettingSource;
+    use dr_view_elements::data::v3::prepare_override;
+    let (_dir, ws, book) = seed();
+    let initial = Book::load(&ws, &book).unwrap();
+    let v = initial.v3().unwrap();
+    let parent = v
+        .entries
+        .iter()
+        .find(|e| e.template.as_deref() == Some("tpl-manuscript"))
+        .unwrap()
+        .id
+        .clone();
+    let group = call(
+        &ws,
+        "entry.create",
+        json!({"book":book,"parent":parent,"template":"tpl-group","title":"Synthetic inherited settings"}),
+    );
+    let id = group["id"].as_str().unwrap();
+    let before = Book::load(&ws, &book).unwrap();
+    assert_eq!(
+        before.v3().unwrap().levels[id]
+            .settings
+            .default_template
+            .as_deref(),
+        Some("tpl-chapter")
+    );
+    assert!(
+        matches!(&before.v3().unwrap().levels[id].sources["default_template"],SettingSource::Template{entry,..} if entry==&parent)
+    );
+    prepare_override(&before, id, "default_template", Some(Value::Null))
+        .unwrap()
+        .commit(&ws)
+        .unwrap();
+    let cleared = Book::load(&ws, &book).unwrap();
+    let level = &cleared.v3().unwrap().levels[id];
+    assert_eq!(level.settings.default_template, None);
+    assert!(
+        matches!(&level.sources["default_template"],SettingSource::Override{entry} if entry==id)
+    );
+    // Another setting and unrelated layout must survive restoration.
+    prepare_override(&cleared, id, "display", Some(json!("grid")))
+        .unwrap()
+        .commit(&ws)
+        .unwrap();
+    call(
+        &ws,
+        "entry.update",
+        json!({"book":book,"id":id,"layout":{"board":[-12.0,34.0],"grid":[2,3]}}),
+    );
+    let overridden = Book::load(&ws, &book).unwrap();
+    prepare_override(&overridden, id, "default_template", None)
+        .unwrap()
+        .commit(&ws)
+        .unwrap();
+    let restored = Book::load(&ws, &book).unwrap();
+    let v = restored.v3().unwrap();
+    assert_eq!(
+        v.levels[id].settings.default_template.as_deref(),
+        Some("tpl-chapter")
+    );
+    assert_eq!(v.levels[id].settings.display, "grid");
+    assert!(
+        matches!(&v.levels[id].sources["default_template"],SettingSource::Template{entry,..} if entry==&parent)
+    );
+    assert_eq!(v.entry(id).unwrap().layout.board, Some((-12.0, 34.0)));
+    assert_eq!(v.entry(id).unwrap().layout.grid, Some((2, 3)));
+    assert_eq!(v.entry(id).unwrap().title, "Synthetic inherited settings");
+    ws.shutdown().unwrap();
+}
+
+#[test]
+fn stale_or_invalid_setting_edits_do_not_replace_newer_settings() {
+    use dr_view_elements::data::v3::prepare_override;
+    let (_dir, ws, book) = seed();
+    let initial = Book::load(&ws, &book).unwrap();
+    let id = initial.v3().unwrap().roots[0].clone();
+    let stale = prepare_override(&initial, &id, "auto_link", Some(json!(true))).unwrap();
+    call(
+        &ws,
+        "entry.update",
+        json!({"book":book,"id":id,"overrides":{"display":"grid","accept":true}}),
+    );
+    assert!(stale.commit(&ws).is_err());
+    let again = Book::load(&ws, &book).unwrap();
+    assert_eq!(again.v3().unwrap().levels[&id].settings.display, "grid");
+    assert!(again.v3().unwrap().levels[&id].settings.accept);
+    let revision = again.v3().unwrap().revision.clone();
+    assert!(
+        prepare_override(&again, &id, "display", Some(json!("future-display")))
+            .unwrap()
+            .commit(&ws)
+            .is_err()
+    );
+    assert!(prepare_override(&again, &id, "not-a-setting", None).is_err());
+    let leaf = again
+        .v3()
+        .unwrap()
+        .entries
+        .iter()
+        .find(|e| e.template.as_deref() == Some("tpl-chapter"))
+        .unwrap();
+    assert!(prepare_override(&again, &leaf.id, "display", None).is_err());
+    assert_eq!(
+        Book::load(&ws, &book).unwrap().v3().unwrap().revision,
+        revision
+    );
+    ws.shutdown().unwrap();
+}
+
+#[test]
+fn board_page_separates_members_without_changing_the_navigation_canvas() {
+    use dr_shell::v3::DisplaySurface;
+    use dr_view_elements::panel::v3::board_sections;
+    let (_dir, ws, book) = seed();
+    let initial = Book::load(&ws, &book).unwrap();
+    let v = initial.v3().unwrap();
+    let root = v
+        .entries
+        .iter()
+        .find(|e| e.template.as_deref() == Some("tpl-ideas"))
+        .unwrap()
+        .id
+        .clone();
+    let member = v
+        .entries
+        .iter()
+        .find(|e| e.template.as_deref() == Some("tpl-chapter"))
+        .unwrap()
+        .id
+        .clone();
+    let old_parent = v.entry(&member).unwrap().parent.clone();
+    call(
+        &ws,
+        "entry.update",
+        json!({"book":book,"id":root,"overrides":{"accept":true,"display":"board","allow":[]}}),
+    );
+    call(
+        &ws,
+        "membership.add",
+        json!({"book":book,"host":root,"member":member}),
+    );
+    let snapshot = Book::load(&ws, &book).unwrap();
+    let v = snapshot.v3().unwrap();
+    assert_eq!(
+        board_sections(&snapshot, &root, DisplaySurface::Page),
+        vec![
+            (Some(Section::Residents), v.levels[&root].children.clone()),
+            (Some(Section::Members), vec![member.clone()])
+        ]
+    );
+    let navigation = board_sections(&snapshot, &root, DisplaySurface::Sidebar);
+    assert_eq!(navigation.len(), 1);
+    assert!(navigation[0].0.is_none());
+    assert!(navigation[0].1.contains(&member));
+    assert_eq!(v.entry(&member).unwrap().parent, old_parent);
+    ws.shutdown().unwrap();
+}
+
+#[gpui::test]
+fn picker_host_rejects_book_or_library_replacement(cx: &mut gpui::TestAppContext) {
+    use dr_shell::{
+        Services, ShellInfo, Workspace as ShellWorkspace, pages::PageViewHost,
+        settings::SettingsFile,
+    };
+    use dr_view_elements::data::v3::fresh;
+    use std::rc::Rc;
+    let (_dir, lib, book) = seed();
+    let other_dir = tempfile::tempdir().unwrap();
+    let other = Workspace::open_dir(other_dir.path(), "0.2.0-dev").unwrap();
+    let snapshot = Rc::new(Book::load(&lib, &book).unwrap());
+    cx.executor().allow_parking();
+    cx.update(|cx| {
+        dr_shell::init(
+            ShellInfo {
+                app_name: "Drifting Next",
+                bundle_id: "cc.drifting.next.dev",
+                version: "0.2.0-dev",
+                url_scheme: "drifting-next-dev",
+                forced_appearance: None,
+            },
+            Services {
+                library: Some(lib.clone()),
+                ..Services::default()
+            },
+            SettingsFile::in_memory(),
+            cx,
+        )
+    });
+    let (ws, cx) = cx.add_window_view(ShellWorkspace::new);
+    cx.update(|_, cx| {
+        ws.update(cx, |ws, _| {
+            ws.book_id = book.clone();
+            ws.book = snapshot.clone();
+        })
+    });
+    let host = PageViewHost {
+        workspace: ws.downgrade(),
+        library: lib.clone(),
+        book_id: book.clone(),
+        book: snapshot,
+    };
+    cx.update(|_, cx| {
+        assert!(fresh(&host, cx).is_some());
+        ws.update(cx, |ws, _| ws.book_id = "synthetic-other-book".into());
+        assert!(fresh(&host, cx).is_none());
+        ws.update(cx, |ws, _| {
+            ws.book_id = book;
+            ws.library = Some(other.clone());
+        });
+        // Even if the old book snapshot is still on screen during a library
+        // replacement, no picker may write through its former library handle.
+        assert!(fresh(&host, cx).is_none());
+        ws.update(cx, |ws, _| ws.library = None);
+        assert!(fresh(&host, cx).is_none());
+        ws.update(cx, |ws, _| ws.library = Some(lib.clone()));
+        assert!(fresh(&host, cx).is_some());
+    });
+    drop((host, lib, other));
+}

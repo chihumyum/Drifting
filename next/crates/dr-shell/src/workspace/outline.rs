@@ -371,6 +371,116 @@ pub fn read(view: &PageView, cx: &App) -> (Vec<Entry>, f64, f64, f64) {
     (entries, total, scroll, view)
 }
 
+// G2's versioned prose adapter. The shell never imports a view crate and the
+// registry owns no editor or library lease.
+type V3OutlineKey = (gpui::EntityId, String, Option<(String, String)>);
+#[derive(Default)]
+struct V3Outlines(std::collections::HashMap<V3OutlineKey, V3Outline>);
+impl gpui::Global for V3Outlines {}
+struct V3Outline {
+    owner: gpui::WeakEntity<Workspace>,
+    library: usize,
+    editor: crate::pages::PageEditorRef,
+    _changed: gpui::Subscription,
+}
+fn outline_editor(editor: &crate::pages::PageEditorRef) -> Option<PageView> {
+    match editor {
+        crate::pages::PageEditorRef::Doc(editor) => Some(PageView::Doc(editor.upgrade()?)),
+        crate::pages::PageEditorRef::Book(editor) => Some(PageView::Book(editor.upgrade()?)),
+    }
+}
+impl Workspace {
+    /// G1 calls after creating each real editor (and when replacing it).
+    /// `Some((entry,module))` registers one prose module; `None` the v3 whole
+    /// manuscript editor. This does not reborrow the host workspace.
+    pub fn register_v3_outline_editor(
+        host: &crate::pages::PageHost,
+        entry: Option<(&str, &str)>,
+        cx: &mut App,
+    ) {
+        let Some(editor) = outline_editor(&host.editor) else {
+            return;
+        };
+        let prose = editor.prose(cx);
+        let owner = host.workspace.clone();
+        let changed = cx.observe(&prose, move |_, cx| {
+            owner.update(cx, |_, cx| cx.notify()).ok();
+        });
+        let key = (
+            host.workspace.entity_id(),
+            host.book.clone(),
+            entry.map(|(entry, module)| (entry.to_owned(), module.to_owned())),
+        );
+        let registry = cx.default_global::<V3Outlines>();
+        registry.0.retain(|_, entry| {
+            entry.owner.upgrade().is_some() && outline_editor(&entry.editor).is_some()
+        });
+        registry.0.insert(
+            key,
+            V3Outline {
+                owner: host.workspace.clone(),
+                library: host.library.library() as *const _ as usize,
+                editor: host.editor.clone(),
+                _changed: changed,
+            },
+        );
+    }
+}
+fn v3_outline_editor(
+    w: &Workspace,
+    owner: gpui::EntityId,
+    target: &Target,
+    window: &Window,
+    cx: &App,
+) -> Option<PageView> {
+    use gpui::Focusable as _;
+    let v = w.book.v3()?;
+    let registry = cx.try_global::<V3Outlines>()?;
+    let identity = w.library.as_ref()?.library() as *const _ as usize;
+    let get = |entry: Option<(String, String)>| {
+        let adapter = registry.0.get(&(owner, w.book_id.clone(), entry))?;
+        (adapter.library == identity)
+            .then(|| outline_editor(&adapter.editor))
+            .flatten()
+    };
+    match target {
+        Target::Book => get(None),
+        Target::Entry { id, module } => {
+            let mut modules = Vec::new();
+            if v.levels.contains_key(id.as_str()) {
+                modules.push("about".to_owned());
+            }
+            if let Some(template) = v.template_of(id.as_str()) {
+                modules.extend(
+                    template
+                        .modules
+                        .iter()
+                        .filter(|m| m.kind == "prose" && m.config.show_outline)
+                        .map(|m| m.id.clone()),
+                );
+            }
+            let candidates: Vec<_> = modules
+                .into_iter()
+                .filter_map(|module| {
+                    get(Some((id.to_string(), module.clone()))).map(|editor| (module, editor))
+                })
+                .collect();
+            let requested = module.as_ref().map(|m| m.as_str());
+            candidates
+                .iter()
+                .find(|(_, editor)| editor.prose(cx).focus_handle(cx).is_focused(window))
+                .or_else(|| {
+                    candidates
+                        .iter()
+                        .find(|(module, _)| Some(module.as_str()) == requested)
+                })
+                .or_else(|| candidates.first())
+                .map(|(_, editor)| editor.clone())
+        }
+        _ => None,
+    }
+}
+
 /// The rail beside the page showing `target`, in a column `column_w` wide
 /// and `column_h` tall, if it is shown and has room.
 pub fn rail(
@@ -386,14 +496,34 @@ pub fn rail(
         return None;
     }
     let target = target?;
-    let editor = w.page_view(target)?.clone();
+    let editor = if w.book.v3().is_some() && matches!(target, Target::Entry { .. } | Target::Book) {
+        v3_outline_editor(w, ws.entity_id(), target, window, cx)?
+    } else {
+        w.page_view(target)?.clone()
+    };
     let page_w = w.editor_settings.page_width;
     let sheet = page_w.min(column_w);
     let gutter = (column_w - sheet) / 2.0 + PAGE_GUTTER;
     if gutter < MIN_GUTTER {
         return None;
     }
-    let (entries, total, scroll, view) = read(&editor, cx);
+    let (mut entries, total, scroll, view) = read(&editor, cx);
+    if let (Some(book), PageView::Book(editor)) = (w.book.v3(), &editor) {
+        let docs: Vec<_> = editor.read(cx).chapter_docs().map(str::to_owned).collect();
+        entries.retain(|e| {
+            if e.line.is_none() {
+                return true;
+            }
+            docs.get(e.chapter)
+                .and_then(|doc| doc.strip_prefix("body:"))
+                .and_then(|doc| doc.rsplit_once('/'))
+                .and_then(|(entry, module)| {
+                    book.template_of(entry)
+                        .and_then(|t| t.modules.iter().find(|m| m.id == module))
+                })
+                .is_some_and(|m| m.kind == "prose" && m.config.show_outline)
+        });
+    }
     if entries.is_empty() {
         return None;
     }
