@@ -54,6 +54,10 @@ pub enum ImportError {
     Path { what: &'static str, path: PathBuf },
     #[error("{0}")]
     Invalid(String),
+    /// v3 mapping or source-integrity questions. Preflight runs before
+    /// opening the target library or adopting an installation identity.
+    #[error("v3 import needs decisions or source repair: {0:?}")]
+    V3Pending(Vec<crate::v3::Pending>),
 }
 
 pub type Result<T, E = ImportError> = std::result::Result<T, E>;

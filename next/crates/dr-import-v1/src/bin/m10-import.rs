@@ -5,7 +5,7 @@
 //! m10-import analyse <library.db>
 //! m10-import import <library.db> --to <new library dir> [--old-root <dir>]
 //!                   [--device <dir>] [--accept] [--keep-staging] [--verify-history]
-//!                   [--no-index] [--progress]
+//!                   [--no-index] [--progress] [--v3] [--v3-mapping <choices.json>]
 //! m10-import check <new library dir> --truth <truth.jsonl>
 //! m10-import mapping-md
 //! ```
@@ -57,9 +57,20 @@ fn main() -> Res<()> {
         }
         Some("analyse") => {
             let dir = tempfile_dir()?;
-            let (_, _, _, gate) = run::analyse(Path::new(&args[1]), &dir)?;
+            let (_, legacy, _, gate) = run::analyse(Path::new(&args[1]), &dir)?;
+            let v3 = v3_choices(&args)?
+                .map(|choices| dr_import_v1::v3::pending(&legacy, &choices))
+                .transpose()?;
+            drop(legacy);
             let _ = std::fs::remove_dir_all(&dir);
-            println!("{}", serde_json::to_string_pretty(&gate)?);
+            if let Some(pending) = v3 {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&json!({"gate":gate,"v3Pending":pending}))?
+                );
+            } else {
+                println!("{}", serde_json::to_string_pretty(&gate)?);
+            }
         }
         Some("import") => {
             let out = import_cmd(&args)?;
@@ -104,6 +115,7 @@ fn import_cmd(args: &[String]) -> Res<Value> {
     let source = PathBuf::from(&args[1]);
     let target = PathBuf::from(arg(args, "--to").ok_or("--to")?);
     let mut options = Options::new("0.2.0-dev");
+    options.v3 = v3_choices(args)?;
     options.old_root = arg(args, "--old-root").map(PathBuf::from);
     options.device_dir = arg(args, "--device").map(PathBuf::from);
     options.keep_staging = flag(args, "--keep-staging");
@@ -114,7 +126,7 @@ fn import_cmd(args: &[String]) -> Res<Value> {
     }
     let show = flag(args, "--progress");
     let mut last = None;
-    let (outcome, timing) = run::import_with(&source, &target, &options, &mut |p| {
+    let result = run::import_with(&source, &target, &options, &mut |p| {
         if show && last != Some((p.step, p.book)) {
             last = Some((p.step, p.book));
             eprintln!(
@@ -126,7 +138,13 @@ fn import_cmd(args: &[String]) -> Res<Value> {
                 p.total
             );
         }
-    })?;
+    });
+    let (outcome, timing) = match result {
+        Err(dr_import_v1::ImportError::V3Pending(pending)) => {
+            return Ok(json!({"outcome":"v3-pending","pending":pending}));
+        }
+        result => result?,
+    };
     let rss = peak_rss_bytes();
     Ok(match outcome {
         Outcome::Blocked(gate) => {
@@ -139,5 +157,15 @@ fn import_cmd(args: &[String]) -> Res<Value> {
             v["peakRssBytes"] = json!(rss);
             v
         }
+    })
+}
+
+fn v3_choices(args: &[String]) -> Res<Option<dr_import_v1::v3::MappingChoices>> {
+    Ok(if let Some(path) = arg(args, "--v3-mapping") {
+        Some(serde_json::from_slice(&std::fs::read(path)?)?)
+    } else if flag(args, "--v3") {
+        Some(Default::default())
+    } else {
+        None
     })
 }

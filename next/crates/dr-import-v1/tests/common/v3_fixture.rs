@@ -13,6 +13,7 @@ pub const IDEA_LINKED: &str = "01900000-0000-7000-8000-0000000000d2";
 pub const CATEGORY_OTHER: &str = "01900000-0000-7000-8000-0000000000a2";
 pub const ELEMENT_OTHER: &str = "01900000-0000-7000-8000-0000000000e2";
 pub const STORYLINE_OTHER: &str = "01900000-0000-7000-8000-0000000000b2";
+pub const PATCH_RELATION: &str = "import-fixture-patch-relation";
 
 pub fn build() -> Old {
     let old = super::build(true);
@@ -59,7 +60,7 @@ pub fn build() -> Old {
     ] {
         exec(
             &c,
-            "INSERT INTO book_node (id, project_id, title, summary, book_order, narrative_order, writing_status, kind, drift_group_id, position_x, position_y, created_at, updated_at) VALUES (?1, ?2, ?3, '', ?4, ?5, 'draft', ?6, ?7, 40.5, -20.25, ?8, ?8)",
+            "INSERT INTO book_node (id, project_id, title, summary, book_order, narrative_order, writing_status, kind, drift_group_id, position_x, position_y, created_at, updated_at) VALUES (?1, ?2, ?3, '', ?4, ?5, ?9, ?6, ?7, 40.5, -20.25, ?8, ?8)",
             params![
                 id,
                 BOOK,
@@ -68,7 +69,8 @@ pub fn build() -> Old {
                 narrative_order,
                 kind,
                 group,
-                T0
+                T0,
+                if kind == "drift" { "drifting" } else { "draft" }
             ],
         );
         exec(
@@ -97,7 +99,7 @@ pub fn build() -> Old {
     }
     exec(
         &c,
-        "UPDATE element_category SET content_json = ?1, layout_mode = 'manual', grid_x = 4, grid_y = -2 WHERE id = ?2",
+        "UPDATE element_category SET content_json = ?1, layout_mode = 'pinned', grid_x = 4, grid_y = -2 WHERE id = ?2",
         params![STORYLINE_JSON, CATEGORY],
     );
     exec(
@@ -131,14 +133,40 @@ pub fn build() -> Old {
         [ELEMENT_OTHER],
     );
     let generic = format!("system:generic-association:{BOOK}");
-    for (id, from_kind, from_id, to_kind, to_id) in [
-        ("rel-material", "library_item", NOTE, "node", CHAPTER),
-        ("rel-patch", "patch", PATCH, "storyline", STORYLINE),
+    // A patch source needs its own type. The locked generic association
+    // only permits comments/materials as sources, in both old and v3 books.
+    exec(
+        &c,
+        "INSERT INTO entity_relation_type (id, project_id, name, normalized_name, description, orientation, system_key, locked, source_role, target_role, created_at, updated_at) VALUES (?1, ?2, '补丁关联', '补丁关联', '', 'directed', NULL, 0, '', '', ?3, ?3)",
+        params![PATCH_RELATION, BOOK, T0],
+    );
+    exec(
+        &c,
+        "INSERT INTO entity_relation_type_endpoint_kind (relation_type_id, side, entity_kind) VALUES (?1, 'source', 'patch'), (?1, 'target', 'storyline')",
+        [PATCH_RELATION],
+    );
+    for (id, from_kind, from_id, to_kind, to_id, relation) in [
+        (
+            "rel-material",
+            "library_item",
+            NOTE,
+            "node",
+            CHAPTER,
+            generic.as_str(),
+        ),
+        (
+            "rel-patch",
+            "patch",
+            PATCH,
+            "storyline",
+            STORYLINE,
+            PATCH_RELATION,
+        ),
     ] {
         exec(
             &c,
             "INSERT INTO entity_relation (id, project_id, from_kind, from_id, to_kind, to_id, relation_type_id, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8)",
-            params![id, BOOK, from_kind, from_id, to_kind, to_id, generic, T0],
+            params![id, BOOK, from_kind, from_id, to_kind, to_id, relation, T0],
         );
     }
     exec(
