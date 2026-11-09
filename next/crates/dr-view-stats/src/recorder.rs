@@ -166,6 +166,11 @@ impl<S: Source> Tracker<S> {
 
     /// The derived index of `doc` was written.
     pub fn indexed(&mut self, doc: &str, today: &Day, now: Instant) {
+        // A v3 manuscript waits for every pre-existing document's index before
+        // establishing its baseline. Retry when those pending indexes arrive.
+        for book in self.unreadable.clone() {
+            self.track(&book, today);
+        }
         let pending = self.pending.remove(doc);
         let Some(book) = self.owner.get(doc).cloned() else {
             return;
@@ -295,7 +300,11 @@ impl<S: Source> Tracker<S> {
                 self.prose(&p.doc.to_string(), book, writes_here(&p.origin), today, now)
             }
             WsEvent::Local(c) if c.table == "index" => self.indexed(&c.key, today, now),
-            WsEvent::Book(b) if b.changes.iter().any(|c| c.collection == Collection::Nodes) => {
+            WsEvent::Book(b)
+                if b.changes
+                    .iter()
+                    .any(|c| c.collection != Collection::WritingDays) =>
+            {
                 self.chapters_changed(b.book.as_str(), today, now)
             }
             _ => {}
@@ -312,6 +321,23 @@ pub struct WorkspaceSource {
 
 impl Source for WorkspaceSource {
     fn chapters(&self, book: &str) -> Option<Vec<(String, u64)>> {
+        let is_v3 = self
+            .ws
+            .library()
+            .open_doc(&format!("book:{book}"), dr_store::OpenDoc::Existing)
+            .ok()?
+            .read(dr_doc::v3::is_v3_doc)
+            .ok()?;
+        if is_v3 {
+            // The recorder follows exactly the resident manuscript prose set;
+            // memberships, retained bodies and material prose cannot add words.
+            return crate::v3::load(&self.ws, book, crate::v3::Scope::Book)
+                .ok()?
+                .manuscript
+                .into_iter()
+                .map(|d| Some((d.id, d.metrics?.words)))
+                .collect();
+        }
         let out = self
             .ws
             .run::<ops::WordCounts>(

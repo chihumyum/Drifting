@@ -216,6 +216,9 @@ pub struct CommentCreateIn {
     /// Anchor it to characters `[start, end)` of the target's prose.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub range: Option<(usize, usize)>,
+    /// Stable cursors captured in the selected prose; mutually exclusive with range and region.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub anchor: Option<AnchorBytes>,
     /// Mark a rectangle on an image or PDF material (its target).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub region: Option<Region>,
@@ -264,10 +267,13 @@ op! {
     fn(cx, input: CommentCreateIn) -> Done {
         let slot = cx.book_v3(&input.book)?;
         let kind = CommentKind::parse(input.kind.as_deref().unwrap_or("note"));
+        if input.range.is_some() && input.anchor.is_some() {
+            return Err(WsError::invalid("a comment has a range or an anchor, not both"));
+        }
         if !kind.is_known() { return Err(WsError::invalid(format!("unknown comment kind {:?}", kind.as_str()))); }
         let target = input.target.as_ref().map(Target::to_ref);
         let block = input.block_id.as_deref().map(|b| pid::<BlockId>("block", b)).transpose()?;
-        let module = target_module(cx, &slot, input.target.as_ref(), input.module.as_deref(), block.is_some() || input.range.is_some())?;
+        let module = target_module(cx, &slot, input.target.as_ref(), input.module.as_deref(), block.is_some() || input.range.is_some() || input.anchor.is_some())?;
         if let Some(t) = &target { require_live(&slot, t.kind.clone(), &t.id)?; }
         let priority = input.priority.as_deref().map(CommentPriority::parse);
         if let Some(p) = &priority && !p.is_known() { return Err(WsError::invalid(format!("unknown priority {:?}", p.as_str()))); }
@@ -280,6 +286,7 @@ op! {
             Some(r) => {
                 let t = input.target.as_ref().ok_or_else(|| WsError::invalid("a region needs a target"))?;
                 if input.range.is_some() { return Err(WsError::invalid("a comment has a range or a region, not both")); }
+                if input.anchor.is_some() { return Err(WsError::invalid("a comment has an anchor or a region, not both")); }
                 let file = (t.kind == "material")
                     .then(|| materials(&slot).iter().find(|m| m.id.as_str() == t.id).map(|m| m.kind.needs_asset()))
                     .flatten();
@@ -309,6 +316,33 @@ op! {
                     .map(|p| BlockSnapshot { block: p.id.clone(), text: p.text() }).collect();
                 Ok((Some(anchor), Some(quote), snapshots))
             })?;
+        }
+        if let Some(bytes) = &input.anchor {
+            let t = input.target.as_ref().ok_or_else(|| WsError::invalid("an anchor needs a target"))?;
+            let doc = prose_of(cx, &slot, t, input.module.as_deref())?;
+            let ps = cx.prose(&doc)?;
+            let bytes = bytes.clone();
+            // Decode, resolve, quote and snapshot under one holder read. A
+            // partial deletion may update the cursors but is still valid.
+            let (stored, text, blocks) = cx.read_prose_source(&ps, move |state| -> Result<_> {
+                let a = decode_anchor(&bytes)?;
+                anchor_known_in(&state.oplog_vv(), &doc, &a)?;
+                let prose = dr_doc::prose::BorrowedProse::new(state, &doc)?;
+                let view = prose.view();
+                let resolved = view.resolve(&a).ok_or_else(|| WsError::invalid("anchor cannot be resolved"))?;
+                let range = resolved.range;
+                if resolved.collapsed || range.is_empty() || range.end > view.len().saturating_sub(1) {
+                    return Err(WsError::invalid("the selected text was deleted"));
+                }
+                let text = view.text_in(range.clone())?;
+                let blocks: Vec<_> = view.paragraphs()
+                    .filter(|p| p.newline >= range.start && p.range.start < range.end)
+                    .map(|p| BlockSnapshot { block: p.id.clone(), text: p.text() }).collect();
+                Ok((a, text, blocks))
+            })?;
+            anchor = Some(stored);
+            quote = Some(text);
+            snapshots = blocks;
         }
         if input.range.is_none() && let Some(block) = &block {
             let doc = prose_of(cx, &slot, input.target.as_ref().expect("target validated"), input.module.as_deref())?;

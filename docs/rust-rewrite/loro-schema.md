@@ -217,6 +217,7 @@ H1、H2、H3 三级同等对待，只叫 H1/H2/H3。
 | `plot_grids` | LoroMap | `<条目 id>/<模块 id>` → 行、列、格子和尺寸；内容格式沿用 v2.2 |
 | `relation_types` | LoroMap | 共用关系类型字段，另有 `source_templates`／`target_templates`；端点种类为 entry／material／comment／patch |
 | `relations` | LoroMap | 共用关系表；关联模块是按条目筛选的投影，不再复制一套关系数据 |
+| `entry_checkpoints` | LoroMap | 快照 id → 不可覆写的格式 1 JSON 清单：书／条目身份、毫秒时间、来源、书 frontier、全部登记正文 frontier、原始内容指纹与校验和；本机恢复原子提交前的完整状态也在这里。共享模板只预览；按条目恢复不回滚其他条目或全书视图。详见 [M09](modules/m09-history.md) |
 | `comments` | LoroMap | 共用批注／待办字段；目标为条目时可带 `module`，块与锚点继续定位其正文 |
 | `materials`、`assets`、`facts`、`memory`、`writing_days` | LoroMap | 沿用既有含义，素材、批注、待办不放进条目树 |
 | `material_folders` | LoroTree | 素材目录，沿用既有结构 |

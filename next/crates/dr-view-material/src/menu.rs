@@ -38,7 +38,7 @@ pub fn sections(target: &Target, host: &PageMenuHost, cx: &App) -> Vec<PageMenuS
         return Vec::new();
     };
     let id = id.to_string();
-    let Some(material) = host.book.materials.iter().find(|m| m.id == id) else {
+    let Some(material) = host.book.material_items().iter().find(|m| m.id == id) else {
         return Vec::new();
     };
     if host.library.is_none() {
@@ -58,6 +58,20 @@ pub fn sections(target: &Target, host: &PageMenuHost, cx: &App) -> Vec<PageMenuS
         }
     };
     let mut items = Vec::new();
+    if host.book.v3().is_some() {
+        let host = host.clone();
+        let id = id.clone();
+        items.push(PageMenuItem {
+            id: "material-entry-links".into(),
+            icon: RowIcon::Brush(Icon::Plus),
+            label: t(cx, keys::references_panel::sections::RELATIONS),
+            checked: false,
+            danger: false,
+            run: Rc::new(move |window, cx| {
+                crate::associations::show(host.clone(), id.clone(), window, cx)
+            }),
+        });
+    }
     if matches!(material.kind.as_str(), "image" | "pdf") {
         items.push(item(
             "material-open-original",
@@ -308,15 +322,16 @@ impl Render for MaterialDialog {
         let mut dialog = match &self.action {
             Action::Move => {
                 let current = book
-                    .materials
+                    .material_items()
                     .iter()
                     .find(|m| m.id == self.material)
                     .and_then(|m| m.folder.as_deref());
-                let choices = Tree::new(&book.folders, &book.materials, None).choices(
-                    &Selection::material(&self.material),
-                    current,
-                    &t(cx, keys::material_folders::ROOT),
-                );
+                let choices = Tree::new(book.material_folders(), book.material_items(), None)
+                    .choices(
+                        &Selection::material(&self.material),
+                        current,
+                        &t(cx, keys::material_folders::ROOT),
+                    );
                 let p = Theme::of(window, cx).palette;
                 let mut list = div()
                     .id("material-folder-choices")
@@ -383,7 +398,7 @@ impl Render for MaterialDialog {
             }
             Action::Delete => {
                 let title = book
-                    .materials
+                    .material_items()
                     .iter()
                     .find(|m| m.id == self.material)
                     .map(|m| m.title.clone())

@@ -170,3 +170,110 @@ fn home_registration_and_failed_create_keep_the_title_draft(cx: &mut TestAppCont
     assert!(ws.read_with(cx, |ws, _| ws.dialog.is_some()));
     lib.close();
 }
+
+#[test]
+fn recent_pages_preserve_modules_and_hide_trashed_ancestors_without_rewriting_history() {
+    use dr_shell::nav::Target;
+    let (_dir, ws, book) = fixture();
+    let snapshot = Book::load(&ws, &book).unwrap();
+    let chapter = snapshot
+        .v3()
+        .unwrap()
+        .entries
+        .iter()
+        .find(|e| e.template.as_deref() == Some("tpl-chapter"))
+        .unwrap();
+    let parent = chapter.parent.clone().unwrap();
+    let with_module = json!({"kind":"entry","id":chapter.id,"module":"mod-prose"});
+    let whole = json!({"kind":"entry","id":chapter.id});
+    for target in [with_module, whole] {
+        ws.call(
+            &Actor::User,
+            "recent.touch",
+            json!({"book":book,"target":target}),
+        )
+        .unwrap();
+    }
+    let before = ws.observe(&format!("book:{book}")).unwrap().version;
+    let pages = v3::recent(&ws, &snapshot).unwrap();
+    assert_eq!(pages.len(), 2);
+    assert_eq!(
+        pages[0].target,
+        Target::Entry {
+            id: chapter.id.parse().unwrap(),
+            module: None
+        }
+    );
+    assert_eq!(
+        pages[1].target,
+        Target::Entry {
+            id: chapter.id.parse().unwrap(),
+            module: Some("mod-prose".parse().unwrap())
+        }
+    );
+    assert_eq!(ws.observe(&format!("book:{book}")).unwrap().version, before);
+    ws.call(
+        &Actor::User,
+        "entry.trash",
+        json!({"book":book,"id":parent}),
+    )
+    .unwrap();
+    assert!(
+        v3::recent(&ws, &Book::load(&ws, &book).unwrap())
+            .unwrap()
+            .is_empty()
+    );
+    ws.call(
+        &Actor::User,
+        "entry.restore",
+        json!({"book":book,"id":parent}),
+    )
+    .unwrap();
+    assert_eq!(
+        v3::recent(&ws, &Book::load(&ws, &book).unwrap()).unwrap(),
+        pages
+    );
+    ws.close();
+}
+
+#[test]
+fn recent_material_uses_v3_metadata_and_survives_reopening() {
+    use dr_shell::nav::Target;
+    let (dir, ws, book) = fixture();
+    let snapshot = Book::load(&ws, &book).unwrap();
+    let material = snapshot.material_items()[0].clone();
+    ws.call(
+        &Actor::User,
+        "recent.touch",
+        json!({"book":book,"target":{"kind":"material","id":material.id}}),
+    )
+    .unwrap();
+    let before = ws.observe(&format!("book:{book}")).unwrap().version;
+    let pages = v3::recent(&ws, &snapshot).unwrap();
+    assert_eq!(pages.len(), 1);
+    assert_eq!(
+        pages[0].target,
+        Target::Material(material.id.parse().unwrap())
+    );
+    assert_eq!(pages[0].title, material.title);
+    assert_eq!(ws.observe(&format!("book:{book}")).unwrap().version, before);
+
+    let title = format!("{} {}", material.title, material.title);
+    ws.call(
+        &Actor::User,
+        "material.update",
+        json!({"book":book,"id":material.id,"title":title}),
+    )
+    .unwrap();
+    ws.shutdown().unwrap();
+    let reopened = Library::open_dir(dir.path().join("library"), "test").unwrap();
+    let snapshot = Book::load(&reopened, &book).unwrap();
+    let pages = v3::recent(&reopened, &snapshot).unwrap();
+    assert_eq!(pages.len(), 1);
+    assert_eq!(
+        pages[0].target,
+        Target::Material(material.id.parse().unwrap())
+    );
+    assert_eq!(pages[0].title, title);
+    reopened.shutdown().unwrap();
+}

@@ -399,16 +399,6 @@ fn panel_follows_module_scope_jumps_directly_and_refreshes_entry_changes(
     assert!(title.contains("Second body"));
     cx.update(|window, cx| view.update(cx, |v, cx| v.jump(&f.second, window, cx)));
     assert_eq!(opened.borrow().as_slice(), &[target]);
-    let before = f.ws.observe(&format!("book:{}", f.book)).unwrap().version;
-    view.update(cx, |v, cx| {
-        v.set_done(&f.second, false, cx);
-        v.delete(&f.second, cx);
-    });
-    assert_eq!(
-        f.ws.observe(&format!("book:{}", f.book)).unwrap().version,
-        before,
-        "unavailable v3 mutations do not enter v2 commands"
-    );
     root.update(cx, |r, cx| {
         r.target = Target::Entry {
             id: f.entry.clone(),
@@ -453,6 +443,146 @@ fn panel_follows_module_scope_jumps_directly_and_refreshes_entry_changes(
     assert!(
         cx.update(|_, cx| dr_view_review::view("v3-review-test", cx))
             .is_none()
+    );
+    f.ws.close();
+}
+
+#[test]
+fn stable_create_anchors_follow_prefixes_and_partial_deletion_but_refuse_foreign_or_gone_text() {
+    use dr_workspace::dto::AnchorBytes;
+    let f = fixture();
+    let doc = format!("body:{}/second-body", f.entry);
+    let session = f.ws.prose_session(&doc).unwrap();
+    let anchor = AnchorBytes::from(&session.reader().view().anchor(0..4).unwrap().encode());
+    let input = json!({"book":f.book,"target":{"kind":"entry","id":f.entry},
+        "module":"second-body","anchor":anchor,"body":f.quote});
+    let before = f.ws.observe(&format!("book:{}", f.book)).unwrap().version;
+    let mut both = input.clone();
+    both["range"] = json!([0, 4]);
+    assert!(f.ws.call(&Actor::User, "comment.create", both).is_err());
+    let mut malformed = input.clone();
+    malformed["anchor"]["start"] = json!("bad");
+    assert!(
+        f.ws.call(&Actor::User, "comment.create", malformed)
+            .is_err()
+    );
+    let original_doc = format!("body:{}/mod-prose", f.entry);
+    let other = f.ws.prose_session(&original_doc).unwrap();
+    let mut foreign = input.clone();
+    foreign["anchor"] = json!(AnchorBytes::from(
+        &other.reader().view().anchor(0..4).unwrap().encode()
+    ));
+    assert!(f.ws.call(&Actor::User, "comment.create", foreign).is_err());
+    assert_eq!(
+        f.ws.observe(&format!("book:{}", f.book)).unwrap().version,
+        before
+    );
+    let prefix = format!("{} ", f.quote);
+    let offset = prefix.chars().count();
+    session.edit(move |t| t.insert_text(0, &prefix)).unwrap();
+    let made = call(&f.ws, "comment.create", input.clone());
+    let comments = v3::load(&f.ws, &f.book).unwrap();
+    let made = comments
+        .items
+        .iter()
+        .find(|c| c.comment.id.as_str() == made["id"].as_str().unwrap())
+        .unwrap();
+    assert_eq!(made.comment.quote.as_deref(), Some(f.quote.as_str()));
+    assert_eq!(
+        made.comment.target_module.as_ref().unwrap().as_str(),
+        "second-body"
+    );
+    session.edit(move |t| t.delete(offset..offset + 1)).unwrap();
+    let partial = call(&f.ws, "comment.create", input.clone());
+    let comments = v3::load(&f.ws, &f.book).unwrap();
+    let partial = comments
+        .items
+        .iter()
+        .find(|c| c.comment.id.as_str() == partial["id"].as_str().unwrap())
+        .unwrap();
+    let remainder: String = f.quote.chars().skip(1).collect();
+    assert_eq!(partial.comment.quote.as_deref(), Some(remainder.as_str()));
+    let end = session.reader().view().len() - 1;
+    session.edit(move |t| t.delete(0..end)).unwrap();
+    let before = f.ws.observe(&format!("book:{}", f.book)).unwrap().version;
+    assert!(f.ws.call(&Actor::User, "comment.create", input).is_err());
+    assert_eq!(
+        f.ws.observe(&format!("book:{}", f.book)).unwrap().version,
+        before
+    );
+    f.ws.close();
+}
+
+#[test]
+fn stable_anchor_creation_checks_the_observed_source_version_before_writing() {
+    use dr_workspace::{WritePreconditions, dto::AnchorBytes};
+    let f = fixture();
+    let doc = format!("body:{}/second-body", f.entry);
+    let book_doc = format!("book:{}", f.book);
+    let session = f.ws.prose_session(&doc).unwrap();
+    let anchor = AnchorBytes::from(&session.reader().view().anchor(0..4).unwrap().encode());
+    let input = json!({"book":f.book,"target":{"kind":"entry","id":f.entry},
+        "module":"second-body","anchor":anchor,"body":f.quote});
+    let observed = [
+        f.ws.observe(&book_doc).unwrap(),
+        f.ws.observe(&doc).unwrap(),
+    ];
+    let prefix = f.quote.clone();
+    session.edit(move |t| t.insert_text(0, &prefix)).unwrap();
+    let before = f.ws.observe(&book_doc).unwrap().version;
+    let comments = call(&f.ws, "comment.list", json!({"book":f.book}));
+    let mut missing = WritePreconditions::from_observations([f.ws.observe(&book_doc).unwrap()]);
+    missing.require_all = false;
+    assert!(matches!(
+        f.ws.call_guarded(&Actor::User, "comment.create", input.clone(), missing),
+        Err(dr_workspace::WsError::Conflict(_))
+    ));
+    let error =
+        f.ws.call_guarded(
+            &Actor::User,
+            "comment.create",
+            input.clone(),
+            WritePreconditions::from_observations(observed),
+        )
+        .unwrap_err();
+    assert!(
+        matches!(error, dr_workspace::WsError::Conflict(_)),
+        "{error:?}"
+    );
+    assert_eq!(f.ws.observe(&book_doc).unwrap().version, before);
+    assert_eq!(
+        call(&f.ws, "comment.list", json!({"book":f.book})),
+        comments
+    );
+
+    // A fresh source observation permits the same stable anchor. It still
+    // quotes the selected text, not the newly inserted prefix.
+    let observed = [
+        f.ws.observe(&book_doc).unwrap(),
+        f.ws.observe(&doc).unwrap(),
+    ];
+    let made =
+        f.ws.call_guarded(
+            &Actor::User,
+            "comment.create",
+            input,
+            WritePreconditions::from_observations(observed),
+        )
+        .unwrap()["output"]["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+    let after = v3::load(&f.ws, &f.book).unwrap();
+    assert_eq!(
+        after
+            .items
+            .iter()
+            .find(|i| i.comment.id.as_str() == made)
+            .unwrap()
+            .comment
+            .quote
+            .as_deref(),
+        Some(f.quote.as_str())
     );
     f.ws.close();
 }

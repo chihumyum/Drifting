@@ -1092,3 +1092,58 @@ fn v3_template_module_links_survive_copy_edit_history_and_other_book_is_untouche
         other_text.value
     );
 }
+
+#[test]
+fn material_entry_link_checks_book_observations_before_writing() {
+    use dr_workspace::{Actor, WritePreconditions, WsError};
+    let e = env();
+    let book = project(&e);
+    let entry = root(&e, &book, "tpl-manuscript");
+    let title = get(&e, &book, &entry)["title"].clone();
+    let material = e.out(
+        "material.create",
+        json!({"book":book,"kind":"text","title":title}),
+    )["id"]
+        .clone();
+    let ws = e.ws();
+    let doc = format!("book:{book}");
+    let stale = ws.observe(&doc).unwrap();
+    ws.call(
+        &Actor::User,
+        "material.update",
+        json!({
+            "book":book,"id":material,"description":title
+        }),
+    )
+    .unwrap();
+    let before = ws.observe(&doc).unwrap();
+    let input = json!({"book":book,"material":material,"entry":entry,"linked":true});
+    assert!(matches!(
+        ws.call_guarded(
+            &Actor::User,
+            "material.set_entry_link",
+            input.clone(),
+            WritePreconditions::from_observations([stale])
+        ),
+        Err(WsError::Conflict(_))
+    ));
+    let refused = ws.observe(&doc).unwrap();
+    assert_eq!(refused.version, before.version);
+    assert_eq!(refused.value, before.value);
+    ws.call_guarded(
+        &Actor::User,
+        "material.set_entry_link",
+        input,
+        WritePreconditions::from_observations([before.clone()]),
+    )
+    .unwrap();
+    let after = ws.observe(&doc).unwrap();
+    assert_eq!(after.value["materials"], before.value["materials"]);
+    assert_eq!(
+        after.value["relations"].as_object().unwrap().len(),
+        before.value["relations"]
+            .as_object()
+            .map_or(0, |rows| rows.len())
+            + 1
+    );
+}
