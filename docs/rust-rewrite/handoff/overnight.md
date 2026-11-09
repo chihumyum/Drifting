@@ -99,13 +99,15 @@
 ### v3-heavy 加载优先修复（11-10，作者明确分派）
 
 - **先由 K1／K2 修内核**：已直接通知现有内核会话，优先于后续 G4 批注／素材命令；已交回的 writing-days `11619a8c` 照常排队。一次一致读取批量提供所有层级的有效设置、来源、子条目和成员，复用同次读取的条目／模板解析及重名计算，不把逐层 LevelGet 简单包成循环。缓存须明确绑定读取快照，不能在同一写事务、import 或 checkout 后读到旧值；保持过滤、排序、继承及跨书隔离。
-- **再由 F6 接外壳**：等上述内核批正式验收合 main，整合者才向外壳会话发送接线任务；替换 book::v3::load 逐层 LevelGet，消费批量结果一次。有效值仍来自内核，来源 DTO 与现有只读追溯保持一致，不另造继承算法；保留外层 frontier 一致性检查。
+- **再接外壳**：作者最新 autopilot 手册指定，等上述内核批正式验收合 main，且 F6 原会话交回搜索入口后，整合者从 main 另开独立后台子会话接线；已通知 F6 避免重叠。替换 book::v3::load 逐层 LevelGet，消费批量结果一次及其来源 DTO，移除独立追溯算法；保留外层 frontier 一致性检查。原会话活跃期间不改其工作区。
 - **测量和交回**：K1／K2 按作者专门分派，在固定 seed:v3-heavy 分别记录 debug／release 的内核读取或快照完成计时，明确种子生成与打开时间边界，写入 f3-workspace.md。F6 接线批按最新两档规则交全套自动检查与一条主要流程冒烟，写入 f6-shell.md，分别交 handback/k1、handback/k4-0。外壳修复接收后不立即要求 G3／K5 逐项 heavy 交回：等四组与 K6 合齐，由整合者统一安排标准配置下快照可用、打开／滚动测量；优化编译参数的旧数字不能替代统一验收。
 - **已核对的代码依据**：当前 main 的 load 对每层调用 LevelGet；后者对每个成员调用 entry()，settings／children 又反复读 entries／templates 并重算重名。属于确定的重复工作，但具体提速及剩余瓶颈待实测；G3／K5 的既有 180／240 秒超时仍保持未过，未因分派而关闭。
 
 ### G1 快照历史（11-10，作者直接转交）
 
 已原意转发 G1：待协调第 9 条所需按条目整份快照／恢复，可自行在 dr-workspace 的 v3 命令中新增，带版本守卫，不改已有命令，补永久测试并把快照历史做完，交 handback/k4-g1。快照历史是切换前必须项，帮手写入后靠它撤销；next/ v2.2 冻结，不要求再为其写测试。
+
+G1 原会话已按作者 autopilot 接管安排确认安全停止，34 个未提交文件（含未跟踪内容）完整保存在 `refs/wip/2026-11-10/g1-snapshot-autopilot`；新树 `codex/autopilot-g1-history` 已恢复半成品，原树未动。第 60 批正式接收后启动 `gpt-6.1-sol`／max 后台接手，不把 WIP 算交回。
 
 G1 随后确认完整恢复跨 book 与多份 body，拟新增 dr-store 多文档版本守卫及原子持久化 API，不改既有单文档行为／签名；交回须列清新增范围，测试失败、并发、持久化与重开时无部分恢复。已通知 K6：正式接口合 main 后，Agent 首次写条目前先创建完整快照，不消费 WIP；签名和实际接线仍待 G1 交回。
 
@@ -118,7 +120,7 @@ G1 随后确认完整恢复跨 book 与多份 body，拟新增 dr-store 多文�
 - **G2**：right_body 在 book::nav_target 之前分流，消费 dr_view_stats::v3_panel::panel 及 Scope::{Book, Entry{id,module}, Material}；审阅同样传模块目标，等 G4 面板接口。回调直接转 Target，不把 Entry 当 Book。保持原 G2 队列，交 handback/k4-g2；G1 大纲登记已于第 58 批接收，联合窗口仍由 G2 完成。
 - **K2**：补版本明确的 v3 comment.*（正文模块目标与实际读写／重锚路径）、material.*、material_folder.*、book.writing_days／writing_day.record；保持素材夹与条目关系、v2.2 行为及两书隔离。不得只放行 Cx::book 白名单后继续调用旧 Reader／Txn，不从视图绕写 Loro。搜索／字数已由 G4 只读适配，不必先开放旧 search／word_counts。语义不确定仍列 F1/F3 协调，按内核原范围与 handback/k1 分段交回。
 
-- **K2／F6 主页续接（11-10）**：G4 补查的 book.get/update 元数据与 recent.touch/list 已核代码并直接分派。K2 明确 v3 书名、简介、全书／每日目标读取及逐字段写入，保留其他字段、v2.2、撤销和两书隔离；旧 nodes／elements 计数不能当 v3。最近访问保留 entry＋module 的本机目标和旧记录，记录不进撤销。F6 的 touch_front 目前跳过 v3，等 K2 正式接口合 main 后消费；不绕写本机数据库，不退回旧 Book 哨兵。G4 在 M02 记协调并继续模板动作／主页及单本书准备，未新增正式 handback。
+- **K2／F6 主页续接（11-10）**：G4 补查的 book.get/update 元数据与 recent.touch/list 已核代码并直接分派。K2 明确 v3 书名、简介、全书／每日目标读取及逐字段写入，保留其他字段、v2.2、撤销和两书隔离；旧 nodes／elements 计数不能当 v3。最近访问保留 entry＋module 的本机目标和旧记录，记录不进撤销。F6 的 touch_front 目前跳过 v3，等 K2 正式接口合 main 后消费；不绕写本机数据库，不退回旧 Book 哨兵。G4 在 M02 记协调并继续模板动作／主页及单本书准备。已另收到 `handback/k4-g4` → `ced82326`（只读审阅／素材、主页模板动作、成稿与单书格式 3）；与 K2 `handback/k1` → `879127b4`（版本化批注／素材）排下一批，第 60 批冻结后不再扩大。源检查与冒烟记录已收到，尚未正式接收，不算整合通过。
 
 接口依据为 codex/k4-g4-book 中 [M06](../modules/m06-search.md)、[M20](../modules/m20-stats.md) 的待协调；各方编译并发 3，整合并发 6。未扩大 G4 的搜索宿主、右栏或内核修改权，progress.md 仍只由整合者更新。
 
