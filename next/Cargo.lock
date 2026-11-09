@@ -1603,6 +1603,7 @@ name = "dr-account"
 version = "0.2.0-dev"
 dependencies = [
  "base64 0.22.1",
+ "chrono",
  "dr-platform",
  "dr-store",
  "getrandom 0.4.3",
@@ -2040,6 +2041,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "dr-sync"
+version = "0.2.0-dev"
+dependencies = [
+ "base64 0.22.1",
+ "dr-account",
+ "dr-store",
+ "log",
+ "loro",
+ "reqwest",
+ "rustls",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tempfile",
+ "thiserror 2.0.21",
+ "url",
+]
+
+[[package]]
 name = "dr-testkit"
 version = "0.0.0"
 dependencies = [
@@ -2099,6 +2119,7 @@ dependencies = [
  "dr-platform",
  "dr-shell",
  "dr-store",
+ "dr-sync",
  "dr-ui",
  "dr-view-feedback",
  "dr-view-sea",
@@ -2106,6 +2127,8 @@ dependencies = [
  "gpui_platform",
  "image",
  "log",
+ "serde",
+ "serde_json",
  "smallvec",
  "tempfile",
 ]

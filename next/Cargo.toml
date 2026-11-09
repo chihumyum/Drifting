@@ -27,6 +27,7 @@ members = [
     "crates/dr-samples",
     "crates/dr-shell",
     "crates/dr-store",
+    "crates/dr-sync",
     "crates/dr-testkit",
     "crates/dr-text",
     "crates/dr-ui",
@@ -77,6 +78,7 @@ cpal = "0.18.2"
 
 # M35: Hosted account, session, PKCE OAuth and account-isolated library registry.
 dr-account = { path = "crates/dr-account" }
+dr-sync = { path = "crates/dr-sync" }
 dr-view-account = { path = "crates/dr-view-account" }
 # M27: provider-neutral, in-process Agent runtime (no GPUI).
 dr-agent = { path = "crates/dr-agent" }
@@ -231,10 +233,12 @@ tracing-subscriber = { version = "0.3", default-features = false, features = ["a
 # not crates.
 windows = { version = "0.62", features = [
     "Win32_Foundation",
+    "Win32_Graphics_Gdi",
     "Win32_Security",
     "Win32_Security_Credentials",
     "Win32_Storage_FileSystem",
     "Win32_System_IO",
+    "Win32_System_LibraryLoader",
     "Win32_System_Pipes",
     "Win32_System_RemoteDesktop",
     "Win32_System_SystemInformation",
@@ -242,6 +246,7 @@ windows = { version = "0.62", features = [
     "Win32_UI_Controls_Dialogs",
     "Win32_UI_Input_Ime",
     "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Shell",
     "Win32_UI_WindowsAndMessaging",
 ] }
 

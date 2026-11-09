@@ -3,18 +3,23 @@
 
 pub mod dialog;
 pub mod settings_view;
+pub mod sync_mark;
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
+use std::time::Duration;
 
-use dr_account::{AccountService, AccountState, HostedConfig, SessionStatus, decode_avatar_rgba};
+use dr_account::{
+    AccountService, AccountState, HostedConfig, PreferenceLedger, SessionStatus, decode_avatar_rgba,
+};
 use dr_i18n::keys;
 use dr_platform::{Identity, SecretStore};
 use dr_shell::{
     Services, Settings,
     account::{AccountMenuAction, AccountViewInfo},
-    settings::registry::Section,
+    settings::registry::{self, Section},
     t,
 };
 use dr_ui::{
@@ -34,9 +39,17 @@ use smallvec::SmallVec;
 
 pub use dialog::{AuthDialog, AuthMode};
 pub use settings_view::AccountSettingsView;
+pub use sync_mark::{
+    PAPER_SYNC_CORNER_INSET, PinnedSyncNotices, SyncStatusCopy, paper_sync_mark_for,
+    reconcile_sync_problem_notifications, render_paper_sync_mark, sync_action_label,
+    sync_status_copy,
+};
 
 /// Device-memory key remembering that the first-run account choice has been answered.
 pub const FIRST_RUN_ACCOUNT_SEEN_KEY: &str = "account.first_run_seen";
+
+/// Debounce delay before pushing local preference edits to Hosted.
+pub const PREFERENCE_SYNC_DEBOUNCE: Duration = Duration::from_secs(1);
 
 /// Global state for `dr-view-account`.
 pub struct Service {
@@ -44,6 +57,7 @@ pub struct Service {
     pub state: AccountState,
     pub avatar_cache: Option<(String, Arc<RenderImage>)>,
     pub signing_out: bool,
+    preference_sync_task: Option<gpui::Task<()>>,
 }
 
 impl Global for Service {}
@@ -84,6 +98,7 @@ impl Service {
             state,
             avatar_cache,
             signing_out: false,
+            preference_sync_task: None,
         }
     }
 }
@@ -301,6 +316,7 @@ pub fn apply_account_state(state: AccountState, cx: &mut App) {
     let target_dir = state.active_library_dir.clone();
     let is_account_lib = state.is_account_library;
 
+    let is_connected = state.status == SessionStatus::Connected;
     cx.update_global::<Service, _>(|svc, _| {
         let next_avatar_url = state
             .user
@@ -325,7 +341,266 @@ pub fn apply_account_state(state: AccountState, cx: &mut App) {
     });
 
     switch_library_if_needed(target_dir, is_account_lib, cx);
+    if is_connected {
+        sync_preferences_now(cx);
+    }
     cx.refresh_windows();
+}
+
+/// Schedules a debounced (1s) M37 preference sync round when connected.
+pub fn schedule_preference_sync(cx: &mut App) {
+    let Some(svc) = cx.try_global::<Service>() else {
+        return;
+    };
+    if svc.state.status != SessionStatus::Connected {
+        return;
+    }
+    let task = cx.spawn(async move |cx| {
+        cx.background_executor()
+            .timer(PREFERENCE_SYNC_DEBOUNCE)
+            .await;
+        cx.update(sync_preferences_now);
+    });
+    cx.global_mut::<Service>().preference_sync_task = Some(task);
+}
+
+/// Device-memory key storing the M37 preference sync ledger and last-synced baseline.
+pub const PREFERENCE_LEDGER_MEMORY_KEY: &str = "account.preference_ledger";
+
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
+struct StoredPreferenceState {
+    #[serde(default)]
+    ledger: PreferenceLedger,
+    #[serde(default)]
+    baseline: BTreeMap<String, serde_json::Value>,
+}
+
+/// Whether `key` is an account-synced preference (M37).
+///
+/// Account-scoped settings (`Scope::Account`, except BYOK model selection
+/// `agent.provider` / `agent.model` / `agent.thinking`) and `keys.bindings`
+/// follow the account; device-scoped (`Scope::Device`), book-scoped
+/// (`Scope::Book`), BYOK keys and `modules` device memory stay local to this
+/// device.
+pub fn follows_account(key: &str) -> bool {
+    if matches!(
+        key,
+        registry::AGENT_PROVIDER | registry::AGENT_MODEL | registry::AGENT_THINKING
+    ) {
+        return false;
+    }
+    key == dr_shell::settings::store::KEY_BINDINGS
+        || registry::find(key).is_some_and(|d| d.scope == registry::Scope::Account)
+}
+
+/// All setting keys that participate in M37 account preference sync.
+pub fn synced_preference_keys() -> Vec<&'static str> {
+    let mut keys: Vec<&'static str> = registry::REGISTRY
+        .iter()
+        .filter(|d| follows_account(d.key))
+        .map(|d| d.key)
+        .collect();
+    keys.push(dr_shell::settings::store::KEY_BINDINGS);
+    keys
+}
+
+/// Read the effective value of an account-synced preference from `file`.
+pub fn read_synced_preference(
+    file: &dr_shell::SettingsFile,
+    key: &str,
+) -> Option<serde_json::Value> {
+    if !follows_account(key) {
+        return None;
+    }
+    if key == dr_shell::settings::store::KEY_BINDINGS {
+        return Some(serde_json::Value::Object(file.key_bindings()));
+    }
+    let def = registry::find(key)?;
+    Some(file.value(def, None))
+}
+
+fn read_explicit_synced_preference(
+    file: &dr_shell::SettingsFile,
+    key: &str,
+) -> Option<serde_json::Value> {
+    if !follows_account(key) {
+        return None;
+    }
+    if key == dr_shell::settings::store::KEY_BINDINGS {
+        let bindings = file.key_bindings();
+        return (!bindings.is_empty()).then_some(serde_json::Value::Object(bindings));
+    }
+    let def = registry::find(key)?;
+    file.stored(def, None)
+}
+
+/// Apply a remote account-synced preference value to `file`.
+pub fn apply_synced_preference(
+    file: &mut dr_shell::SettingsFile,
+    key: &str,
+    value: &serde_json::Value,
+) -> bool {
+    if !follows_account(key) {
+        return false;
+    }
+    if key == dr_shell::settings::store::KEY_BINDINGS {
+        let existing: Vec<String> = file.key_bindings().keys().cloned().collect();
+        for id in existing {
+            file.set_key_binding(&id, None);
+        }
+        if let serde_json::Value::Object(map) = value {
+            for (id, v) in map {
+                if let Some(s) = v.as_str() {
+                    file.set_key_binding(id, Some(s));
+                }
+            }
+        }
+        return true;
+    }
+    if value.is_null() {
+        file.reset(key, None)
+    } else {
+        file.set(key, value.clone(), None).unwrap_or(false)
+    }
+}
+
+/// Whether `file` has any account-synced preference awaiting upload.
+pub fn has_pending_synced_preferences(file: &dr_shell::SettingsFile) -> bool {
+    let (_, _, ledger) = snapshot_synced_preferences(file);
+    ledger.entries.values().any(|e| e.pending)
+}
+
+fn load_stored_preference_state(file: &dr_shell::SettingsFile) -> StoredPreferenceState {
+    file.device_memory(PREFERENCE_LEDGER_MEMORY_KEY)
+        .and_then(|v| serde_json::from_value::<StoredPreferenceState>(v.clone()).ok())
+        .unwrap_or_default()
+}
+
+fn save_stored_preference_state(file: &mut dr_shell::SettingsFile, state: &StoredPreferenceState) {
+    if let Ok(val) = serde_json::to_value(state) {
+        file.set_device_memory(PREFERENCE_LEDGER_MEMORY_KEY, Some(val));
+    }
+}
+
+/// Runs an M37 preference sync round immediately on the background executor when connected.
+pub fn sync_preferences_now(cx: &mut App) {
+    let Some(svc) = cx.try_global::<Service>() else {
+        return;
+    };
+    if svc.state.status != SessionStatus::Connected || !cx.has_global::<Settings>() {
+        return;
+    }
+    let inner = svc.inner.clone();
+    let (keys, local_values, ledger) = snapshot_synced_preferences(Settings::read(cx));
+
+    let task = cx.spawn(async move |cx| {
+        let res = cx
+            .background_executor()
+            .spawn(async move { inner.sync_preferences(&keys, &local_values, &ledger) })
+            .await;
+        cx.update(|cx| {
+            if let Ok(outcome) = res
+                && outcome.supported
+                && cx.has_global::<Settings>()
+            {
+                Settings::update(cx, |file| {
+                    apply_preference_sync_outcome(file, &outcome);
+                });
+                let bindings = Settings::read(cx).key_bindings();
+                dr_shell::keymap::apply(&bindings, cx);
+            }
+        });
+    });
+    cx.global_mut::<Service>().preference_sync_task = Some(task);
+}
+
+/// Synchronously runs one M37 preference sync round against `service` and applies the outcome
+/// to `file`.
+pub fn sync_preferences_blocking(
+    service: &AccountService,
+    file: &mut dr_shell::SettingsFile,
+) -> Result<dr_account::PreferenceSyncOutcome, dr_account::AccountError> {
+    let (keys, local_values, ledger) = snapshot_synced_preferences(file);
+    let outcome = service.sync_preferences(&keys, &local_values, &ledger)?;
+    if outcome.supported {
+        apply_preference_sync_outcome(file, &outcome);
+    }
+    Ok(outcome)
+}
+
+fn snapshot_synced_preferences(
+    file: &dr_shell::SettingsFile,
+) -> (
+    Vec<&'static str>,
+    BTreeMap<String, serde_json::Value>,
+    PreferenceLedger,
+) {
+    let keys = synced_preference_keys();
+    let mut local_values = BTreeMap::new();
+    for &key in &keys {
+        if let Some(val) = read_synced_preference(file, key) {
+            local_values.insert(key.to_owned(), val);
+        }
+    }
+    let stored = load_stored_preference_state(file);
+    let mut ledger = stored.ledger;
+    let now_iso = current_iso_timestamp();
+    for &key in &keys {
+        let cur = read_explicit_synced_preference(file, key);
+        let base = stored.baseline.get(key).cloned();
+        if cur != base {
+            let entry = ledger.entries.entry(key.to_owned()).or_default();
+            if !entry.pending || entry.changed_at.is_empty() {
+                entry.changed_at = now_iso.clone();
+                entry.pending = true;
+            }
+        }
+    }
+    (keys, local_values, ledger)
+}
+
+fn apply_preference_sync_outcome(
+    file: &mut dr_shell::SettingsFile,
+    outcome: &dr_account::PreferenceSyncOutcome,
+) {
+    for (key, value) in &outcome.applied {
+        apply_synced_preference(file, key, value);
+    }
+    let mut baseline = BTreeMap::new();
+    for key in synced_preference_keys() {
+        if let Some(val) = read_explicit_synced_preference(file, key) {
+            baseline.insert(key.to_owned(), val);
+        }
+    }
+    let state = StoredPreferenceState {
+        ledger: outcome.ledger.clone(),
+        baseline,
+    };
+    save_stored_preference_state(file, &state);
+}
+
+fn current_iso_timestamp() -> String {
+    let dur = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default();
+    let secs = dur.as_secs();
+    let millis = dur.subsec_millis();
+    let days = secs / 86_400;
+    let rem = secs % 86_400;
+    let hour = rem / 3600;
+    let min = (rem % 3600) / 60;
+    let sec = rem % 60;
+    let z = days as i64 + 719_468;
+    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
+    let doe = (z - era * 146_097) as u64;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146_096) / 365;
+    let y = yoe as i64 + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = if m <= 2 { y + 1 } else { y };
+    format!("{year:04}-{m:02}-{d:02}T{hour:02}:{min:02}:{sec:02}.{millis:03}Z")
 }
 
 fn switch_library_if_needed(target_dir: PathBuf, is_account_lib: bool, cx: &mut App) {
@@ -545,5 +820,121 @@ mod tests {
                 let _ = cx;
             })
             .expect("update window");
+    }
+
+    #[test]
+    fn settings_file_preference_sync_never_uploads_device_or_byok_keys() {
+        use dr_shell::settings::registry::{
+            AGENT_MAX_MODEL_ROUNDS, AGENT_MODEL, AGENT_PROVIDER, CRASH_REPORTS, FONT_SIZE,
+            TEXT_SIZE, THEME, UI_LOCALE,
+        };
+        use serde_json::Value;
+
+        let server = FakeAuthServer::start();
+        server.set_require_signup_verification(false);
+        let tmp_a = TempDir::new().expect("tempdir a");
+        let tmp_b = TempDir::new().expect("tempdir b");
+
+        let svc_a = AccountService::new(
+            server.config(),
+            tmp_a.path(),
+            "cc.drifting.next.dev",
+            Arc::new(SecretStore::in_memory()),
+        )
+        .expect("svc a");
+        let svc_b = AccountService::new(
+            server.config(),
+            tmp_b.path(),
+            "cc.drifting.next.dev",
+            Arc::new(SecretStore::in_memory()),
+        )
+        .expect("svc b");
+
+        svc_a
+            .sign_up_email("Author", "prefs@example.test", "prefs-password-123")
+            .expect("sign up a");
+        svc_b
+            .sign_in_email("prefs@example.test", "prefs-password-123")
+            .expect("sign in b");
+
+        // Device A edits synced preferences AND device-only preferences.
+        let mut file_a = SettingsFile::in_memory();
+        file_a.set(THEME, Value::from("dark"), None).unwrap();
+        file_a.set(FONT_SIZE, Value::from(21.0), None).unwrap();
+        file_a.set(UI_LOCALE, Value::from("ja"), None).unwrap();
+        file_a
+            .set(AGENT_MAX_MODEL_ROUNDS, Value::from(80), None)
+            .unwrap();
+        file_a.set_key_binding("goBack", Some("cmd-alt-left"));
+
+        // Device-only settings:
+        file_a.set(TEXT_SIZE, Value::from("largest"), None).unwrap();
+        file_a.set(CRASH_REPORTS, Value::from(false), None).unwrap();
+        file_a
+            .set(AGENT_PROVIDER, Value::from("anthropic"), None)
+            .unwrap();
+        file_a
+            .set(AGENT_MODEL, Value::from("claude-sonnet"), None)
+            .unwrap();
+        file_a.set_device_memory("shelf.cover_style", Some(Value::from("topo")));
+
+        let out_a = sync_preferences_blocking(&svc_a, &mut file_a).expect("sync a");
+        assert!(out_a.supported);
+        assert!(!has_pending_synced_preferences(&file_a));
+
+        // Inspect server storage: device-only keys must NEVER appear on the server.
+        let stored_on_server = server.preferences_for("prefs@example.test");
+        assert!(stored_on_server.contains_key(THEME));
+        assert!(stored_on_server.contains_key(FONT_SIZE));
+        assert!(stored_on_server.contains_key(UI_LOCALE));
+        assert!(stored_on_server.contains_key(AGENT_MAX_MODEL_ROUNDS));
+        assert!(stored_on_server.contains_key(dr_shell::settings::store::KEY_BINDINGS));
+        assert!(!stored_on_server.contains_key(TEXT_SIZE));
+        assert!(!stored_on_server.contains_key(CRASH_REPORTS));
+        assert!(!stored_on_server.contains_key(AGENT_PROVIDER));
+        assert!(!stored_on_server.contains_key(AGENT_MODEL));
+        assert!(!stored_on_server.contains_key("shelf.cover_style"));
+
+        // Device B syncs and receives all account-synced settings, while keeping its own device settings.
+        let mut file_b = SettingsFile::in_memory();
+        let out_b = sync_preferences_blocking(&svc_b, &mut file_b).expect("sync b");
+        assert!(out_b.supported);
+        assert_eq!(file_b.get(THEME), Value::from("dark"));
+        assert_eq!(file_b.number(FONT_SIZE), 21.0);
+        assert_eq!(file_b.get(UI_LOCALE), Value::from("ja"));
+        assert_eq!(file_b.get(AGENT_MAX_MODEL_ROUNDS), Value::from(80));
+        assert_eq!(file_b.key_bindings()["goBack"], Value::from("cmd-alt-left"));
+        // Device B's device-only settings remain at their local defaults:
+        assert_eq!(file_b.get(TEXT_SIZE), Value::from("standard"));
+        assert_eq!(file_b.get(AGENT_PROVIDER), Value::from("deepseek"));
+    }
+
+    #[test]
+    fn sync_status_hover_copy_and_action_labels_cover_all_states() {
+        use dr_i18n::Locale;
+        use dr_sync::{SyncCornerState, SyncProblem, SyncStatusAction};
+
+        for locale in [Locale::ZhCn, Locale::En] {
+            for state in [
+                SyncCornerState::Syncing,
+                SyncCornerState::Retrying,
+                SyncCornerState::Offline,
+                SyncCornerState::Problem(SyncProblem::NotStarted),
+                SyncCornerState::Problem(SyncProblem::Reauth),
+                SyncCornerState::Problem(SyncProblem::Quota),
+                SyncCornerState::Problem(SyncProblem::Failing),
+            ] {
+                let copy = sync_status_copy(state, locale);
+                assert!(!copy.title.is_empty());
+                assert!(!copy.detail.is_empty());
+            }
+            for action in [
+                SyncStatusAction::Retry,
+                SyncStatusAction::SignIn,
+                SyncStatusAction::OpenSettings,
+            ] {
+                assert!(!sync_action_label(action, locale).is_empty());
+            }
+        }
     }
 }
