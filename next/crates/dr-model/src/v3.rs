@@ -1289,6 +1289,80 @@ pub fn effective_ancestors(
         .collect()
 }
 
+/// Provenance of one resolved setting, using the same precedence as its value.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum LevelSettingSource {
+    Default,
+    Override {
+        entry: EntryId,
+    },
+    Template {
+        entry: EntryId,
+        template: EntryTemplateId,
+    },
+    Lane {
+        entry: EntryId,
+        template: EntryTemplateId,
+    },
+}
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ResolvedLevelSettings {
+    pub settings: LevelSettings,
+    pub sources: BTreeMap<String, LevelSettingSource>,
+}
+pub const LEVEL_SETTING_KEYS: [&str; 8] = [
+    "default_template",
+    "allow",
+    "display",
+    "auto_link",
+    "accept",
+    "home",
+    "is_manuscript",
+    "format_shortcuts",
+];
+
+/// Resolve values and provenance together; callers must not independently
+/// reconstruct inheritance from a different read of the book.
+pub fn resolve_level_settings_with_sources(
+    level_id: Option<&EntryId>,
+    entries: &BTreeMap<EntryId, Entry>,
+    templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
+) -> ResolvedLevelSettings {
+    let mut sources = LEVEL_SETTING_KEYS
+        .into_iter()
+        .map(|k| (k.to_owned(), LevelSettingSource::Default))
+        .collect();
+    let settings = resolve_level_settings_inner(level_id, entries, templates, Some(&mut sources));
+    ResolvedLevelSettings { settings, sources }
+}
+
+fn inherit_settings(
+    acc: &mut LevelSettingsOverride,
+    from: &LevelSettingsOverride,
+    source: impl Fn() -> LevelSettingSource,
+    sources: &mut Option<&mut BTreeMap<String, LevelSettingSource>>,
+) {
+    if let Some(sources) = sources {
+        macro_rules! provenance { ($($field:ident),*) => { $(
+            if acc.$field.is_none() && from.$field.is_some() {
+                sources.insert(stringify!($field).into(),source());
+            }
+        )* }; }
+        provenance!(
+            default_template,
+            allow,
+            display,
+            auto_link,
+            accept,
+            home,
+            is_manuscript,
+            format_shortcuts
+        );
+    }
+    *acc = acc.overlay(from);
+}
+
 /// Resolve the effective [`LevelSettings`] of `level_id` by inheriting down the
 /// ancestor chain (`kernel-v3.md` "层级的设置":
 /// `entry.overrides > template.settings > nearest ancestor specifying the field > default`).
@@ -1296,6 +1370,15 @@ pub fn resolve_level_settings(
     level_id: Option<&EntryId>,
     entries: &BTreeMap<EntryId, Entry>,
     templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
+) -> LevelSettings {
+    resolve_level_settings_inner(level_id, entries, templates, None)
+}
+
+fn resolve_level_settings_inner(
+    level_id: Option<&EntryId>,
+    entries: &BTreeMap<EntryId, Entry>,
+    templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
+    mut sources: Option<&mut BTreeMap<String, LevelSettingSource>>,
 ) -> LevelSettings {
     let Some(lid) = level_id else {
         return LevelSettings::default();
@@ -1313,13 +1396,38 @@ pub fn resolve_level_settings(
             continue;
         };
         if let Some(ov) = e.overrides.as_ref() {
-            acc = acc.overlay(ov);
+            inherit_settings(
+                &mut acc,
+                ov,
+                || LevelSettingSource::Override { entry: id.clone() },
+                &mut sources,
+            );
         }
         if let Some(tpl) = e.effective_template(templates)
             && tpl.is_level()
         {
-            acc = acc.overlay(&tpl.settings);
+            inherit_settings(
+                &mut acc,
+                &tpl.settings,
+                || LevelSettingSource::Template {
+                    entry: id.clone(),
+                    template: tpl.id.clone(),
+                },
+                &mut sources,
+            );
         }
+    }
+    if is_lane && let Some(sources) = sources {
+        sources.insert(
+            "accept".into(),
+            LevelSettingSource::Lane {
+                entry: lid.clone(),
+                template: level_entry
+                    .template
+                    .clone()
+                    .expect("lane has an effective template"),
+            },
+        );
     }
     acc.finish(is_lane)
 }
@@ -1806,10 +1914,31 @@ pub fn resolve_autolink_name_conflicts(
     memberships: &[Membership],
     templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
 ) -> BTreeMap<EntryId, EntryId> {
-    let snapshot = entries.clone();
+    // Eligibility is independent of the resolved conflict flag. Validate the
+    // memberships once for this complete read, instead of once per leaf.
+    let snapshot = &*entries;
+    let mut host_autolink = BTreeMap::new();
+    let linked_members: BTreeSet<_> = filter_valid_memberships(memberships, snapshot, templates)
+        .into_iter()
+        .filter(|m| {
+            *host_autolink.entry(m.host.clone()).or_insert_with(|| {
+                resolve_level_settings(Some(&m.host), snapshot, templates).auto_link
+            })
+        })
+        .map(|m| m.member)
+        .collect();
+    let mut parent_autolink = BTreeMap::new();
     let mut order: Vec<EntryId> = snapshot
         .values()
-        .filter(|e| is_autolink_leaf(e, memberships, &snapshot, templates))
+        .filter(|e| {
+            if e.is_trashed() || !e.is_leaf(templates) {
+                return false;
+            }
+            let parent = effective_parent_id(e, snapshot, templates);
+            *parent_autolink.entry(parent.clone()).or_insert_with(|| {
+                resolve_level_settings(parent.as_ref(), snapshot, templates).auto_link
+            }) || linked_members.contains(&e.id)
+        })
         .map(|e| e.id.clone())
         .collect();
     order.sort_by(|a, b| {
@@ -2212,6 +2341,143 @@ mod tests {
         let overridden = resolve_level_settings(Some(&eid("grp-heroes")), &entries, &templates);
         assert!(!overridden.auto_link);
         assert_eq!(overridden.default_template, Some(tid("tpl-person")));
+    }
+
+    #[test]
+    fn settings_sources_follow_the_value_resolver_including_null_and_lane() {
+        let mut parent_tpl = level_template("parent-tpl", "Parent", false);
+        parent_tpl.settings.display = Some(ChildDisplayMode::Island);
+        parent_tpl.settings.home = Some(Some(eid("home")));
+        let mut lane_tpl = level_template("lane-tpl", "Lane", true);
+        lane_tpl.settings.auto_link = Some(false);
+        lane_tpl.settings.accept = Some(false);
+        let templates = BTreeMap::from([
+            (parent_tpl.id.clone(), parent_tpl),
+            (lane_tpl.id.clone(), lane_tpl),
+        ]);
+        let mut parent = entry_with("parent", None, "Parent", Some("parent-tpl"));
+        parent.overrides = Some(LevelSettingsOverride {
+            auto_link: Some(true),
+            ..Default::default()
+        });
+        let mut lane = entry_with("lane", Some("parent"), "Lane", Some("lane-tpl"));
+        lane.overrides = Some(LevelSettingsOverride {
+            home: Some(None),
+            ..Default::default()
+        });
+        let entries = BTreeMap::from([(parent.id.clone(), parent), (lane.id.clone(), lane)]);
+        let resolved =
+            resolve_level_settings_with_sources(Some(&eid("lane")), &entries, &templates);
+        assert_eq!(
+            resolved.settings,
+            resolve_level_settings(Some(&eid("lane")), &entries, &templates)
+        );
+        assert_eq!(resolved.sources.len(), 8);
+        assert!(resolved.settings.accept);
+        assert!(!resolved.settings.auto_link);
+        assert_eq!(resolved.settings.home, None);
+        assert_eq!(resolved.settings.display, ChildDisplayMode::Island);
+        assert_eq!(
+            resolved.sources["home"],
+            LevelSettingSource::Override { entry: eid("lane") }
+        );
+        assert_eq!(
+            resolved.sources["accept"],
+            LevelSettingSource::Lane {
+                entry: eid("lane"),
+                template: tid("lane-tpl")
+            }
+        );
+        assert_eq!(
+            resolved.sources["auto_link"],
+            LevelSettingSource::Template {
+                entry: eid("lane"),
+                template: tid("lane-tpl")
+            }
+        );
+        assert_eq!(
+            resolved.sources["display"],
+            LevelSettingSource::Template {
+                entry: eid("parent"),
+                template: tid("parent-tpl")
+            }
+        );
+        assert_eq!(
+            resolved.sources["default_template"],
+            LevelSettingSource::Default
+        );
+        for missing in [None, Some(eid("missing"))] {
+            let resolved =
+                resolve_level_settings_with_sources(missing.as_ref(), &entries, &templates);
+            assert_eq!(resolved.settings, LevelSettings::default());
+            assert!(
+                resolved
+                    .sources
+                    .values()
+                    .all(|v| *v == LevelSettingSource::Default)
+            );
+        }
+    }
+
+    #[test]
+    fn autolink_conflicts_keep_residence_membership_trash_and_tie_breaking_rules() {
+        let mut host_tpl = level_template("host-tpl", "Host", false);
+        host_tpl.settings.auto_link = Some(true);
+        host_tpl.settings.accept = Some(true);
+        let templates = BTreeMap::from([
+            (host_tpl.id.clone(), host_tpl),
+            (tid("leaf"), leaf_template("leaf", "Leaf")),
+        ]);
+        let mut entries = BTreeMap::new();
+        for e in [
+            entry_with("host", None, "Host", Some("host-tpl")),
+            entry_with("closed", None, "Closed", None),
+            entry_with("a", Some("host"), "Same", Some("leaf")),
+            entry_with("b", None, "Same", Some("leaf")),
+            entry_with("c", None, "Same", Some("leaf")),
+            entry_with("d", Some("host"), "Same", Some("leaf")),
+            entry_with("e", Some("a"), "Same", Some("leaf")),
+            entry_with("f", None, "Same", Some("leaf")),
+        ] {
+            entries.insert(e.id.clone(), e);
+        }
+        entries.get_mut(&eid("d")).unwrap().deleted_at = Some(Timestamp(2));
+        let memberships = vec![
+            Membership {
+                host: eid("host"),
+                member: eid("b"),
+                pos: None,
+                created_at: None,
+            },
+            Membership {
+                host: eid("closed"),
+                member: eid("c"),
+                pos: None,
+                created_at: None,
+            },
+            Membership {
+                host: eid("missing"),
+                member: eid("f"),
+                pos: None,
+                created_at: None,
+            },
+        ];
+        // Independent eligibility helper still uses the per-entry rule.
+        let eligible: Vec<_> = entries
+            .values()
+            .filter(|e| is_autolink_leaf(e, &memberships, &entries, &templates))
+            .map(|e| e.id.clone())
+            .collect();
+        assert_eq!(eligible, vec![eid("a"), eid("b"), eid("e")]);
+        let conflicts = resolve_autolink_name_conflicts(&mut entries, &memberships, &templates);
+        assert_eq!(
+            conflicts,
+            BTreeMap::from([(eid("b"), eid("a")), (eid("e"), eid("a"))])
+        );
+        entries.get_mut(&eid("a")).unwrap().deleted_at = Some(Timestamp(3));
+        let conflicts = resolve_autolink_name_conflicts(&mut entries, &memberships, &templates);
+        assert_eq!(conflicts, BTreeMap::from([(eid("e"), eid("b"))]));
+        assert_eq!(entries[&eid("b")].name_conflict, None);
     }
 
     #[test]

@@ -151,6 +151,7 @@ pub(crate) struct ForestNode {
     pub(crate) meta: LoroValue,
     /// Every live tree node carrying this domain id (the kept one first).
     pub(crate) tree_ids: Vec<TreeID>,
+    pub(crate) pos: String,
 }
 
 /// A tree read by domain id. Normally each domain id has one tree node, but
@@ -161,25 +162,68 @@ pub(crate) struct ForestNode {
 /// reachable through a cycle of copies (possible at the domain level, never in
 /// Loro's own tree) is not listed, and readers treat it as missing.
 pub(crate) fn forest(tree: &LoroTree) -> Vec<ForestNode> {
-    let mut nodes = tree.get_nodes(false);
-    nodes.sort_by_key(|n| n.id);
-    let mut dom: HashMap<TreeID, String> = HashMap::new();
-    let mut kept: HashMap<String, (TreeID, TreeParentId, LoroValue)> = HashMap::new();
-    let mut copies: HashMap<String, Vec<TreeID>> = HashMap::new();
-    for n in &nodes {
-        let Ok(meta) = tree.get_meta(n.id) else {
+    let nodes = tree
+        .get_nodes(false)
+        .into_iter()
+        .filter_map(|n| {
+            Some((
+                n.id,
+                n.parent,
+                tree.get_meta(n.id).ok()?.get_deep_value(),
+                tree.fractional_index(n.id).unwrap_or_default(),
+            ))
+        })
+        .collect();
+    normalize_forest(nodes)
+}
+
+/// The exact same duplicate-ID and ordering rules, over an atomic deep-value
+/// snapshot rather than repeated reads of an internally mutable LoroTree.
+pub(crate) fn forest_value(value: &LoroValue) -> Vec<ForestNode> {
+    let mut nodes = Vec::new();
+    let mut stack = vec![value];
+    while let Some(value) = stack.pop() {
+        let LoroValue::List(items) = value else {
             continue;
         };
-        let v = meta.get_deep_value();
+        for node in items.iter() {
+            let f = F(node);
+            if let Some(children) = f.get("children") {
+                stack.push(children);
+            }
+            let Some(tree_id) = f
+                .opt_string("id")
+                .and_then(|id| TreeID::try_from(id.as_str()).ok())
+            else {
+                continue;
+            };
+            let parent = f
+                .opt_string("parent")
+                .and_then(|id| TreeID::try_from(id.as_str()).ok())
+                .map_or(TreeParentId::Root, TreeParentId::Node);
+            if let Some(meta) = f.get("meta") {
+                nodes.push((tree_id, parent, meta.clone(), f.string("fractional_index")));
+            }
+        }
+    }
+    normalize_forest(nodes)
+}
+
+fn normalize_forest(mut nodes: Vec<(TreeID, TreeParentId, LoroValue, String)>) -> Vec<ForestNode> {
+    nodes.sort_by_key(|n| n.0);
+    let mut dom: HashMap<TreeID, String> = HashMap::new();
+    let mut kept: HashMap<String, (TreeID, TreeParentId, LoroValue, String)> = HashMap::new();
+    let mut copies: HashMap<String, Vec<TreeID>> = HashMap::new();
+    for (tree_id, parent, v, pos) in nodes {
         let Some(id) = F(&v).opt_string("id") else {
             continue;
         };
-        dom.insert(n.id, id.clone());
-        copies.entry(id.clone()).or_default().push(n.id);
-        kept.entry(id).or_insert((n.id, n.parent, v));
+        dom.insert(tree_id, id.clone());
+        copies.entry(id.clone()).or_default().push(tree_id);
+        kept.entry(id).or_insert((tree_id, parent, v, pos));
     }
     let parent_of = |id: &str| -> Option<String> {
-        let (_, parent, _) = &kept[id];
+        let (_, parent, _, _) = &kept[id];
         match parent {
             TreeParentId::Node(p) => dom.get(p).filter(|d| d.as_str() != id).cloned(),
             _ => None,
@@ -188,12 +232,11 @@ pub(crate) fn forest(tree: &LoroTree) -> Vec<ForestNode> {
     // Children per parent domain id, in tree order (fractional index, then
     // tree id), merged over every copy of the parent.
     let mut children: HashMap<Option<String>, Vec<(String, TreeID, String)>> = HashMap::new();
-    for (id, (t, _, _)) in &kept {
-        let key = tree.fractional_index(*t).unwrap_or_default();
+    for (id, (t, _, _, key)) in &kept {
         children
             .entry(parent_of(id))
             .or_default()
-            .push((key, *t, id.clone()));
+            .push((key.clone(), *t, id.clone()));
     }
     for v in children.values_mut() {
         v.sort();
@@ -213,11 +256,12 @@ pub(crate) fn forest(tree: &LoroTree) -> Vec<ForestNode> {
                 stack.push(k.clone());
             }
         }
-        let (_, _, meta) = kept[&id].clone();
+        let (_, _, meta, pos) = kept[&id].clone();
         out.push(ForestNode {
             parent: parent_of(&id),
             tree_ids: copies.remove(&id).unwrap_or_default(),
             meta,
+            pos,
             id,
         });
     }

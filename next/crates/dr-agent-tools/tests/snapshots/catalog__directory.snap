@@ -263,6 +263,7 @@ idea.purge: cascade needs an F3 query exposing affected relations, including hid
 idea.to_chapter: conversion needs exact affected act and time-pin coverage before mutation
 idea.to_element: conversion needs version-checked full source prose and guarded automatic-link effects
 level.get: v3 commands remain excluded until K6 opens the versioned catalog
+level.list: v3 commands remain excluded until K6 opens the versioned catalog
 material.delete: cascade needs an F3 query exposing affected relations, including hidden endpoints
 membership.add: v3 commands remain excluded until K6 opens the versioned catalog
 membership.list: v3 commands remain excluded until K6 opens the versioned catalog

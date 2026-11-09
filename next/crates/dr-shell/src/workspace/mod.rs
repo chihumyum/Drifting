@@ -187,10 +187,72 @@ pub fn save_all_layouts(cx: &mut App) {
     }
 }
 
+/// Which display a new workspace window opens on: `DRIFTING_WINDOW_DISPLAY`
+/// is `primary` (the default), `secondary` (the first display that is not
+/// the primary one) or a display's index. Automated runs (`cargo xtask dev
+/// --debug-bridge`, `cargo drifting app` scenarios) set `secondary` so their
+/// windows stay off the author's main display; with one display it falls
+/// back to the primary.
+pub const WINDOW_DISPLAY_ENV: &str = "DRIFTING_WINDOW_DISPLAY";
+
+fn choose_display<T: PartialEq + Copy>(
+    preference: Option<&str>,
+    all: &[T],
+    primary: Option<T>,
+) -> Option<T> {
+    match preference.map(str::trim) {
+        Some("secondary") => all
+            .iter()
+            .copied()
+            .find(|d| Some(*d) != primary)
+            .or(primary),
+        Some(n) => match n.parse::<usize>() {
+            Ok(i) => all.get(i).copied().or(primary),
+            Err(_) => primary,
+        },
+        None => primary,
+    }
+}
+
+#[cfg(test)]
+mod display_choice_tests {
+    use super::choose_display;
+
+    #[test]
+    fn secondary_skips_the_primary_and_falls_back_with_one_display() {
+        assert_eq!(
+            choose_display(Some("secondary"), &[1, 2, 3], Some(1)),
+            Some(2)
+        );
+        assert_eq!(choose_display(Some("secondary"), &[2, 1], Some(1)), Some(2));
+        assert_eq!(choose_display(Some("secondary"), &[1], Some(1)), Some(1));
+    }
+
+    #[test]
+    fn primary_index_and_unknown_values() {
+        assert_eq!(choose_display(None, &[1, 2], Some(1)), Some(1));
+        assert_eq!(choose_display(Some("primary"), &[1, 2], Some(1)), Some(1));
+        assert_eq!(choose_display(Some("1"), &[1, 2], Some(1)), Some(2));
+        assert_eq!(choose_display(Some("7"), &[1, 2], Some(1)), Some(1));
+        assert_eq!(choose_display(Some("left"), &[1, 2], Some(1)), Some(1));
+    }
+}
+
 pub fn window_options(cx: &App) -> WindowOptions {
     let info = cx.try_global::<ShellInfo>().copied();
+    let preference = std::env::var(WINDOW_DISPLAY_ENV).ok();
+    let displays = cx.displays();
+    let ids: Vec<_> = displays.iter().map(|d| d.id()).collect();
+    let display_id = choose_display(
+        preference.as_deref(),
+        &ids,
+        cx.primary_display().map(|d| d.id()),
+    );
+    let display = display_id
+        .and_then(|id| displays.iter().find(|d| d.id() == id).cloned())
+        .or_else(|| cx.primary_display());
     let mut window_size = DEFAULT_SIZE;
-    if let Some(display) = cx.primary_display() {
+    if let Some(display) = display {
         let visible = display.bounds().size;
         window_size.width = window_size.width.min(visible.width * 0.9);
         window_size.height = window_size.height.min(visible.height * 0.9);
@@ -199,10 +261,11 @@ pub fn window_options(cx: &App) -> WindowOptions {
     window_size.height = window_size.height.max(MIN_SIZE.height);
     WindowOptions {
         window_bounds: Some(WindowBounds::Windowed(Bounds::centered(
-            None,
+            display_id,
             window_size,
             cx,
         ))),
+        display_id,
         titlebar: Some(TitlebarOptions {
             // Still named for the Window menu, Mission Control and the taskbar.
             title: Some(info.map_or("Drifting", |i| i.app_name).into()),

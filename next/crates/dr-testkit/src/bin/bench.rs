@@ -75,20 +75,34 @@ fn main() -> Result<(), String> {
             if mode == Mode::Full && cfg!(debug_assertions) {
                 eprintln!("bench: a debug build; timings are not representative (add --release)");
             }
-            let result = (suite.run)(mode)?;
-            let json = if let Some(milestone) = flag("--milestone") {
-                let root = evidence::workspace_root();
+            // Fingerprint inputs before measurement, while they still describe
+            // the code being run; also fail before a lengthy run on stale paths.
+            let root = evidence::workspace_root();
+            let prepared = if let Some(milestone) = flag("--milestone") {
                 let inputs: Vec<&str> = COMMON_INPUTS.iter().chain(suite.inputs).copied().collect();
-                let mut e = Evidence::new(
-                    &format!("{}-bench", suite.name),
-                    &milestone,
-                    &format!(
-                        "cargo run --release -p dr-testkit --bin bench -- {} --milestone {milestone}",
-                        suite.name
-                    ),
+                Some(
+                    Evidence::new(
+                        &format!("{}-bench", suite.name),
+                        &milestone,
+                        &format!(
+                            "cargo run {}-p dr-testkit --bin bench -- {} --milestone {milestone}",
+                            if cfg!(debug_assertions) {
+                                ""
+                            } else {
+                                "--release "
+                            },
+                            suite.name
+                        ),
+                    )
+                    .inputs(&root, &inputs)
+                    .map_err(|e| e.to_string())?,
                 )
-                .inputs(&root, &inputs)
-                .map_err(|e| e.to_string())?;
+            } else {
+                None
+            };
+            let mut result = (suite.run)(mode)?;
+            result.corpus["machineAtEnd"] = evidence::machine();
+            let json = if let Some(mut e) = prepared {
                 e.corpus = result.corpus.clone();
                 e.results = result.to_json();
                 let path = e
