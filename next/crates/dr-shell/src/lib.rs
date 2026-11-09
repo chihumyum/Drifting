@@ -87,9 +87,10 @@ impl Global for Services {}
 /// Installs the shell: strings, settings, shortcuts, menus, the app-wide
 /// actions and the quit flow. Call once, after `dr_ui::init`.
 pub fn init(info: ShellInfo, services: Services, file: SettingsFile, cx: &mut App) {
-    // M40: the Markdown folder makes a last pass and stops before anything
-    // lets go of the library.
-    quit::before_quit(cx, mirror::stop);
+    // The release gate awaits M40's last pass after other producers settle,
+    // before final checkpoints. Failure/replacement restarts it on the live
+    // library; successful quitting leaves it stopped.
+    release::after_release(cx, mirror::resume_after_release);
     // Before quitting, F3 brings the open documents' search index up to date
     // and lets each one close (nothing is lost without it). The hook finds
     // the library when it runs: holding a handle would keep it open.

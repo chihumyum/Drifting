@@ -104,9 +104,37 @@ pub fn stop(cx: &mut App) {
     }
 }
 
+/// After the registered writers settle, finish the last Markdown pass and
+/// join its worker off the UI thread. Checkpoints must await this result.
+pub(crate) fn drain_for_release(cx: &mut App) -> Task<Result<(), String>> {
+    let state = cx.default_global::<State>();
+    let running = state.running.take();
+    state.pump = None;
+    cx.background_executor().spawn(async move {
+        let Some(mirror) = running else {
+            return Ok(());
+        };
+        let result = mirror.sync_now().map(|_| ());
+        // Even a failed pass must finish its worker before services resume.
+        mirror.stop();
+        result
+    })
+}
+
+pub(crate) fn resume_after_release(cx: &mut App) {
+    if !is_running(cx) {
+        restart(cx);
+    }
+}
+
 /// Follows the folder over the open library when there is one and it is on
 /// (the one running stops first).
 pub fn restart(cx: &mut App) {
+    // Replacement installs the new library while the common gate is still
+    // shut. Its after_release hook restarts the producer once release ends.
+    if crate::release::is_releasing(cx) {
+        return;
+    }
     stop(cx);
     let Some(lib) = cx.try_global::<Services>().and_then(|s| s.library.clone()) else {
         return;

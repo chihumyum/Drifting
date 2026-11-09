@@ -876,6 +876,31 @@ G2 三种回调及 K5 新建委托。v3-lite 真窗口场景 **84/84 步、0 pen
 更新自己的子实体，不在这里重借 workspace；需要改窗口或调用命令的动作放进点击
 回调。第二轮完成后，左栏和大纲栏按 K4 分轨交给 G2；其余公共外壳入口继续留在 F6。
 
+### 最终 checkpoint 阶段准备（2026-11-10，尚未交回）
+
+在已冻结的 `handback/k4-0-editors` 之后新增
+`release::after_drain(cx, FnMut(&mut App) -> LocalBoxFuture<Result<(), String>>)`。
+服务先冻结入口，外壳暂停输入并交付 blur，等待全部 `before_release` futures；
+任一失败仍等其他服务结束，随后恢复，不执行最终 checkpoint。全部成功后，外壳在
+后台完成 Markdown 最后一轮并停止 worker，才按登记顺序构造、等待最终 checkpoint。
+它的同步前缀也不得提前捕获版本。错误或 panic 会走原恢复路径：原库、页面和草稿
+仍在，服务／输入恢复，不隐藏应用、不调用替换作业、不跑退出后的副作用。
+Markdown 在 gate 关闭期间不得重启；失败或换库完成后按当前 Services 重新启动。
+
+当前只完成公共阶段和外壳自己的 Markdown 生命周期；5 项共享 v3 tiny 永久契约及
+dr-shell all-targets Clippy（`-D warnings`）通过，日志在
+`next/target/acceptance/k4-0-checks/after-drain-preparation-*.log`。实际 worker 契约
+使用回收中的 v3 种子，只验证停止／恢复顺序，不宣称 M40 已支持 v3 Markdown 布局。
+这不是正式交回，没有移动旧指针或重复使用上一批 2175 项结果；新阶段的完整检查、
+真实窗口与实际 checkpoint 仍待接线后执行。
+
+只读核对 G1 正式 `82fca0b4` 的 `AutomaticHistory::finish` 与
+`automatic::capture_on_close(&Workspace) -> Result<(), String>`，实际消费等第 65 批
+main 通知。G1 的字段／KV／patch／planner 已接收保存尚须登记并排空；冲突和无效
+草稿要保留并拒绝释放，blur 不等于后台保存完成。整合者已分派 G1 独立续接，F6
+不改其视图。当前 GUI 导入经限定核对仍是冻结的 v2.2 路径，不因此恢复旧测试；
+真正 v3 导入入口的生命周期由切换任务另核对。未知树身份的安全拒绝沿 G1 已定边界。
+
 ### 挂载编辑器与 v3 URL 交回（2026-11-10）
 
 分支 `codex/k4-0-shell`，续接指针 `handback/k4-0-editors`；实现 `14fb3cf9`，

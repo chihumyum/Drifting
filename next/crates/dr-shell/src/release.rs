@@ -17,6 +17,7 @@ type Resume = Box<dyn FnMut(&mut App)>;
 struct Hooks {
     preparing: bool,
     before: Vec<Prepare>,
+    checkpoints: Vec<Prepare>,
     after: Vec<Resume>,
 }
 
@@ -35,6 +36,26 @@ pub fn before_release(
     hook: impl FnMut(&mut App) -> LocalBoxFuture<'static, Result<(), String>> + 'static,
 ) {
     cx.default_global::<Hooks>().before.push(Box::new(hook));
+}
+
+/// Registers a fallible final checkpoint after all `before_release` futures
+/// and the shell's final Markdown pass have succeeded. Unlike a prepare
+/// callback, its synchronous prefix is also
+/// delayed until those services finish. Author input and service admission
+/// remain paused, and `Services.library` still holds the original library.
+///
+/// Checkpoints run in registration order; an error or panic stops release
+/// before hiding the app, dropping its pages, or running the replacement job.
+/// The normal `after_release` recovery path resumes services and input. These
+/// hooks must not start new producers: every producer must already have drained
+/// through `before_release`. Use the background executor for blocking storage.
+pub fn after_drain(
+    cx: &mut App,
+    hook: impl FnMut(&mut App) -> LocalBoxFuture<'static, Result<(), String>> + 'static,
+) {
+    cx.default_global::<Hooks>()
+        .checkpoints
+        .push(Box::new(hook));
 }
 
 /// Restores services after a failed preparation or a finished replacement.
@@ -91,7 +112,37 @@ pub(crate) fn begin(cx: &mut App) -> Option<LocalBoxFuture<'static, Result<(), S
             results
                 .into_iter()
                 .collect::<Result<Vec<_>, _>>()
-                .map(|_| ())
+                .map(|_| ())?;
+            // Markdown may merge another final write. Its worker must stop
+            // after the other writers, and before capturing their final state.
+            let mirror = app.update(crate::mirror::drain_for_release);
+            AssertUnwindSafe(mirror)
+                .catch_unwind()
+                .await
+                .unwrap_or_else(|_| Err("Markdown folder release panicked".into()))?;
+            // Construct checkpoint futures only now. Capturing a frontier in
+            // their prefix before the writers settled would still be stale.
+            let mut checkpoints =
+                app.update(|cx| std::mem::take(&mut cx.default_global::<Hooks>().checkpoints));
+            let mut result = Ok(());
+            for checkpoint in &mut checkpoints {
+                let future = app.update(|cx| catch_unwind(AssertUnwindSafe(|| checkpoint(cx))));
+                result = match future {
+                    Ok(future) => AssertUnwindSafe(future)
+                        .catch_unwind()
+                        .await
+                        .unwrap_or_else(|_| Err("final library checkpoint panicked".into())),
+                    Err(_) => Err("final library checkpoint panicked".into()),
+                };
+                if result.is_err() {
+                    break;
+                }
+            }
+            app.update(|cx| {
+                checkpoints.append(&mut cx.default_global::<Hooks>().checkpoints);
+                cx.default_global::<Hooks>().checkpoints = checkpoints;
+            });
+            result
         }
         .boxed_local(),
     )
