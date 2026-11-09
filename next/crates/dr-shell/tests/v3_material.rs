@@ -6,7 +6,7 @@ use dr_shell::{
     nav::{Open, Target},
 };
 use dr_workspace::{Actor, Workspace as Library};
-use gpui::{Entity, Focusable as _, TestAppContext, VisualTestContext};
+use gpui::{AppContext as _, Entity, Focusable as _, TestAppContext, VisualTestContext};
 use serde_json::{Value, json};
 use std::time::{Duration, Instant};
 
@@ -187,4 +187,82 @@ fn foreign_material_is_refused_and_switching_books_opens_the_correct_document(
         format!("F6OtherMaterial {}", before_b[0]["text"].as_str().unwrap())
     );
     assert_eq!(read(&lib, &targets[0]), before_a);
+}
+
+// A registered module gives the shell its wrapper's focus; its real text
+// field is a descendant, just like G1's asynchronous body renderer.
+struct BodyFocus {
+    focus: gpui::FocusHandle,
+    field: Entity<dr_ui::input::TextField>,
+}
+impl gpui::Render for BodyFocus {
+    fn render(
+        &mut self,
+        _: &mut gpui::Window,
+        _: &mut gpui::Context<Self>,
+    ) -> impl gpui::IntoElement {
+        use gpui::{InteractiveElement as _, ParentElement as _, Styled as _};
+        gpui::div()
+            .id("body-focus-probe")
+            .track_focus(&self.focus)
+            .size_full()
+            .child(self.field.clone())
+    }
+}
+
+#[gpui::test]
+fn navigation_from_a_modules_child_editor_hands_focus_to_material_prose(cx: &mut TestAppContext) {
+    let (_dir, lib, books, targets) = fixture();
+    let mounted = std::rc::Rc::new(std::cell::RefCell::new(None));
+    let made = mounted.clone();
+    cx.update(|cx| {
+        dr_shell::v3::add_module_view(cx, "prose", move |_, window, cx| {
+            let body = cx.new(|cx: &mut gpui::Context<BodyFocus>| {
+                let focus = cx.focus_handle();
+                let field =
+                    cx.new(|cx| dr_ui::input::TextField::new("body-focus-field", window, cx));
+                *made.borrow_mut() = Some(field.clone());
+                BodyFocus { focus, field }
+            });
+            dr_shell::v3::Rendered::new(body.clone()).focus(body.read(cx).focus.clone())
+        })
+    });
+    let (view, cx) = setup(cx, &lib, &books[0]);
+    let entry = view.read_with(cx, |ws, _| {
+        let entry = ws
+            .book
+            .v3()
+            .unwrap()
+            .entries
+            .iter()
+            .find(|e| e.template.as_deref() == Some("tpl-chapter"))
+            .unwrap();
+        Target::from_key(&format!("entry:{}/mod-prose", entry.id)).unwrap()
+    });
+    view.update(cx, |ws, cx| ws.open(entry.clone(), Open::KEEP, cx));
+    wait(cx, |_| mounted.borrow().is_some());
+    let field = mounted.borrow().as_ref().unwrap().clone();
+    cx.update(|window, cx| field.focus_handle(cx).focus(window, cx));
+    draw(cx);
+    let focus = view
+        .read_with(cx, |ws, cx| {
+            ws.editors
+                .get(&entry.key())
+                .and_then(|p| p.v3.as_ref())
+                .map(|p| p.read(cx).preferred_focus())
+        })
+        .unwrap();
+    cx.update(|window, cx| {
+        assert!(
+            focus.contains_focused(window, cx) && !focus.is_focused(window),
+            "the module's child owns the keyboard before navigating"
+        )
+    });
+    let editor = open(&view, cx, &targets[0]);
+    let before = read(&lib, &targets[0]);
+    prefix(&editor, cx, "F6FocusedMaterial ");
+    assert_eq!(
+        read(&lib, &targets[0])[0]["text"],
+        format!("F6FocusedMaterial {}", before[0]["text"].as_str().unwrap())
+    );
 }

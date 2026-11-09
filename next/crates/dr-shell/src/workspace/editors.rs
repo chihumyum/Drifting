@@ -889,8 +889,14 @@ impl Workspace {
                     .editors
                     .values()
                     .filter_map(|p| p.module.as_ref())
-                    .any(|m| m.focus == *handle)
+                    .any(|m| m.focus.contains_focused(window, cx))
         });
+        // Module renderers hand focus from their wrapper to a child editor.
+        // Remember the actual owned handle while it is still in the tree;
+        // after a page turn that child may already have left the focus tree.
+        if in_editor {
+            self.gave_focus = focused.clone();
+        }
         if self.covered() || self.search.is_some() || self.find.is_some() {
             // Nothing under Settings, a Super View or a search takes typing.
             if in_editor && self.find.is_none() && self.search.is_none() {

@@ -884,9 +884,14 @@ G2 三种回调及 K5 新建委托。v3-lite 真窗口场景 **84/84 步、0 pen
 `SessionSource`，文档准确为 `material:<id>`；后台打开前用文档所属书核对请求
 发起时的书，拒绝串到另一书。已注册的图片／PDF 页面仍先走原注册口，不改 G4 视图。
 
-`dr-shell/tests/v3_material.rs` 两项永久 GPUI 回归在修复前均失败，修复后通过：
+`dr-shell/tests/v3_material.rs` 三项永久 GPUI 回归在各自修复前失败，修复后通过：
 真实编辑器正文与焦点、输入持久化／撤销、批注入口打开及取消、跨书拒绝和正确书
-里的写入隔离。搜索三项回归也通过；其中素材行号改为核对真实编辑器光标的段落，
+里的写入隔离，以及从正文模块的内部控件切到素材时移交键盘。合并窗口曾在素材
+正文已加载后等不到焦点；失败后 app.info 仍 active／visible，`focus.workspace`
+也为 false。外壳现在识别模块 focus 的后代，并记住实际持有键盘的子控件，避免
+页面退出焦点树后把它误认成外部输入框。真实诊断在 `k4-0-host-focus/`，永久
+修复前契约为 `material-child-focus-before-owned.log`。搜索三项回归也通过；
+其中素材行号改为核对真实编辑器光标的段落，
 不再把空组合页的 `revealed` 当作正文已打开。原搜索交回仅证明搜索目标／行号流转，
 不能据此宣称素材输入或批注保存已通。修复前后日志在
 `next/target/acceptance/k4-0-checks/material-*.log`；全套与副屏冒烟待本批完成后记录。
