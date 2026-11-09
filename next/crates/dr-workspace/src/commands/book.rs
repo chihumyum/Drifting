@@ -16,8 +16,8 @@ use crate::registry::Registry;
 pub(crate) fn register(r: &mut Registry) {
     r.add::<BookCreate>()
         .add::<BookList>()
-        .add::<BookGet>()
-        .add::<BookUpdate>()
+        .add_versioned::<BookGet, v3::book::BookGet>()
+        .add_versioned::<BookUpdate, v3::book::BookUpdate>()
         .add::<BookTrash>()
         .add::<BookRestore>()
         .add::<BookShelf>()
@@ -101,6 +101,9 @@ op! {
     "Read a book's name, summary, word targets and counts.",
     fn(cx, input: BookIn) -> BookDetail {
         let slot = cx.book(&input.book)?;
+        if slot.is_v3() {
+            return Err(WsError::invalid("use v3::book::BookGet for v3 metadata without legacy counts"));
+        }
         let m = meta(&slot);
         let n = nodes(&slot);
         let stats = cx.workspace().library().book_stats(&input.book)?;
@@ -134,6 +137,9 @@ op! {
     "Change a book's name, summary or word targets.",
     fn(cx, input: BookUpdateIn) -> Done {
         let slot = cx.book(&input.book)?;
+        if slot.is_v3() {
+            return <v3::book::BookUpdate as crate::registry::Op>::run(cx, input.into());
+        }
         if let Some(n) = &input.name { name_ok(n)?; }
         for t in [input.word_target, input.daily_word_target].into_iter().flatten() {
             if t < 0 { return Err(WsError::invalid("a word target cannot be negative")); }

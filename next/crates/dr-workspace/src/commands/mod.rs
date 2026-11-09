@@ -202,6 +202,19 @@ macro_rules! cached {
         }
     };
 }
+// Shared collections retain their v2.2 cache; v3 reads its own typed view.
+macro_rules! versioned_cached {
+    ($fn:ident, $key:ident, $ty:ty, $read:ident) => {
+        pub(crate) fn $fn(slot: &BookSlot) -> Arc<$ty> {
+            if slot.is_v3() {
+                Arc::new(slot.reader_v3.view().$read())
+            } else {
+                slot.cache
+                    .get(Key::$key, &slot.reader.view(), |v: &BookView<'_>| v.$read())
+            }
+        }
+    };
+}
 cached!(acts, Acts, Vec<Act>, acts);
 cached!(storylines, Storylines, Vec<Storyline>, storylines);
 cached!(categories, Categories, Vec<Category>, categories);
@@ -214,10 +227,10 @@ cached!(
 );
 cached!(relations, Relations, Vec<Relation>, relations);
 cached!(comments, Comments, Vec<Comment>, comments);
-cached!(materials, Materials, Vec<Material>, materials);
-cached!(assets, Assets, Vec<Asset>, assets);
+versioned_cached!(materials, Materials, Vec<Material>, materials);
+versioned_cached!(assets, Assets, Vec<Asset>, assets);
 cached!(drift_groups, DriftGroups, Vec<DriftGroup>, drift_groups);
-cached!(
+versioned_cached!(
     material_folders,
     MaterialFolders,
     Vec<MaterialFolder>,
@@ -228,7 +241,7 @@ cached!(memory, Memory, Vec<Memory>, memory);
 cached!(meta, Meta, BookMeta, meta);
 cached!(time_pins, TimePins, Vec<TimePin>, time_pins);
 cached!(patches, Patches, Vec<Patch>, patches);
-cached!(relations_raw, RelationsRaw, Vec<Relation>, relations_raw);
+versioned_cached!(relations_raw, RelationsRaw, Vec<Relation>, relations_raw);
 
 /// Whether `r` names a live entity (not in the trash; a patch of an
 /// existing element; a comment or material while stored): F1's key lookup

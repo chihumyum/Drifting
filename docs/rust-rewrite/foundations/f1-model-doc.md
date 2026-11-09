@@ -510,7 +510,6 @@ docs/rust-rewrite/acceptance/f1-m3-doc-bench.json   第三轮的测量证据
 - 检查：`cargo fmt --all --check`、全工作区 Clippy（`--all-targets --locked -- -D warnings`）、全工作区测试（2,062 通过／0 失败／22 忽略）、`cargo xtask check`（含审计）和 `pnpm public:check`（5,462 个候选文件）全部通过。编译并发 3、测试单线程；已有依赖审计提示和 stale／legacy 测量证据保留，不作为新性能结论。
 - 本段交回后继续批注／素材适配；两者的删除与按对象恢复共用同一提交边界，作为下一段联合验收。
 
-
 ## 交回（K2 大书结构读取，2026-11-10，`handback/k1`）
 
 **做了什么：** `codex/k1-v3-heavy` 新增 `BookStructureV3` 显式不可变快照与 `level.list`，值和来源共用模型解析器；`entry.list`／`level.get` 复用单次结构读取，同名冲突保留原赢家规则并按父级／宿主复用设置。永久测试覆盖读取等价、顺序与容错、同事务写后读、import／checkout、跨书及 v2.2 拒绝。触及 v2.2 所在文件仅 `dr-doc/src/book/read.rs`，抽出原 forest 规整器供实时树／深值快照共用，不改旧语义。沿用作者已许可的目录快照范围，`dr-agent-tools/tests/snapshots/catalog__directory.snap` 第 266 行只新增旧版排除清单的 `level.list`；原逐项目录／调用拒绝测试已覆盖，帮手实现未改。标准 heavy 的完整书目读取 debug 从 188538.213 ms 降至 272.825 ms、release 从 39097.377 ms 降至 104.525 ms，四份机器证据和负载／单样本边界见 F3；不是窗口加载验收。
@@ -518,3 +517,19 @@ docs/rust-rewrite/acceptance/f1-m3-doc-bench.json   第三轮的测量证据
 **检查结果：** 提交 `c64c8aa9` 同步 main `ee372789`、`2b7996e3` 内核与契约、`28db6ead` 完整测量、`df1467bd` 生成排除快照，随后 `d901ffe3` 同步 main `c033ce2d`，加本节记录。同步后的 fmt、全工作区 Clippy（all-targets／locked／D warnings）、全工作区测试（2,119 通过／0 失败／22 忽略）、xtask（含审计）和 public（5,502 个候选文件）全部通过。编译并发 3、测试单线程；审计 972 个依赖，0 漏洞、12 条已有提示；debug 大二进制有一条 `__eh_frame` linker 提示。初轮目录快照差异已按生成结果修正并完整重验。没有向 main 合并或推送；本节提交后移动交回指针并主动通知整合者。
 
 **待协调：** 外壳消费 `level.list` 的设置和来源，移除逐层查询及独立来源算法；整合者在各组与 K6 合齐后统一安排副屏、隔离 profile 的 heavy 真窗口验收。K6 复用同一来源接口，不另建继承算法。已排队的写作日段仍包含在本分支历史中；G4 批注／素材实现在 `codex/k1-v3`，本次交回后继续同步和完整验收，没有混入本批。
+
+## 交回（K2 续接 G4，第二段：批注与素材，2026-11-10，`handback/k1`）
+
+**做了什么：** `codex/k1-v3` 补齐模块批注、锚点、TODO 投影、素材、素材夹和资源的实际 v3 读写。批注按 Entry／Material 与模块寻址；删除及按对象恢复保留隐藏关系、模块、区域与 LoroText，普通素材删除保留正文历史和资源字节。编辑中的 TODO 暂缓新建，已有投影文字和已解决状态保留。共用接线为 `commands/comment.rs` 的同名版本签名／typed 分派、`commands/material.rs` 的 v3 reader／事务、`commands/mod.rs` 的素材／资源／夹／原始关系读取、`registry.rs` 的 `Spec.v3` 与同名分派，以及 `cx.rs` 的精确许可；`dr-doc` 只改 v3。生成快照追加七个 v3 签名，命令名字不变。没有改 UI、帮手、dr-index 或迁移，没有删除 v2.2 测试。消费类型与边界见 F3 同名小节。
+
+**检查结果：** `5b34abef` 实现与永久回归，`ba07975f` 同步 main `ee372789`，`731598da` 收入已交回的大书优化，`d68b341d` 同步 main `742f9393`，`3b8564ad` 补 TODO 编辑中契约，`191c8677` 同步 main `39ba3fe8` 的四份规则文档、`e81ca24e` 同步 main `e7caf226` 的夜间协调文档，加本节记录。fmt、全工作区 Clippy（all-targets／locked／D warnings）、全工作区测试（2,131 通过／0 失败／22 忽略）、xtask（含审计）和 public 全部通过；最后两次 main 合并只有文档，受检代码未变；记录补齐后重跑 public（5,507 个候选文件）。编译并发 3、测试单线程；审计 972 个依赖，0 漏洞、12 条已有提示，已有 stale／legacy 证据及 debug 大二进制的 `__eh_frame` linker 提示保留。本批不启动窗口；没有向 main 合并或推送。本节提交后移动指针并主动通知整合者。
+
+**待协调：** G4／G1 消费 v3 批注类型和模块后各自接面板／锚点并验收；原 typed `todo.project` 已支持 v3。`note_tasks.project` 此前未注册，本批不发明新协议，已导入 `note_task` 原样保留。搜索／字数仍用 G4 只读适配。K6 的模块批注工具须消费 `Spec.v3`，由其轨道接线。继续已排队的主页元数据与最近访问段：明确 v3 reader／事务，最近目标保留条目＋模块，完成后另交。
+
+## 交回（K2 主页元数据与最近访问，2026-11-10，`handback/k1`）
+
+**做了什么：** `codex/k1-v3` 提供 `commands::v3::book::BookGet/BookUpdate` 与 `commands::v3::recent::RecentTouch/RecentList`，同名 JSON 命令依据实际书版本分派，注册表追加四个 `Spec.v3` 签名。主页只返回 v3 元数据，不带旧分类的计数；只更新指定字段，撤销保留其他来源的独立字段，目标的缺键／0／null 分别为保持／关闭／恢复默认。最近访问保留 Entry＋module（含说明和旧模块）或 Material，最多每书十项；本机每书一行，书目 frontier／journal／undo 不变，不打断 redo，损坏行拒绝重写，彻底删除书由存储事务清理所属行。共用接线仅 `commands/book.rs` 的同名注册、旧 typed Get 拒绝及 Update 分派，`commands/recent.rs` 的同名注册和旧 typed 入口拒绝，以及 v3 模块导出；没有改 dr-doc、dr-store、UI、帮手或迁移。没有新增或删除 v2.2 测试；三项新契约均在 v3 书上验证，旧本机记录用合成原值验证保留。
+
+**检查结果：** 实现、契约、生成的注册快照与 F3 使用表同在 `2b604d12`；开工及提交后 `git merge main` 确认同步 `e7caf226`，随后 `72d01052` 同步 main `6d86ffce` 的三份验收规则文档（受检代码未变），加本节记录。fmt、全工作区 Clippy（all-targets／locked／D warnings）、全工作区测试（2,134 通过／0 失败／22 忽略）、xtask（含审计）和 public（5,510 个候选文件）全部通过；编译并发 3、测试单线程。审计 972 个依赖、0 漏洞、12 条已有提示；已有 stale／legacy 证据与 debug 大二进制的 `__eh_frame` linker 提示保留。未启动窗口；没有向 main 合并或推送。本节提交后更新指针并主动通知整合者。
+
+**待协调：** G4 接主页元数据，F6 接 `record_recent` 和继续写导航；旧 typed `BookGet` 不再被用来读取 v3 的旧种类计数，旧 typed `RecentTouch/List` 无模块信息，调用方使用 F3 表里的 v3 类型。K6 的元数据工具消费 `Spec.v3`，本批不改帮手目录。搜索／字数仍由 G4 只读适配提供；这些核心接口通过不代表主页或最近访问已经完成真窗口验收。已排队的 K2 接口段至此交回，后续消费与副屏主流程冒烟由各组／整合者继续。按作者最新规则，性能、heavy、截图目检和样式打磨暂缓；没有将未做的验收记作通过。
