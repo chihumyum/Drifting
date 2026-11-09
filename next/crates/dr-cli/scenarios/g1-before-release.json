@@ -224,7 +224,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 1420,
+        "x": 1064,
         "y": 400,
         "dy": 1100
       },
@@ -236,6 +236,14 @@
         "until": "time",
         "ms": 120
       }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Content",
+        "role": "group"
+      },
+      "save": "input_bounds_after_scroll_0"
     },
     {
       "app": "ui.press",
@@ -290,7 +298,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 1420,
+        "x": 1064,
         "y": 400,
         "dy": 1300
       },
@@ -302,6 +310,14 @@
         "until": "time",
         "ms": 120
       }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Body",
+        "role": "group"
+      },
+      "save": "input_bounds_after_scroll_1"
     },
     {
       "app": "ui.press",
@@ -356,7 +372,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 1420,
+        "x": 1064,
         "y": 400,
         "dy": 550
       },
@@ -368,6 +384,14 @@
         "until": "time",
         "ms": 120
       }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${plot.grid.cells.0.text}",
+        "role": "group"
+      },
+      "save": "input_bounds_after_scroll_2"
     },
     {
       "app": "ui.press",
@@ -422,7 +446,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 1420,
+        "x": 1064,
         "y": 400,
         "dy": 1000
       },
@@ -434,6 +458,14 @@
         "until": "time",
         "ms": 120
       }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Drain text",
+        "role": "group"
+      },
+      "save": "input_bounds_after_scroll_3"
     },
     {
       "app": "ui.press",
