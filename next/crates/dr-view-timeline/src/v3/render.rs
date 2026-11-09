@@ -274,12 +274,8 @@ impl Timeline {
                 {
                     let entry = entry.clone();
                     menu = menu.child(
-                        MenuItem::new(
-                            "v3-pin-open",
-                            Icon::ArrowIn,
-                            t(cx, keys::v3_shell::OPEN),
-                        )
-                        .on_click(cx.listener(move |this, e, _, cx| this.open(&entry, e, cx))),
+                        MenuItem::new("v3-pin-open", Icon::ArrowIn, t(cx, keys::v3_shell::OPEN))
+                            .on_click(cx.listener(move |this, e, _, cx| this.open(&entry, e, cx))),
                     );
                     let pin_id = id.clone();
                     menu = menu.child(
@@ -288,11 +284,9 @@ impl Timeline {
                             Icon::Minus,
                             t(cx, keys::v3_timeline::DETACH_ENTRY),
                         )
-                        .on_click(cx.listener(
-                            move |this, _, _, cx| {
-                                this.edit_pin(pin_id.clone(), PinEdit::Bind(None), cx)
-                            },
-                        )),
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            this.edit_pin(pin_id.clone(), PinEdit::Bind(None), cx)
+                        })),
                     );
                 }
                 let mut colors = div().flex().gap_1().px_3().py_2();
