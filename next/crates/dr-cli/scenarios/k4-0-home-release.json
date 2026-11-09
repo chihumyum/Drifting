@@ -1,0 +1,306 @@
+{
+  "about": "F6 v3 Home release: with the production Home mounted, back up v3-lite, change the book, restore through the real confirmation dialog, verify the restored data and preserved pre-restore copy, reopen Home, type and undo in the restored library. Failure recovery is covered separately by permanent real-Home contracts.",
+  "steps": [
+    {
+      "seed": "v3-lite"
+    },
+    {
+      "call": "book.list",
+      "input": {},
+      "save": "books"
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}",
+        "all": true
+      },
+      "save": "entries"
+    },
+    {
+      "call": "prose.read",
+      "input": {
+        "doc": "body:${entries.[template=tpl-chapter].id}/mod-prose"
+      },
+      "save": "before"
+    },
+    {
+      "launch": {
+        "book": "${books.0.id}",
+        "env": {
+          "DRIFTING_APPEARANCE": "light",
+          "DRIFTING_WINDOW_DISPLAY": "secondary"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      },
+      "save": "app"
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "app.info",
+      "save": "environment",
+      "expect": {
+        "/windows/0/active": true,
+        "/windows/0/visible": true
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ShowProjectHome"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/version": 3,
+          "/book/loaded": true,
+          "/page": "home",
+          "/shelf": false
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "panel.answer",
+      "params": {
+        "path": "${app.out}/v3-home.drifting"
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::BackupLibrary"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/transfer/state": "done"
+        },
+        "timeout_ms": 60000
+      }
+    },
+    {
+      "app": "panel.state",
+      "expect": {
+        "/last/kind": "save",
+        "/last/answer": "${app.out}/v3-home.drifting",
+        "/armed": null,
+        "/shown": false
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "Close"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/dialog": false,
+          "/page": "home"
+        }
+      }
+    },
+    {
+      "call": "book.update",
+      "input": {
+        "book": "${books.0.id}",
+        "name": "F6 after backup"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/name": "F6 after backup",
+          "/page": "home"
+        }
+      }
+    },
+    {
+      "app": "panel.answer",
+      "params": {
+        "path": "${app.out}/v3-home.drifting"
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::RestoreLibrary"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/transfer/state": "confirm"
+        },
+        "timeout_ms": 60000
+      }
+    },
+    {
+      "app": "panel.state",
+      "expect": {
+        "/last/kind": "open",
+        "/last/answer": "${app.out}/v3-home.drifting"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "Replace and restore"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/dialog": false,
+          "/library": true,
+          "/shelf": true
+        },
+        "timeout_ms": 60000
+      }
+    },
+    {
+      "app": "app.info",
+      "save": "restoredEnvironment",
+      "expect": {
+        "/windows/0/active": true,
+        "/windows/0/visible": true
+      }
+    },
+    {
+      "call": "book.get",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "expect": {
+        "/name": "${books.0.name}"
+      }
+    },
+    {
+      "call": "prose.read",
+      "input": {
+        "doc": "body:${entries.[template=tpl-chapter].id}/mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "${before.paragraphs.0.text}"
+      }
+    },
+    {
+      "app": "library.info",
+      "contains": {
+        "/preRestore/0": "Drifting-pre-restore-"
+      }
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${books.0.id}"
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ShowProjectHome"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "home",
+          "/book/version": 3,
+          "/book/name": "${books.0.name}",
+          "/shelf": false
+        }
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-chapter].id}/mod-prose"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/v3Page/focus/child": true,
+          "/page": "entry:${entries.[template=tpl-chapter].id}/mod-prose"
+        }
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "Restored home "
+      }
+    },
+    {
+      "call": "prose.read",
+      "input": {
+        "doc": "body:${entries.[template=tpl-chapter].id}/mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "Restored home ${before.paragraphs.0.text}"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-z"
+      }
+    },
+    {
+      "call": "prose.read",
+      "input": {
+        "doc": "body:${entries.[template=tpl-chapter].id}/mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "${before.paragraphs.0.text}"
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ShowProjectHome"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "home",
+          "/book/version": 3
+        }
+      }
+    },
+    {
+      "app": "app.quit"
+    }
+  ]
+}

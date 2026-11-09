@@ -52,6 +52,8 @@ raw-window-handle.workspace = true
 [dev-dependencies]
 # A seeded library for the tests and the captures (the showcase's 《慢钟》).
 dr-testkit.workspace = true
+# Exercise the production v3 Home's library ownership when the host releases it.
+dr-view-home.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
 gpui_platform.workspace = true
 tempfile.workspace = true

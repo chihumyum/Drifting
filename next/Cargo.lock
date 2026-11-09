@@ -2002,6 +2002,7 @@ dependencies = [
  "dr-ui",
  "dr-view-export",
  "dr-view-history",
+ "dr-view-home",
  "dr-view-review",
  "dr-view-search",
  "dr-view-stats",
