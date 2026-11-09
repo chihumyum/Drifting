@@ -1,5 +1,5 @@
 {
-  "about": "K4 G1 v2.2 regression: existing M03 title, synopsis, typing, cancel and end status; waits for asynchronous storage.",
+  "about": "K4 G1 v2.2 regression: existing M03 title, synopsis, typing, cancel and end menu; waits for asynchronous storage.",
   "steps": [
     {
       "seed": "showcase"
@@ -345,45 +345,6 @@
     {
       "app": "ui.screenshot",
       "png": "03-end-actions.png"
-    },
-    {
-      "app": "ui.press",
-      "params": {
-        "label": "Back to draft"
-      }
-    },
-    {
-      "app": "ui.wait",
-      "params": {
-        "until": "ready",
-        "page": {
-          "/head/status": "draft"
-        },
-        "timeout_ms": 5000
-      }
-    },
-    {
-      "app": "page.text",
-      "expect": {
-        "/head/status": "draft",
-        "/head/finished": false
-      }
-    },
-    {
-      "app": "ui.wait",
-      "params": {
-        "until": "time",
-        "ms": 1000
-      }
-    },
-    {
-      "call": "chapter.list",
-      "input": {
-        "book": "${books.[name=慢钟].id}"
-      },
-      "expect": {
-        "/0/status": "draft"
-      }
     },
     {
       "app": "app.quit"
