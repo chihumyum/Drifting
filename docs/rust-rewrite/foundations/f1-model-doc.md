@@ -450,7 +450,7 @@ docs/rust-rewrite/acceptance/f1-m3-doc-bench.json   第三轮的测量证据
 - 检查：`cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、`RUST_TEST_THREADS=1 cargo test --workspace --locked`（1,977 通过／0 失败／22 忽略）、`cargo xtask check`、根目录 `pnpm public:check` 全过。编译并发 3；审计 970 个依赖，0 漏洞、12 条已有提示；已有 stale／legacy 测量证据原样保留。
 - 待协调：K3 的原工作区不改；消费本次返回的根 id 和带书 id 的模板正文接口后自行重交。
 
-## 交回准备（K1+K2 第 5 步：v3 通用命令，2026-11-09）
+## 交回（K1+K2 第 5 步：v3 通用命令，2026-11-09，`handback/k1`）
 
 ### 范围与验收
 
@@ -467,6 +467,7 @@ docs/rust-rewrite/acceptance/f1-m3-doc-bench.json   第三轮的测量证据
 
 ### 检查与待协调
 
-- 定向：17 项 v3 工作区回归、4 项注册表检查、8 项帮手目录检查已过；旧 136 个命令的输入／输出 schema 已逐项核对一致；新增 44 个全带版本 3。全套检查待补记录后交回。
+- 定向：17 项 v3 工作区回归、4 项注册表检查、8 项帮手目录检查已过；旧 136 个命令的输入／输出 schema 已逐项核对一致；新增 44 个全带版本 3。合入 main `16f062d7` 后，`cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、`RUST_TEST_THREADS=1 cargo test --workspace --locked`（2,018 通过／0 失败／22 忽略）、`cargo xtask check`、`pnpm public:check` 全过。编译并发 3；审计 971 个依赖，0 漏洞、12 条已有提示；public 检查 5,419 个候选文件。
+- 提交：`1b57ef7a` 通用命令及注册快照；`d8ff1284` 同步 main 的第 39 批接收记录；`0eea23f7` 补全命令调用与逆操作覆盖；`233219f4` 合入 main 第 40 批（`16f062d7`）。分支仍为 `codex/k1-v3`，交回指针在本节记录提交后更新；没有自行合入 main 或推送。
 - K6：版本标记、模板／模块读取、默认正文初始化及新建住处／归属接口已具备；逐项继承来源解释、带隐藏关系的完整影响读取、K6 的读取覆盖／CAS facade、模板动作目录仍照 K6 文档后续实施，本批不开放工具。
 - K4：v3 查询直接读当前 reader；旧 UI 的分类缓存／事件订阅仍只认识 v2.2，不把此次命令可用当作界面已接回。
