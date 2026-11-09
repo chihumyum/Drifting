@@ -104,9 +104,9 @@
         "/v3/timeline_views": "${views}",
         "/v3/levels/${entries.[template=tpl-manuscript].id}/settings": "${level.settings}",
         "/v3/levels/${entries.[template=tpl-manuscript].id}/sources/is_manuscript/kind": "template",
-        "/bottom/pane": null
+        "/bottom/pane": "timeline"
       },
-      "note": "K4-0.1：快照来自同一组 v3 查询，包含继承来源"
+      "note": "K4-0.1：快照来自同一组 v3 查询，包含继承来源；G3 接入后默认显示 v3 时间线"
     },
     {
       "app": "nav.open",
