@@ -1,94 +1,35 @@
 {
-  "findPanel": {
-    "replace": "Substituir",
-    "replaceAll": "Substituir tudo",
-    "replacePlaceholder": "Substituir por…"
-  },
   "import": {
     "v1": {
+      "blocked": {
+        "title": "Alguns textos podem estar sem os últimos segundos de digitação",
+        "no_handoff": "Esta biblioteca ainda não foi aberta na última versão 0.1",
+        "unproven_one": "Não dá para confirmar que {{count}} texto é o mais recente; ele está abaixo",
+        "unproven_other": "Não dá para confirmar que {{count}} textos são os mais recentes; eles estão abaixo",
+        "stale_one": "{{count}} capítulo está mais antigo do que o que você escreveu",
+        "stale_other": "{{count}} capítulos estão mais antigos do que o que você escreveu",
+        "changed_after_handoff_one": "{{count}} texto mudou depois da verificação da passagem",
+        "changed_after_handoff_other": "{{count}} textos mudaram depois da verificação da passagem",
+        "sync": "A sincronização tem conflitos não resolvidos",
+        "get_last_release": "Baixe a última versão 0.1, abra esta biblioteca uma vez, feche e importe de novo"
+      },
       "action": {
         "download_last_release": "Baixar a última versão 0.1",
         "import_anyway": "Importar mesmo assim"
       },
-      "blocked": {
-        "changed_after_handoff_one": "{{count}} texto mudou depois da verificação da passagem",
-        "changed_after_handoff_other": "{{count}} textos mudaram depois da verificação da passagem",
-        "get_last_release": "Baixe a última versão 0.1, abra esta biblioteca uma vez, feche e importe de novo",
-        "no_handoff": "Esta biblioteca ainda não foi aberta na última versão 0.1",
-        "stale_one": "{{count}} capítulo está mais antigo do que o que você escreveu",
-        "stale_other": "{{count}} capítulos estão mais antigos do que o que você escreveu",
-        "sync": "A sincronização tem conflitos não resolvidos",
-        "title": "Alguns textos podem estar sem os últimos segundos de digitação",
-        "unproven_one": "Não dá para confirmar que {{count}} texto é o mais recente; ele está abaixo",
-        "unproven_other": "Não dá para confirmar que {{count}} textos são os mais recentes; eles estão abaixo"
-      },
-      "notice": {
-        "carry_on": "Retomar importação",
-        "unfinished": "“{{name}}” não terminou de ser importado"
-      },
       "summary": {
-        "account_libraries_left_one": "{{count}} biblioteca de conta na pasta espera pelas contas",
-        "account_libraries_left_other": "{{count}} bibliotecas de conta na pasta esperam pelas contas",
         "already_imported": "Já importado neste dispositivo; ignorado",
         "already_in_library": "Já está na biblioteca; mantido como está",
-        "carries_on": "Não terminou; importe esta biblioteca de novo para continuar",
         "from_caches_one": "{{count}} texto veio do cache e pode estar sem os últimos segundos",
-        "from_caches_other": "{{count}} textos vieram do cache e podem estar sem os últimos segundos"
+        "from_caches_other": "{{count}} textos vieram do cache e podem estar sem os últimos segundos",
+        "account_libraries_left_one": "{{count}} biblioteca de conta na pasta espera pelas contas",
+        "account_libraries_left_other": "{{count}} bibliotecas de conta na pasta esperam pelas contas",
+        "carries_on": "Não terminou; importe esta biblioteca de novo para continuar"
+      },
+      "notice": {
+        "unfinished": "“{{name}}” não terminou de ser importado",
+        "carry_on": "Retomar importação"
       }
-    }
-  },
-  "importDialog": {
-    "targets": {
-      "idea": {
-        "desc": "Cartão de ideia flutuante, independente das linhas narrativas.",
-        "label": "Ideia"
-      }
-    },
-    "warnings": {
-      "imagesDropped_one": "{{count}} imagem não foi importada",
-      "imagesDropped_other": "{{count}} imagens não foram importadas",
-      "notUtf8": "Não é texto UTF-8; alguns caracteres foram substituídos"
-    }
-  },
-  "k4Book": {
-    "entry_count_one": "{{count}} entrada",
-    "entry_count_other": "{{count}} entradas",
-    "entry_titles": "Títulos das entradas",
-    "entry_words": "Palavras da entrada",
-    "leaf_count": "Número de folhas",
-    "material_words": "Palavras do material",
-    "retained_content": "Conteúdo preservado",
-    "selected_entries": "Entradas selecionadas",
-    "untitled_entry": "Entrada sem título"
-  },
-  "k4Pages": {
-    "body": "Texto",
-    "entries": "Entradas",
-    "h1": "H1",
-    "h2": "H2",
-    "h3": "H3",
-    "invalidValue": "Valor inválido",
-    "newPatch": "Novo patch",
-    "quote": "Citação",
-    "retained": "Conteúdo anterior",
-    "rule": "Separador",
-    "saveFailed": "Não foi possível salvar",
-    "title": "Título",
-    "unset": "Não definido"
-  },
-  "notifications": {
-    "markdownFolder": {
-      "issue": {
-        "owned": "Outra instalação do Drifting gerencia esta pasta; nada foi lido nem escrito"
-      }
-    }
-  },
-  "positionLink": {
-    "copied": "Link de posição copiado"
-  },
-  "projectPicker": {
-    "bookTransfer": {
-      "legacy": "Este livro foi exportado pelo Drifting 0.1. Importe-o lá e depois transfira essa biblioteca para esta versão."
     }
   },
   "settings": {
@@ -103,166 +44,230 @@
       }
     },
     "update": {
-      "install_failed": "Não foi possível instalar o Drifting {{version}} quando você saiu da última vez. Esta versão não mudou; será tentado de novo na próxima saída.",
-      "install_failed_admin": "Não foi possível instalar o Drifting {{version}} quando você saiu: a pasta onde o Drifting está não pode ser gravada. Esta versão não mudou.",
-      "interrupted": "A atualização não terminou de baixar e foi descartada. Ela será baixada de novo na próxima verificação.",
-      "local_error": "Não foi possível salvar a atualização neste computador, e ela foi interrompida. Esta versão continua funcionando.",
-      "older_offered": "Você está atualizado. O serviço de atualização oferece a {{version}}, mais antiga que esta, então ela não será instalada.",
+      "restart": "Reiniciar para atualizar",
       "ready_on_quit": "O Drifting {{version}} foi baixado e a assinatura verificada. Ele é instalado quando você sai.",
-      "refused_app": "A atualização baixada não é o Drifting e foi descartada. Esta versão continua funcionando.",
+      "older_offered": "Você está atualizado. O serviço de atualização oferece a {{version}}, mais antiga que esta, então ela não será instalada.",
       "refused_signature": "A atualização baixada não passou na verificação de assinatura e foi descartada. Esta versão continua funcionando.",
       "refused_version": "A atualização baixada não é a versão que diz ser, talvez uma mais antiga, e foi recusada. Esta versão continua funcionando.",
-      "restart": "Reiniciar para atualizar",
-      "server_error": "O serviço de atualização está com problema agora. Tente mais tarde; esta versão continua funcionando."
+      "refused_app": "A atualização baixada não é o Drifting e foi descartada. Esta versão continua funcionando.",
+      "interrupted": "A atualização não terminou de baixar e foi descartada. Ela será baixada de novo na próxima verificação.",
+      "server_error": "O serviço de atualização está com problema agora. Tente mais tarde; esta versão continua funcionando.",
+      "local_error": "Não foi possível salvar a atualização neste computador, e ela foi interrompida. Esta versão continua funcionando.",
+      "install_failed": "Não foi possível instalar o Drifting {{version}} quando você saiu da última vez. Esta versão não mudou; será tentado de novo na próxima saída.",
+      "install_failed_admin": "Não foi possível instalar o Drifting {{version}} quando você saiu: a pasta onde o Drifting está não pode ser gravada. Esta versão não mudou."
+    }
+  },
+  "findPanel": {
+    "replacePlaceholder": "Substituir por…",
+    "replace": "Substituir",
+    "replaceAll": "Substituir tudo"
+  },
+  "positionLink": {
+    "copied": "Link de posição copiado"
+  },
+  "projectPicker": {
+    "bookTransfer": {
+      "legacy": "Este livro foi exportado pelo Drifting 0.1. Importe-o lá e depois transfira essa biblioteca para esta versão."
+    }
+  },
+  "importDialog": {
+    "targets": {
+      "idea": {
+        "label": "Ideia",
+        "desc": "Cartão de ideia flutuante, independente das linhas narrativas."
+      }
+    },
+    "warnings": {
+      "imagesDropped_one": "{{count}} imagem não foi importada",
+      "imagesDropped_other": "{{count}} imagens não foram importadas",
+      "notUtf8": "Não é texto UTF-8; alguns caracteres foram substituídos"
+    }
+  },
+  "notifications": {
+    "markdownFolder": {
+      "issue": {
+        "owned": "Outra instalação do Drifting gerencia esta pasta; nada foi lido nem escrito"
+      }
     }
   },
   "speech": {
     "backlog": "Transcrições pendentes"
   },
+  "v3Shell": {
+    "about": "Descrição",
+    "entries": "Entradas",
+    "settings": "Configurações",
+    "list": "Lista",
+    "grid": "Grade",
+    "board": "Quadro",
+    "islands": "Ilhas",
+    "templates": "Modelos",
+    "newTemplate": "Novo modelo",
+    "open": "Abrir",
+    "newEntry": "Novo",
+    "editTemplate": "Editar modelo",
+    "changeTemplate": "Trocar modelo",
+    "belongTo": "Associar a",
+    "trash": "Mover para Excluídos recentemente"
+  },
+  "k4Pages": {
+    "unset": "Não definido",
+    "saveFailed": "Não foi possível salvar",
+    "invalidValue": "Valor inválido",
+    "retained": "Conteúdo anterior",
+    "newPatch": "Novo patch",
+    "body": "Texto",
+    "quote": "Citação",
+    "rule": "Separador",
+    "h1": "H1",
+    "h2": "H2",
+    "h3": "H3",
+    "title": "Título",
+    "entries": "Entradas"
+  },
+  "v3Timeline": {
+    "views": "Visualizações da linha do tempo",
+    "newView": "Nova visualização",
+    "renameView": "Renomear visualização",
+    "deleteView": "Excluir visualização",
+    "addLane": "Adicionar faixa",
+    "removeLane": "Remover da visualização",
+    "moveUp": "Mover para cima",
+    "moveDown": "Mover para baixo",
+    "members": "{{count}} membros",
+    "placeEntry": "Posicionar entrada",
+    "removeEntry": "Remover da faixa",
+    "placementActions": "Ações de posicionamento",
+    "resize": "Ajustar comprimento",
+    "ruler": "Régua de tempo",
+    "renamePin": "Renomear marcador de tempo",
+    "bindEntry": "Vincular entrada",
+    "detachEntry": "Desvincular entrada",
+    "colorValue": "Valor da cor",
+    "laneTrack": "Faixa {{name}}",
+    "selectLane": "Selecionar faixa"
+  },
   "templateEditor": {
-    "accept": "Aceitar entradas de outros locais",
-    "action_name": "Nome da ação",
-    "actions": "Ações",
-    "add_action": "Adicionar ação",
-    "add_field": "Adicionar campo",
+    "new_template": "Novo modelo",
+    "template_name": "Nome do modelo",
+    "module_name": "Nome do módulo",
+    "field_name": "Nome do campo",
+    "modules": "Módulos",
+    "fields": "Campos",
     "add_module": "Adicionar módulo",
-    "agent_preview": "O que o assistente vê",
+    "mark": "Marca",
+    "color": "Cor",
+    "reorder": "Arrastar para reordenar",
+    "conflict": "O modelo foi alterado em outro lugar",
+    "prose": "Texto principal",
+    "kv": "Tabela de chaves e valores",
+    "patches": "Patches",
+    "plot_grid": "Planejamento da trama",
+    "relations": "Relações",
+    "text": "Texto",
+    "long_text": "Texto longo",
+    "number": "Número",
+    "date": "Data",
+    "select": "Escolha única",
+    "multi_select": "Múltipla escolha",
+    "image": "Imagem",
+    "entity_ref": "Referência a entrada",
     "aliases": "Apelidos",
+    "level": "Nível",
+    "leaf": "Folha",
+    "options": "Opções",
+    "saved": "Salvo",
+    "unsaved": "Não salvo",
+    "mark_book": "Livro",
+    "mark_seal": "Selo redondo",
+    "mark_spiral": "Espiral",
+    "mark_corner": "Canto dobrado",
+    "mark_dash": "Traço",
+    "mark_wave": "Onda",
+    "mark_square": "Selo quadrado",
+    "restore": "Restaurar",
+    "level_template": "Modelo de nível",
+    "leaf_template": "Modelo de folha",
+    "for_agent": "Para o assistente",
+    "name": "Nome",
+    "description": "Descrição",
+    "instructions": "Instruções",
+    "module_instructions": "Instruções do módulo",
+    "agent_preview": "O que o assistente vê",
+    "read_only": "Somente leitura",
+    "this_level": "Este nível",
+    "default_template": "Modelo padrão",
+    "none": "Nenhum",
     "all_templates": "Qualquer modelo",
     "allow": "Modelos permitidos",
-    "auto_link": "Links automáticos",
-    "board": "Quadro",
-    "choose_template": "Escolher modelo",
-    "color": "Cor",
-    "conflict": "O modelo foi alterado em outro lugar",
-    "date": "Data",
-    "default_template": "Modelo padrão",
-    "description": "Descrição",
     "display": "Exibição",
-    "entity_ref": "Referência a entrada",
-    "field_name": "Nome do campo",
-    "fields": "Campos",
-    "for_agent": "Para o assistente",
+    "list": "Lista",
+    "grid": "Grade",
+    "board": "Quadro",
+    "island": "Ilhas",
+    "auto_link": "Links automáticos",
+    "accept": "Aceitar entradas de outros locais",
+    "manuscript": "Manuscrito",
+    "home": "Local de novas entradas",
+    "format_shortcuts": "Atalhos de formatação",
     "format_full": "Todos",
     "format_notes": "Notas",
     "format_plain": "Nenhum",
-    "format_shortcuts": "Atalhos de formatação",
-    "grid": "Grade",
-    "home": "Local de novas entradas",
-    "image": "Imagem",
-    "inherit": "Herdar",
-    "instructions": "Instruções",
-    "island": "Ilhas",
-    "kv": "Tabela de chaves e valores",
     "lane": "Raia",
-    "leaf": "Folha",
-    "leaf_template": "Modelo de folha",
-    "level": "Nível",
-    "level_template": "Modelo de nível",
-    "list": "Lista",
-    "long_text": "Texto longo",
-    "manuscript": "Manuscrito",
-    "mark": "Marca",
-    "mark_book": "Livro",
-    "mark_corner": "Canto dobrado",
-    "mark_dash": "Traço",
-    "mark_seal": "Selo redondo",
-    "mark_spiral": "Espiral",
-    "mark_square": "Selo quadrado",
-    "mark_wave": "Onda",
-    "module_instructions": "Instruções do módulo",
-    "module_name": "Nome do módulo",
-    "modules": "Módulos",
-    "multi_select": "Múltipla escolha",
-    "name": "Nome",
+    "actions": "Ações",
+    "action_name": "Nome da ação",
+    "add_action": "Adicionar ação",
     "new_entry": "Nova entrada",
-    "new_template": "Novo modelo",
+    "choose_template": "Escolher modelo",
+    "inherit": "Herdar",
+    "yes": "Sim",
     "no": "Não",
-    "none": "Nenhum",
-    "number": "Número",
-    "options": "Opções",
-    "patches": "Patches",
-    "plot_grid": "Planejamento da trama",
-    "prose": "Texto principal",
-    "read_only": "Somente leitura",
-    "relations": "Relações",
-    "reorder": "Arrastar para reordenar",
-    "restore": "Restaurar",
-    "saved": "Salvo",
-    "select": "Escolha única",
-    "template_name": "Nome do modelo",
-    "text": "Texto",
-    "this_level": "Este nível",
-    "unsaved": "Não salvo",
-    "yes": "Sim"
+    "add_field": "Adicionar campo"
   },
   "v3Levels": {
-    "accept": "Aceitar entradas de outros locais",
-    "allTemplates": "Todos os modelos",
-    "allowedTemplates": "Modelos permitidos",
-    "autoLink": "Links automáticos",
+    "residents": "Entradas residentes",
+    "members": "Entradas atribuídas",
+    "unassigned": "Sem atribuição",
+    "manuscriptOrder": "Ordem do manuscrito",
     "byStoryline": "Por linha narrativa",
+    "expand": "Expandir {{name}}",
     "collapse": "Recolher {{name}}",
     "defaultTemplate": "Modelo padrão",
+    "allowedTemplates": "Modelos permitidos",
     "display": "Exibição",
-    "expand": "Expandir {{name}}",
-    "formatFull": "Completo",
-    "formatNotes": "Notas",
-    "formatPlain": "Texto simples",
-    "formatShortcuts": "Atalhos de formatação",
+    "autoLink": "Links automáticos",
+    "accept": "Aceitar entradas de outros locais",
     "home": "Local das novas entradas",
     "isManuscript": "Manuscrito",
-    "manuscriptOrder": "Ordem do manuscrito",
-    "members": "Entradas atribuídas",
+    "formatShortcuts": "Atalhos de formatação",
     "none": "Nenhum",
-    "off": "Desativado",
+    "allTemplates": "Todos os modelos",
+    "thisLevel": "Este nível",
     "on": "Ativado",
-    "residents": "Entradas residentes",
-    "restore": "Restaurar {{name}}",
+    "off": "Desativado",
     "sourceDefault": "Valor padrão",
-    "sourceLane": "Raia · {{name}}",
     "sourceOverride": "Substituição · {{name}}",
     "sourceTemplate": "Modelo · {{name}} · {{level}}",
-    "thisLevel": "Este nível",
-    "unassigned": "Sem atribuição"
+    "sourceLane": "Raia · {{name}}",
+    "restore": "Restaurar {{name}}",
+    "formatFull": "Completo",
+    "formatNotes": "Notas",
+    "formatPlain": "Texto simples"
   },
-  "v3Shell": {
-    "about": "Descrição",
-    "belongTo": "Associar a",
-    "board": "Quadro",
-    "changeTemplate": "Trocar modelo",
-    "editTemplate": "Editar modelo",
-    "entries": "Entradas",
-    "grid": "Grade",
-    "islands": "Ilhas",
-    "list": "Lista",
-    "newEntry": "Novo",
-    "newTemplate": "Novo modelo",
-    "open": "Abrir",
-    "settings": "Configurações",
-    "templates": "Modelos",
-    "trash": "Mover para Excluídos recentemente"
+  "entrySnapshot": {
+    "save": "Salvar instantâneo",
+    "title": "Histórico de instantâneos",
+    "empty": "Ainda não há instantâneos"
   },
-  "v3Timeline": {
-    "addLane": "Adicionar faixa",
-    "bindEntry": "Vincular entrada",
-    "colorValue": "Valor da cor",
-    "deleteView": "Excluir visualização",
-    "detachEntry": "Desvincular entrada",
-    "laneTrack": "Faixa {{name}}",
-    "members": "{{count}} membros",
-    "moveDown": "Mover para baixo",
-    "moveUp": "Mover para cima",
-    "newView": "Nova visualização",
-    "placeEntry": "Posicionar entrada",
-    "placementActions": "Ações de posicionamento",
-    "removeEntry": "Remover da faixa",
-    "removeLane": "Remover da visualização",
-    "renamePin": "Renomear marcador de tempo",
-    "renameView": "Renomear visualização",
-    "resize": "Ajustar comprimento",
-    "ruler": "Régua de tempo",
-    "selectLane": "Selecionar faixa",
-    "views": "Visualizações da linha do tempo"
+  "k4Book": {
+    "entry_words": "Palavras da entrada",
+    "material_words": "Palavras do material",
+    "leaf_count": "Número de folhas",
+    "retained_content": "Conteúdo preservado",
+    "selected_entries": "Entradas selecionadas",
+    "entry_titles": "Títulos das entradas",
+    "untitled_entry": "Entrada sem título",
+    "entry_count_one": "{{count}} entrada",
+    "entry_count_other": "{{count}} entradas"
   }
 }

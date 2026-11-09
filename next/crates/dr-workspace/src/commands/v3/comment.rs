@@ -3,11 +3,11 @@
 use super::*;
 pub use crate::commands::comment::{CommentReanchorIn, CommentUpdateIn, TodoProjected};
 use crate::commands::comment::{
-    EMPTY_MARKER_TASK, MARKER_META_KIND, ProjectionMeta, anchor_in, anchor_known_in, decode_anchor,
-    has_seen,
+    EMPTY_MARKER_TASK, MARKER_META_KIND, ProjectionMeta, anchor_known_in, decode_anchor, has_seen,
 };
 use crate::commands::{materials, purge_fallout};
 use crate::dto::{AnchorBytes, CommentAnchor, Region};
+use dr_doc::prose::BorrowedProse;
 use dr_model::DocId;
 use dr_model::book::{BlockSnapshot, EntityRef};
 use dr_model::kind::{
@@ -298,17 +298,24 @@ op! {
             let t = input.target.as_ref().ok_or_else(|| WsError::invalid("a range needs a target"))?;
             let doc = prose_of(cx, &slot, t, input.module.as_deref())?;
             let ps = cx.prose(&doc)?;
-            let view = cx.prose_view(&ps);
-            if start >= end || end > view.len().saturating_sub(1) {
-                return Err(WsError::invalid(format!("range {start}..{end} does not fit the text")));
-            }
-            anchor = Some(view.anchor(start..end).ok_or_else(|| WsError::invalid("cannot anchor that range"))?);
-            quote = Some(view.text_in(start..end)?);
-            for p in view.paragraphs() {
-                if p.newline >= start && p.range.start < end {
-                    snapshots.push(BlockSnapshot { block: p.id.clone(), text: p.text() });
+            let target_block = block.clone();
+            (anchor, quote, snapshots) = cx.read_prose_source(&ps, move |source| {
+                let prose = BorrowedProse::new(source, &doc)?;
+                let view = prose.view();
+                if start >= end || end > view.len().saturating_sub(1) {
+                    return Err(WsError::invalid(format!("range {start}..{end} does not fit the text")));
                 }
-            }
+                if let Some(block) = target_block
+                    && !view.blocks().iter().any(|b| b.id.as_ref() == Some(&block)) {
+                    return Err(WsError::not_found("block in target prose", block.as_str()));
+                }
+                let anchor = view.anchor(start..end).ok_or_else(|| WsError::invalid("cannot anchor that range"))?;
+                let quote = view.text_in(start..end)?;
+                let snapshots = view.paragraphs()
+                    .filter(|p| p.newline >= start && p.range.start < end)
+                    .map(|p| BlockSnapshot { block: p.id.clone(), text: p.text() }).collect();
+                Ok((Some(anchor), Some(quote), snapshots))
+            })?;
         }
         if let Some(bytes) = &input.anchor {
             let t = input.target.as_ref().ok_or_else(|| WsError::invalid("an anchor needs a target"))?;
@@ -337,12 +344,16 @@ op! {
             quote = Some(text);
             snapshots = blocks;
         }
-        if let Some(block) = &block {
+        if input.range.is_none() && let Some(block) = &block {
             let doc = prose_of(cx, &slot, input.target.as_ref().expect("target validated"), input.module.as_deref())?;
             let ps = cx.prose(&doc)?;
-            if !cx.prose_view(&ps).blocks().iter().any(|b| b.id.as_ref() == Some(block)) {
-                return Err(WsError::not_found("block in target prose", block.as_str()));
-            }
+            let block = block.clone();
+            cx.read_prose_source(&ps, move |source| {
+                if !BorrowedProse::new(source, &doc)?.view().blocks().iter().any(|b| b.id.as_ref() == Some(&block)) {
+                    return Err(WsError::not_found("block in target prose", block.as_str()));
+                }
+                Ok(())
+            })?;
         }
         let id = CommentId::new_v7();
         let agent = matches!(cx.actor(), crate::Actor::Agent { .. });
@@ -462,7 +473,13 @@ op! {
                 let t = old.target.as_ref().map(Target::from)
                     .ok_or_else(|| WsError::invalid("a floating comment has no prose to anchor in"))?;
                 let doc = prose_of(cx, &slot, &t, old.target_module.as_ref().map(|m| m.as_str()))?;
-                Some(anchor_in(cx, &doc, bytes)?)
+                let ps = cx.prose(&doc)?;
+                let bytes = bytes.clone();
+                Some(cx.read_prose_source(&ps, move |source| {
+                    let anchor = decode_anchor(&bytes)?;
+                    anchor_known_in(&source.oplog_vv(), &doc, &anchor)?;
+                    Ok(anchor)
+                })?)
             }
         };
         let back = old.anchor.as_ref().map(AnchorBytes::from);

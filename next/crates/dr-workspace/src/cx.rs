@@ -38,6 +38,9 @@ use crate::holder::{self, lock};
 use crate::registry::{Access, Concurrency, Spec};
 use crate::workspace::{BookSlot, ProseSlot, Workspace};
 
+#[cfg(test)]
+mod source_tests;
+
 /// What a write did, entity by entity. Commands report every entity they
 /// changed and every entity whose display changed as a consequence (a
 /// relation hidden because its end went to the trash), so the interface can
@@ -435,6 +438,27 @@ impl<'a> Cx<'a> {
     /// What an Agent's settlement records says this write did.
     pub(crate) fn summarize(&self, s: impl Into<String>) {
         self.st.borrow_mut().summary = Some(format!("{}: {}", self.spec.name, s.into()));
+    }
+
+    /// Validate caller-supplied guards together on reserved document copies.
+    /// Used only by the opt-in v3 complete-entry atomic commands.
+    pub(crate) fn check_atomic_guards(
+        &self,
+        docs: &std::collections::BTreeMap<String, loro::LoroDoc>,
+    ) -> Result<()> {
+        if let Some(guards) = &self.guards {
+            for (id, doc) in docs {
+                guards.check(id, doc)?;
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn check_atomic_read_guard(&self, id: &str, doc: &loro::LoroDoc) -> Result<()> {
+        if let Some(guards) = &self.guards {
+            guards.check_if_observed(id, doc)?;
+        }
+        Ok(())
     }
 
     /// Step 2: make sure prose document `doc` exists (registered; its genesis

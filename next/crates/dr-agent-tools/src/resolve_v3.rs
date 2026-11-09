@@ -19,7 +19,7 @@ use serde_json::{Map, Value, json};
 
 use crate::{
     Error, Result,
-    catalog::{ActionRef, Catalog, allowed_v3},
+    catalog::{ActionRef, BookKernelVersion, Catalog, allowed_v3, input_schema_for},
     resolve::ResolvedCall,
 };
 
@@ -150,8 +150,8 @@ pub(crate) fn resolve_v3(
         .get(name)
         .filter(|spec| allowed_v3(spec))
         .ok_or_else(|| invalid(format!("tool {name:?} is not in this book's v3 catalog")))?;
-    let schema = spec.input_schema();
-    let properties = &schema.as_value()["properties"];
+    let schema = input_schema_for(spec, BookKernelVersion::V3);
+    let properties = &schema["properties"];
     let obj = args
         .as_object_mut()
         .ok_or_else(|| invalid("tool arguments must be an object"))?;
@@ -225,6 +225,58 @@ pub(crate) fn resolve_v3(
     }
 
     match name {
+        "comment.list" | "comment.anchors" | "comment.create" => {
+            if let Some(target) = obj.get("target").filter(|t| !t.is_null()) {
+                let kind = target["kind"].as_str().unwrap_or_default().to_owned();
+                let id = target["id"].as_str().unwrap_or_default().to_owned();
+                if !matches!(kind.as_str(), "entry" | "material") {
+                    return Err(invalid("v3 comment target must be an entry or material"));
+                }
+                if name == "comment.create" && obj.get("module").is_none_or(Value::is_null) {
+                    extra_subjects.insert(format!("{kind}:{id}"));
+                }
+                if let Some(module) = obj.get_mut("module").filter(|m| !m.is_null()) {
+                    if kind != "entry" {
+                        return Err(invalid("materials have no prose module"));
+                    }
+                    let eid = EntryId::parse(&id).map_err(|e| invalid(e.to_string()))?;
+                    let entry = entries
+                        .get(&eid)
+                        .ok_or_else(|| invalid("entry not found"))?;
+                    let mid = resolve_entry_prose_module(
+                        ws, book, &view, entry, &templates, module, false, false,
+                    )?;
+                    *module = mid.to_string().into();
+                    if name == "comment.create" {
+                        extra_subjects.insert(format!("module:{eid}:{mid}"));
+                    }
+                }
+            } else if obj.get("module").is_some_and(|m| !m.is_null()) {
+                return Err(invalid("a comment module requires an entry target"));
+            }
+            // F3 currently checks CAS only on documents it writes. It does not
+            // guard the body read used for a range/block anchor. Never authorize
+            // that read with a newer observation or bypass the owning command.
+            if name == "comment.create"
+                && ["range", "block_id", "anchor"]
+                    .iter()
+                    .any(|k| obj.get(*k).is_some_and(|v| !v.is_null()))
+            {
+                return Err(invalid(
+                    "anchored comment creation awaits guarded source-prose support; whole-entry or module comments are available",
+                ));
+            }
+        }
+        "comment.update" | "comment.reanchor" => {
+            if let Some(id) = obj.get_mut("id") {
+                *id = resolve_comment_id(&view, id)?.into();
+            }
+            if name == "comment.reanchor" && obj.get("anchor").is_some_and(|a| !a.is_null()) {
+                return Err(invalid(
+                    "comment reanchoring awaits guarded source-prose support",
+                ));
+            }
+        }
         "entry.list" => {
             if let Some(parent) = obj.get_mut("parent")
                 && !parent.is_null()
@@ -979,6 +1031,12 @@ pub(crate) fn coverage_v3(name: &str, args: &Value, output: &Value) -> Option<Ve
             if let Some(doc) = prose_doc_from_module_args(args) {
                 read.insert(format!("prose:{doc}"));
             }
+            if args.get("template") != Some(&Value::Bool(true))
+                && let (Some(owner), Some(module)) =
+                    (args["owner"].as_str(), args["module"].as_str())
+            {
+                read.insert(format!("module:{owner}:{module}"));
+            }
         }
         "entry_relation_type.list" => {
             read.insert("entry_relation_type:*".into());
@@ -1019,6 +1077,14 @@ pub(crate) fn coverage_v3(name: &str, args: &Value, output: &Value) -> Option<Ve
 pub(crate) fn subjects_v3(name: &str, args: &Value) -> Vec<String> {
     let mut subjects = BTreeSet::new();
     match name {
+        "comment.create" => {
+            // A targeted new comment needs the exact target/module read, not
+            // the unrelated global comment collection. Resolver adds those.
+            if args.get("target").is_none_or(Value::is_null) {
+                subjects.insert("comment:*".into());
+            }
+        }
+
         "entry.create" => {
             if let Some(parent) = args.get("parent").and_then(Value::as_str) {
                 subjects.insert(format!("entry:{parent}"));

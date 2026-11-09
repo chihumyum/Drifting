@@ -1,94 +1,35 @@
 {
-  "findPanel": {
-    "replace": "Replace",
-    "replaceAll": "Replace all",
-    "replacePlaceholder": "Replace with…"
-  },
   "import": {
     "v1": {
+      "blocked": {
+        "title": "Some text may be missing its last few seconds of typing",
+        "no_handoff": "This library hasn't been opened in the last 0.1 release",
+        "unproven_one": "{{count}} text can't be confirmed as the latest; it's listed below",
+        "unproven_other": "{{count}} texts can't be confirmed as the latest; they're listed below",
+        "stale_one": "{{count}} chapter is older than what you wrote",
+        "stale_other": "{{count}} chapters are older than what you wrote",
+        "changed_after_handoff_one": "{{count}} text changed after the handoff check",
+        "changed_after_handoff_other": "{{count}} texts changed after the handoff check",
+        "sync": "Sync has unresolved conflicts",
+        "get_last_release": "Download the last 0.1 release, open this library once, quit, then import again"
+      },
       "action": {
         "download_last_release": "Download the last 0.1 release",
         "import_anyway": "Import anyway"
       },
-      "blocked": {
-        "changed_after_handoff_one": "{{count}} text changed after the handoff check",
-        "changed_after_handoff_other": "{{count}} texts changed after the handoff check",
-        "get_last_release": "Download the last 0.1 release, open this library once, quit, then import again",
-        "no_handoff": "This library hasn't been opened in the last 0.1 release",
-        "stale_one": "{{count}} chapter is older than what you wrote",
-        "stale_other": "{{count}} chapters are older than what you wrote",
-        "sync": "Sync has unresolved conflicts",
-        "title": "Some text may be missing its last few seconds of typing",
-        "unproven_one": "{{count}} text can't be confirmed as the latest; it's listed below",
-        "unproven_other": "{{count}} texts can't be confirmed as the latest; they're listed below"
-      },
-      "notice": {
-        "carry_on": "Resume import",
-        "unfinished": "“{{name}}” didn't finish importing"
-      },
       "summary": {
-        "account_libraries_left_one": "{{count}} account library in the folder waits for accounts",
-        "account_libraries_left_other": "{{count}} account libraries in the folder wait for accounts",
         "already_imported": "Imported on this device before; skipped",
         "already_in_library": "Already in the library; left as it is",
-        "carries_on": "Not finished; import this library again to carry on",
         "from_caches_one": "{{count}} text came from its cache and may miss its last few seconds",
-        "from_caches_other": "{{count}} texts came from their caches and may miss their last few seconds"
+        "from_caches_other": "{{count}} texts came from their caches and may miss their last few seconds",
+        "account_libraries_left_one": "{{count}} account library in the folder waits for accounts",
+        "account_libraries_left_other": "{{count}} account libraries in the folder wait for accounts",
+        "carries_on": "Not finished; import this library again to carry on"
+      },
+      "notice": {
+        "unfinished": "“{{name}}” didn't finish importing",
+        "carry_on": "Resume import"
       }
-    }
-  },
-  "importDialog": {
-    "targets": {
-      "idea": {
-        "desc": "Floating idea card — independent from storylines.",
-        "label": "Idea"
-      }
-    },
-    "warnings": {
-      "imagesDropped_one": "{{count}} image wasn't imported",
-      "imagesDropped_other": "{{count}} images weren't imported",
-      "notUtf8": "Not UTF-8 text; some characters were replaced"
-    }
-  },
-  "k4Book": {
-    "entry_count_one": "{{count}} entry",
-    "entry_count_other": "{{count}} entries",
-    "entry_titles": "Entry titles",
-    "entry_words": "Entry words",
-    "leaf_count": "Leaf count",
-    "material_words": "Material words",
-    "retained_content": "Retained content",
-    "selected_entries": "Selected entries",
-    "untitled_entry": "Untitled entry"
-  },
-  "k4Pages": {
-    "body": "Body",
-    "entries": "Entries",
-    "h1": "H1",
-    "h2": "H2",
-    "h3": "H3",
-    "invalidValue": "Invalid value",
-    "newPatch": "New patch",
-    "quote": "Quote",
-    "retained": "Previous content",
-    "rule": "Divider",
-    "saveFailed": "Could not save",
-    "title": "Title",
-    "unset": "Not set"
-  },
-  "notifications": {
-    "markdownFolder": {
-      "issue": {
-        "owned": "Another Drifting installation keeps this folder; nothing was read or written"
-      }
-    }
-  },
-  "positionLink": {
-    "copied": "Location link copied"
-  },
-  "projectPicker": {
-    "bookTransfer": {
-      "legacy": "This book was exported by Drifting 0.1. Import it there, then hand that library over to this version."
     }
   },
   "settings": {
@@ -103,166 +44,230 @@
       }
     },
     "update": {
-      "install_failed": "Drifting {{version}} couldn't be installed when you last quit. This version is unchanged; it tries again next time you quit.",
-      "install_failed_admin": "Drifting {{version}} couldn't be installed when you last quit: the folder Drifting is in can't be written to. This version is unchanged.",
-      "interrupted": "The update didn't finish downloading and was discarded. It downloads again at the next check.",
-      "local_error": "The update couldn't be saved on this computer and was stopped. This version keeps working.",
-      "older_offered": "You're up to date. The update service offers {{version}}, which is older than this version, so it won't be installed.",
+      "restart": "Restart to Update",
       "ready_on_quit": "Drifting {{version}} is downloaded and its signature verified. It installs when you quit.",
-      "refused_app": "The downloaded update isn't Drifting and was discarded. This version keeps working.",
+      "older_offered": "You're up to date. The update service offers {{version}}, which is older than this version, so it won't be installed.",
       "refused_signature": "The downloaded update failed signature verification and was discarded. This version keeps working.",
       "refused_version": "The downloaded update isn't the version it claims to be, possibly an older one, and was refused. This version keeps working.",
-      "restart": "Restart to Update",
-      "server_error": "The update service has a problem right now. Try again later; this version keeps working."
+      "refused_app": "The downloaded update isn't Drifting and was discarded. This version keeps working.",
+      "interrupted": "The update didn't finish downloading and was discarded. It downloads again at the next check.",
+      "server_error": "The update service has a problem right now. Try again later; this version keeps working.",
+      "local_error": "The update couldn't be saved on this computer and was stopped. This version keeps working.",
+      "install_failed": "Drifting {{version}} couldn't be installed when you last quit. This version is unchanged; it tries again next time you quit.",
+      "install_failed_admin": "Drifting {{version}} couldn't be installed when you last quit: the folder Drifting is in can't be written to. This version is unchanged."
+    }
+  },
+  "findPanel": {
+    "replacePlaceholder": "Replace with…",
+    "replace": "Replace",
+    "replaceAll": "Replace all"
+  },
+  "positionLink": {
+    "copied": "Location link copied"
+  },
+  "projectPicker": {
+    "bookTransfer": {
+      "legacy": "This book was exported by Drifting 0.1. Import it there, then hand that library over to this version."
+    }
+  },
+  "importDialog": {
+    "targets": {
+      "idea": {
+        "label": "Idea",
+        "desc": "Floating idea card — independent from storylines."
+      }
+    },
+    "warnings": {
+      "imagesDropped_one": "{{count}} image wasn't imported",
+      "imagesDropped_other": "{{count}} images weren't imported",
+      "notUtf8": "Not UTF-8 text; some characters were replaced"
+    }
+  },
+  "notifications": {
+    "markdownFolder": {
+      "issue": {
+        "owned": "Another Drifting installation keeps this folder; nothing was read or written"
+      }
     }
   },
   "speech": {
     "backlog": "Transcription backlog"
   },
+  "v3Shell": {
+    "about": "Description",
+    "entries": "Entries",
+    "settings": "Settings",
+    "list": "List",
+    "grid": "Grid",
+    "board": "Board",
+    "islands": "Islands",
+    "templates": "Templates",
+    "newTemplate": "New template",
+    "open": "Open",
+    "newEntry": "New",
+    "editTemplate": "Edit template",
+    "changeTemplate": "Change template",
+    "belongTo": "Assign to",
+    "trash": "Move to Recently Deleted"
+  },
+  "k4Pages": {
+    "unset": "Not set",
+    "saveFailed": "Could not save",
+    "invalidValue": "Invalid value",
+    "retained": "Previous content",
+    "newPatch": "New patch",
+    "body": "Body",
+    "quote": "Quote",
+    "rule": "Divider",
+    "h1": "H1",
+    "h2": "H2",
+    "h3": "H3",
+    "title": "Title",
+    "entries": "Entries"
+  },
+  "v3Timeline": {
+    "views": "Timeline views",
+    "newView": "New view",
+    "renameView": "Rename view",
+    "deleteView": "Delete view",
+    "addLane": "Add lane",
+    "removeLane": "Remove from view",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "members": "{{count}} members",
+    "placeEntry": "Place entry",
+    "removeEntry": "Remove from lane",
+    "placementActions": "Placement actions",
+    "resize": "Adjust length",
+    "ruler": "Time ruler",
+    "renamePin": "Rename time pin",
+    "bindEntry": "Attach entry",
+    "detachEntry": "Detach entry",
+    "colorValue": "Color value",
+    "laneTrack": "Lane {{name}}",
+    "selectLane": "Select lane"
+  },
   "templateEditor": {
-    "accept": "Accept entries from elsewhere",
-    "action_name": "Action name",
-    "actions": "Actions",
-    "add_action": "Add action",
-    "add_field": "Add field",
+    "new_template": "New template",
+    "template_name": "Template name",
+    "module_name": "Module name",
+    "field_name": "Field name",
+    "modules": "Modules",
+    "fields": "Fields",
     "add_module": "Add module",
-    "agent_preview": "What the helper sees",
+    "mark": "Mark",
+    "color": "Color",
+    "reorder": "Drag to reorder",
+    "conflict": "Template changed elsewhere",
+    "prose": "Prose",
+    "kv": "Key-value table",
+    "patches": "Patches",
+    "plot_grid": "Plot planner",
+    "relations": "Relations",
+    "text": "Text",
+    "long_text": "Long text",
+    "number": "Number",
+    "date": "Date",
+    "select": "Single choice",
+    "multi_select": "Multiple choice",
+    "image": "Image",
+    "entity_ref": "Entry reference",
     "aliases": "Aliases",
+    "level": "Level",
+    "leaf": "Leaf",
+    "options": "Options",
+    "saved": "Saved",
+    "unsaved": "Unsaved",
+    "mark_book": "Book",
+    "mark_seal": "Round seal",
+    "mark_spiral": "Spiral",
+    "mark_corner": "Folded corner",
+    "mark_dash": "Dash",
+    "mark_wave": "Wave",
+    "mark_square": "Square seal",
+    "restore": "Restore",
+    "level_template": "Level template",
+    "leaf_template": "Leaf template",
+    "for_agent": "For the helper",
+    "name": "Name",
+    "description": "Description",
+    "instructions": "Instructions",
+    "module_instructions": "Module instructions",
+    "agent_preview": "What the helper sees",
+    "read_only": "Read only",
+    "this_level": "This level",
+    "default_template": "Default template",
+    "none": "None",
     "all_templates": "Any template",
     "allow": "Allowed templates",
-    "auto_link": "Auto-link",
-    "board": "Board",
-    "choose_template": "Choose template",
-    "color": "Color",
-    "conflict": "Template changed elsewhere",
-    "date": "Date",
-    "default_template": "Default template",
-    "description": "Description",
     "display": "Display",
-    "entity_ref": "Entry reference",
-    "field_name": "Field name",
-    "fields": "Fields",
-    "for_agent": "For the helper",
+    "list": "List",
+    "grid": "Grid",
+    "board": "Board",
+    "island": "Islands",
+    "auto_link": "Auto-link",
+    "accept": "Accept entries from elsewhere",
+    "manuscript": "Manuscript",
+    "home": "New entries reside in",
+    "format_shortcuts": "Formatting shortcuts",
     "format_full": "Full",
     "format_notes": "Notes",
     "format_plain": "None",
-    "format_shortcuts": "Formatting shortcuts",
-    "grid": "Grid",
-    "home": "New entries reside in",
-    "image": "Image",
-    "inherit": "Inherit",
-    "instructions": "Instructions",
-    "island": "Islands",
-    "kv": "Key-value table",
     "lane": "Lane",
-    "leaf": "Leaf",
-    "leaf_template": "Leaf template",
-    "level": "Level",
-    "level_template": "Level template",
-    "list": "List",
-    "long_text": "Long text",
-    "manuscript": "Manuscript",
-    "mark": "Mark",
-    "mark_book": "Book",
-    "mark_corner": "Folded corner",
-    "mark_dash": "Dash",
-    "mark_seal": "Round seal",
-    "mark_spiral": "Spiral",
-    "mark_square": "Square seal",
-    "mark_wave": "Wave",
-    "module_instructions": "Module instructions",
-    "module_name": "Module name",
-    "modules": "Modules",
-    "multi_select": "Multiple choice",
-    "name": "Name",
+    "actions": "Actions",
+    "action_name": "Action name",
+    "add_action": "Add action",
     "new_entry": "New entry",
-    "new_template": "New template",
+    "choose_template": "Choose template",
+    "inherit": "Inherit",
+    "yes": "Yes",
     "no": "No",
-    "none": "None",
-    "number": "Number",
-    "options": "Options",
-    "patches": "Patches",
-    "plot_grid": "Plot planner",
-    "prose": "Prose",
-    "read_only": "Read only",
-    "relations": "Relations",
-    "reorder": "Drag to reorder",
-    "restore": "Restore",
-    "saved": "Saved",
-    "select": "Single choice",
-    "template_name": "Template name",
-    "text": "Text",
-    "this_level": "This level",
-    "unsaved": "Unsaved",
-    "yes": "Yes"
+    "add_field": "Add field"
   },
   "v3Levels": {
-    "accept": "Accept entries from elsewhere",
-    "allTemplates": "All templates",
-    "allowedTemplates": "Allowed templates",
-    "autoLink": "Automatic links",
+    "residents": "Residents",
+    "members": "Assigned entries",
+    "unassigned": "Unassigned",
+    "manuscriptOrder": "Manuscript order",
     "byStoryline": "By storyline",
+    "expand": "Expand {{name}}",
     "collapse": "Collapse {{name}}",
     "defaultTemplate": "Default template",
+    "allowedTemplates": "Allowed templates",
     "display": "Display",
-    "expand": "Expand {{name}}",
-    "formatFull": "Full",
-    "formatNotes": "Notes",
-    "formatPlain": "Plain text",
-    "formatShortcuts": "Formatting shortcuts",
+    "autoLink": "Automatic links",
+    "accept": "Accept entries from elsewhere",
     "home": "New entries reside in",
     "isManuscript": "Manuscript",
-    "manuscriptOrder": "Manuscript order",
-    "members": "Assigned entries",
+    "formatShortcuts": "Formatting shortcuts",
     "none": "None",
-    "off": "Off",
+    "allTemplates": "All templates",
+    "thisLevel": "This level",
     "on": "On",
-    "residents": "Residents",
-    "restore": "Restore {{name}}",
+    "off": "Off",
     "sourceDefault": "Default",
-    "sourceLane": "Lane · {{name}}",
     "sourceOverride": "Override · {{name}}",
     "sourceTemplate": "Template · {{name}} · {{level}}",
-    "thisLevel": "This level",
-    "unassigned": "Unassigned"
+    "sourceLane": "Lane · {{name}}",
+    "restore": "Restore {{name}}",
+    "formatFull": "Full",
+    "formatNotes": "Notes",
+    "formatPlain": "Plain text"
   },
-  "v3Shell": {
-    "about": "Description",
-    "belongTo": "Assign to",
-    "board": "Board",
-    "changeTemplate": "Change template",
-    "editTemplate": "Edit template",
-    "entries": "Entries",
-    "grid": "Grid",
-    "islands": "Islands",
-    "list": "List",
-    "newEntry": "New",
-    "newTemplate": "New template",
-    "open": "Open",
-    "settings": "Settings",
-    "templates": "Templates",
-    "trash": "Move to Recently Deleted"
+  "entrySnapshot": {
+    "save": "Save snapshot",
+    "title": "Snapshot history",
+    "empty": "No snapshots yet"
   },
-  "v3Timeline": {
-    "addLane": "Add lane",
-    "bindEntry": "Attach entry",
-    "colorValue": "Color value",
-    "deleteView": "Delete view",
-    "detachEntry": "Detach entry",
-    "laneTrack": "Lane {{name}}",
-    "members": "{{count}} members",
-    "moveDown": "Move down",
-    "moveUp": "Move up",
-    "newView": "New view",
-    "placeEntry": "Place entry",
-    "placementActions": "Placement actions",
-    "removeEntry": "Remove from lane",
-    "removeLane": "Remove from view",
-    "renamePin": "Rename time pin",
-    "renameView": "Rename view",
-    "resize": "Adjust length",
-    "ruler": "Time ruler",
-    "selectLane": "Select lane",
-    "views": "Timeline views"
+  "k4Book": {
+    "entry_words": "Entry words",
+    "material_words": "Material words",
+    "leaf_count": "Leaf count",
+    "retained_content": "Retained content",
+    "selected_entries": "Selected entries",
+    "entry_titles": "Entry titles",
+    "untitled_entry": "Untitled entry",
+    "entry_count_one": "{{count}} entry",
+    "entry_count_other": "{{count}} entries"
   }
 }

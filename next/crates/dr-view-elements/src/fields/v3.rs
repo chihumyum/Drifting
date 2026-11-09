@@ -433,6 +433,7 @@ impl Render for TypedFields {
                         .collect(),
                     selected,
                 )
+                .max_menu_height(280.0)
                 .on_change(move |index, _, cx| {
                     if let Some((choice, _)) = choices.get(index) {
                         let value = if choice.is_empty() {
