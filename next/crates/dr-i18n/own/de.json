@@ -92,5 +92,14 @@
   },
   "speech": {
     "backlog": "Transkriptionsrückstand"
+  },
+  "v3Shell": {
+    "about": "Beschreibung",
+    "entries": "Einträge",
+    "settings": "Einstellungen",
+    "list": "Liste",
+    "grid": "Raster",
+    "board": "Pinnwand",
+    "islands": "Inseln"
   }
 }

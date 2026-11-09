@@ -1767,6 +1767,15 @@
     "themeSystem": "시스템 설정 따르기",
     "themeSystemShort": "시스템"
   },
+  "v3Shell": {
+    "about": "설명",
+    "board": "보드",
+    "entries": "항목",
+    "grid": "그리드",
+    "islands": "섬",
+    "list": "목록",
+    "settings": "설정"
+  },
   "voiceAgent": {
     "error": {
       "auth": "전사 키가 유효하지 않거나 만료되었습니다",

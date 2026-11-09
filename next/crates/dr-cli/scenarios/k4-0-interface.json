@@ -1,0 +1,385 @@
+{
+  "about": "K4-0 第一次交回：在 v3-lite 真窗口验收快照、导航、组合、记号、种子和调试桥；最后切回 v2.2。",
+  "steps": [
+    {
+      "seed": "v3-lite"
+    },
+    {
+      "call": "book.list",
+      "save": "books"
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}",
+        "all": true
+      },
+      "save": "entries"
+    },
+    {
+      "call": "entry_template.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "templates"
+    },
+    {
+      "call": "membership.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "memberships"
+    },
+    {
+      "call": "timeline_view.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "views"
+    },
+    {
+      "call": "level.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${entries.[template=tpl-manuscript].id}"
+      },
+      "save": "level"
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${entries.[template=tpl-chapter].primary}"
+      },
+      "save": "primary"
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${books.0.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/book/version": 3,
+          "/book/loaded": true
+        }
+      }
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/v3/entries": "${entries}",
+        "/v3/templates": "${templates}",
+        "/v3/memberships": "${memberships}",
+        "/v3/timeline_views": "${views}",
+        "/v3/levels/${entries.[template=tpl-manuscript].id}/settings": "${level.settings}",
+        "/v3/levels/${entries.[template=tpl-manuscript].id}/sources/is_manuscript/kind": "template",
+        "/bottom/pane": null
+      },
+      "note": "K4-0.1：快照来自同一组 v3 查询，包含继承来源"
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-chapter].id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "page": {
+          "/source": "v3",
+          "/composition/sections/0/kind": "fields",
+          "/composition/sections/1/kind": "prose",
+          "/composition/sections/2/kind": "plot_grid"
+        }
+      }
+    },
+    {
+      "app": "state.get",
+      "save": "original",
+      "expect": {
+        "/v3Appearance/mark": "file-text",
+        "/v3Appearance/color": "${primary.fields.mod-fields.color}"
+      },
+      "note": "K4-0.3/4：叶子按模板模块顺序组合，模板记号和主归属颜色"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 1200
+      },
+      "note": "等共享字海与翻页过渡结束后截屏；导航验收仍由前一步状态断言负责"
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "01-leaf.png"
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-chapter].id}/mod-prose",
+        "line": 3,
+        "end_line": 5
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "page": {
+          "/composition/module": "mod-prose",
+          "/composition/reveal/start": 3,
+          "/composition/reveal/end": 5
+        }
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "template:tpl-chapter"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "template:tpl-chapter"
+        }
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::GoBack"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "entry:${entries.[template=tpl-chapter].id}/mod-prose"
+        }
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::GoForward"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "template:tpl-chapter"
+        }
+      },
+      "note": "K4-0.2：条目、模块、模板的标签和前进后退"
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-manuscript].id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "page": {
+          "/composition/sections/0/id": "about",
+          "/composition/sections/1/id": "display",
+          "/composition/sections/2/id": "settings"
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 1200
+      },
+      "note": "等共享字海与翻页过渡结束后截屏；导航验收仍由前一步状态断言负责"
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "02-level.png"
+    },
+    {
+      "call": "entry.update",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${entries.[template=tpl-manuscript].id}",
+        "overrides": {
+          "display": "grid"
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "page": {
+          "/composition/sections/1/kind": "grid"
+        }
+      },
+      "note": "K4-0.1/3：书变了自动刷新，显示选择跟随有效设置"
+    },
+    {
+      "call": "entry.update",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${entries.[template=tpl-chapter].id}",
+        "title": "验收条目"
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-chapter].id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/pageTitle": "验收条目"
+        }
+      }
+    },
+    {
+      "call": "entry.trash",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${entries.[template=tpl-chapter].id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "template:tpl-chapter"
+        }
+      },
+      "note": "删除条目后关闭它的普通和模块标签"
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-manuscript].id}"
+      }
+    },
+    {
+      "app": "app.quit"
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${books.0.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/version": 3,
+          "/page": "entry:${entries.[template=tpl-manuscript].id}"
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 1200
+      },
+      "note": "等共享字海与翻页过渡结束后截屏；导航验收仍由前一步状态断言负责"
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "03-reopened.png"
+    },
+    {
+      "call": "book.create",
+      "input": {
+        "name": "Synthetic v2.2"
+      },
+      "save": "legacy"
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${legacy.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/version": 2,
+          "/v3": null,
+          "/page": "home"
+        }
+      },
+      "note": "切回 v2.2 的书，使用旧快照"
+    },
+    {
+      "app": "app.quit"
+    }
+  ]
+}

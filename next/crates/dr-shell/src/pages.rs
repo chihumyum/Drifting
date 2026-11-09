@@ -396,6 +396,7 @@ struct Pages {
     menus: Vec<MakeMenu>,
     left_panels: Vec<MakeLeftPanel>,
     bottom: Vec<(BottomPane, MakeBottom)>,
+    v3_bottom: Vec<(BottomPane, MakeBottom)>,
     backdrop: Option<Backdrop>,
     first_run: Option<MakeFirstRun>,
     guide: Option<Guide>,
@@ -533,6 +534,35 @@ pub fn add_bottom_panel(
         .push((pane, Rc::new(make)));
 }
 
+/// Registers a v3 Bottom Panel. Legacy registrations are never asked for a v3
+/// book. The host and lifecycle are the same as [`add_bottom_panel`].
+pub fn add_v3_bottom_panel(
+    cx: &mut App,
+    pane: BottomPane,
+    make: impl Fn(&BottomHost, &mut Window, &mut App) -> Option<BottomPanel> + 'static,
+) {
+    cx.default_global::<Pages>()
+        .v3_bottom
+        .push((pane, Rc::new(make)));
+}
+
+/// Whether a renderer exists for this book's version.
+pub fn has_bottom_panel_for(pane: BottomPane, book: &Book, cx: &App) -> bool {
+    // The version is not known until the first snapshot arrives. Do not
+    // instantiate legacy views against an as-yet-unread v3 book.
+    if book.is_empty() {
+        return false;
+    }
+    cx.try_global::<Pages>().is_some_and(|p| {
+        let makers = if book.v3().is_some() {
+            &p.v3_bottom
+        } else {
+            &p.bottom
+        };
+        makers.iter().any(|(at, _)| *at == pane)
+    })
+}
+
 /// Whether a module draws `pane` (its toggle shows only then).
 pub fn has_bottom_panel(pane: BottomPane, cx: &App) -> bool {
     cx.try_global::<Pages>()
@@ -546,9 +576,13 @@ pub(crate) fn bottom_panel_for(
     window: &mut Window,
     cx: &mut App,
 ) -> Option<BottomPanel> {
-    let makers: Vec<MakeBottom> = cx
-        .try_global::<Pages>()?
-        .bottom
+    let pages = cx.try_global::<Pages>()?;
+    let registered = if host.book.v3().is_some() {
+        &pages.v3_bottom
+    } else {
+        &pages.bottom
+    };
+    let makers: Vec<MakeBottom> = registered
         .iter()
         .filter(|(at, _)| *at == pane)
         .map(|(_, make)| make.clone())

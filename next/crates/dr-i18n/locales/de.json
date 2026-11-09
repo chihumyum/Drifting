@@ -1773,6 +1773,15 @@
     "themeSystem": "Systemeinstellung",
     "themeSystemShort": "System"
   },
+  "v3Shell": {
+    "about": "Beschreibung",
+    "board": "Pinnwand",
+    "entries": "Einträge",
+    "grid": "Raster",
+    "islands": "Inseln",
+    "list": "Liste",
+    "settings": "Einstellungen"
+  },
   "voiceAgent": {
     "error": {
       "auth": "Transkriptionsschlüssel ungültig oder abgelaufen",

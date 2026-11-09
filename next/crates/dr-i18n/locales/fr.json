@@ -1781,6 +1781,15 @@
     "themeSystem": "Suivre le système",
     "themeSystemShort": "Système"
   },
+  "v3Shell": {
+    "about": "Description",
+    "board": "Tableau",
+    "entries": "Entrées",
+    "grid": "Grille",
+    "islands": "Îles",
+    "list": "Liste",
+    "settings": "Réglages"
+  },
   "voiceAgent": {
     "error": {
       "auth": "Clé de transcription invalide ou expirée",

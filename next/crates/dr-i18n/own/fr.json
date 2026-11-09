@@ -92,5 +92,14 @@
   },
   "speech": {
     "backlog": "Transcriptions en attente"
+  },
+  "v3Shell": {
+    "about": "Description",
+    "entries": "Entrées",
+    "settings": "Réglages",
+    "list": "Liste",
+    "grid": "Grille",
+    "board": "Tableau",
+    "islands": "Îles"
   }
 }

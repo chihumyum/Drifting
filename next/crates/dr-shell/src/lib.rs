@@ -160,3 +160,5 @@ pub fn open_workspace(
     })?;
     Ok(handle)
 }
+
+pub mod v3;

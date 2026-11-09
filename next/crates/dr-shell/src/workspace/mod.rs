@@ -841,6 +841,10 @@ impl Workspace {
     /// Home's 「继续写」 reads them). The whole book is not a page of its own
     /// there.
     fn touch_front(&mut self, cx: &mut Context<Self>) {
+        // Recent pages still use the v2.2 entity DTO; G4 owns its v3 route.
+        if self.book.v3().is_some() {
+            return;
+        }
         let front = self.nav.active_tab().map(|t| t.focused().target.clone());
         let key = front.as_ref().map(Target::key);
         if key == self.touched {
@@ -1743,6 +1747,9 @@ pub fn title_of(book: &Book, target: &Target, cx: &App) -> gpui::SharedString {
         Target::Element(_) => untitled::ELEMENT,
         Target::Category(_) => untitled::CATEGORY,
         Target::Material(_) => untitled::LIBRARY_ITEM,
+        Target::Entry { .. } | Target::Template(_) => {
+            return book.title(target).unwrap_or_default().to_owned().into();
+        }
     };
     match book.title(target).filter(|t| !t.trim().is_empty()) {
         Some(title) => title.to_owned().into(),
