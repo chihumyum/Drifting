@@ -1,0 +1,24 @@
+[package]
+name = "dr-view-templates"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "V3 leaf and level template editor (K5)"
+
+[dependencies]
+dr-i18n.workspace = true
+dr-model.workspace = true
+dr-shell.workspace = true
+dr-ui.workspace = true
+dr-workspace.workspace = true
+gpui.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+dr-store.workspace = true
+dr-testkit.workspace = true
+gpui = { workspace = true, features = ["test-support"] }
+gpui_platform.workspace = true
+tempfile.workspace = true
