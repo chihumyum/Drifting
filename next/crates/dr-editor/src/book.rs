@@ -30,8 +30,8 @@ use dr_workspace::{Actor, Workspace, WsError, WsEvent};
 use futures::StreamExt;
 use futures::channel::mpsc;
 use gpui::{
-    App, AppContext, Context, Entity, EventEmitter, InteractiveElement, IntoElement, ListOffset,
-    ParentElement, Render, SharedString, Styled, Subscription, Window, div, px,
+    App, AppContext, Context, Entity, EventEmitter, Focusable, InteractiveElement, IntoElement,
+    ListOffset, ParentElement, Render, SharedString, Styled, Subscription, Window, div, px,
 };
 use gpui_prose::input::actions::{Redo, Undo};
 use gpui_prose::layout::{BookRange, Item};
@@ -98,6 +98,15 @@ type Acts = Vec<(usize, String)>;
 
 /// The chapters of `book` in reading order, and the acts.
 fn list(ws: &Workspace, book: &str) -> Result<(Vec<Listed>, Acts), WsError> {
+    if crate::v3::is_book(ws, book)? {
+        let docs = crate::v3::read(ws, book, |v| crate::v3::manuscript_docs(&v))?;
+        return Ok((
+            docs.into_iter()
+                .map(|(doc, title)| Listed { doc, title })
+                .collect(),
+            Vec::new(),
+        ));
+    }
     let out = |name: &str| -> Result<Value, WsError> {
         Ok(ws.call(&Actor::User, name, json!({ "book": book }))?["output"].clone())
     };
@@ -136,7 +145,7 @@ fn list(ws: &Workspace, book: &str) -> Result<(Vec<Listed>, Acts), WsError> {
 }
 
 /// Opens every chapter's session and document, on all cores.
-fn open_all(ws: &Workspace, listed: &[Listed]) -> Result<Vec<ProseDoc>, WsError> {
+fn open_all(ws: &Workspace, book: &str, listed: &[Listed]) -> Result<Vec<ProseDoc>, WsError> {
     let workers = std::thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or(4)
@@ -151,8 +160,22 @@ fn open_all(ws: &Workspace, listed: &[Listed]) -> Result<Vec<ProseDoc>, WsError>
                 loop {
                     let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                     let Some(chapter) = listed.get(i) else { break };
-                    let opened = SessionSource::open(ws, &chapter.doc)
-                        .map(|source| ProseDoc::open(Box::new(source)));
+                    let source = match crate::v3::body(&chapter.doc) {
+                        Some((entry, module)) => {
+                            match ws.library().doc_info(&chapter.doc).map_err(WsError::from) {
+                                Ok(Some(info)) if info.book_id.as_deref() == Some(book) => {
+                                    SessionSource::open(ws, &chapter.doc)
+                                }
+                                Ok(Some(_)) => Err(WsError::Invalid(
+                                    "manuscript document belongs to another book".into(),
+                                )),
+                                Ok(None) => crate::v3::prepare_body(ws, book, &entry, &module),
+                                Err(error) => Err(error),
+                            }
+                        }
+                        None => SessionSource::open(ws, &chapter.doc),
+                    };
+                    let opened = source.map(|source| ProseDoc::open(Box::new(source)));
                     results.lock().unwrap_or_else(|e| e.into_inner())[i] = Some(opened);
                 }
             });
@@ -198,6 +221,7 @@ impl PreparedBook {
 pub struct BookEditor {
     ws: Workspace,
     book: String,
+    v3: bool,
     chapters: Vec<Listed>,
     index: HashMap<String, usize>,
     base_style: ProseStyle,
@@ -243,7 +267,7 @@ impl BookEditor {
     /// comment anchors. Fails when the book or a chapter cannot be read.
     pub fn prepare(ws: &Workspace, book: &str) -> Result<PreparedBook, WsError> {
         let (listed, acts) = list(ws, book)?;
-        let mut docs = open_all(ws, &listed)?;
+        let mut docs = open_all(ws, book, &listed)?;
         match anchors::book_comment_anchors(ws, book) {
             Ok(mut by_doc) => {
                 for (doc, chapter) in docs.iter_mut().zip(&listed) {
@@ -274,10 +298,17 @@ impl BookEditor {
         let book = prepared.book.clone();
         let book = book.as_str();
         let base_style = ProseStyle::default();
-        let targets = ws
-            .catalog(book)
-            .ok()
-            .map(|c| Box::new(Catalog(c)) as Box<dyn LinkTargets>);
+        let v3 = crate::v3::is_book(&ws, book).unwrap_or(false);
+        let targets = if v3 {
+            Some(Box::new(crate::v3::LinkTargets {
+                workspace: ws.clone(),
+                book: book.to_owned(),
+            }) as Box<dyn LinkTargets>)
+        } else {
+            ws.catalog(book)
+                .ok()
+                .map(|c| Box::new(Catalog(c)) as Box<dyn LinkTargets>)
+        };
         let extension = Rc::new(DriftingExtension::new(targets));
         let (chapters, editor, events) = Self::install(
             prepared,
@@ -323,7 +354,9 @@ impl BookEditor {
                         });
                     }
                 }
-                crate::assist::AssistEvent::OpenLink { chapter, target } => {
+                crate::assist::AssistEvent::OpenLink {
+                    chapter, target, ..
+                } => {
                     if let Some(doc) = this.chapters.get(*chapter).map(|c| c.doc.clone()) {
                         cx.emit(crate::view::EntityLinkOpened {
                             doc,
@@ -349,6 +382,7 @@ impl BookEditor {
         let mut this = BookEditor {
             ws,
             book: book.to_owned(),
+            v3,
             chapters,
             index,
             base_style,
@@ -524,8 +558,67 @@ impl BookEditor {
     pub fn reload(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Result<(), WsError> {
         let at = self.reading_position(cx);
         let style = self.settings.style_for(&self.base_style, self.immersive);
-        let (chapters, editor, events) =
-            Self::build(&self.ws, &self.book, &style, &self.extension, window, cx)?;
+        let selection = self.editor.read(cx).selection();
+        let selected_docs = (
+            self.chapters
+                .get(selection.anchor_chapter)
+                .map(|c| c.doc.clone()),
+            self.chapters.get(selection.chapter).map(|c| c.doc.clone()),
+        );
+        let focused = self.editor.read(cx).focus_handle(cx).is_focused(window);
+        let (chapters, editor, events) = if self.v3 {
+            let (listed, acts) = list(&self.ws, &self.book)?;
+            let missing: Vec<Listed> = listed
+                .iter()
+                .filter(|c| !self.index.contains_key(&c.doc))
+                .cloned()
+                .collect();
+            // Finish every fallible read before taking ownership of the live sessions.
+            let mut fresh = open_all(&self.ws, &self.book, &missing)?;
+            if !fresh.is_empty() {
+                match anchors::book_comment_anchors(&self.ws, &self.book) {
+                    Ok(mut by_doc) => {
+                        for (doc, listed) in fresh.iter_mut().zip(&missing) {
+                            for (id, anchor) in by_doc.remove(&listed.doc).unwrap_or_default() {
+                                doc.set_anchor(id, anchor);
+                            }
+                        }
+                    }
+                    Err(error) => log::warn!("dr-editor: new manuscript comment anchors: {error}"),
+                }
+            }
+            let held = self
+                .editor
+                .update(cx, |e, _| std::mem::take(&mut e.book_mut().chapters));
+            let mut docs: HashMap<String, ProseDoc> = self
+                .chapters
+                .iter()
+                .zip(held)
+                .map(|(l, c)| (l.doc.clone(), c.doc))
+                .collect();
+            docs.extend(missing.into_iter().zip(fresh).map(|(l, d)| (l.doc, d)));
+            let docs = listed
+                .iter()
+                .map(|l| {
+                    docs.remove(&l.doc)
+                        .expect("every listed document was opened")
+                })
+                .collect();
+            Self::install(
+                PreparedBook {
+                    book: self.book.clone(),
+                    listed,
+                    acts,
+                    docs,
+                },
+                &style,
+                &self.extension,
+                window,
+                cx,
+            )
+        } else {
+            Self::build(&self.ws, &self.book, &style, &self.extension, window, cx)?
+        };
         self.index = chapters
             .iter()
             .enumerate()
@@ -548,6 +641,30 @@ impl BookEditor {
         let docs = self.chapters.iter().map(|c| c.doc.clone()).collect();
         self.decor
             .rebind_book(&self.ws, &self.book, docs, &self.editor, window, cx);
+        if self.v3 {
+            if let (Some(anchor), Some(head)) = (
+                selected_docs.0.as_deref().and_then(|d| self.chapter_of(d)),
+                selected_docs.1.as_deref().and_then(|d| self.chapter_of(d)),
+            ) {
+                self.editor.update(cx, |e, cx| {
+                    e.select_across(
+                        gpui_prose::layout::BookPos {
+                            chapter: anchor,
+                            offset: selection.anchor,
+                        },
+                        gpui_prose::layout::BookPos {
+                            chapter: head,
+                            offset: selection.head,
+                        },
+                        window,
+                        cx,
+                    )
+                });
+            }
+            if focused {
+                self.editor.read(cx).focus_handle(cx).focus(window, cx);
+            }
+        }
         if let Some(at) = at {
             self.restore(&at, cx);
         }
@@ -873,9 +990,12 @@ impl Render for BookEditor {
                 this.redo(window, cx);
                 cx.stop_propagation();
             }))
-            .child(crate::assist::wrap(
-                &self.assist,
-                ProseEditor::element(&self.editor, cx),
-            ))
+            .child(if self.v3 {
+                crate::assist::wrap_module(&self.assist, ProseEditor::element(&self.editor, cx))
+                    .into_any_element()
+            } else {
+                crate::assist::wrap(&self.assist, ProseEditor::element(&self.editor, cx))
+                    .into_any_element()
+            })
     }
 }
