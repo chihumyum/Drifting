@@ -5,6 +5,8 @@
 use super::*;
 use loro::{ContainerType, ValueOrContainer};
 
+mod checkpoints;
+
 fn damaged(e: impl ToString) -> BookFileError {
     BookFileError::Damaged(e.to_string())
 }
@@ -118,7 +120,7 @@ impl Paths {
 }
 
 fn plain_identity(path: &[String]) -> bool {
-    matches!(path, [root] if matches!(root.as_str(), "timeline_views" | "patches" | "relation_types" | "relations" | "comments" | "materials" | "assets" | "memory" | "facts"))
+    matches!(path, [root] if matches!(root.as_str(), "timeline_views" | "patches" | "relation_types" | "relations" | "comments" | "materials" | "assets" | "memory" | "facts" | "entry_checkpoints"))
         || matches!(path, [root, _, field] if root == "timeline_views" && field == "pins")
 }
 
@@ -240,6 +242,7 @@ pub(super) fn rewrite_for(read: &Contents, book: &LoroDoc) -> Result<Rewrite> {
                 .insert(key.into(), format!("todo:{kind}:{doc}#{}", rw.text(block)));
         }
     });
+    checkpoints::prepare(read, &mut rw, &json.changes, &paths)?;
     Ok(rw)
 }
 
@@ -425,6 +428,13 @@ impl Rewriter<'_> {
     fn value(&self, path: &[String], key: &str, value: &LoroValue) -> LoroValue {
         if let LoroValue::Container(c) = value {
             return LoroValue::Container(self.container(c));
+        }
+        if self.book
+            && path == ["entry_checkpoints"]
+            && let LoroValue::String(encoded) = value
+            && let Some(mapped) = self.rw.checkpoints.get(encoded.as_str())
+        {
+            return LoroValue::from(mapped.clone());
         }
         if path == ["meta"] {
             if key == "book" {

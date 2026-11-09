@@ -1,0 +1,450 @@
+{
+  "about": "G4 v3-lite 快照随书搬运：保留原主页/Word/单本书33步，增加两正文检查点、修改、格式3导回、预览/有守卫恢复、新书正文显示及原书隔离。隔离窗口放副屏，不做截图或heavy。",
+  "steps": [
+    {
+      "seed": "v3-lite"
+    },
+    {
+      "call": "book.list",
+      "save": "books"
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}",
+        "all": true
+      },
+      "save": "entries"
+    },
+    {
+      "launch": {
+        "book": "${books.0.id}",
+        "env": {
+          "DRIFTING_APPEARANCE": "light"
+        },
+        "settings": {
+          "account": {
+            "language.ui_locale": "en"
+          },
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          }
+        }
+      },
+      "save": "app"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 1500
+      }
+    },
+    {
+      "app": "app.info",
+      "save": "environment"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/book/version": 3,
+          "/book/loaded": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ShowProjectHome"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "新建章节",
+        "nth": 0
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "G4 synthetic chapter"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "enter"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/dialog": false
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}",
+        "all": true
+      },
+      "save": "created",
+      "expect": {
+        "/[title=G4 synthetic chapter]/template": "tpl-chapter",
+        "/[title=G4 synthetic chapter]/parent": "${entries.[template=tpl-manuscript].id}"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "save": "original_prose"
+    },
+    {
+      "call": "entry_template.put_module",
+      "input": {
+        "book": "${books.0.id}",
+        "template": "tpl-chapter",
+        "module": {
+          "id": "archive-second-body",
+          "kind": "prose",
+          "name": "Archive second body"
+        }
+      }
+    },
+    {
+      "call": "module.set_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "archive-second-body",
+        "paragraphs": [
+          {
+            "text": "${original_prose.paragraphs.0.text}"
+          }
+        ]
+      }
+    },
+    {
+      "call": "entry_snapshot.create",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${entries.[template=tpl-chapter].id}"
+      },
+      "save": "source_point",
+      "expect": {
+        "/book": "${books.0.id}",
+        "/entry": "${entries.[template=tpl-chapter].id}",
+        "/reason": "user"
+      }
+    },
+    {
+      "call": "module.set_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose",
+        "paragraphs": [
+          {
+            "text": "${original_prose.paragraphs.1.text}"
+          },
+          {
+            "text": "${original_prose.paragraphs.0.text}"
+          }
+        ]
+      }
+    },
+    {
+      "call": "module.set_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "archive-second-body",
+        "paragraphs": [
+          {
+            "text": "${original_prose.paragraphs.1.text}"
+          }
+        ]
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ShowWholeBook"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "More actions"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Export manuscript"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Word"
+      }
+    },
+    {
+      "app": "panel.answer",
+      "params": {
+        "path": "${app.out}/g4-manuscript.docx"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "Export Word"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "file",
+        "path": "${app.out}/g4-manuscript.docx",
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "Close"
+      }
+    },
+    {
+      "app": "shelf.show"
+    },
+    {
+      "app": "panel.answer",
+      "params": {
+        "path": "${app.out}/g4-book.driftingbook"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Export this book (.driftingbook)",
+        "within": {
+          "label": "Open “${books.0.name}”"
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "file",
+        "path": "${app.out}/g4-book.driftingbook",
+        "timeout_ms": 60000
+      }
+    },
+    {
+      "app": "panel.answer",
+      "params": {
+        "path": "${app.out}/g4-book.driftingbook"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "contains": "Import book"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/dialog": false
+        },
+        "timeout_ms": 60000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "Button",
+        "label": "Open “${books.0.name}”",
+        "count": 2,
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "call": "book.list",
+      "save": "after"
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${after.1.id}",
+        "all": true
+      },
+      "save": "copy_entries"
+    },
+    {
+      "call": "entry_snapshot.list",
+      "input": {
+        "book": "${after.1.id}",
+        "entry": "${copy_entries.[template=tpl-chapter].id}"
+      },
+      "save": "copy_points",
+      "expect": {
+        "/[reason=user]/book": "${after.1.id}",
+        "/[reason=user]/entry": "${copy_entries.[template=tpl-chapter].id}",
+        "/[reason=user]/title": "${source_point.title}"
+      }
+    },
+    {
+      "call": "entry_snapshot.preview",
+      "input": {
+        "book": "${after.1.id}",
+        "entry": "${copy_entries.[template=tpl-chapter].id}",
+        "point": "${copy_points.[reason=user].id}"
+      },
+      "save": "copied_preview",
+      "expect": {
+        "/metadata/title": "${source_point.title}"
+      }
+    },
+    {
+      "call": "entry_snapshot.restore",
+      "input": {
+        "book": "${after.1.id}",
+        "entry": "${copy_entries.[template=tpl-chapter].id}",
+        "point": "${copy_points.[reason=user].id}",
+        "expected": "${copied_preview.expected}"
+      },
+      "save": "restored"
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${after.1.id}",
+        "owner": "${copy_entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "save": "restored_primary",
+      "expect": {
+        "/paragraphs/0/text": "${original_prose.paragraphs.0.text}",
+        "/paragraphs/1/text": "${original_prose.paragraphs.1.text}"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${after.1.id}",
+        "owner": "${copy_entries.[template=tpl-chapter].id}",
+        "module": "archive-second-body"
+      },
+      "save": "restored_secondary",
+      "expect": {
+        "/paragraphs/0/text": "${original_prose.paragraphs.0.text}"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "save": "protected_primary",
+      "expect": {
+        "/paragraphs/0/text": "${original_prose.paragraphs.1.text}",
+        "/paragraphs/1/text": "${original_prose.paragraphs.0.text}"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "archive-second-body"
+      },
+      "save": "protected_secondary",
+      "expect": {
+        "/paragraphs/0/text": "${original_prose.paragraphs.1.text}"
+      }
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${after.1.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/book/id": "${after.1.id}",
+          "/book/loaded": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${copy_entries.[template=tpl-chapter].id}/mod-prose"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "page.text",
+      "save": "visible_restored_prose",
+      "contains": {
+        "/text": "${original_prose.paragraphs.0.text}"
+      }
+    },
+    {
+      "app": "app.info",
+      "save": "final_environment"
+    },
+    {
+      "app": "app.quit",
+      "expect": {
+        "/quit": true
+      }
+    }
+  ]
+}
