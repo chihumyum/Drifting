@@ -2,6 +2,7 @@
 //! same precedence using its returned entries/templates, never another read of Loro.
 use std::collections::{BTreeMap, BTreeSet};
 
+use dr_doc::v3::BorrowedBookV3;
 use dr_model::v3 as model;
 use dr_ui::sand;
 use dr_workspace::{
@@ -54,6 +55,7 @@ pub struct BookV3 {
     pub levels: BTreeMap<String, Level>,
     pub memberships: Vec<types::Membership>,
     pub timeline_views: Vec<types::TimelineView>,
+    pub materials: Vec<dr_workspace::dto::MaterialInfo>,
     #[serde(skip)]
     entry_index: BTreeMap<String, usize>,
     #[serde(skip)]
@@ -78,11 +80,15 @@ impl BookV3 {
     }
     pub fn exists(&self, target: &Target) -> bool {
         match target {
+            // This snapshot belongs to a loaded, live book. Its manuscript
+            // page remains valid when entries move or the book is empty.
+            Target::Book => true,
             // A switched template may leave a retained prose module. Its page
             // renderer resolves module.list; removing a definition must not
             // close the author's tab while the entry and its content survive.
             Target::Entry { id, .. } => self.entry(id.as_str()).is_some(),
             Target::Template(id) => self.template(id.as_str()).is_some(),
+            Target::Material(id) => self.materials.iter().any(|m| m.id == id.as_str()),
             _ => false,
         }
     }
@@ -309,6 +315,19 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
             .run::<membership::MembershipList>(&Actor::User, input())?
             .output;
         let timeline_views = lib.run::<timeline::ViewList>(&Actor::User, input())?.output;
+        // The v3 material command facade is not available yet. Use the same
+        // typed, read-only kernel query as v3 search, within this frontier
+        // check; do not infer existence from a prose document or legacy rows.
+        let book_id =
+            dr_model::id::BookId::parse(id).map_err(|e| WsError::Invalid(e.to_string()))?;
+        let materials = lib
+            .library()
+            .open_doc(&format!("book:{id}"), dr_store::OpenDoc::Existing)?
+            .read(move |doc| {
+                let book = BorrowedBookV3::new(doc, &book_id)
+                    .map_err(|e| WsError::Invalid(e.to_string()))?;
+                Ok::<_, WsError>(book.view().materials().iter().map(Into::into).collect())
+            })??;
         let after = lib.observe(&format!("book:{id}"))?;
         if before.version != after.version {
             continue;
@@ -325,6 +344,7 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
             levels,
             memberships,
             timeline_views,
+            materials,
             ..Default::default()
         };
         v3.entry_index = v3
@@ -340,6 +360,16 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
             .map(|(i, t)| (t.id.clone(), i))
             .collect();
         let mut index = std::collections::HashMap::new();
+        for m in &v3.materials {
+            index.insert(
+                format!("material:{}", m.id),
+                Entry {
+                    title: m.title.clone(),
+                    mark: sand::Kind::Material,
+                    color: None,
+                },
+            );
+        }
         for e in &v3.entries {
             let a = v3.appearance(&e.id).expect("indexed entry");
             index.insert(
