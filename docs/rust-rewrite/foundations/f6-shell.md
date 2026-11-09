@@ -844,6 +844,10 @@ v2.2 与 v3 在同一个窗口中按书分路。`book::Book` 保留共有的 `id
    G4 接回主页时需补版本化主页注册口；旧导览的 v3 内容随正式视图另接。
    第一次交回列出的来源 DTO、旧 NavTarget/模块链接与任意 mark 协调项继续保留。
 
+### K4-0 后补：层级设置区注册口（2026-11-09）
+
+G2 在 M11「K4 G2 待协调」第 1 条提出：层级页第三块（设置）原来写死为「设置 + 有效显示方式」，没有注册口。监管会话补上 `dr_shell::v3::add_level_settings(cx, maker)`，签名同 `add_level_display`（`LevelHost`，`surface = Page`）。层级页在条目仍是层级时保留这个实例，每次书快照变化调它的 `on_refresh`；条目换成叶子模板后丢掉。没有登记时照旧显示有效显示方式。调试桥的 `sections` 里 `settings` 一节的 `registered` 随之为真。测试 `level_settings_part_mounts_once_and_refreshes`（`dr-shell/tests/v3.rs`）。
+
 ### K4-0 第二次交回记录
 
 第 6–7 项的实现、永久契约与真窗口场景随本次变更交回。新增 GPUI 契约已通过，

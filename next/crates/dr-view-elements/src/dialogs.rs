@@ -832,3 +832,356 @@ fn delete_dialog(
         .on_close(close)
         .into_any_element()
 }
+
+/// V3-only level settings. Entry selectors extend this dialog in G2's final
+/// batch; no legacy ElementDialogs state or commands are reused.
+pub mod v3 {
+    use dr_i18n::keys;
+    use dr_shell::{actions::Dismiss, pages::PageViewHost, strings::t};
+    use dr_ui::{
+        components::{Button, Dialog, MenuItem},
+        sand::Icon,
+    };
+    use gpui::{prelude::*, *};
+    use serde_json::{Value, json};
+
+    struct Choice {
+        label: SharedString,
+        value: Value,
+        checked: bool,
+    }
+    pub struct Picker {
+        host: PageViewHost,
+        level: String,
+        key: &'static str,
+        focus: FocusHandle,
+        busy: bool,
+        error: bool,
+        _workspace: Option<Subscription>,
+    }
+    pub fn open_setting(
+        host: PageViewHost,
+        level: String,
+        key: &'static str,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        let Some(host) = crate::data::v3::fresh(&host, cx) else {
+            return;
+        };
+        if !host
+            .book
+            .v3()
+            .is_some_and(|v| v.levels.contains_key(&level))
+        {
+            return;
+        }
+        let view = cx.new(|cx| Picker::new(host, level, key, cx));
+        window.focus(&view.read(cx).focus.clone(), cx);
+        dr_shell::dialogs::show(cx, view.into());
+    }
+    pub fn restore(
+        host: PageViewHost,
+        level: String,
+        key: &'static str,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        if crate::data::v3::fresh(&host, cx).is_none() {
+            return;
+        }
+        let book = host.book.clone();
+        let view = cx.new(|cx| Picker::new(host, level, key, cx));
+        window.focus(&view.read(cx).focus.clone(), cx);
+        dr_shell::dialogs::show(cx, view.clone().into());
+        view.update(cx, |this, cx| this.apply(None, book, window, cx));
+    }
+    impl Picker {
+        fn new(
+            host: PageViewHost,
+            level: String,
+            key: &'static str,
+            cx: &mut Context<Self>,
+        ) -> Self {
+            cx.spawn(async move |this, cx| {
+                let _ = this.update(cx, |this, cx| this.follow(cx));
+            })
+            .detach();
+            Self {
+                host,
+                level,
+                key,
+                focus: cx.focus_handle(),
+                busy: false,
+                error: false,
+                _workspace: None,
+            }
+        }
+        fn follow(&mut self, cx: &mut Context<Self>) {
+            if let Some(ws) = self.host.workspace.upgrade() {
+                self._workspace = Some(cx.observe(&ws, |this, ws, cx| {
+                    let book = ws.read(cx).book.clone();
+                    if book.id == this.host.book_id {
+                        this.host.book = book;
+                        cx.notify();
+                    }
+                }));
+            }
+        }
+        fn close(&self, cx: &mut Context<Self>) {
+            let id = cx.entity_id();
+            dr_shell::dialogs::hide(cx, id);
+        }
+        fn apply(
+            &mut self,
+            value: Option<Value>,
+            book: std::rc::Rc<dr_shell::book::Book>,
+            window: &mut Window,
+            cx: &mut Context<Self>,
+        ) {
+            if self.busy {
+                return;
+            }
+            if crate::data::v3::fresh(&self.host, cx).is_none() {
+                self.close(cx);
+                return;
+            }
+            let host = PageViewHost {
+                book,
+                ..self.host.clone()
+            };
+            if !host
+                .book
+                .v3()
+                .is_some_and(|v| v.levels.contains_key(&self.level))
+            {
+                self.close(cx);
+                return;
+            }
+            self.busy = true;
+            self.error = false;
+            let (id, key) = (self.level.clone(), self.key);
+            let close = key != "allow" || value.is_none();
+            let edit = match crate::data::v3::prepare_override(&host.book, &id, key, value) {
+                Ok(edit) => edit,
+                Err(error) => {
+                    log::warn!("v3 level setting: {error}");
+                    self.busy = false;
+                    self.error = true;
+                    cx.notify();
+                    return;
+                }
+            };
+            let lib = host.library;
+            // Admit the write now; closing the window cannot cancel its database job.
+            let job = cx
+                .background_executor()
+                .spawn(async move { edit.commit(&lib) });
+            cx.spawn_in(window, async move |this, cx| {
+                let result = job.await;
+                let _ = this.update(cx, |this, cx| {
+                    this.busy = false;
+                    this.error = result.is_err();
+                    if let Err(error) = &result {
+                        log::warn!("v3 level setting: {error}");
+                    }
+                    if result.is_ok() && close {
+                        this.close(cx);
+                    } else {
+                        cx.notify();
+                    }
+                });
+            })
+            .detach();
+            cx.notify();
+        }
+        fn choices(&self, cx: &App) -> Vec<Choice> {
+            let Some(v) = self.host.book.v3() else {
+                return vec![];
+            };
+            let Some(l) = v.levels.get(&self.level) else {
+                return vec![];
+            };
+            let s = &l.settings;
+            let choice = |label: SharedString, value: Value, current: Value| Choice {
+                label,
+                checked: value == current,
+                value,
+            };
+            match self.key {
+                "display" => ["list", "grid", "board", "island"]
+                    .into_iter()
+                    .map(|value| {
+                        choice(
+                            dr_shell::v3::page::display_name(value, cx),
+                            json!(value),
+                            json!(s.display),
+                        )
+                    })
+                    .collect(),
+                "auto_link" | "accept" | "is_manuscript" => {
+                    let current = match self.key {
+                        "auto_link" => s.auto_link,
+                        "accept" => s.accept,
+                        _ => s.is_manuscript,
+                    };
+                    [true, false]
+                        .into_iter()
+                        .map(|value| {
+                            choice(
+                                t(
+                                    cx,
+                                    if value {
+                                        keys::v3_levels::ON
+                                    } else {
+                                        keys::v3_levels::OFF
+                                    },
+                                ),
+                                json!(value),
+                                json!(current),
+                            )
+                        })
+                        .collect()
+                }
+                "default_template" => std::iter::once(choice(
+                    t(cx, keys::v3_levels::NONE),
+                    Value::Null,
+                    json!(s.default_template),
+                ))
+                .chain(
+                    v.templates
+                        .iter()
+                        .filter(|t| {
+                            t.deleted_at.is_none()
+                                && (s.allow.is_empty() || s.allow.contains(&t.id))
+                        })
+                        .map(|t| {
+                            choice(
+                                t.name.clone().into(),
+                                json!(t.id),
+                                json!(s.default_template),
+                            )
+                        }),
+                )
+                .collect(),
+                "allow" => std::iter::once(Choice {
+                    label: t(cx, keys::v3_levels::ALL_TEMPLATES),
+                    value: json!([]),
+                    checked: s.allow.is_empty(),
+                })
+                .chain(
+                    v.templates
+                        .iter()
+                        .filter(|t| t.deleted_at.is_none())
+                        .map(|template| {
+                            let mut selected = s.allow.clone();
+                            let checked = selected.contains(&template.id);
+                            if checked {
+                                selected.retain(|id| id != &template.id);
+                            } else {
+                                selected.push(template.id.clone());
+                            }
+                            Choice {
+                                label: template.name.clone().into(),
+                                value: json!(selected),
+                                checked,
+                            }
+                        }),
+                )
+                .collect(),
+                "home" => std::iter::once(choice(
+                    t(cx, keys::v3_levels::THIS_LEVEL),
+                    Value::Null,
+                    json!(s.home),
+                ))
+                .chain(
+                    v.entries
+                        .iter()
+                        .filter(|e| e.id != self.level && v.levels.contains_key(&e.id))
+                        .map(|e| choice(e.title.clone().into(), json!(e.id), json!(s.home))),
+                )
+                .collect(),
+                "format_shortcuts" => [
+                    ("full", keys::v3_levels::FORMAT_FULL),
+                    ("notes", keys::v3_levels::FORMAT_NOTES),
+                    ("plain", keys::v3_levels::FORMAT_PLAIN),
+                ]
+                .into_iter()
+                .map(|(value, label)| choice(t(cx, label), json!(value), json!(s.format_shortcuts)))
+                .collect(),
+                _ => vec![],
+            }
+        }
+    }
+    impl Render for Picker {
+        fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+            let weak = cx.entity().downgrade();
+            let close = weak.clone();
+            let mut list = div()
+                .id("g2-setting-options")
+                .max_h(px(360.0))
+                .overflow_y_scroll()
+                .flex()
+                .flex_col();
+            for (index, choice) in self.choices(cx).into_iter().enumerate() {
+                let weak = weak.clone();
+                let value = choice.value;
+                let book = self.host.book.clone();
+                list = list.child(
+                    MenuItem::new(
+                        SharedString::from(format!("g2-setting-choice-{index}")),
+                        Icon::Check,
+                        choice.label,
+                    )
+                    .checked(choice.checked)
+                    .disabled(self.busy)
+                    .on_click(move |_, window, cx| {
+                        let _ = weak.update(cx, |this, cx| {
+                            this.apply(Some(value.clone()), book.clone(), window, cx)
+                        });
+                    }),
+                );
+            }
+            if self.error {
+                let error = t(cx, keys::common::SAVE_FAILED);
+                list = list.child(
+                    div()
+                        .id("g2-setting-error")
+                        .role(gpui::Role::Alert)
+                        .aria_label(error.clone())
+                        .child(error),
+                );
+            }
+            let dialog = Dialog::new(
+                "g2-setting-dialog",
+                crate::category::v3::label(self.key, cx),
+            )
+            .width(420.0)
+            .body(list)
+            .action(
+                Button::new("g2-setting-close", t(cx, keys::common::CLOSE))
+                    .text()
+                    .disabled(self.busy)
+                    .on_click(move |_, _, cx| {
+                        let _ = close.update(cx, |this, cx| this.close(cx));
+                    }),
+            )
+            .on_close(move |_, cx| {
+                let _ = weak.update(cx, |this, cx| {
+                    if !this.busy {
+                        this.close(cx);
+                    }
+                });
+            });
+            div()
+                .track_focus(&self.focus)
+                .key_context("G2LevelPicker")
+                .on_action(cx.listener(|this, _: &Dismiss, _, cx| {
+                    if !this.busy {
+                        this.close(cx);
+                    }
+                }))
+                .child(dialog)
+        }
+    }
+}

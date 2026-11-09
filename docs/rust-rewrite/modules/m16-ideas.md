@@ -110,3 +110,17 @@ cargo drifting workspace scenario crates/dr-cli/scenarios/ideas.json --app targe
 | `src/menu.rs` | 构想页 ⋯ 菜单加的几行 |
 | `tests/ideas.rs` | GPUI 测试 |
 | `examples/ideas-capture.rs` | 截图 |
+
+## K4 G2：v3 看板（第一批）
+
+`dr-view-ideas::init` 另向 `dr_shell::v3::add_level_display` 注册 `board`，
+实现共用 `dr-view-elements::panel::v3` 的条目导航、记号、悬停卡与快照刷新。
+只处理 v3 的层级；上文 v2.2 构想面板及其两层分组规则不改。
+v3 看板位置来自 `entry.layout.board`，没有位置的条目用固定间距，负坐标仍可见。
+坐标不是文稿顺序，也不产生归属。坐标写入和树上拖放留到 G2 第三批。
+
+交回、检查与真窗口场景见 [M11 的 K4 G2 一节](m11-elements.md#k4-g2v3-显示器第一批)。
+
+第二批层级页把住处和归属放在分别标明的两个看板画布中；条目的 `layout.board`
+继续是作者摆的位置。画布内部滚动消耗自身的滚轮事件，避免整张层级页同时滚动。
+真窗口场景与实际视口坐标校验见 M11 的第二批记录；v2.2 看板未改。

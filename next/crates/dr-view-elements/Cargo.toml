@@ -31,6 +31,7 @@ icu_locale_core.workspace = true
 log.workspace = true
 serde_json.workspace = true
 png = { workspace = true, optional = true }
+serde_json.workspace = true
 
 [dev-dependencies]
 anyhow.workspace = true

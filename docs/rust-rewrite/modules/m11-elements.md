@@ -172,3 +172,115 @@ cargo run -p dr-view-elements --features capture --example elements-capture -- .
 - 面板的悬停卡（旧版 220 ms 后出，带更改类目、分组、删除）、帮手改动的 A / M 记号、名称列表里吸顶的类目头。
 - 帮手改概述、改字段时的演示（阶段 5）。
 - 目录栏里「概述 / 传 / 字段 / 关联 / 补丁」几项。
+
+## K4 G2：v3 显示器（第一批）
+
+分支 `codex/k4-g2-levels`，从已含 K4-0 两次交回的 main `27806732` 开始。
+本批只接 v3；上文 v2.2 的面板、分类和对话框继续走原来的入口。
+
+- `panel::v3` 向 K4-0 登记 `list`、`grid`、`island`；`dr-view-ideas`
+  登记 `board`。左栏与层级页使用同一个显示实体，快照刷新保留折叠、看法和滚动。
+- 列表沿有效住处树的文稿顺序展开。成书层级有文稿顺序／按故事线两种看法；
+  后者按有效主归属泳道分组，没有泳道归属的叶子列在未归属，条目不重复。
+- 网格使用紧凑条目格；岛屿按子层级画砂笔框和紧凑索引。列表、网格与岛屿
+  以 GPUI ListState 只构建可见项；折叠改变可见行，条目导航与共同悬停卡复用外壳。
+- 列表、网格、岛屿的住处条目和该层接收的归属条目分节。显示不改归属和住处，
+  不把归属展开成住处子树；看板的层级页分节随第二批交回。
+- 看板按 `layout.board` 排卡片；没有坐标时用固定间距，负坐标用画布原点平移显示。
+  本批读取坐标；拖放写入随第三批交回。
+- 新标签在 `dr-i18n/own` 九种语言中提供；`locales` 由脚本生成，没有改旧版源文案。
+
+永久契约 `dr-view-elements/tests/v3_levels.rs` 覆盖文稿顺序／折叠、住处与归属分列、
+有效主归属分组、未归属、网格与岛屿条目一致、坐标与其他 layout 字段保留和 v2.2 隔离。
+真窗口场景为 `dr-cli/scenarios/k4-g2-displays.json`，使用 `seed:v3-lite`；
+包含四个显示模式、左栏／层级页注册、看板相对坐标和旧版左栏。
+
+### K4 G2 交回
+
+第一批交回显示器；层级页设置、大纲与拖动、悬停卡选择器仍在后两批。
+交回分支 `handback/k4-g2`，开发分支 `codex/k4-g2-levels`；已同步 main `91a74675`
+（K5 叶子模板编辑器）。没有合回 main，没有推送。
+
+本批提交：`ad2475e5`、`ecb9be16`、`4c0f7a7c`、`fee7433f`、`5e4a552f`、
+`bbcd148f`、`e300b31c`、`866a8e94`、`04184b56`、`2d75cc1c`、`81e5a194`，
+以及同步 main 的 `3bcfd6a7`、`22f767ca` 和本节验收记录提交。
+
+`CARGO_BUILD_JOBS=3`，全套 fmt、Clippy（all-targets／`-D warnings`）、test
+（**2051 通过／0 失败／22 忽略**，单线程）、xtask（含审计）和根目录
+`pnpm public:check` 全过。日志在忽略目录 `next/target/acceptance/k4-g2-checks-1-receipt/`。
+随后显式重建 `drifting/debug-bridge`，复制到隔离验收目录再跑，避免普通测试构建覆盖
+待验收程序。真窗口 `k4-g2-displays.json` **52/52 步、0 pending**；
+`check-v3-displays.py` 从实际 AX 坐标核对看板相对位移 **40 × 80 px**。
+五张截图全部目检，结果在 `next/target/acceptance/k4-g2-displays-receipt-1/`。
+素材与数据库由 v3-lite 合成种子生成；没有使用日用库。九语 own 和生成文件同步通过。
+本批不声称 heavy 性能通过：左栏打开／滚动对照测量在最终批统一交。
+
+### K4 G2 待协调
+
+1. **F6／K4-0：层级设置区注册口（已接实现）。** 原 `v3/page.rs` 的设置区写死为
+   「Settings + 有效显示方式」，`v3::Registry` 没有该区的 maker。请增加
+   `add_level_settings(cx, maker: Fn(LevelHost, &mut Window, &mut App) -> Rendered)`，
+   与现有显示器一样保留实例、调用 `on_refresh`，在层级页的第三块挂接。
+   有效值与来源直接消费 `book.v3().levels`，不需要另造查询。设置不属于模板内容模块，
+   不增加持久化模块种类。G2 在 `category.rs` 提供该 maker。
+   用 `add_page_view` 替换整页会绕过外壳的 v3 composition 状态和换模板后的层级／叶子
+   切换，因此不采用整页替换。F6 的 `a9115af6` 已提供注册口，G2 合入该接口提交，
+   只在自己的 `category.rs` 和 `lib.rs` 登记 maker，没有代改公共组合页面。
+2. **G1：登记实际正文编辑器供大纲使用。** G2 在拥有的 `workspace/outline.rs`
+   提供 `dr_shell::Workspace::register_v3_outline_editor(&PageHost, Option<(&str, &str)>, &mut App)`。
+   请在 `dr-view-page` 每个正文编辑器准备完成、`PageHost` 已构造而尚未移进 Chrome 时，
+   调用 `Workspace::register_v3_outline_editor(&page, Some((&host.entry, &host.module.id)), cx)`；
+   全书的 `PageHost` 调用第二参数 `None`。替换编辑器时重新登记。不在 G1 按 show_outline
+   过滤，G2 逐快照核对活动模板配置。注册只保存弱编辑器和弱 workspace，不重借外壳；
+   选择当前聚焦／导航指定／首个可展示的正文，读取实际高度、滚动和光标，不伪造段落几何。
+   按作者随后指示，接口先单独交回，G1 等它进入 main 后接线；G2 收到 G1 的交回提交，
+   合入 main 后再完成联合真窗口验收。尚未声明 v3 大纲的产品验收完成。
+
+## K4 G2：层级页（第二批）
+
+G2 侧由 `category::v3::make` 提供八项层级设置：有效值、来源、该项覆盖的还原。
+选择器只改变所选设置，显式清空默认模板／住处与恢复继承分别保存；泳道的接收开关
+遵循内核的强制值。书快照刷新不替换对话框实例。每次写入携带所点击快照的书版本，
+书或库已经更换时不准入；准入后的数据库任务持有自己的库句柄，关闭视图不取消写入。
+看板层级页另分住处、归属两个画布，左栏继续是紧凑的合并导航画布，显示不改变住处。
+
+新增四项合成契约验证清空／还原／来源、其他覆盖与 layout 保留、过期或非法写入
+不覆盖新值、换书／换库时阻止旧选择器写入、看板页分节；`v3_levels` 合计 8 项通过。
+真窗口场景为 `dr-cli/scenarios/k4-g2-levels.json`，逐项操作八项设置；关闭接收再打开
+会恢复显示保留的归属，不把读取时隐藏的关系删除。`check-v3-levels.py` 检查归属标题
+和成员确实位于画布视口内，并且内部滚动前后外层页面没有移动。检查完成前不前移
+第一批交回指针。新标签仍全部来自九语 own。
+
+### 第二批交回
+
+开发分支 `codex/k4-g2-levels`，交回分支 `handback/k4-g2`。新增实现提交
+`abaec457`、`0a1aeff8`；`b45db5d8` 合入 F6 的设置区接口 `a9115af6`，
+`39c14f1c` 同步 main `c6a21f11`（G3 的摆放、时间钉与泳道颜色）。共享 `lib.rs`
+只合并三条各自的登记调用，九语文件自动合并后通过生成同步检查；没有改其他组的实现。
+
+`CARGO_BUILD_JOBS=3`。全套 fmt、Clippy（all-targets／`-D warnings`）、test
+（**2061 通过／0 失败／22 忽略**，单线程）、xtask（含审计）、`pnpm public:check`
+全过，日志 `next/target/acceptance/k4-g2-checks-2/`。检查后显式重建调试桥并保护
+验收程序，再跑显示器 **52/52**、层级页 **103/103** 步，均 **0 pending**；
+两项结果校验脚本都通过，九张截图逐张目检，目录 `next/target/acceptance/k4-g2-native-2/`。
+八项设置的修改均从 F3 读回；恢复继承、接收关闭／恢复、成员住处不变和内部滚动
+都包含在场景中。本轮为英文浅色真窗口，不代表九语言全部布局或完整读屏验收。
+本会话未合回 main、未推送；大纲、拖动、悬停卡三种选择器与 heavy 测量留最终批。
+
+## K4 G2：大纲适配接口（单独交回）
+
+作者要求把 `09142d08` 的接口提前交回，供 G1 在 main 上接线。`5f9f69d5` 已同步
+main `ef6c1ffa`（第一批显示器的整合），只处理 `lib.rs` 的登记顺序冲突；第三批未完成
+的选择器改动单独保存，未混入本次指针。
+
+注册口及调用方式见「K4 G2 待协调」第 2 条。适配器只保存弱编辑器引用和库实例标识，
+大纲读取真实正文的高度／滚动／光标；v3 逐模块遵循 show_outline。旧版大纲继续走原入口。
+此处交付的是编译可用的注册口与接收端，G1 的登记调用尚未接入，联合真窗口留后续，
+不将前两批的窗口场景当成 v3 大纲已验收。
+
+`CARGO_BUILD_JOBS=3`，fmt、Clippy（all-targets／`-D warnings`）、全量 test
+（**2061 通过／0 失败／22 忽略**，单线程）、xtask（含审计）、根目录 public 全过。
+最终日志 `next/target/acceptance/k4-g2-checks-outline-api-final/`；较早一次因登记冲突
+尚未解决而退出的 fmt 不算通过记录。交回仍用 `handback/k4-g2`，开发分支
+`codex/k4-g2-levels`；本批新增 `09142d08`、同步提交 `5f9f69d5` 及本记录提交。
+没有合回 main，没有推送。
