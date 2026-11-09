@@ -757,3 +757,28 @@ fn v3_template_verbs_bind_atomically_disambiguate_paths_and_guard_revisions() {
         "expected diagnostic error, got: {disabled_err:?}"
     );
 }
+
+#[test]
+fn scoped_membership_restore_is_absent_and_refused_in_v3_agent_catalog() {
+    use dr_agent_tools::{AgentTools, CallRequest, Error};
+    let f = V3Fixture::new();
+    let catalog = Catalog::for_book(&f.ws, &f.book).unwrap();
+    let name = "membership.restore";
+    assert!(catalog.descriptor(name).is_none());
+    let before = f.ws.observe(&format!("book:{}", f.book)).unwrap();
+    let result = AgentTools::new().invoke(
+        &f.ws,
+        &f.book,
+        &Actor::agent("scoped-membership-refusal", 1, "write"),
+        CallRequest {
+            name: name.into(),
+            arguments: json!({}),
+            revision: None,
+            edited_text: None,
+        },
+    );
+    assert!(matches!(result, Err(Error::Invalid(message)) if message == "unknown book tool"));
+    let after = f.ws.observe(&before.doc).unwrap();
+    assert_eq!(before.version, after.version);
+    assert_eq!(before.value, after.value);
+}

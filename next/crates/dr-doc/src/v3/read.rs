@@ -15,6 +15,7 @@ use crate::book::fields::{F, kv_entries};
 use crate::book::read::{ForestNode, forest};
 use crate::schema::book_v3;
 use crate::v3::CollectionV3;
+use crate::{DocError, Result};
 
 /// Stored metadata of a v3 [`Entry`] at a history point (`BookReaderV3::load_at`),
 /// for restoring per-entry metadata (`BookTxnV3::restore_entry`).
@@ -818,6 +819,54 @@ impl<'a> BookViewV3<'a> {
 
     pub fn timeline_view(&self, id: &TimelineViewId) -> Option<TimelineView> {
         self.timeline_views().into_iter().find(|v| &v.id == id)
+    }
+
+    /// One stored placement, including unknown fields and values hidden by
+    /// the effective view. Used by field-scoped history, never a view replacement.
+    pub fn timeline_placement_snapshot(
+        &self,
+        view: &TimelineViewId,
+        entry: &EntryId,
+    ) -> Result<Option<LoroValue>> {
+        let value = entity(self.doc, book_v3::TIMELINE_VIEWS, view.as_str()).ok_or_else(|| {
+            DocError::Missing {
+                collection: book_v3::TIMELINE_VIEWS,
+                id: view.to_string(),
+            }
+        })?;
+        let LoroValue::Map(record) = value else {
+            return Err(DocError::NotInProfile("timeline view is not a map"));
+        };
+        match record.get("placements") {
+            None => Ok(None),
+            Some(LoroValue::Map(placements)) => Ok(placements.get(entry.as_str()).cloned()),
+            _ => Err(DocError::NotInProfile("timeline placements are not a map")),
+        }
+    }
+
+    /// Preflight a placement write without creating a missing container.
+    /// Call for all affected views before changing a membership or primary.
+    pub fn check_timeline_placement_write(&self, view: &TimelineViewId) -> Result<()> {
+        use loro::{Container, ContainerID, ContainerTrait, ContainerType, ValueOrContainer};
+        let root = self.doc.get_map(book_v3::TIMELINE_VIEWS);
+        let expected = ContainerID::new_mergeable(&root.id(), view.as_str(), ContainerType::Map);
+        let Some(ValueOrContainer::Container(Container::Map(record))) = root.get(view.as_str())
+        else {
+            return Err(DocError::NotInProfile(
+                "timeline view is not a writable map",
+            ));
+        };
+        if record.id() != expected {
+            return Err(DocError::NotInProfile(
+                "timeline view is not a mergeable map",
+            ));
+        }
+        match record.get("placements") {
+            None | Some(ValueOrContainer::Container(Container::Map(_))) => Ok(()),
+            _ => Err(DocError::NotInProfile(
+                "timeline placements are not a writable map",
+            )),
+        }
     }
 
     // ---- patches and plot grids ------------------------------------------

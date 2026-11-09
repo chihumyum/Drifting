@@ -1,9 +1,12 @@
 use super::*;
+mod restore;
+pub use restore::{MembershipRestore, RestoreIn};
 pub(crate) fn register(r: &mut Registry) {
     r.add::<MembershipList>()
         .add::<MembershipAdd>()
         .add::<MembershipRemove>()
-        .add::<MembershipPrimary>();
+        .add::<MembershipPrimary>()
+        .add::<MembershipRestore>();
 }
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct In {
@@ -65,26 +68,32 @@ fn add(cx: &Cx<'_>, input: AddIn) -> Result<Done> {
     cx.effect(EffectAction::Updated, "membership", &k, None);
     Ok(Done { id: k })
 }
-// Removing a membership also removes placements from every view that no longer
-// has a lane for that member. One lane may be shared by several independent views.
+// Only remove a position this cancellation actually orphans. Read-side filters
+// hide retained data; they must never become a global cleanup instruction.
 pub(super) fn removals(
     v: &BookViewV3<'_>,
     host: &EntryId,
     member: &EntryId,
 ) -> Vec<TimelineViewId> {
-    let ms = v
-        .memberships()
-        .into_iter()
-        .filter(|m| &m.host != host || &m.member != member)
-        .collect::<Vec<_>>();
+    let ms = v.memberships_raw();
+    if !ms.iter().any(|m| &m.host == host && &m.member == member) {
+        return Vec::new();
+    }
     let entries = v.entries_map();
     let templates = v.templates_map();
     v.timeline_views_raw()
         .into_iter()
         .filter(|tv| {
-            tv.placements.iter().any(|p| &p.entry == member)
-                && m::check_timeline_placement_in_lane(tv, member, &ms, &entries, &templates)
-                    .is_err()
+            !tv.is_trashed()
+                && tv.lanes.iter().any(|l| &l.entry == host)
+                && m::effective_timeline_placements(tv, &ms, &entries, &templates)
+                    .iter()
+                    .any(|p| &p.entry == member)
+                && !ms.iter().any(|m| {
+                    &m.member == member
+                        && &m.host != host
+                        && tv.lanes.iter().any(|l| l.entry == m.host)
+                })
         })
         .map(|tv| tv.id)
         .collect()
@@ -92,26 +101,36 @@ pub(super) fn removals(
 op! {
     MembershipRemove="membership.remove",Write,Book,"Remove a v3 membership and any timeline placements left without a lane.",fn(cx,input:In)->Done {
         let s = cx.book_v3(&input.book)?;
-        let v = s.reader_v3.view();
         let host: EntryId = pid("host", &input.host)?;
-        let member = live(&v, &input.member)?;
-        let views = removals(&v, &host, &member.id);
-        let k = m::Membership::key(&host, &member.id);
-        let mut keys = vec![key("memberships", &k)];
-        if member.primary.as_ref() == Some(&host) { keys.push(key("entries", &member.id)); }
-        keys.extend(views.iter().map(|v| key("timeline_views", v)));
-        let (_, at) = cx.write_book_v3(&s, move |t| {
+        let k = m::Membership::key(&host, &pid("member", &input.member)?);
+        let (receipt, at) = cx.write_book_v3(&s, move |t| {
+            let v = t.view();
+            let member = live(&v, &input.member)?;
+            let views = removals(&v, &host, &member.id);
+            let membership = v.map_snapshot(CollectionV3::Memberships, &m::Membership::key(&host, &member.id)).is_some();
+            let primary = member.primary.as_ref() == Some(&host);
+            if !membership && !primary { return Ok(None); }
+            for view in &views { v.check_timeline_placement_write(view)?; }
             t.remove_membership(&host, &member.id)?;
-            if member.primary.as_ref() == Some(&host) {
+            if primary {
                 t.entries().entry(&member.id)?.primary(None)?;
             }
-            for view in views {
-                t.timeline_view(&view)?.remove_placement(&member.id)?;
+            for view in &views {
+                t.timeline_view(view)?.restore_placement(&member.id, None)?;
             }
-            Ok(())
+            Ok(Some(RestoreIn {
+                book: input.book, host: host.to_string(), member: member.id.to_string(),
+                at: String::new(), membership, primary,
+                views: views.into_iter().map(|v| v.to_string()).collect(),
+            }))
         })?;
-        undo(cx, &s, &at, keys);
-        cx.effect(EffectAction::Detached, "membership", &k, None);
+        if let Some(mut receipt) = receipt {
+            receipt.at = frontiers_hex(&at);
+            cx.undo_with(Invocation::new("membership.restore", receipt));
+            cx.effect(EffectAction::Detached, "membership", &k, None);
+        } else {
+            cx.undo_nothing();
+        }
         Ok(Done { id: k })
     }
 }
