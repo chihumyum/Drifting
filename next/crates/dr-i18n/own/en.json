@@ -122,7 +122,8 @@
     "h1": "H1",
     "h2": "H2",
     "h3": "H3",
-    "title": "Title"
+    "title": "Title",
+    "entries": "Entries"
   },
   "v3Timeline": {
     "views": "Timeline views",

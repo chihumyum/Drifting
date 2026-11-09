@@ -17,9 +17,11 @@ pub struct BodyModule {
     reveal: Option<Lines>,
     loading: Option<Task<()>>,
     error: Option<String>,
+    _links: Option<Subscription>,
 }
 
 pub fn register(cx: &mut App) {
+    crate::whole::register(cx);
     dr_shell::v3::add_module_view(cx, "prose", |host, window, cx| {
         let view = cx.new(|cx| BodyModule::new(host, window, cx));
         let focus = view.read(cx).focus.clone();
@@ -65,6 +67,7 @@ impl BodyModule {
             reveal: None,
             loading: None,
             error: None,
+            _links: None,
         };
         view.load(window, cx);
         view
@@ -121,11 +124,17 @@ impl BodyModule {
                             use dr_i18n::keys::k4_pages as k;
                             let labels = [k::BODY, k::H1, k::H2, k::H3, k::QUOTE, k::RULE]
                                 .map(|key| dr_shell::t(cx, key));
-                            e.assist().update(cx, |a, _| a.set_block_labels(labels));
+                            let entry_label = dr_shell::t(cx, k::ENTRIES);
+                            e.assist().update(cx, |a, _| {
+                                a.set_block_labels(labels);
+                                a.set_entry_label(entry_label);
+                            });
                             e.set_base_style(base, cx);
                             e.set_decor_looks(looks, cx);
                             e.set_chrome(Some(Rc::new(crate::Chrome::new(page))), cx);
                         });
+                        let assist = editor.read(cx).assist().clone();
+                        view._links = Some(bind_links(&assist, &host.page, window, cx));
                         view.editor = Some(editor);
                         view.reveal_now(window, cx);
                         let workspace = view.host.page.workspace.clone();
@@ -224,4 +233,50 @@ impl Render for BodyModule {
                     )
             }))
     }
+}
+
+/// The G1 hosts consume v3 entity links directly until the shell registers module editors.
+pub(crate) fn bind_links<T: 'static>(
+    assist: &Entity<dr_editor::assist::Assist>,
+    host: &dr_shell::pages::PageViewHost,
+    window: &mut Window,
+    cx: &mut Context<T>,
+) -> Subscription {
+    let host = host.clone();
+    cx.subscribe_in(assist, window, move |_, _, event, window, cx| {
+        let dr_editor::assist::AssistEvent::OpenLink { target, module, .. } = event else {
+            return;
+        };
+        let target = match target.kind {
+            dr_model::kind::EntityKind::Entry => {
+                let id = target.id.clone();
+                let Ok(id) = dr_model::id::EntryId::parse(&id) else {
+                    return;
+                };
+                let Ok(module) = module
+                    .as_deref()
+                    .map(dr_model::id::ModuleId::parse)
+                    .transpose()
+                else {
+                    return;
+                };
+                dr_shell::nav::Target::Entry { id, module }
+            }
+            dr_model::kind::EntityKind::Material => {
+                let Ok(id) = dr_model::id::MaterialId::parse(&target.id) else {
+                    return;
+                };
+                dr_shell::nav::Target::Material(id)
+            }
+            _ => return,
+        };
+        let workspace = host.workspace.clone();
+        window.defer(cx, move |_, cx| {
+            workspace
+                .update(cx, |ws, cx| {
+                    ws.open(target, dr_shell::nav::Open::PREVIEW, cx)
+                })
+                .ok();
+        });
+    })
 }

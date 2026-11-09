@@ -353,7 +353,11 @@ pub enum AssistEvent {
     LinkCopied { chapter: usize, link: String },
     /// A plain click on a live entity link in chapter `chapter`: the host
     /// opens `target` (a preview tab, as the 0.1 client did).
-    OpenLink { chapter: usize, target: LinkTarget },
+    OpenLink {
+        chapter: usize,
+        target: LinkTarget,
+        module: Option<String>,
+    },
     /// The slash menu's 表格 (a material note): a table at the caret.
     InsertTable { chapter: usize },
     /// 插入素材…: material `material` embedded at the caret.
@@ -363,6 +367,7 @@ pub enum AssistEvent {
 /// The pickers, automatic links and selection bar of one editor.
 pub struct Assist {
     ws: Workspace,
+    v3: bool,
     book: String,
     /// Each chapter's prose document (`node:<id>`, …), in the editor's order.
     docs: Vec<String>,
@@ -408,6 +413,7 @@ pub struct Assist {
     note: bool,
     /// The v3 page host supplies localized format names; legacy hosts keep their labels.
     block_labels: Option<[SharedString; 6]>,
+    entry_label: Option<SharedString>,
 }
 
 /// A paragraph's links before an edit: chapter, block id, line, and
@@ -439,8 +445,10 @@ impl Assist {
         let decor_events = Self::watch_decorations(&editor, window, cx);
         let undo_counts = Self::counts(&editor, cx);
         let line_counts = Self::lines(&editor, cx);
+        let v3 = crate::v3::is_book(&ws, book).unwrap_or(false);
         let mut assist = Assist {
             ws,
+            v3,
             book: book.to_owned(),
             docs,
             editor,
@@ -460,6 +468,7 @@ impl Assist {
             writing: false,
             note: false,
             block_labels: None,
+            entry_label: None,
             _editor_events: events,
             pointed_link: None,
             card: None,
@@ -565,6 +574,10 @@ impl Assist {
         self.block_labels = Some(labels);
     }
 
+    pub fn set_entry_label(&mut self, label: SharedString) {
+        self.entry_label = Some(label);
+    }
+
     fn block_label(&self, choice: BlockChoice) -> SharedString {
         self.block_labels
             .as_ref()
@@ -589,10 +602,13 @@ impl Assist {
 
     /// The target id of chapter `chapter`'s own document (never linked).
     fn own_id(&self, chapter: usize) -> Option<&str> {
-        self.docs
-            .get(chapter)
-            .and_then(|d| d.split_once(':'))
-            .map(|(_, id)| id)
+        let doc = self.docs.get(chapter)?;
+        let (_, id) = doc.split_once(':')?;
+        Some(if doc.starts_with("body:") {
+            id.split('/').next().unwrap_or(id)
+        } else {
+            id
+        })
     }
 
     // ----- the editor's events -------------------------------------------------------
@@ -937,7 +953,7 @@ impl Assist {
                     })
                     .collect();
                 let q = query.trim();
-                if !q.is_empty() && !names.has_element_named(q) {
+                if !self.v3 && !q.is_empty() && !names.has_element_named(q) {
                     rows.push(MenuRow::Create { name: q.to_owned() });
                 }
                 rows
@@ -1217,6 +1233,23 @@ impl Assist {
     /// The location link of paragraph `line` of chapter `chapter`, in the
     /// document form: `drifting:<group>/id-<id>/prose.md#L<2N+1>`.
     pub fn position_link(&self, chapter: usize, line: usize) -> Option<String> {
+        if let Some((entry, module)) = self.docs.get(chapter).and_then(|d| crate::v3::body(d)) {
+            return Some(
+                crate::v3_link::Address {
+                    book: None,
+                    endpoint: crate::v3_link::Endpoint::Entry {
+                        id: dr_model::id::EntryId::parse(&entry).ok()?,
+                        module: Some(dr_model::id::ModuleId::parse(&module).ok()?),
+                    },
+                    lines: Some((
+                        (line as u32).saturating_mul(2).saturating_add(1),
+                        (line as u32).saturating_mul(2).saturating_add(1),
+                    )),
+                }
+                .format("drifting-next-dev"),
+            );
+        }
+
         let doc = self.docs.get(chapter)?;
         let (prefix, id) = doc.split_once(':')?;
         let group = match prefix {
@@ -1439,7 +1472,29 @@ impl Assist {
         let Some(target) = target else { return };
         // A target in the trash or gone: the click does nothing.
         if crate::link_card::card_facts(&self.ws, &self.book, &target).is_some() {
-            cx.emit(AssistEvent::OpenLink { chapter, target });
+            let module = self
+                .editor
+                .read(cx)
+                .decoration_range(chapter, "links", &id)
+                .and_then(|range| {
+                    self.editor
+                        .read(cx)
+                        .book()
+                        .chapters
+                        .get(chapter)
+                        .map(|c| c.doc.marks_before(range.start + 1))
+                })
+                .and_then(|marks| {
+                    marks
+                        .entities()
+                        .find(|(t, _)| *t == target.id)
+                        .and_then(|(_, value)| crate::links::link_module(value))
+                });
+            cx.emit(AssistEvent::OpenLink {
+                chapter,
+                target,
+                module,
+            });
         }
         cx.notify();
     }
@@ -1588,7 +1643,12 @@ impl Assist {
                     if section.is_some() {
                         list = list.separator(&theme);
                     }
-                    list = list.section(group.label(), &theme);
+                    let label = if *group == NameGroup::Entry {
+                        self.entry_label.clone().unwrap_or_default()
+                    } else {
+                        group.label().into()
+                    };
+                    list = list.section(label, &theme);
                     section = Some(*group);
                 }
                 MenuRow::Create { .. } if section.is_some() => {
@@ -1619,7 +1679,7 @@ impl Assist {
                         NameGroup::Element => sand::Kind::Element,
                         NameGroup::Chapter => sand::Kind::Chapter(0),
                         NameGroup::Idea => sand::Kind::Drift { loose: false },
-                        NameGroup::Other => sand::Kind::Category,
+                        NameGroup::Entry | NameGroup::Other => sand::Kind::Category,
                     };
                     (RowIcon::Mark(kind, None), name.clone().into(), None)
                 }

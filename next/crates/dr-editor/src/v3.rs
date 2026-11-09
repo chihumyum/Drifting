@@ -63,7 +63,17 @@ pub fn manuscript_docs(view: &BookViewV3<'_>) -> Vec<(String, String)> {
                 .effective_template(&templates)
                 .into_iter()
                 .flat_map(|t| t.prose_modules())
-                .map(|m| (format!("body:{}/{}", entry.id, m.id), entry.title.clone()))
+                .enumerate()
+                .map(|(i, m)| {
+                    (
+                        format!("body:{}/{}", entry.id, m.id),
+                        if i == 0 {
+                            entry.title.clone()
+                        } else {
+                            m.name.clone()
+                        },
+                    )
+                })
                 .collect::<Vec<_>>()
         })
         .collect()
@@ -211,4 +221,33 @@ pub fn set_role_field(
         json!({"book": book, "entry": entry, "module": selected.0, "field": selected.1, "value": value}),
     )?;
     Ok(true)
+}
+
+/// Reads only the schema marker; a v2.2 book keeps the old paths.
+pub fn is_book(ws: &Workspace, book: &str) -> Result<bool, WsError> {
+    Ok(ws
+        .library()
+        .open_doc(&format!("book:{book}"), OpenDoc::Existing)?
+        .read(dr_doc::v3::is_v3_doc)?)
+}
+
+pub struct LinkTargets {
+    pub workspace: Workspace,
+    pub book: String,
+}
+impl crate::links::LinkTargets for LinkTargets {
+    fn alive(&self, kind: &dr_model::kind::EntityKind, id: &str) -> bool {
+        let (kind, id) = (kind.clone(), id.to_owned());
+        read(&self.workspace, &self.book, move |v| match kind {
+            dr_model::kind::EntityKind::Entry => v
+                .entries()
+                .iter()
+                .any(|e| e.id.as_str() == id && !e.is_trashed()),
+            dr_model::kind::EntityKind::Material => {
+                v.materials().iter().any(|m| m.id.as_str() == id)
+            }
+            _ => false,
+        })
+        .unwrap_or(false)
+    }
 }

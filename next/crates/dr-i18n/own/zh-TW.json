@@ -116,7 +116,8 @@
     "h1": "H1",
     "h2": "H2",
     "h3": "H3",
-    "title": "標題"
+    "title": "標題",
+    "entries": "條目"
   },
   "v3Timeline": {
     "views": "時間線視圖",

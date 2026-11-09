@@ -29,6 +29,7 @@
 pub mod end;
 pub mod head;
 pub mod v3;
+pub mod whole;
 
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 

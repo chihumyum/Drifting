@@ -279,10 +279,16 @@ impl ChapterEditor {
     }
 
     fn extension(ws: &Workspace, book: &str) -> DriftingExtension {
-        let targets = ws
-            .catalog(book)
-            .ok()
-            .map(|c| Box::new(Catalog(c)) as Box<dyn LinkTargets>);
+        let targets = if crate::v3::is_book(ws, book).unwrap_or(false) {
+            Some(Box::new(crate::v3::LinkTargets {
+                workspace: ws.clone(),
+                book: book.to_owned(),
+            }) as Box<dyn LinkTargets>)
+        } else {
+            ws.catalog(book)
+                .ok()
+                .map(|c| Box::new(Catalog(c)) as Box<dyn LinkTargets>)
+        };
         DriftingExtension::new(targets)
     }
 

@@ -122,3 +122,53 @@ F4e 的旧 headless 基线是全书会话／文档冷 52.8 ms、热 14–15 ms�
 `relations` 37/37、`v2-chrome` 48/48，全部 0 pending。每个场景独立临时库。
 旧版章末状态点击、实际图片选取及“待协调”六项不计为已通过。
 heavy 数据为忙机参考，非空闲性能结论。不合 main、不推送。
+
+## 通览与人物链接（第二段）
+
+通览通过现有页面注册口接 `Target::Book`，按最外层成书层级下的文稿顺序读叶子，
+每个活跃正文模块各持有一个会话。层级说明、非成书叶子和素材不混入。重排、添加和
+移除时复用仍在书里的正文对象，保留各篇撤销，并按文档 id 复位选择与阅读位置；
+v2.2 保持原来的列表与重建路径。已有章首章末继续用于小说章，后续正文用模块名。
+
+`NameIndex` 用公共 `is_autolink_leaf` 判定住处和任一归属；冲突名字与本条目自身
+不成为候选，别名随模板的别名角色读取。v3 的 `@` 只列条目，不调用旧 `element.create`。
+自动链接与手动选择仍随作者的输入撤销。已有条目／素材链接按 v3 查询判活，条目
+悬停卡读模板、别名、摘要角色与键值；不把旧 chapter/element 等种类映射回 v3。
+
+`dr_editor::v3_link` 定义纯解析／生成接口（保留旧解析器不变）：
+
+- 条目：`drifting:entries/id-<entry>`。
+- 指定正文：`drifting:entries/id-<entry>/modules/id-<module>/prose.md#L1-L3`。
+- 素材：`drifting:materials/id-<material>/prose.md#L1`。
+- 系统形式：`<build-scheme>://open/<book>/entries/id-<entry>/modules/id-<module>/prose.md#L1`。
+
+每个 id 单独按 UTF-8 百分号编码；不用名字解析，不把 module 塞进 entry id；正文行号
+沿用规范 Markdown 的 2N+1。无模块的条目地址不能携带正文行号。v3 编辑器复制位置
+地址使用这套格式。已有标记值的 module 可以读出并向 `Target::Entry` 传递，不把模块丢弃或编码进条目 id；但完整写入／复制保真仍受待协调 2 的公共模型限制。
+
+### 第二段新增待协调
+
+7. **K4-0：通览与素材导航存在性。** `book::V3Book::exists` 目前只接受 Entry 和
+   Template，拒绝 Book 和 Material。`nav.open {target:"book"}` 在真实 v3-lite
+   窗口返回 `not_found: book is not in this book`。现有 ⌘⌥2 可以打开已注册的 G1
+   通览，但后续书快照清理标签时还会把它视为失效。外壳须认可 v3 通览和素材目标，
+   并保留相应标签；G1 不修改该文件，也不另造一个条目冒充通览。
+8. **K4-0／G4：模块 URL 消费。** 外壳 `nav::location`、系统 URL 入口以及审阅／搜索
+   的位置跳转须消费上述 `v3_link::Address`，解析后交 Entry{id,module}／Material
+   和现有 Lines。G1 提供解析器与复制端；旧 Catalog 仍不认识这些地址，未计为系统
+   URL 打开或复制后点击闭环通过。通览的全局搜索、阅读位置与主题联动也受待协调 1
+   的编辑器登记接口限制。
+
+### 第二段验收记录
+
+- `dr-editor/tests/v3_book_links.rs`：三个契约通过。覆盖住处／任一归属、候选移除、
+  排除自身和回收站、真实编辑器写入 entry 标记及撤销、@ 选择、通览重排后会话与
+  独立撤销保留。`v3_link` 单元测试覆盖百分号编码、模块／书 id、行号与旧地址隔离。
+- `dr-view-page/scenarios/whole-book.json`：最终无诊断日志构建 **34/34、0 pending**。
+  用现有快捷键进入通览，首章输入和撤销、滚动、逐章键盘导航到第 20 章，再输入和
+  回读验证实际写入末章；不能把这条路径当作待协调 7 已修复。
+- `dr-view-page/scenarios/links.json`：同一最终构建 **36/36、0 pending**。@ 候选选择、
+  两次撤销后重新打名字、自动链接悬停卡、点击打开条目；首轮点击探针未完成跳转，
+  诊断构建和移除诊断后的最终复跑均完整通过。截图已目检。
+- 两个窗口场景均为 `seed:v3-lite` 和 runner 独立临时库。指定模块写入、素材手动链接、
+  系统 URL 闭环、通览外壳刷新／全局编辑器功能仍按待协调列出，不算完成。

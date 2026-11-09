@@ -116,7 +116,8 @@
     "h1": "H1",
     "h2": "H2",
     "h3": "H3",
-    "title": "제목"
+    "title": "제목",
+    "entries": "항목"
   },
   "v3Timeline": {
     "views": "타임라인 보기",
