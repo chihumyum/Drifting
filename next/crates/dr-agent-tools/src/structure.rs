@@ -12,9 +12,9 @@ use dr_model::{
     DocId,
     id::{BodyDocId, BookId, EntryId, EntryTemplateId, ModuleId, TimelineViewId},
     v3::{
-        Entry, EntryTemplate, LevelSettings, LevelSettingsOverride, ModuleKind, ModuleSpec,
+        Entry, EntryTemplate, LevelSettingSource, LevelSettings, ModuleKind, ModuleSpec,
         ProjectTemplateRef, TemplateKind, effective_ancestors, level_about_module_id,
-        resolve_level_settings,
+        resolve_level_settings_with_sources,
     },
 };
 use dr_store::Library;
@@ -93,17 +93,17 @@ pub struct TemplateSummary {
     pub modules: Vec<ModuleSummary>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct LevelSettingsSources {
-    pub default_template: String,
-    pub allow: String,
-    pub display: String,
-    pub auto_link: String,
-    pub accept: String,
-    pub home: String,
-    pub is_manuscript: String,
-    pub format_shortcuts: String,
+impl TemplateSummary {
+    /// Read-only projection for any v3 template, including an unsaved or unused
+    /// draft. Uses the runtime's exact module identities and capability schema;
+    /// grants no read coverage and neither binds nor executes template actions.
+    pub fn from_v3_template(template: &EntryTemplate) -> Self {
+        summarize_template(template, &Catalog::new_v3())
+    }
 }
+
+/// Canonical kernel provenance; consumers must not reconstruct inheritance.
+pub type LevelSettingsSources = BTreeMap<String, LevelSettingSource>;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EffectiveLevelSettingsSummary {
@@ -576,60 +576,10 @@ fn resolve_settings_with_sources(
     entries: &BTreeMap<EntryId, Entry>,
     templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
 ) -> EffectiveLevelSettingsSummary {
-    let values = resolve_level_settings(Some(level_id), entries, templates);
-    let mut chain = vec![level_id.clone()];
-    chain.extend(effective_ancestors(entries, templates, level_id));
-
-    let find_source = |check: &dyn Fn(&LevelSettingsOverride) -> bool| -> String {
-        for id in &chain {
-            let Some(e) = entries.get(id) else {
-                continue;
-            };
-            if let Some(ov) = e.overrides.as_ref()
-                && check(ov)
-            {
-                return if id == level_id {
-                    "self_override".into()
-                } else {
-                    format!("ancestor:{id}")
-                };
-            }
-            if let Some(tpl) = e.effective_template(templates)
-                && tpl.is_level()
-                && check(&tpl.settings)
-            {
-                return if id == level_id {
-                    "self_template".into()
-                } else {
-                    format!("ancestor:{id}")
-                };
-            }
-        }
-        "default".into()
-    };
-
-    let is_lane = entries
-        .get(level_id)
-        .is_some_and(|e| e.is_lane_level(templates));
-    let raw_accept_source = find_source(&|s| s.accept.is_some());
-    let accept_source = if is_lane {
-        "lane_invariant".into()
-    } else {
-        raw_accept_source
-    };
-
+    let resolved = resolve_level_settings_with_sources(Some(level_id), entries, templates);
     EffectiveLevelSettingsSummary {
-        values,
-        sources: LevelSettingsSources {
-            default_template: find_source(&|s| s.default_template.is_some()),
-            allow: find_source(&|s| s.allow.is_some()),
-            display: find_source(&|s| s.display.is_some()),
-            auto_link: find_source(&|s| s.auto_link.is_some()),
-            accept: accept_source,
-            home: find_source(&|s| s.home.is_some()),
-            is_manuscript: find_source(&|s| s.is_manuscript.is_some()),
-            format_shortcuts: find_source(&|s| s.format_shortcuts.is_some()),
-        },
+        values: resolved.settings,
+        sources: resolved.sources,
     }
 }
 
