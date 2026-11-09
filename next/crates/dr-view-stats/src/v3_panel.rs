@@ -25,6 +25,7 @@ pub struct View {
     i18n: I18n,
     open: Option<Open>,
     loaded: Option<Loaded>,
+    mine: Option<i64>,
     task: Option<Task<()>>,
     revision: u64,
 }
@@ -39,12 +40,19 @@ impl View {
             i18n: I18n::new(Locale::En, Platform::Mac),
             open: None,
             loaded: None,
+            mine: None,
             task: None,
             revision: 0,
         }
     }
     pub fn loaded(&self) -> Option<&Loaded> {
         self.loaded.as_ref()
+    }
+    pub(crate) fn set_mine(&mut self, mine: Option<i64>, cx: &mut Context<Self>) {
+        if self.mine != mine {
+            self.mine = mine;
+            cx.notify();
+        }
     }
     pub fn show(
         &mut self,
@@ -61,6 +69,7 @@ impl View {
             self.book = book.into();
             self.scope = scope;
             self.loaded = None;
+            self.mine = None;
             self.reload(cx);
         }
     }
@@ -120,19 +129,23 @@ impl Render for View {
                 |n| ui.words(n),
             )
         };
-        let label = match self.scope {
-            Scope::Book => keys::workspace_word_tally::BOOK,
-            Scope::Entry { .. } => keys::k4_book::ENTRY_WORDS,
-            Scope::Material(_) => keys::k4_book::MATERIAL_WORDS,
+        let label = match (live.selection, &self.scope) {
+            (Some(_), _) => keys::workspace_word_tally::SELECTION,
+            (_, Scope::Book) => keys::workspace_word_tally::BOOK,
+            (_, Scope::Entry { .. }) => keys::k4_book::ENTRY_WORDS,
+            (_, Scope::Material(_)) => keys::k4_book::MATERIAL_WORDS,
         };
         let mut first = ui.section(None).child(ui.small(ui.t(label))).child(
             div()
                 .font_role(dr_ui::fonts::Role::Ui)
                 .type_px(theme.scale.heading, theme.scale.heading * 1.3)
                 .text_color(theme.palette.ink(1).solid())
-                .child(words(data.and_then(|d| d.words(live)).map(|n| n.words))),
+                .child(words(
+                    live.selection
+                        .or_else(|| data.and_then(|d| d.words(live)).map(|n| n.words)),
+                )),
         );
-        if self.scope != Scope::Book {
+        if self.scope != Scope::Book || live.selection.is_some() {
             first = first.child(ui.row(
                 ui.t(keys::workspace_word_tally::BOOK),
                 words(data.and_then(|d| d.book_words(live)).map(|n| n.words)),
@@ -140,6 +153,16 @@ impl Render for View {
         }
         let mut progress = ui.section(Some(ui.t(stats::WRITING_PROGRESS)));
         if let Some(data) = data {
+            let today = crate::model::today_words(&data.days, self.mine);
+            first = first.child(ui.row(
+                ui.t(keys::project_picker::heat::TODAY),
+                ui.words(today.max(0) as u64),
+            ));
+            if let Some(f) =
+                crate::model::progress(today.max(0) as u64, data.days.daily_word_target)
+            {
+                first = first.child(ui.stroke("today", f, None));
+            }
             progress =
                 progress.child(ui.row(ui.t(keys::k4_book::LEAF_COUNT), data.leaves.to_string()));
             if let Some(f) = data
@@ -228,7 +251,40 @@ impl Render for View {
             }
             body = body.child(modules);
         }
-        body.child(progress)
+        body = body.child(progress);
+        if let Some(data) = data {
+            let today = crate::model::today_words(&data.days, self.mine);
+            let week = data.days.week - data.days.today + today;
+            let streak = if today > 0 {
+                data.days.streak_before + 1
+            } else {
+                0
+            };
+            let mut recent = ui
+                .section(Some(ui.t(stats::RECENT)))
+                .child(ui.row(
+                    ui.t(keys::dashboard::today::WEEK),
+                    ui.words(week.max(0) as u64),
+                ))
+                .child(ui.row(
+                    ui.t(keys::dashboard::today::STREAK),
+                    format!("{streak} {}", ui.t(keys::project_picker::heat::DAYS_UNIT)),
+                ));
+            for (i, day) in data.days.days.iter().enumerate().rev() {
+                let last = i + 1 == data.days.days.len();
+                let label = if last {
+                    ui.t(keys::project_picker::heat::TODAY).to_string()
+                } else {
+                    day.day.clone()
+                };
+                recent = recent.child(ui.row(
+                    label,
+                    ui.words(if last { today } else { day.words }.max(0) as u64),
+                ));
+            }
+            body = body.child(recent);
+        }
+        body
     }
 }
 
@@ -249,6 +305,12 @@ pub fn panel(
     };
     let lib = hub.lib.clone();
     let existing = hub.v3_views.get(&key).cloned();
+    let mine = hub.recorder.as_ref().and_then(|r| r.today(book));
+    if existing.as_ref().is_none_or(|v| v.read(cx).book != book)
+        && let Some(r) = hub.recorder.as_ref()
+    {
+        r.track(book);
+    }
     let view = existing.unwrap_or_else(|| {
         let v = cx.new(|_| View::new(key.clone(), lib));
         let weak = v.downgrade();
@@ -263,7 +325,10 @@ pub fn panel(
             .insert(key, v.clone());
         v
     });
-    view.update(cx, |v, cx| v.show(book, scope, locale, platform, open, cx));
+    view.update(cx, |v, cx| {
+        v.show(book, scope, locale, platform, open, cx);
+        v.set_mine(mine, cx);
+    });
     view.into_any_element()
 }
 

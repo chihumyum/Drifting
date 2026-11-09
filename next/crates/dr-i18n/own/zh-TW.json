@@ -1,30 +1,87 @@
 {
+  "findPanel": {
+    "replace": "取代",
+    "replaceAll": "全部取代",
+    "replacePlaceholder": "取代為…"
+  },
   "import": {
     "v1": {
-      "blocked": {
-        "title": "有幾篇正文可能少了最後幾秒打的字",
-        "no_handoff": "這個資料庫還沒在舊版的最後一版裡打開過",
-        "unproven": "有 {{count}} 篇正文無法確認是最新的，列在下面",
-        "stale": "有 {{count}} 章比你寫到的舊",
-        "changed_after_handoff": "有 {{count}} 篇在交接核對後又改過",
-        "sync": "同步還有沒解決的衝突",
-        "get_last_release": "下載舊版的最後一版，打開這個資料庫一次再退出，然後重新匯入"
-      },
       "action": {
         "download_last_release": "下載舊版最後一版",
         "import_anyway": "仍然匯入"
       },
-      "summary": {
-        "already_imported": "這台裝置以前匯入過，這次沒再匯入",
-        "already_in_library": "新資料庫裡已經有這本書，沒有動",
-        "from_caches": "有 {{count}} 篇照快取匯入，可能少了最後幾秒的字",
-        "account_libraries_left": "資料夾裡還有 {{count}} 個帳號資料庫沒匯入，等帳號功能做好",
-        "carries_on": "沒匯入完，再匯入一次這個資料庫會接著匯入"
+      "blocked": {
+        "changed_after_handoff": "有 {{count}} 篇在交接核對後又改過",
+        "get_last_release": "下載舊版的最後一版，打開這個資料庫一次再退出，然後重新匯入",
+        "no_handoff": "這個資料庫還沒在舊版的最後一版裡打開過",
+        "stale": "有 {{count}} 章比你寫到的舊",
+        "sync": "同步還有沒解決的衝突",
+        "title": "有幾篇正文可能少了最後幾秒打的字",
+        "unproven": "有 {{count}} 篇正文無法確認是最新的，列在下面"
       },
       "notice": {
-        "unfinished": "《{{name}}》沒匯入完",
-        "carry_on": "接著匯入"
+        "carry_on": "接著匯入",
+        "unfinished": "《{{name}}》沒匯入完"
+      },
+      "summary": {
+        "account_libraries_left": "資料夾裡還有 {{count}} 個帳號資料庫沒匯入，等帳號功能做好",
+        "already_imported": "這台裝置以前匯入過，這次沒再匯入",
+        "already_in_library": "新資料庫裡已經有這本書，沒有動",
+        "carries_on": "沒匯入完，再匯入一次這個資料庫會接著匯入",
+        "from_caches": "有 {{count}} 篇照快取匯入，可能少了最後幾秒的字"
       }
+    }
+  },
+  "importDialog": {
+    "targets": {
+      "idea": {
+        "desc": "獨立於故事線的浮動構想卡片。",
+        "label": "構想"
+      }
+    },
+    "warnings": {
+      "imagesDropped": "{{count}} 張圖片沒有匯入",
+      "notUtf8": "不是 UTF-8 文字，有些字元被替換了"
+    }
+  },
+  "k4Book": {
+    "entry_count_other": "{{count}} 個條目",
+    "entry_titles": "條目標題",
+    "entry_words": "條目字數",
+    "leaf_count": "葉子數量",
+    "material_words": "素材字數",
+    "retained_content": "保留的內容",
+    "selected_entries": "選取條目",
+    "untitled_entry": "未命名條目"
+  },
+  "k4Pages": {
+    "body": "正文",
+    "entries": "條目",
+    "h1": "H1",
+    "h2": "H2",
+    "h3": "H3",
+    "invalidValue": "值無效",
+    "newPatch": "新增補丁",
+    "quote": "引用",
+    "retained": "原來的內容",
+    "rule": "分隔線",
+    "saveFailed": "無法儲存",
+    "title": "標題",
+    "unset": "未設定"
+  },
+  "notifications": {
+    "markdownFolder": {
+      "issue": {
+        "owned": "這個資料夾由另一個 Drifting 管理，沒有讀寫"
+      }
+    }
+  },
+  "positionLink": {
+    "copied": "已複製位置連結"
+  },
+  "projectPicker": {
+    "bookTransfer": {
+      "legacy": "這本書是 Drifting 0.1 匯出的。請在舊版裡匯入它，再把舊版資料庫交接給新版。"
     }
   },
   "settings": {
@@ -39,223 +96,166 @@
       }
     },
     "update": {
-      "restart": "重新啟動以更新",
-      "ready_on_quit": "Drifting {{version}} 已下載並通過簽章驗證，結束時安裝。",
+      "install_failed": "上次結束時沒能安裝 Drifting {{version}}，目前版本未變更。下次結束時會再試。",
+      "install_failed_admin": "上次結束時沒能安裝 Drifting {{version}}：Drifting 所在的資料夾無法寫入。目前版本未變更。",
+      "interrupted": "更新沒有下載完整，已捨棄。下次檢查時會重新下載。",
+      "local_error": "更新無法存進這台電腦，已停止。目前版本仍可繼續使用。",
       "older_offered": "目前已是最新版本。更新服務提供的 {{version}} 比這一版舊，不會安裝。",
+      "ready_on_quit": "Drifting {{version}} 已下載並通過簽章驗證，結束時安裝。",
+      "refused_app": "下載的更新不是 Drifting，已捨棄。目前版本仍可繼續使用。",
       "refused_signature": "下載的更新未通過簽章驗證，已捨棄。目前版本仍可繼續使用。",
       "refused_version": "下載的更新不是它標示的版本，可能是舊版本，已拒絕。目前版本仍可繼續使用。",
-      "refused_app": "下載的更新不是 Drifting，已捨棄。目前版本仍可繼續使用。",
-      "interrupted": "更新沒有下載完整，已捨棄。下次檢查時會重新下載。",
-      "server_error": "更新服務暫時出了問題，請稍後重試。目前版本仍可繼續使用。",
-      "local_error": "更新無法存進這台電腦，已停止。目前版本仍可繼續使用。",
-      "install_failed": "上次結束時沒能安裝 Drifting {{version}}，目前版本未變更。下次結束時會再試。",
-      "install_failed_admin": "上次結束時沒能安裝 Drifting {{version}}：Drifting 所在的資料夾無法寫入。目前版本未變更。"
-    }
-  },
-  "findPanel": {
-    "replacePlaceholder": "取代為…",
-    "replace": "取代",
-    "replaceAll": "全部取代"
-  },
-  "positionLink": {
-    "copied": "已複製位置連結"
-  },
-  "projectPicker": {
-    "bookTransfer": {
-      "legacy": "這本書是 Drifting 0.1 匯出的。請在舊版裡匯入它，再把舊版資料庫交接給新版。"
-    }
-  },
-  "importDialog": {
-    "targets": {
-      "idea": {
-        "label": "構想",
-        "desc": "獨立於故事線的浮動構想卡片。"
-      }
-    },
-    "warnings": {
-      "imagesDropped": "{{count}} 張圖片沒有匯入",
-      "notUtf8": "不是 UTF-8 文字，有些字元被替換了"
-    }
-  },
-  "notifications": {
-    "markdownFolder": {
-      "issue": {
-        "owned": "這個資料夾由另一個 Drifting 管理，沒有讀寫"
-      }
+      "restart": "重新啟動以更新",
+      "server_error": "更新服務暫時出了問題，請稍後重試。目前版本仍可繼續使用。"
     }
   },
   "speech": {
     "backlog": "轉錄積壓"
   },
-  "v3Shell": {
-    "about": "說明",
-    "entries": "條目",
-    "settings": "設定",
-    "list": "清單",
-    "grid": "網格",
-    "board": "看板",
-    "islands": "島嶼",
-    "templates": "範本集合",
-    "newTemplate": "新增範本",
-    "open": "開啟",
-    "newEntry": "新增",
-    "editTemplate": "編輯範本",
-    "changeTemplate": "更換範本",
-    "belongTo": "歸屬至",
-    "trash": "移至最近刪除"
-  },
-  "k4Pages": {
-    "unset": "未設定",
-    "saveFailed": "無法儲存",
-    "invalidValue": "值無效",
-    "retained": "原來的內容",
-    "newPatch": "新增補丁",
-    "body": "正文",
-    "quote": "引用",
-    "rule": "分隔線",
-    "h1": "H1",
-    "h2": "H2",
-    "h3": "H3",
-    "title": "標題",
-    "entries": "條目"
-  },
-  "v3Timeline": {
-    "views": "時間線視圖",
-    "newView": "新增視圖",
-    "renameView": "重新命名視圖",
-    "deleteView": "刪除視圖",
-    "addLane": "加入泳道",
-    "removeLane": "移出視圖",
-    "moveUp": "上移",
-    "moveDown": "下移",
-    "members": "{{count}} 個成員",
-    "placeEntry": "放入條目",
-    "removeEntry": "移出泳道",
-    "placementActions": "擺放操作",
-    "resize": "調整長度",
-    "ruler": "時間標尺",
-    "renamePin": "重新命名時間釘",
-    "bindEntry": "掛條目",
-    "detachEntry": "解除條目",
-    "colorValue": "顏色值",
-    "laneTrack": "泳道 {{name}}",
-    "selectLane": "選擇泳道"
-  },
   "templateEditor": {
-    "new_template": "新增範本",
-    "template_name": "範本名稱",
-    "module_name": "模組名稱",
-    "field_name": "欄位名稱",
-    "modules": "模組",
-    "fields": "欄位",
+    "accept": "收別處的項目",
+    "action_name": "動作名稱",
+    "actions": "動作",
+    "add_action": "新增動作",
+    "add_field": "新增欄位",
     "add_module": "新增模組",
-    "mark": "記號",
-    "color": "顏色",
-    "reorder": "拖曳排序",
-    "conflict": "範本已在別處變更",
-    "prose": "正文",
-    "kv": "鍵值表",
-    "patches": "補丁",
-    "plot_grid": "情節規劃",
-    "relations": "關聯",
-    "text": "文字",
-    "long_text": "長文字",
-    "number": "數字",
-    "date": "日期",
-    "select": "單選",
-    "multi_select": "多選",
-    "image": "圖片",
-    "entity_ref": "項目引用",
-    "aliases": "別名",
-    "level": "層級",
-    "leaf": "葉節點",
-    "options": "選項",
-    "saved": "已儲存",
-    "unsaved": "未儲存",
-    "mark_book": "整本",
-    "mark_seal": "圓印",
-    "mark_spiral": "渦紋",
-    "mark_corner": "折角",
-    "mark_dash": "短劃",
-    "mark_wave": "波紋",
-    "mark_square": "方印",
-    "restore": "還原",
-    "level_template": "層級範本",
-    "leaf_template": "葉節點範本",
-    "for_agent": "寫給幫手",
-    "name": "名字",
-    "description": "說明",
-    "instructions": "注意事項",
-    "module_instructions": "模組說明",
     "agent_preview": "幫手看到的",
-    "read_only": "唯讀",
-    "this_level": "這一層",
-    "default_template": "預設範本",
-    "none": "無",
+    "aliases": "別名",
     "all_templates": "不限",
     "allow": "允許的範本",
-    "display": "顯示",
-    "list": "清單",
-    "grid": "網格",
-    "board": "看板",
-    "island": "島嶼",
     "auto_link": "自動連結",
-    "accept": "收別處的項目",
-    "manuscript": "成書",
-    "home": "新項目住在",
-    "format_shortcuts": "格式快捷輸入",
+    "board": "看板",
+    "choose_template": "選擇範本",
+    "color": "顏色",
+    "conflict": "範本已在別處變更",
+    "date": "日期",
+    "default_template": "預設範本",
+    "description": "說明",
+    "display": "顯示",
+    "entity_ref": "項目引用",
+    "field_name": "欄位名稱",
+    "fields": "欄位",
+    "for_agent": "寫給幫手",
     "format_full": "全部",
     "format_notes": "筆記",
     "format_plain": "無",
-    "lane": "泳道",
-    "actions": "動作",
-    "action_name": "動作名稱",
-    "add_action": "新增動作",
-    "new_entry": "新增項目",
-    "choose_template": "選擇範本",
+    "format_shortcuts": "格式快捷輸入",
+    "grid": "網格",
+    "home": "新項目住在",
+    "image": "圖片",
     "inherit": "繼承",
-    "yes": "是",
+    "instructions": "注意事項",
+    "island": "島嶼",
+    "kv": "鍵值表",
+    "lane": "泳道",
+    "leaf": "葉節點",
+    "leaf_template": "葉節點範本",
+    "level": "層級",
+    "level_template": "層級範本",
+    "list": "清單",
+    "long_text": "長文字",
+    "manuscript": "成書",
+    "mark": "記號",
+    "mark_book": "整本",
+    "mark_corner": "折角",
+    "mark_dash": "短劃",
+    "mark_seal": "圓印",
+    "mark_spiral": "渦紋",
+    "mark_square": "方印",
+    "mark_wave": "波紋",
+    "module_instructions": "模組說明",
+    "module_name": "模組名稱",
+    "modules": "模組",
+    "multi_select": "多選",
+    "name": "名字",
+    "new_entry": "新增項目",
+    "new_template": "新增範本",
     "no": "否",
-    "add_field": "新增欄位"
+    "none": "無",
+    "number": "數字",
+    "options": "選項",
+    "patches": "補丁",
+    "plot_grid": "情節規劃",
+    "prose": "正文",
+    "read_only": "唯讀",
+    "relations": "關聯",
+    "reorder": "拖曳排序",
+    "restore": "還原",
+    "saved": "已儲存",
+    "select": "單選",
+    "template_name": "範本名稱",
+    "text": "文字",
+    "this_level": "這一層",
+    "unsaved": "未儲存",
+    "yes": "是"
   },
   "v3Levels": {
-    "residents": "住在這裡",
-    "members": "歸屬到這裡",
-    "unassigned": "未歸屬",
-    "manuscriptOrder": "文稿順序",
+    "accept": "接收別處的條目",
+    "allTemplates": "全部範本",
+    "allowedTemplates": "允許的範本",
+    "autoLink": "自動連結",
     "byStoryline": "按故事線",
-    "expand": "展開{{name}}",
     "collapse": "摺疊{{name}}",
     "defaultTemplate": "預設範本",
-    "allowedTemplates": "允許的範本",
     "display": "顯示",
-    "autoLink": "自動連結",
-    "accept": "接收別處的條目",
-    "home": "新條目放在",
-    "isManuscript": "成書",
-    "formatShortcuts": "格式快捷輸入",
-    "none": "無",
-    "allTemplates": "全部範本",
-    "thisLevel": "本層",
-    "on": "開啟",
-    "off": "關閉",
-    "sourceDefault": "預設值",
-    "sourceOverride": "覆寫 · {{name}}",
-    "sourceTemplate": "範本 · {{name}} · {{level}}",
-    "sourceLane": "泳道 · {{name}}",
-    "restore": "還原{{name}}",
+    "expand": "展開{{name}}",
     "formatFull": "完整",
     "formatNotes": "筆記",
-    "formatPlain": "純文字"
+    "formatPlain": "純文字",
+    "formatShortcuts": "格式快捷輸入",
+    "home": "新條目放在",
+    "isManuscript": "成書",
+    "manuscriptOrder": "文稿順序",
+    "members": "歸屬到這裡",
+    "none": "無",
+    "off": "關閉",
+    "on": "開啟",
+    "residents": "住在這裡",
+    "restore": "還原{{name}}",
+    "sourceDefault": "預設值",
+    "sourceLane": "泳道 · {{name}}",
+    "sourceOverride": "覆寫 · {{name}}",
+    "sourceTemplate": "範本 · {{name}} · {{level}}",
+    "thisLevel": "本層",
+    "unassigned": "未歸屬"
   },
-  "k4Book": {
-    "entry_words": "條目字數",
-    "material_words": "素材字數",
-    "leaf_count": "葉子數量",
-    "retained_content": "保留的內容",
-    "selected_entries": "選取條目",
-    "entry_titles": "條目標題",
-    "untitled_entry": "未命名條目",
-    "entry_count_other": "{{count}} 個條目"
+  "v3Shell": {
+    "about": "說明",
+    "belongTo": "歸屬至",
+    "board": "看板",
+    "changeTemplate": "更換範本",
+    "editTemplate": "編輯範本",
+    "entries": "條目",
+    "grid": "網格",
+    "islands": "島嶼",
+    "list": "清單",
+    "newEntry": "新增",
+    "newTemplate": "新增範本",
+    "open": "開啟",
+    "settings": "設定",
+    "templates": "範本集合",
+    "trash": "移至最近刪除"
+  },
+  "v3Timeline": {
+    "addLane": "加入泳道",
+    "bindEntry": "掛條目",
+    "colorValue": "顏色值",
+    "deleteView": "刪除視圖",
+    "detachEntry": "解除條目",
+    "laneTrack": "泳道 {{name}}",
+    "members": "{{count}} 個成員",
+    "moveDown": "下移",
+    "moveUp": "上移",
+    "newView": "新增視圖",
+    "placeEntry": "放入條目",
+    "placementActions": "擺放操作",
+    "removeEntry": "移出泳道",
+    "removeLane": "移出視圖",
+    "renamePin": "重新命名時間釘",
+    "renameView": "重新命名視圖",
+    "resize": "調整長度",
+    "ruler": "時間標尺",
+    "selectLane": "選擇泳道",
+    "views": "時間線視圖"
   }
 }

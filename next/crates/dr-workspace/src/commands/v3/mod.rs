@@ -42,6 +42,7 @@ pub mod content;
 pub mod entry;
 pub mod history;
 mod history_folders;
+pub mod material_links;
 pub mod membership;
 pub mod module;
 pub mod recent;
@@ -57,6 +58,7 @@ pub(crate) fn register(r: &mut Registry) {
     membership::register(r);
     timeline::register(r);
     history::register(r);
+    material_links::register(r);
 }
 
 fn convert<T: serde::de::DeserializeOwned>(value: impl Serialize) -> Result<T> {
