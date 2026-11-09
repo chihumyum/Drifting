@@ -878,6 +878,9 @@ G2 三种回调及 K5 新建委托。v3-lite 真窗口场景 **84/84 步、0 pen
 
 ### 挂载编辑器与 v3 URL 交回（2026-11-10）
 
+分支 `codex/k4-0-shell`，续接指针 `handback/k4-0-editors`；实现 `14fb3cf9`，
+同步 `main 07fd3c15` 的提交 `71751c3b`（仅接第 64 批退回记录）。原搜索与素材／
+最近访问指针继续冻结，不以本批关闭第 64 批的 G4 搜索竞态。
 新增 `dr_shell::v3::register_editor(&PageViewHost, &Entity<V>, getter, &mut App)`：
 getter 为 `Fn(&V, &App) -> Option<workspace::editors::PageView>`，只交渲染器实际
 持有的编辑器；加载期间可返回 None。G1 的 `BodyModule::editor()` 映射
@@ -906,12 +909,22 @@ v3 地址等实际快照完成后核对目标；换书／换库清掉旧等待�
 逐项核对模块／素材段落输入及撤销、范围跳转与异书拒绝。最终 debug 副屏窗口
 **34/34、0 pending**（规范 33 步加启动边界守卫），原件在
 `next/target/acceptance/k4-0-links-mounted-final-window/`，位置回执在
-`next/target/acceptance/k4-0-links-secondary/receipts/`。完整检查完成后补记。
+`next/target/acceptance/k4-0-links-secondary/receipts/`，PID 99640 的原生边界回执通过。
+`CARGO_BUILD_JOBS=3`；fmt、workspace／all-targets／locked Clippy（`-D warnings`）、
+单线程完整测试 **2175 passed / 0 failed / 22 ignored**、xtask（含 audit）及根目录
+public 全过。日志为 `next/target/acceptance/k4-0-checks/mounted-*.log`；audit
+0 漏洞／12 notices，保留既有 19 项过期测量提示和 macOS `__eh_frame` 链接警告。
+未改各组视图、结构读取、G2 左栏／大纲；无新增界面文案，无新增或删除 v2.2 测试。
 
 待联合：G1 接入两处登记后验证真实页面的全局消费者；G4 的稳定锚 composer 保存
 仍只消费正式 main。当前注册 API 已连到键盘与选区批注入口，两者统一沿 `for_prose`，
 未宣称保存通过。指定的保留模块若当前组合不显示，外壳保持精确目标并不转去另一篇
-正文；保留内容的界面呈现仍需与 G1 对齐。样式、重复标题与 heavy 保持后置。
+正文；保留内容的界面呈现仍需与 G1 对齐。第 64 批搜索的临时确定顺序探针确认：
+正文持久化先于延后的索引，面板先查得空后不消费 index 事件；显式派生完成后直接
+查询已有正文命中，面板仍为空。原日志与探针保留在上述目录的
+`search-late-index-diagnostic.log`／`v3_search_index_probe.rs`，源码已移出 tests，
+不混入本批通过数；整合者已分派 G4 修面板并保留原窗口断言。样式、重复标题与
+heavy 保持后置。
 
 ### 素材正文与最近访问宿主交回（2026-11-10）
 
