@@ -178,6 +178,7 @@ pub fn storyline_page(
 /// dialogs.
 pub fn init(cx: &mut App) {
     storyline::init_v3(cx);
+    panel::v3::register(cx);
     dialogs::init(cx);
     menu::register(cx);
     dr_shell::pages::add_left_panel(cx, |tab, ws, _, cx| {

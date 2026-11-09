@@ -104,6 +104,15 @@
     "belongTo": "归属到",
     "trash": "放进最近删除"
   },
+  "v3Levels": {
+    "residents": "住在这里",
+    "members": "归属到这里",
+    "unassigned": "未归属",
+    "manuscriptOrder": "文稿顺序",
+    "byStoryline": "按故事线",
+    "expand": "展开{{name}}",
+    "collapse": "折叠{{name}}"
+  },
   "v3Timeline": {
     "views": "时间线视图",
     "newView": "新建视图",

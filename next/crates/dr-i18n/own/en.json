@@ -110,6 +110,15 @@
     "belongTo": "Assign to",
     "trash": "Move to Recently Deleted"
   },
+  "v3Levels": {
+    "residents": "Residents",
+    "members": "Assigned entries",
+    "unassigned": "Unassigned",
+    "manuscriptOrder": "Manuscript order",
+    "byStoryline": "By storyline",
+    "expand": "Expand {{name}}",
+    "collapse": "Collapse {{name}}"
+  },
   "v3Timeline": {
     "views": "Timeline views",
     "newView": "New view",

@@ -104,6 +104,15 @@
     "belongTo": "所属先",
     "trash": "最近削除した項目に移動"
   },
+  "v3Levels": {
+    "residents": "ここにある項目",
+    "members": "所属する項目",
+    "unassigned": "未所属",
+    "manuscriptOrder": "原稿順",
+    "byStoryline": "ストーリーライン別",
+    "expand": "{{name}}を展開",
+    "collapse": "{{name}}を折りたたむ"
+  },
   "v3Timeline": {
     "views": "タイムラインビュー",
     "newView": "ビューを作成",

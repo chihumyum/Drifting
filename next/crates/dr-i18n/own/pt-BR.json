@@ -110,6 +110,15 @@
     "belongTo": "Associar a",
     "trash": "Mover para Excluídos recentemente"
   },
+  "v3Levels": {
+    "residents": "Entradas residentes",
+    "members": "Entradas atribuídas",
+    "unassigned": "Sem atribuição",
+    "manuscriptOrder": "Ordem do manuscrito",
+    "byStoryline": "Por linha narrativa",
+    "expand": "Expandir {{name}}",
+    "collapse": "Recolher {{name}}"
+  },
   "v3Timeline": {
     "views": "Visualizações da linha do tempo",
     "newView": "Nova visualização",

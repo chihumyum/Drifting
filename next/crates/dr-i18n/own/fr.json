@@ -110,6 +110,15 @@
     "belongTo": "Rattacher à",
     "trash": "Déplacer vers les suppressions récentes"
   },
+  "v3Levels": {
+    "residents": "Entrées résidentes",
+    "members": "Entrées rattachées",
+    "unassigned": "Sans rattachement",
+    "manuscriptOrder": "Ordre du manuscrit",
+    "byStoryline": "Par fil narratif",
+    "expand": "Déplier {{name}}",
+    "collapse": "Replier {{name}}"
+  },
   "v3Timeline": {
     "views": "Vues chronologiques",
     "newView": "Nouvelle vue",

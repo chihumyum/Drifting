@@ -1838,6 +1838,15 @@
     "themeSystem": "跟随系统",
     "themeSystemShort": "系统"
   },
+  "v3Levels": {
+    "byStoryline": "按故事线",
+    "collapse": "折叠{{name}}",
+    "expand": "展开{{name}}",
+    "manuscriptOrder": "文稿顺序",
+    "members": "归属到这里",
+    "residents": "住在这里",
+    "unassigned": "未归属"
+  },
   "v3Shell": {
     "about": "说明",
     "belongTo": "归属到",
