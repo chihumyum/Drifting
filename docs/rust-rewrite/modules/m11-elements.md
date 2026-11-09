@@ -241,6 +241,19 @@ cargo run -p dr-view-elements --features capture --example elements-capture -- .
    的读取链，属于 G3／K5 已记录的快照加载协调项。下面同配置开发优化对照仍需约 26 秒
    才看到左栏首条目；不把滚动绘制样本当成加载性能已经过关。原始状态、采样和日志在
    `next/target/acceptance/k4-g2-heavy-standard-diagnostic/`。本组不跨界改查询或快照实现。
+4. **G4／K2：右栏统计与审阅宿主（2026-11-10 已分派给 G2）。** 作者选择保持
+   各组边界，由整合者安排外壳和公共命令接线；G2 只接所拥有的
+   `dr-shell/src/workspace/sidebar.rs::right_body`，不改 G4 视图、K2 命令、
+   F6 的 `toggle_search` 或 `progress.md`。两支须在旧 `book::nav_target` 转换前
+   按书版本分流，保留 `Entry { id, module }`、Material、Book 的真实范围；
+   跳转直接映射外壳 Target，不能把非正文模块或模板页当作全书。
+   G4 已给统计接口规格 `v3_panel::panel`／`v3::Scope`，审阅接口后续提供。
+   当前 main `b85301e7` 尚无这些新面板接口，G2 未复制或消费 G4 未提交代码。
+   等稳定接口正式交回、收进 main 后再同步接入；审阅还须等可携带模块的正式公共命令。
+   接通后用实际 v3-lite 窗口核对全书／条目／指定模块／素材范围及行跳转、
+   模块身份保留、非正文范围不回退全书、换书／换库后的旧回调隔离和 v2.2 路径。
+   依原协议跑全套检查和窗口验收后才前移 `handback/k4-g2`；不把此前左栏的
+   2066 项检查或 160 步窗口结果作为右栏已经验收的证据。G1 大纲联合验收仍另等正式接收。
 
 ## K4 G2：层级页（第二批）
 
