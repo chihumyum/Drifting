@@ -945,3 +945,34 @@ import／checkout。读取不提交事务。`entry.list` 和 `level.get` 使用�
 
 本批不改外壳。整合后由外壳消费 `level.list` 并移除独立来源算法，再安排 G3／K5
 标准 debug heavy 窗口复验；本批的查询完成时间不能当成窗口 `book.loaded=true` 的验收。
+
+### v3-heavy 修前／修后测量
+
+同一 Apple M3 Pro（12 核、36 GiB、macOS 27.0.1），编译并发 3；标准 seed
+`0x5eed0f08`、语料指纹 `5b319924c784252a98d35588c557a642ff4fb6b347f3a3603a9f1696a54bfb48`。
+四次的形状完全相同：1 本书、680 篇文档、633 个条目、33 个层级、100 章／
+正文 1,500,000 字词，全部类别合计 3,646,000 字词。没有缩小 heavy，也没有延长窗口超时。
+
+单位均为毫秒；每种配置一次完整读取，表中值是实测单样本，不能解释成分位延迟。
+
+| 配置 | 生成种子 | 语料审计 | 存库 | 首次打开 Workspace | 层级读取 | 根条目读取 | 完整书目读取 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| debug 修前 | 6974.151 | 472.673 | 2815.316 | 1.105 | 62441.747 | 125719.304 | 188538.213 |
+| debug 修后 | 5073.118 | 154.240 | 3000.950 | 1.265 | 60.261 | 27.854 | 272.825 |
+| release 修前 | 2226.658 | 94.801 | 2505.736 | 1.079 | 8640.164 | 30353.083 | 39097.377 |
+| release 修后 | 2134.766 | 44.548 | 2423.982 | 1.182 | 20.000 | 13.958 | 104.525 |
+
+机器同时有其他轨道构建；修前 debug／release 也有重叠运行，修后 debug 与 release
+构建重叠。本批不声称隔离负载下的精确倍数。运行开始／结束的 1 分钟 load average：
+debug 修前 8.95 → 8.68；debug 修后 7.93 → 7.94；release 修前 9.51 → 11.16；release 修后 8.64 → 8.51。
+完整读取包含前后 observe、条目、模板、层级、根条目、归属和时间线视图；前后书目
+frontier 一致。修后批量查询另外核对层级 id、八项来源以及子条目／成员数组全部返回。
+
+机器生成证据（修前源代码是 `ee372789` 加基准入口，修后内核提交 `2b7996e3`）：
+
+- [debug 修前](../acceptance/k2-before-heavy-debug-v3-book-legacy-bench.json)／[debug 修后](../acceptance/k2-after-heavy-debug-v3-book-bench.json)
+- [release 修前](../acceptance/k2-before-heavy-release-v3-book-legacy-bench.json)／[release 修后](../acceptance/k2-after-heavy-release-v3-book-bench.json)
+
+复跑命令为 `CARGO_BUILD_JOBS=3 cargo run -p dr-testkit --bin bench -- v3-book --milestone <m>`，
+release 加 `--release`。逐层路径用 `v3-book-legacy`；在修后代码运行它会同时受益于
+单查询的优化，不能用来重建原始修前时间，修前以已保存指纹和证据为准。
