@@ -1556,8 +1556,9 @@ impl Render for EntryRelations {
             })
             .map_or(0, |i| i + 1);
         let weak = cx.weak_entity();
-        let pick =
-            Select::new("v3-relation-target", choices, selected).on_change(move |i, _, cx| {
+        let pick = Select::new("v3-relation-target", choices, selected)
+            .max_menu_height(280.0)
+            .on_change(move |i, _, cx| {
                 weak.update(cx, |v, cx| {
                     v.other = i
                         .checked_sub(1)
@@ -1586,8 +1587,9 @@ impl Render for EntryRelations {
                 .map(|(_, title)| Choice::new(Icon::ChevronRight, title.clone())),
         );
         let weak = cx.weak_entity();
-        let type_pick =
-            Select::new("v3-relation-type", choices, selected).on_change(move |i, _, cx| {
+        let type_pick = Select::new("v3-relation-type", choices, selected)
+            .max_menu_height(280.0)
+            .on_change(move |i, _, cx| {
                 weak.update(cx, |v, cx| {
                     v.relation_type = i
                         .checked_sub(1)
