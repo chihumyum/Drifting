@@ -511,3 +511,106 @@ fn sidebar_delegates_displays_and_cards_keep_common_actions_and_extensions(
         std::thread::sleep(Duration::from_millis(2));
     }
 }
+
+#[gpui::test]
+fn level_settings_part_mounts_once_and_refreshes(cx: &mut gpui::TestAppContext) {
+    use dr_shell::{
+        Services, SettingsFile, ShellInfo, Workspace as Shell,
+        v3::{self, Rendered},
+    };
+    use gpui::{prelude::*, *};
+    use std::{
+        cell::Cell,
+        rc::Rc,
+        time::{Duration, Instant},
+    };
+    struct Probe;
+    impl Render for Probe {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+            div().h_10()
+        }
+    }
+    let (_dir, lib, id) = seed();
+    let book = Book::load(&lib, &id).unwrap();
+    let level = book
+        .v3()
+        .unwrap()
+        .entries
+        .iter()
+        .find(|e| e.template.as_deref() == Some("tpl-manuscript"))
+        .unwrap()
+        .id
+        .clone();
+    let made = Rc::new(Cell::new(0));
+    let refreshed = Rc::new(Cell::new(0));
+    cx.executor().allow_parking();
+    cx.update(|cx| {
+        dr_shell::init(
+            ShellInfo {
+                app_name: "Drifting Next",
+                bundle_id: "cc.drifting.next.dev",
+                version: "0.2.0-dev",
+                url_scheme: "drifting-next-dev",
+                forced_appearance: None,
+            },
+            Services {
+                deep_links: None,
+                crash_reports: None,
+                library: Some(lib.clone()),
+                book: Some(id.clone()),
+            },
+            SettingsFile::in_memory(),
+            cx,
+        );
+        let made = made.clone();
+        let refreshed = refreshed.clone();
+        v3::add_level_settings(cx, move |host, _, cx| {
+            assert_eq!(host.surface, v3::DisplaySurface::Page);
+            made.set(made.get() + 1);
+            let refreshed = refreshed.clone();
+            Rendered::new(cx.new(|_| Probe))
+                .on_refresh(move |_, _| refreshed.set(refreshed.get() + 1))
+        });
+    });
+    let (view, cx) = cx.add_window_view(Shell::new);
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        cx.run_until_parked();
+        if view.read_with(cx, |ws, _| ws.book.v3().is_some()) {
+            break;
+        }
+        assert!(Instant::now() < deadline);
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    let target = Target::from_key(&format!("entry:{level}")).unwrap();
+    view.update(cx, |ws, cx| ws.open(target.clone(), Open::KEEP, cx));
+    for _ in 0..4 {
+        cx.update(|w, cx| w.draw(cx).clear(cx));
+        cx.run_until_parked();
+    }
+    view.read_with(cx, |ws, cx| {
+        let page = ws.editors[&target.key()].v3.as_ref().unwrap().read(cx);
+        let settings = page.sections.iter().find(|s| s.id == "settings").unwrap();
+        assert!(
+            settings.registered,
+            "the registered settings part is mounted"
+        );
+    });
+    assert_eq!(made.get(), 1);
+    call(
+        &lib,
+        "entry.update",
+        json!({"book":id,"id":level,"title":"Synthetic level renamed"}),
+    );
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        cx.run_until_parked();
+        cx.update(|w, cx| w.draw(cx).clear(cx));
+        if refreshed.get() >= 1 {
+            break;
+        }
+        assert!(Instant::now() < deadline);
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    assert_eq!(made.get(), 1, "the settings part is kept across refreshes");
+}

@@ -56,8 +56,8 @@ impl EntryPage {
                         .get(id.as_str())
                         .is_some_and(|l| l.settings.display == *kind);
                 }
-                if key == "module:about" && v3.levels.contains_key(id.as_str()) {
-                    return true;
+                if key == "settings" || key == "module:about" {
+                    return v3.levels.contains_key(id.as_str());
                 }
                 v3.template_of(id.as_str()).is_some_and(|t| {
                     t.modules
@@ -232,21 +232,42 @@ impl Render for EntryPage {
                                 .child(t(cx, keys::v3_shell::ENTRIES))
                                 .child(display),
                         );
+                        let key = "settings".to_owned();
+                        if !self.parts.contains_key(&key)
+                            && let Some(view) = super::level_settings(
+                                LevelHost {
+                                    page: self.host.clone(),
+                                    level: id.to_string(),
+                                    surface: DisplaySurface::Page,
+                                },
+                                window,
+                                cx,
+                            )
+                        {
+                            self.parts.insert(key.clone(), ("settings".into(), view));
+                        }
                         self.sections.push(Section {
-                            id: "settings".into(),
+                            id: key.clone(),
                             kind: "settings".into(),
                             name: t(cx, keys::v3_shell::SETTINGS).to_string(),
-                            registered: false,
+                            registered: self.parts.contains_key(&key),
                         });
-                        // Settings controls belong to G2/K5. Show the effective display
-                        // using the agreed labels; no help text is invented here.
+                        // The controls belong to G2 (`add_level_settings`). Until one is
+                        // registered, show the effective display with the agreed label.
+                        let settings = if let Some((_, p)) = self.parts.get(&key) {
+                            p.view.clone().into_any_element()
+                        } else {
+                            div()
+                                .child(display_name(&level.settings.display, cx))
+                                .into_any_element()
+                        };
                         content = content.child(
                             div()
                                 .flex()
                                 .flex_col()
                                 .gap_2()
                                 .child(t(cx, keys::v3_shell::SETTINGS))
-                                .child(display_name(&level.settings.display, cx)),
+                                .child(settings),
                         );
                     } else if let Some(template) = v3.template_of(id.as_str()) {
                         for spec in &template.modules {
@@ -258,7 +279,7 @@ impl Render for EntryPage {
                         .sections
                         .iter()
                         .map(|s| format!("module:{}", s.id))
-                        .chain(std::iter::once("display".into()))
+                        .chain(["display".into(), "settings".into()])
                         .collect();
                     self.parts.retain(|k, _| active.contains(k));
                     if self.pending_reveal {
