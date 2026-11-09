@@ -110,20 +110,6 @@
     {
       "app": "ui.press",
       "params": {
-        "label": "${chapters.0.title}"
-      }
-    },
-    {
-      "app": "ui.wait",
-      "params": {
-        "state": {
-          "/page": "entry:${chapters.0.id}"
-        }
-      }
-    },
-    {
-      "app": "ui.press",
-      "params": {
         "label": "By storyline",
         "role": "RadioButton"
       }
@@ -144,6 +130,20 @@
       "params": {
         "label": "Manuscript order",
         "role": "RadioButton"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "${chapters.0.title}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "entry:${chapters.0.id}"
+        }
       }
     },
     {

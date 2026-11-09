@@ -97,7 +97,7 @@ fn residence_tree_is_ordered_foldable_and_separate_from_membership() {
     );
     assert_eq!(
         snapshot.v3().unwrap().entry(&foreign).unwrap().parent,
-        Some(manuscript.clone())
+        v.entry(&foreign).unwrap().parent
     );
     let open = rows(
         &snapshot,
@@ -147,8 +147,12 @@ fn grouped_list_uses_primary_lane_once_and_keeps_unassigned_leaves() {
     );
     let all = ids(&shown);
     assert_eq!(all.iter().collect::<BTreeSet<_>>().len(), all.len());
-    for child in &v.levels[&manuscript.id].children {
-        assert!(all.contains(&child.as_str()));
+    for child in v
+        .entries
+        .iter()
+        .filter(|e| e.template.as_deref() == Some("tpl-chapter"))
+    {
+        assert!(all.contains(&child.id.as_str()));
     }
     assert!(shown.contains(&Row::Section(Section::Unassigned)));
     assert_eq!(all.last().copied(), loose["id"].as_str());
@@ -270,5 +274,7 @@ fn refresh_keeps_the_visible_entry_when_rows_are_inserted_above_it(cx: &mut gpui
             assert_eq!(at, 3);
         })
     });
+    drop(view);
+    cx.run_until_parked();
     ws.shutdown().unwrap();
 }

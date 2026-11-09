@@ -2014,10 +2014,16 @@ pub mod v3 {
             let theme = Theme::of(window, cx);
             match row {
                 Row::Section(section) => div()
+                    .id(SharedString::from(format!(
+                        "g2-section-{}-{section:?}",
+                        self.host.level
+                    )))
                     .h(px(32.0))
                     .pt_2()
                     .font_role(Role::Structure)
                     .text_color(theme.palette.muted().solid())
+                    .role(gpui::Role::Heading)
+                    .aria_label(self.heading(*section, cx))
                     .child(self.heading(*section, cx))
                     .into_any_element(),
                 Row::Entry { id, depth } => {
