@@ -70,6 +70,10 @@ pub const METHODS: &[(&str, &str)] = &[
         "{keys, times?}: press keys, e.g. \"secondary-z\" or \"enter escape\" (space-separated; secondary is ⌘ on macOS, Ctrl elsewhere), the whole sequence `times` times",
     ),
     (
+        "input.url",
+        "{url}: deliver a URL through the same normalized F7 queue used by the operating system; returns how many URLs that queue accepted",
+    ),
+    (
         "input.click",
         "{x, y, button?, count?}: click at a window position, in logical pixels",
     ),
@@ -225,6 +229,17 @@ pub async fn call(method: &str, params: Value, cx: &mut AsyncApp) -> Out {
         "action.dispatch" => cx.update(|cx| dispatch(&p, cx)),
         "input.type" => cx.update(|cx| type_text(&p, cx)),
         "input.key" => cx.update(|cx| press(&p, cx)),
+        "input.url" => cx.update(|cx| {
+            let url = p
+                .get("url")
+                .and_then(Value::as_str)
+                .ok_or_else(|| bad("give params.url"))?;
+            let links = cx
+                .try_global::<Services>()
+                .and_then(|s| s.deep_links.clone())
+                .ok_or_else(|| not_found("this application has no deep-link queue"))?;
+            Ok(json!({"accepted":links.push_all([url])}))
+        }),
         "input.click" => cx.update(|cx| click(&p, cx)),
         "input.move" => cx.update(|cx| {
             let (x, y) = (coord(&p, "x")?, coord(&p, "y")?);
@@ -868,7 +883,9 @@ fn page_text(p: &Value, cx: &mut App) -> Out {
             .editors
             .get(&target.key())
             .ok_or_else(|| not_found(format!("{} is not open on screen", target.key())))?;
-        if let Some(view) = &page.v3 {
+        if page.view.is_none()
+            && let Some(view) = &page.v3
+        {
             let view = view.read(cx);
             return Ok(
                 json!({ "target": target.key(), "title": title, "ready": true, "loading": false, "failed": false, "source": "v3", "composition": view.state(), "text": view.sections.iter().map(|s| s.name.as_str()).collect::<Vec<_>>().join("\n"), "paragraphs": [] }),
@@ -912,6 +929,8 @@ fn page_text(p: &Value, cx: &mut App) -> Out {
             "paragraphs": paragraphs, "text": lines.join("\n"),
             "selection": { "anchor": sel.anchor, "head": sel.head },
             "source": if whole_book { "book" } else { "editor" },
+            "doc": page.doc,
+            "composition": page.v3.as_ref().map(|v| v.read(cx).state()),
             "head": head,
         }))
     })?

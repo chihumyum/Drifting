@@ -1,0 +1,291 @@
+{
+  "about": "F6 v3 URL：从书架经 F7 队列打开指定正文模块；文内地址与素材地址保留段落，真实输入/撤销，跨书地址拒绝。编辑器登记的 G1 消费另行联合验收。",
+  "steps": [
+    {
+      "seed": "v3-lite"
+    },
+    {
+      "call": "book.list",
+      "save": "books"
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}",
+        "all": true
+      },
+      "save": "entries"
+    },
+    {
+      "call": "prose.read",
+      "input": {
+        "doc": "body:${entries.[template=tpl-chapter].id}/mod-prose"
+      },
+      "save": "body"
+    },
+    {
+      "call": "entry_template.put_module",
+      "input": {
+        "book": "${books.0.id}",
+        "template": "tpl-chapter",
+        "module": {
+          "id": "link-second",
+          "kind": "prose",
+          "name": "Link second body"
+        }
+      }
+    },
+    {
+      "call": "module.set_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "link-second",
+        "paragraphs": [
+          {
+            "text": "${body.paragraphs.0.text}"
+          },
+          {
+            "text": "${body.paragraphs.1.text}"
+          }
+        ]
+      }
+    },
+    {
+      "call": "material.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "materials"
+    },
+    {
+      "call": "prose.read",
+      "input": {
+        "doc": "material:${materials.[kind=text].id}"
+      },
+      "save": "materialBody"
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light",
+          "DRIFTING_WINDOW_DISPLAY": "secondary"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      },
+      "save": "launch"
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "app.info",
+      "save": "environment",
+      "expect": {
+        "/windows/0/active": true,
+        "/windows/0/visible": true
+      }
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/shelf": true,
+        "/book/id": ""
+      }
+    },
+    {
+      "app": "input.url",
+      "params": {
+        "url": "drifting-next-dev://open/${books.0.id}/entries/id-${entries.[template=tpl-chapter].id}/modules/id-link-second/prose.md#L3"
+      },
+      "expect": {
+        "/accepted": 1
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/book/id": "${books.0.id}",
+          "/book/version": 3,
+          "/page": "entry:${entries.[template=tpl-chapter].id}/link-second",
+          "/v3Page/reveal/start": 3,
+          "/v3Page/focus/child": true
+        }
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "URL "
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "link-second"
+      },
+      "expect": {
+        "/paragraphs/1/text": "URL ${body.paragraphs.1.text}"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-z"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "link-second"
+      },
+      "expect": {
+        "/paragraphs/1/text": "${body.paragraphs.1.text}"
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "link": "drifting:entries/id-${entries.[template=tpl-chapter].id}/modules/id-mod-prose/prose.md#L3-L7"
+      },
+      "expect": {
+        "/opened": "entry:${entries.[template=tpl-chapter].id}/mod-prose"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/page": "entry:${entries.[template=tpl-chapter].id}/mod-prose",
+          "/v3Page/reveal/start": 3,
+          "/v3Page/reveal/end": 7,
+          "/v3Page/focus/child": true
+        }
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "Document "
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/1/text": "Document ${body.paragraphs.1.text}"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-z"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/1/text": "${body.paragraphs.1.text}"
+      }
+    },
+    {
+      "app": "input.url",
+      "params": {
+        "url": "drifting-next-dev://open/${books.0.id}/materials/id-${materials.[kind=text].id}/prose.md#L3"
+      },
+      "expect": {
+        "/accepted": 1
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/page": "material:${materials.[kind=text].id}",
+          "/focus/editor": true
+        },
+        "page": {
+          "/ready": true,
+          "/source": "editor"
+        }
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "Material URL "
+      }
+    },
+    {
+      "call": "prose.read",
+      "input": {
+        "doc": "material:${materials.[kind=text].id}"
+      },
+      "expect": {
+        "/paragraphs/1/text": "Material URL ${materialBody.paragraphs.1.text}"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-z"
+      }
+    },
+    {
+      "call": "prose.read",
+      "input": {
+        "doc": "material:${materials.[kind=text].id}"
+      },
+      "expect": {
+        "/paragraphs": "${materialBody.paragraphs}"
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "link": "drifting-next-dev://open/foreign-book/entries/id-${entries.[template=tpl-chapter].id}/modules/id-mod-prose/prose.md#L1"
+      },
+      "expect_error": "not_found"
+    },
+    {
+      "app": "app.info",
+      "save": "finalEnvironment",
+      "expect": {
+        "/windows/0/active": true,
+        "/windows/0/visible": true
+      }
+    },
+    {
+      "app": "app.quit"
+    }
+  ]
+}

@@ -876,6 +876,43 @@ G2 三种回调及 K5 新建委托。v3-lite 真窗口场景 **84/84 步、0 pen
 更新自己的子实体，不在这里重借 workspace；需要改窗口或调用命令的动作放进点击
 回调。第二轮完成后，左栏和大纲栏按 K4 分轨交给 G2；其余公共外壳入口继续留在 F6。
 
+### 挂载编辑器与 v3 URL 交回（2026-11-10）
+
+新增 `dr_shell::v3::register_editor(&PageViewHost, &Entity<V>, getter, &mut App)`：
+getter 为 `Fn(&V, &App) -> Option<workspace::editors::PageView>`，只交渲染器实际
+持有的编辑器；加载期间可返回 None。G1 的 `BodyModule::editor()` 映射
+`PageView::Doc`，`WholeBook::editor()` 映射 `PageView::Book`，在 maker 中注册
+返回的那个 view 即可。登记只持有弱引用，随渲染器释放；getter 返回 None 或换
+实例时，宿主同步释放旧编辑器与订阅。查找按已挂载 view、workspace、书和库身份，
+条目组合再核对精确 `body:<entry>/<module>`；不按文档 id 全局复用，不另开会话。
+同一正文的条目页与指定模块页保留各自实例；通览内部替换 ProseEditor 时重新订阅。
+外壳的查找、批注入口、主题／偏好、沉浸、阅读位置和调试 page.text 消费该实例。
+原渲染器的焦点包装仍负责新建后标题的交接，不直接越过它抢正文键盘。没有匹配到
+显式指定模块时也不把焦点落到另一正文。G1 尚须消费此新增登记口；本批不修改其视图
+crate，不把宿主契约通过写成 G1 产品入口已联合验收。
+
+`open_link` 消费 G1 `v3_link::Address`，保留 Entry＋module／Material 和 Lines，
+不经过旧 Catalog 或 Book 哨兵。沿用已有“当前书的位置链接”范围；书架没有选书时，
+带书 id 的系统地址可打开本库已有书。库尚未就绪的地址留在 F7 队列，书读取期间的
+v3 地址等实际快照完成后核对目标；换书／换库清掉旧等待。新增开发桥 `input.url`
+经过实际 F7 归一化队列和唤醒，不代替 OS 注册本身的验收。page.text 对已登记正文
+报告实际段落、选择和 doc，并保留 composition；未登记页面仍报告组合状态。
+永久 GPUI 契约新增 6 项，覆盖双页面同正文、当前模块的查找／批注、全体挂载实例的
+偏好／主题／沉浸、释放、相同书 id 的异库拒绝、通览阅读位置保存／重开、冷启动和
+实时 URL。与素材／最近访问／搜索共 14 项定向通过。查找框持有键盘时通览重载，
+宿主清除旧正文焦点并经过当前 renderer 重新交接；有效永久回归的修复前失败保留于
+`next/target/acceptance/k4-0-checks/mounted-reload-focus-valid-before.log`。
+规范场景 `dr-cli/scenarios/k4-0-links.json` 从真实书架经 F7 队列打开指定模块，
+逐项核对模块／素材段落输入及撤销、范围跳转与异书拒绝。最终 debug 副屏窗口
+**34/34、0 pending**（规范 33 步加启动边界守卫），原件在
+`next/target/acceptance/k4-0-links-mounted-final-window/`，位置回执在
+`next/target/acceptance/k4-0-links-secondary/receipts/`。完整检查完成后补记。
+
+待联合：G1 接入两处登记后验证真实页面的全局消费者；G4 的稳定锚 composer 保存
+仍只消费正式 main。当前注册 API 已连到键盘与选区批注入口，两者统一沿 `for_prose`，
+未宣称保存通过。指定的保留模块若当前组合不显示，外壳保持精确目标并不转去另一篇
+正文；保留内容的界面呈现仍需与 G1 对齐。样式、重复标题与 heavy 保持后置。
+
 ### 素材正文与最近访问宿主交回（2026-11-10）
 
 分支 `codex/k4-0-shell`，独立指针 `handback/k4-0-recent`。基线同步第 61 批

@@ -65,6 +65,12 @@ pub enum PageView {
 }
 
 impl PageView {
+    pub(super) fn identity(&self) -> gpui::EntityId {
+        match self {
+            Self::Doc(e) => e.entity_id(),
+            Self::Book(e) => e.entity_id(),
+        }
+    }
     /// The gpui-prose editor inside.
     pub fn prose(&self, cx: &App) -> Entity<ProseEditor> {
         match self {
@@ -80,7 +86,12 @@ impl PageView {
         }
     }
 
-    fn restyle(&self, base: Option<&ProseStyle>, settings: Option<&EditorSettings>, cx: &mut App) {
+    pub(super) fn restyle(
+        &self,
+        base: Option<&ProseStyle>,
+        settings: Option<&EditorSettings>,
+        cx: &mut App,
+    ) {
         match self {
             PageView::Doc(e) => e.update(cx, |e, cx| {
                 if let Some(base) = base {
@@ -121,6 +132,8 @@ pub struct PageEditor {
     /// and PDF materials; [`crate::pages::add_page_view`]).
     pub module: Option<crate::pages::ModulePage>,
     pub v3: Option<Entity<crate::v3::page::EntryPage>>,
+    /// Instances exposed by this page's mounted renderers, keyed by module.
+    pub(super) mounted: HashMap<String, super::mounted::MountedEditor>,
     /// Live word counts, per document the editor holds.
     tallies: HashMap<String, Tally>,
     _prepare: Option<Task<()>>,
@@ -138,6 +151,7 @@ impl PageEditor {
             chrome: false,
             module: None,
             v3: None,
+            mounted: HashMap::new(),
             tallies: HashMap::new(),
             _prepare: Some(prepare),
             _timer: Some(timer),
@@ -155,6 +169,7 @@ impl PageEditor {
             chrome: true,
             module: Some(page),
             v3: None,
+            mounted: HashMap::new(),
             tallies: HashMap::new(),
             _prepare: None,
             _timer: None,
@@ -170,10 +185,20 @@ impl PageEditor {
 
     /// The documents this editor holds.
     fn docs(&self, cx: &App) -> Vec<String> {
-        match &self.view {
-            Some(PageView::Doc(e)) => vec![e.read(cx).doc_id().to_owned()],
-            Some(PageView::Book(b)) => b.read(cx).chapter_docs().map(str::to_owned).collect(),
-            None => Vec::new(),
+        self.views()
+            .into_iter()
+            .flat_map(|view| match view {
+                PageView::Doc(e) => vec![e.read(cx).doc_id().to_owned()],
+                PageView::Book(b) => b.read(cx).chapter_docs().map(str::to_owned).collect(),
+            })
+            .collect()
+    }
+
+    pub(super) fn views(&self) -> Vec<&PageView> {
+        if self.mounted.is_empty() {
+            self.view.iter().collect()
+        } else {
+            self.mounted.values().map(|m| &m.view).collect()
         }
     }
 }
@@ -551,7 +576,7 @@ impl Workspace {
         cx.notify();
     }
 
-    fn on_editor_event(
+    pub(super) fn on_editor_event(
         &mut self,
         editor: &Entity<ChapterEditor>,
         event: &ChapterEditorEvent,
@@ -566,7 +591,7 @@ impl Workspace {
                 let key = self
                     .editors
                     .iter()
-                    .find(|(_, p)| p.doc.as_deref() == Some(doc.as_str()))
+                    .find(|(_, p)| p.docs(cx).contains(&doc))
                     .map(|(k, _)| k.clone());
                 if let Some(key) = key {
                     self.report_words(&key, Some(&doc), cx);
@@ -584,7 +609,7 @@ impl Workspace {
         }
     }
 
-    fn on_book_event(&mut self, event: &BookEditorEvent, cx: &mut Context<Self>) {
+    pub(super) fn on_book_event(&mut self, event: &BookEditorEvent, cx: &mut Context<Self>) {
         let key = Target::Book.key();
         match event {
             BookEditorEvent::Edited { doc } => {
@@ -611,7 +636,7 @@ impl Workspace {
 
     /// The caret moved: when it left its paragraph, the edited chapters'
     /// patch sources are checked.
-    fn caret_moved(&mut self, prose: &Entity<ProseEditor>, cx: &mut Context<Self>) {
+    pub(super) fn caret_moved(&mut self, prose: &Entity<ProseEditor>, cx: &mut Context<Self>) {
         let here = {
             let p = prose.read(cx);
             let sel = p.selection();
@@ -651,20 +676,28 @@ impl Workspace {
 
     /// Tells M07 the live word count of `doc` (or of every document the
     /// editor at `key` holds), counting only the paragraphs that changed.
-    fn report_words(&mut self, key: &str, doc: Option<&str>, cx: &mut Context<Self>) {
+    pub(super) fn report_words(&mut self, key: &str, doc: Option<&str>, cx: &mut Context<Self>) {
         let Some(page) = self.editors.get_mut(key) else {
             return;
         };
-        let Some(view) = page.view.clone() else {
-            return;
-        };
-        let prose = view.prose(cx);
         let docs: Vec<String> = match doc {
             Some(d) => vec![d.to_owned()],
             None => page.docs(cx),
         };
         let mut counts = Vec::new();
         for d in docs {
+            let Some(view) = page
+                .views()
+                .into_iter()
+                .find(|v| match v {
+                    PageView::Doc(e) => e.read(cx).doc_id() == d,
+                    PageView::Book(b) => b.read(cx).chapter_of(&d).is_some(),
+                })
+                .cloned()
+            else {
+                continue;
+            };
+            let prose = view.prose(cx);
             let chapter = match &view {
                 PageView::Doc(_) => Some(0),
                 PageView::Book(b) => b.read(cx).chapter_of(&d),
@@ -804,6 +837,7 @@ impl Workspace {
                 });
             }
         }
+        self.sync_mounted_editors(window, cx);
         self.keep_find_on_page(window, cx);
         self.focus_page(window, cx);
         self.dim_for_immersive(cx);
@@ -851,12 +885,16 @@ impl Workspace {
     }
 
     /// The prose editors of every open page.
-    fn all_prose(&self, cx: &App) -> Vec<Entity<ProseEditor>> {
+    pub(super) fn all_page_views(&self) -> Vec<PageView> {
         self.editors
             .values()
-            .filter_map(|p| p.view.as_ref())
-            .map(|v| v.prose(cx))
+            .flat_map(PageEditor::views)
+            .cloned()
             .collect()
+    }
+
+    fn all_prose(&self, cx: &App) -> Vec<Entity<ProseEditor>> {
+        self.all_page_views().iter().map(|v| v.prose(cx)).collect()
     }
 
     /// The focused page's prose editor, if it is open.
@@ -868,6 +906,14 @@ impl Workspace {
     /// What takes the keyboard on the focused page: its editor's text, or
     /// a module's whole page (with the entity that tells them apart).
     fn front_focus(&self, cx: &App) -> Option<(gpui::EntityId, gpui::FocusHandle)> {
+        let target = self.nav.active_tab()?.focused().target.clone();
+        // Renderer-owned focus may first belong to a new entry's title.
+        // Registering its body must not bypass that handoff policy.
+        if self.book.v3().is_some()
+            && let Some(page) = self.editors.get(&target.key())?.module.as_ref()
+        {
+            return Some((page.view.entity_id(), page.focus.clone()));
+        }
         if let Some(prose) = self.focused_prose(cx) {
             return Some((prose.entity_id(), prose.focus_handle(cx)));
         }
@@ -945,12 +991,12 @@ impl Workspace {
         // M26: every open editor (both pages of a split, new ones too) runs
         // its typewriter line while the window is immersed.
         let on = self.immersive;
-        for page in self.editors.values() {
-            match &page.view {
-                Some(PageView::Doc(e)) if e.read(cx).immersive() != on => {
+        for view in self.all_page_views() {
+            match view {
+                PageView::Doc(e) if e.read(cx).immersive() != on => {
                     e.update(cx, |e, cx| e.set_immersive(on, cx))
                 }
-                Some(PageView::Book(e)) if e.read(cx).immersive() != on => {
+                PageView::Book(e) if e.read(cx).immersive() != on => {
                     e.update(cx, |e, cx| e.set_immersive(on, cx))
                 }
                 _ => {}
@@ -1001,11 +1047,7 @@ impl Workspace {
         self.editor_base = base.clone();
         self.editor_reduce = theme.reduce_motion;
         let blocks = block_style(&theme);
-        let views: Vec<PageView> = self
-            .editors
-            .values()
-            .filter_map(|p| p.view.clone())
-            .collect();
+        let views = self.all_page_views();
         for view in views {
             view.restyle(
                 base_changed.then_some(&base),
@@ -1073,7 +1115,7 @@ pub fn link_target(
 }
 
 /// M07's selection reading: the words in the selection, or none.
-fn report_selection(prose: &Entity<ProseEditor>, cx: &mut App) {
+pub(super) fn report_selection(prose: &Entity<ProseEditor>, cx: &mut App) {
     let words = {
         let p = prose.read(cx);
         let sel = p.selection();

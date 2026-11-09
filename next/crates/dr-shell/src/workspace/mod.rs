@@ -20,6 +20,8 @@ mod dock;
 pub mod editors;
 pub mod find;
 pub mod immersive;
+mod links;
+mod mounted;
 pub mod outline;
 pub mod page_actions;
 mod recent;
@@ -459,6 +461,7 @@ pub struct Workspace {
     modules_for: Option<String>,
     modules_read: Option<Task<()>>,
     turning_until: Option<Instant>,
+    pending_v3_links: Vec<links::PendingLink>,
     pub nav: Navigator,
     pub left: Sidebar<LeftTab>,
     pub right: Sidebar<RightTab>,
@@ -598,6 +601,7 @@ impl Workspace {
             modules_read: None,
             turning_until: None,
             nav: Navigator::default(),
+            pending_v3_links: Vec::new(),
             left: Sidebar::new(None, LeftTab::Chapters, |_| true),
             right: Sidebar::new(None, RightTab::Review, |_| true),
             dock_locked: false,
@@ -857,6 +861,7 @@ impl Workspace {
         if self.book.is_empty() {
             return;
         }
+        self.open_pending_v3_links(window, cx);
         self.touch_front(cx);
         let shown: Vec<Target> = match self.nav.active_tab() {
             Some(tab) => tab.leaves().map(|l| l.target.clone()).collect(),
@@ -906,6 +911,11 @@ impl Workspace {
         for link in links.drain_matching("auth/") {
             crate::account::handle_auth_link(&link, window, cx);
         }
+        // Library opening is asynchronous at cold start. Keep location URLs
+        // in F7's queue until adopt_library can bind them to that library.
+        if self.library.is_none() {
+            return;
+        }
         for link in links.drain_matching("open/") {
             self.open_link(&link, window, cx);
         }
@@ -943,6 +953,9 @@ impl Workspace {
         let scheme = cx
             .try_global::<ShellInfo>()
             .map_or("drifting", |i| i.url_scheme);
+        if let Some(address) = dr_editor::v3_link::parse(href, scheme) {
+            return self.open_v3_link(address, window, cx);
+        }
         let Some(link) = location::parse(href, scheme) else {
             log::info!("not a location link");
             return false;
@@ -1047,6 +1060,7 @@ impl Workspace {
             self.book_stale = false;
             // Search results belong to the book that opened the panel.
             self.search = None;
+            self.pending_v3_links.clear();
             self.book_id = book.to_owned();
             self.book = Rc::new(Book::default());
             self.restore_layout(cx);
@@ -1086,6 +1100,7 @@ impl Workspace {
     pub(crate) fn let_go_of_library(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.store_layout(cx);
         self.recent_recorder = None;
+        self.pending_v3_links.clear();
         self.touched = None;
         self.editors.clear();
         self.v3_sidebar = None;
@@ -1140,6 +1155,7 @@ impl Workspace {
                 self.open_book(&book, window, cx);
             }
         }
+        self.open_queued_links(window, cx);
         cx.notify();
     }
 
