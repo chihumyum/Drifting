@@ -59,6 +59,9 @@ pub struct PreviewOut {
     pub point: Point,
     /// Complete raw metadata and records, including keys unknown to this build.
     pub metadata: BTreeMap<String, Value>,
+    /// The complete typed raw state, including unknown container kinds and
+    /// rich-text attributes that deep JSON cannot express.
+    pub raw_state: Value,
     pub records: BTreeMap<String, BTreeMap<String, BTreeMap<String, Value>>>,
     /// The historical template, not the entry's current template definition.
     pub template: Option<types::EntryTemplate>,
@@ -424,8 +427,10 @@ op! {
     List="entry_snapshot.list",Read,Shared,"List complete checkpoints of one v3 entry, newest first.",fn(cx,input:EntryIn)->Vec<Point> {
         let s = cx.book_v3(&input.book)?;
         let mut out = Vec::new();
-        for (id, _) in s.reader_v3.view().entry_checkpoints() {
-            if let Ok(p) = point(&s.reader_v3.view(), &PointIn { target: input.clone(), point: id }) { out.push(p); }
+        for (id, value) in s.reader_v3.view().entry_checkpoints() {
+            let owner:Value=serde_json::from_str(&value).map_err(|e|WsError::invalid(format!("damaged checkpoint {id}: {e}")))?;
+            let entry=owner.get("entry").and_then(Value::as_str).ok_or_else(||WsError::invalid(format!("checkpoint {id} has no owner")))?;
+            if entry==input.entry {out.push(point(&s.reader_v3.view(), &PointIn { target: input.clone(), point: id })?);}
         }
         out.sort_by(|a, b| b.ts.cmp(&a.ts).then(b.id.cmp(&a.id)));
         Ok(out)
@@ -498,7 +503,8 @@ op! {
         let expected = DocHandle::atomic_scoped(&hs, Origin::Command, scope(&p.book, &prefix), &[], |docs| -> Result<_> { Ok(versions(docs)) }).map_err(inventory_error)?;
         let template_metadata=e.template.as_ref().and_then(|id|view.map_snapshot(CollectionV3::Templates,id.as_str())).map(|s|fields(&s)).transpose()?;
         let template = e.effective_template(&view.templates_map()).cloned().map(convert).transpose()?;
-        Ok(PreviewOut { point: p, metadata, records, template, template_metadata, bodies, expected })
+        let raw_state=view.entry_owned_raw_state(&id).expect("entry exists");
+        Ok(PreviewOut { point: p, metadata, raw_state, records, template, template_metadata, bodies, expected })
     }
 }
 

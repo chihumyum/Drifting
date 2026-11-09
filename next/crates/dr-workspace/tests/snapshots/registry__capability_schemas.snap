@@ -7900,6 +7900,9 @@ expression: json
         "point": {
           "$ref": "#/$defs/Point"
         },
+        "raw_state": {
+          "description": "The complete typed raw state, including unknown container kinds and\nrich-text attributes that deep JSON cannot express."
+        },
         "records": {
           "additionalProperties": {
             "additionalProperties": {
@@ -7933,6 +7936,7 @@ expression: json
       "required": [
         "point",
         "metadata",
+        "raw_state",
         "records",
         "template",
         "template_metadata",

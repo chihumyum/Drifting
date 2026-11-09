@@ -1373,7 +1373,10 @@ impl<'a> BookViewV3<'a> {
                         CollectionV3::PlotGrids => key.starts_with(&format!("{id}/")),
                         CollectionV3::Memberships => {
                             f.str("member") == Some(id.as_str())
-                                || key.split_once('|').is_some_and(|(_, m)| m == id.as_str())
+                                || f.str("host") == Some(id.as_str())
+                                || key
+                                    .split_once('|')
+                                    .is_some_and(|(h, m)| h == id.as_str() || m == id.as_str())
                         }
                         CollectionV3::Relations => [("from_kind", "from"), ("to_kind", "to")]
                             .iter()

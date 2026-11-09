@@ -617,6 +617,7 @@ fn damaged_manifest_missing_history_and_cross_book_inputs_never_mutate() {
             .remove(&format!("body:{id}/second"));
     });
     let damaged = data(&e, &b, &id);
+    assert!(e.try_call("entry_snapshot.list",json!({"book":b,"entry":id})).is_err());
     assert!(e.try_call("entry_snapshot.restore", args).is_err());
     same(&data(&e, &b, &id), &damaged);
     // A checksum-valid but unavailable frontier is also rejected before staging.
@@ -861,4 +862,96 @@ fn future_container_types_rich_marks_hidden_memberships_and_shared_templates_rou
     drop(d);
     e.reopen();
     assert_eq!(raw(&e), expected);
+}
+
+#[test]
+fn level_history_restores_incident_memberships_and_keeps_member_metadata_current() {
+    let (mut e, b, id) = setup();
+    let level = e.out(
+        "entry.create",
+        json!({"book":b,"title":"Snapshot lane","template":"tpl-storyline"}),
+    )["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    e.call("membership.add", json!({"book":b,"host":level,"member":id}));
+    let point = capture(&e, &b, &level);
+    e.call(
+        "membership.remove",
+        json!({"book":b,"host":level,"member":id}),
+    );
+    e.call(
+        "entry.update",
+        json!({"book":b,"id":id,"title":"Member current title"}),
+    );
+    e.call("entry_snapshot.restore", input(&e, &b, &level, &point));
+    assert_eq!(
+        e.out("entry.get", json!({"book":b,"id":id}))["title"],
+        "Member current title"
+    );
+    assert!(
+        e.out("membership.list", json!({"book":b}))
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|m| m["host"] == level && m["member"] == id)
+    );
+    e.reopen();
+    assert!(
+        e.out("membership.list", json!({"book":b}))
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|m| m["host"] == level && m["member"] == id)
+    );
+}
+
+#[test]
+fn body_history_preserves_rich_marks_and_unknown_body_roots_across_reopen() {
+    let (mut e, b, id) = setup();
+    let h = e
+        .ws()
+        .library()
+        .open_doc(&format!("body:{id}/mod-prose"), dr_store::OpenDoc::Existing)
+        .unwrap();
+    h.write(dr_store::Origin::User, |d| {
+        d.get_text("body").mark(0..3, "bold", true).unwrap();
+        d.get_map("future-body")
+            .insert("author-value", "before")
+            .unwrap();
+    })
+    .unwrap();
+    let expected = h
+        .read(|d| serde_json::to_value(d.get_text("body").to_delta()).unwrap())
+        .unwrap();
+    let point = capture(&e, &b, &id);
+    edit(&e, &b, &id);
+    h.write(dr_store::Origin::User, |d| {
+        d.get_text("body").unmark(0..3, "bold").unwrap();
+        d.get_map("future-body")
+            .insert("author-value", "after")
+            .unwrap();
+    })
+    .unwrap();
+    e.call("entry_snapshot.restore", input(&e, &b, &id, &point));
+    assert_eq!(
+        h.read(|d| serde_json::to_value(d.get_text("body").to_delta()).unwrap())
+            .unwrap(),
+        expected
+    );
+    drop(h);
+    e.reopen();
+    let d = e
+        .ws()
+        .library()
+        .load_copy(&format!("body:{id}/mod-prose"))
+        .unwrap();
+    assert_eq!(
+        serde_json::to_value(d.get_text("body").to_delta()).unwrap(),
+        expected
+    );
+    assert_eq!(
+        serde_json::to_value(d.get_map("future-body").get_deep_value()).unwrap()["author-value"],
+        "before"
+    );
 }

@@ -418,5 +418,9 @@ fn preview_sections(p: &api::PreviewOut) -> Vec<(String, String)> {
             serde_json::to_string_pretty(template).unwrap_or_default(),
         ));
     }
+    out.push((
+        p.point.title.clone(),
+        serde_json::to_string_pretty(&p.raw_state).unwrap_or_default(),
+    ));
     out
 }

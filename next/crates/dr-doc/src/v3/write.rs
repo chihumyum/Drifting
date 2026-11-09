@@ -1582,6 +1582,11 @@ impl<'a> BookTxnV3<'a> {
                     })
                 });
             if belongs {
+                if matches!(change, Diff::Unknown) {
+                    return Err(DocError::NotInProfile(
+                        "history contains an unsupported CRDT container",
+                    ));
+                }
                 scoped
                     .push(cid.clone(), change.clone())
                     .expect("unique diff container");
