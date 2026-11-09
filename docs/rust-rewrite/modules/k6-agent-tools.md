@@ -290,3 +290,13 @@ K2 的视图名称／泳道顺序等逐字段命令仍待协调；在接口提�
 最终全套检查基于 `65d597fe` 的代码与锁文件，macOS ARM64，`CARGO_BUILD_JOBS=3`，Cargo 在同一 target 顺序运行。`cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、`RUST_TEST_THREADS=1 cargo test --workspace --locked`、`cargo xtask check`、根目录 `pnpm public:check` 全部退出 0；最终全量测试首次运行 **2,083 通过、0 失败、22 忽略**，含文档测试。public 检查 5,467 个候选；审计 972 个锁定依赖、0 漏洞、12 条既有提示；14 stale／15 legacy 性能证据未改。保留既有调试链接 `__eh_frame` 大小警告，没有性能、真实模型或硬件验收。`git diff --check` 通过。
 
 本记录提交后将 `handback/k6` 前移到该提交，重新提交包含前三步及本轮退回修复的完整分支，等待整合者验收；不把分支自验写成已合 main。未合入 main、未推送，原 Antigravity 工作区未动。尚缺的逐字段时间线命令及其他接口仍按前文待协调，不影响这里已验证的数据保留边界。
+
+## 共名 v3 命令与规范投影续接（11-10）
+
+目录的输入、输出与作用域判定，以及 resolver 的参数判定，按当前书的版本选取 `Spec.v3`；没有版本分支的命令继续消费原规格。v3 facade revision 升为 r3。`book.get/update` 支持 v3 目标字数的省略／关闭／恢复默认语义；批注按当前书的条目／素材、明确的正文模块解析，创建模块批注需要该模块的读取覆盖，过滤批注列表只授权实际返回的批注。素材元数据与正文沿用同一读取覆盖和 CAS，不扩大删除权限。测试通过真实 `AgentTools::invoke` 执行，不以 resolver 成功代替实际写回。
+
+结构说明的 `effective_settings.sources` 现在直接序列化内核 `LevelSettingSource`（`default`、`override`、`template`、`lane`，带规范 entry/template 身份）；已删掉旧 `self_template`／`ancestor:*`／`lane_invariant` 本地追溯算法。`StructureContext::for_book` 与 `from_v3_view` 签名保持。新增只读 `dr_agent_tools::structure::TemplateSummary::from_v3_template(&dr_model::v3::EntryTemplate) -> TemplateSummary`，让 K5 的未使用／未保存草稿消费与运行时同一个模块、说明和能力投影；不读库，不建立写覆盖，也不绑定或执行动作。
+
+本批验证使用 v3 `dr_testkit` 种子；永久契约在 `shared_v3.rs`、`structure.rs`，真窗口录制脚本为 `dr-view-agent/examples/v3-acceptance.rs` 与 `scenarios/v3-tools.json`。运行方式：在 `next/` 执行 `CARGO_BUILD_JOBS=3 cargo build -p dr-view-agent --example v3-acceptance --locked`，再执行 `CARGO_BUILD_JOBS=3 cargo drifting workspace scenario crates/dr-view-agent/scenarios/v3-tools.json --app target/debug/examples/v3-acceptance --out target/acceptance/k6-v3-tools --yes`；场景强制副屏、内存合成凭据、录制响应，未用的提供商地址也只指向 loopback。实际通过数与最终 frontier 记录在本批交回小节。
+
+待协调：整合者已复现 `comment.create` 的旧正文 guards 未被只读来源路径消费，K2 正补同一 holder read 内校验来源 frontier 的规范入口。在该修复正式接收前，facade 明确拒绝 range、block_id、anchor 创建和非空 reanchor；整条目、模块、素材、浮动批注及清除锚点继续走书目 CAS，不能把临时 observe 当作原子保护。G1 整条目快照仍等正式接口合 main 后接首次写入，不消费 WIP。K2 拟新增的时间线局部命令在正式接入 resolver／覆盖前保持排除。

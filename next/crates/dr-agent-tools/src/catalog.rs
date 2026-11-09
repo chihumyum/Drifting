@@ -19,7 +19,7 @@ use std::collections::BTreeMap;
 /// Change this when facade handler semantics change without a schema change.
 const FACADE_REVISION: &str = "m29-author-facade-v1";
 /// Versioned facade revision for universal kernel v3 books and template verbs.
-pub const FACADE_REVISION_V3: &str = "k6-author-facade-v3-r2";
+pub const FACADE_REVISION_V3: &str = "k6-author-facade-v3-r3";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -283,10 +283,9 @@ impl Catalog {
                 BookKernelVersion::V2_2 => {
                     crate::resolve::facade_schema(spec.name, spec.input_schema().as_value().clone())
                 }
-                BookKernelVersion::V3 => crate::resolve::facade_schema_v3(
-                    spec.name,
-                    spec.input_schema().as_value().clone(),
-                ),
+                BookKernelVersion::V3 => {
+                    crate::resolve::facade_schema_v3(spec.name, input_schema_for(spec, version))
+                }
             };
             if spec.name == "relation.create" {
                 // F3's optional caller id can name an existing hidden edge.
@@ -298,7 +297,7 @@ impl Catalog {
                     .remove("id");
                 input_schema["not"] = json!({"required":["id"]});
             }
-            let output_schema = outcome_schema(spec.name, spec.output_schema().as_value().clone());
+            let output_schema = outcome_schema(spec.name, output_schema_for(spec, version));
             let description = if spec.name.ends_with("_template.set_body") {
                 format!(
                     "{} Available for existing template documents; creation is not exposed by the Agent facade yet.",
@@ -307,6 +306,16 @@ impl Catalog {
             } else if version == BookKernelVersion::V3 && spec.name == "timeline_view.put" {
                 format!(
                     "{} Whole-view replacement requires a complete timeline_view.list at the guarded version. Hidden lanes, placements or pin data prevent replacement; use supported item commands instead.",
+                    spec.summary
+                )
+            } else if version == BookKernelVersion::V3 && spec.name == "comment.create" {
+                format!(
+                    "{} Whole-entry, module, material or floating comments only; range, block and anchor creation await guarded source-prose support.",
+                    spec.summary
+                )
+            } else if version == BookKernelVersion::V3 && spec.name == "comment.reanchor" {
+                format!(
+                    "{} Only clearing an anchor is available until guarded source-prose support lands.",
                     spec.summary
                 )
             } else {
@@ -915,7 +924,7 @@ fn exclusion(spec: &Spec) -> Option<&'static str> {
     if spec.book_version == Some(3) {
         return Some("v3 commands remain excluded until K6 opens the versioned catalog");
     }
-    common_exclusion(spec)
+    common_exclusion(spec, BookKernelVersion::V2_2)
 }
 
 fn exclusion_v3(spec: &Spec) -> Option<&'static str> {
@@ -965,10 +974,10 @@ fn exclusion_v3(spec: &Spec) -> Option<&'static str> {
     if spec.name == "module.prose_document" {
         return Some("storage, editor, or derived-state maintenance");
     }
-    common_exclusion(spec)
+    common_exclusion(spec, BookKernelVersion::V3)
 }
 
-fn common_exclusion(spec: &Spec) -> Option<&'static str> {
+fn common_exclusion(spec: &Spec, version: BookKernelVersion) -> Option<&'static str> {
     if (spec.name.ends_with(".purge") && spec.concurrency != Concurrency::Library)
         || matches!(
             spec.name,
@@ -1008,7 +1017,7 @@ fn common_exclusion(spec: &Spec) -> Option<&'static str> {
     {
         return Some("storage, editor, or derived-state maintenance");
     }
-    let schema = spec.input_schema().as_value().clone();
+    let schema = input_schema_for(spec, version);
     let scoped = schema["properties"].as_object().is_some_and(|p| {
         p.contains_key("book")
             || p.contains_key("doc")
@@ -1024,6 +1033,27 @@ pub(crate) fn allowed(spec: &Spec) -> bool {
 
 pub(crate) fn allowed_v3(spec: &Spec) -> bool {
     exclusion_v3(spec).is_none()
+}
+
+/// Select the signature that F3 dispatches for this book, including shared names.
+pub(crate) fn input_schema_for(spec: &Spec, version: BookKernelVersion) -> Value {
+    if version == BookKernelVersion::V3
+        && let Some(v3) = &spec.v3
+    {
+        v3.input_schema().as_value().clone()
+    } else {
+        spec.input_schema().as_value().clone()
+    }
+}
+
+fn output_schema_for(spec: &Spec, version: BookKernelVersion) -> Value {
+    if version == BookKernelVersion::V3
+        && let Some(v3) = &spec.v3
+    {
+        v3.output_schema().as_value().clone()
+    } else {
+        spec.output_schema().as_value().clone()
+    }
 }
 
 fn outcome_schema(name: &str, mut output: Value) -> Value {

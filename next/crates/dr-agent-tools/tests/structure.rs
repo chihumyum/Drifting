@@ -195,9 +195,17 @@ fn empty_manuscript_keeps_default_guidance_and_level_sources_are_canonical() {
             serde_json::to_value(&level.effective_settings.values).unwrap(),
             canonical["settings"]
         );
-        if level.lane {
-            assert_eq!(level.effective_settings.sources.accept, "lane_invariant");
-        }
+        let batch = f.out("level.list", json!({"book":f.book}));
+        let resolved = batch["levels"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|row| row["id"] == level.id)
+            .unwrap();
+        assert_eq!(
+            serde_json::to_value(&level.effective_settings.sources).unwrap(),
+            resolved["sources"],
+        );
     }
 }
 
@@ -412,4 +420,52 @@ fn novel_guidance_is_copied_once_and_clearing_it_survives_reopen() {
         cleared
     );
     reopened.close();
+}
+
+#[test]
+fn draft_template_preview_uses_the_same_module_projection_without_read_coverage() {
+    use dr_agent_tools::structure::TemplateSummary;
+    let f = Fixture::new();
+    let template: dr_model::v3::EntryTemplate = serde_json::from_value(f.chapter()).unwrap();
+    let expected = f
+        .context()
+        .templates
+        .into_iter()
+        .find(|t| t.id == TPL_CHAPTER)
+        .unwrap();
+    let before = f.ws.observe(&format!("book:{}", f.book)).unwrap().version;
+    let summary = TemplateSummary::from_v3_template(&template);
+    assert_eq!(summary, expected);
+    // An unused draft retains stable module ids, author labels and capability
+    // fields; it does not need a book entry or a bound action to preview.
+    let mut draft = template.clone();
+    draft.id = "synthetic-unpublished-preview".parse().unwrap();
+    draft.name = "Synthetic draft".into();
+    draft.modules[0].name = "Draft module label".into();
+    let projected = TemplateSummary::from_v3_template(&draft);
+    assert_eq!(projected.id, draft.id.as_str());
+    assert_eq!(projected.modules[0].id, expected.modules[0].id);
+    assert_eq!(projected.modules[0].name, "Draft module label");
+    assert_eq!(
+        projected.modules[0].capabilities,
+        expected.modules[0].capabilities
+    );
+    let wire = serde_json::to_value(&projected).unwrap();
+    assert_eq!(
+        serde_json::from_value::<TemplateSummary>(wire).unwrap(),
+        projected
+    );
+    assert_eq!(
+        f.ws.observe(&format!("book:{}", f.book)).unwrap().version,
+        before
+    );
+    let tools = AgentTools::new();
+    assert!(matches!(
+        f.invoke(
+            &tools,
+            "entry.update",
+            json!({"id":f.entry,"title":"unread"})
+        ),
+        Err(Error::ReadRequired(_))
+    ));
 }
