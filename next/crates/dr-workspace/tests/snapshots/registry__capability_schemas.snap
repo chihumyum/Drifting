@@ -3708,6 +3708,22 @@ expression: json
       "book_version": 3,
       "input": {
         "$defs": {
+          "AnchorBytes": {
+            "description": "A comment's anchor as stored: the two Loro cursors dr-doc writes\n(`Cursor::encode()`, the start on the first anchored character, the end\non the last), each in base64 (standard alphabet, padded). The editor\nmoves these bytes between the book and the prose document unchanged.",
+            "properties": {
+              "end": {
+                "type": "string"
+              },
+              "start": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "start",
+              "end"
+            ],
+            "type": "object"
+          },
           "CommentTargetV3": {
             "description": "A v3 comment target. Old structural kinds are not accepted by v3 writes.",
             "properties": {
@@ -3764,6 +3780,17 @@ expression: json
           }
         },
         "properties": {
+          "anchor": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/AnchorBytes"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Stable cursors captured in the selected prose; mutually exclusive with range and region."
+          },
           "author_name": {
             "type": [
               "string",
@@ -12107,6 +12134,51 @@ expression: json
       "type": "object"
     },
     "summary": "Move a material in the list (only its own position changes)."
+  },
+  {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "entry": {
+          "type": "string"
+        },
+        "linked": {
+          "type": "boolean"
+        },
+        "material": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "material",
+        "entry",
+        "linked"
+      ],
+      "title": "SetEntryLinkIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "material.set_entry_link",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Add or remove one built-in association from a material to a live v3 entry, preserving every other relation."
   },
   {
     "access": "write",

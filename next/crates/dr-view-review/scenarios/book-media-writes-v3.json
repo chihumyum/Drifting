@@ -1,0 +1,198 @@
+{
+  "about": "G4 副屏主流程：用 testkit v3-lite、合成图片和预置最近访问，保存主页书名，从最近访问打开图片，再画区域写批注并读回。",
+  "steps": [
+    {
+      "call": "book.list",
+      "save": "books"
+    },
+    {
+      "call": "material.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "materials"
+    },
+    {
+      "call": "comment.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "seed_comments"
+    },
+    {
+      "call": "recent.touch",
+      "input": {
+        "book": "${books.0.id}",
+        "target": {
+          "kind": "material",
+          "id": "${materials.[kind=image].id}"
+        }
+      }
+    },
+    {
+      "launch": {
+        "book": "${books.0.id}",
+        "env": {
+          "DRIFTING_APPEARANCE": "light",
+          "DRIFTING_WINDOW_DISPLAY": "secondary"
+        },
+        "settings": {
+          "account": {
+            "language.ui_locale": "en"
+          },
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          }
+        }
+      },
+      "save": "app"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/book/version": 3,
+          "/book/loaded": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "app.info",
+      "save": "environment"
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ShowProjectHome"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "Settings"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-a"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "G4 synthetic book"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "Save"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/dialog": false
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "call": "book.get",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "expect": {
+        "/name": "G4 synthetic book"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "${materials.[kind=image].title}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 1000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "Comment on a region"
+      }
+    },
+    {
+      "app": "input.drag",
+      "params": {
+        "from": [
+          730,
+          420
+        ],
+        "to": [
+          810,
+          480
+        ],
+        "steps": 12
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "${seed_comments.0.body}"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "Save"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 600
+      }
+    },
+    {
+      "call": "comment.list",
+      "input": {
+        "book": "${books.0.id}",
+        "target": {
+          "kind": "material",
+          "id": "${materials.[kind=image].id}"
+        }
+      },
+      "save": "comments",
+      "expect": {
+        "/0/body": "${seed_comments.0.body}",
+        "/0/target/kind": "material",
+        "/0/target/id": "${materials.[kind=image].id}",
+        "/1": null
+      }
+    },
+    {
+      "app": "app.info",
+      "save": "final_environment"
+    }
+  ]
+}

@@ -61,7 +61,7 @@ pub struct Item {
 
 impl Item {
     /// Shared visual card data; source identity remains in `target`/`place`.
-    pub(crate) fn card(&self) -> dr_workspace::dto::CommentInfo {
+    pub fn card(&self) -> dr_workspace::dto::CommentInfo {
         let c = &self.comment;
         dr_workspace::dto::CommentInfo {
             id: c.id.to_string(),

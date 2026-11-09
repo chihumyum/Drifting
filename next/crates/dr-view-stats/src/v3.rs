@@ -4,10 +4,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use dr_doc::v3::BorrowedBookV3;
-use dr_model::{DocId, id::BookId, v3 as m};
+use dr_model::{Day, DocId, id::BookId, v3 as m};
 use dr_store::OpenDoc;
 use dr_text::{ProseShape, TextMetrics};
-use dr_workspace::{Result, Workspace, WsError};
+use dr_workspace::commands::stats::{WritingDays, WritingDaysIn, WritingDaysOut};
+use dr_workspace::{Actor, Result, Workspace, WsError};
 
 use crate::model::Live;
 
@@ -34,6 +35,7 @@ pub struct Document {
 pub struct Loaded {
     pub scope: Scope,
     pub title: String,
+    pub summary: String,
     pub documents: Vec<Document>,
     pub manuscript: Vec<Document>,
     pub leaves: usize,
@@ -41,6 +43,7 @@ pub struct Loaded {
     pub daily_word_target: Option<i64>,
     /// Read from the selected prose, independent of index lag.
     pub shape: Option<ProseShape>,
+    pub days: WritingDaysOut,
 }
 
 impl Loaded {
@@ -69,6 +72,11 @@ fn invalid(e: impl ToString) -> WsError {
 /// Background read. All manuscript membership is derived from the tree and
 /// effective settings; a membership/timeline lane does not add words twice.
 pub fn load(ws: &Workspace, book: &str, scope: Scope) -> Result<Loaded> {
+    load_at(ws, book, scope, &crate::clock::today())
+}
+
+/// The same read with an explicit local day, for Home and deterministic checks.
+pub fn load_at(ws: &Workspace, book: &str, scope: Scope, today: &Day) -> Result<Loaded> {
     let id = BookId::parse(book).map_err(invalid)?;
     let handle = ws
         .library()
@@ -230,11 +238,23 @@ pub fn load(ws: &Workspace, book: &str, scope: Scope) -> Result<Loaded> {
     Ok(Loaded {
         scope,
         title,
+        summary: meta.summary.clone(),
         documents,
         manuscript,
         leaves: leaves.len(),
         word_target: meta.word_target(),
         daily_word_target: meta.daily_word_target(),
         shape,
+        days: ws
+            .run::<WritingDays>(
+                &Actor::User,
+                WritingDaysIn {
+                    book: book.into(),
+                    today: today.to_string(),
+                    days: Some(7),
+                    device: ws.writing_device(),
+                },
+            )?
+            .output,
     })
 }
