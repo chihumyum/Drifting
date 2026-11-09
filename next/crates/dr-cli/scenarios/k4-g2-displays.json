@@ -296,9 +296,23 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "${entries.[template=tpl-category].title}"
+        "label": "${entries.[template=tpl-character].title}"
       },
-      "note": "G2 岛屿：分类框和紧凑条目索引"
+      "note": "岛屿分类框里列出实际叶子；用唯一的要素名，避免匹配到模板集合中的同名分类"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "${entries.[template=tpl-character].title}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "entry:${entries.[template=tpl-character].id}"
+        }
+      }
     },
     {
       "app": "ui.screenshot",
