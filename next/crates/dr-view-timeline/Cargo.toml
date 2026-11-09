@@ -15,6 +15,7 @@ capture = ["dep:gpui_platform", "gpui_platform/test-support", "dep:color_quant",
 [dependencies]
 color_quant = { workspace = true, optional = true }
 dr-i18n.workspace = true
+dr-model.workspace = true
 dr-shell.workspace = true
 dr-ui.workspace = true
 dr-workspace.workspace = true
