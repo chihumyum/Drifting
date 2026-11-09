@@ -2258,6 +2258,7 @@ dependencies = [
  "dr-view-sea",
  "dr-view-shelf",
  "dr-view-shelf-art",
+ "dr-view-stats",
  "dr-workspace",
  "futures",
  "gpui",

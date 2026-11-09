@@ -1,5 +1,17 @@
 # M02 作品主页（基础）
 
+## K4 G4 v3 准备与待协调
+
+主页按书版本独立注册，v2.2 仍使用原主页。G4 正在接层级模板声明的动作，
+通过 `entry.create` 逐项创建；字数复用 G4 的成书叶子统计，导航直接用
+`Target::Entry`。此节为准备状态，尚未正式交回或做窗口冒烟。
+
+交整合者安排 K2／F6：现有 `book.get/update` 仍调用旧 `cx.book`，需要
+v3 的书名、简介、字数目标读取与逐字段更新；`recent.touch/list` 只接受旧
+kind，F6 也跳过 v3 记录，需要能保留 `entry + module` 的设备本机最近访问
+接口及宿主记录。写作日沿用 M20 已提出的协调。G4 不直接写 Loro 或本机库
+绕过这些接口，不将缺失读取伪装成零，也不把旧书结果算作 v3 通过。
+
 2026-11-08，和书架（[m01-shelf.md](m01-shelf.md)）在同一个分支 `chihumyum/m01-shelf-home-3bf938` 上：第一个里程碑，和第二轮（main `1652a95e` 之后：F3 的 `recent.*`、F5 的无框输入）。计划见 [modules.md 的 M02](../modules.md#阶段-2写作闭环)，产品规则见 [docs/project-home.md](../../project-home.md) 和 components.md 的「作品主页」。代码在 `next/crates/dr-view-home/`。
 
 ## 一句话

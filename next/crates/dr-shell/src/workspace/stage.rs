@@ -371,6 +371,11 @@ fn paper(
 }
 
 fn home(ws: &Entity<Workspace>, window: &mut Window, cx: &mut App) -> AnyElement {
+    if ws.read(cx).book.v3().is_some()
+        && let Some(view) = ws.read(cx).v3_home.clone()
+    {
+        return view.into_any_element();
+    }
     // Project Home (M02, dr-view-home) when the app registered it.
     if ws.read(cx).book.v3().is_none()
         && let Some(view) = ws.read(cx).home.clone()
