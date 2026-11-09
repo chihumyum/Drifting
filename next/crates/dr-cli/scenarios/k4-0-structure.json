@@ -348,17 +348,18 @@
       "app": "ui.find",
       "params": {
         "role": "TextArea",
-        "label": "${entries.[template=tpl-chapter].title}",
-        "count": 1,
         "timeout_ms": 15000
-      }
+      },
+      "note": "Use the G1 entry-module prose selector; page/module and persisted paragraph assertions identify the edited document."
     },
     {
       "app": "ui.press",
       "params": {
         "role": "TextArea",
-        "label": "${entries.[template=tpl-chapter].title}"
-      }
+        "nth": 0,
+        "dy": 40
+      },
+      "note": "Use the G1 entry-module prose selector; page/module and persisted paragraph assertions identify the edited document."
     },
     {
       "app": "input.key",
