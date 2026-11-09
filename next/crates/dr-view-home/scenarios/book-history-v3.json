@@ -431,9 +431,85 @@
     },
     {
       "app": "page.text",
-      "save": "visible_restored_prose",
-      "contains": {
-        "/text": "${original_prose.paragraphs.0.text}"
+      "save": "restored_composition",
+      "expect": {
+        "/target": "entry:${copy_entries.[template=tpl-chapter].id}/mod-prose",
+        "/composition/module": "mod-prose",
+        "/composition/sections/[id=mod-prose]/registered": true,
+        "/composition/sections/[id=archive-second-body]/registered": true
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "app.info",
+      "save": "typing_environment",
+      "expect": {
+        "/windows/0/active": true,
+        "/windows/0/visible": true
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "TextArea",
+        "nth": 0,
+        "dy": 40
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-up"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "${original_prose.paragraphs.0.text}"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${after.1.id}",
+        "owner": "${copy_entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "save": "typed_restored_primary",
+      "expect": {
+        "/paragraphs/0/text": "${original_prose.paragraphs.0.text}${original_prose.paragraphs.0.text}"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-z"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${after.1.id}",
+        "owner": "${copy_entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "save": "undone_restored_primary",
+      "expect": {
+        "/paragraphs/0/text": "${original_prose.paragraphs.0.text}"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "${original_prose.paragraphs.1.text}",
+        "/paragraphs/1/text": "${original_prose.paragraphs.0.text}"
       }
     },
     {

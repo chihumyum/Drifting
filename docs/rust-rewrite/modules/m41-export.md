@@ -19,9 +19,15 @@
 连续两次搬运、字面标题和未知字段保留、close capture 复用新指纹；六类损坏
 清单均在写入前拒绝。原受控回滚回归照常保留，定向 Clippy 通过。
 
-`dr-view-home/scenarios/book-history-v3.json` 保留原 33 步主流程并扩为 52 步，
-增加两正文历史的导入后预览、恢复、真实正文页显示和原书隔离核对。全套与
-本轮副屏结果交回时补记。G1 已声明的无法保真恢复形态仍按原 API 拒绝；
+`dr-view-home/scenarios/book-history-v3.json` 保留原 33 步主流程并扩为 61 步，
+标准 debug／`seed:v3-lite` 副屏实跑 61/61、0 pending：两正文历史导入后
+预览、有守卫恢复、真实正文输入／读回／撤销与原书隔离均通过；Word 含新章节，
+格式 3 归档含 106 个文档。结果、物理副屏位置与文件核对分别保存在忽略目录
+`snapshot-archive-window-final/{result,secondary-display,artifact-checks}.json`。
+首轮 52 步在第 49 步错误地把 `page.text` 的模块目录当正文，实际数据恢复已
+通过；保留 `snapshot-archive-window/` 原失败，修正为模块注册核对及真实输入
+读回，不作为环境重试或原脚本复跑通过。全套结果交回时补记。
+G1 已声明的无法保真恢复形态仍按原 API 拒绝；
 不借归档放宽原值、身份或版本守卫，不做 heavy 或新产品设计。
 
 ## K4 G4 导入失败回滚返修（2026-11-10）
