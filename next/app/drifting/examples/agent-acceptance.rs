@@ -61,7 +61,8 @@ impl LocalServer {
                 let _ = socket.set_read_timeout(Some(Duration::from_secs(3)));
                 let mut request = Vec::new();
                 let mut buf = [0u8; 4096];
-                while request.len() < 1024 * 1024 {
+                // M34's PCM WAV data URI fits under the same 10 MB ASR cap.
+                while request.len() < 10 * 1024 * 1024 {
                     let Ok(n) = socket.read(&mut buf) else {
                         break;
                     };
@@ -86,8 +87,17 @@ impl LocalServer {
                 }
                 let is_models = request.starts_with(b"GET /models ");
                 let is_completion = request.starts_with(b"POST /chat/completions ");
+                let is_asr = request.starts_with(b"POST /asr ");
                 let (status, kind, body) = if is_models {
                     ("200 OK", "application/json", models.clone())
+                } else if is_asr {
+                    // Synthetic seed text, never a real transcription service.
+                    (
+                        "200 OK",
+                        "application/json",
+                        json!({"output":{"choices":[{"message":{"content":[{"text":reply}]}}]}})
+                            .to_string(),
+                    )
                 } else if is_completion {
                     let first=json!({"id":"local-fixture","choices":[{"index":0,"delta":{"content":reply,"reasoning_content":""},"finish_reason":null}]}).to_string();
                     let last=json!({"id":"local-fixture","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":8,"total_tokens":20,"prompt_cache_hit_tokens":0,"prompt_cache_miss_tokens":12}}).to_string();
@@ -211,6 +221,11 @@ fn main() -> anyhow::Result<()> {
     ];
     let server = LocalServer::new(reply);
     let base = &server.base;
+    let speech = dr_view_agent::speech::client::Client::new(
+        HttpClient::new()?,
+        Arc::new(dr_platform::secrets::SecretStore::in_memory()),
+    )
+    .with_endpoint(&format!("{base}/asr"))?;
     let provider = ProviderDriver::with_endpoints(
         HttpClient::new()?,
         Credentials::new(Arc::new(dr_platform::secrets::SecretStore::in_memory())),
@@ -261,6 +276,7 @@ fn main() -> anyhow::Result<()> {
             );
             dr_view_page::init(cx);
             dr_view_elements::init(cx);
+            dr_view_agent::speech::install(speech, cx);
             dr_view_agent::init_with_service(
                 connection,
                 Arc::new(ScriptedDriver::new(scripts)),

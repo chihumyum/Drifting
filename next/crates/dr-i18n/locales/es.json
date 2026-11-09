@@ -1,5 +1,8 @@
 {
   "agentPanel": {
+    "budget": {
+      "continue": "Continuar tarea"
+    },
     "checking": "Comprobando…",
     "common": {
       "none": "Ninguna"
@@ -62,6 +65,9 @@
     "setup": {
       "openSettings": "Abrir ajustes"
     },
+    "slice": {
+      "paused": "Continúa para retomar el progreso guardado."
+    },
     "thinking": {
       "done": "Registro de razonamiento",
       "streaming": "Pensando…"
@@ -73,7 +79,28 @@
       "history": "Historial"
     },
     "turnChanges": "Cambios del turno",
-    "unavailable": "Agent no está disponible."
+    "unavailable": "Agent no está disponible.",
+    "workingMemory": {
+      "agent": "Agent",
+      "author": "autor",
+      "clear": "Limpiar",
+      "clearConfirm": "¿Borrar la memoria de trabajo? No elimina el manuscrito, reglas a largo plazo ni historial.",
+      "cleared": "Memoria de trabajo borrada.",
+      "conflictClear": "Otro Agent actualizó la memoria y no se borró. Revisa el contenido reciente y reintenta.",
+      "conflictDraftPreserved": "Otro Agent actualizó la memoria de trabajo. Se conservó tu borrador; cópialo y vuelve a abrirla para combinarlo con la versión reciente.",
+      "create": "Crear memoria de trabajo",
+      "description": "Contexto reciente y relevante compartido por todos los chats de Agent general. El contexto antiguo se compacta o descarta automáticamente.",
+      "edit": "Editar",
+      "emptyTitle": "Aún no hay memoria de trabajo",
+      "failed": "No se pudo guardar la memoria de trabajo.",
+      "filename": "WORKING_MEMORY.md",
+      "loading": "Cargando memoria de trabajo…",
+      "neverUpdated": "Aún no escrita",
+      "saved": "Memoria de trabajo guardada.",
+      "title": "Memoria de trabajo",
+      "tokens": "Unos {{count}} tokens",
+      "updated": "{{time}} · actualizado por {{by}}"
+    }
   },
   "allChapters": {
     "actOrdinal": "Acto {{n}}"
@@ -900,6 +927,7 @@
     "readout": "{{chapters}} capítulos · {{storylines}} tramas · {{elements}} elementos",
     "settings": {
       "dailyGoal": "Meta diaria",
+      "proactive": "Sugerencias proactivas",
       "projectTarget": "Meta del libro"
     },
     "since": "Inicio del proyecto · desde {{date}}",
@@ -911,6 +939,19 @@
     },
     "words": "{{words}} palabras",
     "wordsOfTarget": "{{words}} / {{target}} palabras"
+  },
+  "projectMemory": {
+    "add": "Añadir",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "deleteConfirm": "¿Eliminar esta memoria? Las conversaciones posteriores ya no la leerán.",
+    "desc": "Tus ideas, intenciones, hábitos e instrucciones permanentes para esta obra. Tú y Agent podéis editarlo y se lee en cada conversación. Los hechos de la historia van en los elementos, tramas y otros objetos.",
+    "edit": "Editar",
+    "empty": "Aún no hay memoria del proyecto.",
+    "enable": "Habilitar",
+    "placeholder": "Escribe algo para recordar… ({{shortcut}} para guardar)",
+    "save": "Guardar",
+    "title": "Memoria del proyecto"
   },
   "projectPicker": {
     "bookTransfer": {
@@ -1545,6 +1586,8 @@
         "openai": "Usado por Agent general.",
         "openaiCodex": "Inicia sesión mediante el flujo de dispositivo Codex de OpenAI para usar Agent general con tu suscripción ChatGPT y los modelos de tu cuenta. También se usa para ilustraciones de elementos. OpenAI no ofrece un contrato para terceros en esta vía; puede dejar de funcionar sin aviso y consume tu plan ChatGPT."
       },
+      "speechDesc": "Credencial de transcripción para entrada de voz, separada de los proveedores de chat. Incluye nombres de elementos y ambientación para corregir nombres propios. Las solicitudes van directamente a Bailian y la clave solo queda en el llavero del sistema.",
+      "speechTitle": "Transcripción de voz",
       "title": "Los servicios a los que se conecta la IA de Drifting."
     },
     "privacy": {
@@ -1656,6 +1699,9 @@
     "restoring": "Restaurando…",
     "title": "Capturas del historial · 30 días"
   },
+  "speech": {
+    "backlog": "Transcripciones pendientes"
+  },
   "storyGraph": {
     "edge": {
       "create": "Crear"
@@ -1734,6 +1780,20 @@
     "themeLightShort": "Claro",
     "themeSystem": "Seguir el sistema",
     "themeSystemShort": "Sistema"
+  },
+  "voiceAgent": {
+    "error": {
+      "auth": "La clave de transcripción no es válida o ha caducado",
+      "micDenied": "Micrófono no disponible; revisa los permisos del sistema",
+      "noKey": "Sin clave de transcripción (Alibaba Cloud Bailian)",
+      "segmentRejected": "El servicio de transcripción rechazó este segmento",
+      "transcribeFailed": "Transcripción fallida; grabación conservada. Reintenta"
+    },
+    "record": "Iniciar grabación",
+    "recording": "Capturando",
+    "retry": "Reintentar transcripción",
+    "stopRecord": "Detener grabación",
+    "transcribing": "Transcribiendo…"
   },
   "windowCaption": {
     "close": "Cerrar",

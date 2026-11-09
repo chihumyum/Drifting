@@ -89,5 +89,8 @@
         "owned": "Another Drifting installation keeps this folder; nothing was read or written"
       }
     }
+  },
+  "speech": {
+    "backlog": "Transcription backlog"
   }
 }

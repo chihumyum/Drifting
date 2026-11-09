@@ -37,6 +37,7 @@ fn always_thinks(model: &str) -> bool {
 /// Construct a Messages request using this run's frozen settings. Native
 /// search stays after local tools, as in the old client; no third party tool.
 pub fn request(input: &DriverRequest, search: bool) -> Result<Value> {
+    let single = crate::transport::single_request(input)?;
     let config = &input.config;
     if config.route.provider != Provider::Anthropic || config.route.model.trim().is_empty() {
         return Err(ProviderError::protocol("not an Anthropic route"));
@@ -100,11 +101,11 @@ pub fn request(input: &DriverRequest, search: bool) -> Result<Value> {
         return Err(ProviderError::from_status(400, "unsupported output limit"));
     }
     let mut messages = Vec::<Value>::new();
-    let last_user = input
-        .conversation
+    let conversation = crate::conversation::project(&input.conversation)?;
+    let last_user = conversation
         .iter()
         .rposition(|e| e.kind == ConversationEntryKind::User);
-    for (position, entry) in input.conversation.iter().enumerate() {
+    for (position, entry) in conversation.iter().enumerate() {
         let active = entry.session == input.session
             && entry.turn == input.turn
             && last_user.is_none_or(|last| position > last);
@@ -233,7 +234,7 @@ pub fn request(input: &DriverRequest, search: bool) -> Result<Value> {
     if !input.tools.is_empty() {
         let mut tools: Vec<_> = input.tools.iter().map(|tool| json!({"name":tool.name,"description":tool.description,"input_schema":tool.input_schema})).collect();
         tools.last_mut().expect("nonempty tools")["cache_control"] = json!({"type":"ephemeral"});
-        if search && config.web_search {
+        if search && config.web_search && !single {
             tools.push(json!({"type":"web_search_20250305","name":"web_search","max_uses":5}));
         }
         body["tools"] = tools.into();
@@ -827,6 +828,7 @@ mod tests {
 
     fn input() -> DriverRequest {
         DriverRequest {
+            purpose: dr_agent::RequestPurpose::Chat,
             config: Arc::new(config()),
             session: "run".into(),
             turn: 1,

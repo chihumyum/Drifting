@@ -1,5 +1,8 @@
 {
   "agentPanel": {
+    "budget": {
+      "continue": "Continue task"
+    },
     "checking": "Checking…",
     "common": {
       "none": "None"
@@ -62,6 +65,9 @@
     "setup": {
       "openSettings": "Open settings"
     },
+    "slice": {
+      "paused": "Continue to resume from saved progress."
+    },
     "thinking": {
       "done": "Thinking trace",
       "streaming": "Thinking…"
@@ -73,7 +79,28 @@
       "history": "History"
     },
     "turnChanges": "Turn changes",
-    "unavailable": "Agent is unavailable."
+    "unavailable": "Agent is unavailable.",
+    "workingMemory": {
+      "agent": "Agent",
+      "author": "author",
+      "clear": "Clear",
+      "clearConfirm": "Clear Working Memory? This does not delete manuscript content, long-term rules, or chat history.",
+      "cleared": "Working memory cleared.",
+      "conflictClear": "Another Agent updated Working Memory, so it was not cleared. Review the latest content and try again.",
+      "conflictDraftPreserved": "Another Agent updated Working Memory. Your draft was preserved; copy it, then reopen Working Memory to merge with the latest revision.",
+      "create": "Create working memory",
+      "description": "Recent high-signal work context shared by every General Agent chat. Older context is compacted or forgotten automatically.",
+      "edit": "Edit",
+      "emptyTitle": "No working memory yet",
+      "failed": "Working Memory could not be saved.",
+      "filename": "WORKING_MEMORY.md",
+      "loading": "Loading working memory…",
+      "neverUpdated": "Not written yet",
+      "saved": "Working memory saved.",
+      "title": "Working memory",
+      "tokens": "About {{count}} tokens",
+      "updated": "{{time}} · updated by {{by}}"
+    }
   },
   "allChapters": {
     "actOrdinal": "Act {{n}}"
@@ -898,6 +925,7 @@
     "readout": "{{chapters}} chapters · {{storylines}} storylines · {{elements}} elements",
     "settings": {
       "dailyGoal": "Daily goal",
+      "proactive": "Proactive suggestions",
       "projectTarget": "Book target"
     },
     "since": "Project Home · since {{date}}",
@@ -909,6 +937,19 @@
     },
     "words": "{{words}} words",
     "wordsOfTarget": "{{words}} / {{target}} words"
+  },
+  "projectMemory": {
+    "add": "Add",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "deleteConfirm": "Delete this memory? Later conversations will no longer read it.",
+    "desc": "Your thoughts, intentions, habits and standing instructions for this work. You and the Agent can both edit it, and every conversation reads it. Story facts belong in elements, storylines and other objects.",
+    "edit": "Edit",
+    "empty": "No project memory yet.",
+    "enable": "Enable",
+    "placeholder": "Write something to remember… ({{shortcut}} to save)",
+    "save": "Save",
+    "title": "Project memory"
   },
   "projectPicker": {
     "bookTransfer": {
@@ -1537,6 +1578,8 @@
         "openai": "Used by General Agent.",
         "openaiCodex": "Sign in through OpenAI's Codex device flow to run General Agent on your own ChatGPT subscription, with whichever models your account offers; element art generation uses it too. OpenAI offers no third-party contract for this path, so it may stop working without notice; usage counts against your ChatGPT plan."
       },
+      "speechDesc": "The transcription credential for voice input, separate from the chat providers above. Transcription carries this project's element and setting names to correct proper nouns; requests go directly from this device to Bailian and the key lives only in the system keychain.",
+      "speechTitle": "Voice transcription",
       "title": "The services Drifting's AI features connect to."
     },
     "privacy": {
@@ -1648,6 +1691,9 @@
     "restoring": "Restoring…",
     "title": "History snapshots · 30 days"
   },
+  "speech": {
+    "backlog": "Transcription backlog"
+  },
   "storyGraph": {
     "edge": {
       "create": "Create"
@@ -1726,6 +1772,20 @@
     "themeLightShort": "Light",
     "themeSystem": "Follow system",
     "themeSystemShort": "System"
+  },
+  "voiceAgent": {
+    "error": {
+      "auth": "The transcription key is invalid or expired",
+      "micDenied": "Microphone unavailable — check system permissions",
+      "noKey": "No transcription key configured (Alibaba Cloud Bailian)",
+      "segmentRejected": "The transcription service rejected this segment",
+      "transcribeFailed": "Transcription failed; the recording is kept — retry"
+    },
+    "record": "Start recording",
+    "recording": "Recording",
+    "retry": "Retry transcription",
+    "stopRecord": "Stop recording",
+    "transcribing": "Transcribing…"
   },
   "windowCaption": {
     "close": "Close",

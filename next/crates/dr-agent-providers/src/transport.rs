@@ -37,6 +37,10 @@ impl HttpClient {
                 .connect_timeout(Duration::from_secs(20))
                 .read_timeout(Duration::from_secs(90))
                 .redirect(reqwest::redirect::Policy::none())
+                // Only the explicit model-attempt policy may repeat a POST.
+                // A single request (and paid image requests sharing this
+                // client) must not be replayed on a protocol NACK either.
+                .retry(reqwest::retry::never())
                 .build()?,
         ))
     }
@@ -192,9 +196,10 @@ impl ProviderDriver {
         sender: &mut mpsc::Sender<dr_agent::Result<DriverEvent>>,
     ) -> Result<()> {
         validate_endpoint(self.endpoints.get(request.config.route.provider))?;
+        let single = single_request(&request)?;
         let buffered = !request.tools.is_empty();
-        let mut search = request.config.web_search && !search_was_rejected(&request);
-        let attempts = if buffered {
+        let mut search = !single && request.config.web_search && !search_was_rejected(&request);
+        let attempts = if buffered && !single {
             self.retry.max_attempts.max(1)
         } else {
             1
@@ -274,7 +279,11 @@ impl ProviderDriver {
                     .and_then(|v| v.to_str().ok())
                     .and_then(retry_after);
                 let text = error_body(response).await.unwrap_or_default();
-                if status == 401 && provider == Provider::Chatgpt && !auth_retry && pause_count == 0
+                if status == 401
+                    && provider == Provider::Chatgpt
+                    && !auth_retry
+                    && pause_count == 0
+                    && !request.purpose.is_single()
                 {
                     auth_retry = true;
                     continue;
@@ -285,6 +294,7 @@ impl ProviderDriver {
                     && pause_count == 0
                     && active_anthropic_replays(request).next().is_none()
                     && mentions_web_search(&text)
+                    && !request.purpose.is_single()
                 {
                     *search = false;
                     body = wire_request(request, *search)?;
@@ -346,6 +356,11 @@ impl ProviderDriver {
             }
             parser.finish()?;
             if let Some(content) = decoder.finish()? {
+                if request.purpose.is_single() {
+                    return Err(ProviderError::protocol(
+                        "single request cannot continue a paused model response",
+                    ));
+                }
                 if pause_count == 4 {
                     let mut error = ProviderError::protocol("Anthropic pause continuation limit");
                     error.retryable = false;
@@ -391,20 +406,41 @@ impl Driver for ProviderDriver {
         });
         Box::pin(TransportStream {
             receiver: rx,
-            task: task.abort_handle(),
+            task,
+            receiver_ended: false,
+            joined: false,
         })
     }
 }
 
 struct TransportStream {
     receiver: mpsc::Receiver<dr_agent::Result<DriverEvent>>,
-    task: tokio::task::AbortHandle,
+    task: tokio::task::JoinHandle<()>,
+    receiver_ended: bool,
+    joined: bool,
 }
 
 impl Stream for TransportStream {
     type Item = dr_agent::Result<DriverEvent>;
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        Pin::new(&mut self.receiver).poll_next(cx)
+        if self.joined {
+            return Poll::Ready(None);
+        }
+        if !self.receiver_ended {
+            match Pin::new(&mut self.receiver).poll_next(cx) {
+                Poll::Ready(None) => self.receiver_ended = true,
+                other => return other,
+            }
+        }
+        match Pin::new(&mut self.task).poll(cx) {
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(result) => {
+                self.joined = true;
+                Poll::Ready(result.err().map(|_| {
+                    Err(ProviderError::protocol("model transport worker ended unexpectedly").into())
+                }))
+            }
+        }
     }
 }
 impl Drop for TransportStream {
@@ -431,6 +467,14 @@ fn wire_request(request: &DriverRequest, search: bool) -> Result<Value> {
     }
 }
 
+pub(crate) fn single_request(request: &DriverRequest) -> Result<bool> {
+    let single = request.purpose.is_single();
+    if single && !request.tools.is_empty() {
+        return Err(ProviderError::protocol("single request cannot offer tools"));
+    }
+    Ok(single)
+}
+
 fn active_anthropic_replays(
     request: &DriverRequest,
 ) -> impl Iterator<Item = dr_agent::ProviderReplay> + '_ {
@@ -438,7 +482,7 @@ fn active_anthropic_replays(
         .conversation
         .iter()
         .rev()
-        .take_while(|entry| entry.kind != dr_model::conversation::ConversationEntryKind::User)
+        .take_while(|entry| !crate::conversation::user_boundary(entry))
         .filter(|entry| {
             request.config.route.provider == Provider::Anthropic
                 && entry.session == request.session
@@ -564,4 +608,204 @@ fn retry_after(value: &str) -> Option<Duration> {
     // HTTP-date is parsed by the same HTTP stack's RFC 7231 helper.
     let when = httpdate::parse_http_date(value).ok()?;
     when.duration_since(SystemTime::now()).ok()
+}
+
+#[cfg(test)]
+mod single_tests {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    };
+
+    use dr_agent::{
+        ModelCapabilities, RequestPurpose, RunConfig, ThinkingLevel, ToolAccess, ToolDescriptor,
+        ToolPolicy,
+    };
+    use dr_model::conversation::{ConversationEntry, ConversationEntryKind};
+    use futures::{FutureExt, channel::oneshot};
+
+    use super::*;
+
+    fn request(provider: Provider, thinking: ThinkingLevel) -> DriverRequest {
+        let mut config = RunConfig::new(provider, "synthetic-model");
+        config.route.thinking = thinking;
+        config.capabilities = Some(ModelCapabilities {
+            thinking_levels: vec![ThinkingLevel::Off, ThinkingLevel::High],
+            supports_thinking_off: Some(true),
+            ..ModelCapabilities::default()
+        });
+        DriverRequest {
+            purpose: RequestPurpose::SingleRequest,
+            config: Arc::new(config),
+            session: "fixture".into(),
+            turn: 1,
+            round: 1,
+            conversation: Vec::new(),
+            tools: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn single_request_offers_no_tools_or_search_and_rejects_tools() {
+        for provider in [
+            Provider::Anthropic,
+            Provider::Deepseek,
+            Provider::Openai,
+            Provider::Chatgpt,
+        ] {
+            let mut input = request(provider, ThinkingLevel::High);
+            let body = wire_request(&input, true).unwrap();
+            assert!(body.get("tools").is_none());
+            assert!(body.get("tool_choice").is_none());
+            input.tools.push(ToolDescriptor {
+                name: "fixture".into(),
+                revision: "v1".into(),
+                description: String::new(),
+                input_schema: json!({}),
+                access: ToolAccess::Read,
+                policy: ToolPolicy::Local,
+            });
+            assert!(wire_request(&input, true).is_err());
+        }
+    }
+
+    fn hidden(kind: &str, payload: Value) -> ConversationEntry {
+        ConversationEntry {
+            id: kind.into(),
+            session: "fixture".into(),
+            turn: 1,
+            kind: ConversationEntryKind::Other(kind.into()),
+            payload,
+        }
+    }
+
+    #[test]
+    fn hidden_runtime_records_are_versioned_and_continuation_is_a_user_message() {
+        let sample = dr_testkit::samples::a_q().unwrap();
+        let text: String = sample
+            .groups()
+            .values()
+            .find_map(|parts| parts.first())
+            .unwrap()
+            .chars()
+            .take(32)
+            .collect();
+        for provider in [
+            Provider::Anthropic,
+            Provider::Deepseek,
+            Provider::Openai,
+            Provider::Chatgpt,
+        ] {
+            let mut input = request(provider, ThinkingLevel::Off);
+            input.conversation = vec![
+                hidden(
+                    dr_agent::long_task::CHECKPOINT_ENTRY_KIND,
+                    json!({"version":1,"reason":"fixture checkpoint"}),
+                ),
+                hidden(
+                    dr_agent::long_task::CONTINUATION_ENTRY_KIND,
+                    json!({"version":1,"text":text}),
+                ),
+                hidden("future_extension", json!({"text":"not a user message"})),
+            ];
+            let original = input.conversation.clone();
+            let body = wire_request(&input, false).unwrap();
+            let user = match provider {
+                Provider::Anthropic => &body["messages"][0]["content"][0]["text"],
+                Provider::Deepseek => &body["messages"][1]["content"],
+                _ => &body["input"][0]["content"],
+            };
+            assert_eq!(user, &json!(text));
+            assert!(!body.to_string().contains("fixture checkpoint"));
+            assert!(!body.to_string().contains("not a user message"));
+            assert_eq!(
+                input.conversation, original,
+                "projection does not alter durable entries"
+            );
+            input.conversation[0].payload["version"] = 2.into();
+            assert!(wire_request(&input, false).is_err());
+            input.conversation.remove(0);
+            input.conversation[0].payload["text"] = Value::Null;
+            assert!(wire_request(&input, false).is_err());
+        }
+    }
+
+    #[test]
+    fn continuation_is_also_a_native_search_replay_boundary() {
+        let mut input = request(Provider::Anthropic, ThinkingLevel::Off);
+        input.conversation.push(ConversationEntry {
+            id: "assistant".into(),
+            session: input.session.clone(),
+            turn: input.turn,
+            kind: ConversationEntryKind::Assistant,
+            payload: serde_json::to_value(dr_agent::AssistantMessage {
+                complete: true,
+                replay: Some(dr_agent::ProviderReplay {
+                    provider: Provider::Anthropic,
+                    items: vec![json!({"role":"assistant","content":[]})],
+                    native_search: Some(false),
+                }),
+                ..Default::default()
+            })
+            .unwrap(),
+        });
+        assert!(search_was_rejected(&input));
+        input.conversation.push(hidden(
+            dr_agent::long_task::CONTINUATION_ENTRY_KIND,
+            json!({"version":1,"text":"runtime continuation"}),
+        ));
+        assert!(!search_was_rejected(&input));
+    }
+
+    #[test]
+    fn eof_waits_for_worker_completion_after_its_sender_is_gone() {
+        struct Lease(Arc<AtomicBool>);
+        impl Drop for Lease {
+            fn drop(&mut self) {
+                self.0.store(true, Ordering::SeqCst);
+            }
+        }
+        let released = Arc::new(AtomicBool::new(false));
+        let lease = Lease(released.clone());
+        let (tx, rx) = mpsc::channel(1);
+        let (release, wait) = oneshot::channel::<()>();
+        let (entered_tx, entered) = std::sync::mpsc::channel();
+        let task = HttpClient::new().unwrap().spawn(async move {
+            drop(tx);
+            entered_tx.send(()).unwrap();
+            let _ = wait.await;
+            drop(lease);
+        });
+        let mut stream = TransportStream {
+            receiver: rx,
+            task,
+            receiver_ended: false,
+            joined: false,
+        };
+        entered.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert!(stream.next().now_or_never().is_none());
+        assert!(stream.receiver_ended);
+        assert!(!released.load(Ordering::SeqCst));
+        release.send(()).unwrap();
+        assert!(futures::executor::block_on(stream.next()).is_none());
+        assert!(released.load(Ordering::SeqCst));
+        assert!(futures::executor::block_on(stream.next()).is_none());
+    }
+
+    #[test]
+    fn worker_panic_is_an_error_before_final_eof() {
+        let (tx, rx) = mpsc::channel(1);
+        let task = HttpClient::new().unwrap().spawn(async move {
+            drop(tx);
+            panic!("synthetic worker failure");
+        });
+        let mut stream = TransportStream {
+            receiver: rx,
+            task,
+            receiver_ended: false,
+            joined: false,
+        };
+        assert!(futures::executor::block_on(stream.next()).unwrap().is_err());
+        assert!(futures::executor::block_on(stream.next()).is_none());
+    }
 }

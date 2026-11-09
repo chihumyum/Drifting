@@ -89,5 +89,8 @@
         "owned": "Une autre installation de Drifting gère ce dossier ; rien n’a été lu ni écrit"
       }
     }
+  },
+  "speech": {
+    "backlog": "Transcriptions en attente"
   }
 }

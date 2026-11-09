@@ -15,6 +15,9 @@
         "storage_failed": "Não foi possível salvar a entrada no Gerenciador de Credenciais do Windows."
       }
     },
+    "models": {
+      "speechDesc": "Credencial de transcrição da entrada de voz, separada dos provedores de chat. Inclui nomes de elementos e ambientação do projeto para corrigir nomes próprios. Solicitações vão diretamente ao Bailian e a chave fica só no Gerenciador de Credenciais do Windows."
+    },
     "sync": {
       "projection": {
         "reveal": "Mostrar no Explorador de Arquivos"

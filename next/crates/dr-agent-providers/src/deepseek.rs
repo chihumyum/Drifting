@@ -15,6 +15,7 @@ use crate::{ProviderError, Result, SseEvent};
 /// The requested search flag is deliberately ignored: DeepSeek has no hosted
 /// web-search tool in this contract.
 pub fn request(request: &DriverRequest, _search: bool) -> Result<Value> {
+    crate::transport::single_request(request)?;
     let config = &request.config;
     let fallback = crate::catalog::profile(Provider::Deepseek, &config.route.model);
     let caps = config.capabilities.as_ref();
@@ -38,11 +39,11 @@ pub fn request(request: &DriverRequest, _search: bool) -> Result<Value> {
         return Err(ProviderError::from_status(400, "unsupported output limit"));
     }
     let mut messages = vec![json!({"role": "system", "content": config.system_prompt})];
-    let last_user = request
-        .conversation
+    let conversation = crate::conversation::project(&request.conversation)?;
+    let last_user = conversation
         .iter()
         .rposition(|e| e.kind == ConversationEntryKind::User);
-    for (position, entry) in request.conversation.iter().enumerate() {
+    for (position, entry) in conversation.iter().enumerate() {
         let active = entry.session == request.session
             && entry.turn == request.turn
             && last_user.is_none_or(|i| position > i);
@@ -159,7 +160,7 @@ pub fn request(request: &DriverRequest, _search: bool) -> Result<Value> {
         body["tools"] = request.tools.iter().map(|tool| json!({
             "type":"function", "function": {"name":tool.name,"description":tool.description,"parameters":tool.input_schema},
         })).collect::<Vec<_>>().into();
-        // Thinking mode rejects tool_choice; the model chooses itself.
+        // Thinking mode rejects forced choice; omitted means auto.
         if !thinking {
             body["tool_choice"] = "auto".into();
         }
@@ -641,6 +642,7 @@ mod request_tests {
         config.system_prompt = "synthetic system".into();
         config.route.thinking = ThinkingLevel::Medium;
         DriverRequest {
+            purpose: dr_agent::RequestPurpose::Chat,
             config: Arc::new(config),
             session: "session-1".into(),
             turn: 1,

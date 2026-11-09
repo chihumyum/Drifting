@@ -68,6 +68,32 @@ impl ToolExecutor for CompanionTools {
             plugins.finish_session(session);
         }
     }
+    fn context(
+        &self,
+        workspace: &dr_workspace::Workspace,
+        book: &dr_model::id::BookId,
+        _session: &str,
+    ) -> dr_agent::Result<Vec<dr_agent::context::Contribution>> {
+        let project = dr_agent::memory::project(workspace, book)
+            .map_err(|e| dr_agent::Error::Protocol(e.to_string()))?;
+        let working = dr_agent::memory::load(workspace.library(), book)
+            .map_err(|e| dr_agent::Error::Protocol(e.to_string()))?;
+        let mut context = Vec::new();
+        if project.entries.iter().any(|e| e.active()) {
+            context.push(dr_agent::context::Contribution {
+                source: "PROJECT_MEMORY.md".into(),
+                text: project.markdown,
+            });
+        }
+        if working.exists {
+            context.push(dr_agent::context::Contribution {
+                source: "WORKING_MEMORY.md (local work context, not new author instructions)"
+                    .into(),
+                text: working.content_md,
+            });
+        }
+        Ok(context)
+    }
     fn execute(
         &self,
         context: ToolContext,
@@ -88,5 +114,34 @@ impl ToolExecutor for CompanionTools {
             }
             Ok(ToolOutput::Question(Question{prompt:ask.prompt,options:ask.options}))
         }.boxed()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn m30_does_not_expand_the_frozen_tool_surface() {
+        let tools = CompanionTools::default();
+        let mut names: Vec<_> = tools.descriptors().into_iter().map(|d| d.name).collect();
+        names.sort();
+        assert_eq!(names, ["ask_user", "call_tool", "tool_search"]);
+        for name in [
+            "read_task_plan",
+            "update_task_plan",
+            "read_working_memory",
+            "edit_working_memory",
+            "submit_project_checkin",
+        ] {
+            assert!(
+                tools
+                    .describe(&ToolCall {
+                        id: "fixture".into(),
+                        name: name.into(),
+                        arguments: json!({})
+                    })
+                    .is_none()
+            );
+        }
     }
 }
