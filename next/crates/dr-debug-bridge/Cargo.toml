@@ -47,5 +47,7 @@ raw-window-handle.workspace = true
 
 [dev-dependencies]
 dr-testkit.workspace = true
+# The real Home lifecycle is tested here, above both view and shell, without a cycle.
+dr-view-home.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
 tempfile.workspace = true

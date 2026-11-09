@@ -881,8 +881,9 @@ G2 三种回调及 K5 新建委托。v3-lite 真窗口场景 **84/84 步、0 pen
 `Workspace::let_go_of_library` 原来清掉 `home` 却漏掉 `v3_home`。真实 v3 Home
 持有 F3 Workspace，导致 `library::replace` 已排空并释放页面后，仍被
 `try_shutdown` 以 `other clones of the workspace are alive` 拒绝，替换作业无法执行。
-本次只在原释放列表补 `self.v3_home = None`；测试依赖追加 `dr-view-home`，通过其
-正式注册和真实 v3 Home 验证生命周期，不改 G1／G4 视图或生产依赖。旧正式指针
+本次只在原释放列表补 `self.v3_home = None`；真实 Home 回归置于
+`dr-debug-bridge/tests/v3_home_release.rs`，用测试依赖 `dr-view-home` 的正式注册
+验证生命周期，不改 G1／G4 视图或生产依赖。旧正式指针
 `handback/k4-0-drain` 的 `8cfdd74e` 保持冻结。
 
 永久 `v3_home_release` 三项回归在修复前 0/3，通过相同 clone 拒绝分别复现正常
@@ -893,7 +894,10 @@ G2 三种回调及 K5 新建委托。v3-lite 真窗口场景 **84/84 步、0 pen
 `home-release-after.log`。G1 原始 8 个失败中只有 4 个为换库 clone 拒绝，另外
 4 个为草稿来源断言失败；不把它们都归到本缺陷。新增 `k4-0-home-release.json`
 使用 v3-lite 从真实 Home 备份、修改、确认恢复，再核对还原数据、恢复前副本与
-重开后的输入／撤销。全套检查和唯一副屏冒烟尚待完成。
+重开后的输入／撤销。首轮全量 2253/0/22，但 xtask 拒绝了原先放在 dr-shell 的
+测试依赖循环；已将原样测试上移到 dr-debug-bridge，移除 shell 的测试依赖，
+不放松热更新门禁。原失败保留在 `home-release-final-xtask.log`；修正后的全套
+检查和唯一副屏冒烟尚待完成。
 
 没有新文案，没有新增或删除 v2.2 测试，没有扩展 heavy 或跨组修复。
 
