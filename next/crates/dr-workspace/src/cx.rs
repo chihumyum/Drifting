@@ -365,7 +365,12 @@ impl<'a> Cx<'a> {
             && !self.spec.name.starts_with("prose.")
             && !matches!(
                 self.spec.name,
-                "book.get" | "book.update" | "book.trash" | "book.restore"
+                "book.get"
+                    | "book.update"
+                    | "book.trash"
+                    | "book.restore"
+                    | "book.writing_days"
+                    | "writing_day.record"
             )
         {
             return Err(WsError::invalid(

@@ -500,3 +500,12 @@ docs/rust-rewrite/acceptance/f1-m3-doc-bench.json   第三轮的测量证据
 - 本批提交 `77b138fc`（结构文档与大纲规则），加本节交回记录；只改 `AGENTS.md`、`loro-schema.md`、F1、F3，没有再改源代码。`git merge main` 确认已同步 `16f062d7`。
 - `cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、`RUST_TEST_THREADS=1 cargo test --workspace --locked`（2,018 通过／0 失败／22 忽略）、`cargo xtask check`、`pnpm public:check` 全过。编译并发 3；审计 971 个依赖，0 漏洞、12 条已有提示；public 检查 5,419 个候选文件，新增 7 处本地文档链接均能解析到文件。
 - 工作分支 `codex/k1-v3`；本节记录提交后将 `handback/k1` 指向 HEAD，然后按作者要求停下。未向 main 合并、未推送，也未触碰 Antigravity 原工作区。
+
+## 交回（K2 续接 G4，第一段：写作日，2026-11-10，`handback/k1`）
+
+- 由整合者按作者授权恢复 K2；原 worktree／分支 `codex/k1-v3`，开工已快进到 main `b85301e7`。本段仅补写作日，批注和素材接口随后分段交回。
+- 共用接线：`dr-workspace/src/cx.rs` 只对 `book.writing_days`／`writing_day.record` 增加许可；`commands/stats.rs` 依据实际书版本选择 v3 reader／事务，不借用 v2.2 reader 解释 v3。v2.2 输入输出、按设备日期计数、日志行为保留；共用日期解析增加非法非 ASCII 输入的拒绝，防止字节切片 panic。
+- 永久合成回归 `tests/v3_common.rs`；当前没有改视图、帮手 crate、数据库迁移或 progress.md。后续接口与待协调见 F3 的 K2 续接小节。
+- 提交：`adfab910` 写作日版本分派与永久回归；`0842b596` 合入 main `2f80ac40` 的接口分工记录；加本节交回记录。检查后再次 `git merge main` 确认已同步，未向 main 合并或推送。
+- 检查：`cargo fmt --all --check`、全工作区 Clippy（`--all-targets --locked -- -D warnings`）、全工作区测试（2,062 通过／0 失败／22 忽略）、`cargo xtask check`（含审计）和 `pnpm public:check`（5,462 个候选文件）全部通过。编译并发 3、测试单线程；已有依赖审计提示和 stale／legacy 测量证据保留，不作为新性能结论。
+- 本段交回后继续批注／素材适配；两者的删除与按对象恢复共用同一提交边界，作为下一段联合验收。
