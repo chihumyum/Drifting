@@ -617,7 +617,10 @@ fn damaged_manifest_missing_history_and_cross_book_inputs_never_mutate() {
             .remove(&format!("body:{id}/second"));
     });
     let damaged = data(&e, &b, &id);
-    assert!(e.try_call("entry_snapshot.list",json!({"book":b,"entry":id})).is_err());
+    assert!(
+        e.try_call("entry_snapshot.list", json!({"book":b,"entry":id}))
+            .is_err()
+    );
     assert!(e.try_call("entry_snapshot.restore", args).is_err());
     same(&data(&e, &b, &id), &damaged);
     // A checksum-valid but unavailable frontier is also rejected before staging.
@@ -794,6 +797,14 @@ fn future_container_types_rich_marks_hidden_memberships_and_shared_templates_rou
             .unwrap();
         values.insert(0, "first").unwrap();
         values.insert(1, "second").unwrap();
+        let list = future
+            .insert_container("list", loro::LoroList::new())
+            .unwrap();
+        list.insert(0, "nested author value").unwrap();
+        let counter = future
+            .insert_container("counter", loro::LoroCounter::new())
+            .unwrap();
+        counter.increment(7.0).unwrap();
         let p = d
             .get_map("patches")
             .ensure_mergeable_map(&patch_id)
@@ -829,6 +840,8 @@ fn future_container_types_rich_marks_hidden_memberships_and_shared_templates_rou
         // and its attributes; likewise for empty and movable containers.
         future.insert("rich", "Retained rich text").unwrap();
         future.delete("empty").unwrap();
+        future.delete("list").unwrap();
+        future.insert("counter", 7).unwrap();
         future
             .insert("values", loro::LoroValue::from(vec!["first", "second"]))
             .unwrap();

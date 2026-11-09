@@ -82,12 +82,18 @@ impl AutomaticHistory {
         let events = send.clone();
         let subscription=ws.library().subscribe(move |event| {
             if let StoreEvent::Doc(e)=event && dr_store::history::records_periodic(&e.origin) {
-                // Checkpoints themselves do not make an entry dirty.
-                let only_checkpoints=!e.changes.is_empty() && e.changes.iter().all(|c| {
-                    let root=c.path.first().map(|(id,_)|id).unwrap_or(&c.target);
-                    matches!(root,loro::ContainerID::Root {name,..} if name.as_str()=="entry_checkpoints")
-                });
-                if !only_checkpoints {let _=events.send(Message::Changed(e.doc_id.to_string()));}
+                // Book counters, comments, shared templates and checkpoints
+                // do not change entry-owned content. In particular they must
+                // not materialize every entry's lazy body as a side effect.
+                let relevant=match DocId::parse(&e.doc_id) {
+                    Ok(DocId::Body(_))=>true,
+                    Ok(DocId::Book(_))=>e.changes.iter().any(|c| {
+                        let root=c.path.first().map(|(id,_)|id).unwrap_or(&c.target);
+                        matches!(root,loro::ContainerID::Root {name,..} if matches!(name.as_str(),"entries"|"patches"|"plot_grids"|"memberships"|"relations"))
+                    }),
+                    _=>false,
+                };
+                if relevant {let _=events.send(Message::Changed(e.doc_id.to_string()));}
             }
         });
         let worker = thread::spawn(move || {
@@ -279,6 +285,22 @@ mod tests {
                 .iter()
                 .any(|b| b.text.contains("Author text survives checkpoint failure"))
         );
+        ws.shutdown().unwrap();
+    }
+
+    #[test]
+    fn unrelated_book_metadata_does_not_schedule_entry_periodic_checkpoints() {
+        let (_dir, ws, t) = setup();
+        let service = AutomaticHistory::start(ws.clone());
+        call(
+            &ws,
+            "book.update",
+            json!({"book":t.book,"summary":"Synthetic book-level setting"}),
+        );
+        service.finish().unwrap();
+        let points = ws.run::<api::List>(&Actor::User, t).unwrap().output;
+        assert!(!points.is_empty());
+        assert!(points.iter().all(|p| p.reason == "close"));
         ws.shutdown().unwrap();
     }
 }

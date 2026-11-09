@@ -143,10 +143,27 @@
       }
     },
     {
-      "app": "ui.hover",
+      "app": "ui.press",
       "params": {
-        "role": "ListItem",
-        "label": "G1 Snapshot Before"
+        "role": "TextArea",
+        "nth": 0,
+        "dy": 40
+      }
+    },
+    {
+      "app": "app.info",
+      "save": "environment_before_17"
+    },
+    {
+      "app": "ui.find",
+      "params": {},
+      "save": "ui_before_18"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "More actions"
       }
     },
     {
@@ -159,8 +176,8 @@
     {
       "app": "ui.press",
       "params": {
-        "role": "Button",
-        "label": "Snapshot history",
+        "role": "MenuItem",
+        "label": "History snapshots…",
         "hover_ms": 0
       }
     },
@@ -168,7 +185,7 @@
       "app": "ui.wait",
       "params": {
         "state": {
-          "/dialog": true
+          "/history": true
         },
         "timeout_ms": 10000
       }
@@ -212,7 +229,7 @@
       "app": "ui.wait",
       "params": {
         "state": {
-          "/dialog": false
+          "/history": false
         },
         "timeout_ms": 10000
       }
@@ -220,14 +237,6 @@
     {
       "app": "window.focus",
       "params": {}
-    },
-    {
-      "app": "ui.press",
-      "params": {
-        "role": "TextArea",
-        "nth": 0,
-        "dy": 40
-      }
     },
     {
       "app": "ui.wait",
@@ -297,10 +306,19 @@
       }
     },
     {
-      "app": "ui.hover",
+      "app": "app.info",
+      "save": "environment_before_39"
+    },
+    {
+      "app": "ui.find",
+      "params": {},
+      "save": "ui_before_40"
+    },
+    {
+      "app": "ui.press",
       "params": {
-        "role": "ListItem",
-        "label": "G1 Snapshot After"
+        "role": "Button",
+        "label": "More actions"
       }
     },
     {
@@ -313,8 +331,8 @@
     {
       "app": "ui.press",
       "params": {
-        "role": "Button",
-        "label": "Snapshot history",
+        "role": "MenuItem",
+        "label": "History snapshots…",
         "hover_ms": 0
       }
     },
@@ -322,7 +340,7 @@
       "app": "ui.wait",
       "params": {
         "state": {
-          "/dialog": true
+          "/history": true
         },
         "timeout_ms": 10000
       }
@@ -348,6 +366,15 @@
         "until": "time",
         "ms": 600
       }
+    },
+    {
+      "app": "app.info",
+      "save": "preview_environment"
+    },
+    {
+      "app": "ui.find",
+      "params": {},
+      "save": "preview_ui"
     },
     {
       "app": "ui.find",
@@ -460,7 +487,7 @@
       "app": "ui.wait",
       "params": {
         "state": {
-          "/dialog": false
+          "/history": false
         },
         "timeout_ms": 10000
       }

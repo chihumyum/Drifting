@@ -30,6 +30,9 @@ pub struct EntryHistoryDialog {
 }
 impl EventEmitter<HistoryEvent> for EntryHistoryDialog {}
 impl EntryHistoryDialog {
+    pub fn is_busy(&self) -> bool {
+        self.busy
+    }
     pub fn new(
         lib: Workspace,
         target: api::EntryIn,
@@ -249,10 +252,29 @@ impl Render for EntryHistoryDialog {
                         .flex()
                         .flex_col()
                         .gap(px(space::S3));
-                    for (label, text) in preview_sections(preview) {
+                    for (section, (label, text)) in
+                        preview_sections(preview).into_iter().enumerate()
+                    {
                         detail = detail
-                            .child(div().text_color(p.ink(2).solid()).child(label))
-                            .child(div().child(text));
+                            .child(
+                                div()
+                                    .id(ElementId::Name(
+                                        format!("entry-history-label-{i}-{section}").into(),
+                                    ))
+                                    .role(gpui::Role::Label)
+                                    .aria_label(label.clone())
+                                    .text_color(p.ink(2).solid())
+                                    .child(label),
+                            )
+                            .child(
+                                div()
+                                    .id(ElementId::Name(
+                                        format!("entry-history-content-{i}-{section}").into(),
+                                    ))
+                                    .role(gpui::Role::Label)
+                                    .aria_label(text.clone())
+                                    .child(text),
+                            );
                     }
                     let mut body = div().flex().flex_col().gap(px(space::S3)).child(detail);
                     let restore = entity.clone();
