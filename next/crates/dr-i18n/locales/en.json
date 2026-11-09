@@ -1775,12 +1775,20 @@
   },
   "v3Shell": {
     "about": "Description",
+    "belongTo": "Assign to",
     "board": "Board",
+    "changeTemplate": "Change template",
+    "editTemplate": "Edit template",
     "entries": "Entries",
     "grid": "Grid",
     "islands": "Islands",
     "list": "List",
-    "settings": "Settings"
+    "newEntry": "New",
+    "newTemplate": "New template",
+    "open": "Open",
+    "settings": "Settings",
+    "templates": "Templates",
+    "trash": "Move to Recently Deleted"
   },
   "voiceAgent": {
     "error": {

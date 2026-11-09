@@ -1769,12 +1769,20 @@
   },
   "v3Shell": {
     "about": "설명",
+    "belongTo": "소속 지정",
     "board": "보드",
+    "changeTemplate": "템플릿 변경",
+    "editTemplate": "템플릿 편집",
     "entries": "항목",
     "grid": "그리드",
     "islands": "섬",
     "list": "목록",
-    "settings": "설정"
+    "newEntry": "새로 만들기",
+    "newTemplate": "새 템플릿",
+    "open": "열기",
+    "settings": "설정",
+    "templates": "템플릿",
+    "trash": "최근 삭제 항목으로 이동"
   },
   "voiceAgent": {
     "error": {
