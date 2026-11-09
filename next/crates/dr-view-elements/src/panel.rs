@@ -1638,3 +1638,663 @@ mod tests {
         assert_eq!(short_date(last, now), "25/12/31");
     }
 }
+
+/// K4 G2's versioned level displays. The legacy panel above is unchanged.
+pub mod v3 {
+    use std::{collections::BTreeSet, rc::Rc};
+
+    use dr_i18n::keys;
+    use dr_shell::{
+        book::Book,
+        nav::Open,
+        strings::t,
+        v3::{DisplaySurface, LevelHost, Rendered, entry_target},
+    };
+    use dr_ui::{
+        Theme,
+        components::{SandCell, Segmented},
+        fonts::Role,
+        sand::{self, Icon, KindMark, SandFrame},
+        style::DrStyled,
+    };
+    use gpui::{prelude::*, *};
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum Display {
+        List,
+        Board,
+        Grid,
+        Islands,
+    }
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum Section {
+        Residents,
+        Members,
+        Unassigned,
+    }
+
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub enum Row {
+        Section(Section),
+        Entry { id: String, depth: usize },
+        Tiles { ids: Vec<String>, depth: usize },
+        Island { id: String, members: Vec<String> },
+    }
+
+    /// Flatten only the effective residence tree. Accepted entries are a
+    /// separate section and never silently become children in the tree.
+    pub fn rows(
+        book: &Book,
+        level: &str,
+        display: Display,
+        grouped: bool,
+        folded: &BTreeSet<String>,
+        columns: usize,
+    ) -> Vec<Row> {
+        let Some(v) = book.v3() else {
+            return Vec::new();
+        };
+        let Some(root) = v.levels.get(level) else {
+            return Vec::new();
+        };
+        let mut out = Vec::new();
+        if grouped && display == Display::List {
+            let mut leaves = Vec::new();
+            let mut pending: Vec<_> = root.children.iter().rev().cloned().collect();
+            let mut seen = BTreeSet::new();
+            while let Some(id) = pending.pop() {
+                if !seen.insert(id.clone()) {
+                    continue;
+                }
+                if let Some(l) = v.levels.get(&id) {
+                    pending.extend(l.children.iter().rev().cloned());
+                } else {
+                    leaves.push(id);
+                }
+            }
+            let mut used = BTreeSet::new();
+            for lane in v
+                .entries
+                .iter()
+                .filter(|e| v.template_of(&e.id).is_some_and(|t| t.lane))
+            {
+                let members: Vec<_> = leaves
+                    .iter()
+                    .filter(|id| {
+                        let accepted: BTreeSet<_> = v
+                            .memberships
+                            .iter()
+                            .filter(|m| m.member == **id)
+                            .map(|m| m.host.as_str())
+                            .collect();
+                        let primary = v
+                            .entry(id)
+                            .and_then(|e| e.primary.as_deref())
+                            .filter(|p| accepted.contains(p))
+                            .or_else(|| accepted.first().copied());
+                        primary == Some(lane.id.as_str())
+                    })
+                    .cloned()
+                    .collect();
+                if !members.is_empty() {
+                    out.push(Row::Entry {
+                        id: lane.id.clone(),
+                        depth: 0,
+                    });
+                    used.extend(members.iter().cloned());
+                    if !folded.contains(&lane.id) {
+                        out.extend(members.into_iter().map(|id| Row::Entry { id, depth: 1 }));
+                    }
+                }
+            }
+            let loose: Vec<_> = leaves.into_iter().filter(|id| !used.contains(id)).collect();
+            if !loose.is_empty() {
+                out.push(Row::Section(Section::Unassigned));
+                out.extend(loose.into_iter().map(|id| Row::Entry { id, depth: 0 }));
+            }
+        } else {
+            out.push(Row::Section(Section::Residents));
+            let mut pending: Vec<_> = root
+                .children
+                .iter()
+                .rev()
+                .map(|id| (id.clone(), 0))
+                .collect();
+            let mut seen = BTreeSet::new();
+            while let Some((id, depth)) = pending.pop() {
+                if !seen.insert(id.clone()) {
+                    continue;
+                }
+                let Some(child) = v.levels.get(&id) else {
+                    if display == Display::List {
+                        out.push(Row::Entry { id, depth });
+                    } else if let Some(Row::Tiles {
+                        ids,
+                        depth: row_depth,
+                    }) = out.last_mut()
+                        && *row_depth == depth
+                        && ids.len() < columns.max(1)
+                    {
+                        ids.push(id);
+                    } else {
+                        out.push(Row::Tiles {
+                            ids: vec![id],
+                            depth,
+                        });
+                    }
+                    continue;
+                };
+                if display == Display::Islands {
+                    let mut members = Vec::new();
+                    let mut todo: Vec<_> = child
+                        .children
+                        .iter()
+                        .chain(&child.members)
+                        .rev()
+                        .cloned()
+                        .collect();
+                    let mut visited = BTreeSet::from([id.clone()]);
+                    if !folded.contains(&id) {
+                        while let Some(member) = todo.pop() {
+                            if !visited.insert(member.clone()) {
+                                continue;
+                            }
+                            if let Some(l) = v.levels.get(&member) {
+                                todo.extend(l.children.iter().chain(&l.members).rev().cloned());
+                            }
+                            members.push(member);
+                        }
+                    }
+                    out.push(Row::Island { id, members });
+                } else {
+                    out.push(Row::Entry {
+                        id: id.clone(),
+                        depth,
+                    });
+                    if !folded.contains(&id) {
+                        pending.extend(
+                            child
+                                .children
+                                .iter()
+                                .rev()
+                                .map(|id| (id.clone(), depth + 1)),
+                        );
+                    }
+                }
+            }
+        }
+        if !root.members.is_empty() {
+            out.push(Row::Section(Section::Members));
+            for id in &root.members {
+                out.push(Row::Entry {
+                    id: id.clone(),
+                    depth: 0,
+                });
+            }
+        }
+        out
+    }
+
+    pub struct LevelDisplay {
+        pub host: LevelHost,
+        pub display: Display,
+        pub grouped: bool,
+        pub folded: BTreeSet<String>,
+        pub rows: Rc<Vec<Row>>,
+        list: ListState,
+        scroll: ScrollHandle,
+    }
+
+    pub fn register(cx: &mut App) {
+        for (name, kind) in [
+            ("list", Display::List),
+            ("grid", Display::Grid),
+            ("island", Display::Islands),
+        ] {
+            dr_shell::v3::add_level_display(cx, name, move |host, _, cx| make(host, kind, cx));
+        }
+    }
+
+    pub fn make(host: LevelHost, display: Display, cx: &mut App) -> Rendered {
+        let view = cx.new(|_| LevelDisplay::new(host, display));
+        let weak = view.downgrade();
+        Rendered::new(view).on_refresh(move |book, cx| {
+            let _ = weak.update(cx, |this, cx| this.refresh(book, cx));
+        })
+    }
+
+    impl LevelDisplay {
+        pub fn new(host: LevelHost, display: Display) -> Self {
+            let mut this = Self {
+                host,
+                display,
+                grouped: false,
+                folded: BTreeSet::new(),
+                rows: Rc::default(),
+                list: ListState::new(0, ListAlignment::Top, px(300.0)),
+                scroll: ScrollHandle::new(),
+            };
+            this.rebuild();
+            this
+        }
+        fn rebuild(&mut self) {
+            let columns = if self.host.surface == DisplaySurface::Sidebar {
+                2
+            } else {
+                4
+            };
+            let rows = rows(
+                &self.host.page.book,
+                &self.host.level,
+                self.display,
+                self.grouped,
+                &self.folded,
+                columns,
+            );
+            // Keep the visible entry anchored when a book event inserts or
+            // removes rows above it. reset() alone clears GPUI's anchor.
+            if *self.rows != rows {
+                let mut offset = self.list.logical_scroll_top();
+                if let Some(row) = self.rows.get(offset.item_ix)
+                    && let Some(index) = rows.iter().position(|next| next == row)
+                {
+                    offset.item_ix = index;
+                }
+                offset.item_ix = offset.item_ix.min(rows.len().saturating_sub(1));
+                self.list.reset(rows.len());
+                self.list.scroll_to(offset);
+                self.rows = Rc::new(rows);
+            } else {
+                // Tile names can change wrapping without changing row IDs.
+                self.list.remeasure_items(0..rows.len());
+            }
+        }
+        pub fn scroll_state(&self) -> ListState {
+            self.list.clone()
+        }
+        pub fn refresh(&mut self, book: Rc<Book>, cx: &mut Context<Self>) {
+            self.host.page.book = book;
+            self.rebuild();
+            cx.notify();
+        }
+        pub fn toggle(&mut self, id: &str, cx: &mut Context<Self>) {
+            if !self.folded.remove(id) {
+                self.folded.insert(id.into());
+            }
+            self.rebuild();
+            cx.notify();
+        }
+        fn entry(
+            &self,
+            id: &str,
+            depth: usize,
+            tile: bool,
+            window: &mut Window,
+            cx: &mut App,
+        ) -> AnyElement {
+            let Some(v) = self.host.page.book.v3() else {
+                return div().into_any_element();
+            };
+            let Some(entry) = v.entry(id) else {
+                return div().into_any_element();
+            };
+            let Some(target) = entry_target(id) else {
+                return div().into_any_element();
+            };
+            let (mark, color) = self.host.page.book.mark(&target);
+            let weak = self.host.page.workspace.clone();
+            let card_ws = weak.upgrade();
+            let selected = card_ws
+                .as_ref()
+                .is_some_and(|ws| ws.read(cx).nav.is_selected(&target));
+            let open = target.clone();
+            let on_click = move |event: &ClickEvent, _: &mut Window, cx: &mut App| {
+                if let Some(ws) = weak.upgrade() {
+                    ws.update(cx, |ws, cx| {
+                        ws.open(
+                            open.clone(),
+                            if event.click_count() > 1 {
+                                Open::KEEP
+                            } else {
+                                Open::PREVIEW
+                            },
+                            cx,
+                        )
+                    });
+                }
+            };
+            let cell_id: SharedString = format!("g2-entry-{}-{id}", self.host.level).into();
+            let cell = if tile || self.display == Display::Board && id != self.host.level {
+                let theme = Theme::of(window, cx);
+                div()
+                    .id(cell_id.clone())
+                    .relative()
+                    .min_h(px(28.0))
+                    .px_2()
+                    .py_1()
+                    .flex()
+                    .items_center()
+                    .gap(px(6.0))
+                    .min_w_0()
+                    .cursor_pointer()
+                    .role(gpui::Role::Button)
+                    .aria_label(entry.title.clone())
+                    .aria_selected(selected)
+                    .font_role(Role::Ui)
+                    .type_px(theme.scale.body, theme.scale.line_body)
+                    .text_color(theme.palette.ink(if selected { 1 } else { 2 }).solid())
+                    .on_click(on_click)
+                    .child(
+                        SandFrame::new(SharedString::from(format!("{cell_id}-frame")), selected)
+                            .when_some(color, |frame, color| frame.color(color)),
+                    )
+                    .child(
+                        div().flex_none().size(px(10.0)).child(
+                            KindMark::new(SharedString::from(format!("{cell_id}-mark")), mark)
+                                .scale(10.0 / 14.0)
+                                .when_some(color, |mark, color| mark.color(color)),
+                        ),
+                    )
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .truncate()
+                            .child(entry.title.clone()),
+                    )
+                    .into_any_element()
+            } else {
+                SandCell::new(cell_id, entry.title.clone())
+                    .mark(mark)
+                    .color_opt(color)
+                    .selected(selected)
+                    .font(if v.levels.contains_key(id) {
+                        Role::Structure
+                    } else {
+                        Role::Ui
+                    })
+                    .on_click(on_click)
+                    .into_any_element()
+            };
+            let cell = if let Some(ws) = card_ws {
+                dr_shell::workspace::page_hover_card(
+                    format!("g2-card-{}-{id}", self.host.level),
+                    cell,
+                    &target,
+                    &ws,
+                    Default::default(),
+                    cx,
+                )
+            } else {
+                cell.into_any_element()
+            };
+            div()
+                .pl(px(depth.min(20) as f32 * 14.0))
+                .min_w_0()
+                .when(tile, |el| {
+                    el.min_w(px(super::tile_basis(&entry.title)))
+                        .max_w(px(172.0))
+                        .flex_1()
+                })
+                .child(cell)
+                .into_any_element()
+        }
+        fn heading(&self, section: Section, cx: &App) -> SharedString {
+            t(
+                cx,
+                match section {
+                    Section::Residents => keys::v3_levels::RESIDENTS,
+                    Section::Members => keys::v3_levels::MEMBERS,
+                    Section::Unassigned => keys::v3_levels::UNASSIGNED,
+                },
+            )
+        }
+        fn row(
+            &self,
+            row: &Row,
+            entity: &Entity<Self>,
+            window: &mut Window,
+            cx: &mut App,
+        ) -> AnyElement {
+            let theme = Theme::of(window, cx);
+            match row {
+                Row::Section(section) => div()
+                    .id(SharedString::from(format!(
+                        "g2-section-{}-{section:?}",
+                        self.host.level
+                    )))
+                    .h(px(32.0))
+                    .pt_2()
+                    .font_role(Role::Structure)
+                    .text_color(theme.palette.muted().solid())
+                    .role(gpui::Role::Heading)
+                    .aria_label(self.heading(*section, cx))
+                    .child(self.heading(*section, cx))
+                    .into_any_element(),
+                Row::Entry { id, depth } => {
+                    let mut row = div().flex().items_center().min_w_0();
+                    if self
+                        .host
+                        .page
+                        .book
+                        .v3()
+                        .is_some_and(|v| v.levels.contains_key(id))
+                    {
+                        let weak = entity.downgrade();
+                        let id = id.clone();
+                        let folded = self.folded.contains(&id);
+                        let name = self
+                            .host
+                            .page
+                            .book
+                            .v3()
+                            .and_then(|v| v.entry(&id))
+                            .map(|e| e.title.clone())
+                            .unwrap_or_default();
+                        row = row.child(
+                            div()
+                                .id(SharedString::from(format!("g2-fold-{id}")))
+                                .size(px(14.0))
+                                .flex_none()
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .cursor_pointer()
+                                .role(gpui::Role::Button)
+                                .aria_label(dr_shell::strings::tf(
+                                    cx,
+                                    if folded {
+                                        keys::v3_levels::EXPAND
+                                    } else {
+                                        keys::v3_levels::COLLAPSE
+                                    },
+                                    &[("name", &name)],
+                                ))
+                                .child(sand::icon(
+                                    if folded {
+                                        Icon::ChevronRight
+                                    } else {
+                                        Icon::ChevronDown
+                                    },
+                                    11.0,
+                                    theme.palette.ink(3).solid(),
+                                ))
+                                .on_click(move |_, _, cx| {
+                                    let _ = weak.update(cx, |this, cx| this.toggle(&id, cx));
+                                }),
+                        );
+                    }
+                    row.child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .child(self.entry(id, *depth, false, window, cx)),
+                    )
+                    .into_any_element()
+                }
+                Row::Tiles { ids, depth } => div()
+                    .flex()
+                    .flex_wrap()
+                    .gap_1()
+                    .py_1()
+                    .pl(px(*depth as f32 * 14.0))
+                    .children(ids.iter().map(|id| self.entry(id, 0, true, window, cx)))
+                    .into_any_element(),
+                Row::Island { id, members } => {
+                    let color = entry_target(id)
+                        .and_then(|t| self.host.page.book.mark(&t).1)
+                        .unwrap_or(theme.palette.accent);
+                    div()
+                        .relative()
+                        .mx_2()
+                        .my_2()
+                        .p_2()
+                        .child(
+                            div().absolute().inset_0().child(
+                                SandFrame::new(SharedString::from(format!("g2-island-{id}")), true)
+                                    .color(color),
+                            ),
+                        )
+                        .child(self.row(
+                            &Row::Entry {
+                                id: id.clone(),
+                                depth: 0,
+                            },
+                            entity,
+                            window,
+                            cx,
+                        ))
+                        .child(
+                            div().flex().flex_wrap().gap_1().children(
+                                members.iter().map(|id| self.entry(id, 0, true, window, cx)),
+                            ),
+                        )
+                        .into_any_element()
+                }
+            }
+        }
+        fn board(&self, window: &mut Window, cx: &mut App) -> AnyElement {
+            let Some(v) = self.host.page.book.v3() else {
+                return div().into_any_element();
+            };
+            let Some(level) = v.levels.get(&self.host.level) else {
+                return div().into_any_element();
+            };
+            let mut seen = BTreeSet::new();
+            let ids: Vec<_> = level
+                .children
+                .iter()
+                .chain(&level.members)
+                .filter(|id| seen.insert(*id))
+                .collect();
+            let positions: Vec<_> = ids
+                .iter()
+                .enumerate()
+                .map(|(index, id)| {
+                    v.entry(id)
+                        .and_then(|e| e.layout.board)
+                        .unwrap_or(((index % 3) as f64 * 192.0, (index / 3) as f64 * 76.0))
+                })
+                .collect();
+            // A negative saved coordinate is still on the canvas: translate
+            // the viewport, rather than piling negative cards at (0, 0).
+            let origin = positions
+                .iter()
+                .fold((0.0_f64, 0.0_f64), |(x, y), p| (x.min(p.0), y.min(p.1)));
+            let mut board = div().relative().min_w(px(600.0)).min_h(px(480.0));
+            let mut width: f32 = 600.0;
+            let mut height: f32 = 480.0;
+            for (id, position) in ids.iter().zip(&positions) {
+                let (x, y) = (
+                    (position.0 - origin.0) as f32 + 8.0,
+                    (position.1 - origin.1) as f32 + 8.0,
+                );
+                width = width.max(x + 188.0);
+                height = height.max(y + 72.0);
+                board = board.child(
+                    div()
+                        .absolute()
+                        .left(px(x))
+                        .top(px(y))
+                        .w(px(180.0))
+                        .p_2()
+                        .child(self.entry(id, 0, false, window, cx)),
+                );
+            }
+            div()
+                .id("g2-board-scroll")
+                .overflow_scroll()
+                .track_scroll(&self.scroll)
+                .size_full()
+                .child(board.w(px(width)).h(px(height)))
+                .into_any_element()
+        }
+    }
+
+    impl Render for LevelDisplay {
+        fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+            let mut root = div()
+                .flex()
+                .flex_col()
+                .min_h_0()
+                .w_full()
+                .when(self.host.surface == DisplaySurface::Sidebar, |el| {
+                    el.h_full()
+                })
+                .when(self.host.surface == DisplaySurface::Page, |el| {
+                    el.h(px(440.0))
+                });
+            if self.host.surface == DisplaySurface::Sidebar {
+                // The selected root is itself an entry: open its level page
+                // and use exactly the same common card as its descendants.
+                root = root.child(self.entry(&self.host.level, 0, false, window, cx));
+            }
+            if self.display == Display::List
+                && self
+                    .host
+                    .page
+                    .book
+                    .v3()
+                    .and_then(|v| v.levels.get(&self.host.level))
+                    .is_some_and(|l| l.settings.is_manuscript)
+            {
+                let weak = cx.entity().downgrade();
+                root = root.child(
+                    Segmented::new(
+                        "g2-list-order",
+                        [
+                            t(cx, keys::v3_levels::MANUSCRIPT_ORDER),
+                            t(cx, keys::v3_levels::BY_STORYLINE),
+                        ],
+                        usize::from(self.grouped),
+                    )
+                    .on_change(move |index, _, cx| {
+                        let _ = weak.update(cx, |this, cx| {
+                            this.grouped = index == 1;
+                            this.rebuild();
+                            cx.notify();
+                        });
+                    }),
+                );
+            }
+            let body = if self.display == Display::Board {
+                self.board(window, cx)
+            } else {
+                let rows = self.rows.clone();
+                let weak = cx.entity().downgrade();
+                list(self.list.clone(), move |i, window, cx| {
+                    weak.upgrade()
+                        .map(|entity| {
+                            entity.update(cx, |this, cx| this.row(&rows[i], &entity, window, cx))
+                        })
+                        .unwrap_or_else(|| div().into_any_element())
+                })
+                .size_full()
+                .into_any_element()
+            };
+            root.child(div().flex_1().min_h_0().child(body))
+                .into_any_element()
+        }
+    }
+}

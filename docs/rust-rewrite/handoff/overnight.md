@@ -72,6 +72,18 @@
 
 - **G2／K5／G4 与外壳：** F6 第二次交回的协调项已转交：G2 注册三种条目选择器并接左栏／大纲，K5 注册 template creator 和 Template 页，G4 与外壳补版本化主页注册口与正式 v3 导览；当前 v3 不显示旧按种类导览。maker／on_refresh 只读所给快照、更新子实体，避免重借正被外壳借用的 workspace；写入留点击回调并在异步提交前重验书和目标。
 
+- **F3/K2 与 G3：** G3 第一段交回的 `timeline_view.list` 会隐藏无效目标，但 `timeline_view.put` 是整份替换。当前 G3 重读后比较原始与有效集合数量，并以 book frontier 做 CAS，数量不一致就拒绝、不丢隐藏数据；视图改名／泳道增删排序的局部命令交 F3/K2，G3 消费后补验。
+- **F6/K2 与 G3：** G3 的 v3-heavy 真窗口在书快照尚未载入、时间线尚未实例化时超时，最长等待 180 秒仍 `book.loaded=false`。打开／横滚验收未过，不能算 G3 全组或 K4 切换完成；外壳／查询负责方定位，再由 G3 重跑 `python3 crates/dr-view-timeline/scripts/window-bench.py`。现有 v2.2 的 CLI／IPC 往返计时不等于发布档绘制帧基准，见 m14 的待协调 2。
+
+- **F6/G2 与 G3：** 第四十八批已接时间线内选择器拖入与 `EntryDrag`；左栏／大纲仍缺中立载荷或来源注册口。按 M14 待协调 3，F6/G2 提供公共入口后由 G3 消费，dr-shell 不反向依赖 dr-view-timeline。本批长度窗口首轮第 44 步超时，原场景唯一隔离复跑全过；完整失败／成功证据保留，不改阈值。
+
+- **K6：** 轮询发现 `handback/k6` → `6b18815e` 已有目录／resolver 实现，但相对 main 的 `docs/` 差异为空，k6-agent-tools.md 最后一节仍是轨道 3 的「方案交回」并说明没有实现。请按交回协议第 3 项补本轮包含段落、最终全套检查结果和待协调，再前移指针；暂未接收，不把旧方案的 1974 项检查套用于新实现。复查：`git diff main...6b18815e -- docs`，以及 `git show 6b18815e:docs/rust-rewrite/modules/k6-agent-tools.md`。此项仅登记交回资料待补，不宣称产品测试失败。
+
+- **K5／K6：** K5 两次交回已在第 46、47 批接收：叶子／层级模板、八项设置、泳道、动作及写给帮手的说明。当前预览仍只读本地草稿；K6 的结构说明公共接口合 main 后再消费，不依赖未接分支，也未接动作运行时。记号沿用已有砂笔集合，未知值保留，未主动改记号就不覆盖原字符串。
+- **F6／K1 查询方与 K5：** K5 同样在标准 debug v3-heavy 的初始书快照阶段等到 240 秒仍未加载；其采样位于 `book::v3::load → LevelGet → level_settings → entries_map → resolve_autolink_name_conflicts → resolve_level_settings`。这补充 G3 的加载协调项。K5 另外用四个 crate 临时 opt-level=2 得到含导航等待、桥往返和 PNG 回读的视图测量，配置与口径见 k5-templates.md；不能把这些数字当作标准 debug 已通过或发布档绘制帧耗时。负责方修正后，各组用同配置复测，整合者不跨层改查询。
+
+- **F6 与 G2：** 第五十批已接 G2 四种显示器；M11 待协调 1 的层级设置区请提供 `add_level_settings` 并按现有 Rendered 保留实例／刷新，G2 在 category.rs 提供控件，不替换整页或新增持久化模块种类。已发现对应 `handback/f6` → `a9115af6`，另批验收后再通知消费；G2 的层级设置、大纲／拖动、选择器及 heavy 对照仍在后续。
+
 ## 监管说明
 
 - 11-09 18:10：K3 为了让全套测试通过，改了冻结的 `dr-mirror` 一行（`897551ac`：链接前的 `!` 一律转义，不再因为前面有反斜杠就跳过，并留下 proptest 种子）。我核过：普通文字里的 `!` 不会被预先转义，前面那个反斜杠只可能是转义过的反斜杠，所以一律转义是对的。这一行同意随 K3 收，不算越界。
@@ -93,6 +105,11 @@
 | 11-09 18:32 | `handback/k3` → `d28e911d`（第四十二批：v3 导入与样书适配） | `cf5095d3` | 并发 6、测试单线程；fmt、Clippy、test（2033 通过／0 失败／22 忽略）、xtask／审计、public 及附加兼容／语言检查全过，无重跑；导入 12 项、样书 3 项及获准的 Markdown 29 项通过，原 K3 暂缓关闭，无冲突修补。 |
 | 11-09 19:10 | `handback/k4-0` → `ee2365e9`（第四十三批：首次外壳接口） | `d050e2d0` | 并发 6、测试单线程；fmt、Clippy、test（2038 通过／0 失败／22 忽略）、xtask／审计、public 及附加兼容／语言检查全过，无重跑；隔离真窗口 49/49 步、0 pending，三图已目检，无冲突修补。 |
 | 11-09 19:36 | `handback/k4-0` → `92f78243`（第四十四批：左栏与公共条目卡） | `8471d7e2` | 并发 6、测试单线程；fmt、Clippy、test（2039 通过／0 失败／22 忽略）、xtask／审计、public 及附加兼容／语言检查全过，无重跑；隔离真窗口 49/49 与 84/84 步、0 pending，六图已目检，无冲突修补，sidebar／outline 交 G2。 |
+| 11-09 20:46 | `handback/k4-g3` → `85b70cbf`（第四十五批：时间线视图与泳道） | `b7595ae0` | 并发 6、测试单线程；fmt、Clippy、test（2041 通过／0 失败／22 忽略）、xtask／审计、public 及附加检查全过；真窗口 45/45 步、0 pending，两图已目检，无冲突修补。仅第一段；v3-heavy 快照超时和后续操作仍待，不算全组完成。 |
+| 11-09 21:07 | `handback/k5` → `a431cf7b`（第四十六批：叶子模板编辑器） | `bbf0158f` | 并发 6、测试单线程；fmt、Clippy、test（2047 通过／0 失败／22 忽略）、xtask／审计、public 及附加检查全过；真窗口 115/115 步、0 pending，三图已目检。只合九语键组冲突并重生成；层级／动作／帮手说明和标准 debug heavy 加载仍待。 |
+| 11-09 21:38 | `handback/k5` → `3049697a`（第四十七批：层级模板、设置、动作及帮手说明） | `8ff78d05` | 并发 6、测试单线程；fmt、Clippy、test（2050 通过／0 失败／22 忽略）、xtask／审计、public 及附加检查全过；真窗口叶子 122/122、层级 139/139 步，均 0 pending，六图已目检。无冲突修补；K6 公共接口与标准 debug heavy 加载仍待。 |
+| 11-09 21:59 | `handback/k4-g3` → `ba3406a8`（第四十八批：摆放、时间钉、泳道颜色） | `e5e71b20` | 并发 6、测试单线程；fmt、Clippy、test（2052 通过／0 失败／22 忽略）、xtask／审计、public 及附加检查全过。窗口 45/45；摆放首次长度等待超时，唯一隔离复跑 89/89、0 pending，六图已目检，按既定重跑规则接收。无冲突修补；公共树拖动与 heavy 仍待。 |
+| 11-09 22:24 | `handback/k4-g2` → `36d48818`（第五十批：四种层级显示器） | `ef6c1ffa` | 并发 6、测试单线程；fmt、Clippy、test（2056 通过／0 失败／22 忽略）、xtask／审计、public 及附加检查全过。真窗口 52/52 步、0 pending，看板位移 40 × 80 px 核对通过，五图已目检。仅合注册入口冲突并保留 G3；层级设置、大纲／拖动、选择器和 heavy 仍待。 |
 
 ## 退回
 
@@ -105,3 +122,4 @@
 | 11-09 03:28 | `handback/track4` → `c719a76d`（第三十五批：M37） | 全套检查通过（1905 通过／22 忽略／0 失败），但超出本页轨道 4 第 2 条的 dr-shell「只限挂账号入口」：`settings/store.rs` 新增持久化账本并修改 set/reset/快捷键写入，`settings/mod.rs` 新增同步回调与快捷键应用，`settings/registry.rs` 新增同步范围标记。`git diff e4722faa..c719a76d -- next/crates/dr-shell/src/settings` 可见范围。 | 退轨道 4：按夜间范围收敛共享改动，或把必要的 settings 接线单列为待协调，等作者明确范围后重交。旧 M37 任务书允许最小注册表标记，但本页更窄，整合者不自行扩大；候选保留 `codex/batch-35`，M35 已接成果不受影响。 **已由 `5c777ca8` 收敛，随 `8275c95f` 在第四十批接收。** |
 | 11-09 14:10 | `handback/k1` → `dd39c0bd`（已在第三十六批合进 main） | 监管审查：默认层级和默认分类用写死的 id（`dr_doc::v3::novel::NovelRootEntries::new()`：`root-manuscript`、`cat-character`……），模板正文文档 id `template:<模板>/<模块>` 不带书 id；`loro_doc.doc_id` 是全库主键，两本书会共用 `body:root-manuscript/about` 和 `template:tpl-chapter/mod-prose`，彻底删除一本书会删掉另一本的文档。dr-testkit 的 v3 种子、K3 的样书（两本书进同一个库）都踩在上面。 | 退 K1：照 kernel-v3.md「文档 id 在整个库里唯一」改，加两本书同库、删一本另一本不少的测试，再做第 5、6 步。K3 后半段 `handback/k3` → `67ccafc7` 先不收，等 K1 修完合进 main，K3 改用模板返回的根 id 后重交。 **K1 已由 `a1ac3c24` 修正，第三十九批接收；K3 适配重交 `d28e911d` 已在第四十二批接收。** |
 | 11-09 14:05 | `handback/track4` → `5c777ca8`（第三十七批；最新 `e657622e` 的同步实现未变） | 常驻整合候选 `8c1e429e` 的绝对路径素材探针失败：`sync_once` 返回 `Ok`、`downloaded_assets: 1`，库外合成稿件 `synthetic-manuscript-source.txt` 被删除。`engine.rs` 把远端 `asset_id` 拼进暂存路径，绝对路径越过库边界，下载覆盖后又被暂存清理删除。在候选 `next/` 运行 `CARGO_BUILD_JOBS=6 cargo test -p dr-sync --test integrator_absolute_asset --locked -- --nocapture`，0 通过／1 失败（退出码 101）。 | 退轨道 4：同步入口只接受合法素材 id，拒绝绝对路径、正反斜杠及其他不合法路径形式；在任何素材查重、下载、写入、清理前校验。把探针改写成自己的永久回归，断言拒绝并且库外文件仍存在、原字节不变；同步 main、全套检查后重交。第 37 批和含同一缺陷的 M43 续交均未接收；整合者不代修，临时探针不进 main。探针备份在公共 Git 目录的 `integration-evidence/batch-37/integrator_absolute_asset.rs`，可复制到自己分支的同名 tests 路径复现。 **已由 `9af4892b` 修正，永久回归与原探针通过；第四十批接收 `8275c95f`。** |
+| 11-09 22:03 | `handback/k4-g1` → `d85ee968`（第四十九批：模块渲染器） | 并发情节格探针在候选 `29a3cf54` 第一轮失败：同一网格两个不同格子的 `v3::write` 都返回 Ok，A 格 `synthetic A 0` 已被覆盖为不存在；0 通过／1 失败，退出码 101。`dr-view-plot/src/v3.rs` 先读整网格、改一格，再无版本守卫调用 `module.put_grid`，另一次成功提交会被旧快照覆盖。复现：在候选 next/ 放入临时探针后运行 `CARGO_BUILD_JOBS=6 cargo test -p dr-view-plot --test integrator_grid_concurrent --locked -- --nocapture`。 | 退 G1：不能把已证实的数据覆盖只列为 K2 待协调。消费已有 `Workspace::observe`／`call_guarded` 的 book 版本守卫，或协调原子逐格命令；发生冲突时拒绝旧写入并保留作者编辑，不能静默成功。把两个独立成功写入不得相互覆盖改成自己的永久契约，覆盖不同窗口／帮手并发；同步 main、全套检查和窗口验收后重交。临时探针及日志保存在公共 Git 目录 `integration-evidence/batch-49/`，不提交进 main；本批未继续全套检查或窗口验收，不能套用轨道交回的 2055 项结果。 |

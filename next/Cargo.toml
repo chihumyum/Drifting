@@ -50,6 +50,7 @@ members = [
     "crates/dr-view-shelf",
     "crates/dr-view-shelf-art",
     "crates/dr-view-stats",
+    "crates/dr-view-templates",
     "crates/dr-view-timeline",
     "crates/dr-view-transfer",
     "crates/dr-view-update",
@@ -262,6 +263,7 @@ unicode-segmentation = "1.13"
 dr-i18n = { path = "crates/dr-i18n" }
 dr-shell = { path = "crates/dr-shell" }
 dr-ui = { path = "crates/dr-ui" }
+dr-view-templates = { path = "crates/dr-view-templates" }
 # M06 and M07: the search panel and the Stats tab with the writing-day
 # recorder (interface crates over F3).
 dr-view-review = { path = "crates/dr-view-review" }
