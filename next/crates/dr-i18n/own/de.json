@@ -134,7 +134,18 @@
     "removeLane": "Aus Ansicht entfernen",
     "moveUp": "Nach oben",
     "moveDown": "Nach unten",
-    "members": "{{count}} Mitglieder"
+    "members": "{{count}} Mitglieder",
+    "placeEntry": "Eintrag platzieren",
+    "removeEntry": "Aus Spur entfernen",
+    "placementActions": "Platzierungsaktionen",
+    "resize": "Länge anpassen",
+    "ruler": "Zeitlineal",
+    "renamePin": "Zeitmarkierung umbenennen",
+    "bindEntry": "Eintrag verknüpfen",
+    "detachEntry": "Eintrag lösen",
+    "colorValue": "Farbwert",
+    "laneTrack": "Spur {{name}}",
+    "selectLane": "Spur auswählen"
   },
   "templateEditor": {
     "new_template": "Neue Vorlage",

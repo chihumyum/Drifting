@@ -180,6 +180,7 @@ pub fn init(cx: &mut App) {
     fields::v3::register(cx);
     element::patches::register(cx);
     dr_view_relations::Relations::register_modules(cx);
+    storyline::init_v3(cx);
     dialogs::init(cx);
     menu::register(cx);
     dr_shell::pages::add_left_panel(cx, |tab, ws, _, cx| {
