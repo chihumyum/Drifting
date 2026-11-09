@@ -122,6 +122,8 @@
     "renamePin": "時間ピンの名前を変更",
     "bindEntry": "項目を関連付け",
     "detachEntry": "項目の関連付けを解除",
-    "colorValue": "色の値"
+    "colorValue": "色の値",
+    "laneTrack": "レーン {{name}}",
+    "selectLane": "レーンを選択"
   }
 }

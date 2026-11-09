@@ -128,6 +128,8 @@
     "renamePin": "Renommer le repère temporel",
     "bindEntry": "Associer une entrée",
     "detachEntry": "Dissocier l’entrée",
-    "colorValue": "Valeur de couleur"
+    "colorValue": "Valeur de couleur",
+    "laneTrack": "Piste {{name}}",
+    "selectLane": "Choisir une piste"
   }
 }

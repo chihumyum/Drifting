@@ -122,6 +122,8 @@
     "renamePin": "重新命名時間釘",
     "bindEntry": "掛條目",
     "detachEntry": "解除條目",
-    "colorValue": "顏色值"
+    "colorValue": "顏色值",
+    "laneTrack": "泳道 {{name}}",
+    "selectLane": "選擇泳道"
   }
 }

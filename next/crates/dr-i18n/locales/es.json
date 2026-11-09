@@ -1804,6 +1804,7 @@
     "colorValue": "Valor del color",
     "deleteView": "Eliminar vista",
     "detachEntry": "Desvincular entrada",
+    "laneTrack": "Carril {{name}}",
     "members": "{{count}} miembros",
     "moveDown": "Bajar",
     "moveUp": "Subir",
@@ -1816,6 +1817,7 @@
     "renameView": "Renombrar vista",
     "resize": "Ajustar longitud",
     "ruler": "Regla de tiempo",
+    "selectLane": "Elegir carril",
     "views": "Vistas de cronología"
   },
   "voiceAgent": {

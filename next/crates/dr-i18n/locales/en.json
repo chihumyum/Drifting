@@ -1796,6 +1796,7 @@
     "colorValue": "Color value",
     "deleteView": "Delete view",
     "detachEntry": "Detach entry",
+    "laneTrack": "Lane {{name}}",
     "members": "{{count}} members",
     "moveDown": "Move down",
     "moveUp": "Move up",
@@ -1808,6 +1809,7 @@
     "renameView": "Rename view",
     "resize": "Adjust length",
     "ruler": "Time ruler",
+    "selectLane": "Select lane",
     "views": "Timeline views"
   },
   "voiceAgent": {

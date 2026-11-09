@@ -1,0 +1,718 @@
+{
+  "about": "K4 G3 第二交回：v3-lite 的真实拖入、跨泳道、长短、移出，标尺双击、时间钉改名改色挂条目，以及泳道颜色与通用成员页。",
+  "steps": [
+    {
+      "seed": "v3-lite"
+    },
+    {
+      "call": "book.list",
+      "save": "books"
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}",
+        "all": true
+      },
+      "save": "entries"
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${entries.[template=tpl-idea].id}"
+      },
+      "save": "source"
+    },
+    {
+      "call": "membership.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "memberships"
+    },
+    {
+      "call": "timeline_view.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "original"
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${original.0.lanes.0.entry}"
+      },
+      "save": "first"
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${original.0.lanes.1.entry}"
+      },
+      "save": "second"
+    },
+    {
+      "launch": {
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${books.0.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/book/version": 3,
+          "/bottom/pane": "timeline"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "New view",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "Synthetic placement view"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "enter"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Synthetic placement view",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Add lane",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "${first.title}",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Add lane",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "${second.title}",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Move up",
+        "role": "Button",
+        "count": 1
+      }
+    },
+    {
+      "call": "timeline_view.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "made"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Lane ${first.title}",
+        "role": "Group",
+        "count": 1
+      },
+      "save": "lane0"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Lane ${second.title}",
+        "role": "Group",
+        "count": 1
+      },
+      "save": "lane1"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Place entry",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "${first.title}",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Place entry",
+        "role": "Group",
+        "count": 1
+      },
+      "save": "picker"
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": "${picker.nodes.0.center.0}",
+        "y": "${picker.nodes.0.center.1}",
+        "dy": 1000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${source.title}",
+        "role": "Button",
+        "count": 1,
+        "within": {
+          "label": "Place entry",
+          "role": "Group"
+        }
+      },
+      "save": "pick"
+    },
+    {
+      "app": "input.drag",
+      "params": {
+        "from": [
+          "${pick.nodes.0.center.0}",
+          "${pick.nodes.0.center.1}"
+        ],
+        "to": [
+          "${lane0.nodes.0.center.0}",
+          "${lane0.nodes.0.center.1}"
+        ],
+        "steps": 12
+      },
+      "note": "G3 摆放：从候选条目真拖到第一条泳道；写入归属与当前位置。"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${source.title}",
+        "role": "Button",
+        "count": 1,
+        "within": {
+          "label": "Lane ${first.title}",
+          "role": "Group"
+        }
+      },
+      "save": "clip"
+    },
+    {
+      "app": "input.drag",
+      "params": {
+        "from": [
+          "${clip.nodes.0.center.0}",
+          "${clip.nodes.0.center.1}"
+        ],
+        "to": [
+          "${lane1.nodes.0.center.0}",
+          "${lane1.nodes.0.center.1}"
+        ],
+        "steps": 12
+      },
+      "note": "跨泳道拖动增加归属，两条泳道共用位置。"
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "00-after-cross.png"
+    },
+    {
+      "app": "state.get",
+      "save": "after_cross"
+    },
+    {
+      "call": "timeline_view.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "cross_views"
+    },
+    {
+      "call": "membership.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "cross_memberships"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${source.title}",
+        "role": "Button",
+        "count": 2
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${source.id}"
+      },
+      "expect": {
+        "/parent": "${source.parent}",
+        "/pos": "${source.pos}",
+        "/primary": "${source.primary}"
+      }
+    },
+    {
+      "call": "timeline_view.place",
+      "input": {
+        "book": "${books.0.id}",
+        "view": "${made.1.id}",
+        "entry": "${source.id}",
+        "at": 20.0,
+        "span": 4.0
+      },
+      "note": "固定几何起点，随后两次实际拖长度把手，用确切的轴坐标断言。"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/v3/timeline_views/1/placements/0/at": 20.0,
+          "/v3/timeline_views/1/placements/0/span": 4.0
+        }
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "40",
+        "role": "StaticText"
+      },
+      "save": "tick40"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "30",
+        "role": "StaticText"
+      },
+      "save": "tick30"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Adjust length",
+        "role": "Slider",
+        "within": {
+          "label": "Lane ${first.title}",
+          "role": "Group"
+        },
+        "count": 1
+      },
+      "save": "resize"
+    },
+    {
+      "app": "input.drag",
+      "params": {
+        "from": [
+          "${resize.nodes.0.center.0}",
+          "${resize.nodes.0.center.1}"
+        ],
+        "to": [
+          "${tick40.nodes.0.center.0}",
+          "${lane0.nodes.0.center.1}"
+        ],
+        "steps": 12
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/v3/timeline_views/1/placements/0/span": 21.0
+        }
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Adjust length",
+        "role": "Slider",
+        "within": {
+          "label": "Lane ${first.title}",
+          "role": "Group"
+        },
+        "count": 1
+      },
+      "save": "resized"
+    },
+    {
+      "app": "input.drag",
+      "params": {
+        "from": [
+          "${resized.nodes.0.center.0}",
+          "${resized.nodes.0.center.1}"
+        ],
+        "to": [
+          "${tick30.nodes.0.center.0}",
+          "${lane0.nodes.0.center.1}"
+        ],
+        "steps": 12
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "00-after-shrink.png"
+    },
+    {
+      "call": "timeline_view.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "shrink_views"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/v3/timeline_views/1/placements/0/span": 11.0
+        }
+      },
+      "note": "G3 长度：从 4 加到 21，再缩到 11；同条目的两个副本同时变化。"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Time ruler",
+        "role": "Group",
+        "count": 1
+      },
+      "save": "ruler"
+    },
+    {
+      "app": "input.click",
+      "params": {
+        "x": "${ruler.nodes.0.center.0}",
+        "y": "${ruler.nodes.0.center.1}",
+        "count": 2
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "Synthetic G3 pin"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "enter"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Synthetic G3 pin",
+        "role": "Button",
+        "count": 1
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Synthetic G3 pin",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Rename time pin",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "Synthetic G3 renamed pin"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "enter"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Synthetic G3 renamed pin",
+        "role": "Button",
+        "count": 1
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Synthetic G3 renamed pin",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Custom color",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "#234567"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "enter"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/v3/timeline_views/1/pins/0/color": "#234567"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Synthetic G3 renamed pin",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Attach entry",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "${entries.[template=tpl-manuscript].title}",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/v3/timeline_views/1/pins/0/entry": "${entries.[template=tpl-manuscript].id}"
+        }
+      }
+    },
+    {
+      "app": "input.move",
+      "params": {
+        "x": 800,
+        "y": 400
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "01-placement-pin.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Placement actions",
+        "role": "Button",
+        "nth": 0
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Remove from lane",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${source.title}",
+        "role": "Button",
+        "count": 1
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Placement actions",
+        "role": "Button",
+        "nth": 0
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Remove from lane",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${source.title}",
+        "role": "Button",
+        "absent": true
+      }
+    },
+    {
+      "call": "timeline_view.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "expect": {
+        "/1/placements": [],
+        "/1/pins/0/label": "Synthetic G3 renamed pin",
+        "/1/pins/0/color": "#234567",
+        "/1/pins/0/entry": "${entries.[template=tpl-manuscript].id}"
+      }
+    },
+    {
+      "call": "membership.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "expect": {
+        "": "${memberships}"
+      },
+      "note": "G3 拿出：最后一条泳道拿出时位置清空，原有全部归属逐值保持；时间钉不受影响。"
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${first.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/page": "entry:${first.id}"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Color value",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "#456789"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "enter"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/v3Appearance/color": "#456789"
+        }
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${first.id}"
+      },
+      "expect": {
+        "/fields/mod-fields/color": "#456789",
+        "/parent": "${first.parent}",
+        "/pos": "${first.pos}"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${entries.[template=tpl-chapter].title}"
+      },
+      "note": "G3 泳道页：颜色保存，成员仍交给通用层级页。"
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "02-lane-page.png"
+    },
+    {
+      "app": "app.quit"
+    }
+  ]
+}

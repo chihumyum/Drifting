@@ -1796,6 +1796,7 @@
     "colorValue": "Farbwert",
     "deleteView": "Ansicht löschen",
     "detachEntry": "Eintrag lösen",
+    "laneTrack": "Spur {{name}}",
     "members": "{{count}} Mitglieder",
     "moveDown": "Nach unten",
     "moveUp": "Nach oben",
@@ -1808,6 +1809,7 @@
     "renameView": "Ansicht umbenennen",
     "resize": "Länge anpassen",
     "ruler": "Zeitlineal",
+    "selectLane": "Spur auswählen",
     "views": "Zeitleistenansichten"
   },
   "voiceAgent": {

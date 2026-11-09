@@ -30,25 +30,32 @@ impl EntryDrag {
             grab: Rc::default(),
         }
     }
+    pub fn set_grab(&self, x: f32) {
+        self.grab.set(x);
+    }
 }
 #[derive(Clone)]
-pub(super) struct ResizeDrag {
+pub(super) struct Resizing {
     pub book: String,
+    pub view: String,
     pub entry: String,
     pub at: f64,
-    pub tail: Rc<Cell<f32>>,
+    pub end: f64,
 }
 #[derive(Clone)]
 pub(super) struct PinDrag {
     pub book: String,
     pub view: String,
     pub pin: String,
+    pub title: SharedString,
     pub grab: Rc<Cell<f32>>,
 }
 pub(super) struct Pending {
     pub view: String,
     pub place: TimelinePlacement,
     pub lane: Option<String>,
+    pub base: String,
+    pub settled: bool,
 }
 pub enum PinEdit {
     Label(String),
@@ -82,10 +89,20 @@ impl Timeline {
                     span,
                 },
                 lane: lane.clone(),
+                base: self
+                    .book
+                    .v3()
+                    .map(|b| b.revision.clone())
+                    .unwrap_or_default(),
+                settled: false,
             },
         );
         self.popup = None;
-        self.write(cx, move |lib, book| {
+        let receipt = self
+            .pending
+            .get(&entry)
+            .map(|p| (p.view.clone(), p.place.clone()));
+        self.write_tag(cx, receipt, move |lib, book| {
             lib.run::<timeline::Place>(
                 &Actor::User,
                 timeline::PlaceIn {
@@ -106,6 +123,8 @@ impl Timeline {
             return;
         };
         self.popup = None;
+        self.pending.remove(&entry);
+        cx.notify();
         self.write(cx, move |lib, book| {
             lib.run::<timeline::Remove>(
                 &Actor::User,
@@ -237,27 +256,48 @@ impl Timeline {
             return;
         }
         if let Some(at) = self.order_at(window.mouse_position().x - px(drag.grab.get())) {
-            self.place(drag.entry.clone(), Some(lane), at, drag.span, cx);
+            let span = drag
+                .span
+                .or_else(|| {
+                    self.pending
+                        .get(&drag.entry)
+                        .filter(|p| self.view().is_some_and(|v| v.id == p.view))
+                        .and_then(|p| p.place.span)
+                })
+                .or_else(|| {
+                    self.view()
+                        .and_then(|v| v.placements.iter().find(|p| p.entry == drag.entry))
+                        .and_then(|p| p.span)
+                });
+            self.place(drag.entry.clone(), Some(lane), at, span, cx);
         }
     }
-    pub(super) fn resized(
-        &mut self,
-        drag: &ResizeDrag,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        if drag.book != self.book.id {
+    pub(super) fn resize_moved(&mut self, position: Point<Pixels>, cx: &mut Context<Self>) {
+        let Some(end) = self.order_at(position.x) else {
             return;
+        };
+        if let Some(resize) = &mut self.resize {
+            resize.end = end.max(resize.at + 0.25);
+            cx.notify();
         }
-        if let Some(end) = self.order_at(window.mouse_position().x + px(drag.tail.get())) {
+    }
+    pub(super) fn resize_ended(&mut self, position: Point<Pixels>, cx: &mut Context<Self>) {
+        let end = self.order_at(position.x);
+        if let Some(resize) = self.resize.take()
+            && resize.book == self.book.id
+            && self.view().is_some_and(|v| v.id == resize.view)
+            && self.bounds.get().is_some_and(|b| b.contains(&position))
+            && let Some(end) = end
+        {
             self.place(
-                drag.entry.clone(),
+                resize.entry,
                 None,
-                drag.at,
-                Some((end - drag.at).max(0.25)),
+                resize.at,
+                Some((end - resize.at).max(0.25)),
                 cx,
             );
         }
+        cx.notify();
     }
     pub(super) fn wheel(&mut self, e: &ScrollEvent, window: &mut Window, cx: &mut Context<Self>) {
         if (e.modifiers.platform || e.modifiers.control)

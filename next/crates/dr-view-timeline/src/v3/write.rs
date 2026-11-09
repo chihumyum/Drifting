@@ -30,6 +30,14 @@ impl Timeline {
         cx: &mut Context<Self>,
         f: impl FnOnce(Library, String) -> Result<(), WsError> + Send + 'static,
     ) {
+        self.write_tag(cx, None, f);
+    }
+    pub(super) fn write_tag(
+        &mut self,
+        cx: &mut Context<Self>,
+        receipt: Option<(String, dr_workspace::commands::v3::types::TimelinePlacement)>,
+        f: impl FnOnce(Library, String) -> Result<(), WsError> + Send + 'static,
+    ) {
         let Some(lib) = self.lib.clone() else { return };
         if self.writer.is_none() {
             let (tx, mut rx) = futures::channel::mpsc::unbounded::<Job>();
@@ -53,21 +61,40 @@ impl Timeline {
             return;
         }
         cx.spawn(async move |this, cx| {
-            if let Ok(Err(e)) = rx.await {
-                log::warn!("v3 timeline write failed: {e}");
-                this.update(cx, |timeline, cx| {
-                    timeline.pending.clear();
+            let result = rx
+                .await
+                .unwrap_or_else(|_| Err(WsError::Internal("timeline write queue closed".into())));
+            this.update(cx, |timeline, cx| {
+                if let Some((view, place)) = &receipt
+                    && let Some(p) = timeline.pending.get_mut(&place.entry)
+                    && &p.view == view
+                    && p.place == *place
+                {
+                    p.settled = true;
+                }
+                if let Err(error) = result {
+                    log::warn!("v3 timeline write failed: {error}");
+                    if let Some((view, place)) = receipt
+                        && timeline
+                            .pending
+                            .get(&place.entry)
+                            .is_some_and(|p| p.view == view && p.place == place)
+                    {
+                        timeline.pending.remove(&place.entry);
+                    }
                     let text = t(cx, keys::common::SAVE_FAILED);
                     timeline.ws.update(cx, |ws, cx| ws.toast(text, cx)).ok();
-                    cx.notify();
-                })
-                .ok();
-            }
+                }
+                timeline.reconcile_pending();
+                cx.notify();
+            })
+            .ok();
         })
         .detach();
     }
     pub fn create_view(&mut self, id: String, name: String, cx: &mut Context<Self>) {
         self.selected = Some(id.clone());
+        self.remember(cx);
         self.write(cx, move |lib, book| {
             let views = lib
                 .run::<timeline::ViewList>(&Actor::User, BookIn { book: book.clone() })?

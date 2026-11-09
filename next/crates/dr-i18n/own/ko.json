@@ -122,6 +122,8 @@
     "renamePin": "시간 핀 이름 변경",
     "bindEntry": "항목 연결",
     "detachEntry": "항목 연결 해제",
-    "colorValue": "색상 값"
+    "colorValue": "색상 값",
+    "laneTrack": "레인 {{name}}",
+    "selectLane": "레인 선택"
   }
 }

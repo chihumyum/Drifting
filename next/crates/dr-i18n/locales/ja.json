@@ -1790,6 +1790,7 @@
     "colorValue": "色の値",
     "deleteView": "ビューを削除",
     "detachEntry": "項目の関連付けを解除",
+    "laneTrack": "レーン {{name}}",
     "members": "メンバー {{count}} 件",
     "moveDown": "下へ移動",
     "moveUp": "上へ移動",
@@ -1802,6 +1803,7 @@
     "renameView": "ビューの名前を変更",
     "resize": "長さを調整",
     "ruler": "時間の目盛り",
+    "selectLane": "レーンを選択",
     "views": "タイムラインビュー"
   },
   "voiceAgent": {

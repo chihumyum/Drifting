@@ -1790,6 +1790,7 @@
     "colorValue": "顏色值",
     "deleteView": "刪除視圖",
     "detachEntry": "解除條目",
+    "laneTrack": "泳道 {{name}}",
     "members": "{{count}} 個成員",
     "moveDown": "下移",
     "moveUp": "上移",
@@ -1802,6 +1803,7 @@
     "renameView": "重新命名視圖",
     "resize": "調整長度",
     "ruler": "時間標尺",
+    "selectLane": "選擇泳道",
     "views": "時間線視圖"
   },
   "voiceAgent": {

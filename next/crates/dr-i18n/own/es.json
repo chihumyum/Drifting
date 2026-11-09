@@ -128,6 +128,8 @@
     "renamePin": "Renombrar marcador de tiempo",
     "bindEntry": "Vincular entrada",
     "detachEntry": "Desvincular entrada",
-    "colorValue": "Valor del color"
+    "colorValue": "Valor del color",
+    "laneTrack": "Carril {{name}}",
+    "selectLane": "Elegir carril"
   }
 }

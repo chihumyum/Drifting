@@ -128,6 +128,8 @@
     "renamePin": "Zeitmarkierung umbenennen",
     "bindEntry": "Eintrag verknüpfen",
     "detachEntry": "Eintrag lösen",
-    "colorValue": "Farbwert"
+    "colorValue": "Farbwert",
+    "laneTrack": "Spur {{name}}",
+    "selectLane": "Spur auswählen"
   }
 }

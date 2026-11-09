@@ -1790,6 +1790,7 @@
     "colorValue": "색상 값",
     "deleteView": "보기 삭제",
     "detachEntry": "항목 연결 해제",
+    "laneTrack": "레인 {{name}}",
     "members": "구성원 {{count}}개",
     "moveDown": "아래로 이동",
     "moveUp": "위로 이동",
@@ -1802,6 +1803,7 @@
     "renameView": "보기 이름 변경",
     "resize": "길이 조절",
     "ruler": "시간 눈금",
+    "selectLane": "레인 선택",
     "views": "타임라인 보기"
   },
   "voiceAgent": {

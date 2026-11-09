@@ -57,6 +57,7 @@ pub struct Timeline {
     bounds: Rc<Cell<Option<Bounds<Pixels>>>>,
     writer: Option<futures::channel::mpsc::UnboundedSender<write::Job>>,
     pending: std::collections::BTreeMap<String, interaction::Pending>,
+    resize: Option<interaction::Resizing>,
 }
 
 pub fn init(cx: &mut App) {
@@ -90,6 +91,7 @@ impl Timeline {
             bounds: Rc::default(),
             writer: None,
             pending: Default::default(),
+            resize: None,
         }
     }
     pub fn refresh(&mut self, host: &BottomHost, cx: &mut Context<Self>) {
@@ -100,27 +102,44 @@ impl Timeline {
             self.popup = None;
         }
         self.book = host.book.clone();
-        self.pending.retain(|entry, p| {
-            !self.book.v3().is_some_and(|b| {
-                b.timeline_views
-                    .iter()
-                    .find(|v| v.id == p.view)
-                    .is_some_and(|v| {
-                        v.placements.iter().any(|x| x == &p.place)
-                            && p.lane.as_ref().is_none_or(|lane| {
-                                b.memberships
-                                    .iter()
-                                    .any(|m| &m.host == lane && &m.member == entry)
-                            })
-                    })
-            })
-        });
+        self.reconcile_pending();
         // The shell may itself be borrowed while delivering on_refresh.
         cx.spawn(async move |this, cx| {
             this.update(cx, |this, cx| this.read_memory(cx)).ok();
         })
         .detach();
         cx.notify();
+    }
+    fn reconcile_pending(&mut self) {
+        let Some(book) = self.book.v3() else {
+            self.pending.clear();
+            return;
+        };
+        self.pending.retain(|entry, p| {
+            if !book.entry(entry).is_some_and(|e| e.deleted_at.is_none()) {
+                return false;
+            }
+            let Some(view) = book
+                .timeline_views
+                .iter()
+                .find(|v| v.id == p.view && v.deleted_at.is_none())
+            else {
+                return false;
+            };
+            if p.lane
+                .as_ref()
+                .is_some_and(|lane| !view.lanes.iter().any(|l| &l.entry == lane))
+            {
+                return false;
+            }
+            let arrived = view.placements.iter().any(|x| x == &p.place)
+                && p.lane.as_ref().is_none_or(|lane| {
+                    book.memberships
+                        .iter()
+                        .any(|m| &m.host == lane && &m.member == entry)
+                });
+            !arrived && !(p.settled && book.revision != p.base)
+        });
     }
     fn read_memory(&mut self, cx: &mut Context<Self>) {
         // This is a different memory key from v2.2's axis and synthetic lanes.
@@ -163,6 +182,18 @@ impl Timeline {
                         }
                     }
                 }
+                if let Some(resize) = &self.resize
+                    && resize.view == v.id
+                {
+                    for lane in &mut lanes {
+                        for clip in &mut lane.clips {
+                            if clip.entry == resize.entry {
+                                clip.at = resize.at;
+                                clip.span = Some((resize.end - resize.at).max(0.25));
+                            }
+                        }
+                    }
+                }
                 lanes
             }
             _ => Vec::new(),
@@ -178,7 +209,7 @@ impl Timeline {
         cx.notify();
     }
     fn remember(&self, cx: &mut Context<Self>) {
-        let value = serde_json::json!({"view": self.view().map(|v| &v.id), "zoom": self.zoom, "scroll": -f32::from(self.scroll.offset().x)});
+        let value = serde_json::json!({"view": self.selected.as_ref().or_else(||self.view().map(|v| &v.id)), "zoom": self.zoom, "scroll": -f32::from(self.scroll.offset().x)});
         self.ws
             .update(cx, |ws, cx| {
                 if ws.book_id == self.book.id {

@@ -1,4 +1,4 @@
-use super::interaction::{EntryDrag, PinDrag, PinEdit, ResizeDrag};
+use super::interaction::{EntryDrag, PinDrag, PinEdit, Resizing};
 use super::*;
 use dr_shell::book::color_of;
 use dr_ui::{
@@ -93,7 +93,7 @@ impl Timeline {
     fn popup(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         let popup = self.popup.as_ref()?;
         let book = self.book.v3()?;
-        let mut menu = Menu::new("v3-timeline-menu");
+        let mut menu = div().flex().flex_col().flex_none();
         match &popup.of {
             MenuOf::Views => {
                 for v in book
@@ -172,6 +172,15 @@ impl Timeline {
                     let id = e.id.clone();
                     let target = lane.clone();
                     let drag = EntryDrag::new(self.book.id.clone(), id.clone(), e.title.clone());
+                    let appearance = book.appearance(&id).expect("live entry appearance");
+                    let mark = sand::KindMark::new(
+                        SharedString::from(format!("v3-entry-pick-mark-{id}")),
+                        appearance.sand,
+                    )
+                    .when_some(
+                        appearance.color.as_deref().and_then(color_of),
+                        |mark, color| mark.color(color),
+                    );
                     let row = div()
                         .id(SharedString::from(format!("v3-entry-picker-{id}")))
                         .role(gpui::Role::Button)
@@ -179,6 +188,10 @@ impl Timeline {
                         .cursor_grab()
                         .px_3()
                         .py_1()
+                        .flex()
+                        .items_center()
+                        .gap_2()
+                        .child(mark)
                         .child(e.title.clone())
                         .on_click(cx.listener(move |this, _, _, cx| {
                             if bind {
@@ -257,31 +270,30 @@ impl Timeline {
                 if let Some(pin) = self
                     .view()
                     .and_then(|v| v.pins.iter().find(|p| &p.id == id))
+                    && let Some(entry) = &pin.entry
                 {
-                    if let Some(entry) = &pin.entry {
-                        let entry = entry.clone();
-                        menu = menu.child(
-                            MenuItem::new(
-                                "v3-pin-open",
-                                Icon::ArrowIn,
-                                t(cx, keys::v3_shell::OPEN),
-                            )
-                            .on_click(cx.listener(move |this, e, _, cx| this.open(&entry, e, cx))),
-                        );
-                        let pin_id = id.clone();
-                        menu = menu.child(
-                            MenuItem::new(
-                                "v3-pin-detach",
-                                Icon::Minus,
-                                t(cx, keys::v3_timeline::DETACH_ENTRY),
-                            )
-                            .on_click(cx.listener(
-                                move |this, _, _, cx| {
-                                    this.edit_pin(pin_id.clone(), PinEdit::Bind(None), cx)
-                                },
-                            )),
-                        );
-                    }
+                    let entry = entry.clone();
+                    menu = menu.child(
+                        MenuItem::new(
+                            "v3-pin-open",
+                            Icon::ArrowIn,
+                            t(cx, keys::v3_shell::OPEN),
+                        )
+                        .on_click(cx.listener(move |this, e, _, cx| this.open(&entry, e, cx))),
+                    );
+                    let pin_id = id.clone();
+                    menu = menu.child(
+                        MenuItem::new(
+                            "v3-pin-detach",
+                            Icon::Minus,
+                            t(cx, keys::v3_timeline::DETACH_ENTRY),
+                        )
+                        .on_click(cx.listener(
+                            move |this, _, _, cx| {
+                                this.edit_pin(pin_id.clone(), PinEdit::Bind(None), cx)
+                            },
+                        )),
+                    );
                 }
                 let mut colors = div().flex().gap_1().px_3().py_2();
                 for hex in ["#b46a62", "#738f9a", "#9a8567", "#8b9472", "#8b7f9b"] {
@@ -347,15 +359,27 @@ impl Timeline {
                 }
             }
         }
+        let label = t(
+            cx,
+            match &popup.of {
+                MenuOf::Bind(_) => keys::v3_timeline::BIND_ENTRY,
+                MenuOf::PickLane => keys::v3_timeline::SELECT_LANE,
+                _ => keys::v3_timeline::PLACE_ENTRY,
+            },
+        );
+        let scroll = div()
+            .id("v3-timeline-popup-scroll")
+            .role(gpui::Role::Group)
+            .aria_label(label)
+            .max_h(px(360.))
+            .overflow_y_scroll()
+            .child(menu);
         Some(
             overlay::float(
                 Place::Point(popup.at),
                 Layer::Popover,
                 div()
-                    .id("v3-timeline-popup-scroll")
-                    .max_h(px(360.))
-                    .overflow_y_scroll()
-                    .child(menu)
+                    .child(Menu::new("v3-timeline-menu").child(scroll))
                     .on_mouse_down_out(cx.listener(|this, _, _, cx| {
                         this.popup = None;
                         cx.notify();
@@ -488,6 +512,9 @@ impl Timeline {
                 div()
                     .absolute()
                     .left(px((tick - min) as f32 * unit))
+                    .id(SharedString::from(format!("v3-tick-{tick}")))
+                    .role(gpui::Role::Label)
+                    .aria_label(tick.to_string())
                     .w(px(40.))
                     .top(px(22.))
                     .whitespace_nowrap()
@@ -506,6 +533,7 @@ impl Timeline {
                 book: self.book.id.clone(),
                 view: view.id.clone(),
                 pin: id.clone(),
+                title: pin.label.clone().into(),
                 grab: Rc::default(),
             };
             ruler = ruler.child(
@@ -544,7 +572,7 @@ impl Timeline {
                     .on_drag(drag, |drag, offset, _, cx| {
                         drag.grab.set(f32::from(offset.x));
                         cx.new(|_| Ghost {
-                            title: drag.pin.clone().into(),
+                            title: drag.title.clone(),
                         })
                     }),
             );
@@ -557,6 +585,7 @@ impl Timeline {
                 .and_then(color_of)
                 .unwrap_or(palette.accent);
             let mut row = div()
+                .id(SharedString::from(format!("v3-track-{}", lane.id)))
                 .min_h(px(model::ROW))
                 .flex_1()
                 .relative()
@@ -566,13 +595,15 @@ impl Timeline {
                 .border_color(palette.desk.solid());
             let lane_id = lane.id.clone();
             row = row
-                .id(SharedString::from(format!("v3-track-{}", lane.id)))
                 .role(gpui::Role::Group)
-                .aria_label(lane.title.clone())
+                .aria_label(dr_shell::strings::tf(
+                    cx,
+                    keys::v3_timeline::LANE_TRACK,
+                    &[("name", &lane.title)],
+                ))
                 .on_drop::<EntryDrag>(cx.listener(move |this, drag, w, cx| {
                     this.dropped_entry(drag, lane_id.clone(), w, cx)
-                }))
-                .on_drop::<ResizeDrag>(cx.listener(|this, drag, w, cx| this.resized(drag, w, cx)));
+                }));
             for pin in &view.pins {
                 let x = (pin.at - min) as f32 * unit;
                 if x >= left && x <= left + visible {
@@ -607,11 +638,12 @@ impl Timeline {
                 let id = clip.entry.clone();
                 let mut drag = EntryDrag::new(self.book.id.clone(), id.clone(), title.clone());
                 drag.span = clip.span;
-                let resize = ResizeDrag {
+                let resize = Resizing {
                     book: self.book.id.clone(),
                     entry: id.clone(),
                     at: clip.at,
-                    tail: Rc::default(),
+                    view: view.id.clone(),
+                    end: clip.at + clip.span.unwrap_or(model::DEFAULT_SPAN),
                 };
                 let entry = id.clone();
                 let lane_id = lane.id.clone();
@@ -631,6 +663,7 @@ impl Timeline {
                     });
                     cx.notify();
                 }));
+                let drop_lane = lane.id.clone();
                 let clip_body = glass::glass_box(
                     SharedString::from(format!("v3-clip-{}-{id}", lane.id)),
                     Kind::Rest,
@@ -665,6 +698,9 @@ impl Timeline {
                     cx.stop_propagation();
                     this.open(&id, e, cx);
                 }))
+                .on_drop::<EntryDrag>(cx.listener(move |this, drag, w, cx| {
+                    this.dropped_entry(drag, drop_lane.clone(), w, cx)
+                }))
                 .on_drag(drag, |drag, offset, _, cx| {
                     drag.grab.set(f32::from(offset.x));
                     cx.new(|_| Ghost {
@@ -684,12 +720,14 @@ impl Timeline {
                     .cursor_col_resize()
                     .role(gpui::Role::Slider)
                     .aria_label(t(cx, keys::v3_timeline::RESIZE))
-                    .on_drag(resize, |drag, offset, _, cx| {
-                        drag.tail.set(6. - f32::from(offset.x));
-                        cx.new(|_| Ghost {
-                            title: SharedString::default(),
-                        })
-                    });
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(move |this, _, _, cx| {
+                            this.resize = Some(resize.clone());
+                            cx.stop_propagation();
+                            cx.notify();
+                        }),
+                    );
                 let mut slab = div()
                     .id(SharedString::from(format!(
                         "v3-placement-{}-{}",
@@ -737,6 +775,7 @@ impl Render for Timeline {
         let theme = Theme::of(window, cx);
         let lanes = self.lanes();
         let body = self.bounds.clone();
+        let mouse = cx.weak_entity();
         let mut panel = div()
             .size_full()
             .flex()
@@ -755,9 +794,52 @@ impl Render for Timeline {
                     .child(self.rails(&lanes, cx))
                     .child(self.tracks(view, &lanes, window, cx))
                     .child(
-                        canvas(move |b, _, _| body.set(Some(b)), |_, _, _, _| ())
-                            .absolute()
-                            .size_full(),
+                        canvas(
+                            move |b, _, _| body.set(Some(b)),
+                            move |_, _, window, _| {
+                                let moved = mouse.clone();
+                                window.on_mouse_event(
+                                    move |event: &MouseMoveEvent, phase, _, cx| {
+                                        if phase == DispatchPhase::Capture {
+                                            moved
+                                                .update(cx, |this, cx| {
+                                                    if this.resize.is_some() {
+                                                        if event.pressed_button
+                                                            == Some(MouseButton::Left)
+                                                        {
+                                                            this.resize_moved(event.position, cx);
+                                                            cx.stop_propagation();
+                                                        } else {
+                                                            this.resize = None;
+                                                            cx.notify();
+                                                        }
+                                                    }
+                                                })
+                                                .ok();
+                                        }
+                                    },
+                                );
+                                let ended = mouse.clone();
+                                window.on_mouse_event(move |event: &MouseUpEvent, phase, _, cx| {
+                                    if phase == DispatchPhase::Capture
+                                        && event.button == MouseButton::Left
+                                    {
+                                        ended
+                                            .update(cx, |this, cx| {
+                                                if this.resize.is_some() {
+                                                    this.resize_ended(event.position, cx);
+                                                    cx.stop_propagation();
+                                                }
+                                            })
+                                            .ok();
+                                    }
+                                });
+                            },
+                        )
+                        .absolute()
+                        .left_0()
+                        .top_0()
+                        .size_full(),
                     ),
             );
         }
@@ -771,13 +853,21 @@ struct Ghost {
 impl Render for Ghost {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let p = Theme::of(window, cx).palette;
-        div()
-            .w(px(90.))
-            .h(px(30.))
-            .px_2()
-            .rounded(px(5.))
-            .bg(p.paper.solid())
-            .text_color(p.ink(2).solid())
-            .child(self.title.clone())
+        glass::glass_box(
+            "v3-drag-ghost",
+            Kind::Rest,
+            Mode::default(),
+            false,
+            Spec::new(Tone::Clear, 5.),
+            window,
+            cx,
+        )
+        .w(px(90.))
+        .h(px(30.))
+        .px_2()
+        .rounded(px(5.))
+        .bg(p.paper.solid())
+        .text_color(p.ink(2).solid())
+        .child(self.title.clone())
     }
 }

@@ -1804,6 +1804,7 @@
     "colorValue": "Valor da cor",
     "deleteView": "Excluir visualização",
     "detachEntry": "Desvincular entrada",
+    "laneTrack": "Faixa {{name}}",
     "members": "{{count}} membros",
     "moveDown": "Mover para baixo",
     "moveUp": "Mover para cima",
@@ -1816,6 +1817,7 @@
     "renameView": "Renomear visualização",
     "resize": "Ajustar comprimento",
     "ruler": "Régua de tempo",
+    "selectLane": "Selecionar faixa",
     "views": "Visualizações da linha do tempo"
   },
   "voiceAgent": {
