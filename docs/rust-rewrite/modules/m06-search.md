@@ -145,18 +145,20 @@ heavy 验收；接口批完整检查见下节。宿主接通后必须从实际�
 **不是搜索／统计产品功能验收完成，也不是 G4 完成。**
 
 - 分支：`codex/k4-g4-book`；实现提交 `78a8a314`，合入 main 基线
-  `2f80ac40`（同步提交 `d42c1a2f`、`3c085afd`）。交回指针为 `handback/k4-g4`。
+  `ee372789`（第 57 批；同步提交 `d42c1a2f`、`3c085afd`、`13469f7c`）。
+  交回指针为 `handback/k4-g4`。
 - 范围：dr-view-search、dr-view-stats、它们的依赖清单／测试，以及 dr-i18n 的
   own 与生成 locales（九语言四个短标签）。没有修改 dr-shell、K2 或其他组产品。
   本批适配只有读，契约断言读取不改书的版本；后续写入仍须使用逐项命令或
   与原读取对应的版本守卫，并补并发／隐藏内容的写入回归。
 - 检查：`CARGO_BUILD_JOBS=3`；workspace fmt、Clippy（all-targets、locked、
   `-D warnings`）通过；`DR_UI_REQUIRE_FONTS=1 RUST_TEST_THREADS=1 cargo test
-  --workspace --locked` 的 Cargo 汇总 **2068 通过、0 失败、22 忽略**；
+  --workspace --locked` 的 Cargo 汇总 **2090 通过、0 失败、22 忽略**；
   `cargo xtask check`（含 audit）、根目录 `pnpm public:check`、九语言同步检查、
   `git diff --check` 通过。xtask 仍标注既有 14 份 stale 和 15 份 legacy 测量，
   本接口批没有新增或改写测量证据。
-- 复验经过：首轮全测在原书架封面／日期卡片测试等待超时，同一二进制独跑
+- 复验经过：main `2f80ac40` 基线曾完整通过 2068 项；同步第 57 批后按同一
+  配置重跑全套，以上 2090 项和全部门禁结果来自新候选。更早的首轮全测在原书架封面／日期卡片测试等待超时，同一二进制独跑
   2.16 秒通过；第二轮串行全测该项通过，但字符封面因本 worktree 缺构建字体而
   画空。补入已有六个构建字体并逐个核对 provenance 的固定 SHA-256 后，字符
   封面独跑和最终完整全测均通过。没有修改书架、字体配方、测试阈值或忽略项。
