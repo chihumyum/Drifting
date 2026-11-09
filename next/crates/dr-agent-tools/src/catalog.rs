@@ -308,6 +308,13 @@ impl Catalog {
                     "{} Whole-view replacement requires a complete timeline_view.list at the guarded version. Hidden lanes, placements or pin data prevent replacement; use supported item commands instead.",
                     spec.summary
                 )
+            } else if version == BookKernelVersion::V3
+                && matches!(spec.name, "membership.remove" | "timeline_view.remove")
+            {
+                format!(
+                    "{} Requires a complete timeline_view.list at the guarded version; hidden timeline data prevents removal until the kernel cascade preserves it.",
+                    spec.summary
+                )
             } else if version == BookKernelVersion::V3 && spec.name == "comment.create" {
                 format!(
                     "{} Whole-entry, module, material or floating comments only; range, block and anchor creation await guarded source-prose support.",
