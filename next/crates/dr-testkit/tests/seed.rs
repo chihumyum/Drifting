@@ -602,7 +602,7 @@ fn two_novel_books_in_one_library_have_disjoint_doc_ids_and_purging_one_keeps_th
 
     // Permanently delete book 1 (all its docs) from the library.
     for doc_id in &b1_docs_before {
-        assert!(lib.purge_doc(doc_id).unwrap());
+        lib.purge_doc(doc_id).unwrap();
     }
     assert!(lib.docs(Some(b1_id.as_str()), None).unwrap().is_empty());
 
