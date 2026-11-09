@@ -1155,7 +1155,7 @@ LoroText（含 bold）／MovableList 的归属与位置四种组合验证无损�
 
 place 沿用 first／last／before／after。若缺失或相同排序键让单字段写入不能表达请求顺序，
 命令返回 conflict，不顺手重排其他泳道。已有隐藏位置、未知位置、备用隐藏归属、时间钉、
-其他视图和所有 memberships 保持不变。计划读取、真实容器预检及写入都在同一 holder 任务中，
+其他视图和所有 memberships 保持不变。编辑计划、当前真实容器预检及写入都在同一 holder 任务中，历史快照另行读取并预检；
 调用方仍传原始读时的书观察给 `call_guarded`。
 
 `dr_doc::v3::TimelineFieldV3` 限定 Name、Lane、LanePosition、Placement；
