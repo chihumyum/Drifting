@@ -92,16 +92,12 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let focused = self
-            .editors
-            .values()
-            .filter_map(|p| p.view.clone())
-            .find(|v| {
-                v.prose(cx)
-                    .read(cx)
-                    .focus_handle(cx)
-                    .contains_focused(window, cx)
-            });
+        let focused = self.all_page_views().into_iter().find(|v| {
+            v.prose(cx)
+                .read(cx)
+                .focus_handle(cx)
+                .contains_focused(window, cx)
+        });
         if let Some(view) = focused {
             self.open_composer(&view, window, cx);
         }
@@ -144,6 +140,21 @@ impl Workspace {
         let Some(lib) = self.library.clone() else {
             return;
         };
+        if self.book.v3().is_some() {
+            let selection = prose.read(cx).selection();
+            if selection.chapter != chapter || selection.range() != req.range {
+                return;
+            }
+            // The same stable-prose entry point as the keyboard composer.
+            // G4 owns version dispatch and captures the selected anchors.
+            let locale = crate::Strings::get(cx).locale();
+            if let Some(composer) =
+                CommentComposer::for_prose(&prose, lib, &self.book_id, &req.doc, locale, window, cx)
+            {
+                self.show_composer(composer, prose, window, cx);
+            }
+            return;
+        }
         let Some((kind, id)) = req.doc.split_once(':') else {
             return;
         };

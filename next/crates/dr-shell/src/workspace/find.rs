@@ -456,6 +456,10 @@ impl super::Workspace {
             .and_then(|t| self.page_view(&t).map(|v| v.prose(cx).entity_id()));
         if front != Some(searched) {
             self.close_find(window, cx);
+            // The searched editor may have been replaced inside a stable
+            // renderer (whole-book reload). Do not leave focus on its old
+            // prose, or let the unchanged renderer id suppress the handoff.
+            self.refocus(window, cx);
         }
     }
 }

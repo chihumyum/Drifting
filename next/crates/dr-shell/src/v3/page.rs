@@ -85,13 +85,24 @@ impl EntryPage {
             Target::Entry { module, .. } => module.as_ref().map(|m| m.as_str()),
             _ => None,
         };
-        let section = selected
-            .and_then(|id| self.sections.iter().find(|s| s.id == id))
-            .or_else(|| self.sections.iter().find(|s| s.kind == "prose"));
+        let section = match selected {
+            Some(id) => self.sections.iter().find(|s| s.id == id),
+            None => self.sections.iter().find(|s| s.kind == "prose"),
+        };
         section
             .and_then(|s| self.parts.get(&format!("module:{}", s.id)))
             .and_then(|(_, part)| part.focus.clone())
             .unwrap_or_else(|| self.focus.clone())
+    }
+    /// Only the module views currently retained by this particular page.
+    pub(crate) fn editor_views(&self) -> Vec<(String, EntityId)> {
+        self.sections
+            .iter()
+            .filter_map(|section| {
+                let (_, part) = self.parts.get(&format!("module:{}", section.id))?;
+                Some((section.id.clone(), part.view.entity_id()))
+            })
+            .collect()
     }
     pub fn state(&self) -> serde_json::Value {
         serde_json::json!({ "target": self.target.key(), "sections": self.sections, "module": match &self.target { Target::Entry { module, .. } => module.as_ref().map(ToString::to_string), _ => None }, "reveal": self.revealed })
