@@ -180,5 +180,16 @@
     "yes": "是",
     "no": "否",
     "add_field": "添加字段"
+  },
+  "v3Timeline": {
+    "views": "时间线视图",
+    "newView": "新建视图",
+    "renameView": "重命名视图",
+    "deleteView": "删除视图",
+    "addLane": "添加泳道",
+    "removeLane": "移出视图",
+    "moveUp": "上移",
+    "moveDown": "下移",
+    "members": "{{count}} 个成员"
   }
 }

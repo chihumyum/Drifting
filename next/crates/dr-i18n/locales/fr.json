@@ -1875,6 +1875,17 @@
     "templates": "Modèles",
     "trash": "Déplacer vers les suppressions récentes"
   },
+  "v3Timeline": {
+    "addLane": "Ajouter une piste",
+    "deleteView": "Supprimer la vue",
+    "members": "{{count}} membres",
+    "moveDown": "Descendre",
+    "moveUp": "Monter",
+    "newView": "Nouvelle vue",
+    "removeLane": "Retirer de la vue",
+    "renameView": "Renommer la vue",
+    "views": "Vues chronologiques"
+  },
   "voiceAgent": {
     "error": {
       "auth": "Clé de transcription invalide ou expirée",

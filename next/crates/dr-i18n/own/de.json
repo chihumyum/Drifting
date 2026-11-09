@@ -186,5 +186,16 @@
     "yes": "Ja",
     "no": "Nein",
     "add_field": "Feld hinzufügen"
+  },
+  "v3Timeline": {
+    "views": "Zeitleistenansichten",
+    "newView": "Neue Ansicht",
+    "renameView": "Ansicht umbenennen",
+    "deleteView": "Ansicht löschen",
+    "addLane": "Spur hinzufügen",
+    "removeLane": "Aus Ansicht entfernen",
+    "moveUp": "Nach oben",
+    "moveDown": "Nach unten",
+    "members": "{{count}} Mitglieder"
   }
 }

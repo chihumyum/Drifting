@@ -1875,6 +1875,17 @@
     "templates": "Modelos",
     "trash": "Mover para Excluídos recentemente"
   },
+  "v3Timeline": {
+    "addLane": "Adicionar faixa",
+    "deleteView": "Excluir visualização",
+    "members": "{{count}} membros",
+    "moveDown": "Mover para baixo",
+    "moveUp": "Mover para cima",
+    "newView": "Nova visualização",
+    "removeLane": "Remover da visualização",
+    "renameView": "Renomear visualização",
+    "views": "Visualizações da linha do tempo"
+  },
   "voiceAgent": {
     "error": {
       "auth": "Chave de transcrição inválida ou expirada",
