@@ -48,7 +48,7 @@
 Word 含新章节、书文件版本为 3。初轮副屏启动包装器因 PID 不同未被桥识别，
 改用 exec 保留 PID 后原场景复跑；随后修正脚本的 More actions 标签，通过
 轮及前两轮记录均留在忽略的 `next/target/g4-checks/`。完整检查结果见上；
-逐项窗口／目检／heavy 按 11-10 新规由整合者切换前统一安排。
+切换前统一功能验收由整合者安排；目检、heavy 和 UI 打磨按 11-10 新规暂缓。
 
 2026-11-08，第一个里程碑：成稿导出（EPUB / PDF / Word）和 Markdown 分享。计划见 [modules.md 的 M41](../modules.md)。排版搬自旧版 `src-tauri/src/manuscript_export/*`，放进新的服务层 crate `next/crates/dr-export/`；新写的是「Loro → 成稿」的转换和 Markdown；界面在 `next/crates/dr-view-export/`，外壳挂在页面右下角的 ⋯ 菜单。第二部分（同一天）是搬运：`.driftingbook` v2、导入 Markdown / 文本 / Word、整库备份与恢复，见文末「第二部分：搬运」。
 

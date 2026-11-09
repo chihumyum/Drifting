@@ -254,6 +254,11 @@
     "formatNotes": "Notes",
     "formatPlain": "Texte brut"
   },
+  "entrySnapshot": {
+    "save": "Enregistrer un instantané",
+    "title": "Historique des instantanés",
+    "empty": "Aucun instantané pour le moment"
+  },
   "k4Book": {
     "entry_words": "Mots de l’entrée",
     "material_words": "Mots du matériau",

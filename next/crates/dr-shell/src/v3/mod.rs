@@ -10,6 +10,7 @@ use gpui::{AnyView, App, FocusHandle, Global, Window};
 use std::{collections::BTreeMap, rc::Rc};
 
 pub mod card;
+pub mod history;
 pub mod page;
 pub mod sidebar;
 

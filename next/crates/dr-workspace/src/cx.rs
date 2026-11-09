@@ -38,6 +38,9 @@ use crate::holder::{self, lock};
 use crate::registry::{Access, Concurrency, Spec};
 use crate::workspace::{BookSlot, ProseSlot, Workspace};
 
+#[cfg(test)]
+mod source_tests;
+
 /// What a write did, entity by entity. Commands report every entity they
 /// changed and every entity whose display changed as a consequence (a
 /// relation hidden because its end went to the trash), so the interface can
@@ -437,6 +440,27 @@ impl<'a> Cx<'a> {
         self.st.borrow_mut().summary = Some(format!("{}: {}", self.spec.name, s.into()));
     }
 
+    /// Validate caller-supplied guards together on reserved document copies.
+    /// Used only by the opt-in v3 complete-entry atomic commands.
+    pub(crate) fn check_atomic_guards(
+        &self,
+        docs: &std::collections::BTreeMap<String, loro::LoroDoc>,
+    ) -> Result<()> {
+        if let Some(guards) = &self.guards {
+            for (id, doc) in docs {
+                guards.check(id, doc)?;
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn check_atomic_read_guard(&self, id: &str, doc: &loro::LoroDoc) -> Result<()> {
+        if let Some(guards) = &self.guards {
+            guards.check_if_observed(id, doc)?;
+        }
+        Ok(())
+    }
+
     /// Step 2: make sure prose document `doc` exists (registered; its genesis
     /// is written when it is first opened, identically on every device).
     pub(crate) fn create_prose(&self, book: &BookId, doc: &DocId) -> Result<()> {
@@ -628,6 +652,26 @@ impl<'a> Cx<'a> {
 
     pub(crate) fn prose_view<'s>(&self, slot: &'s ProseSlot) -> ProseView<'s> {
         slot.reader.view()
+    }
+
+    /// Read a prose dependency at the caller's observed version. Check and
+    /// derivation share one holder job; no writer can interleave between them.
+    /// Guarded calls must supply this source even when `require_all` is false.
+    /// The result may outlive that version (stable anchors do); this does not
+    /// lock prose until a later book write or create a cross-document CAS.
+    pub(crate) fn read_prose_source<R, F>(&self, slot: &ProseSlot, f: F) -> Result<R>
+    where
+        F: FnOnce(&loro::LoroDoc) -> Result<R> + Send + 'static,
+        R: Send + 'static,
+    {
+        let guards = self.guards.clone();
+        let id = slot.doc.to_string();
+        slot.handle.read(move |doc| {
+            if let Some(guards) = guards {
+                guards.check_required(&id, doc)?;
+            }
+            f(doc)
+        })?
     }
 
     // ---- results --------------------------------------------------------

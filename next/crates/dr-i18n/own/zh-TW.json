@@ -248,6 +248,11 @@
     "formatNotes": "筆記",
     "formatPlain": "純文字"
   },
+  "entrySnapshot": {
+    "save": "儲存快照",
+    "title": "快照歷史",
+    "empty": "尚無快照"
+  },
   "k4Book": {
     "entry_words": "條目字數",
     "material_words": "素材字數",

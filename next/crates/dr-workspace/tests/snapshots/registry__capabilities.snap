@@ -69,6 +69,11 @@ entry_history.version        query    shared   Read the current v3 book version 
 entry_relation_type.delete   command  book     Delete an unused unlocked v3 relation type.
 entry_relation_type.list     query    shared   List relation types available to v3 entry modules.
 entry_relation_type.put      command  book     Create or edit a v3 relation type with endpoint and template restrictions.
+entry_snapshot.capture       command  book     Capture changed v3 entry content periodically or on close using the existing history interval; unchanged content is skipped.
+entry_snapshot.create        command  book     Save a complete v3 entry checkpoint, including retained modules and all body versions. Call before an Agent writes the entry.
+entry_snapshot.list          query    shared   List complete checkpoints of one v3 entry, newest first.
+entry_snapshot.preview       query    shared   Read all historical entry content and current version guards for an atomic restore.
+entry_snapshot.restore       command  book     Atomically restore all owned content of one entry with required version guards, preserving a complete pre-restore checkpoint.
 entry_template.delete        command  book     Delete an unused v3 template without deleting its retained prose documents.
 entry_template.list          query    shared   List the templates and module definitions of a v3 book.
 entry_template.put           command  book     Create or replace a v3 template definition while retaining existing entry content.
@@ -101,6 +106,7 @@ material.create              command  book     Add a material: a text note, or a
 material.delete              command  book     Delete a material: its relations go and comments on it become floating, in one commit (its note stays in history; undo restores it).
 material.list                query    shared   List materials in order, optionally of one folder.
 material.move                command  book     Move a material in the list (only its own position changes).
+material.set_entry_link      command  book     Add or remove one built-in association from a material to a live v3 entry, preserving every other relation.
 material.update              command  book     Change a material's title, description, folder or TODO projection.
 material_folder.create       command  book     Create a material folder.
 material_folder.delete       command  book     Delete a material folder: its sub-folders and materials move up to its parent.

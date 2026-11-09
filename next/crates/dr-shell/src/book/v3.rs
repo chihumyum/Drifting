@@ -68,6 +68,7 @@ pub struct BookV3 {
     pub memberships: Vec<types::Membership>,
     pub timeline_views: Vec<types::TimelineView>,
     pub materials: Vec<dr_workspace::dto::MaterialInfo>,
+    pub material_folders: Vec<dr_workspace::dto::GroupInfo>,
     #[serde(skip)]
     entry_index: BTreeMap<String, usize>,
     #[serde(skip)]
@@ -238,6 +239,9 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
                     .map_err(|e| WsError::Invalid(e.to_string()))?;
                 Ok::<_, WsError>(book.view().materials().iter().map(Into::into).collect())
             })??;
+        let material_folders = lib
+            .run::<dr_workspace::commands::material::FolderList>(&Actor::User, input())?
+            .output;
         let after = lib.observe(&format!("book:{id}"))?;
         if before.version != after.version || resolved.version != after.version {
             continue;
@@ -274,6 +278,7 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
             memberships,
             timeline_views,
             materials,
+            material_folders,
             ..Default::default()
         };
         v3.entry_index = v3

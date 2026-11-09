@@ -26,6 +26,7 @@
 //! the author's note, still opens in the editor), and the 素材库 tab shows
 //! [`library::LibraryPanel`].
 
+mod associations;
 pub mod card;
 pub mod folders;
 pub mod import;
@@ -56,7 +57,7 @@ pub fn init(cx: &mut App) {
         let id = id.to_string();
         let kind = host
             .book
-            .materials
+            .material_items()
             .iter()
             .find(|m| m.id == id)
             .and_then(|m| MediaKind::parse(&m.kind))?;

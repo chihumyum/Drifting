@@ -1,0 +1,565 @@
+{
+  "about": "G1 complete-entry snapshot smoke: real-window save, preview, confirmation, two-body restore, pre-restore recovery and reopen. Secondary display and isolated synthetic profile. Screenshots are records, not visual acceptance.",
+  "steps": [
+    {
+      "seed": "v3-tiny"
+    },
+    {
+      "call": "book.list",
+      "save": "books"
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}",
+        "all": true
+      },
+      "save": "entries"
+    },
+    {
+      "call": "entry.update",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${entries.[template=tpl-chapter].id}",
+        "title": "G1 Snapshot Before"
+      }
+    },
+    {
+      "call": "entry_template.put_module",
+      "input": {
+        "book": "${books.0.id}",
+        "template": "tpl-chapter",
+        "module": {
+          "id": "second-prose",
+          "kind": "prose",
+          "name": "Second",
+          "pos": "a9"
+        }
+      }
+    },
+    {
+      "call": "module.set_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose",
+        "paragraphs": [
+          {
+            "text": "Snapshot original A"
+          }
+        ]
+      }
+    },
+    {
+      "call": "module.set_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "second-prose",
+        "paragraphs": [
+          {
+            "text": "Snapshot original B"
+          }
+        ]
+      }
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light",
+          "DRIFTING_WINDOW_DISPLAY": "secondary"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "window.focus",
+      "params": {}
+    },
+    {
+      "app": "app.info",
+      "save": "initial_environment"
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${books.0.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/version": 3,
+          "/book/loaded": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-chapter].id}/mod-prose"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 800
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-j"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/bottom/pane": null
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "TextArea",
+        "nth": 0,
+        "dy": 40
+      }
+    },
+    {
+      "app": "app.info",
+      "save": "environment_before_17"
+    },
+    {
+      "app": "ui.find",
+      "params": {},
+      "save": "ui_before_18"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "More actions"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 800
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "MenuItem",
+        "label": "History snapshots…",
+        "hover_ms": 0
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/history": true
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 500
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "Save snapshot"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 800
+      }
+    },
+    {
+      "call": "entry_snapshot.list",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${entries.[template=tpl-chapter].id}"
+      },
+      "save": "saved"
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "escape"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/history": false
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "window.focus",
+      "params": {}
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-up"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "Typed "
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "Typed Snapshot original A"
+      }
+    },
+    {
+      "call": "module.set_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "second-prose",
+        "paragraphs": [
+          {
+            "text": "Agent changed B"
+          }
+        ]
+      },
+      "actor": "agent:g1-snapshot-smoke/1"
+    },
+    {
+      "call": "entry.update",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${entries.[template=tpl-chapter].id}",
+        "title": "G1 Snapshot After"
+      },
+      "actor": "agent:g1-snapshot-smoke/1"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 600
+      }
+    },
+    {
+      "app": "app.info",
+      "save": "environment_before_39"
+    },
+    {
+      "app": "ui.find",
+      "params": {},
+      "save": "ui_before_40"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "More actions"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 800
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "MenuItem",
+        "label": "History snapshots…",
+        "hover_ms": 0
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/history": true
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 500
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "contains": "G1 Snapshot Before",
+        "nth": 0
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 600
+      }
+    },
+    {
+      "app": "app.info",
+      "save": "preview_environment"
+    },
+    {
+      "app": "ui.find",
+      "params": {},
+      "save": "preview_ui"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "contains": "Snapshot original B"
+      },
+      "save": "preview_b"
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "Typed Snapshot original A"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "Restore…"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "second-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "Agent changed B"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "Confirm overwrite current version"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 800
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "Snapshot original A"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "second-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "Snapshot original B"
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${entries.[template=tpl-chapter].id}"
+      },
+      "expect": {
+        "/title": "G1 Snapshot Before"
+      }
+    },
+    {
+      "call": "entry_snapshot.list",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${entries.[template=tpl-chapter].id}"
+      },
+      "save": "after_restore"
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "entry-restored.png"
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "escape"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/history": false
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "call": "entry_snapshot.preview",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${entries.[template=tpl-chapter].id}",
+        "point": "${after_restore.[reason=restore].id}"
+      },
+      "save": "before"
+    },
+    {
+      "call": "entry_snapshot.restore",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${entries.[template=tpl-chapter].id}",
+        "point": "${before.point.id}",
+        "expected": "${before.expected}"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "Typed Snapshot original A"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "second-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "Agent changed B"
+      }
+    },
+    {
+      "app": "app.info",
+      "save": "final_environment"
+    },
+    {
+      "app": "app.quit"
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "Typed Snapshot original A"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "second-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "Agent changed B"
+      }
+    }
+  ]
+}
