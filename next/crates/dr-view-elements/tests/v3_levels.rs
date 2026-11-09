@@ -475,3 +475,65 @@ fn board_page_separates_members_without_changing_the_navigation_canvas() {
     assert_eq!(v.entry(&member).unwrap().parent, old_parent);
     ws.shutdown().unwrap();
 }
+
+#[gpui::test]
+fn picker_host_rejects_book_or_library_replacement(cx: &mut gpui::TestAppContext) {
+    use dr_shell::{
+        Services, ShellInfo, Workspace as ShellWorkspace, pages::PageViewHost,
+        settings::SettingsFile,
+    };
+    use dr_view_elements::data::v3::fresh;
+    use std::rc::Rc;
+    let (_dir, lib, book) = seed();
+    let other_dir = tempfile::tempdir().unwrap();
+    let other = Workspace::open_dir(other_dir.path(), "0.2.0-dev").unwrap();
+    let snapshot = Rc::new(Book::load(&lib, &book).unwrap());
+    cx.executor().allow_parking();
+    cx.update(|cx| {
+        dr_shell::init(
+            ShellInfo {
+                app_name: "Drifting Next",
+                bundle_id: "cc.drifting.next.dev",
+                version: "0.2.0-dev",
+                url_scheme: "drifting-next-dev",
+                forced_appearance: None,
+            },
+            Services {
+                library: Some(lib.clone()),
+                ..Services::default()
+            },
+            SettingsFile::in_memory(),
+            cx,
+        )
+    });
+    let (ws, cx) = cx.add_window_view(ShellWorkspace::new);
+    cx.update(|_, cx| {
+        ws.update(cx, |ws, _| {
+            ws.book_id = book.clone();
+            ws.book = snapshot.clone();
+        })
+    });
+    let host = PageViewHost {
+        workspace: ws.downgrade(),
+        library: lib.clone(),
+        book_id: book.clone(),
+        book: snapshot,
+    };
+    cx.update(|_, cx| {
+        assert!(fresh(&host, cx).is_some());
+        ws.update(cx, |ws, _| ws.book_id = "synthetic-other-book".into());
+        assert!(fresh(&host, cx).is_none());
+        ws.update(cx, |ws, _| {
+            ws.book_id = book;
+            ws.library = Some(other.clone());
+        });
+        // Even if the old book snapshot is still on screen during a library
+        // replacement, no picker may write through its former library handle.
+        assert!(fresh(&host, cx).is_none());
+        ws.update(cx, |ws, _| ws.library = None);
+        assert!(fresh(&host, cx).is_none());
+        ws.update(cx, |ws, _| ws.library = Some(lib.clone()));
+        assert!(fresh(&host, cx).is_some());
+    });
+    drop((host, lib, other));
+}

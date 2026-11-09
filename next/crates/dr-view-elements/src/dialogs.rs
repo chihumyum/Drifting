@@ -1143,7 +1143,14 @@ pub mod v3 {
                 );
             }
             if self.error {
-                list = list.child(t(cx, keys::common::SAVE_FAILED));
+                let error = t(cx, keys::common::SAVE_FAILED);
+                list = list.child(
+                    div()
+                        .id("g2-setting-error")
+                        .role(gpui::Role::Alert)
+                        .aria_label(error.clone())
+                        .child(error),
+                );
             }
             let dialog = Dialog::new(
                 "g2-setting-dialog",

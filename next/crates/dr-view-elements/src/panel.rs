@@ -2229,10 +2229,24 @@ pub mod v3 {
                 }
                 content = content.child(self.board_canvas(&ids, window, cx));
             }
+            let scroll = self.scroll.clone();
             div()
                 .id("g2-board-scroll")
+                .role(gpui::Role::Group)
+                .aria_label(t(cx, keys::v3_shell::ENTRIES))
                 .overflow_scroll()
                 .track_scroll(&self.scroll)
+                // GPUI's div wheel handler updates the inner offset but does
+                // not consume the event. Keep the enclosing page stationary.
+                .on_scroll(move |event, window, cx| {
+                    let delta = event.delta.pixel_delta(window.line_height());
+                    let max = scroll.max_offset();
+                    if !delta.y.is_zero() && max.y > px(0.0)
+                        || !delta.x.is_zero() && max.x > px(0.0)
+                    {
+                        cx.stop_propagation();
+                    }
+                })
                 .size_full()
                 .child(content)
                 .into_any_element()
@@ -2340,8 +2354,17 @@ pub mod v3 {
                 .size_full()
                 .into_any_element()
             };
-            root.child(div().flex_1().min_h_0().child(body))
-                .into_any_element()
+            root.child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .flex_1()
+                    .h_full()
+                    .min_h_0()
+                    .overflow_hidden()
+                    .child(body),
+            )
+            .into_any_element()
         }
     }
 }

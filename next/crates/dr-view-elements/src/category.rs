@@ -729,6 +729,9 @@ pub mod v3 {
     pub struct SettingsView {
         pub host: LevelHost,
     }
+    pub fn register(cx: &mut App) {
+        dr_shell::v3::add_level_settings(cx, make);
+    }
     pub fn make(host: LevelHost, _: &mut Window, cx: &mut App) -> Rendered {
         let view = cx.new(|_| SettingsView { host });
         let weak = view.downgrade();
@@ -933,10 +936,14 @@ pub mod v3 {
                 }
                 settings = settings.child(div().flex().flex_col().gap_1().child(row).children(
                     level.sources.get(key).map(|s| {
+                        let provenance = source(&book, s, cx);
                         div()
+                            .id(SharedString::from(format!("g2-setting-source-{key}")))
+                            .role(gpui::Role::Note)
+                            .aria_label(provenance.clone())
                             .font_role(Role::Index)
                             .text_color(theme.palette.muted().solid())
-                            .child(source(&book, s, cx))
+                            .child(provenance)
                     }),
                 ));
             }
