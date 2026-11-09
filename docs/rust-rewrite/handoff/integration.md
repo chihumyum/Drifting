@@ -487,4 +487,4 @@ git -c core.hooksPath=/dev/null merge --no-ff --no-edit -m "Merge branch '<整�
 
 - `handback/k6` 前进至 `20dbf687`，第三步 `0b40e230` 新增复制进项目的小说指导与 v3 运行时／主页接线，并合 main 到第 52 批；没有包含第 53 批退回修复。与 `a4603663` 的 resolve_v3.rs、executor.rs、目录契约和底层 v3/timeline.rs 四个 Git blob 逐项完全相同；dr-agent-tools 仅新增 structure.rs 的说明测试，没有隐藏时间线回归。代码一致性机器记录存公共 Git 目录 `integration-evidence/batch-54/unchanged-rejection-path.json`。
 - 已知删除隐藏摆放的问题仍挡接收。沿用第 53 批原探针和复现命令；本次没有重新运行探针、没有试合产品，也没有跑候选全套或窗口，不把源分支 2076 项写成整合结果。仍要求先修过滤读取授权整份覆盖，补永久回归并重新交回。
-- 常驻树从 main `27e95bd8` 开 `codex/batch-54-rejection`，仅更新三份整合文档；文档变更的 xtask／审计、public 和 diff 空白检查通过。main 产品仍到第 52 批，K6 三步均未接，G1 第 49 批退回继续保留。未推送、未开 PR。
+- 常驻树从 main `474c33fa` 开 `codex/batch-54-rejection`，保留监管新增的 K4 写入规则，仅更新三份整合文档；文档变更的 xtask／审计、public 和 diff 空白检查通过。main 产品仍到第 52 批，K6 三步均未接，G1 第 49 批退回继续保留。未推送、未开 PR。
