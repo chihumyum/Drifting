@@ -23,10 +23,14 @@
 当作 id。变化中的导出拒绝发布，导入失败回滚已写入的正文。对话框消费同一
 服务，新书始终独立于源书及另一次导入。
 
-准备检查：搬运与导出两 crate 的一轮测试 76 通过、0 失败、1 忽略；随后补了
-原书删除隔离、genesis 锚点与历史字段识别，待最终复验。尚无新的正式
-handback，真窗口冒烟待跑；按 11-10 新规，逐项窗口／目检／heavy 由整合者
-在切换前统一安排，不能将旧书窗口结果算作 v3 通过。
+准备检查：主页、导出、搬运三 crate 定向测试 84 通过、0 失败、1 忽略，
+包含原书删除隔离、genesis 锚点与历史字段识别，定向 Clippy 通过。
+`dr-view-home/scenarios/book-v3.json` 在 seed:v3-lite 的副屏真窗口 33/33
+通过、0 pending：主页新建章节、Word 成稿、书架导出与导入新书；另核对
+Word 含新章节、书文件版本为 3。初轮副屏启动包装器因 PID 不同未被桥识别，
+改用 exec 保留 PID 后原场景复跑；随后修正脚本的 More actions 标签，通过
+轮及前两轮记录均留在忽略的 `next/target/g4-checks/`。完整检查仍在运行，
+尚未正式交回；逐项窗口／目检／heavy 按 11-10 新规由整合者切换前统一安排。
 
 2026-11-08，第一个里程碑：成稿导出（EPUB / PDF / Word）和 Markdown 分享。计划见 [modules.md 的 M41](../modules.md)。排版搬自旧版 `src-tauri/src/manuscript_export/*`，放进新的服务层 crate `next/crates/dr-export/`；新写的是「Loro → 成稿」的转换和 Markdown；界面在 `next/crates/dr-view-export/`，外壳挂在页面右下角的 ⋯ 菜单。第二部分（同一天）是搬运：`.driftingbook` v2、导入 Markdown / 文本 / Word、整库备份与恢复，见文末「第二部分：搬运」。
 
