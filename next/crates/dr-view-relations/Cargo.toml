@@ -18,6 +18,7 @@ dr-doc.workspace = true
 dr-i18n.workspace = true
 dr-model.workspace = true
 dr-shell.workspace = true
+dr-store.workspace = true
 dr-ui.workspace = true
 dr-workspace.workspace = true
 futures.workspace = true

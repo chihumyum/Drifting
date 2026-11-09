@@ -55,6 +55,7 @@ pub enum NameGroup {
     Chapter,
     /// Idea titles (构想).
     Idea,
+    Entry,
     Other,
 }
 
@@ -65,6 +66,7 @@ impl NameGroup {
             NameGroup::Element => "要素",
             NameGroup::Chapter => "章节",
             NameGroup::Idea => "构想",
+            NameGroup::Entry => "", // The v3 host supplies its localized heading.
             NameGroup::Other => "其他",
         }
     }
@@ -149,10 +151,49 @@ impl NameIndex {
             .map_err(|e| e.to_string())?;
         let exclude: Vec<String> = exclude
             .iter()
-            .map(|d| d.split_once(':').map_or(*d, |(_, id)| id).to_owned())
+            .map(|d| {
+                let id = d.split_once(':').map_or(*d, |(_, id)| id);
+                if d.starts_with("body:") {
+                    id.split('/').next().unwrap_or(id)
+                } else {
+                    id
+                }
+                .to_owned()
+            })
             .collect();
         let (names, groups) = handle
             .read(move |d| {
+                if dr_doc::v3::is_v3_doc(d) {
+                    let reader = dr_doc::v3::BookReaderV3::from_loro(book_id, d)?;
+                    let v = reader.view();
+                    let entries = v.entries_map();
+                    let templates = v.templates_map();
+                    let memberships = v.memberships();
+                    let mut names = Vec::new();
+                    let mut groups = HashMap::new();
+                    for e in v.entries() {
+                        if exclude.iter().any(|id| e.id.as_str() == id)
+                            || e.name_conflict.is_some()
+                            || !dr_model::v3::is_autolink_leaf(
+                                &e,
+                                &memberships,
+                                &entries,
+                                &templates,
+                            )
+                        {
+                            continue;
+                        }
+                        groups.insert(e.id.to_string(), NameGroup::Entry);
+                        let target = LinkTarget::new(EntityKind::Entry, e.id.as_str());
+                        names.extend(
+                            std::iter::once(e.title.clone())
+                                .chain(e.aliases(&templates))
+                                .filter(|n| !n.trim().is_empty())
+                                .map(|n| LinkName::new(n, target.clone())),
+                        );
+                    }
+                    return Ok((names, groups));
+                }
                 let reader = BookReader::from_loro(book_id, d)?;
                 let view = reader.view();
                 let excluded: Vec<&str> = exclude.iter().map(String::as_str).collect();

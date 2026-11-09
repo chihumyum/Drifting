@@ -28,6 +28,8 @@
 
 pub mod end;
 pub mod head;
+pub mod v3;
+pub mod whole;
 
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
@@ -46,6 +48,7 @@ pub use head::PageHead;
 /// Registers the chrome with the shell: every chapter, idea and whole-book
 /// editor it opens gets one.
 pub fn init(cx: &mut App) {
+    v3::register(cx);
     dr_shell::pages::add_page_chrome(cx, |target, host, _, _| match target {
         Target::Chapter(_) | Target::Idea(_) | Target::Book => {
             Some(Rc::new(Chrome::new(host)) as Rc<dyn PageChrome>)
@@ -195,6 +198,11 @@ impl Global for NewTitles {}
 impl NewTitles {
     pub fn add(doc: String, cx: &mut App) {
         cx.default_global::<NewTitles>().0.push(doc);
+    }
+
+    pub fn pending(doc: &str, cx: &App) -> bool {
+        cx.try_global::<Self>()
+            .is_some_and(|list| list.0.iter().any(|d| d == doc))
     }
 
     /// Whether `doc` was just made (and forgets it).
