@@ -126,6 +126,25 @@ fn manuscript_refresh_keeps_sessions_undo_and_document_order(cx: &mut TestAppCon
         dr_editor::v3::read(&e.ws, &e.book, |v| dr_editor::v3::manuscript_docs(&v)).unwrap();
     assert_eq!(expected.len(), 8);
     assert!(expected.iter().all(|(d, _)| d.starts_with("body:")));
+    // Existing seed prose opens directly; a newly added module must still
+    // initialize from its template, once, before its first editor session.
+    assert!(e.ws.library().doc_info(&expected[0].0).unwrap().is_some());
+    assert!(e.ws.library().doc_info(&expected[1].0).unwrap().is_none());
+    let first_owner = dr_editor::v3::body(&expected[0].0).unwrap().0;
+    let defaults = call(
+        &e,
+        "module.read_prose",
+        json!({"owner":first_owner,"module":"mod-prose"}),
+    )["paragraphs"][0]["text"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    call(
+        &e,
+        "module.set_prose",
+        json!({"owner":"tpl-chapter","module":"second","template":true,
+            "paragraphs":[{"text":defaults}]}),
+    );
     let ws = e.ws.clone();
     let book = e.book.clone();
     cx.executor().allow_parking();
@@ -142,6 +161,7 @@ fn manuscript_refresh_keeps_sessions_undo_and_document_order(cx: &mut TestAppCon
     let (first, second) = (docs[0].clone(), docs[1].clone());
     let original = view.read_with(cx, |v, cx| v.plain_text(&first, cx).unwrap());
     let second_original = view.read_with(cx, |v, cx| v.plain_text(&second, cx).unwrap());
+    assert_eq!(second_original.trim(), defaults);
     let prose = view.read_with(cx, |v, _| v.editor().clone());
     prose.update_in(cx, |p, w, cx| {
         p.select(0, 0..0, w, cx);

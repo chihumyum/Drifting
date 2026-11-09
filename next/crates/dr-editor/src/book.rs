@@ -161,7 +161,18 @@ fn open_all(ws: &Workspace, book: &str, listed: &[Listed]) -> Result<Vec<ProseDo
                     let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                     let Some(chapter) = listed.get(i) else { break };
                     let source = match crate::v3::body(&chapter.doc) {
-                        Some((entry, module)) => crate::v3::prepare_body(ws, book, &entry, &module),
+                        Some((entry, module)) => {
+                            match ws.library().doc_info(&chapter.doc).map_err(WsError::from) {
+                                Ok(Some(info)) if info.book_id.as_deref() == Some(book) => {
+                                    SessionSource::open(ws, &chapter.doc)
+                                }
+                                Ok(Some(_)) => Err(WsError::Invalid(
+                                    "manuscript document belongs to another book".into(),
+                                )),
+                                Ok(None) => crate::v3::prepare_body(ws, book, &entry, &module),
+                                Err(error) => Err(error),
+                            }
+                        }
                         None => SessionSource::open(ws, &chapter.doc),
                     };
                     let opened = source.map(|source| ProseDoc::open(Box::new(source)));
