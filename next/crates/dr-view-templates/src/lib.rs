@@ -1,11 +1,9 @@
 //! K5's v3 template editor. No v2.2 template routes are registered here.
+mod create;
 pub mod model;
 mod view;
 
-use dr_shell::{
-    nav::Target,
-    pages::{ModulePage, PageViewHost},
-};
+use dr_shell::{nav::Target, pages::ModulePage};
 use gpui::{App, AppContext as _, Focusable as _};
 pub use view::TemplateEditor;
 
@@ -22,8 +20,5 @@ pub fn init(cx: &mut App) {
             focus,
         })
     });
-    dr_shell::v3::add_template_creator(cx, |host: PageViewHost, window, cx| {
-        let editor = cx.new(|cx| TemplateEditor::new(host, None, "leaf", window, cx));
-        dr_shell::dialogs::show_in(window.window_handle(), cx, editor.into());
-    });
+    dr_shell::v3::add_template_creator(cx, create::open);
 }

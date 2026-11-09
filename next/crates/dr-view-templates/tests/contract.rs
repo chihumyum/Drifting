@@ -181,3 +181,157 @@ fn moving_between_equal_position_keys_never_drops_a_module() {
     );
     ws.shutdown().unwrap();
 }
+
+#[test]
+fn resetting_nullable_settings_merges_an_unrelated_remote_setting() {
+    let (_dir, ws, book) = seed();
+    let mut template = model::blank("level", "Synthetic inheritance".into());
+    template.settings.default_template = Some(None);
+    template.settings.home = Some(None);
+    let template = model::save(&ws, &book, None, &template).unwrap();
+    let mut mine = template.clone();
+    mine.settings.default_template = None;
+    mine.settings.home = None;
+    let mut remote = template.clone();
+    remote.settings.display = Some("grid".into());
+    model::save(&ws, &book, Some(&template), &remote).unwrap();
+    let merged = model::save(&ws, &book, Some(&template), &mine).unwrap();
+    assert_eq!(merged.settings.default_template, None);
+    assert_eq!(merged.settings.home, None);
+    assert_eq!(merged.settings.display.as_deref(), Some("grid"));
+    assert_eq!(
+        templates(&ws, &book)
+            .into_iter()
+            .find(|t| t.id == merged.id),
+        Some(merged)
+    );
+    ws.shutdown().unwrap();
+}
+
+#[test]
+fn level_settings_roundtrip_and_control_real_entry_residence_and_membership() {
+    let (_dir, ws, book) = seed();
+    let home_template = model::blank("level", "Synthetic residence".into());
+    let home_template = model::save(&ws, &book, None, &home_template).unwrap();
+    let home = call(
+        &ws,
+        "entry.create",
+        json!({"book":book,"title":"Synthetic home","template":home_template.id}),
+    );
+    let mut template = model::blank("level", "Synthetic lane".into());
+    for kind in model::FIELDS.iter().copied().chain(["kv"]) {
+        model::add_module(&mut template, model::module(kind, kind.into()));
+    }
+    template.settings = LevelSettingsOverride {
+        default_template: Some(Some("tpl-chapter".into())),
+        allow: Some(vec!["tpl-chapter".into()]),
+        display: Some("board".into()),
+        auto_link: Some(true),
+        accept: Some(false),
+        home: Some(Some(home["id"].as_str().unwrap().into())),
+        is_manuscript: Some(false),
+        format_shortcuts: Some("notes".into()),
+    };
+    template.lane = true;
+    let template = model::save(&ws, &book, None, &template).unwrap();
+    assert_eq!(
+        templates(&ws, &book)
+            .into_iter()
+            .find(|t| t.id == template.id),
+        Some(template.clone())
+    );
+    let lane = call(
+        &ws,
+        "entry.create",
+        json!({"book":book,"title":"Synthetic lane","template":template.id}),
+    );
+    let level = call(&ws, "level.get", json!({"book":book,"id":lane["id"]}));
+    assert_eq!(level["settings"]["accept"], true);
+    assert_eq!(level["settings"]["format_shortcuts"], "notes");
+    assert_eq!(level["settings"]["home"], home["id"]);
+    let entry = call(
+        &ws,
+        "entry.create",
+        json!({"book":book,"title":"Synthetic new entry","parent":lane["id"]}),
+    );
+    assert_eq!(entry["template"], "tpl-chapter");
+    assert_eq!(entry["parent"], home["id"]);
+    assert_eq!(entry["primary"], lane["id"]);
+    let level = call(&ws, "level.get", json!({"book":book,"id":lane["id"]}));
+    assert!(
+        level["members"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|m| m["id"] == entry["id"])
+    );
+    let mut disabled = template.clone();
+    disabled.lane = false;
+    model::save(&ws, &book, Some(&template), &disabled).unwrap();
+    let level = call(&ws, "level.get", json!({"book":book,"id":lane["id"]}));
+    assert_eq!(level["settings"]["accept"], false);
+    // The editor never replaces a stored false value with the lane's forced true.
+    assert_eq!(disabled.settings.accept, Some(false));
+    let mut forbidden = disabled.clone();
+    model::add_module(
+        &mut forbidden,
+        model::module("prose", "Synthetic forbidden body".into()),
+    );
+    assert!(model::save(&ws, &book, Some(&disabled), &forbidden).is_err());
+    ws.shutdown().unwrap();
+}
+
+#[test]
+fn actions_require_stable_unique_ids_and_live_allowed_targets_before_any_write() {
+    let (_dir, ws, book) = seed();
+    let mut template = model::blank("level", "Synthetic actions".into());
+    template.settings.allow = Some(vec!["tpl-chapter".into()]);
+    let saved = model::save(&ws, &book, None, &template).unwrap();
+    let action = TemplateVerb {
+        id: dr_model::id::new_uuid_v7(),
+        name: "Synthetic create".into(),
+        description: "Synthetic authored description".into(),
+        target_template: Some("tpl-chapter".into()),
+        pos: Some("a0".into()),
+    };
+    for target in [None, Some("tpl-character"), Some("missing-template")] {
+        let mut invalid = saved.clone();
+        let mut verb = action.clone();
+        verb.target_template = target.map(str::to_owned);
+        invalid.verbs.push(verb);
+        assert!(model::save(&ws, &book, Some(&saved), &invalid).is_err());
+        assert_eq!(
+            templates(&ws, &book).into_iter().find(|t| t.id == saved.id),
+            Some(saved.clone())
+        );
+    }
+    let mut invalid = saved.clone();
+    invalid.verbs = vec![action.clone(), action.clone()];
+    assert!(model::save(&ws, &book, Some(&saved), &invalid).is_err());
+    template.verbs.push(action.clone());
+    let saved = model::save(&ws, &book, Some(&saved), &template).unwrap();
+    template.verbs[0].name = "Synthetic renamed action".into();
+    let saved = model::save(&ws, &book, Some(&saved), &template).unwrap();
+    assert_eq!(saved.verbs[0].id, action.id);
+    assert_eq!(saved.verbs[0].description, action.description);
+    let target = model::blank("leaf", "Synthetic action target".into());
+    let target = model::save(&ws, &book, None, &target).unwrap();
+    template.settings.allow = Some(vec![]);
+    template.verbs[0].target_template = Some(target.id.clone());
+    let saved = model::save(&ws, &book, Some(&saved), &template).unwrap();
+    call(
+        &ws,
+        "entry_template.delete",
+        json!({"book":book,"id":target.id}),
+    );
+    template.name = "Synthetic stale target draft".into();
+    assert!(model::save(&ws, &book, Some(&saved), &template).is_err());
+    assert_eq!(
+        templates(&ws, &book).into_iter().find(|t| t.id == saved.id),
+        Some(saved.clone())
+    );
+    template.verbs.clear();
+    let saved = model::save(&ws, &book, Some(&saved), &template).unwrap();
+    assert!(saved.verbs.is_empty());
+    ws.shutdown().unwrap();
+}
