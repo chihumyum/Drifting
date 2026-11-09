@@ -938,7 +938,7 @@ import／checkout。读取不提交事务。`entry.list` 和 `level.get` 使用�
 
 基准入口为 `bench v3-book-legacy`（逐层调用）和 `bench v3-book`（批量调用）。
 二者使用标准 `seed::generate_v3(heavy, DEFAULT_SEED)`，完整等待读取结束，分别记录
-种子生成、语料形状审计、存库、首次 Workspace 打开及完整书目读取；计时含命令调度、
+种子生成、语料形状审计、存库、写入后首次重开 Workspace 及完整书目读取；计时含命令调度、
 持有者加载、JSON 转换，不含外壳构建和窗口渲染。首次持有者读取计入 observeBefore，
 不是只测打开一个空 Workspace。修前证据的源文件指纹在运行开始时冻结；公共基准
 输入路径同步 dr-corpus 拆分，debug 证据不再误标成 release 命令。
@@ -955,7 +955,7 @@ import／checkout。读取不提交事务。`entry.list` 和 `level.get` 使用�
 
 单位均为毫秒；每种配置一次完整读取，表中值是实测单样本，不能解释成分位延迟。
 
-| 配置 | 生成种子 | 语料审计 | 存库 | 首次打开 Workspace | 层级读取 | 根条目读取 | 完整书目读取 |
+| 配置 | 生成种子 | 语料审计 | 存库 | 首次重开 Workspace | 层级读取 | 根条目读取 | 完整书目读取 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | debug 修前 | 6974.151 | 472.673 | 2815.316 | 1.105 | 62441.747 | 125719.304 | 188538.213 |
 | debug 修后 | 5073.118 | 154.240 | 3000.950 | 1.265 | 60.261 | 27.854 | 272.825 |
@@ -968,7 +968,7 @@ debug 修前 8.95 → 8.68；debug 修后 7.93 → 7.94；release 修前 9.51 �
 完整读取包含前后 observe、条目、模板、层级、根条目、归属和时间线视图；前后书目
 frontier 一致。修后批量查询另外核对层级 id、八项来源以及子条目／成员数组全部返回。
 
-机器生成证据（修前源代码是 `ee372789` 加基准入口，修后内核提交 `2b7996e3`）：
+机器生成证据（修前源代码是 `c64c8aa9`（已同步 main `ee372789`，含写作日段）加基准入口，修后内核提交 `2b7996e3`）：
 
 - [debug 修前](../acceptance/k2-before-heavy-debug-v3-book-legacy-bench.json)／[debug 修后](../acceptance/k2-after-heavy-debug-v3-book-bench.json)
 - [release 修前](../acceptance/k2-before-heavy-release-v3-book-legacy-bench.json)／[release 修后](../acceptance/k2-after-heavy-release-v3-book-bench.json)
