@@ -172,3 +172,56 @@ cargo run -p dr-view-elements --features capture --example elements-capture -- .
 - 面板的悬停卡（旧版 220 ms 后出，带更改类目、分组、删除）、帮手改动的 A / M 记号、名称列表里吸顶的类目头。
 - 帮手改概述、改字段时的演示（阶段 5）。
 - 目录栏里「概述 / 传 / 字段 / 关联 / 补丁」几项。
+
+## K4 G2：v3 显示器（第一批）
+
+分支 `codex/k4-g2-levels`，从已含 K4-0 两次交回的 main `27806732` 开始。
+本批只接 v3；上文 v2.2 的面板、分类和对话框继续走原来的入口。
+
+- `panel::v3` 向 K4-0 登记 `list`、`grid`、`island`；`dr-view-ideas`
+  登记 `board`。左栏与层级页使用同一个显示实体，快照刷新保留折叠、看法和滚动。
+- 列表沿有效住处树的文稿顺序展开。成书层级有文稿顺序／按故事线两种看法；
+  后者按有效主归属泳道分组，没有泳道归属的叶子列在未归属，条目不重复。
+- 网格使用紧凑条目格；岛屿按子层级画砂笔框和紧凑索引。列表、网格与岛屿
+  以 GPUI ListState 只构建可见项；折叠改变可见行，条目导航与共同悬停卡复用外壳。
+- 列表、网格、岛屿的住处条目和该层接收的归属条目分节。显示不改归属和住处，
+  不把归属展开成住处子树；看板的层级页分节随第二批交回。
+- 看板按 `layout.board` 排卡片；没有坐标时用固定间距，负坐标用画布原点平移显示。
+  本批读取坐标；拖放写入随第三批交回。
+- 新标签在 `dr-i18n/own` 九种语言中提供；`locales` 由脚本生成，没有改旧版源文案。
+
+永久契约 `dr-view-elements/tests/v3_levels.rs` 覆盖文稿顺序／折叠、住处与归属分列、
+有效主归属分组、未归属、网格与岛屿条目一致、坐标与其他 layout 字段保留和 v2.2 隔离。
+真窗口场景为 `dr-cli/scenarios/k4-g2-displays.json`，使用 `seed:v3-lite`；
+包含四个显示模式、左栏／层级页注册、看板相对坐标和旧版左栏。
+
+### K4 G2 交回
+
+第一批交回显示器；层级页设置、大纲与拖动、悬停卡选择器仍在后两批。
+交回分支 `handback/k4-g2`，开发分支 `codex/k4-g2-levels`；已同步 main `91a74675`
+（K5 叶子模板编辑器）。没有合回 main，没有推送。
+
+本批提交：`ad2475e5`、`ecb9be16`、`4c0f7a7c`、`fee7433f`、`5e4a552f`、
+`bbcd148f`、`e300b31c`、`866a8e94`、`04184b56`、`2d75cc1c`、`81e5a194`，
+以及同步 main 的 `3bcfd6a7`、`22f767ca` 和本节验收记录提交。
+
+`CARGO_BUILD_JOBS=3`，全套 fmt、Clippy（all-targets／`-D warnings`）、test
+（**2051 通过／0 失败／22 忽略**，单线程）、xtask（含审计）和根目录
+`pnpm public:check` 全过。日志在忽略目录 `next/target/acceptance/k4-g2-checks-1-receipt/`。
+随后显式重建 `drifting/debug-bridge`，复制到隔离验收目录再跑，避免普通测试构建覆盖
+待验收程序。真窗口 `k4-g2-displays.json` **52/52 步、0 pending**；
+`check-v3-displays.py` 从实际 AX 坐标核对看板相对位移 **40 × 80 px**。
+五张截图全部目检，结果在 `next/target/acceptance/k4-g2-displays-receipt-1/`。
+素材与数据库由 v3-lite 合成种子生成；没有使用日用库。九语 own 和生成文件同步通过。
+本批不声称 heavy 性能通过：左栏打开／滚动对照测量在最终批统一交。
+
+### K4 G2 待协调
+
+1. **F6／K4-0：层级设置区注册口。** `v3/page.rs` 当前的设置区仍写死为
+   「Settings + 有效显示方式」，`v3::Registry` 没有该区的 maker。请增加
+   `add_level_settings(cx, maker: Fn(LevelHost, &mut Window, &mut App) -> Rendered)`，
+   与现有显示器一样保留实例、调用 `on_refresh`，在层级页的第三块挂接。
+   有效值与来源直接消费 `book.v3().levels`，不需要另造查询。设置不属于模板内容模块，
+   不增加持久化模块种类。G2 在 `category.rs` 提供该 maker。
+   用 `add_page_view` 替换整页会绕过外壳的 v3 composition 状态和换模板后的层级／叶子
+   切换，因此本批不采用整页替换；按 K4 的边界，这项公共外壳改动交 F6。

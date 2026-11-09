@@ -1844,6 +1844,15 @@
     "themeSystem": "시스템 설정 따르기",
     "themeSystemShort": "시스템"
   },
+  "v3Levels": {
+    "byStoryline": "스토리라인별",
+    "collapse": "{{name}} 접기",
+    "expand": "{{name}} 펼치기",
+    "manuscriptOrder": "원고 순서",
+    "members": "소속된 항목",
+    "residents": "여기에 있는 항목",
+    "unassigned": "미소속"
+  },
   "v3Shell": {
     "about": "설명",
     "belongTo": "소속 지정",

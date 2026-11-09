@@ -1844,6 +1844,15 @@
     "themeSystem": "システムに合わせる",
     "themeSystemShort": "システム"
   },
+  "v3Levels": {
+    "byStoryline": "ストーリーライン別",
+    "collapse": "{{name}}を折りたたむ",
+    "expand": "{{name}}を展開",
+    "manuscriptOrder": "原稿順",
+    "members": "所属する項目",
+    "residents": "ここにある項目",
+    "unassigned": "未所属"
+  },
   "v3Shell": {
     "about": "説明",
     "belongTo": "所属先",

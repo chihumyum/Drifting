@@ -104,6 +104,15 @@
     "belongTo": "소속 지정",
     "trash": "최근 삭제 항목으로 이동"
   },
+  "v3Levels": {
+    "residents": "여기에 있는 항목",
+    "members": "소속된 항목",
+    "unassigned": "미소속",
+    "manuscriptOrder": "원고 순서",
+    "byStoryline": "스토리라인별",
+    "expand": "{{name}} 펼치기",
+    "collapse": "{{name}} 접기"
+  },
   "v3Timeline": {
     "views": "타임라인 보기",
     "newView": "새 보기",
