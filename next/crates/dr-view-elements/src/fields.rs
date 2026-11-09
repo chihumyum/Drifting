@@ -36,6 +36,8 @@ use gpui::{
     Styled as _, Subscription, WeakEntity, Window, div, prelude::FluentBuilder as _, px,
 };
 
+pub mod v3;
+
 use crate::data;
 use crate::page;
 
@@ -50,6 +52,9 @@ struct Row {
     stored: (String, String),
     /// Sent as a new field, not back yet: no further writes until it is.
     pending: bool,
+    failed: bool,
+    awaiting: bool,
+    queued: bool,
     _subs: [Subscription; 2],
 }
 
@@ -59,6 +64,7 @@ struct Row {
 pub enum Owner {
     Element(String),
     Storyline(String),
+    Module { entry: String, module: String },
 }
 
 /// An element's or a storyline's fields.
@@ -98,6 +104,26 @@ impl Fields {
         }
     }
 
+    pub fn for_module(host: dr_shell::v3::ModuleHost, cx: &mut Context<Self>) -> Self {
+        let mut view = Self::new(
+            Owner::Module {
+                entry: host.entry,
+                module: host.module.id,
+            },
+            false,
+            host.page.workspace,
+            cx,
+        );
+        view.lib = Some(host.page.library);
+        view.book = host.page.book;
+        view
+    }
+
+    pub fn refresh_module(&mut self, book: Rc<Book>, cx: &mut Context<Self>) {
+        self.book = book;
+        cx.notify();
+    }
+
     fn follow(&mut self, cx: &mut Context<Self>) {
         let Some(ws) = self.ws.upgrade() else {
             return;
@@ -125,6 +151,21 @@ impl Fields {
         match &self.owner {
             Owner::Element(id) => data::element(&self.book, id).map(|e| e.fields.clone()),
             Owner::Storyline(id) => data::storyline(&self.book, id).map(|l| l.fields.clone()),
+            Owner::Module { entry, module } => self
+                .book
+                .v3()
+                .and_then(|b| b.entry(entry))
+                .and_then(|e| e.kv.get(module))
+                .map(|rows| {
+                    rows.iter()
+                        .map(|r| FieldInfo {
+                            id: r.id.clone(),
+                            key: r.key.clone(),
+                            value: r.value.clone(),
+                            pos: r.pos.clone(),
+                        })
+                        .collect()
+                }),
         }
         .unwrap_or_default()
     }
@@ -179,6 +220,9 @@ impl Fields {
             value: value_field,
             stored: (key, value),
             pending: false,
+            failed: false,
+            awaiting: false,
+            queued: false,
             _subs: [on_key, on_value],
         }
     }
@@ -194,6 +238,10 @@ impl Fields {
             return;
         };
         let row = &self.rows[ix];
+        if row.pending && matches!(self.owner, Owner::Module { .. }) {
+            self.rows[ix].queued = true;
+            return;
+        }
         let now = (row.key.read(cx).text(), row.value.read(cx).text());
         let blank = now.0.trim().is_empty() && now.1.trim().is_empty();
         let still_in = Self::row_focused(row, window, cx);
@@ -212,18 +260,49 @@ impl Fields {
                 }
             }
             (id, false) => {
-                if now == row.stored {
+                if now == row.stored && !row.failed {
                     return;
                 }
+                let id = if matches!(self.owner, Owner::Module { .. }) {
+                    Some(
+                        id.clone()
+                            .unwrap_or_else(|| dr_model::id::KvEntryId::new_v7().to_string()),
+                    )
+                } else {
+                    id.clone()
+                };
+                let pos = if matches!(self.owner, Owner::Module { .. }) {
+                    let stored = self.stored();
+                    match stored.iter().find(|r| Some(&r.id) == id.as_ref()) {
+                        Some(row) => row.pos.clone(),
+                        None => Some(
+                            stored
+                                .iter()
+                                .rev()
+                                .filter_map(|r| r.pos.as_deref())
+                                .find_map(|p| dr_model::pos::PosKey::parse(p).ok())
+                                .map_or_else(dr_model::pos::PosKey::first, |p| p.after())
+                                .to_string(),
+                        ),
+                    }
+                } else {
+                    None
+                };
                 let put = FieldIn {
                     id: id.clone(),
                     key: now.0.clone(),
                     value: now.1.clone(),
                     place: None,
-                    pos: None,
+                    pos,
                 };
                 let row = &mut self.rows[ix];
-                row.pending = row.id.is_none();
+                if matches!(self.owner, Owner::Module { .. }) {
+                    row.id = id;
+                }
+                row.pending = row.id.is_none() || matches!(self.owner, Owner::Module { .. });
+                row.failed = false;
+                row.awaiting = matches!(self.owner, Owner::Module { .. });
+                row.queued = false;
                 row.stored = now;
                 self.write(vec![put], Vec::new(), cx);
             }
@@ -234,6 +313,9 @@ impl Fields {
     /// Removes a row (its ×).
     pub fn remove(&mut self, ix: usize, cx: &mut Context<Self>) {
         if ix >= self.rows.len() {
+            return;
+        }
+        if matches!(self.owner, Owner::Module { .. }) && self.rows[ix].pending {
             return;
         }
         let row = self.rows.remove(ix);
@@ -267,6 +349,61 @@ impl Fields {
         };
         let book = self.book.id.clone();
         let owner = self.owner.clone();
+        if let Owner::Module { entry, module } = &owner {
+            let affected: Vec<_> = put.iter().filter_map(|r| r.id.clone()).collect();
+            let target = dr_workspace::commands::v3::module::In {
+                book,
+                entry: entry.clone(),
+                module: module.clone(),
+            };
+            let job = cx.background_spawn(async move {
+                for row in put {
+                    let id = row
+                        .id
+                        .unwrap_or_else(|| dr_model::id::KvEntryId::new_v7().to_string());
+                    lib.run::<dr_workspace::commands::v3::module::KvPut>(
+                        &dr_workspace::Actor::User,
+                        dr_workspace::commands::v3::module::KvPutIn {
+                            target: target.clone(),
+                            row: dr_workspace::commands::v3::types::KvEntry {
+                                id,
+                                key: row.key,
+                                value: row.value,
+                                pos: row.pos,
+                            },
+                        },
+                    )?;
+                }
+                for row in remove {
+                    lib.run::<dr_workspace::commands::v3::module::KvRemove>(
+                        &dr_workspace::Actor::User,
+                        dr_workspace::commands::v3::module::KvRemoveIn {
+                            target: target.clone(),
+                            row,
+                        },
+                    )?;
+                }
+                Ok::<_, dr_workspace::WsError>(())
+            });
+            cx.spawn(async move |this, cx| {
+                let result = job.await;
+                if let Err(error) = &result {
+                    log::warn!("key/value write: {error}");
+                }
+                this.update(cx, |v, cx| {
+                    for row in &mut v.rows {
+                        if row.pending && row.id.as_ref().is_some_and(|id| affected.contains(id)) {
+                            row.failed = result.is_err();
+                            row.pending = false;
+                        }
+                    }
+                    cx.notify();
+                })
+                .ok();
+            })
+            .detach();
+            return;
+        }
         cx.background_executor()
             .spawn(async move {
                 let written = match owner {
@@ -276,6 +413,7 @@ impl Fields {
                         edit.remove_fields = remove;
                         data::update_element(&lib, edit)
                     }
+                    Owner::Module { .. } => unreachable!("handled above"),
                     Owner::Storyline(id) => {
                         let mut edit = data::storyline_edit(&book, &id);
                         edit.put_fields = put;
@@ -297,6 +435,7 @@ impl Fields {
         let stored = self.stored();
         let mut rows = std::mem::take(&mut self.rows);
         let mut next = Vec::with_capacity(stored.len());
+        let mut resave = Vec::new();
         for field in &stored {
             let pair = (field.key.clone(), field.value.clone());
             let found = rows
@@ -310,12 +449,32 @@ impl Fields {
                 Some(i) => {
                     let mut row = rows.remove(i);
                     row.id = Some(field.id.clone());
-                    row.pending = false;
-                    if row.stored != pair && !Self::row_focused(&row, window, cx) {
+                    if !matches!(self.owner, Owner::Module { .. }) {
+                        row.pending = false;
+                    }
+                    if row.stored == pair {
+                        row.awaiting = false;
+                    }
+                    if row.stored != pair
+                        && !row.pending
+                        && !row.failed
+                        && !row.awaiting
+                        && (!matches!(self.owner, Owner::Module { .. })
+                            || (row.key.read(cx).text(), row.value.read(cx).text()) == row.stored)
+                        && !Self::row_focused(&row, window, cx)
+                    {
                         let (k, v) = pair.clone();
                         row.key.update(cx, |f, cx| f.set_text(k, cx));
                         row.value.update(cx, |f, cx| f.set_text(v, cx));
                         row.stored = pair;
+                    }
+                    if matches!(self.owner, Owner::Module { .. })
+                        && row.queued
+                        && !row.pending
+                        && !Self::row_focused(&row, window, cx)
+                        && (row.key.read(cx).text(), row.value.read(cx).text()) != row.stored
+                    {
+                        resave.push(row.n);
                     }
                     next.push(row);
                 }
@@ -334,11 +493,21 @@ impl Fields {
         // Rows not stored: new ones stay; stored ones removed elsewhere go,
         // unless the caret is in them.
         for row in rows {
-            if row.id.is_none() || Self::row_focused(&row, window, cx) {
+            if row.id.is_none()
+                || Self::row_focused(&row, window, cx)
+                || (matches!(self.owner, Owner::Module { .. })
+                    && (row.pending
+                        || row.awaiting
+                        || row.failed
+                        || (row.key.read(cx).text(), row.value.read(cx).text()) != row.stored))
+            {
                 next.push(row);
             }
         }
         self.rows = next;
+        for n in resave {
+            self.commit(n, window, cx);
+        }
     }
 }
 
@@ -363,7 +532,9 @@ impl Render for Fields {
             t(
                 cx,
                 match self.owner {
-                    Owner::Element(_) => keys::element_editor::sections::FACTS,
+                    Owner::Element(_) | Owner::Module { .. } => {
+                        keys::element_editor::sections::FACTS
+                    }
                     Owner::Storyline(_) => keys::storyline_editor::sections::FACTS,
                 },
             ),
@@ -379,7 +550,9 @@ impl Render for Fields {
                 t(
                     cx,
                     match self.owner {
-                        Owner::Element(_) => keys::element_editor::empty::NO_FACTS,
+                        Owner::Element(_) | Owner::Module { .. } => {
+                            keys::element_editor::empty::NO_FACTS
+                        }
                         Owner::Storyline(_) => keys::storyline_editor::empty::NO_FACTS,
                     },
                 ),
@@ -452,7 +625,8 @@ impl Render for Fields {
                         .font_role(Role::Prose)
                         .type_px(14.0, 14.0 * 1.6)
                         .text_color(p.ink(1).solid())
-                        .child(row.value.clone()),
+                        .child(row.value.clone())
+                        .children(row.failed.then(|| t(cx, keys::k4_pages::SAVE_FAILED))),
                 )
                 .child(x),
             );

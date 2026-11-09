@@ -174,6 +174,7 @@ struct Drag {
 }
 
 pub struct PlotPlanner {
+    module: Option<String>,
     host: PlannerHost,
     grid: Grid,
     loaded: bool,
@@ -220,8 +221,27 @@ impl Focusable for PlotPlanner {
 
 impl PlotPlanner {
     pub fn new(host: PlannerHost, window: &mut Window, cx: &mut Context<Self>) -> PlotPlanner {
+        Self::new_at(host, None, window, cx)
+    }
+
+    pub fn for_module(
+        host: PlannerHost,
+        module: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> PlotPlanner {
+        Self::new_at(host, Some(module), window, cx)
+    }
+
+    fn new_at(
+        host: PlannerHost,
+        module: Option<String>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> PlotPlanner {
         let body = cx.new(|_| None);
         let mut planner = PlotPlanner {
+            module,
             host,
             grid: Grid::unstored(),
             loaded: false,
@@ -257,7 +277,13 @@ impl PlotPlanner {
     /// hand before it arrives wins.
     fn read_ratio(&mut self, cx: &mut Context<Self>) {
         let lib = self.host.library.clone();
-        let key = ratio_key(&self.host.node);
+        let key = ratio_key(
+            &self
+                .module
+                .as_ref()
+                .map(|m| format!("{}/{m}", self.host.node))
+                .unwrap_or_else(|| self.host.node.clone()),
+        );
         let read = cx.background_spawn(async move {
             lib.library()
                 .local_get(RATIO_SCOPE, &key)
@@ -288,7 +314,16 @@ impl PlotPlanner {
         // A stored shape still being read is older than this one.
         self.ratio_io = None;
         let lib = self.host.library.clone();
-        let (book, key) = (self.host.book.clone(), ratio_key(&self.host.node));
+        let (book, key) = (
+            self.host.book.clone(),
+            ratio_key(
+                &self
+                    .module
+                    .as_ref()
+                    .map(|m| format!("{}/{m}", self.host.node))
+                    .unwrap_or_else(|| self.host.node.clone()),
+            ),
+        );
         cx.background_spawn(async move {
             if let Err(error) =
                 lib.library()
@@ -354,13 +389,15 @@ impl PlotPlanner {
     fn listen(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let (tx, mut rx) = futures::channel::mpsc::unbounded::<()>();
         let (book, node) = (self.host.book.clone(), self.host.node.clone());
+        let module = self.module.clone();
         self._events = Some(self.host.library.subscribe(move |event| {
             if let WsEvent::Book(b) = event
                 && b.book.as_str() == book
-                && b.changes.iter().any(|c| {
-                    c.collection == dr_doc::book::Collection::PlotGrids
-                        && c.id.as_deref().is_none_or(|id| id == node)
-                })
+                && (module.is_some()
+                    || b.changes.iter().any(|c| {
+                        c.collection == dr_doc::book::Collection::PlotGrids
+                            && c.id.as_deref().is_none_or(|id| id == node)
+                    }))
             {
                 let _ = tx.unbounded_send(());
             }
@@ -391,7 +428,11 @@ impl PlotPlanner {
             book: self.host.book.clone(),
             node: self.host.node.clone(),
         };
+        let module = self.module.clone();
         let read = cx.background_spawn(async move {
+            if let Some(module) = module {
+                return crate::v3::read(&lib, &input.book, &input.node, &module);
+            }
             lib.run::<PlotGridGet>(&Actor::User, input)
                 .map(|o| o.output)
         });
@@ -650,8 +691,19 @@ impl PlotPlanner {
         let lib = self.host.library.clone();
         let (book, node) = (self.host.book.clone(), self.host.node.clone());
         let create = !self.grid.exists;
-        let job =
-            cx.background_spawn(async move { write_batch(&lib, &book, &node, create, batch) });
+        let module = self.module.clone();
+        let job = cx.background_spawn(async move {
+            if let Some(module) = module {
+                return match crate::v3::write(&lib, &book, &node, &module, batch) {
+                    Ok(()) => Written::default(),
+                    Err(error) => Written {
+                        refused: vec![error.to_string()],
+                        ..Default::default()
+                    },
+                };
+            }
+            write_batch(&lib, &book, &node, create, batch)
+        });
         self.writing = Some(cx.spawn(async move |this, cx| {
             let written = job.await;
             this.update(cx, |p, cx| p.written(written, cx)).ok();

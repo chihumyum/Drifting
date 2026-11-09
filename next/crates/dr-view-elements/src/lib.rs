@@ -177,6 +177,9 @@ pub fn storyline_page(
 /// rows and the left sidebar's 要素 panel with the shell, and makes their
 /// dialogs.
 pub fn init(cx: &mut App) {
+    fields::v3::register(cx);
+    element::patches::register(cx);
+    dr_view_relations::Relations::register_modules(cx);
     dialogs::init(cx);
     menu::register(cx);
     dr_shell::pages::add_left_panel(cx, |tab, ws, _, cx| {

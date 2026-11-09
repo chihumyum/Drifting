@@ -109,5 +109,19 @@
     "changeTemplate": "Trocar modelo",
     "belongTo": "Associar a",
     "trash": "Mover para Excluídos recentemente"
+  },
+  "k4Pages": {
+    "unset": "Não definido",
+    "saveFailed": "Não foi possível salvar",
+    "invalidValue": "Valor inválido",
+    "retained": "Conteúdo anterior",
+    "newPatch": "Novo patch",
+    "body": "Texto",
+    "quote": "Citação",
+    "rule": "Separador",
+    "h1": "H1",
+    "h2": "H2",
+    "h3": "H3",
+    "title": "Título"
   }
 }

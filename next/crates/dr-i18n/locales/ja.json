@@ -583,6 +583,20 @@
       "notUtf8": "UTF-8 のテキストではないため、一部の文字を置き換えました"
     }
   },
+  "k4Pages": {
+    "body": "本文",
+    "h1": "H1",
+    "h2": "H2",
+    "h3": "H3",
+    "invalidValue": "無効な値",
+    "newPatch": "パッチを追加",
+    "quote": "引用",
+    "retained": "以前の内容",
+    "rule": "区切り線",
+    "saveFailed": "保存できませんでした",
+    "title": "タイトル",
+    "unset": "未設定"
+  },
   "kvEditor": {
     "addField": "項目を追加",
     "keyPlaceholder": "項目",

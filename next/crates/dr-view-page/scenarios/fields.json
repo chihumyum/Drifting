@@ -1,0 +1,409 @@
+{
+  "about": "K4 G1: v3-lite typed fields, real window input and persisted values.",
+  "steps": [
+    {
+      "seed": "v3-lite"
+    },
+    {
+      "call": "book.list",
+      "save": "books"
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}",
+        "all": true
+      },
+      "save": "entries"
+    },
+    {
+      "call": "entry_template.put_module",
+      "input": {
+        "book": "${books.0.id}",
+        "template": "tpl-character",
+        "module": {
+          "id": "test-fields",
+          "kind": "fields",
+          "name": "Fields",
+          "pos": "Zz",
+          "config": {
+            "defs": [
+              {
+                "id": "text",
+                "name": "text",
+                "field_type": "text",
+                "options": [
+                  "A",
+                  "B"
+                ],
+                "pos": "a0"
+              },
+              {
+                "id": "long_text",
+                "name": "long_text",
+                "field_type": "long_text",
+                "options": [
+                  "A",
+                  "B"
+                ],
+                "pos": "a1"
+              },
+              {
+                "id": "number",
+                "name": "number",
+                "field_type": "number",
+                "options": [
+                  "A",
+                  "B"
+                ],
+                "pos": "a2"
+              },
+              {
+                "id": "date",
+                "name": "date",
+                "field_type": "date",
+                "options": [
+                  "A",
+                  "B"
+                ],
+                "pos": "a3"
+              },
+              {
+                "id": "aliases",
+                "name": "aliases",
+                "field_type": "aliases",
+                "options": [
+                  "A",
+                  "B"
+                ],
+                "pos": "a4"
+              },
+              {
+                "id": "select",
+                "name": "select",
+                "field_type": "select",
+                "options": [
+                  "A",
+                  "B"
+                ],
+                "pos": "a5"
+              },
+              {
+                "id": "multi_select",
+                "name": "multi_select",
+                "field_type": "multi_select",
+                "options": [
+                  "A",
+                  "B"
+                ],
+                "pos": "a6"
+              },
+              {
+                "id": "image",
+                "name": "image",
+                "field_type": "image",
+                "options": [
+                  "A",
+                  "B"
+                ],
+                "pos": "a7"
+              },
+              {
+                "id": "entity_ref",
+                "name": "entity_ref",
+                "field_type": "entity_ref",
+                "options": [
+                  "A",
+                  "B"
+                ],
+                "pos": "a8"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "window.focus",
+      "params": {}
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${books.0.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/version": 3,
+          "/book/loaded": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-character].id}/test-fields"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 700
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "fields-before.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Group",
+        "label": "text"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-a"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "G1"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Group",
+        "label": "long_text"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-a"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "G1 long"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Group",
+        "label": "number"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-a"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "42"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Group",
+        "label": "date"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-a"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "2026-11-09"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Group",
+        "label": "aliases"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-a"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "G1 alias"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Group",
+        "label": "select"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 700
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "fields-select.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "MenuItem",
+        "label": "B"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "CheckBox",
+        "label": "A"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 700
+      }
+    },
+    {
+      "call": "module.read",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${entries.[template=tpl-character].id}",
+        "module": "test-fields"
+      },
+      "save": "fields",
+      "expect": {
+        "/fields/text": "G1",
+        "/fields/number": 42.0,
+        "/fields/date": "2026-11-09",
+        "/fields/aliases": [
+          "G1 alias"
+        ],
+        "/fields/select": "B",
+        "/fields/multi_select": [
+          "A"
+        ]
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Group",
+        "label": "entity_ref"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "MenuItem",
+        "label": "${entries.[template=tpl-chapter].title}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 700
+      }
+    },
+    {
+      "call": "module.read",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${entries.[template=tpl-character].id}",
+        "module": "test-fields"
+      },
+      "expect": {
+        "/fields/entity_ref": "${entries.[template=tpl-chapter].id}"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Group",
+        "label": "image"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "MenuItem"
+      },
+      "save": "images"
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "image-choices.png"
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "escape"
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "fields-after.png"
+    },
+    {
+      "app": "app.quit",
+      "params": {}
+    }
+  ]
+}

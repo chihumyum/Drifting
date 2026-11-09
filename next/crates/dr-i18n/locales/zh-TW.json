@@ -583,6 +583,20 @@
       "notUtf8": "不是 UTF-8 文字，有些字元被替換了"
     }
   },
+  "k4Pages": {
+    "body": "正文",
+    "h1": "H1",
+    "h2": "H2",
+    "h3": "H3",
+    "invalidValue": "值無效",
+    "newPatch": "新增補丁",
+    "quote": "引用",
+    "retained": "原來的內容",
+    "rule": "分隔線",
+    "saveFailed": "無法儲存",
+    "title": "標題",
+    "unset": "未設定"
+  },
   "kvEditor": {
     "addField": "新增欄位",
     "keyPlaceholder": "欄位",

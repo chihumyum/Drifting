@@ -28,6 +28,7 @@
 
 pub mod end;
 pub mod head;
+pub mod v3;
 
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
@@ -46,6 +47,7 @@ pub use head::PageHead;
 /// Registers the chrome with the shell: every chapter, idea and whole-book
 /// editor it opens gets one.
 pub fn init(cx: &mut App) {
+    v3::register(cx);
     dr_shell::pages::add_page_chrome(cx, |target, host, _, _| match target {
         Target::Chapter(_) | Target::Idea(_) | Target::Book => {
             Some(Rc::new(Chrome::new(host)) as Rc<dyn PageChrome>)

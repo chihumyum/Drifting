@@ -44,6 +44,7 @@ use dr_ui::components::{Align, IconButton, Layer, Menu, MenuItem, MenuWidth, Pla
 use dr_ui::sand::{self, Icon};
 use dr_ui::theme::Theme;
 use dr_workspace::{Actor, Workspace};
+use gpui::prelude::FluentBuilder as _;
 use gpui::{
     App, Bounds, Context, Entity, EventEmitter, InteractiveElement, IntoElement, KeyDownEvent,
     ParentElement, Pixels, Render, SharedString, StatefulInteractiveElement, Styled, Subscription,
@@ -405,6 +406,8 @@ pub struct Assist {
     /// The document is a material note: the note's slash entries, the
     /// bar's 高亮.
     note: bool,
+    /// The v3 page host supplies localized format names; legacy hosts keep their labels.
+    block_labels: Option<[SharedString; 6]>,
 }
 
 /// A paragraph's links before an edit: chapter, block id, line, and
@@ -456,6 +459,7 @@ impl Assist {
             bar_task: None,
             writing: false,
             note: false,
+            block_labels: None,
             _editor_events: events,
             pointed_link: None,
             card: None,
@@ -555,6 +559,17 @@ impl Assist {
 
     pub fn is_note(&self) -> bool {
         self.note
+    }
+
+    pub fn set_block_labels(&mut self, labels: [SharedString; 6]) {
+        self.block_labels = Some(labels);
+    }
+
+    fn block_label(&self, choice: BlockChoice) -> SharedString {
+        self.block_labels
+            .as_ref()
+            .map(|labels| labels[choice as usize].clone())
+            .unwrap_or_else(|| choice.label().into())
     }
 
     /// The selection the bar shows for, if it shows.
@@ -1613,7 +1628,7 @@ impl Assist {
                     format!("创建要素「{name}」").into(),
                     None,
                 ),
-                MenuRow::Block(choice) => (choice.icon().into(), choice.label().into(), None),
+                MenuRow::Block(choice) => (choice.icon().into(), self.block_label(*choice), None),
                 MenuRow::Action(action) => (action.icon().into(), action.label().into(), None),
                 MenuRow::Note(choice) => (choice.icon().into(), choice.label().into(), None),
                 MenuRow::Material { title, pdf, .. } => (
@@ -1655,7 +1670,7 @@ impl Assist {
         let across = self.bar_across;
         let block_button = |choice: BlockChoice, this: Entity<Assist>| {
             IconButton::new(("dr-editor-bar-block", choice as usize), choice.icon())
-                .label(choice.label())
+                .label(self.block_label(choice))
                 .in_tray()
                 .disabled(across && choice == BlockChoice::Quote)
                 .on_click(move |_, window, cx| {
@@ -1820,6 +1835,21 @@ impl Render for Assist {
 /// The view's editor element with the assist around it: its overlay beside
 /// the editor, and ↑ ↓ Enter Esc going to the open picker first.
 pub fn wrap(assist: &Entity<Assist>, editor: impl IntoElement) -> impl IntoElement {
+    wrap_at(assist, editor, false)
+}
+
+/// Module pages sit in a scrolling composition. Read the preceding frame's
+/// text geometry before the accessibility-enabled editor clears it for paint.
+/// The assist's deferred overlays still paint above the text.
+pub fn wrap_module(assist: &Entity<Assist>, editor: impl IntoElement) -> impl IntoElement {
+    wrap_at(assist, editor, true)
+}
+
+fn wrap_at(
+    assist: &Entity<Assist>,
+    editor: impl IntoElement,
+    assist_first: bool,
+) -> impl IntoElement {
     let (up, down, enter, esc) = (
         assist.clone(),
         assist.clone(),
@@ -1869,8 +1899,13 @@ pub fn wrap(assist: &Entity<Assist>, editor: impl IntoElement) -> impl IntoEleme
                 }
             }
         })
-        .child(editor)
-        .child(assist.clone())
+        .map(|root| {
+            if assist_first {
+                root.child(assist.clone()).child(editor)
+            } else {
+                root.child(editor).child(assist.clone())
+            }
+        })
 }
 
 #[cfg(test)]

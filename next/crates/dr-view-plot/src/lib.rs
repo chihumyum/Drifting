@@ -39,6 +39,7 @@
 
 pub mod model;
 mod planner;
+pub mod v3;
 
 pub use model::{CellSize, Grid, Line};
 pub use planner::{
@@ -59,6 +60,7 @@ pub fn planner(host: PlannerHost, window: &mut Window, cx: &mut gpui::App) -> En
 /// for each chapter or idea that comes to the front, its title kept in step
 /// when it is renamed. Once, after `dr_shell::init`.
 pub fn init(cx: &mut gpui::App) {
+    v3::register(cx);
     pages::add_bottom_panel(cx, BottomPane::Planner, |host, window, cx| {
         let target = host.target.clone()?;
         let node = match &target {

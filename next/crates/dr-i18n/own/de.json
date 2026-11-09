@@ -109,5 +109,19 @@
     "changeTemplate": "Vorlage wechseln",
     "belongTo": "Zuordnen",
     "trash": "Zu „Zuletzt gelöscht“ verschieben"
+  },
+  "k4Pages": {
+    "unset": "Nicht festgelegt",
+    "saveFailed": "Speichern fehlgeschlagen",
+    "invalidValue": "Ungültiger Wert",
+    "retained": "Vorheriger Inhalt",
+    "newPatch": "Neuer Patch",
+    "body": "Fließtext",
+    "quote": "Zitat",
+    "rule": "Trennlinie",
+    "h1": "H1",
+    "h2": "H2",
+    "h3": "H3",
+    "title": "Titel"
   }
 }

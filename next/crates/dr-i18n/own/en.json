@@ -109,5 +109,19 @@
     "changeTemplate": "Change template",
     "belongTo": "Assign to",
     "trash": "Move to Recently Deleted"
+  },
+  "k4Pages": {
+    "unset": "Not set",
+    "saveFailed": "Could not save",
+    "invalidValue": "Invalid value",
+    "retained": "Previous content",
+    "newPatch": "New patch",
+    "body": "Body",
+    "quote": "Quote",
+    "rule": "Divider",
+    "h1": "H1",
+    "h2": "H2",
+    "h3": "H3",
+    "title": "Title"
   }
 }

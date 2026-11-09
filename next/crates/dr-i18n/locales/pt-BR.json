@@ -589,6 +589,20 @@
       "notUtf8": "Não é texto UTF-8; alguns caracteres foram substituídos"
     }
   },
+  "k4Pages": {
+    "body": "Texto",
+    "h1": "H1",
+    "h2": "H2",
+    "h3": "H3",
+    "invalidValue": "Valor inválido",
+    "newPatch": "Novo patch",
+    "quote": "Citação",
+    "retained": "Conteúdo anterior",
+    "rule": "Separador",
+    "saveFailed": "Não foi possível salvar",
+    "title": "Título",
+    "unset": "Não definido"
+  },
   "kvEditor": {
     "addField": "Adicionar campo",
     "keyPlaceholder": "Campo",

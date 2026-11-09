@@ -36,6 +36,7 @@ pub mod settings;
 pub mod source;
 pub mod table;
 pub mod todo;
+pub mod v3;
 pub mod view;
 
 pub use book::{BookEditor, BookEditorEvent, PreparedBook, ReadingPosition};

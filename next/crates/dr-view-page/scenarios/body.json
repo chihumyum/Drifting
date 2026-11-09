@@ -1,0 +1,446 @@
+{
+  "about": "K4 G1: v3-lite body input and undo, chapter chrome, slash, selection bar, end action and level about.",
+  "steps": [
+    {
+      "seed": "v3-lite"
+    },
+    {
+      "call": "book.list",
+      "save": "books"
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}",
+        "all": true
+      },
+      "save": "entries"
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "save": "original"
+    },
+    {
+      "call": "entry.create",
+      "input": {
+        "book": "${books.0.id}",
+        "title": "G1",
+        "parent": "${entries.[template=tpl-chapter].parent}",
+        "template": "tpl-chapter"
+      },
+      "save": "empty"
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${books.0.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/version": 3,
+          "/book/loaded": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-chapter].id}/mod-prose"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 1200
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "TextArea"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-up"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "G1"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "G1${original.paragraphs.0.text}"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-z"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs": "${original.paragraphs}"
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${empty.id}/mod-prose"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 700
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "empty-before.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "TextArea",
+        "dy": 40
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "/"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 700
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "slash.png"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "H1",
+        "count": 1
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "H1"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "G1"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${empty.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/heading": 1,
+        "/paragraphs/0/text": "G1"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "shift-left"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 700
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "selection.png"
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "right secondary-down"
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 720,
+        "y": 550,
+        "dy": 500
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 700
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "contains": "Chapter end actions",
+        "hover_ms": 0,
+        "settle_ms": 600
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "end-open.png"
+    },
+    {
+      "app": "ui.find",
+      "params": {},
+      "save": "end_ui"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Mark finished"
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "end.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Mark finished"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 700
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${empty.id}"
+      },
+      "expect": {
+        "/fields/mod-fields/status": "finished"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "contains": "Chapter end actions",
+        "hover_ms": 0,
+        "settle_ms": 600
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "New chapter after",
+        "hover_ms": 0,
+        "settle_ms": 600
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/pageTitle": "New chapter"
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 700
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "new-before.png"
+    },
+    {
+      "app": "ui.find",
+      "params": {},
+      "save": "new_ui"
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "G1 new"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "enter"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/pageTitle": "G1 new"
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "G1 first"
+      }
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}",
+        "all": true,
+        "query": "G1 new"
+      },
+      "save": "fresh",
+      "expect": {
+        "/0/title": "G1 new"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${fresh.0.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "G1 first"
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-manuscript].id}/about"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 700
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "TextArea"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-up"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "G1"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-manuscript].id}",
+        "module": "about"
+      },
+      "contains": {
+        "/paragraphs/0/text": "G1"
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "about.png"
+    },
+    {
+      "app": "app.quit",
+      "params": {}
+    }
+  ]
+}

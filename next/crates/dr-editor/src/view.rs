@@ -842,7 +842,13 @@ enum Notice {
 
 impl Render for ChapterEditor {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let inner = crate::assist::wrap(&self.assist, ProseEditor::element(&self.editor, cx));
+        let inner = if crate::v3::body(&self.doc_id).is_some() {
+            crate::assist::wrap_module(&self.assist, ProseEditor::element(&self.editor, cx))
+                .into_any_element()
+        } else {
+            crate::assist::wrap(&self.assist, ProseEditor::element(&self.editor, cx))
+                .into_any_element()
+        };
         if self.embeds.is_none() {
             return inner.into_any_element();
         }
