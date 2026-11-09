@@ -136,4 +136,31 @@ next/crates/dr-shell/examples/m06-m07-capture.rs 截图
 回收／恢复、短查询与全文查询的额度、空查询、只读版本不变、v2.2 路径和 GPUI
 键盘跳转。搜索／统计两 crate 的定向测试共 30 项通过，另有 1 项文档示例忽略；
 定向 Clippy、fmt 和九语言同步检查通过。此处不包含全工作区检查、真窗口或
-heavy 验收；正式交回指针尚未移动。宿主接通后必须从实际产品入口补验。
+heavy 验收；接口批完整检查见下节。宿主接通后必须从实际产品入口补验。
+
+## K4 G4 搜索／统计接口批交回（2026-11-10）
+
+按作者保持 G4 边界的决定，以及整合者在 overnight 的接口批分派，本批只交
+可编译的公共接口、只读数据适配和永久契约，供 F6/G2 正式从 main 消费。
+**不是搜索／统计产品功能验收完成，也不是 G4 完成。**
+
+- 分支：`codex/k4-g4-book`；实现提交 `78a8a314`，合入 main 基线
+  `2f80ac40`（同步提交 `d42c1a2f`、`3c085afd`）。交回指针为 `handback/k4-g4`。
+- 范围：dr-view-search、dr-view-stats、它们的依赖清单／测试，以及 dr-i18n 的
+  own 与生成 locales（九语言四个短标签）。没有修改 dr-shell、K2 或其他组产品。
+  本批适配只有读，契约断言读取不改书的版本；后续写入仍须使用逐项命令或
+  与原读取对应的版本守卫，并补并发／隐藏内容的写入回归。
+- 检查：`CARGO_BUILD_JOBS=3`；workspace fmt、Clippy（all-targets、locked、
+  `-D warnings`）通过；`DR_UI_REQUIRE_FONTS=1 RUST_TEST_THREADS=1 cargo test
+  --workspace --locked` 的 Cargo 汇总 **2068 通过、0 失败、22 忽略**；
+  `cargo xtask check`（含 audit）、根目录 `pnpm public:check`、九语言同步检查、
+  `git diff --check` 通过。xtask 仍标注既有 14 份 stale 和 15 份 legacy 测量，
+  本接口批没有新增或改写测量证据。
+- 复验经过：首轮全测在原书架封面／日期卡片测试等待超时，同一二进制独跑
+  2.16 秒通过；第二轮串行全测该项通过，但字符封面因本 worktree 缺构建字体而
+  画空。补入已有六个构建字体并逐个核对 provenance 的固定 SHA-256 后，字符
+  封面独跑和最终完整全测均通过。没有修改书架、字体配方、测试阈值或忽略项。
+  原始本地日志保留在 `next/target/g4-checks/`，不作为手写 JSON 证据提交。
+- 待协调：F6 搜索／素材导航、G2 右栏版本分流、K2 批注模块／素材／写作日。
+  真窗口 `seed:v3-lite` 搜索／统计场景和 heavy 打开／滚动对照**尚未验收**；
+  等真实产品入口接通后由 G4 补验，再交完整功能批。未合入 main、未推送。
