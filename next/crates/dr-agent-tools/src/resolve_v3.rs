@@ -994,6 +994,9 @@ pub(crate) fn coverage_v3(name: &str, args: &Value, output: &Value) -> Option<Ve
             read.insert("membership:*".into());
         }
         "timeline_view.list" => {
+            // This means the filtered collection was read, not that every
+            // stored child or pin binding was shown. The executor records
+            // per-view/pin completeness at the same guarded book frontier.
             read.insert("timeline_view:*".into());
             if let Some(rows) = output.as_array() {
                 for row in rows {

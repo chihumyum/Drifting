@@ -19,7 +19,7 @@ use std::collections::BTreeMap;
 /// Change this when facade handler semantics change without a schema change.
 const FACADE_REVISION: &str = "m29-author-facade-v1";
 /// Versioned facade revision for universal kernel v3 books and template verbs.
-pub const FACADE_REVISION_V3: &str = "k6-author-facade-v3";
+pub const FACADE_REVISION_V3: &str = "k6-author-facade-v3-r2";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -302,6 +302,11 @@ impl Catalog {
             let description = if spec.name.ends_with("_template.set_body") {
                 format!(
                     "{} Available for existing template documents; creation is not exposed by the Agent facade yet.",
+                    spec.summary
+                )
+            } else if version == BookKernelVersion::V3 && spec.name == "timeline_view.put" {
+                format!(
+                    "{} Whole-view replacement requires a complete timeline_view.list at the guarded version. Hidden lanes, placements or pin data prevent replacement; use supported item commands instead.",
                     spec.summary
                 )
             } else {

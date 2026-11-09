@@ -23,6 +23,8 @@ use crate::{
 
 #[path = "evidence.rs"]
 mod evidence;
+#[path = "timeline.rs"]
+mod timeline;
 
 #[derive(Clone, Debug)]
 pub struct CallRequest {
@@ -177,6 +179,9 @@ struct ReadState {
     blocks: HashMap<String, String>,
     full_prose: bool,
     projection: Option<Projection>,
+    // Bound to this exact version, like prose coverage. A filtered list is
+    // useful for local edits but does not authorize whole-view replacement.
+    timeline_views: Option<timeline::Coverage>,
 }
 
 #[derive(Default)]
@@ -494,6 +499,10 @@ impl AgentTools {
                         ..Default::default()
                     };
                 }
+                if call.name == "timeline_view.list" && observation.doc == book_doc {
+                    read.timeline_views =
+                        Some(timeline::Coverage::from_read(&observation.value, &output)?);
+                }
                 read.subjects.extend(
                     subjects
                         .iter()
@@ -606,6 +615,36 @@ impl AgentTools {
                     .get(doc)
                     .ok_or_else(|| Error::ReadRequired(doc.clone()))?;
                 versions.insert(doc.clone(), read.version.clone());
+            }
+            if matches!(
+                call.name.as_str(),
+                "timeline_view.put" | "timeline_view.put_pin" | "timeline_view.remove_pin"
+            ) {
+                let coverage = turn
+                    .reads
+                    .get(&format!("book:{}", key.book))
+                    .and_then(|read| read.timeline_views.as_ref())
+                    .ok_or_else(|| Error::ReadRequired("timeline_view:*".into()))?;
+                if call.name == "timeline_view.put" {
+                    let id = call.arguments["view"]["id"]
+                        .as_str()
+                        .ok_or_else(|| Error::Invalid("timeline view needs id".into()))?;
+                    coverage.require_complete(id)?;
+                } else {
+                    let view = call.arguments["view"]
+                        .as_str()
+                        .ok_or_else(|| Error::Invalid("timeline view needs id".into()))?;
+                    let pin = if call.name == "timeline_view.put_pin" {
+                        &call.arguments["pin"]["id"]
+                    } else {
+                        &call.arguments["pin"]
+                    };
+                    coverage.require_pin(
+                        view,
+                        pin.as_str()
+                            .ok_or_else(|| Error::Invalid("timeline pin needs id".into()))?,
+                    )?;
+                }
             }
             if call.name == "prose.replace" {
                 let doc = call.arguments["doc"]
