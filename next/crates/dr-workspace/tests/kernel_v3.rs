@@ -757,3 +757,139 @@ fn v3_initial_prose_links_names_and_new_module_copies_template_on_first_open() {
         "Later starter"
     );
 }
+
+#[test]
+fn v3_restore_primary_pins_and_record_deletion_have_real_inverses() {
+    let e = env();
+    let b = project(&e);
+    let ms = root(&e, &b, "tpl-manuscript");
+    let ls = root(&e, &b, "tpl-storylines");
+    let a = create(&e, &b, &ms, "A", "tpl-chapter");
+    let lane = create(&e, &b, &ls, "Lane", "tpl-storyline");
+    e.call("entry.trash", json!({"book":b,"id":a}));
+    e.call("entry.restore", json!({"book":b,"id":a}));
+    assert!(get(&e, &b, &a)["deleted_at"].is_null());
+    e.call(
+        "membership.add",
+        json!({"book":b,"host":lane,"member":a,"pos":"a1"}),
+    );
+    e.call(
+        "membership.primary",
+        json!({"book":b,"member":a,"host":lane}),
+    );
+    assert_eq!(get(&e, &b, &a)["primary"], lane);
+    let membership = e.out("membership.list", json!({"book":b}));
+    e.call("timeline_view.put",json!({"book":b,"view":{"id":"test-view","name":"Synthetic view","lanes":[{"entry":lane}]}}));
+    e.call(
+        "timeline_view.place",
+        json!({"book":b,"view":"test-view","entry":a,"lane":lane,"at":3.0}),
+    );
+    assert_eq!(e.out("membership.list", json!({"book":b})), membership);
+    e.call("timeline_view.put_pin",json!({"book":b,"view":"test-view","pin":{"id":"pin","at":-2.0,"label":"Synthetic pin","entry":a}}));
+    let view = || {
+        e.out("timeline_view.list", json!({"book":b}))
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|v| v["id"] == "test-view")
+            .unwrap()
+            .clone()
+    };
+    assert_eq!(view()["pins"][0]["entry"], a);
+    e.call(
+        "timeline_view.remove_pin",
+        json!({"book":b,"view":"test-view","pin":"pin"}),
+    );
+    assert!(view()["pins"].as_array().unwrap().is_empty());
+    e.ws().undo(&dr_workspace::Actor::User).unwrap();
+    assert_eq!(view()["pins"][0]["label"], "Synthetic pin");
+    e.call("timeline_view.delete", json!({"book":b,"id":"test-view"}));
+    assert!(!view()["deleted_at"].is_null());
+    e.ws().undo(&dr_workspace::Actor::User).unwrap();
+    assert!(view()["deleted_at"].is_null());
+    assert_eq!(get(&e, &b, &a)["parent"], ms);
+    e.call(
+        "entry_relation_type.put",
+        json!({"book":b,"definition":{"id":"unused","name":"Synthetic unused type"}}),
+    );
+    let types = e.out("entry_relation_type.list", json!({"book":b}));
+    let locked = types
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["locked"] == true)
+        .unwrap()["id"]
+        .clone();
+    assert!(
+        e.try_call("entry_relation_type.delete", json!({"book":b,"id":locked}))
+            .is_err()
+    );
+    e.call(
+        "entry_relation_type.delete",
+        json!({"book":b,"id":"unused"}),
+    );
+    assert!(
+        !ids(&e.out("entry_relation_type.list", json!({"book":b}))).contains(&"unused".to_owned())
+    );
+    e.ws().undo(&dr_workspace::Actor::User).unwrap();
+    assert!(
+        ids(&e.out("entry_relation_type.list", json!({"book":b}))).contains(&"unused".to_owned())
+    );
+    for (id, kind) in [("test-kv", "kv"), ("test-patch", "patches")] {
+        e.call(
+            "entry_template.put_module",
+            json!({"book":b,"template":"tpl-chapter","module":{"id":id,"kind":kind,"name":id}}),
+        );
+    }
+    e.call(
+        "module.put_kv",
+        json!({"book":b,"entry":a,"module":"test-kv","row":{"id":"row","key":"K","value":"V"}}),
+    );
+    e.call(
+        "module.remove_kv",
+        json!({"book":b,"entry":a,"module":"test-kv","row":"row"}),
+    );
+    assert!(
+        e.out(
+            "module.read",
+            json!({"book":b,"entry":a,"module":"test-kv"})
+        )["kv"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    e.ws().undo(&dr_workspace::Actor::User).unwrap();
+    assert_eq!(
+        e.out(
+            "module.read",
+            json!({"book":b,"entry":a,"module":"test-kv"})
+        )["kv"][0]["value"],
+        "V"
+    );
+    let patch = e.out(
+        "module.put_patch",
+        json!({"book":b,"entry":a,"module":"test-patch","title":null,"body":"Synthetic patch"}),
+    )["id"]
+        .clone();
+    e.call(
+        "module.remove_patch",
+        json!({"book":b,"entry":a,"module":"test-patch","id":patch}),
+    );
+    assert!(
+        e.out(
+            "module.read",
+            json!({"book":b,"entry":a,"module":"test-patch"})
+        )["patches"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    e.ws().undo(&dr_workspace::Actor::User).unwrap();
+    assert_eq!(
+        e.out(
+            "module.read",
+            json!({"book":b,"entry":a,"module":"test-patch"})
+        )["patches"][0]["body"],
+        "Synthetic patch"
+    );
+}

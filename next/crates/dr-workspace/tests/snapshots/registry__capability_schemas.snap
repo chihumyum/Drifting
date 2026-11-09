@@ -6009,7 +6009,7 @@ expression: json
     "name": "entry_relation_type.list",
     "output": {
       "$defs": {
-        "RelationType": {
+        "RelationTypeInfo": {
           "properties": {
             "color": {
               "default": null,
@@ -6025,7 +6025,13 @@ expression: json
             "id": {
               "type": "string"
             },
+            "locked": {
+              "type": "boolean"
+            },
             "name": {
+              "type": "string"
+            },
+            "normalized_name": {
               "type": "string"
             },
             "orientation": {
@@ -6049,6 +6055,12 @@ expression: json
                 "type": "string"
               },
               "type": "array"
+            },
+            "system_key": {
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "target_kinds": {
               "default": [],
@@ -6080,15 +6092,18 @@ expression: json
             "source_kinds",
             "target_kinds",
             "source_templates",
-            "target_templates"
+            "target_templates",
+            "normalized_name",
+            "system_key",
+            "locked"
           ],
           "type": "object"
         }
       },
       "items": {
-        "$ref": "#/$defs/RelationType"
+        "$ref": "#/$defs/RelationTypeInfo"
       },
-      "title": "Array_of_RelationType",
+      "title": "Array_of_RelationTypeInfo",
       "type": "array"
     },
     "summary": "List relation types available to v3 entry modules."

@@ -142,6 +142,14 @@ pub struct RelationType {
     #[serde(default)]
     pub target_templates: Vec<String>,
 }
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct RelationTypeInfo {
+    #[serde(flatten)]
+    pub definition: RelationType,
+    pub normalized_name: String,
+    pub system_key: Option<String>,
+    pub locked: bool,
+}
 fn directed() -> String {
     "directed".into()
 }
@@ -317,7 +325,7 @@ fn put_grid(cx: &Cx<'_>, input: GridIn) -> Result<Done> {
     Ok(Done { id })
 }
 op! {
-    RelationTypes="entry_relation_type.list",Read,Shared,"List relation types available to v3 entry modules.",fn(cx,input:BookIn)->Vec<RelationType> {
+    RelationTypes="entry_relation_type.list",Read,Shared,"List relation types available to v3 entry modules.",fn(cx,input:BookIn)->Vec<RelationTypeInfo> {
         let s = cx.book_v3(&input.book)?;
         convert(s.reader_v3.view().relation_types())
     }
