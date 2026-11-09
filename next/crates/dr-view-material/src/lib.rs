@@ -35,6 +35,7 @@ pub mod menu;
 pub mod page;
 pub mod previews;
 pub mod regions;
+pub mod v3;
 pub mod viewport;
 
 use dr_shell::nav::Target;
