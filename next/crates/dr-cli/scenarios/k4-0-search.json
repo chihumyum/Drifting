@@ -1,0 +1,440 @@
+{
+  "about": "F6 搜索宿主：v3-lite 从真实快捷键搜索标题、多篇正文和素材；精确模块/段落跳转后立即输入及撤销、前进后退和刷新。正文来自共享种子，仅加识别标记。",
+  "steps": [
+    {
+      "seed": "v3-lite"
+    },
+    {
+      "call": "book.list",
+      "save": "books"
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}",
+        "all": true
+      },
+      "save": "entries"
+    },
+    {
+      "call": "entry.update",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${entries.[template=tpl-chapter].id}",
+        "title": "F6TitleProbe"
+      }
+    },
+    {
+      "call": "prose.read",
+      "input": {
+        "doc": "body:${entries.[template=tpl-chapter].id}/mod-prose"
+      },
+      "save": "body"
+    },
+    {
+      "call": "entry_template.put_module",
+      "input": {
+        "book": "${books.0.id}",
+        "template": "tpl-chapter",
+        "module": {
+          "id": "search-second-body",
+          "kind": "prose",
+          "name": "Search second body"
+        }
+      }
+    },
+    {
+      "call": "module.set_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "search-second-body",
+        "paragraphs": [
+          {
+            "text": "${body.paragraphs.0.text}"
+          },
+          {
+            "text": "F6ModuleProbe ${body.paragraphs.1.text}"
+          }
+        ]
+      }
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light",
+          "DRIFTING_WINDOW_DISPLAY": "secondary"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${books.0.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/book/loaded": true,
+          "/book/version": 3
+        }
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "app.info",
+      "save": "environment",
+      "expect": {
+        "/windows/0/active": true,
+        "/windows/0/visible": true
+      }
+    },
+    {
+      "app": "state.get",
+      "save": "loaded"
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-shift-f"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/layer": "search",
+          "/search/version": 3
+        }
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "F6TitleProbe"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/search/searching": false,
+          "/search/groups/0/target": "entry:${entries.[template=tpl-chapter].id}",
+          "/search/groups/0/rows/0/line": null
+        }
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "enter"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/layer": null,
+          "/page": "entry:${entries.[template=tpl-chapter].id}",
+          "/v3Page/module": null
+        }
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-shift-f"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/layer": "search",
+          "/search/version": 3
+        }
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "F6ModuleProbe"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/search/searching": false,
+          "/search/groups/0/target": "entry:${entries.[template=tpl-chapter].id}/search-second-body",
+          "/search/groups/0/rows/0/line": 3
+        }
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "enter"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/layer": null,
+          "/page": "entry:${entries.[template=tpl-chapter].id}/search-second-body",
+          "/v3Page/module": "search-second-body",
+          "/v3Page/reveal/start": 3
+        }
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "TextArea",
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "F6Typed "
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "search-second-body"
+      },
+      "expect": {
+        "/paragraphs/1/text": "F6Typed F6ModuleProbe ${body.paragraphs.1.text}"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-z"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "search-second-body"
+      },
+      "expect": {
+        "/paragraphs/1/text": "F6ModuleProbe ${body.paragraphs.1.text}"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs": "${body.paragraphs}"
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::GoBack"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/page": "entry:${entries.[template=tpl-chapter].id}"
+        }
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::GoForward"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/page": "entry:${entries.[template=tpl-chapter].id}/search-second-body"
+        }
+      }
+    },
+    {
+      "app": "nav.open",
+      "expect": {
+        "/opened": "material:${loaded.v3.materials.[kind=text].id}"
+      },
+      "note": "素材由同一本 v3 书的元数据确认存在，桥接导航不再拒绝",
+      "params": {
+        "target": "material:${loaded.v3.materials.[kind=text].id}"
+      }
+    },
+    {
+      "call": "prose.read",
+      "input": {
+        "doc": "material:${loaded.v3.materials.[kind=text].id}"
+      },
+      "save": "materialBody"
+    },
+    {
+      "call": "prose.replace",
+      "input": {
+        "doc": "material:${loaded.v3.materials.[kind=text].id}",
+        "block_id": "${materialBody.paragraphs.0.block_id}",
+        "find": "${materialBody.paragraphs.0.text}",
+        "replace": "F6MaterialProbe ${materialBody.paragraphs.0.text}"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-shift-f"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/layer": "search",
+          "/search/version": 3
+        }
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "F6MaterialProbe"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/search/searching": false,
+          "/search/groups/0/target": "material:${loaded.v3.materials.[kind=text].id}",
+          "/search/groups/0/rows/0/line": 1
+        }
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "enter"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/layer": null,
+          "/page": "material:${loaded.v3.materials.[kind=text].id}"
+        }
+      }
+    },
+    {
+      "call": "book.update",
+      "input": {
+        "book": "${books.0.id}",
+        "name": "Synthetic v3 refreshed"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/book/name": "Synthetic v3 refreshed",
+          "/page": "material:${loaded.v3.materials.[kind=text].id}"
+        }
+      }
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/page": "material:${loaded.v3.materials.[kind=text].id}",
+        "/pageTitle": "${loaded.v3.materials.[kind=text].title}",
+        "/book/name": "Synthetic v3 refreshed"
+      },
+      "note": "书刷新后合法素材目标仍打开，不被 v3 exists 过滤"
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-shift-f"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/layer": "search",
+          "/search/version": 3
+        }
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "escape"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/layer": null,
+          "/search": null
+        }
+      }
+    },
+    {
+      "app": "app.quit"
+    }
+  ]
+}

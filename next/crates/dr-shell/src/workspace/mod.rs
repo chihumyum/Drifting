@@ -24,6 +24,7 @@ pub mod outline;
 pub mod page_actions;
 mod review;
 mod sea;
+mod search;
 mod sidebar;
 mod stage;
 mod super_view;
@@ -1037,6 +1038,8 @@ impl Workspace {
             // A read of the book shown before is dropped, not applied.
             self.book_task = None;
             self.book_stale = false;
+            // Search results belong to the book that opened the panel.
+            self.search = None;
             self.book_id = book.to_owned();
             self.book = Rc::new(Book::default());
             self.restore_layout(cx);
@@ -1426,43 +1429,6 @@ impl Workspace {
             panel.update(cx, |panel, cx| panel.focus(window, cx));
             self.settings = Some(panel);
         }
-        cx.notify();
-    }
-
-    /// ⌘⇧F: M06's search panel. A hit opens its page through a location
-    /// link (the paragraph scrolls into view) or, for a material, the page.
-    pub fn toggle_search(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.search.take().is_some() {
-            self.focus.focus(window, cx);
-            cx.notify();
-            return;
-        }
-        let strings = crate::Strings::get(cx);
-        let (locale, platform) = (strings.locale(), strings.platform());
-        let book = self.book.clone();
-        let marks: dr_view_search::Marks = Rc::new(move |t| book.mark(&book::target(t.clone())));
-        let (lib, id) = (self.library.clone(), self.book_id.clone());
-        let panel = cx.new(|cx| {
-            dr_view_search::SearchPanel::new(lib, id, marks, locale, platform, window, cx)
-        });
-        cx.subscribe_in(&panel, window, |ws, _, event, window, cx| {
-            ws.search = None;
-            ws.focus.focus(window, cx);
-            if let dr_view_search::SearchEvent::Jump(jump) = event {
-                let opened = jump
-                    .link
-                    .as_deref()
-                    .is_some_and(|link| ws.open_link(link, window, cx));
-                if !opened {
-                    ws.super_view = None;
-                    ws.open(book::target(jump.target.clone()), Open::KEEP, cx);
-                }
-            }
-            cx.notify();
-        })
-        .detach();
-        panel.update(cx, |p, cx| p.focus(window, cx));
-        self.search = Some(panel);
         cx.notify();
     }
 
