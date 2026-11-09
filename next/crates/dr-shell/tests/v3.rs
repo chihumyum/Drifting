@@ -779,3 +779,172 @@ fn level_settings_part_mounts_once_and_refreshes(cx: &mut gpui::TestAppContext) 
     }
     assert_eq!(made.get(), 1, "the settings part is kept across refreshes");
 }
+
+#[gpui::test]
+fn level_refresh_retains_live_prose_input_selection_scroll_and_page_instance(
+    cx: &mut gpui::TestAppContext,
+) {
+    use dr_editor::{ChapterEditor, EditorSettings};
+    use dr_shell::{
+        Services, SettingsFile, ShellInfo, Workspace as Shell,
+        v3::{self, Rendered},
+    };
+    use gpui::{prelude::*, *};
+    use std::{
+        cell::RefCell,
+        rc::Rc,
+        time::{Duration, Instant},
+    };
+
+    let (_dir, lib, id) = seed();
+    let book = Book::load(&lib, &id).unwrap();
+    let b = book.v3().unwrap();
+    let entry = b
+        .entries
+        .iter()
+        .find(|e| e.template.as_deref() == Some("tpl-chapter"))
+        .unwrap()
+        .id
+        .clone();
+    let level = b
+        .entries
+        .iter()
+        .find(|e| e.template.as_deref() == Some("tpl-manuscript"))
+        .unwrap()
+        .id
+        .clone();
+    let mounted = Rc::new(RefCell::new(Vec::new()));
+    cx.executor().allow_parking();
+    cx.update(|cx| {
+        dr_shell::init(
+            ShellInfo {
+                app_name: "Drifting Next",
+                bundle_id: "cc.drifting.next.dev",
+                version: "0.2.0-dev",
+                url_scheme: "drifting-next-dev",
+                forced_appearance: None,
+            },
+            Services {
+                library: Some(lib.clone()),
+                book: Some(id.clone()),
+                ..Default::default()
+            },
+            SettingsFile::in_memory(),
+            cx,
+        );
+        let mounted = mounted.clone();
+        v3::add_module_view(cx, "prose", move |host, window, cx| {
+            let doc = format!("body:{}/{}", host.entry, host.module.id);
+            let editor = cx.new(|cx| {
+                ChapterEditor::open(
+                    host.page.library.clone(),
+                    &host.page.book_id,
+                    &doc,
+                    EditorSettings::default(),
+                    window,
+                    cx,
+                )
+                .unwrap()
+            });
+            mounted.borrow_mut().push(editor.clone());
+            let focus = editor.read(cx).focus_handle(cx);
+            Rendered::new(editor).focus(focus)
+        });
+    });
+    let (view, cx) = cx.add_window_view(Shell::new);
+    let wait = |cx: &mut VisualTestContext, revision: Option<&str>| {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            cx.run_until_parked();
+            cx.update(|window, cx| window.draw(cx).clear(cx));
+            if view.read_with(cx, |ws, _| {
+                ws.book
+                    .v3()
+                    .is_some_and(|b| Some(b.revision.as_str()) != revision)
+            }) {
+                break;
+            }
+            assert!(Instant::now() < deadline, "book did not refresh");
+            std::thread::sleep(Duration::from_millis(2));
+        }
+    };
+    wait(cx, None);
+    let target = Target::from_key(&format!("entry:{entry}/mod-prose")).unwrap();
+    view.update(cx, |ws, cx| ws.open(target.clone(), Open::KEEP, cx));
+    for _ in 0..4 {
+        cx.update(|window, cx| window.draw(cx).clear(cx));
+        cx.run_until_parked();
+    }
+    let editor = mounted.borrow()[0].clone();
+    let prose = editor.read_with(cx, |e, _| e.editor().clone());
+    cx.update(|window, cx| {
+        prose.update(cx, |p, cx| {
+            p.select(0, 8..8, window, cx);
+            p.replace_text_in_range(None, "结构刷新", window, cx);
+        })
+    });
+    cx.run_until_parked();
+    cx.update(|window, cx| window.draw(cx).clear(cx));
+    prose.update(cx, |p, cx| {
+        p.scroll_by_estimate(96.0, cx);
+    });
+    cx.update(|window, cx| window.draw(cx).clear(cx));
+    let (text, selection, scroll) = prose.read_with(cx, |p, _| {
+        (
+            p.book().chapters[0].doc.plain_text(),
+            p.selection(),
+            p.scroll_y().0,
+        )
+    });
+    assert!(text.contains("结构刷新"));
+    assert!(scroll > 0.0, "the editor must actually be scrolled");
+    let (page, revision) = view.read_with(cx, |ws, _| {
+        (
+            ws.editors[&target.key()].v3.as_ref().unwrap().entity_id(),
+            ws.book.v3().unwrap().revision.clone(),
+        )
+    });
+    call(
+        &lib,
+        "entry.update",
+        json!({"book":id,"id":level,"overrides":{"accept":true}}),
+    );
+    wait(cx, Some(&revision));
+    view.read_with(cx, |ws, _| {
+        assert_eq!(ws.nav.current(), Some(&target));
+        assert_eq!(
+            ws.editors[&target.key()].v3.as_ref().unwrap().entity_id(),
+            page
+        );
+        let refreshed = &ws.book.v3().unwrap().levels[&level];
+        assert!(refreshed.settings.accept);
+        assert_eq!(
+            refreshed.sources["accept"],
+            SettingSource::Override {
+                entry: level.clone()
+            }
+        );
+    });
+    assert_eq!(
+        mounted.borrow().len(),
+        1,
+        "the live module editor is retained"
+    );
+    prose.read_with(cx, |p, _| {
+        assert_eq!(p.book().chapters[0].doc.plain_text(), text);
+        assert_eq!(p.selection(), selection);
+        assert_eq!(p.scroll_y().0, scroll);
+    });
+    let stored = call(
+        &lib,
+        "module.read_prose",
+        json!({"book":id,"owner":entry,"module":"mod-prose"}),
+    );
+    assert!(
+        stored["paragraphs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|p| p["text"].as_str().unwrap().contains("结构刷新"))
+    );
+}

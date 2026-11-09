@@ -728,7 +728,8 @@ v2.2 与 v3 在同一个窗口中按书分路。`book::Book` 保留共有的 `id
 
 - `Book::v3()` 返回 `book::v3::BookV3`：`entries`、`templates`、`roots`、`levels`、
   `memberships`、`timeline_views` 和书目 `revision`。数据经 `entry.list`、
-  `entry_template.list`、`level.get`、`membership.list`、`timeline_view.list` 读取。
+  `entry_template.list`、`level.list`、`membership.list`、`timeline_view.list` 读取
+  （`level.list` 在下文结构读取交回中替换最初的逐层 `level.get`）。
   `WsEvent::Book` 触发重新读取；前后 frontier 不同的批次不发布。
 - `levels[id]` 的 `settings` 是 F3 的有效值；`sources` 逐项标注 `Default`、
   `Override { entry }`、`Template { entry, template }` 或强制接收成员的
@@ -769,9 +770,8 @@ v2.2 与 v3 在同一个窗口中按书分路。`book::Book` 保留共有的 `id
 
 ### K4-0 待协调
 
-1. F3 的 `level.get` 暂无来源字段。当前外壳只对来源做追溯，有效值仍用查询结果；
-   若 K6 给查询加上来源，可统一为它的 DTO，避免各消费方重复解释。当前来源
-   使用 F1 的有效祖先函数，覆盖 null、模板、祖先、默认和泳道强制接收。
+1. **结构读取批关闭**：第 60 批的 F3 `level.list` 已同时返回有效值和来源；
+   本次外壳改为消费同一 DTO，移除独立来源追溯。精确映射和验收见下文。
 2. 旧 `book::nav_target` 的返回类型只有 v2.2 目标；对 v3 目标返回其「无单个实体」
    的 `Book` 哨兵。G4 的审阅/统计/素材适配应直接消费 `Target::Entry` 及 module，
    不再经过这个旧适配器。`nav::location` 的旧 Markdown URL 解析维持原格式；
@@ -919,3 +919,26 @@ public；编译并发 3，测试单线程。audit 为 0 vulnerabilities、12 not
 本机最近访问和大书批量查询继续按协调队列接线。已分派给 K2／G4 的候选复用
 正式接收的接口，未占用的公共小接口按新规则可自行只增不改并带测试交回。
 素材 facade 接收后再统一消费。未将工作分支合入 main，未推送。
+
+### 外壳 v3 结构读取正确性交回（2026-11-10）
+
+**做了什么：** `book::v3::load` 每轮只调用一次现有的
+`entry::LevelList(BookIn) -> LevelsInfo`。`levels[].id` 原样作为外壳 `levels` 的键；
+`settings` 原样保留 `types::LevelSettings` 的八项值；`sources` 保留键和标识符，
+`Default`、`Override { entry }`、`Template { entry, template }`、
+`Lane { entry, template }` 逐变体一一映射到外壳同名枚举，不再判断继承或泳道优先级。
+`children`、`members` 只将完整条目 DTO 投影成 id，原顺序、有效父级容错与有效归属
+由内核负责，二者不互换。保留三次 before/after frontier 重试，并额外要求
+`LevelsInfo.version == before.version == after.version` 才发布整份快照；
+`BookV3.revision` 使用该共同版本。条目、模板、根、时间线及素材仍在同一外层校验中。
+永久契约覆盖八项来源、默认／模板／祖先覆盖／泳道、显式 null 与缺失键、真实加载
+修改重载和重开、叶子父级容错、排序／回收恢复、住处与成员、全库无写入和 journal
+不变、双书隔离、并发写入下整份快照逐字段对照其 revision 的历史文档，以及真实
+正文编辑器在设置刷新时保留实例、输入、选区和滚动位置。未增删 v2.2 测试。
+
+**检查结果：** 本段的全套检查与副屏主流程冒烟正在执行，完成后在此记录实际结果。
+
+**待协调：** 本段暂未发现需要修改公共接口的正确性缺口。全书仍包含其他查询，
+未声称整份外壳快照只用一次网络／持有者调用；额外查询复用、大书性能、heavy 测量、
+基准、截图目检与样式／流畅度打磨按最新监管规则暂缓，未测项目不记为通过。
+F6 搜索／最近访问及其他组在途工作不属于本次交回，也未消费其 WIP。

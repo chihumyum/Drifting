@@ -1,14 +1,13 @@
-//! V3 query snapshot. Effective values come from F3; provenance describes the
-//! same precedence using its returned entries/templates, never another read of Loro.
+//! V3 query snapshot. Level values and provenance come from the same F3 DTO;
+//! every query must share the book frontier before the snapshot is published.
 use std::collections::{BTreeMap, BTreeSet};
 
 use dr_doc::v3::BorrowedBookV3;
-use dr_model::v3 as model;
 use dr_ui::sand;
 use dr_workspace::{
     Actor, Workspace, WsError,
     commands::{
-        BookIn, EntityIn,
+        BookIn,
         v3::{entry, membership, template, timeline, types},
     },
 };
@@ -33,6 +32,19 @@ pub enum SettingSource {
         entry: String,
         template: String,
     },
+}
+
+impl From<entry::SettingSource> for SettingSource {
+    fn from(source: entry::SettingSource) -> Self {
+        match source {
+            entry::SettingSource::Default => Self::Default,
+            entry::SettingSource::Override { entry } => Self::Override { entry },
+            entry::SettingSource::Template { entry, template } => {
+                Self::Template { entry, template }
+            }
+            entry::SettingSource::Lane { entry, template } => Self::Lane { entry, template },
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -160,78 +172,6 @@ pub fn mark(name: Option<&str>, id: &str) -> sand::Kind {
     }
 }
 
-fn convert<T: serde::de::DeserializeOwned>(v: impl Serialize) -> Result<T, WsError> {
-    serde_json::to_value(v)
-        .and_then(serde_json::from_value)
-        .map_err(|e| WsError::Internal(e.to_string()))
-}
-
-const SETTINGS: [&str; 8] = [
-    "default_template",
-    "allow",
-    "display",
-    "auto_link",
-    "accept",
-    "home",
-    "is_manuscript",
-    "format_shortcuts",
-];
-
-fn specified(s: &model::LevelSettingsOverride, key: &str) -> bool {
-    match key {
-        "default_template" => s.default_template.is_some(),
-        "allow" => s.allow.is_some(),
-        "display" => s.display.is_some(),
-        "auto_link" => s.auto_link.is_some(),
-        "accept" => s.accept.is_some(),
-        "home" => s.home.is_some(),
-        "is_manuscript" => s.is_manuscript.is_some(),
-        "format_shortcuts" => s.format_shortcuts.is_some(),
-        _ => false,
-    }
-}
-
-fn sources(
-    id: &model::EntryId,
-    entries: &BTreeMap<model::EntryId, model::Entry>,
-    templates: &BTreeMap<model::EntryTemplateId, model::EntryTemplate>,
-) -> BTreeMap<String, SettingSource> {
-    let chain = std::iter::once(id.clone())
-        .chain(model::effective_ancestors(entries, templates, id))
-        .collect::<Vec<_>>();
-    SETTINGS
-        .into_iter()
-        .map(|key| {
-            let source = if key == "accept" && entries[id].is_lane_level(templates) {
-                SettingSource::Lane {
-                    entry: id.to_string(),
-                    template: entries[id].template.as_ref().unwrap().to_string(),
-                }
-            } else {
-                chain
-                    .iter()
-                    .find_map(|ancestor| {
-                        let entry = entries.get(ancestor)?;
-                        if entry.overrides.as_ref().is_some_and(|s| specified(s, key)) {
-                            return Some(SettingSource::Override {
-                                entry: ancestor.to_string(),
-                            });
-                        }
-                        entry
-                            .effective_template(templates)
-                            .filter(|t| t.is_level() && specified(&t.settings, key))
-                            .map(|t| SettingSource::Template {
-                                entry: ancestor.to_string(),
-                                template: t.id.to_string(),
-                            })
-                    })
-                    .unwrap_or(SettingSource::Default)
-            };
-            (key.to_owned(), source)
-        })
-        .collect()
-}
-
 pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
     // A remote commit can arrive between queries. Never publish a mixed
     // snapshot: retry the batch against a stable book frontier.
@@ -265,37 +205,7 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
         let templates = lib
             .run::<template::TemplateList>(&Actor::User, input())?
             .output;
-        let model_entries: Vec<model::Entry> = convert(&entries)?;
-        let model_templates: Vec<model::EntryTemplate> = convert(&templates)?;
-        let em: BTreeMap<_, _> = model_entries
-            .into_iter()
-            .map(|e| (e.id.clone(), e))
-            .collect();
-        let tm: BTreeMap<_, _> = model_templates
-            .into_iter()
-            .map(|t| (t.id.clone(), t))
-            .collect();
-        let mut levels = BTreeMap::new();
-        for e in em.values().filter(|e| !e.is_trashed() && e.is_level(&tm)) {
-            let info = lib
-                .run::<entry::LevelGet>(
-                    &Actor::User,
-                    EntityIn {
-                        book: id.to_owned(),
-                        id: e.id.to_string(),
-                    },
-                )?
-                .output;
-            levels.insert(
-                e.id.to_string(),
-                Level {
-                    settings: info.settings,
-                    sources: sources(&e.id, &em, &tm),
-                    children: info.children.into_iter().map(|e| e.id).collect(),
-                    members: info.members.into_iter().map(|e| e.id).collect(),
-                },
-            );
-        }
+        let resolved = lib.run::<entry::LevelList>(&Actor::User, input())?.output;
         let roots = lib
             .run::<entry::EntryList>(
                 &Actor::User,
@@ -329,9 +239,28 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
                 Ok::<_, WsError>(book.view().materials().iter().map(Into::into).collect())
             })??;
         let after = lib.observe(&format!("book:{id}"))?;
-        if before.version != after.version {
+        if before.version != after.version || resolved.version != after.version {
             continue;
         }
+        let levels = resolved
+            .levels
+            .into_iter()
+            .map(|info| {
+                (
+                    info.id,
+                    Level {
+                        settings: info.settings,
+                        sources: info
+                            .sources
+                            .into_iter()
+                            .map(|(key, source)| (key, source.into()))
+                            .collect(),
+                        children: info.children.into_iter().map(|e| e.id).collect(),
+                        members: info.members.into_iter().map(|e| e.id).collect(),
+                    },
+                )
+            })
+            .collect();
         let entries: Vec<_> = entries
             .into_iter()
             .filter(|e| e.deleted_at.is_none())
