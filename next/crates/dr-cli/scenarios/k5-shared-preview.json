@@ -28,7 +28,8 @@
               "first_run.done": true,
               "guides.seen": [
                 "workspace-tour"
-              ]
+              ],
+              "agent.proactive_suggestions": false
             }
           },
           "account": {
@@ -257,6 +258,13 @@
         "state": {
           "/page": "template:${saved.[name=Shared preview smoke].id}"
         }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 500
       }
     },
     {
