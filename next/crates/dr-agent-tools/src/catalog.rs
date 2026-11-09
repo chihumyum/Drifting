@@ -952,6 +952,9 @@ fn exclusion_v3(spec: &Spec) -> Option<&'static str> {
     ) {
         return Some("local timeline edits need exact lane, placement, and pin read coverage");
     }
+    if spec.name == "timeline_view.restore_fields" {
+        return Some("scoped timeline undo is internal until K6 provides a guarded facade");
+    }
     if spec.name == "membership.restore" {
         return Some("scoped membership undo is internal until K6 provides a guarded facade");
     }

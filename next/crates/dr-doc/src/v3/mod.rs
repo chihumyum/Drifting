@@ -34,7 +34,7 @@ pub use novel::{
     novel_project_templates,
 };
 pub use raw::raw_document_state;
-pub use read::{BookViewV3, EntrySnapshotV3, RepairPlanV3};
+pub use read::{BookViewV3, EntrySnapshotV3, RepairPlanV3, TimelineFieldV3};
 pub use structure::BookStructureV3;
 pub use write::BookTxnV3;
 
