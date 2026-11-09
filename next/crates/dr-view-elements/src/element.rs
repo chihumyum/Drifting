@@ -16,6 +16,8 @@
 //! - **Summary**: Enter starts a new line, Esc puts the stored summary back,
 //!   leaving saves (not trimmed).
 
+pub mod patches;
+
 use std::rc::Rc;
 
 use dr_i18n::keys;

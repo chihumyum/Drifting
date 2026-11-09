@@ -46,6 +46,15 @@ pub fn change_targets(run: &crate::state::RunSnapshot, turn: u32) -> Vec<ChangeT
         if matches!(doc, dr_model::DocId::Template(_)) {
             continue;
         }
+        if let dr_model::DocId::Body(body) = &doc {
+            add(ChangeTarget {
+                kind: "entry".into(),
+                id: body.entry().to_string(),
+                history: Some(receipt.document.clone()),
+                book: None,
+            });
+            continue;
+        }
         if doc.profile().is_some() {
             if let Some((kind, id)) = receipt.document.split_once(':') {
                 add(ChangeTarget {
@@ -79,15 +88,28 @@ pub fn change_targets(run: &crate::state::RunSnapshot, turn: u32) -> Vec<ChangeT
             // report singular entity kinds. Both identify the same object.
             // `meta` stays distinct: its id names a field, not the book.
             use dr_doc::book::Collection;
-            let kind = match Collection::from_root(&effect.kind) {
-                Some(Collection::Nodes) => "node",
-                Some(Collection::Elements) => "element",
-                Some(Collection::Categories) => "category",
-                Some(Collection::Storylines) => "storyline",
-                Some(Collection::Materials) => "material",
-                Some(Collection::Comments) => "comment",
-                Some(Collection::Relations) => "relation",
-                _ => effect.kind.as_str(),
+            let (kind, id) = match Collection::from_root(&effect.kind) {
+                Some(Collection::Nodes) => ("node", effect.id),
+                Some(Collection::Elements) => ("element", effect.id),
+                Some(Collection::Categories) => ("category", effect.id),
+                Some(Collection::Storylines) => ("storyline", effect.id),
+                Some(Collection::Materials) => ("material", effect.id),
+                Some(Collection::Comments) => ("comment", effect.id),
+                Some(Collection::Relations) => ("relation", effect.id),
+                _ => match effect.kind.as_str() {
+                    "entries" | "entry" => ("entry", effect.id),
+                    "entry_templates" | "entry_template" => ("entry_template", effect.id),
+                    "timeline_views" | "timeline_view" => ("timeline_view", effect.id),
+                    "plot_grids" | "plot_grid" => (
+                        "entry",
+                        effect.id.split('/').next().unwrap_or(&effect.id).to_owned(),
+                    ),
+                    "memberships" | "membership" => (
+                        "entry",
+                        effect.id.split('/').nth(1).unwrap_or(&effect.id).to_owned(),
+                    ),
+                    other => (other, effect.id),
+                },
             };
             if matches!(
                 kind,
@@ -99,10 +121,13 @@ pub fn change_targets(run: &crate::state::RunSnapshot, turn: u32) -> Vec<ChangeT
                     | "material"
                     | "comment"
                     | "relation"
+                    | "entry"
+                    | "entry_template"
+                    | "timeline_view"
             ) {
                 add(ChangeTarget {
                     kind: kind.into(),
-                    id: effect.id,
+                    id,
                     history: None,
                     book: Some(book.into()),
                 });
@@ -262,6 +287,16 @@ pub fn starters(ws: &Workspace, book: &str) -> Result<StarterSource, String> {
             .map(|value| value["output"].clone())
             .map_err(|error| error.to_string())
     };
+    let copy = ws
+        .library()
+        .load_copy(&format!("book:{book}"))
+        .map_err(|error| error.to_string())?;
+    if dr_doc::v3::is_v3_doc(&copy) {
+        return Ok(StarterSource {
+            template_guided: true,
+            ..Default::default()
+        });
+    }
     let chapters = read("chapter.list", json!({"book":book}))?;
     let elements = read("element.list", json!({"book":book}))?;
     let relations = read("relation.list", json!({"book":book}))?;
@@ -344,7 +379,11 @@ pub fn web_url(value: &str) -> Option<String> {
 
 pub fn tool_name(call: &dr_agent::ToolCall) -> &str {
     if call.name == "call_tool" {
-        call.arguments["name"].as_str().unwrap_or(&call.name)
+        call.arguments["name"]
+            .as_str()
+            .or_else(|| call.arguments["action"]["verb"].as_str())
+            .or_else(|| call.arguments["action"].as_str())
+            .unwrap_or(&call.name)
     } else {
         &call.name
     }
@@ -550,6 +589,18 @@ mod tests {
         assert_eq!(requests[0].key, prompts::COMMENT_CHAPTER);
         assert_eq!(requests[0].values, vec![("chapter", recent.title.clone())]);
         assert_eq!(requests[1].values, vec![("chapter", recent.title.clone())]);
+        workspace.shutdown().unwrap();
+    }
+
+    #[test]
+    fn v3_onboarding_does_not_infer_novel_starters_from_entry_shapes() {
+        let directory = tempfile::tempdir().unwrap();
+        let workspace = Workspace::open_dir(directory.path(), "k6-v3-starters").unwrap();
+        let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+        seeded.write_to(workspace.library()).unwrap();
+        let source = starters(&workspace, seeded.books[0].book_id().as_str()).unwrap();
+        assert!(source.template_guided);
+        assert!(crate::onboarding::build_starter_prompts(&source).is_empty());
         workspace.shutdown().unwrap();
     }
 

@@ -279,10 +279,16 @@ impl ChapterEditor {
     }
 
     fn extension(ws: &Workspace, book: &str) -> DriftingExtension {
-        let targets = ws
-            .catalog(book)
-            .ok()
-            .map(|c| Box::new(Catalog(c)) as Box<dyn LinkTargets>);
+        let targets = if crate::v3::is_book(ws, book).unwrap_or(false) {
+            Some(Box::new(crate::v3::LinkTargets {
+                workspace: ws.clone(),
+                book: book.to_owned(),
+            }) as Box<dyn LinkTargets>)
+        } else {
+            ws.catalog(book)
+                .ok()
+                .map(|c| Box::new(Catalog(c)) as Box<dyn LinkTargets>)
+        };
         DriftingExtension::new(targets)
     }
 
@@ -842,7 +848,13 @@ enum Notice {
 
 impl Render for ChapterEditor {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let inner = crate::assist::wrap(&self.assist, ProseEditor::element(&self.editor, cx));
+        let inner = if crate::v3::body(&self.doc_id).is_some() {
+            crate::assist::wrap_module(&self.assist, ProseEditor::element(&self.editor, cx))
+                .into_any_element()
+        } else {
+            crate::assist::wrap(&self.assist, ProseEditor::element(&self.editor, cx))
+                .into_any_element()
+        };
         if self.embeds.is_none() {
             return inner.into_any_element();
         }

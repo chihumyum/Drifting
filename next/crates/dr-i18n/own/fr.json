@@ -241,5 +241,20 @@
     "yes": "Oui",
     "no": "Non",
     "add_field": "Ajouter un champ"
+  },
+  "k4Pages": {
+    "unset": "Non défini",
+    "saveFailed": "Enregistrement impossible",
+    "invalidValue": "Valeur non valide",
+    "retained": "Contenu précédent",
+    "newPatch": "Nouveau correctif",
+    "body": "Corps du texte",
+    "quote": "Citation",
+    "rule": "Séparateur",
+    "h1": "H1",
+    "h2": "H2",
+    "h3": "H3",
+    "title": "Titre",
+    "entries": "Entrées"
   }
 }

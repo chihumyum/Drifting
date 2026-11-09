@@ -814,7 +814,11 @@ impl Worker {
             .descriptors
             .iter()
             .any(|d| d.name == call.name)
-            .then(|| self.inner.tools.describe(call))
+            .then(|| {
+                self.inner
+                    .tools
+                    .describe_in_book(&self.inner.ws, &self.book, call)
+            })
             .flatten()
     }
 
@@ -901,7 +905,13 @@ impl Worker {
             FuturesUnordered::new();
         let mut pending = HashMap::new();
         for (call, descriptor) in group {
-            if self.inner.tools.describe(&call).as_ref() != Some(&descriptor) {
+            if self
+                .inner
+                .tools
+                .describe_in_book(&self.inner.ws, &self.book, &call)
+                .as_ref()
+                != Some(&descriptor)
+            {
                 self.tool_result(
                     &call,
                     ToolStatus::Error,

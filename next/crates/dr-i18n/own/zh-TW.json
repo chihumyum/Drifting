@@ -235,5 +235,20 @@
     "yes": "是",
     "no": "否",
     "add_field": "新增欄位"
+  },
+  "k4Pages": {
+    "unset": "未設定",
+    "saveFailed": "無法儲存",
+    "invalidValue": "值無效",
+    "retained": "原來的內容",
+    "newPatch": "新增補丁",
+    "body": "正文",
+    "quote": "引用",
+    "rule": "分隔線",
+    "h1": "H1",
+    "h2": "H2",
+    "h3": "H3",
+    "title": "標題",
+    "entries": "條目"
   }
 }

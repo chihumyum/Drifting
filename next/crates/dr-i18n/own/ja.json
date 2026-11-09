@@ -235,5 +235,20 @@
     "yes": "はい",
     "no": "いいえ",
     "add_field": "フィールドを追加"
+  },
+  "k4Pages": {
+    "unset": "未設定",
+    "saveFailed": "保存できませんでした",
+    "invalidValue": "無効な値",
+    "retained": "以前の内容",
+    "newPatch": "パッチを追加",
+    "body": "本文",
+    "quote": "引用",
+    "rule": "区切り線",
+    "h1": "H1",
+    "h2": "H2",
+    "h3": "H3",
+    "title": "タイトル",
+    "entries": "項目"
   }
 }

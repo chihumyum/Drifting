@@ -235,5 +235,20 @@
     "yes": "예",
     "no": "아니요",
     "add_field": "필드 추가"
+  },
+  "k4Pages": {
+    "unset": "설정 안 됨",
+    "saveFailed": "저장할 수 없음",
+    "invalidValue": "잘못된 값",
+    "retained": "이전 내용",
+    "newPatch": "새 패치",
+    "body": "본문",
+    "quote": "인용",
+    "rule": "구분선",
+    "h1": "H1",
+    "h2": "H2",
+    "h3": "H3",
+    "title": "제목",
+    "entries": "항목"
   }
 }

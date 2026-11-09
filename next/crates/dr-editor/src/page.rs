@@ -93,7 +93,7 @@ pub struct ActPage {
 }
 
 impl PageInfo {
-    fn blank(doc: &str) -> PageInfo {
+    pub(crate) fn blank(doc: &str) -> PageInfo {
         PageInfo {
             doc: doc.to_owned(),
             kind: PageKind::Other,
@@ -341,6 +341,15 @@ fn read(
     book: &str,
     docs: &[String],
 ) -> (Vec<PageInfo>, std::collections::HashMap<usize, usize>) {
+    if docs.iter().any(|d| crate::v3::body(d).is_some()) {
+        return (
+            crate::v3::page_infos(ws, book, docs).unwrap_or_else(|error| {
+                log::warn!("v3 page facts: {error}");
+                docs.iter().map(|d| PageInfo::blank(d)).collect()
+            }),
+            Default::default(),
+        );
+    }
     let mut infos: Vec<PageInfo> = docs.iter().map(|d| PageInfo::blank(d)).collect();
     let ids: Vec<Option<&str>> = docs.iter().map(|d| d.strip_prefix("node:")).collect();
     let mut ordinals = std::collections::HashMap::new();
@@ -465,6 +474,18 @@ pub fn rename(
     title: &str,
 ) -> Result<Option<String>, WsError> {
     let title = title.trim();
+    if let Some((id, _)) = crate::v3::body(doc) {
+        let current = call(ws, "entry.get", json!({"book": book, "id": id}))?;
+        if title.is_empty() || current["title"].as_str() == Some(title) {
+            return Ok(None);
+        }
+        call(
+            ws,
+            "entry.update",
+            json!({"book": book, "id": id, "title": title}),
+        )?;
+        return Ok(Some(title.to_owned()));
+    }
     let (command, current) = titled(ws, book, doc)?;
     if title.is_empty() || current["title"].as_str() == Some(title) {
         return Ok(None);
@@ -487,6 +508,9 @@ pub fn rename(
 /// clears it). Returns whether it changed.
 pub fn set_synopsis(ws: &Workspace, book: &str, doc: &str, text: &str) -> Result<bool, WsError> {
     let text = text.trim();
+    if crate::v3::body(doc).is_some() {
+        return crate::v3::set_role_field(ws, book, doc, "summary", text);
+    }
     let (command, current) = titled(ws, book, doc)?;
     if current["summary"].as_str() == Some(text) {
         return Ok(false);
@@ -502,6 +526,9 @@ pub fn set_synopsis(ws: &Workspace, book: &str, doc: &str, text: &str) -> Result
 /// ⁂'s 「标为完成」 (`true`) or 「改回草稿」 (`false`).
 pub fn set_finished(ws: &Workspace, book: &str, doc: &str, finished: bool) -> Result<(), WsError> {
     let status = if finished { "finished" } else { "draft" };
+    if crate::v3::body(doc).is_some() {
+        return crate::v3::set_role_field(ws, book, doc, "status", status).map(|_| ());
+    }
     call(
         ws,
         "chapter.update",
@@ -520,6 +547,32 @@ pub fn new_chapter_after(
     doc: &str,
     title: &str,
 ) -> Result<String, WsError> {
+    if let Some((id, module)) = crate::v3::body(doc) {
+        let current = call(ws, "entry.get", json!({"book": book, "id": id}))?;
+        let siblings = call(
+            ws,
+            "entry.list",
+            json!({"book": book, "parent": current["parent"]}),
+        )?;
+        let index = siblings
+            .as_array()
+            .and_then(|xs| xs.iter().position(|e| e["id"].as_str() == Some(&id)))
+            .map(|i| i + 1);
+        let created = call(
+            ws,
+            "entry.create",
+            json!({"book": book, "parent": current["parent"], "template": current["template"], "title": title}),
+        )?;
+        let new_id = created["id"]
+            .as_str()
+            .ok_or_else(|| WsError::Invalid("entry.create returned no id".into()))?;
+        call(
+            ws,
+            "entry.move",
+            json!({"book": book, "id": new_id, "parent": current["parent"], "index": index}),
+        )?;
+        return Ok(format!("body:{new_id}/{module}"));
+    }
     let out = call(
         ws,
         "chapter.create",
