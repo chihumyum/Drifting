@@ -1,0 +1,637 @@
+{
+  "about": "K4-0 structure correctness: isolated secondary window, setting override and inherited source refresh, explicit null, retained prose input, Book/Material/template navigation and persisted reload. No heavy or visual acceptance.",
+  "steps": [
+    {
+      "seed": "v3-lite"
+    },
+    {
+      "call": "book.list",
+      "input": {},
+      "save": "books"
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}",
+        "all": true
+      },
+      "save": "entries"
+    },
+    {
+      "call": "entry.create",
+      "input": {
+        "book": "${books.0.id}",
+        "parent": "${entries.[template=tpl-manuscript].id}",
+        "template": "tpl-group",
+        "title": "Synthetic structure smoke"
+      },
+      "save": "level"
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "save": "original"
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light",
+          "DRIFTING_WINDOW_DISPLAY": "secondary"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      },
+      "save": "firstLaunch"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "app.info",
+      "save": "firstEnvironment",
+      "expect": {
+        "/windows/0/active": true,
+        "/windows/0/visible": true
+      }
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${books.0.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/book/version": 3
+        }
+      }
+    },
+    {
+      "app": "state.get",
+      "save": "loaded"
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ToggleBottomTimeline"
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${level.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/page": "entry:${level.id}"
+        }
+      }
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/v3Page/sections/[id=settings]/registered": true
+      },
+      "note": "Filtered array selectors belong to scenario expectations; ui.wait takes plain JSON pointers."
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 1050,
+        "y": 420,
+        "dy": 2000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 450
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Default template",
+        "role": "Group",
+        "count": 1
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Off",
+        "role": "Button",
+        "within": {
+          "label": "Automatic links",
+          "role": "Group"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "On",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 450
+      },
+      "note": "Use the existing settings-smoke save interval before comparing the authoritative frontier."
+    },
+    {
+      "call": "level.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "refreshed1"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/v3/revision": "${refreshed1.version}"
+        }
+      }
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/v3/levels/${level.id}/settings/auto_link": true,
+        "/v3/levels/${level.id}/sources/auto_link": {
+          "kind": "override",
+          "entry": "${level.id}"
+        }
+      },
+      "note": "Dynamic pointer keys are expanded by scenario expectations, after ui.wait has matched the kernel frontier."
+    },
+    {
+      "call": "level.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "overridden",
+      "expect": {
+        "/levels/[id=${level.id}]/settings/auto_link": true,
+        "/levels/[id=${level.id}]/sources/auto_link": {
+          "kind": "override",
+          "entry": "${level.id}"
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/v3/revision": "${overridden.version}"
+        }
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "contains": "Override · Synthetic structure smoke"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Restore Automatic links",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 450
+      },
+      "note": "Use the existing settings-smoke save interval before comparing the authoritative frontier."
+    },
+    {
+      "call": "level.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "refreshed2"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/v3/revision": "${refreshed2.version}"
+        }
+      }
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/v3/levels/${level.id}/settings/auto_link": false,
+        "/v3/levels/${level.id}/sources/auto_link": {
+          "kind": "template",
+          "entry": "${entries.[template=tpl-manuscript].id}",
+          "template": "tpl-manuscript"
+        }
+      },
+      "note": "Dynamic pointer keys are expanded by scenario expectations, after ui.wait has matched the kernel frontier."
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "contains": "Template ·"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "章",
+        "role": "Button",
+        "within": {
+          "label": "Default template",
+          "role": "Group"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "None",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 450
+      },
+      "note": "Use the existing settings-smoke save interval before comparing the authoritative frontier."
+    },
+    {
+      "call": "level.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "refreshed3"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/v3/revision": "${refreshed3.version}"
+        }
+      }
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/v3/levels/${level.id}/settings/default_template": null,
+        "/v3/levels/${level.id}/sources/default_template": {
+          "kind": "override",
+          "entry": "${level.id}"
+        }
+      },
+      "note": "Dynamic pointer keys are expanded by scenario expectations, after ui.wait has matched the kernel frontier."
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-chapter].id}/mod-prose"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/page": "entry:${entries.[template=tpl-chapter].id}/mod-prose"
+        }
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "TextArea",
+        "timeout_ms": 15000
+      },
+      "note": "Use the G1 entry-module prose selector; page/module and persisted paragraph assertions identify the edited document."
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "TextArea",
+        "nth": 0,
+        "dy": 40
+      },
+      "note": "Use the G1 entry-module prose selector; page/module and persisted paragraph assertions identify the edited document."
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-up"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "StructureSmoke "
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "StructureSmoke ${original.paragraphs.0.text}"
+      }
+    },
+    {
+      "call": "entry.update",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${level.id}",
+        "overrides": {
+          "display": "grid",
+          "default_template": null
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 450
+      },
+      "note": "Use the existing settings-smoke save interval before comparing the authoritative frontier."
+    },
+    {
+      "call": "level.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "refreshed4"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/page": "entry:${entries.[template=tpl-chapter].id}/mod-prose",
+          "/v3/revision": "${refreshed4.version}"
+        }
+      }
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/v3/levels/${level.id}/settings/display": "grid"
+      },
+      "note": "Dynamic pointer keys are expanded by scenario expectations, after ui.wait has matched the kernel frontier."
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "AfterRefresh "
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "StructureSmoke AfterRefresh ${original.paragraphs.0.text}"
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "book"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/page": "book"
+        }
+      }
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/pages/[key=book]/ready": true
+      },
+      "note": "Filtered array selectors belong to scenario expectations; ui.wait takes plain JSON pointers."
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "material:${loaded.v3.materials.[kind=text].id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/page": "material:${loaded.v3.materials.[kind=text].id}"
+        }
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "template:tpl-chapter"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/page": "template:tpl-chapter"
+        }
+      }
+    },
+    {
+      "app": "app.quit"
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light",
+          "DRIFTING_WINDOW_DISPLAY": "secondary"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      },
+      "save": "secondLaunch"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "app.info",
+      "save": "secondEnvironment",
+      "expect": {
+        "/windows/0/active": true,
+        "/windows/0/visible": true
+      }
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${books.0.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 450
+      },
+      "note": "Use the existing settings-smoke save interval before comparing the authoritative frontier."
+    },
+    {
+      "call": "level.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "refreshed5"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/book/version": 3,
+          "/v3/revision": "${refreshed5.version}"
+        }
+      }
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/v3/levels/${level.id}/settings/display": "grid",
+        "/v3/levels/${level.id}/settings/default_template": null,
+        "/v3/levels/${level.id}/sources/default_template": {
+          "kind": "override",
+          "entry": "${level.id}"
+        }
+      },
+      "note": "Dynamic pointer keys are expanded by scenario expectations, after ui.wait has matched the kernel frontier."
+    },
+    {
+      "call": "level.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "reopened",
+      "expect": {
+        "/levels/[id=${level.id}]/settings/display": "grid",
+        "/levels/[id=${level.id}]/sources/display": {
+          "kind": "override",
+          "entry": "${level.id}"
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/v3/revision": "${reopened.version}"
+        }
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-chapter].id}/mod-prose"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/page": "entry:${entries.[template=tpl-chapter].id}/mod-prose"
+        }
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "StructureSmoke AfterRefresh ${original.paragraphs.0.text}"
+      }
+    },
+    {
+      "app": "app.quit"
+    }
+  ]
+}
