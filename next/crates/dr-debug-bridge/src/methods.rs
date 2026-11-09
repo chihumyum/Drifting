@@ -798,6 +798,7 @@ fn state_of(ws: &Workspace, window: &Window, cx: &App) -> Value {
         "activeTab": ws.nav.active_index(),
         "layer": ws.top_layer().map(layer_name),
         "search": ws.search_state(cx),
+        "recent": ws.recent_state(),
         "superView": ws.super_view.map(|v| format!("{v:?}")),
         "left": {
             "open": ws.left.open, "width": ws.left.width,

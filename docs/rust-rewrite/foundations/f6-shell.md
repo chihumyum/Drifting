@@ -891,11 +891,20 @@ G2 三种回调及 K5 新建委托。v3-lite 真窗口场景 **84/84 步、0 pen
 不能据此宣称素材输入或批注保存已通。修复前后日志在
 `next/target/acceptance/k4-0-checks/material-*.log`；全套与副屏冒烟待本批完成后记录。
 
-最近访问正接第 61 批 typed `RecentTouch/List`，独立交 `handback/k4-0-recent`，
-不改结构读取文件。批注保存等 G4 的原 composer API 版本分发正式接 main：当前
+最近访问已接第 61 批 typed `RecentTouch/List`：前台页的 Entry＋module 或 Material
+作为完整目标交给 FIFO 后台队列，每次请求保留原书与原库，避免快速导航时写入反序；
+Home／全书／模板不伪造为 Book 目标。`state.get.recent` 是完成 F3 持久化后的只读
+回执和排队数，不重复查询或写入；宿主两项回归已过，覆盖模块区分、顺序、重复访问、
+非页面跳过、书目版本不变和跨书隔离。独立交 `handback/k4-0-recent`，不改结构读取。
+批注保存等 G4 的原 composer API 版本分发正式接 main：当前
 旧 typed `CommentCreate` 明确拒绝 v3，不能绕过；G4 已确认会沿 `for_prose` 捕获
 稳定 anchor 并使用 v3 named 命令，K2 正补读取来源保护。当前仅验证 composer 可打开，
 未把保存写为通过。G4 的 `material_items/material_folders` 尚未交回接口不消费。
+F8 连续按键待核：首轮窗口把 `secondary-a left` 放在一次 `input.key`，随后仍为
+全选；同一正文与活跃可见窗口，拆开 RPC 并核对光标收拢后能正确前插。首轮和诊断
+保留在 `k4-0-material-window/`、`k4-0-material-selection/`、
+`k4-0-material-split-key/`，不把替换选区误报为正文持久化丢字。正式场景按真实
+分步键盘交付并等待选区状态；本批未修改 F8 的多键分发实现。
 
 ### G4 搜索宿主交回（2026-11-10）
 

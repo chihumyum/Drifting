@@ -22,6 +22,7 @@ pub mod find;
 pub mod immersive;
 pub mod outline;
 pub mod page_actions;
+mod recent;
 mod review;
 mod sea;
 mod search;
@@ -403,6 +404,7 @@ pub struct Workspace {
     editor_base: gpui_prose::ProseStyle,
     /// The page last recorded with F3's `recent.touch`.
     touched: Option<String>,
+    recent_recorder: Option<recent::Recorder>,
     /// The page (its target key) opened with [`Open::at_title`]: its
     /// editor does not get the keyboard when it opens.
     title_first: Option<String>,
@@ -568,6 +570,7 @@ impl Workspace {
             editor_settings,
             editor_base,
             touched: None,
+            recent_recorder: None,
             title_first: None,
             toast: None,
             toast_timer: None,
@@ -912,16 +915,16 @@ impl Workspace {
     /// Home's 「继续写」 reads them). The whole book is not a page of its own
     /// there.
     fn touch_front(&mut self, cx: &mut Context<Self>) {
-        // Recent pages still use the v2.2 entity DTO; G4 owns its v3 route.
-        if self.book.v3().is_some() {
-            return;
-        }
         let front = self.nav.active_tab().map(|t| t.focused().target.clone());
         let key = front.as_ref().map(Target::key);
         if key == self.touched {
             return;
         }
         self.touched = key;
+        if self.book.v3().is_some() {
+            self.record_recent(front.as_ref(), cx);
+            return;
+        }
         let Some(doc) = front.as_ref().and_then(book::doc_of) else {
             return;
         };
@@ -1082,6 +1085,8 @@ impl Workspace {
     /// dialog over it stays.
     pub(crate) fn let_go_of_library(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.store_layout(cx);
+        self.recent_recorder = None;
+        self.touched = None;
         self.editors.clear();
         self.v3_sidebar = None;
         self.release_words(cx);
