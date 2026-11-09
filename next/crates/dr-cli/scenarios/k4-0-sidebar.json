@@ -1,0 +1,624 @@
+{
+  "about": "K4-0 第二次交回：v3-lite 真窗口上的动态左栏、模板集合、条目卡、刷新和重开；旧版仍用原左栏。",
+  "steps": [
+    {
+      "seed": "v3-lite"
+    },
+    {
+      "call": "book.list",
+      "input": {},
+      "save": "books"
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}",
+        "all": true
+      },
+      "save": "entries"
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "roots"
+    },
+    {
+      "call": "entry_template.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "templates"
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${books.0.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/version": 3
+        }
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ToggleLeftSidebar"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/left/open": true
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 1200
+      }
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/v3Sidebar/roots/0": "${roots.0.id}",
+        "/v3Sidebar/roots/1": "${roots.1.id}",
+        "/v3Sidebar/roots/2": "${roots.2.id}",
+        "/v3Sidebar/roots/3": "${roots.3.id}",
+        "/v3Sidebar/selected": "${roots.0.id}",
+        "/v3Sidebar/display": "list",
+        "/v3Sidebar/registered": false
+      },
+      "note": "K4-0.6：根层级逐项成为标签，默认交给显示注册口或占位"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "RadioButton",
+        "label": "${roots.0.title}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/v3Sidebar/selected": "${roots.0.id}"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "RadioButton",
+        "label": "${roots.1.title}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/v3Sidebar/selected": "${roots.1.id}"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "RadioButton",
+        "label": "${roots.2.title}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/v3Sidebar/selected": "${roots.2.id}"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "RadioButton",
+        "label": "${roots.3.title}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/v3Sidebar/selected": "${roots.3.id}"
+        }
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "New template",
+        "role": "Button"
+      },
+      "note": "模板集合有 K5 的新建入口；未注册创建器时禁用，委托契约由 GPUI 测试断言"
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "01-sidebar.png"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Skip tour",
+        "absent": true
+      },
+      "note": "v3 不显示旧版固定面板的导览"
+    },
+    {
+      "call": "entry_template.put",
+      "input": {
+        "book": "${books.0.id}",
+        "template": {
+          "id": "aaa-k4-template",
+          "name": "验收模板",
+          "kind": "leaf"
+        }
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "验收模板"
+      },
+      "note": "模板集合随书变更刷新"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "验收模板"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "template:aaa-k4-template"
+        }
+      }
+    },
+    {
+      "call": "entry_template.delete",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "aaa-k4-template"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "验收模板",
+        "absent": true
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "home"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "${templates.[id=tpl-chapter].name}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "template:tpl-chapter"
+        }
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-chapter].parent}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "entry:${entries.[template=tpl-chapter].parent}"
+        }
+      }
+    },
+    {
+      "app": "ui.hover",
+      "params": {
+        "label": "${entries.[template=tpl-chapter].title}"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "MenuItem",
+        "label": "Open",
+        "timeout_ms": 6000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "MenuItem",
+        "label": "New",
+        "timeout_ms": 6000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "MenuItem",
+        "label": "Edit template",
+        "timeout_ms": 6000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "MenuItem",
+        "label": "Change template",
+        "timeout_ms": 6000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "MenuItem",
+        "label": "Assign to",
+        "timeout_ms": 6000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "MenuItem",
+        "label": "Move to Recently Deleted",
+        "timeout_ms": 6000
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "02-entry-card.png",
+      "note": "K4-0.7：一个公共头部、六个公共操作，扩展行的排序和回调另由 GPUI 契约验证"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "MenuItem",
+        "label": "Open"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "entry:${entries.[template=tpl-chapter].id}"
+        }
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-chapter].parent}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "entry:${entries.[template=tpl-chapter].parent}"
+        }
+      }
+    },
+    {
+      "app": "ui.hover",
+      "params": {
+        "label": "${entries.[template=tpl-chapter].title}"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "MenuItem",
+        "label": "Edit template"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "template:tpl-chapter"
+        }
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-chapter].parent}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "entry:${entries.[template=tpl-chapter].parent}"
+        }
+      }
+    },
+    {
+      "app": "ui.hover",
+      "params": {
+        "label": "${entries.[template=tpl-chapter].title}"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "MenuItem",
+        "label": "Move to Recently Deleted"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 400
+      }
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}",
+        "all": true
+      },
+      "note": "最近删除经 F3 持久命令生效",
+      "expect": {
+        "/[id=${entries.[template=tpl-chapter].id}]": null
+      }
+    },
+    {
+      "call": "entry.update",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${roots.3.id}",
+        "overrides": {
+          "display": "grid"
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/v3Sidebar/display": "grid"
+        }
+      }
+    },
+    {
+      "call": "entry.create",
+      "input": {
+        "book": "${books.0.id}",
+        "title": "验收顶层",
+        "template": "tpl-group"
+      },
+      "save": "added"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "RadioButton",
+        "label": "验收顶层"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "RadioButton",
+        "label": "验收顶层"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/v3Sidebar/selected": "${added.id}"
+        }
+      }
+    },
+    {
+      "call": "entry.trash",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${added.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/v3Sidebar/selected": "${roots.0.id}"
+        }
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "RadioButton",
+        "label": "验收顶层",
+        "absent": true
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "RadioButton",
+        "label": "${roots.2.title}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/v3Sidebar/selected": "${roots.2.id}"
+        }
+      }
+    },
+    {
+      "app": "app.quit"
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${books.0.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/left/open": true,
+          "/v3Sidebar/selected": "${roots.2.id}"
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 1200
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "03-restored-sidebar.png"
+    },
+    {
+      "call": "book.create",
+      "input": {
+        "name": "Synthetic legacy sidebar"
+      },
+      "save": "legacy"
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${legacy.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/version": 2,
+          "/v3Sidebar": null
+        }
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ToggleLeftSidebar"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/left/open": true
+        }
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "RadioButton",
+        "label": "Chapters"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "RadioButton",
+        "label": "Elements"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "RadioButton",
+        "label": "Ideas"
+      }
+    },
+    {
+      "app": "app.quit"
+    }
+  ]
+}

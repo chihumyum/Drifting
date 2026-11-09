@@ -9,7 +9,9 @@ use dr_workspace::commands::v3::types::ModuleSpec;
 use gpui::{AnyView, App, FocusHandle, Global, Window};
 use std::{collections::BTreeMap, rc::Rc};
 
+pub mod card;
 pub mod page;
+pub mod sidebar;
 
 #[derive(Clone)]
 pub struct ModuleHost {
@@ -70,10 +72,17 @@ impl Rendered {
 
 type ModuleMaker = Rc<dyn Fn(ModuleHost, &mut Window, &mut App) -> Rendered>;
 type DisplayMaker = Rc<dyn Fn(LevelHost, &mut Window, &mut App) -> Rendered>;
+type ActionMaker =
+    Rc<dyn Fn(&Target, &crate::pages::PageMenuHost, &App) -> Option<crate::pages::RunRow>>;
+type CardMaker = Rc<dyn Fn(&Target, &crate::pages::PageMenuHost, &App) -> crate::pages::CardRows>;
+type TemplateCreator = Rc<dyn Fn(PageViewHost, &mut Window, &mut App)>;
 #[derive(Default)]
 struct Registry {
     modules: BTreeMap<String, ModuleMaker>,
     displays: BTreeMap<String, DisplayMaker>,
+    actions: BTreeMap<card::EntryAction, ActionMaker>,
+    cards: Vec<CardMaker>,
+    template_creator: Option<TemplateCreator>,
 }
 impl Global for Registry {}
 
@@ -129,4 +138,66 @@ pub fn entry_target(id: &str) -> Option<Target> {
         id: id.parse().ok()?,
         module: None,
     })
+}
+
+/// G2 supplies the picker opened by the common card row. Return None when the
+/// action does not apply; no no-op callback is needed for a disabled row.
+pub fn add_entry_action(
+    cx: &mut App,
+    action: card::EntryAction,
+    make: impl Fn(&Target, &crate::pages::PageMenuHost, &App) -> Option<crate::pages::RunRow> + 'static,
+) {
+    cx.default_global::<Registry>()
+        .actions
+        .insert(action, Rc::new(make));
+}
+pub fn entry_action(
+    action: card::EntryAction,
+    target: &Target,
+    host: &crate::pages::PageMenuHost,
+    cx: &App,
+) -> Option<crate::pages::RunRow> {
+    cx.try_global::<Registry>()?.actions.get(&action)?(target, host, cx)
+}
+/// Additional card rows, composed with the rows supplied by a particular view.
+pub fn add_entry_card_rows(
+    cx: &mut App,
+    make: impl Fn(&Target, &crate::pages::PageMenuHost, &App) -> crate::pages::CardRows + 'static,
+) {
+    cx.default_global::<Registry>().cards.push(Rc::new(make));
+}
+pub fn entry_card_rows(
+    target: &Target,
+    host: &crate::pages::PageMenuHost,
+    cx: &App,
+) -> crate::pages::CardRows {
+    let mut out = crate::pages::CardRows::default();
+    if let Some(registry) = cx.try_global::<Registry>() {
+        for make in &registry.cards {
+            let rows = make(target, host, cx);
+            out.lead.extend(rows.lead);
+            out.before_danger.extend(rows.before_danger);
+        }
+    }
+    out
+}
+/// K5 supplies the new-template flow. The collection button is disabled until
+/// it is registered; editing an existing template uses `Target::Template`.
+pub fn add_template_creator(
+    cx: &mut App,
+    create: impl Fn(PageViewHost, &mut Window, &mut App) + 'static,
+) {
+    cx.default_global::<Registry>().template_creator = Some(Rc::new(create));
+}
+pub fn has_template_creator(cx: &App) -> bool {
+    cx.try_global::<Registry>()
+        .is_some_and(|r| r.template_creator.is_some())
+}
+pub fn create_template(host: PageViewHost, window: &mut Window, cx: &mut App) {
+    if let Some(create) = cx
+        .try_global::<Registry>()
+        .and_then(|r| r.template_creator.clone())
+    {
+        create(host, window, cx);
+    }
 }

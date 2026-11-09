@@ -351,30 +351,41 @@ pub fn placeholder_display(host: &PageViewHost, level: &str, cx: &App) -> AnyEle
                     let selected = weak
                         .upgrade()
                         .is_some_and(|ws| ws.read(cx).nav.is_selected(&target));
-                    Some(
-                        dr_ui::components::SandCell::new(
-                            SharedString::from(format!("v3-row-{id}")),
-                            entry.title.clone(),
-                        )
-                        .mark(mark)
-                        .color_opt(color)
-                        .selected(selected)
-                        .on_click(move |event, _, cx| {
-                            if let Some(ws) = weak.upgrade() {
-                                ws.update(cx, |ws, cx| {
-                                    ws.open(
-                                        target.clone(),
-                                        if event.click_count() > 1 {
-                                            Open::KEEP
-                                        } else {
-                                            Open::PREVIEW
-                                        },
-                                        cx,
-                                    )
-                                });
-                            }
-                        }),
+                    let card_target = target.clone();
+                    let card_ws = weak.upgrade();
+                    let cell = dr_ui::components::SandCell::new(
+                        SharedString::from(format!("v3-row-{id}")),
+                        entry.title.clone(),
                     )
+                    .mark(mark)
+                    .color_opt(color)
+                    .selected(selected)
+                    .on_click(move |event, _, cx| {
+                        if let Some(ws) = weak.upgrade() {
+                            ws.update(cx, |ws, cx| {
+                                ws.open(
+                                    target.clone(),
+                                    if event.click_count() > 1 {
+                                        Open::KEEP
+                                    } else {
+                                        Open::PREVIEW
+                                    },
+                                    cx,
+                                )
+                            });
+                        }
+                    });
+                    Some(match card_ws {
+                        Some(ws) => crate::workspace::page_hover_card(
+                            format!("v3-entry-{id}"),
+                            cell,
+                            &card_target,
+                            &ws,
+                            Default::default(),
+                            cx,
+                        ),
+                        None => cell.into_any_element(),
+                    })
                 }),
         )
         .into_any_element()

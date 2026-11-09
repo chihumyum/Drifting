@@ -292,3 +292,222 @@ fn renderers_mount_in_template_order_refresh_and_receive_reveal(cx: &mut gpui::T
         "Synthetic renamed"
     );
 }
+
+#[gpui::test]
+fn sidebar_delegates_displays_and_cards_keep_common_actions_and_extensions(
+    cx: &mut gpui::TestAppContext,
+) {
+    use dr_shell::{
+        Services, SettingsFile, ShellInfo, Workspace as Shell,
+        pages::{CardRows, PageMenuHost, PageMenuItem, PageMenuSection, PageViewHost},
+        v3::{self, DisplaySurface, Rendered, card::EntryAction},
+    };
+    use gpui::{prelude::*, *};
+    use std::{
+        cell::{Cell, RefCell},
+        rc::Rc,
+        time::{Duration, Instant},
+    };
+    struct Probe;
+    impl Render for Probe {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+            div().h_10()
+        }
+    }
+    let (_dir, lib, book_id) = seed();
+    let made = Rc::new(RefCell::new(Vec::new()));
+    let refreshed = Rc::new(Cell::new(0));
+    cx.executor().allow_parking();
+    cx.update(|cx| {
+        dr_shell::init(
+            ShellInfo {
+                app_name: "Drifting Next",
+                bundle_id: "cc.drifting.next.dev",
+                version: "0.2.0-dev",
+                url_scheme: "drifting-next-dev",
+                forced_appearance: None,
+            },
+            Services {
+                deep_links: None,
+                crash_reports: None,
+                library: Some(lib.clone()),
+                book: Some(book_id.clone()),
+            },
+            SettingsFile::in_memory(),
+            cx,
+        );
+        for kind in ["list", "grid", "board", "island"] {
+            let made = made.clone();
+            let refreshed = refreshed.clone();
+            v3::add_level_display(cx, kind, move |host, _, cx| {
+                made.borrow_mut().push((host.level, kind, host.surface));
+                let refreshed = refreshed.clone();
+                Rendered::new(cx.new(|_| Probe))
+                    .on_refresh(move |_, _| refreshed.set(refreshed.get() + 1))
+            });
+        }
+    });
+    let (view, cx) = cx.add_window_view(Shell::new);
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        cx.run_until_parked();
+        if view.read_with(cx, |ws, _| ws.book.v3().is_some() && ws.book_memory_ready()) {
+            break;
+        }
+        assert!(Instant::now() < deadline);
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    cx.update(|window, cx| view.update(cx, |ws, cx| ws.toggle_left(window, cx)));
+    for _ in 0..4 {
+        cx.update(|w, cx| w.draw(cx).clear(cx));
+        cx.run_until_parked();
+    }
+    let (panel, roots, target) = view.read_with(cx, |ws, _| {
+        let v = ws.book.v3().unwrap();
+        let entry = v
+            .entries
+            .iter()
+            .find(|e| e.template.as_deref() == Some("tpl-chapter"))
+            .unwrap();
+        (
+            ws.v3_sidebar.clone().unwrap(),
+            v.roots.clone(),
+            v3::entry_target(&entry.id).unwrap(),
+        )
+    });
+    assert_eq!(roots.len(), 4);
+    assert!(
+        made.borrow()
+            .iter()
+            .any(|(_, kind, surface)| *kind == "list" && *surface == DisplaySurface::Sidebar)
+    );
+    for id in &roots {
+        panel.update(cx, |s, cx| s.select(id, cx));
+        for _ in 0..2 {
+            cx.update(|w, cx| w.draw(cx).clear(cx));
+            cx.run_until_parked();
+        }
+    }
+    assert!(
+        made.borrow()
+            .iter()
+            .all(|(_, _, surface)| *surface == DisplaySurface::Sidebar)
+    );
+    assert_eq!(
+        view.read_with(cx, |ws, _| ws.book_memory(v3::sidebar::MEMORY_KEY).cloned()),
+        Some(json!(roots[3]))
+    );
+    let count = made.borrow().len();
+    call(
+        &lib,
+        "entry.update",
+        json!({"book":book_id,"id":roots[3],"title":"Synthetic updated level","overrides":{"display":"grid"}}),
+    );
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        cx.run_until_parked();
+        cx.update(|w, cx| w.draw(cx).clear(cx));
+        if made.borrow().len() > count {
+            break;
+        }
+        assert!(Instant::now() < deadline);
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    assert_eq!(panel.read_with(cx, |s, _| s.state())["display"], "grid");
+    assert!(refreshed.get() > 0);
+    let invoked = Rc::new(Cell::new(0));
+    cx.update(|window, cx| {
+        let host = PageMenuHost::of(&view, cx);
+        let rows = v3::card::rows(&target, &host, &CardRows::default(), cx);
+        assert_eq!(
+            rows.iter().map(|r| r.id.as_ref()).collect::<Vec<_>>(),
+            vec![
+                "entry-open",
+                "entry-new",
+                "entry-edit-template",
+                "entry-change-template",
+                "entry-belong-to",
+                "entry-trash"
+            ]
+        );
+        assert_eq!(rows.iter().filter(|r| r.run.is_none()).count(), 3);
+        for action in [
+            EntryAction::New,
+            EntryAction::ChangeTemplate,
+            EntryAction::BelongTo,
+        ] {
+            let invoked = invoked.clone();
+            v3::add_entry_action(cx, action, move |_, _, _| {
+                let invoked = invoked.clone();
+                Some(Rc::new(move |_, _| invoked.set(invoked.get() + 1)))
+            });
+        }
+        let item = |id: &str, danger| PageMenuItem {
+            id: id.to_owned().into(),
+            label: id.to_owned().into(),
+            icon: dr_ui::sand::Icon::Plus.into(),
+            checked: false,
+            danger,
+            run: Rc::new(|_, _| {}),
+        };
+        v3::add_entry_card_rows(cx, move |_, _, _| CardRows {
+            lead: vec![PageMenuSection {
+                title: None,
+                items: vec![item("g3-extra", false), item("g3-danger", true)],
+            }],
+            ..Default::default()
+        });
+        let rows = v3::card::rows(&target, &host, &CardRows::default(), cx);
+        assert_eq!(rows[0].id, "g3-extra");
+        let danger_at = rows.iter().position(|r| r.danger).unwrap();
+        assert!(rows[danger_at..].iter().all(|r| r.danger));
+        for id in ["entry-new", "entry-change-template", "entry-belong-to"] {
+            rows.iter()
+                .find(|r| r.id == id)
+                .unwrap()
+                .run
+                .as_ref()
+                .unwrap()(window, cx);
+        }
+        assert_eq!(invoked.get(), 3);
+        rows.iter()
+            .find(|r| r.id == "entry-edit-template")
+            .unwrap()
+            .run
+            .as_ref()
+            .unwrap()(window, cx);
+        assert_eq!(
+            view.read(cx).nav.current().unwrap().key(),
+            "template:tpl-chapter"
+        );
+        let created = invoked.clone();
+        assert!(!v3::has_template_creator(cx));
+        v3::add_template_creator(cx, move |host, _, _| {
+            assert!(host.book.v3().is_some());
+            created.set(created.get() + 1);
+        });
+        assert!(v3::has_template_creator(cx));
+        v3::create_template(
+            PageViewHost {
+                workspace: host.workspace,
+                library: lib.clone(),
+                book_id: book_id.clone(),
+                book: host.book,
+            },
+            window,
+            cx,
+        );
+        assert_eq!(invoked.get(), 4);
+    });
+    call(&lib, "entry.trash", json!({"book":book_id,"id":roots[3]}));
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        cx.run_until_parked();
+        cx.update(|w, cx| w.draw(cx).clear(cx));
+        if panel.read_with(cx, |s, _| s.state())["selected"] == roots[0] {
+            break;
+        }
+        assert!(Instant::now() < deadline);
+        std::thread::sleep(Duration::from_millis(2));
+    }
+}

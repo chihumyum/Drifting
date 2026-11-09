@@ -803,3 +803,71 @@ v2.2 与 v3 在同一个窗口中按书分路。`book::Book` 保留共有的 `id
 上述统计来自合并后重新编译的完整运行。新增时间线隔离契约另发现初始空快照被当作 v2.2，
 已由 `cb768220` 修复，再跑全套与真窗口通过。待协调为上一节 1–3；
 各组可据以上注册口开工，第二次交回补左栏与悬停卡。
+
+## K4-0：左栏与悬停卡（第二次交回）
+
+- 左栏由 `v3::sidebar::Sidebar` 持有；`Workspace::v3_sidebar` 随换书和放手资料库
+  释放。标签来自当前快照的顶层层级，名称、顺序均来自书，不内置小说的四个名字。
+  新增、改名、移走和最近删除随书快照刷新；选中项消失时回到第一个有效根层级。
+- 选中的根层级用 `add_level_display`，`LevelHost.surface = Sidebar`。同一个根的
+  视图保留并接 `on_refresh`；有效 display 变化时才重建。没有登记时用公共条目
+  单元格占位。根标签可横向滚动；这轮没有把旧 v2.2 的多半栏模型套在 v3 根上。
+- 当前标签通过 `Workspace::set_book_memory` 存在本机的 `v3.sidebar.level`，
+  退出重开恢复；不写回书目，不产生同步修改。账号入口仍在最下方。
+- 模板集合列出活的条目模板，点开 `Target::Template`。K5 用
+  `v3::add_template_creator(cx, Fn(PageViewHost, Window, App))` 接新建按钮；
+  未注册时按钮禁用。已有模板页仍走 `pages::add_page_view`。
+- `workspace::page_hover_card` 对 v3 条目自动使用 `v3::card` 的公共头部与操作行；
+  公共头部、条目单元格、标签共用 `BookV3::appearance`。顺序是打开、新建、编辑模板、
+  换模板、归属到、最近删除。打开和编辑模板走 Navigator；最近删除走 F3
+  `entry.trash`，操作执行前核对仍是原书且条目还活着。
+- G2 用 `v3::add_entry_action(cx, EntryAction::{New, ChangeTemplate, BelongTo}, maker)`
+  提供选择器。maker 收到 `Target`、`PageMenuHost` 和只读 `App`，返回
+  `Option<pages::RunRow>`；None 显示为禁用，不注册无效果的回调。实际选择器、新建规则、
+  换模板与归属写入仍归 G2，不在外壳复制命令策略。
+- 各组可以在调用 `page_hover_card` 时给 `pages::CardRows`，或通过
+  `v3::add_entry_card_rows` 全局登记同样的两段：`lead`、`before_danger`。
+  公共头部不替换，所有危险行稳定排到末尾。factory 只造行；窗口/书的修改在
+  `RunRow` 被点击时进行。maker 里的 host 是本次快照，异步选择器应在提交前再校验。
+- 调试桥 `state.get.v3Sidebar` 返回当前根 ids、selected、有效 display、是否挂了
+  注册显示器，以及活模板 ids。旧的 `left.panes` 留给 v2.2，v3 消费方读新字段。
+  v3 不启动/显示旧版固定章节、要素、构想与时间线的导览；v2.2 仍按原来走。
+
+### K4-0 第二次交回待协调
+
+1. **G2**：本次交回后接手 `workspace/sidebar.rs`、`workspace/outline.rs`。
+   当前 v3 左栏主体单列在 `v3/sidebar.rs`；显示器、卡片选择器和大纲从以上入口接，
+   不需要另造快照、记号或卡头。层级页设置区仍是第一轮的有效显示方式占位。
+2. **K5**：模板集合的位置与打开入口已接；登记 template creator 和 Template 页即可。
+   这里没有实现模板编辑器或把新建模板当成已可编辑的产品流程。
+3. **G4 / 外壳**：v3 作品主页目前只显示书名，旧 `set_home` 不用于 v3。
+   G4 接回主页时需补版本化主页注册口；旧导览的 v3 内容随正式视图另接。
+   第一次交回列出的来源 DTO、旧 NavTarget/模块链接与任意 mark 协调项继续保留。
+
+### K4-0 第二次交回记录
+
+第 6–7 项的实现、永久契约与真窗口场景随本次变更交回。新增 GPUI 契约已通过，
+验证四种显示注册口、实例刷新/替换、本机选择记忆、共同六行与扩展危险行顺序、
+G2 三种回调及 K5 新建委托。v3-lite 真窗口场景 **84/84 步、0 pending**，三张截图
+已逐张目检；证据在忽略目录 `next/target/acceptance/k4-0-sidebar/`。
+本段实现提交 `83e8d23d`；`a96059bb` 同步 main `56d3537e`（仅第一轮的整合记录，
+`next/` 的 tree 与实现提交相同）。分支仍为 `codex/k4-0-shell`，最终记录提交后
+将 `handback/k4-0` 移到本次交回。第一轮已经由整合者在第四十三批收进 main；
+本会话没有将分支合入 main，也没有推送。
+
+同步后的全套检查通过：`cargo fmt --all --check`、全 workspace Clippy
+`--all-targets --locked -- -D warnings`、全 workspace test **2039 passed / 0 failed /
+22 ignored**（测试线程 3；同步前同一代码的单线程完整运行也是此结果）、
+`cargo xtask check`（含 audit，0 vulnerabilities，保留既有 12 项通知和 14 份
+过期测量提示）、根目录 `pnpm public:check`。所有编译使用 `CARGO_BUILD_JOBS=3`。
+
+最终实现重跑第一轮场景 **49/49**，第二轮场景 **84/84**，均 0 pending；
+后者还核对模板增删刷新、删除模板时关闭目标、v3 不显示旧导览、v2.2 原左栏保留。
+结果目录分别为 `next/target/acceptance/k4-0-interface-final/` 与
+`next/target/acceptance/k4-0-sidebar/`；两轮日志保留在忽略目录
+`next/target/acceptance/k4-0-checks/`。这次交回只声明外壳占位和注册契约完成，
+不把各组的编辑器、显示器或 heavy 下的最终性能当作已完成。
+
+供后续各组接线：maker / on_refresh 可能在外壳实体正被借用时调用，只读所给快照、
+更新自己的子实体，不在这里重借 workspace；需要改窗口或调用命令的动作放进点击
+回调。第二轮完成后，左栏和大纲栏按 K4 分轨交给 G2；其余公共外壳入口继续留在 F6。
