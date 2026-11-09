@@ -472,7 +472,7 @@ docs/rust-rewrite/acceptance/f1-m3-doc-bench.json   第三轮的测量证据
 - K6：版本标记、模板／模块读取、默认正文初始化及新建住处／归属接口已具备；逐项继承来源解释、带隐藏关系的完整影响读取、K6 的读取覆盖／CAS facade、模板动作目录仍照 K6 文档后续实施，本批不开放工具。
 - K4：v3 查询直接读当前 reader；旧 UI 的分类缓存／事件订阅仍只认识 v2.2，不把此次命令可用当作界面已接回。
 
-## 交回准备（K1+K2 第 6 步：结构文档与大纲规则，2026-11-09）
+## 交回（K1+K2 第 6 步：结构文档与大纲规则，2026-11-09，`handback/k1`）
 
 ### 当前接口与文档
 
@@ -497,4 +497,6 @@ docs/rust-rewrite/acceptance/f1-m3-doc-bench.json   第三轮的测量证据
 
 ### 检查
 
-- 待本批文档检查及全套工作区检查完成后填写；本批只改 `AGENTS.md`、`loro-schema.md`、F1、F3。
+- 本批提交 `77b138fc`（结构文档与大纲规则），加本节交回记录；只改 `AGENTS.md`、`loro-schema.md`、F1、F3，没有再改源代码。`git merge main` 确认已同步 `16f062d7`。
+- `cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、`RUST_TEST_THREADS=1 cargo test --workspace --locked`（2,018 通过／0 失败／22 忽略）、`cargo xtask check`、`pnpm public:check` 全过。编译并发 3；审计 971 个依赖，0 漏洞、12 条已有提示；public 检查 5,419 个候选文件，新增 7 处本地文档链接均能解析到文件。
+- 工作分支 `codex/k1-v3`；本节记录提交后将 `handback/k1` 指向 HEAD，然后按作者要求停下。未向 main 合并、未推送，也未触碰 Antigravity 原工作区。
