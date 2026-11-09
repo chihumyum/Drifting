@@ -1,0 +1,380 @@
+{
+  "about": "K4 G3 返修：隐藏时间钉绑定不被视图或时间钉编辑清空；拒绝后保留草稿，恢复目标再显式重试。",
+  "steps": [
+    {
+      "seed": "v3-lite"
+    },
+    {
+      "call": "book.list",
+      "input": {},
+      "save": "books"
+    },
+    {
+      "call": "timeline_view.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "views"
+    },
+    {
+      "call": "entry.create",
+      "input": {
+        "book": "${books.0.id}",
+        "parent": "${views.0.lanes.0.entry}",
+        "template": "tpl-chapter",
+        "title": "Synthetic pin-only target"
+      },
+      "save": "target"
+    },
+    {
+      "call": "timeline_view.put_pin",
+      "input": {
+        "book": "${books.0.id}",
+        "view": "${views.0.id}",
+        "pin": {
+          "id": "synthetic-hidden-binding",
+          "at": 42.0,
+          "label": "Synthetic recoverable pin",
+          "color": "#345678",
+          "entry": "${target.id}"
+        }
+      }
+    },
+    {
+      "call": "entry.trash",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${target.id}"
+      }
+    },
+    {
+      "call": "timeline_view.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "hidden"
+    },
+    {
+      "launch": {
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${books.0.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/book/version": 3,
+          "/bottom/pane": "timeline"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Move down",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 350
+      },
+      "note": "公共通知当前没有 AX 节点；等待本次通知绘制，再核对原始契约、保留的输入与恢复后的绑定。"
+    },
+    {
+      "call": "timeline_view.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "expect": {
+        "/0/lanes": "${hidden.0.lanes}",
+        "/0/pins/[id=synthetic-hidden-binding]/entry": null
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 2100
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "${views.0.name}",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Rename view",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "Synthetic preserved view draft"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "enter"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 350
+      },
+      "note": "公共通知当前没有 AX 节点；等待本次通知绘制，再核对原始契约、保留的输入与恢复后的绑定。"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "contains": "Synthetic preserved view draft",
+        "count": 1
+      },
+      "save": "viewDraft"
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "01-view-draft-rejected.png"
+    },
+    {
+      "call": "timeline_view.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "expect": {
+        "/0/name": "${views.0.name}",
+        "/0/pins/[id=synthetic-hidden-binding]/entry": null
+      }
+    },
+    {
+      "call": "entry.restore",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${target.id}"
+      }
+    },
+    {
+      "call": "timeline_view.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "expect": {
+        "/0/pins/[id=synthetic-hidden-binding]/entry": "${target.id}"
+      }
+    },
+    {
+      "app": "input.click",
+      "params": {
+        "x": "${viewDraft.nodes.0.center.0}",
+        "y": "${viewDraft.nodes.0.center.1}"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "enter"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/v3/timeline_views/0/name": "Synthetic preserved view draft",
+          "/v3/timeline_views/0/pins/1/entry": "${target.id}"
+        }
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Synthetic preserved view draft",
+        "role": "Button",
+        "count": 1
+      }
+    },
+    {
+      "call": "timeline_view.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "expect": {
+        "/0/name": "Synthetic preserved view draft",
+        "/0/pins/[id=synthetic-hidden-binding]/entry": "${target.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 2100
+      }
+    },
+    {
+      "call": "entry.trash",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${target.id}"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Synthetic recoverable pin",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Rename time pin",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "Synthetic preserved pin draft"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "enter"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 350
+      },
+      "note": "公共通知当前没有 AX 节点；等待本次通知绘制，再核对原始契约、保留的输入与恢复后的绑定。"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "contains": "Synthetic preserved pin draft",
+        "count": 1
+      },
+      "save": "pinDraft"
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "02-pin-draft-rejected.png"
+    },
+    {
+      "call": "timeline_view.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "expect": {
+        "/0/pins/[id=synthetic-hidden-binding]/label": "Synthetic recoverable pin",
+        "/0/pins/[id=synthetic-hidden-binding]/entry": null
+      }
+    },
+    {
+      "call": "entry.restore",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${target.id}"
+      }
+    },
+    {
+      "app": "input.click",
+      "params": {
+        "x": "${pinDraft.nodes.0.center.0}",
+        "y": "${pinDraft.nodes.0.center.1}"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "enter"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/v3/timeline_views/0/pins/1/label": "Synthetic preserved pin draft",
+          "/v3/timeline_views/0/pins/1/entry": "${target.id}"
+        }
+      }
+    },
+    {
+      "call": "timeline_view.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "pinRetry"
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "03-pin-retry.png"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Synthetic preserved pin draft",
+        "role": "Button",
+        "count": 1
+      }
+    },
+    {
+      "call": "timeline_view.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "expect": {
+        "/0/pins/[id=synthetic-hidden-binding]/label": "Synthetic preserved pin draft",
+        "/0/pins/[id=synthetic-hidden-binding]/entry": "${target.id}",
+        "/0/pins/[id=synthetic-hidden-binding]/color": "#345678",
+        "/0/pins/[id=synthetic-hidden-binding]/at": 42.0
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "03-restored-binding.png"
+    },
+    {
+      "app": "app.quit"
+    }
+  ]
+}

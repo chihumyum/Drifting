@@ -25,7 +25,14 @@ impl Timeline {
             .px_2()
             .bg(theme.palette.desk.solid());
         if let Some(edit) = &self.editing {
-            row = row.child(div().w(px(220.)).child(edit.field.clone()));
+            row = row.child(
+                div()
+                    .id("v3-timeline-editor")
+                    .w(px(220.))
+                    .role(gpui::Role::Group)
+                    .aria_label(edit.field.read(cx).text())
+                    .child(edit.field.clone()),
+            );
         } else {
             let name = self
                 .view()
