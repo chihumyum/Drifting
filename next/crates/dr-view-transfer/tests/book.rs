@@ -141,3 +141,57 @@ fn a_file_that_is_not_a_book_is_refused(cx: &mut TestAppContext) {
     cx.run_until_parked();
     assert!(shown(&view, cx).is_none());
 }
+
+#[gpui::test]
+fn a_v3_book_uses_the_same_save_and_import_flow(cx: &mut TestAppContext) {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("library");
+    let store = Library::open(&root, library_options(VERSION)).unwrap();
+    let seed = dr_testkit::seed::generate_v3(
+        dr_testkit::seed::Preset::Tiny,
+        dr_testkit::seed::DEFAULT_SEED,
+    )
+    .unwrap();
+    let id = seed.books[0].book_id().to_string();
+    let title = seed.books[0].book.view().meta().name;
+    seed.write_to(&store).unwrap();
+    store.close().unwrap();
+    let lib = Lib::open_dir(&root, VERSION).unwrap();
+    let before = dr_testkit::seed::digest_v3(lib.library(), &id).unwrap();
+    let (view, cx) = setup(cx, lib.clone());
+    let file = dir.path().join("v3.driftingbook");
+    assert_eq!(dr_export::book_file::book_title(&lib, &id).unwrap(), title);
+    cx.update(|window, cx| {
+        window.dispatch_action(Box::new(dr_view_shelf::ExportBook { book: id.clone() }), cx)
+    });
+    cx.run_until_parked();
+    assert!(cx.did_prompt_for_new_path());
+    cx.simulate_new_path_selection({
+        let file = file.clone();
+        move |_| Some(file)
+    });
+    wait_for(cx, |_| file.exists());
+    assert!(shown(&view, cx).is_none());
+    let old: std::collections::HashSet<_> = lib
+        .library()
+        .docs(None, Some("book"))
+        .unwrap()
+        .into_iter()
+        .map(|d| d.doc_id)
+        .collect();
+    let _dialog = cx.cx.update(|cx| book::import_path(lib.clone(), file, cx));
+    wait_for(cx, |cx| shown(&view, cx).is_none());
+    let new = lib
+        .library()
+        .docs(None, Some("book"))
+        .unwrap()
+        .into_iter()
+        .find(|d| !old.contains(&d.doc_id))
+        .unwrap();
+    assert_eq!(
+        dr_testkit::seed::digest_v3(lib.library(), new.doc_id.strip_prefix("book:").unwrap())
+            .unwrap(),
+        before
+    );
+    lib.close();
+}
