@@ -146,6 +146,11 @@ else
   echo "bundle-mac: no actool (Xcode 26 or later); shipping the .icns only" >&2
 fi
 
+# M34: the unbundled executable and every bundle profile need the same
+# microphone purpose string. This reuses settings.models.speechDesc from the
+# old client's English locale; do not invent a second privacy explanation.
+microphone_usage=$(/usr/libexec/PlistBuddy -c 'Print :NSMicrophoneUsageDescription' \
+  "$next_dir/app/drifting/resources/microphone.plist")
 cat >"$contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -178,6 +183,7 @@ cat >"$contents/Info.plist" <<PLIST
 </dict>
 </plist>
 PLIST
+plutil -insert NSMicrophoneUsageDescription -string "$microphone_usage" "$contents/Info.plist"
 plutil -lint -s "$contents/Info.plist"
 
 codesign --force --sign - --timestamp=none "$app"

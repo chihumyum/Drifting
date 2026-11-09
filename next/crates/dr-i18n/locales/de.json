@@ -1,5 +1,8 @@
 {
   "agentPanel": {
+    "budget": {
+      "continue": "Aufgabe fortsetzen"
+    },
     "checking": "Wird geprüft…",
     "common": {
       "none": "Keine"
@@ -62,6 +65,9 @@
     "setup": {
       "openSettings": "Einstellungen öffnen"
     },
+    "slice": {
+      "paused": "Fortsetzen, um vom gespeicherten Fortschritt weiterzumachen."
+    },
     "thinking": {
       "done": "Denkprotokoll",
       "streaming": "Denkt nach…"
@@ -73,7 +79,28 @@
       "history": "Verlauf"
     },
     "turnChanges": "Änderungen der Runde",
-    "unavailable": "Agent ist nicht verfügbar."
+    "unavailable": "Agent ist nicht verfügbar.",
+    "workingMemory": {
+      "agent": "Agent",
+      "author": "Autor",
+      "clear": "Leeren",
+      "clearConfirm": "Arbeitsgedächtnis leeren? Manuskript, langfristige Regeln und Chatverlauf bleiben erhalten.",
+      "cleared": "Arbeitsgedächtnis geleert.",
+      "conflictClear": "Ein anderer Agent hat aktualisiert; daher wurde nicht geleert. Prüfe den neuesten Inhalt und versuche es erneut.",
+      "conflictDraftPreserved": "Ein anderer Agent hat das Arbeitsgedächtnis aktualisiert. Dein Entwurf bleibt erhalten. Kopiere ihn und öffne erneut, um ihn mit der aktuellen Fassung zusammenzuführen.",
+      "create": "Arbeitsgedächtnis erstellen",
+      "description": "Aktueller wichtiger Arbeitskontext für alle Chats des allgemeinen Agent. Älterer Kontext wird automatisch verdichtet oder vergessen.",
+      "edit": "Bearbeiten",
+      "emptyTitle": "Noch kein Arbeitsgedächtnis",
+      "failed": "Arbeitsgedächtnis konnte nicht gespeichert werden.",
+      "filename": "WORKING_MEMORY.md",
+      "loading": "Arbeitsgedächtnis wird geladen…",
+      "neverUpdated": "Noch nicht geschrieben",
+      "saved": "Arbeitsgedächtnis gespeichert.",
+      "title": "Arbeitsgedächtnis",
+      "tokens": "Etwa {{count}} Tokens",
+      "updated": "{{time}} · aktualisiert von {{by}}"
+    }
   },
   "allChapters": {
     "actOrdinal": "Akt {{n}}"
@@ -898,6 +925,7 @@
     "readout": "{{chapters}} Kapitel · {{storylines}} Handlungsstränge · {{elements}} Elemente",
     "settings": {
       "dailyGoal": "Tagesziel",
+      "proactive": "Proaktive Vorschläge",
       "projectTarget": "Buchziel"
     },
     "since": "Projektstartseite · seit {{date}}",
@@ -909,6 +937,19 @@
     },
     "words": "{{words}} Wörter",
     "wordsOfTarget": "{{words}} / {{target}} Wörter"
+  },
+  "projectMemory": {
+    "add": "Hinzufügen",
+    "cancel": "Abbrechen",
+    "delete": "Löschen",
+    "deleteConfirm": "Diese Erinnerung löschen? Spätere Gespräche werden sie nicht mehr lesen.",
+    "desc": "Deine Gedanken, Absichten, Gewohnheiten und dauerhaften Anweisungen zu diesem Werk. Du und Agent können sie bearbeiten; jedes Gespräch liest sie. Fakten der Geschichte gehören in Elemente, Handlungsstränge und andere Objekte.",
+    "edit": "Bearbeiten",
+    "empty": "Noch keine Projekterinnerungen.",
+    "enable": "Aktivieren",
+    "placeholder": "Etwas zum Merken schreiben… ({{shortcut}} zum Speichern)",
+    "save": "Speichern",
+    "title": "Projektgedächtnis"
   },
   "projectPicker": {
     "bookTransfer": {
@@ -1537,6 +1578,8 @@
         "openai": "Vom allgemeinen Agent verwendet.",
         "openaiCodex": "Anmeldung über OpenAIs Codex-Geräteablauf, um den allgemeinen Agent mit deinem ChatGPT-Abo und den verfügbaren Kontomodellen zu nutzen; auch für Elementbilder. OpenAI bietet für diesen Weg keinen Drittanbietervertrag. Er kann ohne Vorankündigung ausfallen; die Nutzung zählt zu deinem ChatGPT-Tarif."
       },
+      "speechDesc": "Transkriptionszugang für Spracheingabe, getrennt von den Chat-Anbietern. Element- und Weltdetailsnamen werden zur Korrektur von Eigennamen mitgesendet. Anfragen gehen direkt an Bailian; der Schlüssel liegt nur im Systemschlüsselbund.",
+      "speechTitle": "Sprachtranskription",
       "title": "Die Dienste, mit denen sich Driftings KI-Funktionen verbinden."
     },
     "privacy": {
@@ -1648,6 +1691,9 @@
     "restoring": "Wird wiederhergestellt…",
     "title": "Verlaufsschnappschüsse · 30 Tage"
   },
+  "speech": {
+    "backlog": "Transkriptionsrückstand"
+  },
   "storyGraph": {
     "edge": {
       "create": "Erstellen"
@@ -1726,6 +1772,20 @@
     "themeLightShort": "Hell",
     "themeSystem": "Systemeinstellung",
     "themeSystemShort": "System"
+  },
+  "voiceAgent": {
+    "error": {
+      "auth": "Transkriptionsschlüssel ungültig oder abgelaufen",
+      "micDenied": "Mikrofon nicht verfügbar; Systemberechtigungen prüfen",
+      "noKey": "Kein Transkriptionsschlüssel (Alibaba Cloud Bailian)",
+      "segmentRejected": "Transkriptionsdienst hat dieses Segment abgelehnt",
+      "transcribeFailed": "Transkription fehlgeschlagen; Aufnahme aufbewahrt. Erneut versuchen"
+    },
+    "record": "Aufnahme starten",
+    "recording": "Aufzeichnung",
+    "retry": "Transkription erneut versuchen",
+    "stopRecord": "Aufnahme stoppen",
+    "transcribing": "Wird transkribiert…"
   },
   "windowCaption": {
     "close": "Schließen",

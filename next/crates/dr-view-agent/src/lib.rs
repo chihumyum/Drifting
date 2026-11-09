@@ -9,10 +9,13 @@ pub mod mcp;
 pub mod mcp_settings;
 pub mod onboarding;
 pub mod panel;
+pub mod project_memory;
 mod prompt;
 pub mod settings;
+pub mod speech;
 pub mod state;
 pub mod tools;
+pub mod working_memory;
 
 use dr_agent::{Driver, ToolExecutor};
 use dr_agent_providers::{HttpClient, ProviderDriver, credentials::Credentials};
@@ -53,9 +56,9 @@ pub fn init(identity: &dr_platform::Identity, cx: &mut App) {
             return;
         }
     };
-    let credentials = Credentials::new(Arc::new(dr_platform::secrets::SecretStore::for_identity(
-        identity,
-    )));
+    let secrets = Arc::new(dr_platform::secrets::SecretStore::for_identity(identity));
+    speech::init(http.clone(), secrets.clone(), cx);
+    let credentials = Credentials::new(secrets);
     let provider = ProviderDriver::new(http, credentials);
     init_with(
         provider.clone(),
@@ -91,6 +94,13 @@ pub fn init_with_service(
     tools: Arc<dyn ToolExecutor>,
     cx: &mut App,
 ) {
+    if cx.try_global::<speech::Services>().is_none() {
+        speech::init(
+            HttpClient::new().expect("speech HTTP"),
+            Arc::new(dr_platform::secrets::SecretStore::in_memory()),
+            cx,
+        );
+    }
     let connections = cx.new(|cx| Connections::with_service(service, cx));
     let hub = cx.new(|_| AgentHub::new(driver, tools));
     cx.set_global(AgentViews {
