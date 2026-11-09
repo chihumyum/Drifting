@@ -87,12 +87,12 @@ fn v3_sample_books_and_showcase_lay_out_and_match_v2_shape() {
     ] {
         let v = book.book.view();
         assert_eq!(v.meta().name, name);
-        let roots = dr_doc::v3::novel::NovelRootEntries::new();
-        assert_eq!(
-            v.manuscript_leaves(&roots.manuscript).len(),
-            chapters,
-            "{name}"
-        );
+        let tpl_ms =
+            dr_model::id::EntryTemplateId::parse(dr_doc::v3::novel::TPL_MANUSCRIPT).unwrap();
+        let ms = v
+            .root_entry_by_template(&tpl_ms)
+            .expect("manuscript root entry");
+        assert_eq!(v.manuscript_leaves(&ms.id).len(), chapters, "{name}");
         let tpl_char =
             dr_model::id::EntryTemplateId::parse(dr_doc::v3::novel::TPL_CHARACTER).unwrap();
         let elem_count = v
@@ -139,4 +139,18 @@ fn v3_sample_books_and_showcase_lay_out_and_match_v2_shape() {
     let s_v2 = seed::generate(Preset::Showcase, seed::DEFAULT_SEED).unwrap();
     let s_v3 = seed::generate_v3(Preset::Showcase, seed::DEFAULT_SEED).unwrap();
     assert_eq!(s_v3.shape(), s_v2.shape());
+    // The conversion uses deterministic IDs scoped by book, including all roots.
+    let mut ids = std::collections::BTreeSet::new();
+    for book in &s_v3.books {
+        for entry in book.book.view().entries_raw() {
+            assert!(ids.insert(entry.id.clone()), "shared entry {}", entry.id);
+        }
+    }
+    let mut docs = std::collections::BTreeSet::new();
+    for book in &s_v3.books {
+        assert!(docs.insert(book.book.doc_id().to_string()));
+        for prose in &book.prose {
+            assert!(docs.insert(prose.doc_id().to_string()));
+        }
+    }
 }
