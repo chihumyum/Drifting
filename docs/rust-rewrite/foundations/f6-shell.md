@@ -719,3 +719,155 @@ M04 章节面板、幕与大纲栏（`modules.md`）：
 M11 字段、M17 关系、M19 任务投射分别拥有自己的草稿和持久 ACK，需在模块接线提交中完成 freeze/settle/resume；共享屏障不替代这些队列。M31 帮手产品行为没有在本轮重写。本轮验证：`cargo fmt --all --check`、全 workspace clippy（`-D warnings`）、测试（1808 passed / 0 failed / 22 ignored）、`cargo xtask check` 及 debug bridge 构建通过。旧客户端六项检查中五项直接通过；`pnpm test` 为 4715 passed / 1 failed / 15 skipped，唯一失败是 tool-selector 的既有 p95 20 ms 门槛（并行构建负载下实测 31.359 ms）；原测试文件不改阈值重跑 3/3 通过。lint 保留既有 44 条警告。
 
 开发版真实窗口运行现有 `restore.json`，64/64 步、0 pending，包含备份、换库恢复、损坏归档拒绝和正常退出；四张截图逐一目检，恢复后捕获到现有 Markdown 文件夹首次选择框，未把它误记为已展示完整书架。证据位于忽略目录 `next/target/acceptance/legacy-release-input/`。此回归没有人为阻塞真实窗口的服务；等待期间的双窗口输入冻结与失败后焦点恢复由上述 GPUI 契约直接断言。
+
+## K4-0：v3 外壳接口（第一次交回）
+
+v2.2 与 v3 在同一个窗口中按书分路。`book::Book` 保留共有的 `id`、`name`，
+`Snapshot::{V22(LegacyBook), V3(BookV3)}` 只持有其中一份快照；旧视图的字段读取
+经只读 Deref 保持兼容，在 v3 上得到空的旧列表，不把条目伪装成章节或要素。
+
+- `Book::v3()` 返回 `book::v3::BookV3`：`entries`、`templates`、`roots`、`levels`、
+  `memberships`、`timeline_views` 和书目 `revision`。数据经 `entry.list`、
+  `entry_template.list`、`level.get`、`membership.list`、`timeline_view.list` 读取。
+  `WsEvent::Book` 触发重新读取；前后 frontier 不同的批次不发布。
+- `levels[id]` 的 `settings` 是 F3 的有效值；`sources` 逐项标注 `Default`、
+  `Override { entry }`、`Template { entry, template }` 或强制接收成员的
+  `Lane { entry, template }`。显式 null 清空仍是本层覆盖，不误算为继承。
+  `children` 是经过叶子父节点容错的文稿顺序；`members` 是有效归属的顺序。
+- `nav::Target::Entry { id, module: Option<ModuleId> }` 与 `Target::Template(id)`。
+  稳定键分别是 `entry:<id>`、`entry:<id>/<module>`、`template:<id>`；标签、
+  分栏、预览、历史与本机布局沿用 Navigator。`open_at` 的 `Lines` 仍只消费一次。
+  删除条目时普通与带模块的目标都会随下一份快照关闭。
+- `v3::add_module_view(cx, kind, maker)`：`ModuleHost { page, entry, module }`。
+  `page` 是现有 `PageViewHost`，含 workspace、library、book_id、book。
+  模块种类使用 F3 的字符串（`prose`、`fields`、`kv`、`patches`、`plot_grid`、
+  `relations`）。层级说明作为 `id = about, kind = prose` 交给同一入口。
+- `v3::add_level_display(cx, display, maker)`：`LevelHost { page, level, surface }`，
+  `surface` 为 `DisplaySurface::{Page, Sidebar}`；显示种类为 `list`、`grid`、
+  `board`、`island`。渲染器通过 `page.book.v3().levels[level]` 读有效设置和成员。
+- 两种 maker 返回 `v3::Rendered::new(view)`，可接 `focus(FocusHandle)`、`on_refresh(Rc<Book>, App)`
+  与 `on_reveal(Option<Lines>, Window, App)`。指定模块或第一篇正文的 focus 在换回
+  标签时接键盘；无编辑器时用外壳焦点。视图在标签存活期间保留；书变了
+  刷新同一实例，模块种类或显示方式变了才替换实例。模块新定义从新快照读，
+  不把旧的 `ModuleHost.module` 当成永不变化的副本。
+- `pages::add_v3_bottom_panel` 使用现有 `BottomHost` / `BottomPanel` 生命周期给 G3 接底部面板；
+  v3 书不实例化旧时间线或旧规划器。两套登记互不混用。
+- 叶子按模板模块顺序组合；层级由说明（含该层字段与键值表）、下属条目、设置
+  三块组成。未登记的部分仅画名字和现有条目，设置仅显示有效的显示方式。
+  这些是外壳占位；编辑器、字段、看板等由 G1/G2 接手。K5 可用现有
+  `pages::add_page_view` 接 `Target::Template`，优先于外壳的模板名占位页。
+- `BookV3::appearance(id)` 是公共记号与颜色入口：保留模板 `mark` 字符串，
+  小说内置记号映射到现有砂笔形状；颜色读模板或其声明的颜色字段，叶子跟随
+  有效主归属泳道。`Book::mark` 供标签和旧的通用单元格调用同一结果。
+
+开发命令加上 `seed:v3-tiny`、`seed:v3-lite`、`seed:v3-heavy`、
+`seed:v3-showcase`，场景里的 `seed` 同样接受 `v3-…`；生成仍只调用
+`dr_testkit::seed::generate_v3`，不加语料。调试桥 `nav.open` 支持上述目标键
+及 `line` / `end_line`；`state.get` 增加 `book.version`、`v3`、`v3Page`、
+`v3Appearance`；`page.text` 对组合页返回 `source: v3` 和实际挂载的 `composition`。
+`ui.wait` 也等待无正文编辑器的组合页。
+
+### K4-0 待协调
+
+1. F3 的 `level.get` 暂无来源字段。当前外壳只对来源做追溯，有效值仍用查询结果；
+   若 K6 给查询加上来源，可统一为它的 DTO，避免各消费方重复解释。当前来源
+   使用 F1 的有效祖先函数，覆盖 null、模板、祖先、默认和泳道强制接收。
+2. 旧 `book::nav_target` 的返回类型只有 v2.2 目标；对 v3 目标返回其「无单个实体」
+   的 `Book` 哨兵。G4 的审阅/统计/素材适配应直接消费 `Target::Entry` 及 module，
+   不再经过这个旧适配器。`nav::location` 的旧 Markdown URL 解析维持原格式；
+   新的模块链接 URL 和 EntityLink.module 随 F1/G1 已列出的协调项接入。
+3. 任意模板 mark 的完整图形词汇尚未由 K5 确定。公共函数保留原字符串，内置标记
+   用现有砂笔映射，未知标记暂用通用方印；不丢作者的原值。
+
+### K4-0 第一次交回记录
+
+交回范围为 K4-0 第 1–5 项；分支 `codex/k4-0-shell`，指针 `handback/k4-0`。
+接口提交 `5243a7d7`，同步 main 的合并提交 `9f8d0ac8`（main `222cc588`），
+启动时等待书版本的修正 `cb768220`；本记录与真窗口场景的截图等待一起续交。
+未合 main、未推送，未改任何视图 crate。
+
+检查（编译并发 3）：fmt、全 workspace Clippy `-D warnings`、全 workspace test
+**2038 passed / 0 failed / 22 ignored**、xtask check（含 audit，0 vulnerabilities）
+及根目录 `pnpm public:check` 全过。xtask 保留既有 14 份过期测量提示与 12 项审计通知；
+本次没有把占位页测成已完成的编辑器性能。
+
+`dr-shell/tests/v3.rs` 四条永久契约覆盖版本分路、来源/null、主归属颜色、删除、导航、
+模块顺序、保留实例刷新、焦点、位置回调，以及启动前不得实例化旧时间线。
+`dr-cli/tests/cli.rs` 覆盖四档 v3 入口和落库。真窗口
+`crates/dr-cli/scenarios/k4-0-interface.json` 在 `v3-lite` 上 **49/49 步，0 pending**；
+三张截图逐一目检，叶子顺序、层级三块、重开后显示设置均可见，旧时间线不出现。
+结果与截图在忽略目录 `next/target/acceptance/k4-0-interface/`，可从场景重跑。
+场景使用已完成首次导览的测试设备配置，截图等待共享字海/翻页过渡，不据此声明导览的 v3 接线。
+
+初次全量测试使用合并前的旧二进制，命中过已由 main/K3 修复的 dr-mirror 转义回归；
+上述统计来自合并后重新编译的完整运行。新增时间线隔离契约另发现初始空快照被当作 v2.2，
+已由 `cb768220` 修复，再跑全套与真窗口通过。待协调为上一节 1–3；
+各组可据以上注册口开工，第二次交回补左栏与悬停卡。
+
+## K4-0：左栏与悬停卡（第二次交回）
+
+- 左栏由 `v3::sidebar::Sidebar` 持有；`Workspace::v3_sidebar` 随换书和放手资料库
+  释放。标签来自当前快照的顶层层级，名称、顺序均来自书，不内置小说的四个名字。
+  新增、改名、移走和最近删除随书快照刷新；选中项消失时回到第一个有效根层级。
+- 选中的根层级用 `add_level_display`，`LevelHost.surface = Sidebar`。同一个根的
+  视图保留并接 `on_refresh`；有效 display 变化时才重建。没有登记时用公共条目
+  单元格占位。根标签可横向滚动；这轮没有把旧 v2.2 的多半栏模型套在 v3 根上。
+- 当前标签通过 `Workspace::set_book_memory` 存在本机的 `v3.sidebar.level`，
+  退出重开恢复；不写回书目，不产生同步修改。账号入口仍在最下方。
+- 模板集合列出活的条目模板，点开 `Target::Template`。K5 用
+  `v3::add_template_creator(cx, Fn(PageViewHost, Window, App))` 接新建按钮；
+  未注册时按钮禁用。已有模板页仍走 `pages::add_page_view`。
+- `workspace::page_hover_card` 对 v3 条目自动使用 `v3::card` 的公共头部与操作行；
+  公共头部、条目单元格、标签共用 `BookV3::appearance`。顺序是打开、新建、编辑模板、
+  换模板、归属到、最近删除。打开和编辑模板走 Navigator；最近删除走 F3
+  `entry.trash`，操作执行前核对仍是原书且条目还活着。
+- G2 用 `v3::add_entry_action(cx, EntryAction::{New, ChangeTemplate, BelongTo}, maker)`
+  提供选择器。maker 收到 `Target`、`PageMenuHost` 和只读 `App`，返回
+  `Option<pages::RunRow>`；None 显示为禁用，不注册无效果的回调。实际选择器、新建规则、
+  换模板与归属写入仍归 G2，不在外壳复制命令策略。
+- 各组可以在调用 `page_hover_card` 时给 `pages::CardRows`，或通过
+  `v3::add_entry_card_rows` 全局登记同样的两段：`lead`、`before_danger`。
+  公共头部不替换，所有危险行稳定排到末尾。factory 只造行；窗口/书的修改在
+  `RunRow` 被点击时进行。maker 里的 host 是本次快照，异步选择器应在提交前再校验。
+- 调试桥 `state.get.v3Sidebar` 返回当前根 ids、selected、有效 display、是否挂了
+  注册显示器，以及活模板 ids。旧的 `left.panes` 留给 v2.2，v3 消费方读新字段。
+  v3 不启动/显示旧版固定章节、要素、构想与时间线的导览；v2.2 仍按原来走。
+
+### K4-0 第二次交回待协调
+
+1. **G2**：本次交回后接手 `workspace/sidebar.rs`、`workspace/outline.rs`。
+   当前 v3 左栏主体单列在 `v3/sidebar.rs`；显示器、卡片选择器和大纲从以上入口接，
+   不需要另造快照、记号或卡头。层级页设置区仍是第一轮的有效显示方式占位。
+2. **K5**：模板集合的位置与打开入口已接；登记 template creator 和 Template 页即可。
+   这里没有实现模板编辑器或把新建模板当成已可编辑的产品流程。
+3. **G4 / 外壳**：v3 作品主页目前只显示书名，旧 `set_home` 不用于 v3。
+   G4 接回主页时需补版本化主页注册口；旧导览的 v3 内容随正式视图另接。
+   第一次交回列出的来源 DTO、旧 NavTarget/模块链接与任意 mark 协调项继续保留。
+
+### K4-0 第二次交回记录
+
+第 6–7 项的实现、永久契约与真窗口场景随本次变更交回。新增 GPUI 契约已通过，
+验证四种显示注册口、实例刷新/替换、本机选择记忆、共同六行与扩展危险行顺序、
+G2 三种回调及 K5 新建委托。v3-lite 真窗口场景 **84/84 步、0 pending**，三张截图
+已逐张目检；证据在忽略目录 `next/target/acceptance/k4-0-sidebar/`。
+本段实现提交 `83e8d23d`；`a96059bb` 同步 main `56d3537e`（仅第一轮的整合记录，
+`next/` 的 tree 与实现提交相同）。分支仍为 `codex/k4-0-shell`，最终记录提交后
+将 `handback/k4-0` 移到本次交回。第一轮已经由整合者在第四十三批收进 main；
+本会话没有将分支合入 main，也没有推送。
+
+同步后的全套检查通过：`cargo fmt --all --check`、全 workspace Clippy
+`--all-targets --locked -- -D warnings`、全 workspace test **2039 passed / 0 failed /
+22 ignored**（测试线程 3；同步前同一代码的单线程完整运行也是此结果）、
+`cargo xtask check`（含 audit，0 vulnerabilities，保留既有 12 项通知和 14 份
+过期测量提示）、根目录 `pnpm public:check`。所有编译使用 `CARGO_BUILD_JOBS=3`。
+
+最终实现重跑第一轮场景 **49/49**，第二轮场景 **84/84**，均 0 pending；
+后者还核对模板增删刷新、删除模板时关闭目标、v3 不显示旧导览、v2.2 原左栏保留。
+结果目录分别为 `next/target/acceptance/k4-0-interface-final/` 与
+`next/target/acceptance/k4-0-sidebar/`；两轮日志保留在忽略目录
+`next/target/acceptance/k4-0-checks/`。这次交回只声明外壳占位和注册契约完成，
+不把各组的编辑器、显示器或 heavy 下的最终性能当作已完成。
+
+供后续各组接线：maker / on_refresh 可能在外壳实体正被借用时调用，只读所给快照、
+更新自己的子实体，不在这里重借 workspace；需要改窗口或调用命令的动作放进点击
+回调。第二轮完成后，左栏和大纲栏按 K4 分轨交给 G2；其余公共外壳入口继续留在 F6。

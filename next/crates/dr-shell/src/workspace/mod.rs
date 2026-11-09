@@ -327,6 +327,7 @@ pub struct Workspace {
     /// The book shown (its id is known before its lists arrive).
     pub book_id: String,
     pub book: Rc<Book>,
+    pub v3_sidebar: Option<Entity<crate::v3::sidebar::Sidebar>>,
     book_task: Option<Task<()>>,
     /// The book changed while it was being read: read it again after.
     book_stale: bool,
@@ -494,6 +495,7 @@ impl Workspace {
             library,
             book_id,
             book: Rc::new(Book::default()),
+            v3_sidebar: None,
             book_task: None,
             book_stale: false,
             editors: HashMap::new(),
@@ -621,6 +623,7 @@ impl Workspace {
         self.chapter_sort_open = None;
         self.book_position = position;
         self.editors.clear();
+        self.v3_sidebar = None;
         self.focused_editor = None;
         self.touched = None;
         self.title_first = None;
@@ -841,6 +844,10 @@ impl Workspace {
     /// Home's 「继续写」 reads them). The whole book is not a page of its own
     /// there.
     fn touch_front(&mut self, cx: &mut Context<Self>) {
+        // Recent pages still use the v2.2 entity DTO; G4 owns its v3 route.
+        if self.book.v3().is_some() {
+            return;
+        }
         let front = self.nav.active_tab().map(|t| t.focused().target.clone());
         let key = front.as_ref().map(Target::key);
         if key == self.touched {
@@ -1006,6 +1013,7 @@ impl Workspace {
     pub(crate) fn let_go_of_library(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.store_layout(cx);
         self.editors.clear();
+        self.v3_sidebar = None;
         self.release_words(cx);
         self.focused_editor = None;
         self.gave_focus = None;
@@ -1743,6 +1751,9 @@ pub fn title_of(book: &Book, target: &Target, cx: &App) -> gpui::SharedString {
         Target::Element(_) => untitled::ELEMENT,
         Target::Category(_) => untitled::CATEGORY,
         Target::Material(_) => untitled::LIBRARY_ITEM,
+        Target::Entry { .. } | Target::Template(_) => {
+            return book.title(target).unwrap_or_default().to_owned().into();
+        }
     };
     match book.title(target).filter(|t| !t.trim().is_empty()) {
         Some(title) => title.to_owned().into(),

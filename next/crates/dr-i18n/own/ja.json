@@ -86,5 +86,22 @@
   },
   "speech": {
     "backlog": "文字起こしの処理待ち"
+  },
+  "v3Shell": {
+    "about": "説明",
+    "entries": "項目",
+    "settings": "設定",
+    "list": "リスト",
+    "grid": "グリッド",
+    "board": "ボード",
+    "islands": "アイランド",
+    "templates": "テンプレート",
+    "newTemplate": "新規テンプレート",
+    "open": "開く",
+    "newEntry": "新規作成",
+    "editTemplate": "テンプレートを編集",
+    "changeTemplate": "テンプレートを変更",
+    "belongTo": "所属先",
+    "trash": "最近削除した項目に移動"
   }
 }

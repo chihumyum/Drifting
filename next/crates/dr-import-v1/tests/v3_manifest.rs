@@ -56,8 +56,8 @@ fn every_mapping_row_has_a_nonempty_fixture_and_pinned_totals() {
     assert_eq!(m.source_rows["plot_grid_row"].len(), 2);
     assert_eq!(m.source_rows["plot_grid_column"].len(), 1);
     assert_eq!(m.source_rows["plot_grid_cell"][0]["value"], "一张纸条");
-    assert_eq!(m.source_rows["entity_relation_type"].len(), 2);
-    assert_eq!(m.source_rows["entity_relation_type_endpoint_kind"].len(), 2);
+    assert_eq!(m.source_rows["entity_relation_type"].len(), 3);
+    assert_eq!(m.source_rows["entity_relation_type_endpoint_kind"].len(), 4);
     assert_eq!(m.source_rows["entity_kv_entry"].len(), 8);
     assert_eq!(m.settings.word_target, Some(80000));
     assert_eq!(m.settings.daily_word_target, Some(0));
@@ -145,7 +145,7 @@ fn category_templates_fields_groups_and_prose_keep_the_authored_values() {
     assert_eq!(
         cat.layout,
         Some(Layout::Grid {
-            mode: "manual".into(),
+            mode: "pinned".into(),
             x: Some(4),
             y: Some(-2)
         })

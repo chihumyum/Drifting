@@ -441,3 +441,52 @@ fn a_scenario_that_drives_the_app_keeps_to_its_own_profile() {
     ws.shutdown().unwrap();
     assert!(e.contains("needs_app"), "{e}");
 }
+
+#[test]
+fn v3_seed_entrypoints_keep_legacy_and_write_v3() {
+    for name in ["tiny", "lite", "heavy", "showcase"] {
+        assert!(!dr_cli::seed::Choice::parse(name).unwrap().v3);
+        assert!(
+            dr_cli::seed::Choice::parse(&format!("v3-{name}"))
+                .unwrap()
+                .v3
+        );
+        dr_cli::scenario::parse(&format!(r#"{{"steps":[{{"seed":"v3-{name}"}}]}}"#)).unwrap();
+    }
+    assert!(dr_cli::seed::Choice::parse("v3-unknown").is_none());
+    let dir = tempfile::tempdir().unwrap();
+    run(Command::Scenario {
+        library: Some(dir.path().join("library")),
+        name: "seed:v3-tiny".into(),
+        yes: true,
+        app: None,
+        profile: None,
+        out: None,
+        keep: false,
+    });
+    let ws = dr_workspace::Workspace::open_dir(dir.path().join("library"), "0.2.0-dev").unwrap();
+    let books = ws
+        .call(
+            &dr_workspace::Actor::User,
+            "book.list",
+            serde_json::json!({}),
+        )
+        .unwrap();
+    let id = books["output"][0]["id"].as_str().unwrap();
+    assert_eq!(
+        ws.observe(&format!("book:{id}")).unwrap().value["meta"]["v"],
+        3
+    );
+    assert!(
+        !ws.call(
+            &dr_workspace::Actor::User,
+            "entry.list",
+            serde_json::json!({"book":id,"all":true})
+        )
+        .unwrap()["output"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    ws.shutdown().unwrap();
+}

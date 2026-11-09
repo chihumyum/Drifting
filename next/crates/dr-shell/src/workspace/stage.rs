@@ -321,7 +321,9 @@ fn paper(
     // A page a module draws whole lies on the desk at full width, with no
     // sheet: M19's picture is itself the raised paper (the 0.1 client's
     // shell mode).
-    if let Some(view) = target.and_then(|t| ws.read(cx).module_page(t).cloned()) {
+    if ws.read(cx).book.v3().is_none()
+        && let Some(view) = target.and_then(|t| ws.read(cx).module_page(t).cloned())
+    {
         return div()
             .id(ElementId::Name(format!("desk-{key}").into()))
             .size_full()
@@ -370,7 +372,9 @@ fn paper(
 
 fn home(ws: &Entity<Workspace>, window: &mut Window, cx: &mut App) -> AnyElement {
     // Project Home (M02, dr-view-home) when the app registered it.
-    if let Some(view) = ws.read(cx).home.clone() {
+    if ws.read(cx).book.v3().is_none()
+        && let Some(view) = ws.read(cx).home.clone()
+    {
         return view.into_any_element();
     }
     let theme = Theme::of(window, cx);
@@ -403,6 +407,11 @@ fn home(ws: &Entity<Workspace>, window: &mut Window, cx: &mut App) -> AnyElement
 /// A page: its editor (one document's, or the whole book's), the edit
 /// menu's commands handed to it.
 fn document(ws: &Entity<Workspace>, target: &Target, _: &mut Window, cx: &mut App) -> AnyElement {
+    if ws.read(cx).book.v3().is_some()
+        && let Some(view) = ws.read(cx).module_page(target)
+    {
+        return view.clone().into_any_element();
+    }
     let Some(view) = ws.read(cx).page_view(target).map(|v| v.view()) else {
         return div().into_any_element();
     };

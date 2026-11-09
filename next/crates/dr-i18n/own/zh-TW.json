@@ -86,5 +86,22 @@
   },
   "speech": {
     "backlog": "轉錄積壓"
+  },
+  "v3Shell": {
+    "about": "說明",
+    "entries": "條目",
+    "settings": "設定",
+    "list": "清單",
+    "grid": "網格",
+    "board": "看板",
+    "islands": "島嶼",
+    "templates": "範本集合",
+    "newTemplate": "新增範本",
+    "open": "開啟",
+    "newEntry": "新增",
+    "editTemplate": "編輯範本",
+    "changeTemplate": "更換範本",
+    "belongTo": "歸屬至",
+    "trash": "移至最近刪除"
   }
 }

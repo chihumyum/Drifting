@@ -137,14 +137,15 @@ impl Workspace {
         }
         let planned = matches!(
             self.nav.current(),
-            Some(Target::Chapter(_) | Target::Idea(_))
+            Some(Target::Chapter(_) | Target::Idea(_) | Target::Entry { .. })
         );
         if self.bottom.layout.planner_open {
-            return (planned && pages::has_bottom_panel(BottomPane::Planner, cx))
+            return (planned && pages::has_bottom_panel_for(BottomPane::Planner, &self.book, cx))
                 .then_some(BottomPane::Planner);
         }
-        (!self.bottom.layout.timeline_hidden && pages::has_bottom_panel(BottomPane::Timeline, cx))
-            .then_some(BottomPane::Timeline)
+        (!self.bottom.layout.timeline_hidden
+            && pages::has_bottom_panel_for(BottomPane::Timeline, &self.book, cx))
+        .then_some(BottomPane::Timeline)
     }
 
     /// ⌘J and the bamboo: shows the timeline (closing the planner), or puts

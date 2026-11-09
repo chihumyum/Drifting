@@ -1781,6 +1781,23 @@
     "themeSystem": "Seguir el sistema",
     "themeSystemShort": "Sistema"
   },
+  "v3Shell": {
+    "about": "Descripción",
+    "belongTo": "Asignar a",
+    "board": "Tablero",
+    "changeTemplate": "Cambiar plantilla",
+    "editTemplate": "Editar plantilla",
+    "entries": "Entradas",
+    "grid": "Cuadrícula",
+    "islands": "Islas",
+    "list": "Lista",
+    "newEntry": "Nuevo",
+    "newTemplate": "Nueva plantilla",
+    "open": "Abrir",
+    "settings": "Ajustes",
+    "templates": "Plantillas",
+    "trash": "Mover a Eliminados recientemente"
+  },
   "voiceAgent": {
     "error": {
       "auth": "La clave de transcripción no es válida o ha caducado",

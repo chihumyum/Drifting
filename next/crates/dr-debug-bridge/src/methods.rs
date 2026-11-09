@@ -656,6 +656,15 @@ fn open(p: &Value, cx: &mut App) -> Out {
             Open::KEEP
         };
         ws.open(target.clone(), how, cx);
+        if let Some(start) = p.get("line").and_then(Value::as_u64) {
+            ws.nav.open_at(
+                target.clone(),
+                Some(dr_shell::nav::Lines {
+                    start: start as u32,
+                    end: p.get("end_line").and_then(Value::as_u64).map(|v| v as u32),
+                }),
+            );
+        }
         Ok(json!({ "opened": target.key() }))
     })?
 }
@@ -722,13 +731,14 @@ fn state_of(ws: &Workspace, window: &Window, cx: &App) -> Value {
         .iter()
         .map(|(k, e)| {
             let kind = match &e.view {
+                _ if e.v3.is_some() => "v3",
                 Some(PageView::Book(_)) => "book",
                 _ if e.doc.is_none() => "book",
                 _ => "editor",
             };
             json!({
                 "key": k, "kind": kind, "doc": e.doc,
-                "ready": e.view.is_some() && e.loading.is_none(),
+                "ready": (e.view.is_some() || e.module.is_some()) && e.loading.is_none(),
                 "loading": e.loading.is_some(), "failed": e.failed,
             })
         })
@@ -761,7 +771,12 @@ fn state_of(ws: &Workspace, window: &Window, cx: &App) -> Value {
         "book": {
             "id": ws.book_id, "name": book.name,
             "chapters": book.chapters.len(), "loaded": !book.is_empty(),
+            "version": if book.v3().is_some() { 3 } else { 2 },
         },
+        "v3": book.v3(),
+        "v3Sidebar": ws.v3_sidebar.as_ref().map(|s| s.read(cx).state()),
+        "v3Page": ws.nav.current().and_then(|t| ws.editors.get(&t.key())).and_then(|p| p.v3.as_ref()).map(|p| p.read(cx).state()),
+        "v3Appearance": ws.nav.current().and_then(|t| match t { Target::Entry { id, .. } => book.v3()?.appearance(id.as_str()), _ => None }).map(|a| json!({ "mark": a.mark, "color": a.color })),
         "shelf": ws.shelf_open,
         "page": page,
         "pageTitle": title,
@@ -836,6 +851,12 @@ fn page_text(p: &Value, cx: &mut App) -> Out {
             .editors
             .get(&target.key())
             .ok_or_else(|| not_found(format!("{} is not open on screen", target.key())))?;
+        if let Some(view) = &page.v3 {
+            let view = view.read(cx);
+            return Ok(
+                json!({ "target": target.key(), "title": title, "ready": true, "loading": false, "failed": false, "source": "v3", "composition": view.state(), "text": view.sections.iter().map(|s| s.name.as_str()).collect::<Vec<_>>().join("\n"), "paragraphs": [] }),
+            );
+        }
         let Some(view) = &page.view else {
             return Ok(json!({
                 "target": target.key(), "title": title, "ready": false,

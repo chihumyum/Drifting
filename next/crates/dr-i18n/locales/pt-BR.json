@@ -1781,6 +1781,23 @@
     "themeSystem": "Seguir o sistema",
     "themeSystemShort": "Sistema"
   },
+  "v3Shell": {
+    "about": "Descrição",
+    "belongTo": "Associar a",
+    "board": "Quadro",
+    "changeTemplate": "Trocar modelo",
+    "editTemplate": "Editar modelo",
+    "entries": "Entradas",
+    "grid": "Grade",
+    "islands": "Ilhas",
+    "list": "Lista",
+    "newEntry": "Novo",
+    "newTemplate": "Novo modelo",
+    "open": "Abrir",
+    "settings": "Configurações",
+    "templates": "Modelos",
+    "trash": "Mover para Excluídos recentemente"
+  },
   "voiceAgent": {
     "error": {
       "auth": "Chave de transcrição inválida ou expirada",

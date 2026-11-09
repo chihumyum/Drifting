@@ -1773,6 +1773,23 @@
     "themeSystem": "Systemeinstellung",
     "themeSystemShort": "System"
   },
+  "v3Shell": {
+    "about": "Beschreibung",
+    "belongTo": "Zuordnen",
+    "board": "Pinnwand",
+    "changeTemplate": "Vorlage wechseln",
+    "editTemplate": "Vorlage bearbeiten",
+    "entries": "Einträge",
+    "grid": "Raster",
+    "islands": "Inseln",
+    "list": "Liste",
+    "newEntry": "Neu",
+    "newTemplate": "Neue Vorlage",
+    "open": "Öffnen",
+    "settings": "Einstellungen",
+    "templates": "Vorlagen",
+    "trash": "Zu „Zuletzt gelöscht“ verschieben"
+  },
   "voiceAgent": {
     "error": {
       "auth": "Transkriptionsschlüssel ungültig oder abgelaufen",

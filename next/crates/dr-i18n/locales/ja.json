@@ -1767,6 +1767,23 @@
     "themeSystem": "システムに合わせる",
     "themeSystemShort": "システム"
   },
+  "v3Shell": {
+    "about": "説明",
+    "belongTo": "所属先",
+    "board": "ボード",
+    "changeTemplate": "テンプレートを変更",
+    "editTemplate": "テンプレートを編集",
+    "entries": "項目",
+    "grid": "グリッド",
+    "islands": "アイランド",
+    "list": "リスト",
+    "newEntry": "新規作成",
+    "newTemplate": "新規テンプレート",
+    "open": "開く",
+    "settings": "設定",
+    "templates": "テンプレート",
+    "trash": "最近削除した項目に移動"
+  },
   "voiceAgent": {
     "error": {
       "auth": "文字起こし用キーが無効か期限切れです",

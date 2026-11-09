@@ -92,5 +92,22 @@
   },
   "speech": {
     "backlog": "Transcription backlog"
+  },
+  "v3Shell": {
+    "about": "Description",
+    "entries": "Entries",
+    "settings": "Settings",
+    "list": "List",
+    "grid": "Grid",
+    "board": "Board",
+    "islands": "Islands",
+    "templates": "Templates",
+    "newTemplate": "New template",
+    "open": "Open",
+    "newEntry": "New",
+    "editTemplate": "Edit template",
+    "changeTemplate": "Change template",
+    "belongTo": "Assign to",
+    "trash": "Move to Recently Deleted"
   }
 }

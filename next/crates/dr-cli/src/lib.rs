@@ -26,6 +26,7 @@ pub mod inspect;
 pub mod live;
 pub mod offline;
 pub mod scenario;
+pub mod seed;
 
 use std::path::{Path, PathBuf};
 
@@ -256,25 +257,17 @@ fn scenario_command(
     let needs_library = || library.ok_or_else(|| "--library DIR is required".to_string());
     if let Some(p) = name.strip_prefix("seed:") {
         let library = needs_library()?;
-        let preset = preset(p)?;
-        let r = offline::guarded_write(
-            library,
-            yes,
-            &format!("write the {} seed", preset.name()),
-            |root| {
-                let seeded =
-                    seed::generate(preset, seed::DEFAULT_SEED).map_err(|e| e.to_string())?;
-                let lib = dr_store::Library::open(root, dr_workspace::library_options(APP_VERSION))
-                    .map_err(|e| e.to_string())?;
-                let n = seeded.write_to(&lib).map_err(|e| e.to_string())?;
-                lib.close().map_err(|e| e.to_string())?;
-                Ok(format!(
-                    "wrote {n} documents ({} books, corpus {})",
-                    seeded.books.len(),
-                    seeded.shape().corpus_fingerprint
-                ))
-            },
-        )?;
+        let preset = crate::seed::Choice::parse(p).ok_or_else(|| format!("unknown seed {p}"))?;
+        let r = offline::guarded_write(library, yes, &format!("write the {p} seed"), |root| {
+            let lib = dr_store::Library::open(root, dr_workspace::library_options(APP_VERSION))
+                .map_err(|e| e.to_string())?;
+            let report = preset.write_to(&lib)?;
+            lib.close().map_err(|e| e.to_string())?;
+            Ok(format!(
+                "wrote {} documents ({} books, corpus {})",
+                report.documents, report.books, report.fingerprint
+            ))
+        })?;
         return Ok((0, guarded(r)));
     }
     if let Some(p) = name.strip_prefix("seed-commands:") {

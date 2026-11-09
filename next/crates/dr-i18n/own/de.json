@@ -92,5 +92,22 @@
   },
   "speech": {
     "backlog": "Transkriptionsrückstand"
+  },
+  "v3Shell": {
+    "about": "Beschreibung",
+    "entries": "Einträge",
+    "settings": "Einstellungen",
+    "list": "Liste",
+    "grid": "Raster",
+    "board": "Pinnwand",
+    "islands": "Inseln",
+    "templates": "Vorlagen",
+    "newTemplate": "Neue Vorlage",
+    "open": "Öffnen",
+    "newEntry": "Neu",
+    "editTemplate": "Vorlage bearbeiten",
+    "changeTemplate": "Vorlage wechseln",
+    "belongTo": "Zuordnen",
+    "trash": "Zu „Zuletzt gelöscht“ verschieben"
   }
 }

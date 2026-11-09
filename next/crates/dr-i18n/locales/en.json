@@ -1773,6 +1773,23 @@
     "themeSystem": "Follow system",
     "themeSystemShort": "System"
   },
+  "v3Shell": {
+    "about": "Description",
+    "belongTo": "Assign to",
+    "board": "Board",
+    "changeTemplate": "Change template",
+    "editTemplate": "Edit template",
+    "entries": "Entries",
+    "grid": "Grid",
+    "islands": "Islands",
+    "list": "List",
+    "newEntry": "New",
+    "newTemplate": "New template",
+    "open": "Open",
+    "settings": "Settings",
+    "templates": "Templates",
+    "trash": "Move to Recently Deleted"
+  },
   "voiceAgent": {
     "error": {
       "auth": "The transcription key is invalid or expired",
