@@ -11586,6 +11586,10 @@ expression: json
         "book": {
           "type": "string"
         },
+        "expected": {
+          "description": "Post-write history point whose selected values must still be present.\nIndependent fields may change; selected fields may not be taken over.",
+          "type": "string"
+        },
         "host": {
           "type": "string"
         },
@@ -11613,6 +11617,7 @@ expression: json
         "host",
         "member",
         "at",
+        "expected",
         "membership",
         "primary",
         "views"

@@ -1071,21 +1071,35 @@ G4 的可选稳定锚点创建分支需使用同一帮手，不另作一次观�
 holder 写 job 中完成；未知不可写表示会在任何修改之前拒绝。
 
 取消的逆操作改为 v3 专用 `membership.restore`，输入类型
-`commands::v3::membership::RestoreIn`：`book, host, member, at`，两个选择标志
+`commands::v3::membership::RestoreIn`：`book, host, member, at, expected`，两个选择标志
 `membership`／`primary`，以及需要恢复该成员位置的 `views`。只恢复原归属记录、
 实际清掉的 primary 字段和实际删掉的单成员 placement；没有整份 entry 或 timeline view
 恢复。撤销与重做都使用同一字段范围，保留别的来源后来改的标题、其他成员位置、时间钉、
-视图字段及未知数据；只有被明确选中的记录恢复到指定历史状态，不承诺合并同一字段的两次改动。
+视图字段及可无损恢复的未知数据。逆操作同时保存目标历史 `at` 和原操作完成后的 `expected`
+frontier；在同一次 holder 写任务内逐项比较所选字段的预期原值，任一字段已被其他来源接管
+就整次 conflict，不能覆盖其成功写入；重做使用同样规则。比较只限定所选记录，不把其他
+标题、时间钉、成员或视图变化升级成全书冲突。
+
+深值不携带真实容器类型、富文本格式和列表身份，因此取消前及恢复前都检查所选实际路径：
+只支持可合并 Map 和可原样恢复的原子叶值，primary 只支持缺键／null／字符串。所选未知字段
+含 LoroText、MovableList、其他 CRDT 容器、非可合并 Map 或原子 Map 时，首个修改前整次拒绝，
+保留原始内容；历史目标与 expected 同样检查。未选中的未知字段、隐藏位置不受这一限制。
+`BookViewV3::state_frontiers` 在 holder 内捕获尚待提交操作后的 frontier，不提前提交；另外新增
+`check_membership_snapshot_restore`、`check_primary_restore` 和 `check_timeline_placement_restore`
+供同一预检使用。
 历史仍限定在该书，恢复前验证所有当前路径及最终归属图，再开始写入。
 
 新增 dr-doc 小接口：`BookViewV3::timeline_placement_snapshot`／
 `check_timeline_placement_write`，`TimelineViewWriterV3::restore_placement`，
 `EntryWriterV3::restore_primary`，`BookTxnV3::restore_membership_snapshot`。
-快照读取原始值，恢复单个记录保留其未知数据与可继续编辑的映射；原有 v2.2 签名和行为不动。
+快照读取深值，配合真实容器预检后恢复单个记录，保留可无损恢复的未知数据与可编辑映射；原有 v2.2 签名和行为不动。
 `membership.restore` 供工作区逆操作使用，暂不开放给帮手；M29 的 v3 排除表单独列名，
 带目录缺席与调用拒绝回归，正式 facade 由 K6 后续适配。
 
 永久回归包括整合方 Tiny 种子探针，以及隐藏备用泳道／已回收视图／未知位置与字段、
 两书和重开隔离、`timeline_view.remove` 委托、取消与另一来源修改交错后的撤销／重做、
-缺失归属不误清、旧 guards 和多路径预检失败不部分写入。原误删和整份撤销覆盖均先复现失败，
+缺失归属不误清、旧 guards 和多路径预检失败不部分写入；另外覆盖真实 Workspace::undo/redo
+遇到同一 placement／primary 接管时保留成功写入，历史版本随 journal 重开继续有效。真实
+LoroText（含 bold）／MovableList 的归属与位置四种组合验证无损恢复或事前拒绝，深 JSON
+相等但真实容器被替换的重做也拒绝。原误删、整份撤销覆盖、同字段接管和容器降级均先复现失败，
 再验证修复；本批不包含 M14 的改名或泳道编辑新功能，也未做真窗口或性能验收。

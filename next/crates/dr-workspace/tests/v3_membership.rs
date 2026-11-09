@@ -130,6 +130,10 @@ fn removing_and_undoing_membership_preserves_peer_entry_and_timeline_fields() {
     assert_eq!(raw(&e, &b), after_peer);
     e.reopen();
     assert_eq!(raw(&e, &b), after_peer);
+    e.ws().undo(&Actor::User).unwrap().expect("reopened undo");
+    assert_eq!(raw(&e, &b), undone);
+    e.ws().redo(&Actor::User).unwrap().expect("reopened redo");
+    assert_eq!(raw(&e, &b), after_peer);
 }
 
 #[test]
@@ -284,7 +288,7 @@ fn restoration_and_cancellation_preflight_all_paths_before_any_write() {
         ),
         (
             "membership.restore",
-            json!({"book":b,"host":lane,"member":entry,"at":at,"membership":true,"primary":true,"views":["first","last"]}),
+            json!({"book":b,"host":lane,"member":entry,"at":at,"expected":at,"membership":true,"primary":true,"views":["first","last"]}),
         ),
     ] {
         assert!(e.try_call(name, input).is_err());
@@ -322,7 +326,7 @@ fn stale_cancellation_and_restore_refuse_before_validating_the_newer_member_stat
         ),
         (
             "membership.restore",
-            json!({"book":b,"host":lane,"member":member,"at":at,"membership":true,"primary":true,"views":[]}),
+            json!({"book":b,"host":lane,"member":member,"at":at,"expected":at,"membership":true,"primary":true,"views":[]}),
         ),
     ] {
         assert!(matches!(
@@ -333,4 +337,173 @@ fn stale_cancellation_and_restore_refuse_before_validating_the_newer_member_stat
         assert_eq!(newer.version, e.ws().observe(&newer.doc).unwrap().version);
         assert_eq!(newer.value, raw(&e, &b));
     }
+}
+
+#[test]
+fn cancellation_preserves_selected_container_types_or_refuses_before_removing_anything() {
+    use loro::{Container, ValueOrContainer};
+    let mut lost = Vec::new();
+    for in_placement in [false, true] {
+        for text_container in [false, true] {
+            let e = env();
+            let b = item(e.out("project.create", json!({"name":"Typed unknown containers"})));
+            let lane = create(&e, &b, "tpl-storyline", "Lane");
+            let member = create(&e, &b, "tpl-chapter", "Member");
+            e.call("timeline_view.put", json!({"book":b,"view":{"id":"typed-view","name":"Typed","lanes":[{"entry":lane}]}}));
+            e.call(
+                "timeline_view.place",
+                json!({"book":b,"view":"typed-view","entry":member,"lane":lane,"at":41,"span":7}),
+            );
+            e.call(
+                "membership.primary",
+                json!({"book":b,"member":member,"host":lane}),
+            );
+            let (l, m) = (lane.clone(), member.clone());
+            imported(&e, &b, move |d| {
+                let record = if in_placement {
+                    d.get_map("timeline_views")
+                        .ensure_mergeable_map("typed-view")
+                        .unwrap()
+                        .ensure_mergeable_map("placements")
+                        .unwrap()
+                        .ensure_mergeable_map(&m)
+                        .unwrap()
+                } else {
+                    d.get_map("memberships")
+                        .ensure_mergeable_map(&format!("{l}|{m}"))
+                        .unwrap()
+                };
+                let future = record.ensure_mergeable_map("future").unwrap();
+                if text_container {
+                    let note = future.ensure_mergeable_text("note").unwrap();
+                    note.insert(0, "memo").unwrap();
+                    note.mark(0..4, "bold", true).unwrap();
+                } else {
+                    let list = future.ensure_mergeable_movable_list("ordered").unwrap();
+                    list.insert(0, "first").unwrap();
+                    list.insert(1, "second").unwrap();
+                    list.mov(1, 0).unwrap();
+                }
+            });
+            let before = e.ws().observe(&format!("book:{b}")).unwrap();
+            let result = e.try_call(
+                "membership.remove",
+                json!({"book":b,"host":lane,"member":member}),
+            );
+            if result.is_ok() {
+                e.ws()
+                    .undo(&Actor::User)
+                    .unwrap()
+                    .expect("undo cancellation");
+            } else {
+                let after = e.ws().observe(&before.doc).unwrap();
+                assert_eq!(after.version, before.version);
+                assert_eq!(after.value, before.value);
+            }
+            // Verify real container types and formatting, not just deep JSON.
+            let faithful = e
+                .ws()
+                .library()
+                .open_doc(&before.doc, dr_store::OpenDoc::Existing)
+                .unwrap()
+                .read(move |d| {
+                    let record = if in_placement {
+                        d.get_map("timeline_views")
+                            .ensure_mergeable_map("typed-view")
+                            .unwrap()
+                            .ensure_mergeable_map("placements")
+                            .unwrap()
+                            .ensure_mergeable_map(&member)
+                            .unwrap()
+                    } else {
+                        d.get_map("memberships")
+                            .ensure_mergeable_map(&format!("{lane}|{member}"))
+                            .unwrap()
+                    };
+                    let future = record.ensure_mergeable_map("future").unwrap();
+                    if text_container {
+                        let Some(ValueOrContainer::Container(Container::Text(note))) =
+                            future.get("note")
+                        else {
+                            return false;
+                        };
+                        note.to_string() == "memo"
+                            && format!("{:?}", note.to_delta()).contains("bold")
+                    } else {
+                        let Some(ValueOrContainer::Container(Container::MovableList(list))) =
+                            future.get("ordered")
+                        else {
+                            return false;
+                        };
+                        list.get(0).unwrap().get_deep_value() == loro::LoroValue::from("second")
+                    }
+                })
+                .unwrap();
+            if !faithful {
+                lost.push((in_placement, text_container));
+            }
+        }
+    }
+    assert!(
+        lost.is_empty(),
+        "lost actual container type/formatting (placement,text): {lost:?}"
+    );
+}
+
+#[test]
+fn redo_refuses_a_rich_container_takeover_even_when_deep_json_is_identical() {
+    let e = env();
+    let b = item(e.out("project.create", json!({"name":"Typed takeover"})));
+    let lane = create(&e, &b, "tpl-storyline", "Lane");
+    let member = create(&e, &b, "tpl-chapter", "Member");
+    e.call(
+        "timeline_view.put",
+        json!({"book":b,"view":{"id":"typed-takeover","name":"Typed","lanes":[{"entry":lane}]}}),
+    );
+    e.call(
+        "timeline_view.place",
+        json!({"book":b,"view":"typed-takeover","entry":member,"lane":lane,"at":41,"span":7}),
+    );
+    let m = member.clone();
+    imported(&e, &b, move |d| {
+        d.get_map("timeline_views")
+            .ensure_mergeable_map("typed-takeover")
+            .unwrap()
+            .ensure_mergeable_map("placements")
+            .unwrap()
+            .ensure_mergeable_map(&m)
+            .unwrap()
+            .insert("future", "memo")
+            .unwrap();
+    });
+    e.call(
+        "membership.remove",
+        json!({"book":b,"host":lane,"member":member}),
+    );
+    e.ws().undo(&Actor::User).unwrap().expect("undo");
+    let before_typed = raw(&e, &b);
+    let m = member.clone();
+    imported(&e, &b, move |d| {
+        let record = d
+            .get_map("timeline_views")
+            .ensure_mergeable_map("typed-takeover")
+            .unwrap()
+            .ensure_mergeable_map("placements")
+            .unwrap()
+            .ensure_mergeable_map(&m)
+            .unwrap();
+        record.delete("future").unwrap();
+        let note = record.ensure_mergeable_text("future").unwrap();
+        note.insert(0, "memo").unwrap();
+        note.mark(0..4, "bold", true).unwrap();
+    });
+    let before = e.ws().observe(&format!("book:{b}")).unwrap();
+    assert_eq!(
+        before.value, before_typed,
+        "deep JSON cannot detect this takeover"
+    );
+    assert!(e.ws().redo(&Actor::User).is_err());
+    let after = e.ws().observe(&before.doc).unwrap();
+    assert_eq!(after.version, before.version);
+    assert_eq!(after.value, before.value);
 }

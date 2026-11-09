@@ -168,6 +168,74 @@ impl<'a> BookViewV3<'a> {
         self.book
     }
 
+    /// Current applied frontier, including pending operations. Read on the
+    /// holder thread when capturing a command's expected post-write state;
+    /// this does not commit or claim authority over a later read.
+    pub fn state_frontiers(&self) -> loro::Frontiers {
+        self.doc.state_frontiers()
+    }
+
+    /// Whether a membership snapshot can be restored without flattening an
+    /// unknown CRDT container. This is a read-only preflight, not a decoder.
+    pub fn check_membership_snapshot_restore(
+        &self,
+        host: &EntryId,
+        member: &EntryId,
+    ) -> Result<()> {
+        check_restorable_field(
+            &self.doc.get_map(book_v3::MEMBERSHIPS),
+            &Membership::key(host, member),
+        )
+    }
+
+    /// Only the selected primary field is inspected, never other entry data.
+    /// The inverse preserves absence/null/string; future representations must
+    /// be handled explicitly before a cancellation may overwrite them.
+    pub fn check_primary_restore(&self, member: &EntryId) -> Result<()> {
+        use loro::ValueOrContainer;
+        let tree = self.tree(book_v3::ENTRIES);
+        let node = forest(&tree)
+            .into_iter()
+            .find(|n| n.id == member.as_str())
+            .ok_or_else(|| DocError::Missing {
+                collection: book_v3::ENTRIES,
+                id: member.to_string(),
+            })?;
+        for node in node.tree_ids {
+            match tree.get_meta(node)?.get("primary") {
+                None | Some(ValueOrContainer::Value(LoroValue::Null | LoroValue::String(_))) => {}
+                _ => {
+                    return Err(DocError::NotInProfile(
+                        "primary uses an unsupported representation",
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Inspect just this member's placement. Other positions, pins, hidden
+    /// entries and future view fields do not constrain a scoped cancellation.
+    pub fn check_timeline_placement_restore(
+        &self,
+        view: &TimelineViewId,
+        member: &EntryId,
+    ) -> Result<()> {
+        use loro::{Container, ValueOrContainer};
+        self.check_timeline_placement_write(view)?;
+        let Some(ValueOrContainer::Container(Container::Map(record))) =
+            self.doc.get_map(book_v3::TIMELINE_VIEWS).get(view.as_str())
+        else {
+            unreachable!("preflighted view")
+        };
+        if let Some(ValueOrContainer::Container(Container::Map(placements))) =
+            record.get("placements")
+        {
+            check_restorable_field(&placements, member.as_str())?;
+        }
+        Ok(())
+    }
+
     /// Capture one consistent deep value under Loro's state lock, then resolve
     /// the structure once. Unlike a live view this explicit snapshot never changes.
     /// This read neither commits pending writes nor caches across a transaction.
@@ -1471,5 +1539,33 @@ impl<'a> BookViewV3<'a> {
             }
         }
         plan
+    }
+}
+
+// Deep values omit container type, rich-text attributes and list identities.
+// The selected-record inverse supports mergeable maps and atomic leaf values
+// only; reject every unsupported actual representation before removing data.
+fn check_restorable_field(parent: &LoroMap, key: &str) -> Result<()> {
+    use loro::{Container, ContainerID, ContainerTrait, ContainerType, ValueOrContainer};
+    match parent.get(key) {
+        None => Ok(()),
+        Some(ValueOrContainer::Value(LoroValue::Map(_))) => {
+            Err(DocError::NotInProfile("snapshot contains an atomic map"))
+        }
+        Some(ValueOrContainer::Value(_)) => Ok(()),
+        Some(ValueOrContainer::Container(Container::Map(map))) => {
+            if map.id() != ContainerID::new_mergeable(&parent.id(), key, ContainerType::Map) {
+                return Err(DocError::NotInProfile(
+                    "snapshot contains a non-mergeable map",
+                ));
+            }
+            for key in map.keys() {
+                check_restorable_field(&map, key.as_str())?;
+            }
+            Ok(())
+        }
+        Some(ValueOrContainer::Container(_)) => Err(DocError::NotInProfile(
+            "snapshot contains an unsupported CRDT container",
+        )),
     }
 }

@@ -110,7 +110,9 @@ op! {
             let membership = v.map_snapshot(CollectionV3::Memberships, &m::Membership::key(&host, &member.id)).is_some();
             let primary = member.primary.as_ref() == Some(&host);
             if !membership && !primary { return Ok(None); }
-            for view in &views { v.check_timeline_placement_write(view)?; }
+            if membership { v.check_membership_snapshot_restore(&host, &member.id)?; }
+            if primary { v.check_primary_restore(&member.id)?; }
+            for view in &views { v.check_timeline_placement_restore(view, &member.id)?; }
             t.remove_membership(&host, &member.id)?;
             if primary {
                 t.entries().entry(&member.id)?.primary(None)?;
@@ -120,7 +122,7 @@ op! {
             }
             Ok(Some(RestoreIn {
                 book: input.book, host: host.to_string(), member: member.id.to_string(),
-                at: String::new(), membership, primary,
+                at: String::new(), expected: frontiers_hex(&t.view().state_frontiers()), membership, primary,
                 views: views.into_iter().map(|v| v.to_string()).collect(),
             }))
         })?;

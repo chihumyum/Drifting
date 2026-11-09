@@ -1740,7 +1740,9 @@ fn sync_nested_map(sub: &LoroMap, want: &loro::LoroMapValue) -> Result<()> {
 }
 
 // History explicitly replaces this selected field, not its parent record.
-// Keep map containers editable and retain every historical unknown value.
+// Keep supported map containers editable and retain historical leaf values.
+// Callers must preflight actual selected containers before snapshotting: deep
+// values alone cannot preserve unknown rich text or list container identities.
 // A different current value kind must not cause a failure halfway through a
 // multi-field restore; replacing that selected value is the requested edit.
 fn restore_raw_field(parent: &LoroMap, key: &str, value: Option<&LoroValue>) -> Result<()> {
