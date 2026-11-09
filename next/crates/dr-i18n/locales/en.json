@@ -590,10 +590,15 @@
     }
   },
   "k4Book": {
+    "entry_count_one": "{{count}} entry",
+    "entry_count_other": "{{count}} entries",
+    "entry_titles": "Entry titles",
     "entry_words": "Entry words",
     "leaf_count": "Leaf count",
     "material_words": "Material words",
-    "retained_content": "Retained content"
+    "retained_content": "Retained content",
+    "selected_entries": "Selected entries",
+    "untitled_entry": "Untitled entry"
   },
   "kvEditor": {
     "addField": "Add field",

@@ -590,10 +590,15 @@
     }
   },
   "k4Book": {
+    "entry_count_one": "{{count}} Eintrag",
+    "entry_count_other": "{{count}} Einträge",
+    "entry_titles": "Eintragstitel",
     "entry_words": "Wörter des Eintrags",
     "leaf_count": "Anzahl der Blätter",
     "material_words": "Wörter des Materials",
-    "retained_content": "Beibehaltene Inhalte"
+    "retained_content": "Beibehaltene Inhalte",
+    "selected_entries": "Ausgewählte Einträge",
+    "untitled_entry": "Unbenannter Eintrag"
   },
   "kvEditor": {
     "addField": "Feld hinzufügen",

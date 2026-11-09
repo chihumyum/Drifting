@@ -584,10 +584,14 @@
     }
   },
   "k4Book": {
+    "entry_count_other": "{{count}} 個條目",
+    "entry_titles": "條目標題",
     "entry_words": "條目字數",
     "leaf_count": "葉子數量",
     "material_words": "素材字數",
-    "retained_content": "保留的內容"
+    "retained_content": "保留的內容",
+    "selected_entries": "選取條目",
+    "untitled_entry": "未命名條目"
   },
   "kvEditor": {
     "addField": "新增欄位",

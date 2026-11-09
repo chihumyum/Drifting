@@ -243,6 +243,11 @@
     "entry_words": "Wörter des Eintrags",
     "material_words": "Wörter des Materials",
     "leaf_count": "Anzahl der Blätter",
-    "retained_content": "Beibehaltene Inhalte"
+    "retained_content": "Beibehaltene Inhalte",
+    "selected_entries": "Ausgewählte Einträge",
+    "entry_titles": "Eintragstitel",
+    "untitled_entry": "Unbenannter Eintrag",
+    "entry_count_one": "{{count}} Eintrag",
+    "entry_count_other": "{{count}} Einträge"
   }
 }

@@ -2204,6 +2204,7 @@ dependencies = [
  "dr-export",
  "dr-i18n",
  "dr-store",
+ "dr-testkit",
  "dr-ui",
  "dr-workspace",
  "gpui",
