@@ -1,7 +1,7 @@
 //! F6 consumes G4's actual v3 panel without losing module or paragraph identity.
 use dr_shell::{Services, SettingsFile, ShellInfo, Workspace, book::Book, nav::Target};
 use dr_workspace::{Actor, Workspace as Library};
-use gpui::{Entity, TestAppContext, VisualTestContext};
+use gpui::{AppContext as _, Entity, Focusable, TestAppContext, VisualTestContext};
 use serde_json::{Value, json};
 use std::time::{Duration, Instant};
 
@@ -47,6 +47,13 @@ fn setup<'a>(
 ) -> (Entity<Workspace>, &'a mut VisualTestContext) {
     cx.executor().allow_parking();
     cx.update(|cx| {
+        // Renderer probe: F6 must return the keyboard to a retained module,
+        // even when choosing a hit leaves the same page in front.
+        dr_shell::v3::add_module_view(cx, "prose", |_, window, cx| {
+            let field = cx.new(|cx| dr_ui::input::TextField::new("search-focus-probe", window, cx));
+            let focus = field.focus_handle(cx);
+            dr_shell::v3::Rendered::new(field).focus(focus)
+        });
         dr_shell::init(
             ShellInfo {
                 app_name: "Drifting Next",
@@ -114,6 +121,20 @@ fn choose(
             .and_then(|p| p.v3.as_ref())
             .is_some_and(|p| p.read(cx).revealed.map(|l| l.start) == line)
     });
+    let focus = view.read_with(cx, |ws, cx| {
+        ws.editors[&target.key()]
+            .v3
+            .as_ref()
+            .unwrap()
+            .read(cx)
+            .preferred_focus()
+    });
+    cx.update(|window, _| {
+        assert!(
+            focus.is_focused(window),
+            "the selected page gets the keyboard back: {target:?}"
+        )
+    });
 }
 
 #[gpui::test]
@@ -166,6 +187,7 @@ fn actual_panel_keeps_title_module_and_material_destinations(cx: &mut TestAppCon
     let (view, cx) = setup(cx, &lib, book);
     for (query, key, line) in [
         ("F6SearchTitle", format!("entry:{id}"), None),
+        ("F6SearchBody", format!("entry:{id}/second-body"), Some(3)),
         ("F6SearchBody", format!("entry:{id}/second-body"), Some(3)),
         ("F6SearchMaterial", format!("material:{material}"), Some(1)),
     ] {

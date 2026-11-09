@@ -1,5 +1,5 @@
 {
-  "about": "F6 搜索宿主：v3-lite 从真实快捷键搜索标题、多篇正文和素材；精确模块/段落跳转后立即输入及撤销、前进后退和刷新。正文来自共享种子，仅加识别标记。",
+  "about": "F6 搜索宿主：v3-lite 从真实快捷键搜索标题、多篇正文和素材；精确模块/段落跳转、重复命中当前页后立即输入及撤销、前进后退和刷新。正文来自共享种子，仅加识别标记。",
   "steps": [
     {
       "seed": "v3-lite"
@@ -78,7 +78,8 @@
             "language.ui_locale": "en"
           }
         }
-      }
+      },
+      "save": "launch"
     },
     {
       "app": "ui.wait",
@@ -223,6 +224,61 @@
       "params": {
         "role": "TextArea",
         "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-shift-f"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/layer": "search"
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "F6ModuleProbe"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/search/searching": false,
+          "/search/groups/0/target": "entry:${entries.[template=tpl-chapter].id}/search-second-body"
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "enter"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/layer": null,
+          "/page": "entry:${entries.[template=tpl-chapter].id}/search-second-body"
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "app.info",
+      "save": "repeatEnvironment",
+      "expect": {
+        "/windows/0/active": true,
+        "/windows/0/visible": true
       }
     },
     {

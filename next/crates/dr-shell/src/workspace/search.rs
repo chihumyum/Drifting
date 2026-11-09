@@ -18,8 +18,7 @@ impl Workspace {
     /// the navigator; they never pass through the legacy Book fallback.
     pub fn toggle_search(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.search.take().is_some() {
-            self.focus.focus(window, cx);
-            cx.notify();
+            self.refocus(window, cx);
             return;
         }
         let strings = crate::Strings::get(cx);
@@ -51,7 +50,9 @@ impl Workspace {
                 return;
             }
             ws.search = None;
-            ws.focus.focus(window, cx);
+            // The destination may already be the active page. Invalidate the
+            // focus cache too, so closing search gives that editor typing back.
+            ws.refocus(window, cx);
             match event {
                 SearchEvent::JumpV3(jump) => {
                     if ws.book.v3().is_some()
