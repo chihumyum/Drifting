@@ -90,6 +90,18 @@
 
 - **G1／G2：** 第五十二批已接 G2 的大纲接口 `09142d08`，见 M11 待协调 2：G1 在实际正文编辑器的 PageHost 构造后、移入 Chrome 前调用 `Workspace::register_v3_outline_editor(&page, Some((&host.entry, &host.module.id)), cx)`，全书为 None，替换编辑器时重新登记。G1 不预先过滤 show_outline，交 G2 每次快照核对；接口只留弱引用、不重借外壳。G1 接线正式交回合 main 后，G2 再做联合真窗口，大纲目前只验编译接口，不算产品验收完成。第 55 批已验证 G1 的网格修复，但又发现补丁标题保存覆盖外部正文，仍退回；G1 接线尚未进 main。
 
+
+### G4 接口协调（11-10，作者确认保持边界）
+
+作者在 G4 会话明确选择由整合者安排 F6／G2／K2 补接口；已核对原始回复并直接通知四个会话。此时 G4 尚未移动交回指针，以下为分工，不是功能接收。
+
+- **G4**：先把搜索／统计可独立编译的公共接口、只读适配和永久契约按协议交成稳定接口批，全套检查后由整合者接收；文档继续区分接口可用与实际入口／真窗口未验收。宿主方等 main 接入后消费，不抄未提交工作区。审阅接口另给明确签名与模块目标。
+- **F6／K4-0**：搜索宿主按书版本调用 SearchPanel::new_v3，消费 JumpV3 的 Entry{id,module}／Material 与 line，直接转 Target／open_at，保留 v2.2；核对合法素材目标的导航存在性。不碰已交 G2 的右栏，完成后交 handback/k4-0。
+- **G2**：right_body 在 book::nav_target 之前分流，消费 dr_view_stats::v3_panel::panel 及 Scope::{Book, Entry{id,module}, Material}；审阅同样传模块目标，等 G4 面板接口。回调直接转 Target，不把 Entry 当 Book。保持原 G2 队列，交 handback/k4-g2；G1 大纲登记仍因第 55 批退回而未接。
+- **K2**：补版本明确的 v3 comment.*（正文模块目标与实际读写／重锚路径）、material.*、material_folder.*、book.writing_days／writing_day.record；保持素材夹与条目关系、v2.2 行为及两书隔离。不得只放行 Cx::book 白名单后继续调用旧 Reader／Txn，不从视图绕写 Loro。搜索／字数已由 G4 只读适配，不必先开放旧 search／word_counts。语义不确定仍列 F1/F3 协调，按内核原范围与 handback/k1 分段交回。
+
+接口依据为 codex/k4-g4-book 中 [M06](../modules/m06-search.md)、[M20](../modules/m20-stats.md) 的待协调；各方编译并发 3，整合并发 6。未扩大 G4 的搜索宿主、右栏或内核修改权，progress.md 仍只由整合者更新。
+
 ## 监管说明
 
 - 11-09 18:10：K3 为了让全套测试通过，改了冻结的 `dr-mirror` 一行（`897551ac`：链接前的 `!` 一律转义，不再因为前面有反斜杠就跳过，并留下 proptest 种子）。我核过：普通文字里的 `!` 不会被预先转义，前面那个反斜杠只可能是转义过的反斜杠，所以一律转义是对的。这一行同意随 K3 收，不算越界。
