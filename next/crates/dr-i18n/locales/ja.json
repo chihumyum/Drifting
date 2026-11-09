@@ -1773,7 +1773,7 @@
     "expand": "{{name}}を展開",
     "manuscriptOrder": "原稿順",
     "members": "所属する項目",
-    "residents": "ここに置く項目",
+    "residents": "ここにある項目",
     "unassigned": "未所属"
   },
   "v3Shell": {
