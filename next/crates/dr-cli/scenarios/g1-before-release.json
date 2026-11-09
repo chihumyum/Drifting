@@ -206,9 +206,17 @@
       }
     },
     {
+      "app": "app.info",
+      "save": "input_environment_0"
+    },
+    {
+      "app": "state.get",
+      "save": "input_state_0"
+    },
+    {
       "app": "ui.press",
       "params": {
-        "label": "Value",
+        "label": "Content",
         "role": "group"
       }
     },
@@ -238,6 +246,14 @@
           "/page": "entry:${entries.[template=tpl-chapter].id}/g1-drain-patches"
         }
       }
+    },
+    {
+      "app": "app.info",
+      "save": "input_environment_1"
+    },
+    {
+      "app": "state.get",
+      "save": "input_state_1"
     },
     {
       "app": "ui.press",
@@ -274,6 +290,14 @@
       }
     },
     {
+      "app": "app.info",
+      "save": "input_environment_2"
+    },
+    {
+      "app": "state.get",
+      "save": "input_state_2"
+    },
+    {
       "app": "ui.press",
       "params": {
         "label": "${plot.grid.cells.0.text}",
@@ -306,6 +330,14 @@
           "/page": "entry:${entries.[template=tpl-chapter].id}/g1-drain-fields"
         }
       }
+    },
+    {
+      "app": "app.info",
+      "save": "input_environment_3"
+    },
+    {
+      "app": "state.get",
+      "save": "input_state_3"
     },
     {
       "app": "ui.press",
