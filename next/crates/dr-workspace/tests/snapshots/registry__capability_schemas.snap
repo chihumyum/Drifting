@@ -4463,6 +4463,3101 @@ expression: json
     "summary": "Change an element: name, summary, category, aliases, fields, portrait, relation-graph pin. A name or alias another element has is refused."
   },
   {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "bodies": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "description": "Optional explicit initial text by prose module ID; omitted modules copy template prose.",
+          "type": "object"
+        },
+        "book": {
+          "type": "string"
+        },
+        "parent": {
+          "default": null,
+          "description": "The level from which creation is requested; its default template and home apply.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "template": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "title"
+      ],
+      "title": "CreateIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "entry.create",
+    "output": {
+      "$defs": {
+        "EntryLayout": {
+          "properties": {
+            "board": {
+              "default": null,
+              "description": "Position on a board / island canvas.",
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "format": "double",
+                  "type": "number"
+                },
+                {
+                  "format": "double",
+                  "type": "number"
+                }
+              ],
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "grid": {
+              "default": null,
+              "description": "Grid coordinates `(col, row)` in a grid layout.",
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                {
+                  "format": "int64",
+                  "type": "integer"
+                }
+              ],
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "relation_graph": {
+              "default": null,
+              "description": "Pinned position in the relation graph.",
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "format": "double",
+                  "type": "number"
+                },
+                {
+                  "format": "double",
+                  "type": "number"
+                }
+              ],
+              "type": [
+                "array",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "board",
+            "grid",
+            "relation_graph"
+          ],
+          "type": "object"
+        },
+        "FieldValue": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "format": "double",
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "KvEntry": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "key": {
+              "type": "string"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "key",
+            "value",
+            "pos"
+          ],
+          "type": "object"
+        },
+        "LevelSettingsOverride": {
+          "properties": {
+            "accept": {
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "allow": {
+              "default": null,
+              "description": "`None` inherits; `Some(vec)` sets the allowed template list (`Some(vec![])` allows all).",
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "auto_link": {
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "default_template": {
+              "description": "`None` inherits; `Some(None)` clears to no default template; `Some(Some(t))` sets `t`.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "display": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "format_shortcuts": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "home": {
+              "description": "`None` inherits; `Some(None)` means reside in this level itself; `Some(Some(id))` sets `home`.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "is_manuscript": {
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "allow",
+            "display",
+            "auto_link",
+            "accept",
+            "is_manuscript",
+            "format_shortcuts"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "created_at": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "deleted_at": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "fields": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "$ref": "#/$defs/FieldValue"
+            },
+            "type": "object"
+          },
+          "description": "Values of `fields` modules: `module_id -> (field_id -> value)`.",
+          "type": "object"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kv": {
+          "additionalProperties": {
+            "items": {
+              "$ref": "#/$defs/KvEntry"
+            },
+            "type": "array"
+          },
+          "description": "Rows of `kv` modules (`kv:<module_id>`): `module_id -> sorted KvEntry list`.",
+          "type": "object"
+        },
+        "layout": {
+          "$ref": "#/$defs/EntryLayout"
+        },
+        "name_conflict": {
+          "default": null,
+          "description": "Set by readers when this leaf participates in auto-linking and its\ntitle or alias collides with an earlier auto-link leaf (`V3-AUTOLINK-NAME-UNIQUE`).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "overrides": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LevelSettingsOverride"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Per-entry level setting overrides (only meaningful on level entries)."
+        },
+        "parent": {
+          "description": "Raw parent entry in the `entries` tree (`None` at the root).\nList queries apply the leaf-parent tolerance to their filtering.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pos": {
+          "description": "Fractional-index position among siblings in the `entries` tree (`文稿顺序`).",
+          "type": "string"
+        },
+        "primary": {
+          "description": "Stored primary membership host; membership queries filter invalid records.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "template": {
+          "description": "The template shaping this entry (`None` = untemplated entry).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "parent",
+        "pos",
+        "title",
+        "template",
+        "overrides",
+        "fields",
+        "kv",
+        "primary",
+        "layout",
+        "created_at",
+        "updated_at",
+        "deleted_at",
+        "name_conflict"
+      ],
+      "title": "Entry",
+      "type": "object"
+    },
+    "summary": "Create a v3 entry with its template, residence, membership and initial module content."
+  },
+  {
+    "access": "read",
+    "book_version": 3,
+    "concurrency": "shared",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "entry.get",
+    "output": {
+      "$defs": {
+        "EntryLayout": {
+          "properties": {
+            "board": {
+              "default": null,
+              "description": "Position on a board / island canvas.",
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "format": "double",
+                  "type": "number"
+                },
+                {
+                  "format": "double",
+                  "type": "number"
+                }
+              ],
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "grid": {
+              "default": null,
+              "description": "Grid coordinates `(col, row)` in a grid layout.",
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                {
+                  "format": "int64",
+                  "type": "integer"
+                }
+              ],
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "relation_graph": {
+              "default": null,
+              "description": "Pinned position in the relation graph.",
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "format": "double",
+                  "type": "number"
+                },
+                {
+                  "format": "double",
+                  "type": "number"
+                }
+              ],
+              "type": [
+                "array",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "board",
+            "grid",
+            "relation_graph"
+          ],
+          "type": "object"
+        },
+        "FieldValue": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "format": "double",
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "KvEntry": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "key": {
+              "type": "string"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "key",
+            "value",
+            "pos"
+          ],
+          "type": "object"
+        },
+        "LevelSettingsOverride": {
+          "properties": {
+            "accept": {
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "allow": {
+              "default": null,
+              "description": "`None` inherits; `Some(vec)` sets the allowed template list (`Some(vec![])` allows all).",
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "auto_link": {
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "default_template": {
+              "description": "`None` inherits; `Some(None)` clears to no default template; `Some(Some(t))` sets `t`.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "display": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "format_shortcuts": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "home": {
+              "description": "`None` inherits; `Some(None)` means reside in this level itself; `Some(Some(id))` sets `home`.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "is_manuscript": {
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "allow",
+            "display",
+            "auto_link",
+            "accept",
+            "is_manuscript",
+            "format_shortcuts"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "created_at": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "deleted_at": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "fields": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "$ref": "#/$defs/FieldValue"
+            },
+            "type": "object"
+          },
+          "description": "Values of `fields` modules: `module_id -> (field_id -> value)`.",
+          "type": "object"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kv": {
+          "additionalProperties": {
+            "items": {
+              "$ref": "#/$defs/KvEntry"
+            },
+            "type": "array"
+          },
+          "description": "Rows of `kv` modules (`kv:<module_id>`): `module_id -> sorted KvEntry list`.",
+          "type": "object"
+        },
+        "layout": {
+          "$ref": "#/$defs/EntryLayout"
+        },
+        "name_conflict": {
+          "default": null,
+          "description": "Set by readers when this leaf participates in auto-linking and its\ntitle or alias collides with an earlier auto-link leaf (`V3-AUTOLINK-NAME-UNIQUE`).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "overrides": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LevelSettingsOverride"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Per-entry level setting overrides (only meaningful on level entries)."
+        },
+        "parent": {
+          "description": "Raw parent entry in the `entries` tree (`None` at the root).\nList queries apply the leaf-parent tolerance to their filtering.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "pos": {
+          "description": "Fractional-index position among siblings in the `entries` tree (`文稿顺序`).",
+          "type": "string"
+        },
+        "primary": {
+          "description": "Stored primary membership host; membership queries filter invalid records.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "template": {
+          "description": "The template shaping this entry (`None` = untemplated entry).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "parent",
+        "pos",
+        "title",
+        "template",
+        "overrides",
+        "fields",
+        "kv",
+        "primary",
+        "layout",
+        "created_at",
+        "updated_at",
+        "deleted_at",
+        "name_conflict"
+      ],
+      "title": "Entry",
+      "type": "object"
+    },
+    "summary": "Read a v3 entry including retained module values."
+  },
+  {
+    "access": "read",
+    "book_version": 3,
+    "concurrency": "shared",
+    "input": {
+      "properties": {
+        "all": {
+          "default": false,
+          "type": "boolean"
+        },
+        "book": {
+          "type": "string"
+        },
+        "parent": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "query": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "trashed": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "ListIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "entry.list",
+    "output": {
+      "$defs": {
+        "Entry": {
+          "properties": {
+            "created_at": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "deleted_at": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "fields": {
+              "additionalProperties": {
+                "additionalProperties": {
+                  "$ref": "#/$defs/FieldValue"
+                },
+                "type": "object"
+              },
+              "description": "Values of `fields` modules: `module_id -> (field_id -> value)`.",
+              "type": "object"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kv": {
+              "additionalProperties": {
+                "items": {
+                  "$ref": "#/$defs/KvEntry"
+                },
+                "type": "array"
+              },
+              "description": "Rows of `kv` modules (`kv:<module_id>`): `module_id -> sorted KvEntry list`.",
+              "type": "object"
+            },
+            "layout": {
+              "$ref": "#/$defs/EntryLayout"
+            },
+            "name_conflict": {
+              "default": null,
+              "description": "Set by readers when this leaf participates in auto-linking and its\ntitle or alias collides with an earlier auto-link leaf (`V3-AUTOLINK-NAME-UNIQUE`).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "overrides": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/LevelSettingsOverride"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Per-entry level setting overrides (only meaningful on level entries)."
+            },
+            "parent": {
+              "description": "Raw parent entry in the `entries` tree (`None` at the root).\nList queries apply the leaf-parent tolerance to their filtering.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "pos": {
+              "description": "Fractional-index position among siblings in the `entries` tree (`文稿顺序`).",
+              "type": "string"
+            },
+            "primary": {
+              "description": "Stored primary membership host; membership queries filter invalid records.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "template": {
+              "description": "The template shaping this entry (`None` = untemplated entry).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "title": {
+              "type": "string"
+            },
+            "updated_at": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "parent",
+            "pos",
+            "title",
+            "template",
+            "overrides",
+            "fields",
+            "kv",
+            "primary",
+            "layout",
+            "created_at",
+            "updated_at",
+            "deleted_at",
+            "name_conflict"
+          ],
+          "type": "object"
+        },
+        "EntryLayout": {
+          "properties": {
+            "board": {
+              "default": null,
+              "description": "Position on a board / island canvas.",
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "format": "double",
+                  "type": "number"
+                },
+                {
+                  "format": "double",
+                  "type": "number"
+                }
+              ],
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "grid": {
+              "default": null,
+              "description": "Grid coordinates `(col, row)` in a grid layout.",
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                {
+                  "format": "int64",
+                  "type": "integer"
+                }
+              ],
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "relation_graph": {
+              "default": null,
+              "description": "Pinned position in the relation graph.",
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "format": "double",
+                  "type": "number"
+                },
+                {
+                  "format": "double",
+                  "type": "number"
+                }
+              ],
+              "type": [
+                "array",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "board",
+            "grid",
+            "relation_graph"
+          ],
+          "type": "object"
+        },
+        "FieldValue": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "format": "double",
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "KvEntry": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "key": {
+              "type": "string"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "key",
+            "value",
+            "pos"
+          ],
+          "type": "object"
+        },
+        "LevelSettingsOverride": {
+          "properties": {
+            "accept": {
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "allow": {
+              "default": null,
+              "description": "`None` inherits; `Some(vec)` sets the allowed template list (`Some(vec![])` allows all).",
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "auto_link": {
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "default_template": {
+              "description": "`None` inherits; `Some(None)` clears to no default template; `Some(Some(t))` sets `t`.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "display": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "format_shortcuts": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "home": {
+              "description": "`None` inherits; `Some(None)` means reside in this level itself; `Some(Some(id))` sets `home`.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "is_manuscript": {
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "allow",
+            "display",
+            "auto_link",
+            "accept",
+            "is_manuscript",
+            "format_shortcuts"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/Entry"
+      },
+      "title": "Array_of_Entry",
+      "type": "array"
+    },
+    "summary": "Find v3 entries or list the children of a level in manuscript order."
+  },
+  {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "index": {
+          "default": null,
+          "format": "uint",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "parent": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "MoveIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "entry.move",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Move a v3 entry's residence and manuscript position."
+  },
+  {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "entry.restore",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Restore a v3 resident subtree from trash."
+  },
+  {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "entry.trash",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Trash a v3 resident subtree while keeping entries that only belong to its levels."
+  },
+  {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "EntryLayout": {
+          "properties": {
+            "board": {
+              "default": null,
+              "description": "Position on a board / island canvas.",
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "format": "double",
+                  "type": "number"
+                },
+                {
+                  "format": "double",
+                  "type": "number"
+                }
+              ],
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "grid": {
+              "default": null,
+              "description": "Grid coordinates `(col, row)` in a grid layout.",
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                {
+                  "format": "int64",
+                  "type": "integer"
+                }
+              ],
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "relation_graph": {
+              "default": null,
+              "description": "Pinned position in the relation graph.",
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "format": "double",
+                  "type": "number"
+                },
+                {
+                  "format": "double",
+                  "type": "number"
+                }
+              ],
+              "type": [
+                "array",
+                "null"
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "LevelSettingsOverride": {
+          "properties": {
+            "accept": {
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "allow": {
+              "default": null,
+              "description": "`None` inherits; `Some(vec)` sets the allowed template list (`Some(vec![])` allows all).",
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "auto_link": {
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "default_template": {
+              "description": "`None` inherits; `Some(None)` clears to no default template; `Some(Some(t))` sets `t`.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "display": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "format_shortcuts": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "home": {
+              "description": "`None` inherits; `Some(None)` means reside in this level itself; `Some(Some(id))` sets `home`.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "is_manuscript": {
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "type": "object"
+        }
+      },
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "layout": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EntryLayout"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "overrides": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LevelSettingsOverride"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "template": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "title": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "UpdateIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "entry.update",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Rename a v3 entry, switch its template or change level overrides without deleting retained content."
+  },
+  {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "Key": {
+          "properties": {
+            "collection": {
+              "description": "entries, templates, memberships, timeline_views, patches, plot_grids, relations or relation_types.",
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "collection",
+            "id"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "at": {
+          "type": "string"
+        },
+        "book": {
+          "type": "string"
+        },
+        "targets": {
+          "items": {
+            "$ref": "#/$defs/Key"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "book",
+        "at",
+        "targets"
+      ],
+      "title": "RestoreIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "entry_history.restore",
+    "output": {
+      "$defs": {
+        "Done": {
+          "description": "The entity a command changed.",
+          "properties": {
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/Done"
+      },
+      "title": "Array_of_Done",
+      "type": "array"
+    },
+    "summary": "Restore selected v3 entry metadata or structural records from a snapshot as a new undoable commit."
+  },
+  {
+    "access": "read",
+    "book_version": 3,
+    "concurrency": "shared",
+    "input": {
+      "description": "A book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "BookIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "entry_history.version",
+    "output": {
+      "properties": {
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "version"
+      ],
+      "title": "VersionInfo",
+      "type": "object"
+    },
+    "summary": "Read the current v3 book version for per-entry snapshot restoration."
+  },
+  {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "entry_relation_type.delete",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Delete an unused unlocked v3 relation type."
+  },
+  {
+    "access": "read",
+    "book_version": 3,
+    "concurrency": "shared",
+    "input": {
+      "description": "A book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "BookIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "entry_relation_type.list",
+    "output": {
+      "$defs": {
+        "RelationTypeInfo": {
+          "properties": {
+            "color": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "description": {
+              "default": "",
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "locked": {
+              "type": "boolean"
+            },
+            "name": {
+              "type": "string"
+            },
+            "normalized_name": {
+              "type": "string"
+            },
+            "orientation": {
+              "default": "directed",
+              "type": "string"
+            },
+            "source_kinds": {
+              "default": [],
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "source_role": {
+              "default": "",
+              "type": "string"
+            },
+            "source_templates": {
+              "default": [],
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "system_key": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "target_kinds": {
+              "default": [],
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "target_role": {
+              "default": "",
+              "type": "string"
+            },
+            "target_templates": {
+              "default": [],
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "description",
+            "orientation",
+            "source_role",
+            "target_role",
+            "color",
+            "source_kinds",
+            "target_kinds",
+            "source_templates",
+            "target_templates",
+            "normalized_name",
+            "system_key",
+            "locked"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/RelationTypeInfo"
+      },
+      "title": "Array_of_RelationTypeInfo",
+      "type": "array"
+    },
+    "summary": "List relation types available to v3 entry modules."
+  },
+  {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "RelationType": {
+          "properties": {
+            "color": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "description": {
+              "default": "",
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "orientation": {
+              "default": "directed",
+              "type": "string"
+            },
+            "source_kinds": {
+              "default": [],
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "source_role": {
+              "default": "",
+              "type": "string"
+            },
+            "source_templates": {
+              "default": [],
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "target_kinds": {
+              "default": [],
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "target_role": {
+              "default": "",
+              "type": "string"
+            },
+            "target_templates": {
+              "default": [],
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "id",
+            "name"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "definition": {
+          "$ref": "#/$defs/RelationType"
+        }
+      },
+      "required": [
+        "book",
+        "definition"
+      ],
+      "title": "TypeIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "entry_relation_type.put",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Create or edit a v3 relation type with endpoint and template restrictions."
+  },
+  {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "entry_template.delete",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Delete an unused v3 template without deleting its retained prose documents."
+  },
+  {
+    "access": "read",
+    "book_version": 3,
+    "concurrency": "shared",
+    "input": {
+      "description": "A book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "BookIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "entry_template.list",
+    "output": {
+      "$defs": {
+        "EntryTemplate": {
+          "properties": {
+            "agent": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/TemplateAgentConfig"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Skill-style Agent instructions (`写给帮手的说明`)."
+            },
+            "color": {
+              "default": null,
+              "description": "Optional display color (`颜色`).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "deleted_at": {
+              "default": null,
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "default": "leaf",
+              "description": "`level` (层级模板) or `leaf` (叶子模板).",
+              "type": "string"
+            },
+            "lane": {
+              "default": false,
+              "description": "Swimlane toggle (`lane`, only used when `kind == String::Level`).",
+              "type": "boolean"
+            },
+            "mark": {
+              "default": null,
+              "description": "Optional badge/icon mark (`记号`).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "modules": {
+              "default": [],
+              "description": "Ordered module manifest (`modules`).\nFor `\"level\"`, only `fields` and `kv` modules are allowed.",
+              "items": {
+                "$ref": "#/$defs/ModuleSpec"
+              },
+              "type": "array"
+            },
+            "name": {
+              "type": "string"
+            },
+            "settings": {
+              "$ref": "#/$defs/LevelSettingsOverride",
+              "default": {
+                "accept": null,
+                "allow": null,
+                "auto_link": null,
+                "display": null,
+                "format_shortcuts": null,
+                "is_manuscript": null
+              },
+              "description": "Level settings (`settings`, only used when `kind == String::Level`)."
+            },
+            "verbs": {
+              "default": [],
+              "description": "Declared actions (`verbs`, only used when `kind == String::Level`).",
+              "items": {
+                "$ref": "#/$defs/TemplateVerb"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "name",
+            "mark",
+            "color",
+            "agent",
+            "modules",
+            "settings",
+            "lane",
+            "verbs",
+            "deleted_at"
+          ],
+          "type": "object"
+        },
+        "FieldDef": {
+          "properties": {
+            "field_type": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "options": {
+              "default": [],
+              "description": "Candidate options for `select` and `multi_select`.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "target_template": {
+              "default": null,
+              "description": "Optional target template filter when `field_type == \"entity_ref\"`.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "field_type",
+            "options",
+            "target_template",
+            "pos"
+          ],
+          "type": "object"
+        },
+        "KvEntry": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "key": {
+              "type": "string"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "key",
+            "value",
+            "pos"
+          ],
+          "type": "object"
+        },
+        "LevelSettingsOverride": {
+          "properties": {
+            "accept": {
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "allow": {
+              "default": null,
+              "description": "`None` inherits; `Some(vec)` sets the allowed template list (`Some(vec![])` allows all).",
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "auto_link": {
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "default_template": {
+              "description": "`None` inherits; `Some(None)` clears to no default template; `Some(Some(t))` sets `t`.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "display": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "format_shortcuts": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "home": {
+              "description": "`None` inherits; `Some(None)` means reside in this level itself; `Some(Some(id))` sets `home`.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "is_manuscript": {
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "allow",
+            "display",
+            "auto_link",
+            "accept",
+            "is_manuscript",
+            "format_shortcuts"
+          ],
+          "type": "object"
+        },
+        "ModuleAgentConfig": {
+          "properties": {
+            "instructions": {
+              "default": "",
+              "description": "One-sentence instruction for the Agent when reading or writing this module.",
+              "type": "string"
+            },
+            "read_tier": {
+              "default": null,
+              "description": "Context assembly tier (e.g. `\"summary\"`, `\"on_demand\"`, `\"full\"`).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "writable": {
+              "default": true,
+              "description": "Whether the Agent may write to this module.",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "writable",
+            "read_tier",
+            "instructions"
+          ],
+          "type": "object"
+        },
+        "ModuleConfig": {
+          "properties": {
+            "aliases_field": {
+              "default": null,
+              "description": "For `fields` modules: which field id supplies aliases for auto-linking.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "color_field": {
+              "default": null,
+              "description": "For `fields` modules: which field id supplies the display color.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "default_cols": {
+              "default": 3,
+              "description": "For `plot_grid` modules: initial column count (defaults to 3).",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "default_rows": {
+              "default": 3,
+              "description": "For `plot_grid` modules: initial row count (defaults to 3).",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "defs": {
+              "default": [],
+              "description": "For `fields` modules: ordered field definitions.",
+              "items": {
+                "$ref": "#/$defs/FieldDef"
+              },
+              "type": "array"
+            },
+            "initial_kv": {
+              "default": [],
+              "description": "For `kv` modules: initial key/value rows copied into new entries of this template.",
+              "items": {
+                "$ref": "#/$defs/KvEntry"
+              },
+              "type": "array"
+            },
+            "portrait_field": {
+              "default": null,
+              "description": "For `fields` modules: which field id supplies the portrait `AssetId`.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "show_outline": {
+              "default": false,
+              "description": "For `prose` modules: whether H1/H2/H3 outline headings appear in the outline tree.",
+              "type": "boolean"
+            },
+            "status_field": {
+              "default": null,
+              "description": "For `fields` modules: which field id supplies the status badge.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "summary_field": {
+              "default": null,
+              "description": "For `fields` modules: which field id supplies the summary text.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "task_todos": {
+              "default": false,
+              "description": "For `prose` modules: whether checklist items project into TODOs.",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "show_outline",
+            "task_todos",
+            "defs",
+            "aliases_field",
+            "color_field",
+            "status_field",
+            "summary_field",
+            "portrait_field",
+            "initial_kv",
+            "default_rows",
+            "default_cols"
+          ],
+          "type": "object"
+        },
+        "ModuleSpec": {
+          "properties": {
+            "agent": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ModuleAgentConfig"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "config": {
+              "$ref": "#/$defs/ModuleConfig",
+              "default": {
+                "aliases_field": null,
+                "color_field": null,
+                "default_cols": 3,
+                "default_rows": 3,
+                "defs": [],
+                "initial_kv": [],
+                "portrait_field": null,
+                "show_outline": false,
+                "status_field": null,
+                "summary_field": null,
+                "task_todos": false
+              }
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "name",
+            "pos",
+            "config",
+            "agent"
+          ],
+          "type": "object"
+        },
+        "TemplateAgentConfig": {
+          "properties": {
+            "description": {
+              "default": "",
+              "description": "One-sentence description of what this template is and when to use it.",
+              "type": "string"
+            },
+            "instructions": {
+              "default": "",
+              "description": "Detailed instructions on what to pay attention to when reading or writing.",
+              "type": "string"
+            },
+            "name": {
+              "default": "",
+              "description": "Name the Agent uses for entries of this template.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "description",
+            "instructions"
+          ],
+          "type": "object"
+        },
+        "TemplateVerb": {
+          "properties": {
+            "description": {
+              "default": "",
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "target_template": {
+              "default": null,
+              "description": "Template used when this verb creates or converts an entry.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "description",
+            "target_template",
+            "pos"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/EntryTemplate"
+      },
+      "title": "Array_of_EntryTemplate",
+      "type": "array"
+    },
+    "summary": "List the templates and module definitions of a v3 book."
+  },
+  {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "EntryTemplate": {
+          "properties": {
+            "agent": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/TemplateAgentConfig"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null,
+              "description": "Skill-style Agent instructions (`写给帮手的说明`)."
+            },
+            "color": {
+              "default": null,
+              "description": "Optional display color (`颜色`).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "deleted_at": {
+              "default": null,
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "default": "leaf",
+              "description": "`level` (层级模板) or `leaf` (叶子模板).",
+              "type": "string"
+            },
+            "lane": {
+              "default": false,
+              "description": "Swimlane toggle (`lane`, only used when `kind == String::Level`).",
+              "type": "boolean"
+            },
+            "mark": {
+              "default": null,
+              "description": "Optional badge/icon mark (`记号`).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "modules": {
+              "default": [],
+              "description": "Ordered module manifest (`modules`).\nFor `\"level\"`, only `fields` and `kv` modules are allowed.",
+              "items": {
+                "$ref": "#/$defs/ModuleSpec"
+              },
+              "type": "array"
+            },
+            "name": {
+              "type": "string"
+            },
+            "settings": {
+              "$ref": "#/$defs/LevelSettingsOverride",
+              "default": {
+                "accept": null,
+                "allow": null,
+                "auto_link": null,
+                "display": null,
+                "format_shortcuts": null,
+                "is_manuscript": null
+              },
+              "description": "Level settings (`settings`, only used when `kind == String::Level`)."
+            },
+            "verbs": {
+              "default": [],
+              "description": "Declared actions (`verbs`, only used when `kind == String::Level`).",
+              "items": {
+                "$ref": "#/$defs/TemplateVerb"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "id",
+            "name"
+          ],
+          "type": "object"
+        },
+        "FieldDef": {
+          "properties": {
+            "field_type": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "options": {
+              "default": [],
+              "description": "Candidate options for `select` and `multi_select`.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "target_template": {
+              "default": null,
+              "description": "Optional target template filter when `field_type == \"entity_ref\"`.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "field_type"
+          ],
+          "type": "object"
+        },
+        "KvEntry": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "key": {
+              "type": "string"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "key",
+            "value"
+          ],
+          "type": "object"
+        },
+        "LevelSettingsOverride": {
+          "properties": {
+            "accept": {
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "allow": {
+              "default": null,
+              "description": "`None` inherits; `Some(vec)` sets the allowed template list (`Some(vec![])` allows all).",
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "auto_link": {
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "default_template": {
+              "description": "`None` inherits; `Some(None)` clears to no default template; `Some(Some(t))` sets `t`.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "display": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "format_shortcuts": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "home": {
+              "description": "`None` inherits; `Some(None)` means reside in this level itself; `Some(Some(id))` sets `home`.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "is_manuscript": {
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "ModuleAgentConfig": {
+          "properties": {
+            "instructions": {
+              "default": "",
+              "description": "One-sentence instruction for the Agent when reading or writing this module.",
+              "type": "string"
+            },
+            "read_tier": {
+              "default": null,
+              "description": "Context assembly tier (e.g. `\"summary\"`, `\"on_demand\"`, `\"full\"`).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "writable": {
+              "default": true,
+              "description": "Whether the Agent may write to this module.",
+              "type": "boolean"
+            }
+          },
+          "type": "object"
+        },
+        "ModuleConfig": {
+          "properties": {
+            "aliases_field": {
+              "default": null,
+              "description": "For `fields` modules: which field id supplies aliases for auto-linking.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "color_field": {
+              "default": null,
+              "description": "For `fields` modules: which field id supplies the display color.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "default_cols": {
+              "default": 3,
+              "description": "For `plot_grid` modules: initial column count (defaults to 3).",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "default_rows": {
+              "default": 3,
+              "description": "For `plot_grid` modules: initial row count (defaults to 3).",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "defs": {
+              "default": [],
+              "description": "For `fields` modules: ordered field definitions.",
+              "items": {
+                "$ref": "#/$defs/FieldDef"
+              },
+              "type": "array"
+            },
+            "initial_kv": {
+              "default": [],
+              "description": "For `kv` modules: initial key/value rows copied into new entries of this template.",
+              "items": {
+                "$ref": "#/$defs/KvEntry"
+              },
+              "type": "array"
+            },
+            "portrait_field": {
+              "default": null,
+              "description": "For `fields` modules: which field id supplies the portrait `AssetId`.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "show_outline": {
+              "default": false,
+              "description": "For `prose` modules: whether H1/H2/H3 outline headings appear in the outline tree.",
+              "type": "boolean"
+            },
+            "status_field": {
+              "default": null,
+              "description": "For `fields` modules: which field id supplies the status badge.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "summary_field": {
+              "default": null,
+              "description": "For `fields` modules: which field id supplies the summary text.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "task_todos": {
+              "default": false,
+              "description": "For `prose` modules: whether checklist items project into TODOs.",
+              "type": "boolean"
+            }
+          },
+          "type": "object"
+        },
+        "ModuleSpec": {
+          "properties": {
+            "agent": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ModuleAgentConfig"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "config": {
+              "$ref": "#/$defs/ModuleConfig",
+              "default": {
+                "aliases_field": null,
+                "color_field": null,
+                "default_cols": 3,
+                "default_rows": 3,
+                "defs": [],
+                "initial_kv": [],
+                "portrait_field": null,
+                "show_outline": false,
+                "status_field": null,
+                "summary_field": null,
+                "task_todos": false
+              }
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "name"
+          ],
+          "type": "object"
+        },
+        "TemplateAgentConfig": {
+          "properties": {
+            "description": {
+              "default": "",
+              "description": "One-sentence description of what this template is and when to use it.",
+              "type": "string"
+            },
+            "instructions": {
+              "default": "",
+              "description": "Detailed instructions on what to pay attention to when reading or writing.",
+              "type": "string"
+            },
+            "name": {
+              "default": "",
+              "description": "Name the Agent uses for entries of this template.",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "TemplateVerb": {
+          "properties": {
+            "description": {
+              "default": "",
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "target_template": {
+              "default": null,
+              "description": "Template used when this verb creates or converts an entry.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "name"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "template": {
+          "$ref": "#/$defs/EntryTemplate"
+        }
+      },
+      "required": [
+        "book",
+        "template"
+      ],
+      "title": "PutIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "entry_template.put",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Create or replace a v3 template definition while retaining existing entry content."
+  },
+  {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "FieldDef": {
+          "properties": {
+            "field_type": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "options": {
+              "default": [],
+              "description": "Candidate options for `select` and `multi_select`.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "target_template": {
+              "default": null,
+              "description": "Optional target template filter when `field_type == \"entity_ref\"`.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "field_type"
+          ],
+          "type": "object"
+        },
+        "KvEntry": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "key": {
+              "type": "string"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "key",
+            "value"
+          ],
+          "type": "object"
+        },
+        "ModuleAgentConfig": {
+          "properties": {
+            "instructions": {
+              "default": "",
+              "description": "One-sentence instruction for the Agent when reading or writing this module.",
+              "type": "string"
+            },
+            "read_tier": {
+              "default": null,
+              "description": "Context assembly tier (e.g. `\"summary\"`, `\"on_demand\"`, `\"full\"`).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "writable": {
+              "default": true,
+              "description": "Whether the Agent may write to this module.",
+              "type": "boolean"
+            }
+          },
+          "type": "object"
+        },
+        "ModuleConfig": {
+          "properties": {
+            "aliases_field": {
+              "default": null,
+              "description": "For `fields` modules: which field id supplies aliases for auto-linking.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "color_field": {
+              "default": null,
+              "description": "For `fields` modules: which field id supplies the display color.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "default_cols": {
+              "default": 3,
+              "description": "For `plot_grid` modules: initial column count (defaults to 3).",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "default_rows": {
+              "default": 3,
+              "description": "For `plot_grid` modules: initial row count (defaults to 3).",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "defs": {
+              "default": [],
+              "description": "For `fields` modules: ordered field definitions.",
+              "items": {
+                "$ref": "#/$defs/FieldDef"
+              },
+              "type": "array"
+            },
+            "initial_kv": {
+              "default": [],
+              "description": "For `kv` modules: initial key/value rows copied into new entries of this template.",
+              "items": {
+                "$ref": "#/$defs/KvEntry"
+              },
+              "type": "array"
+            },
+            "portrait_field": {
+              "default": null,
+              "description": "For `fields` modules: which field id supplies the portrait `AssetId`.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "show_outline": {
+              "default": false,
+              "description": "For `prose` modules: whether H1/H2/H3 outline headings appear in the outline tree.",
+              "type": "boolean"
+            },
+            "status_field": {
+              "default": null,
+              "description": "For `fields` modules: which field id supplies the status badge.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "summary_field": {
+              "default": null,
+              "description": "For `fields` modules: which field id supplies the summary text.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "task_todos": {
+              "default": false,
+              "description": "For `prose` modules: whether checklist items project into TODOs.",
+              "type": "boolean"
+            }
+          },
+          "type": "object"
+        },
+        "ModuleSpec": {
+          "properties": {
+            "agent": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ModuleAgentConfig"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "config": {
+              "$ref": "#/$defs/ModuleConfig",
+              "default": {
+                "aliases_field": null,
+                "color_field": null,
+                "default_cols": 3,
+                "default_rows": 3,
+                "defs": [],
+                "initial_kv": [],
+                "portrait_field": null,
+                "show_outline": false,
+                "status_field": null,
+                "summary_field": null,
+                "task_todos": false
+              }
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "name"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "module": {
+          "$ref": "#/$defs/ModuleSpec"
+        },
+        "template": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "template",
+        "module"
+      ],
+      "title": "ModulePutIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "entry_template.put_module",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Add or update a module definition on a v3 template."
+  },
+  {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "module": {
+          "type": "string"
+        },
+        "template": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "template",
+        "module"
+      ],
+      "title": "ModuleRemoveIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "entry_template.remove_module",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Remove a v3 module definition while retaining values and prose on existing entries."
+  },
+  {
     "access": "read",
     "concurrency": "shared",
     "input": {
@@ -5931,6 +9026,431 @@ expression: json
     "summary": "Rename, recolour or move an idea group (at most two levels)."
   },
   {
+    "access": "read",
+    "book_version": 3,
+    "concurrency": "shared",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "level.get",
+    "output": {
+      "$defs": {
+        "Entry": {
+          "properties": {
+            "created_at": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "deleted_at": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "fields": {
+              "additionalProperties": {
+                "additionalProperties": {
+                  "$ref": "#/$defs/FieldValue"
+                },
+                "type": "object"
+              },
+              "description": "Values of `fields` modules: `module_id -> (field_id -> value)`.",
+              "type": "object"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kv": {
+              "additionalProperties": {
+                "items": {
+                  "$ref": "#/$defs/KvEntry"
+                },
+                "type": "array"
+              },
+              "description": "Rows of `kv` modules (`kv:<module_id>`): `module_id -> sorted KvEntry list`.",
+              "type": "object"
+            },
+            "layout": {
+              "$ref": "#/$defs/EntryLayout"
+            },
+            "name_conflict": {
+              "default": null,
+              "description": "Set by readers when this leaf participates in auto-linking and its\ntitle or alias collides with an earlier auto-link leaf (`V3-AUTOLINK-NAME-UNIQUE`).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "overrides": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/LevelSettingsOverride"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Per-entry level setting overrides (only meaningful on level entries)."
+            },
+            "parent": {
+              "description": "Raw parent entry in the `entries` tree (`None` at the root).\nList queries apply the leaf-parent tolerance to their filtering.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "pos": {
+              "description": "Fractional-index position among siblings in the `entries` tree (`文稿顺序`).",
+              "type": "string"
+            },
+            "primary": {
+              "description": "Stored primary membership host; membership queries filter invalid records.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "template": {
+              "description": "The template shaping this entry (`None` = untemplated entry).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "title": {
+              "type": "string"
+            },
+            "updated_at": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "parent",
+            "pos",
+            "title",
+            "template",
+            "overrides",
+            "fields",
+            "kv",
+            "primary",
+            "layout",
+            "created_at",
+            "updated_at",
+            "deleted_at",
+            "name_conflict"
+          ],
+          "type": "object"
+        },
+        "EntryLayout": {
+          "properties": {
+            "board": {
+              "default": null,
+              "description": "Position on a board / island canvas.",
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "format": "double",
+                  "type": "number"
+                },
+                {
+                  "format": "double",
+                  "type": "number"
+                }
+              ],
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "grid": {
+              "default": null,
+              "description": "Grid coordinates `(col, row)` in a grid layout.",
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                {
+                  "format": "int64",
+                  "type": "integer"
+                }
+              ],
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "relation_graph": {
+              "default": null,
+              "description": "Pinned position in the relation graph.",
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "format": "double",
+                  "type": "number"
+                },
+                {
+                  "format": "double",
+                  "type": "number"
+                }
+              ],
+              "type": [
+                "array",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "board",
+            "grid",
+            "relation_graph"
+          ],
+          "type": "object"
+        },
+        "FieldValue": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "format": "double",
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "KvEntry": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "key": {
+              "type": "string"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "key",
+            "value",
+            "pos"
+          ],
+          "type": "object"
+        },
+        "LevelSettings": {
+          "properties": {
+            "accept": {
+              "default": false,
+              "description": "Whether entries residing elsewhere may belong to this level via `memberships` (`收别处的条目`).\nSwimlane levels (`lane == true`) always accept memberships.",
+              "type": "boolean"
+            },
+            "allow": {
+              "default": [],
+              "description": "Allowed templates for entries placed or accepted into this level.\nEmpty means all templates are allowed.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "auto_link": {
+              "default": false,
+              "description": "Whether leaf entries residing in or belonging to this level participate in auto-linking.",
+              "type": "boolean"
+            },
+            "default_template": {
+              "default": null,
+              "description": "Default template when creating a new entry under this level (`None` = blank).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "display": {
+              "default": "",
+              "description": "Default workspace presentation mode for entries in this level.",
+              "type": "string"
+            },
+            "format_shortcuts": {
+              "default": "",
+              "description": "Editor formatting shortcut profile for prose under this level (`格式快捷输入`).",
+              "type": "string"
+            },
+            "home": {
+              "default": null,
+              "description": "For levels with `accept == true`: which level entry newly created entries reside under (`新条目住在`).\n`None` means they reside under this level itself.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "is_manuscript": {
+              "default": false,
+              "description": "Whether leaf entries under this level in tree order form a manuscript (`成书`).",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "default_template",
+            "allow",
+            "display",
+            "auto_link",
+            "accept",
+            "home",
+            "is_manuscript",
+            "format_shortcuts"
+          ],
+          "type": "object"
+        },
+        "LevelSettingsOverride": {
+          "properties": {
+            "accept": {
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "allow": {
+              "default": null,
+              "description": "`None` inherits; `Some(vec)` sets the allowed template list (`Some(vec![])` allows all).",
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "auto_link": {
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "default_template": {
+              "description": "`None` inherits; `Some(None)` clears to no default template; `Some(Some(t))` sets `t`.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "display": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "format_shortcuts": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "home": {
+              "description": "`None` inherits; `Some(None)` means reside in this level itself; `Some(Some(id))` sets `home`.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "is_manuscript": {
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "allow",
+            "display",
+            "auto_link",
+            "accept",
+            "is_manuscript",
+            "format_shortcuts"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "children": {
+          "items": {
+            "$ref": "#/$defs/Entry"
+          },
+          "type": "array"
+        },
+        "members": {
+          "items": {
+            "$ref": "#/$defs/Entry"
+          },
+          "type": "array"
+        },
+        "settings": {
+          "$ref": "#/$defs/LevelSettings"
+        }
+      },
+      "required": [
+        "settings",
+        "children",
+        "members"
+      ],
+      "title": "LevelInfo",
+      "type": "object"
+    },
+    "summary": "Read resolved v3 level settings, resident children and accepted members."
+  },
+  {
     "access": "write",
     "concurrency": "book",
     "input": {
@@ -6530,6 +10050,200 @@ expression: json
   },
   {
     "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "host": {
+          "type": "string"
+        },
+        "member": {
+          "type": "string"
+        },
+        "pos": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book",
+        "host",
+        "member"
+      ],
+      "title": "AddIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "membership.add",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Add or order a v3 membership without moving its residence."
+  },
+  {
+    "access": "read",
+    "book_version": 3,
+    "concurrency": "shared",
+    "input": {
+      "description": "A book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "BookIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "membership.list",
+    "output": {
+      "$defs": {
+        "Membership": {
+          "properties": {
+            "created_at": {
+              "default": null,
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "host": {
+              "type": "string"
+            },
+            "member": {
+              "type": "string"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "host",
+            "member",
+            "pos",
+            "created_at"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/Membership"
+      },
+      "title": "Array_of_Membership",
+      "type": "array"
+    },
+    "summary": "List valid v3 memberships in a book."
+  },
+  {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "host": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "member": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "member"
+      ],
+      "title": "PrimaryIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "membership.primary",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Choose an existing v3 membership as primary, or clear the primary membership."
+  },
+  {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "host": {
+          "type": "string"
+        },
+        "member": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "host",
+        "member"
+      ],
+      "title": "In",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "membership.remove",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Remove a v3 membership and any timeline placements left without a lane."
+  },
+  {
+    "access": "write",
     "concurrency": "book",
     "input": {
       "$defs": {
@@ -6972,6 +10686,1741 @@ expression: json
       "type": "array"
     },
     "summary": "List what prose mentions: entity links and embedded materials, from one entity's prose, to one entity, or in the whole book (live ends only, with paragraph and span counts, the most mentioned first; `limit` keeps the top rows)."
+  },
+  {
+    "access": "read",
+    "book_version": 3,
+    "concurrency": "shared",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "module.list",
+    "output": {
+      "$defs": {
+        "FieldDef": {
+          "properties": {
+            "field_type": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "options": {
+              "default": [],
+              "description": "Candidate options for `select` and `multi_select`.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "target_template": {
+              "default": null,
+              "description": "Optional target template filter when `field_type == \"entity_ref\"`.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "field_type",
+            "options",
+            "target_template",
+            "pos"
+          ],
+          "type": "object"
+        },
+        "KvEntry": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "key": {
+              "type": "string"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "key",
+            "value",
+            "pos"
+          ],
+          "type": "object"
+        },
+        "ModuleAgentConfig": {
+          "properties": {
+            "instructions": {
+              "default": "",
+              "description": "One-sentence instruction for the Agent when reading or writing this module.",
+              "type": "string"
+            },
+            "read_tier": {
+              "default": null,
+              "description": "Context assembly tier (e.g. `\"summary\"`, `\"on_demand\"`, `\"full\"`).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "writable": {
+              "default": true,
+              "description": "Whether the Agent may write to this module.",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "writable",
+            "read_tier",
+            "instructions"
+          ],
+          "type": "object"
+        },
+        "ModuleConfig": {
+          "properties": {
+            "aliases_field": {
+              "default": null,
+              "description": "For `fields` modules: which field id supplies aliases for auto-linking.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "color_field": {
+              "default": null,
+              "description": "For `fields` modules: which field id supplies the display color.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "default_cols": {
+              "default": 3,
+              "description": "For `plot_grid` modules: initial column count (defaults to 3).",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "default_rows": {
+              "default": 3,
+              "description": "For `plot_grid` modules: initial row count (defaults to 3).",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "defs": {
+              "default": [],
+              "description": "For `fields` modules: ordered field definitions.",
+              "items": {
+                "$ref": "#/$defs/FieldDef"
+              },
+              "type": "array"
+            },
+            "initial_kv": {
+              "default": [],
+              "description": "For `kv` modules: initial key/value rows copied into new entries of this template.",
+              "items": {
+                "$ref": "#/$defs/KvEntry"
+              },
+              "type": "array"
+            },
+            "portrait_field": {
+              "default": null,
+              "description": "For `fields` modules: which field id supplies the portrait `AssetId`.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "show_outline": {
+              "default": false,
+              "description": "For `prose` modules: whether H1/H2/H3 outline headings appear in the outline tree.",
+              "type": "boolean"
+            },
+            "status_field": {
+              "default": null,
+              "description": "For `fields` modules: which field id supplies the status badge.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "summary_field": {
+              "default": null,
+              "description": "For `fields` modules: which field id supplies the summary text.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "task_todos": {
+              "default": false,
+              "description": "For `prose` modules: whether checklist items project into TODOs.",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "show_outline",
+            "task_todos",
+            "defs",
+            "aliases_field",
+            "color_field",
+            "status_field",
+            "summary_field",
+            "portrait_field",
+            "initial_kv",
+            "default_rows",
+            "default_cols"
+          ],
+          "type": "object"
+        },
+        "ModuleSpec": {
+          "properties": {
+            "agent": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ModuleAgentConfig"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "config": {
+              "$ref": "#/$defs/ModuleConfig",
+              "default": {
+                "aliases_field": null,
+                "color_field": null,
+                "default_cols": 3,
+                "default_rows": 3,
+                "defs": [],
+                "initial_kv": [],
+                "portrait_field": null,
+                "show_outline": false,
+                "status_field": null,
+                "summary_field": null,
+                "task_todos": false
+              }
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "name",
+            "pos",
+            "config",
+            "agent"
+          ],
+          "type": "object"
+        },
+        "Summary": {
+          "properties": {
+            "definition": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ModuleSpec"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "prose_doc": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "retained": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "id",
+            "definition",
+            "retained",
+            "prose_doc"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/Summary"
+      },
+      "title": "Array_of_Summary",
+      "type": "array"
+    },
+    "summary": "List current and retained v3 modules and their registered prose documents."
+  },
+  {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "module": {
+          "type": "string"
+        },
+        "owner": {
+          "description": "Entry or template ID, selected by `template`.",
+          "type": "string"
+        },
+        "template": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "book",
+        "owner",
+        "module"
+      ],
+      "title": "ProseIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "module.prose_document",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Initialize a v3 prose module or level description and return its document ID."
+  },
+  {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "Cell": {
+          "properties": {
+            "column": {
+              "type": "string"
+            },
+            "row": {
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "row",
+            "column",
+            "text"
+          ],
+          "type": "object"
+        },
+        "Grid": {
+          "properties": {
+            "cell_h": {
+              "format": "double",
+              "type": "number"
+            },
+            "cell_w": {
+              "format": "double",
+              "type": "number"
+            },
+            "cells": {
+              "items": {
+                "$ref": "#/$defs/Cell"
+              },
+              "type": "array"
+            },
+            "columns": {
+              "items": {
+                "$ref": "#/$defs/Line"
+              },
+              "type": "array"
+            },
+            "rows": {
+              "items": {
+                "$ref": "#/$defs/Line"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "cell_w",
+            "cell_h",
+            "rows",
+            "columns",
+            "cells"
+          ],
+          "type": "object"
+        },
+        "Line": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "pos": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "pos",
+            "label"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "entry": {
+          "type": "string"
+        },
+        "grid": {
+          "$ref": "#/$defs/Grid"
+        },
+        "module": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "entry",
+        "module",
+        "grid"
+      ],
+      "title": "GridIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "module.put_grid",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Replace the rows, columns, cells and size of one v3 plot module."
+  },
+  {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "KvEntry": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "key": {
+              "type": "string"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "key",
+            "value"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "entry": {
+          "type": "string"
+        },
+        "module": {
+          "type": "string"
+        },
+        "row": {
+          "$ref": "#/$defs/KvEntry"
+        }
+      },
+      "required": [
+        "book",
+        "entry",
+        "module",
+        "row"
+      ],
+      "title": "KvPutIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "module.put_kv",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Add or update an ordered key/value row in a v3 module."
+  },
+  {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "body": {
+          "type": "string"
+        },
+        "book": {
+          "type": "string"
+        },
+        "entry": {
+          "type": "string"
+        },
+        "id": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "module": {
+          "type": "string"
+        },
+        "pos": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "book",
+        "entry",
+        "module",
+        "body"
+      ],
+      "title": "PatchIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "module.put_patch",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Create or edit the text of a v3 patch module record, preserving its source reference."
+  },
+  {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "Ref": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "entry": {
+          "type": "string"
+        },
+        "incoming": {
+          "default": false,
+          "type": "boolean"
+        },
+        "module": {
+          "type": "string"
+        },
+        "other": {
+          "$ref": "#/$defs/Ref"
+        },
+        "relation_type": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "entry",
+        "module",
+        "other",
+        "relation_type"
+      ],
+      "title": "RelationIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "module.put_relation",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Associate a v3 entry with a live endpoint through its relations module."
+  },
+  {
+    "access": "read",
+    "book_version": 3,
+    "concurrency": "shared",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "entry": {
+          "type": "string"
+        },
+        "module": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "entry",
+        "module"
+      ],
+      "title": "In",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "module.read",
+    "output": {
+      "$defs": {
+        "Cell": {
+          "properties": {
+            "column": {
+              "type": "string"
+            },
+            "row": {
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "row",
+            "column",
+            "text"
+          ],
+          "type": "object"
+        },
+        "FieldDef": {
+          "properties": {
+            "field_type": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "options": {
+              "default": [],
+              "description": "Candidate options for `select` and `multi_select`.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "target_template": {
+              "default": null,
+              "description": "Optional target template filter when `field_type == \"entity_ref\"`.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "field_type",
+            "options",
+            "target_template",
+            "pos"
+          ],
+          "type": "object"
+        },
+        "FieldValue": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "format": "double",
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "Grid": {
+          "properties": {
+            "cell_h": {
+              "format": "double",
+              "type": "number"
+            },
+            "cell_w": {
+              "format": "double",
+              "type": "number"
+            },
+            "cells": {
+              "items": {
+                "$ref": "#/$defs/Cell"
+              },
+              "type": "array"
+            },
+            "columns": {
+              "items": {
+                "$ref": "#/$defs/Line"
+              },
+              "type": "array"
+            },
+            "rows": {
+              "items": {
+                "$ref": "#/$defs/Line"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "cell_w",
+            "cell_h",
+            "rows",
+            "columns",
+            "cells"
+          ],
+          "type": "object"
+        },
+        "KvEntry": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "key": {
+              "type": "string"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "key",
+            "value",
+            "pos"
+          ],
+          "type": "object"
+        },
+        "Line": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "pos": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "pos",
+            "label"
+          ],
+          "type": "object"
+        },
+        "ModuleAgentConfig": {
+          "properties": {
+            "instructions": {
+              "default": "",
+              "description": "One-sentence instruction for the Agent when reading or writing this module.",
+              "type": "string"
+            },
+            "read_tier": {
+              "default": null,
+              "description": "Context assembly tier (e.g. `\"summary\"`, `\"on_demand\"`, `\"full\"`).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "writable": {
+              "default": true,
+              "description": "Whether the Agent may write to this module.",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "writable",
+            "read_tier",
+            "instructions"
+          ],
+          "type": "object"
+        },
+        "ModuleConfig": {
+          "properties": {
+            "aliases_field": {
+              "default": null,
+              "description": "For `fields` modules: which field id supplies aliases for auto-linking.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "color_field": {
+              "default": null,
+              "description": "For `fields` modules: which field id supplies the display color.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "default_cols": {
+              "default": 3,
+              "description": "For `plot_grid` modules: initial column count (defaults to 3).",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "default_rows": {
+              "default": 3,
+              "description": "For `plot_grid` modules: initial row count (defaults to 3).",
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "defs": {
+              "default": [],
+              "description": "For `fields` modules: ordered field definitions.",
+              "items": {
+                "$ref": "#/$defs/FieldDef"
+              },
+              "type": "array"
+            },
+            "initial_kv": {
+              "default": [],
+              "description": "For `kv` modules: initial key/value rows copied into new entries of this template.",
+              "items": {
+                "$ref": "#/$defs/KvEntry"
+              },
+              "type": "array"
+            },
+            "portrait_field": {
+              "default": null,
+              "description": "For `fields` modules: which field id supplies the portrait `AssetId`.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "show_outline": {
+              "default": false,
+              "description": "For `prose` modules: whether H1/H2/H3 outline headings appear in the outline tree.",
+              "type": "boolean"
+            },
+            "status_field": {
+              "default": null,
+              "description": "For `fields` modules: which field id supplies the status badge.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "summary_field": {
+              "default": null,
+              "description": "For `fields` modules: which field id supplies the summary text.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "task_todos": {
+              "default": false,
+              "description": "For `prose` modules: whether checklist items project into TODOs.",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "show_outline",
+            "task_todos",
+            "defs",
+            "aliases_field",
+            "color_field",
+            "status_field",
+            "summary_field",
+            "portrait_field",
+            "initial_kv",
+            "default_rows",
+            "default_cols"
+          ],
+          "type": "object"
+        },
+        "ModuleSpec": {
+          "properties": {
+            "agent": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ModuleAgentConfig"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "config": {
+              "$ref": "#/$defs/ModuleConfig",
+              "default": {
+                "aliases_field": null,
+                "color_field": null,
+                "default_cols": 3,
+                "default_rows": 3,
+                "defs": [],
+                "initial_kv": [],
+                "portrait_field": null,
+                "show_outline": false,
+                "status_field": null,
+                "summary_field": null,
+                "task_todos": false
+              }
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "name",
+            "pos",
+            "config",
+            "agent"
+          ],
+          "type": "object"
+        },
+        "Patch": {
+          "properties": {
+            "body": {
+              "type": "string"
+            },
+            "entry": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "invalidated_at": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "module": {
+              "type": "string"
+            },
+            "pos": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "source_block": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "source_entry": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "source_module": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "source_text": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "title": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "entry",
+            "module",
+            "source_entry",
+            "source_module",
+            "source_block",
+            "source_text",
+            "title",
+            "body",
+            "pos",
+            "invalidated_at"
+          ],
+          "type": "object"
+        },
+        "Ref": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
+        },
+        "Relation": {
+          "properties": {
+            "created_at": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "from": {
+              "$ref": "#/$defs/Ref"
+            },
+            "id": {
+              "type": "string"
+            },
+            "relation_type": {
+              "type": "string"
+            },
+            "to": {
+              "$ref": "#/$defs/Ref"
+            }
+          },
+          "required": [
+            "id",
+            "from",
+            "to",
+            "relation_type",
+            "created_at"
+          ],
+          "type": "object"
+        },
+        "Summary": {
+          "properties": {
+            "definition": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ModuleSpec"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "prose_doc": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "retained": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "id",
+            "definition",
+            "retained",
+            "prose_doc"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "fields": {
+          "additionalProperties": {
+            "$ref": "#/$defs/FieldValue"
+          },
+          "type": "object"
+        },
+        "grid": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Grid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "kv": {
+          "items": {
+            "$ref": "#/$defs/KvEntry"
+          },
+          "type": "array"
+        },
+        "module": {
+          "$ref": "#/$defs/Summary"
+        },
+        "patches": {
+          "items": {
+            "$ref": "#/$defs/Patch"
+          },
+          "type": "array"
+        },
+        "relations": {
+          "items": {
+            "$ref": "#/$defs/Relation"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "module",
+        "fields",
+        "kv",
+        "patches",
+        "grid",
+        "relations"
+      ],
+      "title": "Data",
+      "type": "object"
+    },
+    "summary": "Read a current or retained v3 module and its structured content."
+  },
+  {
+    "access": "read",
+    "book_version": 3,
+    "concurrency": "shared",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "module": {
+          "type": "string"
+        },
+        "owner": {
+          "description": "Entry or template ID, selected by `template`.",
+          "type": "string"
+        },
+        "template": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "book",
+        "owner",
+        "module"
+      ],
+      "title": "ProseIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "module.read_prose",
+    "output": {
+      "$defs": {
+        "ParagraphInfo": {
+          "properties": {
+            "block_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "heading": {
+              "description": "0 for body text, 1–3 for H1–H3.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "index": {
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "index",
+            "block_id",
+            "heading",
+            "text"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "paragraphs": {
+          "items": {
+            "$ref": "#/$defs/ParagraphInfo"
+          },
+          "type": "array"
+        },
+        "total": {
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "version": {
+          "description": "The document's version (hex frontiers).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "paragraphs",
+        "total",
+        "version"
+      ],
+      "title": "ProseText",
+      "type": "object"
+    },
+    "summary": "Read a v3 prose module, level description or template prose with block IDs and version."
+  },
+  {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "entry": {
+          "type": "string"
+        },
+        "module": {
+          "type": "string"
+        },
+        "row": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "entry",
+        "module",
+        "row"
+      ],
+      "title": "KvRemoveIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "module.remove_kv",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Remove a key/value row from a v3 module."
+  },
+  {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "entry": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "module": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "entry",
+        "module",
+        "id"
+      ],
+      "title": "RecordIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "module.remove_patch",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Remove one v3 patch record without deleting relations or other entries."
+  },
+  {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "entry": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "module": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "entry",
+        "module",
+        "id"
+      ],
+      "title": "RecordIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "module.remove_relation",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Remove one relation projected in a v3 entry's relations module."
+  },
+  {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "block_id": {
+          "type": "string"
+        },
+        "book": {
+          "type": "string"
+        },
+        "find": {
+          "type": "string"
+        },
+        "module": {
+          "type": "string"
+        },
+        "owner": {
+          "description": "Entry or template ID, selected by `template`.",
+          "type": "string"
+        },
+        "replace": {
+          "type": "string"
+        },
+        "template": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "book",
+        "owner",
+        "module",
+        "block_id",
+        "find",
+        "replace"
+      ],
+      "title": "ReplaceIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "module.replace_prose",
+    "output": {
+      "properties": {
+        "at": {
+          "description": "Character offset of the replacement in the document.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "block_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "linked": {
+          "description": "Entity links written on names inside the new text (automatic links\nfor an Agent's, the mirror's or an import's text, when the author has\nthem on).",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "at",
+        "block_id",
+        "linked"
+      ],
+      "title": "Replaced",
+      "type": "object"
+    },
+    "summary": "Replace an exact passage in a v3 module or level description, addressed by block ID."
+  },
+  {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "FieldValue": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "format": "double",
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "entry": {
+          "type": "string"
+        },
+        "field": {
+          "type": "string"
+        },
+        "module": {
+          "type": "string"
+        },
+        "value": {
+          "$ref": "#/$defs/FieldValue"
+        }
+      },
+      "required": [
+        "book",
+        "entry",
+        "module",
+        "field",
+        "value"
+      ],
+      "title": "FieldIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "module.set_field",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Set or clear a typed field value in a v3 entry module."
+  },
+  {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "TemplateParagraph": {
+          "description": "One paragraph of a body template.",
+          "properties": {
+            "heading": {
+              "description": "1, 2 or 3 for H1/H2/H3; omitted for body text.",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "text": {
+              "default": "",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "module": {
+          "type": "string"
+        },
+        "owner": {
+          "description": "Entry or template ID, selected by `template`.",
+          "type": "string"
+        },
+        "paragraphs": {
+          "items": {
+            "$ref": "#/$defs/TemplateParagraph"
+          },
+          "type": "array"
+        },
+        "template": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "book",
+        "owner",
+        "module",
+        "paragraphs"
+      ],
+      "title": "SetIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "module.set_prose",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Write paragraphs of a v3 prose module, level description or template prose."
   },
   {
     "access": "write",
@@ -8046,6 +13495,47 @@ expression: json
       "type": "object"
     },
     "summary": "Set the size of a plot grid's cells (120–440 wide, 56–380 high)."
+  },
+  {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "library",
+    "input": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "summary": {
+          "default": "",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "BookCreateIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "project.create",
+    "output": {
+      "description": "The entity a command created or renamed, with its final name.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "title": "Named",
+      "type": "object"
+    },
+    "summary": "Create a v3 project using the novel template."
   },
   {
     "access": "write",
@@ -10177,6 +15667,604 @@ expression: json
       "type": "object"
     },
     "summary": "Move a time pin, change its label, or bind it to an idea or unbind it."
+  },
+  {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "description": "One entity of a book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "id"
+      ],
+      "title": "EntityIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "timeline_view.delete",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Delete a v3 timeline view while retaining lane entries and memberships."
+  },
+  {
+    "access": "read",
+    "book_version": 3,
+    "concurrency": "shared",
+    "input": {
+      "description": "A book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "BookIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "timeline_view.list",
+    "output": {
+      "$defs": {
+        "TimelineLane": {
+          "properties": {
+            "entry": {
+              "type": "string"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "entry",
+            "pos"
+          ],
+          "type": "object"
+        },
+        "TimelinePin": {
+          "properties": {
+            "at": {
+              "format": "double",
+              "type": "number"
+            },
+            "color": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "entry": {
+              "default": null,
+              "description": "Optional entry bound to this pin (`V3-TIMELINE-TARGETS-LIVE`).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "at",
+            "label",
+            "color",
+            "entry"
+          ],
+          "type": "object"
+        },
+        "TimelinePlacement": {
+          "properties": {
+            "at": {
+              "format": "double",
+              "type": "number"
+            },
+            "entry": {
+              "type": "string"
+            },
+            "span": {
+              "default": null,
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "entry",
+            "at",
+            "span"
+          ],
+          "type": "object"
+        },
+        "TimelineView": {
+          "properties": {
+            "deleted_at": {
+              "default": null,
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "lanes": {
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/TimelineLane"
+              },
+              "type": "array"
+            },
+            "name": {
+              "type": "string"
+            },
+            "pins": {
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/TimelinePin"
+              },
+              "type": "array"
+            },
+            "placements": {
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/TimelinePlacement"
+              },
+              "type": "array"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "pos",
+            "lanes",
+            "placements",
+            "pins",
+            "deleted_at"
+          ],
+          "type": "object"
+        }
+      },
+      "items": {
+        "$ref": "#/$defs/TimelineView"
+      },
+      "title": "Array_of_TimelineView",
+      "type": "array"
+    },
+    "summary": "List v3 timeline views with their effective lanes, placements and time pins."
+  },
+  {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "at": {
+          "format": "double",
+          "type": "number"
+        },
+        "book": {
+          "type": "string"
+        },
+        "entry": {
+          "type": "string"
+        },
+        "lane": {
+          "default": null,
+          "description": "When supplied, join this lane in the same commit; omitted, keep memberships.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "span": {
+          "default": null,
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "view": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "view",
+        "entry",
+        "at"
+      ],
+      "title": "PlaceIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "timeline_view.place",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Place or move a v3 entry in a timeline, optionally joining a lane in the same commit."
+  },
+  {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "TimelineLane": {
+          "properties": {
+            "entry": {
+              "type": "string"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "entry"
+          ],
+          "type": "object"
+        },
+        "TimelinePin": {
+          "properties": {
+            "at": {
+              "format": "double",
+              "type": "number"
+            },
+            "color": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "entry": {
+              "default": null,
+              "description": "Optional entry bound to this pin (`V3-TIMELINE-TARGETS-LIVE`).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "at",
+            "label"
+          ],
+          "type": "object"
+        },
+        "TimelinePlacement": {
+          "properties": {
+            "at": {
+              "format": "double",
+              "type": "number"
+            },
+            "entry": {
+              "type": "string"
+            },
+            "span": {
+              "default": null,
+              "format": "double",
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "entry",
+            "at"
+          ],
+          "type": "object"
+        },
+        "TimelineView": {
+          "properties": {
+            "deleted_at": {
+              "default": null,
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "lanes": {
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/TimelineLane"
+              },
+              "type": "array"
+            },
+            "name": {
+              "type": "string"
+            },
+            "pins": {
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/TimelinePin"
+              },
+              "type": "array"
+            },
+            "placements": {
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/TimelinePlacement"
+              },
+              "type": "array"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "name"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "view": {
+          "$ref": "#/$defs/TimelineView"
+        }
+      },
+      "required": [
+        "book",
+        "view"
+      ],
+      "title": "PutIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "timeline_view.put",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Create or edit a v3 timeline view, including its independent lane order."
+  },
+  {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "TimelinePin": {
+          "properties": {
+            "at": {
+              "format": "double",
+              "type": "number"
+            },
+            "color": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "entry": {
+              "default": null,
+              "description": "Optional entry bound to this pin (`V3-TIMELINE-TARGETS-LIVE`).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "id": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "at",
+            "label"
+          ],
+          "type": "object"
+        }
+      },
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "pin": {
+          "$ref": "#/$defs/TimelinePin"
+        },
+        "view": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "view",
+        "pin"
+      ],
+      "title": "PinIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "timeline_view.put_pin",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Add or edit a v3 time pin, optionally bound to any live entry."
+  },
+  {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "entry": {
+          "type": "string"
+        },
+        "lane": {
+          "type": "string"
+        },
+        "view": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "view",
+        "entry",
+        "lane"
+      ],
+      "title": "RemoveIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "timeline_view.remove",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Remove an entry from a timeline lane and prune positions where it has no remaining lane."
+  },
+  {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "pin": {
+          "type": "string"
+        },
+        "view": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "view",
+        "pin"
+      ],
+      "title": "PinRemoveIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "timeline_view.remove_pin",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Remove a time pin from a v3 timeline view."
   },
   {
     "access": "write",

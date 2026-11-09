@@ -515,13 +515,24 @@ impl LevelSettings {
     }
 }
 
+// A missing key inherits; an explicit JSON null clears the inherited value.
+fn nullable_override<'de, T: Deserialize<'de>, D: serde::Deserializer<'de>>(
+    d: D,
+) -> Result<Option<Option<T>>, D::Error> {
+    Option::<T>::deserialize(d).map(Some)
+}
+
 /// Sparse level settings stored on a level [`EntryTemplate`] (`settings`) or a
 /// level [`Entry`] (`overrides`). Any `None` field inherits from the template or
 /// the nearest ancestor level that specifies it (`kernel-v3.md` "层级的设置").
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LevelSettingsOverride {
     /// `None` inherits; `Some(None)` clears to no default template; `Some(Some(t))` sets `t`.
-    #[serde(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "nullable_override"
+    )]
     pub default_template: Option<Option<EntryTemplateId>>,
     /// `None` inherits; `Some(vec)` sets the allowed template list (`Some(vec![])` allows all).
     #[serde(default)]
@@ -533,7 +544,11 @@ pub struct LevelSettingsOverride {
     #[serde(default)]
     pub accept: Option<bool>,
     /// `None` inherits; `Some(None)` means reside in this level itself; `Some(Some(id))` sets `home`.
-    #[serde(default)]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "nullable_override"
+    )]
     pub home: Option<Option<EntryId>>,
     #[serde(default)]
     pub is_manuscript: Option<bool>,

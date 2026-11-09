@@ -863,15 +863,42 @@ next/crates/dr-workspace/src/
   commands/        book（含书架、彻底删除）chapter storyline element relation idea comment（含锚点和 TODO 投影）
                    material prose history points（M09 快照历史）recent（最近打开）time_pin stats（M07）
                    plot_grid patch template（第五轮）
+                   v3/（通用条目、模板、模块、归属、时间线、对象历史）
 next/crates/dr-workspace/tests/
   （第八轮的新测试在 commands.rs、autolink.rs 里）
   commands.rs registry.rs events.rs shell.rs editor.rs shelf.rs points.rs autolink.rs workshop.rs write_order.rs undo.rs
-  invariants.rs footprint.rs
-next/crates/dr-view-history/       M09 的对话框（见 modules/m09-history.md）
+  invariants.rs footprint.rs kernel_v3.rs
   snapshots/       能力清单快照（registry__capabilities.snap、registry__capability_schemas.snap）
+next/crates/dr-view-history/       M09 的对话框（见 modules/m09-history.md）
 docs/rust-rewrite/acceptance/f3-m2-workspace-bench.json
 ```
 
 ### 收尾检查：构想仍是存活的投射目标（2026-11-08）
 
 不变量测试的 `check_tolerant` 原来只枚举存活章节/要素；构想转章节、投射待办、撤销转换后，仍是同一个存活 `node`，却被测试误判为孤立。补上 `idea.list`，保留 proptest 生成的失败种子，并增加 `regression_projected_todo_stays_located_when_conversion_is_undone`：相同 id 回到构想，待办及定位完全保留。这是测试口径修正，没有改变转换或投射产品逻辑。定向契约与修正后的完整工作区检查中该组通过。
+
+## K2：v3 通用命令（与 v2.2 并存）
+
+`commands::v3` 的 44 个注册项只接收 `meta.v == 3` 的书，规格带 `book_version: 3`。`project.create` 用小说项目模板创建 v3；旧 `book.create` 继续创建 v2.2。已有按种类接口保留，不能写 v3 的旧根。CLI／调试桥仍走同一个注册表；帮手目录在 K6 开放前排除这些新注册项。
+
+| 命令族 | 当前接口 |
+| --- | --- |
+| 条目与层级 | `entry.list/get/create/update/move/trash/restore`、`level.get`；住处与兄弟顺序在条目树，设置使用模板继承和当前条目覆盖 |
+| 模板与模块定义 | `entry_template.list/put/delete/put_module/remove_module`；层级仅能声明字段／键值模块，固有说明固定为 `about`，叶子可有多篇正文 |
+| 模块数据 | `module.list/read/set_field/put_kv/remove_kv/put_patch/remove_patch/put_grid/put_relation/remove_relation`；保留内容可查；关系类型由 `entry_relation_type.list/put/delete` 维护 |
+| 正文和层级说明 | `module.prose_document/read_prose/set_prose/replace_prose`；owner 是条目或模板，模板正文包含书 id，替换按 block id 精确定位；正文历史沿用 `prose.restore` |
+| 归属 | `membership.list/add/remove/primary`；新增或调整归属顺序不搬住处；重复加入保留已有记录，移除最后有效泳道时清理所有受影响视图的位置 |
+| 时间线 | `timeline_view.list/put/delete/place/remove/put_pin/remove_pin`；可在一次书目提交中加入泳道并摆位置；视图删除保留泳道条目与归属 |
+| 快照 | `entry_history.version/restore`；按指定条目／结构记录恢复为新提交，独立正文版本另行恢复 |
+
+输入／输出以生成的 `registry__capability_schemas.snap` 为准；类型 id 在 JSON 中仍是字符串。正文初始化先于书目提交，书目一次提交，最后写日志；沿用 `Cx` 的书租约、来源、guard 与失败边界。`after_prose` 故障只留下无人拥有的正文，不落一个指向缺正文的新条目。撤销／重做的逆操作存进原日志，关闭重开后仍可执行。
+
+层级覆盖中 `default_template`／`home` 缺键表示继承，显式 `null` 清空，空 `allow` 不限制。模板正文初值只在新建时复制；模块定义改名／删除／换模板不删条目已有正文和字段。`module.list` 同时列出当前定义和有持久数据的旧模块；查询按 id 定位，同名模块不混用。
+
+本批边界、检查及帮手排除的作者授权见 [F1 第 5 步交回](f1-model-doc.md)。界面和帮手的后续接回不包含在这 44 个注册项的完成结论里。
+
+### K1+K2 第 6 步：版本与消费边界
+
+持久结构见 [Loro schema 的 v3 书目](../loro-schema.md#书目文档-v3通用条目内核)及 [v2.2 → v3](../loro-schema.md#版本)。只有书目切换到 `meta.v = 3`，正文、对话和来源／日志机制仍共用。`entry_history.restore` 用书目 frontier 恢复选定记录，正文 frontier 交给 `prose.restore`，不把两个版本混用。
+
+注册表已有版本边界，旧 136 个命令的 schema 不变。帮手在 K6 前仍明确排除全部 44 个 v3 注册项；完整影响读取、继承来源和模板动作目录仍按 K6 实施。指定正文模块的行内链接，以及模块导出／Markdown 的未定约定，见 [F1 第 6 步待协调](f1-model-doc.md)，不由命令层补出另一套产品方案。默认大纲与作者命名层级遵循更新后的根目录 `AGENTS.md`。

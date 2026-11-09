@@ -1222,6 +1222,7 @@ fn every_registered_entry_is_exercised_here() {
         include_str!("points.rs"),
         include_str!("autolink.rs"),
         include_str!("workshop.rs"),
+        include_str!("kernel_v3.rs"),
     ];
     let missing: Vec<&str> = registry()
         .iter()
