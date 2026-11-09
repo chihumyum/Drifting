@@ -502,6 +502,8 @@ pub struct Workspace {
     /// Project Home (M02), when one is registered ([`pages::set_home`]):
     /// made with the workspace, kept while the window lives.
     pub home: Option<AnyView>,
+    /// Versioned Project Home; never rendered for a legacy book.
+    pub v3_home: Option<AnyView>,
     /// A left press on a drag region that has not moved yet (macOS).
     drag_armed: bool,
     /// The layout changed since it was last stored.
@@ -615,6 +617,7 @@ impl Workspace {
             shelf: None,
             shelf_open: false,
             home: None,
+            v3_home: None,
             drag_armed: false,
             layout_dirty: false,
             layout_save: None,
@@ -624,6 +627,7 @@ impl Workspace {
         ws.restore_layout(cx);
         ws.listen_to_library(cx);
         ws.home = pages::make_home(cx.weak_entity(), window, cx);
+        ws.v3_home = pages::make_v3_home(cx.weak_entity(), window, cx);
         if shelf_first {
             ws.show_shelf(window, cx);
             ws.sea_first_run(window, cx);
@@ -1121,6 +1125,7 @@ impl Workspace {
         self.sea_swapped();
         self.listen_to_library(cx);
         self.home = pages::make_home(cx.weak_entity(), window, cx);
+        self.v3_home = pages::make_v3_home(cx.weak_entity(), window, cx);
         if !self.show_shelf(window, cx) {
             let last = Settings::read(cx).last_book().map(str::to_owned);
             if let Some(book) = first_choice(&lib, last.as_deref()) {

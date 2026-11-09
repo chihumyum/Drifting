@@ -19,6 +19,8 @@
 pub mod composer;
 pub mod model;
 pub mod panel;
+pub mod v3;
+pub mod v3_panel;
 
 use std::collections::HashMap;
 
@@ -75,11 +77,11 @@ impl Global for Hub {}
 /// Routes the library's comment changes to the Review tabs. Call once, at
 /// start-up.
 pub fn init(lib: Option<Workspace>, cx: &mut App) {
-    let (tx, mut rx) = futures::channel::mpsc::unbounded::<String>();
+    let (tx, mut rx) = futures::channel::mpsc::unbounded::<(String, bool)>();
     let subscription = lib.as_ref().map(|lib| {
         lib.subscribe(move |e| {
-            if let WsEvent::Book(b) = e
-                && b.changes.iter().any(|c| {
+            if let WsEvent::Book(b) = e {
+                let legacy = b.changes.iter().any(|c| {
                     matches!(
                         c.collection,
                         Collection::Comments
@@ -91,9 +93,8 @@ pub fn init(lib: Option<Workspace>, cx: &mut App) {
                             | Collection::Storylines
                             | Collection::Materials
                     )
-                })
-            {
-                let _ = tx.unbounded_send(b.book.to_string());
+                });
+                let _ = tx.unbounded_send((b.book.to_string(), legacy));
             }
         })
     });
@@ -116,7 +117,10 @@ pub fn init(lib: Option<Workspace>, cx: &mut App) {
                     .unwrap_or_default();
                 for view in views {
                     view.update(cx, |v, cx| {
-                        if books.contains(&v.book) {
+                        if books
+                            .iter()
+                            .any(|(book, legacy)| book == &v.book && (*legacy || v.is_v3()))
+                        {
                             v.schedule(cx);
                         }
                     });
