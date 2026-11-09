@@ -109,8 +109,11 @@ Agent 写入的当前书 guard；Create 成功后重新读取写入所需观察�
 条目对话框，旧单正文恢复方法不能绕过它；关闭后回到原输入。副屏隔离 profile 的
 真窗口 `entry-snapshot.json` 为 72/72、0 pending，核对两正文确认恢复、before 找回、
 原焦点继续输入和退出重开；机器证据为约定外部日志目录的
-`g1-window-smoke-4/result.json` 与 `secondary-display.json`，首三轮失败原样保留。
-最终全套检查结果见 G1 本轮交回段。registry 证据由
+`g1-window-smoke-final/result.json` 与 `secondary-display.json`，首三轮失败原样保留。
+最终源码检查为 fmt、workspace all-targets Clippy（-D warnings）、workspace test
+2198／0 失败／22 忽略、xtask check（含 audit）、public:check 全通过，编译并发 3、
+测试单线程；细节见 G1 本轮安全候选段。原始树身份不能保真的形态只验了原子拒绝，
+不能写成该形态恢复通过。registry 证据由
 `INSTA_UPDATE=always cargo test -p dr-workspace --test registry --locked` 生成，
 不手改生成证据；原有 Agent 目录快照另外由
 `INSTA_UPDATE=always cargo test -p dr-agent-tools --test catalog --locked` 生成，
@@ -121,7 +124,8 @@ Agent 写入的当前书 guard；Create 成功后重新读取写入所需观察�
 因此悬空；公开 JSON 导入也不允许任意复用旧创建 id。候选已在 staging 后精确校验，
 有变化就拒绝全部恢复，永久契约证明书／多正文／checkpoint 不变且重开一致，但这
 不等同于已支持该数据形态。须 K1／整合者处理固定引擎能力或正式契约，本组不改
-依赖、不放宽作者值断言，`handback/k4-g1` 保持旧已接指针。周期和退出已有 F2/M09 的明确方案，本次沿用，未另造产品：周期最多
+依赖、不放宽作者值断言，`handback/k4-g1` 保持旧已接指针。周期和退出已有 F2/M09
+的明确方案，本次沿用，未另造产品：周期最多
 每 15 分钟一次，关闭时补点，自动点按旧分层保留；显式 before 恢复点不修剪。
 K6 在本次接口正式合入后接首次写入前打点。F6 的库替换若还同时 drain Agent／字段
 写入，需要最后一个写入之后的统一 checkpoint 阶段；本次正常退出的最后扫描已
