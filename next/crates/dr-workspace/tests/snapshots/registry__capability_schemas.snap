@@ -12635,6 +12635,74 @@ expression: json
   },
   {
     "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "at": {
+          "type": "string"
+        },
+        "book": {
+          "type": "string"
+        },
+        "expected": {
+          "description": "Post-write history point whose selected values must still be present.\nIndependent fields may change; selected fields may not be taken over.",
+          "type": "string"
+        },
+        "host": {
+          "type": "string"
+        },
+        "member": {
+          "type": "string"
+        },
+        "membership": {
+          "description": "Restore this membership's stored record only when cancellation changed it.",
+          "type": "boolean"
+        },
+        "primary": {
+          "description": "Restore only the member's primary field, not its other metadata or home.",
+          "type": "boolean"
+        },
+        "views": {
+          "description": "In each named view restore only this member's placement record.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "book",
+        "host",
+        "member",
+        "at",
+        "expected",
+        "membership",
+        "primary",
+        "views"
+      ],
+      "title": "RestoreIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "membership.restore",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Restore the selected effects of a v3 membership cancellation without replacing entries or timeline views."
+  },
+  {
+    "access": "write",
     "concurrency": "book",
     "input": {
       "$defs": {

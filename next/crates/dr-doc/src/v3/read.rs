@@ -15,6 +15,7 @@ use crate::book::fields::{F, kv_entries};
 use crate::book::read::{ForestNode, forest};
 use crate::schema::book_v3;
 use crate::v3::CollectionV3;
+use crate::{DocError, Result};
 
 /// Stored metadata of a v3 [`Entry`] at a history point (`BookReaderV3::load_at`),
 /// for restoring per-entry metadata (`BookTxnV3::restore_entry`).
@@ -165,6 +166,132 @@ pub struct BookViewV3<'a> {
 impl<'a> BookViewV3<'a> {
     pub fn book_id(&self) -> &BookId {
         self.book
+    }
+
+    /// Current applied frontier, including pending operations. Read on the
+    /// holder thread when capturing a command's expected post-write state;
+    /// this does not commit or claim authority over a later read.
+    pub fn state_frontiers(&self) -> loro::Frontiers {
+        self.doc.state_frontiers()
+    }
+
+    /// Whether a membership snapshot can be restored without flattening an
+    /// unknown CRDT container. This is a read-only preflight, not a decoder.
+    pub fn check_membership_snapshot_restore(
+        &self,
+        host: &EntryId,
+        member: &EntryId,
+    ) -> Result<()> {
+        use loro::{Container, ValueOrContainer};
+        let root = self.doc.get_map(book_v3::MEMBERSHIPS);
+        let key = Membership::key(host, member);
+        match root.get(&key) {
+            None => Ok(()),
+            Some(ValueOrContainer::Container(Container::Map(_))) => {
+                check_restorable_field(&root, &key)
+            }
+            // map_snapshot intentionally filters these out. Never use its
+            // absence as proof that a raw key is absent or safe to delete.
+            Some(_) => Err(DocError::NotInProfile(
+                "membership record is not a restorable map",
+            )),
+        }
+    }
+
+    /// CAS state for a selected membership, including its retained map after
+    /// deletion. A peer can edit that map concurrently before receiving the
+    /// cancellation; sync keeps those operations even while its key is absent.
+    pub fn membership_restore_state(
+        &self,
+        host: &EntryId,
+        member: &EntryId,
+    ) -> Result<(bool, Option<LoroValue>)> {
+        self.check_membership_snapshot_restore(host, member)?;
+        retained_record_state(
+            self.doc,
+            &self.doc.get_map(book_v3::MEMBERSHIPS),
+            &Membership::key(host, member),
+        )
+    }
+
+    /// Only the selected primary field is inspected, never other entry data.
+    /// The inverse preserves absence/null/string; future representations must
+    /// be handled explicitly before a cancellation may overwrite them.
+    pub fn check_primary_restore(&self, member: &EntryId) -> Result<()> {
+        use loro::ValueOrContainer;
+        let tree = self.tree(book_v3::ENTRIES);
+        let node = forest(&tree)
+            .into_iter()
+            .find(|n| n.id == member.as_str())
+            .ok_or_else(|| DocError::Missing {
+                collection: book_v3::ENTRIES,
+                id: member.to_string(),
+            })?;
+        for node in node.tree_ids {
+            match tree.get_meta(node)?.get("primary") {
+                None | Some(ValueOrContainer::Value(LoroValue::Null | LoroValue::String(_))) => {}
+                _ => {
+                    return Err(DocError::NotInProfile(
+                        "primary uses an unsupported representation",
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Inspect just this member's placement. Other positions, pins, hidden
+    /// entries and future view fields do not constrain a scoped cancellation.
+    pub fn check_timeline_placement_restore(
+        &self,
+        view: &TimelineViewId,
+        member: &EntryId,
+    ) -> Result<()> {
+        use loro::{Container, ContainerID, ContainerTrait, ContainerType, ValueOrContainer};
+        self.check_timeline_placement_write(view)?;
+        let Some(ValueOrContainer::Container(Container::Map(record))) =
+            self.doc.get_map(book_v3::TIMELINE_VIEWS).get(view.as_str())
+        else {
+            unreachable!("preflighted view")
+        };
+        let Some(ValueOrContainer::Container(Container::Map(placements))) =
+            record.get("placements")
+        else {
+            return Err(DocError::NotInProfile(
+                "selected placements parent is absent",
+            ));
+        };
+        if placements.id()
+            != ContainerID::new_mergeable(&record.id(), "placements", ContainerType::Map)
+        {
+            return Err(DocError::NotInProfile(
+                "selected placements parent is not mergeable",
+            ));
+        }
+        check_restorable_field(&placements, member.as_str())
+    }
+
+    /// CAS state for just this placement's live/retained record. The selected
+    /// parent path must keep its known identity; never resurrect a replaced
+    /// parent map and with it other entries that the inverse did not select.
+    pub fn timeline_placement_restore_state(
+        &self,
+        view: &TimelineViewId,
+        member: &EntryId,
+    ) -> Result<(bool, Option<LoroValue>)> {
+        use loro::{Container, ValueOrContainer};
+        self.check_timeline_placement_restore(view, member)?;
+        let Some(ValueOrContainer::Container(Container::Map(record))) =
+            self.doc.get_map(book_v3::TIMELINE_VIEWS).get(view.as_str())
+        else {
+            unreachable!("preflighted view")
+        };
+        let Some(ValueOrContainer::Container(Container::Map(placements))) =
+            record.get("placements")
+        else {
+            unreachable!("preflighted placements")
+        };
+        retained_record_state(self.doc, &placements, member.as_str())
     }
 
     /// Capture one consistent deep value under Loro's state lock, then resolve
@@ -818,6 +945,54 @@ impl<'a> BookViewV3<'a> {
 
     pub fn timeline_view(&self, id: &TimelineViewId) -> Option<TimelineView> {
         self.timeline_views().into_iter().find(|v| &v.id == id)
+    }
+
+    /// One stored placement, including unknown fields and values hidden by
+    /// the effective view. Used by field-scoped history, never a view replacement.
+    pub fn timeline_placement_snapshot(
+        &self,
+        view: &TimelineViewId,
+        entry: &EntryId,
+    ) -> Result<Option<LoroValue>> {
+        let value = entity(self.doc, book_v3::TIMELINE_VIEWS, view.as_str()).ok_or_else(|| {
+            DocError::Missing {
+                collection: book_v3::TIMELINE_VIEWS,
+                id: view.to_string(),
+            }
+        })?;
+        let LoroValue::Map(record) = value else {
+            return Err(DocError::NotInProfile("timeline view is not a map"));
+        };
+        match record.get("placements") {
+            None => Ok(None),
+            Some(LoroValue::Map(placements)) => Ok(placements.get(entry.as_str()).cloned()),
+            _ => Err(DocError::NotInProfile("timeline placements are not a map")),
+        }
+    }
+
+    /// Preflight a placement write without creating a missing container.
+    /// Call for all affected views before changing a membership or primary.
+    pub fn check_timeline_placement_write(&self, view: &TimelineViewId) -> Result<()> {
+        use loro::{Container, ContainerID, ContainerTrait, ContainerType, ValueOrContainer};
+        let root = self.doc.get_map(book_v3::TIMELINE_VIEWS);
+        let expected = ContainerID::new_mergeable(&root.id(), view.as_str(), ContainerType::Map);
+        let Some(ValueOrContainer::Container(Container::Map(record))) = root.get(view.as_str())
+        else {
+            return Err(DocError::NotInProfile(
+                "timeline view is not a writable map",
+            ));
+        };
+        if record.id() != expected {
+            return Err(DocError::NotInProfile(
+                "timeline view is not a mergeable map",
+            ));
+        }
+        match record.get("placements") {
+            None | Some(ValueOrContainer::Container(Container::Map(_))) => Ok(()),
+            _ => Err(DocError::NotInProfile(
+                "timeline placements are not a writable map",
+            )),
+        }
     }
 
     // ---- patches and plot grids ------------------------------------------
@@ -1522,4 +1697,52 @@ impl<'a> BookViewV3<'a> {
         }
         plan
     }
+}
+
+// Deep values omit container type, rich-text attributes and list identities.
+// The selected-record inverse supports mergeable maps and atomic leaf values
+// only; reject every unsupported actual representation before removing data.
+fn check_restorable_field(parent: &LoroMap, key: &str) -> Result<()> {
+    use loro::{Container, ContainerID, ContainerTrait, ContainerType, ValueOrContainer};
+    match parent.get(key) {
+        None => Ok(()),
+        Some(ValueOrContainer::Value(LoroValue::Map(_))) => {
+            Err(DocError::NotInProfile("snapshot contains an atomic map"))
+        }
+        Some(ValueOrContainer::Value(_)) => Ok(()),
+        Some(ValueOrContainer::Container(Container::Map(map))) => {
+            if map.id() != ContainerID::new_mergeable(&parent.id(), key, ContainerType::Map) {
+                return Err(DocError::NotInProfile(
+                    "snapshot contains a non-mergeable map",
+                ));
+            }
+            for key in map.keys() {
+                check_restorable_field(&map, key.as_str())?;
+            }
+            Ok(())
+        }
+        Some(ValueOrContainer::Container(_)) => Err(DocError::NotInProfile(
+            "snapshot contains an unsupported CRDT container",
+        )),
+    }
+}
+
+fn retained_record_state(
+    doc: &LoroDoc,
+    parent: &LoroMap,
+    key: &str,
+) -> Result<(bool, Option<LoroValue>)> {
+    use loro::{Container, ContainerID, ContainerTrait, ContainerType};
+    let id = ContainerID::new_mergeable(&parent.id(), key, ContainerType::Map);
+    let retained = match doc.get_container(id) {
+        Some(Container::Map(map)) => {
+            for key in map.keys() {
+                check_restorable_field(&map, key.as_str())?;
+            }
+            Some(map.get_deep_value())
+        }
+        None => None,
+        Some(_) => unreachable!("map container id"),
+    };
+    Ok((parent.get(key).is_some(), retained))
 }
