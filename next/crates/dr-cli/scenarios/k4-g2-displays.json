@@ -227,21 +227,8 @@
       "params": {
         "label": "Synthetic board B"
       },
-      "expect": {
-        "/nodes/0/center/0": {
-          "$sum": [
-            "${boardANode.nodes.0.center.0}",
-            40
-          ]
-        },
-        "/nodes/0/center/1": {
-          "$sum": [
-            "${boardANode.nodes.0.center.1}",
-            80
-          ]
-        }
-      },
-      "note": "真窗口坐标逐项对上 layout.board，两个同宽卡片的相对位置为 (40,80)"
+      "note": "保存真窗口 AX 坐标；check-v3-displays.py 断言两张卡片的相对位置为 (40,80)，对应 layout.board",
+      "save": "boardBNode"
     },
     {
       "app": "ui.screenshot",
