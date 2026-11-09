@@ -25,7 +25,7 @@ pub fn fresh_id(_: &str) -> String {
 }
 
 impl Timeline {
-    fn write(
+    pub(super) fn write(
         &mut self,
         cx: &mut Context<Self>,
         f: impl FnOnce(Library, String) -> Result<(), WsError> + Send + 'static,
@@ -56,6 +56,7 @@ impl Timeline {
             if let Ok(Err(e)) = rx.await {
                 log::warn!("v3 timeline write failed: {e}");
                 this.update(cx, |timeline, cx| {
+                    timeline.pending.clear();
                     let text = t(cx, keys::common::SAVE_FAILED);
                     timeline.ws.update(cx, |ws, cx| ws.toast(text, cx)).ok();
                     cx.notify();

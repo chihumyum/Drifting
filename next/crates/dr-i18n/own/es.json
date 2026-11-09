@@ -119,6 +119,15 @@
     "removeLane": "Quitar de la vista",
     "moveUp": "Subir",
     "moveDown": "Bajar",
-    "members": "{{count}} miembros"
+    "members": "{{count}} miembros",
+    "placeEntry": "Colocar entrada",
+    "removeEntry": "Quitar del carril",
+    "placementActions": "Acciones de colocación",
+    "resize": "Ajustar longitud",
+    "ruler": "Regla de tiempo",
+    "renamePin": "Renombrar marcador de tiempo",
+    "bindEntry": "Vincular entrada",
+    "detachEntry": "Desvincular entrada",
+    "colorValue": "Valor del color"
   }
 }

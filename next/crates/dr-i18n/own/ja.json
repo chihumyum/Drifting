@@ -113,6 +113,15 @@
     "removeLane": "ビューから外す",
     "moveUp": "上へ移動",
     "moveDown": "下へ移動",
-    "members": "メンバー {{count}} 件"
+    "members": "メンバー {{count}} 件",
+    "placeEntry": "項目を配置",
+    "removeEntry": "レーンから外す",
+    "placementActions": "配置の操作",
+    "resize": "長さを調整",
+    "ruler": "時間の目盛り",
+    "renamePin": "時間ピンの名前を変更",
+    "bindEntry": "項目を関連付け",
+    "detachEntry": "項目の関連付けを解除",
+    "colorValue": "色の値"
   }
 }

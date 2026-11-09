@@ -1,7 +1,9 @@
 //! V3 bottom panel. V2.2 continues to use `BottomTimeline` unchanged.
+mod interaction;
 pub mod model;
 mod render;
 mod write;
+pub use interaction::{EntryDrag, PinEdit};
 
 use dr_i18n::keys;
 use dr_shell::{
@@ -20,14 +22,24 @@ use std::{cell::Cell, rc::Rc};
 enum MenuOf {
     Views,
     Lanes,
+    PickLane,
+    Entries(String),
+    Clip { entry: String, lane: String },
+    Pin(String),
+    Bind(String),
 }
 struct Popup {
     of: MenuOf,
     at: Point<Pixels>,
 }
+enum EditKind {
+    View { new: bool },
+    PinLabel,
+    PinColor,
+}
 struct Editing {
     id: String,
-    new: bool,
+    kind: EditKind,
     field: Entity<TextField>,
     _sub: Subscription,
 }
@@ -44,6 +56,7 @@ pub struct Timeline {
     editing: Option<Editing>,
     bounds: Rc<Cell<Option<Bounds<Pixels>>>>,
     writer: Option<futures::channel::mpsc::UnboundedSender<write::Job>>,
+    pending: std::collections::BTreeMap<String, interaction::Pending>,
 }
 
 pub fn init(cx: &mut App) {
@@ -76,6 +89,7 @@ impl Timeline {
             editing: None,
             bounds: Rc::default(),
             writer: None,
+            pending: Default::default(),
         }
     }
     pub fn refresh(&mut self, host: &BottomHost, cx: &mut Context<Self>) {
@@ -86,6 +100,21 @@ impl Timeline {
             self.popup = None;
         }
         self.book = host.book.clone();
+        self.pending.retain(|entry, p| {
+            !self.book.v3().is_some_and(|b| {
+                b.timeline_views
+                    .iter()
+                    .find(|v| v.id == p.view)
+                    .is_some_and(|v| {
+                        v.placements.iter().any(|x| x == &p.place)
+                            && p.lane.as_ref().is_none_or(|lane| {
+                                b.memberships
+                                    .iter()
+                                    .any(|m| &m.host == lane && &m.member == entry)
+                            })
+                    })
+            })
+        });
         // The shell may itself be borrowed while delivering on_refresh.
         cx.spawn(async move |this, cx| {
             this.update(cx, |this, cx| this.read_memory(cx)).ok();
@@ -120,7 +149,22 @@ impl Timeline {
     }
     pub fn lanes(&self) -> Vec<model::Lane> {
         match (self.book.v3(), self.view()) {
-            (Some(b), Some(v)) => model::lanes(b, v),
+            (Some(b), Some(v)) => {
+                let mut lanes = model::lanes(b, v);
+                for (entry, p) in self.pending.iter().filter(|(_, p)| p.view == v.id) {
+                    for lane in &mut lanes {
+                        lane.clips.retain(|c| &c.entry != entry);
+                        if p.lane.as_deref() == Some(&lane.id)
+                            || b.memberships
+                                .iter()
+                                .any(|m| m.host == lane.id && &m.member == entry)
+                        {
+                            lane.clips.push(p.place.clone());
+                        }
+                    }
+                }
+                lanes
+            }
             _ => Vec::new(),
         }
     }
@@ -171,6 +215,17 @@ impl Timeline {
             let Some(v) = self.view() else { return };
             (v.id.clone(), v.name.clone())
         };
+        self.start_edit(id, EditKind::View { new }, text, window, cx);
+    }
+    fn start_edit(
+        &mut self,
+        id: String,
+        kind: EditKind,
+        text: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.popup = None;
         let field = cx.new(|cx| {
             TextField::new("v3-timeline-name", window, cx)
                 .small()
@@ -182,10 +237,21 @@ impl Timeline {
                 if let Some(edit) = t.editing.take()
                     && !name.is_empty()
                 {
-                    if edit.new {
-                        t.create_view(edit.id, name, cx);
-                    } else {
-                        t.edit_view(edit.id, write::ViewEdit::Rename(name), cx);
+                    match edit.kind {
+                        EditKind::PinLabel => t.edit_pin(edit.id, PinEdit::Label(name), cx),
+                        EditKind::PinColor => {
+                            if let Some(color) = dr_ui::components::color::parse_hex(&name) {
+                                t.edit_pin(
+                                    edit.id,
+                                    PinEdit::Color(Some(dr_ui::components::color::hex(color))),
+                                    cx,
+                                );
+                            }
+                        }
+                        EditKind::View { new: true } => t.create_view(edit.id, name, cx),
+                        EditKind::View { new: false } => {
+                            t.edit_view(edit.id, write::ViewEdit::Rename(name), cx)
+                        }
                     }
                 }
                 cx.notify();
@@ -200,7 +266,7 @@ impl Timeline {
         field.focus_handle(cx).focus(window, cx);
         self.editing = Some(Editing {
             id,
-            new,
+            kind,
             field,
             _sub: sub,
         });

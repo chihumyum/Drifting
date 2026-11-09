@@ -1792,13 +1792,22 @@
   },
   "v3Timeline": {
     "addLane": "Spur hinzufügen",
+    "bindEntry": "Eintrag verknüpfen",
+    "colorValue": "Farbwert",
     "deleteView": "Ansicht löschen",
+    "detachEntry": "Eintrag lösen",
     "members": "{{count}} Mitglieder",
     "moveDown": "Nach unten",
     "moveUp": "Nach oben",
     "newView": "Neue Ansicht",
+    "placeEntry": "Eintrag platzieren",
+    "placementActions": "Platzierungsaktionen",
+    "removeEntry": "Aus Spur entfernen",
     "removeLane": "Aus Ansicht entfernen",
+    "renamePin": "Zeitmarkierung umbenennen",
     "renameView": "Ansicht umbenennen",
+    "resize": "Länge anpassen",
+    "ruler": "Zeitlineal",
     "views": "Zeitleistenansichten"
   },
   "voiceAgent": {

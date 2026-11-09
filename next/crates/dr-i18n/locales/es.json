@@ -1800,13 +1800,22 @@
   },
   "v3Timeline": {
     "addLane": "Añadir carril",
+    "bindEntry": "Vincular entrada",
+    "colorValue": "Valor del color",
     "deleteView": "Eliminar vista",
+    "detachEntry": "Desvincular entrada",
     "members": "{{count}} miembros",
     "moveDown": "Bajar",
     "moveUp": "Subir",
     "newView": "Nueva vista",
+    "placeEntry": "Colocar entrada",
+    "placementActions": "Acciones de colocación",
+    "removeEntry": "Quitar del carril",
     "removeLane": "Quitar de la vista",
+    "renamePin": "Renombrar marcador de tiempo",
     "renameView": "Renombrar vista",
+    "resize": "Ajustar longitud",
+    "ruler": "Regla de tiempo",
     "views": "Vistas de cronología"
   },
   "voiceAgent": {

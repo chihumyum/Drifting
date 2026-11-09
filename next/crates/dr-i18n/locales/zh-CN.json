@@ -1780,13 +1780,22 @@
   },
   "v3Timeline": {
     "addLane": "添加泳道",
+    "bindEntry": "挂条目",
+    "colorValue": "颜色值",
     "deleteView": "删除视图",
+    "detachEntry": "解除条目",
     "members": "{{count}} 个成员",
     "moveDown": "下移",
     "moveUp": "上移",
     "newView": "新建视图",
+    "placeEntry": "放入条目",
+    "placementActions": "摆放操作",
+    "removeEntry": "移出泳道",
     "removeLane": "移出视图",
+    "renamePin": "重命名时间钉",
     "renameView": "重命名视图",
+    "resize": "调整长度",
+    "ruler": "时间标尺",
     "views": "时间线视图"
   },
   "voiceAgent": {

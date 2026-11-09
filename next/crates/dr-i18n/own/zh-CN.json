@@ -113,6 +113,15 @@
     "removeLane": "移出视图",
     "moveUp": "上移",
     "moveDown": "下移",
-    "members": "{{count}} 个成员"
+    "members": "{{count}} 个成员",
+    "placeEntry": "放入条目",
+    "removeEntry": "移出泳道",
+    "placementActions": "摆放操作",
+    "resize": "调整长度",
+    "ruler": "时间标尺",
+    "renamePin": "重命名时间钉",
+    "bindEntry": "挂条目",
+    "detachEntry": "解除条目",
+    "colorValue": "颜色值"
   }
 }

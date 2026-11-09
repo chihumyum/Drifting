@@ -1800,13 +1800,22 @@
   },
   "v3Timeline": {
     "addLane": "Ajouter une piste",
+    "bindEntry": "Associer une entrée",
+    "colorValue": "Valeur de couleur",
     "deleteView": "Supprimer la vue",
+    "detachEntry": "Dissocier l’entrée",
     "members": "{{count}} membres",
     "moveDown": "Descendre",
     "moveUp": "Monter",
     "newView": "Nouvelle vue",
+    "placeEntry": "Placer une entrée",
+    "placementActions": "Actions de placement",
+    "removeEntry": "Retirer de la piste",
     "removeLane": "Retirer de la vue",
+    "renamePin": "Renommer le repère temporel",
     "renameView": "Renommer la vue",
+    "resize": "Ajuster la longueur",
+    "ruler": "Règle temporelle",
     "views": "Vues chronologiques"
   },
   "voiceAgent": {
