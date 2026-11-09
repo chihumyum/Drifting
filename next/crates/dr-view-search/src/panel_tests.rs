@@ -51,12 +51,27 @@ fn unchanged_refresh_preserves_scroll_and_ambiguous_hits_require_reselection(
         let Some(Line::Hit(g, r)) = selected else {
             unreachable!()
         };
-        let mut ambiguous = groups;
+        let mut ambiguous = groups.clone();
         let duplicate = ambiguous[g].rows[r].clone();
         ambiguous[g].rows.push(duplicate);
         p.set_v3_results(ambiguous, true, cx);
         assert_eq!(p.selected(), None, "do not guess between identical hits");
         p.step(1, cx);
         assert_eq!(p.selected(), Some(Line::Hit(0, 0)));
+        p.set_v3_results(Vec::new(), true, cx);
+        p.set_v3_results(groups.clone(), true, cx);
+        assert_eq!(
+            p.selected(),
+            None,
+            "a later reappearance is not the first result of this query"
+        );
+        p.set_query("", cx);
+        p.set_query("灯", cx);
+        p.set_v3_results(groups, true, cx);
+        assert_eq!(
+            p.selected(),
+            Some(Line::Hit(0, 0)),
+            "a new query can select its first result again"
+        );
     });
 }

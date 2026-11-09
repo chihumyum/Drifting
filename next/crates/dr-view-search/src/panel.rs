@@ -102,6 +102,9 @@ pub struct SearchPanel {
 struct V3State {
     /// The query that produced the displayed groups, not a pending query.
     query: String,
+    /// First arrival selects a default; losing all prior hits must not make
+    /// a later background result look like a first arrival again.
+    had_results: bool,
     groups: Rc<Vec<crate::v3::Group>>,
     marks: crate::v3::Marks,
     _subscription: Option<dr_workspace::Subscription>,
@@ -241,6 +244,7 @@ impl SearchPanel {
         });
         panel.v3 = Some(V3State {
             query: String::new(),
+            had_results: false,
             groups: Rc::default(),
             marks,
             _subscription: subscription,
@@ -377,7 +381,7 @@ impl SearchPanel {
             }
             _ => None,
         });
-        let first_results = !same_query || state.groups.is_empty();
+        let first_results = !same_query || !state.had_results;
         self.hits = groups.iter().map(|g| g.rows.len()).sum();
         let mut lines = Vec::new();
         for (g, group) in groups.iter().enumerate() {
@@ -415,6 +419,7 @@ impl SearchPanel {
                 ],
             ))
         });
+        state.had_results = (same_query && state.had_results) || !groups.is_empty();
         state.groups = Rc::new(groups);
         state.query = self.query.clone();
         self.searched = searched;
