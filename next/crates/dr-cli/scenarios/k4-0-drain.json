@@ -222,9 +222,6 @@
       }
     },
     {
-      "app": "app.quit"
-    },
-    {
       "call": "entry_snapshot.preview",
       "input": {
         "book": "${books.0.id}",
@@ -234,6 +231,9 @@
       "contains": {
         "/bodies/[doc=body:${entries.[template=tpl-chapter].id}~1mod-prose]/text": "F6 close ${before.paragraphs.0.text}"
       }
+    },
+    {
+      "app": "app.quit"
     }
   ]
 }
