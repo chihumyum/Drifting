@@ -87,6 +87,11 @@ pub enum BookFileError {
     Store(#[from] dr_store::StoreError),
     #[error(transparent)]
     Io(#[from] std::io::Error),
+    #[error("{import}; incomplete import cleanup failed: {cleanup}")]
+    Rollback {
+        import: Box<BookFileError>,
+        cleanup: dr_store::StoreError,
+    },
 }
 
 pub type Result<T, E = BookFileError> = std::result::Result<T, E>;
@@ -907,15 +912,19 @@ struct Written {
 }
 
 impl Written {
-    fn undo(&self, lib: &dr_store::Library) {
+    fn undo(&self, lib: &dr_store::Library) -> dr_store::Result<()> {
+        let mut error = None;
         for id in self.docs.iter().rev() {
-            if lib.purge_doc(id).is_ok() {
-                let _ = lib.forget_purged(id);
+            if let Err(e) = lib.purge_doc(id).and_then(|()| lib.forget_purged(id)) {
+                error.get_or_insert(e);
             }
         }
         for a in &self.assets {
-            let _ = lib.remove_asset(a);
+            if let Err(e) = lib.remove_asset(a) {
+                error.get_or_insert(e);
+            }
         }
+        error.map_or(Ok(()), Err)
     }
 }
 
@@ -998,9 +1007,14 @@ pub fn import_book(
                 },
             )?;
             written.docs.push(new_id.clone());
-            h.import(update, dr_store::Origin::Import)?;
-            h.compact_now()?;
+            // Ordinary handle drop only queues Close. Even on an import or
+            // compaction error, wait for this holder to finish and release its
+            // slot before rollback tries to purge its document.
+            let imported = h
+                .import(update, dr_store::Origin::Import)
+                .and_then(|_| h.compact_now());
             h.close();
+            imported?;
             // The stored document is exactly the rewritten one: its genesis
             // and this build's were one and the same change.
             let stored = lib.load_copy(&new_id)?;
@@ -1016,7 +1030,12 @@ pub fn import_book(
         Ok(())
     })();
     if let Err(e) = result {
-        written.undo(lib);
+        if let Err(cleanup) = written.undo(lib) {
+            return Err(BookFileError::Rollback {
+                import: Box::new(e),
+                cleanup,
+            });
+        }
         return Err(e);
     }
     let bytes = std::fs::metadata(path).map_or(0, |m| m.len());
