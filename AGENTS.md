@@ -162,11 +162,12 @@ Guidance for coding agents working in this standalone Drifting client repository
   own navigation and top/bottom-bar behavior.
 - Avoid inset-left vertical accent bars; use wash, spacing, or typography.
 - Dropdowns and popovers portal to `body` with `position: fixed`.
-- The outline is act / chapter / H1 / H2 / H3. Acts and chapters are the
-  book's structure; H1, H2 and H3 are three heading levels whose meaning the
-  author decides. Call them H1/H2/H3 only: never scene, beat, note or any other
-  fixed role, in UI copy, Agent prompts, export or docs, and treat the three
-  levels alike.
+- In `next/` v3, the default outline is manuscript / chapter / H1 / H2 / H3.
+  Acts are not built in; authors name any additional levels they create.
+  H1, H2 and H3 are three heading levels whose meaning the author decides.
+  Call them H1/H2/H3 only: never scene, beat, note or any other fixed role,
+  in UI copy, Agent prompts, export or docs, and treat the three levels alike.
+  Existing v2.2 and 0.1 behavior stays unchanged until their planned switch-over.
 
 ## Checks
 

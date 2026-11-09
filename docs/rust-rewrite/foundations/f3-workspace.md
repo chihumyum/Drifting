@@ -863,12 +863,13 @@ next/crates/dr-workspace/src/
   commands/        book（含书架、彻底删除）chapter storyline element relation idea comment（含锚点和 TODO 投影）
                    material prose history points（M09 快照历史）recent（最近打开）time_pin stats（M07）
                    plot_grid patch template（第五轮）
+                   v3/（通用条目、模板、模块、归属、时间线、对象历史）
 next/crates/dr-workspace/tests/
   （第八轮的新测试在 commands.rs、autolink.rs 里）
   commands.rs registry.rs events.rs shell.rs editor.rs shelf.rs points.rs autolink.rs workshop.rs write_order.rs undo.rs
-  invariants.rs footprint.rs
-next/crates/dr-view-history/       M09 的对话框（见 modules/m09-history.md）
+  invariants.rs footprint.rs kernel_v3.rs
   snapshots/       能力清单快照（registry__capabilities.snap、registry__capability_schemas.snap）
+next/crates/dr-view-history/       M09 的对话框（见 modules/m09-history.md）
 docs/rust-rewrite/acceptance/f3-m2-workspace-bench.json
 ```
 
@@ -895,3 +896,9 @@ docs/rust-rewrite/acceptance/f3-m2-workspace-bench.json
 层级覆盖中 `default_template`／`home` 缺键表示继承，显式 `null` 清空，空 `allow` 不限制。模板正文初值只在新建时复制；模块定义改名／删除／换模板不删条目已有正文和字段。`module.list` 同时列出当前定义和有持久数据的旧模块；查询按 id 定位，同名模块不混用。
 
 本批边界、检查及帮手排除的作者授权见 [F1 第 5 步交回](f1-model-doc.md)。界面和帮手的后续接回不包含在这 44 个注册项的完成结论里。
+
+### K1+K2 第 6 步：版本与消费边界
+
+持久结构见 [Loro schema 的 v3 书目](../loro-schema.md#书目文档-v3通用条目内核)及 [v2.2 → v3](../loro-schema.md#版本)。只有书目切换到 `meta.v = 3`，正文、对话和来源／日志机制仍共用。`entry_history.restore` 用书目 frontier 恢复选定记录，正文 frontier 交给 `prose.restore`，不把两个版本混用。
+
+注册表已有版本边界，旧 136 个命令的 schema 不变。帮手在 K6 前仍明确排除全部 44 个 v3 注册项；完整影响读取、继承来源和模板动作目录仍按 K6 实施。指定正文模块的行内链接，以及模块导出／Markdown 的未定约定，见 [F1 第 6 步待协调](f1-model-doc.md)，不由命令层补出另一套产品方案。默认大纲与作者命名层级遵循更新后的根目录 `AGENTS.md`。

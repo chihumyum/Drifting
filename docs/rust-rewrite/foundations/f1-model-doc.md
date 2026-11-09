@@ -347,12 +347,12 @@ cargo run --release -p dr-testkit --bin bench -- doc
 ```text
 next/crates/dr-model/src/
   id.rs kind.rs book.rs prose.rs order.rs origin.rs time.rs check.rs invariant.rs conversation.rs
-  v3/   mod.rs template.rs entry.rs module.rs timeline.rs check.rs tests.rs
+  v3.rs   条目、层级／叶子模板、六类模块、归属、时间线、有效读取与不变量测试
 next/crates/dr-doc/src/
   schema.rs peer.rs pos.rs core.rs anchor.rs undo.rs error.rs
   prose/  mod.rs view.rs txn.rs attrs.rs embed.rs event.rs tests.rs
   book/   mod.rs read.rs write.rs seed.rs fields.rs tests.rs
-  v3/     mod.rs schema.rs read.rs write.rs novel_template.rs tests.rs
+  v3/     mod.rs read.rs write.rs novel.rs tests.rs（根键与版本常量在共用 schema.rs）
   conversation.rs conversation/tests.rs（M27 加）
 next/crates/dr-doc/tests/
   prose_convergence.rs book_convergence.rs prose_events.rs book_seeds.rs conversation_convergence.rs positions.rs invariant_tests_exist.rs
@@ -471,3 +471,30 @@ docs/rust-rewrite/acceptance/f1-m3-doc-bench.json   第三轮的测量证据
 - 提交：`1b57ef7a` 通用命令及注册快照；`d8ff1284` 同步 main 的第 39 批接收记录；`0eea23f7` 补全命令调用与逆操作覆盖；`233219f4` 合入 main 第 40 批（`16f062d7`）。分支仍为 `codex/k1-v3`，交回指针在本节记录提交后更新；没有自行合入 main 或推送。
 - K6：版本标记、模板／模块读取、默认正文初始化及新建住处／归属接口已具备；逐项继承来源解释、带隐藏关系的完整影响读取、K6 的读取覆盖／CAS facade、模板动作目录仍照 K6 文档后续实施，本批不开放工具。
 - K4：v3 查询直接读当前 reader；旧 UI 的分类缓存／事件订阅仍只认识 v2.2，不把此次命令可用当作界面已接回。
+
+## 交回准备（K1+K2 第 6 步：结构文档与大纲规则，2026-11-09）
+
+### 当前接口与文档
+
+- `loro-schema.md` 新增 v3 书目一节与「v2.2 → v3」，区分书目版本 3 和共用正文／对话版本 2；写清全库文档 id、条目树／模块／归属／时间线容器、实际文档清单删除、旧数据并存、按对象恢复及尚未接回的消费方。未改 SQLite 迁移、v2.2 行为或样式表。
+- `AGENTS.md` 的大纲规则按方案改为 `next/` v3 默认书稿／章／H1／H2／H3；幕不内置，附加层级由作者命名，H1/H2/H3 的规矩不变。F3 补版本与 schema 入口；本节及文档 id 修复交回取代早期交回中固定根 id、未带书 id 的模板正文和旧接口路径描述，历史记录保留。
+
+| 当前 API | 用法 |
+| --- | --- |
+| `dr_model::v3` | 实现在 `src/v3.rs`；通用类型、层级继承、有效读取和不变量 |
+| `BookDocV3`／`BookReaderV3`／`BorrowedBookV3` | 自持、只读、借用已有 LoroDoc；`BookViewV3` 查询、`BookTxnV3` 写入 |
+| `apply_novel_project_template` | 返回新生成的 `NovelRootEntries`；确定性种子用 `apply_novel_project_template_with` 传入本书的 id |
+| `root_entry_by_template`／`find_novel_roots` | 读取实际条目树的模板身份；不能调用构造函数猜已存在的根 id |
+| `TemplateId::for_entry_module(book, template, module)` | 生成 `<书>/<模板>/<模块>`，再包为 `DocId::Template`；正文所有权按书隔离 |
+| `entry_snapshot`／`map_snapshot`、`restore_entry_with_parent`／`restore_map_snapshot` | 历史副本读取选定记录，恢复为新提交；正文用自己的 frontier |
+
+### 待协调（不自行扩大方案）
+
+1. **指定正文模块的行内链接**：方案要求 `entity:<目标>` 的值可带 `module`，当前共用 `dr_model::prose::EntityLink` 仍只有 target／kind／block／end_block。此次通用自动链接只到条目，未声称能定位指定正文模块。K1 与 K4 需协调编辑器、正文编解码及索引消费者后补齐；不在本批越界改消费方或改变 v2.2 标记行为。
+2. **六种模块的下游契约**：方案规定六个维度，但导出及 Markdown 的逐模块表现仍缺完整约定。当前已落地存储、命令读写、独立正文与按对象撤销；模板正文排除搜索／字数等已有规则照旧。各类字段、键值、补丁、格子、关联的导出／Markdown 具体表示，及成书搜索／统计口径，留 K4／K6 与作者确认，不擅自发明格式或将未接回的消费者记成完成。
+3. **早期 v3 开发库**：固定根 id 或无书前缀的模板正文如已造成多书共用，本次不能推回丢失的归属。没有静默修复或重置路径；需要时从保存的来源审计／重新导入。本批全部验证使用临时合成库，没有修改作者日用库。
+4. **后续轨道**：K4 接界面、搜索统计、导出与 Markdown；K6 补继承来源、完整影响读取与 CAS 覆盖后，再将 `catalog.rs` 的 v3 排除规则替换为正式开放。第 5 步的注册项完成不代表这两条轨道已完成。
+
+### 检查
+
+- 待本批文档检查及全套工作区检查完成后填写；本批只改 `AGENTS.md`、`loro-schema.md`、F1、F3。
