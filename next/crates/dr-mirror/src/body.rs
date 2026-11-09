@@ -525,7 +525,7 @@ fn inline(chars: &[char], marks: &[Marks]) -> String {
         if let Some(href) = &m.link {
             value = format!("[{value}]({})", escape_destination(href));
             // `!` right before it would make it an image.
-            if out.ends_with('!') && !out.ends_with("\\!") {
+            if out.ends_with('!') {
                 out.pop();
                 out.push_str("\\!");
             }

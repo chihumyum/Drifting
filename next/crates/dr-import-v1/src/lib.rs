@@ -33,6 +33,7 @@ pub mod schema;
 pub mod staging;
 pub mod tables;
 pub mod time;
+pub mod v3;
 /// Checking an import against the 0.1 ground truth (the measurements and
 /// the dev tool). Not part of the import API.
 #[doc(hidden)]

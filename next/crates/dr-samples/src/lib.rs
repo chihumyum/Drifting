@@ -41,6 +41,7 @@ pub mod build;
 mod built_in;
 pub mod layout;
 mod store;
+pub mod v3;
 
 /// The random number generator and the paragraph model, in `dr-corpus`
 /// (no store) so dr-store's tests can use them too.

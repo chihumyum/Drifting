@@ -12,6 +12,7 @@ dr-doc.workspace = true
 # Search, outlines and word counts built right after the import.
 dr-index.workspace = true
 dr-model.workspace = true
+dr-samples.workspace = true
 dr-store.workspace = true
 log.workspace = true
 loro.workspace = true
