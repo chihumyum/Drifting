@@ -490,6 +490,18 @@ impl<'a> ProseView<'a> {
     ///
     /// [`EmbedView::Table`]: super::embed::EmbedView::Table
     pub fn table_cell(&self, table: &EmbedId, row: &str, col: &str) -> Option<Vec<Run>> {
+        Some(runs_of(
+            self.table_cell_text(table, row, col)?.to_delta(),
+            self.profile,
+        ))
+    }
+
+    pub(crate) fn table_cell_text(
+        &self,
+        table: &EmbedId,
+        row: &str,
+        col: &str,
+    ) -> Option<LoroText> {
         let sub = |m: &LoroMap, k: &str| match m.get(k)? {
             ValueOrContainer::Container(loro::Container::Map(m)) => Some(m),
             _ => None,
@@ -499,7 +511,7 @@ impl<'a> ProseView<'a> {
         let ValueOrContainer::Container(loro::Container::Text(t)) = cells.get(col)? else {
             return None;
         };
-        Some(runs_of(t.to_delta(), self.profile))
+        Some(t)
     }
 
     /// Embed entries no placeholder points at (kept so Undo can bring a

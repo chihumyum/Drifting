@@ -1112,3 +1112,33 @@ LoroText（含 bold）／MovableList 的归属与位置四种组合验证无损�
 双 Loro peer 的真实同步验证暂时不可见记录中的普通字段／富文本新写入不被 undo 抹掉，
 原始 placements 父容器被替换但 deep JSON 相同的重做也拒绝。原误删、整份撤销覆盖、同字段接管和容器降级均先复现失败，
 再验证修复；本批不包含 M14 的改名或泳道编辑新功能，也未做真窗口或性能验收。
+
+## K2 v3 正文链接接口（2026-11-10，G1 待协调 2）
+
+正文仍使用共用的 Loro 格式；由所属书决定调用哪套语义。旧
+`dr_model::prose::EntityLink`／`ProseTxn::link_entity`／旧读取器不改。
+新增 `dr_model::v3::EntityLinkV3`，保留 target、kind、block、end_block，另有可选
+`module: ModuleId`。新写入只接受 entry／material；素材不带 module。条目 id 与
+模块 id 分开存储，键仍为 `entity:<target>`，不会把模块或 URL 偷塞进目标 id。
+这里只检查链接表示是否合法，不据此授予跨书访问或保证目标存在；导航消费者仍按书解析目标。
+
+| 接口 | 用法 |
+| --- | --- |
+| `ProseTxn::link_entity_v3` | 先验证所有受影响段，再写正文链接；跳过段落换行，仅替换该目标的已知字段，保留每段不同的未知字段 |
+| `ProseView::entity_links_v3` | 一份 delta 中读取链接；相邻同目标但 module／block 范围不同的链接分别返回，样式切段不拆散相同目标；未知或损坏链接不作导航目标 |
+| `link_table_cell_entity_v3`／`table_cell_entity_links_v3` | 对应的表格单元格读写；缺失格子不因失败写入而被创建 |
+| `dr_doc::prose::v3::{decode_entity_link, encode_entity_link}` | Loro 值编解码；编辑已有标记时将原始值传给 encoder，保留未知字段；只保存领域类型不足以保留未知字段 |
+| `copy_entity_links_v3`／`copy_table_cell_entity_links_v3` | 取得拥有自身数据的 `EntityLinkMarksV3`，偏移为相对 Unicode scalar；保留原始值，包括当前版本不认识的字段或 kind |
+| `apply_entity_links_v3`／`apply_table_cell_entity_links_v3` | 在已插入的目标文本区间内替换 entity 标记，校验完成再动；文本、样式和区间外标记不变 |
+| `ProseTxn::insert_copy_v3` | v3 默认正文复制：正文和格子链接保留模块、素材与未知标记数据；块／嵌入 id 换新；不支持的 profile／嵌入在复制前拒绝 |
+
+剪贴消费者保留原始 mark 值，再用 `EntityLinkMarksV3::from_marks` 校验范围和键，不能
+经旧 `EntityLink` 往返丢掉 module。通用 LoroValue JSON 往返不保证保留 Binary 等未知类型，消费方须保留类型或明确拒绝不支持的值。这里没有新增 OS 剪贴板格式；读写 UI 和 URL 由 G1
+消费这些接口。读取者仍须在 holder 读任务中获得一致来源，命令继续使用原始观察和
+既有 guard；新查询和复制值不会凭空授予旧范围写入新版正文的权限。
+`commands/v3/module.rs` 的默认正文初始化改用 `insert_copy_v3`，包括嵌入占位符上的链接。新增 `autolink::link_written_v3` 供 v3 模块写入使用：自动名称匹配保留已有 module／块范围／素材／未知元数据链接，不会用裸条目链接覆盖；裸条目名称仍按既有规则补齐。v2.2 路由不变。
+
+契约覆盖相邻不同模块／重叠目标、合法素材与非法种类拒绝、模块及块范围编码、按段保留
+未知字段、Unicode 剪贴区间与区间外数据、表格复制、导出重开与两 peer 合并；工作区验证
+模板复制后模块仍在、编辑撤销／重做／重开，以及另一书的结构和模板正文不变。
+这些核心接口验证不代表 G1 的链接面板、导航或剪贴 UI 已验收；真窗口消费冒烟由 G1／整合方完成。

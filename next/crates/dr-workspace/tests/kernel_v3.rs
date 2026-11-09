@@ -1031,3 +1031,118 @@ fn material_entry_link_checks_book_observations_before_writing() {
             + 1
     );
 }
+#[test]
+fn v3_template_module_links_survive_copy_edit_history_and_other_book_is_untouched() {
+    use dr_model::id::ModuleId;
+    use dr_model::kind::EntityKind;
+    use dr_model::v3::EntityLinkV3;
+    let mut e = env();
+    let b = project(&e);
+    let other = project(&e);
+    let ms = root(&e, &b, "tpl-manuscript");
+    let target = create(&e, &b, &ms, "Module link", "tpl-chapter");
+    e.call(
+        "entry.update",
+        json!({"book":b,"id":ms,"overrides":{"auto_link":true}}),
+    );
+    let other_before = e.ws().observe(&format!("book:{other}")).unwrap();
+    let other_template = format!("template:{other}/tpl-chapter/mod-prose");
+    e.call("module.set_prose", json!({"book":other,"owner":"tpl-chapter","module":"mod-prose","template":true,"paragraphs":[{"text":"Other template"}]}));
+    let other_text = e.ws().observe(&other_template).unwrap();
+    e.call("module.set_prose", json!({"book":b,"owner":"tpl-chapter","module":"mod-prose","template":true,"paragraphs":[{"text":"Module link"}]}));
+    let template = format!("template:{b}/tpl-chapter/mod-prose");
+    let first = EntityLinkV3 {
+        target,
+        kind: EntityKind::Entry,
+        module: Some(ModuleId::parse("mod-prose").unwrap()),
+        block: None,
+        end_block: None,
+    };
+    let linked = first.clone();
+    e.ws()
+        .prose_session(&template)
+        .unwrap()
+        .edit(move |t| t.link_entity_v3(0..6, &linked))
+        .unwrap();
+    let copied = create(&e, &b, &ms, "Copied", "tpl-chapter");
+    let body = format!("body:{copied}/mod-prose");
+    {
+        let session = e.ws().prose_session(&body).unwrap();
+        assert_eq!(
+            session.reader().view().entity_links_v3(),
+            vec![(0..6, first.clone())]
+        );
+        let changed = EntityLinkV3 {
+            module: Some(ModuleId::parse("alternate-module").unwrap()),
+            ..first.clone()
+        };
+        let expected = changed.clone();
+        session
+            .edit(move |t| t.link_entity_v3(0..6, &changed))
+            .unwrap();
+        assert_eq!(
+            session.reader().view().entity_links_v3(),
+            vec![(0..6, expected)]
+        );
+        assert!(session.undo().unwrap());
+        assert_eq!(
+            session.reader().view().entity_links_v3(),
+            vec![(0..6, first.clone())]
+        );
+        assert!(session.redo().unwrap());
+    }
+    let imported = e
+        .ws()
+        .call(
+            &dr_workspace::Actor::Import,
+            "entry.create",
+            json!({"book":b,"parent":ms,"title":"Imported copy","template":"tpl-chapter"}),
+        )
+        .unwrap()["output"]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert_eq!(
+        e.ws()
+            .prose_session(&format!("body:{imported}/mod-prose"))
+            .unwrap()
+            .reader()
+            .view()
+            .entity_links_v3(),
+        vec![(0..6, first.clone())]
+    );
+    let source = e
+        .ws()
+        .prose_session(&template)
+        .unwrap()
+        .reader()
+        .view()
+        .entity_links_v3();
+    assert_eq!(source, vec![(0..6, first.clone())]);
+    assert_eq!(
+        e.ws().observe(&other_template).unwrap().value,
+        other_text.value
+    );
+    // Opening and editing a template/body does not rewrite another book's structure.
+    assert_eq!(
+        e.ws().observe(&format!("book:{other}")).unwrap().value,
+        other_before.value
+    );
+    e.reopen();
+    let links = e
+        .ws()
+        .prose_session(&body)
+        .unwrap()
+        .reader()
+        .view()
+        .entity_links_v3();
+    assert_eq!(
+        links[0].1.module.as_ref().unwrap().as_str(),
+        "alternate-module"
+    );
+    assert_eq!(links[0].1.target, first.target);
+    assert_eq!(
+        e.ws().observe(&other_template).unwrap().value,
+        other_text.value
+    );
+}

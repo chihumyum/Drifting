@@ -295,6 +295,26 @@ pub fn link_written(
     names: &LinkMatcher<LinkTarget>,
     written: Range<usize>,
 ) -> dr_doc::Result<usize> {
+    link_written_with_v3(txn, names, written, false)
+}
+
+/// v3 written text: preserve explicit module/range/material/opaque links.
+/// Bare entry-name links retain the normal healing/longest-name rule.
+/// Call this inside the same guarded prose write as the inserted text.
+pub fn link_written_v3(
+    txn: &mut ProseTxn<'_>,
+    names: &LinkMatcher<LinkTarget>,
+    written: Range<usize>,
+) -> dr_doc::Result<usize> {
+    link_written_with_v3(txn, names, written, true)
+}
+
+fn link_written_with_v3(
+    txn: &mut ProseTxn<'_>,
+    names: &LinkMatcher<LinkTarget>,
+    written: Range<usize>,
+    v3: bool,
+) -> dr_doc::Result<usize> {
     if names.is_empty() || written.is_empty() {
         return Ok(0);
     }
@@ -306,6 +326,38 @@ pub fn link_written(
         let within = written.start.max(p.range.start) - p.range.start
             ..written.end.min(p.range.end) - p.range.start;
         let edits = plan(&p.text(), &link_runs(&p), names, within);
+        let edits = if v3 {
+            let raw = txn.view().copy_entity_links_v3(p.range.clone())?;
+            let protected: Vec<_> = raw
+                .marks()
+                .iter()
+                .filter_map(|(range, _, value)| {
+                    let bare = matches!(value, loro::LoroValue::Map(m)
+                    if m.len() == 1 && m.get("kind") == Some(&loro::LoroValue::from("entry")));
+                    (!bare).then_some(range)
+                })
+                .collect();
+            let mut kept = Vec::new();
+            let mut pending = Vec::new();
+            for edit in edits {
+                let LinkEdit::Link { range, .. } = &edit else {
+                    pending.push(edit);
+                    continue;
+                };
+                if protected
+                    .iter()
+                    .any(|r| r.start < range.end && range.start < r.end)
+                {
+                    pending.clear();
+                } else {
+                    kept.append(&mut pending);
+                    kept.push(edit);
+                }
+            }
+            kept
+        } else {
+            edits
+        };
         if !edits.is_empty() {
             todo.push((p.range.start, edits));
         }
