@@ -44,6 +44,8 @@ impl Filter {
 pub enum Place {
     /// On an entity.
     On(Target),
+    /// V3 source identity stays separate from legacy DTO/navigation targets.
+    V3(crate::v3::Target),
     /// On something that is gone (in the trash, deleted).
     Gone,
     /// On nothing.
@@ -61,6 +63,10 @@ impl Group {
     pub fn key(&self) -> String {
         match &self.place {
             Place::On(t) => format!("{}:{}", t.kind, t.id),
+            Place::V3(crate::v3::Target::Entry { id, module }) => {
+                format!("entry:{id}/{}", module.as_deref().unwrap_or_default())
+            }
+            Place::V3(crate::v3::Target::Material(id)) => format!("material:{id}"),
             Place::Gone => "gone".into(),
             Place::Floating => "floating".into(),
         }
@@ -122,7 +128,7 @@ pub fn arrange_with_related(
         }
         // Entities first (by their newest item), then gone, then floating.
         groups.sort_by_key(|g| match g.place {
-            Place::On(_) => 0,
+            Place::On(_) | Place::V3(_) => 0,
             Place::Gone => 1,
             Place::Floating => 2,
         });

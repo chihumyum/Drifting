@@ -118,6 +118,10 @@ pub struct Labels {
 
 /// Reads the book's acts and live chapters in book order.
 pub fn outline(ws: &Workspace, book: &str) -> Result<Outline> {
+    if crate::v3::is_book(ws, book)? {
+        let outline = crate::v3::outline(ws, book)?;
+        return Ok(outline.picker());
+    }
     let actor = Actor::User;
     let detail = ws
         .run::<BookGet>(
@@ -250,6 +254,9 @@ pub fn read_manuscript(
     preferred_font: Option<String>,
     now: SystemTime,
 ) -> Result<Manuscript> {
+    if crate::v3::is_book(ws, book)? {
+        return crate::v3::read_manuscript(ws, book, options, labels, locale, preferred_font, now);
+    }
     let outline = outline(ws, book)?;
     let chosen: Vec<&ChapterEntry> = match &options.chapters {
         None => outline.chapters.iter().filter(|c| !c.discarded()).collect(),

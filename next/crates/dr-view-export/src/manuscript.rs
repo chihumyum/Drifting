@@ -2,7 +2,7 @@
 //! section. Reading the chapters and laying the file out happen off the
 //! main thread; the dialog only holds the choices.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use std::time::SystemTime;
 
@@ -45,6 +45,13 @@ pub enum Feedback {
     CoverFailed(String),
 }
 
+type Marks = BTreeMap<String, Option<String>>;
+
+struct Loaded {
+    outline: Outline,
+    marks: Option<Marks>,
+}
+
 pub struct ManuscriptState {
     lib: Option<Workspace>,
     book: String,
@@ -52,6 +59,8 @@ pub struct ManuscriptState {
     /// Opened from this chapter: 「选中章节」 starts with it alone.
     from_chapter: Option<String>,
     pub outline: Option<Outline>,
+    pub v3: bool,
+    v3_marks: Box<Marks>,
     pub load_failed: bool,
     pub format: Format,
     pub whole_book: bool,
@@ -96,6 +105,8 @@ impl ManuscriptState {
             selected: chapter.iter().cloned().collect(),
             from_chapter: chapter,
             outline: None,
+            v3: false,
+            v3_marks: Box::default(),
             load_failed: false,
             format: mine.format,
             act_titles: mine.act_titles,
@@ -123,7 +134,26 @@ impl ManuscriptState {
         self.task = Some(cx.spawn(async move |this, cx| {
             let read = cx
                 .background_executor()
-                .spawn(async move { dr_export::outline(&lib, &book) })
+                .spawn(async move {
+                    let v3 = dr_export::v3::is_book(&lib, &book)?;
+                    if v3 {
+                        let outline = dr_export::v3::outline(&lib, &book)?;
+                        let marks = outline
+                            .entries
+                            .iter()
+                            .map(|e| (e.id.clone(), e.mark.clone()))
+                            .collect();
+                        Ok(Loaded {
+                            outline: outline.picker(),
+                            marks: Some(marks),
+                        })
+                    } else {
+                        dr_export::outline(&lib, &book).map(|outline| Loaded {
+                            outline,
+                            marks: None,
+                        })
+                    }
+                })
                 .await;
             this.update(cx, |d, cx| {
                 let titled = Prefs::get(cx);
@@ -138,12 +168,14 @@ impl ManuscriptState {
 
     fn loaded(
         &mut self,
-        read: dr_export::Result<Outline>,
+        read: dr_export::Result<Loaded>,
         prefs: &Prefs,
         cx: &mut Context<ExportDialog>,
     ) {
         match read {
-            Ok(outline) => {
+            Ok(Loaded { outline, marks }) => {
+                self.v3 = marks.is_some();
+                *self.v3_marks = marks.unwrap_or_default();
                 let title = prefs
                     .books
                     .get(&self.book)
@@ -168,6 +200,21 @@ impl ManuscriptState {
 
     pub fn is_busy(&self) -> bool {
         self.busy.is_some()
+    }
+
+    fn mark(&self, id: &str) -> sand::Kind {
+        if !self.v3 {
+            return sand::Kind::Chapter(seal_of(id));
+        }
+        match self.v3_marks.get(id).and_then(|m| m.as_deref()) {
+            Some("book") => sand::Kind::All,
+            Some("file-text") => sand::Kind::Chapter(seal_of(id)),
+            Some("lightbulb" | "sparkles") => sand::Kind::Drift { loose: false },
+            Some("folder" | "tag") => sand::Kind::Category,
+            Some("compass" | "route") => sand::Kind::Storyline,
+            Some("git-branch") => sand::Kind::DriftGroup,
+            _ => sand::Kind::Element,
+        }
     }
 
     /// The chapters the export takes, in book order.
@@ -234,7 +281,14 @@ impl ManuscriptState {
                 cover: self.cover.clone(),
             },
             Labels {
-                untitled_chapter: self.i18n.t(mx::UNTITLED_CHAPTER).to_owned(),
+                untitled_chapter: self
+                    .i18n
+                    .t(if self.v3 {
+                        keys::k4_book::UNTITLED_ENTRY
+                    } else {
+                        mx::UNTITLED_CHAPTER
+                    })
+                    .to_owned(),
                 untitled_act: self.i18n.t(mx::UNTITLED_ACT).to_owned(),
             },
         )
@@ -504,7 +558,14 @@ pub(crate) fn render(
             let mut scope = section(&theme, t(mx::SCOPE)).child(
                 Segmented::new(
                     "export-scope",
-                    [t(mx::WHOLE_BOOK), t(mx::SELECTED_CHAPTERS)],
+                    [
+                        t(mx::WHOLE_BOOK),
+                        t(if m.v3 {
+                            keys::k4_book::SELECTED_ENTRIES
+                        } else {
+                            mx::SELECTED_CHAPTERS
+                        }),
+                    ],
                     usize::from(!m.whole_book),
                 )
                 .disabled(running)
@@ -530,7 +591,15 @@ pub(crate) fn render(
                             .font_role(Role::Index)
                             .type_px(s.caption, s.line_caption)
                             .text_color(p.muted().solid())
-                            .child(i18n.plural(mx::CHAPTER_COUNT, m.chapters().len() as u64, &[])),
+                            .child(i18n.plural(
+                                if m.v3 {
+                                    keys::k4_book::ENTRY_COUNT
+                                } else {
+                                    mx::CHAPTER_COUNT
+                                },
+                                m.chapters().len() as u64,
+                                &[],
+                            )),
                     )
                     .child(
                         Button::new(
@@ -579,7 +648,12 @@ pub(crate) fn render(
                     }
                     let chosen = m.selected.contains(&c.id);
                     let label = if c.title.trim().is_empty() {
-                        i18n.t(mx::UNTITLED_CHAPTER).to_owned()
+                        i18n.t(if m.v3 {
+                            keys::k4_book::UNTITLED_ENTRY
+                        } else {
+                            mx::UNTITLED_CHAPTER
+                        })
+                        .to_owned()
                     } else {
                         c.title.clone()
                     };
@@ -589,7 +663,7 @@ pub(crate) fn render(
                             gpui::ElementId::Name(format!("export-chapter-{}", c.id).into()),
                             label,
                         )
-                        .mark(sand::Kind::Chapter(seal_of(&c.id)))
+                        .mark(m.mark(&c.id))
                         .disabled(running)
                         .child(div().flex_none().w(px(14.0)).when(chosen, |el| {
                             el.child(sand::icon(Icon::Check, 14.0, p.ink(1).solid()))
@@ -638,7 +712,11 @@ pub(crate) fn render(
                     .flex_row()
                     .items_center()
                     .justify_between()
-                    .child(t(mx::CHAPTER_TITLES))
+                    .child(t(if m.v3 {
+                        keys::k4_book::ENTRY_TITLES
+                    } else {
+                        mx::CHAPTER_TITLES
+                    }))
                     .child(
                         Switch::new("export-chapter-titles", m.chapter_titles)
                             .disabled(running)

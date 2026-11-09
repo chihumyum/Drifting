@@ -102,6 +102,68 @@ fn wait_for(cx: &mut VisualTestContext, mut done: impl FnMut(&mut VisualTestCont
 }
 
 #[gpui::test]
+fn v3_export_selects_manuscript_entries_and_saves_without_builtin_acts(cx: &mut TestAppContext) {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = Library::open(dir.path().join("library"), library_options("test")).unwrap();
+    let seed = dr_testkit::seed::generate_v3(
+        dr_testkit::seed::Preset::Tiny,
+        dr_testkit::seed::DEFAULT_SEED,
+    )
+    .unwrap();
+    let book = seed.books[0].book_id().to_string();
+    seed.write_to(&lib).unwrap();
+    let ws = Workspace::open(lib, WorkspaceOptions::default()).unwrap();
+    let entries = dr_export::v3::outline(&ws, &book).unwrap().entries;
+    let chosen = entries[0].id.clone();
+    let e = Env {
+        dir,
+        ws,
+        book,
+        chapters: entries.into_iter().map(|e| e.id).collect(),
+    };
+    let (dialog, cx) = open(
+        cx,
+        &e,
+        Request::Manuscript {
+            chapter: Some(chosen.clone()),
+        },
+    );
+    wait_for(cx, |cx| {
+        dialog.read_with(cx, |d, _| d.manuscript().unwrap().outline.is_some())
+    });
+    dialog.read_with(cx, |d, cx| {
+        let m = d.manuscript().unwrap();
+        assert!(m.v3);
+        assert!(!m.whole_book);
+        assert_eq!(m.chapters(), [chosen]);
+        assert!(!m.outline.as_ref().unwrap().has_acts());
+        let (options, labels) = m.options(cx);
+        assert!(!options.act_titles);
+        assert_eq!(labels.untitled_chapter, "未命名条目");
+    });
+    let path = e.dir.path().join("v3-manuscript.docx");
+    dialog.update(cx, |d, cx| {
+        let m = d.manuscript_mut().unwrap();
+        m.format = Format::Docx;
+        m.export(cx);
+    });
+    cx.run_until_parked();
+    assert!(cx.did_prompt_for_new_path());
+    cx.simulate_new_path_selection({
+        let path = path.clone();
+        move |_| Some(path)
+    });
+    wait_for(cx, |cx| {
+        dialog.read_with(cx, |d, _| !d.manuscript().unwrap().is_busy())
+    });
+    assert_eq!(
+        dialog.read_with(cx, |d, _| d.manuscript().unwrap().feedback.clone()),
+        Some(dr_view_export::ManuscriptFeedback::Saved)
+    );
+    assert_eq!(&std::fs::read(path).unwrap()[..2], b"PK");
+}
+
+#[gpui::test]
 fn the_whole_book_exports_as_epub_and_chosen_chapters_as_word(cx: &mut TestAppContext) {
     let e = env();
     let (dialog, cx) = open(cx, &e, Request::Manuscript { chapter: None });
