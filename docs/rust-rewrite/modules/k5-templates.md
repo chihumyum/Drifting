@@ -51,9 +51,7 @@
 泳道的有效接收值只列一次。预览包含可访问文本，字符串头部用 JSON 字符串转义。
 当前 main 尚无 K6 的公共结构说明函数，本地预览不代表帮手已接入本页草稿。
 
-本段的定向检查为 9 条契约通过，`k5-level.json` 在 v3-lite 真窗口
-136/136 步、0 pending，三张截图已逐张目检。第二次交回前仍需同步 main、
-跑完叶子回归、heavy 对照与全套检查，交回结果另记在文末。
+本段的定向检查为 9 条契约通过。最终真窗口与全套检查见文末第二次交回。
 
 ## 验收来源
 
@@ -131,3 +129,56 @@ DRIFTING_BENCH_BUILD='debug-bridge; dr-model/dr-doc/dr-workspace/dr-shell opt-le
 生成结果、可执行文件 SHA-256、机器负载与两张截图在忽略目录
 `next/target/acceptance/k5-heavy/`。初次滚动采样的指针落在输入区域，图像未变，
 该组数字已丢弃；修正为滚动容器的左侧空隙后重测，以上数字来自实际滚动。
+
+## 第二次交回
+
+分支仍为 `codex/k5-templates`，交回指针仍为 `handback/k5`。本次完成
+层级模板、八项设置和还原、泳道、动作、两种模板的帮手说明与草稿预览，
+包含九种语言的 own 文案。实现提交 `98fb5a56`；滚动采样的布局等待修正在
+`d0de5527`，时间线接线后的固定窗口高度在 `4e9196a3`。
+同步 main 的合并提交为 `2c3c02ed`、`17e28416`，后者包含 main `91a74675`
+的第 46 批收件记录。整合者已接第一次交回；本会话未向 main 合并，也未推送。
+语言合并保留两边新增块，生成文件由 sync-locales 重建；own 块顺序跟随 main，
+没有修改时间线文案。
+
+编译并发 3。`cargo fmt --all --check`、全 workspace Clippy
+`--all-targets --locked -- -D warnings`、全 workspace test
+**2050 passed / 0 failed / 22 ignored**、`cargo xtask check`（含 audit，
+972 locked crates、0 vulnerabilities、12 notices）与根目录 `pnpm public:check`
+通过。保留既有 14 份过期测量提示。测试不跳过失败项；22 个忽略项来自既有套件。
+
+最终标准 debug 真窗口在共享 v3-lite 种子上：叶子回归 **122/122**、
+层级 **139/139**，均 **0 pending**，共六张截图逐张目检。
+两条场景先用外壳动作收起默认打开的时间线，等待过渡结束，再进行模板验收。
+新增说明区后重定字段类型控件的位置；滚动后等待布局再点击。
+记录在忽略目录 `next/target/acceptance/k5-leaf-regression/` 和
+`next/target/acceptance/k5-level/`。
+
+heavy 对照仍使用前述四个包 opt-level=2 的开发版，界面 crate 未优化；
+同一个预建索引的共享 v3-heavy 合成库、27 个模块，底栏收起。
+这次在两个保留的可执行文件上重新成对测量，滚动后固定等待 50 ms 让布局进入截图，
+并断言每一次滚动前后图像不同；打开仍含 200 ms 的导航等待。
+第一次交回的数字保留在上节，本表的滚动等待口径已改变，应在表内前后比较。
+
+| 7 次原生桥采样 | 叶子交回版本 | 本次完整版本 |
+| --- | ---: | ---: |
+| 打开中位数 / 最大值 | 277.0 / 497.8 ms | 281.1 / 510.4 ms |
+| 滚动中位数 / 最大值 | 112.4 / 119.8 ms | 127.2 / 129.0 ms |
+
+打开中位数增加 1.5%，滚动中位数增加 14.8 ms（13.1%）。这是含桥往返、等待和
+PNG 回读的端到端数据，不是纯渲染帧时。两次的 12 核机器 load average 均随结果保存。
+顶部／底部四张截图已目检：叶子版滚到添加模块处，完整版滚到帮手说明末端。
+结果为 `next/target/acceptance/k5-heavy/{leaf,full}.json`，包含可执行文件 SHA-256；
+原第一次交回的结果另存 `leaf-first-handback.json`。无变化的即时旧帧采样没有计入本表。
+
+复跑时分别指定第一次和本次的优化开发版可执行文件，执行同一脚本：
+
+```bash
+DRIFTING_BENCH_APP=target/acceptance/k5-binaries/drifting-leaf-opt \
+  python3 crates/dr-view-templates/script/window-bench.py leaf
+DRIFTING_BENCH_APP=target/acceptance/k5-binaries/drifting-level-opt \
+  python3 crates/dr-view-templates/script/window-bench.py full
+```
+
+待协调仍为上节的 F6 标准 debug heavy 初始书快照超时，以及 K6 公共结构说明函数。
+优化开发版度量不改变默认编译配置；v3-lite 窗口验收使用标准 debug。

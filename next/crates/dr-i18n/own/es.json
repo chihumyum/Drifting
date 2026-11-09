@@ -110,6 +110,17 @@
     "belongTo": "Asignar a",
     "trash": "Mover a Eliminados recientemente"
   },
+  "v3Timeline": {
+    "views": "Vistas de cronología",
+    "newView": "Nueva vista",
+    "renameView": "Renombrar vista",
+    "deleteView": "Eliminar vista",
+    "addLane": "Añadir carril",
+    "removeLane": "Quitar de la vista",
+    "moveUp": "Subir",
+    "moveDown": "Bajar",
+    "members": "{{count}} miembros"
+  },
   "templateEditor": {
     "new_template": "Nueva plantilla",
     "template_name": "Nombre de plantilla",
@@ -186,16 +197,5 @@
     "yes": "Sí",
     "no": "No",
     "add_field": "Añadir campo"
-  },
-  "v3Timeline": {
-    "views": "Vistas de cronología",
-    "newView": "Nueva vista",
-    "renameView": "Renombrar vista",
-    "deleteView": "Eliminar vista",
-    "addLane": "Añadir carril",
-    "removeLane": "Quitar de la vista",
-    "moveUp": "Subir",
-    "moveDown": "Bajar",
-    "members": "{{count}} miembros"
   }
 }

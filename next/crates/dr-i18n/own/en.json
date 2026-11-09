@@ -110,6 +110,17 @@
     "belongTo": "Assign to",
     "trash": "Move to Recently Deleted"
   },
+  "v3Timeline": {
+    "views": "Timeline views",
+    "newView": "New view",
+    "renameView": "Rename view",
+    "deleteView": "Delete view",
+    "addLane": "Add lane",
+    "removeLane": "Remove from view",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "members": "{{count}} members"
+  },
   "templateEditor": {
     "new_template": "New template",
     "template_name": "Template name",
@@ -186,16 +197,5 @@
     "yes": "Yes",
     "no": "No",
     "add_field": "Add field"
-  },
-  "v3Timeline": {
-    "views": "Timeline views",
-    "newView": "New view",
-    "renameView": "Rename view",
-    "deleteView": "Delete view",
-    "addLane": "Add lane",
-    "removeLane": "Remove from view",
-    "moveUp": "Move up",
-    "moveDown": "Move down",
-    "members": "{{count}} members"
   }
 }
