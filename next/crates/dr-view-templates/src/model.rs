@@ -98,11 +98,22 @@ pub fn move_module(t: &mut EntryTemplate, id: &str, before: Option<&str>) {
         .get(at)
         .and_then(|m| m.pos.as_deref())
         .and_then(|p| dr_model::pos::PosKey::parse(p).ok());
-    let Ok(pos) = dr_model::pos::PosKey::between(left.as_ref(), right.as_ref()) else {
-        return;
-    };
-    module.pos = Some(pos.to_string());
-    t.modules.insert(at, module);
+    match dr_model::pos::PosKey::between(left.as_ref(), right.as_ref()) {
+        Ok(pos) => {
+            module.pos = Some(pos.to_string());
+            t.modules.insert(at, module);
+        }
+        Err(_) => {
+            // Concurrent insertions may legitimately share a position key.
+            // Make room in that case; a failed move must never drop a module.
+            t.modules.insert(at, module);
+            let mut pos = dr_model::pos::PosKey::first();
+            for module in &mut t.modules {
+                module.pos = Some(pos.to_string());
+                pos = pos.after();
+            }
+        }
+    }
 }
 
 fn ensure_positions(t: &mut EntryTemplate) {

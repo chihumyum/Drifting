@@ -12,7 +12,8 @@
 
 叶子模板页可改名称、记号和颜色，添加正文、键值表、补丁、情节规划、关联，
 以及九种字段；正文可重复添加、分别命名。模块由砂笔握柄拖动排序，删除只移除定义。
-新模块和字段用稳定 id，排序使用 F1 的位置键，只改变被移动模块的键。
+新模块和字段用稳定 id，排序使用 F1 的位置键，通常只改变被移动模块的键。
+并发插入留下相同位置键时重新分配顺序；挪动失败不会丢掉模块。
 单选／多选的选项逐行填写；修改字段类型保留未改的配置和已有条目的值。
 
 编辑器保留一份草稿，按「保存」通过 `entry_template.put` 提交。保存前重读模板，
@@ -44,6 +45,14 @@ CARGO_BUILD_JOBS=3 cargo drifting workspace scenario crates/dr-cli/scenarios/k5-
 
 - 层级模板的设置、泳道、动作与写给帮手的说明在第二次交回；第一次不声明完成。
 - K6 的结构说明函数合入 main 后消费其公共接口；未合入的分支不是依赖。
+- **F6／K1 查询方**：v3-heavy 的初始书快照在模板页挂载之前超时。
+  `window-bench.py leaf` 使用共享 heavy 种子并预建索引，仍在
+  `ui.wait` 的 240 秒内未得到书快照；`state.get` 的 `book.loaded = false`。
+  原生采样停在 `dr_shell::book::v3::load → LevelGet → level_settings →
+  entries_map → resolve_autolink_name_conflicts → resolve_level_settings`。
+  本次不越界修改外壳／查询层；日志和采样在忽略目录
+  `next/target/k5-heavy.log`、`next/target/k5-heavy-sample.txt`，没有生成打开／滚动数字。
+  基准脚本保留在本 crate，后续可在同一个合成 profile 上重跑前后两次。
 
 ## 第一次交回
 

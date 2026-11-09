@@ -149,3 +149,35 @@ fn concurrent_module_deletion_cannot_hide_another_authors_edit() {
     remote.modules[0].name = "Changed elsewhere".into();
     assert!(model::reconcile(&t, &mine, &remote).is_err());
 }
+
+#[test]
+fn moving_between_equal_position_keys_never_drops_a_module() {
+    let (_dir, ws, book) = seed();
+    let mut template = model::blank("leaf", "Synthetic tied positions".into());
+    for kind in ["prose", "text", "kv"] {
+        let mut module = model::module(kind, kind.into());
+        module.pos = Some("a0".into());
+        template.modules.push(module);
+    }
+    let template = model::save(&ws, &book, None, &template).unwrap();
+    // Work from the reader's actual tie order.
+    let template = templates(&ws, &book)
+        .into_iter()
+        .find(|t| t.id == template.id)
+        .unwrap();
+    let mut draft = template.clone();
+    let last = draft.modules[2].id.clone();
+    let before = draft.modules[1].id.clone();
+    model::move_module(&mut draft, &last, Some(&before));
+    assert_eq!(draft.modules.len(), 3);
+    assert_eq!(draft.modules[1].id, last);
+    let saved = model::save(&ws, &book, Some(&template), &draft).unwrap();
+    assert_eq!(
+        templates(&ws, &book)
+            .into_iter()
+            .find(|t| t.id == saved.id)
+            .unwrap(),
+        saved
+    );
+    ws.shutdown().unwrap();
+}

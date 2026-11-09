@@ -14,6 +14,7 @@ import json
 import os
 from pathlib import Path
 import socket
+import shutil
 import statistics
 import subprocess
 import sys
@@ -23,7 +24,7 @@ import time
 ROOT = Path.cwd()
 OUT = ROOT / "target/acceptance/k5-heavy"
 CLI = ROOT / "target/debug/dr-cli"
-APP = ROOT / "target/debug/drifting"
+APP = Path(os.environ.get("DRIFTING_BENCH_APP", str(ROOT / "target/debug/drifting"))).resolve()
 
 
 def cli(*args):
@@ -33,6 +34,10 @@ def cli(*args):
 
 def measure(phase):
     OUT.mkdir(parents=True, exist_ok=True)
+    # cargo test may replace target/debug/drifting with a build without the
+    # bridge. Keep the chosen executable stable for the whole measurement.
+    binary = OUT / f"{phase}-drifting-{os.getpid()}"
+    shutil.copy2(APP, binary)
     manifest = OUT / "profile.json"
     if manifest.exists():
         config = json.loads(manifest.read_text())
@@ -41,10 +46,14 @@ def measure(phase):
         data = Path.home() / "Library/Application Support" / f"cc.drifting.next.dev.{profile}"
         if data.exists():
             raise RuntimeError("benchmark profile already exists")
-        library = data / "library"
-        seed = cli("workspace", "scenario", "seed:v3-heavy", "--library", str(library), "--yes")
+        seed_file = OUT / "seed.json"
+        seed_file.write_text(json.dumps({"steps": [{"seed": "v3-heavy"}, {"call": "book.list", "save": "books"}]}))
+        # The live scenario's seed also rebuilds indexes, as required for
+        # comparisons against an already-opened library.
+        seed = cli("workspace", "scenario", str(seed_file), "--app", str(APP), "--profile", profile,
+                   "--out", str(OUT / "seed"), "--yes")
         (OUT / "seed.txt").write_text(seed)
-        books = json.loads(cli("workspace", "call", "book.list", "--library", str(library)))["output"]
+        books = json.loads((OUT / "seed/result.json").read_text())["saved"]["books"]
         config = {"profile": profile, "book": books[0]["id"]}
         manifest.write_text(json.dumps(config))
         (data / "settings.json").write_text(json.dumps({
@@ -54,10 +63,16 @@ def measure(phase):
     data = Path.home() / "Library/Application Support" / f"cc.drifting.next.dev.{config['profile']}"
     connection = data / "debug-bridge.json"
     if connection.exists():
-        raise RuntimeError("benchmark app is already running or left a connection file")
+        old = json.loads(connection.read_text())
+        try:
+            os.kill(old["pid"], 0)
+        except ProcessLookupError:
+            connection.unlink()
+        else:
+            raise RuntimeError("benchmark app is already running")
     env = dict(os.environ, DRIFTING_PROFILE=config["profile"], DRIFTING_BOOK=config["book"], DRIFTING_APPEARANCE="light")
     with (OUT / f"{phase}-app.log").open("w") as log:
-        process = subprocess.Popen([str(APP)], env=env, stdout=log, stderr=log)
+        process = subprocess.Popen([str(binary)], env=env, stdout=log, stderr=log)
     stream = None
     try:
         deadline = time.monotonic() + 90
@@ -67,7 +82,7 @@ def measure(phase):
             time.sleep(0.05)
         auth = json.loads(connection.read_text())
         stream = socket.socket(socket.AF_UNIX)
-        stream.settimeout(180)
+        stream.settimeout(360)
         stream.connect(auth["address"])
         reader = stream.makefile("rb")
 
@@ -93,13 +108,14 @@ def measure(phase):
                 (OUT / f"{phase}-{name}.png").write_bytes(png)
             return png
 
-        call("ui.wait", {"timeout_ms": 60000})
+        call("ui.wait", {"timeout_ms": 240000})
         call("window.focus")
         call("book.open", {"book": config["book"]})
         call("ui.wait", {"state": {"/book/version": 3}})
         if phase == "leaf":
             templates = call("command.call", {"name": "entry_template.list", "input": {"book": config["book"]}})["output"]
             template = next(t for t in templates if t["id"] == "tpl-chapter")
+            template["modules"] = [module for module in template["modules"] if not module["id"].startswith("k5-bench-")]
             # Repeat the seed's own module definitions, with unique ids, so the
             # template editor has a genuine scroll range. No prose corpus added.
             originals = list(template["modules"])

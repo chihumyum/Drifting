@@ -1,6 +1,7 @@
 use std::{collections::BTreeMap, rc::Rc};
 
-use dr_i18n::keys::{common, template_editor as k};
+use dr_i18n::keys::common;
+use dr_i18n::keys::template_editor as k;
 use dr_shell::{
     book::Book,
     nav::{Open, Target},
@@ -379,6 +380,16 @@ impl TemplateEditor {
 
     pub fn save(&mut self, cx: &mut Context<Self>) {
         if self.saving || !self.dirty() {
+            return;
+        }
+        if self
+            .host
+            .workspace
+            .upgrade()
+            .is_none_or(|workspace| workspace.read(cx).book_id != self.host.book_id)
+        {
+            self.error = Some(true);
+            cx.notify();
             return;
         }
         self.saving = true;
