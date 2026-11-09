@@ -260,6 +260,9 @@ cargo run -p dr-view-elements --features capture --example elements-capture -- .
    第 61 批 `f3709422` 已正式接审阅接口，本组以 `32da898d` 同步 main 后接入只读宿主，
    不消费 G4 此后尚未正式交回的写入适配。模板页留空，非正文模块保留精确范围；
    实际 ReviewView 的 Current 过滤与跳转、换书／同 ID 换库后的旧回调拒绝已有永久测试。
+   第 65 批 main `282587bb` 正式接收 G4 写入适配后，本组以 `bc8279d1` 同步；
+   审阅面板签名不变，G2 仍只传精确目标、记号与受保护的导航回调，写入实现由 G4 提供。
+   本组四项范围／回调／拖动宿主回归在新 main 组合上通过，不以此冒充 G4 写入窗口验收。
    新窗口场景 `k4-g2-review-drag.json` 核对实际范围入口，结果另记；不能把 GPUI 跳转
    测试写成已经点击了窗口中尚无 AX 名称的箭头。
    依原协议跑全套检查和窗口验收后才前移 `handback/k4-g2`；不把此前左栏的
@@ -464,3 +467,11 @@ WIP。G2 新增 `53f205fa` 的真实 Mutation 消费者回归和 `34e2552a` 的�
 `integration-evidence/batch-66/import-rollback/` 并交 G4 修复。没有改 dr-export／dr-store、
 删断言或以重跑通过放行。待正式修复配对后重验组合；副屏新窗口按整合者通知暂缓启动，
 原失败与已完成窗口证据保留。`handback/k4-g2` 仍为 `c54fda05`，未合回 main，未推送。
+
+随后以 `bc8279d109827c6839dfe58edacffc9acc9b50da` 同步正式 main `282587bb`。
+三处追加冲突均保留双方：公共 `drag`／`history` 模块、两份命令覆盖测试来源、K2 scoped
+restore 与 K6 新增命令的排除规则；没有手改生成快照。格式与九语生成检查通过，
+实际宿主回归 **4/4**、目录契约 **11/11**、命令注册覆盖 **1/1** 通过，日志分别为
+`next/target/acceptance/k4-g2-main65-host-tests.log`、`k4-g2-main65-catalog-tests.log`、
+`k4-g2-main65-command-coverage.log`。原整批回滚失败仍待 G4 正式修复配对；副屏时段已释放，
+本组合尚未新开验收窗口，也未据这些局部通过前移交回指针。
