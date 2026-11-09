@@ -1335,6 +1335,14 @@ impl<'a> BookViewV3<'a> {
         Some(EntrySnapshotV3 { value: node.meta })
     }
 
+    /// Raw metadata of one material folder, for selected-record restoration.
+    pub fn material_folder_snapshot(&self, id: &MaterialFolderId) -> Option<EntrySnapshotV3> {
+        forest(&self.tree(book_v3::MATERIAL_FOLDERS))
+            .into_iter()
+            .find(|n| n.id == id.as_str())
+            .map(|n| EntrySnapshotV3 { value: n.meta })
+    }
+
     /// Snapshot of a v3 structural map record, including nested maps.
     /// Patch text is restored through its mergeable text container by the writer.
     pub fn map_snapshot(&self, collection: CollectionV3, id: &str) -> Option<EntrySnapshotV3> {
@@ -1347,6 +1355,8 @@ impl<'a> BookViewV3<'a> {
                 | CollectionV3::PlotGrids
                 | CollectionV3::Relations
                 | CollectionV3::RelationTypes
+                | CollectionV3::Materials
+                | CollectionV3::Comments
         ) {
             return None;
         }

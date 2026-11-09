@@ -509,3 +509,12 @@ docs/rust-rewrite/acceptance/f1-m3-doc-bench.json   第三轮的测量证据
 - 提交：`adfab910` 写作日版本分派与永久回归；`0842b596` 合入 main `2f80ac40` 的接口分工记录；加本节交回记录。检查后再次 `git merge main` 确认已同步，未向 main 合并或推送。
 - 检查：`cargo fmt --all --check`、全工作区 Clippy（`--all-targets --locked -- -D warnings`）、全工作区测试（2,062 通过／0 失败／22 忽略）、`cargo xtask check`（含审计）和 `pnpm public:check`（5,462 个候选文件）全部通过。编译并发 3、测试单线程；已有依赖审计提示和 stale／legacy 测量证据保留，不作为新性能结论。
 - 本段交回后继续批注／素材适配；两者的删除与按对象恢复共用同一提交边界，作为下一段联合验收。
+
+## 交回准备（K2 续接 G4，第二段：批注与素材，2026-11-10）
+
+- 接续写作日交回，补 `comment.*`、`todo.project`、`material.*`、`material_folder.*` 与必要的 `asset.put/get` 版本接线。批注的 Entry／Material 目标、正文模块、实际读写／锚点／投影均走 v3；素材夹仍独立，素材与条目的关系沿用 v3 模块。消费签名和边界见 F3 同名小节。
+- 删除和撤销用原始记录：包含被回收条目暂时隐藏的关系；批注正文、引用和模块信息恢复，普通删除不清正文历史或资源字节。`entry_history.restore` 增加素材、批注、素材夹，恢复树前验证最终图与未选中对象边界，恢复文本仍写 LoroText。
+- v2.2 共用接线：`commands/comment.rs` 注册同名的版本签名，旧 typed 的写入／重锚／投影按实际书分派；缺少模块的旧创建／读取类型明确拒绝 v3。`commands/material.rs` 复用输入输出和字段级逆操作，v3 单独选择 reader／事务；`commands/mod.rs` 只给素材、资源、素材夹及原始关系增加 v3 读取。`registry.rs` 增加可选的 v3 schema／同名分派，`cx.rs` 允许这些已接回接口；默认 v2.2 schema 与旧书行为保留。`dr-doc` 只改 v3 文件；没有改视图、帮手、dr-index、迁移或 progress.md。
+- 待协调：G4／G1 消费新的模块类型后自行验收界面；清单 `note_tasks.project` 尚无已注册的旧接口，本批保留已有 `note_task` 数据，不自行设计新协议。搜索／字数仍使用 G4 只读适配，没有放行旧命令。
+- 定向验证：原 33 项命令、17 项 v3 通用命令、5 项注册表、5 项共用接口及 1 项素材字节契约通过；全工作区检查与提交记录随后填写。逐项比较原 136 个默认 schema 无差异，命令名不变，只追加 7 个显式 v3 签名。区域批注恢复按原子值保留 `region`，不重建成可合并 Map，相关撤销回归已过。
+- K6 的新目录现已进入 main；本批不跨轨修改它。其模块批注工具后续须消费 `Spec.v3`，不能仍按默认 v2.2 schema 拼正文目标。

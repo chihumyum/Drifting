@@ -23,13 +23,13 @@ use crate::dto::{AnchorBytes, CommentAnchor, CommentInfo, Region, Target};
 use crate::registry::Registry;
 
 pub(crate) fn register(r: &mut Registry) {
-    r.add::<CommentList>()
-        .add::<CommentAnchors>()
-        .add::<CommentCreate>()
-        .add::<CommentUpdate>()
-        .add::<CommentReanchor>()
-        .add::<CommentDelete>()
-        .add::<TodoProject>();
+    r.add_versioned::<CommentList, super::v3::comment::CommentList>()
+        .add_versioned::<CommentAnchors, super::v3::comment::CommentAnchors>()
+        .add_versioned::<CommentCreate, super::v3::comment::CommentCreate>()
+        .add_versioned::<CommentUpdate, super::v3::comment::CommentUpdate>()
+        .add_versioned::<CommentReanchor, super::v3::comment::CommentReanchor>()
+        .add_versioned::<CommentDelete, super::v3::comment::CommentDelete>()
+        .add_versioned::<TodoProject, super::v3::comment::TodoProject>();
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema)]
@@ -51,6 +51,7 @@ op! {
     "List comments and TODOs (a target in the trash or gone shows as unlocated).",
     fn(cx, input: CommentListIn) -> Vec<CommentInfo> {
         let slot = cx.book(&input.book)?;
+        if slot.is_v3() { return Err(WsError::invalid("use commands::v3::comment for a module-aware v3 typed call")); }
         let t = input.target.as_ref().map(Target::to_ref);
         Ok(comments(&slot).iter()
             .filter(|c| input.kind.as_ref().is_none_or(|k| c.kind.as_str() == k))
@@ -98,6 +99,7 @@ op! {
     "Add a comment or TODO, on an entity, a paragraph, a passage of its prose, a region of an image or PDF, or floating.",
     fn(cx, input: CommentCreateIn) -> Done {
         let slot = cx.book(&input.book)?;
+        if slot.is_v3() { return Err(WsError::invalid("use commands::v3::comment for a module-aware v3 typed call")); }
         let kind = CommentKind::parse(input.kind.as_deref().unwrap_or("note"));
         if !kind.is_known() { return Err(WsError::invalid(format!("unknown comment kind {:?}", kind.as_str()))); }
         let target = input.target.as_ref().map(Target::to_ref);
@@ -191,6 +193,7 @@ op! {
     "Change a comment or TODO: its text, status (resolve / reopen), priority, kind or linked Agent conversation.",
     fn(cx, input: CommentUpdateIn) -> Done {
         let slot = cx.book(&input.book)?;
+        if slot.is_v3() { return <super::v3::comment::CommentUpdate as crate::registry::Op>::run(cx, input); }
         let old = comments(&slot).iter().find(|c| c.id.as_str() == input.id).cloned()
             .ok_or_else(|| WsError::not_found("comment", &input.id))?;
         let status = input.status.as_deref().map(CommentStatus::parse);
@@ -230,6 +233,7 @@ op! {
     "Delete a comment or TODO (its relations go with it).",
     fn(cx, input: EntityIn) -> Done {
         let slot = cx.book(&input.book)?;
+        if slot.is_v3() { return <super::v3::comment::CommentDelete as crate::registry::Op>::run(cx, input); }
         let id: CommentId = pid("comment", &input.id)?;
         if !comments(&slot).iter().any(|c| c.id == id) { return Err(WsError::not_found("comment", &input.id)); }
         let target = dr_model::book::EntityRef::new(EntityKind::Comment, input.id.clone());
@@ -261,6 +265,7 @@ op! {
     "The stored anchors of the comments on one entity's prose, for an editor laying them out (comments without an anchor are not listed).",
     fn(cx, input: CommentAnchorsIn) -> Vec<CommentAnchor> {
         let slot = cx.book(&input.book)?;
+        if slot.is_v3() { return Err(WsError::invalid("use commands::v3::comment for a module-aware v3 typed call")); }
         let t = input.target.to_ref();
         Ok(comments(&slot).iter()
             .filter(|c| c.target.as_ref() == Some(&t))
@@ -350,6 +355,7 @@ op! {
     "Put a comment's anchor back where the editor's undo brought its text back (the author's change, synced; it follows the editor's undo, so it is not an entry of the object-level undo).",
     fn(cx, input: CommentReanchorIn) -> Done {
         let slot = cx.book(&input.book)?;
+        if slot.is_v3() { return <super::v3::comment::CommentReanchor as crate::registry::Op>::run(cx, input); }
         let old = comments(&slot).iter().find(|c| c.id.as_str() == input.id).cloned()
             .ok_or_else(|| WsError::not_found("comment", &input.id))?;
         let want = input.anchor.clone()
@@ -428,14 +434,14 @@ pub struct TodoProjected {
 /// `BookTxn::project_todo`, makes that impossible, and a stored `seed` is
 /// ignored.)
 #[derive(Default, Serialize, Deserialize)]
-struct ProjectionMeta {
+pub(crate) struct ProjectionMeta {
     #[serde(default)]
-    kind: String,
+    pub(crate) kind: String,
     #[serde(default)]
-    prose_vv: BTreeMap<String, i64>,
+    pub(crate) prose_vv: BTreeMap<String, i64>,
 }
 
-const MARKER_META_KIND: &str = "todo-autoparse";
+pub(crate) const MARKER_META_KIND: &str = "todo-autoparse";
 
 fn owner_of(doc: &DocId) -> Option<EntityRef> {
     let kind = match doc {
@@ -452,7 +458,7 @@ fn owner_of(doc: &DocId) -> Option<EntityRef> {
 }
 
 /// Whether `vv` has seen everything `meta` names.
-fn has_seen(vv: &loro::VersionVector, meta: Option<&str>) -> bool {
+pub(crate) fn has_seen(vv: &loro::VersionVector, meta: Option<&str>) -> bool {
     let Some(m) = meta.and_then(|m| serde_json::from_str::<ProjectionMeta>(m).ok()) else {
         return true;
     };
@@ -467,6 +473,10 @@ op! {
     "Keep the TODOs typed as markers in one prose document (a paragraph starting with TODO or 待办) in step with it: a new marker gets a TODO, an open TODO whose marker is gone is deleted, resolved ones stay; the same marker makes the same TODO on every device.",
     fn(cx, input: TodoProjectIn) -> TodoProjected {
         let doc = DocId::parse(&input.doc).map_err(|e| WsError::invalid(format!("{:?}: {e}", input.doc)))?;
+        if let Some(info) = cx.workspace().library().doc_info(&input.doc)?
+            && let Some(book) = info.book_id
+            && cx.book(&book)?.is_v3()
+        { return <super::v3::comment::TodoProject as crate::registry::Op>::run(cx, input.into()); }
         let owner = owner_of(&doc).ok_or_else(|| WsError::invalid(format!(
             "{} has no TODO markers (chapters, ideas, elements, storylines and categories do)", input.doc)))?;
         let ps = cx.prose(&doc)?;

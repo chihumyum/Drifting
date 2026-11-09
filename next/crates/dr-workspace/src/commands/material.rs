@@ -15,6 +15,39 @@ use crate::dto::{GroupInfo, MaterialInfo};
 use crate::naming::{Place, pos_for};
 use crate::registry::Registry;
 
+// The model shape is shared, but the typed book reader and transaction are not.
+macro_rules! write_material_book {
+    ($cx:ident, $slot:expr, move |$txn:ident| $body:block) => {{
+        if $slot.is_v3() {
+            $cx.write_book_v3($slot, move |$txn| $body)
+        } else {
+            $cx.write_book($slot, move |$txn| $body)
+        }
+    }};
+}
+
+fn restore(
+    slot: &BookSlot,
+    before: &loro::Frontiers,
+    touched: Vec<(String, String)>,
+) -> Invocation {
+    if slot.is_v3() {
+        Invocation::new(
+            "entry_history.restore",
+            super::v3::history::RestoreIn {
+                book: slot.book.to_string(),
+                at: crate::naming::frontiers_hex(before),
+                targets: touched
+                    .into_iter()
+                    .map(|(collection, id)| super::v3::history::Key { collection, id })
+                    .collect(),
+            },
+        )
+    } else {
+        super::history::restore_invocation(slot.book.as_str(), before, touched)
+    }
+}
+
 pub(crate) fn register(r: &mut Registry) {
     r.add::<MaterialList>()
         .add::<MaterialCreate>()
@@ -115,7 +148,7 @@ op! {
         }
         let (i2, t2, d2) = (id.clone(), title.clone(), input.description.clone());
         let asset_id = asset.map(|a| a.id);
-        cx.write_book(&slot, move |txn| {
+        write_material_book!(cx, &slot, move |txn| {
             let w = txn.material(&i2)?;
             w.title(&t2)?.kind(&kind)?.asset(asset_id.as_ref())?.folder(folder.as_ref())?.pos(&pos)?.task_todos(true)?;
             if !d2.is_empty() { w.description(&d2)?; }
@@ -160,7 +193,7 @@ op! {
             None => None,
         };
         let (id, i, f2) = (old.id.clone(), input.clone(), folder.clone());
-        cx.write_book(&slot, move |txn| {
+        write_material_book!(cx, &slot, move |txn| {
             let w = txn.material(&id)?;
             if let Some(t) = &i.title { w.title(t.trim())?; }
             if let Some(d) = &i.description { w.description(d)?; }
@@ -208,7 +241,7 @@ op! {
             (None, None) => return Err(WsError::invalid("give place or pos")),
         };
         let id = old.id.clone();
-        cx.write_book(&slot, move |txn| { txn.material(&id)?.pos(&pos)?; Ok(()) })?;
+        write_material_book!(cx, &slot, move |txn| { txn.material(&id)?.pos(&pos)?; Ok(()) })?;
         cx.effect(EffectAction::Moved, "material", &input.id, Some(&old.title));
         match old.pos {
             Some(p) => cx.undo_with(Invocation::new("material.move", MaterialMoveIn { book: input.book.clone(), id: input.id.clone(), place: None, pos: Some(p.to_string()) })),
@@ -230,14 +263,23 @@ op! {
         touched.extend(rels.iter().map(|r| ("relations".to_string(), r.to_string())));
         touched.extend(cmts.iter().map(|c| ("comments".to_string(), c.to_string())));
         let (id, r2, c2) = (old.id.clone(), rels.clone(), cmts.clone());
-        let (_, before) = cx.write_book(&slot, move |txn| {
-            apply_fallout(txn, &r2, &c2)?;
-            txn.purge(Collection::Materials, id.as_str())?;
-            Ok(())
-        })?;
+        let (_, before) = if slot.is_v3() {
+            cx.write_book_v3(&slot, move |txn| {
+                for r in &r2 { txn.purge(dr_doc::v3::CollectionV3::Relations, r.as_str())?; }
+                for c in &c2 { txn.comment(c)?.target(None)?.module(None)?.target_block(None)?.anchor(None)?; }
+                txn.purge(dr_doc::v3::CollectionV3::Materials, id.as_str())?;
+                Ok(())
+            })
+        } else {
+            cx.write_book(&slot, move |txn| {
+                apply_fallout(txn, &r2, &c2)?;
+                txn.purge(Collection::Materials, id.as_str())?;
+                Ok(())
+            })
+        }?;
         report_fallout(cx, &rels, &cmts);
         cx.effect(EffectAction::Purged, "material", &input.id, Some(&old.title));
-        cx.undo_with(super::history::restore_invocation(&input.book, &before, touched));
+        cx.undo_with(restore(&slot, &before, touched));
         Ok(Done { id: input.id })
     }
 }
@@ -272,7 +314,7 @@ op! {
         let parent = input.parent.as_deref().map(|p| folder_exists(&slot, p)).transpose()?;
         let id = MaterialFolderId::new_v7();
         let (i2, n2) = (id.clone(), input.name.trim().to_string());
-        cx.write_book(&slot, move |txn| {
+        write_material_book!(cx, &slot, move |txn| {
             txn.material_folders().create(i2.as_str(), parent.as_ref().map(|p| p.as_str()), &n2)?;
             Ok(())
         })?;
@@ -320,7 +362,7 @@ op! {
             None => None,
         };
         let (i2, n2, p2) = (me.clone(), input.name.clone(), parent.clone());
-        cx.write_book(&slot, move |txn| {
+        write_material_book!(cx, &slot, move |txn| {
             let t = txn.material_folders();
             if let Some(n) = &n2 { t.rename(i2.as_str(), n.trim())?; }
             if let Some(p) = &p2 { t.move_to(i2.as_str(), p.as_ref().map(|p| p.as_str()))?; }
@@ -349,11 +391,11 @@ op! {
         touched.extend(children.iter().map(|c| ("material_folders".to_string(), c.clone())));
         touched.extend(members.iter().map(|m| ("materials".to_string(), m.clone())));
         let i2 = me.clone();
-        let (_, before) = cx.write_book(&slot, move |txn| { txn.delete_material_folder(&i2)?; Ok(()) })?;
+        let (_, before) = write_material_book!(cx, &slot, move |txn| { txn.delete_material_folder(&i2)?; Ok(()) })?;
         for c in &children { cx.effect(EffectAction::Moved, "material_folder", c.as_str(), None); }
         for m in &members { cx.effect(EffectAction::Moved, "material", m.as_str(), None); }
         cx.effect(EffectAction::Purged, "material_folder", &input.id, None);
-        cx.undo_with(super::history::restore_invocation(&input.book, &before, touched));
+        cx.undo_with(restore(&slot, &before, touched));
         Ok(Done { id: input.id })
     }
 }
@@ -387,12 +429,16 @@ op! {
             size: input.size, sha256: input.sha256.clone(), width: input.width, height: input.height,
         };
         dr_model::check::asset_shape(&a)?;
+        if slot.is_v3()
+            && let Some(stored) = cx.workspace().library().asset(a.id.as_str(), dr_store::asset::Variant::Source)?
+            && (stored.book_id != slot.book.as_str() || stored.sha256 != a.sha256 || stored.size != a.size as u64)
+        { return Err(WsError::invalid("asset bytes do not match this book's metadata")); }
         if let Some(have) = assets(&slot).iter().find(|x| x.id == a.id) {
             if have == &a { cx.undo_nothing(); return Ok(Done { id: input.id }); }
             return Err(WsError::Locked(format!("asset {} is already recorded differently", input.id)));
         }
         let a2 = a.clone();
-        cx.write_book(&slot, move |txn| { txn.put_asset(&a2)?; Ok(()) })?;
+        write_material_book!(cx, &slot, move |txn| { txn.put_asset(&a2)?; Ok(()) })?;
         cx.effect(EffectAction::Created, "asset", &input.id, None);
         cx.irreversible();
         Ok(Done { id: input.id })

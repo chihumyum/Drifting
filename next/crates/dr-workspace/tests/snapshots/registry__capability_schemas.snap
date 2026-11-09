@@ -3322,7 +3322,104 @@ expression: json
       "title": "Array_of_CommentAnchor",
       "type": "array"
     },
-    "summary": "The stored anchors of the comments on one entity's prose, for an editor laying them out (comments without an anchor are not listed)."
+    "summary": "The stored anchors of the comments on one entity's prose, for an editor laying them out (comments without an anchor are not listed).",
+    "v3": {
+      "book_version": 3,
+      "input": {
+        "$defs": {
+          "CommentTargetV3": {
+            "description": "A v3 comment target. Old structural kinds are not accepted by v3 writes.",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "description": "`entry` or `material`.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          }
+        },
+        "properties": {
+          "book": {
+            "type": "string"
+          },
+          "module": {
+            "description": "The entry's prose module (required for ranges, blocks and anchors); omit for a material.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "target": {
+            "$ref": "#/$defs/CommentTargetV3",
+            "description": "The entity whose prose the anchors are in."
+          }
+        },
+        "required": [
+          "book",
+          "target"
+        ],
+        "title": "CommentAnchorsInV3",
+        "type": "object"
+      },
+      "output": {
+        "$defs": {
+          "AnchorBytes": {
+            "description": "A comment's anchor as stored: the two Loro cursors dr-doc writes\n(`Cursor::encode()`, the start on the first anchored character, the end\non the last), each in base64 (standard alphabet, padded). The editor\nmoves these bytes between the book and the prose document unchanged.",
+            "properties": {
+              "end": {
+                "type": "string"
+              },
+              "start": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "start",
+              "end"
+            ],
+            "type": "object"
+          },
+          "CommentAnchor": {
+            "description": "One anchored comment, for an editor laying anchors out.",
+            "properties": {
+              "anchor": {
+                "$ref": "#/$defs/AnchorBytes"
+              },
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "description": "`note` or `todo`.",
+                "type": "string"
+              },
+              "status": {
+                "description": "`open` or `resolved`.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "status",
+              "anchor"
+            ],
+            "type": "object"
+          }
+        },
+        "items": {
+          "$ref": "#/$defs/CommentAnchor"
+        },
+        "title": "Array_of_CommentAnchor",
+        "type": "array"
+      }
+    }
   },
   {
     "access": "write",
@@ -3484,7 +3581,172 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Add a comment or TODO, on an entity, a paragraph, a passage of its prose, a region of an image or PDF, or floating."
+    "summary": "Add a comment or TODO, on an entity, a paragraph, a passage of its prose, a region of an image or PDF, or floating.",
+    "v3": {
+      "book_version": 3,
+      "input": {
+        "$defs": {
+          "CommentTargetV3": {
+            "description": "A v3 comment target. Old structural kinds are not accepted by v3 writes.",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "description": "`entry` or `material`.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          },
+          "Region": {
+            "description": "A rectangle on an image, or on one page of a PDF, as fractions (0–1) of\nthe picture or the page, so it stays put at any size and zoom.",
+            "properties": {
+              "h": {
+                "format": "double",
+                "type": "number"
+              },
+              "page": {
+                "description": "The PDF page, from 1; omitted on an image.",
+                "format": "uint32",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "w": {
+                "format": "double",
+                "type": "number"
+              },
+              "x": {
+                "format": "double",
+                "type": "number"
+              },
+              "y": {
+                "format": "double",
+                "type": "number"
+              }
+            },
+            "required": [
+              "x",
+              "y",
+              "w",
+              "h"
+            ],
+            "type": "object"
+          }
+        },
+        "properties": {
+          "author_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "block_id": {
+            "description": "The paragraph it sits on (needs a target).",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "body": {
+            "default": "",
+            "type": "string"
+          },
+          "book": {
+            "type": "string"
+          },
+          "kind": {
+            "description": "`note` (default) or `todo`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "module": {
+            "description": "The entry's prose module (required for ranges, blocks and anchors); omit for a material.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "priority": {
+            "description": "`low`, `med` or `high`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "range": {
+            "description": "Anchor it to characters `[start, end)` of the target's prose.",
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "format": "uint",
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "format": "uint",
+                "minimum": 0,
+                "type": "integer"
+              }
+            ],
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "region": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Region"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Mark a rectangle on an image or PDF material (its target)."
+          },
+          "target": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/CommentTargetV3"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What it is on; omitted: a floating comment."
+          }
+        },
+        "required": [
+          "book"
+        ],
+        "title": "CommentCreateInV3",
+        "type": "object"
+      },
+      "output": {
+        "description": "The entity a command changed.",
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "Done",
+        "type": "object"
+      }
+    }
   },
   {
     "access": "write",
@@ -3521,7 +3783,40 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Delete a comment or TODO (its relations go with it)."
+    "summary": "Delete a comment or TODO (its relations go with it).",
+    "v3": {
+      "book_version": 3,
+      "input": {
+        "description": "One entity of a book.",
+        "properties": {
+          "book": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "book",
+          "id"
+        ],
+        "title": "EntityIn",
+        "type": "object"
+      },
+      "output": {
+        "description": "The entity a command changed.",
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "Done",
+        "type": "object"
+      }
+    }
   },
   {
     "access": "read",
@@ -3773,7 +4068,270 @@ expression: json
       "title": "Array_of_CommentInfo",
       "type": "array"
     },
-    "summary": "List comments and TODOs (a target in the trash or gone shows as unlocated)."
+    "summary": "List comments and TODOs (a target in the trash or gone shows as unlocated).",
+    "v3": {
+      "book_version": 3,
+      "input": {
+        "$defs": {
+          "CommentTargetV3": {
+            "description": "A v3 comment target. Old structural kinds are not accepted by v3 writes.",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "description": "`entry` or `material`.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          }
+        },
+        "properties": {
+          "book": {
+            "type": "string"
+          },
+          "kind": {
+            "description": "`note` or `todo`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "module": {
+            "description": "The entry's prose module (required for ranges, blocks and anchors); omit for a material.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "description": "`open` or `resolved`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "target": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/CommentTargetV3"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Only comments on this entity."
+          }
+        },
+        "required": [
+          "book"
+        ],
+        "title": "CommentListInV3",
+        "type": "object"
+      },
+      "output": {
+        "$defs": {
+          "CommentInfoV3": {
+            "properties": {
+              "agent_conversation": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "anchored": {
+                "type": "boolean"
+              },
+              "author_kind": {
+                "description": "`user`, `ai` or `external`.",
+                "type": "string"
+              },
+              "author_name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "body": {
+                "type": "string"
+              },
+              "created_at": {
+                "format": "int64",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "description": "`note` or `todo`.",
+                "type": "string"
+              },
+              "module": {
+                "description": "The entry prose module; null for whole-entry, material or floating comments.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "priority": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "projection": {
+                "description": "Generated from prose (`marker` or `note_task`).",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "quote": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "region": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/Region"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The rectangle it marks on an image or a PDF page."
+              },
+              "source": {
+                "description": "`manual` or `api`.",
+                "type": "string"
+              },
+              "status": {
+                "description": "`open` or `resolved`.",
+                "type": "string"
+              },
+              "target": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/CommentTargetV3"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "target_block": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "unlocated": {
+                "description": "The target is in the trash or gone: show as unlocated.",
+                "type": "boolean"
+              },
+              "updated_at": {
+                "format": "int64",
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "module",
+              "kind",
+              "target",
+              "unlocated",
+              "target_block",
+              "anchored",
+              "quote",
+              "body",
+              "status",
+              "priority",
+              "author_kind",
+              "author_name",
+              "source",
+              "agent_conversation",
+              "projection",
+              "region",
+              "created_at",
+              "updated_at"
+            ],
+            "type": "object"
+          },
+          "CommentTargetV3": {
+            "description": "A v3 comment target. Old structural kinds are not accepted by v3 writes.",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "description": "`entry` or `material`.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          },
+          "Region": {
+            "description": "A rectangle on an image, or on one page of a PDF, as fractions (0–1) of\nthe picture or the page, so it stays put at any size and zoom.",
+            "properties": {
+              "h": {
+                "format": "double",
+                "type": "number"
+              },
+              "page": {
+                "description": "The PDF page, from 1; omitted on an image.",
+                "format": "uint32",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "w": {
+                "format": "double",
+                "type": "number"
+              },
+              "x": {
+                "format": "double",
+                "type": "number"
+              },
+              "y": {
+                "format": "double",
+                "type": "number"
+              }
+            },
+            "required": [
+              "x",
+              "y",
+              "w",
+              "h"
+            ],
+            "type": "object"
+          }
+        },
+        "items": {
+          "$ref": "#/$defs/CommentInfoV3"
+        },
+        "title": "Array_of_CommentInfoV3",
+        "type": "array"
+      }
+    }
   },
   {
     "access": "write",
@@ -3839,7 +4397,69 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Put a comment's anchor back where the editor's undo brought its text back (the author's change, synced; it follows the editor's undo, so it is not an entry of the object-level undo)."
+    "summary": "Put a comment's anchor back where the editor's undo brought its text back (the author's change, synced; it follows the editor's undo, so it is not an entry of the object-level undo).",
+    "v3": {
+      "book_version": 3,
+      "input": {
+        "$defs": {
+          "AnchorBytes": {
+            "description": "A comment's anchor as stored: the two Loro cursors dr-doc writes\n(`Cursor::encode()`, the start on the first anchored character, the end\non the last), each in base64 (standard alphabet, padded). The editor\nmoves these bytes between the book and the prose document unchanged.",
+            "properties": {
+              "end": {
+                "type": "string"
+              },
+              "start": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "start",
+              "end"
+            ],
+            "type": "object"
+          }
+        },
+        "properties": {
+          "anchor": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/AnchorBytes"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The anchor as the editor holds it (dr-doc's encoding, base64);\n`null` removes the anchor (the comment stays on its paragraph or\nentity)."
+          },
+          "book": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "book",
+          "id",
+          "anchor"
+        ],
+        "title": "CommentReanchorIn",
+        "type": "object"
+      },
+      "output": {
+        "description": "The entity a command changed.",
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "Done",
+        "type": "object"
+      }
+    }
   },
   {
     "access": "write",
@@ -3908,7 +4528,72 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Change a comment or TODO: its text, status (resolve / reopen), priority, kind or linked Agent conversation."
+    "summary": "Change a comment or TODO: its text, status (resolve / reopen), priority, kind or linked Agent conversation.",
+    "v3": {
+      "book_version": 3,
+      "input": {
+        "properties": {
+          "agent_conversation": {
+            "description": "The Agent conversation started from this TODO.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "book": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "description": "`note` or `todo`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "priority": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "description": "`open` or `resolved`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "book",
+          "id"
+        ],
+        "title": "CommentUpdateIn",
+        "type": "object"
+      },
+      "output": {
+        "description": "The entity a command changed.",
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "Done",
+        "type": "object"
+      }
+    }
   },
   {
     "access": "write",
@@ -5856,7 +6541,7 @@ expression: json
         "Key": {
           "properties": {
             "collection": {
-              "description": "entries, templates, memberships, timeline_views, patches, plot_grids, relations or relation_types.",
+              "description": "entries, templates, memberships, timeline_views, patches, plot_grids, relations, relation_types, materials, comments or material_folders.",
               "type": "string"
             },
             "id": {
@@ -16350,7 +17035,87 @@ expression: json
       "title": "TodoProjected",
       "type": "object"
     },
-    "summary": "Keep the TODOs typed as markers in one prose document (a paragraph starting with TODO or 待办) in step with it: a new marker gets a TODO, an open TODO whose marker is gone is deleted, resolved ones stay; the same marker makes the same TODO on every device."
+    "summary": "Keep the TODOs typed as markers in one prose document (a paragraph starting with TODO or 待办) in step with it: a new marker gets a TODO, an open TODO whose marker is gone is deleted, resolved ones stay; the same marker makes the same TODO on every device.",
+    "v3": {
+      "book_version": 3,
+      "input": {
+        "$defs": {
+          "TodoMarkerIn": {
+            "properties": {
+              "block": {
+                "description": "The paragraph's block id.",
+                "type": "string"
+              },
+              "task": {
+                "default": "",
+                "description": "The task text after the marker.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "block"
+            ],
+            "type": "object"
+          }
+        },
+        "properties": {
+          "doc": {
+            "description": "`body:<entry>/<module>` (including level `about`) or `material:<id>` of a v3 book.",
+            "type": "string"
+          },
+          "editing": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "markers": {
+            "items": {
+              "$ref": "#/$defs/TodoMarkerIn"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "doc",
+          "markers"
+        ],
+        "title": "TodoProjectInV3",
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "created": {
+            "description": "TODOs made for new markers.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "removed": {
+            "description": "Open TODOs whose marker or paragraph is gone, deleted.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "waiting": {
+            "description": "Open TODOs whose marker is missing here, kept because this device\nhas not yet received the prose they were made from (sync brings the\nbook and the prose separately).",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "created",
+          "removed",
+          "waiting"
+        ],
+        "title": "TodoProjected",
+        "type": "object"
+      }
+    }
   },
   {
     "access": "write",
