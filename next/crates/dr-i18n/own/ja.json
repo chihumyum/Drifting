@@ -95,5 +95,16 @@
     "grid": "グリッド",
     "board": "ボード",
     "islands": "アイランド"
+  },
+  "v3Timeline": {
+    "views": "タイムラインビュー",
+    "newView": "ビューを作成",
+    "renameView": "ビューの名前を変更",
+    "deleteView": "ビューを削除",
+    "addLane": "レーンを追加",
+    "removeLane": "ビューから外す",
+    "moveUp": "上へ移動",
+    "moveDown": "下へ移動",
+    "members": "メンバー {{count}} 件"
   }
 }

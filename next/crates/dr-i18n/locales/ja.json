@@ -1776,6 +1776,17 @@
     "list": "リスト",
     "settings": "設定"
   },
+  "v3Timeline": {
+    "addLane": "レーンを追加",
+    "deleteView": "ビューを削除",
+    "members": "メンバー {{count}} 件",
+    "moveDown": "下へ移動",
+    "moveUp": "上へ移動",
+    "newView": "ビューを作成",
+    "removeLane": "ビューから外す",
+    "renameView": "ビューの名前を変更",
+    "views": "タイムラインビュー"
+  },
   "voiceAgent": {
     "error": {
       "auth": "文字起こし用キーが無効か期限切れです",

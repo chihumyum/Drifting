@@ -101,5 +101,16 @@
     "grid": "Grid",
     "board": "Board",
     "islands": "Islands"
+  },
+  "v3Timeline": {
+    "views": "Timeline views",
+    "newView": "New view",
+    "renameView": "Rename view",
+    "deleteView": "Delete view",
+    "addLane": "Add lane",
+    "removeLane": "Remove from view",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "members": "{{count}} members"
   }
 }

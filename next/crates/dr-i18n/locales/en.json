@@ -1782,6 +1782,17 @@
     "list": "List",
     "settings": "Settings"
   },
+  "v3Timeline": {
+    "addLane": "Add lane",
+    "deleteView": "Delete view",
+    "members": "{{count}} members",
+    "moveDown": "Move down",
+    "moveUp": "Move up",
+    "newView": "New view",
+    "removeLane": "Remove from view",
+    "renameView": "Rename view",
+    "views": "Timeline views"
+  },
   "voiceAgent": {
     "error": {
       "auth": "The transcription key is invalid or expired",

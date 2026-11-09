@@ -1776,6 +1776,17 @@
     "list": "清單",
     "settings": "設定"
   },
+  "v3Timeline": {
+    "addLane": "加入泳道",
+    "deleteView": "刪除視圖",
+    "members": "{{count}} 個成員",
+    "moveDown": "下移",
+    "moveUp": "上移",
+    "newView": "新增視圖",
+    "removeLane": "移出視圖",
+    "renameView": "重新命名視圖",
+    "views": "時間線視圖"
+  },
   "voiceAgent": {
     "error": {
       "auth": "轉錄金鑰無效或已過期",
