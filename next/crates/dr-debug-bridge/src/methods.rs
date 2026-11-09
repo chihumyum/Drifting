@@ -70,6 +70,10 @@ pub const METHODS: &[(&str, &str)] = &[
         "{keys, times?}: press keys, e.g. \"secondary-z\" or \"enter escape\" (space-separated; secondary is ⌘ on macOS, Ctrl elsewhere), the whole sequence `times` times",
     ),
     (
+        "input.url",
+        "{url}: deliver a URL through the same normalized F7 queue used by the operating system; returns how many URLs that queue accepted",
+    ),
+    (
         "input.click",
         "{x, y, button?, count?}: click at a window position, in logical pixels",
     ),
@@ -225,6 +229,17 @@ pub async fn call(method: &str, params: Value, cx: &mut AsyncApp) -> Out {
         "action.dispatch" => cx.update(|cx| dispatch(&p, cx)),
         "input.type" => cx.update(|cx| type_text(&p, cx)),
         "input.key" => cx.update(|cx| press(&p, cx)),
+        "input.url" => cx.update(|cx| {
+            let url = p
+                .get("url")
+                .and_then(Value::as_str)
+                .ok_or_else(|| bad("give params.url"))?;
+            let links = cx
+                .try_global::<Services>()
+                .and_then(|s| s.deep_links.clone())
+                .ok_or_else(|| not_found("this application has no deep-link queue"))?;
+            Ok(json!({"accepted":links.push_all([url])}))
+        }),
         "input.click" => cx.update(|cx| click(&p, cx)),
         "input.move" => cx.update(|cx| {
             let (x, y) = (coord(&p, "x")?, coord(&p, "y")?);
@@ -766,6 +781,20 @@ fn state_of(ws: &Workspace, window: &Window, cx: &App) -> Value {
         let s = p.read(cx).selection();
         json!({ "anchor": s.anchor, "head": s.head })
     });
+    let v3_page = ws
+        .nav
+        .current()
+        .and_then(|t| ws.editors.get(&t.key()))
+        .and_then(|p| p.v3.as_ref())
+        .map(|p| {
+            let page = p.read(cx);
+            let focus = page.preferred_focus();
+            let within = focus.contains_focused(window, cx);
+            let mut state = page.state();
+            state["focus"] =
+                json!({"within": within, "child": within && !focus.is_focused(window)});
+            state
+        });
     json!({
         "library": ws.library.is_some(),
         "book": {
@@ -775,7 +804,7 @@ fn state_of(ws: &Workspace, window: &Window, cx: &App) -> Value {
         },
         "v3": book.v3(),
         "v3Sidebar": ws.v3_sidebar.as_ref().map(|s| s.read(cx).state()),
-        "v3Page": ws.nav.current().and_then(|t| ws.editors.get(&t.key())).and_then(|p| p.v3.as_ref()).map(|p| p.read(cx).state()),
+        "v3Page": v3_page,
         "v3Appearance": ws.nav.current().and_then(|t| match t { Target::Entry { id, .. } => book.v3()?.appearance(id.as_str()), _ => None }).map(|a| json!({ "mark": a.mark, "color": a.color })),
         "shelf": ws.shelf_open,
         "page": page,
@@ -783,6 +812,8 @@ fn state_of(ws: &Workspace, window: &Window, cx: &App) -> Value {
         "tabs": tabs,
         "activeTab": ws.nav.active_index(),
         "layer": ws.top_layer().map(layer_name),
+        "search": ws.search_state(cx),
+        "recent": ws.recent_state(),
         "superView": ws.super_view.map(|v| format!("{v:?}")),
         "left": {
             "open": ws.left.open, "width": ws.left.width,
@@ -803,6 +834,7 @@ fn state_of(ws: &Workspace, window: &Window, cx: &App) -> Value {
         },
         "focus": {
             "workspace": ws.focus_handle().contains_focused(window, cx),
+            "search": ws.search.as_ref().is_some_and(|p| p.focus_handle(cx).is_focused(window)),
             "editor": editor_focused,
             "any": window.focused(cx).is_some(),
         },
@@ -851,7 +883,9 @@ fn page_text(p: &Value, cx: &mut App) -> Out {
             .editors
             .get(&target.key())
             .ok_or_else(|| not_found(format!("{} is not open on screen", target.key())))?;
-        if let Some(view) = &page.v3 {
+        if page.view.is_none()
+            && let Some(view) = &page.v3
+        {
             let view = view.read(cx);
             return Ok(
                 json!({ "target": target.key(), "title": title, "ready": true, "loading": false, "failed": false, "source": "v3", "composition": view.state(), "text": view.sections.iter().map(|s| s.name.as_str()).collect::<Vec<_>>().join("\n"), "paragraphs": [] }),
@@ -895,6 +929,8 @@ fn page_text(p: &Value, cx: &mut App) -> Out {
             "paragraphs": paragraphs, "text": lines.join("\n"),
             "selection": { "anchor": sel.anchor, "head": sel.head },
             "source": if whole_book { "book" } else { "editor" },
+            "doc": page.doc,
+            "composition": page.v3.as_ref().map(|v| v.read(cx).state()),
             "head": head,
         }))
     })?

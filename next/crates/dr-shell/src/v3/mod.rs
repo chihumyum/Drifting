@@ -11,8 +11,12 @@ use std::{collections::BTreeMap, rc::Rc};
 
 pub mod card;
 pub mod history;
+mod editor;
 pub mod page;
 pub mod sidebar;
+
+pub use editor::register_editor;
+pub(crate) use editor::registered_editor;
 
 #[derive(Clone)]
 pub struct ModuleHost {
