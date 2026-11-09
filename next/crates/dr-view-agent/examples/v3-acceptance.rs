@@ -62,6 +62,12 @@ fn main() -> anyhow::Result<()> {
             "book.update",
             json!({"summary":"K6 synthetic window update","word_target":0,"daily_word_target":240}),
         ),
+        call("entry-read", "entry.get", json!({"id":entry})),
+        call(
+            "entry-write",
+            "entry.update",
+            json!({"id":entry,"title":"K6 checkpointed entry"}),
+        ),
         call(
             "module-read",
             "module.read_prose",
@@ -70,7 +76,7 @@ fn main() -> anyhow::Result<()> {
         call(
             "comment-write",
             "comment.create",
-            json!({"target":{"kind":"entry","id":entry},"module":MOD_PROSE,"body":"K6 synthetic module comment"}),
+            json!({"target":{"kind":"entry","id":entry},"module":MOD_PROSE,"range":[0,3],"body":"K6 synthetic module comment"}),
         ),
         call(
             "comment-read",

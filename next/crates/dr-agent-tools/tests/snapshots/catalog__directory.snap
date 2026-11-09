@@ -255,6 +255,7 @@ entry_relation_type.list: v3 commands remain excluded until K6 opens the version
 entry_relation_type.put: v3 commands remain excluded until K6 opens the versioned catalog
 entry_snapshot.capture: v3 commands remain excluded until K6 opens the versioned catalog
 entry_snapshot.create: v3 commands remain excluded until K6 opens the versioned catalog
+entry_snapshot.create_with_receipt: v3 commands remain excluded until K6 opens the versioned catalog
 entry_snapshot.list: v3 commands remain excluded until K6 opens the versioned catalog
 entry_snapshot.preview: v3 commands remain excluded until K6 opens the versioned catalog
 entry_snapshot.restore: v3 commands remain excluded until K6 opens the versioned catalog

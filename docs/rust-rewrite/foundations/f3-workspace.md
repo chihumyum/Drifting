@@ -1060,3 +1060,14 @@ G4 的可选稳定锚点创建分支需使用同一帮手，不另作一次观�
 独立书目冲突与清空锚点；`cx/source_tests.rs` 用两个真实并发参与方和已排队写入，
 验证守卫与派生之间不能插入正文写入，读后编辑仍保留锚点身份和历史摘录。
 没有添加生产暂停钩子，没有改 v2.2 批注行为或删除其测试。
+
+### K6：完整条目快照的确切提交回执（2026-11-10）
+
+在 G1 已正式交回的快照命令旁新增 `entry_snapshot.create_with_receipt`（类型
+`commands::v3::snapshots::CreateWithReceipt`）。输入仍是 `EntryIn {book, entry}`，
+返回 `Created {point, versions}`。`point.book_version` 是快照前历史版本；`versions`
+在同一次 atomic reservation 的 staging 提交后取得，原子落盘失败不会返回回执。
+调用者可将本次快照自身造成的版本推进用于紧接着的 guarded 写入；不能用一次
+较晚的普通 observe 刷新旧内容覆盖。原 `Create`／`Capture` 返回值不变。
+K6 的回合屏障消费这个宿主接口，模型目录继续排除整个 `entry_snapshot.*`；
+永久契约在 `dr-agent-tools/tests/checkpoints_v3.rs`，使用 v3 testkit 种子。

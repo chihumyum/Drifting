@@ -107,7 +107,60 @@
         "/[body=K6 synthetic module comment]/module": "mod-prose",
         "/[body=K6 synthetic module comment]/target/kind": "entry",
         "/[body=K6 synthetic module comment]/author_kind": "ai",
-        "/[body=K6 synthetic module comment]/source": "api"
+        "/[body=K6 synthetic module comment]/source": "api",
+        "/[body=K6 synthetic module comment]/anchored": true
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${state.book.id}",
+        "id": "${comments.[body=K6 synthetic module comment].target.id}"
+      },
+      "expect": {
+        "/title": "K6 checkpointed entry"
+      }
+    },
+    {
+      "call": "entry_snapshot.list",
+      "input": {
+        "book": "${state.book.id}",
+        "entry": "${comments.[body=K6 synthetic module comment].target.id}"
+      },
+      "save": "checkpoints",
+      "expect": {
+        "/0/entry": "${comments.[body=K6 synthetic module comment].target.id}"
+      }
+    },
+    {
+      "call": "entry_snapshot.preview",
+      "input": {
+        "book": "${state.book.id}",
+        "entry": "${comments.[body=K6 synthetic module comment].target.id}",
+        "point": "${checkpoints.0.id}"
+      },
+      "save": "checkpoint_preview",
+      "expect": {
+        "/metadata/title": "${checkpoints.0.title}"
+      }
+    },
+    {
+      "call": "entry_snapshot.restore",
+      "input": {
+        "book": "${state.book.id}",
+        "entry": "${comments.[body=K6 synthetic module comment].target.id}",
+        "point": "${checkpoints.0.id}",
+        "expected": "${checkpoint_preview.expected}"
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${state.book.id}",
+        "id": "${comments.[body=K6 synthetic module comment].target.id}"
+      },
+      "expect": {
+        "/title": "${checkpoints.0.title}"
       }
     },
     {
