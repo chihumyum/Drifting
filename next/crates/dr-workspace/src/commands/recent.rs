@@ -27,7 +27,8 @@ use crate::dto::Target;
 use crate::registry::Registry;
 
 pub(crate) fn register(r: &mut Registry) {
-    r.add::<RecentTouch>().add::<RecentList>();
+    r.add_versioned::<RecentTouch, v3::recent::RecentTouch>()
+        .add_versioned::<RecentList, v3::recent::RecentList>();
 }
 
 /// Entries kept per book (the 0.1 default).
@@ -96,10 +97,13 @@ op! {
     "Record that the author opened a page of a book (this device only; Project Home's 「继续写」 reads it). Not undoable.",
     fn(cx, input: RecentTouchIn) -> Done {
         let book: BookId = pid("book", &input.book)?;
+        let slot = cx.book(book.as_str())?;
+        if slot.is_v3() {
+            return Err(WsError::invalid("use v3::recent::RecentTouch to retain the selected module"));
+        }
         if !KINDS.contains(&input.target.kind.as_str()) {
             return Err(WsError::invalid(format!("{:?} is not a page", input.target.kind)));
         }
-        let slot = cx.book(book.as_str())?;
         require_live(&slot, input.target.to_ref().kind, &input.target.id)?;
         let entry = RecentEntry { book: input.book.clone(), target: input.target.clone(), used_ms: now_ms() };
         update(cx.workspace().library(), &input.book, move |all| {
@@ -130,6 +134,9 @@ op! {
     "List the pages of a book the author opened recently on this device, newest first (what is in the trash or gone is left out).",
     fn(cx, input: RecentListIn) -> Vec<RecentEntry> {
         let slot = cx.book(&input.book)?;
+        if slot.is_v3() {
+            return Err(WsError::invalid("use v3::recent::RecentList to retain the selected module"));
+        }
         let limit = input.limit.unwrap_or(RECENT_KEEP).clamp(1, RECENT_KEEP);
         Ok(read_all(cx.workspace().library())?
             .into_iter()

@@ -595,10 +595,15 @@
     }
   },
   "k4Book": {
+    "entry_count_one": "{{count}} entrada",
+    "entry_count_other": "{{count}} entradas",
+    "entry_titles": "Títulos das entradas",
     "entry_words": "Palavras da entrada",
     "leaf_count": "Número de folhas",
     "material_words": "Palavras do material",
-    "retained_content": "Conteúdo preservado"
+    "retained_content": "Conteúdo preservado",
+    "selected_entries": "Entradas selecionadas",
+    "untitled_entry": "Entrada sem título"
   },
   "k4Pages": {
     "body": "Texto",

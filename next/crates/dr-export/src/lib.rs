@@ -22,6 +22,7 @@ mod files;
 pub mod import;
 mod manuscript;
 mod markdown;
+pub mod v3;
 
 pub use convert::{
     ActEntry, ChapterEntry, Labels, Options, Outline, blocks, default_chapters, outline,

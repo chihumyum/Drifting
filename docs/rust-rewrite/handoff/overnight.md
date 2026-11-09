@@ -109,7 +109,7 @@
 
 已原意转发 G1：待协调第 9 条所需按条目整份快照／恢复，可自行在 dr-workspace 的 v3 命令中新增，带版本守卫，不改已有命令，补永久测试并把快照历史做完，交 handback/k4-g1。快照历史是切换前必须项，帮手写入后靠它撤销；next/ v2.2 冻结，不要求再为其写测试。
 
-G1 原会话已按作者 autopilot 接管安排确认安全停止，34 个未提交文件（含未跟踪内容）完整保存在 `refs/wip/2026-11-10/g1-snapshot-autopilot`；新树 `codex/autopilot-g1-history` 已恢复半成品，原树未动。第 60 批正式接收后启动 `gpt-6.1-sol`／max 后台接手，不把 WIP 算交回。
+G1 原会话已按作者 autopilot 接管安排确认安全停止，34 个未提交文件（含未跟踪内容）完整保存在 `refs/wip/2026-11-10/g1-snapshot-autopilot`；新树 `codex/autopilot-g1-history` 已恢复半成品，原树未动。第 60 批正式接收后已启动 `gpt-6.1-sol`／max 后台接手，日志确认模型与强度；不把 WIP 算交回。
 
 G1 随后确认完整恢复跨 book 与多份 body，拟新增 dr-store 多文档版本守卫及原子持久化 API，不改既有单文档行为／签名；交回须列清新增范围，测试失败、并发、持久化与重开时无部分恢复。已通知 K6：正式接口合 main 后，Agent 首次写条目前先创建完整快照，不消费 WIP；签名和实际接线仍待 G1 交回。
 
@@ -122,7 +122,7 @@ G1 随后确认完整恢复跨 book 与多份 body，拟新增 dr-store 多文�
 - **G2**：right_body 在 book::nav_target 之前分流，消费 dr_view_stats::v3_panel::panel 及 Scope::{Book, Entry{id,module}, Material}；审阅同样传模块目标，等 G4 面板接口。回调直接转 Target，不把 Entry 当 Book。保持原 G2 队列，交 handback/k4-g2；G1 大纲登记已于第 58 批接收，联合窗口仍由 G2 完成。
 - **K2**：补版本明确的 v3 comment.*（正文模块目标与实际读写／重锚路径）、material.*、material_folder.*、book.writing_days／writing_day.record；保持素材夹与条目关系、v2.2 行为及两书隔离。不得只放行 Cx::book 白名单后继续调用旧 Reader／Txn，不从视图绕写 Loro。搜索／字数已由 G4 只读适配，不必先开放旧 search／word_counts。语义不确定仍列 F1/F3 协调，按内核原范围与 handback/k1 分段交回。
 
-- **K2／F6 主页续接（11-10）**：G4 补查的 book.get/update 元数据与 recent.touch/list 已核代码并直接分派。K2 明确 v3 书名、简介、全书／每日目标读取及逐字段写入，保留其他字段、v2.2、撤销和两书隔离；旧 nodes／elements 计数不能当 v3。最近访问保留 entry＋module 的本机目标和旧记录，记录不进撤销。F6 的 touch_front 目前跳过 v3，等 K2 正式接口合 main 后消费；不绕写本机数据库，不退回旧 Book 哨兵。G4 在 M02 记协调并继续模板动作／主页及单本书准备。已另收到 `handback/k4-g4` → `ced82326`（只读审阅／素材、主页模板动作、成稿与单书格式 3）；与 K2 `handback/k1` → `3a6bbbe5`（含 `879127b4` 版本化批注／素材及主页／最近访问）排下一批，第 60 批冻结后不再扩大。源检查与冒烟记录已收到，尚未正式接收，不算整合通过。
+- **K2／F6 主页续接（11-10）**：G4 补查的 book.get/update 元数据与 recent.touch/list 已核代码并直接分派。K2 明确 v3 书名、简介、全书／每日目标读取及逐字段写入，保留其他字段、v2.2、撤销和两书隔离；旧 nodes／elements 计数不能当 v3。最近访问保留 entry＋module 的本机目标和旧记录，记录不进撤销。F6 的 touch_front 目前跳过 v3，等 K2 正式接口合 main 后消费；不绕写本机数据库，不退回旧 Book 哨兵。G4 在 M02 记协调并继续模板动作／主页及单本书准备。第 61 批正式接收 `handback/k4-g4` → `ced82326`（只读审阅／素材、主页模板动作、成稿与单书格式 3）和 K2 `handback/k1` → `3a6bbbe5`（含 `879127b4` 批注／素材及主页／最近访问）：全套 2161／0 失败／22 忽略，副屏主流程 43/43、0 pending，实际导出文件与独立导入书核对通过。F6 可消费 recent.touch/list；G2 可消费 v3 审阅 panel 的精确模块目标；G4 续接写入。K6 需按书版本使用 Spec.v3 的输入／输出签名，不能继续以旧共名签名派生目录和 resolver；G1 完整历史正式接收后再接 Agent 写前快照。
 
 接口依据为 codex/k4-g4-book 中 [M06](../modules/m06-search.md)、[M20](../modules/m20-stats.md) 的待协调；各方编译并发 3，整合并发 6。未扩大 G4 的搜索宿主、右栏或内核修改权，progress.md 仍只由整合者更新。
 
@@ -167,6 +167,7 @@ G1 随后确认完整恢复跨 book 与多份 body，拟新增 dr-store 多文�
 | 11-10 01:36 | `handback/k4-g3` → `c611c8de`（第五十九批：隐藏绑定与失败草稿） | `5d8541b2` | 并发 6、测试单线程；fmt、Clippy、test（2118 通过／0 失败／22 忽略）、xtask／审计、public 及附加检查全过，无重跑。适配拒写断言的原隐藏 pin 探针与六项永久契约通过；窗口 45/45、89/89、50/50，共 184 步、0 pending，十图目检通过。第 56 批返修关闭；heavy、局部命令与公共树拖动仍待。 |
 
 | 11-10 02:41 | `handback/k1` → `469f0e8f`、`handback/k4-g4` → `7e2cd7d0`、`handback/f6` → `48184963`、`handback/k4-0` → `d2c0c918`（第六十批：结构／写作日、搜索统计接口、副屏与导航） | `236196de` | fmt、Clippy、test（2136 通过／0 失败／22 忽略）、xtask／审计、public 及附加检查全过，Rust 无重跑；主流程冒烟 58/58、0 pending。副屏原生定位另验 18/18 首次／重启通过，整合后处理的相对坐标误判记录保留。只解九语追加键冲突，G2 导航阻塞关闭；G1 历史／宿主续接，性能与 UI 打磨按最新规则暂缓。 |
+| 11-10 03:21 | `handback/k1` → `3a6bbbe5`、`handback/k4-g4` → `ced82326`（第六十一批：批注素材、主页与整书往返） | `f3709422` | fmt、Clippy、test（2161 通过／0 失败／22 忽略）、xtask／审计、public 及附加检查全过；标准 debug 副屏冒烟 43/43、0 pending，Word 内容和格式 3 独立导入书核对通过，无重跑。只合九语追加键；F6／G2／G4／K6 续接宿主与版本签名，G1 历史子会话继续。 |
 
 ## 退回
 

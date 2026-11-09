@@ -1629,6 +1629,56 @@ impl<'a> BookTxnV3<'a> {
         self.restore_entry(id, old)
     }
 
+    /// Restore a folder's metadata and parent without changing unselected children.
+    pub fn restore_material_folder(
+        &mut self,
+        id: &MaterialFolderId,
+        parent: Option<&MaterialFolderId>,
+        old: &EntrySnapshotV3,
+    ) -> Result<()> {
+        let LoroValue::Map(want) = &old.value else {
+            return Err(DocError::NotInProfile("folder snapshot is not a map"));
+        };
+        if self.view.material_folder_snapshot(id).is_some() {
+            self.material_folders()
+                .move_to(id.as_str(), parent.map(|p| p.as_str()))?;
+        } else {
+            self.material_folders()
+                .create(id.as_str(), parent.map(|p| p.as_str()), "")?;
+        }
+        let tree = self.view.doc.get_tree(book_v3::MATERIAL_FOLDERS);
+        let node = self.view.tree_index(book_v3::MATERIAL_FOLDERS)[id.as_str()][0];
+        sync_record(&tree.get_meta(node)?, want, None)
+    }
+
+    /// Restore the selected folder's order relative to surviving historical siblings.
+    pub fn move_material_folder_to_at(
+        &mut self,
+        id: &MaterialFolderId,
+        parent: Option<&MaterialFolderId>,
+        index: usize,
+    ) -> Result<()> {
+        let nodes = self.view.tree_index(book_v3::MATERIAL_FOLDERS);
+        let node = |id: &MaterialFolderId| {
+            nodes
+                .get(id.as_str())
+                .and_then(|ids| ids.first())
+                .copied()
+                .ok_or_else(|| DocError::Missing {
+                    collection: book_v3::MATERIAL_FOLDERS,
+                    id: id.to_string(),
+                })
+        };
+        let p = parent
+            .map(node)
+            .transpose()?
+            .map_or(TreeParentId::Root, TreeParentId::Node);
+        let tree = self.view.doc.get_tree(book_v3::MATERIAL_FOLDERS);
+        tree.enable_fractional_index(0);
+        tree.mov_to(node(id)?, p, index)?;
+        Ok(())
+    }
+
     /// Restore one structural v3 record, keeping mergeable nested map identities.
     pub fn restore_map_snapshot(
         &mut self,
@@ -1645,6 +1695,8 @@ impl<'a> BookTxnV3<'a> {
                 | CollectionV3::PlotGrids
                 | CollectionV3::Relations
                 | CollectionV3::RelationTypes
+                | CollectionV3::Materials
+                | CollectionV3::Comments
         ) {
             return Err(DocError::NotInProfile("not a structural v3 map"));
         }
@@ -1660,10 +1712,19 @@ impl<'a> BookTxnV3<'a> {
                 )?;
             }
             let map = root.ensure_mergeable_map(id)?;
-            sync_record(
+            sync_record_with_values(
                 &map,
                 want,
-                (collection == CollectionV3::Patches).then_some("body"),
+                match collection {
+                    CollectionV3::Patches | CollectionV3::Comments => Some("body"),
+                    CollectionV3::Materials => Some("description"),
+                    _ => None,
+                },
+                if collection == CollectionV3::Comments {
+                    &["region"]
+                } else {
+                    &[]
+                },
             )?;
         } else if root.get(id).is_some() {
             if collection == CollectionV3::RelationTypes {
@@ -1732,6 +1793,15 @@ fn sync_nested_map(sub: &LoroMap, want: &loro::LoroMapValue) -> Result<()> {
 }
 
 fn sync_record(sub: &LoroMap, want: &loro::LoroMapValue, text_key: Option<&str>) -> Result<()> {
+    sync_record_with_values(sub, want, text_key, &[])
+}
+
+fn sync_record_with_values(
+    sub: &LoroMap,
+    want: &loro::LoroMapValue,
+    text_key: Option<&str>,
+    value_keys: &[&str],
+) -> Result<()> {
     let have: Vec<String> = sub.keys().map(|k| k.to_string()).collect();
     for k in have {
         if !want.contains_key(&k) {
@@ -1739,6 +1809,12 @@ fn sync_record(sub: &LoroMap, want: &loro::LoroMapValue, text_key: Option<&str>)
         }
     }
     for (k, v) in want.iter() {
+        // A region is an atomic value; anchors and structural child records
+        // retain their mergeable map containers.
+        if value_keys.contains(&k.as_str()) {
+            sub.insert(k, v.clone())?;
+            continue;
+        }
         if text_key == Some(k.as_str())
             && let LoroValue::String(text) = v
         {

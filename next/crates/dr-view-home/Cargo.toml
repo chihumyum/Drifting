@@ -20,23 +20,24 @@ dr-doc.workspace = true
 dr-i18n.workspace = true
 dr-model.workspace = true
 dr-shell.workspace = true
+dr-store.workspace = true
 dr-ui.workspace = true
 dr-view-shelf.workspace = true
+dr-view-stats.workspace = true
 dr-workspace.workspace = true
 futures.workspace = true
 gpui.workspace = true
 gpui_platform = { workspace = true, optional = true }
 log.workspace = true
 png = { workspace = true, optional = true }
+serde_json.workspace = true
 
 [dev-dependencies]
-dr-store.workspace = true
 dr-testkit.workspace = true
 dr-view-sea.workspace = true
 dr-view-shelf-art.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
 gpui_platform.workspace = true
-serde_json.workspace = true
 tempfile.workspace = true
 
 [[example]]

@@ -362,6 +362,7 @@ impl<'a> Cx<'a> {
         // contracts. Kind-specific v2.2 commands must never create old roots in v3.
         if slot.is_v3()
             && self.spec.book_version != Some(3)
+            && self.spec.v3.is_none()
             && !self.spec.name.starts_with("prose.")
             && !matches!(
                 self.spec.name,
@@ -371,6 +372,17 @@ impl<'a> Cx<'a> {
                     | "book.restore"
                     | "book.writing_days"
                     | "writing_day.record"
+                    | "material.list"
+                    | "material.create"
+                    | "material.update"
+                    | "material.move"
+                    | "material.delete"
+                    | "material_folder.list"
+                    | "material_folder.create"
+                    | "material_folder.update"
+                    | "material_folder.delete"
+                    | "asset.put"
+                    | "asset.get"
             )
         {
             return Err(WsError::invalid(

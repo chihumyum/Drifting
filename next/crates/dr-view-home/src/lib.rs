@@ -24,6 +24,7 @@
 //! it.
 
 pub mod data;
+pub mod v3;
 mod view;
 
 pub use view::{Home, HomeView, continue_page, opened_more, recent};
@@ -51,6 +52,7 @@ pub fn today(cx: &App) -> NaiveDate {
 
 /// Registers Project Home with the shell.
 pub fn init(cx: &mut App) {
+    dr_shell::pages::set_v3_home(cx, |ws, _, cx| cx.new(|cx| v3::Home::new(ws, cx)).into());
     dr_shell::pages::set_home(cx, |ws, window, cx| {
         cx.new(|cx| Home::new(ws, window, cx)).into()
     });

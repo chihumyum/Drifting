@@ -263,6 +263,11 @@
     "entry_words": "Palavras da entrada",
     "material_words": "Palavras do material",
     "leaf_count": "Número de folhas",
-    "retained_content": "Conteúdo preservado"
+    "retained_content": "Conteúdo preservado",
+    "selected_entries": "Entradas selecionadas",
+    "entry_titles": "Títulos das entradas",
+    "untitled_entry": "Entrada sem título",
+    "entry_count_one": "{{count}} entrada",
+    "entry_count_other": "{{count}} entradas"
   }
 }

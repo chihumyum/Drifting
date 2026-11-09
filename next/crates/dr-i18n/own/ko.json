@@ -257,6 +257,10 @@
     "entry_words": "항목 글자 수",
     "material_words": "자료 글자 수",
     "leaf_count": "리프 수",
-    "retained_content": "보존된 내용"
+    "retained_content": "보존된 내용",
+    "selected_entries": "선택한 항목",
+    "entry_titles": "항목 제목",
+    "untitled_entry": "제목 없는 항목",
+    "entry_count_other": "항목 {{count}}개"
   }
 }

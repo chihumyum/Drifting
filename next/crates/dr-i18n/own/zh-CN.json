@@ -257,6 +257,10 @@
     "entry_words": "条目字数",
     "material_words": "素材字数",
     "leaf_count": "叶子数量",
-    "retained_content": "保留的内容"
+    "retained_content": "保留的内容",
+    "selected_entries": "选中条目",
+    "entry_titles": "条目标题",
+    "untitled_entry": "未命名条目",
+    "entry_count_other": "{{count}} 个条目"
   }
 }
