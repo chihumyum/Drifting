@@ -347,6 +347,15 @@ impl Catalog {
         self.version
     }
 
+    pub fn revision(&self) -> String {
+        let names: Vec<_> = self
+            .entries
+            .iter()
+            .map(|e| (&e.name, &e.revision))
+            .collect();
+        digest(&json!({"version": self.version, "entries": names}))
+    }
+
     pub fn entries(&self) -> &[Entry] {
         &self.entries
     }

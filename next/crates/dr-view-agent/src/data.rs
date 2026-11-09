@@ -46,6 +46,15 @@ pub fn change_targets(run: &crate::state::RunSnapshot, turn: u32) -> Vec<ChangeT
         if matches!(doc, dr_model::DocId::Template(_)) {
             continue;
         }
+        if let dr_model::DocId::Body(body) = &doc {
+            add(ChangeTarget {
+                kind: "entry".into(),
+                id: body.entry().to_string(),
+                history: Some(receipt.document.clone()),
+                book: None,
+            });
+            continue;
+        }
         if doc.profile().is_some() {
             if let Some((kind, id)) = receipt.document.split_once(':') {
                 add(ChangeTarget {
@@ -79,15 +88,28 @@ pub fn change_targets(run: &crate::state::RunSnapshot, turn: u32) -> Vec<ChangeT
             // report singular entity kinds. Both identify the same object.
             // `meta` stays distinct: its id names a field, not the book.
             use dr_doc::book::Collection;
-            let kind = match Collection::from_root(&effect.kind) {
-                Some(Collection::Nodes) => "node",
-                Some(Collection::Elements) => "element",
-                Some(Collection::Categories) => "category",
-                Some(Collection::Storylines) => "storyline",
-                Some(Collection::Materials) => "material",
-                Some(Collection::Comments) => "comment",
-                Some(Collection::Relations) => "relation",
-                _ => effect.kind.as_str(),
+            let (kind, id) = match Collection::from_root(&effect.kind) {
+                Some(Collection::Nodes) => ("node", effect.id),
+                Some(Collection::Elements) => ("element", effect.id),
+                Some(Collection::Categories) => ("category", effect.id),
+                Some(Collection::Storylines) => ("storyline", effect.id),
+                Some(Collection::Materials) => ("material", effect.id),
+                Some(Collection::Comments) => ("comment", effect.id),
+                Some(Collection::Relations) => ("relation", effect.id),
+                _ => match effect.kind.as_str() {
+                    "entries" | "entry" => ("entry", effect.id),
+                    "entry_templates" | "entry_template" => ("entry_template", effect.id),
+                    "timeline_views" | "timeline_view" => ("timeline_view", effect.id),
+                    "plot_grids" | "plot_grid" => (
+                        "entry",
+                        effect.id.split('/').next().unwrap_or(&effect.id).to_owned(),
+                    ),
+                    "memberships" | "membership" => (
+                        "entry",
+                        effect.id.split('/').nth(1).unwrap_or(&effect.id).to_owned(),
+                    ),
+                    other => (other, effect.id),
+                },
             };
             if matches!(
                 kind,
@@ -99,10 +121,13 @@ pub fn change_targets(run: &crate::state::RunSnapshot, turn: u32) -> Vec<ChangeT
                     | "material"
                     | "comment"
                     | "relation"
+                    | "entry"
+                    | "entry_template"
+                    | "timeline_view"
             ) {
                 add(ChangeTarget {
                     kind: kind.into(),
-                    id: effect.id,
+                    id,
                     history: None,
                     book: Some(book.into()),
                 });
@@ -262,6 +287,104 @@ pub fn starters(ws: &Workspace, book: &str) -> Result<StarterSource, String> {
             .map(|value| value["output"].clone())
             .map_err(|error| error.to_string())
     };
+    let copy = ws
+        .library()
+        .load_copy(&format!("book:{book}"))
+        .map_err(|error| error.to_string())?;
+    if dr_doc::v3::is_v3_doc(&copy) {
+        let book_id = dr_model::id::BookId::parse(book).map_err(|error| error.to_string())?;
+        let borrowed =
+            dr_doc::v3::BorrowedBookV3::new(&copy, &book_id).map_err(|error| error.to_string())?;
+        let view = borrowed.view();
+        let templates = view.templates_map();
+        let memberships = view.memberships_raw();
+        let ordered = view.entries();
+        let entries_map: std::collections::BTreeMap<_, _> =
+            ordered.iter().map(|e| (e.id.clone(), e.clone())).collect();
+        let manuscript_levels = view.manuscript_levels();
+        let mut leaves = Vec::new();
+        let mut seen = std::collections::BTreeSet::new();
+        for root in ordered.iter().filter(|e| manuscript_levels.contains(&e.id)) {
+            for leaf in view.manuscript_leaves(&root.id) {
+                if seen.insert(leaf.id.clone()) {
+                    leaves.push(leaf);
+                }
+            }
+        }
+        let mut chapter_rows = Vec::new();
+        for (index, leaf) in leaves.into_iter().enumerate() {
+            let prose_doc = leaf
+                .effective_template(&templates)
+                .and_then(|tpl| {
+                    tpl.modules
+                        .iter()
+                        .find(|m| m.kind == dr_model::v3::ModuleKind::Prose)
+                })
+                .map(|m| format!("body:{}/{}", leaf.id, m.id));
+            let words =
+                if let Some(doc) = prose_doc {
+                    let prose = read("prose.read", json!({"doc":doc,"limit":usize::MAX}))?;
+                    u64::from(prose["paragraphs"].as_array().into_iter().flatten().any(
+                        |paragraph| {
+                            paragraph["text"]
+                                .as_str()
+                                .is_some_and(|text| !text.trim().is_empty())
+                        },
+                    ))
+                } else {
+                    0
+                };
+            chapter_rows.push(Chapter {
+                id: leaf.id.to_string(),
+                title: leaf.title,
+                book_order: index,
+                word_count: words,
+            });
+        }
+        let mut autolink_entries: Vec<_> = ordered
+            .into_iter()
+            .filter(|e| {
+                !e.is_trashed()
+                    && dr_model::v3::is_autolink_leaf(e, &memberships, &entries_map, &templates)
+            })
+            .collect();
+        autolink_entries.sort_by(|a, b| {
+            (a.created_at.map(|t| t.0).unwrap_or(0), &a.id)
+                .cmp(&(b.created_at.map(|t| t.0).unwrap_or(0), &b.id))
+        });
+        let mut source = StarterSource {
+            chapters: chapter_rows,
+            elements: autolink_entries
+                .into_iter()
+                .map(|e| Element {
+                    id: e.id.to_string(),
+                    name: e.title,
+                })
+                .collect(),
+            ..Default::default()
+        };
+        for rel in view.relations() {
+            for end in [&rel.from, &rel.to] {
+                if end.kind == dr_model::kind::EntityKind::Entry {
+                    *source.relation_counts.entry(end.id.clone()).or_default() += 1;
+                }
+            }
+        }
+        if let Ok(recent) = read("recent.list", json!({"book":book})) {
+            source.recent_chapter_ids = recent
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|row| {
+                    let target = &row["target"];
+                    matches!(target["kind"].as_str(), Some("node" | "entry"))
+                        .then(|| target["id"].as_str().map(str::to_owned))
+                        .flatten()
+                })
+                .collect();
+        }
+        return Ok(source);
+    }
     let chapters = read("chapter.list", json!({"book":book}))?;
     let elements = read("element.list", json!({"book":book}))?;
     let relations = read("relation.list", json!({"book":book}))?;
@@ -344,7 +467,11 @@ pub fn web_url(value: &str) -> Option<String> {
 
 pub fn tool_name(call: &dr_agent::ToolCall) -> &str {
     if call.name == "call_tool" {
-        call.arguments["name"].as_str().unwrap_or(&call.name)
+        call.arguments["name"]
+            .as_str()
+            .or_else(|| call.arguments["action"]["verb"].as_str())
+            .or_else(|| call.arguments["action"].as_str())
+            .unwrap_or(&call.name)
     } else {
         &call.name
     }

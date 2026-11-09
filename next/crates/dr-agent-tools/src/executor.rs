@@ -18,6 +18,7 @@ use crate::{
     catalog::{ActionRef, ActionTarget, Catalog, Search, is_v3_book},
     prose::{self, Projection},
     resolve::{self, ResolvedCall},
+    structure::{FocusRequest, StructureContext},
 };
 
 #[path = "evidence.rs"]
@@ -198,6 +199,7 @@ pub struct AgentTools {
     v3_cache: Arc<Mutex<V3CatalogCache>>,
     turns: Arc<Mutex<HashMap<TurnKey, TurnState>>>,
     leases: Arc<Mutex<HashMap<String, Weak<AtomicBool>>>>,
+    focus: Arc<Mutex<HashMap<String, FocusRequest>>>,
 }
 
 impl Default for AgentTools {
@@ -214,10 +216,29 @@ impl AgentTools {
             v3_cache: Arc::default(),
             turns: Arc::default(),
             leases: Arc::default(),
+            focus: Arc::default(),
         }
     }
     pub fn catalog(&self) -> &Catalog {
         &self.catalog
+    }
+
+    pub fn set_focus(&self, session: &str, focus: Option<FocusRequest>) {
+        let mut map = self.focus.lock().expect("tool focus");
+        if let Some(focus) = focus {
+            map.insert(session.to_owned(), focus);
+        } else {
+            map.remove(session);
+        }
+    }
+
+    pub fn structure_context(
+        &self,
+        ws: &Workspace,
+        book: &BookId,
+        focus: Option<&FocusRequest>,
+    ) -> Result<Option<StructureContext>> {
+        StructureContext::for_book(ws, book, focus)
     }
 
     pub fn catalog_for_book(&self, ws: &Workspace, book: &BookId) -> Result<Arc<Catalog>> {
@@ -266,6 +287,7 @@ impl AgentTools {
             .lock()
             .expect("tool observations")
             .retain(|key, _| key.session != session);
+        self.focus.lock().expect("tool focus").remove(session);
     }
 
     fn lease(&self, session: &str) -> Arc<AtomicBool> {
@@ -743,6 +765,24 @@ impl ToolExecutor for AgentTools {
     }
     fn finish_session(&self, session: &str) {
         self.forget_session(session);
+    }
+    fn context(
+        &self,
+        workspace: &Workspace,
+        book: &BookId,
+        session: &str,
+    ) -> dr_agent::Result<Vec<dr_agent::context::Contribution>> {
+        let focus = self.focus.lock().expect("tool focus").get(session).cloned();
+        let Some(structure) = self
+            .structure_context(workspace, book, focus.as_ref())
+            .map_err(|e| dr_agent::Error::Protocol(e.to_string()))?
+        else {
+            return Ok(Vec::new());
+        };
+        let contribution = structure
+            .to_contribution()
+            .map_err(|e| dr_agent::Error::Protocol(e.to_string()))?;
+        Ok(vec![contribution])
     }
     fn execute(
         &self,

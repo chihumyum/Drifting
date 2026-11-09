@@ -90,13 +90,13 @@ impl ToolExecutor for CompanionTools {
         &self,
         workspace: &dr_workspace::Workspace,
         book: &dr_model::id::BookId,
-        _session: &str,
+        session: &str,
     ) -> dr_agent::Result<Vec<dr_agent::context::Contribution>> {
+        let mut context = self.book.context(workspace, book, session)?;
         let project = dr_agent::memory::project(workspace, book)
             .map_err(|e| dr_agent::Error::Protocol(e.to_string()))?;
         let working = dr_agent::memory::load(workspace.library(), book)
             .map_err(|e| dr_agent::Error::Protocol(e.to_string()))?;
-        let mut context = Vec::new();
         if project.entries.iter().any(|e| e.active()) {
             context.push(dr_agent::context::Contribution {
                 source: "PROJECT_MEMORY.md".into(),
