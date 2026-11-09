@@ -433,7 +433,7 @@ K6 按 M09 签名，在本安全阶段与显式排除同批正式合入后消费
 故障下仍成功留了退出点。已合到本次 main 的正式接口均按以上状态核对。
 
 
-### G1 保存排空续段（2026-11-10，验收中）
+### G1 保存排空续段（2026-11-10，正式交回）
 
 **做了什么：**在 G1 自有 `dr-view-page::settlement` 登记当前库的已接受写入，接既有
 `release::before_release`／`after_release`。释放同步冻结新写入，异步收集挂载输入的
@@ -455,8 +455,21 @@ K6 按 M09 签名，在本安全阶段与显式排除同批正式合入后消费
 重试：故障回归精确比较整份 durable raw state，不把 live holder 读值误当落盘，也不
 放宽任何作者值。首轮测试屏障／测试时钟问题、F6 v3_home 保留反例和全部失败日志
 均保留；有效模块回归通过真实 v3 registry／导航挂载，不采用不可见 Home 假装挂载。
-完整 next 门禁、根 public 和副屏真窗口正在本段最终提交上执行，尚不记为通过；
-旧 82fca0b4 的 2198／0／22 与 72/72 证据另存，不冒充本段新源码的检查。
+对源码 `70f4d77e90693335366c8651e85c72632cdd358a`，以并发 3、测试单线程完成
+fmt、workspace all-targets locked Clippy（-D warnings）、workspace locked test
+**2249 通过／0 失败／22 忽略**、xtask check（含 audit）和根 public，均通过。
+审计为 0 vulnerabilities／12 notices；保留 19 stale／15 legacy 测量提示，未把它们
+当成本轮性能验收。之后 Rust、Cargo 和锁文件未变，只调整冒烟脚本及交回文档。
+`next/crates/dr-cli/scenarios/g1-before-release.json` 的新构建副屏隔离流程为
+**89/89、0 pending**：四类真实输入、聚焦字段直接退出、close 点预览及重开读回；
+机器结果在约定外部日志目录 `g1-before-release-smoke-6/result.json`。两次启动 PID
+75640／75970 的 CG 全局收据均在副屏；同目录 `snapshot-data-and-display-check.json`
+再精确核对最终快照里的字段、KV、补丁和网格四项值。`environment.ndjson` 保留输入
+期间的 app.info／状态。前五轮记录均保留：第一轮命令缺 workspace、第二轮文案
+标签错误、第三／四轮视口及滚动点错误，第五轮点击后没有输入焦点；活跃窗口／节点
+坐标已核对，未冒称环境原样重跑。最终通过文字区点击、等帧及明确焦点／全选断言
+完成。冒烟修订只涉及脚本，其间产品源码和数据断言未变。原 82fca0b4 的 2198／0／22 与 72/72 证据
+另存，不冒充本段检查。没有截图目检、heavy 或样式／流畅度验收。
 
 **待协调：**本段先交可独立接收的 before_release 写入排空，不表示 G1 全部完成或
 切换终点达成。F6 可失败的 `after_drain` 与 mirror 最后扫描尚未收到正式 main 接口

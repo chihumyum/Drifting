@@ -93,6 +93,7 @@ codex exec -C ~/Drifting-<任务名> -m gpt-6.1-sol -c model_reasoning_effort=ma
 ## 技术待协调
 
 - **G1／K1：引擎身份保真扩展。** 普通嵌套树删除后，固定 Loro 1.17.1 的恢复可重建节点身份。当前安全阶段在首次真实提交之前对无法保真表示整批拒绝，所有当前原值、版本、before 点和重开状态不变；整合者独立只读复核后确认可正式接收。后续是 G1／K1 的引擎技术协调，不需要作者拍板，不宣称全部未来表示受支持。详见 [G1](../modules/k4-g1-pages.md)／[M09](../modules/m09-history.md) 本轮待协调。
+- **G1／F6：保存排空续段。** G1 的挂载字段、KV、补丁、planner 及 v3 页头已接既有 before_release／after_release，源码 70f4d77e 全套 2249／0／22，副屏 89/89、0 pending；正式交回见 G1／M09 的保存排空小节，未标记 G1 全部完成。F6 可失败 after_drain、mirror 末轮及真实编辑器登记仍待正式 main 通知后续接；G1 不消费 WIP。另已报告 F6 let_go_of_library 未释放 v3_home 的明确两库替换拒绝，归 F6 处理；输入与写入排空不以这些后续依赖停工，不转成待作者设计。
 - **F6／K1：已定宿主功能。** F6 接真实编辑器实例的登记／释放、系统 v3 模块 URL 消费，以及所有写入 drain 后可返回错误的最终 checkpoint 阶段；K1 接版本化 Entry＋可选 module／Material 的链接读写与复制编码。模块批注、TODO、重锚接口已进 main，创建批注的宿主消费继续随登记核对。这些沿用 overnight 已分派职责，不是待作者设计。
 - **K6：同批接收。** G1 快照 API 与新增 Spec 的显式目录排除同批接收，再接每轮首次写条目前打点；`entry_snapshot.*` 是宿主公共接口，不因通用目录规则直接开放给模型。G1 不改 K6 既有实现。
 
