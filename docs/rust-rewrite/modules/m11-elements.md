@@ -198,3 +198,14 @@ cargo run -p dr-view-elements --features capture --example elements-capture -- .
 
 第一批交回显示器；层级页设置、大纲与拖动、悬停卡选择器仍在后两批。
 检查结果和交回提交在完成本批验收后记录；heavy 左栏打开／滚动测量在最终批统一交。
+
+### K4 G2 待协调
+
+1. **F6／K4-0：层级设置区注册口。** `v3/page.rs` 当前的设置区仍写死为
+   「Settings + 有效显示方式」，`v3::Registry` 没有该区的 maker。请增加
+   `add_level_settings(cx, maker: Fn(LevelHost, Window, App) -> Rendered)`，
+   与现有显示器一样保留实例、调用 `on_refresh`，在层级页的第三块挂接。
+   有效值与来源直接消费 `book.v3().levels`，不需要另造查询。设置不属于模板内容模块，
+   不增加持久化模块种类。G2 在 `category.rs` 提供该 maker。
+   用 `add_page_view` 替换整页会绕过外壳的 v3 composition 状态和换模板后的层级／叶子
+   切换，因此本批不采用整页替换；按 K4 的边界，这项公共外壳改动交 F6。
