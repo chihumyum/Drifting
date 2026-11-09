@@ -80,6 +80,7 @@ type TemplateCreator = Rc<dyn Fn(PageViewHost, &mut Window, &mut App)>;
 struct Registry {
     modules: BTreeMap<String, ModuleMaker>,
     displays: BTreeMap<String, DisplayMaker>,
+    settings: Option<DisplayMaker>,
     actions: BTreeMap<card::EntryAction, ActionMaker>,
     cards: Vec<CardMaker>,
     template_creator: Option<TemplateCreator>,
@@ -112,6 +113,21 @@ pub fn add_level_display(
         .displays
         .insert(display.into(), Rc::new(make));
 }
+/// The third part of a level page: its settings with their effective values
+/// and sources (G2). One maker for every level; the page keeps the instance
+/// while the entry stays a level and calls its `on_refresh` on each snapshot.
+pub fn add_level_settings(
+    cx: &mut App,
+    make: impl Fn(LevelHost, &mut Window, &mut App) -> Rendered + 'static,
+) {
+    cx.default_global::<Registry>().settings = Some(Rc::new(make));
+}
+
+pub fn level_settings(host: LevelHost, window: &mut Window, cx: &mut App) -> Option<Rendered> {
+    let make = cx.try_global::<Registry>()?.settings.clone()?;
+    Some(make(host, window, cx))
+}
+
 pub fn module_view(host: ModuleHost, window: &mut Window, cx: &mut App) -> Option<Rendered> {
     let make = cx
         .try_global::<Registry>()?
