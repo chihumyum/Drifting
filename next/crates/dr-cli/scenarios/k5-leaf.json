@@ -1,0 +1,828 @@
+{
+  "about": "K5 第一次交回：v3-lite 真窗口，叶子模板新建、两篇正文、全部模块及九种字段、改名、真实拖动排序、删除、并发刷新与重开。",
+  "steps": [
+    {
+      "seed": "v3-lite"
+    },
+    {
+      "call": "book.list",
+      "input": {},
+      "save": "books"
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${books.0.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/version": 3
+        }
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ToggleLeftSidebar"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/left/open": true
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "New template"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Template name"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-a"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "Acceptance leaf"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Save"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Saved"
+      }
+    },
+    {
+      "call": "entry_template.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "created",
+      "expect": {
+        "/[name=Acceptance leaf]/kind": "leaf",
+        "/[name=Acceptance leaf]/modules/0/kind": "prose"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "template:${created.[name=Acceptance leaf].id}"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Mark"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "MenuItem",
+        "label": "Square seal"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Color"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "#567890"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Save"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Saved"
+      }
+    },
+    {
+      "call": "entry_template.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "expect": {
+        "/[id=${created.[name=Acceptance leaf].id}]/mark": "square",
+        "/[id=${created.[name=Acceptance leaf].id}]/color": "#567890"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Module name",
+        "nth": 0
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-a"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "Primary prose"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Add module"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Prose",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Module name",
+        "nth": 1
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-a"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "Second prose"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Save"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Saved"
+      }
+    },
+    {
+      "call": "entry_template.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "two",
+      "expect": {
+        "/[id=${created.[name=Acceptance leaf].id}]/modules/0/name": "Primary prose",
+        "/[id=${created.[name=Acceptance leaf].id}]/modules/1/name": "Second prose"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Drag to reorder · Second prose"
+      },
+      "save": "drag"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Primary prose",
+        "role": "Group"
+      },
+      "save": "onto"
+    },
+    {
+      "app": "input.drag",
+      "params": {
+        "from": [
+          "${drag.nodes.0.center.0}",
+          "${drag.nodes.0.center.1}"
+        ],
+        "to": [
+          "${onto.nodes.0.center.0}",
+          "${onto.nodes.0.center.1}"
+        ],
+        "steps": 12
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Save"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Saved"
+      }
+    },
+    {
+      "call": "entry_template.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "expect": {
+        "/[id=${created.[name=Acceptance leaf].id}]/modules/0/name": "Second prose",
+        "/[id=${created.[name=Acceptance leaf].id}]/modules/1/name": "Primary prose"
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "01-two-prose.png"
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 650,
+        "y": 480,
+        "dy": 10000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Add module"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Key-value table",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 650,
+        "y": 480,
+        "dy": 10000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Add module"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Patches",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 650,
+        "y": 480,
+        "dy": 10000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Add module"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Plot planner",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 650,
+        "y": 480,
+        "dy": 10000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Add module"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Relations",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 650,
+        "y": 480,
+        "dy": 10000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Add module"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Text",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 650,
+        "y": 480,
+        "dy": 10000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Add module"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Long text",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 650,
+        "y": 480,
+        "dy": 10000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Add module"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Number",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 650,
+        "y": 480,
+        "dy": 10000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Add module"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Date",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 650,
+        "y": 480,
+        "dy": 10000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Add module"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Single choice",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 650,
+        "y": 480,
+        "dy": 10000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Add module"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Multiple choice",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 650,
+        "y": 480,
+        "dy": 10000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Add module"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Image",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 650,
+        "y": 480,
+        "dy": 10000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Add module"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Entry reference",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 650,
+        "y": 480,
+        "dy": 10000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Add module"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Aliases",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 650,
+        "y": 480,
+        "dy": -20000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Save"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Saved"
+      }
+    },
+    {
+      "call": "entry_template.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "all",
+      "expect": {
+        "/[id=${created.[name=Acceptance leaf].id}]/modules/0/name": "Second prose",
+        "/[id=${created.[name=Acceptance leaf].id}]/modules/1/name": "Primary prose",
+        "/[id=${created.[name=Acceptance leaf].id}]/modules/2/kind": "kv",
+        "/[id=${created.[name=Acceptance leaf].id}]/modules/3/kind": "patches",
+        "/[id=${created.[name=Acceptance leaf].id}]/modules/4/kind": "plot_grid",
+        "/[id=${created.[name=Acceptance leaf].id}]/modules/5/kind": "relations",
+        "/[id=${created.[name=Acceptance leaf].id}]/modules/6/config/defs/0/field_type": "text",
+        "/[id=${created.[name=Acceptance leaf].id}]/modules/7/config/defs/0/field_type": "long_text",
+        "/[id=${created.[name=Acceptance leaf].id}]/modules/8/config/defs/0/field_type": "number",
+        "/[id=${created.[name=Acceptance leaf].id}]/modules/9/config/defs/0/field_type": "date",
+        "/[id=${created.[name=Acceptance leaf].id}]/modules/10/config/defs/0/field_type": "select",
+        "/[id=${created.[name=Acceptance leaf].id}]/modules/11/config/defs/0/field_type": "multi_select",
+        "/[id=${created.[name=Acceptance leaf].id}]/modules/12/config/defs/0/field_type": "image",
+        "/[id=${created.[name=Acceptance leaf].id}]/modules/13/config/defs/0/field_type": "entity_ref",
+        "/[id=${created.[name=Acceptance leaf].id}]/modules/14/config/defs/0/field_type": "aliases"
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 650,
+        "y": 480,
+        "dy": 20000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Aliases",
+        "role": "PopUpButton"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Long text",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 650,
+        "y": 480,
+        "dy": -20000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Save"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Saved"
+      }
+    },
+    {
+      "call": "entry_template.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "expect": {
+        "/[id=${created.[name=Acceptance leaf].id}]/modules/14/config/defs/0/field_type": "long_text",
+        "/[id=${created.[name=Acceptance leaf].id}]/modules/14/config/aliases_field": null
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Template name"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-a"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "Acceptance renamed leaf"
+      }
+    },
+    {
+      "call": "entry_template.put",
+      "input": {
+        "book": "${books.0.id}",
+        "template": {
+          "id": "${created.[name=Acceptance leaf].id}",
+          "kind": "leaf",
+          "name": "Acceptance leaf",
+          "mark": "future-mark",
+          "color": "#567890",
+          "modules": "${all.[name=Acceptance leaf].modules}"
+        }
+      },
+      "note": "并发未改字段刷新，未提交的名字必须保留；未知记号不得丢失"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Save"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Saved"
+      }
+    },
+    {
+      "call": "entry_template.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "expect": {
+        "/[id=${created.[name=Acceptance leaf].id}]/name": "Acceptance renamed leaf",
+        "/[id=${created.[name=Acceptance leaf].id}]/mark": "future-mark"
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "02-leaf-editor.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Delete",
+        "within": {
+          "role": "Group",
+          "label": "Second prose"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Save"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Saved"
+      }
+    },
+    {
+      "call": "entry_template.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "expect": {
+        "/[id=${created.[name=Acceptance leaf].id}]/modules/0/name": "Primary prose"
+      }
+    },
+    {
+      "app": "app.quit"
+    },
+    {
+      "launch": {
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${books.0.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/id": "${books.0.id}",
+          "/book/version": 3
+        }
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "template:${created.[name=Acceptance leaf].id}"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Template name"
+      }
+    },
+    {
+      "call": "entry_template.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "expect": {
+        "/[id=${created.[name=Acceptance leaf].id}]/name": "Acceptance renamed leaf",
+        "/[id=${created.[name=Acceptance leaf].id}]/modules/0/name": "Primary prose",
+        "/[id=${created.[name=Acceptance leaf].id}]/mark": "future-mark"
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "03-reopened.png"
+    },
+    {
+      "app": "app.quit"
+    }
+  ]
+}
