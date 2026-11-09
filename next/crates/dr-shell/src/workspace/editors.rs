@@ -312,7 +312,10 @@ impl Workspace {
             self.editors.insert(target.key(), PageEditor::module(page));
             return;
         }
-        if self.book.v3().is_some() {
+        // Materials retain their own prose document. Only entry/template
+        // pages (and the whole-book composition) belong to EntryPage.
+        let v3_material = self.book.v3().is_some() && matches!(target, Target::Material(_));
+        if self.book.v3().is_some() && !v3_material {
             let view = cx.new(|cx| crate::v3::page::EntryPage::new(host, target.clone(), cx));
             if let Some(lines) = self.nav.take_reveal(target) {
                 view.update(cx, |view, cx| view.reveal(lines, cx));
@@ -337,7 +340,21 @@ impl Workspace {
                     match one {
                         // One document: its editor's own session, for
                         // `ChapterEditor::with_session`.
-                        Some(doc) => dr_editor::SessionSource::open(&lib, &doc).map(Prepared::Doc),
+                        Some(doc) => {
+                            // SessionSource opens a document by id. Capture
+                            // this request's book before leaving the UI thread
+                            // and refuse a material owned by a different book.
+                            if v3_material
+                                && lib.library().doc_info(&doc)?.is_none_or(|info| {
+                                    info.book_id.as_deref() != Some(book_id.as_str())
+                                })
+                            {
+                                return Err(dr_workspace::WsError::Invalid(
+                                    "material prose does not belong to this book".into(),
+                                ));
+                            }
+                            dr_editor::SessionSource::open(&lib, &doc).map(Prepared::Doc)
+                        }
                         // The whole book: every chapter's session and
                         // document, the acts and the anchors, for
                         // `BookEditor::with_prepared`.

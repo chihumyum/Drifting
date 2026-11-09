@@ -116,18 +116,28 @@ fn choose(
         ws.search.is_none() && ws.nav.current() == Some(target)
     });
     wait(view, cx, |ws, cx| {
-        ws.editors
-            .get(&target.key())
-            .and_then(|p| p.v3.as_ref())
-            .is_some_and(|p| p.read(cx).revealed.map(|l| l.start) == line)
+        if let Some(editor) = ws.editor_of(target) {
+            let prose = editor.read(cx).editor().read(cx);
+            let paragraph = prose.book().chapters[0].doc.line_of(prose.selection().head);
+            line == Some((2 * paragraph + 1) as u32)
+        } else {
+            ws.editors
+                .get(&target.key())
+                .and_then(|p| p.v3.as_ref())
+                .is_some_and(|p| p.read(cx).revealed.map(|l| l.start) == line)
+        }
     });
     let focus = view.read_with(cx, |ws, cx| {
-        ws.editors[&target.key()]
-            .v3
-            .as_ref()
-            .unwrap()
-            .read(cx)
-            .preferred_focus()
+        if let Some(editor) = ws.editor_of(target) {
+            editor.read(cx).editor().focus_handle(cx)
+        } else {
+            ws.editors[&target.key()]
+                .v3
+                .as_ref()
+                .unwrap()
+                .read(cx)
+                .preferred_focus()
+        }
     });
     cx.update(|window, _| {
         assert!(
