@@ -850,4 +850,24 @@ v2.2 与 v3 在同一个窗口中按书分路。`book::Book` 保留共有的 `id
 验证四种显示注册口、实例刷新/替换、本机选择记忆、共同六行与扩展危险行顺序、
 G2 三种回调及 K5 新建委托。v3-lite 真窗口场景 **84/84 步、0 pending**，三张截图
 已逐张目检；证据在忽略目录 `next/target/acceptance/k4-0-sidebar/`。
-最终全套检查结果完成后在此续记，再移动交回指针。
+本段实现提交 `83e8d23d`；`a96059bb` 同步 main `56d3537e`（仅第一轮的整合记录，
+`next/` 的 tree 与实现提交相同）。分支仍为 `codex/k4-0-shell`，最终记录提交后
+将 `handback/k4-0` 移到本次交回。第一轮已经由整合者在第四十三批收进 main；
+本会话没有将分支合入 main，也没有推送。
+
+同步后的全套检查通过：`cargo fmt --all --check`、全 workspace Clippy
+`--all-targets --locked -- -D warnings`、全 workspace test **2039 passed / 0 failed /
+22 ignored**（测试线程 3；同步前同一代码的单线程完整运行也是此结果）、
+`cargo xtask check`（含 audit，0 vulnerabilities，保留既有 12 项通知和 14 份
+过期测量提示）、根目录 `pnpm public:check`。所有编译使用 `CARGO_BUILD_JOBS=3`。
+
+最终实现重跑第一轮场景 **49/49**，第二轮场景 **84/84**，均 0 pending；
+后者还核对模板增删刷新、删除模板时关闭目标、v3 不显示旧导览、v2.2 原左栏保留。
+结果目录分别为 `next/target/acceptance/k4-0-interface-final/` 与
+`next/target/acceptance/k4-0-sidebar/`；两轮日志保留在忽略目录
+`next/target/acceptance/k4-0-checks/`。这次交回只声明外壳占位和注册契约完成，
+不把各组的编辑器、显示器或 heavy 下的最终性能当作已完成。
+
+供后续各组接线：maker / on_refresh 可能在外壳实体正被借用时调用，只读所给快照、
+更新自己的子实体，不在这里重借 workspace；需要改窗口或调用命令的动作放进点击
+回调。第二轮完成后，左栏和大纲栏按 K4 分轨交给 G2；其余公共外壳入口继续留在 F6。

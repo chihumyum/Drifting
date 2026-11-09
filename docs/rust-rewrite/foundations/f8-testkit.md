@@ -733,3 +733,9 @@ app 二进制，若交错运行，应在它编译结束后重新构建桥版本�
 动态根增删、选择记忆和重开、切回 v2.2 原左栏。G2 的三种选择器与 K5 新建模板
 委托由 `dr-shell/tests/v3.rs` 的 GPUI 契约调用真实注册口验证，不伪称已提供各组编辑器。
 `state.get.v3Sidebar` 的状态来自实际左栏实体；其 `registered` 区分显示器与占位。
+
+K4-0 第二次交回实跑：`k4-0-sidebar.json` 84/84 步、0 pending，三图已目检；
+同一实现复跑 `k4-0-interface.json` 49/49 步、0 pending。合并 main 的整合记录后，
+全 workspace test 2039 passed / 0 failed / 22 ignored（测试线程 3），全套门禁通过。
+检查日志在忽略目录 `next/target/acceptance/k4-0-checks/`；永久证据仍由上述场景
+的断言和 `dr-shell/tests/v3.rs` 提供，不提交运行结果 JSON。
