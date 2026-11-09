@@ -42,6 +42,8 @@ struct Editing {
     id: String,
     kind: EditKind,
     field: Entity<TextField>,
+    version: String,
+    failed: bool,
     _sub: Subscription,
 }
 
@@ -278,6 +280,9 @@ impl Timeline {
                 else {
                     return;
                 };
+                if edit.failed && !matches!(event, FieldEvent::Submitted(_)) {
+                    return;
+                }
                 let mut name = field.read(cx).text().trim().to_owned();
                 if name.is_empty() {
                     return;
@@ -292,6 +297,13 @@ impl Timeline {
                 // The write owns this draft until its receipt arrives. On
                 // failure it returns to the same editor without losing text.
                 t.submitting = t.editing.take();
+                if let Some(draft) = &mut t.submitting
+                    && draft.failed
+                    && let Some(book) = t.book.v3()
+                {
+                    draft.version = book.revision.clone();
+                    draft.failed = false;
+                }
                 match kind {
                     EditKind::PinLabel => t.edit_pin(id, PinEdit::Label(name), cx),
                     EditKind::PinColor => {
@@ -326,6 +338,12 @@ impl Timeline {
             id,
             kind,
             field,
+            version: self
+                .book
+                .v3()
+                .map(|b| b.revision.clone())
+                .unwrap_or_default(),
+            failed: false,
             _sub: sub,
         });
         cx.notify();

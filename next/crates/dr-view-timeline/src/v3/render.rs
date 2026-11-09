@@ -335,6 +335,7 @@ impl Timeline {
                 );
             }
             MenuOf::Lanes => {
+                let shown = self.view_scope();
                 for e in &book.entries {
                     if e.deleted_at.is_some()
                         || !book
@@ -347,6 +348,7 @@ impl Timeline {
                         .view()
                         .is_some_and(|v| v.lanes.iter().any(|l| l.entry == e.id));
                     let id = e.id.clone();
+                    let shown = shown.clone();
                     menu = menu.child(
                         MenuItem::new(
                             SharedString::from(format!("v3-lane-add-{}", e.id)),
@@ -355,7 +357,15 @@ impl Timeline {
                         )
                         .checked(added)
                         .disabled(added)
-                        .on_click(cx.listener(move |this, _, _, cx| this.add_lane(id.clone(), cx))),
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            if let Some(shown) = &shown {
+                                this.edit_view_at(
+                                    shown.clone(),
+                                    write::ViewEdit::AddLane(id.clone()),
+                                    cx,
+                                );
+                            }
+                        })),
                     );
                 }
             }
@@ -432,38 +442,61 @@ impl Timeline {
             let mut actions = div().flex().items_center();
             if i > 0 {
                 let id = lane.id.clone();
+                let shown = self.view_scope();
                 actions = actions.child(
                     PanelIconButton::new(
                         SharedString::from(format!("v3-lane-up-{id}")),
                         Icon::ChevronUp,
                     )
                     .label(t(cx, keys::v3_timeline::MOVE_UP))
-                    .on_click(
-                        cx.listener(move |this, _, _, cx| this.reorder_lane(id.clone(), -1, cx)),
-                    ),
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        if let Some(shown) = &shown {
+                            this.edit_view_at(
+                                shown.clone(),
+                                write::ViewEdit::Reorder(id.clone(), -1),
+                                cx,
+                            );
+                        }
+                    })),
                 );
             }
             if i + 1 < lanes.len() {
                 let id = lane.id.clone();
+                let shown = self.view_scope();
                 actions = actions.child(
                     PanelIconButton::new(
                         SharedString::from(format!("v3-lane-down-{id}")),
                         Icon::ChevronDown,
                     )
                     .label(t(cx, keys::v3_timeline::MOVE_DOWN))
-                    .on_click(
-                        cx.listener(move |this, _, _, cx| this.reorder_lane(id.clone(), 1, cx)),
-                    ),
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        if let Some(shown) = &shown {
+                            this.edit_view_at(
+                                shown.clone(),
+                                write::ViewEdit::Reorder(id.clone(), 1),
+                                cx,
+                            );
+                        }
+                    })),
                 );
             }
             let id = lane.id.clone();
+            let shown = self.view_scope();
             actions = actions.child(
                 PanelIconButton::new(
                     SharedString::from(format!("v3-lane-remove-{id}")),
                     Icon::Minus,
                 )
                 .label(t(cx, keys::v3_timeline::REMOVE_LANE))
-                .on_click(cx.listener(move |this, _, _, cx| this.remove_lane(id.clone(), cx))),
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    if let Some(shown) = &shown {
+                        this.edit_view_at(
+                            shown.clone(),
+                            write::ViewEdit::RemoveLane(id.clone()),
+                            cx,
+                        );
+                    }
+                })),
             );
             rail = rail.child(row.child(actions));
         }
