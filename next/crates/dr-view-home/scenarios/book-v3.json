@@ -1,0 +1,244 @@
+{
+  "about": "G4 v3-lite 主流程冒烟：主页按模板动作新建，成稿导出，单本书导出并作为新书导入。运行器须把此隔离窗口放在副屏；本场景不做截图或 heavy 测量。",
+  "steps": [
+    {
+      "seed": "v3-lite"
+    },
+    {
+      "call": "book.list",
+      "save": "books"
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}",
+        "all": true
+      },
+      "save": "entries"
+    },
+    {
+      "launch": {
+        "book": "${books.0.id}",
+        "env": {
+          "DRIFTING_APPEARANCE": "light"
+        },
+        "settings": {
+          "account": {
+            "language.ui_locale": "en"
+          },
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          }
+        }
+      },
+      "save": "app"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 1500
+      }
+    },
+    {
+      "app": "app.info",
+      "save": "environment"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/book/version": 3,
+          "/book/loaded": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ShowProjectHome"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "新建章节",
+        "nth": 0
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "G4 synthetic chapter"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "enter"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/dialog": false
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}",
+        "all": true
+      },
+      "save": "created",
+      "expect": {
+        "/[title=G4 synthetic chapter]/template": "tpl-chapter",
+        "/[title=G4 synthetic chapter]/parent": "${entries.[template=tpl-manuscript].id}"
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ShowWholeBook"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "More actions"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Export manuscript"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Word"
+      }
+    },
+    {
+      "app": "panel.answer",
+      "params": {
+        "path": "${app.out}/g4-manuscript.docx"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "Export Word"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "file",
+        "path": "${app.out}/g4-manuscript.docx",
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "label": "Close"
+      }
+    },
+    {
+      "app": "shelf.show"
+    },
+    {
+      "app": "panel.answer",
+      "params": {
+        "path": "${app.out}/g4-book.driftingbook"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Export this book (.driftingbook)",
+        "within": {
+          "label": "Open “${books.0.name}”"
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "file",
+        "path": "${app.out}/g4-book.driftingbook",
+        "timeout_ms": 60000
+      }
+    },
+    {
+      "app": "panel.answer",
+      "params": {
+        "path": "${app.out}/g4-book.driftingbook"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Button",
+        "contains": "Import book"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/dialog": false
+        },
+        "timeout_ms": 60000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "Button",
+        "label": "Open “${books.0.name}”",
+        "count": 2,
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "call": "book.list",
+      "save": "after"
+    },
+    {
+      "app": "app.info",
+      "save": "final_environment"
+    },
+    {
+      "app": "app.quit",
+      "expect": {
+        "/quit": true
+      }
+    }
+  ]
+}

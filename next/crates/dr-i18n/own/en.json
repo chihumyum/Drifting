@@ -258,6 +258,11 @@
     "entry_words": "Entry words",
     "material_words": "Material words",
     "leaf_count": "Leaf count",
-    "retained_content": "Retained content"
+    "retained_content": "Retained content",
+    "selected_entries": "Selected entries",
+    "entry_titles": "Entry titles",
+    "untitled_entry": "Untitled entry",
+    "entry_count_one": "{{count}} entry",
+    "entry_count_other": "{{count}} entries"
   }
 }

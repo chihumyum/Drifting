@@ -1,4 +1,4 @@
-//! One book in one file: `.driftingbook`, format version 2 (the 0.1 client
+//! One book in one file: `.driftingbook`, versions 2 (legacy) and 3 (v3 books). The 0.1 client
 //! wrote version 1; docs/book-transfer.md).
 //!
 //! ```text
@@ -53,8 +53,10 @@ use zip::{CompressionMethod, ZipArchive, ZipWriter};
 
 use crate::files::readable_stem;
 
+mod v3;
+
 pub const FORMAT: &str = "drifting.book";
-pub const FORMAT_VERSION: u32 = 2;
+pub const FORMAT_VERSION: u32 = 3;
 pub const EXTENSION: &str = "driftingbook";
 /// The largest book file read or written (the 0.1 limit).
 pub const MAX_BYTES: u64 = 1024 * 1024 * 1024;
@@ -172,6 +174,18 @@ fn now_ms() -> i64 {
         .map_or(0, |d| d.as_millis() as i64)
 }
 
+/// The book's title for the native save panel, on either supported schema.
+pub fn book_title(ws: &Workspace, book: &str) -> Result<String> {
+    if crate::v3::is_book(ws, book).map_err(|e| BookFileError::Damaged(e.to_string()))? {
+        return v3::title(ws, book);
+    }
+    Ok(ws
+        .run::<BookGet>(&Actor::User, BookIn { book: book.into() })?
+        .output
+        .info
+        .name)
+}
+
 /// Writes book `book` of `ws` to `dest` (whole or not at all). `progress`
 /// hears each document and asset file as it is written.
 pub fn export_book(
@@ -180,16 +194,11 @@ pub fn export_book(
     dest: &Path,
     progress: &dyn Fn(Progress),
 ) -> Result<BookFileSummary> {
-    let title = ws
-        .run::<BookGet>(
-            &Actor::User,
-            BookIn {
-                book: book.to_owned(),
-            },
-        )?
-        .output
-        .info
-        .name;
+    let is_v3 = crate::v3::is_book(ws, book).map_err(|e| BookFileError::Damaged(e.to_string()))?;
+    let before = is_v3
+        .then(|| v3::State::read(ws.library(), book))
+        .transpose()?;
+    let title = book_title(ws, book)?;
     let lib = ws.library();
     let book_doc = DocId::Book(book.parse().map_err(|_| BookFileError::NotABook)?).to_string();
     let mut docs: Vec<String> = lib
@@ -276,7 +285,7 @@ pub fn export_book(
         }
         let manifest = Manifest {
             format: FORMAT.into(),
-            format_version: FORMAT_VERSION,
+            format_version: if is_v3 { FORMAT_VERSION } else { 2 },
             app_version: lib.options().app_version.clone(),
             exported_at_ms: now_ms(),
             title: title.clone(),
@@ -291,6 +300,13 @@ pub fn export_book(
             .finish()
             .map_err(|e| BookFileError::Damaged(e.to_string()))?;
         file.sync_all()?;
+        if let Some(before) = &before
+            && before != &v3::State::read(lib, book)?
+        {
+            return Err(
+                dr_workspace::WsError::Conflict("book changed during export".into()).into(),
+            );
+        }
         Ok(manifest)
     })();
     let manifest = match written {
@@ -373,7 +389,7 @@ fn read_file(path: &Path) -> Result<Contents> {
     if header.format_version > FORMAT_VERSION {
         return Err(BookFileError::Newer);
     }
-    if header.format_version < FORMAT_VERSION {
+    if header.format_version < 2 {
         return Err(BookFileError::Legacy);
     }
     let manifest: Manifest = serde_json::from_slice(&raw)
@@ -448,6 +464,7 @@ const COLLECTIONS: &[&str] = &[
 struct Rewrite {
     ids: HashMap<String, String>,
     peers: HashMap<u64, u64>,
+    v3: bool,
 }
 
 fn is_hex(b: u8) -> bool {
@@ -467,6 +484,25 @@ impl Rewrite {
     /// A document's new id: its owner's id swapped (`node:<id>`,
     /// `template:category:<id>`…), whatever form the owner's id takes.
     fn doc_id(&self, id: &str) -> Option<String> {
+        if self.v3 {
+            match DocId::parse(id).ok()? {
+                DocId::Body(body) => {
+                    return Some(format!(
+                        "body:{}/{}",
+                        self.ids.get(body.entry().as_str())?,
+                        body.module()
+                    ));
+                }
+                DocId::Template(t) if t.entry_module().is_some() => {
+                    let (book, template, module) = t.entry_module()?;
+                    return Some(format!(
+                        "template:{}/{template}/{module}",
+                        self.ids.get(book.as_str())?
+                    ));
+                }
+                _ => {}
+            }
+        }
         let (prefix, owner) = id.rsplit_once(':')?;
         let new = self.ids.get(owner)?;
         Some(format!("{prefix}:{new}"))
@@ -720,6 +756,9 @@ impl Rewrite {
     /// A document's changes with the ids and the genesis peer moved, as a
     /// new document.
     fn doc(&self, bytes: &[u8]) -> Result<LoroDoc> {
+        if self.v3 {
+            return v3::rewrite_doc(self, bytes);
+        }
         let source = LoroDoc::new();
         source
             .import(bytes)
@@ -810,6 +849,14 @@ fn rewrite_for(read: &Contents) -> Result<Rewrite> {
     let book = LoroDoc::new();
     book.import(book_bytes)
         .map_err(|e| BookFileError::Damaged(e.to_string()))?;
+    if (read.manifest.format_version == 3) != dr_doc::v3::is_v3_doc(&book) {
+        return Err(BookFileError::Damaged(
+            "book schema does not match the file version".into(),
+        ));
+    }
+    if dr_doc::v3::is_v3_doc(&book) {
+        return v3::rewrite_for(read, &book);
+    }
     let fresh = |old: &str, rw: &mut Rewrite| {
         if !old.contains(':') && !rw.ids.contains_key(old) {
             rw.ids.insert(old.to_owned(), new_uuid_v7());
@@ -925,6 +972,10 @@ pub fn import_book(
                 .export(ExportMode::all_updates())
                 .map_err(|e| BookFileError::Damaged(e.to_string()))?;
             let genesis = match doc_id.kind() {
+                DocKind::Book if rw.v3 => dr_doc::v3::genesis_v3(match &doc_id {
+                    DocId::Book(b) => b,
+                    _ => unreachable!(),
+                }),
                 DocKind::Book => dr_doc::book::genesis(match &doc_id {
                     DocId::Book(b) => b,
                     _ => unreachable!(),

@@ -283,7 +283,7 @@ pub struct ProseIn {
     #[serde(default)]
     pub template: bool,
 }
-fn document(cx: &Cx<'_>, i: &ProseIn) -> Result<(Arc<BookSlot>, DocId)> {
+pub(super) fn document(cx: &Cx<'_>, i: &ProseIn) -> Result<(Arc<BookSlot>, DocId)> {
     let s = cx.book_v3(&i.book)?;
     let v = s.reader_v3.view();
     let mid: ModuleId = pid("module", &i.module)?;
