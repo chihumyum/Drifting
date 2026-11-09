@@ -987,7 +987,7 @@ JSON 调用由书 id（`todo.project` 由文档的所属书）分派，不能用
 | `commands::v3::comment::{CommentCreate, CommentList, CommentAnchors}` | 使用同模块里的输入类型；增加顶层 `module`。目标仍是 `{kind: "entry" 或 "material", id}`。条目范围／块／锚点要求模块；素材不带模块。整条目批注和浮动批注可不带模块 |
 | `commands::v3::comment::CommentInfo` | 保留共用 DTO 的平铺字段，另加 `module` 正文模块；目标类型明确标为 Entry／Material。列表可按目标与模块过滤；不带模块过滤时返回目标的所有批注 |
 | `comment.update/delete/reanchor` | 输入形状不变，原 typed 入口也按版本分派。重锚按存储的目标模块校验光标，不能把另一篇正文的锚点写进来 |
-| `todo.project` | 原 typed 入口直接支持 `body:<entry>/<module>` 和 v3 的 `material:<id>`；按完整文档和块生成确定性 id。投影读取同时按目标、模块、种类隔离，保留编辑中／已解决／尚未收到源正文版本的记录 |
+| `todo.project` | 原 typed 入口直接支持 `body:<entry>/<module>` 和 v3 的 `material:<id>`；按完整文档和块生成确定性 id。投影读取同时按目标、模块、种类隔离，编辑中暂缓新建，已有标记／已解决／尚未收到源正文版本的记录保留 |
 | `material.*`、`material_folder.*`、`asset.put/get` | 原输入输出和 typed 类型不变；v3 reader 与事务单独分派。文件夹仍独立于条目树，素材可通过条目的关系模块关联 |
 | `entry_history.restore` | 追加 `materials`、`comments`、`material_folders`；删除的逆操作恢复指定原始记录，包括隐藏关系和批注模块，正文历史与资源字节另存，不随普通素材删除清理 |
 

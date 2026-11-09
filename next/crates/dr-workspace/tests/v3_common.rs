@@ -549,10 +549,27 @@ fn v3_material_comments_and_typed_todo_projection_keep_document_scope() {
             .to_string();
         drop(session);
         let args = json!({"doc":doc,"markers":[{"block":block,"task":"Synthetic task"}]});
+        let mut editing_args = args.clone();
+        editing_args["editing"] = block.clone().into();
+        let deferred = e.call("todo.project", editing_args.clone());
+        assert!(deferred["output"]["created"].as_array().unwrap().is_empty());
+        assert!(deferred["journal"].is_null());
         let input: TodoProjectIn = serde_json::from_value(args.clone()).unwrap();
         let got = e.ws().run::<TodoProject>(&Actor::User, input).unwrap();
         assert_eq!(got.output.created.len(), 1);
         let id = got.output.created[0].clone();
+        editing_args["markers"][0]["task"] = "Still typing".into();
+        let kept = e.call("todo.project", editing_args);
+        assert!(kept["output"]["removed"].as_array().unwrap().is_empty());
+        assert!(kept["journal"].is_null());
+        let listed = e.out("comment.list", json!({"book":b}));
+        let projected = listed
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c["id"] == id)
+            .unwrap();
+        assert_eq!(projected["body"], "Synthetic task");
         let again = e.call("todo.project", args.clone());
         assert!(again["output"]["created"].as_array().unwrap().is_empty());
         assert!(again["journal"].is_null());
