@@ -70,9 +70,10 @@ next/crates/dr-i18n/locales/*.json         sync-locales.py 生成
 - 性能没测：`history.points` 要载两份副本、逐个检出，heavy 种子上的耗时等机器空闲时量。
 
 
-## v3 完整条目快照安全候选（2026-11-10，完整性缺口待协调）
+## v3 完整条目快照安全阶段正式交回（2026-11-10）
 
-**做了什么：**v3 使用书内不可覆写的 `entry_checkpoints` 清单，格式 1 带校验和、
+**做了什么：**本轮交回当前 v3 模块、正文和元数据的完整快照安全阶段。v3 使用书内
+不可覆写的 `entry_checkpoints` 清单，格式 1 带校验和、
 内容指纹、书 frontier 和全部登记正文 frontier；与冻结的 v2.2 prose 历史分开。
 读取和恢复都校验书、条目、清单和所有历史版本；恢复强制使用 preview 返回的
 `expected`，在保留全部 holder 时重验所有版本，并在 SQLite 提交内复核完整正文
@@ -84,7 +85,7 @@ next/crates/dr-i18n/locales/*.json         sync-locales.py 生成
 失败，before 点仍可在重开后实际恢复。书和正文落盘前还比较完整类型化原始值；
 无法保真恢复的容器使整批报错，不能靠改节点 id 或丢未来字段取得表面成功。
 
-供 K6 在完整性阻塞关闭、正式接收后消费的公共调用是
+供 K6 在本安全阶段与显式目录排除同批正式合入后消费的公共调用是
 `Workspace::run::<commands::v3::snapshots::Create>(&actor, EntryIn { book, entry })`，
 等价的 JSON 命令为 `entry_snapshot.create {book, entry}`，返回 `Outcome<Point>`。
 Actor 可以是 `Actor::agent(session, turn, call)`；在每轮首次写某条目之前等待成功，
@@ -112,21 +113,25 @@ Agent 写入的当前书 guard；Create 成功后重新读取写入所需观察�
 `g1-window-smoke-final/result.json` 与 `secondary-display.json`，首三轮失败原样保留。
 最终源码检查为 fmt、workspace all-targets Clippy（-D warnings）、workspace test
 2198／0 失败／22 忽略、xtask check（含 audit）、public:check 全通过，编译并发 3、
-测试单线程；细节见 G1 本轮安全候选段。原始树身份不能保真的形态只验了原子拒绝，
+测试单线程；受检源码为 `a9ec87b026b7bc5fbb83c08d343569adfcd96b56`。
+最终提交相对该源码只有模块／协调文档及 main `07fd3c15` 协调记录变化，`next/`
+无差异；本轮沿用原日志，不新增或覆盖验收证据。细节见 G1 本轮安全阶段交回段。
+原始树身份不能保真的形态只验了原子拒绝，
 不能写成该形态恢复通过。registry 证据由
 `INSTA_UPDATE=always cargo test -p dr-workspace --test registry --locked` 生成，
 不手改生成证据；原有 Agent 目录快照另外由
 `INSTA_UPDATE=always cargo test -p dr-agent-tools --test catalog --locked` 生成，
 只增加五个注册命令的排除行，不改 K6 实现。旧 `entry-boundary.json` 继续是反例，不是本次正向验收。
 
-**待协调：**普通嵌套树删除后的身份保真仍阻塞“完整快照”交回：Loro 1.17.1
-的 apply_diff／revert_to 会重建普通子容器／树节点身份，作者保存的 node_ref 可
-因此悬空；公开 JSON 导入也不允许任意复用旧创建 id。候选已在 staging 后精确校验，
-有变化就拒绝全部恢复，永久契约证明书／多正文／checkpoint 不变且重开一致，但这
-不等同于已支持该数据形态。须 K1／整合者处理固定引擎能力或正式契约，本组不改
-依赖、不放宽作者值断言，`handback/k4-g1` 保持旧已接指针。周期和退出已有 F2/M09
-的明确方案，本次沿用，未另造产品：周期最多
-每 15 分钟一次，关闭时补点，自动点按旧分层保留；显式 before 恢复点不修剪。
+**待协调：**G1／K1 继续处理引擎身份技术限制：Loro 1.17.1 的 apply_diff／
+revert_to 会重建被删除的普通子容器／树节点身份，作者 node_ref 可悬空，公开 JSON
+导入也不能任意复用旧创建 id。当前实现先在 atomic staging 精确校验；无法保真就
+在首次真实提交之前整批报错，书／多正文／before 点的当前值与版本及重开状态均
+不变。这一安全拒绝经整合者独立只读复核确认，可作为本阶段正式交回边界，后续由
+G1／K1 技术协调，不升级为需要作者决定的设计，不阻塞本轮 handback 前移。仍不
+宣称所有未知表示可恢复，不放宽原值断言、不修改固定 Loro 依赖或吞掉错误。
+本阶段交回不表示 G1 全部完成或 autopilot 终点达成。
+周期和退出已有 F2/M09 的明确方案，本次沿用，未另造产品：周期最多每 15 分钟一次，关闭时补点，自动点按旧分层保留；显式 before 恢复点不修剪。
 K6 在本次接口正式合入后接首次写入前打点；按 overnight 的新协调，新增 Spec
 须与 K6 显式目录排除同批接收。`entry_snapshot.*` 是宿主公共调用，不直接作为
 模型工具开放，本组不改 K6 实现。F6 的库替换若还同时 drain Agent／字段
