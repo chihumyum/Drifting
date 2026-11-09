@@ -14,6 +14,19 @@
 
 use std::collections::HashMap;
 
+pub mod v3;
+
+/// Exactly one kernel snapshot per open book.
+pub enum Snapshot {
+    V22(LegacyBook),
+    V3(v3::BookV3),
+}
+impl Default for Snapshot {
+    fn default() -> Self {
+        Self::V22(LegacyBook::default())
+    }
+}
+
 use dr_ui::{sand, tokens::Rgb};
 use dr_workspace::{
     Actor, BookCatalog, LinkGroup, NavTarget, Workspace as Library, WsError,
@@ -50,6 +63,13 @@ pub struct Entry {
 pub struct Book {
     pub id: String,
     pub name: String,
+    pub snapshot: Snapshot,
+    index: HashMap<String, Entry>,
+}
+
+/// Compatibility projection for the frozen v2.2 views. V3 has no legacy rows.
+#[derive(Default)]
+pub struct LegacyBook {
     pub storylines: Vec<StorylineInfo>,
     /// Reading order.
     pub chapters: Vec<ChapterInfo>,
@@ -62,7 +82,18 @@ pub struct Book {
     pub ideas: Vec<IdeaInfo>,
     pub folders: Vec<GroupInfo>,
     pub materials: Vec<MaterialInfo>,
-    index: HashMap<String, Entry>,
+}
+
+impl std::ops::Deref for Book {
+    type Target = LegacyBook;
+    fn deref(&self) -> &LegacyBook {
+        static EMPTY: std::sync::LazyLock<LegacyBook> =
+            std::sync::LazyLock::new(LegacyBook::default);
+        match &self.snapshot {
+            Snapshot::V22(b) => b,
+            Snapshot::V3(_) => &EMPTY,
+        }
+    }
 }
 
 /// `#RRGGBB` as the author chose it; anything else has no colour.
@@ -88,6 +119,15 @@ impl Book {
     /// Reads `book` through F3's queries. Call it off the main thread: the
     /// first read of a book opens its document.
     pub fn load(lib: &Library, book: &str) -> Result<Book, WsError> {
+        let observed = lib.observe(&format!("book:{book}"))?;
+        if observed
+            .value
+            .pointer("/meta/v")
+            .and_then(serde_json::Value::as_i64)
+            == Some(3)
+        {
+            return v3::load(lib, book);
+        }
         let me = &Actor::User;
         let list = || ListIn {
             book: book.to_owned(),
@@ -106,41 +146,43 @@ impl Book {
         let mut b = Book {
             id: book.to_owned(),
             name: detail.info.name,
-            storylines: lib.run::<StorylineList>(me, list())?.output,
-            chapters: lib.run::<ChapterList>(me, list())?.output,
-            categories: lib.run::<CategoryList>(me, list())?.output,
-            elements: lib
-                .run::<ElementList>(
-                    me,
-                    ElementListIn {
-                        book: book.to_owned(),
-                        category: None,
-                        trashed: false,
-                    },
-                )?
-                .output,
-            idea_groups: lib.run::<IdeaGroupList>(me, book_in())?.output,
-            ideas: lib
-                .run::<IdeaList>(
-                    me,
-                    IdeaListIn {
-                        book: book.to_owned(),
-                        group: None,
-                        trashed: false,
-                    },
-                )?
-                .output,
-            acts: lib.run::<ActList>(me, book_in())?.output,
-            folders: lib.run::<FolderList>(me, book_in())?.output,
-            materials: lib
-                .run::<MaterialList>(
-                    me,
-                    MaterialListIn {
-                        book: book.to_owned(),
-                        folder: None,
-                    },
-                )?
-                .output,
+            snapshot: Snapshot::V22(LegacyBook {
+                storylines: lib.run::<StorylineList>(me, list())?.output,
+                chapters: lib.run::<ChapterList>(me, list())?.output,
+                categories: lib.run::<CategoryList>(me, list())?.output,
+                elements: lib
+                    .run::<ElementList>(
+                        me,
+                        ElementListIn {
+                            book: book.to_owned(),
+                            category: None,
+                            trashed: false,
+                        },
+                    )?
+                    .output,
+                idea_groups: lib.run::<IdeaGroupList>(me, book_in())?.output,
+                ideas: lib
+                    .run::<IdeaList>(
+                        me,
+                        IdeaListIn {
+                            book: book.to_owned(),
+                            group: None,
+                            trashed: false,
+                        },
+                    )?
+                    .output,
+                acts: lib.run::<ActList>(me, book_in())?.output,
+                folders: lib.run::<FolderList>(me, book_in())?.output,
+                materials: lib
+                    .run::<MaterialList>(
+                        me,
+                        MaterialListIn {
+                            book: book.to_owned(),
+                            folder: None,
+                        },
+                    )?
+                    .output,
+            }),
             index: HashMap::new(),
         };
         b.reindex();
@@ -153,6 +195,7 @@ impl Book {
         if let Some(id) = preferred {
             match Book::load(lib, id) {
                 Ok(b) => return Ok(Some(b)),
+                Err(e @ WsError::Conflict(_)) => return Err(e),
                 Err(e) => log::info!("book {id} not opened: {e}"),
             }
         }
@@ -264,8 +307,19 @@ impl Book {
         self.id.is_empty()
     }
 
+    pub fn v3(&self) -> Option<&v3::BookV3> {
+        match &self.snapshot {
+            Snapshot::V3(b) => Some(b),
+            _ => None,
+        }
+    }
+
     pub fn entry(&self, target: &Target) -> Option<&Entry> {
-        self.index.get(&target.key())
+        let key = match target {
+            Target::Entry { id, .. } => format!("entry:{id}"),
+            _ => target.key(),
+        };
+        self.index.get(&key)
     }
 
     /// The name a tab or a page shows for `target` (the book's own name for
@@ -278,6 +332,9 @@ impl Book {
     }
 
     pub fn exists(&self, target: &Target) -> bool {
+        if let Some(book) = self.v3() {
+            return book.exists(target);
+        }
         match target {
             Target::Book => !self.is_empty(),
             t => self.index.contains_key(&t.key()),
@@ -297,6 +354,7 @@ impl Book {
             Target::Category(_) => sand::Kind::Category,
             Target::Material(_) => sand::Kind::Material,
             Target::Book => sand::Kind::All,
+            Target::Entry { .. } | Target::Template(_) => sand::Kind::Element,
         };
         (kind, None)
     }
@@ -322,7 +380,11 @@ pub fn doc_of(target: &Target) -> Option<String> {
         Target::Storyline(id) => format!("storyline:{id}"),
         Target::Category(id) => format!("category:{id}"),
         Target::Material(id) => format!("material:{id}"),
-        Target::Book => return None,
+        Target::Entry {
+            id,
+            module: Some(module),
+        } => format!("body:{id}/{module}"),
+        Target::Entry { module: None, .. } | Target::Template(_) | Target::Book => return None,
     })
 }
 
@@ -386,7 +448,9 @@ impl PageText {
                 Ok(PageText { sections })
             }
             t => {
-                let doc = doc_of(t).expect("only the book has no document");
+                let Some(doc) = doc_of(t) else {
+                    return Ok(PageText::default());
+                };
                 Ok(PageText {
                     sections: vec![(None, PageText::read_doc(lib, &doc)?)],
                 })
@@ -402,7 +466,9 @@ impl PageText {
 /// The shell's target as F3 names it (for the view modules).
 pub fn nav_target(t: &Target) -> NavTarget {
     match t {
-        Target::Book => NavTarget::Book,
+        // The frozen consumer treats Book as no individual entity. V3 consumers
+        // must use Target directly, including its optional module, not this adapter.
+        Target::Entry { .. } | Target::Template(_) | Target::Book => NavTarget::Book,
         Target::Chapter(id) => NavTarget::Chapter(id.clone()),
         Target::Idea(id) => NavTarget::Idea(id.clone()),
         Target::Storyline(id) => NavTarget::Storyline(id.clone()),

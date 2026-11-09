@@ -86,5 +86,14 @@
   },
   "speech": {
     "backlog": "전사 처리 지연"
+  },
+  "v3Shell": {
+    "about": "설명",
+    "entries": "항목",
+    "settings": "설정",
+    "list": "목록",
+    "grid": "그리드",
+    "board": "보드",
+    "islands": "섬"
   }
 }

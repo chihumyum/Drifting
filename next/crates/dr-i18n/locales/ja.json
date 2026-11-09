@@ -1767,6 +1767,15 @@
     "themeSystem": "システムに合わせる",
     "themeSystemShort": "システム"
   },
+  "v3Shell": {
+    "about": "説明",
+    "board": "ボード",
+    "entries": "項目",
+    "grid": "グリッド",
+    "islands": "アイランド",
+    "list": "リスト",
+    "settings": "設定"
+  },
   "voiceAgent": {
     "error": {
       "auth": "文字起こし用キーが無効か期限切れです",

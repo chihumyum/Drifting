@@ -86,5 +86,14 @@
   },
   "speech": {
     "backlog": "文字起こしの処理待ち"
+  },
+  "v3Shell": {
+    "about": "説明",
+    "entries": "項目",
+    "settings": "設定",
+    "list": "リスト",
+    "grid": "グリッド",
+    "board": "ボード",
+    "islands": "アイランド"
   }
 }

@@ -120,6 +120,7 @@ pub struct PageEditor {
     /// A module draws the whole page instead of an editor (M19's image
     /// and PDF materials; [`crate::pages::add_page_view`]).
     pub module: Option<crate::pages::ModulePage>,
+    pub v3: Option<Entity<crate::v3::page::EntryPage>>,
     /// Live word counts, per document the editor holds.
     tallies: HashMap<String, Tally>,
     _prepare: Option<Task<()>>,
@@ -136,6 +137,7 @@ impl PageEditor {
             failed: false,
             chrome: false,
             module: None,
+            v3: None,
             tallies: HashMap::new(),
             _prepare: Some(prepare),
             _timer: Some(timer),
@@ -152,6 +154,7 @@ impl PageEditor {
             failed: false,
             chrome: true,
             module: Some(page),
+            v3: None,
             tallies: HashMap::new(),
             _prepare: None,
             _timer: None,
@@ -305,8 +308,21 @@ impl Workspace {
             book_id: self.book_id.clone(),
             book: self.book.clone(),
         };
-        if let Some(page) = crate::pages::page_view_for(target, host, window, cx) {
+        if let Some(page) = crate::pages::page_view_for(target, host.clone(), window, cx) {
             self.editors.insert(target.key(), PageEditor::module(page));
+            return;
+        }
+        if self.book.v3().is_some() {
+            let view = cx.new(|cx| crate::v3::page::EntryPage::new(host, target.clone(), cx));
+            if let Some(lines) = self.nav.take_reveal(target) {
+                view.update(cx, |view, cx| view.reveal(lines, cx));
+            }
+            let mut page = PageEditor::module(crate::pages::ModulePage {
+                focus: view.read(cx).focus.clone(),
+                view: view.clone().into(),
+            });
+            page.v3 = Some(view);
+            self.editors.insert(target.key(), page);
             return;
         }
         let doc = book::doc_of(target);
@@ -680,6 +696,11 @@ impl Workspace {
 
     /// The book was read again: the editors' titles follow renames.
     pub(super) fn retitle_editors(&mut self, cx: &mut Context<Self>) {
+        for page in self.editors.values() {
+            if let Some(v) = &page.v3 {
+                v.update(cx, |v, cx| v.refresh(self.book.clone(), cx));
+            }
+        }
         let pages: Vec<(String, Entity<ChapterEditor>)> = self
             .editors
             .iter()
@@ -732,6 +753,22 @@ impl Workspace {
         for target in shown {
             if !self.editors.contains_key(&target.key()) {
                 self.prepare_editor(target, window, cx);
+                continue;
+            }
+            if let Some(view) = self.editors.get(&target.key()).and_then(|p| p.v3.clone()) {
+                let focus = view.read(cx).preferred_focus();
+                if let Some(module) = self
+                    .editors
+                    .get_mut(&target.key())
+                    .and_then(|p| p.module.as_mut())
+                    && module.focus != focus
+                {
+                    module.focus = focus;
+                    self.focused_editor = None;
+                }
+                if let Some(lines) = self.nav.take_reveal(target) {
+                    view.update(cx, |v, cx| v.reveal(lines, cx));
+                }
                 continue;
             }
             let Some(editor) = self.editor_of(target).cloned() else {

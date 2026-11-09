@@ -237,7 +237,7 @@ pub fn parse(text: &str) -> Result<Scenario, String> {
             return Err(format!("step {i}: unknown command {c}"));
         }
         if let Some(p) = &step.seed
-            && dr_testkit::seed::Preset::parse(p).is_none()
+            && crate::seed::Choice::parse(p).is_none()
         {
             return Err(format!("step {i}: unknown seed {p}"));
         }

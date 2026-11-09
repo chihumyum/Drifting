@@ -88,8 +88,11 @@ pub fn corner(
     );
 
     let mut tools: Vec<AnyElement> = Vec::new();
-    let planned = matches!(target, Some(Target::Chapter(_) | Target::Idea(_)));
-    if planned && pages::has_bottom_panel(BottomPane::Planner, cx) {
+    let planned = matches!(
+        target,
+        Some(Target::Chapter(_) | Target::Idea(_) | Target::Entry { .. })
+    );
+    if planned && pages::has_bottom_panel_for(BottomPane::Planner, &w.book, cx) {
         let toggle = ws.clone();
         let open = w.bottom.layout.planner_open;
         tools.push(
@@ -194,24 +197,25 @@ pub fn corner(
         .children(tools)
     });
 
-    let timeline = (trailing && pages::has_bottom_panel(BottomPane::Timeline, cx)).then(|| {
-        let shown = !w.bottom.layout.timeline_hidden && !w.bottom.layout.planner_open;
-        IconButton::new(
-            gpui::ElementId::Name(format!("corner-timeline-{key}").into()),
-            Icon::Bamboo,
-        )
-        .floating()
-        .selected(shown)
-        .label(t(
-            cx,
-            if shown {
-                keys::bottom_status_bar::COLLAPSE_TIMELINE
-            } else {
-                keys::bottom_status_bar::EXPAND_TIMELINE
-            },
-        ))
-        .on_click(|_, window, cx| window.dispatch_action(Box::new(ToggleBottomTimeline), cx))
-    });
+    let timeline = (trailing && pages::has_bottom_panel_for(BottomPane::Timeline, &w.book, cx))
+        .then(|| {
+            let shown = !w.bottom.layout.timeline_hidden && !w.bottom.layout.planner_open;
+            IconButton::new(
+                gpui::ElementId::Name(format!("corner-timeline-{key}").into()),
+                Icon::Bamboo,
+            )
+            .floating()
+            .selected(shown)
+            .label(t(
+                cx,
+                if shown {
+                    keys::bottom_status_bar::COLLAPSE_TIMELINE
+                } else {
+                    keys::bottom_status_bar::EXPAND_TIMELINE
+                },
+            ))
+            .on_click(|_, window, cx| window.dispatch_action(Box::new(ToggleBottomTimeline), cx))
+        });
 
     let incense = trailing.then(|| {
         IconButton::new(

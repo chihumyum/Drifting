@@ -1781,6 +1781,15 @@
     "themeSystem": "Seguir el sistema",
     "themeSystemShort": "Sistema"
   },
+  "v3Shell": {
+    "about": "Descripción",
+    "board": "Tablero",
+    "entries": "Entradas",
+    "grid": "Cuadrícula",
+    "islands": "Islas",
+    "list": "Lista",
+    "settings": "Ajustes"
+  },
   "voiceAgent": {
     "error": {
       "auth": "La clave de transcripción no es válida o ha caducado",
