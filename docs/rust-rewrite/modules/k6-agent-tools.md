@@ -290,3 +290,33 @@ K2 的视图名称／泳道顺序等逐字段命令仍待协调；在接口提�
 最终全套检查基于 `65d597fe` 的代码与锁文件，macOS ARM64，`CARGO_BUILD_JOBS=3`，Cargo 在同一 target 顺序运行。`cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、`RUST_TEST_THREADS=1 cargo test --workspace --locked`、`cargo xtask check`、根目录 `pnpm public:check` 全部退出 0；最终全量测试首次运行 **2,083 通过、0 失败、22 忽略**，含文档测试。public 检查 5,467 个候选；审计 972 个锁定依赖、0 漏洞、12 条既有提示；14 stale／15 legacy 性能证据未改。保留既有调试链接 `__eh_frame` 大小警告，没有性能、真实模型或硬件验收。`git diff --check` 通过。
 
 本记录提交后将 `handback/k6` 前移到该提交，重新提交包含前三步及本轮退回修复的完整分支，等待整合者验收；不把分支自验写成已合 main。未合入 main、未推送，原 Antigravity 工作区未动。尚缺的逐字段时间线命令及其他接口仍按前文待协调，不影响这里已验证的数据保留边界。
+
+## 共名 v3 命令与规范投影续接（11-10）
+
+目录的输入、输出与作用域判定，以及 resolver 的参数判定，按当前书的版本选取 `Spec.v3`；没有版本分支的命令继续消费原规格。v3 facade revision 升为 r3。`book.get/update` 支持 v3 目标字数的省略／关闭／恢复默认语义；批注按当前书的条目／素材、明确的正文模块解析，创建模块批注需要该模块的读取覆盖，过滤批注列表只授权实际返回的批注。素材元数据与正文沿用同一读取覆盖和 CAS，不扩大删除权限。测试通过真实 `AgentTools::invoke` 执行，不以 resolver 成功代替实际写回。
+
+结构说明的 `effective_settings.sources` 现在直接序列化内核 `LevelSettingSource`（`default`、`override`、`template`、`lane`，带规范 entry/template 身份）；已删掉旧 `self_template`／`ancestor:*`／`lane_invariant` 本地追溯算法。`StructureContext::for_book` 与 `from_v3_view` 签名保持。新增只读 `dr_agent_tools::structure::TemplateSummary::from_v3_template(&dr_model::v3::EntryTemplate) -> TemplateSummary`，让 K5 的未使用／未保存草稿消费与运行时同一个模块、说明和能力投影；不读库，不建立写覆盖，也不绑定或执行动作。
+
+本批验证使用 v3 `dr_testkit` 种子；永久契约在 `shared_v3.rs`、`structure.rs`，真窗口录制脚本为 `dr-view-agent/examples/v3-acceptance.rs` 与 `scenarios/v3-tools.json`。运行方式：在 `next/` 执行 `CARGO_BUILD_JOBS=3 cargo build -p dr-view-agent --example v3-acceptance --locked`，再执行 `CARGO_BUILD_JOBS=3 cargo drifting workspace scenario crates/dr-view-agent/scenarios/v3-tools.json --app target/debug/examples/v3-acceptance --out target/acceptance/k6-v3-tools --yes`；场景强制副屏、内存合成凭据、录制响应，未用的提供商地址也只指向 loopback。实际通过数与最终 frontier 记录在本批交回小节。
+
+待协调：整合者已复现 `comment.create` 的旧正文 guards 未被只读来源路径消费，K2 正补同一 holder read 内校验来源 frontier 的规范入口。在该修复正式接收前，facade 明确拒绝 range、block_id、anchor 创建和非空 reanchor；整条目、模块、素材、浮动批注及清除锚点继续走书目 CAS，不能把临时 observe 当作原子保护。G1 整条目快照仍等正式接口合 main 后接首次写入，不消费 WIP。K2 拟新增的时间线局部命令在正式接入 resolver／覆盖前保持排除。
+
+窗口初轮的等待断言错误地把普通回复文本当成 AX 节点，导致 `ui.find` 超时；没有把该轮记为通过或归因于环境。独立隔离窗口诊断确认工具结果、书目更新及 AI 来源模块批注已落库，随后场景改为等最后一条工具结果按钮，并断言持久化结果与来源；第二轮同时纠正了 scenario 的 call 已解包 output、断言应从返回值根部取值的测试路径。两轮原日志均保留，不冒称产品通过。系统全局坐标检查确认同一副屏配置的窗口位于内建副屏；`app.info` 的 bounds 是显示器内坐标，不能据其 x/y 误判为主屏。
+
+本批收尾收到第 63 批的内核取消归属风险：`membership.remove`（以及委托它的 `timeline_view.remove`）会将隐藏剩余泳道误判为没有泳道而删 raw placement。这两种命令在 K6 已开放，故当前批立即沿用同一 frontier 的时间线完整性证据保护：先完整读视图，存在任何隐藏泳道／摆放／钉数据则拒绝取消；没有隐藏数据的普通路径仍可执行。新增永久回归覆盖可见 A、回收 B、两种取消入口拒写且版本／raw 不动、恢复 B 后摆放存在，以及重新完整读取后的正常取消。待 K2 正式修复后再放宽为精确影响集合；不把书目 CAS 当成受影响数据已读证明。
+
+## 共名签名、规范投影与取消归属保护交回（11-10）
+
+工作分支 `codex/k6-v3`，本次新增 `324cee78`（Spec.v3 输入／输出、批注模块与素材／书目实际调用、规范来源 DTO、K5 只读模板投影及契约）、`3122e291`（窗口场景按真实 AX 与返回值契约校验）、`93e06961`（取消归属的隐藏时间线完整性保护与永久回归）；`d078e2e2`、`cdaf1c74` 分别合入 main `079631fa`、`9a2351a7`，均无冲突。最终代码头为 `cdaf1c74`；本记录提交后将 `handback/k6` 前移到记录提交。只自行修改 `dr-agent-tools`、`dr-view-agent` 的验收示例／场景与开发依赖、对应 lockfile 和本文；内核命令实现未改。第 53 批整份视图拒写保护继续保留，本轮又覆盖取消归属路径；八项时间线契约包含回收／改名／恢复、隐藏成员／钉、并发、无 journal／结算／raw 变更及位置长度保留。
+
+在最终代码头完整运行 `cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、`cargo test --workspace --locked`、`cargo xtask check` 和根目录 `pnpm public:check`：全部通过，测试 **2169 通过／0 失败／22 忽略**，公开边界 5531 项；审计 972 个锁定 crate、0 漏洞、12 条既有通知，evidence 门禁报告 19 stale／15 legacy，未把性能预算记为通过。编译始终 `CARGO_BUILD_JOBS=3`，全测 `RUST_TEST_THREADS=1`。最终重建的 v3 合成模型副屏冒烟 **16/16、0 pending**，实际读回书目修改及 `author_kind=ai`／`source=api` 的模块批注，正常退出。最终日志为 `/tmp/drifting-k6-final-{fmt,clippy,tests,gates,public,window}.log`，窗口结果在 `/tmp/drifting-k6-final-window/`；初轮窗口断言修正记录仍保留。新增归属保护前的旧全测主动中断（退出 130，906／0／6 仅为部分结果），未计入最终通过数。没有使用真实模型、真实凭据或服务；未新增 v2.2 测试，既有契约随全套检查运行。
+
+待协调：锚定批注仍明确拒绝未受保护的 range／block_id／anchor 创建和非空 reanchor，等 K2 正式来源正文守卫到 main 后接实际正向调用；归属取消在存在隐藏视图数据时继续保守拒绝，等 K2 修复隐藏剩余泳道的 raw placement 保留后再按精确影响集合放宽。G1 `entry_snapshot.*` 与首次写前完整快照、G4 素材新接口、M14 新局部命令均不消费 WIP 或自动开放。K5 可在本批正式接收后调用 `TemplateSummary::from_v3_template`，只读预览不授予写覆盖。heavy／视觉与流畅度验收仍按整合安排暂缓；没有合进 main、推送或改动原 Antigravity 工作区。正式交回消息主动发给整合会话。
+
+## 待接入命令显式排除交回（11-10）
+
+接整合者第 64 批协调，在 `codex/k6-v3` 的上一交回 `3ad5c525` 上追加目录保护：`entry_snapshot.*`、`material.set_entry_link`、`timeline_view.rename`／`add_lane`／`move_lane`／`remove_lane` 在 `exclusion_v3` 中显式排除，目录和直接调用解析器共用这道规则。此前文档记录了待接入状态，本批将其落实为注册新书范围命令后仍不会自动开放的代码约束。永久回归使用独立合成 Registry，给这些名字有效的 book 输入，确认普通范围策略会放行而 v3 目录／调用策略拒绝；同时覆盖快照命令族、共享名字和 v3 专用名字，不依赖命令尚未注册而得到空通过。不读取 WIP 实现，不改内核命令；代码只改 `dr-agent-tools/src/catalog.rs`，随本文同批提交。
+
+执行 `git merge main`，当前 main `9a2351a7` 已包含在分支；全套 fmt、Clippy、工作区测试、xtask 和根目录 public 检查全部通过：**2170 通过／0 失败／22 忽略**，公开边界 5531 项。v3 testkit 种子与录制合成响应驱动的副屏真窗口冒烟 **16/16、0 pending**，正常退出；未调用真实模型或服务。编译 `CARGO_BUILD_JOBS=3`，全测 `RUST_TEST_THREADS=1`。本次日志为 `/tmp/drifting-k6-reserved-{fmt,clippy,tests,gates,public,window}.log`，窗口报告 `/tmp/drifting-k6-reserved-window/result.json`；既有审计通知和 stale／legacy 性能证据仍保留，未据此声称性能验收通过。
+
+待协调：上述入口须在对应读取范围、版本守卫和恢复协议正式接入后逐项开放。K2 另在准备 `membership.restore` 局部逆操作并自带 Agent 排除；收到正式交回后保留该独立保护与拒绝契约，合批时去重，不提前开放。锚定批注正向来源守卫、首次写前完整条目快照仍待所属接口正式合 main；本批不放松隐藏时间线整份写入或取消归属保护。提交后更新 `handback/k6` 并主动通知整合者，不合入 main、不推送。

@@ -79,6 +79,19 @@ impl Coverage {
         Ok(())
     }
 
+    /// The current F3 membership-removal cascade scans raw views and can
+    /// remove placements whose remaining lane is hidden. A book CAS does not
+    /// prove those affected records were shown. Until F3 preserves them, fail
+    /// closed if any view in this exact collection read is incomplete.
+    pub(super) fn require_membership_removal(&self) -> Result<()> {
+        if !self.incomplete.is_empty() {
+            return Err(Error::ReadRequired(
+                "membership removal is unavailable while timeline views contain hidden lanes, placements or pin data".into(),
+            ));
+        }
+        Ok(())
+    }
+
     pub(super) fn require_pin(&self, view: &str, pin: &str) -> Result<()> {
         if self.incomplete_pins.contains(&(view.into(), pin.into())) {
             return Err(Error::ReadRequired(format!(

@@ -2144,6 +2144,7 @@ dependencies = [
  "dr-agent",
  "dr-agent-providers",
  "dr-agent-tools",
+ "dr-debug-bridge",
  "dr-doc",
  "dr-editor",
  "dr-i18n",
