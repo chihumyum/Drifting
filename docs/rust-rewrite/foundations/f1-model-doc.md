@@ -509,3 +509,20 @@ docs/rust-rewrite/acceptance/f1-m3-doc-bench.json   第三轮的测量证据
 - 提交：`adfab910` 写作日版本分派与永久回归；`0842b596` 合入 main `2f80ac40` 的接口分工记录；加本节交回记录。检查后再次 `git merge main` 确认已同步，未向 main 合并或推送。
 - 检查：`cargo fmt --all --check`、全工作区 Clippy（`--all-targets --locked -- -D warnings`）、全工作区测试（2,062 通过／0 失败／22 忽略）、`cargo xtask check`（含审计）和 `pnpm public:check`（5,462 个候选文件）全部通过。编译并发 3、测试单线程；已有依赖审计提示和 stale／legacy 测量证据保留，不作为新性能结论。
 - 本段交回后继续批注／素材适配；两者的删除与按对象恢复共用同一提交边界，作为下一段联合验收。
+
+
+## K2 大书读取修复：交回准备（2026-11-10）
+
+按作者经整合会话分派，先完成标准 v3-heavy 的结构读取瓶颈，再继续 G4 批注／素材。
+工作分支 `codex/k1-v3-heavy` 从已交回的写作日段开始，同步 main `ee372789`；
+G4 实现已保存在 `codex/k1-v3`，没有混入本批。写作日交回指针不撤回。
+
+- 新增 `BookStructureV3` 显式不可变快照及 `level.list`，有效值和来源共用模型解析器；
+  `entry.list`／`level.get` 复用一次结构读取。模型的同名冲突解析只计算一次归属资格，
+  依父级／归属宿主重用 auto_link 设置，保留 `(created_at,id)` 的胜出规则。
+- 触及 v2.2 所在文件仅 `dr-doc/src/book/read.rs`：抽出原 forest 的重复 id、排序和
+  域级环规整器，让实时树和深值快照共用。没有改变 v2.2 语义或持久格式。
+- F3 记录批量 DTO、快照生命周期和测量边界；测试覆盖实际事务／导入／checkout、
+  新旧读取等价和跨书边界。没有改视图、外壳、帮手、dr-index 或 progress.md。
+- 待协调：外壳由整合方安排消费批量查询及来源 DTO，再做标准 heavy 真窗口复验；
+  K6 可消费同一来源，不另建继承算法。本批未声称已完成窗口加载验收。

@@ -914,3 +914,34 @@ v2.2 分支保持原 reader／事务。两者共用既有按设备／日期键�
 `tests/v3_common.rs` 断言两本 v3 书与 v2.2 同库互不干扰、重开后读数一致、
 只改变 `writing_days`、重复写入版本不变、不进入撤销日志，以及非法日期／负数拒绝。
 共用日期入口先拒绝非 ASCII，防止按字节切片解析非法日期时 panic；有效 v2.2 日期行为不变。
+
+
+## K2 大书结构读取：批量层级与一致快照（2026-11-10）
+
+`level.list {book}` 只接受 v3，返回 `{version, levels}`。`version` 是读取书目时的
+frontier；`levels` 按书稿顺序列出全部存活层级，每项有 `id`、`settings`、`sources`、
+`children`、`members`。后两项为完整条目 DTO：前者按有效父级筛选，后者按有效归属
+顺序筛选，不把归属当住处。来源词汇与外壳现有 DTO 一致：`default`、
+`override {entry}`、`template {entry,template}`、`lane {entry,template}`。
+八项设置的值与来源由同一个 `dr_model::v3` 解析器同时产生，显式 null 是有来源的
+覆盖；泳道强制 `accept=true` 的来源为 lane。调用方应消费这里的来源，不再自行追溯。
+
+`BookViewV3::structure_snapshot()` 在一次 Loro state 深值读取后生成显式拥有数据的
+`BookStructureV3`，条目树、模板、同名冲突和归属资格在该次结构读取中统一解析。
+其中没有 Loro handle；旧快照保持原值，新快照可见事务内尚未提交的写入，以及后续
+import／checkout。读取不提交事务。`entry.list` 和 `level.get` 使用这一读取，
+不再逐个父级／成员重复扫描全树；`level.get` 原输出 schema 保持不变。
+
+永久契约覆盖新旧读取结果与顺序、归属和垃圾箱、叶子父级容错、重复 domain id／
+域级环、同名冲突赢家、模板／覆盖／默认／泳道来源、同事务写后读、import／checkout、
+旧快照不变、两书隔离、v2.2 拒绝以及 frontier。注册表能力快照已生成。
+
+基准入口为 `bench v3-book-legacy`（逐层调用）和 `bench v3-book`（批量调用）。
+二者使用标准 `seed::generate_v3(heavy, DEFAULT_SEED)`，完整等待读取结束，分别记录
+种子生成、语料形状审计、存库、首次 Workspace 打开及完整书目读取；计时含命令调度、
+持有者加载、JSON 转换，不含外壳构建和窗口渲染。首次持有者读取计入 observeBefore，
+不是只测打开一个空 Workspace。修前证据的源文件指纹在运行开始时冻结；公共基准
+输入路径同步 dr-corpus 拆分，debug 证据不再误标成 release 命令。
+
+本批不改外壳。整合后由外壳消费 `level.list` 并移除独立来源算法，再安排 G3／K5
+标准 debug heavy 窗口复验；本批的查询完成时间不能当成窗口 `book.loaded=true` 的验收。

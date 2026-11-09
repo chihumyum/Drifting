@@ -1,0 +1,252 @@
+{
+  "schema": "dr-testkit/evidence/1",
+  "name": "v3-book-legacy-bench",
+  "milestone": "k2-before-heavy-debug",
+  "generatedBy": "cargo run -p dr-testkit --bin bench -- v3-book-legacy --milestone k2-before-heavy-debug",
+  "inputs": {
+    "crates/dr-corpus/src": "7a86cff886c07b439990a925f23b99d5600ac3e5f9c250de9b945b111ce39020",
+    "crates/dr-doc": "bad288af5f9b38a173f2aef47dfbcab0c056dc0865232a789d571480632946e9",
+    "crates/dr-model/src/v3.rs": "693f3fc0354cdc46239539af7803d62789623cee746586264a285823a9867623",
+    "crates/dr-testkit/src/bench.rs": "0a424f36adcefe5baa818e90acd16abec3e23e72063ac4b401f414c58f702be7",
+    "crates/dr-testkit/src/bench/v3_levels.rs": "739e6c5130cd40836db73ebb626a98b01afea39712044e45a69173fe9ea9e20f",
+    "crates/dr-testkit/src/bin/bench.rs": "293ff7b30c8477cff257fe46afee14e1ba518a3ee741ad47e5bd7e2f1d632a6a",
+    "crates/dr-testkit/src/seed": "e3123bf70af637568d7da31aca03d056be6774ae7748d91f463b03237c67f002",
+    "crates/dr-workspace": "64bd864909ff363e51cc4e0162d54f5a415dadca4587a216316bad95c417a75c"
+  },
+  "corpus": {
+    "buildProfile": "debug",
+    "corpusFingerprint": "5b319924c784252a98d35588c557a642ff4fb6b347f3a3603a9f1696a54bfb48",
+    "entries": 633,
+    "levels": 33,
+    "machineAtEnd": {
+      "arch": "aarch64",
+      "cores": 12,
+      "cpu": "Apple M3 Pro",
+      "loadAverage1m": 8.68,
+      "memoryBytes": 38654705664,
+      "os": "macos",
+      "osVersion": "27.0.1",
+      "profile": "debug"
+    },
+    "preset": "v3-heavy",
+    "queryPath": "per-level",
+    "samples": 1,
+    "seed": "0x5eed0f08",
+    "shape": {
+      "acts": 4,
+      "bodies": {
+        "categories": {
+          "corpusSha256": "04be70fa2c12f8128c4c364de96cab86ab7fae7a76d4a92ba55c76c55f54ecd1",
+          "count": 16,
+          "maxWords": 3000,
+          "medianWords": 754.0,
+          "minWords": 100,
+          "p95Words": 3000,
+          "totalWords": 16000
+        },
+        "chapters": {
+          "corpusSha256": "53eb8978aa88ddb699615f24c6913dd94d51b40dc9041ca0a2e38e597510e650",
+          "count": 100,
+          "maxWords": 20000,
+          "medianWords": 19349.0,
+          "minWords": 2000,
+          "p95Words": 20000,
+          "totalWords": 1500000
+        },
+        "comments": {
+          "corpusSha256": "ed8dd3c4d2dabca544ace1dd5fc40d0dd337efc9a391fddf724b314dfb296b07",
+          "count": 80,
+          "maxWords": 3000,
+          "medianWords": 319.0,
+          "minWords": 50,
+          "p95Words": 1422,
+          "totalWords": 40000
+        },
+        "elements": {
+          "corpusSha256": "f7956e2be36735784960cc3faeb06e3953a68db0a9659fce21d5015598abdfd2",
+          "count": 300,
+          "maxWords": 10000,
+          "medianWords": 964.5,
+          "minWords": 100,
+          "p95Words": 5361,
+          "totalWords": 500000
+        },
+        "ideas": {
+          "corpusSha256": "e03f04c45b51b154a4a0d39b745557cf53dff7123555c46da18510c4caa5b899",
+          "count": 200,
+          "maxWords": 50000,
+          "medianWords": 2741.0,
+          "minWords": 1000,
+          "p95Words": 14310,
+          "totalWords": 1000000
+        },
+        "materialNotes": {
+          "corpusSha256": "a1a32bee9253602029f2463b1d83e5af34b99b922d3856585491e20c06f6bab6",
+          "count": 60,
+          "maxWords": 10000,
+          "medianWords": 10000.0,
+          "minWords": 500,
+          "p95Words": 10000,
+          "totalWords": 500000
+        },
+        "storylines": {
+          "corpusSha256": "770ad525e35a0456ca1adb646f24af5d65f312c73347dfdf921aafc290bedbb9",
+          "count": 3,
+          "maxWords": 30000,
+          "medianWords": 25000.0,
+          "minWords": 5000,
+          "p95Words": 30000,
+          "totalWords": 60000
+        },
+        "todos": {
+          "corpusSha256": "94a1743caa8a1822e6d8814974ca9fc7612214c75877c9e9c93fb9f11ec5a54e",
+          "count": 120,
+          "maxWords": 1500,
+          "medianWords": 159.0,
+          "minWords": 50,
+          "p95Words": 688,
+          "totalWords": 30000
+        }
+      },
+      "books": 1,
+      "chapters": 100,
+      "corpusFingerprint": "5b319924c784252a98d35588c557a642ff4fb6b347f3a3603a9f1696a54bfb48",
+      "documents": 680,
+      "elements": 300,
+      "entityLinks": 28468,
+      "headings": [
+        624,
+        1186,
+        776
+      ],
+      "preset": "heavy",
+      "relations": 400,
+      "seed": "0x5eed0f08",
+      "tasks": 180,
+      "writingDays": 273
+    }
+  },
+  "machine": {
+    "arch": "aarch64",
+    "cores": 12,
+    "cpu": "Apple M3 Pro",
+    "loadAverage1m": 8.95,
+    "memoryBytes": 38654705664,
+    "os": "macos",
+    "osVersion": "27.0.1",
+    "profile": "debug"
+  },
+  "results": {
+    "cases": {
+      "prepare": {
+        "ms": {
+          "firstWorkspaceOpen": {
+            "max": 1.105,
+            "mean": 1.105,
+            "n": 1,
+            "p50": 1.105,
+            "p95": 1.105
+          },
+          "seedGeneration": {
+            "max": 6974.151,
+            "mean": 6974.151,
+            "n": 1,
+            "p50": 6974.151,
+            "p95": 6974.151
+          },
+          "seedShape": {
+            "max": 472.673,
+            "mean": 472.673,
+            "n": 1,
+            "p50": 472.673,
+            "p95": 472.673
+          },
+          "storeSeed": {
+            "max": 2815.316,
+            "mean": 2815.316,
+            "n": 1,
+            "p50": 2815.316,
+            "p95": 2815.316
+          }
+        },
+        "shape": {
+          "books": 1
+        },
+        "what": "seed generation, shape audit, storing documents and first workspace open are separate from reading"
+      },
+      "read": {
+        "ms": {
+          "entries": {
+            "max": 198.166,
+            "mean": 198.166,
+            "n": 1,
+            "p50": 198.166,
+            "p95": 198.166
+          },
+          "levels": {
+            "max": 62441.747,
+            "mean": 62441.747,
+            "n": 1,
+            "p50": 62441.747,
+            "p95": 62441.747
+          },
+          "memberships": {
+            "max": 21.634,
+            "mean": 21.634,
+            "n": 1,
+            "p50": 21.634,
+            "p95": 21.634
+          },
+          "observeAfter": {
+            "max": 30.547,
+            "mean": 30.547,
+            "n": 1,
+            "p50": 30.547,
+            "p95": 30.547
+          },
+          "observeBefore": {
+            "max": 24.643,
+            "mean": 24.643,
+            "n": 1,
+            "p50": 24.643,
+            "p95": 24.643
+          },
+          "roots": {
+            "max": 125719.304,
+            "mean": 125719.304,
+            "n": 1,
+            "p50": 125719.304,
+            "p95": 125719.304
+          },
+          "templates": {
+            "max": 2.281,
+            "mean": 2.281,
+            "n": 1,
+            "p50": 2.281,
+            "p95": 2.281
+          },
+          "timelineViews": {
+            "max": 99.11,
+            "mean": 99.11,
+            "n": 1,
+            "p50": 99.11,
+            "p95": 99.11
+          },
+          "total": {
+            "max": 188538.213,
+            "mean": 188538.213,
+            "n": 1,
+            "p50": 188538.213,
+            "p95": 188538.213
+          }
+        },
+        "shape": {
+          "books": 1
+        },
+        "what": "one complete book structure read after reopening; includes holder loading, queries and JSON conversion, excludes UI construction and rendering"
+      }
+    },
+    "mode": "full",
+    "suite": "v3-book-legacy"
+  }
+}
