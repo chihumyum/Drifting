@@ -211,6 +211,16 @@
       }
     },
     {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/v3/timeline_views/0/name": "Synthetic preserved view draft",
+          "/v3/timeline_views/0/pins/1/entry": "${target.id}"
+        }
+      }
+    },
+    {
       "app": "ui.find",
       "params": {
         "label": "Synthetic preserved view draft",
@@ -321,8 +331,11 @@
     {
       "app": "ui.wait",
       "params": {
-        "until": "time",
-        "ms": 350
+        "timeout_ms": 30000,
+        "state": {
+          "/v3/timeline_views/0/pins/1/label": "Synthetic preserved pin draft",
+          "/v3/timeline_views/0/pins/1/entry": "${target.id}"
+        }
       }
     },
     {
