@@ -420,6 +420,10 @@ fn delayed(cx: &mut TestAppContext, kind: Kind, quitting: bool) {
     input.edit("accepted earlier draft", &mut cx);
     cx.update(|w, cx| w.blur(cx));
     wait(&mut cx, |_| entered.load(Ordering::SeqCst));
+    input.edit("accepted earlier draft", &mut cx);
+    cx.simulate_keystrokes("escape");
+    draw(&mut cx);
+    cx.update(|_, cx| assert_eq!(input.text(cx), "accepted earlier draft"));
     input.edit("accepted author draft", &mut cx);
     draw(&mut cx);
     let outcome = Rc::new(RefCell::new(None));
@@ -578,6 +582,10 @@ fn failed(cx: &mut TestAppContext, kind: Kind, conflict: bool) {
             assert_eq!(durable_state(ws, &env), before);
         }
     });
+    input.edit("author draft", &mut cx);
+    cx.simulate_keystrokes("escape");
+    draw(&mut cx);
+    cx.update(|_, cx| assert_eq!(input.text(cx), "author draft"));
     // Failure resumes the input; ordinary blur still cannot authorize the old draft.
     input.edit("author retry", &mut cx);
     cx.update(|w, cx| w.blur(cx));

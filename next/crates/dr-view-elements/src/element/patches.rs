@@ -197,6 +197,9 @@ impl Patches {
                         }
                         FieldEvent::Blurred | FieldEvent::Submitted(_) => v.save(&id, cx),
                         FieldEvent::Cancelled => {
+                            if v.rows.get(&id).is_some_and(|r| r.writing || r.error) {
+                                return;
+                            }
                             if !settlement::accepts(cx) {
                                 return;
                             }

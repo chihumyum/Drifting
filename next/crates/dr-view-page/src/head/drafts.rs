@@ -135,14 +135,14 @@ impl PageHead {
                 }
             }
             FieldEvent::Cancelled => {
-                let value = if summary {
-                    self.stored_synopsis.clone()
-                } else {
-                    self.stored_title.clone()
-                };
                 let draft = self.drafts.as_mut().unwrap().get_mut(summary);
+                // An accepted durable job, or its refused draft, must stay
+                // available for retry. Esc cannot cancel a store append.
+                if draft.writing || draft.failed {
+                    return;
+                }
+                let value = draft.base.clone();
                 draft.text = value.clone();
-                draft.failed = false;
                 input.update(cx, |f, cx| f.set_text(value, cx));
                 window.blur(cx);
             }
@@ -173,8 +173,12 @@ impl PageHead {
                 state.binding = next.binding;
             }
         }
-        self.stored_title = page.title.clone();
-        self.stored_synopsis = page.synopsis.clone();
+        if !state.title.awaiting {
+            self.stored_title = page.title.clone();
+        }
+        if !state.synopsis.awaiting {
+            self.stored_synopsis = page.synopsis.clone();
+        }
         self.page = page.clone();
         self.refresh_group_path(cx);
         cx.notify();

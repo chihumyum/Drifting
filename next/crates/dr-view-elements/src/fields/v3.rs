@@ -243,6 +243,12 @@ impl TypedFields {
                         }
                         FieldEvent::Blurred | FieldEvent::Submitted(_) => v.flush(&id, cx),
                         FieldEvent::Cancelled => {
+                            if v.writing.contains(&id)
+                                || v.desired.contains_key(&id)
+                                || v.errors.get(&id) == Some(&dr_i18n::keys::k4_pages::SAVE_FAILED)
+                            {
+                                return;
+                            }
                             if !settlement::accepts(cx) {
                                 return;
                             }
