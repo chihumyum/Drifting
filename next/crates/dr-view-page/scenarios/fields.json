@@ -183,6 +183,29 @@
       }
     },
     {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-j"
+      },
+      "note": "Close the default timeline so the G1 page uses the whole paper."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/bottom/pane": null
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 700
+      }
+    },
+    {
       "app": "ui.screenshot",
       "png": "fields-before.png"
     },

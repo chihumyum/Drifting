@@ -199,6 +199,11 @@ impl NewTitles {
         cx.default_global::<NewTitles>().0.push(doc);
     }
 
+    pub fn pending(doc: &str, cx: &App) -> bool {
+        cx.try_global::<Self>()
+            .is_some_and(|list| list.0.iter().any(|d| d == doc))
+    }
+
     /// Whether `doc` was just made (and forgets it).
     pub fn take(doc: &str, cx: &mut App) -> bool {
         let Some(list) = cx.try_global::<NewTitles>() else {

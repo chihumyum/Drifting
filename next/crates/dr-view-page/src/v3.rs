@@ -12,6 +12,7 @@ use std::rc::Rc;
 pub struct BodyModule {
     host: ModuleHost,
     focus: FocusHandle,
+    title_first: bool,
     editor: Option<Entity<ChapterEditor>>,
     reveal: Option<Lines>,
     loading: Option<Task<()>>,
@@ -43,8 +44,12 @@ pub fn register(cx: &mut App) {
 impl BodyModule {
     pub fn new(host: ModuleHost, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let focus = cx.focus_handle();
+        let title_first =
+            crate::NewTitles::pending(&format!("body:{}/{}", host.entry, host.module.id), cx);
         cx.on_focus(&focus, window, |v, window, cx| {
-            if let Some(editor) = &v.editor {
+            if !v.title_first
+                && let Some(editor) = &v.editor
+            {
                 let prose = editor.read(cx).editor().clone();
                 window.defer(cx, move |window, cx| {
                     prose.focus_handle(cx).focus(window, cx)
@@ -55,6 +60,7 @@ impl BodyModule {
         let mut view = Self {
             host,
             focus,
+            title_first,
             editor: None,
             reveal: None,
             loading: None,
@@ -168,9 +174,27 @@ impl BodyModule {
     }
 }
 
+impl Focusable for BodyModule {
+    fn focus_handle(&self, _: &App) -> FocusHandle {
+        self.focus.clone()
+    }
+}
+
 impl Render for BodyModule {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        if self.focus.is_focused(window)
+        // The shell may focus this wrapper before its asynchronous editor and
+        // title exist. Do not queue prose focus over the new title's handoff.
+        if self.title_first
+            && let Some((head, _)) = crate::page_views(
+                &format!("body:{}/{}", self.host.entry, self.host.module.id),
+                cx,
+            )
+            && head.read(cx).title().focus_handle(cx).is_focused(window)
+        {
+            self.title_first = false;
+        }
+        if !self.title_first
+            && self.focus.is_focused(window)
             && let Some(editor) = &self.editor
         {
             let prose = editor.read(cx).editor().clone();

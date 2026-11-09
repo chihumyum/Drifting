@@ -111,6 +111,10 @@ fn open(cx: &mut TestAppContext, e: &Env, module: &str) -> (Entity<BodyModule>, 
     let mut vcx = VisualTestContext::from_window(window.into(), cx);
     vcx.update(|window, _| window.activate_window());
     vcx.simulate_resize(size(px(1000.), px(900.)));
+    vcx.update(|window, cx| {
+        use gpui::Focusable as _;
+        view.focus_handle(cx).focus(window, cx);
+    });
     wait(&mut vcx, |cx| {
         view.read_with(cx, |v, _| v.editor().is_some())
     });
@@ -270,4 +274,21 @@ fn body_keeps_slash_menu_and_selection_bar(cx: &mut TestAppContext) {
         .advance_clock(dr_editor::assist::BAR_DELAY + Duration::from_millis(20));
     draw(&mut vcx);
     assert!(assist.read_with(&vcx, |a, _| a.bar().is_some()));
+}
+
+#[gpui::test]
+fn newly_created_body_keeps_title_focus_across_async_load(cx: &mut TestAppContext) {
+    use gpui::Focusable as _;
+    let e = env();
+    let doc = format!("body:{}/mod-prose", e.entry);
+    cx.update(|cx| dr_view_page::focus_new_title(doc.clone(), cx));
+    let (view, mut vcx) = open(cx, &e, "mod-prose");
+    wait(&mut vcx, |cx| {
+        cx.update(|window, cx| {
+            dr_view_page::page_views(&doc, cx)
+                .is_some_and(|(head, _)| head.read(cx).title().focus_handle(cx).is_focused(window))
+        })
+    });
+    let editor = view.read_with(&vcx, |v, _| v.editor().unwrap());
+    assert!(!vcx.update(|window, cx| editor.read(cx).editor().focus_handle(cx).is_focused(window)));
 }
