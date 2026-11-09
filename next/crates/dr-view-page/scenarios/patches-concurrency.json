@@ -1,0 +1,750 @@
+{
+  "about": "G1 patches: v3-lite real controls preserve external edits and require explicit conflict retry.",
+  "steps": [
+    {
+      "seed": "v3-lite"
+    },
+    {
+      "call": "book.list",
+      "input": {},
+      "save": "books"
+    },
+    {
+      "call": "entry_template.put",
+      "input": {
+        "book": "${books.0.id}",
+        "template": {
+          "id": "g1-record-page",
+          "name": "Synthetic record page",
+          "kind": "leaf",
+          "modules": [
+            {
+              "id": "records",
+              "name": "Records",
+              "kind": "patches"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "call": "entry.create",
+      "input": {
+        "book": "${books.0.id}",
+        "title": "G1 record concurrency",
+        "template": "g1-record-page"
+      },
+      "save": "record"
+    },
+    {
+      "call": "module.put_patch",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${record.id}",
+        "module": "records",
+        "id": "g1-record",
+        "title": "old first",
+        "body": "old second"
+      }
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "window.focus",
+      "params": {}
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${books.0.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/version": 3,
+          "/book/loaded": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "window.focus",
+      "params": {}
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/window/active": true
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-j"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/bottom/pane": null
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${record.id}/records"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 800
+      }
+    },
+    {
+      "app": "window.focus",
+      "params": {}
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/window/active": true
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Group",
+        "label": "Title"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      },
+      "note": "Let the native input handler and field events settle for a frame before the next input or external write."
+    },
+    {
+      "app": "window.focus",
+      "params": {}
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/window/active": true
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-a"
+      }
+    },
+    {
+      "app": "window.focus",
+      "params": {}
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/window/active": true
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "author first"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      },
+      "note": "Let the native input handler and field events settle for a frame before the next input or external write."
+    },
+    {
+      "call": "module.read",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${record.id}",
+        "module": "records"
+      },
+      "expect": {
+        "/patches/[id=g1-record]/title": "old first",
+        "/patches/[id=g1-record]/body": "old second"
+      },
+      "note": "The focused author draft is still uncommitted when the Agent writes."
+    },
+    {
+      "call": "module.put_patch",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${record.id}",
+        "module": "records",
+        "id": "g1-record",
+        "title": "old first",
+        "body": "external second"
+      },
+      "actor": "agent:g1-window/1"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 800
+      }
+    },
+    {
+      "app": "window.focus",
+      "params": {}
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/window/active": true
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Group",
+        "label": "Body"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      },
+      "note": "Let the native input handler and field events settle for a frame before the next input or external write."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 800
+      }
+    },
+    {
+      "call": "module.read",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${record.id}",
+        "module": "records"
+      },
+      "expect": {
+        "/patches/[id=g1-record]/title": "author first",
+        "/patches/[id=g1-record]/body": "external second"
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "patches-independent-first.png"
+    },
+    {
+      "app": "window.focus",
+      "params": {}
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/window/active": true
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-a"
+      }
+    },
+    {
+      "app": "window.focus",
+      "params": {}
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/window/active": true
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "author second"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      },
+      "note": "Let the native input handler and field events settle for a frame before the next input or external write."
+    },
+    {
+      "call": "module.read",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${record.id}",
+        "module": "records"
+      },
+      "expect": {
+        "/patches/[id=g1-record]/title": "author first",
+        "/patches/[id=g1-record]/body": "external second"
+      },
+      "note": "The focused author draft is still uncommitted when the Agent writes."
+    },
+    {
+      "call": "module.put_patch",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${record.id}",
+        "module": "records",
+        "id": "g1-record",
+        "title": "external first",
+        "body": "external second"
+      },
+      "actor": "agent:g1-window/2"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 800
+      }
+    },
+    {
+      "app": "window.focus",
+      "params": {}
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/window/active": true
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Group",
+        "label": "Title"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      },
+      "note": "Let the native input handler and field events settle for a frame before the next input or external write."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 800
+      }
+    },
+    {
+      "call": "module.read",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${record.id}",
+        "module": "records"
+      },
+      "expect": {
+        "/patches/[id=g1-record]/title": "external first",
+        "/patches/[id=g1-record]/body": "author second"
+      }
+    },
+    {
+      "app": "window.focus",
+      "params": {}
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/window/active": true
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-a"
+      }
+    },
+    {
+      "app": "window.focus",
+      "params": {}
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/window/active": true
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "conflicting first"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      },
+      "note": "Let the native input handler and field events settle for a frame before the next input or external write."
+    },
+    {
+      "call": "module.read",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${record.id}",
+        "module": "records"
+      },
+      "expect": {
+        "/patches/[id=g1-record]/title": "external first",
+        "/patches/[id=g1-record]/body": "author second"
+      },
+      "note": "The focused author draft is still uncommitted when the Agent writes."
+    },
+    {
+      "call": "module.put_patch",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${record.id}",
+        "module": "records",
+        "id": "g1-record",
+        "title": "remote conflicting first",
+        "body": "author second"
+      },
+      "actor": "agent:g1-window/3"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 800
+      }
+    },
+    {
+      "app": "window.focus",
+      "params": {}
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/window/active": true
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Group",
+        "label": "Body"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      },
+      "note": "Let the native input handler and field events settle for a frame before the next input or external write."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 800
+      }
+    },
+    {
+      "call": "module.read",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${record.id}",
+        "module": "records"
+      },
+      "expect": {
+        "/patches/[id=g1-record]/title": "remote conflicting first",
+        "/patches/[id=g1-record]/body": "author second"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Retry"
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "patches-conflict.png"
+    },
+    {
+      "app": "window.focus",
+      "params": {}
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/window/active": true
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Group",
+        "label": "Title"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      },
+      "note": "Let the native input handler and field events settle for a frame before the next input or external write."
+    },
+    {
+      "app": "window.focus",
+      "params": {}
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/window/active": true
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-a"
+      }
+    },
+    {
+      "app": "window.focus",
+      "params": {}
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/window/active": true
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "revised first"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      },
+      "note": "Let the native input handler and field events settle for a frame before the next input or external write."
+    },
+    {
+      "call": "module.read",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${record.id}",
+        "module": "records"
+      },
+      "expect": {
+        "/patches/[id=g1-record]/title": "remote conflicting first",
+        "/patches/[id=g1-record]/body": "author second"
+      },
+      "note": "The focused author draft is still uncommitted when the Agent writes."
+    },
+    {
+      "call": "module.put_patch",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${record.id}",
+        "module": "records",
+        "id": "g1-record",
+        "title": "remote conflicting first",
+        "body": "latest external second"
+      },
+      "actor": "agent:g1-window/4"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 800
+      }
+    },
+    {
+      "app": "window.focus",
+      "params": {}
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/window/active": true
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "Group",
+        "label": "Body"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      },
+      "note": "Let the native input handler and field events settle for a frame before the next input or external write."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 800
+      }
+    },
+    {
+      "call": "module.read",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${record.id}",
+        "module": "records"
+      },
+      "expect": {
+        "/patches/[id=g1-record]/title": "remote conflicting first",
+        "/patches/[id=g1-record]/body": "latest external second"
+      }
+    },
+    {
+      "app": "window.focus",
+      "params": {}
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/window/active": true
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Retry"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 800
+      }
+    },
+    {
+      "call": "module.read",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${record.id}",
+        "module": "records"
+      },
+      "expect": {
+        "/patches/[id=g1-record]/title": "revised first",
+        "/patches/[id=g1-record]/body": "latest external second"
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "patches-retry.png"
+    }
+  ]
+}

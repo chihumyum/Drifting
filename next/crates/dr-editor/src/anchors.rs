@@ -57,8 +57,25 @@ pub fn book_comment_anchors(
         .map_err(|e| e.to_string())?;
     let found = handle
         .read(move |d| {
-            let reader = BookReader::from_loro(book_id, d)?;
+            let reader = BookReader::from_loro(book_id.clone(), d)?;
             let mut out = Vec::new();
+            if reader.view().meta().schema_version == 3 {
+                let reader = dr_doc::v3::BookReaderV3::from_loro(book_id, d)?;
+                for c in reader.view().comments() {
+                    if let (Some(target), Some(anchor)) = (c.target.as_ref(), c.anchor.as_ref()) {
+                        let doc = if target.kind == dr_model::kind::EntityKind::Entry {
+                            let Some(module) = c.target_module.as_ref() else {
+                                continue;
+                            };
+                            format!("body:{}/{}", target.id, module)
+                        } else {
+                            format!("{}:{}", target.kind.as_str(), target.id)
+                        };
+                        out.push((doc, c.id.to_string(), anchor.clone()));
+                    }
+                }
+                return Ok::<_, dr_doc::DocError>(out);
+            }
             for c in reader.view().comments() {
                 if let (Some(t), Some(a)) = (c.target.as_ref(), c.anchor.as_ref()) {
                     out.push((

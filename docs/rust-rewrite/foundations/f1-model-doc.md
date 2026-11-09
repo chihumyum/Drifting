@@ -510,6 +510,14 @@ docs/rust-rewrite/acceptance/f1-m3-doc-bench.json   第三轮的测量证据
 - 检查：`cargo fmt --all --check`、全工作区 Clippy（`--all-targets --locked -- -D warnings`）、全工作区测试（2,062 通过／0 失败／22 忽略）、`cargo xtask check`（含审计）和 `pnpm public:check`（5,462 个候选文件）全部通过。编译并发 3、测试单线程；已有依赖审计提示和 stale／legacy 测量证据保留，不作为新性能结论。
 - 本段交回后继续批注／素材适配；两者的删除与按对象恢复共用同一提交边界，作为下一段联合验收。
 
+## 交回（K2 大书结构读取，2026-11-10，`handback/k1`）
+
+**做了什么：** `codex/k1-v3-heavy` 新增 `BookStructureV3` 显式不可变快照与 `level.list`，值和来源共用模型解析器；`entry.list`／`level.get` 复用单次结构读取，同名冲突保留原赢家规则并按父级／宿主复用设置。永久测试覆盖读取等价、顺序与容错、同事务写后读、import／checkout、跨书及 v2.2 拒绝。触及 v2.2 所在文件仅 `dr-doc/src/book/read.rs`，抽出原 forest 规整器供实时树／深值快照共用，不改旧语义。沿用作者已许可的目录快照范围，`dr-agent-tools/tests/snapshots/catalog__directory.snap` 第 266 行只新增旧版排除清单的 `level.list`；原逐项目录／调用拒绝测试已覆盖，帮手实现未改。标准 heavy 的完整书目读取 debug 从 188538.213 ms 降至 272.825 ms、release 从 39097.377 ms 降至 104.525 ms，四份机器证据和负载／单样本边界见 F3；不是窗口加载验收。
+
+**检查结果：** 提交 `c64c8aa9` 同步 main `ee372789`、`2b7996e3` 内核与契约、`28db6ead` 完整测量、`df1467bd` 生成排除快照，随后 `d901ffe3` 同步 main `c033ce2d`，加本节记录。同步后的 fmt、全工作区 Clippy（all-targets／locked／D warnings）、全工作区测试（2,119 通过／0 失败／22 忽略）、xtask（含审计）和 public（5,502 个候选文件）全部通过。编译并发 3、测试单线程；审计 972 个依赖，0 漏洞、12 条已有提示；debug 大二进制有一条 `__eh_frame` linker 提示。初轮目录快照差异已按生成结果修正并完整重验。没有向 main 合并或推送；本节提交后移动交回指针并主动通知整合者。
+
+**待协调：** 外壳消费 `level.list` 的设置和来源，移除逐层查询及独立来源算法；整合者在各组与 K6 合齐后统一安排副屏、隔离 profile 的 heavy 真窗口验收。K6 复用同一来源接口，不另建继承算法。已排队的写作日段仍包含在本分支历史中；G4 批注／素材实现在 `codex/k1-v3`，本次交回后继续同步和完整验收，没有混入本批。
+
 ## 交回准备（K2 续接 G4，第二段：批注与素材，2026-11-10）
 
 - 接续写作日交回，补 `comment.*`、`todo.project`、`material.*`、`material_folder.*` 与必要的 `asset.put/get` 版本接线。批注的 Entry／Material 目标、正文模块、实际读写／锚点／投影均走 v3；素材夹仍独立，素材与条目的关系沿用 v3 模块。消费签名和边界见 F3 同名小节。

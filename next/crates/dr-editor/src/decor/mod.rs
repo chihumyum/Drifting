@@ -1158,9 +1158,40 @@ fn comment_ranges(
     let wanted: HashSet<String> = docs.iter().map(|(d, _)| d.clone()).collect();
     let (mut by_doc, todos) = handle
         .read(move |d| {
-            let reader = BookReader::from_loro(book_id, d)?;
+            let reader = BookReader::from_loro(book_id.clone(), d)?;
             let mut out: HashMap<String, Vec<(String, bool, EncodedAnchor)>> = HashMap::new();
             let mut todos = HashMap::new();
+            if reader.view().meta().schema_version == 3 {
+                let reader = dr_doc::v3::BookReaderV3::from_loro(book_id, d)?;
+                for c in reader.view().comments() {
+                    if c.kind == CommentKind::Todo {
+                        todos.insert(c.id.to_string(), c.is_done());
+                    }
+                    if c.status != CommentStatus::Open || c.target_missing {
+                        continue;
+                    }
+                    let (Some(target), Some(anchor)) = (c.target.as_ref(), c.anchor.as_ref())
+                    else {
+                        continue;
+                    };
+                    let doc = if target.kind == dr_model::kind::EntityKind::Entry {
+                        let Some(module) = c.target_module.as_ref() else {
+                            continue;
+                        };
+                        format!("body:{}/{}", target.id, module)
+                    } else {
+                        format!("{}:{}", target.kind.as_str(), target.id)
+                    };
+                    if wanted.contains(&doc) {
+                        out.entry(doc).or_default().push((
+                            c.id.to_string(),
+                            c.kind == CommentKind::Todo,
+                            anchor.clone(),
+                        ));
+                    }
+                }
+                return Ok::<_, dr_doc::DocError>((out, todos));
+            }
             for c in reader.view().comments() {
                 if c.kind == CommentKind::Todo {
                     todos.insert(c.id.to_string(), c.is_done());

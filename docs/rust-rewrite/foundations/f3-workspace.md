@@ -915,6 +915,67 @@ v2.2 分支保持原 reader／事务。两者共用既有按设备／日期键�
 只改变 `writing_days`、重复写入版本不变、不进入撤销日志，以及非法日期／负数拒绝。
 共用日期入口先拒绝非 ASCII，防止按字节切片解析非法日期时 panic；有效 v2.2 日期行为不变。
 
+## K2 大书结构读取：批量层级与一致快照（2026-11-10）
+
+`level.list {book}` 只接受 v3，返回 `{version, levels}`。`version` 是读取书目时的
+frontier；`levels` 按书稿顺序列出全部存活层级，每项有 `id`、`settings`、`sources`、
+`children`、`members`。后两项为完整条目 DTO：前者按有效父级筛选，后者按有效归属
+顺序筛选，不把归属当住处。来源词汇与外壳现有 DTO 一致：`default`、
+`override {entry}`、`template {entry,template}`、`lane {entry,template}`。
+八项设置的值与来源由同一个 `dr_model::v3` 解析器同时产生，显式 null 是有来源的
+覆盖；泳道强制 `accept=true` 的来源为 lane。调用方应消费这里的来源，不再自行追溯。
+
+`BookViewV3::structure_snapshot()` 在一次 Loro state 深值读取后生成显式拥有数据的
+`BookStructureV3`，条目树、模板、同名冲突和归属资格在该次结构读取中统一解析。
+其中没有 Loro handle；旧快照保持原值，新快照可见事务内尚未提交的写入，以及后续
+import／checkout。读取不提交事务。`entry.list` 和 `level.get` 使用这一读取，
+不再逐个父级／成员重复扫描全树；`level.get` 原输出 schema 保持不变。
+
+永久契约覆盖新旧读取结果与顺序、归属和垃圾箱、叶子父级容错、重复 domain id／
+域级环、同名冲突赢家、模板／覆盖／默认／泳道来源、同事务写后读、import／checkout、
+旧快照不变、两书隔离、v2.2 拒绝以及 frontier。注册表能力快照已生成。
+
+基准入口为 `bench v3-book-legacy`（逐层调用）和 `bench v3-book`（批量调用）。
+二者使用标准 `seed::generate_v3(heavy, DEFAULT_SEED)`，完整等待读取结束，分别记录
+种子生成、语料形状审计、存库、写入后首次重开 Workspace 及完整书目读取；计时含命令调度、
+持有者加载、JSON 转换，不含外壳构建和窗口渲染。首次持有者读取计入 observeBefore，
+不是只测打开一个空 Workspace。修前证据的源文件指纹在运行开始时冻结；公共基准
+输入路径同步 dr-corpus 拆分，debug 证据不再误标成 release 命令。
+
+本批不改外壳。整合后由外壳消费 `level.list` 并移除独立来源算法，再由整合者在各组和 K6 合齐后安排
+标准 debug heavy 的统一窗口验收；本批的查询完成时间不能当成窗口 `book.loaded=true` 的验收。
+
+### v3-heavy 修前／修后测量
+
+同一 Apple M3 Pro（12 核、36 GiB、macOS 27.0.1），编译并发 3；标准 seed
+`0x5eed0f08`、语料指纹 `5b319924c784252a98d35588c557a642ff4fb6b347f3a3603a9f1696a54bfb48`。
+四次的形状完全相同：1 本书、680 篇文档、633 个条目、33 个层级、100 章／
+正文 1,500,000 字词，全部类别合计 3,646,000 字词。没有缩小 heavy，也没有延长窗口超时。
+
+单位均为毫秒；每种配置一次完整读取，表中值是实测单样本，不能解释成分位延迟。
+
+| 配置 | 生成种子 | 语料审计 | 存库 | 首次重开 Workspace | 层级读取 | 根条目读取 | 完整书目读取 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| debug 修前 | 6974.151 | 472.673 | 2815.316 | 1.105 | 62441.747 | 125719.304 | 188538.213 |
+| debug 修后 | 5073.118 | 154.240 | 3000.950 | 1.265 | 60.261 | 27.854 | 272.825 |
+| release 修前 | 2226.658 | 94.801 | 2505.736 | 1.079 | 8640.164 | 30353.083 | 39097.377 |
+| release 修后 | 2134.766 | 44.548 | 2423.982 | 1.182 | 20.000 | 13.958 | 104.525 |
+
+机器同时有其他轨道构建；修前 debug／release 也有重叠运行，修后 debug 与 release
+构建重叠。本批不声称隔离负载下的精确倍数。运行开始／结束的 1 分钟 load average：
+debug 修前 8.95 → 8.68；debug 修后 7.93 → 7.94；release 修前 9.51 → 11.16；release 修后 8.64 → 8.51。
+完整读取包含前后 observe、条目、模板、层级、根条目、归属和时间线视图；前后书目
+frontier 一致。修后批量查询另外核对层级 id、八项来源以及子条目／成员数组全部返回。
+
+机器生成证据（修前源代码是 `c64c8aa9`（已同步 main `ee372789`，含写作日段）加基准入口，修后内核提交 `2b7996e3`）：
+
+- [debug 修前](../acceptance/k2-before-heavy-debug-v3-book-legacy-bench.json)／[debug 修后](../acceptance/k2-after-heavy-debug-v3-book-bench.json)
+- [release 修前](../acceptance/k2-before-heavy-release-v3-book-legacy-bench.json)／[release 修后](../acceptance/k2-after-heavy-release-v3-book-bench.json)
+
+复跑命令为 `CARGO_BUILD_JOBS=3 cargo run -p dr-testkit --bin bench -- v3-book --milestone <m>`，
+release 加 `--release`。逐层路径用 `v3-book-legacy`；在修后代码运行它会同时受益于
+单查询的优化，不能用来重建原始修前时间，修前以已保存指纹和证据为准。
+
 ## K2 续接 G4：批注、素材与素材夹（2026-11-10）
 
 共用命令按**实际书目版本**选择实现。批注在注册表中只有一个名字，

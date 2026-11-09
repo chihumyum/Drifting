@@ -167,6 +167,13 @@ impl<'a> BookViewV3<'a> {
         self.book
     }
 
+    /// Capture one consistent deep value under Loro's state lock, then resolve
+    /// the structure once. Unlike a live view this explicit snapshot never changes.
+    /// This read neither commits pending writes nor caches across a transaction.
+    pub fn structure_snapshot(&self) -> super::BookStructureV3 {
+        super::BookStructureV3::from_value(self.book.clone(), &self.doc.get_deep_value())
+    }
+
     pub fn meta(&self) -> BookMetaV3 {
         let v = self.doc.get_map(book_v3::META).get_deep_value();
         let f = F(&v);
@@ -200,7 +207,7 @@ impl<'a> BookViewV3<'a> {
 
     // ---- templates -------------------------------------------------------
 
-    fn read_template(id: &str, v: &LoroValue) -> Option<EntryTemplate> {
+    pub(super) fn read_template(id: &str, v: &LoroValue) -> Option<EntryTemplate> {
         let f = F(v);
         let tid = EntryTemplateId::parse(id).ok()?;
         let kind = f.kind::<TemplateKind>("kind").unwrap_or(TemplateKind::Leaf);
@@ -427,14 +434,10 @@ impl<'a> BookViewV3<'a> {
             .collect()
     }
 
-    fn read_entry_node(&self, tree: &LoroTree, n: &ForestNode) -> Option<Entry> {
+    pub(super) fn read_entry_node(n: &ForestNode) -> Option<Entry> {
         let id = EntryId::parse(&n.id).ok()?;
         let parent = n.parent.as_deref().and_then(|p| EntryId::parse(p).ok());
-        let pos = n
-            .tree_ids
-            .first()
-            .and_then(|t| tree.fractional_index(*t))
-            .unwrap_or_default();
+        let pos = n.pos.clone();
         let f = F(&n.meta);
         let overrides = f
             .sub("overrides")
@@ -521,7 +524,7 @@ impl<'a> BookViewV3<'a> {
         let tree = self.tree(book_v3::ENTRIES);
         forest(&tree)
             .iter()
-            .filter_map(|n| self.read_entry_node(&tree, n))
+            .filter_map(Self::read_entry_node)
             .collect()
     }
 
@@ -646,7 +649,16 @@ impl<'a> BookViewV3<'a> {
 
     /// Every stored membership, unfiltered, sorted by `(host, pos, member)`.
     pub fn memberships_raw(&self) -> Vec<Membership> {
-        let mut out: Vec<Membership> = entities(self.doc, book_v3::MEMBERSHIPS)
+        Self::read_memberships(Some(
+            &self.doc.get_map(book_v3::MEMBERSHIPS).get_deep_value(),
+        ))
+    }
+
+    pub(super) fn read_memberships(value: Option<&LoroValue>) -> Vec<Membership> {
+        let Some(LoroValue::Map(records)) = value else {
+            return Vec::new();
+        };
+        let mut out: Vec<Membership> = records
             .iter()
             .filter_map(|(k, v)| {
                 let (host, member) = Membership::parse_key(k)?;

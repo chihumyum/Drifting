@@ -589,6 +589,21 @@
       "notUtf8": "Kein UTF-8-Text; einige Zeichen wurden ersetzt"
     }
   },
+  "k4Pages": {
+    "body": "Fließtext",
+    "entries": "Einträge",
+    "h1": "H1",
+    "h2": "H2",
+    "h3": "H3",
+    "invalidValue": "Ungültiger Wert",
+    "newPatch": "Neuer Patch",
+    "quote": "Zitat",
+    "retained": "Vorheriger Inhalt",
+    "rule": "Trennlinie",
+    "saveFailed": "Speichern fehlgeschlagen",
+    "title": "Titel",
+    "unset": "Nicht festgelegt"
+  },
   "kvEditor": {
     "addField": "Feld hinzufügen",
     "keyPlaceholder": "Feld",

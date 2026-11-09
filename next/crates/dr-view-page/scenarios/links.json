@@ -1,0 +1,258 @@
+{
+  "about": "K4 G1: v3-lite automatic-link leaf mention picker and entry link navigation in a real module editor.",
+  "steps": [
+    {
+      "seed": "v3-lite"
+    },
+    {
+      "call": "book.list",
+      "save": "books"
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}",
+        "all": true
+      },
+      "save": "entries"
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "save": "original"
+    },
+    {
+      "call": "entry.create",
+      "input": {
+        "book": "${books.0.id}",
+        "title": "G1 Links",
+        "parent": "${entries.[template=tpl-chapter].parent}",
+        "template": "tpl-chapter"
+      },
+      "save": "empty"
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "window.focus",
+      "params": {}
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${books.0.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/version": 3,
+          "/book/loaded": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${empty.id}/mod-prose"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 1000
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-j"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/bottom/pane": null
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 500
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "TextArea",
+        "dy": 40
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "@${entries.[template=tpl-character].title}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 700
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${entries.[template=tpl-character].title}"
+      },
+      "expect": {
+        "/count": 1
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "01-mention.png"
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "enter"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 700
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${empty.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "${entries.[template=tpl-character].title} "
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "02-linked.png"
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-z"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-z"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${empty.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": ""
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "${entries.[template=tpl-character].title} "
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 900
+      }
+    },
+    {
+      "app": "input.move",
+      "params": {
+        "x": 480,
+        "y": 570
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 500
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "03-link-card.png"
+    },
+    {
+      "app": "input.click",
+      "params": {
+        "x": 480,
+        "y": 570
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "entry:${entries.[template=tpl-character].id}"
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "04-linked-entry.png"
+    },
+    {
+      "app": "app.quit"
+    }
+  ]
+}
