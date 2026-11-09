@@ -890,15 +890,19 @@ G2 三种回调及 K5 新建委托。v3-lite 真窗口场景 **84/84 步、0 pen
 gate 关闭期间不得重启，失败或换库完成后按当前 Services 重新启动。新失败提示
 复用九语 `k4_pages.save_failed`，没有新增说明文案，没有删改 v2.2 测试。
 
-按整合者明确授权，以 main `07fd3c15` 加正式 G1 `82fca0b4`、K2 `5ad94846`、K6
-`983289b9` 验证公共阶段，不等待第 65 批 main，也不消费 owner 工作区。7 项 v3
+先按整合者授权以 main `07fd3c15` 加正式 G1 `82fca0b4`、K2 `5ad94846`、K6
+`983289b9` 验证公共阶段；第 65 批接收通知后合入 main `282587bb`（含 G4
+`a26dafd9`），没有消费 owner 工作区。7 项 v3
 释放契约通过，其中实际启动 G1 自动 worker，等它结束后才提交最后一笔正文，再经
 新阶段调用 `automatic::capture_on_close`，换库重开核对完整正文与 body frontier；
 另注入真实 book 文档落盘失败，验证不换库、原文保留、解除故障后可重试。mirror
 3 项单测通过，其中 2 项新增；worker 生命周期契约使用回收中的共享 v3 种子，
 不宣称 M40 已支持 v3 Markdown 布局。永久冒烟 `k4-0-drain.json` 使用 v3-lite
 走真实输入、退出、完整快照读回、重开输入和撤销。当前新阶段全套检查和窗口尚在
-执行，旧批 2175 项结果不用于本次交回，旧交回指针保持冻结。
+执行，旧批 2175 项结果不用于本次交回，旧交回指针保持冻结。首轮全量测试在
+`the_shipped_scenarios_parse` 拒绝了末尾仍有离线读回的新增场景；已将第二次快照
+读回移到最后一次退出之前，定向契约通过。原始失败保留在
+`next/target/acceptance/k4-0-checks/after-drain-final-test.log`，不覆盖原件。
 
 待协调：G1 生产代码仍在 `quit::before_quit` 调用 `capture_on_close`，须迁到本次
 可失败的 `after_drain`；契约中的实际调用不等于生产注册已经迁移。G1 字段／KV／
