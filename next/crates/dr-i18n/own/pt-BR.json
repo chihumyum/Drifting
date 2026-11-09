@@ -256,5 +256,11 @@
     "h3": "H3",
     "title": "Título",
     "entries": "Entradas"
+  },
+  "k4Book": {
+    "entry_words": "Palavras da entrada",
+    "material_words": "Palavras do material",
+    "leaf_count": "Número de folhas",
+    "retained_content": "Conteúdo preservado"
   }
 }

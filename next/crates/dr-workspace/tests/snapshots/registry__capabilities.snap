@@ -96,6 +96,7 @@ idea_group.delete            command  book     Delete an idea group: its sub-gro
 idea_group.list              query    shared   List idea groups, parents before children.
 idea_group.update            command  book     Rename, recolour or move an idea group (at most two levels).
 level.get                    query    shared   Read resolved v3 level settings, resident children and accepted members.
+level.list                   query    shared   Read every live v3 level with settings, provenance, resident children and accepted members from one consistent book snapshot.
 material.create              command  book     Add a material: a text note, or an image or PDF whose asset is registered.
 material.delete              command  book     Delete a material: its relations go and comments on it become floating, in one commit (its note stays in history; undo restores it).
 material.list                query    shared   List materials in order, optionally of one folder.

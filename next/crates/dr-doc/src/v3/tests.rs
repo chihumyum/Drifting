@@ -381,3 +381,233 @@ fn novel_roots_are_found_by_template_after_renaming() {
     .unwrap();
     assert_eq!(doc.view().novel_roots(), Some(roots));
 }
+
+#[test]
+fn structure_snapshot_is_explicit_and_fresh_after_pending_writes_import_and_checkout() {
+    let mut doc = BookDocV3::create(bid(), 41).unwrap();
+    let roots = doc
+        .edit(Origin::User, apply_novel_project_template)
+        .0
+        .unwrap();
+    doc.edit(Origin::User, |t| {
+        let view = t.view();
+        let before = view.structure_snapshot();
+        t.entries().create(
+            &eid("new"),
+            Some(&roots.manuscript),
+            "Before",
+            Some(&tid(TPL_CHAPTER)),
+        )?;
+        let pending = view.doc.get_pending_txn_len();
+        assert!(pending > 0);
+        let after = view.structure_snapshot();
+        assert_eq!(
+            view.doc.get_pending_txn_len(),
+            pending,
+            "reading cannot commit pending writes"
+        );
+        assert!(before.entry(&eid("new")).is_none());
+        assert_eq!(after.entry(&eid("new")).unwrap().title, "Before");
+        t.entries().entry(&eid("new"))?.title("After")?;
+        assert_eq!(
+            view.structure_snapshot().entry(&eid("new")).unwrap().title,
+            "After"
+        );
+        assert_eq!(after.entry(&eid("new")).unwrap().title, "Before");
+        Ok(())
+    })
+    .0
+    .unwrap();
+    let old = doc.frontiers();
+    let mut remote = BookDocV3::load(bid(), 42, &[doc.export_snapshot().unwrap()]).unwrap();
+    remote
+        .edit(Origin::User, |t| {
+            t.entries().entry(&eid("new"))?.title("Imported")?;
+            Ok(())
+        })
+        .0
+        .unwrap();
+    let reader = doc.reader();
+    let view = reader.view();
+    let before = view.structure_snapshot();
+    doc.import(
+        &remote.export_updates_since(&doc.version()).unwrap(),
+        Origin::User,
+    )
+    .unwrap();
+    assert_eq!(
+        view.structure_snapshot().entry(&eid("new")).unwrap().title,
+        "Imported"
+    );
+    assert_eq!(before.entry(&eid("new")).unwrap().title, "After");
+    // The same live view sees checkout changes; old immutable snapshots stay put.
+    view.doc.checkout(&old).unwrap();
+    assert_eq!(
+        view.structure_snapshot().entry(&eid("new")).unwrap().title,
+        "After"
+    );
+    view.doc.checkout_to_latest();
+    assert_eq!(
+        view.structure_snapshot().entry(&eid("new")).unwrap().title,
+        "Imported"
+    );
+    let other = BookDocV3::create(BookId::parse("other").unwrap(), 43).unwrap();
+    assert!(
+        other
+            .view()
+            .structure_snapshot()
+            .entry(&eid("new"))
+            .is_none()
+    );
+}
+
+#[test]
+fn structure_snapshot_matches_live_read_tolerances_and_order() {
+    let mut doc = BookDocV3::create(bid(), 44).unwrap();
+    let roots = doc
+        .edit(Origin::User, apply_novel_project_template)
+        .0
+        .unwrap();
+    doc.edit(Origin::User, |t| {
+        t.entries()
+            .create(
+                &eid("a"),
+                Some(&roots.cat_character),
+                "Same",
+                Some(&tid(TPL_CHARACTER)),
+            )?
+            .created_at(Some(Timestamp(1)))?;
+        t.entries()
+            .create(
+                &eid("b"),
+                Some(&roots.cat_character),
+                "Same",
+                Some(&tid(TPL_CHARACTER)),
+            )?
+            .created_at(Some(Timestamp(2)))?;
+        t.entries()
+            .create(
+                &eid("dead"),
+                Some(&roots.cat_character),
+                "Hidden",
+                Some(&tid(TPL_CHARACTER)),
+            )?
+            .deleted_at(Some(Timestamp(3)))?;
+        // A merged child under a leaf is lifted, retaining the stored tree parent.
+        t.entries()
+            .create(&eid("lifted"), Some(&eid("a")), "Lifted", None)?;
+        t.entries().create(
+            &eid("unknown"),
+            None,
+            "Unknown",
+            Some(&tid("missing-template")),
+        )?;
+        t.entries().move_before(&eid("b"), &eid("a"))?;
+        t.put_membership(
+            &roots.cat_character,
+            &eid("unknown"),
+            Some(&PosKey::first()),
+            None,
+        )?;
+        t.put_membership(
+            &roots.cat_character,
+            &eid("a"),
+            Some(&PosKey::first()),
+            None,
+        )?;
+        t.put_membership(&roots.cat_character, &eid("dead"), None, None)?;
+        t.put_membership(&eid("missing-host"), &eid("a"), None, None)?;
+        Ok(())
+    })
+    .0
+    .unwrap();
+    let v = doc.view();
+    let snapshot = v.structure_snapshot();
+    assert_eq!(snapshot.entries().cloned().collect::<Vec<_>>(), v.entries());
+    assert_eq!(snapshot.templates_map(), &v.templates_map());
+    assert_eq!(snapshot.memberships(), v.memberships());
+    assert_eq!(
+        snapshot.entry(&eid("b")).unwrap().name_conflict,
+        Some(eid("a"))
+    );
+    assert_eq!(
+        snapshot.effective_parent(&eid("lifted")),
+        Some(&roots.cat_character)
+    );
+    assert_eq!(
+        snapshot
+            .children_of(Some(&roots.cat_character))
+            .iter()
+            .map(|e| e.id.clone())
+            .collect::<Vec<_>>(),
+        vec![eid("b"), eid("a"), eid("lifted")]
+    );
+    for parent in std::iter::once(None).chain(v.entries().into_iter().map(|e| Some(e.id))) {
+        assert_eq!(
+            snapshot
+                .children_of(parent.as_ref())
+                .into_iter()
+                .cloned()
+                .collect::<Vec<_>>(),
+            v.children_of(parent.as_ref())
+        );
+        if let Some(id) = parent {
+            assert_eq!(
+                snapshot.effective_parent(&id).cloned(),
+                v.effective_parent(&id)
+            );
+            if let Some(settings) = snapshot.level_settings(&id) {
+                assert_eq!(settings.settings, v.level_settings(Some(&id)));
+            }
+            assert_eq!(
+                snapshot
+                    .members_of(&id)
+                    .into_iter()
+                    .map(|e| e.id.clone())
+                    .collect::<Vec<_>>(),
+                v.memberships_of_host(&id)
+                    .iter()
+                    .map(|m| m.member.clone())
+                    .collect::<Vec<_>>()
+            );
+        }
+    }
+}
+
+#[test]
+fn structure_snapshot_keeps_duplicate_tree_ids_and_domain_cycle_tolerance() {
+    let doc = BookDocV3::create(bid(), 45).unwrap();
+    let tree = doc.inner.core.doc.get_tree(crate::schema::book_v3::ENTRIES);
+    tree.enable_fractional_index(0);
+    let node = |id: &str, parent: Option<loro::TreeID>| {
+        let n = tree.create(parent).unwrap();
+        let meta = tree.get_meta(n).unwrap();
+        meta.insert("id", id).unwrap();
+        meta.insert("title", id).unwrap();
+        n
+    };
+    let kept = node("shared", None);
+    let copy = node("shared", None);
+    node("child-one", Some(kept));
+    node("child-two", Some(copy));
+    // Loro's tree is acyclic, but canonical domain IDs can form a cycle.
+    let x = node("x", None);
+    let y = node("y", None);
+    let x_copy = node("x", None);
+    let y_copy = node("y", None);
+    tree.mov(x, Some(y_copy)).unwrap();
+    tree.mov(y, Some(x_copy)).unwrap();
+    let live = doc.view();
+    let snapshot = live.structure_snapshot();
+    assert_eq!(
+        snapshot.entries().cloned().collect::<Vec<_>>(),
+        live.entries()
+    );
+    assert_eq!(
+        snapshot.entries().map(|e| e.id.clone()).collect::<Vec<_>>(),
+        vec![eid("shared"), eid("child-one"), eid("child-two")]
+    );
+    assert!(snapshot.entry(&eid("x")).is_none());
+    assert!(snapshot.entry(&eid("y")).is_none());
+    assert_eq!(snapshot.children_of(Some(&eid("shared"))).len(), 2);
+}

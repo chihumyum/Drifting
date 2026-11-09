@@ -589,6 +589,12 @@
       "notUtf8": "Kein UTF-8-Text; einige Zeichen wurden ersetzt"
     }
   },
+  "k4Book": {
+    "entry_words": "Wörter des Eintrags",
+    "leaf_count": "Anzahl der Blätter",
+    "material_words": "Wörter des Materials",
+    "retained_content": "Beibehaltene Inhalte"
+  },
   "k4Pages": {
     "body": "Fließtext",
     "entries": "Einträge",

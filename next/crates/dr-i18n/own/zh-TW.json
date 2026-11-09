@@ -250,5 +250,11 @@
     "h3": "H3",
     "title": "標題",
     "entries": "條目"
+  },
+  "k4Book": {
+    "entry_words": "條目字數",
+    "material_words": "素材字數",
+    "leaf_count": "葉子數量",
+    "retained_content": "保留的內容"
   }
 }

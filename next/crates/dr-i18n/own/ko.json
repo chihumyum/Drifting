@@ -250,5 +250,11 @@
     "h3": "H3",
     "title": "제목",
     "entries": "항목"
+  },
+  "k4Book": {
+    "entry_words": "항목 글자 수",
+    "material_words": "자료 글자 수",
+    "leaf_count": "리프 수",
+    "retained_content": "보존된 내용"
   }
 }

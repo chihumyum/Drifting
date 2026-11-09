@@ -15,6 +15,7 @@
 
 pub mod model;
 mod panel;
+pub mod v3;
 
 pub use model::{Field, Group, Jump, Line, Owner, Row};
 pub use panel::{

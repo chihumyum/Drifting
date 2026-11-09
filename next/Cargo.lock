@@ -2451,11 +2451,17 @@ dependencies = [
 name = "dr-view-search"
 version = "0.0.0"
 dependencies = [
+ "dr-doc",
  "dr-i18n",
+ "dr-model",
+ "dr-store",
+ "dr-testkit",
  "dr-ui",
  "dr-workspace",
  "gpui",
  "log",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]
@@ -2510,6 +2516,7 @@ dependencies = [
  "dr-i18n",
  "dr-model",
  "dr-store",
+ "dr-testkit",
  "dr-text",
  "dr-ui",
  "dr-workspace",

@@ -224,7 +224,11 @@ pub fn summarize(by_day: &BTreeMap<i64, i64>, today: i64) -> (i64, u32, u32) {
 }
 
 fn day_in(s: &str) -> Result<Day> {
-    Day::parse(s).ok_or_else(|| WsError::invalid(format!("{s:?} is not a YYYY-MM-DD date")))
+    // Day uses byte offsets; reject non-ASCII input before it slices the date.
+    s.is_ascii()
+        .then(|| Day::parse(s))
+        .flatten()
+        .ok_or_else(|| WsError::invalid(format!("{s:?} is not a YYYY-MM-DD date")))
 }
 
 fn device_in(s: &str) -> Result<DeviceKey> {
@@ -241,7 +245,8 @@ op! {
         let device = input.device.as_deref().map(device_in).transpose()?;
         let mut by_day: BTreeMap<i64, i64> = BTreeMap::new();
         let mut mine_today = 0;
-        for w in slot.reader.view().writing_days() {
+        let days = if slot.is_v3() { slot.reader_v3.view().writing_days() } else { slot.reader.view().writing_days() };
+        for w in days {
             let n = day_number(&w.day);
             *by_day.entry(n).or_default() += w.words;
             if n == today && device.as_ref() == Some(&w.device) {
@@ -259,7 +264,7 @@ op! {
             today: words_today,
             streak: if words_today > 0 { streak_before + 1 } else { 0 },
             mine_today, week, active_days, streak_before,
-            daily_word_target: meta(&slot).daily_word_target(),
+            daily_word_target: if slot.is_v3() { slot.reader_v3.view().meta().daily_word_target() } else { meta(&slot).daily_word_target() },
         })
     }
 }
@@ -286,11 +291,16 @@ op! {
             return Err(WsError::invalid("words cannot be negative"));
         }
         let key = dr_model::book::WritingDay::key(&device, &day);
-        let same = slot.reader.view().writing_days().iter()
+        let days = if slot.is_v3() { slot.reader_v3.view().writing_days() } else { slot.reader.view().writing_days() };
+        let same = days.iter()
             .any(|w| w.device == device && w.day == day && w.words == input.words);
         if !same {
             let words = input.words;
-            cx.write_book(&slot, move |txn| { txn.writing_day(&device, &day, words)?; Ok(()) })?;
+            if slot.is_v3() {
+                cx.write_book_v3(&slot, move |txn| { txn.writing_day(&device, &day, words)?; Ok(()) })?;
+            } else {
+                cx.write_book(&slot, move |txn| { txn.writing_day(&device, &day, words)?; Ok(()) })?;
+            }
         }
         // No effect and no inverse: the recorder's writes leave no journal
         // row, so they never sit between the author and their undo.

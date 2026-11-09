@@ -583,6 +583,12 @@
       "notUtf8": "不是 UTF-8 文本，有些字符被替换了"
     }
   },
+  "k4Book": {
+    "entry_words": "条目字数",
+    "leaf_count": "叶子数量",
+    "material_words": "素材字数",
+    "retained_content": "保留的内容"
+  },
   "k4Pages": {
     "body": "正文",
     "entries": "条目",

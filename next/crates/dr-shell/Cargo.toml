@@ -16,6 +16,7 @@ capture = ["dep:gpui_platform", "gpui_platform/test-support", "dep:color_quant",
 anyhow.workspace = true
 chrono.workspace = true
 color_quant = { workspace = true, optional = true }
+dr-doc.workspace = true
 dr-editor.workspace = true
 dr-i18n.workspace = true
 dr-mirror.workspace = true
@@ -49,8 +50,6 @@ objc2-app-kit.workspace = true
 raw-window-handle.workspace = true
 
 [dev-dependencies]
-# M09's capture writes history points into the book's first chapter.
-dr-doc.workspace = true
 # A seeded library for the tests and the captures (the showcase's 《慢钟》).
 dr-testkit.workspace = true
 gpui = { workspace = true, features = ["test-support"] }

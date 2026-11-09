@@ -250,5 +250,11 @@
     "h3": "H3",
     "title": "タイトル",
     "entries": "項目"
+  },
+  "k4Book": {
+    "entry_words": "項目の文字数",
+    "material_words": "素材の文字数",
+    "leaf_count": "リーフ数",
+    "retained_content": "保持された内容"
   }
 }
