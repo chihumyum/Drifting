@@ -44,6 +44,9 @@ v3 的完整方案在 [kernel-v3.md](../kernel-v3.md)，2026-11-09 作者已定�
 | 6 K1+K2 内核 | 照 [kernel-v3.md](../kernel-v3.md) 的「分步」和「怎么换过去」：`dr-model`、`dr-doc` 加 v3 模块，`dr-store` 认 v3 文档，`dr_testkit::seed` 加 v3 四档，`dr-workspace` 加通用命令；和 v2.2 并存，`main` 一直全绿。分支 `codex/k1-kernel-v3`，作者交给 Antigravity | `dr-model`、`dr-doc`、`dr-store`、`dr-testkit`、`dr-workspace`、`loro-schema.md` | 界面 crate、帮手 crate、删 v2.2 |
 | 7 K3 导入与样书 | K1 的 `dr-doc` v3 接口定下来以后开：`dr-import-v1` 按 kernel-v3.md 的映射导进 v3，`dr-samples` 两本样书改用 v3 | `dr-import-v1`、`dr-samples` | 改 v3 的结构 |
 | 8 K6 帮手工具 | 照 [k6-agent-tools.md](../modules/k6-agent-tools.md)：帮手工具目录按书的内核版本生成（v3 的书用通用命令和模板动作）、拼「这本书的结构说明」、小说提示词挪进小说项目模板；v2.2 的书行为不变 | `dr-agent-tools`、`dr-agent`、`dr-view-agent`，`dr-doc` 的 v3 `novel.rs` 只改写给帮手的说明 | 改 `dr-workspace` 的命令实现、`dr-model`、`dr-store` |
+| 9 K4-0 外壳 | 照 [k4-ui.md](../k4-ui.md)「第一步」：v3 的书快照、`Target::Entry`/`Target::Template`、模块渲染器和显示渲染器的注册口、条目记号、v3 种子和调试桥；第二次交回左栏和条目悬停卡 | `dr-shell`、`dr-cli`、`dr-debug-*`、`dr-testkit`（只加 v3 种子入口） | 各组的视图 |
+| 10–13 K4 四组 | 照 k4-ui.md「四组」那张表，各组只动表里自己的地方 | 见表 | 别组的地方 |
+| 14 K5 模板编辑器 | 模板集合（左栏底部）和模板编辑器，照 K5 原型第 2 版 | 新的视图 crate，注册进 K4-0 的接口 | 条目页内部的长相（等作者细化） |
 
 轨道 2、3、4 互不重叠。轨道 6 动的 `dr-workspace`、`dr-store` 别的轨道也可能碰：先合进 `main` 的一方为准，后到的照 `main` 调整。碰到同一个 crate 时，先在自己文档里写清楚，由整合者协调。
 
