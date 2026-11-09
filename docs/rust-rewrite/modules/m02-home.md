@@ -4,7 +4,7 @@
 
 主页按书版本独立注册；层级模板声明的动作通过 `entry.create` 逐项创建，
 字数复用成书叶子统计，导航直接用 `Target::Entry`，继续写暂取最近修改的
-成书叶子。公共增加 `Pages::set_v3_home/make_v3_home` 与工作区 `v3_home`
+成书叶子。公共增加 `pages::set_v3_home`／内部 `make_v3_home` 与工作区 `v3_home`
 挂接，不改旧注册口。并发新建、隐藏内容保留、动作失效时保留标题草稿已有
 永久测试；`dr-view-home/scenarios/book-v3.json` 的 v3-lite 副屏冒烟 33/33
 通过，0 pending，覆盖新建、成稿导出与单本书往返。尚待完整检查后正式交回。
