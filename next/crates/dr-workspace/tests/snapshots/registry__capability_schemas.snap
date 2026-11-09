@@ -528,7 +528,73 @@ expression: json
       "title": "BookDetail",
       "type": "object"
     },
-    "summary": "Read a book's name, summary, word targets and counts."
+    "summary": "Read a book's name, summary, word targets and counts.",
+    "v3": {
+      "book_version": 3,
+      "input": {
+        "description": "A book.",
+        "properties": {
+          "book": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "book"
+        ],
+        "title": "BookIn",
+        "type": "object"
+      },
+      "output": {
+        "properties": {
+          "created_at": {
+            "description": "When the book was created (Unix seconds).",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "daily_word_target": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "trashed": {
+            "type": "boolean"
+          },
+          "word_target": {
+            "description": "The book's word target (`None`: turned off).",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "summary",
+          "trashed",
+          "word_target",
+          "daily_word_target",
+          "created_at"
+        ],
+        "title": "BookInfo",
+        "type": "object"
+      }
+    }
   },
   {
     "access": "read",
@@ -1071,7 +1137,63 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Change a book's name, summary or word targets."
+    "summary": "Change a book's name, summary or word targets.",
+    "v3": {
+      "book_version": 3,
+      "input": {
+        "properties": {
+          "book": {
+            "type": "string"
+          },
+          "daily_word_target": {
+            "description": "Omit to keep it, zero to turn it off, null to restore the default.",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "word_target": {
+            "description": "Omit to keep it, zero to turn it off, null to restore the default.",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "book"
+        ],
+        "title": "BookUpdateInV3",
+        "type": "object"
+      },
+      "output": {
+        "description": "The entity a command changed.",
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "Done",
+        "type": "object"
+      }
+    }
   },
   {
     "access": "read",
@@ -15298,7 +15420,83 @@ expression: json
       "title": "Array_of_RecentEntry",
       "type": "array"
     },
-    "summary": "List the pages of a book the author opened recently on this device, newest first (what is in the trash or gone is left out)."
+    "summary": "List the pages of a book the author opened recently on this device, newest first (what is in the trash or gone is left out).",
+    "v3": {
+      "book_version": 3,
+      "input": {
+        "properties": {
+          "book": {
+            "type": "string"
+          },
+          "limit": {
+            "description": "At most this many (default and most: 10).",
+            "format": "uint",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "book"
+        ],
+        "title": "RecentListIn",
+        "type": "object"
+      },
+      "output": {
+        "$defs": {
+          "RecentEntryV3": {
+            "properties": {
+              "book": {
+                "type": "string"
+              },
+              "target": {
+                "$ref": "#/$defs/RecentTargetV3"
+              },
+              "used_ms": {
+                "format": "int64",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "book",
+              "target",
+              "used_ms"
+            ],
+            "type": "object"
+          },
+          "RecentTargetV3": {
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "description": "entry or material.",
+                "type": "string"
+              },
+              "module": {
+                "description": "The selected entry module; omit for the whole entry or a material.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          }
+        },
+        "items": {
+          "$ref": "#/$defs/RecentEntryV3"
+        },
+        "title": "Array_of_RecentEntryV3",
+        "type": "array"
+      }
+    }
   },
   {
     "access": "write",
@@ -15353,7 +15551,64 @@ expression: json
       "title": "Done",
       "type": "object"
     },
-    "summary": "Record that the author opened a page of a book (this device only; Project Home's 「继续写」 reads it). Not undoable."
+    "summary": "Record that the author opened a page of a book (this device only; Project Home's 「继续写」 reads it). Not undoable.",
+    "v3": {
+      "book_version": 3,
+      "input": {
+        "$defs": {
+          "RecentTargetV3": {
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "description": "entry or material.",
+                "type": "string"
+              },
+              "module": {
+                "description": "The selected entry module; omit for the whole entry or a material.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          }
+        },
+        "properties": {
+          "book": {
+            "type": "string"
+          },
+          "target": {
+            "$ref": "#/$defs/RecentTargetV3"
+          }
+        },
+        "required": [
+          "book",
+          "target"
+        ],
+        "title": "RecentTouchInV3",
+        "type": "object"
+      },
+      "output": {
+        "description": "The entity a command changed.",
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "Done",
+        "type": "object"
+      }
+    }
   },
   {
     "access": "write",

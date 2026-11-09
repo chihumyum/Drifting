@@ -36,6 +36,7 @@ macro_rules! op {
     };
 }
 
+pub mod book;
 pub mod comment;
 pub mod content;
 pub mod entry;
@@ -43,6 +44,7 @@ pub mod history;
 mod history_folders;
 pub mod membership;
 pub mod module;
+pub mod recent;
 pub mod template;
 pub mod timeline;
 pub mod types;

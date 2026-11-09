@@ -1008,3 +1008,33 @@ JSON 调用由书 id（`todo.project` 由文档的所属书）分派，不能用
 待协调：现有编辑器的 `todo.project` 标记路径已能消费 v3；`note_tasks.project`
 此前未注册，本批没有另造清单投影协议，已导入的 `note_task` 批注原样保留。
 G4 接面板和 G1 接模块锚点读取时使用上述类型，再做各自的实际界面验收。K6 的模块批注工具须消费 `Spec.v3` 的签名，由其轨道接线，本批不改帮手目录或执行器。
+
+## K2 续接主页：元数据与最近访问（2026-11-10）
+
+四个共用命令在注册表的 `Spec.v3` 中发布 v3 签名；JSON 按实际书版本分派，
+没有新增按种类的命令或伪造旧目标。
+
+| 接口 | v3 契约 |
+| --- | --- |
+| `commands::v3::book::BookGet`／`book.get` | 输入仍为 `BookIn`，输出 `BookInfo`：书名、简介、回收状态、字数目标、每日目标和创建时间。不返回旧版章节／构想／要素数量或旧索引字数；统计继续由 G4 的成书范围适配器提供 |
+| `commands::v3::book::BookUpdate`／`book.update` | 只写输入给出的字段。两个目标缺键表示不改，0 表示关闭，null 表示恢复默认；显式 v3 typed 输入使用 `Option<Option<i64>>`。原 typed `commands::book::BookUpdate` 也按实际版本转入 v3，沿用其已有输入范围 |
+| `commands::v3::recent::RecentTouch`／`recent.touch` | `target: {kind: "entry", id, module?}` 或 `{kind: "material", id}`。模块属于目标身份，同一条目的两篇正文分别保留；层级说明为 `module: "about"`，换模板后仍有内容的旧模块可继续导航 |
+| `commands::v3::recent::RecentList`／`recent.list` | 输入 `RecentListIn`，返回 `Vec<RecentEntry>`，每项保留上述完整目标和 `used_ms`；每书最多 10 项，最近访问排最前，回收或已不存在的目标不显示 |
+
+旧 typed `BookGet` 的返回类型强制带旧计数，旧 typed `RecentTouch/List` 又不能携带模块，
+因此这些旧 typed 入口对 v3 明确拒绝。消费方使用上表的 v3 类型；JSON 调用名字不变。
+K6 若读取／修改 v3 书的元数据，消费 `Spec.v3` 的签名。本批不修改帮手 crate。
+
+元数据通过 v3 reader／事务逐字段读取和写入，逆操作也只携带实际改变的字段，
+未设置的目标撤销后仍是未设置；相同值不产生书目写入或撤销记录。
+最近访问只存在本机 `local_state` 的 `ws-recent-v3` scope，每书一行，key 与所属书均为书 id。
+存储层彻底删除书时在同一事务移除该行，不解析或重写旧 `ws/recent` 值。
+无法解析的 v3 行返回错误并原样保留，不悄悄重置；其他书的行仍可用。
+最近访问不改书目 frontier、不产生 journal／undo、不打断 redo。
+
+永久 v3 契约覆盖逐字段写入、另一来源更新后的撤销／重做、默认／关闭目标、拒绝非法写入、
+两书与重开隔离，以及模块身份、去重顺序、条数上限、保留模块、回收恢复、本机旧记录保留、
+损坏记录拒绝和按书彻底删除。没有新增或删除 v2.2 测试。
+
+待协调：G4 接主页元数据，F6 接 `record_recent` 和继续写导航；两者使用 v3 typed 接口。
+本批未改 UI，未进行真窗口验收，也不声称主页或最近访问已经显示在窗口里。
