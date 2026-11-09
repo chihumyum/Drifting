@@ -84,7 +84,10 @@ cargo test -p dr-import-v1 --test v3_manifest --locked
 - 等到 main 的 overnight「收进来的」出现第三十九批 `handback/k1 → a1ac3c24` 文档 id 隔离修复（main `324ca07d`）后才同步、修改；没有消费未合入的 K1 接口，也没有改 K1 的 crate。
 - 导入和样书均消费模板返回的实际根 id；模板正文的生成、历史、目标映射统一传入书 id。书目已经落盘再中断时，续导载入该书目后回放，保持根及视图 id；正文操作和已有历史点不重复。过长或不能往返解析的旧模板复合 id 在只读预检报告 `template-prose-id-not-representable`，不截短、不改名、不写目标（待协调 26 的边界）。
 - 永久回归：两本原样书写入同一个临时库，并各自实际写入书稿根说明及基础章模板正文，内容复制自已有样书；断言条目和文档 id 不交叉，分别删除任意一本的全部文档，另一本的文档集合、版本、更新字节、条目和正文保持完整，重新打开仍通过 v3 不变量检查。另测书目落盘后取消续导、根及视图 id 保留、清单逐项匹配和历史点不重复。
-- 定向检查：`cargo test -p dr-import-v1 --test v3_import -p dr-samples --test v3 --locked`，导入 12 项、样书 3 项全部通过（`CARGO_BUILD_JOBS=3`）。待协调 22、23、25、28–31 保留；本次不扩大映射方案或应用接线范围。最终全量检查及提交在通过后记入本节。
+- 提交与同步：`3e95fef7` 同步 K1 修复，`e1731c89` 实现及回归；随后 `0b980126` 同步第四十批后的 main `16f062d7`，重新运行检查。相对 main 仍只改两个业务 crate、本页和已有 Cargo.lock 接线，没有修改五个受保护 crate。
+- 定向检查：`cargo test -p dr-import-v1 --test v3_import -p dr-samples --test v3 --locked`，导入 12 项、样书 3 项全部通过。最新 main 上的 fmt、全 workspace Clippy（all-targets／locked／拒绝 warnings）、xtask 和根目录 public 全过；公开边界检查 5415 个候选文件，审计 971 个锁定依赖、0 漏洞、12 条既有通知，14 份过期测量和 15 份旧格式证据保留。所有 Cargo 命令设 `CARGO_BUILD_JOBS=3`。
+- **本次尚未重交**：全量测试在新增的 dr-mirror 属性测试输入上失败；保留种子后以 `cargo test --workspace --locked --no-fail-fast` 完整收集结果，**2014 通过／1 失败／22 忽略**（单线程、关闭输出捕获），唯一失败见待协调 32。本次 v3 导入及样书契约均再次通过。没有跳过该测试、删种子后冒称全绿或把失败当作偶发；自动生成的种子和最小修复补丁另存待审，K3 分支不混入未经授权的 M40 修改。`handback/k3` 保持 `67ccafc7`，待范围确认或 main 修复后复验再前移。
+- 待协调 22、23、25、28–31 保留；本次不扩大映射方案或应用接线范围。
 
 ## 做了什么（大白话）
 
@@ -717,6 +720,8 @@ cargo xtask check
 
 22. **K3 / 作者：幕绑定构想的关系类型、方向。** 方案说「变成一条关系」，没有指定关系类型、端点方向或复用哪种类型。清单用 `act-binding-relation-type-and-direction` 保留两端和数量，不创建新关系类型，也不选方向。
 23. **K3 / 作者：新增「未归属」泳道在树里的住处和模板设置。** 旧版这条轨道是合成界面，没有树上的住处；方案规定要建泳道，但没有说放在哪层、默认叶子模板、允许哪些模板或新条目住在哪。清单用 `synthetic-lane-tree-home-and-template-settings` 保留泳道、成员和位置，住处／默认模板留未定；名称有旧界面的明确来源，不另起名字。
+
+   **文档 id 修正后的接线边界**：当前 `UnaffiliatedChoice.parent` 和模板 `home` 接收真实条目 id，测试选择是根层且不指定住处。若作者决定放到新生成的书稿／故事线入口下，需先约定怎样用模板引用这处住处，再在初始化后绑定到返回的 id；不能在映射 JSON 里恢复 `root-manuscript` 等固定 id。本次不替作者决定这一点。
 24. **K3 / K1：项目级故事线字段模板的去处。** 旧库 `project.storyline_template_kv_json` + `entity_kv_entry(owner_kind=project, namespace=storyline-template)` 是新故事线自己的字段模板，不是故事线的章节正文模板。映射表末行只说项目设定内容照搬，没有指定 v3 层级模板中落在哪个模块。清单用 `project-storyline-field-template-destination`，保留原始行和投影，不误塞进章的叶子模板。
 
    **K1 已回应（`dd39c0bd`）**：项目级故事线字段模板可落在 `TPL_STORYLINE` 的 `MOD_KV.config.initial_kv`，故事线自身键值行落在条目的 `kv:mod-kv`。具体接口见 [F1 的 K1 交回回应](../foundations/f1-model-doc.md)；交 K3 在后半段按实际接口逐项导入并与清单核对，尚未把目标写入算完成。
@@ -733,6 +738,7 @@ cargo xtask check
 29. **K3 / K1：分类字段模板的非空初值。** 旧模板 KV 行同时有 key 和 value；v3 `FieldDef` 能存字段定义但没有初值，KV 模块的 `initial_kv` 不能冒充字段默认值。当前完整夹具的初值为空，可以正常生成；旧库或历史里非空初值返回 `field-default-value-interface-missing`，不静默丢掉。字段模板重复名字、同一字段多值仍按 26 阻止。
 30. **K3：旧表格单元标记。** 现有旧正文规划把表格单元存成文本，遇到标记只记 `table-cell-marks`；直接复用会丢掉表格里的链接／格式。v3 预检返回 `legacy-table-cell-format-mapping`，等补无损映射后再放行；不修改既有 v2.2 行为。样书全文复制保留普通单元标记，但缺少 v3 单元链接转换接口的输入同样拒绝，现有两份样书不受影响。
 31. **K3 / K4：应用样书入口与 v3 索引接线。** 本段提供样书的 v3 生成／写库入口，原 App 仍按并存规则走 v2.2 的 `ensure_built_in`；旧索引不能用于 v3 书目。K4 接好新版工作区和索引后再切换默认入口／样书 once-only 接线并解除旧派生器门槛。本段没有跨入 dr-workspace、dr-index 或 dr-shell。
+32. **交回检查 / M40：Markdown 往返的链接前感叹号。** 同步 main `16f062d7` 后，全量测试在 `dr-mirror::body::tests::what_is_written_reads_back` 生成并稳定复现了失败：普通文本反斜杠和 `!` 后紧接带链接的「钟」，写出后被读成图片，只剩反斜杠。生成器的 `out.ends_with("\\!")` 把偶数个反斜杠也当作感叹号已转义。自动保存的 proptest 种子为 `37793c5b665db11cb1d76bdbe23dca949c368d4f15ef153ebb753c9c1a75c6d4`；直接运行同一测试二进制立即重现（0 通过／1 失败）。相关 dr-mirror／dr-export 源码与 main 一致。本项超出 K3 的两个 crate；已请求作者确认最小修复范围，未把全量测试记成通过，`handback/k3` 不在失败状态下前移。
 
 ## 没做的，和下一个里程碑建议
 
