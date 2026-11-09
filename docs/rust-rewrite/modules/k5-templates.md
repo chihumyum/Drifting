@@ -51,10 +51,45 @@ CARGO_BUILD_JOBS=3 cargo drifting workspace scenario crates/dr-cli/scenarios/k5-
   原生采样停在 `dr_shell::book::v3::load → LevelGet → level_settings →
   entries_map → resolve_autolink_name_conflicts → resolve_level_settings`。
   本次不越界修改外壳／查询层；日志和采样在忽略目录
-  `next/target/k5-heavy.log`、`next/target/k5-heavy-sample.txt`，没有生成打开／滚动数字。
+  `next/target/k5-heavy-sample.txt`；这组标准 debug 运行没有生成打开／滚动数字。
   基准脚本保留在本 crate，后续可在同一个合成 profile 上重跑前后两次。
 
 ## 第一次交回
 
 分支 `codex/k5-templates`，交回指针 `handback/k5`。本段只交叶子模板。
-检查与真窗口运行记录在完成后补齐；本节未记录的检查不视为已完成。
+实现提交 `405cbd05`，相同排序键、保存时的书上下文校验及验收接线修正
+在 `22473d18`；已同步 main `27806732`，含 K4-0 两次交回。
+
+编译并发 3。`cargo fmt --all --check`、全 workspace Clippy
+`--all-targets --locked -- -D warnings`、全 workspace test
+**2045 passed / 0 failed / 22 ignored**、`cargo xtask check`（含 audit，
+0 vulnerabilities）与根目录 `pnpm public:check` 通过。
+xtask 保留既有 14 份过期测量提示及 12 项审计通知。
+新 crate 的 6 条契约均通过；没有修改原 v2.2 的行为。
+
+`k5-leaf.json` 在 v3-lite 真窗口 **115/115 步、0 pending**，三张截图已逐张目检。
+初次全量测试曾被文案使用扫描器拒绝分组别名导入，改为仓库已有的独立别名写法后
+重跑全套通过；首次窗口场景也修正了 macOS 下拉框角色及换书后的等待。
+上述统计均来自修正后的运行，失败日志留在忽略目录，不把它们算成通过。
+
+heavy 的视图基准使用额外的优化开发版，命令如下；默认构建配置没有改动。
+同一个共享 v3-heavy 合成库预建索引，在原模板上重复其已有模块定义以构成 27 个模块的
+真实滚动范围，没有另造正文语料。7 次采样的打开中位数 **281.0 ms**、最大
+512.1 ms；滚动中位数 **64.9 ms**、最大 69.8 ms。打开包含 200 ms 的导航过渡等待；
+两项均包含调试桥往返及 PNG 回读，不能解释成纯渲染耗时。当时 12 核机器有其他构建，
+负载记录在生成结果中。顶部与底部截图已目检，滚动实际到达列表末端。
+第二次交回用同样的配置与合成库对照本次基准。
+
+```bash
+CARGO_BUILD_JOBS=3 cargo build -p drifting --features debug-bridge --locked \
+  --config 'profile.dev.package.dr-model.opt-level=2' \
+  --config 'profile.dev.package.dr-doc.opt-level=2' \
+  --config 'profile.dev.package.dr-workspace.opt-level=2' \
+  --config 'profile.dev.package.dr-shell.opt-level=2'
+DRIFTING_BENCH_BUILD='debug-bridge; dr-model/dr-doc/dr-workspace/dr-shell opt-level=2' \
+  python3 crates/dr-view-templates/script/window-bench.py leaf
+```
+
+生成结果、可执行文件 SHA-256、机器负载与两张截图在忽略目录
+`next/target/acceptance/k5-heavy/`。初次滚动采样的指针落在输入区域，图像未变，
+该组数字已丢弃；修正为滚动容器的左侧空隙后重测，以上数字来自实际滚动。

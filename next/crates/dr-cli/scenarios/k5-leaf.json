@@ -818,6 +818,14 @@
       }
     },
     {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 1200
+      },
+      "note": "等共享字海和翻页过渡结束后目检重开截图；存储验收已由前面的断言完成"
+    },
+    {
       "app": "ui.screenshot",
       "png": "03-reopened.png"
     },

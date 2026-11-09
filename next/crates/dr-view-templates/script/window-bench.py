@@ -10,6 +10,7 @@ Results/screenshots stay under target/acceptance/k5-heavy/. Timings include
 bridge traffic and PNG readback, not just rendering. No bridge token is saved.
 """
 import base64
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -101,8 +102,8 @@ def measure(phase):
                 raise RuntimeError(str(result["error"]))
             return result["result"]
 
-        def screenshot(name=None):
-            result = call("ui.screenshot", {"settle_ms": 0})
+        def screenshot(name=None, settle_ms=0):
+            result = call("ui.screenshot", {"settle_ms": settle_ms})
             png = base64.b64decode(result["png"])
             if name:
                 (OUT / f"{phase}-{name}.png").write_bytes(png)
@@ -125,6 +126,8 @@ def measure(phase):
                 module["pos"] = None
                 template["modules"].append(module)
             call("command.call", {"name": "entry_template.put", "input": {"book": config["book"], "template": template}})
+            index = next(index for index, value in enumerate(templates) if value["id"] == "tpl-chapter")
+            call("ui.wait", {"timeout_ms": 240000, "state": {f"/v3/templates/{index}/modules/{len(template['modules'])-1}/id": "k5-bench-23"}})
         opened, scrolls = [], []
         for index in range(7):
             call("nav.open", {"target": "template:tpl-character"})
@@ -132,18 +135,24 @@ def measure(phase):
             start = time.perf_counter()
             call("nav.open", {"target": "template:tpl-chapter"})
             call("ui.find", {"label": "Template name", "count": 1})
-            screenshot("top" if index == 0 else None)
+            top = screenshot("top" if index == 0 else None, settle_ms=200)
             opened.append((time.perf_counter() - start) * 1000)
             bounds = call("ui.find", {"label": "Template name"})["nodes"][0]["bounds"]
-            x, y = bounds["x"] + 80, bounds["y"] + 180
+            # The left gutter is inside the page's scroll container and
+            # outside the text inputs, which may consume wheel events.
+            x, y = bounds["x"] - 24, bounds["y"] + 360
             start = time.perf_counter()
             call("input.scroll", {"x": x, "y": y, "dy": 4000})
-            screenshot("bottom" if index == 0 else None)
+            bottom = screenshot("bottom" if index == 0 else None)
+            if top == bottom:
+                raise RuntimeError("scroll did not change the rendered window")
             scrolls.append((time.perf_counter() - start) * 1000)
             call("input.scroll", {"x": x, "y": y, "dy": -10000})
         summary = lambda values: {"samples_ms": values, "median_ms": statistics.median(values), "max_ms": max(values)}
-        result = {"phase": phase, "seed": "v3-heavy", "build": "debug-bridge", "samples": 7,
-                  "includes": "bridge, navigation animation and PNG readback", "open": summary(opened), "scroll": summary(scrolls)}
+        result = {"phase": phase, "seed": "v3-heavy", "build": os.environ.get("DRIFTING_BENCH_BUILD", "debug-bridge"), "samples": 7,
+                  "binary_sha256": hashlib.sha256(binary.read_bytes()).hexdigest(),
+                  "machine": {"architecture": os.uname().machine, "cpus": os.cpu_count(), "load_average": os.getloadavg()},
+                  "includes": "bridge and PNG readback; open also waits 200 ms for navigation animation", "open": summary(opened), "scroll": summary(scrolls)}
         (OUT / f"{phase}.json").write_text(json.dumps(result, indent=2) + "\n")
         print(json.dumps(result))
         call("app.quit")
