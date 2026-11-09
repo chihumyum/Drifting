@@ -76,7 +76,7 @@ impl crate::Workspace {
                 ws.dialog = None;
                 previous_focus
                     .as_ref()
-                    .unwrap_or(&ws.focus_handle())
+                    .unwrap_or(ws.focus_handle())
                     .focus(window, cx);
                 cx.notify();
             }
