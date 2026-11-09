@@ -225,30 +225,25 @@ M23「审阅与素材」可以直接用这些（都在 `dr_view_material` 下）
 
 `fe7657a1` 作为基础动作里程碑验收。现有／根素材夹的选择行虽然有 Button 角色，但没有焦点和键盘选择；新名称输入的 Enter 与 Esc 不能证明整个选择器能用键盘完成。删除确认依赖的共享按钮也需补键盘焦点。这两处仍是实现工作，已转交旧模块收尾；系统默认应用实际接管另保留作者手测。
 
-## K4 写入续接（进行中，未正式交回）
+## K4 G4 素材写入续交（2026-11-10）
 
-已消费第 60 批素材快照。媒体页标题／简介逐字段提交，失败和刷新保留草稿；区域批注
-走 v3 读取和版本分发的撰写框。素材库重命名等成功才收起输入，外部删除后暂留输入；
-切书及离开后再返回都有代次保护，旧异步结果不能关闭新草稿或在别的书打开新素材。
+媒体页标题／简介逐字段提交，失败保稿；区域批注走 v3。素材库重命名等成功才收起输入，
+外部删除暂留草稿，切书及返回的代次保护阻止旧异步结果影响新页面。菜单新增通用关联，
+只调用新增 `material.set_entry_link(book, material, entry, linked)` 逐条增删；保留反向、未知
+类型和隐藏关系。公共只增 `Book::material_items()`／`material_folders()` 与
+`BookV3.material_folders`，素材夹读取放进原有 frontier 校验；旧 Deref 不改。媒体、素材库
+及菜单改用新读口。新命令的内核守卫契约放在 `dr-workspace/tests/kernel_v3.rs`；旧书目
+观察拒写且深层值不变，刷新后只增目标关系且保留素材字段。
 
-新增契约覆盖原文件字节、素材夹移动／删除、跨书拒写、未显示素材保留、失败重试及
-真实 GPUI 区域撰写框。这些契约已在第 61 批基线上通过；本轮最终全套尚未完成。
-副屏主流程 `dr-view-review/scenarios/book-media-writes-v3.json` 已通过 22/22 步、0 pending：
-主页书名保存、图片区域批注保存、命令回读。窗口坐标确认属于副屏，未截图目检。
-冒烟暴露的同帧 down/move/up 丢失区域完成事件已修；相同输入次序的永久 GPUI 回归先失败后通过。
-场景数据由 `dr-view-material/examples/v3-media-fixture.rs` 写入全新隔离 profile 的 library，
-仅用 testkit v3-lite 和 testkit PNG；运行场景时显式传该 `--profile`，不使用已有个人书库。
+素材定向 **41/41**、内核守卫和命令覆盖门禁通过；最终全套结果见 M18（**2176/0/22**）。
+`dr-view-review/scenarios/book-media-writes-v3.json` 在全新隔离 profile 上通过 **23/23、0 pending**：
+保存原种子书名、从主页最近访问按钮打开图片、拖区域写批注并回读；本机最近访问由场景预置。
+数据仅用 `dr-view-material/examples/v3-media-fixture.rs` 的 testkit v3-lite 和 testkit PNG。
+系统窗口信息确认进程 49900 在副屏，正常退出；未截图。冒烟发现的同帧鼠标 down/move/up
+丢失结束事件已修，永久 GPUI 回归先失败后通过。产品代码截至 `75bf6272`，之后只补契约和记录。
 
-素材菜单新增通用关联选择器；只调用新增 `material.set_entry_link(book, material, entry, linked)`
-逐条增删，保留相反方向、未知类型及隐藏关系。并发关联、重复调用、跨书拒写和失败保留
-选择已有永久契约。外壳只增 `Book::material_items()`／`material_folders()` 与
-`BookV3.material_folders`，素材夹读取置于既有 frontier 校验内；旧 Deref 投影不改。
-视图改走这两个读口，防止 v3 素材和素材夹读成旧版空表。没有删除 v2.2 测试。
-
-新增命令的派生 Agent 目录快照由 `INSTA_UPDATE=always cargo test -p dr-agent-tools
---test catalog generated_directory_snapshot --locked` 生成，仅增加未开放命令一行，
-不改 Agent 目录实现或授权范围。首轮全测在此快照差异处停止，生成后继续完整检查。
-
-命令覆盖门禁另发现其扫描范围只含内核契约，已在 `dr-workspace/tests/kernel_v3.rs`
-补 `material_entry_link_checks_book_observations_before_writing`：旧书目观察拒写且深层值
-不变，刷新观察后只增目标关系，素材字段不变；该项与覆盖门禁定向通过。没有改门禁白名单。
+首轮全测漏更新 Agent 目录快照，使用 `INSTA_UPDATE=always cargo test -p dr-agent-tools
+--test catalog generated_directory_snapshot --locked` 生成，仅加该新命令的排除行，未开放 Agent 调用；
+随后覆盖门禁要求内核内有调用，已补真实守卫测试，未改白名单。失败日志保留，未手改生成证据。
+文本素材的 `book-writes-v3` 窗口此前停于撰写框，仍交 F6 路由续接，未记为通过。
+关联的并发、幂等、跨书拒写、撤销、隐藏数据和失败保留选择均有永久契约。没有删除 v2.2 测试。
