@@ -257,6 +257,11 @@
     "title": "Título",
     "entries": "Entradas"
   },
+  "entrySnapshot": {
+    "save": "Guardar instantánea",
+    "title": "Historial de instantáneas",
+    "empty": "Aún no hay instantáneas"
+  },
   "k4Book": {
     "entry_words": "Palabras de la entrada",
     "material_words": "Palabras del material",

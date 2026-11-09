@@ -425,6 +425,11 @@
     "summaryPlaceholder": "Résumé en une phrase…",
     "untitled": "Élément sans titre"
   },
+  "entrySnapshot": {
+    "empty": "Aucun instantané pour le moment",
+    "save": "Enregistrer un instantané",
+    "title": "Historique des instantanés"
+  },
   "feedback": {
     "attachDiagnostics": "Joindre les diagnostics expurgés",
     "cancel": "Annuler",

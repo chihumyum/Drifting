@@ -251,6 +251,11 @@
     "title": "제목",
     "entries": "항목"
   },
+  "entrySnapshot": {
+    "save": "스냅샷 저장",
+    "title": "스냅샷 기록",
+    "empty": "아직 스냅샷이 없습니다"
+  },
   "k4Book": {
     "entry_words": "항목 글자 수",
     "material_words": "자료 글자 수",

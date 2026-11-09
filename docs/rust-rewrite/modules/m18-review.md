@@ -161,5 +161,28 @@ v3 分组使用 `Place::V3`，不经过旧 NavTarget。异步读取核对书及�
 撰写框和逐字段写入，验证并发、冲突保留草稿与隐藏批注不丢失。
 G1 的正文砂笔／TODO 投射、F6 的撰写框宿主仍由对应负责方接，不能由 G4
 绕过内核。当前永久契约使用 testkit v3 Tiny 种子；本批主流程冒烟见
-[M41](m41-export.md)，不代表审阅写入已验收。逐项窗口和 heavy 按 11-10
-新规留到切换前统一安排，完整检查结果见 M41 的本次交回。
+[M41](m41-export.md)，不代表审阅写入已验收。切换前统一功能验收由整合者安排；heavy、
+截图目检与 UI 打磨按 11-10 新规暂缓。完整检查结果见 M41 的本次交回。
+
+## K4 G4 写入续交（2026-11-10）
+
+分支 `codex/k4-g4-book`，已合 main `9a2351a7`。批注按 Entry＋module 新建，逐字段
+改文、解决／重开、转换和删除；提交中防重复，失败保留草稿，外部删除或筛选变化也不
+吞掉编辑框。公共新增 `comment.create` 的可选 `anchor: AnchorBytes` 和
+`Cx::read_prose_source`（与 K2 `04ffcb53` 同名、同签名、同实现）；只把新 anchor
+路径接入同一次 holder 读取中的版本验证、游标解析、引用与段落快照，不改既有
+range／block_id／reanchor 行为。前插保持原文；部分删除可写，全删、错误编码、异模块、
+range/anchor 并传和过期来源观察拒写；重新观察后原稳定锚点可成功。
+
+最终 fmt、Clippy（全 workspace／all-targets）、完整测试 **2176 通过／0 失败／22 既有忽略**、
+xtask（审计 972 crate、0 漏洞、12 既有 notice）及 public（5536 文件）通过，九语同步检查通过。
+全测使用 `CARGO_BUILD_JOBS=3 RUST_TEST_THREADS=1 cargo test --workspace --locked --no-fail-fast`；
+日志在忽略的 `next/target/g4-checks/`。审阅定向 23 项通过。副屏主流程 **23/23、0 pending**
+见 M19，包含真实区域撰写框；稳定文字锚点由真实 GPUI 编辑器和内核契约验证，不把组件
+测试当成正文宿主窗口验收。新文案为零，复用现有九语；没有删除 v2.2 测试。
+
+待协调：F6 的 v3 正文撰写框宿主和 G2 的审阅侧栏继续按既定分工接入；
+`CommentComposer::for_prose`／`ComposerEvent` 签名未改。K2 旧范围及重锚路径的返修
+不在本批实现内，不能因新 anchor 通过便关闭第 62 批问题。切换统一正确性验收由整合者
+安排；本批未做 heavy、截图目检或 UI 打磨。此前全测的目录快照、命令覆盖失败及
+主页素材最近访问修复均保留记录（M19／M02），最终结果只来自最后完整轮次。

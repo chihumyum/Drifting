@@ -55,6 +55,7 @@ pub struct Select {
     open: Option<bool>,
     disabled: bool,
     on_change: Option<super::OnIndex>,
+    menu_height: Option<f32>,
 }
 
 impl Select {
@@ -66,6 +67,7 @@ impl Select {
             open: None,
             disabled: false,
             on_change: None,
+            menu_height: None,
         }
     }
 
@@ -77,6 +79,13 @@ impl Select {
 
     pub fn disabled(mut self, disabled: bool) -> Self {
         self.disabled = disabled;
+        self
+    }
+
+    /// Opt into a scrollable choice viewport. Existing selects keep their
+    /// current layout; callers with author-sized inventories can reach every row.
+    pub fn max_menu_height(mut self, height: f32) -> Self {
+        self.menu_height = Some(height.max(32.0));
         self
     }
 
@@ -158,10 +167,11 @@ impl RenderOnce for Select {
         let list = (open && bounds.is_some()).then(|| {
             let b = bounds.expect("checked");
             let mut menu = Menu::new(child_id(&self.id, "list")).at_least(f32::from(b.size.width));
+            let mut items = Vec::new();
             for (i, c) in self.choices.iter().enumerate() {
                 let f = self.on_change.clone();
                 let close = state.clone();
-                menu = menu.item(
+                items.push(
                     MenuItem::new(
                         child_id(&self.id, format!("choice-{i}")),
                         c.icon,
@@ -180,6 +190,24 @@ impl RenderOnce for Select {
                 );
             }
             let dismiss = state.clone();
+            let menu = if let Some(h) = self.menu_height {
+                menu.child(
+                    div()
+                        .id(child_id(&self.id, "choice-scroll"))
+                        .debug_selector(|| "select-choice-scroll".into())
+                        .max_h(px(h
+                            .min(f32::from(window.viewport_size().height) - 32.0)
+                            .max(32.0)))
+                        .overflow_y_scroll()
+                        .children(items),
+                )
+                .into_any_element()
+            } else {
+                for item in items {
+                    menu = menu.item(item);
+                }
+                menu.into_any_element()
+            };
             overlay::float(
                 Place::below(b, 4.0),
                 Layer::Popover,

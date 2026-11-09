@@ -425,6 +425,11 @@
     "summaryPlaceholder": "One-sentence summary…",
     "untitled": "Untitled Element"
   },
+  "entrySnapshot": {
+    "empty": "No snapshots yet",
+    "save": "Save snapshot",
+    "title": "Snapshot history"
+  },
   "feedback": {
     "attachDiagnostics": "Attach sanitized diagnostics",
     "cancel": "Cancel",

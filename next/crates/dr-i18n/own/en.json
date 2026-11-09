@@ -257,6 +257,11 @@
     "title": "Title",
     "entries": "Entries"
   },
+  "entrySnapshot": {
+    "save": "Save snapshot",
+    "title": "Snapshot history",
+    "empty": "No snapshots yet"
+  },
   "k4Book": {
     "entry_words": "Entry words",
     "material_words": "Material words",

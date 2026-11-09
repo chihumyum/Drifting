@@ -2601,7 +2601,7 @@ mod v3_panel_tests {
             .clone();
         let material = v.materials[0].id.clone();
         // Floating/unlocated comments need no range anchoring. This host test
-        // exercises the accepted read-only panel, not G4's pending writers.
+        // exercises scope and navigation through the actual panel.
         let inputs = [
             json!({"target":{"kind":"entry","id":entry},"module":"mod-prose"}),
             json!({"target":{"kind":"entry","id":entry}}),

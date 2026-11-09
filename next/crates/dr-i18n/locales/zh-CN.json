@@ -425,6 +425,11 @@
     "summaryPlaceholder": "一句话概述…",
     "untitled": "未命名要素"
   },
+  "entrySnapshot": {
+    "empty": "暂无快照",
+    "save": "保存快照",
+    "title": "快照历史"
+  },
   "feedback": {
     "attachDiagnostics": "附上脱敏诊断摘要",
     "cancel": "取消",

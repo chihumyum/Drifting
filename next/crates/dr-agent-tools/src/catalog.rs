@@ -19,7 +19,7 @@ use std::collections::BTreeMap;
 /// Change this when facade handler semantics change without a schema change.
 const FACADE_REVISION: &str = "m29-author-facade-v1";
 /// Versioned facade revision for universal kernel v3 books and template verbs.
-pub const FACADE_REVISION_V3: &str = "k6-author-facade-v3-r2";
+pub const FACADE_REVISION_V3: &str = "k6-author-facade-v3-r3";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -283,10 +283,9 @@ impl Catalog {
                 BookKernelVersion::V2_2 => {
                     crate::resolve::facade_schema(spec.name, spec.input_schema().as_value().clone())
                 }
-                BookKernelVersion::V3 => crate::resolve::facade_schema_v3(
-                    spec.name,
-                    spec.input_schema().as_value().clone(),
-                ),
+                BookKernelVersion::V3 => {
+                    crate::resolve::facade_schema_v3(spec.name, input_schema_for(spec, version))
+                }
             };
             if spec.name == "relation.create" {
                 // F3's optional caller id can name an existing hidden edge.
@@ -298,7 +297,7 @@ impl Catalog {
                     .remove("id");
                 input_schema["not"] = json!({"required":["id"]});
             }
-            let output_schema = outcome_schema(spec.name, spec.output_schema().as_value().clone());
+            let output_schema = outcome_schema(spec.name, output_schema_for(spec, version));
             let description = if spec.name.ends_with("_template.set_body") {
                 format!(
                     "{} Available for existing template documents; creation is not exposed by the Agent facade yet.",
@@ -307,6 +306,23 @@ impl Catalog {
             } else if version == BookKernelVersion::V3 && spec.name == "timeline_view.put" {
                 format!(
                     "{} Whole-view replacement requires a complete timeline_view.list at the guarded version. Hidden lanes, placements or pin data prevent replacement; use supported item commands instead.",
+                    spec.summary
+                )
+            } else if version == BookKernelVersion::V3
+                && matches!(spec.name, "membership.remove" | "timeline_view.remove")
+            {
+                format!(
+                    "{} Requires a complete timeline_view.list at the guarded version; hidden timeline data prevents removal until the kernel cascade preserves it.",
+                    spec.summary
+                )
+            } else if version == BookKernelVersion::V3 && spec.name == "comment.create" {
+                format!(
+                    "{} Whole-entry, module, material or floating comments only; range, block and anchor creation await guarded source-prose support.",
+                    spec.summary
+                )
+            } else if version == BookKernelVersion::V3 && spec.name == "comment.reanchor" {
+                format!(
+                    "{} Only clearing an anchor is available until guarded source-prose support lands.",
                     spec.summary
                 )
             } else {
@@ -915,12 +931,29 @@ fn exclusion(spec: &Spec) -> Option<&'static str> {
     if spec.book_version == Some(3) {
         return Some("v3 commands remain excluded until K6 opens the versioned catalog");
     }
-    common_exclusion(spec)
+    common_exclusion(spec, BookKernelVersion::V2_2)
 }
 
 fn exclusion_v3(spec: &Spec) -> Option<&'static str> {
     if spec.name == "membership.restore" {
         return Some("scoped membership undo is internal until K6 provides a guarded facade");
+    }
+    // Public F3 additions must not bypass the facade's read coverage and
+    // restore protocol merely by acquiring a book-scoped input schema.
+    if spec.name.starts_with("entry_snapshot.") {
+        return Some("entry snapshots need facade coverage and guarded whole-entry restore wiring");
+    }
+    if spec.name == "material.set_entry_link" {
+        return Some("material entry links need exact endpoint and relation read coverage");
+    }
+    if matches!(
+        spec.name,
+        "timeline_view.rename"
+            | "timeline_view.add_lane"
+            | "timeline_view.move_lane"
+            | "timeline_view.remove_lane"
+    ) {
+        return Some("local timeline edits need exact lane, placement, and pin read coverage");
     }
     if spec.book_version != Some(3) {
         let domain = spec
@@ -968,10 +1001,10 @@ fn exclusion_v3(spec: &Spec) -> Option<&'static str> {
     if spec.name == "module.prose_document" {
         return Some("storage, editor, or derived-state maintenance");
     }
-    common_exclusion(spec)
+    common_exclusion(spec, BookKernelVersion::V3)
 }
 
-fn common_exclusion(spec: &Spec) -> Option<&'static str> {
+fn common_exclusion(spec: &Spec, version: BookKernelVersion) -> Option<&'static str> {
     if (spec.name.ends_with(".purge") && spec.concurrency != Concurrency::Library)
         || matches!(
             spec.name,
@@ -1011,7 +1044,7 @@ fn common_exclusion(spec: &Spec) -> Option<&'static str> {
     {
         return Some("storage, editor, or derived-state maintenance");
     }
-    let schema = spec.input_schema().as_value().clone();
+    let schema = input_schema_for(spec, version);
     let scoped = schema["properties"].as_object().is_some_and(|p| {
         p.contains_key("book")
             || p.contains_key("doc")
@@ -1027,6 +1060,27 @@ pub(crate) fn allowed(spec: &Spec) -> bool {
 
 pub(crate) fn allowed_v3(spec: &Spec) -> bool {
     exclusion_v3(spec).is_none()
+}
+
+/// Select the signature that F3 dispatches for this book, including shared names.
+pub(crate) fn input_schema_for(spec: &Spec, version: BookKernelVersion) -> Value {
+    if version == BookKernelVersion::V3
+        && let Some(v3) = &spec.v3
+    {
+        v3.input_schema().as_value().clone()
+    } else {
+        spec.input_schema().as_value().clone()
+    }
+}
+
+fn output_schema_for(spec: &Spec, version: BookKernelVersion) -> Value {
+    if version == BookKernelVersion::V3
+        && let Some(v3) = &spec.v3
+    {
+        v3.output_schema().as_value().clone()
+    } else {
+        spec.output_schema().as_value().clone()
+    }
 }
 
 fn outcome_schema(name: &str, mut output: Value) -> Value {
@@ -1125,5 +1179,76 @@ mod tests {
             Some("storage, editor, or derived-state maintenance")
         );
         assert!(!allowed(spec));
+    }
+
+    #[test]
+    fn pending_v3_commands_stay_closed_after_book_scoped_registration() {
+        // These synthetic specs deliberately have valid book boundaries. This
+        // regression must fail when an exclusion is removed even before the
+        // owning crate registers its real implementation. Snapshot suffixes
+        // exercise the reserved family, not a second command inventory.
+        let mut registry = Registry::default();
+        macro_rules! pending {
+            ($ty:ident, $name:literal, $access:ident, $concurrency:ident, $version:expr) => {
+                struct $ty;
+                impl Op for $ty {
+                    const NAME: &'static str = $name;
+                    const BOOK_VERSION: Option<i64> = $version;
+                    const ACCESS: Access = Access::$access;
+                    const CONCURRENCY: Concurrency = Concurrency::$concurrency;
+                    const SUMMARY: &'static str = "Synthetic pending facade integration";
+                    type Input = dr_workspace::commands::BookIn;
+                    type Output = Value;
+                    fn run(_: &Cx<'_>, _: Self::Input) -> dr_workspace::Result<Self::Output> {
+                        unreachable!("pending facade integrations must never be dispatched")
+                    }
+                }
+                registry.add::<$ty>();
+            };
+        }
+        pending!(
+            SnapshotRead,
+            "entry_snapshot.future_query",
+            Read,
+            Shared,
+            Some(3)
+        );
+        pending!(
+            SnapshotWrite,
+            "entry_snapshot.future_write",
+            Write,
+            Book,
+            None
+        );
+        pending!(MaterialLink, "material.set_entry_link", Write, Book, None);
+        pending!(Rename, "timeline_view.rename", Write, Book, Some(3));
+        pending!(AddLane, "timeline_view.add_lane", Write, Book, Some(3));
+        pending!(MoveLane, "timeline_view.move_lane", Write, Book, Some(3));
+        pending!(
+            RemoveLane,
+            "timeline_view.remove_lane",
+            Write,
+            Book,
+            Some(3)
+        );
+
+        for spec in registry.iter() {
+            assert_eq!(
+                common_exclusion(spec, BookKernelVersion::V3),
+                None,
+                "{}",
+                spec.name
+            );
+            assert!(
+                exclusion_v3(spec).is_some(),
+                "{} must stay out of the catalog",
+                spec.name
+            );
+            assert!(
+                !allowed_v3(spec),
+                "{} must also refuse direct invocation",
+                spec.name
+            );
+        }
     }
 }
