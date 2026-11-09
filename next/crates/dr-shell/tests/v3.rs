@@ -90,6 +90,58 @@ fn versioned_snapshot_reads_queries_and_retains_setting_sources() {
     ws.shutdown().unwrap();
 }
 #[test]
+fn material_targets_use_the_v3_book_metadata_and_refresh_after_removal() {
+    let (_dir, ws, id) = seed();
+    let before = ws.observe(&format!("book:{id}")).unwrap();
+    let b = Book::load(&ws, &id).unwrap();
+    let material = b
+        .v3()
+        .unwrap()
+        .materials
+        .first()
+        .expect("shared seed material");
+    let target = Target::Material(material.id.parse().unwrap());
+    assert!(b.exists(&target));
+    assert_eq!(b.title(&target), Some(material.title.as_str()));
+    assert_eq!(b.mark(&target), (dr_ui::sand::Kind::Material, None));
+    assert!(!b.exists(&Target::Material("missing-material".parse().unwrap())));
+    assert!(
+        b.materials.is_empty(),
+        "v3 does not populate the v2.2 snapshot"
+    );
+    assert_eq!(
+        before.version,
+        ws.observe(&format!("book:{id}")).unwrap().version
+    );
+
+    // Model a remote metadata removal while its prose still exists. The
+    // shell must not infer a navigable material merely from that document.
+    let book_id = id.parse().unwrap();
+    let material_id = material.id.clone();
+    ws.library()
+        .open_doc(&format!("book:{id}"), dr_store::OpenDoc::Existing)
+        .unwrap()
+        .write(dr_store::Origin::Sync, move |doc| {
+            dr_doc::v3::BorrowedBookV3::new(doc, &book_id)
+                .unwrap()
+                .txn()
+                .purge(dr_doc::v3::CollectionV3::Materials, &material_id)
+                .unwrap();
+        })
+        .unwrap();
+    let after = Book::load(&ws, &id).unwrap();
+    assert!(!after.exists(&target));
+    assert_eq!(after.title(&target), None);
+    assert_ne!(b.v3().unwrap().revision, after.v3().unwrap().revision);
+    assert!(
+        ws.library()
+            .open_doc(&target.key(), dr_store::OpenDoc::Existing)
+            .is_ok()
+    );
+    ws.shutdown().unwrap();
+}
+
+#[test]
 fn entry_appearance_follows_valid_primary_lane_and_removals_close_targets() {
     let (_dir, ws, id) = seed();
     let b = Book::load(&ws, &id).unwrap();
