@@ -304,3 +304,11 @@ K2 的视图名称／泳道顺序等逐字段命令仍待协调；在接口提�
 窗口初轮的等待断言错误地把普通回复文本当成 AX 节点，导致 `ui.find` 超时；没有把该轮记为通过或归因于环境。独立隔离窗口诊断确认工具结果、书目更新及 AI 来源模块批注已落库，随后场景改为等最后一条工具结果按钮，并断言持久化结果与来源；第二轮同时纠正了 scenario 的 call 已解包 output、断言应从返回值根部取值的测试路径。两轮原日志均保留，不冒称产品通过。系统全局坐标检查确认同一副屏配置的窗口位于内建副屏；`app.info` 的 bounds 是显示器内坐标，不能据其 x/y 误判为主屏。
 
 本批收尾收到第 63 批的内核取消归属风险：`membership.remove`（以及委托它的 `timeline_view.remove`）会将隐藏剩余泳道误判为没有泳道而删 raw placement。这两种命令在 K6 已开放，故当前批立即沿用同一 frontier 的时间线完整性证据保护：先完整读视图，存在任何隐藏泳道／摆放／钉数据则拒绝取消；没有隐藏数据的普通路径仍可执行。新增永久回归覆盖可见 A、回收 B、两种取消入口拒写且版本／raw 不动、恢复 B 后摆放存在，以及重新完整读取后的正常取消。待 K2 正式修复后再放宽为精确影响集合；不把书目 CAS 当成受影响数据已读证明。
+
+## 共名签名、规范投影与取消归属保护交回（11-10）
+
+工作分支 `codex/k6-v3`，本次新增 `324cee78`（Spec.v3 输入／输出、批注模块与素材／书目实际调用、规范来源 DTO、K5 只读模板投影及契约）、`3122e291`（窗口场景按真实 AX 与返回值契约校验）、`93e06961`（取消归属的隐藏时间线完整性保护与永久回归）；`d078e2e2`、`cdaf1c74` 分别合入 main `079631fa`、`9a2351a7`，均无冲突。最终代码头为 `cdaf1c74`；本记录提交后将 `handback/k6` 前移到记录提交。只自行修改 `dr-agent-tools`、`dr-view-agent` 的验收示例／场景与开发依赖、对应 lockfile 和本文；内核命令实现未改。第 53 批整份视图拒写保护继续保留，本轮又覆盖取消归属路径；八项时间线契约包含回收／改名／恢复、隐藏成员／钉、并发、无 journal／结算／raw 变更及位置长度保留。
+
+在最终代码头完整运行 `cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、`cargo test --workspace --locked`、`cargo xtask check` 和根目录 `pnpm public:check`：全部通过，测试 **2169 通过／0 失败／22 忽略**，公开边界 5531 项；审计 972 个锁定 crate、0 漏洞、12 条既有通知，evidence 门禁报告 19 stale／15 legacy，未把性能预算记为通过。编译始终 `CARGO_BUILD_JOBS=3`，全测 `RUST_TEST_THREADS=1`。最终重建的 v3 合成模型副屏冒烟 **16/16、0 pending**，实际读回书目修改及 `author_kind=ai`／`source=api` 的模块批注，正常退出。最终日志为 `/tmp/drifting-k6-final-{fmt,clippy,tests,gates,public,window}.log`，窗口结果在 `/tmp/drifting-k6-final-window/`；初轮窗口断言修正记录仍保留。新增归属保护前的旧全测主动中断（退出 130，906／0／6 仅为部分结果），未计入最终通过数。没有使用真实模型、真实凭据或服务；未新增 v2.2 测试，既有契约随全套检查运行。
+
+待协调：锚定批注仍明确拒绝未受保护的 range／block_id／anchor 创建和非空 reanchor，等 K2 正式来源正文守卫到 main 后接实际正向调用；归属取消在存在隐藏视图数据时继续保守拒绝，等 K2 修复隐藏剩余泳道的 raw placement 保留后再按精确影响集合放宽。G1 `entry_snapshot.*` 与首次写前完整快照、G4 素材新接口、M14 新局部命令均不消费 WIP 或自动开放。K5 可在本批正式接收后调用 `TemplateSummary::from_v3_template`，只读预览不授予写覆盖。heavy／视觉与流畅度验收仍按整合安排暂缓；没有合进 main、推送或改动原 Antigravity 工作区。正式交回消息主动发给整合会话。
