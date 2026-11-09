@@ -876,40 +876,47 @@ G2 三种回调及 K5 新建委托。v3-lite 真窗口场景 **84/84 步、0 pen
 更新自己的子实体，不在这里重借 workspace；需要改窗口或调用命令的动作放进点击
 回调。第二轮完成后，左栏和大纲栏按 K4 分轨交给 G2；其余公共外壳入口继续留在 F6。
 
-### 素材正文与最近访问宿主续接（2026-11-10）
+### 素材正文与最近访问宿主交回（2026-11-10）
 
-基线同步第 61 批 `229b5138`（产品 `f3709422`）。G4 的真窗口反馈证明文本素材
-虽打开了目标，却被送入只处理条目／模板的 `EntryPage`，读到的是空组合页；这是
-既有路由缺口，不是加载性能问题。文本素材改走现有 `ChapterEditor` 与
-`SessionSource`，文档准确为 `material:<id>`；后台打开前用文档所属书核对请求
-发起时的书，拒绝串到另一书。已注册的图片／PDF 页面仍先走原注册口，不改 G4 视图。
+分支 `codex/k4-0-shell`，独立指针 `handback/k4-0-recent`。基线同步第 61 批
+`229b5138`（产品 `f3709422`），随后同步文档 main `9a2351a7`；同步提交为
+`5cdc7ef8`、`c6e1206b`。实现提交 `d755c871`、`2def25e9`、`4c6b6812`：文本素材
+从空 `EntryPage` 改走实际 `ChapterEditor`／`SessionSource` 的 `material:<id>`，
+后台打开前核对文档所属书，图片／PDF 仍先走已注册页面。模块 focus 的后代也被识别，
+并在旧页面退出焦点树前记住实际持有键盘的控件，修复从模块正文切到素材后的焦点丢失。
+最近访问使用第 61 批 typed `RecentTouch/List`，FIFO 队列的每次请求保留原库、原书
+及完整 Entry＋module／Material，避免快速导航写入反序；Home／全书／模板不伪造
+Book 目标。新增只读公共口 `Workspace::recent_state()` 与桥的 `state.get.recent`，
+只报告 F3 提交完成的目标和排队数，不查询或写入正文。未改结构读取、各组视图、
+G2 左栏／大纲；无新增界面文案，无新增或删除 v2.2 测试。
 
-`dr-shell/tests/v3_material.rs` 三项永久 GPUI 回归在各自修复前失败，修复后通过：
-真实编辑器正文与焦点、输入持久化／撤销、批注入口打开及取消、跨书拒绝和正确书
-里的写入隔离，以及从正文模块的内部控件切到素材时移交键盘。合并窗口曾在素材
-正文已加载后等不到焦点；失败后 app.info 仍 active／visible，`focus.workspace`
-也为 false。外壳现在识别模块 focus 的后代，并记住实际持有键盘的子控件，避免
-页面退出焦点树后把它误认成外部输入框。真实诊断在 `k4-0-host-focus/`，永久
-修复前契约为 `material-child-focus-before-owned.log`。搜索三项回归也通过；
-其中素材行号改为核对真实编辑器光标的段落，
-不再把空组合页的 `revealed` 当作正文已打开。原搜索交回仅证明搜索目标／行号流转，
-不能据此宣称素材输入或批注保存已通。修复前后日志在
-`next/target/acceptance/k4-0-checks/material-*.log`；全套与副屏冒烟待本批完成后记录。
+`CARGO_BUILD_JOBS=3`，全套 fmt、Clippy（workspace／all-targets／locked、
+`-D warnings`）通过；单线程完整测试 **2169 passed / 0 failed / 22 ignored**，
+xtask（含 audit）及根目录 public 全过。audit 为 0 漏洞／12 notices，既有
+19 项 measured evidence 提示过期；编译仍有 macOS `__eh_frame` 链接警告。
+八项宿主 GPUI 契约
+全部通过（素材 3、最近访问 2、搜索 3），覆盖真实输入／撤销、跨书拒绝与写入隔离、
+模块访问顺序、只读书版本、实际光标段落及焦点交接。规范场景为
+`dr-cli/scenarios/k4-0-host-writes.json`：共享 v3-lite 种子、新建两书素材、真实输入／
+撤销／保存、批注入口打开／取消、两篇正文的精确访问、跨书拒绝、重开读回。
+最终标准 debug 副屏窗口 **66/66、0 pending**（64 步及两次启动的副屏边界守卫），
+PID 67670、67829 的原生边界回执通过；结果在
+`next/target/acceptance/k4-0-host-final-window/`，位置回执在
+`next/target/acceptance/k4-0-host-secondary/receipts/`，自动检查在
+`next/target/acceptance/k4-0-checks/host-*.log`。素材路由和最近访问均保留修复前失败；
+焦点缺陷首轮窗口在 active／visible 状态下失败，诊断在 `k4-0-host-focus/`，
+有效永久回归的修复前证据为 `material-child-focus-before-owned.log`。原搜索交回
+只证明素材目标／行号流转，素材真实正文和输入以本批为准。
 
-最近访问已接第 61 批 typed `RecentTouch/List`：前台页的 Entry＋module 或 Material
-作为完整目标交给 FIFO 后台队列，每次请求保留原书与原库，避免快速导航时写入反序；
-Home／全书／模板不伪造为 Book 目标。`state.get.recent` 是完成 F3 持久化后的只读
-回执和排队数，不重复查询或写入；宿主两项回归已过，覆盖模块区分、顺序、重复访问、
-非页面跳过、书目版本不变和跨书隔离。独立交 `handback/k4-0-recent`，不改结构读取。
-批注保存等 G4 的原 composer API 版本分发正式接 main：当前
-旧 typed `CommentCreate` 明确拒绝 v3，不能绕过；G4 已确认会沿 `for_prose` 捕获
-稳定 anchor 并使用 v3 named 命令，K2 正补读取来源保护。当前仅验证 composer 可打开，
-未把保存写为通过。G4 的 `material_items/material_folders` 尚未交回接口不消费。
-F8 连续按键待核：首轮窗口把 `secondary-a left` 放在一次 `input.key`，随后仍为
-全选；同一正文与活跃可见窗口，拆开 RPC 并核对光标收拢后能正确前插。首轮和诊断
-保留在 `k4-0-material-window/`、`k4-0-material-selection/`、
-`k4-0-material-split-key/`，不把替换选区误报为正文持久化丢字。正式场景按真实
-分步键盘交付并等待选区状态；本批未修改 F8 的多键分发实现。
+待协调：批注保存仍等 G4 的原 `for_prose` API 版本分发正式接 main，本批只验打开
+和取消，未将保存记为通过；不消费尚未正式交回的素材集合接口。G4 已确认捕获稳定
+anchor 并使用 v3 named 命令，K2 正补读取来源保护。F8 单次 `input.key` 的
+`secondary-a left` 曾留下全选；同一真实正文、活跃可见窗口，拆开 RPC 并等待选区
+收拢后前插正确。首轮及诊断在 `k4-0-material-window/`、
+`k4-0-material-selection/`、`k4-0-material-split-key/`，正式场景使用分步按键；
+本批未修改多键分发实现，不把替换选区误报为正文持久化丢字。下一段由 F6 接实际
+模块编辑器登记／释放及 G1 `v3_link::Address` 的 URL 消费，按页面实例区分模块、
+标签、书和库；不将这些既定接线问题列为待作者设计。布局、heavy 与样式继续后置。
 
 ### G4 搜索宿主交回（2026-11-10）
 
