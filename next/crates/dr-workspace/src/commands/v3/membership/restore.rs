@@ -53,9 +53,9 @@ op! {
             if input.primary { view.check_primary_restore(&member)?; }
             for id in &views { view.check_timeline_placement_restore(id, &member)?; }
         }
-        let expected_membership = input.membership.then(|| expected.map_snapshot(CollectionV3::Memberships, &key));
+        let expected_membership = input.membership.then(|| expected.membership_restore_state(&host, &member)).transpose()?;
         let expected_primary = input.primary.then(|| expected.entry_snapshot(&member).and_then(|e| e.field("primary").cloned()));
-        let expected_placements = views.iter().map(|v| expected.timeline_placement_snapshot(v,&member)).collect::<std::result::Result<Vec<_>,_>>()?;
+        let expected_placements = views.iter().map(|v| expected.timeline_placement_restore_state(v,&member)).collect::<std::result::Result<Vec<_>,_>>()?;
         let old_membership = input.membership.then(|| old.map_snapshot(CollectionV3::Memberships, &key));
         let old_primary = if input.primary {
             Some(old.entry_snapshot(&member).ok_or_else(|| WsError::not_found("historical entry",member.as_str()))?
@@ -65,7 +65,6 @@ op! {
         let restored_memberships: Vec<_> = old.memberships_raw().into_iter()
             .filter(|m| m.host == host && m.member == member).collect();
         let inverse = input.clone();
-        let selected_key = key.clone();
         let (after, before) = cx.write_book_v3(&slot, move |tx| {
             let v = tx.view();
             // Preflight every selected path and the final graph before the
@@ -76,8 +75,9 @@ op! {
             if old_membership.is_some() { v.check_membership_snapshot_restore(&host, &member)?; }
             if old_primary.is_some() { v.check_primary_restore(&member)?; }
             for view in &views { v.check_timeline_placement_restore(view, &member)?; }
-            let current_placements = views.iter().map(|view| v.timeline_placement_snapshot(view, &member)).collect::<std::result::Result<Vec<_>, _>>()?;
-            if expected_membership.as_ref().is_some_and(|want| v.map_snapshot(CollectionV3::Memberships, &selected_key) != *want)
+            let current_membership = old_membership.as_ref().map(|_| v.membership_restore_state(&host, &member)).transpose()?;
+            let current_placements = views.iter().map(|view| v.timeline_placement_restore_state(view, &member)).collect::<std::result::Result<Vec<_>, _>>()?;
+            if current_membership != expected_membership
                 || expected_primary.as_ref().is_some_and(|want| v.entry_snapshot(&member).and_then(|e| e.field("primary").cloned()) != *want)
                 || current_placements != expected_placements {
                 return Err(WsError::Conflict("membership cancellation fields changed after the recorded write".into()));

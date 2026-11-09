@@ -1083,10 +1083,16 @@ frontier；在同一次 holder 写任务内逐项比较所选字段的预期原�
 深值不携带真实容器类型、富文本格式和列表身份，因此取消前及恢复前都检查所选实际路径：
 只支持可合并 Map 和可原样恢复的原子叶值，primary 只支持缺键／null／字符串。所选未知字段
 含 LoroText、MovableList、其他 CRDT 容器、非可合并 Map 或原子 Map 时，首个修改前整次拒绝，
-保留原始内容；历史目标与 expected 同样检查。未选中的未知字段、隐藏位置不受这一限制。
+保留原始内容；历史目标与 expected 同样检查。归属原始根键先检查，再判断快照是否存在：
+LoroText／原子 Map／标量／null／其他容器不得因过滤读取返回 None 而跳过检查，或在仅清
+primary 时顺手删除。未选中的未知字段、隐藏位置不受这一限制。
 `BookViewV3::state_frontiers` 在 holder 内捕获尚待提交操作后的 frontier，不提前提交；另外新增
 `check_membership_snapshot_restore`、`check_primary_restore` 和 `check_timeline_placement_restore`
-供同一预检使用。
+供同一预检使用。`membership_restore_state`／`timeline_placement_restore_state` 同时读取
+可见键和取消后仍保留的底层 Map 状态：另一台设备在尚未见到取消时修改同一记录，随后
+同步进来，即使记录暂时不可见，undo 也须 conflict／拒绝，不能重新挂回旧数据并删掉
+那次成功编辑。所选 placements 父映射必须仍为原可合并路径，避免换过的父映射或其
+其他记录被撤销操作重新挂回；不比较父映射里其他成员的内容。
 历史仍限定在该书，恢复前验证所有当前路径及最终归属图，再开始写入。
 
 新增 dr-doc 小接口：`BookViewV3::timeline_placement_snapshot`／
@@ -1101,5 +1107,8 @@ frontier；在同一次 holder 写任务内逐项比较所选字段的预期原�
 缺失归属不误清、旧 guards 和多路径预检失败不部分写入；另外覆盖真实 Workspace::undo/redo
 遇到同一 placement／primary 接管时保留成功写入，历史版本随 journal 重开继续有效。真实
 LoroText（含 bold）／MovableList 的归属与位置四种组合验证无损恢复或事前拒绝，深 JSON
-相等但真实容器被替换的重做也拒绝。原误删、整份撤销覆盖、同字段接管和容器降级均先复现失败，
+相等但真实容器被替换的重做也拒绝。归属根键的 Text／原子 Map／字符串／null／可移动列表，
+分别在有、无 primary 的十个组合中验证错误先于原值、版本和 journal 的任何变化。
+双 Loro peer 的真实同步验证暂时不可见记录中的普通字段／富文本新写入不被 undo 抹掉，
+原始 placements 父容器被替换但 deep JSON 相同的重做也拒绝。原误删、整份撤销覆盖、同字段接管和容器降级均先复现失败，
 再验证修复；本批不包含 M14 的改名或泳道编辑新功能，也未做真窗口或性能验收。

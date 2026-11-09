@@ -507,3 +507,198 @@ fn redo_refuses_a_rich_container_takeover_even_when_deep_json_is_identical() {
     assert_eq!(after.version, before.version);
     assert_eq!(after.value, before.value);
 }
+
+#[test]
+fn unsupported_membership_root_is_refused_before_primary_or_journal_changes() {
+    let mut failures = Vec::new();
+    for representation in ["text", "atomic-map", "string", "null", "list"] {
+        for primary in [false, true] {
+            let e = env();
+            let b = item(e.out("project.create", json!({"name":"Raw membership root"})));
+            let lane = create(&e, &b, "tpl-storyline", "Lane");
+            let member = create(&e, &b, "tpl-chapter", "Member");
+            e.call(
+                "membership.add",
+                json!({"book":b,"host":lane,"member":member}),
+            );
+            if primary {
+                e.call(
+                    "membership.primary",
+                    json!({"book":b,"host":lane,"member":member}),
+                );
+            }
+            let key = format!("{lane}|{member}");
+            imported(&e, &b, move |d| {
+                let root = d.get_map("memberships");
+                root.delete(&key).unwrap();
+                match representation {
+                    "text" => {
+                        let note = root.ensure_mergeable_text(&key).unwrap();
+                        note.insert(0, "memo").unwrap();
+                        note.mark(0..4, "bold", true).unwrap();
+                    }
+                    "atomic-map" => root
+                        .insert(
+                            &key,
+                            loro::LoroValue::Map(vec![("future".into(), "preserve".into())].into()),
+                        )
+                        .unwrap(),
+                    "string" => root.insert(&key, "future format").unwrap(),
+                    "null" => root.insert(&key, loro::LoroValue::Null).unwrap(),
+                    "list" => {
+                        root.ensure_mergeable_movable_list(&key)
+                            .unwrap()
+                            .insert(0, "preserve")
+                            .unwrap();
+                    }
+                    _ => unreachable!(),
+                }
+            });
+            let before = e.ws().observe(&format!("book:{b}")).unwrap();
+            let journal = serde_json::to_value(e.ws().journal(None, 100).unwrap()).unwrap();
+            let result = e.try_call(
+                "membership.remove",
+                json!({"book":b,"host":lane,"member":member}),
+            );
+            let after = e.ws().observe(&before.doc).unwrap();
+            let changed = before.version != after.version || before.value != after.value;
+            let journal_changed =
+                journal != serde_json::to_value(e.ws().journal(None, 100).unwrap()).unwrap();
+            if result.is_ok() || changed || journal_changed {
+                failures.push((representation, primary, changed, journal_changed));
+            }
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "unsafe raw membership roots (representation, primary, data_changed, journal_changed): {failures:?}"
+    );
+}
+
+#[test]
+fn undo_keeps_concurrent_peer_edits_to_the_cancelled_record() {
+    for placement in [false, true] {
+        for rich in [false, true] {
+            let e = env();
+            let b = item(e.out(
+                "project.create",
+                json!({"name":"Concurrent record takeover"}),
+            ));
+            let lane = create(&e, &b, "tpl-storyline", "Lane");
+            let member = create(&e, &b, "tpl-chapter", "Member");
+            e.call("timeline_view.put", json!({"book":b,"view":{"id":"detached-view","name":"Detached","lanes":[{"entry":lane}]}}));
+            e.call(
+            "timeline_view.place",
+            json!({"book":b,"view":"detached-view","entry":member,"lane":lane,"at":41,"span":7}),
+        );
+            let peer = e
+                .ws()
+                .library()
+                .open_doc(&format!("book:{b}"), dr_store::OpenDoc::Existing)
+                .unwrap()
+                .read(|d| d.fork())
+                .unwrap();
+            let base = peer.oplog_vv();
+            let record = if placement {
+                peer.get_map("timeline_views")
+                    .ensure_mergeable_map("detached-view")
+                    .unwrap()
+                    .ensure_mergeable_map("placements")
+                    .unwrap()
+                    .ensure_mergeable_map(&member)
+                    .unwrap()
+            } else {
+                peer.get_map("memberships")
+                    .ensure_mergeable_map(&format!("{lane}|{member}"))
+                    .unwrap()
+            };
+            if rich {
+                let note = record.ensure_mergeable_text("peer").unwrap();
+                note.insert(0, "retained edit").unwrap();
+                note.mark(0..4, "bold", true).unwrap();
+            } else {
+                record.insert("peer", "retained edit").unwrap();
+            }
+            peer.commit();
+            let updates = peer.export(loro::ExportMode::updates(&base)).unwrap();
+            e.call(
+                "membership.remove",
+                json!({"book":b,"host":lane,"member":member}),
+            );
+            imported(&e, &b, move |d| {
+                d.import(&updates).unwrap();
+            });
+            let before = e.ws().observe(&format!("book:{b}")).unwrap();
+            let result = e.ws().undo(&Actor::User);
+            let after = e.ws().observe(&before.doc).unwrap();
+            if result.is_ok() {
+                let record = if placement {
+                    &after.value["timeline_views"]["detached-view"]["placements"][&member]
+                } else {
+                    &after.value["memberships"][format!("{lane}|{member}")]
+                };
+                assert_eq!(
+                    record["peer"], "retained edit",
+                    "undo erased a concurrent peer edit, placement={placement}"
+                );
+            } else {
+                assert_eq!(before.value, after.value);
+                assert_eq!(before.version, after.version);
+            }
+        }
+    }
+}
+
+#[test]
+fn redo_refuses_replaced_placement_parent_identity_without_touching_other_positions() {
+    let e = env();
+    let b = item(e.out(
+        "project.create",
+        json!({"name":"Placement parent identity"}),
+    ));
+    let lane = create(&e, &b, "tpl-storyline", "Lane");
+    let member = create(&e, &b, "tpl-chapter", "Member");
+    e.call(
+        "timeline_view.put",
+        json!({"book":b,"view":{"id":"parent-view","name":"Parent","lanes":[{"entry":lane}]}}),
+    );
+    e.call(
+        "timeline_view.place",
+        json!({"book":b,"view":"parent-view","entry":member,"lane":lane,"at":41,"span":7}),
+    );
+    e.call(
+        "membership.remove",
+        json!({"book":b,"host":lane,"member":member}),
+    );
+    e.ws().undo(&Actor::User).unwrap().expect("undo");
+    let value = raw(&e, &b);
+    let position: loro::LoroValue = serde_json::from_value(
+        value["timeline_views"]["parent-view"]["placements"][&member].clone(),
+    )
+    .unwrap();
+    imported(&e, &b, move |d| {
+        let view = d
+            .get_map("timeline_views")
+            .ensure_mergeable_map("parent-view")
+            .unwrap();
+        let parent = view
+            .insert_container("placements", loro::LoroMap::new())
+            .unwrap();
+        let record = parent.ensure_mergeable_map(&member).unwrap();
+        let loro::LoroValue::Map(fields) = position else {
+            panic!("position map")
+        };
+        for (key, val) in fields.iter() {
+            record.insert(key, val.clone()).unwrap();
+        }
+    });
+    let before = e.ws().observe(&format!("book:{b}")).unwrap();
+    assert_eq!(
+        before.value, value,
+        "same values, different parent identity"
+    );
+    assert!(e.ws().redo(&Actor::User).is_err());
+    let after = e.ws().observe(&before.doc).unwrap();
+    assert_eq!(after.version, before.version);
+    assert_eq!(after.value, before.value);
+}

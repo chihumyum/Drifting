@@ -182,7 +182,33 @@ impl<'a> BookViewV3<'a> {
         host: &EntryId,
         member: &EntryId,
     ) -> Result<()> {
-        check_restorable_field(
+        use loro::{Container, ValueOrContainer};
+        let root = self.doc.get_map(book_v3::MEMBERSHIPS);
+        let key = Membership::key(host, member);
+        match root.get(&key) {
+            None => Ok(()),
+            Some(ValueOrContainer::Container(Container::Map(_))) => {
+                check_restorable_field(&root, &key)
+            }
+            // map_snapshot intentionally filters these out. Never use its
+            // absence as proof that a raw key is absent or safe to delete.
+            Some(_) => Err(DocError::NotInProfile(
+                "membership record is not a restorable map",
+            )),
+        }
+    }
+
+    /// CAS state for a selected membership, including its retained map after
+    /// deletion. A peer can edit that map concurrently before receiving the
+    /// cancellation; sync keeps those operations even while its key is absent.
+    pub fn membership_restore_state(
+        &self,
+        host: &EntryId,
+        member: &EntryId,
+    ) -> Result<(bool, Option<LoroValue>)> {
+        self.check_membership_snapshot_restore(host, member)?;
+        retained_record_state(
+            self.doc,
             &self.doc.get_map(book_v3::MEMBERSHIPS),
             &Membership::key(host, member),
         )
@@ -221,19 +247,51 @@ impl<'a> BookViewV3<'a> {
         view: &TimelineViewId,
         member: &EntryId,
     ) -> Result<()> {
-        use loro::{Container, ValueOrContainer};
+        use loro::{Container, ContainerID, ContainerTrait, ContainerType, ValueOrContainer};
         self.check_timeline_placement_write(view)?;
         let Some(ValueOrContainer::Container(Container::Map(record))) =
             self.doc.get_map(book_v3::TIMELINE_VIEWS).get(view.as_str())
         else {
             unreachable!("preflighted view")
         };
-        if let Some(ValueOrContainer::Container(Container::Map(placements))) =
+        let Some(ValueOrContainer::Container(Container::Map(placements))) =
             record.get("placements")
+        else {
+            return Err(DocError::NotInProfile(
+                "selected placements parent is absent",
+            ));
+        };
+        if placements.id()
+            != ContainerID::new_mergeable(&record.id(), "placements", ContainerType::Map)
         {
-            check_restorable_field(&placements, member.as_str())?;
+            return Err(DocError::NotInProfile(
+                "selected placements parent is not mergeable",
+            ));
         }
-        Ok(())
+        check_restorable_field(&placements, member.as_str())
+    }
+
+    /// CAS state for just this placement's live/retained record. The selected
+    /// parent path must keep its known identity; never resurrect a replaced
+    /// parent map and with it other entries that the inverse did not select.
+    pub fn timeline_placement_restore_state(
+        &self,
+        view: &TimelineViewId,
+        member: &EntryId,
+    ) -> Result<(bool, Option<LoroValue>)> {
+        use loro::{Container, ValueOrContainer};
+        self.check_timeline_placement_restore(view, member)?;
+        let Some(ValueOrContainer::Container(Container::Map(record))) =
+            self.doc.get_map(book_v3::TIMELINE_VIEWS).get(view.as_str())
+        else {
+            unreachable!("preflighted view")
+        };
+        let Some(ValueOrContainer::Container(Container::Map(placements))) =
+            record.get("placements")
+        else {
+            unreachable!("preflighted placements")
+        };
+        retained_record_state(self.doc, &placements, member.as_str())
     }
 
     /// Capture one consistent deep value under Loro's state lock, then resolve
@@ -1568,4 +1626,24 @@ fn check_restorable_field(parent: &LoroMap, key: &str) -> Result<()> {
             "snapshot contains an unsupported CRDT container",
         )),
     }
+}
+
+fn retained_record_state(
+    doc: &LoroDoc,
+    parent: &LoroMap,
+    key: &str,
+) -> Result<(bool, Option<LoroValue>)> {
+    use loro::{Container, ContainerID, ContainerTrait, ContainerType};
+    let id = ContainerID::new_mergeable(&parent.id(), key, ContainerType::Map);
+    let retained = match doc.get_container(id) {
+        Some(Container::Map(map)) => {
+            for key in map.keys() {
+                check_restorable_field(&map, key.as_str())?;
+            }
+            Some(map.get_deep_value())
+        }
+        None => None,
+        Some(_) => unreachable!("map container id"),
+    };
+    Ok((parent.get(key).is_some(), retained))
 }

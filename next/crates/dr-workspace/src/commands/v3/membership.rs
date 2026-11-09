@@ -107,13 +107,15 @@ op! {
             let v = t.view();
             let member = live(&v, &input.member)?;
             let views = removals(&v, &host, &member.id);
+            // Inspect the actual root key before interpreting a filtered
+            // snapshot as absent, including the primary-only/no-op cases.
+            v.check_membership_snapshot_restore(&host, &member.id)?;
             let membership = v.map_snapshot(CollectionV3::Memberships, &m::Membership::key(&host, &member.id)).is_some();
             let primary = member.primary.as_ref() == Some(&host);
             if !membership && !primary { return Ok(None); }
-            if membership { v.check_membership_snapshot_restore(&host, &member.id)?; }
             if primary { v.check_primary_restore(&member.id)?; }
             for view in &views { v.check_timeline_placement_restore(view, &member.id)?; }
-            t.remove_membership(&host, &member.id)?;
+            if membership { t.remove_membership(&host, &member.id)?; }
             if primary {
                 t.entries().entry(&member.id)?.primary(None)?;
             }
