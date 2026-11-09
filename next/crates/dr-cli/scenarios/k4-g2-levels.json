@@ -1,0 +1,822 @@
+{
+  "about": "K4 G2 第二批：v3-lite 层级页八项设置、有效值与来源、逐项还原、接收开关往返保留归属、住处与归属看板分节。",
+  "steps": [
+    {
+      "seed": "v3-lite"
+    },
+    {
+      "call": "book.list",
+      "input": {},
+      "save": "books"
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "roots"
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}",
+        "all": true
+      },
+      "save": "entries"
+    },
+    {
+      "call": "entry.create",
+      "input": {
+        "book": "${books.0.id}",
+        "parent": "${roots.0.id}",
+        "template": "tpl-group",
+        "title": "Synthetic level settings"
+      },
+      "save": "level"
+    },
+    {
+      "call": "entry.create",
+      "input": {
+        "book": "${books.0.id}",
+        "parent": "${level.id}",
+        "template": "tpl-chapter",
+        "title": "Synthetic resident"
+      },
+      "save": "resident"
+    },
+    {
+      "call": "entry.update",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${level.id}",
+        "overrides": {
+          "accept": true,
+          "allow": []
+        }
+      }
+    },
+    {
+      "call": "membership.add",
+      "input": {
+        "book": "${books.0.id}",
+        "host": "${level.id}",
+        "member": "${entries.[template=tpl-chapter].id}"
+      }
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${books.0.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/version": 3
+        }
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ToggleBottomTimeline"
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${level.id}"
+      }
+    },
+    {
+      "app": "ui.wait"
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/v3Page/sections/[id=settings]/registered": true
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Residents",
+        "role": "Heading"
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "00-level-top.png"
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 1050,
+        "y": 420,
+        "dy": 250
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Assigned entries",
+        "role": "Heading"
+      },
+      "save": "membersHeading20"
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 1050,
+        "y": 420,
+        "dy": 2000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 450
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Default template",
+        "role": "Group",
+        "count": 1
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "contains": "Template ·"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Off",
+        "role": "Button",
+        "within": {
+          "label": "Automatic links",
+          "role": "Group"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "On",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 450
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${level.id}"
+      },
+      "expect": {
+        "/overrides/auto_link": true
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "contains": "Override · Synthetic level settings"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Restore Automatic links",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 450
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${level.id}"
+      },
+      "expect": {
+        "/overrides/auto_link": null
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "章",
+        "role": "Button",
+        "within": {
+          "label": "Default template",
+          "role": "Group"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "None",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 450
+      }
+    },
+    {
+      "call": "level.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${level.id}"
+      },
+      "expect": {
+        "/settings/default_template": null
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Restore Default template",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 450
+      }
+    },
+    {
+      "call": "level.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${level.id}"
+      },
+      "expect": {
+        "/settings/default_template": "tpl-chapter"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "All templates",
+        "role": "Button",
+        "within": {
+          "label": "Allowed templates",
+          "role": "Group"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "章",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 450
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Close",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 450
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${level.id}"
+      },
+      "expect": {
+        "/overrides/allow": [
+          "tpl-chapter"
+        ]
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Restore Allowed templates",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 450
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${level.id}"
+      },
+      "expect": {
+        "/overrides/allow": null
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "This level",
+        "role": "Button",
+        "within": {
+          "label": "New entries reside in",
+          "role": "Group"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "${roots.0.title}",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 450
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${level.id}"
+      },
+      "expect": {
+        "/overrides/home": "${roots.0.id}"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Restore New entries reside in",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 450
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "On",
+        "role": "Button",
+        "within": {
+          "label": "Manuscript",
+          "role": "Group"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Off",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 450
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${level.id}"
+      },
+      "expect": {
+        "/overrides/is_manuscript": false
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Restore Manuscript",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 450
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Plain text",
+        "role": "Button",
+        "within": {
+          "label": "Formatting shortcuts",
+          "role": "Group"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Full",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 450
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${level.id}"
+      },
+      "expect": {
+        "/overrides/format_shortcuts": "full"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Restore Formatting shortcuts",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 450
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "On",
+        "role": "Button",
+        "within": {
+          "label": "Accept entries from elsewhere",
+          "role": "Group"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Off",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 450
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${level.id}"
+      },
+      "expect": {
+        "/overrides/accept": false
+      }
+    },
+    {
+      "call": "level.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${level.id}"
+      },
+      "expect": {
+        "/members": []
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Off",
+        "role": "Button",
+        "within": {
+          "label": "Accept entries from elsewhere",
+          "role": "Group"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "On",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 450
+      }
+    },
+    {
+      "call": "level.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${level.id}"
+      },
+      "expect": {
+        "/members/0/id": "${entries.[template=tpl-chapter].id}"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "List",
+        "role": "Button",
+        "within": {
+          "label": "Display",
+          "role": "Group"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Grid",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 450
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${level.id}"
+      },
+      "expect": {
+        "/overrides/display": "grid"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Grid",
+        "role": "Button",
+        "within": {
+          "label": "Display",
+          "role": "Group"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Islands",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 450
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${level.id}"
+      },
+      "expect": {
+        "/overrides/display": "island"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Islands",
+        "role": "Button",
+        "within": {
+          "label": "Display",
+          "role": "Group"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Board",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 450
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${level.id}"
+      },
+      "expect": {
+        "/overrides/display": "board"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Board",
+        "role": "Button",
+        "within": {
+          "label": "Display",
+          "role": "Group"
+        }
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "01-level-settings.png"
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 1050,
+        "y": 420,
+        "dy": -2000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 450
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Residents",
+        "role": "Heading"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "Group",
+        "label": "Entries",
+        "count": 1
+      },
+      "save": "boardViewportBefore"
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "02-residents-board.png"
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 800,
+        "y": 420,
+        "dy": 480
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 450
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Assigned entries",
+        "role": "Heading"
+      },
+      "save": "boardMembersHeading"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${entries.[template=tpl-chapter].title}",
+        "count": 1
+      },
+      "save": "memberShown"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "Group",
+        "label": "Entries",
+        "count": 1
+      },
+      "save": "boardViewportAfter"
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "03-members-board.png"
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${entries.[template=tpl-chapter].id}"
+      },
+      "expect": {
+        "/parent": "${entries.[template=tpl-chapter].parent}"
+      }
+    },
+    {
+      "app": "app.quit"
+    }
+  ]
+}
