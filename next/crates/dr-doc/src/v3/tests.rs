@@ -90,7 +90,25 @@ fn novel_project_template_populates_stable_templates_roots_and_categories() {
     assert!(tpls[&tid(TPL_STORYLINE)].is_lane_level());
     assert!(tpls[&tid(TPL_CHAPTER)].is_leaf());
 
-    // Root entries in manuscript order: 书稿, 构想, 要素, 故事线.
+    // Root entries in manuscript order: 书稿, 构想, 要素, 故事线 (all fresh UUIDv7).
+    for id in [
+        &roots.manuscript,
+        &roots.ideas,
+        &roots.elements,
+        &roots.storylines,
+        &roots.cat_character,
+        &roots.cat_location,
+        &roots.cat_item,
+        &roots.cat_organization,
+    ] {
+        assert!(is_uuid_v7(id.as_str()), "expected uuidv7 root id, got {id}");
+    }
+    assert!(is_uuid_v7(roots.narrative_view.as_str()));
+    assert_eq!(v.novel_roots(), Some(roots.clone()));
+    assert_eq!(
+        v.root_entry_by_template(&tid(TPL_MANUSCRIPT)).map(|e| e.id),
+        Some(roots.manuscript.clone())
+    );
     let top: Vec<EntryId> = v.children_of(None).into_iter().map(|e| e.id).collect();
     assert_eq!(
         top,
@@ -274,15 +292,17 @@ fn timeline_view_requires_lane_membership_and_prose_ownership_works() {
     assert_eq!(tv.placements[0].entry, eid("ch-1"));
     assert_eq!(tv.pins.len(), 1);
 
-    // Prose ownership: body:<entry>/<module>, body:<entry>/about, template:<tpl>/<mod>.
+    // Prose ownership: body:<entry>/<module>, body:<entry>/about, template:<book>/<tpl>/<mod>.
     let ch_body = DocId::parse("body:ch-1/mod-prose").unwrap();
     let sl_about = DocId::parse("body:sl-main/about").unwrap();
     let orphan_body = DocId::parse("body:missing/mod-prose").unwrap();
-    let tpl_doc = DocId::parse("template:tpl-chapter/mod-prose").unwrap();
+    let tpl_doc = DocId::parse("template:b-v3/tpl-chapter/mod-prose").unwrap();
+    let other_book_tpl = DocId::parse("template:other-book/tpl-chapter/mod-prose").unwrap();
     assert!(v.owns_prose(&ch_body));
     assert!(v.owns_prose(&sl_about));
     assert!(!v.owns_prose(&orphan_body));
     assert!(v.owns_prose(&tpl_doc));
+    assert!(!v.owns_prose(&other_book_tpl));
 
     // ProseDoc can open both body: and v3 template: document IDs.
     let mut p = ProseDoc::create(ch_body.clone(), 2).unwrap();
@@ -341,4 +361,23 @@ fn entry_snapshot_and_restore_round_trip() {
         restored.fields[&mid(MOD_FIELDS)]["summary"],
         FieldValue::Text("初稿梗概".into())
     );
+}
+
+#[test]
+fn novel_roots_are_found_by_template_after_renaming() {
+    let mut doc = BookDocV3::create(bid(), 1).unwrap();
+    let (roots, _) = doc.edit(Origin::User, apply_novel_project_template);
+    let roots = roots.unwrap();
+    doc.edit(Origin::User, |t| {
+        t.entries()
+            .entry(&roots.manuscript)?
+            .title("Renamed manuscript")?;
+        t.entries()
+            .entry(&roots.cat_character)?
+            .title("Renamed people")?;
+        Ok(())
+    })
+    .0
+    .unwrap();
+    assert_eq!(doc.view().novel_roots(), Some(roots));
 }

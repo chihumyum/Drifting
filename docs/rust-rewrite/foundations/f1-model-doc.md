@@ -439,3 +439,13 @@ docs/rust-rewrite/acceptance/f1-m3-doc-bench.json   第三轮的测量证据
 ### 待协调
 
 - 见上一节对 K3（`m10-import.md` 待协调 24、25、27）的落点确认。
+
+## 交回（K1 文档 id 退回修复，2026-11-09，`handback/k1`）
+
+- 分支 `codex/k1-v3`；接手保存的文档 id 半成品，默认层级、分类及时间线视图生成新的 UUIDv7，模板应用返回实际 id。读取根层级用 `root_entry_by_template`；分类按默认叶子模板识别，不按名称猜。
+- 模板正文改为 `template:<书 id>/<模板 id>/<模块 id>`，`owns_prose` 同时校验所属书。种子和样书转换的根 id 从书 id 确定生成，保持测试可复现、跨书互不共用；模板的 `home` 绑定本书生成的书稿根。
+- 验收：同库创建两本小说，实际写入根／分类说明、叶子正文及模板正文，检查跨书 id 和所有权不相交；删除第一本的全部文档后逐篇比较第二本内容。showcase 的多书转换另断言条目和文档 id 不重复；改名后的根查找另有回归。
+- v2.2 共用文件：`dr-model/src/id.rs` 仅调整 v3 模板正文分支，原 category/storyline 模板 id 保留；`invariant.rs` 追加 v3 契约；`dr-store/src/index.rs` 仅改 v3 模板 id 辅助函数；`dr-testkit/src/seed/shape.rs` 仅改 `of_v3`。
+- 提交：`e1f73bc4` 文档 id 隔离与回归；`8970de4a` 合入 main `f9d0d55d`；`cd2e354f` 对齐存储 purge 返回值。只合 main 到工作分支，没有合入 main 或推送。
+- 检查：`cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、`RUST_TEST_THREADS=1 cargo test --workspace --locked`（1,977 通过／0 失败／22 忽略）、`cargo xtask check`、根目录 `pnpm public:check` 全过。编译并发 3；审计 970 个依赖，0 漏洞、12 条已有提示；已有 stale／legacy 测量证据原样保留。
+- 待协调：K3 的原工作区不改；消费本次返回的根 id 和带书 id 的模板正文接口后自行重交。

@@ -28,7 +28,8 @@ use crate::schema::{self, GENESIS_VERSION_V3, SCHEMA_VERSION_V3, book_v3};
 
 pub use novel::{
     NOVEL_PROJECT_TEMPLATE_ID, NOVEL_PROJECT_TEMPLATE_VERSION, NovelRootEntries,
-    apply_novel_project_template, novel_project_templates,
+    apply_novel_project_template, apply_novel_project_template_with, find_novel_roots,
+    novel_project_templates,
 };
 pub use read::{BookViewV3, EntrySnapshotV3, RepairPlanV3};
 pub use write::BookTxnV3;

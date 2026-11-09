@@ -447,9 +447,9 @@ impl TemplateId {
         Self::parse(&format!("storyline:{id}")).expect("valid id")
     }
 
-    /// A v3 entry template's prose module (`<template_id>/<module_id>`).
-    pub fn for_entry_module(template: &EntryTemplateId, module: &ModuleId) -> Self {
-        Self::parse(&format!("{template}/{module}")).expect("valid id")
+    /// A v3 entry template's prose module (`<book_id>/<template_id>/<module_id>`).
+    pub fn for_entry_module(book: &BookId, template: &EntryTemplateId, module: &ModuleId) -> Self {
+        Self::parse(&format!("{book}/{template}/{module}")).expect("valid id")
     }
 
     /// Whose template this is; `None` for an id this version does not know.
@@ -462,13 +462,22 @@ impl TemplateId {
         }
     }
 
-    /// The `(template_id, module_id)` of a v3 template prose document.
-    pub fn entry_module(&self) -> Option<(EntryTemplateId, ModuleId)> {
+    /// The `(book_id, template_id, module_id)` of a v3 template prose document
+    /// (`template:<book_id>/<template_id>/<module_id>`).
+    pub fn entry_module(&self) -> Option<(BookId, EntryTemplateId, ModuleId)> {
         if self.owner().is_some() {
             return None;
         }
-        let (t, m) = self.as_str().split_once('/')?;
-        Some((EntryTemplateId::parse(t).ok()?, ModuleId::parse(m).ok()?))
+        let (b, rest) = self.as_str().split_once('/')?;
+        if b.contains('/') || b.contains(':') {
+            return None;
+        }
+        let (t, m) = rest.split_once('/')?;
+        Some((
+            BookId::parse(b).ok()?,
+            EntryTemplateId::parse(t).ok()?,
+            ModuleId::parse(m).ok()?,
+        ))
     }
 }
 
@@ -812,7 +821,7 @@ mod tests {
             "node:0199-x:y",
             "template:category:c1",
             "template:storyline:s1",
-            "template:tpl-chapter/mod-prose",
+            "template:b1/tpl-chapter/mod-prose",
         ] {
             let id = DocId::parse(s).unwrap();
             assert_eq!(id.to_string(), s);
@@ -900,10 +909,12 @@ mod tests {
         assert_eq!(EntryId::parse("a/b"), Err(IdError::BadChar('/')));
         assert_eq!(EntryId::parse("a|b"), Err(IdError::BadChar('|')));
         assert_eq!(EntryTemplateId::parse("a:b"), Err(IdError::BadChar(':')));
+        let book = BookId::parse("b1").unwrap();
         let tpl = EntryTemplateId::parse("tpl-chapter").unwrap();
         let m = ModuleId::parse("mod-prose").unwrap();
-        let tid = TemplateId::for_entry_module(&tpl, &m);
-        assert_eq!(tid.entry_module(), Some((tpl, m)));
+        let tid = TemplateId::for_entry_module(&book, &tpl, &m);
+        assert_eq!(tid.entry_module(), Some((book, tpl, m)));
         assert_eq!(tid.owner(), None);
+        assert!(DocId::parse("template:tpl-chapter/mod-prose").is_err());
     }
 }
