@@ -545,3 +545,279 @@ fn queued_view_and_lane_edits_preserve_memberships_and_other_views(cx: &mut Test
             .any(|v| v["id"] == "drained-one")
     );
 }
+
+fn pin_only_target(
+    lib: &Library,
+    book: &str,
+) -> (
+    dr_workspace::commands::v3::types::TimelineView,
+    String,
+    String,
+) {
+    let before = Book::load(lib, book).unwrap();
+    let view = before.v3().unwrap().timeline_views[0].clone();
+    let target = call(lib, "entry.create", json!({"book":book,"parent":view.lanes[0].entry,"template":"tpl-chapter","title":"Synthetic pin-only target"}))["id"].as_str().unwrap().to_owned();
+    let pin = "synthetic-hidden-binding".to_owned();
+    call(
+        lib,
+        "timeline_view.put_pin",
+        json!({"book":book,"view":view.id,"pin":{"id":pin,"at":3.,"label":"Synthetic recoverable pin","color":"#123456","entry":target}}),
+    );
+    let before = Book::load(lib, book).unwrap();
+    (before.v3().unwrap().timeline_views[0].clone(), target, pin)
+}
+
+fn rejected_without_book_write(
+    host: &Entity<Host>,
+    lib: &Library,
+    book: &str,
+    cx: &mut VisualTestContext,
+    action: impl FnOnce(&Entity<Timeline>, &mut VisualTestContext),
+) {
+    host.update(cx, |h, cx| {
+        h._workspace.update(cx, |w, cx| {
+            w.toast = None;
+            cx.notify();
+        })
+    });
+    let before = lib.observe(&format!("book:{book}")).unwrap();
+    let timeline = host.read_with(cx, |h, _| h.timeline.clone());
+    action(&timeline, cx);
+    wait(cx, |cx| {
+        host.read_with(cx, |h, cx| h._workspace.read(cx).toast.is_some())
+    });
+    let after = lib.observe(&format!("book:{book}")).unwrap();
+    assert_eq!(
+        after.version, before.version,
+        "a rejected edit committed a book write"
+    );
+    assert_eq!(
+        after.value, before.value,
+        "a rejected edit changed retained data"
+    );
+}
+
+#[gpui::test]
+fn all_view_edits_reject_equal_count_hidden_binding_and_keep_the_rename_draft(
+    cx: &mut TestAppContext,
+) {
+    let (_dir, lib, id) = seed();
+    let (view, target, pin) = pin_only_target(&lib, &id);
+    call(&lib, "entry.trash", json!({"book":id,"id":target}));
+    let raw = lib.observe(&format!("book:{id}")).unwrap().value["timeline_views"][&view.id].clone();
+    let listed = call(&lib, "timeline_view.list", json!({"book":id}));
+    let shown = listed
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|v| v["id"] == view.id)
+        .unwrap();
+    for field in ["lanes", "placements", "pins"] {
+        assert_eq!(
+            raw[field].as_object().unwrap().len(),
+            shown[field].as_array().unwrap().len()
+        );
+    }
+    assert_eq!(raw["pins"][&pin]["entry"], target);
+    assert!(
+        shown["pins"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["id"] == pin)
+            .unwrap()["entry"]
+            .is_null()
+    );
+    let (host, cx) = visual(cx, &lib, &id);
+    rejected_without_book_write(&host, &lib, &id, cx, |t, cx| {
+        t.update(cx, |t, cx| {
+            t.reorder_lane(view.lanes[0].entry.clone(), 1, cx)
+        });
+    });
+    rejected_without_book_write(&host, &lib, &id, cx, |t, cx| {
+        t.update(cx, |t, cx| t.add_lane(view.lanes[0].entry.clone(), cx));
+    });
+    rejected_without_book_write(&host, &lib, &id, cx, |t, cx| {
+        t.update(cx, |t, cx| t.remove_lane(view.lanes[0].entry.clone(), cx));
+    });
+    rejected_without_book_write(&host, &lib, &id, cx, |t, cx| {
+        cx.update(|w, cx| t.update(cx, |t, cx| t.rename(false, w, cx)));
+        frame(cx);
+        cx.simulate_input("Synthetic preserved rename draft");
+        cx.simulate_keystrokes("enter");
+    });
+    call(&lib, "entry.restore", json!({"book":id,"id":target}));
+    refresh(&host, &lib, &id, cx);
+    frame(cx);
+    // No retyping: the failed editor must retain its text for an explicit retry.
+    cx.simulate_click(
+        gpui::point(gpui::px(50.), gpui::px(15.)),
+        gpui::Modifiers::none(),
+    );
+    cx.simulate_keystrokes("enter");
+    wait(cx, |_| {
+        call(&lib, "timeline_view.list", json!({"book":id}))[0]["name"]
+            == "Synthetic preserved rename draft"
+    });
+    let actual =
+        lib.observe(&format!("book:{id}")).unwrap().value["timeline_views"][&view.id].clone();
+    assert_eq!(actual["pins"][&pin]["entry"], target);
+    for field in ["lanes", "placements", "pins"] {
+        assert_eq!(actual[field], raw[field]);
+    }
+}
+
+#[gpui::test]
+fn pin_edits_reject_hidden_fields_and_creation_cannot_replace_an_existing_pin(
+    cx: &mut TestAppContext,
+) {
+    use dr_view_timeline::v3::PinEdit;
+    let (_dir, lib, id) = seed();
+    let (view, target, pin) = pin_only_target(&lib, &id);
+    let original = view.pins.iter().find(|p| p.id == pin).unwrap().clone();
+    call(&lib, "entry.trash", json!({"book":id,"id":target}));
+    let (host, cx) = visual(cx, &lib, &id);
+    for edit in [
+        PinEdit::Label("Synthetic rejected rename".into()),
+        PinEdit::Color(Some("#654321".into())),
+        PinEdit::At(7.),
+        PinEdit::Bind(None),
+    ] {
+        rejected_without_book_write(&host, &lib, &id, cx, |t, cx| {
+            t.update(cx, |t, cx| t.edit_pin(pin.clone(), edit, cx));
+        });
+    }
+    rejected_without_book_write(&host, &lib, &id, cx, |t, cx| {
+        let mut stale = original.clone();
+        stale.entry = None;
+        t.update(cx, |t, cx| t.put_pin(stale, cx));
+    });
+    call(&lib, "entry.restore", json!({"book":id,"id":target}));
+    refresh(&host, &lib, &id, cx);
+    let t = host.read_with(cx, |h, _| h.timeline.clone());
+    t.update(cx, |t, cx| {
+        t.edit_pin(
+            pin.clone(),
+            PinEdit::Label("Synthetic accepted rename".into()),
+            cx,
+        )
+    });
+    wait(cx, |_| {
+        lib.observe(&format!("book:{id}")).unwrap().value["timeline_views"][&view.id]["pins"][&pin]
+            ["label"]
+            == "Synthetic accepted rename"
+    });
+    let actual =
+        lib.observe(&format!("book:{id}")).unwrap().value["timeline_views"][&view.id]["pins"][&pin]
+            .clone();
+    assert_eq!(actual["entry"], target);
+    assert_eq!(actual["at"], original.at);
+    assert_eq!(actual["color"], json!(original.color));
+}
+
+#[gpui::test]
+fn hidden_lanes_and_placements_still_block_whole_view_edits_but_not_an_unrelated_pin(
+    cx: &mut TestAppContext,
+) {
+    use dr_view_timeline::v3::PinEdit;
+    let (_dir, lib, id) = seed();
+    let (view, _target, pin) = pin_only_target(&lib, &id);
+    let (host, cx) = visual(cx, &lib, &id);
+    for hidden in [&view.lanes[0].entry, &view.placements[0].entry] {
+        call(&lib, "entry.trash", json!({"book":id,"id":hidden}));
+        refresh(&host, &lib, &id, cx);
+        rejected_without_book_write(&host, &lib, &id, cx, |t, cx| {
+            t.update(cx, |t, cx| {
+                t.reorder_lane(view.lanes[1].entry.clone(), -1, cx)
+            });
+        });
+        call(&lib, "entry.restore", json!({"book":id,"id":hidden}));
+        refresh(&host, &lib, &id, cx);
+    }
+    call(
+        &lib,
+        "entry.trash",
+        json!({"book":id,"id":view.placements[0].entry}),
+    );
+    refresh(&host, &lib, &id, cx);
+    let before =
+        lib.observe(&format!("book:{id}")).unwrap().value["timeline_views"][&view.id].clone();
+    let t = host.read_with(cx, |h, _| h.timeline.clone());
+    t.update(cx, |t, cx| {
+        t.edit_pin(pin.clone(), PinEdit::Color(Some("#234567".into())), cx)
+    });
+    wait(cx, |_| {
+        lib.observe(&format!("book:{id}")).unwrap().value["timeline_views"][&view.id]["pins"][&pin]
+            ["color"]
+            == "#234567"
+    });
+    call(
+        &lib,
+        "entry.restore",
+        json!({"book":id,"id":view.placements[0].entry}),
+    );
+    let after =
+        lib.observe(&format!("book:{id}")).unwrap().value["timeline_views"][&view.id].clone();
+    assert_eq!(after["lanes"], before["lanes"]);
+    assert_eq!(after["placements"], before["placements"]);
+    assert_eq!(after["pins"][&pin]["entry"], before["pins"][&pin]["entry"]);
+}
+
+#[gpui::test]
+fn independently_successful_controls_merge_pin_fields_and_preserve_external_placements(
+    cx: &mut TestAppContext,
+) {
+    use dr_view_timeline::v3::PinEdit;
+    let (_dir, lib, id) = seed();
+    let (view, _target, pin) = pin_only_target(&lib, &id);
+    let (host, cx) = visual(cx, &lib, &id);
+    let first = host.read_with(cx, |h, _| h.timeline.clone());
+    let second = cx.update(|_, cx| {
+        let host = BottomHost {
+            workspace: host.read(cx)._workspace.downgrade(),
+            library: Some(lib.clone()),
+            book_id: id.clone(),
+            book: Rc::new(Book::load(&lib, &id).unwrap()),
+            target: None,
+        };
+        cx.new(|_| Timeline::new(&host))
+    });
+    first.update(cx, |t, cx| {
+        t.edit_pin(
+            pin.clone(),
+            PinEdit::Label("Synthetic independent rename".into()),
+            cx,
+        )
+    });
+    wait(cx, |_| {
+        lib.observe(&format!("book:{id}")).unwrap().value["timeline_views"][&view.id]["pins"][&pin]
+            ["label"]
+            == "Synthetic independent rename"
+    });
+    // The second control still has its earlier UI snapshot.
+    second.update(cx, |t, cx| {
+        t.edit_pin(pin.clone(), PinEdit::Color(Some("#456789".into())), cx)
+    });
+    wait(cx, |_| {
+        lib.observe(&format!("book:{id}")).unwrap().value["timeline_views"][&view.id]["pins"][&pin]
+            ["color"]
+            == "#456789"
+    });
+    call(
+        &lib,
+        "timeline_view.place",
+        json!({"book":id,"view":view.id,"entry":view.placements[0].entry,"at":42.,"span":9.}),
+    );
+    first.update(cx, |t, cx| {
+        t.reorder_lane(view.lanes[0].entry.clone(), 1, cx)
+    });
+    wait(cx, |_| {
+        call(&lib, "timeline_view.list", json!({"book":id}))[0]["lanes"][0]["entry"]
+            == view.lanes[1].entry
+    });
+    let raw = lib.observe(&format!("book:{id}")).unwrap().value["timeline_views"][&view.id].clone();
+    assert_eq!(raw["pins"][&pin]["label"], "Synthetic independent rename");
+    assert_eq!(raw["pins"][&pin]["color"], "#456789");
+    assert_eq!(raw["placements"][&view.placements[0].entry]["at"], 42.);
+    assert_eq!(raw["placements"][&view.placements[0].entry]["span"], 9.);
+}

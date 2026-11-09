@@ -15,6 +15,8 @@
 
 编译时设 `CARGO_BUILD_JOBS=3`（整合者用 6）。机器 12 核，五路同时编译。
 
+作者 11-10 补充：所有会话（含整合者）启动的验收窗口统一放到副屏；已打开的验收窗口也移到副屏，重启／新建后仍须确认位置。保持隔离 profile 和原验收配置，不移动作者日常使用的窗口；无副屏或无法定位时主动报告。已直接通知 K1／K2、F6／K4-0、G1–G4、K5、K6。
+
 ## 整合者
 
 等各会话的正式交回／重交消息，不再每 10 分钟扫描 `handback/*`。收到消息后核对其中指定的 ref 和提交；尚不在 `main` 的正式候选，在常驻整合 worktree 开一批，照 [integration.md](integration.md) 合并、跑全套检查。已有接收队列和当前批次继续，不因通知方式变化中断：
@@ -75,8 +77,8 @@
 
 - **G2／K5／G4 与外壳：** F6 第二次交回的协调项已转交：G2 注册三种条目选择器并接左栏／大纲，K5 注册 template creator 和 Template 页，G4 与外壳补版本化主页注册口与正式 v3 导览；当前 v3 不显示旧按种类导览。maker／on_refresh 只读所给快照、更新子实体，避免重借正被外壳借用的 workspace；写入留点击回调并在异步提交前重验书和目标。
 
-- **F3/K2 与 G3：** G3 第一段交回的 `timeline_view.list` 会隐藏无效目标，但 `timeline_view.put` 是整份替换。当前 G3 重读后比较原始与有效集合数量，并以 book frontier 做 CAS，数量不一致就拒绝、不丢隐藏数据；视图改名／泳道增删排序的局部命令交 F3/K2，G3 消费后补验。
-- **G3 返修：** 第 56 批在 main 复核确认，时间钉指向已回收条目时查询会把 entry 投影为 null，集合数量不变；泳道重排的整份写入会清空原始绑定。第 45、48 批历史接收保留，但数量比较不足，须保护隐藏字段并补永久回归后重交，详见退回表。已直接通知 G3；不把已合 main 写成无此数据风险。
+- **F3/K2 与 G3：** timeline_view.list 会隐藏无效目标，而 put 为整份替换；G3 第 59 批已逐字段核对原始与有效投影，并以同一 book frontier 做 CAS，不完整读取明确拒写。视图改名／泳道增删排序的局部命令仍交 F3/K2，G3 消费后补验。
+- **G3 返修已关闭：** 第 56 批发现的数量相同但隐藏 pin.entry 被清空，已由 `c611c8de` 在第 59 批修复接收。完整字段／身份覆盖核对、同观察版本守卫、创建缺席证明及失败草稿重试均已验收；适配拒写断言的原场景与六项永久契约、三组真窗口通过。第 45、48、56 批历史保留，局部命令与 heavy 继续协调。
 
 - **F6/K2 与 G3：** G3 的 v3-heavy 真窗口在书快照尚未载入、时间线尚未实例化时超时，最长等待 180 秒仍 `book.loaded=false`。打开／横滚验收未过，不能算 G3 全组或 K4 切换完成；外壳／查询负责方定位，再由 G3 重跑 `python3 crates/dr-view-timeline/scripts/window-bench.py`。现有 v2.2 的 CLI／IPC 往返计时不等于发布档绘制帧基准，见 m14 的待协调 2。
 
@@ -92,6 +94,8 @@
 - **G1／G2：** 第五十二批已接 G2 的大纲接口 `09142d08`，见 M11 待协调 2：G1 在实际正文编辑器的 PageHost 构造后、移入 Chrome 前调用 `Workspace::register_v3_outline_editor(&page, Some((&host.entry, &host.module.id)), cx)`，全书为 None，替换编辑器时重新登记。G1 不预先过滤 show_outline，交 G2 每次快照核对；接口只留弱引用、不重借外壳。G1 接线正式交回合 main 后，G2 再做联合真窗口，大纲目前只验编译接口，不算产品验收完成。第 58 批已接 G1 `3278b584`，网格与补丁字段覆盖修复已验收，大纲登记已进 main；G2 现在可消费 main 做专门的联合窗口，尚未因此算联合验收完成。
 
 
+- **F6／G2 全书导航阻塞（11-10）**：G2 消费第 58 批 main `c033ce2d` 后，单模块 H1/H2/H3 点击、输入读回／撤销、指定模块、show_outline 刷新、关开及全书首次登记已作窗口探查；全书内 entry.move 后书快照刷新，BookV3::exists 仅接受 Entry／Template，导致 Book 标签／页面被清掉。整合者核对并直接通知 F6，在既有 Book／Material 导航协调范围内修正与回归，正式接收后再通知 G2 续验全书重排后登记及 show_outline；与 heavy 内核分开推进。G2 证据保留在其工作树 target/acceptance/k4-g2-outline-reorder-diag-1，M11 待协调 2 已记录；这不是新的正式 handback，不把其余联合项目写成已通过。
+
 ### v3-heavy 加载优先修复（11-10，作者明确分派）
 
 - **先由 K1／K2 修内核**：已直接通知现有内核会话，优先于后续 G4 批注／素材命令；已交回的 writing-days `11619a8c` 照常排队。一次一致读取批量提供所有层级的有效设置、来源、子条目和成员，复用同次读取的条目／模板解析及重名计算，不把逐层 LevelGet 简单包成循环。缓存须明确绑定读取快照，不能在同一写事务、import 或 checkout 后读到旧值；保持过滤、排序、继承及跨书隔离。
@@ -101,7 +105,7 @@
 
 ### G4 接口协调（11-10，作者确认保持边界）
 
-作者在 G4 会话明确选择由整合者安排 F6／G2／K2 补接口；已核对原始回复并直接通知四个会话。此时 G4 尚未移动交回指针，以下为分工，不是功能接收。
+作者在 G4 会话明确选择由整合者安排 F6／G2／K2 补接口；已核对原始回复并直接通知四个会话。分派时 G4 尚未交回；现已收到接口批 `7e2cd7d0`，仍待正式整合接收，以下分工保持。
 
 - **G4**：先把搜索／统计可独立编译的公共接口、只读适配和永久契约按协议交成稳定接口批，全套检查后由整合者接收；文档继续区分接口可用与实际入口／真窗口未验收。宿主方等 main 接入后消费，不抄未提交工作区。审阅接口另给明确签名与模块目标。
 - **F6／K4-0**：搜索宿主按书版本调用 SearchPanel::new_v3，消费 JumpV3 的 Entry{id,module}／Material 与 line，直接转 Target／open_at，保留 v2.2；核对合法素材目标的导航存在性。不碰已交 G2 的右栏，完成后交 handback/k4-0。
@@ -114,6 +118,10 @@
 
 - 11-09 18:10：K3 为了让全套测试通过，改了冻结的 `dr-mirror` 一行（`897551ac`：链接前的 `!` 一律转义，不再因为前面有反斜杠就跳过，并留下 proptest 种子）。我核过：普通文字里的 `!` 不会被预先转义，前面那个反斜杠只可能是转义过的反斜杠，所以一律转义是对的。这一行同意随 K3 收，不算越界。
 - 11-09 18:10：K1+K2 已全部合进 `main`（第 39、41 批）。新开轨道 8 K6（帮手工具通用化），指针 `handback/k6`，范围见 kernel-v3-split.md。
+
+- 11-10：作者定 K4 验收分两档，见 [k4-ui.md](../k4-ui.md)「各组共同的规矩」。每次交回只要全套自动检查加一条冒烟的真窗口场景；逐项场景、截图目检、heavy 测量和样式打磨挪到切换前统一做。数据正确性、v2.2 不受影响、写作手感照旧每次都要有测试。
+
+- 11-10：作者定三条简化，见 [k4-ui.md](../k4-ui.md)。一、next/ 里的 v2.2 冻结：不再因 v2.2 退回，碰坏的 v2.2 测试可以删（交回里列出）。二、公共地方（`dr_shell::v3` 注册口、`dr-workspace` 的 v3 命令和查询、`dr-doc` 的 v3 读写、`dr-ui` 组件）**只加不改**的小接口，谁需要谁加，整合者解冲突；改已有行为照旧走待协调。三、切换前必须做完的只有四组功能、K6、快照历史、大书性能，Super View、Markdown 文件夹 v3、分享链接、立绘生成、样式打磨都挪到切换后。整合者每轮尽量一批多收几个不冲突的交回，少跑几次全套。
 
 ## 收进来的
 
@@ -140,6 +148,7 @@
 | 11-09 23:02 | `handback/k4-g2` → `d2ddab9f`（第五十二批：层级设置与大纲接口） | `6bfa5a35` | 并发 6、测试单线程；fmt、Clippy、test（2061 通过／0 失败／22 忽略）、xtask／审计、public 及附加检查全过，无重跑。窗口 52/52、103/103，均 0 pending，两项坐标脚本及九图目检通过；只合初始化登记冲突。大纲联合验收／拖动／选择器／heavy 仍待。 |
 | 11-10 00:32 | `handback/k6` → `5d664e62`（第五十七批：通用目录、结构说明、模板指导及退回修复） | `5cfb294c` | 并发 6、测试单线程；fmt、Clippy、test（2083 通过／0 失败／22 忽略）、xtask／审计、public 及附加检查全过、无重跑。原探针 1 项与七项永久保护通过，无冲突修补；第 53、54 批关闭，G1／G3 返修保持。 |
 | 11-10 01:10 | `handback/k4-g1` → `3278b584`（第五十八批：模块、正文、通览、链接及并发修复） | `cd7dac1f` | 并发 6、测试单线程；原补丁探针与永久回归通过，fmt、Clippy、test（2112 通过／0 失败／22 忽略）、xtask／审计、public 及附加检查全过。十场窗口最终 563/563 步、0 pending，35 图目检；控件／正文／链接各原样隔离复跑一次通过，首轮失败保留。无冲突修补，第 49、55 批关闭；快照历史与 heavy 仍待。 |
+| 11-10 01:36 | `handback/k4-g3` → `c611c8de`（第五十九批：隐藏绑定与失败草稿） | `5d8541b2` | 并发 6、测试单线程；fmt、Clippy、test（2118 通过／0 失败／22 忽略）、xtask／审计、public 及附加检查全过，无重跑。适配拒写断言的原隐藏 pin 探针与六项永久契约通过；窗口 45/45、89/89、50/50，共 184 步、0 pending，十图目检通过。第 56 批返修关闭；heavy、局部命令与公共树拖动仍待。 |
 
 ## 退回
 
@@ -156,4 +165,4 @@
 | 11-09 23:14 | `handback/k6` → `a4603663`（第五十三批：目录与结构说明） | 候选 `c8db0af9` 的 Agent 时间线探针失败：先回收带摆放的条目，经过 `AgentTools::invoke` 读取时间线、仅改名称并整份 put，返回 Ok，底层 placements 从 4 条变成 3 条；恢复条目后原摆放仍缺失。`coverage_v3` 把过滤后的 `timeline_view.list` 授予整份覆盖，CAS 不能补回从未读到的数据。复现：把临时探针放到 dr-agent-tools/tests 后，在 next/ 运行 `CARGO_BUILD_JOBS=6 cargo test -p dr-agent-tools --test integrator_hidden_timeline --locked -- --nocapture`；0 通过／1 失败、退出码 101。 | 退 K6：过滤后的查询不能授权整份替换。至少像已接 G3 一样在存在未显示 lanes／placements／pins 时拒绝 whole-view put，或协调完整影响读取／局部命令，不能静默删除保留数据；新增永久回归覆盖回收、改名、恢复及隐藏成员，重新全套检查后交回。探针及日志保存在公共 Git 目录 `integration-evidence/batch-53/`，不进 main。fmt／Clippy 与 public／附加检查通过；完整测试因已证实数据丢失中止，xtask 和窗口未在候选运行，不套用源分支 2065 项结果。 **已由 `3dff4958` 修复，第五十七批接收 `5d664e62`；原探针及七项永久保护通过，全量 2083 通过／0 失败／22 忽略。** |
 | 11-09 23:31 | `handback/k6` → `20dbf687`（第五十四批：第三步续交） | 第 53 批问题未修：与 `a4603663` 比较，resolve_v3.rs、executor.rs、catalog.rs 契约及底层 v3/timeline.rs 的 Git blob 完全相同；dr-agent-tools 只有 structure.rs 的说明测试新增，没有隐藏摆放回归。第三步小说说明及运行时接线不改变已复现的数据删除路径。复现沿用上行的 `integrator_hidden_timeline` 命令和第 53 批失败探针，本批没有重新运行或声称得到新测试结果。 | 续交不收，先按第 53 批要求修复隐藏 lanes／placements／pins 的整份覆盖保护、补永久回归、合最新 main 后重新全套交回。代码一致性机器记录在公共 Git 目录 `integration-evidence/batch-54/`；未试合产品、未跑候选全套／窗口，不套用源分支 2076 项结果。main 仅更新退回记录。 **已由 `3dff4958` 修复，第五十七批接收 `5d664e62`；原探针及七项永久保护通过，全量 2083 通过／0 失败／22 忽略。** |
 | 11-09 23:43 | `handback/k4-g1` → `537b3fc1`（第五十五批：网格修复及通览／链接续交） | 候选 `a541b1a9` 的真实 GPUI 补丁控件探针失败：作者只改标题并保持焦点，Agent 成功保存新正文，显式 reload 后标题失焦保存无错误，却把正文从 `new external body` 覆盖回 `old body`。Patches::save 将旧 UI 标题／正文一起无守卫调用 PatchPut。把临时 `integrator_patch_probe.rs` 附到 dr-view-elements/src/element/patches.rs 末尾，在 next/ 运行 `CARGO_BUILD_JOBS=6 RUST_TEST_THREADS=1 cargo test -p dr-view-elements --lib integrator_patch_probe --locked -- --nocapture`；0 通过／1 失败，1.70 秒、退出码 101。 | 退 G1：使用与原读取对应的版本守卫或真正字段级命令，冲突保留草稿；不能保存前取新版本却提交旧 UI 值。补永久回归覆盖仅标题／仅正文与外部更新、冲突和显式重试，核对其他整份写入，重新全套／窗口后交回。原第 49 批网格探针现为明确 Conflict；永久网格 20 项通过，网格问题已验证修复。临时探针及日志留公共 Git 目录 `integration-evidence/batch-55/`，已还原产品字节、不进 main；本批不继续全套／窗口，不套用源分支 2076 项。已按作者授权直接通知 G1 会话。 **已由 `3278b584` 修复，第五十八批全套与窗口验收后接收，退回关闭。** |
-| 11-09 23:48 | `handback/k4-g3` → `ba3406a8`（已合代码，第五十六批返修复核） | 在 main `fb75b6bb` 的隔离 worktree 用真实 Timeline 控件复现：新条目只有 pin 绑定、没有 placement；回收后 lanes／placements／pins 数量都不变，但查询 pin.entry 为 null、原始绑定仍在。执行泳道重排成功后，恢复条目，原始 pin.entry 也变 null。edit_view 的数量比较漏掉字段投影。复现：放入 dr-view-timeline/tests/integrator_hidden_pin.rs，在 next/ 运行 `CARGO_BUILD_JOBS=6 RUST_TEST_THREADS=1 cargo test -p dr-view-timeline --test integrator_hidden_pin --locked -- --nocapture`；0 通过／1 失败、2.01 秒、退出码 101。 | 返 G3：检查原始与有效数据内容，保护投影隐藏的绑定／字段，或协调局部命令；同时核对时间钉编辑。补数量相同但绑定被隐藏、改名／泳道操作、恢复后绑定保留及原隐藏成员／并发保护的永久回归，全套和相关窗口后重交。已直接通知对应会话。第 45、48 批历史不回滚，main 当前保留此明确待修问题；临时探针与日志在公共 Git 目录 `integration-evidence/batch-56/`，不进 main，本批不跑新产品全套／窗口。 |
+| 11-09 23:48 | `handback/k4-g3` → `ba3406a8`（已合代码，第五十六批返修复核） | 在 main `fb75b6bb` 的隔离 worktree 用真实 Timeline 控件复现：新条目只有 pin 绑定、没有 placement；回收后 lanes／placements／pins 数量都不变，但查询 pin.entry 为 null、原始绑定仍在。执行泳道重排成功后，恢复条目，原始 pin.entry 也变 null。edit_view 的数量比较漏掉字段投影。复现：放入 dr-view-timeline/tests/integrator_hidden_pin.rs，在 next/ 运行 `CARGO_BUILD_JOBS=6 RUST_TEST_THREADS=1 cargo test -p dr-view-timeline --test integrator_hidden_pin --locked -- --nocapture`；0 通过／1 失败、2.01 秒、退出码 101。 | 返 G3：检查原始与有效数据内容，保护投影隐藏的绑定／字段，或协调局部命令；同时核对时间钉编辑。补数量相同但绑定被隐藏、改名／泳道操作、恢复后绑定保留及原隐藏成员／并发保护的永久回归，全套和相关窗口后重交。已直接通知对应会话。第 45、48 批历史不回滚，main 当前保留此明确待修问题；临时探针与日志在公共 Git 目录 `integration-evidence/batch-56/`，不进 main，本批不跑新产品全套／窗口。 **已由 `c611c8de` 修复，第五十九批全套及窗口验收后接收；绑定保留、失败草稿可重试，返修关闭。** |
