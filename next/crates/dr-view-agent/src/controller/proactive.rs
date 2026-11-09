@@ -80,6 +80,9 @@ fn organize(
     state: &ProactiveState,
     now: i64,
 ) -> Result<Option<OrganizeTask>, String> {
+    if dr_agent_tools::catalog::is_v3_book(ws, book).map_err(string)? {
+        return Ok(None);
+    }
     let day = 24 * 60 * 60 * 1000;
     let since = state
         .organize_cursor
@@ -99,6 +102,91 @@ fn organize(
     )
     .map_err(string)?;
     Ok(prepare_organize(&batch))
+}
+
+struct CheckinProject {
+    name: String,
+    titles: Vec<String>,
+    todos: Vec<String>,
+    guidance: Option<dr_agent::context::Contribution>,
+}
+
+fn checkin_project(ws: &Workspace, book: &BookId) -> Result<CheckinProject, String> {
+    let doc = format!("book:{book}");
+    for _ in 0..3 {
+        let before = ws.observe(&doc).map_err(string)?;
+        let copy = ws.library().load_copy(&doc).map_err(string)?;
+        if dr_doc::v3::is_v3_doc(&copy) {
+            let borrowed = dr_doc::v3::BorrowedBookV3::new(&copy, book).map_err(string)?;
+            let view = borrowed.view();
+            if view.trashed_at().is_some() {
+                return Err("book is unavailable".into());
+            }
+            let structure = dr_agent_tools::StructureContext::from_v3_view(
+                Some(ws.library()),
+                &view,
+                &before.version,
+                None,
+            )
+            .map_err(string)?;
+            let result = CheckinProject {
+                name: view.meta().name,
+                titles: structure
+                    .roots
+                    .iter()
+                    .map(|entry| entry.title.clone())
+                    .collect(),
+                todos: view
+                    .comments()
+                    .into_iter()
+                    .filter(|c| c.is_todo() && c.status.as_str() == "open")
+                    .map(|c| format!("{}: {}", c.id, c.body))
+                    .collect(),
+                guidance: Some(structure.to_contribution().map_err(string)?),
+            };
+            if before.version == ws.observe(&doc).map_err(string)?.version {
+                return Ok(result);
+            }
+        } else {
+            let read = |name, input| {
+                ws.call(&Actor::User, name, input)
+                    .map(|v| v["output"].clone())
+                    .map_err(string)
+            };
+            let detail = read("book.get", json!({"book":book}))?;
+            if detail["trashed"].as_bool() != Some(false) {
+                return Err("book is unavailable".into());
+            }
+            let chapters = read("chapter.list", json!({"book":book}))?;
+            let todos = read(
+                "comment.list",
+                json!({"book":book,"kind":"todo","status":"open"}),
+            )?;
+            return Ok(CheckinProject {
+                name: detail["name"].as_str().unwrap_or_default().into(),
+                titles: chapters
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|v| v["title"].as_str().map(str::to_owned))
+                    .collect(),
+                todos: todos
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .map(|todo| {
+                        format!(
+                            "{}: {}",
+                            todo["id"].as_str().unwrap_or_default(),
+                            todo["body"].as_str().unwrap_or_default()
+                        )
+                    })
+                    .collect(),
+                guidance: None,
+            });
+        }
+    }
+    Err("book structure changed while preparing suggestions; read again".into())
 }
 
 impl AgentController {
@@ -236,24 +324,11 @@ impl AgentController {
             } else {
                 &batch
             };
-            let read = |name, input| {
-                ws.call(&Actor::User, name, input)
-                    .map(|v| v["output"].clone())
-                    .map_err(string)
-            };
-            let detail = read("book.get", json!({"book":book}))?;
-            if detail["trashed"].as_bool() != Some(false) {
-                return Err("book is unavailable".into());
-            }
-            let chapters = read("chapter.list", json!({"book":book}))?;
-            let todos = read(
-                "comment.list",
-                json!({"book":book,"kind":"todo","status":"open"}),
-            )?;
+            let project = checkin_project(ws, book)?;
             let memory = dr_agent::memory::project(ws, book).map_err(string)?;
             let working = dr_agent::memory::load(lib, book).map_err(string)?;
             let context = CheckinContext {
-                book_name: detail["name"].as_str().unwrap_or_default().into(),
+                book_name: project.name,
                 now_ms,
                 since_ms: since,
                 mode,
@@ -268,24 +343,8 @@ impl AgentController {
                     })
                     .collect(),
                 working_memory: (working.approx_tokens <= 20_000).then_some(working.content_md),
-                open_todos: todos
-                    .as_array()
-                    .into_iter()
-                    .flatten()
-                    .map(|todo| {
-                        format!(
-                            "{}: {}",
-                            todo["id"].as_str().unwrap_or_default(),
-                            todo["body"].as_str().unwrap_or_default()
-                        )
-                    })
-                    .collect(),
-                chapter_titles: chapters
-                    .as_array()
-                    .into_iter()
-                    .flatten()
-                    .filter_map(|v| v["title"].as_str().map(str::to_owned))
-                    .collect(),
+                open_todos: project.todos,
+                chapter_titles: project.titles,
             };
             if !job.allowed() {
                 return Ok(());
@@ -305,7 +364,7 @@ impl AgentController {
             else {
                 return Ok(());
             };
-            let result = futures::executor::block_on(run_checkin(
+            let result = futures::executor::block_on(run_checkin_with_guidance(
                 job.lease.resources().driver.clone(),
                 CheckinInput {
                     book: book.clone(),
@@ -314,6 +373,7 @@ impl AgentController {
                     context,
                 },
                 job.cancel.clone(),
+                project.guidance,
             ));
             match result {
                 Ok(outcome) if job.allowed() => {
