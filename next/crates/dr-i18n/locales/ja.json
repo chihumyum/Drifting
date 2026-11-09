@@ -425,6 +425,11 @@
     "summaryPlaceholder": "一文で要約…",
     "untitled": "無題の要素"
   },
+  "entrySnapshot": {
+    "empty": "スナップショットはまだありません",
+    "save": "スナップショットを保存",
+    "title": "スナップショット履歴"
+  },
   "feedback": {
     "attachDiagnostics": "機密情報を除去した診断情報を添付",
     "cancel": "キャンセル",

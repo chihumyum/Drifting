@@ -17,6 +17,7 @@ dr-i18n.workspace = true
 dr-model.workspace = true
 dr-shell.workspace = true
 dr-ui.workspace = true
+dr-view-history.workspace = true
 dr-workspace.workspace = true
 gpui.workspace = true
 log.workspace = true
