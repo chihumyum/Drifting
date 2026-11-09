@@ -7323,13 +7323,17 @@ expression: json
             "doc": {
               "type": "string"
             },
+            "raw_state": {
+              "description": "Complete historical roots and attributes, including retained future data."
+            },
             "text": {
               "type": "string"
             }
           },
           "required": [
             "doc",
-            "text"
+            "text",
+            "raw_state"
           ],
           "type": "object"
         },

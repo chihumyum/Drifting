@@ -1069,6 +1069,18 @@ fn body_history_preserves_rich_marks_and_unknown_body_roots_across_reopen() {
         .read(|d| serde_json::to_value(d.get_text("body").to_delta()).unwrap())
         .unwrap();
     let point = capture(&e, &b, &id);
+    let historical = preview(&e, &b, &id, &point);
+    let raw = &historical["bodies"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|body| body["doc"] == format!("body:{id}/mod-prose"))
+        .unwrap()["raw_state"];
+    assert_eq!(raw["future-body"]["map"]["author-value"]["value"], "before");
+    assert_eq!(
+        raw["embeds"]["map"]["future-author-key"]["value"],
+        "unknown retained embed value"
+    );
     edit(&e, &b, &id);
     h.write(dr_store::Origin::User, |d| {
         d.get_text("body").unmark(0..3, "bold").unwrap();

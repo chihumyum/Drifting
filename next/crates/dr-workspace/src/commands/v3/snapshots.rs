@@ -53,6 +53,8 @@ pub struct Point {
 pub struct BodyPreview {
     pub doc: String,
     pub text: String,
+    /// Complete historical roots and attributes, including retained future data.
+    pub raw_state: Value,
 }
 #[derive(Clone, Debug, Serialize, JsonSchema)]
 pub struct PreviewOut {
@@ -501,7 +503,8 @@ op! {
         let mut bodies = Vec::new();
         for id in p.bodies.keys() {
             let doc = DocId::parse(id).map_err(|e| WsError::invalid(e.to_string()))?;
-            bodies.push(BodyPreview { doc: id.clone(), text: dr_text::plain_text(&ProseReader::from_loro(doc, &old[id])?.view()) });
+            let text=dr_text::plain_text(&ProseReader::from_loro(doc, &old[id])?.view());
+            bodies.push(BodyPreview { doc: id.clone(), text, raw_state: dr_doc::v3::raw_document_state(&old[id])? });
         }
         let hs = initialized_handles(cx, &s, &p.entry)?;
         let prefix = format!("body:{}/", p.entry);

@@ -367,6 +367,12 @@ fn preview_sections(p: &api::PreviewOut) -> Vec<(String, String)> {
             b.text.clone(),
         ));
     }
+    for b in &p.bodies {
+        out.push((
+            b.doc.clone(),
+            serde_json::to_string_pretty(&b.raw_state).unwrap_or_default(),
+        ));
+    }
     if let Some(fields) = p.metadata.get("fields").and_then(|v| v.as_object()) {
         for (module, values) in fields {
             if let Some(values) = values.as_object() {
