@@ -444,6 +444,10 @@ impl Workspace {
     }
 
     /// Run a registered call with document CAS checked inside each write job.
+    /// V3 comment ranges, blocks and reanchors also require the source prose
+    /// observation: its check and anchor/quote derivation share one read job.
+    /// Later prose edits move stable anchors; quotes remain historical. This
+    /// is not a transaction spanning source prose and the book write.
     /// A later failure can follow earlier settled document writes. Never retry
     /// this whole call automatically. Library creation/purge and device-local
     /// recent-page bookkeeping have no document CAS and are refused here.
