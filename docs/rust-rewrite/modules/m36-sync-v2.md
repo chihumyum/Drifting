@@ -1,6 +1,6 @@
 # M36 Hosted 同步 v2
 
-**交回状态**：第三十七批退回问题已修复，重新验证中（`codex/track4-account-sync` → `handback/track4`；尚未合进 `main`）。
+**交回状态**：第三十七批退回问题已修复并通过全套自动检查（`codex/track4-account-sync` → `handback/track4`；待整合者验收，尚未合进 `main`）。
 
 ## 目标与范围
 
@@ -62,3 +62,39 @@
 - **待协调**：
   1. **F6（`dr-shell/src/workspace/corner.rs`）稿纸左下角挂接点**：`dr-view-account::sync_mark::paper_sync_mark_for` 已实现稿纸左下角记号与悬停卡（含分屏只在左稿纸显示、打字 2 秒淡出规则）。请 F6 在 `workspace/corner.rs`（或稿纸容器左下角）预留一个挂接槽位，传入当前 pane 的 `book_id` 与 `is_trailing_pane` 即可直接挂载。
   2. **Hosted 服务端命名空间登记**：Hosted 同步服务端需在对象日志路由白名单中登记 `loro-v2` 命名空间（`/api/sync/v1/loro-v2/objects/*` 与 `/api/sync/v1/loro-v2/changes`），存储层按不透明二进制对象加元数据头（`X-Content-Sha256`、`X-Drifting-Object-Meta`）原样保存，无需解析 Loro 内容。
+
+## 交回（2026-11-09 退回修正）
+
+- **分支／指针**：`codex/track4-account-sync` → `handback/track4`。已用 `git merge main` 同步至 `main` 的 `f9d0d55d`，合并提交 `15dbef85`，无冲突。只交回本地指针，不合进 `main`，不推送。
+- **包含段落**：原有 M37 偏好同步及第三十五批范围修正、M36 同步 v2 及本次第三十七批路径校验修正、M43 Windows 补齐。此前功能和范围修正提交保留，不 rebase。
+- **本次修复范围**：仅 `dr-sync/src/engine.rs`、`dr-sync/tests/remote_metadata.rs` 和本结论文档。相对当前 `main`，`dr-shell`（包括设置存储）与 `dr-view-shelf` 差异为空；未改 `dr-store`、`dr-model` 或 `dr-doc`。
+
+### 提交清单
+
+| 提交 | 内容 |
+| --- | --- |
+| `1d65b525` | M37 偏好同步 |
+| `a5140849` | 偏好键切片传参修正 |
+| `c719a76d` | 本机假账号服务清除继承的非阻塞标志 |
+| `a822cc8d` | M36 对象日志、Loro／资源同步与状态记号 |
+| `5c777ca8` | M37 收敛到账号 crate，撤回 `dr-shell` 设置改动 |
+| `1a20f8d0` | M43 托盘、arm64 安装器与字体回退 |
+| `9af4892b` | M36 远端路径字段提前校验与 7 项永久回归 |
+
+另外保留同步 `main` 的合并提交：`3936061e`、`8f9fdd63`、`e657622e`、`15dbef85`。本小节随最终交回记录提交，交回指针指向含本小节的 HEAD。
+
+### 检查结果
+
+在合入上述 `main` 后验证，编译统一 `CARGO_BUILD_JOBS=3`，测试统一 `RUST_TEST_THREADS=1`：
+
+- `cargo fmt --all --check`：通过。
+- `cargo clippy --workspace --all-targets --locked -- -D warnings`：通过。
+- `cargo test --workspace --locked --no-fail-fast`：通过，含文档测试共 **1997 通过、0 失败、22 忽略**；`dr-sync` 的 6 项既有测试和 7 项新增永久回归全部通过。
+- `cargo xtask check`：通过，含完整审计（971 个锁定包、0 漏洞、12 条既有提示）。14 项 stale／15 项 legacy 测量仅记录，未重写生成证据。
+- 仓库根 `pnpm public:check`：通过（5409 个发布候选文件）；`pnpm ci:contract:check`：通过（659 个测试文件）。
+- **运行中断记录**：首次全工作区测试在 `dr-agent-tools --test projection` 启动时收到 `SIGKILL`；同时发现本 worktree 的 `next/target` 被清空，原测试程序已不存在。没有为此修改产品源码；重建后该程序定向复验 8 项通过，再完整重跑得到以上全量结果。
+- 账号／同步测试只用本机回环假服务、临时库和合成令牌，没有连接真实账号／同步服务或使用真实密钥。本轮未执行 Windows 实机验收。
+
+### 待协调
+
+本次退回问题无新增跨 crate 接线需求。沿用原有待协调：M37 的 F6 设置编辑防抖回调、M36 的 F6 稿纸角标和服务端 `loro-v2` 登记，以及 M43 文档中的托盘／字体挂接、arm64 工具链和作者 Windows 实机验收。以上未完成的接线与实机验证仍由原负责方承接。
