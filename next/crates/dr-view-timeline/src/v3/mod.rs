@@ -32,6 +32,7 @@ struct Popup {
     of: MenuOf,
     at: Point<Pixels>,
 }
+#[derive(Clone, Copy)]
 enum EditKind {
     View { new: bool },
     PinLabel,
@@ -54,6 +55,8 @@ pub struct Timeline {
     kept_for: Option<String>,
     popup: Option<Popup>,
     editing: Option<Editing>,
+    submitting: Option<Editing>,
+    latest_edit: Option<EntityId>,
     bounds: Rc<Cell<Option<Bounds<Pixels>>>>,
     writer: Option<futures::channel::mpsc::UnboundedSender<write::Job>>,
     pending: std::collections::BTreeMap<String, interaction::Pending>,
@@ -88,6 +91,8 @@ impl Timeline {
             kept_for: None,
             popup: None,
             editing: None,
+            submitting: None,
+            latest_edit: None,
             bounds: Rc::default(),
             writer: None,
             pending: Default::default(),
@@ -99,6 +104,8 @@ impl Timeline {
             self.selected = None;
             self.kept_for = None;
             self.editing = None;
+            self.submitting = None;
+            self.latest_edit = None;
             self.popup = None;
         }
         self.book = host.book.clone();
@@ -264,37 +271,57 @@ impl Timeline {
         });
         let sub = cx.subscribe_in(&field, window, |t, field, event, _, cx| match event {
             FieldEvent::Submitted(_) | FieldEvent::Blurred => {
-                let name = field.read(cx).text().trim().to_owned();
-                if let Some(edit) = t.editing.take()
-                    && !name.is_empty()
-                {
-                    match edit.kind {
-                        EditKind::PinLabel => t.edit_pin(edit.id, PinEdit::Label(name), cx),
-                        EditKind::PinColor => {
-                            if let Some(color) = dr_ui::components::color::parse_hex(&name) {
-                                t.edit_pin(
-                                    edit.id,
-                                    PinEdit::Color(Some(dr_ui::components::color::hex(color))),
-                                    cx,
-                                );
-                            }
-                        }
-                        EditKind::View { new: true } => t.create_view(edit.id, name, cx),
-                        EditKind::View { new: false } => {
-                            t.edit_view(edit.id, write::ViewEdit::Rename(name), cx)
-                        }
+                let Some(edit) = t
+                    .editing
+                    .as_ref()
+                    .filter(|e| e.field.entity_id() == field.entity_id())
+                else {
+                    return;
+                };
+                let mut name = field.read(cx).text().trim().to_owned();
+                if name.is_empty() {
+                    return;
+                }
+                if matches!(edit.kind, EditKind::PinColor) {
+                    let Some(color) = dr_ui::components::color::parse_hex(&name) else {
+                        return;
+                    };
+                    name = dr_ui::components::color::hex(color);
+                }
+                let (id, kind) = (edit.id.clone(), edit.kind);
+                // The write owns this draft until its receipt arrives. On
+                // failure it returns to the same editor without losing text.
+                t.submitting = t.editing.take();
+                match kind {
+                    EditKind::PinLabel => t.edit_pin(id, PinEdit::Label(name), cx),
+                    EditKind::PinColor => {
+                        t.edit_pin(id, PinEdit::Color(Some(name)), cx);
                     }
+                    EditKind::View { new: true } => t.create_view(id, name, cx),
+                    EditKind::View { new: false } => {
+                        t.edit_view(id, write::ViewEdit::Rename(name), cx)
+                    }
+                }
+                if let Some(draft) = t.submitting.take() {
+                    t.editing = Some(draft);
                 }
                 cx.notify();
             }
             FieldEvent::Cancelled => {
-                t.editing = None;
+                if t.editing
+                    .as_ref()
+                    .is_some_and(|e| e.field.entity_id() == field.entity_id())
+                {
+                    t.editing = None;
+                    t.latest_edit = None;
+                }
                 cx.notify();
             }
-            FieldEvent::Changed(_) => {}
+            FieldEvent::Changed(_) => cx.notify(),
         });
         field.update(cx, |f, cx| f.select_all_text(cx));
         field.focus_handle(cx).focus(window, cx);
+        self.latest_edit = Some(field.entity_id());
         self.editing = Some(Editing {
             id,
             kind,

@@ -593,6 +593,21 @@
     "selected_entries": "선택한 항목",
     "untitled_entry": "제목 없는 항목"
   },
+  "k4Pages": {
+    "body": "본문",
+    "entries": "항목",
+    "h1": "H1",
+    "h2": "H2",
+    "h3": "H3",
+    "invalidValue": "잘못된 값",
+    "newPatch": "새 패치",
+    "quote": "인용",
+    "retained": "이전 내용",
+    "rule": "구분선",
+    "saveFailed": "저장할 수 없음",
+    "title": "제목",
+    "unset": "설정 안 됨"
+  },
   "kvEditor": {
     "addField": "필드 추가",
     "keyPlaceholder": "필드",

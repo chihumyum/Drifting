@@ -242,5 +242,20 @@
     "entry_titles": "항목 제목",
     "untitled_entry": "제목 없는 항목",
     "entry_count_other": "항목 {{count}}개"
+  },
+  "k4Pages": {
+    "unset": "설정 안 됨",
+    "saveFailed": "저장할 수 없음",
+    "invalidValue": "잘못된 값",
+    "retained": "이전 내용",
+    "newPatch": "새 패치",
+    "body": "본문",
+    "quote": "인용",
+    "rule": "구분선",
+    "h1": "H1",
+    "h2": "H2",
+    "h3": "H3",
+    "title": "제목",
+    "entries": "항목"
   }
 }

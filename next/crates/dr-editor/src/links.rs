@@ -168,3 +168,16 @@ impl ProseExtension for DriftingExtension {
         })
     }
 }
+
+/// Optional v3 module endpoint. Reading it does not change the legacy encoder.
+pub fn link_module(value: &LoroValue) -> Option<String> {
+    let LoroValue::Map(map) = value else {
+        return None;
+    };
+    let LoroValue::String(module) = map.get("module")? else {
+        return None;
+    };
+    dr_model::v3::ModuleId::parse(module.as_str())
+        .ok()
+        .map(|m| m.to_string())
+}

@@ -600,6 +600,21 @@
     "selected_entries": "Selected entries",
     "untitled_entry": "Untitled entry"
   },
+  "k4Pages": {
+    "body": "Body",
+    "entries": "Entries",
+    "h1": "H1",
+    "h2": "H2",
+    "h3": "H3",
+    "invalidValue": "Invalid value",
+    "newPatch": "New patch",
+    "quote": "Quote",
+    "retained": "Previous content",
+    "rule": "Divider",
+    "saveFailed": "Could not save",
+    "title": "Title",
+    "unset": "Not set"
+  },
   "kvEditor": {
     "addField": "Add field",
     "keyPlaceholder": "Field",

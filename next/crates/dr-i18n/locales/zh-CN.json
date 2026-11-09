@@ -593,6 +593,21 @@
     "selected_entries": "选中条目",
     "untitled_entry": "未命名条目"
   },
+  "k4Pages": {
+    "body": "正文",
+    "entries": "条目",
+    "h1": "H1",
+    "h2": "H2",
+    "h3": "H3",
+    "invalidValue": "值无效",
+    "newPatch": "新建补丁",
+    "quote": "引用",
+    "retained": "原来的内容",
+    "rule": "分隔线",
+    "saveFailed": "未能保存",
+    "title": "标题",
+    "unset": "未设置"
+  },
   "kvEditor": {
     "addField": "新增字段",
     "keyPlaceholder": "字段",

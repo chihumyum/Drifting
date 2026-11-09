@@ -242,5 +242,20 @@
     "entry_titles": "項目のタイトル",
     "untitled_entry": "無題の項目",
     "entry_count_other": "{{count}} 項目"
+  },
+  "k4Pages": {
+    "unset": "未設定",
+    "saveFailed": "保存できませんでした",
+    "invalidValue": "無効な値",
+    "retained": "以前の内容",
+    "newPatch": "パッチを追加",
+    "body": "本文",
+    "quote": "引用",
+    "rule": "区切り線",
+    "h1": "H1",
+    "h2": "H2",
+    "h3": "H3",
+    "title": "タイトル",
+    "entries": "項目"
   }
 }

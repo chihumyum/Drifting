@@ -600,6 +600,21 @@
     "selected_entries": "Entrées sélectionnées",
     "untitled_entry": "Entrée sans titre"
   },
+  "k4Pages": {
+    "body": "Corps du texte",
+    "entries": "Entrées",
+    "h1": "H1",
+    "h2": "H2",
+    "h3": "H3",
+    "invalidValue": "Valeur non valide",
+    "newPatch": "Nouveau correctif",
+    "quote": "Citation",
+    "retained": "Contenu précédent",
+    "rule": "Séparateur",
+    "saveFailed": "Enregistrement impossible",
+    "title": "Titre",
+    "unset": "Non défini"
+  },
   "kvEditor": {
     "addField": "Ajouter un champ",
     "keyPlaceholder": "Champ",

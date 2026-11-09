@@ -138,13 +138,26 @@ impl Timeline {
             Ok(())
         });
     }
+    /// Create a pin. Existing pins must use `edit_pin`, which verifies the
+    /// complete preimage before merging one field from an author action.
     pub fn put_pin(&mut self, pin: TimelinePin, cx: &mut Context<Self>) {
         let Some(view) = self.view().map(|v| v.id.clone()) else {
             return;
         };
         self.write(cx, move |lib, book| {
-            lib.run::<timeline::PinPut>(&Actor::User, timeline::PinIn { book, view, pin })?;
-            Ok(())
+            let observed = lib.observe(&format!("book:{book}"))?;
+            if observed.value["timeline_views"][&view]["pins"]
+                .get(&pin.id)
+                .is_some()
+            {
+                return Err(WsError::Conflict("time pin already exists".into()));
+            }
+            write::replace(
+                &lib,
+                "timeline_view.put_pin",
+                serde_json::json!({"book":book,"view":view,"pin":pin}),
+                observed,
+            )
         });
     }
     pub fn new_pin(&mut self, at: f64, window: &mut Window, cx: &mut Context<Self>) {
@@ -204,21 +217,24 @@ impl Timeline {
                 .and_then(|v| v.pins.into_iter().find(|p| p.id == id))
                 .ok_or_else(|| WsError::NotFound {
                     what: "time pin",
-                    id,
+                    id: id.clone(),
                 })?;
+            write::complete_pin(
+                observed.value["timeline_views"][&view]["pins"].get(&id),
+                &pin,
+            )?;
             match edit {
                 PinEdit::Label(s) => pin.label = s,
                 PinEdit::Color(s) => pin.color = s,
                 PinEdit::Bind(s) => pin.entry = s,
                 PinEdit::At(at) => pin.at = at,
             }
-            lib.call_guarded(
-                &Actor::User,
+            write::replace(
+                &lib,
                 "timeline_view.put_pin",
                 serde_json::json!({"book":book,"view":view,"pin":pin}),
-                dr_workspace::WritePreconditions::from_observations([observed]),
-            )?;
-            Ok(())
+                observed,
+            )
         });
     }
     pub fn delete_pin(&mut self, pin: String, cx: &mut Context<Self>) {

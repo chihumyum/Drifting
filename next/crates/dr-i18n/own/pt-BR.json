@@ -249,5 +249,20 @@
     "untitled_entry": "Entrada sem título",
     "entry_count_one": "{{count}} entrada",
     "entry_count_other": "{{count}} entradas"
+  },
+  "k4Pages": {
+    "unset": "Não definido",
+    "saveFailed": "Não foi possível salvar",
+    "invalidValue": "Valor inválido",
+    "retained": "Conteúdo anterior",
+    "newPatch": "Novo patch",
+    "body": "Texto",
+    "quote": "Citação",
+    "rule": "Separador",
+    "h1": "H1",
+    "h2": "H2",
+    "h3": "H3",
+    "title": "Título",
+    "entries": "Entradas"
   }
 }
