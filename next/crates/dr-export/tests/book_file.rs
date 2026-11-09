@@ -420,7 +420,7 @@ fn bad_files_are_refused_and_nothing_is_written() {
     let mut w = zip::ZipWriter::new(std::fs::File::create(&newer).unwrap());
     w.start_file("manifest.json", zip::write::SimpleFileOptions::default())
         .unwrap();
-    w.write_all(br#"{"format":"drifting.book","formatVersion":3}"#)
+    w.write_all(br#"{"format":"drifting.book","formatVersion":4}"#)
         .unwrap();
     w.finish().unwrap();
     assert!(matches!(

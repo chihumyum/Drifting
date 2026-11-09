@@ -78,6 +78,7 @@
 - **G2／K5／G4 与外壳：** F6 第二次交回的协调项已转交：G2 注册三种条目选择器并接左栏／大纲，K5 注册 template creator 和 Template 页，G4 与外壳补版本化主页注册口与正式 v3 导览；当前 v3 不显示旧按种类导览。maker／on_refresh 只读所给快照、更新子实体，避免重借正被外壳借用的 workspace；写入留点击回调并在异步提交前重验书和目标。
 
 - **F3/K2 与 G3：** timeline_view.list 会隐藏无效目标，而 put 为整份替换；G3 第 59 批已逐字段核对原始与有效投影，并以同一 book frontier 做 CAS，不完整读取明确拒写。视图改名／泳道增删排序的局部命令仍交 F3/K2，G3 消费后补验。
+  第 61 批后已通知 K2 继续这段：只改指定字段，保留隐藏成员／摆放／时间钉与未知字段，补同版本守卫及永久契约；正式 `handback/k1` 接收后再通知 G3 消费，当前保护性拒写不绕过。
 - **G3 返修已关闭：** 第 56 批发现的数量相同但隐藏 pin.entry 被清空，已由 `c611c8de` 在第 59 批修复接收。完整字段／身份覆盖核对、同观察版本守卫、创建缺席证明及失败草稿重试均已验收；适配拒写断言的原场景与六项永久契约、三组真窗口通过。第 45、48、56 批历史保留，局部命令与 heavy 继续协调。
 
 - **F6/K2 与 G3：** G3 的 v3-heavy 真窗口在书快照尚未载入、时间线尚未实例化时超时，最长等待 180 秒仍 `book.loaded=false`。打开／横滚的 heavy 性能验收保留未过；按 11-10 最新作者决定移到全部流程打通后，不单独阻塞 G3 功能接收或 K4 切换，功能与数据正确性仍需验收。后续由外壳／查询负责方定位，再由 G3 重跑 `python3 crates/dr-view-timeline/scripts/window-bench.py`。现有 v2.2 的 CLI／IPC 往返计时不等于发布档绘制帧基准，见 m14 的待协调 2。
@@ -87,6 +88,7 @@
 - **K6：** 第五十七批接收重交 `5d664e62`：前三步与隐藏时间线读取保护均已接，第 53、54 批退回关闭。原探针与七项永久回归通过；不完整视图／时间钉明确拒写，含数量不变但绑定被隐藏的情况。K5／M32 可消费已合 main 的公共结构接口；各自实际接线仍待，不算完成。
 
 - **K5／K6：** K5 两次交回已在第 46、47 批接收：叶子／层级模板、八项设置、泳道、动作及写给帮手的说明。当前预览仍只读本地草稿；K6 的 StructureContext 公共投影已在第 57 批合 main，后续预览从同一接口消费；当前 K5 尚未接入，也未接动作运行时。记号沿用已有砂笔集合，未知值保留，未主动改记号就不覆盖原字符串。
+  第 61 批后 K5 已恢复这段接线。新建／未使用模板不会进入现有 StructureContext 的在用模板集合，薄包装入口交 K6 在持有的 dr-agent-tools 追加，继续使用同一 summarize_template；K5 不跨改其包，在精确 frontier 的独立副本覆盖草稿，只渲染、不执行动作或发送运行时。等公开入口正式接收后合回宿主，模块身份、跨书与未保存隔离均需测试。
 - **F6／K1 查询方与 K5：** K5 同样在标准 debug v3-heavy 的初始书快照阶段等到 240 秒仍未加载；其采样位于 `book::v3::load → LevelGet → level_settings → entries_map → resolve_autolink_name_conflicts → resolve_level_settings`。这补充 G3 的加载协调项。K5 另外用四个 crate 临时 opt-level=2 得到含导航等待、桥往返和 PNG 回读的视图测量，配置与口径见 k5-templates.md；不能把这些数字当作标准 debug 已通过或发布档绘制帧耗时。负责方修正后，各组用同配置复测，整合者不跨层改查询。
 
 - **F6 与 G2：** 第五十批已接四种显示器；第五十一批接 `a9115af6` 的 `add_level_settings`，第五十二批接 G2 `d2ddab9f`（含第二批 `898e1061`）的八项设置控件及看板分节，M11 待协调 1 已关闭。设置区保留实例／刷新，不替换整页或新增持久化模块种类。拖动、选择器及 heavy 对照仍在后续。
@@ -109,7 +111,7 @@
 
 已原意转发 G1：待协调第 9 条所需按条目整份快照／恢复，可自行在 dr-workspace 的 v3 命令中新增，带版本守卫，不改已有命令，补永久测试并把快照历史做完，交 handback/k4-g1。快照历史是切换前必须项，帮手写入后靠它撤销；next/ v2.2 冻结，不要求再为其写测试。
 
-G1 原会话已按作者 autopilot 接管安排确认安全停止，34 个未提交文件（含未跟踪内容）完整保存在 `refs/wip/2026-11-10/g1-snapshot-autopilot`；新树 `codex/autopilot-g1-history` 已恢复半成品，原树未动。第 60 批正式接收后启动 `gpt-6.1-sol`／max 后台接手，不把 WIP 算交回。
+G1 原会话已按作者 autopilot 接管安排确认安全停止，34 个未提交文件（含未跟踪内容）完整保存在 `refs/wip/2026-11-10/g1-snapshot-autopilot`；新树 `codex/autopilot-g1-history` 已恢复半成品，原树未动。第 60 批正式接收后已启动 `gpt-6.1-sol`／max 后台接手，日志确认模型与强度；不把 WIP 算交回。
 
 G1 随后确认完整恢复跨 book 与多份 body，拟新增 dr-store 多文档版本守卫及原子持久化 API，不改既有单文档行为／签名；交回须列清新增范围，测试失败、并发、持久化与重开时无部分恢复。已通知 K6：正式接口合 main 后，Agent 首次写条目前先创建完整快照，不消费 WIP；签名和实际接线仍待 G1 交回。
 
@@ -122,7 +124,9 @@ G1 随后确认完整恢复跨 book 与多份 body，拟新增 dr-store 多文�
 - **G2**：right_body 在 book::nav_target 之前分流，消费 dr_view_stats::v3_panel::panel 及 Scope::{Book, Entry{id,module}, Material}；审阅同样传模块目标，等 G4 面板接口。回调直接转 Target，不把 Entry 当 Book。保持原 G2 队列，交 handback/k4-g2；G1 大纲登记已于第 58 批接收，联合窗口仍由 G2 完成。
 - **K2**：补版本明确的 v3 comment.*（正文模块目标与实际读写／重锚路径）、material.*、material_folder.*、book.writing_days／writing_day.record；保持素材夹与条目关系、v2.2 行为及两书隔离。不得只放行 Cx::book 白名单后继续调用旧 Reader／Txn，不从视图绕写 Loro。搜索／字数已由 G4 只读适配，不必先开放旧 search／word_counts。语义不确定仍列 F1/F3 协调，按内核原范围与 handback/k1 分段交回。
 
-- **K2／F6 主页续接（11-10）**：G4 补查的 book.get/update 元数据与 recent.touch/list 已核代码并直接分派。K2 明确 v3 书名、简介、全书／每日目标读取及逐字段写入，保留其他字段、v2.2、撤销和两书隔离；旧 nodes／elements 计数不能当 v3。最近访问保留 entry＋module 的本机目标和旧记录，记录不进撤销。F6 的 touch_front 目前跳过 v3，等 K2 正式接口合 main 后消费；不绕写本机数据库，不退回旧 Book 哨兵。G4 在 M02 记协调并继续模板动作／主页及单本书准备。已另收到 `handback/k4-g4` → `ced82326`（只读审阅／素材、主页模板动作、成稿与单书格式 3）；与 K2 `handback/k1` → `3a6bbbe5`（含 `879127b4` 版本化批注／素材及主页／最近访问）排下一批，第 60 批冻结后不再扩大。源检查与冒烟记录已收到，尚未正式接收，不算整合通过。
+- **K2／F6 主页续接（11-10）**：G4 补查的 book.get/update 元数据与 recent.touch/list 已核代码并直接分派。K2 明确 v3 书名、简介、全书／每日目标读取及逐字段写入，保留其他字段、v2.2、撤销和两书隔离；旧 nodes／elements 计数不能当 v3。最近访问保留 entry＋module 的本机目标和旧记录，记录不进撤销。F6 的 touch_front 目前跳过 v3，等 K2 正式接口合 main 后消费；不绕写本机数据库，不退回旧 Book 哨兵。G4 在 M02 记协调并继续模板动作／主页及单本书准备。第 61 批正式接收 `handback/k4-g4` → `ced82326`（只读审阅／素材、主页模板动作、成稿与单书格式 3）和 K2 `handback/k1` → `3a6bbbe5`（含 `879127b4` 批注／素材及主页／最近访问）：全套 2161／0 失败／22 忽略，副屏主流程 43/43、0 pending，实际导出文件与独立导入书核对通过。F6 可消费 recent.touch/list；G2 可消费 v3 审阅 panel 的精确模块目标；G4 续接写入。K6 需按书版本使用 Spec.v3 的输入／输出签名，不能继续以旧共名签名派生目录和 resolver；G1 完整历史正式接收后再接 Agent 写前快照。
+
+- **G4 素材关联续接（11-10）**：G4 已通知追加 `material.set_entry_link(book, material, entry, linked)`，只增删指定素材到条目的内置关联，不改原命令／签名。按作者公共新增接口规则继续；两端同书校验、其他与隐藏关系保留、重复操作／并发／持久重开须有永久契约，正式交回列明。当前仍在实现，不计已接。
 
 接口依据为 codex/k4-g4-book 中 [M06](../modules/m06-search.md)、[M20](../modules/m20-stats.md) 的待协调；各方编译并发 3，整合并发 6。未扩大 G4 的搜索宿主、右栏或内核修改权，progress.md 仍只由整合者更新。
 
@@ -167,6 +171,7 @@ G1 随后确认完整恢复跨 book 与多份 body，拟新增 dr-store 多文�
 | 11-10 01:36 | `handback/k4-g3` → `c611c8de`（第五十九批：隐藏绑定与失败草稿） | `5d8541b2` | 并发 6、测试单线程；fmt、Clippy、test（2118 通过／0 失败／22 忽略）、xtask／审计、public 及附加检查全过，无重跑。适配拒写断言的原隐藏 pin 探针与六项永久契约通过；窗口 45/45、89/89、50/50，共 184 步、0 pending，十图目检通过。第 56 批返修关闭；heavy、局部命令与公共树拖动仍待。 |
 
 | 11-10 02:41 | `handback/k1` → `469f0e8f`、`handback/k4-g4` → `7e2cd7d0`、`handback/f6` → `48184963`、`handback/k4-0` → `d2c0c918`（第六十批：结构／写作日、搜索统计接口、副屏与导航） | `236196de` | fmt、Clippy、test（2136 通过／0 失败／22 忽略）、xtask／审计、public 及附加检查全过，Rust 无重跑；主流程冒烟 58/58、0 pending。副屏原生定位另验 18/18 首次／重启通过，整合后处理的相对坐标误判记录保留。只解九语追加键冲突，G2 导航阻塞关闭；G1 历史／宿主续接，性能与 UI 打磨按最新规则暂缓。 |
+| 11-10 03:21 | `handback/k1` → `3a6bbbe5`、`handback/k4-g4` → `ced82326`（第六十一批：批注素材、主页与整书往返） | `f3709422` | fmt、Clippy、test（2161 通过／0 失败／22 忽略）、xtask／审计、public 及附加检查全过；标准 debug 副屏冒烟 43/43、0 pending，Word 内容和格式 3 独立导入书核对通过，无重跑。只合九语追加键；F6／G2／G4／K6 续接宿主与版本签名，G1 历史子会话继续。 |
 
 ## 退回
 
@@ -184,3 +189,4 @@ G1 随后确认完整恢复跨 book 与多份 body，拟新增 dr-store 多文�
 | 11-09 23:31 | `handback/k6` → `20dbf687`（第五十四批：第三步续交） | 第 53 批问题未修：与 `a4603663` 比较，resolve_v3.rs、executor.rs、catalog.rs 契约及底层 v3/timeline.rs 的 Git blob 完全相同；dr-agent-tools 只有 structure.rs 的说明测试新增，没有隐藏摆放回归。第三步小说说明及运行时接线不改变已复现的数据删除路径。复现沿用上行的 `integrator_hidden_timeline` 命令和第 53 批失败探针，本批没有重新运行或声称得到新测试结果。 | 续交不收，先按第 53 批要求修复隐藏 lanes／placements／pins 的整份覆盖保护、补永久回归、合最新 main 后重新全套交回。代码一致性机器记录在公共 Git 目录 `integration-evidence/batch-54/`；未试合产品、未跑候选全套／窗口，不套用源分支 2076 项结果。main 仅更新退回记录。 **已由 `3dff4958` 修复，第五十七批接收 `5d664e62`；原探针及七项永久保护通过，全量 2083 通过／0 失败／22 忽略。** |
 | 11-09 23:43 | `handback/k4-g1` → `537b3fc1`（第五十五批：网格修复及通览／链接续交） | 候选 `a541b1a9` 的真实 GPUI 补丁控件探针失败：作者只改标题并保持焦点，Agent 成功保存新正文，显式 reload 后标题失焦保存无错误，却把正文从 `new external body` 覆盖回 `old body`。Patches::save 将旧 UI 标题／正文一起无守卫调用 PatchPut。把临时 `integrator_patch_probe.rs` 附到 dr-view-elements/src/element/patches.rs 末尾，在 next/ 运行 `CARGO_BUILD_JOBS=6 RUST_TEST_THREADS=1 cargo test -p dr-view-elements --lib integrator_patch_probe --locked -- --nocapture`；0 通过／1 失败，1.70 秒、退出码 101。 | 退 G1：使用与原读取对应的版本守卫或真正字段级命令，冲突保留草稿；不能保存前取新版本却提交旧 UI 值。补永久回归覆盖仅标题／仅正文与外部更新、冲突和显式重试，核对其他整份写入，重新全套／窗口后交回。原第 49 批网格探针现为明确 Conflict；永久网格 20 项通过，网格问题已验证修复。临时探针及日志留公共 Git 目录 `integration-evidence/batch-55/`，已还原产品字节、不进 main；本批不继续全套／窗口，不套用源分支 2076 项。已按作者授权直接通知 G1 会话。 **已由 `3278b584` 修复，第五十八批全套与窗口验收后接收，退回关闭。** |
 | 11-09 23:48 | `handback/k4-g3` → `ba3406a8`（已合代码，第五十六批返修复核） | 在 main `fb75b6bb` 的隔离 worktree 用真实 Timeline 控件复现：新条目只有 pin 绑定、没有 placement；回收后 lanes／placements／pins 数量都不变，但查询 pin.entry 为 null、原始绑定仍在。执行泳道重排成功后，恢复条目，原始 pin.entry 也变 null。edit_view 的数量比较漏掉字段投影。复现：放入 dr-view-timeline/tests/integrator_hidden_pin.rs，在 next/ 运行 `CARGO_BUILD_JOBS=6 RUST_TEST_THREADS=1 cargo test -p dr-view-timeline --test integrator_hidden_pin --locked -- --nocapture`；0 通过／1 失败、2.01 秒、退出码 101。 | 返 G3：检查原始与有效数据内容，保护投影隐藏的绑定／字段，或协调局部命令；同时核对时间钉编辑。补数量相同但绑定被隐藏、改名／泳道操作、恢复后绑定保留及原隐藏成员／并发保护的永久回归，全套和相关窗口后重交。已直接通知对应会话。第 45、48 批历史不回滚，main 当前保留此明确待修问题；临时探针与日志在公共 Git 目录 `integration-evidence/batch-56/`，不进 main，本批不跑新产品全套／窗口。 **已由 `c611c8de` 修复，第五十九批全套及窗口验收后接收；绑定保留、失败草稿可重试，返修关闭。** |
+| 11-10 03:32 | K1 `3a6bbbe5` 的已接代码（第六十二批返修复核） | main `229b5138` 的真实 v3-tiny 探针确认：保存 book＋body 旧观察后正文前插，book 版本不变；带旧 guards 调 comment.create(range) 仍返回 Ok 和 journal，引用由原选中文字变为新插入文字。cx.prose_view 未校验只读 body 版本，书写只校验 book。0 通过／1 失败、0.07 秒、退出码 101。把公共 Git 目录 integration-evidence/batch-62/comment-guard/integrator_comment_read_guard.rs 放入 dr-testkit/tests，在 next/ 运行 `CARGO_BUILD_JOBS=6 RUST_TEST_THREADS=1 cargo test -p dr-testkit --test integrator_comment_read_guard --locked -- --nocapture`。 | 返 K2：在同一次正文 holder 读取内验证来源版本，再生成 anchor／quote／snapshots；原 range、block_id、reanchor 与 G4 新 anchor 分支共用规范帮手，读后并发编辑须保留原稳定身份或拒绝，不能取新版 frontier 授权旧范围。补永久回归、全套后重交。已通知 K2／K6／G4；K2 暂存 M14 优先修，K6 暂不开放无保护锚定写入。第 61 批历史保留，main 当前有此明确待修项；临时探针经字节核对已移出工作树，不进 main。 |

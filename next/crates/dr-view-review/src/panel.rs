@@ -64,6 +64,8 @@ pub struct ReviewView {
     lib: Option<Workspace>,
     pub(crate) book: String,
     target: Option<NavTarget>,
+    v3: Option<crate::v3_panel::State>,
+    v3_load: u64,
     i18n: I18n,
     items: Vec<CommentInfo>,
     /// Only the built-in generic associations, never custom relation types.
@@ -135,6 +137,8 @@ impl ReviewView {
             lib,
             book: String::new(),
             target: None,
+            v3: None,
+            v3_load: 0,
             i18n: I18n::new(Locale::default(), Platform::current()),
             items: Vec::new(),
             associations: Vec::new(),
@@ -160,6 +164,59 @@ impl ReviewView {
         self.opener = Some(open);
     }
 
+    pub(crate) fn is_v3(&self) -> bool {
+        self.v3.is_some()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn show_v3(
+        &mut self,
+        book: &str,
+        target: Option<crate::v3::Target>,
+        locale: Locale,
+        platform: Platform,
+        open: crate::v3_panel::Open,
+        marks: crate::v3_panel::Marks,
+        cx: &mut Context<Self>,
+    ) {
+        let changed_book = self.book != book || self.v3.is_none();
+        if changed_book {
+            self.pending = None;
+            self.v3_load += 1;
+            self.book = book.to_owned();
+            self.target = None;
+            self.opener = None;
+            self.items.clear();
+            self.associations.clear();
+            self.places.clear();
+            self.originals.clear();
+            self.asking.clear();
+            self.editing = None;
+            self.reveal = None;
+            self.loaded = false;
+            self.v3 = Some(crate::v3_panel::State {
+                scope: target.clone(),
+                snapshot: crate::v3::Snapshot::default(),
+                open: open.clone(),
+                marks: marks.clone(),
+            });
+        }
+        let state = self.v3.as_mut().expect("v3 state");
+        let changed_target = state.scope != target;
+        state.scope = target;
+        state.open = open;
+        state.marks = marks;
+        if self.i18n.locale() != locale {
+            self.i18n = I18n::new(locale, platform);
+        }
+        if changed_book {
+            self.reload(cx);
+        }
+        if changed_book || changed_target {
+            cx.notify();
+        }
+    }
+
     /// Accept navigation to a comment, including when this pane has not yet
     /// loaded it. Only filters which conceal this item are relaxed.
     pub fn reveal_comment(
@@ -173,6 +230,12 @@ impl ReviewView {
             self.items.clear();
             self.associations.clear();
             self.places.clear();
+            if let Some(state) = &mut self.v3 {
+                state.snapshot = crate::v3::Snapshot::default();
+                state.scope = None;
+                self.originals.clear();
+                self.asking.clear();
+            }
             self.loaded = false;
         }
         let (reply, received) = futures::channel::oneshot::channel();
@@ -237,6 +300,13 @@ impl ReviewView {
         platform: Platform,
         cx: &mut Context<Self>,
     ) {
+        if self.v3.take().is_some() {
+            self.pending = None;
+            self.v3_load += 1;
+            self.book.clear();
+            self.originals.clear();
+            self.asking.clear();
+        }
         if self.i18n.locale() != locale {
             self.i18n = I18n::new(locale, platform);
         }
@@ -256,6 +326,9 @@ impl ReviewView {
 
     /// The comments changed: read them again shortly.
     pub(crate) fn schedule(&mut self, cx: &mut Context<Self>) {
+        if self.v3.is_some() {
+            self.v3_load += 1;
+        }
         self.pending = Some(cx.spawn(async move |this, cx| {
             cx.background_executor()
                 .timer(Duration::from_millis(60))
@@ -265,6 +338,10 @@ impl ReviewView {
     }
 
     fn reload(&mut self, cx: &mut Context<Self>) {
+        if self.v3.is_some() {
+            self.reload_v3(cx);
+            return;
+        }
         let Some(lib) = self.lib.clone() else {
             return;
         };
@@ -333,8 +410,55 @@ impl ReviewView {
         }));
     }
 
+    fn reload_v3(&mut self, cx: &mut Context<Self>) {
+        let Some(lib) = self.lib.clone() else { return };
+        if self.book.is_empty() {
+            return;
+        }
+        self.v3_load += 1;
+        let serial = self.v3_load;
+        let book = self.book.clone();
+        let requested = book.clone();
+        let task = cx
+            .background_executor()
+            .spawn(async move { crate::v3::load(&lib, &requested) });
+        self.pending = Some(cx.spawn(async move |this, cx| {
+            let result = task.await;
+            this.update(cx, |this, cx| {
+                if this.book != book || this.v3_load != serial {
+                    return;
+                }
+                let Some(state) = &mut this.v3 else { return };
+                match result {
+                    Ok(snapshot) => {
+                        this.items = snapshot.items.iter().map(crate::v3::Item::card).collect();
+                        state.snapshot = snapshot;
+                        this.loaded = true;
+                        this.originals.clear();
+                        this.apply_reveal();
+                    }
+                    Err(e) => {
+                        log::warn!("review: v3 load: {e}");
+                        this.items.clear();
+                        state.snapshot = crate::v3::Snapshot::default();
+                        this.loaded = false;
+                        if let Some(reveal) = this.reveal.take() {
+                            let _ = reveal.reply.send(false);
+                        }
+                    }
+                }
+                cx.notify();
+            })
+            .ok();
+        }));
+    }
+
     /// What is listed now.
     pub fn listing(&self) -> Listing {
+        if let Some(state) = &self.v3 {
+            let scope = self.current_only.then_some(state.scope.as_ref()).flatten();
+            return state.snapshot.cards(self.filter, scope);
+        }
         let scope = self
             .current_only
             .then(|| self.target.as_ref().and_then(target_of))
@@ -369,6 +493,9 @@ impl ReviewView {
     }
 
     fn update_comment(&mut self, input: CommentUpdateIn, cx: &mut Context<Self>) {
+        if self.v3.is_some() {
+            return;
+        }
         let Some(lib) = self.lib.clone() else {
             return;
         };
@@ -405,6 +532,9 @@ impl ReviewView {
 
     /// Completes or reopens a comment; a TODO's check stroke is drawn.
     pub fn set_done(&mut self, id: &str, done: bool, cx: &mut Context<Self>) {
+        if self.v3.is_some() {
+            return;
+        }
         let now = anim::now();
         let check = self
             .checks
@@ -423,6 +553,9 @@ impl ReviewView {
 
     /// Starts editing a card's body in place.
     pub fn edit(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
+        if self.v3.is_some() {
+            return;
+        }
         let Some(item) = self.items.iter().find(|i| i.id == id) else {
             return;
         };
@@ -468,6 +601,9 @@ impl ReviewView {
 
     /// Turns a note into a TODO or back (`kind`: `todo` or `note`).
     pub fn set_kind(&mut self, id: &str, kind: &str, cx: &mut Context<Self>) {
+        if self.v3.is_some() {
+            return;
+        }
         if let Some(item) = self.items.iter_mut().find(|i| i.id == id) {
             item.kind = kind.to_owned();
         }
@@ -478,6 +614,9 @@ impl ReviewView {
 
     /// Deletes a comment (F3 records how to undo it).
     pub fn delete(&mut self, id: &str, cx: &mut Context<Self>) {
+        if self.v3.is_some() {
+            return;
+        }
         let Some(lib) = self.lib.clone() else {
             return;
         };
@@ -524,14 +663,29 @@ impl ReviewView {
             return;
         }
         let (book, comment) = (self.book.clone(), id.to_owned());
-        let task = cx
-            .background_executor()
-            .spawn(async move { dr_editor::decor::original(&lib, &book, &comment) });
+        let requested_book = book.clone();
+        let v3 = self.v3.is_some();
+        let v3_load = self.v3_load;
+        let task = cx.background_executor().spawn(async move {
+            if v3 {
+                crate::v3::original(&lib, &book, &comment).map_err(|e| e.to_string())
+            } else {
+                dr_editor::decor::original(&lib, &book, &comment)
+            }
+        });
         let id = id.to_owned();
         cx.spawn(async move |this, cx| {
             let found = task.await;
             this.update(cx, |this, cx| {
+                if (v3 || this.v3.is_some())
+                    && (this.book != requested_book || this.v3.is_some() != v3)
+                {
+                    return;
+                }
                 this.asking.remove(&id);
+                if v3 && this.v3_load != v3_load {
+                    return;
+                }
                 let found = found.unwrap_or_else(|e| {
                     log::warn!("review: the passage of {id}: {e}");
                     None
@@ -549,6 +703,31 @@ impl ReviewView {
 
     /// What a card's source card shows: the thing it is on and the passage.
     fn source_of(&self, item: &CommentInfo) -> Source {
+        if let Some(state) = &self.v3 {
+            let source = state
+                .snapshot
+                .items
+                .iter()
+                .find(|i| i.comment.id.as_str() == item.id);
+            let title = source
+                .map(|i| match &i.place {
+                    crate::v3::Place::On(_) => self.v3_title(i),
+                    crate::v3::Place::Gone => {
+                        self.i18n.t(keys::review_panel::groups::DELETED).into()
+                    }
+                    crate::v3::Place::Floating => {
+                        self.i18n.t(keys::review_panel::SOURCE_FLOATING).into()
+                    }
+                })
+                .unwrap_or_default();
+            return Source {
+                title,
+                mark: source
+                    .and_then(|i| i.target.as_ref())
+                    .and_then(|t| (state.marks)(t)),
+                quote: item.quote.clone().map(Into::into),
+            };
+        }
         let place = item
             .target
             .as_ref()
@@ -597,6 +776,21 @@ impl ReviewView {
     /// Jumps to a comment's text: the shell opens its entity, the editor
     /// shows it and draws it again.
     pub fn jump(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(state) = &self.v3 {
+            if let Some(crate::v3::Item {
+                place: crate::v3::Place::On(target),
+                ..
+            }) = state
+                .snapshot
+                .items
+                .iter()
+                .find(|i| i.comment.id.as_str() == id)
+            {
+                ReviewFocus::jump(id, cx);
+                (state.open)(target.clone(), window, cx);
+            }
+            return;
+        }
         let Some(item) = self.items.iter().find(|i| i.id == id) else {
             return;
         };
@@ -613,6 +807,17 @@ impl ReviewView {
 
     fn group_title(&self, group: &Group) -> SharedString {
         match &group.place {
+            Place::V3(target) => self
+                .v3
+                .as_ref()
+                .and_then(|s| {
+                    s.snapshot
+                        .items
+                        .iter()
+                        .find(|i| i.target.as_ref() == Some(target))
+                })
+                .map(|i| self.v3_title(i))
+                .unwrap_or_default(),
             Place::On(t) => self
                 .places
                 .get(&format!("{}:{}", t.kind, t.id))
@@ -622,6 +827,21 @@ impl ReviewView {
                 .into(),
             Place::Gone => self.i18n.t(keys::review_panel::groups::DELETED).into(),
             Place::Floating => self.i18n.t(keys::review_panel::groups::FLOATING).into(),
+        }
+    }
+
+    fn v3_title(&self, item: &crate::v3::Item) -> SharedString {
+        let module = item
+            .module_name
+            .as_deref()
+            .filter(|s| !s.is_empty())
+            .or_else(|| {
+                item.retained
+                    .then(|| self.i18n.t(keys::k4_book::RETAINED_CONTENT))
+            });
+        match module {
+            Some(module) => format!("{} · {module}", item.title).into(),
+            None => item.title.clone().into(),
         }
     }
 
@@ -689,6 +909,7 @@ impl ReviewView {
                 Button::new(id("resolve"), self.i18n.t(label).to_owned())
                     .text()
                     .small()
+                    .disabled(self.v3.is_some())
                     .on_click(move |_, _, cx| {
                         entity.update(cx, |this, cx| this.set_done(&comment, !done, cx));
                     }),
@@ -805,6 +1026,7 @@ impl ReviewView {
         };
         let card_id = format!("{}-src-{}", self.id, item.id);
         let (card_entity, card_comment) = (entity.clone(), comment.clone());
+        let readonly = self.v3.is_some();
         let source_card = move |window: &mut Window, cx: &mut gpui::App| {
             // The passage is read when the card opens (and again once it is
             // a little old): the prose may have changed under it.
@@ -822,6 +1044,7 @@ impl ReviewView {
                 card_comment.clone(),
                 todo,
                 done,
+                readonly,
             )
         };
         // The glass answers the pointer itself; the card around it tells
@@ -954,7 +1177,7 @@ impl ReviewView {
         .size(px(size))
         .flex_none()
         .rounded_full()
-        .cursor_pointer()
+        .when(self.v3.is_none(), |d| d.cursor_pointer())
         .child(
             // The stroke drawn from left to right: the icon clipped.
             div()
@@ -1009,7 +1232,10 @@ impl Render for ReviewView {
                 self.i18n.t(keys::review_panel::scopes::CURRENT).to_owned(),
                 self.current_only,
             )
-            .disabled(self.target.as_ref().and_then(target_of).is_none())
+            .disabled(match &self.v3 {
+                Some(state) => state.scope.is_none(),
+                None => self.target.as_ref().and_then(target_of).is_none(),
+            })
             .on_change(move |on, _, cx| {
                 entity.update(cx, |this, cx| this.set_current_only(on, cx));
             })
@@ -1183,6 +1409,7 @@ fn source_card(
     comment: String,
     todo: bool,
     done: bool,
+    readonly: bool,
 ) -> AnyElement {
     let rid = |part: &str| ElementId::Name(format!("{id}-{part}").into());
     let mut body = CardBody::new(rid("body"), source.title.clone());
@@ -1196,6 +1423,9 @@ fn source_card(
         }
         (None, Some(quote)) => body = body.quote(quote.clone(), None),
         _ => {}
+    }
+    if readonly {
+        return body.into_any_element();
     }
     let (v1, c1) = (view.clone(), comment.clone());
     let (v2, c2) = (view.clone(), comment.clone());

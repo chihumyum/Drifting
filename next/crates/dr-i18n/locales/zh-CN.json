@@ -584,10 +584,14 @@
     }
   },
   "k4Book": {
+    "entry_count_other": "{{count}} 个条目",
+    "entry_titles": "条目标题",
     "entry_words": "条目字数",
     "leaf_count": "叶子数量",
     "material_words": "素材字数",
-    "retained_content": "保留的内容"
+    "retained_content": "保留的内容",
+    "selected_entries": "选中条目",
+    "untitled_entry": "未命名条目"
   },
   "k4Pages": {
     "body": "正文",

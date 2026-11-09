@@ -391,6 +391,7 @@ pub mod anchors {
 struct Pages {
     shelf: Option<MakeShelf>,
     home: Option<MakeHome>,
+    v3_home: Option<MakeHome>,
     chrome: Vec<MakeChrome>,
     views: Vec<MakeView>,
     menus: Vec<MakeMenu>,
@@ -423,6 +424,14 @@ pub fn set_home(
     make: impl Fn(WeakEntity<Workspace>, &mut Window, &mut App) -> AnyView + 'static,
 ) {
     cx.default_global::<Pages>().home = Some(Rc::new(make));
+}
+
+/// Registers the v3 Project Home. Legacy books keep [`set_home`]'s view.
+pub fn set_v3_home(
+    cx: &mut App,
+    make: impl Fn(WeakEntity<Workspace>, &mut Window, &mut App) -> AnyView + 'static,
+) {
+    cx.default_global::<Pages>().v3_home = Some(Rc::new(make));
 }
 
 /// Registers what a page draws around its text: asked once for each page
@@ -725,5 +734,14 @@ pub(crate) fn make_home(
     cx: &mut App,
 ) -> Option<AnyView> {
     let make = cx.try_global::<Pages>()?.home.clone()?;
+    Some(make(ws, window, cx))
+}
+
+pub(crate) fn make_v3_home(
+    ws: WeakEntity<Workspace>,
+    window: &mut Window,
+    cx: &mut App,
+) -> Option<AnyView> {
+    let make = cx.try_global::<Pages>()?.v3_home.clone()?;
     Some(make(ws, window, cx))
 }

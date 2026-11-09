@@ -915,7 +915,6 @@ v2.2 分支保持原 reader／事务。两者共用既有按设备／日期键�
 只改变 `writing_days`、重复写入版本不变、不进入撤销日志，以及非法日期／负数拒绝。
 共用日期入口先拒绝非 ASCII，防止按字节切片解析非法日期时 panic；有效 v2.2 日期行为不变。
 
-
 ## K2 大书结构读取：批量层级与一致快照（2026-11-10）
 
 `level.list {book}` 只接受 v3，返回 `{version, levels}`。`version` 是读取书目时的
@@ -943,8 +942,9 @@ import／checkout。读取不提交事务。`entry.list` 和 `level.get` 使用�
 不是只测打开一个空 Workspace。修前证据的源文件指纹在运行开始时冻结；公共基准
 输入路径同步 dr-corpus 拆分，debug 证据不再误标成 release 命令。
 
-本批不改外壳。整合后由外壳消费 `level.list` 并移除独立来源算法，再由整合者在各组和 K6 合齐后安排
-标准 debug heavy 的统一窗口验收；本批的查询完成时间不能当成窗口 `book.loaded=true` 的验收。
+本批不改外壳。整合后由外壳消费 `level.list` 并移除独立来源算法。11-10 夜作者更新：
+性能、heavy、截图目检和样式打磨暂缓，当前先验功能与数据正确性。下方测量保留为历史证据；
+查询完成时间不能当成窗口 `book.loaded=true` 的验收，也没有宣称新的窗口性能检查通过。
 
 ### v3-heavy 修前／修后测量
 
@@ -976,3 +976,66 @@ frontier 一致。修后批量查询另外核对层级 id、八项来源以及�
 复跑命令为 `CARGO_BUILD_JOBS=3 cargo run -p dr-testkit --bin bench -- v3-book --milestone <m>`，
 release 加 `--release`。逐层路径用 `v3-book-legacy`；在修后代码运行它会同时受益于
 单查询的优化，不能用来重建原始修前时间，修前以已保存指纹和证据为准。
+
+## K2 续接 G4：批注、素材与素材夹（2026-11-10）
+
+共用命令按**实际书目版本**选择实现。批注在注册表中只有一个名字，
+`Spec.v3`／能力清单的 `v3` 节另列版本 3 的输入输出；默认 schema 保持 v2.2。
+JSON 调用由书 id（`todo.project` 由文档的所属书）分派，不能用旧种类猜条目。
+
+| 调用方接口 | v3 用法 |
+| --- | --- |
+| `commands::v3::comment::{CommentCreate, CommentList, CommentAnchors}` | 使用同模块里的输入类型；增加顶层 `module`。目标仍是 `{kind: "entry" 或 "material", id}`。条目范围／块／锚点要求模块；素材不带模块。整条目批注和浮动批注可不带模块 |
+| `commands::v3::comment::CommentInfo` | 保留共用 DTO 的平铺字段，另加 `module` 正文模块；目标类型明确标为 Entry／Material。列表可按目标与模块过滤；不带模块过滤时返回目标的所有批注 |
+| `comment.update/delete/reanchor` | 输入形状不变，原 typed 入口也按版本分派。重锚按存储的目标模块校验光标，不能把另一篇正文的锚点写进来 |
+| `todo.project` | 原 typed 入口直接支持 `body:<entry>/<module>` 和 v3 的 `material:<id>`；按完整文档和块生成确定性 id。投影读取同时按目标、模块、种类隔离，编辑中暂缓新建，已有标记／已解决／尚未收到源正文版本的记录保留 |
+| `material.*`、`material_folder.*`、`asset.put/get` | 原输入输出和 typed 类型不变；v3 reader 与事务单独分派。文件夹仍独立于条目树，素材可通过条目的关系模块关联 |
+| `entry_history.restore` | 追加 `materials`、`comments`、`material_folders`；删除的逆操作恢复指定原始记录，包括隐藏关系和批注模块，正文历史与资源字节另存，不随普通素材删除清理 |
+
+旧 typed `CommentCreate/List/Anchors` 缺少模块信息，对 v3 明确拒绝，消费方须切到
+上表类型；旧 v2.2 书沿用原入口。G4／编辑器接线不能仅把 Entry 换成旧种类。
+本批提供可消费的工作区接口及真实读写契约，没有改界面 crate，也不代表真窗口已经接回。
+
+素材笔记继续先准备正文，再提交书目；故障时不落指向缺失正文的素材。
+`asset.put` 仍可先登记尚未下载的资源元数据；若本地已有原文件记录，v3 分支校验所属书、
+大小和散列，拒绝跨书借用。普通素材删除保留文件与笔记历史；彻底删除书仍走既有库边界。
+文件夹历史先校验最终树，再恢复父子与历史邻居顺序；如删除历史中不存在的文件夹会移动
+未选中的子夹或素材，则拒绝恢复。批注正文和素材说明恢复后仍是可编辑的 LoroText。
+
+`tests/v3_common.rs` 覆盖模块与书的隔离、typed／JSON 分派、错误锚点拒绝、重锚、
+删除后重开撤销、投影乱序保护、隐藏关系恢复、文件夹恢复；`dr-testkit/tests/workspace_v3_material.rs` 用共用合成图片覆盖资源／正文失败边界、区域批注撤销及彻底删除两书隔离。
+注册表快照由测试生成；没有新命令名字或帮手目录改动，K6 的正式工具适配另行交回。
+
+待协调：现有编辑器的 `todo.project` 标记路径已能消费 v3；`note_tasks.project`
+此前未注册，本批没有另造清单投影协议，已导入的 `note_task` 批注原样保留。
+G4 接面板和 G1 接模块锚点读取时使用上述类型，再做各自的实际界面验收。K6 的模块批注工具须消费 `Spec.v3` 的签名，由其轨道接线，本批不改帮手目录或执行器。
+
+## K2 续接主页：元数据与最近访问（2026-11-10）
+
+四个共用命令在注册表的 `Spec.v3` 中发布 v3 签名；JSON 按实际书版本分派，
+没有新增按种类的命令或伪造旧目标。
+
+| 接口 | v3 契约 |
+| --- | --- |
+| `commands::v3::book::BookGet`／`book.get` | 输入仍为 `BookIn`，输出 `BookInfo`：书名、简介、回收状态、字数目标、每日目标和创建时间。不返回旧版章节／构想／要素数量或旧索引字数；统计继续由 G4 的成书范围适配器提供 |
+| `commands::v3::book::BookUpdate`／`book.update` | 只写输入给出的字段。两个目标缺键表示不改，0 表示关闭，null 表示恢复默认；显式 v3 typed 输入使用 `Option<Option<i64>>`。原 typed `commands::book::BookUpdate` 也按实际版本转入 v3，沿用其已有输入范围 |
+| `commands::v3::recent::RecentTouch`／`recent.touch` | `target: {kind: "entry", id, module?}` 或 `{kind: "material", id}`。模块属于目标身份，同一条目的两篇正文分别保留；层级说明为 `module: "about"`，换模板后仍有内容的旧模块可继续导航 |
+| `commands::v3::recent::RecentList`／`recent.list` | 输入 `RecentListIn`，返回 `Vec<RecentEntry>`，每项保留上述完整目标和 `used_ms`；每书最多 10 项，最近访问排最前，回收或已不存在的目标不显示 |
+
+旧 typed `BookGet` 的返回类型强制带旧计数，旧 typed `RecentTouch/List` 又不能携带模块，
+因此这些旧 typed 入口对 v3 明确拒绝。消费方使用上表的 v3 类型；JSON 调用名字不变。
+K6 若读取／修改 v3 书的元数据，消费 `Spec.v3` 的签名。本批不修改帮手 crate。
+
+元数据通过 v3 reader／事务逐字段读取和写入，逆操作也只携带实际改变的字段，
+未设置的目标撤销后仍是未设置；相同值不产生书目写入或撤销记录。
+最近访问只存在本机 `local_state` 的 `ws-recent-v3` scope，每书一行，key 与所属书均为书 id。
+存储层彻底删除书时在同一事务移除该行，不解析或重写旧 `ws/recent` 值。
+无法解析的 v3 行返回错误并原样保留，不悄悄重置；其他书的行仍可用。
+最近访问不改书目 frontier、不产生 journal／undo、不打断 redo。
+
+永久 v3 契约覆盖逐字段写入、另一来源更新后的撤销／重做、默认／关闭目标、拒绝非法写入、
+两书与重开隔离，以及模块身份、去重顺序、条数上限、保留模块、回收恢复、本机旧记录保留、
+损坏记录拒绝和按书彻底删除。没有新增或删除 v2.2 测试。
+
+待协调：G4 接主页元数据，F6 接 `record_recent` 和继续写导航；两者使用 v3 typed 接口。
+本批未改 UI，未进行真窗口验收，也不声称主页或最近访问已经显示在窗口里。

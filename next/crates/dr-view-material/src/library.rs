@@ -151,6 +151,8 @@ pub struct LibraryPanel {
     related_only: bool,
     /// The page the related materials were read for, and them.
     related: Option<(String, HashSet<String>)>,
+    v3_related_generation: u64,
+    v3_related_pending: Option<Task<()>>,
     importing: usize,
     menu: Option<Point<Pixels>>,
     /// A row to rename as soon as it is drawn (a folder just made).
@@ -217,6 +219,8 @@ impl LibraryPanel {
                 if !Rc::ptr_eq(&book, &panel.book) {
                     panel.book = book;
                     panel.related = None;
+                    panel.v3_related_generation += 1;
+                    panel.v3_related_pending = None;
                     let order = panel.order();
                     panel.picker.keep(&order);
                     cx.notify();
@@ -235,6 +239,8 @@ impl LibraryPanel {
             renaming: None,
             related_only: false,
             related: None,
+            v3_related_generation: 0,
+            v3_related_pending: None,
             importing: 0,
             menu: None,
             rename_when_shown: None,
@@ -256,6 +262,8 @@ impl LibraryPanel {
     pub fn set_book(&mut self, book: Rc<Book>, cx: &mut Context<Self>) {
         self.book = book;
         self.related = None;
+        self.v3_related_generation += 1;
+        self.v3_related_pending = None;
         let order = self.order();
         self.picker.keep(&order);
         cx.notify();
@@ -280,6 +288,9 @@ impl LibraryPanel {
     }
 
     pub fn set_related_only(&mut self, on: bool, cx: &mut Context<Self>) {
+        if self.book.v3().is_some() && self.related_only != on {
+            self.related = None;
+        }
         self.related_only = on;
         self.keep_related(cx);
         cx.notify();
@@ -288,6 +299,10 @@ impl LibraryPanel {
     /// Reads which materials relate to the page in front, when the filter
     /// is on and the page changed.
     fn keep_related(&mut self, cx: &mut Context<Self>) {
+        if self.book.v3().is_some() {
+            self.keep_related_v3(cx);
+            return;
+        }
         if !self.related_only {
             return;
         }
@@ -327,6 +342,51 @@ impl LibraryPanel {
             let related = task.await;
             this.update(cx, |p, cx| {
                 p.related = Some((key, related));
+                cx.notify();
+            })
+            .ok();
+        }));
+    }
+
+    fn keep_related_v3(&mut self, cx: &mut Context<Self>) {
+        if !self.related_only {
+            self.v3_related_pending = None;
+            self.v3_related_generation += 1;
+            return;
+        }
+        let front = self.front(cx);
+        let key = front.as_ref().map(Target::key).unwrap_or_default();
+        if self
+            .related
+            .as_ref()
+            .is_some_and(|(current, _)| current == &key)
+        {
+            return;
+        }
+        self.v3_related_generation += 1;
+        self.v3_related_pending = None;
+        // Never flash the previous entry's materials while the next read runs.
+        self.related = Some((key.clone(), HashSet::new()));
+        let Some(Target::Entry { id, .. }) = front else {
+            return;
+        };
+        let Some(lib) = self.lib.clone() else { return };
+        let book = self.book_id();
+        let requested_book = book.clone();
+        let generation = self.v3_related_generation;
+        let task = cx
+            .background_executor()
+            .spawn(async move { crate::v3::related(&lib, &requested_book, id.as_str()) });
+        self.v3_related_pending = Some(cx.spawn(async move |this, cx| {
+            let result = task.await;
+            this.update(cx, |p, cx| {
+                if p.book_id() != book || p.v3_related_generation != generation {
+                    return;
+                }
+                match result {
+                    Ok(ids) => p.related = Some((key, ids)),
+                    Err(e) => log::warn!("material library: v3 associations: {e}"),
+                }
                 cx.notify();
             })
             .ok();
@@ -1321,7 +1381,11 @@ impl Render for LibraryHead {
         let panel = self.panel.read(cx);
         let count = panel.book.materials.len();
         let related = panel.related_only;
-        let can_relate = panel.front(cx).is_some();
+        let can_relate = if panel.book.v3().is_some() {
+            matches!(panel.front(cx), Some(Target::Entry { .. }))
+        } else {
+            panel.front(cx).is_some()
+        };
         let menu_at = panel.menu;
         let (toggle, folder, plus, sv) = (
             self.panel.clone(),

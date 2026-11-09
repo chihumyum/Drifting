@@ -8,9 +8,7 @@ use std::path::{Path, PathBuf};
 
 use dr_export::book_file::{self, BookFileError};
 use dr_i18n::{Key, keys};
-use dr_workspace::commands::BookIn;
-use dr_workspace::commands::book::BookGet;
-use dr_workspace::{Actor, Workspace};
+use dr_workspace::Workspace;
 use futures::StreamExt as _;
 use gpui::{App, Entity, PathPromptOptions};
 
@@ -118,10 +116,7 @@ pub fn export(book: String, cx: &mut App) {
         let Some(lib) = ws.library.clone() else {
             return;
         };
-        let title = lib
-            .run::<BookGet>(&Actor::User, BookIn { book: book.clone() })
-            .map(|o| o.output.info.name)
-            .unwrap_or_default();
+        let title = book_file::book_title(&lib, &book).unwrap_or_default();
         let path = cx.prompt_for_new_path(&start_dir(), Some(&book_file::book_filename(&title)));
         cx.spawn(async move |_, cx| {
             if let Ok(Ok(Some(path))) = path.await {

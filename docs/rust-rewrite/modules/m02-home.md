@@ -1,5 +1,21 @@
 # M02 作品主页（基础）
 
+## K4 G4 v3 主页入口交回与续接
+
+主页按书版本独立注册；层级模板声明的动作通过 `entry.create` 逐项创建，
+字数复用成书叶子统计，导航直接用 `Target::Entry`，继续写暂取最近修改的
+成书叶子。公共增加 `pages::set_v3_home`／内部 `make_v3_home` 与工作区 `v3_home`
+挂接，不改旧注册口。并发新建、隐藏内容保留、动作失效时保留标题草稿已有
+永久测试；`dr-view-home/scenarios/book-v3.json` 的 v3-lite 副屏冒烟 33/33
+通过，0 pending，覆盖新建、成稿导出与单本书往返。完整检查与范围见
+[M41 本次交回](m41-export.md#k4-g4-本次交回2026-11-10)；元数据和最近访问未完成。
+
+交整合者安排 K2／F6：现有 `book.get/update` 仍调用旧 `cx.book`，需要
+v3 的书名、简介、字数目标读取与逐字段更新；`recent.touch/list` 只接受旧
+kind，F6 也跳过 v3 记录，需要能保留 `entry + module` 的设备本机最近访问
+接口及宿主记录。写作日沿用 M20 已提出的协调。G4 不直接写 Loro 或本机库
+绕过这些接口，不将缺失读取伪装成零，也不把旧书结果算作 v3 通过。
+
 2026-11-08，和书架（[m01-shelf.md](m01-shelf.md)）在同一个分支 `chihumyum/m01-shelf-home-3bf938` 上：第一个里程碑，和第二轮（main `1652a95e` 之后：F3 的 `recent.*`、F5 的无框输入）。计划见 [modules.md 的 M02](../modules.md#阶段-2写作闭环)，产品规则见 [docs/project-home.md](../../project-home.md) 和 components.md 的「作品主页」。代码在 `next/crates/dr-view-home/`。
 
 ## 一句话
