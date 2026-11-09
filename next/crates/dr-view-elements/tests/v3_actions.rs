@@ -1,5 +1,8 @@
 //! Author mutations grow the canonical Tiny v3 seed; no second prose corpus.
+use dr_doc::v3::BorrowedBookV3;
+use dr_model::id::BookId;
 use dr_shell::book::Book;
+use dr_store::OpenDoc;
 use dr_view_elements::data::v3::{
     creation, drop_target, membership_hosts, prepare, prepare_board, prepare_drop, prepare_edit,
     switch_templates,
@@ -43,6 +46,159 @@ fn root(book: &Book, template: &str) -> String {
         .unwrap()
         .id
         .clone()
+}
+fn raw_timeline(ws: &Workspace, book: &str, view: &str) -> Value {
+    let id: BookId = book.parse().unwrap();
+    let view = view.to_owned();
+    ws.library()
+        .open_doc(&format!("book:{book}"), OpenDoc::Existing)
+        .unwrap()
+        .read(move |doc| {
+            let book = BorrowedBookV3::new(doc, &id).unwrap();
+            let raw = book
+                .view()
+                .timeline_views_raw()
+                .into_iter()
+                .find(|timeline| timeline.id.as_str() == view)
+                .unwrap();
+            serde_json::to_value(raw).unwrap()
+        })
+        .unwrap()
+}
+
+#[test]
+fn removing_visible_membership_preserves_position_and_span_under_a_trashed_lane() {
+    let (_dir, ws, book) = seed();
+    let initial = Book::load(&ws, &book).unwrap();
+    let manuscript = root(&initial, "tpl-manuscript");
+    let storylines = root(&initial, "tpl-storylines");
+    let a = entry(
+        &ws,
+        &book,
+        &storylines,
+        "tpl-storyline",
+        "Synthetic visible A",
+    );
+    let b = entry(
+        &ws,
+        &book,
+        &storylines,
+        "tpl-storyline",
+        "Synthetic hidden B",
+    );
+    let member = entry(
+        &ws,
+        &book,
+        &manuscript,
+        "tpl-chapter",
+        "Synthetic retained position",
+    );
+    let view = "synthetic-hidden-membership";
+    call(
+        &ws,
+        "membership.add",
+        json!({"book":book,"host":a,"member":member}),
+    );
+    call(
+        &ws,
+        "timeline_view.put",
+        json!({"book":book,"view":{"id":view,"name":"Synthetic retained timeline","lanes":[{"entry":b}]}}),
+    );
+    call(
+        &ws,
+        "timeline_view.place",
+        json!({"book":book,"view":view,"entry":member,"lane":b,"at":41.0,"span":7.0}),
+    );
+    let before = raw_timeline(&ws, &book, view);
+    assert_eq!(before["placements"].as_array().unwrap().len(), 1);
+    assert_eq!(before["placements"][0]["at"], 41.0);
+    assert_eq!(before["placements"][0]["span"], 7.0);
+
+    call(&ws, "entry.trash", json!({"book":book,"id":b}));
+    assert_eq!(
+        raw_timeline(&ws, &book, view)["placements"],
+        before["placements"]
+    );
+    let hidden = Book::load(&ws, &book).unwrap();
+    assert!(
+        hidden
+            .v3()
+            .unwrap()
+            .memberships
+            .iter()
+            .any(|m| m.host == a && m.member == member)
+    );
+    assert!(
+        !hidden
+            .v3()
+            .unwrap()
+            .memberships
+            .iter()
+            .any(|m| m.host == b && m.member == member)
+    );
+    let visible = call(&ws, "timeline_view.list", json!({"book":book}));
+    assert!(
+        visible
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|v| v["id"] == view)
+            .unwrap()["placements"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+
+    // The public-card consumer's exact snapshot and guarded commit, rather than
+    // a direct unguarded backend probe. Removing A must not clean hidden B.
+    prepare(
+        &hidden,
+        "membership.remove",
+        json!({"host":a,"member":member}),
+    )
+    .unwrap()
+    .commit(&ws)
+    .unwrap();
+    let after_remove = raw_timeline(&ws, &book, view);
+    call(&ws, "entry.restore", json!({"book":book,"id":b}));
+    let restored = raw_timeline(&ws, &book, view);
+    let memberships = Book::load(&ws, &book).unwrap();
+    assert!(
+        !memberships
+            .v3()
+            .unwrap()
+            .memberships
+            .iter()
+            .any(|m| m.host == a && m.member == member)
+    );
+    assert!(
+        memberships
+            .v3()
+            .unwrap()
+            .memberships
+            .iter()
+            .any(|m| m.host == b && m.member == member)
+    );
+    let visible = call(&ws, "timeline_view.list", json!({"book":book}));
+    let visible = visible
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|v| v["id"] == view)
+        .unwrap();
+    ws.shutdown().unwrap();
+    assert_eq!(
+        after_remove["placements"], before["placements"],
+        "an unrelated membership edit must retain raw hidden placement"
+    );
+    assert_eq!(
+        restored["placements"], before["placements"],
+        "restoring B must recover the original position and span"
+    );
+    assert_eq!(
+        visible["placements"], before["placements"],
+        "restoring B must expose the retained placement"
+    );
 }
 #[test]
 fn creation_uses_home_and_atomic_membership_without_inventing_a_default() {

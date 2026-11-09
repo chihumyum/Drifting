@@ -36,6 +36,7 @@ serde_json.workspace = true
 
 [dev-dependencies]
 anyhow.workspace = true
+dr-doc.workspace = true
 dr-store.workspace = true
 dr-testkit.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
