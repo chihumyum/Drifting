@@ -327,4 +327,31 @@ workspace/all-targets Clippy（-D warnings）、workspace 测试 **2076 通过�
 并发脚本进一步在每次输入前激活并断言原生窗口活跃，在 Agent 写入前读回确认
 作者草稿仍未提交；不能把 input.type 返回成功当作输入已被控件接受。组合控件
 早期的正文读回失败另由上述新建／失焦排队修复。不以未通过的运行作为验收结果。
-最终窗口及全套检查结果在交回时补记。
+最终窗口及全套检查结果如下。
+
+
+### 第五十五批修正交回
+
+本批实现为 `d91d0835`；`3ef066f4`、`e24884e1` 同步 main，最后同步到
+`2f80ac40` 后跑完整检查。`CARGO_BUILD_JOBS=3`、测试单线程，fmt、workspace
+all-targets Clippy（-D warnings）、完整测试 **2090 通过／0 失败／22 忽略**、
+xtask check（含 audit）、public:check（5489 个候选）全部通过。审计 0 vulnerabilities、
+12 条既有 notices，旧 measured evidence 的 stale 提示保留，不冒充本次重新测量。
+
+最终真实窗口构建包含本批全部产品改动；`seed:v3-lite` 的下列运行均 0 pending：
+
+| 脚本 | 结果 | 忽略的本地结果目录 |
+| --- | --- | --- |
+| `patches-concurrency.json` | 97/97 | `target/k4-g1-patches-verified/` |
+| `kv-concurrency.json` | 97/97 | `target/k4-g1-kv-verified/` |
+| `controls.json` | 60/60 | `target/k4-g1-controls-final3/` |
+
+九张最终截图已逐张目检：独立编辑保留另一字段、冲突提示与草稿、显式重试后的
+合并结果，以及组合页的 KV／补丁／情节格。窗口脚本额外断言每次 Agent 写入前
+作者草稿尚未提交，不能把输入被忽略或提前失焦保存的运行误作并发验收。新增的
+14 项永久回归包含在上述 2090 项内，原网格回归另补充非空保留模块覆盖。
+
+交回仍为 `codex/k4-g1-pages`／`handback/k4-g1`；指针在最终文档提交后前移。
+只同步 main 到工作分支，未合回 main、未推送；没有主动修改整合进度表。完整条目
+快照恢复及其他公共接口缺口沿用待协调；G2 接线仍已包含，但联合大纲窗口须在
+本批接收后另验，不把这些遗留项写成已完成。
