@@ -241,15 +241,59 @@ chapter.purge: cascade needs an F3 query exposing affected relations, including 
 chapter_template.document: storage, editor, or derived-state maintenance
 comment.delete: cascade needs an F3 query exposing affected relations, including hidden endpoints
 element.purge: cascade needs an F3 query exposing affected relations, including hidden endpoints
+entry.create: v3 commands remain excluded until K6 opens the versioned catalog
+entry.get: v3 commands remain excluded until K6 opens the versioned catalog
+entry.list: v3 commands remain excluded until K6 opens the versioned catalog
+entry.move: v3 commands remain excluded until K6 opens the versioned catalog
+entry.restore: v3 commands remain excluded until K6 opens the versioned catalog
+entry.trash: v3 commands remain excluded until K6 opens the versioned catalog
+entry.update: v3 commands remain excluded until K6 opens the versioned catalog
+entry_history.restore: v3 commands remain excluded until K6 opens the versioned catalog
+entry_history.version: v3 commands remain excluded until K6 opens the versioned catalog
+entry_relation_type.delete: v3 commands remain excluded until K6 opens the versioned catalog
+entry_relation_type.list: v3 commands remain excluded until K6 opens the versioned catalog
+entry_relation_type.put: v3 commands remain excluded until K6 opens the versioned catalog
+entry_template.delete: v3 commands remain excluded until K6 opens the versioned catalog
+entry_template.list: v3 commands remain excluded until K6 opens the versioned catalog
+entry_template.put: v3 commands remain excluded until K6 opens the versioned catalog
+entry_template.put_module: v3 commands remain excluded until K6 opens the versioned catalog
+entry_template.remove_module: v3 commands remain excluded until K6 opens the versioned catalog
 history.restore_point: history restore labels require an atomic guarded owner hook
 idea.purge: cascade needs an F3 query exposing affected relations, including hidden endpoints
 idea.to_chapter: conversion needs exact affected act and time-pin coverage before mutation
 idea.to_element: conversion needs version-checked full source prose and guarded automatic-link effects
+level.get: v3 commands remain excluded until K6 opens the versioned catalog
 material.delete: cascade needs an F3 query exposing affected relations, including hidden endpoints
+membership.add: v3 commands remain excluded until K6 opens the versioned catalog
+membership.list: v3 commands remain excluded until K6 opens the versioned catalog
+membership.primary: v3 commands remain excluded until K6 opens the versioned catalog
+membership.remove: v3 commands remain excluded until K6 opens the versioned catalog
+module.list: v3 commands remain excluded until K6 opens the versioned catalog
+module.prose_document: v3 commands remain excluded until K6 opens the versioned catalog
+module.put_grid: v3 commands remain excluded until K6 opens the versioned catalog
+module.put_kv: v3 commands remain excluded until K6 opens the versioned catalog
+module.put_patch: v3 commands remain excluded until K6 opens the versioned catalog
+module.put_relation: v3 commands remain excluded until K6 opens the versioned catalog
+module.read: v3 commands remain excluded until K6 opens the versioned catalog
+module.read_prose: v3 commands remain excluded until K6 opens the versioned catalog
+module.remove_kv: v3 commands remain excluded until K6 opens the versioned catalog
+module.remove_patch: v3 commands remain excluded until K6 opens the versioned catalog
+module.remove_relation: v3 commands remain excluded until K6 opens the versioned catalog
+module.replace_prose: v3 commands remain excluded until K6 opens the versioned catalog
+module.set_field: v3 commands remain excluded until K6 opens the versioned catalog
+module.set_prose: v3 commands remain excluded until K6 opens the versioned catalog
 patch.check_sources: storage, editor, or derived-state maintenance
 patch.delete: cascade needs an F3 query exposing affected relations, including hidden endpoints
+project.create: v3 commands remain excluded until K6 opens the versioned catalog
 recent.touch: storage, editor, or derived-state maintenance
 relation_type.delete: cascade needs an F3 query exposing affected relations, including hidden endpoints
 storyline.purge: cascade needs an F3 query exposing affected relations, including hidden endpoints
+timeline_view.delete: v3 commands remain excluded until K6 opens the versioned catalog
+timeline_view.list: v3 commands remain excluded until K6 opens the versioned catalog
+timeline_view.place: v3 commands remain excluded until K6 opens the versioned catalog
+timeline_view.put: v3 commands remain excluded until K6 opens the versioned catalog
+timeline_view.put_pin: v3 commands remain excluded until K6 opens the versioned catalog
+timeline_view.remove: v3 commands remain excluded until K6 opens the versioned catalog
+timeline_view.remove_pin: v3 commands remain excluded until K6 opens the versioned catalog
 todo.project: storage, editor, or derived-state maintenance
 writing_day.record: storage, editor, or derived-state maintenance

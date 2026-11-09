@@ -449,3 +449,24 @@ docs/rust-rewrite/acceptance/f1-m3-doc-bench.json   第三轮的测量证据
 - 提交：`e1f73bc4` 文档 id 隔离与回归；`8970de4a` 合入 main `f9d0d55d`；`cd2e354f` 对齐存储 purge 返回值。只合 main 到工作分支，没有合入 main 或推送。
 - 检查：`cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、`RUST_TEST_THREADS=1 cargo test --workspace --locked`（1,977 通过／0 失败／22 忽略）、`cargo xtask check`、根目录 `pnpm public:check` 全过。编译并发 3；审计 970 个依赖，0 漏洞、12 条已有提示；已有 stale／legacy 测量证据原样保留。
 - 待协调：K3 的原工作区不改；消费本次返回的根 id 和带书 id 的模板正文接口后自行重交。
+
+## 交回准备（K1+K2 第 5 步：v3 通用命令，2026-11-09）
+
+### 范围与验收
+
+- `dr-workspace::commands::v3` 新增 44 个注册命令／查询：项目创建、条目树、层级设置、模板及模块定义、各类模块数据、正文与说明、归属、独立时间线视图、按条目恢复元数据。`Spec.book_version = Some(3)` 标明版本；新命令先拒绝 v2.2，旧的按种类命令拒绝 v3。书的共用元数据／回收／彻底删除和按文档工作的正文接口沿用既有路径。
+- 新建按所选层级解析默认模板和 `home`，先准备正文，再在同一书目提交内写条目、住处、归属及主归属。多篇模板正文复制换块 id，后续模板修改不覆盖副本；字段、键值、补丁、情节规划和关联按模块寻址。`module.list/read/read_prose` 能读出换模板后保留的旧内容。
+- 层级覆盖的 JSON 缺键／`null` 分别表示继承／显式清空。补齐 v3 serde 与读取器的区别；旧 v2 字段解码器不变。自动链接从有效住处和归属读取标题／别名，不复用只识别旧根容器的缓存。
+- `entry_history.restore` 从指定书目 frontiers 读取副本，只写指定条目或结构记录，作为新提交；不整书回退。恢复树位置先校验最终图，再处理祖先及仍存在的历史邻居；恢复模板／归属／视图／模块映射保留可合并子容器，补丁正文仍写 LoroText。正文仍在独立文档中用 `prose.restore` 恢复，不把书目 frontier 当正文版本。
+- `kernel_v3` 的 16 项契约覆盖两书彻底删除隔离、旧书拒绝、住处与归属、新建失败边界、默认正文多模块复制、旧内容读取、显式清空、层级约束、自动链接缓存／归属、时间线跨视图清理、模块数据往返、按条目恢复和重开后的撤销／重做。注册表／能力清单和帮手目录由测试生成，未手改快照。
+
+### 共用接线与作者授权例外
+
+- `dr-workspace/src/workspace.rs`：共存 v3 reader／创世／修复分支；`cx.rs`：v3 书版本检查和同一写入顺序／租约／来源／guard 机制；`registry.rs`：可选书版本元数据；`commands/mod.rs`：注册 v3；`commands/template.rs`：仅将既有段落读取／替换帮手提升为 crate 可见，复用正文规则；`autolink.rs`：只为 v3 分支读取有效归属并绕过旧缓存。旧书执行和 schema 快照保持原有定义。
+- 作者在本会话明确允许的唯一帮手源码例外：`dr-agent-tools/src/catalog.rs:213–215` 在 `exclusion` 排除表首部按 `book_version == Some(3)` 排除新命令。原因是 M29 默认会开放带 book/doc 参数的新注册项；此处确保 K6 之前不扩大工具面。仅另改 `tests/catalog.rs` 的目录不可见／调用返回 `unknown book tool` 回归，以及测试生成的 `tests/snapshots/catalog__directory.snap`；没有改帮手执行管线、解析或运行时。K6 正式接入时替换此排除规则。
+
+### 检查与待协调
+
+- 定向：16 项 v3 工作区回归、4 项注册表检查、8 项帮手目录检查已过；旧 136 个命令的输入／输出 schema 已逐项核对一致；新增 44 个全带版本 3。全套检查待补记录后交回。
+- K6：版本标记、模板／模块读取、默认正文初始化及新建住处／归属接口已具备；逐项继承来源解释、带隐藏关系的完整影响读取、K6 的读取覆盖／CAS facade、模板动作目录仍照 K6 文档后续实施，本批不开放工具。
+- K4：v3 查询直接读当前 reader；旧 UI 的分类缓存／事件订阅仍只认识 v2.2，不把此次命令可用当作界面已接回。

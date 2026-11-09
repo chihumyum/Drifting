@@ -463,7 +463,7 @@ pub(crate) fn blank(view: &ProseView<'_>) -> bool {
 
 /// The paragraphs of a template document (tables and other embeds left
 /// out); none when it is blank.
-fn paragraphs_of(view: &ProseView<'_>) -> Vec<TemplateParagraph> {
+pub(crate) fn paragraphs_of(view: &ProseView<'_>) -> Vec<TemplateParagraph> {
     if blank(view) {
         return Vec::new();
     }
@@ -571,7 +571,7 @@ fn shape(view: &ProseView<'_>) -> Vec<(Option<u8>, String, std::ops::Range<usize
 /// at the start and at the end stay as they are (ids, marks, links), the
 /// ones between are replaced, so two devices changing different ends of a
 /// template merge. A document left with nothing is one empty paragraph.
-fn replace_paragraphs(txn: &mut ProseTxn<'_>, new: &[TemplateParagraph]) -> Result<()> {
+pub(crate) fn replace_paragraphs(txn: &mut ProseTxn<'_>, new: &[TemplateParagraph]) -> Result<()> {
     let old = shape(&txn.view());
     let want: Vec<(Option<u8>, String)> = new.iter().map(|p| (p.heading, p.text.clone())).collect();
     let same = |o: &(Option<u8>, String, std::ops::Range<usize>), w: &(Option<u8>, String)| {
