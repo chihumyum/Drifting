@@ -142,27 +142,29 @@ fn conflict() -> WsError {
 
 /// Merge untouched remote properties; reject edits to the same property. Keyed
 /// manifests merge by stable id, so removing a module cannot erase another edit.
-fn merge(base: &Value, local: &Value, remote: &Value) -> Result<Value, WsError> {
+fn merge(
+    base: Option<&Value>,
+    local: Option<&Value>,
+    remote: Option<&Value>,
+) -> Result<Option<Value>, WsError> {
     if local == base {
-        return Ok(remote.clone());
+        return Ok(remote.cloned());
     }
     if remote == base || local == remote {
-        return Ok(local.clone());
+        return Ok(local.cloned());
     }
+    let (Some(base), Some(local), Some(remote)) = (base, local, remote) else {
+        return Err(conflict());
+    };
     if let (Some(b), Some(l), Some(r)) = (base.as_object(), local.as_object(), remote.as_object()) {
         let keys: BTreeSet<_> = b.keys().chain(l.keys()).chain(r.keys()).collect();
         let mut out = serde_json::Map::new();
         for key in keys {
-            let value = merge(
-                b.get(key).unwrap_or(&Value::Null),
-                l.get(key).unwrap_or(&Value::Null),
-                r.get(key).unwrap_or(&Value::Null),
-            )?;
-            if !value.is_null() || l.contains_key(key) || r.contains_key(key) {
+            if let Some(value) = merge(b.get(key), l.get(key), r.get(key))? {
                 out.insert(key.clone(), value);
             }
         }
-        return Ok(Value::Object(out));
+        return Ok(Some(Value::Object(out)));
     }
     if let (Some(b), Some(l), Some(r)) = (base.as_array(), local.as_array(), remote.as_array()) {
         let keyed = |v: &[Value]| v.iter().all(|x| x.get("id").is_some_and(Value::is_string));
@@ -190,20 +192,17 @@ fn merge(base: &Value, local: &Value, remote: &Value) -> Result<Value, WsError> 
                     sequence.push(id.clone());
                 }
             }
-            let find = |v: &[Value], id: &str| {
-                v.iter()
-                    .find(|x| x["id"] == id)
-                    .cloned()
-                    .unwrap_or(Value::Null)
-            };
             let mut out = Vec::new();
             for id in sequence {
-                let v = merge(&find(b, &id), &find(l, &id), &find(r, &id))?;
-                if !v.is_null() {
+                if let Some(v) = merge(
+                    b.iter().find(|x| x["id"] == id),
+                    l.iter().find(|x| x["id"] == id),
+                    r.iter().find(|x| x["id"] == id),
+                )? {
                     out.push(v);
                 }
             }
-            return Ok(Value::Array(out));
+            return Ok(Some(Value::Array(out)));
         }
     }
     Err(conflict())
@@ -214,8 +213,51 @@ pub fn reconcile(
     local: &EntryTemplate,
     remote: &EntryTemplate,
 ) -> Result<EntryTemplate, WsError> {
-    serde_json::from_value(merge(&json!(base), &json!(local), &json!(remote))?)
-        .map_err(|e| WsError::Internal(e.to_string()))
+    serde_json::from_value(
+        merge(
+            Some(&json!(base)),
+            Some(&json!(local)),
+            Some(&json!(remote)),
+        )?
+        .ok_or_else(conflict)?,
+    )
+    .map_err(|e| WsError::Internal(e.to_string()))
+}
+
+/// Actions have the typed, generic create meaning; descriptions are never code.
+pub fn validate_actions(
+    template: &EntryTemplate,
+    templates: &[EntryTemplate],
+) -> Result<(), WsError> {
+    let live = |id: &str| {
+        id == template.id
+            || templates
+                .iter()
+                .any(|t| t.id == id && t.deleted_at.is_none())
+    };
+    let allowed = |id: &str| {
+        template
+            .settings
+            .allow
+            .as_ref()
+            .is_none_or(|allow| allow.is_empty() || allow.iter().any(|tid| tid == id))
+    };
+    let mut ids = BTreeSet::new();
+    for action in &template.verbs {
+        if action.id.is_empty()
+            || !ids.insert(&action.id)
+            || action.name.trim().is_empty()
+            || action
+                .target_template
+                .as_deref()
+                .is_none_or(|target| !live(target) || !allowed(target))
+        {
+            return Err(WsError::Invalid(
+                "action needs a unique id, a name and an allowed live target template".into(),
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// One guarded template command. A conflict is returned to the editor with its
@@ -238,6 +280,7 @@ pub fn save(
         (None, None) => draft.clone(),
         _ => return Err(conflict()),
     };
+    validate_actions(&merged, &templates)?;
     lib.call_guarded(
         &Actor::User,
         "entry_template.put",

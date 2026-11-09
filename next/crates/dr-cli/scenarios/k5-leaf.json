@@ -1,5 +1,5 @@
 {
-  "about": "K5 第一次交回：v3-lite 真窗口，叶子模板新建、两篇正文、全部模块及九种字段、改名、真实拖动排序、删除、并发刷新与重开。",
+  "about": "K5 叶子模板回归：v3-lite 真窗口，叶子模板新建、两篇正文、全部模块及九种字段、改名、真实拖动排序、删除、并发刷新与重开。",
   "steps": [
     {
       "seed": "v3-lite"
@@ -70,6 +70,13 @@
       "app": "ui.press",
       "params": {
         "label": "New template"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "MenuItem",
+        "label": "Leaf template"
       }
     },
     {
@@ -300,7 +307,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 650,
+        "x": 590,
         "y": 480,
         "dy": 10000
       }
@@ -321,7 +328,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 650,
+        "x": 590,
         "y": 480,
         "dy": 10000
       }
@@ -342,7 +349,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 650,
+        "x": 590,
         "y": 480,
         "dy": 10000
       }
@@ -363,7 +370,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 650,
+        "x": 590,
         "y": 480,
         "dy": 10000
       }
@@ -384,7 +391,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 650,
+        "x": 590,
         "y": 480,
         "dy": 10000
       }
@@ -405,7 +412,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 650,
+        "x": 590,
         "y": 480,
         "dy": 10000
       }
@@ -426,7 +433,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 650,
+        "x": 590,
         "y": 480,
         "dy": 10000
       }
@@ -447,7 +454,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 650,
+        "x": 590,
         "y": 480,
         "dy": 10000
       }
@@ -468,7 +475,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 650,
+        "x": 590,
         "y": 480,
         "dy": 10000
       }
@@ -489,7 +496,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 650,
+        "x": 590,
         "y": 480,
         "dy": 10000
       }
@@ -510,7 +517,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 650,
+        "x": 590,
         "y": 480,
         "dy": 10000
       }
@@ -531,7 +538,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 650,
+        "x": 590,
         "y": 480,
         "dy": 10000
       }
@@ -552,7 +559,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 650,
+        "x": 590,
         "y": 480,
         "dy": 10000
       }
@@ -573,7 +580,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 650,
+        "x": 590,
         "y": 480,
         "dy": -20000
       }
@@ -617,9 +624,31 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 650,
+        "x": 590,
         "y": 480,
         "dy": 20000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 150
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 590,
+        "y": 480,
+        "dy": -850
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 150
       }
     },
     {
@@ -639,7 +668,7 @@
     {
       "app": "input.scroll",
       "params": {
-        "x": 650,
+        "x": 590,
         "y": 480,
         "dy": -20000
       }
