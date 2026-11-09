@@ -84,14 +84,25 @@ impl PendingStart {
         let conversation = self.request.conversation().clone();
         let automatic = self.request.automatic();
         let resources = self.lease.resources();
-        if let Some(chain) = self.request.chain() {
+        let book = if let Some(chain) = self.request.chain() {
             let snapshot = Store::new(resources.workspace.library().clone())
                 .snapshot(chain)
                 .map_err(string)?;
             if snapshot.conversation != conversation {
                 return Err("request chain belongs to another conversation".into());
             }
-        }
+            snapshot.book
+        } else if let StartRequest::Author(start) = &self.request {
+            start.book.clone()
+        } else {
+            return Err("request has no book".into());
+        };
+        let config = match &mut self.request {
+            StartRequest::Author(start) => &mut start.config,
+            StartRequest::Resume { start, .. } => &mut start.config,
+            StartRequest::Automatic { start, .. } => &mut start.config,
+        };
+        crate::prompt::refresh_v3(&resources.workspace, &book, config)?;
         {
             let state = self.controller.inner.state.lock().expect("Agent service");
             if state.resources.is_none()

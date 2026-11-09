@@ -110,6 +110,8 @@ pub struct Element {
 
 #[derive(Clone, Debug, Default)]
 pub struct StarterSource {
+    /// v3 obtains task ideas from copied template guidance, not legacy slots.
+    pub template_guided: bool,
     pub chapters: Vec<Chapter>,
     /// Oldest first, to resolve equal relationship counts deterministically.
     pub elements: Vec<Element>,
@@ -148,6 +150,9 @@ fn starter_key(starter: Starter) -> Key {
 }
 
 pub fn build_starter_prompts(source: &StarterSource) -> Vec<StarterPrompt> {
+    if source.template_guided {
+        return Vec::new();
+    }
     let key = starter_key;
     let written: Vec<_> = source
         .chapters

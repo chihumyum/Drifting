@@ -69,6 +69,48 @@ pub fn comment_anchors(doc: &str, list: &Value) -> Vec<CommentAnchor> {
         .collect()
 }
 
+/// Associations from a v3 book's `BookViewV3::comments()` slice.
+pub fn comment_anchors_v3(doc: &str, comments: &[dr_model::v3::CommentV3]) -> Vec<CommentAnchor> {
+    let Some(doc) = dr_model::DocId::parse(doc)
+        .ok()
+        .filter(|doc| doc.profile().is_some())
+    else {
+        return Vec::new();
+    };
+    comments
+        .iter()
+        .filter_map(|comment| {
+            if comment.target_missing || comment.region.is_some() {
+                return None;
+            }
+            let target = comment.target.as_ref()?;
+            let matches_doc = match &doc {
+                dr_model::DocId::Body(body) => {
+                    target.kind == dr_model::kind::EntityKind::Entry
+                        && target.id == body.entry().as_str()
+                        && comment.target_module.as_ref().map(|m| m.as_str())
+                            == Some(body.module().as_str())
+                }
+                dr_model::DocId::Material(id) => {
+                    target.kind == dr_model::kind::EntityKind::Material && target.id == id.as_str()
+                }
+                _ => false,
+            };
+            if !matches_doc {
+                return None;
+            }
+            Some(CommentAnchor {
+                id: comment.id.to_string(),
+                block_id: comment
+                    .target_block
+                    .as_ref()
+                    .map(ToString::to_string)
+                    .filter(|s| !s.is_empty()),
+            })
+        })
+        .collect()
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct BlockAnchor {
     pub index: usize,
