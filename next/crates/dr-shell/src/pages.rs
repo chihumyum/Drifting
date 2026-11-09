@@ -548,6 +548,11 @@ pub fn add_v3_bottom_panel(
 
 /// Whether a renderer exists for this book's version.
 pub fn has_bottom_panel_for(pane: BottomPane, book: &Book, cx: &App) -> bool {
+    // The version is not known until the first snapshot arrives. Do not
+    // instantiate legacy views against an as-yet-unread v3 book.
+    if book.is_empty() {
+        return false;
+    }
     cx.try_global::<Pages>().is_some_and(|p| {
         let makers = if book.v3().is_some() {
             &p.v3_bottom
