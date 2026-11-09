@@ -199,6 +199,17 @@ Section "Install"
   SetOutPath "$INSTDIR"
   Call WaitForApp
   File "/oname=${EXECUTABLE}.exe" "${EXE_SOURCE}"
+  !ifdef FONTS_DIR
+    SetOutPath "$INSTDIR\fonts"
+    File "${FONTS_DIR}\DriftingSans-Regular.ttf"
+    File "${FONTS_DIR}\DriftingSans-Medium.ttf"
+    File "${FONTS_DIR}\DriftingSans-SemiBold.ttf"
+    File "${FONTS_DIR}\DriftingSerif-Regular.ttf"
+    File "${FONTS_DIR}\DriftingSerif-Bold.ttf"
+    File "${FONTS_DIR}\SarasaMonoSC-Regular.ttf"
+    File "${FONTS_DIR}\OFL-1.1.txt"
+    SetOutPath "$INSTDIR"
+  !endif
   WriteUninstaller "$INSTDIR\uninstall.exe"
 
   WriteRegStr HKCU "${MANUPRODUCTKEY}" "" "$INSTDIR"
@@ -270,6 +281,14 @@ FunctionEnd
 Section "Uninstall"
   Call un.WaitForApp
   Delete "$INSTDIR\${EXECUTABLE}.exe"
+  Delete "$INSTDIR\fonts\DriftingSans-Regular.ttf"
+  Delete "$INSTDIR\fonts\DriftingSans-Medium.ttf"
+  Delete "$INSTDIR\fonts\DriftingSans-SemiBold.ttf"
+  Delete "$INSTDIR\fonts\DriftingSerif-Regular.ttf"
+  Delete "$INSTDIR\fonts\DriftingSerif-Bold.ttf"
+  Delete "$INSTDIR\fonts\SarasaMonoSC-Regular.ttf"
+  Delete "$INSTDIR\fonts\OFL-1.1.txt"
+  RMDir "$INSTDIR\fonts"
   Delete "$INSTDIR\uninstall.exe"
   RMDir "$INSTDIR"
 

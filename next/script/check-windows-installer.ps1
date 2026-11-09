@@ -10,6 +10,9 @@
   user's profile and changes HKCU. Do not run it on a machine you use.
   Expects `cargo build -p drifting` (debug) to have run.
 #>
+param(
+  [string]$Target = ''
+)
 $ErrorActionPreference = 'Stop'
 $next = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 
@@ -18,8 +21,18 @@ if (-not (Get-Command makensis -ErrorAction SilentlyContinue) -and
   choco install nsis --no-progress -y | Out-Null
 }
 
-$result = & (Join-Path $PSScriptRoot 'bundle-windows.ps1') -BuildProfile debug -SkipBuild
+$bundleArgs = @{
+  BuildProfile = 'debug'
+  SkipBuild    = $true
+}
+if ($Target) { $bundleArgs['Target'] = $Target }
+$result = & (Join-Path $PSScriptRoot 'bundle-windows.ps1') @bundleArgs
 $installer = ($result | Select-String '^installer=(.*)$').Matches[0].Groups[1].Value
+$expectedArch = if ($Target -like 'aarch64*' -or (-not $Target -and $env:PROCESSOR_ARCHITECTURE -eq 'ARM64')) { 'arm64' } else { 'x64' }
+if ($installer -notlike "*_windows_${expectedArch}-setup.exe") {
+  throw "expected installer for $expectedArch, got $installer"
+}
+$expectFonts = Test-Path (Join-Path $next '.cache\fonts\DriftingSerif-Regular.ttf')
 $product = 'Drifting Next'
 $scheme = 'drifting-next-dev'
 $uninstallKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\$product"
@@ -37,6 +50,12 @@ function Assert([bool]$Condition, [string]$Message) {
 function Assert-Installed([string]$Dir) {
   Assert (Test-Path "$Dir\drifting.exe") "drifting.exe in $Dir"
   Assert (Test-Path "$Dir\uninstall.exe") "uninstall.exe in $Dir"
+  if ($expectFonts) {
+    Assert (Test-Path "$Dir\fonts\DriftingSans-Regular.ttf") "bundled DriftingSans-Regular.ttf in $Dir\fonts"
+    Assert (Test-Path "$Dir\fonts\DriftingSerif-Regular.ttf") "bundled DriftingSerif-Regular.ttf in $Dir\fonts"
+    Assert (Test-Path "$Dir\fonts\SarasaMonoSC-Regular.ttf") "bundled SarasaMonoSC-Regular.ttf in $Dir\fonts"
+    Assert (Test-Path "$Dir\fonts\OFL-1.1.txt") "OFL-1.1.txt in $Dir\fonts"
+  }
   $entry = Get-ItemProperty $uninstallKey
   Assert ($entry.DisplayName -eq $product) 'Add/Remove Programs names the product'
   Assert ($entry.UninstallString -eq "`"$Dir\uninstall.exe`"") 'the uninstall command points at the folder'

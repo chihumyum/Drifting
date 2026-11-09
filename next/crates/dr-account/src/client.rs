@@ -13,6 +13,7 @@ use crate::oauth::{
     PendingNativeOAuth, build_oauth_redirect_url, clear_pending_oauth, consume_pending_oauth,
     parse_oauth_callback_url, save_pending_oauth,
 };
+use crate::preferences::{PreferenceEndpointStatus, PreferenceWrite, RemotePreference};
 use crate::profile::{
     AccountErrorCode, HostedUser, is_allowed_avatar_data_url, normalize_avatar,
     validate_password_change, validate_profile_name,
@@ -161,6 +162,12 @@ struct RawErrorPayload {
     message: Option<String>,
     #[serde(default)]
     error: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RawPreferencesResponse {
+    #[serde(default)]
+    preferences: std::collections::BTreeMap<String, RemotePreference>,
 }
 
 /// Blocking HTTP client for Hosted authentication endpoints.
@@ -673,6 +680,84 @@ impl HostedClient {
                 .json(&serde_json::json!({}))
                 .send();
             Ok(())
+        }
+    }
+
+    /// Fetch account preferences (`GET /api/account/v1/preferences`).
+    ///
+    /// Returns [`PreferenceEndpointStatus::Unsupported`] without error if the server
+    /// responds with `404 Not Found`.
+    pub fn get_preferences(
+        &self,
+        origin: &HostedOrigin,
+        token: &str,
+    ) -> Result<PreferenceEndpointStatus, AccountError> {
+        #[cfg(not(feature = "network"))]
+        {
+            let _ = (origin, token);
+            return Err(AccountError::new(
+                AccountErrorCode::HostedNotConfigured,
+                "network feature disabled",
+            ));
+        }
+        #[cfg(feature = "network")]
+        {
+            let resp = self
+                .http
+                .get(origin.endpoint("/api/account/v1/preferences"))
+                .bearer_auth(token)
+                .send()
+                .map_err(map_network_err)?;
+            if resp.status().as_u16() == 404 {
+                return Ok(PreferenceEndpointStatus::Unsupported);
+            }
+            if !resp.status().is_success() {
+                return Err(parse_error_response(resp));
+            }
+            let payload: RawPreferencesResponse = resp
+                .json()
+                .map_err(|e| AccountError::new(AccountErrorCode::Unknown, e.to_string()))?;
+            Ok(PreferenceEndpointStatus::Supported(payload.preferences))
+        }
+    }
+
+    /// Upload modified account preferences (`PUT /api/account/v1/preferences`).
+    ///
+    /// Returns [`PreferenceEndpointStatus::Unsupported`] without error if the server
+    /// responds with `404 Not Found`.
+    pub fn put_preferences(
+        &self,
+        origin: &HostedOrigin,
+        token: &str,
+        entries: &[PreferenceWrite],
+    ) -> Result<PreferenceEndpointStatus, AccountError> {
+        #[cfg(not(feature = "network"))]
+        {
+            let _ = (origin, token, entries);
+            return Err(AccountError::new(
+                AccountErrorCode::HostedNotConfigured,
+                "network feature disabled",
+            ));
+        }
+        #[cfg(feature = "network")]
+        {
+            let resp = self
+                .http
+                .put(origin.endpoint("/api/account/v1/preferences"))
+                .bearer_auth(token)
+                .json(&serde_json::json!({ "entries": entries }))
+                .send()
+                .map_err(map_network_err)?;
+            if resp.status().as_u16() == 404 {
+                return Ok(PreferenceEndpointStatus::Unsupported);
+            }
+            if !resp.status().is_success() {
+                return Err(parse_error_response(resp));
+            }
+            let payload: RawPreferencesResponse = resp
+                .json()
+                .map_err(|e| AccountError::new(AccountErrorCode::Unknown, e.to_string()))?;
+            Ok(PreferenceEndpointStatus::Supported(payload.preferences))
         }
     }
 }

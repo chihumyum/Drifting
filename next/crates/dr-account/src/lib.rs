@@ -10,6 +10,7 @@ pub mod endpoint;
 pub mod fake_server;
 pub mod library_registry;
 pub mod oauth;
+pub mod preferences;
 pub mod profile;
 pub mod session;
 
@@ -26,6 +27,11 @@ pub use oauth::{
     NATIVE_OAUTH_STATE_FILE, OAUTH_STATE_TTL_MS, ParsedOAuthCallback, PendingNativeOAuth,
     build_oauth_redirect_url, clear_pending_oauth, consume_pending_oauth, parse_oauth_callback_url,
     pkce_s256_challenge, read_pending_oauth, save_pending_oauth,
+};
+pub use preferences::{
+    PreferenceEndpointStatus, PreferenceLedger, PreferenceLedgerEntry, PreferenceSyncOutcome,
+    PreferenceWrite, RemotePreference, UNCHANGED_AT, clamp_to_server_clock, compare_iso_timestamps,
+    now_iso8601, sync_preferences_with_client,
 };
 pub use profile::{
     AVATAR_CANVAS_SIZE, AccountErrorCode, HostedUser, MAX_AVATAR_DATA_URL_BYTES,
@@ -412,5 +418,133 @@ mod tests {
 
         let rechecked = svc.bootstrap();
         assert_eq!(rechecked.status, SessionStatus::Connected);
+    }
+
+    #[test]
+    fn preference_sync_lww_future_clock_clamping_and_404_unsupported() {
+        use serde_json::json;
+        use std::collections::BTreeMap;
+
+        let server = FakeAuthServer::start();
+        server.set_require_signup_verification(false);
+        server.set_server_clock(Some("2026-11-02T12:00:00.000Z"));
+
+        let tmp_a = TempDir::new().expect("tempdir a");
+        let tmp_b = TempDir::new().expect("tempdir b");
+
+        let svc_a = AccountService::new(
+            server.config(),
+            tmp_a.path(),
+            "cc.drifting.next.dev",
+            Arc::new(SecretStore::in_memory()),
+        )
+        .expect("svc a");
+        let svc_b = AccountService::new(
+            server.config(),
+            tmp_b.path(),
+            "cc.drifting.next.dev",
+            Arc::new(SecretStore::in_memory()),
+        )
+        .expect("svc b");
+
+        svc_a
+            .sign_up_email("Writer", "writer@example.test", "writer-password-123")
+            .expect("sign up on device a");
+        svc_b
+            .sign_in_email("writer@example.test", "writer-password-123")
+            .expect("sign in on device b");
+
+        let synced_keys = ["appearance.theme", "editor.font_size", "language.ui_locale"];
+
+        // Device A edits `appearance.theme` with a skewed future client clock (2099),
+        // and leaves `editor.font_size` at its untouched default (`UNCHANGED_AT`).
+        let mut local_a = BTreeMap::from([
+            ("appearance.theme".to_string(), json!("dark")),
+            ("editor.font_size".to_string(), json!(17.0)),
+            ("language.ui_locale".to_string(), json!("zh-CN")),
+        ]);
+        let mut ledger_a = PreferenceLedger::default();
+        ledger_a.entries.insert(
+            "appearance.theme".to_string(),
+            PreferenceLedgerEntry {
+                changed_at: "2099-01-01T00:00:00.000Z".to_string(),
+                pending: true,
+            },
+        );
+        ledger_a.entries.insert(
+            "language.ui_locale".to_string(),
+            PreferenceLedgerEntry {
+                changed_at: "2026-11-02T11:50:00.000Z".to_string(),
+                pending: true,
+            },
+        );
+
+        let out_a = svc_a
+            .sync_preferences(&synced_keys, &local_a, &ledger_a)
+            .expect("sync device a");
+        assert!(out_a.supported);
+        // Server clamped Device A's 2099 timestamp to server clock 2026-11-02T12:00:00.000Z.
+        assert_eq!(
+            out_a.ledger.entries["appearance.theme"].changed_at,
+            "2026-11-02T12:00:00.000Z"
+        );
+        assert!(!out_a.ledger.entries["appearance.theme"].pending);
+        ledger_a = out_a.ledger;
+
+        // Advance server clock to 12:05. Device B modifies `appearance.theme` to `"light"` at 12:04
+        // and `editor.font_size` to `20.0` at 12:04, while leaving `language.ui_locale` untouched.
+        server.set_server_clock(Some("2026-11-02T12:05:00.000Z"));
+        let local_b = BTreeMap::from([
+            ("appearance.theme".to_string(), json!("light")),
+            ("editor.font_size".to_string(), json!(20.0)),
+            ("language.ui_locale".to_string(), json!(null)),
+        ]);
+        let mut ledger_b = PreferenceLedger::default();
+        ledger_b.entries.insert(
+            "appearance.theme".to_string(),
+            PreferenceLedgerEntry {
+                changed_at: "2026-11-02T12:04:00.000Z".to_string(),
+                pending: true,
+            },
+        );
+        ledger_b.entries.insert(
+            "editor.font_size".to_string(),
+            PreferenceLedgerEntry {
+                changed_at: "2026-11-02T12:04:00.000Z".to_string(),
+                pending: true,
+            },
+        );
+
+        let out_b = svc_b
+            .sync_preferences(&synced_keys, &local_b, &ledger_b)
+            .expect("sync device b");
+        assert!(out_b.supported);
+        // Device B receives Device A's `language.ui_locale = "zh-CN"`, and pushes its newer `appearance.theme = "light"` and `editor.font_size = 20.0`.
+        assert_eq!(
+            out_b.applied.get("language.ui_locale"),
+            Some(&json!("zh-CN"))
+        );
+        assert!(out_b.pushed_keys.contains(&"appearance.theme".to_string()));
+        assert!(out_b.pushed_keys.contains(&"editor.font_size".to_string()));
+
+        // Device A syncs again and receives Device B's `"light"` theme and `20.0` font size.
+        let out_a2 = svc_a
+            .sync_preferences(&synced_keys, &local_a, &ledger_a)
+            .expect("sync device a second round");
+        for (k, v) in &out_a2.applied {
+            local_a.insert(k.clone(), v.clone());
+        }
+        assert_eq!(local_a["appearance.theme"], json!("light"));
+        assert_eq!(local_a["editor.font_size"], json!(20.0));
+        assert_eq!(local_a["language.ui_locale"], json!("zh-CN"));
+
+        // When the server returns 404 Not Found on `/api/account/v1/preferences`, sync succeeds
+        // with `supported == false` and does not error.
+        server.set_preferences_supported(false);
+        let out_unsupported = svc_a
+            .sync_preferences(&synced_keys, &local_a, &out_a2.ledger)
+            .expect("404 must not error");
+        assert!(!out_unsupported.supported);
+        assert!(out_unsupported.applied.is_empty());
     }
 }

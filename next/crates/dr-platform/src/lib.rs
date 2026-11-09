@@ -27,6 +27,7 @@ pub mod crash;
 pub mod deep_link;
 pub mod diagnostics;
 pub mod feedback;
+pub mod fonts;
 pub mod identity;
 pub mod logging;
 pub mod paths;
@@ -34,6 +35,7 @@ pub mod relaunch;
 pub mod sanitize;
 pub mod secrets;
 pub mod single_instance;
+pub mod tray;
 pub mod update;
 
 pub use deep_link::DeepLinks;
