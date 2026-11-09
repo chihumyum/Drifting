@@ -112,5 +112,16 @@
     "byStoryline": "按故事線",
     "expand": "展開{{name}}",
     "collapse": "摺疊{{name}}"
+  },
+  "v3Timeline": {
+    "views": "時間線視圖",
+    "newView": "新增視圖",
+    "renameView": "重新命名視圖",
+    "deleteView": "刪除視圖",
+    "addLane": "加入泳道",
+    "removeLane": "移出視圖",
+    "moveUp": "上移",
+    "moveDown": "下移",
+    "members": "{{count}} 個成員"
   }
 }

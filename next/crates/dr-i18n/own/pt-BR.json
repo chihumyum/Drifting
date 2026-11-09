@@ -118,5 +118,16 @@
     "byStoryline": "Por linha narrativa",
     "expand": "Expandir {{name}}",
     "collapse": "Recolher {{name}}"
+  },
+  "v3Timeline": {
+    "views": "Visualizações da linha do tempo",
+    "newView": "Nova visualização",
+    "renameView": "Renomear visualização",
+    "deleteView": "Excluir visualização",
+    "addLane": "Adicionar faixa",
+    "removeLane": "Remover da visualização",
+    "moveUp": "Mover para cima",
+    "moveDown": "Mover para baixo",
+    "members": "{{count}} membros"
   }
 }

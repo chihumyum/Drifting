@@ -118,5 +118,16 @@
     "byStoryline": "Por línea argumental",
     "expand": "Expandir {{name}}",
     "collapse": "Contraer {{name}}"
+  },
+  "v3Timeline": {
+    "views": "Vistas de cronología",
+    "newView": "Nueva vista",
+    "renameView": "Renombrar vista",
+    "deleteView": "Eliminar vista",
+    "addLane": "Añadir carril",
+    "removeLane": "Quitar de la vista",
+    "moveUp": "Subir",
+    "moveDown": "Bajar",
+    "members": "{{count}} miembros"
   }
 }

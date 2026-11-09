@@ -118,5 +118,16 @@
     "byStoryline": "Par fil narratif",
     "expand": "Déplier {{name}}",
     "collapse": "Replier {{name}}"
+  },
+  "v3Timeline": {
+    "views": "Vues chronologiques",
+    "newView": "Nouvelle vue",
+    "renameView": "Renommer la vue",
+    "deleteView": "Supprimer la vue",
+    "addLane": "Ajouter une piste",
+    "removeLane": "Retirer de la vue",
+    "moveUp": "Monter",
+    "moveDown": "Descendre",
+    "members": "{{count}} membres"
   }
 }
