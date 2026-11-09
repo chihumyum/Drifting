@@ -38,6 +38,9 @@ use crate::holder::{self, lock};
 use crate::registry::{Access, Concurrency, Spec};
 use crate::workspace::{BookSlot, ProseSlot, Workspace};
 
+#[cfg(test)]
+mod source_tests;
+
 /// What a write did, entity by entity. Commands report every entity they
 /// changed and every entity whose display changed as a consequence (a
 /// relation hidden because its end went to the trash), so the interface can
@@ -628,6 +631,26 @@ impl<'a> Cx<'a> {
 
     pub(crate) fn prose_view<'s>(&self, slot: &'s ProseSlot) -> ProseView<'s> {
         slot.reader.view()
+    }
+
+    /// Read a prose dependency at the caller's observed version. Check and
+    /// derivation share one holder job; no writer can interleave between them.
+    /// Guarded calls must supply this source even when `require_all` is false.
+    /// The result may outlive that version (stable anchors do); this does not
+    /// lock prose until a later book write or create a cross-document CAS.
+    pub(crate) fn read_prose_source<R, F>(&self, slot: &ProseSlot, f: F) -> Result<R>
+    where
+        F: FnOnce(&loro::LoroDoc) -> Result<R> + Send + 'static,
+        R: Send + 'static,
+    {
+        let guards = self.guards.clone();
+        let id = slot.doc.to_string();
+        slot.handle.read(move |doc| {
+            if let Some(guards) = guards {
+                guards.check_required(&id, doc)?;
+            }
+            f(doc)
+        })?
     }
 
     // ---- results --------------------------------------------------------

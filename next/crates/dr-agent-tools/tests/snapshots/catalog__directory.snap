@@ -269,6 +269,7 @@ membership.add: v3 commands remain excluded until K6 opens the versioned catalog
 membership.list: v3 commands remain excluded until K6 opens the versioned catalog
 membership.primary: v3 commands remain excluded until K6 opens the versioned catalog
 membership.remove: v3 commands remain excluded until K6 opens the versioned catalog
+membership.restore: v3 commands remain excluded until K6 opens the versioned catalog
 module.list: v3 commands remain excluded until K6 opens the versioned catalog
 module.prose_document: v3 commands remain excluded until K6 opens the versioned catalog
 module.put_grid: v3 commands remain excluded until K6 opens the versioned catalog

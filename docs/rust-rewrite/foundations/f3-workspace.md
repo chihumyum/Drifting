@@ -1039,3 +1039,76 @@ K6 若读取／修改 v3 书的元数据，消费 `Spec.v3` 的签名。本批�
 
 待协调：G4 接主页元数据，F6 接 `record_recent` 和继续写导航；两者使用 v3 typed 接口。
 本批未改 UI，未进行真窗口验收，也不声称主页或最近访问已经显示在窗口里。
+
+## K2 批注正文来源守卫（2026-11-10，修复第 62 批退回）
+
+v3 `comment.create` 的 `range`、`block_id` 与 `comment.reanchor` 的非 null 锚点
+都是正文读取依赖。`call_guarded` 必须携带目标正文的 canonical doc id 与观察 frontier，
+即使 `require_all: false` 也不能省略该来源。`Cx::read_prose_source` 在一次
+holder read job 内先校验 frontier，再生成／验证锚点、摘录和段落快照；范围和段落
+同时指定时共用同一次读取。旧正文版本或缺失观察返回 `conflict`，不改正文、书目、
+现有批注或 journal；新观察可重试。清空锚点不读取正文，只需书目写入守卫。
+
+这是分别守卫的正文读取与书目写入，不是跨文档事务。来源读完以后允许正文继续编辑；
+稳定锚点仍标识读时的文字并随 CRDT 移动，摘录及段落快照保留已验证版本的历史内容，
+不会按旧偏移重新摘取后来插入的文字。书目提交仍检查它自己的 frontier。
+普通无 guards 的界面调用也在同一 holder read job 中派生来源，但不承诺调用方观察 CAS。
+G4 的可选稳定锚点创建分支需使用同一帮手，不另作一次观察后再直接读实时 view。
+
+永久回归 `dr-testkit/tests/v3_comment_read_guard.rs` 收入整合方的 Tiny 种子探针，
+覆盖仅正文前插、书目版本不变时范围／段落／组合／重锚拒绝，缺失来源、刷新来源、
+独立书目冲突与清空锚点；`cx/source_tests.rs` 用两个真实并发参与方和已排队写入，
+验证守卫与派生之间不能插入正文写入，读后编辑仍保留锚点身份和历史摘录。
+没有添加生产暂停钩子，没有改 v2.2 批注行为或删除其测试。
+
+## K2 归属取消与局部撤销（2026-11-10，修复第 63 批退回）
+
+`membership.remove` 的位置清理现在只处理本次取消真正造成的变化：原归属存在，
+视图未回收、确实列着被取消的泳道，该成员的位置原先有效，而且取消后在该视图的
+其他**原始泳道归属**一个不剩，才删除那一项位置。已经隐藏／回收的视图或位置、
+另一条隐藏泳道的原始归属、未知位置数据均保留；不存在的归属且未清主归属时不写 journal。
+`timeline_view.remove` 继续委托同一逻辑。计划与路径预检在通过 book guard 的同一次
+holder 写 job 中完成；未知不可写表示会在任何修改之前拒绝。
+
+取消的逆操作改为 v3 专用 `membership.restore`，输入类型
+`commands::v3::membership::RestoreIn`：`book, host, member, at, expected`，两个选择标志
+`membership`／`primary`，以及需要恢复该成员位置的 `views`。只恢复原归属记录、
+实际清掉的 primary 字段和实际删掉的单成员 placement；没有整份 entry 或 timeline view
+恢复。撤销与重做都使用同一字段范围，保留别的来源后来改的标题、其他成员位置、时间钉、
+视图字段及可无损恢复的未知数据。逆操作同时保存目标历史 `at` 和原操作完成后的 `expected`
+frontier；在同一次 holder 写任务内逐项比较所选字段的预期原值，任一字段已被其他来源接管
+就整次 conflict，不能覆盖其成功写入；重做使用同样规则。比较只限定所选记录，不把其他
+标题、时间钉、成员或视图变化升级成全书冲突。
+
+深值不携带真实容器类型、富文本格式和列表身份，因此取消前及恢复前都检查所选实际路径：
+只支持可合并 Map 和可原样恢复的原子叶值，primary 只支持缺键／null／字符串。所选未知字段
+含 LoroText、MovableList、其他 CRDT 容器、非可合并 Map 或原子 Map 时，首个修改前整次拒绝，
+保留原始内容；历史目标与 expected 同样检查。归属原始根键先检查，再判断快照是否存在：
+LoroText／原子 Map／标量／null／其他容器不得因过滤读取返回 None 而跳过检查，或在仅清
+primary 时顺手删除。未选中的未知字段、隐藏位置不受这一限制。
+`BookViewV3::state_frontiers` 在 holder 内捕获尚待提交操作后的 frontier，不提前提交；另外新增
+`check_membership_snapshot_restore`、`check_primary_restore` 和 `check_timeline_placement_restore`
+供同一预检使用。`membership_restore_state`／`timeline_placement_restore_state` 同时读取
+可见键和取消后仍保留的底层 Map 状态：另一台设备在尚未见到取消时修改同一记录，随后
+同步进来，即使记录暂时不可见，undo 也须 conflict／拒绝，不能重新挂回旧数据并删掉
+那次成功编辑。所选 placements 父映射必须仍为原可合并路径，避免换过的父映射或其
+其他记录被撤销操作重新挂回；不比较父映射里其他成员的内容。
+历史仍限定在该书，恢复前验证所有当前路径及最终归属图，再开始写入。
+
+新增 dr-doc 小接口：`BookViewV3::timeline_placement_snapshot`／
+`check_timeline_placement_write`，`TimelineViewWriterV3::restore_placement`，
+`EntryWriterV3::restore_primary`，`BookTxnV3::restore_membership_snapshot`。
+快照读取深值，配合真实容器预检后恢复单个记录，保留可无损恢复的未知数据与可编辑映射；原有 v2.2 签名和行为不动。
+`membership.restore` 供工作区逆操作使用，暂不开放给帮手；M29 的 v3 排除表单独列名，
+带目录缺席与调用拒绝回归，正式 facade 由 K6 后续适配。
+
+永久回归包括整合方 Tiny 种子探针，以及隐藏备用泳道／已回收视图／未知位置与字段、
+两书和重开隔离、`timeline_view.remove` 委托、取消与另一来源修改交错后的撤销／重做、
+缺失归属不误清、旧 guards 和多路径预检失败不部分写入；另外覆盖真实 Workspace::undo/redo
+遇到同一 placement／primary 接管时保留成功写入，历史版本随 journal 重开继续有效。真实
+LoroText（含 bold）／MovableList 的归属与位置四种组合验证无损恢复或事前拒绝，深 JSON
+相等但真实容器被替换的重做也拒绝。归属根键的 Text／原子 Map／字符串／null／可移动列表，
+分别在有、无 primary 的十个组合中验证错误先于原值、版本和 journal 的任何变化。
+双 Loro peer 的真实同步验证暂时不可见记录中的普通字段／富文本新写入不被 undo 抹掉，
+原始 placements 父容器被替换但 deep JSON 相同的重做也拒绝。原误删、整份撤销覆盖、同字段接管和容器降级均先复现失败，
+再验证修复；本批不包含 M14 的改名或泳道编辑新功能，也未做真窗口或性能验收。
