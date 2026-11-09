@@ -185,9 +185,13 @@ impl PageEnd {
                     Ok(new_doc) => {
                         cx.update(|cx| {
                             NewTitles::add(new_doc.clone(), cx);
-                            let target = new_doc
-                                .strip_prefix("node:")
-                                .and_then(|id| Target::from_key(&format!("chapter:{id}")));
+                            let target = if let Some((id, module)) = dr_editor::v3::body(&new_doc) {
+                                Target::from_key(&format!("entry:{id}/{module}"))
+                            } else {
+                                new_doc
+                                    .strip_prefix("node:")
+                                    .and_then(|id| Target::from_key(&format!("chapter:{id}")))
+                            };
                             if let (false, Some(target)) = (in_book, target) {
                                 workspace
                                     .update(cx, |ws, cx| ws.open(target, Open::KEEP.at_title(), cx))
@@ -218,13 +222,24 @@ fn shortcut(id: &str, cx: &App) -> SharedString {
 
 /// An empty page's hint, faint under where the first line goes: the
 /// Markdown for the three heading levels, then search and the timeline.
-fn hints(window: &Window, cx: &App) -> Div {
+fn hints(v3: bool, window: &Window, cx: &App) -> Div {
     let theme = Theme::of(window, cx);
     let p = theme.palette;
     let s = theme.scale;
     let rows: Vec<(SharedString, SharedString)> = EMPTY_HINTS
         .iter()
-        .map(|(label, md)| (SharedString::from(*label), SharedString::from(*md)))
+        .enumerate()
+        .map(|(i, (label, md))| {
+            let label = if v3 {
+                t(
+                    cx,
+                    [keys::k4_pages::H1, keys::k4_pages::H2, keys::k4_pages::H3][i],
+                )
+            } else {
+                SharedString::from(*label)
+            };
+            (label, SharedString::from(*md))
+        })
         .chain([
             (
                 t(cx, keys::guide::hints::SEARCH),
@@ -367,7 +382,13 @@ impl Render for PageEnd {
             .flex_col()
             .items_center()
             .pb(px(tk::BOTTOM))
-            .when(self.page.empty, |el| el.child(hints(window, cx)))
+            .when(self.page.empty, |el| {
+                el.child(hints(
+                    dr_editor::v3::body(&self.page.doc).is_some(),
+                    window,
+                    cx,
+                ))
+            })
             .child(
                 div()
                     .relative()

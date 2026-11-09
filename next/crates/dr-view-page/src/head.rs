@@ -260,9 +260,9 @@ fn read_group_path(host: &PageHost, page: &PageInfo, cx: &gpui::App) -> Option<S
     if page.kind != PageKind::Idea {
         return None;
     }
+    let id = page.doc.strip_prefix("node:")?;
     let workspace = host.workspace.upgrade()?;
     let book = &workspace.read(cx).book;
-    let id = page.doc.strip_prefix("node:")?;
     let idea = book.ideas.iter().find(|idea| idea.id == id)?;
     let mut current = idea.group.as_deref();
     let mut chain = Vec::new();

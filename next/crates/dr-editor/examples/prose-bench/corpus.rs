@@ -51,6 +51,9 @@ impl Corpus {
     /// Generates the heavy preset, writes it into a fresh library and opens
     /// the workspace on it.
     pub fn heavy() -> Corpus {
+        if std::env::args().any(|a| a == "--v3") {
+            return Self::heavy_v3();
+        }
         let started = Instant::now();
         let dir = scratch_dir();
         let seeded = seed::generate(Preset::Heavy, seed::DEFAULT_SEED).expect("generate the seed");
@@ -120,6 +123,49 @@ impl Corpus {
 
     pub fn ws(&self) -> &Workspace {
         self.ws.as_ref().expect("the workspace is open")
+    }
+
+    fn heavy_v3() -> Corpus {
+        let dir = scratch_dir();
+        let seeded = seed::generate_v3(Preset::Heavy, seed::DEFAULT_SEED).expect("v3 heavy seed");
+        let shape = seeded.shape().to_json();
+        let book = seeded.books[0].book_id().to_string();
+        let chars: HashMap<_, _> = seeded
+            .books
+            .iter()
+            .flat_map(|b| &b.prose)
+            .map(|p| (p.doc_id().to_string(), p.view().len()))
+            .collect();
+        {
+            let lib =
+                dr_store::Library::open(dir.path(), library_options(VERSION)).expect("library");
+            seeded.write_to(&lib).expect("write v3 seed");
+            lib.rebuild_stale_indexes().expect("indexes");
+            lib.close().expect("close library");
+        }
+        drop(seeded);
+        let ws = Workspace::open_dir(dir.path(), VERSION).expect("workspace");
+        let chapters: Vec<_> =
+            dr_editor::v3::read(&ws, &book, |view| dr_editor::v3::manuscript_docs(&view))
+                .expect("manuscript order")
+                .into_iter()
+                .map(|(doc, title)| Listed {
+                    chars: *chars.get(&doc).expect("seeded body"),
+                    doc,
+                    title,
+                })
+                .collect();
+        let longest = (0..chapters.len())
+            .rev()
+            .max_by_key(|&i| chapters[i].chars)
+            .expect("body");
+        Corpus {
+            ws: Some(ws),
+            chapters,
+            longest,
+            shape,
+            _dir: dir,
+        }
     }
 
     /// One prose document through a workspace session (Drifting's path).

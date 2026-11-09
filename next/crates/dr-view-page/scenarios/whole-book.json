@@ -1,0 +1,266 @@
+{
+  "about": "K4 G1: v3-lite manuscript opens in one real editor; typing and undo write the first manuscript body; scroll reaches the final leaf.",
+  "steps": [
+    {
+      "seed": "v3-lite"
+    },
+    {
+      "call": "book.list",
+      "save": "books"
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}",
+        "all": true
+      },
+      "save": "entries"
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "save": "original"
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}",
+        "all": true,
+        "query": "第20章"
+      },
+      "save": "last"
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${last.0.id}",
+        "module": "mod-prose"
+      },
+      "save": "last_original"
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "window.focus",
+      "params": {}
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${books.0.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/version": 3,
+          "/book/loaded": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-alt-2"
+      },
+      "note": "Use the existing whole-book shortcut; K4-0 v3 Book.exists currently rejects the bridge nav.open book target."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 1500
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-j"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/bottom/pane": null,
+          "/page": "book"
+        },
+        "timeout_ms": 10000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 500
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "TextArea"
+      },
+      "expect": {
+        "/count": 1
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "TextArea"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-up"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "G1 Whole"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "G1 Whole${original.paragraphs.0.text}"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-z"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs": "${original.paragraphs}"
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "01-manuscript.png"
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 720,
+        "y": 550,
+        "dy": 100000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 1000
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-down right",
+        "times": 20
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-up"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "G1 End"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${last.0.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "G1 End${last_original.paragraphs.0.text}"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-z"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 500
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "02-manuscript-end.png"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 2000
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "03-manuscript-settled.png"
+    },
+    {
+      "app": "app.quit",
+      "params": {}
+    }
+  ]
+}

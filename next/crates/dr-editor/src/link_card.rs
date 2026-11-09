@@ -93,6 +93,9 @@ fn words_of(rows: &Value, id: &str) -> Option<u64> {
 /// The card of `target` in `book`, or `None` when it is in the trash, gone,
 /// or of a kind without a card.
 pub fn card_facts(ws: &Workspace, book: &str, target: &LinkTarget) -> Option<CardFacts> {
+    if crate::v3::is_book(ws, book).ok()? {
+        return card_facts_v3(ws, book, target);
+    }
     let id = target.id.as_str();
     let base = |title: String, mark: sand::Kind| CardFacts {
         target: target.clone(),
@@ -279,6 +282,67 @@ pub fn card_element(facts: &CardFacts) -> AnyElement {
         body = body.section(rows);
     }
     body.into_any_element()
+}
+
+fn card_facts_v3(ws: &Workspace, book: &str, target: &LinkTarget) -> Option<CardFacts> {
+    let target = target.clone();
+    crate::v3::read(ws, book, move |v| {
+        let mut card = CardFacts {
+            target: target.clone(),
+            title: String::new(),
+            mark: sand::Kind::Category,
+            color: None,
+            count: None,
+            tags: Vec::new(),
+            aka: None,
+            summary: String::new(),
+            facts: Vec::new(),
+        };
+        match target.kind {
+            EntityKind::Entry => {
+                let e = v
+                    .entries()
+                    .into_iter()
+                    .find(|e| e.id.as_str() == target.id && !e.is_trashed())?;
+                let templates = v.templates_map();
+                let t = e.effective_template(&templates)?;
+                card.title = e.title.clone();
+                card.color = t.color.clone();
+                card.tags.push(t.name.clone());
+                let aliases = e.aliases(&templates);
+                if !aliases.is_empty() {
+                    card.aka = Some(aliases.into_iter().collect::<Vec<_>>().join(" · "));
+                }
+                for m in &t.modules {
+                    if let Some(key) = &m.config.summary_field {
+                        card.summary = e
+                            .fields
+                            .get(&m.id)
+                            .and_then(|f| f.get(key))
+                            .and_then(|v| v.as_str())
+                            .unwrap_or_default()
+                            .to_owned();
+                    }
+                    if let Some(rows) = e.kv.get(&m.id) {
+                        card.facts
+                            .extend(rows.iter().map(|r| (r.key.clone(), r.value.clone())));
+                    }
+                }
+            }
+            EntityKind::Material => {
+                let m = v
+                    .materials()
+                    .into_iter()
+                    .find(|m| m.id.as_str() == target.id)?;
+                card.title = m.title;
+                card.summary = m.description;
+            }
+            _ => return None,
+        }
+        Some(card)
+    })
+    .ok()
+    .flatten()
 }
 
 #[cfg(test)]
