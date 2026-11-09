@@ -62,6 +62,24 @@ impl ToolExecutor for CompanionTools {
             })
         }
     }
+    fn describe_in_book(
+        &self,
+        workspace: &dr_workspace::Workspace,
+        book: &dr_model::id::BookId,
+        call: &ToolCall,
+    ) -> Option<ToolDescriptor> {
+        if call.name == "ask_user" {
+            Some(ask_descriptor())
+        } else {
+            self.book
+                .describe_in_book(workspace, book, call)
+                .or_else(|| {
+                    self.plugins
+                        .as_ref()
+                        .and_then(|plugins| plugins.describe_in_book(workspace, book, call))
+                })
+        }
+    }
     fn finish_session(&self, session: &str) {
         self.book.finish_session(session);
         if let Some(plugins) = &self.plugins {
@@ -72,13 +90,13 @@ impl ToolExecutor for CompanionTools {
         &self,
         workspace: &dr_workspace::Workspace,
         book: &dr_model::id::BookId,
-        _session: &str,
+        session: &str,
     ) -> dr_agent::Result<Vec<dr_agent::context::Contribution>> {
+        let mut context = self.book.context(workspace, book, session)?;
         let project = dr_agent::memory::project(workspace, book)
             .map_err(|e| dr_agent::Error::Protocol(e.to_string()))?;
         let working = dr_agent::memory::load(workspace.library(), book)
             .map_err(|e| dr_agent::Error::Protocol(e.to_string()))?;
-        let mut context = Vec::new();
         if project.entries.iter().any(|e| e.active()) {
             context.push(dr_agent::context::Contribution {
                 source: "PROJECT_MEMORY.md".into(),

@@ -31,11 +31,20 @@ struct Fixture {
 }
 impl Fixture {
     fn new() -> Self {
+        Self::with_version(false)
+    }
+    fn with_version(v3: bool) -> Self {
         let dir = tempfile::tempdir().unwrap();
         let lib = Library::open(dir.path(), library_options("m30-plan")).unwrap();
-        let seed = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
-        let book = seed.books[0].book_id().clone();
-        seed.write_to(&lib).unwrap();
+        let book = if v3 {
+            let seed = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+            seed.write_to(&lib).unwrap();
+            seed.books[0].book_id().clone()
+        } else {
+            let seed = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+            seed.write_to(&lib).unwrap();
+            seed.books[0].book_id().clone()
+        };
         let ws = Workspace::open(lib, WorkspaceOptions::default()).unwrap();
         let driver = Arc::new(ScriptedDriver::new(vec![vec![Script::Event(
             DriverEvent::Finish(FinishReason::Complete),
@@ -494,4 +503,91 @@ fn bounded_context_keeps_pins_and_never_splits_call_result_groups() {
         crate::context::prepare(&config, &large, vec![], &[], vec![]).unwrap(),
         crate::context::Prepared::TooLarge { .. }
     ));
+}
+
+#[test]
+fn v3_manifest_keeps_each_body_and_retained_module_as_a_distinct_target() {
+    use dr_doc::v3::novel::{MOD_PROSE, TPL_CHAPTER};
+    let f = Fixture::with_version(true);
+    f.create(WorkKind::Review);
+    let plan = f.plan();
+    assert!(plan.manifest.iter().all(|m| m.target.kind == "module"));
+    let original = plan.steps[0].clone();
+    let entry = original.target.id.split('/').next().unwrap();
+    let templates =
+        f.ws.call(&Actor::User, "entry_template.list", json!({"book":f.book}))
+            .unwrap();
+    let template = templates["output"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["id"] == TPL_CHAPTER)
+        .unwrap();
+    let mut module = template["modules"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["id"] == MOD_PROSE)
+        .unwrap()
+        .clone();
+    module["id"] = json!("synthetic-second-body");
+    f.ws.call(
+        &Actor::User,
+        "entry_template.put_module",
+        json!({"book":f.book,"template":TPL_CHAPTER,"module":module}),
+    )
+    .unwrap();
+    assert!(f.snapshot().manifest_state.drifted);
+    f.apply(
+        "reconcile-v3",
+        Command::ReconcileManifest {
+            expected_revision: f.plan().revision,
+        },
+    )
+    .unwrap();
+    let plan = f.plan();
+    assert!(
+        plan.manifest
+            .iter()
+            .any(|m| m.target.id == format!("{entry}/{MOD_PROSE}"))
+    );
+    assert!(
+        plan.manifest
+            .iter()
+            .any(|m| m.target.id == format!("{entry}/synthetic-second-body"))
+    );
+    f.ws.call(
+        &Actor::User,
+        "entry_template.remove_module",
+        json!({"book":f.book,"template":TPL_CHAPTER,"module":MOD_PROSE}),
+    )
+    .unwrap();
+    // Original data stays named by its own module even after its definition goes.
+    f.apply(
+        "retained-v3",
+        Command::ReconcileManifest {
+            expected_revision: f.plan().revision,
+        },
+    )
+    .unwrap();
+    assert!(
+        f.plan()
+            .manifest
+            .iter()
+            .any(|m| m.target.doc == original.target.doc)
+    );
+    let review = f.read(&original, false);
+    f.step(
+        "review-v3",
+        &original.id,
+        StepStatus::Completed,
+        Some(review),
+    )
+    .unwrap();
+    let memory = crate::memory::project(&f.ws, &f.book).unwrap();
+    assert_eq!(
+        memory.version,
+        f.ws.observe(&format!("book:{}", f.book)).unwrap().version
+    );
+    f.ws.close();
 }

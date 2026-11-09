@@ -1,8 +1,7 @@
-//! Compatibility prompts for the current novel project, kept out of the
-//! provider-neutral mechanisms. v3 will move this module's novel guidance,
-//! check-in/organize instructions and localized starter bindings into the
-//! novel template; project structure and Agent descriptions then supply them.
-//! Do not grow this into a second tool catalog or a new document kind.
+//! Frozen v2.2 compatibility prompts and localized starter bindings.
+//! v3 reads only the copied template guidance from dr-doc/src/v3/novel.rs.
+//! Keep these legacy strings stable until the final kernel switch-over; never
+//! use them as a v3 fallback, including when an author clears all guidance.
 
 pub const PROJECT_GUIDANCE: &str = "Work with the author's chapters, ideas (构想), elements (要素), storylines, relations, notes, materials, acts, timelines and plot grids through the available tools. Reuse exact authored labels. Do not invent project-wide style, plot, canon, point of view, tense, voice or scope requirements.";
 pub const OUTLINE_GUIDANCE: &str = "The outline is act / chapter / H1 / H2 / H3. H1, H2 and H3 are heading levels with no predetermined narrative role. Preserve the author's formatting and stable block and comment anchors. The current editable prose projection supports text changes within one existing paragraph; structural or rich-text edits require capabilities the tool actually offers.";
@@ -54,7 +53,8 @@ pub(crate) fn organize(documents: &[crate::proactive::ChangedDocument]) -> (Stri
 
 /// The actual translated strings remain in the existing localization source
 /// (not copied into Rust or hand-edited in generated locale files). All novel
-/// starter selection binds through this registry so v3 can relocate it too.
+/// v2.2 starter selection binds through this registry. v3 task intent lives
+/// in copied template instructions; it does not use these fixed UI slots.
 #[derive(Clone, Copy)]
 pub enum Starter {
     Outline,

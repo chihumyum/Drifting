@@ -74,7 +74,7 @@ pub struct AgentPanel {
     fresh: bool,
     snapshot: Option<ChatSnapshot>,
     conversations: Vec<ConversationSummary>,
-    starters: StarterSource,
+    starters: Option<StarterSource>,
     book_view: Option<std::rc::Rc<dr_shell::book::Book>>,
     show_list: bool,
     expanded: HashSet<String>,
@@ -121,7 +121,7 @@ impl AgentPanel {
             fresh: false,
             snapshot: None,
             conversations: Vec::new(),
-            starters: StarterSource::default(),
+            starters: None,
             book_view: None,
             show_list: false,
             expanded: HashSet::new(),
@@ -226,7 +226,7 @@ impl AgentPanel {
                     .as_ref()
                     .is_none_or(|snapshot| snapshot.messages.is_empty())
             {
-                self.starters = StarterSource::default();
+                self.starters = None;
                 self.refresh(cx);
             }
             if cancelled {
@@ -250,7 +250,7 @@ impl AgentPanel {
         self.fresh = false;
         self.snapshot = None;
         self.conversations.clear();
-        self.starters = StarterSource::default();
+        self.starters = None;
         self.composer.update(cx, |field, cx| field.set_text("", cx));
         self.invalidate();
         self.refresh(cx);
@@ -306,7 +306,7 @@ impl AgentPanel {
         }
         let selected = self.selected.clone();
         let generation = self.generation;
-        let need_starters = self.starters.chapters.is_empty()
+        let need_starters = self.starters.as_ref().is_none_or(|s| s.chapters.is_empty())
             && self.snapshot.as_ref().is_none_or(|s| s.messages.is_empty());
         self.loading = true;
         cx.spawn(async move |this, cx| {
@@ -365,7 +365,7 @@ impl AgentPanel {
                             panel.scroll.scroll_to_bottom();
                         }
                         if let Some(starters) = starters {
-                            panel.starters = starters;
+                            panel.starters = Some(starters);
                         }
                         if panel.selected.is_none()
                             && !panel.fresh
@@ -402,7 +402,7 @@ impl AgentPanel {
         self.fresh = true;
         self.snapshot = None;
         self.show_list = false;
-        self.starters = StarterSource::default();
+        self.starters = None;
         self.error = None;
         self.expanded.clear();
         self.invalidate();
@@ -1297,11 +1297,20 @@ impl Render for AgentPanel {
             ) {
                 Some(onboarding::View::Connect) => content = content.child(self.connect.clone()),
                 Some(onboarding::View::Suggest) => {
-                    content = content.child(t(cx, k::onboarding::TRY));
-                    for (index, prompt) in onboarding::build_starter_prompts(&self.starters)
-                        .iter()
-                        .enumerate()
-                    {
+                    let prompts = self
+                        .starters
+                        .as_ref()
+                        .map(onboarding::build_starter_prompts)
+                        .unwrap_or_default();
+                    content = content.child(t(
+                        cx,
+                        if prompts.is_empty() {
+                            k::empty::START
+                        } else {
+                            k::onboarding::TRY
+                        },
+                    ));
+                    for (index, prompt) in prompts.iter().enumerate() {
                         let args: Vec<Arg<'_>> = prompt
                             .values
                             .iter()
