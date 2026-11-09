@@ -393,3 +393,26 @@ fmt、全 workspace Clippy `-D warnings`、全 workspace test
 
 字段级命令、公共树拖动来源与 heavy 加载仍按前述待协调分派；本轮没有重测 heavy，
 不将本次数据保护返修算作重型性能通过或 K4 切换完成。
+
+### 返修最终交回（同步第 57 批 K6 后）
+
+收尾时 main 接收 K6，故再以 `16756d67` 同步 main `ee372789` 后重跑全套。
+正式重交分支 `codex/k4-g3-timeline`，指针 `handback/k4-g3`；本轮提交为
+`7bbb2846`、`8679892a`、`4047645b`、`ba8893dc`、`16756d67` 及本记录。
+G3 修复源码未再变化；原第 45、48 批历史及上节同步前的验证结果保留。
+
+同步后的 fmt、全 workspace Clippy、全 workspace test、xtask（含 audit）、
+根目录 public 全部通过：**2089 passed / 0 failed / 22 ignored**。
+编译均 `CARGO_BUILD_JOBS=3`，测试单线程；audit 0 vulnerabilities、12 条既有通知，
+测量门禁保留 14 份过期提示。带调试桥的应用与 CLI 重新构建成功。
+
+新构建顺序运行三套真窗口，首轮全部通过：视图／泳道 **45/45**，
+摆放／时间钉 **89/89**，隐藏绑定返修 **50/50**，均 **0 pending**。
+八张关键图再次逐张目检，失败草稿、恢复后的名字与原绑定，以及 v2.2 切回均核对。
+最终自动证据在 `next/target/acceptance/k4-g3-repair-k6-views-lanes/`、
+`k4-g3-repair-k6-placement-pins/`、`k4-g3-repair-k6-hidden-binding/`，
+检查日志为 `next/target/k4-g3-repair-k6-*.log`。
+
+相对验证基线仍只改 dr-view-timeline 与本文；未合 main、未推送、未手改 progress.md。
+按作者 11-10 更新的协议，移动指针后主动向整合会话发送确切 SHA 与验收结果。
+大书同配置复验等待内核／外壳修复接收后的通知；字段级命令与公共树拖动来源仍待协调。
