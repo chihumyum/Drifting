@@ -727,3 +727,9 @@ K4-0 第一次交回实跑：`k4-0-interface.json` 49/49 步、0 pending（v3-li
 三张 PNG 已目检。构建 debug-bridge 后运行场景；全 workspace test 会重新生成普通
 app 二进制，若交错运行，应在它编译结束后重新构建桥版本或保留同目录下的桥二进制副本。
 不把无桥构建的启动超时计为功能断言通过。
+
+`crates/dr-cli/scenarios/k4-0-sidebar.json` 是第二次交回场景（v3-lite）：根标签逐项
+切换、模板集合的打开及增删刷新、共享条目卡的六行和可执行操作、显示设置刷新、
+动态根增删、选择记忆和重开、切回 v2.2 原左栏。G2 的三种选择器与 K5 新建模板
+委托由 `dr-shell/tests/v3.rs` 的 GPUI 契约调用真实注册口验证，不伪称已提供各组编辑器。
+`state.get.v3Sidebar` 的状态来自实际左栏实体；其 `registered` 区分显示器与占位。

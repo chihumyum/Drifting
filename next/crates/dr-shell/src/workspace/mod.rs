@@ -327,6 +327,7 @@ pub struct Workspace {
     /// The book shown (its id is known before its lists arrive).
     pub book_id: String,
     pub book: Rc<Book>,
+    pub v3_sidebar: Option<Entity<crate::v3::sidebar::Sidebar>>,
     book_task: Option<Task<()>>,
     /// The book changed while it was being read: read it again after.
     book_stale: bool,
@@ -494,6 +495,7 @@ impl Workspace {
             library,
             book_id,
             book: Rc::new(Book::default()),
+            v3_sidebar: None,
             book_task: None,
             book_stale: false,
             editors: HashMap::new(),
@@ -621,6 +623,7 @@ impl Workspace {
         self.chapter_sort_open = None;
         self.book_position = position;
         self.editors.clear();
+        self.v3_sidebar = None;
         self.focused_editor = None;
         self.touched = None;
         self.title_first = None;
@@ -1010,6 +1013,7 @@ impl Workspace {
     pub(crate) fn let_go_of_library(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.store_layout(cx);
         self.editors.clear();
+        self.v3_sidebar = None;
         self.release_words(cx);
         self.focused_editor = None;
         self.gave_focus = None;

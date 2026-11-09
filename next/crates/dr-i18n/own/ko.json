@@ -94,6 +94,14 @@
     "list": "목록",
     "grid": "그리드",
     "board": "보드",
-    "islands": "섬"
+    "islands": "섬",
+    "templates": "템플릿",
+    "newTemplate": "새 템플릿",
+    "open": "열기",
+    "newEntry": "새로 만들기",
+    "editTemplate": "템플릿 편집",
+    "changeTemplate": "템플릿 변경",
+    "belongTo": "소속 지정",
+    "trash": "최근 삭제 항목으로 이동"
   }
 }

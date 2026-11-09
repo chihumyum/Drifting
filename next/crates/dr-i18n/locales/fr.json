@@ -1783,12 +1783,20 @@
   },
   "v3Shell": {
     "about": "Description",
+    "belongTo": "Rattacher à",
     "board": "Tableau",
+    "changeTemplate": "Changer de modèle",
+    "editTemplate": "Modifier le modèle",
     "entries": "Entrées",
     "grid": "Grille",
     "islands": "Îles",
     "list": "Liste",
-    "settings": "Réglages"
+    "newEntry": "Nouveau",
+    "newTemplate": "Nouveau modèle",
+    "open": "Ouvrir",
+    "settings": "Réglages",
+    "templates": "Modèles",
+    "trash": "Déplacer vers les suppressions récentes"
   },
   "voiceAgent": {
     "error": {
