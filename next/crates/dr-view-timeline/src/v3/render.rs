@@ -176,8 +176,8 @@ impl Timeline {
             let count =
                 dr_shell::strings::tf(cx, keys::v3_timeline::MEMBERS, &[("count", &lane.members)]);
             let row = div()
-                .h(px(model::ROW))
-                .flex_none()
+                .min_h(px(model::ROW))
+                .flex_1()
                 .flex()
                 .items_center()
                 .child(
@@ -192,7 +192,15 @@ impl Timeline {
                         .on_click(cx.listener(move |this, e, _, cx| this.open(&id, e, cx))),
                     ),
                 )
-                .child(div().text_xs().child(count));
+                .child(
+                    div()
+                        .id(SharedString::from(format!("v3-lane-count-{}", lane.id)))
+                        .flex_none()
+                        .text_xs()
+                        .role(gpui::Role::Label)
+                        .aria_label(count)
+                        .child(lane.members.to_string()),
+                );
             let mut actions = div().flex().items_center();
             if i > 0 {
                 let id = lane.id.clone();
@@ -245,21 +253,25 @@ impl Timeline {
         let palette = theme.palette;
         let (min, max) = model::extent(view);
         let unit = model::UNIT * self.zoom;
-        let width = ((max - min) as f32 * unit).max(800.);
+        let width = ((max - min) as f32 * unit).clamp(800., 10_000_000.);
+        let left = -f32::from(self.scroll.offset().x);
+        let visible = self.bounds.get().map_or(1200., |b| f32::from(b.size.width));
         let mut ruler = div().h(px(model::RULER)).flex_none().relative();
-        for tick in (min as i64..=max as i64).step_by(5) {
+        let first = ((min + f64::from(left / unit)) / 5.).floor() * 5.;
+        for step in 0..(visible / unit / 5.).ceil() as usize + 2 {
+            let tick = first + step as f64 * 5.;
             ruler = ruler.child(
                 div()
                     .absolute()
-                    .left(px((tick as f64 - min) as f32 * unit))
+                    .left(px((tick - min) as f32 * unit))
+                    .w(px(40.))
+                    .whitespace_nowrap()
                     .text_xs()
                     .text_color(palette.muted().solid())
                     .child(tick.to_string()),
             );
         }
         let mut content = div().w(px(width)).h_full().flex().flex_col().child(ruler);
-        let left = -f32::from(self.scroll.offset().x);
-        let visible = self.bounds.get().map_or(1200., |b| f32::from(b.size.width));
         for lane in lanes {
             let color = lane
                 .color
@@ -267,8 +279,8 @@ impl Timeline {
                 .and_then(color_of)
                 .unwrap_or(palette.accent);
             let mut row = div()
-                .h(px(model::ROW))
-                .flex_none()
+                .min_h(px(model::ROW))
+                .flex_1()
                 .relative()
                 .rounded(px(5.))
                 .bg(palette.paper.solid())
@@ -308,7 +320,7 @@ impl Timeline {
                     .absolute()
                     .left(px(x))
                     .top(px(3.))
-                    .h(px(model::ROW - 6.))
+                    .bottom(px(3.))
                     .w(px(w))
                     .text_color(color.solid())
                     .role(gpui::Role::Button)

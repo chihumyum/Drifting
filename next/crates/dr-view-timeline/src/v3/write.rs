@@ -1,7 +1,7 @@
 use super::*;
 use dr_model::pos::PosKey;
 use dr_workspace::{
-    Actor, WsError,
+    Actor, WritePreconditions, WsError,
     commands::{
         BookIn, EntityIn,
         v3::{
@@ -33,19 +33,23 @@ impl Timeline {
         let Some(lib) = self.lib.clone() else { return };
         if self.writer.is_none() {
             let (tx, mut rx) = futures::channel::mpsc::unbounded::<Job>();
-            let task = cx.background_executor().spawn(async move {
-                while let Some(job) = rx.next().await {
-                    job();
-                }
-            });
-            self.writer = Some((tx, task));
+            cx.background_executor()
+                .spawn(async move {
+                    while let Some(job) = rx.next().await {
+                        job();
+                    }
+                })
+                .detach();
+            // Closing the panel drops the sender. Drain accepted author writes
+            // before releasing the jobs' library handles.
+            self.writer = Some(tx);
         }
         let book = self.book.id.clone();
         let (tx, rx) = futures::channel::oneshot::channel();
         let job = Box::new(move || {
             let _ = tx.send(f(lib, book));
         });
-        if self.writer.as_ref().unwrap().0.unbounded_send(job).is_err() {
+        if self.writer.as_ref().unwrap().unbounded_send(job).is_err() {
             return;
         }
         cx.spawn(async move |this, cx| {
@@ -121,6 +125,7 @@ impl Timeline {
     pub(super) fn edit_view(&mut self, id: String, edit: ViewEdit, cx: &mut Context<Self>) {
         self.popup = None;
         self.write(cx, move |lib, book| {
+            let observed = lib.observe(&format!("book:{book}"))?;
             let mut v = lib
                 .run::<timeline::ViewList>(&Actor::User, BookIn { book: book.clone() })?
                 .output
@@ -130,6 +135,28 @@ impl Timeline {
                     what: "timeline view",
                     id: id.clone(),
                 })?;
+            // ViewList is read-tolerant and omits inactive targets. A whole
+            // ViewPut must never turn that omission into permanent deletion.
+            // Until F3 offers field patches, refuse these edits without a write.
+            let raw = observed
+                .value
+                .get("timeline_views")
+                .and_then(|views| views.get(&id));
+            for (field, count) in [
+                ("lanes", v.lanes.len()),
+                ("placements", v.placements.len()),
+                ("pins", v.pins.len()),
+            ] {
+                let raw_count = raw
+                    .and_then(|v| v.get(field))
+                    .and_then(|v| v.as_object())
+                    .map_or(0, |v| v.len());
+                if raw_count != count {
+                    return Err(WsError::Conflict(
+                        "timeline contains inactive targets".into(),
+                    ));
+                }
+            }
             match edit {
                 ViewEdit::Rename(name) => v.name = name,
                 ViewEdit::AddLane(entry) => {
@@ -169,7 +196,12 @@ impl Timeline {
                     }
                 }
             }
-            lib.run::<timeline::ViewPut>(&Actor::User, timeline::PutIn { book, view: v })?;
+            lib.call_guarded(
+                &Actor::User,
+                "timeline_view.put",
+                serde_json::json!({"book":book,"view":v}),
+                WritePreconditions::from_observations([observed]),
+            )?;
             Ok(())
         });
     }

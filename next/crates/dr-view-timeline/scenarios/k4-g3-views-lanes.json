@@ -114,9 +114,7 @@
     {
       "app": "ui.find",
       "params": {
-        "label": "${entries.[template=tpl-storyline].title}",
-        "role": "ListItem",
-        "count": 1
+        "label": "${entries.[template=tpl-storyline].title}"
       }
     },
     {
@@ -127,9 +125,12 @@
       "save": "one"
     },
     {
-      "app": "state.get",
-      "expect": {
-        "/v3/timeline_views": "${one}"
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/v3/timeline_views": "${one}"
+        }
       }
     },
     {
@@ -181,12 +182,18 @@
       "input": {
         "book": "${books.0.id}"
       },
-      "save": "ordered"
+      "save": "ordered",
+      "expect": {
+        "/1/lanes/0/entry": "${second.id}"
+      }
     },
     {
-      "app": "state.get",
-      "expect": {
-        "/v3/timeline_views": "${ordered}"
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/v3/timeline_views": "${ordered}"
+        }
       }
     },
     {

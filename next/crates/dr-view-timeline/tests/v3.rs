@@ -58,6 +58,15 @@ fn lanes_use_membership_and_each_views_shared_position_only() {
         .collect();
     assert!(copies.len() >= 2);
     assert!(copies.iter().all(|p| **p == original));
+    let mut pruned = view.clone();
+    let pin_count = pruned.pins.len();
+    let lane = pruned.lanes[0].entry.clone();
+    model::remove_lane(&mut pruned, &lane, &b.memberships);
+    assert!(pruned.placements.iter().any(|p| p.entry == member));
+    let last_lane = pruned.lanes[0].entry.clone();
+    model::remove_lane(&mut pruned, &last_lane, &b.memberships);
+    assert!(pruned.placements.is_empty());
+    assert_eq!(pruned.pins.len(), pin_count);
     view.placements.clear();
     assert!(model::lanes(b, &view).iter().all(|l| l.clips.is_empty()));
     // Residents without memberships never become lane members.
@@ -230,4 +239,55 @@ fn queued_view_and_lane_edits_preserve_memberships_and_other_views(cx: &mut Test
             .count()
             == 1
     });
+    // A read-tolerant query must not cause a later whole-view edit to erase
+    // a placement hidden by a trashed target. Refuse and retain the raw data.
+    call(
+        &lib,
+        "entry.trash",
+        json!({"book":id,"id":original.placements[0].entry}),
+    );
+    let before =
+        lib.observe(&format!("book:{id}")).unwrap().value["timeline_views"][&original.id].clone();
+    refresh(cx);
+    t.update(cx, |t, cx| {
+        t.select(original.id.clone(), cx);
+        t.remove_lane(original.lanes[0].entry.clone(), cx);
+    });
+    wait(cx, |cx| {
+        host.read_with(cx, |h, cx| h._workspace.read(cx).toast.is_some())
+    });
+    assert_eq!(
+        lib.observe(&format!("book:{id}")).unwrap().value["timeline_views"][&original.id],
+        before
+    );
+    cx.update(|_, cx| {
+        let temporary_host = BottomHost {
+            workspace: host.read(cx)._workspace.downgrade(),
+            library: Some(lib.clone()),
+            book_id: id.clone(),
+            book: Rc::new(Book::load(&lib, &id).unwrap()),
+            target: None,
+        };
+        let temporary = cx.new(|_| Timeline::new(&temporary_host));
+        temporary.update(cx, |t, cx| {
+            t.create_view("drained-one".into(), "Synthetic queued one".into(), cx);
+            t.create_view("drained-two".into(), "Synthetic queued two".into(), cx);
+        });
+        // Dropping the last view handle must not cancel either accepted write.
+    });
+    wait(cx, |_| {
+        call(&lib, "timeline_view.list", json!({"book":id}))
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|v| v["id"] == "drained-two")
+    });
+    let views = call(&lib, "timeline_view.list", json!({"book":id}));
+    assert!(
+        views
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|v| v["id"] == "drained-one")
+    );
 }

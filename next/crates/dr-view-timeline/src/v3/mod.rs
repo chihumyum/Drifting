@@ -43,10 +43,7 @@ pub struct Timeline {
     popup: Option<Popup>,
     editing: Option<Editing>,
     bounds: Rc<Cell<Option<Bounds<Pixels>>>>,
-    writer: Option<(
-        futures::channel::mpsc::UnboundedSender<write::Job>,
-        Task<()>,
-    )>,
+    writer: Option<futures::channel::mpsc::UnboundedSender<write::Job>>,
 }
 
 pub fn init(cx: &mut App) {
