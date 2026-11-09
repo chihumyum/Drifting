@@ -2469,6 +2469,7 @@ dependencies = [
  "dr-testkit",
  "dr-ui",
  "dr-workspace",
+ "futures",
  "gpui",
  "log",
  "serde_json",
