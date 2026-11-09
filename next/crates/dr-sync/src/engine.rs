@@ -15,7 +15,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use dr_store::asset::{MAX_COPY_BYTES, SourceImport, Variant, VariantBytes};
+use dr_store::asset::{
+    MAX_COPY_BYTES, SourceImport, Variant, VariantBytes, sanitized_extension, sanitized_segment,
+};
 use dr_store::{DocInfo, Library, OpenDoc, Origin};
 use loro::{ExportMode, VersionVector};
 use serde::{Deserialize, Serialize};
@@ -405,6 +407,7 @@ impl SyncEngine {
                 vv_base64,
                 ..
             } => {
+                validate_document_metadata(doc_id, book_id.as_deref())?;
                 if library.purged(doc_id)?.is_some()
                     || book_id
                         .as_deref()
@@ -469,7 +472,16 @@ impl SyncEngine {
                 width,
                 height,
             } => {
+                // Validate every path-bearing field before even looking for a
+                // duplicate: that branch must not bypass the sync boundary.
+                validate_path_id("asset id", asset_id)?;
+                validate_path_id("book id", book_id)?;
                 let parsed_variant = parse_variant(variant)?;
+                if !sanitized_extension(ext).is_ok_and(|canonical| canonical == ext.as_str()) {
+                    return Err(SyncError::InvalidPath(
+                        "asset extension must be 1..=16 lowercase ASCII letters or digits".into(),
+                    ));
+                }
                 if library.asset(asset_id, parsed_variant)?.is_some() {
                     library.mark_asset_uploaded(asset_id, parsed_variant)?;
                     return Ok(());
@@ -531,6 +543,7 @@ impl SyncEngine {
                 book_id,
                 purged_ms,
             } => {
+                validate_document_metadata(doc_id, book_id.as_deref())?;
                 if library.purged(doc_id)?.is_none() {
                     if library.doc_info(doc_id)?.is_none() {
                         let _ = library.register(doc_id, kind, book_id.as_deref());
@@ -545,6 +558,40 @@ impl SyncEngine {
         }
         Ok(())
     }
+}
+
+/// Require the store's canonical spelling, rather than silently mapping remote
+/// identifiers onto another asset's directory. Apply Windows filename rules on
+/// every platform so the same remote library is safe on each device.
+fn validate_path_id(field: &str, value: &str) -> Result<(), SyncError> {
+    let stem = value.split('.').next().unwrap_or("").to_ascii_uppercase();
+    let reserved = matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+        || matches!(
+            stem.as_bytes(),
+            [b'C', b'O', b'M', b'1'..=b'9'] | [b'L', b'P', b'T', b'1'..=b'9']
+        );
+    if !sanitized_segment(value).is_ok_and(|canonical| canonical == value)
+        || value.ends_with('.')
+        || reserved
+    {
+        return Err(SyncError::InvalidPath(format!(
+            "{field} must be a canonical portable asset-store identifier"
+        )));
+    }
+    Ok(())
+}
+
+fn validate_document_metadata(doc_id: &str, book_id: Option<&str>) -> Result<(), SyncError> {
+    // Document ids never form filesystem paths: SQLite stores them verbatim,
+    // and HTTP object keys encode them with base64url. In particular v3 ids
+    // containing ':' and '/' must remain opaque, under F2's storage limits.
+    if doc_id.is_empty() || doc_id.len() > 256 || doc_id.chars().any(char::is_control) {
+        return Err(SyncError::InvalidPath("invalid document id".into()));
+    }
+    if let Some(book_id) = book_id {
+        validate_path_id("book id", book_id)?;
+    }
+    Ok(())
 }
 
 fn parse_variant(raw: &str) -> Result<Variant, SyncError> {

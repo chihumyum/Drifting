@@ -1,6 +1,6 @@
 # M36 Hosted 同步 v2
 
-**交回状态**：已完成并交回（`codex/track4-account-sync` → `handback/track4`）
+**交回状态**：第三十七批退回问题已修复，重新验证中（`codex/track4-account-sync` → `handback/track4`；尚未合进 `main`）。
 
 ## 目标与范围
 
@@ -38,7 +38,17 @@
 - `next/crates/dr-view-account/`（`Layer::Interface`）：
   - `src/sync_mark.rs`：稿纸左下角砂笔记号视图 `render_paper_sync_mark` / `paper_sync_mark_for`、悬停卡文案与动作按钮、通知中心钉住/解除桥接 `reconcile_sync_problem_notifications`。
 
-## 交回
+## 第三十七批退回修复（2026-11-09）
+
+- **入口先校验**：远端资源元数据进入 `SyncEngine::apply_remote_record` 后，先校验素材 id、书 id、变体和扩展名，再查重、标记已上传、下载、构造暂存路径、写入或清理。非法元数据返回 `SyncError::InvalidPath`，不推进该条记录的游标，重复素材也不能绕过校验。
+- **素材 id 与书 id**：只接受与 F2 `sanitized_segment` 输出完全相同的规范拼写（1–128 个 ASCII 字母、数字、`.`、`_`、`-`，不以点开头），拒绝绝对路径、正反斜杠、点／父级路径段、盘符、UNC、URL 转义、空白、控制字符及其他需要改名的输入。同时在所有平台拒绝末尾点与 Windows 保留设备名，避免跨设备路径别名；不把非法远端 id 静默改名到另一个素材的目录。
+- **变体与扩展名**：变体只接受 `source`、`display`、`thumbnail`；扩展名只接受 F2 的规范形式（1–16 个小写 ASCII 字母或数字，不带前导点）。校验失败时不会创建暂存文件，也不会执行暂存清理。
+- **文档字段审查**：`doc_id` 只进入 SQLite 的文档键和 base64url 编码的 HTTP 对象键，不参与本地文件路径；保留 v3 的 `body:…/…`、`template:…/…` 等不透明 id，不按文件名改写。更新和墓碑分支均先按 F2 约束拒绝空 id、超过 256 字节或含控制字符的 id，并校验可选的书 id。`kind` 继续不透明；对象键只用于 base64url 编码的 HTTP 路由，MIME、尺寸和版本向量不参与文件路径。
+- **永久回归**：`next/crates/dr-sync/tests/remote_metadata.rs` 的 7 项测试覆盖库外文件原字节、跨平台非法路径、扩展名／变体、重复素材提前拒绝、文档更新／墓碑、合法不透明文档 id，以及所有变体和 id／扩展名长度上限。拒绝用例只允许假服务的 change-list 请求成功，若提前下载就会变成网络错误，不能冒充元数据校验通过。所有数据与令牌均为合成内容，服务仅绑定本机回环。
+- **修前证据**：永久绝对路径回归在旧实现上失败，库外 `synthetic-manuscript-source.txt` 被删除；修后要求同时断言 `InvalidPath`、文件仍在且原字节不变。
+- **定向检查**：`CARGO_BUILD_JOBS=3 cargo test -p dr-sync --locked` 通过（6 项既有测试、7 项新增永久回归）。
+
+## 首次交回（历史记录）
 
 - **包含段落**：M36 Hosted 同步 v2（`dr-sync` 对象日志协议、Loro 与资源增量同步引擎、空库恢复、配额检查、同步状态机，以及 `dr-view-account::sync_mark` 稿纸左下角记号视图与通知中心桥接）。
 - **触碰 `dr-shell` / `dr-view-shelf` 列表**：
