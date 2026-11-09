@@ -206,3 +206,66 @@ cargo run -p dr-view-timeline --features capture --example timeline-capture -- .
 
 - 泳道名字的卡放在名字旁边（`beside`，待外壳接口）。
 - 片段和泳道名字卡的截图（等外壳能固定打开卡）。
+
+## K4 G3：v3 时间线
+
+v3 路径单列在 `dr-view-timeline/src/v3/`，以 `add_v3_bottom_panel` 注册；
+`BottomTimeline`、书序／叙事时、幕轨和所有 v2.2 的写入保持原样。
+
+### 第一段：视图和泳道
+
+- 视图选择、新建、改名、删除；删除标记不再进入选择器。新视图独立，
+  不自动放入任何泳道或条目。选择、缩放与横滚使用独立的本机记忆键 `timeline-v3`。
+- 从打开泳道开关的层级条目中选择，加入当前视图；上移、下移、移出视图。
+  移出不删除条目或归属，只移除当前视图中没有剩余泳道承接的位置。
+- 成员只由归属决定，不取树的孩子；有成员但没有本视图位置的条目不画片段。
+  同一个条目在本视图的两条泳道里画同一位置。片段直接开 `Target::Entry`。
+- 所有写入都走 F3，串行执行；整份视图的修改在队列里重新查询再改，
+  不用较早的外壳快照覆盖前一个动作。错误用现有保存失败通知。
+- 新动作词来自 `dr-i18n/own` 九种语言；`locales` 由同步脚本生成。
+
+永久契约 `dr-view-timeline/tests/v3.rs` 核对成员／住处、同视图位置、
+连续加入泳道、排序、移出与删除、保留别的视图及所有归属。
+真窗口场景在 `dr-view-timeline/scenarios/k4-g3-views-lanes.json`，
+从统一的 `v3-lite` 种子开始，最后切回 v2.2；结果记录在交回小节。
+
+### 交回
+
+分支 `codex/k4-g3-timeline`，指针 `handback/k4-g3`。
+第一段交回：视图与泳道。实现 `d0375a69`，同步 main 的 `0225d2e8`
+（main `27806732`），保护写入与排空队列的 `9124d78f`，加本记录提交。
+未合入 main，未推送。v2.2 的实现与注册保持原样，只增加版本隔离的 v3 注册。
+
+最终检查全部通过（编译并发 3）：fmt、全 workspace Clippy `-D warnings`、
+全 workspace test **2041 passed / 0 failed / 22 ignored**（测试线程 3）、
+xtask check（含 audit，0 vulnerabilities，保留既有 12 条通知及 14 份过期测量提示）、
+根目录 `pnpm public:check`。首次全量与最终提交的复验均为此结果。
+
+`scenarios/k4-g3-views-lanes.json` 在 v3-lite 真实窗口 **45/45 步、0 pending**；
+视图新建／改名／删除、泳道加入／排序／拿出逐项操作，最后切回 v2.2。
+两张截图已逐张目检：泳道名完整、标尺不换行，v2.2 仍为书序／叙事时与旧面板。
+可重跑结果位于忽略目录 `next/target/acceptance/k4-g3-views-lanes/`。
+永久契约另覆盖隐藏目标保护、移出最后泳道时的位置清理，以及面板释放后排空两次写入。
+
+重型测量未过：v3-heavy 等待书目 180 秒，横滚未测到，见待协调第 2 项。
+本段不声明摆放编辑、时间钉或重型性能完成。
+
+### K4 G3 待协调
+
+1. **F3/K2：视图的局部修改。** `timeline_view.list` 过滤不可用目标，而
+   `timeline_view.put` 接收整份视图。G3 在队列里重读、以 book frontier 做 CAS，
+   并在原始集合计数与有效查询不同时拒绝修改，保留隐藏数据；界面使用现有保存失败通知。
+   后续应给视图名字、泳道增删与排序提供字段级命令，让这类视图也能直接编辑。
+   G3 没有越界修改数据层或复制写入策略。
+
+2. **F6/K2：v3-heavy 打开等待。**
+   `python3 crates/dr-view-timeline/scripts/window-bench.py` 用同一 debug 构建、
+   dr-testkit 的 heavy／v3-heavy、临时 profile 和真实窗口，通过调试桥量打开与横滚。
+   本轮 v2.2 heavy 的 `book.open + ui.wait` 为 164.4 ms；48 次横滚请求中位数
+   30.1 ms、最大 79.0 ms（含 CLI 进程及 IPC，不是绘制帧时间）。
+   v3-heavy 在 30 秒、延长到 180 秒后仍等待书的列表；`book.loaded=false`、书名空、
+   `bottom.pane=null`，时间线尚未实例化。v3 横滚没有测到，不能记作性能通过。
+   当时一分钟负载约 60；`benchmarks.md` 的发布档打开项目 ≤150 ms、滚动帧
+   ≤8.3 ms 与本探针的计时口径不同，不能直接混比。
+   日志、失败状态和截图在忽略目录 `next/target/acceptance/k4-g3-heavy/`；
+   请外壳／查询负责方定位快照读取，再重跑同一脚本。不在 G3 修改快照或数据层。

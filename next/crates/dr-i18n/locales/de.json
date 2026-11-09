@@ -1804,6 +1804,17 @@
     "templates": "Vorlagen",
     "trash": "Zu „Zuletzt gelöscht“ verschieben"
   },
+  "v3Timeline": {
+    "addLane": "Spur hinzufügen",
+    "deleteView": "Ansicht löschen",
+    "members": "{{count}} Mitglieder",
+    "moveDown": "Nach unten",
+    "moveUp": "Nach oben",
+    "newView": "Neue Ansicht",
+    "removeLane": "Aus Ansicht entfernen",
+    "renameView": "Ansicht umbenennen",
+    "views": "Zeitleistenansichten"
+  },
   "voiceAgent": {
     "error": {
       "auth": "Transkriptionsschlüssel ungültig oder abgelaufen",

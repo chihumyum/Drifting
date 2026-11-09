@@ -123,5 +123,16 @@
     "h2": "H2",
     "h3": "H3",
     "title": "Titre"
+  },
+  "v3Timeline": {
+    "views": "Vues chronologiques",
+    "newView": "Nouvelle vue",
+    "renameView": "Renommer la vue",
+    "deleteView": "Supprimer la vue",
+    "addLane": "Ajouter une piste",
+    "removeLane": "Retirer de la vue",
+    "moveUp": "Monter",
+    "moveDown": "Descendre",
+    "members": "{{count}} membres"
   }
 }

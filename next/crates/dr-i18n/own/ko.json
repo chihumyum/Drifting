@@ -117,5 +117,16 @@
     "h2": "H2",
     "h3": "H3",
     "title": "제목"
+  },
+  "v3Timeline": {
+    "views": "타임라인 보기",
+    "newView": "새 보기",
+    "renameView": "보기 이름 변경",
+    "deleteView": "보기 삭제",
+    "addLane": "레인 추가",
+    "removeLane": "보기에서 제거",
+    "moveUp": "위로 이동",
+    "moveDown": "아래로 이동",
+    "members": "구성원 {{count}}개"
   }
 }

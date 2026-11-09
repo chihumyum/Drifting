@@ -1812,6 +1812,17 @@
     "templates": "Plantillas",
     "trash": "Mover a Eliminados recientemente"
   },
+  "v3Timeline": {
+    "addLane": "Añadir carril",
+    "deleteView": "Eliminar vista",
+    "members": "{{count}} miembros",
+    "moveDown": "Bajar",
+    "moveUp": "Subir",
+    "newView": "Nueva vista",
+    "removeLane": "Quitar de la vista",
+    "renameView": "Renombrar vista",
+    "views": "Vistas de cronología"
+  },
   "voiceAgent": {
     "error": {
       "auth": "La clave de transcripción no es válida o ha caducado",

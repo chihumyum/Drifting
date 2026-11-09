@@ -117,5 +117,16 @@
     "h2": "H2",
     "h3": "H3",
     "title": "标题"
+  },
+  "v3Timeline": {
+    "views": "时间线视图",
+    "newView": "新建视图",
+    "renameView": "重命名视图",
+    "deleteView": "删除视图",
+    "addLane": "添加泳道",
+    "removeLane": "移出视图",
+    "moveUp": "上移",
+    "moveDown": "下移",
+    "members": "{{count}} 个成员"
   }
 }
