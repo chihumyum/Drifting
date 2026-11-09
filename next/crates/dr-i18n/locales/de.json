@@ -1773,6 +1773,15 @@
     "themeSystem": "Systemeinstellung",
     "themeSystemShort": "System"
   },
+  "v3Levels": {
+    "byStoryline": "Nach Handlungsstrang",
+    "collapse": "{{name}} einklappen",
+    "expand": "{{name}} aufklappen",
+    "manuscriptOrder": "Manuskriptreihenfolge",
+    "members": "Zugeordnete Einträge",
+    "residents": "Hier abgelegt",
+    "unassigned": "Nicht zugeordnet"
+  },
   "v3Shell": {
     "about": "Beschreibung",
     "belongTo": "Zuordnen",

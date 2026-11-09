@@ -109,5 +109,14 @@
     "changeTemplate": "Vorlage wechseln",
     "belongTo": "Zuordnen",
     "trash": "Zu „Zuletzt gelöscht“ verschieben"
+  },
+  "v3Levels": {
+    "residents": "Hier abgelegt",
+    "members": "Zugeordnete Einträge",
+    "unassigned": "Nicht zugeordnet",
+    "manuscriptOrder": "Manuskriptreihenfolge",
+    "byStoryline": "Nach Handlungsstrang",
+    "expand": "{{name}} aufklappen",
+    "collapse": "{{name}} einklappen"
   }
 }

@@ -1773,6 +1773,15 @@
     "themeSystem": "Follow system",
     "themeSystemShort": "System"
   },
+  "v3Levels": {
+    "byStoryline": "By storyline",
+    "collapse": "Collapse {{name}}",
+    "expand": "Expand {{name}}",
+    "manuscriptOrder": "Manuscript order",
+    "members": "Assigned entries",
+    "residents": "Residents",
+    "unassigned": "Unassigned"
+  },
   "v3Shell": {
     "about": "Description",
     "belongTo": "Assign to",

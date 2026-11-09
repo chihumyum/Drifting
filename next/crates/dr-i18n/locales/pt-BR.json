@@ -1781,6 +1781,15 @@
     "themeSystem": "Seguir o sistema",
     "themeSystemShort": "Sistema"
   },
+  "v3Levels": {
+    "byStoryline": "Por linha narrativa",
+    "collapse": "Recolher {{name}}",
+    "expand": "Expandir {{name}}",
+    "manuscriptOrder": "Ordem do manuscrito",
+    "members": "Entradas atribuídas",
+    "residents": "Entradas residentes",
+    "unassigned": "Sem atribuição"
+  },
   "v3Shell": {
     "about": "Descrição",
     "belongTo": "Associar a",

@@ -109,5 +109,14 @@
     "changeTemplate": "Cambiar plantilla",
     "belongTo": "Asignar a",
     "trash": "Mover a Eliminados recientemente"
+  },
+  "v3Levels": {
+    "residents": "Entradas residentes",
+    "members": "Entradas asignadas",
+    "unassigned": "Sin asignar",
+    "manuscriptOrder": "Orden del manuscrito",
+    "byStoryline": "Por línea argumental",
+    "expand": "Expandir {{name}}",
+    "collapse": "Contraer {{name}}"
   }
 }

@@ -73,6 +73,9 @@ pub fn make_panel(
 
 /// Registers the 构想 tab's panel and an idea's ⋯ rows with the shell.
 pub fn init(cx: &mut App) {
+    dr_shell::v3::add_level_display(cx, "board", |host, _, cx| {
+        dr_view_elements::panel::v3::make(host, dr_view_elements::panel::v3::Display::Board, cx)
+    });
     dr_shell::pages::add_left_panel(cx, |tab, ws, _, cx| {
         (tab == LeftTab::Drifts).then(|| {
             let (body, head) = make_panel(ws, cx);

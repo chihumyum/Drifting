@@ -1767,6 +1767,15 @@
     "themeSystem": "跟隨系統",
     "themeSystemShort": "系統"
   },
+  "v3Levels": {
+    "byStoryline": "按故事線",
+    "collapse": "摺疊{{name}}",
+    "expand": "展開{{name}}",
+    "manuscriptOrder": "文稿順序",
+    "members": "歸屬到這裡",
+    "residents": "住在這裡",
+    "unassigned": "未歸屬"
+  },
   "v3Shell": {
     "about": "說明",
     "belongTo": "歸屬至",

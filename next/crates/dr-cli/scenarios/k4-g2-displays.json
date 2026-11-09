@@ -1,0 +1,383 @@
+{
+  "about": "K4 G2 第一批：v3-lite 真窗口，列表（文稿／主归属故事线）、看板、网格和岛屿；左栏与层级页；v2.2 分路。",
+  "steps": [
+    {
+      "seed": "v3-lite"
+    },
+    {
+      "call": "book.list",
+      "input": {},
+      "save": "books"
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "roots"
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}",
+        "all": true
+      },
+      "save": "entries"
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}",
+        "parent": "${roots.0.id}"
+      },
+      "save": "chapters"
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${books.0.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/version": 3
+        }
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ToggleLeftSidebar"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/left/open": true,
+          "/v3Sidebar/registered": true
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 1200
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Residents"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${chapters.0.title}"
+      },
+      "note": "G2 列表：有效树按文稿顺序列出，使用共同条目单元格"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "${chapters.0.title}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "entry:${chapters.0.id}"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "By storyline",
+        "role": "RadioButton"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${entries.[template=tpl-storyline].title}"
+      },
+      "note": "G2 列表：按主归属泳道分组"
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "01-list.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Manuscript order",
+        "role": "RadioButton"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "${roots.1.title}",
+        "role": "RadioButton"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/v3Sidebar/display": "board",
+          "/v3Sidebar/registered": true
+        }
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${entries.[template=tpl-idea-group].title}"
+      },
+      "note": "G2 看板：从 layout 读取坐标，条目能打开"
+    },
+    {
+      "call": "entry.create",
+      "input": {
+        "book": "${books.0.id}",
+        "parent": "${roots.1.id}",
+        "template": "tpl-idea",
+        "title": "Synthetic board A"
+      },
+      "save": "boardA"
+    },
+    {
+      "call": "entry.update",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${boardA.id}",
+        "layout": {
+          "board": [
+            16.0,
+            140.0
+          ]
+        }
+      }
+    },
+    {
+      "call": "entry.create",
+      "input": {
+        "book": "${books.0.id}",
+        "parent": "${roots.1.id}",
+        "template": "tpl-idea",
+        "title": "Synthetic board B"
+      },
+      "save": "boardB"
+    },
+    {
+      "call": "entry.update",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${boardB.id}",
+        "layout": {
+          "board": [
+            56.0,
+            220.0
+          ]
+        }
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Synthetic board A"
+      },
+      "save": "boardANode"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Synthetic board B"
+      },
+      "expect": {
+        "/nodes/0/center/0": {
+          "$sum": [
+            "${boardANode.nodes.0.center.0}",
+            40
+          ]
+        },
+        "/nodes/0/center/1": {
+          "$sum": [
+            "${boardANode.nodes.0.center.1}",
+            80
+          ]
+        }
+      },
+      "note": "真窗口坐标逐项对上 layout.board，两个同宽卡片的相对位置为 (40,80)"
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "02-board.png"
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${roots.1.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/v3Page/sections/1/registered": true
+        }
+      }
+    },
+    {
+      "call": "entry.update",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${roots.1.id}",
+        "overrides": {
+          "display": "grid"
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/v3Sidebar/display": "grid",
+          "/v3Sidebar/registered": true
+        }
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${entries.[template=tpl-idea].title}"
+      },
+      "note": "G2 网格：左栏与层级页共用注册显示器"
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "03-grid.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "${roots.2.title}",
+        "role": "RadioButton"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/v3Sidebar/registered": true
+        }
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${entries.[template=tpl-category].title}"
+      },
+      "note": "G2 岛屿：分类框和紧凑条目索引"
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "04-islands.png"
+    },
+    {
+      "call": "entry.update",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${roots.2.id}",
+        "overrides": {
+          "display": "island"
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/v3Sidebar/display": "island"
+        }
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${roots.2.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/v3Page/sections/1/registered": true
+        }
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "05-level-islands.png"
+    },
+    {
+      "call": "book.create",
+      "input": {
+        "name": "Synthetic G2 legacy"
+      },
+      "save": "legacy"
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${legacy.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/version": 2,
+          "/v3Sidebar": null
+        }
+      },
+      "note": "G2 只注册 v3 显示器，v2.2 走原左栏"
+    },
+    {
+      "app": "app.quit"
+    }
+  ]
+}

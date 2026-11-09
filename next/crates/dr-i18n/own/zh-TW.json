@@ -103,5 +103,14 @@
     "changeTemplate": "更換範本",
     "belongTo": "歸屬至",
     "trash": "移至最近刪除"
+  },
+  "v3Levels": {
+    "residents": "住在這裡",
+    "members": "歸屬到這裡",
+    "unassigned": "未歸屬",
+    "manuscriptOrder": "文稿順序",
+    "byStoryline": "按故事線",
+    "expand": "展開{{name}}",
+    "collapse": "摺疊{{name}}"
   }
 }
