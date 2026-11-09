@@ -410,6 +410,12 @@ impl Backend for Session {
         if let Some(book) = params.get("book").and_then(Value::as_str) {
             cmd.env("DRIFTING_BOOK", book);
         }
+        // Scenario windows stay off the author's main display unless the
+        // caller chose one (dr-shell `DRIFTING_WINDOW_DISPLAY`); a step's own
+        // `env` below still wins.
+        if std::env::var_os("DRIFTING_WINDOW_DISPLAY").is_none() {
+            cmd.env("DRIFTING_WINDOW_DISPLAY", "secondary");
+        }
         for (k, v) in params
             .get("env")
             .and_then(Value::as_object)

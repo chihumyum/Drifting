@@ -5,6 +5,7 @@
 
 pub mod novel;
 pub mod read;
+mod structure;
 pub mod write;
 
 use std::collections::BTreeSet;
@@ -32,6 +33,7 @@ pub use novel::{
     novel_project_templates,
 };
 pub use read::{BookViewV3, EntrySnapshotV3, RepairPlanV3};
+pub use structure::BookStructureV3;
 pub use write::BookTxnV3;
 
 /// Whether `doc` is a universal kernel v3 book document (`meta.v == 3`).

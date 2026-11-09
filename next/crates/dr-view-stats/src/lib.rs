@@ -23,6 +23,8 @@ pub mod model;
 mod panel;
 pub mod recorder;
 mod sections;
+pub mod v3;
+pub mod v3_panel;
 
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -76,6 +78,7 @@ struct Hub {
     recorder: Option<Recorder>,
     subscription: Option<Subscription>,
     views: HashMap<SharedString, Entity<StatsView>>,
+    v3_views: HashMap<SharedString, Entity<v3_panel::View>>,
 }
 
 impl Global for Hub {}
@@ -108,6 +111,7 @@ pub fn init(lib: Option<Workspace>, cx: &mut App) {
         recorder,
         subscription,
         views: HashMap::new(),
+        v3_views: HashMap::new(),
     });
     // Ends once [`release`] drops the recorder and the subscription (the
     // last senders).
@@ -136,12 +140,26 @@ fn route(batch: Vec<Msg>, cx: &mut App) {
         return;
     };
     let views: Vec<Entity<StatsView>> = hub.views.values().cloned().collect();
+    let v3_views: Vec<_> = hub.v3_views.values().cloned().collect();
     let today = |book: &str, cx: &App| {
         cx.try_global::<Hub>()
             .and_then(|h| h.recorder.as_ref())
             .and_then(|r| r.today(book))
     };
     for msg in batch {
+        for view in &v3_views {
+            match &msg {
+                Msg::Event(WsEvent::Book(b)) => view.update(cx, |v, cx| {
+                    if v.book == b.book.as_str() {
+                        v.reload(cx);
+                    }
+                }),
+                Msg::Event(WsEvent::Local(c)) if c.table == "index" => {
+                    view.update(cx, |v, cx| v.reload(cx))
+                }
+                _ => {}
+            }
+        }
         for view in &views {
             match &msg {
                 Msg::Today(book) => {
@@ -186,6 +204,7 @@ pub fn release(cx: &mut App) {
         hub.recorder = None;
         hub.subscription = None;
         hub.views.clear();
+        hub.v3_views.clear();
         hub.lib = None;
     }
 }

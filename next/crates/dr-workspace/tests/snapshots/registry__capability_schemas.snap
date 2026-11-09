@@ -9451,6 +9451,531 @@ expression: json
     "summary": "Read resolved v3 level settings, resident children and accepted members."
   },
   {
+    "access": "read",
+    "book_version": 3,
+    "concurrency": "shared",
+    "input": {
+      "description": "A book.",
+      "properties": {
+        "book": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book"
+      ],
+      "title": "BookIn",
+      "type": "object"
+    },
+    "kind": "query",
+    "name": "level.list",
+    "output": {
+      "$defs": {
+        "Entry": {
+          "properties": {
+            "created_at": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "deleted_at": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "fields": {
+              "additionalProperties": {
+                "additionalProperties": {
+                  "$ref": "#/$defs/FieldValue"
+                },
+                "type": "object"
+              },
+              "description": "Values of `fields` modules: `module_id -> (field_id -> value)`.",
+              "type": "object"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kv": {
+              "additionalProperties": {
+                "items": {
+                  "$ref": "#/$defs/KvEntry"
+                },
+                "type": "array"
+              },
+              "description": "Rows of `kv` modules (`kv:<module_id>`): `module_id -> sorted KvEntry list`.",
+              "type": "object"
+            },
+            "layout": {
+              "$ref": "#/$defs/EntryLayout"
+            },
+            "name_conflict": {
+              "default": null,
+              "description": "Set by readers when this leaf participates in auto-linking and its\ntitle or alias collides with an earlier auto-link leaf (`V3-AUTOLINK-NAME-UNIQUE`).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "overrides": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/LevelSettingsOverride"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Per-entry level setting overrides (only meaningful on level entries)."
+            },
+            "parent": {
+              "description": "Raw parent entry in the `entries` tree (`None` at the root).\nList queries apply the leaf-parent tolerance to their filtering.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "pos": {
+              "description": "Fractional-index position among siblings in the `entries` tree (`文稿顺序`).",
+              "type": "string"
+            },
+            "primary": {
+              "description": "Stored primary membership host; membership queries filter invalid records.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "template": {
+              "description": "The template shaping this entry (`None` = untemplated entry).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "title": {
+              "type": "string"
+            },
+            "updated_at": {
+              "format": "int64",
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "parent",
+            "pos",
+            "title",
+            "template",
+            "overrides",
+            "fields",
+            "kv",
+            "primary",
+            "layout",
+            "created_at",
+            "updated_at",
+            "deleted_at",
+            "name_conflict"
+          ],
+          "type": "object"
+        },
+        "EntryLayout": {
+          "properties": {
+            "board": {
+              "default": null,
+              "description": "Position on a board / island canvas.",
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "format": "double",
+                  "type": "number"
+                },
+                {
+                  "format": "double",
+                  "type": "number"
+                }
+              ],
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "grid": {
+              "default": null,
+              "description": "Grid coordinates `(col, row)` in a grid layout.",
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "format": "int64",
+                  "type": "integer"
+                },
+                {
+                  "format": "int64",
+                  "type": "integer"
+                }
+              ],
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "relation_graph": {
+              "default": null,
+              "description": "Pinned position in the relation graph.",
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "format": "double",
+                  "type": "number"
+                },
+                {
+                  "format": "double",
+                  "type": "number"
+                }
+              ],
+              "type": [
+                "array",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "board",
+            "grid",
+            "relation_graph"
+          ],
+          "type": "object"
+        },
+        "FieldValue": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "format": "double",
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "KvEntry": {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "key": {
+              "type": "string"
+            },
+            "pos": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "key",
+            "value",
+            "pos"
+          ],
+          "type": "object"
+        },
+        "LevelSettings": {
+          "properties": {
+            "accept": {
+              "default": false,
+              "description": "Whether entries residing elsewhere may belong to this level via `memberships` (`收别处的条目`).\nSwimlane levels (`lane == true`) always accept memberships.",
+              "type": "boolean"
+            },
+            "allow": {
+              "default": [],
+              "description": "Allowed templates for entries placed or accepted into this level.\nEmpty means all templates are allowed.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "auto_link": {
+              "default": false,
+              "description": "Whether leaf entries residing in or belonging to this level participate in auto-linking.",
+              "type": "boolean"
+            },
+            "default_template": {
+              "default": null,
+              "description": "Default template when creating a new entry under this level (`None` = blank).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "display": {
+              "default": "",
+              "description": "Default workspace presentation mode for entries in this level.",
+              "type": "string"
+            },
+            "format_shortcuts": {
+              "default": "",
+              "description": "Editor formatting shortcut profile for prose under this level (`格式快捷输入`).",
+              "type": "string"
+            },
+            "home": {
+              "default": null,
+              "description": "For levels with `accept == true`: which level entry newly created entries reside under (`新条目住在`).\n`None` means they reside under this level itself.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "is_manuscript": {
+              "default": false,
+              "description": "Whether leaf entries under this level in tree order form a manuscript (`成书`).",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "default_template",
+            "allow",
+            "display",
+            "auto_link",
+            "accept",
+            "home",
+            "is_manuscript",
+            "format_shortcuts"
+          ],
+          "type": "object"
+        },
+        "LevelSettingsOverride": {
+          "properties": {
+            "accept": {
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "allow": {
+              "default": null,
+              "description": "`None` inherits; `Some(vec)` sets the allowed template list (`Some(vec![])` allows all).",
+              "items": {
+                "type": "string"
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "auto_link": {
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "default_template": {
+              "description": "`None` inherits; `Some(None)` clears to no default template; `Some(Some(t))` sets `t`.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "display": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "format_shortcuts": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "home": {
+              "description": "`None` inherits; `Some(None)` means reside in this level itself; `Some(Some(id))` sets `home`.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "is_manuscript": {
+              "default": null,
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "allow",
+            "display",
+            "auto_link",
+            "accept",
+            "is_manuscript",
+            "format_shortcuts"
+          ],
+          "type": "object"
+        },
+        "ResolvedLevelInfo": {
+          "properties": {
+            "children": {
+              "items": {
+                "$ref": "#/$defs/Entry"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "members": {
+              "items": {
+                "$ref": "#/$defs/Entry"
+              },
+              "type": "array"
+            },
+            "settings": {
+              "$ref": "#/$defs/LevelSettings"
+            },
+            "sources": {
+              "additionalProperties": {
+                "$ref": "#/$defs/SettingSource"
+              },
+              "type": "object"
+            }
+          },
+          "required": [
+            "id",
+            "settings",
+            "sources",
+            "children",
+            "members"
+          ],
+          "type": "object"
+        },
+        "SettingSource": {
+          "description": "Identical provenance vocabulary to the shell's existing read-only tracing.",
+          "oneOf": [
+            {
+              "properties": {
+                "kind": {
+                  "const": "default",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "entry": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "override",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "entry"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "entry": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "template",
+                  "type": "string"
+                },
+                "template": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "entry",
+                "template"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "entry": {
+                  "type": "string"
+                },
+                "kind": {
+                  "const": "lane",
+                  "type": "string"
+                },
+                "template": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "entry",
+                "template"
+              ],
+              "type": "object"
+            }
+          ]
+        }
+      },
+      "properties": {
+        "levels": {
+          "description": "Live levels in the same manuscript order as entry.list.",
+          "items": {
+            "$ref": "#/$defs/ResolvedLevelInfo"
+          },
+          "type": "array"
+        },
+        "version": {
+          "description": "The book frontier shared by every row, usable with Workspace guards.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "version",
+        "levels"
+      ],
+      "title": "LevelsInfo",
+      "type": "object"
+    },
+    "summary": "Read every live v3 level with settings, provenance, resident children and accepted members from one consistent book snapshot."
+  },
+  {
     "access": "write",
     "concurrency": "book",
     "input": {

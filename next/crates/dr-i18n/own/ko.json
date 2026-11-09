@@ -247,5 +247,11 @@
     "formatFull": "전체",
     "formatNotes": "노트",
     "formatPlain": "일반 텍스트"
+  },
+  "k4Book": {
+    "entry_words": "항목 글자 수",
+    "material_words": "자료 글자 수",
+    "leaf_count": "리프 수",
+    "retained_content": "보존된 내용"
   }
 }

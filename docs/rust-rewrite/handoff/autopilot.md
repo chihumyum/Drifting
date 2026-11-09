@@ -33,12 +33,12 @@
 ```bash
 git worktree add ~/Drifting-<任务名> -b codex/<任务名> <起点>
 mkdir -p ~/Drifting-autopilot-logs
-codex exec -C ~/Drifting-<任务名> -m gpt-6-astra -c model_reasoning_effort=high -s danger-full-access \
+codex exec -C ~/Drifting-<任务名> -m gpt-6.1-sol -c model_reasoning_effort=max -s danger-full-access \
   --output-last-message ~/Drifting-autopilot-logs/<任务名>.last.txt "<指令>" > ~/Drifting-autopilot-logs/<任务名>.log 2>&1 &
 ```
 
-- 模型名以 `codex` 实际能用的 GPT-6 Astra 为准。编辑器、内核、并发写入这类难的用 `xhigh`，其余用 `high`。
-- **同时最多四个子会话**，加上你自己。机器 12 核；子会话编译用 `CARGO_BUILD_JOBS=3`，你用 6。
+- 作者在整合会话明确覆盖初版模型安排：统一 `gpt-6.1-sol`、`model_reasoning_effort=max`，不用 Astra；不自行降低推理强度或换模型。
+- 同时运行的子会话不超过作者要求的四个；当前整合执行环境按含整合者共四个并发槽位安排，最多三个后台子会话。机器 12 核；子会话编译用 `CARGO_BUILD_JOBS=3`，整合者用 6。
 - 起点：接着某个分支做，就从那个分支的最新提交开新分支；新活从 `main` 开。
 - 每个子会话的指令都用下面的模板，写清楚这一个任务。子会话是非交互的：遇到要作者拿主意的事，写进自己模块文档的待协调和本页「待作者」，然后停下。
 - 日志放在 `~/Drifting-autopilot-logs/`，不放进任何工作区，免得公开检查扫到。看子会话做到哪：读它的日志尾巴和 `.last.txt`。
@@ -67,7 +67,7 @@ codex exec -C ~/Drifting-<任务名> -m gpt-6-astra -c model_reasoning_effort=hi
 | # | 任务 | 怎么做 | 起点 | 交回指针 |
 | --- | --- | --- | --- | --- |
 | 1 | 收现有交回 | 每轮把不冲突的交回放进同一批：现在排着 `handback/k1`（一次性结构查询，优先）、`handback/k4-g4`、`handback/f6` | — | — |
-| 2 | G1 快照历史 | 在 `dr-workspace` 的 v3 命令里新加按条目整份快照、恢复的命令（带版本守卫，只加不改），做完 G1 的快照历史界面；顺带把 G1 文档里切换前必须的待协调收尾。G1 原会话从 00:25 起没动，按「会话死了」接手 | `codex/k4-g1-pages` | `handback/k4-g1` |
+| 2 | G1 快照历史 | 在 `dr-workspace` 的 v3 命令里新加按条目整份快照、恢复的命令（带版本守卫，只加不改），做完 G1 的快照历史界面；顺带把 G1 文档里切换前必须的待协调收尾。原会话曾响应整合通知恢复工作，现已按作者接管要求确认安全停止；34 个文件含未跟踪内容保存到 `refs/wip/2026-11-10/g1-snapshot-autopilot`，原树未动，新树分支为 `codex/autopilot-g1-history`。 | `codex/k4-g1-pages` | `handback/k4-g1` |
 | 3 | 外壳结构读取正确性 | 核对 `dr-shell/src/book/v3.rs` 的结构读取、设置来源与刷新一致性；已有一次性结构查询的接线按正确性验收，未完成的性能优化和 heavy 测量记后续，不阻塞下一项。等任务 1 把 `handback/k1` 合进来，并且外壳原会话交回了搜索入口以后再开 | `main` | `handback/k4-0` |
 | 4 | 等 G2、G4、外壳原会话做完 | 它们停了而活没完，照「会话死了」接手 | 各自分支 | 各自指针 |
 | 5 | 统一正确性验收 | 1–4 的功能合进来以后开：真窗口打通主要流程，核对功能与数据正确性；相关缺陷按组记进 overnight.md「退回」，每组开一个修复子会话，修完再验。性能、截图目检、样式和流畅度记后续，不因此退回或等待机器空闲 | `main` | 各组指针 |
