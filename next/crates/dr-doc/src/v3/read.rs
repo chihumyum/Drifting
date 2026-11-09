@@ -24,6 +24,27 @@ pub struct EntrySnapshotV3 {
     pub(crate) value: LoroValue,
 }
 
+/// The only paths changed by a timeline's local edits and their inverses.
+/// A lane's position is separate from its record so ordering never restores
+/// unrelated metadata from an older snapshot.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum TimelineFieldV3 {
+    Name,
+    Lane(EntryId),
+    LanePosition(EntryId),
+    Placement(EntryId),
+}
+impl TimelineFieldV3 {
+    pub(crate) fn path(&self) -> Vec<&str> {
+        match self {
+            Self::Name => vec!["name"],
+            Self::Lane(id) => vec!["lanes", id.as_str()],
+            Self::LanePosition(id) => vec!["lanes", id.as_str(), "pos"],
+            Self::Placement(id) => vec!["placements", id.as_str()],
+        }
+    }
+}
+
 impl EntrySnapshotV3 {
     pub fn field(&self, key: &str) -> Option<&LoroValue> {
         F(&self.value).get(key)
@@ -164,6 +185,113 @@ pub struct BookViewV3<'a> {
 }
 
 impl<'a> BookViewV3<'a> {
+    /// A selected native field, preflighted without decoding the whole view.
+    /// Records must be mergeable maps; scalars preserve absence/null/string.
+    pub fn timeline_field_snapshot(
+        &self,
+        id: &TimelineViewId,
+        field: &TimelineFieldV3,
+    ) -> Result<Option<LoroValue>> {
+        use loro::{Container, ValueOrContainer};
+        let (parent, key) = self.timeline_field_parent(id, field)?;
+        let Some(parent) = parent else {
+            return Ok(None);
+        };
+        let value = parent.get(&key);
+        match field {
+            TimelineFieldV3::Name | TimelineFieldV3::LanePosition(_) => match &value {
+                None | Some(ValueOrContainer::Value(LoroValue::Null | LoroValue::String(_))) => {}
+                _ => {
+                    return Err(DocError::NotInProfile(
+                        "timeline scalar uses an unsupported representation",
+                    ));
+                }
+            },
+            TimelineFieldV3::Lane(_) | TimelineFieldV3::Placement(_) => match &value {
+                None => {}
+                Some(ValueOrContainer::Container(Container::Map(_))) => {
+                    check_restorable_field(&parent, &key)?
+                }
+                _ => {
+                    return Err(DocError::NotInProfile(
+                        "timeline record is not a restorable map",
+                    ));
+                }
+            },
+        }
+        Ok(value.map(|v| match v {
+            ValueOrContainer::Value(v) => v,
+            ValueOrContainer::Container(Container::Map(m)) => m.get_deep_value(),
+            _ => unreachable!("preflighted field"),
+        }))
+    }
+
+    /// Selected-field CAS state: parent presence, key presence, and value.
+    /// For whole records the value includes their retained native map even
+    /// after deletion, so offline peer writes cannot be erased by undo.
+    pub fn timeline_field_restore_state(
+        &self,
+        id: &TimelineViewId,
+        field: &TimelineFieldV3,
+    ) -> Result<(bool, bool, Option<LoroValue>)> {
+        let value = self.timeline_field_snapshot(id, field)?;
+        let (parent, key) = self.timeline_field_parent(id, field)?;
+        let Some(parent) = parent else {
+            // An absent empty parent can still retain this deleted child's
+            // map. Inspect it before a first add could resurrect unknown data.
+            use loro::{Container, ContainerID, ContainerTrait, ContainerType};
+            let parent_key = match field {
+                TimelineFieldV3::Lane(_) => "lanes",
+                TimelineFieldV3::Placement(_) => "placements",
+                _ => unreachable!("required scalar parent"),
+            };
+            let root = self.doc.get_map(book_v3::TIMELINE_VIEWS);
+            let view = ContainerID::new_mergeable(&root.id(), id.as_str(), ContainerType::Map);
+            let parent_id = ContainerID::new_mergeable(&view, parent_key, ContainerType::Map);
+            let retained = match self.doc.get_container(parent_id) {
+                Some(Container::Map(parent)) => retained_record_state(self.doc, &parent, &key)?.1,
+                _ => None,
+            };
+            return Ok((false, false, retained));
+        };
+        match field {
+            TimelineFieldV3::Lane(_) | TimelineFieldV3::Placement(_) => {
+                let (present, retained) = retained_record_state(self.doc, &parent, &key)?;
+                Ok((true, present, retained))
+            }
+            _ => Ok((true, value.is_some(), value)),
+        }
+    }
+
+    fn timeline_field_parent(
+        &self,
+        id: &TimelineViewId,
+        field: &TimelineFieldV3,
+    ) -> Result<(Option<LoroMap>, String)> {
+        let root = self.doc.get_map(book_v3::TIMELINE_VIEWS);
+        let view =
+            selected_timeline_map(self.doc, &root, id.as_str(), false)?.expect("required view");
+        match field {
+            TimelineFieldV3::Name => Ok((Some(view), "name".into())),
+            TimelineFieldV3::Lane(lane) => Ok((
+                selected_timeline_map(self.doc, &view, "lanes", true)?,
+                lane.to_string(),
+            )),
+            TimelineFieldV3::Placement(entry) => Ok((
+                selected_timeline_map(self.doc, &view, "placements", true)?,
+                entry.to_string(),
+            )),
+            TimelineFieldV3::LanePosition(lane) => {
+                let lanes = selected_timeline_map(self.doc, &view, "lanes", false)?
+                    .expect("required lanes");
+                Ok((
+                    selected_timeline_map(self.doc, &lanes, lane.as_str(), false)?,
+                    "pos".into(),
+                ))
+            }
+        }
+    }
+
     pub fn book_id(&self) -> &BookId {
         self.book
     }
@@ -1745,4 +1873,32 @@ fn retained_record_state(
         Some(_) => unreachable!("map container id"),
     };
     Ok((parent.get(key).is_some(), retained))
+}
+
+// An absent empty parent can be created for a new view's first lane. Never
+// resurrect a removed nonempty parent: that would restore unselected records.
+fn selected_timeline_map(
+    doc: &LoroDoc,
+    parent: &LoroMap,
+    key: &str,
+    optional: bool,
+) -> Result<Option<LoroMap>> {
+    use loro::{Container, ContainerID, ContainerTrait, ContainerType, ValueOrContainer};
+    let expected = ContainerID::new_mergeable(&parent.id(), key, ContainerType::Map);
+    match parent.get(key) {
+        Some(ValueOrContainer::Container(Container::Map(m))) if m.id() == expected => Ok(Some(m)),
+        None if optional => {
+            if let Some(Container::Map(retained)) = doc.get_container(expected)
+                && retained.keys().next().is_some()
+            {
+                return Err(DocError::NotInProfile(
+                    "timeline parent has hidden retained records",
+                ));
+            }
+            Ok(None)
+        }
+        _ => Err(DocError::NotInProfile(
+            "timeline parent is absent or not a mergeable map",
+        )),
+    }
 }

@@ -1142,3 +1142,29 @@ LoroText（含 bold）／MovableList 的归属与位置四种组合验证无损�
 未知字段、Unicode 剪贴区间与区间外数据、表格复制、导出重开与两 peer 合并；工作区验证
 模板复制后模块仍在、编辑撤销／重做／重开，以及另一书的结构和模板正文不变。
 这些核心接口验证不代表 G1 的链接面板、导航或剪贴 UI 已验收；真窗口消费冒烟由 G1／整合方完成。
+
+## K2 v3 时间线局部编辑（2026-11-10，M14）
+
+| 新命令 | 输入（均含 book、view） | 改动范围 |
+| --- | --- | --- |
+| `timeline_view.rename` | name | 仅名称 |
+| `timeline_view.add_lane` | lane、可选 place（默认 last） | 新增一个存活泳道，不改归属 |
+| `timeline_view.move_lane` | lane、place | 仅该泳道的 pos；可相对隐藏泳道排序 |
+| `timeline_view.remove_lane` | lane | 该泳道及此次移除真正孤立的有效位置 |
+| `timeline_view.restore_fields` | at、expected、fields | 内部撤销／重做所选字段，按所选原值检查冲突 |
+
+place 沿用 first／last／before／after。若缺失或相同排序键让单字段写入不能表达请求顺序，
+命令返回 conflict，不顺手重排其他泳道。已有隐藏位置、未知位置、备用隐藏归属、时间钉、
+其他视图和所有 memberships 保持不变。计划读取、真实容器预检及写入都在同一 holder 任务中，
+调用方仍传原始读时的书观察给 `call_guarded`。
+
+`dr_doc::v3::TimelineFieldV3` 限定 Name、Lane、LanePosition、Placement；
+`BookViewV3::timeline_field_snapshot`／`timeline_field_restore_state` 检查实际父容器身份和所选
+字段的表示，整条记录还读取删除后保留的 Map 状态，不能用 deep JSON 相等替代类型校验。
+`TimelineViewWriterV3::restore_field` 在上述预检后仅恢复所选路径；不恢复整份视图。
+新增泳道允许首次创建空父容器，但不复活删除后仍保留其他记录的父容器。
+
+逆操作的 expected 在同一写任务里从 pending state frontier 捕获；undo／redo 遇到同字段接管、
+未知富文本／列表、同深值但容器身份改变、离线 peer 对删除记录的更新，修改前整次拒绝。
+独立名称、泳道元数据、时间钉和其他位置不阻塞局部逆操作。帮手目录暂排除上述五个命令，
+K6 正式消费时再开放；G3 的控件和副屏真窗口消费由 G3／整合方完成。

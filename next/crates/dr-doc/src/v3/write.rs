@@ -23,7 +23,7 @@ use crate::error::{DocError, Result};
 use crate::peer::seed_peer;
 use crate::schema::book_v3;
 use crate::v3::CollectionV3;
-use crate::v3::read::{BookViewV3, EntrySnapshotV3, RepairPlanV3};
+use crate::v3::read::{BookViewV3, EntrySnapshotV3, RepairPlanV3, TimelineFieldV3};
 
 const TODO_SEED_V3: &str = "todo-v3-1";
 const PLOT_GRID_SEED_V3: &str = "plot-grid-v3-1";
@@ -725,6 +725,25 @@ pub struct TimelineViewWriterV3 {
 }
 
 impl TimelineViewWriterV3 {
+    /// Restore just the selected path after native/history/CAS preflight via
+    /// `BookViewV3::timeline_field_restore_state`. No sibling record is replaced.
+    pub fn restore_field(
+        &self,
+        field: &TimelineFieldV3,
+        value: Option<&LoroValue>,
+    ) -> Result<&Self> {
+        let path = field.path();
+        let mut map = self.map.clone();
+        for key in &path[..path.len() - 1] {
+            if value.is_none() && map.get(key).is_none() {
+                return Ok(self);
+            }
+            map = map.ensure_mergeable_map(key)?;
+        }
+        restore_raw_field(&map, path[path.len() - 1], value)?;
+        Ok(self)
+    }
+
     /// Restore/delete one placement record; all other placements, lanes, pins
     /// and view fields are left alone. Preflight all views with the reader's
     /// `check_timeline_placement_write` before a multi-record mutation.
