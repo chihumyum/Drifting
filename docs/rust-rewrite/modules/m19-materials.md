@@ -248,3 +248,7 @@ M23「审阅与素材」可以直接用这些（都在 `dr_view_material` 下）
 新增命令的派生 Agent 目录快照由 `INSTA_UPDATE=always cargo test -p dr-agent-tools
 --test catalog generated_directory_snapshot --locked` 生成，仅增加未开放命令一行，
 不改 Agent 目录实现或授权范围。首轮全测在此快照差异处停止，生成后继续完整检查。
+
+命令覆盖门禁另发现其扫描范围只含内核契约，已在 `dr-workspace/tests/kernel_v3.rs`
+补 `material_entry_link_checks_book_observations_before_writing`：旧书目观察拒写且深层值
+不变，刷新观察后只增目标关系，素材字段不变；该项与覆盖门禁定向通过。没有改门禁白名单。
