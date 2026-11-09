@@ -226,6 +226,14 @@ cargo run -p dr-view-elements --features capture --example elements-capture -- .
    用 `add_page_view` 替换整页会绕过外壳的 v3 composition 状态和换模板后的层级／叶子
    切换，因此不采用整页替换。F6 的 `a9115af6` 已提供注册口，G2 合入该接口提交，
    只在自己的 `category.rs` 和 `lib.rs` 登记 maker，没有代改公共组合页面。
+2. **G1：登记实际正文编辑器供大纲使用。** G2 在拥有的 `workspace/outline.rs`
+   提供 `dr_shell::Workspace::register_v3_outline_editor(&PageHost, Option<(&str, &str)>, &mut App)`。
+   请在 `dr-view-page` 每个正文编辑器准备完成、`PageHost` 已构造而尚未移进 Chrome 时，
+   调用 `Workspace::register_v3_outline_editor(&page, Some((&host.entry, &host.module.id)), cx)`；
+   全书的 `PageHost` 调用第二参数 `None`。替换编辑器时重新登记。不在 G1 按 show_outline
+   过滤，G2 逐快照核对活动模板配置。注册只保存弱编辑器和弱 workspace，不重借外壳；
+   选择当前聚焦／导航指定／首个可展示的正文，读取实际高度、滚动和光标，不伪造段落几何。
+   G2 将随第三批交回该接口与大纲；G1 接好并同步后才可完成联合真窗口验收。
 
 ## K4 G2：层级页（第二批）
 
