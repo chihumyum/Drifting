@@ -45,6 +45,7 @@ pub mod stats;
 pub mod storyline;
 pub mod template;
 pub mod time_pin;
+pub mod v3;
 
 /// Define an [`crate::Op`].
 macro_rules! op {
@@ -90,6 +91,7 @@ pub(crate) fn register(r: &mut Registry) {
     mention::register(r);
     time_pin::register(r);
     template::register(r);
+    v3::register(r);
 }
 
 // ---- shared inputs and outputs ------------------------------------------

@@ -72,7 +72,14 @@ pub(crate) struct BookSlot {
     pub book: BookId,
     pub handle: DocHandle,
     pub reader: BookReader,
+    pub reader_v3: dr_doc::v3::BookReaderV3,
     pub cache: BookCache,
+}
+
+impl BookSlot {
+    pub(crate) fn is_v3(&self) -> bool {
+        self.handle.doc().with_doc(dr_doc::v3::is_v3_doc)
+    }
 }
 
 /// An open prose document: its holder and a reader sharing its document.
@@ -88,6 +95,20 @@ pub(crate) struct ProseSlot {
 /// ask: dr-doc's `needs_repair`). Run when a book opens and after remote
 /// updates arrive.
 pub(crate) fn repair_book(slot: &BookSlot) -> Result<()> {
+    if slot.is_v3() {
+        if !slot.reader_v3.view().needs_repair() {
+            return Ok(());
+        }
+        let book = slot.book.clone();
+        return holder::write(&slot.handle, dr_store::Origin::Repair, None, move |doc| {
+            let b = dr_doc::v3::BorrowedBookV3::new(doc, &book)?;
+            let plan = b.view().repair_plan();
+            if !plan.is_empty() {
+                b.txn().apply_repair(&plan)?;
+            }
+            Ok(())
+        });
+    }
     if !slot.reader.view().needs_repair() {
         return Ok(());
     }
@@ -730,21 +751,29 @@ impl Workspace {
     }
 
     pub(crate) fn book_slot(&self, book: &BookId) -> Result<Arc<BookSlot>> {
-        self.book_slot_with(book, false)
+        self.book_slot_with(book, false, false)
     }
 
     pub(crate) fn book_slot_or_create(&self, book: &BookId) -> Result<Arc<BookSlot>> {
-        self.book_slot_with(book, true)
+        self.book_slot_with(book, true, false)
     }
 
-    fn book_slot_with(&self, book: &BookId, create: bool) -> Result<Arc<BookSlot>> {
+    pub(crate) fn book_slot_or_create_v3(&self, book: &BookId) -> Result<Arc<BookSlot>> {
+        self.book_slot_with(book, true, true)
+    }
+
+    fn book_slot_with(&self, book: &BookId, create: bool, v3: bool) -> Result<Arc<BookSlot>> {
         if let Some(s) = lock(&self.inner.books).get(book).cloned() {
             return Ok(s);
         }
         let doc_id = DocId::Book(book.clone()).to_string();
         let lib = &self.inner.lib;
         let handle = if create {
-            let g = dr_doc::book::genesis(book);
+            let g = if v3 {
+                dr_doc::v3::genesis_v3(book)
+            } else {
+                dr_doc::book::genesis(book)
+            };
             let genesis = move |d: &loro::LoroDoc| {
                 if let Err(e) = d.import(&g) {
                     log::error!("book genesis: {e}");
@@ -768,10 +797,14 @@ impl Workspace {
         let reader = handle
             .doc()
             .with_doc(|d| BookReader::from_loro(book.clone(), d))?;
+        let reader_v3 = handle
+            .doc()
+            .with_doc(|d| dr_doc::v3::BookReaderV3::from_loro(book.clone(), d))?;
         let slot = Arc::new(BookSlot {
             book: book.clone(),
             handle,
             reader,
+            reader_v3,
             cache: BookCache::default(),
         });
         // dr-doc's deterministic background repair, once per open.
