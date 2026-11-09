@@ -279,16 +279,37 @@ fn write_prose_v3(
     Ok((doc, counters))
 }
 
+fn deterministic_novel_roots(book: &BookId) -> NovelRootEntries {
+    let b = book.as_str();
+    let gen_entry =
+        |idx: usize| EntryId::parse(&super::build::id(0, b, "v3-root", idx)).expect("valid id");
+    let narrative_view =
+        TimelineViewId::parse(&super::build::id(0, b, "v3-view", 0)).expect("valid id");
+    NovelRootEntries {
+        manuscript: gen_entry(0),
+        ideas: gen_entry(1),
+        elements: gen_entry(2),
+        storylines: gen_entry(3),
+        cat_character: gen_entry(4),
+        cat_location: gen_entry(5),
+        cat_item: gen_entry(6),
+        cat_organization: gen_entry(7),
+        narrative_view,
+    }
+}
+
 /// Initialize the novel project templates, root level entries (`书稿`, `构想`,
 /// `要素`, `故事线`), and default narrative timeline view (`叙事时间线`),
 /// leaving category creation to the seed plan or sample book.
-fn init_novel_roots(txn: &mut BookTxnV3<'_>) -> Result<NovelRootEntries> {
-    let ids = NovelRootEntries::new();
+fn init_novel_roots(txn: &mut BookTxnV3<'_>, ids: &NovelRootEntries) -> Result<()> {
     txn.meta().project_template(Some(&ProjectTemplateRef {
         id: NOVEL_PROJECT_TEMPLATE_ID.into(),
         version: NOVEL_PROJECT_TEMPLATE_VERSION,
     }))?;
-    for tpl in novel_project_templates() {
+    for mut tpl in novel_project_templates() {
+        if tpl.id.as_str() == TPL_STORYLINE {
+            tpl.settings.home = Some(Some(ids.manuscript.clone()));
+        }
         txn.template(&tpl.id)?.set_full(&tpl)?;
     }
     txn.entries()
@@ -302,12 +323,13 @@ fn init_novel_roots(txn: &mut BookTxnV3<'_>) -> Result<NovelRootEntries> {
     txn.timeline_view(&ids.narrative_view)?
         .name("叙事时间线")?
         .pos(Some(&PosKey::first()))?;
-    Ok(ids)
+    Ok(())
 }
 
 /// Write a synthetic [`Plan`] directly as v3 documents.
 pub(crate) fn write_direct_v3(p: &Plan) -> Result<SeededBookV3> {
     let mut b = BuilderV3::new(p.book.clone())?;
+    let roots = deterministic_novel_roots(&p.book);
     let element_refs: Vec<EntityRef> = p
         .elements
         .iter()
@@ -319,7 +341,7 @@ pub(crate) fn write_direct_v3(p: &Plan) -> Result<SeededBookV3> {
     let prose_mod = mid(MOD_PROSE);
 
     b.edit_book(|t| {
-        let roots = init_novel_roots(t)?;
+        init_novel_roots(t, &roots)?;
         t.meta()
             .name(&p.name)?
             .summary(plan::BOOK_SUMMARY)?
@@ -434,7 +456,6 @@ pub(crate) fn write_direct_v3(p: &Plan) -> Result<SeededBookV3> {
     })?;
 
     b.edit_book(|t| {
-        let roots = NovelRootEntries::new();
         for (id, name, _) in &p.acts {
             let act_entry = eid(id.as_str());
             t.entries().create(
@@ -511,7 +532,6 @@ pub(crate) fn write_direct_v3(p: &Plan) -> Result<SeededBookV3> {
     }
 
     b.edit_book(|t| {
-        let roots = NovelRootEntries::new();
         for (id, name) in &p.idea_groups {
             let group_id = eid(id.as_str());
             t.entries().create(
@@ -675,8 +695,9 @@ pub fn book_to_v3(src: &SeededBook) -> Result<SeededBookV3> {
     let comments = v.comments();
     let patches = v.patches();
 
+    let roots = deterministic_novel_roots(src.book_id());
     b.edit_book(|t| {
-        let roots = init_novel_roots(t)?;
+        init_novel_roots(t, &roots)?;
         let m = t.meta();
         m.name(&meta.name)?
             .summary(&meta.summary)?
@@ -1174,8 +1195,8 @@ pub fn digest_v3(lib: &dr_store::Library, book: &str) -> std::result::Result<Val
     let entries = v.entries();
     let fmod = mid(MOD_FIELDS);
     let kvmod = mid(MOD_KV);
-    let roots = NovelRootEntries::new();
-    let narrative = v.timeline_view(&roots.narrative_view);
+    let ms_root = v.root_entry_by_template(&tid(TPL_MANUSCRIPT)).map(|e| e.id);
+    let narrative = v.timeline_views().into_iter().next();
 
     let lane_positions: BTreeMap<EntryId, Option<PosKey>> = narrative
         .as_ref()
@@ -1314,7 +1335,8 @@ pub fn digest_v3(lib: &dr_store::Library, book: &str) -> std::result::Result<Val
         .filter(|e| {
             !e.is_trashed()
                 && e.template.as_ref() == Some(&tid(TPL_GROUP))
-                && e.parent.as_ref() == Some(&roots.manuscript)
+                && ms_root.is_some()
+                && e.parent == ms_root
         })
         .map(|a| {
             let first = entries.iter().find(|c| {

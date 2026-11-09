@@ -1136,7 +1136,7 @@ fn v3_entry_module_search_stats_outline_and_references() {
     let doc_act1_about = format_body_doc_id("entry-act1", "about");
     let doc_char_bio = format_body_doc_id("entry-anna", "bio");
     let doc_char_notes = format_body_doc_id("entry-anna", "notes");
-    let doc_tpl = format_template_module_doc_id("character", "bio");
+    let doc_tpl = format_template_module_doc_id("book-v3", "character", "bio");
 
     let index_v3 = |doc: &str, kind: &str, blocks: &[BlockRow], refs: &[RefRow]| {
         lib.register(doc, kind, Some("book-v3")).unwrap();

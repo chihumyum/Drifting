@@ -3,7 +3,7 @@
 
 use std::collections::BTreeMap;
 
-use dr_doc::v3::novel::{NovelRootEntries, TPL_CHAPTER, TPL_CHARACTER, TPL_GROUP};
+use dr_doc::v3::novel::{TPL_CHAPTER, TPL_CHARACTER, TPL_GROUP, TPL_MANUSCRIPT};
 use dr_model::id::EntryTemplateId;
 use serde::Serialize;
 
@@ -140,7 +140,7 @@ impl Shape {
         let tpl_chapter = EntryTemplateId::parse(TPL_CHAPTER).expect("valid template id");
         let tpl_character = EntryTemplateId::parse(TPL_CHARACTER).expect("valid template id");
         let tpl_group = EntryTemplateId::parse(TPL_GROUP).expect("valid template id");
-        let roots = NovelRootEntries::new();
+        let tpl_manuscript = EntryTemplateId::parse(TPL_MANUSCRIPT).expect("valid template id");
 
         for b in books {
             for (g, bodies) in b.groups() {
@@ -153,6 +153,7 @@ impl Shape {
             }
             tasks += counters.tasks;
             let v = b.book.view();
+            let ms_root = v.root_entry_by_template(&tpl_manuscript).map(|e| e.id);
             let entries = v.entries();
             chapters += entries
                 .iter()
@@ -168,7 +169,8 @@ impl Shape {
                 .filter(|e| {
                     !e.is_trashed()
                         && e.template.as_ref() == Some(&tpl_group)
-                        && e.parent.as_ref() == Some(&roots.manuscript)
+                        && ms_root.is_some()
+                        && e.parent == ms_root
                 })
                 .count();
             days += v.writing_days().len();

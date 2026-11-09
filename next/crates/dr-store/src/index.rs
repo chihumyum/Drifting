@@ -323,20 +323,27 @@ pub fn parse_body_doc_id(doc_id: &str) -> Option<(&str, &str)> {
     Some((entry_id, module_id))
 }
 
-/// Format a v3 template prose document ID (`template:<template_id>/<module_id>`).
-pub fn format_template_module_doc_id(template_id: &str, module_id: &str) -> String {
-    format!("template:{template_id}/{module_id}")
+/// Format a v3 template prose document ID (`template:<book_id>/<template_id>/<module_id>`).
+pub fn format_template_module_doc_id(book_id: &str, template_id: &str, module_id: &str) -> String {
+    format!("template:{book_id}/{template_id}/{module_id}")
 }
 
-/// Parse a v3 template prose document ID (`template:<template_id>/<module_id>`)
-/// into `(template_id, module_id)`.
-pub fn parse_template_module_doc_id(doc_id: &str) -> Option<(&str, &str)> {
+/// Parse a v3 template prose document ID (`template:<book_id>/<template_id>/<module_id>`)
+/// into `(book_id, template_id, module_id)`.
+pub fn parse_template_module_doc_id(doc_id: &str) -> Option<(&str, &str, &str)> {
     let rest = doc_id.strip_prefix("template:")?;
-    let (template_id, module_id) = rest.split_once('/')?;
-    if template_id.is_empty() || module_id.is_empty() || module_id.contains('/') {
+    let (book_id, tail) = rest.split_once('/')?;
+    let (template_id, module_id) = tail.split_once('/')?;
+    if book_id.is_empty()
+        || book_id.contains(':')
+        || template_id.is_empty()
+        || template_id.contains(':')
+        || module_id.is_empty()
+        || module_id.contains('/')
+    {
         return None;
     }
-    Some((template_id, module_id))
+    Some((book_id, template_id, module_id))
 }
 
 fn escape_like_literal(s: &str) -> String {
@@ -1810,11 +1817,15 @@ mod tests {
         assert_eq!(parse_body_doc_id("body:only-one"), None);
         assert_eq!(parse_body_doc_id("body:a/b/c"), None);
 
-        let tpl = format_template_module_doc_id("tpl-chapter", "mod-prose");
-        assert_eq!(tpl, "template:tpl-chapter/mod-prose");
+        let tpl = format_template_module_doc_id("book-1", "tpl-chapter", "mod-prose");
+        assert_eq!(tpl, "template:book-1/tpl-chapter/mod-prose");
         assert_eq!(
             parse_template_module_doc_id(&tpl),
-            Some(("tpl-chapter", "mod-prose"))
+            Some(("book-1", "tpl-chapter", "mod-prose"))
+        );
+        assert_eq!(
+            parse_template_module_doc_id("template:tpl-chapter/mod-prose"),
+            None
         );
     }
 }
