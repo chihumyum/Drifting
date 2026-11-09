@@ -1821,14 +1821,14 @@
     "name": "Name",
     "new_entry": "Neuer Eintrag",
     "new_template": "Neue Vorlage",
-    "no": "Nein",
     "none": "Keine",
     "number": "Zahl",
     "options": "Optionen",
     "patches": "Patches",
     "plot_grid": "Handlungsplanung",
+    "preview_failed": "Vorschau konnte nicht geladen werden",
+    "preview_loading": "Vorschau wird geladen…",
     "prose": "Fließtext",
-    "read_only": "Schreibgeschützt",
     "relations": "Beziehungen",
     "reorder": "Zum Sortieren ziehen",
     "restore": "Wiederherstellen",
@@ -1837,8 +1837,7 @@
     "template_name": "Vorlagenname",
     "text": "Text",
     "this_level": "Diese Ebene",
-    "unsaved": "Nicht gespeichert",
-    "yes": "Ja"
+    "unsaved": "Nicht gespeichert"
   },
   "topTimeline": {
     "closeTab": "Tab schließen",

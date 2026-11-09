@@ -1020,12 +1020,19 @@ mod tests {
             let module_agent = editor.draft.modules[0].agent.as_ref().unwrap();
             assert!(!module_agent.writable);
             assert_eq!(module_agent.read_tier.as_deref(), Some("on_demand"));
-            let preview = editor.preview(cx);
-            assert!(preview.contains(r#"name: "Synthetic \"helper\"""#));
-            assert!(preview.contains("Synthetic description"));
-            assert!(preview.contains("Synthetic author instructions"));
-            assert!(preview.contains("Synthetic module guidance"));
-            assert!(preview.contains(t(cx, k::READ_ONLY).as_ref()));
+            let preview = crate::preview::project(&lib, &editor.preview_request().unwrap()).unwrap();
+            assert_eq!(preview.template.agent.name, "Synthetic \"helper\"");
+            assert_eq!(preview.template.agent.description, "Synthetic description");
+            assert_eq!(preview.template.agent.instructions, "Synthetic author instructions");
+            let projected_module = preview.template.modules.iter()
+                .find(|module| module.id == editor.draft.modules[0].id).unwrap();
+            assert_eq!(projected_module.agent.instructions, "Synthetic module guidance");
+            assert!(!projected_module.agent.writable);
+            assert_eq!(projected_module.agent.read_tier.as_deref(), Some("on_demand"));
+            assert!(projected_module.capabilities.write_tools.is_empty());
+            let encoded = serde_json::to_string(&preview).unwrap();
+            assert_eq!(serde_json::from_str::<serde_json::Value>(&encoded).unwrap()
+                ["template"]["agent"]["name"], "Synthetic \"helper\"");
             let saved = model::save(&lib, &id, editor.base.as_ref(), &editor.draft).unwrap();
             let book = Book::load(&lib, &id).unwrap();
             assert_eq!(book.v3().unwrap().template(&saved.id), Some(&saved));
@@ -1047,13 +1054,17 @@ mod tests {
                     .unwrap()
                     .writable
             );
-            editor.draft.kind = "level".into();
-            editor.draft.settings.accept = Some(false);
-            editor.draft.lane = true;
-            let preview = editor.preview(cx);
-            let accept = format!("- {}:", t(cx, k::ACCEPT));
-            assert_eq!(preview.matches(&accept).count(), 1);
-            assert!(preview.contains(&format!("{accept} {}", t(cx, k::YES))));
+            let mut level = editor.host.book.v3().unwrap().template("tpl-storyline").unwrap().clone();
+            level.settings.accept = Some(false);
+            level.lane = true;
+            let request = crate::preview::Request { draft: level.clone(), ..editor.preview_request().unwrap() };
+            let preview = crate::preview::project(&lib, &request).unwrap();
+            assert_eq!(preview.level_defaults.as_ref().unwrap().accept, Some(false));
+            assert_eq!(preview.lane, Some(true));
+            let levels: Vec<_> = preview.structure.levels.iter()
+                .filter(|entry| entry.template.as_deref() == Some(&level.id)).collect();
+            assert!(!levels.is_empty());
+            assert!(levels.iter().all(|entry| entry.effective_settings.values.accept));
             // A background completion can arrive after an input event but
             // before the next render has scheduled its replacement request.
             let captured = editor.preview_request().unwrap();
@@ -1071,6 +1082,36 @@ mod tests {
             );
             editor.preview_open = false;
             assert!(!editor.finish_preview(&current, Ok("closed preview".into()), cx));
+        });
+        editor.update_in(cx, |editor, window, cx| {
+            let text = "Synthetic focused instructions\nH1 H2 H3";
+            Binding::AgentInstructions.set(&mut editor.draft, text.into());
+            let _ = editor.field(
+                Binding::AgentInstructions,
+                "Synthetic instructions".into(),
+                true,
+                window,
+                cx,
+            );
+            let Input::Area(area, _) = &editor.inputs[&Binding::AgentInstructions] else {
+                unreachable!()
+            };
+            let area = area.clone();
+            area.update(cx, |area, cx| area.set_text(text, cx));
+            window.focus(&area.focus_handle(cx), cx);
+            editor.preview_open = true;
+            let request = editor.preview_request().unwrap();
+            editor.preview_cache.start(request.clone());
+            assert!(editor.finish_preview(
+                &request,
+                Ok("Synthetic projected structure".into()),
+                cx
+            ));
+            assert!(area.focus_handle(cx).is_focused(window));
+            assert_eq!(area.read(cx).text(), text);
+            assert_eq!(editor.draft.agent.as_ref().unwrap().instructions, text);
+            editor.preview_open = false;
+            editor.preview_task = None;
         });
     }
 }

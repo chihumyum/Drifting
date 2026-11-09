@@ -188,7 +188,6 @@
     "instructions": "注意事項",
     "module_instructions": "モジュールの説明",
     "agent_preview": "アシスタントに見える内容",
-    "read_only": "読み取り専用",
     "this_level": "この階層",
     "default_template": "既定のテンプレート",
     "none": "なし",
@@ -214,9 +213,9 @@
     "new_entry": "項目を作成",
     "choose_template": "テンプレートを選択",
     "inherit": "継承",
-    "yes": "はい",
-    "no": "いいえ",
-    "add_field": "フィールドを追加"
+    "add_field": "フィールドを追加",
+    "preview_loading": "プレビューを読み込み中…",
+    "preview_failed": "プレビューを読み込めません"
   },
   "v3Levels": {
     "residents": "ここにある項目",

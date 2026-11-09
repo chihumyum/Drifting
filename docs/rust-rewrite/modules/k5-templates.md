@@ -53,7 +53,7 @@
 
 ## 公共结构预览
 
-本段为续接中的实现说明：独立副本与宿主隔离已落地，公共薄包装正式入 main 后接入视图。
+本段消费 K6 正式交回 `983289b9` 提供的公共薄包装；接口不来自未交回的 WIP。
 
 K5 捕获外壳所给的书 id、`BookV3.revision` 和整份当前草稿。后台先按这一精确
 frontier 读取独立历史副本，再 fork 成可编辑的临时文档；只在该副本覆盖草稿定义。
@@ -86,6 +86,12 @@ frontier 读取独立历史副本，再 fork 成可编辑的临时文档；只�
 - 层级契约还从实际模板创建条目，核对默认模板、住处、归属和泳道有效值；
   删除动作目标后拒绝保存，删模块后保留条目数据。GPUI 契约核对后台刷新不夺走
   输入、帮手说明不改变已有权限／读取层级，以及预览中的转义和泳道有效值。
+- `next/crates/dr-view-templates/src/preview.rs`：精确历史 frontier、未使用／在用草稿、
+  同名模块 id、规范层级来源、晚到结果、跨书及正文／隐藏字段隔离的永久测试。
+  GPUI 宿主测试另验证输入事件之后、下一帧之前的旧完成回调被拒绝，发布预览不夺焦点。
+- `next/crates/dr-cli/scenarios/k5-shared-preview.json`：公共结构预览的单条副屏冒烟。
+  新建未使用模板，输入模板和模块说明，先预览并断言真实模板列表不变，再保存、预览与重开。
+  场景显式关闭主动模型建议，不配置或调用模型。
 
 ```bash
 cd next
@@ -98,14 +104,13 @@ CARGO_BUILD_JOBS=3 cargo drifting workspace scenario crates/dr-cli/scenarios/k5-
 
 ## 待协调
 
-- **K6**：结构说明函数合入 main 后消费其公共接口；未合入的分支不是依赖。
-  当前本地预览只读模板草稿，不新建动作执行器、不把编辑中的说明送入运行时。
-- **F6／K1 查询方**：v3-heavy 的初始书快照在模板页挂载之前超时。
+- K6 公共结构预览消费已接；K5 不新建动作执行器，不将未保存草稿发送运行时。
+- **历史记录，按新规暂缓、不作为本轮阻挡**：v3-heavy 的初始书快照曾在模板页挂载前超时。
   `window-bench.py leaf` 使用共享 heavy 种子并预建索引，仍在
   `ui.wait` 的 240 秒内未得到书快照；`state.get` 的 `book.loaded = false`。
   原生采样停在 `dr_shell::book::v3::load → LevelGet → level_settings →
   entries_map → resolve_autolink_name_conflicts → resolve_level_settings`。
-  本次不越界修改外壳／查询层；日志和采样在忽略目录
+  当时未越界修改外壳／查询层；日志和采样在忽略目录
   `next/target/k5-heavy-sample.txt`；这组标准 debug 运行没有生成打开／滚动数字。
   基准脚本保留在本 crate，后续可在同一个合成 profile 上重跑前后两次。
 

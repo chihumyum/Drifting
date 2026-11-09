@@ -29,13 +29,8 @@ pub struct Projection {
     pub structure: StructureContext,
 }
 
-/// `template_projector` is K6's shared, pure template projection. Keeping it
-/// explicit lets snapshot preparation and host isolation be tested separately.
-pub fn project(
-    workspace: &Workspace,
-    request: &Request,
-    template_projector: impl FnOnce(&dr_model::v3::EntryTemplate) -> TemplateSummary,
-) -> Result<Projection, WsError> {
+/// Use K6's shared projections for both the current template and its book view.
+pub fn project(workspace: &Workspace, request: &Request) -> Result<Projection, WsError> {
     with_draft(workspace, request, |view, frontier| {
         let template = view
             .template(
@@ -52,7 +47,7 @@ pub fn project(
         Ok(Projection {
             source_frontier: request.frontier.clone(),
             draft_frontier: frontier.into(),
-            template: template_projector(&template),
+            template: TemplateSummary::from_v3_template(&template),
             level_defaults: level.then(|| request.draft.settings.clone()),
             lane: level.then_some(request.draft.lane),
             declared_actions: level.then(|| request.draft.verbs.clone()),
@@ -325,5 +320,230 @@ mod tests {
         assert!(cache.publish(&other, Ok("new book".into())));
         assert!(!cache.start(other));
         assert_eq!(cache.text.as_ref().unwrap().as_ref().unwrap(), "new book");
+    }
+    #[test]
+    fn shared_projection_covers_unused_and_used_drafts_without_publishing_them() {
+        use dr_workspace::commands::v3::types::{ModuleAgentConfig, TemplateAgentConfig};
+        let (_dir, workspace, book) = fixture();
+        let book_id = book.parse().unwrap();
+        let runtime = StructureContext::for_book(&workspace, &book_id, None)
+            .unwrap()
+            .unwrap();
+        let before = workspace.observe(&format!("book:{book}")).unwrap();
+        let mut draft = model::blank("leaf", "Synthetic unused preview".into());
+        draft.agent = Some(TemplateAgentConfig {
+            name: "Synthetic \"quoted\" helper".into(),
+            description: "Synthetic description".into(),
+            instructions: "Synthetic draft-only guidance\nH1/H2/H3".into(),
+        });
+        for _ in 0..2 {
+            model::add_module(
+                &mut draft,
+                model::module("prose", "Synthetic same name".into()),
+            );
+        }
+        draft.modules[0].agent = Some(ModuleAgentConfig {
+            writable: false,
+            read_tier: Some("on_demand".into()),
+            instructions: "Synthetic first module".into(),
+        });
+        let request = Request {
+            book: book.clone(),
+            frontier: before.version.clone(),
+            draft: draft.clone(),
+        };
+        let preview = project(&workspace, &request).unwrap();
+        assert_eq!(preview.source_frontier, before.version);
+        assert_eq!(preview.template.id, draft.id);
+        assert_eq!(
+            preview.template.agent.instructions,
+            draft.agent.as_ref().unwrap().instructions
+        );
+        assert_eq!(
+            preview
+                .template
+                .modules
+                .iter()
+                .map(|m| &m.id)
+                .collect::<Vec<_>>(),
+            draft.modules.iter().map(|m| &m.id).collect::<Vec<_>>()
+        );
+        assert!(!preview.template.modules[0].agent.writable);
+        assert!(
+            preview.template.modules[0]
+                .capabilities
+                .write_tools
+                .is_empty()
+        );
+        assert_eq!(
+            preview.template.modules[0].agent.read_tier.as_deref(),
+            Some("on_demand")
+        );
+        assert!(preview.template.modules[1].capabilities.writable);
+        assert!(!preview.structure.templates.iter().any(|t| t.id == draft.id));
+        assert_eq!(
+            StructureContext::for_book(&workspace, &book_id, None)
+                .unwrap()
+                .unwrap(),
+            runtime
+        );
+        assert_eq!(
+            workspace.observe(&format!("book:{book}")).unwrap().value,
+            before.value
+        );
+        let text = serde_json::to_string(&preview).unwrap();
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&text).unwrap()["template"]["agent"]["name"],
+            "Synthetic \"quoted\" helper"
+        );
+        // Only the author's explicit Save and Create make the definition
+        // available to the actual runtime's in-use template selection.
+        model::save(&workspace, &book, None, &draft).unwrap();
+        workspace
+            .call(
+                &Actor::User,
+                "entry.create",
+                serde_json::json!({
+                    "book": book, "template": draft.id, "title": "Synthetic saved template entry"
+                }),
+            )
+            .unwrap();
+        let persisted = StructureContext::for_book(&workspace, &book_id, None)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            persisted.templates.iter().find(|t| t.id == draft.id),
+            Some(&preview.template)
+        );
+        let mut second_draft = draft.clone();
+        second_draft.agent.as_mut().unwrap().instructions = "Synthetic next unsaved note".into();
+        let current = workspace.observe(&format!("book:{book}")).unwrap();
+        let request = Request {
+            book: book.clone(),
+            frontier: current.version,
+            draft: second_draft,
+        };
+        let changed = project(&workspace, &request).unwrap();
+        assert_eq!(
+            changed
+                .structure
+                .templates
+                .iter()
+                .find(|t| t.id == draft.id)
+                .unwrap(),
+            &changed.template
+        );
+        assert_eq!(
+            changed.template.agent.instructions,
+            "Synthetic next unsaved note"
+        );
+        assert_eq!(
+            StructureContext::for_book(&workspace, &book_id, None)
+                .unwrap()
+                .unwrap(),
+            persisted
+        );
+        let mut unused_level = model::blank("level", "Synthetic unused level".into());
+        unused_level.settings.default_template = Some(None);
+        unused_level.settings.home = Some(None);
+        unused_level.settings.allow = Some(Vec::new());
+        model::add_module(
+            &mut unused_level,
+            model::module("kv", "Synthetic level fields".into()),
+        );
+        let before_level = workspace.observe(&format!("book:{book}")).unwrap();
+        let request = Request {
+            book: book.clone(),
+            frontier: before_level.version.clone(),
+            draft: unused_level.clone(),
+        };
+        let projected = project(&workspace, &request).unwrap();
+        assert_eq!(projected.template.id, unused_level.id);
+        assert_eq!(projected.template.kind, "level");
+        assert_eq!(
+            projected.level_defaults.as_ref(),
+            Some(&unused_level.settings)
+        );
+        assert_eq!(projected.lane, Some(false));
+        assert!(
+            !projected
+                .structure
+                .levels
+                .iter()
+                .any(|level| level.template.as_deref() == Some(&unused_level.id))
+        );
+        let json = serde_json::to_value(&projected).unwrap();
+        assert_eq!(
+            json["level_defaults"]["default_template"],
+            serde_json::Value::Null
+        );
+        assert!(json["level_defaults"].get("default_template").is_some());
+        assert_eq!(json["level_defaults"]["home"], serde_json::Value::Null);
+        assert!(json["level_defaults"].get("home").is_some());
+        assert_eq!(
+            workspace.observe(&format!("book:{book}")).unwrap().value,
+            before_level.value
+        );
+        workspace.close();
+    }
+
+    #[test]
+    fn shared_level_projection_uses_canonical_sources_in_the_same_draft_snapshot() {
+        use dr_workspace::commands::v3::types::TemplateVerb;
+        let (_dir, workspace, book) = fixture();
+        let before = workspace.observe(&format!("book:{book}")).unwrap();
+        let mut draft = template(&workspace, &book, "tpl-storyline");
+        draft.settings.accept = Some(false);
+        draft.settings.home = Some(None);
+        draft.lane = true;
+        draft.verbs = vec![TemplateVerb {
+            id: dr_model::id::new_uuid_v7(),
+            name: "Synthetic preview action".into(),
+            description: String::new(),
+            target_template: Some("tpl-chapter".into()),
+            pos: Some("a0".into()),
+        }];
+        let request = Request {
+            book: book.clone(),
+            frontier: before.version.clone(),
+            draft: draft.clone(),
+        };
+        let preview = project(&workspace, &request).unwrap();
+        assert_eq!(preview.level_defaults.as_ref().unwrap().accept, Some(false));
+        assert_eq!(preview.lane, Some(true));
+        assert_eq!(preview.declared_actions.as_ref().unwrap(), &draft.verbs);
+        let levels: Vec<_> = preview
+            .structure
+            .levels
+            .iter()
+            .filter(|l| l.template.as_deref() == Some(&draft.id))
+            .collect();
+        assert!(!levels.is_empty());
+        for level in levels {
+            let resolved = with_draft(&workspace, &request, |view, _| {
+                let snapshot = view.structure_snapshot();
+                Ok(snapshot
+                    .level_settings(&level.id.parse().unwrap())
+                    .unwrap()
+                    .clone())
+            })
+            .unwrap();
+            assert_eq!(
+                serde_json::to_value(&level.effective_settings.sources).unwrap(),
+                serde_json::to_value(&resolved.sources).unwrap()
+            );
+            assert_eq!(level.effective_settings.values, resolved.settings);
+            assert!(level.effective_settings.values.accept);
+            assert_eq!(level.effective_settings.values.home, None);
+            assert!(
+                level
+                    .actions
+                    .iter()
+                    .any(|a| a.name == "Synthetic preview action" && a.home_id == level.id)
+            );
+        }
+        let after = workspace.observe(&format!("book:{book}")).unwrap();
+        assert_eq!((after.version, after.value), (before.version, before.value));
+        workspace.close();
     }
 }

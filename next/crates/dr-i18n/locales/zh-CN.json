@@ -1808,14 +1808,14 @@
     "name": "名字",
     "new_entry": "新建条目",
     "new_template": "新建模板",
-    "no": "否",
     "none": "无",
     "number": "数字",
     "options": "选项",
     "patches": "补丁",
     "plot_grid": "情节规划",
+    "preview_failed": "无法加载预览",
+    "preview_loading": "正在加载预览…",
     "prose": "正文",
-    "read_only": "只读",
     "relations": "关联",
     "reorder": "拖动排序",
     "restore": "还原",
@@ -1824,8 +1824,7 @@
     "template_name": "模板名",
     "text": "文字",
     "this_level": "这一层",
-    "unsaved": "未保存",
-    "yes": "是"
+    "unsaved": "未保存"
   },
   "topTimeline": {
     "closeTab": "关闭标签页",

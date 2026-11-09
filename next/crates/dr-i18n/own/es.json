@@ -194,7 +194,6 @@
     "instructions": "Instrucciones",
     "module_instructions": "Instrucciones del módulo",
     "agent_preview": "Lo que ve el asistente",
-    "read_only": "Solo lectura",
     "this_level": "Este nivel",
     "default_template": "Plantilla predeterminada",
     "none": "Ninguna",
@@ -220,9 +219,9 @@
     "new_entry": "Nueva entrada",
     "choose_template": "Elegir plantilla",
     "inherit": "Heredar",
-    "yes": "Sí",
-    "no": "No",
-    "add_field": "Añadir campo"
+    "add_field": "Añadir campo",
+    "preview_loading": "Cargando vista previa…",
+    "preview_failed": "No se pudo cargar la vista previa"
   },
   "v3Levels": {
     "residents": "Entradas residentes",

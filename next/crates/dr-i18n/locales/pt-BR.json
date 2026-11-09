@@ -1829,14 +1829,14 @@
     "name": "Nome",
     "new_entry": "Nova entrada",
     "new_template": "Novo modelo",
-    "no": "Não",
     "none": "Nenhum",
     "number": "Número",
     "options": "Opções",
     "patches": "Patches",
     "plot_grid": "Planejamento da trama",
+    "preview_failed": "Não foi possível carregar a prévia",
+    "preview_loading": "Carregando prévia…",
     "prose": "Texto principal",
-    "read_only": "Somente leitura",
     "relations": "Relações",
     "reorder": "Arrastar para reordenar",
     "restore": "Restaurar",
@@ -1845,8 +1845,7 @@
     "template_name": "Nome do modelo",
     "text": "Texto",
     "this_level": "Este nível",
-    "unsaved": "Não salvo",
-    "yes": "Sim"
+    "unsaved": "Não salvo"
   },
   "topTimeline": {
     "closeTab": "Fechar aba",

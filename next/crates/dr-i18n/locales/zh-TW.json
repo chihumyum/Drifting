@@ -1814,14 +1814,14 @@
     "name": "名字",
     "new_entry": "新增項目",
     "new_template": "新增範本",
-    "no": "否",
     "none": "無",
     "number": "數字",
     "options": "選項",
     "patches": "補丁",
     "plot_grid": "情節規劃",
+    "preview_failed": "無法載入預覽",
+    "preview_loading": "正在載入預覽…",
     "prose": "正文",
-    "read_only": "唯讀",
     "relations": "關聯",
     "reorder": "拖曳排序",
     "restore": "還原",
@@ -1830,8 +1830,7 @@
     "template_name": "範本名稱",
     "text": "文字",
     "this_level": "這一層",
-    "unsaved": "未儲存",
-    "yes": "是"
+    "unsaved": "未儲存"
   },
   "topTimeline": {
     "closeTab": "關閉分頁",
