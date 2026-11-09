@@ -235,6 +235,12 @@ cargo run -p dr-view-elements --features capture --example elements-capture -- .
    选择当前聚焦／导航指定／首个可展示的正文，读取实际高度、滚动和光标，不伪造段落几何。
    按作者随后指示，接口先单独交回，G1 等它进入 main 后接线；G2 收到 G1 的交回提交，
    合入 main 后再完成联合真窗口验收。尚未声明 v3 大纲的产品验收完成。
+3. **F6／K1 查询：heavy 初次快照读取仍慢。** 标准 debug 的 v3-heavy 在 120 秒后
+   `book.loaded=false`，G2 显示器尚未实例化。一秒采样看到
+   `book::v3::load → EntryList → effective_parent → entries_map → resolve_autolink_name_conflicts`
+   的读取链，属于 G3／K5 已记录的快照加载协调项。下面同配置开发优化对照仍需约 26 秒
+   才看到左栏首条目；不把滚动绘制样本当成加载性能已经过关。原始状态、采样和日志在
+   `next/target/acceptance/k4-g2-heavy-standard-diagnostic/`。本组不跨界改查询或快照实现。
 
 ## K4 G2：层级页（第二批）
 
@@ -318,4 +324,46 @@ v3-heavy 合成库。`dr-view-elements/measure-v3` 仅在显式 feature、debug_
 和输出环境变量均开启时收集 GPUI CPU draw／layout／prepaint／paint；默认和发布脚本
 不启用。桥往返与窗口 CPU 绘制分别计时，不把桥往返称为绘制帧，也不声称 GPU 或实际呈现。
 生成器 `dr-view-ideas/examples/sidebar-evidence.rs` 只接受完整的两档测量，生成 F8 格式的
-里程碑证据；原始窗口结果、截图和数据库保持在忽略目录。heavy 对照尚待运行。
+里程碑证据；原始窗口结果、截图和数据库保持在忽略目录。
+
+### 左栏 heavy 对照
+
+证据由生成器写入 [k4-g2-sidebar-window-bench.json](../acceptance/k4-g2-sidebar-window-bench.json)，
+输入是原始调试桥测量，不手改 JSON。heavy 与 v3-heavy 使用同一种子及相同正文指纹，
+各自一个新的隔离档案、一个新 App 进程，窗口 1440 × 900；两档都向下 60 次、向上
+60 次，每次 56 px，并验证首条目离开后回到左栏。四张滚动截图已逐张目检。
+
+两档均为开发构建：`dr-workspace`、`dr-doc`、`dr-model`、`dr-store` 临时
+`opt-level=2`，其余保持 `opt-level=0`，显式开启 `drifting/debug-bridge` 和
+`dr-view-elements/measure-v3`；编译并发为 3，没有改项目默认配置或发布脚本。
+打开计时从 `book.open` 到实际左栏首条目，含 CLI／IPC；系统磁盘缓存没有清空。
+滚动时关闭底栏，记录期间整窗 GPUI CPU draw；不含 GPU／实际呈现，不套发布档帧预算。
+两代主页内容与默认看法不同（旧版按故事线，v3 按书稿顺序），因此这里是该窗口场景的
+对照，不把差值全归于左栏实现。每档只测一次打开，不作分位数推断。
+
+| 档位 | 初次打开至左栏首条目 | CPU draw 样本 | CPU draw 中位数／p95 | 滚动桥往返中位数／p95 |
+| --- | --- | --- | --- | --- |
+| heavy（v2.2） | 143.64 ms | 571 | 2.699／3.224 ms | 9.755／53.032 ms |
+| v3-heavy | 26202.58 ms | 545 | 1.225／1.975 ms | 6.548／10.657 ms |
+
+完整来源指纹、种子规模、机器与负载、每个原始样本均在生成证据中。原始报告和截图位于
+`next/target/acceptance/k4-g2-sidebar-heavy-final/`。此前因时间线也有同名卡片而错误要求
+全窗唯一条目的测量已标失败并保留在 `k4-g2-sidebar-heavy/`，不计入上表。
+标准 debug 的 120 秒加载超时另见待协调 3；本次开发优化对照不关闭该项。
+
+### 第三批准备状态（等待 G1 联合验收）
+
+开发分支仍为 `codex/k4-g2-levels`，实现提交 `38962ccc`；测量、指纹生成器和本节
+另存为本次记录提交。独立验收使用 `CARGO_BUILD_JOBS=3`、测试单线程，fmt、
+Clippy（workspace／all-targets／`-D warnings`）、全量测试
+（**2066 通过／0 失败／22 忽略**）、xtask（含审计）、根目录 public 全过。
+日志在 `next/target/acceptance/k4-g2-checks-3-independent/`。
+测量生成器的来源指纹随后扩至参与整窗场景的外壳、主页、CLI／桥和数据层，
+目标 Clippy、重生成、fmt、九语同步及 xtask／public 复核也通过；没有改测量样本。
+当前新增的 measured evidence 为 fresh，已有其他里程碑的 stale 记录按 F8 原样保留。
+
+操作窗口 **160/160**、0 pending 和 heavy 对照见上文；大纲仍只交了接口，
+没有用占位正文冒充联合验收。复查 main 的第五十五批记录，G1 接线尚未被接收；
+按作者约定，收到 G1 正式交回后再合入 main，验证实际正文及全书编辑器的大纲。
+因此 `handback/k4-g2` 此时仍指向已单独交回的 `d2ddab9f`，本次不前移。
+本会话没有合回 main、没有推送。

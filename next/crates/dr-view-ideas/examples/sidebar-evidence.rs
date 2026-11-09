@@ -19,6 +19,8 @@ fn main() -> Result<()> {
         ensure!(case["complete"] == true, "incomplete native measurement");
         ensure!(case["scroll_steps_each_direction"] == 60);
         ensure!(case["scroll_dispatch"]["samples"] == 120);
+        ensure!(case["scrolled_away_and_returned"] == true);
+        ensure!(case["bottom_closed_for_scroll"] == true);
         ensure!(
             case["native_cpu"]["draw_us"]["samples"]
                 .as_u64()
@@ -32,28 +34,33 @@ fn main() -> Result<()> {
     let mut record = evidence::Evidence::new(
         "sidebar-window-bench",
         "k4-g2",
-        "cargo run --release -p dr-view-ideas --example sidebar-evidence -- target/acceptance/k4-g2-sidebar-heavy/measurement.json ../docs/rust-rewrite/acceptance",
+        "cargo run --locked -p dr-view-ideas --example sidebar-evidence -- target/acceptance/k4-g2-sidebar-heavy-final/measurement.json ../docs/rust-rewrite/acceptance",
     )
     .inputs(
         &evidence::workspace_root(),
         &[
+            "Cargo.toml",
             "Cargo.lock",
+            "app/drifting/src",
+            "crates/dr-cli/src",
+            "crates/dr-debug-bridge/src",
             "crates/dr-view-elements/src/panel.rs",
             "crates/dr-view-elements/src/data.rs",
             "crates/dr-view-elements/Cargo.toml",
             "crates/dr-view-ideas/src",
             "crates/dr-view-ideas/scripts/window-sidebar-bench.py",
             "crates/dr-view-ideas/examples/sidebar-evidence.rs",
-            "crates/dr-shell/src/v3/sidebar.rs",
-            "crates/dr-shell/src/workspace/sidebar.rs",
-            "crates/dr-shell/src/book",
+            "crates/dr-shell/src",
+            "crates/dr-view-home/src",
             "crates/dr-ui/src",
             "crates/dr-ui/assets/fonts/provenance.json",
             "crates/dr-i18n/own",
             "crates/dr-i18n/locales",
-            "crates/dr-workspace/src/commands/v3",
-            "crates/dr-doc/src/v3",
-            "crates/dr-model/src/v3.rs",
+            "crates/dr-workspace/src",
+            "crates/dr-doc/src",
+            "crates/dr-model/src",
+            "crates/dr-store/src",
+            "crates/dr-index/src",
             "crates/dr-testkit/src/seed",
             "crates/dr-corpus",
         ],

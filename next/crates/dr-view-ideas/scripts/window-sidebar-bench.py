@@ -54,6 +54,7 @@ def run_case(args, preset):
         return json.loads(p.stdout)
 
     env=dict(os.environ,DRIFTING_PROFILE=profile)
+    for key in ("DRIFTING_LIBRARY", "DRIFTING_BOOK"):env.pop(key,None)
     if args.frames:env["DRIFTING_G2_FRAME_LOG"]=str(frame_log)
     result={"preset":preset,"version":3 if v3 else 2,"build":args.build_label,"scroll_steps_each_direction":60,"scroll_step_px":56}
     with (out/"app.log").open("w") as log:
@@ -68,12 +69,18 @@ def run_case(args, preset):
             call("ui.wait",{"timeout_ms":30000});call("window.focus");time.sleep(0.25)
             begin=time.perf_counter();call("book.open",{"book":saved["books"][0]["id"]})
             call("action.dispatch",{"name":"workspace::ToggleLeftSidebar"})
-            call("ui.find",{"label":first["title"],"timeout_ms":args.timeout_ms})
+            call("ui.wait",{"state":{"/book/loaded":True,"/book/version":3 if v3 else 2},"timeout_ms":args.timeout_ms})
+            nodes=call("ui.find",{"label":first["title"],"timeout_ms":args.timeout_ms})["nodes"]
+            sidebar_nodes=[node for node in nodes if 0 <= node["center"][0] < 351 and 70 < node["center"][1] < 600]
+            if len(sidebar_nodes)!=1:raise RuntimeError("first entry is outside the visible sidebar or duplicated there")
             result["open_to_sidebar_entry_visible_ms"]=(time.perf_counter()-begin)*1000
-            first_node=call("ui.find",{"label":first["title"],"count":1})["nodes"][0]
-            if not (0 <= first_node["center"][0] < 400 and 70 < first_node["center"][1] < 600):raise RuntimeError("first entry is outside the visible sidebar")
             info=call("app.info");bounds=info["windows"][0]["bounds"]
             result["window_logical_px"]={"width":bounds["width"],"height":bounds["height"]}
+            state=call("state.get")
+            if (state.get("bottom") or {}).get("pane")=="timeline":
+                call("action.dispatch",{"name":"workspace::ToggleBottomTimeline"});call("ui.wait",{"until":"time","ms":600})
+            result["bottom_closed_for_scroll"]=(call("state.get").get("bottom") or {}).get("pane") is None
+            if not result["bottom_closed_for_scroll"]:raise RuntimeError("bottom panel still open")
             time.sleep(1.2)
             result["load_before_scroll"]=os.getloadavg() if hasattr(os,"getloadavg") else None
             raw=[];phases=[]
@@ -131,7 +138,7 @@ def main():
     p.add_argument("--out",type=Path,required=True);p.add_argument("--build-label",required=True);p.add_argument("--timeout-ms",type=int,default=240000)
     p.add_argument("--frames",action="store_true");p.add_argument("--preset",choices=("heavy","v3-heavy","both"),default="both")
     args=p.parse_args();args.cli=args.cli.resolve();args.app=args.app.resolve();args.out=args.out.resolve();args.out.mkdir(parents=True,exist_ok=True)
-    report={"method":"Visible native window. Open and input dispatch include CLI/IPC. Native CPU draw work excludes GPU and presentation; one cold book-open sample per case.",
+    report={"method":"Visible native window. Open and input dispatch include CLI/IPC. Native CPU draw work excludes GPU and presentation; one first book-open sample per case in a new app process; OS caches are not cleared. The bottom panel is closed for scrolling.",
             "system":platform.system(),"architecture":platform.machine(),"binary_sha256":hashlib.sha256(args.app.read_bytes()).hexdigest(),"cases":[]}
     presets=("heavy","v3-heavy") if args.preset=="both" else (args.preset,)
     for preset in presets:report["cases"].append(run_case(args,preset))
