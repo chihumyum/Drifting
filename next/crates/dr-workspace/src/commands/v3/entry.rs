@@ -9,7 +9,8 @@ pub(crate) fn register(r: &mut Registry) {
         .add::<EntryMove>()
         .add::<EntryTrash>()
         .add::<EntryRestore>()
-        .add::<LevelGet>();
+        .add::<LevelGet>()
+        .add::<LevelList>();
 }
 
 op! {
@@ -71,7 +72,7 @@ op! {
     EntryList = "entry.list", Read, Shared, "Find v3 entries or list the children of a level in manuscript order.",
     fn(cx, input: ListIn) -> Vec<types::Entry> {
         let slot = cx.book_v3(&input.book)?;
-        let v = slot.reader_v3.view();
+        let v = slot.reader_v3.view().structure_snapshot();
         let p: Option<EntryId> = input
             .parent
             .as_deref()
@@ -80,9 +81,8 @@ op! {
         let q = input.query.as_deref().unwrap_or("").to_lowercase();
         convert(
             v.entries()
-                .into_iter()
                 .filter(|e| {
-                    (input.all || v.effective_parent(&e.id) == p)
+                    (input.all || v.effective_parent(&e.id) == p.as_ref())
                         && (input.trashed || !e.is_trashed())
                         && e.title.to_lowercase().contains(&q)
                 })
@@ -112,24 +112,58 @@ op! {
     LevelGet = "level.get", Read, Shared, "Read resolved v3 level settings, resident children and accepted members.",
     fn(cx,input:EntityIn)->LevelInfo {
         let slot = cx.book_v3(&input.book)?;
-        let v = slot.reader_v3.view();
-        let e = live(&v, &input.id)?;
-        if !e.is_level(&v.templates_map()) {
-            return Err(WsError::invalid("entry is not a level"));
-        }
-        let members = v
-            .memberships()
-            .into_iter()
-            .filter(|m| m.host == e.id)
-            .filter_map(|m| v.entry(&m.member))
-            .collect::<Vec<_>>();
+        let v = slot.reader_v3.view().structure_snapshot();
+        let e = v.entry(&pid("entry", &input.id)?).filter(|e|!e.is_trashed()).ok_or_else(||WsError::not_found("entry",&input.id))?;
+        let settings=v.level_settings(&e.id).ok_or_else(||WsError::invalid("entry is not a level"))?;
         Ok(LevelInfo {
-            settings: convert(v.level_settings(Some(&e.id)))?,
+            settings: convert(&settings.settings)?,
             children: convert(v.children_of(Some(&e.id)))?,
-            members: convert(members)?,
+            members: convert(v.members_of(&e.id))?,
         })
     }
 }
+
+/// Identical provenance vocabulary to the shell's existing read-only tracing.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum SettingSource {
+    Default,
+    Override { entry: String },
+    Template { entry: String, template: String },
+    Lane { entry: String, template: String },
+}
+#[derive(Clone, Debug, Serialize, JsonSchema)]
+pub struct ResolvedLevelInfo {
+    pub id: String,
+    pub settings: types::LevelSettings,
+    pub sources: BTreeMap<String, SettingSource>,
+    pub children: Vec<types::Entry>,
+    pub members: Vec<types::Entry>,
+}
+#[derive(Clone, Debug, Serialize, JsonSchema)]
+pub struct LevelsInfo {
+    /// The book frontier shared by every row, usable with Workspace guards.
+    pub version: String,
+    /// Live levels in the same manuscript order as entry.list.
+    pub levels: Vec<ResolvedLevelInfo>,
+}
+op! {
+    LevelList = "level.list", Read, Shared, "Read every live v3 level with settings, provenance, resident children and accepted members from one consistent book snapshot.",
+    fn(cx,input:BookIn)->LevelsInfo {
+        let slot=cx.book_v3(&input.book)?;
+        let book=slot.book.clone();
+        let (v,version)=slot.handle.read(move |doc| -> Result<_> {
+            let bb=dr_doc::v3::BorrowedBookV3::new(doc,&book)?;
+            Ok((bb.view().structure_snapshot(),frontiers_hex(&doc.state_frontiers())))
+        })??;
+        let levels=v.levels().map(|e| {
+            let settings=v.level_settings(&e.id).expect("live level");
+            Ok(ResolvedLevelInfo { id:e.id.to_string(),settings:convert(&settings.settings)?,sources:convert(&settings.sources)?,children:convert(v.children_of(Some(&e.id)))?,members:convert(v.members_of(&e.id))? })
+        }).collect::<Result<_>>()?;
+        Ok(LevelsInfo { version,levels })
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct CreateIn {
     pub book: String,

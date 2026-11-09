@@ -588,6 +588,12 @@
       "notUtf8": "UTF-8 のテキストではないため、一部の文字を置き換えました"
     }
   },
+  "k4Book": {
+    "entry_words": "項目の文字数",
+    "leaf_count": "リーフ数",
+    "material_words": "素材の文字数",
+    "retained_content": "保持された内容"
+  },
   "k4Pages": {
     "body": "本文",
     "entries": "項目",

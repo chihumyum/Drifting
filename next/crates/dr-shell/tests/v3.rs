@@ -90,6 +90,58 @@ fn versioned_snapshot_reads_queries_and_retains_setting_sources() {
     ws.shutdown().unwrap();
 }
 #[test]
+fn material_targets_use_the_v3_book_metadata_and_refresh_after_removal() {
+    let (_dir, ws, id) = seed();
+    let before = ws.observe(&format!("book:{id}")).unwrap();
+    let b = Book::load(&ws, &id).unwrap();
+    let material = b
+        .v3()
+        .unwrap()
+        .materials
+        .first()
+        .expect("shared seed material");
+    let target = Target::Material(material.id.parse().unwrap());
+    assert!(b.exists(&target));
+    assert_eq!(b.title(&target), Some(material.title.as_str()));
+    assert_eq!(b.mark(&target), (dr_ui::sand::Kind::Material, None));
+    assert!(!b.exists(&Target::Material("missing-material".parse().unwrap())));
+    assert!(
+        b.materials.is_empty(),
+        "v3 does not populate the v2.2 snapshot"
+    );
+    assert_eq!(
+        before.version,
+        ws.observe(&format!("book:{id}")).unwrap().version
+    );
+
+    // Model a remote metadata removal while its prose still exists. The
+    // shell must not infer a navigable material merely from that document.
+    let book_id = id.parse().unwrap();
+    let material_id = material.id.clone();
+    ws.library()
+        .open_doc(&format!("book:{id}"), dr_store::OpenDoc::Existing)
+        .unwrap()
+        .write(dr_store::Origin::Sync, move |doc| {
+            dr_doc::v3::BorrowedBookV3::new(doc, &book_id)
+                .unwrap()
+                .txn()
+                .purge(dr_doc::v3::CollectionV3::Materials, &material_id)
+                .unwrap();
+        })
+        .unwrap();
+    let after = Book::load(&ws, &id).unwrap();
+    assert!(!after.exists(&target));
+    assert_eq!(after.title(&target), None);
+    assert_ne!(b.v3().unwrap().revision, after.v3().unwrap().revision);
+    assert!(
+        ws.library()
+            .open_doc(&target.key(), dr_store::OpenDoc::Existing)
+            .is_ok()
+    );
+    ws.shutdown().unwrap();
+}
+
+#[test]
 fn entry_appearance_follows_valid_primary_lane_and_removals_close_targets() {
     let (_dir, ws, id) = seed();
     let b = Book::load(&ws, &id).unwrap();
@@ -115,6 +167,119 @@ fn entry_appearance_follows_valid_primary_lane_and_removals_close_targets() {
     assert!(!after.exists(&target));
     ws.shutdown().unwrap();
 }
+
+#[gpui::test]
+fn book_and_material_pages_survive_a_reordered_snapshot(cx: &mut gpui::TestAppContext) {
+    use dr_shell::{Services, SettingsFile, ShellInfo, Workspace as Shell};
+    use gpui::{prelude::*, *};
+    use std::time::{Duration, Instant};
+
+    struct BookPage(FocusHandle);
+    impl Render for BookPage {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+            div().track_focus(&self.0).size_full()
+        }
+    }
+
+    let (_dir, lib, id) = seed();
+    cx.executor().allow_parking();
+    cx.update(|cx| {
+        dr_shell::init(
+            ShellInfo {
+                app_name: "Drifting Next",
+                bundle_id: "cc.drifting.next.dev",
+                version: "0.2.0-dev",
+                url_scheme: "drifting-next-dev",
+                forced_appearance: None,
+            },
+            Services {
+                library: Some(lib.clone()),
+                book: Some(id.clone()),
+                ..Default::default()
+            },
+            SettingsFile::in_memory(),
+            cx,
+        );
+        // The shell owns the page's lifetime; the real G1 manuscript renderer
+        // is exercised by k4-0-navigation.json in a native window.
+        dr_shell::pages::add_page_view(cx, |target, _, _, cx| {
+            (*target == Target::Book).then(|| {
+                let view = cx.new(|cx| BookPage(cx.focus_handle()));
+                dr_shell::pages::ModulePage {
+                    focus: view.read(cx).0.clone(),
+                    view: view.into(),
+                }
+            })
+        });
+    });
+    let (view, cx) = cx.add_window_view(Shell::new);
+    let wait = |cx: &mut VisualTestContext, revision: Option<&str>| {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            cx.run_until_parked();
+            if view.read_with(cx, |ws, _| {
+                ws.book
+                    .v3()
+                    .is_some_and(|b| Some(b.revision.as_str()) != revision)
+            }) {
+                break;
+            }
+            assert!(Instant::now() < deadline, "book snapshot did not refresh");
+            std::thread::sleep(Duration::from_millis(2));
+        }
+    };
+    wait(cx, None);
+    let (entry, material, revision) = view.read_with(cx, |ws, _| {
+        let b = ws.book.v3().unwrap();
+        (
+            b.entries
+                .iter()
+                .find(|e| e.template.as_deref() == Some("tpl-chapter"))
+                .unwrap()
+                .clone(),
+            Target::Material(b.materials[0].id.parse().unwrap()),
+            b.revision.clone(),
+        )
+    });
+    let module = Target::from_key(&format!("entry:{}/mod-prose", entry.id)).unwrap();
+    for target in [&module, &material, &Target::Book] {
+        view.update(cx, |ws, cx| ws.open(target.clone(), Open::KEEP, cx));
+        cx.update(|window, cx| window.draw(cx).clear(cx));
+        cx.run_until_parked();
+    }
+    let page = view.read_with(cx, |ws, _| {
+        ws.editors["book"].module.as_ref().unwrap().view.entity_id()
+    });
+    call(
+        &lib,
+        "entry.move",
+        json!({"book":id,"id":entry.id,"parent":entry.parent}),
+    );
+    wait(cx, Some(&revision));
+    view.read_with(cx, |ws, _| {
+        assert_eq!(ws.nav.current(), Some(&Target::Book));
+        assert_eq!(
+            ws.editors["book"].module.as_ref().unwrap().view.entity_id(),
+            page,
+            "snapshot refresh retains the mounted manuscript page"
+        );
+        for target in [&module, &material, &Target::Book] {
+            assert!(ws.book.exists(target));
+            assert!(ws.editors.contains_key(&target.key()));
+            assert!(
+                ws.nav
+                    .tabs()
+                    .iter()
+                    .any(|t| t.leaves().any(|l| &l.target == target))
+            );
+        }
+        for kind in ["chapter", "idea", "element", "storyline", "category"] {
+            let old = Target::from_key(&format!("{kind}:{}", entry.id)).unwrap();
+            assert!(!ws.book.exists(&old), "v3 does not restore a legacy route");
+        }
+    });
+}
+
 #[test]
 fn v3_targets_roundtrip_tabs_history_splits_and_location() {
     let targets = [

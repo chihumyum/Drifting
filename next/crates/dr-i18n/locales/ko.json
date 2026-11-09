@@ -588,6 +588,12 @@
       "notUtf8": "UTF-8 텍스트가 아니어서 일부 문자를 바꿨습니다"
     }
   },
+  "k4Book": {
+    "entry_words": "항목 글자 수",
+    "leaf_count": "리프 수",
+    "material_words": "자료 글자 수",
+    "retained_content": "보존된 내용"
+  },
   "k4Pages": {
     "body": "본문",
     "entries": "항목",

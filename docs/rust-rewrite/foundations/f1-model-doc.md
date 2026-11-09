@@ -500,3 +500,21 @@ docs/rust-rewrite/acceptance/f1-m3-doc-bench.json   第三轮的测量证据
 - 本批提交 `77b138fc`（结构文档与大纲规则），加本节交回记录；只改 `AGENTS.md`、`loro-schema.md`、F1、F3，没有再改源代码。`git merge main` 确认已同步 `16f062d7`。
 - `cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、`RUST_TEST_THREADS=1 cargo test --workspace --locked`（2,018 通过／0 失败／22 忽略）、`cargo xtask check`、`pnpm public:check` 全过。编译并发 3；审计 971 个依赖，0 漏洞、12 条已有提示；public 检查 5,419 个候选文件，新增 7 处本地文档链接均能解析到文件。
 - 工作分支 `codex/k1-v3`；本节记录提交后将 `handback/k1` 指向 HEAD，然后按作者要求停下。未向 main 合并、未推送，也未触碰 Antigravity 原工作区。
+
+## 交回（K2 续接 G4，第一段：写作日，2026-11-10，`handback/k1`）
+
+- 由整合者按作者授权恢复 K2；原 worktree／分支 `codex/k1-v3`，开工已快进到 main `b85301e7`。本段仅补写作日，批注和素材接口随后分段交回。
+- 共用接线：`dr-workspace/src/cx.rs` 只对 `book.writing_days`／`writing_day.record` 增加许可；`commands/stats.rs` 依据实际书版本选择 v3 reader／事务，不借用 v2.2 reader 解释 v3。v2.2 输入输出、按设备日期计数、日志行为保留；共用日期解析增加非法非 ASCII 输入的拒绝，防止字节切片 panic。
+- 永久合成回归 `tests/v3_common.rs`；当前没有改视图、帮手 crate、数据库迁移或 progress.md。后续接口与待协调见 F3 的 K2 续接小节。
+- 提交：`adfab910` 写作日版本分派与永久回归；`0842b596` 合入 main `2f80ac40` 的接口分工记录；加本节交回记录。检查后再次 `git merge main` 确认已同步，未向 main 合并或推送。
+- 检查：`cargo fmt --all --check`、全工作区 Clippy（`--all-targets --locked -- -D warnings`）、全工作区测试（2,062 通过／0 失败／22 忽略）、`cargo xtask check`（含审计）和 `pnpm public:check`（5,462 个候选文件）全部通过。编译并发 3、测试单线程；已有依赖审计提示和 stale／legacy 测量证据保留，不作为新性能结论。
+- 本段交回后继续批注／素材适配；两者的删除与按对象恢复共用同一提交边界，作为下一段联合验收。
+
+
+## 交回（K2 大书结构读取，2026-11-10，`handback/k1`）
+
+**做了什么：** `codex/k1-v3-heavy` 新增 `BookStructureV3` 显式不可变快照与 `level.list`，值和来源共用模型解析器；`entry.list`／`level.get` 复用单次结构读取，同名冲突保留原赢家规则并按父级／宿主复用设置。永久测试覆盖读取等价、顺序与容错、同事务写后读、import／checkout、跨书及 v2.2 拒绝。触及 v2.2 所在文件仅 `dr-doc/src/book/read.rs`，抽出原 forest 规整器供实时树／深值快照共用，不改旧语义。沿用作者已许可的目录快照范围，`dr-agent-tools/tests/snapshots/catalog__directory.snap` 第 266 行只新增旧版排除清单的 `level.list`；原逐项目录／调用拒绝测试已覆盖，帮手实现未改。标准 heavy 的完整书目读取 debug 从 188538.213 ms 降至 272.825 ms、release 从 39097.377 ms 降至 104.525 ms，四份机器证据和负载／单样本边界见 F3；不是窗口加载验收。
+
+**检查结果：** 提交 `c64c8aa9` 同步 main `ee372789`、`2b7996e3` 内核与契约、`28db6ead` 完整测量、`df1467bd` 生成排除快照，随后 `d901ffe3` 同步 main `c033ce2d`，加本节记录。同步后的 fmt、全工作区 Clippy（all-targets／locked／D warnings）、全工作区测试（2,119 通过／0 失败／22 忽略）、xtask（含审计）和 public（5,502 个候选文件）全部通过。编译并发 3、测试单线程；审计 972 个依赖，0 漏洞、12 条已有提示；debug 大二进制有一条 `__eh_frame` linker 提示。初轮目录快照差异已按生成结果修正并完整重验。没有向 main 合并或推送；本节提交后移动交回指针并主动通知整合者。
+
+**待协调：** 外壳消费 `level.list` 的设置和来源，移除逐层查询及独立来源算法；整合者在各组与 K6 合齐后统一安排副屏、隔离 profile 的 heavy 真窗口验收。K6 复用同一来源接口，不另建继承算法。已排队的写作日段仍包含在本分支历史中；G4 批注／素材实现在 `codex/k1-v3`，本次交回后继续同步和完整验收，没有混入本批。

@@ -94,3 +94,75 @@ next/crates/dr-shell/examples/m06-m07-capture.rs 截图
 ```
 
 截图：`cargo run -p dr-shell --features capture --example m06-m07-capture -- ../docs/rust-rewrite/modules`（要先建好字体，见 F5）。
+
+## K4 G4：接线待协调（开工核对）
+
+基线 `10e97880`，分支 `codex/k4-g4-book`；尚未交回功能。
+
+1. **F6 搜索宿主**：`workspace/mod.rs::toggle_search` 只接
+   `SearchPanel::new` 和 `Jump { target: dr_workspace::NavTarget, link }`。
+   此类型没有 Entry/module，旧位置链接也不解析模块。需要在 v3 分支把
+   G4 返回的条目 id、模块 id、段落位置转成
+   `Target::Entry { id, module }` 并用 `open_at`，保留 v2.2 原分支。
+   G4 提供独立 v3 面板接口，宿主仅负责版本选择、记号和导航。
+2. **F6/G2 右栏宿主**：`workspace/sidebar.rs::right_body` 的 Stats、Review
+   都先调用 `book::nav_target`，Entry/module 会变成 Book 哨兵。
+   需要在这个转换之前按版本分流，将 Entry/module 或 Material 交给各自
+   v3 面板，回调直接打开 `Target`。这两处不在 G4 获准修改的外壳范围内。
+3. **K2 公共命令**：`Cx::book` 当前只放行 v3 通用命令、`prose.*` 和四个
+   book 生命周期/元数据命令；`book.search`、`book.word_counts`、
+   `book.writing_days`、`writing_day.record`、`comment.*`、`material.*`、
+   `material_folder.*` 仍拒绝 v3。搜索/统计可在 G4 只读适配；审阅、素材和
+   写作日写入需要 K2 提供明确的 v3 命令，不由视图绕过 Workspace 直接改 Loro。
+   批注输入/输出还需携带正文模块；现有 `CommentCreateIn` 没有 module。
+
+以上是实现前的接口缺口，不是验收通过或范围扩大。外壳仍只在 G4 接主页时
+新增主页注册口；其余接线及公共命令交负责方。真窗口验收必须等实际产品入口接通。
+
+### 接口准备（2026-11-10，尚未功能交回）
+
+作者已选择由整合者安排 F6/G2/K2 补接口，保持 G4 修改边界。
+`SearchPanel::new_v3` 与原 `new` 并存；`SearchEvent::JumpV3` 返回
+`v3::Jump { target: Entry { id, module } / Material(id), line }`，段落位置遵循
+`2 * paragraph + 1`。宿主传入 v3 的记号回调并直接映射外壳 Target。
+`v3_groups()` 供验收读取，旧 `groups()` 不装入 v3 目标。
+
+只读搜索按活条目树序、模板模块序、保留模块、素材排列；回收祖先下的条目、
+模板正文和批注正文不进入结果。正文复用 F2 索引，一次按有效文档顺序搜索；
+标题、文字字段、键值、补丁文字、格子文字在对应模块分组。关系标识和已知的
+图片／实体引用字段不当正文搜索。结果上限在有效目的地排序后应用。
+
+永久契约 `dr-view-search/tests/v3.rs` 覆盖多正文的模块跳转、模块删除后保留正文、
+回收／恢复、短查询与全文查询的额度、空查询、只读版本不变、v2.2 路径和 GPUI
+键盘跳转。搜索／统计两 crate 的定向测试共 30 项通过，另有 1 项文档示例忽略；
+定向 Clippy、fmt 和九语言同步检查通过。此处不包含全工作区检查、真窗口或
+heavy 验收；接口批完整检查见下节。宿主接通后必须从实际产品入口补验。
+
+## K4 G4 搜索／统计接口批交回（2026-11-10）
+
+按作者保持 G4 边界的决定，以及整合者在 overnight 的接口批分派，本批只交
+可编译的公共接口、只读数据适配和永久契约，供 F6/G2 正式从 main 消费。
+**不是搜索／统计产品功能验收完成，也不是 G4 完成。**
+
+- 分支：`codex/k4-g4-book`；实现提交 `78a8a314`，合入 main 基线
+  `ee372789`（第 57 批；同步提交 `d42c1a2f`、`3c085afd`、`13469f7c`）。
+  交回指针为 `handback/k4-g4`。
+- 范围：dr-view-search、dr-view-stats、它们的依赖清单／测试，以及 dr-i18n 的
+  own 与生成 locales（九语言四个短标签）。没有修改 dr-shell、K2 或其他组产品。
+  本批适配只有读，契约断言读取不改书的版本；后续写入仍须使用逐项命令或
+  与原读取对应的版本守卫，并补并发／隐藏内容的写入回归。
+- 检查：`CARGO_BUILD_JOBS=3`；workspace fmt、Clippy（all-targets、locked、
+  `-D warnings`）通过；`DR_UI_REQUIRE_FONTS=1 RUST_TEST_THREADS=1 cargo test
+  --workspace --locked` 的 Cargo 汇总 **2090 通过、0 失败、22 忽略**；
+  `cargo xtask check`（含 audit）、根目录 `pnpm public:check`、九语言同步检查、
+  `git diff --check` 通过。xtask 仍标注既有 14 份 stale 和 15 份 legacy 测量，
+  本接口批没有新增或改写测量证据。
+- 复验经过：main `2f80ac40` 基线曾完整通过 2068 项；同步第 57 批后按同一
+  配置重跑全套，以上 2090 项和全部门禁结果来自新候选。更早的首轮全测在原书架封面／日期卡片测试等待超时，同一二进制独跑
+  2.16 秒通过；第二轮串行全测该项通过，但字符封面因本 worktree 缺构建字体而
+  画空。补入已有六个构建字体并逐个核对 provenance 的固定 SHA-256 后，字符
+  封面独跑和最终完整全测均通过。没有修改书架、字体配方、测试阈值或忽略项。
+  原始本地日志保留在 `next/target/g4-checks/`，不作为手写 JSON 证据提交。
+- 待协调：F6 搜索／素材导航、G2 右栏版本分流、K2 批注模块／素材／写作日。
+  真窗口 `seed:v3-lite` 搜索／统计场景和 heavy 打开／滚动对照**尚未验收**；
+  等真实产品入口接通后由 G4 补验，再交完整功能批。未合入 main、未推送。

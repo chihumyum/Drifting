@@ -252,5 +252,11 @@
     "save": "保存快照",
     "title": "快照历史",
     "empty": "暂无快照"
+  },
+  "k4Book": {
+    "entry_words": "条目字数",
+    "material_words": "素材字数",
+    "leaf_count": "叶子数量",
+    "retained_content": "保留的内容"
   }
 }
