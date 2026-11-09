@@ -2027,6 +2027,60 @@ pub fn plan_entry_write_order(
     steps
 }
 
+/// Expected document IDs for the current entry/template layout. This is not a
+/// persisted document inventory: retained modules, material notes and conversations
+/// are not enumerated. Use the store's book-scoped document list for deletion.
+pub fn book_doc_ids_v3(
+    book_id: &BookId,
+    entries: &BTreeMap<EntryId, Entry>,
+    templates: &BTreeMap<EntryTemplateId, EntryTemplate>,
+) -> Vec<DocId> {
+    let mut out = vec![DocId::Book(book_id.clone())];
+    for t in templates.values() {
+        for m in t.prose_modules() {
+            out.push(DocId::Template(TemplateId::for_entry_module(
+                book_id, &t.id, &m.id,
+            )));
+        }
+    }
+    let about = level_about_module_id();
+    for e in entries.values() {
+        match e.effective_template(templates) {
+            Some(tpl) if tpl.is_level() => {
+                out.push(DocId::Body(BodyDocId::new(e.id.clone(), about.clone())));
+            }
+            Some(tpl) => {
+                for m in tpl.prose_modules() {
+                    out.push(DocId::Body(BodyDocId::new(e.id.clone(), m.id.clone())));
+                }
+            }
+            None => {}
+        }
+    }
+    out
+}
+
+/// Invariant 14 (`V3-DOCID-LIBRARY-UNIQUE`): document IDs across all books in a
+/// library must be globally unique (`loro_doc.doc_id` is the library-wide primary key).
+pub fn check_doc_ids_unique_across_books(books: &[(BookId, Vec<DocId>)]) -> Result<(), Violation> {
+    let mut seen: BTreeMap<String, BookId> = BTreeMap::new();
+    for (book_id, doc_ids) in books {
+        for doc_id in doc_ids {
+            let key = doc_id.to_string();
+            if let Some(prev) = seen.get(&key)
+                && prev != book_id
+            {
+                return fail(
+                    "V3-DOCID-LIBRARY-UNIQUE",
+                    format!("document {key} is shared by books {prev} and {book_id}"),
+                );
+            }
+            seen.insert(key, book_id.clone());
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2750,6 +2804,79 @@ mod tests {
         assert_eq!(
             check_cross_doc_write_order(&bad).unwrap_err().invariant,
             "V3-CROSS-DOC-ORDER"
+        );
+    }
+
+    #[test]
+    fn v3_doc_ids_are_unique_across_books_in_library() {
+        let b1 = BookId::parse("b1").unwrap();
+        let b2 = BookId::parse("b2").unwrap();
+        let tpl_ms = level_template("tpl-manuscript", "书稿", false);
+        let mut tpl_ch = leaf_template("tpl-chapter", "章");
+        tpl_ch
+            .modules
+            .push(ModuleSpec::prose(mid("mod-prose"), "正文", true, false));
+        let templates = BTreeMap::from([
+            (tid("tpl-manuscript"), tpl_ms),
+            (tid("tpl-chapter"), tpl_ch),
+        ]);
+
+        // Two books share fixed template IDs (`tpl-manuscript`, `tpl-chapter`),
+        // but generate distinct entry IDs (`EntryId::new_v7()`): all document IDs
+        // (`book:`, `body:`, `template:<book>/<tpl>/<mod>`) are disjoint.
+        let mut entries_b1 = BTreeMap::new();
+        let ms_b1 = EntryId::new_v7();
+        let ch_b1 = EntryId::new_v7();
+        entries_b1.insert(
+            ms_b1.clone(),
+            entry_with(ms_b1.as_str(), None, "书稿", Some("tpl-manuscript")),
+        );
+        entries_b1.insert(
+            ch_b1.clone(),
+            entry_with(
+                ch_b1.as_str(),
+                Some(ms_b1.as_str()),
+                "第一章",
+                Some("tpl-chapter"),
+            ),
+        );
+
+        let mut entries_b2 = BTreeMap::new();
+        let ms_b2 = EntryId::new_v7();
+        let ch_b2 = EntryId::new_v7();
+        entries_b2.insert(
+            ms_b2.clone(),
+            entry_with(ms_b2.as_str(), None, "书稿", Some("tpl-manuscript")),
+        );
+        entries_b2.insert(
+            ch_b2.clone(),
+            entry_with(
+                ch_b2.as_str(),
+                Some(ms_b2.as_str()),
+                "第一章",
+                Some("tpl-chapter"),
+            ),
+        );
+
+        let docs_b1 = book_doc_ids_v3(&b1, &entries_b1, &templates);
+        let docs_b2 = book_doc_ids_v3(&b2, &entries_b2, &templates);
+        assert!(docs_b1.contains(&DocId::parse("template:b1/tpl-chapter/mod-prose").unwrap()));
+        assert!(docs_b2.contains(&DocId::parse("template:b2/tpl-chapter/mod-prose").unwrap()));
+        assert!(
+            check_doc_ids_unique_across_books(&[
+                (b1.clone(), docs_b1.clone()),
+                (b2.clone(), docs_b2)
+            ])
+            .is_ok()
+        );
+
+        // If two books accidentally reused an entry ID, `check_doc_ids_unique_across_books` catches it.
+        let bad_b2 = book_doc_ids_v3(&b2, &entries_b1, &templates);
+        assert_eq!(
+            check_doc_ids_unique_across_books(&[(b1, docs_b1), (b2, bad_b2)])
+                .unwrap_err()
+                .invariant,
+            "V3-DOCID-LIBRARY-UNIQUE"
         );
     }
 

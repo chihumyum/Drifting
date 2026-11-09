@@ -141,6 +141,47 @@ fn wait(mut ready: impl FnMut() -> bool) {
 }
 
 #[test]
+fn accepted_workspace_job_outlives_its_waiter_and_close_waits_for_the_write() {
+    let f = Fixture::new();
+    let controller = AgentController::new(
+        f.ws.clone(),
+        Arc::new(ScriptedDriver::new(vec![])),
+        no_tools(),
+    )
+    .unwrap();
+    let book = f.book.clone();
+    let title = f.text();
+    let expected = title.clone();
+    let (entered, started) = mpsc::channel();
+    let (release, held) = mpsc::channel();
+    let waiter = controller.workspace_job(move |workspace| {
+        entered.send(()).unwrap();
+        held.recv().unwrap();
+        workspace
+            .call(
+                &Actor::User,
+                "book.update",
+                json!({"book":book,"name":title}),
+            )
+            .map_err(|error| error.to_string())?;
+        Ok(())
+    });
+    started.recv_timeout(Duration::from_secs(10)).unwrap();
+    // The worker was accepted without ever polling its returned future.
+    drop(waiter);
+    let close = controller.close().shared();
+    assert!(close.clone().now_or_never().is_none());
+    assert!(block_on(controller.workspace_job(|_| Ok(()))).is_err());
+    release.send(()).unwrap();
+    block_on(close).unwrap();
+    let result =
+        f.ws.call(&Actor::User, "book.get", json!({"book":f.book}))
+            .unwrap();
+    assert_eq!(result["output"]["name"], expected);
+    f.ws.shutdown().unwrap();
+}
+
+#[test]
 fn streaming_question_search_and_completion_are_rebuilt_without_a_panel() {
     let f = Fixture::new();
     let (release, blocked) = oneshot::channel();
@@ -575,4 +616,112 @@ fn close_covers_a_start_blocked_on_the_conversation_holder() {
         }
     ));
     f.ws.try_shutdown().unwrap();
+}
+
+#[test]
+fn durable_plan_auto_slices_pause_after_two_stagnant_slices_and_reopen_never_arms() {
+    use dr_agent::long_task::{Command, Scope, Store, WorkKind};
+    let f = Fixture::new();
+    let conversation = ConversationId::new_v7();
+    let (send, held) = oneshot::channel();
+    let driver = Arc::new(ScriptedDriver::new(vec![
+        vec![Step::Wait(held), finish(FinishReason::Complete)],
+        vec![finish(FinishReason::Complete)],
+        vec![finish(FinishReason::Complete)],
+        vec![finish(FinishReason::Complete)],
+    ]));
+    let controller = AgentController::new(f.ws.clone(), driver.clone(), no_tools()).unwrap();
+    let session = controller.start(f.start(conversation.clone())).unwrap();
+    let store = Store::new(f.ws.library().clone());
+    let chain = store.chain_for_session(&session).unwrap().unwrap();
+    store
+        .apply(
+            &session,
+            1,
+            "host-plan",
+            Command::Create {
+                objective: "fixture task".into(),
+                scope: Scope::WholeBook,
+                work_kind: WorkKind::Review,
+                targets: vec![],
+            },
+        )
+        .unwrap();
+    send.send(()).unwrap();
+    wait(|| controller.active_count() == 0);
+    assert_eq!(
+        driver.requests().len(),
+        3,
+        "two automatic no-progress slices"
+    );
+    let latest = controller
+        .snapshot(&f.book, &conversation)
+        .unwrap()
+        .runs
+        .last()
+        .unwrap()
+        .session
+        .clone();
+    let task = controller.task_view(&latest).unwrap().unwrap();
+    assert!(!task.authorized);
+    assert_eq!(task.pause.as_deref(), Some("no_progress"));
+    let snapshot = controller.snapshot(&f.book, &conversation).unwrap();
+    assert_eq!(
+        snapshot
+            .messages
+            .iter()
+            .filter(|m| matches!(m.content, MessageContent::User { .. }))
+            .count(),
+        1,
+        "generated continuation is hidden"
+    );
+    block_on(controller.close()).unwrap();
+    drop(controller);
+    let reopened = AgentController::new(f.ws.clone(), driver.clone(), no_tools()).unwrap();
+    assert!(!reopened.task_view(&latest).unwrap().unwrap().authorized);
+    assert_eq!(driver.requests().len(), 3);
+    block_on(reopened.resume_job(
+        conversation,
+        chain,
+        f.start(ConversationId::new_v7()).config,
+        None,
+    ))
+    .unwrap();
+    block_on(reopened.stop_conversation(&snapshot.conversation)).ok();
+    block_on(reopened.close()).unwrap();
+}
+
+#[test]
+fn stop_revokes_continuation_before_a_held_slice_returns() {
+    use dr_agent::long_task::{Command, Scope, Store, WorkKind};
+    let f = Fixture::new();
+    let conversation = ConversationId::new_v7();
+    let (send, held) = oneshot::channel();
+    let driver = Arc::new(ScriptedDriver::new(vec![vec![
+        Step::Wait(held),
+        finish(FinishReason::Complete),
+    ]]));
+    let controller = AgentController::new(f.ws.clone(), driver.clone(), no_tools()).unwrap();
+    let session = controller.start(f.start(conversation.clone())).unwrap();
+    Store::new(f.ws.library().clone())
+        .apply(
+            &session,
+            1,
+            "host-plan",
+            Command::Create {
+                objective: "fixture task".into(),
+                scope: Scope::WholeBook,
+                work_kind: WorkKind::Review,
+                targets: vec![],
+            },
+        )
+        .unwrap();
+    wait(|| !driver.requests().is_empty());
+    let stop = controller.stop_conversation(&conversation);
+    send.send(()).unwrap();
+    block_on(stop).ok();
+    wait(|| controller.active_count() == 0);
+    assert_eq!(driver.requests().len(), 1);
+    assert!(!controller.task_view(&session).unwrap().unwrap().authorized);
+    block_on(controller.close()).unwrap();
 }

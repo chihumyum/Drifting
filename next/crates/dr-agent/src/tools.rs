@@ -26,6 +26,7 @@ impl ToolExecutions {
         Arc::new(ToolExecutionLease {
             executions: self.clone(),
             completed: None,
+            observations: Mutex::default(),
         })
     }
 
@@ -39,6 +40,7 @@ impl ToolExecutions {
         let lease = Arc::new(ToolExecutionLease {
             executions: self.clone(),
             completed: Some(send),
+            observations: Mutex::default(),
         });
         (
             lease,
@@ -70,6 +72,13 @@ impl ToolExecutions {
 pub(crate) struct ToolExecutionLease {
     executions: Arc<ToolExecutions>,
     completed: Option<oneshot::Sender<()>>,
+    observations: Mutex<Vec<crate::evidence::ReadObservation>>,
+}
+
+impl ToolExecutionLease {
+    pub(crate) fn take_observations(&self) -> Vec<crate::evidence::ReadObservation> {
+        std::mem::take(&mut *self.observations.lock().expect("tool read observations"))
+    }
 }
 
 impl Drop for ToolExecutionLease {
@@ -110,6 +119,16 @@ pub trait ToolExecutor: Send + Sync + 'static {
     }
     /// Discard per-run observations after entered tools and writes settle.
     fn finish_session(&self, _session: &str) {}
+    /// Product-owned local context. Runs on the existing runtime worker, never
+    /// the UI thread. No model calls or mutations belong in this hook.
+    fn context(
+        &self,
+        _workspace: &Workspace,
+        _book: &BookId,
+        _session: &str,
+    ) -> Result<Vec<crate::context::Contribution>> {
+        Ok(Vec::new())
+    }
     /// Must yield promptly. For F3's synchronous commands use
     /// `context.workspace_call`, which performs the call on a worker.
     /// Write futures MUST finish only after all their effects have settled.
@@ -139,6 +158,25 @@ pub struct ToolContext {
 }
 
 impl ToolContext {
+    /// Capture a typed canonical read at the facade boundary. It becomes
+    /// durable evidence only with this call's successful ToolFinished journal
+    /// event. Model JSON, cancelled reads and external plugins cannot claim it.
+    pub fn observe_read(&self, observation: crate::evidence::ReadObservation) -> Result<()> {
+        if self.access != ToolAccess::Read
+            || self.descriptor.policy != crate::ToolPolicy::Local
+            || self.cancellation.is_cancelled()
+        {
+            return Err(Error::Tool(
+                "read evidence requires a successful local read".into(),
+            ));
+        }
+        self._execution
+            .observations
+            .lock()
+            .expect("tool read observations")
+            .push(observation);
+        Ok(())
+    }
     pub fn workspace(&self) -> &Workspace {
         &self.workspace
     }

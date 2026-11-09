@@ -1,0 +1,88 @@
+# M34：帮手输入框口述
+
+交回状态：分支 `codex/m30-long-tasks-memory`，轨道 3 第四项；实现与合成验收在本模块提交，真实麦克风授权、声音质量和 Windows 原生录音留给作者手测。未增加 Agent 工具或模型提供商，没有 M33。
+
+## 行为
+
+帮手输入框上方的「开始录音」使用系统默认输入设备；再次点击停止，发送最后一段并排空转写。转写按录音顺序追加到**当时**的输入框，保留作者期间输入的文字；绝不自动发送给 Agent。输入法还在组字时先保留已识别结果，等作者提交／取消组字后再追加，不清掉候选文字，也不重复请求这段音频。录音／转写／等待组字／失败待重试期间不能发送聊天，作者可取消后发送已有文字。
+
+「语音转写」展开独立凭据配置，输入框遮蔽，保存后立即清空；删除只删除语音 Key。沿用 F7 的 `byok.dashscope`，服务名来自当前 Identity（包括工作区 profile）。不放设置值、不写库、不同步，也不读取日用客户端凭据。凭据错误后可改 Key，失败音频仍保留，再点重试。
+
+- 录音：`cpal 0.18.2`（Apache-2.0）的 macOS CoreAudio／Windows WASAPI。一次只占一个麦克风，由独立线程持有 stream；实时回调不等待 UI／网络。转单声道 16 kHz PCM16 WAV；跨回调保留声道／采样相位，四分钟和 7,000,000 字节双上限，以先到者滚动（PCM16 的字节上限约 3 分 39 秒）。停止先释放 stream，再处理已接受的尾帧。
+- 容量：最多四段待转写，达到容量自动停止并显示「转写积压」；已有段可重试。采集缓冲溢出／积压时只保证保留已编码段，未编码尾帧不保证完整；正常停止则先关 stream，再排空已接受的帧。音频仅在本机内存，成功追加即释放，取消／关面板／切书／切聊天清除未追加段，已经进入输入框的文字不回滚。没有后台恢复录音或音频文件。
+- 请求：复用提供商层的 HTTP client／Tokio reactor，直连百炼 `qwen3-asr-flash`；WAV data URI，`enable_itn: false`。只有明确的 429／5xx 最多三次尝试；鉴权失败、协议拒绝和网络结果未知不自动重复。失败时保留当前段以及其后的段，作者点「重试转写」从失败段继续，已成功段不再发送。
+- 专名：开始时在 controller 的已预留库租约内读当前项目，优先活动要素名／别名，再取其他标题；去重、逐项 JSON 转义，最多 6,000 字符。只作拼写语境，不作指令，不把这些文字补进静音。这个 v2.2 读取适配器将由 v3 的结构／描述来源替换；没有新字段或按种类命令。
+- 生命周期：取消令牌中止 HTTP 和录音，generation 拒绝晚到 UI 回写。退出／换库的 release hook 等待录音、请求、读取和已接受的钥匙串操作真正 ACK。关闭窗体也取消，键和原始服务错误从不进入日志。Key 写入已经接受后即使视图消失仍等系统操作完成。
+
+## 麦克风权限与构建配置
+
+| 改动 | 原因 | 开发构建 | release／dist 构建 |
+| --- | --- | --- | --- |
+| `app/drifting/resources/microphone.plist` | 声明 `NSMicrophoneUsageDescription`，供 macOS 首次访问麦克风时显示用途 | 固定开发身份 `cc.drifting.next.dev`，不是授权许可 | 当前打包脚本仍使用开发身份；F7 正式身份切换时要一起核对 |
+| `app/drifting/build.rs` | 未打包的可执行文件没有 `.app/Contents/Info.plist`，需要嵌入 Mach-O `__TEXT,__info_plist` | macOS 的 `drifting` 二进制目标带用途描述；显式启用 `debug-bridge` 的验收示例也嵌入，便于假服务下手测授权；库／CLI 目标不加，Windows 不加链接参数 | 同样适用于 release／dist 的裸 app 二进制；不以 debug 开关控制 app 的权限声明；默认发布不包含验收示例 |
+| `script/bundle-mac` | `.app` 读取自己的 Info.plist，需要同一用途描述 | `--debug` 从该资源读取并写入包，再照旧 ad-hoc 签名 | 默认 release 与 `--dist` 都写入；不打开 Hardened Runtime，不加调试桥／热更新，也不导入证书、签名密钥或发布 |
+
+用途文字沿用旧版 `settings.models.speechDesc` 的英文原文；两个构建入口读同一 plist，不再自编一段权限说明。帮手的旧键登记在 `dr-i18n/keys.txt` 后运行 `sync-locales.py`；唯一新键 `speech.backlog` 只写状态名，在 `own/` 九语种维护，没有新增说明句或提示句。没有手改生成的 `locales/`。
+
+声明用途不会提前请求或授予权限：只有作者明确开始录音、且存在转写 Key 时才打开系统默认输入设备。worktree 的库／钥匙串 profile 仍由 F7 隔离；OS 授权未必按 profile 分开，不能用库隔离推断权限隔离。未打包启动时的授权归属也需作者观察。
+
+当前脚本构建的是本机开发身份的 ad-hoc 包。将来 F7 启用 Developer ID／Hardened Runtime 时，还必须在正式签名的 entitlements 中声明 `com.apple.security.device.audio-input`，重新核对用途描述与正式身份，并做首次授权／拒绝手测；本次没有把 release 优化构建当作可发布签名包。见 [Apple 媒体授权](https://developer.apple.com/documentation/bundleresources/requesting-authorization-for-media-capture-on-macos) 与 [Hardened Runtime 音频输入](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.security.device.audio-input)。Windows 使用 CPAL 的 WASAPI 与系统桌面应用麦克风开关，不使用 macOS plist。
+
+## 自动验收
+
+契约直接在测试中，不提交伪造的录音验收 JSON：
+
+- `wav_segments_and_resampling_preserve_frames_across_callback_boundaries`：44.1 kHz 双声道的任意回调拆分与整体输入一致；WAV 头、尾段、大小滚动与帧总量。
+- `audio::tests`：合成帧直接走原生采集使用的编码循环，断言先关 stream 再排空尾帧、取消丢弃尾帧、积压保留四段并关闭 stream；测试不打开任何输入设备。
+- `fake_asr_checks_wire_context_audio_and_bounded_retry`：真实本机 HTTP 服务检查模型、鉴权、WAV 原字节、专名语境、禁用 ITN；429→503→成功三次请求一致。
+- `failed_segment_can_retry_without_changing_audio_and_auth_does_not_retry`：鉴权失败只请求一次，手动重试同一段。
+- `unknown_outcomes_and_protocol_errors_are_not_repeated_and_rate_limits_are_bounded`：已接收请求后断连、400、畸形协议不自动重复；429 最多三次；静音可为空，缺 Key 不发 HTTP。
+- `cancellation_waits_for_worker_ack_and_prevents_late_transcript`：已进入 HTTP 的取消返回 worker ACK，不采用晚到结果。
+- `glossary_uses_seed_names_and_aliases_and_stays_bounded`：F8 tiny 种子、当前项目名／别名、Unicode 去重与容量边界。
+- GPUI view 契约：失败后队列原序重试、作者继续打字时追加且只追加一次；输入法组字保留、等待组字期间不重复 ASR、切换上下文后待追加结果失效；积压后只重试未成功段；退出取消及排空后不写新输入框；独立钥匙串更新／删除及失败音频保留；关窗后即使视图仍被缓存也取消。另有应用级屏障契约，证明视图生命周期之外仍等待真实 ACK。没有真实麦克风、作者声音或真实 Key。
+
+测试假服务显式将接入 socket 切回阻塞读取，避免 macOS 在请求头尚未到齐时关闭连接的竞态；协议错误会立即令顺序重试断言失败。真实窗口的入口／凭据控件脚本在 `dr-view-agent/scenarios/dictation.json`，只配合已有 `agent-acceptance` 示例（tiny 种子、内存凭据、loopback 模型接口），始终在没有语音 Key 时才点录音；不会打开麦克风。
+
+全轨道门禁结果见下文。代码位置：`dr-view-agent/src/speech/`，面板只负责绑定生命周期；系统提示词和 M29 目录不变。
+
+## 交回（M34，2026-11-09）
+
+分支 `codex/m30-long-tasks-memory`，交回指针 `handback/track3`。包含此前已提交的 M30 机制 `5b97462b`、小说提示词集中 `945e3632`、M32 P2 复验 `f8f1f382`，以及本次 M34 实现 `d490bcd4`、窗口无障碍与验收补充 `218d7fa6`。前三项没有重做。先后将 main 合入本分支于 `654da2a4`、`4fac979f`、`5eec4cb9`、`45674a2f`；最后一次接到 main `ac9b2500` 的夜间记录，未带入被退回的 K1／M37 实现。没有合回 main 或推送。
+
+最终完整复核的 Rust 代码基于 `5eec4cb9`；期间 `45674a2f` 只合入三份夜间协调文档，Rust／依赖／脚本均未改变。macOS ARM64，所有编译设 `CARGO_BUILD_JOBS=3`；按整合者的既定方式设置 `RUST_TEST_THREADS=1`。未跳过新增契约，也未修改 F8 的限时断言。此前 `4fac979f` 的整轮结果为 1,932 通过、0 失败、22 忽略。
+
+| 检查 | 结果 |
+| --- | --- |
+| `cargo fmt --all --check` | 通过 |
+| `cargo clippy --workspace --all-targets --locked -- -D warnings` | 通过 |
+| `RUST_TEST_THREADS=1 cargo test --workspace --locked --no-fail-fast` | 退出码 0，1,950 通过、0 失败、22 忽略，包含全部文档测试 |
+| M34 契约（上述全量的一部分） | 16 项通过；帮手视图库共 28 项通过，包含模板本地化键与工具清单冻结契约 |
+| `cargo xtask check` | 全部门禁通过；970 个锁定依赖，0 漏洞、12 条提示；14 stale、15 legacy 测量证据保留，未手改 |
+| 根目录 `pnpm public:check` | 通过，5,387 个候选文件 |
+| `sync-locales.py --check`、plist 与 shell 语法 | 通过；资源用途文字与旧版键一致，九语言状态键与生成文件一致 |
+| `agent-acceptance`（显式 `debug-bridge`） | 在 `45674a2f` 再次专用 Clippy／构建并复跑；真实窗口 24 步、0 pending，五张截图核对；正常退出 |
+| `bundle-mac --debug`、Mach-O／包内隐私描述 | 在 `5eec4cb9` 实际构建 ad-hoc `.app`，签名验证通过；裸 app、包内 app 的 `__info_plist` 与资源逐项一致，外层 Info.plist 的身份／用途一致，且用途等于旧版英文键 |
+| `xtask check-binary target/debug/drifting` | 通过；默认 app 无调试桥协议及热更新。验收示例单独显式启用 `debug-bridge` |
+
+预检的普通并行全量运行（夜间 main 更新前）为 1,921 通过、1 失败、22 忽略，退出码 101：唯一失败是 `dr-debug-bridge::the_socket_answers_with_the_token_only` 的十秒限时。上一个会话也留过相同超时及并发构建造成的 rustdoc 依赖产物错误。这里没有把单项重试冒充全量通过：合入更新后的 main 后，整个工作区顺序构建、串行完整运行，含该 F8 契约和文档测试，实际以 0 退出。
+
+窗口复核发现包装文字没有无障碍节点，已在口述视图内补 `Status`／`Alert` 和原文标签；既有提示能被桥读取，不新增文案。字段输入使用现有指针接口，没有扩展 F8 的固定字段表。打包复核实际运行 `--debug`；release／dist 的接线按同一个脚本与 build.rs 核对，没有声称实际构建或签署正式发布包。
+
+共享改动限于既有键登记及翻译生成、onboarding 的生成 Key 适配、app 的隐私资源／构建脚本／打包脚本与已有验收示例的假 ASR 接线。没有修改 `dr-model`、`dr-doc`、`dr-workspace` 的实现；M29 目录与三个内建入口不变。窗口自动化只用内存占位凭据并在缺 Key 时点录音；硬件手测也有 loopback ASR 宿主，不要求真 Key 或真实语音服务。
+
+待协调：系统麦克风授权、设备故障／切换和 Windows 原生采集仍留作者设备手测；本次只在 macOS 构建、运行，未声称 Windows 编译或实机通过。F7 正式签名／身份交接时按上表复核用途描述及 audio-input entitlement；v3 专名来源随 K6 的结构投影适配。本段软件检查及窗口／打包复核已完成，提交本节记录后移动交回指针，再按夜间队列单独交回 K6 方案。指针随下一段前移时，本段证据仍保留在本节所在提交。
+
+## 作者手测（未执行）
+
+1. 在 `next/` 构建已有验收宿主：`cargo build --locked -p drifting --example agent-acceptance --features debug-bridge`，再以 `DRIFTING_PROFILE=m34-microphone target/debug/examples/agent-acceptance` 启动。宿主每次创建 tiny 合成项目、内存凭据、本机模型／ASR 假服务，不读日用库或系统钥匙串；不要把这个 profile 换成日用配置。
+2. 展开帮手 →「语音转写」，输入占位值 `synthetic-m34-window-key` 并保存。这个值只进示例的内存；ASR 地址固定 loopback。播放现场生成的正弦波 WAV 作为输入源，不用作者声音、私稿、真 Key 或真实语音服务。
+3. 点录音，首次同意系统麦克风权限。macOS 拒绝后从「系统设置 → 隐私与安全性 → 麦克风」检查 Drifting Next（未打包运行可能归属启动终端）；Windows 从「设置 → 隐私和安全性 → 麦克风」允许桌面应用访问。授权属于系统状态，本会话未替作者应答或重置。
+4. 停止后，假服务返回固定的 tiny 种子文字，确认进入输入框且没有自动发送；转写期间打字／组字，确认不被覆盖。持续播放超过四分钟，确认滚动段和最后尾段出现；PCM16 的字节限制会在约 3 分 39 秒先滚动。这个假响应不反映识别准确率，专名只检查请求携带，不声称听写质量。
+5. 取消、关闭帮手、切聊天、关窗或退出，确认系统麦克风指示熄灭、晚到文本不串入新输入框。拒绝权限、拔出设备、默认设备切换分别试一次，故障后可重新开始；输入设备切换当前不自动迁移 stream。
+6. 删除占位凭据后再点录音，应显示旧版缺 Key 提示且不打开设备。401、断连、分段重试、积压上限与退出排空由前述合成契约覆盖，不需要连接真服务复验。
+
+系统授权弹窗需作者应答；原生默认设备的支持、权限归属、实时延迟与质量，不能从合成测试推出。Windows 使用同一跨平台实现；编译／实机的实际检查结果在交回检查中列明，硬件边界仍需作者设备验证。
+
+## 参考与协调
+
+接口对照旧版 `src/renderer/lib/speech/`；[CPAL API](https://docs.rs/cpal/0.18.2/cpal/traits/trait.DeviceTrait.html)、[百炼 Qwen ASR](https://help.aliyun.com/en/model-studio/qwen-asr-api-reference)。依赖只加工作区统一版本；许可与依赖方向由 `cargo xtask check` 验证。涉及 `dr-i18n` 的既有键登记／生成翻译与一个积压状态新键，以及 app 打包隐私描述、既有 `agent-acceptance` 的假服务挂接，由整合者与轨道 2／4 协调；没有修改平台运行时、F1／F3 结构或能力清单。v3 的专名读取来源与 F7 正式签名后的麦克风授权，仍分别由对应 owner 接续。

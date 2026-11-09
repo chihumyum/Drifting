@@ -138,14 +138,59 @@ impl Journal {
     }
 
     pub fn append(&mut self, event: Event) -> Result<()> {
+        self.append_observed(event, Vec::new())
+    }
+
+    pub(crate) fn append_observed(
+        &mut self,
+        event: Event,
+        observations: Vec<crate::evidence::ReadObservation>,
+    ) -> Result<()> {
+        let mut reads = Vec::new();
+        let mut write = None;
+        if let Event::ToolFinished { result } = &event {
+            // The authoritative receipts remain usable even if their old Loro
+            // state can no longer be loaded for narrower checklist evidence.
+            write = crate::evidence::write_proof(&self.lib, &self.session, self.turn, &result.call)
+                .ok()
+                .flatten();
+            if result.status == crate::ToolStatus::Success && !observations.is_empty() {
+                let session = self
+                    .lib
+                    .agent_session(&self.session)?
+                    .ok_or(Error::Closed)?;
+                let book = dr_model::id::BookId::parse(&session.book_id)
+                    .map_err(|e| Error::Protocol(e.to_string()))?;
+                for observation in observations {
+                    reads.push(crate::evidence::verify_read(
+                        &self.lib,
+                        &book,
+                        &self.session,
+                        self.turn,
+                        &result.call,
+                        observation,
+                    )?);
+                }
+            }
+        }
         let record = Stored {
             turn: self.turn,
             event,
         };
-        let stored = self.lib.agent_append_event(&AgentEventAppend {
+        let append = AgentEventAppend {
             session: self.session.clone(),
             expected_seq: self.seq,
             event_json: serde_json::to_string(&record)?,
+        };
+        let stored = self.lib.local_write(|tx| {
+            let stored = tx.agent_append_event(&append)?;
+            for proof in &reads {
+                crate::long_task::persist_read(tx, proof)?;
+            }
+            if let Some(proof) = &write {
+                crate::long_task::persist_writes(tx, proof)?;
+            }
+            Ok(stored)
         })?;
         self.seq = stored.seq;
         // Persist the authority before touching its synchronized projection.
@@ -161,6 +206,14 @@ impl Journal {
     fn project(&self, event: &JournalEvent) -> Result<()> {
         let (kind, payload) = match &event.event {
             Event::UserMessage { text } => (ConversationEntryKind::User, json!({"text": text})),
+            Event::Continuation { text } => (
+                ConversationEntryKind::Other(crate::long_task::CONTINUATION_ENTRY_KIND.into()),
+                json!({"version":1,"text":text}),
+            ),
+            Event::Checkpoint { reason } => (
+                ConversationEntryKind::Other(crate::long_task::CHECKPOINT_ENTRY_KIND.into()),
+                json!({"version":1,"reason":reason}),
+            ),
             Event::AssistantMessage { message } => (
                 ConversationEntryKind::Assistant,
                 serde_json::to_value(message)?,

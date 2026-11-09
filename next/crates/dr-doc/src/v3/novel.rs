@@ -1,15 +1,16 @@
 //! Built-in novel project template (`小说项目模板`, `docs/rust-rewrite/kernel-v3.md`).
 //!
-//! All built-in template IDs, module IDs, default root entry IDs and default
-//! timeline view ID are stable constants. Creating a new novel book copies
-//! these templates into the book's `templates` container so later app upgrades
-//! never silently alter an existing book's structure.
+//! Built-in template IDs and module IDs are stable constants. Every entry ID
+//! (including default root levels `书稿`/`构想`/`要素`/`故事线` and default categories
+//! `人物`/`地点`/`道具`/`组织`) is generated fresh per book so `body:<entry_id>/*`
+//! document IDs are unique across books in a library (`V3-DOCID-LIBRARY-UNIQUE`).
 
 use dr_model::id::{EntryId, EntryTemplateId, ModuleId, TimelineViewId};
 use dr_model::pos::PosKey;
 use dr_model::v3::*;
 
 use crate::error::Result;
+use crate::v3::read::BookViewV3;
 use crate::v3::write::BookTxnV3;
 
 pub const NOVEL_PROJECT_TEMPLATE_ID: &str = "builtin:novel";
@@ -45,21 +46,10 @@ pub const MOD_PLOT_GRID: &str = "mod-plot-grid";
 pub const MOD_PATCHES: &str = "mod-patches";
 pub const MOD_RELATIONS: &str = "mod-relations";
 
-// ---- Stable default root entry IDs & timeline view ID --------------------
-
-pub const ROOT_MANUSCRIPT: &str = "root-manuscript";
-pub const ROOT_IDEAS: &str = "root-ideas";
-pub const ROOT_ELEMENTS: &str = "root-elements";
-pub const ROOT_STORYLINES: &str = "root-storylines";
-
-pub const CAT_CHARACTER: &str = "cat-character";
-pub const CAT_LOCATION: &str = "cat-location";
-pub const CAT_ITEM: &str = "cat-item";
-pub const CAT_ORGANIZATION: &str = "cat-organization";
-
-pub const VIEW_NARRATIVE: &str = "view-narrative";
-
 /// Root and default category entry IDs created by [`apply_novel_project_template`].
+///
+/// Generated fresh per book (`EntryId::new_v7()`, `TimelineViewId::new_v7()`) so
+/// two books in the same library never share `body:<entry_id>/about` document IDs.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NovelRootEntries {
     pub manuscript: EntryId,
@@ -80,17 +70,18 @@ impl Default for NovelRootEntries {
 }
 
 impl NovelRootEntries {
+    /// Generate fresh UUIDv7 entry and timeline view IDs for a new novel book.
     pub fn new() -> Self {
         Self {
-            manuscript: EntryId::parse(ROOT_MANUSCRIPT).expect("valid id"),
-            ideas: EntryId::parse(ROOT_IDEAS).expect("valid id"),
-            elements: EntryId::parse(ROOT_ELEMENTS).expect("valid id"),
-            storylines: EntryId::parse(ROOT_STORYLINES).expect("valid id"),
-            cat_character: EntryId::parse(CAT_CHARACTER).expect("valid id"),
-            cat_location: EntryId::parse(CAT_LOCATION).expect("valid id"),
-            cat_item: EntryId::parse(CAT_ITEM).expect("valid id"),
-            cat_organization: EntryId::parse(CAT_ORGANIZATION).expect("valid id"),
-            narrative_view: TimelineViewId::parse(VIEW_NARRATIVE).expect("valid id"),
+            manuscript: EntryId::new_v7(),
+            ideas: EntryId::new_v7(),
+            elements: EntryId::new_v7(),
+            storylines: EntryId::new_v7(),
+            cat_character: EntryId::new_v7(),
+            cat_location: EntryId::new_v7(),
+            cat_item: EntryId::new_v7(),
+            cat_organization: EntryId::new_v7(),
+            narrative_view: TimelineViewId::new_v7(),
         }
     }
 }
@@ -101,10 +92,6 @@ fn tid(s: &str) -> EntryTemplateId {
 
 fn mid(s: &str) -> ModuleId {
     ModuleId::parse(s).expect("valid module id")
-}
-
-fn eid(s: &str) -> EntryId {
-    EntryId::parse(s).expect("valid entry id")
 }
 
 fn pos_chain(n: usize) -> Vec<PosKey> {
@@ -515,7 +502,7 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
                 display: Some(ChildDisplayMode::List),
                 auto_link: None,
                 accept: Some(true),
-                home: Some(Some(eid(ROOT_MANUSCRIPT))),
+                home: None,
                 is_manuscript: Some(false),
                 format_shortcuts: None,
             },
@@ -674,17 +661,87 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
     templates
 }
 
+/// Look up the novel root level entries (`书稿`, `构想`, `要素`, `故事线`),
+/// default category entries (`人物`, `地点`, `道具`, `组织`), and default
+/// timeline view by their templates (`kernel-v3.md`: "之后按模板找根层级，不按固定 id 找").
+pub fn find_novel_roots(view: &BookViewV3<'_>) -> Option<NovelRootEntries> {
+    let entries = view.entries_raw();
+    let find_root = |tpl: &str| -> Option<EntryId> {
+        entries
+            .iter()
+            .find(|e| {
+                e.parent.is_none()
+                    && !e.is_trashed()
+                    && e.template.as_ref().is_some_and(|t| t.as_str() == tpl)
+            })
+            .map(|e| e.id.clone())
+    };
+    let manuscript = find_root(TPL_MANUSCRIPT)?;
+    let ideas = find_root(TPL_IDEAS)?;
+    let elements = find_root(TPL_ELEMENTS)?;
+    let storylines = find_root(TPL_STORYLINES)?;
+
+    let find_cat = |leaf_tpl: &str| -> Option<EntryId> {
+        entries
+            .iter()
+            .find(|e| {
+                e.parent.as_ref() == Some(&elements)
+                    && !e.is_trashed()
+                    && e.template
+                        .as_ref()
+                        .is_some_and(|t| t.as_str() == TPL_CATEGORY)
+                    && e.overrides
+                        .as_ref()
+                        .and_then(|o| o.default_template.as_ref())
+                        .and_then(|d| d.as_ref())
+                        .is_some_and(|t| t.as_str() == leaf_tpl)
+            })
+            .map(|e| e.id.clone())
+    };
+    let cat_character = find_cat(TPL_CHARACTER)?;
+    let cat_location = find_cat(TPL_LOCATION)?;
+    let cat_item = find_cat(TPL_ITEM)?;
+    let cat_organization = find_cat(TPL_ORGANIZATION)?;
+    let narrative_view = view.timeline_views().into_iter().next()?.id;
+
+    Some(NovelRootEntries {
+        manuscript,
+        ideas,
+        elements,
+        storylines,
+        cat_character,
+        cat_location,
+        cat_item,
+        cat_organization,
+        narrative_view,
+    })
+}
+
 /// Copy the built-in novel project template (`templates`, root level entries
 /// `书稿`/`构想`/`要素`/`故事线`, default categories `人物`/`地点`/`道具`/`组织`,
-/// and the default timeline view `叙事时间线`) into `txn`.
+/// and the default timeline view `叙事时间线`) into `txn`, generating fresh
+/// UUIDv7 entry and timeline view IDs (or reusing the book's existing novel
+/// roots if already initialized).
 pub fn apply_novel_project_template(txn: &mut BookTxnV3<'_>) -> Result<NovelRootEntries> {
-    let ids = NovelRootEntries::new();
+    let ids = find_novel_roots(&txn.view()).unwrap_or_default();
+    apply_novel_project_template_with(txn, ids)
+}
+
+/// Copy the built-in novel project template into `txn` using the caller-provided
+/// `ids` (for deterministic test seeds or idempotent re-application).
+pub fn apply_novel_project_template_with(
+    txn: &mut BookTxnV3<'_>,
+    ids: NovelRootEntries,
+) -> Result<NovelRootEntries> {
     txn.meta().project_template(Some(&ProjectTemplateRef {
         id: NOVEL_PROJECT_TEMPLATE_ID.into(),
         version: NOVEL_PROJECT_TEMPLATE_VERSION,
     }))?;
 
-    for tpl in novel_project_templates() {
+    for mut tpl in novel_project_templates() {
+        if tpl.id.as_str() == TPL_STORYLINE {
+            tpl.settings.home = Some(Some(ids.manuscript.clone()));
+        }
         txn.template(&tpl.id)?.set_full(&tpl)?;
     }
 

@@ -205,6 +205,7 @@ impl ConnectionService {
             },
         );
         let request = DriverRequest {
+            purpose: dr_agent::RequestPurpose::Chat,
             config: Arc::new(config),
             session: "connectivity-check".into(),
             turn: 1,

@@ -89,5 +89,8 @@
         "owned": "Diesen Ordner verwaltet eine andere Drifting-Installation; nichts wurde gelesen oder geschrieben"
       }
     }
+  },
+  "speech": {
+    "backlog": "Transkriptionsrückstand"
   }
 }

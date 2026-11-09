@@ -1,6 +1,7 @@
 //! M28: four routes over one HTTP client, SSE reader and three wire protocols.
 mod anthropic;
 pub mod catalog;
+mod conversation;
 pub mod credentials;
 mod deepseek;
 mod error;

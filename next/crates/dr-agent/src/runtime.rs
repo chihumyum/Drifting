@@ -45,6 +45,19 @@ pub struct Start {
     pub input: String,
 }
 
+#[derive(Clone, Debug)]
+pub struct ContinuationStart {
+    pub chain: String,
+    pub config: RunConfig,
+}
+
+#[derive(Clone, Debug)]
+pub struct ResumeStart {
+    pub chain: String,
+    pub config: RunConfig,
+    pub input: Option<String>,
+}
+
 struct Inner {
     ws: Workspace,
     driver: Arc<dyn Driver>,
@@ -131,10 +144,77 @@ impl Runtime {
     }
 
     pub fn start(&self, start: Start) -> Result<RunHandle> {
+        self.start_mode(start, crate::long_task::StartMode::Author, None)
+    }
+
+    pub fn start_continuation(&self, start: ContinuationStart) -> Result<RunHandle> {
+        let snapshot =
+            crate::long_task::Store::new(self.inner.ws.library().clone()).snapshot(&start.chain)?;
+        if snapshot
+            .plan
+            .as_ref()
+            .is_none_or(|plan| plan.status != crate::long_task::TaskStatus::Active)
+        {
+            return Err(Error::Protocol(
+                "automatic continuation needs an active plan".into(),
+            ));
+        }
+        self.start_mode(
+            Start {
+                config: start.config,
+                book: snapshot.book,
+                conversation: snapshot.conversation,
+                input: String::new(),
+            },
+            crate::long_task::StartMode::Automatic,
+            Some(start.chain),
+        )
+    }
+
+    pub fn start_resume(&self, start: ResumeStart) -> Result<RunHandle> {
+        let snapshot =
+            crate::long_task::Store::new(self.inner.ws.library().clone()).snapshot(&start.chain)?;
+        if snapshot
+            .plan
+            .as_ref()
+            .is_some_and(|plan| plan.status.terminal())
+        {
+            return Err(Error::Protocol(
+                "this task is terminal; start a new author request".into(),
+            ));
+        }
+        self.start_mode(
+            Start {
+                config: start.config,
+                book: snapshot.book,
+                conversation: snapshot.conversation,
+                input: start.input.unwrap_or_default(),
+            },
+            crate::long_task::StartMode::Resume,
+            Some(start.chain),
+        )
+    }
+
+    fn start_mode(
+        &self,
+        start: Start,
+        mode: crate::long_task::StartMode,
+        chain: Option<String>,
+    ) -> Result<RunHandle> {
         let _lifecycle = self.inner.lifecycle.lock().expect("runtime lifecycle");
         start.config.validate()?;
-        if start.input.trim().is_empty() {
+        if mode == crate::long_task::StartMode::Author && start.input.trim().is_empty() {
             return Err(Error::Protocol("empty author message".into()));
+        }
+        if let Some(chain) = &chain {
+            let store = crate::long_task::Store::new(self.inner.ws.library().clone());
+            for session in self.inner.active.lock().expect("active runs").iter() {
+                if store.chain_for_session(session)?.as_ref() == Some(chain) {
+                    return Err(Error::Protocol(
+                        "a slice of this request chain is still running".into(),
+                    ));
+                }
+            }
         }
         if self
             .inner
@@ -158,6 +238,7 @@ impl Runtime {
         }
         lib.local_write(|tx| {
             tx.agent_create_session(&session, &conversation_doc, start.book.as_str())?;
+            crate::long_task::begin(tx, &session, &start, mode, chain.as_deref())?;
             tx.agent_append_event(&AgentEventAppend {
                 session: session.clone(),
                 expected_seq: 0,
@@ -170,7 +251,11 @@ impl Runtime {
         journal.append(Event::Configured {
             config: start.config.clone(),
         })?;
-        journal.append(Event::UserMessage { text: start.input })?;
+        if mode == crate::long_task::StartMode::Automatic || start.input.trim().is_empty() {
+            journal.append(Event::Continuation { text:"Continue the same author request using the current durable task plan and evidence. Read the plan, reconcile structural drift when needed, and do the next actionable step. Do not repeat saved writes or claim completion without matching evidence.".into() })?;
+        } else {
+            journal.append(Event::UserMessage { text: start.input })?;
+        }
         let (sender, commands) = mpsc::unbounded();
         let (finished_tx, finished) = oneshot::channel();
         let state = Arc::new(Mutex::new(State::Streaming));
@@ -561,11 +646,11 @@ impl Worker {
                 .max_model_rounds
                 .is_some_and(|limit| turn_round > limit)
             {
-                return Err(Error::Protocol(
-                    "author-selected model round limit reached".into(),
-                ));
+                return self.checkpoint("model_round_limit");
             }
-            let calls = self.model(round).await?;
+            let Some(calls) = self.model(round).await? else {
+                return Ok(State::Checkpointed);
+            };
             self.drain()?;
             if self.halted() {
                 for call in calls {
@@ -601,14 +686,53 @@ impl Worker {
         Ok(state)
     }
 
-    async fn model(&mut self, round: u32) -> Result<Vec<ToolCall>> {
+    fn checkpoint(&mut self, reason: &str) -> Result<State> {
+        self.journal.append(Event::Checkpoint {
+            reason: reason.into(),
+        })?;
+        self.close_mailbox();
+        self.set_state(State::Checkpointed)?;
+        Ok(State::Checkpointed)
+    }
+
+    async fn model(&mut self, round: u32) -> Result<Option<Vec<ToolCall>>> {
+        let store = crate::long_task::Store::new(self.journal.lib.clone());
+        let chain = store
+            .chain_for_session(&self.journal.session)?
+            .ok_or_else(|| Error::Protocol("run has no request chain".into()))?;
+        let snapshot = store.snapshot(&chain)?;
+        let contributions =
+            self.inner
+                .tools
+                .context(&self.inner.ws, &self.book, &self.journal.session)?;
+        let prepared = crate::context::prepare(
+            &self.config,
+            &snapshot,
+            self.journal.transcript()?,
+            &self.inner.descriptors,
+            contributions,
+        )?;
+        let crate::context::Prepared::Ready {
+            conversation,
+            checkpoint,
+        } = prepared
+        else {
+            self.checkpoint("context_capacity")?;
+            return Ok(None);
+        };
+        crate::context::save_checkpoint(&self.journal.lib, &snapshot, &checkpoint)?;
+        self.drain()?;
+        if self.halted() {
+            return Ok(Some(Vec::new()));
+        }
         self.set_state(State::Streaming)?;
         let request = DriverRequest {
+            purpose: crate::RequestPurpose::Chat,
             config: self.config.clone(),
             session: self.journal.session.clone(),
             turn: self.journal.turn,
             round,
-            conversation: self.journal.transcript()?,
+            conversation,
             tools: self.inner.descriptors.clone(),
         };
         let mut stream = self
@@ -682,7 +806,7 @@ impl Worker {
             }
         }
         result?;
-        Ok(calls)
+        Ok(Some(calls))
     }
 
     fn descriptor(&self, call: &ToolCall) -> Option<ToolDescriptor> {
@@ -768,7 +892,12 @@ impl Worker {
         }
         self.set_state(State::RunningTools)?;
         let is_write = group[0].1.access == ToolAccess::Write;
-        let mut active: FuturesUnordered<BoxFuture<'static, (ToolCall, Result<ToolOutput>)>> =
+        type ToolCompletion = (
+            ToolCall,
+            Result<ToolOutput>,
+            Vec<crate::evidence::ReadObservation>,
+        );
+        let mut active: FuturesUnordered<BoxFuture<'static, ToolCompletion>> =
             FuturesUnordered::new();
         let mut pending = HashMap::new();
         for (call, descriptor) in group {
@@ -793,6 +922,7 @@ impl Worker {
                 _execution: self.inner.executions.enter(),
             };
             let executor = self.inner.tools.clone();
+            let evidence = cx._execution.clone();
             active.push(
                 async move {
                     let tool = async { executor.execute(cx, call.clone()).await };
@@ -800,7 +930,7 @@ impl Worker {
                         .catch_unwind()
                         .await
                         .unwrap_or_else(|_| Err(Error::Tool("tool executor panicked".into())));
-                    (call, result)
+                    (call, result, evidence.take_observations())
                 }
                 .boxed(),
             );
@@ -822,10 +952,10 @@ impl Worker {
                     if self.aborting && !is_write { break; }
                 },
                 result = active.next().fuse() => {
-                    let (call, output) = result.expect("active tool");
+                    let (call, output, observations) = result.expect("active tool");
                     pending.remove(&call.id);
                     match output {
-                        Ok(ToolOutput::Value(value)) => self.tool_result(&call, ToolStatus::Success, value)?,
+                        Ok(ToolOutput::Value(value)) => self.tool_result_observed(&call, ToolStatus::Success, value, observations)?,
                         Ok(ToolOutput::Error(value)) => self.tool_result(&call, ToolStatus::Error, value)?,
                         Ok(ToolOutput::Stop(value)) => {
                             self.tool_result(&call, ToolStatus::Error, value)?;
@@ -909,20 +1039,33 @@ impl Worker {
     }
 
     fn tool_result(&mut self, call: &ToolCall, status: ToolStatus, output: Value) -> Result<()> {
+        self.tool_result_observed(call, status, output, Vec::new())
+    }
+
+    fn tool_result_observed(
+        &mut self,
+        call: &ToolCall,
+        status: ToolStatus,
+        output: Value,
+        observations: Vec<crate::evidence::ReadObservation>,
+    ) -> Result<()> {
         let settlements = settlement_refs(
             &self.journal.lib,
             &self.journal.session,
             self.journal.turn,
             Some(&call.id),
         )?;
-        self.journal.append(Event::ToolFinished {
-            result: ToolResult {
-                call: call.id.clone(),
-                status,
-                output,
-                settlements,
+        self.journal.append_observed(
+            Event::ToolFinished {
+                result: ToolResult {
+                    call: call.id.clone(),
+                    status,
+                    output,
+                    settlements,
+                },
             },
-        })
+            observations,
+        )
     }
 }
 

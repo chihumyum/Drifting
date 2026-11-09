@@ -1181,6 +1181,17 @@ pub const INVARIANTS: &[Invariant] = &[
         [],
         ["v3_cross_document_writes_put_prose_before_book"]
     ),
+    inv!(
+        "V3-DOCID-LIBRARY-UNIQUE",
+        "文档 id 在库里唯一：条目 id（含默认层级与默认分类）一律新生成 uuidv7，模板正文文档 id 带书 id（template:<书 id>/<模板 id>/<模块 id>），彻底删除一本书不会删掉另一本书的文档",
+        [Structure, Command],
+        "NovelRootEntries::new 每次生成新的 uuidv7，TemplateId::for_entry_module 包含 book_id，check_doc_ids_unique_across_books 检查跨书文档 id 零碰撞",
+        [],
+        [
+            "v3_doc_ids_are_unique_across_books_in_library",
+            "two_novel_books_in_one_library_have_disjoint_doc_ids_and_purging_one_keeps_the_other"
+        ]
+    ),
 ];
 
 pub const DIVERGENCES: &[Divergence] = &[

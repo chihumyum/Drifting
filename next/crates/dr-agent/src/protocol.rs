@@ -46,6 +46,7 @@ pub enum ProviderToolAction {
 pub enum ProviderToolStatus {
     Started,
     Completed,
+    Checkpointed,
     Failed,
 }
 
@@ -67,6 +68,7 @@ pub enum State {
     AwaitingPermission,
     Stopping,
     Completed,
+    Checkpointed,
     Stopped,
     Aborted,
     Failed,
@@ -77,7 +79,12 @@ impl State {
     pub fn is_terminal(self) -> bool {
         matches!(
             self,
-            Self::Completed | Self::Stopped | Self::Aborted | Self::Failed | Self::Interrupted
+            Self::Completed
+                | Self::Checkpointed
+                | Self::Stopped
+                | Self::Aborted
+                | Self::Failed
+                | Self::Interrupted
         )
     }
 }
@@ -218,6 +225,14 @@ pub enum Event {
     },
     UserMessage {
         text: String,
+    },
+    /// Product-generated instruction; model-visible, never an author message.
+    Continuation {
+        text: String,
+    },
+    /// Host-owned saved progress. This is portable display state, not model prose.
+    Checkpoint {
+        reason: String,
     },
     StateChanged {
         state: State,

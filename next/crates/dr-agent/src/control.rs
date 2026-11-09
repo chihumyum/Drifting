@@ -17,7 +17,9 @@ impl Cancellation {
     pub fn is_cancelled(&self) -> bool {
         self.0.load(Ordering::SeqCst)
     }
-    pub(crate) fn cancel(&self) {
+    /// Signal cancellation. Owners must still await the worker's completion
+    /// before releasing resources; this signal is not a settlement receipt.
+    pub fn cancel(&self) {
         self.0.store(true, Ordering::SeqCst);
     }
 }

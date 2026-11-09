@@ -83,5 +83,8 @@
         "owned": "这个文件夹由另一个 Drifting 管理，没有读写"
       }
     }
+  },
+  "speech": {
+    "backlog": "转写积压"
   }
 }

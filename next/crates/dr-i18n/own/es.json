@@ -89,5 +89,8 @@
         "owned": "Otra instalación de Drifting gestiona esta carpeta; no se leyó ni se escribió nada"
       }
     }
+  },
+  "speech": {
+    "backlog": "Transcripciones pendientes"
   }
 }

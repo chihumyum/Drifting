@@ -621,6 +621,21 @@ impl<'a> BookViewV3<'a> {
             .collect()
     }
 
+    /// Find the first live root entry (`parent == None && !is_trashed()`) in
+    /// manuscript order whose `template` equals `template_id`.
+    pub fn root_entry_by_template(&self, template_id: &EntryTemplateId) -> Option<Entry> {
+        self.children_of(None)
+            .into_iter()
+            .find(|e| e.template.as_ref() == Some(template_id))
+    }
+
+    /// Look up the novel root level entries (`书稿`, `构想`, `要素`, `故事线`),
+    /// default category entries (`人物`, `地点`, `道具`, `组织`), and default
+    /// timeline view by their templates.
+    pub fn novel_roots(&self) -> Option<crate::v3::novel::NovelRootEntries> {
+        crate::v3::novel::find_novel_roots(self)
+    }
+
     // ---- memberships -----------------------------------------------------
 
     /// Every stored membership, unfiltered, sorted by `(host, pos, member)`.
@@ -1276,7 +1291,7 @@ impl<'a> BookViewV3<'a> {
 
     /// Whether the prose document `doc` belongs to a live or trashed owner in
     /// this v3 book (`body:<entry>/<module>`, `body:<entry>/about`,
-    /// `template:<template>/<module>`, `material:<id>`, `conversation:<id>`).
+    /// `template:<book>/<template>/<module>`, `material:<id>`, `conversation:<id>`).
     ///
     /// Note that per `V3-TEMPLATE-SWITCH-KEEPS-DATA` and `V3-ENTRY-TEMPLATE-EXISTS`,
     /// any `body:<entry>/<module>` document remains owned as long as `<entry>`
@@ -1290,11 +1305,14 @@ impl<'a> BookViewV3<'a> {
                 .iter()
                 .any(|n| n.id == b.entry().as_str()),
             DocId::Template(t) => match t.entry_module() {
-                Some((tpl_id, _)) => self
-                    .doc
-                    .get_map(book_v3::TEMPLATES)
-                    .get(tpl_id.as_str())
-                    .is_some(),
+                Some((book_id, tpl_id, _)) => {
+                    &book_id == self.book
+                        && self
+                            .doc
+                            .get_map(book_v3::TEMPLATES)
+                            .get(tpl_id.as_str())
+                            .is_some()
+                }
                 None => false,
             },
             DocId::Material(id) => entity(self.doc, book_v3::MATERIALS, id.as_str())
