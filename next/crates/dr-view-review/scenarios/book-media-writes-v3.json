@@ -1,5 +1,5 @@
 {
-  "about": "G4 副屏主流程：用 v3-media-fixture 的 testkit v3-lite 与合成图片，保存主页书名，再画区域写批注并读回。",
+  "about": "G4 副屏主流程：用 testkit v3-lite、合成图片和预置最近访问，保存主页书名，从最近访问打开图片，再画区域写批注并读回。",
   "steps": [
     {
       "call": "book.list",
@@ -18,6 +18,16 @@
         "book": "${books.0.id}"
       },
       "save": "seed_comments"
+    },
+    {
+      "call": "recent.touch",
+      "input": {
+        "book": "${books.0.id}",
+        "target": {
+          "kind": "material",
+          "id": "${materials.[kind=image].id}"
+        }
+      }
     },
     {
       "launch": {
@@ -109,9 +119,10 @@
       }
     },
     {
-      "app": "nav.open",
+      "app": "ui.press",
       "params": {
-        "target": "material:${materials.[kind=image].id}"
+        "role": "Button",
+        "label": "${materials.[kind=image].title}"
       }
     },
     {

@@ -76,7 +76,12 @@ pub fn recent(lib: &Library, book: &Book) -> Result<Vec<RecentPage>, WsError> {
                 }),
                 "material" => Some(RecentPage {
                     target: Target::Material(id.parse().ok()?),
-                    title: book.materials.iter().find(|m| m.id == id)?.title.clone(),
+                    title: book
+                        .material_items()
+                        .iter()
+                        .find(|m| m.id == id)?
+                        .title
+                        .clone(),
                 }),
                 _ => None,
             }
