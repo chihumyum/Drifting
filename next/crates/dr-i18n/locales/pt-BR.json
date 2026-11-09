@@ -589,6 +589,12 @@
       "notUtf8": "Não é texto UTF-8; alguns caracteres foram substituídos"
     }
   },
+  "k4Book": {
+    "entry_words": "Palavras da entrada",
+    "leaf_count": "Número de folhas",
+    "material_words": "Palavras do material",
+    "retained_content": "Conteúdo preservado"
+  },
   "kvEditor": {
     "addField": "Adicionar campo",
     "keyPlaceholder": "Campo",

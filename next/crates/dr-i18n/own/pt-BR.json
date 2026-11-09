@@ -238,5 +238,11 @@
     "yes": "Sim",
     "no": "Não",
     "add_field": "Adicionar campo"
+  },
+  "k4Book": {
+    "entry_words": "Palavras da entrada",
+    "material_words": "Palavras do material",
+    "leaf_count": "Número de folhas",
+    "retained_content": "Conteúdo preservado"
   }
 }

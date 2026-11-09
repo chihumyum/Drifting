@@ -238,5 +238,11 @@
     "yes": "Ja",
     "no": "Nein",
     "add_field": "Feld hinzufügen"
+  },
+  "k4Book": {
+    "entry_words": "Wörter des Eintrags",
+    "material_words": "Wörter des Materials",
+    "leaf_count": "Anzahl der Blätter",
+    "retained_content": "Beibehaltene Inhalte"
   }
 }

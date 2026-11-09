@@ -232,5 +232,11 @@
     "yes": "是",
     "no": "否",
     "add_field": "添加字段"
+  },
+  "k4Book": {
+    "entry_words": "条目字数",
+    "material_words": "素材字数",
+    "leaf_count": "叶子数量",
+    "retained_content": "保留的内容"
   }
 }

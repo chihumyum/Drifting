@@ -94,3 +94,46 @@ next/crates/dr-shell/examples/m06-m07-capture.rs 截图
 ```
 
 截图：`cargo run -p dr-shell --features capture --example m06-m07-capture -- ../docs/rust-rewrite/modules`（要先建好字体，见 F5）。
+
+## K4 G4：接线待协调（开工核对）
+
+基线 `10e97880`，分支 `codex/k4-g4-book`；尚未交回功能。
+
+1. **F6 搜索宿主**：`workspace/mod.rs::toggle_search` 只接
+   `SearchPanel::new` 和 `Jump { target: dr_workspace::NavTarget, link }`。
+   此类型没有 Entry/module，旧位置链接也不解析模块。需要在 v3 分支把
+   G4 返回的条目 id、模块 id、段落位置转成
+   `Target::Entry { id, module }` 并用 `open_at`，保留 v2.2 原分支。
+   G4 提供独立 v3 面板接口，宿主仅负责版本选择、记号和导航。
+2. **F6/G2 右栏宿主**：`workspace/sidebar.rs::right_body` 的 Stats、Review
+   都先调用 `book::nav_target`，Entry/module 会变成 Book 哨兵。
+   需要在这个转换之前按版本分流，将 Entry/module 或 Material 交给各自
+   v3 面板，回调直接打开 `Target`。这两处不在 G4 获准修改的外壳范围内。
+3. **K2 公共命令**：`Cx::book` 当前只放行 v3 通用命令、`prose.*` 和四个
+   book 生命周期/元数据命令；`book.search`、`book.word_counts`、
+   `book.writing_days`、`writing_day.record`、`comment.*`、`material.*`、
+   `material_folder.*` 仍拒绝 v3。搜索/统计可在 G4 只读适配；审阅、素材和
+   写作日写入需要 K2 提供明确的 v3 命令，不由视图绕过 Workspace 直接改 Loro。
+   批注输入/输出还需携带正文模块；现有 `CommentCreateIn` 没有 module。
+
+以上是实现前的接口缺口，不是验收通过或范围扩大。外壳仍只在 G4 接主页时
+新增主页注册口；其余接线及公共命令交负责方。真窗口验收必须等实际产品入口接通。
+
+### 接口准备（2026-11-10，尚未功能交回）
+
+作者已选择由整合者安排 F6/G2/K2 补接口，保持 G4 修改边界。
+`SearchPanel::new_v3` 与原 `new` 并存；`SearchEvent::JumpV3` 返回
+`v3::Jump { target: Entry { id, module } / Material(id), line }`，段落位置遵循
+`2 * paragraph + 1`。宿主传入 v3 的记号回调并直接映射外壳 Target。
+`v3_groups()` 供验收读取，旧 `groups()` 不装入 v3 目标。
+
+只读搜索按活条目树序、模板模块序、保留模块、素材排列；回收祖先下的条目、
+模板正文和批注正文不进入结果。正文复用 F2 索引，一次按有效文档顺序搜索；
+标题、文字字段、键值、补丁文字、格子文字在对应模块分组。关系标识和已知的
+图片／实体引用字段不当正文搜索。结果上限在有效目的地排序后应用。
+
+永久契约 `dr-view-search/tests/v3.rs` 覆盖多正文的模块跳转、模块删除后保留正文、
+回收／恢复、短查询与全文查询的额度、空查询、只读版本不变、v2.2 路径和 GPUI
+键盘跳转。搜索／统计两 crate 的定向测试共 30 项通过，另有 1 项文档示例忽略；
+定向 Clippy、fmt 和九语言同步检查通过。此处不包含全工作区检查、真窗口或
+heavy 验收；正式交回指针尚未移动。宿主接通后必须从实际产品入口补验。
