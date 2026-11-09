@@ -392,3 +392,94 @@ fn hidden_data_is_scoped_to_its_view_and_new_ids_still_require_fresh_observation
     assert!(matches!(result, Err(Error::Conflict(_))), "{result:?}");
     assert_eq!(f.raw(), before);
 }
+
+#[test]
+fn removing_visible_membership_cannot_delete_a_hidden_lanes_retained_placement() {
+    let f = Fixture::new();
+    let tools = AgentTools::new();
+    let actor = Actor::agent("timeline-hidden-other-membership", 1, "remove");
+    let member = f.original["placements"][0]["entry"].clone();
+    let memberships = f.author("membership.list", json!({}));
+    let hidden_host = memberships
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| {
+            m["member"] == member
+                && f.original["lanes"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|l| l["entry"] == m["host"])
+        })
+        .unwrap()["host"]
+        .clone();
+    let visible_host = f.author(
+        "entry.create",
+        json!({"title":"Synthetic visible lane","template":TPL_STORYLINE}),
+    )["id"]
+        .clone();
+    f.author(
+        "membership.add",
+        json!({"host":visible_host,"member":member}),
+    );
+    let mut view = f.original.clone();
+    view["lanes"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"entry":visible_host,"pos":null}));
+    view["placements"][0]["at"] = json!(7.5);
+    view["placements"][0]["span"] = json!(8.25);
+    let expected_placements = view["placements"].clone();
+    f.author("timeline_view.put", json!({"view":view}));
+    f.author("entry.trash", json!({"id":hidden_host}));
+    for (name, args) in [
+        (
+            "membership.remove",
+            json!({"host":visible_host,"member":member}),
+        ),
+        (
+            "timeline_view.remove",
+            json!({"view":f.view,"lane":visible_host,"entry":member}),
+        ),
+    ] {
+        f.invoke(&tools, &actor, "entry.list", json!({"all":true}))
+            .unwrap();
+        f.invoke(&tools, &actor, "membership.list", json!({}))
+            .unwrap();
+        f.listed(&tools, &actor);
+        let before = f.ws.observe(&format!("book:{}", f.book)).unwrap();
+        let journal = f.ws.journal(None, 1000).unwrap().len();
+        let receipts = f.ws.library().settlements(None, None).unwrap().len();
+        let result = f.invoke(&tools, &actor, name, args);
+        assert!(
+            matches!(result,Err(Error::ReadRequired(ref message)) if message.contains("hidden lanes, placements or pin data")),
+            "{result:?}"
+        );
+        let after = f.ws.observe(&before.doc).unwrap();
+        assert_eq!(after.version, before.version);
+        assert_eq!(after.value, before.value);
+        assert_eq!(f.ws.journal(None, 1000).unwrap().len(), journal);
+        assert_eq!(
+            f.ws.library().settlements(None, None).unwrap().len(),
+            receipts
+        );
+    }
+    f.author("entry.restore", json!({"id":hidden_host}));
+    assert_eq!(f.listed(&tools, &actor)["placements"], expected_placements);
+    // Fresh complete evidence allows the local operation. The restored lane
+    // still owns the placement, which must survive removal of the other edge.
+    f.invoke(&tools, &actor, "entry.list", json!({"all":true}))
+        .unwrap();
+    f.invoke(&tools, &actor, "membership.list", json!({}))
+        .unwrap();
+    f.listed(&tools, &actor);
+    f.invoke(
+        &tools,
+        &actor,
+        "membership.remove",
+        json!({"host":visible_host,"member":member}),
+    )
+    .unwrap();
+    assert_eq!(f.listed(&tools, &actor)["placements"], expected_placements);
+}

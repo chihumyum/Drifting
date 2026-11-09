@@ -618,6 +618,16 @@ impl AgentTools {
             }
             if matches!(
                 call.name.as_str(),
+                "membership.remove" | "timeline_view.remove"
+            ) {
+                turn.reads
+                    .get(&format!("book:{}", key.book))
+                    .and_then(|read| read.timeline_views.as_ref())
+                    .ok_or_else(|| Error::ReadRequired("timeline_view:*".into()))?
+                    .require_membership_removal()?;
+            }
+            if matches!(
+                call.name.as_str(),
                 "timeline_view.put" | "timeline_view.put_pin" | "timeline_view.remove_pin"
             ) {
                 let coverage = turn

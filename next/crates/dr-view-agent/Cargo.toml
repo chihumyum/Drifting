@@ -36,6 +36,7 @@ url.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
+dr-debug-bridge = { workspace = true, features = ["screenshot"] }
 dr-editor.workspace = true
 dr-testkit.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
