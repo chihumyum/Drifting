@@ -164,6 +164,8 @@ struct Written {
     created: bool,
     stored: BTreeMap<String, String>,
     refused: Vec<String>,
+    /// V3 batches are all-or-nothing. Keep a refused batch until explicit retry.
+    retained: Vec<Write>,
 }
 
 /// The grip being dragged: where it started and the size then.
@@ -174,6 +176,7 @@ struct Drag {
 }
 
 pub struct PlotPlanner {
+    module: Option<String>,
     host: PlannerHost,
     grid: Grid,
     loaded: bool,
@@ -185,6 +188,7 @@ pub struct PlotPlanner {
     store_timer: Option<Task<()>>,
     queue: VecDeque<Write>,
     writing: Option<Task<()>>,
+    save_failed: bool,
     /// F3 said the grid changed while writes were out: read it after them.
     stale: bool,
     reading: Option<Task<()>>,
@@ -220,8 +224,27 @@ impl Focusable for PlotPlanner {
 
 impl PlotPlanner {
     pub fn new(host: PlannerHost, window: &mut Window, cx: &mut Context<Self>) -> PlotPlanner {
+        Self::new_at(host, None, window, cx)
+    }
+
+    pub fn for_module(
+        host: PlannerHost,
+        module: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> PlotPlanner {
+        Self::new_at(host, Some(module), window, cx)
+    }
+
+    fn new_at(
+        host: PlannerHost,
+        module: Option<String>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> PlotPlanner {
         let body = cx.new(|_| None);
         let mut planner = PlotPlanner {
+            module,
             host,
             grid: Grid::unstored(),
             loaded: false,
@@ -232,6 +255,7 @@ impl PlotPlanner {
             store_timer: None,
             queue: VecDeque::new(),
             writing: None,
+            save_failed: false,
             stale: false,
             reading: None,
             menu: None,
@@ -257,7 +281,13 @@ impl PlotPlanner {
     /// hand before it arrives wins.
     fn read_ratio(&mut self, cx: &mut Context<Self>) {
         let lib = self.host.library.clone();
-        let key = ratio_key(&self.host.node);
+        let key = ratio_key(
+            &self
+                .module
+                .as_ref()
+                .map(|m| format!("{}/{m}", self.host.node))
+                .unwrap_or_else(|| self.host.node.clone()),
+        );
         let read = cx.background_spawn(async move {
             lib.library()
                 .local_get(RATIO_SCOPE, &key)
@@ -288,7 +318,16 @@ impl PlotPlanner {
         // A stored shape still being read is older than this one.
         self.ratio_io = None;
         let lib = self.host.library.clone();
-        let (book, key) = (self.host.book.clone(), ratio_key(&self.host.node));
+        let (book, key) = (
+            self.host.book.clone(),
+            ratio_key(
+                &self
+                    .module
+                    .as_ref()
+                    .map(|m| format!("{}/{m}", self.host.node))
+                    .unwrap_or_else(|| self.host.node.clone()),
+            ),
+        );
         cx.background_spawn(async move {
             if let Err(error) =
                 lib.library()
@@ -332,6 +371,20 @@ impl PlotPlanner {
             && self.reading.is_none()
     }
 
+    /// A v3 write failed; local edits remain queued and visible.
+    pub fn save_failed(&self) -> bool {
+        self.save_failed
+    }
+
+    /// Explicitly re-read and apply the retained edits to the latest grid.
+    pub fn retry_save(&mut self, cx: &mut Context<Self>) {
+        if self.module.is_some() && self.save_failed {
+            self.save_failed = false;
+            self.store_typed(cx);
+            cx.notify();
+        }
+    }
+
     /// The text field of `field` (tests type into it).
     pub fn field(&self, field: &Field) -> Option<Entity<TextArea>> {
         self.fields.get(field).cloned()
@@ -354,13 +407,15 @@ impl PlotPlanner {
     fn listen(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let (tx, mut rx) = futures::channel::mpsc::unbounded::<()>();
         let (book, node) = (self.host.book.clone(), self.host.node.clone());
+        let module = self.module.clone();
         self._events = Some(self.host.library.subscribe(move |event| {
             if let WsEvent::Book(b) = event
                 && b.book.as_str() == book
-                && b.changes.iter().any(|c| {
-                    c.collection == dr_doc::book::Collection::PlotGrids
-                        && c.id.as_deref().is_none_or(|id| id == node)
-                })
+                && (module.is_some()
+                    || b.changes.iter().any(|c| {
+                        c.collection == dr_doc::book::Collection::PlotGrids
+                            && c.id.as_deref().is_none_or(|id| id == node)
+                    }))
             {
                 let _ = tx.unbounded_send(());
             }
@@ -391,7 +446,11 @@ impl PlotPlanner {
             book: self.host.book.clone(),
             node: self.host.node.clone(),
         };
+        let module = self.module.clone();
         let read = cx.background_spawn(async move {
+            if let Some(module) = module {
+                return crate::v3::read(&lib, &input.book, &input.node, &module);
+            }
             lib.run::<PlotGridGet>(&Actor::User, input)
                 .map(|o| o.output)
         });
@@ -643,15 +702,27 @@ impl PlotPlanner {
     /// time, in order. An unstored grid is stored first
     /// (`plot_grid.create`) and its `~` lines take the ids it was given.
     fn pump(&mut self, cx: &mut Context<Self>) {
-        if self.writing.is_some() || self.queue.is_empty() {
+        if self.writing.is_some() || self.queue.is_empty() || self.save_failed {
             return;
         }
         let batch: Vec<Write> = self.queue.drain(..).collect();
         let lib = self.host.library.clone();
         let (book, node) = (self.host.book.clone(), self.host.node.clone());
         let create = !self.grid.exists;
-        let job =
-            cx.background_spawn(async move { write_batch(&lib, &book, &node, create, batch) });
+        let module = self.module.clone();
+        let job = cx.background_spawn(async move {
+            if let Some(module) = module {
+                return match crate::v3::write(&lib, &book, &node, &module, batch.clone()) {
+                    Ok(()) => Written::default(),
+                    Err(error) => Written {
+                        refused: vec![error.to_string()],
+                        retained: batch,
+                        ..Default::default()
+                    },
+                };
+            }
+            write_batch(&lib, &book, &node, create, batch)
+        });
         self.writing = Some(cx.spawn(async move |this, cx| {
             let written = job.await;
             this.update(cx, |p, cx| p.written(written, cx)).ok();
@@ -665,6 +736,17 @@ impl PlotPlanner {
         }
         for refused in &written.refused {
             log::warn!("the plot grid refused a change: {refused}");
+        }
+        if self.module.is_some() && !written.refused.is_empty() {
+            // Earlier edits go before anything typed while the call was out.
+            // The nonempty queue prevents a refresh from discarding either.
+            for write in written.retained.into_iter().rev() {
+                self.queue.push_front(write);
+            }
+            self.save_failed = true;
+            self.stale = true;
+            cx.notify();
+            return;
         }
         if !written.refused.is_empty() {
             self.stale = true;
@@ -1149,6 +1231,20 @@ impl Render for PlotPlanner {
             .bg(p.desk.solid())
             .font_role(Role::Ui)
             .child(self.bar(window, cx))
+            .when(self.save_failed, |el| {
+                el.child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(8.0))
+                        .px(px(14.0))
+                        .child(t(cx, keys::k4_pages::SAVE_FAILED))
+                        .child(
+                            Button::new("retry-plot", t(cx, keys::markdown_share::RETRY))
+                                .on_click(cx.listener(|p, _, _, cx| p.retry_save(cx))),
+                        ),
+                )
+            })
             // The column heads sit on the header's colour: a hairline parts
             // them.
             .child(div().h(px(0.5)).w_full().flex_none().bg(p.hairline()))
