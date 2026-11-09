@@ -362,12 +362,7 @@ fn snapshots_published_during_writes_match_their_entire_historical_revision() {
         let borrowed = dr_doc::v3::BorrowedBookV3::new(&historical, &book_id).unwrap();
         let view = borrowed.view();
         let structure = view.structure_snapshot();
-        assert_eq!(
-            book.name,
-            historical.get_deep_value().to_json_value()["meta"]["name"]
-                .as_str()
-                .unwrap()
-        );
+        assert_eq!(book.name, view.meta().name);
         assert_eq!(
             json!(shell.entries),
             json!(

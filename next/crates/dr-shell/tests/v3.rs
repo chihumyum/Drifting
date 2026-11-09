@@ -847,7 +847,7 @@ fn level_refresh_retains_live_prose_input_selection_scroll_and_page_instance(
                 .unwrap()
             });
             mounted.borrow_mut().push(editor.clone());
-            let focus = editor.read(cx).focus_handle(cx);
+            let focus = editor.read(cx).editor().focus_handle(cx);
             Rendered::new(editor).focus(focus)
         });
     });
