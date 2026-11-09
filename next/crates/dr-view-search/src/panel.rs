@@ -34,6 +34,10 @@ use gpui::{
 
 use crate::model::{self, Field, Group, Jump, Line, Owner};
 
+#[cfg(test)]
+#[path = "panel_tests.rs"]
+mod tests;
+
 /// The panel's key context.
 pub const KEY_CONTEXT: &str = "DrSearch";
 
@@ -96,6 +100,8 @@ pub struct SearchPanel {
 }
 
 struct V3State {
+    /// The query that produced the displayed groups, not a pending query.
+    query: String,
     groups: Rc<Vec<crate::v3::Group>>,
     marks: crate::v3::Marks,
     _subscription: Option<dr_workspace::Subscription>,
@@ -234,6 +240,7 @@ impl SearchPanel {
             }
         });
         panel.v3 = Some(V3State {
+            query: String::new(),
             groups: Rc::default(),
             marks,
             _subscription: subscription,
@@ -356,13 +363,41 @@ impl SearchPanel {
         let Some(state) = &mut self.v3 else {
             return;
         };
+        let same_query = state.query == self.query;
+        if same_query && state.groups.as_slice() == groups.as_slice() {
+            // An unrelated index update must not change where Enter goes or
+            // schedule a scroll on the next frame.
+            self.searched = searched;
+            cx.notify();
+            return;
+        }
+        let previous = self.selected.and_then(|i| match self.lines.get(i) {
+            Some(Line::Hit(g, r)) if same_query => {
+                Some((&state.groups[*g].target, &state.groups[*g].rows[*r]))
+            }
+            _ => None,
+        });
+        let first_results = !same_query || state.groups.is_empty();
         self.hits = groups.iter().map(|g| g.rows.len()).sum();
         let mut lines = Vec::new();
         for (g, group) in groups.iter().enumerate() {
             lines.push(Line::Header(g));
             lines.extend((0..group.rows.len()).map(|r| Line::Hit(g, r)));
         }
-        self.selected = lines.iter().position(|l| matches!(l, Line::Hit(..)));
+        self.selected = if first_results {
+            lines.iter().position(|l| matches!(l, Line::Hit(..)))
+        } else {
+            // Row equality includes field, paragraph, snippet and match
+            // range, plus the exact entry/module or material target. If a
+            // changed result no longer identifies one unique hit, require
+            // an explicit arrow/click instead of choosing another target.
+            let mut matches = lines.iter().enumerate().filter_map(|(i, line)| {
+                let Line::Hit(g, r) = *line else { return None };
+                (previous == Some((&groups[g].target, &groups[g].rows[r]))).then_some(i)
+            });
+            let first = matches.next();
+            first.filter(|_| matches.next().is_none())
+        };
         self.lines = Rc::new(lines);
         let meta = (self.hits > 0).then(|| {
             SharedString::from(self.i18n.fmt(
@@ -381,9 +416,15 @@ impl SearchPanel {
             ))
         });
         state.groups = Rc::new(groups);
+        state.query = self.query.clone();
         self.searched = searched;
         self.field.update(cx, |f, cx| f.set_meta(meta, cx));
-        self.scroll.scroll_to_item(0, ScrollStrategy::Top);
+        if first_results {
+            self.scroll.scroll_to_item(0, ScrollStrategy::Top);
+        } else if let Some(selected) = self.selected {
+            self.scroll
+                .scroll_to_item(selected, ScrollStrategy::Nearest);
+        }
         cx.notify();
     }
 
@@ -427,11 +468,14 @@ impl SearchPanel {
         if hits.is_empty() {
             return;
         }
-        let at = self
+        let next = match self
             .selected
             .and_then(|s| hits.iter().position(|h| *h == s))
-            .unwrap_or(0) as isize;
-        let next = (at + by).rem_euclid(hits.len() as isize) as usize;
+        {
+            Some(at) => (at as isize + by).rem_euclid(hits.len() as isize) as usize,
+            None if by < 0 => hits.len() - 1,
+            None => 0,
+        };
         self.selected = Some(hits[next]);
         self.scroll
             .scroll_to_item(hits[next], ScrollStrategy::Nearest);

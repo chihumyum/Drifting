@@ -5,6 +5,7 @@ use dr_workspace::{Actor, Workspace};
 use gpui::{Entity, TestAppContext, VisualTestContext};
 use serde_json::{Value, json};
 use std::{
+    cell::{Cell, RefCell},
     rc::Rc,
     time::{Duration, Instant},
 };
@@ -125,6 +126,11 @@ fn late_material_index_refreshes_an_empty_query_result(cx: &mut TestAppContext) 
     wait(&panel, cx, |p| {
         !p.is_searching() && p.v3_groups().unwrap() == direct
     });
+    assert_eq!(
+        panel.read_with(cx, |p, _| p.selected()),
+        Some(dr_view_search::Line::Hit(0, 0)),
+        "first late result keeps the default Enter destination"
+    );
 }
 
 fn chapter(ws: &Workspace, book: &str) -> String {
@@ -239,4 +245,109 @@ fn another_book_or_library_does_not_reset_the_selected_hit(cx: &mut TestAppConte
         assert_eq!(p.selected(), selected);
         assert_eq!(p.v3_groups().unwrap(), before);
     });
+}
+
+#[gpui::test]
+fn same_book_unrelated_index_preserves_the_selected_destination(cx: &mut TestAppContext) {
+    let (_dir, ws, books) = fixture();
+    let book = &books[0];
+    let entries = call(&ws, "entry.list", json!({"book":book,"all":true}));
+    let chapters: Vec<_> = entries
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|e| e["template"] == "tpl-chapter")
+        .take(2)
+        .map(|e| e["id"].as_str().unwrap().to_owned())
+        .collect();
+    assert_eq!(chapters.len(), 2);
+    for entry in &chapters {
+        let doc = format!("body:{entry}/mod-prose");
+        replace_first(&ws, &doc, "G4KeepSelection");
+        ws.library().reindex_doc(&doc).unwrap();
+    }
+    let (panel, cx) = setup(cx, &ws, book);
+    panel.update_in(cx, |p, window, cx| {
+        p.set_query("G4KeepSelection", cx);
+        p.focus(window, cx);
+    });
+    wait(&panel, cx, |p| !p.is_searching());
+    cx.simulate_keystrokes("down");
+    let before = panel.read_with(cx, |p, _| p.v3_groups().unwrap().to_vec());
+    let selected = panel.read_with(cx, |p, _| p.selected());
+    assert_eq!(selected, Some(dr_view_search::Line::Hit(1, 0)));
+    let expected = dr_view_search::v3::jump(&before[1], before[1].rows.first());
+    let notified = Rc::new(Cell::new(0));
+    let events = Rc::new(RefCell::new(Vec::new()));
+    cx.update(|_, cx| {
+        let notified = notified.clone();
+        cx.observe(&panel, move |_, _| notified.set(notified.get() + 1))
+            .detach();
+        let events = events.clone();
+        cx.subscribe(&panel, move |_, event: &dr_view_search::SearchEvent, _| {
+            events.borrow_mut().push(event.clone())
+        })
+        .detach();
+    });
+    let unrelated = format!("material:{}", material(&ws, book));
+    replace_first(&ws, &unrelated, "G4UnrelatedBody");
+    ws.library().reindex_doc(&unrelated).unwrap();
+    assert_eq!(
+        dr_view_search::v3::search(&ws, book, "G4KeepSelection", 500).unwrap(),
+        before
+    );
+    wait(&panel, cx, |p| notified.get() > 0 && !p.is_searching());
+    assert_eq!(panel.read_with(cx, |p, _| p.selected()), selected);
+    cx.simulate_keystrokes("enter");
+    assert_eq!(
+        *events.borrow(),
+        [dr_view_search::SearchEvent::JumpV3(expected.clone())]
+    );
+
+    // Removing a preceding group shifts row indices, but the selected
+    // entry/module/paragraph still exists and Enter must keep its target.
+    call(&ws, "entry.trash", json!({"book":book,"id":chapters[0]}));
+    wait(&panel, cx, |p| {
+        !p.is_searching() && p.v3_groups().unwrap().len() == 1
+    });
+    assert_eq!(
+        panel.read_with(cx, |p, _| p.selected()),
+        Some(dr_view_search::Line::Hit(0, 0))
+    );
+    cx.simulate_keystrokes("enter");
+    assert_eq!(
+        events.borrow().last(),
+        Some(&dr_view_search::SearchEvent::JumpV3(expected))
+    );
+
+    // A new matching material must not steal the selection. If the chosen
+    // entry is subsequently removed, Enter is inert until explicit input.
+    replace_first(&ws, &unrelated, "G4KeepSelection");
+    ws.library().reindex_doc(&unrelated).unwrap();
+    wait(&panel, cx, |p| {
+        !p.is_searching() && p.v3_groups().unwrap().len() == 2
+    });
+    call(&ws, "entry.trash", json!({"book":book,"id":chapters[1]}));
+    wait(&panel, cx, |p| {
+        !p.is_searching() && p.v3_groups().unwrap().len() == 1
+    });
+    assert_eq!(panel.read_with(cx, |p, _| p.selected()), None);
+    let previous_events = events.borrow().len();
+    cx.simulate_keystrokes("enter");
+    assert_eq!(events.borrow().len(), previous_events);
+    cx.simulate_keystrokes("down");
+    assert_eq!(
+        panel.read_with(cx, |p, _| p.selected()),
+        Some(dr_view_search::Line::Hit(0, 0))
+    );
+    cx.simulate_keystrokes("enter");
+    assert_eq!(
+        events.borrow().last(),
+        Some(&dr_view_search::SearchEvent::JumpV3(
+            dr_view_search::v3::Jump {
+                target: Target::Material(material(&ws, book)),
+                line: Some(1)
+            }
+        ))
+    );
 }
