@@ -876,7 +876,7 @@ G2 三种回调及 K5 新建委托。v3-lite 真窗口场景 **84/84 步、0 pen
 更新自己的子实体，不在这里重借 workspace；需要改窗口或调用命令的动作放进点击
 回调。第二轮完成后，左栏和大纲栏按 K4 分轨交给 G2；其余公共外壳入口继续留在 F6。
 
-### G4 搜索宿主续交（2026-11-10）
+### G4 搜索宿主交回（2026-11-10）
 
 第 60 批 main `236196de` 已接收 G4 搜索接口。F6 的全局搜索按当前书版本选择
 `SearchPanel::new_v3`；`JumpV3` 直接保留 Entry 的模块 id 或 Material id，
@@ -889,6 +889,9 @@ v2.2；加载后再按已知版本打开。关闭搜索统一用既有 `refocus`
 的版本、查询中状态、结果目标／模块名及段落行号，只读、不触发额外查询。
 `focus.search` 和 `v3Page.focus` 区分搜索字段、模块包装层与其子编辑器实际持有焦点，
 窗口验收等待实际交接完成，不把仅页面目标就绪当作输入已就绪。
+分支 `codex/k4-0-shell`；实现提交 `bf00728f`、`1a61d28f`、`b855e0a4`、
+`ad0cfbb3`，`48fb16c5` 同步 main `014cea40`。第 61 批在完整检查中到达，
+按整合者通知不打断本批，随后接最近访问时再同步。
 
 永久 GPUI 契约在 `dr-shell/tests/v3_search.rs`，使用两本共享 v3 tiny 种子，
 覆盖真实面板、标题、第二篇正文、素材、行号、Esc、只读版本、换书隔离，
@@ -898,11 +901,22 @@ v2.2；加载后再按已知版本打开。关闭搜索统一用既有 `refocus`
 导航与素材刷新。重复命中曾在活跃可见的窗口中报 `no_input`，修复前的永久
 焦点契约也失败；旧渲染器交接另有失败前证据。两处修复后定向三项通过，
 保留首次窗口与测试证据。换书读取中的版本守卫也有修复前失败的永久回归。
-最终全套及副屏冒烟结果在正式交回时记录；不做 heavy、性能、截图目检或样式验收。
+最终代码 `ad0cfbb3` 的副屏冒烟 **61/61、0 pending**（60 条流程步骤及 1 条
+副屏定位守卫）通过；隔离窗口 PID 64736 的 CGWindow 边界完全位于副屏，
+两次 `app.info` 均为 active／visible。结果在
+`next/target/acceptance/k4-0-search-final-window/`，副屏回执在
+`next/target/acceptance/k4-0-search-secondary/receipts/secondary-64736.json`。
+最终全套通过：fmt、Clippy（workspace／all-targets／locked，`-D warnings`）、
+workspace test **2139 passed / 0 failed / 22 ignored**、xtask（含 audit）、
+根目录 public。编译并发 3，测试单线程；audit 为 0 vulnerabilities、12 notices。
+检查与修复前失败日志均在 `next/target/acceptance/k4-0-checks/`；中途为了修正
+已复现问题而停止的检查单列 `before-*`，不算完整通过。保留 17 份过期测量提示、
+macOS 链接器 `__eh_frame` 提示及窗口里的旧 TODO 投影版本守卫提示。
+不做 heavy、性能、截图目检或样式验收。
 
 本段只动 F6 搜索宿主及调试／验收，不改各组视图、不碰 G2 的左栏／大纲。
-最近访问由外壳接 `recent.touch`、G4 接主页列表，等第 61 批 K2 接口正式接收；
-本次不绕写本机数据库。结构读取正确性留给整合者随后安排的独立会话；
+最近访问由外壳接 `recent.touch`、G4 接主页列表；第 61 批接口已接收，外壳记录
+单列下一批，本次不绕写本机数据库。结构读取正确性留给整合者随后安排的独立会话；
 素材的具体页面与审阅等 G4 功能仍由该组接回。后续审阅宿主需核对
 `workspace/review.rs::new_comment` 的编辑器查找：v3 组合模块未必在旧 `p.view`，
 待 G4 的模块正文／稳定 anchor 接口接收后处理。本段没有新文案、没有删除 v2.2 测试。
