@@ -16,6 +16,7 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::time::{Duration, Instant};
 
 use dr_i18n::keys;
 use dr_mirror::{Issue, Mirror, Options, Problem};
@@ -104,9 +105,63 @@ pub fn stop(cx: &mut App) {
     }
 }
 
+/// After the registered writers settle, finish the last Markdown pass and
+/// join its worker off the UI thread. Checkpoints must await this result.
+pub(crate) fn drain_for_release(cx: &mut App) -> Task<Result<(), String>> {
+    let unsettled = t(cx, keys::k4_pages::SAVE_FAILED).to_string();
+    let state = cx.default_global::<State>();
+    let running = state.running.take();
+    state.pump = None;
+    cx.background_executor().spawn(async move {
+        let Some(mirror) = running else {
+            return Ok(());
+        };
+        let result = settled_pass(
+            || mirror.sync_now(),
+            Duration::from_secs(5),
+            Duration::from_millis(50),
+            &unsettled,
+        );
+        // Even a failed pass must finish its worker before services resume.
+        mirror.stop();
+        result
+    })
+}
+
+pub(crate) fn resume_after_release(cx: &mut App) {
+    if !is_running(cx) {
+        restart(cx);
+    }
+}
+
+fn settled_pass(
+    mut pass: impl FnMut() -> Result<dr_mirror::Report, String>,
+    timeout: Duration,
+    pause: Duration,
+    unsettled: &str,
+) -> Result<(), String> {
+    let started = Instant::now();
+    loop {
+        if !pass()?.waiting {
+            return Ok(());
+        }
+        if started.elapsed() >= timeout {
+            log::warn!("Markdown folder: files still changing at release");
+            return Err(unsettled.to_owned());
+        }
+        // This runs on the background executor, with the input gate closed.
+        std::thread::sleep(pause);
+    }
+}
+
 /// Follows the folder over the open library when there is one and it is on
 /// (the one running stops first).
 pub fn restart(cx: &mut App) {
+    // Replacement installs the new library while the common gate is still
+    // shut. Its after_release hook restarts the producer once release ends.
+    if crate::release::is_releasing(cx) {
+        return;
+    }
     stop(cx);
     let Some(lib) = cx.try_global::<Services>().and_then(|s| s.library.clone()) else {
         return;
@@ -254,6 +309,50 @@ pub fn ask_turn_off_then(cx: &mut App, after: impl Fn(&mut App) + 'static) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_waiting_mirror_pass_is_not_a_completed_drain() {
+        let mut passes = 0;
+        settled_pass(
+            || {
+                passes += 1;
+                Ok(dr_mirror::Report {
+                    waiting: passes == 1,
+                    ..Default::default()
+                })
+            },
+            Duration::from_secs(1),
+            Duration::ZERO,
+            "not saved",
+        )
+        .unwrap();
+        assert_eq!(passes, 2);
+    }
+
+    #[test]
+    fn changing_files_or_failed_sync_refuse_the_final_checkpoint() {
+        assert_eq!(
+            settled_pass(
+                || Ok(dr_mirror::Report {
+                    waiting: true,
+                    ..Default::default()
+                }),
+                Duration::ZERO,
+                Duration::ZERO,
+                "not saved"
+            ),
+            Err("not saved".into())
+        );
+        assert_eq!(
+            settled_pass(
+                || Err("disk failure".into()),
+                Duration::from_secs(1),
+                Duration::ZERO,
+                "not saved"
+            ),
+            Err("disk failure".into())
+        );
+    }
     use crate::{SettingsFile, ShellInfo};
 
     fn issue(path: &str, problem: Problem) -> Issue {
