@@ -15,6 +15,9 @@
         "storage_failed": "登录信息无法保存到 Windows 凭据管理器。"
       }
     },
+    "models": {
+      "speechDesc": "语音输入的转写凭据，独立于上方对话模型。转写会携带本项目的要素与设定名以纠正专有名词；请求从本机直连百炼，Key 仅存 Windows 凭据管理器。"
+    },
     "sync": {
       "projection": {
         "reveal": "在文件资源管理器中打开"

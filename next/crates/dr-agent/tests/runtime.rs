@@ -152,8 +152,8 @@ fn ordinary_round_projects_one_transcript_and_replays_signed_thinking() {
     );
     assert_eq!(
         driver.requests()[1].conversation.len(),
-        3,
-        "next run has the previous conversation and new author message"
+        4,
+        "next run has pinned request context, previous conversation and new author message"
     );
     assert!(runtime.recover().unwrap().is_empty());
     assert_eq!(
@@ -200,7 +200,7 @@ fn run_freezes_route_and_author_limit_before_tools_settle() {
     settings.route.provider = Provider::Deepseek;
     settings.route.model = "changed-for-next-run".into();
     settings.max_model_rounds = None;
-    assert!(run.join().unwrap_err().to_string().contains("round limit"));
+    assert_eq!(run.join().unwrap(), State::Checkpointed);
     assert_eq!(driver.requests().len(), 1);
     assert_eq!(*driver.requests()[0].config, frozen);
     let log = events(ws.library(), &session, 0).unwrap();
@@ -211,6 +211,15 @@ fn run_freezes_route_and_author_limit_before_tools_settle() {
     assert!(log.iter().any(
         |row| matches!(&row.event, Event::ToolFinished {result} if !result.settlements.is_empty())
     ));
+    assert!(
+        log.iter().any(
+            |row| matches!(&row.event,Event::Checkpoint{reason} if reason=="model_round_limit")
+        )
+    );
+    assert!(
+        !log.iter()
+            .any(|row| matches!(&row.event, Event::Failed { .. }))
+    );
     assert_ne!(settings, frozen);
     drop(runtime);
     ws.shutdown().unwrap();

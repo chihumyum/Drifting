@@ -8,8 +8,23 @@ use serde_json::Value;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
+/// Background suggestions use one text-only request: no tool catalog, retry,
+/// provider search or automatic provider continuation.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum RequestPurpose {
+    #[default]
+    Chat,
+    SingleRequest,
+}
+impl RequestPurpose {
+    pub fn is_single(&self) -> bool {
+        matches!(self, Self::SingleRequest)
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct DriverRequest {
+    pub purpose: RequestPurpose,
     pub config: Arc<crate::RunConfig>,
     pub session: String,
     pub turn: u32,
