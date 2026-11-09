@@ -564,3 +564,9 @@ git -c core.hooksPath=/dev/null merge --no-ff --no-edit -m "Merge branch '<整�
 - **做了什么：** K6 接共名命令时指出正文只读版本未受保护。常驻树从 main `229b5138` 开 `codex/batch-62`，没有合新产品；独立探针使用 dr_testkit 的 v3-tiny、真实 prose_session 编辑和 Workspace::call_guarded。保存书目及正文观察，在正文前插由种子变换的文字，确认正文版本改变但书版本不变后，用旧观察创建范围批注。
 - **检查结果：** 调用返回 Ok、journal 和新批注，旧范围所指「潮声与记」变为新插入的「声声声声」；0 通过／1 失败、0.07 秒、退出码 101。未依赖竞态、窗口超时或修改产品逻辑。call_guarded 现有契约只核实际写入文档，comment.create 的 cx.prose_view 没消费所给 body 守卫；block_id 与 reanchor 同类路径也须检查。探针、日志及摘要留公共 Git 目录 `integration-evidence/batch-62/comment-guard/`，探针字节核对后移出树。本批只运行这项复核及文档检查，不冒称新产品全套／窗口通过。
 - **待协调：** 返 K2 在同一受守卫 holder 读取内生成锚点、引用和块快照，书目仍 CAS；读后 CRDT 编辑允许继续，但稳定锚点必须保持原来源身份，不宣称跨文档原子。K2 已把未验收 M14 半成品另存分支，优先修；G4 的可选 AnchorBytes 分支共用同一帮手，K6 正式接口接收前保守拒绝无法保护的锚定写入。相关会话均已直接通知，61 批历史保留。F6 搜索 `e5f8d501` 已正式交回，排后续合批；其最近访问另交 k4-0-recent。未推送、未开 PR。
+
+## 第六十三批退回记录（2026-11-10）
+
+- **做了什么：** 从 main `079631fa` 合 F6 搜索 `e5f8d501` 与 G2 `c54fda05`，候选 `80f7ee12`，无冲突或产品修补。F6 的三项永久搜索契约针对复跑通过（2.52 秒）。独立 6.1 sol max 审查在各自 worktree 发现 G2 取消归属调用的公共 membership.remove 可能清掉无关隐藏时间线数据，整合者核对同一内核 blob 后运行真实 Tiny 探针。
+- **检查结果：** 条目同时属于可见 A 与泳道 B，B 的独立视图有位置 41、长度 7；回收 B 只是隐藏，raw placement 保留。用与 G2 相同 book frontier／require_all=false 的 call_guarded 取消 A 返回 Ok 和 journal，raw placements 随即清空，恢复 B 后仍为空。0 通过／1 失败、0.26 秒、退出码 101。首次临时测试仅有 BookId import 编译错误，修正测试导入后才得到上述数据失败；两份证据分开保留。fmt、public、CI 契约、旧 Agent 15 项、兼容 14 项与语言生成通过；在定向验证前主动终止本整合进程组的 Clippy，完整 test 未开始，候选 xtask／真窗口未跑。不套用源分支 2145 或 2139 项。探针及机器摘要留公共 Git 目录 `integration-evidence/batch-63/hidden-membership/`，字节核对后移出树，不进 main。本次返修文档的 public／空白检查通过；xtask 首次只因 RustSec 获取网络失败退出，原样重试后全部门禁／审计通过，两份日志保留。
+- **待协调：** 第 63 批产品候选保留，不合 main。K2 修 removals 的实际影响边界与撤销，G2 在自有操作入口加隐藏摆放永久回归，消费正式内核修复再重交；两方均已直接通知。K2 先完成已冻结的第 62 批正文守卫修复，再优先处理此数据删除。另收 G4 原生证据确认 F6 既有 Material 空页面，已交 F6 路由／输入修复与 G4 版本化 composer 续接，窗口原始环境和代码核对界线见 overnight。F6 搜索保留另批；main 此次只合返修与协调文档。未推送、未开 PR。
