@@ -100,7 +100,15 @@
     "list": "Liste",
     "grid": "Grille",
     "board": "Tableau",
-    "islands": "Îles"
+    "islands": "Îles",
+    "templates": "Modèles",
+    "newTemplate": "Nouveau modèle",
+    "open": "Ouvrir",
+    "newEntry": "Nouveau",
+    "editTemplate": "Modifier le modèle",
+    "changeTemplate": "Changer de modèle",
+    "belongTo": "Rattacher à",
+    "trash": "Déplacer vers les suppressions récentes"
   },
   "v3Timeline": {
     "views": "Vues chronologiques",

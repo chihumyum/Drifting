@@ -100,7 +100,15 @@
     "list": "Liste",
     "grid": "Raster",
     "board": "Pinnwand",
-    "islands": "Inseln"
+    "islands": "Inseln",
+    "templates": "Vorlagen",
+    "newTemplate": "Neue Vorlage",
+    "open": "Öffnen",
+    "newEntry": "Neu",
+    "editTemplate": "Vorlage bearbeiten",
+    "changeTemplate": "Vorlage wechseln",
+    "belongTo": "Zuordnen",
+    "trash": "Zu „Zuletzt gelöscht“ verschieben"
   },
   "v3Timeline": {
     "views": "Zeitleistenansichten",

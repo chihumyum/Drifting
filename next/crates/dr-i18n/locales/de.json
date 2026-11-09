@@ -1775,12 +1775,20 @@
   },
   "v3Shell": {
     "about": "Beschreibung",
+    "belongTo": "Zuordnen",
     "board": "Pinnwand",
+    "changeTemplate": "Vorlage wechseln",
+    "editTemplate": "Vorlage bearbeiten",
     "entries": "Einträge",
     "grid": "Raster",
     "islands": "Inseln",
     "list": "Liste",
-    "settings": "Einstellungen"
+    "newEntry": "Neu",
+    "newTemplate": "Neue Vorlage",
+    "open": "Öffnen",
+    "settings": "Einstellungen",
+    "templates": "Vorlagen",
+    "trash": "Zu „Zuletzt gelöscht“ verschieben"
   },
   "v3Timeline": {
     "addLane": "Spur hinzufügen",

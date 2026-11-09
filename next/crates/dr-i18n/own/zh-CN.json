@@ -94,7 +94,15 @@
     "list": "列表",
     "grid": "网格",
     "board": "看板",
-    "islands": "岛屿"
+    "islands": "岛屿",
+    "templates": "模板集合",
+    "newTemplate": "新建模板",
+    "open": "打开",
+    "newEntry": "新建",
+    "editTemplate": "编辑模板",
+    "changeTemplate": "换模板",
+    "belongTo": "归属到",
+    "trash": "放进最近删除"
   },
   "v3Timeline": {
     "views": "时间线视图",

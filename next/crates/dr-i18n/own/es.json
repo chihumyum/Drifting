@@ -100,7 +100,15 @@
     "list": "Lista",
     "grid": "Cuadrícula",
     "board": "Tablero",
-    "islands": "Islas"
+    "islands": "Islas",
+    "templates": "Plantillas",
+    "newTemplate": "Nueva plantilla",
+    "open": "Abrir",
+    "newEntry": "Nuevo",
+    "editTemplate": "Editar plantilla",
+    "changeTemplate": "Cambiar plantilla",
+    "belongTo": "Asignar a",
+    "trash": "Mover a Eliminados recientemente"
   },
   "v3Timeline": {
     "views": "Vistas de cronología",

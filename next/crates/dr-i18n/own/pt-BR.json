@@ -100,7 +100,15 @@
     "list": "Lista",
     "grid": "Grade",
     "board": "Quadro",
-    "islands": "Ilhas"
+    "islands": "Ilhas",
+    "templates": "Modelos",
+    "newTemplate": "Novo modelo",
+    "open": "Abrir",
+    "newEntry": "Novo",
+    "editTemplate": "Editar modelo",
+    "changeTemplate": "Trocar modelo",
+    "belongTo": "Associar a",
+    "trash": "Mover para Excluídos recentemente"
   },
   "v3Timeline": {
     "views": "Visualizações da linha do tempo",

@@ -194,7 +194,36 @@ pub fn left(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>
     let shown = ws.left.shown();
     let width = ws.left.width;
     let panes = ws.left.panes.clone();
-    let body = panes_row(ws, Side::Left, &panes, window, cx);
+    let body = if ws.book.v3().is_some()
+        && let Some(library) = ws.library.clone()
+    {
+        let host = crate::pages::PageViewHost {
+            workspace: cx.weak_entity(),
+            library,
+            book_id: ws.book_id.clone(),
+            book: ws.book.clone(),
+        };
+        let remembered = ws
+            .book_memory(crate::v3::sidebar::MEMORY_KEY)
+            .and_then(|v| v.as_str())
+            .map(str::to_owned);
+        let ready = ws.book_memory_ready();
+        let panel = ws
+            .v3_sidebar
+            .get_or_insert_with(|| cx.new(|_| crate::v3::sidebar::Sidebar::new(host.clone())))
+            .clone();
+        panel.update(cx, |panel, cx| panel.sync(host, remembered, ready, cx));
+        div()
+            .size_full()
+            .flex()
+            .flex_col()
+            .pt(px(TITLEBAR_HEIGHT))
+            .child(div().flex_1().min_h_0().child(panel))
+    } else if ws.book.is_empty() {
+        div().size_full().flex().flex_col()
+    } else {
+        panes_row(ws, Side::Left, &panes, window, cx)
+    };
     let account = account_cell(ws, window, cx);
     column(Side::Left, width, shown, body.child(account), window, cx)
 }
@@ -1329,6 +1358,9 @@ fn card_body(
     cx: &mut App,
 ) -> AnyElement {
     use dr_ui::components::{CardAction, CardBody};
+    if host.book.v3().is_some() && matches!(target, Target::Entry { .. }) {
+        return crate::v3::card::body(id, target, host, extra, window, cx);
+    }
     let theme = Theme::of(window, cx);
     let p = theme.palette;
     let book = &host.book;

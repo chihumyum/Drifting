@@ -774,6 +774,7 @@ fn state_of(ws: &Workspace, window: &Window, cx: &App) -> Value {
             "version": if book.v3().is_some() { 3 } else { 2 },
         },
         "v3": book.v3(),
+        "v3Sidebar": ws.v3_sidebar.as_ref().map(|s| s.read(cx).state()),
         "v3Page": ws.nav.current().and_then(|t| ws.editors.get(&t.key())).and_then(|p| p.v3.as_ref()).map(|p| p.read(cx).state()),
         "v3Appearance": ws.nav.current().and_then(|t| match t { Target::Entry { id, .. } => book.v3()?.appearance(id.as_str()), _ => None }).map(|a| json!({ "mark": a.mark, "color": a.color })),
         "shelf": ws.shelf_open,
