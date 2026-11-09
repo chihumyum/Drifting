@@ -2535,6 +2535,8 @@ dependencies = [
 name = "dr-view-templates"
 version = "0.0.0"
 dependencies = [
+ "dr-agent-tools",
+ "dr-doc",
  "dr-i18n",
  "dr-model",
  "dr-shell",
@@ -2544,6 +2546,7 @@ dependencies = [
  "dr-workspace",
  "gpui",
  "gpui_platform",
+ "serde",
  "serde_json",
  "tempfile",
 ]

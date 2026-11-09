@@ -1,6 +1,7 @@
 //! K5's v3 template editor. No v2.2 template routes are registered here.
 mod create;
 pub mod model;
+pub mod preview;
 mod view;
 
 use dr_shell::{nav::Target, pages::ModulePage};

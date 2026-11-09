@@ -1,6 +1,32 @@
 use super::*;
 
 impl TemplateEditor {
+    pub(super) fn preview_request(&self) -> Option<crate::preview::Request> {
+        (self.host.book.id == self.host.book_id).then_some(())?;
+        let frontier = self.host.book.v3()?.revision.clone();
+        Some(crate::preview::Request {
+            book: self.host.book_id.clone(),
+            frontier,
+            draft: self.draft.clone(),
+        })
+    }
+
+    pub(super) fn finish_preview(
+        &mut self,
+        request: &crate::preview::Request,
+        result: Result<String, ()>,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        if !self.preview_open || self.preview_request().as_ref() != Some(request) {
+            return false;
+        }
+        if self.preview_cache.publish(request, result) {
+            cx.notify();
+            return true;
+        }
+        false
+    }
+
     pub(super) fn guidance(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let mut section = div()
             .flex()

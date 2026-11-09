@@ -180,6 +180,8 @@ pub struct TemplateEditor {
     saving: bool,
     error: Option<bool>, // true: concurrent edit; false: command refused or storage failure
     preview_open: bool,
+    preview_cache: crate::preview::Cache,
+    preview_task: Option<gpui::Task<()>>,
     _book: Option<Subscription>,
 }
 impl Focusable for TemplateEditor {
@@ -258,6 +260,8 @@ impl TemplateEditor {
             saving: false,
             error: None,
             preview_open: false,
+            preview_cache: crate::preview::Cache::default(),
+            preview_task: None,
             _book: None,
         };
         if let Some(workspace) = this.host.workspace.upgrade() {
@@ -284,6 +288,15 @@ impl TemplateEditor {
     }
 
     pub fn follow(&mut self, book: Rc<Book>, window: &Window, cx: &mut Context<Self>) {
+        if book.id != self.host.book_id {
+            // Built-in template ids repeat between books. Never merge another
+            // book's template into this host's draft, even during navigation.
+            self.preview_task = None;
+            self.preview_cache = crate::preview::Cache::default();
+            self.host.book = book;
+            cx.notify();
+            return;
+        }
         if !self.creating
             && !self.saving
             && let Some(remote) = book.v3().and_then(|v| v.template(&self.draft.id))
@@ -958,6 +971,39 @@ mod tests {
             assert_eq!(editor.draft.name, renamed.name);
             assert!(!editor.dirty());
         });
+        let other_id = lib
+            .call(
+                &dr_workspace::Actor::User,
+                "project.create",
+                serde_json::json!({
+                    "name": "Synthetic other preview book"
+                }),
+            )
+            .unwrap()["output"]["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let other = Rc::new(Book::load(&lib, &other_id).unwrap());
+        editor.update_in(cx, |editor, window, cx| {
+            editor.draft.name = "Synthetic draft before switch".into();
+            let request = editor.preview_request().unwrap();
+            editor.preview_cache.start(request.clone());
+            editor
+                .preview_cache
+                .publish(&request, Ok("Synthetic original projection".into()));
+            editor.follow(other, window, cx);
+            assert_eq!(editor.draft.name, "Synthetic draft before switch");
+            assert_eq!(editor.base.as_ref().unwrap().name, renamed.name);
+            assert!(editor.preview_request().is_none());
+            assert!(editor.preview_cache.request.is_none());
+            assert!(editor.preview_cache.text.is_none());
+        });
+        let own = Rc::new(Book::load(&lib, &id).unwrap());
+        editor.update_in(cx, |editor, window, cx| {
+            editor.follow(own, window, cx);
+            assert_eq!(editor.preview_request().unwrap().book, id);
+            assert_eq!(editor.draft.name, "Synthetic draft before switch");
+        });
         // Guidance edits must not silently grant access or change context tiers.
         editor.update(cx, |editor, cx| {
             editor.draft.modules[0].agent = Some(ModuleAgentConfig {
@@ -1008,6 +1054,23 @@ mod tests {
             let accept = format!("- {}:", t(cx, k::ACCEPT));
             assert_eq!(preview.matches(&accept).count(), 1);
             assert!(preview.contains(&format!("{accept} {}", t(cx, k::YES))));
+            // A background completion can arrive after an input event but
+            // before the next render has scheduled its replacement request.
+            let captured = editor.preview_request().unwrap();
+            editor.preview_open = true;
+            editor.preview_cache.start(captured.clone());
+            Binding::AgentInstructions.set(&mut editor.draft, "Synthetic just-typed text".into());
+            assert!(!editor.finish_preview(&captured, Ok("stale text".into()), cx));
+            assert!(editor.preview_cache.text.is_none());
+            let current = editor.preview_request().unwrap();
+            editor.preview_cache.start(current.clone());
+            assert!(editor.finish_preview(&current, Ok("current text".into()), cx));
+            assert_eq!(
+                editor.draft.agent.as_ref().unwrap().instructions,
+                "Synthetic just-typed text"
+            );
+            editor.preview_open = false;
+            assert!(!editor.finish_preview(&current, Ok("closed preview".into()), cx));
         });
     }
 }
