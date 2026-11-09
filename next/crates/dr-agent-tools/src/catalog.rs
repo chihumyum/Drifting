@@ -935,6 +935,23 @@ fn exclusion(spec: &Spec) -> Option<&'static str> {
 }
 
 fn exclusion_v3(spec: &Spec) -> Option<&'static str> {
+    // Public F3 additions must not bypass the facade's read coverage and
+    // restore protocol merely by acquiring a book-scoped input schema.
+    if spec.name.starts_with("entry_snapshot.") {
+        return Some("entry snapshots need facade coverage and guarded whole-entry restore wiring");
+    }
+    if spec.name == "material.set_entry_link" {
+        return Some("material entry links need exact endpoint and relation read coverage");
+    }
+    if matches!(
+        spec.name,
+        "timeline_view.rename"
+            | "timeline_view.add_lane"
+            | "timeline_view.move_lane"
+            | "timeline_view.remove_lane"
+    ) {
+        return Some("local timeline edits need exact lane, placement, and pin read coverage");
+    }
     if spec.book_version != Some(3) {
         let domain = spec
             .name
@@ -1159,5 +1176,76 @@ mod tests {
             Some("storage, editor, or derived-state maintenance")
         );
         assert!(!allowed(spec));
+    }
+
+    #[test]
+    fn pending_v3_commands_stay_closed_after_book_scoped_registration() {
+        // These synthetic specs deliberately have valid book boundaries. This
+        // regression must fail when an exclusion is removed even before the
+        // owning crate registers its real implementation. Snapshot suffixes
+        // exercise the reserved family, not a second command inventory.
+        let mut registry = Registry::default();
+        macro_rules! pending {
+            ($ty:ident, $name:literal, $access:ident, $concurrency:ident, $version:expr) => {
+                struct $ty;
+                impl Op for $ty {
+                    const NAME: &'static str = $name;
+                    const BOOK_VERSION: Option<i64> = $version;
+                    const ACCESS: Access = Access::$access;
+                    const CONCURRENCY: Concurrency = Concurrency::$concurrency;
+                    const SUMMARY: &'static str = "Synthetic pending facade integration";
+                    type Input = dr_workspace::commands::BookIn;
+                    type Output = Value;
+                    fn run(_: &Cx<'_>, _: Self::Input) -> dr_workspace::Result<Self::Output> {
+                        unreachable!("pending facade integrations must never be dispatched")
+                    }
+                }
+                registry.add::<$ty>();
+            };
+        }
+        pending!(
+            SnapshotRead,
+            "entry_snapshot.future_query",
+            Read,
+            Shared,
+            Some(3)
+        );
+        pending!(
+            SnapshotWrite,
+            "entry_snapshot.future_write",
+            Write,
+            Book,
+            None
+        );
+        pending!(MaterialLink, "material.set_entry_link", Write, Book, None);
+        pending!(Rename, "timeline_view.rename", Write, Book, Some(3));
+        pending!(AddLane, "timeline_view.add_lane", Write, Book, Some(3));
+        pending!(MoveLane, "timeline_view.move_lane", Write, Book, Some(3));
+        pending!(
+            RemoveLane,
+            "timeline_view.remove_lane",
+            Write,
+            Book,
+            Some(3)
+        );
+
+        for spec in registry.iter() {
+            assert_eq!(
+                common_exclusion(spec, BookKernelVersion::V3),
+                None,
+                "{}",
+                spec.name
+            );
+            assert!(
+                exclusion_v3(spec).is_some(),
+                "{} must stay out of the catalog",
+                spec.name
+            );
+            assert!(
+                !allowed_v3(spec),
+                "{} must also refuse direct invocation",
+                spec.name
+            );
+        }
     }
 }

@@ -312,3 +312,11 @@ K2 的视图名称／泳道顺序等逐字段命令仍待协调；在接口提�
 在最终代码头完整运行 `cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、`cargo test --workspace --locked`、`cargo xtask check` 和根目录 `pnpm public:check`：全部通过，测试 **2169 通过／0 失败／22 忽略**，公开边界 5531 项；审计 972 个锁定 crate、0 漏洞、12 条既有通知，evidence 门禁报告 19 stale／15 legacy，未把性能预算记为通过。编译始终 `CARGO_BUILD_JOBS=3`，全测 `RUST_TEST_THREADS=1`。最终重建的 v3 合成模型副屏冒烟 **16/16、0 pending**，实际读回书目修改及 `author_kind=ai`／`source=api` 的模块批注，正常退出。最终日志为 `/tmp/drifting-k6-final-{fmt,clippy,tests,gates,public,window}.log`，窗口结果在 `/tmp/drifting-k6-final-window/`；初轮窗口断言修正记录仍保留。新增归属保护前的旧全测主动中断（退出 130，906／0／6 仅为部分结果），未计入最终通过数。没有使用真实模型、真实凭据或服务；未新增 v2.2 测试，既有契约随全套检查运行。
 
 待协调：锚定批注仍明确拒绝未受保护的 range／block_id／anchor 创建和非空 reanchor，等 K2 正式来源正文守卫到 main 后接实际正向调用；归属取消在存在隐藏视图数据时继续保守拒绝，等 K2 修复隐藏剩余泳道的 raw placement 保留后再按精确影响集合放宽。G1 `entry_snapshot.*` 与首次写前完整快照、G4 素材新接口、M14 新局部命令均不消费 WIP 或自动开放。K5 可在本批正式接收后调用 `TemplateSummary::from_v3_template`，只读预览不授予写覆盖。heavy／视觉与流畅度验收仍按整合安排暂缓；没有合进 main、推送或改动原 Antigravity 工作区。正式交回消息主动发给整合会话。
+
+## 待接入命令显式排除交回（11-10）
+
+接整合者第 64 批协调，在 `codex/k6-v3` 的上一交回 `3ad5c525` 上追加目录保护：`entry_snapshot.*`、`material.set_entry_link`、`timeline_view.rename`／`add_lane`／`move_lane`／`remove_lane` 在 `exclusion_v3` 中显式排除，目录和直接调用解析器共用这道规则。此前文档记录了待接入状态，本批将其落实为注册新书范围命令后仍不会自动开放的代码约束。永久回归使用独立合成 Registry，给这些名字有效的 book 输入，确认普通范围策略会放行而 v3 目录／调用策略拒绝；同时覆盖快照命令族、共享名字和 v3 专用名字，不依赖命令尚未注册而得到空通过。不读取 WIP 实现，不改内核命令；代码只改 `dr-agent-tools/src/catalog.rs`，随本文同批提交。
+
+执行 `git merge main`，当前 main `9a2351a7` 已包含在分支；全套 fmt、Clippy、工作区测试、xtask 和根目录 public 检查全部通过：**2170 通过／0 失败／22 忽略**，公开边界 5531 项。v3 testkit 种子与录制合成响应驱动的副屏真窗口冒烟 **16/16、0 pending**，正常退出；未调用真实模型或服务。编译 `CARGO_BUILD_JOBS=3`，全测 `RUST_TEST_THREADS=1`。本次日志为 `/tmp/drifting-k6-reserved-{fmt,clippy,tests,gates,public,window}.log`，窗口报告 `/tmp/drifting-k6-reserved-window/result.json`；既有审计通知和 stale／legacy 性能证据仍保留，未据此声称性能验收通过。
+
+待协调：上述入口须在对应读取范围、版本守卫和恢复协议正式接入后逐项开放。K2 另在准备 `membership.restore` 局部逆操作并自带 Agent 排除；收到正式交回后保留该独立保护与拒绝契约，合批时去重，不提前开放。锚定批注正向来源守卫、首次写前完整条目快照仍待所属接口正式合 main；本批不放松隐藏时间线整份写入或取消归属保护。提交后更新 `handback/k6` 并主动通知整合者，不合入 main、不推送。
