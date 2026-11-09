@@ -19,7 +19,7 @@ pub(crate) struct State {
 
 /// `None` follows the book; Entry includes its module, Material its own note.
 /// The host converts these targets directly, without `book::nav_target`.
-/// Writes remain disabled until K2's versioned comment commands are available.
+/// Writes use the registry's v3 partial comment commands and retain failed drafts.
 #[allow(clippy::too_many_arguments)]
 pub fn panel(
     id: &str,

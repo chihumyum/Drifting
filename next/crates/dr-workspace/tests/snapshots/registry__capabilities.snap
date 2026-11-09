@@ -101,6 +101,7 @@ material.create              command  book     Add a material: a text note, or a
 material.delete              command  book     Delete a material: its relations go and comments on it become floating, in one commit (its note stays in history; undo restores it).
 material.list                query    shared   List materials in order, optionally of one folder.
 material.move                command  book     Move a material in the list (only its own position changes).
+material.set_entry_link      command  book     Add or remove one built-in association from a material to a live v3 entry, preserving every other relation.
 material.update              command  book     Change a material's title, description, folder or TODO projection.
 material_folder.create       command  book     Create a material folder.
 material_folder.delete       command  book     Delete a material folder: its sub-folders and materials move up to its parent.
