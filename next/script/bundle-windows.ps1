@@ -57,9 +57,37 @@ if (-not $makensis) {
 }
 if (-not $makensis) { throw 'makensis (NSIS 3) is not installed' }
 
-$arch = if ($Target -like 'aarch64*' -or (-not $Target -and $env:PROCESSOR_ARCHITECTURE -eq 'ARM64')) { 'arm64' } else { 'x64' }
+$arch = switch -Wildcard ($Target) {
+  'aarch64*' { 'arm64' }
+  'x86_64*'  { 'x64' }
+  ''         { if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'arm64' } else { 'x64' } }
+  default    { throw "unsupported Windows target '$Target' (expected x86_64-pc-windows-msvc or aarch64-pc-windows-msvc)" }
+}
+$fontsDir = if ($env:DRIFTING_FONTS_DIR) { $env:DRIFTING_FONTS_DIR } else { Join-Path $next '.cache\fonts' }
+$faces = @(
+  'DriftingSans-Regular.ttf',
+  'DriftingSans-Medium.ttf',
+  'DriftingSans-SemiBold.ttf',
+  'DriftingSerif-Regular.ttf',
+  'DriftingSerif-Bold.ttf',
+  'SarasaMonoSC-Regular.ttf',
+  'OFL-1.1.txt'
+)
+$hasAllFonts = ($faces | Where-Object { -not (Test-Path (Join-Path $fontsDir $_)) }).Count -eq 0
 $installer = Join-Path $Output "Drifting_Next_${version}_windows_${arch}-setup.exe"
-& $makensis /V2 /INPUTCHARSET UTF8 "/DVERSION=$version" "/DVERSION_NUMERIC=$numeric" "/DEXE_SOURCE=$exe" "/DOUTFILE=$installer" (Join-Path $PSScriptRoot 'windows\drifting.nsi')
+$nsisArgs = @(
+  '/V2',
+  '/INPUTCHARSET', 'UTF8',
+  "/DVERSION=$version",
+  "/DVERSION_NUMERIC=$numeric",
+  "/DEXE_SOURCE=$exe",
+  "/DOUTFILE=$installer"
+)
+if ($hasAllFonts) {
+  $nsisArgs += "/DFONTS_DIR=$fontsDir"
+}
+$nsisArgs += (Join-Path $PSScriptRoot 'windows\drifting.nsi')
+& $makensis @nsisArgs
 if ($LASTEXITCODE -ne 0) { throw 'makensis failed' }
 $size = [math]::Round((Get-Item $installer).Length / 1MB, 1)
 Write-Output "bundle-windows: $installer ($size MiB)"

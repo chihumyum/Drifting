@@ -13,12 +13,15 @@ dr-i18n.workspace = true
 dr-platform.workspace = true
 dr-shell.workspace = true
 dr-store.workspace = true
+dr-sync.workspace = true
 dr-ui.workspace = true
 dr-view-feedback.workspace = true
 dr-view-sea.workspace = true
 gpui.workspace = true
 image.workspace = true
 log.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 smallvec.workspace = true
 
 [dev-dependencies]

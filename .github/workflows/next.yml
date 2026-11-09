@@ -43,8 +43,13 @@ jobs:
         include:
           - platform: macos
             runner: macos-26
-          - platform: windows
+            target: aarch64-apple-darwin
+          - platform: windows-x64
             runner: windows-latest
+            target: x86_64-pc-windows-msvc
+          - platform: windows-arm64
+            runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
     runs-on: ${{ matrix.runner }}
     # A cold GPUI build takes several minutes on a desktop Mac.
     timeout-minutes: 90
@@ -139,9 +144,10 @@ jobs:
           test -L "$mount/Applications"
           codesign --verify --strict "$mount/Drifting Next.app"
           ls -l target/bundle
-      # The NSIS installer: build it from the debug executable, install it for
-      # the runner's user, update over it with Tauri's flags, uninstall.
-      - if: ${{ !cancelled() && matrix.platform == 'windows' }}
-        name: Check the Windows installer
+      # The NSIS installer (x64 on windows-latest, arm64 on windows-11-arm):
+      # build it from the debug executable, install it for the runner's user,
+      # update over it with Tauri's flags, uninstall.
+      - if: ${{ !cancelled() && startsWith(matrix.platform, 'windows') }}
+        name: Check the Windows installer (${{ matrix.platform }})
         shell: pwsh
         run: script/check-windows-installer.ps1
