@@ -1,4 +1,5 @@
 //! A patch module: editable title and text, with source references kept by F3.
+use crate::fields::guarded;
 use dr_shell::{
     t,
     v3::{ModuleHost, Rendered},
@@ -17,6 +18,9 @@ use dr_workspace::{
 use gpui::{prelude::*, *};
 use std::collections::BTreeMap;
 
+#[cfg(test)]
+mod tests;
+
 struct Row {
     title: Entity<TextArea>,
     body: Entity<TextArea>,
@@ -25,7 +29,6 @@ struct Row {
     writing: bool,
     queued: bool,
     error: bool,
-    awaiting: Option<(String, String)>,
     _events: Vec<Subscription>,
 }
 pub struct Patches {
@@ -35,6 +38,9 @@ pub struct Patches {
     reading: bool,
     stale: bool,
     error: bool,
+    read_epoch: u64,
+    pending_add: usize,
+    adding: bool,
 }
 pub fn register(cx: &mut App) {
     dr_shell::v3::add_module_view(cx, "patches", |host, window, cx| {
@@ -58,6 +64,9 @@ impl Patches {
             reading: false,
             stale: false,
             error: false,
+            read_epoch: 0,
+            pending_add: 0,
+            adding: false,
         };
         v.reload(cx);
         v
@@ -75,20 +84,25 @@ impl Patches {
             return;
         }
         self.reading = true;
+        let epoch = self.read_epoch;
         let (lib, input) = (self.host.page.library.clone(), self.target());
         let job = cx.background_spawn(async move { lib.run::<ModuleRead>(&Actor::User, input) });
         cx.spawn(async move |this, cx| {
             let result = job.await;
             this.update(cx, |v, cx| {
                 v.reading = false;
-                match result {
-                    Ok(data) => {
-                        v.records = data.output.patches;
-                        v.error = false;
-                    }
-                    Err(e) => {
-                        log::warn!("patch module: {e}");
-                        v.error = true;
+                if epoch != v.read_epoch {
+                    v.stale = true;
+                } else {
+                    match result {
+                        Ok(data) => {
+                            v.records = data.output.patches;
+                            v.error = false;
+                        }
+                        Err(e) => {
+                            log::warn!("patch module: {e}");
+                            v.error = true;
+                        }
                     }
                 }
                 if v.stale {
@@ -107,15 +121,9 @@ impl Patches {
         for patch in &self.records {
             let stored = (patch.title.clone().unwrap_or_default(), patch.body.clone());
             if let Some(row) = self.rows.get_mut(&patch.id) {
-                if let Some(awaiting) = &row.awaiting {
-                    if awaiting == &stored {
-                        row.awaiting = None;
-                    } else {
-                        continue;
-                    }
-                }
                 if !row.dirty
                     && !row.writing
+                    && !row.error
                     && !row.title.focus_handle(cx).is_focused(window)
                     && !row.body.focus_handle(cx).is_focused(window)
                     && row.stored != stored
@@ -181,37 +189,36 @@ impl Patches {
                     writing: false,
                     queued: false,
                     error: false,
-                    awaiting: None,
                     _events: events,
                 },
             );
         }
     }
     fn save(&mut self, id: &str, cx: &mut Context<Self>) {
+        self.save_draft(id, false, cx);
+    }
+    fn save_draft(&mut self, id: &str, retry: bool, cx: &mut Context<Self>) {
         let input = self.target();
         let Some(row) = self.rows.get_mut(id) else {
             return;
         };
-        if row.writing {
+        if row.writing || self.adding {
             row.queued = true;
             return;
         }
-        if !row.dirty {
+        if !row.dirty || (row.error && !retry) {
             return;
         }
         let sent = (row.title.read(cx).text(), row.body.read(cx).text());
+        let base = row.stored.clone();
         row.writing = true;
         row.queued = false;
         row.error = false;
         let (lib, id) = (self.host.page.library.clone(), id.to_owned());
-        let write = PatchIn {
-            target: input,
-            id: Some(id.clone()),
-            title: Some(sent.0.clone()),
-            body: sent.1.clone(),
-            pos: None,
-        };
-        let job = cx.background_spawn(async move { lib.run::<PatchPut>(&Actor::User, write) });
+        let (draft, patch_id) = (sent.clone(), id.clone());
+        let job = cx.background_spawn(async move {
+            guarded::patch(&lib, input, patch_id, base, draft, retry)?.commit(&lib)
+        });
         cx.spawn(async move |this, cx| {
             let result = job.await;
             this.update(cx, |v, cx| {
@@ -219,12 +226,26 @@ impl Patches {
                 if let Some(row) = v.rows.get_mut(&id) {
                     row.writing = false;
                     match result {
-                        Ok(_) => {
-                            row.stored = sent.clone();
-                            row.awaiting = Some(sent.clone());
+                        Ok(saved) => {
+                            let baseline = guarded::acknowledged_base(
+                                &sent,
+                                saved.clone(),
+                                &(row.title.read(cx).text(), row.body.read(cx).text()),
+                            );
+                            // Keep typing that happened while the command was in
+                            // flight, but refresh fields merged from the fresh read.
+                            if sent.0 != saved.0 && row.title.read(cx).text() == sent.0 {
+                                row.title
+                                    .update(cx, |f, cx| f.set_text(saved.0.clone(), cx));
+                            }
+                            if sent.1 != saved.1 && row.body.read(cx).text() == sent.1 {
+                                row.body.update(cx, |f, cx| f.set_text(saved.1.clone(), cx));
+                            }
+                            row.stored = baseline;
                             row.dirty =
-                                (row.title.read(cx).text(), row.body.read(cx).text()) != sent;
+                                (row.title.read(cx).text(), row.body.read(cx).text()) != row.stored;
                             again = row.queued && row.dirty;
+                            v.read_epoch += 1;
                         }
                         Err(e) => {
                             log::warn!("patch write: {e}");
@@ -235,6 +256,7 @@ impl Patches {
                 if again {
                     v.save(&id, cx);
                 }
+                v.pump_add(cx);
                 v.reload(cx);
                 cx.notify();
             })
@@ -243,6 +265,26 @@ impl Patches {
         .detach();
     }
     fn add(&mut self, cx: &mut Context<Self>) {
+        self.pending_add += 1;
+        self.pump_add(cx);
+    }
+    fn pump_add(&mut self, cx: &mut Context<Self>) {
+        if self.pending_add == 0 || self.adding || self.rows.values().any(|r| r.writing) {
+            return;
+        }
+        // A click on New patch also blurs the current field. Finish that save
+        // before the creation changes the shared book frontier.
+        if let Some(id) = self
+            .rows
+            .iter()
+            .find(|(_, r)| r.dirty && !r.error)
+            .map(|(id, _)| id.clone())
+        {
+            self.save(&id, cx);
+            return;
+        }
+        self.pending_add -= 1;
+        self.adding = true;
         let (lib, target) = (self.host.page.library.clone(), self.target());
         let job = cx.background_spawn(async move {
             lib.run::<PatchPut>(
@@ -259,13 +301,27 @@ impl Patches {
         cx.spawn(async move |this, cx| {
             let result = job.await;
             this.update(cx, |v, cx| {
+                v.adding = false;
                 match result {
-                    Ok(_) => v.reload(cx),
+                    Ok(_) => {
+                        v.read_epoch += 1;
+                        v.reload(cx);
+                    }
                     Err(e) => {
                         log::warn!("new patch: {e}");
                         v.error = true;
                     }
                 }
+                let queued = v
+                    .rows
+                    .iter()
+                    .filter(|(_, r)| r.queued && r.dirty && !r.error)
+                    .map(|(id, _)| id.clone())
+                    .collect::<Vec<_>>();
+                for id in queued {
+                    v.save(&id, cx);
+                }
+                v.pump_add(cx);
                 cx.notify();
             })
             .ok();
@@ -284,7 +340,10 @@ impl Patches {
             let result = job.await;
             this.update(cx, |v, cx| {
                 match result {
-                    Ok(_) => v.reload(cx),
+                    Ok(_) => {
+                        v.read_epoch += 1;
+                        v.reload(cx);
+                    }
                     Err(e) => {
                         log::warn!("remove patch: {e}");
                         v.error = true;
@@ -301,11 +360,28 @@ impl Render for Patches {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.sync(window, cx);
         let mut list = div().flex().flex_col().gap_4();
-        for patch in &self.records {
-            let Some(row) = self.rows.get(&patch.id) else {
+        // A deleted record with a refused draft must remain visible and editable.
+        let ids = self
+            .records
+            .iter()
+            .map(|p| p.id.clone())
+            .chain(
+                self.rows
+                    .keys()
+                    .filter(|id| !self.records.iter().any(|p| &p.id == *id))
+                    .cloned(),
+            )
+            .collect::<Vec<_>>();
+        for id in ids {
+            let Some(row) = self.rows.get(&id) else {
                 continue;
             };
-            let id = patch.id.clone();
+            let source = self
+                .records
+                .iter()
+                .find(|p| p.id == id)
+                .and_then(|p| p.source_text.clone());
+            let retry_id = id.clone();
             list = list.child(
                 div()
                     .flex()
@@ -325,7 +401,7 @@ impl Render for Patches {
                             .aria_label(t(cx, dr_i18n::keys::k4_pages::BODY))
                             .child(row.body.clone()),
                     )
-                    .children(patch.source_text.clone().map(|s| {
+                    .children(source.map(|s| {
                         div()
                             .text_color(dr_ui::Theme::of(window, cx).palette.ink(3).solid())
                             .child(s)
@@ -334,6 +410,13 @@ impl Render for Patches {
                         row.error
                             .then(|| t(cx, dr_i18n::keys::k4_pages::SAVE_FAILED)),
                     )
+                    .children(row.error.then(|| {
+                        Button::new(
+                            SharedString::from(format!("retry-patch-{id}")),
+                            t(cx, dr_i18n::keys::markdown_share::RETRY),
+                        )
+                        .on_click(cx.listener(move |v, _, _, cx| v.save_draft(&retry_id, true, cx)))
+                    }))
                     .child(
                         Button::new(
                             SharedString::from(format!("remove-patch-{id}")),

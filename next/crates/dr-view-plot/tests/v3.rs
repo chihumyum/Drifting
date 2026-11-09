@@ -31,12 +31,40 @@ fn seeded() -> (tempfile::TempDir, dr_workspace::Workspace, String, String) {
 }
 
 #[test]
-fn changes_keep_other_cells_and_the_other_module_independent() {
+fn changes_keep_other_cells_and_a_hidden_retained_grid_independent() {
     let (_dir, ws, book, entry) = seeded();
     let entry = entry.as_str();
     ws.call(&Actor::User,"entry_template.put_module",json!({"book":book,"template":"tpl-chapter","module":{"id":"other-plot","name":"Other","kind":"plot_grid"}})).unwrap();
     let first = v3::read(&ws, &book, entry, "mod-plot-grid").unwrap();
     let other = v3::read(&ws, &book, entry, "other-plot").unwrap();
+    v3::write(
+        &ws,
+        &book,
+        entry,
+        "other-plot",
+        vec![Write::Cell {
+            row: other.rows[0].id.clone(),
+            col: other.columns[0].id.clone(),
+            text: "retained cell".into(),
+        }],
+    )
+    .unwrap();
+    let other = v3::read(&ws, &book, entry, "other-plot").unwrap();
+    ws.call(
+        &Actor::User,
+        "entry_template.remove_module",
+        json!({"book": book, "template": "tpl-chapter", "module": "other-plot"}),
+    )
+    .unwrap();
+    assert_eq!(
+        ws.call(
+            &Actor::User,
+            "module.read",
+            json!({"book": book, "entry": entry, "module": "other-plot"})
+        )
+        .unwrap()["output"]["module"]["retained"],
+        true
+    );
     let (r, c) = (first.rows[0].id.clone(), first.columns[0].id.clone());
     v3::write(
         &ws,

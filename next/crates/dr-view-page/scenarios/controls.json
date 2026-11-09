@@ -106,6 +106,14 @@
       }
     },
     {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      },
+      "note": "Allow the next frame to register the focused native input handler and deliver field events."
+    },
+    {
       "app": "input.key",
       "params": {
         "keys": "secondary-a"
@@ -118,10 +126,26 @@
       }
     },
     {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      },
+      "note": "Allow the next frame to register the focused native input handler and deliver field events."
+    },
+    {
       "app": "ui.press",
       "params": {
         "label": "Add field"
       }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      },
+      "note": "Allow the next frame to register the focused native input handler and deliver field events."
     },
     {
       "app": "input.type",
@@ -130,11 +154,27 @@
       }
     },
     {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      },
+      "note": "Allow the next frame to register the focused native input handler and deliver field events."
+    },
+    {
       "app": "input.click",
       "params": {
         "x": 710,
         "y": 443
       }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      },
+      "note": "Allow the next frame to register the focused native input handler and deliver field events."
     },
     {
       "app": "ui.wait",
@@ -185,6 +225,14 @@
       "app": "ui.wait",
       "params": {
         "until": "time",
+        "ms": 200
+      },
+      "note": "Allow the next frame to register the focused native input handler and deliver field events."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
         "ms": 700
       }
     },
@@ -194,6 +242,14 @@
         "role": "Group",
         "label": "Title"
       }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      },
+      "note": "Allow the next frame to register the focused native input handler and deliver field events."
     },
     {
       "app": "input.key",
@@ -208,11 +264,27 @@
       }
     },
     {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      },
+      "note": "Allow the next frame to register the focused native input handler and deliver field events."
+    },
+    {
       "app": "ui.press",
       "params": {
         "role": "Group",
         "label": "Body"
       }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      },
+      "note": "Allow the next frame to register the focused native input handler and deliver field events."
     },
     {
       "app": "input.type",
@@ -221,10 +293,26 @@
       }
     },
     {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      },
+      "note": "Allow the next frame to register the focused native input handler and deliver field events."
+    },
+    {
       "app": "ui.press",
       "params": {
         "label": "New patch"
       }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      },
+      "note": "Allow the next frame to register the focused native input handler and deliver field events."
     },
     {
       "app": "ui.wait",
@@ -286,10 +374,26 @@
       }
     },
     {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      },
+      "note": "Allow the next frame to register the focused native input handler and deliver field events."
+    },
+    {
       "app": "input.type",
       "params": {
         "text": "G1 plot"
       }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      },
+      "note": "Allow the next frame to register the focused native input handler and deliver field events."
     },
     {
       "app": "ui.press",
@@ -297,6 +401,14 @@
         "role": "Button",
         "label": "Row"
       }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 200
+      },
+      "note": "Allow the next frame to register the focused native input handler and deliver field events."
     },
     {
       "app": "ui.wait",
