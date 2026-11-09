@@ -215,3 +215,63 @@ fn grid_and_islands_share_entry_targets_and_preserve_canvas_layout() {
     );
     ws.shutdown().unwrap();
 }
+
+#[gpui::test]
+fn refresh_keeps_the_visible_entry_when_rows_are_inserted_above_it(cx: &mut gpui::TestAppContext) {
+    cx.executor().allow_parking();
+    use dr_shell::{
+        pages::PageViewHost,
+        v3::{DisplaySurface, LevelHost},
+    };
+    use dr_view_elements::panel::v3::LevelDisplay;
+    use gpui::{AppContext as _, ListOffset, WeakEntity, px};
+    use std::rc::Rc;
+    let (_dir, ws, book) = seed();
+    let initial = Rc::new(Book::load(&ws, &book).unwrap());
+    let root = initial.v3().unwrap().roots[0].clone();
+    let view = cx.update(|cx| {
+        cx.new(|_| {
+            LevelDisplay::new(
+                LevelHost {
+                    page: PageViewHost {
+                        workspace: WeakEntity::new_invalid(),
+                        library: ws.clone(),
+                        book_id: book.clone(),
+                        book: initial.clone(),
+                    },
+                    level: root.clone(),
+                    surface: DisplaySurface::Sidebar,
+                },
+                Display::List,
+            )
+        })
+    });
+    let anchor = cx.update(|cx| {
+        let view = view.read(cx);
+        view.scroll_state().scroll_to(ListOffset {
+            item_ix: 2,
+            offset_in_item: px(0.0),
+        });
+        view.rows[2].clone()
+    });
+    let group = call(
+        &ws,
+        "entry.create",
+        json!({"book":book,"parent":root,"template":"tpl-group","title":"Synthetic inserted level"}),
+    );
+    call(
+        &ws,
+        "entry.move",
+        json!({"book":book,"id":group["id"],"parent":root,"index":0}),
+    );
+    let again = Rc::new(Book::load(&ws, &book).unwrap());
+    cx.update(|cx| {
+        view.update(cx, |view, cx| {
+            view.refresh(again, cx);
+            let at = view.scroll_state().logical_scroll_top().item_ix;
+            assert_eq!(view.rows[at], anchor);
+            assert_eq!(at, 3);
+        })
+    });
+    ws.shutdown().unwrap();
+}

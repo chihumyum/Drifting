@@ -1894,12 +1894,26 @@ pub mod v3 {
                 &self.folded,
                 columns,
             );
-            // ListState keeps the visible item when rows change. Input and board
-            // scroll are owned by this view, not recreated on every book event.
+            // Keep the visible entry anchored when a book event inserts or
+            // removes rows above it. reset() alone clears GPUI's anchor.
             if *self.rows != rows {
+                let mut offset = self.list.logical_scroll_top();
+                if let Some(row) = self.rows.get(offset.item_ix)
+                    && let Some(index) = rows.iter().position(|next| next == row)
+                {
+                    offset.item_ix = index;
+                }
+                offset.item_ix = offset.item_ix.min(rows.len().saturating_sub(1));
                 self.list.reset(rows.len());
+                self.list.scroll_to(offset);
                 self.rows = Rc::new(rows);
+            } else {
+                // Tile names can change wrapping without changing row IDs.
+                self.list.remeasure_items(0..rows.len());
             }
+        }
+        pub fn scroll_state(&self) -> ListState {
+            self.list.clone()
         }
         pub fn refresh(&mut self, book: Rc<Book>, cx: &mut Context<Self>) {
             self.host.page.book = book;
