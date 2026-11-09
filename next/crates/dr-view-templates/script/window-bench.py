@@ -113,9 +113,15 @@ def measure(phase):
         call("window.focus")
         call("book.open", {"book": config["book"]})
         call("ui.wait", {"state": {"/book/version": 3}})
+        # Later K4 integrations may register a visible timeline. Keep the
+        # comparison's paper height identical in both executable versions.
+        if call("state.get")["bottom"]["pane"] is not None:
+            call("action.dispatch", {"name": "workspace::ToggleBottomTimeline"})
+            call("ui.wait", {"state": {"/bottom/pane": None}})
+            call("ui.wait", {"until": "time", "ms": 500})
+        templates = call("command.call", {"name": "entry_template.list", "input": {"book": config["book"]}})["output"]
+        template = next(t for t in templates if t["id"] == "tpl-chapter")
         if phase == "leaf":
-            templates = call("command.call", {"name": "entry_template.list", "input": {"book": config["book"]}})["output"]
-            template = next(t for t in templates if t["id"] == "tpl-chapter")
             template["modules"] = [module for module in template["modules"] if not module["id"].startswith("k5-bench-")]
             # Repeat the seed's own module definitions, with unique ids, so the
             # template editor has a genuine scroll range. No prose corpus added.
@@ -137,22 +143,33 @@ def measure(phase):
             call("ui.find", {"label": "Template name", "count": 1})
             top = screenshot("top" if index == 0 else None, settle_ms=200)
             opened.append((time.perf_counter() - start) * 1000)
-            bounds = call("ui.find", {"label": "Template name"})["nodes"][0]["bounds"]
-            # The left gutter is inside the page's scroll container and
-            # outside the text inputs, which may consume wheel events.
-            x, y = bounds["x"] - 24, bounds["y"] + 360
+            # Outside the open timing: finish the shell's navigation motion
+            # before taking the pointer's hit-test position. Name fields in
+            # the moving header can have stale accessibility bounds.
+            call("ui.wait", {"until": "time", "ms": 350})
+            bounds = call("ui.find", {"role": "Group", "label": template["modules"][0]["name"]})["nodes"][0]["bounds"]
+            # The module's left edge is inside the scroll container and
+            # outside inputs (which may consume wheel events).
+            x, y = bounds["x"] + 4, bounds["y"] + 10
             start = time.perf_counter()
             call("input.scroll", {"x": x, "y": y, "dy": 4000})
-            bottom = screenshot("bottom" if index == 0 else None)
+            # Let the scroll event reach layout before reading the frame;
+            # without this, an immediate PNG can still be the previous frame.
+            bottom = screenshot("bottom" if index == 0 else None, settle_ms=50)
             if top == bottom:
+                (OUT / f"{phase}-failed-scroll.json").write_text(json.dumps({
+                    "pointer": [x, y], "module_bounds": bounds,
+                    "app": call("app.info"), "sample": index,
+                }, indent=2))
                 raise RuntimeError("scroll did not change the rendered window")
             scrolls.append((time.perf_counter() - start) * 1000)
             call("input.scroll", {"x": x, "y": y, "dy": -10000})
+            call("ui.wait", {"until": "time", "ms": 100})
         summary = lambda values: {"samples_ms": values, "median_ms": statistics.median(values), "max_ms": max(values)}
         result = {"phase": phase, "seed": "v3-heavy", "build": os.environ.get("DRIFTING_BENCH_BUILD", "debug-bridge"), "samples": 7,
                   "binary_sha256": hashlib.sha256(binary.read_bytes()).hexdigest(),
                   "machine": {"architecture": os.uname().machine, "cpus": os.cpu_count(), "load_average": os.getloadavg()},
-                  "includes": "bridge and PNG readback; open also waits 200 ms for navigation animation", "open": summary(opened), "scroll": summary(scrolls)}
+                  "includes": "bridge and PNG readback; open waits 200 ms for navigation animation; scroll waits 50 ms for layout", "open": summary(opened), "scroll": summary(scrolls)}
         (OUT / f"{phase}.json").write_text(json.dumps(result, indent=2) + "\n")
         print(json.dumps(result))
         call("app.quit")

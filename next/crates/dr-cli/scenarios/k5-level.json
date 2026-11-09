@@ -1,0 +1,1071 @@
+{
+  "about": "K5 第二次交回：共享 v3-lite 真窗口，层级模板、字段限制、八项设置与还原、泳道、动作、帮手说明与预览、重开持久化。",
+  "steps": [
+    {
+      "seed": "v3-lite"
+    },
+    {
+      "call": "book.list",
+      "input": {},
+      "save": "books"
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "homes"
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${books.0.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/version": 3
+        }
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ToggleBottomTimeline"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/bottom/pane": null
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 500
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ToggleLeftSidebar"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/left/open": true
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "New template"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Level template",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Template name"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-a"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "Acceptance level"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Save"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Saved"
+      }
+    },
+    {
+      "call": "entry_template.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "created",
+      "expect": {
+        "/[name=Acceptance level]/kind": "level",
+        "/[name=Acceptance level]/modules": []
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "template:${created.[name=Acceptance level].id}"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Add field"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Prose",
+        "role": "MenuItem",
+        "absent": true
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Text",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Add field"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Key-value table",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Save"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Saved"
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 590,
+        "y": 480,
+        "dy": 200
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "PopUpButton",
+        "within": {
+          "role": "Group",
+          "label": "Default template"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "章",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "章",
+        "role": "CheckBox",
+        "within": {
+          "role": "Group",
+          "label": "Allowed templates"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "PopUpButton",
+        "within": {
+          "role": "Group",
+          "label": "Display"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Grid",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "PopUpButton",
+        "within": {
+          "role": "Group",
+          "label": "Display"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Board",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "PopUpButton",
+        "within": {
+          "role": "Group",
+          "label": "Display"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Islands",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "PopUpButton",
+        "within": {
+          "role": "Group",
+          "label": "Display"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "List",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Auto-link",
+        "role": "CheckBox"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Accept entries from elsewhere",
+        "role": "CheckBox"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Accept entries from elsewhere",
+        "role": "CheckBox"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "PopUpButton",
+        "within": {
+          "role": "Group",
+          "label": "New entries reside in"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "书稿",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Manuscript",
+        "role": "CheckBox"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Manuscript",
+        "role": "CheckBox"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "PopUpButton",
+        "within": {
+          "role": "Group",
+          "label": "Formatting shortcuts"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Notes",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Lane",
+        "role": "CheckBox"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Accept entries from elsewhere",
+        "role": "CheckBox"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Save"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Saved"
+      }
+    },
+    {
+      "call": "entry_template.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "settings",
+      "expect": {
+        "/[id=${created.[name=Acceptance level].id}]/settings": {
+          "default_template": "tpl-chapter",
+          "allow": [
+            "tpl-chapter"
+          ],
+          "display": "list",
+          "auto_link": true,
+          "accept": false,
+          "home": "${homes.[template=tpl-manuscript].id}",
+          "is_manuscript": false,
+          "format_shortcuts": "notes"
+        },
+        "/[id=${created.[name=Acceptance level].id}]/lane": true,
+        "/[id=${created.[name=Acceptance level].id}]/modules/0/kind": "fields",
+        "/[id=${created.[name=Acceptance level].id}]/modules/1/kind": "kv"
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "01-level-settings.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Add action"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Action name"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-a"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "Acceptance create"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Save"
+      }
+    },
+    {
+      "call": "entry_template.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "expect": {
+        "/[id=${created.[name=Acceptance level].id}]/verbs": []
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "PopUpButton",
+        "within": {
+          "role": "Group",
+          "label": "Acceptance create"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "章",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Save"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Saved"
+      }
+    },
+    {
+      "call": "entry_template.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "actions",
+      "expect": {
+        "/[id=${created.[name=Acceptance level].id}]/verbs/0/name": "Acceptance create",
+        "/[id=${created.[name=Acceptance level].id}]/verbs/0/target_template": "tpl-chapter"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Action name"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-a"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "Acceptance renamed action"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Save"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Saved"
+      }
+    },
+    {
+      "call": "entry_template.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "expect": {
+        "/[id=${created.[name=Acceptance level].id}]/verbs/0/id": "${actions.[name=Acceptance level].verbs.0.id}",
+        "/[id=${created.[name=Acceptance level].id}]/verbs/0/name": "Acceptance renamed action"
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 590,
+        "y": 480,
+        "dy": 250
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Add action"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Delete",
+        "role": "Button",
+        "within": {
+          "role": "Group",
+          "label": "New entry"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Save"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Saved"
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 590,
+        "y": 480,
+        "dy": 10000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Name"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-a"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "Acceptance helper"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Description"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-a"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "Synthetic helper description"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Instructions"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-a"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "Synthetic author instructions\nH1 H2 H3"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Module instructions · Text"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-a"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "Synthetic field guidance"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Module instructions · Key-value table"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-a"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "Synthetic table guidance"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "What the helper sees"
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 590,
+        "y": 480,
+        "dy": 10000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "contains": "Synthetic author instructions",
+        "within": {
+          "label": "What the helper sees",
+          "role": "Group"
+        }
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "02-helper-preview.png"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Save"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Saved"
+      }
+    },
+    {
+      "call": "entry_template.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "guided",
+      "expect": {
+        "/[id=${created.[name=Acceptance level].id}]/agent": {
+          "name": "Acceptance helper",
+          "description": "Synthetic helper description",
+          "instructions": "Synthetic author instructions\nH1 H2 H3"
+        },
+        "/[id=${created.[name=Acceptance level].id}]/modules/0/agent/instructions": "Synthetic field guidance",
+        "/[id=${created.[name=Acceptance level].id}]/modules/0/agent/writable": true,
+        "/[id=${created.[name=Acceptance level].id}]/modules/1/agent/instructions": "Synthetic table guidance"
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 590,
+        "y": 480,
+        "dy": -10000
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 590,
+        "y": 480,
+        "dy": 200
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Restore",
+        "role": "Button",
+        "within": {
+          "role": "Group",
+          "label": "Default template"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Restore",
+        "role": "Button",
+        "within": {
+          "role": "Group",
+          "label": "Allowed templates"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Restore",
+        "role": "Button",
+        "within": {
+          "role": "Group",
+          "label": "Display"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Restore",
+        "role": "Button",
+        "within": {
+          "role": "Group",
+          "label": "Auto-link"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Restore",
+        "role": "Button",
+        "within": {
+          "role": "Group",
+          "label": "Accept entries from elsewhere"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Restore",
+        "role": "Button",
+        "within": {
+          "role": "Group",
+          "label": "New entries reside in"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Restore",
+        "role": "Button",
+        "within": {
+          "role": "Group",
+          "label": "Manuscript"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Restore",
+        "role": "Button",
+        "within": {
+          "role": "Group",
+          "label": "Formatting shortcuts"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Lane",
+        "role": "CheckBox"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Save"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Saved"
+      }
+    },
+    {
+      "call": "entry_template.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "expect": {
+        "/[id=${created.[name=Acceptance level].id}]/settings": {
+          "allow": null,
+          "display": null,
+          "auto_link": null,
+          "accept": null,
+          "is_manuscript": null,
+          "format_shortcuts": null
+        },
+        "/[id=${created.[name=Acceptance level].id}]/lane": false
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "PopUpButton",
+        "within": {
+          "role": "Group",
+          "label": "Default template"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "None",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "PopUpButton",
+        "within": {
+          "role": "Group",
+          "label": "New entries reside in"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "This level",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Any template",
+        "role": "Button",
+        "within": {
+          "role": "Group",
+          "label": "Allowed templates"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Save"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Saved"
+      }
+    },
+    {
+      "call": "entry_template.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "expect": {
+        "/[id=${created.[name=Acceptance level].id}]/settings/default_template": null,
+        "/[id=${created.[name=Acceptance level].id}]/settings/home": null,
+        "/[id=${created.[name=Acceptance level].id}]/settings/allow": []
+      }
+    },
+    {
+      "app": "app.quit"
+    },
+    {
+      "launch": {
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${books.0.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/id": "${books.0.id}",
+          "/book/version": 3
+        }
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "template:${created.[name=Acceptance level].id}"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Template name"
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 590,
+        "y": 480,
+        "dy": 200
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "PopUpButton",
+        "label": "None",
+        "within": {
+          "role": "Group",
+          "label": "Default template"
+        }
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "PopUpButton",
+        "label": "This level",
+        "within": {
+          "role": "Group",
+          "label": "New entries reside in"
+        }
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 590,
+        "y": 480,
+        "dy": 10000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "What the helper sees"
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 590,
+        "y": 480,
+        "dy": 10000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "contains": "Synthetic table guidance",
+        "within": {
+          "label": "What the helper sees",
+          "role": "Group"
+        }
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "03-reopened-preview.png"
+    },
+    {
+      "app": "app.quit"
+    }
+  ]
+}

@@ -25,6 +25,8 @@ use gpui::{
 };
 
 use crate::model;
+mod guidance;
+mod levels;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Binding {
@@ -33,12 +35,41 @@ enum Binding {
     ModuleName(String),
     FieldName(String, String),
     Options(String, String),
+    AgentName,
+    AgentDescription,
+    AgentInstructions,
+    ModuleInstructions(String),
+    ActionName(String),
 }
 impl Binding {
     fn value(&self, t: &EntryTemplate) -> String {
         match self {
             Self::Name => t.name.clone(),
             Self::Color => t.color.clone().unwrap_or_default(),
+            Self::AgentName => t.agent.as_ref().map(|a| a.name.clone()).unwrap_or_default(),
+            Self::AgentDescription => t
+                .agent
+                .as_ref()
+                .map(|a| a.description.clone())
+                .unwrap_or_default(),
+            Self::AgentInstructions => t
+                .agent
+                .as_ref()
+                .map(|a| a.instructions.clone())
+                .unwrap_or_default(),
+            Self::ModuleInstructions(id) => t
+                .modules
+                .iter()
+                .find(|m| &m.id == id)
+                .and_then(|m| m.agent.as_ref())
+                .map(|a| a.instructions.clone())
+                .unwrap_or_default(),
+            Self::ActionName(id) => t
+                .verbs
+                .iter()
+                .find(|v| &v.id == id)
+                .map(|v| v.name.clone())
+                .unwrap_or_default(),
             Self::ModuleName(id) => t
                 .modules
                 .iter()
@@ -64,6 +95,28 @@ impl Binding {
         match self {
             Self::Name => t.name = value,
             Self::Color => t.color = (!value.trim().is_empty()).then_some(value),
+            Self::AgentName | Self::AgentDescription | Self::AgentInstructions => {
+                let agent = t.agent.get_or_insert_with(TemplateAgentConfig::default);
+                match self {
+                    Self::AgentName => agent.name = value,
+                    Self::AgentDescription => agent.description = value,
+                    _ => agent.instructions = value,
+                };
+            }
+            Self::ModuleInstructions(id) => {
+                if let Some(module) = t.modules.iter_mut().find(|m| &m.id == id) {
+                    let agent = module.agent.get_or_insert_with(|| ModuleAgentConfig {
+                        writable: true,
+                        ..ModuleAgentConfig::default()
+                    });
+                    agent.instructions = value;
+                }
+            }
+            Self::ActionName(id) => {
+                if let Some(verb) = t.verbs.iter_mut().find(|v| &v.id == id) {
+                    verb.name = value;
+                }
+            }
             Self::ModuleName(id) => {
                 if let Some(m) = t.modules.iter_mut().find(|m| &m.id == id) {
                     m.name = value.clone();
@@ -126,6 +179,7 @@ pub struct TemplateEditor {
     picker: Option<(Picker, gpui::Point<gpui::Pixels>)>,
     saving: bool,
     error: Option<bool>, // true: concurrent edit; false: command refused or storage failure
+    preview_open: bool,
     _book: Option<Subscription>,
 }
 impl Focusable for TemplateEditor {
@@ -203,6 +257,7 @@ impl TemplateEditor {
             picker: None,
             saving: false,
             error: None,
+            preview_open: false,
             _book: None,
         };
         if let Some(workspace) = this.host.workspace.upgrade() {
@@ -437,6 +492,7 @@ impl TemplateEditor {
             Picker::Mark => model::MARKS.to_vec(),
             Picker::Add => model::MODULES
                 .iter()
+                .filter(|kind| self.draft.kind == "leaf" || **kind == "kv")
                 .chain(model::FIELDS)
                 .copied()
                 .collect(),
@@ -644,7 +700,14 @@ impl Render for TemplateEditor {
             .small()
             .primary()
             .busy(self.saving)
-            .disabled(self.saving || !self.dirty() || self.draft.name.trim().is_empty())
+            .disabled(
+                self.saving
+                    || !self.dirty()
+                    || self.draft.name.trim().is_empty()
+                    || self.host.book.v3().is_none_or(|book| {
+                        model::validate_actions(&self.draft, &book.templates).is_err()
+                    }),
+            )
             .on_click(cx.listener(|this, _, _, cx| this.save(cx)));
         let head = div()
             .flex()
@@ -706,8 +769,15 @@ impl Render for TemplateEditor {
                 .child(t(cx, k::COLOR))
                 .child(color),
         );
-        if self.draft.kind == "leaf" {
-            content = content.child(t(cx, k::MODULES));
+        if matches!(self.draft.kind.as_str(), "leaf" | "level") {
+            content = content.child(t(
+                cx,
+                if self.draft.kind == "level" {
+                    k::FIELDS
+                } else {
+                    k::MODULES
+                },
+            ));
             for module in self.draft.modules.clone() {
                 content = content.child(self.module_row(&module, window, cx));
             }
@@ -723,16 +793,32 @@ impl Render for TemplateEditor {
                         }
                     }))
                     .child(
-                        Button::new("k5-add-module", t(cx, k::ADD_MODULE))
-                            .small()
-                            .text()
-                            .icon(Icon::Plus)
-                            .on_click(
-                                cx.listener(|this, _, w, cx| this.show_picker(Picker::Add, w, cx)),
+                        Button::new(
+                            "k5-add-module",
+                            t(
+                                cx,
+                                if self.draft.kind == "level" {
+                                    k::ADD_FIELD
+                                } else {
+                                    k::ADD_MODULE
+                                },
                             ),
+                        )
+                        .small()
+                        .text()
+                        .icon(Icon::Plus)
+                        .on_click(
+                            cx.listener(|this, _, w, cx| this.show_picker(Picker::Add, w, cx)),
+                        ),
                     ),
             );
         }
+        if self.draft.kind == "level" {
+            content = content
+                .child(self.level_settings(cx))
+                .child(self.actions(window, cx));
+        }
+        content = content.child(self.guidance(window, cx));
         if let Some(conflict) = self.error {
             content = content.child(div().text_color(p.danger.solid()).child(t(
                 cx,
@@ -871,6 +957,57 @@ mod tests {
         editor.read_with(cx, |editor, _| {
             assert_eq!(editor.draft.name, renamed.name);
             assert!(!editor.dirty());
+        });
+        // Guidance edits must not silently grant access or change context tiers.
+        editor.update(cx, |editor, cx| {
+            editor.draft.modules[0].agent = Some(ModuleAgentConfig {
+                writable: false,
+                read_tier: Some("on_demand".into()),
+                instructions: "Synthetic existing guidance".into(),
+            });
+            Binding::AgentName.set(&mut editor.draft, "Synthetic \"helper\"".into());
+            Binding::AgentDescription.set(&mut editor.draft, "Synthetic description".into());
+            Binding::AgentInstructions
+                .set(&mut editor.draft, "Synthetic author instructions".into());
+            Binding::ModuleInstructions(editor.draft.modules[0].id.clone())
+                .set(&mut editor.draft, "Synthetic module guidance".into());
+            let module_agent = editor.draft.modules[0].agent.as_ref().unwrap();
+            assert!(!module_agent.writable);
+            assert_eq!(module_agent.read_tier.as_deref(), Some("on_demand"));
+            let preview = editor.preview(cx);
+            assert!(preview.contains(r#"name: "Synthetic \"helper\"""#));
+            assert!(preview.contains("Synthetic description"));
+            assert!(preview.contains("Synthetic author instructions"));
+            assert!(preview.contains("Synthetic module guidance"));
+            assert!(preview.contains(t(cx, k::READ_ONLY).as_ref()));
+            let saved = model::save(&lib, &id, editor.base.as_ref(), &editor.draft).unwrap();
+            let book = Book::load(&lib, &id).unwrap();
+            assert_eq!(book.v3().unwrap().template(&saved.id), Some(&saved));
+            // No permission config existed on this new module: writing a note
+            // must retain the model's default permission (true).
+            let mut module = model::module("text", "Synthetic new field".into());
+            let mid = module.id.clone();
+            module.agent = None;
+            editor.draft.modules.push(module);
+            Binding::ModuleInstructions(mid).set(&mut editor.draft, "Synthetic note".into());
+            assert!(
+                editor
+                    .draft
+                    .modules
+                    .last()
+                    .unwrap()
+                    .agent
+                    .as_ref()
+                    .unwrap()
+                    .writable
+            );
+            editor.draft.kind = "level".into();
+            editor.draft.settings.accept = Some(false);
+            editor.draft.lane = true;
+            let preview = editor.preview(cx);
+            let accept = format!("- {}:", t(cx, k::ACCEPT));
+            assert_eq!(preview.matches(&accept).count(), 1);
+            assert!(preview.contains(&format!("{accept} {}", t(cx, k::YES))));
         });
     }
 }
