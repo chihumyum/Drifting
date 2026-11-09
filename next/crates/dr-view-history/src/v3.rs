@@ -9,6 +9,10 @@ use dr_ui::{
 use dr_workspace::{Actor, Workspace, commands::v3::snapshots as api};
 use gpui::{prelude::*, *};
 
+#[cfg(test)]
+#[path = "v3_tests.rs"]
+pub(crate) mod tests;
+
 pub struct EntryHistoryDialog {
     lib: Workspace,
     target: api::EntryIn,
@@ -21,6 +25,8 @@ pub struct EntryHistoryDialog {
     busy: bool,
     error: Option<String>,
     task: Option<Task<()>>,
+    focus: FocusHandle,
+    restored: bool,
 }
 impl EventEmitter<HistoryEvent> for EntryHistoryDialog {}
 impl EntryHistoryDialog {
@@ -44,6 +50,8 @@ impl EntryHistoryDialog {
             busy: false,
             error: None,
             task: None,
+            focus: cx.focus_handle(),
+            restored: false,
         };
         d.reload(cx);
         d
@@ -103,6 +111,9 @@ impl EntryHistoryDialog {
         }
         self.busy = true;
         self.error = None;
+        self.preview = None;
+        self.selected = None;
+        self.confirming = false;
         let (lib, target) = (self.lib.clone(), self.target.clone());
         self.task = Some(cx.spawn(async move |this, cx| {
             let result = cx
@@ -152,6 +163,8 @@ impl EntryHistoryDialog {
                 d.confirming = false;
                 match result {
                     Ok(_) => {
+                        d.error = None;
+                        d.restored = true;
                         d.preview = None;
                         d.selected = None;
                         cx.emit(HistoryEvent::Restored {
@@ -175,6 +188,11 @@ impl EntryHistoryDialog {
         if !self.busy {
             cx.emit(HistoryEvent::Close);
         }
+    }
+}
+impl Focusable for EntryHistoryDialog {
+    fn focus_handle(&self, _: &App) -> FocusHandle {
+        self.focus.clone()
     }
 }
 impl Render for EntryHistoryDialog {
@@ -224,16 +242,19 @@ impl Render for EntryHistoryDialog {
                     .on_click(move |_, _, cx| select.update(cx, |d, cx| d.select(id.clone(), cx))),
                 );
                 if let Some(preview) = self.preview.as_ref().filter(|v| v.point.id == point.id) {
-                    let mut body = div()
+                    let mut detail = div()
                         .id(ElementId::Name(format!("entry-history-preview-{i}").into()))
+                        .max_h(px(crate::PREVIEW_MAX_HEIGHT))
+                        .overflow_y_scroll()
                         .flex()
                         .flex_col()
                         .gap(px(space::S3));
                     for (label, text) in preview_sections(preview) {
-                        body = body
+                        detail = detail
                             .child(div().text_color(p.ink(2).solid()).child(label))
                             .child(div().child(text));
                     }
+                    let mut body = div().flex().flex_col().gap(px(space::S3)).child(detail);
                     let restore = entity.clone();
                     body = body.child(
                         Button::new(
@@ -281,8 +302,19 @@ impl Render for EntryHistoryDialog {
                         .fmt(keys::snapshot_history::RESTORE_FAILED, &[("error", error)]),
                 ),
             );
+        } else if self.restored {
+            dialog =
+                dialog.status(div().child(self.strings.t(keys::snapshot_history::RESTORE_SUCCESS)));
         }
-        div().child(dialog)
+        div()
+            .track_focus(&self.focus)
+            .on_key_down(cx.listener(|d, event: &KeyDownEvent, _, cx| {
+                if event.keystroke.key == "escape" {
+                    d.close(cx);
+                }
+                cx.stop_propagation();
+            }))
+            .child(dialog)
     }
 }
 
@@ -299,7 +331,7 @@ fn preview_sections(p: &api::PreviewOut) -> Vec<(String, String)> {
             .iter()
             .find(|m| m.id == id)
             .map(|m| m.name.clone())
-            .unwrap_or_default()
+            .unwrap_or_else(|| id.to_owned())
     };
     let text = |v: &serde_json::Value| match v {
         serde_json::Value::String(s) => s.clone(),
@@ -322,7 +354,7 @@ fn preview_sections(p: &api::PreviewOut) -> Vec<(String, String)> {
                         .find(|m| &m.id == module)
                         .and_then(|m| m.config.defs.iter().find(|d| &d.id == id))
                         .map(|d| d.name.clone())
-                        .unwrap_or_default();
+                        .unwrap_or_else(|| id.clone());
                     out.push((label, text(value)));
                 }
             }
@@ -358,6 +390,33 @@ fn preview_sections(p: &api::PreviewOut) -> Vec<(String, String)> {
                 ));
             }
         }
+    }
+    // Raw sections keep hidden/future fields, memberships and relationships
+    // inspectable too. They are author data, never filtered by today's DTOs.
+    for (key, value) in &p.metadata {
+        out.push((
+            key.clone(),
+            serde_json::to_string_pretty(value).unwrap_or_default(),
+        ));
+    }
+    for (collection, rows) in &p.records {
+        for (id, row) in rows {
+            out.push((
+                format!("{collection} · {id}"),
+                serde_json::to_string_pretty(row).unwrap_or_default(),
+            ));
+        }
+    }
+    if let Some(template) = &p.template_metadata {
+        let name = p
+            .template
+            .as_ref()
+            .map(|t| t.name.clone())
+            .unwrap_or_default();
+        out.push((
+            name,
+            serde_json::to_string_pretty(template).unwrap_or_default(),
+        ));
     }
     out
 }

@@ -13,9 +13,18 @@ description = "Snapshot history (M09): a page's history points over F3's history
 
 [dependencies]
 chrono.workspace = true
+dr-doc.workspace = true
 dr-i18n.workspace = true
+dr-model.workspace = true
+dr-store.workspace = true
 dr-ui.workspace = true
 dr-workspace.workspace = true
 gpui.workspace = true
 log.workspace = true
+loro.workspace = true
 serde_json.workspace = true
+
+[dev-dependencies]
+dr-testkit.workspace = true
+gpui = { workspace = true, features = ["test-support"] }
+tempfile.workspace = true

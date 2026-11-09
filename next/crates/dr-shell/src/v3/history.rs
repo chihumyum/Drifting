@@ -66,13 +66,18 @@ impl crate::Workspace {
             book: self.book_id.clone(),
             entry,
         };
+        let previous_focus = window.focused(cx);
         let dialog = cx.new(|cx| {
             dr_view_history::EntryHistoryDialog::new(lib, target, title, locale, platform, cx)
         });
-        cx.subscribe_in(&dialog, window, |ws, _, event, window, cx| {
+        gpui::Focusable::focus_handle(dialog.read(cx), cx).focus(window, cx);
+        cx.subscribe_in(&dialog, window, move |ws, _, event, window, cx| {
             if *event == dr_view_history::HistoryEvent::Close {
                 ws.dialog = None;
-                ws.focus_handle().focus(window, cx);
+                previous_focus
+                    .as_ref()
+                    .unwrap_or(&ws.focus_handle())
+                    .focus(window, cx);
                 cx.notify();
             }
         })

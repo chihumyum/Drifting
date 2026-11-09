@@ -1513,14 +1513,82 @@ impl<'a> BookTxnV3<'a> {
         Ok(())
     }
 
-    /// Restore every stored metadata key, including future/hidden fields.
-    /// Parent/order are handled separately by the caller's validated plan.
-    pub fn restore_entry_complete(&mut self, id: &EntryId, old: &EntrySnapshotV3) -> Result<()> {
-        let LoroValue::Map(want) = &old.value else {
-            return Err(DocError::NotInProfile("entry snapshot is not a map"));
+    /// Restore raw entry metadata and owned records from a historical view of
+    /// this document. Applies scoped CRDT diffs, preserving container types,
+    /// unknown nested data and rich-text attributes. Never restores shared
+    /// templates, other entries or timeline views. The caller validates tree
+    /// placement and record ownership first; parent/order remain its plan.
+    pub fn restore_entry_owned_at(&mut self, id: &EntryId, old: &BookViewV3<'_>) -> Result<()> {
+        use loro::{
+            ContainerTrait, ValueOrContainer,
+            event::{Diff, DiffBatch},
         };
-        let w = self.entries().entry(id)?;
-        sync_nested_map(&w.map, want)
+        use std::collections::{BTreeMap, BTreeSet, HashSet};
+        let mut ancestors = HashSet::new();
+        let mut selected: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+        for view in [self.view, *old] {
+            let node = view
+                .tree_index(book_v3::ENTRIES)
+                .get(id.as_str())
+                .and_then(|nodes| nodes.first().copied())
+                .ok_or_else(|| DocError::Missing {
+                    collection: book_v3::ENTRIES,
+                    id: id.to_string(),
+                })?;
+            ancestors.insert(view.doc.get_tree(book_v3::ENTRIES).get_meta(node)?.id());
+            for (collection, rows) in view.entry_owned_records(id) {
+                for key in rows.keys() {
+                    selected
+                        .entry(collection.root().to_owned())
+                        .or_default()
+                        .insert(key.clone());
+                }
+            }
+        }
+        for view in [self.view, *old] {
+            for (root, keys) in &selected {
+                let map = view.doc.get_map(root.as_str());
+                for key in keys {
+                    if let Some(ValueOrContainer::Container(c)) = map.get(key) {
+                        ancestors.insert(c.id());
+                    }
+                }
+            }
+        }
+        let diff = self
+            .view
+            .doc
+            .diff(&self.view.doc.oplog_frontiers(), &old.doc.state_frontiers())?;
+        let mut scoped = DiffBatch::default();
+        scoped.set_full_state(diff.is_full_state());
+        for (cid, change) in diff.iter() {
+            if let ContainerID::Root { name, .. } = cid
+                && let Some(keys) = selected.get(name.as_str())
+            {
+                if let Diff::Map(mut map) = change.clone() {
+                    map.updated.retain(|key, _| keys.contains(key.as_ref()));
+                    if !map.updated.is_empty() {
+                        scoped
+                            .push(cid.clone(), Diff::Map(map))
+                            .expect("unique diff container");
+                    }
+                }
+                continue;
+            }
+            let belongs = ancestors.contains(cid)
+                || [self.view.doc, old.doc].iter().any(|doc| {
+                    doc.get_path_to_container(cid).is_some_and(|path| {
+                        path.iter().any(|(parent, _)| ancestors.contains(parent))
+                    })
+                });
+            if belongs {
+                scoped
+                    .push(cid.clone(), change.clone())
+                    .expect("unique diff container");
+            }
+        }
+        self.view.doc.apply_diff(scoped)?;
+        Ok(())
     }
 
     /// Append an immutable complete-entry checkpoint. The manifest is versioned
@@ -1531,6 +1599,13 @@ impl<'a> BookTxnV3<'a> {
             return Err(DocError::NotInProfile("checkpoint already exists"));
         }
         root.insert(id, manifest)?;
+        Ok(())
+    }
+
+    /// Remove a checkpoint selected by the owner's retention plan. Manifests
+    /// are never replaced; complete history remains in the Loro log.
+    pub fn remove_entry_checkpoint(&mut self, id: &str) -> Result<()> {
+        self.view.doc.get_map("entry_checkpoints").delete(id)?;
         Ok(())
     }
 

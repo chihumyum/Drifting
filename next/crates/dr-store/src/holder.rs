@@ -25,6 +25,7 @@
 //! nothing ever needs flushing at exit (GPUI gives quit handlers 200 ms).
 
 mod atomic;
+pub use atomic::{AtomicNewDocument, AtomicScope};
 
 use std::panic::AssertUnwindSafe;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};

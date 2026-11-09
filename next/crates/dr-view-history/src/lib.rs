@@ -21,3 +21,4 @@ pub use dialog::{HistoryDialog, HistoryEvent, LIST_MAX_HEIGHT, PREVIEW_MAX_HEIGH
 
 pub mod v3;
 pub use v3::EntryHistoryDialog;
+pub mod automatic;

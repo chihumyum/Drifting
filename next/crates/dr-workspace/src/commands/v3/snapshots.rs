@@ -4,7 +4,7 @@
 use super::*;
 use crate::Actor;
 use dr_doc::{prose::ProseReader, v3::BorrowedBookV3};
-use dr_store::{DocHandle, Origin};
+use dr_store::{AtomicNewDocument, AtomicScope, DocHandle, Origin};
 use loro::LoroDoc;
 use serde_json::Value;
 
@@ -12,7 +12,8 @@ pub(crate) fn register(r: &mut Registry) {
     r.add::<Create>()
         .add::<List>()
         .add::<Preview>()
-        .add::<Restore>();
+        .add::<Restore>()
+        .add::<Capture>();
 }
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct EntryIn {
@@ -44,6 +45,9 @@ pub struct Point {
     pub reason: String,
     pub book_version: String,
     pub bodies: BTreeMap<String, String>,
+    /// Detect a damaged/incomplete manifest before planning any restoration.
+    pub checksum: String,
+    pub content_hash: String,
 }
 #[derive(Clone, Debug, Serialize, JsonSchema)]
 pub struct BodyPreview {
@@ -58,6 +62,8 @@ pub struct PreviewOut {
     pub records: BTreeMap<String, BTreeMap<String, BTreeMap<String, Value>>>,
     /// The historical template, not the entry's current template definition.
     pub template: Option<types::EntryTemplate>,
+    /// Complete historical shared definition, for preview only.
+    pub template_metadata: Option<BTreeMap<String, Value>>,
     pub bodies: Vec<BodyPreview>,
     pub expected: BTreeMap<String, String>,
 }
@@ -82,6 +88,7 @@ fn point(v: &BookViewV3<'_>, input: &PointIn) -> Result<Point> {
         || p.book != input.target.book
         || p.entry != input.target.entry
         || p.id != input.point
+        || p.checksum != checksum(&p)?
     {
         return Err(WsError::invalid("checkpoint format or owner mismatch"));
     }
@@ -92,24 +99,78 @@ fn point(v: &BookViewV3<'_>, input: &PointIn) -> Result<Point> {
     }
     Ok(p)
 }
-fn handles(cx: &Cx<'_>, s: &BookSlot, entry: &str) -> Result<Vec<DocHandle>> {
+fn checksum(p: &Point) -> Result<String> {
+    let mut payload = p.clone();
+    payload.checksum.clear();
+    Ok(dr_store::digest::sha256_hex(
+        &serde_json::to_vec(&payload).map_err(|e| WsError::Internal(e.to_string()))?,
+    ))
+}
+fn handles(
+    cx: &Cx<'_>,
+    s: &BookSlot,
+    entry: &str,
+) -> Result<(Vec<DocHandle>, Vec<AtomicNewDocument>)> {
     let mut out = vec![s.handle.clone()];
+    let mut unwritten = Vec::new();
     // Raw document inventory, not the current template's visible modules.
     for info in cx.workspace().library().docs(Some(s.book.as_str()), None)? {
         if let Ok(doc @ DocId::Body(_)) = DocId::parse(&info.doc_id)
             && matches!(&doc, DocId::Body(b) if b.entry().as_str() == entry)
         {
-            out.push(cx.prose(&doc)?.handle.clone());
+            // Existing-only access must never initialize or repair a live
+            // prose session before this command validates its complete guards.
+            match cx
+                .workspace()
+                .library()
+                .open_doc(&info.doc_id, dr_store::OpenDoc::Existing)
+            {
+                Ok(h) => out.push(h),
+                Err(dr_store::StoreError::NotFound(_)) => unwritten.push(AtomicNewDocument {
+                    id: info.doc_id,
+                    kind: info.kind,
+                    genesis: dr_doc::prose::genesis(&doc),
+                    pre_registered: true,
+                }),
+                Err(e) => return Err(e.into()),
+            }
         }
     }
-    Ok(out)
+    Ok((out, unwritten))
+}
+fn initialized_handles(cx: &Cx<'_>, s: &BookSlot, entry: &str) -> Result<Vec<DocHandle>> {
+    let (handles, unwritten) = handles(cx, s, entry)?;
+    if !unwritten.is_empty() {
+        return Err(WsError::Conflict("entry has uninitialized body documents; create a current checkpoint before previewing restoration".into()));
+    }
+    Ok(handles)
 }
 fn versions(docs: &BTreeMap<String, LoroDoc>) -> BTreeMap<String, String> {
     docs.iter()
         .map(|(id, d)| (id.clone(), frontiers_hex(&d.oplog_frontiers())))
         .collect()
 }
+fn scope<'a>(book: &'a str, prefix: &'a str) -> AtomicScope<'a> {
+    AtomicScope {
+        book_id: book,
+        prefix,
+    }
+}
+fn inventory_error(e: WsError) -> WsError {
+    match e {
+        WsError::Store(dr_store::StoreError::Invalid {
+            what: "atomic inventory",
+            value,
+        }) => WsError::Conflict(value),
+        other => other,
+    }
+}
 fn make_point(docs: &BTreeMap<String, LoroDoc>, input: &EntryIn, reason: String) -> Result<Point> {
+    for (id, d) in docs {
+        if let Ok(doc @ DocId::Body(_)) = DocId::parse(id) {
+            ProseReader::from_loro(doc, d)?;
+        }
+    }
     let book: BookId = pid("book", &input.book)?;
     let b = BorrowedBookV3::new(&docs[&book_doc(&input.book)], &book)?;
     let e = b
@@ -117,46 +178,247 @@ fn make_point(docs: &BTreeMap<String, LoroDoc>, input: &EntryIn, reason: String)
         .entry(&pid("entry", &input.entry)?)
         .ok_or_else(|| WsError::not_found("entry", &input.entry))?;
     let mut versions = versions(docs);
+    versions.retain(|id, _| {
+        id == &book_doc(&input.book)
+            || matches!(DocId::parse(id), Ok(DocId::Body(b)) if b.entry().as_str() == input.entry)
+    });
     let book_version = versions
         .remove(&book_doc(&input.book))
         .expect("book is reserved");
-    Ok(Point {
+    let mut p = Point {
         id: EntryId::new_v7().to_string(),
         format: 1,
         book: input.book.clone(),
         entry: input.entry.clone(),
-        ts: now().0,
+        ts: dr_store::now_ms(),
         title: e.title,
         reason,
         book_version,
         bodies: versions,
-    })
+        checksum: String::new(),
+        content_hash: content_hash(docs, input)?,
+    };
+    p.checksum = checksum(&p)?;
+    Ok(p)
 }
 fn save(doc: &LoroDoc, book: &BookId, p: &Point) -> Result<()> {
-    BorrowedBookV3::new(doc, book)?.txn().put_entry_checkpoint(
+    let b = BorrowedBookV3::new(doc, book)?;
+    b.txn().put_entry_checkpoint(
         &p.id,
         &serde_json::to_string(p).map_err(|e| WsError::Internal(e.to_string()))?,
     )?;
+    // Apply F2's cadence/retention to automatic points only. Explicit author,
+    // Agent-before-write and pre-restore recovery points are never thinned.
+    let automatic: Vec<_> = b
+        .view()
+        .entry_checkpoints()
+        .into_iter()
+        .filter_map(|(id, _)| {
+            point(
+                &b.view(),
+                &PointIn {
+                    target: EntryIn {
+                        book: p.book.clone(),
+                        entry: p.entry.clone(),
+                    },
+                    point: id,
+                },
+            )
+            .ok()
+        })
+        .filter(|p| matches!(p.reason.as_str(), "periodic" | "close"))
+        .collect();
+    let rows: Vec<_> = automatic
+        .iter()
+        .enumerate()
+        .map(|(i, p)| (i as i64, p.ts))
+        .collect();
+    for index in dr_store::history::thinning_plan(&rows, p.ts) {
+        let old = &automatic[index as usize];
+        if old.id != p.id {
+            b.txn().remove_entry_checkpoint(&old.id)?;
+        }
+    }
     Ok(())
 }
 
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum CaptureReason {
+    Periodic,
+    Close,
+}
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct CaptureIn {
+    #[serde(flatten)]
+    pub target: EntryIn,
+    pub reason: CaptureReason,
+}
 op! {
     Create="entry_snapshot.create",Write,Book,"Save a complete v3 entry checkpoint, including retained modules and all body versions. Call before an Agent writes the entry.",fn(cx,input:EntryIn)->Point {
-        let s = cx.book_v3(&input.book)?;
-        let e = s.reader_v3.view().entry(&pid("entry", &input.entry)?).ok_or_else(|| WsError::not_found("entry", &input.entry))?;
-        // Materialize only missing default bodies, as opening the editor does.
-        module::initialize(cx, &s, &e, &s.reader_v3.view().templates_map(), &BTreeMap::new())?;
-        let hs = handles(cx, &s, &input.entry)?;
-        let p = DocHandle::atomic(&hs, Origin::Command, |docs| -> Result<Point> {
-            cx.check_atomic_guards(docs)?;
-            let p = make_point(docs, &input, cx.actor().store_origin().to_string())?;
+        create(cx, input, None)
+    }
+}
+op! {
+    Capture="entry_snapshot.capture",Write,Book,"Capture changed v3 entry content periodically or on close using the existing history interval; unchanged content is skipped.",fn(cx,input:CaptureIn)->Point {
+        create(cx, input.target, Some(input.reason))
+    }
+}
+fn content_hash(docs: &BTreeMap<String, LoroDoc>, input: &EntryIn) -> Result<String> {
+    let book: BookId = pid("book", &input.book)?;
+    let b = BorrowedBookV3::new(&docs[&book_doc(&input.book)], &book)?;
+    let v = b.view();
+    let id: EntryId = pid("entry", &input.entry)?;
+    let state = v
+        .entry_owned_raw_state(&id)
+        .ok_or_else(|| WsError::not_found("entry", &input.entry))?;
+    let versions: BTreeMap<_, _> = docs
+        .iter()
+        .filter(|(doc, _)| matches!(DocId::parse(doc),Ok(DocId::Body(b)) if b.entry()==&id))
+        .map(|(doc, state)| (doc.clone(), frontiers_hex(&state.state_frontiers())))
+        .collect();
+    let mut value = serde_json::json!({"state":state,"bodies":versions});
+    value.sort_all_objects();
+    Ok(dr_store::digest::sha256_hex(
+        &serde_json::to_vec(&value).map_err(|e| WsError::Internal(e.to_string()))?,
+    ))
+}
+fn create(cx: &Cx<'_>, input: EntryIn, automatic: Option<CaptureReason>) -> Result<Point> {
+    let s = cx.book_v3(&input.book)?;
+    let (book, entry) = (s.book.clone(), pid("entry", &input.entry)?);
+    let (version, e, templates) = s.handle.read(move |d| -> Result<_> {
+        let b = BorrowedBookV3::new(d, &book)?;
+        let e = b
+            .view()
+            .entry(&entry)
+            .ok_or_else(|| WsError::not_found("entry", entry.to_string()))?;
+        Ok((
+            frontiers_hex(&d.oplog_frontiers()),
+            e,
+            b.view().templates_map(),
+        ))
+    })??;
+    let (mut hs, mut fresh) = handles(cx, &s, &input.entry)?;
+    let existing: BTreeSet<_> = hs.iter().map(|h| h.doc_id().to_owned()).collect();
+    let mut defaults = Vec::new();
+    let template = e.effective_template(&templates);
+    let mids = if e.is_level(&templates) {
+        vec![m::level_about_module_id()]
+    } else {
+        template
+            .into_iter()
+            .flat_map(|t| t.prose_modules().map(|m| m.id.clone()))
+            .collect()
+    };
+    for mid in mids {
+        let doc = body_id(&e.id, &mid);
+        if existing.contains(&doc.to_string()) || fresh.iter().any(|n| n.id == doc.to_string()) {
+            continue;
+        }
+        let source = template
+            .filter(|t| t.is_leaf())
+            .map(|t| template_doc(&s.book, &t.id, &mid))
+            .transpose()?;
+        let source = match source {
+            Some(d) if cx.workspace().library().doc_info(&d.to_string())?.is_some() => {
+                owns(cx, &s, &d)?;
+                match cx
+                    .workspace()
+                    .library()
+                    .open_doc(&d.to_string(), dr_store::OpenDoc::Existing)
+                {
+                    Ok(h) => {
+                        hs.push(h);
+                        Some(d)
+                    }
+                    Err(dr_store::StoreError::NotFound(_)) => None,
+                    Err(e) => return Err(e.into()),
+                }
+            }
+            _ => None,
+        };
+        defaults.push((doc.clone(), source));
+        fresh.push(AtomicNewDocument {
+            id: doc.to_string(),
+            kind: doc.kind().prefix().into(),
+            genesis: dr_doc::prose::genesis(&doc),
+            pre_registered: false,
+        });
+    }
+    let prefix = format!("body:{}/", input.entry);
+    let p = DocHandle::atomic_scoped(
+        &hs,
+        Origin::Command,
+        scope(&input.book, &prefix),
+        &fresh,
+        |docs| -> Result<Point> {
+            let observed = docs
+                .iter()
+                .filter(|(id, _)| existing.contains(*id))
+                .map(|(id, d)| (id.clone(), d.clone()))
+                .collect();
+            cx.check_atomic_guards(&observed)?;
+            if frontiers_hex(&docs[&book_doc(&input.book)].oplog_frontiers()) != version {
+                return Err(WsError::Conflict(
+                    "entry changed while preparing checkpoint".into(),
+                ));
+            }
+            let current = BorrowedBookV3::new(&docs[&book_doc(&input.book)], &s.book)?;
+            let latest = current
+                .view()
+                .entry_checkpoints()
+                .into_iter()
+                .filter_map(|(id, _)| {
+                    point(
+                        &current.view(),
+                        &PointIn {
+                            target: input.clone(),
+                            point: id,
+                        },
+                    )
+                    .ok()
+                })
+                .max_by(|a, b| a.ts.cmp(&b.ts).then(a.id.cmp(&b.id)));
+            if fresh.is_empty()
+                && matches!(automatic, Some(CaptureReason::Periodic))
+                && latest.as_ref().is_some_and(|p| {
+                    !dr_store::history::periodic_due(Some(p.ts), dr_store::now_ms())
+                })
+            {
+                return Ok(latest.expect("checked"));
+            }
+            for (doc, source) in &defaults {
+                if let Some(source) = source {
+                    let source =
+                        ProseReader::from_loro(source.clone(), &docs[&source.to_string()])?;
+                    dr_doc::prose::BorrowedProse::new(&docs[&doc.to_string()], doc)?
+                        .txn()
+                        .insert_copy(0, &source.view())?;
+                }
+                docs[&doc.to_string()].commit();
+                cx.faults().check("snapshot_create_after_body")?;
+            }
+            let reason = match automatic {
+                Some(CaptureReason::Periodic) => "periodic".into(),
+                Some(CaptureReason::Close) => "close".into(),
+                None => cx.actor().store_origin().to_string(),
+            };
+            let p = make_point(docs, &input, reason)?;
+            if automatic.is_some()
+                && latest
+                    .as_ref()
+                    .is_some_and(|old| old.content_hash == p.content_hash)
+            {
+                return Ok(latest.expect("checked"));
+            }
             save(&docs[&book_doc(&input.book)], &s.book, &p)?;
             Ok(p)
-        })?;
-        cx.undo_nothing();
-        cx.follows_prose();
-        Ok(p)
-    }
+        },
+    )
+    .map_err(inventory_error)?;
+    cx.undo_nothing();
+    cx.follows_prose();
+    Ok(p)
 }
 op! {
     List="entry_snapshot.list",Read,Shared,"List complete checkpoints of one v3 entry, newest first.",fn(cx,input:EntryIn)->Vec<Point> {
@@ -198,6 +460,18 @@ fn load_point(cx: &Cx<'_>, p: &Point) -> Result<BTreeMap<String, LoroDoc>> {
             lib.load_copy_at(&id, &frontiers_from_hex(&version)?)?,
         );
     }
+    if content_hash(
+        &out,
+        &EntryIn {
+            book: p.book.clone(),
+            entry: p.entry.clone(),
+        },
+    )? != p.content_hash
+    {
+        return Err(WsError::invalid(
+            "checkpoint content does not match its manifest",
+        ));
+    }
     Ok(out)
 }
 op! {
@@ -219,10 +493,12 @@ op! {
             let doc = DocId::parse(id).map_err(|e| WsError::invalid(e.to_string()))?;
             bodies.push(BodyPreview { doc: id.clone(), text: dr_text::plain_text(&ProseReader::from_loro(doc, &old[id])?.view()) });
         }
-        let hs = handles(cx, &s, &p.entry)?;
-        let expected = DocHandle::atomic(&hs, Origin::Command, |docs| -> Result<_> { Ok(versions(docs)) })?;
+        let hs = initialized_handles(cx, &s, &p.entry)?;
+        let prefix = format!("body:{}/", p.entry);
+        let expected = DocHandle::atomic_scoped(&hs, Origin::Command, scope(&p.book, &prefix), &[], |docs| -> Result<_> { Ok(versions(docs)) }).map_err(inventory_error)?;
+        let template_metadata=e.template.as_ref().and_then(|id|view.map_snapshot(CollectionV3::Templates,id.as_str())).map(|s|fields(&s)).transpose()?;
         let template = e.effective_template(&view.templates_map()).cloned().map(convert).transpose()?;
-        Ok(PreviewOut { point: p, metadata, records, template, bodies, expected })
+        Ok(PreviewOut { point: p, metadata, records, template, template_metadata, bodies, expected })
     }
 }
 
@@ -232,9 +508,10 @@ op! {
         let s = cx.book_v3(&input.point.target.book)?;
         let p = point(&s.reader_v3.view(), &input.point)?;
         let old = load_point(cx, &p)?; // Validate every historical frontier before any write.
-        let hs = handles(cx, &s, &p.entry)?;
+        let hs = initialized_handles(cx, &s, &p.entry)?;
         let faults = cx.faults();
-        let result = DocHandle::atomic(&hs, Origin::Command, |docs| -> Result<Restored> {
+        let prefix = format!("body:{}/", p.entry);
+        let result = DocHandle::atomic_scoped(&hs, Origin::Command, scope(&p.book, &prefix), &[], |docs| -> Result<Restored> {
             cx.check_atomic_guards(docs)?;
             if versions(docs) != input.expected { return Err(WsError::Conflict("entry changed since preview; read a new preview".into())); }
             // Every historic body must still be present; a purged document is
@@ -250,15 +527,16 @@ op! {
                     // Body added since this checkpoint: clear it while keeping
                     // its identity/history and the pre-restore content above.
                     let doc = DocId::parse(id).map_err(|e| WsError::invalid(e.to_string()))?;
-                    let b = dr_doc::prose::BorrowedProse::new(d, &doc)?;
-                    super::super::template::replace_paragraphs(&mut b.txn(), &[])?;
+                    let genesis = LoroDoc::new();
+                    genesis.import(&dr_doc::prose::genesis(&doc))?;
+                    d.revert_to(&genesis.oplog_frontiers())?;
                 }
                 faults.check("snapshot_after_body")?;
             }
             save(&docs[&book_doc(&p.book)], &s.book, &before)?;
             for d in docs.values() { d.commit(); }
             Ok(Restored { before: before.id, versions: versions(docs) })
-        })?;
+        }).map_err(inventory_error)?;
         cx.effect(EffectAction::Restored, "entry", &p.entry, None);
         cx.undo_with(Invocation::new("entry_snapshot.restore", RestoreIn { point: PointIn { target: input.point.target, point: result.before.clone() }, expected: result.versions.clone() }));
         Ok(result)
@@ -282,9 +560,6 @@ fn restore_book(now: &LoroDoc, old: &LoroDoc, book: &BookId, entry: &str) -> Res
     let templates = current.templates_map();
     m::check_entry_move(&entries, &id, e.parent.as_ref())?;
     m::check_parent_is_level(e.parent.as_ref(), &entries, &templates)?;
-    if let Some(t) = &e.template {
-        m::check_entry_template(&templates, Some(t))?;
-    }
     entries.insert(id.clone(), e.clone());
     if e.is_leaf(&templates) && entries.values().any(|c| c.parent.as_ref() == Some(&id)) {
         return Err(WsError::invalid("restoration would give a leaf children"));
@@ -301,12 +576,7 @@ fn restore_book(now: &LoroDoc, old: &LoroDoc, book: &BookId, entry: &str) -> Res
         }
     }
     let mut txn = b.txn();
-    txn.restore_entry_with_parent(
-        &id,
-        e.parent.as_ref(),
-        &ov.entry_snapshot(&id).expect("entry"),
-    )?;
-    txn.restore_entry_complete(&id, &ov.entry_snapshot(&id).expect("entry"))?;
+    txn.restore_entry_owned_at(&id, &ov)?;
     // Restore sibling order relative to surviving historical neighbours.
     let siblings: Vec<_> = current
         .entries_raw()
@@ -332,12 +602,6 @@ fn restore_book(now: &LoroDoc, old: &LoroDoc, book: &BookId, entry: &str) -> Res
         })
         .unwrap_or(pos.min(siblings.len()));
     txn.entries().move_to_at(&id, e.parent.as_ref(), index)?;
-    for (c, rows) in &want {
-        let ids: BTreeSet<_> = rows.keys().chain(have[c].keys()).collect();
-        for id in ids {
-            txn.restore_map_snapshot(*c, id, rows.get(id))?;
-        }
-    }
     let view = txn.view();
     graph_ok(&view.entries_map(), &templates, &view.memberships_raw())?;
     Ok(())

@@ -28,6 +28,7 @@
 
 pub mod end;
 pub mod head;
+mod history;
 pub mod v3;
 pub mod whole;
 
@@ -48,6 +49,7 @@ pub use head::PageHead;
 /// Registers the chrome with the shell: every chapter, idea and whole-book
 /// editor it opens gets one.
 pub fn init(cx: &mut App) {
+    history::init(cx);
     v3::register(cx);
     dr_shell::v3::history::register(cx);
     dr_shell::pages::add_page_chrome(cx, |target, host, _, _| match target {

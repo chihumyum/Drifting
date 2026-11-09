@@ -1392,6 +1392,85 @@ impl<'a> BookViewV3<'a> {
         result
     }
 
+    /// Raw owned content with explicit container kinds and rich-text deltas.
+    /// Unlike deep JSON, this also distinguishes a text/list/map container
+    /// from a plain value and retains future nested text attributes.
+    pub fn entry_owned_raw_state(&self, id: &EntryId) -> Option<serde_json::Value> {
+        use loro::{Container, ValueOrContainer};
+        fn raw(v: ValueOrContainer) -> serde_json::Value {
+            use serde_json::json;
+            match v {
+                ValueOrContainer::Value(v) => json!({"value":v}),
+                ValueOrContainer::Container(c) => match c {
+                    Container::Map(m) => {
+                        let mut values = BTreeMap::new();
+                        m.for_each(|key, v| {
+                            values.insert(key.to_owned(), raw(v));
+                        });
+                        json!({"map":values})
+                    }
+                    Container::Text(t) => json!({"text":t.to_delta()}),
+                    Container::List(l) => {
+                        let mut values = Vec::new();
+                        l.for_each(|v| values.push(raw(v)));
+                        json!({"list":values})
+                    }
+                    Container::MovableList(l) => {
+                        let mut values = Vec::new();
+                        l.for_each(|v| values.push(raw(v)));
+                        json!({"movable_list":values})
+                    }
+                    Container::Tree(t) => {
+                        let mut meta = BTreeMap::new();
+                        for node in t.nodes() {
+                            if let Ok(m) = t.get_meta(node) {
+                                meta.insert(
+                                    node.to_string(),
+                                    raw(ValueOrContainer::Container(Container::Map(m))),
+                                );
+                            }
+                        }
+                        json!({"tree":t.get_value(),"meta":meta})
+                    }
+                    Container::Counter(c) => json!({"counter":c.get_value()}),
+                    Container::Unknown(c) => {
+                        use loro::ContainerTrait;
+                        json!({"unknown":c.id().to_string()})
+                    }
+                },
+            }
+        }
+        let e = self.entry(id)?;
+        let node = *self
+            .tree_index(book_v3::ENTRIES)
+            .get(id.as_str())?
+            .first()?;
+        let metadata = raw(ValueOrContainer::Container(Container::Map(
+            self.doc.get_tree(book_v3::ENTRIES).get_meta(node).ok()?,
+        )));
+        let records: BTreeMap<_, _> = self
+            .entry_owned_records(id)
+            .into_iter()
+            .map(|(c, rows)| {
+                let map = self.doc.get_map(c.root());
+                let rows: BTreeMap<_, _> = rows
+                    .into_keys()
+                    .filter_map(|key| map.get(&key).map(|v| (key, raw(v))))
+                    .collect();
+                (c.root().to_owned(), rows)
+            })
+            .collect();
+        let siblings: Vec<_> = self
+            .entries_raw()
+            .into_iter()
+            .filter(|s| s.parent == e.parent)
+            .map(|s| s.id)
+            .collect();
+        let mut value = serde_json::json!({"metadata":metadata,"records":records,"parent":e.parent,"siblings":siblings});
+        value.sort_all_objects();
+        Some(value)
+    }
+
     /// Versioned complete-entry checkpoint manifests. Opaque to dr-doc.
     pub fn entry_checkpoints(&self) -> Vec<(String, String)> {
         entities(self.doc, "entry_checkpoints")
