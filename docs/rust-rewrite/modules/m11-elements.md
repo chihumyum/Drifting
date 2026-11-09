@@ -227,7 +227,7 @@ cargo run -p dr-view-elements --features capture --example elements-capture -- .
    切换，因此不采用整页替换。F6 的 `a9115af6` 已提供注册口，G2 合入该接口提交，
    只在自己的 `category.rs` 和 `lib.rs` 登记 maker，没有代改公共组合页面。
 
-## K4 G2：层级页（第二批开发中）
+## K4 G2：层级页（第二批）
 
 G2 侧由 `category::v3::make` 提供八项层级设置：有效值、来源、该项覆盖的还原。
 选择器只改变所选设置，显式清空默认模板／住处与恢复继承分别保存；泳道的接收开关
@@ -241,3 +241,19 @@ G2 侧由 `category::v3::make` 提供八项层级设置：有效值、来源、�
 会恢复显示保留的归属，不把读取时隐藏的关系删除。`check-v3-levels.py` 检查归属标题
 和成员确实位于画布视口内，并且内部滚动前后外层页面没有移动。检查完成前不前移
 第一批交回指针。新标签仍全部来自九语 own。
+
+### 第二批交回
+
+开发分支 `codex/k4-g2-levels`，交回分支 `handback/k4-g2`。新增实现提交
+`abaec457`、`0a1aeff8`；`b45db5d8` 合入 F6 的设置区接口 `a9115af6`，
+`39c14f1c` 同步 main `c6a21f11`（G3 的摆放、时间钉与泳道颜色）。共享 `lib.rs`
+只合并三条各自的登记调用，九语文件自动合并后通过生成同步检查；没有改其他组的实现。
+
+`CARGO_BUILD_JOBS=3`。全套 fmt、Clippy（all-targets／`-D warnings`）、test
+（**2061 通过／0 失败／22 忽略**，单线程）、xtask（含审计）、`pnpm public:check`
+全过，日志 `next/target/acceptance/k4-g2-checks-2/`。检查后显式重建调试桥并保护
+验收程序，再跑显示器 **52/52**、层级页 **103/103** 步，均 **0 pending**；
+两项结果校验脚本都通过，九张截图逐张目检，目录 `next/target/acceptance/k4-g2-native-2/`。
+八项设置的修改均从 F3 读回；恢复继承、接收关闭／恢复、成员住处不变和内部滚动
+都包含在场景中。本轮为英文浅色真窗口，不代表九语言全部布局或完整读屏验收。
+本会话未合回 main、未推送；大纲、拖动、悬停卡三种选择器与 heavy 测量留最终批。
