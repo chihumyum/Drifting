@@ -157,4 +157,18 @@ fn draft_survives_refresh_and_invalid_input_stays_editable(cx: &mut TestAppConte
         42.0
     );
     assert_eq!(field.read_with(&vcx, |f, _| f.text()), "42");
+
+    call(
+        &ws,
+        "module.set_field",
+        json!({"book":id,"entry":entry,"module":"all-fields","field":"number","value":43.0}),
+    );
+    let current = Rc::new(Book::load(&ws, &id).unwrap());
+    view.update(&mut vcx, |v, cx| v.refresh(current, cx));
+    draw(&mut vcx);
+    assert_eq!(
+        field.read_with(&vcx, |f, _| f.text()),
+        "43",
+        "a confirmed save must not hide a later external value"
+    );
 }

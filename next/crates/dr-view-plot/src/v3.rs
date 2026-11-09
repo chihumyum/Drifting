@@ -65,6 +65,7 @@ pub fn write(
 struct PreparedWrite {
     input: content::GridIn,
     guard: WritePreconditions,
+    grid: Grid,
 }
 
 impl PreparedWrite {
@@ -86,10 +87,38 @@ fn prepare(
     module: &str,
     writes: Vec<Write>,
 ) -> Result<PreparedWrite, WsError> {
+    prepare_from(lib, book, entry, module, writes, None)
+}
+
+pub(crate) fn write_from(
+    lib: &Workspace,
+    book: &str,
+    entry: &str,
+    module: &str,
+    writes: Vec<Write>,
+    base: Option<&Grid>,
+) -> Result<Grid, WsError> {
+    let prepared = prepare_from(lib, book, entry, module, writes, base)?;
+    let saved = prepared.grid.clone();
+    prepared.commit(lib, &Actor::User)?;
+    Ok(saved)
+}
+
+fn prepare_from(
+    lib: &Workspace,
+    book: &str,
+    entry: &str,
+    module: &str,
+    writes: Vec<Write>,
+    base: Option<&Grid>,
+) -> Result<PreparedWrite, WsError> {
     // Observe before reading: any intervening book change invalidates this
     // whole-grid replacement. Never retry a failed guarded command here.
     let observed = lib.observe(&format!("book:{book}"))?;
     let mut grid = Grid::from_info(&read(lib, book, entry, module)?);
+    if base.is_some_and(|base| *base != grid) {
+        return Err(WsError::Conflict("plot grid changed while editing".into()));
+    }
     for write in writes {
         match write {
             Write::Cell { row, col, text } => {
@@ -150,6 +179,7 @@ fn prepare(
             .collect()
     };
     Ok(PreparedWrite {
+        grid: grid.clone(),
         input: content::GridIn {
             target: target(book, entry, module),
             grid: content::Grid {

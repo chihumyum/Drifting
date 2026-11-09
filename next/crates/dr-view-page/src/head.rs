@@ -22,6 +22,8 @@ use gpui::{
 };
 
 use crate::{NewTitles, focus_body};
+mod drafts;
+use drafts::HeadDrafts;
 
 /// The text's column on the paper: the page gutter on both sides, then at
 /// most the paper's text width, centred (the editor's own title row and
@@ -44,6 +46,8 @@ pub struct PageHead {
     stored_synopsis: String,
     /// The current idea group breadcrumb, from the shell's book snapshot.
     group_path: Option<String>,
+    drafts: Option<HeadDrafts>,
+    book: Option<std::rc::Rc<dr_shell::book::Book>>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -51,6 +55,15 @@ impl PageHead {
     pub fn new(
         host: PageHost,
         page: &PageInfo,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        Self::new_with_book(host, page, None, window, cx)
+    }
+    pub(crate) fn new_with_book(
+        host: PageHost,
+        page: &PageInfo,
+        book: Option<std::rc::Rc<dr_shell::book::Book>>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -95,7 +108,13 @@ impl PageHead {
                 field.update(cx, |f, cx| f.select_all_text(cx));
             });
         }
+        let drafts = HeadDrafts::new(&host, page, book.as_deref(), cx);
+        if drafts.is_some() {
+            crate::settlement::register(&host.library, window.window_handle(), cx);
+        }
         PageHead {
+            drafts,
+            book,
             host,
             page: page.clone(),
             title,
@@ -133,6 +152,10 @@ impl PageHead {
     /// The editor's latest facts: a field shows a new stored value unless
     /// the author is typing in it.
     pub fn set_page(&mut self, page: &PageInfo, window: &mut Window, cx: &mut Context<Self>) {
+        if self.drafts.is_some() {
+            self.refresh_v3(page, window, cx);
+            return;
+        }
         if page.title != self.stored_title {
             self.stored_title = page.title.clone();
             if !self.title.focus_handle(cx).is_focused(window) {
@@ -164,6 +187,10 @@ impl PageHead {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.drafts.is_some() {
+            self.event_v3(false, event, window, cx);
+            return;
+        }
         match event {
             // Enter: on to the text (leaving the field stores the title).
             FieldEvent::Submitted(_) => self.hand_over(window, cx),
@@ -184,6 +211,10 @@ impl PageHead {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.drafts.is_some() {
+            self.event_v3(true, event, window, cx);
+            return;
+        }
         match event {
             FieldEvent::Submitted(_) => window.blur(cx),
             FieldEvent::Cancelled => {
@@ -515,7 +546,8 @@ impl Render for PageHead {
                     .font_role(Role::Prose)
                     .type_px(synopsis_size, synopsis_size * tk::SYNOPSIS_LINE)
                     .text_color(p.ink(3).solid())
-                    .child(self.synopsis.clone()),
+                    .child(self.synopsis.clone())
+                    .when(self.drafts.is_some(), |d| d.child(self.errors_v3(cx))),
             )
             .child(div().mb(px(tk::RULE_GAP)).h(px(1.0)).bg(p.rule.solid()));
         // The act this chapter opens (the whole book).

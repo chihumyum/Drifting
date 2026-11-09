@@ -263,3 +263,6 @@ pub fn init(cx: &mut App) {
         Some(Rc::new(chrome) as Rc<dyn PageChrome>)
     });
 }
+
+#[cfg(test)]
+mod release_tests;
