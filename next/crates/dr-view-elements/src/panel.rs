@@ -1652,9 +1652,9 @@ pub mod v3 {
     };
     use dr_ui::{
         Theme,
-        components::{IconButton, SandCell, Segmented},
+        components::{SandCell, Segmented},
         fonts::Role,
-        sand::{Icon, SandFrame},
+        sand::{self, Icon, KindMark, SandFrame},
         style::DrStyled,
     };
     use gpui::{prelude::*, *};
@@ -1925,7 +1925,14 @@ pub mod v3 {
             self.rebuild();
             cx.notify();
         }
-        fn entry(&self, id: &str, depth: usize, tile: bool, cx: &mut App) -> AnyElement {
+        fn entry(
+            &self,
+            id: &str,
+            depth: usize,
+            tile: bool,
+            window: &mut Window,
+            cx: &mut App,
+        ) -> AnyElement {
             let Some(v) = self.host.page.book.v3() else {
                 return div().into_any_element();
             };
@@ -1942,19 +1949,7 @@ pub mod v3 {
                 .as_ref()
                 .is_some_and(|ws| ws.read(cx).nav.is_selected(&target));
             let open = target.clone();
-            let cell = SandCell::new(
-                SharedString::from(format!("g2-entry-{}-{id}", self.host.level)),
-                entry.title.clone(),
-            )
-            .mark(mark)
-            .color_opt(color)
-            .selected(selected)
-            .font(if v.levels.contains_key(id) {
-                Role::Structure
-            } else {
-                Role::Ui
-            })
-            .on_click(move |event, _, cx| {
+            let on_click = move |event: &ClickEvent, _: &mut Window, cx: &mut App| {
                 if let Some(ws) = weak.upgrade() {
                     ws.update(cx, |ws, cx| {
                         ws.open(
@@ -1968,7 +1963,60 @@ pub mod v3 {
                         )
                     });
                 }
-            });
+            };
+            let cell_id: SharedString = format!("g2-entry-{}-{id}", self.host.level).into();
+            let cell = if tile || self.display == Display::Board && id != self.host.level {
+                let theme = Theme::of(window, cx);
+                div()
+                    .id(cell_id.clone())
+                    .relative()
+                    .min_h(px(28.0))
+                    .px_2()
+                    .py_1()
+                    .flex()
+                    .items_center()
+                    .gap(px(6.0))
+                    .min_w_0()
+                    .cursor_pointer()
+                    .role(gpui::Role::Button)
+                    .aria_label(entry.title.clone())
+                    .aria_selected(selected)
+                    .font_role(Role::Ui)
+                    .type_px(theme.scale.body, theme.scale.line_body)
+                    .text_color(theme.palette.ink(if selected { 1 } else { 2 }).solid())
+                    .on_click(on_click)
+                    .child(
+                        SandFrame::new(SharedString::from(format!("{cell_id}-frame")), selected)
+                            .when_some(color, |frame, color| frame.color(color)),
+                    )
+                    .child(
+                        div().flex_none().size(px(10.0)).child(
+                            KindMark::new(SharedString::from(format!("{cell_id}-mark")), mark)
+                                .scale(10.0 / 14.0)
+                                .when_some(color, |mark, color| mark.color(color)),
+                        ),
+                    )
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .truncate()
+                            .child(entry.title.clone()),
+                    )
+                    .into_any_element()
+            } else {
+                SandCell::new(cell_id, entry.title.clone())
+                    .mark(mark)
+                    .color_opt(color)
+                    .selected(selected)
+                    .font(if v.levels.contains_key(id) {
+                        Role::Structure
+                    } else {
+                        Role::Ui
+                    })
+                    .on_click(on_click)
+                    .into_any_element()
+            };
             let cell = if let Some(ws) = card_ws {
                 dr_shell::workspace::page_hover_card(
                     format!("g2-card-{}-{id}", self.host.level),
@@ -2045,33 +2093,43 @@ pub mod v3 {
                             .map(|e| e.title.clone())
                             .unwrap_or_default();
                         row = row.child(
-                            IconButton::new(
-                                SharedString::from(format!("g2-fold-{id}")),
-                                if folded {
-                                    Icon::ChevronRight
-                                } else {
-                                    Icon::ChevronDown
-                                },
-                            )
-                            .label(dr_shell::strings::tf(
-                                cx,
-                                if folded {
-                                    keys::v3_levels::EXPAND
-                                } else {
-                                    keys::v3_levels::COLLAPSE
-                                },
-                                &[("name", &name)],
-                            ))
-                            .on_click(move |_, _, cx| {
-                                let _ = weak.update(cx, |this, cx| this.toggle(&id, cx));
-                            }),
+                            div()
+                                .id(SharedString::from(format!("g2-fold-{id}")))
+                                .size(px(14.0))
+                                .flex_none()
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .cursor_pointer()
+                                .role(gpui::Role::Button)
+                                .aria_label(dr_shell::strings::tf(
+                                    cx,
+                                    if folded {
+                                        keys::v3_levels::EXPAND
+                                    } else {
+                                        keys::v3_levels::COLLAPSE
+                                    },
+                                    &[("name", &name)],
+                                ))
+                                .child(sand::icon(
+                                    if folded {
+                                        Icon::ChevronRight
+                                    } else {
+                                        Icon::ChevronDown
+                                    },
+                                    11.0,
+                                    theme.palette.ink(3).solid(),
+                                ))
+                                .on_click(move |_, _, cx| {
+                                    let _ = weak.update(cx, |this, cx| this.toggle(&id, cx));
+                                }),
                         );
                     }
                     row.child(
                         div()
                             .flex_1()
                             .min_w_0()
-                            .child(self.entry(id, *depth, false, cx)),
+                            .child(self.entry(id, *depth, false, window, cx)),
                     )
                     .into_any_element()
                 }
@@ -2081,7 +2139,7 @@ pub mod v3 {
                     .gap_1()
                     .py_1()
                     .pl(px(*depth as f32 * 14.0))
-                    .children(ids.iter().map(|id| self.entry(id, 0, true, cx)))
+                    .children(ids.iter().map(|id| self.entry(id, 0, true, window, cx)))
                     .into_any_element(),
                 Row::Island { id, members } => {
                     let color = entry_target(id)
@@ -2108,17 +2166,15 @@ pub mod v3 {
                             cx,
                         ))
                         .child(
-                            div()
-                                .flex()
-                                .flex_wrap()
-                                .gap_1()
-                                .children(members.iter().map(|id| self.entry(id, 0, true, cx))),
+                            div().flex().flex_wrap().gap_1().children(
+                                members.iter().map(|id| self.entry(id, 0, true, window, cx)),
+                            ),
                         )
                         .into_any_element()
                 }
             }
         }
-        fn board(&self, cx: &mut App) -> AnyElement {
+        fn board(&self, window: &mut Window, cx: &mut App) -> AnyElement {
             let Some(v) = self.host.page.book.v3() else {
                 return div().into_any_element();
             };
@@ -2163,7 +2219,7 @@ pub mod v3 {
                         .top(px(y))
                         .w(px(180.0))
                         .p_2()
-                        .child(self.entry(id, 0, false, cx)),
+                        .child(self.entry(id, 0, false, window, cx)),
                 );
             }
             div()
@@ -2177,7 +2233,7 @@ pub mod v3 {
     }
 
     impl Render for LevelDisplay {
-        fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
             let mut root = div()
                 .flex()
                 .flex_col()
@@ -2192,7 +2248,7 @@ pub mod v3 {
             if self.host.surface == DisplaySurface::Sidebar {
                 // The selected root is itself an entry: open its level page
                 // and use exactly the same common card as its descendants.
-                root = root.child(self.entry(&self.host.level, 0, false, cx));
+                root = root.child(self.entry(&self.host.level, 0, false, window, cx));
             }
             if self.display == Display::List
                 && self
@@ -2223,7 +2279,7 @@ pub mod v3 {
                 );
             }
             let body = if self.display == Display::Board {
-                self.board(cx)
+                self.board(window, cx)
             } else {
                 let rows = self.rows.clone();
                 let weak = cx.entity().downgrade();
