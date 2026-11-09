@@ -440,4 +440,27 @@ K2 的 `membership.remove` 会清掉已回收泳道 B 下保留的时间线摆�
 核对 Current 过滤、条目／模块／非正文／模板／素材／全书入口，精确跳转由实际面板
 永久测试覆盖。首轮查找评论误用 AX Label 而失败；51 步短诊断确认实际角色为 StaticText、
 目标和 Current 正确，修正选择器后整场通过。失败与诊断原件均保留，产品代码未靠复跑放行。
-隐藏摆放消费者回归仍待 K2 正式修复，本轮尚未重新跑全套或前移交回指针。
+该续接阶段尚未消费 K2 修复，也未重新跑全套或前移交回指针；后续组合验收见下节。
+
+### 正式 K2 组合验收中断（2026-11-10）
+
+按整合者同批验收的新安排，开发分支 `codex/k4-g2-levels` 以 `54b3af9e` 同步
+main `07fd3c15`，再以 `cd3a526a` 合入正式 K2
+`763ce98b3e5295fc0bd30c69646e9c0aa931b545`；只消费这一份正式交回，不含后续链接／M14
+WIP。G2 新增 `53f205fa` 的真实 Mutation 消费者回归和 `34e2552a` 的审阅／公共拖动来源，
+其余第三批功能沿用前述提交。受检源码冻结在 `cd3a526a2b3f4d888ef9b930c97fdb67583d354e`。
+
+`v3_actions` **7/7 通过**，隐藏泳道 B 下 at=41／span=7 的原始摆放与恢复回归已由红转绿。
+`CARGO_BUILD_JOBS=3`、测试单线程的全套在 fmt、workspace/all-targets Clippy 通过后，
+因 `dr-export/tests/book_file_v3.rs:356` 的
+`v3_import_rolls_back_prose_if_the_book_genesis_is_damaged` 中断：**490 通过／1 失败／3 忽略**。
+损坏导入返回 Err 后仍多留一个新 book 文档，原有 20 个文档仍在。全套日志在
+`next/target/acceptance/k4-g2-checks-4-k2-g2-combined/`；未继续到该轮 xtask／public 或窗口验收，
+不以 K2 源分支或此前 G2 的通过记录代替组合通过。
+
+同一原二进制 `next/target/debug/deps/book_file_v3-21ca1dc05c282a83` 的单项 3 次通过，
+整文件有界诊断前 9 次通过、第 10 次同断言失败后停止；失败原件为
+`next/target/acceptance/k4-g2-genesis-file-original-10.log`，整合者另存公共 Git 目录
+`integration-evidence/batch-66/import-rollback/` 并交 G4 修复。没有改 dr-export／dr-store、
+删断言或以重跑通过放行。待正式修复配对后重验组合；副屏新窗口按整合者通知暂缓启动，
+原失败与已完成窗口证据保留。`handback/k4-g2` 仍为 `c54fda05`，未合回 main，未推送。
