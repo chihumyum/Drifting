@@ -166,15 +166,37 @@
     {
       "app": "ui.wait",
       "params": {
+        "until": "time",
+        "ms": 450
+      },
+      "note": "Use the existing settings-smoke save interval before comparing the authoritative frontier."
+    },
+    {
+      "call": "level.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "refreshed1"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
         "timeout_ms": 30000,
         "state": {
-          "/v3/levels/${level.id}/settings/auto_link": true,
-          "/v3/levels/${level.id}/sources/auto_link": {
-            "kind": "override",
-            "entry": "${level.id}"
-          }
+          "/v3/revision": "${refreshed1.version}"
         }
       }
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/v3/levels/${level.id}/settings/auto_link": true,
+        "/v3/levels/${level.id}/sources/auto_link": {
+          "kind": "override",
+          "entry": "${level.id}"
+        }
+      },
+      "note": "Dynamic pointer keys are expanded by scenario expectations, after ui.wait has matched the kernel frontier."
     },
     {
       "call": "level.list",
@@ -215,16 +237,38 @@
     {
       "app": "ui.wait",
       "params": {
+        "until": "time",
+        "ms": 450
+      },
+      "note": "Use the existing settings-smoke save interval before comparing the authoritative frontier."
+    },
+    {
+      "call": "level.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "refreshed2"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
         "timeout_ms": 30000,
         "state": {
-          "/v3/levels/${level.id}/settings/auto_link": false,
-          "/v3/levels/${level.id}/sources/auto_link": {
-            "kind": "template",
-            "entry": "${entries.[template=tpl-manuscript].id}",
-            "template": "tpl-manuscript"
-          }
+          "/v3/revision": "${refreshed2.version}"
         }
       }
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/v3/levels/${level.id}/settings/auto_link": false,
+        "/v3/levels/${level.id}/sources/auto_link": {
+          "kind": "template",
+          "entry": "${entries.[template=tpl-manuscript].id}",
+          "template": "tpl-manuscript"
+        }
+      },
+      "note": "Dynamic pointer keys are expanded by scenario expectations, after ui.wait has matched the kernel frontier."
     },
     {
       "app": "ui.find",
@@ -253,15 +297,37 @@
     {
       "app": "ui.wait",
       "params": {
+        "until": "time",
+        "ms": 450
+      },
+      "note": "Use the existing settings-smoke save interval before comparing the authoritative frontier."
+    },
+    {
+      "call": "level.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "refreshed3"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
         "timeout_ms": 30000,
         "state": {
-          "/v3/levels/${level.id}/settings/default_template": null,
-          "/v3/levels/${level.id}/sources/default_template": {
-            "kind": "override",
-            "entry": "${level.id}"
-          }
+          "/v3/revision": "${refreshed3.version}"
         }
       }
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/v3/levels/${level.id}/settings/default_template": null,
+        "/v3/levels/${level.id}/sources/default_template": {
+          "kind": "override",
+          "entry": "${level.id}"
+        }
+      },
+      "note": "Dynamic pointer keys are expanded by scenario expectations, after ui.wait has matched the kernel frontier."
     },
     {
       "app": "nav.open",
@@ -331,12 +397,34 @@
     {
       "app": "ui.wait",
       "params": {
+        "until": "time",
+        "ms": 450
+      },
+      "note": "Use the existing settings-smoke save interval before comparing the authoritative frontier."
+    },
+    {
+      "call": "level.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "refreshed4"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
         "timeout_ms": 30000,
         "state": {
           "/page": "entry:${entries.[template=tpl-chapter].id}/mod-prose",
-          "/v3/levels/${level.id}/settings/display": "grid"
+          "/v3/revision": "${refreshed4.version}"
         }
       }
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/v3/levels/${level.id}/settings/display": "grid"
+      },
+      "note": "Dynamic pointer keys are expanded by scenario expectations, after ui.wait has matched the kernel frontier."
     },
     {
       "app": "input.type",
@@ -458,17 +546,39 @@
     {
       "app": "ui.wait",
       "params": {
+        "until": "time",
+        "ms": 450
+      },
+      "note": "Use the existing settings-smoke save interval before comparing the authoritative frontier."
+    },
+    {
+      "call": "level.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "refreshed5"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
         "timeout_ms": 30000,
         "state": {
           "/book/version": 3,
-          "/v3/levels/${level.id}/settings/display": "grid",
-          "/v3/levels/${level.id}/settings/default_template": null,
-          "/v3/levels/${level.id}/sources/default_template": {
-            "kind": "override",
-            "entry": "${level.id}"
-          }
+          "/v3/revision": "${refreshed5.version}"
         }
       }
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/v3/levels/${level.id}/settings/display": "grid",
+        "/v3/levels/${level.id}/settings/default_template": null,
+        "/v3/levels/${level.id}/sources/default_template": {
+          "kind": "override",
+          "entry": "${level.id}"
+        }
+      },
+      "note": "Dynamic pointer keys are expanded by scenario expectations, after ui.wait has matched the kernel frontier."
     },
     {
       "call": "level.list",
