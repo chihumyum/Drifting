@@ -1142,3 +1142,14 @@ LoroText（含 bold）／MovableList 的归属与位置四种组合验证无损�
 未知字段、Unicode 剪贴区间与区间外数据、表格复制、导出重开与两 peer 合并；工作区验证
 模板复制后模块仍在、编辑撤销／重做／重开，以及另一书的结构和模板正文不变。
 这些核心接口验证不代表 G1 的链接面板、导航或剪贴 UI 已验收；真窗口消费冒烟由 G1／整合方完成。
+
+### K6：完整条目快照的确切提交回执（2026-11-10）
+
+在 G1 已正式交回的快照命令旁新增 `entry_snapshot.create_with_receipt`（类型
+`commands::v3::snapshots::CreateWithReceipt`）。输入仍是 `EntryIn {book, entry}`，
+返回 `Created {point, versions}`。`point.book_version` 是快照前历史版本；`versions`
+在同一次 atomic reservation 的 staging 提交后取得，原子落盘失败不会返回回执。
+调用者可将本次快照自身造成的版本推进用于紧接着的 guarded 写入；不能用一次
+较晚的普通 observe 刷新旧内容覆盖。原 `Create`／`Capture` 返回值不变。
+K6 的回合屏障消费这个宿主接口，模型目录继续排除整个 `entry_snapshot.*`；
+永久契约在 `dr-agent-tools/tests/checkpoints_v3.rs`，使用 v3 testkit 种子。

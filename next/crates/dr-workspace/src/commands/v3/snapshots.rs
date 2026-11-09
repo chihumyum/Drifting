@@ -10,6 +10,7 @@ use serde_json::Value;
 
 pub(crate) fn register(r: &mut Registry) {
     r.add::<Create>()
+        .add::<CreateWithReceipt>()
         .add::<List>()
         .add::<Preview>()
         .add::<Restore>()
@@ -48,6 +49,22 @@ pub struct Point {
     /// Detect a damaged/incomplete manifest before planning any restoration.
     pub checksum: String,
     pub content_hash: String,
+}
+/// Exact frontiers committed by checkpoint creation, captured while all
+/// affected holders remain reserved. Later observations may include other edits.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct Created {
+    pub point: Point,
+    pub versions: BTreeMap<String, String>,
+}
+fn created(docs: &BTreeMap<String, LoroDoc>, point: Point) -> Created {
+    for doc in docs.values() {
+        doc.commit();
+    }
+    Created {
+        point,
+        versions: versions(docs),
+    }
 }
 #[derive(Clone, Debug, Serialize, JsonSchema)]
 pub struct BodyPreview {
@@ -265,6 +282,11 @@ op! {
     }
 }
 op! {
+    CreateWithReceipt="entry_snapshot.create_with_receipt",Write,Book,"Save a complete entry checkpoint and return its exact committed versions for a guarded host write. Never infer these versions from a later observation.",fn(cx,input:EntryIn)->Created {
+        create_with_receipt(cx, input, None)
+    }
+}
+op! {
     Capture="entry_snapshot.capture",Write,Book,"Capture changed v3 entry content periodically or on close using the existing history interval; unchanged content is skipped.",fn(cx,input:CaptureIn)->Point {
         create(cx, input.target, Some(input.reason))
     }
@@ -289,6 +311,13 @@ fn content_hash(docs: &BTreeMap<String, LoroDoc>, input: &EntryIn) -> Result<Str
     ))
 }
 fn create(cx: &Cx<'_>, input: EntryIn, automatic: Option<CaptureReason>) -> Result<Point> {
+    Ok(create_with_receipt(cx, input, automatic)?.point)
+}
+fn create_with_receipt(
+    cx: &Cx<'_>,
+    input: EntryIn,
+    automatic: Option<CaptureReason>,
+) -> Result<Created> {
     let s = cx.book_v3(&input.book)?;
     let (book, entry) = (s.book.clone(), pid("entry", &input.entry)?);
     let (version, e, templates) = s.handle.read(move |d| -> Result<_> {
@@ -356,7 +385,7 @@ fn create(cx: &Cx<'_>, input: EntryIn, automatic: Option<CaptureReason>) -> Resu
         Origin::Command,
         scope(&input.book, &prefix),
         &fresh,
-        |docs| -> Result<Point> {
+        |docs| -> Result<Created> {
             let observed = docs
                 .iter()
                 .filter(|(id, _)| existing.contains(*id))
@@ -395,7 +424,7 @@ fn create(cx: &Cx<'_>, input: EntryIn, automatic: Option<CaptureReason>) -> Resu
                     !dr_store::history::periodic_due(Some(p.ts), dr_store::now_ms())
                 })
             {
-                return Ok(latest.expect("checked"));
+                return Ok(created(docs, latest.expect("checked")));
             }
             for (doc, source) in &defaults {
                 if let Some(source) = source {
@@ -419,10 +448,11 @@ fn create(cx: &Cx<'_>, input: EntryIn, automatic: Option<CaptureReason>) -> Resu
                     .as_ref()
                     .is_some_and(|old| old.content_hash == p.content_hash)
             {
-                return Ok(latest.expect("checked"));
+                return Ok(created(docs, latest.expect("checked")));
             }
             save(&docs[&book_doc(&input.book)], &s.book, &p)?;
-            Ok(p)
+            cx.faults().check("snapshot_create_after_manifest")?;
+            Ok(created(docs, p))
         },
     )
     .map_err(inventory_error)?;

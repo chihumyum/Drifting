@@ -71,6 +71,7 @@ entry_relation_type.list     query    shared   List relation types available to 
 entry_relation_type.put      command  book     Create or edit a v3 relation type with endpoint and template restrictions.
 entry_snapshot.capture       command  book     Capture changed v3 entry content periodically or on close using the existing history interval; unchanged content is skipped.
 entry_snapshot.create        command  book     Save a complete v3 entry checkpoint, including retained modules and all body versions. Call before an Agent writes the entry.
+entry_snapshot.create_with_receipt command  book     Save a complete entry checkpoint and return its exact committed versions for a guarded host write. Never infer these versions from a later observation.
 entry_snapshot.list          query    shared   List complete checkpoints of one v3 entry, newest first.
 entry_snapshot.preview       query    shared   Read all historical entry content and current version guards for an atomic restore.
 entry_snapshot.restore       command  book     Atomically restore all owned content of one entry with required version guards, preserving a complete pre-restore checkpoint.

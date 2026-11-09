@@ -255,7 +255,7 @@ fn module_comments_require_that_module_and_filtered_reads_do_not_cover_other_com
 }
 
 #[test]
-fn comments_reject_foreign_targets_unknown_modules_and_unprotected_anchors() {
+fn comments_reject_foreign_targets_unknown_modules_and_unread_anchors() {
     let f = Fixture::new();
     let other_seed = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED + 1).unwrap();
     let other = other_seed.books[0].book_id().clone();
@@ -271,7 +271,6 @@ fn comments_reject_foreign_targets_unknown_modules_and_unprotected_anchors() {
             Err(Error::Invalid(_))
         ));
     }
-    f.module();
     let before = f.out("comment.list", json!({}));
     for anchor in [
         json!({"range":[0,2]}),
@@ -282,9 +281,10 @@ fn comments_reject_foreign_targets_unknown_modules_and_unprotected_anchors() {
         args.as_object_mut()
             .unwrap()
             .extend(anchor.as_object().unwrap().clone());
-        assert!(
-            matches!(f.call("comment.create",args),Err(Error::Invalid(message)) if message.contains("guarded source-prose"))
-        );
+        assert!(matches!(
+            f.call("comment.create", args),
+            Err(Error::ReadRequired(_))
+        ));
     }
     assert_eq!(f.out("comment.list", json!({})), before);
 }
@@ -351,4 +351,308 @@ fn material_metadata_and_text_use_current_book_scope_and_source_coverage() {
         f.call("material.update", json!({"id":id,"title":"stale"})),
         Err(Error::Conflict(_))
     ));
+}
+
+#[test]
+fn guarded_entry_range_anchor_bytes_and_reanchor_use_the_exact_source_module() {
+    let f = Fixture::new();
+    let prose = f
+        .call(
+            "module.read_prose",
+            json!({"owner":f.entry,"module":MOD_PROSE}),
+        )
+        .unwrap();
+    let expected: String = prose["paragraphs"][0]["text"]
+        .as_str()
+        .unwrap()
+        .chars()
+        .take(3)
+        .collect();
+    let id = f
+        .call(
+            "comment.create",
+            json!({"target":f.target(),"module":MOD_PROSE,"range":[0,3],"body":"Guarded range"}),
+        )
+        .unwrap()["id"]
+        .clone();
+    let rows = f
+        .call(
+            "comment.list",
+            json!({"target":f.target(),"module":MOD_PROSE}),
+        )
+        .unwrap();
+    let row = rows
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["id"] == id)
+        .unwrap();
+    assert_eq!(row["quote"], expected);
+    assert_eq!(row["author_kind"], "ai");
+    assert_eq!(row["source"], "api");
+    let anchors = f
+        .call(
+            "comment.anchors",
+            json!({"target":f.target(),"module":MOD_PROSE}),
+        )
+        .unwrap();
+    let anchor = anchors
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|a| a["id"] == id)
+        .unwrap()["anchor"]
+        .clone();
+    f.call("comment.reanchor", json!({"id":id,"anchor":null}))
+        .unwrap();
+    f.call(
+        "comment.list",
+        json!({"target":f.target(),"module":MOD_PROSE}),
+    )
+    .unwrap();
+    assert!(matches!(
+        f.call("comment.reanchor", json!({"id":id,"anchor":anchor})),
+        Err(Error::ReadRequired(_))
+    ));
+    f.module();
+    f.call("comment.reanchor", json!({"id":id,"anchor":anchor}))
+        .unwrap();
+    f.module();
+    let copied=f.call("comment.create",json!({"target":f.target(),"module":MOD_PROSE,"anchor":anchor,"body":"Guarded anchor bytes"})).unwrap()["id"].clone();
+    let rows = f
+        .call(
+            "comment.list",
+            json!({"target":f.target(),"module":MOD_PROSE}),
+        )
+        .unwrap();
+    assert_eq!(
+        rows.as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c["id"] == copied)
+            .unwrap()["quote"],
+        expected
+    );
+    assert!(
+        f.out("entry_snapshot.list", json!({"entry":f.entry}))
+            .as_array()
+            .unwrap()
+            .is_empty(),
+        "comment source reads must not create checkpoints"
+    );
+}
+
+#[test]
+fn partial_prose_allows_only_a_read_block_and_not_ranges_or_unseen_blocks() {
+    let f = Fixture::new();
+    let doc = format!("body:{}/{}", f.entry, MOD_PROSE);
+    let full = f.out("prose.read", json!({"doc":doc,"limit":100}));
+    assert!(full["paragraphs"].as_array().unwrap().len() > 1);
+    let partial = f.call("prose.read", json!({"doc":doc,"limit":1})).unwrap();
+    let base = json!({"target":f.target(),"module":MOD_PROSE,"body":"Partial source"});
+    let before = f.ws.observe(&format!("book:{}", f.book)).unwrap().version;
+    for extra in [
+        json!({"range":[0,2]}),
+        json!({"block_id":full["paragraphs"][1]["block_id"]}),
+    ] {
+        let mut args = base.clone();
+        args.as_object_mut()
+            .unwrap()
+            .extend(extra.as_object().unwrap().clone());
+        assert!(matches!(
+            f.call("comment.create", args),
+            Err(Error::ReadRequired(_))
+        ));
+    }
+    assert_eq!(
+        f.ws.observe(&format!("book:{}", f.book)).unwrap().version,
+        before
+    );
+    let mut args = base;
+    args["block_id"] = partial["paragraphs"][0]["block_id"].clone();
+    let id = f.call("comment.create", args).unwrap()["id"].clone();
+    let rows = f.out("comment.list", json!({}));
+    assert_eq!(
+        rows.as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c["id"] == id)
+            .unwrap()["target_block"],
+        partial["paragraphs"][0]["block_id"]
+    );
+}
+
+#[test]
+fn stale_anchor_source_and_invalid_ranges_never_write_comments_or_settlements() {
+    let f = Fixture::new();
+    let doc = format!("body:{}/{}", f.entry, MOD_PROSE);
+    let prose = f
+        .call(
+            "module.read_prose",
+            json!({"owner":f.entry,"module":MOD_PROSE}),
+        )
+        .unwrap();
+    let p = &prose["paragraphs"][0];
+    f.out("prose.replace",json!({"doc":doc,"block_id":p["block_id"],"find":p["text"],"replace":"Author changed the source before annotation"}));
+    let before = f.ws.observe(&format!("book:{}", f.book)).unwrap().version;
+    let body_before = f.ws.observe(&doc).unwrap().version;
+    let journal = f.ws.journal(None, 1000).unwrap().len();
+    let args = json!({"target":f.target(),"module":MOD_PROSE,"range":[0,3],"body":"Stale anchor"});
+    assert!(matches!(
+        f.call("comment.create", args),
+        Err(Error::Conflict(_))
+    ));
+    f.module();
+    for extra in [
+        json!({"range":[0,999999]}),
+        json!({"anchor":{}}),
+        json!({"block_id":"not-a-block"}),
+    ] {
+        let mut args = json!({"target":f.target(),"module":MOD_PROSE,"body":"Invalid anchor"});
+        args.as_object_mut()
+            .unwrap()
+            .extend(extra.as_object().unwrap().clone());
+        assert!(f.call("comment.create", args).is_err());
+        f.module();
+    }
+    assert_eq!(
+        f.ws.observe(&format!("book:{}", f.book)).unwrap().version,
+        before
+    );
+    assert_eq!(f.ws.observe(&doc).unwrap().version, body_before);
+    assert_eq!(f.ws.journal(None, 1000).unwrap().len(), journal);
+    assert!(
+        f.ws.library()
+            .settlements(Some("shared-v3"), None)
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[test]
+fn material_range_comments_guard_the_material_document_and_reject_foreign_anchor_bytes() {
+    let f = Fixture::new();
+    // Reuse seed text for the material source.
+    let seeded = f.out(
+        "module.read_prose",
+        json!({"owner":f.entry,"module":MOD_PROSE}),
+    );
+    let text = seeded["paragraphs"][0]["text"].as_str().unwrap();
+    let id = f.out(
+        "material.create",
+        json!({"kind":"text","title":"Anchor material","text":text}),
+    )["id"]
+        .clone();
+    let doc = format!("material:{}", id.as_str().unwrap());
+    f.call("prose.read", json!({"doc":doc,"limit":100}))
+        .unwrap();
+    let cid = f
+        .call(
+            "comment.create",
+            json!({"target":{"kind":"material","id":id},"range":[0,3],"body":"Material range"}),
+        )
+        .unwrap()["id"]
+        .clone();
+    let anchors = f
+        .call(
+            "comment.anchors",
+            json!({"target":{"kind":"material","id":id}}),
+        )
+        .unwrap();
+    let anchor = anchors
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|a| a["id"] == cid)
+        .unwrap()["anchor"]
+        .clone();
+    f.module();
+    let before = f.ws.observe(&format!("book:{}", f.book)).unwrap().version;
+    let journal = f.ws.journal(None, 1000).unwrap().len();
+    let settlements =
+        f.ws.library()
+            .settlements(Some("shared-v3"), None)
+            .unwrap()
+            .len();
+    assert!(
+        f.call(
+            "comment.create",
+            json!({"target":f.target(),"module":MOD_PROSE,"anchor":anchor,"body":"Wrong source"})
+        )
+        .is_err()
+    );
+    assert_eq!(
+        f.ws.observe(&format!("book:{}", f.book)).unwrap().version,
+        before
+    );
+    assert_eq!(f.ws.journal(None, 1000).unwrap().len(), journal);
+    assert_eq!(
+        f.ws.library()
+            .settlements(Some("shared-v3"), None)
+            .unwrap()
+            .len(),
+        settlements
+    );
+}
+
+#[test]
+fn reanchor_rejects_a_source_changed_after_its_read_without_a_receipt() {
+    let f = Fixture::new();
+    f.module();
+    let id = f
+        .call(
+            "comment.create",
+            json!({"target":f.target(),"module":MOD_PROSE,"range":[0,3],"body":"Reanchor source"}),
+        )
+        .unwrap()["id"]
+        .clone();
+    let anchors = f
+        .call(
+            "comment.anchors",
+            json!({"target":f.target(),"module":MOD_PROSE}),
+        )
+        .unwrap();
+    let anchor = anchors
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|a| a["id"] == id)
+        .unwrap()["anchor"]
+        .clone();
+    f.call("comment.list", json!({})).unwrap();
+    f.call("comment.reanchor", json!({"id":id,"anchor":null}))
+        .unwrap();
+    f.call("comment.list", json!({})).unwrap();
+    let prose = f
+        .call(
+            "module.read_prose",
+            json!({"owner":f.entry,"module":MOD_PROSE}),
+        )
+        .unwrap();
+    let p = &prose["paragraphs"][0];
+    let doc = format!("body:{}/{}", f.entry, MOD_PROSE);
+    f.out("prose.replace",json!({"doc":doc,"block_id":p["block_id"],"find":p["text"],"replace":"Author source edit before reanchor"}));
+    let before = f.ws.observe(&format!("book:{}", f.book)).unwrap().version;
+    let journal = f.ws.journal(None, 1000).unwrap().len();
+    let settlements =
+        f.ws.library()
+            .settlements(Some("shared-v3"), None)
+            .unwrap()
+            .len();
+    assert!(matches!(
+        f.call("comment.reanchor", json!({"id":id,"anchor":anchor})),
+        Err(Error::Conflict(_))
+    ));
+    assert_eq!(
+        f.ws.observe(&format!("book:{}", f.book)).unwrap().version,
+        before
+    );
+    assert_eq!(f.ws.journal(None, 1000).unwrap().len(), journal);
+    assert_eq!(
+        f.ws.library()
+            .settlements(Some("shared-v3"), None)
+            .unwrap()
+            .len(),
+        settlements
+    );
 }
