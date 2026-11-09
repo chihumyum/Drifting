@@ -407,3 +407,6 @@ Clippy（workspace／all-targets／`-D warnings`）、全量测试
 
 依新验收规矩保留既有数据测试和测量，不重做 heavy 或截图目检。全套自动检查仍须在
 F6 修复正式收进 main 后运行；本节不是第三批正式交回，指针暂留 `d2ddab9f`。
+另补永久回归：回收宿主隐藏归属后，换模板和改坐标再恢复宿主，原归属完整记录与主归属
+仍在；并发坐标写明确断言 Conflict，刷新后重试与另一方成功改名互不覆盖。6 项
+写入测试通过，原始日志 `next/target/acceptance/k4-g2-hidden-membership-test-1.log`。

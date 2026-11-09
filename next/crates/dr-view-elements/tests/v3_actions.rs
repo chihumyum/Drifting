@@ -220,7 +220,10 @@ fn tree_drop_checks_allowance_cycles_and_membership_without_moving_the_original(
         "entry.update",
         json!({"book":book,"id":child,"title":"Synthetic concurrent rename"}),
     );
-    assert!(stale.commit(&ws).is_err());
+    assert!(matches!(
+        stale.commit(&ws),
+        Err(dr_workspace::WsError::Conflict(_))
+    ));
     assert_eq!(
         Book::load(&ws, &book)
             .unwrap()
@@ -321,17 +324,112 @@ fn board_position_writes_keep_other_layouts_and_refuse_a_stale_snapshot() {
         "entry.update",
         json!({"book":book,"id":idea,"title":"Synthetic concurrent board rename"}),
     );
-    assert!(stale.commit(&ws).is_err());
+    assert!(matches!(
+        stale.commit(&ws),
+        Err(dr_workspace::WsError::Conflict(_))
+    ));
+    let refreshed = Book::load(&ws, &book).unwrap();
     assert_eq!(
-        Book::load(&ws, &book)
-            .unwrap()
-            .v3()
-            .unwrap()
-            .entry(&idea)
-            .unwrap()
-            .layout
-            .board,
+        refreshed.v3().unwrap().entry(&idea).unwrap().layout.board,
         Some((40.0, 80.0))
     );
+    // An explicit retry from the new observation succeeds as a second author
+    // edit. Both successful writes, including the intervening rename, survive.
+    prepare_board(&refreshed, &idea, (50.0, 90.0))
+        .unwrap()
+        .commit(&ws)
+        .unwrap();
+    let final_book = Book::load(&ws, &book).unwrap();
+    let entry = final_book.v3().unwrap().entry(&idea).unwrap();
+    assert_eq!(entry.title, "Synthetic concurrent board rename");
+    assert_eq!(entry.layout.board, Some((50.0, 90.0)));
+    assert_eq!(entry.layout.grid, Some((2, 3)));
+    assert_eq!(entry.layout.relation_graph, Some((7.0, 8.0)));
+    ws.shutdown().unwrap();
+}
+
+#[test]
+fn template_and_layout_edits_preserve_memberships_hidden_by_a_trashed_host() {
+    let (_dir, ws, book) = seed();
+    let initial = Book::load(&ws, &book).unwrap();
+    let manuscript = root(&initial, "tpl-manuscript");
+    let character = root(&initial, "tpl-character");
+    let residence = entry(&ws, &book, &manuscript, "tpl-group", "Synthetic residence");
+    let host = entry(
+        &ws,
+        &book,
+        &manuscript,
+        "tpl-group",
+        "Synthetic retained host",
+    );
+    for id in [&residence, &host] {
+        call(
+            &ws,
+            "entry.update",
+            json!({"book":book,"id":id,"overrides":{"allow":[],"accept":true}}),
+        );
+    }
+    call(
+        &ws,
+        "entry.move",
+        json!({"book":book,"id":character,"parent":residence}),
+    );
+    call(
+        &ws,
+        "membership.add",
+        json!({"book":book,"host":host,"member":character}),
+    );
+    call(
+        &ws,
+        "membership.primary",
+        json!({"book":book,"host":host,"member":character}),
+    );
+    let before = Book::load(&ws, &book).unwrap();
+    let retained_membership = before
+        .v3()
+        .unwrap()
+        .memberships
+        .iter()
+        .find(|m| m.host == host && m.member == character)
+        .unwrap()
+        .clone();
+    call(&ws, "entry.trash", json!({"book":book,"id":host}));
+    let hidden = Book::load(&ws, &book).unwrap();
+    assert!(
+        !hidden
+            .v3()
+            .unwrap()
+            .memberships
+            .iter()
+            .any(|m| m.host == host && m.member == character)
+    );
+    assert!(switch_templates(&hidden, &character).contains(&"tpl-idea".into()));
+    prepare_edit(&hidden, &character, json!({"template":"tpl-idea"}))
+        .unwrap()
+        .commit(&ws)
+        .unwrap();
+    let switched = Book::load(&ws, &book).unwrap();
+    prepare_board(&switched, &character, (24.0, 48.0))
+        .unwrap()
+        .commit(&ws)
+        .unwrap();
+    call(&ws, "entry.restore", json!({"book":book,"id":host}));
+    let restored = Book::load(&ws, &book).unwrap();
+    let v = restored.v3().unwrap();
+    assert_eq!(
+        serde_json::to_value(
+            v.memberships
+                .iter()
+                .find(|m| m.host == host && m.member == character)
+                .unwrap()
+        )
+        .unwrap(),
+        serde_json::to_value(retained_membership).unwrap()
+    );
+    let entry = v.entry(&character).unwrap();
+    assert_eq!(entry.primary.as_deref(), Some(host.as_str()));
+    assert_eq!(entry.parent.as_deref(), Some(residence.as_str()));
+    assert_eq!(entry.template.as_deref(), Some("tpl-idea"));
+    assert_eq!(entry.layout.board, Some((24.0, 48.0)));
     ws.shutdown().unwrap();
 }
