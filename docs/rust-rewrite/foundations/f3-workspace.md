@@ -902,3 +902,15 @@ docs/rust-rewrite/acceptance/f3-m2-workspace-bench.json
 持久结构见 [Loro schema 的 v3 书目](../loro-schema.md#书目文档-v3通用条目内核)及 [v2.2 → v3](../loro-schema.md#版本)。只有书目切换到 `meta.v = 3`，正文、对话和来源／日志机制仍共用。`entry_history.restore` 用书目 frontier 恢复选定记录，正文 frontier 交给 `prose.restore`，不把两个版本混用。
 
 注册表已有版本边界，旧 136 个命令的 schema 不变。帮手在 K6 前仍明确排除全部 44 个 v3 注册项；完整影响读取、继承来源和模板动作目录仍按 K6 实施。指定正文模块的行内链接，以及模块导出／Markdown 的未定约定，见 [F1 第 6 步待协调](f1-model-doc.md)，不由命令层补出另一套产品方案。默认大纲与作者命名层级遵循更新后的根目录 `AGENTS.md`。
+
+## K2 续接 G4：写作日共用接口（2026-11-10）
+
+`book.writing_days`／`writing_day.record` 保留原输入输出，同时支持 v2.2 和 v3。
+v3 分支从 `BookReaderV3` 读取写作日和每日目标，经 `write_book_v3` 写入；
+v2.2 分支保持原 reader／事务。两者共用既有按设备／日期键的汇总规则，
+记录器不产生日志逆操作，重复记录相同值不产生新提交。此许可没有放行
+`book.search` 或 `book.word_counts`，G4 仍使用已准备的只读 v3 适配。
+
+`tests/v3_common.rs` 断言两本 v3 书与 v2.2 同库互不干扰、重开后读数一致、
+只改变 `writing_days`、重复写入版本不变、不进入撤销日志，以及非法日期／负数拒绝。
+共用日期入口先拒绝非 ASCII，防止按字节切片解析非法日期时 panic；有效 v2.2 日期行为不变。
