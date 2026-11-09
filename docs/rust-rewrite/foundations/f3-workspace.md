@@ -1133,7 +1133,7 @@ LoroText（含 bold）／MovableList 的归属与位置四种组合验证无损�
 | `ProseTxn::insert_copy_v3` | v3 默认正文复制：正文和格子链接保留模块、素材与未知标记数据；块／嵌入 id 换新；不支持的 profile／嵌入在复制前拒绝 |
 
 剪贴消费者保留原始 mark 值，再用 `EntityLinkMarksV3::from_marks` 校验范围和键，不能
-经旧 `EntityLink` 往返丢掉 module。这里没有新增 OS 剪贴板格式；读写 UI 和 URL 由 G1
+经旧 `EntityLink` 往返丢掉 module。通用 LoroValue JSON 往返不保证保留 Binary 等未知类型，消费方须保留类型或明确拒绝不支持的值。这里没有新增 OS 剪贴板格式；读写 UI 和 URL 由 G1
 消费这些接口。读取者仍须在 holder 读任务中获得一致来源，命令继续使用原始观察和
 既有 guard；新查询和复制值不会凭空授予旧范围写入新版正文的权限。
 `commands/v3/module.rs` 的默认正文初始化改用 `insert_copy_v3`，包括嵌入占位符上的链接。新增 `autolink::link_written_v3` 供 v3 模块写入使用：自动名称匹配保留已有 module／块范围／素材／未知元数据链接，不会用裸条目链接覆盖；裸条目名称仍按既有规则补齐。v2.2 路由不变。
