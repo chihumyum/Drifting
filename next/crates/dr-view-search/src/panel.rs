@@ -23,7 +23,8 @@ use dr_ui::{
     tokens::{Rgb, menu as m, radius},
 };
 use dr_workspace::commands::prose::{Search, SearchIn};
-use dr_workspace::{Actor, NavTarget, Workspace};
+use dr_workspace::{Actor, NavTarget, Workspace, WsEvent};
+use futures::StreamExt as _;
 use gpui::{
     App, AppContext as _, Bounds, Context, ElementId, Entity, EventEmitter, FocusHandle, Focusable,
     HighlightStyle, InteractiveElement, IntoElement, ParentElement, Render, ScrollStrategy,
@@ -90,12 +91,15 @@ pub struct SearchPanel {
     i18n: I18n,
     scroll: UniformListScrollHandle,
     search: Option<Task<()>>,
+    request: u64,
     _subscriptions: Vec<Subscription>,
 }
 
 struct V3State {
     groups: Rc<Vec<crate::v3::Group>>,
     marks: crate::v3::Marks,
+    _subscription: Option<dr_workspace::Subscription>,
+    _events: Task<()>,
 }
 
 enum Results {
@@ -151,6 +155,7 @@ impl SearchPanel {
             i18n: I18n::new(locale, platform),
             scroll: UniformListScrollHandle::new(),
             search: None,
+            request: 0,
             _subscriptions: vec![sub],
         }
     }
@@ -175,9 +180,64 @@ impl SearchPanel {
             window,
             cx,
         );
+        let (tx, mut rx) = futures::channel::mpsc::unbounded();
+        let watched_book = panel.book.clone();
+        let subscription = panel.lib.as_ref().map(|lib| {
+            lib.subscribe(move |event| {
+                // This callback can run on a document holder. Only enqueue;
+                // do not read documents or run a query on the publisher.
+                if matches!(event, WsEvent::Local(c) if c.table == "index")
+                    || matches!(event, WsEvent::Book(b) if b.book.as_str() == watched_book)
+                {
+                    let _ = tx.unbounded_send(event.clone());
+                }
+            })
+        });
+        let lib = panel.lib.clone();
+        let book = panel.book.clone();
+        let events = cx.spawn(async move |this, cx| {
+            while let Some(first) = rx.next().await {
+                let mut batch = vec![first];
+                while let Ok(event) = rx.try_recv() {
+                    batch.push(event);
+                }
+                if !this
+                    .read_with(cx, |p, _| !p.query.is_empty())
+                    .unwrap_or(false)
+                {
+                    continue;
+                }
+                let Some(lib) = lib.clone() else { break };
+                let book = book.clone();
+                let relevant = cx
+                    .background_executor()
+                    .spawn(async move {
+                        batch.iter().any(|event| match event {
+                            WsEvent::Book(b) => b.book.as_str() == book,
+                            WsEvent::Local(c) if c.table == "index" => lib
+                                .library()
+                                .doc_info(&c.key)
+                                .ok()
+                                .flatten()
+                                .is_some_and(|d| d.book_id.as_deref() == Some(book.as_str())),
+                            _ => false,
+                        })
+                    })
+                    .await;
+                if relevant {
+                    let _ = this.update(cx, |panel, cx| {
+                        // Read the current query now, not the text that was
+                        // current when the index event arrived.
+                        panel.run_query(panel.query.clone(), Duration::ZERO, cx);
+                    });
+                }
+            }
+        });
         panel.v3 = Some(V3State {
             groups: Rc::default(),
             marks,
+            _subscription: subscription,
+            _events: events,
         });
         panel
     }
@@ -223,6 +283,8 @@ impl SearchPanel {
     }
 
     fn run_query(&mut self, text: String, wait: Duration, cx: &mut Context<Self>) {
+        self.request += 1;
+        let request = self.request;
         self.query = text.trim().to_owned();
         if self.query.is_empty() {
             self.search = None;
@@ -244,6 +306,7 @@ impl SearchPanel {
                 cx.background_executor().timer(wait).await;
             }
             let asked = query.clone();
+            let asked_book = book.clone();
             let hits = cx
                 .background_executor()
                 .spawn(async move {
@@ -262,7 +325,10 @@ impl SearchPanel {
                 })
                 .await;
             this.update(cx, |panel, cx| {
-                if panel.query != asked {
+                // Equal text is insufficient for A → B → A or a requery
+                // after indexing. Each panel is bound to one library/book;
+                // replacing it also drops its subscription and task.
+                if panel.request != request || panel.query != asked || panel.book != asked_book {
                     return;
                 }
                 panel.search = None;

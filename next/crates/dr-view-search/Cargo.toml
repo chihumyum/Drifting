@@ -14,6 +14,7 @@ dr-model.workspace = true
 dr-store.workspace = true
 dr-ui.workspace = true
 dr-workspace.workspace = true
+futures.workspace = true
 gpui.workspace = true
 log.workspace = true
 
