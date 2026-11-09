@@ -24,6 +24,9 @@
 //! record, and for a sync import what the server is now known to have. So
 //! nothing ever needs flushing at exit (GPUI gives quit handlers 200 ms).
 
+mod atomic;
+pub use atomic::{AtomicNewDocument, AtomicScope};
+
 use std::panic::AssertUnwindSafe;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
@@ -225,6 +228,7 @@ where
 }
 
 enum Msg {
+    Reserve(atomic::Request),
     Write {
         origin: Origin,
         agent: Option<AgentWrite>,
@@ -813,6 +817,7 @@ impl Holder {
                     let result = self.write(&origin, agent, &mut *job);
                     job.finish(result);
                 }
+                Msg::Reserve(request) => self.reserve(request),
                 Msg::Reindex(done) => {
                     let _ = done.send(self.reindex());
                 }

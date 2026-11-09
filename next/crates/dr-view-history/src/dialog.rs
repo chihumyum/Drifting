@@ -19,8 +19,8 @@ use dr_workspace::commands::points::{
 };
 use dr_workspace::{Actor, Workspace};
 use gpui::{
-    AnyElement, Context, ElementId, EventEmitter, InteractiveElement, IntoElement, ParentElement,
-    Render, SharedString, StatefulInteractiveElement, Styled, Task, Window, div, px,
+    AnyElement, AppContext as _, Context, ElementId, EventEmitter, InteractiveElement, IntoElement,
+    ParentElement, Render, SharedString, StatefulInteractiveElement, Styled, Task, Window, div, px,
 };
 
 use crate::model;
@@ -50,6 +50,10 @@ enum Note {
 }
 
 pub struct HistoryDialog {
+    /// The existing prose-menu host also opens v3 bodies. Those always use
+    /// complete-entry history; they must never reach the single-doc restore.
+    entry: Option<gpui::Entity<crate::EntryHistoryDialog>>,
+    entry_focused: bool,
     lib: Option<Workspace>,
     doc: String,
     title: SharedString,
@@ -87,6 +91,8 @@ impl HistoryDialog {
             None => name.to_owned(),
         };
         let mut dialog = HistoryDialog {
+            entry: None,
+            entry_focused: false,
             lib,
             doc,
             title: title.into(),
@@ -101,7 +107,29 @@ impl HistoryDialog {
             read_preview: None,
             restore: None,
         };
-        dialog.reload(cx);
+        if let (Some(ws), Ok(dr_model::DocId::Body(body))) =
+            (dialog.lib.as_ref(), dr_model::DocId::parse(&dialog.doc))
+            && let Ok(Some(info)) = ws.library().doc_info(&dialog.doc)
+            && let Some(book) = info.book_id
+        {
+            let ws = ws.clone();
+            let entry = cx.new(|cx| {
+                crate::EntryHistoryDialog::new(
+                    ws,
+                    dr_workspace::commands::v3::snapshots::EntryIn {
+                        book,
+                        entry: body.entry().to_string(),
+                    },
+                    name.to_owned(),
+                    locale,
+                    platform,
+                    cx,
+                )
+            });
+            dialog.entry = Some(entry);
+        } else {
+            dialog.reload(cx);
+        }
         dialog
     }
 
@@ -120,6 +148,9 @@ impl HistoryDialog {
 
     /// Read the points again.
     pub fn reload(&mut self, cx: &mut Context<Self>) {
+        if self.entry.is_some() {
+            return;
+        }
         let Some(lib) = self.lib.clone() else {
             self.points = Some(Vec::new());
             return;
@@ -150,6 +181,9 @@ impl HistoryDialog {
 
     /// Open (or close) the preview of point `id`.
     pub fn select(&mut self, id: i64, cx: &mut Context<Self>) {
+        if self.entry.is_some() {
+            return;
+        }
         if self.selected == Some(id) {
             self.selected = None;
             self.preview = None;
@@ -187,6 +221,9 @@ impl HistoryDialog {
 
     /// 「恢复…」: ask once more, in place.
     pub fn ask_restore(&mut self, id: i64, cx: &mut Context<Self>) {
+        if self.entry.is_some() {
+            return;
+        }
         if !self.busy {
             self.confirming = Some(id);
             self.note = None;
@@ -195,6 +232,9 @@ impl HistoryDialog {
     }
 
     pub fn cancel_restore(&mut self, cx: &mut Context<Self>) {
+        if self.entry.is_some() {
+            return;
+        }
         if !self.busy {
             self.confirming = None;
             cx.notify();
@@ -203,6 +243,9 @@ impl HistoryDialog {
 
     /// 「确认覆盖当前版本」.
     pub fn restore(&mut self, id: i64, cx: &mut Context<Self>) {
+        if self.entry.is_some() {
+            return;
+        }
         if self.busy {
             return;
         }
@@ -244,6 +287,10 @@ impl HistoryDialog {
 
     /// Close, unless a restore is running.
     pub fn close(&mut self, cx: &mut Context<Self>) {
+        if let Some(entry) = &self.entry {
+            entry.update(cx, |d, cx| d.close(cx));
+            return;
+        }
         if !self.busy {
             cx.emit(HistoryEvent::Close);
         }
@@ -432,6 +479,30 @@ impl HistoryDialog {
 
 impl Render for HistoryDialog {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if let Some(entry) = &self.entry {
+            if !self.entry_focused {
+                use gpui::Focusable;
+                let previous = window.focused(cx);
+                cx.subscribe_in(
+                    entry,
+                    window,
+                    move |_, _, event: &HistoryEvent, window, cx| {
+                        cx.emit(event.clone());
+                        if *event == HistoryEvent::Close
+                            && let Some(previous) = previous.clone()
+                        {
+                            // The existing host focuses its workspace on close.
+                            // Return to the originating input after that handler.
+                            window.defer(cx, move |window, cx| previous.focus(window, cx));
+                        }
+                    },
+                )
+                .detach();
+                entry.read(cx).focus_handle(cx).focus(window, cx);
+                self.entry_focused = true;
+            }
+            return div().child(entry.clone()).into_any_element();
+        }
         let theme = Theme::of(window, cx);
         let (p, s) = (theme.palette, theme.scale);
         let viewport = window.viewport_size();
@@ -499,6 +570,72 @@ impl Render for HistoryDialog {
         if let Some(note) = note {
             dialog = dialog.status(note);
         }
-        div().child(dialog)
+        div().child(dialog).into_any_element()
+    }
+}
+
+#[cfg(test)]
+mod v3_routing {
+    use super::{HistoryDialog, HistoryEvent};
+    use crate::v3::tests::setup;
+    use dr_i18n::{Locale, Platform};
+    use dr_workspace::{Actor, commands::v3::snapshots as api};
+    use gpui::TestAppContext;
+    use std::{
+        cell::Cell,
+        rc::Rc,
+        time::{Duration, Instant},
+    };
+
+    #[gpui::test]
+    fn the_existing_prose_menu_routes_v3_to_complete_entry_history(cx: &mut TestAppContext) {
+        cx.executor().allow_parking();
+        let (_dir, ws, target) = setup();
+        let lib = ws.clone();
+        let doc = format!("body:{}/mod-prose", target.entry);
+        let (root, cx) = cx.add_window_view(move |_, cx| {
+            HistoryDialog::new(Some(lib), doc, "V3 entry", Locale::En, Platform::Mac, cx)
+        });
+        let entry = root.read_with(cx, |d, _| d.entry.clone().expect("complete-entry route"));
+        let wait = |cx: &mut gpui::VisualTestContext| {
+            let until = Instant::now() + Duration::from_secs(10);
+            while entry.read_with(cx, |d, _| d.is_busy()) {
+                cx.run_until_parked();
+                assert!(Instant::now() < until);
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        };
+        wait(cx);
+        let closed = Rc::new(Cell::new(0));
+        let seen = closed.clone();
+        root.update(cx, |_, cx| {
+            cx.subscribe(&root.clone(), move |_, _, e: &HistoryEvent, _| {
+                if *e == HistoryEvent::Close {
+                    seen.set(seen.get() + 1)
+                }
+            })
+            .detach()
+        });
+        entry.update(cx, |d, cx| d.save(cx));
+        root.update(cx, |d, cx| {
+            d.restore(1, cx);
+            d.close(cx);
+        });
+        assert_eq!(
+            closed.get(),
+            0,
+            "busy child cannot be bypassed by the legacy host"
+        );
+        wait(cx);
+        assert_eq!(
+            ws.run::<api::List>(&Actor::User, target)
+                .unwrap()
+                .output
+                .len(),
+            1
+        );
+        root.update(cx, |d, cx| d.close(cx));
+        cx.run_until_parked();
+        assert_eq!(closed.get(), 1);
     }
 }

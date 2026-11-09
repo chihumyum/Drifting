@@ -11,6 +11,7 @@ use std::{collections::BTreeMap, rc::Rc};
 
 pub mod card;
 mod editor;
+pub mod history;
 pub mod page;
 pub mod sidebar;
 

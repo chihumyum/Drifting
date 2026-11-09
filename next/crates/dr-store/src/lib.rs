@@ -61,8 +61,8 @@ pub mod purge;
 pub use error::{MigrationFailure, Result, StoreError};
 pub use events::{LibrarySubscription, LocalChange, LocalChangeKind, StoreEvent};
 pub use holder::{
-    AgentWrite, Committed, ContainerChange, DocEvent, DocHandle, DocView, EventSubscription,
-    HolderStats, Imported, PendingWrite,
+    AgentWrite, AtomicNewDocument, AtomicScope, Committed, ContainerChange, DocEvent, DocHandle,
+    DocView, EventSubscription, HolderStats, Imported, PendingWrite,
 };
 pub use identity::Device;
 pub use library::{
