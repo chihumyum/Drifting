@@ -235,6 +235,14 @@ cargo run -p dr-view-elements --features capture --example elements-capture -- .
    选择当前聚焦／导航指定／首个可展示的正文，读取实际高度、滚动和光标，不伪造段落几何。
    按作者随后指示，接口先单独交回，G1 等它进入 main 后接线；G2 收到 G1 的交回提交，
    合入 main 后再完成联合真窗口验收。尚未声明 v3 大纲的产品验收完成。
+   **第 58 批联合核对：** 已合 G1 `3278b584`，本分支同步 main `c033ce2d`。
+   实际模块的 H1/H2/H3 点击、输入读回／撤销、指定模块、show_outline 刷新、关闭重开，
+   以及全书首次登记已通过窗口探查。重排后的全书仍被 F6 已登记的导航存在性阻断：
+   `book::v3::BookV3::exists` 只放行 Entry／Template，Book 返回 false；书快照刷新
+   会清掉当前 Book 标签。`k4-g2-outline.json` 第 109 步因此找不到全书条目，
+   独立诊断直接看到 `/page` 退回 `entry:…/outline-second`，tabs／pages 已无 Book。
+   日志及截图在 `next/target/acceptance/k4-g2-outline-reorder-diag-1/`；请 F6 在其
+   现有导航待协调中修正并正式接收后，G2 继续重排后重新登记及全书设置刷新验收。
 3. **F6／K1 查询：heavy 初次快照读取仍慢。** 标准 debug 的 v3-heavy 在 120 秒后
    `book.loaded=false`，G2 显示器尚未实例化。一秒采样看到
    `book::v3::load → EntryList → effective_parent → entries_map → resolve_autolink_name_conflicts`
@@ -380,3 +388,22 @@ Clippy（workspace／all-targets／`-D warnings`）、全量测试
 按作者约定，收到 G1 正式交回后再合入 main，验证实际正文及全书编辑器的大纲。
 因此 `handback/k4-g2` 此时仍指向已单独交回的 `d2ddab9f`，本次不前移。
 本会话没有合回 main、没有推送。
+
+### G1 接线后的复核（等待 F6 导航修复）
+
+已同步第 58 批 main，给 v3 大纲链接补上沿用标题的可访问名称，旧版分支不变。
+新增 `k4-g2-outline.json`，直接点击实际正文／全书大纲并输入、经 F3 读回和撤销；
+模块、指定模块、设置刷新、关闭重开及全书首次登记通过，重排后的后半段仍受待协调 2 阻断。
+层级场景改为等待设置有效值刷新，再开始下一项带版本守卫的写入；真正文说明区出现后，
+先把看板滚入窗口，再核对其内层滚动不会带动整页。
+
+针对性 Clippy 与 13 项层级／写入永久测试通过。显示器 52/52、选择器／拖动
+160/160，均 0 pending；副屏层级场景 111 项功能步骤加 2 项位置前置核对，
+**113/113、0 pending**，内层滚动几何检查通过。原始记录分别在
+`next/target/acceptance/k4-g2-joint-regression-1/displays/`、
+`k4-g2-joint-actions-1/`、`k4-g2-joint-levels-secondary-1/`。
+副屏核对按本进程 PID 移窗，验证整个 1440 × 900 窗口位于实际副屏，不操作其他进程。
+固定等待导致的旧版本拒绝及未将看板滚入窗口的失败记录保留，没有计作通过。
+
+依新验收规矩保留既有数据测试和测量，不重做 heavy 或截图目检。全套自动检查仍须在
+F6 修复正式收进 main 后运行；本节不是第三批正式交回，指针暂留 `d2ddab9f`。

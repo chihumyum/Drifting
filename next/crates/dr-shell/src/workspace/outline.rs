@@ -562,6 +562,7 @@ pub fn rail(
         .filter(|r| r.page == page)
         .map(|r| r.before);
     let mut reveal_list: Option<AnyElement> = None;
+    let v3_labels = w.book.v3().is_some();
     let labels = placed.into_iter().map(|Placed { slot, y }| {
         let label_top = px(y - PITCH / 2.0);
         match slot {
@@ -603,6 +604,7 @@ pub fn rail(
                     .when(lineage[i], |el| el.weight(weight::SEMIBOLD))
                     .text_color(ink.solid())
                     .role(gpui::Role::Link)
+                    .when(v3_labels, |el| el.aria_label(e.text.clone()))
                     .child(e.text.clone())
                     .on_click(move |_, window, cx| jump_to(&jump, chapter, line, window, cx))
                     .into_any_element()
@@ -629,6 +631,7 @@ pub fn rail(
                         reveal.clone(),
                         at,
                         &theme,
+                        v3_labels,
                     ));
                 }
                 div()
@@ -693,6 +696,7 @@ fn reveal_menu(
     reveal: Reveal,
     at: gpui::Bounds<gpui::Pixels>,
     theme: &Theme,
+    v3_labels: bool,
 ) -> AnyElement {
     let p = theme.palette;
     let rows = range.len() as f32;
@@ -730,6 +734,7 @@ fn reveal_menu(
                 .text_color(p.ink(ink).solid())
                 .hover(move |st| st.text_color(hover))
                 .role(gpui::Role::Link)
+                .when(v3_labels, |el| el.aria_label(e.text.clone()))
                 .child(e.text.clone())
                 .on_click(move |_, window, cx| {
                     ws.update(cx, |ws, cx| {
