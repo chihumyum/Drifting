@@ -4,7 +4,7 @@ pub(crate) fn register(r: &mut Registry) {
 }
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct Key {
-    /// entries, templates, memberships, timeline_views, patches, plot_grids, relations or relation_types.
+    /// entries, templates, memberships, timeline_views, patches, plot_grids, relations, relation_types, materials, comments or material_folders.
     pub collection: String,
     pub id: String,
 }
@@ -54,6 +54,7 @@ fn restore(cx: &Cx<'_>, input: RestoreIn) -> Result<Vec<Done>> {
     let old = dr_doc::v3::BorrowedBookV3::new(&old_doc, &s.book)?;
     let old = old.view();
     let current = s.reader_v3.view();
+    let folders = super::history_folders::plan(&old, &current, &input.targets)?;
     let mut entries = current.entries_map();
     let mut templates = current.templates_map();
     let mut ms = current.memberships_raw();
@@ -94,8 +95,9 @@ fn restore(cx: &Cx<'_>, input: RestoreIn) -> Result<Vec<Done>> {
                     plans.push(Plan::Trash(id));
                 }
             }
+            "material_folders" => {}
             "templates" | "memberships" | "timeline_views" | "patches" | "plot_grids"
-            | "relations" | "relation_types" => {
+            | "relations" | "relation_types" | "materials" | "comments" => {
                 let c = CollectionV3::from_root(&target.collection).unwrap();
                 if c == CollectionV3::RelationTypes {
                     let id = pid("relation type", &target.id)?;
@@ -185,6 +187,7 @@ fn restore(cx: &Cx<'_>, input: RestoreIn) -> Result<Vec<Done>> {
         _ => (0, 0, 0),
     });
     let (_, before) = cx.write_book_v3(&s, move |t| {
+        super::history_folders::apply(t, &folders)?;
         // Detach selected nodes first: a valid final graph can otherwise have a
         // transient cycle (restoring A above B while A currently lives below B).
         for p in &plans {
