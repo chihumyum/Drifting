@@ -194,6 +194,7 @@ fn main() {
         // M03: the chapter page's head and end around every editor.
         dr_view_page::init(cx);
         dr_view_elements::init(cx);
+        dr_view_templates::init(cx);
         // M16: the 构想 panel in the left sidebar, an idea's ⋯ rows.
         dr_view_ideas::init(cx);
         // M14 and M15: the Bottom Panel's timeline (⌘J) and the chapter in
