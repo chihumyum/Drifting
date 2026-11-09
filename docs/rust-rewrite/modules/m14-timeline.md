@@ -270,10 +270,12 @@ xtask check（含 audit，0 vulnerabilities，保留既有 12 条通知及 14 �
    日志、失败状态和截图在忽略目录 `next/target/acceptance/k4-g3-heavy/`；
    请外壳／查询负责方定位快照读取，再重跑同一脚本。不在 G3 修改快照或数据层。
 
-3. **G2：树上的拖动来源。** G3 提供 `v3::EntryDrag::new(book, entry, title)`，
+3. **F6/G2：树上的拖动来源。** G3 提供 `v3::EntryDrag::new(book, entry, title)`，
    来源在拿起时用 `set_grab(offset_x)` 记住抓的位置，已有长度可带在 `span`。
    时间线只接受同一本书，并经 F3 检查允许的模板和归属图。
-   G3 已有自己的条目选择器及真实拖入路径；左栏来源可复用此载荷，未越界改左栏／大纲。
+   G3 已有自己的条目选择器及真实拖入路径。当前公共外壳还没有 v3 条目拖动载荷，
+   且 `dr-shell` 不能反向依赖 `dr-view-timeline`；请 F6/G2 将中立载荷或来源注册口放在
+   外壳，再由 G3 消费。未越界改左栏／大纲，也不把树上拖入写成已经接好。
 
 ### 第二段：摆放、时间钉、泳道颜色
 
@@ -295,4 +297,35 @@ xtask check（含 audit，0 vulnerabilities，保留既有 12 条通知及 14 �
 
 永久契约增加两条：摆放的一步撤销／重做、住处和主归属不变、双泳道同位置、两视图独立位置与
 逐视图清理；时间钉连续改名／颜色／绑定／位置、单步撤销、解绑后保留名字与颜色、删除。
-真窗口场景 `scenarios/k4-g3-placement-pins.json` 使用 v3-lite；最终结果待本段交回记录。
+真窗口场景 `scenarios/k4-g3-placement-pins.json` 使用 v3-lite；最终结果见本段交回记录。
+
+### 第二段交回
+
+分支 `codex/k4-g3-timeline`，继续前移 `handback/k4-g3`。
+本段提交：`6883becc`（摆放与时间钉）、`a37d9eb2`（原生长度拖动、泳道颜色页、
+永久契约与真窗口场景）、`8f57708c`（同步 main `91a74675`）及本记录。
+同步时只合九语言 own 的不同键组并重生成 locales，保留 K5 的模板编辑器文案。
+第一段 `85b70cbf` 已由整合者第四十五批收进 main；本会话没有合入 main 或推送。
+
+最终检查全过，所有编译命令均为 `CARGO_BUILD_JOBS=3`：
+fmt、全 workspace Clippy `-D warnings`、全 workspace test
+**2049 passed / 0 failed / 22 ignored**（测试线程 3）、xtask check
+（含 audit，0 vulnerabilities、12 条既有通知、14 份过期测量提示）、
+根目录 `pnpm public:check`。v3 时间线的四条永久契约全过。
+
+同步 main 后重新构建带调试桥的应用与 CLI，再跑两套真实窗口：
+
+- `k4-g3-views-lanes.json`：**45/45 步、0 pending**，视图与泳道操作及切回 v2.2 通过。
+- `k4-g3-placement-pins.json`：**89/89 步、0 pending**。条目从选择器真实拖入、
+  跨泳道后两处同位置、长度从 4 加到 21 再缩到 11；移出最后泳道后位置清空，
+  树上住处、顺序与主归属不变。时间钉由双击标尺建立，改名、十六进制颜色及挂条目
+  逐项读回；泳道页颜色保存、成员标题及归属数量均核对。
+
+四张最终截图逐张目检：视图／泳道、v2.2、摆放／时间钉、泳道页。
+可重跑的场景代码和永久契约随本段提交；自动生成的结果、截图与日志仍在忽略目录
+`next/target/acceptance/k4-g3-views-lanes/`、`k4-g3-placement-pins/`，
+检查日志为 `next/target/k4-g3-second-*-final.log`。
+
+重型打开／滚动仍未通过，见待协调 2；不能据此宣布 G3 性能或 K4 切换完成。
+待协调 1 的隐藏目标视图仍按保护策略拒绝整份覆盖；待协调 3 的左栏公共拖动来源尚未接线，
+本段已提供时间线内选择器的真实拖入。以上未越界代改数据层或公共外壳。
