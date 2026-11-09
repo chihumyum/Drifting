@@ -6,10 +6,10 @@
 //! [`replace`]:
 //!
 //! 1. The shared release gate freezes new service work and awaits every
-//!    registered asynchronous shutdown. If preparation fails, the original
-//!    library and windows stay in place and services resume.
-//! 2. The Markdown folder makes a last pass and stops (M40). Every
-//!    workspace window lets go: its open pages' editors, the
+//!    registered asynchronous shutdown, the Markdown folder's last pass,
+//!    then fallible final checkpoints. Failure keeps the original library
+//!    and windows in place and resumes services.
+//! 2. Every workspace window lets go: its open pages' editors, the
 //!    bookshelf and Project Home, search, snapshot history, the comment
 //!    composer, its subscription; M07's recorder stores its writing days and
 //!    stops, the Stats and Review tabs let go; `Services` no longer offers
@@ -148,8 +148,8 @@ fn release_frames(cx: &mut App) {
 
 /// Everything in the app that holds the library lets go of it.
 fn let_go(cx: &mut App) {
-    // The Markdown folder first: a last pass while the library is open.
-    crate::mirror::stop(cx);
+    // The Markdown worker and final checkpoints already finished while all
+    // windows and the original library were still available for recovery.
     for handle in windows(cx) {
         if let Err(error) = handle.update(cx, |ws, window, cx| ws.let_go_of_library(window, cx)) {
             log::warn!("a window could not let go of the library: {error:#}");

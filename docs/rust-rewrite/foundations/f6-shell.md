@@ -876,6 +876,48 @@ G2 三种回调及 K5 新建委托。v3-lite 真窗口场景 **84/84 步、0 pen
 更新自己的子实体，不在这里重借 workspace；需要改窗口或调用命令的动作放进点击
 回调。第二轮完成后，左栏和大纲栏按 K4 分轨交给 G2；其余公共外壳入口继续留在 F6。
 
+### 最终 checkpoint 阶段交回（2026-11-10）
+
+分支 `codex/k4-0-shell`，新增冻结指针 `handback/k4-0-drain`；旧交回指针不动。
+新增 `release::after_drain(cx, FnMut(&mut App) -> LocalBoxFuture<Result<(), String>>)`：
+服务先冻结入口，外壳暂停输入并交付 blur，等待全部 `before_release` futures；任一
+失败仍等其他服务结束，随后恢复，不执行最终 checkpoint。全部成功后，后台完成
+Markdown 最后一轮并停止 worker，才按登记顺序构造、等待最终 checkpoint，连它的
+同步前缀也不得提前捕获版本。`Report.waiting` 不算完成；后台每 50 ms 重试，连续
+5 秒仍有变化或同步失败则拒绝释放。这是等待文件稳定的期限，不是阻塞 I/O 的硬
+超时。错误或 panic 保留原库、页面和草稿，恢复服务与输入，不隐藏应用、不调用
+替换作业、不跑退出后的副作用。Markdown 在 gate 关闭期间不得重启，失败或换库
+完成后按当前 Services 重启。新失败提示复用九语 `keys::k4_pages::SAVE_FAILED`，
+没有新增说明文案，没有删改 v2.2 测试。实现提交 `e9b20b90`、`849fdeef`，场景顺序
+修正 `11115ec3`，基线记录 `1fd0bcdc`；已合正式 main `282587bb`（含 G1 `82fca0b4`、
+K2 `5ad94846`、K6 `983289b9`、G4 `a26dafd9`），没有消费 owner 工作区。
+
+检查：fmt、全工作区 all-targets Clippy（`-D warnings`）、全量测试 **2250 通过／0
+失败／22 忽略**、xtask（含 audit）、public 全通过，编译使用 jobs=3。7 项 v3 释放
+契约含真实 G1 worker 结束后的最后一笔正文、最终快照的 body frontier 与重开读回，
+以及实际 book 落盘失败拒绝换库、正文保留、解除故障后重试；mirror 3 项单测中
+2 项新增。真实 worker 生命周期使用回收中的共享 v3 种子，不宣称 M40 已支持 v3
+Markdown 布局。全量日志及机器结果在 `next/target/acceptance/k4-0-checks/` 的
+`after-drain-verified-*`；测试耗时 2031.33 秒，不作为性能测量。audit 为 0 漏洞／
+12 条既有提示，19 项 measured evidence stale、macOS `__eh_frame` 提示单列保留。
+唯一副屏冒烟 `k4-0-drain.json` 用 v3-lite 跑真实输入、退出、完整快照读回、重开和
+撤销：28 原步骤加 2 次本 PID 副屏校验，**30/30、0 pending**；两次 app.info 均
+active/visible，PID 75166、75291，结束后均已退出。结果在
+`next/target/acceptance/k4-0-drain-window/result.json`，副屏凭据在
+`next/target/acceptance/k4-0-drain-secondary/receipts/`。首轮全量测试在
+`the_shipped_scenarios_parse` 拒绝了末尾仍有离线读回的新增场景；已将第二次快照
+读回移到最后一次退出之前，定向和全量均通过，原失败日志
+`after-drain-final-test.log` 保留未覆盖。
+
+待协调：G1 生产代码仍在 `quit::before_quit` 调用 `capture_on_close`，须迁到本次
+可失败的 `after_drain`；契约中的实际调用不等于生产注册已迁移。字段／KV／patch／
+planner 已接收保存还须登记并排空；冲突和无效草稿要保留并拒绝释放，blur 不等于
+后台保存完成。整合者已分派 G1 独立续接，F6 不改其视图。当前 GUI 导入经限定核对
+仍是冻结的 v2.2 路径，不恢复旧测试；真正 v3 导入入口的生命周期由切换任务另核对。
+未知树身份继续沿 G1 已定的安全拒绝边界。G4 素材批注保存／精确引文和自动最近
+访问由其窗口结果单独验收，本次正文退出冒烟不替代；G4 已受控复现的导入回滚
+缺陷也不因本轮相关测试通过而关闭。
+
 ### 挂载编辑器与 v3 URL 交回（2026-11-10）
 
 分支 `codex/k4-0-shell`，续接指针 `handback/k4-0-editors`；实现 `14fb3cf9`，
