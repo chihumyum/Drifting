@@ -90,34 +90,47 @@ fn live_targets(
             return Err(Error::Closed);
         }
         let templates = view.templates_map();
-        let memberships = view.memberships_raw();
-        let entries = view.entries();
-        let entries_map: BTreeMap<_, _> =
-            entries.iter().map(|e| (e.id.clone(), e.clone())).collect();
-        let live: Vec<_> = entries.into_iter().filter(|e| !e.is_trashed()).collect();
-        let non_autolink_exists = live
-            .iter()
-            .any(|e| !dr_model::v3::is_autolink_leaf(e, &memberships, &entries_map, &templates));
+        let entries = view.entries_map();
+        let materials: BTreeMap<_, _> = view
+            .materials()
+            .into_iter()
+            .map(|m| (m.id.clone(), m))
+            .collect();
         let mut targets = BTreeMap::new();
-        for entry in live {
-            if mode == DeltaMode::LocalAuthorNodes
-                && non_autolink_exists
-                && dr_model::v3::is_autolink_leaf(&entry, &memberships, &entries_map, &templates)
-            {
-                continue;
-            }
-            let card = CardTarget {
-                kind: "entry".into(),
-                id: entry.id.to_string(),
-                title: entry.title.clone(),
-            };
-            targets.insert(format!("body:{}/about", entry.id), card.clone());
-            if let Some(tpl) = entry.effective_template(&templates) {
-                for m in &tpl.modules {
-                    if m.kind == dr_model::v3::ModuleKind::Prose {
-                        targets.insert(format!("body:{}/{}", entry.id, m.id), card.clone());
+        // The evidence collector does not infer a task from template names or
+        // auto-link flags. Every retained, registered body keeps its identity.
+        for info in lib.docs(Some(book.as_str()), None)? {
+            match DocId::parse(&info.doc_id) {
+                Ok(DocId::Body(body)) => {
+                    if let Some(entry) = entries.get(body.entry()).filter(|e| !e.is_trashed()) {
+                        let module = entry
+                            .effective_template(&templates)
+                            .and_then(|t| t.module(body.module()))
+                            .map(|m| m.name.as_str())
+                            .unwrap_or(body.module().as_str());
+                        targets.insert(
+                            info.doc_id,
+                            CardTarget {
+                                kind: "entry".into(),
+                                id: entry.id.to_string(),
+                                title: format!("{} / {}", entry.title, module),
+                            },
+                        );
                     }
                 }
+                Ok(DocId::Material(id)) if mode == DeltaMode::AllProse => {
+                    if let Some(material) = materials.get(&id) {
+                        targets.insert(
+                            info.doc_id,
+                            CardTarget {
+                                kind: "material".into(),
+                                id: id.to_string(),
+                                title: material.title.clone(),
+                            },
+                        );
+                    }
+                }
+                _ => {}
             }
         }
         return Ok(targets);

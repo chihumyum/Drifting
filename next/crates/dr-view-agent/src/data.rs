@@ -292,98 +292,10 @@ pub fn starters(ws: &Workspace, book: &str) -> Result<StarterSource, String> {
         .load_copy(&format!("book:{book}"))
         .map_err(|error| error.to_string())?;
     if dr_doc::v3::is_v3_doc(&copy) {
-        let book_id = dr_model::id::BookId::parse(book).map_err(|error| error.to_string())?;
-        let borrowed =
-            dr_doc::v3::BorrowedBookV3::new(&copy, &book_id).map_err(|error| error.to_string())?;
-        let view = borrowed.view();
-        let templates = view.templates_map();
-        let memberships = view.memberships_raw();
-        let ordered = view.entries();
-        let entries_map: std::collections::BTreeMap<_, _> =
-            ordered.iter().map(|e| (e.id.clone(), e.clone())).collect();
-        let manuscript_levels = view.manuscript_levels();
-        let mut leaves = Vec::new();
-        let mut seen = std::collections::BTreeSet::new();
-        for root in ordered.iter().filter(|e| manuscript_levels.contains(&e.id)) {
-            for leaf in view.manuscript_leaves(&root.id) {
-                if seen.insert(leaf.id.clone()) {
-                    leaves.push(leaf);
-                }
-            }
-        }
-        let mut chapter_rows = Vec::new();
-        for (index, leaf) in leaves.into_iter().enumerate() {
-            let prose_doc = leaf
-                .effective_template(&templates)
-                .and_then(|tpl| {
-                    tpl.modules
-                        .iter()
-                        .find(|m| m.kind == dr_model::v3::ModuleKind::Prose)
-                })
-                .map(|m| format!("body:{}/{}", leaf.id, m.id));
-            let words =
-                if let Some(doc) = prose_doc {
-                    let prose = read("prose.read", json!({"doc":doc,"limit":usize::MAX}))?;
-                    u64::from(prose["paragraphs"].as_array().into_iter().flatten().any(
-                        |paragraph| {
-                            paragraph["text"]
-                                .as_str()
-                                .is_some_and(|text| !text.trim().is_empty())
-                        },
-                    ))
-                } else {
-                    0
-                };
-            chapter_rows.push(Chapter {
-                id: leaf.id.to_string(),
-                title: leaf.title,
-                book_order: index,
-                word_count: words,
-            });
-        }
-        let mut autolink_entries: Vec<_> = ordered
-            .into_iter()
-            .filter(|e| {
-                !e.is_trashed()
-                    && dr_model::v3::is_autolink_leaf(e, &memberships, &entries_map, &templates)
-            })
-            .collect();
-        autolink_entries.sort_by(|a, b| {
-            (a.created_at.map(|t| t.0).unwrap_or(0), &a.id)
-                .cmp(&(b.created_at.map(|t| t.0).unwrap_or(0), &b.id))
-        });
-        let mut source = StarterSource {
-            chapters: chapter_rows,
-            elements: autolink_entries
-                .into_iter()
-                .map(|e| Element {
-                    id: e.id.to_string(),
-                    name: e.title,
-                })
-                .collect(),
+        return Ok(StarterSource {
+            template_guided: true,
             ..Default::default()
-        };
-        for rel in view.relations() {
-            for end in [&rel.from, &rel.to] {
-                if end.kind == dr_model::kind::EntityKind::Entry {
-                    *source.relation_counts.entry(end.id.clone()).or_default() += 1;
-                }
-            }
-        }
-        if let Ok(recent) = read("recent.list", json!({"book":book})) {
-            source.recent_chapter_ids = recent
-                .as_array()
-                .into_iter()
-                .flatten()
-                .filter_map(|row| {
-                    let target = &row["target"];
-                    matches!(target["kind"].as_str(), Some("node" | "entry"))
-                        .then(|| target["id"].as_str().map(str::to_owned))
-                        .flatten()
-                })
-                .collect();
-        }
-        return Ok(source);
+        });
     }
     let chapters = read("chapter.list", json!({"book":book}))?;
     let elements = read("element.list", json!({"book":book}))?;
@@ -677,6 +589,18 @@ mod tests {
         assert_eq!(requests[0].key, prompts::COMMENT_CHAPTER);
         assert_eq!(requests[0].values, vec![("chapter", recent.title.clone())]);
         assert_eq!(requests[1].values, vec![("chapter", recent.title.clone())]);
+        workspace.shutdown().unwrap();
+    }
+
+    #[test]
+    fn v3_onboarding_does_not_infer_novel_starters_from_entry_shapes() {
+        let directory = tempfile::tempdir().unwrap();
+        let workspace = Workspace::open_dir(directory.path(), "k6-v3-starters").unwrap();
+        let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+        seeded.write_to(workspace.library()).unwrap();
+        let source = starters(&workspace, seeded.books[0].book_id().as_str()).unwrap();
+        assert!(source.template_guided);
+        assert!(crate::onboarding::build_starter_prompts(&source).is_empty());
         workspace.shutdown().unwrap();
     }
 

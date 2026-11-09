@@ -17,7 +17,7 @@ struct Fixture {
     book: BookId,
     entry: String,
     doc: String,
-    _dir: tempfile::TempDir,
+    _dir: Arc<tempfile::TempDir>,
 }
 impl Fixture {
     fn new() -> Self {
@@ -45,7 +45,7 @@ impl Fixture {
             book,
             entry,
             doc,
-            _dir: dir,
+            _dir: Arc::new(dir),
         }
     }
     fn out(&self, name: &str, args: Value) -> Value {
@@ -351,4 +351,65 @@ fn v2_books_receive_no_structure_context() {
             .is_empty()
     );
     ws.close();
+}
+
+#[test]
+fn novel_guidance_is_copied_once_and_clearing_it_survives_reopen() {
+    let f = Fixture::new();
+    let builtins = dr_doc::v3::novel::novel_project_templates();
+    let manuscript = builtins
+        .iter()
+        .find(|t| t.id.as_str() == dr_doc::v3::novel::TPL_MANUSCRIPT)
+        .unwrap();
+    let guidance = &manuscript.agent.as_ref().unwrap().instructions;
+    assert!(guidance.contains("书稿 / 章 / H1 / H2 / H3"));
+    assert!(guidance.contains("仅在这种整理任务中不修改正文"));
+    assert!(guidance.contains("不限制作者另行明确要求"));
+    let initial = f.context();
+    assert_eq!(
+        initial
+            .templates
+            .iter()
+            .find(|t| t.id == manuscript.id.as_str())
+            .unwrap()
+            .agent
+            .instructions,
+        *guidance
+    );
+    for mut template in f.templates() {
+        template["agent"] = Value::Null;
+        for module in template["modules"].as_array_mut().unwrap() {
+            module["agent"] = Value::Null;
+        }
+        f.put(template);
+    }
+    let cleared = StructureContext::for_book(&f.ws, &f.book, None)
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        cleared.project_template_source.as_ref().unwrap().id,
+        "builtin:novel"
+    );
+    assert!(
+        cleared
+            .templates
+            .iter()
+            .all(|t| t.agent.instructions.is_empty()
+                && t.agent.description.is_empty()
+                && t.modules.iter().all(|m| m.agent.instructions.is_empty()))
+    );
+    // Accessing current application defaults is not a template update action.
+    assert!(!dr_doc::v3::novel::novel_project_templates().is_empty());
+    f.ws.close();
+    let directory = Arc::clone(&f._dir);
+    let book = f.book.clone();
+    drop(f);
+    let reopened = Workspace::open_dir(directory.path(), "k6-structure-reopen").unwrap();
+    assert_eq!(
+        StructureContext::for_book(&reopened, &book, None)
+            .unwrap()
+            .unwrap(),
+        cleared
+    );
+    reopened.close();
 }

@@ -7,10 +7,16 @@ pub struct OrganizeTask {
     pub coverage: DeltaCursor,
 }
 
-/// A local card, without a model request. Its caller starts an ordinary
+/// A v2.2 local card, without a model request. v3 maintenance intent must
+/// come from book guidance in the check-in request. Its caller starts an ordinary
 /// read/write session only after the author opens it.
 pub fn prepare_organize(batch: &DeltaBatch) -> Option<OrganizeTask> {
-    if batch.documents.is_empty() {
+    if batch.documents.is_empty()
+        || batch
+            .documents
+            .iter()
+            .any(|d| !matches!(d.target.kind.as_str(), "chapter" | "idea"))
+    {
         return None;
     }
     let (title, prompt) = crate::novel_template::organize(&batch.documents);
