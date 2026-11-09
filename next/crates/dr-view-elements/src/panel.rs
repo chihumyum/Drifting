@@ -1652,7 +1652,7 @@ pub mod v3 {
     };
     use dr_ui::{
         Theme,
-        components::{SandCell, Segmented},
+        components::{DraggedPill, Pill, SandCell, Segmented, overlay},
         fonts::Role,
         sand::{self, Icon, KindMark, SandFrame},
         style::DrStyled,
@@ -1678,6 +1678,7 @@ pub mod v3 {
     pub enum Row {
         Section(Section),
         Entry { id: String, depth: usize },
+        Member { id: String },
         Tiles { ids: Vec<String>, depth: usize },
         Island { id: String, members: Vec<String> },
     }
@@ -1827,10 +1828,7 @@ pub mod v3 {
         if !root.members.is_empty() {
             out.push(Row::Section(Section::Members));
             for id in &root.members {
-                out.push(Row::Entry {
-                    id: id.clone(),
-                    depth: 0,
-                });
+                out.push(Row::Member { id: id.clone() });
             }
         }
         out
@@ -1867,6 +1865,103 @@ pub mod v3 {
         }
     }
 
+    #[derive(Clone)]
+    struct EntryDrag {
+        page: dr_shell::pages::PageViewHost,
+        id: String,
+        start: Entity<Option<Point<Pixels>>>,
+        board: Option<(String, (f64, f64))>,
+    }
+    impl EntryDrag {
+        fn same(&self, page: &dr_shell::pages::PageViewHost) -> bool {
+            self.page.workspace.entity_id() == page.workspace.entity_id()
+                && self.page.book_id == page.book_id
+                && std::ptr::eq(self.page.library.library(), page.library.library())
+                && self.page.book.v3().map(|v| &v.revision) == page.book.v3().map(|v| &v.revision)
+        }
+    }
+    fn admit_drag(
+        host: &dr_shell::pages::PageViewHost,
+        job: impl FnOnce(dr_workspace::Workspace) -> Result<serde_json::Value, dr_workspace::WsError>
+        + Send
+        + 'static,
+        cx: &mut App,
+    ) {
+        let lib = host.library.clone();
+        let book = host.book_id.clone();
+        let owner = host.workspace.clone();
+        let identity = lib.library() as *const _ as usize;
+        let (tx, rx) = futures::channel::oneshot::channel();
+        // The detached worker owns the lease, even if the UI receiver closes.
+        cx.background_executor()
+            .spawn(async move {
+                let result = job(lib);
+                let _ = tx.send(result);
+            })
+            .detach();
+        cx.spawn(async move |cx| {
+            if let Ok(Err(error)) = rx.await {
+                log::warn!("v3 entry drop: {error}");
+                owner
+                    .update(cx, |ws, cx| {
+                        if ws.book_id == book
+                            && ws
+                                .library
+                                .as_ref()
+                                .is_some_and(|lib| lib.library() as *const _ as usize == identity)
+                        {
+                            let text = t(cx, keys::common::SAVE_FAILED);
+                            ws.toast(text, cx);
+                        }
+                    })
+                    .ok();
+            }
+        })
+        .detach();
+    }
+    fn drop_on_entry(
+        page: &dr_shell::pages::PageViewHost,
+        drag: &EntryDrag,
+        onto: &str,
+        after: bool,
+        cx: &mut App,
+    ) {
+        if !drag.same(page) || crate::data::v3::fresh(&drag.page, cx).is_none() {
+            return;
+        }
+        if let Ok(edit) = crate::data::v3::prepare_drop(&drag.page.book, &drag.id, onto, after) {
+            admit_drag(&drag.page, move |lib| edit.commit(&lib), cx);
+        }
+    }
+    fn drop_on_board(
+        page: &dr_shell::pages::PageViewHost,
+        level: &str,
+        drag: &EntryDrag,
+        window: &Window,
+        cx: &mut App,
+    ) {
+        if !drag.same(page) || crate::data::v3::fresh(&drag.page, cx).is_none() {
+            return;
+        }
+        if let Some((origin, position)) = &drag.board
+            && origin == level
+        {
+            let Some(start) = *drag.start.read(cx) else {
+                return;
+            };
+            let delta = window.mouse_position() - start;
+            let position = (
+                position.0 + f64::from(f32::from(delta.x)),
+                position.1 + f64::from(f32::from(delta.y)),
+            );
+            if let Ok(edit) = crate::data::v3::prepare_board(&drag.page.book, &drag.id, position) {
+                admit_drag(&drag.page, move |lib| edit.commit(&lib), cx);
+            }
+        } else {
+            drop_on_entry(page, drag, level, true, cx);
+        }
+    }
+
     pub struct LevelDisplay {
         pub host: LevelHost,
         pub display: Display,
@@ -1877,7 +1972,66 @@ pub mod v3 {
         scroll: ScrollHandle,
     }
 
+    /// Opt-in native draw timings for the G2 milestone. No prose, IDs, paths
+    /// or user input are recorded; release builds do not start this probe.
+    #[cfg(all(feature = "measure-v3", debug_assertions))]
+    fn start_frame_probe() {
+        use std::{
+            io::Write as _,
+            sync::atomic::{AtomicBool, Ordering},
+            time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+        };
+        static STARTED: AtomicBool = AtomicBool::new(false);
+        let Some(path) = std::env::var_os("DRIFTING_G2_FRAME_LOG") else {
+            return;
+        };
+        if STARTED.swap(true, Ordering::Relaxed) {
+            return;
+        }
+        let Ok(mut sink) = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(path)
+        else {
+            log::warn!("G2 frame probe could not create its output");
+            return;
+        };
+        gpui::profiler::set_trace_enabled(true);
+        let mut collector = gpui::profiler::FrameTimingCollector::new();
+        std::thread::spawn(move || {
+            loop {
+                for event in collector.collect_unseen() {
+                    if let gpui::profiler::FrameEvent::Draw(frame) = event {
+                        let now = Instant::now();
+                        let unix = SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .unwrap_or_default()
+                            .as_micros();
+                        let at = unix.saturating_sub(
+                            now.saturating_duration_since(frame.draw_start).as_micros(),
+                        );
+                        let _ = writeln!(
+                            sink,
+                            "{{\"at_us\":{},\"draw_us\":{},\"layout_us\":{},\"prepaint_us\":{},\"paint_us\":{}}}",
+                            at,
+                            frame
+                                .draw_end
+                                .saturating_duration_since(frame.draw_start)
+                                .as_micros(),
+                            frame.phases.request_layout.as_micros(),
+                            frame.phases.prepaint.as_micros(),
+                            frame.phases.paint.as_micros()
+                        );
+                    }
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+        });
+    }
+
     pub fn register(cx: &mut App) {
+        #[cfg(all(feature = "measure-v3", debug_assertions))]
+        start_frame_probe();
         for (name, kind) in [
             ("list", Display::List),
             ("grid", Display::Grid),
@@ -1964,6 +2118,30 @@ pub mod v3 {
             window: &mut Window,
             cx: &mut App,
         ) -> AnyElement {
+            self.entry_at(id, depth, tile, "root", None, window, cx)
+        }
+        fn entry_scoped(
+            &self,
+            id: &str,
+            depth: usize,
+            tile: bool,
+            scope: &str,
+            window: &mut Window,
+            cx: &mut App,
+        ) -> AnyElement {
+            self.entry_at(id, depth, tile, scope, None, window, cx)
+        }
+        #[allow(clippy::too_many_arguments)]
+        fn entry_at(
+            &self,
+            id: &str,
+            depth: usize,
+            tile: bool,
+            scope: &str,
+            board: Option<(String, (f64, f64))>,
+            window: &mut Window,
+            cx: &mut App,
+        ) -> AnyElement {
             let Some(v) = self.host.page.book.v3() else {
                 return div().into_any_element();
             };
@@ -1995,7 +2173,7 @@ pub mod v3 {
                     });
                 }
             };
-            let cell_id: SharedString = format!("g2-entry-{}-{id}", self.host.level).into();
+            let cell_id: SharedString = format!("g2-entry-{}-{scope}-{id}", self.host.level).into();
             let cell = if tile || self.display == Display::Board && id != self.host.level {
                 let theme = Theme::of(window, cx);
                 div()
@@ -2050,7 +2228,7 @@ pub mod v3 {
             };
             let cell = if let Some(ws) = card_ws {
                 dr_shell::workspace::page_hover_card(
-                    format!("g2-card-{}-{id}", self.host.level),
+                    format!("g2-card-{}-{scope}-{id}", self.host.level),
                     cell,
                     &target,
                     &ws,
@@ -2060,7 +2238,38 @@ pub mod v3 {
             } else {
                 cell.into_any_element()
             };
+            let bounds = overlay::use_bounds(
+                SharedString::from(format!("g2-drop-bounds-{}-{scope}-{id}", self.host.level)),
+                window,
+                cx,
+            );
+            let drop_bounds = bounds.clone();
+            let in_board = board.is_some();
+            let start = window.use_keyed_state(
+                SharedString::from(format!("g2-drag-start-{}-{scope}-{id}", self.host.level)),
+                cx,
+                |_, _| None::<Point<Pixels>>,
+            );
+            let pressed = start.clone();
+            let drag = EntryDrag {
+                page: self.host.page.clone(),
+                id: id.into(),
+                start,
+                board,
+            };
+            let ghost = entry.title.clone();
+            let page = self.host.page.clone();
+            let can_page = page.clone();
+            let onto = id.to_owned();
+            let can_onto = onto.clone();
+            let wash = Theme::of(window, cx).palette.accent.alpha(0.08);
             div()
+                .id(SharedString::from(format!(
+                    "g2-drag-{}-{scope}-{id}",
+                    self.host.level
+                )))
+                .relative()
+                .when(!tile, |el| el.w_full())
                 .pl(px(depth.min(20) as f32 * 14.0))
                 .min_w_0()
                 .when(tile, |el| {
@@ -2068,6 +2277,41 @@ pub mod v3 {
                         .max_w(px(172.0))
                         .flex_1()
                 })
+                .on_mouse_down(MouseButton::Left, move |event, _, cx| {
+                    pressed.update(cx, |start, _| *start = Some(event.position));
+                })
+                .on_drag(drag, move |drag, _, window, cx| {
+                    if drag.start.read(cx).is_none() {
+                        drag.start
+                            .update(cx, |start, _| *start = Some(window.mouse_position()));
+                    }
+                    let pill = Pill::new(ghost.clone()).mark(mark, color);
+                    let at = window.mouse_position();
+                    cx.new(|_| DraggedPill::new(pill, at))
+                })
+                .when(!in_board, |el| {
+                    el.can_drop(move |value, _, _| {
+                        value.downcast_ref::<EntryDrag>().is_some_and(|drag| {
+                            drag.same(&can_page)
+                                && crate::data::v3::drop_target(
+                                    &drag.page.book,
+                                    &drag.id,
+                                    &can_onto,
+                                    true,
+                                )
+                                .is_some()
+                        })
+                    })
+                    .drag_over::<EntryDrag>(move |style, _, _, _| style.bg(wash))
+                    .on_drop(move |drag: &EntryDrag, window, cx| {
+                        let after = drop_bounds
+                            .read(cx)
+                            .as_ref()
+                            .is_some_and(|bounds| window.mouse_position().y >= bounds.center().y);
+                        drop_on_entry(&page, drag, &onto, after, cx);
+                    })
+                })
+                .child(overlay::probe(bounds))
                 .child(cell)
                 .into_any_element()
         }
@@ -2085,6 +2329,7 @@ pub mod v3 {
             &self,
             row: &Row,
             entity: &Entity<Self>,
+            scope: &str,
             window: &mut Window,
             cx: &mut App,
         ) -> AnyElement {
@@ -2103,8 +2348,9 @@ pub mod v3 {
                     .aria_label(self.heading(*section, cx))
                     .child(self.heading(*section, cx))
                     .into_any_element(),
+                Row::Member { id } => self.entry_scoped(id, 0, false, scope, window, cx),
                 Row::Entry { id, depth } => {
-                    let mut row = div().flex().items_center().min_w_0();
+                    let mut row = div().flex().items_center().min_w_0().w_full();
                     if self
                         .host
                         .page
@@ -2125,7 +2371,7 @@ pub mod v3 {
                             .unwrap_or_default();
                         row = row.child(
                             div()
-                                .id(SharedString::from(format!("g2-fold-{id}")))
+                                .id(SharedString::from(format!("g2-fold-{scope}-{id}")))
                                 .size(px(14.0))
                                 .flex_none()
                                 .flex()
@@ -2160,7 +2406,7 @@ pub mod v3 {
                         div()
                             .flex_1()
                             .min_w_0()
-                            .child(self.entry(id, *depth, false, window, cx)),
+                            .child(self.entry_scoped(id, *depth, false, scope, window, cx)),
                     )
                     .into_any_element()
                 }
@@ -2170,7 +2416,10 @@ pub mod v3 {
                     .gap_1()
                     .py_1()
                     .pl(px(*depth as f32 * 14.0))
-                    .children(ids.iter().map(|id| self.entry(id, 0, true, window, cx)))
+                    .children(
+                        ids.iter()
+                            .map(|id| self.entry_scoped(id, 0, true, scope, window, cx)),
+                    )
                     .into_any_element(),
                 Row::Island { id, members } => {
                     let color = entry_target(id)
@@ -2193,12 +2442,15 @@ pub mod v3 {
                                 depth: 0,
                             },
                             entity,
+                            scope,
                             window,
                             cx,
                         ))
                         .child(
                             div().flex().flex_wrap().gap_1().children(
-                                members.iter().map(|id| self.entry(id, 0, true, window, cx)),
+                                members
+                                    .iter()
+                                    .map(|id| self.entry_scoped(id, 0, true, scope, window, cx)),
                             ),
                         )
                         .into_any_element()
@@ -2227,13 +2479,41 @@ pub mod v3 {
                             .child(label),
                     );
                 }
-                content = content.child(self.board_canvas(&ids, window, cx));
+                content = content.child(self.board_canvas(
+                    &ids,
+                    &format!("board-{section:?}"),
+                    window,
+                    cx,
+                ));
             }
             let scroll = self.scroll.clone();
+            let page = self.host.page.clone();
+            let can_page = page.clone();
+            let level = self.host.level.clone();
+            let can_level = level.clone();
             div()
                 .id("g2-board-scroll")
                 .role(gpui::Role::Group)
                 .aria_label(t(cx, keys::v3_shell::ENTRIES))
+                .can_drop(move |value, _, _| {
+                    value.downcast_ref::<EntryDrag>().is_some_and(|drag| {
+                        drag.same(&can_page)
+                            && (drag
+                                .board
+                                .as_ref()
+                                .is_some_and(|(level, _)| level == &can_level)
+                                || crate::data::v3::drop_target(
+                                    &drag.page.book,
+                                    &drag.id,
+                                    &can_level,
+                                    true,
+                                )
+                                .is_some())
+                    })
+                })
+                .on_drop(move |drag: &EntryDrag, window, cx| {
+                    drop_on_board(&page, &level, drag, window, cx)
+                })
                 .overflow_scroll()
                 .track_scroll(&self.scroll)
                 // GPUI's div wheel handler updates the inner offset but does
@@ -2251,7 +2531,13 @@ pub mod v3 {
                 .child(content)
                 .into_any_element()
         }
-        fn board_canvas(&self, ids: &[String], window: &mut Window, cx: &mut App) -> AnyElement {
+        fn board_canvas(
+            &self,
+            ids: &[String],
+            scope: &str,
+            window: &mut Window,
+            cx: &mut App,
+        ) -> AnyElement {
             let Some(v) = self.host.page.book.v3() else {
                 return div().into_any_element();
             };
@@ -2286,7 +2572,15 @@ pub mod v3 {
                         .top(px(y))
                         .w(px(180.0))
                         .p_2()
-                        .child(self.entry(id, 0, false, window, cx)),
+                        .child(self.entry_at(
+                            id,
+                            0,
+                            false,
+                            scope,
+                            Some((self.host.level.clone(), *position)),
+                            window,
+                            cx,
+                        )),
                 );
             }
             board.w(px(width)).h(px(height)).into_any_element()
@@ -2347,7 +2641,9 @@ pub mod v3 {
                 list(self.list.clone(), move |i, window, cx| {
                     weak.upgrade()
                         .map(|entity| {
-                            entity.update(cx, |this, cx| this.row(&rows[i], &entity, window, cx))
+                            entity.update(cx, |this, cx| {
+                                this.row(&rows[i], &entity, &format!("row-{i}"), window, cx)
+                            })
                         })
                         .unwrap_or_else(|| div().into_any_element())
                 })

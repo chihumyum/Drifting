@@ -1845,6 +1845,7 @@
     "autoLink": "自动链接",
     "byStoryline": "按故事线",
     "collapse": "折叠{{name}}",
+    "create": "新建",
     "defaultTemplate": "默认模板",
     "display": "显示",
     "expand": "展开{{name}}",
@@ -1859,6 +1860,7 @@
     "none": "无",
     "off": "关闭",
     "on": "开启",
+    "primary": "主归属",
     "residents": "住在这里",
     "restore": "还原{{name}}",
     "sourceDefault": "默认值",
@@ -1866,6 +1868,7 @@
     "sourceOverride": "覆盖 · {{name}}",
     "sourceTemplate": "模板 · {{name}} · {{level}}",
     "thisLevel": "本层",
+    "title": "标题",
     "unassigned": "未归属"
   },
   "v3Shell": {

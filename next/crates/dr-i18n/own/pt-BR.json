@@ -138,7 +138,10 @@
     "restore": "Restaurar {{name}}",
     "formatFull": "Completo",
     "formatNotes": "Notas",
-    "formatPlain": "Texto simples"
+    "formatPlain": "Texto simples",
+    "title": "Título",
+    "create": "Criar",
+    "primary": "Principal"
   },
   "v3Timeline": {
     "views": "Visualizações da linha do tempo",

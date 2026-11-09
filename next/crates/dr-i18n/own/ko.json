@@ -132,7 +132,10 @@
     "restore": "{{name}} 복원",
     "formatFull": "전체",
     "formatNotes": "노트",
-    "formatPlain": "일반 텍스트"
+    "formatPlain": "일반 텍스트",
+    "title": "제목",
+    "create": "만들기",
+    "primary": "주 소속"
   },
   "v3Timeline": {
     "views": "타임라인 보기",

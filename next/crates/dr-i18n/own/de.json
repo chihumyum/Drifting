@@ -138,7 +138,10 @@
     "restore": "{{name}} zurücksetzen",
     "formatFull": "Vollständig",
     "formatNotes": "Notizen",
-    "formatPlain": "Nur Text"
+    "formatPlain": "Nur Text",
+    "title": "Titel",
+    "create": "Erstellen",
+    "primary": "Primär"
   },
   "v3Timeline": {
     "views": "Zeitleistenansichten",

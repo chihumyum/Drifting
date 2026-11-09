@@ -132,7 +132,10 @@
     "restore": "{{name}}を元に戻す",
     "formatFull": "すべて",
     "formatNotes": "ノート",
-    "formatPlain": "プレーンテキスト"
+    "formatPlain": "プレーンテキスト",
+    "title": "タイトル",
+    "create": "作成",
+    "primary": "主な所属"
   },
   "v3Timeline": {
     "views": "タイムラインビュー",

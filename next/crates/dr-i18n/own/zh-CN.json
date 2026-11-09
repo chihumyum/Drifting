@@ -132,7 +132,10 @@
     "restore": "还原{{name}}",
     "formatFull": "完整",
     "formatNotes": "笔记",
-    "formatPlain": "纯文本"
+    "formatPlain": "纯文本",
+    "title": "标题",
+    "create": "新建",
+    "primary": "主归属"
   },
   "v3Timeline": {
     "views": "时间线视图",
