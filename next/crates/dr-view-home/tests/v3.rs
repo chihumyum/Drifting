@@ -170,3 +170,68 @@ fn home_registration_and_failed_create_keep_the_title_draft(cx: &mut TestAppCont
     assert!(ws.read_with(cx, |ws, _| ws.dialog.is_some()));
     lib.close();
 }
+
+#[test]
+fn recent_pages_preserve_modules_and_hide_trashed_ancestors_without_rewriting_history() {
+    use dr_shell::nav::Target;
+    let (_dir, ws, book) = fixture();
+    let snapshot = Book::load(&ws, &book).unwrap();
+    let chapter = snapshot
+        .v3()
+        .unwrap()
+        .entries
+        .iter()
+        .find(|e| e.template.as_deref() == Some("tpl-chapter"))
+        .unwrap();
+    let parent = chapter.parent.clone().unwrap();
+    let with_module = json!({"kind":"entry","id":chapter.id,"module":"mod-prose"});
+    let whole = json!({"kind":"entry","id":chapter.id});
+    for target in [with_module, whole] {
+        ws.call(
+            &Actor::User,
+            "recent.touch",
+            json!({"book":book,"target":target}),
+        )
+        .unwrap();
+    }
+    let before = ws.observe(&format!("book:{book}")).unwrap().version;
+    let pages = v3::recent(&ws, &snapshot).unwrap();
+    assert_eq!(pages.len(), 2);
+    assert_eq!(
+        pages[0].target,
+        Target::Entry {
+            id: chapter.id.parse().unwrap(),
+            module: None
+        }
+    );
+    assert_eq!(
+        pages[1].target,
+        Target::Entry {
+            id: chapter.id.parse().unwrap(),
+            module: Some("mod-prose".parse().unwrap())
+        }
+    );
+    assert_eq!(ws.observe(&format!("book:{book}")).unwrap().version, before);
+    ws.call(
+        &Actor::User,
+        "entry.trash",
+        json!({"book":book,"id":parent}),
+    )
+    .unwrap();
+    assert!(
+        v3::recent(&ws, &Book::load(&ws, &book).unwrap())
+            .unwrap()
+            .is_empty()
+    );
+    ws.call(
+        &Actor::User,
+        "entry.restore",
+        json!({"book":book,"id":parent}),
+    )
+    .unwrap();
+    assert_eq!(
+        v3::recent(&ws, &Book::load(&ws, &book).unwrap()).unwrap(),
+        pages
+    );
+    ws.close();
+}

@@ -23,8 +23,7 @@ use dr_view_stats::{
     v3::{Loaded, Scope},
 };
 use dr_workspace::{
-    Actor, Workspace as Library, WsError,
-    commands::v3::entry::{CreateIn, EntryCreate},
+    Actor, Workspace as Library, WritePreconditions, WsError, commands::v3::entry::CreateIn,
 };
 use gpui::{
     AppContext as _, Context, ElementId, Entity, Focusable, IntoElement, ParentElement, Render,
@@ -38,6 +37,51 @@ pub struct CreateAction {
     pub id: String,
     pub name: String,
     pub template: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RecentPage {
+    pub target: Target,
+    pub title: String,
+}
+
+/// Device-local navigation preserves the selected entry module.
+pub fn recent(lib: &Library, book: &Book) -> Result<Vec<RecentPage>, WsError> {
+    let Some(v3) = book.v3() else {
+        return Ok(Vec::new());
+    };
+    let result = lib.call(
+        &Actor::User,
+        "recent.list",
+        serde_json::json!({"book":book.id,"limit":4}),
+    )?;
+    let rows = result["output"]
+        .as_array()
+        .ok_or_else(|| WsError::Internal("recent.list did not return an array".into()))?;
+    Ok(rows
+        .iter()
+        .filter_map(|row| {
+            if row["book"].as_str()? != book.id {
+                return None;
+            }
+            let raw = &row["target"];
+            let id = raw["id"].as_str()?;
+            match raw["kind"].as_str()? {
+                "entry" => Some(RecentPage {
+                    target: Target::Entry {
+                        id: id.parse().ok()?,
+                        module: raw["module"].as_str().map(str::parse).transpose().ok()?,
+                    },
+                    title: v3.entry(id)?.title.clone(),
+                }),
+                "material" => Some(RecentPage {
+                    target: Target::Material(id.parse().ok()?),
+                    title: book.materials.iter().find(|m| m.id == id)?.title.clone(),
+                }),
+                _ => None,
+            }
+        })
+        .collect())
 }
 
 /// Resident levels only. Memberships do not duplicate an action and a hidden
@@ -90,23 +134,28 @@ pub fn create(
     action: &CreateAction,
     title: &str,
 ) -> Result<String, WsError> {
+    let observed = lib.observe(&format!("book:{book}"))?;
     let current = Book::load(lib, book)?;
     if !actions(&current).iter().any(|a| a == action) {
         return Err(WsError::Conflict("home action changed".into()));
     }
-    Ok(lib
-        .run::<EntryCreate>(
-            &Actor::User,
-            CreateIn {
-                book: book.into(),
-                title: title.into(),
-                parent: Some(action.level.clone()),
-                template: action.template.clone(),
-                bodies: Default::default(),
-            },
-        )?
-        .output
-        .id)
+    let result = lib.call_guarded(
+        &Actor::User,
+        "entry.create",
+        serde_json::to_value(CreateIn {
+            book: book.into(),
+            title: title.into(),
+            parent: Some(action.level.clone()),
+            template: action.template.clone(),
+            bodies: Default::default(),
+        })
+        .expect("serializable entry input"),
+        WritePreconditions::from_observations([observed]),
+    )?;
+    result["output"]["id"]
+        .as_str()
+        .map(str::to_owned)
+        .ok_or_else(|| WsError::Internal("entry.create did not return an id".into()))
 }
 
 pub struct Home {
@@ -114,11 +163,13 @@ pub struct Home {
     lib: Option<Library>,
     source: Option<Rc<Book>>,
     pub loaded: Option<Loaded>,
+    recent: Vec<RecentPage>,
     task: Option<Task<()>>,
     generation: u64,
     stale: bool,
     error: bool,
     _events: Option<dr_workspace::Subscription>,
+    _live: Vec<Subscription>,
 }
 
 impl Home {
@@ -129,11 +180,16 @@ impl Home {
             lib,
             source: None,
             loaded: None,
+            recent: Vec::new(),
             task: None,
             generation: 0,
             stale: false,
             error: false,
             _events: None,
+            _live: vec![
+                cx.observe_global::<dr_view_stats::WritingDaysChanged>(|_, cx| cx.notify()),
+                cx.observe_global::<LiveWords>(|_, cx| cx.notify()),
+            ],
         };
         if let Some(lib) = &this.lib {
             let (tx, mut rx) = futures::channel::mpsc::unbounded();
@@ -141,6 +197,7 @@ impl Home {
                 let book = match event {
                     dr_workspace::WsEvent::Prose(p) => p.book.as_ref().map(ToString::to_string),
                     dr_workspace::WsEvent::Local(c) if c.table == "index" => Some(String::new()),
+                    dr_workspace::WsEvent::Local(c) if c.table == "recent" => Some(c.key.clone()),
                     _ => None,
                 };
                 if let Some(book) = book {
@@ -177,6 +234,8 @@ impl Home {
         };
         if self.source.as_ref().is_none_or(|old| old.id != book.id) {
             self.loaded = None;
+            self.recent.clear();
+            dr_view_stats::track_book(&book.id, cx);
         }
         self.source = Some(book.clone());
         self.stale = false;
@@ -184,13 +243,18 @@ impl Home {
         self.generation += 1;
         let generation = self.generation;
         let id = book.id.clone();
+        let today = dr_model::Day::parse(&crate::today(cx).to_string()).expect("valid local day");
         self.task = Some(cx.spawn(async move |this, cx| {
             cx.background_executor()
                 .timer(std::time::Duration::from_millis(60))
                 .await;
             let loaded = cx
                 .background_executor()
-                .spawn(async move { dr_view_stats::v3::load(&lib, &id, Scope::Book) })
+                .spawn(async move {
+                    let data = dr_view_stats::v3::load_at(&lib, &id, Scope::Book, &today)?;
+                    let book = Book::load(&lib, &id)?;
+                    Ok::<_, WsError>((data, recent(&lib, &book)?))
+                })
                 .await;
             this.update(cx, |h, cx| {
                 if generation != h.generation {
@@ -198,7 +262,10 @@ impl Home {
                 }
                 h.task = None;
                 match loaded {
-                    Ok(loaded) => h.loaded = Some(loaded),
+                    Ok((loaded, recent)) => {
+                        h.loaded = Some(loaded);
+                        h.recent = recent;
+                    }
                     Err(error) => {
                         log::warn!("v3 home read failed: {error}");
                         h.loaded = None;
@@ -246,6 +313,21 @@ impl Render for Home {
             .as_ref()
             .and_then(|s| s.book_words(LiveWords::read(cx)))
             .map(|m| {
+                if let Some(target) = self
+                    .loaded
+                    .as_ref()
+                    .and_then(|s| s.word_target)
+                    .filter(|n| *n > 0)
+                {
+                    return dr_shell::strings::tf(
+                        cx,
+                        keys::project_home::WORDS_OF_TARGET,
+                        &[
+                            ("words", &compact(m.words, locale)),
+                            ("target", &compact(target as u64, locale)),
+                        ],
+                    );
+                }
                 dr_shell::strings::tf(
                     cx,
                     keys::project_home::WORDS,
@@ -289,36 +371,112 @@ impl Render for Home {
             );
         }
         if let Some(loaded) = &self.loaded {
-            let first = loaded
-                .documents
-                .iter()
-                .filter_map(|d| Some((d, book.v3()?.entry(d.entry.as_deref()?)?)))
-                .max_by_key(|(_, entry)| entry.updated_at.or(entry.created_at));
-            if let Some((doc, entry)) = first {
-                let target = Target::Entry {
-                    id: entry.id.parse().expect("validated entry id"),
-                    module: doc
-                        .module
-                        .as_deref()
-                        .map(str::parse)
-                        .transpose()
-                        .expect("validated module id"),
-                };
+            let today = dr_view_stats::model::today_words(
+                &loaded.days,
+                dr_view_stats::today_live(&book.id, cx),
+            );
+            let streak = if today > 0 {
+                loaded.days.streak_before + 1
+            } else {
+                0
+            };
+            let today_text = if let Some(goal) = loaded.daily_word_target.filter(|n| *n > 0) {
+                dr_shell::strings::tf(
+                    cx,
+                    keys::project_home::TODAY,
+                    &[
+                        (
+                            "today",
+                            &dr_i18n::number::grouped(today.max(0) as u64, locale),
+                        ),
+                        ("goal", &dr_i18n::number::grouped(goal as u64, locale)),
+                        ("streak", &streak),
+                    ],
+                )
+            } else {
+                dr_shell::strings::tf(
+                    cx,
+                    keys::project_home::TODAY_NO_GOAL,
+                    &[
+                        (
+                            "today",
+                            &dr_i18n::number::grouped(today.max(0) as u64, locale),
+                        ),
+                        ("streak", &streak),
+                    ],
+                )
+            };
+            column = column.child(today_text);
+            let ws = self.ws.clone();
+            let data = loaded.clone();
+            let lib = self.lib.clone();
+            let settings_book = book.id.clone();
+            column = column.child(
+                Button::new(
+                    "v3-home-settings",
+                    t(cx, keys::project_home::views::SETTINGS),
+                )
+                .text()
+                .on_click(move |_, window, cx| {
+                    if let (Some(lib), Some(ws)) = (lib.clone(), ws.upgrade()) {
+                        let book = ws.read(cx).book_id.clone();
+                        if book != settings_book {
+                            return;
+                        }
+                        let dialog = cx.new(|cx| {
+                            crate::v3_settings::SettingsDialog::new(lib, book, &data, window, cx)
+                        });
+                        dr_shell::dialogs::show_in(window.window_handle(), cx, dialog.into());
+                    }
+                }),
+            );
+            let mut pages = self.recent.clone();
+            if pages.is_empty() {
+                let first = loaded
+                    .documents
+                    .iter()
+                    .filter_map(|d| Some((d, book.v3()?.entry(d.entry.as_deref()?)?)))
+                    .max_by_key(|(_, entry)| entry.updated_at.or(entry.created_at));
+                if let Some((doc, entry)) = first {
+                    pages.push(RecentPage {
+                        target: Target::Entry {
+                            id: entry.id.parse().expect("validated entry id"),
+                            module: doc
+                                .module
+                                .as_deref()
+                                .map(str::parse)
+                                .transpose()
+                                .expect("validated module id"),
+                        },
+                        title: entry.title.clone(),
+                    });
+                }
+            }
+            if !pages.is_empty() {
+                column = column.child(
+                    div()
+                        .font_role(Role::Structure)
+                        .child(t(cx, keys::project_home::continue_::TITLE)),
+                );
+            }
+            for (i, page) in pages.into_iter().enumerate() {
                 let ws = self.ws.clone();
-                column = column
-                    .child(
-                        div()
-                            .font_role(Role::Structure)
-                            .child(t(cx, keys::project_home::continue_::TITLE)),
+                let expected_book = book.id.clone();
+                column = column.child(
+                    Button::new(
+                        ElementId::Name(format!("v3-home-continue-{i}").into()),
+                        page.title,
                     )
-                    .child(
-                        Button::new("v3-home-continue", entry.title.clone())
-                            .text()
-                            .on_click(move |_, _, cx| {
-                                ws.update(cx, |ws, cx| ws.open(target.clone(), Open::KEEP, cx))
-                                    .ok();
-                            }),
-                    );
+                    .text()
+                    .on_click(move |_, _, cx| {
+                        ws.update(cx, |ws, cx| {
+                            if ws.book_id == expected_book {
+                                ws.open(page.target.clone(), Open::KEEP, cx);
+                            }
+                        })
+                        .ok();
+                    }),
+                );
             }
         }
         column = column.child(

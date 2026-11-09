@@ -25,6 +25,7 @@
 
 pub mod data;
 pub mod v3;
+mod v3_settings;
 mod view;
 
 pub use view::{Home, HomeView, continue_page, opened_more, recent};
