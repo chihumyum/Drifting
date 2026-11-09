@@ -726,7 +726,7 @@ cargo xtask check
    **文档 id 修正后的接线边界**：当前 `UnaffiliatedChoice.parent` 和模板 `home` 接收真实条目 id，测试选择是根层且不指定住处。若作者决定放到新生成的书稿／故事线入口下，需先约定怎样用模板引用这处住处，再在初始化后绑定到返回的 id；不能在映射 JSON 里恢复 `root-manuscript` 等固定 id。本次不替作者决定这一点。
 24. **K3 / K1：项目级故事线字段模板的去处。** 旧库 `project.storyline_template_kv_json` + `entity_kv_entry(owner_kind=project, namespace=storyline-template)` 是新故事线自己的字段模板，不是故事线的章节正文模板。映射表末行只说项目设定内容照搬，没有指定 v3 层级模板中落在哪个模块。清单用 `project-storyline-field-template-destination`，保留原始行和投影，不误塞进章的叶子模板。
 
-   **K1 已回应（`dd39c0bd`）**：项目级故事线字段模板可落在 `TPL_STORYLINE` 的 `MOD_KV.config.initial_kv`，故事线自身键值行落在条目的 `kv:mod-kv`。具体接口见 [F1 的 K1 交回回应](../foundations/f1-model-doc.md)；交 K3 在后半段按实际接口逐项导入并与清单核对，尚未把目标写入算完成。
+   **K1 已回应（`dd39c0bd`）**：项目级故事线字段模板可落在 `TPL_STORYLINE` 的 `MOD_KV.config.initial_kv`，故事线自身键值行落在条目的 `kv:mod-kv`。具体接口见 [F1 的 K1 交回回应](../foundations/f1-model-doc.md)；K3 后半段已在 `d28e911d` 消费该接口并与清单逐项读回，第四十二批整合验收通过。
 25. **K3 / K1 / 作者：关系类型的旧种类约束怎样转成模板约束。** `entity_relation_type_endpoint_kind` 的 `element`、`node` 等在 v3 都变成 `entry`；仅换成 entry 会放宽原来的限制，展开成导入时的模板集合又会影响以后新模板。方案写「可以按模板」，尚未规定导入策略。清单用 `relation-type-template-restrictions` 保留原约束，端点种类的转换意图另列，不擅自放宽或固定模板集合。
 
    **K1 已回应（`dd39c0bd`）**：现有 v3 关系类型同时支持端点 kinds 与模板约束；接口已有，旧种类是否展开为模板集合仍等作者，不能把统一映射成 entry 当作已保住原限制。
@@ -734,7 +734,7 @@ cargo xtask check
 
 27. **K3 / K1：旧层级自己的颜色如何落位。** 幕、构想分组、分类、故事线各行可以有不同颜色；定稿结构列了模板的 `color`，条目 meta 只明确列出层级设置覆盖，没有明确列出颜色覆盖。清单 `Level.color` 保留旧值，尚不宣称它就是 v3 字段。请 K1 确认已有的覆盖接口或其他既定落点；导入不擅自加条目字段，也不为了保色自创一批层级模板。当前只钉住叶子模板数量，不钉层级模板的生成策略。
 
-   **K1 已回应（`dd39c0bd`）**：分类、构想分组、通用分组、故事线的层级模板已有带 `color_field` 的 `mod-fields`，个别条目颜色写 `fields.mod-fields.color`。交 K3 用该接口保留旧颜色；旧幕作为书稿下分组的映射也须在导入契约中核对，不新造每色模板。
+   **K1 已回应（`dd39c0bd`）**：分类、构想分组、通用分组、故事线的层级模板已有带 `color_field` 的 `mod-fields`，个别条目颜色写 `fields.mod-fields.color`。K3 后半段已在 `d28e911d` 用该接口保留旧颜色并与旧幕分组逐项核对，第四十二批整合验收通过；没有新造每色模板。
 
 28. **K3 / K1：v3 正文链接的素材端点与模块选择。** `EntityKind::may_be_linked_v3` 放行 entry／material，但共用 `ProseTxn::link_entity` 仍按 v2 的 `may_be_linked` 检查，不能写 material；`EntityLink` 也没有 module 字段。不能重演第三十四批对 v2 行为的修改。当前 v3 预检对素材链接、显式模块以及需要指向特定正文的块链接返回 `v3-prose-link-writer-missing`，来源包含当前正文、历史和模板；不丢标记、不用 raw Loro 绕过 typed writer。样书转换也拒绝无法表达的链接。
 29. **K3 / K1：分类字段模板的非空初值。** 旧模板 KV 行同时有 key 和 value；v3 `FieldDef` 能存字段定义但没有初值，KV 模块的 `initial_kv` 不能冒充字段默认值。当前完整夹具的初值为空，可以正常生成；旧库或历史里非空初值返回 `field-default-value-interface-missing`，不静默丢掉。字段模板重复名字、同一字段多值仍按 26 阻止。
