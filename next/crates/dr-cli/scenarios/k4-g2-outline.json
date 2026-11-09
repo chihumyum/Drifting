@@ -1,5 +1,5 @@
 {
-  "about": "K4 G2：v3-lite 实际模块正文及全书的大纲；H1/H2/H3 点击后的真实输入与 F3 读回、撤销、模块选择、show_outline 刷新、关闭重开及全书重排后重新登记；正文复用 canonical seed 段落。",
+  "about": "K4 G2：v3-lite 实际模块正文及全书的大纲；H1/H2/H3 点击后的真实输入与 F3 读回、撤销、模块选择、show_outline 刷新、关闭重开及全书重排后重新登记；正文复用 canonical seed 段落。 另核对实际统计面板的全书、条目、指定正文、非正文及素材范围，逐行数值与模块导航由实际面板永久测试核对，窗口核对范围入口；无截图或性能验收。",
   "steps": [
     {
       "seed": "v3-lite"
@@ -216,11 +216,6 @@
         }
       },
       "save": "linksA"
-    },
-    {
-      "app": "ui.screenshot",
-      "params": {},
-      "png": "01-module-a.png"
     },
     {
       "app": "ui.press",
@@ -533,9 +528,237 @@
       }
     },
     {
-      "app": "ui.screenshot",
+      "app": "state.get",
       "params": {},
-      "png": "02-module-b.png"
+      "save": "statsLoaded",
+      "note": "G2 stats host smoke"
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ToggleRightSidebar"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/right/open": true
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Stats",
+        "role": "RadioButton"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/right/panes/panes/0/tab": "stats"
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 700
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-chapter].id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "entry:${entries.[template=tpl-chapter].id}"
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Entry words",
+        "within": {
+          "label": "Stats",
+          "role": "Group"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-chapter].id}/outline-second"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "entry:${entries.[template=tpl-chapter].id}/outline-second"
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Entry words",
+        "role": "Group",
+        "within": {
+          "label": "Stats",
+          "role": "Group"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-chapter].id}/mod-fields"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "entry:${entries.[template=tpl-chapter].id}/mod-fields"
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Entry words",
+        "within": {
+          "label": "Stats",
+          "role": "Group"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "template:tpl-chapter"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "template:tpl-chapter"
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Stats",
+        "role": "Group",
+        "absent": true,
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "material:${statsLoaded.v3.materials.[kind=text].id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "material:${statsLoaded.v3.materials.[kind=text].id}"
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Material words",
+        "within": {
+          "label": "Stats",
+          "role": "Group"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "book"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Book",
+        "role": "Group",
+        "within": {
+          "label": "Stats",
+          "role": "Group"
+        },
+        "timeout_ms": 15000
+      },
+      "save": "statsBookScope"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "book"
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "app.info",
+      "save": "g2BookStatsWindow"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Close right sidebar",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/right/open": false
+        }
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-chapter].id}/outline-second"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "entry:${entries.[template=tpl-chapter].id}/outline-second"
+        },
+        "timeout_ms": 30000
+      }
     },
     {
       "call": "entry_template.put_module",
@@ -743,9 +966,15 @@
       }
     },
     {
-      "app": "ui.screenshot",
-      "params": {},
-      "png": "03-settings-refreshed.png"
+      "app": "ui.press",
+      "params": {
+        "label": "${original.paragraphs.3.text}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "settle_ms": 250
+      }
     },
     {
       "app": "action.dispatch",
@@ -759,6 +988,13 @@
         "until": "time",
         "ms": 900
       }
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/tabs/[key=entry:${entries.[template=tpl-chapter].id}/outline-second]": null
+      },
+      "note": "Verify the old module tab really closed before testing the new editor registration."
     },
     {
       "app": "nav.open",
@@ -992,11 +1228,6 @@
       }
     },
     {
-      "app": "ui.screenshot",
-      "params": {},
-      "png": "04-whole-book.png"
-    },
-    {
       "call": "entry.move",
       "input": {
         "book": "${books.0.id}",
@@ -1116,11 +1347,6 @@
       "expect": {
         "/paragraphs/0/text": "${original.paragraphs.0.text}"
       }
-    },
-    {
-      "app": "ui.screenshot",
-      "params": {},
-      "png": "05-whole-reloaded.png"
     },
     {
       "call": "entry_template.put_module",
@@ -1318,11 +1544,6 @@
       "expect": {
         "/paragraphs/1/text": "${original.paragraphs.1.text}"
       }
-    },
-    {
-      "app": "ui.screenshot",
-      "params": {},
-      "png": "06-whole-settings.png"
     },
     {
       "call": "book.create",
