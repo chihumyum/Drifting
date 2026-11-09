@@ -30,7 +30,8 @@
    reveal，外壳的统一编辑器表不知道模块内的 `ChapterEditor`。需要给模块一个
    登记/释放 `ChapterEditor` 的接口（标明条目和模块），使批注入口、页内搜索、
    主题和偏好变化、沉浸写作、保存阅读位置以及调试桥 `page.text`/选择状态消费
-   真正的编辑器。G1 当前提供 `BodyModule::editor()`；宿主应登记正在挂载的实例，
+   真正的编辑器。大纲已按 G2 的专用接口登记（见下节）；其余全局入口仍待外壳接线。
+   G1 提供 `BodyModule::editor()`；宿主应登记正在挂载的实例，
    区分同一正文的多个标签页，不应另开会话或用全局 doc→单实例表替代。
 2. **K1 与整合者：带模块的人物链接。** G1 接管链接消费者和 URL 约定，但
    `dr_model::prose::EntityLink` 没有 module；`ProseTxn::link_entity` 的编码只接受
@@ -231,3 +232,20 @@ G1 在既有 M09 布局中消费，不自造视图层数据库或绕过文档事
 
 这次只交边界脚本、协调项与记录。快照历史 UI、完整恢复及其正向窗口验收仍待
 K1／K2 交回上述接口；不把 G1 或 K4 宣布为全部完成。v2.2 历史不变。
+
+
+## G2 大纲登记接线
+
+按作者要求先等待 `git merge-base --is-ancestor 09142d08 main` 成立；在 main
+`6bfa5a35` 满足条件后，以 `0f33255c` 合入。九语 own 的新增键组按三方合并保留
+双方内容，再运行 sync-locales；共享 Cargo 清单自动合并出的重复 serde_json 声明
+去重，不改其他组实现。
+
+每个 `BodyModule` 在正文编辑器准备好、`PageHost` 建好之后、交给 Chrome 之前，
+调用 `Workspace::register_v3_outline_editor(&page, Some((entry, module)), cx)`。
+通览的 `PageHost` 在同一时点传 `None`；新建／替换编辑器都经过此处。通览另外
+订阅已有 `BookEditorEvent::Reloaded`，在文稿重排替换内部 `ProseEditor` 时重新登记，
+让 G2 的光标／滚动观察跟随新的实例。G1 不按 `show_outline` 过滤，配置判定归 G2。
+不另开编辑会话，不新增文案，v2.2 路径不变。
+
+G2 联合真窗口验收由作者转交本次指针后安排；当前不把登记完成写成联合验收完成。

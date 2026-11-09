@@ -11,6 +11,7 @@ pub struct WholeBook {
     loading: Option<Task<()>>,
     failed: bool,
     _links: Option<Subscription>,
+    _outline: Option<Subscription>,
 }
 
 pub fn register(cx: &mut App) {
@@ -38,6 +39,7 @@ impl WholeBook {
             loading: None,
             failed: false,
             _links: None,
+            _outline: None,
         };
         view.load(window, cx);
         view
@@ -83,6 +85,19 @@ impl WholeBook {
                             book: v.host.book_id.clone(),
                             editor: PageEditorRef::Book(editor.downgrade()),
                         };
+                        dr_shell::Workspace::register_v3_outline_editor(&host, None, cx);
+                        let outline_host = host.clone();
+                        v._outline = Some(cx.subscribe(&editor, move |_, _, event, cx| {
+                            // A manuscript reorder reuses the sessions but replaces
+                            // ProseEditor. Rebind G2's geometry/selection observer too.
+                            if matches!(event, dr_editor::BookEditorEvent::Reloaded) {
+                                dr_shell::Workspace::register_v3_outline_editor(
+                                    &outline_host,
+                                    None,
+                                    cx,
+                                );
+                            }
+                        }));
                         let theme = dr_ui::Theme::of(window, cx);
                         let base = dr_shell::workspace::editors::base_style(&theme);
                         let looks = dr_shell::workspace::editors::decor_looks(&theme, &base);

@@ -114,6 +114,11 @@ impl BodyModule {
                             book: host.page.book_id.clone(),
                             editor: PageEditorRef::Doc(editor.downgrade()),
                         };
+                        dr_shell::Workspace::register_v3_outline_editor(
+                            &page,
+                            Some((&host.entry, &host.module.id)),
+                            cx,
+                        );
                         let base =
                             dr_shell::workspace::editors::base_style(&dr_ui::Theme::of(window, cx));
                         let looks = dr_shell::workspace::editors::decor_looks(
