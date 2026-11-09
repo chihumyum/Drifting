@@ -270,6 +270,7 @@ idea.to_element: conversion needs version-checked full source prose and guarded 
 level.get: v3 commands remain excluded until K6 opens the versioned catalog
 level.list: v3 commands remain excluded until K6 opens the versioned catalog
 material.delete: cascade needs an F3 query exposing affected relations, including hidden endpoints
+material.set_entry_link: v3 commands remain excluded until K6 opens the versioned catalog
 membership.add: v3 commands remain excluded until K6 opens the versioned catalog
 membership.list: v3 commands remain excluded until K6 opens the versioned catalog
 membership.primary: v3 commands remain excluded until K6 opens the versioned catalog

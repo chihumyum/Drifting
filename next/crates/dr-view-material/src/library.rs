@@ -31,6 +31,10 @@
 //! (the head row), registered with the shell by [`crate::init`]
 //! (`dr_shell::pages::set_library`).
 
+#[cfg(test)]
+#[path = "library_v3_tests.rs"]
+mod v3_tests;
+
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -133,6 +137,8 @@ type RowAction = Rc<dyn Fn(&mut LibraryPanel, &mut Window, &mut Context<LibraryP
 
 struct Renaming {
     key: String,
+    busy: bool,
+    error: bool,
     field: Entity<TextField>,
     _sub: Subscription,
 }
@@ -142,6 +148,7 @@ pub struct LibraryPanel {
     shell: WeakEntity<Workspace>,
     lib: Option<Library>,
     book: Rc<Book>,
+    book_epoch: u64,
     focus: FocusHandle,
     expanded: HashSet<String>,
     picker: Picker,
@@ -173,6 +180,7 @@ impl Focusable for LibraryPanel {
 /// panel.
 fn spawn_lib<R: Send + 'static>(
     lib: Option<Library>,
+    scope: (String, u64),
     cx: &mut Context<LibraryPanel>,
     work: impl FnOnce(&Library) -> R + Send + 'static,
     done: impl FnOnce(&mut LibraryPanel, R, &mut Context<LibraryPanel>) + 'static,
@@ -183,7 +191,12 @@ fn spawn_lib<R: Send + 'static>(
     let task = cx.background_executor().spawn(async move { work(&lib) });
     cx.spawn(async move |this, cx| {
         let out = task.await;
-        this.update(cx, |p, cx| done(p, out, cx)).ok();
+        this.update(cx, |p, cx| {
+            if p.book.id == scope.0 && p.book_epoch == scope.1 {
+                done(p, out, cx);
+            }
+        })
+        .ok();
     })
     .detach();
 }
@@ -217,13 +230,7 @@ impl LibraryPanel {
             subs.push(cx.observe(&ws, |panel, ws, cx| {
                 let book = ws.read(cx).book.clone();
                 if !Rc::ptr_eq(&book, &panel.book) {
-                    panel.book = book;
-                    panel.related = None;
-                    panel.v3_related_generation += 1;
-                    panel.v3_related_pending = None;
-                    let order = panel.order();
-                    panel.picker.keep(&order);
-                    cx.notify();
+                    panel.set_book(book, cx);
                 }
                 panel.keep_related(cx);
             }));
@@ -232,6 +239,7 @@ impl LibraryPanel {
             shell,
             lib,
             book,
+            book_epoch: 0,
             focus: cx.focus_handle(),
             expanded: HashSet::new(),
             picker: Picker::default(),
@@ -260,6 +268,14 @@ impl LibraryPanel {
 
     /// Shows another book's lists (the shell's, or a test's).
     pub fn set_book(&mut self, book: Rc<Book>, cx: &mut Context<Self>) {
+        if self.book.id != book.id {
+            self.book_epoch += 1;
+            self.renaming = None;
+            self.rename_when_shown = None;
+            self.current_folder = None;
+            self.importing = 0;
+            self.picker.clear();
+        }
         self.book = book;
         self.related = None;
         self.v3_related_generation += 1;
@@ -404,8 +420,12 @@ impl LibraryPanel {
     /// The rows as shown.
     pub fn entries(&self) -> Vec<Entry> {
         let shown = self.shown();
-        Tree::new(&self.book.folders, &self.book.materials, shown)
-            .entries(&self.expanded, shown.is_some())
+        Tree::new(
+            self.book.material_folders(),
+            self.book.material_items(),
+            shown,
+        )
+        .entries(&self.expanded, shown.is_some())
     }
 
     fn order(&self) -> Vec<String> {
@@ -439,7 +459,12 @@ impl LibraryPanel {
 
     /// Everything inside `folder` open or closed.
     pub fn set_open_all(&mut self, folder: &str, open: bool, cx: &mut Context<Self>) {
-        let ids = Tree::new(&self.book.folders, &self.book.materials, None).subtree(folder);
+        let ids = Tree::new(
+            self.book.material_folders(),
+            self.book.material_items(),
+            None,
+        )
+        .subtree(folder);
         for id in ids {
             if open {
                 self.expanded.insert(id);
@@ -480,11 +505,11 @@ impl LibraryPanel {
         } else if let Some(id) = key.strip_prefix("i:") {
             self.current_folder = self
                 .book
-                .materials
+                .material_items()
                 .iter()
                 .find(|m| m.id == id)
                 .and_then(|m| m.folder.clone())
-                .filter(|f| self.book.folders.iter().any(|x| &x.id == f));
+                .filter(|f| self.book.material_folders().iter().any(|x| &x.id == f));
             let how = if e.click_count() > 1 {
                 Open::KEEP
             } else {
@@ -542,6 +567,7 @@ impl LibraryPanel {
         let book = self.book_id();
         spawn_lib(
             self.lib.clone(),
+            (self.book_id(), self.book_epoch),
             cx,
             move |lib| folders::move_to(lib, &book, &sel, folder.as_deref()),
             |p, done, cx| {
@@ -563,6 +589,7 @@ impl LibraryPanel {
         }
         spawn_lib(
             self.lib.clone(),
+            (self.book_id(), self.book_epoch),
             cx,
             move |lib| folders::create_folder(lib, &book, &name, parent.as_deref()),
             |p, made, cx| match made {
@@ -583,6 +610,7 @@ impl LibraryPanel {
         let (book, folder) = (self.book_id(), self.current_folder.clone());
         spawn_lib(
             self.lib.clone(),
+            (self.book_id(), self.book_epoch),
             cx,
             move |lib| {
                 lib.run::<MaterialCreate>(
@@ -612,7 +640,7 @@ impl LibraryPanel {
         if let Some(id) = key.strip_prefix("f:") {
             return self
                 .book
-                .folders
+                .material_folders()
                 .iter()
                 .find(|f| f.id == id)
                 .map(|f| f.name.clone())
@@ -620,7 +648,7 @@ impl LibraryPanel {
         }
         let id = key.strip_prefix("i:").unwrap_or(key);
         self.book
-            .materials
+            .material_items()
             .iter()
             .find(|m| m.id == id)
             .map(|m| m.title.clone())
@@ -629,6 +657,9 @@ impl LibraryPanel {
 
     /// Row `key`'s name in a field, the caret in it.
     pub fn start_rename(&mut self, key: &str, window: &mut Window, cx: &mut Context<Self>) {
+        if self.book.v3().is_some() && self.renaming.is_some() {
+            return;
+        }
         let name = self.name_of(key);
         let field = cx.new(|cx| {
             TextField::new(
@@ -656,6 +687,8 @@ impl LibraryPanel {
         window.focus(&handle, cx);
         self.renaming = Some(Renaming {
             key: key.to_owned(),
+            busy: false,
+            error: false,
             field,
             _sub: sub,
         });
@@ -672,6 +705,54 @@ impl LibraryPanel {
         if self.renaming.as_ref().is_none_or(|r| r.key != key) {
             return;
         }
+        if self.book.v3().is_some() {
+            if self.renaming.as_ref().is_some_and(|r| r.busy) {
+                return;
+            }
+            if let Some(name) = text
+                .as_ref()
+                .map(|t| t.trim().to_owned())
+                .filter(|t| !t.is_empty())
+                && name != self.name_of(key)
+            {
+                let rename = self.renaming.as_mut().expect("matched rename");
+                rename.busy = true;
+                rename.error = false;
+                rename.field.update(cx, |f, cx| f.set_disabled(true, cx));
+                window.focus(&self.focus, cx);
+                let book = self.book_id();
+                let key = key.to_owned();
+                let writing = key.clone();
+                spawn_lib(
+                    self.lib.clone(),
+                    (book.clone(), self.book_epoch),
+                    cx,
+                    move |lib| match writing.strip_prefix("f:") {
+                        Some(id) => folders::rename_folder(lib, &book, id, &name),
+                        None => folders::rename_material(
+                            lib,
+                            &book,
+                            writing.trim_start_matches("i:"),
+                            &name,
+                        ),
+                    },
+                    move |p, done, cx| {
+                        if let Some(r) = p.renaming.as_mut().filter(|r| r.key == key) {
+                            r.busy = false;
+                            r.field.update(cx, |f, cx| f.set_disabled(false, cx));
+                            if done.is_ok() {
+                                p.renaming = None;
+                            } else {
+                                r.error = true;
+                            }
+                            cx.notify();
+                        }
+                    },
+                );
+                cx.notify();
+                return;
+            }
+        }
         self.renaming = None;
         window.focus(&self.focus, cx);
         cx.notify();
@@ -684,6 +765,7 @@ impl LibraryPanel {
         let (book, key) = (self.book_id(), key.to_owned());
         spawn_lib(
             self.lib.clone(),
+            (self.book_id(), self.book_epoch),
             cx,
             move |lib| match key.strip_prefix("f:") {
                 Some(id) => folders::rename_folder(lib, &book, id, &name),
@@ -758,6 +840,7 @@ impl LibraryPanel {
         }
         spawn_lib(
             self.lib.clone(),
+            (self.book_id(), self.book_epoch),
             cx,
             move |lib| folders::delete(lib, &book, &sel),
             |p, done, cx| {
@@ -788,6 +871,7 @@ impl LibraryPanel {
         let book = self.book_id();
         spawn_lib(
             self.lib.clone(),
+            (self.book_id(), self.book_epoch),
             cx,
             move |lib| import::import_paths(lib, &book, folder.as_deref(), &paths),
             |p, report, cx| {
@@ -838,6 +922,7 @@ impl LibraryPanel {
                     let (book, folder) = (self.book_id(), folder.clone());
                     spawn_lib(
                         self.lib.clone(),
+                        (self.book_id(), self.book_epoch),
                         cx,
                         move |lib| {
                             import::import_bytes(lib, &book, folder.as_deref(), bytes, &title)
@@ -882,7 +967,7 @@ impl LibraryPanel {
         };
         let Some(asset) = self
             .book
-            .materials
+            .material_items()
             .iter()
             .find(|m| m.id == material)
             .and_then(|m| m.asset.clone())
@@ -915,11 +1000,11 @@ impl LibraryPanel {
             Entry::Folder { id, .. } => Some(id.clone()),
             Entry::Material { id, .. } => self
                 .book
-                .materials
+                .material_items()
                 .iter()
                 .find(|m| &m.id == id)
                 .and_then(|m| m.folder.clone())
-                .filter(|f| self.book.folders.iter().any(|x| &x.id == f)),
+                .filter(|f| self.book.material_folders().iter().any(|x| &x.id == f)),
         }
     }
 
@@ -997,7 +1082,7 @@ impl LibraryPanel {
                         .into_any_element()
                 }
                 Entry::Material { id, .. } => {
-                    let Some(m) = self.book.materials.iter().find(|m| &m.id == id) else {
+                    let Some(m) = self.book.material_items().iter().find(|m| &m.id == id) else {
                         return div().into_any_element();
                     };
                     let title: SharedString = if m.title.trim().is_empty() {
@@ -1080,7 +1165,11 @@ impl LibraryPanel {
         let theme = Theme::of(window, cx);
         let this = cx.entity();
         let sel = self.picker.target(key);
-        let tree = Tree::new(&self.book.folders, &self.book.materials, None);
+        let tree = Tree::new(
+            self.book.material_folders(),
+            self.book.material_items(),
+            None,
+        );
         let id = |part: &str| ElementId::Name(format!("library-card-{part}-{key}").into());
         let title: SharedString = {
             let name = self.name_of(key);
@@ -1104,14 +1193,14 @@ impl LibraryPanel {
             None
         } else if let Some(f) = sel.folders.first() {
             self.book
-                .folders
+                .material_folders()
                 .iter()
                 .find(|x| &x.id == f)
                 .and_then(|x| x.parent.clone())
         } else {
             sel.materials.first().and_then(|m| {
                 self.book
-                    .materials
+                    .material_items()
                     .iter()
                     .find(|x| &x.id == m)
                     .and_then(|x| x.folder.clone())
@@ -1240,7 +1329,7 @@ impl LibraryPanel {
         let material = key.trim_start_matches("i:").to_owned();
         let kind = self
             .book
-            .materials
+            .material_items()
             .iter()
             .find(|m| m.id == material)
             .map(|m| m.kind.clone())
@@ -1379,7 +1468,7 @@ impl Render for LibraryHead {
         let theme = Theme::of(window, cx);
         let (p, s) = (theme.palette, theme.scale);
         let panel = self.panel.read(cx);
-        let count = panel.book.materials.len();
+        let count = panel.book.material_items().len();
         let related = panel.related_only;
         let can_relate = if panel.book.v3().is_some() {
             matches!(panel.front(cx), Some(Target::Entry { .. }))
