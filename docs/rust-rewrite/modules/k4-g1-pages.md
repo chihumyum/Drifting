@@ -60,7 +60,7 @@
 
 ```bash
 CARGO_BUILD_JOBS=3 cargo build -p drifting --features debug-bridge --locked
-cargo drifting workspace scenario crates/dr-view-page/scenarios/body.json \
+CARGO_BUILD_JOBS=3 cargo drifting workspace scenario crates/dr-view-page/scenarios/body.json \
   --app target/debug/drifting --out target/k4-g1-body
 ```
 
@@ -155,6 +155,9 @@ v2.2 保持原来的列表与重建路径。已有章首章末继续用于小说
    窗口返回 `not_found: book is not in this book`。现有 ⌘⌥2 可以打开已注册的 G1
    通览，但后续书快照清理标签时还会把它视为失效。外壳须认可 v3 通览和素材目标，
    并保留相应标签；G1 不修改该文件，也不另造一个条目冒充通览。
+   最新通览场景的末章截图还复现稿纸外桌面短暂变黑（像素 alpha=255）；再等待两秒
+   的截图恢复正常。场景保留前后两张截图，交外壳／绘制负责方定位背景或捕获时序，
+   目前未归因，不把它记作已修复。
 8. **K4-0／G4：模块 URL 消费。** 外壳 `nav::location`、系统 URL 入口以及审阅／搜索
    的位置跳转须消费上述 `v3_link::Address`，解析后交 Entry{id,module}／Material
    和现有 Lines。G1 提供解析器与复制端；旧 Catalog 仍不认识这些地址，未计为系统
@@ -167,9 +170,10 @@ v2.2 保持原来的列表与重建路径。已有章首章末继续用于小说
   排除自身和回收站、真实编辑器写入 entry 标记及撤销、@ 选择、通览重排后会话与
   独立撤销保留，以及已有正文／新增正文初始化时的模板默认值。`v3_link` 单元测试
   覆盖百分号编码、模块／书 id、行号与旧地址隔离。
-- `dr-view-page/scenarios/whole-book.json`：最终无诊断日志构建 **34/34、0 pending**。
+- `dr-view-page/scenarios/whole-book.json`：最终无诊断日志构建 **36/36、0 pending**。
   用现有快捷键进入通览，首章输入和撤销、滚动、逐章键盘导航到第 20 章，再输入和
-  回读验证实际写入末章；不能把这条路径当作待协调 7 已修复。
+  回读验证实际写入末章；新增延迟两秒的截图保留桌面黑底前后状态。不能把这条路径
+  当作待协调 7 已修复。
 - `dr-view-page/scenarios/links.json`：同一最终构建 **36/36、0 pending**。@ 候选选择、
   两次撤销后重新打名字、自动链接悬停卡、点击打开条目；首轮点击探针未完成跳转，
   诊断构建和移除诊断后的最终复跑均完整通过。截图已目检。

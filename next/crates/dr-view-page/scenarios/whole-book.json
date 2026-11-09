@@ -248,6 +248,17 @@
       "png": "02-manuscript-end.png"
     },
     {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 2000
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "03-manuscript-settled.png"
+    },
+    {
       "app": "app.quit",
       "params": {}
     }
