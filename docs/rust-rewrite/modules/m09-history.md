@@ -84,7 +84,7 @@ next/crates/dr-i18n/locales/*.json         sync-locales.py 生成
 失败，before 点仍可在重开后实际恢复。书和正文落盘前还比较完整类型化原始值；
 无法保真恢复的容器使整批报错，不能靠改节点 id 或丢未来字段取得表面成功。
 
-K6 的正式公共调用是
+供 K6 在完整性阻塞关闭、正式接收后消费的公共调用是
 `Workspace::run::<commands::v3::snapshots::Create>(&actor, EntryIn { book, entry })`，
 等价的 JSON 命令为 `entry_snapshot.create {book, entry}`，返回 `Outcome<Point>`。
 Actor 可以是 `Actor::agent(session, turn, call)`；在每轮首次写某条目之前等待成功，
@@ -127,7 +127,9 @@ Agent 写入的当前书 guard；Create 成功后重新读取写入所需观察�
 依赖、不放宽作者值断言，`handback/k4-g1` 保持旧已接指针。周期和退出已有 F2/M09
 的明确方案，本次沿用，未另造产品：周期最多
 每 15 分钟一次，关闭时补点，自动点按旧分层保留；显式 before 恢复点不修剪。
-K6 在本次接口正式合入后接首次写入前打点。F6 的库替换若还同时 drain Agent／字段
+K6 在本次接口正式合入后接首次写入前打点；按 overnight 的新协调，新增 Spec
+须与 K6 显式目录排除同批接收。`entry_snapshot.*` 是宿主公共调用，不直接作为
+模型工具开放，本组不改 K6 实现。F6 的库替换若还同时 drain Agent／字段
 写入，需要最后一个写入之后的统一 checkpoint 阶段；本次正常退出的最后扫描已
 单独接线，但不声称库替换 after-drain 顺序已完成。before-release 快照失败阻止
 正常释放；末次 before-quit 扫描的现有回调不能向宿主返回错误，失败只记日志，
