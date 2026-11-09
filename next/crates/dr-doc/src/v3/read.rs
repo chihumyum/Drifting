@@ -1399,50 +1399,8 @@ impl<'a> BookViewV3<'a> {
     /// Unlike deep JSON, this also distinguishes a text/list/map container
     /// from a plain value and retains future nested text attributes.
     pub fn entry_owned_raw_state(&self, id: &EntryId) -> Option<serde_json::Value> {
+        use super::raw::raw_value as raw;
         use loro::{Container, ValueOrContainer};
-        fn raw(v: ValueOrContainer) -> serde_json::Value {
-            use serde_json::json;
-            match v {
-                ValueOrContainer::Value(v) => json!({"value":v}),
-                ValueOrContainer::Container(c) => match c {
-                    Container::Map(m) => {
-                        let mut values = BTreeMap::new();
-                        m.for_each(|key, v| {
-                            values.insert(key.to_owned(), raw(v));
-                        });
-                        json!({"map":values})
-                    }
-                    Container::Text(t) => json!({"text":t.to_delta()}),
-                    Container::List(l) => {
-                        let mut values = Vec::new();
-                        l.for_each(|v| values.push(raw(v)));
-                        json!({"list":values})
-                    }
-                    Container::MovableList(l) => {
-                        let mut values = Vec::new();
-                        l.for_each(|v| values.push(raw(v)));
-                        json!({"movable_list":values})
-                    }
-                    Container::Tree(t) => {
-                        let mut meta = BTreeMap::new();
-                        for node in t.nodes() {
-                            if let Ok(m) = t.get_meta(node) {
-                                meta.insert(
-                                    node.to_string(),
-                                    raw(ValueOrContainer::Container(Container::Map(m))),
-                                );
-                            }
-                        }
-                        json!({"tree":t.get_value(),"meta":meta})
-                    }
-                    Container::Counter(c) => json!({"counter":c.get_value()}),
-                    Container::Unknown(c) => {
-                        use loro::ContainerTrait;
-                        json!({"unknown":c.id().to_string()})
-                    }
-                },
-            }
-        }
         let e = self.entry(id)?;
         let node = *self
             .tree_index(book_v3::ENTRIES)

@@ -533,14 +533,26 @@ op! {
             faults.check("snapshot_after_book")?;
             for (id, d) in docs.iter().filter(|(id, _)| *id != &book_doc(&p.book)) {
                 if let Some(at) = p.bodies.get(id) {
+                    let doc = DocId::parse(id).map_err(|e| WsError::invalid(e.to_string()))?;
+                    // Both readers materialize the same known empty `embeds`
+                    // root without an operation. Unknown roots stay exact.
+                    ProseReader::from_loro(doc.clone(), &old[id])?;
+                    ProseReader::from_loro(doc, d)?;
                     d.revert_to(&frontiers_from_hex(at)?)?;
+                    if dr_doc::v3::raw_document_state(d)? != dr_doc::v3::raw_document_state(&old[id])? {
+                        return Err(WsError::invalid("body history cannot be restored without changing retained container identities"));
+                    }
                 } else {
                     // Body added since this checkpoint: clear it while keeping
                     // its identity/history and the pre-restore content above.
                     let doc = DocId::parse(id).map_err(|e| WsError::invalid(e.to_string()))?;
                     let genesis = LoroDoc::new();
                     genesis.import(&dr_doc::prose::genesis(&doc))?;
+                    ProseReader::from_loro(doc, &genesis)?;
                     d.revert_to(&genesis.oplog_frontiers())?;
+                    if dr_doc::v3::raw_document_state(d)? != dr_doc::v3::raw_document_state(&genesis)? {
+                        return Err(WsError::invalid("later body cannot be cleared without changing retained data"));
+                    }
                 }
                 faults.check("snapshot_after_body")?;
             }
@@ -615,5 +627,16 @@ fn restore_book(now: &LoroDoc, old: &LoroDoc, book: &BookId, entry: &str) -> Res
     txn.entries().move_to_at(&id, e.parent.as_ref(), index)?;
     let view = txn.view();
     graph_ok(&view.entries_map(), &templates, &view.memberships_raw())?;
+    let mut want = ov.entry_owned_raw_state(&id).expect("historical entry");
+    let mut got = view.entry_owned_raw_state(&id).expect("restored entry");
+    // Other entries keep their current positions. Their ids in the sibling
+    // inventory are not part of this entry's owned metadata or records.
+    want.as_object_mut().expect("raw object").remove("siblings");
+    got.as_object_mut().expect("raw object").remove("siblings");
+    if want != got {
+        return Err(WsError::invalid(
+            "entry history cannot be restored without changing retained container identities",
+        ));
+    }
     Ok(())
 }

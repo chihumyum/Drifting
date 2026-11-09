@@ -251,7 +251,7 @@ fn same(actual: &[Value], expected: &[Value]) {
 
 #[test]
 fn unwritten_empty_membership_root_is_not_an_author_write() {
-    let (e, b, _) = setup();
+    let (e, b, id) = setup();
     let doc = format!("book:{b}");
     let h = e
         .ws()
@@ -271,6 +271,31 @@ fn unwritten_empty_membership_root_is_not_an_author_write() {
         serde_json::to_value(e.ws().library().load_copy(&doc).unwrap().get_deep_value())
             .unwrap()
             .get("memberships")
+            .is_none()
+    );
+    // The prose reader's known empty embeds root has the same read-only
+    // behavior. Materialize it on both copies; do not normalize unknown roots.
+    let doc = dr_model::DocId::parse(&format!("body:{id}/mod-prose")).unwrap();
+    let d = e.ws().library().load_copy(&doc.to_string()).unwrap();
+    assert!(
+        dr_doc::v3::raw_document_state(&d)
+            .unwrap()
+            .get("embeds")
+            .is_none()
+    );
+    let version = d.oplog_frontiers();
+    dr_doc::prose::ProseReader::from_loro(doc.clone(), &d).unwrap();
+    assert_eq!(version, d.oplog_frontiers());
+    assert_eq!(
+        dr_doc::v3::raw_document_state(&d).unwrap()["embeds"],
+        json!({"map":{}})
+    );
+    let persisted = e.ws().library().load_copy(&doc.to_string()).unwrap();
+    assert_eq!(version, persisted.oplog_frontiers());
+    assert!(
+        dr_doc::v3::raw_document_state(&persisted)
+            .unwrap()
+            .get("embeds")
             .is_none()
     );
 }
@@ -831,6 +856,19 @@ fn future_container_types_rich_marks_hidden_memberships_and_shared_templates_rou
             .insert_container("counter", loro::LoroCounter::new())
             .unwrap();
         counter.increment(7.0).unwrap();
+        let tree = future.ensure_mergeable_tree("tree").unwrap();
+        tree.enable_fractional_index(0);
+        let parent = tree.create(None).unwrap();
+        let child = tree.create(Some(parent)).unwrap();
+        tree.get_meta(parent)
+            .unwrap()
+            .insert("author", "Future parent metadata")
+            .unwrap();
+        tree.get_meta(child)
+            .unwrap()
+            .insert("author", "Future child metadata")
+            .unwrap();
+        future.insert("node_ref", child.to_string()).unwrap();
         let p = d
             .get_map("patches")
             .ensure_mergeable_map(&patch_id)
@@ -868,6 +906,7 @@ fn future_container_types_rich_marks_hidden_memberships_and_shared_templates_rou
         future.delete("empty").unwrap();
         future.delete("list").unwrap();
         future.insert("counter", 7).unwrap();
+        future.delete("tree").unwrap();
         future
             .insert("values", loro::LoroValue::from(vec!["first", "second"]))
             .unwrap();
@@ -901,6 +940,69 @@ fn future_container_types_rich_marks_hidden_memberships_and_shared_templates_rou
     drop(d);
     e.reopen();
     assert_eq!(raw(&e), expected);
+}
+
+#[test]
+fn identity_changing_future_trees_refuse_the_entire_restore_and_reopen_unchanged() {
+    for in_body in [false, true] {
+        let (mut e, b, id) = setup();
+        let doc = if in_body {
+            format!("body:{id}/second")
+        } else {
+            format!("book:{b}")
+        };
+        let h = e
+            .ws()
+            .library()
+            .open_doc(&doc, dr_store::OpenDoc::Existing)
+            .unwrap();
+        let entry = id.clone();
+        h.write(dr_store::Origin::User, move |d| {
+            let future = if in_body {
+                d.get_map("future")
+            } else {
+                raw_entry(d, &entry).ensure_mergeable_map("future").unwrap()
+            };
+            let tree = future
+                .insert_container("tree", loro::LoroTree::new())
+                .unwrap();
+            let node = tree.create(None).unwrap();
+            tree.get_meta(node)
+                .unwrap()
+                .insert("author", "Retained future tree metadata")
+                .unwrap();
+            future.insert("node_ref", node.to_string()).unwrap();
+        })
+        .unwrap();
+        let p = capture(&e, &b, &id);
+        edit(&e, &b, &id);
+        let entry = id.clone();
+        h.write(dr_store::Origin::User, move |d| {
+            let future = if in_body {
+                d.get_map("future")
+            } else {
+                raw_entry(d, &entry).ensure_mergeable_map("future").unwrap()
+            };
+            future.delete("tree").unwrap();
+            future.insert("after", "Current author input").unwrap();
+        })
+        .unwrap();
+        let before = data(&e, &b, &id);
+        let current =
+            dr_doc::v3::raw_document_state(&e.ws().library().load_copy(&doc).unwrap()).unwrap();
+        let result = e.try_call("entry_snapshot.restore", input(&e, &b, &id, &p));
+        assert!(
+            matches!(result, Err(dr_workspace::WsError::Invalid(message)) if message.contains("container identities"))
+        );
+        same(&data(&e, &b, &id), &before);
+        drop(h);
+        e.reopen();
+        same(&data(&e, &b, &id), &before);
+        assert_eq!(
+            dr_doc::v3::raw_document_state(&e.ws().library().load_copy(&doc).unwrap()).unwrap(),
+            current
+        );
+    }
 }
 
 #[test]
@@ -958,6 +1060,9 @@ fn body_history_preserves_rich_marks_and_unknown_body_roots_across_reopen() {
         d.get_map("future-body")
             .insert("author-value", "before")
             .unwrap();
+        d.get_map("embeds")
+            .insert("future-author-key", "unknown retained embed value")
+            .unwrap();
     })
     .unwrap();
     let expected = h
@@ -969,6 +1074,9 @@ fn body_history_preserves_rich_marks_and_unknown_body_roots_across_reopen() {
         d.get_text("body").unmark(0..3, "bold").unwrap();
         d.get_map("future-body")
             .insert("author-value", "after")
+            .unwrap();
+        d.get_map("embeds")
+            .insert("future-author-key", "changed embed value")
             .unwrap();
     })
     .unwrap();
@@ -992,5 +1100,9 @@ fn body_history_preserves_rich_marks_and_unknown_body_roots_across_reopen() {
     assert_eq!(
         serde_json::to_value(d.get_map("future-body").get_deep_value()).unwrap()["author-value"],
         "before"
+    );
+    assert_eq!(
+        serde_json::to_value(d.get_map("embeds").get_deep_value()).unwrap()["future-author-key"],
+        "unknown retained embed value"
     );
 }

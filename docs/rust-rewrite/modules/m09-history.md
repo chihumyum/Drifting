@@ -70,7 +70,7 @@ next/crates/dr-i18n/locales/*.json         sync-locales.py 生成
 - 性能没测：`history.points` 要载两份副本、逐个检出，heavy 种子上的耗时等机器空闲时量。
 
 
-## v3 完整条目快照（2026-11-10，最终交回检查前）
+## v3 完整条目快照安全候选（2026-11-10，完整性缺口待协调）
 
 **做了什么：**v3 使用书内不可覆写的 `entry_checkpoints` 清单，格式 1 带校验和、
 内容指纹、书 frontier 和全部登记正文 frontier；与冻结的 v2.2 prose 历史分开。
@@ -80,7 +80,8 @@ next/crates/dr-i18n/locales/*.json         sync-locales.py 生成
 用按条目限定的 CRDT 差异恢复，正文整份回到历史状态；其他条目、共享模板和时间线
 视图不回滚。共享模板的历史定义只供预览。新正文的旧状态为空，before 点保留其
 恢复前实际内容；对象撤销／重做也消费同一有守卫恢复命令。即使本机 journal 写入
-失败，before 点仍可在重开后实际恢复。
+失败，before 点仍可在重开后实际恢复。书和正文落盘前还比较完整类型化原始值；
+无法保真恢复的容器使整批报错，不能靠改节点 id 或丢未来字段取得表面成功。
 
 K6 的正式公共调用是
 `Workspace::run::<commands::v3::snapshots::Create>(&actor, EntryIn { book, entry })`，
@@ -88,7 +89,9 @@ K6 的正式公共调用是
 Actor 可以是 `Actor::agent(session, turn, call)`；在每轮首次写某条目之前等待成功，
 失败就停止该条目的写入。可用 `Workspace::call_guarded` 带书和所有已物化正文的
 观察版本：所有 guard 在同一 reservation 内先验；缺省正文和未物化登记行只在同一
-提交中初始化。正文登记来自库的完整清单，不能只列当前模板的可见模块。Create 自己
+提交中初始化；如果调用方显式观察了只读模板正文，复制缺省正文前也校验该模板
+版本。未提供模板 guard 时，读取已被 reservation 固定的当前模板正文。正文登记
+来自库的完整清单，不能只列当前模板的可见模块。Create 自己
 会追加书内清单，因此 `Point.book_version` 是打点前的历史版本，不能充作下一次
 Agent 写入的当前书 guard；Create 成功后重新读取写入所需观察版本。这里不改 K6
 的工具或写入代码。恢复只允许作者，JSON 为
@@ -101,14 +104,27 @@ Agent 写入的当前书 guard；Create 成功后重新读取写入所需观察�
 隐藏关系／归属、后来增加正文、并发恢复、陈旧书／正文版本、跨书和损坏清单、
 书／正文 staging 故障、SQL 后段失败、重开一致、journal 故障后的 before 恢复及
 自动点保留。对话框测试验证预览不恢复、再次确认、失败保留原文／预览、显式新预览
-再提交、模态焦点与 busy 时拒绝关闭。当前专项结果见 G1 模块文档；最终全套检查和
-副屏隔离 profile 冒烟尚未填写前，不算正式交回。registry 证据由
+再提交、模态焦点与 busy 时拒绝关闭。原稿纸／统计历史入口在 v3 下使用同一完整
+条目对话框，旧单正文恢复方法不能绕过它；关闭后回到原输入。副屏隔离 profile 的
+真窗口 `entry-snapshot.json` 为 72/72、0 pending，核对两正文确认恢复、before 找回、
+原焦点继续输入和退出重开；机器证据为约定外部日志目录的
+`g1-window-smoke-4/result.json` 与 `secondary-display.json`，首三轮失败原样保留。
+最终全套检查结果见 G1 本轮交回段。registry 证据由
 `INSTA_UPDATE=always cargo test -p dr-workspace --test registry --locked` 生成，
-不手改生成证据。旧 `entry-boundary.json` 继续是反例，不是本次正向验收。
+不手改生成证据；原有 Agent 目录快照另外由
+`INSTA_UPDATE=always cargo test -p dr-agent-tools --test catalog --locked` 生成，
+只增加五个注册命令的排除行，不改 K6 实现。旧 `entry-boundary.json` 继续是反例，不是本次正向验收。
 
-**待协调：**周期和退出已有 F2/M09 的明确方案，本次沿用，未另造产品：周期最多
+**待协调：**普通嵌套树删除后的身份保真仍阻塞“完整快照”交回：Loro 1.17.1
+的 apply_diff／revert_to 会重建普通子容器／树节点身份，作者保存的 node_ref 可
+因此悬空；公开 JSON 导入也不允许任意复用旧创建 id。候选已在 staging 后精确校验，
+有变化就拒绝全部恢复，永久契约证明书／多正文／checkpoint 不变且重开一致，但这
+不等同于已支持该数据形态。须 K1／整合者处理固定引擎能力或正式契约，本组不改
+依赖、不放宽作者值断言，`handback/k4-g1` 保持旧已接指针。周期和退出已有 F2/M09 的明确方案，本次沿用，未另造产品：周期最多
 每 15 分钟一次，关闭时补点，自动点按旧分层保留；显式 before 恢复点不修剪。
 K6 在本次接口正式合入后接首次写入前打点。F6 的库替换若还同时 drain Agent／字段
 写入，需要最后一个写入之后的统一 checkpoint 阶段；本次正常退出的最后扫描已
-单独接线，但不声称库替换 after-drain 顺序已完成。输入、保存、恢复、并发、跨书
+单独接线，但不声称库替换 after-drain 顺序已完成。before-release 快照失败阻止
+正常释放；末次 before-quit 扫描的现有回调不能向宿主返回错误，失败只记日志，
+最终可失败的 after-drain 阶段仍需 F6 接口。输入、保存、恢复、并发、跨书
 等正确性照常检查；截图目检、heavy、性能预算和样式打磨全部暂缓，不计为通过。
