@@ -16,11 +16,21 @@
       }
     },
     {
-      "app": "app.info",
-      "save": "environment"
+      "app": "window.focus"
     },
     {
-      "app": "window.focus"
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/window/active": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "app.info",
+      "save": "environment"
     },
     {
       "app": "ui.press",
@@ -60,7 +70,9 @@
     {
       "app": "ui.find",
       "params": {
-        "contains": "K6 synthetic flow complete"
+        "label": "结果 · comment-read",
+        "role": "Button",
+        "timeout_ms": 30000
       }
     },
     {
@@ -80,9 +92,9 @@
         "book": "${state.book.id}"
       },
       "expect": {
-        "/output/summary": "K6 synthetic window update",
-        "/output/word_target": null,
-        "/output/daily_word_target": 240
+        "/summary": "K6 synthetic window update",
+        "/word_target": null,
+        "/daily_word_target": 240
       }
     },
     {
@@ -92,10 +104,10 @@
       },
       "save": "comments",
       "expect": {
-        "/output/[body=K6 synthetic module comment]/module": "mod-prose",
-        "/output/[body=K6 synthetic module comment]/target/kind": "entry",
-        "/output/[body=K6 synthetic module comment]/author_kind": "ai",
-        "/output/[body=K6 synthetic module comment]/source": "api"
+        "/[body=K6 synthetic module comment]/module": "mod-prose",
+        "/[body=K6 synthetic module comment]/target/kind": "entry",
+        "/[body=K6 synthetic module comment]/author_kind": "ai",
+        "/[body=K6 synthetic module comment]/source": "api"
       }
     },
     {

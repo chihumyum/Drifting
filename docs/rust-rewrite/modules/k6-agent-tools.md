@@ -300,3 +300,5 @@ K2 的视图名称／泳道顺序等逐字段命令仍待协调；在接口提�
 本批验证使用 v3 `dr_testkit` 种子；永久契约在 `shared_v3.rs`、`structure.rs`，真窗口录制脚本为 `dr-view-agent/examples/v3-acceptance.rs` 与 `scenarios/v3-tools.json`。运行方式：在 `next/` 执行 `CARGO_BUILD_JOBS=3 cargo build -p dr-view-agent --example v3-acceptance --locked`，再执行 `CARGO_BUILD_JOBS=3 cargo drifting workspace scenario crates/dr-view-agent/scenarios/v3-tools.json --app target/debug/examples/v3-acceptance --out target/acceptance/k6-v3-tools --yes`；场景强制副屏、内存合成凭据、录制响应，未用的提供商地址也只指向 loopback。实际通过数与最终 frontier 记录在本批交回小节。
 
 待协调：整合者已复现 `comment.create` 的旧正文 guards 未被只读来源路径消费，K2 正补同一 holder read 内校验来源 frontier 的规范入口。在该修复正式接收前，facade 明确拒绝 range、block_id、anchor 创建和非空 reanchor；整条目、模块、素材、浮动批注及清除锚点继续走书目 CAS，不能把临时 observe 当作原子保护。G1 整条目快照仍等正式接口合 main 后接首次写入，不消费 WIP。K2 拟新增的时间线局部命令在正式接入 resolver／覆盖前保持排除。
+
+窗口初轮的等待断言错误地把普通回复文本当成 AX 节点，导致 `ui.find` 超时；没有把该轮记为通过或归因于环境。独立隔离窗口诊断确认工具结果、书目更新及 AI 来源模块批注已落库，随后场景改为等最后一条工具结果按钮，并断言持久化结果与来源；第二轮同时纠正了 scenario 的 call 已解包 output、断言应从返回值根部取值的测试路径。两轮原日志均保留，不冒称产品通过。系统全局坐标检查确认同一副屏配置的窗口位于内建副屏；`app.info` 的 bounds 是显示器内坐标，不能据其 x/y 误判为主屏。
