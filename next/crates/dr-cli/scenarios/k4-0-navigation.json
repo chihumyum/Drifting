@@ -242,10 +242,23 @@
       "save": "firstAfterMove"
     },
     {
+      "app": "window.focus"
+    },
+    {
+      "app": "app.info",
+      "save": "typingEnvironment",
+      "expect": {
+        "/windows/0/active": true,
+        "/windows/0/visible": true
+      }
+    },
+    {
       "app": "ui.press",
       "params": {
-        "role": "TextArea"
-      }
+        "role": "TextArea",
+        "label": "${entries.[template=tpl-chapter].title}"
+      },
+      "note": "重排保留原章节的阅读位置；在当前篇开头输入，不强迫跳到全书第一篇"
     },
     {
       "app": "input.key",
@@ -263,17 +276,11 @@
       "call": "module.read_prose",
       "input": {
         "book": "${books.0.id}",
-        "owner": "${reordered.[template=tpl-chapter].id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
         "module": "mod-prose"
       },
       "expect": {
-        "/paragraphs/0/text": "F6Reordered ${firstAfterMove.paragraphs.0.text}"
-      }
-    },
-    {
-      "app": "input.key",
-      "params": {
-        "keys": "secondary-z"
+        "/paragraphs/0/text": "F6Reordered ${original.paragraphs.0.text}"
       }
     },
     {
@@ -285,6 +292,24 @@
       },
       "expect": {
         "/paragraphs": "${firstAfterMove.paragraphs}"
+      },
+      "note": "另一篇未被输入或重排覆盖"
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-z"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs": "${original.paragraphs}"
       }
     },
     {
@@ -514,7 +539,8 @@
         "timeout_ms": 30000,
         "state": {
           "/page": "book",
-          "/pageTitle": "Synthetic v2 refreshed"
+          "/pageTitle": "Whole book",
+          "/book/name": "Synthetic v2 refreshed"
         }
       }
     },

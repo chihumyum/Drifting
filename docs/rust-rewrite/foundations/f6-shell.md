@@ -885,26 +885,37 @@ G2 三种回调及 K5 新建委托。v3-lite 真窗口场景 **84/84 步、0 pen
 素材前置修复并入下面的导航续交。搜索宿主仍待 G4 稳定接口正式进入 main，
 本次导航修复不声明搜索接线或真窗口搜索验收完成。
 
-### Book／Material 导航修复（2026-11-10）
+主页最近访问也列入外壳协调队列：等待 K2 的 v3 本机 recent 接口正式进入 main，
+再接记录和导航；保留 entry/module、旧记录及两书隔离，不绕写本机数据库，
+不把 v3 条目降成旧 Book 目标。K2 的书名／简介／字数目标元数据接口和
+大书层级批量查询分别等待整合通知，均不包含在下面的导航修复交回中。
 
-G2 在 `c033ce2d` 上的联合窗口重排后，Book 从 tabs／pages 同时消失，当前页
-退回 Entry/module。外壳在书快照刷新时用 `BookV3::exists` 清理目标；它没有
-认可全书页，误把文稿重排当作页面已不存在。已加载的活书现在认可 `Target::Book`，
-即使尚无正文条目；v2.2 判断保持原状，v3 仍拒绝旧 Chapter／Idea／Element／
-Storyline／Category 路由。
+### Book／Material 导航修复交回（2026-11-10）
 
-v3 快照增加当前书的素材元数据，并在共同的名称／记号
-索引登记。合法素材不会在书刷新时被关掉；只剩 `material:<id>` 正文文档不能
-证明素材仍存在。当前 `material.list` 的 v3 facade 尚由 K2 补齐，因此临时使用
-`BorrowedBookV3::view().materials()` 的只读查询，纳入同一次 frontier 校验；
-不写 Loro，不向 v2.2 兼容快照塞 v3 数据。K2 facade 进入 main 后再统一消费。
+修复 G2 在 `c033ce2d` 联合窗口中遇到的重排后 Book 标签与页面被关闭：
+`BookV3::exists` 现在认可已加载书的全书页；素材则必须仍在该书元数据中，
+不以残留正文文档推断其存在，v3 仍拒绝旧种类路由。新增公共快照字段
+`BookV3.materials`，名称和记号进入共同索引；素材读取用
+`BorrowedBookV3::view().materials()`，纳入同一次 frontier 校验，只读不写。
+实现提交 `a4289a5c`、`2a274af4`；分支 `codex/k4-0-shell`，已同步 main
+`39ba3fe8`（最后一次仅规则文档更新，产品代码基线为 `742f9393`）。
 
-永久契约在 `dr-shell/tests/v3.rs`：真实外壳接收 `entry.move` 后的新快照，
-Book 当前页、已挂载实例、素材及模块标签仍保留；素材元数据删除后关闭目标，
-不以残留正文文档推断其存在。新增 GPUI 契约在修复前 0/1 失败，观察到当前页
-从 Book 退回 Material。窗口场景源为 `dr-cli/scenarios/k4-0-navigation.json`，
-覆盖 v3-lite 的导航、重排刷新、全书实际输入／撤销、素材刷新、关开恢复和
-v2.2 原路由。最终检查与窗口结果在正式交回时记录。
+全套检查通过：fmt、Clippy（workspace/all-targets/locked，`-D warnings`）、
+workspace test **2120 passed / 0 failed / 22 ignored**、xtask（含 audit）、
+public；编译并发 3，测试单线程。audit 为 0 vulnerabilities、12 notices，
+另保留 15 份过期测量提示。永久 GPUI 回归在修复前失败，修复后保留 Book 当前页、
+挂载实例和素材／模块标签；素材元数据移除也有契约。一条副屏真窗口冒烟源为
+`dr-cli/scenarios/k4-0-navigation.json`：71 步加两次启动的定位守卫及 app.info，
+共 **75/75 步、0 pending**，覆盖重排刷新、保留原章节位置的输入／撤销、另一篇
+正文不变、素材刷新和退出重开；新规则前已完成的 v2.2 原路由检查保留。
+两次窗口均在副屏内、1440×900。结果在 `next/target/acceptance/k4-0-navigation-final-2/`，
+定位回执在 `next/target/acceptance/k4-0-secondary/receipts/`，全套日志在
+`next/target/acceptance/k4-0-checks/`。首次场景把「当前篇开头」误当全书第一篇、
+把固定页名误当书名的失败及诊断保留；修正断言后通过，产品代码未为此修改。
+构建仍有既有 unwind 链接警告，窗口日志仍有字体与 v3 TODO 投影待接警告。
 
-范围只含外壳导航和快照。G2 的其余联合大纲验收、通用编辑器登记／正文布局、
-G4 搜索，以及等待内核批量查询的 heavy 接线继续按各自协调项处理。
+本次只交外壳导航、快照及回归证据，未删除 v2.2 测试，未新增公共内核命令或
+修改各组视图。G2 的剩余联合大纲验收仍由 G2 完成；通用编辑器登记、G4 搜索、
+本机最近访问和大书批量查询继续按协调队列接线。已分派给 K2／G4 的候选复用
+正式接收的接口，未占用的公共小接口按新规则可自行只增不改并带测试交回。
+素材 facade 接收后再统一消费。未将工作分支合入 main，未推送。
