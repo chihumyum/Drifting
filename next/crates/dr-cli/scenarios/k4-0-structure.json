@@ -111,10 +111,16 @@
       "params": {
         "timeout_ms": 30000,
         "state": {
-          "/page": "entry:${level.id}",
-          "/v3Page/sections/[id=settings]/registered": true
+          "/page": "entry:${level.id}"
         }
       }
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/v3Page/sections/[id=settings]/registered": true
+      },
+      "note": "Filtered array selectors belong to scenario expectations; ui.wait takes plain JSON pointers."
     },
     {
       "app": "input.scroll",
@@ -360,10 +366,16 @@
       "params": {
         "timeout_ms": 30000,
         "state": {
-          "/page": "book",
-          "/pages/[key=book]/ready": true
+          "/page": "book"
         }
       }
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/pages/[key=book]/ready": true
+      },
+      "note": "Filtered array selectors belong to scenario expectations; ui.wait takes plain JSON pointers."
     },
     {
       "app": "nav.open",
