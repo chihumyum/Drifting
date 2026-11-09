@@ -722,3 +722,8 @@ next/.cargo/config.toml   cargo xtask、cargo drifting 两个别名
 `nav.open` 的 `entry:<id>[/<module>]`、`template:<id>` 和可选 `line` / `end_line`；
 `page.text` 对 v3 组合页的 `source` 为 `v3`，`composition.sections` 反映实际
 挂载的部分（id、kind、name、registered），不把占位页当作已经接好正文编辑器。
+
+K4-0 第一次交回实跑：`k4-0-interface.json` 49/49 步、0 pending（v3-lite）；
+三张 PNG 已目检。构建 debug-bridge 后运行场景；全 workspace test 会重新生成普通
+app 二进制，若交错运行，应在它编译结束后重新构建桥版本或保留同目录下的桥二进制副本。
+不把无桥构建的启动超时计为功能断言通过。

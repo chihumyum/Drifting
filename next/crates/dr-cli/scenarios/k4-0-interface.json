@@ -57,6 +57,19 @@
       "launch": {
         "env": {
           "DRIFTING_APPEARANCE": "light"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
         }
       }
     },
@@ -120,6 +133,14 @@
         "/v3Appearance/color": "${primary.fields.mod-fields.color}"
       },
       "note": "K4-0.3/4：叶子按模板模块顺序组合，模板记号和主归属颜色"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 1200
+      },
+      "note": "等共享字海与翻页过渡结束后截屏；导航验收仍由前一步状态断言负责"
     },
     {
       "app": "ui.screenshot",
@@ -203,6 +224,14 @@
       }
     },
     {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 1200
+      },
+      "note": "等共享字海与翻页过渡结束后截屏；导航验收仍由前一步状态断言负责"
+    },
+    {
       "app": "ui.screenshot",
       "png": "02-level.png"
     },
@@ -276,6 +305,19 @@
       "launch": {
         "env": {
           "DRIFTING_APPEARANCE": "light"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
         }
       }
     },
@@ -299,6 +341,14 @@
           "/page": "entry:${entries.[template=tpl-manuscript].id}"
         }
       }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 1200
+      },
+      "note": "等共享字海与翻页过渡结束后截屏；导航验收仍由前一步状态断言负责"
     },
     {
       "app": "ui.screenshot",

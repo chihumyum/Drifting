@@ -781,4 +781,25 @@ v2.2 与 v3 在同一个窗口中按书分路。`book::Book` 保留共有的 `id
 
 ### K4-0 第一次交回记录
 
-实现与验收记录在本节随本次提交更新；检查完成前不移动 `handback/k4-0`。
+交回范围为 K4-0 第 1–5 项；分支 `codex/k4-0-shell`，指针 `handback/k4-0`。
+接口提交 `5243a7d7`，同步 main 的合并提交 `9f8d0ac8`（main `222cc588`），
+启动时等待书版本的修正 `cb768220`；本记录与真窗口场景的截图等待一起续交。
+未合 main、未推送，未改任何视图 crate。
+
+检查（编译并发 3）：fmt、全 workspace Clippy `-D warnings`、全 workspace test
+**2038 passed / 0 failed / 22 ignored**、xtask check（含 audit，0 vulnerabilities）
+及根目录 `pnpm public:check` 全过。xtask 保留既有 14 份过期测量提示与 12 项审计通知；
+本次没有把占位页测成已完成的编辑器性能。
+
+`dr-shell/tests/v3.rs` 四条永久契约覆盖版本分路、来源/null、主归属颜色、删除、导航、
+模块顺序、保留实例刷新、焦点、位置回调，以及启动前不得实例化旧时间线。
+`dr-cli/tests/cli.rs` 覆盖四档 v3 入口和落库。真窗口
+`crates/dr-cli/scenarios/k4-0-interface.json` 在 `v3-lite` 上 **49/49 步，0 pending**；
+三张截图逐一目检，叶子顺序、层级三块、重开后显示设置均可见，旧时间线不出现。
+结果与截图在忽略目录 `next/target/acceptance/k4-0-interface/`，可从场景重跑。
+场景使用已完成首次导览的测试设备配置，截图等待共享字海/翻页过渡，不据此声明导览的 v3 接线。
+
+初次全量测试使用合并前的旧二进制，命中过已由 main/K3 修复的 dr-mirror 转义回归；
+上述统计来自合并后重新编译的完整运行。新增时间线隔离契约另发现初始空快照被当作 v2.2，
+已由 `cb768220` 修复，再跑全套与真窗口通过。待协调为上一节 1–3；
+各组可据以上注册口开工，第二次交回补左栏与悬停卡。
