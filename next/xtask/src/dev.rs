@@ -267,6 +267,11 @@ pub fn run(root: &Path, next: &Path, args: &[String]) -> Result<i32, String> {
         }
         None => eprintln!("cargo xtask dev: main checkout, no profile"),
     }
+    // Automated runs keep their window off the author's main display unless
+    // the caller already chose one (`DRIFTING_WINDOW_DISPLAY`, dr-shell).
+    if o.debug_bridge && std::env::var_os("DRIFTING_WINDOW_DISPLAY").is_none() {
+        cmd.env("DRIFTING_WINDOW_DISPLAY", "secondary");
+    }
     let status = cmd.status().map_err(|e| format!("{}: {e}", argv[0]))?;
     Ok(status.code().unwrap_or(1))
 }
