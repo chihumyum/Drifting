@@ -1,0 +1,122 @@
+{
+  "about": "K6 real-window smoke. Run with dr-view-agent's v3-acceptance example only: v3 Tiny testkit seed, memory credential, recorded runtime responses, loopback-only unused provider. Window must open on secondary display.",
+  "steps": [
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_WINDOW_DISPLAY": "secondary"
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/window/active": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "app.info",
+      "save": "environment"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "展开右侧栏"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "state": {
+          "/right/open": true
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "发送",
+        "role": "Button",
+        "dy": -60
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "Inspect this synthetic book and add a module comment."
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "enter"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "结果 · comment-read",
+        "role": "Button",
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "comment.create",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "state.get",
+      "save": "state"
+    },
+    {
+      "call": "book.get",
+      "input": {
+        "book": "${state.book.id}"
+      },
+      "expect": {
+        "/summary": "K6 synthetic window update",
+        "/word_target": null,
+        "/daily_word_target": 240
+      }
+    },
+    {
+      "call": "comment.list",
+      "input": {
+        "book": "${state.book.id}"
+      },
+      "save": "comments",
+      "expect": {
+        "/[body=K6 synthetic module comment]/module": "mod-prose",
+        "/[body=K6 synthetic module comment]/target/kind": "entry",
+        "/[body=K6 synthetic module comment]/author_kind": "ai",
+        "/[body=K6 synthetic module comment]/source": "api"
+      }
+    },
+    {
+      "app": "app.quit",
+      "expect": {
+        "/quit": true,
+        "/exitCode": 0,
+        "/connectionFileLeft": false
+      }
+    }
+  ]
+}

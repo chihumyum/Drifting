@@ -1347,6 +1347,105 @@ impl<'a> BookViewV3<'a> {
         Some(EntrySnapshotV3 { value: node.meta })
     }
 
+    /// Complete raw records owned by an entry, including hidden/retained data.
+    /// Templates, child entries and timeline views belong to the book, not this entry.
+    pub fn entry_owned_records(
+        &self,
+        id: &EntryId,
+    ) -> BTreeMap<CollectionV3, BTreeMap<String, EntrySnapshotV3>> {
+        let patches = entities(self.doc, book_v3::PATCHES)
+            .into_iter()
+            .filter(|(_, v)| F(v).str("entry") == Some(id.as_str()))
+            .collect::<BTreeMap<_, _>>();
+        let mut result = BTreeMap::new();
+        for collection in [
+            CollectionV3::Patches,
+            CollectionV3::PlotGrids,
+            CollectionV3::Memberships,
+            CollectionV3::Relations,
+        ] {
+            let rows = entities(self.doc, collection.root())
+                .into_iter()
+                .filter(|(key, value)| {
+                    let f = F(value);
+                    match collection {
+                        CollectionV3::Patches => patches.contains_key(key),
+                        CollectionV3::PlotGrids => key.starts_with(&format!("{id}/")),
+                        CollectionV3::Memberships => {
+                            f.str("member") == Some(id.as_str())
+                                || f.str("host") == Some(id.as_str())
+                                || key
+                                    .split_once('|')
+                                    .is_some_and(|(h, m)| h == id.as_str() || m == id.as_str())
+                        }
+                        CollectionV3::Relations => [("from_kind", "from"), ("to_kind", "to")]
+                            .iter()
+                            .any(|(kind, end)| {
+                                f.str(kind) == Some("entry") && f.str(end) == Some(id.as_str())
+                                    || f.str(kind) == Some("patch")
+                                        && f.str(end).is_some_and(|p| patches.contains_key(p))
+                            }),
+                        _ => false,
+                    }
+                })
+                .map(|(id, value)| (id, EntrySnapshotV3 { value }))
+                .collect();
+            result.insert(collection, rows);
+        }
+        result
+    }
+
+    /// Raw owned content with explicit container kinds and rich-text deltas.
+    /// Unlike deep JSON, this also distinguishes a text/list/map container
+    /// from a plain value and retains future nested text attributes.
+    pub fn entry_owned_raw_state(&self, id: &EntryId) -> Option<serde_json::Value> {
+        use super::raw::raw_value as raw;
+        use loro::{Container, ValueOrContainer};
+        let e = self.entry(id)?;
+        let node = *self
+            .tree_index(book_v3::ENTRIES)
+            .get(id.as_str())?
+            .first()?;
+        let metadata = raw(ValueOrContainer::Container(Container::Map(
+            self.doc.get_tree(book_v3::ENTRIES).get_meta(node).ok()?,
+        )));
+        let records: BTreeMap<_, _> = self
+            .entry_owned_records(id)
+            .into_iter()
+            .map(|(c, rows)| {
+                let map = self.doc.get_map(c.root());
+                let rows: BTreeMap<_, _> = rows
+                    .into_keys()
+                    .filter_map(|key| map.get(&key).map(|v| (key, raw(v))))
+                    .collect();
+                (c.root().to_owned(), rows)
+            })
+            .collect();
+        let siblings: Vec<_> = self
+            .entries_raw()
+            .into_iter()
+            .filter(|s| s.parent == e.parent)
+            .map(|s| s.id)
+            .collect();
+        let mut value = serde_json::json!({"metadata":metadata,"records":records,"parent":e.parent,"siblings":siblings});
+        value.sort_all_objects();
+        Some(value)
+    }
+
+    /// Versioned complete-entry checkpoint manifests. Opaque to dr-doc.
+    pub fn entry_checkpoints(&self) -> Vec<(String, String)> {
+        entities(self.doc, "entry_checkpoints")
+            .into_iter()
+            .filter_map(|(id, v)| {
+                if let LoroValue::String(s) = v {
+                    Some((id, s.to_string()))
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
     /// Raw metadata of one material folder, for selected-record restoration.
     pub fn material_folder_snapshot(&self, id: &MaterialFolderId) -> Option<EntrySnapshotV3> {
         forest(&self.tree(book_v3::MATERIAL_FOLDERS))

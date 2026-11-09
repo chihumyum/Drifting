@@ -24,6 +24,10 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 
+#[cfg(test)]
+#[path = "page_v3_tests.rs"]
+mod v3_tests;
+
 use dr_doc::book::Collection;
 use dr_i18n::keys;
 use dr_shell::book::Book;
@@ -131,6 +135,12 @@ pub struct MediaPage {
     /// unsaved typing is replaced).
     shown_title: Option<String>,
     shown_description: Option<String>,
+    dirty_title: bool,
+    dirty_description: bool,
+    saving_title: bool,
+    saving_description: bool,
+    title_error: Option<String>,
+    description_error: Option<String>,
     /// The asset the picture was read from.
     asset: Option<String>,
     loading: Option<Task<()>>,
@@ -215,6 +225,12 @@ impl MediaPage {
             description,
             shown_title: None,
             shown_description: None,
+            dirty_title: false,
+            dirty_description: false,
+            saving_title: false,
+            saving_description: false,
+            title_error: None,
+            description_error: None,
             asset: None,
             loading: None,
             rendering: None,
@@ -239,7 +255,7 @@ impl MediaPage {
     }
 
     fn info(&self) -> Option<&dr_workspace::dto::MaterialInfo> {
-        self.book.materials.iter().find(|m| m.id == self.id)
+        self.book.material_items().iter().find(|m| m.id == self.id)
     }
 
     fn subscribe(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -248,13 +264,15 @@ impl MediaPage {
             FieldEvent::Cancelled => {
                 let stored = page.info().map(|m| m.title.clone()).unwrap_or_default();
                 field.update(cx, |f, cx| f.set_text(stored, cx));
+                page.dirty_title = false;
+                page.title_error = None;
                 window.focus(&page.focus, cx);
             }
             FieldEvent::Blurred => {
                 let text = field.read(cx).text();
                 page.save_title(text, cx);
             }
-            FieldEvent::Changed(_) => {}
+            FieldEvent::Changed(_) => page.dirty_title = page.book.v3().is_some(),
         });
         let description = cx.subscribe_in(
             &self.description,
@@ -267,13 +285,15 @@ impl MediaPage {
                         .map(|m| m.description.clone())
                         .unwrap_or_default();
                     field.update(cx, |f, cx| f.set_text(stored, cx));
+                    page.dirty_description = false;
+                    page.description_error = None;
                     window.focus(&page.focus, cx);
                 }
                 FieldEvent::Blurred => {
                     let text = field.read(cx).text();
                     page.save_description(text, cx);
                 }
-                FieldEvent::Changed(_) => {}
+                FieldEvent::Changed(_) => page.dirty_description = page.book.v3().is_some(),
             },
         );
         self._subs.push(title);
@@ -331,7 +351,10 @@ impl MediaPage {
         let typing = |f: &Entity<TextArea>, window: &Window, cx: &App| {
             f.read(cx).focus_handle(cx).is_focused(window)
         };
-        if self.shown_title.as_deref() != Some(m.title.as_str()) && !typing(&self.title, window, cx)
+        if self.shown_title.as_deref() != Some(m.title.as_str())
+            && !typing(&self.title, window, cx)
+            && !self.dirty_title
+            && !self.saving_title
         {
             self.title
                 .update(cx, |f, cx| f.set_text(m.title.clone(), cx));
@@ -339,6 +362,8 @@ impl MediaPage {
         }
         if self.shown_description.as_deref() != Some(m.description.as_str())
             && !typing(&self.description, window, cx)
+            && !self.dirty_description
+            && !self.saving_description
         {
             self.description
                 .update(cx, |f, cx| f.set_text(m.description.clone(), cx));
@@ -348,6 +373,60 @@ impl MediaPage {
 
     fn update_material(&mut self, input: MaterialUpdateIn, cx: &mut Context<Self>) {
         let lib = self.lib.clone();
+        if self.book.v3().is_some() {
+            let title = input.title.clone();
+            let description = input.description.clone();
+            if title.is_some() {
+                self.saving_title = true;
+                self.dirty_title = true;
+                self.title_error = None;
+                self.title.update(cx, |f, cx| f.set_disabled(true, cx));
+            }
+            if description.is_some() {
+                self.saving_description = true;
+                self.dirty_description = true;
+                self.description_error = None;
+                self.description
+                    .update(cx, |f, cx| f.set_disabled(true, cx));
+            }
+            cx.spawn(async move |this, cx| {
+                let result = cx
+                    .background_executor()
+                    .spawn(async move { lib.run::<MaterialUpdate>(&Actor::User, input) })
+                    .await;
+                this.update(cx, |page, cx| {
+                    if let Some(title) = title {
+                        page.saving_title = false;
+                        page.title.update(cx, |f, cx| f.set_disabled(false, cx));
+                        match &result {
+                            Ok(done) => {
+                                page.shown_title = Some(done.output.name.clone());
+                                page.dirty_title = page.title.read(cx).text().trim() != title;
+                            }
+                            Err(e) => page.title_error = Some(e.to_string()),
+                        }
+                    }
+                    if let Some(description) = description {
+                        page.saving_description = false;
+                        page.description
+                            .update(cx, |f, cx| f.set_disabled(false, cx));
+                        match &result {
+                            Ok(_) => {
+                                page.shown_description = Some(description.clone());
+                                page.dirty_description =
+                                    page.description.read(cx).text() != description;
+                            }
+                            Err(e) => page.description_error = Some(e.to_string()),
+                        }
+                    }
+                    cx.notify();
+                })
+                .ok();
+            })
+            .detach();
+            cx.notify();
+            return;
+        }
         cx.background_executor()
             .spawn(async move {
                 if let Err(e) = lib.run::<MaterialUpdate>(&Actor::User, input) {
@@ -358,12 +437,21 @@ impl MediaPage {
     }
 
     fn save_title(&mut self, text: String, cx: &mut Context<Self>) {
+        if self.saving_title {
+            return;
+        }
         let title = text.trim().to_owned();
         let stored = self.info().map(|m| m.title.clone()).unwrap_or_default();
         if title.is_empty() || title == stored {
+            if title == stored {
+                self.dirty_title = false;
+                self.title_error = None;
+            }
             return;
         }
-        self.shown_title = Some(title.clone());
+        if self.book.v3().is_none() {
+            self.shown_title = Some(title.clone());
+        }
         let input = MaterialUpdateIn {
             book: self.book_id.clone(),
             id: self.id.clone(),
@@ -374,14 +462,21 @@ impl MediaPage {
     }
 
     fn save_description(&mut self, text: String, cx: &mut Context<Self>) {
+        if self.saving_description {
+            return;
+        }
         let stored = self
             .info()
             .map(|m| m.description.clone())
             .unwrap_or_default();
         if text.trim() == stored.trim() {
+            self.dirty_description = false;
+            self.description_error = None;
             return;
         }
-        self.shown_description = Some(text.clone());
+        if self.book.v3().is_none() {
+            self.shown_description = Some(text.clone());
+        }
         let input = MaterialUpdateIn {
             book: self.book_id.clone(),
             id: self.id.clone(),
@@ -868,7 +963,16 @@ impl MediaPage {
 
     fn reload_comments(&mut self, cx: &mut Context<Self>) {
         let (lib, book, id) = (self.lib.clone(), self.book_id.clone(), self.id.clone());
+        let v3 = self.book.v3().is_some();
         let task = cx.background_executor().spawn(async move {
+            if v3 {
+                return dr_view_review::v3::load(&lib, &book)
+                    .map(|snapshot| {
+                        let cards: Vec<_> = snapshot.items.iter().map(|i| i.card()).collect();
+                        regions::listed(&cards, &id)
+                    })
+                    .unwrap_or_default();
+            }
             let input = CommentListIn {
                 book,
                 target: Some(Target {
@@ -937,6 +1041,13 @@ impl MediaPage {
                     .type_px(s.secondary, s.line_body)
                     .text_color(p.ink(2).solid())
                     .child(self.description.clone()),
+            )
+            .children(
+                (self.title_error.is_some() || self.description_error.is_some()).then(|| {
+                    div()
+                        .text_color(p.danger.solid())
+                        .child(t(cx, keys::common::SAVE_FAILED))
+                }),
             )
     }
 
@@ -1123,7 +1234,6 @@ impl MediaPage {
         let (p, s) = (theme.palette, theme.scale);
         let this = cx.entity();
         let measure = this.clone();
-        let gesture = self.gesture.is_some();
         let (moves, ups) = (this.clone(), this.clone());
         // The stage is measured as it is laid out; its size fits the
         // picture on the next frame.
@@ -1137,10 +1247,9 @@ impl MediaPage {
                 });
             },
             move |_, _, window, _| {
-                if !gesture {
-                    return;
-                }
-                // A drag goes on outside the stage.
+                // Install before mouse-down: a full drag can arrive in one
+                // frame. Inactive gestures are no-ops; active ones continue
+                // outside the stage.
                 let moves = moves.clone();
                 window.on_mouse_event(move |e: &MouseMoveEvent, phase, _, cx| {
                     if phase == DispatchPhase::Bubble {

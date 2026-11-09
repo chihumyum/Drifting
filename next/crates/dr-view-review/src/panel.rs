@@ -63,6 +63,7 @@ pub struct ReviewView {
     id: SharedString,
     lib: Option<Workspace>,
     pub(crate) book: String,
+    book_epoch: u64,
     target: Option<NavTarget>,
     v3: Option<crate::v3_panel::State>,
     v3_load: u64,
@@ -79,6 +80,8 @@ pub struct ReviewView {
     reveal_serial: u64,
     scroll: ScrollHandle,
     editing: Option<(String, Entity<TextArea>, Subscription)>,
+    writing: HashSet<String>,
+    write_errors: HashMap<String, String>,
     /// TODOs completed or undone here: their check strokes are drawn.
     checks: HashMap<String, Tween>,
     pending: Option<Task<()>>,
@@ -136,6 +139,7 @@ impl ReviewView {
             id,
             lib,
             book: String::new(),
+            book_epoch: 0,
             target: None,
             v3: None,
             v3_load: 0,
@@ -150,6 +154,8 @@ impl ReviewView {
             reveal_serial: 0,
             scroll: ScrollHandle::new(),
             editing: None,
+            writing: HashSet::new(),
+            write_errors: HashMap::new(),
             checks: HashMap::new(),
             pending: None,
             loaded: false,
@@ -181,6 +187,7 @@ impl ReviewView {
     ) {
         let changed_book = self.book != book || self.v3.is_none();
         if changed_book {
+            self.book_epoch += 1;
             self.pending = None;
             self.v3_load += 1;
             self.book = book.to_owned();
@@ -192,6 +199,8 @@ impl ReviewView {
             self.originals.clear();
             self.asking.clear();
             self.editing = None;
+            self.writing.clear();
+            self.write_errors.clear();
             self.reveal = None;
             self.loaded = false;
             self.v3 = Some(crate::v3_panel::State {
@@ -226,11 +235,15 @@ impl ReviewView {
         cx: &mut Context<Self>,
     ) -> futures::channel::oneshot::Receiver<bool> {
         if self.book != book {
+            self.book_epoch += 1;
             self.book = book.to_owned();
             self.items.clear();
             self.associations.clear();
             self.places.clear();
             if let Some(state) = &mut self.v3 {
+                self.editing = None;
+                self.writing.clear();
+                self.write_errors.clear();
                 state.snapshot = crate::v3::Snapshot::default();
                 state.scope = None;
                 self.originals.clear();
@@ -301,6 +314,7 @@ impl ReviewView {
         cx: &mut Context<Self>,
     ) {
         if self.v3.take().is_some() {
+            self.book_epoch += 1;
             self.pending = None;
             self.v3_load += 1;
             self.book.clear();
@@ -428,10 +442,21 @@ impl ReviewView {
                 if this.book != book || this.v3_load != serial {
                     return;
                 }
+                this.pending = None;
                 let Some(state) = &mut this.v3 else { return };
                 match result {
                     Ok(snapshot) => {
+                        let draft_card = this.editing.as_ref().and_then(|(id, _, _)| {
+                            this.items.iter().find(|item| &item.id == id).cloned()
+                        });
                         this.items = snapshot.items.iter().map(crate::v3::Item::card).collect();
+                        if let Some(card) = draft_card
+                            && !this.items.iter().any(|item| item.id == card.id)
+                        {
+                            // An external deletion must not remove the author's
+                            // unsaved field from the UI. This card is display-only.
+                            this.items.push(card);
+                        }
                         state.snapshot = snapshot;
                         this.loaded = true;
                         this.originals.clear();
@@ -439,8 +464,10 @@ impl ReviewView {
                     }
                     Err(e) => {
                         log::warn!("review: v3 load: {e}");
-                        this.items.clear();
-                        state.snapshot = crate::v3::Snapshot::default();
+                        if this.editing.is_none() {
+                            this.items.clear();
+                            state.snapshot = crate::v3::Snapshot::default();
+                        }
                         this.loaded = false;
                         if let Some(reveal) = this.reveal.take() {
                             let _ = reveal.reply.send(false);
@@ -494,6 +521,13 @@ impl ReviewView {
 
     fn update_comment(&mut self, input: CommentUpdateIn, cx: &mut Context<Self>) {
         if self.v3.is_some() {
+            self.write_v3(
+                input.id.clone(),
+                "comment.update",
+                serde_json::to_value(input).expect("serializable comment update"),
+                false,
+                cx,
+            );
             return;
         }
         let Some(lib) = self.lib.clone() else {
@@ -518,6 +552,62 @@ impl ReviewView {
         cx.notify();
     }
 
+    /// Partial commands only. The read projection is never written back,
+    /// and a refused write keeps both the persisted card and the draft.
+    fn write_v3(
+        &mut self,
+        id: String,
+        command: &'static str,
+        input: serde_json::Value,
+        close_editor: bool,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(lib) = self.lib.clone() else { return };
+        if !self.writing.insert(id.clone()) {
+            return;
+        }
+        self.write_errors.remove(&id);
+        if let Some((editing, field, _)) = &self.editing
+            && editing == &id
+        {
+            field.update(cx, |f, cx| f.set_disabled(true, cx));
+        }
+        let book = self.book.clone();
+        let book_epoch = self.book_epoch;
+        cx.spawn(async move |this, cx| {
+            let result = cx
+                .background_executor()
+                .spawn(async move { lib.call(&Actor::User, command, input) })
+                .await;
+            this.update(cx, |v, cx| {
+                if v.book != book || v.book_epoch != book_epoch || v.v3.is_none() {
+                    return;
+                }
+                v.writing.remove(&id);
+                if let Some((editing, field, _)) = &v.editing
+                    && editing == &id
+                {
+                    field.update(cx, |f, cx| f.set_disabled(false, cx));
+                }
+                match result {
+                    Ok(_) => {
+                        if close_editor && v.editing.as_ref().is_some_and(|(e, _, _)| e == &id) {
+                            v.editing = None;
+                        }
+                        v.reload(cx);
+                    }
+                    Err(error) => {
+                        v.write_errors.insert(id, error.to_string());
+                    }
+                }
+                cx.notify();
+            })
+            .ok();
+        })
+        .detach();
+        cx.notify();
+    }
+
     fn update_in(&self, id: &str) -> CommentUpdateIn {
         CommentUpdateIn {
             book: self.book.clone(),
@@ -533,6 +623,9 @@ impl ReviewView {
     /// Completes or reopens a comment; a TODO's check stroke is drawn.
     pub fn set_done(&mut self, id: &str, done: bool, cx: &mut Context<Self>) {
         if self.v3.is_some() {
+            let mut input = self.update_in(id);
+            input.status = Some(if done { "resolved" } else { "open" }.into());
+            self.update_comment(input, cx);
             return;
         }
         let now = anim::now();
@@ -553,7 +646,7 @@ impl ReviewView {
 
     /// Starts editing a card's body in place.
     pub fn edit(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
-        if self.v3.is_some() {
+        if self.v3.is_some() && (self.writing.contains(id) || self.editing.is_some()) {
             return;
         }
         let Some(item) = self.items.iter().find(|i| i.id == id) else {
@@ -588,6 +681,34 @@ impl ReviewView {
 
     /// Ends editing: saves `text` (or cancels with `None`).
     pub fn finish_edit(&mut self, id: &str, text: Option<String>, cx: &mut Context<Self>) {
+        if self.v3.is_some() {
+            if self.writing.contains(id) {
+                return;
+            }
+            if let Some(text) = text {
+                let mut input = self.update_in(id);
+                input.body = Some(text);
+                self.write_v3(
+                    id.to_owned(),
+                    "comment.update",
+                    serde_json::to_value(input).expect("serializable comment update"),
+                    true,
+                    cx,
+                );
+                return;
+            }
+            self.write_errors.remove(id);
+            if self
+                .editing
+                .as_ref()
+                .is_some_and(|(editing, _, _)| editing == id)
+            {
+                self.editing = None;
+                self.reload(cx);
+            }
+            cx.notify();
+            return;
+        }
         if self.editing.as_ref().is_some_and(|(e, _, _)| e == id) {
             self.editing = None;
         }
@@ -602,6 +723,9 @@ impl ReviewView {
     /// Turns a note into a TODO or back (`kind`: `todo` or `note`).
     pub fn set_kind(&mut self, id: &str, kind: &str, cx: &mut Context<Self>) {
         if self.v3.is_some() {
+            let mut input = self.update_in(id);
+            input.kind = Some(kind.to_owned());
+            self.update_comment(input, cx);
             return;
         }
         if let Some(item) = self.items.iter_mut().find(|i| i.id == id) {
@@ -615,6 +739,13 @@ impl ReviewView {
     /// Deletes a comment (F3 records how to undo it).
     pub fn delete(&mut self, id: &str, cx: &mut Context<Self>) {
         if self.v3.is_some() {
+            self.write_v3(
+                id.to_owned(),
+                "comment.delete",
+                serde_json::json!({"book": self.book, "id": id}),
+                true,
+                cx,
+            );
             return;
         }
         let Some(lib) = self.lib.clone() else {
@@ -909,13 +1040,20 @@ impl ReviewView {
                 Button::new(id("resolve"), self.i18n.t(label).to_owned())
                     .text()
                     .small()
-                    .disabled(self.v3.is_some())
+                    .disabled(self.writing.contains(&item.id))
                     .on_click(move |_, _, cx| {
                         entity.update(cx, |this, cx| this.set_done(&comment, !done, cx));
                     }),
             );
         }
         let mut body = div().flex().flex_col().gap(px(4.0)).child(head);
+        if self.write_errors.contains_key(&item.id) {
+            body = body.child(
+                div()
+                    .text_color(p.danger.solid())
+                    .child(self.i18n.t(keys::common::SAVE_FAILED).to_owned()),
+            );
+        }
         if let Some(quote) = item.quote.as_ref().filter(|q| !q.is_empty()) {
             let short: String = quote.chars().take(60).collect();
             body = body.child(
@@ -954,6 +1092,7 @@ impl ReviewView {
                             Button::new(id("cancel"), self.i18n.t(keys::common::CANCEL).to_owned())
                                 .text()
                                 .small()
+                                .disabled(self.writing.contains(&item.id))
                                 .on_click(move |_, _, cx| {
                                     cancel.update(cx, |this, cx| this.finish_edit(&c1, None, cx));
                                 }),
@@ -962,6 +1101,7 @@ impl ReviewView {
                             Button::new(id("save"), self.i18n.t(keys::common::SAVE).to_owned())
                                 .primary()
                                 .small()
+                                .disabled(self.writing.contains(&item.id))
                                 .on_click(move |_, _, cx| {
                                     let text = f.read(cx).text();
                                     save.update(cx, |this, cx| {
@@ -1026,7 +1166,7 @@ impl ReviewView {
         };
         let card_id = format!("{}-src-{}", self.id, item.id);
         let (card_entity, card_comment) = (entity.clone(), comment.clone());
-        let readonly = self.v3.is_some();
+        let readonly = self.writing.contains(&item.id);
         let source_card = move |window: &mut Window, cx: &mut gpui::App| {
             // The passage is read when the card opens (and again once it is
             // a little old): the prose may have changed under it.
@@ -1177,7 +1317,7 @@ impl ReviewView {
         .size(px(size))
         .flex_none()
         .rounded_full()
-        .when(self.v3.is_none(), |d| d.cursor_pointer())
+        .when(!self.writing.contains(&item.id), |d| d.cursor_pointer())
         .child(
             // The stroke drawn from left to right: the icon clipped.
             div()
@@ -1252,7 +1392,25 @@ impl Render for ReviewView {
             .child(scope);
         let mut rows: Vec<AnyElement> = Vec::new();
         let mut reveal_index = None;
-        if self.loaded && listing.open.is_empty() && listing.resolved_count == 0 {
+        if self.v3.is_some()
+            && let Some((editing, _, _)) = &self.editing
+            && !listing
+                .open
+                .iter()
+                .chain(listing.resolved.iter().filter(|_| self.resolved_open))
+                .flat_map(|g| &g.items)
+                .any(|item| &item.id == editing)
+            && let Some(card) = self.items.iter().find(|item| &item.id == editing).cloned()
+        {
+            rows.push(
+                div()
+                    .flex_none()
+                    .child(self.card(&card, false, window, cx))
+                    .into_any_element(),
+            );
+        }
+        if self.loaded && rows.is_empty() && listing.open.is_empty() && listing.resolved_count == 0
+        {
             rows.push(
                 EmptyState::new(
                     ElementId::Name(format!("{}-empty", self.id).into()),
@@ -1949,5 +2107,154 @@ mod reveal_tests {
             "dropping the view closes its ACK"
         );
         ws.close();
+    }
+}
+
+#[cfg(test)]
+mod v3_write_tests {
+    use super::*;
+    use gpui::{TestAppContext, VisualTestContext};
+    use serde_json::json;
+    use std::rc::Rc;
+
+    struct Frame(Entity<ReviewView>);
+    impl Render for Frame {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+            div().size_full().child(self.0.clone())
+        }
+    }
+    fn wait(cx: &mut VisualTestContext, done: impl Fn(&mut VisualTestContext) -> bool) {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            cx.executor().advance_clock(Duration::from_millis(30));
+            cx.run_until_parked();
+            cx.update(|window, cx| window.draw(cx).clear(cx));
+            if done(cx) {
+                return;
+            }
+            assert!(Instant::now() < deadline, "v3 review write timed out");
+            std::thread::sleep(Duration::from_millis(3));
+        }
+    }
+    fn call(lib: &Workspace, name: &str, input: serde_json::Value) -> serde_json::Value {
+        lib.call(&Actor::User, name, input).unwrap()["output"].clone()
+    }
+
+    #[gpui::test]
+    fn partial_writes_preserve_other_fields_hidden_comments_and_failed_drafts(
+        cx: &mut TestAppContext,
+    ) {
+        cx.executor().allow_parking();
+        let dir = tempfile::tempdir().unwrap();
+        let lib = Workspace::open_dir(dir.path(), "v3-review").unwrap();
+        let seed = dr_testkit::seed::generate_v3(
+            dr_testkit::seed::Preset::Tiny,
+            dr_testkit::seed::DEFAULT_SEED,
+        )
+        .unwrap();
+        let book = seed.books[0].book_id().to_string();
+        let source = seed.books[0]
+            .book
+            .view()
+            .comments()
+            .into_iter()
+            .find(|c| c.target_module.is_some())
+            .unwrap();
+        let target = source.target.as_ref().unwrap().id.clone();
+        let module = source.target_module.as_ref().unwrap().to_string();
+        let body = source.body.clone();
+        seed.write_to(lib.library()).unwrap();
+        let a = call(
+            &lib,
+            "comment.create",
+            json!({"book":book,"target":{"kind":"entry","id":target},"module":module,"body":body}),
+        )["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        let b = call(
+            &lib,
+            "comment.create",
+            json!({"book":book,"target":{"kind":"entry","id":target},"module":module,"body":body}),
+        )["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        let hidden = call(&lib, "comment.create", json!({"book":book,"body":body}))["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        let view = cx.new(|_| ReviewView::new("v3-writes".into(), Some(lib.clone())));
+        let (_, cx) = cx.add_window_view(|_, _| Frame(view.clone()));
+        view.update(cx, |v, cx| {
+            v.show_v3(
+                &book,
+                Some(crate::v3::Target::Entry {
+                    id: target,
+                    module: Some(module),
+                }),
+                Locale::En,
+                Platform::Mac,
+                Rc::new(|_, _, _| {}),
+                Rc::new(|_| None),
+                cx,
+            );
+            v.set_current_only(true, cx);
+        });
+        wait(cx, |cx| view.read_with(cx, |v, _| v.loaded));
+        assert!(!view.read_with(cx, |v, _| {
+            v.listing()
+                .open
+                .iter()
+                .flat_map(|g| &g.items)
+                .any(|i| i.id == hidden)
+        }));
+        cx.update(|window, cx| view.update(cx, |v, cx| v.edit(&a, window, cx)));
+        let field = view.read_with(cx, |v, _| v.editing.as_ref().unwrap().1.clone());
+        let draft = format!("{body}\n{body}");
+        field.update(cx, |f, cx| f.set_text(&draft, cx));
+        call(
+            &lib,
+            "comment.update",
+            json!({"book":book,"id":a,"priority":"high"}),
+        );
+        view.update(cx, |v, cx| v.reload(cx));
+        wait(cx, |cx| view.read_with(cx, |v, _| v.pending.is_none()));
+        assert_eq!(field.read_with(cx, |f, _| f.text()), draft);
+        view.update(cx, |v, cx| {
+            v.finish_edit(&a, Some(draft.clone()), cx);
+            v.set_done(&b, true, cx);
+        });
+        wait(cx, |cx| {
+            view.read_with(cx, |v, _| v.writing.is_empty() && v.pending.is_none())
+        });
+        let comments = call(&lib, "comment.list", json!({"book":book}));
+        let get = |id: &str| {
+            comments
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|c| c["id"] == id)
+                .unwrap()
+        };
+        assert_eq!(get(&a)["body"], draft);
+        assert_eq!(get(&a)["priority"], "high");
+        assert_eq!(get(&b)["status"], "resolved");
+        assert_eq!(get(&hidden)["body"], body);
+        cx.update(|window, cx| view.update(cx, |v, cx| v.edit(&a, window, cx)));
+        let field = view.read_with(cx, |v, _| v.editing.as_ref().unwrap().1.clone());
+        let refused = format!("{draft}\n{body}");
+        field.update(cx, |f, cx| f.set_text(&refused, cx));
+        call(&lib, "comment.delete", json!({"book":book,"id":a}));
+        view.update(cx, |v, cx| v.reload(cx));
+        wait(cx, |cx| view.read_with(cx, |v, _| v.pending.is_none()));
+        assert!(view.read_with(cx, |v, _| v.items.iter().any(|item| item.id == a)));
+        view.update(cx, |v, cx| v.finish_edit(&a, Some(refused.clone()), cx));
+        wait(cx, |cx| {
+            view.read_with(cx, |v, _| v.write_errors.contains_key(&a))
+        });
+        assert_eq!(field.read_with(cx, |f, _| f.text()), refused);
+        assert!(view.read_with(cx, |v, _| v.editing.is_some()));
+        lib.close();
     }
 }

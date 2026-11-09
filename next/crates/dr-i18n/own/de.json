@@ -254,6 +254,11 @@
     "formatNotes": "Notizen",
     "formatPlain": "Nur Text"
   },
+  "entrySnapshot": {
+    "save": "Momentaufnahme speichern",
+    "title": "Momentaufnahmen",
+    "empty": "Noch keine Momentaufnahmen"
+  },
   "k4Book": {
     "entry_words": "Wörter des Eintrags",
     "material_words": "Wörter des Materials",

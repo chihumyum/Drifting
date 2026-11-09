@@ -253,6 +253,11 @@ entry_history.version: v3 commands remain excluded until K6 opens the versioned 
 entry_relation_type.delete: v3 commands remain excluded until K6 opens the versioned catalog
 entry_relation_type.list: v3 commands remain excluded until K6 opens the versioned catalog
 entry_relation_type.put: v3 commands remain excluded until K6 opens the versioned catalog
+entry_snapshot.capture: v3 commands remain excluded until K6 opens the versioned catalog
+entry_snapshot.create: v3 commands remain excluded until K6 opens the versioned catalog
+entry_snapshot.list: v3 commands remain excluded until K6 opens the versioned catalog
+entry_snapshot.preview: v3 commands remain excluded until K6 opens the versioned catalog
+entry_snapshot.restore: v3 commands remain excluded until K6 opens the versioned catalog
 entry_template.delete: v3 commands remain excluded until K6 opens the versioned catalog
 entry_template.list: v3 commands remain excluded until K6 opens the versioned catalog
 entry_template.put: v3 commands remain excluded until K6 opens the versioned catalog
@@ -265,6 +270,7 @@ idea.to_element: conversion needs version-checked full source prose and guarded 
 level.get: v3 commands remain excluded until K6 opens the versioned catalog
 level.list: v3 commands remain excluded until K6 opens the versioned catalog
 material.delete: cascade needs an F3 query exposing affected relations, including hidden endpoints
+material.set_entry_link: v3 commands remain excluded until K6 opens the versioned catalog
 membership.add: v3 commands remain excluded until K6 opens the versioned catalog
 membership.list: v3 commands remain excluded until K6 opens the versioned catalog
 membership.primary: v3 commands remain excluded until K6 opens the versioned catalog

@@ -248,6 +248,11 @@
     "formatNotes": "ノート",
     "formatPlain": "プレーンテキスト"
   },
+  "entrySnapshot": {
+    "save": "スナップショットを保存",
+    "title": "スナップショット履歴",
+    "empty": "スナップショットはまだありません"
+  },
   "k4Book": {
     "entry_words": "項目の文字数",
     "material_words": "素材の文字数",

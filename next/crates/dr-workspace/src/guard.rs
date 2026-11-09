@@ -27,7 +27,8 @@ pub struct Observation {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WritePreconditions {
     pub versions: HashMap<String, String>,
-    /// Refuse writes to any document absent from `versions`.
+    /// Refuse writes to any document absent from `versions`. Explicit source
+    /// dependencies (v3 comment prose) remain required even when this is false.
     pub require_all: bool,
 }
 
@@ -94,6 +95,17 @@ impl Guards {
             return Err(Self::missing(id));
         }
         self.check(id, doc)
+    }
+
+    /// A reserved read source is not a write target, but an explicit caller
+    /// observation of it must still be honored before deriving new content.
+    pub(crate) fn check_if_observed(&self, id: &str, doc: &LoroDoc) -> Result<()> {
+        if let Some(expected) = crate::holder::lock(&self.0.versions).get(id)
+            && *expected != doc.oplog_frontiers()
+        {
+            return Err(WsError::Conflict(format!("stale observation: {id}")));
+        }
+        Ok(())
     }
 
     /// Only for a document this invocation has just registered. Its first

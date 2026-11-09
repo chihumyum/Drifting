@@ -4,6 +4,7 @@
 //! Every v3 book document starts from [`genesis_v3`] with `meta.v = 3`.
 
 pub mod novel;
+mod raw;
 pub mod read;
 mod structure;
 pub mod write;
@@ -32,6 +33,7 @@ pub use novel::{
     apply_novel_project_template, apply_novel_project_template_with, find_novel_roots,
     novel_project_templates,
 };
+pub use raw::raw_document_state;
 pub use read::{BookViewV3, EntrySnapshotV3, RepairPlanV3};
 pub use structure::BookStructureV3;
 pub use write::BookTxnV3;
