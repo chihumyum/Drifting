@@ -119,7 +119,18 @@
     "removeLane": "Retirer de la vue",
     "moveUp": "Monter",
     "moveDown": "Descendre",
-    "members": "{{count}} membres"
+    "members": "{{count}} membres",
+    "placeEntry": "Placer une entrée",
+    "removeEntry": "Retirer de la piste",
+    "placementActions": "Actions de placement",
+    "resize": "Ajuster la longueur",
+    "ruler": "Règle temporelle",
+    "renamePin": "Renommer le repère temporel",
+    "bindEntry": "Associer une entrée",
+    "detachEntry": "Dissocier l’entrée",
+    "colorValue": "Valeur de couleur",
+    "laneTrack": "Piste {{name}}",
+    "selectLane": "Choisir une piste"
   },
   "templateEditor": {
     "new_template": "Nouveau modèle",

@@ -113,7 +113,18 @@
     "removeLane": "보기에서 제거",
     "moveUp": "위로 이동",
     "moveDown": "아래로 이동",
-    "members": "구성원 {{count}}개"
+    "members": "구성원 {{count}}개",
+    "placeEntry": "항목 배치",
+    "removeEntry": "레인에서 제거",
+    "placementActions": "배치 작업",
+    "resize": "길이 조절",
+    "ruler": "시간 눈금",
+    "renamePin": "시간 핀 이름 변경",
+    "bindEntry": "항목 연결",
+    "detachEntry": "항목 연결 해제",
+    "colorValue": "색상 값",
+    "laneTrack": "레인 {{name}}",
+    "selectLane": "레인 선택"
   },
   "templateEditor": {
     "new_template": "새 템플릿",

@@ -7,7 +7,7 @@ pub const UNIT: f32 = 20.0;
 pub const DEFAULT_SPAN: f64 = 4.0;
 pub const RAIL: f32 = 148.0;
 pub const HEAD: f32 = 30.0;
-pub const RULER: f32 = 24.0;
+pub const RULER: f32 = 40.0;
 pub const ROW: f32 = 36.0;
 
 #[derive(Clone, Debug)]

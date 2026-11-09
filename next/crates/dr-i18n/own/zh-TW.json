@@ -113,7 +113,18 @@
     "removeLane": "移出視圖",
     "moveUp": "上移",
     "moveDown": "下移",
-    "members": "{{count}} 個成員"
+    "members": "{{count}} 個成員",
+    "placeEntry": "放入條目",
+    "removeEntry": "移出泳道",
+    "placementActions": "擺放操作",
+    "resize": "調整長度",
+    "ruler": "時間標尺",
+    "renamePin": "重新命名時間釘",
+    "bindEntry": "掛條目",
+    "detachEntry": "解除條目",
+    "colorValue": "顏色值",
+    "laneTrack": "泳道 {{name}}",
+    "selectLane": "選擇泳道"
   },
   "templateEditor": {
     "new_template": "新增範本",

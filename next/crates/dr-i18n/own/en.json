@@ -119,7 +119,18 @@
     "removeLane": "Remove from view",
     "moveUp": "Move up",
     "moveDown": "Move down",
-    "members": "{{count}} members"
+    "members": "{{count}} members",
+    "placeEntry": "Place entry",
+    "removeEntry": "Remove from lane",
+    "placementActions": "Placement actions",
+    "resize": "Adjust length",
+    "ruler": "Time ruler",
+    "renamePin": "Rename time pin",
+    "bindEntry": "Attach entry",
+    "detachEntry": "Detach entry",
+    "colorValue": "Color value",
+    "laneTrack": "Lane {{name}}",
+    "selectLane": "Select lane"
   },
   "templateEditor": {
     "new_template": "New template",
