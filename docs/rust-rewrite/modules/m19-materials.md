@@ -244,3 +244,7 @@ M23「审阅与素材」可以直接用这些（都在 `dr_view_material` 下）
 选择已有永久契约。外壳只增 `Book::material_items()`／`material_folders()` 与
 `BookV3.material_folders`，素材夹读取置于既有 frontier 校验内；旧 Deref 投影不改。
 视图改走这两个读口，防止 v3 素材和素材夹读成旧版空表。没有删除 v2.2 测试。
+
+新增命令的派生 Agent 目录快照由 `INSTA_UPDATE=always cargo test -p dr-agent-tools
+--test catalog generated_directory_snapshot --locked` 生成，仅增加未开放命令一行，
+不改 Agent 目录实现或授权范围。首轮全测在此快照差异处停止，生成后继续完整检查。
