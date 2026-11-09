@@ -148,7 +148,7 @@ fn element_leaf_template(id_str: &str, name: &str, description: &str) -> EntryTe
         agent: Some(TemplateAgentConfig {
             name: name.into(),
             description: description.into(),
-            instructions: "维护别名、摘要、立绘、键值字段、设定正文、章节补丁与要素关系。".into(),
+            instructions: "维护别名、摘要、立绘、键值字段、设定正文、补丁和关系。先读已有记录和来源正文，识别同一对象，避免把别名重复建成新要素。作者要设计人物或其他要素时，可提出供作者选择的方案，不能冒充已定设定；要补全已有要素或梳理两个要素的关系时，先读相关记录和证据，区分原文事实、推测与建议。提取正文要素时只整理原文支持的内容。整理任务中不改正文、不删除，状态变化记在对应来源条目的补丁，拿不准的事交给作者。".into(),
         }),
         modules: vec![
             ModuleSpec {
@@ -216,7 +216,7 @@ fn element_leaf_template(id_str: &str, name: &str, description: &str) -> EntryTe
                 name: "补丁".into(),
                 pos: Some(p[3].clone()),
                 config: ModuleConfig::default(),
-                agent: agent_instructions("锚定在章节段落上的设定演进补丁。"),
+                agent: agent_instructions("记录正文明确给出的设定演进，保留来源条目、模块和段落锚点；先核对原文，不能把推测登记为已发生的变化。"),
             },
             ModuleSpec {
                 id: mid(MOD_RELATIONS),
@@ -224,7 +224,7 @@ fn element_leaf_template(id_str: &str, name: &str, description: &str) -> EntryTe
                 name: "关联".into(),
                 pos: Some(p[4].clone()),
                 config: ModuleConfig::default(),
-                agent: agent_instructions("与其他条目的有向或对称关系。"),
+                agent: agent_instructions("读双方记录及原文证据后维护有向或对称关系，沿用已有关系类型，避免重复；需要作者决定的关系只作建议。"),
             },
         ],
         settings: LevelSettingsOverride::default(),
@@ -255,7 +255,7 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
             agent: Some(TemplateAgentConfig {
                 name: "书稿".into(),
                 description: "小说成书所在的顶层层级，下面的章按文稿顺序组成成书。".into(),
-                instructions: "书稿下的章是书的结构；章正文里的 H1/H2/H3 是三级标题，含义由作者自己决定，三级同等对待。".into(),
+                instructions: "这是一部小说。默认大纲是书稿 / 章 / H1 / H2 / H3；幕不内置，作者添加的层级由作者命名。书稿下的章按树上顺序组成书，H1/H2/H3 的含义由作者决定，三级同等对待。沿用作者实际写下的名称；不要把建议当成作者已定的情节、设定、视角、时态、语气或文风。文学选择由作者决定。\n\n作者要构思大纲时，先读已有书稿、构想和项目记忆，再按已有意图讨论结构；要访谈时，围绕尚未决定的创作问题提问，不替作者作答。建议阶段可依据具体正文变化提出阅读、评论、改写或记录维护任务，不泛泛评价，不重复开放待办或重提已定事项；帮手或其他设备的修改可能还未被作者看过。\n\n只有作者打开或明确请求整理任务时，才把新写或变化的小说设定整理进已有要素、补丁和关系。先读原文与已有记录，核对身份，避免重复新建；项目记忆里的作者要求优先，拿不准的留给作者。仅在这种整理任务中不修改正文、不删除任何东西，不为一次整理建立长任务计划；完成后简短说明更新了什么和未决之处。此边界不限制作者另行明确要求的创作、改写或删除，仍以实际工具能力为限。小说事实归小说记录；PROJECT_MEMORY.md 保存作者长期意图、习惯和常设要求，WORKING_MEMORY.md 保存近期共同工作上下文。".into(),
             }),
             modules: Vec::new(),
             settings: LevelSettingsOverride {
@@ -288,7 +288,7 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
             agent: Some(TemplateAgentConfig {
                 name: "构想库".into(),
                 description: "存放尚未合入书稿的构想与构想分组的看板层级。".into(),
-                instructions: "构想移入书稿并换成「章」模板即可转为成书章节。".into(),
+                instructions: "管理尚未纳入成书的构想和分组，支持作者讨论大纲、接受访谈或发展想法；未确认的构想不自动成为小说事实。纳入成书需要作者明确要求，并通过实际可用的移动住处与换模板命令执行，保留旧模块内容。".into(),
             }),
             modules: Vec::new(),
             settings: LevelSettingsOverride {
@@ -526,7 +526,7 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
             agent: Some(TemplateAgentConfig {
                 name: "章".into(),
                 description: "小说的一章，包含梗概、写作状态、正文和情节规划。".into(),
-                instructions: "正文里用 H1/H2/H3 组织段落结构，含义由作者决定，三级同等对待。".into(),
+                instructions: "正文里用 H1/H2/H3 组织段落结构，含义由作者决定，三级同等对待。作者要评论本章时，读完整请求范围后给出有原文依据的意见，不擅自改写；作者要精简或润色时，保留已定意图、视角、语气与有意义的细节，修改幅度服从本轮要求。作者要提取要素或整理设定时，读原文和已有记录，维护要素、来源补丁与关系；仅此整理任务不改正文、不删除。".into(),
             }),
             modules: vec![
                 ModuleSpec {
@@ -573,7 +573,7 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
                         task_todos: true,
                         ..ModuleConfig::default()
                     },
-                    agent: agent_instructions("章节正文，H1/H2/H3 为作者自定含义的三级标题。"),
+                    agent: agent_instructions("章节正文，H1/H2/H3 为作者自定含义的三级标题。评论先读原文；精简、润色或续写只在作者请求范围内进行，保留格式及稳定段落和批注锚点，使用工具实际支持的编辑范围。"),
                 },
                 ModuleSpec {
                     id: mid(MOD_PLOT_GRID),
@@ -599,7 +599,7 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
             agent: Some(TemplateAgentConfig {
                 name: "构想".into(),
                 description: "尚未定稿入书的构想叶子，包含梗概、状态和正文。".into(),
-                instructions: "挪进书稿并换成「章」模板即可转化为正式章节。".into(),
+                instructions: "这里保存尚未定稿的想法，不能自动当作小说已定事实。作者要扩展、访谈或讨论大纲时，以已有想法和作者意图为起点；整理设定时先读证据，只维护有依据的记录，不改原文、不删除。作者明确要求纳入成书时，发现并使用现有移动住处和换模板能力，保留原来的内容，不声称两次命令是一个原子转换。".into(),
             }),
             modules: vec![
                 ModuleSpec {
@@ -642,7 +642,7 @@ pub fn novel_project_templates() -> Vec<EntryTemplate> {
                         task_todos: true,
                         ..ModuleConfig::default()
                     },
-                    agent: agent_instructions("构想草稿正文。"),
+                    agent: agent_instructions("构想草稿正文。区分未定想法和已确认内容；访谈时让作者决定，创作或改写时遵循本轮要求。"),
                 },
             ],
             settings: LevelSettingsOverride::default(),

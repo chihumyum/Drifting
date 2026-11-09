@@ -3,9 +3,11 @@ pub mod catalog;
 mod executor;
 pub mod prose;
 pub mod resolve;
+pub mod structure;
 
 pub use executor::AgentTools;
 pub use executor::CallRequest;
+pub use structure::{FocusRequest, StructureContext};
 
 pub type Result<T> = std::result::Result<T, Error>;
 

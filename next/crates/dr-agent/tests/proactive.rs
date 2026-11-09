@@ -401,6 +401,72 @@ fn input(book: &BookId) -> CheckinInput {
     }
 }
 
+#[test]
+fn v3_delta_keeps_retained_bodies_without_inventing_a_novel_organize_task() {
+    use dr_doc::v3::novel::{MOD_PROSE, TPL_CHARACTER};
+    let dir = tempfile::tempdir().unwrap();
+    let ws = dr_workspace::Workspace::open_dir(dir.path(), "k6-generic-delta").unwrap();
+    let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+    let book = seeded.books[0].book_id().clone();
+    let entry = seeded.books[0]
+        .book
+        .view()
+        .entries()
+        .into_iter()
+        .find(|e| {
+            e.template
+                .as_ref()
+                .is_some_and(|t| t.as_str() == TPL_CHARACTER)
+        })
+        .unwrap();
+    let doc = format!("body:{}/{MOD_PROSE}", entry.id);
+    seeded.write_to(ws.library()).unwrap();
+    let prose = ws
+        .call(
+            &dr_workspace::Actor::User,
+            "prose.read",
+            json!({"doc":doc,"limit":usize::MAX}),
+        )
+        .unwrap();
+    let p = prose["output"]["paragraphs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["text"].as_str().is_some_and(|t| !t.is_empty()))
+        .unwrap();
+    ws.call(&dr_workspace::Actor::User, "prose.replace", json!({"doc":doc,"block_id":p["block_id"],"find":p["text"],"replace":"Synthetic retained-body edit"})).unwrap();
+    ws.call(
+        &dr_workspace::Actor::User,
+        "entry_template.remove_module",
+        json!({"book":book,"template":TPL_CHARACTER,"module":MOD_PROSE}),
+    )
+    .unwrap();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as i64
+        + 2000;
+    let writes = ws.library().write_seq().unwrap();
+    let batch = collect_delta(
+        ws.library(),
+        &DeltaRequest {
+            book,
+            since_ms: now - 86_400_000,
+            captured_ms: now,
+            mode: DeltaMode::LocalAuthorNodes,
+            cursor: DeltaCursor::default(),
+            limit: ORGANIZE_DOCUMENT_LIMIT,
+        },
+    )
+    .unwrap();
+    let changed = batch.documents.iter().find(|d| d.doc == doc).unwrap();
+    assert_eq!(changed.target.kind, "entry");
+    assert_eq!(changed.target.id, entry.id.as_str());
+    assert!(prepare_organize(&batch).is_none());
+    assert_eq!(writes, ws.library().write_seq().unwrap());
+    ws.shutdown().unwrap();
+}
+
 fn call(arguments: serde_json::Value) -> DriverEvent {
     DriverEvent::TextDelta {
         index: 0,

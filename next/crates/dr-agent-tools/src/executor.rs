@@ -15,27 +15,152 @@ use serde_json::{Value, json};
 
 use crate::{
     Error, Result,
-    catalog::{Catalog, Search},
+    catalog::{ActionRef, ActionTarget, Catalog, Search, is_v3_book},
     prose::{self, Projection},
     resolve::{self, ResolvedCall},
+    structure::{FocusRequest, StructureContext},
 };
 
 #[path = "evidence.rs"]
 mod evidence;
+#[path = "timeline.rs"]
+mod timeline;
 
-#[derive(Clone, Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug)]
 pub struct CallRequest {
     pub name: String,
-    #[serde(default = "empty_arguments")]
     pub arguments: Value,
-    #[serde(default)]
     pub revision: Option<String>,
     /// The exact edited projection returned by prose.read, for prose.replace.
     /// Other operations use their registry-generated input directly.
-    #[serde(default)]
     pub edited_text: Option<String>,
 }
+
+impl CallRequest {
+    pub fn for_action(reference: &ActionRef, arguments: Value, revision: Option<String>) -> Self {
+        Self {
+            name: reference.canonical_id(),
+            arguments,
+            revision,
+            edited_text: None,
+        }
+    }
+
+    pub fn for_action_target(
+        target: &ActionTarget,
+        arguments: Value,
+        revision: Option<String>,
+    ) -> Self {
+        Self {
+            name: target.canonical_id(),
+            arguments,
+            revision,
+            edited_text: None,
+        }
+    }
+
+    pub fn is_action(&self) -> bool {
+        self.name.starts_with("action:") || self.name.starts_with("action_json:")
+    }
+
+    pub(crate) fn descriptor_in(
+        &self,
+        catalog: &Catalog,
+        book: &BookId,
+    ) -> Result<Option<ToolDescriptor>> {
+        if self.is_action() {
+            let canonical = self.canonical_name_in(catalog, book)?;
+            return Ok(catalog.descriptor(&canonical));
+        }
+        Ok(catalog.descriptor(&self.name))
+    }
+
+    pub(crate) fn canonical_name_in(&self, catalog: &Catalog, book: &BookId) -> Result<String> {
+        if let Some(encoded) = self.name.strip_prefix("action_json:") {
+            let val: Value =
+                serde_json::from_str(encoded).map_err(|e| Error::Invalid(e.to_string()))?;
+            let binding = catalog.resolve_action_target(book, &val)?;
+            return Ok(binding.id);
+        }
+        if self.name.starts_with("action:") {
+            let binding = catalog.resolve_action_target(book, &Value::String(self.name.clone()))?;
+            return Ok(binding.id);
+        }
+        Ok(self.name.clone())
+    }
+}
+
+impl<'de> Deserialize<'de> for CallRequest {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct WireCallRequest {
+            #[serde(default)]
+            name: Option<String>,
+            #[serde(default)]
+            action: Option<Value>,
+            #[serde(default = "empty_arguments")]
+            arguments: Value,
+            #[serde(default)]
+            revision: Option<String>,
+            #[serde(default)]
+            edited_text: Option<String>,
+        }
+        let wire = WireCallRequest::deserialize(deserializer)?;
+        let name = match (wire.name, wire.action) {
+            (Some(name), None) => {
+                let trimmed = name.trim();
+                if trimmed.is_empty() {
+                    return Err(serde::de::Error::custom("tool name must not be empty"));
+                }
+                if trimmed.starts_with("action:") || trimmed.starts_with("action_json:") {
+                    return Err(serde::de::Error::custom(
+                        "template actions must be called with the action field, not name",
+                    ));
+                }
+                name
+            }
+            (None, Some(action)) => {
+                if let Some(raw) = action.as_str() {
+                    if ActionRef::parse_canonical(raw).is_none() {
+                        return Err(serde::de::Error::custom(
+                            "action string must be a canonical action:<book>/<level>/<template>/<verb> reference",
+                        ));
+                    }
+                    raw.to_owned()
+                } else if action.is_object() {
+                    let encoded =
+                        serde_json::to_string(&action).map_err(serde::de::Error::custom)?;
+                    format!("action_json:{encoded}")
+                } else {
+                    return Err(serde::de::Error::custom(
+                        "action must be a canonical string or object",
+                    ));
+                }
+            }
+            (Some(_), Some(_)) => {
+                return Err(serde::de::Error::custom(
+                    "name and action are mutually exclusive",
+                ));
+            }
+            (None, None) => {
+                return Err(serde::de::Error::custom(
+                    "call_tool requires either name or action",
+                ));
+            }
+        };
+        Ok(Self {
+            name,
+            arguments: wire.arguments,
+            revision: wire.revision,
+            edited_text: wire.edited_text,
+        })
+    }
+}
+
 fn empty_arguments() -> Value {
     json!({})
 }
@@ -54,6 +179,9 @@ struct ReadState {
     blocks: HashMap<String, String>,
     full_prose: bool,
     projection: Option<Projection>,
+    // Bound to this exact version, like prose coverage. A filtered list is
+    // useful for local edits but does not authorize whole-view replacement.
+    timeline_views: Option<timeline::Coverage>,
 }
 
 #[derive(Default)]
@@ -62,11 +190,21 @@ struct TurnState {
     conflicts: HashMap<String, u32>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct CatalogCacheKey {
+    book: String,
+}
+
+type V3CatalogCache = HashMap<CatalogCacheKey, (String, Arc<Catalog>)>;
+
 #[derive(Clone)]
 pub struct AgentTools {
     catalog: Arc<Catalog>,
+    v3_catalog: Arc<Catalog>,
+    v3_cache: Arc<Mutex<V3CatalogCache>>,
     turns: Arc<Mutex<HashMap<TurnKey, TurnState>>>,
     leases: Arc<Mutex<HashMap<String, Weak<AtomicBool>>>>,
+    focus: Arc<Mutex<HashMap<String, FocusRequest>>>,
 }
 
 impl Default for AgentTools {
@@ -79,12 +217,63 @@ impl AgentTools {
     pub fn new() -> Self {
         Self {
             catalog: Arc::new(Catalog::new()),
+            v3_catalog: Arc::new(Catalog::new_v3()),
+            v3_cache: Arc::default(),
             turns: Arc::default(),
             leases: Arc::default(),
+            focus: Arc::default(),
         }
     }
     pub fn catalog(&self) -> &Catalog {
         &self.catalog
+    }
+
+    pub fn set_focus(&self, session: &str, focus: Option<FocusRequest>) {
+        let mut map = self.focus.lock().expect("tool focus");
+        if let Some(focus) = focus {
+            map.insert(session.to_owned(), focus);
+        } else {
+            map.remove(session);
+        }
+    }
+
+    pub fn structure_context(
+        &self,
+        ws: &Workspace,
+        book: &BookId,
+        focus: Option<&FocusRequest>,
+    ) -> Result<Option<StructureContext>> {
+        StructureContext::for_book(ws, book, focus)
+    }
+
+    pub fn catalog_for_book(&self, ws: &Workspace, book: &BookId) -> Result<Arc<Catalog>> {
+        if !is_v3_book(ws, book)? {
+            return Ok(Arc::clone(&self.catalog));
+        }
+        let book_doc = format!("book:{book}");
+        let version = ws.observe(&book_doc)?.version;
+        let cache_key = CatalogCacheKey {
+            book: book.to_string(),
+        };
+        if let Some((cached_version, cached)) = self
+            .v3_cache
+            .lock()
+            .expect("v3 catalog cache")
+            .get(&cache_key)
+            .cloned()
+            && cached_version == version
+        {
+            return Ok(cached);
+        }
+        let catalog = Arc::new(Catalog::for_book(ws, book)?);
+        let after = ws.observe(&book_doc)?.version;
+        if after == version {
+            self.v3_cache
+                .lock()
+                .expect("v3 catalog cache")
+                .insert(cache_key, (version, Arc::clone(&catalog)));
+        }
+        Ok(catalog)
     }
 
     /// A connection owner (MCP) can discard observations when its session ends.
@@ -103,6 +292,7 @@ impl AgentTools {
             .lock()
             .expect("tool observations")
             .retain(|key, _| key.session != session);
+        self.focus.lock().expect("tool focus").remove(session);
     }
 
     fn lease(&self, session: &str) -> Arc<AtomicBool> {
@@ -136,12 +326,24 @@ impl AgentTools {
         request: CallRequest,
         lease: &AtomicBool,
     ) -> Result<Value> {
+        let (value, _) = self.invoke_leased_with_resolved(ws, book, actor, request, lease)?;
+        Ok(value)
+    }
+
+    fn invoke_leased_with_resolved(
+        &self,
+        ws: &Workspace,
+        book: &BookId,
+        actor: &Actor,
+        request: CallRequest,
+        lease: &AtomicBool,
+    ) -> Result<(Value, ResolvedCall)> {
         if lease.load(Ordering::SeqCst) {
             return Err(Error::Invalid("the tool session ended".into()));
         }
-        let descriptor = self
-            .catalog
-            .descriptor(&request.name)
+        let catalog = self.catalog_for_book(ws, book)?;
+        let descriptor = request
+            .descriptor_in(&catalog, book)?
             .ok_or_else(|| Error::Invalid("unknown book tool".into()))?;
         if request
             .revision
@@ -159,18 +361,20 @@ impl AgentTools {
                 "relation.create assigns its own id; omit id".into(),
             ));
         }
+        let canonical_name = request.canonical_name_in(&catalog, book)?;
         let key = turn_key(book, actor);
-        let mut resolved = resolve::resolve(ws, book, &request.name, request.arguments)?;
+        let mut resolved = resolve::resolve(ws, book, &canonical_name, request.arguments)?;
         if descriptor.access == ToolAccess::Read {
             if request.edited_text.is_some() {
                 return Err(Error::Invalid(
                     "edited_text is only for prose.replace".into(),
                 ));
             }
-            return self.read(ws, actor, &key, &resolved, lease);
+            let value = self.read(ws, actor, &key, &resolved, lease)?;
+            return Ok((value, resolved));
         }
         if let Some(edited) = request.edited_text {
-            if request.name != "prose.replace" {
+            if canonical_name != "prose.replace" {
                 return Err(Error::Invalid(
                     "edited_text is only for prose.replace".into(),
                 ));
@@ -199,11 +403,12 @@ impl AgentTools {
                         Error::Conflict(doc.into())
                     });
                 }
-                return Ok(json!({"output":{"unchanged":true},"effects":[]}));
+                return Ok((json!({"output":{"unchanged":true},"effects":[]}), resolved));
             };
             resolved.arguments = replacement.input();
         }
-        self.write(ws, actor, &key, resolved)
+        let value = self.write(ws, actor, &key, resolved.clone())?;
+        Ok((value, resolved))
     }
 
     fn read(
@@ -222,14 +427,28 @@ impl AgentTools {
         if call.name == "prose.read" && !targets.contains(&book_doc) {
             targets.push(book_doc.clone());
         }
+        let book_id = BookId::parse(&key.book)
+            .map_err(|e| Error::Invalid(format!("invalid book id: {e}")))?;
+        let is_v3 = is_v3_book(ws, &book_id)?;
         for _ in 0..3 {
             let before = targets
                 .iter()
                 .map(|doc| ws.observe(doc))
                 .collect::<dr_workspace::Result<Vec<_>>>()?;
             let mut value = ws.call(actor, &call.name, call.arguments.clone())?;
-            let comments = if call.name == "prose.read" {
+            let comments_v2 = if call.name == "prose.read" && !is_v3 {
                 Some(ws.call(actor, "comment.list", json!({"book":key.book}))?)
+            } else {
+                None
+            };
+            let comments_v3 = if call.name == "prose.read" && is_v3 {
+                let doc = ws
+                    .library()
+                    .load_copy(&book_doc)
+                    .map_err(dr_workspace::WsError::from)?;
+                let borrowed = dr_doc::v3::BorrowedBookV3::new(&doc, &book_id)
+                    .map_err(|e| Error::Invalid(e.to_string()))?;
+                Some(borrowed.view().comments())
             } else {
                 None
             };
@@ -250,14 +469,20 @@ impl AgentTools {
                 let doc = call.arguments["doc"]
                     .as_str()
                     .ok_or_else(|| Error::Invalid("missing prose document".into()))?;
-                Some(prose::project(
-                    doc,
-                    &output,
-                    &prose::comment_anchors(
+                let anchors = if let Some(v3_list) = &comments_v3 {
+                    prose::comment_anchors_v3(doc, v3_list)
+                } else {
+                    prose::comment_anchors(
                         doc,
-                        &comments.as_ref().expect("prose comments")["output"],
-                    ),
-                )?)
+                        &comments_v2.as_ref().expect("prose comments")["output"],
+                    )
+                };
+                Some(prose::project(doc, &output, &anchors)?)
+            } else {
+                None
+            };
+            let module_prose_doc = if call.name == "module.read_prose" {
+                resolve::prose_doc_from_module_args(&call.arguments)
             } else {
                 None
             };
@@ -266,7 +491,7 @@ impl AgentTools {
                 return Err(Error::Invalid("the tool session ended".into()));
             }
             let turn = turns.entry(key.clone()).or_default();
-            for observation in after {
+            for observation in &after {
                 let read = turn.reads.entry(observation.doc.clone()).or_default();
                 if read.version != observation.version {
                     *read = ReadState {
@@ -274,12 +499,18 @@ impl AgentTools {
                         ..Default::default()
                     };
                 }
+                if call.name == "timeline_view.list" && observation.doc == book_doc {
+                    read.timeline_views =
+                        Some(timeline::Coverage::from_read(&observation.value, &output)?);
+                }
                 read.subjects.extend(
                     subjects
                         .iter()
                         .filter(|subject| {
                             if let Some(doc) = subject.strip_prefix("prose:") {
                                 doc == observation.doc
+                                    || (!after.iter().any(|o| o.doc == doc)
+                                        && observation.doc == book_doc)
                             } else if subject.starts_with("history:") {
                                 true
                             } else {
@@ -306,6 +537,24 @@ impl AgentTools {
                     });
                     read.projection = Some(projection.clone());
                 }
+                if let Some(prose_doc) = &module_prose_doc {
+                    if observation.doc == *prose_doc
+                        && output["version"].as_str() == Some(observation.version.as_str())
+                    {
+                        for block in output["paragraphs"].as_array().into_iter().flatten() {
+                            if let (Some(id), Some(text)) =
+                                (block["block_id"].as_str(), block["text"].as_str())
+                            {
+                                read.blocks.insert(id.into(), text.into());
+                            }
+                        }
+                        read.full_prose = true;
+                    } else if observation.doc == book_doc
+                        && !after.iter().any(|o| o.doc == *prose_doc)
+                    {
+                        read.full_prose = true;
+                    }
+                }
             }
             if let Some(projection) = projection {
                 value["output"]["projection"] =
@@ -328,6 +577,7 @@ impl AgentTools {
         let canonical = call.arguments["doc"]
             .as_str()
             .map(str::to_owned)
+            .or_else(|| resolve::prose_doc_from_module_args(&call.arguments))
             .or_else(|| {
                 call.arguments["id"]
                     .as_str()
@@ -354,11 +604,7 @@ impl AgentTools {
                 return Err(Error::ConflictLimit(doc.clone()));
             }
             for subject in &call.subjects {
-                if !turn
-                    .reads
-                    .values()
-                    .any(|read| read.subjects.contains(subject))
-                {
+                if !subject_covered(&turn.reads, subject) {
                     return Err(Error::ReadRequired(subject.clone()));
                 }
             }
@@ -369,6 +615,36 @@ impl AgentTools {
                     .get(doc)
                     .ok_or_else(|| Error::ReadRequired(doc.clone()))?;
                 versions.insert(doc.clone(), read.version.clone());
+            }
+            if matches!(
+                call.name.as_str(),
+                "timeline_view.put" | "timeline_view.put_pin" | "timeline_view.remove_pin"
+            ) {
+                let coverage = turn
+                    .reads
+                    .get(&format!("book:{}", key.book))
+                    .and_then(|read| read.timeline_views.as_ref())
+                    .ok_or_else(|| Error::ReadRequired("timeline_view:*".into()))?;
+                if call.name == "timeline_view.put" {
+                    let id = call.arguments["view"]["id"]
+                        .as_str()
+                        .ok_or_else(|| Error::Invalid("timeline view needs id".into()))?;
+                    coverage.require_complete(id)?;
+                } else {
+                    let view = call.arguments["view"]
+                        .as_str()
+                        .ok_or_else(|| Error::Invalid("timeline view needs id".into()))?;
+                    let pin = if call.name == "timeline_view.put_pin" {
+                        &call.arguments["pin"]["id"]
+                    } else {
+                        &call.arguments["pin"]
+                    };
+                    coverage.require_pin(
+                        view,
+                        pin.as_str()
+                            .ok_or_else(|| Error::Invalid("timeline pin needs id".into()))?,
+                    )?;
+                }
             }
             if call.name == "prose.replace" {
                 let doc = call.arguments["doc"]
@@ -387,8 +663,24 @@ impl AgentTools {
                 if !covered {
                     return Err(Error::ReadRequired(format!("paragraph in {doc}")));
                 }
-            } else if call.name.starts_with("prose.") {
-                // Link/restore operations can touch unshown ranges or whole
+            } else if call.name == "module.replace_prose" {
+                let doc = resolve::prose_doc_from_module_args(&call.arguments)
+                    .ok_or_else(|| Error::Invalid("missing prose document".into()))?;
+                let read = turn
+                    .reads
+                    .get(&doc)
+                    .ok_or_else(|| Error::ReadRequired(doc.clone()))?;
+                let find = call.arguments["find"].as_str().unwrap_or_default();
+                let block_id = call.arguments["block_id"].as_str().unwrap_or_default();
+                let covered = read
+                    .blocks
+                    .get(block_id)
+                    .is_some_and(|text| text.contains(find));
+                if !covered {
+                    return Err(Error::ReadRequired(format!("paragraph in {doc}")));
+                }
+            } else if call.name.starts_with("prose.") || call.name == "module.set_prose" {
+                // Link/restore/set_prose operations can touch unshown ranges or whole
                 // documents. A partial prose window is insufficient evidence.
                 for doc in &call.targets {
                     if !doc.starts_with("book:")
@@ -439,6 +731,35 @@ impl AgentTools {
     }
 }
 
+fn subject_covered(reads: &HashMap<String, ReadState>, subject: &str) -> bool {
+    let has = |candidate: &str| reads.values().any(|read| read.subjects.contains(candidate));
+    if has(subject) {
+        return true;
+    }
+    if let Some(id) = subject.strip_prefix("entry:")
+        && id != "*"
+        && id != "all"
+    {
+        return has(&format!("level:{id}")) || has("entry:*") || has("entry:all");
+    }
+    if let Some(rest) = subject.strip_prefix("module_inline:") {
+        if has(&format!("module:{rest}")) {
+            return true;
+        }
+        if let Some((entry, _)) = rest.split_once(':') {
+            return has(&format!("module:{entry}:*"));
+        }
+    }
+    for prefix in ["entry_template:", "timeline_view:", "entry_relation_type:"] {
+        if let Some(id) = subject.strip_prefix(prefix)
+            && id != "*"
+        {
+            return has(&format!("{prefix}*"));
+        }
+    }
+    false
+}
+
 impl ToolExecutor for AgentTools {
     fn descriptors(&self) -> Vec<ToolDescriptor> {
         vec![search_descriptor(), call_descriptor()]
@@ -446,14 +767,61 @@ impl ToolExecutor for AgentTools {
     fn describe(&self, call: &ToolCall) -> Option<ToolDescriptor> {
         match call.name.as_str() {
             "tool_search" => Some(search_descriptor()),
-            "call_tool" => call.arguments["name"]
-                .as_str()
-                .and_then(|name| self.catalog.descriptor(name)),
+            "call_tool" => call.arguments["name"].as_str().and_then(|name| {
+                self.catalog
+                    .descriptor(name)
+                    .or_else(|| self.v3_catalog.descriptor(name))
+            }),
+            _ => None,
+        }
+    }
+    fn describe_in_book(
+        &self,
+        workspace: &Workspace,
+        book: &BookId,
+        call: &ToolCall,
+    ) -> Option<ToolDescriptor> {
+        match call.name.as_str() {
+            "tool_search" => Some(search_descriptor()),
+            "call_tool" => {
+                let request: CallRequest = serde_json::from_value(call.arguments.clone()).ok()?;
+                let catalog = self.catalog_for_book(workspace, book).ok()?;
+                match request.descriptor_in(&catalog, book) {
+                    Ok(Some(descriptor)) => Some(descriptor),
+                    Ok(None) => None,
+                    Err(_) => request.is_action().then(|| ToolDescriptor {
+                        name: request.name,
+                        revision: String::new(),
+                        description: String::new(),
+                        input_schema: json!({}),
+                        access: ToolAccess::Write,
+                        policy: ToolPolicy::Local,
+                    }),
+                }
+            }
             _ => None,
         }
     }
     fn finish_session(&self, session: &str) {
         self.forget_session(session);
+    }
+    fn context(
+        &self,
+        workspace: &Workspace,
+        book: &BookId,
+        session: &str,
+    ) -> dr_agent::Result<Vec<dr_agent::context::Contribution>> {
+        let focus = self.focus.lock().expect("tool focus").get(session).cloned();
+        let Some(structure) = self
+            .structure_context(workspace, book, focus.as_ref())
+            .map_err(|e| dr_agent::Error::Protocol(e.to_string()))?
+        else {
+            return Ok(Vec::new());
+        };
+        let contribution = structure
+            .to_contribution()
+            .map_err(|e| dr_agent::Error::Protocol(e.to_string()))?;
+        Ok(vec![contribution])
     }
     fn execute(
         &self,
@@ -471,32 +839,35 @@ impl ToolExecutor for AgentTools {
                         if context.cancellation.is_cancelled() {
                             return Err(Error::Invalid("cancelled before tool entry".into()));
                         }
+                        let catalog =
+                            facade.catalog_for_book(context.workspace(), &context.book)?;
                         match call.name.as_str() {
                             "tool_search" => {
                                 let search: Search = serde_json::from_value(call.arguments)
                                     .map_err(|e| Error::Invalid(e.to_string()))?;
                                 search.validate()?;
-                                Ok(facade.catalog.search(search))
+                                Ok(catalog.search(search))
                             }
                             "call_tool" => {
                                 let request: CallRequest =
                                     serde_json::from_value(call.arguments)
                                         .map_err(|e| Error::Invalid(e.to_string()))?;
-                                if facade.catalog.descriptor(&request.name).as_ref()
-                                    != Some(&context.descriptor)
+                                if !context.descriptor.revision.is_empty()
+                                    && request.descriptor_in(&catalog, &context.book)?.as_ref()
+                                        != Some(&context.descriptor)
                                 {
                                     return Err(Error::Invalid(
                                         "tool definition changed; search again".into(),
                                     ));
                                 }
-                                let value = facade.invoke_leased(
+                                let (value, resolved) = facade.invoke_leased_with_resolved(
                                     context.workspace(),
                                     &context.book,
                                     &context.actor,
                                     request,
                                     &lease,
                                 )?;
-                                evidence::capture(&context, &value)?;
+                                evidence::capture(&context, &resolved, &value)?;
                                 Ok(value)
                             }
                             _ => Err(Error::Invalid("unknown tool envelope".into())),
@@ -546,7 +917,7 @@ fn search_descriptor() -> ToolDescriptor {
     ToolDescriptor{name:"tool_search".into(),revision:"m29-search-v1".into(),description:"Find registered book tools by name or description. Search before calling an unfamiliar tool.".into(),input_schema:json!({"type":"object","properties":{"query":{"type":"string"},"offset":{"type":"integer","minimum":0},"limit":{"type":"integer","minimum":1,"maximum":50}},"additionalProperties":false}),access:ToolAccess::Read,policy:ToolPolicy::Local}
 }
 fn call_descriptor() -> ToolDescriptor {
-    ToolDescriptor{name:"call_tool".into(),revision:"m29-call-v1".into(),description:"Call a discovered book tool. Read a target before editing it; reread after any conflict. For prose.replace, edited_text may contain the edited projection returned by prose.read. Structural prose edits are not available.".into(),input_schema:json!({"type":"object","properties":{"name":{"type":"string"},"arguments":{"type":"object"},"revision":{"type":"string"},"edited_text":{"type":"string"}},"required":["name","arguments"],"additionalProperties":false}),access:ToolAccess::Write,policy:ToolPolicy::Local}
+    ToolDescriptor{name:"call_tool".into(),revision:"m29-call-v1".into(),description:"Call a discovered book tool or level template action. Read a target before editing it; reread after any conflict. For prose.replace, edited_text may contain the edited projection returned by prose.read. Structural prose edits are not available.".into(),input_schema:json!({"type":"object","properties":{"name":{"type":"string"},"action":{"type":"object","properties":{"level":{"type":"string"},"path":{"type":"array","items":{"type":"string"},"minItems":1},"verb":{"type":"string"}},"required":["verb"],"additionalProperties":false},"arguments":{"type":"object"},"revision":{"type":"string"},"edited_text":{"type":"string"}},"required":["arguments"],"oneOf":[{"required":["name"]},{"required":["action"]}],"additionalProperties":false}),access:ToolAccess::Write,policy:ToolPolicy::Local}
 }
 
 #[cfg(test)]
