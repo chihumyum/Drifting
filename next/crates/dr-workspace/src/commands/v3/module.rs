@@ -391,7 +391,7 @@ op! {
             let b = dr_doc::prose::BorrowedProse::new(state, &doc)?;
             let mut txn=b.txn();
             super::super::template::replace_paragraphs(&mut txn, &input.paragraphs)?;
-            if let Some(links)=links {let len=txn.view().len();crate::autolink::link_written(&mut txn,&links,0..len)?;}
+            if let Some(links)=links {let len=txn.view().len();crate::autolink::link_written_v3(&mut txn,&links,0..len)?;}
             Ok(at)
         })?;
         cx.undo_with(Invocation::new(
@@ -526,11 +526,11 @@ fn initialize_selected(
                     }
                 } else if let Some((id, copy)) = source {
                     let r = dr_doc::prose::ProseReader::from_loro(id, &copy)?;
-                    t.insert_copy(0, &r.view())?;
+                    t.insert_copy_v3(0, &r.view())?;
                 }
                 if let Some(links) = links {
                     let len = t.view().len();
-                    crate::autolink::link_written(t, &links, 0..len)?;
+                    crate::autolink::link_written_v3(t, &links, 0..len)?;
                 }
                 Ok(())
             })?;

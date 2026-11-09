@@ -159,7 +159,7 @@ H1、H2、H3 三级同等对待，只叫 H1/H2/H3。
 | --- | --- | --- | --- |
 | `bold` `italic` `underline` `strike` | true | After | 都有 |
 | `link` | 网址 | None | 都有 |
-| `entity:<目标 id>` | `{kind, block?, end_block?}` | None（按前缀 `entity` 配置） | 都有 |
+| `entity:<目标 id>` | `{kind, block?, end_block?}`；v3 另有 `module?` | None（按前缀 `entity` 配置） | 都有 |
 | `highlight` | 颜色 | None | 笔记 |
 | `code` | true | None | 笔记 |
 | `embed` | 嵌入 id | None | 都有（只打在 U+FFFC 上） |
@@ -185,9 +185,9 @@ H1、H2、H3 三级同等对待，只叫 H1/H2/H3。
 
 ### 人物链接
 
-- 键是 `entity:<目标 id>`，一个目标一个键。值是映射：v2.2 的 `kind` 为 `element`、`node`、`storyline`、`category`；链到章节里一段范围时再加 `block` 和 `end_block`（沿用旧版 `targetBlockId` / `targetEndBlockId`）。v3 通用自动链接写 `kind = entry`，当前只链接条目。方案要求 v3 的 `kind` 为 `entry`／`material`，链接指定正文再加 `module`；共享 `EntityLink` 尚无 `module` 字段，具体模块链接仍待编辑器／编解码消费方协调，见 [F1 第 6 步待协调](foundations/f1-model-doc.md)。
+- 键是 `entity:<目标 id>`，一个目标一个键。值是映射：v2.2 的 `kind` 为 `element`、`node`、`storyline`、`category`；链到章节里一段范围时再加 `block` 和 `end_block`（沿用旧版 `targetBlockId` / `targetEndBlockId`）。v3 通用自动链接写 `kind = entry`，当前只链接条目。v3 显式接口 `dr_model::v3::EntityLinkV3`／`dr_doc::prose::v3` 接受 `entry`／`material`，条目链接指定正文再加独立的 `module`，素材不带模块；`block`／`end_block` 仍为独立字段。旧共享 `EntityLink` 与旧读写接口冻结不变。v3 编码、复制保留原始标记的未知字段，模板正文与表格格子使用 `insert_copy_v3`；具体入口及消费边界见 [F3 v3 正文链接接口](foundations/f3-workspace.md#k2-v3-正文链接接口2026-11-10g1-待协调-2)。
 - ExpandType `None`：在链接的前后打字不会扩进链接；在链接中间打字算链接的一部分。
-- **重叠**：不同目标用不同的键，所以可以任意重叠，比如「安娜·卡列尼娜」链一个要素、其中「卡列尼娜」链另一个。指向同一目标的两段相邻链接会合成一段（旧版 ProseMirror 也这样）。
+- **重叠**：不同目标用不同的键，所以可以任意重叠，比如「安娜·卡列尼娜」链一个要素、其中「卡列尼娜」链另一个。v2.2 指向同一目标的两段相邻链接会合成一段。v3 查询还要求 kind、module、block、end_block 一致才合并；原始标记各段的未知数据仍分别保留。
 - 断开链接：`unmark(range, entity:<目标 id>)`。
 - 旧版的键 `entityLink--<哈希>` 只在导入时读一次属性值，不进新结构。
 
