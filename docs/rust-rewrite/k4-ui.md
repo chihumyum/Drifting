@@ -52,6 +52,50 @@ K4-0 交完第二次以后，`dr-shell` 的左栏（`workspace/sidebar.rs`）和
 - 三个 Super View（M21–M23）等四组合进来以后再接。
 - K5 模板编辑器另开一个会话：模板集合的位置已定，界面照 [K5 原型第 2 版](https://claude.ai/artifact/Q9cfuRn9u5T5vZ38qG1JU7)；条目页内部长什么样，等作者细化。
 
+## 开工细则（2026-11-09，K4-0 交回以后）
+
+K4-0 的两次交回见 [f6-shell.md](foundations/f6-shell.md) 的「K4-0」各节。外壳已经给出：`dr_shell::v3` 的 `add_module_view`（按模块种类）、`add_level_display`（按显示方式，左栏和层级页共用一个渲染器，`LevelHost.surface` 区分）、`add_entry_action`（`EntryAction::{New, ChangeTemplate, BelongTo}`）、`add_entry_card_rows`、`add_template_creator`、`add_v3_bottom_panel`；`Target::Entry { id, module }` 和 `Target::Template`；书快照 `book.v3()`，层级的有效设置在 `levels`。渲染器拿到的 `Rendered` 要接 `on_refresh`，刷新时不能冲掉没提交的输入。
+
+各组开工前，先确认 `main` 里已经有 K4-0 的两次交回（看 overnight.md「收进来的」）。
+
+### G1 页面与正文
+
+- 模块渲染器：`body`（照今天章节页的章首章末、⁂、斜杠菜单、浮条、批注砂笔；层级的说明 `about` 也走它）、`field`（文字、长文字、数字、日期、单选、多选、图片、条目引用、别名；把 `dr-view-elements` 的字段编辑器改成各模块共用）、`kv`、`patches`、`plot`、`relations`。
+- 一个条目多篇正文：每篇各自的编辑器、各自的撤销。
+- 通览全书：按成书层级下面、文稿顺序的叶子拼。
+- 人物链接：候选是「自动链接的叶子」（住处或任何一个归属的层级开了自动链接）；链接只认条目和素材，链到某一篇正文时带模块；点链接走 `Target::Entry { id, module }`。f6-shell.md K4-0 待协调第 2 条（模块链接的 URL、`EntityLink.module`）归你。
+- 快照历史按条目恢复。
+- 交回指针 `handback/k4-g1`。
+
+### G2 层级与左栏
+
+- 显示渲染器：`list`（今天的章节面板：书稿顺序，以及按故事线分组的看法）、`board`（今天的构想面板，看板坐标在 `layout` 里）、`grid` 和 `isles`（今天的要素紧凑索引和分类框）。左栏和层级页都用它们。
+- 层级页上，住在这里的条目和归属进来的条目都要排出来，分开显示；这一层的设置显示有效值和来源，改过的可以还原。
+- 树上拖动换住处，遵守「允许的模板」；用 `add_entry_action` 接上新建、换模板、归属到。
+- 大纲栏接 v3。K4-0 第二次交回以后，`dr-shell` 的 `workspace/sidebar.rs`、`workspace/outline.rs` 归你。
+- 交回指针 `handback/k4-g2`。
+
+### G3 时间线
+
+- 用 `add_v3_bottom_panel` 接 v3 的时间线：视图（新建、改名、删除）；泳道（把泳道条目加进视图、排序、拿出）；摆放（拖进泳道就是归属，拖动、换泳道、加长缩短；拿出最后一条泳道时位置一起去掉）；时间钉（双击标尺新建，改名、换颜色、挂条目）。
+- 故事线页（`dr-view-elements` 的 `storyline.rs`）只留泳道层级特有的部分，比如颜色；通用的层级页归 G2。
+- 交回指针 `handback/k4-g3`。
+
+### G4 全书功能
+
+- 搜索、统计、审阅、素材直接用 `Target::Entry` 和模块，不经过旧的 `book::nav_target`。
+- 统计的全书字数只算成书层级下面的叶子。
+- 作品主页：v3 现在只显示书名。你可以在 `dr-shell` 加一个按书的版本挂主页的注册口，只加不改；新建入口改成层级模板声明的动作。
+- 导出：`dr-export` 加从成书层级拼出原稿的 v3 转换；单本书导出导入加 v3。
+- 交回指针 `handback/k4-g4`。
+
+### K5 模板编辑器
+
+- 新开一个视图 crate，用 `add_template_creator` 和 `Target::Template` 接进外壳；界面照 [K5 原型第 2 版](https://claude.ai/artifact/Q9cfuRn9u5T5vZ38qG1JU7)：层级模板和叶子模板分开；模块（添加、改名、拖动排序、删除、字段类型）；层级设置；泳道开关；动作；写给帮手的说明（名字、一句说明、注意事项、每个模块一句）和「帮手看到的」预览（K6 已经有拼结构说明的函数就用它）。
+- 写入走 v3 的 `entry_template.*` 命令。
+- 模板的记号：先用现有的砂笔记号集合，未知的记号照 K4-0 的做法退回通用方印，不丢原值（f6-shell.md K4-0 待协调第 3 条）。
+- 交回指针 `handback/k5`。
+
 ## 各组共同的规矩
 
 - **作者看到的照今天**：用小说模板的书，界面和今天一样。新出现的东西（归属到、换模板、时间线视图、时间钉）照 K5 原型第 2 版，样式细节以后再定。
