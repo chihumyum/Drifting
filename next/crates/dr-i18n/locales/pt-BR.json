@@ -1781,6 +1781,15 @@
     "themeSystem": "Seguir o sistema",
     "themeSystemShort": "Sistema"
   },
+  "v3Shell": {
+    "about": "Descrição",
+    "board": "Quadro",
+    "entries": "Entradas",
+    "grid": "Grade",
+    "islands": "Ilhas",
+    "list": "Lista",
+    "settings": "Configurações"
+  },
   "voiceAgent": {
     "error": {
       "auth": "Chave de transcrição inválida ou expirada",

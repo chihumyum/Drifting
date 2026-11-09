@@ -352,7 +352,6 @@ impl Backend for Session {
     }
 
     fn seed(&mut self, preset: &str) -> Result<Value, StepError> {
-        use dr_testkit::seed;
         if self.app.is_some() {
             return Err(StepError::new("busy", "seed before launching the app"));
         }
@@ -366,20 +365,19 @@ impl Backend for Session {
                 ),
             ));
         }
-        let preset = seed::Preset::parse(preset)
+        let preset = crate::seed::Choice::parse(preset)
             .ok_or_else(|| StepError::new("bad_request", format!("unknown seed {preset}")))?;
-        let seeded = seed::generate(preset, seed::DEFAULT_SEED).map_err(io)?;
         let lib =
             dr_store::Library::open(&self.library, dr_workspace::library_options(APP_VERSION))
                 .map_err(io)?;
-        let n = seeded.write_to(&lib).map_err(io)?;
+        let report = preset.write_to(&lib).map_err(io)?;
         // Index everything now, as a library the app has had open is: the
         // word counts and search a scenario reads before launching are then
         // whole (otherwise the app rebuilds them in the background).
         let indexed = lib.rebuild_stale_indexes().map_err(io)?;
         lib.close().map_err(io)?;
         Ok(json!({
-            "documents": n, "indexed": indexed, "books": seeded.books.len(),
+            "documents": report.documents, "indexed": indexed, "books": report.books,
             "library": self.library.to_string_lossy(),
         }))
     }

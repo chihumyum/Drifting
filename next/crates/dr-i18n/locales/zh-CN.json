@@ -1761,6 +1761,15 @@
     "themeSystem": "跟随系统",
     "themeSystemShort": "系统"
   },
+  "v3Shell": {
+    "about": "说明",
+    "board": "看板",
+    "entries": "条目",
+    "grid": "网格",
+    "islands": "岛屿",
+    "list": "列表",
+    "settings": "设置"
+  },
   "voiceAgent": {
     "error": {
       "auth": "转写 Key 无效或已过期",

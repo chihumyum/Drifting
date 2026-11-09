@@ -24,13 +24,20 @@ pub mod location;
 
 use std::collections::VecDeque;
 
-use dr_model::id::{CategoryId, ElementId, MaterialId, NodeId, StorylineId};
+use dr_model::id::{
+    CategoryId, ElementId, EntryId, EntryTemplateId, MaterialId, ModuleId, NodeId, StorylineId,
+};
 use serde::{Deserialize, Serialize};
 
 /// Something a tab can show.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "id", rename_all = "kebab-case")]
 pub enum Target {
+    Entry {
+        id: EntryId,
+        module: Option<ModuleId>,
+    },
+    Template(EntryTemplateId),
     Chapter(NodeId),
     /// 构想 (internal name drift).
     Idea(NodeId),
@@ -50,6 +57,17 @@ impl Target {
         }
         let (kind, id) = key.split_once(':')?;
         Some(match kind {
+            "entry" => {
+                let (id, module) = match id.split_once('/') {
+                    Some((id, module)) => (id, Some(module.parse().ok()?)),
+                    None => (id, None),
+                };
+                Target::Entry {
+                    id: id.parse().ok()?,
+                    module,
+                }
+            }
+            "template" => Target::Template(id.parse().ok()?),
             "chapter" => Target::Chapter(id.parse().ok()?),
             "idea" => Target::Idea(id.parse().ok()?),
             "storyline" => Target::Storyline(id.parse().ok()?),
@@ -63,6 +81,11 @@ impl Target {
     /// A stable key, unique among a book's targets.
     pub fn key(&self) -> String {
         match self {
+            Target::Entry { id, module } => match module {
+                Some(module) => format!("entry:{id}/{module}"),
+                None => format!("entry:{id}"),
+            },
+            Target::Template(id) => format!("template:{id}"),
             Target::Chapter(id) => format!("chapter:{id}"),
             Target::Idea(id) => format!("idea:{id}"),
             Target::Storyline(id) => format!("storyline:{id}"),

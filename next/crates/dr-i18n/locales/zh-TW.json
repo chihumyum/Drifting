@@ -1767,6 +1767,15 @@
     "themeSystem": "跟隨系統",
     "themeSystemShort": "系統"
   },
+  "v3Shell": {
+    "about": "說明",
+    "board": "看板",
+    "entries": "條目",
+    "grid": "網格",
+    "islands": "島嶼",
+    "list": "清單",
+    "settings": "設定"
+  },
   "voiceAgent": {
     "error": {
       "auth": "轉錄金鑰無效或已過期",

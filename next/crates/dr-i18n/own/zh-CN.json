@@ -86,5 +86,14 @@
   },
   "speech": {
     "backlog": "转写积压"
+  },
+  "v3Shell": {
+    "about": "说明",
+    "entries": "条目",
+    "settings": "设置",
+    "list": "列表",
+    "grid": "网格",
+    "board": "看板",
+    "islands": "岛屿"
   }
 }

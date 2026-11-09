@@ -1773,6 +1773,15 @@
     "themeSystem": "Follow system",
     "themeSystemShort": "System"
   },
+  "v3Shell": {
+    "about": "Description",
+    "board": "Board",
+    "entries": "Entries",
+    "grid": "Grid",
+    "islands": "Islands",
+    "list": "List",
+    "settings": "Settings"
+  },
   "voiceAgent": {
     "error": {
       "auth": "The transcription key is invalid or expired",

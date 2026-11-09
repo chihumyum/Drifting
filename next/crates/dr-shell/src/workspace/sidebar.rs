@@ -883,6 +883,7 @@ fn right_header(
                 Some(Target::Element(_)) => k::ELEMENT,
                 Some(Target::Category(_)) => k::CATEGORY,
                 Some(Target::Material(_)) => k::MATERIAL,
+                Some(Target::Entry { .. } | Target::Template(_)) => keys::v3_shell::ENTRIES,
             };
             row.child(meta(t(cx, key), &theme)).into_any_element()
         }
