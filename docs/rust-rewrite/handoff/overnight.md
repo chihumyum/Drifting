@@ -82,7 +82,7 @@
 - **K5／K6：** K5 两次交回已在第 46、47 批接收：叶子／层级模板、八项设置、泳道、动作及写给帮手的说明。当前预览仍只读本地草稿；K6 的结构说明公共接口合 main 后再消费，不依赖未接分支，也未接动作运行时。记号沿用已有砂笔集合，未知值保留，未主动改记号就不覆盖原字符串。
 - **F6／K1 查询方与 K5：** K5 同样在标准 debug v3-heavy 的初始书快照阶段等到 240 秒仍未加载；其采样位于 `book::v3::load → LevelGet → level_settings → entries_map → resolve_autolink_name_conflicts → resolve_level_settings`。这补充 G3 的加载协调项。K5 另外用四个 crate 临时 opt-level=2 得到含导航等待、桥往返和 PNG 回读的视图测量，配置与口径见 k5-templates.md；不能把这些数字当作标准 debug 已通过或发布档绘制帧耗时。负责方修正后，各组用同配置复测，整合者不跨层改查询。
 
-- **F6 与 G2：** 第五十批已接 G2 四种显示器；M11 待协调 1 的层级设置区请提供 `add_level_settings` 并按现有 Rendered 保留实例／刷新，G2 在 category.rs 提供控件，不替换整页或新增持久化模块种类。已发现对应 `handback/f6` → `a9115af6`，另批验收后再通知消费；G2 的层级设置、大纲／拖动、选择器及 heavy 对照仍在后续。
+- **F6 与 G2：** 第五十批已接 G2 四种显示器；第五十一批接 `handback/f6` → `a9115af6` 的 `add_level_settings`，M11 待协调 1 的公共注册口已关闭，G2 可消费。设置区按现有 Rendered 保留实例／刷新；G2 在 category.rs 提供控件，不替换整页或新增持久化模块种类。G2 第二批 `898e1061` 已交回、下一批独立验收；大纲／拖动、选择器及 heavy 对照仍在后续。
 
 ## 监管说明
 
