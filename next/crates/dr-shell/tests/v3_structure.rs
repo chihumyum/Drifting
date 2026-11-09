@@ -327,6 +327,11 @@ fn snapshots_published_during_writes_match_their_entire_historical_revision() {
                 let display = if n % 2 == 0 { "grid" } else { "board" };
                 call(
                     &ws,
+                    "book.update",
+                    json!({"book":id,"name":format!("Synthetic revision {n}")}),
+                );
+                call(
+                    &ws,
                     "entry.update",
                     json!({
                         "book":id,"id":manuscript,"title":format!("Synthetic {display} {n}"),
@@ -412,6 +417,17 @@ fn snapshots_published_during_writes_match_their_entire_historical_revision() {
                 view.materials()
                     .iter()
                     .map(dr_workspace::dto::MaterialInfo::from)
+                    .collect::<Vec<_>>()
+            )
+        );
+        assert_eq!(
+            json!(shell.material_folders),
+            json!(
+                view.material_folders()
+                    .iter()
+                    .map(|folder| json!({
+                        "id":folder.id,"name":folder.name,"color":null,"parent":folder.parent
+                    }))
                     .collect::<Vec<_>>()
             )
         );

@@ -226,9 +226,9 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
             .run::<membership::MembershipList>(&Actor::User, input())?
             .output;
         let timeline_views = lib.run::<timeline::ViewList>(&Actor::User, input())?.output;
-        // The v3 material command facade is not available yet. Use the same
-        // typed, read-only kernel query as v3 search, within this frontier
-        // check; do not infer existence from a prose document or legacy rows.
+        // Keep the existing typed, read-only material metadata query within
+        // this frontier check; existence never comes from a prose document
+        // or legacy rows.
         let book_id =
             dr_model::id::BookId::parse(id).map_err(|e| WsError::Invalid(e.to_string()))?;
         let materials = lib
