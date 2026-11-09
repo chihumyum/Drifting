@@ -247,5 +247,10 @@
     "formatFull": "すべて",
     "formatNotes": "ノート",
     "formatPlain": "プレーンテキスト"
+  },
+  "entrySnapshot": {
+    "save": "スナップショットを保存",
+    "title": "スナップショット履歴",
+    "empty": "スナップショットはまだありません"
   }
 }

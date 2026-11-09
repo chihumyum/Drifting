@@ -41,11 +41,13 @@ pub mod entry;
 pub mod history;
 pub mod membership;
 pub mod module;
+pub mod snapshots;
 pub mod template;
 pub mod timeline;
 pub mod types;
 
 pub(crate) fn register(r: &mut Registry) {
+    snapshots::register(r);
     content::register(r);
     entry::register(r);
     template::register(r);

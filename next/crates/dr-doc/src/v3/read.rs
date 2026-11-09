@@ -1335,6 +1335,65 @@ impl<'a> BookViewV3<'a> {
         Some(EntrySnapshotV3 { value: node.meta })
     }
 
+    /// Complete raw records owned by an entry, including hidden/retained data.
+    /// Templates, child entries and timeline views belong to the book, not this entry.
+    pub fn entry_owned_records(
+        &self,
+        id: &EntryId,
+    ) -> BTreeMap<CollectionV3, BTreeMap<String, EntrySnapshotV3>> {
+        let patches = entities(self.doc, book_v3::PATCHES)
+            .into_iter()
+            .filter(|(_, v)| F(v).str("entry") == Some(id.as_str()))
+            .collect::<BTreeMap<_, _>>();
+        let mut result = BTreeMap::new();
+        for collection in [
+            CollectionV3::Patches,
+            CollectionV3::PlotGrids,
+            CollectionV3::Memberships,
+            CollectionV3::Relations,
+        ] {
+            let rows = entities(self.doc, collection.root())
+                .into_iter()
+                .filter(|(key, value)| {
+                    let f = F(value);
+                    match collection {
+                        CollectionV3::Patches => patches.contains_key(key),
+                        CollectionV3::PlotGrids => key.starts_with(&format!("{id}/")),
+                        CollectionV3::Memberships => {
+                            f.str("member") == Some(id.as_str())
+                                || key.split_once('|').is_some_and(|(_, m)| m == id.as_str())
+                        }
+                        CollectionV3::Relations => [("from_kind", "from"), ("to_kind", "to")]
+                            .iter()
+                            .any(|(kind, end)| {
+                                f.str(kind) == Some("entry") && f.str(end) == Some(id.as_str())
+                                    || f.str(kind) == Some("patch")
+                                        && f.str(end).is_some_and(|p| patches.contains_key(p))
+                            }),
+                        _ => false,
+                    }
+                })
+                .map(|(id, value)| (id, EntrySnapshotV3 { value }))
+                .collect();
+            result.insert(collection, rows);
+        }
+        result
+    }
+
+    /// Versioned complete-entry checkpoint manifests. Opaque to dr-doc.
+    pub fn entry_checkpoints(&self) -> Vec<(String, String)> {
+        entities(self.doc, "entry_checkpoints")
+            .into_iter()
+            .filter_map(|(id, v)| {
+                if let LoroValue::String(s) = v {
+                    Some((id, s.to_string()))
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
     /// Snapshot of a v3 structural map record, including nested maps.
     /// Patch text is restored through its mergeable text container by the writer.
     pub fn map_snapshot(&self, collection: CollectionV3, id: &str) -> Option<EntrySnapshotV3> {

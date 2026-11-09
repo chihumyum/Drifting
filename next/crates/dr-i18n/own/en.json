@@ -253,5 +253,10 @@
     "formatFull": "Full",
     "formatNotes": "Notes",
     "formatPlain": "Plain text"
+  },
+  "entrySnapshot": {
+    "save": "Save snapshot",
+    "title": "Snapshot history",
+    "empty": "No snapshots yet"
   }
 }

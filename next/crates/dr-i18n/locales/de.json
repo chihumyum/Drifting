@@ -425,6 +425,11 @@
     "summaryPlaceholder": "In einem Satz zusammenfassen…",
     "untitled": "Unbenanntes Element"
   },
+  "entrySnapshot": {
+    "empty": "Noch keine Momentaufnahmen",
+    "save": "Momentaufnahme speichern",
+    "title": "Momentaufnahmen"
+  },
   "feedback": {
     "attachDiagnostics": "Bereinigte Diagnosedaten anhängen",
     "cancel": "Abbrechen",

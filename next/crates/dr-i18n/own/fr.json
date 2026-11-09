@@ -253,5 +253,10 @@
     "formatFull": "Complet",
     "formatNotes": "Notes",
     "formatPlain": "Texte brut"
+  },
+  "entrySnapshot": {
+    "save": "Enregistrer un instantané",
+    "title": "Historique des instantanés",
+    "empty": "Aucun instantané pour le moment"
   }
 }

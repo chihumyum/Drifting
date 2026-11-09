@@ -247,5 +247,10 @@
     "formatFull": "完整",
     "formatNotes": "笔记",
     "formatPlain": "纯文本"
+  },
+  "entrySnapshot": {
+    "save": "保存快照",
+    "title": "快照历史",
+    "empty": "暂无快照"
   }
 }

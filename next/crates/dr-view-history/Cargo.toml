@@ -18,3 +18,4 @@ dr-ui.workspace = true
 dr-workspace.workspace = true
 gpui.workspace = true
 log.workspace = true
+serde_json.workspace = true

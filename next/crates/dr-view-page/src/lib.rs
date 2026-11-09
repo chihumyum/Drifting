@@ -49,6 +49,7 @@ pub use head::PageHead;
 /// editor it opens gets one.
 pub fn init(cx: &mut App) {
     v3::register(cx);
+    dr_shell::v3::history::register(cx);
     dr_shell::pages::add_page_chrome(cx, |target, host, _, _| match target {
         Target::Chapter(_) | Target::Idea(_) | Target::Book => {
             Some(Rc::new(Chrome::new(host)) as Rc<dyn PageChrome>)

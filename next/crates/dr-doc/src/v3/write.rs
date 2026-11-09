@@ -1513,6 +1513,27 @@ impl<'a> BookTxnV3<'a> {
         Ok(())
     }
 
+    /// Restore every stored metadata key, including future/hidden fields.
+    /// Parent/order are handled separately by the caller's validated plan.
+    pub fn restore_entry_complete(&mut self, id: &EntryId, old: &EntrySnapshotV3) -> Result<()> {
+        let LoroValue::Map(want) = &old.value else {
+            return Err(DocError::NotInProfile("entry snapshot is not a map"));
+        };
+        let w = self.entries().entry(id)?;
+        sync_nested_map(&w.map, want)
+    }
+
+    /// Append an immutable complete-entry checkpoint. The manifest is versioned
+    /// by its owner in dr-workspace and references durable Loro frontiers.
+    pub fn put_entry_checkpoint(&mut self, id: &str, manifest: &str) -> Result<()> {
+        let root = self.view.doc.get_map("entry_checkpoints");
+        if root.get(id).is_some() {
+            return Err(DocError::NotInProfile("checkpoint already exists"));
+        }
+        root.insert(id, manifest)?;
+        Ok(())
+    }
+
     /// Restore an entry's metadata and tree parent (falling back to root if
     /// `parent` no longer exists in `entries`).
     pub fn restore_entry_with_parent(

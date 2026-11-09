@@ -18,3 +18,6 @@ mod dialog;
 pub mod model;
 
 pub use dialog::{HistoryDialog, HistoryEvent, LIST_MAX_HEIGHT, PREVIEW_MAX_HEIGHT, WIDTH};
+
+pub mod v3;
+pub use v3::EntryHistoryDialog;

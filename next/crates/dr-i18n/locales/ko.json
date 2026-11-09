@@ -425,6 +425,11 @@
     "summaryPlaceholder": "한 문장 요약…",
     "untitled": "제목 없는 요소"
   },
+  "entrySnapshot": {
+    "empty": "아직 스냅샷이 없습니다",
+    "save": "스냅샷 저장",
+    "title": "스냅샷 기록"
+  },
   "feedback": {
     "attachDiagnostics": "민감 정보를 제거한 진단 정보 첨부",
     "cancel": "취소",

@@ -2239,6 +2239,7 @@ dependencies = [
  "dr-workspace",
  "gpui",
  "log",
+ "serde_json",
 ]
 
 [[package]]

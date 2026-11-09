@@ -247,5 +247,10 @@
     "formatFull": "전체",
     "formatNotes": "노트",
     "formatPlain": "일반 텍스트"
+  },
+  "entrySnapshot": {
+    "save": "스냅샷 저장",
+    "title": "스냅샷 기록",
+    "empty": "아직 스냅샷이 없습니다"
   }
 }

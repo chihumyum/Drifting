@@ -253,5 +253,10 @@
     "formatFull": "Vollständig",
     "formatNotes": "Notizen",
     "formatPlain": "Nur Text"
+  },
+  "entrySnapshot": {
+    "save": "Momentaufnahme speichern",
+    "title": "Momentaufnahmen",
+    "empty": "Noch keine Momentaufnahmen"
   }
 }

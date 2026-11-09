@@ -425,6 +425,11 @@
     "summaryPlaceholder": "一句話概述…",
     "untitled": "未命名要素"
   },
+  "entrySnapshot": {
+    "empty": "尚無快照",
+    "save": "儲存快照",
+    "title": "快照歷史"
+  },
   "feedback": {
     "attachDiagnostics": "附上已去識別的診斷資料",
     "cancel": "取消",
