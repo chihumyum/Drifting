@@ -194,7 +194,6 @@
     "instructions": "Hinweise",
     "module_instructions": "Modulhinweise",
     "agent_preview": "Was der Assistent sieht",
-    "read_only": "Schreibgeschützt",
     "this_level": "Diese Ebene",
     "default_template": "Standardvorlage",
     "none": "Keine",
@@ -220,9 +219,9 @@
     "new_entry": "Neuer Eintrag",
     "choose_template": "Vorlage auswählen",
     "inherit": "Erben",
-    "yes": "Ja",
-    "no": "Nein",
-    "add_field": "Feld hinzufügen"
+    "add_field": "Feld hinzufügen",
+    "preview_loading": "Vorschau wird geladen…",
+    "preview_failed": "Vorschau konnte nicht geladen werden"
   },
   "v3Levels": {
     "residents": "Hier abgelegt",

@@ -194,7 +194,6 @@
     "instructions": "Instructions",
     "module_instructions": "Module instructions",
     "agent_preview": "What the helper sees",
-    "read_only": "Read only",
     "this_level": "This level",
     "default_template": "Default template",
     "none": "None",
@@ -220,9 +219,9 @@
     "new_entry": "New entry",
     "choose_template": "Choose template",
     "inherit": "Inherit",
-    "yes": "Yes",
-    "no": "No",
-    "add_field": "Add field"
+    "add_field": "Add field",
+    "preview_loading": "Loading preview…",
+    "preview_failed": "Could not load preview"
   },
   "v3Levels": {
     "residents": "Residents",

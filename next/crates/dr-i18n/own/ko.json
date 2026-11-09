@@ -188,7 +188,6 @@
     "instructions": "주의 사항",
     "module_instructions": "모듈 설명",
     "agent_preview": "도우미에게 보이는 내용",
-    "read_only": "읽기 전용",
     "this_level": "이 계층",
     "default_template": "기본 템플릿",
     "none": "없음",
@@ -214,9 +213,9 @@
     "new_entry": "새 항목",
     "choose_template": "템플릿 선택",
     "inherit": "상속",
-    "yes": "예",
-    "no": "아니요",
-    "add_field": "필드 추가"
+    "add_field": "필드 추가",
+    "preview_loading": "미리보기를 불러오는 중…",
+    "preview_failed": "미리보기를 불러올 수 없습니다"
   },
   "v3Levels": {
     "residents": "여기에 있는 항목",

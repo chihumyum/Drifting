@@ -1834,14 +1834,14 @@
     "name": "Nombre",
     "new_entry": "Nueva entrada",
     "new_template": "Nueva plantilla",
-    "no": "No",
     "none": "Ninguna",
     "number": "Número",
     "options": "Opciones",
     "patches": "Parches",
     "plot_grid": "Plan de trama",
+    "preview_failed": "No se pudo cargar la vista previa",
+    "preview_loading": "Cargando vista previa…",
     "prose": "Texto principal",
-    "read_only": "Solo lectura",
     "relations": "Relaciones",
     "reorder": "Arrastrar para ordenar",
     "restore": "Restaurar",
@@ -1850,8 +1850,7 @@
     "template_name": "Nombre de plantilla",
     "text": "Texto",
     "this_level": "Este nivel",
-    "unsaved": "Sin guardar",
-    "yes": "Sí"
+    "unsaved": "Sin guardar"
   },
   "topTimeline": {
     "closeTab": "Cerrar pestaña",

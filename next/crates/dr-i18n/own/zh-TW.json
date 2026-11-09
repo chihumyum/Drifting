@@ -188,7 +188,6 @@
     "instructions": "注意事項",
     "module_instructions": "模組說明",
     "agent_preview": "幫手看到的",
-    "read_only": "唯讀",
     "this_level": "這一層",
     "default_template": "預設範本",
     "none": "無",
@@ -214,9 +213,9 @@
     "new_entry": "新增項目",
     "choose_template": "選擇範本",
     "inherit": "繼承",
-    "yes": "是",
-    "no": "否",
-    "add_field": "新增欄位"
+    "add_field": "新增欄位",
+    "preview_loading": "正在載入預覽…",
+    "preview_failed": "無法載入預覽"
   },
   "v3Levels": {
     "residents": "住在這裡",

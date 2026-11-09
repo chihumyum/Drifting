@@ -1,6 +1,16 @@
 use super::*;
 
 impl TemplateEditor {
+    pub(super) fn preview_request(&self) -> Option<crate::preview::Request> {
+        (self.host.book.id == self.host.book_id).then_some(())?;
+        let frontier = self.host.book.v3()?.revision.clone();
+        Some(crate::preview::Request {
+            book: self.host.book_id.clone(),
+            frontier,
+            draft: self.draft.clone(),
+        })
+    }
+
     pub(super) fn guidance(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let mut section = div()
             .flex()
@@ -51,11 +61,32 @@ impl TemplateEditor {
                 })
                 .on_click(cx.listener(|this, _, _, cx| {
                     this.preview_open = !this.preview_open;
+                    if !this.preview_open {
+                        this.preview_task = None;
+                        this.preview_cache = crate::preview::Cache::default();
+                    }
                     cx.notify();
                 })),
         );
         if self.preview_open {
-            let preview = self.preview(cx);
+            self.ensure_preview(cx);
+            let body = match &self.preview_cache.text {
+                Some(Ok(text)) => div()
+                    .id("k5-preview-text")
+                    .role(gpui::Role::Label)
+                    .aria_label(text.clone())
+                    .child(dr_ui::text::wrapped(text.clone()))
+                    .into_any_element(),
+                Some(Err(())) => t(cx, k::PREVIEW_FAILED).into_any_element(),
+                None if self.preview_request().is_some() => {
+                    dr_ui::components::Loading::new("k5-preview-loading")
+                        .inline()
+                        .immediate()
+                        .label(t(cx, k::PREVIEW_LOADING))
+                        .into_any_element()
+                }
+                None => t(cx, k::PREVIEW_FAILED).into_any_element(),
+            };
             section = section.child(
                 div()
                     .id("k5-preview")
@@ -64,143 +95,56 @@ impl TemplateEditor {
                     .p(px(16.))
                     .font_role(Role::Index)
                     .type_px(13., 21.)
-                    .child(
-                        div()
-                            .id("k5-preview-text")
-                            .role(gpui::Role::Label)
-                            .aria_label(preview.clone())
-                            .child(dr_ui::text::wrapped(preview)),
-                    ),
+                    .child(body),
             );
         }
         section.into_any_element()
     }
 
-    pub(super) fn preview(&self, cx: &App) -> String {
-        let template = &self.draft;
-        let agent = template.agent.as_ref();
-        let name = agent
-            .map(|a| a.name.as_str())
-            .filter(|n| !n.trim().is_empty())
-            .unwrap_or(&template.name);
-        let description = agent.map(|a| a.description.as_str()).unwrap_or_default();
-        let mut out = format!(
-            "---\nname: {}\ndescription: {}\n---\n",
-            serde_json::json!(name),
-            serde_json::json!(description)
-        );
-        if let Some(agent) = agent
-            && !agent.instructions.is_empty()
-        {
-            out.push_str(&format!("\n{}\n", agent.instructions));
-        }
-        if !template.modules.is_empty() {
-            out.push_str(&format!("\n{}:\n", t(cx, k::MODULES)));
-            for module in &template.modules {
-                let kind = if module.kind == "fields" && module.config.defs.len() == 1 {
-                    &module.config.defs[0].field_type
-                } else {
-                    &module.kind
-                };
-                out.push_str(&format!("- {} ({})", module.name, type_label(kind, cx)));
-                if let Some(agent) = &module.agent {
-                    if !agent.writable {
-                        out.push_str(&format!(" [{}]", t(cx, k::READ_ONLY)));
-                    }
-                    if !agent.instructions.is_empty() {
-                        out.push_str(&format!(": {}", agent.instructions));
-                    }
-                }
-                out.push('\n');
-            }
-        }
-        let template_name = |id: &str| {
-            self.host
-                .book
-                .v3()
-                .and_then(|b| b.template(id))
-                .map(|t| t.name.clone())
-                .unwrap_or_else(|| id.into())
+    fn ensure_preview(&mut self, cx: &mut Context<Self>) {
+        let Some(request) = self.preview_request() else {
+            self.preview_task = None;
+            self.preview_cache = crate::preview::Cache::default();
+            return;
         };
-        if template.kind == "level" {
-            let settings = &template.settings;
-            out.push_str(&format!("\n{}:\n", t(cx, k::THIS_LEVEL)));
-            let mut line =
-                |key, value: String| out.push_str(&format!("- {}: {value}\n", t(cx, key)));
-            if let Some(value) = &settings.default_template {
-                line(
-                    k::DEFAULT_TEMPLATE,
-                    value
-                        .as_deref()
-                        .map(template_name)
-                        .unwrap_or_else(|| t(cx, k::NONE).to_string()),
-                );
-            }
-            if let Some(allow) = &settings.allow {
-                line(
-                    k::ALLOW,
-                    if allow.is_empty() {
-                        t(cx, k::ALL_TEMPLATES).to_string()
-                    } else {
-                        allow
-                            .iter()
-                            .map(|id| template_name(id))
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    },
-                );
-            }
-            if let Some(display) = &settings.display {
-                line(
-                    k::DISPLAY,
-                    super::levels::display_label(display, cx).to_string(),
-                );
-            }
-            for (key, value) in [
-                (k::AUTO_LINK, settings.auto_link),
-                (k::ACCEPT, template.lane.then_some(true).or(settings.accept)),
-                (k::MANUSCRIPT, settings.is_manuscript),
-            ] {
-                if let Some(value) = value {
-                    line(key, t(cx, if value { k::YES } else { k::NO }).to_string());
-                }
-            }
-            if template.lane {
-                line(k::LANE, t(cx, k::YES).to_string());
-            }
-            if let Some(home) = &settings.home {
-                line(
-                    k::HOME,
-                    home.as_deref()
-                        .and_then(|id| self.host.book.v3()?.entry(id))
-                        .map(|entry| entry.title.clone())
-                        .unwrap_or_else(|| t(cx, k::THIS_LEVEL).to_string()),
-                );
-            }
-            if let Some(format) = &settings.format_shortcuts {
-                line(
-                    k::FORMAT_SHORTCUTS,
-                    super::levels::format_label(format, cx).to_string(),
-                );
-            }
-            if !template.verbs.is_empty() {
-                out.push_str(&format!("\n{}:\n", t(cx, k::ACTIONS)));
-                for verb in &template.verbs {
-                    out.push_str(&format!(
-                        "- {}: {}",
-                        verb.name,
-                        verb.target_template
-                            .as_deref()
-                            .map(template_name)
-                            .unwrap_or_else(|| t(cx, k::CHOOSE_TEMPLATE).to_string())
-                    ));
-                    if !verb.description.is_empty() {
-                        out.push_str(&format!(" — {}", verb.description));
-                    }
-                    out.push('\n');
-                }
-            }
+        if !self.preview_cache.start(request.clone()) {
+            return;
         }
-        out
+        let submitted = request.clone();
+        let library = self.host.library.clone();
+        let executor = cx.background_executor().clone();
+        // Replacing the owning task cancels an old pending timer. Fast typing
+        // keeps the real text input focused and does not queue a fork per key.
+        let job = cx.background_spawn(async move {
+            executor.timer(std::time::Duration::from_millis(150)).await;
+            crate::preview::project(&library, &request)
+                .and_then(|preview| {
+                    serde_json::to_string_pretty(&preview)
+                        .map_err(|e| dr_workspace::WsError::Internal(e.to_string()))
+                })
+                .map_err(|_| ())
+        });
+        self.preview_task = Some(cx.spawn(async move |this, cx| {
+            let result = job.await;
+            let _ = this.update(cx, |this, cx| {
+                this.finish_preview(&submitted, result, cx);
+            });
+        }));
+    }
+
+    pub(super) fn finish_preview(
+        &mut self,
+        request: &crate::preview::Request,
+        result: Result<String, ()>,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        if !self.preview_open || self.preview_request().as_ref() != Some(request) {
+            return false;
+        }
+        if self.preview_cache.publish(request, result) {
+            cx.notify();
+            return true;
+        }
+        false
     }
 }

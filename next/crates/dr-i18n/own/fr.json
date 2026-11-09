@@ -194,7 +194,6 @@
     "instructions": "Consignes",
     "module_instructions": "Consignes du module",
     "agent_preview": "Ce que voit l’assistant",
-    "read_only": "Lecture seule",
     "this_level": "Ce niveau",
     "default_template": "Modèle par défaut",
     "none": "Aucun",
@@ -220,9 +219,9 @@
     "new_entry": "Nouvelle entrée",
     "choose_template": "Choisir un modèle",
     "inherit": "Hériter",
-    "yes": "Oui",
-    "no": "Non",
-    "add_field": "Ajouter un champ"
+    "add_field": "Ajouter un champ",
+    "preview_loading": "Chargement de l’aperçu…",
+    "preview_failed": "Impossible de charger l’aperçu"
   },
   "v3Levels": {
     "residents": "Entrées résidentes",

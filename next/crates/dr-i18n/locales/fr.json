@@ -1834,14 +1834,14 @@
     "name": "Nom",
     "new_entry": "Nouvelle entrée",
     "new_template": "Nouveau modèle",
-    "no": "Non",
     "none": "Aucun",
     "number": "Nombre",
     "options": "Options",
     "patches": "Correctifs",
     "plot_grid": "Plan de l’intrigue",
+    "preview_failed": "Impossible de charger l’aperçu",
+    "preview_loading": "Chargement de l’aperçu…",
     "prose": "Texte principal",
-    "read_only": "Lecture seule",
     "relations": "Relations",
     "reorder": "Glisser pour réordonner",
     "restore": "Rétablir",
@@ -1850,8 +1850,7 @@
     "template_name": "Nom du modèle",
     "text": "Texte",
     "this_level": "Ce niveau",
-    "unsaved": "Non enregistré",
-    "yes": "Oui"
+    "unsaved": "Non enregistré"
   },
   "topTimeline": {
     "closeTab": "Fermer l’onglet",

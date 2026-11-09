@@ -1,0 +1,353 @@
+{
+  "about": "K5 公共 StructureContext 预览：副屏 v3-lite 冒烟，新建未使用的叶子草稿、说明与模块身份、预览不写回、保存后重开。",
+  "steps": [
+    {
+      "seed": "v3-lite"
+    },
+    {
+      "call": "book.list",
+      "input": {},
+      "save": "books"
+    },
+    {
+      "call": "entry_template.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "original"
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_WINDOW_DISPLAY": "secondary",
+          "DRIFTING_APPEARANCE": "light"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ],
+              "agent.proactive_suggestions": false
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      },
+      "save": "launch"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${books.0.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/id": "${books.0.id}",
+          "/book/version": 3
+        }
+      }
+    },
+    {
+      "app": "app.info",
+      "save": "environment",
+      "expect": {
+        "/windows/0/active": true,
+        "/windows/0/visible": true,
+        "/bundleId": "cc.drifting.next.dev"
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ToggleBottomTimeline"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/bottom/pane": null
+        }
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ToggleLeftSidebar"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/left/open": true
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "New template"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Leaf template",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Template name"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-a"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "Shared preview smoke"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "Group",
+        "label": "Prose"
+      },
+      "save": "body"
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": "${body.nodes.0.bounds.x}",
+        "y": 480,
+        "dy": 10000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Instructions"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-a"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "Synthetic unsaved shared projection"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Module instructions · Prose"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-a"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "Synthetic module identity"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "What the helper sees"
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": "${body.nodes.0.bounds.x}",
+        "y": 480,
+        "dy": 10000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "contains": "Synthetic unsaved shared projection",
+        "within": {
+          "role": "Group",
+          "label": "What the helper sees"
+        },
+        "timeout_ms": 15000
+      },
+      "save": "draft_preview"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "contains": "draft_frontier",
+        "within": {
+          "role": "Group",
+          "label": "What the helper sees"
+        }
+      },
+      "save": "draft_identity"
+    },
+    {
+      "call": "entry_template.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "expect": {
+        "": "${original}"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Save"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Saved"
+      }
+    },
+    {
+      "call": "entry_template.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "saved",
+      "expect": {
+        "/[name=Shared preview smoke]/agent/instructions": "Synthetic unsaved shared projection",
+        "/[name=Shared preview smoke]/modules/0/agent/instructions": "Synthetic module identity"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "template:${saved.[name=Shared preview smoke].id}"
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 500
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "Group",
+        "label": "Prose"
+      },
+      "save": "body"
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": "${body.nodes.0.bounds.x}",
+        "y": 480,
+        "dy": 10000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "What the helper sees"
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": "${body.nodes.0.bounds.x}",
+        "y": 480,
+        "dy": 10000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "contains": "Synthetic unsaved shared projection",
+        "within": {
+          "role": "Group",
+          "label": "What the helper sees"
+        },
+        "timeout_ms": 15000
+      },
+      "save": "saved_preview"
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "template:tpl-character"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Template name"
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "template:${saved.[name=Shared preview smoke].id}"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Template name"
+      }
+    },
+    {
+      "call": "entry_template.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "expect": {
+        "": "${saved}"
+      }
+    },
+    {
+      "app": "app.info",
+      "save": "environment_after"
+    },
+    {
+      "app": "app.quit"
+    }
+  ]
+}
