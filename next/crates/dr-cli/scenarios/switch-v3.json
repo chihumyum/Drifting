@@ -105,6 +105,15 @@
       "save": "entry"
     },
     {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/chapters": 1
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
       "app": "nav.open",
       "params": {
         "target": "entry:${entry.id}/mod-prose"
