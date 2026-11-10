@@ -130,7 +130,17 @@
 
 ### 检查结果
 
-修复后本地定向 `cargo test -p dr-sync --locked -- --nocapture` 已通过 **19 项**（原有 6 项、原有远端安全 7 项、真实 v3 3 项、归属拒绝 3 项）；最终全工作区检查结果待本轮填写。原有绝对路径、分隔符、重复资产元数据提前拒绝和配额／中断矩阵保留原断言。独立使用本 worktree 的 `next/target`，只复制现成字体缓存。
+修复后本地定向 `cargo test -p dr-sync --locked -- --nocapture` 已通过 **19 项**（原有 6 项、原有远端安全 7 项、真实 v3 3 项、归属拒绝 3 项）。原有绝对路径、分隔符、重复资产元数据提前拒绝、原子落盘／取消及配额／中断矩阵保留原断言。独立使用本 worktree 的 `next/target`，只复制现成字体缓存。
+
+修复提交 `cac707bc62f2acf146e60e5ecf7673f623fc410e` 再次 `git merge main`（`e49c02c11`，已为最新）后，统一 `CARGO_BUILD_JOBS=3 RUST_TEST_THREADS=1`，实际重新执行：
+
+- `cargo fmt --all --check`：通过。
+- `cargo clippy --workspace --all-targets --locked -- -D warnings`：通过。
+- `cargo test --workspace --locked`：含文档测试共 **2386 通过、0 失败、22 忽略**；原 3 项真实 v3 契约及新增归属 3 项在全工作区特性组合中再次通过。
+- `cargo xtask check`：全部门禁通过，含完整审计（973 个锁定包、0 漏洞、12 条提示）。20 份 stale／15 份 legacy 测量照实报告，没有重写生成证据或补做暂缓的性能验收。
+- 根目录 `pnpm public:check`：通过（5613 个发布候选文件）。
+
+全量测试链接 `drifting` 测试二进制时有一条非阻断链接器警告：`__eh_frame` 超过 16 MiB，无法将 DWARF unwind offsets 编入 compact unwind table；未改无关构建设置。全套命令、退出码、耗时和受检源码 SHA 见外部 `sync-v3-ownership-fix/checks.json`，测试合计由日志生成在 `test-totals.json`。最终交回仅另补本文检查记录，Rust／Cargo 树与上述受检源码相同。
 
 机器重跑：在 `next/` 设置 `CARGO_TARGET_DIR=target CARGO_BUILD_JOBS=3 RUST_TEST_THREADS=1`，运行：
 
@@ -144,6 +154,7 @@ cargo test -p dr-sync --lib --locked
 
 ### 待协调
 
+- 本次归属退回已修复，无新增存储接口或网络协议协调，也没有遗留的本轮正确性阻塞；下列继续区分既有集成边界。
 - **物理缓存与网络墓碑分开。** 本机 book.purge 的原资源文件已实测删除。当前公开协议只有 LoroUpdate／AssetBlob／DocPurge；B 的被删书文档确实清空，但原先下载的两个资源变体仍作为物理缓存留在 B，重放后仍在；不把文档删除计数当作远端物理文件已删。本轮既不据单个 DocPurge 级联 remove_asset，也不自创资产网络墓碑或服务器 GC。后续若要求远端设备／服务的物理缓存清理，需要负责方另定边界；另一书的资源不能受影响。
 - **持有者与应用调度。** 远端 purge 遇打开文档现在明确阻塞并保留重试位置。主契约显式释放 B 的 Workspace slots 后才接收整书删除；生产应用如何排空编辑器和重试仍属既有 F6 接线工作，不绕过 F2 保护，不据纯内核测试声称 App 自动同步。缺失文档的墓碑若无法通过既有 F2 register 建立，保持错误和游标，不吞错；需新存储接口时另协调 F2。
 - 沿用既有 F6 稿纸角标、生产同步调度与 Hosted `loro-v2` 登记待办；本次没有改生产服务协议或 G1 的历史／恢复语义。
