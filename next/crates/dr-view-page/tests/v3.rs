@@ -292,3 +292,150 @@ fn newly_created_body_keeps_title_focus_across_async_load(cx: &mut TestAppContex
     let editor = view.read_with(&vcx, |v, _| v.editor().unwrap());
     assert!(!vcx.update(|window, cx| editor.read(cx).editor().focus_handle(cx).is_focused(window)));
 }
+
+fn head_release_case(cx: &mut TestAppContext, summary: bool, conflict: bool) {
+    use gpui::Focusable as _;
+    use std::cell::{Cell, RefCell};
+    let e = env();
+    let (_body, mut cx) = open(cx, &e, "mod-prose");
+    let doc = format!("body:{}/mod-prose", e.entry);
+    wait(&mut cx, |cx| {
+        cx.update(|_, cx| dr_view_page::page_views(&doc, cx).is_some())
+    });
+    let head = cx.update(|_, cx| dr_view_page::page_views(&doc, cx).unwrap().0);
+    let input = head.read_with(&cx, |h, _| {
+        if summary {
+            h.synopsis().clone()
+        } else {
+            h.title().clone()
+        }
+    });
+    cx.update(|_, cx| cx.global_mut::<Services>().library = Some(e.ws.clone()));
+    input.update_in(&mut cx, |a, w, cx| {
+        a.focus_handle(cx).focus(w, cx);
+        a.select_all_text(cx);
+        a.replace_text_in_range(None, "accepted head draft", w, cx);
+    });
+    draw(&mut cx);
+    if conflict {
+        if summary {
+            call(
+                &e.ws,
+                "module.set_field",
+                json!({"book":e.book,"entry":e.entry,"module":"mod-fields","field":"summary","value":"external metadata"}),
+            );
+        } else {
+            call(
+                &e.ws,
+                "entry.update",
+                json!({"book":e.book,"id":e.entry,"title":"external metadata"}),
+            );
+        }
+        let result = Rc::new(RefCell::new(None));
+        let seen = result.clone();
+        cx.update(|_, cx| {
+            dr_shell::library::replace(
+                cx,
+                |_, _| unreachable!("conflicting head must block replacement"),
+                move |r, _| *seen.borrow_mut() = Some(r),
+            )
+        });
+        let until = Instant::now() + Duration::from_secs(15);
+        while result.borrow().is_none() {
+            cx.executor().advance_clock(Duration::from_millis(10));
+            draw(&mut cx);
+            assert!(Instant::now() < until);
+        }
+        assert!(result.borrow().as_ref().unwrap().is_err());
+        input.update_in(&mut cx, |a, w, cx| a.focus_handle(cx).focus(w, cx));
+        cx.simulate_keystrokes("escape");
+        draw(&mut cx);
+        assert_eq!(input.read_with(&cx, |a, _| a.text()), "accepted head draft");
+        let metadata = call(&e.ws, "entry.get", json!({"book":e.book,"id":e.entry}));
+        assert_eq!(
+            if summary {
+                &metadata["fields"]["mod-fields"]["summary"]
+            } else {
+                &metadata["title"]
+            },
+            "external metadata"
+        );
+        cx.update(|_, cx| assert!(!dr_shell::release::is_releasing(cx)));
+    } else {
+        let quit = Rc::new(Cell::new(false));
+        let seen = quit.clone();
+        cx.update(|_, cx| {
+            dr_shell::quit::before_quit(cx, move |_| seen.set(true));
+            dr_shell::quit::request(cx);
+        });
+        let until = Instant::now() + Duration::from_secs(15);
+        while !quit.get() {
+            cx.executor().advance_clock(Duration::from_millis(10));
+            draw(&mut cx);
+            assert!(Instant::now() < until);
+        }
+        let metadata = call(&e.ws, "entry.get", json!({"book":e.book,"id":e.entry}));
+        assert_eq!(
+            if summary {
+                &metadata["fields"]["mod-fields"]["summary"]
+            } else {
+                &metadata["title"]
+            },
+            "accepted head draft"
+        );
+    }
+    e.ws.close();
+}
+#[gpui::test]
+fn title_head_flushes_focused_input_before_quit(cx: &mut TestAppContext) {
+    head_release_case(cx, false, false)
+}
+#[gpui::test]
+fn synopsis_head_flushes_focused_input_before_quit(cx: &mut TestAppContext) {
+    head_release_case(cx, true, false)
+}
+#[gpui::test]
+fn title_head_conflict_keeps_input_and_blocks_replacement(cx: &mut TestAppContext) {
+    head_release_case(cx, false, true)
+}
+#[gpui::test]
+fn synopsis_head_conflict_keeps_input_and_blocks_replacement(cx: &mut TestAppContext) {
+    head_release_case(cx, true, true)
+}
+
+#[gpui::test]
+fn cancelling_after_save_never_rewrites_old_page_facts(cx: &mut TestAppContext) {
+    use gpui::Focusable as _;
+    let e = env();
+    let (body, mut cx) = open(cx, &e, "mod-prose");
+    let doc = format!("body:{}/mod-prose", e.entry);
+    wait(&mut cx, |cx| {
+        cx.update(|_, cx| dr_view_page::page_views(&doc, cx).is_some())
+    });
+    let head = cx.update(|_, cx| dr_view_page::page_views(&doc, cx).unwrap().0);
+    let editor = body.read_with(&cx, |b, _| b.editor().unwrap());
+    let old = editor.read_with(&cx, |e, _| e.page_info().unwrap());
+    let input = head.read_with(&cx, |h, _| h.title().clone());
+    input.update_in(&mut cx, |a, w, cx| {
+        a.focus_handle(cx).focus(w, cx);
+        a.select_all_text(cx);
+        a.replace_text_in_range(None, "acknowledged title", w, cx);
+    });
+    cx.update(|w, cx| w.blur(cx));
+    wait(&mut cx, |_| {
+        call(&e.ws, "entry.get", json!({"book":e.book,"id":e.entry}))["title"]
+            == "acknowledged title"
+    });
+    draw(&mut cx);
+    head.update_in(&mut cx, |h, w, cx| h.set_page(&old, w, cx));
+    input.update_in(&mut cx, |a, w, cx| a.focus_handle(cx).focus(w, cx));
+    let displayed = input.read_with(&cx, |a, _| a.text());
+    cx.simulate_keystrokes("escape");
+    draw(&mut cx);
+    assert_eq!(input.read_with(&cx, |a, _| a.text()), displayed);
+    assert_eq!(
+        call(&e.ws, "entry.get", json!({"book":e.book,"id":e.entry}))["title"],
+        "acknowledged title"
+    );
+    e.ws.close();
+}

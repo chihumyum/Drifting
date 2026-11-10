@@ -20,10 +20,14 @@ mod dock;
 pub mod editors;
 pub mod find;
 pub mod immersive;
+mod links;
+mod mounted;
 pub mod outline;
 pub mod page_actions;
+mod recent;
 mod review;
 mod sea;
+mod search;
 mod sidebar;
 mod stage;
 mod super_view;
@@ -402,6 +406,7 @@ pub struct Workspace {
     editor_base: gpui_prose::ProseStyle,
     /// The page last recorded with F3's `recent.touch`.
     touched: Option<String>,
+    recent_recorder: Option<recent::Recorder>,
     /// The page (its target key) opened with [`Open::at_title`]: its
     /// editor does not get the keyboard when it opens.
     title_first: Option<String>,
@@ -456,6 +461,7 @@ pub struct Workspace {
     modules_for: Option<String>,
     modules_read: Option<Task<()>>,
     turning_until: Option<Instant>,
+    pending_v3_links: Vec<links::PendingLink>,
     pub nav: Navigator,
     pub left: Sidebar<LeftTab>,
     pub right: Sidebar<RightTab>,
@@ -567,6 +573,7 @@ impl Workspace {
             editor_settings,
             editor_base,
             touched: None,
+            recent_recorder: None,
             title_first: None,
             toast: None,
             toast_timer: None,
@@ -594,6 +601,7 @@ impl Workspace {
             modules_read: None,
             turning_until: None,
             nav: Navigator::default(),
+            pending_v3_links: Vec::new(),
             left: Sidebar::new(None, LeftTab::Chapters, |_| true),
             right: Sidebar::new(None, RightTab::Review, |_| true),
             dock_locked: false,
@@ -853,6 +861,7 @@ impl Workspace {
         if self.book.is_empty() {
             return;
         }
+        self.open_pending_v3_links(window, cx);
         self.touch_front(cx);
         let shown: Vec<Target> = match self.nav.active_tab() {
             Some(tab) => tab.leaves().map(|l| l.target.clone()).collect(),
@@ -902,6 +911,11 @@ impl Workspace {
         for link in links.drain_matching("auth/") {
             crate::account::handle_auth_link(&link, window, cx);
         }
+        // Library opening is asynchronous at cold start. Keep location URLs
+        // in F7's queue until adopt_library can bind them to that library.
+        if self.library.is_none() {
+            return;
+        }
         for link in links.drain_matching("open/") {
             self.open_link(&link, window, cx);
         }
@@ -911,16 +925,16 @@ impl Workspace {
     /// Home's 「继续写」 reads them). The whole book is not a page of its own
     /// there.
     fn touch_front(&mut self, cx: &mut Context<Self>) {
-        // Recent pages still use the v2.2 entity DTO; G4 owns its v3 route.
-        if self.book.v3().is_some() {
-            return;
-        }
         let front = self.nav.active_tab().map(|t| t.focused().target.clone());
         let key = front.as_ref().map(Target::key);
         if key == self.touched {
             return;
         }
         self.touched = key;
+        if self.book.v3().is_some() {
+            self.record_recent(front.as_ref(), cx);
+            return;
+        }
         let Some(doc) = front.as_ref().and_then(book::doc_of) else {
             return;
         };
@@ -939,6 +953,9 @@ impl Workspace {
         let scheme = cx
             .try_global::<ShellInfo>()
             .map_or("drifting", |i| i.url_scheme);
+        if let Some(address) = dr_editor::v3_link::parse(href, scheme) {
+            return self.open_v3_link(address, window, cx);
+        }
         let Some(link) = location::parse(href, scheme) else {
             log::info!("not a location link");
             return false;
@@ -1041,6 +1058,9 @@ impl Workspace {
             // A read of the book shown before is dropped, not applied.
             self.book_task = None;
             self.book_stale = false;
+            // Search results belong to the book that opened the panel.
+            self.search = None;
+            self.pending_v3_links.clear();
             self.book_id = book.to_owned();
             self.book = Rc::new(Book::default());
             self.restore_layout(cx);
@@ -1079,6 +1099,9 @@ impl Workspace {
     /// dialog over it stays.
     pub(crate) fn let_go_of_library(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.store_layout(cx);
+        self.recent_recorder = None;
+        self.pending_v3_links.clear();
+        self.touched = None;
         self.editors.clear();
         self.v3_sidebar = None;
         self.release_words(cx);
@@ -1096,6 +1119,7 @@ impl Workspace {
         self.shelf = None;
         self.shelf_open = false;
         self.home = None;
+        self.v3_home = None;
         self.left_panels.borrow_mut().clear();
         self.companion.borrow_mut().clear();
         self.library_panel.borrow_mut().clear();
@@ -1132,6 +1156,7 @@ impl Workspace {
                 self.open_book(&book, window, cx);
             }
         }
+        self.open_queued_links(window, cx);
         cx.notify();
     }
 
@@ -1431,43 +1456,6 @@ impl Workspace {
             panel.update(cx, |panel, cx| panel.focus(window, cx));
             self.settings = Some(panel);
         }
-        cx.notify();
-    }
-
-    /// ⌘⇧F: M06's search panel. A hit opens its page through a location
-    /// link (the paragraph scrolls into view) or, for a material, the page.
-    pub fn toggle_search(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.search.take().is_some() {
-            self.focus.focus(window, cx);
-            cx.notify();
-            return;
-        }
-        let strings = crate::Strings::get(cx);
-        let (locale, platform) = (strings.locale(), strings.platform());
-        let book = self.book.clone();
-        let marks: dr_view_search::Marks = Rc::new(move |t| book.mark(&book::target(t.clone())));
-        let (lib, id) = (self.library.clone(), self.book_id.clone());
-        let panel = cx.new(|cx| {
-            dr_view_search::SearchPanel::new(lib, id, marks, locale, platform, window, cx)
-        });
-        cx.subscribe_in(&panel, window, |ws, _, event, window, cx| {
-            ws.search = None;
-            ws.focus.focus(window, cx);
-            if let dr_view_search::SearchEvent::Jump(jump) = event {
-                let opened = jump
-                    .link
-                    .as_deref()
-                    .is_some_and(|link| ws.open_link(link, window, cx));
-                if !opened {
-                    ws.super_view = None;
-                    ws.open(book::target(jump.target.clone()), Open::KEEP, cx);
-                }
-            }
-            cx.notify();
-        })
-        .detach();
-        panel.update(cx, |p, cx| p.focus(window, cx));
-        self.search = Some(panel);
         cx.notify();
     }
 

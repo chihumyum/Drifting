@@ -263,6 +263,7 @@ pub(crate) fn write_grid(
 struct CellView {
     editor: Entity<ProseEditor>,
     items: Arc<AtomicUsize>,
+    accepted_input: cell::InputReceipt,
     bounds: Rc<std::cell::Cell<Option<Bounds<Pixels>>>>,
     _events: Subscription,
 }
@@ -272,6 +273,11 @@ struct CellView {
 pub enum TableEvent {
     /// The author changed the table (a cell, a row, a column).
     Edited,
+}
+
+enum WriteObservation {
+    Displayed(u64),
+    Accepted(loro::Frontiers),
 }
 
 /// One table of a note, drawn in its embed paragraph.
@@ -285,6 +291,7 @@ pub struct TableView {
     cells: HashMap<CellKey, CellView>,
     /// The feed's commit count the cells last caught up with.
     seen: u64,
+    v3: bool,
     style: Option<ProseStyle>,
     /// The cell whose typing the history's last step holds.
     last_edited: Option<CellKey>,
@@ -314,10 +321,18 @@ impl TableView {
                 .ok()?
         };
         let (cols, rows) = structure?;
+        let v3 = match crate::v3::is_book(&host.ws, &host.book) {
+            Ok(v3) => v3,
+            Err(e) => {
+                log::error!("table book version could not be read: {e}");
+                return None;
+            }
+        };
         Some(TableView {
             host,
             embed,
             seen: feed.commits(),
+            v3,
             feed,
             _subscription: Some(subscription),
             cols,
@@ -400,8 +415,10 @@ impl TableView {
             self.host.session.clone(),
             self.host.handle.clone(),
             self.feed.clone(),
+            self.v3,
         );
         let items = source.host_items();
+        let accepted_input = source.input_receipt();
         let book = Book::new(vec![Chapter {
             title: "".into(),
             doc: ProseDoc::open(Box::new(source)),
@@ -434,6 +451,7 @@ impl TableView {
         CellView {
             editor,
             items,
+            accepted_input,
             bounds: Rc::default(),
             _events: events,
         }
@@ -442,6 +460,12 @@ impl TableView {
     fn on_cell(&mut self, key: &CellKey, event: &EditorEvent, cx: &mut Context<Self>) {
         match event {
             EditorEvent::Edited { .. } => {
+                let receipt = self.cells.get(key).and_then(|cell| {
+                    cell.accepted_input
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner())
+                        .take()
+                });
                 if let Some(view) = self.cells.get(key) {
                     view.editor
                         .update(cx, |e, cx| crate::highlight::decorate(e, 0, cx));
@@ -459,7 +483,7 @@ impl TableView {
                     let _ = this.update(cx, |_, cx| cx.notify());
                 }));
                 self.host.edited(cx);
-                if !self.typed_over(key, cx) {
+                if !self.typed_over(key, receipt, cx) {
                     self.end_cell_selection(cx);
                 }
                 cx.emit(TableEvent::Edited);
@@ -743,11 +767,51 @@ impl TableView {
         new_step: bool,
         f: impl FnOnce(&TableWriter) -> dr_doc::Result<R> + Send + 'static,
     ) -> Option<R> {
+        let observed = if self.v3 {
+            self.parked.as_ref().map_or(self.seen, |p| p.observed)
+        } else {
+            self.seen
+        };
+        self.write_step_observed(cx, new_step, WriteObservation::Displayed(observed), f)
+    }
+
+    fn write_step_observed<R: Send + 'static>(
+        &mut self,
+        cx: &mut Context<Self>,
+        new_step: bool,
+        observed: WriteObservation,
+        f: impl FnOnce(&TableWriter) -> dr_doc::Result<R> + Send + 'static,
+    ) -> Option<R> {
         let before = self.feed.user_commits();
         let embed = self.embed.clone();
+        let (v3, feed) = (self.v3, self.feed.clone());
+        let document = if v3 {
+            match self.host.handle.read(LoroDoc::clone) {
+                Ok(doc) => Some(doc),
+                Err(e) => {
+                    crate::links::clipboard_refused(cx, e);
+                    return None;
+                }
+            }
+        } else {
+            None
+        };
         let written = self.host.session.edit(move |txn| {
+            let before = feed.commits();
+            if v3 {
+                let valid = match observed {
+                    WriteObservation::Displayed(expected) => before == expected,
+                    WriteObservation::Accepted(expected) => document
+                        .as_ref()
+                        .is_some_and(|doc| doc.state_frontiers() == expected),
+                };
+                if !valid {
+                    return Err(dr_doc::DocError::NotInProfile("stale table observation"));
+                }
+            }
             let w = txn.table(&embed)?;
-            f(&w)
+            let result = f(&w)?;
+            Ok((result, document.map(|doc| doc.state_frontiers()), before))
         });
         let pushed = (self.feed.user_commits() - before) as usize;
         self.fold(pushed, new_step, cx);
@@ -756,9 +820,34 @@ impl TableView {
         cx.emit(TableEvent::Edited);
         cx.notify();
         match written {
-            Ok(r) => Some(r),
+            Ok((result, frontier, before)) => {
+                if let Some(frontier) = frontier {
+                    let feed = self.feed.clone();
+                    // The acknowledgement may advance only our own exact
+                    // committed version, never a fresh intervening peer state.
+                    let acknowledged = self.host.handle.read(move |doc| {
+                        (doc.state_frontiers() == frontier).then(|| feed.commits())
+                    });
+                    match acknowledged {
+                        Ok(Some(after)) => {
+                            self.seen = after;
+                            if let Some(p) = self.parked.as_mut().filter(|p| p.observed == before) {
+                                p.observed = after;
+                            }
+                        }
+                        _ => {
+                            crate::links::clipboard_refused(
+                                cx,
+                                "table changed after accepted write",
+                            );
+                            self.end_cell_selection(cx);
+                        }
+                    }
+                }
+                Some(result)
+            }
             Err(e) => {
-                log::error!("dr-editor: table edit failed: {e}");
+                crate::links::clipboard_refused(cx, e);
                 None
             }
         }
@@ -918,6 +1007,16 @@ impl TableView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        for (r, line) in grid.iter().enumerate() {
+            for (c, text) in line.iter().enumerate() {
+                if let Err(e) =
+                    crate::clipboard::validate(&cell_line(text), clip::marks_at(&marks, r, c))
+                {
+                    crate::links::clipboard_refused(cx, e);
+                    return;
+                }
+            }
+        }
         let need_rows = (row + grid.len()).saturating_sub(self.rows.len());
         let width = grid.iter().map(Vec::len).max().unwrap_or(0);
         let need_cols = (col + width).saturating_sub(self.cols.len());
@@ -974,7 +1073,14 @@ impl TableView {
         let Some((r, c)) = self.focused(window, cx).and_then(|k| self.index_of(&k)) else {
             return false;
         };
-        self.paste_marked(r, c, grid, clip::marks_from_clipboard(&item), window, cx);
+        let marks = match clip::marks_from_clipboard(&item) {
+            Ok(m) => m,
+            Err(e) => {
+                crate::links::clipboard_refused(cx, e);
+                return true;
+            }
+        };
+        self.paste_marked(r, c, grid, marks, window, cx);
         true
     }
 
@@ -1140,6 +1246,8 @@ impl Render for TableView {
                 let bounds = view.bounds.clone();
                 let me = cx.entity().downgrade();
                 let editor = view.editor.clone();
+                let clicked = view.editor.clone();
+                let click_host = self.host.clone();
                 let washed = self.is_cell_selected(&key);
                 let pressed = {
                     let (this, key) = (cx.entity().downgrade(), key.clone());
@@ -1163,7 +1271,8 @@ impl Render for TableView {
                         .child(view.editor.clone())
                         .into_any_element()
                 } else {
-                    ProseEditor::element(&view.editor, cx).into_any_element()
+                    crate::clipboard::wrap(&view.editor, ProseEditor::element(&view.editor, cx))
+                        .into_any_element()
                 };
                 line = line.child(
                     div()
@@ -1184,6 +1293,23 @@ impl Render for TableView {
                                     let end = e.book().chapters[0].doc.max_cursor();
                                     e.focus_at(0, end, window, cx);
                                 });
+                            }
+                        })
+                        .on_mouse_up(MouseButton::Left, move |event, _, cx| {
+                            if event.click_count != 1 || event.modifiers.modified() {
+                                return;
+                            }
+                            let e = clicked.read(cx);
+                            let sel = e.selection();
+                            if !sel.is_empty() {
+                                return;
+                            }
+                            let marks = e.book().chapters[0].doc.marks_before(sel.head + 1);
+                            if let Some(link) = marks
+                                .entities()
+                                .find_map(|(t, v)| dr_doc::prose::v3::decode_entity_link(t, v))
+                            {
+                                (click_host.notify)(crate::embeds::NoteEvent::OpenLinkV3(link), cx);
                             }
                         })
                         // Under the text and the rules, as a text selection is.

@@ -1834,14 +1834,14 @@
     "name": "Nom",
     "new_entry": "Nouvelle entrée",
     "new_template": "Nouveau modèle",
-    "no": "Non",
     "none": "Aucun",
     "number": "Nombre",
     "options": "Options",
     "patches": "Correctifs",
     "plot_grid": "Plan de l’intrigue",
+    "preview_failed": "Impossible de charger l’aperçu",
+    "preview_loading": "Chargement de l’aperçu…",
     "prose": "Texte principal",
-    "read_only": "Lecture seule",
     "relations": "Relations",
     "reorder": "Glisser pour réordonner",
     "restore": "Rétablir",
@@ -1850,8 +1850,7 @@
     "template_name": "Nom du modèle",
     "text": "Texte",
     "this_level": "Ce niveau",
-    "unsaved": "Non enregistré",
-    "yes": "Oui"
+    "unsaved": "Non enregistré"
   },
   "topTimeline": {
     "closeTab": "Fermer l’onglet",
@@ -1896,6 +1895,7 @@
     "autoLink": "Liens automatiques",
     "byStoryline": "Par fil narratif",
     "collapse": "Replier {{name}}",
+    "create": "Créer",
     "defaultTemplate": "Modèle par défaut",
     "display": "Affichage",
     "expand": "Déplier {{name}}",
@@ -1910,6 +1910,7 @@
     "none": "Aucun",
     "off": "Désactivé",
     "on": "Activé",
+    "primary": "Principale",
     "residents": "Entrées résidentes",
     "restore": "Rétablir {{name}}",
     "sourceDefault": "Valeur par défaut",
@@ -1917,6 +1918,7 @@
     "sourceOverride": "Remplacement · {{name}}",
     "sourceTemplate": "Modèle · {{name}} · {{level}}",
     "thisLevel": "Ce niveau",
+    "title": "Titre",
     "unassigned": "Sans rattachement"
   },
   "v3Shell": {

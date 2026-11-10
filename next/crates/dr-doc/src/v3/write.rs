@@ -23,7 +23,7 @@ use crate::error::{DocError, Result};
 use crate::peer::seed_peer;
 use crate::schema::book_v3;
 use crate::v3::CollectionV3;
-use crate::v3::read::{BookViewV3, EntrySnapshotV3, RepairPlanV3};
+use crate::v3::read::{BookViewV3, EntrySnapshotV3, RepairPlanV3, TimelineFieldV3};
 
 const TODO_SEED_V3: &str = "todo-v3-1";
 const PLOT_GRID_SEED_V3: &str = "plot-grid-v3-1";
@@ -480,6 +480,17 @@ impl EntryWriterV3 {
         Ok(self)
     }
 
+    /// Restore only the stored primary field, including absence/null, without
+    /// restoring the entry's title, template, tree position or other metadata.
+    pub fn restore_primary(&self, value: Option<&LoroValue>) -> Result<&Self> {
+        match value {
+            Some(value) => self.map.insert("primary", value.clone())?,
+            None if self.map.get("primary").is_some() => self.map.delete("primary")?,
+            None => {}
+        }
+        Ok(self)
+    }
+
     pub fn layout(&self, layout: &EntryLayout) -> Result<&Self> {
         let s = layout.sanitized();
         let m = self.map.ensure_mergeable_map("layout")?;
@@ -714,6 +725,43 @@ pub struct TimelineViewWriterV3 {
 }
 
 impl TimelineViewWriterV3 {
+    /// Restore just the selected path after native/history/CAS preflight via
+    /// `BookViewV3::timeline_field_restore_state`. No sibling record is replaced.
+    pub fn restore_field(
+        &self,
+        field: &TimelineFieldV3,
+        value: Option<&LoroValue>,
+    ) -> Result<&Self> {
+        let path = field.path();
+        let mut map = self.map.clone();
+        for key in &path[..path.len() - 1] {
+            if value.is_none() && map.get(key).is_none() {
+                return Ok(self);
+            }
+            map = map.ensure_mergeable_map(key)?;
+        }
+        restore_raw_field(&map, path[path.len() - 1], value)?;
+        Ok(self)
+    }
+
+    /// Restore/delete one placement record; all other placements, lanes, pins
+    /// and view fields are left alone. Preflight all views with the reader's
+    /// `check_timeline_placement_write` before a multi-record mutation.
+    pub fn restore_placement(&self, entry: &EntryId, value: Option<&LoroValue>) -> Result<&Self> {
+        use loro::{Container, ValueOrContainer};
+        let placements = match self.map.get("placements") {
+            Some(ValueOrContainer::Container(Container::Map(map))) => map,
+            None if value.is_none() => return Ok(self),
+            None => self.map.ensure_mergeable_map("placements")?,
+            _ => {
+                return Err(DocError::NotInProfile(
+                    "timeline placements are not a writable map",
+                ));
+            }
+        };
+        restore_raw_field(&placements, entry.as_str(), value)?;
+        Ok(self)
+    }
     pub fn name(&self, v: &str) -> Result<&Self> {
         set(&self.map, "name", v)?;
         Ok(self)
@@ -1180,6 +1228,20 @@ impl<'a> BookTxnV3<'a> {
             m.delete(&key)?;
         }
         Ok(())
+    }
+
+    /// Restore only one original membership record (including unknown data).
+    pub fn restore_membership_snapshot(
+        &mut self,
+        host: &EntryId,
+        member: &EntryId,
+        old: Option<&EntrySnapshotV3>,
+    ) -> Result<()> {
+        restore_raw_field(
+            &self.view.doc.get_map(book_v3::MEMBERSHIPS),
+            &Membership::key(host, member),
+            old.map(|s| &s.value),
+        )
     }
 
     pub fn timeline_view(&mut self, id: &TimelineViewId) -> Result<TimelineViewWriterV3> {
@@ -1795,6 +1857,42 @@ impl<'a> BookTxnV3<'a> {
 
 fn sync_nested_map(sub: &LoroMap, want: &loro::LoroMapValue) -> Result<()> {
     sync_record(sub, want, None)
+}
+
+// History explicitly replaces this selected field, not its parent record.
+// Keep supported map containers editable and retain historical leaf values.
+// Callers must preflight actual selected containers before snapshotting: deep
+// values alone cannot preserve unknown rich text or list container identities.
+// A different current value kind must not cause a failure halfway through a
+// multi-field restore; replacing that selected value is the requested edit.
+fn restore_raw_field(parent: &LoroMap, key: &str, value: Option<&LoroValue>) -> Result<()> {
+    use loro::{Container, ValueOrContainer};
+    match value {
+        Some(LoroValue::Map(want)) => {
+            let map = match parent.get(key) {
+                Some(ValueOrContainer::Container(Container::Map(map))) => map,
+                old => {
+                    if old.is_some() {
+                        parent.delete(key)?;
+                    }
+                    parent.ensure_mergeable_map(key)?
+                }
+            };
+            let keys: Vec<_> = map.keys().map(|k| k.to_string()).collect();
+            for key in keys {
+                if !want.contains_key(&key) {
+                    map.delete(&key)?;
+                }
+            }
+            for (key, value) in want.iter() {
+                restore_raw_field(&map, key, Some(value))?;
+            }
+        }
+        Some(value) => parent.insert(key, value.clone())?,
+        None if parent.get(key).is_some() => parent.delete(key)?,
+        None => {}
+    }
+    Ok(())
 }
 
 fn sync_record(sub: &LoroMap, want: &loro::LoroMapValue, text_key: Option<&str>) -> Result<()> {

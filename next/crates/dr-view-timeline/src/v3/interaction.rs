@@ -1,6 +1,6 @@
 use super::*;
 use dr_workspace::{
-    Actor, WsError,
+    Actor, WritePreconditions, WsError,
     commands::{
         BookIn,
         v3::{
@@ -10,34 +10,11 @@ use dr_workspace::{
     },
 };
 
-/// Shared source for v3 entry drags. Dropping adds membership without moving
-/// residence or removing any existing membership. G2 can use the same payload.
-#[derive(Clone)]
-pub struct EntryDrag {
-    pub book: String,
-    pub entry: String,
-    pub title: SharedString,
-    pub span: Option<f64>,
-    pub(super) grab: Rc<Cell<f32>>,
-}
-impl EntryDrag {
-    pub fn new(book: String, entry: String, title: impl Into<SharedString>) -> Self {
-        Self {
-            book,
-            entry,
-            title: title.into(),
-            span: None,
-            grab: Rc::default(),
-        }
-    }
-    pub fn set_grab(&self, x: f32) {
-        self.grab.set(x);
-    }
-}
 #[derive(Clone)]
 pub(super) struct Resizing {
     pub book: String,
     pub view: String,
+    pub version: String,
     pub entry: String,
     pub at: f64,
     pub end: f64,
@@ -65,12 +42,34 @@ pub enum PinEdit {
 }
 
 impl Timeline {
+    pub(super) fn page_host(&self) -> Option<PageViewHost> {
+        Some(PageViewHost {
+            workspace: self.ws.clone(),
+            library: self.lib.clone()?,
+            book_id: self.book.id.clone(),
+            book: self.book.clone(),
+        })
+    }
     pub fn place(
         &mut self,
         entry: String,
         lane: Option<String>,
         at: f64,
         span: Option<f64>,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(book) = self.book.v3() else {
+            return;
+        };
+        self.place_at(entry, lane, at, span, book.revision.clone(), cx);
+    }
+    fn place_at(
+        &mut self,
+        entry: String,
+        lane: Option<String>,
+        at: f64,
+        span: Option<f64>,
+        version: String,
         cx: &mut Context<Self>,
     ) {
         if !at.is_finite() || span.is_some_and(|n| !n.is_finite() || n < 0.) {
@@ -103,15 +102,13 @@ impl Timeline {
             .get(&entry)
             .map(|p| (p.view.clone(), p.place.clone()));
         self.write_tag(cx, receipt, move |lib, book| {
-            lib.run::<timeline::Place>(
+            lib.call_guarded(
                 &Actor::User,
-                timeline::PlaceIn {
-                    book,
-                    view,
-                    entry,
-                    lane,
-                    at,
-                    span,
+                "timeline_view.place",
+                serde_json::json!({"book":book,"view":view,"entry":entry,"lane":lane,"at":at,"span":span}),
+                WritePreconditions {
+                    versions: [(format!("book:{book}"), version)].into(),
+                    require_all: true,
                 },
             )?;
             Ok(())
@@ -268,10 +265,13 @@ impl Timeline {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if drag.book != self.book.id {
+        let Some(page) = self.page_host() else {
+            return;
+        };
+        if !drag.matches(&page) || !drag.is_current(cx) {
             return;
         }
-        if let Some(at) = self.order_at(window.mouse_position().x - px(drag.grab.get())) {
+        if let Some(at) = self.order_at(window.mouse_position().x - px(drag.grab())) {
             let span = drag
                 .span
                 .or_else(|| {
@@ -285,7 +285,8 @@ impl Timeline {
                         .and_then(|v| v.placements.iter().find(|p| p.entry == drag.entry))
                         .and_then(|p| p.span)
                 });
-            self.place(drag.entry.clone(), Some(lane), at, span, cx);
+            let version = drag.page().book.v3().unwrap().revision.clone();
+            self.place_at(drag.entry.clone(), Some(lane), at, span, version, cx);
         }
     }
     pub(super) fn resize_moved(&mut self, position: Point<Pixels>, cx: &mut Context<Self>) {
@@ -305,11 +306,12 @@ impl Timeline {
             && self.bounds.get().is_some_and(|b| b.contains(&position))
             && let Some(end) = end
         {
-            self.place(
+            self.place_at(
                 resize.entry,
                 None,
                 resize.at,
                 Some((end - resize.at).max(0.25)),
+                resize.version,
                 cx,
             );
         }

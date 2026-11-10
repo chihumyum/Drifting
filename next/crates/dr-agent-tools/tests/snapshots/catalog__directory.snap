@@ -255,6 +255,7 @@ entry_relation_type.list: v3 commands remain excluded until K6 opens the version
 entry_relation_type.put: v3 commands remain excluded until K6 opens the versioned catalog
 entry_snapshot.capture: v3 commands remain excluded until K6 opens the versioned catalog
 entry_snapshot.create: v3 commands remain excluded until K6 opens the versioned catalog
+entry_snapshot.create_with_receipt: v3 commands remain excluded until K6 opens the versioned catalog
 entry_snapshot.list: v3 commands remain excluded until K6 opens the versioned catalog
 entry_snapshot.preview: v3 commands remain excluded until K6 opens the versioned catalog
 entry_snapshot.restore: v3 commands remain excluded until K6 opens the versioned catalog
@@ -275,6 +276,7 @@ membership.add: v3 commands remain excluded until K6 opens the versioned catalog
 membership.list: v3 commands remain excluded until K6 opens the versioned catalog
 membership.primary: v3 commands remain excluded until K6 opens the versioned catalog
 membership.remove: v3 commands remain excluded until K6 opens the versioned catalog
+membership.restore: v3 commands remain excluded until K6 opens the versioned catalog
 module.list: v3 commands remain excluded until K6 opens the versioned catalog
 module.prose_document: v3 commands remain excluded until K6 opens the versioned catalog
 module.put_grid: v3 commands remain excluded until K6 opens the versioned catalog
@@ -295,12 +297,17 @@ project.create: v3 commands remain excluded until K6 opens the versioned catalog
 recent.touch: storage, editor, or derived-state maintenance
 relation_type.delete: cascade needs an F3 query exposing affected relations, including hidden endpoints
 storyline.purge: cascade needs an F3 query exposing affected relations, including hidden endpoints
+timeline_view.add_lane: v3 commands remain excluded until K6 opens the versioned catalog
 timeline_view.delete: v3 commands remain excluded until K6 opens the versioned catalog
 timeline_view.list: v3 commands remain excluded until K6 opens the versioned catalog
+timeline_view.move_lane: v3 commands remain excluded until K6 opens the versioned catalog
 timeline_view.place: v3 commands remain excluded until K6 opens the versioned catalog
 timeline_view.put: v3 commands remain excluded until K6 opens the versioned catalog
 timeline_view.put_pin: v3 commands remain excluded until K6 opens the versioned catalog
 timeline_view.remove: v3 commands remain excluded until K6 opens the versioned catalog
+timeline_view.remove_lane: v3 commands remain excluded until K6 opens the versioned catalog
 timeline_view.remove_pin: v3 commands remain excluded until K6 opens the versioned catalog
+timeline_view.rename: v3 commands remain excluded until K6 opens the versioned catalog
+timeline_view.restore_fields: v3 commands remain excluded until K6 opens the versioned catalog
 todo.project: storage, editor, or derived-state maintenance
 writing_day.record: storage, editor, or derived-state maintenance

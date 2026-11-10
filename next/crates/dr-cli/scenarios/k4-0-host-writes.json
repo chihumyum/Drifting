@@ -1,0 +1,597 @@
+{
+  "about": "F6 v3-lite 正文与最近访问宿主：共享种子新建素材，真实输入/撤销/保存、composer 打开与取消、精确 Entry+module 与 Material 访问记录、两书隔离及重开。批注保存待 G4 正式接口后补验。",
+  "steps": [
+    {
+      "seed": "v3-lite"
+    },
+    {
+      "call": "book.list",
+      "input": {},
+      "save": "books"
+    },
+    {
+      "call": "material.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "sources"
+    },
+    {
+      "call": "prose.read",
+      "input": {
+        "doc": "material:${sources.[kind=text].id}"
+      },
+      "save": "body"
+    },
+    {
+      "call": "material.create",
+      "input": {
+        "book": "${books.0.id}",
+        "kind": "text",
+        "title": "F6 synthetic material",
+        "text": "${body.paragraphs.0.text}"
+      },
+      "save": "noteA"
+    },
+    {
+      "call": "project.create",
+      "input": {
+        "name": "F6 synthetic other book"
+      },
+      "save": "other"
+    },
+    {
+      "call": "material.create",
+      "input": {
+        "book": "${other.id}",
+        "kind": "text",
+        "title": "F6 synthetic other material",
+        "text": "${body.paragraphs.0.text}"
+      },
+      "save": "noteB"
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}",
+        "all": true
+      },
+      "save": "entries"
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "save": "entryBody"
+    },
+    {
+      "call": "entry_template.put_module",
+      "input": {
+        "book": "${books.0.id}",
+        "template": "tpl-chapter",
+        "module": {
+          "id": "recent-second-body",
+          "kind": "prose",
+          "name": "Recent second body"
+        }
+      }
+    },
+    {
+      "call": "module.set_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "recent-second-body",
+        "paragraphs": [
+          {
+            "text": "${entryBody.paragraphs.0.text}"
+          }
+        ]
+      }
+    },
+    {
+      "launch": {
+        "book": "${books.0.id}",
+        "env": {
+          "DRIFTING_APPEARANCE": "light",
+          "DRIFTING_WINDOW_DISPLAY": "secondary"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      },
+      "save": "firstLaunch"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/book/loaded": true,
+          "/book/version": 3
+        }
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "app.info",
+      "save": "environment",
+      "expect": {
+        "/windows/0/active": true,
+        "/windows/0/visible": true
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-chapter].id}/mod-prose"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/recent/pending": 0,
+          "/recent/last/book": "${books.0.id}",
+          "/recent/last/target/kind": "entry",
+          "/recent/last/target/id": "${entries.[template=tpl-chapter].id}",
+          "/recent/last/target/module": "mod-prose"
+        }
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-chapter].id}/recent-second-body"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/recent/pending": 0,
+          "/recent/last/book": "${books.0.id}",
+          "/recent/last/target/kind": "entry",
+          "/recent/last/target/id": "${entries.[template=tpl-chapter].id}",
+          "/recent/last/target/module": "recent-second-body"
+        }
+      }
+    },
+    {
+      "call": "recent.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "expect": {
+        "/0/target": {
+          "kind": "entry",
+          "id": "${entries.[template=tpl-chapter].id}",
+          "module": "recent-second-body"
+        },
+        "/1/target": {
+          "kind": "entry",
+          "id": "${entries.[template=tpl-chapter].id}",
+          "module": "mod-prose"
+        }
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "material:${noteA.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/recent/pending": 0,
+          "/recent/last/book": "${books.0.id}",
+          "/recent/last/target/kind": "material",
+          "/recent/last/target/id": "${noteA.id}",
+          "/recent/last/target/module": null
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/page": "material:${noteA.id}",
+          "/focus/editor": true
+        },
+        "page": {
+          "/source": "editor",
+          "/paragraphs/0/text": "${body.paragraphs.0.text}"
+        }
+      }
+    },
+    {
+      "app": "page.text",
+      "save": "materialPage",
+      "expect": {
+        "/source": "editor",
+        "/paragraphs/0/text": "${body.paragraphs.0.text}"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-a"
+      },
+      "expect": {
+        "/handled": [
+          true
+        ]
+      }
+    },
+    {
+      "app": "page.text"
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "left"
+      },
+      "expect": {
+        "/handled": [
+          true
+        ]
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "page": {
+          "/selection/anchor": 0,
+          "/selection/head": 0
+        }
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "F6MaterialInput "
+      }
+    },
+    {
+      "call": "prose.read",
+      "input": {
+        "doc": "material:${noteA.id}"
+      },
+      "expect": {
+        "/paragraphs/0/text": "F6MaterialInput ${body.paragraphs.0.text}"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-z"
+      }
+    },
+    {
+      "call": "prose.read",
+      "input": {
+        "doc": "material:${noteA.id}"
+      },
+      "expect": {
+        "/paragraphs/0/text": "${body.paragraphs.0.text}"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-a"
+      },
+      "expect": {
+        "/handled": [
+          true
+        ]
+      }
+    },
+    {
+      "app": "page.text"
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "left"
+      },
+      "expect": {
+        "/handled": [
+          true
+        ]
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "page": {
+          "/selection/anchor": 0,
+          "/selection/head": 0
+        }
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "F6MaterialSaved "
+      }
+    },
+    {
+      "call": "prose.read",
+      "input": {
+        "doc": "material:${noteA.id}"
+      },
+      "expect": {
+        "/paragraphs/0/text": "F6MaterialSaved ${body.paragraphs.0.text}"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-a"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-alt-m"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/composer": true
+        }
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "escape"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/composer": false,
+          "/focus/editor": true
+        }
+      }
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${other.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/book/id": "${other.id}",
+          "/book/loaded": true,
+          "/book/version": 3
+        }
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "material:${noteA.id}"
+      },
+      "expect_error": "not_found"
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "material:${noteB.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/recent/pending": 0,
+          "/recent/last/book": "${other.id}",
+          "/recent/last/target/kind": "material",
+          "/recent/last/target/id": "${noteB.id}",
+          "/recent/last/target/module": null
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/page": "material:${noteB.id}",
+          "/focus/editor": true
+        },
+        "page": {
+          "/source": "editor",
+          "/paragraphs/0/text": "${body.paragraphs.0.text}"
+        }
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "F6OtherMaterial "
+      }
+    },
+    {
+      "call": "prose.read",
+      "input": {
+        "doc": "material:${noteB.id}"
+      },
+      "expect": {
+        "/paragraphs/0/text": "F6OtherMaterial ${body.paragraphs.0.text}"
+      }
+    },
+    {
+      "call": "prose.read",
+      "input": {
+        "doc": "material:${noteA.id}"
+      },
+      "expect": {
+        "/paragraphs/0/text": "F6MaterialSaved ${body.paragraphs.0.text}"
+      }
+    },
+    {
+      "app": "app.quit"
+    },
+    {
+      "launch": {
+        "book": "${books.0.id}",
+        "env": {
+          "DRIFTING_APPEARANCE": "light",
+          "DRIFTING_WINDOW_DISPLAY": "secondary"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      },
+      "save": "secondLaunch"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/book/loaded": true,
+          "/book/version": 3
+        }
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "app.info",
+      "save": "reopenedEnvironment",
+      "expect": {
+        "/windows/0/active": true,
+        "/windows/0/visible": true
+      }
+    },
+    {
+      "call": "recent.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "expect": {
+        "/0/target": {
+          "kind": "material",
+          "id": "${noteA.id}"
+        },
+        "/1/target": {
+          "kind": "entry",
+          "id": "${entries.[template=tpl-chapter].id}",
+          "module": "recent-second-body"
+        },
+        "/2/target": {
+          "kind": "entry",
+          "id": "${entries.[template=tpl-chapter].id}",
+          "module": "mod-prose"
+        }
+      }
+    },
+    {
+      "call": "recent.list",
+      "input": {
+        "book": "${other.id}"
+      },
+      "expect": {
+        "/0/book": "${other.id}",
+        "/0/target": {
+          "kind": "material",
+          "id": "${noteB.id}"
+        }
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "material:${noteA.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/recent/pending": 0,
+          "/recent/last/book": "${books.0.id}",
+          "/recent/last/target/kind": "material",
+          "/recent/last/target/id": "${noteA.id}",
+          "/recent/last/target/module": null
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/page": "material:${noteA.id}",
+          "/focus/editor": true
+        },
+        "page": {
+          "/source": "editor",
+          "/paragraphs/0/text": "F6MaterialSaved ${body.paragraphs.0.text}"
+        }
+      }
+    },
+    {
+      "call": "prose.read",
+      "input": {
+        "doc": "material:${noteB.id}"
+      },
+      "expect": {
+        "/paragraphs/0/text": "F6OtherMaterial ${body.paragraphs.0.text}"
+      }
+    },
+    {
+      "app": "app.quit"
+    }
+  ]
+}

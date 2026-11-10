@@ -19,7 +19,7 @@ use std::collections::BTreeMap;
 /// Change this when facade handler semantics change without a schema change.
 const FACADE_REVISION: &str = "m29-author-facade-v1";
 /// Versioned facade revision for universal kernel v3 books and template verbs.
-pub const FACADE_REVISION_V3: &str = "k6-author-facade-v3-r3";
+pub const FACADE_REVISION_V3: &str = "k6-author-facade-v3-r4";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -317,12 +317,12 @@ impl Catalog {
                 )
             } else if version == BookKernelVersion::V3 && spec.name == "comment.create" {
                 format!(
-                    "{} Whole-entry, module, material or floating comments only; range, block and anchor creation await guarded source-prose support.",
+                    "{} Read the exact source prose before anchoring: a block needs that paragraph; ranges and anchor bytes need the full document. Entry anchors require an explicit prose module.",
                     spec.summary
                 )
             } else if version == BookKernelVersion::V3 && spec.name == "comment.reanchor" {
                 format!(
-                    "{} Only clearing an anchor is available until guarded source-prose support lands.",
+                    "{} Read the comment and its complete source prose before setting an anchor; both versions are guarded. Clearing needs the comment read.",
                     spec.summary
                 )
             } else {
@@ -951,6 +951,12 @@ fn exclusion_v3(spec: &Spec) -> Option<&'static str> {
             | "timeline_view.remove_lane"
     ) {
         return Some("local timeline edits need exact lane, placement, and pin read coverage");
+    }
+    if spec.name == "timeline_view.restore_fields" {
+        return Some("scoped timeline undo is internal until K6 provides a guarded facade");
+    }
+    if spec.name == "membership.restore" {
+        return Some("scoped membership undo is internal until K6 provides a guarded facade");
     }
     if spec.book_version != Some(3) {
         let domain = spec

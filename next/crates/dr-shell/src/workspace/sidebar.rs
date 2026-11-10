@@ -1804,6 +1804,124 @@ fn left_body(
     )
 }
 
+fn v3_stats_scope(target: Option<&Target>) -> Option<dr_view_stats::v3::Scope> {
+    use dr_view_stats::v3::Scope;
+    match target {
+        None | Some(Target::Book) => Some(Scope::Book),
+        Some(Target::Entry { id, module }) => Some(Scope::Entry {
+            id: id.to_string(),
+            module: module.as_ref().map(ToString::to_string),
+        }),
+        Some(Target::Material(id)) => Some(Scope::Material(id.to_string())),
+        _ => None,
+    }
+}
+
+fn v3_stats_target(scope: dr_view_stats::v3::Scope) -> Option<Target> {
+    use dr_view_stats::v3::Scope;
+    Some(match scope {
+        Scope::Book => Target::Book,
+        Scope::Entry { id, module } => Target::Entry {
+            id: id.parse().ok()?,
+            module: module.map(|m| m.parse()).transpose().ok()?,
+        },
+        Scope::Material(id) => Target::Material(id.parse().ok()?),
+    })
+}
+
+/// The inner None is the real whole-book scope; the outer None rejects pages
+/// such as templates rather than silently turning them into whole-book review.
+fn v3_review_scope(target: Option<&Target>) -> Option<Option<dr_view_review::v3::Target>> {
+    use dr_view_review::v3::Target as ReviewTarget;
+    Some(match target {
+        None | Some(Target::Book) => None,
+        Some(Target::Entry { id, module }) => Some(ReviewTarget::Entry {
+            id: id.to_string(),
+            module: module.as_ref().map(ToString::to_string),
+        }),
+        Some(Target::Material(id)) => Some(ReviewTarget::Material(id.to_string())),
+        _ => return None,
+    })
+}
+
+fn v3_review_target(target: dr_view_review::v3::Target) -> Option<Target> {
+    use dr_view_review::v3::Target as ReviewTarget;
+    Some(match target {
+        ReviewTarget::Entry { id, module } => Target::Entry {
+            id: id.parse().ok()?,
+            module: module.map(|m| m.parse()).transpose().ok()?,
+        },
+        ReviewTarget::Material(id) => Target::Material(id.parse().ok()?),
+    })
+}
+
+/// A cached panel may outlive a book or library switch. Its navigation
+/// callback owns neither the workspace nor a lease on the previous library.
+struct V3PanelOwner {
+    book: String,
+    library: usize,
+}
+impl V3PanelOwner {
+    fn of(ws: &Workspace) -> Option<Self> {
+        let library = ws.library.as_ref()?;
+        (ws.book.v3().is_some() && ws.book.id == ws.book_id).then(|| Self {
+            book: ws.book_id.clone(),
+            library: library.library() as *const _ as usize,
+        })
+    }
+    fn matches(&self, ws: &Workspace) -> bool {
+        ws.book_id == self.book
+            && ws.book.id == self.book
+            && ws.book.v3().is_some()
+            && ws
+                .library
+                .as_ref()
+                .is_some_and(|lib| lib.library() as *const _ as usize == self.library)
+    }
+}
+
+fn v3_stats_open(
+    ws: &Workspace,
+    cx: &mut Context<Workspace>,
+) -> Option<dr_view_stats::v3_panel::Open> {
+    let owner = V3PanelOwner::of(ws)?;
+    let shell = cx.weak_entity();
+    Some(Rc::new(move |scope, _, cx| {
+        let Some(target) = v3_stats_target(scope) else {
+            return;
+        };
+        shell
+            .update(cx, |ws, cx| {
+                if owner.matches(ws) && ws.book.exists(&target) {
+                    ws.super_view = None;
+                    ws.open(target, Open::KEEP, cx);
+                }
+            })
+            .ok();
+    }))
+}
+
+fn v3_review_open(
+    ws: &Workspace,
+    cx: &mut Context<Workspace>,
+) -> Option<dr_view_review::v3_panel::Open> {
+    let owner = V3PanelOwner::of(ws)?;
+    let shell = cx.weak_entity();
+    Some(Rc::new(move |source, _, cx| {
+        let Some(target) = v3_review_target(source) else {
+            return;
+        };
+        shell
+            .update(cx, |ws, cx| {
+                if owner.matches(ws) && ws.book.exists(&target) {
+                    ws.super_view = None;
+                    ws.open(target, Open::KEEP, cx);
+                }
+            })
+            .ok();
+    }))
+}
+
 fn right_body(
     tab: RightTab,
     ws: &Workspace,
@@ -1868,6 +1986,42 @@ fn right_body(
         RightTab::Stats => {
             let strings = crate::Strings::get(cx);
             let (locale, platform) = (strings.locale(), strings.platform());
+            if ws.book.v3().is_some() {
+                let Some(scope) = v3_stats_scope(ws.nav.current()) else {
+                    return div().into_any_element();
+                };
+                let open = v3_stats_open(ws, cx);
+                let scope_label = match &scope {
+                    dr_view_stats::v3::Scope::Book => keys::workspace_word_tally::BOOK,
+                    dr_view_stats::v3::Scope::Entry { .. } => keys::k4_book::ENTRY_WORDS,
+                    dr_view_stats::v3::Scope::Material(_) => keys::k4_book::MATERIAL_WORDS,
+                };
+                return div()
+                    .id(SharedString::from(format!("v3-stats-{}", pane_slug(pane))))
+                    .size_full()
+                    .role(gpui::Role::Group)
+                    .aria_label(t(cx, keys::right_sidebar::tabs::STATS))
+                    .child(
+                        div()
+                            .id(SharedString::from(format!(
+                                "v3-stats-scope-{}",
+                                pane_slug(pane)
+                            )))
+                            .size_full()
+                            .role(gpui::Role::Group)
+                            .aria_label(t(cx, scope_label))
+                            .child(dr_view_stats::v3_panel::panel(
+                                &format!("stats-{}", pane_slug(pane)),
+                                &ws.book_id,
+                                scope,
+                                locale,
+                                platform,
+                                open,
+                                cx,
+                            )),
+                    )
+                    .into_any_element();
+            }
             let shell = cx.weak_entity();
             let book = ws.book.clone();
             let hooks = dr_view_stats::Hooks {
@@ -1904,6 +2058,34 @@ fn right_body(
         RightTab::Review => {
             let strings = crate::Strings::get(cx);
             let (locale, platform) = (strings.locale(), strings.platform());
+            if ws.book.v3().is_some() {
+                let Some(scope) = v3_review_scope(ws.nav.current()) else {
+                    return div().into_any_element();
+                };
+                let Some(open) = v3_review_open(ws, cx) else {
+                    return div().into_any_element();
+                };
+                let book = ws.book.clone();
+                let marks = Rc::new(move |target: &dr_view_review::v3::Target| {
+                    v3_review_target(target.clone()).map(|t| book.mark(&t).0)
+                });
+                return div()
+                    .id(SharedString::from(format!("v3-review-{}", pane_slug(pane))))
+                    .size_full()
+                    .role(gpui::Role::Group)
+                    .aria_label(t(cx, keys::right_sidebar::tabs::REVIEW))
+                    .child(dr_view_review::v3_panel::panel(
+                        &format!("review-{}", pane_slug(pane)),
+                        &ws.book_id,
+                        scope,
+                        locale,
+                        platform,
+                        open,
+                        marks,
+                        cx,
+                    ))
+                    .into_any_element();
+            }
             let shell = cx.weak_entity();
             let open: dr_view_review::Opener = std::rc::Rc::new(move |key, window, cx| {
                 shell
@@ -2208,4 +2390,423 @@ pub fn notification_center(
         FloatLayer::Popover,
         glass::surface(Ground::flat(p.desk), panel),
     )
+}
+
+#[cfg(test)]
+mod v3_panel_tests {
+    use super::*;
+    use dr_view_stats::v3::Scope;
+    use gpui::{TestAppContext, VisualTestContext};
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn scope_roundtrips_modules_without_a_legacy_book_sentinel() {
+        for key in [
+            "book",
+            "entry:one",
+            "entry:one/mod-prose",
+            "entry:one/mod-fields",
+            "material:one",
+        ] {
+            let target = Target::from_key(key).unwrap();
+            let scope = v3_stats_scope(Some(&target)).unwrap();
+            assert_eq!(v3_stats_target(scope), Some(target));
+        }
+        assert_eq!(v3_stats_scope(None), Some(Scope::Book));
+        for key in ["template:tpl-chapter", "chapter:one", "element:one"] {
+            assert_eq!(v3_stats_scope(Some(&Target::from_key(key).unwrap())), None);
+        }
+        assert!(
+            v3_stats_target(Scope::Entry {
+                id: "one".into(),
+                module: Some(String::new()),
+            })
+            .is_none()
+        );
+        assert_eq!(v3_review_scope(None), Some(None));
+        assert_eq!(v3_review_scope(Some(&Target::Book)), Some(None));
+        for key in [
+            "entry:one",
+            "entry:one/mod-prose",
+            "entry:one/mod-fields",
+            "material:one",
+        ] {
+            let target = Target::from_key(key).unwrap();
+            let scope = v3_review_scope(Some(&target)).unwrap().unwrap();
+            assert_eq!(v3_review_target(scope), Some(target));
+        }
+        assert_eq!(
+            v3_review_scope(Some(&Target::from_key("template:tpl-chapter").unwrap())),
+            None
+        );
+    }
+
+    fn fixture() -> (tempfile::TempDir, dr_workspace::Workspace, String) {
+        let dir = tempfile::tempdir().unwrap();
+        let store = dr_store::Library::open(dir.path(), dr_workspace::library_options("0.2.0-dev"))
+            .unwrap();
+        let made = dr_testkit::seed::generate_v3(
+            dr_testkit::seed::Preset::Tiny,
+            dr_testkit::seed::DEFAULT_SEED,
+        )
+        .unwrap();
+        let book = made.books[0].book_id().to_string();
+        made.write_to(&store).unwrap();
+        store.close().unwrap();
+        let library = dr_workspace::Workspace::open_dir(dir.path(), "0.2.0-dev").unwrap();
+        (dir, library, book)
+    }
+
+    fn wait(cx: &mut VisualTestContext, done: impl Fn(&App) -> bool) {
+        let deadline = Instant::now() + Duration::from_secs(15);
+        loop {
+            cx.executor().advance_clock(Duration::from_millis(50));
+            cx.run_until_parked();
+            if cx.update(|_, cx| done(cx)) {
+                break;
+            }
+            assert!(Instant::now() < deadline, "v3 panel host did not settle");
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    }
+
+    #[gpui::test]
+    fn actual_panel_keeps_scope_and_rejects_old_book_or_library_callbacks(cx: &mut TestAppContext) {
+        let (_dir, lib, book) = fixture();
+        let (_other_dir, other_lib, same_book) = fixture();
+        assert_eq!(
+            book, same_book,
+            "same IDs cannot substitute for library identity"
+        );
+        cx.executor().allow_parking();
+        cx.update(|cx| {
+            crate::init(
+                crate::ShellInfo {
+                    app_name: "Drifting Next",
+                    bundle_id: "cc.drifting.next.dev",
+                    version: "0.2.0-dev",
+                    url_scheme: "drifting-next-dev",
+                    forced_appearance: None,
+                },
+                crate::Services {
+                    library: Some(lib.clone()),
+                    book: Some(book.clone()),
+                    ..Default::default()
+                },
+                crate::SettingsFile::in_memory(),
+                cx,
+            );
+        });
+        let (shell, cx) = cx.add_window_view(Workspace::new);
+        wait(cx, |cx| shell.read(cx).book.v3().is_some());
+        let (entry, nonprose, material) = shell.read_with(cx, |ws, _| {
+            let v = ws.book.v3().unwrap();
+            let entry = v
+                .entries
+                .iter()
+                .find(|e| e.template.as_deref() == Some("tpl-chapter"))
+                .unwrap();
+            let nonprose = v
+                .template_of(&entry.id)
+                .unwrap()
+                .modules
+                .iter()
+                .find(|m| m.kind != "prose")
+                .unwrap();
+            (
+                entry.id.clone(),
+                nonprose.id.clone(),
+                v.materials[0].id.clone(),
+            )
+        });
+        for target in [
+            None,
+            Target::from_key(&format!("entry:{entry}")),
+            Target::from_key(&format!("entry:{entry}/mod-prose")),
+            Target::from_key(&format!("entry:{entry}/{nonprose}")),
+            Target::from_key(&format!("material:{material}")),
+        ] {
+            let expected = v3_stats_scope(target.as_ref()).unwrap();
+            shell.update_in(cx, |ws, window, cx| {
+                if let Some(target) = target {
+                    ws.open(target, Open::KEEP, cx);
+                }
+                drop(right_body(RightTab::Stats, ws, PaneId::Primary, window, cx));
+            });
+            let panel = cx
+                .update(|_, cx| dr_view_stats::v3_panel::view("stats-primary", cx))
+                .unwrap();
+            wait(cx, |cx| {
+                panel.read(cx).loaded().is_some_and(|d| d.scope == expected)
+            });
+            panel.read_with(cx, |view, _| {
+                let data = view.loaded().unwrap();
+                if matches!(&expected, Scope::Entry { module: Some(m), .. } if m == &nonprose) {
+                    assert!(
+                        data.documents.is_empty(),
+                        "non-prose has no fallback to manuscript words"
+                    );
+                }
+                if matches!(&expected, Scope::Entry { module: Some(m), .. } if m == "mod-prose") {
+                    assert_eq!(data.documents.len(), 1);
+                    assert_eq!(data.documents[0].module.as_deref(), Some("mod-prose"));
+                }
+            });
+        }
+        let open = shell.update(cx, |ws, cx| v3_stats_open(ws, cx).unwrap());
+        let scope = Scope::Entry {
+            id: entry,
+            module: Some("mod-prose".into()),
+        };
+        let target = v3_stats_target(scope.clone()).unwrap();
+        cx.update(|window, cx| open(scope, window, cx));
+        shell.read_with(cx, |ws, _| assert_eq!(ws.nav.current(), Some(&target)));
+        shell.update(cx, |ws, _| ws.book_id = "different-book".into());
+        cx.update(|window, cx| open(Scope::Book, window, cx));
+        shell.read_with(cx, |ws, _| assert_eq!(ws.nav.current(), Some(&target)));
+        shell.update(cx, |ws, _| {
+            ws.book_id = book;
+            ws.library = Some(other_lib);
+        });
+        cx.update(|window, cx| open(Scope::Book, window, cx));
+        shell.read_with(cx, |ws, _| assert_eq!(ws.nav.current(), Some(&target)));
+        cx.update(|_, cx| dr_view_stats::release(cx));
+    }
+
+    #[gpui::test]
+    fn review_panel_follows_exact_module_and_isolates_cached_navigation(cx: &mut TestAppContext) {
+        use dr_workspace::Actor;
+        use serde_json::json;
+        use std::collections::BTreeSet;
+
+        let (_dir, lib, book) = fixture();
+        let (_other_dir, other_lib, same_book) = fixture();
+        assert_eq!(book, same_book);
+        let snapshot = Book::load(&lib, &book).unwrap();
+        let v = snapshot.v3().unwrap();
+        let mut chapters = v
+            .entries
+            .iter()
+            .filter(|e| e.template.as_deref() == Some("tpl-chapter"));
+        let entry = chapters.next().unwrap().id.clone();
+        let other_entry = chapters.next().unwrap().id.clone();
+        let nonprose = v
+            .template_of(&entry)
+            .unwrap()
+            .modules
+            .iter()
+            .find(|m| m.kind != "prose")
+            .unwrap()
+            .id
+            .clone();
+        let material = v.materials[0].id.clone();
+        // Floating/unlocated comments need no range anchoring. This host test
+        // exercises scope and navigation through the actual panel.
+        let inputs = [
+            json!({"target":{"kind":"entry","id":entry},"module":"mod-prose"}),
+            json!({"target":{"kind":"entry","id":entry}}),
+            json!({"target":{"kind":"entry","id":other_entry},"module":"mod-prose"}),
+            json!({"target":{"kind":"material","id":material}}),
+            json!({}),
+        ];
+        let comments: Vec<String> = inputs
+            .into_iter()
+            .enumerate()
+            .map(|(i, mut input)| {
+                input["book"] = book.clone().into();
+                input["body"] = format!("Synthetic review host {i}").into();
+                lib.call(&Actor::User, "comment.create", input).unwrap()["output"]["id"]
+                    .as_str()
+                    .unwrap()
+                    .to_owned()
+            })
+            .collect();
+        let listed = |view: &dr_view_review::ReviewView| -> BTreeSet<String> {
+            let listing = view.listing();
+            listing
+                .open
+                .iter()
+                .chain(&listing.resolved)
+                .flat_map(|g| &g.items)
+                .filter(|i| comments.contains(&i.id))
+                .map(|i| i.id.clone())
+                .collect()
+        };
+        cx.executor().allow_parking();
+        cx.update(|cx| {
+            crate::init(
+                crate::ShellInfo {
+                    app_name: "Drifting Next",
+                    bundle_id: "cc.drifting.next.dev",
+                    version: "0.2.0-dev",
+                    url_scheme: "drifting-next-dev",
+                    forced_appearance: None,
+                },
+                crate::Services {
+                    library: Some(lib.clone()),
+                    book: Some(book.clone()),
+                    ..Default::default()
+                },
+                crate::SettingsFile::in_memory(),
+                cx,
+            )
+        });
+        let (shell, cx) = cx.add_window_view(Workspace::new);
+        wait(cx, |cx| shell.read(cx).book.v3().is_some());
+        shell.update_in(cx, |ws, window, cx| {
+            drop(right_body(
+                RightTab::Review,
+                ws,
+                PaneId::Primary,
+                window,
+                cx,
+            ));
+        });
+        let panel = cx
+            .update(|_, cx| dr_view_review::view("review-primary", cx))
+            .unwrap();
+        wait(cx, |cx| listed(panel.read(cx)).len() == comments.len());
+        panel.update(cx, |v, cx| {
+            v.set_filter(dr_view_review::Filter::All, cx);
+            v.set_current_only(true, cx);
+        });
+        for (target, expected) in [
+            (Target::Book, vec![0, 1, 2, 3, 4]),
+            (
+                Target::from_key(&format!("entry:{entry}")).unwrap(),
+                vec![0, 1],
+            ),
+            (
+                Target::from_key(&format!("entry:{entry}/mod-prose")).unwrap(),
+                vec![0],
+            ),
+            (
+                Target::from_key(&format!("entry:{entry}/{nonprose}")).unwrap(),
+                vec![],
+            ),
+            (
+                Target::from_key(&format!("material:{material}")).unwrap(),
+                vec![3],
+            ),
+        ] {
+            shell.update_in(cx, |ws, window, cx| {
+                ws.open(target, Open::KEEP, cx);
+                drop(right_body(
+                    RightTab::Review,
+                    ws,
+                    PaneId::Primary,
+                    window,
+                    cx,
+                ));
+            });
+            let expected: BTreeSet<_> = expected.into_iter().map(|i| comments[i].clone()).collect();
+            panel.read_with(cx, |v, _| assert_eq!(listed(v), expected));
+        }
+        // Jump through the actual ReviewView's stored opener, with the module
+        // intact; changing scope must not rewrite a comment's source identity.
+        cx.update(|window, cx| panel.update(cx, |v, cx| v.jump(&comments[0], window, cx)));
+        let target = Target::from_key(&format!("entry:{entry}/mod-prose")).unwrap();
+        shell.read_with(cx, |ws, _| assert_eq!(ws.nav.current(), Some(&target)));
+        let old_open = shell.update(cx, |ws, cx| v3_review_open(ws, cx).unwrap());
+        let material = dr_view_review::v3::Target::Material(material);
+        shell.update(cx, |ws, _| ws.book_id = "different-book".into());
+        cx.update(|window, cx| old_open(material.clone(), window, cx));
+        shell.read_with(cx, |ws, _| assert_eq!(ws.nav.current(), Some(&target)));
+        shell.update(cx, |ws, _| {
+            ws.book_id = book;
+            ws.library = Some(other_lib);
+        });
+        cx.update(|window, cx| old_open(material, window, cx));
+        shell.read_with(cx, |ws, _| assert_eq!(ws.nav.current(), Some(&target)));
+        cx.update(|_, cx| dr_view_review::release(cx));
+    }
+
+    #[gpui::test]
+    fn shared_entry_drag_retains_gesture_and_rejects_other_or_stale_hosts(cx: &mut TestAppContext) {
+        use crate::{pages::PageViewHost, v3::EntryDrag};
+        use std::cell::Cell;
+
+        let (_dir, lib, book) = fixture();
+        let (_other_dir, other_lib, same_book) = fixture();
+        assert_eq!(book, same_book);
+        cx.executor().allow_parking();
+        cx.update(|cx| {
+            crate::init(
+                crate::ShellInfo {
+                    app_name: "Drifting Next",
+                    bundle_id: "cc.drifting.next.dev",
+                    version: "0.2.0-dev",
+                    url_scheme: "drifting-next-dev",
+                    forced_appearance: None,
+                },
+                crate::Services {
+                    library: Some(lib.clone()),
+                    book: Some(book.clone()),
+                    ..Default::default()
+                },
+                crate::SettingsFile::in_memory(),
+                cx,
+            )
+        });
+        let (shell, cx) = cx.add_window_view(Workspace::new);
+        wait(cx, |cx| shell.read(cx).book.v3().is_some());
+        let page = shell.read_with(cx, |ws, _| PageViewHost {
+            workspace: shell.downgrade(),
+            library: lib.clone(),
+            book_id: book.clone(),
+            book: ws.book.clone(),
+        });
+        let entry = page.book.v3().unwrap().entries[0].id.clone();
+        let private_press = Rc::new(Cell::new(41_u32));
+        let mut drag = EntryDrag::new(page.clone(), &entry, "Synthetic shared drag")
+            .with_source(private_press.clone());
+        drag.span = Some(7.0);
+        let cloned = drag.clone();
+        cloned.set_grab(23.0);
+        cloned.set_grab(f32::NAN);
+        cloned.source::<Rc<Cell<u32>>>().unwrap().set(42);
+        assert_eq!(drag.grab(), 23.0);
+        assert_eq!(drag.span, Some(7.0));
+        assert_eq!(drag.source::<Rc<Cell<u32>>>().unwrap().get(), 42);
+        assert!(drag.source::<String>().is_none());
+        assert!(drag.matches(&page));
+        assert!(cx.update(|_, cx| drag.is_current(cx)));
+        assert!(!EntryDrag::new(page.clone(), "missing-entry", "Synthetic missing").matches(&page));
+        assert!(!drag.matches(&PageViewHost {
+            library: other_lib.clone(),
+            ..page.clone()
+        }));
+        assert!(!drag.matches(&PageViewHost {
+            book_id: "different-book".into(),
+            ..page.clone()
+        }));
+        let other_shell = cx.update(|window, cx| cx.new(|cx| Workspace::new(window, cx)));
+        assert!(!drag.matches(&PageViewHost {
+            workspace: other_shell.downgrade(),
+            ..page.clone()
+        }));
+        lib.call(
+            &dr_workspace::Actor::User,
+            "entry.update",
+            serde_json::json!({"book":book,"id":entry,"title":"Synthetic concurrent drag rename"}),
+        )
+        .unwrap();
+        let new_book = Rc::new(Book::load(&lib, &book).unwrap());
+        assert!(!drag.matches(&PageViewHost {
+            book: new_book.clone(),
+            ..page.clone()
+        }));
+        shell.update(cx, |ws, _| ws.book = new_book);
+        assert!(!cx.update(|_, cx| drag.is_current(cx)));
+        shell.update(cx, |ws, _| {
+            ws.book = page.book.clone();
+            ws.book_id = "different-book".into();
+        });
+        assert!(!cx.update(|_, cx| drag.is_current(cx)));
+        shell.update(cx, |ws, _| {
+            ws.book_id = book;
+            ws.library = Some(other_lib);
+        });
+        assert!(!cx.update(|_, cx| drag.is_current(cx)));
+    }
 }

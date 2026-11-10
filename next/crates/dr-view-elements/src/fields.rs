@@ -29,6 +29,7 @@ use dr_ui::{
     sand::{self, Icon},
     style::DrStyled,
 };
+use dr_view_page::settlement::{self, Drafts, Drain};
 use dr_workspace::{Workspace as Library, commands::element::FieldIn, dto::FieldInfo};
 use gpui::{
     AppContext as _, Context, ElementId, Entity, Focusable as _, InteractiveElement as _,
@@ -52,6 +53,7 @@ struct Row {
     value: Entity<TextArea>,
     /// What is stored for this row (or was last sent).
     stored: (String, String),
+    draft: (String, String),
     /// Sent as a new field, not back yet: no further writes until it is.
     pending: bool,
     failed: bool,
@@ -88,6 +90,7 @@ pub struct Fields {
     module_reading: bool,
     module_stale: bool,
     module_epoch: u64,
+    module_registered: bool,
 }
 
 impl Fields {
@@ -113,6 +116,7 @@ impl Fields {
             module_reading: false,
             module_stale: false,
             module_epoch: 0,
+            module_registered: false,
         }
     }
 
@@ -204,12 +208,32 @@ impl Fields {
             .placeholder(value_hint)
             .with_text(v)
         });
-        let on_key = cx.subscribe_in(&key_field, window, move |f, _, e, window, cx| {
+        let on_key = cx.subscribe_in(&key_field, window, move |f, field, e, window, cx| {
+            if matches!(f.owner, Owner::Module { .. })
+                && let FieldEvent::Changed(value) = e
+                && let Some(ix) = f.row_ix(n)
+            {
+                if settlement::accepts(cx) {
+                    f.rows[ix].draft.0 = value.clone();
+                } else {
+                    field.update(cx, |a, cx| a.set_text(f.rows[ix].draft.0.clone(), cx));
+                }
+            }
             if matches!(e, FieldEvent::Blurred) {
                 f.commit(n, window, cx);
             }
         });
-        let on_value = cx.subscribe_in(&value_field, window, move |f, _, e, window, cx| {
+        let on_value = cx.subscribe_in(&value_field, window, move |f, field, e, window, cx| {
+            if matches!(f.owner, Owner::Module { .. })
+                && let FieldEvent::Changed(value) = e
+                && let Some(ix) = f.row_ix(n)
+            {
+                if settlement::accepts(cx) {
+                    f.rows[ix].draft.1 = value.clone();
+                } else {
+                    field.update(cx, |a, cx| a.set_text(f.rows[ix].draft.1.clone(), cx));
+                }
+            }
             if matches!(e, FieldEvent::Blurred) {
                 f.commit(n, window, cx);
             }
@@ -221,6 +245,7 @@ impl Fields {
             id,
             key: key_field,
             value: value_field,
+            draft: (key.clone(), value.clone()),
             stored: (key, value),
             pending: false,
             failed: false,
@@ -304,6 +329,9 @@ impl Fields {
     /// 「新增字段」: a blank row at the end (or the last one, if blank), the
     /// caret in its key.
     pub fn add_row(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if matches!(self.owner, Owner::Module { .. }) && !settlement::accepts(cx) {
+            return;
+        }
         let last_blank = self.rows.last().is_some_and(|r| {
             r.id.is_none()
                 && r.key.read(cx).text().trim().is_empty()
@@ -387,6 +415,7 @@ impl Fields {
                         let (k, v) = pair.clone();
                         row.key.update(cx, |f, cx| f.set_text(k, cx));
                         row.value.update(cx, |f, cx| f.set_text(v, cx));
+                        row.draft = pair.clone();
                         row.stored = pair;
                     }
                     if matches!(self.owner, Owner::Module { .. })
@@ -435,6 +464,13 @@ impl Fields {
 
 impl Render for Fields {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if !self.module_registered
+            && matches!(self.owner, Owner::Module { .. })
+            && let Some(lib) = &self.lib
+        {
+            settlement::register(lib, window.window_handle(), cx);
+            self.module_registered = true;
+        }
         self.sync(window, cx);
         let theme = Theme::of(window, cx);
         let p = theme.palette;
@@ -577,5 +613,33 @@ impl Render for Fields {
         }
         page::column(look, div().flex().flex_col().child(head).child(list))
             .when(self.last, |el| el.pb(px(80.0)))
+    }
+}
+
+impl Drafts for Fields {
+    fn drain(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Drain {
+        for n in self.rows.iter().map(|r| r.n).collect::<Vec<_>>() {
+            self.commit_module(n, false, window, cx);
+        }
+        if self.module_reading || self.rows.iter().any(|r| r.pending) {
+            return Drain::Pending;
+        }
+        if self
+            .rows
+            .iter()
+            .any(|r| r.failed || r.draft != r.stored || r.removing)
+        {
+            return Drain::Failed(t(cx, keys::k4_pages::SAVE_FAILED).to_string());
+        }
+        Drain::Ready
+    }
+}
+
+#[cfg(test)]
+impl Fields {
+    pub(crate) fn release_test_retry(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(row) = self.rows.first() {
+            self.commit_module(row.n, true, window, cx);
+        }
     }
 }

@@ -1,0 +1,239 @@
+{
+  "about": "F6 common release with the formal G1 host: v3-lite real input, ordinary quit, persisted complete checkpoint, reopen and undo. G1 has not yet moved its production registration to after_drain; this smoke does not claim that consumer migration or Material comment saving.",
+  "steps": [
+    {
+      "seed": "v3-lite"
+    },
+    {
+      "call": "book.list",
+      "input": {},
+      "save": "books"
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}",
+        "all": true
+      },
+      "save": "entries"
+    },
+    {
+      "call": "prose.read",
+      "input": {
+        "doc": "body:${entries.[template=tpl-chapter].id}/mod-prose"
+      },
+      "save": "before"
+    },
+    {
+      "launch": {
+        "book": "${books.0.id}",
+        "env": {
+          "DRIFTING_APPEARANCE": "light",
+          "DRIFTING_WINDOW_DISPLAY": "secondary"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      },
+      "save": "launch"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/version": 3,
+          "/book/loaded": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "app.info",
+      "save": "environment",
+      "expect": {
+        "/windows/0/active": true,
+        "/windows/0/visible": true
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-chapter].id}/mod-prose"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "entry:${entries.[template=tpl-chapter].id}/mod-prose",
+          "/v3Page/focus/child": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "F6 close "
+      }
+    },
+    {
+      "call": "prose.read",
+      "input": {
+        "doc": "body:${entries.[template=tpl-chapter].id}/mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "F6 close ${before.paragraphs.0.text}"
+      }
+    },
+    {
+      "app": "app.quit"
+    },
+    {
+      "call": "entry_snapshot.list",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${entries.[template=tpl-chapter].id}"
+      },
+      "save": "points"
+    },
+    {
+      "call": "entry_snapshot.preview",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${entries.[template=tpl-chapter].id}",
+        "point": "${points.0.id}"
+      },
+      "contains": {
+        "/bodies/[doc=body:${entries.[template=tpl-chapter].id}~1mod-prose]/text": "F6 close ${before.paragraphs.0.text}"
+      },
+      "save": "closedCheckpoint"
+    },
+    {
+      "launch": {
+        "book": "${books.0.id}",
+        "env": {
+          "DRIFTING_APPEARANCE": "light",
+          "DRIFTING_WINDOW_DISPLAY": "secondary"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      },
+      "save": "relaunch"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/version": 3,
+          "/book/loaded": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "app.info",
+      "save": "reopenEnvironment",
+      "expect": {
+        "/windows/0/active": true,
+        "/windows/0/visible": true
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-chapter].id}/mod-prose"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "entry:${entries.[template=tpl-chapter].id}/mod-prose",
+          "/v3Page/focus/child": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "call": "prose.read",
+      "input": {
+        "doc": "body:${entries.[template=tpl-chapter].id}/mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "F6 close ${before.paragraphs.0.text}"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "Again "
+      }
+    },
+    {
+      "call": "prose.read",
+      "input": {
+        "doc": "body:${entries.[template=tpl-chapter].id}/mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "Again F6 close ${before.paragraphs.0.text}"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-z"
+      }
+    },
+    {
+      "call": "prose.read",
+      "input": {
+        "doc": "body:${entries.[template=tpl-chapter].id}/mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "F6 close ${before.paragraphs.0.text}"
+      }
+    },
+    {
+      "call": "entry_snapshot.preview",
+      "input": {
+        "book": "${books.0.id}",
+        "entry": "${entries.[template=tpl-chapter].id}",
+        "point": "${closedCheckpoint.point.id}"
+      },
+      "contains": {
+        "/bodies/[doc=body:${entries.[template=tpl-chapter].id}~1mod-prose]/text": "F6 close ${before.paragraphs.0.text}"
+      }
+    },
+    {
+      "app": "app.quit"
+    }
+  ]
+}

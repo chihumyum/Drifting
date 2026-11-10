@@ -1819,14 +1819,14 @@
     "name": "이름",
     "new_entry": "새 항목",
     "new_template": "새 템플릿",
-    "no": "아니요",
     "none": "없음",
     "number": "숫자",
     "options": "선택 항목",
     "patches": "패치",
     "plot_grid": "플롯 계획",
+    "preview_failed": "미리보기를 불러올 수 없습니다",
+    "preview_loading": "미리보기를 불러오는 중…",
     "prose": "본문",
-    "read_only": "읽기 전용",
     "relations": "관계",
     "reorder": "드래그하여 순서 변경",
     "restore": "되돌리기",
@@ -1835,8 +1835,7 @@
     "template_name": "템플릿 이름",
     "text": "텍스트",
     "this_level": "이 계층",
-    "unsaved": "저장되지 않음",
-    "yes": "예"
+    "unsaved": "저장되지 않음"
   },
   "topTimeline": {
     "closeTab": "탭 닫기",
@@ -1881,6 +1880,7 @@
     "autoLink": "자동 링크",
     "byStoryline": "스토리라인별",
     "collapse": "{{name}} 접기",
+    "create": "만들기",
     "defaultTemplate": "기본 템플릿",
     "display": "표시",
     "expand": "{{name}} 펼치기",
@@ -1895,6 +1895,7 @@
     "none": "없음",
     "off": "끄기",
     "on": "켜기",
+    "primary": "주 소속",
     "residents": "여기에 있는 항목",
     "restore": "{{name}} 복원",
     "sourceDefault": "기본값",
@@ -1902,6 +1903,7 @@
     "sourceOverride": "재정의 · {{name}}",
     "sourceTemplate": "템플릿 · {{name}} · {{level}}",
     "thisLevel": "이 계층",
+    "title": "제목",
     "unassigned": "미소속"
   },
   "v3Shell": {

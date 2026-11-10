@@ -1826,14 +1826,14 @@
     "name": "Name",
     "new_entry": "Neuer Eintrag",
     "new_template": "Neue Vorlage",
-    "no": "Nein",
     "none": "Keine",
     "number": "Zahl",
     "options": "Optionen",
     "patches": "Patches",
     "plot_grid": "Handlungsplanung",
+    "preview_failed": "Vorschau konnte nicht geladen werden",
+    "preview_loading": "Vorschau wird geladen…",
     "prose": "Fließtext",
-    "read_only": "Schreibgeschützt",
     "relations": "Beziehungen",
     "reorder": "Zum Sortieren ziehen",
     "restore": "Wiederherstellen",
@@ -1842,8 +1842,7 @@
     "template_name": "Vorlagenname",
     "text": "Text",
     "this_level": "Diese Ebene",
-    "unsaved": "Nicht gespeichert",
-    "yes": "Ja"
+    "unsaved": "Nicht gespeichert"
   },
   "topTimeline": {
     "closeTab": "Tab schließen",
@@ -1888,6 +1887,7 @@
     "autoLink": "Automatische Links",
     "byStoryline": "Nach Handlungsstrang",
     "collapse": "{{name}} einklappen",
+    "create": "Erstellen",
     "defaultTemplate": "Standardvorlage",
     "display": "Darstellung",
     "expand": "{{name}} aufklappen",
@@ -1902,6 +1902,7 @@
     "none": "Keine",
     "off": "Aus",
     "on": "An",
+    "primary": "Primär",
     "residents": "Hier abgelegt",
     "restore": "{{name}} zurücksetzen",
     "sourceDefault": "Standardwert",
@@ -1909,6 +1910,7 @@
     "sourceOverride": "Überschreibung · {{name}}",
     "sourceTemplate": "Vorlage · {{name}} · {{level}}",
     "thisLevel": "Diese Ebene",
+    "title": "Titel",
     "unassigned": "Nicht zugeordnet"
   },
   "v3Shell": {

@@ -1834,14 +1834,14 @@
     "name": "Nome",
     "new_entry": "Nova entrada",
     "new_template": "Novo modelo",
-    "no": "Não",
     "none": "Nenhum",
     "number": "Número",
     "options": "Opções",
     "patches": "Patches",
     "plot_grid": "Planejamento da trama",
+    "preview_failed": "Não foi possível carregar a prévia",
+    "preview_loading": "Carregando prévia…",
     "prose": "Texto principal",
-    "read_only": "Somente leitura",
     "relations": "Relações",
     "reorder": "Arrastar para reordenar",
     "restore": "Restaurar",
@@ -1850,8 +1850,7 @@
     "template_name": "Nome do modelo",
     "text": "Texto",
     "this_level": "Este nível",
-    "unsaved": "Não salvo",
-    "yes": "Sim"
+    "unsaved": "Não salvo"
   },
   "topTimeline": {
     "closeTab": "Fechar aba",
@@ -1896,6 +1895,7 @@
     "autoLink": "Links automáticos",
     "byStoryline": "Por linha narrativa",
     "collapse": "Recolher {{name}}",
+    "create": "Criar",
     "defaultTemplate": "Modelo padrão",
     "display": "Exibição",
     "expand": "Expandir {{name}}",
@@ -1910,6 +1910,7 @@
     "none": "Nenhum",
     "off": "Desativado",
     "on": "Ativado",
+    "primary": "Principal",
     "residents": "Entradas residentes",
     "restore": "Restaurar {{name}}",
     "sourceDefault": "Valor padrão",
@@ -1917,6 +1918,7 @@
     "sourceOverride": "Substituição · {{name}}",
     "sourceTemplate": "Modelo · {{name}} · {{level}}",
     "thisLevel": "Este nível",
+    "title": "Título",
     "unassigned": "Sem atribuição"
   },
   "v3Shell": {

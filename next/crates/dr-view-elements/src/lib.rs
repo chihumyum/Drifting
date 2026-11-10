@@ -183,6 +183,7 @@ pub fn init(cx: &mut App) {
     storyline::init_v3(cx);
     panel::v3::register(cx);
     category::v3::register(cx);
+    menu::v3::register(cx);
     dialogs::init(cx);
     menu::register(cx);
     dr_shell::pages::add_left_panel(cx, |tab, ws, _, cx| {
@@ -263,3 +264,6 @@ pub fn init(cx: &mut App) {
         Some(Rc::new(chrome) as Rc<dyn PageChrome>)
     });
 }
+
+#[cfg(test)]
+mod release_tests;

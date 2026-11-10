@@ -71,6 +71,7 @@ entry_relation_type.list     query    shared   List relation types available to 
 entry_relation_type.put      command  book     Create or edit a v3 relation type with endpoint and template restrictions.
 entry_snapshot.capture       command  book     Capture changed v3 entry content periodically or on close using the existing history interval; unchanged content is skipped.
 entry_snapshot.create        command  book     Save a complete v3 entry checkpoint, including retained modules and all body versions. Call before an Agent writes the entry.
+entry_snapshot.create_with_receipt command  book     Save a complete entry checkpoint and return its exact committed versions for a guarded host write. Never infer these versions from a later observation.
 entry_snapshot.list          query    shared   List complete checkpoints of one v3 entry, newest first.
 entry_snapshot.preview       query    shared   Read all historical entry content and current version guards for an atomic restore.
 entry_snapshot.restore       command  book     Atomically restore all owned content of one entry with required version guards, preserving a complete pre-restore checkpoint.
@@ -116,6 +117,7 @@ membership.add               command  book     Add or order a v3 membership with
 membership.list              query    shared   List valid v3 memberships in a book.
 membership.primary           command  book     Choose an existing v3 membership as primary, or clear the primary membership.
 membership.remove            command  book     Remove a v3 membership and any timeline placements left without a lane.
+membership.restore           command  book     Restore the selected effects of a v3 membership cancellation without replacing entries or timeline views.
 memory.add                   command  book     Add a Project Memory entry (plain text; takes effect at once).
 memory.list                  query    shared   List the book's Project Memory entries.
 memory.remove                command  book     Remove a Project Memory entry (kept as removed; restorable).
@@ -180,12 +182,17 @@ time_pin.create              command  book     Put a time pin on the narrative a
 time_pin.delete              command  book     Delete a time pin.
 time_pin.list                query    shared   List the book's time pins along the narrative axis, with the ideas bound to them.
 time_pin.update              command  book     Move a time pin, change its label, or bind it to an idea or unbind it.
+timeline_view.add_lane       command  book     Add one live lane to a v3 view without replacing existing lane records or changing memberships.
 timeline_view.delete         command  book     Delete a v3 timeline view while retaining lane entries and memberships.
 timeline_view.list           query    shared   List v3 timeline views with their effective lanes, placements and time pins.
+timeline_view.move_lane      command  book     Change only one stored lane's order in a v3 view, preserving hidden data and other lane positions.
 timeline_view.place          command  book     Place or move a v3 entry in a timeline, optionally joining a lane in the same commit.
 timeline_view.put            command  book     Create or edit a v3 timeline view, including its independent lane order.
 timeline_view.put_pin        command  book     Add or edit a v3 time pin, optionally bound to any live entry.
 timeline_view.remove         command  book     Remove an entry from a timeline lane and prune positions where it has no remaining lane.
+timeline_view.remove_lane    command  book     Remove one v3 view lane and newly orphaned visible positions, retaining hidden records and all memberships.
 timeline_view.remove_pin     command  book     Remove a time pin from a v3 timeline view.
+timeline_view.rename         command  book     Rename a v3 timeline view without changing its lanes, positions or pins.
+timeline_view.restore_fields command  book     Restore selected stored timeline fields for undo or redo without replacing the rest of a v3 view.
 todo.project                 command  book     Keep the TODOs typed as markers in one prose document (a paragraph starting with TODO or 待办) in step with it: a new marker gets a TODO, an open TODO whose marker is gone is deleted, resolved ones stay; the same marker makes the same TODO on every device.
 writing_day.record           command  book     Set this device's words for one day of a book (the writing-day recorder; not undoable).

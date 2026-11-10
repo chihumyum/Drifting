@@ -675,11 +675,14 @@ impl Assist {
                 }
                 _ => &[],
             };
-            (
-                line_ix,
-                caret,
-                entity_links::repairs(&line.text, &runs, caret, &names, before),
-            )
+            (line_ix, caret, {
+                let edits = entity_links::repairs(&line.text, &runs, caret, &names, before);
+                if self.v3 {
+                    entity_links::protect_v3(line, edits)
+                } else {
+                    edits
+                }
+            })
         };
         let _ = caret;
         if edits.is_empty() {
@@ -786,6 +789,11 @@ impl Assist {
                         _ => true,
                     })
                     .collect();
+                let edits = if self.v3 {
+                    entity_links::protect_v3(line, edits)
+                } else {
+                    edits
+                };
                 (line_ix, edits)
             };
             let (line_ix, edits) = plan;
@@ -1444,6 +1452,10 @@ impl Assist {
         let doc = &e.book().chapters.get(chapter)?.doc;
         let marks = doc.marks_before(range.start + 1);
         let (target, value) = marks.entities().next()?;
+        if self.v3 {
+            let link = dr_doc::prose::v3::decode_entity_link(target, value)?;
+            return Some(LinkTarget::new(link.kind, link.target));
+        }
         let link = crate::convert::entity_link(target, value);
         Some(LinkTarget::new(link.kind, link.target))
     }
@@ -1467,6 +1479,29 @@ impl Assist {
         let Some((chapter, id)) = self.pointed_link.clone() else {
             return;
         };
+        if self.v3 {
+            let link = self
+                .editor
+                .read(cx)
+                .decoration_range(chapter, "links", &id)
+                .and_then(|r| {
+                    self.editor
+                        .read(cx)
+                        .book()
+                        .chapters
+                        .get(chapter)
+                        .map(|c| c.doc.marks_before(r.start + 1))
+                })
+                .and_then(|m| {
+                    m.entities()
+                        .find_map(|(t, v)| dr_doc::prose::v3::decode_entity_link(t, v))
+                });
+            self.close_card();
+            if let Some(link) = link {
+                self.open_entity_link_v3(link, cx);
+            }
+            return;
+        }
         let target = self.link_target(chapter, &id, cx);
         self.close_card();
         let Some(target) = target else { return };
@@ -1497,6 +1532,24 @@ impl Assist {
             });
         }
         cx.notify();
+    }
+
+    /// Body and table clicks share the versioned endpoint and raw mark reader.
+    pub fn open_entity_link_v3(
+        &mut self,
+        link: dr_model::v3::EntityLinkV3,
+        cx: &mut Context<Self>,
+    ) {
+        if self.v3
+            && crate::link_card::card_facts(
+                &self.ws,
+                &self.book,
+                &LinkTarget::new(link.kind.clone(), link.target.clone()),
+            )
+            .is_some()
+        {
+            crate::links::open_v3(&self.ws, &self.book, link, cx);
+        }
     }
 
     fn hide_bar(&mut self) {
@@ -1916,9 +1969,33 @@ fn wrap_at(
         assist.clone(),
         assist.clone(),
     );
+    let copy = assist.clone();
+    let cut = assist.clone();
+    let paste = assist.clone();
     div()
         .size_full()
         .relative()
+        .capture_action(move |_: &gpui_prose::input::actions::Copy, window, cx| {
+            if copy.read(cx).v3
+                && crate::clipboard::copy(&copy.read(cx).editor.clone(), false, window, cx)
+            {
+                cx.stop_propagation();
+            }
+        })
+        .capture_action(move |_: &gpui_prose::input::actions::Cut, window, cx| {
+            if cut.read(cx).v3
+                && crate::clipboard::copy(&cut.read(cx).editor.clone(), true, window, cx)
+            {
+                cx.stop_propagation();
+            }
+        })
+        .capture_action(move |_: &gpui_prose::input::actions::Paste, window, cx| {
+            if paste.read(cx).v3
+                && crate::clipboard::paste(&paste.read(cx).editor.clone(), window, cx)
+            {
+                cx.stop_propagation();
+            }
+        })
         .capture_action(move |_: &MoveUp, _, cx| {
             if up.read(cx).menu.is_some() {
                 up.update(cx, |a, cx| a.move_selection(-1, cx));

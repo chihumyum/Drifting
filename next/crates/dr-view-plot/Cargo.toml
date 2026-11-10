@@ -19,6 +19,7 @@ dr-i18n.workspace = true
 dr-model.workspace = true
 dr-shell.workspace = true
 dr-ui.workspace = true
+dr-view-page.workspace = true
 dr-workspace.workspace = true
 futures.workspace = true
 gpui.workspace = true

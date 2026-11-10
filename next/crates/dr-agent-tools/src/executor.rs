@@ -21,6 +21,8 @@ use crate::{
     structure::{FocusRequest, StructureContext},
 };
 
+#[path = "checkpoints.rs"]
+mod checkpoints;
 #[path = "evidence.rs"]
 mod evidence;
 #[path = "timeline.rs"]
@@ -188,6 +190,7 @@ struct ReadState {
 struct TurnState {
     reads: HashMap<String, ReadState>,
     conflicts: HashMap<String, u32>,
+    checkpointed: HashSet<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -574,6 +577,17 @@ impl AgentTools {
         key: &TurnKey,
         call: ResolvedCall,
     ) -> Result<Value> {
+        self.write_with_checkpoint(ws, actor, key, call, || {})
+    }
+
+    fn write_with_checkpoint(
+        &self,
+        ws: &Workspace,
+        actor: &Actor,
+        key: &TurnKey,
+        call: ResolvedCall,
+        after_checkpoint: impl FnOnce(),
+    ) -> Result<Value> {
         let canonical = call.arguments["doc"]
             .as_str()
             .map(str::to_owned)
@@ -591,7 +605,11 @@ impl AgentTools {
             })
             .or_else(|| call.targets.first().cloned())
             .ok_or_else(|| Error::Invalid("write has no guarded target".into()))?;
-        let guards = {
+        let is_v3 = is_v3_book(
+            ws,
+            &BookId::parse(&key.book).map_err(|e| Error::Invalid(e.to_string()))?,
+        )?;
+        let mut guards = {
             let turns = self.turns.lock().expect("tool observations");
             let turn = turns
                 .get(key)
@@ -700,12 +718,35 @@ impl AgentTools {
                     }
                 }
             }
+            if is_v3 && matches!(call.name.as_str(), "comment.create" | "comment.reanchor") {
+                for doc in call.targets.iter().filter(|d| !d.starts_with("book:")) {
+                    let read = turn
+                        .reads
+                        .get(doc)
+                        .ok_or_else(|| Error::ReadRequired(doc.clone()))?;
+                    let whole = ["range", "anchor"]
+                        .iter()
+                        .any(|k| call.arguments.get(*k).is_some_and(|v| !v.is_null()));
+                    let block = call.arguments["block_id"].as_str();
+                    if (whole && !read.full_prose)
+                        || block.is_some_and(|b| !read.blocks.contains_key(b))
+                    {
+                        return Err(Error::ReadRequired(format!("source prose in {doc}")));
+                    }
+                }
+            }
             WritePreconditions {
                 versions,
                 require_all: true,
             }
         };
-        let result = ws.call_guarded(actor, &call.name, call.arguments.clone(), guards);
+        let mut captured = Vec::new();
+        let result = self
+            .checkpoint_before_write(ws, actor, key, &call, &mut guards, &mut captured)
+            .and_then(|()| {
+                after_checkpoint();
+                Ok(ws.call_guarded(actor, &call.name, call.arguments.clone(), guards)?)
+            });
         // A later observation could contain unseen concurrent author changes;
         // never refresh an observation implicitly after a write. Read again.
         let mut turns = self.turns.lock().expect("tool observations");
@@ -713,9 +754,18 @@ impl AgentTools {
         for target in &call.targets {
             turn.reads.remove(target);
         }
+        // A checkpoint itself changes this book, even for a prose-only call.
+        if !captured.is_empty() {
+            turn.reads.remove(&format!("book:{}", key.book));
+        }
         match result {
-            Ok(value) => Ok(value),
-            Err(WsError::Conflict(message)) if message.starts_with("stale observation:") => {
+            Ok(value) => {
+                turn.checkpointed.extend(captured);
+                Ok(value)
+            }
+            Err(Error::Workspace(WsError::Conflict(message)))
+                if message.starts_with("stale observation:") =>
+            {
                 // Count by the holder's actual document, including the later
                 // document of a multi-document call. Changing tool names or
                 // input shapes must not reset the same target's CAS budget.
@@ -733,10 +783,12 @@ impl AgentTools {
                     Err(Error::Conflict(target))
                 }
             }
-            Err(WsError::Conflict(message)) if message.starts_with("read required:") => {
+            Err(Error::Workspace(WsError::Conflict(message)))
+                if message.starts_with("read required:") =>
+            {
                 Err(Error::ReadRequired(message))
             }
-            Err(error) => Err(error.into()),
+            Err(error) => Err(error),
         }
     }
 }
@@ -974,3 +1026,7 @@ mod tests {
         ws.close();
     }
 }
+
+#[cfg(test)]
+#[path = "checkpoint_tests.rs"]
+mod checkpoint_tests;

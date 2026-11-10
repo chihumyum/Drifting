@@ -728,7 +728,8 @@ v2.2 与 v3 在同一个窗口中按书分路。`book::Book` 保留共有的 `id
 
 - `Book::v3()` 返回 `book::v3::BookV3`：`entries`、`templates`、`roots`、`levels`、
   `memberships`、`timeline_views` 和书目 `revision`。数据经 `entry.list`、
-  `entry_template.list`、`level.get`、`membership.list`、`timeline_view.list` 读取。
+  `entry_template.list`、`level.list`、`membership.list`、`timeline_view.list` 读取
+  （`level.list` 在下文结构读取交回中替换最初的逐层 `level.get`）。
   `WsEvent::Book` 触发重新读取；前后 frontier 不同的批次不发布。
 - `levels[id]` 的 `settings` 是 F3 的有效值；`sources` 逐项标注 `Default`、
   `Override { entry }`、`Template { entry, template }` 或强制接收成员的
@@ -769,9 +770,8 @@ v2.2 与 v3 在同一个窗口中按书分路。`book::Book` 保留共有的 `id
 
 ### K4-0 待协调
 
-1. F3 的 `level.get` 暂无来源字段。当前外壳只对来源做追溯，有效值仍用查询结果；
-   若 K6 给查询加上来源，可统一为它的 DTO，避免各消费方重复解释。当前来源
-   使用 F1 的有效祖先函数，覆盖 null、模板、祖先、默认和泳道强制接收。
+1. **结构读取批关闭**：第 60 批的 F3 `level.list` 已同时返回有效值和来源；
+   本次外壳改为消费同一 DTO，移除独立来源追溯。精确映射和验收见下文。
 2. 旧 `book::nav_target` 的返回类型只有 v2.2 目标；对 v3 目标返回其「无单个实体」
    的 `Book` 哨兵。G4 的审阅/统计/素材适配应直接消费 `Target::Entry` 及 module，
    不再经过这个旧适配器。`nav::location` 的旧 Markdown URL 解析维持原格式；
@@ -842,7 +842,8 @@ v2.2 与 v3 在同一个窗口中按书分路。`book::Book` 保留共有的 `id
    这里没有实现模板编辑器或把新建模板当成已可编辑的产品流程。
 3. **G4 / 外壳**：v3 作品主页目前只显示书名，旧 `set_home` 不用于 v3。
    G4 接回主页时需补版本化主页注册口；旧导览的 v3 内容随正式视图另接。
-   第一次交回列出的来源 DTO、旧 NavTarget/模块链接与任意 mark 协调项继续保留。
+   第一次交回的来源 DTO 协调项已由下文结构读取批关闭；旧 NavTarget/模块链接与
+   任意 mark 协调项继续保留。
 
 ### K4-0 后补：层级设置区注册口（2026-11-09）
 
@@ -876,19 +877,253 @@ G2 三种回调及 K5 新建委托。v3-lite 真窗口场景 **84/84 步、0 pen
 更新自己的子实体，不在这里重借 workspace；需要改窗口或调用命令的动作放进点击
 回调。第二轮完成后，左栏和大纲栏按 K4 分轨交给 G2；其余公共外壳入口继续留在 F6。
 
-### G4 搜索宿主续交（准备中，2026-11-10）
+### 调试桥原生面板边界交回（2026-11-10）
 
-按 `overnight.md` 的 G4 接口协调，F6 只接全局搜索的版本选择和导航，
-右栏／大纲继续由 G2 负责。等待 G4 稳定接口进入 main 后消费
-`SearchPanel::new_v3`／`SearchEvent::JumpV3`，不取未交回工作区的实现。
+分支 `codex/k4-0-shell`，独立指针 `handback/k4-0-bridge`；Home 交回
+`7d673090` 保持冻结。实现 `6bf5803d`、脚本移位 `34148cd9`，已合到当前正式
+main `0f562934`（无新增合并提交）。只改 dr-debug-bridge 的私有面板接线、公共
+桥测试、dr-cli 验收场景及脚本。`state.get`／`panel.state` 在测试平台返回空面板，
+`panel.answer`／`panel.cancel` 返回 unsupported；原生查询和回调安装都必须取得
+`MainThreadMarker`，真实主线程行为不变。socket 测试保留令牌、错误码和连接文件
+断言，增加客户端阶段、完成时间、退出标记和调度耗时；固定 10 秒内完成才通过，
+迟返的外层调度不误判已按时完成，也不接受截止后才完成。未改 GPUI、其他组、
+v3 公共接口或界面文案，未删除公共桥或 v2.2 测试。这是独立的原生线程边界修复，
+不把第 66 批原 socket 超时归因为 AppKit：根提供的原二进制有界诊断是并发 3
+再次 3/1、单线程 4/4，未抓到卡住位置，因果仍未定。
 
-素材前置修复并入下面的导航续交。搜索宿主仍待 G4 稳定接口正式进入 main，
-本次导航修复不声明搜索接线或真窗口搜索验收完成。
+检查：原 bridge 四项在并发 3、基线 1 下各执行一次，均 **4/4**；新增无库测试
+平台面板契约 **1/1**。首轮全量 **2253/1/22**，唯一失败是我把 Python 伴随脚本
+误放在只容纳 JSON 的 scenarios 目录，原记录 `bridge-final-test.log` 保留；脚本
+100% 原样移到 `dr-cli/script/`，未改解析契约。最终 `bridge-verified-*` 全套
+**2254 通过／0 失败／22 忽略**，fmt、workspace/all-targets/locked Clippy
+（`-D warnings`）、xtask 含审计、public 全过；Cargo jobs=3、测试线程=1、
+`DR_UI_REQUIRE_FONTS=1`。定向记录为 `bridge-{parallel,serial,panel}.log`，都在
+`next/target/acceptance/k4-0-checks/`。审计 0 vulnerabilities／12 条既有提示，
+19 份旧测量仍过期，保留 macOS 链接器 `__eh_frame` 提示；未重测 heavy。
 
-主页最近访问也列入外壳协调队列：等待 K2 的 v3 本机 recent 接口正式进入 main，
-再接记录和导航；保留 entry/module、旧记录及两书隔离，不绕写本机数据库，
-不把 v3 条目降成旧 Book 目标。K2 的书名／简介／字数目标元数据接口和
-大书层级批量查询分别等待整合通知，均不包含在下面的导航修复交回中。
+全套之后重建并保护独立 debug bridge 二进制，`k4-0-bridge.json` 的 43 步加
+副屏和真实令牌凭据两步，首轮 **45/45、0 pending**：错误令牌被拒绝，合法握手
+读出 v3 状态；真实主线程面板取消、备份存储、恢复打开，库恢复及正文输入读回／
+撤销均通过。结果在 `target/acceptance/k4-0-bridge-window/result.json`；
+`k4-0-bridge-native/receipts/` 保存 PID 94737／profile `accept-6e9a0e03` 的
+认证、CG 副屏和退出凭据，令牌不写入凭据。窗口全局框 (577,1573,1414,884)
+完全位于副屏，恢复前后 active／visible 均为 true。首个退出后处理读取把 steps
+字符串误当对象，报 AttributeError；按真实结构更正后确认进程退出、连接文件移除、
+租约释放，未重跑窗口，也不把后处理错误记成窗口失败。旧交回和原失败记录均保留；
+本修复无新增待协调，原超时诊断仍归根线程，未推送、未合入 main。
+
+### v3 Home 随换库释放交回（2026-11-10）
+
+分支 `codex/k4-0-shell`，新增冻结指针 `handback/k4-0-home-release`；
+`handback/k4-0-drain` 的 `8cfdd74e` 保持不动。`Workspace::let_go_of_library` 原来
+清掉 `home` 却漏掉 `v3_home`，真实 v3 Home 持有的 F3 Workspace 令
+`try_shutdown` 以 `other clones of the workspace are alive` 拒绝换库。本次只在
+原释放列表补 `self.v3_home = None`。真实 Home 回归位于
+`dr-debug-bridge/tests/v3_home_release.rs`，通过测试依赖 `dr-view-home` 的正式
+注册验证；不改 G1／G4 视图或生产依赖。实现 `86c6a986`，测试移位 `797de423`；
+`0e549036` 合入正式 main `0f562934` 的第 65 批接收文档，未消费第 66 批 WIP。
+
+检查：永久三项修复前 **0/3**，都由同一 clone 拒绝复现正常换库失败、替换作业
+失败分支未进入、释放额外持有者后的重试仍失败；修复后以及原样移到最终位置后
+均 **3/3**。测试核对旧 Home 弱引用消失、替换作业启动前原库可独立打开、另一份
+v3 库的新 Home，以及作业失败／额外持有者拒绝关闭后的原数据、Home 查询写入和
+重试。原件 `next/target/acceptance/k4-0-checks/home-release-before.log`、
+`home-release-after.log`、`home-release-moved.log` 保留。G1 原始 8 个失败中只有
+4 个是换库 clone 拒绝，另外 4 个是草稿来源断言失败，不混为一个原因。首轮全量
+2253/0/22，但 xtask 拒绝原先放在 dr-shell 的测试依赖循环；已原样移到
+dr-debug-bridge 并移除 shell 测试依赖，没有放松门禁，原失败保留为
+`home-release-final-xtask.log`。最终 `home-release-verified-*` 记录 fmt、全工作区
+all-targets Clippy（`-D warnings`）、全量 **2253 通过／0 失败／22 忽略**、xtask
+（含热更新循环门禁、audit）、public 与调试桥构建全部通过；jobs=3，单线程测试并
+要求字体。audit 0 漏洞／12 条既有提示、19 项 measured evidence stale 与 macOS
+`__eh_frame` 提示单列保留。
+
+唯一副屏真窗口 `k4-0-home-release.json` 使用 v3-lite，真实 Home 备份、修改书名、
+确认恢复后读回旧书名与正文，核对恢复前副本，再重开 Home、输入正文并撤销：
+39 原步骤加 1 次本 PID 副屏校验，首轮 **40/40、0 pending、无重跑**。初始和
+恢复后的 app.info 均 active/visible，PID 40846 已退出，窗口租约已释放。结果在
+`next/target/acceptance/k4-0-home-release-window/result.json`，副屏凭据为
+`next/target/acceptance/k4-0-home-release-secondary/receipts/secondary-40846.json`。
+本项无新增待协调；没有新文案，没有新增或删除 v2.2 测试，没有做 heavy 测量。
+
+### 最终 checkpoint 阶段交回（2026-11-10）
+
+分支 `codex/k4-0-shell`，新增冻结指针 `handback/k4-0-drain`；旧交回指针不动。
+新增 `release::after_drain(cx, FnMut(&mut App) -> LocalBoxFuture<Result<(), String>>)`：
+服务先冻结入口，外壳暂停输入并交付 blur，等待全部 `before_release` futures；任一
+失败仍等其他服务结束，随后恢复，不执行最终 checkpoint。全部成功后，后台完成
+Markdown 最后一轮并停止 worker，才按登记顺序构造、等待最终 checkpoint，连它的
+同步前缀也不得提前捕获版本。`Report.waiting` 不算完成；后台每 50 ms 重试，连续
+5 秒仍有变化或同步失败则拒绝释放。这是等待文件稳定的期限，不是阻塞 I/O 的硬
+超时。错误或 panic 保留原库、页面和草稿，恢复服务与输入，不隐藏应用、不调用
+替换作业、不跑退出后的副作用。Markdown 在 gate 关闭期间不得重启，失败或换库
+完成后按当前 Services 重启。新失败提示复用九语 `keys::k4_pages::SAVE_FAILED`，
+没有新增说明文案，没有删改 v2.2 测试。实现提交 `e9b20b90`、`849fdeef`，场景顺序
+修正 `11115ec3`，基线记录 `1fd0bcdc`；已合正式 main `282587bb`（含 G1 `82fca0b4`、
+K2 `5ad94846`、K6 `983289b9`、G4 `a26dafd9`），没有消费 owner 工作区。
+
+检查：fmt、全工作区 all-targets Clippy（`-D warnings`）、全量测试 **2250 通过／0
+失败／22 忽略**、xtask（含 audit）、public 全通过，编译使用 jobs=3。7 项 v3 释放
+契约含真实 G1 worker 结束后的最后一笔正文、最终快照的 body frontier 与重开读回，
+以及实际 book 落盘失败拒绝换库、正文保留、解除故障后重试；mirror 3 项单测中
+2 项新增。真实 worker 生命周期使用回收中的共享 v3 种子，不宣称 M40 已支持 v3
+Markdown 布局。全量日志及机器结果在 `next/target/acceptance/k4-0-checks/` 的
+`after-drain-verified-*`；测试耗时 2031.33 秒，不作为性能测量。audit 为 0 漏洞／
+12 条既有提示，19 项 measured evidence stale、macOS `__eh_frame` 提示单列保留。
+唯一副屏冒烟 `k4-0-drain.json` 用 v3-lite 跑真实输入、退出、完整快照读回、重开和
+撤销：28 原步骤加 2 次本 PID 副屏校验，**30/30、0 pending**；两次 app.info 均
+active/visible，PID 75166、75291，结束后均已退出。结果在
+`next/target/acceptance/k4-0-drain-window/result.json`，副屏凭据在
+`next/target/acceptance/k4-0-drain-secondary/receipts/`。首轮全量测试在
+`the_shipped_scenarios_parse` 拒绝了末尾仍有离线读回的新增场景；已将第二次快照
+读回移到最后一次退出之前，定向和全量均通过，原失败日志
+`after-drain-final-test.log` 保留未覆盖。
+
+待协调：G1 生产代码仍在 `quit::before_quit` 调用 `capture_on_close`，须迁到本次
+可失败的 `after_drain`；契约中的实际调用不等于生产注册已迁移。字段／KV／patch／
+planner 已接收保存还须登记并排空；冲突和无效草稿要保留并拒绝释放，blur 不等于
+后台保存完成。整合者已分派 G1 独立续接，F6 不改其视图。当前 GUI 导入经限定核对
+仍是冻结的 v2.2 路径，不恢复旧测试；真正 v3 导入入口的生命周期由切换任务另核对。
+未知树身份继续沿 G1 已定的安全拒绝边界。G4 素材批注保存／精确引文和自动最近
+访问由其窗口结果单独验收，本次正文退出冒烟不替代；G4 已受控复现的导入回滚
+缺陷也不因本轮相关测试通过而关闭。
+
+### 挂载编辑器与 v3 URL 交回（2026-11-10）
+
+分支 `codex/k4-0-shell`，续接指针 `handback/k4-0-editors`；实现 `14fb3cf9`，
+同步 `main 07fd3c15` 的提交 `71751c3b`（仅接第 64 批退回记录）。原搜索与素材／
+最近访问指针继续冻结，不以本批关闭第 64 批的 G4 搜索竞态。
+新增 `dr_shell::v3::register_editor(&PageViewHost, &Entity<V>, getter, &mut App)`：
+getter 为 `Fn(&V, &App) -> Option<workspace::editors::PageView>`，只交渲染器实际
+持有的编辑器；加载期间可返回 None。G1 的 `BodyModule::editor()` 映射
+`PageView::Doc`，`WholeBook::editor()` 映射 `PageView::Book`，在 maker 中注册
+返回的那个 view 即可。登记只持有弱引用，随渲染器释放；getter 返回 None 或换
+实例时，宿主同步释放旧编辑器与订阅。查找按已挂载 view、workspace、书和库身份，
+条目组合再核对精确 `body:<entry>/<module>`；不按文档 id 全局复用，不另开会话。
+同一正文的条目页与指定模块页保留各自实例；通览内部替换 ProseEditor 时重新订阅。
+外壳的查找、批注入口、主题／偏好、沉浸、阅读位置和调试 page.text 消费该实例。
+原渲染器的焦点包装仍负责新建后标题的交接，不直接越过它抢正文键盘。没有匹配到
+显式指定模块时也不把焦点落到另一正文。G1 尚须消费此新增登记口；本批不修改其视图
+crate，不把宿主契约通过写成 G1 产品入口已联合验收。
+
+`open_link` 消费 G1 `v3_link::Address`，保留 Entry＋module／Material 和 Lines，
+不经过旧 Catalog 或 Book 哨兵。沿用已有“当前书的位置链接”范围；书架没有选书时，
+带书 id 的系统地址可打开本库已有书。库尚未就绪的地址留在 F7 队列，书读取期间的
+v3 地址等实际快照完成后核对目标；换书／换库清掉旧等待。新增开发桥 `input.url`
+经过实际 F7 归一化队列和唤醒，不代替 OS 注册本身的验收。page.text 对已登记正文
+报告实际段落、选择和 doc，并保留 composition；未登记页面仍报告组合状态。
+永久 GPUI 契约新增 6 项，覆盖双页面同正文、当前模块的查找／批注、全体挂载实例的
+偏好／主题／沉浸、释放、相同书 id 的异库拒绝、通览阅读位置保存／重开、冷启动和
+实时 URL。与素材／最近访问／搜索共 14 项定向通过。查找框持有键盘时通览重载，
+宿主清除旧正文焦点并经过当前 renderer 重新交接；有效永久回归的修复前失败保留于
+`next/target/acceptance/k4-0-checks/mounted-reload-focus-valid-before.log`。
+规范场景 `dr-cli/scenarios/k4-0-links.json` 从真实书架经 F7 队列打开指定模块，
+逐项核对模块／素材段落输入及撤销、范围跳转与异书拒绝。最终 debug 副屏窗口
+**34/34、0 pending**（规范 33 步加启动边界守卫），原件在
+`next/target/acceptance/k4-0-links-mounted-final-window/`，位置回执在
+`next/target/acceptance/k4-0-links-secondary/receipts/`，PID 99640 的原生边界回执通过。
+`CARGO_BUILD_JOBS=3`；fmt、workspace／all-targets／locked Clippy（`-D warnings`）、
+单线程完整测试 **2175 passed / 0 failed / 22 ignored**、xtask（含 audit）及根目录
+public 全过。日志为 `next/target/acceptance/k4-0-checks/mounted-*.log`；audit
+0 漏洞／12 notices，保留既有 19 项过期测量提示和 macOS `__eh_frame` 链接警告。
+未改各组视图、结构读取、G2 左栏／大纲；无新增界面文案，无新增或删除 v2.2 测试。
+
+待联合：G1 接入两处登记后验证真实页面的全局消费者；G4 的稳定锚 composer 保存
+仍只消费正式 main。当前注册 API 已连到键盘与选区批注入口，两者统一沿 `for_prose`，
+未宣称保存通过。指定的保留模块若当前组合不显示，外壳保持精确目标并不转去另一篇
+正文；保留内容的界面呈现仍需与 G1 对齐。第 64 批搜索的临时确定顺序探针确认：
+正文持久化先于延后的索引，面板先查得空后不消费 index 事件；显式派生完成后直接
+查询已有正文命中，面板仍为空。原日志与探针保留在上述目录的
+`search-late-index-diagnostic.log`／`v3_search_index_probe.rs`，源码已移出 tests，
+不混入本批通过数；整合者已分派 G4 修面板并保留原窗口断言。样式、重复标题与
+heavy 保持后置。
+
+### 素材正文与最近访问宿主交回（2026-11-10）
+
+分支 `codex/k4-0-shell`，独立指针 `handback/k4-0-recent`。基线同步第 61 批
+`229b5138`（产品 `f3709422`），随后同步文档 main `9a2351a7`；同步提交为
+`5cdc7ef8`、`c6e1206b`。实现提交 `d755c871`、`2def25e9`、`4c6b6812`：文本素材
+从空 `EntryPage` 改走实际 `ChapterEditor`／`SessionSource` 的 `material:<id>`，
+后台打开前核对文档所属书，图片／PDF 仍先走已注册页面。模块 focus 的后代也被识别，
+并在旧页面退出焦点树前记住实际持有键盘的控件，修复从模块正文切到素材后的焦点丢失。
+最近访问使用第 61 批 typed `RecentTouch/List`，FIFO 队列的每次请求保留原库、原书
+及完整 Entry＋module／Material，避免快速导航写入反序；Home／全书／模板不伪造
+Book 目标。新增只读公共口 `Workspace::recent_state()` 与桥的 `state.get.recent`，
+只报告 F3 提交完成的目标和排队数，不查询或写入正文。未改结构读取、各组视图、
+G2 左栏／大纲；无新增界面文案，无新增或删除 v2.2 测试。
+
+`CARGO_BUILD_JOBS=3`，全套 fmt、Clippy（workspace／all-targets／locked、
+`-D warnings`）通过；单线程完整测试 **2169 passed / 0 failed / 22 ignored**，
+xtask（含 audit）及根目录 public 全过。audit 为 0 漏洞／12 notices，既有
+19 项 measured evidence 提示过期；编译仍有 macOS `__eh_frame` 链接警告。
+八项宿主 GPUI 契约
+全部通过（素材 3、最近访问 2、搜索 3），覆盖真实输入／撤销、跨书拒绝与写入隔离、
+模块访问顺序、只读书版本、实际光标段落及焦点交接。规范场景为
+`dr-cli/scenarios/k4-0-host-writes.json`：共享 v3-lite 种子、新建两书素材、真实输入／
+撤销／保存、批注入口打开／取消、两篇正文的精确访问、跨书拒绝、重开读回。
+最终标准 debug 副屏窗口 **66/66、0 pending**（64 步及两次启动的副屏边界守卫），
+PID 67670、67829 的原生边界回执通过；结果在
+`next/target/acceptance/k4-0-host-final-window/`，位置回执在
+`next/target/acceptance/k4-0-host-secondary/receipts/`，自动检查在
+`next/target/acceptance/k4-0-checks/host-*.log`。素材路由和最近访问均保留修复前失败；
+焦点缺陷首轮窗口在 active／visible 状态下失败，诊断在 `k4-0-host-focus/`，
+有效永久回归的修复前证据为 `material-child-focus-before-owned.log`。原搜索交回
+只证明素材目标／行号流转，素材真实正文和输入以本批为准。
+
+待协调：批注保存仍等 G4 的原 `for_prose` API 版本分发正式接 main，本批只验打开
+和取消，未将保存记为通过；不消费尚未正式交回的素材集合接口。G4 已确认捕获稳定
+anchor 并使用 v3 named 命令，K2 正补读取来源保护。F8 单次 `input.key` 的
+`secondary-a left` 曾留下全选；同一真实正文、活跃可见窗口，拆开 RPC 并等待选区
+收拢后前插正确。首轮及诊断在 `k4-0-material-window/`、
+`k4-0-material-selection/`、`k4-0-material-split-key/`，正式场景使用分步按键；
+本批未修改多键分发实现，不把替换选区误报为正文持久化丢字。下一段由 F6 接实际
+模块编辑器登记／释放及 G1 `v3_link::Address` 的 URL 消费，按页面实例区分模块、
+标签、书和库；不将这些既定接线问题列为待作者设计。布局、heavy 与样式继续后置。
+
+### G4 搜索宿主交回（2026-11-10）
+
+第 60 批 main `236196de` 已接收 G4 搜索接口。F6 的全局搜索按当前书版本选择
+`SearchPanel::new_v3`；`JumpV3` 直接保留 Entry 的模块 id 或 Material id，
+段落行号交 `Navigator::open_at`，不经旧 `NavTarget`／Book 哨兵。记号和颜色
+复用同一书快照的 `Book::mark`。换书关闭旧面板；旧面板的迟到事件既不能打开
+另一书的条目，也不能关闭新面板。书尚未读完时不创建搜索，避免把空快照误判为
+v2.2；加载后再按已知版本打开。关闭搜索统一用既有 `refocus`，清掉焦点缓存；
+即使命中当前已打开的同一页，正文也能继续输入。搜索打开后另在本轮延后回调中
+核对它仍是顶层面板，再接回键盘，防止旧正文渲染器已排队的交接抢走焦点。新调试状态 `state.get.search` 返回实际面板
+的版本、查询中状态、结果目标／模块名及段落行号，只读、不触发额外查询。
+`focus.search` 和 `v3Page.focus` 区分搜索字段、模块包装层与其子编辑器实际持有焦点，
+窗口验收等待实际交接完成，不把仅页面目标就绪当作输入已就绪。
+分支 `codex/k4-0-shell`；实现提交 `bf00728f`、`1a61d28f`、`b855e0a4`、
+`ad0cfbb3`，`48fb16c5` 同步 main `014cea40`。第 61 批在完整检查中到达，
+按整合者通知不打断本批，随后接最近访问时再同步。
+
+永久 GPUI 契约在 `dr-shell/tests/v3_search.rs`，使用两本共享 v3 tiny 种子，
+覆盖真实面板、标题、第二篇正文、素材、行号、Esc、只读版本、换书隔离，
+以及旧渲染器延后的焦点交接不得压过新搜索。
+一条真实产品入口场景为 `dr-cli/scenarios/k4-0-search.json`，从快捷键输入查询，
+选中第二篇正文并重复命中当前页后立即输入／撤销，核对原正文不变，再走历史
+导航与素材刷新。重复命中曾在活跃可见的窗口中报 `no_input`，修复前的永久
+焦点契约也失败；旧渲染器交接另有失败前证据。两处修复后定向三项通过，
+保留首次窗口与测试证据。换书读取中的版本守卫也有修复前失败的永久回归。
+最终代码 `ad0cfbb3` 的副屏冒烟 **61/61、0 pending**（60 条流程步骤及 1 条
+副屏定位守卫）通过；隔离窗口 PID 64736 的 CGWindow 边界完全位于副屏，
+两次 `app.info` 均为 active／visible。结果在
+`next/target/acceptance/k4-0-search-final-window/`，副屏回执在
+`next/target/acceptance/k4-0-search-secondary/receipts/secondary-64736.json`。
+最终全套通过：fmt、Clippy（workspace／all-targets／locked，`-D warnings`）、
+workspace test **2139 passed / 0 failed / 22 ignored**、xtask（含 audit）、
+根目录 public。编译并发 3，测试单线程；audit 为 0 vulnerabilities、12 notices。
+检查与修复前失败日志均在 `next/target/acceptance/k4-0-checks/`；中途为了修正
+已复现问题而停止的检查单列 `before-*`，不算完整通过。保留 17 份过期测量提示、
+macOS 链接器 `__eh_frame` 提示及窗口里的旧 TODO 投影版本守卫提示。
+不做 heavy、性能、截图目检或样式验收。
+
+本段只动 F6 搜索宿主及调试／验收，不改各组视图、不碰 G2 的左栏／大纲。
+最近访问由外壳接 `recent.touch`、G4 接主页列表；第 61 批接口已接收，外壳记录
+单列下一批，本次不绕写本机数据库。结构读取正确性留给整合者随后安排的独立会话；
+素材的具体页面与审阅等 G4 功能仍由该组接回。后续审阅宿主需核对
+`workspace/review.rs::new_comment` 的编辑器查找：v3 组合模块未必在旧 `p.view`，
+待 G4 的模块正文／稳定 anchor 接口接收后处理。本段没有新文案、没有删除 v2.2 测试。
 
 ### Book／Material 导航修复交回（2026-11-10）
 
@@ -919,3 +1154,40 @@ public；编译并发 3，测试单线程。audit 为 0 vulnerabilities、12 not
 本机最近访问和大书批量查询继续按协调队列接线。已分派给 K2／G4 的候选复用
 正式接收的接口，未占用的公共小接口按新规则可自行只增不改并带测试交回。
 素材 facade 接收后再统一消费。未将工作分支合入 main，未推送。
+
+### 外壳 v3 结构读取正确性交回（2026-11-10）
+
+**做了什么：** `book::v3::load` 每轮只调用一次现有的
+`entry::LevelList(BookIn) -> LevelsInfo`。`levels[].id` 原样作为外壳 `levels` 的键；
+`settings` 原样保留 `types::LevelSettings` 的八项值；`sources` 保留键和标识符，
+`Default`、`Override { entry }`、`Template { entry, template }`、
+`Lane { entry, template }` 逐变体一一映射到外壳同名枚举，不再判断继承或泳道优先级。
+`children`、`members` 只将完整条目 DTO 投影成 id，原顺序、有效父级容错与有效归属
+由内核负责，二者不互换。保留三次 before/after frontier 重试，并额外要求
+`LevelsInfo.version == before.version == after.version` 才发布整份快照；
+`BookV3.revision` 使用该共同版本。条目、模板、根、时间线及素材仍在同一外层校验中。
+永久契约覆盖八项来源、默认／模板／祖先覆盖／泳道、显式 null 与缺失键、真实加载
+修改重载和重开、叶子父级容错、排序／回收恢复、住处与成员、全库文档值／frontier
+及 journal 不变、双书隔离、并发写入下整份快照逐字段对照其 revision 的历史文档，以及真实
+正文编辑器在设置刷新时保留实例、输入、选区和滚动位置。未增删 v2.2 测试。
+
+**检查结果：** 已同步 main `0f562934`，最终受检提交 `5624572b`；编译并发 3、
+测试单线程、独立 target。fmt、workspace/all-targets Clippy `-D warnings`、
+workspace test **2232 passed / 0 failed / 22 ignored**、xtask（含 audit，
+0 vulnerabilities／12 notices）及根 `pnpm public:check` 全过；保留 19 份过期测量提示。
+两组外壳定向契约为 **13/13**。唯一冒烟场景 `dr-cli/scenarios/k4-0-structure.json`
+最终 **77/77、0 pending**：设置修改／还原与内核来源、显式 null、刷新后的继续输入、
+Book／Material／模板导航及重启读回均通过。两次启动分别按实际 PID 的 CGWindowList
+全局 bounds `(564,1565,1440,900)` 核对在副屏 `(420,1440,1728,1117)` 内；
+未将 app.info 的屏内相对坐标用于判屏。首三轮因等待器不支持的数组筛选、参数对象键
+不展开变量及条目正文标签假设而未完成，第四轮因辅助 app.info 监测超时误终止；
+均保留原始记录，未判作环境干扰，未调大场景超时。修正场景／监测后第五轮通过，
+期间未修改产品代码。早期新增测试的两处 API 编译错误也已修正并保留日志。
+全套与窗口日志统一在 `~/Drifting-autopilot-logs/shell-structure/`：最终自动检查
+`full-final/`，成功窗口 `smoke-5/`，未完成轮次 `smoke-1/` 至 `smoke-4/`；
+保留现有 linker unwind 与 GPUI SVG 字体资源提示。未做截图目检。
+
+**待协调：** 本段无新增公共接口或设计阻塞。全书仍包含其他查询；额外查询复用、
+大书性能、heavy 窗口测量、
+基准、截图目检与样式／流畅度打磨按最新监管规则暂缓，未测项目不记为通过。
+F6 搜索／最近访问及其他组在途工作不属于本次交回，也未消费其 WIP。

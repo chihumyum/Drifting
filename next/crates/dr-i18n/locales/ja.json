@@ -1819,14 +1819,14 @@
     "name": "名前",
     "new_entry": "項目を作成",
     "new_template": "テンプレートを作成",
-    "no": "いいえ",
     "none": "なし",
     "number": "数値",
     "options": "選択肢",
     "patches": "パッチ",
     "plot_grid": "プロット",
+    "preview_failed": "プレビューを読み込めません",
+    "preview_loading": "プレビューを読み込み中…",
     "prose": "本文",
-    "read_only": "読み取り専用",
     "relations": "関連",
     "reorder": "ドラッグで並べ替え",
     "restore": "元に戻す",
@@ -1835,8 +1835,7 @@
     "template_name": "テンプレート名",
     "text": "テキスト",
     "this_level": "この階層",
-    "unsaved": "未保存",
-    "yes": "はい"
+    "unsaved": "未保存"
   },
   "topTimeline": {
     "closeTab": "タブを閉じる",
@@ -1881,6 +1880,7 @@
     "autoLink": "自動リンク",
     "byStoryline": "ストーリーライン別",
     "collapse": "{{name}}を折りたたむ",
+    "create": "作成",
     "defaultTemplate": "既定のテンプレート",
     "display": "表示",
     "expand": "{{name}}を展開",
@@ -1895,6 +1895,7 @@
     "none": "なし",
     "off": "オフ",
     "on": "オン",
+    "primary": "主な所属",
     "residents": "ここにある項目",
     "restore": "{{name}}を元に戻す",
     "sourceDefault": "既定値",
@@ -1902,6 +1903,7 @@
     "sourceOverride": "上書き · {{name}}",
     "sourceTemplate": "テンプレート · {{name}} · {{level}}",
     "thisLevel": "この階層",
+    "title": "タイトル",
     "unassigned": "未所属"
   },
   "v3Shell": {

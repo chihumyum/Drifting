@@ -233,8 +233,51 @@ cargo run -p dr-view-elements --features capture --example elements-capture -- .
    全书的 `PageHost` 调用第二参数 `None`。替换编辑器时重新登记。不在 G1 按 show_outline
    过滤，G2 逐快照核对活动模板配置。注册只保存弱编辑器和弱 workspace，不重借外壳；
    选择当前聚焦／导航指定／首个可展示的正文，读取实际高度、滚动和光标，不伪造段落几何。
-   按作者随后指示，接口先单独交回，G1 等它进入 main 后接线；G2 收到 G1 的交回提交，
-   合入 main 后再完成联合真窗口验收。尚未声明 v3 大纲的产品验收完成。
+   接口 `09142d08` 按作者要求先单独交回，G1 `3278b584` 在第 58 批接线。
+   第一次联合窗口发现全书重排后 Book 标签被清掉；F6 `d2c0c918` 在第 60 批
+   main `236196de` 修复导航存在性后，本组完成 **171/171、0 pending** 的联合冒烟，
+   全书重排后的重新登记、show_outline 刷新、实际输入／撤销均通过。
+   同一条目可在多个模块标签分别实例化正文；注册表保留各实例，并按当前页面的焦点
+   层级筛选，避免最后登记的隐藏标签接走光标。永久 GPUI 回归修复前选错实体、修复后通过；
+   注册接口与 G1 调用不变。本协调项关闭，原失败诊断保留在忽略的 acceptance 目录。
+3. **F6／K1 查询：历史 heavy 加载记录（性能暂缓，不阻挡交回）。** 标准 debug 的 v3-heavy 在 120 秒后
+   `book.loaded=false`，G2 显示器尚未实例化。一秒采样看到
+   `book::v3::load → EntryList → effective_parent → entries_map → resolve_autolink_name_conflicts`
+   的读取链，属于 G3／K5 已记录的快照加载协调项。下面同配置开发优化对照仍需约 26 秒
+   才看到左栏首条目；不把滚动绘制样本当成加载性能已经过关。原始状态、采样和日志在
+   `next/target/acceptance/k4-g2-heavy-standard-diagnostic/`。本组不跨界改查询或快照实现。
+4. **G4／K2：右栏统计与审阅宿主（2026-11-10 已分派给 G2）。** 作者选择保持
+   各组边界，由整合者安排外壳和公共命令接线；G2 只接所拥有的
+   `dr-shell/src/workspace/sidebar.rs::right_body`，不改 G4 视图、K2 命令、
+   F6 的 `toggle_search` 或 `progress.md`。两支须在旧 `book::nav_target` 转换前
+   按书版本分流，保留 `Entry { id, module }`、Material、Book 的真实范围；
+   跳转直接映射外壳 Target，不能把非正文模块或模板页当作全书。
+   G4 的统计与审阅均提供版本化 `v3_panel::panel`；统计用 `v3::Scope`，
+   审阅用 `Option<v3::Target>`（None 为全书，Entry 保留 module）。
+   第 60 批 main `236196de` 已正式接统计接口 `7e2cd7d0`，G2 已消费并接入真实范围；
+   条目模块不做旧目标转换，模板页留空；回调核对书与库实例后直接打开 Target。
+   两项宿主永久测试通过，含实际面板范围、非正文范围和换书／换库后的旧回调拒绝。
+   第 61 批 `f3709422` 已正式接审阅接口，本组以 `32da898d` 同步 main 后接入只读宿主，
+   不消费 G4 此后尚未正式交回的写入适配。模板页留空，非正文模块保留精确范围；
+   实际 ReviewView 的 Current 过滤与跳转、换书／同 ID 换库后的旧回调拒绝已有永久测试。
+   第 65 批 main `282587bb` 正式接收 G4 写入适配后，本组以 `bc8279d1` 同步；
+   审阅面板签名不变，G2 仍只传精确目标、记号与受保护的导航回调，写入实现由 G4 提供。
+   本组四项范围／回调／拖动宿主回归在新 main 组合上通过，不以此冒充 G4 写入窗口验收。
+   新窗口场景 `k4-g2-review-drag.json` 核对实际范围入口，结果另记；不能把 GPUI 跳转
+   测试写成已经点击了窗口中尚无 AX 名称的箭头。
+   依原协议跑全套检查和窗口验收后才前移 `handback/k4-g2`；不把此前左栏的
+   2066 项检查或 160 步窗口结果作为右栏已经验收的证据。大纲联合结果见上文第 2 条。
+5. **G3：公共树拖动来源（新增实现，待正式交回合 main 后消费）。**
+   `dr_shell::v3::EntryDrag::new(PageViewHost, entry, title)` 是中立的实际 GPUI 拖动载荷，
+   左栏／层级显示器已使用它；公共字段为 `book`、`entry`、`title`、`span: Option<f64>`。
+   `page()` 取得来源快照与库；`set_grab(x)`／`grab()` 共享最初按下位置距来源左边的横距，
+   非有限值不覆盖已有距离。`matches(&PageViewHost)` 比较 workspace、书、库实例和所见
+   版本，不在渲染期间借活的外壳；`is_current(&App)` 只在输入回调中重验当前宿主。
+   接收端仍必须通过版本守卫提交，不能把 UI 核对当成写入授权。
+   `with_source<T: Any>`／`source<T>()` 为渲染器的私有手势上下文；G2 用它保留稳定实体中的
+   实际按下点和看板原位置，G3 不必知道此类型。克隆共享抓距与上下文，保留库 lease；
+   无效条目、跨书、同书 ID 换库、换 workspace 和旧版本拒绝已有永久 GPUI 回归。
+   G3 在自己的接收端消费公共类型；本组不改 `dr-view-timeline`，也不让 shell 反向依赖它。
 
 ## K4 G2：层级页（第二批）
 
@@ -284,3 +327,179 @@ main `ef6c1ffa`（第一批显示器的整合），只处理 `lib.rs` 的登记�
 尚未解决而退出的 fmt 不算通过记录。交回仍用 `handback/k4-g2`，开发分支
 `codex/k4-g2-levels`；本批新增 `09142d08`、同步提交 `5f9f69d5` 及本记录提交。
 没有合回 main，没有推送。
+
+## K4 G2：拖动与公共选择器（第三批实现中）
+
+`menu::v3` 登记公共条目卡的新建、换模板、归属到；操作前重新核对书、库实例和目标。
+`data::v3` 从作者看到的快照准备写入，统一携带书版本守卫。换模板只列满足住处、
+子条目、当前有效归属和泳道约束的模板，保留原模块数据；不重写读取时隐藏的原始关系。
+归属选择器可添加／移除归属、设置／清空显式主归属，不改变住处。
+
+新建使用当前层级（叶子则取其有效住处）的默认模板与住处规则；不擅自用第一项模板
+代替缺失的默认值。对话框固定打开时的设置，作者输入的标题不随快照刷新丢失。
+期间设置改变会拒绝旧提交；显式重试后重新显示住处和模板选择，保留标题。
+成功后等外壳快照含有新条目再导航，避免用尚未刷新的快照丢掉待打开的页面。
+准入后的数据库任务独立持有库句柄，关闭接收视图不取消已经准入的写入。
+
+列表、网格、岛屿和看板中的条目可拖动：普通层级接收住处，接收型层级接收归属，
+叶子前后用于同层排序。允许模板和循环限制交给 v3 模型复核；同层排序按原始兄弟序列
+计数，包含逻辑删除的槽位。看板中的拖动只改 `layout.board`，保留 grid 与 relation_graph。
+归属节不显示会展开住处子树的折叠按钮；每个显示位置有独立的拖动几何和状态。
+
+永久契约 `dr-view-elements/tests/v3_actions.rs` 共五项，覆盖默认值／住处与原子归属、
+换模板后的关系和内容保留、非法循环与允许模板、包含删除槽位的排序、看板布局及过期写入。
+`v3_levels` 另补换书期间旧快照的保护；本轮两组共 **13 项通过**。
+最终窗口场景 `dr-cli/scenarios/k4-g2-actions.json` 在调试桥上逐项执行手势与公共卡操作，
+本轮 **160/160 步、0 pending**，五张截图逐张目检；看板读回写入坐标，并由
+`check-v3-displays.py` 核对实际 AX 相对位移 **40 × 80 px**。结果在忽略目录
+`next/target/acceptance/k4-g2-actions-19/`。早期的角色定位、动态等待键和悬停卡遮挡等
+脚本失败记录也保留；它们不计为通过。本轮尚未跑最终全套检查或大纲联合验收，
+此处不宣称第三批已经交回。
+
+左栏性能探针在 `dr-view-ideas/scripts/window-sidebar-bench.py`，使用独立的 heavy 与
+v3-heavy 合成库。`dr-view-elements/measure-v3` 仅在显式 feature、debug_assertions
+和输出环境变量均开启时收集 GPUI CPU draw／layout／prepaint／paint；默认和发布脚本
+不启用。桥往返与窗口 CPU 绘制分别计时，不把桥往返称为绘制帧，也不声称 GPU 或实际呈现。
+生成器 `dr-view-ideas/examples/sidebar-evidence.rs` 只接受完整的两档测量，生成 F8 格式的
+里程碑证据；原始窗口结果、截图和数据库保持在忽略目录。
+
+### 左栏 heavy 对照
+
+证据由生成器写入 [k4-g2-sidebar-window-bench.json](../acceptance/k4-g2-sidebar-window-bench.json)，
+输入是原始调试桥测量，不手改 JSON。heavy 与 v3-heavy 使用同一种子及相同正文指纹，
+各自一个新的隔离档案、一个新 App 进程，窗口 1440 × 900；两档都向下 60 次、向上
+60 次，每次 56 px，并验证首条目离开后回到左栏。四张滚动截图已逐张目检。
+
+两档均为开发构建：`dr-workspace`、`dr-doc`、`dr-model`、`dr-store` 临时
+`opt-level=2`，其余保持 `opt-level=0`，显式开启 `drifting/debug-bridge` 和
+`dr-view-elements/measure-v3`；编译并发为 3，没有改项目默认配置或发布脚本。
+打开计时从 `book.open` 到实际左栏首条目，含 CLI／IPC；系统磁盘缓存没有清空。
+滚动时关闭底栏，记录期间整窗 GPUI CPU draw；不含 GPU／实际呈现，不套发布档帧预算。
+两代主页内容与默认看法不同（旧版按故事线，v3 按书稿顺序），因此这里是该窗口场景的
+对照，不把差值全归于左栏实现。每档只测一次打开，不作分位数推断。
+
+| 档位 | 初次打开至左栏首条目 | CPU draw 样本 | CPU draw 中位数／p95 | 滚动桥往返中位数／p95 |
+| --- | --- | --- | --- | --- |
+| heavy（v2.2） | 143.64 ms | 571 | 2.699／3.224 ms | 9.755／53.032 ms |
+| v3-heavy | 26202.58 ms | 545 | 1.225／1.975 ms | 6.548／10.657 ms |
+
+完整来源指纹、种子规模、机器与负载、每个原始样本均在生成证据中。原始报告和截图位于
+`next/target/acceptance/k4-g2-sidebar-heavy-final/`。此前因时间线也有同名卡片而错误要求
+全窗唯一条目的测量已标失败并保留在 `k4-g2-sidebar-heavy/`，不计入上表。
+标准 debug 的 120 秒加载超时另见待协调 3；本次开发优化对照不关闭该项。
+
+### 第三批准备状态（G1 联合验收前的历史检查）
+
+开发分支仍为 `codex/k4-g2-levels`，实现提交 `38962ccc`；测量、指纹生成器和本节
+另存为本次记录提交。独立验收使用 `CARGO_BUILD_JOBS=3`、测试单线程，fmt、
+Clippy（workspace／all-targets／`-D warnings`）、全量测试
+（**2066 通过／0 失败／22 忽略**）、xtask（含审计）、根目录 public 全过。
+日志在 `next/target/acceptance/k4-g2-checks-3-independent/`。
+测量生成器的来源指纹随后扩至参与整窗场景的外壳、主页、CLI／桥和数据层，
+目标 Clippy、重生成、fmt、九语同步及 xtask／public 复核也通过；没有改测量样本。
+当时新增的 measured evidence 为 fresh，已有其他里程碑的 stale 记录按 F8 原样保留。
+
+操作窗口 **160/160**、0 pending 和 heavy 对照见上文；大纲仍只交了接口，
+没有用占位正文冒充联合验收。复查 main 的第五十五批记录，G1 接线尚未被接收；
+按作者约定，收到 G1 正式交回后再合入 main，验证实际正文及全书编辑器的大纲。
+因此 `handback/k4-g2` 此时仍指向已单独交回的 `d2ddab9f`，本次不前移。
+本会话没有合回 main、没有推送。
+
+### 第三批交回及第 63 批退回（2026-11-10）
+
+开发分支 `codex/k4-g2-levels`，交回指针 `handback/k4-g2`。本批含树上换住处／排序、
+看板坐标、公共卡新建／换模板／归属，及 v3 统计范围宿主；实现为 `38962ccc`、
+`074abef0`、`c9bba43e`、`e3f818ed`。大纲保留同一模块在多个标签中的实例，按当前页面
+焦点层级取实际编辑器，修复隐藏标签接走光标；G1 注册接口不变。以 `7d687b69` 同步
+第 60 批及其主线记录 `014cea40`。没有删除 v2.2 测试，没有新增公共命令或改公共签名。
+
+`CARGO_BUILD_JOBS=3`、测试单线程：fmt、workspace/all-targets Clippy（`-D warnings`）、
+workspace test **2145 通过／0 失败／22 忽略**、xtask（含审计）、public 全过，日志为
+`next/target/acceptance/k4-g2-checks-3-joint/`。隐藏归属／并发重试、实际统计面板范围／
+旧回调隔离和大纲多实例归属均有永久保护，后者修复前红、修复后绿。本轮冒烟源为
+`k4-g2-outline.json`，169 项功能步骤加 2 项副屏前置核对，**171/171、0 pending**，
+在 `next/target/acceptance/k4-g2-stats-outline-secondary-4/`。全书重排后的重新登记、
+show_outline 刷新、实际输入读回／撤销及模块标签关开均通过；统计窗口核对范围入口，
+数值和模块回调由实际面板永久测试核对。前三轮的定位、关闭动作及隐藏编辑器误选
+失败记录保留；最后一项已修复并永久回归，不靠重试放行。
+
+待协调：按整合会话第 61 批通知，审阅宿主及中立的公共树拖动来源在下一批继续，
+不打断本批全套检查。性能／heavy／截图目检和样式依最新规则暂缓，旧测量只是历史记录，
+本轮不计为通过。未合回 main，未推送。
+
+交回指针 `c54fda05` 在第 63 批被退回，尚未接收：取消可见归属 A 时，
+K2 的 `membership.remove` 会清掉已回收泳道 B 下保留的时间线摆放，恢复 B 后原位置
+41、长度 7 已丢失。整合探针及日志在公共 Git 目录
+`integration-evidence/batch-63/hidden-membership/`；G2 在 `v3_actions.rs` 补消费者永久回归，
+通过 `prepare(...).commit(...)` 使用实际书快照守卫，同时检查隐藏原始摆放与恢复结果。
+现有命令修复仍归 K2；不绕过守卫、不丢失败草稿、不把本组此前 2145 项通过结果当成
+第 63 批已经过关。合入正式修复、接完审阅宿主和公共拖动来源后，全套检查及副屏主流程重交。
+
+返修续接只读审阅与公共拖动来源，细节见待协调 4／5；两项新增永久 GPUI 回归连同
+统计／范围映射共 **4/4 通过**，目标 all-targets Clippy、fmt、九语同步检查通过。
+`k4-g2-review-drag.json` 在副屏真窗口 **194/194、0 pending**，原始记录在
+`next/target/acceptance/k4-g2-review-drag-secondary-2/`；窗口激活、可见，1440 × 900
+完整位于内置副屏。真实树上移动／排序／归属、显式失败重试与看板位移通过；审阅窗口
+核对 Current 过滤、条目／模块／非正文／模板／素材／全书入口，精确跳转由实际面板
+永久测试覆盖。首轮查找评论误用 AX Label 而失败；51 步短诊断确认实际角色为 StaticText、
+目标和 Current 正确，修正选择器后整场通过。失败与诊断原件均保留，产品代码未靠复跑放行。
+该续接阶段尚未消费 K2 修复，也未重新跑全套或前移交回指针；后续组合验收见下节。
+
+### 正式 K2 组合验收中断（2026-11-10）
+
+按整合者同批验收的新安排，开发分支 `codex/k4-g2-levels` 以 `54b3af9e` 同步
+main `07fd3c15`，再以 `cd3a526a` 合入正式 K2
+`763ce98b3e5295fc0bd30c69646e9c0aa931b545`；只消费这一份正式交回，不含后续链接／M14
+WIP。G2 新增 `53f205fa` 的真实 Mutation 消费者回归和 `34e2552a` 的审阅／公共拖动来源，
+其余第三批功能沿用前述提交。受检源码冻结在 `cd3a526a2b3f4d888ef9b930c97fdb67583d354e`。
+
+`v3_actions` **7/7 通过**，隐藏泳道 B 下 at=41／span=7 的原始摆放与恢复回归已由红转绿。
+`CARGO_BUILD_JOBS=3`、测试单线程的全套在 fmt、workspace/all-targets Clippy 通过后，
+因 `dr-export/tests/book_file_v3.rs:356` 的
+`v3_import_rolls_back_prose_if_the_book_genesis_is_damaged` 中断：**490 通过／1 失败／3 忽略**。
+损坏导入返回 Err 后仍多留一个新 book 文档，原有 20 个文档仍在。全套日志在
+`next/target/acceptance/k4-g2-checks-4-k2-g2-combined/`；未继续到该轮 xtask／public 或窗口验收，
+不以 K2 源分支或此前 G2 的通过记录代替组合通过。
+
+同一原二进制 `next/target/debug/deps/book_file_v3-21ca1dc05c282a83` 的单项 3 次通过，
+整文件有界诊断前 9 次通过、第 10 次同断言失败后停止；失败原件为
+`next/target/acceptance/k4-g2-genesis-file-original-10.log`，整合者另存公共 Git 目录
+`integration-evidence/batch-66/import-rollback/` 并交 G4 修复。没有改 dr-export／dr-store、
+删断言或以重跑通过放行。待正式修复配对后重验组合；副屏新窗口按整合者通知暂缓启动，
+原失败与已完成窗口证据保留。`handback/k4-g2` 仍为 `c54fda05`，未合回 main，未推送。
+
+随后以 `bc8279d109827c6839dfe58edacffc9acc9b50da` 同步正式 main `282587bb`。
+三处追加冲突均保留双方：公共 `drag`／`history` 模块、两份命令覆盖测试来源、K2 scoped
+restore 与 K6 新增命令的排除规则；没有手改生成快照。格式与九语生成检查通过，
+实际宿主回归 **4/4**、目录契约 **11/11**、命令注册覆盖 **1/1** 通过，日志分别为
+`next/target/acceptance/k4-g2-main65-host-tests.log`、`k4-g2-main65-catalog-tests.log`、
+`k4-g2-main65-command-coverage.log`。原整批回滚失败仍待 G4 正式修复配对；副屏时段已释放，
+本组合尚未新开验收窗口，也未据这些局部通过前移交回指针。
+
+### 第三批正式重交（2026-11-10）
+
+开发分支 `codex/k4-g2-levels`，提交本节后前移 `handback/k4-g2`。相对 `c54fda05` 的
+本轮顺序为 `32da898d`、`53f205fa`、`34e2552a`、`fdf086e6`、`54b3af9e`、`cd3a526a`、
+`bc2904aa`、`bc8279d1`、`068eb171`、`1e5e8b15`，加本节记录；其中 `53f205fa` 为真实
+Mutation 隐藏摆放回归，`34e2552a` 为审阅精确范围宿主和公共 `dr_shell::v3::EntryDrag`。
+受检源码冻结为 `1e5e8b152ce2579df0a233d1f1effee94b058e33`，包含正式 main `0f562934`、
+K2 `763ce98b` 和 G4 `39416a46`，不含这些分支此后的 WIP。三处追加冲突按前节保留双方；
+G2 没有代修已有内核／归档方法，没有新增或删除 v2.2 测试，新增公共载荷 API 见待协调 5。
+
+`CARGO_BUILD_JOBS=3`、`RUST_TEST_THREADS=1`、`DR_UI_REQUIRE_FONTS=1`：fmt、
+workspace/all-targets Clippy（locked／`-D warnings`）、workspace test
+**2260 通过／0 失败／22 忽略**、xtask（含审计）、public 全过；导入／回滚六项及 G2 操作七项
+都在全套通过。原件在 `next/target/acceptance/k4-g2-checks-5-final-g4-rollback/`。
+标准 debug／`seed:v3-lite` 的 `k4-g2-review-drag.json` 首轮 **194/194、0 pending**
+（192 项功能步骤加 2 项副屏前置），在 `next/target/acceptance/k4-g2-final-combined-secondary-1/`。
+窗口 1440 × 900 完整位于内置副屏，四处检查点及连续 144 份 app.info 均 active／visible；
+树、看板、守卫选择器和审阅范围通过，精确模块跳转／旧回调隔离由全套实际面板回归覆盖。
+验收 App 已退出并释放本人租约，源码之后只补交回文档。
+
+待整合：根已用原隐藏摆放与两项真实 undo 接管探针验证正式 K2 组合；第 63 批的最终接收
+仍由整合者判定。整合者另报告：main65＋G4 `39416a46` 的单个跨功能永久契约中，带完整
+快照的格式 3 书导入新书后 `entry_snapshot.list` 为 0（应为 1），G4 正修归档映射；按同批
+安排，本组完成固定组合后照常重交，最终根批次另配 G4 最新正式修复再检查，不取其 WIP。
+G3 待公共载荷进 main 后消费接收端；性能／heavy／截图目检和样式按既定阶段处理，不计本轮
+通过。此前 490／1／3、第十轮回滚失败、AX 角色诊断及早期大纲失败原件全部保留；旧绿测不替代
+本轮结果。G2 本轮没有新增产品文案，原文案均在 own 九语及生成检查内。未合回 main，未推送。

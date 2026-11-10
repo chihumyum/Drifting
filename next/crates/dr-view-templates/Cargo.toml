@@ -8,12 +8,15 @@ publish.workspace = true
 description = "V3 leaf and level template editor (K5)"
 
 [dependencies]
+dr-agent-tools.workspace = true
+dr-doc.workspace = true
 dr-i18n.workspace = true
 dr-model.workspace = true
 dr-shell.workspace = true
 dr-ui.workspace = true
 dr-workspace.workspace = true
 gpui.workspace = true
+serde.workspace = true
 serde_json.workspace = true
 
 [dev-dependencies]

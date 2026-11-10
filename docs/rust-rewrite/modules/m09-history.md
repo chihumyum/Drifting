@@ -140,3 +140,106 @@ K6 在本次接口正式合入后接首次写入前打点；按 overnight 的新
 正常释放；末次 before-quit 扫描的现有回调不能向宿主返回错误，失败只记日志，
 最终可失败的 after-drain 阶段仍需 F6 接口。输入、保存、恢复、并发、跨书
 等正确性照常检查；截图目检、heavy、性能预算和样式打磨全部暂缓，不计为通过。
+
+
+### G1 保存排空续段（2026-11-10，正式交回）
+
+**做了什么：**在 G1 自有 `dr-view-page::settlement` 登记当前库的已接受写入，接既有
+`release::before_release`／`after_release`。释放同步冻结新写入，异步收集挂载输入的
+最后草稿、合并已排队保存，并等待真实持久化和前台确认；只等 G1 自己的当前库任务，
+不在 UI 线程 join。覆盖 typed fields、KV、patch 的保存／新增／删除、planner 的
+文本／结构／尺寸及本机比例，以及正文／整书页头的 v3 标题和梗概。失败、冲突及
+无效输入保留原草稿并拒绝释放，恢复后允许继续输入和显式重试；写入中或保存失败时 Esc 也保留待重试输入，不把已接受任务当作可取消的本地草稿。不会因 blur 清掉
+草稿或拿刷新后的版本替旧草稿授权。字段保留原显示值基线，KV／patch 保留已有的
+逐字段合并，网格采用完整原网格比较加 CAS，任何并发网格改动均保守拒绝自动覆盖。
+所有任务捕获原库句柄，登记自身不持有库；旧库保存不能转投新库。复用既有九语言
+错误／重试文案，没有新增翻译键或手改生成证据；v2.2 保存分支和旧客户端不变。
+
+**检查结果：**新增永久回归使用真实 v3 Tiny、真实模块页面和控件、shell 的普通
+库替换／退出流程。当前专项 17 项通过，含第一笔保存延迟期间继续输入、释放等待
+合并后的最后一笔、期间 UI 任务继续、晚到输入被拒、持久化失败保留草稿、相同数量
+并发变化不覆盖、无效日期、失败后显式重试、两库隔离及重开；页头另 5 项新增退出／
+冲突／取消回归通过；保存确认后的取消不把陈旧页面资料再次反写进书。已有字段陈旧快照回归保持，修复保存确认后旧快照抹掉显示值的问题，
+并补后来的外部值仍可刷新。F2 单文档 append 失败本来会保留未落盘操作等待原 origin
+重试：故障回归精确比较整份 durable raw state，不把 live holder 读值误当落盘，也不
+放宽任何作者值。首轮测试屏障／测试时钟问题、F6 v3_home 保留反例和全部失败日志
+均保留；有效模块回归通过真实 v3 registry／导航挂载，不采用不可见 Home 假装挂载。
+对源码 `70f4d77e90693335366c8651e85c72632cdd358a`，以并发 3、测试单线程完成
+fmt、workspace all-targets locked Clippy（-D warnings）、workspace locked test
+**2249 通过／0 失败／22 忽略**、xtask check（含 audit）和根 public，均通过。
+审计为 0 vulnerabilities／12 notices；保留 19 stale／15 legacy 测量提示，未把它们
+当成本轮性能验收。之后 Rust、Cargo 和锁文件未变，只调整冒烟脚本及交回文档。
+`next/crates/dr-cli/scenarios/g1-before-release.json` 的新构建副屏隔离流程为
+**89/89、0 pending**：四类真实输入、聚焦字段直接退出、close 点预览及重开读回；
+机器结果在约定外部日志目录 `g1-before-release-smoke-6/result.json`。两次启动 PID
+75640／75970 的 CG 全局收据均在副屏；同目录 `snapshot-data-and-display-check.json`
+再精确核对最终快照里的字段、KV、补丁和网格四项值。`environment.ndjson` 保留输入
+期间的 app.info／状态。前五轮记录均保留：第一轮命令缺 workspace、第二轮文案
+标签错误、第三／四轮视口及滚动点错误，第五轮点击后没有输入焦点；活跃窗口／节点
+坐标已核对，未冒称环境原样重跑。最终通过文字区点击、等帧及明确焦点／全选断言
+完成。冒烟修订只涉及脚本，其间产品源码和数据断言未变。原 82fca0b4 的 2198／0／22 与 72/72 证据
+另存，不冒充本段检查。没有截图目检、heavy 或样式／流畅度验收。
+
+**待协调：**本段先交可独立接收的 before_release 写入排空，不表示 G1 全部完成或
+切换终点达成。F6 可失败的 `after_drain` 与 mirror 最后扫描尚未收到正式 main 接口
+通知；G1 的 `capture_on_close` 迁移、正常库替换最终 checkpoint、两处真实
+`register_editor` 登记仍等正式接口后续接，不消费 WIP，不改 F6／G2／G4／K6。
+另已向整合者报告 F6 `Workspace::let_go_of_library` 未释放 `v3_home`：真实两库替换
+在写入排空后仍因旧 workspace clone 被持有而拒绝，精确复现见约定外部日志目录
+`g1-drain-f6-blocker.md`。G1 的实际模块页回归使用 F6 已释放的 editors/modules 路径。
+旧快照阶段的未知容器／树身份限制仍按 82 的首次真实提交前整批安全拒绝，后续归
+G1／K1 技术协调。上述均不放进待作者；布局／样式、截图目检、heavy、性能和流畅度
+仍明确暂缓，不计为通过。本段没有删除任何旧测试或变更既有公共接口行为。
+
+### G1 编辑器、v3 链接与最终 checkpoint 接线（2026-11-10，正式阶段交回）
+
+**做了什么：**消费正式 F6 编辑器登记 `3712d13f`、after_drain `8cfdd74e`、K1
+链接 `a3676ea9`，并合入正式 G4 导入回滚 `39416a46` 和快照归档修复 `582b48c9`，
+未消费活动 WIP。两个 G1 maker 登记 renderer 真正持有的 BodyModule／WholeBook
+编辑器：加载时 None、重载后当前实例，同正文多标签保持独立，原标题焦点、G2 大纲、
+滚动和草稿仍由 renderer 维护。正文与表格的版本化链接保留 Entry＋module／Material
+及 block 范围，点击完成前复核来源库／书；OS 富剪贴采用带类型的原始 mark 编码，
+保留 Binary、整数、浮点 bits、未知字段／kind。复制只读已显示镜像；粘贴／剪切在
+holder 内校验原观察，坏格式、容器引用、过深或不支持的表示在写前明确拒绝并保留
+输入。多格键入用本次已接受输入的精确 frontier 结算；选区观察只能由同一成功写入
+的精确 frontier 确认推进，不能 fresh 读取后授权旧范围。冲突保留本方已接受输入与
+对方值并反馈失败，正常替换仍一次撤销。保留 AutomaticHistory::finish 的
+before_release，最终 capture_on_close 迁入 fallible 后台 after_drain：所有生产者
+及 Markdown 排空后才捕获原库；失败阻止释放、保留真实页头输入并恢复服务／重试。
+未改 F6／K1 既有 API 行为、G2／G4／K6 产品实现或旧客户端，没有删除旧测试。
+
+**检查结果：**新增 14 项永久契约（剪贴／多格 8、真实挂载 4、生产生命周期 2）
+覆盖原始 mark／范围外数据、保存与 Undo／Redo／重开、同正文双标签、真实全局查找、
+选区批注、通览重载、换书拒旧导航、最后生产者之后的 close 点及作者恢复、存储失败
+阻止替换且保留真实页头输入并重新允许编辑。固定 aa212 经真实 v3 material-note
+GPUI 输入复现多格替换红色，保留 `g1-typed-over-red-1.log`；三项绿测同时保护正常
+替换、输入前及输入后清理前的同数量并发，未降低原始值、焦点和一次撤销断言。
+Registry 原测试／生成器 16 项通过，无手改生成证据。完整受检 Rust／Cargo 源码为
+`93dcf93e47ac69b65b1482bc3ec75816cea5b86c`，jobs=3、测试单线程、
+DR_UI_REQUIRE_FONTS=1、独立 target；fmt、workspace all-targets locked Clippy
+（-D warnings）、完整 workspace locked test **2315 通过／0 失败／22 忽略**、
+xtask check（含 audit）及根 public 全通过，机器清单 `g1-wiring-final-3.json`。
+审计 972 locked crates、0 vulnerabilities／12 notices；19 stale／15 legacy 测量
+提示保留，未算性能通过。随后仅修改场景与交回／协调文档，Rust／Cargo 与该源码
+完全等价；最终另核场景解析契约、fmt、xtask（含 audit）、public 和 diff --check。
+预构建 dr-cli 直调 `g1-wiring.json` 的新构建隔离副屏主流程 **53/53、0 pending**，
+结果 `g1-wiring-smoke-9/result.json`；PID 65906／66011 的 CG 全局收据均在副屏，
+合法 profile 为 g1-wiring-9。`snapshot-data-and-display-check.json` 精确核对 close
+点标题、两份正文清单及第二正文全文；场景验证 OS 剪贴、查找、module 批注、首正文
+页头原生全选输入、退出保存、带守卫恢复与重开读回。前轮全部保留并分类：第 1 轮
+Cargo 锁前取消且无 App；第 2 轮 handled 响应数组，第 3／5／6 轮非首正文页头与
+AX／debug 观测定位错误，第 7 轮多期望末尾换行，第 8 轮误用 entry/title 而非
+metadata/title，均为脚本错误。第 4 轮被并行 workspace 构建覆盖为无 bridge 二进制，
+有瞬时哈希／feature 证据，原场景只原样重跑一次；未将其他失败冒充环境。
+首轮全套 `g1-wiring-final-1` 由整合者主动中断，不算通过；第 2 轮 fmt 失败后已修。
+旧 905 的 2249／0／22、89/89 与 82 的安全阶段证据另存，不充当本段结果。
+
+**待协调：**这是 G1 既定接线的正式阶段交回，不宣称 G1 全部完成或 autopilot 终点
+达成。F6 的真实 Home 持库释放另有正式修复 `7d673090`，整合者已接收；本候选未追合，
+含真实 Home 的两库替换最终组合由 F6／整合者验收，G1 不跨改或冒称已通过。G4 的
+`582b48c9` 已在本候选完整测试内，不再等待其旧归档修复。G1／K1 后续技术能力仍包括
+无法保真嵌套树的身份恢复；当前继续在首次真实提交前整批原子拒绝，原值、版本、
+before 点及重开不变，不宣称任意未来表示受支持，不升级为待作者设计。富剪贴跨文档
+整段替换／剪切明确拒绝并保留源输入；单文档多段落及单元格／网格路径已有契约。
+K6 首次写前快照消费归 K6。布局、样式、截图目检、heavy、性能与流畅度明确暂缓，
+不记为通过；没有改 progress.md、0.1 客户端或原 WIP。

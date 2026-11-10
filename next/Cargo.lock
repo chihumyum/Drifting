@@ -1723,6 +1723,7 @@ dependencies = [
  "dr-store",
  "dr-testkit",
  "dr-view-elements",
+ "dr-view-home",
  "dr-view-page",
  "dr-view-transfer",
  "dr-workspace",
@@ -2178,6 +2179,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "color_quant",
+ "dr-doc",
  "dr-editor",
  "dr-i18n",
  "dr-model",
@@ -2185,6 +2187,8 @@ dependencies = [
  "dr-store",
  "dr-testkit",
  "dr-ui",
+ "dr-view-page",
+ "dr-view-plot",
  "dr-view-relations",
  "dr-workspace",
  "futures",
@@ -2365,6 +2369,7 @@ dependencies = [
  "dr-ui",
  "dr-view-history",
  "dr-workspace",
+ "futures",
  "gpui",
  "gpui_platform",
  "log",
@@ -2385,6 +2390,7 @@ dependencies = [
  "dr-store",
  "dr-testkit",
  "dr-ui",
+ "dr-view-page",
  "dr-workspace",
  "futures",
  "gpui",
@@ -2469,6 +2475,7 @@ dependencies = [
  "dr-testkit",
  "dr-ui",
  "dr-workspace",
+ "futures",
  "gpui",
  "log",
  "serde_json",
@@ -2544,6 +2551,8 @@ dependencies = [
 name = "dr-view-templates"
 version = "0.0.0"
 dependencies = [
+ "dr-agent-tools",
+ "dr-doc",
  "dr-i18n",
  "dr-model",
  "dr-shell",
@@ -2553,6 +2562,7 @@ dependencies = [
  "dr-workspace",
  "gpui",
  "gpui_platform",
+ "serde",
  "serde_json",
  "tempfile",
 ]
@@ -3476,6 +3486,7 @@ dependencies = [
  "gpui_macros",
  "gpui_shared_string",
  "gpui_util",
+ "hdrhistogram",
  "heapless 0.9.3",
  "http_client",
  "image",
@@ -3987,6 +3998,16 @@ dependencies = [
  "rustc-hash 2.1.3",
  "smallvec",
  "zune-jpeg",
+]
+
+[[package]]
+name = "hdrhistogram"
+version = "7.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f49d1053f4708f0af3cf9fc5bffc7e68a914a3c45becb231c80068c9c3f78bea"
+dependencies = [
+ "byteorder",
+ "num-traits",
 ]
 
 [[package]]

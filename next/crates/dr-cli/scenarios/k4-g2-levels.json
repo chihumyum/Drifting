@@ -199,11 +199,17 @@
       }
     },
     {
-      "app": "ui.wait",
+      "app": "ui.find",
       "params": {
-        "until": "time",
-        "ms": 450
-      }
+        "label": "On",
+        "role": "Button",
+        "within": {
+          "label": "Automatic links",
+          "role": "Group"
+        },
+        "timeout_ms": 15000
+      },
+      "note": "Wait for this value in the refreshed settings view before reading it or starting another guarded edit."
     },
     {
       "call": "entry.get",
@@ -227,6 +233,16 @@
         "label": "Restore Automatic links",
         "role": "Button"
       }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Restore Automatic links",
+        "role": "Button",
+        "absent": true,
+        "timeout_ms": 15000
+      },
+      "note": "Wait for the refreshed snapshot to remove this override before the next guarded edit."
     },
     {
       "app": "ui.wait",
@@ -264,11 +280,17 @@
       }
     },
     {
-      "app": "ui.wait",
+      "app": "ui.find",
       "params": {
-        "until": "time",
-        "ms": 450
-      }
+        "label": "None",
+        "role": "Button",
+        "within": {
+          "label": "Default template",
+          "role": "Group"
+        },
+        "timeout_ms": 15000
+      },
+      "note": "Wait for this value in the refreshed settings view before reading it or starting another guarded edit."
     },
     {
       "call": "level.get",
@@ -286,6 +308,16 @@
         "label": "Restore Default template",
         "role": "Button"
       }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Restore Default template",
+        "role": "Button",
+        "absent": true,
+        "timeout_ms": 15000
+      },
+      "note": "Wait for the refreshed snapshot to remove this override before the next guarded edit."
     },
     {
       "app": "ui.wait",
@@ -337,11 +369,17 @@
       }
     },
     {
-      "app": "ui.wait",
+      "app": "ui.find",
       "params": {
-        "until": "time",
-        "ms": 450
-      }
+        "label": "章",
+        "role": "Button",
+        "within": {
+          "label": "Allowed templates",
+          "role": "Group"
+        },
+        "timeout_ms": 15000
+      },
+      "note": "Wait for this value in the refreshed settings view before reading it or starting another guarded edit."
     },
     {
       "call": "entry.get",
@@ -361,6 +399,16 @@
         "label": "Restore Allowed templates",
         "role": "Button"
       }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Restore Allowed templates",
+        "role": "Button",
+        "absent": true,
+        "timeout_ms": 15000
+      },
+      "note": "Wait for the refreshed snapshot to remove this override before the next guarded edit."
     },
     {
       "app": "ui.wait",
@@ -398,11 +446,17 @@
       }
     },
     {
-      "app": "ui.wait",
+      "app": "ui.find",
       "params": {
-        "until": "time",
-        "ms": 450
-      }
+        "label": "${roots.0.title}",
+        "role": "Button",
+        "within": {
+          "label": "New entries reside in",
+          "role": "Group"
+        },
+        "timeout_ms": 15000
+      },
+      "note": "Wait for this value in the refreshed settings view before reading it or starting another guarded edit."
     },
     {
       "call": "entry.get",
@@ -420,6 +474,16 @@
         "label": "Restore New entries reside in",
         "role": "Button"
       }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Restore New entries reside in",
+        "role": "Button",
+        "absent": true,
+        "timeout_ms": 15000
+      },
+      "note": "Wait for the refreshed snapshot to remove this override before the next guarded edit."
     },
     {
       "app": "ui.wait",
@@ -447,11 +511,17 @@
       }
     },
     {
-      "app": "ui.wait",
+      "app": "ui.find",
       "params": {
-        "until": "time",
-        "ms": 450
-      }
+        "label": "Off",
+        "role": "Button",
+        "within": {
+          "label": "Manuscript",
+          "role": "Group"
+        },
+        "timeout_ms": 15000
+      },
+      "note": "Wait for this value in the refreshed settings view before reading it or starting another guarded edit."
     },
     {
       "call": "entry.get",
@@ -469,6 +539,16 @@
         "label": "Restore Manuscript",
         "role": "Button"
       }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Restore Manuscript",
+        "role": "Button",
+        "absent": true,
+        "timeout_ms": 15000
+      },
+      "note": "Wait for the refreshed snapshot to remove this override before the next guarded edit."
     },
     {
       "app": "ui.wait",
@@ -496,11 +576,17 @@
       }
     },
     {
-      "app": "ui.wait",
+      "app": "ui.find",
       "params": {
-        "until": "time",
-        "ms": 450
-      }
+        "label": "Full",
+        "role": "Button",
+        "within": {
+          "label": "Formatting shortcuts",
+          "role": "Group"
+        },
+        "timeout_ms": 15000
+      },
+      "note": "Wait for this value in the refreshed settings view before reading it or starting another guarded edit."
     },
     {
       "call": "entry.get",
@@ -518,6 +604,16 @@
         "label": "Restore Formatting shortcuts",
         "role": "Button"
       }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Restore Formatting shortcuts",
+        "role": "Button",
+        "absent": true,
+        "timeout_ms": 15000
+      },
+      "note": "Wait for the refreshed snapshot to remove this override before the next guarded edit."
     },
     {
       "app": "ui.wait",
@@ -545,11 +641,17 @@
       }
     },
     {
-      "app": "ui.wait",
+      "app": "ui.find",
       "params": {
-        "until": "time",
-        "ms": 450
-      }
+        "label": "Off",
+        "role": "Button",
+        "within": {
+          "label": "Accept entries from elsewhere",
+          "role": "Group"
+        },
+        "timeout_ms": 15000
+      },
+      "note": "Wait for this value in the refreshed settings view before reading it or starting another guarded edit."
     },
     {
       "call": "entry.get",
@@ -590,11 +692,17 @@
       }
     },
     {
-      "app": "ui.wait",
+      "app": "ui.find",
       "params": {
-        "until": "time",
-        "ms": 450
-      }
+        "label": "On",
+        "role": "Button",
+        "within": {
+          "label": "Accept entries from elsewhere",
+          "role": "Group"
+        },
+        "timeout_ms": 15000
+      },
+      "note": "Wait for this value in the refreshed settings view before reading it or starting another guarded edit."
     },
     {
       "call": "level.get",
@@ -625,11 +733,17 @@
       }
     },
     {
-      "app": "ui.wait",
+      "app": "ui.find",
       "params": {
-        "until": "time",
-        "ms": 450
-      }
+        "label": "Grid",
+        "role": "Button",
+        "within": {
+          "label": "Display",
+          "role": "Group"
+        },
+        "timeout_ms": 15000
+      },
+      "note": "Wait for this value in the refreshed settings view before reading it or starting another guarded edit."
     },
     {
       "call": "entry.get",
@@ -660,11 +774,17 @@
       }
     },
     {
-      "app": "ui.wait",
+      "app": "ui.find",
       "params": {
-        "until": "time",
-        "ms": 450
-      }
+        "label": "Islands",
+        "role": "Button",
+        "within": {
+          "label": "Display",
+          "role": "Group"
+        },
+        "timeout_ms": 15000
+      },
+      "note": "Wait for this value in the refreshed settings view before reading it or starting another guarded edit."
     },
     {
       "call": "entry.get",
@@ -695,11 +815,17 @@
       }
     },
     {
-      "app": "ui.wait",
+      "app": "ui.find",
       "params": {
-        "until": "time",
-        "ms": 450
-      }
+        "label": "Board",
+        "role": "Button",
+        "within": {
+          "label": "Display",
+          "role": "Group"
+        },
+        "timeout_ms": 15000
+      },
+      "note": "Wait for this value in the refreshed settings view before reading it or starting another guarded edit."
     },
     {
       "call": "entry.get",
@@ -746,6 +872,22 @@
       "params": {
         "label": "Residents",
         "role": "Heading"
+      }
+    },
+    {
+      "app": "input.scroll",
+      "params": {
+        "x": 1050,
+        "y": 420,
+        "dy": 500
+      },
+      "note": "The real description editor places this display lower than the placeholder did; bring the board into the window before testing its inner wheel."
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 450
       }
     },
     {

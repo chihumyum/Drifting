@@ -1,4 +1,4 @@
-use super::interaction::{EntryDrag, PinDrag, PinEdit, Resizing};
+use super::interaction::{PinDrag, PinEdit, Resizing};
 use super::*;
 use dr_shell::book::color_of;
 use dr_ui::{
@@ -178,7 +178,9 @@ impl Timeline {
                     }
                     let id = e.id.clone();
                     let target = lane.clone();
-                    let drag = EntryDrag::new(self.book.id.clone(), id.clone(), e.title.clone());
+                    let drag = self
+                        .page_host()
+                        .map(|page| EntryDrag::new(page, id.clone(), e.title.clone()));
                     let appearance = book.appearance(&id).expect("live entry appearance");
                     let mark = sand::KindMark::new(
                         SharedString::from(format!("v3-entry-pick-mark-{id}")),
@@ -216,18 +218,20 @@ impl Timeline {
                                 this.place(id.clone(), Some(target.clone()), end + 1., None, cx);
                             }
                         }))
-                        .on_drag(drag, {
-                            let entity = cx.entity();
-                            move |drag: &EntryDrag, offset, _, cx| {
-                                drag.grab.set(f32::from(offset.x));
-                                entity.update(cx, |this, cx| {
-                                    this.popup = None;
-                                    cx.notify();
-                                });
-                                cx.new(|_| Ghost {
-                                    title: drag.title.clone(),
-                                })
-                            }
+                        .when_some(drag, |row, drag| {
+                            row.on_drag(drag, {
+                                let entity = cx.entity();
+                                move |drag: &EntryDrag, offset, _, cx| {
+                                    drag.set_grab(f32::from(offset.x));
+                                    entity.update(cx, |this, cx| {
+                                        this.popup = None;
+                                        cx.notify();
+                                    });
+                                    cx.new(|_| Ghost {
+                                        title: drag.title.clone(),
+                                    })
+                                }
+                            })
                         });
                     menu = menu.child(row);
                 }
@@ -335,6 +339,7 @@ impl Timeline {
                 );
             }
             MenuOf::Lanes => {
+                let shown = self.view_scope();
                 for e in &book.entries {
                     if e.deleted_at.is_some()
                         || !book
@@ -347,6 +352,7 @@ impl Timeline {
                         .view()
                         .is_some_and(|v| v.lanes.iter().any(|l| l.entry == e.id));
                     let id = e.id.clone();
+                    let shown = shown.clone();
                     menu = menu.child(
                         MenuItem::new(
                             SharedString::from(format!("v3-lane-add-{}", e.id)),
@@ -355,7 +361,15 @@ impl Timeline {
                         )
                         .checked(added)
                         .disabled(added)
-                        .on_click(cx.listener(move |this, _, _, cx| this.add_lane(id.clone(), cx))),
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            if let Some(shown) = &shown {
+                                this.edit_view_at(
+                                    shown.clone(),
+                                    write::ViewEdit::AddLane(id.clone()),
+                                    cx,
+                                );
+                            }
+                        })),
                     );
                 }
             }
@@ -432,38 +446,61 @@ impl Timeline {
             let mut actions = div().flex().items_center();
             if i > 0 {
                 let id = lane.id.clone();
+                let shown = self.view_scope();
                 actions = actions.child(
                     PanelIconButton::new(
                         SharedString::from(format!("v3-lane-up-{id}")),
                         Icon::ChevronUp,
                     )
                     .label(t(cx, keys::v3_timeline::MOVE_UP))
-                    .on_click(
-                        cx.listener(move |this, _, _, cx| this.reorder_lane(id.clone(), -1, cx)),
-                    ),
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        if let Some(shown) = &shown {
+                            this.edit_view_at(
+                                shown.clone(),
+                                write::ViewEdit::Reorder(id.clone(), -1),
+                                cx,
+                            );
+                        }
+                    })),
                 );
             }
             if i + 1 < lanes.len() {
                 let id = lane.id.clone();
+                let shown = self.view_scope();
                 actions = actions.child(
                     PanelIconButton::new(
                         SharedString::from(format!("v3-lane-down-{id}")),
                         Icon::ChevronDown,
                     )
                     .label(t(cx, keys::v3_timeline::MOVE_DOWN))
-                    .on_click(
-                        cx.listener(move |this, _, _, cx| this.reorder_lane(id.clone(), 1, cx)),
-                    ),
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        if let Some(shown) = &shown {
+                            this.edit_view_at(
+                                shown.clone(),
+                                write::ViewEdit::Reorder(id.clone(), 1),
+                                cx,
+                            );
+                        }
+                    })),
                 );
             }
             let id = lane.id.clone();
+            let shown = self.view_scope();
             actions = actions.child(
                 PanelIconButton::new(
                     SharedString::from(format!("v3-lane-remove-{id}")),
                     Icon::Minus,
                 )
                 .label(t(cx, keys::v3_timeline::REMOVE_LANE))
-                .on_click(cx.listener(move |this, _, _, cx| this.remove_lane(id.clone(), cx))),
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    if let Some(shown) = &shown {
+                        this.edit_view_at(
+                            shown.clone(),
+                            write::ViewEdit::RemoveLane(id.clone()),
+                            cx,
+                        );
+                    }
+                })),
             );
             rail = rail.child(row.child(actions));
         }
@@ -587,6 +624,10 @@ impl Timeline {
                 .unwrap_or(palette.accent);
             let mut row = div()
                 .id(SharedString::from(format!("v3-track-{}", lane.id)))
+                .debug_selector({
+                    let id = format!("v3-track-{}", lane.id);
+                    move || id.clone()
+                })
                 .min_h(px(model::ROW))
                 .flex_1()
                 .relative()
@@ -595,6 +636,7 @@ impl Timeline {
                 .border_b_1()
                 .border_color(palette.desk.solid());
             let lane_id = lane.id.clone();
+            let page = self.page_host();
             row = row
                 .role(gpui::Role::Group)
                 .aria_label(dr_shell::strings::tf(
@@ -602,6 +644,11 @@ impl Timeline {
                     keys::v3_timeline::LANE_TRACK,
                     &[("name", &lane.title)],
                 ))
+                .can_drop(move |value, _, _| {
+                    value
+                        .downcast_ref::<EntryDrag>()
+                        .is_some_and(|drag| page.as_ref().is_some_and(|page| drag.matches(page)))
+                })
                 .on_drop::<EntryDrag>(cx.listener(move |this, drag, w, cx| {
                     this.dropped_entry(drag, lane_id.clone(), w, cx)
                 }));
@@ -637,10 +684,14 @@ impl Timeline {
                     .map(|e| e.title.clone())
                     .unwrap_or_default();
                 let id = clip.entry.clone();
-                let mut drag = EntryDrag::new(self.book.id.clone(), id.clone(), title.clone());
-                drag.span = clip.span;
+                let drag = self.page_host().map(|page| {
+                    let mut drag = EntryDrag::new(page, id.clone(), title.clone());
+                    drag.span = clip.span;
+                    drag
+                });
                 let resize = Resizing {
                     book: self.book.id.clone(),
+                    version: self.book.v3().unwrap().revision.clone(),
                     entry: id.clone(),
                     at: clip.at,
                     view: view.id.clone(),
@@ -665,6 +716,7 @@ impl Timeline {
                     cx.notify();
                 }));
                 let drop_lane = lane.id.clone();
+                let page = self.page_host();
                 let clip_body = glass::glass_box(
                     SharedString::from(format!("v3-clip-{}-{id}", lane.id)),
                     Kind::Rest,
@@ -699,13 +751,20 @@ impl Timeline {
                     cx.stop_propagation();
                     this.open(&id, e, cx);
                 }))
+                .can_drop(move |value, _, _| {
+                    value
+                        .downcast_ref::<EntryDrag>()
+                        .is_some_and(|drag| page.as_ref().is_some_and(|page| drag.matches(page)))
+                })
                 .on_drop::<EntryDrag>(cx.listener(move |this, drag, w, cx| {
                     this.dropped_entry(drag, drop_lane.clone(), w, cx)
                 }))
-                .on_drag(drag, |drag, offset, _, cx| {
-                    drag.grab.set(f32::from(offset.x));
-                    cx.new(|_| Ghost {
-                        title: drag.title.clone(),
+                .when_some(drag, |body, drag| {
+                    body.on_drag(drag, |drag, offset, _, cx| {
+                        drag.set_grab(f32::from(offset.x));
+                        cx.new(|_| Ghost {
+                            title: drag.title.clone(),
+                        })
                     })
                 });
                 let handle = div()

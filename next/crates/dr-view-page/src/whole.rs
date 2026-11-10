@@ -19,7 +19,14 @@ pub fn register(cx: &mut App) {
         if *target != dr_shell::nav::Target::Book || host.book.v3().is_none() {
             return None;
         }
+        let page = host.clone();
         let view = cx.new(|cx| WholeBook::new(host, window, cx));
+        dr_shell::v3::register_editor(
+            &page,
+            &view,
+            |v, _| v.editor().map(dr_shell::workspace::editors::PageView::Book),
+            cx,
+        );
         Some(ModulePage {
             focus: view.read(cx).focus.clone(),
             view: view.into(),
@@ -112,7 +119,10 @@ impl WholeBook {
                             });
                             e.set_base_style(base, cx);
                             e.set_decor_looks(looks, cx);
-                            e.set_chrome(Some(Rc::new(crate::Chrome::new(host))), cx);
+                            e.set_chrome(
+                                Some(Rc::new(crate::Chrome::with_book(host, v.host.book.clone()))),
+                                cx,
+                            );
                         });
                         let assist = editor.read(cx).assist().clone();
                         v._links = Some(crate::v3::bind_links(&assist, &v.host, window, cx));

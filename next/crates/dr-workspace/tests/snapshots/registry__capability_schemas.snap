@@ -7227,6 +7227,110 @@ expression: json
     "summary": "Save a complete v3 entry checkpoint, including retained modules and all body versions. Call before an Agent writes the entry."
   },
   {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "entry": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "entry"
+      ],
+      "title": "EntryIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "entry_snapshot.create_with_receipt",
+    "output": {
+      "$defs": {
+        "Point": {
+          "properties": {
+            "bodies": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "book": {
+              "type": "string"
+            },
+            "book_version": {
+              "type": "string"
+            },
+            "checksum": {
+              "description": "Detect a damaged/incomplete manifest before planning any restoration.",
+              "type": "string"
+            },
+            "content_hash": {
+              "type": "string"
+            },
+            "entry": {
+              "type": "string"
+            },
+            "format": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "id": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "ts": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "id",
+            "format",
+            "book",
+            "entry",
+            "ts",
+            "title",
+            "reason",
+            "book_version",
+            "bodies",
+            "checksum",
+            "content_hash"
+          ],
+          "type": "object"
+        }
+      },
+      "description": "Exact frontiers committed by checkpoint creation, captured while all\naffected holders remain reserved. Later observations may include other edits.",
+      "properties": {
+        "point": {
+          "$ref": "#/$defs/Point"
+        },
+        "versions": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "point",
+        "versions"
+      ],
+      "title": "Created",
+      "type": "object"
+    },
+    "summary": "Save a complete entry checkpoint and return its exact committed versions for a guarded host write. Never infer these versions from a later observation."
+  },
+  {
     "access": "read",
     "book_version": 3,
     "concurrency": "shared",
@@ -12632,6 +12736,74 @@ expression: json
       "type": "object"
     },
     "summary": "Remove a v3 membership and any timeline placements left without a lane."
+  },
+  {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "at": {
+          "type": "string"
+        },
+        "book": {
+          "type": "string"
+        },
+        "expected": {
+          "description": "Post-write history point whose selected values must still be present.\nIndependent fields may change; selected fields may not be taken over.",
+          "type": "string"
+        },
+        "host": {
+          "type": "string"
+        },
+        "member": {
+          "type": "string"
+        },
+        "membership": {
+          "description": "Restore this membership's stored record only when cancellation changed it.",
+          "type": "boolean"
+        },
+        "primary": {
+          "description": "Restore only the member's primary field, not its other metadata or home.",
+          "type": "boolean"
+        },
+        "views": {
+          "description": "In each named view restore only this member's placement record.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "book",
+        "host",
+        "member",
+        "at",
+        "expected",
+        "membership",
+        "primary",
+        "views"
+      ],
+      "title": "RestoreIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "membership.restore",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Restore the selected effects of a v3 membership cancellation without replacing entries or timeline views."
   },
   {
     "access": "write",
@@ -18197,6 +18369,102 @@ expression: json
     "book_version": 3,
     "concurrency": "book",
     "input": {
+      "$defs": {
+        "Place": {
+          "description": "Where to put something in an ordered list.",
+          "oneOf": [
+            {
+              "const": "first",
+              "description": "At the start.",
+              "type": "string"
+            },
+            {
+              "const": "last",
+              "description": "At the end.",
+              "type": "string"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Right after the item with this id.",
+              "properties": {
+                "after": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "after"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Right before the item with this id.",
+              "properties": {
+                "before": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "before"
+              ],
+              "type": "object"
+            }
+          ]
+        }
+      },
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "lane": {
+          "type": "string"
+        },
+        "place": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Place"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Omit to append after all stored lanes, including hidden lanes."
+        },
+        "view": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "view",
+        "lane"
+      ],
+      "title": "LaneAddIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "timeline_view.add_lane",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Add one live lane to a v3 view without replacing existing lane records or changing memberships."
+  },
+  {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
       "description": "One entity of a book.",
       "properties": {
         "book": {
@@ -18396,6 +18664,95 @@ expression: json
       "type": "array"
     },
     "summary": "List v3 timeline views with their effective lanes, placements and time pins."
+  },
+  {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "Place": {
+          "description": "Where to put something in an ordered list.",
+          "oneOf": [
+            {
+              "const": "first",
+              "description": "At the start.",
+              "type": "string"
+            },
+            {
+              "const": "last",
+              "description": "At the end.",
+              "type": "string"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Right after the item with this id.",
+              "properties": {
+                "after": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "after"
+              ],
+              "type": "object"
+            },
+            {
+              "additionalProperties": false,
+              "description": "Right before the item with this id.",
+              "properties": {
+                "before": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "before"
+              ],
+              "type": "object"
+            }
+          ]
+        }
+      },
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "lane": {
+          "type": "string"
+        },
+        "place": {
+          "$ref": "#/$defs/Place",
+          "description": "Only this lane's position changes. Neighbours may be hidden lanes."
+        },
+        "view": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "view",
+        "lane",
+        "place"
+      ],
+      "title": "LaneMoveIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "timeline_view.move_lane",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Change only one stored lane's order in a v3 view, preserving hidden data and other lane positions."
   },
   {
     "access": "write",
@@ -18758,6 +19115,47 @@ expression: json
         "book": {
           "type": "string"
         },
+        "lane": {
+          "type": "string"
+        },
+        "view": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "view",
+        "lane"
+      ],
+      "title": "LaneIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "timeline_view.remove_lane",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Remove one v3 view lane and newly orphaned visible positions, retaining hidden records and all memberships."
+  },
+  {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
         "pin": {
           "type": "string"
         },
@@ -18789,6 +19187,167 @@ expression: json
       "type": "object"
     },
     "summary": "Remove a time pin from a v3 timeline view."
+  },
+  {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "properties": {
+        "book": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "view": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "view",
+        "name"
+      ],
+      "title": "RenameIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "timeline_view.rename",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Rename a v3 timeline view without changing its lanes, positions or pins."
+  },
+  {
+    "access": "write",
+    "book_version": 3,
+    "concurrency": "book",
+    "input": {
+      "$defs": {
+        "Field": {
+          "oneOf": [
+            {
+              "properties": {
+                "field": {
+                  "const": "name",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "field"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "field": {
+                  "const": "lane",
+                  "type": "string"
+                },
+                "lane": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "field",
+                "lane"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "field": {
+                  "const": "lane_position",
+                  "type": "string"
+                },
+                "lane": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "field",
+                "lane"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "entry": {
+                  "type": "string"
+                },
+                "field": {
+                  "const": "placement",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "field",
+                "entry"
+              ],
+              "type": "object"
+            }
+          ]
+        }
+      },
+      "properties": {
+        "at": {
+          "description": "Stored book frontier, used by the field-scoped undo/redo receipt.",
+          "type": "string"
+        },
+        "book": {
+          "type": "string"
+        },
+        "expected": {
+          "description": "State after the recorded write; selected values must still match.",
+          "type": "string"
+        },
+        "fields": {
+          "items": {
+            "$ref": "#/$defs/Field"
+          },
+          "type": "array"
+        },
+        "view": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "book",
+        "view",
+        "at",
+        "expected",
+        "fields"
+      ],
+      "title": "RestoreFieldsIn",
+      "type": "object"
+    },
+    "kind": "command",
+    "name": "timeline_view.restore_fields",
+    "output": {
+      "description": "The entity a command changed.",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Done",
+      "type": "object"
+    },
+    "summary": "Restore selected stored timeline fields for undo or redo without replacing the rest of a v3 view."
   },
   {
     "access": "write",

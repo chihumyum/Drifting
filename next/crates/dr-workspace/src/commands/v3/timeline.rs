@@ -1,5 +1,11 @@
 use super::*;
+mod edit;
+pub use edit::{
+    Field, LaneAdd, LaneAddIn, LaneIn, LaneMove, LaneMoveIn, LaneRemove, RenameIn, RestoreFields,
+    RestoreFieldsIn, ViewRename,
+};
 pub(crate) fn register(r: &mut Registry) {
+    edit::register(r);
     r.add::<ViewList>()
         .add::<ViewPut>()
         .add::<ViewDelete>()

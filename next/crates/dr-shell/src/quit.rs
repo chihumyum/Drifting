@@ -5,6 +5,7 @@
 //! nothing in `main` is dropped. So the work happens before the quit:
 //!
 //! 1. [`request`] (⌘Q, the menu) first awaits the shared release hooks,
+//!    Markdown's final pass and fallible `release::after_drain` checkpoints,
 //!    keeping the app visible and usable if preparation fails. It then
 //!    hides the app when the app asked
 //!    for it with [`hide_first`] (F7: the hooks may take a moment, an import

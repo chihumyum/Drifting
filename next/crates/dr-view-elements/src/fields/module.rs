@@ -1,5 +1,6 @@
 //! V3 key/value rows keep their read baseline until a guarded save succeeds.
 use super::{Fields, Owner, guarded};
+use dr_view_page::settlement;
 use dr_workspace::{
     Actor,
     commands::v3::module::{In, ModuleRead},
@@ -19,6 +20,9 @@ impl Fields {
         })
     }
     pub(super) fn reload_module(&mut self, cx: &mut Context<Self>) {
+        if !settlement::accepts(cx) {
+            return;
+        }
         let (Some(target), Some(lib)) = (self.module_target(), self.lib.clone()) else {
             return;
         };
@@ -75,6 +79,9 @@ impl Fields {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if !settlement::accepts(cx) {
+            return;
+        }
         let Some(ix) = self.row_ix(n) else {
             return;
         };
@@ -90,7 +97,7 @@ impl Fields {
             self.remove_module(ix, retry, cx);
             return;
         }
-        let now = (row.key.read(cx).text(), row.value.read(cx).text());
+        let now = row.draft.clone();
         if now.0.trim().is_empty() && now.1.trim().is_empty() {
             if !Self::row_focused(row, window, cx) {
                 self.remove_module(ix, retry, cx);
@@ -113,49 +120,56 @@ impl Fields {
         row.failed = false;
         row.queued = false;
         let sent = now.clone();
-        let job = cx.background_spawn(async move {
-            guarded::kv(&lib, target, id, base, now, retry)?.commit(&lib)
+        let worker = lib.clone();
+        let (job, ticket) = settlement::write(&lib, cx, async move {
+            guarded::kv(&worker, target, id, base, now, retry)?.commit(&worker)
         });
         cx.spawn(async move |this, cx| {
             let result = job.await;
-            this.update(cx, |v, cx| {
-                if let Some(ix) = v.row_ix(n) {
-                    let row = &mut v.rows[ix];
-                    row.pending = false;
-                    match result {
-                        Ok(saved) => {
-                            let baseline = guarded::acknowledged_base(
-                                &sent,
-                                saved.clone(),
-                                &(row.key.read(cx).text(), row.value.read(cx).text()),
-                            );
-                            if sent.0 != saved.0 && row.key.read(cx).text() == sent.0 {
-                                row.key.update(cx, |f, cx| f.set_text(saved.0.clone(), cx));
+            if this
+                .update(cx, |v, cx| {
+                    if let Some(ix) = v.row_ix(n) {
+                        let row = &mut v.rows[ix];
+                        row.pending = false;
+                        match result {
+                            Ok(saved) => {
+                                let baseline =
+                                    guarded::acknowledged_base(&sent, saved.clone(), &row.draft);
+                                if sent.0 != saved.0 && row.draft.0 == sent.0 {
+                                    row.draft.0 = saved.0.clone();
+                                    row.key.update(cx, |f, cx| f.set_text(saved.0.clone(), cx));
+                                }
+                                if sent.1 != saved.1 && row.draft.1 == sent.1 {
+                                    row.draft.1 = saved.1.clone();
+                                    row.value
+                                        .update(cx, |f, cx| f.set_text(saved.1.clone(), cx));
+                                }
+                                row.stored = baseline;
+                                row.module_new = false;
+                                row.awaiting = true;
+                                v.module_epoch += 1;
                             }
-                            if sent.1 != saved.1 && row.value.read(cx).text() == sent.1 {
-                                row.value
-                                    .update(cx, |f, cx| f.set_text(saved.1.clone(), cx));
+                            Err(e) => {
+                                log::warn!("key/value write: {e}");
+                                row.failed = true;
                             }
-                            row.stored = baseline;
-                            row.module_new = false;
-                            row.awaiting = true;
-                            v.module_epoch += 1;
-                        }
-                        Err(e) => {
-                            log::warn!("key/value write: {e}");
-                            row.failed = true;
                         }
                     }
-                }
-                v.reload_module(cx);
-                cx.notify();
-            })
-            .ok();
+                    v.reload_module(cx);
+                    cx.notify();
+                })
+                .is_ok()
+            {
+                ticket.acknowledge();
+            }
         })
         .detach();
         cx.notify();
     }
     pub(super) fn remove_module(&mut self, ix: usize, retry: bool, cx: &mut Context<Self>) {
+        if !settlement::accepts(cx) {
+            return;
+        }
         let row = &self.rows[ix];
         if row.pending {
             return;
@@ -178,28 +192,34 @@ impl Fields {
         row.pending = true;
         row.removing = true;
         row.failed = false;
-        let job =
-            cx.background_spawn(async move { guarded::remove_kv(&lib, target, id, base, retry) });
+        let worker = lib.clone();
+        let (job, ticket) = settlement::write(&lib, cx, async move {
+            guarded::remove_kv(&worker, target, id, base, retry)
+        });
         cx.spawn(async move |this, cx| {
             let result = job.await;
-            this.update(cx, |v, cx| {
-                if let Some(ix) = v.row_ix(n) {
-                    match result {
-                        Ok(()) => {
-                            v.rows.remove(ix);
-                            v.module_epoch += 1;
-                        }
-                        Err(e) => {
-                            log::warn!("key/value remove: {e}");
-                            v.rows[ix].pending = false;
-                            v.rows[ix].failed = true;
+            if this
+                .update(cx, |v, cx| {
+                    if let Some(ix) = v.row_ix(n) {
+                        match result {
+                            Ok(()) => {
+                                v.rows.remove(ix);
+                                v.module_epoch += 1;
+                            }
+                            Err(e) => {
+                                log::warn!("key/value remove: {e}");
+                                v.rows[ix].pending = false;
+                                v.rows[ix].failed = true;
+                            }
                         }
                     }
-                }
-                v.reload_module(cx);
-                cx.notify();
-            })
-            .ok();
+                    v.reload_module(cx);
+                    cx.notify();
+                })
+                .is_ok()
+            {
+                ticket.acknowledge();
+            }
         })
         .detach();
         cx.notify();

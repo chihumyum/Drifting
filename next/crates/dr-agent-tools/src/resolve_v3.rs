@@ -226,13 +226,20 @@ pub(crate) fn resolve_v3(
 
     match name {
         "comment.list" | "comment.anchors" | "comment.create" => {
+            let anchored = name == "comment.create"
+                && ["range", "block_id", "anchor"]
+                    .iter()
+                    .any(|k| obj.get(*k).is_some_and(|v| !v.is_null()));
             if let Some(target) = obj.get("target").filter(|t| !t.is_null()) {
                 let kind = target["kind"].as_str().unwrap_or_default().to_owned();
                 let id = target["id"].as_str().unwrap_or_default().to_owned();
                 if !matches!(kind.as_str(), "entry" | "material") {
                     return Err(invalid("v3 comment target must be an entry or material"));
                 }
-                if name == "comment.create" && obj.get("module").is_none_or(Value::is_null) {
+                if name == "comment.create"
+                    && !anchored
+                    && obj.get("module").is_none_or(Value::is_null)
+                {
                     extra_subjects.insert(format!("{kind}:{id}"));
                 }
                 if let Some(module) = obj.get_mut("module").filter(|m| !m.is_null()) {
@@ -247,24 +254,30 @@ pub(crate) fn resolve_v3(
                         ws, book, &view, entry, &templates, module, false, false,
                     )?;
                     *module = mid.to_string().into();
-                    if name == "comment.create" {
+                    if name == "comment.create" && !anchored {
                         extra_subjects.insert(format!("module:{eid}:{mid}"));
                     }
                 }
             } else if obj.get("module").is_some_and(|m| !m.is_null()) {
                 return Err(invalid("a comment module requires an entry target"));
             }
-            // F3 currently checks CAS only on documents it writes. It does not
-            // guard the body read used for a range/block anchor. Never authorize
-            // that read with a newer observation or bypass the owning command.
-            if name == "comment.create"
-                && ["range", "block_id", "anchor"]
-                    .iter()
-                    .any(|k| obj.get(*k).is_some_and(|v| !v.is_null()))
-            {
-                return Err(invalid(
-                    "anchored comment creation awaits guarded source-prose support; whole-entry or module comments are available",
-                ));
+            if anchored {
+                let target = obj
+                    .get("target")
+                    .ok_or_else(|| invalid("an anchor needs a target"))?;
+                let doc = comment_source_doc(target, obj.get("module"))?;
+                let doc = resolve_document_v3(
+                    ws,
+                    book,
+                    &view,
+                    &entries,
+                    &templates,
+                    &json!(doc),
+                    true,
+                    false,
+                )?;
+                extra_subjects.insert(format!("prose:{doc}"));
+                targets.insert(doc);
             }
         }
         "comment.update" | "comment.reanchor" => {
@@ -272,9 +285,30 @@ pub(crate) fn resolve_v3(
                 *id = resolve_comment_id(&view, id)?.into();
             }
             if name == "comment.reanchor" && obj.get("anchor").is_some_and(|a| !a.is_null()) {
-                return Err(invalid(
-                    "comment reanchoring awaits guarded source-prose support",
-                ));
+                let old = view
+                    .comments()
+                    .into_iter()
+                    .find(|c| Some(c.id.as_str()) == obj["id"].as_str())
+                    .ok_or_else(|| invalid("comment not found"))?;
+                let target = old
+                    .target
+                    .ok_or_else(|| invalid("a floating comment has no prose"))?;
+                let doc = comment_source_doc(
+                    &json!({"kind":target.kind.as_str(),"id":target.id}),
+                    old.target_module.as_ref().map(|m| json!(m)).as_ref(),
+                )?;
+                let doc = resolve_document_v3(
+                    ws,
+                    book,
+                    &view,
+                    &entries,
+                    &templates,
+                    &json!(doc),
+                    true,
+                    false,
+                )?;
+                extra_subjects.insert(format!("prose:{doc}"));
+                targets.insert(doc);
             }
         }
         "entry.list" => {
@@ -860,6 +894,22 @@ pub(crate) fn resolve_v3(
         targets: targets.into_iter().collect(),
         subjects: subj,
     })
+}
+
+fn comment_source_doc(target: &Value, module: Option<&Value>) -> Result<String> {
+    let id = target["id"]
+        .as_str()
+        .ok_or_else(|| invalid("a prose target is required"))?;
+    match target["kind"].as_str() {
+        Some("entry") => {
+            let module = module
+                .and_then(Value::as_str)
+                .ok_or_else(|| invalid("an entry anchor requires an explicit prose module"))?;
+            Ok(format!("body:{id}/{module}"))
+        }
+        Some("material") if module.is_none_or(Value::is_null) => Ok(format!("material:{id}")),
+        _ => Err(invalid("an anchor requires entry or text material prose")),
+    }
 }
 
 fn resolve_action(ws: &Workspace, book: &BookId, name: &str, args: Value) -> Result<ResolvedCall> {

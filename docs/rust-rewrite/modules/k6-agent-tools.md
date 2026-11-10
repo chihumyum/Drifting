@@ -320,3 +320,19 @@ K2 的视图名称／泳道顺序等逐字段命令仍待协调；在接口提�
 执行 `git merge main`，当前 main `9a2351a7` 已包含在分支；全套 fmt、Clippy、工作区测试、xtask 和根目录 public 检查全部通过：**2170 通过／0 失败／22 忽略**，公开边界 5531 项。v3 testkit 种子与录制合成响应驱动的副屏真窗口冒烟 **16/16、0 pending**，正常退出；未调用真实模型或服务。编译 `CARGO_BUILD_JOBS=3`，全测 `RUST_TEST_THREADS=1`。本次日志为 `/tmp/drifting-k6-reserved-{fmt,clippy,tests,gates,public,window}.log`，窗口报告 `/tmp/drifting-k6-reserved-window/result.json`；既有审计通知和 stale／legacy 性能证据仍保留，未据此声称性能验收通过。
 
 待协调：上述入口须在对应读取范围、版本守卫和恢复协议正式接入后逐项开放。K2 另在准备 `membership.restore` 局部逆操作并自带 Agent 排除；收到正式交回后保留该独立保护与拒绝契约，合批时去重，不提前开放。锚定批注正向来源守卫、首次写前完整条目快照仍待所属接口正式合 main；本批不放松隐藏时间线整份写入或取消归属保护。提交后更新 `handback/k6` 并主动通知整合者，不合入 main、不推送。
+
+## 首次写前完整快照与受保护锚定批注（11-10，实施）
+
+按整合者合批协调，先合入 main `07fd3c15`，再消费已正式交回的 K2 `5ad94846`、G1 `82fca0b4` 和 G4 `a26dafd9`；未消费在途的 drain、链接或 M14 实现。G4 合并冲突保留九种 own 文案的并集，以及 G4 AnchorBytes 参数与 K2 同一 holder read 内的来源版本守卫。首次写入条目、模块正文／内联内容、归属／关联等条目自有内容前，宿主保存 G1 完整快照；正文清单包含换模板后保留的正文，内部读取不授予模型新内容覆盖。每回合每条目首次**成功**写入后记为已打点；失败尝试不占这个位置，重读后再试会重新捕获当前状态。独立成功的安全快照可保留在历史中，写前拒绝不产生实际编辑的 journal 或结算；快照事务自身失败时连清单和缺省正文初始化也不提交。已进入实际多文档编辑后的故障仍沿用 M29 的部分提交与收据规则，不承诺回滚已有修改。
+
+新增公共命令 `entry_snapshot.create_with_receipt`，输入沿用 `EntryIn {book, entry}`，输出 `Created {point, versions}`；原 `Create`／`Capture` 的输入输出与行为保持。回执版本在全部 holder 被 reservation 固定、快照已在 staging 中提交后取得，只有原子落盘成功才返回。`Point.book_version` 仍指打点前历史版本；facade 只把当前调用的书目 CAS 推进到回执中的确切提交版本，不更新原 ReadState，不拿后续 observe 给旧内容背书，也不将快照中未读正文版本用作写权限。实际编辑结束即失效相关读取；打点后作者修改书目或正文，真实编辑仍冲突。新命令仍被 `entry_snapshot.*` 排除，恢复继续是作者操作。规范注册表和目录证据由测试生成；注册调用覆盖门禁增加扫描使用 v3 testkit 种子的 `dr-agent-tools/tests/checkpoints_v3.rs`，没有新增反向 Cargo 依赖。
+
+锚定批注现在解析到当前书的具体正文模块或文字素材，并将来源正文 frontier 送入 K2 的受控读取。段落锚点要求读过指定段落；范围和 AnchorBytes／非空 reanchor 保守要求完整来源正文，reanchor 还要求读过该批注。未知模块、跨书／跨文档锚点、未读范围及陈旧来源均拒绝；不把 `comment.anchors` 当成读过正文。原整条目／模块／素材／浮动批注与清除锚点路径保留，v3 facade 修订推进为 r4。G1 对不能保留未知容器身份的恢复仍整批拒绝，当前原值、版本和 before 点不变；这不是任意未来树均能恢复的承诺。新增永久回归覆盖上述行为，主要窗口场景扩展为模型写条目、范围批注、检查自动快照并由作者恢复；最终检查和交回指针另记下节。
+
+## 首次写前快照与锚定批注交回（11-10）
+
+工作分支 `codex/k6-v3`，本批代码 `033fefb98`、测试风格修正 `a64417de2`；正式依赖合并为 `4fbe89e5e`（main）、`e2472eab9`（K2）、`48e1bc03e`（G1）、`5f22c7986`（G4）。收尾 `794ead4f8`、`7299392cb` 将 main 同步至第 65 批记录 `0f5629344`，只增加交接文档，已检查 `a64417de2..7299392cb` 的 next/ 无差异。自行改动限于 `dr-agent-tools`、`dr-view-agent` 验收示例／场景、公共新增快照回执命令及其生成契约／注册覆盖、F3 与本方案；公共新增遵守 K4「只加不改」，原快照命令签名与行为保持。第 53 批整份时间线保护及后来取消归属的隐藏数据保护继续保留。本记录提交后将 `handback/k6` 指向记录提交，并主动通知整合者。
+
+最终 fmt、Clippy（workspace/all-targets/locked/-D warnings）、工作区测试、xtask 和根目录 public 检查全部退出 0；全测 **2238 通过／0 失败／22 忽略**，public 5556 个候选，审计 972 个锁定 crate、0 漏洞、12 条既有提示，性能证据仍为 19 stale／15 legacy。编译始终 `CARGO_BUILD_JOBS=3`，全测 `RUST_TEST_THREADS=1`。定向回归覆盖打点失败原子拒绝、打点后书目／正文并发不覆盖、失败重试重新捕获、保留正文与部分读取权限、未知容器恢复拒绝、锚定批注正向／未读／陈旧／跨来源及 reanchor；原隐藏时间线回归随全套通过。v3 Tiny 种子和录制合成响应的最终真窗口 **21/21、0 pending**，验证条目修改、范围批注、自动快照、作者恢复与正常退出；同一 PID 的系统全局坐标确认在副屏。全套日志为 `/tmp/drifting-k6-checkpoint-final-{fmt,clippy,tests,gates,public}.log`，窗口结果为 `/tmp/drifting-k6-checkpoint-window-final/result.json`，位置证明为 `/tmp/drifting-k6-checkpoint-secondary-final.json`。初轮 Clippy 风格失败日志保留；首轮窗口功能已过 21 步，但辅助位置观察未捕捉窗口，修正观察方式后原场景重跑通过，首轮证据未覆盖。未调用真实模型、凭据或服务，未做 heavy、性能或截图目检。
+
+待协调：`entry_snapshot.*` 仍完全不向模型开放，新增命令只供宿主保存精确版本回执；范围／AnchorBytes／非空 reanchor 仍要求完整来源正文，快照内部读取不增加模型权限。未知未来树若无法保留身份则整批拒绝恢复；打点后实际多文档编辑故障仍遵守 M29 部分提交与收据，不承诺普通编辑全回滚。素材条目链接、M14 局部时间线命令继续排除，K2 在途 `membership.restore` 的正式排除与隐藏剩余泳道修复等后续接入，本批未消费其 WIP。G4 已知导入回滚竞争仍归 G4，本轮对应测试通过不等于关闭该问题。没有合进 main、推送或改动原 Antigravity 工作区，既有 K5 结构／模板预览签名保持。

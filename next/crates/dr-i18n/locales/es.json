@@ -1834,14 +1834,14 @@
     "name": "Nombre",
     "new_entry": "Nueva entrada",
     "new_template": "Nueva plantilla",
-    "no": "No",
     "none": "Ninguna",
     "number": "Número",
     "options": "Opciones",
     "patches": "Parches",
     "plot_grid": "Plan de trama",
+    "preview_failed": "No se pudo cargar la vista previa",
+    "preview_loading": "Cargando vista previa…",
     "prose": "Texto principal",
-    "read_only": "Solo lectura",
     "relations": "Relaciones",
     "reorder": "Arrastrar para ordenar",
     "restore": "Restaurar",
@@ -1850,8 +1850,7 @@
     "template_name": "Nombre de plantilla",
     "text": "Texto",
     "this_level": "Este nivel",
-    "unsaved": "Sin guardar",
-    "yes": "Sí"
+    "unsaved": "Sin guardar"
   },
   "topTimeline": {
     "closeTab": "Cerrar pestaña",
@@ -1896,6 +1895,7 @@
     "autoLink": "Enlaces automáticos",
     "byStoryline": "Por línea argumental",
     "collapse": "Contraer {{name}}",
+    "create": "Crear",
     "defaultTemplate": "Plantilla predeterminada",
     "display": "Visualización",
     "expand": "Expandir {{name}}",
@@ -1910,6 +1910,7 @@
     "none": "Ninguna",
     "off": "Desactivado",
     "on": "Activado",
+    "primary": "Principal",
     "residents": "Entradas residentes",
     "restore": "Restaurar {{name}}",
     "sourceDefault": "Valor predeterminado",
@@ -1917,6 +1918,7 @@
     "sourceOverride": "Anulación · {{name}}",
     "sourceTemplate": "Plantilla · {{name}} · {{level}}",
     "thisLevel": "Este nivel",
+    "title": "Título",
     "unassigned": "Sin asignar"
   },
   "v3Shell": {

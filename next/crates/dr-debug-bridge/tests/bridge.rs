@@ -6,7 +6,7 @@
 //! with the token only. With M03's page chrome registered it reads the
 //! chapter page's head and reaches its title field the way a click would.
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use dr_debug_bridge::protocol::wire::codes;
@@ -419,16 +419,26 @@ fn the_socket_answers_with_the_token_only(cx: &mut TestAppContext) {
         .unwrap();
     assert_eq!(connection.pid, std::process::id());
     let client_paths = paths.clone();
-    let done = Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let finished = done.clone();
+    // Keep the actual completion time: a slow pump must not reject work
+    // completed within the ten-second budget, or accept work completed late.
+    let progress = Arc::new(Mutex::new(("client starting", None::<Instant>)));
+    let client_progress = progress.clone();
+    let started = Instant::now();
+    let deadline = started + Duration::from_secs(10);
     let client = std::thread::spawn(move || {
+        let stage = |name| client_progress.lock().unwrap().0 = name;
         let out = (|| -> Result<Vec<Value>, BridgeError> {
+            stage("authenticated handshake");
             let mut c = Client::open(&client_paths)?;
             let hello = c.hello.clone();
+            stage("state.get");
             let state = c.call("state.get", json!({}))?;
+            stage("nav.open missing chapter");
             let opened = c.call("nav.open", json!({"chapter": "没有这一章"}));
+            stage("read connection file");
             let mut forged = dr_debug_bridge::protocol::Connection::read(&client_paths.connection)?;
             forged.token = "nope".into();
+            stage("forged token handshake");
             let refused = Client::connect(&forged).err().map(|e| e.code);
             Ok(vec![
                 json!(hello.instance),
@@ -437,18 +447,51 @@ fn the_socket_answers_with_the_token_only(cx: &mut TestAppContext) {
                 json!(refused),
             ])
         })();
-        finished.store(true, std::sync::atomic::Ordering::SeqCst);
+        client_progress.lock().unwrap().1 = Some(Instant::now());
         out
     });
-    let deadline = Instant::now() + Duration::from_secs(10);
-    while !done.load(std::sync::atomic::Ordering::SeqCst) {
+    let mut pumps = 0;
+    let mut total_pump = Duration::ZERO;
+    let mut longest_pump = Duration::ZERO;
+    loop {
+        let pump_started = Instant::now();
         cx.run_until_parked();
-        assert!(Instant::now() < deadline, "timed out");
+        let pump = pump_started.elapsed();
+        pumps += 1;
+        total_pump += pump;
+        longest_pump = longest_pump.max(pump);
+        // Sample exit before completion so a just-finishing worker cannot
+        // look like it exited without publishing its completion time.
+        let client_finished = client.is_finished();
+        let (stage, completed_at) = *progress.lock().unwrap();
+        let details = format!(
+            "stage={stage}, done={}, client_finished={}, elapsed={:?}, completion={:?}, pumps={pumps}, last_pump={pump:?}, longest_pump={longest_pump:?}, total_pump={total_pump:?}",
+            completed_at.is_some(),
+            client_finished,
+            started.elapsed(),
+            completed_at.map(|at| at.duration_since(started)),
+        );
+        if let Some(completed_at) = completed_at {
+            assert!(
+                completed_at <= deadline,
+                "client completed too late: {details}"
+            );
+            break;
+        }
+        assert!(
+            !client_finished,
+            "client exited without completion: {details}"
+        );
+        assert!(Instant::now() < deadline, "timed out: {details}");
         std::thread::sleep(Duration::from_millis(2));
     }
     let out = client.join().unwrap().unwrap();
     assert_eq!(out[0], "cc.drifting.next.dev.test");
     assert_eq!(out[1]["book"]["name"], "慢钟");
+    assert_eq!(
+        out[1]["panel"],
+        json!({"armed": null, "last": null, "shown": false})
+    );
     assert_eq!(out[2], codes::NOT_FOUND);
     assert_eq!(out[3], codes::UNAUTHORIZED);
     cx.update(|_, cx| dr_debug_bridge::stop(cx));
@@ -505,28 +548,22 @@ fn the_transfer_dialog_files_and_panels_are_read(cx: &mut TestAppContext) {
     .unwrap_err();
     assert_eq!(err.code, codes::TIMEOUT);
 
-    // The system panels: nothing asked for yet; an answer is armed for
-    // the next one (GPUI's test platform never begins an AppKit panel).
+    // The test platform never begins an AppKit panel. Reading it must not
+    // query NSApplication, and arming it must not install native callbacks.
     let state = call(cx, "panel.state", json!({})).unwrap();
     assert_eq!(state["armed"], Value::Null);
     assert_eq!(state["last"], Value::Null);
     assert_eq!(state["shown"], json!(false));
     let err = call(cx, "panel.answer", json!({ "path": "relative.drifting" })).unwrap_err();
     assert_eq!(err.code, codes::BAD_REQUEST);
-    match call(
+    let err = call(
         cx,
         "panel.answer",
         json!({ "path": path.to_string_lossy() }),
-    ) {
-        Ok(armed) => {
-            assert_eq!(armed["armed"], json!(path.to_string_lossy()));
-            let armed = call(cx, "panel.cancel", json!({})).unwrap();
-            assert_eq!(armed["armed"], json!("cancel"));
-            assert_eq!(
-                call(cx, "state.get", json!({})).unwrap()["panel"]["armed"],
-                json!("cancel")
-            );
-        }
-        Err(err) => assert_eq!(err.code, codes::UNSUPPORTED),
-    }
+    )
+    .unwrap_err();
+    assert_eq!(err.code, codes::UNSUPPORTED);
+    let err = call(cx, "panel.cancel", json!({})).unwrap_err();
+    assert_eq!(err.code, codes::UNSUPPORTED);
+    assert_eq!(call(cx, "state.get", json!({})).unwrap()["panel"], state);
 }

@@ -5,8 +5,8 @@ use dr_workspace::{
     commands::{
         BookIn, EntityIn,
         v3::{
-            membership, timeline,
-            types::{TimelineLane, TimelinePin, TimelineView},
+            timeline,
+            types::{TimelinePin, TimelineView},
         },
     },
 };
@@ -19,6 +19,66 @@ pub(super) enum ViewEdit {
     AddLane(String),
     RemoveLane(String),
     Reorder(String, isize),
+}
+
+/// The frontier is the original book observation behind the displayed F6
+/// snapshot. Never replace it with a fresh observation when submitting a draft.
+#[derive(Clone)]
+pub(super) struct ViewScope {
+    pub book: String,
+    pub view: String,
+    pub version: String,
+    pub lanes: Vec<String>,
+}
+
+fn run_view_edit(lib: &Library, scope: ViewScope, edit: ViewEdit) -> Result<(), WsError> {
+    let (command, input) = match edit {
+        ViewEdit::Rename(name) => (
+            "timeline_view.rename",
+            serde_json::json!({"book":scope.book,"view":scope.view,"name":name}),
+        ),
+        ViewEdit::AddLane(lane) => (
+            "timeline_view.add_lane",
+            serde_json::json!({"book":scope.book,"view":scope.view,"lane":lane}),
+        ),
+        ViewEdit::RemoveLane(lane) => (
+            "timeline_view.remove_lane",
+            serde_json::json!({"book":scope.book,"view":scope.view,"lane":lane}),
+        ),
+        ViewEdit::Reorder(lane, delta) => {
+            let i = scope
+                .lanes
+                .iter()
+                .position(|id| id == &lane)
+                .ok_or_else(|| WsError::NotFound {
+                    what: "timeline lane",
+                    id: lane.clone(),
+                })?;
+            let j = i.saturating_add_signed(delta).min(scope.lanes.len() - 1);
+            if i == j {
+                return Ok(());
+            }
+            let place = if j < i {
+                dr_workspace::naming::Place::Before(scope.lanes[j].clone())
+            } else {
+                dr_workspace::naming::Place::After(scope.lanes[j].clone())
+            };
+            (
+                "timeline_view.move_lane",
+                serde_json::json!({"book":scope.book,"view":scope.view,"lane":lane,"place":place}),
+            )
+        }
+    };
+    lib.call_guarded(
+        &Actor::User,
+        command,
+        input,
+        WritePreconditions {
+            versions: [(format!("book:{}", scope.book), scope.version)].into(),
+            require_all: true,
+        },
+    )?;
+    Ok(())
 }
 
 pub fn fresh_id(_: &str) -> String {
@@ -47,19 +107,6 @@ fn covers(raw: &Value, expected: &Value) -> bool {
     } else {
         raw == expected
     }
-}
-
-pub(super) fn complete_view(raw: Option<&Value>, view: &TimelineView) -> Result<(), WsError> {
-    let mut expected = record(view, "id")?;
-    for (field, key) in [("lanes", "entry"), ("placements", "entry"), ("pins", "id")] {
-        let records = expected[field].as_array().unwrap();
-        let mut keyed = Map::new();
-        for row in records {
-            keyed.insert(row[key].as_str().unwrap().to_owned(), record(row, key)?);
-        }
-        expected[field] = Value::Object(keyed);
-    }
-    require_coverage(raw, &expected)
 }
 
 pub(super) fn complete_pin(raw: Option<&Value>, pin: &TimelinePin) -> Result<(), WsError> {
@@ -138,13 +185,14 @@ impl Timeline {
                 .await
                 .unwrap_or_else(|_| Err(WsError::Internal("timeline write queue closed".into())));
             this.update(cx, |timeline, cx| {
-                if let Some(draft) = draft
+                if let Some(mut draft) = draft
                     && timeline.latest_edit == Some(draft.field.entity_id())
                 {
                     if result.is_err()
                         && timeline.book.id == submitted_book
                         && timeline.editing.is_none()
                     {
+                        draft.failed = true;
                         timeline.editing = Some(draft);
                     } else {
                         timeline.latest_edit = None;
@@ -242,71 +290,42 @@ impl Timeline {
             self.edit_view(id, ViewEdit::Reorder(lane, delta), cx);
         }
     }
+    pub(super) fn view_scope(&self) -> Option<ViewScope> {
+        self.scope_for(&self.view()?.id)
+    }
+    fn scope_for(&self, id: &str) -> Option<ViewScope> {
+        let book = self.book.v3()?;
+        let view = book
+            .timeline_views
+            .iter()
+            .find(|v| v.id == id && v.deleted_at.is_none())?;
+        Some(ViewScope {
+            book: self.book.id.clone(),
+            view: id.into(),
+            version: book.revision.clone(),
+            lanes: view.lanes.iter().map(|l| l.entry.clone()).collect(),
+        })
+    }
     pub(super) fn edit_view(&mut self, id: String, edit: ViewEdit, cx: &mut Context<Self>) {
+        let Some(mut scope) = self.scope_for(&id) else {
+            return;
+        };
+        if let Some(draft) = &self.submitting {
+            scope.version = draft.version.clone();
+        }
+        self.edit_view_at(scope, edit, cx);
+    }
+    pub(super) fn edit_view_at(
+        &mut self,
+        scope: ViewScope,
+        edit: ViewEdit,
+        cx: &mut Context<Self>,
+    ) {
+        if scope.book != self.book.id {
+            return;
+        }
         self.popup = None;
-        self.write(cx, move |lib, book| {
-            let observed = lib.observe(&format!("book:{book}"))?;
-            let mut v = lib
-                .run::<timeline::ViewList>(&Actor::User, BookIn { book: book.clone() })?
-                .output
-                .into_iter()
-                .find(|v| v.id == id)
-                .ok_or_else(|| WsError::NotFound {
-                    what: "timeline view",
-                    id: id.clone(),
-                })?;
-            let raw = observed
-                .value
-                .get("timeline_views")
-                .and_then(|views| views.get(&id));
-            complete_view(raw, &v)?;
-            match edit {
-                ViewEdit::Rename(name) => v.name = name,
-                ViewEdit::AddLane(entry) => {
-                    if !v.lanes.iter().any(|l| l.entry == entry) {
-                        let pos = v
-                            .lanes
-                            .last()
-                            .and_then(|l| l.pos.as_deref())
-                            .and_then(|p| PosKey::parse(p).ok())
-                            .map(|p| p.after())
-                            .unwrap_or_else(PosKey::first);
-                        v.lanes.push(TimelineLane {
-                            entry,
-                            pos: Some(pos.to_string()),
-                        });
-                    }
-                }
-                ViewEdit::RemoveLane(lane) => {
-                    let ms = lib
-                        .run::<membership::MembershipList>(
-                            &Actor::User,
-                            BookIn { book: book.clone() },
-                        )?
-                        .output;
-                    model::remove_lane(&mut v, &lane, &ms);
-                }
-                ViewEdit::Reorder(lane, delta) => {
-                    if let Some(i) = v.lanes.iter().position(|l| l.entry == lane) {
-                        let j = i.saturating_add_signed(delta).min(v.lanes.len() - 1);
-                        let row = v.lanes.remove(i);
-                        v.lanes.insert(j, row);
-                        let mut pos = PosKey::first();
-                        for l in &mut v.lanes {
-                            l.pos = Some(pos.to_string());
-                            pos = pos.after();
-                        }
-                    }
-                }
-            }
-            replace(
-                &lib,
-                "timeline_view.put",
-                serde_json::json!({"book":book,"view":v}),
-                observed,
-            )?;
-            Ok(())
-        });
+        self.write(cx, move |lib, _| run_view_edit(&lib, scope, edit));
     }
 }
 
@@ -355,105 +374,41 @@ mod tests {
     }
 
     #[::core::prelude::v1::test]
-    fn coverage_checks_every_replaced_field_and_record_identity() {
+    fn pin_coverage_checks_each_replaced_field() {
         let (_dir, lib, book, view) = fixture();
         let raw =
-            lib.observe(&format!("book:{book}")).unwrap().value["timeline_views"][&view.id].clone();
-        complete_view(Some(&raw), &view).unwrap();
+            lib.observe(&format!("book:{book}")).unwrap().value["timeline_views"][&view.id]["pins"]
+                ["coverage-pin"]
+                .clone();
         let pin = view.pins.iter().find(|p| p.id == "coverage-pin").unwrap();
-        complete_pin(raw["pins"].get(&pin.id), pin).unwrap();
+        complete_pin(Some(&raw), pin).unwrap();
         for (field, value) in [
-            ("name", json!("Synthetic hidden name")),
-            ("pos", json!("z0")),
-            ("deleted_at", json!(1)),
+            ("at", json!(99.)),
+            ("label", json!("Synthetic hidden label")),
+            ("color", json!("#654321")),
+            ("entry", json!("synthetic-hidden-target")),
+            ("future_field", json!({"synthetic":"retained"})),
         ] {
             let mut changed = raw.clone();
             changed[field] = value;
             assert!(
-                matches!(
-                    complete_view(Some(&changed), &view),
-                    Err(WsError::Conflict(_))
-                ),
+                matches!(complete_pin(Some(&changed), pin), Err(WsError::Conflict(_))),
                 "{field}"
             );
         }
-        for (collection, id, field, value) in [
-            ("lanes", view.lanes[0].entry.as_str(), "pos", json!("z0")),
-            (
-                "placements",
-                view.placements[0].entry.as_str(),
-                "at",
-                json!(99.),
-            ),
-            (
-                "placements",
-                view.placements[0].entry.as_str(),
-                "span",
-                json!(99.),
-            ),
-            ("pins", pin.id.as_str(), "at", json!(99.)),
-            (
-                "pins",
-                pin.id.as_str(),
-                "label",
-                json!("Synthetic hidden label"),
-            ),
-            ("pins", pin.id.as_str(), "color", json!("#654321")),
-            (
-                "pins",
-                pin.id.as_str(),
-                "entry",
-                json!("synthetic-hidden-target"),
-            ),
-        ] {
-            let mut changed = raw.clone();
-            changed[collection][id][field] = value;
-            assert!(
-                matches!(
-                    complete_view(Some(&changed), &view),
-                    Err(WsError::Conflict(_))
-                ),
-                "{collection}.{field}"
-            );
-            if collection == "pins" {
-                assert!(
-                    matches!(
-                        complete_pin(changed["pins"].get(id), pin),
-                        Err(WsError::Conflict(_))
-                    ),
-                    "pin.{field}"
-                );
-            }
-        }
-        for collection in ["lanes", "placements", "pins"] {
-            let mut changed = raw.clone();
-            let records = changed[collection].as_object_mut().unwrap();
-            let key = records.keys().next().unwrap().clone();
-            let row = records.remove(&key).unwrap();
-            records.insert("synthetic-unread-id".into(), row);
-            assert!(
-                matches!(
-                    complete_view(Some(&changed), &view),
-                    Err(WsError::Conflict(_))
-                ),
-                "identity of {collection}"
-            );
-        }
-        let mut unknown = raw.clone();
-        unknown["future_field"] = json!({"synthetic":"retained"});
-        assert!(matches!(
-            complete_view(Some(&unknown), &view),
-            Err(WsError::Conflict(_))
-        ));
         lib.shutdown().unwrap();
     }
 
     #[::core::prelude::v1::test]
-    fn guarded_replacements_refuse_stale_versions_and_explicit_retries_keep_both_writers() {
-        let (_dir, lib, book, mut view) = fixture();
-        let first = lib.observe(&format!("book:{book}")).unwrap();
-        complete_view(first.value["timeline_views"].get(&view.id), &view).unwrap();
-        view.name = "Synthetic first writer".into();
+    fn local_edits_use_the_displayed_frontier_and_retry_preserves_other_writers() {
+        let (_dir, lib, book, view) = fixture();
+        let shown = lib.observe(&format!("book:{book}")).unwrap();
+        let mut scope = ViewScope {
+            book: book.clone(),
+            view: view.id.clone(),
+            version: shown.version,
+            lanes: view.lanes.iter().map(|l| l.entry.clone()).collect(),
+        };
         let mut pin = view
             .pins
             .iter()
@@ -466,83 +421,34 @@ mod tests {
             timeline::PinIn {
                 book: book.clone(),
                 view: view.id.clone(),
-                pin: pin.clone(),
+                pin,
             },
         )
         .unwrap();
+        let after_other = lib.observe(&format!("book:{book}")).unwrap();
         assert!(matches!(
-            replace(
+            run_view_edit(
                 &lib,
-                "timeline_view.put",
-                json!({"book":book,"view":view}),
-                first
+                scope.clone(),
+                ViewEdit::Rename("Synthetic stale edit".into())
             ),
             Err(WsError::Conflict(_))
         ));
-        let fresh = lib.observe(&format!("book:{book}")).unwrap();
-        let mut latest = listed(&lib, &book);
-        complete_view(fresh.value["timeline_views"].get(&latest.id), &latest).unwrap();
-        latest.name = view.name.clone();
-        replace(
+        assert_eq!(
+            lib.observe(&format!("book:{book}")).unwrap().version,
+            after_other.version
+        );
+        scope.version = after_other.version;
+        run_view_edit(
             &lib,
-            "timeline_view.put",
-            json!({"book":book,"view":latest}),
-            fresh,
+            scope,
+            ViewEdit::Rename("Synthetic explicit retry".into()),
         )
         .unwrap();
         let raw =
             lib.observe(&format!("book:{book}")).unwrap().value["timeline_views"][&view.id].clone();
-        assert_eq!(raw["name"], view.name);
-        assert_eq!(raw["pins"][&pin.id]["color"], "#654321");
-
-        let first = lib.observe(&format!("book:{book}")).unwrap();
-        let mut renamed = pin.clone();
-        renamed.label = "Synthetic second writer".into();
-        complete_pin(
-            first.value["timeline_views"][&view.id]["pins"].get(&pin.id),
-            &pin,
-        )
-        .unwrap();
-        pin.at = 99.;
-        lib.run::<timeline::PinPut>(
-            &Actor::User,
-            timeline::PinIn {
-                book: book.clone(),
-                view: view.id.clone(),
-                pin: pin.clone(),
-            },
-        )
-        .unwrap();
-        assert!(matches!(
-            replace(
-                &lib,
-                "timeline_view.put_pin",
-                json!({"book":book,"view":view.id,"pin":renamed}),
-                first
-            ),
-            Err(WsError::Conflict(_))
-        ));
-        let fresh = lib.observe(&format!("book:{book}")).unwrap();
-        let latest = listed(&lib, &book);
-        let mut latest = latest.pins.into_iter().find(|p| p.id == pin.id).unwrap();
-        complete_pin(
-            fresh.value["timeline_views"][&view.id]["pins"].get(&pin.id),
-            &latest,
-        )
-        .unwrap();
-        latest.label = renamed.label.clone();
-        replace(
-            &lib,
-            "timeline_view.put_pin",
-            json!({"book":book,"view":view.id,"pin":latest}),
-            fresh,
-        )
-        .unwrap();
-        let raw =
-            lib.observe(&format!("book:{book}")).unwrap().value["timeline_views"][&view.id].clone();
-        assert_eq!(raw["pins"][&pin.id]["label"], renamed.label);
-        assert_eq!(raw["pins"][&pin.id]["at"], 99.);
-        assert_eq!(raw["pins"][&pin.id]["color"], "#654321");
+        assert_eq!(raw["name"], "Synthetic explicit retry");
+        assert_eq!(raw["pins"]["coverage-pin"]["color"], "#654321");
         lib.shutdown().unwrap();
     }
 }

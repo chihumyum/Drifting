@@ -348,11 +348,202 @@ fn v3_import_rolls_back_prose_if_the_book_genesis_is_damaged() {
     output.finish().unwrap();
     let before = ws.library().docs(None, None).unwrap();
     let progressed = std::cell::Cell::new(0);
-    assert!(import_book(&ws, &damaged, &|p| progressed.set(p.done)).is_err());
+    let error = import_book(&ws, &damaged, &|p| progressed.set(p.done)).unwrap_err();
+    eprintln!("damaged genesis import: {error:?}");
     assert!(
         progressed.get() > 0,
         "failure followed successful prose writes"
     );
+    assert_eq!(ws.library().docs(None, None).unwrap(), before);
+    ws.close();
+}
+
+#[test]
+fn v3_failed_import_waits_for_its_holder_before_rollback() {
+    use dr_store::{LocalChangeKind, Origin, StoreEvent};
+    use std::sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+        mpsc,
+    };
+    use std::time::Duration;
+
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("library");
+    let store = dr_store::Library::open(&root, dr_workspace::library_options("test")).unwrap();
+    let seed = generate_v3(Preset::Tiny, DEFAULT_SEED).unwrap();
+    let book = seed.books[0].book_id().to_string();
+    seed.write_to(&store).unwrap();
+    store.close().unwrap();
+    let faults = Arc::new(AtomicUsize::new(0));
+    let armed = Arc::new(AtomicBool::new(false));
+    let mut options = dr_workspace::library_options("test");
+    options.append_faults = Some(faults.clone());
+    let ws = Workspace::open(
+        dr_store::Library::open(&root, options).unwrap(),
+        Default::default(),
+    )
+    .unwrap();
+    let file = dir.path().join("synthetic.driftingbook");
+    export_book(&ws, &book, &file, &|_| {}).unwrap();
+    let before = ws.library().docs(None, None).unwrap();
+    let original = digest_v3(ws.library(), &book).unwrap();
+    let (entered_tx, entered_rx) = mpsc::channel();
+    let (release_tx, release_rx) = mpsc::channel();
+    let release_rx = Mutex::new(release_rx);
+    let (purged_tx, purged_rx) = mpsc::channel();
+    let source_book = format!("book:{book}");
+    let watching = armed.clone();
+    let subscription = ws.library().subscribe(move |event| {
+        match event {
+            StoreEvent::Doc(ev)
+                if watching.load(Ordering::SeqCst)
+                    && ev.origin == Origin::Import
+                    && ev.doc_id.starts_with("book:")
+                    && ev.doc_id.as_ref() != source_book =>
+            {
+                // The injected append failed. Closing retries it and publishes
+                // this event after commit, before releasing the holder's slot.
+                // A channel gate fixes that ordering; no sleep or storage calls
+                // are made from the holder callback.
+                entered_tx.send(ev.doc_id.to_string()).unwrap();
+                release_rx
+                    .lock()
+                    .unwrap()
+                    .recv_timeout(Duration::from_secs(10))
+                    .unwrap();
+            }
+            StoreEvent::Local(c)
+                if watching.load(Ordering::SeqCst)
+                    && c.table == "doc"
+                    && c.kind == LocalChangeKind::Delete =>
+            {
+                let _ = purged_tx.send(c.key.clone());
+            }
+            _ => {}
+        }
+    });
+    let worker_ws = ws.clone();
+    let worker = std::thread::spawn(move || {
+        let result = import_book(&worker_ws, &file, &|p| {
+            if p.done + 1 == p.total {
+                // Only the final book document remains. Its append fails
+                // after the holder has been opened and registered for cleanup.
+                armed.store(true, Ordering::SeqCst);
+                faults.store(1, Ordering::SeqCst);
+            }
+        });
+        result.unwrap_err()
+    });
+    let closing_doc = entered_rx.recv_timeout(Duration::from_secs(10)).unwrap();
+    let overtook_close = purged_rx.recv_timeout(Duration::from_millis(500)).ok();
+    // Always release and join before assertions, including on the old code.
+    release_tx.send(()).unwrap();
+    let error = worker.join().unwrap();
+    let after = ws.library().docs(None, None).unwrap();
+    let after_digest = digest_v3(ws.library(), &book).unwrap();
+    drop(subscription);
+    ws.close();
+    drop(ws);
+    let store = dr_store::Library::open(&root, dr_workspace::library_options("test")).unwrap();
+    let reopened = store.docs(None, None).unwrap();
+    store.close().unwrap();
+    eprintln!("failed import {error:?}; held={closing_doc}; early purge={overtook_close:?}");
+    assert_eq!(
+        after, before,
+        "failed import must leave no new book or prose"
+    );
+    assert_eq!(
+        reopened, before,
+        "closing/reopening cannot recreate rolled-back docs"
+    );
+    assert_eq!(after_digest, original, "the existing book is untouched");
+    assert!(
+        overtook_close.is_none(),
+        "rollback started before the failed holder closed"
+    );
+}
+
+#[test]
+fn v3_import_reports_incomplete_cleanup_and_still_removes_other_documents() {
+    use dr_export::book_file::BookFileError;
+    use std::{
+        cell::RefCell,
+        sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        },
+    };
+
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("library");
+    let store = dr_store::Library::open(&root, dr_workspace::library_options("test")).unwrap();
+    let seed = generate_v3(Preset::Tiny, DEFAULT_SEED).unwrap();
+    let book = seed.books[0].book_id().to_string();
+    seed.write_to(&store).unwrap();
+    store.close().unwrap();
+    let faults = Arc::new(AtomicUsize::new(0));
+    let mut options = dr_workspace::library_options("test");
+    options.append_faults = Some(faults.clone());
+    let ws = Workspace::open(
+        dr_store::Library::open(&root, options).unwrap(),
+        Default::default(),
+    )
+    .unwrap();
+    let file = dir.path().join("synthetic.driftingbook");
+    export_book(&ws, &book, &file, &|_| {}).unwrap();
+    let before = ws.library().docs(None, None).unwrap();
+    let original = digest_v3(ws.library(), &book).unwrap();
+    let held = RefCell::new(None);
+    let error = import_book(&ws, &file, &|p| {
+        if held.borrow().is_none() {
+            let imported = ws
+                .library()
+                .docs(None, None)
+                .unwrap()
+                .into_iter()
+                .find(|d| !before.iter().any(|old| old.doc_id == d.doc_id));
+            if let Some(doc) = imported {
+                // An independent reader retains an already imported prose
+                // document. Import cannot close another caller's handle.
+                *held.borrow_mut() = Some(
+                    ws.library()
+                        .open_doc(&doc.doc_id, dr_store::OpenDoc::Existing)
+                        .unwrap(),
+                );
+            }
+        }
+        if p.done + 1 == p.total {
+            faults.store(1, Ordering::SeqCst);
+        }
+    })
+    .unwrap_err();
+    let held = held.into_inner().expect("a prose document was imported");
+    let held_id = held.doc_id().to_owned();
+    match error {
+        BookFileError::Rollback { import, cleanup } => {
+            assert!(matches!(
+                *import,
+                BookFileError::Store(dr_store::StoreError::Io(_))
+            ));
+            assert!(matches!(cleanup, dr_store::StoreError::AlreadyOpen(ref id) if id == &held_id));
+        }
+        other => panic!("cleanup failure was hidden: {other:?}"),
+    }
+    let remaining = ws.library().docs(None, None).unwrap();
+    assert_eq!(
+        remaining
+            .iter()
+            .filter(|d| !before.iter().any(|old| old.doc_id == d.doc_id))
+            .map(|d| d.doc_id.as_str())
+            .collect::<Vec<_>>(),
+        [&held_id],
+        "a blocked document must not stop cleanup of the others"
+    );
+    assert_eq!(digest_v3(ws.library(), &book).unwrap(), original);
+    held.close();
+    ws.library().purge_doc(&held_id).unwrap();
+    ws.library().forget_purged(&held_id).unwrap();
     assert_eq!(ws.library().docs(None, None).unwrap(), before);
     ws.close();
 }

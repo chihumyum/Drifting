@@ -1,5 +1,5 @@
 {
-  "about": "K4 G3 返修：隐藏时间钉绑定不被视图或时间钉编辑清空；拒绝后保留草稿，恢复目标再显式重试。",
+  "about": "K4 G3 局部命令与公共树拖动：隐藏绑定保留，视图改名、泳道增删排序，显示版本拒写、失败草稿显式重试，树拖入只添归属与摆放。副屏隔离主流程，不做截图或性能验收。",
   "steps": [
     {
       "seed": "v3-lite"
@@ -17,10 +17,18 @@
       "save": "views"
     },
     {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}",
+        "all": true
+      },
+      "save": "entries"
+    },
+    {
       "call": "entry.create",
       "input": {
         "book": "${books.0.id}",
-        "parent": "${views.0.lanes.0.entry}",
+        "parent": "${entries.[template=tpl-manuscript].id}",
         "template": "tpl-chapter",
         "title": "Synthetic pin-only target"
       },
@@ -55,6 +63,56 @@
       "save": "hidden"
     },
     {
+      "call": "entry.create",
+      "input": {
+        "book": "${books.0.id}",
+        "parent": "${entries.[template=tpl-manuscript].id}",
+        "template": "tpl-chapter",
+        "title": "Synthetic tree drag chapter"
+      },
+      "save": "created"
+    },
+    {
+      "call": "entry.move",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${created.id}",
+        "parent": "${entries.[template=tpl-manuscript].id}",
+        "index": 0
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${created.id}"
+      },
+      "save": "source"
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${views.0.lanes.0.entry}"
+      },
+      "save": "first"
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${views.0.lanes.1.entry}"
+      },
+      "save": "second"
+    },
+    {
+      "call": "membership.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "memberships"
+    },
+    {
       "launch": {
         "settings": {
           "device": {
@@ -68,6 +126,9 @@
           "account": {
             "language.ui_locale": "en"
           }
+        },
+        "env": {
+          "DRIFTING_WINDOW_DISPLAY": "secondary"
         }
       }
     },
@@ -94,6 +155,45 @@
       }
     },
     {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ToggleLeftSidebar"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/left/open": true,
+          "/v3Sidebar/registered": true,
+          "/v3Sidebar/selected": "${entries.[template=tpl-manuscript].id}"
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 600
+      }
+    },
+    {
+      "app": "window.focus",
+      "params": {}
+    },
+    {
+      "app": "app.info",
+      "params": {},
+      "expect": {
+        "/windows/0/active": true,
+        "/windows/0/visible": true,
+        "/windows/0/bounds/width": 1440.0,
+        "/windows/0/bounds/height": 900.0
+      },
+      "save": "environment"
+    },
+    {
       "app": "ui.press",
       "params": {
         "label": "Move down",
@@ -103,10 +203,28 @@
     {
       "app": "ui.wait",
       "params": {
-        "until": "time",
-        "ms": 350
-      },
-      "note": "公共通知当前没有 AX 节点；等待本次通知绘制，再核对原始契约、保留的输入与恢复后的绑定。"
+        "timeout_ms": 30000,
+        "state": {
+          "/v3/timeline_views/0/lanes/0/entry": "${second.id}"
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Remove from view",
+        "role": "Button",
+        "nth": 0
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/v3/timeline_views/0/lanes/0/entry": "${first.id}"
+        }
+      }
     },
     {
       "call": "timeline_view.list",
@@ -114,15 +232,33 @@
         "book": "${books.0.id}"
       },
       "expect": {
-        "/0/lanes": "${hidden.0.lanes}",
-        "/0/pins/[id=synthetic-hidden-binding]/entry": null
+        "/0/lanes/1": null,
+        "/0/pins/[id=synthetic-hidden-binding]/entry": null,
+        "/0/pins/[id=synthetic-hidden-binding]/at": 42.0,
+        "/0/pins/[id=synthetic-hidden-binding]/color": "#345678"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Add lane",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "${second.title}",
+        "role": "MenuItem"
       }
     },
     {
       "app": "ui.wait",
       "params": {
-        "until": "time",
-        "ms": 2100
+        "timeout_ms": 30000,
+        "state": {
+          "/v3/timeline_views/0/lanes/1/entry": "${second.id}"
+        }
       }
     },
     {
@@ -142,7 +278,85 @@
     {
       "app": "input.type",
       "params": {
-        "text": "Synthetic preserved view draft"
+        "text": "Synthetic local view"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "enter"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/v3/timeline_views/0/name": "Synthetic local view"
+        }
+      }
+    },
+    {
+      "call": "timeline_view.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "expect": {
+        "/0/name": "Synthetic local view",
+        "/0/pins/[id=synthetic-hidden-binding]/entry": null
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Synthetic local view",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Rename view",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "Synthetic retained view draft"
+      }
+    },
+    {
+      "call": "timeline_view.put_pin",
+      "input": {
+        "book": "${books.0.id}",
+        "view": "${views.0.id}",
+        "pin": {
+          "id": "synthetic-peer-pin",
+          "at": 84.0,
+          "label": "Synthetic peer pin",
+          "color": "#abcdef",
+          "entry": null
+        }
+      }
+    },
+    {
+      "call": "timeline_view.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "peerViews",
+      "expect": {
+        "/0/pins/[id=synthetic-peer-pin]/label": "Synthetic peer pin"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/v3/timeline_views": "${peerViews}"
+        }
       }
     },
     {
@@ -157,19 +371,16 @@
         "until": "time",
         "ms": 350
       },
-      "note": "公共通知当前没有 AX 节点；等待本次通知绘制，再核对原始契约、保留的输入与恢复后的绑定。"
+      "note": "等待失败回执绘制；下面同时核对旧写拒绝、原草稿和另一来源的成功写入。"
     },
     {
       "app": "ui.find",
       "params": {
-        "contains": "Synthetic preserved view draft",
+        "contains": "Synthetic retained view draft",
+        "role": "Group",
         "count": 1
       },
       "save": "viewDraft"
-    },
-    {
-      "app": "ui.screenshot",
-      "png": "01-view-draft-rejected.png"
     },
     {
       "call": "timeline_view.list",
@@ -177,7 +388,8 @@
         "book": "${books.0.id}"
       },
       "expect": {
-        "/0/name": "${views.0.name}",
+        "/0/name": "Synthetic local view",
+        "/0/pins/[id=synthetic-peer-pin]/label": "Synthetic peer pin",
         "/0/pins/[id=synthetic-hidden-binding]/entry": null
       }
     },
@@ -193,9 +405,28 @@
       "input": {
         "book": "${books.0.id}"
       },
+      "save": "restoredViews",
       "expect": {
         "/0/pins/[id=synthetic-hidden-binding]/entry": "${target.id}"
       }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/v3/timeline_views": "${restoredViews}"
+        }
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "contains": "Synthetic retained view draft",
+        "role": "Group",
+        "count": 1
+      },
+      "save": "viewDraft"
     },
     {
       "app": "input.click",
@@ -215,17 +446,8 @@
       "params": {
         "timeout_ms": 30000,
         "state": {
-          "/v3/timeline_views/0/name": "Synthetic preserved view draft",
-          "/v3/timeline_views/0/pins/1/entry": "${target.id}"
+          "/v3/timeline_views/0/name": "Synthetic retained view draft"
         }
-      }
-    },
-    {
-      "app": "ui.find",
-      "params": {
-        "label": "Synthetic preserved view draft",
-        "role": "Button",
-        "count": 1
       }
     },
     {
@@ -234,127 +456,95 @@
         "book": "${books.0.id}"
       },
       "expect": {
-        "/0/name": "Synthetic preserved view draft",
-        "/0/pins/[id=synthetic-hidden-binding]/entry": "${target.id}"
+        "/0/name": "Synthetic retained view draft",
+        "/0/pins/[id=synthetic-hidden-binding]/entry": "${target.id}",
+        "/0/pins/[id=synthetic-hidden-binding]/color": "#345678",
+        "/0/pins/[id=synthetic-hidden-binding]/at": 42.0,
+        "/0/pins/[id=synthetic-peer-pin]/label": "Synthetic peer pin",
+        "/0/pins/[id=synthetic-peer-pin]/color": "#abcdef",
+        "/0/pins/[id=synthetic-peer-pin]/at": 84.0
       }
     },
     {
-      "app": "ui.wait",
-      "params": {
-        "until": "time",
-        "ms": 2100
-      }
-    },
-    {
-      "call": "entry.trash",
+      "call": "membership.list",
       "input": {
-        "book": "${books.0.id}",
-        "id": "${target.id}"
+        "book": "${books.0.id}"
+      },
+      "expect": {
+        "": "${memberships}"
       }
     },
     {
-      "app": "ui.press",
+      "app": "ui.find",
       "params": {
-        "label": "Synthetic recoverable pin",
-        "role": "Button"
-      }
+        "label": "${source.title}",
+        "role": "Group",
+        "count": 1
+      },
+      "save": "treeSource"
     },
     {
-      "app": "ui.press",
+      "app": "ui.find",
       "params": {
-        "label": "Rename time pin",
-        "role": "MenuItem"
-      }
+        "label": "Lane ${first.title}",
+        "role": "Group",
+        "count": 1
+      },
+      "save": "track"
     },
     {
-      "app": "input.type",
+      "app": "input.drag",
       "params": {
-        "text": "Synthetic preserved pin draft"
-      }
-    },
-    {
-      "app": "input.key",
-      "params": {
-        "keys": "enter"
-      }
+        "from": [
+          "${treeSource.nodes.0.center.0}",
+          "${treeSource.nodes.0.center.1}"
+        ],
+        "to": [
+          900,
+          "${track.nodes.0.center.1}"
+        ],
+        "steps": 12
+      },
+      "note": "从真实 G2 树源拖入 G3 泳道；只新增归属和本视图摆放，原住处、顺序和主归属不变。 落点使用标准 1440×900 窗口内可见的轨道 x=900；不取虚拟宽轨道的屏外中心。"
     },
     {
       "app": "ui.wait",
       "params": {
         "until": "time",
         "ms": 350
-      },
-      "note": "公共通知当前没有 AX 节点；等待本次通知绘制，再核对原始契约、保留的输入与恢复后的绑定。"
+      }
     },
     {
       "app": "ui.find",
       "params": {
-        "contains": "Synthetic preserved pin draft",
-        "count": 1
-      },
-      "save": "pinDraft"
-    },
-    {
-      "app": "ui.screenshot",
-      "png": "02-pin-draft-rejected.png"
-    },
-    {
-      "call": "timeline_view.list",
-      "input": {
-        "book": "${books.0.id}"
-      },
-      "expect": {
-        "/0/pins/[id=synthetic-hidden-binding]/label": "Synthetic recoverable pin",
-        "/0/pins/[id=synthetic-hidden-binding]/entry": null
-      }
-    },
-    {
-      "call": "entry.restore",
-      "input": {
-        "book": "${books.0.id}",
-        "id": "${target.id}"
-      }
-    },
-    {
-      "app": "input.click",
-      "params": {
-        "x": "${pinDraft.nodes.0.center.0}",
-        "y": "${pinDraft.nodes.0.center.1}"
-      }
-    },
-    {
-      "app": "input.key",
-      "params": {
-        "keys": "enter"
-      }
-    },
-    {
-      "app": "ui.wait",
-      "params": {
-        "timeout_ms": 30000,
-        "state": {
-          "/v3/timeline_views/0/pins/1/label": "Synthetic preserved pin draft",
-          "/v3/timeline_views/0/pins/1/entry": "${target.id}"
+        "label": "${source.title}",
+        "role": "Button",
+        "count": 1,
+        "within": {
+          "label": "Lane ${first.title}",
+          "role": "Group"
         }
       }
     },
     {
-      "call": "timeline_view.list",
+      "call": "membership.list",
       "input": {
         "book": "${books.0.id}"
       },
-      "save": "pinRetry"
+      "expect": {
+        "/[member=${source.id}]/host": "${first.id}"
+      }
     },
     {
-      "app": "ui.screenshot",
-      "png": "03-pin-retry.png"
-    },
-    {
-      "app": "ui.find",
-      "params": {
-        "label": "Synthetic preserved pin draft",
-        "role": "Button",
-        "count": 1
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${source.id}"
+      },
+      "expect": {
+        "/parent": "${source.parent}",
+        "/pos": "${source.pos}",
+        "/primary": "${source.primary}"
       }
     },
     {
@@ -363,18 +553,26 @@
         "book": "${books.0.id}"
       },
       "expect": {
-        "/0/pins/[id=synthetic-hidden-binding]/label": "Synthetic preserved pin draft",
+        "/0/placements/[entry=${source.id}]/entry": "${source.id}",
+        "/0/placements/[entry=${source.id}]/span": null,
         "/0/pins/[id=synthetic-hidden-binding]/entry": "${target.id}",
-        "/0/pins/[id=synthetic-hidden-binding]/color": "#345678",
-        "/0/pins/[id=synthetic-hidden-binding]/at": 42.0
+        "/0/pins/[id=synthetic-peer-pin]/label": "Synthetic peer pin",
+        "/0/name": "Synthetic retained view draft"
       }
     },
     {
-      "app": "ui.screenshot",
-      "png": "03-restored-binding.png"
+      "app": "app.info",
+      "params": {},
+      "expect": {
+        "/windows/0/active": true,
+        "/windows/0/visible": true,
+        "/windows/0/bounds/width": 1440.0,
+        "/windows/0/bounds/height": 900.0
+      }
     },
     {
-      "app": "app.quit"
+      "app": "app.quit",
+      "params": {}
     }
   ]
 }

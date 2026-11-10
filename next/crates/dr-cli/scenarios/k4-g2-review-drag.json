@@ -1,0 +1,1573 @@
+{
+  "about": "K4 G2 第三批返修主流程：canonical v3-lite，公共树载荷的真实移动／排序／归属、看板按下点位移及守卫选择器；审阅实际窗口跟随条目／模块／非正文／模板／素材／全书范围。实际 ReviewView 跳转及旧书／库回调隔离由永久 GPUI 测试核对。本场景无截图或性能验收，运行器须验证整个隔离窗口位于副屏。",
+  "steps": [
+    {
+      "seed": "v3-lite"
+    },
+    {
+      "call": "book.list",
+      "input": {},
+      "save": "books"
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "roots"
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}",
+        "all": true
+      },
+      "save": "entries"
+    },
+    {
+      "call": "entry.create",
+      "input": {
+        "book": "${books.0.id}",
+        "parent": "${roots.0.id}",
+        "template": "tpl-group",
+        "title": "Synthetic tree A"
+      },
+      "save": "a"
+    },
+    {
+      "call": "entry.update",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${a.id}",
+        "overrides": {
+          "allow": []
+        }
+      }
+    },
+    {
+      "call": "entry.create",
+      "input": {
+        "book": "${books.0.id}",
+        "parent": "${roots.0.id}",
+        "template": "tpl-group",
+        "title": "Synthetic tree B"
+      },
+      "save": "b"
+    },
+    {
+      "call": "entry.update",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${b.id}",
+        "overrides": {
+          "allow": []
+        }
+      }
+    },
+    {
+      "call": "entry.move",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${a.id}",
+        "parent": "${roots.0.id}",
+        "index": 0
+      }
+    },
+    {
+      "call": "entry.move",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${b.id}",
+        "parent": "${roots.0.id}",
+        "index": 1
+      }
+    },
+    {
+      "call": "entry.create",
+      "input": {
+        "book": "${books.0.id}",
+        "parent": "${a.id}",
+        "template": "tpl-chapter",
+        "title": "Synthetic moved leaf"
+      },
+      "save": "leaf"
+    },
+    {
+      "call": "entry.create",
+      "input": {
+        "book": "${books.0.id}",
+        "parent": "${a.id}",
+        "template": "tpl-group",
+        "title": "Synthetic nested"
+      },
+      "save": "nested"
+    },
+    {
+      "call": "entry.create",
+      "input": {
+        "book": "${books.0.id}",
+        "parent": "${b.id}",
+        "template": "tpl-group",
+        "title": "Synthetic member host"
+      },
+      "save": "host"
+    },
+    {
+      "call": "entry.update",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${host.id}",
+        "overrides": {
+          "accept": true,
+          "allow": [
+            "tpl-chapter"
+          ]
+        }
+      }
+    },
+    {
+      "call": "entry.create",
+      "input": {
+        "book": "${books.0.id}",
+        "parent": "${b.id}",
+        "template": "tpl-chapter",
+        "title": "Synthetic sibling"
+      },
+      "save": "sibling"
+    },
+    {
+      "call": "entry.create",
+      "input": {
+        "book": "${books.0.id}",
+        "parent": "${roots.1.id}",
+        "template": "tpl-idea",
+        "title": "Synthetic board A"
+      },
+      "save": "boardA"
+    },
+    {
+      "call": "entry.update",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${boardA.id}",
+        "layout": {
+          "board": [
+            16.0,
+            140.0
+          ],
+          "grid": [
+            2,
+            3
+          ],
+          "relation_graph": [
+            7.0,
+            8.0
+          ]
+        }
+      }
+    },
+    {
+      "call": "entry.create",
+      "input": {
+        "book": "${books.0.id}",
+        "parent": "${roots.1.id}",
+        "template": "tpl-idea",
+        "title": "Synthetic board B"
+      },
+      "save": "boardB"
+    },
+    {
+      "call": "entry.update",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${boardB.id}",
+        "layout": {
+          "board": [
+            56.0,
+            220.0
+          ],
+          "grid": [
+            2,
+            3
+          ],
+          "relation_graph": [
+            7.0,
+            8.0
+          ]
+        }
+      }
+    },
+    {
+      "call": "material.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "reviewMaterials"
+    },
+    {
+      "call": "comment.create",
+      "input": {
+        "book": "${books.0.id}",
+        "body": "Synthetic review module",
+        "target": {
+          "kind": "entry",
+          "id": "${leaf.id}"
+        },
+        "module": "mod-prose"
+      },
+      "save": "reviewModule"
+    },
+    {
+      "call": "comment.create",
+      "input": {
+        "book": "${books.0.id}",
+        "body": "Synthetic review entry",
+        "target": {
+          "kind": "entry",
+          "id": "${leaf.id}"
+        }
+      },
+      "save": "reviewEntry"
+    },
+    {
+      "call": "comment.create",
+      "input": {
+        "book": "${books.0.id}",
+        "body": "Synthetic review other",
+        "target": {
+          "kind": "entry",
+          "id": "${entries.[template=tpl-chapter].id}"
+        },
+        "module": "mod-prose"
+      },
+      "save": "reviewOther"
+    },
+    {
+      "call": "comment.create",
+      "input": {
+        "book": "${books.0.id}",
+        "body": "Synthetic review material",
+        "target": {
+          "kind": "material",
+          "id": "${reviewMaterials.0.id}"
+        }
+      },
+      "save": "reviewMaterial"
+    },
+    {
+      "call": "comment.create",
+      "input": {
+        "book": "${books.0.id}",
+        "body": "Synthetic review floating"
+      },
+      "save": "reviewFloating"
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${books.0.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/version": 3
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ToggleLeftSidebar"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/left/open": true,
+          "/v3Sidebar/registered": true
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 600
+      }
+    },
+    {
+      "app": "input.move",
+      "params": {
+        "x": 800,
+        "y": 120
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 600
+      }
+    },
+    {
+      "app": "app.info",
+      "save": "g2DragWindow"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Synthetic moved leaf",
+        "role": "Group",
+        "count": 1
+      },
+      "save": "residenceFrom"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Synthetic tree B",
+        "role": "Group",
+        "count": 1
+      },
+      "save": "residenceTo"
+    },
+    {
+      "app": "input.drag",
+      "params": {
+        "from": "${residenceFrom.nodes.0.center}",
+        "to": "${residenceTo.nodes.0.center}",
+        "steps": 12
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 4000
+      }
+    },
+    {
+      "app": "ui.wait"
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/v3/levels/${b.id}/children": [
+          "${host.id}",
+          "${sibling.id}",
+          "${leaf.id}"
+        ]
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${leaf.id}"
+      },
+      "expect": {
+        "/parent": "${b.id}"
+      }
+    },
+    {
+      "app": "input.move",
+      "params": {
+        "x": 800,
+        "y": 120
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 600
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Synthetic sibling",
+        "role": "Group",
+        "count": 1
+      },
+      "save": "orderFrom"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Synthetic moved leaf",
+        "role": "Group",
+        "count": 1
+      },
+      "save": "orderTo"
+    },
+    {
+      "app": "input.drag",
+      "params": {
+        "from": "${orderFrom.nodes.0.center}",
+        "to": "${orderTo.nodes.0.center}",
+        "steps": 12
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 4000
+      }
+    },
+    {
+      "app": "ui.wait"
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/v3/levels/${b.id}/children": [
+          "${host.id}",
+          "${leaf.id}",
+          "${sibling.id}"
+        ]
+      }
+    },
+    {
+      "app": "input.move",
+      "params": {
+        "x": 800,
+        "y": 120
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 600
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Synthetic tree A",
+        "role": "Group",
+        "count": 1
+      },
+      "save": "cycleFrom"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Synthetic nested",
+        "role": "Group",
+        "count": 1
+      },
+      "save": "cycleTo"
+    },
+    {
+      "app": "input.drag",
+      "params": {
+        "from": "${cycleFrom.nodes.0.center}",
+        "to": "${cycleTo.nodes.0.center}",
+        "steps": 12
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 600
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${a.id}"
+      },
+      "expect": {
+        "/parent": "${roots.0.id}"
+      }
+    },
+    {
+      "app": "input.move",
+      "params": {
+        "x": 800,
+        "y": 120
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 600
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Synthetic moved leaf",
+        "role": "Group",
+        "count": 1
+      },
+      "save": "assignDropFrom"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Synthetic member host",
+        "role": "Group",
+        "count": 1
+      },
+      "save": "assignDropTo"
+    },
+    {
+      "app": "input.drag",
+      "params": {
+        "from": "${assignDropFrom.nodes.0.center}",
+        "to": "${assignDropTo.nodes.0.center}",
+        "steps": 12
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 4000
+      }
+    },
+    {
+      "app": "ui.wait"
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/v3/levels/${host.id}/members": [
+          "${leaf.id}"
+        ]
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${leaf.id}"
+      },
+      "expect": {
+        "/parent": "${b.id}"
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${host.id}"
+      }
+    },
+    {
+      "app": "ui.wait"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "Heading",
+        "label": "Assigned entries"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "${roots.3.title}",
+        "role": "RadioButton"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/v3Sidebar/selected": "${roots.3.id}"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "input.move",
+      "params": {
+        "x": 800,
+        "y": 120
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 600
+      }
+    },
+    {
+      "app": "ui.hover",
+      "params": {
+        "label": "${entries.[template=tpl-storyline].title}",
+        "role": "Group"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "New",
+        "role": "MenuItem",
+        "timeout_ms": 6000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "New",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "Synthetic card creation"
+      }
+    },
+    {
+      "call": "entry.update",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${entries.[template=tpl-storyline].id}",
+        "overrides": {
+          "home": "${a.id}"
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 4000
+      }
+    },
+    {
+      "app": "ui.wait"
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/v3/levels/${entries.[template=tpl-storyline].id}/settings/home": "${a.id}"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Create",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Your changes could not be saved. Please try again."
+      }
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}",
+        "all": true,
+        "query": "Synthetic card creation"
+      },
+      "expect": {
+        "": []
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Retry",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Synthetic tree A"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Create",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 600
+      }
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}",
+        "all": true,
+        "query": "Synthetic card creation"
+      },
+      "save": "created",
+      "expect": {
+        "/0/parent": "${a.id}",
+        "/0/template": "tpl-chapter",
+        "/0/primary": "${entries.[template=tpl-storyline].id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 4000
+      }
+    },
+    {
+      "app": "ui.wait"
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/page": "entry:${created.0.id}",
+        "/v3/levels/${a.id}/children": [
+          "${nested.id}",
+          "${created.0.id}"
+        ]
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "${roots.0.title}",
+        "role": "RadioButton"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/v3Sidebar/selected": "${roots.0.id}"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "input.move",
+      "params": {
+        "x": 800,
+        "y": 120
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 600
+      }
+    },
+    {
+      "app": "ui.hover",
+      "params": {
+        "label": "Synthetic card creation",
+        "role": "Group"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Assign to",
+        "role": "MenuItem",
+        "timeout_ms": 6000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Assign to",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Primary",
+        "role": "Button",
+        "within": {
+          "role": "Group",
+          "label": "${entries.[template=tpl-storyline].title}",
+          "within": {
+            "label": "Assign to"
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 4000
+      }
+    },
+    {
+      "app": "ui.wait"
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/v3/entries/[id=${created.0.id}]/primary": null
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${created.0.id}"
+      },
+      "expect": {
+        "/primary": null
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Primary",
+        "role": "Button",
+        "within": {
+          "role": "Group",
+          "label": "${entries.[template=tpl-storyline].title}",
+          "within": {
+            "label": "Assign to"
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 4000
+      }
+    },
+    {
+      "app": "ui.wait"
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/v3/entries/[id=${created.0.id}]/primary": "${entries.[template=tpl-storyline].id}"
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${created.0.id}"
+      },
+      "expect": {
+        "/primary": "${entries.[template=tpl-storyline].id}"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Synthetic member host",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 4000
+      }
+    },
+    {
+      "app": "ui.wait"
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/v3/levels/${host.id}/members": [
+          "${leaf.id}",
+          "${created.0.id}"
+        ]
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Primary",
+        "role": "Button",
+        "within": {
+          "role": "Group",
+          "label": "Synthetic member host",
+          "within": {
+            "label": "Assign to"
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 4000
+      }
+    },
+    {
+      "app": "ui.wait"
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/v3/entries/[id=${created.0.id}]/primary": "${host.id}"
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${created.0.id}"
+      },
+      "expect": {
+        "/primary": "${host.id}",
+        "/parent": "${a.id}"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "${entries.[template=tpl-storyline].title}",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 4000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Synthetic member host",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 4000
+      }
+    },
+    {
+      "app": "ui.wait"
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/v3/levels/${host.id}/members": [
+          "${leaf.id}"
+        ]
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Close",
+        "role": "Button"
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${created.0.id}"
+      },
+      "expect": {
+        "/primary": null,
+        "/parent": "${a.id}"
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "input.move",
+      "params": {
+        "x": 800,
+        "y": 120
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 600
+      }
+    },
+    {
+      "app": "ui.hover",
+      "params": {
+        "label": "Synthetic card creation",
+        "role": "Group"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Change template",
+        "role": "MenuItem",
+        "timeout_ms": 6000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Change template",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "构想",
+        "role": "MenuItem"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/v3Page/sections/2": null
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${created.0.id}"
+      },
+      "expect": {
+        "/template": "tpl-idea",
+        "/parent": "${a.id}",
+        "/title": "Synthetic card creation"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "${roots.1.title}",
+        "role": "RadioButton"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/v3Sidebar/display": "board",
+          "/v3Sidebar/registered": true
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 600
+      }
+    },
+    {
+      "app": "input.move",
+      "params": {
+        "x": 800,
+        "y": 120
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 600
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Synthetic board A",
+        "role": "Button",
+        "count": 1
+      },
+      "save": "boardFrom"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Synthetic board B",
+        "role": "Button",
+        "count": 1
+      },
+      "save": "boardTo"
+    },
+    {
+      "app": "input.drag",
+      "params": {
+        "from": "${boardFrom.nodes.0.center}",
+        "to": "${boardTo.nodes.0.center}",
+        "steps": 12
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 600
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${boardA.id}"
+      },
+      "expect": {
+        "/layout/board": [
+          56.0,
+          220.0
+        ],
+        "/layout/grid": [
+          2,
+          3
+        ],
+        "/layout/relation_graph": [
+          7.0,
+          8.0
+        ]
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 4000
+      }
+    },
+    {
+      "app": "ui.wait"
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/v3/entries/[id=${boardA.id}]/layout/board": [
+          56.0,
+          220.0
+        ]
+      }
+    },
+    {
+      "call": "entry.update",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${boardB.id}",
+        "layout": {
+          "board": [
+            96.0,
+            300.0
+          ],
+          "grid": [
+            2,
+            3
+          ],
+          "relation_graph": [
+            7.0,
+            8.0
+          ]
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 4000
+      }
+    },
+    {
+      "app": "ui.wait"
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/v3/entries/[id=${boardB.id}]/layout/board": [
+          96.0,
+          300.0
+        ]
+      }
+    },
+    {
+      "app": "input.move",
+      "params": {
+        "x": 800,
+        "y": 120
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Synthetic board A",
+        "role": "Button",
+        "count": 1
+      },
+      "save": "boardANode"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Synthetic board B",
+        "role": "Button",
+        "count": 1
+      },
+      "save": "boardBNode"
+    },
+    {
+      "app": "input.move",
+      "params": {
+        "x": 800,
+        "y": 120
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${leaf.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "entry:${leaf.id}"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ToggleRightSidebar"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/right/open": true,
+          "/right/panes/panes/0/tab": "review"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 700
+      },
+      "note": "The right sidebar finishes its structural opening before clicking Current."
+    },
+    {
+      "app": "app.info",
+      "save": "g2ReviewWindow"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Review",
+        "role": "Group"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Current",
+        "role": "CheckBox",
+        "within": {
+          "label": "Review",
+          "role": "Group"
+        }
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Synthetic review module",
+        "role": "StaticText",
+        "within": {
+          "label": "Review",
+          "role": "Group"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Synthetic review entry",
+        "role": "StaticText",
+        "within": {
+          "label": "Review",
+          "role": "Group"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Synthetic review other",
+        "role": "StaticText",
+        "within": {
+          "label": "Review",
+          "role": "Group"
+        },
+        "timeout_ms": 15000,
+        "absent": true
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${leaf.id}/mod-prose"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "entry:${leaf.id}/mod-prose"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Synthetic review module",
+        "role": "StaticText",
+        "within": {
+          "label": "Review",
+          "role": "Group"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Synthetic review entry",
+        "role": "StaticText",
+        "within": {
+          "label": "Review",
+          "role": "Group"
+        },
+        "timeout_ms": 15000,
+        "absent": true
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${leaf.id}/mod-fields"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "entry:${leaf.id}/mod-fields"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Synthetic review module",
+        "role": "StaticText",
+        "within": {
+          "label": "Review",
+          "role": "Group"
+        },
+        "timeout_ms": 15000,
+        "absent": true
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Synthetic review entry",
+        "role": "StaticText",
+        "within": {
+          "label": "Review",
+          "role": "Group"
+        },
+        "timeout_ms": 15000,
+        "absent": true
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "template:tpl-chapter"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "template:tpl-chapter"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Review",
+        "role": "Group",
+        "absent": true,
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "material:${reviewMaterials.0.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "material:${reviewMaterials.0.id}"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Synthetic review material",
+        "role": "StaticText",
+        "within": {
+          "label": "Review",
+          "role": "Group"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Synthetic review module",
+        "role": "StaticText",
+        "within": {
+          "label": "Review",
+          "role": "Group"
+        },
+        "timeout_ms": 15000,
+        "absent": true
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "book"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "book"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Review",
+        "role": "Group"
+      }
+    },
+    {
+      "app": "app.info",
+      "save": "g2ReviewBookWindow"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Close right sidebar",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/right/open": false
+        }
+      }
+    },
+    {
+      "app": "app.quit"
+    }
+  ]
+}
