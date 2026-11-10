@@ -44,16 +44,6 @@
       "connect": "モデルを接続",
       "getKey": "APIキーを取得",
       "history": "バージョン履歴",
-      "prompts": {
-        "castCharacters": "主要人物を3人作って",
-        "commentChapter": "「{{chapter}}」にコメントを2つ付けて",
-        "completeElement": "「{{element}}」の設定を補って",
-        "extractElements": "「{{chapter}}」の人物と場所を見つけて要素に追加して",
-        "interview": "いくつか質問して、この物語の形を整えて",
-        "outline": "三幕構成の章立てを考えて",
-        "relateElements": "{{first}}と{{second}}の関係を整理して",
-        "tightenChapter": "「{{chapter}}」の冒頭段落を引き締めて"
-      },
       "saveFailed": "キーをキーチェーンに保存できませんでした。",
       "try": "試す"
     },
@@ -101,9 +91,6 @@
       "tokens": "約{{count}}トークン",
       "updated": "{{time}}・更新者{{by}}"
     }
-  },
-  "allChapters": {
-    "actOrdinal": "第{{n}}幕"
   },
   "auth": {
     "back": "戻る",
@@ -177,92 +164,6 @@
     "storyGraph": "物語グラフ",
     "todoLibrary": "TODOと資料庫"
   },
-  "bottomTimeline": {
-    "act": {
-      "chapterCount": "{{count}}章",
-      "deleteMergeNext": "この幕を削除して次の幕に統合",
-      "deleteMergePrev": "この幕を削除して前の幕に統合",
-      "dragBoundary": "ドラッグして幕の境界を調整",
-      "newAct": "新しい幕",
-      "openActNote": "幕のメモを開く",
-      "railLabel": "幕",
-      "startHere": "ここから新しい幕を開始",
-      "unbindDrift": "アイデアの関連付けを解除"
-    },
-    "axis": {
-      "addPin": "時間マーカーを追加",
-      "time": "時間"
-    },
-    "empty": {
-      "noChaptersInStoryline": "このストーリーラインに章なし・ダブルクリックで作成"
-    },
-    "locateCurrent": "現在の章へ移動",
-    "marker": {
-      "defaultLabel": "マーカー"
-    },
-    "menu": {
-      "detachFromNarrative": "未配置に戻す",
-      "moveToUnaffiliated": "未所属に移動"
-    },
-    "pinMenu": {
-      "bindDrift": "アイデアを関連付け…",
-      "deleteMarker": "マーカーを削除",
-      "openDrift": "アイデアを開く",
-      "rename": "名前を変更",
-      "unbind": "関連付けを解除し、通常のラベルに戻す"
-    },
-    "spread": {
-      "needTwo": "分散するには章が2つ以上必要です",
-      "title": "分散：{{mode}}を並べ直し、ノードの重なりを解消"
-    },
-    "storyline": {
-      "chapterCount": "{{count}}章"
-    },
-    "synthetic": {
-      "book": "全編",
-      "unaffiliated": "所属なし"
-    },
-    "unplaced": {
-      "empty": "すべての章が物語のタイムラインに配置されています",
-      "label": "未配置",
-      "title": "物語のタイムラインに未配置の章"
-    },
-    "view": {
-      "book": "全編",
-      "narrative": "物語内の時間"
-    }
-  },
-  "categoryEditor": {
-    "actions": {
-      "openElement": "要素を開く"
-    },
-    "alerts": {
-      "deleteFailed": "カテゴリを削除できませんでした。もう一度お試しください。"
-    },
-    "deleteConfirm": "カテゴリ「{{name}}」を削除しますか？\n\nこのカテゴリの要素は「未分類」に移されます。",
-    "empty": {
-      "noFilteredElements": "条件に合う要素はありません",
-      "noSummary": "要約はまだありません"
-    },
-    "filters": {
-      "unused": "空",
-      "used": "記入済み"
-    },
-    "folio": "カテゴリ",
-    "labels": {
-      "elementCount": "要素",
-      "summary": "要約"
-    },
-    "meta": {
-      "elements": "{{count}}要素",
-      "items": "{{count}}項目"
-    },
-    "sections": {
-      "elements": "要素一覧",
-      "scratch": "走り書き"
-    },
-    "untitled": "無題のカテゴリ"
-  },
   "chapterEditor": {
     "synopsisPlaceholder": "あらすじ…",
     "untitledChapter": "無題の章",
@@ -309,36 +210,16 @@
     "wordsCount": "{{count}}文字"
   },
   "dashboard": {
-    "actions": {
-      "allChapters": "すべての章",
-      "elementOverview": "要素一覧",
-      "storyGraph": "物語グラフ"
-    },
     "hero": {
       "projectName": "作品名"
     },
-    "plan": {
-      "wordsPerDay": "文字／日"
-    },
-    "profilePlaceholder": "作品の前提、テーマ、あらすじを書く",
     "sections": {
-      "projectProfile": "作品紹介",
-      "writingPlan": "執筆計画"
+      "projectProfile": "作品紹介"
     },
     "today": {
-      "goal": "目標",
       "streak": "連続執筆",
       "week": "今週"
-    },
-    "wordCount": "{{count}}文字"
-  },
-  "edgeKindManager": {
-    "changeColor": "色を変更",
-    "changeColorLabel": "{{label}}の色を変更",
-    "editTypes": "種類を編集",
-    "resetColor": "既定の色に戻す",
-    "summary": "{{kinds}}種類 · {{relations}}件の関係",
-    "title": "すべての関係の種類"
+    }
   },
   "editorOutline": {
     "aria": "アウトライン",
@@ -351,16 +232,8 @@
       "more": "その他の操作"
     },
     "menu": {
-      "changeCategory": "カテゴリを変更",
-      "changeGroup": "グループを変更",
-      "deleteCategory": "カテゴリを削除",
-      "deleteElement": "要素を削除",
       "deleteMaterial": "資料を削除",
-      "deleteNode": "ノードを削除",
-      "deleteStoryline": "ストーリーラインを削除",
-      "editStorylines": "ストーリーラインを編集",
       "moveMaterialToFolder": "フォルダーに移動…",
-      "moveToGroup": "グループへ移動…",
       "openMaterialInSystem": "既定のアプリで開く"
     },
     "outlineRailMode": {
@@ -368,62 +241,16 @@
       "visible": "目次を表示"
     },
     "status": {
-      "discarded": "不採用",
-      "draft": "下書き",
-      "drifting": "漂流中",
-      "finished": "完成",
-      "resting": "停泊中"
-    },
-    "statusSection": {
-      "chapter": "執筆状態",
-      "drift": "アイデアの状態"
+      "draft": "下書き"
     }
   },
-  "elementCategoryCreateMenu": {
-    "back": "作成メニューへ戻る",
-    "createGroup": "最初の要素を作成して開く",
-    "duplicateGroup": "同名のグループがすでにあります。",
-    "groupNameLabel": "グループ名",
-    "groupNamePlaceholder": "グループ名を入力",
-    "groupTitle": "新しいグループ",
-    "newElement": "新しい要素",
-    "newGroup": "新しいグループ…",
-    "openCreateMenu": "このカテゴリに追加",
-    "title": "「{{name}}」に追加"
-  },
   "elementEditor": {
-    "alerts": {
-      "aliasConflict": "別名を追加できません。「{{name}}」は要素「{{conflicting}}」で使用されています。",
-      "deleteFailed": "要素を削除できませんでした。もう一度お試しください。",
-      "groupUpdateFailed": "グループを更新できませんでした。もう一度お試しください。",
-      "renameConflict": "名前を変更できません。「{{name}}」は要素「{{conflicting}}」の名前または別名として使用されています。"
-    },
-    "alias": {
-      "add": "別名",
-      "addFirst": "別名を追加",
-      "remove": "別名を削除"
-    },
-    "category": {
-      "newOption": "新しいカテゴリ…"
-    },
-    "deleteConfirm": "要素「{{name}}」を削除しますか？",
     "empty": {
       "noFacts": "フィールドはまだありません。要素を作成すると、カテゴリの「フィールドのテンプレート」から入力されます。"
     },
-    "folio": "要素",
-    "group": {
-      "create": "グループ「{{name}}」を作成",
-      "empty": "このカテゴリにはグループがまだありません。",
-      "noGroup": "（グループなし）",
-      "placeholder": "グループを検索または作成…（空欄＝グループなし）",
-      "title": "グループ · {{category}}"
-    },
     "sections": {
-      "bioTitle": "略歴",
       "facts": "設定情報"
-    },
-    "summaryPlaceholder": "一文で要約…",
-    "untitled": "無題の要素"
+    }
   },
   "entrySnapshot": {
     "empty": "スナップショットはまだありません",
@@ -471,7 +298,6 @@
     "closeTitle": "閉じる（Esc）",
     "field": {
       "body": "本文",
-      "name": "名前",
       "title": "タイトル"
     },
     "noResults": "一致する項目がありません",
@@ -545,6 +371,16 @@
         "carries_on": "途中で止まりました。このライブラリをもう一度インポートすると続きから取り込みます",
         "from_caches": "{{count}} 件の本文をキャッシュからインポートしました。最後の数秒が抜けているかもしれません"
       }
+    },
+    "v3": {
+      "destination": "A separate v3 library will be created. The current library and 0.1 source are preserved.",
+      "mapping": "Choose MappingChoices JSON",
+      "no_choices": "No explicit mapping choices selected. Unresolved mapping stops before writes.",
+      "pending": "Mapping choices required before import",
+      "selected": "Explicit mapping choices selected",
+      "start": "Import into new library",
+      "switching": "Opening the completed v3 library",
+      "title": "Reimport as v3"
     }
   },
   "importDialog": {
@@ -620,76 +456,13 @@
     "valuePlaceholder": "内容"
   },
   "leftSidebar": {
-    "actions": {
-      "collapseAll": "すべて展開・折りたたみ",
-      "newCategory": "新しいカテゴリ",
-      "newDrift": "新しいアイデア",
-      "newDriftGroup": "新しいグループ",
-      "sort": "並べ替え"
-    },
-    "empty": {
-      "noChapters": "章はまだありません。",
-      "noDrifts": "アイデアはまだありません。",
-      "noElements": "要素はまだありません。"
-    },
     "groups": {
-      "addElementToGroup": "このグループに要素を追加",
-      "deleteGroup": "グループを削除",
       "driftCount_one": "{{count}}件のアイデア",
-      "driftCount_other": "{{count}}件のアイデア",
-      "moveDriftToRoot": "最上位（グループから移動）",
-      "moveGroupToRoot": "最上位（トップへ移動）",
-      "newChapterInStoryline": "このストーリーラインに章を追加",
-      "newDriftInGroup": "ここにアイデアを追加",
-      "newSubGroup": "サブグループを追加",
-      "rename": "名前を変更",
-      "renameElementGroupTitle": "ダブルクリックでグループ名を変更",
-      "unaffiliated": "所属なし"
-    },
-    "meta": {
-      "chapters": "{{count}}章",
-      "drifts": "{{count}}件のアイデア",
-      "elements": "{{categories}}カテゴリ・{{elements}}要素"
-    },
-    "sort": {
-      "alphabet": "文字順",
-      "bookOrder": "読む順番",
-      "categoryElements": "カテゴリ内の要素を並べ替え",
-      "cellMetaGroup": "セルの右端",
-      "chapters": "章を並べ替え",
-      "createdAt": "作成日時",
-      "drifts": "アイデアを並べ替え",
-      "duplicatesAll": "関連する全グループに表示",
-      "duplicatesGroup": "複数ストーリーラインの章",
-      "duplicatesPrimary": "主ストーリーラインにのみ表示",
-      "narrativeOrder": "物語の順番",
-      "outerCategoriesGroup": "外側のカテゴリ",
-      "outerStorylinesGroup": "外側のストーリーライン",
-      "showBoth": "文字数と日付を表示",
-      "showDate": "日付を表示",
-      "showNone": "どちらも隠す",
-      "showWordCount": "文字数を表示",
-      "storylineChapters": "ストーリーライン内の章を並べ替え",
-      "storylineOrder": "ストーリーライン順",
-      "title": "タイトル A–Z",
-      "updatedAt": "更新日時"
-    },
-    "tabs": {
-      "chapters": "章",
-      "drifts": "アイデア",
-      "elements": "要素"
+      "driftCount_other": "{{count}}件のアイデア"
     },
     "top": {
       "close": "左サイドバーを閉じる",
       "open": "左サイドバーを開く"
-    },
-    "uncategorized": "未分類",
-    "viewMode": {
-      "chapterSummary": "{{storylines}}ストーリーライン・{{chapters}}章",
-      "elementCompactTitle": "簡易索引・名前一覧に切り替え",
-      "elementListTitle": "名前一覧・簡易索引に切り替え",
-      "globalTitle": "全編一覧・ストーリーライン別にする",
-      "storylineTitle": "ストーリーライン別・全編一覧に切り替え"
     }
   },
   "manuscriptExport": {
@@ -732,22 +505,8 @@
     "title": "Markdownフォルダの保存先は？"
   },
   "markdownShare": {
-    "characters": "{{count}}文字",
-    "copied": "Markdownの全文をコピーしました",
-    "copy": "すべてコピー",
-    "currentBody": "この文書の全文",
-    "failed": "操作を完了できませんでした。再試行するか、テキストを選択してコピーしてください。",
     "loadFailed": "全文を読み込めませんでした。再試行してください。",
-    "loading": "Markdownの全文を準備中…",
-    "menu": "共有",
-    "proseOnly": "見出し、本文、章のあらすじを含みます。コメントと構成メモは公開されません。",
-    "readOnly": "読み取り専用",
-    "retry": "再試行",
-    "save": ".mdで保存",
-    "saved": "Markdownを保存しました",
-    "saving": "保存中…",
-    "title": "Markdownを共有",
-    "wholeBook": "すべての章を原稿順に"
+    "retry": "再試行"
   },
   "materialEditor": {
     "deleteConfirm": "資料「{{title}}」を削除しますか？この操作は取り消せません。",
@@ -839,9 +598,6 @@
     "back": "戻る"
   },
   "nodeEditor": {
-    "empty": {
-      "noStoryline": "ストーリーラインなし"
-    },
     "folio": {
       "chapter": "章",
       "chapterNumber": "第{{n}}章",
@@ -866,15 +622,6 @@
     },
     "empty": "通知なし",
     "markdownFolder": {
-      "issue": {
-        "empty": "本文が空です。統合せずファイルを保存しました",
-        "encoding": "UTF-8ではありません。読み込まずファイルを保存しました",
-        "frontmatter": "冒頭のプロパティ形式が不正です。修正まで統合も上書きもしません",
-        "identity": "drifting-idが別の章を指しています。統合せずファイルを保存しました",
-        "lineage": "章が復元・リセットされています。自動統合せずファイルを保存しました",
-        "owned": "このフォルダーは別の Drifting が管理しているため、読み書きしていません",
-        "too-large": "大きすぎます。読み込まずファイルを保存しました"
-      },
       "preserved_one": "編集済みファイル{{count}}件を.drifting/preservedに保存",
       "preserved_other": "編集済みファイル{{count}}件を.drifting/preservedに保存",
       "source": "Markdownフォルダ"
@@ -927,12 +674,9 @@
   },
   "projectHome": {
     "book": {
-      "noStorylines": "ストーリーラインはまだありません。",
-      "storylineCount": "{{done}} / {{total}}章",
       "title": "本書"
     },
     "continue": {
-      "empty": "章はまだありません。",
       "title": "続ける"
     },
     "create": {
@@ -946,17 +690,14 @@
       }
     },
     "kicker": "作品ホーム",
-    "readout": "{{chapters}}章 · {{storylines}}本のストーリーライン · {{elements}}件の要素",
     "settings": {
       "dailyGoal": "1日の目標",
       "proactive": "プロアクティブな提案",
       "projectTarget": "本全体の目標"
     },
-    "since": "作品ホーム · {{date}}から",
     "today": "今日 {{today}} / {{goal}} · {{streak}}日連続",
     "todayNoGoal": "今日 {{today}} · {{streak}}日連続",
     "views": {
-      "overview": "概要",
       "settings": "設定"
     },
     "words": "{{words}}語",
@@ -1097,17 +838,6 @@
       "linkEntity": "エンティティをリンク",
       "remove": "関係を削除"
     },
-    "deleted": {
-      "category": "（削除されたカテゴリ）",
-      "element": "（削除された要素）",
-      "node": "（削除された章）",
-      "storyline": "（削除されたストーリーライン）"
-    },
-    "empty": {
-      "incoming": "この項目を参照する内容はまだありません",
-      "outgoing": "この本文には他のエンティティへの参照がまだありません",
-      "relations": "関係はまだありません"
-    },
     "filters": {
       "all": "すべて"
     },
@@ -1118,68 +848,15 @@
       "patch": "変化記録",
       "storyline": "ストーリーライン"
     },
-    "meta": {
-      "blocksSpans": "{{blocks}}ブロック · {{spans}}件の言及",
-      "spans": "{{count}}件の言及"
-    },
     "picker": {
-      "empty": "選択肢がありません",
       "placeholder": "リンク可能なエンティティを検索…"
     },
     "sections": {
-      "incoming": "バックリンク",
-      "outgoing": "参照",
       "relations": "関係"
     }
   },
-  "relationPicker": {
-    "untitledChapter": "無題の章",
-    "untitledDrift": "無題のアイデア",
-    "untitledElement": "無題の要素",
-    "untitledStoryline": "無題のストーリーライン"
-  },
   "relationTypes": {
-    "allowedEntities": "許可するエンティティ",
-    "allowedSources": "始点として許可するエンティティ",
-    "allowedTargets": "終点として許可するエンティティ",
-    "builtIn": "組み込み",
-    "cancel": "キャンセル",
-    "confirmDelete": "関係の種類「{{name}}」を削除しますか？",
-    "create": "新規",
-    "createInline": "関係の種類を作成",
-    "defaultSourceRole": "出典",
-    "defaultTargetRole": "対象",
-    "delete": "関係の種類を削除",
-    "description": "説明",
-    "directed": "有向",
-    "direction": "方向",
-    "endpointRole": "端点の役割",
-    "entityKinds": {
-      "category": "要素カテゴリ",
-      "comment": "コメント",
-      "element": "要素",
-      "library_item": "資料",
-      "node": "章またはアイデア",
-      "patch": "要素の変化記録",
-      "storyline": "ストーリーライン"
-    },
-    "genericAssociation": {
-      "name": "関連",
-      "sourceRole": "関連する項目",
-      "targetRole": "対象"
-    },
-    "missing": "関係の種類が見つかりません",
-    "name": "名前",
-    "pendingIncoming": "このエンティティ ← 対象",
-    "pendingOutgoing": "このエンティティ → 対象",
-    "save": "保存",
-    "selectConfigured": "関係の種類を選択",
-    "sourceRole": "始点の役割",
-    "swap": "関係の始点と終点を入れ替え",
-    "symmetric": "対称",
-    "symmetricSummary": "対称 · {{role}}",
-    "targetRole": "終点の役割",
-    "title": "関係の種類の定義"
+    "description": "説明"
   },
   "reviewPanel": {
     "commentPlaceholder": "コメントを入力…",
@@ -1197,8 +874,7 @@
     "scopes": {
       "current": "現在"
     },
-    "sourceFloating": "作品全体 · エンティティへのリンクなし",
-    "sourceTextUnavailable": "保存された抜粋はありません"
+    "sourceFloating": "作品全体 · エンティティへのリンクなし"
   },
   "rightSidebar": {
     "kickers": {
@@ -1208,7 +884,6 @@
         "all-chapters": "全編・ペース",
         "category": "このカテゴリ・詳細統計",
         "chapter": "この章・詳細統計",
-        "drift": "このアイデア・詳細統計",
         "element": "この要素・詳細統計",
         "material": "この資料・詳細",
         "none": "作品・詳細統計",
@@ -1216,82 +891,22 @@
       }
     },
     "stats": {
-      "actMeta": "{{chapters}}章・{{wordsK}}k文字・{{pct}}%",
-      "actRhythm": "幕ごとのリズム",
-      "allElementsAppeared": "全要素が本文に登場しています。",
-      "appeared": "登場済み",
-      "averageAppearance": "平均登場数",
-      "averagePerChapter": "1章の平均",
-      "avgChaptersPerElement": "{{count}}章／要素",
-      "bookPosition": "本の中の位置",
       "category": "カテゴリ",
-      "categoryCoordinates": "カテゴリの位置",
-      "categoryNoElements": "このカテゴリに要素はまだありません。",
       "chapter": "章",
-      "chapterCoordinates": "章の位置",
-      "chapterCount": "章",
-      "chapterLengthRhythm": "章の長さのリズム",
-      "chapterOrdinal": "第{{count}}章",
-      "chaptersValue": "{{count}}章",
-      "completion": "完成度",
       "dialogueRatio": "会話の割合",
-      "dimensions": "寸法",
-      "discardedParen": "（不採用{{count}}）",
-      "driftCoordinates": "アイデアの位置",
-      "driftFreeFragment": "アイデア・自由配置",
-      "elementCoordinates": "要素の位置",
-      "elementCount": "要素数",
-      "elementsValue": "{{count}}要素",
-      "embeddedMaterials": "埋め込み資料",
-      "fileSize": "サイズ",
-      "fileType": "種類",
-      "floatingStoryline": "自由配置／所属なし",
-      "health": "健全性",
-      "lastModified": "最終更新",
-      "longestWithWords": "最長・{{title}}（{{words}}文字）",
-      "materialCoordinates": "資料",
-      "materialFile": "ファイル",
-      "materialRelations": "関連先",
-      "moreLowAppearanceElements": "登場の少ない要素がほかに{{count}}件",
-      "moreUnappearedElements": "ほかに未登場{{count}}件",
       "name": "名前",
-      "noActiveProgress": "全章が不採用か、まだ進捗がありません。",
-      "noChapters": "章はまだありません。最初の章を書くと全編のペースを表示します。",
-      "noMentionedElements": "本文に@で言及した要素はありません。",
-      "noteShape": "メモ",
-      "noteTasks": "TODO",
-      "noteTasksValue": "{{done}} / {{total}}完了",
-      "noteWords": "長さ",
-      "openComments": "未解決コメントとTODO",
       "paragraphSentence": "段落／文",
       "paragraphSentenceValue": "{{paragraphs}}段落・{{sentences}}文",
       "recent": "最近",
-      "shortestWithWords": "最短・{{title}}（{{words}}文字）",
       "snapshotButton": "履歴スナップショット…",
-      "statusCount": "{{status}} {{count}}章",
       "storyline": "ストーリーライン",
-      "storylineCoordinates": "ストーリーラインの位置",
-      "storylineCoreElements": "このストーリーラインの主要要素",
-      "storylineDistribution": "ストーリーラインの分布",
-      "storylineNoChapters": "このストーリーラインに章はまだありません。",
-      "storylineNoMentionedElements": "このストーリーラインの章に@で言及した要素はありません。",
-      "thisChapterElements": "この章の要素",
-      "thisFragmentElements": "このアイデアの要素",
-      "titleWithWords": "{{title}}（{{words}}文字）",
-      "type": "種類",
-      "unappearedElements": "未登場の要素",
       "updated": "更新済み",
       "wordRhythm": "文字数・リズム",
-      "wordsPerChapterValue": "{{words}}文字／章",
       "wordsValue": "{{count}}文字",
-      "writingProgress": "執筆の進捗",
-      "writtenTarget": "執筆済み／目標"
+      "writingProgress": "執筆の進捗"
     },
     "status": {
-      "discarded": "不採用",
-      "done": "完了",
-      "draft": "下書き",
-      "todo": "執筆予定"
+      "draft": "下書き"
     },
     "tabs": {
       "companion": "Agent",
@@ -1657,18 +1272,7 @@
       "local_sub": "Driftingのアカウントやクラウドは使いません。いつでも読めるコピーを出力できます。",
       "local_title": "作品はこの端末に。",
       "projection": {
-        "allProjects": "全作品",
-        "allProjectsUnset": "全作品・場所が未選択",
-        "choose": "フォルダを選択",
-        "description": "各作品の構造化Markdownを、ローカル閲覧、検索、外部ツールに利用できます。Driftingの起動中は他のエディタで章やアイデアを編集し、変更を統合できます。他のファイルは自動生成・読み取り専用です。",
-        "locationHint": "この端末上で作品ごとにフォルダを作ります。場所を変更しても、以前のフォルダはそのまま残ります。",
-        "offHint": "無効：Markdownを出力せず、外部編集も統合しません。既存ファイルは元の場所に残ります。",
-        "offTitle": "Markdownフォルダを無効にしますか？",
-        "offWarning": "全作品のMarkdown出力を停止します。外部エディタやAgentには現在のファイルだけが残り、外部での編集はDriftingに統合されなくなります。既存ファイルは移動しません。「設定 → 同期とデータ」で再開できます。",
-        "reveal": "Finderで表示",
-        "title": "Markdownフォルダ",
-        "turnOff": "Markdownフォルダを無効化",
-        "turnOn": "有効にする"
+        "turnOff": "Markdownフォルダを無効化"
       }
     },
     "title": "設定",
@@ -1718,48 +1322,19 @@
   "speech": {
     "backlog": "文字起こしの処理待ち"
   },
-  "storyGraph": {
-    "edge": {
-      "create": "作成"
-    }
-  },
   "storylineEditor": {
-    "actions": {
-      "openChapter": "章を開く"
-    },
-    "alerts": {
-      "deleteFailed": "ストーリーラインを削除できませんでした。もう一度お試しください。"
-    },
-    "deleteConfirm": "ストーリーライン「{{name}}」を削除しますか？",
     "empty": {
-      "noChapterSummary": "一文の要約はまだありません",
-      "noFacts": "フィールドはまだありません。ストーリーラインを作成すると、作品ホームの「ストーリーラインのテンプレート」から入力されます。",
-      "noFilteredChapters": "条件に合う章はありません"
+      "noFacts": "フィールドはまだありません。ストーリーラインを作成すると、作品ホームの「ストーリーラインのテンプレート」から入力されます。"
     },
     "filters": {
-      "all": "すべて",
-      "unwritten": "未着手",
-      "written": "執筆済み"
+      "all": "すべて"
     },
-    "folio": "ストーリーライン",
     "labels": {
       "color": "色"
     },
-    "meta": {
-      "chapters": "{{count}}章",
-      "chaptersWords": "{{chapters}}章 · {{words}}千語",
-      "kWords": "{{count}}千語",
-      "nodeTemplate": "新しい章の既定の構成"
-    },
-    "nodeTemplatePlaceholder": "H1 / H2 / H3 で章のひな形を作成。新しい章に適用されます…",
     "sections": {
-      "chapters": "章の順序",
-      "facts": "設定情報",
-      "nodeTemplate": "章のテンプレート",
-      "scratch": "走り書き"
-    },
-    "summaryPlaceholder": "このストーリーラインを一文で要約…",
-    "untitled": "無題のストーリーライン"
+      "facts": "設定情報"
+    }
   },
   "templateEditor": {
     "accept": "別の場所の項目を受け入れる",
@@ -1846,12 +1421,7 @@
       "allChapters": "全編"
     },
     "untitled": {
-      "category": "無題のカテゴリ",
-      "chapter": "無題の章",
-      "drift": "無題のアイデア",
-      "element": "無題の要素",
-      "library_item": "無題の資料",
-      "storyline": "無題のストーリーライン"
+      "library_item": "無題の資料"
     }
   },
   "userMenu": {
@@ -1967,11 +1537,7 @@
   },
   "workspaceWordTally": {
     "book": "全編",
-    "chapter": "章",
     "counting": "集計中",
-    "drift": "アイデア",
-    "selection": "選択範囲",
-    "storyline": "ストーリーライン",
-    "today": "今日"
+    "selection": "選択範囲"
   }
 }

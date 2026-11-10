@@ -26,13 +26,10 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use dr_doc::prose::{EmbedView, Paragraph, ProseView};
 use dr_model::prose::{Align as ProseAlign, LINE_BREAK, OBJECT_CHAR};
-use dr_workspace::commands::book::BookGet;
-use dr_workspace::commands::chapter::{ActList, ChapterList};
-use dr_workspace::commands::{BookIn, ListIn};
-use dr_workspace::{Actor, Workspace};
+use dr_workspace::Workspace;
 
-use crate::manuscript::{Align, Block, Cover, Manuscript, Run, Section};
-use crate::{ExportError, Result};
+use crate::Result;
+use crate::manuscript::{Align, Block, Cover, Manuscript, Run};
 
 /// An act as the chapter picker lists it.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -118,75 +115,7 @@ pub struct Labels {
 
 /// Reads the book's acts and live chapters in book order.
 pub fn outline(ws: &Workspace, book: &str) -> Result<Outline> {
-    if crate::v3::is_book(ws, book)? {
-        let outline = crate::v3::outline(ws, book)?;
-        return Ok(outline.picker());
-    }
-    let actor = Actor::User;
-    let detail = ws
-        .run::<BookGet>(
-            &actor,
-            BookIn {
-                book: book.to_owned(),
-            },
-        )?
-        .output;
-    if detail.info.trashed {
-        return Err(ExportError::NotFound(format!("book {book}")));
-    }
-    let acts = ws
-        .run::<ActList>(
-            &actor,
-            BookIn {
-                book: book.to_owned(),
-            },
-        )?
-        .output;
-    let listed = ws
-        .run::<ChapterList>(
-            &actor,
-            ListIn {
-                book: book.to_owned(),
-                trashed: false,
-            },
-        )?
-        .output;
-    let entry = |c: &dr_workspace::dto::ChapterInfo| ChapterEntry {
-        id: c.id.clone(),
-        title: c.title.clone(),
-        status: c.status.clone(),
-        act: c.act.clone(),
-    };
-    let live: Vec<_> = listed.iter().filter(|c| !c.trashed).collect();
-    // Book order: the chapters before the first act, then each act's.
-    let mut chapters: Vec<ChapterEntry> = live
-        .iter()
-        .filter(|c| {
-            c.act
-                .as_ref()
-                .is_none_or(|a| !acts.iter().any(|x| &x.id == a))
-        })
-        .map(|c| entry(c))
-        .collect();
-    for act in &acts {
-        chapters.extend(
-            live.iter()
-                .filter(|c| c.act.as_deref() == Some(act.id.as_str()))
-                .map(|c| entry(c)),
-        );
-    }
-    Ok(Outline {
-        book: book.to_owned(),
-        title: detail.info.name,
-        acts: acts
-            .into_iter()
-            .map(|a| ActEntry {
-                id: a.id,
-                name: a.name,
-            })
-            .collect(),
-        chapters,
-    })
+    Ok(crate::v3::outline(ws, book)?.picker())
 }
 
 /// One line of a title: line breaks and tabs become one space (ideographic
@@ -254,70 +183,7 @@ pub fn read_manuscript(
     preferred_font: Option<String>,
     now: SystemTime,
 ) -> Result<Manuscript> {
-    if crate::v3::is_book(ws, book)? {
-        return crate::v3::read_manuscript(ws, book, options, labels, locale, preferred_font, now);
-    }
-    let outline = outline(ws, book)?;
-    let chosen: Vec<&ChapterEntry> = match &options.chapters {
-        None => outline.chapters.iter().filter(|c| !c.discarded()).collect(),
-        Some(ids) => outline
-            .chapters
-            .iter()
-            .filter(|c| ids.iter().any(|id| id == &c.id))
-            .collect(),
-    };
-    if chosen.is_empty() {
-        return Err(ExportError::NoChapters);
-    }
-    let act_titles = options.act_titles && outline.has_acts();
-    let mut sections = Vec::new();
-    let mut current_act: Option<&str> = None;
-    for chapter in chosen {
-        if act_titles
-            && let Some(act) = chapter.act.as_deref()
-            && current_act != Some(act)
-        {
-            let name = one_line(outline.act_name(act).unwrap_or(""));
-            sections.push(Section::Act {
-                title: if name.is_empty() {
-                    labels.untitled_act.clone()
-                } else {
-                    name
-                },
-            });
-        }
-        current_act = chapter.act.as_deref();
-        let session = ws.prose_session(&format!("node:{}", chapter.id))?;
-        let reader = session.reader();
-        let blocks = blocks(&reader.view());
-        let title = one_line(&chapter.title);
-        sections.push(Section::Chapter {
-            title: if title.is_empty() {
-                labels.untitled_chapter.clone()
-            } else {
-                title
-            },
-            show_title: options.chapter_titles,
-            blocks,
-        });
-    }
-    // An empty title is the book's name (and an empty name fails at render,
-    // as in 0.1: the dialog keeps export off without a title).
-    let title = options.title.trim();
-    Ok(Manuscript {
-        title: if title.is_empty() {
-            outline.title.trim().to_owned()
-        } else {
-            title.to_owned()
-        },
-        author: options.author.trim().to_owned(),
-        identifier: book.to_owned(),
-        modified: timestamp(now),
-        locale: locale.to_owned(),
-        preferred_font: preferred_font.filter(|f| !f.trim().is_empty()),
-        cover: options.cover.clone(),
-        sections,
-    })
+    crate::v3::read_manuscript(ws, book, options, labels, locale, preferred_font, now)
 }
 
 /// A chapter's prose as manuscript blocks.

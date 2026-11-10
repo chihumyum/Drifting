@@ -159,11 +159,6 @@ pub fn execute(cmd: Command) -> Result<(i32, String), String> {
     }
 }
 
-fn preset(name: &str) -> Result<dr_testkit::seed::Preset, String> {
-    dr_testkit::seed::Preset::parse(name)
-        .ok_or_else(|| format!("unknown seed {name}: tiny, lite, heavy, showcase"))
-}
-
 /// How a scenario that drives the app runs.
 struct Live {
     app: Option<PathBuf>,
@@ -253,7 +248,6 @@ fn scenario_command(
     yes: bool,
     live: Live,
 ) -> Result<(i32, String), String> {
-    use dr_testkit::seed;
     let needs_library = || library.ok_or_else(|| "--library DIR is required".to_string());
     if let Some(p) = name.strip_prefix("seed:") {
         let library = needs_library()?;
@@ -270,39 +264,9 @@ fn scenario_command(
         })?;
         return Ok((0, guarded(r)));
     }
-    if let Some(p) = name.strip_prefix("seed-commands:") {
-        let library = needs_library()?;
-        let preset = preset(p)?;
-        let r = offline::guarded_write(
-            library,
-            yes,
-            &format!("write the {} seed through the commands", preset.name()),
-            |root| {
-                with_workspace(root, |ws| {
-                    let made = seed::generate_via_commands(
-                        preset,
-                        seed::DEFAULT_SEED,
-                        ws,
-                        &Actor::Import,
-                    )?;
-                    Ok(made
-                        .iter()
-                        .map(|b| {
-                            format!(
-                                "book {}: {} commands, {} prose edits",
-                                b.book, b.commands, b.prose_edits
-                            )
-                        })
-                        .collect::<Vec<_>>()
-                        .join("\n"))
-                })
-            },
-        )?;
-        return Ok((0, guarded(r)));
-    }
-    let text = std::fs::read_to_string(name).map_err(|e| {
-        format!("{name}: {e} (a scenario is a JSON file, seed:<preset> or seed-commands:<preset>)")
-    })?;
+
+    let text = std::fs::read_to_string(name)
+        .map_err(|e| format!("{name}: {e} (a scenario is a JSON file, seed:<preset>)"))?;
     let s = scenario::parse(&text)?;
     if scenario::is_live(&s) || live.app.is_some() {
         if library.is_some() {

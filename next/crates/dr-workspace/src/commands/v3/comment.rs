@@ -1,19 +1,21 @@
 //! Comments on v3 entries and their selected prose modules, or materials.
 //! Typed v2.2 inputs remain in `commands::comment`; named calls dispatch by book version.
 use super::*;
-pub use crate::commands::comment::{CommentReanchorIn, CommentUpdateIn, TodoProjected};
-use crate::commands::comment::{
-    EMPTY_MARKER_TASK, MARKER_META_KIND, ProjectionMeta, anchor_known_in, decode_anchor, has_seen,
+pub use crate::commands::comment_shared::{
+    CommentReanchorIn, CommentUpdateIn, EMPTY_MARKER_TASK, TodoMarkerIn, TodoProjected,
+};
+use crate::commands::comment_shared::{
+    MARKER_META_KIND, ProjectionMeta, anchor_known_in, decode_anchor, has_seen,
 };
 use crate::commands::{materials, purge_fallout};
 use crate::dto::{AnchorBytes, CommentAnchor, Region};
 use dr_doc::prose::BorrowedProse;
 use dr_model::DocId;
-use dr_model::book::{BlockSnapshot, EntityRef};
 use dr_model::kind::{
     CommentAuthorKind, CommentKind, CommentPriority, CommentSource, CommentStatus, EntityKind,
     ProjectionKind,
 };
+use dr_model::shared::{BlockSnapshot, EntityRef};
 use dr_model::v3::CommentV3 as Comment;
 use std::collections::HashSet;
 
@@ -108,18 +110,9 @@ impl From<&EntityRef> for Target {
 pub struct TodoProjectIn {
     /// `body:<entry>/<module>` (including level `about`) or `material:<id>` of a v3 book.
     pub doc: String,
-    pub markers: Vec<crate::commands::comment::TodoMarkerIn>,
+    pub markers: Vec<crate::commands::comment_shared::TodoMarkerIn>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub editing: Option<String>,
-}
-impl From<crate::commands::comment::TodoProjectIn> for TodoProjectIn {
-    fn from(i: crate::commands::comment::TodoProjectIn) -> Self {
-        Self {
-            doc: i.doc,
-            markers: i.markers,
-            editing: i.editing,
-        }
-    }
 }
 
 #[derive(Clone, Debug, Serialize, JsonSchema)]
@@ -422,7 +415,7 @@ op! {
         let slot = cx.book_v3(&input.book)?;
         let id: CommentId = pid("comment", &input.id)?;
         if !comments(&slot).iter().any(|c| c.id == id) { return Err(WsError::not_found("comment", &input.id)); }
-        let target = dr_model::book::EntityRef::new(EntityKind::Comment, input.id.clone());
+        let target = dr_model::shared::EntityRef::new(EntityKind::Comment, input.id.clone());
         let (rels, _) = purge_fallout(&slot, &target);
         let mut touched: Vec<(String, String)> = vec![("comments".into(), input.id.clone())];
         touched.extend(rels.iter().map(|r| ("relations".to_string(), r.to_string())));

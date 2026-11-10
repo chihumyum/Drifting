@@ -22,7 +22,7 @@ fn library() -> (tempfile::TempDir, Library, String, String) {
     let root = dir.path().join("library");
     let lib = dr_store::Library::open(&root, dr_workspace::library_options("test")).unwrap();
     let sample = dr_testkit::samples::slow_clock().unwrap();
-    dr_testkit::seed::write_book(&lib, &sample).unwrap();
+    dr_testkit::seed::write_book_v3(&lib, &dr_testkit::seed::book_to_v3(&sample).unwrap()).unwrap();
     lib.close().unwrap();
     let book = sample.book.book_id().to_string();
     let lib = Library::open_dir(&root, "test").unwrap();

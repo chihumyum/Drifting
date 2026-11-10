@@ -1,4 +1,4 @@
-//! V3 page facts. The legacy page path never calls these helpers.
+//! Canonical page facts from actual entry/template/module identities.
 use dr_doc::v3::{BookReaderV3, BookViewV3};
 use dr_model::{DocId, id::BookId};
 use dr_store::OpenDoc;
@@ -223,7 +223,7 @@ pub fn set_role_field(
     Ok(true)
 }
 
-/// Reads only the schema marker; a v2.2 book keeps the old paths.
+/// Read the schema marker; callers refuse any noncanonical book.
 pub fn is_book(ws: &Workspace, book: &str) -> Result<bool, WsError> {
     Ok(ws
         .library()

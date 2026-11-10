@@ -137,13 +137,13 @@ fn main() -> anyhow::Result<()> {
     let directory = tempfile::tempdir()?;
     let ws = Workspace::open_dir(directory.path(), "m31-window-fixture")?;
     ws.set_auto_links(false);
-    let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED)?;
+    let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED)?;
     seeded.write_to(ws.library())?;
     ws.library().rebuild_stale_indexes()?;
     let book: BookId = seeded.books[0].book_id().clone();
-    let chapters = out(&ws, "chapter.list", json!({"book":book}));
+    let chapters = dr_testkit::seed::acceptance::entries_by_template(&ws, &book, "tpl-chapter");
     let chapter = chapters[0]["id"].as_str().unwrap().to_owned();
-    let doc = format!("node:{chapter}");
+    let doc = format!("body:{chapter}/mod-prose");
     let body = out(&ws, "prose.read", json!({"doc":doc,"limit":1000}));
     let paragraph = &body["paragraphs"][1];
     let text = paragraph["text"].as_str().unwrap().to_owned();
@@ -291,7 +291,14 @@ fn main() -> anyhow::Result<()> {
                 dr_shell::open_workspace(cx, |window, _| window.activate_window()).unwrap();
             handle
                 .update(cx, |workspace, _, cx| {
-                    workspace.open(Target::Chapter(chapter.parse().unwrap()), Open::KEEP, cx);
+                    workspace.open(
+                        Target::Entry {
+                            id: chapter.parse().unwrap(),
+                            module: Some("mod-prose".parse().unwrap()),
+                        },
+                        Open::KEEP,
+                        cx,
+                    );
                     workspace
                         .right
                         .panes

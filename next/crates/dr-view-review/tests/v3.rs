@@ -1,9 +1,9 @@
 use dr_doc::prose::ProseDoc;
 use dr_model::{
     DocId, Origin,
-    book::EntityRef,
     id::{BodyDocId, CommentId, ModuleId},
     kind::{CommentKind, CommentStatus, EntityKind},
+    shared::EntityRef,
     v3::ModuleSpec,
 };
 use dr_view_review::{
@@ -192,7 +192,7 @@ fn sources_and_current_scope_keep_entry_and_module_identity() {
 #[test]
 fn generic_associations_do_not_change_sources_or_duplicate_cards() {
     let f = fixture();
-    let relation_type = dr_doc::book::generic_relation_type_id(&f.book.parse().unwrap());
+    let relation_type = dr_doc::catalog::generic_relation_type_id(&f.book.parse().unwrap());
     call(
         &f.ws,
         "entry_template.put_module",
@@ -292,15 +292,11 @@ fn trash_and_removed_modules_preserve_comments_and_exact_originals() {
             .place,
         Place::On(_)
     ));
-    let other = call(
-        &f.ws,
-        "book.create",
-        json!({"name":"Synthetic compatibility"}),
-    );
-    assert!(v3::load(&f.ws, other["id"].as_str().unwrap()).is_err());
+    let old = dr_testkit::seed::acceptance::empty_source(f.ws.library());
+    assert!(v3::load(&f.ws, &old).is_err());
     assert!(
-        f.ws.call(&Actor::User, "comment.list", json!({"book":other["id"]}))
-            .is_ok()
+        f.ws.call(&Actor::User, "comment.list", json!({"book":old}))
+            .is_err()
     );
     f.ws.shutdown().unwrap();
 }

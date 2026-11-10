@@ -8,8 +8,7 @@ use dr_store::Library;
 use dr_workspace::Workspace;
 use serde::{Deserialize, Serialize};
 
-use crate::build::SeededBook;
-use crate::store;
+use crate::v3::{MappingChoices, Pending, SampleBookV3};
 
 /// Interrupted or failed attempts are retried on later launches up to this
 /// many attempts in all; then the library is `skipped`.
@@ -36,6 +35,8 @@ pub const UNKNOWN_MARKER: &str = "unknown-marker";
 /// What [`ensure_built_in`] did.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Outcome {
+    /// No marker, attempts or source state changed; explicit policy is missing.
+    Pending { items: Vec<Pending> },
     /// Both samples were written now: their book ids, in shelf order
     /// (*Pride and Prejudice* first).
     Created { books: Vec<String> },
@@ -92,6 +93,12 @@ static RUNNING: Mutex<()> = Mutex::new(());
 /// is removed here, which an open book would refuse). Failures come back as
 /// [`Outcome::Failed`]; the lay-out runs under `catch_unwind`.
 pub fn ensure_built_in(ws: &Workspace) -> Outcome {
+    ensure_built_in_with(ws, &MappingChoices::default())
+}
+
+/// The ordinary once-only path with the same explicit mapping choices as
+/// the import adapter. Product defaults never borrow test policy.
+pub fn ensure_built_in_with(ws: &Workspace, choices: &MappingChoices) -> Outcome {
     let _running = RUNNING.lock().unwrap_or_else(|e| e.into_inner());
     let lib = ws.library();
     let marker = match read_marker(lib) {
@@ -111,15 +118,58 @@ pub fn ensure_built_in(ws: &Workspace) -> Outcome {
                 reason: m.reason.clone().unwrap_or_else(|| NOT_A_NEW_LIBRARY.into()),
             };
         }
-        // An earlier attempt was interrupted, or could not clean up after
-        // itself: its books were never complete. Remove them first (only
-        // what the marker claimed: nothing else is ever removed here).
-        Some(m) => {
-            if let Err(error) = discard(lib, &m.books) {
-                return Outcome::Failed { error, attempts };
+        _ => {}
+    }
+    if marker.is_none() {
+        match has_content(lib) {
+            Ok(true) => return skip(lib, NOT_A_NEW_LIBRARY, attempts),
+            Err(error) => return Outcome::Failed { error, attempts },
+            Ok(false) => {}
+        }
+    }
+    // Policy is validated before touching a prior claim or removing a partial
+    // attempt. A Created marker above is terminal, even after sample deletion.
+    let sources = match std::panic::catch_unwind(|| [crate::pride_and_prejudice(), crate::a_q()]) {
+        Ok(sources) => sources,
+        Err(_) => {
+            return Outcome::Failed {
+                error: "sample recipe panicked".into(),
+                attempts,
+            };
+        }
+    };
+    let mut samples = Vec::new();
+    let mut pending = Vec::new();
+    for source in sources {
+        let source = match source {
+            Ok(source) => source,
+            Err(error) => {
+                return Outcome::Failed {
+                    error: error.to_string(),
+                    attempts,
+                };
+            }
+        };
+        pending.extend(choices.pending(&source.book.view()));
+        if pending.is_empty() {
+            match crate::v3::convert(&source, choices) {
+                Ok(sample) => samples.push(sample),
+                Err(error) => {
+                    return Outcome::Failed {
+                        error: error.to_string(),
+                        attempts,
+                    };
+                }
             }
         }
-        None => {}
+    }
+    if !pending.is_empty() {
+        return Outcome::Pending { items: pending };
+    }
+    if let Some(m) = &marker
+        && let Err(error) = discard(lib, &m.books)
+    {
+        return Outcome::Failed { error, attempts };
     }
     let books = crate::book_ids();
     match has_content(lib) {
@@ -140,7 +190,7 @@ pub fn ensure_built_in(ws: &Workspace) -> Outcome {
             attempts: attempts - 1,
         };
     }
-    let result = write_all(lib, &books).and_then(|()| {
+    let result = write_all(lib, &books, &samples).and_then(|()| {
         let ms = started.elapsed().as_millis() as u64;
         write_marker(lib, Status::Created, &books, attempts, None, Some(ms)).map_err(Failure::Error)
     });
@@ -204,41 +254,18 @@ impl From<String> for Failure {
 /// is still new, then store the book documents (the moment they show on
 /// the shelf) and bring their derived index up to date. 《阿Q正传》 is
 /// written first, so *Pride and Prejudice*, changed last, leads the shelf.
-fn write_all(lib: &Library, books: &[String]) -> Result<(), Failure> {
-    let laid_out = std::panic::catch_unwind(|| [crate::pride_and_prejudice(), crate::a_q()])
-        .map_err(|p| {
-            let what = p
-                .downcast_ref::<&str>()
-                .map(|s| s.to_string())
-                .or_else(|| p.downcast_ref::<String>().cloned())
-                .unwrap_or_default();
-            format!("laying out the samples panicked: {what}")
-        })?;
-    let mut samples: Vec<SeededBook> = Vec::new();
-    for b in laid_out {
-        samples.push(b.map_err(|e| e.to_string())?);
-    }
+fn write_all(lib: &Library, books: &[String], samples: &[SampleBookV3]) -> Result<(), Failure> {
     debug_assert!(
         samples
             .iter()
             .map(|b| b.book_id().to_string())
             .eq(books.iter().cloned())
     );
-    for b in samples.iter().rev() {
-        store::write_prose_docs(lib, b).map_err(|e| e.to_string())?;
-    }
     if has_content(lib)? {
         return Err(Failure::NoLongerNew);
     }
-    for b in samples.iter().rev() {
-        store::write_book_doc(lib, b).map_err(|e| e.to_string())?;
-    }
-    // The shelf's word counts come from the derived index; it is rebuilt
-    // when the library opens anyway, so a failure here costs nothing more.
-    for doc in samples.iter().flat_map(store::doc_ids) {
-        if let Err(e) = lib.reindex_doc(&doc) {
-            log::warn!("{doc}: indexing the sample failed: {e}");
-        }
+    for sample in samples.iter().rev() {
+        crate::v3::write_book(lib, sample).map_err(|e| Failure::Error(e.to_string()))?;
     }
     Ok(())
 }

@@ -149,7 +149,7 @@ fn book_documents_are_recorded_as_indexed() {
     let dir = tempfile::tempdir().unwrap();
     let (lib, _) = open(dir.path(), true);
     let book = dr_model::id::BookId::parse("b1").unwrap();
-    let g = dr_doc::book::genesis(&book);
+    let g = dr_doc::import_v1::genesis(&book);
     let h = lib
         .open_doc(
             "book:b1",

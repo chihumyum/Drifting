@@ -132,7 +132,7 @@ fn body_id(view: &BookViewV3<'_>, body: &manifest::Body) -> DocId {
 
 fn options(old: &Old) -> Options {
     let mut options = Options::new("k3-v3-test");
-    options.v3 = Some(choices());
+    options.v3 = choices();
     options.old_root = Some(old.root.clone());
     options.verify_history = true;
     // dr-index is still a v2 consumer (K4); v3 bodies/catalog are verified
@@ -190,7 +190,10 @@ fn comment_id(old: &str) -> CommentId {
     }
 }
 
-fn endpoint(view: &BookViewV3<'_>, endpoint: &manifest::Endpoint) -> dr_model::book::EntityRef {
+fn endpoint(
+    view: &BookViewV3<'_>,
+    endpoint: &manifest::Endpoint,
+) -> dr_model::import_v1::EntityRef {
     use manifest::Endpoint::*;
     let (kind, id) = match endpoint {
         Entry(e) => (EntityKind::Entry, entry_id(view, e).to_string()),
@@ -199,7 +202,7 @@ fn endpoint(view: &BookViewV3<'_>, endpoint: &manifest::Endpoint) -> dr_model::b
         Patch(id) => (EntityKind::Patch, id.clone()),
         Unresolved { kind, id } => panic!("unexpected unresolved fixture endpoint: {kind}:{id}"),
     };
-    dr_model::book::EntityRef::new(kind, id)
+    dr_model::import_v1::EntityRef::new(kind, id)
 }
 
 fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) {
@@ -493,7 +496,7 @@ fn compare(view: &BookViewV3<'_>, expected: &manifest::Manifest, lib: &Library) 
             .find(|r| r.id.as_str() == relation.old_id)
             .unwrap();
         let (from, to) = if relation.orientation == "symmetric" {
-            dr_model::book::canonical_symmetric(
+            dr_model::import_v1::canonical_symmetric(
                 endpoint(view, &relation.from),
                 endpoint(view, &relation.to),
             )
@@ -675,7 +678,7 @@ fn undecided_mapping_stops_before_target_or_device_writes() {
     let root = temp.path().join("library");
     let device = temp.path().join("device");
     let mut options = options(&old);
-    options.v3 = Some(MappingChoices::default());
+    options.v3 = MappingChoices::default();
     options.device_dir = Some(device.clone());
     let error = run::import(&old.db, &root, &options).unwrap_err();
     let dr_import_v1::ImportError::V3Pending(pending) = error else {
@@ -849,8 +852,6 @@ fn interrupted_v3_import_resumes_with_the_same_policy_and_rejects_another_path()
     let mut changed = options(&old);
     changed
         .v3
-        .as_mut()
-        .unwrap()
         .act_binding
         .as_mut()
         .unwrap()
@@ -858,13 +859,6 @@ fn interrupted_v3_import_resumes_with_the_same_policy_and_rejects_another_path()
         .description = "different test policy".into();
     assert!(
         matches!(run::import(&old.db,&root,&changed),Err(dr_import_v1::ImportError::Invalid(message)) if message.contains("mapping policy"))
-    );
-    let lib = open(&root);
-    lib.close().unwrap();
-    let mut v2 = options(&old);
-    v2.v3 = None;
-    assert!(
-        matches!(run::import(&old.db,&root,&v2),Err(dr_import_v1::ImportError::Invalid(message)) if message.contains("another import path"))
     );
     let lib = open(&root);
     lib.close().unwrap();

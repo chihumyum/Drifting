@@ -26,6 +26,11 @@ log.workspace = true
 serde_json.workspace = true
 
 [dev-dependencies]
+gpui-prose.workspace = true
+dr-view-stats.workspace = true
+dr-view-search.workspace = true
+dr-view-export.workspace = true
+dr-platform.workspace = true
 anyhow.workspace = true
 dr-store.workspace = true
 dr-testkit.workspace = true
@@ -33,7 +38,3 @@ gpui = { workspace = true, features = ["test-support"] }
 gpui_platform.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true
-
-[[example]]
-name = "page-capture"
-required-features = ["capture"]

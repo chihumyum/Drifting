@@ -885,7 +885,7 @@ fn anchors_are_the_cursor_pair_the_editor_stores() {
     // `Cursor::encode()` of a `Side::Left` cursor on the first anchored
     // character and a `Side::Right` cursor on the last; a point is one
     // `Side::Left` cursor twice. `dr-editor` moves the bytes as they are.
-    use dr_model::book::EncodedAnchor;
+    use dr_model::shared::EncodedAnchor;
     use loro::cursor::Side;
     let mut p = doc("anc-enc", 7);
     user(&mut p, |t| t.insert_text(0, "甲乙丙丁"));
@@ -1037,7 +1037,8 @@ fn import_and_mirror_commits_carry_their_origin_as_message() {
         ]
     );
     // The book document goes through the same commit path.
-    let mut b = crate::book::BookDoc::create(dr_model::id::BookId::parse("b").unwrap(), 7).unwrap();
+    let mut b =
+        crate::import_v1::BookDoc::create(dr_model::id::BookId::parse("b").unwrap(), 7).unwrap();
     let (r, c) = b.edit(Origin::Import, |t| t.meta().name("书").map(|_| ()));
     r.unwrap();
     assert!(c.is_some());

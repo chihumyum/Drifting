@@ -8,9 +8,8 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use dr_doc::book::BookDoc;
 use dr_model::id::BookId;
-use dr_model::kind::NodeKind;
+
 use loro::ToJson;
 use serde_json::{Value, json};
 
@@ -67,34 +66,36 @@ fn summary(lib: &dr_store::Library) -> Result<Value, String> {
         };
         let book_id = BookId::parse(id).map_err(err)?;
         let copy = lib.load_copy(&d.doc_id).map_err(err)?;
-        let snapshot = copy.export(loro::ExportMode::Snapshot).map_err(err)?;
-        let book = BookDoc::load(book_id, 1, &[snapshot]).map_err(err)?;
+        if !dr_doc::v3::is_v3_doc(&copy) {
+            books.push(json!({"id":id,"available":false,"reason":"canonical v3 reimport into a new library required"}));
+            continue;
+        }
+        let book = dr_doc::v3::BorrowedBookV3::new(&copy, &book_id).map_err(err)?;
         let v = book.view();
-        let nodes = v.nodes();
+        let templates = v.templates_map();
+        let chapters = v
+            .manuscript_levels()
+            .iter()
+            .flat_map(|id| v.manuscript_leaves(id))
+            .collect::<Vec<_>>();
         let mut chapter_chars = 0usize;
-        for n in nodes.iter().filter(|n| n.kind == NodeKind::Chapter) {
-            if let Ok(p) = lib.load_copy(&format!("node:{}", n.id)) {
-                chapter_chars += p
-                    .get_text(dr_doc::schema::prose::BODY)
-                    .to_string()
-                    .chars()
-                    .filter(|c| *c != '\n')
-                    .count();
+        for entry in &chapters {
+            if let Some(template) = entry.effective_template(&templates) {
+                for module in template.prose_modules() {
+                    let key = format!("body:{}/{}", entry.id, module.id);
+                    if let Some(_info) = lib.doc_info(&key).map_err(err)? {
+                        let d = lib.load_copy(&key).map_err(err)?;
+                        chapter_chars += d
+                            .get_text(dr_doc::schema::prose::BODY)
+                            .to_string()
+                            .chars()
+                            .filter(|c| *c != '\n')
+                            .count();
+                    }
+                }
             }
         }
-        books.push(json!({
-            "id": id,
-            "name": v.meta().name,
-            "chapters": v.chapters().len(),
-            "ideas": v.drifts().len(),
-            "elements": v.elements().len(),
-            "relations": v.relations().len(),
-            "comments": v.comments().len(),
-            "materials": v.materials().len(),
-            "writingDays": v.writing_days().len(),
-            "chapterChars": chapter_chars,
-            "documents": docs.iter().filter(|x| x.book_id.as_deref() == Some(id)).count(),
-        }));
+        books.push(json!({"id":id,"version":3,"name":v.meta().name,"chapters":chapters.len(),"entries":v.entries().len(),"templates":templates.len(),"relations":v.relations_raw().len(),"comments":v.comments().len(),"materials":v.materials().len(),"writingDays":v.writing_days().len(),"chapterChars":chapter_chars,"documents":docs.iter().filter(|x|x.book_id.as_deref()==Some(id)).count()}));
     }
     Ok(json!({
         "libraryId": lib.library_id(),

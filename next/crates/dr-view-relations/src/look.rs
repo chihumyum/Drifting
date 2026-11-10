@@ -2,11 +2,8 @@
 //! section head (dr-view-elements draws the same for 「字段」), a type's
 //! sand dash, and the words for kinds and ends.
 
-use dr_i18n::keys::references_panel as rp;
-use dr_i18n::keys::relation_picker as pick;
-use dr_shell::strings::t;
 use dr_shell::workspace::editors::{PAGE_GUTTER, editor_settings};
-use dr_ui::tokens::{Rgb, Story};
+use dr_ui::tokens::Rgb;
 use dr_ui::{
     Theme,
     fonts::{Role, weight},
@@ -18,8 +15,6 @@ use gpui::{
     SharedString, StatefulInteractiveElement as _, Styled as _, Window, canvas, div, point, px,
     size,
 };
-
-use crate::model::{Paint, Shown};
 
 /// The text's type as the author set it.
 #[derive(Clone, Copy, Debug)]
@@ -167,60 +162,7 @@ pub fn empty_line(text: SharedString, look: Look, window: &Window, cx: &App) -> 
         .into_any_element()
 }
 
-/// A stored colour in this theme.
-pub fn rgb(paint: Paint, window: &Window, cx: &App) -> Rgb {
-    let p = Theme::of(window, cx).palette;
-    match paint {
-        Paint::Story(i) => p.story(Story::ALL[i.min(5)]),
-        Paint::Ink3 => p.ink(3),
-        Paint::Hex(v) => Rgb::hex(v),
-    }
-}
-
 /// A relation type's sand dash in its colour.
 pub fn dash(id: impl Into<gpui::ElementId>, color: Rgb) -> sand::KindMark {
     sand::KindMark::new(id, sand::Kind::Storyline).color(color)
-}
-
-/// The word for an end's kind (`referencesPanel.kind.*`).
-pub fn kind_word(kind: &str, cx: &App) -> SharedString {
-    t(
-        cx,
-        match kind {
-            "element" => rp::kind::ELEMENT,
-            "node" => rp::kind::NODE,
-            "category" => rp::kind::CATEGORY,
-            "storyline" => rp::kind::STORYLINE,
-            _ => rp::kind::PATCH,
-        },
-    )
-}
-
-/// An end's name: its own, the untitled word for its kind, or the gone one.
-pub fn title(kind: &str, shown: &Shown, cx: &App) -> SharedString {
-    if !shown.live {
-        return t(
-            cx,
-            match kind {
-                "element" => rp::deleted::ELEMENT,
-                "category" => rp::deleted::CATEGORY,
-                "storyline" => rp::deleted::STORYLINE,
-                _ => rp::deleted::NODE,
-            },
-        );
-    }
-    if !shown.title.trim().is_empty() {
-        return shown.title.clone().into();
-    }
-    t(
-        cx,
-        match kind {
-            "element" => pick::UNTITLED_ELEMENT,
-            "storyline" => pick::UNTITLED_STORYLINE,
-            // 0.1 named an untitled category by its id; its kind reads better.
-            "category" => rp::kind::CATEGORY,
-            "node" if shown.idea => pick::UNTITLED_DRIFT,
-            _ => pick::UNTITLED_CHAPTER,
-        },
-    )
 }

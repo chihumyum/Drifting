@@ -1,8 +1,8 @@
 use super::*;
 use crate::{WorkspaceOptions, WritePreconditions, library_options};
-use dr_model::book::{BlockSnapshot, EntityRef};
 use dr_model::id::{CommentId, ModuleId};
 use dr_model::kind::{CommentKind, EntityKind};
+use dr_model::shared::{BlockSnapshot, EntityRef};
 use dr_store::{Library, Origin};
 use serde_json::json;
 use std::sync::mpsc;

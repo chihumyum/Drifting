@@ -21,9 +21,7 @@ use super::*;
 use crate::registry::Registry;
 
 pub(crate) fn register(r: &mut Registry) {
-    r.add::<WordCounts>()
-        .add::<WritingDays>()
-        .add::<WritingDayRecord>();
+    r.add::<WritingDays>().add::<WritingDayRecord>();
 }
 
 /// Words and characters.
@@ -39,103 +37,6 @@ impl std::ops::AddAssign for Count {
         self.chars += o.chars;
     }
 }
-
-/// One prose document's count.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, JsonSchema)]
-pub struct DocCount {
-    /// The chapter's or idea's id.
-    pub id: String,
-    /// Its prose document.
-    pub doc: String,
-    #[serde(flatten)]
-    pub count: Count,
-    /// The derived index has counted it (false: still counting; the count
-    /// is 0 then).
-    pub counted: bool,
-    /// A chapter's storylines.
-    pub storylines: Vec<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, JsonSchema)]
-pub struct StorylineCount {
-    pub id: String,
-    /// Its live chapters'.
-    #[serde(flatten)]
-    pub count: Count,
-    pub chapters: u32,
-    /// Every one of its chapters is counted.
-    pub counted: bool,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, JsonSchema)]
-pub struct WordCountsOut {
-    /// Live chapters, in reading order.
-    pub chapters: Vec<DocCount>,
-    /// Live ideas (构想).
-    pub ideas: Vec<DocCount>,
-    /// Live storylines, in their order.
-    pub storylines: Vec<StorylineCount>,
-    /// The book: its live chapters.
-    pub book: Count,
-    /// Every chapter is counted.
-    pub counted: bool,
-    /// The book's word target (`None`: turned off).
-    pub word_target: Option<i64>,
-    /// Words per day (`None`: turned off).
-    pub daily_word_target: Option<i64>,
-}
-
-op! {
-    WordCounts = "book.word_counts", Read, Shared,
-    "Word counts of a book from the derived index: each chapter, idea and storyline, the book (its chapters), and the word targets.",
-    fn(cx, input: BookIn) -> WordCountsOut {
-        let slot = cx.book(&input.book)?;
-        let lib = cx.workspace().library();
-        let count = |n: &dr_model::book::Node| -> Result<DocCount> {
-            let doc = format!("node:{}", n.id);
-            let stats = lib.doc_stats(&doc)?;
-            Ok(DocCount {
-                id: n.id.to_string(),
-                count: stats.as_ref().map(|s| Count { words: s.words, chars: s.chars }).unwrap_or_default(),
-                counted: stats.is_some(),
-                doc,
-                storylines: if n.is_chapter() { n.storylines.iter().map(|s| s.to_string()).collect() } else { Vec::new() },
-            })
-        };
-        let chapters_in_order = chapters(&slot);
-        let chapters: Vec<DocCount> = chapters_in_order.iter().map(count).collect::<Result<_>>()?;
-        let mut ideas: Vec<_> = nodes(&slot).values().filter(|n| n.is_drift() && !n.is_trashed()).cloned().collect();
-        ideas.sort_by(|a, b| a.title.cmp(&b.title).then(a.id.cmp(&b.id)));
-        let ideas: Vec<DocCount> = ideas.iter().map(count).collect::<Result<_>>()?;
-        let mut book = Count::default();
-        for c in &chapters {
-            book += c.count;
-        }
-        let mut lines: Vec<_> = storylines(&slot).iter().filter(|s| s.deleted_at.is_none()).cloned().collect();
-        lines.sort_by(|a, b| dr_model::pos::cmp_pos((a.pos.as_ref(), &a.id), (b.pos.as_ref(), &b.id)));
-        let storylines = lines.iter().map(|s| {
-            let mut total = Count::default();
-            let (mut n, mut counted) = (0u32, true);
-            for c in &chapters {
-                if c.storylines.iter().any(|x| x == s.id.as_str()) {
-                    total += c.count;
-                    n += 1;
-                    counted &= c.counted;
-                }
-            }
-            StorylineCount { id: s.id.to_string(), count: total, chapters: n, counted }
-        }).collect();
-        let m = meta(&slot);
-        Ok(WordCountsOut {
-            counted: chapters.iter().all(|c| c.counted),
-            chapters, ideas, storylines, book,
-            word_target: m.word_target(),
-            daily_word_target: m.daily_word_target(),
-        })
-    }
-}
-
-// ---- writing days -------------------------------------------------------------
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct WritingDaysIn {
@@ -245,7 +146,7 @@ op! {
         let device = input.device.as_deref().map(device_in).transpose()?;
         let mut by_day: BTreeMap<i64, i64> = BTreeMap::new();
         let mut mine_today = 0;
-        let days = if slot.is_v3() { slot.reader_v3.view().writing_days() } else { slot.reader.view().writing_days() };
+        let days = slot.reader_v3.view().writing_days();
         for w in days {
             let n = day_number(&w.day);
             *by_day.entry(n).or_default() += w.words;
@@ -264,7 +165,7 @@ op! {
             today: words_today,
             streak: if words_today > 0 { streak_before + 1 } else { 0 },
             mine_today, week, active_days, streak_before,
-            daily_word_target: if slot.is_v3() { slot.reader_v3.view().meta().daily_word_target() } else { meta(&slot).daily_word_target() },
+            daily_word_target: slot.reader_v3.view().meta().daily_word_target(),
         })
     }
 }
@@ -290,17 +191,15 @@ op! {
         if input.words < 0 {
             return Err(WsError::invalid("words cannot be negative"));
         }
-        let key = dr_model::book::WritingDay::key(&device, &day);
-        let days = if slot.is_v3() { slot.reader_v3.view().writing_days() } else { slot.reader.view().writing_days() };
+        let key = dr_model::shared::WritingDay::key(&device, &day);
+        let days = slot.reader_v3.view().writing_days();
         let same = days.iter()
             .any(|w| w.device == device && w.day == day && w.words == input.words);
         if !same {
             let words = input.words;
-            if slot.is_v3() {
+
                 cx.write_book_v3(&slot, move |txn| { txn.writing_day(&device, &day, words)?; Ok(()) })?;
-            } else {
-                cx.write_book(&slot, move |txn| { txn.writing_day(&device, &day, words)?; Ok(()) })?;
-            }
+
         }
         // No effect and no inverse: the recorder's writes leave no journal
         // row, so they never sit between the author and their undo.

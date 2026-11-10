@@ -37,7 +37,7 @@ use dr_ui::{
     tokens::{Rgb, glass as g, menu as m, motion, radius},
     transitions::Push,
 };
-use dr_workspace::dto::{ActInfo, GroupInfo};
+use dr_workspace::dto::GroupInfo;
 use gpui::{
     AnyElement, App, AppContext as _, Context, DragMoveEvent, ElementId, InteractiveElement,
     IntoElement, ParentElement, Render, SharedString, StatefulInteractiveElement, Styled, TextRun,
@@ -45,7 +45,6 @@ use gpui::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::chapter_sort::{self, BookSort, CellMeta, ChapterSort, OuterSort};
 use super::chrome::{self, LEADING_INSET, TITLEBAR_HEIGHT, TOGGLE_GAP, TRAILING_INSET};
 use super::{SuperView, Workspace};
 use crate::actions::{ShowProjectHome, ToggleNotifications};
@@ -54,27 +53,21 @@ use crate::dialogs::FollowUpNotice;
 use crate::nav::{Open, Target};
 use crate::notifications::{self, Notifications};
 use crate::panes::{PaneId, Panes};
-use crate::strings::{t, tf};
-use dr_ui::components::{DraggedPill, Pill};
+use crate::strings::t;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum LeftTab {
-    Chapters,
-    Elements,
-    /// 构想.
-    Drifts,
+    // Preserve current v3 layouts that were written before the cutover;
+    // all former fixed tabs now show the one canonical entry structure.
+    #[serde(alias = "chapters", alias = "elements", alias = "drifts")]
+    Structure,
 }
 
 impl LeftTab {
-    pub const ORDER: [LeftTab; 3] = [LeftTab::Chapters, LeftTab::Elements, LeftTab::Drifts];
-
+    pub const ORDER: [LeftTab; 1] = [LeftTab::Structure];
     pub fn label(self) -> Key {
-        match self {
-            LeftTab::Chapters => keys::left_sidebar::tabs::CHAPTERS,
-            LeftTab::Elements => keys::left_sidebar::tabs::ELEMENTS,
-            LeftTab::Drifts => keys::left_sidebar::tabs::DRIFTS,
-        }
+        keys::k4_pages::ENTRIES
     }
 }
 
@@ -193,7 +186,7 @@ pub fn on_resize(
 pub fn left(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>) -> AnyElement {
     let shown = ws.left.shown();
     let width = ws.left.width;
-    let panes = ws.left.panes.clone();
+    let _panes = ws.left.panes.clone();
     let body = if ws.book.v3().is_some()
         && let Some(library) = ws.library.clone()
     {
@@ -219,11 +212,10 @@ pub fn left(ws: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>
             .flex_col()
             .pt(px(TITLEBAR_HEIGHT))
             .child(div().flex_1().min_h_0().child(panel))
-    } else if ws.book.is_empty() {
-        div().size_full().flex().flex_col()
     } else {
-        panes_row(ws, Side::Left, &panes, window, cx)
+        div().size_full().flex().flex_col()
     };
+
     let account = account_cell(ws, window, cx);
     column(Side::Left, width, shown, body.child(account), window, cx)
 }
@@ -355,55 +347,6 @@ pub trait PanelTab: Sized + 'static {
         window: &mut Window,
         cx: &mut Context<Workspace>,
     ) -> AnyElement;
-}
-
-impl PanelTab for LeftTab {
-    const ORDER: &'static [Self] = &LeftTab::ORDER;
-    fn key(self) -> Key {
-        self.label()
-    }
-    fn slug(self) -> &'static str {
-        match self {
-            LeftTab::Chapters => "chapters",
-            LeftTab::Elements => "elements",
-            LeftTab::Drifts => "drifts",
-        }
-    }
-    fn click(
-        ws: &mut Workspace,
-        pane: PaneId,
-        tab: Self,
-        window: &mut Window,
-        cx: &mut Context<Workspace>,
-    ) {
-        if !ws.left.panes.click(pane, tab) {
-            let reduce = ws.reduce_motion(window, cx);
-            ws.left.set_open(false, reduce);
-        }
-        ws.changed(cx);
-    }
-    fn split(ws: &mut Workspace, cx: &mut Context<Workspace>) {
-        ws.left.panes.split(&LeftTab::ORDER);
-        ws.changed(cx);
-    }
-    fn header(
-        self,
-        ws: &Workspace,
-        pane: PaneId,
-        window: &mut Window,
-        cx: &mut Context<Workspace>,
-    ) -> AnyElement {
-        left_header(self, ws, pane, window, cx)
-    }
-    fn body(
-        self,
-        ws: &Workspace,
-        pane: PaneId,
-        window: &mut Window,
-        cx: &mut Context<Workspace>,
-    ) -> AnyElement {
-        left_body(self, ws, pane, window, cx)
-    }
 }
 
 impl PanelTab for RightTab {
@@ -627,23 +570,6 @@ fn meta(text: SharedString, theme: &Theme) -> gpui::Div {
         .child(text)
 }
 
-/// The panel a module draws for `tab` in `pane`, made the first time.
-fn module_panel(
-    tab: LeftTab,
-    ws: &Workspace,
-    pane: PaneId,
-    window: &mut Window,
-    cx: &mut Context<Workspace>,
-) -> Option<crate::pages::LeftPanel> {
-    let key = (pane_slug(pane), tab);
-    if let Some(made) = ws.left_panels.borrow().get(&key) {
-        return made.clone();
-    }
-    let made = crate::pages::left_panel_for(tab, cx.weak_entity(), window, cx);
-    ws.left_panels.borrow_mut().insert(key, made.clone());
-    made
-}
-
 /// The 帮手 tab a module draws for `pane` ([`crate::pages::set_companion`]),
 /// made the first time the pane shows it, then kept.
 fn companion_panel(
@@ -676,191 +602,6 @@ fn library_panel(
     let made = crate::pages::library_for(cx.weak_entity(), window, cx);
     ws.library_panel.borrow_mut().insert(key, made.clone());
     made
-}
-
-fn left_header(
-    tab: LeftTab,
-    ws: &Workspace,
-    pane: PaneId,
-    window: &mut Window,
-    cx: &mut Context<Workspace>,
-) -> AnyElement {
-    if let Some(panel) = module_panel(tab, ws, pane, window, cx) {
-        return div().size_full().child(panel.head).into_any_element();
-    }
-    let theme = Theme::of(window, cx);
-    let book = &ws.book;
-    let slug = pane_slug(pane);
-    match tab {
-        LeftTab::Chapters => {
-            // Before the first storyline only the chapters count.
-            let text = if book.storylines.is_empty() {
-                tf(
-                    cx,
-                    keys::left_sidebar::meta::CHAPTERS,
-                    &[("count", &book.chapters.len())],
-                )
-            } else {
-                tf(
-                    cx,
-                    keys::left_sidebar::view_mode::CHAPTER_SUMMARY,
-                    &[
-                        ("storylines", &book.storylines.len()),
-                        ("chapters", &book.chapters.len()),
-                    ],
-                )
-            };
-            let selected = ws.nav.is_selected(&Target::Book);
-            let entity = cx.entity();
-            let summary = if book.storylines.is_empty() {
-                meta(text, &theme).into_any_element()
-            } else {
-                // The summary switches the panel between the storylines and
-                // the whole book (the 0.1 client's view-mode text).
-                let by_book = ws.chapters_by_book;
-                let toggle = cx.entity();
-                let ink = theme.palette.ink(1).solid();
-                meta(text, &theme)
-                    .id(SharedString::from(format!("chapter-view-{slug}")))
-                    .cursor_pointer()
-                    .hover(move |st| st.text_color(ink))
-                    .role(gpui::Role::Button)
-                    .aria_label(t(
-                        cx,
-                        if by_book {
-                            keys::left_sidebar::view_mode::GLOBAL_TITLE
-                        } else {
-                            keys::left_sidebar::view_mode::STORYLINE_TITLE
-                        },
-                    ))
-                    .on_click(move |_, _, cx| {
-                        toggle.update(cx, |ws, cx| {
-                            ws.chapters_by_book = !ws.chapters_by_book;
-                            ws.changed(cx);
-                        })
-                    })
-                    .into_any_element()
-            };
-            // The sort menu (the 0.1 client's `SortMenu`), under its button.
-            let by_book = book.storylines.is_empty() || ws.chapters_by_book;
-            let sort_open = ws.chapter_sort_open.as_deref() == Some(slug);
-            let sort_bounds = overlay::use_bounds(
-                ElementId::Name(format!("chapter-sort-bounds-{slug}").into()),
-                window,
-                cx,
-            );
-            let sort_menu = match (sort_open, *sort_bounds.read(cx)) {
-                (true, Some(bounds)) => Some(super::chapter_sort::menu(
-                    &cx.entity(),
-                    ws.chapter_sort,
-                    by_book,
-                    bounds,
-                    &theme,
-                    cx,
-                )),
-                _ => None,
-            };
-            let sorter = cx.entity();
-            let pane_key = slug.to_owned();
-            // The folding fan (by storyline only), drawn as a press will
-            // leave the groups: shut while all are open.
-            let fan = (!by_book).then(|| {
-                let folder = cx.entity();
-                IconButton::new(
-                    SharedString::from(format!("chapter-fold-{slug}")),
-                    if ws.folded_in(pane).is_empty() {
-                        Icon::FoldingFanClosed
-                    } else {
-                        Icon::FoldingFan
-                    },
-                )
-                .label(t(cx, keys::left_sidebar::actions::COLLAPSE_ALL))
-                .on_click(move |_, _, cx| folder.update(cx, |ws, cx| ws.fold_all(pane, cx)))
-            });
-            div()
-                .size_full()
-                .flex()
-                .items_center()
-                .child(summary)
-                .children(fan)
-                .child(
-                    div().relative().child(overlay::probe(sort_bounds)).child(
-                        IconButton::new(
-                            SharedString::from(format!("chapter-sort-{slug}")),
-                            Icon::Sort,
-                        )
-                        .label(t(cx, keys::left_sidebar::actions::SORT))
-                        .selected(sort_open)
-                        .on_click(move |_, _, cx| {
-                            let pane = pane_key.clone();
-                            sorter.update(cx, |ws, cx| {
-                                ws.chapter_sort_open =
-                                    if ws.chapter_sort_open.as_deref() == Some(pane.as_str()) {
-                                        None
-                                    } else {
-                                        Some(pane)
-                                    };
-                                cx.notify();
-                            })
-                        }),
-                    ),
-                )
-                .children(sort_menu)
-                .child(
-                    IconButton::new(SharedString::from(format!("book-{slug}")), Icon::OpenBook)
-                        .label(t(cx, keys::top_timeline::singletons::ALL_CHAPTERS))
-                        .selected(selected)
-                        .on_click(move |e, _, cx| {
-                            let how = if e.click_count() > 1 {
-                                Open::KEEP
-                            } else {
-                                Open::PREVIEW
-                            };
-                            entity.update(cx, |ws, cx| ws.open(Target::Book, how, cx));
-                        }),
-                )
-                .into_any_element()
-        }
-        LeftTab::Elements => {
-            let text = tf(
-                cx,
-                keys::left_sidebar::meta::ELEMENTS,
-                &[
-                    ("categories", &book.categories.len()),
-                    ("elements", &book.elements.len()),
-                ],
-            );
-            let selected = ws.super_view == Some(SuperView::Elements);
-            let entity = cx.entity();
-            div()
-                .size_full()
-                .flex()
-                .items_center()
-                .child(meta(text, &theme))
-                .child(crate::pages::anchor(
-                    crate::pages::anchors::SUPER_VIEW_ENTRY,
-                    IconButton::new(
-                        SharedString::from(format!("elements-sv-{slug}")),
-                        Icon::KnotLinks,
-                    )
-                    .label(t(cx, SuperView::Elements.label()))
-                    .selected(selected)
-                    .on_click(move |_, _, cx| {
-                        entity.update(cx, |ws, cx| ws.toggle_super_view(SuperView::Elements, cx))
-                    }),
-                    cx,
-                ))
-                .into_any_element()
-        }
-        LeftTab::Drifts => {
-            let text = tf(
-                cx,
-                keys::left_sidebar::meta::DRIFTS,
-                &[("count", &book.ideas.len())],
-            );
-            meta(text, &theme).into_any_element()
-        }
-    }
 }
 
 fn right_header(
@@ -906,11 +647,7 @@ fn right_header(
             let key = match ws.nav.current() {
                 None => k::NONE,
                 Some(Target::Book) => k::ALL_CHAPTERS,
-                Some(Target::Chapter(_)) => k::CHAPTER,
-                Some(Target::Idea(_)) => k::DRIFT,
-                Some(Target::Storyline(_)) => k::STORYLINE,
-                Some(Target::Element(_)) => k::ELEMENT,
-                Some(Target::Category(_)) => k::CATEGORY,
+
                 Some(Target::Material(_)) => k::MATERIAL,
                 Some(Target::Entry { .. } | Target::Template(_)) => keys::v3_shell::ENTRIES,
             };
@@ -967,9 +704,6 @@ struct Fold {
     count: usize,
 }
 
-/// The id of the 未归属 group among the folded ones.
-const LOOSE_GROUP: &str = "unaffiliated";
-
 impl Workspace {
     /// The chapter panel's folded groups in `pane`, for the book shown.
     pub fn folded_in(&self, pane: PaneId) -> HashSet<String> {
@@ -994,25 +728,6 @@ impl Workspace {
         let folded = self.folded.entry((self.book_id.clone(), pane)).or_default();
         if !folded.remove(group) {
             folded.insert(group.to_owned());
-        }
-        cx.notify();
-    }
-
-    /// The folding fan in `pane`: folds every group, or opens them all when
-    /// any is folded.
-    pub fn fold_all(&mut self, pane: PaneId, cx: &mut Context<Self>) {
-        let all: HashSet<String> = self
-            .book
-            .storylines
-            .iter()
-            .map(|s| s.id.clone())
-            .chain([LOOSE_GROUP.to_owned()])
-            .collect();
-        let folded = self.folded.entry((self.book_id.clone(), pane)).or_default();
-        if folded.is_empty() {
-            *folded = all;
-        } else {
-            folded.clear();
         }
         cx.notify();
     }
@@ -1156,12 +871,6 @@ fn rows_view(
     .into_any_element()
 }
 
-/// A chapter cell in the hand: the chapter's id.
-#[derive(Clone, Debug)]
-pub struct ChapterDrag {
-    pub id: String,
-}
-
 /// A cell that opens `target` (components.md, 「Cell」): a click shows it
 /// as a preview, a double click keeps it. A chapter's can be picked up and
 /// dropped on another chapter's to move it there in reading order.
@@ -1176,7 +885,7 @@ fn cell(
     fold: Option<&Fold>,
     selected: bool,
     ws: &gpui::Entity<Workspace>,
-    wash: gpui::Hsla,
+    _wash: gpui::Hsla,
     theme: &Theme,
     cx: &App,
 ) -> AnyElement {
@@ -1184,12 +893,6 @@ fn cell(
     let (mark, color) = book.mark(&target);
     let label = super::title_of(book, &target, cx);
     let entity = ws.clone();
-    let chapter = match &target {
-        Target::Chapter(c) => Some(c.to_string()),
-        _ => None,
-    };
-    let ghost = label.clone();
-    let drag_id = SharedString::from(format!("{id}-drag"));
     let readout = meta.map(|text| {
         div()
             .flex_none()
@@ -1214,26 +917,7 @@ fn cell(
             let target = target.clone();
             entity.update(cx, |ws, cx| ws.open(target, how, cx));
         });
-    let el = indented(depth, cell.into_any_element());
-    let Some(chapter) = chapter else {
-        return el;
-    };
-    let drop_on = ws.clone();
-    let onto = chapter.clone();
-    div()
-        .id(ElementId::Name(drag_id))
-        .rounded(px(radius::SM))
-        .on_drag(ChapterDrag { id: chapter }, move |_, _, window, cx| {
-            let pill = Pill::new(ghost.clone()).mark(mark, color);
-            let at = window.mouse_position();
-            cx.new(|_| DraggedPill::new(pill, at))
-        })
-        .drag_over::<ChapterDrag>(move |st, _, _, _| st.bg(wash))
-        .on_drop(move |drag: &ChapterDrag, _, cx| {
-            drop_on.update(cx, |ws, cx| ws.move_chapter(&drag.id, &onto, cx))
-        })
-        .child(el)
-        .into_any_element()
+    indented(depth, cell.into_any_element())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1332,19 +1016,6 @@ pub fn page_hover_card(
     )
 }
 
-/// Words as the 0.1 client wrote them (`toLocaleString`): 12,345.
-fn grouped(n: u64) -> String {
-    let digits = n.to_string();
-    let mut out = String::new();
-    for (i, c) in digits.chars().enumerate() {
-        if i > 0 && (digits.len() - i).is_multiple_of(3) {
-            out.push(',');
-        }
-        out.push(c);
-    }
-    out
-}
-
 /// A page's hover card (the 0.1 client's `EntityHoverCard`): a chapter's
 /// words, its storylines (the primary first) and summary; a storyline's
 /// chapters and words, its summary. Then its actions.
@@ -1361,88 +1032,12 @@ fn card_body(
     if host.book.v3().is_some() && matches!(target, Target::Entry { .. }) {
         return crate::v3::card::body(id, target, host, extra, window, cx);
     }
-    let theme = Theme::of(window, cx);
-    let p = theme.palette;
-    let book = &host.book;
-    let (mark, color) = book.mark(target);
+    let (mark, color) = host.book.mark(target);
     let mut body = CardBody::new(
         ElementId::Name(format!("{id}-body").into()),
-        super::title_of(book, target, cx),
+        super::title_of(&host.book, target, cx),
     )
     .mark(mark, color);
-    match target {
-        Target::Chapter(chapter) => {
-            if let Some(c) = book.chapters.iter().find(|c| c.id == chapter.as_str()) {
-                body = body.count(tf(
-                    cx,
-                    keys::node_editor::meta::WORDS,
-                    &[("count", &grouped(c.words))],
-                ));
-                let mut on: Vec<&dr_workspace::dto::StorylineInfo> = c
-                    .storylines
-                    .iter()
-                    .filter_map(|s| book.storylines.iter().find(|x| &x.id == s))
-                    .collect();
-                on.sort_by_key(|s| Some(&s.id) != c.primary_storyline.as_ref());
-                let line = if on.is_empty() {
-                    div()
-                        .text_color(p.muted().solid())
-                        .child(t(cx, keys::node_editor::empty::NO_STORYLINE))
-                } else {
-                    div().flex().flex_row().flex_wrap().gap(px(8.0)).children(
-                        on.into_iter().enumerate().map(|(i, s)| {
-                            let ink = if i == 0 { p.ink(2) } else { p.muted() };
-                            div()
-                                .flex()
-                                .flex_row()
-                                .items_center()
-                                .gap(px(4.0))
-                                .text_color(ink.solid())
-                                .child({
-                                    let mark = sand::KindMark::new(
-                                        ElementId::Name(format!("{id}-sl-{}", s.id).into()),
-                                        sand::Kind::Storyline,
-                                    )
-                                    .scale(0.7);
-                                    match crate::book::color_of(&s.color) {
-                                        Some(c) => mark.color(c),
-                                        None => mark,
-                                    }
-                                })
-                                .child(s.name.clone())
-                        }),
-                    )
-                };
-                body = body.meta(line);
-                if !c.summary.trim().is_empty() {
-                    body = body.summary(c.summary.clone());
-                }
-            }
-        }
-        Target::Storyline(storyline) => {
-            if let Some(s) = book.storylines.iter().find(|s| s.id == storyline.as_str()) {
-                let chapters: Vec<_> = book.chapters_of(&s.id).collect();
-                let words: u64 = chapters.iter().map(|c| c.words).sum();
-                body = body.count(format!(
-                    "{} · {}",
-                    tf(
-                        cx,
-                        keys::storyline_editor::meta::CHAPTERS,
-                        &[("count", &chapters.len())]
-                    ),
-                    tf(
-                        cx,
-                        keys::storyline_editor::meta::K_WORDS,
-                        &[("count", &format!("{:.1}", words as f64 / 1000.0))]
-                    ),
-                ));
-                if !s.summary.trim().is_empty() {
-                    body = body.summary(s.summary.clone());
-                }
-            }
-        }
-        _ => {}
-    }
     let sections = super::page_actions::with_rows(
         super::page_actions::page_actions(ws, host, target, cx),
         extra,
@@ -1510,33 +1105,6 @@ fn open_row(target: Option<Target>, group: &str, depth: usize, structure: bool) 
     })
 }
 
-/// A chapter's row, with its readout when the panel shows one.
-fn chapter_row(
-    chapter: &dr_workspace::dto::ChapterInfo,
-    group: &str,
-    depth: usize,
-    meta: Option<CellMeta>,
-) -> Option<Row> {
-    let mut row = open_row(
-        chapter.id.parse().ok().map(Target::Chapter),
-        group,
-        depth,
-        false,
-    )?;
-    if let Row::Cell {
-        meta: slot, card, ..
-    } = &mut row
-    {
-        *slot = meta.and_then(|meta| chapter_sort::readout(chapter, meta).map(SharedString::from));
-        *card = true;
-    }
-    Some(row)
-}
-
-/// Below this width a chapter cell shows only its name (the 0.1 client's
-/// `META_HIDE_WIDTH`).
-const META_HIDE_WIDTH: f32 = 200.0;
-
 fn heading_row(
     key: impl Into<SharedString>,
     label: SharedString,
@@ -1552,256 +1120,6 @@ fn heading_row(
         depth,
         fold: None,
     }
-}
-
-/// The rows of a left panel.
-#[allow(clippy::too_many_arguments)]
-fn left_rows(
-    tab: LeftTab,
-    book: &Book,
-    by_book: bool,
-    sort: ChapterSort,
-    show_meta: bool,
-    pane: PaneId,
-    folded: &HashSet<String>,
-    theme: &Theme,
-    cx: &App,
-) -> Vec<Row> {
-    let mut rows = Vec::new();
-    let meta = show_meta.then_some(sort.meta);
-    match tab {
-        LeftTab::Chapters => {
-            if book.storylines.is_empty() || by_book {
-                if sort.book != BookSort::BookOrder {
-                    // Another order has no acts to group by.
-                    rows.extend(
-                        chapter_sort::sort_book(&book.chapters, sort.book)
-                            .into_iter()
-                            .filter_map(|c| chapter_row(c, "book", 0, meta)),
-                    );
-                    return rows;
-                }
-                // The whole book in reading order; each act starts with its
-                // heading and holds its chapters.
-                let starts: std::collections::HashMap<&str, (usize, &ActInfo)> = book
-                    .acts
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(n, a)| a.chapters.first().map(|c| (c.as_str(), (n, a))))
-                    .collect();
-                let mut depth = 0;
-                for c in &book.chapters {
-                    if let Some((n, act)) = starts.get(c.id.as_str()) {
-                        rows.push(heading_row(
-                            format!("act-{}", act.id),
-                            act_label(*n + 1, &act.name, cx),
-                            None,
-                            act.color.as_deref().and_then(crate::book::color_of),
-                            0,
-                        ));
-                        depth = 1;
-                    }
-                    rows.extend(chapter_row(c, "book", depth, meta));
-                }
-            } else {
-                // By storyline, as the 0.1 client's storyline view: a chapter
-                // shows under each storyline it is on (or only its primary
-                // one).
-                let mut storylines: Vec<(usize, &dr_workspace::dto::StorylineInfo)> =
-                    book.storylines.iter().enumerate().collect();
-                if sort.outer == OuterSort::Alphabet {
-                    storylines.sort_by(|(i, a), (j, b)| {
-                        a.name
-                            .to_lowercase()
-                            .cmp(&b.name.to_lowercase())
-                            .then(i.cmp(j))
-                    });
-                }
-                for (_, sl) in storylines {
-                    let on = book.chapters_of(&sl.id).filter(|c| {
-                        !sort.primary_only || c.primary_storyline.as_deref() == Some(&sl.id)
-                    });
-                    let chapters = chapter_sort::sort_inner(on, sort.inner);
-                    let is_folded = folded.contains(&sl.id);
-                    let mut head =
-                        open_row(sl.id.parse().ok().map(Target::Storyline), "sl", 0, true);
-                    if let Some(Row::Cell { fold, card, .. }) = &mut head {
-                        *fold = Some(Fold {
-                            id: sl.id.clone().into(),
-                            pane,
-                            folded: is_folded,
-                            count: chapters.len(),
-                        });
-                        *card = true;
-                    }
-                    rows.extend(head);
-                    if !is_folded {
-                        rows.extend(
-                            chapters
-                                .into_iter()
-                                .filter_map(|c| chapter_row(c, &sl.id, 1, meta)),
-                        );
-                    }
-                }
-                let loose: Vec<_> = book.unaffiliated().collect();
-                if !loose.is_empty() {
-                    let is_folded = folded.contains(LOOSE_GROUP);
-                    let mut head = heading_row(
-                        LOOSE_GROUP,
-                        t(cx, keys::left_sidebar::groups::UNAFFILIATED),
-                        Some(sand::Kind::Storyline),
-                        Some(theme.palette.ink(4)),
-                        0,
-                    );
-                    if let Row::Heading { fold, .. } = &mut head {
-                        *fold = Some(Fold {
-                            id: LOOSE_GROUP.into(),
-                            pane,
-                            folded: is_folded,
-                            count: loose.len(),
-                        });
-                    }
-                    rows.push(head);
-                    if !is_folded {
-                        rows.extend(
-                            chapter_sort::sort_inner(loose.into_iter(), sort.inner)
-                                .into_iter()
-                                .filter_map(|c| chapter_row(c, "loose", 1, meta)),
-                        );
-                    }
-                }
-            }
-        }
-        LeftTab::Elements => {
-            let element = |id: &str| id.parse().ok().map(Target::Element);
-            for cat in &book.categories {
-                rows.extend(open_row(
-                    cat.id.parse().ok().map(Target::Category),
-                    "cat",
-                    0,
-                    true,
-                ));
-                rows.extend(
-                    book.elements
-                        .iter()
-                        .filter(|e| e.category.as_deref() == Some(cat.id.as_str()))
-                        .filter_map(|e| open_row(element(&e.id), "el", 1, false)),
-                );
-            }
-            let known = |c: &Option<String>| {
-                c.as_ref()
-                    .is_some_and(|c| book.categories.iter().any(|cat| &cat.id == c))
-            };
-            let loose: Vec<_> = book
-                .elements
-                .iter()
-                .filter(|e| !known(&e.category))
-                .collect();
-            if !loose.is_empty() {
-                rows.push(heading_row(
-                    "uncategorized",
-                    t(cx, keys::left_sidebar::UNCATEGORIZED),
-                    Some(sand::Kind::Category),
-                    Some(theme.palette.ink(4)),
-                    0,
-                ));
-                rows.extend(
-                    loose
-                        .into_iter()
-                        .filter_map(|e| open_row(element(&e.id), "el", 1, false)),
-                );
-            }
-        }
-        LeftTab::Drifts => {
-            let idea = |id: &str| id.parse().ok().map(Target::Idea);
-            let mut groups = Vec::new();
-            walk_groups(&book.idea_groups, None, 0, &mut groups);
-            for (g, depth) in groups {
-                rows.push(heading_row(
-                    format!("group-{}", g.id),
-                    g.name.clone().into(),
-                    Some(sand::Kind::DriftGroup),
-                    g.color.as_deref().and_then(crate::book::color_of),
-                    depth,
-                ));
-                rows.extend(
-                    book.ideas
-                        .iter()
-                        .filter(|i| i.group.as_deref() == Some(g.id.as_str()))
-                        .filter_map(|i| open_row(idea(&i.id), "idea", depth + 1, false)),
-                );
-            }
-            let grouped = |i: &&dr_workspace::dto::IdeaInfo| {
-                i.group
-                    .as_ref()
-                    .is_some_and(|g| book.idea_groups.iter().any(|x| &x.id == g))
-            };
-            rows.extend(
-                book.ideas
-                    .iter()
-                    .filter(|i| !grouped(i))
-                    .filter_map(|i| open_row(idea(&i.id), "idea", 0, false)),
-            );
-        }
-    }
-    rows
-}
-
-/// 第N幕 and the act's name, if it has one.
-fn act_label(n: usize, name: &str, cx: &App) -> SharedString {
-    let ordinal = tf(cx, keys::all_chapters::ACT_ORDINAL, &[("n", &n)]);
-    if name.trim().is_empty() {
-        ordinal
-    } else {
-        format!("{ordinal} · {}", name.trim()).into()
-    }
-}
-
-fn left_body(
-    tab: LeftTab,
-    ws: &Workspace,
-    pane: PaneId,
-    window: &mut Window,
-    cx: &mut Context<Workspace>,
-) -> AnyElement {
-    if let Some(panel) = module_panel(tab, ws, pane, window, cx) {
-        return div().size_full().child(panel.body).into_any_element();
-    }
-    let theme = Theme::of(window, cx);
-    let book = ws.book.clone();
-    let empty_key = match tab {
-        LeftTab::Chapters if book.chapters.is_empty() => {
-            Some(keys::left_sidebar::empty::NO_CHAPTERS)
-        }
-        LeftTab::Elements if book.elements.is_empty() && book.categories.is_empty() => {
-            Some(keys::left_sidebar::empty::NO_ELEMENTS)
-        }
-        LeftTab::Drifts if book.ideas.is_empty() && book.idea_groups.is_empty() => {
-            Some(keys::left_sidebar::empty::NO_DRIFTS)
-        }
-        _ => None,
-    };
-    if let Some(key) = empty_key {
-        return empty(key, cx);
-    }
-    let show_meta = ws.left.width >= META_HIDE_WIDTH;
-    let rows = left_rows(
-        tab,
-        &book,
-        ws.chapters_by_book,
-        ws.chapter_sort,
-        show_meta,
-        pane,
-        &ws.folded_in(pane),
-        &theme,
-        cx,
-    );
-    rows_view(
-        format!("left-{}-{}", pane_slug(pane), tab.slug()).into(),
-        rows,
-        ws,
-        cx,
-    )
 }
 
 fn v3_stats_scope(target: Option<&Target>) -> Option<dr_view_stats::v3::Scope> {
@@ -1946,7 +1264,7 @@ fn right_body(
             // Folders (素材夹) first, each with its materials; then the
             // materials in no folder.
             let mut folders = Vec::new();
-            walk_groups(&book.folders, None, 0, &mut folders);
+            walk_groups(book.material_folders(), None, 0, &mut folders);
             for (f, depth) in folders {
                 rows.push(heading_row(
                     format!("folder-{}", f.id),
@@ -1956,7 +1274,7 @@ fn right_body(
                     depth,
                 ));
                 rows.extend(
-                    book.materials
+                    book.material_items()
                         .iter()
                         .filter(|m| m.folder.as_deref() == Some(f.id.as_str()))
                         .filter_map(|m| open_row(material(&m.id), "mat", depth + 1, false)),
@@ -1965,10 +1283,10 @@ fn right_body(
             let filed = |m: &&dr_workspace::dto::MaterialInfo| {
                 m.folder
                     .as_ref()
-                    .is_some_and(|f| book.folders.iter().any(|x| &x.id == f))
+                    .is_some_and(|f| book.material_folders().iter().any(|x| &x.id == f))
             };
             rows.extend(
-                book.materials
+                book.material_items()
                     .iter()
                     .filter(|m| !filed(m))
                     .filter_map(|m| open_row(material(&m.id), "mat", 0, false)),
@@ -1986,128 +1304,75 @@ fn right_body(
         RightTab::Stats => {
             let strings = crate::Strings::get(cx);
             let (locale, platform) = (strings.locale(), strings.platform());
-            if ws.book.v3().is_some() {
-                let Some(scope) = v3_stats_scope(ws.nav.current()) else {
-                    return div().into_any_element();
-                };
-                let open = v3_stats_open(ws, cx);
-                let scope_label = match &scope {
-                    dr_view_stats::v3::Scope::Book => keys::workspace_word_tally::BOOK,
-                    dr_view_stats::v3::Scope::Entry { .. } => keys::k4_book::ENTRY_WORDS,
-                    dr_view_stats::v3::Scope::Material(_) => keys::k4_book::MATERIAL_WORDS,
-                };
-                return div()
-                    .id(SharedString::from(format!("v3-stats-{}", pane_slug(pane))))
-                    .size_full()
-                    .role(gpui::Role::Group)
-                    .aria_label(t(cx, keys::right_sidebar::tabs::STATS))
-                    .child(
-                        div()
-                            .id(SharedString::from(format!(
-                                "v3-stats-scope-{}",
-                                pane_slug(pane)
-                            )))
-                            .size_full()
-                            .role(gpui::Role::Group)
-                            .aria_label(t(cx, scope_label))
-                            .child(dr_view_stats::v3_panel::panel(
-                                &format!("stats-{}", pane_slug(pane)),
-                                &ws.book_id,
-                                scope,
-                                locale,
-                                platform,
-                                open,
-                                cx,
-                            )),
-                    )
-                    .into_any_element();
-            }
-            let shell = cx.weak_entity();
-            let book = ws.book.clone();
-            let hooks = dr_view_stats::Hooks {
-                act: std::rc::Rc::new(move |action, window, cx| {
-                    shell
-                        .update(cx, |ws, cx| match action {
-                            dr_view_stats::StatsAction::Open { target, link } => {
-                                let shown = link.is_some_and(|l| ws.open_link(&l, window, cx));
-                                if !shown {
-                                    ws.super_view = None;
-                                    ws.open(crate::book::target(target), Open::KEEP, cx);
-                                }
-                                cx.notify();
-                            }
-                            dr_view_stats::StatsAction::History { doc, name } => {
-                                ws.open_history(doc, &name, window, cx)
-                            }
-                        })
-                        .ok();
-                }),
-                marks: std::rc::Rc::new(move |t| book.mark(&crate::book::target(t.clone()))),
+
+            let Some(scope) = v3_stats_scope(ws.nav.current()) else {
+                return div().into_any_element();
             };
-            dr_view_stats::panel(
-                &format!("stats-{}", pane_slug(pane)),
-                &ws.book_id,
-                ws.nav.current().map(crate::book::nav_target),
-                locale,
-                platform,
-                Some(hooks),
-                cx,
-            )
+            let open = v3_stats_open(ws, cx);
+            let scope_label = match &scope {
+                dr_view_stats::v3::Scope::Book => keys::workspace_word_tally::BOOK,
+                dr_view_stats::v3::Scope::Entry { .. } => keys::k4_book::ENTRY_WORDS,
+                dr_view_stats::v3::Scope::Material(_) => keys::k4_book::MATERIAL_WORDS,
+            };
+            div()
+                .id(SharedString::from(format!("v3-stats-{}", pane_slug(pane))))
+                .size_full()
+                .role(gpui::Role::Group)
+                .aria_label(t(cx, keys::right_sidebar::tabs::STATS))
+                .child(
+                    div()
+                        .id(SharedString::from(format!(
+                            "v3-stats-scope-{}",
+                            pane_slug(pane)
+                        )))
+                        .size_full()
+                        .role(gpui::Role::Group)
+                        .aria_label(t(cx, scope_label))
+                        .child(dr_view_stats::v3_panel::panel(
+                            &format!("stats-{}", pane_slug(pane)),
+                            &ws.book_id,
+                            scope,
+                            locale,
+                            platform,
+                            open,
+                            cx,
+                        )),
+                )
+                .into_any_element()
         }
         // M18: comments and TODOs.
         RightTab::Review => {
             let strings = crate::Strings::get(cx);
             let (locale, platform) = (strings.locale(), strings.platform());
-            if ws.book.v3().is_some() {
-                let Some(scope) = v3_review_scope(ws.nav.current()) else {
-                    return div().into_any_element();
-                };
-                let Some(open) = v3_review_open(ws, cx) else {
-                    return div().into_any_element();
-                };
-                let book = ws.book.clone();
-                let marks = Rc::new(move |target: &dr_view_review::v3::Target| {
-                    v3_review_target(target.clone()).map(|t| book.mark(&t).0)
-                });
-                return div()
-                    .id(SharedString::from(format!("v3-review-{}", pane_slug(pane))))
-                    .size_full()
-                    .role(gpui::Role::Group)
-                    .aria_label(t(cx, keys::right_sidebar::tabs::REVIEW))
-                    .child(dr_view_review::v3_panel::panel(
-                        &format!("review-{}", pane_slug(pane)),
-                        &ws.book_id,
-                        scope,
-                        locale,
-                        platform,
-                        open,
-                        marks,
-                        cx,
-                    ))
-                    .into_any_element();
-            }
-            let shell = cx.weak_entity();
-            let open: dr_view_review::Opener = std::rc::Rc::new(move |key, window, cx| {
-                shell
-                    .update(cx, |ws, cx| ws.open_review_target(key, window, cx))
-                    .ok();
+
+            let Some(scope) = v3_review_scope(ws.nav.current()) else {
+                return div().into_any_element();
+            };
+            let Some(open) = v3_review_open(ws, cx) else {
+                return div().into_any_element();
+            };
+            let book = ws.book.clone();
+            let marks = Rc::new(move |target: &dr_view_review::v3::Target| {
+                v3_review_target(target.clone()).map(|t| book.mark(&t).0)
             });
-            dr_view_review::panel(
-                &format!("review-{}", pane_slug(pane)),
-                &ws.book_id,
-                ws.nav.current().map(crate::book::nav_target),
-                locale,
-                platform,
-                open,
-                cx,
-            )
+            div()
+                .id(SharedString::from(format!("v3-review-{}", pane_slug(pane))))
+                .size_full()
+                .role(gpui::Role::Group)
+                .aria_label(t(cx, keys::right_sidebar::tabs::REVIEW))
+                .child(dr_view_review::v3_panel::panel(
+                    &format!("review-{}", pane_slug(pane)),
+                    &ws.book_id,
+                    scope,
+                    locale,
+                    platform,
+                    open,
+                    marks,
+                    cx,
+                ))
+                .into_any_element()
         }
     }
-}
-
-fn empty(key: Key, cx: &mut Context<Workspace>) -> AnyElement {
-    dr_ui::components::EmptyState::new(SharedString::from(key.name()), t(cx, key))
-        .into_any_element()
 }
 
 /// The account cell at the foot of the left sidebar: who, the Project Home
@@ -2413,8 +1678,12 @@ mod v3_panel_tests {
             assert_eq!(v3_stats_target(scope), Some(target));
         }
         assert_eq!(v3_stats_scope(None), Some(Scope::Book));
-        for key in ["template:tpl-chapter", "chapter:one", "element:one"] {
+        {
+            let key = "template:tpl-chapter";
             assert_eq!(v3_stats_scope(Some(&Target::from_key(key).unwrap())), None);
+        }
+        for key in ["chapter:one", "element:one"] {
+            assert!(Target::from_key(key).is_none());
         }
         assert!(
             v3_stats_target(Scope::Entry {

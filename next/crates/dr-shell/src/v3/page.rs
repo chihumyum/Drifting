@@ -29,6 +29,7 @@ pub struct EntryPage {
     parts: BTreeMap<String, (String, Rendered)>,
     pub sections: Vec<Section>,
     pub revealed: Option<Lines>,
+    pub synced: bool,
     pending_reveal: bool,
 }
 impl EntryPage {
@@ -41,11 +42,13 @@ impl EntryPage {
             parts: BTreeMap::new(),
             sections: Vec::new(),
             revealed: None,
+            synced: false,
             pending_reveal: true,
         }
     }
     pub fn refresh(&mut self, book: Rc<Book>, cx: &mut Context<Self>) {
         self.host.book = book.clone();
+        self.synced = false;
         if let Target::Entry { id, .. } = &self.target
             && let Some(v3) = book.v3()
         {
@@ -107,13 +110,13 @@ impl EntryPage {
     pub fn state(&self) -> serde_json::Value {
         serde_json::json!({ "target": self.target.key(), "sections": self.sections, "module": match &self.target { Target::Entry { module, .. } => module.as_ref().map(ToString::to_string), _ => None }, "reveal": self.revealed })
     }
-    fn module(
+    fn mount_module(
         &mut self,
         id: &str,
         module: ModuleSpec,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) -> AnyElement {
+    ) {
         let key = format!("module:{}", module.id);
         if self
             .parts
@@ -136,11 +139,14 @@ impl EntryPage {
             self.parts.insert(key.clone(), (module.kind.clone(), part));
         }
         self.sections.push(Section {
-            id: module.id.clone(),
+            id: module.id,
             kind: module.kind,
-            name: module.name.clone(),
+            name: module.name,
             registered: self.parts.contains_key(&key),
         });
+    }
+    fn render_module(&self, module: &ModuleSpec, window: &Window, cx: &App) -> AnyElement {
+        let key = format!("module:{}", module.id);
         let theme = Theme::of(window, cx);
         div()
             .id(SharedString::from(key.clone()))
@@ -152,18 +158,106 @@ impl EntryPage {
                 div()
                     .font_role(FontRole::Structure)
                     .text_color(theme.palette.ink(2).solid())
-                    .child(module.name),
+                    .child(module.name.clone()),
             )
             .children(self.parts.get(&key).map(|(_, p)| p.view.clone()))
             .into_any_element()
+    }
+    pub fn sync_parts(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let book = self.host.book.clone();
+        self.sections.clear();
+        let Some(v3) = book.v3() else {
+            self.synced = false;
+            return;
+        };
+        if let Target::Entry { id, .. } = self.target.clone()
+            && v3.entry(id.as_str()).is_some()
+        {
+            if let Some(level) = v3.levels.get(id.as_str()) {
+                let about = ModuleSpec {
+                    id: "about".into(),
+                    kind: "prose".into(),
+                    name: t(cx, keys::v3_shell::ABOUT).to_string(),
+                    pos: None,
+                    config: Default::default(),
+                    agent: None,
+                };
+                self.mount_module(id.as_str(), about, window, cx);
+                if let Some(template) = v3.template_of(id.as_str()) {
+                    for spec in &template.modules {
+                        self.mount_module(id.as_str(), spec.clone(), window, cx);
+                    }
+                }
+                let key = "display".to_owned();
+                if self
+                    .parts
+                    .get(&key)
+                    .is_some_and(|(kind, _)| kind != &level.settings.display)
+                {
+                    self.parts.remove(&key);
+                }
+                if !self.parts.contains_key(&key)
+                    && let Some(view) = super::level_display(
+                        LevelHost {
+                            page: self.host.clone(),
+                            level: id.to_string(),
+                            surface: DisplaySurface::Page,
+                        },
+                        window,
+                        cx,
+                    )
+                {
+                    self.parts
+                        .insert(key.clone(), (level.settings.display.clone(), view));
+                }
+                self.sections.push(Section {
+                    id: key.clone(),
+                    kind: level.settings.display.clone(),
+                    name: t(cx, keys::v3_shell::ENTRIES).to_string(),
+                    registered: self.parts.contains_key(&key),
+                });
+                let key = "settings".to_owned();
+                if !self.parts.contains_key(&key)
+                    && let Some(view) = super::level_settings(
+                        LevelHost {
+                            page: self.host.clone(),
+                            level: id.to_string(),
+                            surface: DisplaySurface::Page,
+                        },
+                        window,
+                        cx,
+                    )
+                {
+                    self.parts.insert(key.clone(), ("settings".into(), view));
+                }
+                self.sections.push(Section {
+                    id: key.clone(),
+                    kind: "settings".into(),
+                    name: t(cx, keys::v3_shell::SETTINGS).to_string(),
+                    registered: self.parts.contains_key(&key),
+                });
+            } else if let Some(template) = v3.template_of(id.as_str()) {
+                for spec in &template.modules {
+                    self.mount_module(id.as_str(), spec.clone(), window, cx);
+                }
+            }
+            let active: Vec<_> = self
+                .sections
+                .iter()
+                .map(|s| format!("module:{}", s.id))
+                .chain(["display".into(), "settings".into()])
+                .collect();
+            self.parts.retain(|k, _| active.contains(k));
+        }
+        self.synced = true;
     }
 }
 impl Render for EntryPage {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::of(window, cx);
+        self.sync_parts(window, cx);
         let book = self.host.book.clone();
         let mut content = div().flex().flex_col().gap_4();
-        self.sections.clear();
         let Some(v3) = book.v3() else {
             return content.into_any_element();
         };
@@ -185,52 +279,18 @@ impl Render for EntryPage {
                             config: Default::default(),
                             agent: None,
                         };
-                        let mut description = div().flex().flex_col().child(self.module(
-                            id.as_str(),
-                            about,
-                            window,
-                            cx,
-                        ));
+                        let mut description = div()
+                            .flex()
+                            .flex_col()
+                            .child(self.render_module(&about, window, cx));
                         if let Some(template) = v3.template_of(id.as_str()) {
                             for spec in &template.modules {
-                                description = description.child(self.module(
-                                    id.as_str(),
-                                    spec.clone(),
-                                    window,
-                                    cx,
-                                ));
+                                description =
+                                    description.child(self.render_module(spec, window, cx));
                             }
                         }
                         content = content.child(description);
-                        let key = "display".to_owned();
-                        if self
-                            .parts
-                            .get(&key)
-                            .is_some_and(|(kind, _)| kind != &level.settings.display)
-                        {
-                            self.parts.remove(&key);
-                        }
-                        if !self.parts.contains_key(&key)
-                            && let Some(view) = super::level_display(
-                                LevelHost {
-                                    page: self.host.clone(),
-                                    level: id.to_string(),
-                                    surface: DisplaySurface::Page,
-                                },
-                                window,
-                                cx,
-                            )
-                        {
-                            self.parts
-                                .insert(key.clone(), (level.settings.display.clone(), view));
-                        }
-                        self.sections.push(Section {
-                            id: key.clone(),
-                            kind: level.settings.display.clone(),
-                            name: t(cx, keys::v3_shell::ENTRIES).to_string(),
-                            registered: self.parts.contains_key(&key),
-                        });
-                        let display = if let Some((_, p)) = self.parts.get(&key) {
+                        let display = if let Some((_, p)) = self.parts.get("display") {
                             p.view.clone().into_any_element()
                         } else {
                             placeholder_display(&self.host, id.as_str(), cx)
@@ -243,29 +303,9 @@ impl Render for EntryPage {
                                 .child(t(cx, keys::v3_shell::ENTRIES))
                                 .child(display),
                         );
-                        let key = "settings".to_owned();
-                        if !self.parts.contains_key(&key)
-                            && let Some(view) = super::level_settings(
-                                LevelHost {
-                                    page: self.host.clone(),
-                                    level: id.to_string(),
-                                    surface: DisplaySurface::Page,
-                                },
-                                window,
-                                cx,
-                            )
-                        {
-                            self.parts.insert(key.clone(), ("settings".into(), view));
-                        }
-                        self.sections.push(Section {
-                            id: key.clone(),
-                            kind: "settings".into(),
-                            name: t(cx, keys::v3_shell::SETTINGS).to_string(),
-                            registered: self.parts.contains_key(&key),
-                        });
                         // The controls belong to G2 (`add_level_settings`). Until one is
                         // registered, show the effective display with the agreed label.
-                        let settings = if let Some((_, p)) = self.parts.get(&key) {
+                        let settings = if let Some((_, p)) = self.parts.get("settings") {
                             p.view.clone().into_any_element()
                         } else {
                             div()
@@ -282,17 +322,9 @@ impl Render for EntryPage {
                         );
                     } else if let Some(template) = v3.template_of(id.as_str()) {
                         for spec in &template.modules {
-                            content =
-                                content.child(self.module(id.as_str(), spec.clone(), window, cx));
+                            content = content.child(self.render_module(spec, window, cx));
                         }
                     }
-                    let active: Vec<_> = self
-                        .sections
-                        .iter()
-                        .map(|s| format!("module:{}", s.id))
-                        .chain(["display".into(), "settings".into()])
-                        .collect();
-                    self.parts.retain(|k, _| active.contains(k));
                     if self.pending_reveal {
                         let wanted = module.as_ref().map(|m| m.as_str()).or_else(|| {
                             self.revealed.and_then(|_| {

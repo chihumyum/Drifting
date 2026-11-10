@@ -37,7 +37,6 @@ pub mod whole;
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use dr_editor::page::{PageChrome, PageInfo, PageKind};
-use dr_shell::nav::Target;
 use dr_shell::pages::{PageEditorRef, PageHost};
 use dr_ui::tokens::page as tk;
 use gpui::{
@@ -56,12 +55,6 @@ pub fn init(cx: &mut App) {
     history::init(cx);
     v3::register(cx);
     dr_shell::v3::history::register(cx);
-    dr_shell::pages::add_page_chrome(cx, |target, host, _, _| match target {
-        Target::Chapter(_) | Target::Idea(_) | Target::Book => {
-            Some(Rc::new(Chrome::new(host)) as Rc<dyn PageChrome>)
-        }
-        _ => None,
-    });
 }
 
 /// A page's head and end.
@@ -84,7 +77,10 @@ impl Chrome {
         }
     }
 
-    pub(crate) fn with_book(host: PageHost, book: Rc<dr_shell::book::Book>) -> Self {
+    /// Bind chrome to an already validated canonical snapshot when the host
+    /// is not itself the shell (e.g. a standalone module preview). Writes
+    /// still use the captured per-field CAS guards and settlement pipeline.
+    pub fn with_book(host: PageHost, book: Rc<dr_shell::book::Book>) -> Self {
         Self {
             host,
             book: Some(book),
@@ -140,21 +136,8 @@ impl PageChrome for Chrome {
         Some(div().w_full().child(end).into_any_element())
     }
 
-    fn head_estimate(&self, page: &PageInfo) -> f32 {
-        let act = if page.act_page.is_some() {
-            tk::ACT_TOP
-                + tk::ACT_ORDINAL_SIZE
-                + tk::ACT_ORDINAL_GAP
-                + tk::ACT_NAME_SIZE * tk::ACT_NAME_LINE
-                + tk::ACT_GAP
-                + 10.0
-                + tk::ACT_GAP
-                + tk::ACT_META_LINE
-                + tk::ACT_BOTTOM
-        } else {
-            0.0
-        };
-        act + tk::TOP
+    fn head_estimate(&self, _page: &PageInfo) -> f32 {
+        tk::TOP
             + tk::FOLIO_LINE
             + tk::FOLIO_PAD
             + tk::FOLIO_MARGIN

@@ -313,7 +313,12 @@ impl CommentComposer {
         let input = CommentCreateIn {
             book: self.book.clone(),
             kind: Some(if self.todo { "todo" } else { "note" }.into()),
-            target: Some(self.target.clone()),
+            target: Some(dr_workspace::commands::v3::comment::Target {
+                kind: self.target.kind.clone(),
+                id: self.target.id.clone(),
+            }),
+            module: self.module.clone(),
+            anchor: None,
             block_id: None,
             range,
             region,

@@ -2,15 +2,24 @@
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use crate::reimport::{self, Destination, ResultOfImport};
 use dr_i18n::keys;
 use dr_import_v1::gate::{Accept, Gate, Reason};
 use dr_import_v1::locate::{self, Owner, Picked};
 use dr_import_v1::progress::Progress;
 use dr_import_v1::receipt::{Receipt, Unfinished};
-use dr_import_v1::run::{self, Cancel, Options, Outcome};
+use dr_import_v1::run::Cancel;
+use dr_import_v1::{
+    ImportError,
+    v3::{MappingChoices, Pending},
+};
 use dr_shell::notifications::{NoticeAction, Notifications, Source};
 use dr_shell::strings::tf;
 use dr_shell::{Services, ShellInfo, t};
@@ -34,7 +43,6 @@ pub const V1_DATA_DIR_ENV: &str = "DRIFTING_APP_DATA_DIR";
 /// second each (F7, f7-platform.md): the window stands frozen meanwhile, and
 /// a book stopped at once is carried on byte for byte by the next import.
 pub const QUIT_WAIT_BOOK: Duration = Duration::from_secs(1);
-pub const QUIT_WAIT_NOW: Duration = Duration::from_secs(1);
 
 /// Where the import is.
 #[derive(Clone, Debug, Default)]
@@ -46,7 +54,9 @@ pub enum State {
     Picking,
     /// The 0.1 libraries found on this device, to pick one from.
     Found(Found),
+    Ready(Ready),
     Running(Running),
+    Switching(Done),
     /// The gate stopped it; nothing was written.
     Blocked(Blocked),
     Done(Done),
@@ -66,6 +76,14 @@ pub struct FoundLibrary {
     pub picked: Picked,
     /// When its database last changed, ms since the epoch.
     pub modified_ms: Option<i64>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Ready {
+    pub folder: String,
+    pub target: PathBuf,
+    pub pending: Vec<Pending>,
+    pub explicit_choices: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -128,7 +146,8 @@ enum Msg {
     Progress(Progress),
     Blocked(Gate),
     Cancelled,
-    Done(Done),
+    Done(Done, Box<Destination>),
+    Pending(Vec<Pending>),
     Failed(String),
 }
 
@@ -141,7 +160,10 @@ pub struct LegacyImport {
     restore: Option<FocusHandle>,
     task: Option<Task<()>>,
     thread: Option<JoinHandle<()>>,
+    worker_live: Arc<AtomicBool>,
     cancel: Cancel,
+    destination: Option<Destination>,
+    draining: bool,
     /// Where to look for the local 0.1 libraries ([`v1_data_dir`]).
     v1_dir: Option<PathBuf>,
     /// The window the author started the import in: its dialogs show there.
@@ -159,7 +181,10 @@ impl LegacyImport {
             restore: None,
             task: None,
             thread: None,
+            worker_live: Arc::new(AtomicBool::new(false)),
             cancel: Cancel::default(),
+            destination: None,
+            draining: false,
             v1_dir: v1_data_dir(),
             window: None,
             reminders: Vec::new(),
@@ -194,14 +219,14 @@ impl LegacyImport {
 
     /// Whether the import's thread is still working.
     pub fn is_running(&self) -> bool {
-        self.thread.as_ref().is_some_and(|t| !t.is_finished())
+        self.worker_live.load(Ordering::Acquire)
     }
 
     /// The bookshelf's entry: the 0.1 libraries on this device to pick from,
     /// or, when there are none, the folder panel. Does nothing while an
     /// import is open.
     pub fn choose(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.is_open() {
+        if self.is_open() || self.draining || dr_shell::release::is_releasing(cx) {
             return;
         }
         self.window = Some(window.window_handle());
@@ -222,7 +247,13 @@ impl LegacyImport {
 
     /// The system's folder panel (from the list too: 「选择文件夹」).
     pub fn choose_folder(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if matches!(self.state, State::Running(_) | State::Picking) {
+        if self.draining
+            || dr_shell::release::is_releasing(cx)
+            || matches!(
+                self.state,
+                State::Running(_) | State::Switching(_) | State::Picking
+            )
+        {
             return;
         }
         self.window = Some(window.window_handle());
@@ -261,17 +292,131 @@ impl LegacyImport {
         let Some(library) = found.libraries.get(index).cloned() else {
             return;
         };
-        self.run(library.folder, library.picked, Accept::NOTHING, window, cx);
+        self.configure(library.folder, library.picked, window, cx);
     }
 
     /// Imports the 0.1 library `folder` stands for: what the folder panel
     /// gave (tests and captures call it directly).
     pub fn start(&mut self, folder: PathBuf, window: &mut Window, cx: &mut Context<Self>) {
+        if self.is_running()
+            || self.draining
+            || matches!(self.state, State::Switching(_))
+            || dr_shell::release::is_releasing(cx)
+        {
+            return;
+        }
         let name = folder_name(&folder);
         match locate::resolve(&folder) {
-            Ok(picked) => self.run(name, picked, Accept::NOTHING, window, cx),
+            Ok(picked) => self.configure(name, picked, window, cx),
             Err(error) => self.fail(Some(name), error.to_string(), window, cx),
         }
+    }
+
+    fn configure(
+        &mut self,
+        folder: String,
+        picked: Picked,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.window = Some(window.window_handle());
+        let original = cx
+            .try_global::<Services>()
+            .and_then(|s| s.library.as_ref())
+            .map(|ws| ws.library().paths().root.clone());
+        match original
+            .ok_or_else(|| "no library is open".to_owned())
+            .and_then(|old| Destination::prepare(&old, &picked))
+        {
+            Ok(job) => {
+                self.state = State::Ready(Ready {
+                    folder,
+                    target: job.target(),
+                    pending: Vec::new(),
+                    explicit_choices: serde_json::to_value(&job.choices).ok()
+                        != serde_json::to_value(MappingChoices::default()).ok(),
+                });
+                self.destination = Some(job);
+                self.take_focus(window, cx);
+                cx.notify();
+            }
+            Err(error) => self.fail(Some(folder), error, window, cx),
+        }
+    }
+
+    pub fn destination(&self) -> Option<&Destination> {
+        self.destination.as_ref()
+    }
+
+    /// The same serialized MappingChoices consumed by the v3 importer. No
+    /// fixture policy or guessed product default is substituted here.
+    pub fn set_mapping_choices(&mut self, choices: MappingChoices) -> Result<(), String> {
+        if !matches!(self.state, State::Ready(_)) {
+            return Err("import is not awaiting mapping choices".into());
+        }
+        self.destination
+            .as_mut()
+            .ok_or("no import destination")?
+            .set_choices(choices)?;
+        if let State::Ready(ready) = &mut self.state {
+            ready.explicit_choices = true;
+            ready.pending.clear();
+        }
+        Ok(())
+    }
+
+    pub fn choose_mapping(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !matches!(self.state, State::Ready(_)) {
+            return;
+        }
+        let paths = cx.prompt_for_paths(PathPromptOptions {
+            files: true,
+            directories: false,
+            multiple: false,
+            prompt: None,
+        });
+        self.task = Some(cx.spawn_in(window, async move |this, cx| {
+            let answer = paths.await;
+            cx.update(|_, cx| {
+                let _ = this.update(cx, |import, cx| {
+                    if let Ok(Ok(Some(paths))) = answer {
+                        let result = paths
+                            .first()
+                            .ok_or_else(|| "no mapping file selected".to_owned())
+                            .and_then(|path| std::fs::read(path).map_err(|e| e.to_string()))
+                            .and_then(|bytes| {
+                                serde_json::from_slice(&bytes).map_err(|e| e.to_string())
+                            })
+                            .and_then(|choices| import.set_mapping_choices(choices));
+                        if let Err(message) = result {
+                            dr_shell::notifications::Notifications::post(
+                                Source::Import,
+                                message,
+                                cx,
+                            );
+                        }
+                        cx.notify();
+                    }
+                });
+            })
+            .ok();
+        }));
+    }
+
+    pub fn start_configured(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let State::Ready(ready) = &self.state else {
+            return;
+        };
+        let Some(job) = self.destination.clone() else {
+            return;
+        };
+        self.run(
+            ready.folder.clone(),
+            job.picked(),
+            Accept::NOTHING,
+            window,
+            cx,
+        );
     }
 
     /// 「仍然导入」: the import the gate stopped, again, accepting what it
@@ -295,7 +440,7 @@ impl LegacyImport {
     /// bookshelf entry's choice instead. The gate decides again: what was
     /// accepted before is not taken as accepted now.
     pub fn carry_on(&mut self, book: &Unfinished, window: &mut Window, cx: &mut Context<Self>) {
-        if self.is_open() {
+        if self.is_open() || self.draining || dr_shell::release::is_releasing(cx) {
             return;
         }
         match book.database.as_ref().filter(|d| d.is_file()) {
@@ -314,7 +459,7 @@ impl LegacyImport {
                     id: None,
                     left: Vec::new(),
                 };
-                self.run(folder_name(&root), picked, Accept::NOTHING, window, cx);
+                self.configure(folder_name(&root), picked, window, cx);
             }
             None => {
                 log::info!("the 0.1 library of an unfinished book is gone; choosing again");
@@ -365,41 +510,24 @@ impl LegacyImport {
         }
     }
 
-    /// Before the app quits: the import finishes the book it writes and
-    /// stops, waiting at most [`QUIT_WAIT_BOOK`]; then it stops at once (the
-    /// book stays half-written and the next import carries it on), at most
-    /// [`QUIT_WAIT_NOW`] more. Its documents close and the library is left
-    /// as after any import.
-    pub fn stop_for_quit(&mut self) {
-        let Some(thread) = self.thread.as_ref() else {
-            return;
-        };
-        if thread.is_finished() {
-            return;
-        }
-        let started = Instant::now();
+    pub(crate) fn begin_drain(&mut self) -> Option<(JoinHandle<()>, Cancel)> {
+        self.draining = true;
         self.cancel.after_book();
-        let finished = wait_for(thread, QUIT_WAIT_BOOK);
-        if !finished {
-            self.cancel.now();
-            if !wait_for(thread, QUIT_WAIT_NOW) {
-                log::error!("the 0.1 library import did not stop before quitting");
-                return;
-            }
-        }
-        if let Some(thread) = self.thread.take() {
-            let _ = thread.join();
-        }
-        log::info!(
-            "the 0.1 library import stopped for quitting in {:.0} ms",
-            started.elapsed().as_secs_f64() * 1e3
-        );
+        self.thread
+            .take()
+            .map(|thread| (thread, self.cancel.clone()))
+    }
+    pub(crate) fn end_drain(&mut self) {
+        self.draining = false;
     }
 
     /// Closes the dialog: the list, a stopped import, the summary or the
     /// failure. Not while the import runs.
     pub fn close(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if matches!(self.state, State::Running(_) | State::Picking | State::Idle) {
+        if matches!(
+            self.state,
+            State::Running(_) | State::Switching(_) | State::Picking | State::Idle
+        ) {
             return;
         }
         self.close_now(window, cx);
@@ -453,43 +581,80 @@ impl LegacyImport {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.is_running() {
+        if self.is_running() || self.draining || dr_shell::release::is_releasing(cx) {
             return;
         }
         self.window = Some(window.window_handle());
-        let Some(ws) = cx.try_global::<Services>().and_then(|s| s.library.clone()) else {
+        let Some(job) = self.destination.clone() else {
+            self.fail(
+                Some(folder),
+                "no explicit import destination".into(),
+                window,
+                cx,
+            );
+            return;
+        };
+        let Some(options) = cx
+            .try_global::<Services>()
+            .and_then(|s| s.library.as_ref())
+            .map(|ws| ws.library().options().clone())
+        else {
             self.fail(Some(folder), "no library is open".into(), window, cx);
             return;
         };
         let version = cx
             .try_global::<ShellInfo>()
-            .map_or(env!("CARGO_PKG_VERSION"), |i| i.version);
+            .map_or(env!("CARGO_PKG_VERSION"), |i| i.version)
+            .to_owned();
         self.cancel = Cancel::default();
-        let mut options = Options::new(version);
-        options.accept = accept;
-        options.old_root = Some(picked.root.clone());
-        options.cancel = self.cancel.clone();
+        let cancel = self.cancel.clone();
         let (tx, mut rx) = futures::channel::mpsc::unbounded::<Msg>();
+        self.worker_live.store(true, Ordering::Release);
+        let live = WorkerLive(self.worker_live.clone());
         let spawned = {
             let (picked, folder) = (picked.clone(), folder.clone());
             std::thread::Builder::new()
                 .name("legacy-import".into())
                 .spawn(move || {
+                    let _live = live;
                     let reports = tx.clone();
-                    let outcome = run::import_into_library(
-                        &picked.database,
-                        ws.library(),
-                        &options,
-                        &mut |p| {
-                            let _ = reports.unbounded_send(Msg::Progress(p.clone()));
-                        },
-                    );
+                    let outcome = reimport::import(job, &version, accept, cancel, &mut |p| {
+                        let _ = reports.unbounded_send(Msg::Progress(p.clone()));
+                    });
                     let msg = match outcome {
-                        Ok((Outcome::Blocked(gate), _)) => Msg::Blocked(gate),
-                        Ok((Outcome::Cancelled, _)) => Msg::Cancelled,
-                        Ok((Outcome::Imported(receipt), timing)) => {
-                            Msg::Done(summary(&ws, folder, &picked, &receipt, timing.total_ms))
+                        Ok(ResultOfImport::Blocked(gate)) => Msg::Blocked(gate),
+                        Ok(ResultOfImport::Cancelled) => Msg::Cancelled,
+                        Ok(ResultOfImport::Imported {
+                            job,
+                            receipt,
+                            timing,
+                        }) => {
+                            // Import's unindexed store is closed already. Rebuild canonical
+                            // indexes using an ordinary workspace, then close that too.
+                            match dr_store::Library::open(job.target(), options)
+                                .map_err(|e| e.to_string())
+                                .and_then(|lib| {
+                                    dr_workspace::Workspace::open(
+                                        lib,
+                                        dr_workspace::WorkspaceOptions::default(),
+                                    )
+                                    .map_err(|e| e.to_string())
+                                }) {
+                                Ok(ws) => {
+                                    let done =
+                                        summary(&ws, folder, &picked, &receipt, timing.total_ms);
+                                    match ws.try_shutdown() {
+                                        Ok(()) => Msg::Done(done, job),
+                                        Err(error) => Msg::Failed(format!(
+                                            "import target could not close: {}",
+                                            error.error
+                                        )),
+                                    }
+                                }
+                                Err(error) => Msg::Failed(error),
+                            }
                         }
+                        Err(ImportError::V3Pending(pending)) => Msg::Pending(pending),
                         Err(error) => Msg::Failed(error.to_string()),
                     };
                     let _ = tx.unbounded_send(msg);
@@ -575,7 +740,9 @@ impl LegacyImport {
                 log::info!("the 0.1 library import was cancelled before writing anything");
                 self.close_now(window, cx);
             }
-            Msg::Done(done) => {
+            Msg::Done(done, job) => {
+                let job = *job;
+                self.destination = Some(job.clone());
                 let finished: HashSet<&str> = done
                     .books
                     .iter()
@@ -584,7 +751,9 @@ impl LegacyImport {
                     .collect();
                 let (gone, kept) = std::mem::take(&mut self.reminders)
                     .into_iter()
-                    .partition::<Vec<_>, _>(|(_, book)| finished.contains(book.as_str()));
+                    .partition::<Vec<_>, _>(|(_, book)| {
+                        finished.contains(book.as_str()) || book == &job.id
+                    });
                 self.reminders = kept;
                 for (notice, _) in gone {
                     Notifications::remove(notice, cx);
@@ -595,7 +764,22 @@ impl LegacyImport {
                     done.total_ms,
                     if done.cancelled { " (cancelled)" } else { "" }
                 );
-                self.state = State::Done(done);
+                if done.cancelled || !job.completed || self.draining {
+                    self.state = State::Done(done);
+                } else {
+                    self.activate(job, done, cx);
+                }
+            }
+            Msg::Pending(pending) => {
+                if let Some(job) = &self.destination {
+                    self.state = State::Ready(Ready {
+                        folder: folder.to_owned(),
+                        target: job.target(),
+                        pending,
+                        explicit_choices: serde_json::to_value(&job.choices).ok()
+                            != serde_json::to_value(MappingChoices::default()).ok(),
+                    });
+                }
             }
             Msg::Failed(message) => {
                 log::warn!("the 0.1 library import failed: {message}");
@@ -605,6 +789,56 @@ impl LegacyImport {
                 });
             }
         }
+    }
+    fn activate(&mut self, job: Destination, done: Done, cx: &mut Context<Self>) {
+        self.state = State::Switching(done.clone());
+        let thread = self.thread.take();
+        let this = cx.entity();
+        cx.spawn(async move |_, cx| {
+            let joined = cx
+                .background_executor()
+                .spawn(async move {
+                    thread.map_or(Ok(()), |thread| {
+                        thread
+                            .join()
+                            .map_err(|_| "import worker panicked".to_owned())
+                    })
+                })
+                .await;
+            cx.update(|cx| {
+                if let Err(message) = joined {
+                    this.update(cx, |import, cx| {
+                        import.state = State::Failed(Failed {
+                            folder: Some(done.folder),
+                            message,
+                        });
+                        cx.notify();
+                    });
+                    return;
+                }
+                // Release hooks only settle already finished work; the long
+                // cancellable import above ran with ordinary UI admission.
+                let commit = job.clone();
+                dr_shell::library::replace_with_commit(
+                    cx,
+                    move |old, options| job.open_target(old, options),
+                    move |ws| commit.commit_selection(ws),
+                    move |result, cx| {
+                        this.update(cx, |import, cx| {
+                            import.state = match result {
+                                Ok(()) => State::Done(done),
+                                Err(message) => State::Failed(Failed {
+                                    folder: Some(done.folder),
+                                    message,
+                                }),
+                            };
+                            cx.notify();
+                        })
+                    },
+                );
+            });
+        })
+        .detach();
     }
 }
 
@@ -617,9 +851,21 @@ pub(crate) fn check_unfinished(import: Entity<LegacyImport>, cx: &mut App) {
     let Some(ws) = cx.try_global::<Services>().and_then(|s| s.library.clone()) else {
         return;
     };
+    let root = ws.library().paths().root.clone();
     let read = cx.background_spawn(async move {
-        ws.library()
+        let mut books = ws
+            .library()
             .local_read(|c| Ok(dr_import_v1::receipt::unfinished(c)?))
+            .map_err(|e| e.to_string())?;
+        if let Some(job) = Destination::unfinished(&root)? {
+            books.push(Unfinished {
+                book_id: job.id,
+                name: folder_name(&job.source_root),
+                database: Some(job.database),
+                root: Some(job.source_root),
+            });
+        }
+        Ok::<_, String>(books)
     });
     cx.spawn(async move |cx| {
         let books = match read.await {
@@ -636,6 +882,23 @@ pub(crate) fn check_unfinished(import: Entity<LegacyImport>, cx: &mut App) {
         cx.update(|cx| import.update(cx, |import, cx| import.remind(books, cx)));
     })
     .detach();
+}
+
+struct WorkerLive(Arc<AtomicBool>);
+impl Drop for WorkerLive {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::Release);
+    }
+}
+
+pub(crate) fn drain_worker(thread: JoinHandle<()>, cancel: Cancel) -> Result<(), String> {
+    cancel.after_book();
+    if !wait_for(&thread, QUIT_WAIT_BOOK) {
+        cancel.now();
+    }
+    thread
+        .join()
+        .map_err(|_| "import worker panicked during release".to_owned())
 }
 
 fn wait_for(thread: &JoinHandle<()>, at_most: Duration) -> bool {
@@ -739,7 +1002,7 @@ fn summary(
             .books
             .iter()
             .find(|b| b.id == id)
-            .map(|b| b.words)
+            .and_then(|b| b.words)
     };
     let books: Vec<DoneBook> = receipt
         .books

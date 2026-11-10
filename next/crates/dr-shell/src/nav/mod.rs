@@ -24,9 +24,7 @@ pub mod location;
 
 use std::collections::VecDeque;
 
-use dr_model::id::{
-    CategoryId, ElementId, EntryId, EntryTemplateId, MaterialId, ModuleId, NodeId, StorylineId,
-};
+use dr_model::id::{EntryId, EntryTemplateId, MaterialId, ModuleId};
 use serde::{Deserialize, Serialize};
 
 /// Something a tab can show.
@@ -38,12 +36,6 @@ pub enum Target {
         module: Option<ModuleId>,
     },
     Template(EntryTemplateId),
-    Chapter(NodeId),
-    /// 构想 (internal name drift).
-    Idea(NodeId),
-    Storyline(StorylineId),
-    Element(ElementId),
-    Category(CategoryId),
     Material(MaterialId),
     /// 通览全书: the whole book in one scroll. One per book.
     Book,
@@ -68,11 +60,7 @@ impl Target {
                 }
             }
             "template" => Target::Template(id.parse().ok()?),
-            "chapter" => Target::Chapter(id.parse().ok()?),
-            "idea" => Target::Idea(id.parse().ok()?),
-            "storyline" => Target::Storyline(id.parse().ok()?),
-            "element" => Target::Element(id.parse().ok()?),
-            "category" => Target::Category(id.parse().ok()?),
+
             "material" => Target::Material(id.parse().ok()?),
             _ => return None,
         })
@@ -86,11 +74,7 @@ impl Target {
                 None => format!("entry:{id}"),
             },
             Target::Template(id) => format!("template:{id}"),
-            Target::Chapter(id) => format!("chapter:{id}"),
-            Target::Idea(id) => format!("idea:{id}"),
-            Target::Storyline(id) => format!("storyline:{id}"),
-            Target::Element(id) => format!("element:{id}"),
-            Target::Category(id) => format!("category:{id}"),
+
             Target::Material(id) => format!("material:{id}"),
             Target::Book => "book".to_owned(),
         }
@@ -731,11 +715,17 @@ mod tests {
     use super::*;
 
     fn ch(n: u32) -> Target {
-        Target::Chapter(NodeId::parse(&format!("c{n}")).unwrap())
+        Target::Entry {
+            id: dr_model::id::EntryId::parse(&format!("c{n}")).unwrap(),
+            module: Some("mod-prose".parse().unwrap()),
+        }
     }
 
     fn el(n: u32) -> Target {
-        Target::Element(ElementId::parse(&format!("e{n}")).unwrap())
+        Target::Entry {
+            id: dr_model::id::EntryId::parse(&format!("e{n}")).unwrap(),
+            module: None,
+        }
     }
 
     fn keys(nav: &Navigator) -> Vec<String> {
@@ -753,19 +743,25 @@ mod tests {
         let mut nav = Navigator::default();
         nav.open(ch(1), Open::PREVIEW);
         nav.open(ch(2), Open::PREVIEW);
-        assert_eq!(keys(&nav), ["~chapter:c2"]);
+        assert_eq!(keys(&nav), ["~entry:c2/mod-prose"]);
         assert!(nav.promote(&ch(2)));
         nav.open(ch(3), Open::PREVIEW);
-        assert_eq!(keys(&nav), ["chapter:c2", "~chapter:c3"]);
+        assert_eq!(keys(&nav), ["entry:c2/mod-prose", "~entry:c3/mod-prose"]);
         nav.open(el(1), Open::KEEP);
-        assert_eq!(keys(&nav), ["chapter:c2", "~chapter:c3", "element:e1"]);
+        assert_eq!(
+            keys(&nav),
+            ["entry:c2/mod-prose", "~entry:c3/mod-prose", "entry:e1"]
+        );
         // Something open is activated, not reopened.
         nav.open(ch(2), Open::PREVIEW);
         assert_eq!(nav.current(), Some(&ch(2)));
         assert_eq!(nav.tabs().len(), 3);
         // Opening a preview tab "kept" keeps it.
         nav.open(ch(3), Open::KEEP);
-        assert_eq!(keys(&nav), ["chapter:c2", "chapter:c3", "element:e1"]);
+        assert_eq!(
+            keys(&nav),
+            ["entry:c2/mod-prose", "entry:c3/mod-prose", "entry:e1"]
+        );
     }
 
     #[test]
@@ -870,7 +866,12 @@ mod tests {
         assert!(nav.reorder(0, 3));
         assert_eq!(
             keys(&nav),
-            ["chapter:c2", "chapter:c3", "chapter:c4", "chapter:c1"]
+            [
+                "entry:c2/mod-prose",
+                "entry:c3/mod-prose",
+                "entry:c4/mod-prose",
+                "entry:c1/mod-prose"
+            ]
         );
         assert_eq!(nav.current(), Some(&ch(2)));
         assert!(nav.cycle(-1));
@@ -888,7 +889,7 @@ mod tests {
         nav.activate(0);
         nav.split_with(2, Side::Right);
         nav.forget(&ch(3));
-        assert_eq!(keys(&nav), ["chapter:c1", "chapter:c2"]);
+        assert_eq!(keys(&nav), ["entry:c1/mod-prose", "entry:c2/mod-prose"]);
         nav.forget(&ch(1));
         assert!(nav.history().all(|p| p != &Page::Target(ch(1))));
         nav.back();
@@ -928,7 +929,10 @@ mod tests {
         let json = serde_json::to_string(&nav).unwrap();
         let saved: Navigator = serde_json::from_str(&json).unwrap();
         let restored = Navigator::restored(saved, |t| t != &ch(2));
-        assert_eq!(keys(&restored), ["chapter:c1", "chapter:c3"]);
+        assert_eq!(
+            keys(&restored),
+            ["entry:c1/mod-prose", "entry:c3/mod-prose"]
+        );
         assert_eq!(restored.page(), Page::Target(ch(1)));
         assert!(!restored.can_go_back());
     }

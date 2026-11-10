@@ -22,7 +22,7 @@ use dr_model::id::ConversationId;
 use dr_store::Library;
 use dr_testkit::seed::{self, Preset};
 use dr_view_agent::controller::AgentController;
-use dr_workspace::{Actor, Workspace, WorkspaceOptions, library_options};
+use dr_workspace::{Workspace, WorkspaceOptions, library_options};
 use futures::{FutureExt, channel::oneshot, executor::block_on, future::BoxFuture};
 use serde_json::json;
 
@@ -118,15 +118,16 @@ fn cancelled_read(path: ReadPath) {
         }
     }));
     let lib = Library::open(dir.path(), options).unwrap();
-    let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+    let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
     let book = seeded.books[0].book_id().clone();
     let input = seeded.books[0].prose[0].view().plain_text();
     seeded.write_to(&lib).unwrap();
     let ws = Workspace::open(lib, WorkspaceOptions::default()).unwrap();
-    let chapters = ws
-        .call(&Actor::User, "chapter.list", json!({"book":book}))
-        .unwrap();
-    let doc = format!("node:{}", chapters["output"][0]["id"].as_str().unwrap());
+    let chapters = json!({"output":dr_testkit::seed::acceptance::entries_by_template(&ws,&book,"tpl-chapter")});
+    let doc = format!(
+        "body:{}/mod-prose",
+        chapters["output"][0]["id"].as_str().unwrap()
+    );
     let (model_ready, model_wait) = oneshot::channel();
     let call = match path {
         ReadPath::Facade => ToolCall {
@@ -155,7 +156,14 @@ fn cancelled_read(path: ReadPath) {
             book,
             conversation: ConversationId::new_v7(),
             input,
-            config: RunConfig::new(Provider::Openai, "synthetic-model"),
+            config: {
+                let mut c = RunConfig::new(Provider::Openai, "synthetic-model");
+                c.capabilities = Some(dr_agent::ModelCapabilities {
+                    context_window: Some(262_144),
+                    ..Default::default()
+                });
+                c
+            },
         })
         .unwrap();
     armed.store(true, Ordering::SeqCst);

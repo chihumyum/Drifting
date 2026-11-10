@@ -235,11 +235,15 @@ fn grid_and_islands_share_entry_targets_and_preserve_canvas_layout() {
     let layout = again.v3().unwrap().entry(&idea.id).unwrap().layout;
     assert_eq!(layout.board, Some((123.0, 456.0)));
     assert_eq!(layout.grid, Some((2, 3)));
-    let legacy = call(&ws, "book.create", json!({"name":"Synthetic legacy"}));
-    let legacy = Book::load(&ws, legacy["id"].as_str().unwrap()).unwrap();
+    let other = call(
+        &ws,
+        "project.create",
+        json!({"name":"Synthetic other book"}),
+    );
+    let other = Book::load(&ws, other["id"].as_str().unwrap()).unwrap();
     assert!(
         rows(
-            &legacy,
+            &other,
             &elements.id,
             Display::List,
             false,

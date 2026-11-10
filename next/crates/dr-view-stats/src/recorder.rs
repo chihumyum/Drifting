@@ -30,7 +30,7 @@ use std::sync::mpsc::{self, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use dr_doc::book::Collection;
+use dr_doc::v3::CollectionV3 as Collection;
 use dr_model::Day;
 use dr_store::Origin;
 use dr_workspace::commands::stats::{self as ops, day_number};
@@ -321,39 +321,12 @@ pub struct WorkspaceSource {
 
 impl Source for WorkspaceSource {
     fn chapters(&self, book: &str) -> Option<Vec<(String, u64)>> {
-        let is_v3 = self
-            .ws
-            .library()
-            .open_doc(&format!("book:{book}"), dr_store::OpenDoc::Existing)
+        crate::v3::load(&self.ws, book, crate::v3::Scope::Book)
             .ok()?
-            .read(dr_doc::v3::is_v3_doc)
-            .ok()?;
-        if is_v3 {
-            // The recorder follows exactly the resident manuscript prose set;
-            // memberships, retained bodies and material prose cannot add words.
-            return crate::v3::load(&self.ws, book, crate::v3::Scope::Book)
-                .ok()?
-                .manuscript
-                .into_iter()
-                .map(|d| Some((d.id, d.metrics?.words)))
-                .collect();
-        }
-        let out = self
-            .ws
-            .run::<ops::WordCounts>(
-                &Actor::User,
-                dr_workspace::commands::BookIn {
-                    book: book.to_owned(),
-                },
-            )
-            .ok()?;
-        Some(
-            out.output
-                .chapters
-                .into_iter()
-                .map(|c| (c.doc, c.count.words))
-                .collect(),
-        )
+            .manuscript
+            .into_iter()
+            .map(|d| Some((d.id, d.metrics?.words)))
+            .collect()
     }
 
     fn words(&self, doc: &str) -> Option<u64> {

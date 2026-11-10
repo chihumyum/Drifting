@@ -44,7 +44,7 @@ pub mod view;
 pub use book::{BookEditor, BookEditorEvent, PreparedBook, ReadingPosition};
 pub use embeds::{NoteEmbeds, NoteEvent};
 pub use links::{DriftingExtension, LinkTargets};
-pub use page::{ActPage, PageChrome, PageInfo, PageKind};
+pub use page::{PageChrome, PageInfo, PageKind};
 pub use settings::EditorSettings;
 pub use source::SessionSource;
 pub use todo::TodoMarker;

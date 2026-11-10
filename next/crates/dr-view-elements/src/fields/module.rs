@@ -10,9 +10,7 @@ use gpui::{AppContext as _, Context, Window};
 
 impl Fields {
     fn module_target(&self) -> Option<In> {
-        let Owner::Module { entry, module } = &self.owner else {
-            return None;
-        };
+        let Owner::Module { entry, module } = &self.owner;
         Some(In {
             book: self.book.id.clone(),
             entry: entry.clone(),

@@ -1,50 +1,27 @@
-//! The first batch of commands and queries: the book's structure.
-//!
-//! Names are `<thing>.<verb>`. Interface and Agent run the same command with
-//! the interface's meaning (f1-model-doc.md "界面和 Agent 做法不一样的地方",
-//! settled in f3-workspace.md):
-//!
-//! - deleting moves to the trash and never refuses; side effects wait for
-//!   the purge; the result lists what was affected;
-//! - a new or renamed chapter, idea, storyline or category gets a ` 2`
-//!   suffix when its name is taken, and the result returns the final name;
-//!   an element name that is taken is refused (automatic links identify
-//!   people by name), except for a placeholder name asked to be numbered.
+//! The canonical registry: generic entries/modules plus shared project, prose,
+//! materials, comments, recent visits, statistics and raw history recovery.
+//! Every caller uses the same validation and settlement pipeline.
 
-use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use dr_doc::book::BookView;
-use dr_model::book::*;
-use dr_model::id::NodeId;
-use dr_model::kind::EntityKind;
+use dr_model::shared::*;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::cache::Key;
 use crate::cx::{Cx, EffectAction};
 use crate::error::{Result, WsError};
 use crate::registry::Registry;
 use crate::workspace::BookSlot;
 
 pub mod book;
-pub mod chapter;
 pub mod comment;
-pub mod element;
-pub mod history;
-pub mod idea;
+mod comment_shared;
 pub mod material;
-pub mod mention;
-pub mod patch;
-pub mod plot_grid;
 pub mod points;
 pub mod prose;
+pub mod prose_template;
 pub mod recent;
-pub mod relation;
 pub mod stats;
-pub mod storyline;
-pub mod template;
-pub mod time_pin;
 pub mod v3;
 
 /// Define an [`crate::Op`].
@@ -74,23 +51,19 @@ pub(crate) use op;
 /// Every command and query of this build.
 pub(crate) fn register(r: &mut Registry) {
     book::register(r);
-    chapter::register(r);
-    storyline::register(r);
-    element::register(r);
-    relation::register(r);
-    idea::register(r);
-    comment::register(r);
     material::register(r);
     prose::register(r);
-    history::register(r);
     points::register(r);
-    patch::register(r);
-    plot_grid::register(r);
-    recent::register(r);
     stats::register(r);
-    mention::register(r);
-    time_pin::register(r);
-    template::register(r);
+    r.add::<v3::comment::CommentList>()
+        .add::<v3::comment::CommentAnchors>()
+        .add::<v3::comment::CommentCreate>()
+        .add::<v3::comment::CommentUpdate>()
+        .add::<v3::comment::CommentReanchor>()
+        .add::<v3::comment::CommentDelete>()
+        .add::<v3::comment::TodoProject>()
+        .add::<v3::recent::RecentTouch>()
+        .add::<v3::recent::RecentList>();
     v3::register(r);
 }
 
@@ -164,199 +137,37 @@ pub(crate) fn now() -> dr_model::Timestamp {
 }
 
 /// What storage knows of a prose document without opening it.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(crate) struct ProseFacts {
-    /// Its words in the derived index (0 until dr-index reaches it).
-    pub words: u64,
-    /// Its newest stored change (Unix seconds); `None` before any.
-    pub edited_at: Option<i64>,
+pub(crate) fn materials(slot: &BookSlot) -> Arc<Vec<Material>> {
+    Arc::new(slot.reader_v3.view().materials())
 }
-
-pub(crate) fn prose_facts(lib: &dr_store::Library, doc: &str) -> ProseFacts {
-    ProseFacts {
-        words: lib.doc_stats(doc).ok().flatten().map_or(0, |s| s.words),
-        edited_at: lib.head(doc).ok().flatten().map(|h| h.ts.div_euclid(1000)),
-    }
+pub(crate) fn assets(slot: &BookSlot) -> Arc<Vec<Asset>> {
+    Arc::new(slot.reader_v3.view().assets())
 }
-
-pub(crate) fn nodes(slot: &BookSlot) -> Arc<BTreeMap<NodeId, Node>> {
-    slot.cache.nodes(&slot.reader.view())
+pub(crate) fn material_folders(slot: &BookSlot) -> Arc<Vec<MaterialFolder>> {
+    Arc::new(slot.reader_v3.view().material_folders())
 }
-
-/// Live chapters in reading order.
-pub(crate) fn chapters(slot: &BookSlot) -> Vec<Node> {
-    let mut v: Vec<Node> = nodes(slot)
-        .values()
-        .filter(|n| n.is_chapter() && !n.is_trashed())
-        .cloned()
-        .collect();
-    v.sort_by(|a, b| dr_model::order::cmp_order((a.book_order, &a.id), (b.book_order, &b.id)));
-    v
+pub(crate) fn relations_raw(slot: &BookSlot) -> Arc<Vec<Relation>> {
+    Arc::new(slot.reader_v3.view().relations_raw())
 }
-
-macro_rules! cached {
-    ($fn:ident, $key:ident, $ty:ty, $read:ident) => {
-        pub(crate) fn $fn(slot: &BookSlot) -> Arc<$ty> {
-            slot.cache
-                .get(Key::$key, &slot.reader.view(), |v: &BookView<'_>| v.$read())
-        }
-    };
-}
-// Shared collections retain their v2.2 cache; v3 reads its own typed view.
-macro_rules! versioned_cached {
-    ($fn:ident, $key:ident, $ty:ty, $read:ident) => {
-        pub(crate) fn $fn(slot: &BookSlot) -> Arc<$ty> {
-            if slot.is_v3() {
-                Arc::new(slot.reader_v3.view().$read())
-            } else {
-                slot.cache
-                    .get(Key::$key, &slot.reader.view(), |v: &BookView<'_>| v.$read())
-            }
-        }
-    };
-}
-cached!(acts, Acts, Vec<Act>, acts);
-cached!(storylines, Storylines, Vec<Storyline>, storylines);
-cached!(categories, Categories, Vec<Category>, categories);
-cached!(elements, Elements, Vec<Element>, elements);
-cached!(
-    relation_types,
-    RelationTypes,
-    Vec<RelationType>,
-    relation_types
-);
-cached!(relations, Relations, Vec<Relation>, relations);
-cached!(comments, Comments, Vec<Comment>, comments);
-versioned_cached!(materials, Materials, Vec<Material>, materials);
-versioned_cached!(assets, Assets, Vec<Asset>, assets);
-cached!(drift_groups, DriftGroups, Vec<DriftGroup>, drift_groups);
-versioned_cached!(
-    material_folders,
-    MaterialFolders,
-    Vec<MaterialFolder>,
-    material_folders
-);
-cached!(facts, Facts, Vec<KvEntry>, facts);
-cached!(memory, Memory, Vec<Memory>, memory);
-cached!(meta, Meta, BookMeta, meta);
-cached!(time_pins, TimePins, Vec<TimePin>, time_pins);
-cached!(patches, Patches, Vec<Patch>, patches);
-versioned_cached!(relations_raw, RelationsRaw, Vec<Relation>, relations_raw);
-
-/// Whether `r` names a live entity (not in the trash; a patch of an
-/// existing element; a comment or material while stored): F1's key lookup
-/// (`BookView::entity_exists`) on the holder's document, never a read of a
-/// whole collection.
-pub(crate) fn is_live(slot: &BookSlot, r: &EntityRef) -> bool {
-    slot.reader.view().entity_exists(r)
-}
-
-/// Comments whose stored target is `target`, read from the raw entries (no
-/// read tolerance needed: only the target fields).
-pub(crate) fn comments_on(slot: &BookSlot, target: &EntityRef) -> Vec<dr_model::id::CommentId> {
-    let mut out = Vec::new();
-    slot.handle.doc().get_map("comments").for_each(|id, v| {
-        if let loro::ValueOrContainer::Container(loro::Container::Map(m)) = v {
-            let field = |k: &str| match m.get(k) {
-                Some(loro::ValueOrContainer::Value(loro::LoroValue::String(s))) => {
-                    Some(s.to_string())
-                }
-                _ => None,
-            };
-            if field("target").as_deref() == Some(target.id.as_str())
-                && field("target_kind").map(|k| EntityKind::parse(&k)) == Some(target.kind.clone())
-                && let Ok(cid) = dr_model::id::CommentId::parse(id)
-            {
-                out.push(cid);
-            }
-        }
-    });
-    out.sort();
-    out
-}
-
-/// Titles of live chapters and ideas (one namespace, as the old client),
-/// leaving out `except`.
-pub(crate) fn node_titles(slot: &BookSlot, except: Option<&NodeId>) -> Vec<String> {
-    nodes(slot)
-        .values()
-        .filter(|n| !n.is_trashed() && Some(&n.id) != except)
-        .map(|n| n.title.clone())
-        .collect()
-}
-
-/// Report what moving `target` to the trash hides (`trash = true`) or what
-/// restoring it shows again: its visible relations, and the comments on it.
-pub(crate) fn trash_effects(cx: &Cx<'_>, slot: &BookSlot, target: &EntityRef, trash: bool) {
-    // The stored relations touching it whose other end is live: shown now
-    // (trash) or shown again (restore).
-    let types = relation_types(slot);
-    let rels: Vec<Relation> = relations_raw(slot)
-        .iter()
-        .filter(|r| types.iter().any(|t| t.id == r.relation_type) && r.from != r.to)
-        .filter(|r| {
-            (&r.from == target && is_live(slot, &r.to))
-                || (&r.to == target && is_live(slot, &r.from))
-        })
-        .cloned()
-        .collect();
-    for r in rels {
-        cx.effect(
-            if trash {
-                EffectAction::Hidden
-            } else {
-                EffectAction::Shown
-            },
-            "relation",
-            r.id.as_str(),
-            None,
-        );
-    }
-    for c in comments_on(slot, target) {
-        cx.effect(
-            if trash {
-                EffectAction::Unlocated
-            } else {
-                EffectAction::Shown
-            },
-            "comment",
-            c.as_str(),
-            None,
-        );
-    }
-}
-
-/// What purging `target` must also change in the same commit: every stored
-/// relation touching it (deleted) and every comment on it (becomes
-/// floating). Returns (relation ids, comment ids).
 pub(crate) fn purge_fallout(
     slot: &BookSlot,
     target: &EntityRef,
 ) -> (Vec<dr_model::id::RelationId>, Vec<dr_model::id::CommentId>) {
-    let rels = relations_raw(slot)
-        .iter()
-        .filter(|r| &r.from == target || &r.to == target)
-        .map(|r| r.id.clone())
-        .collect();
-    (rels, comments_on(slot, target))
+    (
+        relations_raw(slot)
+            .iter()
+            .filter(|r| &r.from == target || &r.to == target)
+            .map(|r| r.id.clone())
+            .collect(),
+        slot.reader_v3
+            .view()
+            .comments()
+            .iter()
+            .filter(|c| c.target.as_ref() == Some(target))
+            .map(|c| c.id.clone())
+            .collect(),
+    )
 }
-
-/// Apply [`purge_fallout`] inside the book transaction.
-pub(crate) fn apply_fallout(
-    txn: &mut dr_doc::book::BookTxn<'_>,
-    rels: &[dr_model::id::RelationId],
-    cmts: &[dr_model::id::CommentId],
-) -> Result<()> {
-    for r in rels {
-        txn.purge(dr_doc::book::Collection::Relations, r.as_str())?;
-    }
-    for c in cmts {
-        let w = txn.comment(c)?;
-        w.target(None)?.target_block(None)?.anchor(None)?;
-    }
-    Ok(())
-}
-
 pub(crate) fn report_fallout(
     cx: &Cx<'_>,
     rels: &[dr_model::id::RelationId],
@@ -367,27 +178,5 @@ pub(crate) fn report_fallout(
     }
     for c in cmts {
         cx.effect(EffectAction::Detached, "comment", c.as_str(), None);
-    }
-}
-
-/// The entity `kind` / `id` exists (live) in the book.
-pub(crate) fn require_live(slot: &BookSlot, kind: EntityKind, id: &str) -> Result<()> {
-    if is_live(slot, &EntityRef::new(kind.clone(), id)) {
-        Ok(())
-    } else {
-        Err(WsError::not_found(
-            match kind {
-                EntityKind::Node => "node",
-                EntityKind::Element => "element",
-                EntityKind::Category => "category",
-                EntityKind::Storyline => "storyline",
-                EntityKind::Patch => "patch",
-                EntityKind::Comment => "comment",
-                EntityKind::Material => "material",
-                EntityKind::Entry => "entry",
-                EntityKind::Other(_) => "entity",
-            },
-            id,
-        ))
     }
 }

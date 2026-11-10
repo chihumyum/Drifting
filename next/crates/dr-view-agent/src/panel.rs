@@ -306,8 +306,8 @@ impl AgentPanel {
         }
         let selected = self.selected.clone();
         let generation = self.generation;
-        let need_starters = self.starters.as_ref().is_none_or(|s| s.chapters.is_empty())
-            && self.snapshot.as_ref().is_none_or(|s| s.messages.is_empty());
+        let need_starters =
+            self.starters.is_none() && self.snapshot.as_ref().is_none_or(|s| s.messages.is_empty());
         self.loading = true;
         cx.spawn(async move |this, cx| {
             let result = cx

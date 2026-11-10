@@ -45,7 +45,8 @@ impl Headless {
         let root = dir.path().join("library");
         let lib = dr_store::Library::open(&root, dr_workspace::library_options(VERSION))?;
         let book = dr_testkit::samples::slow_clock()?;
-        dr_testkit::seed::write_book(&lib, &book).map_err(|e| anyhow::anyhow!("{e}"))?;
+        dr_testkit::seed::write_book_v3(&lib, &dr_testkit::seed::book_to_v3(&book)?)
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
         lib.close()?;
         let library = dr_workspace::Workspace::open_dir(&root, VERSION)?;
         let shell_lib = library.clone();

@@ -46,7 +46,7 @@ impl Fixture {
         let mut books = Vec::new();
         let mut text = Vec::new();
         for offset in [0, 1] {
-            let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED + offset).unwrap();
+            let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED + offset).unwrap();
             books.push(seeded.books[0].book_id().clone());
             text.push(
                 seeded.books[0]
@@ -385,7 +385,7 @@ fn two_turn_cards_keep_order_during_stream_finish_and_reopen_and_disclosures_use
 fn session_turn_slots_preserve_model_rounds_and_messages_without_a_local_run() {
     use dr_agent::{AssistantMessage, ContentBlock, Event, JournalEvent, Usage};
     use dr_view_agent::state::{ChatMessage, ChatState, MessageContent, TranscriptItem};
-    let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+    let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
     let text = seeded.books[0].groups().values().flatten().next().unwrap();
     let mut state = ChatState::new("local");
     let assistant = AssistantMessage {

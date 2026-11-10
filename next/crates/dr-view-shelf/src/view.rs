@@ -28,10 +28,7 @@ use dr_workspace::{
     Actor, Workspace as Library, WsEvent,
     commands::{
         BookIn, NoInput,
-        book::{
-            BookCreate, BookCreateIn, BookPurge, BookPurgeExpired, BookRestore, BookTrash,
-            BookUpdate, BookUpdateIn,
-        },
+        book::{BookCreateIn, BookPurge, BookPurgeExpired, BookRestore, BookTrash},
     },
 };
 use gpui::{
@@ -117,6 +114,8 @@ enum DialogState {
 }
 
 pub struct Shelf {
+    jobs: crate::jobs::Jobs,
+    releasing: bool,
     ws: WeakEntity<Workspace>,
     lib: Option<Library>,
     focus: FocusHandle,
@@ -162,6 +161,8 @@ impl Shelf {
     pub fn new(ws: WeakEntity<Workspace>, _: &mut Window, cx: &mut Context<Self>) -> Shelf {
         let lib = cx.try_global::<Services>().and_then(|s| s.library.clone());
         let mut shelf = Shelf {
+            jobs: Default::default(),
+            releasing: false,
             ws,
             lib,
             focus: cx.focus_handle(),
@@ -192,6 +193,39 @@ impl Shelf {
         // The workspace is still being made: follow it once it is there.
         cx.spawn(async move |this, cx| this.update(cx, |shelf, cx| shelf.follow(cx)).ok())
             .detach();
+        let weak = cx.entity().downgrade();
+        dr_shell::release::before_release(cx, move |cx| {
+            weak.update(cx, |shelf, _| {
+                shelf.releasing = true;
+                shelf.purge_timer = None;
+                shelf.task = None;
+                shelf.art_task = None;
+                shelf._events = None;
+                shelf.lib = None;
+                shelf.jobs.drained()
+            })
+            .unwrap_or_else(|_| Box::pin(async { Ok(()) }))
+        });
+        let weak = cx.entity().downgrade();
+        dr_shell::release::after_release(cx, move |cx| {
+            let lib = cx
+                .try_global::<dr_shell::Services>()
+                .and_then(|services| services.library.clone());
+            let _ = weak.update(cx, |shelf, cx| {
+                shelf.releasing = false;
+                if shelf.ws.upgrade().is_some_and(|ws| {
+                    ws.read(cx)
+                        .shelf
+                        .as_ref()
+                        .is_some_and(|page| page.view.entity_id() == cx.entity_id())
+                }) {
+                    shelf.lib = lib;
+                    shelf.stale = true;
+                    shelf.listen(cx);
+                    cx.notify();
+                }
+            });
+        });
         shelf
     }
 
@@ -218,11 +252,21 @@ impl Shelf {
             self.purge_timer = None;
             return;
         }
-        let Some(lib) = self.lib.clone() else {
-            return;
-        };
         self.purge_timer = Some(cx.spawn(async move |this, cx| {
             cx.background_executor().timer(PURGE_EXPIRED_AFTER).await;
+            let lib = this
+                .update(cx, |shelf, cx| {
+                    if shelf.releasing || dr_shell::release::is_releasing(cx) {
+                        None
+                    } else {
+                        shelf.lib.clone().map(|lib| shelf.jobs.enter(lib))
+                    }
+                })
+                .ok()
+                .flatten();
+            let Some(lib) = lib else {
+                return;
+            };
             let out = cx
                 .background_executor()
                 .spawn(async move { lib.run::<BookPurgeExpired>(&Actor::User, NoInput {}) })
@@ -322,6 +366,9 @@ impl Shelf {
     /// Reads the shelf off the main thread (again after, if it changed
     /// meanwhile).
     pub fn reload(&mut self, cx: &mut Context<Self>) {
+        if self.releasing || dr_shell::release::is_releasing(cx) {
+            return;
+        }
         let Some(lib) = self.lib.clone() else {
             self.stale = false;
             self.data = Some(Rc::new(ShelfData::default()));
@@ -331,6 +378,7 @@ impl Shelf {
             return;
         }
         self.stale = false;
+        let lib = self.jobs.enter(lib);
         self.task = Some(cx.spawn(async move |this, cx| {
             let started = Instant::now();
             let data = cx
@@ -360,6 +408,9 @@ impl Shelf {
     /// Reads the books' covers, genres and writing days off the main thread
     /// (M25). A read still running for older data is dropped.
     fn load_art(&mut self, cx: &mut Context<Self>) {
+        if self.releasing || dr_shell::release::is_releasing(cx) {
+            return;
+        }
         let (Some(lib), Some(data)) = (self.lib.clone(), self.data.clone()) else {
             return;
         };
@@ -369,6 +420,7 @@ impl Shelf {
             .map(|b| (b.id.clone(), b.name.clone()))
             .collect();
         let today = art::today(cx);
+        let lib = self.jobs.enter(lib);
         self.art_task = Some(cx.spawn(async move |this, cx| {
             let started = Instant::now();
             let loaded = cx
@@ -522,6 +574,9 @@ impl Shelf {
         let Some(DialogState::Purge { book }) = &self.dialog else {
             return;
         };
+        if self.releasing || dr_shell::release::is_releasing(cx) {
+            return;
+        }
         let Some(lib) = self.lib.clone() else {
             return;
         };
@@ -532,6 +587,7 @@ impl Shelf {
         self.busy = true;
         self.error = None;
         cx.notify();
+        let lib = self.jobs.enter(lib);
         cx.spawn_in(window, async move |this, cx| {
             let result = cx
                 .background_executor()
@@ -577,6 +633,9 @@ impl Shelf {
         else {
             return;
         };
+        if self.releasing || dr_shell::release::is_releasing(cx) {
+            return;
+        }
         let Some(lib) = self.lib.clone() else {
             return;
         };
@@ -590,13 +649,14 @@ impl Shelf {
         self.busy = true;
         self.error = None;
         cx.notify();
+        let lib = self.jobs.enter(lib);
         cx.spawn_in(window, async move |this, cx| {
             let result = cx
                 .background_executor()
                 .spawn(async move {
                     match editing {
                         None => lib
-                            .run::<BookCreate>(
+                            .run::<dr_workspace::commands::v3::entry::ProjectCreate>(
                                 &Actor::User,
                                 BookCreateIn {
                                     name: if typed.is_empty() { untitled } else { typed },
@@ -605,9 +665,9 @@ impl Shelf {
                             )
                             .map(|o| Some(o.output.id)),
                         Some(book) => lib
-                            .run::<BookUpdate>(
+                            .run::<dr_workspace::commands::v3::book::BookUpdate>(
                                 &Actor::User,
-                                BookUpdateIn {
+                                dr_workspace::commands::v3::book::BookUpdateIn {
                                     book: book.id.clone(),
                                     name: (!typed.is_empty() && typed != book.name)
                                         .then_some(typed),
@@ -648,6 +708,9 @@ impl Shelf {
         let Some(DialogState::Trash { book }) = &self.dialog else {
             return;
         };
+        if self.releasing || dr_shell::release::is_releasing(cx) {
+            return;
+        }
         let Some(lib) = self.lib.clone() else {
             return;
         };
@@ -658,6 +721,7 @@ impl Shelf {
         self.busy = true;
         self.error = None;
         cx.notify();
+        let lib = self.jobs.enter(lib);
         cx.spawn_in(window, async move |this, cx| {
             let result = cx
                 .background_executor()
@@ -684,6 +748,9 @@ impl Shelf {
 
     /// Brings a book back from Recently Deleted.
     pub fn restore(&mut self, book: &str, window: &mut Window, cx: &mut Context<Self>) {
+        if self.releasing || dr_shell::release::is_releasing(cx) {
+            return;
+        }
         let Some(lib) = self.lib.clone() else {
             return;
         };
@@ -694,6 +761,7 @@ impl Shelf {
         self.busy = true;
         self.error = None;
         cx.notify();
+        let lib = self.jobs.enter(lib);
         cx.spawn_in(window, async move |this, cx| {
             let result = cx
                 .background_executor()
@@ -796,7 +864,13 @@ fn rail(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) -> AnyE
             data.books.len() as u64,
             &[
                 ("count", &data.books.len()),
-                ("words", &compact(data.words(), locale)),
+                (
+                    "words",
+                    &data
+                        .words()
+                        .map(|n| compact(n, locale))
+                        .unwrap_or_else(|| t(cx, keys::workspace_word_tally::COUNTING).to_string()),
+                ),
             ],
         ),
         None => SharedString::default(),
@@ -1224,94 +1298,97 @@ fn card(
             .child(grouped(n, locale))
     };
     let unit = |text: SharedString| div().child(text);
-    let meta = div()
-        .mt(px(12.0))
-        .flex()
-        .flex_row()
-        .flex_wrap()
-        .gap_x(px(14.0))
-        .gap_y(px(4.0))
-        .font_role(Role::Index)
-        .type_px(s.caption, s.caption * 1.4)
-        .text_color(p.ink(4).solid())
-        .child(
-            div()
-                .flex()
-                .child(
-                    div()
-                        .mr(px(3.0))
-                        .text_color(p.ink(2).solid())
-                        .child(compact(book.words, locale)),
-                )
-                .child(unit(t(cx, keys::project_picker::desk::WORDS_UNIT))),
-        )
-        .child(
-            div()
-                .flex()
-                .child(number(book.chapters as u64))
-                .child(unit(tp(
-                    cx,
-                    keys::project_picker::desk::CHAPTERS_UNIT,
-                    book.chapters as u64,
-                    &[],
-                ))),
-        )
-        .child(
-            div()
-                .flex()
-                .child(number(book.storylines as u64))
-                .child(unit(tp(
-                    cx,
-                    keys::project_picker::desk::STORYLINES_UNIT,
-                    book.storylines as u64,
-                    &[],
-                ))),
-        )
-        .child(
-            div()
-                .flex()
-                .child(number(book.elements as u64))
-                .child(unit(tp(
-                    cx,
-                    keys::project_picker::desk::ELEMENTS_UNIT,
-                    book.elements as u64,
-                    &[],
-                ))),
-        );
-    let progress_row = progress(book.words, book.word_target).map(|value| {
-        let target = book.word_target.unwrap_or(0).max(0) as u64;
+    let meta =
         div()
-            .mt_auto()
-            .pt(px(14.0))
+            .mt(px(12.0))
             .flex()
-            .flex_col()
-            .gap(px(5.0))
+            .flex_row()
+            .flex_wrap()
+            .gap_x(px(14.0))
+            .gap_y(px(4.0))
+            .font_role(Role::Index)
+            .type_px(s.caption, s.caption * 1.4)
+            .text_color(p.ink(4).solid())
             .child(
                 div()
                     .flex()
-                    .flex_row()
-                    .justify_between()
-                    .font_role(Role::Index)
-                    .type_px(11.0, 11.0)
-                    .text_color(p.ink(4).solid())
-                    .child(t(cx, keys::project_picker::desk::PROGRESS))
-                    .child(tf(
-                        cx,
-                        keys::project_picker::desk::GOAL,
-                        &[
-                            ("pct", &((value * 100.0).round() as u32)),
-                            ("target", &compact(target, locale)),
-                        ],
-                    )),
+                    .child(div().mr(px(3.0)).text_color(p.ink(2).solid()).child(
+                        book.words.map(|n| compact(n, locale)).unwrap_or_else(|| {
+                            t(cx, keys::workspace_word_tally::COUNTING).to_string()
+                        }),
+                    ))
+                    .child(unit(t(cx, keys::project_picker::desk::WORDS_UNIT))),
             )
             .child(
-                Readout::new(
-                    ElementId::Name(format!("shelf-progress-{}", book.id).into()),
-                    value,
-                )
-                .color(p.ink(2)),
+                div()
+                    .flex()
+                    .child(number(book.chapters as u64))
+                    .child(unit(tp(
+                        cx,
+                        keys::project_picker::desk::CHAPTERS_UNIT,
+                        book.chapters as u64,
+                        &[],
+                    ))),
             )
-    });
+            .child(
+                div()
+                    .flex()
+                    .child(number(book.storylines as u64))
+                    .child(unit(tp(
+                        cx,
+                        keys::project_picker::desk::STORYLINES_UNIT,
+                        book.storylines as u64,
+                        &[],
+                    ))),
+            )
+            .child(
+                div()
+                    .flex()
+                    .child(number(book.elements as u64))
+                    .child(unit(tp(
+                        cx,
+                        keys::project_picker::desk::ELEMENTS_UNIT,
+                        book.elements as u64,
+                        &[],
+                    ))),
+            );
+    let progress_row = book
+        .words
+        .and_then(|words| progress(words, book.word_target))
+        .map(|value| {
+            let target = book.word_target.unwrap_or(0).max(0) as u64;
+            div()
+                .mt_auto()
+                .pt(px(14.0))
+                .flex()
+                .flex_col()
+                .gap(px(5.0))
+                .child(
+                    div()
+                        .flex()
+                        .flex_row()
+                        .justify_between()
+                        .font_role(Role::Index)
+                        .type_px(11.0, 11.0)
+                        .text_color(p.ink(4).solid())
+                        .child(t(cx, keys::project_picker::desk::PROGRESS))
+                        .child(tf(
+                            cx,
+                            keys::project_picker::desk::GOAL,
+                            &[
+                                ("pct", &((value * 100.0).round() as u32)),
+                                ("target", &compact(target, locale)),
+                            ],
+                        )),
+                )
+                .child(
+                    Readout::new(
+                        ElementId::Name(format!("shelf-progress-{}", book.id).into()),
+                        value,
+                    )
+                    .color(p.ink(2)),
+                )
+        });
     // The last 30 days: their words and a strip of sand.
     let strip = art.map(|art| {
         let recent = art.recent(&book.id);
@@ -1748,7 +1825,12 @@ fn dialog(shelf: &mut Shelf, window: &mut Window, cx: &mut Context<Shelf>) -> An
                 cx,
                 keys::project_picker::trash::BODY,
                 &[
-                    ("words", &grouped(book.words, locale)),
+                    (
+                        "words",
+                        &book.words.map(|n| grouped(n, locale)).unwrap_or_else(|| {
+                            t(cx, keys::workspace_word_tally::COUNTING).to_string()
+                        }),
+                    ),
                     ("nodes", &book.chapters),
                     ("elements", &book.elements),
                 ],

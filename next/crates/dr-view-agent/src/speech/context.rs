@@ -1,6 +1,6 @@
-//! Current v2.2 read adapter only. v3 supplies names through project structure;
+//! Canonical v3 spelling hints from project structure;
 //! no field, document kind or Agent capability is introduced for dictation.
-use dr_doc::book::BorrowedBook;
+
 use dr_model::id::BookId;
 use dr_store::Library;
 use std::collections::BTreeSet;
@@ -10,61 +10,33 @@ pub fn glossary(lib: &Library, book: &BookId) -> Result<String, String> {
     let doc = lib
         .load_copy(&format!("book:{book}"))
         .map_err(|e| e.to_string())?;
-    if dr_doc::v3::is_v3_doc(&doc) {
-        let borrowed = dr_doc::v3::BorrowedBookV3::new(&doc, book).map_err(|e| e.to_string())?;
-        let view = borrowed.view();
-        if view.trashed_at().is_some() {
-            return Err("project is unavailable".into());
-        }
-        let templates = view.templates_map();
-        let memberships = view.memberships_raw();
-        let entries = view.entries();
-        let entries_map: std::collections::BTreeMap<_, _> =
-            entries.iter().map(|e| (e.id.clone(), e.clone())).collect();
-        let live: Vec<_> = entries.into_iter().filter(|e| !e.is_trashed()).collect();
-        let mut names = Vec::new();
-        for entry in live
-            .iter()
-            .filter(|e| dr_model::v3::is_autolink_leaf(e, &memberships, &entries_map, &templates))
-        {
-            names.push(entry.title.clone());
-            names.extend(entry.aliases(&templates));
-        }
-        for entry in live
-            .iter()
-            .filter(|e| !dr_model::v3::is_autolink_leaf(e, &memberships, &entries_map, &templates))
-        {
-            names.push(entry.title.clone());
-            names.extend(entry.aliases(&templates));
-        }
-        return Ok(pack(names));
-    }
-    let borrowed = BorrowedBook::new(&doc, book).map_err(|e| e.to_string())?;
+
+    let borrowed = dr_doc::v3::BorrowedBookV3::new(&doc, book).map_err(|e| e.to_string())?;
     let view = borrowed.view();
-    if view.meta().deleted_at.is_some() {
+    if view.trashed_at().is_some() {
         return Err("project is unavailable".into());
     }
+    let templates = view.templates_map();
+    let memberships = view.memberships_raw();
+    let entries = view.entries();
+    let entries_map: std::collections::BTreeMap<_, _> =
+        entries.iter().map(|e| (e.id.clone(), e.clone())).collect();
+    let live: Vec<_> = entries.into_iter().filter(|e| !e.is_trashed()).collect();
     let mut names = Vec::new();
-    for element in view
-        .elements()
-        .into_iter()
-        .filter(|e| e.deleted_at.is_none())
+    for entry in live
+        .iter()
+        .filter(|e| dr_model::v3::is_autolink_leaf(e, &memberships, &entries_map, &templates))
     {
-        names.push(element.name);
-        names.extend(element.aliases);
+        names.push(entry.title.clone());
+        names.extend(entry.aliases(&templates));
     }
-    names.extend(
-        view.storylines()
-            .into_iter()
-            .filter(|e| e.deleted_at.is_none())
-            .map(|e| e.name),
-    );
-    names.extend(
-        view.nodes()
-            .into_iter()
-            .filter(|n| !n.is_trashed())
-            .map(|n| n.title),
-    );
+    for entry in live
+        .iter()
+        .filter(|e| !dr_model::v3::is_autolink_leaf(e, &memberships, &entries_map, &templates))
+    {
+        names.push(entry.title.clone());
+        names.extend(entry.aliases(&templates));
+    }
     Ok(pack(names))
 }
 

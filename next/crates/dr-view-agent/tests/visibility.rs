@@ -29,7 +29,7 @@ impl Fixture {
         cx.executor().allow_parking();
         let dir = tempfile::tempdir().unwrap();
         let ws = Workspace::open_dir(dir.path(), "m31-visibility-test").unwrap();
-        let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+        let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
         seeded.write_to(ws.library()).unwrap();
         let mut settings = SettingsFile::in_memory();
         settings.set_last_book(seeded.books[0].book_id().as_str());

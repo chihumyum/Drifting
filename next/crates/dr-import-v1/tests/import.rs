@@ -5,9 +5,10 @@ mod common;
 
 use common::*;
 use dr_doc::Anchor;
-use dr_doc::book::{BookDoc, BookReader, BookView};
 use dr_doc::peer::{import_peer, random_device_peer};
 use dr_doc::prose::{EmbedView, ProseDoc};
+use dr_doc::v3::novel::*;
+use dr_doc::v3::{BookDocV3 as BookDoc, BookReaderV3 as BookReader, BookViewV3 as BookView};
 use dr_import_v1::gate::{Accept, Reason};
 use dr_import_v1::legacy::Freshness;
 use dr_import_v1::progress::{Progress, Step};
@@ -38,6 +39,7 @@ fn new_library() -> New {
 fn options(old: &Old, new: &New, accept: Accept) -> Options {
     let mut o = Options::new("0.2.0-test");
     o.accept = accept;
+    o.v3 = v3_choices();
     o.old_root = Some(old.root.clone());
     o.device_dir = Some(new.device.clone());
     o.verify_history = true;
@@ -97,7 +99,7 @@ fn prose_doc(lib: &Library, id: &str) -> ProseDoc {
     .unwrap()
 }
 
-fn text_at(doc: &ProseDoc, anchor: &dr_model::book::EncodedAnchor) -> String {
+fn text_at(doc: &ProseDoc, anchor: &dr_model::import_v1::EncodedAnchor) -> String {
     let a = Anchor::decode(anchor).unwrap();
     let r = doc.view().resolve(&a).unwrap();
     doc.view().text_in(r.range).unwrap()
@@ -109,7 +111,7 @@ fn sha_of(path: &std::path::Path) -> String {
 
 #[test]
 fn a_handed_off_library_imports_completely() {
-    let old = build(true);
+    let old = build_v3(true);
     let before = sha_of(&old.db);
     let new = new_library();
     let (outcome, _) =
@@ -132,7 +134,7 @@ fn a_handed_off_library_imports_completely() {
     let chapter_rec = r
         .docs
         .iter()
-        .find(|d| d.doc_id == format!("node:{CHAPTER}"))
+        .find(|d| d.doc_id == format!("body:{CHAPTER}/mod-prose"))
         .unwrap();
     assert_eq!(chapter_rec.freshness, Freshness::Handoff);
     assert_eq!(chapter_rec.history_versions, 2);
@@ -156,57 +158,54 @@ fn a_handed_off_library_imports_completely() {
     assert_eq!(meta.daily_word_target(), None, "0 turns it off");
     let facts: Vec<String> = v.facts().into_iter().map(|f| f.key).collect();
     assert_eq!(facts, ["类型", "视角"]);
-    assert_eq!(meta.storyline_template.len(), 1);
-
-    // Chapters, ideas, groups, storylines.
-    let chapter = v.node(&NodeId::parse(CHAPTER).unwrap()).unwrap();
-    assert_eq!(chapter.book_order, Some(5.0));
-    assert_eq!(chapter.created_at, Some(Timestamp(1_790_841_600)));
-    let s = StorylineId::parse(STORYLINE).unwrap();
-    assert!(chapter.storylines.contains(&s));
-    assert_eq!(chapter.effective_primary_storyline(), Some(&s));
-    let idea = v.node(&NodeId::parse(IDEA).unwrap()).unwrap();
-    assert_eq!(idea.kind, NodeKind::Drift);
-    assert_eq!(idea.group.as_ref().map(|g| g.as_str()), Some(SUBGROUP));
-    assert_eq!((idea.x, idea.y), (120.5, -40.0));
-    let groups = v.drift_groups();
-    let sub = groups.iter().find(|g| g.id.as_str() == SUBGROUP).unwrap();
-    assert_eq!(sub.parent.as_ref().map(|p| p.as_str()), Some(GROUP));
+    let storyline_template = v
+        .template(&EntryTemplateId::parse(TPL_STORYLINE).unwrap())
+        .unwrap();
     assert_eq!(
-        groups
+        storyline_template
+            .modules
             .iter()
-            .find(|g| g.id.as_str() == GROUP)
+            .find(|m| m.id.as_str() == MOD_KV)
             .unwrap()
-            .color
-            .as_deref(),
-        Some("#aa0000")
+            .config
+            .initial_kv
+            .len(),
+        1
     );
-    let storylines = v.storylines();
-    assert_eq!(storylines.len(), 1);
-    assert_eq!(storylines[0].facts[0].key, "起点");
-    assert!(storylines[0].pos.is_some());
-
-    // Elements: aliases, facts, the relation-graph pin from the handoff.
-    let el = v.element(&ElementId::parse(ELEMENT).unwrap()).unwrap();
-    assert!(el.aliases.contains("阿贵") && el.aliases.contains("阿桂"));
-    let fields: Vec<&str> = el.facts.iter().map(|f| f.key.as_str()).collect();
-    assert_eq!(fields, ["住处", "职业"]);
-    assert_eq!(el.relate_pin, Some((12.5, -40.0)));
-    assert_eq!(el.category.as_ref().map(|c| c.as_str()), Some(CATEGORY));
-    assert_eq!(v.categories()[0].template_fields[0].key, "年龄");
-
+    let chapter = v.entry(&EntryId::parse(CHAPTER).unwrap()).unwrap();
+    assert_eq!(chapter.created_at, Some(Timestamp(1_790_841_600)));
+    assert!(
+        v.memberships_raw()
+            .iter()
+            .any(|m| m.host.as_str() == STORYLINE && m.member.as_str() == CHAPTER)
+    );
+    assert_eq!(
+        chapter.primary.as_ref().map(|id| id.as_str()),
+        Some(STORYLINE)
+    );
+    let idea = v.entry(&EntryId::parse(IDEA).unwrap()).unwrap();
+    assert_eq!(idea.parent.as_ref().map(|id| id.as_str()), Some(SUBGROUP));
+    assert_eq!(idea.layout.board, Some((120.5, -40.0)));
+    let subgroup = v.entry(&EntryId::parse(SUBGROUP).unwrap()).unwrap();
+    assert_eq!(subgroup.parent.as_ref().map(|id| id.as_str()), Some(GROUP));
+    let element = v.entry(&EntryId::parse(ELEMENT).unwrap()).unwrap();
+    assert_eq!(element.layout.relation_graph, Some((12.5, -40.0)));
+    let templates = v.templates_map();
+    assert!(element.aliases(&templates).iter().any(|a| a == "阿贵"));
+    assert!(element.aliases(&templates).iter().any(|a| a == "阿桂"));
     // Body templates: the 0.1 fields stay as they were and are written into
     // their template documents, headings, marks and links included.
     assert_eq!(r.books[0].templates, 2);
-    assert_eq!(
-        v.categories()[0].element_template.as_deref(),
-        Some(CATEGORY_TEMPLATE)
+    let cat_t = prose_doc(
+        &lib,
+        &dr_samples::v3::prose_id(
+            &BookId::parse(BOOK).unwrap(),
+            &DocId::Template(TemplateId::for_category(
+                &CategoryId::parse(CATEGORY).unwrap(),
+            )),
+        )
+        .to_string(),
     );
-    assert_eq!(
-        storylines[0].chapter_template.as_deref(),
-        Some(STORYLINE_TEMPLATE)
-    );
-    let cat_t = prose_doc(&lib, &format!("template:category:{CATEGORY}"));
     let paras: Vec<_> = cat_t.view().paragraphs().collect();
     assert_eq!(paras.len(), 2);
     assert_eq!(paras[0].attrs.heading, Some(Heading::H1));
@@ -219,7 +218,16 @@ fn a_handed_off_library_imports_completely() {
         .expect("the linked run");
     assert_eq!(linked.marks.entities.len(), 1);
     assert_eq!(linked.marks.entities[0].target, ELEMENT);
-    let line_t = prose_doc(&lib, &format!("template:storyline:{STORYLINE}"));
+    let line_t = prose_doc(
+        &lib,
+        &dr_samples::v3::prose_id(
+            &BookId::parse(BOOK).unwrap(),
+            &DocId::Template(TemplateId::for_storyline(
+                &StorylineId::parse(STORYLINE).unwrap(),
+            )),
+        )
+        .to_string(),
+    );
     let paras: Vec<_> = line_t.view().paragraphs().collect();
     assert_eq!(paras[0].attrs.heading, Some(Heading::H2));
     assert_eq!(paras[0].text(), "开端");
@@ -230,9 +238,17 @@ fn a_handed_off_library_imports_completely() {
             .any(|r| r.text == "冲突：" && r.marks.bold)
     );
     assert!(
-        lib.doc_info(&format!("template:storyline:{STORYLINE}"))
-            .unwrap()
-            .is_some(),
+        lib.doc_info(
+            &dr_samples::v3::prose_id(
+                &BookId::parse(BOOK).unwrap(),
+                &DocId::Template(TemplateId::for_storyline(
+                    &StorylineId::parse(STORYLINE).unwrap()
+                ))
+            )
+            .to_string()
+        )
+        .unwrap()
+        .is_some(),
         "registered, so F3 copies it into new chapters"
     );
 
@@ -242,16 +258,18 @@ fn a_handed_off_library_imports_completely() {
         .unwrap();
     assert_eq!(rt.color.as_deref(), Some("#aa5500"));
     assert_eq!(rt.orientation, RelationOrientation::Symmetric);
-    assert_eq!(rt.source_kinds, [EntityKind::Element]);
+    assert_eq!(rt.source_kinds, [EntityKind::Entry]);
     let generic = v
-        .relation_type(&dr_doc::book::generic_relation_type_id(
+        .relation_type(&dr_doc::catalog::generic_relation_type_id(
             &BookId::parse(BOOK).unwrap(),
         ))
         .unwrap();
     assert!(generic.locked, "the built-in type is the genesis one");
     let rels = v.relations_raw();
-    let rel1 = rels.iter().find(|x| x.id.as_str() == "rel-1").unwrap();
-    assert_eq!(rel1.from.id, ELEMENT, "symmetric ends in canonical order");
+    assert!(
+        !rels.iter().any(|x| x.id.as_str() == "rel-1"),
+        "positive source omits its known dangling fixture edge"
+    );
     let note_doc = DocId::Material(MaterialId::parse(NOTE).unwrap());
     let note_todo = CommentId::for_projection(
         &ProjectionKind::NoteTask,
@@ -267,7 +285,7 @@ fn a_handed_off_library_imports_completely() {
     );
 
     // Comments: retired values normalised, quote and snapshots, anchors.
-    let chapter_doc = prose_doc(&lib, &format!("node:{CHAPTER}"));
+    let chapter_doc = prose_doc(&lib, &format!("body:{CHAPTER}/mod-prose"));
     let c = v.comment(&CommentId::parse(COMMENT).unwrap()).unwrap();
     assert_eq!(c.author_kind, CommentAuthorKind::Ai);
     assert_eq!(c.status, CommentStatus::Resolved);
@@ -301,7 +319,7 @@ fn a_handed_off_library_imports_completely() {
     );
     let marker = CommentId::for_projection(
         &ProjectionKind::Marker,
-        &DocId::Node(NodeId::parse(CHAPTER).unwrap()),
+        &dr_samples::v3::body_id(CHAPTER, MOD_PROSE),
         &BlockId::parse("p2").unwrap(),
     );
     let m = v.comment(&marker).unwrap();
@@ -349,12 +367,17 @@ fn a_handed_off_library_imports_completely() {
     );
     let wd = v.writing_days();
     assert_eq!((wd[0].device.as_str(), wd[0].words), (DEVICE_KEY, 1234));
+    let view = v.timeline_views_raw().into_iter().next().unwrap();
     assert_eq!(
-        v.time_pins()[0].drift.as_ref().map(|d| d.as_str()),
+        view.pins[0].entry.as_ref().map(|id| id.as_str()),
         Some(IDEA)
     );
-    assert_eq!(v.acts()[0].start_order, Some(0.0));
-    let grid = v.plot_grid(&NodeId::parse(CHAPTER).unwrap()).unwrap();
+    let grid = v
+        .plot_grid(
+            &EntryId::parse(CHAPTER).unwrap(),
+            &ModuleId::parse("mod-plot-grid").unwrap(),
+        )
+        .unwrap();
     let rows: Vec<&str> = grid.rows.iter().map(|r| r.id.as_str()).collect();
     assert_eq!(rows, ["r1", "r2"]);
     assert_eq!(
@@ -384,7 +407,7 @@ fn a_handed_off_library_imports_completely() {
 
     // History: two replayed points with their 0.1 times, plus the import,
     // all kept from the 30-day retention.
-    let chapter_id = format!("node:{CHAPTER}");
+    let chapter_id = format!("body:{CHAPTER}/mod-prose");
     let labels = lib.history(&chapter_id).unwrap();
     let periodic: Vec<_> = labels.iter().filter(|l| l.label == "periodic").collect();
     assert_eq!(periodic.len(), 2);
@@ -416,10 +439,17 @@ fn a_handed_off_library_imports_completely() {
         )
         .unwrap()
     };
-    let chapter_node = NodeId::parse(CHAPTER).unwrap();
+    let chapter_node = EntryId::parse(CHAPTER).unwrap();
     let at = |label: &dr_store::history::HistoryLabel| {
-        let n = book_at(label).view().node(&chapter_node).unwrap();
-        (n.title, n.summary)
+        let n = book_at(label).view().entry(&chapter_node).unwrap();
+        let summary = n
+            .fields
+            .get(&ModuleId::parse(MOD_FIELDS).unwrap())
+            .and_then(|m| m.get("summary"))
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_owned();
+        (n.title, summary)
     };
     let newest = periodic.iter().max_by_key(|l| l.ts).unwrap();
     assert_eq!(at(oldest), ("第一章".into(), "初稿梗概".into()));
@@ -428,30 +458,35 @@ fn a_handed_off_library_imports_completely() {
         ("第一章 序".into(), "初稿梗概".into()),
         "a field the row did not carry stays as the earlier row had it"
     );
-    let element_points = lib.history(&format!("element:{ELEMENT}")).unwrap();
+    let element_points = lib.history(&format!("body:{ELEMENT}/mod-prose")).unwrap();
     let ep = element_points
         .iter()
         .find(|l| l.label == "periodic")
         .unwrap();
-    let el_then = book_at(ep)
+    let historical = book_at(ep);
+    let el_then = historical
         .view()
-        .element(&ElementId::parse(ELEMENT).unwrap())
+        .entry(&EntryId::parse(ELEMENT).unwrap())
         .unwrap();
-    assert_eq!(el_then.aliases.iter().collect::<Vec<_>>(), ["阿贵"]);
-    assert_eq!(el_then.group_name.as_deref(), Some("未庄"));
-    let facts: Vec<(&str, &str, &str)> = el_then
-        .facts
-        .iter()
-        .map(|f| (f.id.as_str(), f.key.as_str(), f.value.as_str()))
-        .collect();
     assert_eq!(
-        facts[0],
-        ("kv-6", "住处", "破庙"),
-        "the same fact keeps its id"
+        el_then.aliases(&historical.view().templates_map()),
+        std::collections::BTreeSet::from(["阿贵".to_owned()])
     );
-    assert_eq!((facts[1].1, facts[1].2), ("绰号", "阿Q"));
-    assert_eq!(facts.len(), 2);
-
+    let parent = historical
+        .view()
+        .entry(el_then.parent.as_ref().unwrap())
+        .unwrap();
+    assert_eq!(parent.title, "未庄");
+    let facts = el_then.kv.get(&ModuleId::parse(MOD_KV).unwrap()).unwrap();
+    assert_eq!(facts[0].id.as_str(), "kv-6");
+    assert_eq!(
+        (facts[0].key.as_str(), facts[0].value.as_str()),
+        ("住处", "破庙")
+    );
+    assert_eq!(
+        (facts[1].key.as_str(), facts[1].value.as_str()),
+        ("绰号", "阿Q")
+    );
     // Every change is the import peer's (or the genesis').
     let doc = lib.load_copy(&chapter_id).unwrap();
     let peers: std::collections::BTreeSet<u64> = dr_store::history::changes_since(&doc, 0)
@@ -506,7 +541,7 @@ fn a_handed_off_library_imports_completely() {
 
 #[test]
 fn without_handoff_the_gate_stops_until_the_author_accepts() {
-    let old = build(false);
+    let old = build_v3(false);
     let new = new_library();
     let (outcome, _) =
         run::import(&old.db, &new.root, &options(&old, &new, Accept::NOTHING)).unwrap();
@@ -553,7 +588,7 @@ fn without_handoff_the_gate_stops_until_the_author_accepts() {
     let chapter = r
         .docs
         .iter()
-        .find(|d| d.doc_id == format!("node:{CHAPTER}"))
+        .find(|d| d.doc_id == format!("body:{CHAPTER}/mod-prose"))
         .unwrap();
     assert_eq!(chapter.freshness, Freshness::NodeBasisCurrent);
     let summary =
@@ -563,7 +598,7 @@ fn without_handoff_the_gate_stops_until_the_author_accepts() {
 
 #[test]
 fn a_book_is_imported_once() {
-    let old = build(true);
+    let old = build_v3(true);
     let new = new_library();
     imported(
         run::import(&old.db, &new.root, &options(&old, &new, Accept::NOTHING))
@@ -580,8 +615,8 @@ fn a_book_is_imported_once() {
 }
 
 #[test]
-fn the_same_library_imports_to_the_same_bytes() {
-    let old = build(true);
+fn independent_targets_keep_identical_source_prose_operations_and_catalog_semantics() {
+    let old = build_v3(true);
     let (a, b) = (new_library(), new_library());
     for n in [&a, &b] {
         imported(
@@ -603,13 +638,18 @@ fn the_same_library_imports_to_the_same_bytes() {
             .unwrap()
     };
     let (ra, rb) = (rows(&a), rows(&b));
-    // Six bodies, and the book document in steps (its first version, the
-    // history rows that change metadata, the current fields back).
-    assert!(ra.len() > 7, "{}", ra.len());
-    assert_eq!(
-        ra, rb,
-        "two devices importing the same library write identical changes"
-    );
+    // Source-stable prose identities and their complete operation bytes are
+    // deterministic. Catalog roots, synthetic groups and timeline identities
+    // are allocated afresh for each new target; compare their entire catalog
+    // under that explicit bijection, including unknown metadata and order.
+    let prose = |rows: Vec<(String, Vec<u8>)>| {
+        rows.into_iter()
+            .filter(|(id, _)| !id.starts_with("book:"))
+            .collect::<Vec<_>>()
+    };
+    assert!(ra.len() >= 9);
+    assert_eq!(prose(ra), prose(rb));
+    assert_eq!(catalog_state(&a), catalog_state(&b));
 }
 
 #[test]
@@ -637,7 +677,7 @@ fn an_older_library_is_brought_up_on_its_copy() {
 
 #[test]
 fn the_import_reports_its_progress() {
-    let old = build(true);
+    let old = build_v3(true);
     let new = new_library();
     let mut seen: Vec<Progress> = Vec::new();
     imported(
@@ -688,7 +728,7 @@ fn the_import_reports_its_progress() {
 
 #[test]
 fn an_imported_library_has_its_indexes() {
-    let old = build(true);
+    let old = build_v3(true);
     let new = new_library();
     let (outcome, timing) =
         run::import(&old.db, &new.root, &options(&old, &new, Accept::NOTHING)).unwrap();
@@ -702,7 +742,7 @@ fn an_imported_library_has_its_indexes() {
     o.rebuild_indexes_on_open = false;
     let lib = open_library(&new.root, o);
     assert!(lib.stale_index_docs().unwrap().is_empty());
-    let chapter = format!("node:{CHAPTER}");
+    let chapter = format!("body:{CHAPTER}/mod-prose");
     // 第一章 序 / 我要给阿Q做正传，已经不止一两年了。 / 引文第一段 / 引文第二段 /
     // TODO: 查一查赵太爷的年纪
     assert_eq!(
@@ -725,8 +765,8 @@ fn an_imported_library_has_its_indexes() {
 
 #[test]
 fn replaying_the_history_leaves_the_book_as_it_is_now() {
-    let with = build(true);
-    let without = build(true);
+    let with = build_v3(true);
+    let without = build_v3(true);
     {
         let conn = rusqlite::Connection::open(&without.db).unwrap();
         conn.execute("DELETE FROM entity_snapshot_history", [])
@@ -747,22 +787,32 @@ fn replaying_the_history_leaves_the_book_as_it_is_now() {
         .unwrap()
         .0,
     );
-    let book = |n: &New| -> loro::LoroValue {
-        let lib = open_library(&n.root, LibraryOptions::new("0.2.0-test"));
-        let v = lib
-            .load_copy(&format!("book:{BOOK}"))
-            .unwrap()
-            .get_deep_value();
-        lib.close().unwrap();
-        v
-    };
-    let (va, vb) = (book(&a), book(&b));
-    let mut differ = Vec::new();
-    diff_values("", &va, &vb, &mut differ);
-    // Cursors name operations of the prose documents, which differ (one has
-    // history versions): they are compared by the text they point at.
-    differ.retain(|d| !d.contains("/anchor/start:") && !d.contains("/anchor/end:"));
-    assert!(differ.is_empty(), "{differ:#?}");
+    let (mut va, mut vb) = (catalog_state(&a), catalog_state(&b));
+    // Cursor bytes refer to different prose operation histories. Their exact
+    // resolved text is checked below; every other authored value is compared.
+    for catalog in [&mut va, &mut vb] {
+        fn cursor(v: &mut serde_json::Value) {
+            match v {
+                serde_json::Value::Object(m) => {
+                    if let Some(a) = m.get_mut("anchor").and_then(|v| v.as_object_mut()) {
+                        a.remove("start");
+                        a.remove("end");
+                    }
+                    for v in m.values_mut() {
+                        cursor(v);
+                    }
+                }
+                serde_json::Value::Array(a) => {
+                    for v in a {
+                        cursor(v);
+                    }
+                }
+                _ => {}
+            }
+        }
+        cursor(catalog);
+    }
+    assert_eq!(va, vb);
     let quote = |n: &New| -> String {
         let lib = open_library(&n.root, LibraryOptions::new("0.2.0-test"));
         let book = book_doc(&lib);
@@ -771,7 +821,7 @@ fn replaying_the_history_leaves_the_book_as_it_is_now() {
             .comment(&CommentId::parse(COMMENT).unwrap())
             .unwrap();
         let text = text_at(
-            &prose_doc(&lib, &format!("node:{CHAPTER}")),
+            &prose_doc(&lib, &format!("body:{CHAPTER}/mod-prose")),
             c.anchor.as_ref().unwrap(),
         );
         drop(book);
@@ -781,10 +831,90 @@ fn replaying_the_history_leaves_the_book_as_it_is_now() {
     assert_eq!(quote(&a), quote(&b));
 }
 
+/// Full catalog comparison across two explicitly new import targets. Only
+/// allocated domain identities and Loro tree coordinates are renamed; source
+/// ids, every metadata field (including unknown values), parenthood and
+/// sibling ordering remain in the comparison. Same-target recovery below
+/// continues to compare the unmodified raw document exactly.
+fn catalog_state(n: &New) -> serde_json::Value {
+    let lib = open_library(&n.root, LibraryOptions::new("0.2.0-test"));
+    let raw = lib.load_copy(&format!("book:{BOOK}")).unwrap();
+    let mut value = serde_json::to_value(raw.get_deep_value()).unwrap();
+    lib.close().unwrap();
+    let mut names = std::collections::BTreeMap::new();
+    fn tree(
+        v: &mut serde_json::Value,
+        path: &str,
+        names: &mut std::collections::BTreeMap<String, String>,
+    ) {
+        for (i, node) in v.as_array_mut().unwrap().iter_mut().enumerate() {
+            let at = format!("{path}/{i}");
+            let m = node.as_object_mut().unwrap();
+            let id = m["meta"]["id"].as_str().unwrap().to_owned();
+            // 01900000 is the stable id namespace of this existing source
+            // fixture. Other ids belong to roots/groups allocated by v3.
+            if !id.starts_with("01900000-") {
+                names.insert(id, format!("allocated-entry:{at}"));
+            }
+            m.insert("id".into(), serde_json::json!(at));
+            m.insert("parent".into(), serde_json::json!(path));
+            m.remove("fractional_index");
+            tree(m.get_mut("children").unwrap(), &at, names);
+        }
+    }
+    tree(&mut value["entries"], "entries", &mut names);
+    if value.get("material_folders").is_some() {
+        tree(
+            &mut value["material_folders"],
+            "material_folders",
+            &mut names,
+        );
+    }
+    if let Some(views) = value["timeline_views"].as_object() {
+        let mut ordered = views.iter().collect::<Vec<_>>();
+        ordered.sort_by_key(|(_, v)| v["pos"].as_str().unwrap_or(""));
+        for (i, (id, _)) in ordered.into_iter().enumerate() {
+            names.insert(id.clone(), format!("allocated-timeline:{i}"));
+        }
+    }
+    fn rename(
+        v: serde_json::Value,
+        names: &std::collections::BTreeMap<String, String>,
+    ) -> serde_json::Value {
+        let text = |mut s: String| {
+            for (a, b) in names {
+                s = s.replace(a, b);
+            }
+            s
+        };
+        match v {
+            serde_json::Value::String(s) => serde_json::Value::String(text(s)),
+            serde_json::Value::Array(a) => {
+                serde_json::Value::Array(a.into_iter().map(|v| rename(v, names)).collect())
+            }
+            serde_json::Value::Object(m) => serde_json::Value::Object(
+                m.into_iter()
+                    .map(|(k, v)| (text(k), rename(v, names)))
+                    .collect(),
+            ),
+            v => v,
+        }
+    }
+    rename(value, &names)
+}
+
 /// Paths where two Loro values differ.
 fn diff_values(at: &str, a: &loro::LoroValue, b: &loro::LoroValue, out: &mut Vec<String>) {
-    use loro::LoroValue::Map;
+    use loro::LoroValue::{List, Map};
     match (a, b) {
+        (List(x), List(y)) => {
+            if x.len() != y.len() {
+                out.push(format!("{at}: lengths {} != {}", x.len(), y.len()));
+            }
+            for (i, (a, b)) in x.iter().zip(y.iter()).enumerate() {
+                diff_values(&format!("{at}/{i}"), a, b, out);
+            }
+        }
         (Map(x), Map(y)) => {
             let keys: std::collections::BTreeSet<&String> = x.keys().chain(y.keys()).collect();
             for k in keys {
@@ -801,14 +931,14 @@ fn diff_values(at: &str, a: &loro::LoroValue, b: &loro::LoroValue, out: &mut Vec
 
 #[test]
 fn imported_points_can_follow_the_usual_retention() {
-    let old = build(true);
+    let old = build_v3(true);
     let new = new_library();
     let mut o = options(&old, &new, Accept::NOTHING);
     o.history_retention = LabelRetention::Thinned;
     let r = imported(run::import(&old.db, &new.root, &o).unwrap().0);
     assert_eq!(r.history_retention, "thinned");
     let lib = open_library(&new.root, LibraryOptions::new("0.2.0-test"));
-    let labels = lib.history(&format!("node:{CHAPTER}")).unwrap();
+    let labels = lib.history(&format!("body:{CHAPTER}/mod-prose")).unwrap();
     // The 0.1 points are older than 30 days: thinned away at once. The
     // import's own point is new (and dr-store's close label).
     assert!(
@@ -821,7 +951,7 @@ fn imported_points_can_follow_the_usual_retention() {
 
 #[test]
 fn an_interrupted_import_carries_on_without_doubling_history() {
-    let old = build(true);
+    let old = build_v3(true);
     let new = new_library();
     imported(
         run::import(&old.db, &new.root, &options(&old, &new, Accept::NOTHING))
@@ -857,26 +987,26 @@ fn an_interrupted_import_carries_on_without_doubling_history() {
             .contains_key("resumed-after-interruption")
     );
     let lib = open_library(&new.root, LibraryOptions::new("0.2.0-test"));
-    let labels = lib.history(&format!("node:{CHAPTER}")).unwrap();
+    let labels = lib.history(&format!("body:{CHAPTER}/mod-prose")).unwrap();
     let count = |l: &str| labels.iter().filter(|x| x.label == l).count();
     assert_eq!(
         (count("periodic"), count("import")),
         (2, 1),
         "no point doubled"
     );
-    assert_eq!(
-        lib.load_copy(&format!("book:{BOOK}"))
-            .unwrap()
-            .get_deep_value(),
-        book_before,
-        "the same book"
-    );
+    let got = lib
+        .load_copy(&format!("book:{BOOK}"))
+        .unwrap()
+        .get_deep_value();
+    let mut differ = Vec::new();
+    diff_values("", &got, &book_before, &mut differ);
+    assert!(differ.is_empty(), "resumed book differs: {differ:#?}");
     lib.close().unwrap();
 }
 
 #[test]
 fn a_book_already_in_the_library_without_a_receipt_is_left_alone() {
-    let old = build(true);
+    let old = build_v3(true);
     let new = new_library();
     imported(
         run::import(&old.db, &new.root, &options(&old, &new, Accept::NOTHING))
@@ -904,52 +1034,25 @@ fn a_book_already_in_the_library_without_a_receipt_is_left_alone() {
 /// dr-index's deriver, as F3 opens it), which stays open; the indexes are
 /// built on it; the gate stops it with nothing left behind.
 #[test]
-fn an_open_library_takes_the_import_and_stays_open() {
+fn an_open_library_with_a_deriver_is_rejected_before_staging() {
     let new = new_library();
     let mut o = LibraryOptions::new("0.2.0-test");
     dr_index::attach(&mut o);
-    o.rebuild_indexes_on_open = false;
     let lib = Library::open(&new.root, o).unwrap();
-
-    let stale = build(false);
-    let mut opts = options(&stale, &new, Accept::NOTHING);
-    opts.device_dir = None;
-    let (outcome, _) = run::import_into_library(&stale.db, &lib, &opts, &mut |_| {}).unwrap();
-    assert!(matches!(outcome, Outcome::Blocked(_)));
-    assert!(lib.docs(None, None).unwrap().is_empty(), "nothing written");
-    assert!(
-        !receipt::directory(&new.root).exists(),
-        "no staging or receipt folder left behind"
-    );
-
     let old = build(true);
-    let mut opts = options(&old, &new, Accept::NOTHING);
-    opts.device_dir = None;
-    // Without a device the library has no identity to take over.
-    assert!(lib.options().device.is_none());
-    let mut steps = Vec::new();
-    let (outcome, timing) = run::import_into_library(&old.db, &lib, &opts, &mut |p| {
-        if steps.last() != Some(&p.step) {
-            steps.push(p.step);
-        }
-    })
-    .unwrap();
-    let receipt = imported(outcome);
-    assert_eq!(receipt.books[0].status, "imported");
-    assert!(steps.contains(&Step::Indexing) && steps.last() == Some(&Step::Done));
-    assert!(timing.indexed_docs > 0);
-    // Still open, and every index is current.
-    assert!(lib.stale_index_docs().unwrap().is_empty());
-    assert!(lib.book_stats(BOOK).unwrap().words > 0);
-    assert!(
-        receipt::directory(&new.root)
-            .join("receipt.sqlite")
-            .is_file()
-    );
-    assert!(!receipt::directory(&new.root).join("staging").exists());
-    // A second import of the same library leaves the book alone.
-    let (outcome, _) = run::import_into_library(&old.db, &lib, &opts, &mut |_| {}).unwrap();
-    assert_eq!(imported(outcome).books[0].status, "already-imported");
+    let before = sha_of(&old.db);
+    assert!(matches!(
+        run::import_into_library(
+            &old.db,
+            &lib,
+            &options(&old, &new, Accept::NOTHING),
+            &mut |_| {}
+        ),
+        Err(dr_import_v1::ImportError::Blocked(_))
+    ));
+    assert!(lib.docs(None, None).unwrap().is_empty());
+    assert!(!receipt::directory(&new.root).exists());
+    assert_eq!(sha_of(&old.db), before);
     lib.close().unwrap();
 }
 
@@ -962,14 +1065,13 @@ fn the_apps_device_takes_over_the_0_1_identity() {
     let new = new_library();
     let open = || {
         let mut o = LibraryOptions::new("0.2.0-test");
-        dr_index::attach(&mut o);
         o.rebuild_indexes_on_open = false;
         o.device = Some(dr_store::Device::open(&new.device).unwrap());
         open_library(&new.root, o)
     };
     let lib = open();
     let fresh = lib.options().device.as_ref().unwrap().writing_device_key();
-    let old = build(true);
+    let old = build_v3(true);
     let old_id = format!("install-{}", "ab".repeat(32));
     let mut opts = options(&old, &new, Accept::NOTHING);
     opts.device_dir = None;
@@ -1008,7 +1110,7 @@ fn add_second_book(old: &Old) -> &'static str {
 /// the library is usable and the second book imports later.
 #[test]
 fn cancelling_finishes_the_book_being_written_and_leaves_the_rest() {
-    let old = build(true);
+    let old = build_v3(true);
     let second = add_second_book(&old);
 
     let new = new_library();
@@ -1053,7 +1155,7 @@ fn cancelling_finishes_the_book_being_written_and_leaves_the_rest() {
 /// import that was never stopped.
 #[test]
 fn stopping_now_leaves_the_book_to_carry_on() {
-    let old = build(true);
+    let old = build_v3(true);
     let new = new_library();
     let opts = options(&old, &new, Accept::NOTHING);
     let cancel = opts.cancel.clone();
@@ -1122,5 +1224,77 @@ fn stopping_now_leaves_the_book_to_carry_on() {
         .unwrap()
         .get_deep_value();
     lib.close().unwrap();
-    assert_eq!(carried, whole);
+    assert_ne!(
+        carried, whole,
+        "independent targets allocate fresh catalog roots"
+    );
+    assert_eq!(catalog_state(&new), catalog_state(&clean));
+}
+
+#[test]
+fn original_dangling_source_relation_is_pending_before_any_target_or_identity_write() {
+    let old = build(true);
+    let new = new_library();
+    let before = sha_of(&old.db);
+    let error = run::import(&old.db, &new.root, &options(&old, &new, Accept::NOTHING)).unwrap_err();
+    assert!(
+        matches!(error,dr_import_v1::ImportError::V3Pending(items) if items.iter().any(|p|p.code=="invalid-or-duplicate-source-relation"))
+    );
+    assert_eq!(sha_of(&old.db), before);
+    assert!(!dr_store::LibraryPaths::new(&new.root).db.exists());
+    assert!(!new.device.exists());
+}
+
+#[test]
+fn explicit_new_root_references_resolve_once_and_resume_the_same_allocated_roots() {
+    let old = build_v3(true);
+    let new = new_library();
+    let before = sha_of(&old.db);
+    let mut opts = options(&old, &new, Accept::NOTHING);
+    let alias = EntryId::parse("chosen-manuscript-root").unwrap();
+    opts.v3
+        .root_references
+        .insert(alias.clone(), dr_import_v1::v3::RootReference::Manuscript);
+    let choice = opts.v3.unaffiliated.as_mut().unwrap();
+    choice.parent = None;
+    choice.template.settings.home = Some(Some(alias));
+    let template = choice.template.id.clone();
+    imported(run::import(&old.db, &new.root, &opts).unwrap().0);
+    let lib = open_library(&new.root, LibraryOptions::new("0.2.0-test"));
+    let b = book_doc(&lib);
+    let v = b.view();
+    let root = v
+        .root_entry_by_template(&EntryTemplateId::parse(TPL_MANUSCRIPT).unwrap())
+        .unwrap()
+        .id;
+    let lane = v
+        .entries()
+        .into_iter()
+        .find(|e| e.template.as_ref() == Some(&template))
+        .unwrap();
+    assert_eq!(lane.parent, None);
+    assert_eq!(
+        v.template(&template).unwrap().settings.home,
+        Some(Some(root))
+    );
+    drop(b);
+    let raw = lib
+        .load_copy(&format!("book:{BOOK}"))
+        .unwrap()
+        .get_deep_value();
+    lib.close().unwrap();
+    let conn = rusqlite::Connection::open(dr_store::LibraryPaths::new(&new.root).db).unwrap();
+    conn.execute("UPDATE import_book SET status='importing'", [])
+        .unwrap();
+    drop(conn);
+    imported(run::import(&old.db, &new.root, &opts).unwrap().0);
+    let lib = open_library(&new.root, LibraryOptions::new("0.2.0-test"));
+    assert_eq!(
+        lib.load_copy(&format!("book:{BOOK}"))
+            .unwrap()
+            .get_deep_value(),
+        raw
+    );
+    lib.close().unwrap();
+    assert_eq!(sha_of(&old.db), before);
 }

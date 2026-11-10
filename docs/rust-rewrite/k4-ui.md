@@ -1,5 +1,7 @@
 # K4：界面接回 v3（方案）
 
+> 2026-11-10 切换实施更新：任务 7 本分支执行最终切换，切换前的并存描述不再代表本分支运行时。 当前范围、删除／保留边界和验收状态见 [canonical v3 切换](v3-cutover.md)。下文历史交回记录保留其原语境。
+
 2026-11-09。K1+K2（v3 的数据层和通用命令）已经合进 `main`，K3（旧库导入成 v3、样书）在收尾。这一页说怎么把冻结的界面接到 v3 上，接完就切换。方案本身见 [kernel-v3.md](kernel-v3.md)，分轨和交回见 [handoff/kernel-v3-split.md](handoff/kernel-v3-split.md)、[handoff/overnight.md](handoff/overnight.md)。
 
 ## 目标

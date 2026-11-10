@@ -1,49 +1,16 @@
-//! dr-view-import: importing a Drifting 0.1 library, from the bookshelf
-//! (module M10's interface; the import itself is `dr-import-v1`).
-//!
-//! The bookshelf's rail has the entry: it dispatches
-//! [`dr_view_shelf::ImportLegacyLibrary`], which [`init`] takes with
-//! `cx.on_action`. Then:
-//!
-//! 1. **The library.** The local 0.1 libraries this device has (found by the
-//!    0.1 client's own path rule, [`v1_data_dir`]) are listed to pick from;
-//!    with none, or with 「选择文件夹」, the system's folder panel: the 0.1
-//!    app's data folder, one library's root or its `databases` folder
-//!    (`dr_import_v1::locate::resolve` says which library that is). The
-//!    device takes over the chosen library's 0.1 installation id, so its
-//!    writing days continue under the 0.1 device key.
-//! 2. **The import** runs on its own thread, into the library the app has
-//!    open (`run::import_into_library`). The 0.1 library is only read: the
-//!    import works on a copy beside the new library.
-//! 3. **The gate.** A library that never went through the handoff, with
-//!    bodies whose caches cannot be proven the latest, is stopped before
-//!    anything is written: a dialog lists those bodies by book, and only
-//!    「仍然导入」 imports them from their caches (the import runs again,
-//!    accepting them).
-//! 4. **Progress** while it runs (the book, n of m, a bar), and **a summary**
-//!    at the end: the books, their words, what was left alone.
-//! 5. The bookshelf reads again on F3's events as the books land, so the new
-//!    books are on it when the summary shows.
-//!
-//! The dialog is the shell's modal dialog (`dr_shell::dialogs::show_in`, in
-//! the window the author started the import in) while an import is open,
-//! so the workspace's shortcuts wait until it closes. 「取消」 lets the book
-//! being written finish and leaves the rest out; quitting the app stops the
-//! import first ([`LegacyImport::stop_for_quit`]), and a book stopped halfway
-//! is carried on by the next import. At launch, each book an earlier import
-//! left unfinished is a notice in the notification center whose 「接着导入」
-//! imports its 0.1 library again ([`LegacyImport::carry_on`]; m10-import.md).
-//!
-//! Copy comes from the 0.1 client's strings; what it never had is the new
-//! client's own (dr-i18n's `own/`, [`copy`]).
+//! Import a 0.1 source into a separately named canonical v3 library.
+//! MappingChoices are explicit, pending is structured, and source/current
+//! libraries stay intact. The cancellable background worker closes its target
+//! before the shared release protocol performs a short controlled activation.
 
 pub mod copy;
 mod flow;
+pub mod reimport;
 mod view;
 
 pub use flow::{
-    Done, DoneBook, Failed, Found, FoundLibrary, LegacyImport, QUIT_WAIT_BOOK, QUIT_WAIT_NOW,
-    Running, State, V1_DATA_DIR_ENV, find_local_libraries, v1_data_dir,
+    Done, DoneBook, Failed, Found, FoundLibrary, LegacyImport, QUIT_WAIT_BOOK, Ready, Running,
+    State, V1_DATA_DIR_ENV, find_local_libraries, v1_data_dir,
 };
 
 use gpui::{App, AppContext as _, Entity, Global};
@@ -91,9 +58,23 @@ pub fn init(cx: &mut App) {
     cx.set_global(Importer(entity));
     // Quitting: the import stops first, so its documents close and its
     // thread lets go of the library.
-    dr_shell::quit::before_quit(cx, |cx| {
+    dr_shell::release::before_release(cx, |cx| {
+        let pending =
+            importer(cx).and_then(|entity| entity.update(cx, |import, _| import.begin_drain()));
+        let wait = cx.background_spawn(async move {
+            if let Some((thread, cancel)) = pending {
+                flow::drain_worker(thread, cancel)?;
+            }
+            Ok(())
+        });
+        Box::pin(wait)
+    });
+    dr_shell::release::after_release(cx, |cx| {
         if let Some(entity) = importer(cx) {
-            entity.update(cx, |import, _| import.stop_for_quit());
+            entity.update(cx, |import, cx| {
+                import.end_drain();
+                cx.notify();
+            });
         }
     });
     cx.on_action(|_: &dr_view_shelf::ImportLegacyLibrary, cx| {

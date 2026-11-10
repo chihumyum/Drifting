@@ -1,8 +1,8 @@
 //! Data modules whose records live outside entry metadata.
 use super::*;
-use dr_model::book::{EntityRef, PLOT_CELL_H, PLOT_CELL_W, PlotLine};
 use dr_model::kind::{EntityKind, RelationOrientation};
 use dr_model::pos::PosKey;
+use dr_model::shared::{EntityRef, PLOT_CELL_H, PLOT_CELL_W, PlotLine};
 
 pub(crate) fn register(r: &mut Registry) {
     r.add::<PatchPut>()
@@ -352,7 +352,7 @@ fn put_type(cx: &Cx<'_>, input: TypeIn) -> Result<Done> {
         return Err(WsError::invalid("locked relation type"));
     }
     if v.relation_types().iter().any(|t| {
-        t.id != id && t.normalized_name == dr_model::book::normalize_relation_type_name(&d.name)
+        t.id != id && t.normalized_name == dr_model::shared::normalize_relation_type_name(&d.name)
     }) {
         return Err(WsError::invalid("duplicate relation type name"));
     }

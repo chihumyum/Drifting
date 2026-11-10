@@ -19,7 +19,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
 
-use dr_doc::book::{BookDoc, BookTxn, Collection};
+use dr_doc::import_v1::{BookDoc, BookTxn, Collection};
 use dr_model::id::*;
 use dr_model::kind::*;
 use dr_model::{DocId, Origin, Timestamp};

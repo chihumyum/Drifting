@@ -1,83 +1,28 @@
-//! dr-view-stats: word counts and writing days (module M07).
-//!
-//! - The Stats tab of the right sidebar ([`panel`]): the most specific count
-//!   (selection → chapter or idea → storyline → book), the book's, today's
-//!   words toward the daily goal, writing progress and the recent days.
-//! - The writing-day recorder ([`recorder`]): this device's words per book
-//!   and day, written to the book document's `writing_days` under the 0.1
-//!   writing-day device key.
-//! - The editor's live counts ([`LiveWords`]), swapped into the index's
-//!   totals so the readings follow the typing.
-//! - The writing-goal progress for the Project Home (M02):
-//!   [`load_progress`] off the main thread, [`today_live`] for this device's
-//!   words not stored yet.
-//!
-//! The shell installs it ([`init`]), flushes it and lets go of the library
-//! before quitting ([`flush`], [`release`]) and shows the tab ([`panel`]). docs/rust-rewrite/modules/m07-words.md
-//! has the rules and the decisions.
-
 pub mod clock;
-pub mod detail;
 pub mod live;
 pub mod model;
-mod panel;
 pub mod recorder;
 mod sections;
 pub mod v3;
 pub mod v3_panel;
 
 use std::collections::HashMap;
-use std::rc::Rc;
 use std::time::Duration;
 
-use dr_i18n::{Locale, Platform};
 use dr_model::Day;
-use dr_ui::sand;
-use dr_ui::tokens::Rgb;
-use dr_workspace::commands::BookIn;
 use dr_workspace::commands::stats::{self as ops};
-use dr_workspace::{Actor, NavTarget, Subscription, Workspace, WsEvent};
-use gpui::{AnyElement, App, AppContext as _, Entity, Global, IntoElement, SharedString, Window};
+use dr_workspace::{Actor, Subscription, Workspace, WsEvent};
+use gpui::{App, Entity, Global, SharedString};
 
 pub use dr_text::TextMetrics;
 pub use live::LiveWords;
-pub use model::{Live, Reading, Scope};
-pub use panel::StatsView;
+pub use model::Live;
 pub use recorder::Recorder;
-
-/// What a row of the Stats tab asks the shell for.
-#[derive(Clone, Debug, PartialEq)]
-pub enum StatsAction {
-    /// Open a page. `link`, a location link, goes first: a chapter of the
-    /// whole book while the whole book is in front is shown there (the
-    /// shell's `open_link`).
-    Open {
-        target: NavTarget,
-        link: Option<String>,
-    },
-    /// The snapshot history of a prose document (M09's dialog), for the
-    /// page called `name`.
-    History { doc: String, name: String },
-}
-
-/// Does what a row asks ([`StatsAction`]).
-pub type Act = Rc<dyn Fn(StatsAction, &mut Window, &mut App)>;
-/// A page's kind mark and colour.
-pub type Marks = Rc<dyn Fn(&NavTarget) -> (sand::Kind, Option<Rgb>)>;
-
-/// What the tab's rows do, and the mark and colour of a page (the shell
-/// knows both): given with [`panel`].
-#[derive(Clone)]
-pub struct Hooks {
-    pub act: Act,
-    pub marks: Marks,
-}
 
 struct Hub {
     lib: Option<Workspace>,
     recorder: Option<Recorder>,
     subscription: Option<Subscription>,
-    views: HashMap<SharedString, Entity<StatsView>>,
     v3_views: HashMap<SharedString, Entity<v3_panel::View>>,
 }
 
@@ -115,7 +60,6 @@ pub fn init(lib: Option<Workspace>, cx: &mut App) {
         lib,
         recorder,
         subscription,
-        views: HashMap::new(),
         v3_views: HashMap::new(),
     });
     // Ends once [`release`] drops the recorder and the subscription (the
@@ -144,7 +88,6 @@ fn route(batch: Vec<Msg>, cx: &mut App) {
     let Some(hub) = cx.try_global::<Hub>() else {
         return;
     };
-    let views: Vec<Entity<StatsView>> = hub.views.values().cloned().collect();
     let v3_views: Vec<_> = hub.v3_views.values().cloned().collect();
     let today = |book: &str, cx: &App| {
         cx.try_global::<Hub>()
@@ -176,29 +119,6 @@ fn route(batch: Vec<Msg>, cx: &mut App) {
                 _ => {}
             }
         }
-        for view in &views {
-            match &msg {
-                Msg::Today(book) => {
-                    let mine = today(book, cx);
-                    view.update(cx, |v, cx| {
-                        if &v.book == book {
-                            v.set_mine(mine, cx);
-                        }
-                    });
-                }
-                Msg::Event(WsEvent::Local(c)) => view.update(cx, |v, cx| {
-                    if v.shows_doc(&c.key) {
-                        v.schedule(cx);
-                    }
-                }),
-                Msg::Event(WsEvent::Book(b)) => view.update(cx, |v, cx| {
-                    if v.book == b.book.as_str() {
-                        v.schedule(cx);
-                    }
-                }),
-                Msg::Event(_) => {}
-            }
-        }
     }
 }
 
@@ -219,68 +139,9 @@ pub fn release(cx: &mut App) {
         let hub = cx.global_mut::<Hub>();
         hub.recorder = None;
         hub.subscription = None;
-        hub.views.clear();
         hub.v3_views.clear();
         hub.lib = None;
     }
-}
-
-/// The Stats tab for `book`, following the page `target`. `id` tells two
-/// panes apart (a sidebar half each).
-pub fn panel(
-    id: &str,
-    book: &str,
-    target: Option<NavTarget>,
-    locale: Locale,
-    platform: Platform,
-    hooks: Option<Hooks>,
-    cx: &mut App,
-) -> AnyElement {
-    let id = SharedString::from(id.to_owned());
-    let (view, lib, recorder_today) = {
-        let Some(hub) = cx.try_global::<Hub>() else {
-            return gpui::Empty.into_any_element();
-        };
-        (
-            hub.views.get(&id).cloned(),
-            hub.lib.clone(),
-            hub.recorder.as_ref().and_then(|r| r.today(book)),
-        )
-    };
-    // The recorder follows the book shown from the moment it is shown.
-    let shown = view.as_ref().map(|v| v.read(cx).book.clone());
-    if shown.as_deref() != Some(book)
-        && !book.is_empty()
-        && let Some(r) = cx.try_global::<Hub>().and_then(|h| h.recorder.as_ref())
-    {
-        r.track(book);
-    }
-    let view = match view {
-        Some(v) => v,
-        None => {
-            let v = cx.new(|_| StatsView::new(id.clone(), lib));
-            let observed = v.downgrade();
-            cx.observe_global::<LiveWords>(move |cx| {
-                if let Some(v) = observed.upgrade() {
-                    v.update(cx, |_, cx| cx.notify());
-                }
-            })
-            .detach();
-            cx.global_mut::<Hub>().views.insert(id, v.clone());
-            v
-        }
-    };
-    view.update(cx, |v, cx| {
-        v.show(book, target, locale, platform, hooks, cx);
-        v.set_mine(recorder_today, cx);
-    });
-    view.into_any_element()
-}
-
-/// The Stats tab shown as `id`, once [`panel`] has drawn it.
-pub fn view(id: &str, cx: &App) -> Option<Entity<StatsView>> {
-    cx.try_global::<Hub>()
-        .and_then(|h| h.views.get(&SharedString::from(id.to_owned())).cloned())
 }
 
 /// This device's words today in `book` that the recorder has tallied (not
@@ -325,14 +186,9 @@ pub fn load_progress(
     today: &Day,
     mine_live: Option<i64>,
 ) -> dr_workspace::Result<Progress> {
-    let counts = ws
-        .run::<ops::WordCounts>(
-            &Actor::User,
-            BookIn {
-                book: book.to_owned(),
-            },
-        )?
-        .output;
+    let counts = v3::load_at(ws, book, v3::Scope::Book, today)?;
+    let metrics = counts.book_words(&Live::default());
+    let words = metrics.map_or(0, |m| m.words);
     let days = ws
         .run::<ops::WritingDays>(
             &Actor::User,
@@ -346,10 +202,10 @@ pub fn load_progress(
         .output;
     let today = model::today_words(&days, mine_live);
     Ok(Progress {
-        words: counts.book.words,
-        counted: counts.counted,
+        words,
+        counted: metrics.is_some(),
         word_target: counts.word_target,
-        book: model::progress(counts.book.words, counts.word_target),
+        book: model::progress(words, counts.word_target),
         today,
         daily_word_target: days.daily_word_target,
         daily: model::progress(today.max(0) as u64, days.daily_word_target),

@@ -126,7 +126,6 @@ macro_rules! inv {
 }
 
 pub const INVARIANTS: &[Invariant] = &[
-    // ---- ids, documents, origins ---------------------------------------
     inv!(
         "ID-FORMAT",
         "实体 id 是非空、无控制字符的字符串；新 id 是 uuidv7；平局时按 UTF-8 字节比较",
@@ -195,7 +194,7 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "AGENT-MESSAGE",
-        "Agent、Markdown 文件夹、导入的改动在历史里认得出来",
+        "Agent、导入的历史来源可识别；存量 mirror 来源编码仍可读取",
         [Structure],
         "这三种提交带提交信息 agent:<会话>/<轮>、mirror、import（Origin::commit_message），存进 Loro 历史、随快照和同步走、压缩删不掉；作者自己的提交不带",
         [],
@@ -216,35 +215,34 @@ pub const INVARIANTS: &[Invariant] = &[
             "undo_of_a_merge_restores_both_ids"
         ]
     ),
-    // ---- book-level records -------------------------------------------
     inv!(
         "SEED-REQUIRED",
-        "创建实体时必填的字段要填（章节标题与种类、要素名、关系两端与类型……）",
+        "创建条目、模块、关系和共享记录时，先校验所需字段和目标",
         [Command, Read],
-        "F3 的创建命令负责；读取时缺的字段读成默认值（空串、默认状态），不报错",
+        "canonical F3 先验证模板、住处、模块和端点，失败前不写；原始数据中的未知字段继续保留",
         ["K:451-477", "K:556-565"],
         [
-            "read_tolerance_on_nodes",
+            "v3_structure_validation_happens_before_writes",
             "random_commands_keep_the_invariants"
         ]
     ),
     inv!(
         "IMMUTABLE-AFTER-CREATE",
-        "补丁所属的要素、写作日的设备和日期，创建后不变",
+        "模块补丁归属不串到另一条目，写作日的设备和日期创建后不变",
         [Command, Structure],
-        "补丁：F3 不提供改 element 的命令；写作日：设备和日期就是键",
+        "补丁命令显式验证 entry＋module 的所属；写作日：设备和日期就是键",
         ["K:346-361", "K:327-328"],
         ["writing_day_keys"]
     ),
     inv!(
         "JSON-FIELDS",
-        "模板、元数据、来源这几个字段是 JSON 文本",
+        "不透明 JSON 原值整体保存；模板正文使用独立的书内模块文档",
         [Command, Read],
-        "dr-doc 把每个字段存成一个整值、原样不校验，两台设备同时写各自完整的 JSON，合并后留下其中一个、不会拼成坏的（不是文本合并）；F3 自己生成要写的 JSON（待办元数据用 serde 序列化）；读的地方解析失败当作没有（旧模板 JSON 读成空模板，待办元数据读不出当作没有要等的版本）。正文模板从 v2.1 起是 template: 文档，旧的两个模板字段只读；来源（provenance）只有 M10 导入时原样写",
+        "不透明 provenance／批注 metadata 保留为整值；结构化模板与模块逐字段更新，正文在书内 template 文档，不再读取旧 App fallback",
         ["K:179-187", "K:215-301", "M00:861-862"],
         [
             "json_fields_are_kept_whole",
-            "a_01_element_template_reads_as_paragraphs"
+            "v3_template_prose_is_book_scoped_and_copied_once"
         ]
     ),
     inv!(
@@ -254,7 +252,7 @@ pub const INVARIANTS: &[Invariant] = &[
         "dr_model::check::non_empty_name；读取时空名由界面显示占位",
         ["K:155-156", "K:196-325"],
         [
-            "command_checks_follow_the_old_rules",
+            "shared_payload_and_size_checks",
             "books_create_list_update_trash",
             "unknown_commands_and_bad_input"
         ]
@@ -292,213 +290,14 @@ pub const INVARIANTS: &[Invariant] = &[
             "relations_are_shown_only_when_whole"
         ]
     ),
-    // ---- nodes ----------------------------------------------------------
-    inv!(
-        "NODE-KIND-STATUS",
-        "节点是章节或构想；章节状态 draft/finished/discarded，构想状态 drifting/resting",
-        [Read],
-        "开放枚举；读取时以 kind 为准，状态不合种类就读成该种类的默认值",
-        ["K:202-203"],
-        [
-            "node_status_fits_its_kind",
-            "chapters_sort_by_order_then_id_and_ideas_ignore_book_order"
-        ]
-    ),
-    inv!(
-        "CHAPTER-HAS-ORDER",
-        "章节有书序",
-        [Command, Read, Repair],
-        "读取时缺书序的章节排到最后；后台修复按 id 顺序在最后一章之后每隔 5 补上",
-        ["K:1881-1896"],
-        [
-            "chapters_sort_by_order_then_id_and_ideas_ignore_book_order",
-            "repair_orders_chapters_identically_on_two_devices",
-            "chapters_are_ordered_and_titles_get_suffixes",
-            "random_commands_keep_the_invariants"
-        ]
-    ),
-    inv!(
-        "DRIFT-NO-ORDER",
-        "构想没有书序",
-        [Read, Repair],
-        "读取时忽略构想身上的书序；后台修复删掉它",
-        ["K:1897-1904"],
-        [
-            "read_tolerance_on_nodes",
-            "repair_orders_chapters_identically_on_two_devices"
-        ]
-    ),
-    inv!(
-        "CHAPTER-NO-GROUP",
-        "章节不进构想分组",
-        [Read, Repair],
-        "读取时章节的分组读成无；后台修复删掉它",
-        ["K:1905-1912"],
-        ["deleting_a_group_moves_children_and_ideas_up"]
-    ),
-    inv!(
-        "GROUP-EXISTS",
-        "构想所在的分组存在",
-        [Command, Read],
-        "读取时分组不在就放到根目录（不修复：并发恢复可能让它回来）",
-        ["K:1913-1917"],
-        [
-            "concurrent_moves_never_make_a_cycle_and_missing_groups_read_as_root",
-            "ideas_and_groups"
-        ]
-    ),
-    inv!(
-        "ORDERS-FINITE",
-        "书序、叙事序、幕的分界、时间钉、看板坐标都是有限数",
-        [Structure, Read],
-        "写入时 NaN/无穷当作删掉该字段；读取时非有限数当作没有",
-        ["K:200-201", "K:321", "K:326", "K:590-591"],
-        ["read_tolerance_on_nodes"]
-    ),
     inv!(
         "NODE-HAS-PROSE",
-        "每个节点、要素、故事线、分类、文本素材都有一篇正文",
+        "每个实际正文模块和文本素材的空正文都有确定创世，不回到旧节点类型",
         [Structure],
         "确定性的创世：还没有字节的正文文档就是创世那一份空段落，所有设备一样",
         ["K:994-999", "M00:868-876", "K:1673-1708"],
         ["genesis_is_deterministic_and_concurrent_init_merges"]
     ),
-    inv!(
-        "ORDER-TIES",
-        "书序、叙事序、幕分界、时间钉是带间隙的实数坐标，坐标相同按 id；新章插在前一章之后、下一章和下一个幕分界之前",
-        [Structure, Read],
-        "dr_model::order：cmp_order、chapter_order_after、act_segments；精度用尽时由打散命令（F3）重排",
-        [
-            "src/renderer/domain/chapter-insert.ts:16-36",
-            "src/renderer/domain/book-act.ts:1-140",
-            "K:135-143"
-        ],
-        [
-            "missing_orders_sort_last_ties_by_id",
-            "insert_after_respects_the_next_chapter_and_act",
-            "acts_partition_by_boundary"
-        ]
-    ),
-    // ---- storylines ------------------------------------------------------
-    inv!(
-        "MEMBERSHIP-SET",
-        "章节所属故事线是集合：两边同时加同一条只算一次",
-        [Structure],
-        "mergeable 映射的键",
-        ["K:625-629", "M00:929"],
-        [
-            "primary_storyline_must_be_a_member",
-            "three_peers_read_the_same_book"
-        ]
-    ),
-    inv!(
-        "MEMBERSHIP-LIVE",
-        "故事线成员是活着的章节和存在的故事线",
-        [Command, Read],
-        "读取时彻底删除的故事线不列在成员里；废纸篓里的故事线由界面过滤",
-        ["K:646-708"],
-        [
-            "references_to_missing_entities_read_as_none",
-            "chapter_storylines_and_primary"
-        ]
-    ),
-    inv!(
-        "PRIMARY-IS-MEMBER",
-        "主故事线必须是已加入的故事线",
-        [Read],
-        "读取时主故事线不在成员里就当作没有",
-        ["K:716-750", "M00:936"],
-        [
-            "primary_storyline_must_be_a_member",
-            "read_tolerance_on_nodes"
-        ]
-    ),
-    // ---- elements, categories, patches ------------------------------------
-    inv!(
-        "ALIASES-SET",
-        "别名是集合，去掉首尾空白，空的不要",
-        [Structure, Command],
-        "mergeable 映射的键；ElementWriter::add_alias 去空白、丢空串",
-        ["K:620-624", "src/renderer/domain/book-element.ts:39-57"],
-        ["entities_merge_field_by_field"]
-    ),
-    inv!(
-        "ELEMENT-CATEGORY",
-        "要素的分类存在且不在废纸篓",
-        [Read],
-        "读取时分类不在或在废纸篓就读成无分类（旧版删分类时把要素摘出来）",
-        [
-            "M00:604",
-            "src/renderer/sqlite-repo/element-category-repo.ts:186-202"
-        ],
-        ["references_to_missing_entities_read_as_none"]
-    ),
-    inv!(
-        "PORTRAIT",
-        "肖像是同一本书里的图片资源，一个资源只属于一个要素或一个素材",
-        [Command, Read],
-        "读取时不是图片资源就读成无肖像；资源只归一个主人由 F3 预防",
-        ["M00:2119-2159", "M00:610", "K:892-909"],
-        ["references_to_missing_entities_read_as_none"]
-    ),
-    inv!(
-        "ELEMENT-NAME-UNIQUE",
-        "一本书里活着的要素，名字和别名互不重复（去首尾空白、不分大小写）；这是自动链接认人物的前提",
-        [Command, Read],
-        "命令层拒绝明确给出的重名（check 用 element_name_key 比较）；合并后出现重名，读取时按创建时间、再按 id，第一个保留名字，后面的标 name_conflict 由界面标出（BookView::element_name_conflicts）",
-        [
-            "src/renderer/domain/book-element.ts:96-119 (findElementNameConflict)",
-            "src/renderer/usecase/useBookElement.ts:141-157"
-        ],
-        [
-            "element_names_stay_unique_on_read_after_a_merge",
-            "regions_and_name_keys",
-            "element_names_are_unique_and_placeholders_numbered",
-            "concurrent_creates_of_one_name_are_flagged_not_lost"
-        ]
-    ),
-    inv!(
-        "TITLE-SUFFIX",
-        "章节标题、构想标题、故事线名、分类名重名时自动加后缀「 2」「 3」",
-        [Command],
-        "F3 的新建和改名命令负责，界面和 Agent 走同一条（见 DIV-DUP-TITLE、DIV-DUP-CATEGORY）；合并后重名就都显示",
-        [
-            "src/renderer/domain/book-node.ts:182-199",
-            "src/renderer/domain/storyline.ts:30-47"
-        ],
-        [
-            "chapters_are_ordered_and_titles_get_suffixes",
-            "names_get_suffixes"
-        ]
-    ),
-    inv!(
-        "CATEGORY-LAYOUT",
-        "分类布局是 auto 或 pinned，网格坐标可为空",
-        [Read],
-        "开放枚举，缺省 auto",
-        ["K:230-232"],
-        ["unknown_values_survive"]
-    ),
-    inv!(
-        "PATCH-BLOCK-NEEDS-NODE",
-        "补丁有源块就必须有源章节",
-        [Command, Read],
-        "dr_model::check::patch_source；读取时源章节不在，源块也读成无（旧版删章后留下了孤立的块 id）",
-        ["K:1867-1869", "M00:738"],
-        [
-            "command_checks_follow_the_old_rules",
-            "references_to_missing_entities_read_as_none"
-        ]
-    ),
-    inv!(
-        "PATCH-OWNER",
-        "补丁属于一个存在的要素",
-        [Read],
-        "读取时要素已彻底删除的补丁不显示",
-        ["M00:737-738"],
-        ["references_to_missing_entities_read_as_none"]
-    ),
-    // ---- relations ----------------------------------------------------------
     inv!(
         "REL-KINDS",
         "关系从结构实体、批注或素材出发，指向结构实体",
@@ -513,7 +312,7 @@ pub const INVARIANTS: &[Invariant] = &[
             "relations_are_shown_only_when_whole",
             "todo_links_through_the_builtin_type",
             "entity_kind_roles_match_the_old_vocabulary",
-            "relations_validate_and_dedupe"
+            "canonical_relations_validate_dedupe_filter_and_restore_without_losing_raw_values"
         ]
     ),
     inv!(
@@ -524,8 +323,8 @@ pub const INVARIANTS: &[Invariant] = &[
         ["K:1793-1796"],
         [
             "relations_are_shown_only_when_whole",
-            "command_checks_follow_the_old_rules",
-            "relations_validate_and_dedupe"
+            "canonical_relations_validate_dedupe_filter_and_restore_without_losing_raw_values",
+            "canonical_relations_validate_dedupe_filter_and_restore_without_losing_raw_values"
         ]
     ),
     inv!(
@@ -540,8 +339,8 @@ pub const INVARIANTS: &[Invariant] = &[
         [
             "relations_are_shown_only_when_whole",
             "three_peers_read_the_same_book",
-            "relations_validate_and_dedupe",
-            "trashing_never_refuses_and_reports_fallout"
+            "canonical_relations_validate_dedupe_filter_and_restore_without_losing_raw_values",
+            "canonical_relations_validate_dedupe_filter_and_restore_without_losing_raw_values"
         ]
     ),
     inv!(
@@ -552,7 +351,7 @@ pub const INVARIANTS: &[Invariant] = &[
         ["K:1822-1854", "M00:755"],
         [
             "relations_are_shown_only_when_whole",
-            "relations_validate_and_dedupe"
+            "canonical_relations_validate_dedupe_filter_and_restore_without_losing_raw_values"
         ]
     ),
     inv!(
@@ -564,19 +363,19 @@ pub const INVARIANTS: &[Invariant] = &[
         [
             "relations_are_shown_only_when_whole",
             "todo_links_through_the_builtin_type",
-            "relations_validate_and_dedupe"
+            "canonical_relations_validate_dedupe_filter_and_restore_without_losing_raw_values"
         ]
     ),
     inv!(
         "REL-SYMMETRIC-CANONICAL",
         "对称关系两端按规范顺序存",
         [Command, Read],
-        "dr_model::book::canonical_symmetric；读取和去重时两种顺序当作同一条",
+        "dr_model::shared::canonical_symmetric；读取和去重时两种顺序当作同一条",
         ["K:1862-1863", "ERT:204-217"],
         [
             "symmetric_endpoints_are_canonical",
             "relations_are_shown_only_when_whole",
-            "relations_validate_and_dedupe"
+            "canonical_relations_validate_dedupe_filter_and_restore_without_losing_raw_values"
         ]
     ),
     inv!(
@@ -596,17 +395,17 @@ pub const INVARIANTS: &[Invariant] = &[
         [Read, Structure],
         "开放枚举；system_key 和 locked 只由创世写",
         ["K:269-271", "M00:770-771", "M00:788-790"],
-        ["genesis_is_deterministic_and_the_builtin_type_exists_once"]
+        ["genesis_v3_sets_version_3_and_locked_generic_relation_type"]
     ),
     inv!(
         "RT-DEFINITION",
-        "关系类型的定义合法：有名字，至少一个源种类和目标种类，有向的要两个角色名，对称的两边种类相同且都是结构实体",
+        "关系类型的名字、方向、已知端点种类与模板限制合法；空限制列表沿用 canonical 的无限制语义",
         [Command],
-        "dr_model::check::relation_type_definition",
+        "entry_relation_type.put 预检名字冲突、方向、端点种类和模板存在；relation.create／module.put_relation 再校验具体两端",
         ["K:1774-1790", "ERT:111-168"],
         [
-            "command_checks_follow_the_old_rules",
-            "relation_types_names_locks_and_cascade"
+            "canonical_relations_validate_dedupe_filter_and_restore_without_losing_raw_values",
+            "v3_restore_primary_pins_and_record_deletion_have_real_inverses"
         ]
     ),
     inv!(
@@ -618,7 +417,7 @@ pub const INVARIANTS: &[Invariant] = &[
         [
             "relation_type_names_normalize",
             "the_builtin_relation_type_is_locked",
-            "relation_types_names_locks_and_cascade"
+            "v3_restore_primary_pins_and_record_deletion_have_real_inverses"
         ]
     ),
     inv!(
@@ -627,13 +426,13 @@ pub const INVARIANTS: &[Invariant] = &[
         [Structure],
         "书目文档的创世写它；所有设备的创世字节相同，Loro 去重",
         ["M00:794", "ERT:74-99"],
-        ["genesis_is_deterministic_and_the_builtin_type_exists_once"]
+        ["genesis_v3_sets_version_3_and_locked_generic_relation_type"]
     ),
     inv!(
         "RT-LOCKED",
         "内置关系类型不能改、不能删",
         [Command],
-        "BookTxn::relation_type 和 purge 拒绝它（DocError::Locked）",
+        "canonical entry_relation_type.put／delete 拒绝内置锁定类型",
         [
             "K:1737-1750",
             "M00:1744 (protect_locked_relation_type_update)",
@@ -644,10 +443,9 @@ pub const INVARIANTS: &[Invariant] = &[
         ],
         [
             "the_builtin_relation_type_is_locked",
-            "relation_types_names_locks_and_cascade"
+            "v3_restore_primary_pins_and_record_deletion_have_real_inverses"
         ]
     ),
-    // ---- comments, memory -------------------------------------------------
     inv!(
         "CMT-TARGET",
         "批注的目标要么全空（浮动），要么种类和 id 都有，且是可批注的种类",
@@ -656,7 +454,7 @@ pub const INVARIANTS: &[Invariant] = &[
         ["K:280", "K:1870-1874"],
         [
             "comments_keep_unlocated_targets_and_anchor_into_prose",
-            "command_checks_follow_the_old_rules",
+            "v3_comments_address_modules_validate_anchors_and_restore_after_reopen",
             "comments_with_anchors_and_metadata"
         ]
     ),
@@ -679,7 +477,6 @@ pub const INVARIANTS: &[Invariant] = &[
         ["K:306-317"],
         ["unknown_values_survive"]
     ),
-    // ---- materials, assets, trees ----------------------------------------
     inv!(
         "MAT-KIND",
         "素材是 image / pdf / text；url 已退役",
@@ -687,7 +484,7 @@ pub const INVARIANTS: &[Invariant] = &[
         "check::material_payload 拒绝其他种类；旧的 url 读成 Other，界面当作不支持",
         ["K:246", "M00:842", "M11:27", "M11:34"],
         [
-            "command_checks_follow_the_old_rules",
+            "shared_payload_and_size_checks",
             "unknown_values_survive",
             "materials_folders_and_assets"
         ]
@@ -731,7 +528,7 @@ pub const INVARIANTS: &[Invariant] = &[
         "dr_model::check::asset_shape",
         ["M00:948-961", "src/renderer/sync/protocol/asset.ts:98-112"],
         [
-            "command_checks_follow_the_old_rules",
+            "shared_payload_and_size_checks",
             "sha256_shape",
             "materials_folders_and_assets"
         ]
@@ -746,7 +543,7 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "TREE-NO-CYCLE",
-        "构想分组、素材夹不成环，也不能是自己的父级",
+        "素材夹不成环，也不能是自己的父级；条目树另见 V3-TREE-NO-CYCLE",
         [Structure],
         "LoroTree 本地拒绝成环的移动，合并时也不会产生环",
         [
@@ -760,7 +557,7 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "TREE-DELETE-MOVES-UP",
-        "删掉分组或素材夹时，子级和里面的构想、素材移到上一级",
+        "删除素材夹时保留素材并按既有素材夹协议恢复住处",
         [Command, Read],
         "BookTxn::delete_drift_group / delete_material_folder 先挪子级再删（Loro 删节点会连子树一起删）；并发加进去的读取时放到根目录",
         [
@@ -770,29 +567,9 @@ pub const INVARIANTS: &[Invariant] = &[
         [
             "deleting_a_group_moves_children_and_ideas_up",
             "materials_folders_and_assets",
-            "ideas_and_groups"
+            "v3_material_folders_restore_order_ancestry_and_only_selected_records"
         ]
     ),
-    inv!(
-        "TREE-DEPTH",
-        "构想分组最多两层",
-        [Command, Read],
-        "F3 预防；合并后更深的层级由界面平铺显示",
-        [
-            "src/renderer/domain/drift-group.ts:11",
-            "src/renderer/domain/drift-group.ts:117-131"
-        ],
-        ["ideas_and_groups", "random_commands_keep_the_invariants"]
-    ),
-    inv!(
-        "ACT-PIN-DRIFT",
-        "幕、时间钉绑定的构想存在",
-        [Read],
-        "读取时不在就当作没绑定（旧版靠外键置空）",
-        ["K:1925-1931", "M00:584", "M00:1686"],
-        ["acts_and_pins_drop_bindings_to_missing_ideas"]
-    ),
-    // ---- key/value lists, plot grids, writing days ---------------------------
     inv!(
         "KV-LIST",
         "字段列表各有归属（项目设定、故事线模板、故事线字段、分类模板字段、要素字段），按位置键排、平局按 id；键和值都空的条目不要",
@@ -809,7 +586,7 @@ pub const INVARIANTS: &[Invariant] = &[
     ),
     inv!(
         "PLOT-GRID",
-        "每章一张情节规划；格子尺寸 120–440 × 56–380；格子的行列要存在",
+        "每个情节规划模块独立持有行列和格子；尺寸有界，格子引用存在的行列",
         [Structure, Command, Read],
         "按章节 id 存一张；新表的三行三列是种子变更、id 确定（PlotRowId / PlotColId::default_for），两台设备同时新建也只有 3 × 3，晚到的默认值盖不掉作者的改动；check::plot_cell_size；读取时尺寸夹到范围内，行或列不在的格子不显示",
         ["K:592-602", "M00:884-922", "K:1089-1107"],
@@ -817,7 +594,7 @@ pub const INVARIANTS: &[Invariant] = &[
             "plot_grids_skip_orphan_cells_and_clamp_sizes",
             "a_grid_created_on_two_devices_is_three_by_three_and_keeps_its_labels",
             "seeds_merge_into_one_and_never_beat_a_real_edit",
-            "command_checks_follow_the_old_rules"
+            "shared_payload_and_size_checks"
         ]
     ),
     inv!(
@@ -832,7 +609,6 @@ pub const INVARIANTS: &[Invariant] = &[
             "writing_days_sum_over_devices"
         ]
     ),
-    // ---- prose ---------------------------------------------------------------
     inv!(
         "BODY-ENDS-WITH-NEWLINE",
         "正文永远以创世写的那个换行结尾",
@@ -930,7 +706,7 @@ pub const INVARIANTS: &[Invariant] = &[
         "PROSE-OWNER",
         "正文文档要有书目里的实体",
         [Read, Repair],
-        "BookView::owns_prose；没有主人的正文文档读取时忽略，由 F2 清理（彻底删除和另一台设备的编辑并发时会出现）",
+        "BookViewV3::owns_prose；没有主人的正文文档读取时忽略，由 F2 清理（彻底删除和另一台设备的编辑并发时会出现）",
         ["K:829-860", "K:1606-1613"],
         ["materials_folders_and_assets"]
     ),
@@ -991,12 +767,12 @@ pub const INVARIANTS: &[Invariant] = &[
         "ENTITY-RESTORE",
         "从快照历史恢复一个对象时，连同它当时的标题、梗概、字段等元数据一起恢复，书里别的东西不动",
         [Command],
-        "历史点同时记正文和书目文档的 frontiers（F2/F3）；恢复时在 BookReader::load_at 载入的副本上取 entity_snapshot，用 BookTxn::restore_fields 作为新提交写回 metadata_fields 列的字段；不整篇 revert 书目文档",
+        "完整条目快照包含原始条目、关联记录与全部正文；restore 先预检版本、身份和无损可表示性，再用 SQLite 多文档原子提交；失败与并发均不覆盖新输入",
         ["src/renderer/services/snapshot-restore.service.ts:212-280 (restoreMetadata)"],
         [
             "restoring_an_entity_writes_its_old_fields_back",
-            "restore_entities_is_its_own_inverse",
-            "undo_agent_restores_fields_nobody_changed_since"
+            "complete_restore_and_pre_restore_checkpoint_survive_reopen_and_preserve_other_entries",
+            "stale_book_or_body_refuses_every_write_and_preserves_new_input"
         ]
     ),
     inv!(
@@ -1018,12 +794,11 @@ pub const INVARIANTS: &[Invariant] = &[
         "F3 的事务顺序；中途失败只留下没有书目实体的正文文档，由 PROSE-OWNER 兜住",
         [],
         [
-            "chapter_with_text_writes_prose_first",
+            "v3_invalid_initial_body_leaves_no_documents_and_fault_keeps_no_dangling_entry",
             "a_failure_after_the_prose_leaves_only_an_orphan",
             "prose_written_before_the_book_survives_a_reopen"
         ]
     ),
-    // ---- Agent conversations (M27) -----------------------------------------
     inv!(
         "CONVERSATION-APPEND",
         "对话只从已落盘的运行事件追加；一个事件身份只对应一份内容，重放不重复写",
@@ -1076,7 +851,6 @@ pub const INVARIANTS: &[Invariant] = &[
             "prose_commands_and_editor_reject_conversations_without_writing"
         ]
     ),
-    // ---- universal kernel v3 (kernel-v3.md) --------------------------------
     inv!(
         "V3-TREE-NO-CYCLE",
         "树不成环",
@@ -1208,11 +982,10 @@ pub const DIVERGENCES: &[Divergence] = &[
             "src/renderer/usecase/useStoryline.ts:559-569",
             "drifting-structural-write-strategy.ts:1406-1432",
         ],
-        proposal: "同一条「进废纸篓」命令，界面和 Agent 都直接执行，不拒绝；关系不动，端点在废纸篓时读取隐藏（REL-ENDS-EXIST），恢复后回来；「彻底删除」在同一条命令里删掉这些关系。命令结果写明受影响的关系条数：界面在提示里说，Agent 在回复里报给作者",
-        status: "已统一（F3，2026-11-07）：界面和 Agent 走同一条命令，照上面的提议实现",
+        proposal: "canonical 条目回收不拒绝；关系原值保留，读取时隐藏已回收端点，恢复后重新显示；整书彻底删除沿用共享文档和资源隔离协议",
+        status: "已统一（canonical v3，2026-11-10）：按同一条已合入命令执行",
         tests: &[
-            "trashing_never_refuses_and_reports_fallout",
-            "purging_a_chapter_cleans_up_in_one_commit",
+            "canonical_relations_validate_dedupe_filter_and_restore_without_losing_raw_values",
         ],
     },
     Divergence {
@@ -1224,51 +997,11 @@ pub const DIVERGENCES: &[Divergence] = &[
             "src/renderer/usecase/useBookNode.ts:596-660",
             "drifting-structural-write-strategy.ts:1434-1457",
         ],
-        proposal: "都直接执行；批注保留目标，目标在废纸篓时显示为「未定位」（CMT-TARGET），恢复后回到原处；彻底删除时批注不删，变成浮动批注（清掉目标、留下正文和原文快照）",
-        status: "已统一（F3，2026-11-07）：界面和 Agent 走同一条命令，照上面的提议实现",
+        proposal: "canonical 条目回收保留批注目标与正文，读取时标 target_missing；恢复后重新定位，不运行旧固定域级联命令",
+        status: "已统一（canonical v3，2026-11-10）：按同一条已合入命令执行",
         tests: &[
-            "trashing_never_refuses_and_reports_fallout",
-            "purging_a_chapter_cleans_up_in_one_commit",
+            "canonical_relations_validate_dedupe_filter_and_restore_without_losing_raw_values",
         ],
-    },
-    Divergence {
-        id: "DIV-DRIFT-BINDINGS",
-        topic: "删掉构想时，绑定它的幕和时间钉怎么办",
-        ui: "先解绑：时间钉保留构想的标题作标签，幕清掉绑定",
-        agent: "不解绑（软删除后绑定还指着它）",
-        legacy: &[
-            "src/renderer/usecase/useBookNode.ts:613-626",
-            "src/renderer/domain/timeline-marker.ts:9-19",
-        ],
-        proposal: "进废纸篓不解绑，读取时绑定的构想不在或在废纸篓就当没绑定（ACT-PIN-DRIFT），恢复后绑定回来；彻底删除时，同一条命令把构想标题写进时间钉的标签，再清掉幕和时间钉的绑定",
-        status: "已统一（F3，2026-11-07）：界面和 Agent 走同一条命令，照上面的提议实现",
-        tests: &["purging_an_idea_keeps_its_title_on_time_pins"],
-    },
-    Divergence {
-        id: "DIV-CATEGORY-ELEMENTS",
-        topic: "删掉还有要素的分类",
-        ui: "照删，把要素摘出来（分类置空）",
-        agent: "分类里还有要素就拒绝",
-        legacy: &[
-            "src/renderer/usecase/useElementCategory.ts:275-318",
-            "drifting-structural-write-strategy.ts:1459-1490",
-        ],
-        proposal: "都直接执行；要素的分类字段不动，分类在废纸篓时读取显示为未分类（ELEMENT-CATEGORY），恢复后回来；彻底删除分类时同一条命令清掉这些要素的分类",
-        status: "已统一（F3，2026-11-07）：界面和 Agent 走同一条命令，照上面的提议实现",
-        tests: &["categories_and_their_elements"],
-    },
-    Divergence {
-        id: "DIV-STORYLINE-MEMBERSHIP",
-        topic: "删掉故事线（或在故事线里的章节）时的成员关系",
-        ui: "故事线进废纸篓时删掉全部成员关系",
-        agent: "章节或故事线还有成员关系就拒绝",
-        legacy: &[
-            "src/renderer/usecase/useStoryline.ts:559-569",
-            "drifting-structural-write-strategy.ts:1492-1515",
-        ],
-        proposal: "都直接执行；成员关系保留，读取时废纸篓里的故事线不列出，恢复后回来；彻底删除故事线时同一条命令删掉各章里它的成员键（读取本来就会滤掉，删掉只是清理）",
-        status: "已统一（F3，2026-11-07）：界面和 Agent 走同一条命令，照上面的提议实现",
-        tests: &["storylines_order_rename_trash_purge"],
     },
     Divergence {
         id: "DIV-RELTYPE-DELETE",
@@ -1279,57 +1012,143 @@ pub const DIVERGENCES: &[Divergence] = &[
             "src/renderer/usecase/useEntityRelationTypes.ts:118-133",
             "drifting-structural-write-strategy.ts:1399-1405",
         ],
-        proposal: "同一条命令在一次提交里删掉类型和用它的关系；界面先显示条数请作者确认，Agent 直接执行并在结果里列出（Agent 写入直接生效，作者靠快照历史撤销）。内置类型照旧不能删",
-        status: "已统一（F3，2026-11-07）：界面和 Agent 走同一条命令，照上面的提议实现",
-        tests: &["relation_types_names_locks_and_cascade"],
-    },
-    Divergence {
-        id: "DIV-DUP-TITLE",
-        topic: "新建或改名时章节、构想标题或故事线名已经有了",
-        ui: "自动加后缀「 2」「 3」",
-        agent: "报错 already exists",
-        legacy: &[
-            "src/renderer/domain/book-node.ts:182-199",
-            "src/renderer/domain/storyline.ts:30-47",
-            "drifting-structural-write-strategy.ts:345",
-            "drifting-structural-write-strategy.ts:444",
-        ],
-        proposal: "同一条命令都自动加后缀，并在结果里返回最终的名字（Agent 看得到改成了什么，可以再改）",
-        status: "已统一（F3，2026-11-07）：界面和 Agent 走同一条命令，照上面的提议实现",
-        tests: &[
-            "chapters_are_ordered_and_titles_get_suffixes",
-            "names_get_suffixes",
-        ],
-    },
-    Divergence {
-        id: "DIV-DUP-CATEGORY",
-        topic: "新建或改名时分类名已经有了",
-        ui: "不查重（空名改成 untitled）",
-        agent: "报错 already exists",
-        legacy: &[
-            "src/renderer/sqlite-repo/element-category-repo.ts:27-33",
-            "drifting-structural-write-strategy.ts:475",
-        ],
-        proposal: "和章节标题一样：自动加后缀并返回最终名字；空名统一用界面语言的默认名",
-        status: "已统一（F3，2026-11-07）：界面和 Agent 走同一条命令，照上面的提议实现；空名在工作区里是 Untitled，本地化的默认名由界面传进来",
-        tests: &["categories_and_their_elements"],
-    },
-    Divergence {
-        id: "DIV-DUP-ELEMENT",
-        topic: "新建或改名时要素名、别名已经有了",
-        ui: "明确给的名字重名就报错；只有占位名「新要素」自动编号",
-        agent: "报错 already exists",
-        legacy: &[
-            "src/renderer/domain/book-element.ts:96-133",
-            "drifting-structural-write-strategy.ts:404-405",
-        ],
-        proposal: "两边本来一致，保持：明确的名字重名就拒绝（自动链接靠名字认人物，ELEMENT-NAME-UNIQUE），返回占用这个名字的要素；只有命令层的「新建空要素」给占位名自动编号",
-        status: "已统一（F3，2026-11-07）：界面和 Agent 走同一条命令，照上面的提议实现",
-        tests: &["element_names_are_unique_and_placeholders_numbered"],
+        proposal: "沿用已合入的 canonical 命令：仍有关系使用时拒绝删除；未使用的类型可删除并通过原始记录历史撤销，内置类型不可改删",
+        status: "已统一（canonical v3，2026-11-10）：按同一条已合入命令执行",
+        tests: &["v3_content_modules_roundtrip_and_restore_independently"],
     },
 ];
 
 pub const NOT_CARRIED: &[NotCarried] = &[
+    NotCarried {
+        legacy: "v2.2:NODE-KIND-STATUS",
+        rule: "节点是章节或构想；章节状态 draft/finished/discarded，构想状态 drifting/resting",
+        why: "next 的固定域产品已退役；canonical 的条目／模板／模块、归属、时间线和名称策略由既有 V3 契约约束，0.1 仅保留源回放适配",
+    },
+    NotCarried {
+        legacy: "v2.2:CHAPTER-HAS-ORDER",
+        rule: "章节有书序",
+        why: "next 的固定域产品已退役；canonical 的条目／模板／模块、归属、时间线和名称策略由既有 V3 契约约束，0.1 仅保留源回放适配",
+    },
+    NotCarried {
+        legacy: "v2.2:DRIFT-NO-ORDER",
+        rule: "构想没有书序",
+        why: "next 的固定域产品已退役；canonical 的条目／模板／模块、归属、时间线和名称策略由既有 V3 契约约束，0.1 仅保留源回放适配",
+    },
+    NotCarried {
+        legacy: "v2.2:CHAPTER-NO-GROUP",
+        rule: "章节不进构想分组",
+        why: "next 的固定域产品已退役；canonical 的条目／模板／模块、归属、时间线和名称策略由既有 V3 契约约束，0.1 仅保留源回放适配",
+    },
+    NotCarried {
+        legacy: "v2.2:GROUP-EXISTS",
+        rule: "构想所在的分组存在",
+        why: "next 的固定域产品已退役；canonical 的条目／模板／模块、归属、时间线和名称策略由既有 V3 契约约束，0.1 仅保留源回放适配",
+    },
+    NotCarried {
+        legacy: "v2.2:ORDERS-FINITE",
+        rule: "书序、叙事序、幕的分界、时间钉、看板坐标都是有限数",
+        why: "next 的固定域产品已退役；canonical 的条目／模板／模块、归属、时间线和名称策略由既有 V3 契约约束，0.1 仅保留源回放适配",
+    },
+    NotCarried {
+        legacy: "v2.2:ORDER-TIES",
+        rule: "书序、叙事序、幕分界、时间钉是带间隙的实数坐标，坐标相同按 id；新章插在前一章之后、下一章和下一个幕分界之前",
+        why: "next 的固定域产品已退役；canonical 的条目／模板／模块、归属、时间线和名称策略由既有 V3 契约约束，0.1 仅保留源回放适配",
+    },
+    NotCarried {
+        legacy: "v2.2:MEMBERSHIP-SET",
+        rule: "章节所属故事线是集合：两边同时加同一条只算一次",
+        why: "next 的固定域产品已退役；canonical 的条目／模板／模块、归属、时间线和名称策略由既有 V3 契约约束，0.1 仅保留源回放适配",
+    },
+    NotCarried {
+        legacy: "v2.2:MEMBERSHIP-LIVE",
+        rule: "故事线成员是活着的章节和存在的故事线",
+        why: "next 的固定域产品已退役；canonical 的条目／模板／模块、归属、时间线和名称策略由既有 V3 契约约束，0.1 仅保留源回放适配",
+    },
+    NotCarried {
+        legacy: "v2.2:PRIMARY-IS-MEMBER",
+        rule: "主故事线必须是已加入的故事线",
+        why: "next 的固定域产品已退役；canonical 的条目／模板／模块、归属、时间线和名称策略由既有 V3 契约约束，0.1 仅保留源回放适配",
+    },
+    NotCarried {
+        legacy: "v2.2:ALIASES-SET",
+        rule: "别名是集合，去掉首尾空白，空的不要",
+        why: "next 的固定域产品已退役；canonical 的条目／模板／模块、归属、时间线和名称策略由既有 V3 契约约束，0.1 仅保留源回放适配",
+    },
+    NotCarried {
+        legacy: "v2.2:ELEMENT-CATEGORY",
+        rule: "要素的分类存在且不在废纸篓",
+        why: "next 的固定域产品已退役；canonical 的条目／模板／模块、归属、时间线和名称策略由既有 V3 契约约束，0.1 仅保留源回放适配",
+    },
+    NotCarried {
+        legacy: "v2.2:PORTRAIT",
+        rule: "肖像是同一本书里的图片资源，一个资源只属于一个要素或一个素材",
+        why: "next 的固定域产品已退役；canonical 的条目／模板／模块、归属、时间线和名称策略由既有 V3 契约约束，0.1 仅保留源回放适配",
+    },
+    NotCarried {
+        legacy: "v2.2:ELEMENT-NAME-UNIQUE",
+        rule: "一本书里活着的要素，名字和别名互不重复（去首尾空白、不分大小写）；这是自动链接认人物的前提",
+        why: "next 的固定域产品已退役；canonical 的条目／模板／模块、归属、时间线和名称策略由既有 V3 契约约束，0.1 仅保留源回放适配",
+    },
+    NotCarried {
+        legacy: "v2.2:TITLE-SUFFIX",
+        rule: "章节标题、构想标题、故事线名、分类名重名时自动加后缀「 2」「 3」",
+        why: "next 的固定域产品已退役；canonical 的条目／模板／模块、归属、时间线和名称策略由既有 V3 契约约束，0.1 仅保留源回放适配",
+    },
+    NotCarried {
+        legacy: "v2.2:CATEGORY-LAYOUT",
+        rule: "分类布局是 auto 或 pinned，网格坐标可为空",
+        why: "next 的固定域产品已退役；canonical 的条目／模板／模块、归属、时间线和名称策略由既有 V3 契约约束，0.1 仅保留源回放适配",
+    },
+    NotCarried {
+        legacy: "v2.2:PATCH-BLOCK-NEEDS-NODE",
+        rule: "补丁有源块就必须有源章节",
+        why: "next 的固定域产品已退役；canonical 的条目／模板／模块、归属、时间线和名称策略由既有 V3 契约约束，0.1 仅保留源回放适配",
+    },
+    NotCarried {
+        legacy: "v2.2:PATCH-OWNER",
+        rule: "补丁属于一个存在的要素",
+        why: "next 的固定域产品已退役；canonical 的条目／模板／模块、归属、时间线和名称策略由既有 V3 契约约束，0.1 仅保留源回放适配",
+    },
+    NotCarried {
+        legacy: "v2.2:TREE-DEPTH",
+        rule: "构想分组最多两层",
+        why: "next 的固定域产品已退役；canonical 的条目／模板／模块、归属、时间线和名称策略由既有 V3 契约约束，0.1 仅保留源回放适配",
+    },
+    NotCarried {
+        legacy: "v2.2:ACT-PIN-DRIFT",
+        rule: "幕、时间钉绑定的构想存在",
+        why: "next 的固定域产品已退役；canonical 的条目／模板／模块、归属、时间线和名称策略由既有 V3 契约约束，0.1 仅保留源回放适配",
+    },
+    NotCarried {
+        legacy: "v2.2:DIV-DRIFT-BINDINGS",
+        rule: "删掉构想时，绑定它的幕和时间钉怎么办",
+        why: "next 的固定域产品已退役；canonical 的条目／模板／模块、归属、时间线和名称策略由既有 V3 契约约束，0.1 仅保留源回放适配",
+    },
+    NotCarried {
+        legacy: "v2.2:DIV-CATEGORY-ELEMENTS",
+        rule: "删掉还有要素的分类",
+        why: "next 的固定域产品已退役；canonical 的条目／模板／模块、归属、时间线和名称策略由既有 V3 契约约束，0.1 仅保留源回放适配",
+    },
+    NotCarried {
+        legacy: "v2.2:DIV-STORYLINE-MEMBERSHIP",
+        rule: "删掉故事线（或在故事线里的章节）时的成员关系",
+        why: "next 的固定域产品已退役；canonical 的条目／模板／模块、归属、时间线和名称策略由既有 V3 契约约束，0.1 仅保留源回放适配",
+    },
+    NotCarried {
+        legacy: "v2.2:DIV-DUP-TITLE",
+        rule: "新建或改名时章节、构想标题或故事线名已经有了",
+        why: "next 的固定域产品已退役；canonical 的条目／模板／模块、归属、时间线和名称策略由既有 V3 契约约束，0.1 仅保留源回放适配",
+    },
+    NotCarried {
+        legacy: "v2.2:DIV-DUP-CATEGORY",
+        rule: "新建或改名时分类名已经有了",
+        why: "next 的固定域产品已退役；canonical 的条目／模板／模块、归属、时间线和名称策略由既有 V3 契约约束，0.1 仅保留源回放适配",
+    },
+    NotCarried {
+        legacy: "v2.2:DIV-DUP-ELEMENT",
+        rule: "新建或改名时要素名、别名已经有了",
+        why: "next 的固定域产品已退役；canonical 的条目／模板／模块、归属、时间线和名称策略由既有 V3 契约约束，0.1 仅保留源回放适配",
+    },
     NotCarried {
         legacy: "K:108-152, K:520-550, K:566-583",
         rule: "不认识的种类、字段、元组、集合一律拒绝（fail closed）",
@@ -1433,12 +1252,6 @@ mod tests {
         // Every `check` predicate names an invariant that exists.
         for id in [
             "NAME-NONEMPTY",
-            "RT-DEFINITION",
-            "REL-NO-SELF",
-            "REL-KINDS",
-            "REL-KINDS-BY-TYPE",
-            "CMT-TARGET",
-            "PATCH-BLOCK-NEEDS-NODE",
             "MAT-PAYLOAD",
             "MAT-KIND",
             "AST-SHAPE",

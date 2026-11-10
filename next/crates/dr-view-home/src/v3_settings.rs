@@ -44,10 +44,10 @@ impl Values {
             name: (self.name != baseline.name).then(|| self.name.trim().to_owned()),
             summary: (self.summary != baseline.summary).then(|| self.summary.clone()),
             word_target: (self.goal != baseline.goal)
-                .then(|| target(&self.goal))
+                .then(|| target(&self.goal).map(Some))
                 .transpose()?,
             daily_word_target: (self.daily != baseline.daily)
-                .then(|| target(&self.daily))
+                .then(|| target(&self.daily).map(Some))
                 .transpose()?,
         })
     }

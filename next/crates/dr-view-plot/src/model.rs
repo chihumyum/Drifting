@@ -17,8 +17,8 @@
 
 use std::collections::BTreeMap;
 
-use dr_model::book::{PLOT_CELL_H, PLOT_CELL_W};
-use dr_workspace::commands::plot_grid::{Axis, DEFAULT_CELL, DEFAULT_LINES, PlotGridInfo};
+use dr_model::shared::{PLOT_CELL_H, PLOT_CELL_W};
+use dr_workspace::commands::v3::plot::{Axis, DEFAULT_CELL, DEFAULT_LINES, PlotGridInfo};
 
 /// The column header's height.
 pub const COL_HEADER_H: f32 = 30.0;
@@ -90,7 +90,7 @@ impl Grid {
         if !info.exists {
             return Grid::unstored();
         }
-        let lines = |l: &[dr_workspace::commands::plot_grid::LineInfo]| {
+        let lines = |l: &[dr_workspace::commands::v3::plot::LineInfo]| {
             l.iter()
                 .map(|l| Line {
                     id: l.id.clone(),

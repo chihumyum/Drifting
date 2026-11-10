@@ -20,7 +20,7 @@
 use std::collections::HashMap;
 use std::ops::Range;
 
-use dr_model::book::EncodedAnchor;
+use dr_model::shared::EncodedAnchor;
 use loro::cursor::{Cursor, Side};
 use loro::{ContainerTrait, LoroDoc, LoroText};
 

@@ -422,6 +422,9 @@ pub fn write_samples(library: dr_workspace::Workspace, cx: &mut App) -> Task<dr_
             .spawn(async move { dr_samples::ensure_built_in(&library) })
             .await;
         match &outcome {
+            dr_samples::Outcome::Pending { items } => {
+                log::info!("built-in samples await explicit v3 mapping: {items:?}");
+            }
             dr_samples::Outcome::Created { books } => {
                 let books = books.clone();
                 cx.update(|cx| note_samples_created(books, cx));

@@ -44,16 +44,6 @@
       "connect": "모델 연결",
       "getKey": "API 키 받기",
       "history": "버전 기록",
-      "prompts": {
-        "castCharacters": "주요 인물 세 명을 만들어 줘",
-        "commentChapter": "“{{chapter}}”에 댓글 두 개를 남겨 줘",
-        "completeElement": "“{{element}}”의 세부 설정을 채워 줘",
-        "extractElements": "“{{chapter}}”의 인물과 장소를 찾아 요소로 추가해 줘",
-        "interview": "이야기를 구체화할 수 있도록 몇 가지 질문해 줘",
-        "outline": "3막 구성의 장 개요를 만들어 줘",
-        "relateElements": "{{first}}와(과) {{second}}의 관계를 정리해 줘",
-        "tightenChapter": "“{{chapter}}”의 첫 문단을 간결하게 다듬어 줘"
-      },
       "saveFailed": "키를 키체인에 저장할 수 없습니다.",
       "try": "사용해 보기"
     },
@@ -101,9 +91,6 @@
       "tokens": "약 {{count}} 토큰",
       "updated": "{{time}} · {{by}} 업데이트"
     }
-  },
-  "allChapters": {
-    "actOrdinal": "제{{n}}막"
   },
   "auth": {
     "back": "뒤로",
@@ -177,92 +164,6 @@
     "storyGraph": "이야기 그래프",
     "todoLibrary": "할 일 및 자료실"
   },
-  "bottomTimeline": {
-    "act": {
-      "chapterCount": "{{count}}개 장",
-      "deleteMergeNext": "이 막을 삭제하고 다음 막에 병합",
-      "deleteMergePrev": "이 막을 삭제하고 이전 막에 병합",
-      "dragBoundary": "드래그하여 막 경계 조정",
-      "newAct": "새 막",
-      "openActNote": "막 메모 열기",
-      "railLabel": "막",
-      "startHere": "여기서 새 막 시작",
-      "unbindDrift": "아이디어 연결 해제"
-    },
-    "axis": {
-      "addPin": "시간 마커 추가",
-      "time": "시간"
-    },
-    "empty": {
-      "noChaptersInStoryline": "스토리라인에 장 없음 · 두 번 눌러 만들기"
-    },
-    "locateCurrent": "현재 장 찾기",
-    "marker": {
-      "defaultLabel": "마커"
-    },
-    "menu": {
-      "detachFromNarrative": "미배치로 되돌리기",
-      "moveToUnaffiliated": "미소속으로 이동"
-    },
-    "pinMenu": {
-      "bindDrift": "아이디어 연결…",
-      "deleteMarker": "마커 삭제",
-      "openDrift": "아이디어 열기",
-      "rename": "이름 바꾸기",
-      "unbind": "연결을 해제하고 일반 레이블로 복원"
-    },
-    "spread": {
-      "needTwo": "분산하려면 장이 두 개 이상 필요합니다",
-      "title": "분산: {{mode}}을(를) 재배치하여 겹친 노드를 분리합니다"
-    },
-    "storyline": {
-      "chapterCount": "{{count}}장"
-    },
-    "synthetic": {
-      "book": "작품 전체",
-      "unaffiliated": "소속 없음"
-    },
-    "unplaced": {
-      "empty": "모든 장이 서사 타임라인에 배치되었습니다",
-      "label": "미배치",
-      "title": "서사 타임라인에 배치되지 않은 장"
-    },
-    "view": {
-      "book": "작품 전체",
-      "narrative": "서사 시간"
-    }
-  },
-  "categoryEditor": {
-    "actions": {
-      "openElement": "요소 열기"
-    },
-    "alerts": {
-      "deleteFailed": "분류를 삭제하지 못했습니다. 다시 시도해 주세요."
-    },
-    "deleteConfirm": "분류 “{{name}}”을(를) 삭제할까요?\n\n이 분류의 요소는 “미분류”로 이동합니다.",
-    "empty": {
-      "noFilteredElements": "이 필터에 해당하는 요소가 없습니다",
-      "noSummary": "아직 요약이 없습니다"
-    },
-    "filters": {
-      "unused": "비어 있음",
-      "used": "작성됨"
-    },
-    "folio": "분류",
-    "labels": {
-      "elementCount": "요소",
-      "summary": "요약"
-    },
-    "meta": {
-      "elements": "요소 {{count}}개",
-      "items": "항목 {{count}}개"
-    },
-    "sections": {
-      "elements": "요소 목록",
-      "scratch": "임시 메모"
-    },
-    "untitled": "이름 없는 분류"
-  },
   "chapterEditor": {
     "synopsisPlaceholder": "줄거리…",
     "untitledChapter": "제목 없는 장",
@@ -309,36 +210,16 @@
     "wordsCount": "{{count}}자"
   },
   "dashboard": {
-    "actions": {
-      "allChapters": "모든 장",
-      "elementOverview": "요소 전체 보기",
-      "storyGraph": "이야기 그래프"
-    },
     "hero": {
       "projectName": "작품 이름"
     },
-    "plan": {
-      "wordsPerDay": "자 / 일"
-    },
-    "profilePlaceholder": "작품의 전제·주제·줄거리 작성",
     "sections": {
-      "projectProfile": "작품 소개",
-      "writingPlan": "집필 계획"
+      "projectProfile": "작품 소개"
     },
     "today": {
-      "goal": "목표",
       "streak": "연속 집필",
       "week": "이번 주"
-    },
-    "wordCount": "{{count}}자"
-  },
-  "edgeKindManager": {
-    "changeColor": "색상 변경",
-    "changeColorLabel": "{{label}} 색상 변경",
-    "editTypes": "유형 편집",
-    "resetColor": "기본 색상 복원",
-    "summary": "유형 {{kinds}}개 · 관계 {{relations}}개",
-    "title": "모든 관계 유형"
+    }
   },
   "editorOutline": {
     "aria": "개요",
@@ -351,16 +232,8 @@
       "more": "추가 작업"
     },
     "menu": {
-      "changeCategory": "분류 변경",
-      "changeGroup": "그룹 변경",
-      "deleteCategory": "분류 삭제",
-      "deleteElement": "요소 삭제",
       "deleteMaterial": "자료 삭제",
-      "deleteNode": "노드 삭제",
-      "deleteStoryline": "스토리라인 삭제",
-      "editStorylines": "스토리라인 편집",
       "moveMaterialToFolder": "폴더로 이동…",
-      "moveToGroup": "그룹으로 이동…",
       "openMaterialInSystem": "기본 앱으로 열기"
     },
     "outlineRailMode": {
@@ -368,62 +241,16 @@
       "visible": "목차 표시"
     },
     "status": {
-      "discarded": "폐기됨",
-      "draft": "초안",
-      "drifting": "떠다니는 중",
-      "finished": "완료",
-      "resting": "정박 중"
-    },
-    "statusSection": {
-      "chapter": "집필 상태",
-      "drift": "아이디어 상태"
+      "draft": "초안"
     }
   },
-  "elementCategoryCreateMenu": {
-    "back": "생성 메뉴로 돌아가기",
-    "createGroup": "첫 요소 만들고 열기",
-    "duplicateGroup": "같은 이름의 그룹이 이미 있습니다.",
-    "groupNameLabel": "그룹 이름",
-    "groupNamePlaceholder": "그룹 이름 입력",
-    "groupTitle": "새 그룹",
-    "newElement": "새 요소",
-    "newGroup": "새 그룹…",
-    "openCreateMenu": "이 분류에 추가",
-    "title": "“{{name}}”에 추가"
-  },
   "elementEditor": {
-    "alerts": {
-      "aliasConflict": "별칭을 추가할 수 없습니다. “{{name}}”은(는) 요소 “{{conflicting}}”에서 이미 사용 중입니다.",
-      "deleteFailed": "요소를 삭제하지 못했습니다. 다시 시도해 주세요.",
-      "groupUpdateFailed": "그룹을 업데이트하지 못했습니다. 다시 시도해 주세요.",
-      "renameConflict": "이름을 변경할 수 없습니다. “{{name}}”은(는) 요소 “{{conflicting}}”의 이름이나 별칭으로 이미 사용 중입니다."
-    },
-    "alias": {
-      "add": "별칭",
-      "addFirst": "별칭 추가",
-      "remove": "별칭 제거"
-    },
-    "category": {
-      "newOption": "새 분류…"
-    },
-    "deleteConfirm": "요소 “{{name}}”을 삭제할까요?",
     "empty": {
       "noFacts": "아직 필드가 없습니다. 요소를 만들면 분류의 '필드 템플릿'으로 채워집니다."
     },
-    "folio": "요소",
-    "group": {
-      "create": "그룹 “{{name}}” 만들기",
-      "empty": "이 분류에는 아직 그룹이 없습니다.",
-      "noGroup": "(그룹 없음)",
-      "placeholder": "그룹 검색 또는 만들기… (비워 두면 그룹 없음)",
-      "title": "그룹 · {{category}}"
-    },
     "sections": {
-      "bioTitle": "생애",
       "facts": "설정 정보"
-    },
-    "summaryPlaceholder": "한 문장 요약…",
-    "untitled": "제목 없는 요소"
+    }
   },
   "entrySnapshot": {
     "empty": "아직 스냅샷이 없습니다",
@@ -471,7 +298,6 @@
     "closeTitle": "닫기(Esc)",
     "field": {
       "body": "본문",
-      "name": "이름",
       "title": "제목"
     },
     "noResults": "일치하는 항목 없음",
@@ -545,6 +371,16 @@
         "carries_on": "다 가져오지 못했습니다. 이 라이브러리를 다시 가져오면 이어서 가져옵니다",
         "from_caches": "본문 {{count}}개를 캐시에서 가져왔습니다. 마지막 몇 초가 빠졌을 수 있습니다"
       }
+    },
+    "v3": {
+      "destination": "A separate v3 library will be created. The current library and 0.1 source are preserved.",
+      "mapping": "Choose MappingChoices JSON",
+      "no_choices": "No explicit mapping choices selected. Unresolved mapping stops before writes.",
+      "pending": "Mapping choices required before import",
+      "selected": "Explicit mapping choices selected",
+      "start": "Import into new library",
+      "switching": "Opening the completed v3 library",
+      "title": "Reimport as v3"
     }
   },
   "importDialog": {
@@ -620,76 +456,13 @@
     "valuePlaceholder": "내용"
   },
   "leftSidebar": {
-    "actions": {
-      "collapseAll": "모두 펼치기 또는 접기",
-      "newCategory": "새 분류",
-      "newDrift": "새 아이디어",
-      "newDriftGroup": "새 그룹",
-      "sort": "정렬"
-    },
-    "empty": {
-      "noChapters": "아직 장이 없습니다.",
-      "noDrifts": "아직 아이디어가 없습니다.",
-      "noElements": "아직 요소가 없습니다."
-    },
     "groups": {
-      "addElementToGroup": "이 그룹에 새 요소",
-      "deleteGroup": "그룹 삭제",
       "driftCount_one": "아이디어 {{count}}개",
-      "driftCount_other": "아이디어 {{count}}개",
-      "moveDriftToRoot": "최상위(그룹 밖으로 이동)",
-      "moveGroupToRoot": "최상위(맨 위 수준으로 이동)",
-      "newChapterInStoryline": "이 스토리라인에 새 장",
-      "newDriftInGroup": "여기에 새 아이디어",
-      "newSubGroup": "새 하위 그룹",
-      "rename": "이름 바꾸기",
-      "renameElementGroupTitle": "두 번 클릭하여 그룹 이름 바꾸기",
-      "unaffiliated": "소속 없음"
-    },
-    "meta": {
-      "chapters": "{{count}}개 장",
-      "drifts": "아이디어 {{count}}개",
-      "elements": "분류 {{categories}}개 · 요소 {{elements}}개"
-    },
-    "sort": {
-      "alphabet": "가나다순",
-      "bookOrder": "읽기 순서",
-      "categoryElements": "분류 내 요소 정렬",
-      "cellMetaGroup": "셀 오른쪽",
-      "chapters": "장 정렬",
-      "createdAt": "생성일",
-      "drifts": "아이디어 정렬",
-      "duplicatesAll": "연결된 모든 그룹에 표시",
-      "duplicatesGroup": "여러 스토리라인의 장",
-      "duplicatesPrimary": "주요 스토리라인에만 표시",
-      "narrativeOrder": "서사 순서",
-      "outerCategoriesGroup": "바깥 분류",
-      "outerStorylinesGroup": "바깥 스토리라인",
-      "showBoth": "글자 수와 날짜 표시",
-      "showDate": "날짜 표시",
-      "showNone": "둘 다 숨기기",
-      "showWordCount": "글자 수 표시",
-      "storylineChapters": "스토리라인 내 장 정렬",
-      "storylineOrder": "스토리라인 순서",
-      "title": "제목 A–Z",
-      "updatedAt": "수정일"
-    },
-    "tabs": {
-      "chapters": "장",
-      "drifts": "아이디어",
-      "elements": "요소"
+      "driftCount_other": "아이디어 {{count}}개"
     },
     "top": {
       "close": "왼쪽 사이드바 닫기",
       "open": "왼쪽 사이드바 열기"
-    },
-    "uncategorized": "미분류",
-    "viewMode": {
-      "chapterSummary": "스토리라인 {{storylines}}개 · {{chapters}}장",
-      "elementCompactTitle": "간결한 색인 · 이름 목록으로 전환",
-      "elementListTitle": "이름 목록 · 간결한 색인으로 전환",
-      "globalTitle": "작품 전체 보기 · 스토리라인별 그룹화",
-      "storylineTitle": "스토리라인별 그룹 · 작품 전체 보기로 전환"
     }
   },
   "manuscriptExport": {
@@ -732,22 +505,8 @@
     "title": "Markdown 폴더를 어디에 둘까요?"
   },
   "markdownShare": {
-    "characters": "{{count}}자",
-    "copied": "전체 Markdown을 복사했습니다",
-    "copy": "모두 복사",
-    "currentBody": "이 문서의 전체 본문",
-    "failed": "작업을 완료하지 못했습니다. 다시 시도하거나 텍스트를 선택해 복사해 주세요.",
     "loadFailed": "문서 전체를 읽을 수 없습니다. 다시 시도해 주세요.",
-    "loading": "전체 Markdown 준비 중…",
-    "menu": "공유",
-    "proseOnly": "제목, 본문, 장 요약이 포함됩니다. 댓글과 구성 메모는 공개되지 않습니다.",
-    "readOnly": "읽기 전용",
-    "retry": "다시 시도",
-    "save": ".md로 저장",
-    "saved": "Markdown을 저장했습니다",
-    "saving": "저장 중…",
-    "title": "Markdown 공유",
-    "wholeBook": "원고 순서대로 모든 장"
+    "retry": "다시 시도"
   },
   "materialEditor": {
     "deleteConfirm": "자료 “{{title}}”을(를) 삭제할까요? 이 작업은 되돌릴 수 없습니다.",
@@ -839,9 +598,6 @@
     "back": "뒤로"
   },
   "nodeEditor": {
-    "empty": {
-      "noStoryline": "스토리라인 없음"
-    },
     "folio": {
       "chapter": "장",
       "chapterNumber": "제{{n}}장",
@@ -866,15 +622,6 @@
     },
     "empty": "알림 없음",
     "markdownFolder": {
-      "issue": {
-        "empty": "본문이 비어 있어 병합하지 않고 파일을 보존했습니다",
-        "encoding": "UTF-8이 아니어서 읽지 않고 파일을 보존했습니다",
-        "frontmatter": "상단 속성 형식이 잘못되어 수정 전에는 병합하거나 덮어쓰지 않습니다",
-        "identity": "drifting-id가 다른 장을 가리켜 병합하지 않고 파일을 보존했습니다",
-        "lineage": "장을 복원하거나 초기화하여 자동 병합할 수 없고 파일은 보존했습니다",
-        "owned": "다른 Drifting이 관리하는 폴더라서 읽거나 쓰지 않았습니다",
-        "too-large": "너무 커서 읽지 않고 파일을 보존했습니다"
-      },
       "preserved_one": "수정된 파일 {{count}}개를 .drifting/preserved에 보존함",
       "preserved_other": "수정된 파일 {{count}}개를 .drifting/preserved에 보존함",
       "source": "Markdown 폴더"
@@ -927,12 +674,9 @@
   },
   "projectHome": {
     "book": {
-      "noStorylines": "아직 스토리라인이 없습니다.",
-      "storylineCount": "{{done}} / {{total}}장",
       "title": "책"
     },
     "continue": {
-      "empty": "아직 장이 없습니다.",
       "title": "계속"
     },
     "create": {
@@ -946,17 +690,14 @@
       }
     },
     "kicker": "작품 홈",
-    "readout": "{{chapters}}장 · 스토리라인 {{storylines}}개 · 요소 {{elements}}개",
     "settings": {
       "dailyGoal": "일일 목표",
       "proactive": "능동적 제안",
       "projectTarget": "책 전체 목표"
     },
-    "since": "작품 홈 · {{date}}부터",
     "today": "오늘 {{today}} / {{goal}} · {{streak}}일 연속",
     "todayNoGoal": "오늘 {{today}} · {{streak}}일 연속",
     "views": {
-      "overview": "개요",
       "settings": "설정"
     },
     "words": "{{words}}단어",
@@ -1097,17 +838,6 @@
       "linkEntity": "엔터티 연결",
       "remove": "관계 제거"
     },
-    "deleted": {
-      "category": "(삭제된 분류)",
-      "element": "(삭제된 요소)",
-      "node": "(삭제된 장)",
-      "storyline": "(삭제된 스토리라인)"
-    },
-    "empty": {
-      "incoming": "아직 이 항목을 참조하는 내용이 없습니다",
-      "outgoing": "이 본문은 아직 다른 엔터티를 참조하지 않습니다",
-      "relations": "아직 관계가 없습니다"
-    },
     "filters": {
       "all": "전체"
     },
@@ -1118,68 +848,15 @@
       "patch": "변화 기록",
       "storyline": "스토리라인"
     },
-    "meta": {
-      "blocksSpans": "블록 {{blocks}}개 · 언급 {{spans}}개",
-      "spans": "언급 {{count}}개"
-    },
     "picker": {
-      "empty": "선택 항목 없음",
       "placeholder": "연결 가능한 엔터티 검색…"
     },
     "sections": {
-      "incoming": "백링크",
-      "outgoing": "참조",
       "relations": "관계"
     }
   },
-  "relationPicker": {
-    "untitledChapter": "제목 없는 장",
-    "untitledDrift": "제목 없는 아이디어",
-    "untitledElement": "이름 없는 요소",
-    "untitledStoryline": "이름 없는 스토리라인"
-  },
   "relationTypes": {
-    "allowedEntities": "허용된 엔터티",
-    "allowedSources": "허용된 출발점 엔터티",
-    "allowedTargets": "허용된 대상 엔터티",
-    "builtIn": "기본 제공",
-    "cancel": "취소",
-    "confirmDelete": "관계 유형 “{{name}}”을(를) 삭제할까요?",
-    "create": "새로 만들기",
-    "createInline": "관계 유형 만들기",
-    "defaultSourceRole": "출처",
-    "defaultTargetRole": "대상",
-    "delete": "관계 유형 삭제",
-    "description": "설명",
-    "directed": "방향 있음",
-    "direction": "방향",
-    "endpointRole": "끝점 역할",
-    "entityKinds": {
-      "category": "요소 분류",
-      "comment": "댓글",
-      "element": "요소",
-      "library_item": "자료",
-      "node": "장 또는 아이디어",
-      "patch": "요소 변화 기록",
-      "storyline": "스토리라인"
-    },
-    "genericAssociation": {
-      "name": "연관",
-      "sourceRole": "연관 항목",
-      "targetRole": "객체"
-    },
-    "missing": "관계 유형 누락",
-    "name": "이름",
-    "pendingIncoming": "이 엔터티 ← 대상",
-    "pendingOutgoing": "이 엔터티 → 대상",
-    "save": "저장",
-    "selectConfigured": "관계 유형 선택",
-    "sourceRole": "출발점 역할",
-    "swap": "관계 끝점 맞바꾸기",
-    "symmetric": "대칭",
-    "symmetricSummary": "대칭 · {{role}}",
-    "targetRole": "대상 역할",
-    "title": "관계 유형 정의"
+    "description": "설명"
   },
   "reviewPanel": {
     "commentPlaceholder": "댓글 작성…",
@@ -1197,8 +874,7 @@
     "scopes": {
       "current": "현재"
     },
-    "sourceFloating": "작품 수준 · 연결된 엔터티 없음",
-    "sourceTextUnavailable": "저장된 발췌 없음"
+    "sourceFloating": "작품 수준 · 연결된 엔터티 없음"
   },
   "rightSidebar": {
     "kickers": {
@@ -1208,7 +884,6 @@
         "all-chapters": "작품 전체 · 리듬",
         "category": "이 분류 · 상세 통계",
         "chapter": "이 장 · 상세 통계",
-        "drift": "이 아이디어 · 상세 통계",
         "element": "이 요소 · 상세 통계",
         "material": "이 자료 · 상세",
         "none": "작품 · 상세 통계",
@@ -1216,82 +891,22 @@
       }
     },
     "stats": {
-      "actMeta": "{{chapters}}장 · {{wordsK}}k자 · {{pct}}%",
-      "actRhythm": "막별 리듬",
-      "allElementsAppeared": "모든 요소가 본문에 등장했습니다.",
-      "appeared": "등장함",
-      "averageAppearance": "평균 등장 횟수",
-      "averagePerChapter": "장별 평균",
-      "avgChaptersPerElement": "{{count}}장 / 요소",
-      "bookPosition": "작품 내 위치",
       "category": "분류",
-      "categoryCoordinates": "분류 좌표",
-      "categoryNoElements": "이 분류에는 아직 요소가 없습니다.",
       "chapter": "장",
-      "chapterCoordinates": "장 좌표",
-      "chapterCount": "장",
-      "chapterLengthRhythm": "장 길이 리듬",
-      "chapterOrdinal": "제{{count}}장",
-      "chaptersValue": "{{count}}개 장",
-      "completion": "완성도",
       "dialogueRatio": "대화 비율",
-      "dimensions": "규격",
-      "discardedParen": " (폐기 {{count}})",
-      "driftCoordinates": "아이디어 좌표",
-      "driftFreeFragment": "아이디어 · 자유 배치",
-      "elementCoordinates": "요소 좌표",
-      "elementCount": "요소 수",
-      "elementsValue": "요소 {{count}}개",
-      "embeddedMaterials": "삽입된 자료",
-      "fileSize": "크기",
-      "fileType": "유형",
-      "floatingStoryline": "자유 배치 / 소속 없음",
-      "health": "건강 상태",
-      "lastModified": "마지막 수정",
-      "longestWithWords": "가장 긴 장 · {{title}}({{words}}자)",
-      "materialCoordinates": "자료",
-      "materialFile": "파일",
-      "materialRelations": "연결 대상",
-      "moreLowAppearanceElements": "등장 횟수가 적은 요소 {{count}}개 더 있음",
-      "moreUnappearedElements": "미등장 {{count}}개 더 있음",
       "name": "이름",
-      "noActiveProgress": "모든 장이 폐기되었거나 아직 진행 상황이 없습니다.",
-      "noChapters": "아직 장이 없습니다. 첫 장을 시작하면 작품의 리듬이 여기에 표시됩니다.",
-      "noMentionedElements": "본문에 @로 언급한 요소가 없습니다.",
-      "noteShape": "메모",
-      "noteTasks": "할 일",
-      "noteTasksValue": "{{done}} / {{total}} 완료",
-      "noteWords": "길이",
-      "openComments": "미해결 댓글 및 할 일",
       "paragraphSentence": "문단 / 문장",
       "paragraphSentenceValue": "{{paragraphs}}문단 · {{sentences}}문장",
       "recent": "최근",
-      "shortestWithWords": "가장 짧은 장 · {{title}}({{words}}자)",
       "snapshotButton": "기록 스냅샷…",
-      "statusCount": "{{status}} {{count}}장",
       "storyline": "스토리라인",
-      "storylineCoordinates": "스토리라인 좌표",
-      "storylineCoreElements": "이 스토리라인의 핵심 요소",
-      "storylineDistribution": "스토리라인 분포",
-      "storylineNoChapters": "이 스토리라인에는 아직 장이 없습니다.",
-      "storylineNoMentionedElements": "이 스토리라인의 장에 @로 언급한 요소가 없습니다.",
-      "thisChapterElements": "이 장의 요소",
-      "thisFragmentElements": "이 아이디어의 요소",
-      "titleWithWords": "{{title}}({{words}}자)",
-      "type": "유형",
-      "unappearedElements": "미등장 요소",
       "updated": "업데이트됨",
       "wordRhythm": "글자 수 · 리듬",
-      "wordsPerChapterValue": "{{words}}자 / 장",
       "wordsValue": "{{count}}자",
-      "writingProgress": "집필 진행률",
-      "writtenTarget": "작성 / 목표"
+      "writingProgress": "집필 진행률"
     },
     "status": {
-      "discarded": "폐기됨",
-      "done": "완료",
-      "draft": "초안",
-      "todo": "작성 예정"
+      "draft": "초안"
     },
     "tabs": {
       "companion": "Agent",
@@ -1657,18 +1272,7 @@
       "local_sub": "Drifting 계정이나 호스팅 클라우드를 사용하지 않습니다. 언제든 읽을 수 있는 사본을 내보낼 수 있습니다.",
       "local_title": "작품은 이 기기에 보관됩니다.",
       "projection": {
-        "allProjects": "모든 작품",
-        "allProjectsUnset": "모든 작품 · 위치를 선택하지 않음",
-        "choose": "폴더 선택",
-        "description": "각 작품에는 로컬 읽기·검색·외부 도구용 구조화된 Markdown이 있습니다. Drifting 실행 중 다른 편집기에서 장과 아이디어를 편집하면 병합됩니다. 다른 파일은 자동 생성되며 읽기 전용입니다.",
-        "locationHint": "이 기기에 작품마다 폴더를 만듭니다. 위치를 바꿔도 기존 폴더는 원래 위치에 남습니다.",
-        "offHint": "꺼짐: Markdown을 기록하지 않고 외부 수정도 병합하지 않습니다. 기존 파일은 그대로 남습니다.",
-        "offTitle": "Markdown 폴더를 끌까요?",
-        "offWarning": "모든 작품의 Markdown 기록을 중지합니다. 외부 편집기와 Agent는 현재 파일만 보게 되며 외부 수정은 Drifting에 병합되지 않습니다. 기존 파일은 그대로 남습니다. 설정 → 동기화 및 데이터에서 다시 켤 수 있습니다.",
-        "reveal": "Finder에서 보기",
-        "title": "Markdown 폴더",
-        "turnOff": "Markdown 폴더 끄기",
-        "turnOn": "켜기"
+        "turnOff": "Markdown 폴더 끄기"
       }
     },
     "title": "설정",
@@ -1718,48 +1322,19 @@
   "speech": {
     "backlog": "전사 처리 지연"
   },
-  "storyGraph": {
-    "edge": {
-      "create": "만들기"
-    }
-  },
   "storylineEditor": {
-    "actions": {
-      "openChapter": "장 열기"
-    },
-    "alerts": {
-      "deleteFailed": "스토리라인을 삭제하지 못했습니다. 다시 시도해 주세요."
-    },
-    "deleteConfirm": "스토리라인 “{{name}}”을 삭제할까요?",
     "empty": {
-      "noChapterSummary": "아직 한 문장 요약이 없습니다",
-      "noFacts": "아직 필드가 없습니다. 스토리라인을 만들면 작품 홈의 '스토리라인 템플릿'으로 채워집니다.",
-      "noFilteredChapters": "이 필터에 해당하는 장이 없습니다"
+      "noFacts": "아직 필드가 없습니다. 스토리라인을 만들면 작품 홈의 '스토리라인 템플릿'으로 채워집니다."
     },
     "filters": {
-      "all": "전체",
-      "unwritten": "시작 전",
-      "written": "작성됨"
+      "all": "전체"
     },
-    "folio": "스토리라인",
     "labels": {
       "color": "색상"
     },
-    "meta": {
-      "chapters": "{{count}}개 장",
-      "chaptersWords": "{{chapters}}장 · {{words}}천 단어",
-      "kWords": "{{count}}천 단어",
-      "nodeTemplate": "새 장의 기본 구조"
-    },
-    "nodeTemplatePlaceholder": "H1 / H2 / H3으로 기본 장 구조를 작성하세요. 새 장에 적용됩니다…",
     "sections": {
-      "chapters": "장 순서",
-      "facts": "설정 정보",
-      "nodeTemplate": "장 템플릿",
-      "scratch": "임시 메모"
-    },
-    "summaryPlaceholder": "이 스토리라인의 한 문장 요약…",
-    "untitled": "이름 없는 스토리라인"
+      "facts": "설정 정보"
+    }
   },
   "templateEditor": {
     "accept": "다른 위치의 항목 허용",
@@ -1846,12 +1421,7 @@
       "allChapters": "작품 전체"
     },
     "untitled": {
-      "category": "이름 없는 분류",
-      "chapter": "제목 없는 장",
-      "drift": "제목 없는 아이디어",
-      "element": "이름 없는 요소",
-      "library_item": "이름 없는 자료",
-      "storyline": "이름 없는 스토리라인"
+      "library_item": "이름 없는 자료"
     }
   },
   "userMenu": {
@@ -1967,11 +1537,7 @@
   },
   "workspaceWordTally": {
     "book": "작품 전체",
-    "chapter": "장",
     "counting": "계산 중",
-    "drift": "아이디어",
-    "selection": "선택 영역",
-    "storyline": "스토리라인",
-    "today": "오늘"
+    "selection": "선택 영역"
   }
 }

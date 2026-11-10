@@ -48,7 +48,7 @@ impl Fixture {
         let mut books = Vec::new();
         let mut text = Vec::new();
         for offset in [0, 1] {
-            let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED + offset).unwrap();
+            let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED + offset).unwrap();
             books.push(seeded.books[0].book_id().clone());
             text.push(
                 seeded.books[0]

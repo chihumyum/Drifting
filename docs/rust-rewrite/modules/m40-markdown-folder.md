@@ -1,5 +1,7 @@
 # M40 Markdown 文件夹
 
+> 2026-11-10 切换实施更新：旧 watcher／App 设置入口已退役；v3 文件夹仍只允许方案，不恢复旧格式写回。 当前范围、删除／保留边界和验收状态见 [canonical v3 切换](../v3-cutover.md)。下文历史交回记录保留其原语境。
+
 2026-11-08，第一个里程碑：章节和构想写成 Markdown 文件，在别的编辑器里改了保存，修改合并回正文。计划见 [modules.md 的 M40](../modules.md)；旧版的做法见 [`docs/markdown-mirror.md`](../../markdown-mirror.md)。代码在新的服务层 crate `next/crates/dr-mirror/`（不带界面）；设置里的位置、通知和应用的启动停止还没接，见「外壳里的挂接点」。
 
 ## 做了什么（大白话）

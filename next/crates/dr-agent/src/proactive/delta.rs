@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use dr_doc::{book::BorrowedBook, loro_types::Frontiers, prose::BorrowedProse};
+use dr_doc::{loro_types::Frontiers, prose::BorrowedProse};
 use dr_model::{DocId, id::BookId};
 use dr_store::Library;
 use serde::{Deserialize, Serialize};
@@ -31,7 +31,7 @@ pub struct DocumentCursor {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DeltaMode {
     AllProse,
-    LocalAuthorNodes,
+    LocalAuthorBodies,
 }
 
 #[derive(Clone, Debug)]
@@ -83,116 +83,54 @@ fn live_targets(
     mode: DeltaMode,
 ) -> Result<BTreeMap<String, CardTarget>> {
     let copy = lib.load_copy(&format!("book:{book}"))?;
-    if dr_doc::v3::is_v3_doc(&copy) {
-        let borrowed = dr_doc::v3::BorrowedBookV3::new(&copy, book)?;
-        let view = borrowed.view();
-        if view.trashed_at().is_some() {
-            return Err(Error::Closed);
-        }
-        let templates = view.templates_map();
-        let entries = view.entries_map();
-        let materials: BTreeMap<_, _> = view
-            .materials()
-            .into_iter()
-            .map(|m| (m.id.clone(), m))
-            .collect();
-        let mut targets = BTreeMap::new();
-        // The evidence collector does not infer a task from template names or
-        // auto-link flags. Every retained, registered body keeps its identity.
-        for info in lib.docs(Some(book.as_str()), None)? {
-            match DocId::parse(&info.doc_id) {
-                Ok(DocId::Body(body)) => {
-                    if let Some(entry) = entries.get(body.entry()).filter(|e| !e.is_trashed()) {
-                        let module = entry
-                            .effective_template(&templates)
-                            .and_then(|t| t.module(body.module()))
-                            .map(|m| m.name.as_str())
-                            .unwrap_or(body.module().as_str());
-                        targets.insert(
-                            info.doc_id,
-                            CardTarget {
-                                kind: "entry".into(),
-                                id: entry.id.to_string(),
-                                title: format!("{} / {}", entry.title, module),
-                            },
-                        );
-                    }
-                }
-                Ok(DocId::Material(id)) if mode == DeltaMode::AllProse => {
-                    if let Some(material) = materials.get(&id) {
-                        targets.insert(
-                            info.doc_id,
-                            CardTarget {
-                                kind: "material".into(),
-                                id: id.to_string(),
-                                title: material.title.clone(),
-                            },
-                        );
-                    }
-                }
-                _ => {}
-            }
-        }
-        return Ok(targets);
-    }
-    let borrowed = BorrowedBook::new(&copy, book)?;
+
+    let borrowed = dr_doc::v3::BorrowedBookV3::new(&copy, book)?;
     let view = borrowed.view();
-    if view.meta().deleted_at.is_some() {
+    if view.trashed_at().is_some() {
         return Err(Error::Closed);
     }
+    let templates = view.templates_map();
+    let entries = view.entries_map();
+    let materials: BTreeMap<_, _> = view
+        .materials()
+        .into_iter()
+        .map(|m| (m.id.clone(), m))
+        .collect();
     let mut targets = BTreeMap::new();
-    for node in view.nodes().into_iter().filter(|n| !n.is_trashed()) {
-        targets.insert(
-            format!("node:{}", node.id),
-            CardTarget {
-                kind: if node.is_chapter() { "chapter" } else { "idea" }.into(),
-                id: node.id.to_string(),
-                title: node.title,
-            },
-        );
-    }
-    if mode == DeltaMode::AllProse {
-        for element in view
-            .elements()
-            .into_iter()
-            .filter(|e| e.deleted_at.is_none())
-        {
-            targets.insert(
-                format!("element:{}", element.id),
-                CardTarget {
-                    kind: "element".into(),
-                    id: element.id.to_string(),
-                    title: element.name,
-                },
-            );
-        }
-        for item in view
-            .storylines()
-            .into_iter()
-            .filter(|e| e.deleted_at.is_none())
-        {
-            targets.insert(
-                format!("storyline:{}", item.id),
-                CardTarget {
-                    kind: "storyline".into(),
-                    id: item.id.to_string(),
-                    title: item.name,
-                },
-            );
-        }
-        for item in view
-            .categories()
-            .into_iter()
-            .filter(|e| e.deleted_at.is_none())
-        {
-            targets.insert(
-                format!("category:{}", item.id),
-                CardTarget {
-                    kind: "category".into(),
-                    id: item.id.to_string(),
-                    title: item.name,
-                },
-            );
+    // The evidence collector does not infer a task from template names or
+    // auto-link flags. Every retained, registered body keeps its identity.
+    for info in lib.docs(Some(book.as_str()), None)? {
+        match DocId::parse(&info.doc_id) {
+            Ok(DocId::Body(body)) => {
+                if let Some(entry) = entries.get(body.entry()).filter(|e| !e.is_trashed()) {
+                    let module = entry
+                        .effective_template(&templates)
+                        .and_then(|t| t.module(body.module()))
+                        .map(|m| m.name.as_str())
+                        .unwrap_or(body.module().as_str());
+                    targets.insert(
+                        info.doc_id,
+                        CardTarget {
+                            kind: "entry".into(),
+                            id: entry.id.to_string(),
+                            title: format!("{} / {}", entry.title, module),
+                        },
+                    );
+                }
+            }
+            Ok(DocId::Material(id)) if mode == DeltaMode::AllProse => {
+                if let Some(material) = materials.get(&id) {
+                    targets.insert(
+                        info.doc_id,
+                        CardTarget {
+                            kind: "material".into(),
+                            id: id.to_string(),
+                            title: material.title.clone(),
+                        },
+                    );
+                }
+            }
+            _ => {}
         }
     }
     Ok(targets)
@@ -319,7 +257,7 @@ pub fn collect_delta(lib: &Library, request: &DeltaRequest) -> Result<DeltaBatch
             }
             let local = peers.get(&info.doc_id) == Some(&change.peer);
             let author = local && matches!(message, "" | "user" | "user:command" | "mirror");
-            if request.mode == DeltaMode::LocalAuthorNodes && !author {
+            if request.mode == DeltaMode::LocalAuthorBodies && !author {
                 continue;
             }
             if message.starts_with("agent:") {

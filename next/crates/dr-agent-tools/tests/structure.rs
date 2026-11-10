@@ -350,13 +350,12 @@ fn recorded_runtime_refreshes_guidance_and_pauses_instead_of_truncating() {
 fn v2_books_receive_no_structure_context() {
     let dir = tempfile::tempdir().unwrap();
     let ws = Workspace::open_dir(dir.path(), "k6-v2-context").unwrap();
-    let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
-    seeded.write_to(ws.library()).unwrap();
+    let id = dr_testkit::seed::acceptance::empty_source(ws.library());
+    let book = BookId::parse(&id).unwrap();
     assert!(
         AgentTools::new()
-            .context(&ws, seeded.books[0].book_id(), "compatibility")
-            .unwrap()
-            .is_empty()
+            .context(&ws, &book, "compatibility")
+            .is_err()
     );
     ws.close();
 }

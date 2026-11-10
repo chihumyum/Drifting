@@ -1,10 +1,9 @@
 //! The export dialogs on a real workspace (GPUI's test platform): the
-//! manuscript's choices, the save panel and the written file; the Markdown
-//! share's copy and save.
+//! manuscript's choices, the save panel, cancellation and the written file.
 
 use std::time::{Duration, Instant};
 
-use dr_export::{Format, MarkdownTarget};
+use dr_export::Format;
 use dr_i18n::{Locale, Platform};
 use dr_store::Library;
 use dr_view_export::{ExportDialog, Request, prefs::Prefs};
@@ -25,15 +24,18 @@ fn out(ws: &Workspace, name: &str, input: Value) -> Value {
         .clone()
 }
 
-/// A book with an act and three chapters, the last one discarded.
+/// A canonical manuscript group and three entries, the last one trashed.
 fn env() -> Env {
     let dir = tempfile::tempdir().unwrap();
     let lib = Library::open(dir.path().join("library"), library_options("test")).unwrap();
     let ws = Workspace::open(lib, WorkspaceOptions::default()).unwrap();
-    let book = out(&ws, "book.create", json!({"name": "慢钟"}))["id"]
+    let book = out(&ws, "project.create", json!({"name": "慢钟"}))["id"]
         .as_str()
         .unwrap()
         .to_owned();
+    let group = dr_testkit::seed::acceptance::novel_entry(&ws, &book, "tpl-group", "第一卷", None)
+        ["id"]
+        .clone();
     let mut chapters = Vec::new();
     for (title, text) in [
         ("停摆", "钟楼停了。\n她抬头看。"),
@@ -42,24 +44,14 @@ fn env() -> Env {
     ] {
         let id = out(
             &ws,
-            "chapter.create",
-            json!({"book": book, "title": title, "text": text}),
+            "entry.create", json!({"book": book, "parent": group, "template": "tpl-chapter", "title": title, "bodies": {"mod-prose": text}}),
         )["id"]
             .as_str()
             .unwrap()
             .to_owned();
         chapters.push(id);
     }
-    out(
-        &ws,
-        "chapter.update",
-        json!({"book": book, "id": chapters[2], "status": "discarded"}),
-    );
-    out(
-        &ws,
-        "act.create",
-        json!({"book": book, "name": "第一卷", "start_chapter": chapters[0]}),
-    );
+    out(&ws, "entry.trash", json!({"book":book,"id":chapters[2]}));
     Env {
         dir,
         ws,
@@ -173,12 +165,12 @@ fn the_whole_book_exports_as_epub_and_chosen_chapters_as_word(cx: &mut TestAppCo
     dialog.read_with(cx, |d, cx| {
         let m = d.manuscript().unwrap();
         assert!(m.whole_book);
-        // Every chapter but the discarded one, and the book's name.
+        // Every manuscript entry except the trashed one, and the book name.
         assert_eq!(m.chapters(), e.chapters[..2].to_vec());
         assert_eq!(m.title(cx), "慢钟");
         assert_eq!(m.format, Format::Epub);
         assert!(m.can_export(cx));
-        assert!(m.outline.as_ref().unwrap().has_acts());
+        assert!(!m.outline.as_ref().unwrap().has_acts());
     });
 
     let epub = e.dir.path().join("慢钟.epub");
@@ -215,7 +207,7 @@ fn the_whole_book_exports_as_epub_and_chosen_chapters_as_word(cx: &mut TestAppCo
         m.toggle(&e.chapters[1]);
         let (options, _) = m.options(cx);
         assert_eq!(options.chapters, Some(vec![e.chapters[1].clone()]));
-        assert!(options.act_titles && options.chapter_titles);
+        assert!(!options.act_titles && options.chapter_titles);
     });
     let docx = e.dir.path().join("面馆.docx");
     dialog.update(cx, |d, cx| d.manuscript_mut().unwrap().export(cx));
@@ -259,36 +251,4 @@ fn from_a_chapter_the_choice_starts_with_it(cx: &mut TestAppContext) {
     dialog.read_with(cx, |d, _| {
         assert_eq!(d.manuscript().unwrap().feedback, None)
     });
-}
-
-#[gpui::test]
-fn markdown_is_copied_and_saved(cx: &mut TestAppContext) {
-    let e = env();
-    let (dialog, cx) = open(cx, &e, Request::Markdown(MarkdownTarget::Book));
-    wait_for(cx, |cx| {
-        dialog.read_with(cx, |d, _| d.markdown().unwrap().doc.is_some())
-    });
-    let markdown = dialog.read_with(cx, |d, _| {
-        d.markdown().unwrap().doc.clone().unwrap().markdown
-    });
-    assert!(
-        markdown.contains("停摆") && markdown.contains("再来一碗"),
-        "{markdown}"
-    );
-    dialog.update(cx, |d, cx| d.markdown_mut().unwrap().copy(cx));
-    assert_eq!(
-        cx.read_from_clipboard().and_then(|c| c.text()),
-        Some(markdown.clone())
-    );
-    let path = e.dir.path().join("share.md");
-    dialog.update(cx, |d, cx| d.markdown_mut().unwrap().save(cx));
-    cx.run_until_parked();
-    cx.simulate_new_path_selection({
-        let path = path.clone();
-        move |_| Some(path)
-    });
-    wait_for(cx, |cx| {
-        dialog.read_with(cx, |d, _| d.markdown().unwrap().action.is_none())
-    });
-    assert_eq!(std::fs::read_to_string(&path).unwrap(), markdown);
 }

@@ -26,7 +26,7 @@ fn setup(cx: &mut TestAppContext) -> tempfile::TempDir {
     cx.executor().allow_parking();
     let dir = tempfile::tempdir().unwrap();
     let workspace = Workspace::open_dir(dir.path(), VERSION).unwrap();
-    seed::generate(Preset::Tiny, seed::DEFAULT_SEED)
+    seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED)
         .unwrap()
         .write_to(workspace.library())
         .unwrap();
@@ -145,7 +145,7 @@ fn after_release_attaches_to_the_current_library_and_closed_clones_hold_no_libra
     let replacement = tempfile::tempdir().unwrap();
     let store = dr_store::Library::open(replacement.path(), dr_workspace::library_options(VERSION))
         .unwrap();
-    seed::generate(Preset::Tiny, seed::DEFAULT_SEED + 31)
+    seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED + 31)
         .unwrap()
         .write_to(&store)
         .unwrap();

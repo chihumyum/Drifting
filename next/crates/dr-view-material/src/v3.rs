@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, HashSet};
 
 use dr_doc::v3::BorrowedBookV3;
-use dr_model::{book::EntityRef, id::BookId, kind::EntityKind, v3 as model};
+use dr_model::{id::BookId, kind::EntityKind, shared::EntityRef, v3 as model};
 use dr_store::OpenDoc;
 use dr_workspace::{Result, Workspace, WsError};
 
@@ -34,7 +34,7 @@ pub fn entry_links(ws: &Workspace, book: &str, material: &str) -> Result<Vec<Ent
             if view.meta().deleted_at.is_some() || !view.entity_exists(&own) {
                 return Err(invalid("material is unavailable"));
             }
-            let ty = dr_doc::book::generic_relation_type_id(&book_id);
+            let ty = dr_doc::catalog::generic_relation_type_id(&book_id);
             let linked: HashSet<_> = view
                 .relations_raw()
                 .into_iter()

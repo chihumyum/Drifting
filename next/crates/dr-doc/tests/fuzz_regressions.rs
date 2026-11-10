@@ -10,7 +10,7 @@
 #[path = "../fuzz/fuzz_targets/common.rs"]
 mod common;
 
-use dr_doc::book::BookDoc;
+use dr_doc::import_v1::BookDoc;
 use dr_doc::prose::ProseDoc;
 use dr_model::id::BookId;
 use dr_model::{DocId, Origin};

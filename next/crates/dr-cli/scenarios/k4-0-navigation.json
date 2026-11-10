@@ -1,5 +1,5 @@
 {
-  "about": "F6 导航回归：v3-lite 的 Book/Material 目标、重排刷新后保留标签与真实全书输入撤销、关开恢复，以及 v2.2 原路由。正文来自共享种子。",
+  "about": "F6 canonical v3 导航：Book/Material 目标、重排刷新保留标签与真实全书输入撤销、关开恢复。旧产品路由已退役；旧书拒开由切换验收覆盖。正文来自共享种子。",
   "steps": [
     {
       "seed": "v3-lite"
@@ -24,32 +24,6 @@
         "module": "mod-prose"
       },
       "save": "original"
-    },
-    {
-      "call": "book.create",
-      "input": {
-        "name": "Synthetic v2 navigation"
-      },
-      "save": "legacy"
-    },
-    {
-      "call": "chapter.create",
-      "input": {
-        "book": "${legacy.id}",
-        "title": "Synthetic legacy chapter",
-        "text": "${original.paragraphs.0.text}"
-      },
-      "save": "legacyChapter"
-    },
-    {
-      "call": "material.create",
-      "input": {
-        "book": "${legacy.id}",
-        "kind": "text",
-        "title": "Synthetic legacy material",
-        "text": "${original.paragraphs.0.text}"
-      },
-      "save": "legacyMaterial"
     },
     {
       "launch": {
@@ -450,110 +424,6 @@
     {
       "app": "ui.screenshot",
       "png": "03-whole-book-reopened.png"
-    },
-    {
-      "app": "book.open",
-      "params": {
-        "book": "${legacy.id}"
-      }
-    },
-    {
-      "app": "ui.wait",
-      "params": {
-        "timeout_ms": 30000,
-        "state": {
-          "/book/version": 2,
-          "/v3": null
-        }
-      }
-    },
-    {
-      "app": "nav.open",
-      "expect": {
-        "/opened": "book"
-      },
-      "params": {
-        "target": "book"
-      }
-    },
-    {
-      "app": "ui.wait",
-      "params": {
-        "timeout_ms": 30000,
-        "state": {
-          "/page": "book"
-        }
-      }
-    },
-    {
-      "app": "nav.open",
-      "expect": {
-        "/opened": "material:${legacyMaterial.id}"
-      },
-      "params": {
-        "target": "material:${legacyMaterial.id}"
-      }
-    },
-    {
-      "app": "ui.wait",
-      "params": {
-        "timeout_ms": 30000,
-        "state": {
-          "/page": "material:${legacyMaterial.id}"
-        }
-      }
-    },
-    {
-      "call": "book.update",
-      "input": {
-        "book": "${legacy.id}",
-        "name": "Synthetic v2 refreshed"
-      }
-    },
-    {
-      "app": "ui.wait",
-      "params": {
-        "timeout_ms": 30000,
-        "state": {
-          "/book/name": "Synthetic v2 refreshed",
-          "/page": "material:${legacyMaterial.id}"
-        }
-      }
-    },
-    {
-      "app": "state.get",
-      "expect": {
-        "/pageTitle": "Synthetic legacy material",
-        "/tabs/[key=book]/leaves/0/target": "book"
-      }
-    },
-    {
-      "app": "nav.open",
-      "params": {
-        "target": "book"
-      }
-    },
-    {
-      "app": "ui.wait",
-      "params": {
-        "timeout_ms": 30000,
-        "state": {
-          "/page": "book",
-          "/pageTitle": "Whole book",
-          "/book/name": "Synthetic v2 refreshed"
-        }
-      }
-    },
-    {
-      "app": "ui.wait",
-      "params": {
-        "until": "time",
-        "ms": 1200
-      }
-    },
-    {
-      "app": "ui.screenshot",
-      "png": "04-v22-book.png"
     },
     {
       "app": "app.quit"

@@ -30,7 +30,7 @@ use dr_ui::{
     style::DrStyled,
 };
 use dr_view_page::settlement::{self, Drafts, Drain};
-use dr_workspace::{Workspace as Library, commands::element::FieldIn, dto::FieldInfo};
+use dr_workspace::{Workspace as Library, dto::FieldInfo};
 use gpui::{
     AppContext as _, Context, ElementId, Entity, Focusable as _, InteractiveElement as _,
     IntoElement, ParentElement as _, Render, SharedString, StatefulInteractiveElement as _,
@@ -41,7 +41,6 @@ pub(crate) mod guarded;
 mod module;
 pub mod v3;
 
-use crate::data;
 use crate::page;
 
 struct Row {
@@ -68,8 +67,6 @@ struct Row {
 /// 0.1 client).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Owner {
-    Element(String),
-    Storyline(String),
     Module { entry: String, module: String },
 }
 
@@ -167,12 +164,7 @@ impl Fields {
     }
 
     fn stored(&self) -> Vec<FieldInfo> {
-        match &self.owner {
-            Owner::Element(id) => data::element(&self.book, id).map(|e| e.fields.clone()),
-            Owner::Storyline(id) => data::storyline(&self.book, id).map(|l| l.fields.clone()),
-            Owner::Module { .. } => Some(self.module_rows.clone()),
-        }
-        .unwrap_or_default()
+        self.module_rows.clone()
     }
 
     fn row_focused(row: &Row, window: &Window, cx: &gpui::App) -> bool {
@@ -262,68 +254,14 @@ impl Fields {
 
     /// Saves a row the caret left.
     fn commit(&mut self, n: usize, window: &mut Window, cx: &mut Context<Self>) {
-        if matches!(self.owner, Owner::Module { .. }) {
-            self.commit_module(n, false, window, cx);
-            return;
-        }
-        let Some(ix) = self.row_ix(n) else {
-            return;
-        };
-        let row = &self.rows[ix];
-        let now = (row.key.read(cx).text(), row.value.read(cx).text());
-        let blank = now.0.trim().is_empty() && now.1.trim().is_empty();
-        let still_in = Self::row_focused(row, window, cx);
-        match (&row.id, blank) {
-            (_, _) if row.pending => {}
-            (Some(id), true) => {
-                if !still_in {
-                    let id = id.clone();
-                    self.rows.remove(ix);
-                    self.write(Vec::new(), vec![id], cx);
-                }
-            }
-            (None, true) => {
-                if !still_in {
-                    self.rows.remove(ix);
-                }
-            }
-            (id, false) => {
-                if now == row.stored && !row.failed {
-                    return;
-                }
-                let put = FieldIn {
-                    id: id.clone(),
-                    key: now.0.clone(),
-                    value: now.1.clone(),
-                    place: None,
-                    pos: None,
-                };
-                let row = &mut self.rows[ix];
-                row.pending = row.id.is_none();
-                row.failed = false;
-                row.awaiting = false;
-                row.queued = false;
-                row.stored = now;
-                self.write(vec![put], Vec::new(), cx);
-            }
-        }
-        cx.notify();
+        self.commit_module(n, false, window, cx);
     }
 
     /// Removes a row (its ×).
     pub fn remove(&mut self, ix: usize, cx: &mut Context<Self>) {
-        if ix >= self.rows.len() {
-            return;
-        }
-        if matches!(self.owner, Owner::Module { .. }) {
+        if ix < self.rows.len() {
             self.remove_module(ix, false, cx);
-            return;
         }
-        let row = self.rows.remove(ix);
-        if let Some(id) = row.id {
-            self.write(Vec::new(), vec![id], cx);
-        }
-        cx.notify();
     }
 
     /// 「新增字段」: a blank row at the end (or the last one, if blank), the
@@ -345,36 +283,6 @@ impl Fields {
             row.key.focus_handle(cx).focus(window, cx);
         }
         cx.notify();
-    }
-
-    fn write(&mut self, put: Vec<FieldIn>, remove: Vec<String>, cx: &mut Context<Self>) {
-        let Some(lib) = self.lib.clone() else {
-            return;
-        };
-        let book = self.book.id.clone();
-        let owner = self.owner.clone();
-        cx.background_executor()
-            .spawn(async move {
-                let written = match owner {
-                    Owner::Element(id) => {
-                        let mut edit = data::element_edit(&book, &id);
-                        edit.put_fields = put;
-                        edit.remove_fields = remove;
-                        data::update_element(&lib, edit)
-                    }
-                    Owner::Module { .. } => unreachable!("handled above"),
-                    Owner::Storyline(id) => {
-                        let mut edit = data::storyline_edit(&book, &id);
-                        edit.put_fields = put;
-                        edit.remove_fields = remove;
-                        data::update_storyline(&lib, edit)
-                    }
-                };
-                if let Err(error) = written {
-                    log::warn!("the fields could not be saved: {error}");
-                }
-            })
-            .detach();
     }
 
     /// Lines the rows up with the stored fields: a stored field's row takes
@@ -490,10 +398,7 @@ impl Render for Fields {
             t(
                 cx,
                 match self.owner {
-                    Owner::Element(_) | Owner::Module { .. } => {
-                        keys::element_editor::sections::FACTS
-                    }
-                    Owner::Storyline(_) => keys::storyline_editor::sections::FACTS,
+                    Owner::Module { .. } => keys::element_editor::sections::FACTS,
                 },
             ),
             Some(add),
@@ -508,10 +413,7 @@ impl Render for Fields {
                 t(
                     cx,
                     match self.owner {
-                        Owner::Element(_) | Owner::Module { .. } => {
-                            keys::element_editor::empty::NO_FACTS
-                        }
-                        Owner::Storyline(_) => keys::storyline_editor::empty::NO_FACTS,
+                        Owner::Module { .. } => keys::element_editor::empty::NO_FACTS,
                     },
                 ),
                 look,

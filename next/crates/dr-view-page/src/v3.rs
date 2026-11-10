@@ -25,10 +25,16 @@ pub fn register(cx: &mut App) {
     dr_shell::v3::add_module_view(cx, "prose", |host, window, cx| {
         let page = host.page.clone();
         let view = cx.new(|cx| BodyModule::new(host, window, cx));
-        dr_shell::v3::register_editor(
+        dr_shell::v3::register_editor_status(
             &page,
             &view,
-            |v, _| v.editor().map(dr_shell::workspace::editors::PageView::Doc),
+            |v, _| {
+                (
+                    v.editor().map(dr_shell::workspace::editors::PageView::Doc),
+                    v.loading.is_some(),
+                    v.error.is_some(),
+                )
+            },
             cx,
         );
         let focus = view.read(cx).focus.clone();

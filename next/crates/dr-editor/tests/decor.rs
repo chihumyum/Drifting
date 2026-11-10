@@ -30,7 +30,7 @@ fn env() -> Env {
     let dir = tempfile::tempdir().unwrap();
     let lib = Library::open(dir.path(), library_options("test")).unwrap();
     let ws = Workspace::open(lib, WorkspaceOptions::default()).unwrap();
-    let book = out(&ws, &Actor::User, "book.create", json!({"name": "画层"}))["id"]
+    let book = out(&ws, &Actor::User, "project.create", json!({"name": "画层"}))["id"]
         .as_str()
         .unwrap()
         .to_owned();
@@ -41,22 +41,21 @@ fn chapter(e: &Env, text: &str) -> String {
     let id = out(
         &e.ws,
         &Actor::User,
-        "chapter.create",
-        json!({"book": e.book, "title": "一", "text": text}),
+        "entry.create", json!({"book": e.book, "parent": dr_testkit::seed::acceptance::novel_root(&e.ws, &e.book, "tpl-manuscript"), "template": "tpl-chapter", "title": "一", "bodies": {"mod-prose": text}}),
     )["id"]
         .as_str()
         .unwrap()
         .to_owned();
-    format!("node:{id}")
+    format!("body:{id}/mod-prose")
 }
 
 fn comment(e: &Env, doc: &str, kind: &str, range: (usize, usize)) -> String {
-    let id = doc.trim_start_matches("node:");
+    let id = doc.trim_start_matches("body:").split('/').next().unwrap();
     out(
         &e.ws,
         &Actor::User,
         "comment.create",
-        json!({"book": e.book, "kind": kind, "target": {"kind": "node", "id": id}, "range": [range.0, range.1], "body": "批注"}),
+        json!({"book": e.book, "kind": kind, "target": {"kind": "entry", "id": id}, "module":"mod-prose", "range": [range.0, range.1], "body": "批注"}),
     )["id"]
         .as_str()
         .unwrap()
@@ -312,11 +311,12 @@ fn the_agents_changes_are_inked_and_kept_on_this_device(cx: &mut TestAppContext)
 #[gpui::test]
 fn links_suggestions_and_todo_keywords_are_found(cx: &mut TestAppContext) {
     let e = env();
-    let name = out(
+    let name = dr_testkit::seed::acceptance::novel_entry(
         &e.ws,
-        &Actor::User,
-        "element.create",
-        json!({"book": e.book, "name": "林岚"}),
+        &e.book,
+        "tpl-character",
+        "林岚",
+        None,
     )["id"]
         .as_str()
         .unwrap()
@@ -335,7 +335,7 @@ fn links_suggestions_and_todo_keywords_are_found(cx: &mut TestAppContext) {
             &format!("entity:{name}"),
             dr_editor::convert::entity_value(&dr_model::prose::EntityLink {
                 target: name.clone(),
-                kind: dr_model::kind::EntityKind::Element,
+                kind: dr_model::kind::EntityKind::Entry,
                 block: None,
                 end_block: None,
             }),
@@ -350,12 +350,12 @@ fn links_suggestions_and_todo_keywords_are_found(cx: &mut TestAppContext) {
 }
 
 fn todos(e: &Env, doc: &str) -> usize {
-    let id = doc.trim_start_matches("node:");
+    let id = doc.trim_start_matches("body:").split('/').next().unwrap();
     out(
         &e.ws,
         &Actor::User,
         "comment.list",
-        json!({"book": e.book, "kind": "todo", "target": {"kind": "node", "id": id}}),
+        json!({"book": e.book, "kind": "todo", "target": {"kind": "entry", "id": id}}),
     )
     .as_array()
     .unwrap()
@@ -417,13 +417,18 @@ fn an_undo_stores_the_anchor_it_brought_back(cx: &mut TestAppContext) {
     editor.update_in(cx, |e, window, cx| e.undo(window, cx));
     // The book document has the anchor again (comment.reanchor), so the
     // comment is drawn on the restored words after it is read again.
-    let id = doc.trim_start_matches("node:").to_owned();
+    let id = doc
+        .trim_start_matches("body:")
+        .split('/')
+        .next()
+        .unwrap()
+        .to_owned();
     assert!(wait_for(cx, |_| {
         let listed = out(
             &e.ws,
             &Actor::User,
             "comment.anchors",
-            json!({"book": e.book, "target": {"kind": "node", "id": id}}),
+            json!({"book": e.book, "target": {"kind": "entry", "id": id}, "module":"mod-prose"}),
         );
         listed.as_array().is_some_and(|a| !a.is_empty())
     }));

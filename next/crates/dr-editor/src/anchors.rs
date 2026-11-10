@@ -8,10 +8,9 @@
 
 use std::collections::HashMap;
 
-use dr_doc::book::BookReader;
 use dr_doc::loro_types::Cursor;
-use dr_model::book::EncodedAnchor;
 use dr_model::id::BookId;
+use dr_model::shared::EncodedAnchor;
 use dr_store::OpenDoc;
 use dr_workspace::Workspace;
 use gpui_prose::text::Anchor;
@@ -57,32 +56,19 @@ pub fn book_comment_anchors(
         .map_err(|e| e.to_string())?;
     let found = handle
         .read(move |d| {
-            let reader = BookReader::from_loro(book_id.clone(), d)?;
+            let reader = dr_doc::v3::BookReaderV3::from_loro(book_id, d)?;
             let mut out = Vec::new();
-            if reader.view().meta().schema_version == 3 {
-                let reader = dr_doc::v3::BookReaderV3::from_loro(book_id, d)?;
-                for c in reader.view().comments() {
-                    if let (Some(target), Some(anchor)) = (c.target.as_ref(), c.anchor.as_ref()) {
-                        let doc = if target.kind == dr_model::kind::EntityKind::Entry {
-                            let Some(module) = c.target_module.as_ref() else {
-                                continue;
-                            };
-                            format!("body:{}/{}", target.id, module)
-                        } else {
-                            format!("{}:{}", target.kind.as_str(), target.id)
-                        };
-                        out.push((doc, c.id.to_string(), anchor.clone()));
-                    }
-                }
-                return Ok::<_, dr_doc::DocError>(out);
-            }
             for c in reader.view().comments() {
-                if let (Some(t), Some(a)) = (c.target.as_ref(), c.anchor.as_ref()) {
-                    out.push((
-                        format!("{}:{}", t.kind.as_str(), t.id),
-                        c.id.to_string(),
-                        a.clone(),
-                    ));
+                if let (Some(target), Some(anchor)) = (c.target.as_ref(), c.anchor.as_ref()) {
+                    let doc = match target.kind {
+                        dr_model::kind::EntityKind::Entry => match c.target_module.as_ref() {
+                            Some(module) => format!("body:{}/{}", target.id, module),
+                            None => continue,
+                        },
+                        dr_model::kind::EntityKind::Material => format!("material:{}", target.id),
+                        _ => continue,
+                    };
+                    out.push((doc, c.id.to_string(), anchor.clone()));
                 }
             }
             Ok::<_, dr_doc::DocError>(out)

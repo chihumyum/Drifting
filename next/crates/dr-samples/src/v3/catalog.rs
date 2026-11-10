@@ -3,12 +3,12 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use dr_doc::book::BookView;
+use dr_doc::import_v1::BookView;
 use dr_doc::v3::novel::*;
 use dr_doc::v3::{BookTxnV3, BookViewV3};
 use dr_doc::{Anchor, DocError, Result};
-use dr_model::book::{EntityRef, canonical_symmetric};
 use dr_model::id::*;
+use dr_model::import_v1::{EntityRef, canonical_symmetric};
 use dr_model::kind::*;
 use dr_model::pos::PosKey;
 use dr_model::v3::*;
@@ -276,6 +276,16 @@ pub fn sync_catalog(
             id: NOVEL_PROJECT_TEMPLATE_ID.into(),
             version: NOVEL_PROJECT_TEMPLATE_VERSION,
         }))?;
+    let resolved_choices = choices.resolved_roots(
+        [
+            &roots.manuscript,
+            &roots.ideas,
+            &roots.elements,
+            &roots.storylines,
+        ],
+        source,
+    )?;
+    let choices = &resolved_choices;
     for template in templates(source, choices, &roots.manuscript)? {
         txn.template(&template.id)?.set_full(&template)?;
     }
@@ -590,7 +600,10 @@ pub fn sync_catalog(
     Ok(())
 }
 
-fn node_fields(w: &dr_doc::v3::write::EntryWriterV3, node: &dr_model::book::Node) -> Result<()> {
+fn node_fields(
+    w: &dr_doc::v3::write::EntryWriterV3,
+    node: &dr_model::import_v1::Node,
+) -> Result<()> {
     text(w, "summary", &node.summary)?;
     text(w, "status", node.status.as_str())?;
     w.created_at(node.created_at)?.deleted_at(node.deleted_at)?;

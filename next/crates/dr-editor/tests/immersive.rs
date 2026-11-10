@@ -28,7 +28,7 @@ fn env() -> Env {
     let dir = tempfile::tempdir().unwrap();
     let lib = Library::open(dir.path(), library_options("test")).unwrap();
     let ws = Workspace::open(lib, WorkspaceOptions::default()).unwrap();
-    let book = out(&ws, "book.create", json!({"name": "沉浸"}))["id"]
+    let book = out(&ws, "project.create", json!({"name": "沉浸"}))["id"]
         .as_str()
         .unwrap()
         .to_owned();
@@ -42,13 +42,12 @@ fn env() -> Env {
 fn chapter(e: &Env, title: &str, text: &str) -> String {
     let id = out(
         &e.ws,
-        "chapter.create",
-        json!({"book": e.book, "title": title, "text": text}),
+        "entry.create", json!({"book": e.book, "parent": dr_testkit::seed::acceptance::novel_root(&e.ws, &e.book, "tpl-manuscript"), "template": "tpl-chapter", "title": title, "bodies": {"mod-prose": text}}),
     )["id"]
         .as_str()
         .unwrap()
         .to_owned();
-    format!("node:{id}")
+    format!("body:{id}/mod-prose")
 }
 
 fn draw(cx: &mut VisualTestContext) {

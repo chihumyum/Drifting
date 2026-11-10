@@ -1,4 +1,4 @@
-//! K4-0 contracts against the shared synthetic seed, plus the unchanged v2.2 path.
+//! K4-0 contracts against the canonical seed; retired routes are rejected.
 use dr_shell::{
     book::{Book, Snapshot, v3::SettingSource},
     nav::{Lines, Navigator, Open, Target},
@@ -29,7 +29,7 @@ fn versioned_snapshot_reads_queries_and_retains_setting_sources() {
     let (_dir, ws, id) = seed();
     let b = Book::load(&ws, &id).unwrap();
     assert!(matches!(b.snapshot, Snapshot::V3(_)));
-    assert!(b.chapters.is_empty());
+    assert!(!b.v3().unwrap().manuscript.is_empty());
     let v = b.v3().unwrap();
     assert_eq!(v.roots.len(), 4);
     assert!(!v.timeline_views.is_empty());
@@ -83,10 +83,17 @@ fn versioned_snapshot_reads_queries_and_retains_setting_sources() {
         }
     );
     assert_ne!(v.revision, b.v3().unwrap().revision);
-    let legacy = call(&ws, "book.create", json!({"name":"Synthetic v2.2"}));
-    let legacy = Book::load(&ws, legacy["id"].as_str().unwrap()).unwrap();
-    assert!(matches!(legacy.snapshot, Snapshot::V22(_)));
-    assert!(legacy.v3().is_none());
+    let legacy = dr_testkit::seed::acceptance::empty_source(ws.library());
+    let before = ws.library().head(&format!("book:{legacy}")).unwrap();
+    assert!(Book::load(&ws, &legacy).is_err());
+    assert_eq!(
+        ws.library().head(&format!("book:{legacy}")).unwrap(),
+        before
+    );
+    assert_ne!(
+        Book::load_any(&ws, Some(&legacy)).unwrap().unwrap().id,
+        legacy
+    );
     ws.shutdown().unwrap();
 }
 #[test]
@@ -105,10 +112,6 @@ fn material_targets_use_the_v3_book_metadata_and_refresh_after_removal() {
     assert_eq!(b.title(&target), Some(material.title.as_str()));
     assert_eq!(b.mark(&target), (dr_ui::sand::Kind::Material, None));
     assert!(!b.exists(&Target::Material("missing-material".parse().unwrap())));
-    assert!(
-        b.materials.is_empty(),
-        "v3 does not populate the v2.2 snapshot"
-    );
     assert_eq!(
         before.version,
         ws.observe(&format!("book:{id}")).unwrap().version
@@ -274,8 +277,10 @@ fn book_and_material_pages_survive_a_reordered_snapshot(cx: &mut gpui::TestAppCo
             );
         }
         for kind in ["chapter", "idea", "element", "storyline", "category"] {
-            let old = Target::from_key(&format!("{kind}:{}", entry.id)).unwrap();
-            assert!(!ws.book.exists(&old), "v3 does not restore a legacy route");
+            assert!(
+                Target::from_key(&format!("{kind}:{}", entry.id)).is_none(),
+                "legacy routes cannot be constructed"
+            );
         }
     });
 }
@@ -366,9 +371,7 @@ fn renderers_mount_in_template_order_refresh_and_receive_reveal(cx: &mut gpui::T
             SettingsFile::in_memory(),
             cx,
         );
-        dr_shell::pages::add_bottom_panel(cx, dr_shell::pages::BottomPane::Timeline, |_, _, _| {
-            panic!("a v3 book must never mount the v2.2 timeline")
-        });
+
         for kind in ["fields", "prose", "plot_grid"] {
             let refreshed = refreshes.clone();
             let revealed = reveals.clone();

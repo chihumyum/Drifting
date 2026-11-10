@@ -288,20 +288,37 @@ fn a_sample_lands_once_and_waits_until_opened(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-async fn a_new_library_gets_the_samples_and_the_shelf_lands_them(cx: &mut TestAppContext) {
+async fn a_new_library_defers_samples_until_mapping_without_claiming_or_landing(
+    cx: &mut TestAppContext,
+) {
     shell(cx);
     let dir = tempfile::tempdir().unwrap();
     let lib = dr_store::Library::open(dir.path(), dr_workspace::library_options("test")).unwrap();
     let ws = dr_workspace::Workspace::open(lib, dr_workspace::WorkspaceOptions::default()).unwrap();
     let task = cx.update(|cx| first_run::write_samples(ws.clone(), cx));
     let outcome = task.await;
-    let dr_samples::Outcome::Created { books } = outcome else {
+    let dr_samples::Outcome::Pending { items } = outcome else {
         panic!("{outcome:?}");
     };
-    assert_eq!(books, dr_samples::book_ids());
+    assert!(
+        items
+            .iter()
+            .any(|p| p.code == "relation-type-template-restrictions")
+    );
+    assert!(ws.library().docs(None, Some("book")).unwrap().is_empty());
+    assert!(
+        ws.library()
+            .local_get(dr_samples::MARKER_SCOPE, dr_samples::MARKER_KEY)
+            .unwrap()
+            .is_none(),
+        "missing policy never claims once-only success"
+    );
     cx.update(|cx| {
-        for book in &books {
-            assert!(first_run::sample_on_shelf(book, cx).landing);
+        for book in dr_samples::book_ids() {
+            assert_eq!(
+                first_run::sample_on_shelf(&book, cx),
+                first_run::SampleOnShelf::default()
+            );
         }
     });
 }

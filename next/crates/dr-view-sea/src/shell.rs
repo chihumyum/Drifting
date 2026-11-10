@@ -15,9 +15,9 @@ use std::rc::Rc;
 
 use dr_shell::Settings;
 use dr_shell::pages::{self, Backdrop, FirstRunPage, Guide, SeaHold};
-use gpui::{App, AppContext as _, IntoElement as _, SharedString, Window};
+use gpui::{App, AppContext as _, IntoElement as _};
 
-use crate::first_run::{self, Done, FirstRun, FolderSource, FolderStep};
+use crate::first_run::FirstRun;
 use crate::{HoldKind, Mode, Sea, SeaGlass, char_sea, on_sea, tour};
 
 /// The device value listing the guides this device has shown.
@@ -50,45 +50,6 @@ impl tour::SeenStore for DeviceSeen {
     }
 }
 
-/// M40's folder for the first run's step.
-struct ShellFolder;
-
-impl FolderSource for ShellFolder {
-    fn chosen(&self, cx: &App) -> Option<SharedString> {
-        dr_shell::mirror::folder(cx).map(|f| f.display().to_string().into())
-    }
-
-    fn choose(&self, window: &mut Window, cx: &mut App) {
-        let picked = cx.prompt_for_paths(gpui::PathPromptOptions {
-            files: false,
-            directories: true,
-            multiple: false,
-            prompt: None,
-        });
-        let handle = window.window_handle();
-        cx.spawn(async move |cx| {
-            let Ok(Ok(Some(paths))) = picked.await else {
-                return;
-            };
-            if let Some(folder) = paths.into_iter().next() {
-                cx.update(|cx| {
-                    dr_shell::mirror::set_folder(folder, cx);
-                    handle.update(cx, |_, window, _| window.refresh()).ok();
-                });
-            }
-        })
-        .detach();
-    }
-
-    fn turn_off(&self, done: Done, window: &mut Window, cx: &mut App) {
-        let handle = window.window_handle();
-        dr_shell::mirror::ask_turn_off_then(cx, move |cx| {
-            let done = done.clone();
-            handle.update(cx, |_, window, cx| done(window, cx)).ok();
-        });
-    }
-}
-
 /// Registers the sea, the first run and the tour with the shell.
 pub fn init(cx: &mut App) {
     tour::init(cx);
@@ -110,11 +71,6 @@ pub fn init(cx: &mut App) {
             }),
         },
     );
-    first_run::add_step(cx, |_, cx| {
-        let answered = dr_shell::mirror::folder(cx).is_some() || !dr_shell::mirror::is_on(cx);
-        (!answered)
-            .then(|| Rc::new(FolderStep::new(Rc::new(ShellFolder))) as Rc<dyn first_run::Step>)
-    });
     pages::set_first_run(cx, |done, window, cx| {
         let view = cx.new(|cx| FirstRun::new(window, cx, move |window, cx| done(window, cx)));
         let shows = view.downgrade();

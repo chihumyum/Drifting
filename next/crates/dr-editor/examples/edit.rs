@@ -54,7 +54,8 @@ fn seed_if_empty(root: &Path, fresh: bool) -> Result<(), String> {
         return Ok(());
     }
     std::fs::create_dir_all(root).map_err(|e| e.to_string())?;
-    let seeded = seed::generate(Preset::Showcase, seed::DEFAULT_SEED).map_err(|e| e.to_string())?;
+    let seeded =
+        seed::generate_v3(Preset::Showcase, seed::DEFAULT_SEED).map_err(|e| e.to_string())?;
     let lib = dr_store::Library::open(root, dr_workspace::library_options(VERSION))
         .map_err(|e| e.to_string())?;
     let n = seeded.write_to(&lib).map_err(|e| e.to_string())?;
@@ -68,32 +69,30 @@ fn pick_chapter(ws: &Workspace) -> Result<(String, String, String), String> {
     let books = out(ws, "book.list", json!({}))?;
     for b in books.as_array().into_iter().flatten() {
         let book = b["id"].as_str().unwrap_or_default().to_owned();
-        let chapters = out(ws, "chapter.list", json!({"book": book}))?;
-        if let Some(c) = chapters.as_array().and_then(|c| c.first()) {
+        let chapters = out(ws, "entry.list", json!({"book":book,"all":true}))?;
+        if let Some(c) = chapters
+            .as_array()
+            .and_then(|c| c.iter().find(|e| e["template"] == "tpl-chapter"))
+        {
             let id = c["id"].as_str().unwrap_or_default();
             let title = c["title"].as_str().unwrap_or_default().to_owned();
-            return Ok((book, format!("node:{id}"), title));
+            return Ok((book, format!("body:{id}/mod-prose"), title));
         }
     }
     Err("no book with a chapter in the library".into())
 }
 
 fn words(ws: &Workspace, book: &str) -> u64 {
-    out(ws, "book.get", json!({"book": book}))
+    out(ws, "book.shelf", json!({}))
         .ok()
-        .and_then(|v| v["words"].as_u64())
+        .and_then(|v| v.as_array()?.iter().find(|b| b["id"] == book)?["words"].as_u64())
         .unwrap_or(0)
 }
 
 fn hits(ws: &Workspace, book: &str, query: &str) -> usize {
-    out(ws, "book.search", json!({"book": book, "query": query}))
-        .ok()
-        .and_then(|v| {
-            v.as_array()
-                .map(Vec::len)
-                .or_else(|| v["hits"].as_array().map(Vec::len))
-        })
-        .unwrap_or(0)
+    ws.library()
+        .search(Some(book), query, 1000)
+        .map_or(0, |v| v.len())
 }
 
 /// The book's word count once F2's background indexing has settled (a

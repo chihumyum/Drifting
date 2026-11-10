@@ -693,7 +693,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let ws =
             dr_workspace::Workspace::open_dir(dir.path().join("library"), "mcp-editor").unwrap();
-        let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+        let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
         let book = seeded.books[0].book_id().to_string();
         seeded.write_to(ws.library()).unwrap();
         let paths = GrantPaths::new(

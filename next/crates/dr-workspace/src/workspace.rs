@@ -5,8 +5,8 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex, Weak};
 
-use dr_doc::book::{BookReader, BorrowedBook, Collection};
 use dr_doc::prose::{BorrowedProse, ProseReader};
+use dr_doc::v3::CollectionV3 as Collection;
 use dr_model::DocId;
 use dr_model::id::BookId;
 use dr_store::{
@@ -15,7 +15,6 @@ use dr_store::{
 use serde_json::Value;
 
 use crate::actor::Actor;
-use crate::cache::BookCache;
 use crate::cx::{Cx, Faults, Gate, Invocation, Outcome};
 use crate::error::{Result, WsError};
 use crate::events::{
@@ -55,6 +54,19 @@ pub fn library_options(app_version: &str) -> LibraryOptions {
     let mut o = LibraryOptions::new(app_version);
     dr_index::attach(&mut o);
     o.validate_import = Some(Arc::new(|id, doc, bytes| {
+        if let Ok(DocId::Book(book)) = DocId::parse(id) {
+            validate_book_header(&book, bytes)?;
+            let merged = loro::LoroDoc::new();
+            dr_doc::schema::configure(&merged);
+            merged.import(&doc.export(loro::ExportMode::Snapshot)?)?;
+            merged.import(bytes)?;
+            if !dr_doc::v3::is_v3_doc(&merged) {
+                return Err(StoreError::Invalid {
+                    what: "book import",
+                    value: "canonical v3 book required".into(),
+                });
+            }
+        }
         if matches!(DocId::parse(id), Ok(DocId::Conversation(_))) {
             dr_doc::conversation::validate_update(doc, bytes).map_err(|e| StoreError::Invalid {
                 what: "conversation import",
@@ -66,14 +78,44 @@ pub fn library_options(app_version: &str) -> LibraryOptions {
     o
 }
 
+/// A complete old-format payload must be rejected before registration, even
+/// when its marker would lose a merge against a newly created v3 genesis.
+/// Partial v3 updates may omit meta entirely; the holder validates the merge.
+fn validate_book_header(book: &BookId, bytes: &[u8]) -> dr_store::Result<()> {
+    let incoming = loro::LoroDoc::new();
+    dr_doc::schema::configure(&incoming);
+    incoming.import(bytes)?;
+    let meta = incoming.get_map("meta");
+    if let Some(version) = meta.get("v") {
+        let valid = match version {
+            loro::ValueOrContainer::Value(loro::LoroValue::I64(3)) => true,
+            loro::ValueOrContainer::Value(loro::LoroValue::Double(v)) => v == 3.,
+            _ => false,
+        };
+        if !valid {
+            return Err(StoreError::Invalid {
+                what: "book import",
+                value: "canonical v3 book required; reimport into a new library".into(),
+            });
+        }
+    }
+    if let Some(identity) = meta.get("book")
+        && !matches!(identity, loro::ValueOrContainer::Value(loro::LoroValue::String(ref id)) if id.as_str()==book.as_str())
+    {
+        return Err(StoreError::Invalid {
+            what: "book import",
+            value: "book identity mismatch".into(),
+        });
+    }
+    Ok(())
+}
+
 /// An open book: its holder, a reader sharing the holder's document, and
 /// the query caches.
 pub(crate) struct BookSlot {
     pub book: BookId,
     pub handle: DocHandle,
-    pub reader: BookReader,
     pub reader_v3: dr_doc::v3::BookReaderV3,
-    pub cache: BookCache,
 }
 
 impl BookSlot {
@@ -95,26 +137,12 @@ pub(crate) struct ProseSlot {
 /// ask: dr-doc's `needs_repair`). Run when a book opens and after remote
 /// updates arrive.
 pub(crate) fn repair_book(slot: &BookSlot) -> Result<()> {
-    if slot.is_v3() {
-        if !slot.reader_v3.view().needs_repair() {
-            return Ok(());
-        }
-        let book = slot.book.clone();
-        return holder::write(&slot.handle, dr_store::Origin::Repair, None, move |doc| {
-            let b = dr_doc::v3::BorrowedBookV3::new(doc, &book)?;
-            let plan = b.view().repair_plan();
-            if !plan.is_empty() {
-                b.txn().apply_repair(&plan)?;
-            }
-            Ok(())
-        });
-    }
-    if !slot.reader.view().needs_repair() {
+    if !slot.reader_v3.view().needs_repair() {
         return Ok(());
     }
     let book = slot.book.clone();
     holder::write(&slot.handle, dr_store::Origin::Repair, None, move |doc| {
-        let b = BorrowedBook::new(doc, &book)?;
+        let b = dr_doc::v3::BorrowedBookV3::new(doc, &book)?;
         let plan = b.view().repair_plan();
         if !plan.is_empty() {
             b.txn().apply_repair(&plan)?;
@@ -154,7 +182,6 @@ pub(crate) struct Inner {
     /// `storyline.list` / `category.list`, or after its last commit): a
     /// commit that flips it is reported as a change to its owner
     /// ([`Inner::template_flip`]).
-    templates: Mutex<HashMap<DocId, bool>>,
     /// The author's `editor.auto_entity_links` (`crate::autolink`).
     auto_links: std::sync::atomic::AtomicBool,
 }
@@ -211,7 +238,6 @@ impl Workspace {
             bus: Bus::default(),
             library_gate: Arc::default(),
             subscription: Mutex::new(None),
-            templates: Mutex::new(HashMap::new()),
             auto_links: std::sync::atomic::AtomicBool::new(true),
         });
         subscribe(&inner);
@@ -437,8 +463,20 @@ impl Workspace {
             Ok(Observation {
                 doc: id,
                 version: crate::naming::frontiers_hex(&doc.oplog_frontiers()),
-                value: serde_json::to_value(doc.get_deep_value())
-                    .map_err(|e| WsError::Internal(e.to_string()))?,
+                value: serde_json::to_value({
+                    // Getters can expose a never-authored empty root in the live
+                    // Loro arena. Observe committed operations, so a reopen and
+                    // a read-only query at the same frontier have identical JSON.
+                    let committed = loro::LoroDoc::new();
+                    committed
+                        .import(
+                            &doc.export(loro::ExportMode::all_updates())
+                                .map_err(|e| WsError::Internal(e.to_string()))?,
+                        )
+                        .map_err(|e| WsError::Internal(e.to_string()))?;
+                    committed.get_deep_value()
+                })
+                .map_err(|e| WsError::Internal(e.to_string()))?,
             })
         })?
     }
@@ -635,6 +673,9 @@ impl Workspace {
         actor: &Actor,
     ) -> Result<()> {
         let doc = DocId::parse(doc_id).map_err(|e| WsError::invalid(e.to_string()))?;
+        if let DocId::Book(book) = &doc {
+            validate_book_header(book, &bytes)?;
+        }
         if let Some((kind, book)) = kind_book {
             self.inner.lib.register(doc_id, kind, Some(book))?;
         }
@@ -644,7 +685,7 @@ impl Workspace {
         let origin = actor.store_origin();
         match &doc {
             DocId::Book(book) => {
-                let slot = self.book_slot_or_create(book)?;
+                let slot = self.book_slot_or_create_v3(book)?;
                 slot.handle.import(bytes, origin)?;
                 repair_book(&slot)?;
             }
@@ -742,7 +783,6 @@ impl Workspace {
             lib.remove_asset(a)?;
         }
         self.inner.journal.forget_book(book.as_str())?;
-        crate::commands::recent::forget_book(lib, book.as_str())?;
         lock(&self.inner.gates).remove(book);
         Ok((purged, assets.len()))
     }
@@ -755,29 +795,21 @@ impl Workspace {
     }
 
     pub(crate) fn book_slot(&self, book: &BookId) -> Result<Arc<BookSlot>> {
-        self.book_slot_with(book, false, false)
-    }
-
-    pub(crate) fn book_slot_or_create(&self, book: &BookId) -> Result<Arc<BookSlot>> {
-        self.book_slot_with(book, true, false)
+        self.book_slot_with(book, false)
     }
 
     pub(crate) fn book_slot_or_create_v3(&self, book: &BookId) -> Result<Arc<BookSlot>> {
-        self.book_slot_with(book, true, true)
+        self.book_slot_with(book, true)
     }
 
-    fn book_slot_with(&self, book: &BookId, create: bool, v3: bool) -> Result<Arc<BookSlot>> {
+    fn book_slot_with(&self, book: &BookId, create: bool) -> Result<Arc<BookSlot>> {
         if let Some(s) = lock(&self.inner.books).get(book).cloned() {
             return Ok(s);
         }
         let doc_id = DocId::Book(book.clone()).to_string();
         let lib = &self.inner.lib;
         let handle = if create {
-            let g = if v3 {
-                dr_doc::v3::genesis_v3(book)
-            } else {
-                dr_doc::book::genesis(book)
-            };
+            let g = dr_doc::v3::genesis_v3(book);
             let genesis = move |d: &loro::LoroDoc| {
                 if let Err(e) = d.import(&g) {
                     log::error!("book genesis: {e}");
@@ -798,18 +830,18 @@ impl Workspace {
                     e => e.into(),
                 })?
         };
-        let reader = handle
-            .doc()
-            .with_doc(|d| BookReader::from_loro(book.clone(), d))?;
+        if !handle.doc().with_doc(dr_doc::v3::is_v3_doc) {
+            return Err(WsError::invalid(
+                "only canonical v3 books are supported; reimport to a new library",
+            ));
+        }
         let reader_v3 = handle
             .doc()
             .with_doc(|d| dr_doc::v3::BookReaderV3::from_loro(book.clone(), d))?;
         let slot = Arc::new(BookSlot {
             book: book.clone(),
             handle,
-            reader,
             reader_v3,
-            cache: BookCache::default(),
         });
         // dr-doc's deterministic background repair, once per open.
         repair_book(&slot)?;
@@ -842,57 +874,17 @@ impl Workspace {
         Ok(Some(crate::autolink::book_matcher(&slot, doc)))
     }
 
-    /// The prose documents of `book` open here.
-    pub(crate) fn open_prose(&self, book: &BookId) -> Vec<DocId> {
-        lock(&self.inner.prose)
-            .map
-            .iter()
-            .filter(|(_, (_, s))| s.book.as_ref() == Some(book))
-            .map(|(d, _)| d.clone())
-            .collect()
-    }
-
-    /// `doc`'s slot if it is open here.
-    pub(crate) fn open_prose_slot(&self, doc: &DocId) -> Option<Arc<ProseSlot>> {
-        lock(&self.inner.prose).map.get(doc).map(|(_, s)| s.clone())
-    }
-
-    /// `doc`'s open slot, or one opened for the caller alone: not kept among
-    /// the open documents (so it never pushes the author's out of them) and
-    /// without the block-id repair (the callers only read and change
-    /// marks). Dropping the last one closes the holder. For commands that
-    /// touch many documents once, like the autolink backfill and its undo
-    /// (opening through the open-document cache cost 12 ms a document on
-    /// the heavy seed, mostly the repair and closing the evicted ones).
-    pub(crate) fn prose_slot_passing(&self, doc: &DocId) -> Result<Arc<ProseSlot>> {
-        if let Some((_, s)) = lock(&self.inner.prose).map.get(doc) {
-            return Ok(s.clone());
-        }
-        if doc.profile().is_none() {
-            return Err(WsError::invalid(format!("{doc} is not a prose document")));
-        }
-        let lib = &self.inner.lib;
-        let id = doc.to_string();
-        let info = lib
-            .doc_info(&id)?
-            .ok_or_else(|| WsError::not_found("document", id.clone()))?;
-        // Registered but never written: the full path writes its genesis.
-        if lib.head(&id)?.is_none() {
-            return self.prose_slot(doc);
-        }
-        let handle = lib.open_doc(&id, OpenDoc::Existing)?;
-        let reader = handle
-            .doc()
-            .with_doc(|d| ProseReader::from_loro(doc.clone(), d))?;
-        Ok(Arc::new(ProseSlot {
-            doc: doc.clone(),
-            book: info.book_id.as_deref().and_then(|b| BookId::parse(b).ok()),
-            handle,
-            reader,
-        }))
-    }
-
     pub(crate) fn prose_slot(&self, doc: &DocId) -> Result<Arc<ProseSlot>> {
+        let canonical = match doc {
+            DocId::Body(_) | DocId::Material(_) => true,
+            DocId::Template(t) => t.entry_module().is_some(),
+            _ => false,
+        };
+        if !canonical {
+            return Err(WsError::invalid(
+                "only canonical body, template-module or material prose is supported",
+            ));
+        }
         {
             let mut p = lock(&self.inner.prose);
             p.tick += 1;
@@ -910,6 +902,12 @@ impl Workspace {
         let info = lib
             .doc_info(&id)?
             .ok_or_else(|| WsError::not_found("document", id.clone()))?;
+        if let Some(book) = &info.book_id {
+            let book = BookId::parse(book).map_err(|e| WsError::invalid(e.to_string()))?;
+            self.book_slot(&book)?;
+        } else if !matches!(doc, DocId::Material(_)) {
+            return Err(WsError::invalid("canonical prose needs its owning book"));
+        }
         let g = dr_doc::prose::genesis(doc);
         let genesis = move |d: &loro::LoroDoc| {
             if let Err(e) = d.import(&g) {
@@ -956,13 +954,6 @@ impl Workspace {
         }
         Ok(slot)
     }
-
-    /// (hits, misses) of a book's query cache.
-    #[doc(hidden)]
-    pub fn cache_stats(&self, book: &str) -> Option<(u64, u64)> {
-        let b = BookId::parse(book).ok()?;
-        lock(&self.inner.books).get(&b).map(|s| s.cache.stats())
-    }
 }
 
 /// What [`Workspace::before_quit`] did.
@@ -979,12 +970,7 @@ pub struct QuitReport {
 fn removable(c: Collection) -> bool {
     matches!(
         c,
-        Collection::Nodes
-            | Collection::Storylines
-            | Collection::Elements
-            | Collection::Categories
-            | Collection::Materials
-            | Collection::Meta
+        Collection::Materials | Collection::Entries | Collection::Templates | Collection::Meta
     )
 }
 
@@ -1019,44 +1005,32 @@ fn removed_by(slot: &BookSlot, changes: &[EntityChange]) -> Vec<RemovedEntity> {
             continue;
         }
         let Some(id) = &ch.id else { continue };
-        let state = match doc.get_map(ch.collection.root()).get(id) {
-            Some(loro::ValueOrContainer::Container(loro::Container::Map(m))) => {
-                if trashed(&m) {
-                    Some(false)
-                } else {
-                    None
+        let state =
+            if ch.collection == Collection::Entries {
+                slot.reader_v3
+                    .view()
+                    .entry(&match id.parse() {
+                        Ok(id) => id,
+                        Err(_) => continue,
+                    })
+                    .map_or(Some(true), |e| e.deleted_at.map(|_| false))
+            } else {
+                match doc.get_map(ch.collection.root()).get(id) {
+                    Some(loro::ValueOrContainer::Container(loro::Container::Map(m))) => {
+                        if trashed(&m) { Some(false) } else { None }
+                    }
+                    Some(_) => None,
+                    None => Some(true),
                 }
-            }
-            Some(_) => None,
-            None => Some(true),
-        };
+            };
         let Some(purged) = state else { continue };
         let targets: Vec<NavTarget> = match ch.collection {
-            Collection::Nodes => {
-                let Ok(nid) = dr_model::id::NodeId::parse(id) else {
-                    continue;
-                };
-                let node = if purged {
-                    slot.cache.known_node(&nid)
-                } else {
-                    slot.reader.view().node(&nid)
-                };
-                match node {
-                    Some(n) if n.is_drift() => vec![NavTarget::Idea(nid)],
-                    Some(_) => vec![NavTarget::Chapter(nid)],
-                    None => vec![NavTarget::Chapter(nid.clone()), NavTarget::Idea(nid)],
-                }
-            }
-            Collection::Storylines => match id.parse() {
-                Ok(x) => vec![NavTarget::Storyline(x)],
+            Collection::Entries => match id.parse() {
+                Ok(id) => vec![NavTarget::Entry { id, module: None }],
                 Err(_) => continue,
             },
-            Collection::Elements => match id.parse() {
-                Ok(x) => vec![NavTarget::Element(x)],
-                Err(_) => continue,
-            },
-            Collection::Categories => match id.parse() {
-                Ok(x) => vec![NavTarget::Category(x)],
+            Collection::Templates => match id.parse() {
+                Ok(id) => vec![NavTarget::Template(id)],
                 Err(_) => continue,
             },
             Collection::Materials => match id.parse() {
@@ -1075,66 +1049,6 @@ fn removed_by(slot: &BookSlot, changes: &[EntityChange]) -> Vec<RemovedEntity> {
 }
 
 impl Inner {
-    /// Remember whether template document `doc` holds a template, unless
-    /// a commit already told (the list queries seed it; commits, on the
-    /// holder thread in their order, are what count).
-    pub(crate) fn seen_template(&self, doc: &DocId, has: bool) {
-        lock(&self.templates).entry(doc.clone()).or_insert(has);
-    }
-
-    /// After a commit to template document `doc`: when whether it holds a
-    /// template flipped (blank ↔ not, or not known yet), the owner's
-    /// `has_chapter_template` / `has_element_template` changed for every
-    /// reader of the book's lists, so the change is also reported as a
-    /// [`BookChanged`] naming the owner, field `chapter_template` (a
-    /// storyline) or `element_template` (a category): the 0.1 fields that
-    /// held the templates. The shell reloads its snapshot on it as on any
-    /// change to the book. Typing inside a template sends no such event.
-    fn template_flip(
-        &self,
-        doc: &DocId,
-        t: &dr_model::id::TemplateId,
-        book: BookId,
-        ev: &dr_store::DocEvent,
-    ) {
-        let Some(owner) = t.owner() else { return };
-        let open = lock(&self.prose).map.get(doc).map(|(_, s)| s.clone());
-        let has = match open {
-            // On the holder thread, right after the commit.
-            Some(s) => !crate::commands::template::blank(&s.reader.view()),
-            None => match self.lib.load_copy(&doc.to_string()) {
-                Ok(d) => ProseReader::from_loro(doc.clone(), &d)
-                    .map(|r| !crate::commands::template::blank(&r.view()))
-                    .unwrap_or(false),
-                Err(_) => return,
-            },
-        };
-        if lock(&self.templates).insert(doc.clone(), has) == Some(has) {
-            return;
-        }
-        let (collection, id, field) = match owner {
-            dr_model::id::TemplateOwner::Storyline(s) => {
-                (Collection::Storylines, s.to_string(), "chapter_template")
-            }
-            dr_model::id::TemplateOwner::Category(c) => {
-                (Collection::Categories, c.to_string(), "element_template")
-            }
-        };
-        events::publish(
-            &self.bus,
-            &WsEvent::Book(BookChanged {
-                book,
-                seq: ev.seq,
-                origin: ev.origin.clone(),
-                changes: vec![EntityChange {
-                    collection,
-                    id: Some(id),
-                    fields: Some(vec![field.to_string()]),
-                }],
-            }),
-        );
-    }
-
     fn on_store_event(&self, e: &StoreEvent) {
         match e {
             StoreEvent::Doc(ev) => {
@@ -1143,16 +1057,20 @@ impl Inner {
                 };
                 match &doc {
                     DocId::Book(book) => {
-                        let changes = book_changes(&ev.changes);
                         let slot = lock(&self.books).get(book).cloned();
+                        let changes = slot.as_ref().map_or_else(
+                            || book_changes(&ev.changes, None),
+                            |slot| {
+                                slot.handle
+                                    .doc()
+                                    .with_doc(|doc| book_changes(&ev.changes, Some(doc)))
+                            },
+                        );
                         // Before the caches forget what a purged node was.
                         let removed = slot
                             .as_ref()
                             .map(|s| removed_by(s, &changes))
                             .unwrap_or_default();
-                        if let Some(slot) = &slot {
-                            slot.cache.invalidate(&changes);
-                        }
                         events::publish(
                             &self.bus,
                             &WsEvent::Book(BookChanged {
@@ -1213,9 +1131,6 @@ impl Inner {
                                 embeds,
                             }),
                         );
-                        if let (DocId::Template(t), Some(book)) = (&doc, book) {
-                            self.template_flip(&doc, t, book, ev);
-                        }
                     }
                 }
             }

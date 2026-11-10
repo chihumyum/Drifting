@@ -2,6 +2,8 @@
 #![allow(dead_code)]
 
 use std::sync::Arc;
+#[path = "../../../dr-testkit/src/seed/acceptance.rs"]
+pub mod acceptance;
 
 use dr_store::Library;
 use dr_workspace::{Actor, Faults, Workspace, WorkspaceOptions, library_options};
@@ -69,7 +71,7 @@ impl Env {
     }
 
     pub fn book(&self) -> String {
-        self.out("book.create", json!({"name": "Test Book"}))["id"]
+        self.out("project.create", json!({"name": "Test Book"}))["id"]
             .as_str()
             .unwrap()
             .to_string()

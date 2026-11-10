@@ -21,6 +21,9 @@ fn id(v: &Value) -> String {
 /// Import `doc` of `from` into `to`, as sync would.
 fn sync_doc(from: &Workspace, to: &Workspace, doc: &str) {
     let info = from.library().doc_info(doc).unwrap().expect("stored");
+    if from.library().head(doc).unwrap().is_none() {
+        return;
+    }
     let bytes = from
         .library()
         .load_copy(doc)
@@ -34,7 +37,9 @@ fn sync_doc(from: &Workspace, to: &Workspace, doc: &str) {
 
 /// Every stored document of `from`, into `to`.
 fn sync(from: &Workspace, to: &Workspace) {
-    for d in from.library().docs(None, None).unwrap() {
+    let mut docs = from.library().docs(None, None).unwrap();
+    docs.sort_by_key(|d| (d.kind != "book", d.doc_id.clone()));
+    for d in docs {
         sync_doc(from, to, &d.doc_id);
     }
 }
@@ -53,7 +58,7 @@ fn anchor(ws: &Workspace, doc: &str, range: std::ops::Range<usize>) -> AnchorByt
 fn anchors(e: &Env, b: &str, chapter: &str) -> Value {
     e.out(
         "comment.anchors",
-        json!({"book": b, "target": {"kind": "node", "id": chapter}}),
+        json!({"book": b, "target": {"kind": "entry", "id": chapter}, "module":"mod-prose"}),
     )
 }
 
@@ -62,13 +67,12 @@ fn reanchor_puts_back_what_the_editors_undo_brought_back() {
     let e = env();
     let b = e.book();
     let c = id(&e.out(
-        "chapter.create",
-        json!({"book": b, "title": "One", "text": "灯塔亮了。潮水退了。"}),
+        "entry.create", json!({"book": b, "parent": common::acceptance::novel_root(e.ws(), &b, "tpl-manuscript"), "template": "tpl-chapter", "title": "One", "bodies": {"mod-prose": "灯塔亮了。潮水退了。"}}),
     ));
-    let doc = format!("node:{c}");
+    let doc = format!("body:{c}/mod-prose");
     let note = id(&e.out(
         "comment.create",
-        json!({"book": b, "target": {"kind": "node", "id": c}, "range": [0, 2], "body": "灯塔？"}),
+        json!({"book": b, "target": {"kind": "entry", "id": c}, "module":"mod-prose", "range": [0, 2], "body": "灯塔？"}),
     ));
     let list = anchors(&e, &b, &c);
     assert_eq!(list.as_array().unwrap().len(), 1);
@@ -128,15 +132,14 @@ fn reanchor_refuses_what_is_not_an_anchor_here() {
     let e = env();
     let b = e.book();
     let c = id(&e.out(
-        "chapter.create",
-        json!({"book": b, "title": "One", "text": "灯塔亮了。"}),
+        "entry.create", json!({"book": b, "parent": common::acceptance::novel_root(e.ws(), &b, "tpl-manuscript"), "template": "tpl-chapter", "title": "One", "bodies": {"mod-prose": "灯塔亮了。"}}),
     ));
     let note = id(&e.out(
         "comment.create",
-        json!({"book": b, "target": {"kind": "node", "id": c}, "range": [0, 2]}),
+        json!({"book": b, "target": {"kind": "entry", "id": c}, "module":"mod-prose", "range": [0, 2]}),
     ));
     let floating = id(&e.out("comment.create", json!({"book": b, "body": "随手"})));
-    let good = anchor(e.ws(), &format!("node:{c}"), 0..2);
+    let good = anchor(e.ws(), &format!("body:{c}/mod-prose"), 0..2);
     let refused = |input: Value| {
         e.try_call("comment.reanchor", input)
             .expect_err("refused")
@@ -163,10 +166,9 @@ fn reanchor_refuses_what_is_not_an_anchor_here() {
     let other = env();
     let ob = other.book();
     let oc = id(&other.out(
-        "chapter.create",
-        json!({"book": ob, "title": "Elsewhere", "text": "别处的字。"}),
+        "entry.create", json!({"book": ob, "parent": common::acceptance::novel_root(other.ws(), &ob, "tpl-manuscript"), "template": "tpl-chapter", "title": "Elsewhere", "bodies": {"mod-prose": "别处的字。"}}),
     ));
-    let elsewhere = anchor(other.ws(), &format!("node:{oc}"), 0..2);
+    let elsewhere = anchor(other.ws(), &format!("body:{oc}/mod-prose"), 0..2);
     assert_eq!(
         refused(json!({"book": b, "id": note, "anchor": elsewhere})),
         "invalid"
@@ -179,15 +181,14 @@ fn a_reanchor_reaches_the_other_device() {
     let b_dev = env();
     let b = a.book();
     let c = id(&a.out(
-        "chapter.create",
-        json!({"book": b, "title": "One", "text": "灯塔亮了。潮水退了。"}),
+        "entry.create", json!({"book": b, "parent": common::acceptance::novel_root(a.ws(), &b, "tpl-manuscript"), "template": "tpl-chapter", "title": "One", "bodies": {"mod-prose": "灯塔亮了。潮水退了。"}}),
     ));
     let note = id(&a.out(
         "comment.create",
-        json!({"book": b, "target": {"kind": "node", "id": c}, "range": [0, 2]}),
+        json!({"book": b, "target": {"kind": "entry", "id": c}, "module":"mod-prose", "range": [0, 2]}),
     ));
     sync(a.ws(), b_dev.ws());
-    let moved = anchor(a.ws(), &format!("node:{c}"), 5..7);
+    let moved = anchor(a.ws(), &format!("body:{c}/mod-prose"), 5..7);
     a.call(
         "comment.reanchor",
         json!({"book": b, "id": note, "anchor": moved}),
@@ -211,10 +212,9 @@ struct Chapter {
 
 fn chapter(e: &Env, b: &str, text: &str) -> Chapter {
     let c = id(&e.out(
-        "chapter.create",
-        json!({"book": b, "title": "One", "text": text}),
+        "entry.create", json!({"book": b, "parent": common::acceptance::novel_root(e.ws(), &b, "tpl-manuscript"), "template": "tpl-chapter", "title": "One", "bodies": {"mod-prose": text}}),
     ));
-    let doc = format!("node:{c}");
+    let doc = format!("body:{c}/mod-prose");
     let blocks = field(
         &e.out("prose.read", json!({"doc": doc}))["paragraphs"],
         "block_id",
@@ -254,7 +254,7 @@ fn todo_id(ch: &Chapter, i: usize) -> String {
 fn todos(e: &Env, ch: &Chapter) -> Vec<Value> {
     e.out(
         "comment.list",
-        json!({"book": ch.book, "kind": "todo", "target": {"kind": "node", "id": ch.id}}),
+        json!({"book": ch.book, "kind": "todo", "target": {"kind": "entry", "id": ch.id}, "module":"mod-prose"}),
     )
     .as_array()
     .unwrap()
@@ -346,7 +346,7 @@ fn projection_follows_prose_and_stays_out_of_the_journal() {
     let b = e.book();
     let ch = chapter(&e, &b, "TODO 改名\n第二段。");
     e.call(
-        "chapter.update",
+        "entry.update",
         json!({"book": b, "id": ch.id, "title": "Uno"}),
     );
     assert!(e.ws().undo(&Actor::User).unwrap().is_some());
@@ -354,7 +354,10 @@ fn projection_follows_prose_and_stays_out_of_the_journal() {
     let o = project(&e, &ch, &[(0, "改名")], None);
     assert!(o["journal"].is_null());
     assert!(e.ws().redo(&Actor::User).unwrap().is_some());
-    assert_eq!(e.out("chapter.list", json!({"book": b}))[0]["title"], "Uno");
+    assert_eq!(
+        e.out("entry.get", json!({"book": b,"id":ch.id}))["title"],
+        "Uno"
+    );
     // The object-level undo does not take the TODO back either.
     assert!(e.ws().undo(&Actor::User).unwrap().is_some());
     assert_eq!(todos(&e, &ch).len(), 1);

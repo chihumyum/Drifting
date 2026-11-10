@@ -1,12 +1,12 @@
 //! Read and write everything a damaged document offers. Nothing here may
 //! panic, whatever the bytes were.
 
-use dr_doc::book::BookDoc;
+use dr_doc::import_v1::BookDoc;
 use dr_doc::prose::ProseDoc;
 use dr_doc::{Anchor, Unit};
 use dr_model::Origin;
-use dr_model::book::EncodedAnchor;
 use dr_model::prose::{Heading, InlineStyle};
+use dr_model::shared::EncodedAnchor;
 
 pub fn exercise_prose(d: &mut ProseDoc, seed: &[u8]) {
     let v = d.view();

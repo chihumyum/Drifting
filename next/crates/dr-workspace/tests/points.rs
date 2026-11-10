@@ -69,17 +69,17 @@ fn texts(e: &Env, doc: &str) -> Vec<Value> {
 }
 
 #[test]
-fn points_preview_and_restore_a_chapter() {
+fn points_preview_and_restore_a_material() {
     let e = env();
     let b = e.book();
     let c = e.out(
-        "chapter.create",
-        json!({"book": b, "title": "One", "summary": "first", "text": "第一段。\n第二段。"}),
+        "material.create",
+        json!({"book": b, "kind":"text", "title": "One", "description": "first", "text": "第一段。\n第二段。"}),
     )["id"]
         .as_str()
         .unwrap()
         .to_string();
-    let doc = format!("node:{c}");
+    let doc = format!("material:{c}");
     let s = e.ws().prose_session(&doc).unwrap();
     s.edit(|t| t.set_heading(0, Some(Heading::H1))).unwrap();
     let ts = point_now(&e, &doc, 20 * 60_000);
@@ -90,8 +90,8 @@ fn points_preview_and_restore_a_chapter() {
         json!({"doc": doc, "find": "第一段", "replace": "改过的第一段"}),
     );
     e.call(
-        "chapter.update",
-        json!({"book": b, "id": c, "title": "Renamed", "summary": "second"}),
+        "material.update",
+        json!({"book": b, "id": c, "title": "Renamed", "description": "second"}),
     );
     let list = points(&e, &doc);
     assert_eq!(list["doc"], json!(doc));
@@ -123,11 +123,11 @@ fn points_preview_and_restore_a_chapter() {
         json!({"doc": doc, "point": p["id"]}),
     );
     assert_eq!(out["output"]["prose"], true);
-    assert_eq!(out["output"]["fields"], json!(["title", "summary"]));
+    assert_eq!(out["output"]["fields"], json!(["title", "description"]));
     assert_eq!(texts(&e, &doc), [json!("第一段。"), json!("第二段。")]);
-    let ch = &e.out("chapter.list", json!({"book": b}))[0];
+    let ch = &e.out("material.list", json!({"book": b}))[0];
     assert_eq!(
-        (ch["title"].clone(), ch["summary"].clone()),
+        (ch["title"].clone(), ch["description"].clone()),
         (json!("One"), json!("first"))
     );
     // The version before the restore became a point of its own.
@@ -144,12 +144,15 @@ fn points_preview_and_restore_a_chapter() {
         texts(&e, &doc),
         [json!("改过的第一段。"), json!("第二段。")]
     );
-    let ch = &e.out("chapter.list", json!({"book": b}))[0];
+    let ch = &e.out("material.list", json!({"book": b}))[0];
     assert_eq!(ch["title"], "Renamed");
     // And redo brings it again.
     e.ws().redo(&Actor::User).unwrap().unwrap();
     assert_eq!(texts(&e, &doc)[0], "第一段。");
-    assert_eq!(e.out("chapter.list", json!({"book": b}))[0]["title"], "One");
+    assert_eq!(
+        e.out("material.list", json!({"book": b}))[0]["title"],
+        "One"
+    );
 
     // The editor's own undo leaves the restore alone (an author's command).
     assert!(
@@ -165,13 +168,13 @@ fn restoring_the_current_version_changes_nothing() {
     let e = env();
     let b = e.book();
     let c = e.out(
-        "chapter.create",
-        json!({"book": b, "title": "One", "text": "a"}),
+        "material.create",
+        json!({"book": b,"kind":"text","title":"One","text":"a"}),
     )["id"]
         .as_str()
         .unwrap()
         .to_string();
-    let doc = format!("node:{c}");
+    let doc = format!("material:{c}");
     point_now(&e, &doc, 0);
     let p = point_with(&e, &doc, "a");
     let out = e.call(
@@ -184,47 +187,6 @@ fn restoring_the_current_version_changes_nothing() {
 }
 
 #[test]
-fn an_element_keeps_a_name_another_has_taken_since() {
-    let e = env();
-    let b = e.book();
-    let el = e.out(
-        "element.create",
-        json!({"book": b, "name": "Anna", "summary": "old"}),
-    )["id"]
-        .as_str()
-        .unwrap()
-        .to_string();
-    let doc = format!("element:{el}");
-    let s = e.ws().prose_session(&doc).unwrap();
-    s.edit(|t| t.insert_text(0, "她来了。")).unwrap();
-    let ts = point_now(&e, &doc, 30 * 60_000);
-    e.call(
-        "element.update",
-        json!({"book": b, "id": el, "name": "Bea", "summary": "new"}),
-    );
-    e.call("element.create", json!({"book": b, "name": "Anna"}));
-    let p = point_at(&e, &doc, ts);
-    assert_eq!(p["title"], "Anna");
-    let out = e.out(
-        "history.restore_point",
-        json!({"doc": doc, "point": p["id"]}),
-    );
-    assert_eq!(out["fields"], json!(["summary"]));
-    assert_eq!(out["skipped"], json!(["name", "aliases"]));
-    let list = e.out("element.list", json!({"book": b}));
-    let me = list
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|x| x["id"] == el)
-        .unwrap();
-    assert_eq!(
-        (me["name"].clone(), me["summary"].clone()),
-        (json!("Bea"), json!("old"))
-    );
-}
-
-#[test]
 fn history_refuses_what_is_not_there() {
     let e = env();
     let b = e.book();
@@ -233,23 +195,29 @@ fn history_refuses_what_is_not_there() {
         Err(WsError::Invalid(_))
     ));
     // A chapter nobody has typed in has no history yet.
-    let empty = e.out("chapter.create", json!({"book": b, "title": "Empty"}))["id"]
+    let empty = e.out(
+        "material.create",
+        json!({"book": b,"kind":"text","title":"Empty","text":""}),
+    )["id"]
         .as_str()
         .unwrap()
         .to_string();
-    let none = e.out("history.points", json!({"doc": format!("node:{empty}")}));
+    let none = e.out(
+        "history.points",
+        json!({"doc": format!("material:{empty}")}),
+    );
     assert_eq!(
         (none["words"].clone(), none["points"].clone()),
         (json!(0), json!([]))
     );
     let c = e.out(
-        "chapter.create",
-        json!({"book": b, "title": "One", "text": "a"}),
+        "material.create",
+        json!({"book": b,"kind":"text","title":"One","text":"a"}),
     )["id"]
         .as_str()
         .unwrap()
         .to_string();
-    let doc = format!("node:{c}");
+    let doc = format!("material:{c}");
     assert!(matches!(
         e.try_call("history.preview", json!({"doc": doc, "point": 999_999})),
         Err(WsError::NotFound { .. })
@@ -258,32 +226,4 @@ fn history_refuses_what_is_not_there() {
         e.try_call("history.restore_point", json!({"doc": doc})),
         Err(WsError::Invalid(_))
     ));
-}
-
-#[test]
-fn a_restored_title_someone_took_since_gets_a_suffix() {
-    let e = env();
-    let b = e.book();
-    let c = e.out(
-        "chapter.create",
-        json!({"book": b, "title": "Rain", "text": "雨。"}),
-    )["id"]
-        .as_str()
-        .unwrap()
-        .to_string();
-    let doc = format!("node:{c}");
-    let ts = point_now(&e, &doc, 10 * 60_000);
-    e.call(
-        "chapter.update",
-        json!({"book": b, "id": c, "title": "Storm"}),
-    );
-    e.call("chapter.create", json!({"book": b, "title": "Rain"}));
-    let p = point_at(&e, &doc, ts);
-    let out = e.call(
-        "history.restore_point",
-        json!({"doc": doc, "point": p["id"]}),
-    );
-    assert!(effects(&out).contains(&"renamed node".to_string()), "{out}");
-    let titles = field(&e.out("chapter.list", json!({"book": b})), "title");
-    assert_eq!(titles, [json!("Rain 2"), json!("Rain")]);
 }

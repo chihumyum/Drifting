@@ -64,15 +64,16 @@ impl ToolExecutor for EnteredWrite {
 fn failed_abort_journal_waits_for_entered_write_before_join_and_failure() {
     let dir = tempfile::tempdir().unwrap();
     let lib = Library::open(dir.path(), library_options("m27-failure-test")).unwrap();
-    let seed = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+    let seed = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
     seed.write_to(&lib).unwrap();
     let book = seed.books[0].book_id().clone();
     let ws = Workspace::open(lib, WorkspaceOptions::default()).unwrap();
     ws.set_auto_links(false);
-    let chapters = ws
-        .call(&Actor::User, "chapter.list", json!({"book":book}))
-        .unwrap();
-    let doc = format!("node:{}", chapters["output"][0]["id"].as_str().unwrap());
+    let chapters = json!({"output":dr_testkit::seed::acceptance::entries_by_template(&ws,&book,"tpl-chapter")});
+    let doc = format!(
+        "body:{}/mod-prose",
+        chapters["output"][0]["id"].as_str().unwrap()
+    );
     let prose = ws
         .call(&Actor::User, "prose.read", json!({"doc":doc}))
         .unwrap();

@@ -203,7 +203,6 @@ type V3CatalogCache = HashMap<CatalogCacheKey, (String, Arc<Catalog>)>;
 #[derive(Clone)]
 pub struct AgentTools {
     catalog: Arc<Catalog>,
-    v3_catalog: Arc<Catalog>,
     v3_cache: Arc<Mutex<V3CatalogCache>>,
     turns: Arc<Mutex<HashMap<TurnKey, TurnState>>>,
     leases: Arc<Mutex<HashMap<String, Weak<AtomicBool>>>>,
@@ -220,7 +219,6 @@ impl AgentTools {
     pub fn new() -> Self {
         Self {
             catalog: Arc::new(Catalog::new()),
-            v3_catalog: Arc::new(Catalog::new_v3()),
             v3_cache: Arc::default(),
             turns: Arc::default(),
             leases: Arc::default(),
@@ -251,7 +249,9 @@ impl AgentTools {
 
     pub fn catalog_for_book(&self, ws: &Workspace, book: &BookId) -> Result<Arc<Catalog>> {
         if !is_v3_book(ws, book)? {
-            return Ok(Arc::clone(&self.catalog));
+            return Err(Error::Invalid(
+                "only canonical v3 books support tools".into(),
+            ));
         }
         let book_doc = format!("book:{book}");
         let version = ws.observe(&book_doc)?.version;
@@ -357,12 +357,16 @@ impl AgentTools {
                 "tool definition changed; search it again".into(),
             ));
         }
-        // F3 accepts an id for undo, but an Agent must not use that path to
-        // replace a stored relation hidden by relation.list's live-end filter.
-        if request.name == "relation.create" && request.arguments.get("id").is_some() {
-            return Err(Error::Invalid(
-                "relation.create assigns its own id; omit id".into(),
-            ));
+        // A creation request must not imply replacing an unread hidden edge.
+        if matches!(
+            request.name.as_str(),
+            "relation.create" | "module.put_relation"
+        ) && request.arguments.get("id").is_some()
+        {
+            return Err(Error::Invalid(format!(
+                "{} assigns its own id; omit id",
+                request.name
+            )));
         }
         let canonical_name = request.canonical_name_in(&catalog, book)?;
         let key = turn_key(book, actor);
@@ -432,19 +436,18 @@ impl AgentTools {
         }
         let book_id = BookId::parse(&key.book)
             .map_err(|e| Error::Invalid(format!("invalid book id: {e}")))?;
-        let is_v3 = is_v3_book(ws, &book_id)?;
+        if !is_v3_book(ws, &book_id)? {
+            return Err(Error::Invalid(
+                "only canonical v3 books support tools".into(),
+            ));
+        }
         for _ in 0..3 {
             let before = targets
                 .iter()
                 .map(|doc| ws.observe(doc))
                 .collect::<dr_workspace::Result<Vec<_>>>()?;
             let mut value = ws.call(actor, &call.name, call.arguments.clone())?;
-            let comments_v2 = if call.name == "prose.read" && !is_v3 {
-                Some(ws.call(actor, "comment.list", json!({"book":key.book}))?)
-            } else {
-                None
-            };
-            let comments_v3 = if call.name == "prose.read" && is_v3 {
+            let comments_v3 = if call.name == "prose.read" {
                 let doc = ws
                     .library()
                     .load_copy(&book_doc)
@@ -472,14 +475,8 @@ impl AgentTools {
                 let doc = call.arguments["doc"]
                     .as_str()
                     .ok_or_else(|| Error::Invalid("missing prose document".into()))?;
-                let anchors = if let Some(v3_list) = &comments_v3 {
-                    prose::comment_anchors_v3(doc, v3_list)
-                } else {
-                    prose::comment_anchors(
-                        doc,
-                        &comments_v2.as_ref().expect("prose comments")["output"],
-                    )
-                };
+                let anchors =
+                    prose::comment_anchors_v3(doc, comments_v3.as_ref().expect("prose comments"));
                 Some(prose::project(doc, &output, &anchors)?)
             } else {
                 None
@@ -829,11 +826,9 @@ impl ToolExecutor for AgentTools {
     fn describe(&self, call: &ToolCall) -> Option<ToolDescriptor> {
         match call.name.as_str() {
             "tool_search" => Some(search_descriptor()),
-            "call_tool" => call.arguments["name"].as_str().and_then(|name| {
-                self.catalog
-                    .descriptor(name)
-                    .or_else(|| self.v3_catalog.descriptor(name))
-            }),
+            "call_tool" => call.arguments["name"]
+                .as_str()
+                .and_then(|name| self.catalog.descriptor(name)),
             _ => None,
         }
     }
@@ -991,14 +986,14 @@ mod tests {
     fn read_finishing_after_session_end_cannot_publish_write_authority() {
         let dir = tempfile::tempdir().unwrap();
         let ws = Workspace::open_dir(dir.path(), "m29-late-read").unwrap();
-        let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+        let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
         seeded.write_to(ws.library()).unwrap();
         let book = seeded.books[0].book_id().clone();
         let tools = AgentTools::new();
         let actor = Actor::agent("late-read", 1, "read");
         let key = turn_key(&book, &actor);
         let lease = tools.lease(&key.session);
-        let resolved = resolve::resolve(&ws, &book, "chapter.list", json!({})).unwrap();
+        let resolved = resolve::resolve(&ws, &book, "entry.list", json!({"all":true})).unwrap();
 
         // This read passed its entry gate before the run ended. Its underlying
         // F3 read may still finish after cancellation dropped the async waiter.
@@ -1007,12 +1002,10 @@ mod tests {
             tools.read(&ws, &actor, &key, &resolved, &lease),
             Err(Error::Invalid(_))
         ));
-        let chapters = ws
-            .call(&Actor::User, "chapter.list", json!({"book":book}))
-            .unwrap();
+        let chapters = json!({"output":dr_testkit::seed::acceptance::entries_by_template(&ws,&book,"tpl-chapter")});
         let result = tools.invoke(&ws, &book, &actor, CallRequest {
-            name: "chapter.update".into(),
-            arguments: json!({"id":chapters["output"][0]["id"],"summary":chapters["output"][0]["title"]}),
+            name: "entry.update".into(),
+            arguments: json!({"id":chapters["output"][0]["id"],"title":chapters["output"][0]["title"]}),
             revision: None,
             edited_text: None,
         });

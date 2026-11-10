@@ -44,7 +44,7 @@ fn terminal_append_cannot_block_control_delivery_close_or_the_window(cx: &mut Te
     cx.executor().allow_parking();
     let dir = tempfile::tempdir().unwrap();
     let ws = Workspace::open_dir(dir.path(), "m31-control-delivery").unwrap();
-    let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+    let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
     let book = seeded.books[0].book_id().clone();
     let text = seeded.books[0].prose[0].view().plain_text();
     seeded.write_to(ws.library()).unwrap();
@@ -97,7 +97,14 @@ fn terminal_append_cannot_block_control_delivery_close_or_the_window(cx: &mut Te
             book,
             conversation: ConversationId::new_v7(),
             input: text.clone(),
-            config: RunConfig::new(Provider::Openai, "synthetic-model"),
+            config: {
+                let mut c = RunConfig::new(Provider::Openai, "synthetic-model");
+                c.capabilities = Some(dr_agent::ModelCapabilities {
+                    context_window: Some(262_144),
+                    ..Default::default()
+                });
+                c
+            },
         })
         .unwrap();
     let control = controller.control(&session).unwrap();

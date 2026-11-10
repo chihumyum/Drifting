@@ -1,5 +1,5 @@
 {
-  "about": "K4-0 第一次交回：在 v3-lite 真窗口验收快照、导航、组合、记号、种子和调试桥；最后切回 v2.2。",
+  "about": "K4-0 第一次交回：在 v3-lite 真窗口验收快照、导航、组合、记号、种子和调试桥；最后切回 v2.2。；v3 切换后保留全部 canonical 验收步骤，旧产品回切尾段已退役。",
   "steps": [
     {
       "seed": "v3-lite"
@@ -353,30 +353,6 @@
     {
       "app": "ui.screenshot",
       "png": "03-reopened.png"
-    },
-    {
-      "call": "book.create",
-      "input": {
-        "name": "Synthetic v2.2"
-      },
-      "save": "legacy"
-    },
-    {
-      "app": "book.open",
-      "params": {
-        "book": "${legacy.id}"
-      }
-    },
-    {
-      "app": "ui.wait",
-      "params": {
-        "state": {
-          "/book/version": 2,
-          "/v3": null,
-          "/page": "home"
-        }
-      },
-      "note": "切回 v2.2 的书，使用旧快照"
     },
     {
       "app": "app.quit"

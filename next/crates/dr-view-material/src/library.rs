@@ -57,7 +57,7 @@ use dr_ui::sand::{self, Icon, KindMark};
 use dr_ui::style::DrStyled;
 use dr_ui::tokens::radius;
 use dr_workspace::commands::material::{MaterialCreate, MaterialCreateIn};
-use dr_workspace::commands::relation::{RelationList, RelationListIn};
+
 use dr_workspace::{Actor, Workspace as Library};
 use gpui::{
     AnyElement, App, AppContext as _, ClickEvent, ClipboardEntry, Context, ElementId, Entity,
@@ -304,7 +304,7 @@ impl LibraryPanel {
     }
 
     pub fn set_related_only(&mut self, on: bool, cx: &mut Context<Self>) {
-        if self.book.v3().is_some() && self.related_only != on {
+        if self.related_only != on {
             self.related = None;
         }
         self.related_only = on;
@@ -315,53 +315,7 @@ impl LibraryPanel {
     /// Reads which materials relate to the page in front, when the filter
     /// is on and the page changed.
     fn keep_related(&mut self, cx: &mut Context<Self>) {
-        if self.book.v3().is_some() {
-            self.keep_related_v3(cx);
-            return;
-        }
-        if !self.related_only {
-            return;
-        }
-        let Some(front) = self.front(cx) else {
-            self.related = None;
-            return;
-        };
-        let key = front.key();
-        if self.related.as_ref().is_some_and(|(k, _)| *k == key) {
-            return;
-        }
-        let Some(target) = dr_view_review::target_of(&dr_shell::book::nav_target(&front)) else {
-            return;
-        };
-        let (lib, book) = (self.lib.clone(), self.book_id());
-        let Some(lib) = lib else {
-            return;
-        };
-        let task = cx.background_executor().spawn(async move {
-            let input = RelationListIn {
-                book,
-                entity: Some(target.clone()),
-                relation_type: None,
-            };
-            lib.run::<RelationList>(&Actor::User, input)
-                .map(|o| {
-                    o.output
-                        .into_iter()
-                        .flat_map(|r| [r.from, r.to])
-                        .filter(|t| t.kind == "material" && *t != target)
-                        .map(|t| t.id)
-                        .collect::<HashSet<String>>()
-                })
-                .unwrap_or_default()
-        });
-        self.pending.push(cx.spawn(async move |this, cx| {
-            let related = task.await;
-            this.update(cx, |p, cx| {
-                p.related = Some((key, related));
-                cx.notify();
-            })
-            .ok();
-        }));
+        self.keep_related_v3(cx);
     }
 
     fn keep_related_v3(&mut self, cx: &mut Context<Self>) {
@@ -657,7 +611,7 @@ impl LibraryPanel {
 
     /// Row `key`'s name in a field, the caret in it.
     pub fn start_rename(&mut self, key: &str, window: &mut Window, cx: &mut Context<Self>) {
-        if self.book.v3().is_some() && self.renaming.is_some() {
+        if self.renaming.is_some() {
             return;
         }
         let name = self.name_of(key);
@@ -705,78 +659,56 @@ impl LibraryPanel {
         if self.renaming.as_ref().is_none_or(|r| r.key != key) {
             return;
         }
-        if self.book.v3().is_some() {
-            if self.renaming.as_ref().is_some_and(|r| r.busy) {
-                return;
-            }
-            if let Some(name) = text
-                .as_ref()
-                .map(|t| t.trim().to_owned())
-                .filter(|t| !t.is_empty())
-                && name != self.name_of(key)
-            {
-                let rename = self.renaming.as_mut().expect("matched rename");
-                rename.busy = true;
-                rename.error = false;
-                rename.field.update(cx, |f, cx| f.set_disabled(true, cx));
-                window.focus(&self.focus, cx);
-                let book = self.book_id();
-                let key = key.to_owned();
-                let writing = key.clone();
-                spawn_lib(
-                    self.lib.clone(),
-                    (book.clone(), self.book_epoch),
-                    cx,
-                    move |lib| match writing.strip_prefix("f:") {
-                        Some(id) => folders::rename_folder(lib, &book, id, &name),
-                        None => folders::rename_material(
-                            lib,
-                            &book,
-                            writing.trim_start_matches("i:"),
-                            &name,
-                        ),
-                    },
-                    move |p, done, cx| {
-                        if let Some(r) = p.renaming.as_mut().filter(|r| r.key == key) {
-                            r.busy = false;
-                            r.field.update(cx, |f, cx| f.set_disabled(false, cx));
-                            if done.is_ok() {
-                                p.renaming = None;
-                            } else {
-                                r.error = true;
-                            }
-                            cx.notify();
+
+        if self.renaming.as_ref().is_some_and(|r| r.busy) {
+            return;
+        }
+        if let Some(name) = text
+            .as_ref()
+            .map(|t| t.trim().to_owned())
+            .filter(|t| !t.is_empty())
+            && name != self.name_of(key)
+        {
+            let rename = self.renaming.as_mut().expect("matched rename");
+            rename.busy = true;
+            rename.error = false;
+            rename.field.update(cx, |f, cx| f.set_disabled(true, cx));
+            window.focus(&self.focus, cx);
+            let book = self.book_id();
+            let key = key.to_owned();
+            let writing = key.clone();
+            spawn_lib(
+                self.lib.clone(),
+                (book.clone(), self.book_epoch),
+                cx,
+                move |lib| match writing.strip_prefix("f:") {
+                    Some(id) => folders::rename_folder(lib, &book, id, &name),
+                    None => folders::rename_material(
+                        lib,
+                        &book,
+                        writing.trim_start_matches("i:"),
+                        &name,
+                    ),
+                },
+                move |p, done, cx| {
+                    if let Some(r) = p.renaming.as_mut().filter(|r| r.key == key) {
+                        r.busy = false;
+                        r.field.update(cx, |f, cx| f.set_disabled(false, cx));
+                        if done.is_ok() {
+                            p.renaming = None;
+                        } else {
+                            r.error = true;
                         }
-                    },
-                );
-                cx.notify();
-                return;
-            }
+                        cx.notify();
+                    }
+                },
+            );
+            cx.notify();
+            return;
         }
         self.renaming = None;
         window.focus(&self.focus, cx);
         cx.notify();
-        let Some(name) = text.map(|t| t.trim().to_owned()).filter(|t| !t.is_empty()) else {
-            return;
-        };
-        if name == self.name_of(key) {
-            return;
-        }
-        let (book, key) = (self.book_id(), key.to_owned());
-        spawn_lib(
-            self.lib.clone(),
-            (self.book_id(), self.book_epoch),
-            cx,
-            move |lib| match key.strip_prefix("f:") {
-                Some(id) => folders::rename_folder(lib, &book, id, &name),
-                None => folders::rename_material(lib, &book, key.trim_start_matches("i:"), &name),
-            },
-            |_, done, _| {
-                if let Err(e) = done {
-                    log::warn!("material: rename: {e}");
-                }
-            },
-        );
     }
 
     pub fn renaming(&self) -> Option<&str> {
@@ -1470,11 +1402,7 @@ impl Render for LibraryHead {
         let panel = self.panel.read(cx);
         let count = panel.book.material_items().len();
         let related = panel.related_only;
-        let can_relate = if panel.book.v3().is_some() {
-            matches!(panel.front(cx), Some(Target::Entry { .. }))
-        } else {
-            panel.front(cx).is_some()
-        };
+        let can_relate = matches!(panel.front(cx), Some(Target::Entry { .. }));
         let menu_at = panel.menu;
         let (toggle, folder, plus, sv) = (
             self.panel.clone(),

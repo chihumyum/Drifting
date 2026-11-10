@@ -16,7 +16,6 @@ fn prose_commands_and_editor_reject_conversations_without_writing() {
     let conversation = "conversation:control-test";
     for (name, input) in [
         ("prose.read", json!({"doc": conversation})),
-        ("prose.shape", json!({"doc": conversation})),
         (
             "prose.replace",
             json!({"doc": conversation, "find": "a", "replace": "b"}),

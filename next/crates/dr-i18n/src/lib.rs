@@ -16,9 +16,9 @@
 //! ```
 //! use dr_i18n::{I18n, Locale, Platform, keys};
 //! let zh = I18n::new(Locale::ZhCn, Platform::Mac);
-//! assert_eq!(zh.t(keys::left_sidebar::tabs::DRIFTS), "构想");
+//! assert_eq!(zh.t(keys::common::CLOSE), "关闭");
 //! let en = I18n::new(Locale::En, Platform::Mac);
-//! assert_eq!(en.fmt(keys::left_sidebar::meta::DRIFTS, &[("count", &3)]), "3 ideas");
+//! assert_eq!(en.plural(keys::k4_book::ENTRY_COUNT, 3, &[]), "3 entries");
 //! ```
 //!
 //! [`number`] writes counts the way the interface language does (grouped
@@ -330,11 +330,11 @@ mod tests {
         }
         let zh = I18n::new(Locale::ZhCn, Platform::Mac);
         assert_eq!(zh.t(keys::right_sidebar::tabs::COMPANION), "帮手");
-        assert_eq!(zh.t(keys::left_sidebar::tabs::DRIFTS), "构想");
+        assert_eq!(zh.t(keys::common::CLOSE), "关闭");
         let tw = I18n::new(Locale::ZhTw, Platform::Mac);
         assert_eq!(tw.t(keys::right_sidebar::tabs::REVIEW), "審閱");
         let en = I18n::new(Locale::En, Platform::Mac);
-        assert_eq!(en.t(keys::left_sidebar::tabs::DRIFTS), "Ideas");
+        assert_eq!(en.t(keys::common::CLOSE), "Close");
     }
 
     #[test]
@@ -345,7 +345,7 @@ mod tests {
         assert!(mac.t(key).contains("macOS"));
         assert!(windows.t(key).contains("Windows"));
         // Keys without an override read the same on both.
-        let tab = keys::left_sidebar::tabs::CHAPTERS;
+        let tab = keys::common::CLOSE;
         assert_eq!(mac.t(tab), windows.t(tab));
     }
 
@@ -361,10 +361,10 @@ mod tests {
         let en = I18n::new(Locale::En, Platform::Mac);
         assert_eq!(
             en.fmt(
-                keys::left_sidebar::view_mode::CHAPTER_SUMMARY,
-                &[("storylines", &2), ("chapters", &14)]
+                keys::global_search::STATS,
+                &[("groups", &2), ("occurrences", &14)]
             ),
-            "2 storylines · 14 chapters"
+            "2 items · 14 matches"
         );
     }
 

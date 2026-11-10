@@ -21,6 +21,8 @@ gpui.workspace = true
 log.workspace = true
 
 [dev-dependencies]
+dr-doc = { path = "../dr-doc" }
+dr-model = { path = "../dr-model" }
 chrono.workspace = true
 dr-store.workspace = true
 dr-testkit.workspace = true

@@ -3,10 +3,9 @@
 
 use dr_editor::CommentRequested;
 use dr_view_review::{CommentComposer, ComposerEvent, NewComment};
-use dr_workspace::dto::Target as CommentTarget;
 use gpui::{
-    AnyElement, AppContext as _, Bounds, Context, Entity, EntityInputHandler as _, Focusable,
-    IntoElement, ParentElement, Subscription, Window, anchored, deferred, point, px,
+    AnyElement, Context, Entity, Focusable, IntoElement, ParentElement, Subscription, Window,
+    anchored, deferred, px,
 };
 use gpui_prose::ProseEditor;
 
@@ -70,20 +69,6 @@ impl Workspace {
         Some(revealed)
     }
 
-    /// A Review card's arrow: its entity's tab (the editor then shows the
-    /// comment).
-    pub(super) fn open_review_target(
-        &mut self,
-        key: &str,
-        _window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        if let Some(target) = Target::from_key(key) {
-            self.super_view = None;
-            self.open(target, Open::KEEP, cx);
-        }
-    }
-
     /// ⌘⌥M: the composer comes up beside the selection of the editor that
     /// has focus (one chapter's or the whole book's).
     pub(super) fn on_new_comment(
@@ -140,62 +125,19 @@ impl Workspace {
         let Some(lib) = self.library.clone() else {
             return;
         };
-        if self.book.v3().is_some() {
-            let selection = prose.read(cx).selection();
-            if selection.chapter != chapter || selection.range() != req.range {
-                return;
-            }
-            // The same stable-prose entry point as the keyboard composer.
-            // G4 owns version dispatch and captures the selected anchors.
-            let locale = crate::Strings::get(cx).locale();
-            if let Some(composer) =
-                CommentComposer::for_prose(&prose, lib, &self.book_id, &req.doc, locale, window, cx)
-            {
-                self.show_composer(composer, prose, window, cx);
-            }
+        if self.book.is_empty() {
             return;
         }
-        let Some((kind, id)) = req.doc.split_once(':') else {
+        let selection = prose.read(cx).selection();
+        if selection.chapter != chapter || selection.range() != req.range {
             return;
-        };
-        let target = CommentTarget {
-            kind: kind.to_owned(),
-            id: id.to_owned(),
-        };
-        let (start16, end16) = {
-            let p = prose.read(cx);
-            let Some(c) = p.book().chapters.get(chapter) else {
-                return;
-            };
-            (
-                c.doc.offset_to_utf16(req.range.start),
-                c.doc.offset_to_utf16(req.range.end),
-            )
-        };
-        // Under the range's last row, lined up with where it starts (as the
-        // ⌘⌥M composer).
-        let (first, last) = prose.update(cx, |e, cx| {
-            (
-                e.bounds_for_range(start16..start16 + 1, Bounds::default(), window, cx),
-                e.bounds_for_range(
-                    end16.saturating_sub(1)..end16,
-                    Bounds::default(),
-                    window,
-                    cx,
-                ),
-            )
-        });
-        let at = match (first, last) {
-            (Some(f), Some(l)) => point(f.left().min(l.left()), l.bottom() + px(8.0)),
-            (_, Some(l)) => point(l.left(), l.bottom() + px(8.0)),
-            _ => window.mouse_position(),
-        };
+        }
         let locale = crate::Strings::get(cx).locale();
-        let book = self.book_id.clone();
-        let range = (req.range.start, req.range.end);
-        let view =
-            cx.new(|cx| CommentComposer::new(lib, book, target, range, at, locale, window, cx));
-        self.show_composer(view, prose, window, cx);
+        if let Some(composer) =
+            CommentComposer::for_prose(&prose, lib, &self.book_id, &req.doc, locale, window, cx)
+        {
+            self.show_composer(composer, prose, window, cx);
+        }
     }
 
     /// Shows `view` beside the selection; done, the page gets the keyboard.

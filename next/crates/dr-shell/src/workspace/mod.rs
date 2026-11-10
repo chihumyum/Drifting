@@ -13,7 +13,7 @@
 //! deleted, by anyone, close their tabs.
 
 mod bottom;
-pub mod chapter_sort;
+
 mod chrome;
 pub mod corner;
 mod dock;
@@ -62,7 +62,7 @@ use crate::actions::{
 };
 use crate::book::{self, Book};
 use crate::dialogs::{self, FollowUpNotice};
-use crate::nav::{self, Navigator, Open, Target, location};
+use crate::nav::{self, Navigator, Open, Target};
 use crate::notifications::{self, Notifications};
 use crate::pages::{self, ShelfPage};
 use crate::panes::{self, Panes};
@@ -351,13 +351,6 @@ pub struct BookLayout {
     /// The outline rail in the page's left margin is hidden.
     #[serde(default)]
     pub outline_hidden: bool,
-    /// The chapter panel lists the whole book in reading order (with its
-    /// acts) instead of by storyline.
-    #[serde(default)]
-    pub chapters_by_book: bool,
-    /// How the chapter panel sorts, and what its cells show on the right.
-    #[serde(default)]
-    pub chapter_sort: chapter_sort::ChapterSort,
     /// Where the whole book's page was being read (M05).
     #[serde(default)]
     pub book_position: Option<editors::SavedPosition>,
@@ -412,7 +405,6 @@ pub struct Workspace {
     title_first: Option<String>,
     /// The left tabs modules draw, made the first time a pane shows them
     /// (pane slug and tab; `None`: no module draws it).
-    left_panels: std::cell::RefCell<HashMap<(&'static str, LeftTab), Option<pages::LeftPanel>>>,
     /// The 帮手 tab a module draws, per pane slug (as the left panels).
     companion: std::cell::RefCell<HashMap<&'static str, Option<pages::LeftPanel>>>,
     /// The 素材库 tab a module draws, per pane slug (as the 帮手 tab).
@@ -473,8 +465,6 @@ pub struct Workspace {
     /// How it was entered, the reveal, the words since ([`immersive`]).
     pub immersion: immersive::Immersion,
     /// The chapter panel's view: the whole book, not by storyline.
-    pub chapters_by_book: bool,
-    pub chapter_sort: chapter_sort::ChapterSort,
     /// The chapter panel's folded groups (storyline ids, `unaffiliated`)
     /// per book and sidebar half, for this run (workspace.md: folds,
     /// selection and scroll are kept while the app runs, not stored).
@@ -483,7 +473,6 @@ pub struct Workspace {
     /// for this run: a list closed with its sidebar comes back where it was.
     list_scroll: std::cell::RefCell<HashMap<String, gpui::UniformListScrollHandle>>,
     /// The chapter panel whose sort menu is open (its pane's slug).
-    pub chapter_sort_open: Option<String>,
     /// The page whose corner's ⋯ menu is open (its target key).
     pub corner_menu: Option<String>,
     pub super_view: Option<SuperView>,
@@ -507,7 +496,6 @@ pub struct Workspace {
     pub shelf_open: bool,
     /// Project Home (M02), when one is registered ([`pages::set_home`]):
     /// made with the workspace, kept while the window lives.
-    pub home: Option<AnyView>,
     /// Versioned Project Home; never rendered for a legacy book.
     pub v3_home: Option<AnyView>,
     /// A left press on a drag region that has not moved yet (macOS).
@@ -577,7 +565,6 @@ impl Workspace {
             title_first: None,
             toast: None,
             toast_timer: None,
-            left_panels: Default::default(),
             companion: Default::default(),
             library_panel: Default::default(),
             super_views: Default::default(),
@@ -602,15 +589,12 @@ impl Workspace {
             turning_until: None,
             nav: Navigator::default(),
             pending_v3_links: Vec::new(),
-            left: Sidebar::new(None, LeftTab::Chapters, |_| true),
+            left: Sidebar::new(None, LeftTab::Structure, |_| true),
             right: Sidebar::new(None, RightTab::Review, |_| true),
             dock_locked: false,
             outline_hidden: false,
             immersive: false,
             immersion: Default::default(),
-            chapters_by_book: false,
-            chapter_sort: Default::default(),
-            chapter_sort_open: None,
             folded: Default::default(),
             list_scroll: Default::default(),
             corner_menu: None,
@@ -624,7 +608,6 @@ impl Workspace {
             dialog: None,
             shelf: None,
             shelf_open: false,
-            home: None,
             v3_home: None,
             drag_armed: false,
             layout_dirty: false,
@@ -634,7 +617,6 @@ impl Workspace {
         };
         ws.restore_layout(cx);
         ws.listen_to_library(cx);
-        ws.home = pages::make_home(cx.weak_entity(), window, cx);
         ws.v3_home = pages::make_v3_home(cx.weak_entity(), window, cx);
         if shelf_first {
             ws.show_shelf(window, cx);
@@ -662,40 +644,25 @@ impl Workspace {
         let saved: Option<BookLayout> = Settings::read(cx)
             .layout(&self.book_id)
             .and_then(|v| serde_json::from_value(v.clone()).ok());
-        let (nav, left, right, dock_locked, outline_hidden, by_book, sort, position) = match &saved
-        {
+        let (nav, left, right, dock_locked, outline_hidden, position) = match &saved {
             Some(l) => (
                 Navigator::restored(l.nav.clone(), |_| true),
                 Some(l.left.clone()),
                 Some(l.right.clone()),
                 l.dock_locked,
                 l.outline_hidden,
-                l.chapters_by_book,
-                l.chapter_sort,
                 l.book_position.clone(),
             ),
-            None => (
-                Navigator::default(),
-                None,
-                None,
-                false,
-                false,
-                false,
-                Default::default(),
-                None,
-            ),
+            None => (Navigator::default(), None, None, false, false, None),
         };
         self.bottom.layout = saved.map(|l| l.bottom).unwrap_or_default();
         self.bottom.forget();
         self.read_book_memory(cx);
         self.nav = nav;
-        self.left = Sidebar::new(left, LeftTab::Chapters, |_| true);
+        self.left = Sidebar::new(left, LeftTab::Structure, |_| true);
         self.right = Sidebar::new(right, RightTab::Review, |_| true);
         self.dock_locked = dock_locked;
         self.outline_hidden = outline_hidden;
-        self.chapters_by_book = by_book;
-        self.chapter_sort = sort;
-        self.chapter_sort_open = None;
         self.book_position = position;
         self.editors.clear();
         self.v3_sidebar = None;
@@ -720,11 +687,18 @@ impl Workspace {
         } else {
             Some(self.book_id.clone())
         };
+        let explicit = !self.book_id.is_empty();
         self.book_task = Some(cx.spawn(async move |this, cx| {
             let started = Instant::now();
             let loaded = cx
                 .background_executor()
-                .spawn(async move { Book::load_any(&lib, want.as_deref()) })
+                .spawn(async move {
+                    if explicit {
+                        Book::load(&lib, want.as_deref().expect("explicit book")).map(Some)
+                    } else {
+                        Book::load_any(&lib, want.as_deref())
+                    }
+                })
                 .await;
             let ms = started.elapsed().as_secs_f64() * 1e3;
             this.update(cx, |ws, cx| ws.book_loaded(loaded, ms, cx))
@@ -931,20 +905,7 @@ impl Workspace {
             return;
         }
         self.touched = key;
-        if self.book.v3().is_some() {
-            self.record_recent(front.as_ref(), cx);
-            return;
-        }
-        let Some(doc) = front.as_ref().and_then(book::doc_of) else {
-            return;
-        };
-        if let Some((kind, id)) = doc.split_once(':') {
-            let input = serde_json::json!({
-                "book": self.book_id,
-                "target": { "kind": kind, "id": id },
-            });
-            self.run_command("recent.touch", input, cx);
-        }
+        self.record_recent(front.as_ref(), cx);
     }
 
     /// Opens a location link (either form). Returns whether it named
@@ -956,62 +917,7 @@ impl Workspace {
         if let Some(address) = dr_editor::v3_link::parse(href, scheme) {
             return self.open_v3_link(address, window, cx);
         }
-        let Some(link) = location::parse(href, scheme) else {
-            log::info!("not a location link");
-            return false;
-        };
-        let Some(catalog) = self
-            .library
-            .as_ref()
-            .and_then(|lib| lib.catalog(&self.book_id).ok())
-        else {
-            log::info!("no book to resolve a location link in");
-            return false;
-        };
-        match location::resolve(&link, &catalog) {
-            Ok((target, lines)) => {
-                self.super_view = None;
-                // Reading the whole book: the link's chapter is shown there.
-                if self.reveal_in_book(&target, lines, window, cx) {
-                    cx.notify();
-                    return true;
-                }
-                self.nav.open_at(target, lines);
-                self.changed(cx);
-                true
-            }
-            Err(error) => {
-                log::info!("location link not resolved: {error:?}");
-                false
-            }
-        }
-    }
-
-    /// When the whole book is the page in front and `target` is one of its
-    /// chapters, shows it there (its line, or its title) instead of opening
-    /// its own tab. Returns whether it did.
-    fn reveal_in_book(
-        &mut self,
-        target: &Target,
-        lines: Option<nav::Lines>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> bool {
-        let reading_book = self
-            .nav
-            .active_tab()
-            .is_some_and(|t| t.focused().target == Target::Book);
-        let (true, Target::Chapter(id)) = (reading_book, target) else {
-            return false;
-        };
-        let Some(book) = self.book_editor().cloned() else {
-            return false;
-        };
-        let doc = format!("node:{id}");
-        book.update(cx, |b, cx| match lines {
-            Some(lines) => b.reveal_line(&doc, lines.start as usize, window, cx),
-            None => b.jump_to(&doc, window, cx),
-        })
+        false
     }
 
     pub fn focus_handle(&self) -> &FocusHandle {
@@ -1045,6 +951,14 @@ impl Workspace {
     /// Opens `book` from the bookshelf: its saved tabs and sidebars come
     /// back (or Home, the first time), and the bookshelf goes.
     pub fn open_book(&mut self, book: &str, window: &mut Window, cx: &mut Context<Self>) {
+        if self
+            .library
+            .as_ref()
+            .is_none_or(|lib| !crate::book::canonical(lib, book))
+        {
+            log::warn!("only canonical v3 books can be opened; source retained");
+            return;
+        }
         if book != self.book_id || self.book.is_empty() {
             // M24: a full-window wait on the sea until the page is ready.
             self.sea_opening(window, cx);
@@ -1083,9 +997,14 @@ impl Workspace {
             self.open_book(book, window, cx);
             return;
         }
-        let target = doc
-            .strip_prefix("node:")
-            .and_then(|id| editors::link_target(&self.book, &dr_model::kind::EntityKind::Node, id));
+        let target = dr_model::DocId::parse(doc).ok().and_then(|id| match id {
+            dr_model::DocId::Body(body) => Some(Target::Entry {
+                id: body.entry().clone(),
+                module: Some(body.module().clone()),
+            }),
+            dr_model::DocId::Material(id) => Some(Target::Material(id)),
+            _ => None,
+        });
         if let Some(target) = target {
             self.open(target, Open::KEEP, cx);
         }
@@ -1118,9 +1037,7 @@ impl Workspace {
         self._library_events = None;
         self.shelf = None;
         self.shelf_open = false;
-        self.home = None;
         self.v3_home = None;
-        self.left_panels.borrow_mut().clear();
         self.companion.borrow_mut().clear();
         self.library_panel.borrow_mut().clear();
         self.super_views.borrow_mut().clear();
@@ -1148,7 +1065,6 @@ impl Workspace {
         self.library = Some(lib.clone());
         self.sea_swapped();
         self.listen_to_library(cx);
-        self.home = pages::make_home(cx.weak_entity(), window, cx);
         self.v3_home = pages::make_v3_home(cx.weak_entity(), window, cx);
         if !self.show_shelf(window, cx) {
             let last = Settings::read(cx).last_book().map(str::to_owned);
@@ -1191,8 +1107,6 @@ impl Workspace {
             right: self.right.saved(),
             dock_locked: self.dock_locked,
             outline_hidden: self.outline_hidden,
-            chapters_by_book: self.chapters_by_book,
-            chapter_sort: self.chapter_sort,
             book_position: self.book_position.clone(),
             bottom: self.bottom.layout.clone(),
         }
@@ -1313,30 +1227,6 @@ impl Workspace {
         }
         self.nav.open(target, how);
         self.changed(cx);
-    }
-
-    /// A chapter dropped on another in the chapter panel takes that place
-    /// in reading order: after it when it came from above, before it when
-    /// from below (F3's `chapter.move`; the lists change when F3 says the
-    /// book did).
-    pub fn move_chapter(&mut self, id: &str, onto: &str, cx: &mut Context<Self>) {
-        let at = |x: &str| self.book.chapters.iter().position(|c| c.id == x);
-        let (Some(from), Some(to)) = (at(id), at(onto)) else {
-            return;
-        };
-        if from == to {
-            return;
-        }
-        let place = if from < to {
-            serde_json::json!({ "after": onto })
-        } else {
-            serde_json::json!({ "before": onto })
-        };
-        self.run_command(
-            "chapter.move",
-            serde_json::json!({ "book": self.book_id, "id": id, "place": place }),
-            cx,
-        );
     }
 
     pub fn promote(&mut self, target: &Target, cx: &mut Context<Self>) {
@@ -1604,7 +1494,7 @@ impl Render for Workspace {
         self.ensure_pages(window, cx);
         // M24: while a full-window wait holds the sea, only the sea shows
         // (the page in front gets ready under it).
-        if self.sea_settle(window) {
+        if self.sea_settle(window, cx) {
             let root = div()
                 .id("workspace")
                 .key_context(keymap::WORKSPACE)
@@ -1801,11 +1691,7 @@ pub fn title_of(book: &Book, target: &Target, cx: &App) -> gpui::SharedString {
     use dr_i18n::keys::top_timeline::{singletons, untitled};
     let untitled = match target {
         Target::Book => return crate::t(cx, singletons::ALL_CHAPTERS),
-        Target::Chapter(_) => untitled::CHAPTER,
-        Target::Idea(_) => untitled::DRIFT,
-        Target::Storyline(_) => untitled::STORYLINE,
-        Target::Element(_) => untitled::ELEMENT,
-        Target::Category(_) => untitled::CATEGORY,
+
         Target::Material(_) => untitled::LIBRARY_ITEM,
         Target::Entry { .. } | Target::Template(_) => {
             return book.title(target).unwrap_or_default().to_owned().into();

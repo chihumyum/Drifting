@@ -1,0 +1,106 @@
+//! One canonical runtime: factory, strict open and retired registry reachability.
+mod common;
+use dr_workspace::{Actor, Workspace, registry};
+use serde_json::json;
+#[test]
+fn canonical_creation_and_shared_capabilities_have_no_old_product_runtime() {
+    let dir = tempfile::tempdir().unwrap();
+    let ws = Workspace::open_dir(dir.path(), "cutover-contract").unwrap();
+    let book = ws
+        .call(
+            &Actor::User,
+            "project.create",
+            json!({"name":"Synthetic cutover"}),
+        )
+        .unwrap()["output"]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let raw = ws.library().load_copy(&format!("book:{book}")).unwrap();
+    assert!(dr_doc::v3::is_v3_doc(&raw));
+    for name in [
+        "book.create",
+        "chapter.create",
+        "chapter.list",
+        "chapter.update",
+        "act.create",
+        "idea.create",
+        "element.create",
+        "category.create",
+        "storyline.create",
+        "plot_grid.get",
+        "time_pin.create",
+        "category_template.document",
+        "chapter_template.set_body",
+        "storyline_template.list",
+        "history.undo_agent",
+    ] {
+        assert!(
+            registry().get(name).is_none(),
+            "retired runtime is still reachable: {name}"
+        );
+    }
+    for name in [
+        "entry.create",
+        "module.read_prose",
+        "entry_snapshot.restore",
+        "membership.add",
+        "fact.put",
+        "memory.add",
+        "relation.create",
+        "prose.link",
+        "prose.shape",
+    ] {
+        assert!(
+            registry().get(name).is_some(),
+            "shared/canonical capability missing: {name}"
+        );
+    }
+    ws.shutdown().unwrap();
+}
+#[test]
+fn old_catalog_and_old_prose_are_refused_without_repair_or_mutation() {
+    let dir = tempfile::tempdir().unwrap();
+    let ws = Workspace::open_dir(dir.path(), "cutover-contract").unwrap();
+    let old = common::acceptance::empty_source(ws.library());
+    let before = ws
+        .library()
+        .load_copy(&format!("book:{old}"))
+        .unwrap()
+        .export(loro::ExportMode::all_updates())
+        .unwrap();
+    assert!(
+        ws.call(&Actor::User, "book.get", json!({"book":old}))
+            .is_err()
+    );
+    assert!(ws.prose_session("node:synthetic-retired").is_err());
+    assert!(
+        ws.call(&Actor::User, "book.list", json!({})).unwrap()["output"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        ws.library()
+            .load_copy(&format!("book:{old}"))
+            .unwrap()
+            .export(loro::ExportMode::all_updates())
+            .unwrap(),
+        before
+    );
+    ws.shutdown().unwrap();
+}
+#[test]
+fn old_sync_payload_cannot_be_hidden_under_a_new_canonical_genesis() {
+    let dir = tempfile::tempdir().unwrap();
+    let ws = Workspace::open_dir(dir.path(), "cutover-contract").unwrap();
+    let book = dr_model::id::BookId::new_v7();
+    let id = format!("book:{book}");
+    let bytes = dr_doc::import_v1::genesis(&book);
+    assert!(
+        ws.import_remote(&id, Some(("book", book.as_str())), bytes, &Actor::Sync)
+            .is_err()
+    );
+    assert!(ws.library().docs(None, None).unwrap().is_empty());
+    ws.shutdown().unwrap();
+}

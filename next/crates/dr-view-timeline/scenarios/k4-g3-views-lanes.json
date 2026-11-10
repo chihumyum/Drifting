@@ -1,5 +1,5 @@
 {
-  "about": "K4 G3 第一交回：v3-lite 真窗口视图与泳道，保留 v2.2 路径。",
+  "about": "K4 G3 第一交回：v3-lite 真窗口视图与泳道，保留 v2.2 路径。；v3 切换后保留全部 canonical 验收步骤，旧产品回切尾段已退役。",
   "steps": [
     {
       "seed": "v3-lite"
@@ -291,41 +291,6 @@
         "/0": "${views.0}"
       },
       "note": "删掉独立视图，原视图及其中摆放、时间钉逐值保持。"
-    },
-    {
-      "call": "book.create",
-      "input": {
-        "name": "Synthetic v2.2 G3"
-      },
-      "save": "legacy"
-    },
-    {
-      "app": "book.open",
-      "params": {
-        "book": "${legacy.id}"
-      }
-    },
-    {
-      "app": "ui.wait",
-      "params": {
-        "state": {
-          "/book/version": 2,
-          "/v3": null,
-          "/bottom/pane": "timeline"
-        }
-      }
-    },
-    {
-      "app": "ui.find",
-      "params": {
-        "label": "New view",
-        "role": "Button",
-        "absent": true
-      }
-    },
-    {
-      "app": "ui.screenshot",
-      "png": "02-v22.png"
     },
     {
       "app": "app.quit"
