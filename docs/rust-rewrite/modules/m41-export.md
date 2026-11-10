@@ -1,6 +1,6 @@
 # M41 导出
 
-## K4 G4 条目快照随书搬运续修（2026-11-10）
+## K4 G4 条目快照随书搬运修复交回（2026-11-10）
 
 第 65 批新增的 `entry_checkpoints` 清单存放在书文档里。整合者提供的未运行
 交叉探针适配为 `dr-export/tests/book_file_v3_snapshots.rs` 后，首次实跑
@@ -26,9 +26,23 @@
 `snapshot-archive-window-final/{result,secondary-display,artifact-checks}.json`。
 首轮 52 步在第 49 步错误地把 `page.text` 的模块目录当正文，实际数据恢复已
 通过；保留 `snapshot-archive-window/` 原失败，修正为模块注册核对及真实输入
-读回，不作为环境重试或原脚本复跑通过。全套结果交回时补记。
+读回，不作为环境重试或原脚本复跑通过。
 G1 已声明的无法保真恢复形态仍按原 API 拒绝；
 不借归档放宽原值、身份或版本守卫，不做 heavy 或新产品设计。
+
+实现为 `ffee61d5`，窗口契约与记录为 `5fc370a6`；已 `git merge main`，
+基线仍为 `0f562934`（含第 65 批）。fmt、全工作区 Clippy、完整测试
+（2237 通过／0 失败／22 既有忽略）、xtask 含审计、public 和九语同步全过。
+编译并发 3，测试单线程并要求字体；审计 972 个锁定包、0 漏洞、12 条既有
+提示，public 5558 项。日志为忽略目录 `next/target/g4-checks/snapshot-archive-*.log`；
+九语检查首次调用错脚本路径，原调用错误单独保留，使用实际脚本后通过。
+交回指针为 `handback/k4-g4`，本批包含此前正式交回的回滚修复 `39416a46`。
+
+整合者另报告：冻结组合 `3e9f6fbb` 的原搜索 60/60、文本素材 28/28 均一次
+通过，精确素材批注读回与副屏位置已核对，证据在公共 Git 目录
+`integration-evidence/batch-66/search-material-preflight`；这是整合者前置复核，
+不是 G4 执行或最终整合全套，不据此提前关闭退回。第 66 批仍由整合者接收
+本次正式归档修复后完成整合验收；未合入 main、未推送。
 
 ## K4 G4 导入失败回滚返修（2026-11-10）
 
