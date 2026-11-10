@@ -1,6 +1,6 @@
 # next/ canonical v3 切换
 
-2026-11-10，任务 7，从 `main` 的 `93a43a3f` 实施。本文记录最终切换范围；历史模块文档中“v2.2 不动／两套并存”的叙述只描述切换前阶段，以本节和当前源码为准。本分支只交付实现与验收，整合者复核后本地合 main，不发布。
+2026-11-10 实施、11-11 完成源验收，任务 7，从 `main` 的 `93a43a3f` 实施。本文记录最终切换范围；历史模块文档中“v2.2 不动／两套并存”的叙述只描述切换前阶段，以本节和当前源码为准。本分支只交付实现与验收，守卫独立复核后由整合者本地合 main，不发布。
 
 ## 做了什么
 
@@ -99,7 +99,7 @@ v3 Markdown 文件夹、分享链接和界面设计／性能打磨仍按原授�
 
 ## 检查结果
 
-2026-11-10 最终实现组合的自动检查：
+2026-11-10 最终 Rust 实现 `31fed908b533a1be82ed44d5e4942eed4ccc9a4f` 的自动检查；其后 `6fdc97ce6`、`8dcf77446`、`4464555ab` 只修正本次窗口场景的等待和入口断言，Rust／Cargo 源码完全相同。外部 `switch-v3-final-checks.json` 记录完整日志的 hash、运行终点和被检查的源树；后续文档／场景门禁另记，不冒称重新执行过完整测试。
 
 | 检查 | 实际结果 | 外部完整日志 |
 | --- | --- | --- |
@@ -111,4 +111,25 @@ v3 Markdown 文件夹、分享链接和界面设计／性能打磨仍按原授�
 
 首轮及随后失败日志均保留，已修复对应问题；第五次完整测试在编译中因发现共享素材链接 writer 接错而主动中断，未记作通过或环境重试。原 registry／catalog／Schema 生成器实际运行，快照没有手编辑。历史性能证据未重测或改写；evidence 门禁显示 20 stale／15 legacy，不能称本阶段性能通过。
 
-当前为自动检查通过的候选，真窗口主流程、真实平台组字和 App A/B/A 假服务链的本轮结果尚待实际运行，不能以准备的场景或脚本代替结果。
+最终 47 步场景与本页证据补齐后，`switch-v3-final-fmt7.log`、`switch-v3-final-xtask6.log`（含 audit）和 `switch-v3-final-public5.log` 再次通过；后者扫描 5551 个公开候选。`switch-v3-final-scenarios1.log` 的 `the_shipped_scenarios_parse` 定向契约通过，核对所有保留场景仍能由正式解析器读取并正常结束。它不替代此前完整工作区测试，也没有额外运行 heavy 或外观验收。
+
+全套测试结束后，使用本工作区自己的 target 重建 Debug App／CLI／loopback helper。`switch-v3-native-build4.log` 和 `switch-v3-native-helper-build1.log` 均通过；Debug App 链接器有 `__eh_frame` 超过 compact-unwind 16MB 的提示，未隐去，也未以此声称性能通过。所有命令使用 `CARGO_BUILD_JOBS=3 RUST_TEST_THREADS=1 DR_UI_REQUIRE_FONTS=1`。
+
+2026-11-11 源真窗口验收，源码 `4464555abeb334729bf8ded8748670505034b0a7`；三个验收顺序运行，均先取得独占租约，使用合法独立 profile 和真实独立数据目录。每次窗口均用 PID 和 CG 全局 bounds 核对在副屏，不以 App 内部相对坐标代替。证据均在约定仓库外日志目录，以下是实际运行结果：
+
+| 流程 | 实际结果 | 外部证据 |
+| --- | --- | --- |
+| 普通新建／编辑／重开／拒绝旧书／开发库重导 | 47 步通过，0 pending；普通 New book 创建真实 v3；正文输入保存重开；直接旧书返回 canonical admission 的 `invalid`，旧链接返回 `not_found`；空 choices structured pending 后，显式 fixture choices GUI worker 导入新目标，Done 返回书架，再经普通入口打开和编辑 | `switch-v3-native-main-4/{result.json,driver.log,source-and-target-proof.json}`；profile `sv3-main-4`，PID 62734／62791 |
+| 源不变／新目标 | 原源库的数据库、资源和安装标记共 3 个文件的 SHA256、字节数、mtime 全部相同；原活动库保留，新目标是独立 `reimport-v3-<id>` 目录，打开的导入书实际 version=3 | 同上 `source-and-target-proof.json`，由验证脚本从实际结果生成 |
+| 真实平台 IME | 已安装 Apple 拼音经真实系统按键产生 `ni hao` marked-text，range=0..0，selection 仍 0..0；组字中读取的持久正文和 version 均未变；空格提交恰好一次「你好」并推进 version，退出重开正文与精确 version 一致；原输入源恢复 | `switch-v3-native-ime-10/{events.ndjson,preedit.json,committed.json,reopened.json,manual-result.json}`；profile `sv3-ime-10`，PID 75109／75300 |
+| App A → 假服务 → B → A | A 真窗口输入「甲」保存退出；同一个长活 FakeSyncServer 经真实 SyncEngine 上传 27／下载 27 文档；B 真窗口精确读到 A 的正文和 frontier，再输入「乙」保存退出；上传 2／下载 2 文档，A 重开精确读到 B 的正文和 frontier；helper 正常退出 | `switch-v3-native-sync-3/{events.ndjson,native-a-write.json,native-b-read.json,native-b-write.json,native-a-return.json,manual-result.json}`；profiles `sv3-sync-3-a`／`sv3-sync-3-b`，PID 70824／70884／70917 |
+
+IME 证据来自本次未打包的真实 Debug App 和只读 `ProseEditor.composition()`，不是 `input.type`、模拟 marked-text 或本地 bundle 的准备结果。外部探针发送真实 CG 系统键盘事件并核对前台 PID，经本机已启用的 Control-Space 选择 Apple 拼音；单次等待完成输入步骤，避免轮询工具把 Codex 带回前台。`switch-v3-native-cleanup.json` 核对原输入源已恢复、租约空闲；所有验收 App 和假服务都已退出。
+
+外部 `switch-v3-native-receipt.py` 从上述实际结果交叉核对 source、App hash、全部步骤、源文件清单、组字前后持久值、精确版本、传输数和每次 PID／副屏坐标，生成 `switch-v3-native-evidence.json` 并记录证据文件 hash。它只汇总已运行结果，不生成或手编辑仓库内的合同／性能 JSON。
+
+首轮窗口失败同样保留：main-1 的 symlink profile 被现有安全门拒绝，且场景在异步 entry 快照发布前导航；main-2 对正确旧书拒绝码的断言错误；main-3 错误等待导入后自动打开书，实际受控换库按既有协议回书架。仅修正 harness／场景，未绕锁、删源、放宽版本检查或自造自动打开行为。main-4 完整重跑后才计通过。
+
+IME-1–9 的环境／探针失败和 sync-1–2 的前台焦点失败完整保留，未把普通拉丁字符当作组字。中间本地 Debug bundle 诊断曾因未复制既有字体停止，补齐后仍未证明组字；最终通过证据是 IME-10 的原 Debug App。焦点守卫实际捕获到 Codex 重新前台，未向其他 App 发送该次受阻输入；没有将这些失败批量宣称环境瞬时后反复原样重跑。同步最终完整三次窗口链在 sync-3 重做。
+
+本源验收不代替守卫的独立复核，不覆盖生产自动同步、heavy／性能预算、截图目检、样式或流畅度；这几项未记通过。三个窄映射策略和 M10 28–30 的保守技术预检仍按前述待协调边界保留。
