@@ -250,6 +250,105 @@ fn v3_cross_document_external_plain_paste_control(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn v3_cross_document_cut_at_first_chapter_end_undoes_from_unchanged_caret_chapter(
+    cx: &mut TestAppContext,
+) {
+    use gpui_prose::{
+        input::actions::{Cut, Redo, Undo},
+        layout::BookPos,
+    };
+    let (e, docs) = cross_fixture();
+    let original = cross_texts(&e, &docs);
+    let (_view, prose, cx) = open_cross(cx, &e);
+    prose.update_in(cx, |p, w, cx| {
+        p.select(0, 3..3, w, cx);
+        p.replace_text_in_range(None, "新", w, cx);
+    });
+    draw_cross(cx);
+    let before = cross_texts(&e, &docs);
+    let first_state = cross_states(&e, &docs)[0].clone();
+    prose.update_in(cx, |p, w, cx| {
+        p.select_across(
+            BookPos {
+                chapter: 0,
+                offset: 4,
+            },
+            BookPos {
+                chapter: 1,
+                offset: 1,
+            },
+            w,
+            cx,
+        )
+    });
+    draw_cross(cx);
+    cx.dispatch_action(Cut);
+    draw_cross(cx);
+    let mut after = before.clone();
+    after[1] = "戊\n己\n".into();
+    assert_eq!(cross_texts(&e, &docs), after);
+    assert_eq!(
+        cross_states(&e, &docs)[0],
+        first_state,
+        "empty fragment must not manufacture a body write for Undo"
+    );
+    assert_eq!(prose.read_with(cx, |p, _| p.selection().chapter), 0);
+    cx.dispatch_action(Undo);
+    draw_cross(cx);
+    assert_eq!(
+        cross_texts(&e, &docs),
+        before,
+        "one Undo must restore the group without consuming the older first-chapter typing"
+    );
+    cx.dispatch_action(Undo);
+    draw_cross(cx);
+    assert_eq!(cross_texts(&e, &docs), original);
+    cx.dispatch_action(Redo);
+    draw_cross(cx);
+    assert_eq!(cross_texts(&e, &docs), before);
+    cx.dispatch_action(Redo);
+    draw_cross(cx);
+    assert_eq!(cross_texts(&e, &docs), after);
+}
+
+#[gpui::test]
+fn v3_cross_document_later_typing_does_not_rejoin_the_clipboard_undo_group(
+    cx: &mut TestAppContext,
+) {
+    use gpui_prose::input::actions::{Cut, Undo};
+    let (e, docs) = cross_fixture();
+    let (_view, prose, cx) = open_cross(cx, &e);
+    select_cross(&prose, cx);
+    // No selection/navigation checkpoint between the accepted Cut and the
+    // subsequent ordinary IME input in its caret chapter.
+    cx.update(|window, cx| {
+        use gpui::Focusable as _;
+        prose
+            .read(cx)
+            .focus_handle(cx)
+            .dispatch_action(&Cut, window, cx);
+        prose.update(cx, |p, cx| p.replace_text_in_range(None, "新", window, cx));
+    });
+    draw_cross(cx);
+    assert_eq!(&cross_texts(&e, &docs)[..2], &["甲新\n", "戊\n己\n"]);
+    // Undo the group's step in the OTHER chapter. The later first-chapter
+    // input and its older deletion stay for that chapter's own Undo.
+    prose.update_in(cx, |p, w, cx| p.select(1, 0..0, w, cx));
+    draw_cross(cx);
+    cx.dispatch_action(Undo);
+    draw_cross(cx);
+    assert_eq!(&cross_texts(&e, &docs)[..2], &["甲新\n", "丁戊\n己\n"]);
+    prose.update_in(cx, |p, w, cx| p.select(0, 2..2, w, cx));
+    draw_cross(cx);
+    cx.dispatch_action(Undo);
+    draw_cross(cx);
+    assert_eq!(&cross_texts(&e, &docs)[..2], &["甲\n", "丁戊\n己\n"]);
+    cx.dispatch_action(Undo);
+    draw_cross(cx);
+    assert_eq!(&cross_texts(&e, &docs)[..2], &["甲乙丙\n", "丁戊\n己\n"]);
+}
+
+#[gpui::test]
 fn v3_cross_document_rich_paste_middle_chapter_raw_marks_anchor_and_grouped_undo(
     cx: &mut TestAppContext,
 ) {

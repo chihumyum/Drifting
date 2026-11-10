@@ -63,6 +63,7 @@ impl ProseEditor {
             "one transaction result per chapter"
         );
         self.finish_commit_playback(cx);
+        let changed = results.iter().any(|r| r.undo_items > 0);
         let group = self.next_edit_group();
         let mut touched = Vec::new();
         self.own_edit = true;
@@ -74,7 +75,13 @@ impl ProseEditor {
                 doc.tag_last_step(group);
                 self.undo_chapters.push(chapter);
                 touched.push(chapter);
+            } else if changed {
+                doc.record_host_group_marker(group);
+                self.undo_chapters.push(chapter);
             }
+            // Like HostStep::Own: subsequent typing is a new step rather
+            // than silently joining this transaction's cross-chapter group.
+            doc.checkpoint();
             self.sync_chapter(chapter, cx);
         }
         self.own_edit = false;

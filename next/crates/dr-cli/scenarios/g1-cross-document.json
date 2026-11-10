@@ -1,5 +1,5 @@
 {
-  "about": "G1 v3 whole-book ordinary cross-chapter Cut and internal Copy/Paste through the real Assist/native key path; per-body durable reads, one grouped Undo, final accepted paste and quit/reopen. Canonical Tiny plus F4c text. Secondary isolated correctness flow only; no heavy, visual or performance acceptance.",
+  "about": "G1 v3 whole-book ordinary cross-chapter Cut and internal Copy/Paste through the real Assist/native key path; per-body durable reads, one grouped Undo, final accepted paste and quit/reopen. Canonical Tiny plus F4c text. Secondary isolated correctness flow only; no heavy, visual or performance acceptance. Includes a zero-length first selected fragment: Undo at the unchanged start chapter must still restore the changed group without consuming older source history.",
   "steps": [
     {
       "seed": "v3-tiny"
@@ -190,6 +190,101 @@
       "app": "input.key",
       "params": {
         "keys": "secondary-z"
+      },
+      "expect": {
+        "/handled": [
+          true
+        ]
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${first.0.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "甲乙丙"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${second.0.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "丁戊",
+        "/paragraphs/1/text": "己"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-down",
+        "times": 1
+      },
+      "expect": {
+        "/handled": [
+          true
+        ]
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "shift-right",
+        "times": 2
+      },
+      "expect": {
+        "/handled": [
+          true,
+          true
+        ]
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-x",
+        "times": 1
+      },
+      "expect": {
+        "/handled": [
+          true
+        ]
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${first.0.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "甲乙丙"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${second.0.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "戊",
+        "/paragraphs/1/text": "己"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-z",
+        "times": 1
       },
       "expect": {
         "/handled": [
