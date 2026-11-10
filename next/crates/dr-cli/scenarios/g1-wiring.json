@@ -112,7 +112,9 @@
         "keys": "secondary-a"
       },
       "expect": {
-        "/handled": true
+        "/handled": [
+          true
+        ]
       }
     },
     {
@@ -121,7 +123,9 @@
         "keys": "secondary-c"
       },
       "expect": {
-        "/handled": true
+        "/handled": [
+          true
+        ]
       }
     },
     {
@@ -130,7 +134,9 @@
         "keys": "right"
       },
       "expect": {
-        "/handled": true
+        "/handled": [
+          true
+        ]
       }
     },
     {
@@ -139,7 +145,9 @@
         "keys": "secondary-v"
       },
       "expect": {
-        "/handled": true
+        "/handled": [
+          true
+        ]
       }
     },
     {
@@ -170,7 +178,9 @@
         "keys": "secondary-f"
       },
       "expect": {
-        "/handled": true
+        "/handled": [
+          true
+        ]
       }
     },
     {
@@ -185,7 +195,9 @@
         "keys": "escape"
       },
       "expect": {
-        "/handled": true
+        "/handled": [
+          true
+        ]
       }
     },
     {
@@ -209,7 +221,9 @@
         "keys": "secondary-alt-m"
       },
       "expect": {
-        "/handled": true
+        "/handled": [
+          true
+        ]
       }
     },
     {
@@ -234,7 +248,9 @@
         "keys": "secondary-enter"
       },
       "expect": {
-        "/handled": true
+        "/handled": [
+          true
+        ]
       }
     },
     {
@@ -297,10 +313,55 @@
       }
     },
     {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-chapter].id}/mod-prose"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "timeout_ms": 30000,
+        "state": {
+          "/page": "entry:${entries.[template=tpl-chapter].id}/mod-prose",
+          "/focus/editor": true
+        },
+        "page": {
+          "/source": "editor",
+          "/doc": "body:${entries.[template=tpl-chapter].id}/mod-prose"
+        }
+      }
+    },
+    {
       "app": "ui.focus",
       "params": {
-        "field": "page.title",
-        "select_all": true
+        "field": "page.title"
+      },
+      "expect": {
+        "/focused": "page.title"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "timeout_ms": 30000,
+        "state": {
+          "/focus/editor": false,
+          "/focus/any": true
+        }
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-a"
+      },
+      "expect": {
+        "/handled": [
+          true
+        ]
       }
     },
     {
@@ -346,10 +407,9 @@
       },
       "save": "closed",
       "expect": {
-        "/entry/title": "G1 final title"
-      },
-      "contains": {
-        "/bodies/[doc=body:${entries.[template=tpl-chapter].id}~1g1-wired]/text": "Wired G1 clipboard.Wired G1 clipboard."
+        "/bodies/[doc=body:${entries.[template=tpl-chapter].id}~1g1-wired]/text": "Wired G1 clipboard.Wired G1 clipboard.",
+        "/metadata/title": "G1 final title",
+        "/point/reason": "close"
       }
     },
     {
@@ -436,9 +496,18 @@
         "page": {
           "/source": "editor",
           "/doc": "body:${entries.[template=tpl-chapter].id}/g1-wired",
-          "/paragraphs/0/text": "Wired G1 clipboard.Wired G1 clipboard.",
-          "/head/title": "G1 final title"
+          "/paragraphs/0/text": "Wired G1 clipboard.Wired G1 clipboard."
         }
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${entries.[template=tpl-chapter].id}"
+      },
+      "expect": {
+        "/title": "G1 final title"
       }
     },
     {
