@@ -59,7 +59,7 @@ impl DocHandle {
     where
         E: From<StoreError>,
     {
-        Self::atomic_inner(handles, origin, None, &[], edit)
+        Self::atomic_inner(handles, origin, None, &[], None, None, edit)
     }
 
     /// Like `atomic`, with a complete registry boundary and optional new
@@ -76,7 +76,42 @@ impl DocHandle {
     where
         E: From<StoreError>,
     {
-        Self::atomic_inner(handles, origin, Some(scope), new_documents, edit)
+        Self::atomic_inner(
+            handles,
+            origin,
+            Some(scope),
+            new_documents,
+            None,
+            None,
+            edit,
+        )
+    }
+
+    /// An opt-in atomic author edit of existing documents. The original
+    /// command-only APIs keep rejecting `Origin::User`. All edits are staged
+    /// and durably appended together, then installed before `installed` runs.
+    /// This callback must only acknowledge the installed changes in local
+    /// undo managers: it cannot fail, mutate a document or call a holder (all
+    /// queues remain reserved). Notifications follow it. An unsuccessful
+    /// staging/append never calls it or changes a live document/undo manager.
+    pub fn atomic_user<R, E>(
+        handles: &[DocHandle],
+        book_id: &str,
+        edit: impl FnOnce(&BTreeMap<String, LoroDoc>) -> std::result::Result<R, E>,
+        installed: impl FnOnce(),
+    ) -> std::result::Result<R, E>
+    where
+        E: From<StoreError>,
+    {
+        Self::atomic_inner(
+            handles,
+            Origin::User,
+            None,
+            &[],
+            Some(book_id),
+            Some(Box::new(installed)),
+            edit,
+        )
     }
 
     fn atomic_inner<R, E>(
@@ -84,12 +119,16 @@ impl DocHandle {
         origin: Origin,
         scope: Option<AtomicScope<'_>>,
         new_documents: &[AtomicNewDocument],
+        owner: Option<&str>,
+        installed: Option<Box<dyn FnOnce() + '_>>,
         edit: impl FnOnce(&BTreeMap<String, LoroDoc>) -> std::result::Result<R, E>,
     ) -> std::result::Result<R, E>
     where
         E: From<StoreError>,
     {
-        if handles.is_empty() || origin != Origin::Command {
+        if handles.is_empty()
+            || (origin != Origin::Command && !(origin == Origin::User && installed.is_some()))
+        {
             return Err(StoreError::invalid(
                 "atomic edit",
                 "requires documents and command origin",
@@ -188,6 +227,22 @@ impl DocHandle {
         {
             let conn = lib.writer();
             let tx = conn.unchecked_transaction().map_err(StoreError::from)?;
+            if let Some(book) = owner {
+                for h in &handles {
+                    let actual: Option<String> = tx
+                        .query_row(
+                            "SELECT book_id FROM loro_doc WHERE doc_id = ?1",
+                            [h.doc_id()],
+                            |r| r.get(0),
+                        )
+                        .map_err(StoreError::from)?;
+                    if actual.as_deref() != Some(book) {
+                        return Err(
+                            StoreError::invalid("atomic author edit", "foreign document").into(),
+                        );
+                    }
+                }
+            }
             if let Some(scope) = &scope {
                 let actual: BTreeMap<String, Option<String>> = tx
                     .prepare(
@@ -269,6 +324,7 @@ impl DocHandle {
         drop(slots);
         // The updates have been tested on identical copies. After this point
         // a crash is recovered by loading the already-committed SQLite rows.
+        let after_install = installed;
         let (installed, installed_rx) = mpsc::channel();
         let (finished, finished_rx) = mpsc::channel();
         let mut release = Vec::new();
@@ -295,6 +351,9 @@ impl DocHandle {
             installed_rx
                 .recv()
                 .expect("reserved holder installed committed update");
+        }
+        if let Some(installed) = after_install {
+            installed();
         }
         for announce in &release {
             let _ = announce.send(());

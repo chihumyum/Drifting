@@ -243,3 +243,44 @@ before 点及重开不变，不宣称任意未来表示受支持，不升级为�
 整段替换／剪切明确拒绝并保留源输入；单文档多段落及单元格／网格路径已有契约。
 K6 首次写前快照消费归 K6。布局、样式、截图目检、heavy、性能与流畅度明确暂缓，
 不记为通过；没有改 progress.md、0.1 客户端或原 WIP。
+
+
+### G1 普通通览跨章剪贴修复（2026-11-10，验收中）
+
+**做了什么：**恢复 v3 BookEditor／Assist 的跨章 Cut 和应用内 Copy 后的跨章
+Paste，保留原 F4c 各章各删自己的范围、粘贴写入起点章及一次成组 Undo 的行为。
+不再将普通无格式文字的拒绝当作未来格式边界。只新增公共接口：
+`DocHandle::atomic_user(handles, book_id, edit, installed)`、
+`ProseSession::edit_atomic(sessions, edit)` 和 `ProseEditor::edit_group`。
+原单文档签名、命令原子 API 的 Command-only 限制及旧编辑分支均保持。新路径先
+按 id 预留全部 holder，在任何副本写入前统一校验显示源的原观察，转换也只写副本；
+SQLite 同一事务核书归属并追加全部正文，失败不安装／不确认 Undo。成功全部安装后、
+holder 队列与公告释放前，向同 workspace 的全部活动 session 确认精确本机 peer
+计数，避免其他标签下一次输入的 Undo 吸收本次操作。弱登记独立于 prose slot 淘汰，
+不持有库。编辑器只在成功后记录各章 Undo、组号和删除锚点；拒绝保留输入、选区及
+原数据并反馈既有九语失败提示。富标记沿用带类型的 raw 编码与 v3 链接，未改依赖、
+命令目录或其他负责方既有 API 行为，没有新增 v2.2 业务测试或删除旧测试。
+
+**检查结果：**首红固定产品基线 `af0c55c3b8aff655a6e89963f8e7f383c39c5f7d`，
+真实绘制／聚焦的 canonical Tiny BookEditor 经 Assist 动作路由执行，普通 Cut 与
+应用内普通 Copy→跨章 Paste 两项正文断言失败，外部无 metadata 对照通过；
+`g1-cross-document-fix.red-1.log/.json/.patch` 保留首红、命令、环境、源 SHA 与
+测试补丁散列，未将静态推断冒充红例。修订后 7 项 v3 通览／session 回归通过，
+覆盖普通操作、一次 Undo、反向三章与整章清空、bold／Entry＋module＋block 与未知
+Binary raw、范围外未知根、锚点、Redo、落盘重开、同数量未见并发拒绝、第二份
+SQL append 故障保持原版本／所有原值／选区及原输入重试。原存储 atomic 目标
+10/10（含本次新增 2 项）通过，验证安装后确认／公告顺序、原 API 仍拒 User、
+staging／持久化／跨书失败不确认或部分落盘及重开。共享 session 契约验证多份
+活动 UndoManager 的记录与其他标签的下一笔输入撤销。早期测试泛型编译错误、
+相邻同值 mark 合并的范围期望和 peer 刷新后的选区时机错误均保留，后两项改为
+精确整份 raw mark 断言与真实同步动作路由中的拒绝瞬间断言，未降低数据要求。
+全 workspace all-targets Clippy 预检及 shipped scenario 解析已过，最终固定源码的
+全套和副屏主流程待完成；旧 ed6 的 2315／0／22 与 53/53 不计为本次结果。
+
+**待协调：**当前普通路径已修，后续验收不因“安全拒绝”跳过既定功能。新增接口
+遵循公共只加不改，最终交回须列清原子作者 origin 与 Undo 确认边界；原 F4c 各章
+成组撤销规则保持，没有另承诺失败时跨文档 Undo 的共同事务。无本应用 metadata
+的外部纯文字仍由既有 F4c 路径处理，并有对照契约。无法保真的剪贴表示仍在写前
+明确拒绝；完整历史对无法保真嵌套树的已接首次真实提交前整批拒绝不变，归 G1／K1
+技术协调，不是待作者设计。布局、视觉、heavy、性能和流畅度继续暂缓，不计通过；
+不宣称 G1 全部完成或 autopilot 终点。原作者树／WIP、progress.md 和旧客户端不改。

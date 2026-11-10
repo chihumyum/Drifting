@@ -332,6 +332,29 @@ impl ProseDoc {
         result
     }
 
+    /// Body edits committed by a host transaction need the same deleted-anchor
+    /// bookkeeping as `apply_all`, captured before the durable write.
+    pub(crate) fn prepare_host_undo(&mut self) -> Vec<(AnchorId, Resolved)> {
+        self.anchors.resolve_all(self.source.as_ref())
+    }
+
+    pub(crate) fn accept_host_edit(
+        &mut self,
+        anchors: &[(AnchorId, Resolved)],
+        result: &EditResult,
+    ) {
+        let mut deleted = result.deleted.clone();
+        deleted.sort_by_key(|&(pos, _)| pos);
+        for (pos, len) in deleted {
+            self.undo.pending.deletions.push(DeletionRecord {
+                len,
+                restores: anchor_restores(anchors, pos..pos + len),
+            });
+        }
+        self.undo.after_commit(result.undo_items);
+        self.drain();
+    }
+
     /// Replaces `range` with `text` in one commit. Each `\n` in `text` is an
     /// Enter (new paragraphs get fresh block ids). Returns where the inserted
     /// text ended up.

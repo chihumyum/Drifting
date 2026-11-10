@@ -25,6 +25,68 @@ use crate::{
 };
 
 impl ProseEditor {
+    /// A host's fallible multi-chapter transaction. `write` must either commit
+    /// every source together, returning one EditResult per supplied document,
+    /// or return an error without any writes. It must enforce the original
+    /// displayed observations. The editor does not refresh a source before it.
+    /// Success records deleted anchors and one grouped undo step, folds source
+    /// events into the mirror and places the caret. Failure keeps selection,
+    /// undo and pending input intact. Existing per-chapter editing is unchanged.
+    pub fn edit_group<E>(
+        &mut self,
+        chapters: &[usize],
+        caret: BookPos,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+        write: impl FnOnce(&[&ProseDoc]) -> Result<Vec<crate::text::EditResult>, E>,
+    ) -> Result<bool, E> {
+        if chapters.is_empty()
+            || self.composition.is_some()
+            || chapters.iter().any(|&i| i >= self.book.chapters.len())
+            || chapters.windows(2).any(|w| w[0] >= w[1])
+            || caret.chapter >= self.book.chapters.len()
+        {
+            return Ok(false);
+        }
+        let anchors = chapters
+            .iter()
+            .map(|&i| self.book.chapters[i].doc.prepare_host_undo())
+            .collect::<Vec<_>>();
+        let docs = chapters
+            .iter()
+            .map(|&i| &self.book.chapters[i].doc)
+            .collect::<Vec<_>>();
+        let results = write(&docs)?;
+        assert_eq!(
+            results.len(),
+            chapters.len(),
+            "one transaction result per chapter"
+        );
+        self.finish_commit_playback(cx);
+        let group = self.next_edit_group();
+        let mut touched = Vec::new();
+        self.own_edit = true;
+        for ((&chapter, anchors), result) in chapters.iter().zip(anchors).zip(results) {
+            let doc = &mut self.book.chapters[chapter].doc;
+            doc.checkpoint();
+            doc.accept_host_edit(&anchors, &result);
+            if result.undo_items > 0 {
+                doc.tag_last_step(group);
+                self.undo_chapters.push(chapter);
+                touched.push(chapter);
+            }
+            self.sync_chapter(chapter, cx);
+        }
+        self.own_edit = false;
+        if !touched.is_empty() {
+            self.redo_chapters.clear();
+        }
+        self.pending_marks.clear();
+        self.selection = Selection::caret(caret.chapter, caret.offset);
+        self.after_across(&touched, window, cx);
+        Ok(true)
+    }
+
     /// What the selection covers in `chapter`, if anything: the range, and
     /// whether it runs on past the range's end (through the paragraph's
     /// line break, or past the chapter's end into the next chapter).
