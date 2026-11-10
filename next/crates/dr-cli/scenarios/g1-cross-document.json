@@ -1,0 +1,834 @@
+{
+  "about": "G1 v3 whole-book ordinary cross-chapter Cut and internal Copy/Paste through the real Assist/native key path; per-body durable reads, one grouped Undo, final accepted paste and quit/reopen. Canonical Tiny plus F4c text. Secondary isolated correctness flow only; no heavy, visual or performance acceptance. Includes a zero-length first selected fragment: Undo at the unchanged start chapter must still restore the changed group without consuming older source history. Starts with actual typed text inside the cut range: the first Undo restores the cut group and the next Undo removes only the older typing.",
+  "steps": [
+    {
+      "seed": "v3-tiny"
+    },
+    {
+      "call": "book.list",
+      "save": "books"
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}",
+        "all": true,
+        "query": "第1章"
+      },
+      "save": "first"
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}",
+        "all": true,
+        "query": "第2章"
+      },
+      "save": "second"
+    },
+    {
+      "call": "module.set_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${first.0.id}",
+        "module": "mod-prose",
+        "paragraphs": [
+          {
+            "text": "甲乙丙"
+          }
+        ]
+      }
+    },
+    {
+      "call": "module.set_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${second.0.id}",
+        "module": "mod-prose",
+        "paragraphs": [
+          {
+            "text": "丁戊"
+          },
+          {
+            "text": "己"
+          }
+        ]
+      }
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light",
+          "DRIFTING_WINDOW_DISPLAY": "secondary"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          },
+          "account": {
+            "language.ui_locale": "en",
+            "editor.auto_entity_links": false
+          }
+        },
+        "book": "${books.0.id}"
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "app.info",
+      "expect": {
+        "/windows/0/active": true,
+        "/windows/0/visible": true
+      },
+      "save": "environment"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "timeout_ms": 30000,
+        "state": {
+          "/book/id": "${books.0.id}",
+          "/book/version": 3,
+          "/book/loaded": true
+        }
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "book"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "timeout_ms": 30000,
+        "state": {
+          "/book/id": "${books.0.id}",
+          "/page": "book",
+          "/focus/editor": true
+        },
+        "page": {
+          "/source": "book",
+          "/ready": true
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "timeout_ms": 30000,
+        "page": {
+          "/paragraphs/0/section": "${first.0.title}",
+          "/paragraphs/1/text": "甲乙丙",
+          "/paragraphs/2/section": "${second.0.title}",
+          "/paragraphs/3/text": "丁戊",
+          "/paragraphs/4/text": "己",
+          "/selection/anchor": 0,
+          "/selection/head": 0
+        }
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "新"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${first.0.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "新甲乙丙"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-up",
+        "times": 1
+      },
+      "expect": {
+        "/handled": [
+          true
+        ]
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "shift-right",
+        "times": 6
+      },
+      "expect": {
+        "/handled": [
+          true,
+          true,
+          true,
+          true,
+          true,
+          true
+        ]
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-x",
+        "times": 1
+      },
+      "expect": {
+        "/handled": [
+          true
+        ]
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${first.0.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": ""
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${second.0.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "戊",
+        "/paragraphs/1/text": "己"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-z",
+        "times": 1
+      },
+      "expect": {
+        "/handled": [
+          true
+        ]
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${first.0.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "新甲乙丙"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${second.0.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "丁戊",
+        "/paragraphs/1/text": "己"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-z",
+        "times": 1
+      },
+      "expect": {
+        "/handled": [
+          true
+        ]
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${first.0.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "甲乙丙"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${second.0.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "丁戊",
+        "/paragraphs/1/text": "己"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-up",
+        "times": 1
+      },
+      "expect": {
+        "/handled": [
+          true
+        ]
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "right"
+      },
+      "expect": {
+        "/handled": [
+          true
+        ]
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "shift-right",
+        "times": 4
+      },
+      "expect": {
+        "/handled": [
+          true,
+          true,
+          true,
+          true
+        ]
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-x"
+      },
+      "expect": {
+        "/handled": [
+          true
+        ]
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${first.0.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "甲"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${second.0.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "戊",
+        "/paragraphs/1/text": "己"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-z"
+      },
+      "expect": {
+        "/handled": [
+          true
+        ]
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${first.0.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "甲乙丙"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${second.0.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "丁戊",
+        "/paragraphs/1/text": "己"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-down",
+        "times": 1
+      },
+      "expect": {
+        "/handled": [
+          true
+        ]
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "shift-right",
+        "times": 2
+      },
+      "expect": {
+        "/handled": [
+          true,
+          true
+        ]
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-x",
+        "times": 1
+      },
+      "expect": {
+        "/handled": [
+          true
+        ]
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${first.0.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "甲乙丙"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${second.0.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "戊",
+        "/paragraphs/1/text": "己"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-z",
+        "times": 1
+      },
+      "expect": {
+        "/handled": [
+          true
+        ]
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${first.0.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "甲乙丙"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${second.0.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "丁戊",
+        "/paragraphs/1/text": "己"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-up"
+      },
+      "expect": {
+        "/handled": [
+          true
+        ]
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "shift-right"
+      },
+      "expect": {
+        "/handled": [
+          true
+        ]
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-c"
+      },
+      "expect": {
+        "/handled": [
+          true
+        ]
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "right"
+      },
+      "expect": {
+        "/handled": [
+          true
+        ]
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "shift-right",
+        "times": 4
+      },
+      "expect": {
+        "/handled": [
+          true,
+          true,
+          true,
+          true
+        ]
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-v"
+      },
+      "expect": {
+        "/handled": [
+          true
+        ]
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${first.0.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "甲甲"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${second.0.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "戊",
+        "/paragraphs/1/text": "己"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-z"
+      },
+      "expect": {
+        "/handled": [
+          true
+        ]
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${first.0.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "甲乙丙"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${second.0.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "丁戊",
+        "/paragraphs/1/text": "己"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-up"
+      },
+      "expect": {
+        "/handled": [
+          true
+        ]
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "right"
+      },
+      "expect": {
+        "/handled": [
+          true
+        ]
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "shift-right",
+        "times": 4
+      },
+      "expect": {
+        "/handled": [
+          true,
+          true,
+          true,
+          true
+        ]
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-v"
+      },
+      "expect": {
+        "/handled": [
+          true
+        ]
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${first.0.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "甲甲"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${second.0.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "戊",
+        "/paragraphs/1/text": "己"
+      }
+    },
+    {
+      "app": "app.info",
+      "save": "beforeQuit"
+    },
+    {
+      "app": "app.quit",
+      "save": "quit1"
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${first.0.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "甲甲"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${second.0.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "戊",
+        "/paragraphs/1/text": "己"
+      }
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light",
+          "DRIFTING_WINDOW_DISPLAY": "secondary"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          },
+          "account": {
+            "language.ui_locale": "en",
+            "editor.auto_entity_links": false
+          }
+        },
+        "book": "${books.0.id}"
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "app.info",
+      "expect": {
+        "/windows/0/active": true,
+        "/windows/0/visible": true
+      },
+      "save": "reopenEnvironment"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "timeout_ms": 30000,
+        "state": {
+          "/book/id": "${books.0.id}",
+          "/book/version": 3,
+          "/book/loaded": true
+        }
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "book"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "timeout_ms": 30000,
+        "state": {
+          "/book/id": "${books.0.id}",
+          "/page": "book",
+          "/focus/editor": true
+        },
+        "page": {
+          "/source": "book",
+          "/ready": true
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "timeout_ms": 30000,
+        "page": {
+          "/source": "book",
+          "/paragraphs/0/section": "${first.0.title}",
+          "/paragraphs/1/text": "甲甲",
+          "/paragraphs/2/section": "${second.0.title}",
+          "/paragraphs/3/text": "戊",
+          "/paragraphs/4/text": "己"
+        }
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${first.0.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "甲甲"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${second.0.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "戊",
+        "/paragraphs/1/text": "己"
+      }
+    },
+    {
+      "app": "app.quit",
+      "save": "quit2"
+    }
+  ]
+}

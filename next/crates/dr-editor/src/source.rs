@@ -93,6 +93,56 @@ pub struct SessionSource {
 }
 
 impl SessionSource {
+    /// Stage a rich host edit against exactly the source events the displayed
+    /// documents took. All holders are reserved before any guard is checked;
+    /// every conversion/guard/storage error rejects the complete group.
+    pub(crate) fn edit_group(
+        docs: &[&gpui_prose::ProseDoc],
+        edits: Vec<Vec<OwnedEdit>>,
+    ) -> Result<Vec<EditResult>, WsError> {
+        if docs.len() != edits.len() {
+            return Err(WsError::Invalid("edit group shape".into()));
+        }
+        let sources = docs
+            .iter()
+            .map(|doc| {
+                doc.source_as::<Self>()
+                    .filter(|s| s.v3)
+                    .ok_or_else(|| WsError::Invalid("unsupported cross-document source".into()))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let sessions = sources
+            .iter()
+            .map(|s| s.session.as_ref())
+            .collect::<Vec<_>>();
+        ProseSession::edit_atomic(&sessions, |copies| {
+            // Validate ALL observations before even mutating a detached copy.
+            for s in &sources {
+                if s.shared.queue().pushed != s.taken {
+                    return Err(WsError::Conflict("stale cross-document selection".into()));
+                }
+            }
+            sources
+                .iter()
+                .zip(edits)
+                .map(|(s, edits)| {
+                    let doc = &copies[&s.doc_id];
+                    let before = doc.state_frontiers();
+                    let id = dr_model::DocId::parse(&s.doc_id)
+                        .map_err(|e| WsError::Invalid(e.to_string()))?;
+                    let body = dr_doc::prose::BorrowedProse::new(doc, &id)?;
+                    let mut txn = body.txn();
+                    let mut result = EditResult::default();
+                    for edit in edits {
+                        result.merge(convert::apply_v3(&mut txn, edit)?);
+                    }
+                    result.undo_items = usize::from(doc.state_frontiers() != before);
+                    Ok(result)
+                })
+                .collect()
+        })
+    }
+
     /// Opens prose document `doc_id` (`node:<id>`, `idea:<id>`, …) for the
     /// author: an editing session on the workspace and a read handle on the
     /// same holder.

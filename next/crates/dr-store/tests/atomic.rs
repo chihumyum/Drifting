@@ -8,6 +8,147 @@ use std::sync::{
 };
 
 #[test]
+fn atomic_user_installs_before_acknowledgment_and_keeps_original_api_command_only() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open(dir.path());
+    let a = create(&lib, "node:a");
+    let b = create(&lib, "node:b");
+    assert!(
+        DocHandle::atomic(
+            &[a.clone(), b.clone()],
+            Origin::User,
+            |_| Ok::<_, StoreError>(())
+        )
+        .is_err()
+    );
+    let acknowledged = Arc::new(AtomicUsize::new(0));
+    let observed = acknowledged.clone();
+    let _sub = a.subscribe(move |event| {
+        assert_eq!(event.origin, Origin::User);
+        assert_eq!(event.triggered_by, loro::EventTriggerKind::Local);
+        assert_eq!(observed.load(Ordering::SeqCst), 1);
+    });
+    DocHandle::atomic_user(
+        &[a.clone(), b.clone()],
+        "book-1",
+        |docs| -> Result<(), StoreError> {
+            docs["node:a"].body().insert(0, "A")?;
+            docs["node:b"].body().insert(0, "B")?;
+            Ok(())
+        },
+        || {
+            assert_eq!(text(a.doc()), "A\n");
+            assert_eq!(text(b.doc()), "B\n");
+            assert_eq!(text(&lib.load_copy("node:b").unwrap()), "B\n");
+            acknowledged.fetch_add(1, Ordering::SeqCst);
+        },
+    )
+    .unwrap();
+    assert_eq!(acknowledged.load(Ordering::SeqCst), 1);
+    for h in [&a, &b] {
+        let durable = lib.load_copy(h.doc_id()).unwrap();
+        assert_eq!(durable.oplog_frontiers(), h.doc().oplog_frontiers());
+        assert_eq!(
+            durable.export(loro::ExportMode::all_updates()).unwrap(),
+            h.read(|d| d.export(loro::ExportMode::all_updates()).unwrap())
+                .unwrap(),
+        );
+    }
+}
+
+#[test]
+fn atomic_user_rejects_non_text_and_new_containers_before_sql_or_undo() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open(dir.path());
+    let a = create(&lib, "node:a");
+    let b = create(&lib, "node:b");
+    let before = lib.write_seq().unwrap();
+    let versions = [a.doc().oplog_frontiers(), b.doc().oplog_frontiers()];
+    let undo = a.read(loro::UndoManager::new).unwrap();
+    for hidden in [false, true] {
+        let result = DocHandle::atomic_user(
+            &[a.clone(), b.clone()],
+            "book-1",
+            |docs| -> Result<(), StoreError> {
+                docs["node:a"].body().insert(0, "A")?;
+                if hidden {
+                    // Even a net-zero map mutation has unsupported hidden ops.
+                    let map = docs["node:b"].get_map("future");
+                    map.insert("raw", loro::LoroValue::Binary(vec![0, 255].into()))?;
+                    map.delete("raw")?;
+                } else {
+                    docs["node:b"].get_text("future").insert(0, "B")?;
+                }
+                Ok(())
+            },
+            || panic!("unsupported replay must not install"),
+        );
+        assert!(result.is_err());
+        assert_eq!(lib.write_seq().unwrap(), before);
+        assert_eq!(
+            [a.doc().oplog_frontiers(), b.doc().oplog_frontiers()],
+            versions
+        );
+        assert!(!undo.can_undo());
+        assert_eq!(text(a.doc()), "\n");
+        assert_eq!(text(b.doc()), "\n");
+    }
+    a.close();
+    b.close();
+    lib.close().unwrap();
+    let lib = open(dir.path());
+    for (id, version) in ["node:a", "node:b"].into_iter().zip(versions) {
+        let d = lib.load_copy(id).unwrap();
+        assert_eq!(d.oplog_frontiers(), version);
+        assert_eq!(text(&d), "\n");
+        assert!(d.get_value().as_map().unwrap().get("future").is_none());
+    }
+}
+
+#[test]
+fn atomic_user_staging_append_and_foreign_owner_fail_without_acknowledgment_or_partial_state() {
+    let dir = tempfile::tempdir().unwrap();
+    let lib = open(dir.path());
+    let a = create(&lib, "node:a");
+    let b = create(&lib, "node:b");
+    let before = lib.write_seq().unwrap();
+    let versions = [a.doc().oplog_frontiers(), b.doc().oplog_frontiers()];
+    for phase in ["staging", "owner", "append"] {
+        if phase == "append" {
+            lib.local_transaction(|tx| {tx.execute_batch("CREATE TRIGGER user_atomic_fault BEFORE INSERT ON loro_update WHEN NEW.doc_id='node:b' BEGIN SELECT RAISE(ABORT,'second author append'); END;")?;Ok(())}).unwrap();
+        }
+        let result = DocHandle::atomic_user(
+            &[a.clone(), b.clone()],
+            if phase == "owner" { "book-2" } else { "book-1" },
+            |docs| -> Result<(), StoreError> {
+                docs["node:a"].body().insert(0, "A")?;
+                if phase == "staging" {
+                    return Err(StoreError::NotFound("staging".into()));
+                }
+                docs["node:b"].body().insert(0, "B")?;
+                Ok(())
+            },
+            || panic!("failed author edit must not acknowledge undo"),
+        );
+        assert!(result.is_err());
+        assert_eq!(lib.write_seq().unwrap(), before);
+        assert_eq!(
+            [a.doc().oplog_frontiers(), b.doc().oplog_frontiers()],
+            versions
+        );
+        assert_eq!(text(a.doc()), "\n");
+        assert_eq!(text(b.doc()), "\n");
+    }
+    a.close();
+    b.close();
+    lib.close().unwrap();
+    let lib = open(dir.path());
+    for id in ["node:a", "node:b"] {
+        assert_eq!(text(&lib.load_copy(id).unwrap()), "\n");
+    }
+}
+
+#[test]
 fn announces_only_after_every_document_is_durable_and_live() {
     let dir = tempfile::tempdir().unwrap();
     let lib = open(dir.path());

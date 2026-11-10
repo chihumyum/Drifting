@@ -5,6 +5,9 @@
 use super::*;
 use std::collections::BTreeMap;
 
+mod user;
+use user::LocalText;
+
 /// Registry boundary of an opt-in atomic operation. Every document whose id
 /// starts with `prefix` must be reserved, and must belong to `book_id`.
 /// Checked again inside the append transaction, so registering another body
@@ -36,6 +39,7 @@ struct Reserved {
 }
 struct Apply {
     bytes: Vec<u8>,
+    local: Option<LocalText>,
     origin: Origin,
     installed: Sender<()>,
     announce: Receiver<()>,
@@ -59,7 +63,7 @@ impl DocHandle {
     where
         E: From<StoreError>,
     {
-        Self::atomic_inner(handles, origin, None, &[], edit)
+        Self::atomic_inner(handles, origin, None, &[], None, None, edit)
     }
 
     /// Like `atomic`, with a complete registry boundary and optional new
@@ -76,7 +80,49 @@ impl DocHandle {
     where
         E: From<StoreError>,
     {
-        Self::atomic_inner(handles, origin, Some(scope), new_documents, edit)
+        Self::atomic_inner(
+            handles,
+            origin,
+            Some(scope),
+            new_documents,
+            None,
+            None,
+            edit,
+        )
+    }
+
+    /// An opt-in atomic author edit of existing documents. The original
+    /// command-only APIs keep rejecting `Origin::User`. All edits are staged
+    /// and durably appended together, then installed before `installed` runs.
+    /// Only edits of existing text containers are supported. Their lossless
+    /// typed deltas are replayed locally, so existing undo managers see local
+    /// author edits rather than imports which rebase their older history.
+    /// The replay's own operations are persisted, after validating its full
+    /// values/marks and deterministic operation bytes on detached copies.
+    /// Unsupported edits are rejected before the SQL transaction. Returned
+    /// positions/values describe the accepted state; staged operation ids and
+    /// versions are speculative and must not be used as committed receipts.
+    /// The callback cannot fail, mutate a document or call a holder (all queues
+    /// remain reserved). Notifications follow it. Unsuccessful staging/append
+    /// never calls it or changes a live document/undo manager.
+    pub fn atomic_user<R, E>(
+        handles: &[DocHandle],
+        book_id: &str,
+        edit: impl FnOnce(&BTreeMap<String, LoroDoc>) -> std::result::Result<R, E>,
+        installed: impl FnOnce(),
+    ) -> std::result::Result<R, E>
+    where
+        E: From<StoreError>,
+    {
+        Self::atomic_inner(
+            handles,
+            Origin::User,
+            None,
+            &[],
+            Some(book_id),
+            Some(Box::new(installed)),
+            edit,
+        )
     }
 
     fn atomic_inner<R, E>(
@@ -84,12 +130,16 @@ impl DocHandle {
         origin: Origin,
         scope: Option<AtomicScope<'_>>,
         new_documents: &[AtomicNewDocument],
+        owner: Option<&str>,
+        installed: Option<Box<dyn FnOnce() + '_>>,
         edit: impl FnOnce(&BTreeMap<String, LoroDoc>) -> std::result::Result<R, E>,
     ) -> std::result::Result<R, E>
     where
         E: From<StoreError>,
     {
-        if handles.is_empty() || origin != Origin::Command {
+        if handles.is_empty()
+            || (origin != Origin::Command && !(origin == Origin::User && installed.is_some()))
+        {
             return Err(StoreError::invalid(
                 "atomic edit",
                 "requires documents and command origin",
@@ -151,13 +201,31 @@ impl DocHandle {
             .iter()
             .map(|(id, d)| (id.clone(), d.oplog_vv()))
             .collect();
+        let bases = if origin == Origin::User {
+            copies
+                .iter()
+                .map(|(id, d)| Ok((id.clone(), user::copy(lib, d)?)))
+                .collect::<Result<BTreeMap<_, _>>>()?
+        } else {
+            BTreeMap::new()
+        };
         for d in copies.values() {
             d.set_next_commit_options(CommitOptions::new().origin(&origin.to_string()));
         }
         let result = edit(&copies)?;
         let mut updates = Vec::new();
+        let mut local = BTreeMap::new();
         for (id, d) in &copies {
             d.commit_with(CommitOptions::new().origin(&origin.to_string()));
+            let replay;
+            let d = if origin == Origin::User && d.oplog_vv() != before[id] {
+                let (doc, plan) = LocalText::prepare(lib, &bases[id], d)?;
+                local.insert(id.clone(), plan);
+                replay = doc;
+                &replay
+            } else {
+                d
+            };
             let vv = d.oplog_vv();
             let bytes = if new_documents.iter().any(|n| n.id == *id) {
                 d.export(ExportMode::all_updates())
@@ -188,6 +256,22 @@ impl DocHandle {
         {
             let conn = lib.writer();
             let tx = conn.unchecked_transaction().map_err(StoreError::from)?;
+            if let Some(book) = owner {
+                for h in &handles {
+                    let actual: Option<String> = tx
+                        .query_row(
+                            "SELECT book_id FROM loro_doc WHERE doc_id = ?1",
+                            [h.doc_id()],
+                            |r| r.get(0),
+                        )
+                        .map_err(StoreError::from)?;
+                    if actual.as_deref() != Some(book) {
+                        return Err(
+                            StoreError::invalid("atomic author edit", "foreign document").into(),
+                        );
+                    }
+                }
+            }
             if let Some(scope) = &scope {
                 let actual: BTreeMap<String, Option<String>> = tx
                     .prepare(
@@ -269,6 +353,7 @@ impl DocHandle {
         drop(slots);
         // The updates have been tested on identical copies. After this point
         // a crash is recovered by loading the already-committed SQLite rows.
+        let after_install = installed;
         let (installed, installed_rx) = mpsc::channel();
         let (finished, finished_rx) = mpsc::channel();
         let mut release = Vec::new();
@@ -283,6 +368,7 @@ impl DocHandle {
                     bytes: updates
                         .remove(h.doc_id())
                         .expect("reserved document update"),
+                    local: local.remove(h.doc_id()),
                     origin: origin.clone(),
                     installed: installed.clone(),
                     announce: receive,
@@ -295,6 +381,9 @@ impl DocHandle {
             installed_rx
                 .recv()
                 .expect("reserved holder installed committed update");
+        }
+        if let Some(installed) = after_install {
+            installed();
         }
         for announce in &release {
             let _ = announce.send(());
@@ -331,9 +420,13 @@ impl Holder {
         let changed = !apply.bytes.is_empty();
         let seq = self.next_seq;
         if changed {
-            self.doc
-                .import_with(&apply.bytes, &apply.origin.to_string())
-                .expect("update validated on an identical reserved document");
+            if let Some(local) = apply.local {
+                local.install(&self.doc, &apply.bytes);
+            } else {
+                self.doc
+                    .import_with(&apply.bytes, &apply.origin.to_string())
+                    .expect("update validated on an identical reserved document");
+            }
             self.last_vv = self.doc.oplog_vv();
             self.next_seq += 1;
             self.index_dirty = true;
