@@ -23,7 +23,8 @@ use dr_ui::{
     tokens::{Rgb, menu as m, radius},
 };
 use dr_workspace::commands::prose::{Search, SearchIn};
-use dr_workspace::{Actor, NavTarget, Workspace};
+use dr_workspace::{Actor, NavTarget, Workspace, WsEvent};
+use futures::StreamExt as _;
 use gpui::{
     App, AppContext as _, Bounds, Context, ElementId, Entity, EventEmitter, FocusHandle, Focusable,
     HighlightStyle, InteractiveElement, IntoElement, ParentElement, Render, ScrollStrategy,
@@ -32,6 +33,10 @@ use gpui::{
 };
 
 use crate::model::{self, Field, Group, Jump, Line, Owner};
+
+#[cfg(test)]
+#[path = "panel_tests.rs"]
+mod tests;
 
 /// The panel's key context.
 pub const KEY_CONTEXT: &str = "DrSearch";
@@ -90,12 +95,20 @@ pub struct SearchPanel {
     i18n: I18n,
     scroll: UniformListScrollHandle,
     search: Option<Task<()>>,
+    request: u64,
     _subscriptions: Vec<Subscription>,
 }
 
 struct V3State {
+    /// The query that produced the displayed groups, not a pending query.
+    query: String,
+    /// First arrival selects a default; losing all prior hits must not make
+    /// a later background result look like a first arrival again.
+    had_results: bool,
     groups: Rc<Vec<crate::v3::Group>>,
     marks: crate::v3::Marks,
+    _subscription: Option<dr_workspace::Subscription>,
+    _events: Task<()>,
 }
 
 enum Results {
@@ -151,6 +164,7 @@ impl SearchPanel {
             i18n: I18n::new(locale, platform),
             scroll: UniformListScrollHandle::new(),
             search: None,
+            request: 0,
             _subscriptions: vec![sub],
         }
     }
@@ -175,9 +189,66 @@ impl SearchPanel {
             window,
             cx,
         );
+        let (tx, mut rx) = futures::channel::mpsc::unbounded();
+        let watched_book = panel.book.clone();
+        let subscription = panel.lib.as_ref().map(|lib| {
+            lib.subscribe(move |event| {
+                // This callback can run on a document holder. Only enqueue;
+                // do not read documents or run a query on the publisher.
+                if matches!(event, WsEvent::Local(c) if c.table == "index")
+                    || matches!(event, WsEvent::Book(b) if b.book.as_str() == watched_book)
+                {
+                    let _ = tx.unbounded_send(event.clone());
+                }
+            })
+        });
+        let lib = panel.lib.clone();
+        let book = panel.book.clone();
+        let events = cx.spawn(async move |this, cx| {
+            while let Some(first) = rx.next().await {
+                let mut batch = vec![first];
+                while let Ok(event) = rx.try_recv() {
+                    batch.push(event);
+                }
+                if !this
+                    .read_with(cx, |p, _| !p.query.is_empty())
+                    .unwrap_or(false)
+                {
+                    continue;
+                }
+                let Some(lib) = lib.clone() else { break };
+                let book = book.clone();
+                let relevant = cx
+                    .background_executor()
+                    .spawn(async move {
+                        batch.iter().any(|event| match event {
+                            WsEvent::Book(b) => b.book.as_str() == book,
+                            WsEvent::Local(c) if c.table == "index" => lib
+                                .library()
+                                .doc_info(&c.key)
+                                .ok()
+                                .flatten()
+                                .is_some_and(|d| d.book_id.as_deref() == Some(book.as_str())),
+                            _ => false,
+                        })
+                    })
+                    .await;
+                if relevant {
+                    let _ = this.update(cx, |panel, cx| {
+                        // Read the current query now, not the text that was
+                        // current when the index event arrived.
+                        panel.run_query(panel.query.clone(), Duration::ZERO, cx);
+                    });
+                }
+            }
+        });
         panel.v3 = Some(V3State {
+            query: String::new(),
+            had_results: false,
             groups: Rc::default(),
             marks,
+            _subscription: subscription,
+            _events: events,
         });
         panel
     }
@@ -223,6 +294,8 @@ impl SearchPanel {
     }
 
     fn run_query(&mut self, text: String, wait: Duration, cx: &mut Context<Self>) {
+        self.request += 1;
+        let request = self.request;
         self.query = text.trim().to_owned();
         if self.query.is_empty() {
             self.search = None;
@@ -244,6 +317,7 @@ impl SearchPanel {
                 cx.background_executor().timer(wait).await;
             }
             let asked = query.clone();
+            let asked_book = book.clone();
             let hits = cx
                 .background_executor()
                 .spawn(async move {
@@ -262,7 +336,10 @@ impl SearchPanel {
                 })
                 .await;
             this.update(cx, |panel, cx| {
-                if panel.query != asked {
+                // Equal text is insufficient for A → B → A or a requery
+                // after indexing. Each panel is bound to one library/book;
+                // replacing it also drops its subscription and task.
+                if panel.request != request || panel.query != asked || panel.book != asked_book {
                     return;
                 }
                 panel.search = None;
@@ -290,13 +367,41 @@ impl SearchPanel {
         let Some(state) = &mut self.v3 else {
             return;
         };
+        let same_query = state.query == self.query;
+        if same_query && state.groups.as_slice() == groups.as_slice() {
+            // An unrelated index update must not change where Enter goes or
+            // schedule a scroll on the next frame.
+            self.searched = searched;
+            cx.notify();
+            return;
+        }
+        let previous = self.selected.and_then(|i| match self.lines.get(i) {
+            Some(Line::Hit(g, r)) if same_query => {
+                Some((&state.groups[*g].target, &state.groups[*g].rows[*r]))
+            }
+            _ => None,
+        });
+        let first_results = !same_query || !state.had_results;
         self.hits = groups.iter().map(|g| g.rows.len()).sum();
         let mut lines = Vec::new();
         for (g, group) in groups.iter().enumerate() {
             lines.push(Line::Header(g));
             lines.extend((0..group.rows.len()).map(|r| Line::Hit(g, r)));
         }
-        self.selected = lines.iter().position(|l| matches!(l, Line::Hit(..)));
+        self.selected = if first_results {
+            lines.iter().position(|l| matches!(l, Line::Hit(..)))
+        } else {
+            // Row equality includes field, paragraph, snippet and match
+            // range, plus the exact entry/module or material target. If a
+            // changed result no longer identifies one unique hit, require
+            // an explicit arrow/click instead of choosing another target.
+            let mut matches = lines.iter().enumerate().filter_map(|(i, line)| {
+                let Line::Hit(g, r) = *line else { return None };
+                (previous == Some((&groups[g].target, &groups[g].rows[r]))).then_some(i)
+            });
+            let first = matches.next();
+            first.filter(|_| matches.next().is_none())
+        };
         self.lines = Rc::new(lines);
         let meta = (self.hits > 0).then(|| {
             SharedString::from(self.i18n.fmt(
@@ -314,10 +419,17 @@ impl SearchPanel {
                 ],
             ))
         });
+        state.had_results = (same_query && state.had_results) || !groups.is_empty();
         state.groups = Rc::new(groups);
+        state.query = self.query.clone();
         self.searched = searched;
         self.field.update(cx, |f, cx| f.set_meta(meta, cx));
-        self.scroll.scroll_to_item(0, ScrollStrategy::Top);
+        if first_results {
+            self.scroll.scroll_to_item(0, ScrollStrategy::Top);
+        } else if let Some(selected) = self.selected {
+            self.scroll
+                .scroll_to_item(selected, ScrollStrategy::Nearest);
+        }
         cx.notify();
     }
 
@@ -361,11 +473,14 @@ impl SearchPanel {
         if hits.is_empty() {
             return;
         }
-        let at = self
+        let next = match self
             .selected
             .and_then(|s| hits.iter().position(|h| *h == s))
-            .unwrap_or(0) as isize;
-        let next = (at + by).rem_euclid(hits.len() as isize) as usize;
+        {
+            Some(at) => (at as isize + by).rem_euclid(hits.len() as isize) as usize,
+            None if by < 0 => hits.len() - 1,
+            None => 0,
+        };
         self.selected = Some(hits[next]);
         self.scroll
             .scroll_to_item(hits[next], ScrollStrategy::Nearest);

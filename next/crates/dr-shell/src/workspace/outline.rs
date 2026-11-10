@@ -375,7 +375,7 @@ pub fn read(view: &PageView, cx: &App) -> (Vec<Entry>, f64, f64, f64) {
 // registry owns no editor or library lease.
 type V3OutlineKey = (gpui::EntityId, String, Option<(String, String)>);
 #[derive(Default)]
-struct V3Outlines(std::collections::HashMap<V3OutlineKey, V3Outline>);
+struct V3Outlines(std::collections::HashMap<V3OutlineKey, Vec<V3Outline>>);
 impl gpui::Global for V3Outlines {}
 struct V3Outline {
     owner: gpui::WeakEntity<Workspace>,
@@ -387,6 +387,12 @@ fn outline_editor(editor: &crate::pages::PageEditorRef) -> Option<PageView> {
     match editor {
         crate::pages::PageEditorRef::Doc(editor) => Some(PageView::Doc(editor.upgrade()?)),
         crate::pages::PageEditorRef::Book(editor) => Some(PageView::Book(editor.upgrade()?)),
+    }
+}
+fn outline_editor_id(editor: &crate::pages::PageEditorRef) -> gpui::EntityId {
+    match editor {
+        crate::pages::PageEditorRef::Doc(editor) => editor.entity_id(),
+        crate::pages::PageEditorRef::Book(editor) => editor.entity_id(),
     }
 }
 impl Workspace {
@@ -412,18 +418,21 @@ impl Workspace {
             entry.map(|(entry, module)| (entry.to_owned(), module.to_owned())),
         );
         let registry = cx.default_global::<V3Outlines>();
-        registry.0.retain(|_, entry| {
-            entry.owner.upgrade().is_some() && outline_editor(&entry.editor).is_some()
+        registry.0.retain(|_, entries| {
+            entries.retain(|entry| {
+                entry.owner.upgrade().is_some() && outline_editor(&entry.editor).is_some()
+            });
+            !entries.is_empty()
         });
-        registry.0.insert(
-            key,
-            V3Outline {
-                owner: host.workspace.clone(),
-                library: host.library.library() as *const _ as usize,
-                editor: host.editor.clone(),
-                _changed: changed,
-            },
-        );
+        let entries = registry.0.entry(key).or_default();
+        // A whole-book reload replaces its prose inside the same editor.
+        entries.retain(|entry| outline_editor_id(&entry.editor) != outline_editor_id(&host.editor));
+        entries.push(V3Outline {
+            owner: host.workspace.clone(),
+            library: host.library.library() as *const _ as usize,
+            editor: host.editor.clone(),
+            _changed: changed,
+        });
     }
 }
 fn v3_outline_editor(
@@ -437,11 +446,23 @@ fn v3_outline_editor(
     let v = w.book.v3()?;
     let registry = cx.try_global::<V3Outlines>()?;
     let identity = w.library.as_ref()?.library() as *const _ as usize;
+    // Different entry/module tabs each compose their own editor instances.
+    // Only the editor mounted under this exact page may receive its rail's
+    // caret; another live tab reading the same document is not its owner.
+    let page = w.editors.get(&target.key())?;
+    let page_focus = page
+        .v3
+        .as_ref()
+        .map(|page| page.read(cx).focus.clone())
+        .or_else(|| page.module.as_ref().map(|page| page.focus.clone()))?;
     let get = |entry: Option<(String, String)>| {
-        let adapter = registry.0.get(&(owner, w.book_id.clone(), entry))?;
-        (adapter.library == identity)
-            .then(|| outline_editor(&adapter.editor))
-            .flatten()
+        registry
+            .0
+            .get(&(owner, w.book_id.clone(), entry))?
+            .iter()
+            .filter(|adapter| adapter.library == identity)
+            .filter_map(|adapter| outline_editor(&adapter.editor))
+            .find(|editor| page_focus.contains(&editor.prose(cx).focus_handle(cx), window))
     };
     match target {
         Target::Book => get(None),
@@ -562,6 +583,7 @@ pub fn rail(
         .filter(|r| r.page == page)
         .map(|r| r.before);
     let mut reveal_list: Option<AnyElement> = None;
+    let v3_labels = w.book.v3().is_some();
     let labels = placed.into_iter().map(|Placed { slot, y }| {
         let label_top = px(y - PITCH / 2.0);
         match slot {
@@ -603,6 +625,7 @@ pub fn rail(
                     .when(lineage[i], |el| el.weight(weight::SEMIBOLD))
                     .text_color(ink.solid())
                     .role(gpui::Role::Link)
+                    .when(v3_labels, |el| el.aria_label(e.text.clone()))
                     .child(e.text.clone())
                     .on_click(move |_, window, cx| jump_to(&jump, chapter, line, window, cx))
                     .into_any_element()
@@ -629,6 +652,7 @@ pub fn rail(
                         reveal.clone(),
                         at,
                         &theme,
+                        v3_labels,
                     ));
                 }
                 div()
@@ -693,6 +717,7 @@ fn reveal_menu(
     reveal: Reveal,
     at: gpui::Bounds<gpui::Pixels>,
     theme: &Theme,
+    v3_labels: bool,
 ) -> AnyElement {
     let p = theme.palette;
     let rows = range.len() as f32;
@@ -730,6 +755,7 @@ fn reveal_menu(
                 .text_color(p.ink(ink).solid())
                 .hover(move |st| st.text_color(hover))
                 .role(gpui::Role::Link)
+                .when(v3_labels, |el| el.aria_label(e.text.clone()))
                 .child(e.text.clone())
                 .on_click(move |_, window, cx| {
                     ws.update(cx, |ws, cx| {
@@ -791,6 +817,174 @@ pub fn jump_to(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[gpui::test]
+    fn active_v3_page_owns_its_outline_editor_among_duplicate_module_pages(
+        cx: &mut gpui::TestAppContext,
+    ) {
+        use gpui::{AppContext as _, Context, FocusHandle, Render, prelude::*};
+        use std::{cell::RefCell, time::Instant};
+        struct ProsePart {
+            editor: Entity<dr_editor::ChapterEditor>,
+            focus: FocusHandle,
+        }
+        impl Render for ProsePart {
+            fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+                div()
+                    .id("v3-outline-test-body")
+                    .track_focus(&self.focus)
+                    .h(px(300.0))
+                    .w_full()
+                    .child(self.editor.clone())
+            }
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let store = dr_store::Library::open(dir.path(), dr_workspace::library_options("0.2.0-dev"))
+            .unwrap();
+        let seed = dr_testkit::seed::generate_v3(
+            dr_testkit::seed::Preset::Tiny,
+            dr_testkit::seed::DEFAULT_SEED,
+        )
+        .unwrap();
+        let book = seed.books[0].book_id().to_string();
+        seed.write_to(&store).unwrap();
+        store.close().unwrap();
+        let lib = dr_workspace::Workspace::open_dir(dir.path(), "0.2.0-dev").unwrap();
+        let templates = lib
+            .call(
+                &dr_workspace::Actor::User,
+                "entry_template.list",
+                serde_json::json!({"book":book}),
+            )
+            .unwrap();
+        let mut module = templates["output"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|t| t["id"] == "tpl-chapter")
+            .unwrap()["modules"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|m| m["id"] == "mod-prose")
+            .unwrap()
+            .clone();
+        module["config"]["show_outline"] = true.into();
+        lib.call(
+            &dr_workspace::Actor::User,
+            "entry_template.put_module",
+            serde_json::json!({"book":book,"template":"tpl-chapter","module":module}),
+        )
+        .unwrap();
+        let made = Rc::new(RefCell::new(Vec::new()));
+        cx.executor().allow_parking();
+        cx.update(|cx| {
+            crate::init(
+                crate::ShellInfo {
+                    app_name: "Drifting Next",
+                    bundle_id: "cc.drifting.next.dev",
+                    version: "0.2.0-dev",
+                    url_scheme: "drifting-next-dev",
+                    forced_appearance: None,
+                },
+                crate::Services {
+                    library: Some(lib),
+                    book: Some(book),
+                    ..Default::default()
+                },
+                crate::SettingsFile::in_memory(),
+                cx,
+            );
+            let made = made.clone();
+            crate::v3::add_module_view(cx, "prose", move |host, window, cx| {
+                let source = dr_editor::v3::prepare_body(
+                    &host.page.library,
+                    &host.page.book_id,
+                    &host.entry,
+                    &host.module.id,
+                )
+                .unwrap();
+                let doc = format!("body:{}/{}", host.entry, host.module.id);
+                let settings = super::super::editors::editor_settings(cx);
+                let editor = cx.new(|cx| {
+                    dr_editor::ChapterEditor::with_session(
+                        host.page.library.clone(),
+                        &host.page.book_id,
+                        &doc,
+                        source,
+                        settings,
+                        window,
+                        cx,
+                    )
+                });
+                let page = crate::pages::PageHost {
+                    workspace: host.page.workspace,
+                    library: host.page.library,
+                    book: host.page.book_id,
+                    editor: crate::pages::PageEditorRef::Doc(editor.downgrade()),
+                };
+                Workspace::register_v3_outline_editor(
+                    &page,
+                    Some((&host.entry, &host.module.id)),
+                    cx,
+                );
+                made.borrow_mut().push(editor.clone());
+                let view = cx.new(|cx| ProsePart {
+                    editor,
+                    focus: cx.focus_handle(),
+                });
+                let focus = view.read(cx).focus.clone();
+                crate::v3::Rendered::new(view).focus(focus)
+            });
+        });
+        let (shell, cx) = cx.add_window_view(Workspace::new);
+        let deadline = Instant::now() + Duration::from_secs(15);
+        loop {
+            cx.run_until_parked();
+            if shell.read_with(cx, |ws, _| ws.book.v3().is_some()) {
+                break;
+            }
+            assert!(Instant::now() < deadline);
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        let entry = shell.read_with(cx, |ws, _| {
+            ws.book
+                .v3()
+                .unwrap()
+                .entries
+                .iter()
+                .find(|e| e.template.as_deref() == Some("tpl-chapter"))
+                .unwrap()
+                .id
+                .clone()
+        });
+        let first = Target::from_key(&format!("entry:{entry}/mod-prose")).unwrap();
+        let second = Target::from_key(&format!("entry:{entry}")).unwrap();
+        for target in [&first, &second, &first] {
+            shell.update(cx, |ws, cx| {
+                ws.open(target.clone(), crate::nav::Open::KEEP, cx)
+            });
+            for _ in 0..6 {
+                cx.executor().advance_clock(Duration::from_millis(100));
+                cx.update(|window, cx| window.draw(cx).clear(cx));
+                cx.run_until_parked();
+            }
+        }
+        assert_eq!(
+            made.borrow().len(),
+            2,
+            "both live tabs retain their own editor"
+        );
+        cx.update(|window, cx| {
+            let selected = v3_outline_editor(shell.read(cx), shell.entity_id(), &first, window, cx)
+                .expect("the current page has a mounted prose editor");
+            let PageView::Doc(selected) = selected else {
+                panic!("module editor")
+            };
+            assert_eq!(selected.entity_id(), made.borrow()[0].entity_id());
+            assert_ne!(selected.entity_id(), made.borrow()[1].entity_id());
+        });
+    }
 
     fn entry(level: u8, top: f64) -> Entry {
         Entry {

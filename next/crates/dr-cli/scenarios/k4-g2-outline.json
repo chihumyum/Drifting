@@ -1,0 +1,1576 @@
+{
+  "about": "K4 G2：v3-lite 实际模块正文及全书的大纲；H1/H2/H3 点击后的真实输入与 F3 读回、撤销、模块选择、show_outline 刷新、关闭重开及全书重排后重新登记；正文复用 canonical seed 段落。 另核对实际统计面板的全书、条目、指定正文、非正文及素材范围，逐行数值与模块导航由实际面板永久测试核对，窗口核对范围入口；无截图或性能验收。",
+  "steps": [
+    {
+      "seed": "v3-lite"
+    },
+    {
+      "call": "book.list",
+      "input": {},
+      "save": "books"
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}",
+        "all": true
+      },
+      "save": "entries"
+    },
+    {
+      "call": "entry_template.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "templates"
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "save": "original"
+    },
+    {
+      "call": "entry_template.put_module",
+      "input": {
+        "book": "${books.0.id}",
+        "template": "tpl-chapter",
+        "module": {
+          "id": "mod-prose",
+          "kind": "prose",
+          "name": "${templates.[id=tpl-chapter].modules.[id=mod-prose].name}",
+          "pos": "${templates.[id=tpl-chapter].modules.[id=mod-prose].pos}",
+          "config": {
+            "show_outline": true
+          }
+        }
+      }
+    },
+    {
+      "call": "entry_template.put_module",
+      "input": {
+        "book": "${books.0.id}",
+        "template": "tpl-chapter",
+        "module": {
+          "id": "outline-second",
+          "kind": "prose",
+          "name": "Synthetic second outline",
+          "pos": "a9",
+          "config": {
+            "show_outline": true
+          }
+        }
+      }
+    },
+    {
+      "call": "module.set_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose",
+        "paragraphs": [
+          {
+            "text": "${original.paragraphs.0.text}",
+            "heading": 1
+          },
+          {
+            "text": "${original.paragraphs.1.text}",
+            "heading": 2
+          },
+          {
+            "text": "${original.paragraphs.2.text}",
+            "heading": 3
+          }
+        ]
+      }
+    },
+    {
+      "call": "module.set_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "outline-second",
+        "paragraphs": [
+          {
+            "text": "${original.paragraphs.3.text}",
+            "heading": 1
+          },
+          {
+            "text": "${original.paragraphs.4.text}",
+            "heading": 2
+          },
+          {
+            "text": "${original.paragraphs.5.text}",
+            "heading": 3
+          }
+        ]
+      }
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "window.focus",
+      "params": {}
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${books.0.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/version": 3,
+          "/book/loaded": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-chapter].id}/mod-prose"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 1300
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "entry:${entries.[template=tpl-chapter].id}/mod-prose"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ToggleBottomTimeline"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/bottom/pane": null
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 1000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Outline",
+        "timeout_ms": 15000
+      },
+      "save": "outlineA"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        }
+      },
+      "save": "linksA"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "${original.paragraphs.0.text}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "settle_ms": 250
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "G2A1"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "G2A1${original.paragraphs.0.text}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "timeout_ms": 15000,
+        "count": 1
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "G2A1${original.paragraphs.0.text}"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-z"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${original.paragraphs.0.text}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "timeout_ms": 15000,
+        "count": 1
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "${original.paragraphs.0.text}"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "${original.paragraphs.1.text}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "settle_ms": 250
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "G2A2"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "G2A2${original.paragraphs.1.text}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "timeout_ms": 15000,
+        "count": 1
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/1/text": "G2A2${original.paragraphs.1.text}"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-z"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${original.paragraphs.1.text}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "timeout_ms": 15000,
+        "count": 1
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/1/text": "${original.paragraphs.1.text}"
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "${original.paragraphs.2.text}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "settle_ms": 250
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "G2A3"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "G2A3${original.paragraphs.2.text}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "timeout_ms": 15000,
+        "count": 1
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/2/text": "G2A3${original.paragraphs.2.text}"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-z"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${original.paragraphs.2.text}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "timeout_ms": 15000,
+        "count": 1
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/2/text": "${original.paragraphs.2.text}"
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-chapter].id}/outline-second"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 1300
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "entry:${entries.[template=tpl-chapter].id}/outline-second"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${original.paragraphs.3.text}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "timeout_ms": 15000,
+        "count": 1
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "${original.paragraphs.3.text}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "settle_ms": 250
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "G2B"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "G2B${original.paragraphs.3.text}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "timeout_ms": 15000,
+        "count": 1
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "outline-second"
+      },
+      "expect": {
+        "/paragraphs/0/text": "G2B${original.paragraphs.3.text}"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-z"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${original.paragraphs.3.text}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "timeout_ms": 15000,
+        "count": 1
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "outline-second"
+      },
+      "expect": {
+        "/paragraphs/0/text": "${original.paragraphs.3.text}"
+      }
+    },
+    {
+      "app": "state.get",
+      "params": {},
+      "save": "statsLoaded",
+      "note": "G2 stats host smoke"
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ToggleRightSidebar"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/right/open": true
+        }
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Stats",
+        "role": "RadioButton"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/right/panes/panes/0/tab": "stats"
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 700
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-chapter].id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "entry:${entries.[template=tpl-chapter].id}"
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Entry words",
+        "within": {
+          "label": "Stats",
+          "role": "Group"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-chapter].id}/outline-second"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "entry:${entries.[template=tpl-chapter].id}/outline-second"
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Entry words",
+        "role": "Group",
+        "within": {
+          "label": "Stats",
+          "role": "Group"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-chapter].id}/mod-fields"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "entry:${entries.[template=tpl-chapter].id}/mod-fields"
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Entry words",
+        "within": {
+          "label": "Stats",
+          "role": "Group"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "template:tpl-chapter"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "template:tpl-chapter"
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Stats",
+        "role": "Group",
+        "absent": true,
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "material:${statsLoaded.v3.materials.[kind=text].id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "material:${statsLoaded.v3.materials.[kind=text].id}"
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Material words",
+        "within": {
+          "label": "Stats",
+          "role": "Group"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "book"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Book",
+        "role": "Group",
+        "within": {
+          "label": "Stats",
+          "role": "Group"
+        },
+        "timeout_ms": 15000
+      },
+      "save": "statsBookScope"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "book"
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "app.info",
+      "save": "g2BookStatsWindow"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "Close right sidebar",
+        "role": "Button"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/right/open": false
+        }
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-chapter].id}/outline-second"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "entry:${entries.[template=tpl-chapter].id}/outline-second"
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "call": "entry_template.put_module",
+      "input": {
+        "book": "${books.0.id}",
+        "template": "tpl-chapter",
+        "module": {
+          "id": "mod-prose",
+          "kind": "prose",
+          "name": "${templates.[id=tpl-chapter].modules.[id=mod-prose].name}",
+          "pos": "${templates.[id=tpl-chapter].modules.[id=mod-prose].pos}",
+          "config": {
+            "show_outline": false
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 3500
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${original.paragraphs.0.text}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "timeout_ms": 15000,
+        "absent": true
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${original.paragraphs.3.text}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "timeout_ms": 15000,
+        "count": 1
+      }
+    },
+    {
+      "call": "entry_template.put_module",
+      "input": {
+        "book": "${books.0.id}",
+        "template": "tpl-chapter",
+        "module": {
+          "id": "outline-second",
+          "kind": "prose",
+          "name": "Synthetic second outline",
+          "pos": "a9",
+          "config": {
+            "show_outline": false
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 3500
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Outline",
+        "absent": true
+      }
+    },
+    {
+      "call": "entry_template.put_module",
+      "input": {
+        "book": "${books.0.id}",
+        "template": "tpl-chapter",
+        "module": {
+          "id": "mod-prose",
+          "kind": "prose",
+          "name": "${templates.[id=tpl-chapter].modules.[id=mod-prose].name}",
+          "pos": "${templates.[id=tpl-chapter].modules.[id=mod-prose].pos}",
+          "config": {
+            "show_outline": true
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 3500
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${original.paragraphs.0.text}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "timeout_ms": 15000,
+        "count": 1
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${original.paragraphs.3.text}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "timeout_ms": 15000,
+        "absent": true
+      }
+    },
+    {
+      "call": "entry_template.put_module",
+      "input": {
+        "book": "${books.0.id}",
+        "template": "tpl-chapter",
+        "module": {
+          "id": "outline-second",
+          "kind": "prose",
+          "name": "Synthetic second outline",
+          "pos": "a9",
+          "config": {
+            "show_outline": true
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 3500
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-chapter].id}/outline-second"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 1300
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "entry:${entries.[template=tpl-chapter].id}/outline-second"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${original.paragraphs.3.text}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "timeout_ms": 15000,
+        "count": 1
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "${original.paragraphs.3.text}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "settle_ms": 250
+      }
+    },
+    {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::CloseActiveTab"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 900
+      }
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/tabs/[key=entry:${entries.[template=tpl-chapter].id}/outline-second]": null
+      },
+      "note": "Verify the old module tab really closed before testing the new editor registration."
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entries.[template=tpl-chapter].id}/outline-second"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 1300
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "entry:${entries.[template=tpl-chapter].id}/outline-second"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${original.paragraphs.3.text}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "timeout_ms": 15000,
+        "count": 1
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "${original.paragraphs.3.text}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "settle_ms": 250
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "G2Reopened"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "G2Reopened${original.paragraphs.3.text}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "timeout_ms": 15000,
+        "count": 1
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "outline-second"
+      },
+      "expect": {
+        "/paragraphs/0/text": "G2Reopened${original.paragraphs.3.text}"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-z"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${original.paragraphs.3.text}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "timeout_ms": 15000,
+        "count": 1
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "outline-second"
+      },
+      "expect": {
+        "/paragraphs/0/text": "${original.paragraphs.3.text}"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-alt-2"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 2500
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/page": "book"
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Outline",
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "contains": "${entries.[template=tpl-chapter].title}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "nth": 0
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 900
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${original.paragraphs.0.text}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "timeout_ms": 15000,
+        "count": 1
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "${original.paragraphs.0.text}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "settle_ms": 250
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "G2Whole"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "G2Whole${original.paragraphs.0.text}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "timeout_ms": 15000,
+        "count": 1
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "G2Whole${original.paragraphs.0.text}"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-z"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${original.paragraphs.0.text}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "timeout_ms": 15000,
+        "count": 1
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "${original.paragraphs.0.text}"
+      }
+    },
+    {
+      "call": "entry.move",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${entries.[template=tpl-chapter].id}",
+        "parent": "${entries.[template=tpl-chapter].parent}",
+        "index": 1
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 3500
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "contains": "${entries.[template=tpl-chapter].title}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "nth": 0
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 900
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${original.paragraphs.0.text}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "timeout_ms": 15000,
+        "count": 1
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "${original.paragraphs.0.text}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "settle_ms": 250
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "G2Reloaded"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "G2Reloaded${original.paragraphs.0.text}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "timeout_ms": 15000,
+        "count": 1
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "G2Reloaded${original.paragraphs.0.text}"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-z"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${original.paragraphs.0.text}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "timeout_ms": 15000,
+        "count": 1
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "${original.paragraphs.0.text}"
+      }
+    },
+    {
+      "call": "entry_template.put_module",
+      "input": {
+        "book": "${books.0.id}",
+        "template": "tpl-chapter",
+        "module": {
+          "id": "mod-prose",
+          "kind": "prose",
+          "name": "${templates.[id=tpl-chapter].modules.[id=mod-prose].name}",
+          "pos": "${templates.[id=tpl-chapter].modules.[id=mod-prose].pos}",
+          "config": {
+            "show_outline": false
+          }
+        }
+      }
+    },
+    {
+      "call": "entry_template.put_module",
+      "input": {
+        "book": "${books.0.id}",
+        "template": "tpl-chapter",
+        "module": {
+          "id": "outline-second",
+          "kind": "prose",
+          "name": "Synthetic second outline",
+          "pos": "a9",
+          "config": {
+            "show_outline": false
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 3500
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${original.paragraphs.0.text}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "timeout_ms": 15000,
+        "absent": true
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${original.paragraphs.3.text}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "timeout_ms": 15000,
+        "absent": true
+      }
+    },
+    {
+      "call": "entry_template.put_module",
+      "input": {
+        "book": "${books.0.id}",
+        "template": "tpl-chapter",
+        "module": {
+          "id": "mod-prose",
+          "kind": "prose",
+          "name": "${templates.[id=tpl-chapter].modules.[id=mod-prose].name}",
+          "pos": "${templates.[id=tpl-chapter].modules.[id=mod-prose].pos}",
+          "config": {
+            "show_outline": true
+          }
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 3500
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "contains": "${entries.[template=tpl-chapter].title}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "nth": 0
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 900
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${original.paragraphs.0.text}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "timeout_ms": 15000,
+        "count": 1
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "label": "${original.paragraphs.1.text}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "settle_ms": 250
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "G2AfterConfig"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "G2AfterConfig${original.paragraphs.1.text}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "timeout_ms": 15000,
+        "count": 1
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/1/text": "G2AfterConfig${original.paragraphs.1.text}"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-z"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${original.paragraphs.1.text}",
+        "role": "Link",
+        "within": {
+          "label": "Outline"
+        },
+        "timeout_ms": 15000,
+        "count": 1
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${entries.[template=tpl-chapter].id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/1/text": "${original.paragraphs.1.text}"
+      }
+    },
+    {
+      "call": "book.create",
+      "input": {
+        "name": "Synthetic legacy after outline"
+      },
+      "save": "legacy"
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${legacy.id}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/version": 2,
+          "/v3Sidebar": null
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "app.quit",
+      "params": {}
+    }
+  ]
+}

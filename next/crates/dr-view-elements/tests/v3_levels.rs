@@ -27,7 +27,7 @@ fn call(ws: &Workspace, name: &str, input: Value) -> Value {
 fn ids(rows: &[Row]) -> Vec<&str> {
     rows.iter()
         .flat_map(|r| match r {
-            Row::Entry { id, .. } => vec![id.as_str()],
+            Row::Entry { id, .. } | Row::Member { id } => vec![id.as_str()],
             Row::Tiles { ids, .. } => ids.iter().map(String::as_str).collect(),
             Row::Island { id, members } => std::iter::once(id.as_str())
                 .chain(members.iter().map(String::as_str))
@@ -89,9 +89,8 @@ fn residence_tree_is_ordered_foldable_and_separate_from_membership() {
                 depth: 0
             },
             Row::Section(Section::Members),
-            Row::Entry {
-                id: foreign.clone(),
-                depth: 0
+            Row::Member {
+                id: foreign.clone()
             }
         ]
     );
@@ -521,6 +520,12 @@ fn picker_host_rejects_book_or_library_replacement(cx: &mut gpui::TestAppContext
     };
     cx.update(|_, cx| {
         assert!(fresh(&host, cx).is_some());
+        ws.update(cx, |ws, _| ws.book_id = "synthetic-transition-book".into());
+        let transition = PageViewHost {
+            book_id: "synthetic-transition-book".into(),
+            ..host.clone()
+        };
+        assert!(fresh(&transition, cx).is_none());
         ws.update(cx, |ws, _| ws.book_id = "synthetic-other-book".into());
         assert!(fresh(&host, cx).is_none());
         ws.update(cx, |ws, _| {
