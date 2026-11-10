@@ -102,3 +102,43 @@
 ### 第四十批整合补记：生产调度边界
 
 本批接收的是传输引擎和状态／视图接口；当前 `SyncEngine` 的调用者仍只有 dr-sync 测试，生产 app 尚未创建并驱动它。周期同步、账号库切换／退出排空与健康状态推送归后续应用接线方，连同上述角标和服务端命名空间在 overnight 分派；本次合成收敛／恢复测试不等于应用已自动同步或真实服务已接通。
+
+## 交回（2026-11-10：真实 v3 假服务往返）
+
+### 做了什么
+
+本次从 `main e49c02c11` 续接 `codex/autopilot-sync-v3`，交回 `handback/track4`，不执行切换、不合 main、不推送。改动限于 `dr-sync`、其四个测试依赖与锁文件，以及本文。测试使用 `FakeSyncServer` 的真实 `127.0.0.1:0` HTTP 往返、明显合成令牌、临时库和临时设备身份；所有正文来自 `dr_testkit::seed::generate_v3`，图片来自 `dr_testkit::media::png`。没有使用日常库、真实账号、真实 Hosted 或模型 API。
+
+新增永久契约在 [`dr-sync/tests/v3_roundtrip.rs`](../../../next/crates/dr-sync/tests/v3_roundtrip.rs)：
+
+| 契约 | 实际断言 |
+| --- | --- |
+| `v3_books_assets_hidden_fields_checkpoints_and_book_purge_round_trip_over_fake_server` | A 有两个不同 seed 的 canonical Tiny v3 书，B 从空库接收；两设备的安装身份、写入 peer 与库路径独立。两书均有真实 book/body/template/material 文档与关联素材的 source/thumbnail，共四份变体。逐文档比较 `DocInfo`、typed raw、正文、版本向量和 frontier；逐资源比较全部网络元数据和真实字节。 |
+| 同一主契约：隐藏数据与双向编辑 | 回收条目及正文、移除定义后仍保留的模块正文、时间钉被有效查询投影为 null 的原始绑定、条目未来嵌套字段和正文未来根均保留。A/B 用逐项、带观察版本守卫的正式命令编辑两书；时间线整份 put 只构造最初合成 fixture。有效查询与历史预览前后逐文档 head/raw 不变；双向往返后再核隐藏值。 |
+| 同一主契约：历史和重开 | 两书均用真实 `entry_snapshot.create` 建点，在 B 实际 list＋preview，再比较历史身份、版本、校验信息、owned raw 与全部历史正文。编辑后及两台真正关库／重开后再读；只排除预览中随当前版本变化的 restore guards。checkpoint 清单和正文 oplog 随同步走，SQLite 的本机 history_label／journal 不属于网络同步清单；未修改 G1 历史语义。 |
+| 同一主契约：软删除与永久删除隔离 | book.trash 先往返，正文／模板／素材文档、历史点、资源原记录和字节均留存。随后实际 book.purge：A 的 26 份文档逐份验证 docs/doc_info/head/load_copy/purged，两个变体的登记和原文件确实删除；B 接收 DocPurge 后逐份核对文档已删。另一本书的 22 份全部文档按各设备自己的完整 head/raw/prose/metadata 快照核对，全部资源记录（含本机时间、路径）及字节完全不变。 |
+| 同一主契约：离线／取消／历史重放／库外边界 | 初次上传的真实 set_offline 失败及取消保留未同步数据和待传清单。永久删除后再次实际断网、失败、恢复并重建 engine；B 用公开 restore_library 从 cursor 0 重放旧更新、资源和墓碑，已删文档不复活。最后两台再次关库／重开核墓碑、另一书和历史点。各阶段检查库外合成 sentinel 原字节，末尾还核修改时间。 |
+| `a_held_v3_document_blocks_remote_purge_without_consuming_its_cursor` | 真 v3 正文仍被持有时，远端 purge 返回 AlreadyOpen，文档、原始数据及失败记录游标不变；释放后重建 engine 重试，实际删除、墓碑落地，其余文档不变，历史重放不复活。 |
+| `damaged_remote_loro_preserves_real_v3_author_data_and_reopen_state` | 将有效网络摘要包裹的损坏 Loro 字节指向真 v3 正文；导入报错，不确认伪造版本、不推进失败记录游标，原作者数据逐文档 head/raw/prose 与重开结果不变。 |
+
+必要修复仅两处，均在 `dr-sync/src/engine.rs`：远端 DocPurge 不再吞掉 register/purge_doc 错误，只有实际成功后才计数、推进游标；重复接收已确认资源时不再重写 `uploaded_ms`，使重放对另一书全部资源元数据也是无变化。前者有真 v3 持有者拒删红例，后者有主契约重放时资源时间戳变化的红例；未修改存储层或网络 payload。
+
+### 检查结果
+
+本地定向 `cargo test -p dr-sync --locked -- --nocapture` 已通过 16 项（原有 6 项、原有远端安全 7 项、新增 3 项）；最终全工作区检查结果待本轮填写。原有绝对路径、分隔符、重复资产元数据提前拒绝和配额／中断矩阵保留原断言。独立使用本 worktree 的 `next/target`，只复制现成字体缓存。
+
+机器重跑：在 `next/` 设置 `CARGO_TARGET_DIR=target CARGO_BUILD_JOBS=3 RUST_TEST_THREADS=1`，运行：
+
+```bash
+cargo test -p dr-sync --test v3_roundtrip --locked -- --nocapture
+cargo test -p dr-sync --test remote_metadata --locked
+cargo test -p dr-sync --lib --locked
+```
+
+原红、修后定向和全套命令日志保存在工作树外 `$HOME/Drifting-autopilot-logs/sync-v3-acceptance/`。核心验收是纯内核实际假服务往返；没有改窗口，没有将 UI、heavy、截图目检、性能或真实服务接线记为已通过。
+
+### 待协调
+
+- **物理缓存与网络墓碑分开。** 本机 book.purge 的原资源文件已实测删除。当前公开协议只有 LoroUpdate／AssetBlob／DocPurge；B 的被删书文档确实清空，但原先下载的两个资源变体仍作为物理缓存留在 B，重放后仍在；不把文档删除计数当作远端物理文件已删。本轮既不据单个 DocPurge 级联 remove_asset，也不自创资产网络墓碑或服务器 GC。后续若要求远端设备／服务的物理缓存清理，需要负责方另定边界；另一书的资源不能受影响。
+- **持有者与应用调度。** 远端 purge 遇打开文档现在明确阻塞并保留重试位置。主契约显式释放 B 的 Workspace slots 后才接收整书删除；生产应用如何排空编辑器和重试仍属既有 F6 接线工作，不绕过 F2 保护，不据纯内核测试声称 App 自动同步。缺失文档的墓碑若无法通过既有 F2 register 建立，保持错误和游标，不吞错；需新存储接口时另协调 F2。
+- 沿用既有 F6 稿纸角标、生产同步调度与 Hosted `loro-v2` 登记待办；本次没有改生产服务协议或 G1 的历史／恢复语义。

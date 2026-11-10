@@ -482,8 +482,12 @@ impl SyncEngine {
                         "asset extension must be 1..=16 lowercase ASCII letters or digits".into(),
                     ));
                 }
-                if library.asset(asset_id, parsed_variant)?.is_some() {
-                    library.mark_asset_uploaded(asset_id, parsed_variant)?;
+                if let Some(existing) = library.asset(asset_id, parsed_variant)? {
+                    // Replaying an already confirmed blob is a no-op, including
+                    // its local confirmation timestamp in another book.
+                    if existing.uploaded_ms.is_none() {
+                        library.mark_asset_uploaded(asset_id, parsed_variant)?;
+                    }
                     return Ok(());
                 }
 
@@ -546,9 +550,12 @@ impl SyncEngine {
                 validate_document_metadata(doc_id, book_id.as_deref())?;
                 if library.purged(doc_id)?.is_none() {
                     if library.doc_info(doc_id)?.is_none() {
-                        let _ = library.register(doc_id, kind, book_id.as_deref());
+                        library.register(doc_id, kind, book_id.as_deref())?;
                     }
-                    let _ = library.purge_doc(doc_id);
+                    // In-use documents and storage failures must block this
+                    // record. Advancing the cursor here would acknowledge a
+                    // deletion that never reached the local store.
+                    library.purge_doc(doc_id)?;
                     report.applied_purges += 1;
                 }
                 self.state

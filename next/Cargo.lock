@@ -2047,7 +2047,11 @@ version = "0.2.0-dev"
 dependencies = [
  "base64 0.22.1",
  "dr-account",
+ "dr-doc",
+ "dr-model",
  "dr-store",
+ "dr-testkit",
+ "dr-workspace",
  "log",
  "loro",
  "reqwest",
