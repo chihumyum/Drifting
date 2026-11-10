@@ -877,6 +877,41 @@ G2 三种回调及 K5 新建委托。v3-lite 真窗口场景 **84/84 步、0 pen
 更新自己的子实体，不在这里重借 workspace；需要改窗口或调用命令的动作放进点击
 回调。第二轮完成后，左栏和大纲栏按 K4 分轨交给 G2；其余公共外壳入口继续留在 F6。
 
+### 调试桥原生面板边界交回（2026-11-10）
+
+分支 `codex/k4-0-shell`，独立指针 `handback/k4-0-bridge`；Home 交回
+`7d673090` 保持冻结。实现 `6bf5803d`、脚本移位 `34148cd9`，已合到当前正式
+main `0f562934`（无新增合并提交）。只改 dr-debug-bridge 的私有面板接线、公共
+桥测试、dr-cli 验收场景及脚本。`state.get`／`panel.state` 在测试平台返回空面板，
+`panel.answer`／`panel.cancel` 返回 unsupported；原生查询和回调安装都必须取得
+`MainThreadMarker`，真实主线程行为不变。socket 测试保留令牌、错误码和连接文件
+断言，增加客户端阶段、完成时间、退出标记和调度耗时；固定 10 秒内完成才通过，
+迟返的外层调度不误判已按时完成，也不接受截止后才完成。未改 GPUI、其他组、
+v3 公共接口或界面文案，未删除公共桥或 v2.2 测试。这是独立的原生线程边界修复，
+不把第 66 批原 socket 超时归因为 AppKit：根提供的原二进制有界诊断是并发 3
+再次 3/1、单线程 4/4，未抓到卡住位置，因果仍未定。
+
+检查：原 bridge 四项在并发 3、基线 1 下各执行一次，均 **4/4**；新增无库测试
+平台面板契约 **1/1**。首轮全量 **2253/1/22**，唯一失败是我把 Python 伴随脚本
+误放在只容纳 JSON 的 scenarios 目录，原记录 `bridge-final-test.log` 保留；脚本
+100% 原样移到 `dr-cli/script/`，未改解析契约。最终 `bridge-verified-*` 全套
+**2254 通过／0 失败／22 忽略**，fmt、workspace/all-targets/locked Clippy
+（`-D warnings`）、xtask 含审计、public 全过；Cargo jobs=3、测试线程=1、
+`DR_UI_REQUIRE_FONTS=1`。定向记录为 `bridge-{parallel,serial,panel}.log`，都在
+`next/target/acceptance/k4-0-checks/`。审计 0 vulnerabilities／12 条既有提示，
+19 份旧测量仍过期，保留 macOS 链接器 `__eh_frame` 提示；未重测 heavy。
+
+全套之后重建并保护独立 debug bridge 二进制，`k4-0-bridge.json` 的 43 步加
+副屏和真实令牌凭据两步，首轮 **45/45、0 pending**：错误令牌被拒绝，合法握手
+读出 v3 状态；真实主线程面板取消、备份存储、恢复打开，库恢复及正文输入读回／
+撤销均通过。结果在 `target/acceptance/k4-0-bridge-window/result.json`；
+`k4-0-bridge-native/receipts/` 保存 PID 94737／profile `accept-6e9a0e03` 的
+认证、CG 副屏和退出凭据，令牌不写入凭据。窗口全局框 (577,1573,1414,884)
+完全位于副屏，恢复前后 active／visible 均为 true。首个退出后处理读取把 steps
+字符串误当对象，报 AttributeError；按真实结构更正后确认进程退出、连接文件移除、
+租约释放，未重跑窗口，也不把后处理错误记成窗口失败。旧交回和原失败记录均保留；
+本修复无新增待协调，原超时诊断仍归根线程，未推送、未合入 main。
+
 ### v3 Home 随换库释放交回（2026-11-10）
 
 分支 `codex/k4-0-shell`，新增冻结指针 `handback/k4-0-home-release`；

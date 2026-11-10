@@ -79,7 +79,7 @@ mod mac {
 
     use objc2::rc::autoreleasepool;
     use objc2::runtime::{AnyClass, AnyObject, Bool, Imp, Sel};
-    use objc2::{class, msg_send, sel};
+    use objc2::{MainThreadMarker, class, msg_send, sel};
 
     use super::{Answer, Request};
 
@@ -273,7 +273,7 @@ mod mac {
         true
     }
 
-    pub fn arm(answer: Option<Answer>) -> bool {
+    pub fn arm(answer: Option<Answer>, _main_thread: MainThreadMarker) -> bool {
         if !install() {
             return false;
         }
@@ -290,7 +290,7 @@ mod mac {
     }
 
     /// A real panel on screen (one nobody answered).
-    pub fn shown() -> bool {
+    pub fn shown(_main_thread: MainThreadMarker) -> bool {
         autoreleasepool(|_| unsafe {
             let app: *mut AnyObject = msg_send![class!(NSApplication), sharedApplication];
             if app.is_null() {
@@ -317,31 +317,60 @@ mod mac {
 
 /// Arms the answer for the next panel the app begins (`None` disarms);
 /// false where there is no such thing.
-pub fn arm(answer: Option<Answer>) -> bool {
+pub fn arm(answer: Option<Answer>, cx: &gpui::App) -> bool {
     #[cfg(target_os = "macos")]
     {
-        mac::arm(answer)
+        native_main_thread(cx).is_some_and(|main_thread| mac::arm(answer, main_thread))
     }
     #[cfg(not(target_os = "macos"))]
     {
-        let _ = answer;
+        let _ = (answer, cx);
         false
     }
 }
 
 /// `panel.state`: the armed answer, the last panel the app asked for, and
 /// whether a real one is on screen.
-pub fn state() -> Value {
+pub fn state(cx: &gpui::App) -> Value {
     #[cfg(target_os = "macos")]
-    {
-        json!({
+    if let Some(main_thread) = native_main_thread(cx) {
+        return json!({
             "armed": mac::armed().as_ref().map(Answer::to_json),
             "last": mac::last().as_ref().map(Request::to_json),
-            "shown": mac::shown(),
-        })
+            "shown": mac::shown(main_thread),
+        });
     }
-    #[cfg(not(target_os = "macos"))]
-    {
-        json!({ "armed": null, "last": null, "shown": false })
+    let _ = cx;
+    json!({ "armed": null, "last": null, "shown": false })
+}
+
+/// A test scheduler's foreground thread is not AppKit's main thread, and
+/// its platform has no system panels even if it runs on that thread.
+#[cfg(target_os = "macos")]
+fn native_main_thread(cx: &gpui::App) -> Option<objc2::MainThreadMarker> {
+    if cx.is_test() {
+        return None;
+    }
+    objc2::MainThreadMarker::new()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[gpui::test]
+    fn the_test_platform_has_no_native_panel_or_pending_answer(cx: &mut gpui::TestAppContext) {
+        cx.update(|cx| {
+            assert!(cx.is_test());
+            assert!(!arm(Some(Answer::Cancel), cx));
+            assert!(!arm(
+                Some(Answer::Path("/synthetic/panel.drifting".into())),
+                cx
+            ));
+            assert_eq!(
+                state(cx),
+                json!({"armed": null, "last": null, "shown": false})
+            );
+        });
     }
 }
