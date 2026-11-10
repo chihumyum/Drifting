@@ -1,5 +1,10 @@
 //! K4 G3 uses the shared v3 seed and real workspace commands. No second corpus.
-use dr_shell::{Services, SettingsFile, ShellInfo, Workspace, book::Book, pages::BottomHost};
+use dr_shell::{
+    Services, SettingsFile, ShellInfo, Workspace,
+    book::Book,
+    pages::{BottomHost, PageViewHost},
+    v3::EntryDrag,
+};
 use dr_view_timeline::v3::{Timeline, model};
 use dr_workspace::{Actor, Workspace as Library};
 use gpui::{Context, Entity, Render, TestAppContext, VisualTestContext, Window, div, prelude::*};
@@ -88,10 +93,32 @@ fn lanes_use_membership_and_each_views_shared_position_only() {
 struct Host {
     timeline: Entity<Timeline>,
     _workspace: Entity<Workspace>,
+    drag: Option<EntryDrag>,
 }
 impl Render for Host {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        div().size_full().child(self.timeline.clone())
+        div()
+            .size_full()
+            .flex()
+            .flex_col()
+            .when_some(self.drag.clone(), |el, drag| {
+                el.child(
+                    div()
+                        .id("g3-test-drag-source")
+                        .debug_selector(|| "g3-test-drag-source".into())
+                        .w(gpui::px(200.))
+                        .h(gpui::px(30.))
+                        .flex_none()
+                        .on_drag(drag, |_, _, _, cx| cx.new(|_| DragPreview)),
+                )
+            })
+            .child(div().flex_1().min_h_0().child(self.timeline.clone()))
+    }
+}
+struct DragPreview;
+impl Render for DragPreview {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        div().size(gpui::px(1.))
     }
 }
 fn frame(cx: &mut VisualTestContext) {
@@ -127,6 +154,7 @@ fn visual<'a>(
             },
             Services {
                 library: Some(lib.clone()),
+                book: Some(id.to_owned()),
                 ..Services::default()
             },
             SettingsFile::in_memory(),
@@ -146,8 +174,185 @@ fn visual<'a>(
         Host {
             timeline: cx.new(|_| Timeline::new(&host)),
             _workspace: ws,
+            drag: None,
         }
     })
+}
+
+fn drag_to_lane(host: &Entity<Host>, drag: EntryDrag, lane: &str, cx: &mut VisualTestContext) {
+    use gpui::{Modifiers, MouseButton, point, px};
+    host.update(cx, |h, cx| {
+        h.drag = Some(drag);
+        cx.notify();
+    });
+    frame(cx);
+    let source = cx.debug_bounds("g3-test-drag-source").unwrap().center();
+    let target = cx
+        .debug_bounds(Box::leak(format!("v3-track-{lane}").into_boxed_str()))
+        .unwrap()
+        .center();
+    cx.simulate_mouse_down(source, MouseButton::Left, Modifiers::none());
+    cx.simulate_mouse_move(
+        source + point(px(8.), px(0.)),
+        MouseButton::Left,
+        Modifiers::none(),
+    );
+    frame(cx);
+    cx.simulate_mouse_move(target, MouseButton::Left, Modifiers::none());
+    frame(cx);
+    cx.simulate_mouse_up(target, MouseButton::Left, Modifiers::none());
+    frame(cx);
+}
+
+#[gpui::test]
+fn shared_entry_drop_preserves_residence_and_rejects_other_libraries_owners_and_versions(
+    cx: &mut TestAppContext,
+) {
+    let (_dir, lib, id) = seed();
+    let (_other_dir, other_lib, same_id) = seed();
+    assert_eq!(id, same_id);
+    let before = Book::load(&lib, &id).unwrap();
+    let b = before.v3().unwrap();
+    let source = b
+        .entries
+        .iter()
+        .find(|e| e.template.as_deref() == Some("tpl-idea"))
+        .unwrap()
+        .clone();
+    let view = b.timeline_views[0].clone();
+    let lane = view.lanes[0].entry.clone();
+    let (host, cx) = visual(cx, &lib, &id);
+    let ws = host.read_with(cx, |h, _| h._workspace.clone());
+    wait(cx, |cx| ws.read_with(cx, |ws, _| ws.book.v3().is_some()));
+    let page = PageViewHost {
+        workspace: ws.downgrade(),
+        library: lib.clone(),
+        book_id: id.clone(),
+        book: ws.read_with(cx, |ws, _| ws.book.clone()),
+    };
+    let other_owner = cx.update(|w, cx| cx.new(|cx| Workspace::new(w, cx)));
+    for foreign in [
+        PageViewHost {
+            library: other_lib.clone(),
+            ..page.clone()
+        },
+        PageViewHost {
+            workspace: other_owner.downgrade(),
+            ..page.clone()
+        },
+        PageViewHost {
+            book_id: "different-book".into(),
+            ..page.clone()
+        },
+    ] {
+        let before = lib.observe(&format!("book:{id}")).unwrap();
+        drag_to_lane(
+            &host,
+            EntryDrag::new(foreign, &source.id, &source.title),
+            &lane,
+            cx,
+        );
+        assert_eq!(
+            lib.observe(&format!("book:{id}")).unwrap().version,
+            before.version
+        );
+    }
+    let mut drag = EntryDrag::new(page.clone(), &source.id, &source.title);
+    drag.span = Some(7.);
+    drag.set_grab(12.);
+    drag_to_lane(&host, drag, &lane, cx);
+    wait(cx, |_| {
+        call(&lib, "timeline_view.list", json!({"book":id}))[0]["placements"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|p| p["entry"] == source.id && p["span"] == 7.)
+    });
+    let actual = call(&lib, "entry.get", json!({"book":id,"id":source.id}));
+    assert_eq!(actual["parent"], json!(source.parent));
+    assert_eq!(actual["pos"], source.pos);
+    assert_eq!(actual["primary"], json!(source.primary));
+    assert!(
+        call(&lib, "membership.list", json!({"book":id}))
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|m| m["host"] == lane && m["member"] == source.id)
+    );
+    refresh(&host, &lib, &id, cx);
+    let before = lib.observe(&format!("book:{id}")).unwrap();
+    drag_to_lane(
+        &host,
+        EntryDrag::new(page, &source.id, &source.title),
+        &view.lanes[1].entry,
+        cx,
+    );
+    assert_eq!(
+        lib.observe(&format!("book:{id}")).unwrap().version,
+        before.version
+    );
+    assert_eq!(
+        call(
+            &other_lib,
+            "entry.get",
+            json!({"book":same_id,"id":source.id})
+        )["title"],
+        source.title
+    );
+}
+
+#[gpui::test]
+fn placement_uses_the_displayed_frontier_before_the_backend_write(cx: &mut TestAppContext) {
+    let (_dir, lib, id) = seed();
+    let b = Book::load(&lib, &id).unwrap();
+    let book = b.v3().unwrap();
+    let view = book.timeline_views[0].clone();
+    let entry = book
+        .entries
+        .iter()
+        .find(|e| e.template.as_deref() == Some("tpl-idea"))
+        .unwrap()
+        .id
+        .clone();
+    let (host, cx) = visual(cx, &lib, &id);
+    let t = host.read_with(cx, |h, _| h.timeline.clone());
+    call(
+        &lib,
+        "timeline_view.rename",
+        json!({"book":id,"view":view.id,"name":"Synthetic peer view name"}),
+    );
+    rejected_without_book_write(&host, &lib, &id, cx, |t, cx| {
+        t.update(cx, |t, cx| {
+            t.place(
+                entry.clone(),
+                Some(view.lanes[0].entry.clone()),
+                23.,
+                Some(5.),
+                cx,
+            )
+        })
+    });
+    refresh(&host, &lib, &id, cx);
+    t.update(cx, |t, cx| {
+        t.place(
+            entry.clone(),
+            Some(view.lanes[0].entry.clone()),
+            23.,
+            Some(5.),
+            cx,
+        )
+    });
+    wait(cx, |_| {
+        call(&lib, "timeline_view.list", json!({"book":id}))[0]["placements"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|p| p["entry"] == entry && p["at"] == 23.)
+    });
+    assert_eq!(
+        call(&lib, "timeline_view.list", json!({"book":id}))[0]["name"],
+        "Synthetic peer view name"
+    );
 }
 fn refresh(host: &Entity<Host>, lib: &Library, id: &str, cx: &mut VisualTestContext) {
     let book = Rc::new(Book::load(lib, id).unwrap());
@@ -400,6 +605,7 @@ fn queued_view_and_lane_edits_preserve_memberships_and_other_views(cx: &mut Test
         Host {
             timeline: cx.new(|_| Timeline::new(&host)),
             _workspace: ws,
+            drag: None,
         }
     });
     let t = host.read_with(cx, |h, _| h.timeline.clone());
@@ -413,7 +619,7 @@ fn queued_view_and_lane_edits_preserve_memberships_and_other_views(cx: &mut Test
             .iter()
             .any(|v| v["id"] == "synthetic-view")
     });
-    // Refresh the retained instance, then enqueue two adds before either snapshot arrives.
+    // Each accepted action is followed by a fresh displayed snapshot.
     let refresh = |cx: &mut VisualTestContext| {
         let book = Rc::new(Book::load(&lib, &id).unwrap());
         let ws = host.read_with(cx, |h, _| h._workspace.downgrade());
@@ -429,8 +635,21 @@ fn queued_view_and_lane_edits_preserve_memberships_and_other_views(cx: &mut Test
     refresh(cx);
     t.update(cx, |t, cx| {
         t.add_lane(original.lanes[0].entry.clone(), cx);
-        t.add_lane(original.lanes[1].entry.clone(), cx);
     });
+    wait(cx, |_| {
+        call(&lib, "timeline_view.list", json!({"book":id}))
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|v| v["id"] == "synthetic-view")
+            .unwrap()["lanes"]
+            .as_array()
+            .unwrap()
+            .len()
+            == 1
+    });
+    refresh(cx);
+    t.update(cx, |t, cx| t.add_lane(original.lanes[1].entry.clone(), cx));
     wait(cx, |_| {
         call(&lib, "timeline_view.list", json!({"book":id}))
             .as_array()
@@ -493,8 +712,7 @@ fn queued_view_and_lane_edits_preserve_memberships_and_other_views(cx: &mut Test
             .count()
             == 1
     });
-    // A read-tolerant query must not cause a later whole-view edit to erase
-    // a placement hidden by a trashed target. Refuse and retain the raw data.
+    // A local removal retains already-hidden positions and all pins.
     call(
         &lib,
         "entry.trash",
@@ -507,13 +725,20 @@ fn queued_view_and_lane_edits_preserve_memberships_and_other_views(cx: &mut Test
         t.select(original.id.clone(), cx);
         t.remove_lane(original.lanes[0].entry.clone(), cx);
     });
-    wait(cx, |cx| {
-        host.read_with(cx, |h, cx| h._workspace.read(cx).toast.is_some())
+    wait(cx, |_| {
+        call(&lib, "timeline_view.list", json!({"book":id}))[0]["lanes"]
+            .as_array()
+            .unwrap()
+            .len()
+            == 1
     });
+    let after =
+        lib.observe(&format!("book:{id}")).unwrap().value["timeline_views"][&original.id].clone();
     assert_eq!(
-        lib.observe(&format!("book:{id}")).unwrap().value["timeline_views"][&original.id],
-        before
+        after["placements"][&original.placements[0].entry],
+        before["placements"][&original.placements[0].entry]
     );
+    assert_eq!(after["pins"], before["pins"]);
     cx.update(|_, cx| {
         let temporary_host = BottomHost {
             workspace: host.read(cx)._workspace.downgrade(),
@@ -598,29 +823,20 @@ fn rejected_without_book_write(
 }
 
 #[gpui::test]
-fn all_view_edits_reject_equal_count_hidden_binding_and_keep_the_rename_draft(
-    cx: &mut TestAppContext,
-) {
+fn local_view_edits_keep_equal_count_hidden_pin_binding(cx: &mut TestAppContext) {
     let (_dir, lib, id) = seed();
     let (view, target, pin) = pin_only_target(&lib, &id);
     call(&lib, "entry.trash", json!({"book":id,"id":target}));
     let raw = lib.observe(&format!("book:{id}")).unwrap().value["timeline_views"][&view.id].clone();
     let listed = call(&lib, "timeline_view.list", json!({"book":id}));
-    let shown = listed
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|v| v["id"] == view.id)
-        .unwrap();
     for field in ["lanes", "placements", "pins"] {
         assert_eq!(
             raw[field].as_object().unwrap().len(),
-            shown[field].as_array().unwrap().len()
+            listed[0][field].as_array().unwrap().len()
         );
     }
-    assert_eq!(raw["pins"][&pin]["entry"], target);
     assert!(
-        shown["pins"]
+        listed[0]["pins"]
             .as_array()
             .unwrap()
             .iter()
@@ -629,27 +845,85 @@ fn all_view_edits_reject_equal_count_hidden_binding_and_keep_the_rename_draft(
             .is_null()
     );
     let (host, cx) = visual(cx, &lib, &id);
-    rejected_without_book_write(&host, &lib, &id, cx, |t, cx| {
-        t.update(cx, |t, cx| {
-            t.reorder_lane(view.lanes[0].entry.clone(), 1, cx)
-        });
+    let t = host.read_with(cx, |h, _| h.timeline.clone());
+    t.update(cx, |t, cx| {
+        t.reorder_lane(view.lanes[0].entry.clone(), 1, cx)
     });
-    rejected_without_book_write(&host, &lib, &id, cx, |t, cx| {
-        t.update(cx, |t, cx| t.add_lane(view.lanes[0].entry.clone(), cx));
+    wait(cx, |_| {
+        call(&lib, "timeline_view.list", json!({"book":id}))[0]["lanes"][0]["entry"]
+            == view.lanes[1].entry
     });
-    rejected_without_book_write(&host, &lib, &id, cx, |t, cx| {
-        t.update(cx, |t, cx| t.remove_lane(view.lanes[0].entry.clone(), cx));
+    refresh(&host, &lib, &id, cx);
+    t.update(cx, |t, cx| t.remove_lane(view.lanes[0].entry.clone(), cx));
+    wait(cx, |_| {
+        call(&lib, "timeline_view.list", json!({"book":id}))[0]["lanes"]
+            .as_array()
+            .unwrap()
+            .len()
+            == 1
     });
-    rejected_without_book_write(&host, &lib, &id, cx, |t, cx| {
-        cx.update(|w, cx| t.update(cx, |t, cx| t.rename(false, w, cx)));
-        frame(cx);
-        cx.simulate_input("Synthetic preserved rename draft");
-        cx.simulate_keystrokes("enter");
+    refresh(&host, &lib, &id, cx);
+    t.update(cx, |t, cx| t.add_lane(view.lanes[0].entry.clone(), cx));
+    wait(cx, |_| {
+        call(&lib, "timeline_view.list", json!({"book":id}))[0]["lanes"]
+            .as_array()
+            .unwrap()
+            .len()
+            == 2
     });
+    refresh(&host, &lib, &id, cx);
+    cx.update(|w, cx| t.update(cx, |t, cx| t.rename(false, w, cx)));
+    frame(cx);
+    cx.simulate_input("Synthetic local rename");
+    cx.simulate_keystrokes("enter");
+    wait(cx, |_| {
+        call(&lib, "timeline_view.list", json!({"book":id}))[0]["name"] == "Synthetic local rename"
+    });
+    let after =
+        lib.observe(&format!("book:{id}")).unwrap().value["timeline_views"][&view.id].clone();
+    assert_eq!(after["pins"], raw["pins"]);
     call(&lib, "entry.restore", json!({"book":id,"id":target}));
+    assert_eq!(
+        call(&lib, "timeline_view.list", json!({"book":id}))[0]["pins"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["id"] == pin)
+            .unwrap()["entry"],
+        target
+    );
+}
+
+#[gpui::test]
+fn rename_keeps_its_displayed_guard_through_refresh_and_only_explicit_retry_rebases(
+    cx: &mut TestAppContext,
+) {
+    let (_dir, lib, id) = seed();
+    let (view, _target, pin) = pin_only_target(&lib, &id);
+    let (host, cx) = visual(cx, &lib, &id);
+    let t = host.read_with(cx, |h, _| h.timeline.clone());
+    cx.update(|w, cx| t.update(cx, |t, cx| t.rename(false, w, cx)));
+    frame(cx);
+    cx.simulate_input("Synthetic retained draft");
+    call(
+        &lib,
+        "timeline_view.put_pin",
+        json!({"book":id,"view":view.id,"pin":{"id":pin,"at":42.,"label":"Synthetic external update","color":"#654321"}}),
+    );
     refresh(&host, &lib, &id, cx);
     frame(cx);
-    // No retyping: the failed editor must retain its text for an explicit retry.
+    rejected_without_book_write(&host, &lib, &id, cx, |_, cx| {
+        cx.simulate_keystrokes("enter")
+    });
+    let before = lib.observe(&format!("book:{id}")).unwrap();
+    let focus = cx.update(|_, cx| cx.focus_handle());
+    cx.update(|w, cx| focus.focus(w, cx));
+    frame(cx);
+    assert_eq!(
+        lib.observe(&format!("book:{id}")).unwrap().version,
+        before.version,
+        "blur must not retry a failed draft"
+    );
     cx.simulate_click(
         gpui::point(gpui::px(50.), gpui::px(15.)),
         gpui::Modifiers::none(),
@@ -657,14 +931,12 @@ fn all_view_edits_reject_equal_count_hidden_binding_and_keep_the_rename_draft(
     cx.simulate_keystrokes("enter");
     wait(cx, |_| {
         call(&lib, "timeline_view.list", json!({"book":id}))[0]["name"]
-            == "Synthetic preserved rename draft"
+            == "Synthetic retained draft"
     });
-    let actual =
+    let after =
         lib.observe(&format!("book:{id}")).unwrap().value["timeline_views"][&view.id].clone();
-    assert_eq!(actual["pins"][&pin]["entry"], target);
-    for field in ["lanes", "placements", "pins"] {
-        assert_eq!(actual[field], raw[field]);
-    }
+    assert_eq!(after["pins"][&pin]["label"], "Synthetic external update");
+    assert_eq!(after["pins"][&pin]["at"], 42.);
 }
 
 #[gpui::test]
@@ -716,21 +988,35 @@ fn pin_edits_reject_hidden_fields_and_creation_cannot_replace_an_existing_pin(
 }
 
 #[gpui::test]
-fn hidden_lanes_and_placements_still_block_whole_view_edits_but_not_an_unrelated_pin(
+fn hidden_lanes_and_placements_survive_local_rename_and_unrelated_pin_edits(
     cx: &mut TestAppContext,
 ) {
     use dr_view_timeline::v3::PinEdit;
     let (_dir, lib, id) = seed();
     let (view, _target, pin) = pin_only_target(&lib, &id);
     let (host, cx) = visual(cx, &lib, &id);
-    for hidden in [&view.lanes[0].entry, &view.placements[0].entry] {
+    let t = host.read_with(cx, |h, _| h.timeline.clone());
+    for (i, hidden) in [&view.lanes[0].entry, &view.placements[0].entry]
+        .into_iter()
+        .enumerate()
+    {
         call(&lib, "entry.trash", json!({"book":id,"id":hidden}));
         refresh(&host, &lib, &id, cx);
-        rejected_without_book_write(&host, &lib, &id, cx, |t, cx| {
-            t.update(cx, |t, cx| {
-                t.reorder_lane(view.lanes[1].entry.clone(), -1, cx)
-            });
+        let before =
+            lib.observe(&format!("book:{id}")).unwrap().value["timeline_views"][&view.id].clone();
+        cx.update(|w, cx| t.update(cx, |t, cx| t.rename(false, w, cx)));
+        frame(cx);
+        let name = format!("Synthetic hidden-data rename {i}");
+        cx.simulate_input(&name);
+        cx.simulate_keystrokes("enter");
+        wait(cx, |_| {
+            call(&lib, "timeline_view.list", json!({"book":id}))[0]["name"] == name
         });
+        let after =
+            lib.observe(&format!("book:{id}")).unwrap().value["timeline_views"][&view.id].clone();
+        for field in ["lanes", "placements", "pins"] {
+            assert_eq!(after[field], before[field]);
+        }
         call(&lib, "entry.restore", json!({"book":id,"id":hidden}));
         refresh(&host, &lib, &id, cx);
     }
@@ -742,7 +1028,6 @@ fn hidden_lanes_and_placements_still_block_whole_view_edits_but_not_an_unrelated
     refresh(&host, &lib, &id, cx);
     let before =
         lib.observe(&format!("book:{id}")).unwrap().value["timeline_views"][&view.id].clone();
-    let t = host.read_with(cx, |h, _| h.timeline.clone());
     t.update(cx, |t, cx| {
         t.edit_pin(pin.clone(), PinEdit::Color(Some("#234567".into())), cx)
     });
@@ -756,11 +1041,10 @@ fn hidden_lanes_and_placements_still_block_whole_view_edits_but_not_an_unrelated
         "entry.restore",
         json!({"book":id,"id":view.placements[0].entry}),
     );
-    let after =
-        lib.observe(&format!("book:{id}")).unwrap().value["timeline_views"][&view.id].clone();
-    assert_eq!(after["lanes"], before["lanes"]);
-    assert_eq!(after["placements"], before["placements"]);
-    assert_eq!(after["pins"][&pin]["entry"], before["pins"][&pin]["entry"]);
+    assert_eq!(
+        lib.observe(&format!("book:{id}")).unwrap().value["timeline_views"][&view.id]["placements"],
+        before["placements"]
+    );
 }
 
 #[gpui::test]
@@ -808,6 +1092,12 @@ fn independently_successful_controls_merge_pin_fields_and_preserve_external_plac
         "timeline_view.place",
         json!({"book":id,"view":view.id,"entry":view.placements[0].entry,"at":42.,"span":9.}),
     );
+    rejected_without_book_write(&host, &lib, &id, cx, |t, cx| {
+        t.update(cx, |t, cx| {
+            t.reorder_lane(view.lanes[0].entry.clone(), 1, cx)
+        })
+    });
+    refresh(&host, &lib, &id, cx);
     first.update(cx, |t, cx| {
         t.reorder_lane(view.lanes[0].entry.clone(), 1, cx)
     });
@@ -820,4 +1110,71 @@ fn independently_successful_controls_merge_pin_fields_and_preserve_external_plac
     assert_eq!(raw["pins"][&pin]["color"], "#456789");
     assert_eq!(raw["placements"][&view.placements[0].entry]["at"], 42.);
     assert_eq!(raw["placements"][&view.placements[0].entry]["span"], 9.);
+}
+
+#[gpui::test]
+fn local_lane_removal_keeps_hidden_backup_membership_positions_and_other_views(
+    cx: &mut TestAppContext,
+) {
+    let (_dir, lib, id) = seed();
+    let b = Book::load(&lib, &id).unwrap();
+    let view = b.v3().unwrap().timeline_views[0].clone();
+    let member = view.placements[0].entry.clone();
+    let first = view.lanes[0].entry.clone();
+    let backup = view.lanes[1].entry.clone();
+    call(
+        &lib,
+        "membership.add",
+        json!({"book":id,"host":backup,"member":member}),
+    );
+    call(
+        &lib,
+        "timeline_view.put",
+        json!({"book":id,"view":{"id":"synthetic-other-view","name":"Synthetic independent view","lanes":[{"entry":first,"pos":"a0"}],"placements":[{"entry":member,"at":99.,"span":8.}]}}),
+    );
+    call(&lib, "entry.trash", json!({"book":id,"id":backup}));
+    let before = lib.observe(&format!("book:{id}")).unwrap().value;
+    let (host, cx) = visual(cx, &lib, &id);
+    let t = host.read_with(cx, |h, _| h.timeline.clone());
+    t.update(cx, |t, cx| {
+        t.select(view.id.clone(), cx);
+        t.remove_lane(first.clone(), cx);
+    });
+    wait(cx, |_| {
+        lib.observe(&format!("book:{id}")).unwrap().value["timeline_views"][&view.id]["lanes"]
+            .get(&first)
+            .is_none()
+    });
+    let after = lib.observe(&format!("book:{id}")).unwrap().value;
+    assert_eq!(after["memberships"], before["memberships"]);
+    assert_eq!(
+        after["timeline_views"]["synthetic-other-view"],
+        before["timeline_views"]["synthetic-other-view"]
+    );
+    assert_eq!(
+        after["timeline_views"][&view.id]["placements"][&member],
+        before["timeline_views"][&view.id]["placements"][&member]
+    );
+    assert_eq!(
+        after["timeline_views"][&view.id]["pins"],
+        before["timeline_views"][&view.id]["pins"]
+    );
+    assert_eq!(
+        after["timeline_views"][&view.id]["lanes"][&backup],
+        before["timeline_views"][&view.id]["lanes"][&backup]
+    );
+    call(&lib, "entry.restore", json!({"book":id,"id":backup}));
+    let shown = call(&lib, "timeline_view.list", json!({"book":id}));
+    assert!(
+        shown
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|v| v["id"] == view.id)
+            .unwrap()["placements"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|p| p["entry"] == member)
+    );
 }
