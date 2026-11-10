@@ -103,31 +103,7 @@ pub(super) fn entries(ws: &Workspace, key: &TurnKey, call: &ResolvedCall) -> Res
             }
         }
     }
-    if call.name == "history.undo_agent" {
-        let session = args["session"]
-            .as_str()
-            .ok_or_else(|| Error::Invalid("history needs session".into()))?;
-        let turn = args["turn"].as_u64().map(|t| t.to_string());
-        for row in ws.library().settlements(Some(session), None)? {
-            if row.doc_id != format!("book:{book}") || turn.as_ref().is_some_and(|t| *t != row.turn)
-            {
-                continue;
-            }
-            let before = ws.library().load_copy_at(&row.doc_id, &row.before)?;
-            let after = ws.library().load_copy_at(&row.doc_id, &row.after)?;
-            let before =
-                BorrowedBookV3::new(&before, &book).map_err(|e| Error::Invalid(e.to_string()))?;
-            let after =
-                BorrowedBookV3::new(&after, &book).map_err(|e| Error::Invalid(e.to_string()))?;
-            for entry in view.entries_raw() {
-                if before.view().entry_owned_raw_state(&entry.id)
-                    != after.view().entry_owned_raw_state(&entry.id)
-                {
-                    ids.insert(entry.id.to_string());
-                }
-            }
-        }
-    }
+
     for (kind, id) in endpoints {
         if kind == EntityKind::Entry {
             ids.insert(id);

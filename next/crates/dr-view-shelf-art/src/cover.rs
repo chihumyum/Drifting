@@ -19,13 +19,12 @@ use dr_ui::{
     Theme, components::IconButton, fonts::Role, sand::Icon, style::DrStyled as _,
     tokens::color::Rgb as UiRgb,
 };
-use dr_workspace::{Actor, Workspace};
+use dr_workspace::Workspace;
 use gpui::{
     App, AppContext as _, ElementId, Entity, Global, IntoElement, ParentElement as _, RenderImage,
     RenderOnce, SharedString, Styled as _, WeakEntity, Window, div, img,
     prelude::FluentBuilder as _, px,
 };
-use serde_json::{Value, json};
 
 use crate::art::{
     self, CoverRequest, CoverStyle, Drawn, StorylineCover,
@@ -74,51 +73,77 @@ pub fn cover_key(id: &str, style: CoverStyle, request: &CoverRequest) -> String 
 /// storylines in the author's order with the chapters each carries. Run it
 /// off the main thread.
 pub fn cover_request(ws: &Workspace, book: &str, title: &str) -> CoverRequest {
-    let call = |name: &str| {
-        ws.call(&Actor::User, name, json!({ "book": book }))
-            .map(|v| v["output"].clone())
-            .unwrap_or(Value::Null)
+    let empty = || CoverRequest {
+        seed: cover_seed(book),
+        chapters: 0,
+        storylines: Vec::new(),
+        words: Vec::new(),
+        latin: is_latin(title),
     };
-    let mut chapters: Vec<(u64, String, u64, Vec<String>)> = call("chapter.list")
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter(|c| !c["trashed"].as_bool().unwrap_or(false))
-        .filter_map(|c| {
-            let number = c["number"].as_u64()?;
-            let lines = c["storylines"]
-                .as_array()
+    let Ok(snapshot) = dr_shell::book::Book::load(ws, book) else {
+        return empty();
+    };
+    let Some(v) = snapshot.v3() else {
+        return empty();
+    };
+    let mut pending: Vec<_> = v
+        .levels
+        .iter()
+        .filter(|(_, l)| l.settings.is_manuscript)
+        .map(|(id, _)| id.clone())
+        .collect();
+    let mut visited = std::collections::BTreeSet::new();
+    let mut leaves = std::collections::BTreeSet::new();
+    while let Some(id) = pending.pop() {
+        if !visited.insert(id.clone()) {
+            continue;
+        }
+        if v.template_of(&id).is_some_and(|t| t.kind == "leaf") {
+            leaves.insert(id);
+        } else if let Some(level) = v.levels.get(&id) {
+            pending.extend(level.children.clone());
+        }
+    }
+    let chapters: Vec<_> = v
+        .entries
+        .iter()
+        .filter(|e| leaves.contains(&e.id))
+        .collect();
+    let words = chapters
+        .iter()
+        .map(|e| {
+            v.template_of(&e.id)
                 .into_iter()
-                .flatten()
-                .filter_map(|s| s.as_str().map(str::to_owned))
-                .collect();
-            Some((
-                number,
-                c["id"].as_str()?.to_owned(),
-                c["words"].as_u64().unwrap_or(0),
-                lines,
-            ))
+                .flat_map(|t| &t.modules)
+                .filter(|m| m.kind == "prose")
+                .map(|m| {
+                    ws.library()
+                        .doc_stats(&format!("body:{}/{}", e.id, m.id))
+                        .ok()
+                        .flatten()
+                        .map_or(0, |s| s.words)
+                })
+                .sum()
         })
         .collect();
-    chapters.sort_by_key(|c| c.0);
-    let storylines = call("storyline.list")
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter(|s| !s["trashed"].as_bool().unwrap_or(false))
-        .filter_map(|s| {
-            Some((
-                s["id"].as_str()?.to_owned(),
-                s["color"].as_str()?.to_owned(),
-            ))
-        })
+    let storylines = v
+        .entries
+        .iter()
+        .filter(|e| v.template_of(&e.id).is_some_and(|t| t.lane))
         .take(MAX_STORYLINES)
-        .map(|(id, color)| StorylineCover {
-            color,
+        .map(|lane| StorylineCover {
+            color: v
+                .appearance(&lane.id)
+                .and_then(|a| a.color)
+                .unwrap_or_default(),
             chapters: chapters
                 .iter()
                 .enumerate()
-                .filter(|(_, c)| c.3.contains(&id))
+                .filter(|(_, e)| {
+                    v.memberships
+                        .iter()
+                        .any(|m| m.host == lane.id && m.member == e.id)
+                })
                 .map(|(i, _)| i)
                 .collect(),
         })
@@ -127,7 +152,7 @@ pub fn cover_request(ws: &Workspace, book: &str, title: &str) -> CoverRequest {
         seed: cover_seed(book),
         chapters: chapters.len(),
         storylines,
-        words: chapters.iter().map(|c| c.2).collect(),
+        words,
         latin: is_latin(title),
     }
 }

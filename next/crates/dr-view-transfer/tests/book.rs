@@ -25,14 +25,14 @@ fn library() -> (tempfile::TempDir, Lib, String) {
     let dir = tempfile::tempdir().unwrap();
     let lib = Library::open(dir.path().join("library"), library_options(VERSION)).unwrap();
     let ws = Lib::open(lib, WorkspaceOptions::default()).unwrap();
-    let book = out(&ws, "book.create", json!({"name": "慢钟"}))["id"]
+    let book = out(&ws, "project.create", json!({"name": "慢钟"}))["id"]
         .as_str()
         .unwrap()
         .to_owned();
     out(
         &ws,
-        "chapter.create",
-        json!({"book": book, "title": "一", "text": "钟停了。"}),
+        "entry.create",
+        json!({"book": book, "parent": dr_testkit::seed::acceptance::novel_root(&ws, &book, "tpl-manuscript"), "template": "tpl-chapter", "title": "一", "bodies": {"mod-prose": "钟停了。"}}),
     );
     (dir, ws, book)
 }

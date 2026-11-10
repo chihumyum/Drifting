@@ -18,9 +18,9 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use dr_doc::Anchor;
-use dr_doc::book::{BookTxn, generic_relation_type_id};
-use dr_model::book::{Asset, EntityRef, KvEntry, canonical_symmetric};
+use dr_doc::import_v1::{BookTxn, generic_relation_type_id};
 use dr_model::id::*;
+use dr_model::import_v1::{Asset, EntityRef, KvEntry, canonical_symmetric};
 use dr_model::kind::*;
 use dr_model::pos::{PosKey, keys_between};
 use dr_model::{Day, legacy};

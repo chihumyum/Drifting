@@ -21,7 +21,7 @@ mod cover;
 mod files;
 pub mod import;
 mod manuscript;
-mod markdown;
+pub mod markdown;
 pub mod v3;
 
 pub use convert::{
@@ -41,7 +41,7 @@ pub use manuscript::{
     Align, Block, Cover, Format, Language, Manuscript, Run, Section, language, render,
     valid_filename,
 };
-pub use markdown::{MarkdownDoc, MarkdownTarget, markdown, markdown_filename};
+pub use markdown::markdown_filename;
 
 /// Why an export could not be read.
 #[derive(Debug, thiserror::Error)]

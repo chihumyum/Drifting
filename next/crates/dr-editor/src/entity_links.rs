@@ -36,11 +36,10 @@
 
 use std::collections::{HashMap, HashSet};
 
-use dr_doc::book::BookReader;
 use dr_model::id::BookId;
 use dr_model::kind::EntityKind;
 use dr_store::OpenDoc;
-use dr_text::autolink::{LinkMatcher, LinkName, LinkTarget, book_link_names};
+use dr_text::autolink::{LinkMatcher, LinkName, LinkTarget};
 use dr_workspace::Workspace;
 pub use dr_workspace::autolink::{LinkEdit, LinkRun};
 use gpui_prose::text::{Line, ProseDoc};
@@ -163,48 +162,34 @@ impl NameIndex {
             .collect();
         let (names, groups) = handle
             .read(move |d| {
-                if dr_doc::v3::is_v3_doc(d) {
-                    let reader = dr_doc::v3::BookReaderV3::from_loro(book_id, d)?;
-                    let v = reader.view();
-                    let entries = v.entries_map();
-                    let templates = v.templates_map();
-                    let memberships = v.memberships();
-                    let mut names = Vec::new();
-                    let mut groups = HashMap::new();
-                    for e in v.entries() {
-                        if exclude.iter().any(|id| e.id.as_str() == id)
-                            || e.name_conflict.is_some()
-                            || !dr_model::v3::is_autolink_leaf(
-                                &e,
-                                &memberships,
-                                &entries,
-                                &templates,
-                            )
-                        {
-                            continue;
-                        }
-                        groups.insert(e.id.to_string(), NameGroup::Entry);
-                        let target = LinkTarget::new(EntityKind::Entry, e.id.as_str());
-                        names.extend(
-                            std::iter::once(e.title.clone())
-                                .chain(e.aliases(&templates))
-                                .filter(|n| !n.trim().is_empty())
-                                .map(|n| LinkName::new(n, target.clone())),
-                        );
-                    }
-                    return Ok((names, groups));
+                if !dr_doc::v3::is_v3_doc(d) {
+                    return Err(dr_doc::DocError::NotInProfile("noncanonical book"));
                 }
-                let reader = BookReader::from_loro(book_id, d)?;
-                let view = reader.view();
-                let excluded: Vec<&str> = exclude.iter().map(String::as_str).collect();
+
+                let reader = dr_doc::v3::BookReaderV3::from_loro(book_id, d)?;
+                let v = reader.view();
+                let entries = v.entries_map();
+                let templates = v.templates_map();
+                let memberships = v.memberships();
+                let mut names = Vec::new();
                 let mut groups = HashMap::new();
-                for n in view.chapters() {
-                    groups.insert(n.id.to_string(), NameGroup::Chapter);
+                for e in v.entries() {
+                    if exclude.iter().any(|id| e.id.as_str() == id)
+                        || e.name_conflict.is_some()
+                        || !dr_model::v3::is_autolink_leaf(&e, &memberships, &entries, &templates)
+                    {
+                        continue;
+                    }
+                    groups.insert(e.id.to_string(), NameGroup::Entry);
+                    let target = LinkTarget::new(EntityKind::Entry, e.id.as_str());
+                    names.extend(
+                        std::iter::once(e.title.clone())
+                            .chain(e.aliases(&templates))
+                            .filter(|n| !n.trim().is_empty())
+                            .map(|n| LinkName::new(n, target.clone())),
+                    );
                 }
-                for n in view.drifts() {
-                    groups.insert(n.id.to_string(), NameGroup::Idea);
-                }
-                Ok::<_, dr_doc::DocError>((book_link_names(&view, &excluded), groups))
+                Ok((names, groups))
             })
             .map_err(|e| e.to_string())?
             .map_err(|e| e.to_string())?;

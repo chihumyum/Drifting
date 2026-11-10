@@ -33,7 +33,6 @@ mod export_memory;
 pub mod keymap;
 pub mod library;
 pub mod menus;
-pub mod mirror;
 pub mod nav;
 pub mod notifications;
 pub mod pages;
@@ -90,7 +89,6 @@ pub fn init(info: ShellInfo, services: Services, file: SettingsFile, cx: &mut Ap
     // The release gate awaits M40's last pass after other producers settle,
     // before final checkpoints. Failure/replacement restarts it on the live
     // library; successful quitting leaves it stopped.
-    release::after_release(cx, mirror::resume_after_release);
     // Before quitting, F3 brings the open documents' search index up to date
     // and lets each one close (nothing is lost without it). The hook finds
     // the library when it runs: holding a handle would keep it open.
@@ -136,7 +134,6 @@ pub fn init(info: ShellInfo, services: Services, file: SettingsFile, cx: &mut Ap
     keymap::apply(&Settings::read(cx).key_bindings(), cx);
     export_memory::init(cx);
     // M40: the Markdown folder over the library, when one is chosen.
-    mirror::restart(cx);
 }
 
 /// Opens the workspace window, or brings the open one forward.

@@ -125,7 +125,8 @@ impl Headless {
         let root = dir.path().join("library");
         let lib = dr_store::Library::open(&root, dr_workspace::library_options(VERSION))?;
         let book = dr_testkit::samples::slow_clock()?;
-        dr_testkit::seed::write_book(&lib, &book).map_err(|e| anyhow!("{e}"))?;
+        dr_testkit::seed::write_book_v3(&lib, &dr_testkit::seed::book_to_v3(&book)?)
+            .map_err(|e| anyhow!("{e}"))?;
         lib.close()?;
         let library = dr_workspace::Workspace::open_dir(&root, VERSION)?;
         cx.update(|cx| -> Result<()> {
@@ -464,7 +465,7 @@ fn run(modules: PathBuf) -> Result<()> {
         Some(&east),
     )?;
     let bio = note("人物小传 · 林汐", "海边长大，记得每一次大潮的日子。", None)?;
-    h.wait(|ws, _| ws.book.materials.len() >= 6)?;
+    h.wait(|ws, _| ws.book.v3().unwrap().materials.len() >= 6)?;
     let image_target = Target::Material(image.parse().map_err(|_| anyhow!("material id"))?);
     let pdf_target = Target::Material(pdf.parse().map_err(|_| anyhow!("material id"))?);
 

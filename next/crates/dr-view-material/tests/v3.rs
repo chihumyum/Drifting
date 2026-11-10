@@ -1,4 +1,4 @@
-use dr_model::{Origin, book::EntityRef, id::RelationId, kind::EntityKind};
+use dr_model::{Origin, id::RelationId, kind::EntityKind, shared::EntityRef};
 use dr_view_material::v3;
 use dr_workspace::{Actor, Workspace};
 use serde_json::{Value, json};
@@ -31,7 +31,7 @@ fn entry_associations_remain_read_only_and_survive_hidden_ancestors() {
     let entry_id = entry.id.to_string();
     let parent = entry.parent.clone().unwrap();
     let material = book.view().materials().remove(0).id;
-    let generic = dr_doc::book::generic_relation_type_id(book.book_id());
+    let generic = dr_doc::catalog::generic_relation_type_id(book.book_id());
     book.edit(Origin::User, |t| {
         t.relation(&RelationId::new_v7())?
             .ends(
@@ -69,16 +69,17 @@ fn entry_associations_remain_read_only_and_survive_hidden_ancestors() {
             .unwrap()
             .contains(material.as_str())
     );
-    let old = call(
-        &ws,
-        "book.create",
-        json!({"name":"Synthetic compatibility"}),
-    );
-    assert!(v3::related(&ws, old["id"].as_str().unwrap(), &entry_id).is_err());
+    let old = dr_testkit::seed::acceptance::empty_source(ws.library());
+    let old_doc = format!("book:{old}");
+    let before = ws.library().load_copy(&old_doc).unwrap();
+    assert!(v3::related(&ws, &old, &entry_id).is_err());
     assert!(
-        ws.call(&Actor::User, "relation.list", json!({"book":old["id"]}))
-            .is_ok()
+        ws.call(&Actor::User, "relation.list", json!({"book":old}))
+            .is_err()
     );
+    let after = ws.library().load_copy(&old_doc).unwrap();
+    assert_eq!(before.oplog_frontiers(), after.oplog_frontiers());
+    assert_eq!(before.get_deep_value(), after.get_deep_value());
     ws.shutdown().unwrap();
 }
 
@@ -183,7 +184,7 @@ fn material_entry_links_are_local_partial_and_keep_hidden_relations() {
         .unwrap();
     let a = chapter.id.to_string();
     let parent = chapter.parent.unwrap().to_string();
-    let generic = dr_doc::book::generic_relation_type_id(b.book_id());
+    let generic = dr_doc::catalog::generic_relation_type_id(b.book_id());
     let hidden = RelationId::new_v7();
     b.edit(Origin::User, |txn| {
         txn.relation(&hidden)?

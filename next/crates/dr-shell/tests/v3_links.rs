@@ -229,3 +229,30 @@ fn document_addresses_preserve_targets_and_refuse_foreign_books(cx: &mut TestApp
         assert_eq!(p.preferred_focus(), p.focus);
     });
 }
+
+#[gpui::test]
+fn early_old_system_and_direct_entries_are_refused_without_adopting_the_book(
+    cx: &mut TestAppContext,
+) {
+    let (_dir, lib, book, entry, _) = fixture();
+    let old = dr_testkit::seed::acceptance::empty_source(lib.library());
+    let doc = format!("book:{old}");
+    let before = lib.library().load_copy(&doc).unwrap().get_deep_value();
+    assert!(!dr_shell::book::canonical(&lib, &old));
+    let (view, cx) = setup(cx, &lib, &book, DeepLinks::new(SCHEME));
+    let mut link = address(&old, &entry);
+    link.book = Some(old.parse().unwrap());
+    assert!(!view.update_in(cx, |w, window, cx| w.open_link(
+        &link.format(SCHEME),
+        window,
+        cx
+    )));
+    view.update_in(cx, |w, window, cx| w.open_book(&old, window, cx));
+    assert_ne!(view.read_with(cx, |w, _| w.book_id.clone()), old);
+    wait(&view, cx, |w, _| w.book.v3().is_some());
+    assert_eq!(view.read_with(cx, |w, _| w.book_id.clone()), book);
+    assert_eq!(
+        lib.library().load_copy(&doc).unwrap().get_deep_value(),
+        before
+    );
+}

@@ -111,6 +111,8 @@ codex exec -C ~/Drifting-<任务名> -m gpt-6.1-sol -c model_reasoning_effort=ma
 
 （这里只保留实际产品设计；已定功能及引擎能力留在技术待协调。）
 
+- **M10 切换映射的三个窄策略仍待作者。** 22 act_binding 的关系类型／方向；23 unaffiliated 的住处和完整 EntryTemplate／home；25 按关系类型的 source／target 模板列表。未给齐时 structured V3Pending 写前拒绝；显式 choices 的合成 GUI 路径照常实现。其余已定映射、根引用解析、worker／deriver／取消生命周期不转待作者。见 [切换记录](../v3-cutover.md)。
+
 - 条目页空间、重复标题等布局设计及样式／流畅度打磨已明确暂缓。本轮不自造布局，不以这些设计项阻塞安全快照阶段交回，也不把暂缓记成通过。
 
 ## 晨报

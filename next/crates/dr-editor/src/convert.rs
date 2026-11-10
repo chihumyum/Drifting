@@ -10,8 +10,8 @@ use std::ops::Range;
 
 use dr_doc::prose::{ProseTxn, StyleKey};
 use dr_doc::schema::{block, inline};
-use dr_model::id::{BlockId, CommentId};
-use dr_model::kind::{EntityKind, ListKind};
+use dr_model::id::CommentId;
+use dr_model::kind::ListKind;
 use dr_model::prose::{Align, EntityLink, Heading, InlineStyle, MAX_INDENT};
 use gpui_prose::text::{Edit, EditResult, source::MarkOverride};
 use loro::LoroValue;
@@ -83,19 +83,13 @@ impl From<Edit<'_>> for OwnedEdit {
     }
 }
 
-/// Applies `edit` in a `dr-doc` transaction. `undo_items` is left for the
-/// caller (it counts commits).
-pub fn apply(txn: &mut ProseTxn<'_>, edit: OwnedEdit) -> dr_doc::Result<EditResult> {
-    apply_inner(txn, edit, false)
-}
-
 /// Versioned body edits retain opaque entity mark values instead of decoding
 /// them through the legacy link type.
 pub fn apply_v3(txn: &mut ProseTxn<'_>, edit: OwnedEdit) -> dr_doc::Result<EditResult> {
-    apply_inner(txn, edit, true)
+    apply_inner(txn, edit)
 }
 
-fn apply_inner(txn: &mut ProseTxn<'_>, edit: OwnedEdit, v3: bool) -> dr_doc::Result<EditResult> {
+fn apply_inner(txn: &mut ProseTxn<'_>, edit: OwnedEdit) -> dr_doc::Result<EditResult> {
     let mut result = EditResult::default();
     match edit {
         OwnedEdit::Replace {
@@ -115,7 +109,7 @@ fn apply_inner(txn: &mut ProseTxn<'_>, edit: OwnedEdit, v3: bool) -> dr_doc::Res
             };
             for (key, value) in &overrides {
                 match value {
-                    Some(value) => mark(txn, at..end, key, value, v3)?,
+                    Some(value) => mark(txn, at..end, key, value)?,
                     None => unmark(txn, at..end, key)?,
                 }
             }
@@ -144,7 +138,7 @@ fn apply_inner(txn: &mut ProseTxn<'_>, edit: OwnedEdit, v3: bool) -> dr_doc::Res
             result.caret = newline;
         }
         OwnedEdit::Mark { range, key, value } => {
-            mark(txn, range.clone(), &key, &value, v3)?;
+            mark(txn, range.clone(), &key, &value)?;
             result.caret = range.end;
         }
         OwnedEdit::Unmark { range, key } => {
@@ -217,25 +211,6 @@ fn style_key(key: &str) -> Option<StyleKey> {
     })
 }
 
-/// An entity link from the raw value of an `entity:<id>` mark (the storage
-/// format of `loro-schema.md`: a map with `kind`, `block`, `end_block`).
-pub fn entity_link(target: &str, value: &LoroValue) -> EntityLink {
-    let map = match value {
-        LoroValue::Map(map) => Some(map),
-        _ => None,
-    };
-    let get = |k: &str| map.and_then(|m| m.get(k)).and_then(as_str);
-    let bid = |k: &str| get(k).and_then(|s| BlockId::parse(s).ok());
-    EntityLink {
-        target: target.to_owned(),
-        kind: get("kind")
-            .map(EntityKind::parse)
-            .unwrap_or(EntityKind::Element),
-        block: bid("block"),
-        end_block: bid("end_block"),
-    }
-}
-
 /// The raw value `dr-doc` stores for an entity link (for tests and for
 /// building links in the editor).
 pub fn entity_value(link: &EntityLink) -> LoroValue {
@@ -254,27 +229,23 @@ fn mark(
     range: Range<usize>,
     key: &str,
     value: &LoroValue,
-    v3: bool,
 ) -> dr_doc::Result<()> {
     if range.is_empty() || block::is_block_key(key) {
         return Ok(());
     }
-    if let Some(target) = inline::entity_target(key) {
-        if v3 {
-            let marks = dr_doc::prose::v3::EntityLinkMarksV3::from_marks(
-                range.len(),
-                vec![(0..range.len(), key.to_owned(), value.clone())],
-            )?;
-            // Apply only this key; the raw API replaces all entity marks in
-            // its interval, so retain overlapping targets from the same view.
-            let current = txn.view().copy_entity_links_v3(range.clone())?;
-            let mut keep = current.marks().to_vec();
-            keep.retain(|(_, k, _)| k != key);
-            keep.extend_from_slice(marks.marks());
-            let marks = dr_doc::prose::v3::EntityLinkMarksV3::from_marks(range.len(), keep)?;
-            return txn.apply_entity_links_v3(range.start, &marks);
-        }
-        return txn.link_entity(range, &entity_link(target, value));
+    if inline::entity_target(key).is_some() {
+        let marks = dr_doc::prose::v3::EntityLinkMarksV3::from_marks(
+            range.len(),
+            vec![(0..range.len(), key.to_owned(), value.clone())],
+        )?;
+        // Apply only this key; the raw API replaces all entity marks in
+        // its interval, so retain overlapping targets from the same view.
+        let current = txn.view().copy_entity_links_v3(range.clone())?;
+        let mut keep = current.marks().to_vec();
+        keep.retain(|(_, k, _)| k != key);
+        keep.extend_from_slice(marks.marks());
+        let marks = dr_doc::prose::v3::EntityLinkMarksV3::from_marks(range.len(), keep)?;
+        return txn.apply_entity_links_v3(range.start, &marks);
     }
     match inline_style(key, value) {
         Some(style) => txn.set_style(range, &style),

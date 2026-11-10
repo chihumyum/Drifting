@@ -38,7 +38,7 @@ fn env() -> Env {
     let dir = tempfile::tempdir().unwrap();
     let lib = Library::open(dir.path().join("lib"), library_options("test")).unwrap();
     let ws = Workspace::open(lib, WorkspaceOptions::default()).unwrap();
-    let book = out(&ws, "book.create", json!({"name": "素材"}))["id"]
+    let book = out(&ws, "project.create", json!({"name": "素材"}))["id"]
         .as_str()
         .unwrap()
         .to_owned();

@@ -1,5 +1,5 @@
 {
-  "about": "K4-0 第二次交回：v3-lite 真窗口上的动态左栏、模板集合、条目卡、刷新和重开；旧版仍用原左栏。",
+  "about": "K4-0 第二次交回：v3-lite 真窗口上的动态左栏、模板集合、条目卡、刷新和重开；旧版仍用原左栏。；v3 切换后保留全部 canonical 验收步骤，旧产品回切尾段已退役。",
   "steps": [
     {
       "seed": "v3-lite"
@@ -559,63 +559,6 @@
     {
       "app": "ui.screenshot",
       "png": "03-restored-sidebar.png"
-    },
-    {
-      "call": "book.create",
-      "input": {
-        "name": "Synthetic legacy sidebar"
-      },
-      "save": "legacy"
-    },
-    {
-      "app": "book.open",
-      "params": {
-        "book": "${legacy.id}"
-      }
-    },
-    {
-      "app": "ui.wait",
-      "params": {
-        "state": {
-          "/book/version": 2,
-          "/v3Sidebar": null
-        }
-      }
-    },
-    {
-      "app": "action.dispatch",
-      "params": {
-        "name": "workspace::ToggleLeftSidebar"
-      }
-    },
-    {
-      "app": "ui.wait",
-      "params": {
-        "state": {
-          "/left/open": true
-        }
-      }
-    },
-    {
-      "app": "ui.find",
-      "params": {
-        "role": "RadioButton",
-        "label": "Chapters"
-      }
-    },
-    {
-      "app": "ui.find",
-      "params": {
-        "role": "RadioButton",
-        "label": "Elements"
-      }
-    },
-    {
-      "app": "ui.find",
-      "params": {
-        "role": "RadioButton",
-        "label": "Ideas"
-      }
     },
     {
       "app": "app.quit"

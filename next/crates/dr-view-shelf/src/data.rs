@@ -26,7 +26,7 @@ pub struct ShelfBook {
     pub storylines: u32,
     pub elements: u32,
     /// The live chapters' words.
-    pub words: u64,
+    pub words: Option<u64>,
     /// `None`: no target (turned off).
     pub word_target: Option<i64>,
     /// The newest stored change, ms since the epoch.
@@ -53,8 +53,10 @@ pub struct ShelfData {
 
 impl ShelfData {
     /// Every book's words together.
-    pub fn words(&self) -> u64 {
-        self.books.iter().map(|b| b.words).sum()
+    pub fn words(&self) -> Option<u64> {
+        self.books
+            .iter()
+            .try_fold(0u64, |sum, book| Some(sum + book.words?))
     }
 
     /// Reads the shelf. Call it off the main thread: the first read of a

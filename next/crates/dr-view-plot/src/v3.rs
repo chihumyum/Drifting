@@ -3,9 +3,9 @@ use crate::{Grid, Line, PlannerHost, PlotPlanner, Write};
 use dr_model::pos::PosKey;
 use dr_workspace::{
     Actor, Workspace, WritePreconditions, WsError,
-    commands::{
-        plot_grid::{Axis, CellInfo, LineInfo, PlotGridInfo},
-        v3::{content, module},
+    commands::v3::{
+        content, module,
+        plot::{Axis, CellInfo, LineInfo, PlotGridInfo},
     },
 };
 use gpui::{prelude::*, *};

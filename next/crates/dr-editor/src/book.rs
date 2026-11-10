@@ -25,18 +25,17 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use dr_model::book::EncodedAnchor;
-use dr_workspace::{Actor, Workspace, WsError, WsEvent};
+use dr_model::shared::EncodedAnchor;
+use dr_workspace::{Workspace, WsError, WsEvent};
 use futures::StreamExt;
 use futures::channel::mpsc;
 use gpui::{
     App, AppContext, Context, Entity, EventEmitter, Focusable, InteractiveElement, IntoElement,
-    ListOffset, ParentElement, Render, SharedString, Styled, Subscription, Window, div, px,
+    ListOffset, ParentElement, Render, Styled, Subscription, Window, div, px,
 };
 use gpui_prose::input::actions::{Redo, Undo};
 use gpui_prose::layout::{BookRange, Item};
 use gpui_prose::{Book, Chapter, EditorEvent, ProseDoc, ProseEditor, ProseStyle};
-use serde_json::{Value, json};
 
 use crate::anchors;
 use crate::links::{DriftingExtension, LinkTargets};
@@ -85,63 +84,13 @@ struct Listed {
     title: String,
 }
 
-struct Catalog(dr_workspace::BookCatalog);
-
-impl LinkTargets for Catalog {
-    fn alive(&self, kind: &dr_model::kind::EntityKind, id: &str) -> bool {
-        self.0.alive(kind, id)
-    }
-}
-
-/// Acts as `(index of the act's first chapter, name)`.
-type Acts = Vec<(usize, String)>;
-
 /// The chapters of `book` in reading order, and the acts.
-fn list(ws: &Workspace, book: &str) -> Result<(Vec<Listed>, Acts), WsError> {
-    if crate::v3::is_book(ws, book)? {
-        let docs = crate::v3::read(ws, book, |v| crate::v3::manuscript_docs(&v))?;
-        return Ok((
-            docs.into_iter()
-                .map(|(doc, title)| Listed { doc, title })
-                .collect(),
-            Vec::new(),
-        ));
-    }
-    let out = |name: &str| -> Result<Value, WsError> {
-        Ok(ws.call(&Actor::User, name, json!({ "book": book }))?["output"].clone())
-    };
-    let chapters: Vec<Listed> = out("chapter.list")?
-        .as_array()
+fn list(ws: &Workspace, book: &str) -> Result<Vec<Listed>, WsError> {
+    let docs = crate::v3::read(ws, book, |v| crate::v3::manuscript_docs(&v))?;
+    Ok(docs
         .into_iter()
-        .flatten()
-        .filter(|c| !c["trashed"].as_bool().unwrap_or(false))
-        .map(|c| Listed {
-            doc: format!("node:{}", c["id"].as_str().unwrap_or_default()),
-            title: c["title"].as_str().unwrap_or_default().to_owned(),
-        })
-        .collect();
-    let index: HashMap<&str, usize> = chapters
-        .iter()
-        .enumerate()
-        .map(|(i, c)| (c.doc.as_str(), i))
-        .collect();
-    let mut acts = Vec::new();
-    for act in out("act.list")?.as_array().into_iter().flatten() {
-        let first = act["chapters"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .filter_map(|id| {
-                index
-                    .get(format!("node:{}", id.as_str()?).as_str())
-                    .copied()
-            })
-            .min();
-        if let Some(first) = first {
-            acts.push((first, act["name"].as_str().unwrap_or_default().to_owned()));
-        }
-    }
-    Ok((chapters, acts))
+        .map(|(doc, title)| Listed { doc, title })
+        .collect())
 }
 
 /// Opens every chapter's session and document, on all cores.
@@ -201,7 +150,6 @@ fn open_all(ws: &Workspace, book: &str, listed: &[Listed]) -> Result<Vec<ProseDo
 pub struct PreparedBook {
     book: String,
     listed: Vec<Listed>,
-    acts: Acts,
     docs: Vec<ProseDoc>,
 }
 
@@ -221,7 +169,6 @@ impl PreparedBook {
 pub struct BookEditor {
     ws: Workspace,
     book: String,
-    v3: bool,
     chapters: Vec<Listed>,
     index: HashMap<String, usize>,
     base_style: ProseStyle,
@@ -266,7 +213,7 @@ impl BookEditor {
     /// acts, every chapter's session and document (on all cores), the
     /// comment anchors. Fails when the book or a chapter cannot be read.
     pub fn prepare(ws: &Workspace, book: &str) -> Result<PreparedBook, WsError> {
-        let (listed, acts) = list(ws, book)?;
+        let listed = list(ws, book)?;
         let mut docs = open_all(ws, book, &listed)?;
         match anchors::book_comment_anchors(ws, book) {
             Ok(mut by_doc) => {
@@ -281,7 +228,6 @@ impl BookEditor {
         Ok(PreparedBook {
             book: book.to_owned(),
             listed,
-            acts,
             docs,
         })
     }
@@ -298,17 +244,10 @@ impl BookEditor {
         let book = prepared.book.clone();
         let book = book.as_str();
         let base_style = ProseStyle::default();
-        let v3 = crate::v3::is_book(&ws, book).unwrap_or(false);
-        let targets = if v3 {
-            Some(Box::new(crate::v3::LinkTargets {
-                workspace: ws.clone(),
-                book: book.to_owned(),
-            }) as Box<dyn LinkTargets>)
-        } else {
-            ws.catalog(book)
-                .ok()
-                .map(|c| Box::new(Catalog(c)) as Box<dyn LinkTargets>)
-        };
+        let targets = Some(Box::new(crate::v3::LinkTargets {
+            workspace: ws.clone(),
+            book: book.to_owned(),
+        }) as Box<dyn LinkTargets>);
         let extension = Rc::new(DriftingExtension::new(targets));
         let (chapters, editor, events) = Self::install(
             prepared,
@@ -382,7 +321,6 @@ impl BookEditor {
         let mut this = BookEditor {
             ws,
             book: book.to_owned(),
-            v3,
             chapters,
             index,
             base_style,
@@ -406,19 +344,6 @@ impl BookEditor {
     }
 
     #[allow(clippy::type_complexity)]
-    fn build(
-        ws: &Workspace,
-        book: &str,
-        style: &ProseStyle,
-        extension: &Rc<DriftingExtension>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Result<(Vec<Listed>, Entity<ProseEditor>, Subscription), WsError> {
-        let prepared = Self::prepare(ws, book)?;
-        Ok(Self::install(prepared, style, extension, window, cx))
-    }
-
-    #[allow(clippy::type_complexity)]
     fn install(
         prepared: PreparedBook,
         style: &ProseStyle,
@@ -426,10 +351,8 @@ impl BookEditor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> (Vec<Listed>, Entity<ProseEditor>, Subscription) {
-        let PreparedBook {
-            listed, acts, docs, ..
-        } = prepared;
-        let mut book = Book::new(
+        let PreparedBook { listed, docs, .. } = prepared;
+        let book = Book::new(
             docs.into_iter()
                 .zip(&listed)
                 .map(|(doc, c)| Chapter {
@@ -437,10 +360,6 @@ impl BookEditor {
                     doc,
                 })
                 .collect(),
-        );
-        book.set_acts(
-            acts.into_iter()
-                .map(|(c, name)| (c, SharedString::from(name))),
         );
         let style = style.clone();
         let extension = extension.clone();
@@ -526,7 +445,7 @@ impl BookEditor {
     /// The book's chapters changed: titles are updated in place; added,
     /// removed or reordered chapters rebuild the view where the reader was.
     fn follow_book(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Ok((listed, acts)) = list(&self.ws, &self.book) else {
+        let Ok(listed) = list(&self.ws, &self.book) else {
             return;
         };
         let same_docs = listed.len() == self.chapters.len()
@@ -540,8 +459,6 @@ impl BookEditor {
                     for (chapter, l) in e.book_mut().chapters.iter_mut().zip(&listed) {
                         chapter.title = l.title.clone().into();
                     }
-                    e.book_mut()
-                        .set_acts(acts.into_iter().map(|(c, n)| (c, SharedString::from(n))));
                     cx.notify();
                 });
                 self.chapters = listed;
@@ -566,8 +483,8 @@ impl BookEditor {
             self.chapters.get(selection.chapter).map(|c| c.doc.clone()),
         );
         let focused = self.editor.read(cx).focus_handle(cx).is_focused(window);
-        let (chapters, editor, events) = if self.v3 {
-            let (listed, acts) = list(&self.ws, &self.book)?;
+        let (chapters, editor, events) = {
+            let listed = list(&self.ws, &self.book)?;
             let missing: Vec<Listed> = listed
                 .iter()
                 .filter(|c| !self.index.contains_key(&c.doc))
@@ -608,7 +525,6 @@ impl BookEditor {
                 PreparedBook {
                     book: self.book.clone(),
                     listed,
-                    acts,
                     docs,
                 },
                 &style,
@@ -616,8 +532,6 @@ impl BookEditor {
                 window,
                 cx,
             )
-        } else {
-            Self::build(&self.ws, &self.book, &style, &self.extension, window, cx)?
         };
         self.index = chapters
             .iter()
@@ -641,30 +555,30 @@ impl BookEditor {
         let docs = self.chapters.iter().map(|c| c.doc.clone()).collect();
         self.decor
             .rebind_book(&self.ws, &self.book, docs, &self.editor, window, cx);
-        if self.v3 {
-            if let (Some(anchor), Some(head)) = (
-                selected_docs.0.as_deref().and_then(|d| self.chapter_of(d)),
-                selected_docs.1.as_deref().and_then(|d| self.chapter_of(d)),
-            ) {
-                self.editor.update(cx, |e, cx| {
-                    e.select_across(
-                        gpui_prose::layout::BookPos {
-                            chapter: anchor,
-                            offset: selection.anchor,
-                        },
-                        gpui_prose::layout::BookPos {
-                            chapter: head,
-                            offset: selection.head,
-                        },
-                        window,
-                        cx,
-                    )
-                });
-            }
-            if focused {
-                self.editor.read(cx).focus_handle(cx).focus(window, cx);
-            }
+
+        if let (Some(anchor), Some(head)) = (
+            selected_docs.0.as_deref().and_then(|d| self.chapter_of(d)),
+            selected_docs.1.as_deref().and_then(|d| self.chapter_of(d)),
+        ) {
+            self.editor.update(cx, |e, cx| {
+                e.select_across(
+                    gpui_prose::layout::BookPos {
+                        chapter: anchor,
+                        offset: selection.anchor,
+                    },
+                    gpui_prose::layout::BookPos {
+                        chapter: head,
+                        offset: selection.head,
+                    },
+                    window,
+                    cx,
+                )
+            });
         }
+        if focused {
+            self.editor.read(cx).focus_handle(cx).focus(window, cx);
+        }
+
         if let Some(at) = at {
             self.restore(&at, cx);
         }
@@ -990,11 +904,8 @@ impl Render for BookEditor {
                 this.redo(window, cx);
                 cx.stop_propagation();
             }))
-            .child(if self.v3 {
+            .child({
                 crate::assist::wrap_module(&self.assist, ProseEditor::element(&self.editor, cx))
-                    .into_any_element()
-            } else {
-                crate::assist::wrap(&self.assist, ProseEditor::element(&self.editor, cx))
                     .into_any_element()
             })
     }

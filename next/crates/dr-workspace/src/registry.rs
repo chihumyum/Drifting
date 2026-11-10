@@ -69,26 +69,9 @@ pub struct Spec {
     pub access: Access,
     pub concurrency: Concurrency,
     pub summary: &'static str,
-    /// Alternate typed signature selected only for a v3 book.
-    pub v3: Option<VersionedSignature>,
     input_schema: fn() -> Schema,
     output_schema: fn() -> Schema,
     pub(crate) call: fn(&Cx<'_>, Value) -> Result<Value>,
-}
-
-/// Schemas for the v3 form of an existing command. The default signature
-/// remains the v2.2 contract used by existing consumers.
-pub struct VersionedSignature {
-    input: fn() -> Schema,
-    output: fn() -> Schema,
-}
-impl VersionedSignature {
-    pub fn input_schema(&self) -> Schema {
-        (self.input)()
-    }
-    pub fn output_schema(&self) -> Schema {
-        (self.output)()
-    }
 }
 
 impl Spec {
@@ -128,26 +111,6 @@ fn call_json<O: Op>(cx: &Cx<'_>, input: Value) -> Result<Value> {
     serde_json::to_value(out).map_err(|e| WsError::Internal(e.to_string()))
 }
 
-fn call_versioned<O: Op, V: Op>(cx: &Cx<'_>, input: Value) -> Result<Value> {
-    let book = if let Some(book) = input.get("book").and_then(Value::as_str) {
-        Some(book.to_owned())
-    } else if let Some(doc) = input.get("doc").and_then(Value::as_str) {
-        cx.workspace()
-            .library()
-            .doc_info(doc)?
-            .and_then(|d| d.book_id)
-    } else {
-        None
-    };
-    if let Some(book) = book
-        && cx.book(&book)?.is_v3()
-    {
-        call_json::<V>(cx, input)
-    } else {
-        call_json::<O>(cx, input)
-    }
-}
-
 /// Every command and query.
 #[derive(Default)]
 pub struct Registry {
@@ -179,30 +142,12 @@ impl Registry {
                 access: O::ACCESS,
                 concurrency: O::CONCURRENCY,
                 summary: O::SUMMARY,
-                v3: None,
                 input_schema: input_schema::<O::Input>,
                 output_schema: output_schema::<O::Output>,
                 call: call_json::<O>,
             },
         );
         assert!(prev.is_none(), "{} registered twice", O::NAME);
-        self
-    }
-
-    /// Register one command name with explicit v2.2 and v3 typed signatures.
-    /// Dispatch uses the owning book's stored version, never the target's old kind.
-    pub fn add_versioned<O: Op, V: Op>(&mut self) -> &mut Self {
-        assert_eq!(O::NAME, V::NAME);
-        assert_eq!(O::ACCESS, V::ACCESS);
-        assert_eq!(O::CONCURRENCY, V::CONCURRENCY);
-        assert_eq!(V::BOOK_VERSION, Some(3));
-        self.add::<O>();
-        let s = self.specs.get_mut(O::NAME).expect("registered");
-        s.v3 = Some(VersionedSignature {
-            input: input_schema::<V::Input>,
-            output: output_schema::<V::Output>,
-        });
-        s.call = call_versioned::<O, V>;
         self
     }
 
@@ -239,9 +184,7 @@ impl Registry {
                     if let Some(version) = s.book_version {
                         value["book_version"] = version.into();
                     }
-                    if let Some(v3) = &s.v3 {
-                        value["v3"] = serde_json::json!({ "book_version": 3, "input": v3.input_schema(), "output": v3.output_schema() });
-                    }
+
                     value
                 })
                 .collect(),

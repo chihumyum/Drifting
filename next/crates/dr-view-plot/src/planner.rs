@@ -17,12 +17,8 @@ use dr_ui::style::DrStyled as _;
 use dr_ui::tokens::{Rgb, radius};
 use dr_ui::{Theme, sand::Kind as MarkKind};
 use dr_view_page::settlement::{self, Drafts, Drain};
-use dr_workspace::commands::plot_grid::{
-    Axis, CellIn, GridIn, GridSizeIn, LineAddIn, LineIn, LineUpdateIn, PlotGridCell, PlotGridClear,
-    PlotGridCreate, PlotGridGet, PlotGridInfo, PlotGridLineAdd, PlotGridLineRemove,
-    PlotGridLineUpdate, PlotGridSize,
-};
-use dr_workspace::{Actor, Workspace as Library, WsEvent};
+use dr_workspace::commands::v3::plot::{Axis, PlotGridInfo};
+use dr_workspace::{Workspace as Library, WsEvent};
 use gpui::{
     AnyElement, AnyWindowHandle, App, AppContext as _, Bounds, Context, DispatchPhase, Entity,
     FocusHandle, Focusable, InteractiveElement as _, IntoElement, MouseButton, MouseMoveEvent,
@@ -178,7 +174,7 @@ struct Drag {
 }
 
 pub struct PlotPlanner {
-    module: Option<String>,
+    module: String,
     host: PlannerHost,
     grid: Grid,
     baseline: Grid,
@@ -232,28 +228,23 @@ impl Focusable for PlotPlanner {
 }
 
 impl PlotPlanner {
-    pub fn new(host: PlannerHost, window: &mut Window, cx: &mut Context<Self>) -> PlotPlanner {
-        Self::new_at(host, None, window, cx)
-    }
-
     pub fn for_module(
         host: PlannerHost,
         module: String,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> PlotPlanner {
-        Self::new_at(host, Some(module), window, cx)
+        Self::new_at(host, module, window, cx)
     }
 
     fn new_at(
         host: PlannerHost,
-        module: Option<String>,
+        module: String,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> PlotPlanner {
-        if module.is_some() {
-            settlement::register(&host.library, window.window_handle(), cx);
-        }
+        settlement::register(&host.library, window.window_handle(), cx);
+
         let body = cx.new(|_| None);
         let mut planner = PlotPlanner {
             module,
@@ -300,13 +291,7 @@ impl PlotPlanner {
     /// hand before it arrives wins.
     fn read_ratio(&mut self, cx: &mut Context<Self>) {
         let lib = self.host.library.clone();
-        let key = ratio_key(
-            &self
-                .module
-                .as_ref()
-                .map(|m| format!("{}/{m}", self.host.node))
-                .unwrap_or_else(|| self.host.node.clone()),
-        );
+        let key = ratio_key(&format!("{}/{}", self.host.node, self.module));
         let read = cx.background_spawn(async move {
             lib.library()
                 .local_get(RATIO_SCOPE, &key)
@@ -334,40 +319,15 @@ impl PlotPlanner {
     /// Keep `ratio` as this grid's hand-set shape on this device (detached:
     /// the planner may be gone, another chapter in front, before it lands).
     fn store_ratio(&mut self, ratio: f32, cx: &mut Context<Self>) {
-        if self.module.is_some() {
-            if !self.accepts(cx) {
-                return;
-            }
-            self.ratio_pending = Some(ratio);
-            self.pump_ratio(cx);
+        if !self.accepts(cx) {
             return;
         }
-        // A stored shape still being read is older than this one.
-        self.ratio_io = None;
-        let lib = self.host.library.clone();
-        let (book, key) = (
-            self.host.book.clone(),
-            ratio_key(
-                &self
-                    .module
-                    .as_ref()
-                    .map(|m| format!("{}/{m}", self.host.node))
-                    .unwrap_or_else(|| self.host.node.clone()),
-            ),
-        );
-        cx.background_spawn(async move {
-            if let Err(error) =
-                lib.library()
-                    .local_set(RATIO_SCOPE, &key, &ratio.to_string(), Some(&book))
-            {
-                log::warn!("the plot grid's shape could not be kept: {error}");
-            }
-        })
-        .detach();
+        self.ratio_pending = Some(ratio);
+        self.pump_ratio(cx);
     }
 
     fn accepts(&self, cx: &App) -> bool {
-        self.module.is_none() || settlement::accepts(cx)
+        settlement::accepts(cx)
     }
     fn pump_ratio(&mut self, cx: &mut Context<Self>) {
         if self.ratio_writing || self.ratio_failed {
@@ -380,11 +340,7 @@ impl PlotPlanner {
         let lib = self.host.library.clone();
         let worker = lib.clone();
         let book = self.host.book.clone();
-        let key = ratio_key(&format!(
-            "{}/{}",
-            self.host.node,
-            self.module.as_deref().unwrap_or_default()
-        ));
+        let key = ratio_key(&format!("{}/{}", self.host.node, self.module));
         let (job, ticket) = settlement::write(&lib, cx, async move {
             worker
                 .library()
@@ -460,7 +416,7 @@ impl PlotPlanner {
         if !self.accepts(cx) {
             return;
         }
-        if self.module.is_some() && (self.save_failed || self.ratio_failed) {
+        if self.save_failed || self.ratio_failed {
             self.retrying = self.save_failed;
             self.ratio_failed = false;
             self.pump_ratio(cx);
@@ -491,17 +447,9 @@ impl PlotPlanner {
     /// F3's events for this grid read it again.
     fn listen(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let (tx, mut rx) = futures::channel::mpsc::unbounded::<()>();
-        let (book, node) = (self.host.book.clone(), self.host.node.clone());
-        let module = self.module.clone();
+        let book = self.host.book.clone();
         self._events = Some(self.host.library.subscribe(move |event| {
-            if let WsEvent::Book(b) = event
-                && b.book.as_str() == book
-                && (module.is_some()
-                    || b.changes.iter().any(|c| {
-                        c.collection == dr_doc::book::Collection::PlotGrids
-                            && c.id.as_deref().is_none_or(|id| id == node)
-                    }))
-            {
+            if matches!(event, WsEvent::Book(b) if b.book.as_str() == book) {
                 let _ = tx.unbounded_send(());
             }
         }));
@@ -531,18 +479,9 @@ impl PlotPlanner {
         }
         self.stale = false;
         let lib = self.host.library.clone();
-        let input = GridIn {
-            book: self.host.book.clone(),
-            node: self.host.node.clone(),
-        };
+        let (book, node) = (self.host.book.clone(), self.host.node.clone());
         let module = self.module.clone();
-        let read = cx.background_spawn(async move {
-            if let Some(module) = module {
-                return crate::v3::read(&lib, &input.book, &input.node, &module);
-            }
-            lib.run::<PlotGridGet>(&Actor::User, input)
-                .map(|o| o.output)
-        });
+        let read = cx.background_spawn(async move { crate::v3::read(&lib, &book, &node, &module) });
         self.reading = Some(cx.spawn_in(window, async move |this, cx| {
             let info = read.await;
             this.update_in(cx, |p, window, cx| {
@@ -688,11 +627,10 @@ impl PlotPlanner {
         }
         match event {
             FieldEvent::Changed(text) => {
-                if self.module.is_some() {
-                    self.pending_bases.entry(field.clone()).or_insert_with(|| {
-                        self.field_bases.get(field).cloned().unwrap_or_default()
-                    });
-                }
+                self.pending_bases
+                    .entry(field.clone())
+                    .or_insert_with(|| self.field_bases.get(field).cloned().unwrap_or_default());
+
                 match field {
                     Field::Cell(r, c) => self.grid.set_cell(r, c, text),
                     Field::Row(id) => self.grid.set_label(Axis::Row, id, text),
@@ -840,87 +778,78 @@ impl PlotPlanner {
         let batch: Vec<Write> = self.queue.drain(..).collect();
         let lib = self.host.library.clone();
         let (book, node) = (self.host.book.clone(), self.host.node.clone());
-        let create = !self.grid.exists;
         let module = self.module.clone();
-        if let Some(module) = module {
-            let mut baseline = self.baseline.clone();
-            for (field, value) in &self.pending_bases {
-                match field {
-                    Field::Cell(r, c) => baseline.set_cell(r, c, value),
-                    Field::Row(id) => baseline.set_label(Axis::Row, id, value),
-                    Field::Col(id) => baseline.set_label(Axis::Column, id, value),
-                }
+
+        let mut baseline = self.baseline.clone();
+        for (field, value) in &self.pending_bases {
+            match field {
+                Field::Cell(r, c) => baseline.set_cell(r, c, value),
+                Field::Row(id) => baseline.set_label(Axis::Row, id, value),
+                Field::Col(id) => baseline.set_label(Axis::Column, id, value),
             }
-            let retry = std::mem::take(&mut self.retrying);
-            let worker = lib.clone();
-            let retained = batch.clone();
-            let sent = batch.clone();
-            let (job, ticket) = settlement::write(&lib, cx, async move {
-                crate::v3::write_from(
-                    &worker,
-                    &book,
-                    &node,
-                    &module,
-                    batch,
-                    (!retry).then_some(&baseline),
-                )
-            });
-            // The foreground acknowledgement is detached, so leaving this page
-            // cannot cancel delivery of an already accepted durable job.
-            let ack = cx.spawn(async move |this, cx| {
-                let result = job.await;
-                if this
-                    .update(cx, |p, cx| {
-                        let written = match result {
-                            Ok(grid) => {
-                                for write in sent {
-                                    match write {
-                                        Write::Cell { row, col, text } => {
-                                            let f = Field::Cell(row, col);
-                                            p.field_bases.insert(f.clone(), text.clone());
-                                            if p.pending_bases.contains_key(&f) {
-                                                p.pending_bases.insert(f, text);
-                                            }
+        }
+        let retry = std::mem::take(&mut self.retrying);
+        let worker = lib.clone();
+        let retained = batch.clone();
+        let sent = batch.clone();
+        let (job, ticket) = settlement::write(&lib, cx, async move {
+            crate::v3::write_from(
+                &worker,
+                &book,
+                &node,
+                &module,
+                batch,
+                (!retry).then_some(&baseline),
+            )
+        });
+        // The foreground acknowledgement is detached, so leaving this page
+        // cannot cancel delivery of an already accepted durable job.
+        let ack = cx.spawn(async move |this, cx| {
+            let result = job.await;
+            if this
+                .update(cx, |p, cx| {
+                    let written = match result {
+                        Ok(grid) => {
+                            for write in sent {
+                                match write {
+                                    Write::Cell { row, col, text } => {
+                                        let f = Field::Cell(row, col);
+                                        p.field_bases.insert(f.clone(), text.clone());
+                                        if p.pending_bases.contains_key(&f) {
+                                            p.pending_bases.insert(f, text);
                                         }
-                                        Write::Label { axis, id, label } => {
-                                            let f = Field::label(axis, &id);
-                                            p.field_bases.insert(f.clone(), label.clone());
-                                            if p.pending_bases.contains_key(&f) {
-                                                p.pending_bases.insert(f, label);
-                                            }
-                                        }
-                                        _ => {}
                                     }
-                                }
-                                Written {
-                                    baseline: Some(grid),
-                                    ..Default::default()
+                                    Write::Label { axis, id, label } => {
+                                        let f = Field::label(axis, &id);
+                                        p.field_bases.insert(f.clone(), label.clone());
+                                        if p.pending_bases.contains_key(&f) {
+                                            p.pending_bases.insert(f, label);
+                                        }
+                                    }
+                                    _ => {}
                                 }
                             }
-                            Err(e) => Written {
-                                refused: vec![e.to_string()],
-                                retained,
+                            Written {
+                                baseline: Some(grid),
                                 ..Default::default()
-                            },
-                        };
-                        p.written(written, cx);
-                    })
-                    .is_ok()
-                {
-                    ticket.acknowledge();
-                }
-            });
-            // Keep the existing busy marker without making it own the ACK.
-            ack.detach();
-            self.writing = Some(Task::ready(()));
-            return;
-        }
-        let job =
-            cx.background_spawn(async move { write_batch(&lib, &book, &node, create, batch) });
-        self.writing = Some(cx.spawn(async move |this, cx| {
-            let written = job.await;
-            this.update(cx, |p, cx| p.written(written, cx)).ok();
-        }));
+                            }
+                        }
+                        Err(e) => Written {
+                            refused: vec![e.to_string()],
+                            retained,
+                            ..Default::default()
+                        },
+                    };
+                    p.written(written, cx);
+                })
+                .is_ok()
+            {
+                ticket.acknowledge();
+            }
+        });
+        // Keep the existing busy marker without making it own the ACK.
+        ack.detach();
+        self.writing = Some(Task::ready(()));
     }
 
     fn written(&mut self, written: Written, cx: &mut Context<Self>) {
@@ -934,7 +863,7 @@ impl PlotPlanner {
         for refused in &written.refused {
             log::warn!("the plot grid refused a change: {refused}");
         }
-        if self.module.is_some() && !written.refused.is_empty() {
+        if !written.refused.is_empty() {
             // Earlier edits go before anything typed while the call was out.
             // The nonempty queue prevents a refresh from discarding either.
             for write in written.retained.into_iter().rev() {
@@ -998,117 +927,6 @@ impl PlotPlanner {
             *id = to.clone();
         }
     }
-}
-
-/// Runs `batch` against F3, in order (on a background thread).
-fn write_batch(lib: &Library, book: &str, node: &str, create: bool, batch: Vec<Write>) -> Written {
-    let mut out = Written::default();
-    let grid_in = || GridIn {
-        book: book.to_owned(),
-        node: node.to_owned(),
-    };
-    if create {
-        match lib.run::<PlotGridCreate>(&Actor::User, grid_in()) {
-            Ok(o) => {
-                out.created = true;
-                // `~r0` → the first stored row, and so on (the unstored
-                // grid's own order, whatever the author did since).
-                out.stored = Grid::unstored().stored_ids(&Grid::from_info(&o.output));
-            }
-            Err(error) => {
-                out.refused.push(format!("plot_grid.create: {error}"));
-                return out;
-            }
-        }
-    }
-    let (book, node) = (book.to_owned(), node.to_owned());
-    for mut write in batch {
-        write.rename(&out.stored);
-        let user = &Actor::User;
-        let result = match write.clone() {
-            Write::Cell { row, col, text } => lib
-                .run::<PlotGridCell>(
-                    user,
-                    CellIn {
-                        book: book.clone(),
-                        node: node.clone(),
-                        row,
-                        column: col,
-                        text,
-                    },
-                )
-                .map(drop),
-            Write::Label { axis, id, label } => lib
-                .run::<PlotGridLineUpdate>(
-                    user,
-                    LineUpdateIn {
-                        book: book.clone(),
-                        node: node.clone(),
-                        axis,
-                        id,
-                        label: Some(label),
-                        after: None,
-                        pos: None,
-                    },
-                )
-                .map(drop),
-            Write::Add { axis, id, after } => lib
-                .run::<PlotGridLineAdd>(
-                    user,
-                    LineAddIn {
-                        book: book.clone(),
-                        node: node.clone(),
-                        axis,
-                        after,
-                        label: String::new(),
-                        id: Some(id),
-                        pos: None,
-                    },
-                )
-                .map(drop),
-            Write::Move { axis, id, after } => lib
-                .run::<PlotGridLineUpdate>(
-                    user,
-                    LineUpdateIn {
-                        book: book.clone(),
-                        node: node.clone(),
-                        axis,
-                        id,
-                        label: None,
-                        after: Some(after),
-                        pos: None,
-                    },
-                )
-                .map(drop),
-            Write::Remove { axis, id } => lib
-                .run::<PlotGridLineRemove>(
-                    user,
-                    LineIn {
-                        book: book.clone(),
-                        node: node.clone(),
-                        axis,
-                        id,
-                    },
-                )
-                .map(drop),
-            Write::Size(size) => lib
-                .run::<PlotGridSize>(
-                    user,
-                    GridSizeIn {
-                        book: book.clone(),
-                        node: node.clone(),
-                        cell_w: f64::from(size.w),
-                        cell_h: f64::from(size.h),
-                    },
-                )
-                .map(drop),
-            Write::Clear => lib.run::<PlotGridClear>(user, grid_in()).map(drop),
-        };
-        if let Err(error) = result {
-            out.refused.push(format!("{write:?}: {error}"));
-        }
-    }
-    out
 }
 
 /// A new row's or column's id.

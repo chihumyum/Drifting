@@ -72,24 +72,6 @@ pub struct PageInfo {
     pub words: u64,
     /// The text is one empty paragraph (the empty-chapter hint shows).
     pub empty: bool,
-    /// In the whole-book view, the act this chapter opens: the host draws
-    /// the act's title page above the chapter's head.
-    pub act_opening: Option<String>,
-    /// The same act's title page in full: 「第一幕」, its name, and 「N 章 ·
-    /// x 千字」 (see [`ActPage`]).
-    pub act_page: Option<ActPage>,
-}
-
-/// What an act's title page shows in the whole-book view.
-#[derive(Clone, Debug, PartialEq)]
-pub struct ActPage {
-    pub name: String,
-    /// 1 for 「第一幕」: the act's place among the acts of the book.
-    pub ordinal: usize,
-    /// The act's chapters (this one and those after it, up to the next act).
-    pub chapters: usize,
-    /// Their words (prose-metrics, as the folio line counts them), live.
-    pub words: u64,
 }
 
 impl PageInfo {
@@ -104,8 +86,6 @@ impl PageInfo {
             storyline: None,
             words: 0,
             empty: false,
-            act_opening: None,
-            act_page: None,
         }
     }
 
@@ -151,9 +131,6 @@ pub const EMPTY_HINTS: &[(&str, &str)] = &[("H1", "#"), ("H2", "##"), ("H3", "##
 pub(crate) struct Pages {
     infos: Rc<RefCell<Vec<PageInfo>>>,
     chrome: Option<Rc<dyn PageChrome>>,
-    /// Each act's ordinal (「第一幕」) by its first chapter's index here:
-    /// its place among all the book's acts, empty ones included.
-    ordinals: RefCell<std::collections::HashMap<usize, usize>>,
 }
 
 struct Slots {
@@ -231,15 +208,12 @@ impl Pages {
         editor: &Entity<ProseEditor>,
         cx: &mut App,
     ) {
-        let (mut infos, ordinals) = read(ws, book, docs);
+        let (mut infos, _) = read(ws, book, docs);
         let e = editor.read(cx);
         let book = e.book();
-        for (ix, (info, chapter)) in infos.iter_mut().zip(&book.chapters).enumerate() {
+        for (info, chapter) in infos.iter_mut().zip(&book.chapters) {
             (info.words, info.empty) = counts(&chapter.doc);
-            info.act_opening = book.act_opening(ix).map(|a| a.to_string());
         }
-        act_pages(&mut infos, book.acts(), &ordinals);
-        *self.ordinals.borrow_mut() = ordinals;
         let changed: Vec<usize> = {
             let old = self.infos.borrow();
             (0..infos.len())
@@ -261,7 +235,6 @@ impl Pages {
     pub fn edited(&self, ix: usize, editor: &Entity<ProseEditor>, cx: &mut App) {
         let e = editor.read(cx);
         let (words, empty) = counts(&e.book().chapters[ix].doc);
-        let acts = e.book().acts().to_vec();
         let mut changed = Vec::new();
         {
             let mut infos = self.infos.borrow_mut();
@@ -270,12 +243,6 @@ impl Pages {
             {
                 (info.words, info.empty) = (words, empty);
                 changed.push(ix);
-                let before: Vec<Option<ActPage>> =
-                    infos.iter().map(|i| i.act_page.clone()).collect();
-                act_pages(&mut infos, &acts, &self.ordinals.borrow());
-                changed.extend(
-                    (0..infos.len()).filter(|&k| k != ix && infos[k].act_page != before[k]),
-                );
             }
         }
         if !changed.is_empty() && self.chrome.is_some() {
@@ -285,31 +252,6 @@ impl Pages {
                 }
             });
         }
-    }
-}
-
-/// Each act's title page on the chapter that opens it (`acts`: the first
-/// chapter of each act and its name, sorted, as the book keeps them).
-fn act_pages(
-    infos: &mut [PageInfo],
-    acts: &[(usize, gpui::SharedString)],
-    ordinals: &std::collections::HashMap<usize, usize>,
-) {
-    for info in infos.iter_mut() {
-        info.act_page = None;
-    }
-    for (k, (first, name)) in acts.iter().enumerate() {
-        let end = acts.get(k + 1).map_or(infos.len(), |(next, _)| *next);
-        let Some(chapters) = infos.get(*first..end.min(infos.len())) else {
-            continue;
-        };
-        let page = ActPage {
-            name: name.to_string(),
-            ordinal: ordinals.get(first).copied().unwrap_or(k + 1),
-            chapters: chapters.len(),
-            words: chapters.iter().map(|c| c.words).sum(),
-        };
-        infos[*first].act_page = Some(page);
     }
 }
 
@@ -330,10 +272,6 @@ fn call(ws: &Workspace, name: &str, input: Value) -> Result<Value, WsError> {
     Ok(ws.call(&Actor::User, name, input)?["output"].clone())
 }
 
-fn str_of(v: &Value, k: &str) -> String {
-    v[k].as_str().unwrap_or_default().to_owned()
-}
-
 /// The workspace's facts of each document (counts left at zero), and each
 /// act's ordinal by the index of its first chapter in `docs`.
 fn read(
@@ -341,127 +279,13 @@ fn read(
     book: &str,
     docs: &[String],
 ) -> (Vec<PageInfo>, std::collections::HashMap<usize, usize>) {
-    if docs.iter().any(|d| crate::v3::body(d).is_some()) {
-        return (
-            crate::v3::page_infos(ws, book, docs).unwrap_or_else(|error| {
-                log::warn!("v3 page facts: {error}");
-                docs.iter().map(|d| PageInfo::blank(d)).collect()
-            }),
-            Default::default(),
-        );
-    }
-    let mut infos: Vec<PageInfo> = docs.iter().map(|d| PageInfo::blank(d)).collect();
-    let ids: Vec<Option<&str>> = docs.iter().map(|d| d.strip_prefix("node:")).collect();
-    let mut ordinals = std::collections::HashMap::new();
-    if ids.iter().all(Option::is_none) {
-        return (infos, ordinals);
-    }
-    // 「第 N 幕」 counts every act in the book's order, empty ones and the
-    // book-head act included (the 0.1 client's `deriveActSegments`).
-    if docs.len() > 1 {
-        let index: std::collections::HashMap<&str, usize> = ids
-            .iter()
-            .enumerate()
-            .filter_map(|(i, id)| id.map(|id| (id, i)))
-            .collect();
-        let acts = call(ws, "act.list", json!({ "book": book })).unwrap_or_default();
-        for (k, act) in acts.as_array().into_iter().flatten().enumerate() {
-            let first = act["chapters"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .filter_map(|c| index.get(c.as_str()?).copied())
-                .min();
-            if let Some(first) = first {
-                ordinals.entry(first).or_insert(k + 1);
-            }
-        }
-    }
-    let chapters = call(ws, "chapter.list", json!({ "book": book })).unwrap_or_default();
-    let storylines = call(ws, "storyline.list", json!({ "book": book })).unwrap_or_default();
-    let storyline = |id: &str| {
-        storylines
-            .as_array()
-            .into_iter()
-            .flatten()
-            .find(|s| s["id"].as_str() == Some(id))
-            .map(|s| StorylineMark {
-                id: id.to_owned(),
-                name: str_of(s, "name"),
-                color: str_of(s, "color"),
-            })
-    };
-    let mut ideas: Option<Value> = None;
-    for (info, id) in infos.iter_mut().zip(ids) {
-        let Some(id) = id else { continue };
-        if let Some(c) = chapters
-            .as_array()
-            .into_iter()
-            .flatten()
-            .find(|c| c["id"].as_str() == Some(id))
-        {
-            info.kind = PageKind::Chapter;
-            info.number = c["number"].as_u64().map(|n| n as u32);
-            info.title = str_of(c, "title");
-            info.synopsis = str_of(c, "summary");
-            info.status = str_of(c, "status");
-            let primary = c["primary_storyline"]
-                .as_str()
-                .map(str::to_owned)
-                .or_else(|| {
-                    c["storylines"]
-                        .as_array()
-                        .and_then(|s| s.first())
-                        .and_then(Value::as_str)
-                        .map(str::to_owned)
-                });
-            info.storyline = primary.as_deref().and_then(storyline);
-            continue;
-        }
-        let ideas = ideas.get_or_insert_with(|| {
-            call(ws, "idea.list", json!({ "book": book })).unwrap_or_default()
-        });
-        if let Some(i) = ideas
-            .as_array()
-            .into_iter()
-            .flatten()
-            .find(|i| i["id"].as_str() == Some(id))
-        {
-            info.kind = PageKind::Idea;
-            info.title = str_of(i, "title");
-            info.synopsis = str_of(i, "summary");
-            info.status = str_of(i, "status");
-        }
-    }
-    (infos, ordinals)
-}
-
-fn chapter_id(doc: &str) -> Result<&str, WsError> {
-    doc.strip_prefix("node:")
-        .ok_or_else(|| WsError::Invalid(format!("not a chapter: {doc}")))
-}
-
-/// Where a page's title and synopsis live: a chapter (`chapter.update`) or
-/// an idea (`idea.update`), with the stored values.
-fn titled(ws: &Workspace, book: &str, doc: &str) -> Result<(&'static str, Value), WsError> {
-    let id = chapter_id(doc)?;
-    let find = |list: Value| {
-        list.as_array()
-            .into_iter()
-            .flatten()
-            .find(|c| c["id"].as_str() == Some(id))
-            .cloned()
-    };
-    if let Some(c) = find(call(ws, "chapter.list", json!({ "book": book }))?) {
-        return Ok(("chapter.update", c));
-    }
-    if let Some(i) = find(call(ws, "idea.list", json!({ "book": book }))?) {
-        return Ok(("idea.update", i));
-    }
-    Err(WsError::NotFound {
-        what: "chapter or idea",
-        id: id.to_owned(),
-    })
+    (
+        crate::v3::page_infos(ws, book, docs).unwrap_or_else(|error| {
+            log::warn!("v3 page facts: {error}");
+            docs.iter().map(|d| PageInfo::blank(d)).collect()
+        }),
+        Default::default(),
+    )
 }
 
 /// Stores a new title the author typed on a chapter's or an idea's page.
@@ -486,55 +310,27 @@ pub fn rename(
         )?;
         return Ok(Some(title.to_owned()));
     }
-    let (command, current) = titled(ws, book, doc)?;
-    if title.is_empty() || current["title"].as_str() == Some(title) {
-        return Ok(None);
-    }
-    let out = call(
-        ws,
-        command,
-        json!({ "book": book, "id": chapter_id(doc)?, "title": title }),
-    )?;
-    Ok(Some(
-        out["title"]
-            .as_str()
-            .or(out["name"].as_str())
-            .unwrap_or(title)
-            .to_owned(),
+    Err(WsError::Invalid(
+        "page title requires a canonical entry body".into(),
     ))
 }
 
 /// Stores the synopsis of a chapter's or an idea's page (trimmed; empty
 /// clears it). Returns whether it changed.
 pub fn set_synopsis(ws: &Workspace, book: &str, doc: &str, text: &str) -> Result<bool, WsError> {
-    let text = text.trim();
-    if crate::v3::body(doc).is_some() {
-        return crate::v3::set_role_field(ws, book, doc, "summary", text);
-    }
-    let (command, current) = titled(ws, book, doc)?;
-    if current["summary"].as_str() == Some(text) {
-        return Ok(false);
-    }
-    call(
-        ws,
-        command,
-        json!({ "book": book, "id": chapter_id(doc)?, "summary": text }),
-    )?;
-    Ok(true)
+    crate::v3::set_role_field(ws, book, doc, "summary", text.trim())
 }
 
 /// ⁂'s 「标为完成」 (`true`) or 「改回草稿」 (`false`).
 pub fn set_finished(ws: &Workspace, book: &str, doc: &str, finished: bool) -> Result<(), WsError> {
-    let status = if finished { "finished" } else { "draft" };
-    if crate::v3::body(doc).is_some() {
-        return crate::v3::set_role_field(ws, book, doc, "status", status).map(|_| ());
-    }
-    call(
+    crate::v3::set_role_field(
         ws,
-        "chapter.update",
-        json!({ "book": book, "id": chapter_id(doc)?, "status": status }),
-    )?;
-    Ok(())
+        book,
+        doc,
+        "status",
+        if finished { "finished" } else { "draft" },
+    )
+    .map(|_| ())
 }
 
 /// ⁂'s 「新建下一章」: a draft chapter right after `doc` titled `title`
@@ -573,10 +369,7 @@ pub fn new_chapter_after(
         )?;
         return Ok(format!("body:{new_id}/{module}"));
     }
-    let out = call(
-        ws,
-        "chapter.create",
-        json!({ "book": book, "title": title, "place": { "after": chapter_id(doc)? } }),
-    )?;
-    Ok(format!("node:{}", str_of(&out, "id")))
+    Err(WsError::Invalid(
+        "new sibling requires a canonical entry body".into(),
+    ))
 }

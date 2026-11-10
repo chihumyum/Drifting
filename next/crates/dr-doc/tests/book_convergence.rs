@@ -9,11 +9,11 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
 
-use dr_doc::book::{BookDoc, BookTxn, Collection};
-use dr_model::book::{EntityRef, canonical_symmetric};
+use dr_doc::import_v1::{BookDoc, BookTxn, Collection};
 use dr_model::id::*;
+use dr_model::import_v1::order::cmp_order;
 use dr_model::kind::*;
-use dr_model::order::cmp_order;
+use dr_model::shared::{EntityRef, canonical_symmetric};
 use dr_model::{Origin, Timestamp};
 use proptest::prelude::*;
 use proptest::test_runner::{RngAlgorithm, TestRng, TestRunner};

@@ -4,7 +4,7 @@ pub(crate) fn register(r: &mut Registry) {
 }
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct Key {
-    /// entries, templates, memberships, timeline_views, patches, plot_grids, relations, relation_types, materials, comments or material_folders.
+    /// entries, templates, memberships, timeline_views, patches, plot_grids, relations, relation_types, materials, comments, facts, memory or material_folders.
     pub collection: String,
     pub id: String,
 }
@@ -34,6 +34,7 @@ enum Plan {
     ),
     Trash(EntryId),
     Map(CollectionV3, String, Option<dr_doc::v3::EntrySnapshotV3>),
+    SharedMap(CollectionV3, String),
 }
 op! {
     Restore="entry_history.restore",Write,Book,"Restore selected v3 entry metadata or structural records from a snapshot as a new undoable commit.",fn(cx,input:RestoreIn)->Vec<Done> {
@@ -97,7 +98,7 @@ fn restore(cx: &Cx<'_>, input: RestoreIn) -> Result<Vec<Done>> {
             }
             "material_folders" => {}
             "templates" | "memberships" | "timeline_views" | "patches" | "plot_grids"
-            | "relations" | "relation_types" | "materials" | "comments" => {
+            | "relations" | "relation_types" | "materials" | "comments" | "facts" | "memory" => {
                 let c = CollectionV3::from_root(&target.collection).unwrap();
                 if c == CollectionV3::RelationTypes {
                     let id = pid("relation type", &target.id)?;
@@ -116,11 +117,18 @@ fn restore(cx: &Cx<'_>, input: RestoreIn) -> Result<Vec<Done>> {
                         return Err(WsError::invalid("relation type is in use"));
                     }
                 }
-                plans.push(Plan::Map(
+                if matches!(
                     c,
-                    target.id.clone(),
-                    old.map_snapshot(c, &target.id),
-                ));
+                    CollectionV3::Facts | CollectionV3::Memory | CollectionV3::Relations
+                ) {
+                    plans.push(Plan::SharedMap(c, target.id.clone()));
+                } else {
+                    plans.push(Plan::Map(
+                        c,
+                        target.id.clone(),
+                        old.map_snapshot(c, &target.id),
+                    ));
+                }
                 if c == CollectionV3::Templates {
                     let id: EntryTemplateId = pid("template", &target.id)?;
                     if let Some(t) = old.template(&id) {
@@ -186,7 +194,19 @@ fn restore(cx: &Cx<'_>, input: RestoreIn) -> Result<Vec<Done>> {
         ),
         _ => (0, 0, 0),
     });
+    let book = s.book.clone();
     let (_, before) = cx.write_book_v3(&s, move |t| {
+        let shared = plans
+            .iter()
+            .filter_map(|p| match p {
+                Plan::SharedMap(c, id) => Some((*c, id.clone())),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        if !shared.is_empty() {
+            let old = dr_doc::v3::BorrowedBookV3::new(&old_doc, &book)?;
+            t.restore_shared_records_at(&shared, &old.view())?;
+        }
         super::history_folders::apply(t, &folders)?;
         // Detach selected nodes first: a valid final graph can otherwise have a
         // transient cycle (restoring A above B while A currently lives below B).
@@ -225,6 +245,7 @@ fn restore(cx: &Cx<'_>, input: RestoreIn) -> Result<Vec<Done>> {
                 Plan::Map(c, id, snapshot) => {
                     t.restore_map_snapshot(c, &id, snapshot.as_ref())?;
                 }
+                Plan::SharedMap(_, _) => {}
             }
         }
         Ok(())

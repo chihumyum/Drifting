@@ -1,10 +1,7 @@
 //! The empty conversation is the guide. These decisions are independent of
 //! the view and use the same rules as the 0.1 onboarding.
 
-use std::collections::HashMap;
-
-use dr_agent::novel_template::Starter;
-use dr_i18n::{Key, keys};
+use dr_i18n::Key;
 use dr_shell::Settings;
 use gpui::App;
 use serde::{Deserialize, Serialize};
@@ -94,144 +91,16 @@ pub fn note(cx: &mut App, event: Event) {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Chapter {
-    pub id: String,
-    pub title: String,
-    pub book_order: usize,
-    pub word_count: u64,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Element {
-    pub id: String,
-    pub name: String,
-}
-
+/// Empty conversations use the copied template guidance in Agent context.
 #[derive(Clone, Debug, Default)]
-pub struct StarterSource {
-    /// v3 obtains task ideas from copied template guidance, not legacy slots.
-    pub template_guided: bool,
-    pub chapters: Vec<Chapter>,
-    /// Oldest first, to resolve equal relationship counts deterministically.
-    pub elements: Vec<Element>,
-    pub relation_counts: HashMap<String, usize>,
-    /// Most recently opened first, as in the old companion.
-    pub recent_chapter_ids: Vec<String>,
-}
+pub struct StarterSource;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StarterPrompt {
     pub key: Key,
     pub values: Vec<(&'static str, String)>,
-    pub mark: Option<StarterMark>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum StarterMark {
-    Chapter(String),
-    Element(String),
-}
-
-// Typed localization adapter: prompt ownership stays in novel_template,
-// while the native locale inventory can verify every key is actually used.
-fn starter_key(starter: Starter) -> Key {
-    use keys::agent_panel::onboarding::prompts as k;
-    match starter {
-        Starter::Outline => k::OUTLINE,
-        Starter::Interview => k::INTERVIEW,
-        Starter::Cast => k::CAST_CHARACTERS,
-        Starter::Comment => k::COMMENT_CHAPTER,
-        Starter::Tighten => k::TIGHTEN_CHAPTER,
-        Starter::Relate => k::RELATE_ELEMENTS,
-        Starter::Complete => k::COMPLETE_ELEMENT,
-        Starter::Extract => k::EXTRACT_ELEMENTS,
-    }
-}
-
-pub fn build_starter_prompts(source: &StarterSource) -> Vec<StarterPrompt> {
-    if source.template_guided {
-        return Vec::new();
-    }
-    let key = starter_key;
-    let written: Vec<_> = source
-        .chapters
-        .iter()
-        .filter(|chapter| chapter.word_count > 0 && !chapter.title.trim().is_empty())
-        .collect();
-    let chapter = source
-        .recent_chapter_ids
-        .iter()
-        .find_map(|id| written.iter().copied().find(|chapter| &chapter.id == id))
-        .or_else(|| {
-            written
-                .iter()
-                .copied()
-                .min_by_key(|chapter| chapter.book_order)
-        });
-    let Some(chapter) = chapter else {
-        return [
-            key(Starter::Outline),
-            key(Starter::Interview),
-            key(Starter::Cast),
-        ]
-        .into_iter()
-        .map(|key| StarterPrompt {
-            key,
-            values: Vec::new(),
-            mark: None,
-        })
-        .collect();
-    };
-    let chapter_prompt = |key| StarterPrompt {
-        key,
-        values: vec![("chapter", chapter.title.clone())],
-        mark: Some(StarterMark::Chapter(chapter.id.clone())),
-    };
-    let mut prompts = vec![
-        chapter_prompt(key(Starter::Comment)),
-        chapter_prompt(key(Starter::Tighten)),
-    ];
-    let mut elements: Vec<_> = source
-        .elements
-        .iter()
-        .filter(|element| !element.name.trim().is_empty())
-        .collect();
-    // Stable sorting retains the author's oldest-first order on ties.
-    elements.sort_by_key(|element| {
-        std::cmp::Reverse(
-            source
-                .relation_counts
-                .get(&element.id)
-                .copied()
-                .unwrap_or(0),
-        )
-    });
-    prompts.push(match elements.as_slice() {
-        [first, second, ..] => StarterPrompt {
-            key: key(Starter::Relate),
-            values: vec![
-                ("first", first.name.clone()),
-                ("second", second.name.clone()),
-            ],
-            mark: Some(StarterMark::Element(first.id.clone())),
-        },
-        [first] => StarterPrompt {
-            key: key(Starter::Complete),
-            values: vec![("element", first.name.clone())],
-            mark: Some(StarterMark::Element(first.id.clone())),
-        },
-        [] => chapter_prompt(key(Starter::Extract)),
-    });
-    prompts
-}
-
-#[cfg(test)]
-mod template_tests {
-    #[test]
-    fn novel_starters_keep_existing_translations() {
-        for starter in dr_agent::novel_template::Starter::ALL {
-            assert_eq!(super::starter_key(starter).name(), starter.key());
-        }
-    }
+pub fn build_starter_prompts(_: &StarterSource) -> Vec<StarterPrompt> {
+    Vec::new()
 }

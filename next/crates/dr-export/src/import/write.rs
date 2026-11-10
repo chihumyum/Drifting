@@ -1,21 +1,3 @@
-//! Creating what the files become (the commit half of 0.1's
-//! `ImportDialog`): one chapter, idea or element per file, through F3.
-//!
-//! Each file is created by F3's own command (`chapter.create`,
-//! `idea.create`, `element.create`) with its text, so it is one journal
-//! entry the author can undo, the same naming rules apply (a taken chapter
-//! or idea title gets a numbered suffix; a taken element name is refused)
-//! and, for the actors that get them (`Actor::Import`, the Agent), automatic
-//! entity links run on the text. Headings, quotes, rules, alignment and
-//! inline styles then go on in one commit to the new document
-//! (`ProseSession::edit`). Each file stands alone: one that fails is
-//! reported and the rest go on.
-//!
-//! - Chapters go after the last chapter in reading order, in the order
-//!   given, on the chosen storyline (0.1 required one; here a chapter may
-//!   have none, as F3 allows).
-//! - Ideas have no storyline; elements get the chosen category (or none).
-
 use std::ops::Range;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -24,9 +6,6 @@ use dr_model::prose::{
 };
 use dr_workspace::commands::BookIn;
 use dr_workspace::commands::book::BookGet;
-use dr_workspace::commands::chapter::{ChapterCreate, ChapterCreateIn};
-use dr_workspace::commands::element::{ElementCreate, ElementCreateIn};
-use dr_workspace::commands::idea::{IdeaCreate, IdeaCreateIn};
 use dr_workspace::{Actor, Workspace};
 
 use super::{ParsedDoc, title_from_filename};
@@ -201,7 +180,7 @@ pub fn import_docs(
             },
         )?
         .output;
-    if detail.info.trashed {
+    if detail.trashed {
         return Err(ExportError::NotFound(format!("book {book}")));
     }
     let mut out = Vec::new();
@@ -232,69 +211,91 @@ fn import_one(
         .collect::<Vec<_>>()
         .join("\n");
     let text = (!text.is_empty()).then_some(text);
-    let created = match target {
-        ImportTarget::Chapter { storyline } => {
-            let o = ws
-                .run::<ChapterCreate>(
-                    actor,
-                    ChapterCreateIn {
-                        book: book.to_owned(),
-                        title: title.to_owned(),
-                        place: None,
-                        summary: String::new(),
-                        storyline: storyline.clone(),
-                        text,
-                        narrative_order: None,
-                    },
-                )?
-                .output;
-            ImportedEntity {
-                doc: format!("node:{}", o.id),
-                id: o.id,
-                name: o.title,
-            }
+    // These are the existing novel import destinations. Their actual dynamic
+    // roots, level defaults, home and membership are resolved by the v3 kernel.
+    use dr_doc::v3::novel;
+    let book_id = book
+        .parse()
+        .map_err(|e: dr_model::id::IdError| ExportError::Invalid(e.to_string()))?;
+    let observed = ws.observe(&format!("book:{book}"))?;
+    let copy = ws
+        .library()
+        .load_copy(&format!("book:{book}"))
+        .map_err(dr_workspace::WsError::from)?;
+    if !dr_doc::v3::is_v3_doc(&copy) {
+        return Err(ExportError::Invalid("canonical v3 book required".into()));
+    }
+    let borrowed = dr_doc::v3::BorrowedBookV3::new(&copy, &book_id)
+        .map_err(|e| ExportError::Invalid(e.to_string()))?;
+    let view = borrowed.view();
+    let entries = view.entries_map();
+    let templates = view.templates_map();
+    let root = |template: &str| -> Result<String> {
+        let rows: Vec<_> = entries
+            .values()
+            .filter(|e| {
+                !e.is_trashed() && e.template.as_ref().is_some_and(|t| t.as_str() == template)
+            })
+            .collect();
+        match rows.as_slice() {
+            [e] => Ok(e.id.to_string()),
+            _ => Err(ExportError::Invalid(
+                "choose an unambiguous v3 import level".into(),
+            )),
         }
-        ImportTarget::Idea => {
-            let o = ws
-                .run::<IdeaCreate>(
-                    actor,
-                    IdeaCreateIn {
-                        book: book.to_owned(),
-                        title: title.to_owned(),
-                        group: None,
-                        position: None,
-                        summary: String::new(),
-                        text,
-                    },
-                )?
-                .output;
-            ImportedEntity {
-                doc: format!("node:{}", o.id),
-                id: o.id,
-                name: o.name,
-            }
-        }
-        ImportTarget::Element { category } => {
-            let o = ws
-                .run::<ElementCreate>(
-                    actor,
-                    ElementCreateIn {
-                        book: book.to_owned(),
-                        name: title.to_owned(),
-                        numbered: false,
-                        category: category.clone(),
-                        summary: String::new(),
-                        aliases: Vec::new(),
-                        text,
-                    },
-                )?
-                .output;
-            ImportedEntity {
-                doc: format!("element:{}", o.id),
-                id: o.id,
-                name: o.name,
-            }
-        }
+    };
+    let parent = match target {
+        ImportTarget::Chapter {
+            storyline: Some(id),
+        } => id.clone(),
+        ImportTarget::Chapter { storyline: None } => root(novel::TPL_MANUSCRIPT)?,
+        ImportTarget::Idea => root(novel::TPL_IDEAS)?,
+        ImportTarget::Element { category: Some(id) } => id.clone(),
+        ImportTarget::Element { category: None } => root(novel::TPL_ELEMENTS)?,
+    };
+    let level_id = parent
+        .parse()
+        .map_err(|e: dr_model::id::IdError| ExportError::Invalid(e.to_string()))?;
+    let settings = dr_model::v3::resolve_level_settings(Some(&level_id), &entries, &templates);
+    let template_id = settings.default_template.ok_or_else(|| {
+        ExportError::Invalid("import level needs an explicit default template".into())
+    })?;
+    let template = templates
+        .get(&template_id)
+        .ok_or_else(|| ExportError::Invalid("import template missing".into()))?;
+    let modules: Vec<_> = template.prose_modules().collect();
+    let [module] = modules.as_slice() else {
+        return Err(ExportError::Invalid(
+            "import template must identify exactly one prose module".into(),
+        ));
+    };
+    let module = module.id.to_string();
+    if ws.observe(&format!("book:{book}"))?.version != observed.version {
+        return Err(ExportError::Invalid(
+            "import target changed; select it again".into(),
+        ));
+    }
+    let created = ws.call_guarded(
+        actor,
+        "entry.create",
+        serde_json::json!({
+            "book": book, "parent": parent, "template": template_id,
+            "title": title, "bodies": {module.clone(): text.unwrap_or_default()}
+        }),
+        dr_workspace::WritePreconditions {
+            versions: std::collections::HashMap::from([(observed.doc, observed.version)]),
+            require_all: false,
+        },
+    )?;
+    let entity = &created["output"];
+    let id = entity["id"]
+        .as_str()
+        .ok_or_else(|| ExportError::Invalid("entry.create returned no id".into()))?
+        .to_owned();
+    let created = ImportedEntity {
+        doc: format!("body:{id}/{module}"),
+        name: entity["title"].as_str().unwrap_or(title).into(),
+        id,
     };
     let plain = ls.iter().all(|l| l.attrs.is_plain() && l.styles.is_empty());
     if !plain {

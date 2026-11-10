@@ -25,13 +25,12 @@
 //! This module only finds positions; writing links is the editor's and the
 //! commands' job (M12).
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::ops::Range;
 
 use aho_corasick::{AhoCorasick, MatchKind};
-use dr_doc::book::BookView;
+
 use dr_doc::prose::{Paragraph, ProseView};
-use dr_model::book::element_name_key;
 use dr_model::id::BlockId;
 use dr_model::kind::EntityKind;
 use prose_metrics::is_js_whitespace;
@@ -225,65 +224,4 @@ impl LinkMatcher<LinkTarget> {
             })
             .collect()
     }
-}
-
-/// The names a body of `book` links automatically, in priority order (feed
-/// them to [`LinkMatcher::new`]): every live element's name and aliases,
-/// then every live chapter's and idea's title. `exclude` lists entity ids
-/// that must not be linked: the document's own entity, and for a patch its
-/// element.
-///
-/// An element dr-doc marks with `name_conflict` (it shares a name or alias
-/// with an element created earlier) contributes only the names no other
-/// live element keeps.
-pub fn book_link_names(book: &BookView<'_>, exclude: &[&str]) -> Vec<LinkName<LinkTarget>> {
-    let excluded: HashSet<&str> = exclude.iter().copied().collect();
-    let elements: Vec<_> = book
-        .elements()
-        .into_iter()
-        .filter(|e| e.deleted_at.is_none())
-        .collect();
-    // Name keys owned by the elements that keep their names.
-    let mut owner: HashMap<String, &str> = HashMap::new();
-    for e in elements.iter().filter(|e| e.name_conflict.is_none()) {
-        for n in std::iter::once(&e.name).chain(e.aliases.iter()) {
-            let key = element_name_key(n);
-            if !key.is_empty() {
-                owner.entry(key).or_insert(e.id.as_str());
-            }
-        }
-    }
-    let mut out = Vec::new();
-    for e in &elements {
-        if excluded.contains(e.id.as_str()) {
-            continue;
-        }
-        for n in std::iter::once(&e.name).chain(e.aliases.iter()) {
-            if e.name_conflict.is_some()
-                && owner
-                    .get(&element_name_key(n))
-                    .is_some_and(|o| *o != e.id.as_str())
-            {
-                continue;
-            }
-            out.push(LinkName::new(
-                n.clone(),
-                LinkTarget::new(EntityKind::Element, e.id.as_str()),
-            ));
-        }
-    }
-    // Chapters in book order, then ideas by id: for a title two of them
-    // share, the later one wins, as in the old `Map`.
-    let mut ideas = book.drifts();
-    ideas.sort_by(|a, b| a.id.cmp(&b.id));
-    for n in book.chapters().into_iter().chain(ideas) {
-        if excluded.contains(n.id.as_str()) {
-            continue;
-        }
-        out.push(LinkName::new(
-            n.title.clone(),
-            LinkTarget::new(EntityKind::Node, n.id.as_str()),
-        ));
-    }
-    out
 }

@@ -38,14 +38,11 @@ fn runtime_commit_is_durable_before_reveal_and_input_finishes_without_rewriting(
     let dir = tempfile::tempdir().unwrap();
     let ws = Workspace::open_dir(dir.path(), "f4-playback-test").unwrap();
     ws.set_auto_links(false);
-    let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+    let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
     seeded.write_to(ws.library()).unwrap();
     let book = seeded.books[0].book_id().clone();
-    let chapters = ws
-        .call(&Actor::User, "chapter.list", json!({"book":book}))
-        .unwrap()["output"]
-        .clone();
-    let doc = format!("node:{}", chapters[0]["id"].as_str().unwrap());
+    let chapters = dr_testkit::seed::acceptance::entries_by_template(&ws, &book, "tpl-chapter");
+    let doc = format!("body:{}/mod-prose", chapters[0]["id"].as_str().unwrap());
     let prose = ws
         .call(&Actor::User, "prose.read", json!({"doc":doc}))
         .unwrap()["output"]
@@ -107,7 +104,14 @@ fn runtime_commit_is_durable_before_reveal_and_input_finishes_without_rewriting(
     .unwrap();
     let run = runtime
         .start(Start {
-            config: RunConfig::new(Provider::Openai, "synthetic-model"),
+            config: {
+                let mut c = RunConfig::new(Provider::Openai, "synthetic-model");
+                c.capabilities = Some(dr_agent::ModelCapabilities {
+                    context_window: Some(262_144),
+                    ..Default::default()
+                });
+                c
+            },
             book,
             conversation: ConversationId::new_v7(),
             input: original,

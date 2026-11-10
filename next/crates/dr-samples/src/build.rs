@@ -7,12 +7,12 @@
 
 use std::collections::BTreeMap;
 
-use dr_doc::book::{BookDoc, BookTxn};
+use dr_doc::import_v1::{BookDoc, BookTxn};
 use dr_doc::peer::import_peer;
 use dr_doc::prose::{ProseDoc, ProseTxn};
 use dr_doc::{DocError, Result};
-use dr_model::book::EntityRef;
 use dr_model::id::BookId;
+use dr_model::import_v1::EntityRef;
 use dr_model::kind::ListKind;
 use dr_model::pos::PosKey;
 use dr_model::prose::{BlockAttrs, EntityLink};

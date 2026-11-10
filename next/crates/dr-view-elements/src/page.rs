@@ -16,9 +16,9 @@ use dr_ui::{
     tokens::Rgb,
 };
 use gpui::{
-    AnyElement, App, ClickEvent, Div, ElementId, InteractiveElement as _, IntoElement,
-    ParentElement as _, SharedString, StatefulInteractiveElement as _, Styled as _, Window, canvas,
-    div, point, px, size,
+    AnyElement, App, ClickEvent, Div, InteractiveElement as _, IntoElement, ParentElement as _,
+    SharedString, StatefulInteractiveElement as _, Styled as _, Window, canvas, div, point, px,
+    size,
 };
 
 /// The text's type as the author set it (the entity page follows the
@@ -77,59 +77,6 @@ pub fn dotted_rule(color: Rgb) -> impl IntoElement {
     .h(px(1.0))
 }
 
-/// The folio over a page (`.page__folio`): small index type, the parts
-/// joined by a faint 「·」, a dotted rule under it.
-pub fn folio(parts: Vec<AnyElement>, window: &Window, cx: &App) -> AnyElement {
-    let theme = Theme::of(window, cx);
-    let p = theme.palette;
-    let mut line = div()
-        .flex()
-        .flex_row()
-        .flex_wrap()
-        .items_center()
-        .font_role(Role::Index)
-        .type_px(9.5, 9.5 * 1.4)
-        .text_color(p.ink(4).solid());
-    for (i, part) in parts.into_iter().enumerate() {
-        if i > 0 {
-            line = line.child(div().mx(px(8.0)).text_color(p.ink(5).solid()).child("·"));
-        }
-        line = line.child(part);
-    }
-    div()
-        .mb(px(28.0))
-        .flex()
-        .flex_col()
-        .child(div().pb(px(14.0)).child(line))
-        .child(dotted_rule(p.rule))
-        .into_any_element()
-}
-
-/// A part of the folio: a kind mark and a name in ink (`.page__folio-
-/// storyline`).
-pub fn folio_mark(
-    id: impl Into<ElementId>,
-    kind: sand::Kind,
-    color: Option<Rgb>,
-    name: SharedString,
-    window: &Window,
-    cx: &App,
-) -> AnyElement {
-    let p = Theme::of(window, cx).palette;
-    let mark = sand::KindMark::new(id, kind);
-    div()
-        .flex()
-        .flex_row()
-        .items_center()
-        .gap(px(5.0))
-        .child(match color {
-            Some(c) => mark.color(c),
-            None => mark,
-        })
-        .child(div().text_color(p.ink(2).solid()).child(name))
-        .into_any_element()
-}
-
 /// A section's head on the page (`.page__section`): its title in the
 /// structure face, then an index-type meta or a text action on the right,
 /// a dotted rule under it. The first section of a page sits closer to what
@@ -165,18 +112,6 @@ pub fn section(
                 .children(trailing),
         )
         .child(dotted_rule(p.rule))
-        .into_any_element()
-}
-
-/// A section head's meta (`.page__section-meta`): index type, faint.
-pub fn meta(text: SharedString, window: &Window, cx: &App) -> AnyElement {
-    let p = Theme::of(window, cx).palette;
-    div()
-        .flex_none()
-        .font_role(Role::Index)
-        .type_px(10.0, 14.0)
-        .text_color(p.ink(4).solid())
-        .child(text)
         .into_any_element()
 }
 

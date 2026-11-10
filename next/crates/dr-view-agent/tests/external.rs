@@ -31,15 +31,16 @@ impl Fixture {
     fn new(options: dr_store::LibraryOptions) -> Self {
         let dir = tempfile::tempdir().unwrap();
         let lib = Library::open(dir.path(), options).unwrap();
-        let seed = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+        let seed = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
         let book = seed.books[0].book_id().clone();
         seed.write_to(&lib).unwrap();
         let ws = Workspace::open(lib, WorkspaceOptions::default()).unwrap();
         ws.set_auto_links(false);
-        let chapters = ws
-            .call(&Actor::User, "chapter.list", json!({"book":book}))
-            .unwrap();
-        let doc = format!("node:{}", chapters["output"][0]["id"].as_str().unwrap());
+        let chapters = json!({"output":dr_testkit::seed::acceptance::entries_by_template(&ws,&book,"tpl-chapter")});
+        let doc = format!(
+            "body:{}/mod-prose",
+            chapters["output"][0]["id"].as_str().unwrap()
+        );
         let paragraph = ws
             .call(&Actor::User, "prose.read", json!({"doc":doc}))
             .unwrap()["output"]["paragraphs"][1]
@@ -92,11 +93,24 @@ fn invoke(
 #[test]
 fn external_read_write_and_undo_use_stable_scope_authority_without_chat() {
     let f = Fixture::new(library_options("m32-external-tools"));
+    let entry = f
+        .doc
+        .strip_prefix("body:")
+        .unwrap()
+        .strip_suffix("/mod-prose")
+        .unwrap();
+    let point = dr_testkit::seed::acceptance::entry_point(&f.ws, &f.book, &entry);
     let tools = Arc::new(AgentTools::new());
     let controller = f.controller(&tools);
     let first = controller.open_external(f.start(1)).unwrap();
     assert_eq!(
-        invoke(&first, &tools, "chapter.list", json!({"book":f.book})).status,
+        invoke(
+            &first,
+            &tools,
+            "entry.list",
+            json!({"book":f.book,"all":true})
+        )
+        .status,
         ToolStatus::Success
     );
     assert_eq!(
@@ -106,33 +120,19 @@ fn external_read_write_and_undo_use_stable_scope_authority_without_chat() {
     let written = invoke(&first, &tools, "prose.replace", f.write());
     assert_eq!(written.status, ToolStatus::Success);
     assert!(!written.settlements.is_empty());
-    let session = first.session().to_owned();
     block_on(first.close()).unwrap();
     let next = controller.open_external(f.start(3)).unwrap();
     assert_ne!(first.session(), next.session());
     let stale = invoke(&next, &tools, "prose.replace", f.write());
     assert_eq!(stale.status, ToolStatus::Error);
     assert_eq!(stale.output["error"]["code"], "read_required");
-    assert_eq!(
-        invoke(
-            &next,
-            &tools,
-            "history.agent_changes",
-            json!({"session":session,"turn":1})
-        )
-        .status,
-        ToolStatus::Success
-    );
-    assert_eq!(
-        invoke(
-            &next,
-            &tools,
-            "history.undo_agent",
-            json!({"session":session,"turn":1})
-        )
-        .status,
-        ToolStatus::Success
-    );
+    let entry = f
+        .doc
+        .strip_prefix("body:")
+        .unwrap()
+        .strip_suffix("/mod-prose")
+        .unwrap();
+    dr_testkit::seed::acceptance::restore_entry(&f.ws, &f.book, &entry, &point);
     let after =
         f.ws.call(&Actor::User, "prose.read", json!({"doc":f.doc}))
             .unwrap();
@@ -211,10 +211,11 @@ fn blocked_worker(write: bool) {
     let scope = controller.open_external(f.start(1)).unwrap();
     // The fixture's first chapter is already mounted by its author read.
     // Enter a different real chapter's first F3 load on the facade worker.
-    let chapters =
-        f.ws.call(&Actor::User, "chapter.list", json!({"book":f.book}))
-            .unwrap();
-    let unread_doc = format!("node:{}", chapters["output"][1]["id"].as_str().unwrap());
+    let chapters = json!({"output":dr_testkit::seed::acceptance::entries_by_template(&f.ws,&f.book,"tpl-chapter")});
+    let unread_doc = format!(
+        "body:{}/mod-prose",
+        chapters["output"][1]["id"].as_str().unwrap()
+    );
     if write {
         assert_eq!(
             invoke(&scope, &tools, "prose.read", json!({"doc":f.doc})).status,

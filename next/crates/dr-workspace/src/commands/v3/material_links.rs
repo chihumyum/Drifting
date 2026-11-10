@@ -1,6 +1,6 @@
 //! One generic material → entry association at a time; never replace a set.
 use super::*;
-use dr_model::{book::EntityRef, kind::EntityKind};
+use dr_model::{kind::EntityKind, shared::EntityRef};
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct SetEntryLinkIn {
@@ -36,7 +36,7 @@ op! {
             return Err(WsError::not_found("live entry", &input.entry));
         }
         let entry = EntityRef::new(EntityKind::Entry, &input.entry);
-        let ty = dr_doc::book::generic_relation_type_id(&slot.book);
+        let ty = dr_doc::catalog::generic_relation_type_id(&slot.book);
         let matching: Vec<_> = view.relations_raw().into_iter()
             .filter(|r| r.relation_type == ty && r.from == material && r.to == entry)
             .map(|r| r.id).collect();

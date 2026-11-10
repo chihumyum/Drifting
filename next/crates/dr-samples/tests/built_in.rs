@@ -4,16 +4,31 @@
 //! attempt leaves nothing and is retried; an interrupted one is cleaned up;
 //! attempts run out.
 
+mod common;
 use std::path::Path;
 
 use dr_samples::{
     ATTEMPTS_EXHAUSTED, MARKER_KEY, MARKER_SCOPE, MAX_ATTEMPTS, NOT_A_NEW_LIBRARY, Outcome, RECIPE,
-    book_ids, ensure_built_in,
+    book_ids,
 };
 use dr_store::OpenDoc;
 use dr_workspace::{Actor, Workspace};
 use serde_json::{Value, json};
 
+fn choices() -> &'static dr_samples::v3::MappingChoices {
+    static CHOICES: std::sync::OnceLock<dr_samples::v3::MappingChoices> =
+        std::sync::OnceLock::new();
+    CHOICES.get_or_init(|| {
+        let mut choices = common::test_choices(&dr_samples::a_q().unwrap());
+        choices.relation_templates.extend(
+            common::test_choices(&dr_samples::pride_and_prejudice().unwrap()).relation_templates,
+        );
+        choices
+    })
+}
+fn ensure_built_in(ws: &Workspace) -> Outcome {
+    dr_samples::ensure_built_in_with(ws, choices())
+}
 fn open(dir: &Path) -> Workspace {
     Workspace::open_dir(dir, "test").unwrap()
 }
@@ -26,6 +41,7 @@ fn out(ws: &Workspace, name: &str, input: Value) -> Value {
 
 /// The live books on the shelf: (id, name, chapters, words).
 fn shelf(ws: &Workspace) -> Vec<(String, String, u64, u64)> {
+    ws.library().rebuild_stale_indexes().unwrap();
     out(ws, "book.shelf", json!({}))
         .as_array()
         .unwrap()
@@ -146,7 +162,7 @@ fn a_library_with_a_book_is_skipped() {
     // A live book.
     let dir = tempfile::tempdir().unwrap();
     let ws = open(dir.path());
-    let mine = out(&ws, "book.create", json!({ "name": "我的书" }))["id"]
+    let mine = out(&ws, "project.create", json!({ "name": "我的书" }))["id"]
         .as_str()
         .unwrap()
         .to_owned();
@@ -170,7 +186,7 @@ fn a_library_with_a_book_is_skipped() {
     // A book in Recently Deleted counts too.
     let dir = tempfile::tempdir().unwrap();
     let ws = open(dir.path());
-    let mine = out(&ws, "book.create", json!({ "name": "废稿" }))["id"]
+    let mine = out(&ws, "project.create", json!({ "name": "废稿" }))["id"]
         .as_str()
         .unwrap()
         .to_owned();
@@ -183,7 +199,11 @@ fn a_library_with_a_book_is_skipped() {
     let dir = tempfile::tempdir().unwrap();
     let ws = open(dir.path());
     let a_q = dr_samples::a_q().unwrap();
-    let written = dr_samples::write_book(ws.library(), &a_q).unwrap();
+    let written = dr_samples::v3::write_book(
+        ws.library(),
+        &dr_samples::v3::convert(&a_q, choices()).unwrap(),
+    )
+    .unwrap();
     assert_eq!(ensure_built_in(&ws), skipped);
     assert_eq!(stored(&ws, &book_ids()[1]), written);
     assert_eq!(stored(&ws, &book_ids()[0]), 0);
@@ -191,7 +211,7 @@ fn a_library_with_a_book_is_skipped() {
     // So does one deleted for good before the samples were ever checked.
     let dir = tempfile::tempdir().unwrap();
     let ws = open(dir.path());
-    let mine = out(&ws, "book.create", json!({ "name": "旧书" }))["id"]
+    let mine = out(&ws, "project.create", json!({ "name": "旧书" }))["id"]
         .as_str()
         .unwrap()
         .to_owned();
@@ -212,11 +232,11 @@ fn a_failed_attempt_leaves_nothing_and_is_retried() {
     // library still counts as new).
     let lib = ws.library();
     let pp = dr_samples::pride_and_prejudice().unwrap();
-    let doc = pp.prose[10].doc_id().to_string();
+    let doc = dr_samples::v3::prose_id(pp.book_id(), pp.prose[10].doc_id()).to_string();
     lib.open_doc(
         &doc,
         OpenDoc::CreateIfMissing {
-            kind: pp.prose[10].doc_id().kind().prefix(),
+            kind: dr_model::DocId::parse(&doc).unwrap().kind().prefix(),
             book_id: Some(&books[0]),
             genesis: &|_| {},
         },
@@ -263,7 +283,7 @@ fn an_interrupted_attempt_is_cleaned_up_and_attempts_run_out() {
         &ws,
         json!({ "status": "creating", "recipe": RECIPE, "books": books, "attempts": 1 }),
     );
-    dr_samples::write_book(ws.library(), &dr_samples::a_q().unwrap()).unwrap();
+    dr_samples::v3::write_book(ws.library(), &dr_samples::v3::a_q(choices()).unwrap()).unwrap();
     assert_eq!(
         ensure_built_in(&ws),
         Outcome::Created {
@@ -289,4 +309,27 @@ fn an_interrupted_attempt_is_cleaned_up_and_attempts_run_out() {
     assert_eq!(ensure_built_in(&ws), exhausted);
     assert_eq!(ensure_built_in(&ws), exhausted);
     assert!(shelf(&ws).is_empty());
+}
+
+#[test]
+fn missing_sample_policy_is_pending_before_claim_and_created_markers_never_resurrect_books() {
+    let dir = tempfile::tempdir().unwrap();
+    let ws = open(dir.path());
+    assert!(
+        matches!(dr_samples::ensure_built_in(&ws),Outcome::Pending{items} if !items.is_empty())
+    );
+    assert!(ws.library().docs(None, None).unwrap().is_empty());
+    assert!(
+        ws.library()
+            .local_get(MARKER_SCOPE, MARKER_KEY)
+            .unwrap()
+            .is_none()
+    );
+    set_marker(
+        &ws,
+        json!({"status":"created","recipe":RECIPE,"books":book_ids(),"attempts":1}),
+    );
+    assert_eq!(dr_samples::ensure_built_in(&ws), Outcome::AlreadyDone);
+    assert!(ws.library().docs(None, None).unwrap().is_empty());
+    ws.shutdown().unwrap();
 }

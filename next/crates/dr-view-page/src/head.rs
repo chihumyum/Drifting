@@ -1,7 +1,7 @@
 //! A chapter's or an idea's page head: the act's title page (whole book
 //! only), the folio line, the title and synopsis fields, the rule.
 
-use dr_editor::page::{self, ActPage, PageInfo, PageKind};
+use dr_editor::page::{self, PageInfo, PageKind};
 use dr_i18n::keys;
 use dr_shell::pages::PageHost;
 use dr_shell::strings::{t, tf};
@@ -10,7 +10,7 @@ use dr_ui::{
     Theme,
     fonts::Role,
     input::{AreaEvent, FieldEvent, TextArea},
-    sand::{self, KindMark, Readout},
+    sand::{self, KindMark},
     style::DrStyled,
     tokens::page as tk,
 };
@@ -291,22 +291,21 @@ fn read_group_path(host: &PageHost, page: &PageInfo, cx: &gpui::App) -> Option<S
     if page.kind != PageKind::Idea {
         return None;
     }
-    let id = page.doc.strip_prefix("node:")?;
+    let (id, _) = dr_editor::v3::body(&page.doc)?;
     let workspace = host.workspace.upgrade()?;
-    let book = &workspace.read(cx).book;
-    let idea = book.ideas.iter().find(|idea| idea.id == id)?;
-    let mut current = idea.group.as_deref();
-    let mut chain = Vec::new();
+    let book = workspace.read(cx).book.v3()?;
+    let mut parent = book.entry(&id)?.parent.as_deref();
     let mut seen = std::collections::HashSet::new();
-    while let Some(id) = current {
+    let mut chain = Vec::new();
+    while let Some(id) = parent {
         if !seen.insert(id) {
             break;
         }
-        let Some(group) = book.idea_groups.iter().find(|group| group.id == id) else {
-            break;
-        };
-        chain.push(group.name.as_str());
-        current = group.parent.as_deref();
+        let entry = book.entry(id)?;
+        if entry.parent.is_some() {
+            chain.push(entry.title.as_str());
+        }
+        parent = entry.parent.as_deref();
     }
     if chain.is_empty() {
         None
@@ -377,72 +376,6 @@ fn roman(n: usize) -> String {
 pub fn thousands(words: u64) -> String {
     let tenths = (words + 50) / 100;
     format!("{}.{}", tenths / 10, tenths % 10)
-}
-
-/// An act's title page above the chapter that opens it: 「第一幕」, the
-/// name, one dry stroke, 「N 章 · x.xk 字」, with room above and below.
-fn act_page(doc: &str, act: &ActPage, window: &Window, cx: &gpui::App) -> Div {
-    let p = Theme::of(window, cx).palette;
-    let chinese = matches!(
-        dr_shell::strings::Strings::get(cx).locale(),
-        dr_i18n::Locale::ZhCn | dr_i18n::Locale::ZhTw
-    );
-    let ordinal = tf(
-        cx,
-        keys::all_chapters::ACT_ORDINAL,
-        &[("n", &act_numeral(act.ordinal, chinese))],
-    );
-    let chapters = tf(
-        cx,
-        keys::storyline_editor::meta::CHAPTERS,
-        &[("count", &act.chapters)],
-    );
-    let words = tf(
-        cx,
-        keys::storyline_editor::meta::K_WORDS,
-        &[("count", &thousands(act.words))],
-    );
-    div()
-        .w_full()
-        .pt(px(tk::ACT_TOP))
-        .pb(px(tk::ACT_BOTTOM))
-        .flex()
-        .flex_col()
-        .items_center()
-        .child(
-            div()
-                .font_role(Role::Structure)
-                .type_px(tk::ACT_ORDINAL_SIZE, tk::ACT_ORDINAL_SIZE)
-                .text_color(p.ink(4).solid())
-                .child(ordinal),
-        )
-        .child(
-            div()
-                .mt(px(tk::ACT_ORDINAL_GAP))
-                .font_role(Role::Prose)
-                .type_px(tk::ACT_NAME_SIZE, tk::ACT_NAME_SIZE * tk::ACT_NAME_LINE)
-                .text_color(p.ink(1).solid())
-                .child(act.name.clone()),
-        )
-        .child(
-            div().mt(px(tk::ACT_GAP)).w(px(tk::ACT_STROKE)).child(
-                Readout::new(ElementId::Name(format!("page-act-{doc}").into()), 1.0)
-                    .bare()
-                    .color(p.ink(3)),
-            ),
-        )
-        .child(
-            div()
-                .mt(px(tk::ACT_GAP))
-                .flex()
-                .flex_row()
-                .font_role(Role::Index)
-                .type_px(tk::ACT_META_SIZE, tk::ACT_META_LINE)
-                .text_color(p.ink(4).solid())
-                .child(chapters)
-                .child(div().mx(px(8.0)).text_color(p.ink(5).solid()).child("·"))
-                .child(words),
-        )
 }
 
 impl Render for PageHead {
@@ -551,16 +484,8 @@ impl Render for PageHead {
             )
             .child(div().mb(px(tk::RULE_GAP)).h(px(1.0)).bg(p.rule.solid()));
         // The act this chapter opens (the whole book).
-        let act = page
-            .act_page
-            .as_ref()
-            .map(|act| act_page(&page.doc, act, window, cx));
-        div()
-            .w_full()
-            .flex()
-            .flex_col()
-            .children(act)
-            .child(outer.child(text))
+
+        div().w_full().flex().flex_col().child(outer.child(text))
     }
 }
 

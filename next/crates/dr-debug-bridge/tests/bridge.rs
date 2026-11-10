@@ -33,7 +33,7 @@ fn slow_clock() -> (tempfile::TempDir, Library) {
     let root = dir.path().join("library");
     let lib = dr_store::Library::open(&root, dr_workspace::library_options(VERSION)).unwrap();
     let book = dr_testkit::samples::slow_clock().unwrap();
-    dr_testkit::seed::write_book(&lib, &book).unwrap();
+    dr_testkit::seed::write_book_v3(&lib, &dr_testkit::seed::book_to_v3(&book).unwrap()).unwrap();
     lib.close().unwrap();
     (dir, Library::open_dir(&root, VERSION).unwrap())
 }
@@ -56,6 +56,7 @@ fn setup(
             SettingsFile::in_memory(),
             cx,
         );
+        dr_view_page::init(cx);
     });
     let (view, cx) = cx.add_window_view(Workspace::new);
     wait_for(&view, cx, |ws, _| !ws.book.is_empty());
@@ -154,14 +155,25 @@ fn the_shell_is_read_and_driven(cx: &mut TestAppContext) {
     let chapters = call(
         cx,
         "command.call",
-        json!({"name": "chapter.list", "input": {"book": s["book"]["id"]}}),
+        json!({"name":"entry.list","input":{"book":s["book"]["id"],"all":true}}),
     )
     .unwrap();
-    let first = &chapters["output"][0];
-    let second = &chapters["output"][1];
-    let first_doc = format!("node:{}", first["id"].as_str().unwrap());
-    let opened = call(cx, "nav.open", json!({"chapter": first["title"]})).unwrap();
-    let key = format!("chapter:{}", first["id"].as_str().unwrap());
+    let chapters: Vec<_> = chapters["output"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|e| e["template"] == "tpl-chapter")
+        .collect();
+    let first = chapters[0];
+    let second = chapters[1];
+    let first_doc = format!("body:{}/mod-prose", first["id"].as_str().unwrap());
+    let opened = call(
+        cx,
+        "nav.open",
+        json!({"target":format!("entry:{}/mod-prose",first["id"].as_str().unwrap())}),
+    )
+    .unwrap();
+    let key = format!("entry:{}/mod-prose", first["id"].as_str().unwrap());
     assert_eq!(opened["opened"], json!(key));
     wait_for(&view, cx, editor_ready);
     // The shell hands the opened page's editor the keyboard (F6).
@@ -247,7 +259,7 @@ fn the_shell_is_read_and_driven(cx: &mut TestAppContext) {
 
     // A change through F3 (as the author, from outside the window) reaches
     // the open editor through the workspace's events.
-    let second_doc = format!("node:{}", second["id"].as_str().unwrap());
+    let second_doc = format!("body:{}/mod-prose", second["id"].as_str().unwrap());
     let theirs = call(
         cx,
         "command.call",
@@ -261,7 +273,7 @@ fn the_shell_is_read_and_driven(cx: &mut TestAppContext) {
     call(
         cx,
         "nav.open",
-        json!({"target": format!("chapter:{}", second["id"].as_str().unwrap())}),
+        json!({"target": format!("entry:{}/mod-prose", second["id"].as_str().unwrap())}),
     )
     .unwrap();
     wait_for(&view, cx, editor_ready);
@@ -279,14 +291,9 @@ fn the_shell_is_read_and_driven(cx: &mut TestAppContext) {
             .is_some_and(|t| t.starts_with("灯塔亮了。"))
     });
     call(cx, "ui.wait", json!({"text": "灯塔亮了。"})).unwrap();
-    // The seed's stale indexes catch up once the typing has been quiet for
-    // a moment (F2's `background_quiet`): ask until the count is in.
-    call_until(
-        cx,
-        "command.call",
-        json!({"name": "book.get", "input": {"book": s["book"]["id"]}}),
-        |w| w["output"]["words"].as_u64().is_some_and(|n| n > 1000),
-    );
+    call_until(cx, "state.get", json!({}), |state| {
+        state["book"]["version"] == 3
+    });
 
     // ⌘[ goes back through the keymap, from inside the editor too.
     let back = call(cx, "input.key", json!({"keys": "secondary-["})).unwrap();
@@ -296,9 +303,13 @@ fn the_shell_is_read_and_driven(cx: &mut TestAppContext) {
         json!(key)
     );
     assert_eq!(
-        call(cx, "nav.open", json!({"chapter": "没有这一章"}))
-            .unwrap_err()
-            .code,
+        call(
+            cx,
+            "nav.open",
+            json!({"target": "entry:synthetic-missing/mod-prose"})
+        )
+        .unwrap_err()
+        .code,
         codes::NOT_FOUND
     );
 
@@ -346,18 +357,28 @@ fn the_shell_is_read_and_driven(cx: &mut TestAppContext) {
 
 #[gpui::test]
 fn the_chapter_page_head_is_read_and_its_title_reached(cx: &mut TestAppContext) {
-    cx.update(dr_view_page::init);
     let (view, cx, _dir) = setup(cx);
     let book = cx.update(|_, cx| view.read(cx).book_id.clone());
     let chapters = call(
         cx,
         "command.call",
-        json!({ "name": "chapter.list", "input": { "book": book } }),
+        json!({ "name":"entry.list","input":{"book":book,"all":true} }),
     )
     .unwrap();
-    let first = chapters["output"][0].clone();
+    let first = chapters["output"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|e| e["template"] == "tpl-chapter")
+        .unwrap()
+        .clone();
     let id = first["id"].as_str().unwrap().to_owned();
-    call(cx, "nav.open", json!({ "chapter": id })).unwrap();
+    call(
+        cx,
+        "nav.open",
+        json!({ "target": format!("entry:{id}/mod-prose") }),
+    )
+    .unwrap();
     wait_for(&view, cx, editor_ready);
 
     // The head is drawn with the editor's first frame.
@@ -398,8 +419,8 @@ fn the_chapter_page_head_is_read_and_its_title_reached(cx: &mut TestAppContext) 
     );
 
     // Fields the page does not have, and settings.
-    let err = call(cx, "ui.focus", json!({ "field": "element.name" })).unwrap_err();
-    assert_eq!(err.code, codes::NOT_FOUND);
+    let err = call(cx, "ui.focus", json!({ "field": "entry.missing" })).unwrap_err();
+    assert_eq!(err.code, codes::BAD_REQUEST);
     let settings = call(cx, "settings.get", json!({ "keys": ["editor.font_size"] })).unwrap();
     assert_eq!(settings["values"]["editor.font_size"], json!(17.0));
     // GPUI's test platform has no accessibility adapter: nothing is found.
@@ -434,7 +455,10 @@ fn the_socket_answers_with_the_token_only(cx: &mut TestAppContext) {
             stage("state.get");
             let state = c.call("state.get", json!({}))?;
             stage("nav.open missing chapter");
-            let opened = c.call("nav.open", json!({"chapter": "没有这一章"}));
+            let opened = c.call(
+                "nav.open",
+                json!({"target": "entry:synthetic-missing/mod-prose"}),
+            );
             stage("read connection file");
             let mut forged = dr_debug_bridge::protocol::Connection::read(&client_paths.connection)?;
             forged.token = "nope".into();

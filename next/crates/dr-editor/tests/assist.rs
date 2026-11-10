@@ -29,7 +29,7 @@ fn env() -> Env {
     let dir = tempfile::tempdir().unwrap();
     let lib = Library::open(dir.path(), library_options("test")).unwrap();
     let ws = Workspace::open(lib, WorkspaceOptions::default()).unwrap();
-    let book = out(&ws, "book.create", json!({"name": "助手"}))["id"]
+    let book = out(&ws, "project.create", json!({"name": "助手"}))["id"]
         .as_str()
         .unwrap()
         .to_owned();
@@ -41,26 +41,26 @@ fn env() -> Env {
 }
 
 fn element(e: &Env, name: &str, aliases: &[&str]) -> String {
+    let entry =
+        dr_testkit::seed::acceptance::novel_entry(&e.ws, &e.book, "tpl-character", name, None);
+    let id = entry["id"].as_str().unwrap().to_owned();
     out(
         &e.ws,
-        "element.create",
-        json!({"book": e.book, "name": name, "aliases": aliases}),
-    )["id"]
-        .as_str()
-        .unwrap()
-        .to_owned()
+        "module.set_field",
+        json!({"book":e.book,"entry":id,"module":"mod-fields","field":"aliases","value":aliases}),
+    );
+    id
 }
 
 fn chapter(e: &Env, title: &str, text: &str) -> String {
     let id = out(
         &e.ws,
-        "chapter.create",
-        json!({"book": e.book, "title": title, "text": text}),
+        "entry.create", json!({"book": e.book, "parent": dr_testkit::seed::acceptance::novel_root(&e.ws, &e.book, "tpl-manuscript"), "template": "tpl-chapter", "title": title, "bodies": {"mod-prose": text}}),
     )["id"]
         .as_str()
         .unwrap()
         .to_owned();
-    format!("node:{id}")
+    format!("body:{id}/mod-prose")
 }
 
 fn draw(cx: &mut VisualTestContext) {
@@ -216,39 +216,6 @@ fn pasted_names_link_themselves(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-fn a_new_element_links_itself_in_text_already_written(cx: &mut TestAppContext) {
-    let e = env();
-    let open_doc = chapter(&e, "一", "沈知微来了。");
-    let closed = chapter(&e, "二", "沈知微在码头等着。");
-    let mut o = open(cx, &e, &open_doc);
-    // The element appears (made in its own page, say). `element.create`
-    // links its name in the text already written before it returns (F3's
-    // `autolink`): the chapter no editor has open at once, the open one as
-    // a write of someone else's that the editor draws.
-    let shen = element(&e, "沈知微", &[]);
-    let key = gpui_prose::schema::inline::entity_key(&shen);
-    let doc = gpui_prose::ProseDoc::open(Box::new(
-        dr_editor::SessionSource::open(&e.ws, &closed).unwrap(),
-    ));
-    assert!(doc.marks_before(1).has(&key), "the closed chapter");
-    draw(o.cx);
-    assert!(o.linked(0, &shen) && o.linked(2, &shen) && !o.linked(3, &shen));
-    // The links are the command's step (F3 round seven: `element.create`
-    // links the new name in the text already written, as `user:command`):
-    // the editor's undo leaves them, the object-level undo takes them back.
-    o.action(Undo);
-    assert!(o.linked(0, &shen));
-    e.ws.undo(&Actor::User).unwrap().unwrap();
-    let deadline = std::time::Instant::now() + Duration::from_secs(5);
-    while o.linked(0, &shen) && std::time::Instant::now() < deadline {
-        draw(o.cx);
-        std::thread::sleep(Duration::from_millis(5));
-    }
-    assert!(!o.linked(0, &shen));
-    assert_eq!(o.text(), "沈知微来了。\n");
-}
-
-#[gpui::test]
 fn a_rename_does_not_break_links(cx: &mut TestAppContext) {
     let e = env();
     let yue = element(&e, "约格", &[]);
@@ -262,8 +229,8 @@ fn a_rename_does_not_break_links(cx: &mut TestAppContext) {
     // when the author types right after it.
     out(
         &e.ws,
-        "element.update",
-        json!({"book": e.book, "id": yue, "name": "约克"}),
+        "entry.update",
+        json!({"book": e.book, "id": yue, "title": "约克"}),
     );
     draw(o.cx);
     o.caret(2);
@@ -281,14 +248,8 @@ fn a_rename_does_not_break_links(cx: &mut TestAppContext) {
 
 #[gpui::test]
 fn a_links_hover_card_and_click(cx: &mut TestAppContext) {
-    use dr_editor::EntityLinkOpened;
     use gpui_prose::render::{DecorationEvent, DecorationKey};
     let e = env();
-    out(
-        &e.ws,
-        "category.create",
-        json!({"book": e.book, "name": "人物"}),
-    );
     let yue = element(&e, "约格", &["老约", "约先生", "格叔", "阿约"]);
     let doc = chapter(&e, "一", "");
     let mut o = open(cx, &e, &doc);
@@ -332,15 +293,17 @@ fn a_links_hover_card_and_click(cx: &mut TestAppContext) {
     let facts = dr_editor::link_card::card_facts(
         &e.ws,
         &e.book,
-        &dr_text::autolink::LinkTarget::new(dr_model::kind::EntityKind::Element, &yue),
+        &dr_text::autolink::LinkTarget::new(dr_model::kind::EntityKind::Entry, &yue),
     )
     .unwrap();
     assert_eq!(facts.title, "约格");
-    assert_eq!(facts.tags, ["未分类"]);
+    assert_eq!(facts.tags, ["人物"]);
     // Three aliases in the order the book keeps them, then how many more.
     let aka = facts.aka.unwrap();
-    assert!(aka.starts_with("AKA ") && aka.ends_with(" +1"), "{aka}");
-    assert_eq!(aka.matches(" · ").count(), 2, "{aka}");
+    assert_eq!(
+        aka.split(" · ").collect::<std::collections::BTreeSet<_>>(),
+        ["老约", "约先生", "格叔", "阿约"].into_iter().collect()
+    );
     // Leaving: gone after the grace.
     point(Vec::new(), &mut o);
     o.cx.executor().advance_clock(Duration::from_millis(240));
@@ -351,10 +314,10 @@ fn a_links_hover_card_and_click(cx: &mut TestAppContext) {
     {
         let opened = opened.clone();
         o.cx.update(|_, cx| {
-            cx.subscribe(&o.view, move |_, ev: &EntityLinkOpened, _| {
-                *opened.borrow_mut() = Some(ev.id.clone());
-            })
-            .detach();
+            dr_editor::links::set_v3_opener(cx, move |_, _, link, _| {
+                assert_eq!(link.kind, dr_model::kind::EntityKind::Entry);
+                *opened.borrow_mut() = Some(link.target);
+            });
         });
     }
     point(vec![(0, link)], &mut o);
@@ -394,12 +357,11 @@ fn the_at_picker_inserts_a_link(cx: &mut TestAppContext) {
         .iter()
         .map(|r| match r {
             MenuRow::Link { name, .. } => name.clone(),
-            MenuRow::Create { name } => format!("+{name}"),
             _ => String::new(),
         })
         .collect();
     // Pinyin order (lǎo before yuē), then 创建要素.
-    assert_eq!(names, ["老约", "约格", "+约"]);
+    assert_eq!(names, ["老约", "约格"]);
     // Enter chooses the current row.
     o.action(Newline);
     assert_eq!(o.text(), "见老约 \n");
@@ -416,8 +378,8 @@ fn the_at_picker_inserts_a_link(cx: &mut TestAppContext) {
         rows.first(),
         Some(&MenuRow::Link {
             name: "约格".into(),
-            target: dr_text::autolink::LinkTarget::new(dr_model::kind::EntityKind::Element, &yue),
-            group: dr_editor::entity_links::NameGroup::Element,
+            target: dr_text::autolink::LinkTarget::new(dr_model::kind::EntityKind::Entry, &yue),
+            group: dr_editor::entity_links::NameGroup::Entry,
         })
     );
     assert!(
@@ -428,43 +390,6 @@ fn the_at_picker_inserts_a_link(cx: &mut TestAppContext) {
     o.action(Newline);
     assert_eq!(o.text(), "见@约约格 \n");
     assert!(o.linked(3, &yue) && o.linked(4, &yue) && !o.linked(5, &yue));
-}
-
-#[gpui::test]
-fn the_picker_creates_an_element(cx: &mut TestAppContext) {
-    let e = env();
-    out(
-        &e.ws,
-        "category.create",
-        json!({"book": e.book, "name": "人物"}),
-    );
-    let doc = chapter(&e, "一", "");
-    let mut o = open(cx, &e, &doc);
-    o.caret(0);
-    o.type_text("@沈知微");
-    let rows = o.menu().unwrap().2;
-    assert_eq!(
-        rows.last(),
-        Some(&MenuRow::Create {
-            name: "沈知微".into()
-        })
-    );
-    let assist = o.view.read_with(o.cx, |v, _| v.assist().clone());
-    let last = rows.len() - 1;
-    assist.update_in(o.cx, |a, window, cx| a.choose(Some(last), window, cx));
-    draw(o.cx);
-    let elements = out(&e.ws, "element.list", json!({"book": e.book}));
-    let made = elements
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|x| x["name"] == "沈知微")
-        .expect("created")["id"]
-        .as_str()
-        .unwrap()
-        .to_owned();
-    assert_eq!(o.text(), "沈知微 \n");
-    assert!(o.linked(0, &made));
 }
 
 #[gpui::test]
@@ -579,8 +504,8 @@ fn draftings_own_slash_entries(cx: &mut TestAppContext) {
     o.caret(start + 2);
     o.type_text("/位置");
     o.action(Newline);
-    let id = doc.trim_start_matches("node:");
-    let want = format!("drifting:chapters/id-{id}/prose.md#L3");
+    let id = doc.trim_start_matches("body:").split('/').next().unwrap();
+    let want = format!("drifting:entries/id-{id}/modules/id-mod-prose/prose.md#L3");
     assert_eq!(heard_link.borrow().as_deref(), Some(want.as_str()));
     let clip = o.cx.read_from_clipboard().and_then(|c| c.text());
     assert_eq!(clip.as_deref(), Some(want.as_str()));

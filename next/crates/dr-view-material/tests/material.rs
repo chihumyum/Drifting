@@ -40,7 +40,7 @@ fn env() -> Env {
     let dir = tempfile::tempdir().unwrap();
     let lib = Library::open(dir.path(), library_options("test")).unwrap();
     let ws = Workspace::open(lib, WorkspaceOptions::default()).unwrap();
-    let book = out(&ws, "book.create", json!({"name": "素材"}))["id"]
+    let book = out(&ws, "project.create", json!({"name": "素材"}))["id"]
         .as_str()
         .unwrap()
         .to_owned();
@@ -155,7 +155,7 @@ fn open(cx: &mut TestAppContext, e: &Env, id: &str) -> (Entity<MediaPage>, Visua
     });
     let book = Rc::new(Book::load(&e.ws, &e.book).unwrap());
     let kind = book
-        .materials
+        .material_items()
         .iter()
         .find(|m| m.id == id)
         .and_then(|m| MediaKind::parse(&m.kind))

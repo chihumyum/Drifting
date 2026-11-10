@@ -36,13 +36,7 @@ pub struct SuggestionTicket {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ActiveSuggestion {
-    Checkin {
-        ticket: SuggestionTicket,
-    },
-    Organize {
-        ticket: SuggestionTicket,
-        conversation: Option<String>,
-    },
+    Checkin { ticket: SuggestionTicket },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -53,7 +47,6 @@ pub struct ProactiveState {
     pub last_attempt_ms: Option<i64>,
     pub last_checkin_ms: Option<i64>,
     pub checkin_cursor: DeltaCursor,
-    pub organize_cursor: DeltaCursor,
     pub cards: Vec<StoredCard>,
     pub active: Option<ActiveSuggestion>,
     pub error: Option<String>,
@@ -68,7 +61,6 @@ impl Default for ProactiveState {
             last_attempt_ms: None,
             last_checkin_ms: None,
             checkin_cursor: DeltaCursor::default(),
-            organize_cursor: DeltaCursor::default(),
             cards: Vec::new(),
             active: None,
             error: None,
@@ -119,7 +111,7 @@ pub struct CheckinEligibility<'a> {
     pub previous_opened_ms: Option<i64>,
 }
 
-/// Every trigger, including organize completion, uses the same 90 minutes.
+/// Every check-in trigger uses the same 90 minutes.
 pub fn decide_checkin(input: CheckinEligibility<'_>) -> CheckinDecision {
     if !input.enabled {
         return CheckinDecision::Disabled;
@@ -230,32 +222,22 @@ impl ProactiveStore {
         book: &BookId,
         start: &SuggestionStart,
     ) -> Result<Option<SuggestionTicket>> {
-        Self::begin(lib, book, start, false)
-    }
-
-    pub fn claim_organize(
-        lib: &Library,
-        book: &BookId,
-        start: &SuggestionStart,
-    ) -> Result<Option<SuggestionTicket>> {
-        Self::begin(lib, book, start, true)
+        Self::begin(lib, book, start)
     }
 
     fn begin(
         lib: &Library,
         book: &BookId,
         start: &SuggestionStart,
-        organize: bool,
     ) -> Result<Option<SuggestionTicket>> {
         dr_model::id::check_id(&start.id).map_err(|e| Error::Protocol(e.to_string()))?;
         Self::update(lib, book, |state| {
             if !start.enabled
                 || state.revision != start.expected_revision
                 || state.active.is_some()
-                || (!organize
-                    && state
-                        .last_attempt_ms
-                        .is_some_and(|at| start.now_ms.saturating_sub(at) < CHECKIN_COOLDOWN_MS))
+                || (state
+                    .last_attempt_ms
+                    .is_some_and(|at| start.now_ms.saturating_sub(at) < CHECKIN_COOLDOWN_MS))
             {
                 return Ok((None, false));
             }
@@ -264,17 +246,12 @@ impl ProactiveStore {
                 started_ms: start.now_ms,
                 coverage: start.coverage.clone(),
             };
-            if organize {
-                state.active = Some(ActiveSuggestion::Organize {
-                    ticket: ticket.clone(),
-                    conversation: None,
-                });
-            } else {
-                state.last_attempt_ms = Some(start.now_ms);
-                state.active = Some(ActiveSuggestion::Checkin {
-                    ticket: ticket.clone(),
-                });
-            }
+
+            state.last_attempt_ms = Some(start.now_ms);
+            state.active = Some(ActiveSuggestion::Checkin {
+                ticket: ticket.clone(),
+            });
+
             state.error = None;
             Ok((Some(ticket), true))
         })
@@ -334,62 +311,6 @@ impl ProactiveStore {
             }
             state.active = None;
             state.error = Some(super::delta::bounded(message, 500));
-            Ok((true, true))
-        })
-    }
-
-    pub fn organize_started(
-        lib: &Library,
-        book: &BookId,
-        ticket: &SuggestionTicket,
-        conversation: &str,
-    ) -> Result<bool> {
-        Self::update(lib, book, |state| {
-            let Some(ActiveSuggestion::Organize {
-                ticket: current,
-                conversation: saved,
-            }) = &mut state.active
-            else {
-                return Ok((false, false));
-            };
-            if current != ticket || saved.is_some() {
-                return Ok((false, false));
-            }
-            *saved = Some(conversation.into());
-            Ok((true, true))
-        })
-    }
-
-    pub fn settle_organize(
-        lib: &Library,
-        book: &BookId,
-        ticket: &SuggestionTicket,
-        success: bool,
-    ) -> Result<bool> {
-        Self::update(lib, book, |state| {
-            if !matches!(&state.active, Some(ActiveSuggestion::Organize { ticket: current, .. }) if current == ticket)
-            {
-                return Ok((false, false));
-            }
-            if success {
-                state.organize_cursor = ticket.coverage.clone();
-            }
-            state.active = None;
-            Ok((true, true))
-        })
-    }
-
-    pub fn skip_organize(
-        lib: &Library,
-        book: &BookId,
-        expected_revision: u64,
-        coverage: &DeltaCursor,
-    ) -> Result<bool> {
-        Self::update(lib, book, |state| {
-            if state.revision != expected_revision || state.active.is_some() {
-                return Ok((false, false));
-            }
-            state.organize_cursor = coverage.clone();
             Ok((true, true))
         })
     }

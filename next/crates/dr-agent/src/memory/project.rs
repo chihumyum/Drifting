@@ -1,7 +1,6 @@
 use dr_model::id::{BookId, MemoryId};
-use dr_workspace::{Actor, Workspace};
+use dr_workspace::Workspace;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 
 use super::{MemoryError, MemoryResult};
 
@@ -38,7 +37,7 @@ pub fn project(ws: &Workspace, book: &BookId) -> MemoryResult<ProjectSnapshot> {
             .library()
             .load_copy(&doc)
             .map_err(|e| MemoryError::Invalid(e.to_string()))?;
-        let mut entries: Vec<ProjectEntry> = if dr_doc::v3::is_v3_doc(&copy) {
+        let mut entries: Vec<ProjectEntry> = {
             let borrowed = dr_doc::v3::BorrowedBookV3::new(&copy, book)
                 .map_err(|e| MemoryError::Invalid(e.to_string()))?;
             let view = borrowed.view();
@@ -56,17 +55,6 @@ pub fn project(ws: &Workspace, book: &BookId) -> MemoryResult<ProjectSnapshot> {
                     removed: m.deleted_at.is_some(),
                 })
                 .collect()
-        } else {
-            let detail = ws
-                .call(&Actor::User, "book.get", json!({"book":book}))
-                .map_err(error)?;
-            if detail["output"]["trashed"].as_bool() != Some(false) {
-                return Err(MemoryError::Invalid("book is unavailable".into()));
-            }
-            let rows = ws
-                .call(&Actor::User, "memory.list", json!({"book":book}))
-                .map_err(error)?;
-            serde_json::from_value(rows["output"].clone()).map_err(|_| MemoryError::Corrupt)?
         };
         let after = ws.observe(&doc).map_err(error)?;
         if before.version != after.version {

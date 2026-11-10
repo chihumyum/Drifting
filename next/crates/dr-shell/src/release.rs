@@ -113,18 +113,8 @@ pub(crate) fn begin(cx: &mut App) -> Option<LocalBoxFuture<'static, Result<(), S
                 .into_iter()
                 .collect::<Result<Vec<_>, _>>()
                 .map(|_| ())?;
-            // Markdown may merge another final write. Its worker must stop
-            // after the other writers, and before capturing their final state.
-            let mirror = app.update(crate::mirror::drain_for_release);
             let failed =
                 app.update(|cx| crate::t(cx, dr_i18n::keys::k4_pages::SAVE_FAILED).to_string());
-            AssertUnwindSafe(mirror)
-                .catch_unwind()
-                .await
-                .unwrap_or_else(|_| {
-                    log::error!("Markdown folder release panicked");
-                    Err(failed.clone())
-                })?;
             // Construct checkpoint futures only now. Capturing a frontier in
             // their prefix before the writers settled would still be stale.
             let mut checkpoints =

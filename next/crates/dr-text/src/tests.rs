@@ -1,13 +1,10 @@
-use dr_doc::book::{BookDoc, BookTxn};
 use dr_doc::prose::{EmbedKind, ProseDoc, ProseTxn};
-use dr_model::id::{BookId, ElementId, EmbedId, MaterialId, NodeId};
-use dr_model::kind::{EntityKind, NodeKind};
+use dr_model::id::{EmbedId, MaterialId};
+use dr_model::kind::EntityKind;
 use dr_model::pos::PosKey;
 use dr_model::prose::{EntityLink, Heading, InlineStyle};
-use dr_model::time::Timestamp;
 use dr_model::{DocId, Origin};
 
-use crate::autolink::book_link_names;
 use crate::*;
 
 fn prose(f: impl FnOnce(&mut ProseTxn<'_>) -> dr_doc::Result<()>) -> ProseDoc {
@@ -204,66 +201,6 @@ fn suggestions_skip_what_is_linked_already() {
         LinkTarget::new(EntityKind::Node, "chapter-2"),
     )]);
     assert_eq!(other.suggest(&d.view()).len(), 2);
-}
-
-fn book_with(f: impl FnOnce(&mut BookTxn<'_>) -> dr_doc::Result<()>) -> BookDoc {
-    let mut b = BookDoc::create(BookId::parse("b1").unwrap(), 9).unwrap();
-    let (r, _) = b.edit(Origin::User, f);
-    r.unwrap();
-    b
-}
-
-#[test]
-fn book_names_follow_the_old_priorities_and_respect_conflicts() {
-    let e = |s: &str| ElementId::parse(s).unwrap();
-    let n = |s: &str| NodeId::parse(s).unwrap();
-    let b = book_with(|t| {
-        t.element(&e("anna"))?
-            .name("安娜")?
-            .created_at(Some(Timestamp(10)))?
-            .add_alias("小安")?;
-        // A merge left two elements called 安娜; the later one also has a
-        // unique alias.
-        t.element(&e("anna2"))?
-            .name("安娜")?
-            .created_at(Some(Timestamp(20)))?
-            .add_alias("安二")?;
-        t.element(&e("gone"))?
-            .name("旧人")?
-            .deleted_at(Some(Timestamp(30)))?;
-        t.element(&e("tower"))?.name("北塔")?;
-        // A chapter titled like an element takes the name.
-        t.node(&n("c1"))?
-            .kind(&NodeKind::Chapter)?
-            .title("北塔")?
-            .book_order(Some(1.0))?;
-        t.node(&n("c2"))?
-            .kind(&NodeKind::Chapter)?
-            .title("尾声")?
-            .book_order(Some(2.0))?;
-        t.node(&n("i1"))?
-            .kind(&NodeKind::Drift)?
-            .title("一个构想")?;
-        Ok(())
-    });
-    let names = book_link_names(&b.view(), &["c2"]);
-    let m = LinkMatcher::new(names);
-    let targets = |text: &str| -> Vec<String> {
-        m.find(text)
-            .iter()
-            .map(|x| format!("{}:{}", m.target(x).kind.as_str(), m.target(x).id))
-            .collect()
-    };
-    assert_eq!(
-        targets("安娜、小安、安二、旧人、北塔、尾声、一个构想"),
-        vec![
-            "element:anna",
-            "element:anna",
-            "element:anna2",
-            "node:c1",
-            "node:i1"
-        ]
-    );
 }
 
 mod properties {

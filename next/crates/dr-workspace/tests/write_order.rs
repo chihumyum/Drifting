@@ -15,31 +15,20 @@ use serde_json::{Value, json};
 /// A book entity never names a prose document that is not stored, and every
 /// read is tolerant.
 fn check_book(e: &Env, b: &str) {
-    let lib = e.ws().library();
-    for c in ids(&e.out("chapter.list", json!({"book": b, "trashed": true}))) {
-        assert!(
-            lib.doc_info(&format!("node:{c}")).unwrap().is_some(),
-            "chapter {c} has its prose document"
-        );
-    }
-    for el in ids(&e.out("element.list", json!({"book": b, "trashed": true}))) {
-        assert!(lib.doc_info(&format!("element:{el}")).unwrap().is_some());
-    }
-    let live: Vec<String> = ids(&e.out("chapter.list", json!({"book": b})))
-        .into_iter()
-        .chain(ids(&e.out("element.list", json!({"book": b}))))
-        .collect();
-    for r in e
-        .out("relation.list", json!({"book": b}))
+    let entries = e.out("entry.list", json!({"book":b,"all":true,"trashed":true}));
+    for entry in entries
         .as_array()
         .unwrap()
+        .iter()
+        .filter(|e| e["template"] == "tpl-chapter")
     {
-        for end in ["from", "to"] {
-            assert!(
-                live.contains(&r[end]["id"].as_str().unwrap().to_string()),
-                "relation end live"
-            );
-        }
+        assert!(
+            e.ws()
+                .library()
+                .doc_info(&format!("body:{}/mod-prose", entry["id"].as_str().unwrap()))
+                .unwrap()
+                .is_some()
+        );
     }
 }
 
@@ -47,76 +36,46 @@ fn check_book(e: &Env, b: &str) {
 fn a_failure_after_the_prose_leaves_only_an_orphan() {
     let mut e = env();
     let b = e.book();
+    let before = e.ws().library().docs(Some(&b), Some("body")).unwrap().len();
     e.faults.arm("after_prose");
     let err = e
         .try_call(
-            "chapter.create",
-            json!({"book": b, "title": "Lost", "text": "写下的字。"}),
+            "entry.create", json!({"book": b, "parent": common::acceptance::novel_root(e.ws(), &b, "tpl-manuscript"), "template": "tpl-chapter", "title": "Lost", "bodies": {"mod-prose": "写下的字。"}}),
         )
         .unwrap_err();
     assert!(matches!(err, WsError::Fault("after_prose")));
     assert!(
-        ids(&e.out("chapter.list", json!({"book": b}))).is_empty(),
+        ids(&e.out(
+            "entry.list",
+            json!({"book": b,"parent":common::acceptance::novel_root(e.ws(),&b,"tpl-manuscript")})
+        ))
+        .is_empty(),
         "no chapter shows"
     );
     // The prose document was written first and is orphaned: nothing in the
     // book owns it.
-    let docs = e.ws().library().docs(Some(&b), Some("node")).unwrap();
-    assert_eq!(docs.len(), 1);
+    let docs = e.ws().library().docs(Some(&b), Some("body")).unwrap();
+    assert_eq!(docs.len(), before + 1);
     check_book(&e, &b);
     e.reopen();
-    assert!(ids(&e.out("chapter.list", json!({"book": b}))).is_empty());
+    assert!(
+        ids(&e.out(
+            "entry.list",
+            json!({"book": b,"parent":common::acceptance::novel_root(e.ws(),&b,"tpl-manuscript")})
+        ))
+        .is_empty()
+    );
     check_book(&e, &b);
     // The next command works normally.
-    e.call("chapter.create", json!({"book": b, "title": "Kept"}));
-    assert_eq!(ids(&e.out("chapter.list", json!({"book": b}))).len(), 1);
-}
-
-#[test]
-fn a_failure_inside_the_book_commit_keeps_what_was_applied() {
-    let mut e = env();
-    let b = e.book();
-    let c = e.out("chapter.create", json!({"book": b, "title": "One"}))["id"].clone();
-    let el = e.out("element.create", json!({"book": b, "name": "A"}))["id"].clone();
-    let t = e.out(
-        "relation_type.create",
-        json!({"book": b, "name": "r", "orientation": "symmetric",
-        "source_kinds": ["element", "node"], "target_kinds": ["element", "node"]}),
-    )["id"]
-        .clone();
-    e.call("relation.create", json!({"book": b, "from": {"kind": "element", "id": el}, "to": {"kind": "node", "id": c}, "relation_type": t}));
-    e.faults.arm("in_book");
-    let err = e
-        .try_call("chapter.purge", json!({"book": b, "id": c}))
-        .unwrap_err();
-    assert!(matches!(err, WsError::Fault("in_book")));
-    // dr-doc committed the first half (the relation is gone); the chapter
-    // is still there. Both halves are readable states.
+    e.call("entry.create", json!({"book": b, "parent": common::acceptance::novel_root(e.ws(), &b, "tpl-manuscript"), "template": "tpl-chapter", "title": "Kept"}));
     assert_eq!(
-        ids(&e.out("chapter.list", json!({"book": b}))),
-        [c.as_str().unwrap()]
+        ids(&e.out(
+            "entry.list",
+            json!({"book": b,"parent":common::acceptance::novel_root(e.ws(),&b,"tpl-manuscript")})
+        ))
+        .len(),
+        1
     );
-    assert!(
-        e.out("relation.list", json!({"book": b}))
-            .as_array()
-            .unwrap()
-            .is_empty()
-    );
-    check_book(&e, &b);
-    // The mirror and the store agree: reopening reads the same.
-    let before = e.out("chapter.list", json!({"book": b}));
-    e.reopen();
-    assert_eq!(e.out("chapter.list", json!({"book": b})), before);
-    assert!(
-        e.out("relation.list", json!({"book": b}))
-            .as_array()
-            .unwrap()
-            .is_empty()
-    );
-    // Retrying finishes the purge.
-    e.call("chapter.purge", json!({"book": b, "id": c}));
-    assert!(ids(&e.out("chapter.list", json!({"book": b, "trashed": true}))).is_empty());
-    check_book(&e, &b);
 }
 
 #[test]
@@ -124,13 +83,20 @@ fn a_failed_journal_write_keeps_the_change_without_undo() {
     let e = env();
     let b = e.book();
     e.faults.arm("journal");
-    let o = e.call("chapter.create", json!({"book": b, "title": "One"}));
+    let o = e.call("entry.create", json!({"book": b, "parent": common::acceptance::novel_root(e.ws(), &b, "tpl-manuscript"), "template": "tpl-chapter", "title": "One"}));
     assert_eq!(o["journal"], Value::Null);
     assert_eq!(o["undo"], Value::Null);
-    assert_eq!(ids(&e.out("chapter.list", json!({"book": b}))).len(), 1);
+    assert_eq!(
+        ids(&e.out(
+            "entry.list",
+            json!({"book": b,"parent":common::acceptance::novel_root(e.ws(),&b,"tpl-manuscript")})
+        ))
+        .len(),
+        1
+    );
     // The journal's last entry is the book's creation.
     let j = e.ws().journal(Some("user"), 10).unwrap();
-    assert_eq!(j[0].command, "book.create");
+    assert_eq!(j[0].command, "project.create");
 }
 
 #[test]
@@ -152,13 +118,13 @@ fn a_failed_store_append_is_retried_by_the_next_write() {
     };
     let ws = open();
     let u = Actor::User;
-    let b = call(&ws, &u, "book.create", json!({"name": "B"}))["output"]["id"]
+    let b = call(&ws, &u, "project.create", json!({"name": "B"}))["output"]["id"]
         .as_str()
         .unwrap()
         .to_string();
     faults.store(1, std::sync::atomic::Ordering::SeqCst);
     let err = ws
-        .call(&u, "chapter.create", json!({"book": b, "title": "One"}))
+        .call(&u, "entry.create", json!({"book": b, "parent": common::acceptance::novel_root(&ws, &b, "tpl-manuscript"), "template": "tpl-chapter", "title": "One"}))
         .unwrap_err();
     assert!(matches!(err, WsError::Store(_)), "{err}");
     // dr-store keeps the unstored change in memory and stores it before the
@@ -166,17 +132,28 @@ fn a_failed_store_append_is_retried_by_the_next_write() {
     call(
         &ws,
         &u,
-        "chapter.create",
-        json!({"book": b, "title": "Two"}),
+        "entry.create",
+        json!({"book": b, "parent": common::acceptance::novel_root(&ws, &b, "tpl-manuscript"), "template": "tpl-chapter", "title": "Two"}),
     );
     assert_eq!(
-        ids(&call(&ws, &u, "chapter.list", json!({"book": b}))["output"]).len(),
+        ids(&call(
+            &ws,
+            &u,
+            "entry.list",
+            json!({"book": b,"parent":common::acceptance::novel_root(&ws,&b,"tpl-manuscript")})
+        )["output"])
+        .len(),
         2
     );
     ws.shutdown().unwrap();
     let ws = open();
     let titles = field(
-        &call(&ws, &u, "chapter.list", json!({"book": b}))["output"],
+        &call(
+            &ws,
+            &u,
+            "entry.list",
+            json!({"book": b,"parent":common::acceptance::novel_root(&ws,&b,"tpl-manuscript")}),
+        )["output"],
         "title",
     );
     assert_eq!(
@@ -192,14 +169,13 @@ fn prose_written_before_the_book_survives_a_reopen() {
     let mut e = env();
     let b = e.book();
     let c = e.out(
-        "chapter.create",
-        json!({"book": b, "title": "One", "text": "甲。\n乙。"}),
+        "entry.create", json!({"book": b, "parent": common::acceptance::novel_root(e.ws(), &b, "tpl-manuscript"), "template": "tpl-chapter", "title": "One", "bodies": {"mod-prose": "甲。\n乙。"}}),
     )["id"]
         .clone();
     e.reopen();
     let p = e.out(
         "prose.read",
-        json!({"doc": format!("node:{}", c.as_str().unwrap())}),
+        json!({"doc": format!("body:{}/mod-prose", c.as_str().unwrap())}),
     );
     assert_eq!(
         field(&p["paragraphs"], "text"),
@@ -214,19 +190,31 @@ fn every_commit_is_durable_when_the_command_returns() {
     let b = e.book();
     for i in 0..20 {
         e.call(
-            "chapter.create",
-            json!({"book": b, "title": format!("C{i}")}),
+            "entry.create", json!({"book": b, "parent": common::acceptance::novel_root(e.ws(), &b, "tpl-manuscript"), "template": "tpl-chapter", "title": format!("C{i}")}),
         );
     }
-    let c0 = ids(&e.out("chapter.list", json!({"book": b})))[0].clone();
+    let c0 = ids(&e.out(
+        "entry.list",
+        json!({"book": b,"parent":common::acceptance::novel_root(e.ws(),&b,"tpl-manuscript")}),
+    ))[0]
+        .clone();
     e.call(
-        "chapter.update",
+        "entry.update",
         json!({"book": b, "id": c0, "title": "First"}),
     );
-    let before = e.out("chapter.list", json!({"book": b}));
+    let before = e.out(
+        "entry.list",
+        json!({"book": b,"parent":common::acceptance::novel_root(e.ws(),&b,"tpl-manuscript")}),
+    );
     // No flush: shut down and read from disk.
     e.reopen();
-    assert_eq!(e.out("chapter.list", json!({"book": b})), before);
+    assert_eq!(
+        e.out(
+            "entry.list",
+            json!({"book": b,"parent":common::acceptance::novel_root(e.ws(),&b,"tpl-manuscript")})
+        ),
+        before
+    );
 }
 
 #[test]
@@ -234,7 +222,7 @@ fn a_refused_shutdown_hands_the_workspace_back() {
     let dir = tempfile::tempdir().unwrap();
     let ws = open_at(dir.path(), Arc::new(Faults::default()));
     let u = Actor::User;
-    let b = call(&ws, &u, "book.create", json!({"name": "书"}))["output"]["id"]
+    let b = call(&ws, &u, "project.create", json!({"name": "书"}))["output"]["id"]
         .as_str()
         .unwrap()
         .to_string();
@@ -251,15 +239,29 @@ fn a_refused_shutdown_hands_the_workspace_back() {
     let ws = refused.workspace.expect("handed back");
     assert!(!ws.auto_links(), "the author's setting is kept");
     // A cached list first, so the next one needs the write's event.
-    assert!(ids(&call(&ws, &u, "chapter.list", json!({"book": b}))["output"]).is_empty());
+    assert!(
+        ids(&call(
+            &ws,
+            &u,
+            "entry.list",
+            json!({"book": b,"parent":common::acceptance::novel_root(&ws,&b,"tpl-manuscript")})
+        )["output"])
+        .is_empty()
+    );
     call(
         &ws,
         &u,
-        "chapter.create",
-        json!({"book": b, "title": "One"}),
+        "entry.create",
+        json!({"book": b, "parent": common::acceptance::novel_root(&ws, &b, "tpl-manuscript"), "template": "tpl-chapter", "title": "One"}),
     );
     assert_eq!(
-        ids(&call(&other, &u, "chapter.list", json!({"book": b}))["output"]).len(),
+        ids(&call(
+            &other,
+            &u,
+            "entry.list",
+            json!({"book": b,"parent":common::acceptance::novel_root(&ws,&b,"tpl-manuscript")})
+        )["output"])
+        .len(),
         1,
         "the caches follow the new write"
     );
@@ -268,7 +270,13 @@ fn a_refused_shutdown_hands_the_workspace_back() {
     ws.shutdown().unwrap();
     let ws = open_at(dir.path(), Arc::new(Faults::default()));
     assert_eq!(
-        ids(&call(&ws, &u, "chapter.list", json!({"book": b}))["output"]).len(),
+        ids(&call(
+            &ws,
+            &u,
+            "entry.list",
+            json!({"book": b,"parent":common::acceptance::novel_root(&ws,&b,"tpl-manuscript")})
+        )["output"])
+        .len(),
         1
     );
     ws.shutdown().unwrap();

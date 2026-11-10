@@ -19,11 +19,11 @@ use dr_doc::v3::novel::{
 };
 use dr_doc::v3::{BookDocV3, BookTxnV3, BookViewV3, genesis_v3};
 use dr_doc::{DocError, Result};
-use dr_model::book::{BlockSnapshot, EntityRef, KvEntry, canonical_symmetric};
 use dr_model::id::*;
 use dr_model::kind::*;
 use dr_model::pos::PosKey;
 use dr_model::prose::{BlockAttrs, EntityLink, InlineStyle};
+use dr_model::shared::{BlockSnapshot, EntityRef, KvEntry, canonical_symmetric};
 use dr_model::v3::*;
 use dr_model::{DocId, Origin, Timestamp};
 use dr_samples::WriteError;
@@ -1547,3 +1547,5 @@ fn prose_digest_v3(p: &ProseDoc, names: &NamesV3) -> Value {
         .collect();
     json!({ "paragraphs": paragraphs, "links": links })
 }
+
+pub use super::acceptance::novel_entry;

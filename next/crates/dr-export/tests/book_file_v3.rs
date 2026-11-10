@@ -172,7 +172,7 @@ fn v3_archive_keeps_retained_bodies_hidden_bindings_and_literal_ids() {
                 entry: Some(target.id.clone()),
             })?;
             t.comment(&comment)?
-                .target(Some(&dr_model::book::EntityRef::new(
+                .target(Some(&dr_model::shared::EntityRef::new(
                     dr_model::kind::EntityKind::Entry,
                     entry.id.as_str(),
                 )))?

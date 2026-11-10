@@ -410,7 +410,7 @@ fn aborting_runtime_during_retry_after_settles_without_waiting_for_the_delay() {
     let dir = tempfile::tempdir().unwrap();
     let library =
         dr_store::Library::open(dir.path(), dr_workspace::library_options("m28-cancel")).unwrap();
-    let seed = dr_testkit::seed::generate(
+    let seed = dr_testkit::seed::generate_v3(
         dr_testkit::seed::Preset::Tiny,
         dr_testkit::seed::DEFAULT_SEED,
     )

@@ -1,64 +1,28 @@
-//! The open book as the shell reads it: F3's queries (`dr-workspace`), one
-//! snapshot the panels, the dock and the pages read every frame.
-//!
-//! - [`Book::load`] runs the list queries (chapters in reading order,
-//!   storylines, categories and elements, idea groups and ideas, material
-//!   folders and materials) off the main thread; the workspace swaps the
-//!   whole snapshot in when it arrives and again after every change F3
-//!   reports for the book (`WsEvent::Book`).
-//! - [`PageText::load`] reads one document's prose (`prose.read`): plain text
-//!   and heading level per paragraph, for the read-only page until the
-//!   editor (dr-editor) takes the page over.
-//! - The location-link [`Catalog`] is F3's `BookCatalog`; [`target`] maps
-//!   F3's `NavTarget` (removals, link lookups) to the shell's [`Target`].
-
-use std::collections::HashMap;
-
-pub mod v3;
-
-/// Exactly one kernel snapshot per open book.
-pub enum Snapshot {
-    V22(LegacyBook),
-    V3(v3::BookV3),
-}
-impl Default for Snapshot {
-    fn default() -> Self {
-        Self::V22(LegacyBook::default())
-    }
-}
-
+//! Canonical v3 shell snapshot and prose reads.
+use crate::nav::Target;
 use dr_ui::{sand, tokens::Rgb};
 use dr_workspace::{
-    Actor, BookCatalog, LinkGroup, NavTarget, Workspace as Library, WsError,
+    Actor, NavTarget, Workspace as Library, WsError,
     commands::{
-        BookIn, ListIn,
-        book::{BookGet, BookList, ListBooksIn},
-        chapter::{ActList, ChapterList},
-        element::{CategoryList, ElementList, ElementListIn},
-        idea::{IdeaGroupList, IdeaList, IdeaListIn},
-        material::{FolderList, MaterialList, MaterialListIn},
+        book::{BookList, ListBooksIn},
         prose::{ProseRead, ProseReadIn},
-        storyline::StorylineList,
     },
-    dto::{
-        ActInfo, CategoryInfo, ChapterInfo, ElementInfo, GroupInfo, IdeaInfo, MaterialInfo,
-        StorylineInfo,
-    },
+    dto::{GroupInfo, MaterialInfo},
 };
-
-use crate::nav::Target;
-use crate::nav::location::{Catalog, Group};
-
-/// How a target shows in a list, a pill and on its page.
+use std::collections::HashMap;
+pub mod v3;
+#[derive(Default)]
+pub enum Snapshot {
+    #[default]
+    Empty,
+    V3(Box<v3::BookV3>),
+}
 #[derive(Clone, Debug, PartialEq)]
 pub struct Entry {
     pub title: String,
     pub mark: sand::Kind,
-    /// Its storyline's or category's colour, as the author chose it.
     pub color: Option<Rgb>,
 }
-
-/// One book's lists, as F3 returned them.
 #[derive(Default)]
 pub struct Book {
     pub id: String,
@@ -66,54 +30,6 @@ pub struct Book {
     pub snapshot: Snapshot,
     index: HashMap<String, Entry>,
 }
-
-/// Compatibility projection for the frozen v2.2 views. V3 has no legacy rows.
-#[derive(Default)]
-pub struct LegacyBook {
-    pub storylines: Vec<StorylineInfo>,
-    /// Reading order.
-    pub chapters: Vec<ChapterInfo>,
-    /// Reading order, each with its chapters.
-    pub acts: Vec<ActInfo>,
-    pub categories: Vec<CategoryInfo>,
-    pub elements: Vec<ElementInfo>,
-    /// Parents before children.
-    pub idea_groups: Vec<GroupInfo>,
-    pub ideas: Vec<IdeaInfo>,
-    pub folders: Vec<GroupInfo>,
-    pub materials: Vec<MaterialInfo>,
-}
-
-impl std::ops::Deref for Book {
-    type Target = LegacyBook;
-    fn deref(&self) -> &LegacyBook {
-        static EMPTY: std::sync::LazyLock<LegacyBook> =
-            std::sync::LazyLock::new(LegacyBook::default);
-        match &self.snapshot {
-            Snapshot::V22(b) => b,
-            Snapshot::V3(_) => &EMPTY,
-        }
-    }
-}
-
-impl Book {
-    /// Versioned material metadata, without exposing frozen v2.2 rows to v3 views.
-    pub fn material_items(&self) -> &[MaterialInfo] {
-        match &self.snapshot {
-            Snapshot::V22(book) => &book.materials,
-            Snapshot::V3(book) => &book.materials,
-        }
-    }
-
-    pub fn material_folders(&self) -> &[GroupInfo] {
-        match &self.snapshot {
-            Snapshot::V22(book) => &book.folders,
-            Snapshot::V3(book) => &book.material_folders,
-        }
-    }
-}
-
-/// `#RRGGBB` as the author chose it; anything else has no colour.
 pub fn color_of(hex: &str) -> Option<Rgb> {
     let digits = hex.trim().strip_prefix('#')?;
     if digits.len() != 6 {
@@ -121,9 +37,6 @@ pub fn color_of(hex: &str) -> Option<Rgb> {
     }
     u32::from_str_radix(digits, 16).ok().map(Rgb::hex)
 }
-
-/// The seal a chapter presses, always the same one for the same chapter
-/// (the 0.1 client's `sealOf`: a 31-hash of the id, UTF-16 units, modulo 6).
 pub fn seal_of(id: &str) -> u8 {
     let mut hash: i32 = 0;
     for unit in id.encode_utf16() {
@@ -131,10 +44,15 @@ pub fn seal_of(id: &str) -> u8 {
     }
     ((hash as i64).abs() % 6) as u8
 }
-
+/// Lightweight entry admission. It reads the existing holder without repair,
+/// creation, schema changes or a whole-book query. All UI entry points share it.
+pub fn canonical(lib: &Library, book: &str) -> bool {
+    lib.library()
+        .open_doc(&format!("book:{book}"), dr_store::OpenDoc::Existing)
+        .and_then(|handle| handle.read(dr_doc::v3::is_v3_doc))
+        .unwrap_or(false)
+}
 impl Book {
-    /// Reads `book` through F3's queries. Call it off the main thread: the
-    /// first read of a book opens its document.
     pub fn load(lib: &Library, book: &str) -> Result<Book, WsError> {
         let observed = lib.observe(&format!("book:{book}"))?;
         if observed
@@ -145,69 +63,10 @@ impl Book {
         {
             return v3::load(lib, book);
         }
-        let me = &Actor::User;
-        let list = || ListIn {
-            book: book.to_owned(),
-            trashed: false,
-        };
-        let book_in = || BookIn {
-            book: book.to_owned(),
-        };
-        let detail = lib.run::<BookGet>(me, book_in())?.output;
-        if detail.info.trashed {
-            return Err(WsError::NotFound {
-                what: "book",
-                id: book.to_owned(),
-            });
-        }
-        let mut b = Book {
-            id: book.to_owned(),
-            name: detail.info.name,
-            snapshot: Snapshot::V22(LegacyBook {
-                storylines: lib.run::<StorylineList>(me, list())?.output,
-                chapters: lib.run::<ChapterList>(me, list())?.output,
-                categories: lib.run::<CategoryList>(me, list())?.output,
-                elements: lib
-                    .run::<ElementList>(
-                        me,
-                        ElementListIn {
-                            book: book.to_owned(),
-                            category: None,
-                            trashed: false,
-                        },
-                    )?
-                    .output,
-                idea_groups: lib.run::<IdeaGroupList>(me, book_in())?.output,
-                ideas: lib
-                    .run::<IdeaList>(
-                        me,
-                        IdeaListIn {
-                            book: book.to_owned(),
-                            group: None,
-                            trashed: false,
-                        },
-                    )?
-                    .output,
-                acts: lib.run::<ActList>(me, book_in())?.output,
-                folders: lib.run::<FolderList>(me, book_in())?.output,
-                materials: lib
-                    .run::<MaterialList>(
-                        me,
-                        MaterialListIn {
-                            book: book.to_owned(),
-                            folder: None,
-                        },
-                    )?
-                    .output,
-            }),
-            index: HashMap::new(),
-        };
-        b.reindex();
-        Ok(b)
+        Err(WsError::Invalid(
+            "only canonical v3 books can be opened; reimport into a new library".into(),
+        ))
     }
-
-    /// Opens `preferred` if it can, else the library's first book that is
-    /// not in the trash. `Ok(None)`: the library has no book.
     pub fn load_any(lib: &Library, preferred: Option<&str>) -> Result<Option<Book>, WsError> {
         if let Some(id) = preferred {
             match Book::load(lib, id) {
@@ -219,118 +78,21 @@ impl Book {
         let books = lib
             .run::<BookList>(&Actor::User, ListBooksIn { trashed: false })?
             .output;
-        match books.into_iter().find(|b| Some(b.id.as_str()) != preferred) {
-            Some(b) => Book::load(lib, &b.id).map(Some),
-            None => Ok(None),
+        for b in books
+            .into_iter()
+            .filter(|b| Some(b.id.as_str()) != preferred)
+        {
+            match Book::load(lib, &b.id) {
+                Ok(book) => return Ok(Some(book)),
+                Err(e @ WsError::Conflict(_)) => return Err(e),
+                Err(e) => log::info!("book {} not opened: {e}", b.id),
+            }
         }
+        Ok(None)
     }
-
-    /// The chapters' ids and titles in reading order.
-    pub fn chapter_titles(&self) -> Vec<(String, String)> {
-        self.chapters
-            .iter()
-            .map(|c| (c.id.clone(), c.title.clone()))
-            .collect()
-    }
-
-    fn reindex(&mut self) {
-        let mut index = HashMap::new();
-        let storyline_color: HashMap<&str, Option<Rgb>> = self
-            .storylines
-            .iter()
-            .map(|s| (s.id.as_str(), color_of(&s.color)))
-            .collect();
-        let category_color: HashMap<&str, Option<Rgb>> = self
-            .categories
-            .iter()
-            .map(|c| (c.id.as_str(), color_of(&c.color)))
-            .collect();
-        let mut put = |key: String, title: &str, mark: sand::Kind, color: Option<Rgb>| {
-            index.insert(
-                key,
-                Entry {
-                    title: title.to_owned(),
-                    mark,
-                    color,
-                },
-            );
-        };
-        for s in &self.storylines {
-            put(
-                format!("storyline:{}", s.id),
-                &s.name,
-                sand::Kind::Storyline,
-                color_of(&s.color),
-            );
-        }
-        for c in &self.chapters {
-            let storyline = c.primary_storyline.as_ref().or(c.storylines.first());
-            let color = storyline
-                .and_then(|s| storyline_color.get(s.as_str()))
-                .copied()
-                .flatten();
-            put(
-                format!("chapter:{}", c.id),
-                &c.title,
-                sand::Kind::Chapter(seal_of(&c.id)),
-                color,
-            );
-        }
-        for c in &self.categories {
-            put(
-                format!("category:{}", c.id),
-                &c.name,
-                sand::Kind::Category,
-                color_of(&c.color),
-            );
-        }
-        for e in &self.elements {
-            let color = e
-                .category
-                .as_ref()
-                .and_then(|c| category_color.get(c.as_str()))
-                .copied()
-                .flatten();
-            put(
-                format!("element:{}", e.id),
-                &e.name,
-                sand::Kind::Element,
-                color,
-            );
-        }
-        for i in &self.ideas {
-            put(
-                format!("idea:{}", i.id),
-                &i.title,
-                sand::Kind::Drift {
-                    loose: i.group.is_none(),
-                },
-                None,
-            );
-        }
-        for m in &self.materials {
-            put(
-                format!("material:{}", m.id),
-                &m.title,
-                sand::Kind::Material,
-                None,
-            );
-        }
-        self.index = index;
-    }
-
-    /// Nothing open: no library, or the book could not be read.
     pub fn is_empty(&self) -> bool {
         self.id.is_empty()
     }
-
-    pub fn v3(&self) -> Option<&v3::BookV3> {
-        match &self.snapshot {
-            Snapshot::V3(b) => Some(b),
-            _ => None,
-        }
-    }
-
     pub fn entry(&self, target: &Target) -> Option<&Entry> {
         let key = match target {
             Target::Entry { id, .. } => format!("entry:{id}"),
@@ -338,73 +100,52 @@ impl Book {
         };
         self.index.get(&key)
     }
-
-    /// The name a tab or a page shows for `target` (the book's own name for
-    /// [`Target::Book`]); `None` when it is gone.
     pub fn title(&self, target: &Target) -> Option<&str> {
         match target {
             Target::Book => (!self.is_empty()).then_some(self.name.as_str()),
             t => self.entry(t).map(|e| e.title.as_str()),
         }
     }
-
+    pub fn v3(&self) -> Option<&v3::BookV3> {
+        match &self.snapshot {
+            Snapshot::V3(b) => Some(b),
+            Snapshot::Empty => None,
+        }
+    }
+    pub fn material_items(&self) -> &[MaterialInfo] {
+        self.v3().map_or(&[], |b| b.materials.as_slice())
+    }
+    pub fn material_folders(&self) -> &[GroupInfo] {
+        self.v3().map_or(&[], |b| b.material_folders.as_slice())
+    }
     pub fn exists(&self, target: &Target) -> bool {
-        if let Some(book) = self.v3() {
-            return book.exists(target);
-        }
-        match target {
-            Target::Book => !self.is_empty(),
-            t => self.index.contains_key(&t.key()),
-        }
+        self.v3().is_some_and(|b| b.exists(target))
     }
-
-    /// The kind mark and colour of `target`.
     pub fn mark(&self, target: &Target) -> (sand::Kind, Option<Rgb>) {
-        if let Some(e) = self.entry(target) {
-            return (e.mark, e.color);
-        }
-        let kind = match target {
-            Target::Chapter(id) => sand::Kind::Chapter(seal_of(id.as_str())),
-            Target::Idea(_) => sand::Kind::Drift { loose: true },
-            Target::Storyline(_) => sand::Kind::Storyline,
-            Target::Element(_) => sand::Kind::Element,
-            Target::Category(_) => sand::Kind::Category,
-            Target::Material(_) => sand::Kind::Material,
-            Target::Book => sand::Kind::All,
-            Target::Entry { .. } | Target::Template(_) => sand::Kind::Element,
-        };
-        (kind, None)
-    }
-
-    /// Chapters in reading order that belong to no storyline (未归属).
-    pub fn unaffiliated(&self) -> impl Iterator<Item = &ChapterInfo> {
-        self.chapters.iter().filter(|c| c.storylines.is_empty())
-    }
-
-    /// The chapters of a storyline, in reading order.
-    pub fn chapters_of<'a>(&'a self, storyline: &'a str) -> impl Iterator<Item = &'a ChapterInfo> {
-        self.chapters
-            .iter()
-            .filter(move |c| c.storylines.iter().any(|s| s == storyline))
+        self.entry(target)
+            .map(|e| (e.mark, e.color))
+            .unwrap_or_else(|| {
+                (
+                    match target {
+                        Target::Book => sand::Kind::All,
+                        Target::Material(_) => sand::Kind::Material,
+                        _ => sand::Kind::Element,
+                    },
+                    None,
+                )
+            })
     }
 }
-
-/// The prose document a target's page shows (F1's `DocId` string).
 pub fn doc_of(target: &Target) -> Option<String> {
-    Some(match target {
-        Target::Chapter(id) | Target::Idea(id) => format!("node:{id}"),
-        Target::Element(id) => format!("element:{id}"),
-        Target::Storyline(id) => format!("storyline:{id}"),
-        Target::Category(id) => format!("category:{id}"),
-        Target::Material(id) => format!("material:{id}"),
+    match target {
         Target::Entry {
             id,
             module: Some(module),
-        } => format!("body:{id}/{module}"),
-        Target::Entry { module: None, .. } | Target::Template(_) | Target::Book => return None,
-    })
+        } => Some(format!("body:{id}/{module}")),
+        Target::Material(id) => Some(format!("material:{id}")),
+        _ => None,
+    }
 }
-
 /// One paragraph of a page: its plain text and heading level (0 for body
 /// text, 1–3 for H1–H3).
 #[derive(Clone, Debug, PartialEq)]
@@ -412,7 +153,6 @@ pub struct Paragraph {
     pub heading: u8,
     pub text: String,
 }
-
 /// The prose a page shows, read-only.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct PageText {
@@ -420,10 +160,7 @@ pub struct PageText {
     /// section otherwise.
     pub sections: Vec<(Option<String>, Vec<Paragraph>)>,
 }
-
 impl PageText {
-    /// Reads every paragraph of `doc`. A document that was never written
-    /// (an element without a body) reads as no paragraphs.
     pub fn read_doc(lib: &Library, doc: &str) -> Result<Vec<Paragraph>, WsError> {
         let out = lib.run::<ProseRead>(
             &Actor::User,
@@ -447,88 +184,29 @@ impl PageText {
             Err(e) => Err(e),
         }
     }
-
-    /// Reads the page of `target` (off the main thread). The whole book
-    /// reads `chapters` (id, title) in reading order.
-    pub fn load(
-        lib: &Library,
-        target: &Target,
-        chapters: &[(String, String)],
-    ) -> Result<PageText, WsError> {
-        match target {
-            Target::Book => {
-                let mut sections = Vec::with_capacity(chapters.len());
-                for (id, title) in chapters {
-                    let paragraphs = PageText::read_doc(lib, &format!("node:{id}"))?;
-                    sections.push((Some(title.clone()), paragraphs));
-                }
-                Ok(PageText { sections })
-            }
-            t => {
-                let Some(doc) = doc_of(t) else {
-                    return Ok(PageText::default());
-                };
-                Ok(PageText {
-                    sections: vec![(None, PageText::read_doc(lib, &doc)?)],
-                })
-            }
-        }
-    }
-
     pub fn paragraphs(&self) -> usize {
         self.sections.iter().map(|(_, p)| p.len()).sum()
     }
 }
-
-/// The shell's target as F3 names it (for the view modules).
 pub fn nav_target(t: &Target) -> NavTarget {
     match t {
-        // The frozen consumer treats Book as no individual entity. V3 consumers
-        // must use Target directly, including its optional module, not this adapter.
-        Target::Entry { .. } | Target::Template(_) | Target::Book => NavTarget::Book,
-        Target::Chapter(id) => NavTarget::Chapter(id.clone()),
-        Target::Idea(id) => NavTarget::Idea(id.clone()),
-        Target::Storyline(id) => NavTarget::Storyline(id.clone()),
-        Target::Element(id) => NavTarget::Element(id.clone()),
-        Target::Category(id) => NavTarget::Category(id.clone()),
+        Target::Book => NavTarget::Book,
+        Target::Entry { id, module } => NavTarget::Entry {
+            id: id.clone(),
+            module: module.clone(),
+        },
+        Target::Template(id) => NavTarget::Template(id.clone()),
         Target::Material(id) => NavTarget::Material(id.clone()),
     }
 }
-
-/// F3's target as the shell names it.
 pub fn target(t: NavTarget) -> Target {
     match t {
         NavTarget::Book => Target::Book,
-        NavTarget::Chapter(id) => Target::Chapter(id),
-        NavTarget::Idea(id) => Target::Idea(id),
-        NavTarget::Storyline(id) => Target::Storyline(id),
-        NavTarget::Element(id) => Target::Element(id),
-        NavTarget::Category(id) => Target::Category(id),
+        NavTarget::Entry { id, module } => Target::Entry { id, module },
+        NavTarget::Template(id) => Target::Template(id),
         NavTarget::Material(id) => Target::Material(id),
     }
 }
-
-fn group(g: Group) -> LinkGroup {
-    LinkGroup::from_segment(g.segment()).expect("the same five groups")
-}
-
-impl Catalog for BookCatalog {
-    fn book_id(&self) -> Option<&str> {
-        Some(BookCatalog::book_id(self))
-    }
-
-    fn by_name(&self, g: Group, name: &str) -> Vec<Target> {
-        BookCatalog::by_name(self, group(g), name)
-            .into_iter()
-            .map(target)
-            .collect()
-    }
-
-    fn by_id(&self, g: Group, id: &str) -> Option<Target> {
-        BookCatalog::by_id(self, group(g), id).map(target)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

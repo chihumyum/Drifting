@@ -36,7 +36,7 @@ fn env() -> Env {
     let dir = tempfile::tempdir().unwrap();
     let lib = Library::open(dir.path(), library_options("test")).unwrap();
     let ws = Workspace::open(lib, WorkspaceOptions::default()).unwrap();
-    let book = out(&ws, "book.create", json!({"name": "页面"}))["id"]
+    let book = out(&ws, "project.create", json!({"name": "页面"}))["id"]
         .as_str()
         .unwrap()
         .to_owned();
@@ -50,20 +50,24 @@ fn env() -> Env {
 fn chapter(e: &Env, title: &str, text: &str) -> String {
     let id = out(
         &e.ws,
-        "chapter.create",
-        json!({"book": e.book, "title": title, "text": text}),
+        "entry.create", json!({"book": e.book, "parent": dr_testkit::seed::acceptance::novel_root(&e.ws, &e.book, "tpl-manuscript"), "template": "tpl-chapter", "title": title, "bodies": {"mod-prose": text}}),
     )["id"]
         .as_str()
         .unwrap()
         .to_owned();
-    format!("node:{id}")
+    format!("body:{id}/mod-prose")
 }
 
 fn chapters(e: &Env) -> Vec<Value> {
-    out(&e.ws, "chapter.list", json!({"book": e.book}))
-        .as_array()
-        .unwrap()
-        .clone()
+    dr_testkit::seed::acceptance::entries_by_template(&e.ws, &e.book, "tpl-chapter")
+        .into_iter()
+        .map(|mut entry| {
+            let fields = entry["fields"]["mod-fields"].clone();
+            entry["summary"] = fields["summary"].clone();
+            entry["status"] = fields["status"].clone();
+            entry
+        })
+        .collect()
 }
 
 fn titles(e: &Env) -> Vec<String> {
@@ -117,7 +121,12 @@ fn open(cx: &mut TestAppContext, e: &Env, doc: &str) -> (Entity<ChapterEditor>, 
             book,
             editor: PageEditorRef::Doc(cx.entity().downgrade()),
         };
-        editor.set_chrome(Some(std::rc::Rc::new(Chrome::new(host))), cx);
+        let snapshot =
+            std::rc::Rc::new(dr_shell::book::Book::load(&host.library, &host.book).unwrap());
+        editor.set_chrome(
+            Some(std::rc::Rc::new(Chrome::with_book(host, snapshot))),
+            cx,
+        );
         editor
     });
     let view = window.root(cx).unwrap();
@@ -244,7 +253,7 @@ fn the_end_finishes_the_chapter_and_makes_the_next(cx: &mut TestAppContext) {
     assert_eq!(titles(&e), ["雨夜", "新章节", "天明"]);
     // Opened (the shell opens it in a tab), its title has the caret,
     // all of it selected.
-    let new_doc = format!("node:{}", chapters(&e)[1]["id"].as_str().unwrap());
+    let new_doc = format!("body:{}/mod-prose", chapters(&e)[1]["id"].as_str().unwrap());
     let mut app = cx.cx.clone();
     let (_, mut cx2) = open(&mut app, &e, &new_doc);
     let (head, _) = cx2.update(|_, cx| page_views(&new_doc, cx)).unwrap();
@@ -258,15 +267,17 @@ fn the_end_finishes_the_chapter_and_makes_the_next(cx: &mut TestAppContext) {
 #[gpui::test]
 fn an_idea_page_stores_its_title_and_synopsis(cx: &mut TestAppContext) {
     let e = env();
-    let id = out(
+    let id = dr_testkit::seed::acceptance::novel_entry(
         &e.ws,
-        "idea.create",
-        json!({"book": e.book, "title": "灯塔", "text": "雾里有人敲钟。"}),
+        &e.book,
+        "tpl-idea",
+        "灯塔",
+        Some("雾里有人敲钟。"),
     )["id"]
         .as_str()
         .unwrap()
         .to_owned();
-    let doc = format!("node:{id}");
+    let doc = format!("body:{id}/mod-prose");
     let (_, mut cx) = open(cx, &e, &doc);
     let (head, end) = cx
         .update(|_, cx| page_views(&doc, cx))
@@ -277,13 +288,9 @@ fn an_idea_page_stores_its_title_and_synopsis(cx: &mut TestAppContext) {
     type_into(&synopsis, "守灯人的最后一夜。", &mut cx);
     cx.update(|window, cx| window.blur(cx));
     let idea = |e: &Env| {
-        out(&e.ws, "idea.list", json!({"book": e.book}))
-            .as_array()
-            .unwrap()
-            .iter()
-            .find(|i| i["id"].as_str() == Some(id.as_str()))
-            .cloned()
-            .unwrap()
+        let mut entry = out(&e.ws, "entry.get", json!({"book":e.book,"id":id}));
+        entry["summary"] = entry["fields"]["mod-fields"]["summary"].clone();
+        entry
     };
     wait_for(&mut cx, |_| {
         let i = idea(&e);

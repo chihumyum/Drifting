@@ -1,10 +1,10 @@
-//! Opt-in v3 import. The existing run pipeline owns staging, prose history,
-//! anchors, receipts, assets, interruption and resume in both kernel versions.
+//! Canonical v3 import. Source catalogs are replayed only in memory. The
+//! pipeline owns staging, prose history, anchors, receipts, assets and resume.
 //! Unresolved policy and malformed source rows stop before target writes.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use dr_doc::book::BookDoc;
+use dr_doc::import_v1::BookDoc;
 use dr_doc::peer::import_peer;
 use dr_doc::v3::BookViewV3;
 use dr_model::id::*;
@@ -22,34 +22,30 @@ use crate::run::Options;
 use crate::{ImportError, Result};
 
 pub use dr_samples::v3::{
-    ActBindingChoice, MappingChoices, Pending, TemplateRestriction, UnaffiliatedChoice,
+    ActBindingChoice, MappingChoices, Pending, RootReference, TemplateRestriction,
+    UnaffiliatedChoice, category_template,
 };
 
 pub(crate) fn mapping_key(options: &Options) -> Result<String> {
-    Ok(match &options.v3 {
-        None => "2".into(),
-        Some(choices) => format!("3:{:x}", Sha256::digest(serde_json::to_vec(choices)?)),
-    })
+    Ok(format!(
+        "3:{:x}",
+        Sha256::digest(serde_json::to_vec(&options.v3)?)
+    ))
 }
 
-pub(crate) fn doc_id(options: &Options, book: &BookId, old: &DocId) -> DocId {
-    if options.v3.is_some() {
-        dr_samples::v3::prose_id(book, old)
-    } else {
-        old.clone()
-    }
+pub(crate) fn doc_id(_options: &Options, book: &BookId, old: &DocId) -> DocId {
+    dr_samples::v3::prose_id(book, old)
 }
 
-pub(crate) fn plan(options: &Options, mut plan: Plan) -> Plan {
-    if options.v3.is_some() {
-        for para in &mut plan.paras {
-            for run in &mut para.runs {
-                for link in &mut run.marks.entities {
-                    link.kind = dr_samples::v3::map_kind(&link.kind);
-                }
+pub(crate) fn plan(_options: &Options, mut plan: Plan) -> Plan {
+    for para in &mut plan.paras {
+        for run in &mut para.runs {
+            for link in &mut run.marks.entities {
+                link.kind = dr_samples::v3::map_kind(&link.kind);
             }
         }
     }
+
     plan
 }
 
@@ -562,11 +558,9 @@ fn inspect_json(source: &str, json: &str, pending: &mut Vec<Pending>) {
 }
 
 pub(crate) fn preflight(legacy: &Legacy, options: &Options) -> Result<()> {
-    if let Some(choices) = &options.v3 {
-        let pending = pending(legacy, choices)?;
-        if !pending.is_empty() {
-            return Err(ImportError::V3Pending(pending));
-        }
+    let pending = pending(legacy, &options.v3)?;
+    if !pending.is_empty() {
+        return Err(ImportError::V3Pending(pending));
     }
     Ok(())
 }
@@ -577,13 +571,10 @@ type Projections = HashMap<String, (CommentId, ProjectionKind, DocId, BlockId)>;
 /// are converted to the v3 body-based ids with their relations in the
 /// adapter, while prose plans and the persisted catalog use v3 ids.
 pub(crate) fn catalog_projections(
-    options: &Options,
+    _options: &Options,
     projected: &Projections,
     rows: &BookRows,
 ) -> Projections {
-    if options.v3.is_none() {
-        return projected.clone();
-    }
     projected
         .iter()
         .map(|(old, (_, kind, _, block))| {

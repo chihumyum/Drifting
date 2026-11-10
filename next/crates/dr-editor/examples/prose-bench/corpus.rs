@@ -13,15 +13,14 @@
 //! screenshots), it says so.
 
 use std::collections::HashMap;
-use std::time::Instant;
 
 use dr_doc::schema::prose::BODY;
 use dr_editor::SessionSource;
 use dr_testkit::seed::{self, Preset};
-use dr_workspace::{Actor, Workspace, WorkspaceOptions, library_options};
+use dr_workspace::{Workspace, library_options};
 use gpui::SharedString;
 use gpui_prose::{Book, Chapter, ProseDoc};
-use serde_json::{Value, json};
+use serde_json::Value;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -51,74 +50,7 @@ impl Corpus {
     /// Generates the heavy preset, writes it into a fresh library and opens
     /// the workspace on it.
     pub fn heavy() -> Corpus {
-        if std::env::args().any(|a| a == "--v3") {
-            return Self::heavy_v3();
-        }
-        let started = Instant::now();
-        let dir = scratch_dir();
-        let seeded = seed::generate(Preset::Heavy, seed::DEFAULT_SEED).expect("generate the seed");
-        let shape = seeded.shape().to_json();
-        let chars: HashMap<String, usize> = seeded
-            .books
-            .iter()
-            .flat_map(|b| &b.prose)
-            .map(|p| (p.doc_id().to_string(), p.view().len()))
-            .collect();
-        {
-            let lib = dr_store::Library::open(dir.path(), library_options(VERSION))
-                .expect("open the library");
-            seeded.write_to(&lib).expect("write the seed");
-            // Search and derived indexes built now: in a library that has been
-            // open a while they are, and a rebuild in the background holds
-            // SQLite's write lock in front of the keystrokes being measured.
-            lib.rebuild_stale_indexes().expect("build the indexes");
-            lib.close().expect("close the library");
-        }
-        // The generator's copy of the book is not part of what is measured.
-        drop(seeded);
-        let lib = dr_store::Library::open(dir.path(), library_options(VERSION))
-            .expect("open the library");
-        let ws = Workspace::open(lib, WorkspaceOptions::default()).expect("open the workspace");
-        let call = |name: &str, input: Value| {
-            ws.call(&Actor::User, name, input)
-                .unwrap_or_else(|e| panic!("{name}: {e}"))["output"]
-                .clone()
-        };
-        let book = call("book.list", json!({}))[0]["id"]
-            .as_str()
-            .expect("a book")
-            .to_owned();
-        let chapters: Vec<Listed> = call("chapter.list", json!({ "book": book }))
-            .as_array()
-            .expect("the chapters")
-            .iter()
-            .map(|c| {
-                let doc = format!("node:{}", c["id"].as_str().expect("a chapter id"));
-                Listed {
-                    chars: *chars.get(&doc).expect("the chapter's seeded body"),
-                    title: c["title"].as_str().unwrap_or_default().to_owned(),
-                    doc,
-                }
-            })
-            .collect();
-        // The first of the longest, if two are as long.
-        let longest = (0..chapters.len())
-            .rev()
-            .max_by_key(|&i| chapters[i].chars)
-            .expect("a chapter");
-        eprintln!(
-            "[{:6.1} s] seeded the heavy preset: {} chapters, the longest {} chars",
-            started.elapsed().as_secs_f64(),
-            chapters.len(),
-            chapters[longest].chars
-        );
-        Corpus {
-            ws: Some(ws),
-            chapters,
-            longest,
-            shape,
-            _dir: dir,
-        }
+        Self::heavy_v3()
     }
 
     pub fn ws(&self) -> &Workspace {

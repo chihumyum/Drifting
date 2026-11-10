@@ -79,7 +79,7 @@ impl Fixture {
         let lib = Library::open(dir.path().join("library"), options).unwrap();
         let mut ids = Vec::new();
         for number in 0..2 {
-            let data = seed::generate(Preset::Tiny, seed::DEFAULT_SEED + number).unwrap();
+            let data = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED + number).unwrap();
             ids.push(data.books[0].book_id().clone());
             data.write_to(&lib).unwrap();
         }
@@ -89,9 +89,15 @@ impl Fixture {
             .into_iter()
             .map(|id| {
                 let chapters = ws
-                    .call(&Actor::User, "chapter.list", json!({"book":id}))
+                    .call(&Actor::User, "entry.list", json!({"book":id,"all":true}))
                     .unwrap();
-                let doc = format!("node:{}", chapters["output"][0]["id"].as_str().unwrap());
+                let entry = chapters["output"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|e| e["template"] == "tpl-chapter")
+                    .unwrap();
+                let doc = format!("body:{}/mod-prose", entry["id"].as_str().unwrap());
                 let paragraph = ws
                     .call(&Actor::User, "prose.read", json!({"doc":doc}))
                     .unwrap()["output"]["paragraphs"][1]
@@ -241,14 +247,53 @@ async fn main_chain(unix: bool, through_bridge: bool) {
             .iter()
             .any(|tool| matches!(tool.name.as_ref(), "ask_user" | "call_tool" | "tool_search"))
     );
-    reply(&call(&client, "chapter.list", json!({"book":f.books[0].id})).await);
+    reply(&call(&client, "entry.list", json!({"book":f.books[0].id})).await);
+    let owner = f.books[0]
+        .doc
+        .strip_prefix("body:")
+        .unwrap()
+        .split_once('/')
+        .unwrap()
+        .0;
+    let target = json!({"book":f.books[0].id,"entry":owner});
+    let point =
+        f.ws.call(&Actor::User, "entry_snapshot.create", target.clone())
+            .unwrap()["output"]["id"]
+            .clone();
     let read = reply(&call(&client, "prose.read", json!({"doc":f.books[0].doc})).await);
     let write = reply(&call(&client, "prose.replace", f.write(0)).await);
     assert_eq!(write["session"], read["session"]);
     assert!(!write["settlements"].as_array().unwrap().is_empty());
-    let source = json!({"session":write["session"],"turn":1});
-    reply(&call(&client, "history.agent_changes", source.clone()).await);
-    reply(&call(&client, "history.undo_agent", source).await);
+    let changed = reply(&call(&client, "prose.read", json!({"doc":f.books[0].doc})).await);
+    assert_eq!(
+        changed["output"]["output"]["paragraphs"][1]["text"],
+        f.write(0)["replace"]
+    );
+    assert_eq!(
+        f.ws.library()
+            .settlements(write["session"].as_str(), None)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert!(
+        !listed.tools.iter().any(|tool| matches!(
+            tool.name.as_ref(),
+            "history.undo_agent" | "history.agent_changes"
+        )),
+        "retired selective Agent undo is not a v3 model tool"
+    );
+    // Complete checkpoint restoration belongs to the author host. It is not
+    // reintroduced into the MCP model catalog as an old selective undo tool.
+    let at = json!({"book":f.books[0].id,"entry":owner,"point":point});
+    let preview =
+        f.ws.call(&Actor::User, "entry_snapshot.preview", at.clone())
+            .unwrap()["output"]
+            .clone();
+    let mut restore = at;
+    restore["expected"] = preview["expected"].clone();
+    f.ws.call(&Actor::User, "entry_snapshot.restore", restore)
+        .unwrap();
     let after =
         f.ws.call(&Actor::User, "prose.read", json!({"doc":f.books[0].doc}))
             .unwrap();
@@ -266,11 +311,11 @@ async fn main_chain(unix: bool, through_bridge: bool) {
 
 #[cfg(unix)]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn unix_client_lists_reads_writes_and_undoes_with_real_runtime() {
+async fn unix_client_lists_reads_writes_and_author_restores_with_real_runtime() {
     main_chain(true, false).await;
 }
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn loopback_client_lists_reads_writes_and_undoes_with_real_runtime() {
+async fn loopback_client_lists_reads_writes_and_author_restores_with_real_runtime() {
     main_chain(false, false).await;
 }
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -284,10 +329,10 @@ async fn switching_a_b_a_requires_new_reads_and_new_sessions_on_the_same_wire() 
     let mut client = f.client().await;
     let first = reply(&call(&client, "prose.read", json!({"doc":f.books[0].doc})).await);
     f.host.select(Some(f.books[1].id.clone()));
-    let changed = call(&client, "chapter.list", json!({"book":f.books[1].id})).await;
+    let changed = call(&client, "entry.list", json!({"book":f.books[1].id})).await;
     assert_eq!(changed.is_error, Some(true));
     assert!(text(&changed).contains(f.books[1].id.as_str()));
-    let second = reply(&call(&client, "chapter.list", json!({"book":f.books[1].id})).await);
+    let second = reply(&call(&client, "entry.list", json!({"book":f.books[1].id})).await);
     assert_ne!(first["session"], second["session"]);
     f.host.select(Some(f.books[0].id.clone()));
     assert_eq!(
@@ -480,7 +525,7 @@ async fn oversized_real_prose_reply_ends_scope_without_replaying_the_read() {
     .unwrap();
     assert_eq!(result.is_error, Some(true));
     assert!(text(&result).contains("exceeded"));
-    let ended = call(&client, "chapter.list", json!({"book":book.id})).await;
+    let ended = call(&client, "entry.list", json!({"book":book.id})).await;
     assert_eq!(ended.is_error, Some(true));
     assert!(text(&ended).contains("reconnect"));
     let scopes = f.scopes.lock().unwrap().clone();
@@ -650,7 +695,7 @@ async fn server_close_waits_for_a_scope_still_being_initialized() {
     let book = f.books[0].id.clone();
     let pending = tokio::spawn(async move {
         peer.call_tool_once(
-            CallToolRequestParams::new("chapter.list")
+            CallToolRequestParams::new("entry.list")
                 .with_arguments(json!({"book":book}).as_object().unwrap().clone()),
         )
         .await

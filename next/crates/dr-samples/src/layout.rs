@@ -13,8 +13,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use dr_doc::Result;
-use dr_model::book::{EntityRef, KvEntry, canonical_symmetric};
 use dr_model::id::*;
+use dr_model::import_v1::{EntityRef, KvEntry, canonical_symmetric};
 use dr_model::kind::*;
 use dr_model::pos::PosKey;
 use dr_model::prose::{Heading, InlineStyle};
@@ -703,7 +703,7 @@ fn lay_out(s: &SampleBook, key: &str) -> Result<SeededBook> {
                 w.anchor(anchor.as_ref())?
                     .target_block(block.as_ref())?
                     .quote(c.quotation.as_deref())?
-                    .snapshots(&[dr_model::book::BlockSnapshot {
+                    .snapshots(&[dr_model::import_v1::BlockSnapshot {
                         block: block.clone(),
                         text: para.clone(),
                     }])?;

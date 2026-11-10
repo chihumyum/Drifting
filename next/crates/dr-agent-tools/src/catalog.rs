@@ -17,14 +17,12 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 
 /// Change this when facade handler semantics change without a schema change.
-const FACADE_REVISION: &str = "m29-author-facade-v1";
 /// Versioned facade revision for universal kernel v3 books and template verbs.
 pub const FACADE_REVISION_V3: &str = "k6-author-facade-v3-r4";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BookKernelVersion {
-    V2_2,
     V3,
 }
 
@@ -227,7 +225,7 @@ impl Default for Catalog {
 
 impl Catalog {
     pub fn new() -> Self {
-        Self::build_base(BookKernelVersion::V2_2)
+        Self::build_base(BookKernelVersion::V3)
     }
 
     pub fn new_v3() -> Self {
@@ -240,7 +238,9 @@ impl Catalog {
             .load_copy(&format!("book:{book}"))
             .map_err(dr_workspace::WsError::from)?;
         if !is_v3_doc(&doc) {
-            return Ok(Self::new());
+            return Err(crate::Error::Invalid(
+                "only canonical v3 books have a tool catalog".into(),
+            ));
         }
         let borrowed = BorrowedBookV3::new(&doc, book)
             .map_err(|e| crate::Error::Invalid(format!("invalid v3 book {book}: {e}")))?;
@@ -266,29 +266,17 @@ impl Catalog {
     fn build_base(version: BookKernelVersion) -> Self {
         let mut entries = Vec::new();
         let mut excluded = Vec::new();
-        let facade = match version {
-            BookKernelVersion::V2_2 => FACADE_REVISION,
-            BookKernelVersion::V3 => FACADE_REVISION_V3,
-        };
+        let facade = FACADE_REVISION_V3;
         for spec in registry().iter() {
-            let reason = match version {
-                BookKernelVersion::V2_2 => exclusion(spec),
-                BookKernelVersion::V3 => exclusion_v3(spec),
-            };
+            let reason = exclusion_v3(spec);
             if let Some(reason) = reason {
                 excluded.push((spec.name.to_owned(), reason.to_owned()));
                 continue;
             }
-            let mut input_schema = match version {
-                BookKernelVersion::V2_2 => {
-                    crate::resolve::facade_schema(spec.name, spec.input_schema().as_value().clone())
-                }
-                BookKernelVersion::V3 => {
-                    crate::resolve::facade_schema_v3(spec.name, input_schema_for(spec, version))
-                }
-            };
-            if spec.name == "relation.create" {
-                // F3's optional caller id can name an existing hidden edge.
+            let mut input_schema =
+                crate::resolve::facade_schema_v3(spec.name, input_schema_for(spec, version));
+            if matches!(spec.name, "relation.create" | "module.put_relation") {
+                // Relations modules always create their own identity; reject a supplied id.
                 // The facade only creates fresh identities; omitting a
                 // property alone would still accept it in an open schema.
                 input_schema["properties"]
@@ -925,15 +913,6 @@ fn decode_verb_segment(encoded: &str) -> Option<String> {
     String::from_utf8(out).ok()
 }
 
-/// A small scope policy, not a second capability inventory. New registered
-/// operations enter automatically if they have a recognized book boundary.
-fn exclusion(spec: &Spec) -> Option<&'static str> {
-    if spec.book_version == Some(3) {
-        return Some("v3 commands remain excluded until K6 opens the versioned catalog");
-    }
-    common_exclusion(spec, BookKernelVersion::V2_2)
-}
-
 fn exclusion_v3(spec: &Spec) -> Option<&'static str> {
     // Public F3 additions must not bypass the facade's read coverage and
     // restore protocol merely by acquiring a book-scoped input schema.
@@ -958,49 +937,7 @@ fn exclusion_v3(spec: &Spec) -> Option<&'static str> {
     if spec.name == "membership.restore" {
         return Some("scoped membership undo is internal until K6 provides a guarded facade");
     }
-    if spec.book_version != Some(3) {
-        let domain = spec
-            .name
-            .split_once('.')
-            .map(|(d, _)| d)
-            .unwrap_or(spec.name);
-        if domain == "act" {
-            return Some(
-                "retired in v3; levels and timeline pins use generic entry and timeline_view commands",
-            );
-        }
-        if matches!(
-            domain,
-            "chapter" | "idea" | "element" | "category" | "storyline" | "idea_group"
-        ) && !matches!(spec.name, "idea.to_chapter" | "idea.to_element")
-            && !spec.name.ends_with(".purge")
-        {
-            return Some(
-                "replaced in v3 by generic entry, level, module, membership, and timeline_view commands",
-            );
-        }
-        if matches!(
-            domain,
-            "category_template" | "chapter_template" | "storyline_template"
-        ) && !spec.name.ends_with(".document")
-        {
-            return Some("replaced in v3 by entry_template and module prose commands");
-        }
-        if matches!(domain, "patch" | "plot_grid")
-            && !matches!(spec.name, "patch.delete" | "patch.check_sources")
-        {
-            return Some("replaced in v3 by entry module commands");
-        }
-        if domain == "time_pin" {
-            return Some("replaced in v3 by timeline_view pin commands");
-        }
-        if domain == "relation_type" && spec.name != "relation_type.delete" {
-            return Some("replaced in v3 by entry_relation_type commands");
-        }
-        if spec.name == "history.restore_entities" {
-            return Some("replaced in v3 by entry_history.restore");
-        }
-    }
+
     if spec.name == "module.prose_document" {
         return Some("storage, editor, or derived-state maintenance");
     }
@@ -1018,14 +955,7 @@ fn common_exclusion(spec: &Spec, version: BookKernelVersion) -> Option<&'static 
             "cascade needs an F3 query exposing affected relations, including hidden endpoints",
         );
     }
-    if spec.name == "idea.to_chapter" {
-        return Some("conversion needs exact affected act and time-pin coverage before mutation");
-    }
-    if spec.name == "idea.to_element" {
-        return Some(
-            "conversion needs version-checked full source prose and guarded automatic-link effects",
-        );
-    }
+
     if spec.name == "history.restore_point" {
         return Some("history restore labels require an atomic guarded owner hook");
     }
@@ -1057,33 +987,17 @@ fn common_exclusion(spec: &Spec, version: BookKernelVersion) -> Option<&'static 
     (!scoped).then_some("no current-book input boundary")
 }
 
-pub(crate) fn allowed(spec: &Spec) -> bool {
-    exclusion(spec).is_none()
-}
-
 pub(crate) fn allowed_v3(spec: &Spec) -> bool {
     exclusion_v3(spec).is_none()
 }
 
 /// Select the signature that F3 dispatches for this book, including shared names.
-pub(crate) fn input_schema_for(spec: &Spec, version: BookKernelVersion) -> Value {
-    if version == BookKernelVersion::V3
-        && let Some(v3) = &spec.v3
-    {
-        v3.input_schema().as_value().clone()
-    } else {
-        spec.input_schema().as_value().clone()
-    }
+pub(crate) fn input_schema_for(spec: &Spec, _version: BookKernelVersion) -> Value {
+    spec.input_schema().as_value().clone()
 }
 
-fn output_schema_for(spec: &Spec, version: BookKernelVersion) -> Value {
-    if version == BookKernelVersion::V3
-        && let Some(v3) = &spec.v3
-    {
-        v3.output_schema().as_value().clone()
-    } else {
-        spec.output_schema().as_value().clone()
-    }
+fn output_schema_for(spec: &Spec, _version: BookKernelVersion) -> Value {
+    spec.output_schema().as_value().clone()
 }
 
 fn outcome_schema(name: &str, mut output: Value) -> Value {
@@ -1178,10 +1092,10 @@ mod tests {
                 .is_some()
         );
         assert_eq!(
-            exclusion(spec),
+            exclusion_v3(spec),
             Some("storage, editor, or derived-state maintenance")
         );
-        assert!(!allowed(spec));
+        assert!(!allowed_v3(spec));
     }
 
     #[test]

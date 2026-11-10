@@ -85,7 +85,7 @@ impl Drop for Fixture {
 fn directory_projects_v3_input_output_and_revision_for_shared_names() {
     let f = Fixture::new();
     let cat = f.tools.catalog_for_book(&f.ws, &f.book).unwrap();
-    let old = dr_agent_tools::catalog::Catalog::new();
+    let default_catalog = dr_agent_tools::catalog::Catalog::new();
     for name in [
         "book.get",
         "book.update",
@@ -93,7 +93,7 @@ fn directory_projects_v3_input_output_and_revision_for_shared_names() {
         "comment.create",
         "comment.anchors",
     ] {
-        let spec = registry().get(name).unwrap().v3.as_ref().unwrap();
+        let spec = registry().get(name).unwrap();
         let entry = cat.entries().iter().find(|e| e.name == name).unwrap();
         let expected_input = spec.input_schema();
         let mut expected_keys: Vec<_> = expected_input.as_value()["properties"]
@@ -116,7 +116,10 @@ fn directory_projects_v3_input_output_and_revision_for_shared_names() {
         if let Some(defs) = defs {
             assert_eq!(entry.output_schema["$defs"], defs);
         }
-        assert_ne!(entry.revision, old.descriptor(name).unwrap().revision);
+        assert_eq!(
+            entry.revision,
+            default_catalog.descriptor(name).unwrap().revision
+        );
     }
     let create = cat.descriptor("comment.create").unwrap();
     assert!(create.input_schema["properties"]["module"].is_object());
@@ -159,7 +162,7 @@ fn book_metadata_requires_read_and_old_frontier_never_overwrites_author_update()
     let book = f.call("book.get", json!({})).unwrap();
     assert_eq!(book["name"], "Synthetic book");
     assert_eq!(book["summary"], "author edit");
-    assert_eq!(book["word_target"], dr_model::book::DEFAULT_WORD_TARGET);
+    assert_eq!(book["word_target"], dr_model::shared::DEFAULT_WORD_TARGET);
 }
 
 #[test]

@@ -17,14 +17,14 @@ use serde_json::json;
 fn setup(preset: Preset) -> (tempfile::TempDir, Library, BookId, Vec<String>) {
     let temp = tempfile::tempdir().unwrap();
     let lib = Library::open(temp.path(), seed::library_options("m30-proactive")).unwrap();
-    let seeded = seed::generate(preset, seed::DEFAULT_SEED).unwrap();
+    let seeded = seed::generate_v3(preset, seed::DEFAULT_SEED).unwrap();
     let book = seeded.books[0].book_id().clone();
     seeded.write_to(&lib).unwrap();
     let nodes = lib
         .docs(Some(book.as_str()), None)
         .unwrap()
         .into_iter()
-        .filter(|d| d.doc_id.starts_with("node:"))
+        .filter(|d| d.doc_id.starts_with("body:") && lib.head(&d.doc_id).unwrap().is_some())
         .map(|d| d.doc_id)
         .collect();
     (temp, lib, book, nodes)
@@ -37,7 +37,7 @@ fn cursor(lib: &Library, book: &BookId) -> DeltaCursor {
             .docs(Some(book.as_str()), None)
             .unwrap()
             .into_iter()
-            .filter(|d| !d.doc_id.starts_with("book:"))
+            .filter(|d| !d.doc_id.starts_with("book:") && lib.head(&d.doc_id).unwrap().is_some())
             .map(|info| {
                 let copy = lib.load_copy(&info.doc_id).unwrap();
                 (
@@ -149,7 +149,7 @@ fn provenance_uses_existing_local_peer_and_survives_compaction() {
     );
     let author = collect_delta(
         &lib,
-        &request(&book, before, DeltaMode::LocalAuthorNodes, 12),
+        &request(&book, before, DeltaMode::LocalAuthorBodies, 12),
     )
     .unwrap();
     assert_eq!(author.documents.len(), 2);
@@ -181,22 +181,21 @@ fn formatting_and_whitespace_are_not_organize_work_and_new_edits_remain() {
         .unwrap();
     let formatting = collect_delta(
         &lib,
-        &request(&book, before, DeltaMode::LocalAuthorNodes, 12),
+        &request(&book, before, DeltaMode::LocalAuthorBodies, 12),
     )
     .unwrap();
     assert!(formatting.documents.is_empty());
-    assert!(prepare_organize(&formatting).is_none());
     insert(&lib, &nodes[0], Origin::Command);
     let first = collect_delta(
         &lib,
-        &request(&book, formatting.coverage, DeltaMode::LocalAuthorNodes, 12),
+        &request(&book, formatting.coverage, DeltaMode::LocalAuthorBodies, 12),
     )
     .unwrap();
     assert_eq!(first.documents.len(), 1);
     insert(&lib, &nodes[0], Origin::User);
     let overlapping = collect_delta(
         &lib,
-        &request(&book, first.coverage, DeltaMode::LocalAuthorNodes, 12),
+        &request(&book, first.coverage, DeltaMode::LocalAuthorBodies, 12),
     )
     .unwrap();
     assert_eq!(
@@ -218,7 +217,7 @@ fn bounded_batches_leave_the_thirteenth_document_unconsumed() {
         &request(
             &book,
             DeltaCursor::default(),
-            DeltaMode::LocalAuthorNodes,
+            DeltaMode::LocalAuthorBodies,
             12,
         ),
     )
@@ -231,7 +230,7 @@ fn bounded_batches_leave_the_thirteenth_document_unconsumed() {
             .iter()
             .all(|d| d.digest.chars().count() <= DIGEST_CHAR_LIMIT + 1)
     );
-    let mut next = request(&book, first.coverage, DeltaMode::LocalAuthorNodes, 12);
+    let mut next = request(&book, first.coverage, DeltaMode::LocalAuthorBodies, 12);
     next.since_ms = dr_store::now_ms() + 60_000;
     let second = collect_delta(&lib, &next).unwrap();
     assert_eq!(
@@ -255,7 +254,7 @@ fn start(revision: u64, id: &str, now: i64) -> SuggestionStart {
 }
 
 #[test]
-fn checkin_cas_cooldown_applies_after_failure_organize_and_restart() {
+fn checkin_cas_cooldown_applies_after_failure_and_restart() {
     let (_temp, lib, book, _nodes) = setup(Preset::Tiny);
     let ticket = ProactiveStore::begin_checkin(&lib, &book, &start(0, "first", 100))
         .unwrap()
@@ -266,12 +265,7 @@ fn checkin_cas_cooldown_applies_after_failure_organize_and_restart() {
             .is_none()
     );
     assert!(ProactiveStore::fail_checkin(&lib, &book, &ticket, "fixture failure").unwrap());
-    let state = ProactiveStore::load(&lib, &book).unwrap();
-    let organize =
-        ProactiveStore::claim_organize(&lib, &book, &start(state.revision, "organize", 200))
-            .unwrap()
-            .unwrap();
-    assert!(ProactiveStore::settle_organize(&lib, &book, &organize, true).unwrap());
+    let _state = ProactiveStore::load(&lib, &book).unwrap();
     let state = ProactiveStore::load(&lib, &book).unwrap();
     assert!(
         ProactiveStore::begin_checkin(&lib, &book, &start(state.revision, "too-soon", 200))
@@ -310,40 +304,8 @@ fn checkin_cas_cooldown_applies_after_failure_organize_and_restart() {
 }
 
 #[test]
-fn card_claims_and_organize_settlement_are_idempotent() {
+fn card_claims_and_settlement_are_idempotent() {
     let (_temp, lib, book, nodes) = setup(Preset::Tiny);
-    let before = cursor(&lib, &book);
-    insert(&lib, &nodes[0], Origin::User);
-    let batch = collect_delta(
-        &lib,
-        &request(&book, before, DeltaMode::LocalAuthorNodes, 12),
-    )
-    .unwrap();
-    let task = prepare_organize(&batch).unwrap();
-    let mut begin = start(0, "organize", 100);
-    begin.coverage = task.coverage;
-    let ticket = ProactiveStore::claim_organize(&lib, &book, &begin)
-        .unwrap()
-        .unwrap();
-    ProactiveStore::organize_started(&lib, &book, &ticket, "conversation").unwrap();
-    ProactiveStore::settle_organize(&lib, &book, &ticket, false).unwrap();
-    assert!(
-        ProactiveStore::load(&lib, &book)
-            .unwrap()
-            .organize_cursor
-            .documents
-            .is_empty()
-    );
-    begin.expected_revision = ProactiveStore::load(&lib, &book).unwrap().revision;
-    let ticket = ProactiveStore::claim_organize(&lib, &book, &begin)
-        .unwrap()
-        .unwrap();
-    assert!(ProactiveStore::settle_organize(&lib, &book, &ticket, true).unwrap());
-    assert!(!ProactiveStore::settle_organize(&lib, &book, &ticket, true).unwrap());
-    assert_eq!(
-        ProactiveStore::load(&lib, &book).unwrap().organize_cursor,
-        batch.coverage
-    );
     let state = ProactiveStore::load(&lib, &book).unwrap();
     let ticket = ProactiveStore::begin_checkin(&lib, &book, &start(state.revision, "cards", 200))
         .unwrap()
@@ -396,7 +358,7 @@ fn input(book: &BookId) -> CheckinInput {
             project_memory: Vec::new(),
             working_memory: Some(String::new()),
             open_todos: Vec::new(),
-            chapter_titles: Vec::new(),
+            entry_titles: Vec::new(),
         },
     }
 }
@@ -453,7 +415,7 @@ fn v3_delta_keeps_retained_bodies_without_inventing_a_novel_organize_task() {
             book,
             since_ms: now - 86_400_000,
             captured_ms: now,
-            mode: DeltaMode::LocalAuthorNodes,
+            mode: DeltaMode::LocalAuthorBodies,
             cursor: DeltaCursor::default(),
             limit: ORGANIZE_DOCUMENT_LIMIT,
         },
@@ -462,7 +424,6 @@ fn v3_delta_keeps_retained_bodies_without_inventing_a_novel_organize_task() {
     let changed = batch.documents.iter().find(|d| d.doc == doc).unwrap();
     assert_eq!(changed.target.kind, "entry");
     assert_eq!(changed.target.id, entry.id.as_str());
-    assert!(prepare_organize(&batch).is_none());
     assert_eq!(writes, ws.library().write_seq().unwrap());
     ws.shutdown().unwrap();
 }

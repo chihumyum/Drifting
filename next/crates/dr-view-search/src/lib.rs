@@ -17,8 +17,8 @@ pub mod model;
 mod panel;
 pub mod v3;
 
-pub use model::{Field, Group, Jump, Line, Owner, Row};
+pub use model::{Field, Line, Row};
 pub use panel::{
-    DEBOUNCE, KEY_CONTEXT, LIMIT, Marks, SearchEvent, SearchPanel, SelectNext, SelectPrevious,
-    WIDTH, key_bindings,
+    DEBOUNCE, KEY_CONTEXT, LIMIT, SearchEvent, SearchPanel, SelectNext, SelectPrevious, WIDTH,
+    key_bindings,
 };

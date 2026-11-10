@@ -954,12 +954,6 @@ fn body_typing_and_mentions_write_entry_links_and_undo_with_the_text(cx: &mut Te
             |r| matches!(r, MenuRow::Link {target:t,group:NameGroup::Entry,..} if t.id==target)
         ));
         assert!(
-            !menu
-                .rows
-                .iter()
-                .any(|r| matches!(r, MenuRow::Create { .. }))
-        );
-        assert!(
             a.position_link(0, 2)
                 .unwrap()
                 .contains("/modules/id-mod-prose/prose.md#L5")

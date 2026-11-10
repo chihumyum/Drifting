@@ -87,10 +87,14 @@ fn runtime_and_mirror_changes_are_painted_and_pointer_touch_persists_seen(cx: &m
     let dir = tempfile::tempdir().unwrap();
     let ws = Workspace::open_dir(dir.path(), "m31-ink-test").unwrap();
     ws.set_auto_links(false);
-    let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+    let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
     seeded.write_to(ws.library()).unwrap();
     let book = seeded.books[0].book_id().clone();
-    let chapters = author(&ws, "chapter.list", json!({"book":book}));
+    let chapters = json!(dr_testkit::seed::acceptance::entries_by_template(
+        &ws,
+        &book,
+        "tpl-chapter"
+    ));
     // Short excerpts of three shared-seed paragraphs keep all changed ranges
     // inside one viewport. No separate prose corpus is introduced here.
     let text: Vec<String> = seeded.books[0]
@@ -105,12 +109,10 @@ fn runtime_and_mirror_changes_are_painted_and_pointer_touch_persists_seen(cx: &m
     assert_eq!(text.len(), 3);
     let chapter = author(
         &ws,
-        "chapter.create",
-        json!({
-            "book":book,"title":chapters[0]["title"],"text":text.join("\n")
-        }),
+        "entry.create",
+        json!({"book": book, "parent": dr_testkit::seed::acceptance::novel_root(&ws, &book, "tpl-manuscript"), "template": "tpl-chapter", "title": chapters[0]["title"], "bodies": {"mod-prose": text.join("\n")}}),
     );
-    let doc = format!("node:{}", chapter["id"].as_str().unwrap());
+    let doc = format!("body:{}/mod-prose", chapter["id"].as_str().unwrap());
     let prose = author(&ws, "prose.read", json!({"doc":doc}));
     let (opened_ws, opened_book, opened_doc) = (ws.clone(), book.to_string(), doc.clone());
     let (view, cx) = cx.add_window_view(move |window, cx| {
@@ -172,7 +174,14 @@ fn runtime_and_mirror_changes_are_painted_and_pointer_touch_persists_seen(cx: &m
     .unwrap();
     let run = runtime
         .start(Start {
-            config: RunConfig::new(Provider::Openai, "synthetic-model"),
+            config: {
+                let mut c = RunConfig::new(Provider::Openai, "synthetic-model");
+                c.capabilities = Some(dr_agent::ModelCapabilities {
+                    context_window: Some(262_144),
+                    ..Default::default()
+                });
+                c
+            },
             book: book.clone(),
             conversation: ConversationId::new_v7(),
             input: text[0].clone(),

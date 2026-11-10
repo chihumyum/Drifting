@@ -43,12 +43,12 @@ use std::ops::Range;
 use std::rc::Rc;
 use std::time::Duration;
 
-use dr_doc::book::{BookReader, Collection};
-use dr_model::book::EncodedAnchor;
+use dr_doc::v3::CollectionV3 as Collection;
 use dr_model::id::BookId;
 use dr_model::kind::{CommentKind, CommentStatus};
+use dr_model::shared::EncodedAnchor;
 use dr_store::OpenDoc;
-use dr_text::autolink::book_link_names;
+
 use dr_text::{LinkMatcher, LinkTarget};
 use dr_workspace::commands::comment::{
     CommentReanchor, CommentReanchorIn, CommentUpdate, CommentUpdateIn, TodoMarkerIn, TodoProject,
@@ -1158,40 +1158,10 @@ fn comment_ranges(
     let wanted: HashSet<String> = docs.iter().map(|(d, _)| d.clone()).collect();
     let (mut by_doc, todos) = handle
         .read(move |d| {
-            let reader = BookReader::from_loro(book_id.clone(), d)?;
             let mut out: HashMap<String, Vec<(String, bool, EncodedAnchor)>> = HashMap::new();
             let mut todos = HashMap::new();
-            if reader.view().meta().schema_version == 3 {
-                let reader = dr_doc::v3::BookReaderV3::from_loro(book_id, d)?;
-                for c in reader.view().comments() {
-                    if c.kind == CommentKind::Todo {
-                        todos.insert(c.id.to_string(), c.is_done());
-                    }
-                    if c.status != CommentStatus::Open || c.target_missing {
-                        continue;
-                    }
-                    let (Some(target), Some(anchor)) = (c.target.as_ref(), c.anchor.as_ref())
-                    else {
-                        continue;
-                    };
-                    let doc = if target.kind == dr_model::kind::EntityKind::Entry {
-                        let Some(module) = c.target_module.as_ref() else {
-                            continue;
-                        };
-                        format!("body:{}/{}", target.id, module)
-                    } else {
-                        format!("{}:{}", target.kind.as_str(), target.id)
-                    };
-                    if wanted.contains(&doc) {
-                        out.entry(doc).or_default().push((
-                            c.id.to_string(),
-                            c.kind == CommentKind::Todo,
-                            anchor.clone(),
-                        ));
-                    }
-                }
-                return Ok::<_, dr_doc::DocError>((out, todos));
-            }
+
+            let reader = dr_doc::v3::BookReaderV3::from_loro(book_id, d)?;
             for c in reader.view().comments() {
                 if c.kind == CommentKind::Todo {
                     todos.insert(c.id.to_string(), c.is_done());
@@ -1199,15 +1169,22 @@ fn comment_ranges(
                 if c.status != CommentStatus::Open || c.target_missing {
                     continue;
                 }
-                let (Some(t), Some(a)) = (c.target.as_ref(), c.anchor.as_ref()) else {
+                let (Some(target), Some(anchor)) = (c.target.as_ref(), c.anchor.as_ref()) else {
                     continue;
                 };
-                let doc = format!("{}:{}", t.kind.as_str(), t.id);
+                let doc = if target.kind == dr_model::kind::EntityKind::Entry {
+                    let Some(module) = c.target_module.as_ref() else {
+                        continue;
+                    };
+                    format!("body:{}/{}", target.id, module)
+                } else {
+                    format!("{}:{}", target.kind.as_str(), target.id)
+                };
                 if wanted.contains(&doc) {
                     out.entry(doc).or_default().push((
                         c.id.to_string(),
                         c.kind == CommentKind::Todo,
-                        a.clone(),
+                        anchor.clone(),
                     ));
                 }
             }
@@ -1285,21 +1262,23 @@ fn resolve_marks(
 /// entity left out).
 fn link_names(ws: &Workspace, book: &str, doc: &str) -> Result<LinkMatcher<LinkTarget>, String> {
     let book_id = BookId::parse(book).map_err(|e| e.to_string())?;
-    let own = doc
-        .split_once(':')
-        .map(|(_, id)| id.to_owned())
-        .unwrap_or_default();
+    let own = if doc.is_empty() {
+        dr_model::DocId::Book(book_id.clone())
+    } else {
+        dr_model::DocId::parse(doc).map_err(|e| e.to_string())?
+    };
     let handle = ws
         .library()
         .open_doc(&format!("book:{book}"), OpenDoc::Existing)
         .map_err(|e| e.to_string())?;
     let names = handle
         .read(move |d| {
-            BookReader::from_loro(book_id, d).map(|r| book_link_names(&r.view(), &[own.as_str()]))
+            dr_doc::v3::BookReaderV3::from_loro(book_id, d)
+                .map(|r| dr_workspace::autolink::matcher(&r.view(), &own))
         })
         .map_err(|e| e.to_string())?
         .map_err(|e| e.to_string())?;
-    Ok(LinkMatcher::new(names))
+    Ok(names)
 }
 
 /// What the text says about links, suggestions and TODO keywords.

@@ -26,11 +26,9 @@ use dr_ui::sand;
 use dr_view_plot::{
     CellSize, Field, PlannerHost, PlotPlanner, RATIO_SCOPE, STORE_AFTER, ratio_key,
 };
-use dr_workspace::commands::plot_grid::{
-    Axis, CellIn, GridIn, PlotGridCell, PlotGridGet, PlotGridInfo,
-};
-use dr_workspace::{Actor, Workspace as Library};
-use gpui::{Entity, Focusable as _, TestAppContext, VisualTestContext, point, px};
+use dr_workspace::Workspace as Library;
+use dr_workspace::commands::v3::plot::{Axis, PlotGridInfo};
+use gpui::{AppContext as _, Entity, Focusable as _, TestAppContext, VisualTestContext, point, px};
 
 const VERSION: &str = "0.2.0-dev";
 
@@ -46,23 +44,21 @@ fn seeded() -> Setup {
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path().join("library");
     let store = dr_store::Library::open(&root, dr_workspace::library_options(VERSION)).unwrap();
-    let book = dr_testkit::samples::a_q().unwrap();
-    dr_testkit::seed::write_book(&store, &book).unwrap();
+    let source = dr_testkit::samples::a_q().unwrap();
+    let book = dr_testkit::seed::book_to_v3(&source).unwrap();
+    dr_testkit::seed::write_book_v3(&store, &book).unwrap();
     let book_id = book.book_id().to_string();
     store.close().unwrap();
     let lib = Library::open_dir(&root, VERSION).unwrap();
-    let list = lib
-        .call(
-            &Actor::User,
-            "chapter.list",
-            serde_json::json!({ "book": book_id }),
-        )
-        .unwrap();
-    let chapters = list["output"]
-        .as_array()
-        .unwrap()
+    let raw = lib.library().load_copy(&format!("book:{book_id}")).unwrap();
+    let id = book_id.parse().unwrap();
+    let borrowed = dr_doc::v3::BorrowedBookV3::new(&raw, &id).unwrap();
+    let chapters = borrowed
+        .view()
+        .manuscript_levels()
         .iter()
-        .map(|c| c["id"].as_str().unwrap().to_owned())
+        .flat_map(|r| borrowed.view().manuscript_leaves(r))
+        .map(|e| e.id.to_string())
         .collect();
     Setup {
         _dir: dir,
@@ -79,7 +75,9 @@ fn open<'a>(
 ) -> (Entity<PlotPlanner>, &'a mut VisualTestContext) {
     init(cx, s);
     let host = host(s, chapter);
-    let (view, cx) = cx.add_window_view(move |window, cx| PlotPlanner::new(host, window, cx));
+    let (view, cx) = cx.add_window_view(move |window, cx| {
+        PlotPlanner::for_module(host, "mod-plot-grid".into(), window, cx)
+    });
     wait_for(cx, |cx| view.read_with(cx, |p, _| p.is_loaded()));
     (view, cx)
 }
@@ -146,19 +144,10 @@ fn settle(view: &Entity<PlotPlanner>, cx: &mut VisualTestContext) {
 }
 
 fn stored(s: &Setup, chapter: usize) -> PlotGridInfo {
-    s.lib
-        .run::<PlotGridGet>(
-            &Actor::User,
-            GridIn {
-                book: s.book.clone(),
-                node: s.chapters[chapter].clone(),
-            },
-        )
-        .unwrap()
-        .output
+    dr_view_plot::v3::read(&s.lib, &s.book, &s.chapters[chapter], "mod-plot-grid").unwrap()
 }
 
-fn labels(lines: &[dr_workspace::commands::plot_grid::LineInfo]) -> Vec<String> {
+fn labels(lines: &[dr_workspace::commands::v3::plot::LineInfo]) -> Vec<String> {
     lines.iter().map(|l| l.label.clone()).collect()
 }
 
@@ -288,7 +277,26 @@ fn spreadsheet_paste_is_the_first_edit_and_plain_paste_still_inserts(cx: &mut Te
     let s = seeded();
     let (view, cx) = open(cx, &s, 0);
     let grid = view.read_with(cx, |p, _| p.grid().clone());
-    assert!(!grid.exists);
+    assert!(
+        grid.exists,
+        "v3 exposes stable canonical default line ids before persistence"
+    );
+    let raw = s
+        .lib
+        .library()
+        .load_copy(&format!("book:{}", s.book))
+        .unwrap();
+    let book = s.book.parse().unwrap();
+    let b = dr_doc::v3::BorrowedBookV3::new(&raw, &book).unwrap();
+    assert!(
+        b.view()
+            .plot_grid(
+                &s.chapters[0].parse().unwrap(),
+                &"mod-plot-grid".parse().unwrap()
+            )
+            .is_none(),
+        "the paste is still the first persisted grid edit"
+    );
     let field = Field::Cell(grid.rows[2].id.clone(), grid.cols[2].id.clone());
     // Focus without typing so the paste itself creates the grid.
     let area = view.read_with(cx, |p, _| p.field(&field).unwrap());
@@ -308,8 +316,8 @@ fn spreadsheet_paste_is_the_first_edit_and_plain_paste_still_inserts(cx: &mut Te
     );
     assert_eq!(area.read_with(cx, |a, _| a.text()), "阿Q");
 
-    // The field's subscription began with temporary ids; both an ordinary
-    // paste and the next block paste still address its adopted stored ids.
+    // Both ordinary paste and the next block paste keep addressing the
+    // same deterministic canonical line identities after the first save.
     cx.simulate_keystrokes(if cfg!(target_os = "macos") {
         "cmd-right"
     } else {
@@ -416,45 +424,6 @@ fn headers_insert_move_rename_and_delete(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-fn a_chapter_without_a_grid_stores_it_with_the_first_edit(cx: &mut TestAppContext) {
-    let s = seeded();
-    let (view, cx) = open(cx, &s, 0);
-    let grid = view.read_with(cx, |p, _| p.grid().clone());
-    assert!(!grid.exists);
-    assert_eq!((grid.rows.len(), grid.cols.len()), (3, 3));
-    assert!(!stored(&s, 0).exists);
-
-    // A slip typed into, then a column added, before anything is stored.
-    type_into(&view, Field::Cell("~r1".into(), "~c2".into()), "未庄", cx);
-    cx.update(|window, cx| view.update(cx, |p, cx| p.add_line(Axis::Column, window, cx)));
-    settle(&view, cx);
-    let info = stored(&s, 0);
-    assert!(info.exists);
-    assert_eq!((info.rows.len(), info.columns.len()), (3, 4));
-    assert_eq!(
-        cell_text(&info, &info.rows[1].id, &info.columns[2].id),
-        "未庄"
-    );
-    // The planner's lines are the stored ids now.
-    let grid = view.read_with(cx, |p, _| p.grid().clone());
-    assert!(grid.exists);
-    assert!(
-        grid.rows
-            .iter()
-            .chain(&grid.cols)
-            .all(|l| !l.id.starts_with('~'))
-    );
-    assert_eq!(grid.cols[3].id, info.columns[3].id);
-    // Typing goes on in the same slip (the field made before still reports).
-    cx.simulate_input("的");
-    settle(&view, cx);
-    assert_eq!(
-        cell_text(&stored(&s, 0), &info.rows[1].id, &info.columns[2].id),
-        "未庄的"
-    );
-}
-
-#[gpui::test]
 fn the_grip_sizes_the_cells_and_clear_empties_them(cx: &mut TestAppContext) {
     let s = seeded();
     let (view, cx) = open(cx, &s, 3);
@@ -497,7 +466,7 @@ fn a_hand_set_shape_is_kept_on_this_device(cx: &mut TestAppContext) {
     let (view, cx) = open(cx, &s, 3);
     wait_for(cx, |cx| view.read_with(cx, |p, _| p.is_ratio_settled()));
     assert_eq!(view.read_with(cx, |p, _| p.ratio()), None);
-    let key = ratio_key(&s.chapters[3]);
+    let key = ratio_key(&format!("{}/mod-plot-grid", s.chapters[3]));
     let kept = || s.lib.library().local_get(RATIO_SCOPE, &key).unwrap();
     assert_eq!(kept(), None);
 
@@ -528,14 +497,18 @@ fn a_hand_set_shape_is_kept_on_this_device(cx: &mut TestAppContext) {
 
     // The grid opened again (another chapter came and went) knows it.
     let same = host(&s, 3);
-    let again = cx.update(|window, cx| dr_view_plot::planner(same, window, cx));
+    let again = cx.update(|window, cx| {
+        cx.new(|cx| PlotPlanner::for_module(same, "mod-plot-grid".into(), window, cx))
+    });
     wait_for(cx, |cx| {
         again.read_with(cx, |p, _| p.is_loaded() && p.is_ratio_settled())
     });
     assert_eq!(again.read_with(cx, |p, _| p.ratio()), Some(3.0));
     // Another grid has its own.
     let other = host(&s, 2);
-    let other = cx.update(|window, cx| dr_view_plot::planner(other, window, cx));
+    let other = cx.update(|window, cx| {
+        cx.new(|cx| PlotPlanner::for_module(other, "mod-plot-grid".into(), window, cx))
+    });
     wait_for(cx, |cx| other.read_with(cx, |p, _| p.is_ratio_settled()));
     assert_eq!(other.read_with(cx, |p, _| p.ratio()), None);
 }
@@ -551,22 +524,37 @@ fn another_writers_change_shows_and_typing_is_kept(cx: &mut TestAppContext) {
     // The author is typing in one slip (not stored yet) …
     type_into(&view, Field::Cell(r2.clone(), c1.clone()), "赵太爷", cx);
     // … while an Agent writes another.
-    s.lib
-        .run::<PlotGridCell>(
-            &Actor::Agent {
-                session: "test".into(),
-                turn: 1,
-                call: "plot_grid.cell".into(),
-            },
-            CellIn {
-                book: s.book.clone(),
-                node: s.chapters[3].clone(),
-                row: r3.clone(),
-                column: c0.clone(),
-                text: "地保来了".into(),
-            },
-        )
-        .unwrap();
+    dr_view_plot::v3::write(
+        &s.lib,
+        &s.book,
+        &s.chapters[3],
+        "mod-plot-grid",
+        vec![dr_view_plot::Write::Cell {
+            row: r3.clone(),
+            col: c0.clone(),
+            text: "地保来了".into(),
+        }],
+    )
+    .unwrap();
+    cx.executor()
+        .advance_clock(STORE_AFTER + Duration::from_millis(50));
+    wait_for(cx, |cx| view.read_with(cx, |p, _| p.save_failed()));
+    let draft = view.read_with(cx, |p, _| {
+        p.field(&Field::Cell(r2.clone(), c1.clone())).unwrap()
+    });
+    assert_eq!(
+        draft.read_with(cx, |a, _| a.text()),
+        "赵太爷",
+        "CAS refusal retains the author's draft"
+    );
+    let committed = stored(&s, 3);
+    assert_eq!(cell_text(&committed, &r3, &c0), "地保来了");
+    assert_ne!(
+        cell_text(&committed, &r2, &c1),
+        "赵太爷",
+        "an unseen whole-grid change is never silently acknowledged"
+    );
+    view.update(cx, |p, cx| p.retry_save(cx));
     settle(&view, cx);
     let grid = view.read_with(cx, |p, _| p.grid().clone());
     assert_eq!(grid.cell(&r3, &c0), "地保来了");
@@ -586,7 +574,9 @@ fn clear_asks_first_in_the_workspace_window(cx: &mut TestAppContext) {
     init(cx, &s);
     let (ws, cx) = cx.add_window_view(dr_shell::Workspace::new);
     let host = host(&s, 3);
-    let view = cx.update(|window, cx| dr_view_plot::planner(host, window, cx));
+    let view = cx.update(|window, cx| {
+        cx.new(|cx| PlotPlanner::for_module(host, "mod-plot-grid".into(), window, cx))
+    });
     wait_for(cx, |cx| view.read_with(cx, |p, _| p.is_loaded()));
 
     cx.update(|window, cx| view.update(cx, |p, cx| p.ask_clear(window, cx)));
@@ -600,44 +590,4 @@ fn clear_asks_first_in_the_workspace_window(cx: &mut TestAppContext) {
     cx.run_until_parked();
     assert!(ws.read_with(cx, |w, _| w.dialog.is_none()));
     assert_eq!(stored(&s, 3).cells.len(), 11);
-}
-
-/// In the shell's Bottom Panel ([`dr_view_plot::init`]): opened with a
-/// chapter in front it is that chapter's planner; the chapter renamed, its
-/// header follows.
-#[gpui::test]
-fn the_shell_shows_the_planner_of_the_chapter_in_front(cx: &mut TestAppContext) {
-    use dr_shell::nav::{Open, Target};
-    use dr_shell::pages::BottomPane;
-    let s = seeded();
-    init(cx, &s);
-    cx.update(dr_view_plot::init);
-    let (ws, cx) = cx.add_window_view(dr_shell::Workspace::new);
-    wait_for(cx, |cx| ws.read_with(cx, |ws, _| !ws.book.is_empty()));
-    let fourth = Target::Chapter(s.chapters[3].parse().unwrap());
-    ws.update(cx, |ws, cx| {
-        ws.open(fourth.clone(), Open::KEEP, cx);
-        ws.toggle_planner(cx);
-    });
-    cx.update(|window, cx| window.draw(cx).clear(cx));
-    let planner = ws
-        .read_with(cx, |ws, _| ws.bottom_view(BottomPane::Planner))
-        .expect("the planner is made")
-        .downcast::<PlotPlanner>()
-        .unwrap();
-    assert_eq!(
-        planner.read_with(cx, |p, _| p.host().node.clone()),
-        s.chapters[3]
-    );
-    s.lib
-        .call(
-            &Actor::User,
-            "chapter.update",
-            serde_json::json!({"book": s.book, "id": s.chapters[3], "title": "改了名"}),
-        )
-        .unwrap();
-    wait_for(cx, |cx| {
-        cx.update(|window, cx| window.draw(cx).clear(cx));
-        planner.read_with(cx, |p, _| p.host().title == "改了名")
-    });
 }

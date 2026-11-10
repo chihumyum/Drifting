@@ -17,10 +17,10 @@
 use std::collections::BTreeMap;
 
 use dr_doc::Result;
-use dr_model::book::{EntityRef, KvEntry};
 use dr_model::id::*;
 use dr_model::kind::*;
 use dr_model::pos::PosKey;
+use dr_model::shared::{EntityRef, KvEntry};
 use dr_model::{DocId, Timestamp};
 use serde::Deserialize;
 

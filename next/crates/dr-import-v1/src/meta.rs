@@ -27,9 +27,9 @@
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-use dr_doc::book::{BookTxn, BookView};
-use dr_model::book::KvEntry;
+use dr_doc::import_v1::{BookTxn, BookView};
 use dr_model::id::*;
+use dr_model::import_v1::KvEntry;
 use dr_model::kind::NodeStatus;
 use serde_json::Value;
 use sha2::{Digest, Sha256};

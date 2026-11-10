@@ -20,7 +20,7 @@ impl Fixture {
     fn new() -> Self {
         let dir = tempfile::tempdir().unwrap();
         let lib = Library::open(dir.path(), library_options("m29-catalog")).unwrap();
-        let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+        let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
         let book = seeded.books[0].book_id().clone();
         let text = seeded.books[0].prose[0]
             .view()
@@ -31,10 +31,8 @@ impl Fixture {
         seeded.write_to(&lib).unwrap();
         let ws = Workspace::open(lib, WorkspaceOptions::default()).unwrap();
         ws.set_auto_links(false);
-        let chapter = ws
-            .call(&Actor::User, "chapter.list", json!({"book":book}))
-            .unwrap()["output"][0]
-            .clone();
+        let chapter =
+            dr_testkit::seed::acceptance::entries_by_template(&ws, &book, "tpl-chapter")[0].clone();
         Self {
             _dir: dir,
             ws,
@@ -100,7 +98,7 @@ fn descriptors_are_generated_stable_and_book_scoped() {
         assert!(descriptor.input_schema["properties"].get("book").is_none());
     }
     for name in [
-        "book.create",
+        "project.create",
         "book.list",
         "book.shelf",
         "book.purge_expired",
@@ -120,7 +118,7 @@ fn descriptors_are_generated_stable_and_book_scoped() {
     ] {
         assert!(catalog.descriptor(name).is_none(), "{name}");
     }
-    assert!(catalog.descriptor("chapter.update").is_some());
+    assert!(catalog.descriptor("entry.update").is_some());
     let relation = catalog.descriptor("relation.create").unwrap();
     assert!(relation.input_schema["properties"].get("id").is_none());
     assert_eq!(relation.input_schema["not"], json!({"required":["id"]}));
@@ -189,8 +187,8 @@ fn author_names_resolve_to_registry_arguments_without_requiring_ids() {
     let call = resolve(
         &f.ws,
         &f.book,
-        "chapter.update",
-        json!({"id":title,"summary":f.text}),
+        "entry.update",
+        json!({"id":title,"title":format!("{title} revised")}),
     )
     .unwrap();
     assert_eq!(call.arguments["book"], f.book.as_str());
@@ -198,18 +196,18 @@ fn author_names_resolve_to_registry_arguments_without_requiring_ids() {
     assert_eq!(call.targets, vec![format!("book:{}", f.book)]);
     assert_eq!(
         call.subjects,
-        vec![format!("chapter:{}", f.chapter["id"].as_str().unwrap())]
+        vec![format!("entry:{}", f.chapter["id"].as_str().unwrap())]
     );
     let prose = resolve(
         &f.ws,
         &f.book,
         "prose.read",
-        json!({"doc":{"kind":"chapter","name":title}}),
+        json!({"doc":{"kind":"entry","module":"mod-prose","name":title}}),
     )
     .unwrap();
     assert_eq!(
         prose.arguments["doc"],
-        format!("node:{}", f.chapter["id"].as_str().unwrap())
+        format!("body:{}/mod-prose", f.chapter["id"].as_str().unwrap())
     );
     assert_eq!(
         prose.targets,
@@ -219,8 +217,8 @@ fn author_names_resolve_to_registry_arguments_without_requiring_ids() {
         resolve(
             &f.ws,
             &f.book,
-            "chapter.update",
-            json!({"id":"unknown-author-target","summary":f.text})
+            "entry.update",
+            json!({"id":"unknown-author-target","title":f.text})
         )
         .is_err()
     );
@@ -248,29 +246,32 @@ fn ambiguous_names_are_refused_even_when_a_document_kind_is_known() {
 #[test]
 fn nested_documents_and_history_sessions_cannot_cross_books() {
     let f = Fixture::new();
-    let foreign = f.out("book.create", json!({"name":f.text}))["id"]
+    let foreign = f.out("project.create", json!({"name":f.text}))["id"]
         .as_str()
         .unwrap()
         .to_owned();
-    let chapter = f.out(
-        "chapter.create",
-        json!({"book":foreign,"title":f.text,"text":f.text}),
+    let chapter = dr_testkit::seed::acceptance::novel_entry(
+        &f.ws,
+        &foreign,
+        "tpl-chapter",
+        &f.text,
+        Some(&f.text),
     );
-    let doc = format!("node:{}", chapter["id"].as_str().unwrap());
+    let doc = format!("body:{}/mod-prose", chapter["id"].as_str().unwrap());
     assert!(resolve(&f.ws, &f.book, "prose.read", json!({"doc":doc})).is_err());
-    assert!(resolve(&f.ws,&f.book,"prose.link",json!({"links":[{"doc":doc,"target":{"kind":"chapter","name":f.chapter["title"]},"anchors":[]}]})).is_err());
-    assert!(resolve(&f.ws, &f.book, "chapter.list", json!({"book":foreign})).is_err());
+    assert!(resolve(&f.ws,&f.book,"prose.link",json!({"links":[{"doc":doc,"target":{"kind":"entry","module":"mod-prose","name":f.chapter["title"]},"anchors":[]}]})).is_err());
+    assert!(resolve(&f.ws, &f.book, "entry.list", json!({"book":foreign})).is_err());
     f.ws.call(
         &Actor::agent("foreign-run", 1, "write"),
-        "chapter.update",
-        json!({"book":foreign,"id":chapter["id"],"summary":f.text}),
+        "entry.update",
+        json!({"book":foreign,"id":chapter["id"],"title":format!("{} revised",f.text)}),
     )
     .unwrap();
     assert!(
         resolve(
             &f.ws,
             &f.book,
-            "history.agent_changes",
+            "entry_history.version",
             json!({"session":"foreign-run"})
         )
         .is_err()
@@ -279,7 +280,7 @@ fn nested_documents_and_history_sessions_cannot_cross_books() {
         resolve(
             &f.ws,
             &f.book,
-            "history.undo_agent",
+            "entry_history.restore",
             json!({"session":"foreign-run"})
         )
         .is_err()
@@ -289,109 +290,45 @@ fn nested_documents_and_history_sessions_cannot_cross_books() {
 #[test]
 fn read_coverage_names_returned_objects_and_never_treats_a_book_token_as_all_entities() {
     let f = Fixture::new();
-    let chapters = f.out("chapter.list", json!({"book":f.book}));
-    let read = coverage("chapter.list", &json!({"book":f.book}), &chapters);
-    assert!(read.contains(&"chapter:*".to_owned()));
-    assert!(read.contains(&format!("chapter:{}", f.chapter["id"].as_str().unwrap())));
+    let args = json!({"book":f.book,"all":true});
+    let entries = f.out("entry.list", args.clone());
+    let read = coverage("entry.list", &args, &entries);
+    assert!(read.contains(&"entry:*".into()));
+    assert!(read.contains(&format!("entry:{}", f.chapter["id"].as_str().unwrap())));
     assert!(!read.contains(&format!("book:{}", f.book)));
     let book = f.out("book.get", json!({"book":f.book}));
     assert_eq!(
         coverage("book.get", &json!({"book":f.book}), &book),
         vec![format!("book:{}", f.book)]
     );
+    assert!(coverage("entry.list", &json!({"query":"filtered"}), &json!([])).is_empty());
     assert!(
         coverage(
-            "element.list",
-            &json!({"book":f.book,"category":"filtered"}),
-            &json!([])
+            "prose.read",
+            &json!({"doc":"body:synthetic/mod-prose"}),
+            &json!({"paragraphs":[]})
         )
-        .is_empty()
+        .contains(&"prose:body:synthetic/mod-prose".into())
     );
-    assert!(
-        coverage(
-            "prose.shape",
-            &json!({"doc":"node:unused"}),
-            &json!({"paragraphs":5})
-        )
-        .is_empty()
-    );
-    let prose_subjects = coverage(
-        "prose.read",
-        &json!({"doc":"element:synthetic-id"}),
-        &json!({"paragraphs":[]}),
-    );
-    assert_eq!(prose_subjects, vec!["prose:element:synthetic-id"]);
-    assert!(!prose_subjects.contains(&"element:synthetic-id".to_owned()));
     assert!(
         !coverage(
-            "relation.list",
-            &json!({"book":f.book,"trashed":true}),
-            &json!([])
+            "prose.read",
+            &json!({"doc":"body:synthetic/mod-prose"}),
+            &json!({"paragraphs":[]})
         )
-        .contains(&"relation:all".to_owned())
+        .contains(&"entry:synthetic".into())
+    );
+    assert!(
+        !coverage("relation.list", &json!({"trashed":true}), &json!([]))
+            .contains(&"relation:all".into())
     );
     assert!(
         coverage(
-            "element.list",
-            &json!({"book":f.book,"trashed":true}),
+            "entry.list",
+            &json!({"all":true,"trashed":true}),
             &json!([])
         )
-        .contains(&"element:all".to_owned())
-    );
-    let template_args = json!({"book":f.book,"category":"category-id"});
-    assert_eq!(
-        coverage("category_template.list", &template_args, &json!([])),
-        vec!["category_template:category-id"]
-    );
-    assert_eq!(
-        coverage("category_template.body", &template_args, &json!([])),
-        vec!["prose:template:category:category-id"]
-    );
-}
-
-#[test]
-fn v3_registry_commands_are_absent_and_invocation_is_refused_until_k6() {
-    use dr_agent_tools::{AgentTools, CallRequest, Error};
-    let f = Fixture::new();
-    let tools = AgentTools::new();
-    let actor = Actor::agent("k1-catalog", 1, "refused");
-    let before =
-        f.ws.library()
-            .load_copy(&format!("book:{}", f.book))
-            .unwrap()
-            .get_deep_value();
-    let mut checked = 0;
-    for spec in registry().iter().filter(|s| s.book_version == Some(3)) {
-        checked += 1;
-        assert!(
-            tools.catalog().descriptor(spec.name).is_none(),
-            "{}",
-            spec.name
-        );
-        let result = tools.invoke(
-            &f.ws,
-            &f.book,
-            &actor,
-            CallRequest {
-                name: spec.name.into(),
-                arguments: json!({}),
-                revision: None,
-                edited_text: None,
-            },
-        );
-        assert!(
-            matches!(result, Err(Error::Invalid(message)) if message == "unknown book tool"),
-            "{}",
-            spec.name
-        );
-    }
-    assert!(checked > 0);
-    assert_eq!(
-        before,
-        f.ws.library()
-            .load_copy(&format!("book:{}", f.book))
-            .unwrap()
-            .get_deep_value()
+        .contains(&"entry:all".into())
     );
 }
 
@@ -485,9 +422,6 @@ fn v3_catalog_exposes_generic_commands_and_excludes_v2_2_fixed_domains() {
         "book.update",
         "prose.read",
         "prose.replace",
-        "prose.shape",
-        "prose.link",
-        "prose.unlink",
         "prose.restore",
         "comment.anchors",
         "comment.create",
@@ -508,16 +442,17 @@ fn v3_catalog_exposes_generic_commands_and_excludes_v2_2_fixed_domains() {
         "fact.remove",
         "memory.add",
         "memory.list",
+        "memory.update",
         "memory.remove",
         "memory.restore",
-        "memory.update",
-        "history.points",
-        "history.preview",
-        "history.agent_changes",
-        "history.undo_agent",
         "relation.list",
         "relation.create",
         "relation.delete",
+        "prose.shape",
+        "prose.link",
+        "prose.unlink",
+        "entry_history.version",
+        "entry_history.restore",
     ] {
         let descriptor = catalog.descriptor(v3_cmd).expect(v3_cmd);
         assert!(
@@ -531,7 +466,7 @@ fn v3_catalog_exposes_generic_commands_and_excludes_v2_2_fixed_domains() {
         "module.prose_document",
         "history.restore_entities",
         "relation_type.list",
-        "book.create",
+        "project.create",
         "book.list",
         "chapter.list",
         "chapter.create",

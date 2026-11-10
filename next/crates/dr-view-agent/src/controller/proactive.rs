@@ -3,20 +3,11 @@
 use super::*;
 use dr_agent::{Cancellation, RunConfig, proactive::*};
 use dr_model::id::new_uuid_v7;
-use dr_workspace::Actor;
-use serde_json::json;
 
 #[derive(Clone, Debug)]
 pub struct Suggestions {
     pub state: ProactiveState,
-    pub organize: Option<OrganizeTask>,
     pub enabled: bool,
-}
-
-pub(super) struct OrganizeRun {
-    book: BookId,
-    ticket: SuggestionTicket,
-    config: RunConfig,
 }
 
 struct Job {
@@ -74,36 +65,6 @@ fn background<T: Send + 'static>(
     .boxed()
 }
 
-fn organize(
-    ws: &Workspace,
-    book: &BookId,
-    state: &ProactiveState,
-    now: i64,
-) -> Result<Option<OrganizeTask>, String> {
-    if dr_agent_tools::catalog::is_v3_book(ws, book).map_err(string)? {
-        return Ok(None);
-    }
-    let day = 24 * 60 * 60 * 1000;
-    let since = state
-        .organize_cursor
-        .since_ms
-        .unwrap_or(now - day)
-        .max(now - 7 * day);
-    let batch = collect_delta(
-        ws.library(),
-        &DeltaRequest {
-            book: book.clone(),
-            since_ms: since,
-            captured_ms: now,
-            mode: DeltaMode::LocalAuthorNodes,
-            cursor: state.organize_cursor.clone(),
-            limit: ORGANIZE_DOCUMENT_LIMIT,
-        },
-    )
-    .map_err(string)?;
-    Ok(prepare_organize(&batch))
-}
-
 struct CheckinProject {
     name: String,
     titles: Vec<String>,
@@ -148,42 +109,7 @@ fn checkin_project(ws: &Workspace, book: &BookId) -> Result<CheckinProject, Stri
                 return Ok(result);
             }
         } else {
-            let read = |name, input| {
-                ws.call(&Actor::User, name, input)
-                    .map(|v| v["output"].clone())
-                    .map_err(string)
-            };
-            let detail = read("book.get", json!({"book":book}))?;
-            if detail["trashed"].as_bool() != Some(false) {
-                return Err("book is unavailable".into());
-            }
-            let chapters = read("chapter.list", json!({"book":book}))?;
-            let todos = read(
-                "comment.list",
-                json!({"book":book,"kind":"todo","status":"open"}),
-            )?;
-            return Ok(CheckinProject {
-                name: detail["name"].as_str().unwrap_or_default().into(),
-                titles: chapters
-                    .as_array()
-                    .into_iter()
-                    .flatten()
-                    .filter_map(|v| v["title"].as_str().map(str::to_owned))
-                    .collect(),
-                todos: todos
-                    .as_array()
-                    .into_iter()
-                    .flatten()
-                    .map(|todo| {
-                        format!(
-                            "{}: {}",
-                            todo["id"].as_str().unwrap_or_default(),
-                            todo["body"].as_str().unwrap_or_default()
-                        )
-                    })
-                    .collect(),
-                guidance: None,
-            });
+            return Err("canonical v3 book required".into());
         }
     }
     Err("book structure changed while preparing suggestions; read again".into())
@@ -222,7 +148,7 @@ impl AgentController {
     }
 
     /// Local read only. It never changes cooldown or dispatches a model.
-    pub fn suggestions(&self, book: &BookId, now_ms: i64) -> Result<Suggestions, String> {
+    pub fn suggestions(&self, book: &BookId, _now_ms: i64) -> Result<Suggestions, String> {
         let enabled = self
             .inner
             .state
@@ -231,16 +157,7 @@ impl AgentController {
             .proactive_enabled;
         self.with_workspace_read(|ws| {
             let state = ProactiveStore::load(ws.library(), book).map_err(string)?;
-            let organize = if enabled && state.active.is_none() {
-                organize(ws, book, &state, now_ms)?
-            } else {
-                None
-            };
-            Ok(Suggestions {
-                state,
-                organize,
-                enabled,
-            })
+            Ok(Suggestions { state, enabled })
         })
     }
 
@@ -344,7 +261,7 @@ impl AgentController {
                     .collect(),
                 working_memory: (working.approx_tokens <= 20_000).then_some(working.content_md),
                 open_todos: project.todos,
-                chapter_titles: project.titles,
+                entry_titles: project.titles,
             };
             if !job.allowed() {
                 return Ok(());
@@ -409,35 +326,12 @@ impl AgentController {
         })
     }
 
-    pub fn skip_organize(
-        &self,
-        book: BookId,
-        now_ms: i64,
-    ) -> BoxFuture<'static, Result<(), String>> {
-        background(self.suggestion_job(book), move |job| {
-            if !job.allowed() {
-                return Ok(());
-            }
-            let state = ProactiveStore::load(job.ws().library(), &job.book).map_err(string)?;
-            if let Some(task) = organize(job.ws(), &job.book, &state, now_ms)? {
-                ProactiveStore::skip_organize(
-                    job.ws().library(),
-                    &job.book,
-                    state.revision,
-                    &task.coverage,
-                )
-                .map_err(string)?;
-            }
-            Ok(())
-        })
-    }
-
     pub fn open_suggestion(
         &self,
         book: BookId,
-        card: Option<String>,
+        card: String,
         config: RunConfig,
-        now_ms: i64,
+        _now_ms: i64,
     ) -> BoxFuture<'static, Result<ConversationId, String>> {
         background(self.suggestion_job(book), move |job| {
             if !job.allowed() {
@@ -447,118 +341,35 @@ impl AgentController {
             let lib = ws.library();
             let book = &job.book;
             let state = ProactiveStore::load(lib, book).map_err(string)?;
-            if let Some(card) = card {
-                if let Some(stored) = state.cards.iter().find(|c| c.card.id == card)
-                    && let CardStatus::Started { conversation } = &stored.status
-                {
-                    return ConversationId::parse(conversation).map_err(string);
-                }
-                let claim =
-                    ProactiveStore::claim_card(lib, book, &card, &new_uuid_v7(), job.allowed())
-                        .map_err(string)?
-                        .ok_or("suggestion is no longer available")?;
-                let conversation = ConversationId::new_v7();
-                let started = if job.allowed() {
-                    job.controller.start(Start {
-                        book: book.clone(),
-                        conversation: conversation.clone(),
-                        config,
-                        input: claim.card.instruction.clone(),
-                    })
-                } else {
-                    Err("suggestions disabled".into())
-                };
-                ProactiveStore::settle_card(
-                    lib,
-                    book,
-                    &claim,
-                    started.as_ref().ok().map(|_| conversation.as_str()),
-                )
-                .map_err(string)?;
-                started?;
-                Ok(conversation)
-            } else {
-                let task = organize(ws, book, &state, now_ms)?
-                    .ok_or("no new author changes to organize")?;
-                let ticket = ProactiveStore::claim_organize(
-                    lib,
-                    book,
-                    &SuggestionStart {
-                        expected_revision: state.revision,
-                        id: new_uuid_v7(),
-                        now_ms,
-                        enabled: job.allowed(),
-                        coverage: task.coverage,
-                    },
-                )
-                .map_err(string)?
-                .ok_or("another suggestion is running")?;
-                let conversation = ConversationId::new_v7();
-                job.controller
-                    .inner
-                    .state
-                    .lock()
-                    .expect("Agent service")
-                    .organize_runs
-                    .insert(
-                        conversation.clone(),
-                        OrganizeRun {
-                            book: book.clone(),
-                            ticket: ticket.clone(),
-                            config: config.clone(),
-                        },
-                    );
-                ProactiveStore::organize_started(lib, book, &ticket, conversation.as_str())
-                    .map_err(string)?;
-                let started = if job.allowed() {
-                    job.controller.start(Start {
-                        book: book.clone(),
-                        conversation: conversation.clone(),
-                        config,
-                        input: task.prompt,
-                    })
-                } else {
-                    Err("suggestions disabled".into())
-                };
-                if let Err(error) = started {
-                    job.controller
-                        .inner
-                        .state
-                        .lock()
-                        .expect("Agent service")
-                        .organize_runs
-                        .remove(&conversation);
-                    ProactiveStore::settle_organize(lib, book, &ticket, false).map_err(string)?;
-                    return Err(error);
-                }
-                Ok(conversation)
-            }
-        })
-    }
 
-    pub(super) fn finish_organize(&self, conversation: &ConversationId, success: bool) {
-        let run = self
-            .inner
-            .state
-            .lock()
-            .expect("Agent service")
-            .organize_runs
-            .remove(conversation);
-        let Some(run) = run else {
-            return;
-        };
-        let settled = self.with_workspace_read(|ws| {
-            ProactiveStore::settle_organize(ws.library(), &run.book, &run.ticket, success)
-                .map_err(string)
-        });
-        if success && settled == Ok(true) {
-            // The previous click may still be finishing its acknowledgement;
-            // a busy job is left for the next Home focus trigger.
-            drop(self.trigger_suggestions(
-                run.book,
-                Some(run.config),
-                chrono::Utc::now().timestamp_millis(),
-            ));
-        }
+            if let Some(stored) = state.cards.iter().find(|c| c.card.id == card)
+                && let CardStatus::Started { conversation } = &stored.status
+            {
+                return ConversationId::parse(conversation).map_err(string);
+            }
+            let claim = ProactiveStore::claim_card(lib, book, &card, &new_uuid_v7(), job.allowed())
+                .map_err(string)?
+                .ok_or("suggestion is no longer available")?;
+            let conversation = ConversationId::new_v7();
+            let started = if job.allowed() {
+                job.controller.start(Start {
+                    book: book.clone(),
+                    conversation: conversation.clone(),
+                    config,
+                    input: claim.card.instruction.clone(),
+                })
+            } else {
+                Err("suggestions disabled".into())
+            };
+            ProactiveStore::settle_card(
+                lib,
+                book,
+                &claim,
+                started.as_ref().ok().map(|_| conversation.as_str()),
+            )
+            .map_err(string)?;
+            started?;
+            Ok(conversation)
+        })
     }
 }

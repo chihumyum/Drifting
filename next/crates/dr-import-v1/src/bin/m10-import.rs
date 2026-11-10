@@ -58,19 +58,13 @@ fn main() -> Res<()> {
         Some("analyse") => {
             let dir = tempfile_dir()?;
             let (_, legacy, _, gate) = run::analyse(Path::new(&args[1]), &dir)?;
-            let v3 = v3_choices(&args)?
-                .map(|choices| dr_import_v1::v3::pending(&legacy, &choices))
-                .transpose()?;
+            let pending = dr_import_v1::v3::pending(&legacy, &v3_choices(&args)?)?;
             drop(legacy);
             let _ = std::fs::remove_dir_all(&dir);
-            if let Some(pending) = v3 {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&json!({"gate":gate,"v3Pending":pending}))?
-                );
-            } else {
-                println!("{}", serde_json::to_string_pretty(&gate)?);
-            }
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&json!({"gate":gate,"v3Pending":pending}))?
+            );
         }
         Some("import") => {
             let out = import_cmd(&args)?;
@@ -160,12 +154,10 @@ fn import_cmd(args: &[String]) -> Res<Value> {
     })
 }
 
-fn v3_choices(args: &[String]) -> Res<Option<dr_import_v1::v3::MappingChoices>> {
+fn v3_choices(args: &[String]) -> Res<dr_import_v1::v3::MappingChoices> {
     Ok(if let Some(path) = arg(args, "--v3-mapping") {
-        Some(serde_json::from_slice(&std::fs::read(path)?)?)
-    } else if flag(args, "--v3") {
-        Some(Default::default())
+        serde_json::from_slice(&std::fs::read(path)?)?
     } else {
-        None
+        Default::default()
     })
 }

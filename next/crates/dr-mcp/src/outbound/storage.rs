@@ -325,7 +325,7 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let library =
             Library::open(directory.path(), dr_store::LibraryOptions::new("m32-test")).unwrap();
-        let seed = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+        let seed = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
         let book = seed.books[0].book_id().to_string();
         seed.write_to(&library).unwrap();
         let store = SecretStore::in_memory();
@@ -354,7 +354,7 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let library =
             Library::open(directory.path(), dr_store::LibraryOptions::new("m32-test")).unwrap();
-        let seed = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+        let seed = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
         let book = seed.books[0].book_id().to_string();
         seed.write_to(&library).unwrap();
         let store = SecretStore::in_memory();

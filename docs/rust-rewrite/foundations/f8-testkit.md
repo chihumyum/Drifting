@@ -1,5 +1,7 @@
 # F8 dr-testkit、dr-cli、调试桥与新工作区门禁
 
+> 2026-11-10 切换实施更新：普通 seed 默认 v3，seed-commands 退役；旧 source fixture writer 只留在 testkit。历史测量不重写。 当前范围、删除／保留边界和验收状态见 [canonical v3 切换](../v3-cutover.md)。下文历史交回记录保留其原语境。
+
 2026-11-07 至 11-08，第一到第三个里程碑（第三个里程碑在 F6 把稿纸换成编辑器以后补了一轮）。计划见 [foundation.md 的 F8](../foundation.md#f8-dr-cli-与-dr-testkit)，要简化的东西见 [simplifications.md](../simplifications.md) 第二、五、六节。
 
 ## 一句话
@@ -39,7 +41,7 @@
 ```rust
 use dr_testkit::seed::{self, Preset};
 
-let seeded = seed::generate(Preset::Lite, seed::DEFAULT_SEED)?;   // 内存里的书目文档和正文文档
+let seeded = seed::generate_v3(Preset::Lite, seed::DEFAULT_SEED)?;   // 内存里的书目文档和正文文档
 seeded.write_to(&library)?;                                       // 可选：写进一个 dr-store 库
 println!("{}", seeded.shape().to_json());                         // 规模和语料指纹
 ```
@@ -50,7 +52,7 @@ println!("{}", seeded.shape().to_json());                         // 规模和�
 cargo drifting workspace scenario seed:lite --library <目录> --yes
 ```
 
-### 两种写法
+### 切换前的两种写法（历史记录）
 
 同一本书可以用两种方式写进库，结果要一致：
 
@@ -71,7 +73,7 @@ cargo drifting workspace scenario seed:lite --library <目录> --yes
   - 写作日和时间钉：F3 还没有写这两样的命令，所以走命令的种子里没有它们，见「待协调」。
 - **只能直写的**：showcase 和两本样书暂时只有直写。
 
-命令行里两种都能用：`scenario seed:<预设>` 是直写，`scenario seed-commands:<预设>` 走命令。
+切换后命令行只提供 canonical v3 的 `scenario seed:<预设>`（兼容显式 `seed:v3-<预设>`）；旧命令种子已退役。以下对拍结果是切换前的历史证据。
 
 ### 预设
 
@@ -377,7 +379,7 @@ cargo xtask dev --hot --print-config                 # 看会跑什么命令，�
 ```bash
 cargo drifting workspace describe [--json]
 cargo drifting workspace call <命令> --library <目录> [--input JSON] [--yes]
-cargo drifting workspace scenario <场景.json | seed:预设 | seed-commands:预设> --library <目录> [--yes]
+cargo drifting workspace scenario <场景.json | seed:预设> --library <目录> [--yes]
 cargo drifting workspace inspect --library <目录> [--doc <文档 ID>] [--json]
 cargo drifting workspace scenario <场景.json> --app <可执行文件> [--profile P] [--out 目录] [--keep] [--yes]
 cargo drifting app <动作> …                     # 正在跑的开发版，经调试桥（见「调试桥」）

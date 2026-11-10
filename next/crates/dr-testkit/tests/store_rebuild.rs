@@ -17,15 +17,18 @@ const VERSION: &str = "0.2.0-test";
 /// `dir`; returns a chapter to type in.
 fn stale_library(dir: &Path, preset: dr_testkit::seed::Preset) -> String {
     let lib = Library::open(dir, dr_testkit::seed::library_options(VERSION)).unwrap();
-    let seeded = dr_testkit::seed::generate(preset, dr_testkit::seed::DEFAULT_SEED).unwrap();
+    let seeded = dr_testkit::seed::generate_v3(preset, dr_testkit::seed::DEFAULT_SEED).unwrap();
     seeded.write_to(&lib).unwrap();
-    let chapter = lib
-        .docs(None, Some("node"))
-        .unwrap()
-        .into_iter()
-        .map(|d| d.doc_id)
-        .next()
-        .unwrap();
+    let chapter = seeded.books[0]
+        .prose
+        .iter()
+        .find(|p| {
+            matches!(p.doc_id(),dr_model::DocId::Body(id) if id.module().as_str()=="mod-prose")
+                && !p.view().plain_text().trim().is_empty()
+        })
+        .expect("canonical seeded chapter prose")
+        .doc_id()
+        .to_string();
     lib.close().unwrap();
     chapter
 }

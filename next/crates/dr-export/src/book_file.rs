@@ -41,9 +41,7 @@ use dr_doc::peer::genesis_peer;
 use dr_doc::schema::{self, GENESIS_VERSION};
 use dr_model::id::{DocId, DocKind, new_uuid_v7};
 use dr_store::asset::{Variant, VariantBytes};
-use dr_workspace::commands::BookIn;
-use dr_workspace::commands::book::BookGet;
-use dr_workspace::{Actor, Workspace};
+use dr_workspace::Workspace;
 use loro::json::{JsonChange, JsonOpContent, ListOp, MapOp, MovableListOp, TextOp, TreeOp};
 use loro::{ContainerID, ExportMode, LoroDoc, LoroValue, VersionVector};
 use serde::{Deserialize, Serialize};
@@ -181,14 +179,7 @@ fn now_ms() -> i64 {
 
 /// The book's title for the native save panel, on either supported schema.
 pub fn book_title(ws: &Workspace, book: &str) -> Result<String> {
-    if crate::v3::is_book(ws, book).map_err(|e| BookFileError::Damaged(e.to_string()))? {
-        return v3::title(ws, book);
-    }
-    Ok(ws
-        .run::<BookGet>(&Actor::User, BookIn { book: book.into() })?
-        .output
-        .info
-        .name)
+    v3::title(ws, book)
 }
 
 /// Writes book `book` of `ws` to `dest` (whole or not at all). `progress`
@@ -199,10 +190,7 @@ pub fn export_book(
     dest: &Path,
     progress: &dyn Fn(Progress),
 ) -> Result<BookFileSummary> {
-    let is_v3 = crate::v3::is_book(ws, book).map_err(|e| BookFileError::Damaged(e.to_string()))?;
-    let before = is_v3
-        .then(|| v3::State::read(ws.library(), book))
-        .transpose()?;
+    let before = Some(v3::State::read(ws.library(), book)?);
     let title = book_title(ws, book)?;
     let lib = ws.library();
     let book_doc = DocId::Book(book.parse().map_err(|_| BookFileError::NotABook)?).to_string();
@@ -290,7 +278,7 @@ pub fn export_book(
         }
         let manifest = Manifest {
             format: FORMAT.into(),
-            format_version: if is_v3 { FORMAT_VERSION } else { 2 },
+            format_version: FORMAT_VERSION,
             app_version: lib.options().app_version.clone(),
             exported_at_ms: now_ms(),
             title: title.clone(),
@@ -394,7 +382,7 @@ fn read_file(path: &Path) -> Result<Contents> {
     if header.format_version > FORMAT_VERSION {
         return Err(BookFileError::Newer);
     }
-    if header.format_version < 2 {
+    if header.format_version < FORMAT_VERSION {
         return Err(BookFileError::Legacy);
     }
     let manifest: Manifest = serde_json::from_slice(&raw)
@@ -442,35 +430,12 @@ fn read_file(path: &Path) -> Result<Contents> {
     })
 }
 
-/// The book document's collections whose keys are ids (writing days and
-/// the meta map are not).
-const COLLECTIONS: &[&str] = &[
-    schema::book::NODES,
-    schema::book::ACTS,
-    schema::book::STORYLINES,
-    schema::book::CATEGORIES,
-    schema::book::ELEMENTS,
-    schema::book::PATCHES,
-    schema::book::RELATION_TYPES,
-    schema::book::RELATIONS,
-    schema::book::TIME_PINS,
-    schema::book::PLOT_GRIDS,
-    schema::book::COMMENTS,
-    schema::book::MATERIALS,
-    schema::book::ASSETS,
-    schema::book::DRIFT_GROUPS,
-    schema::book::MATERIAL_FOLDERS,
-    schema::book::FACTS,
-    schema::book::MEMORY,
-];
-
 /// Old ids to new ones, and old genesis peers to new ones.
 #[derive(Default)]
 struct Rewrite {
     ids: HashMap<String, String>,
     peers: HashMap<u64, u64>,
     checkpoints: HashMap<String, String>,
-    v3: bool,
 }
 
 fn is_hex(b: u8) -> bool {
@@ -490,25 +455,24 @@ impl Rewrite {
     /// A document's new id: its owner's id swapped (`node:<id>`,
     /// `template:category:<id>`…), whatever form the owner's id takes.
     fn doc_id(&self, id: &str) -> Option<String> {
-        if self.v3 {
-            match DocId::parse(id).ok()? {
-                DocId::Body(body) => {
-                    return Some(format!(
-                        "body:{}/{}",
-                        self.ids.get(body.entry().as_str())?,
-                        body.module()
-                    ));
-                }
-                DocId::Template(t) if t.entry_module().is_some() => {
-                    let (book, template, module) = t.entry_module()?;
-                    return Some(format!(
-                        "template:{}/{template}/{module}",
-                        self.ids.get(book.as_str())?
-                    ));
-                }
-                _ => {}
+        match DocId::parse(id).ok()? {
+            DocId::Body(body) => {
+                return Some(format!(
+                    "body:{}/{}",
+                    self.ids.get(body.entry().as_str())?,
+                    body.module()
+                ));
             }
+            DocId::Template(t) if t.entry_module().is_some() => {
+                let (book, template, module) = t.entry_module()?;
+                return Some(format!(
+                    "template:{}/{template}/{module}",
+                    self.ids.get(book.as_str())?
+                ));
+            }
+            _ => {}
         }
+
         let (prefix, owner) = id.rsplit_once(':')?;
         let new = self.ids.get(owner)?;
         Some(format!("{prefix}:{new}"))
@@ -575,254 +539,11 @@ impl Rewrite {
         self.string(s).unwrap_or_else(|| s.to_owned())
     }
 
-    fn container(&self, c: &ContainerID) -> ContainerID {
-        match c {
-            ContainerID::Root {
-                name,
-                container_type,
-            } => ContainerID::Root {
-                name: self
-                    .mergeable_name(name)
-                    .unwrap_or_else(|| self.text(name))
-                    .as_str()
-                    .into(),
-                container_type: *container_type,
-            },
-            ContainerID::Normal {
-                peer,
-                counter,
-                container_type,
-            } => ContainerID::Normal {
-                peer: self.peer(*peer),
-                counter: *counter,
-                container_type: *container_type,
-            },
-        }
-    }
-
-    /// A mergeable child's root name (`🤝:$<parent>><key>…`, the keys
-    /// escaped): each key mapped as a whole, so an id that is not a uuid is
-    /// followed there too.
-    fn mergeable_name(&self, name: &str) -> Option<String> {
-        let rest = name.strip_prefix(loro_common::MERGEABLE_NAMESPACE_PREFIX)?;
-        let mut segments = vec![String::new()];
-        let mut chars = rest.chars();
-        while let Some(c) = chars.next() {
-            match c {
-                '\\' => {
-                    let last = segments.last_mut().expect("one segment");
-                    last.push(c);
-                    if let Some(n) = chars.next() {
-                        last.push(n);
-                    }
-                }
-                '>' => segments.push(String::new()),
-                _ => segments.last_mut().expect("one segment").push(c),
-            }
-        }
-        let mut out = String::from(loro_common::MERGEABLE_NAMESPACE_PREFIX);
-        for (i, seg) in segments.iter().enumerate() {
-            if i > 0 {
-                out.push('>');
-            }
-            let (head, body) = match seg.strip_prefix('$') {
-                Some(body) if i == 0 => ("$", body),
-                // A normal parent (`@<peer>:<counter>`) stays.
-                _ if i == 0 => {
-                    out.push_str(seg);
-                    continue;
-                }
-                _ => ("", seg.as_str()),
-            };
-            out.push_str(head);
-            out.push_str(&escape(&self.text(&unescape(body))));
-        }
-        Some(out)
-    }
-
-    /// A value with its strings, map keys and container ids rewritten
-    /// (binary values as they are).
-    fn loro_value(&self, v: &LoroValue) -> LoroValue {
-        match v {
-            LoroValue::String(s) => match self.string(s) {
-                Some(new) => LoroValue::from(new),
-                None => v.clone(),
-            },
-            LoroValue::List(items) => LoroValue::List(
-                items
-                    .iter()
-                    .map(|i| self.loro_value(i))
-                    .collect::<Vec<_>>()
-                    .into(),
-            ),
-            LoroValue::Map(map) => LoroValue::Map(
-                map.iter()
-                    .map(|(k, v)| (self.text(k), self.loro_value(v)))
-                    .collect::<std::collections::HashMap<_, _>>()
-                    .into(),
-            ),
-            LoroValue::Container(c) => LoroValue::Container(self.container(c)),
-            _ => v.clone(),
-        }
-    }
-
-    /// One change, rewritten in place: its ids, every container, key and
-    /// value; the text a text insert carries (the prose itself) and binary
-    /// values stay, except mergeable markers, which follow their key.
-    fn change(&self, change: &mut JsonChange, conversation: bool) -> Result<()> {
-        self.id(&mut change.id);
-        change.deps.iter_mut().for_each(|d| self.id(d));
-        for op in &mut change.ops {
-            // Conversation roots are schema names, even if a legacy id
-            // happens to be "entries" or "meta".
-            let conversation_root = conversation
-                && matches!(&op.container,
-                ContainerID::Root { name, .. } if name.as_str() == schema::conversation::ENTRIES || name.as_str() == schema::conversation::META);
-            if !conversation_root {
-                op.container = self.container(&op.container);
-            }
-            match &mut op.content {
-                JsonOpContent::Map(MapOp::Insert { key, value }) => {
-                    if conversation
-                        && key == schema::meta::DOC
-                        && matches!(&op.container, ContainerID::Root { name, .. } if name.as_str() == schema::conversation::META)
-                        && let LoroValue::String(old) = value
-                    {
-                        *value = self
-                            .doc_id(old)
-                            .ok_or_else(|| {
-                                BookFileError::Damaged("conversation has no new id".into())
-                            })?
-                            .into();
-                        continue;
-                    }
-                    if !conversation_root {
-                        *key = self.text(key);
-                    }
-                    *value = match marker_kind(value) {
-                        Some(kind) => loro_common::mergeable_marker(&op.container, key, kind),
-                        None => self.loro_value(value),
-                    };
-                }
-                JsonOpContent::Map(MapOp::Delete { key }) => *key = self.text(key),
-                JsonOpContent::List(ListOp::Insert { value, .. })
-                | JsonOpContent::MovableList(MovableListOp::Insert { value, .. }) => {
-                    // Conversation entries are historical, immutable payloads:
-                    // ids inside messages, signatures and tool arguments must
-                    // remain exactly as recorded, not become new-book ids.
-                    let transcript = conversation
-                        && matches!(&op.container,
-                        ContainerID::Root { name, .. } if name.as_str() == schema::conversation::ENTRIES);
-                    if !transcript {
-                        for v in value.iter_mut() {
-                            *v = self.loro_value(v);
-                        }
-                    }
-                }
-                JsonOpContent::List(ListOp::Delete { start_id, .. })
-                | JsonOpContent::MovableList(MovableListOp::Delete { start_id, .. })
-                | JsonOpContent::Text(TextOp::Delete { start_id, .. }) => self.id(start_id),
-                JsonOpContent::MovableList(MovableListOp::Move { elem_id, .. }) => {
-                    elem_id.peer = self.peer(elem_id.peer);
-                }
-                JsonOpContent::MovableList(MovableListOp::Set { elem_id, value }) => {
-                    elem_id.peer = self.peer(elem_id.peer);
-                    *value = self.loro_value(value);
-                }
-                JsonOpContent::Text(TextOp::Mark {
-                    style_key,
-                    style_value,
-                    ..
-                }) => {
-                    *style_key = self.text(style_key);
-                    *style_value = self.loro_value(style_value);
-                }
-                JsonOpContent::Text(TextOp::Insert { .. } | TextOp::MarkEnd) => {}
-                JsonOpContent::Tree(
-                    TreeOp::Create { target, parent, .. } | TreeOp::Move { target, parent, .. },
-                ) => {
-                    target.peer = self.peer(target.peer);
-                    if let Some(p) = parent {
-                        p.peer = self.peer(p.peer);
-                    }
-                }
-                JsonOpContent::Tree(TreeOp::Delete { target }) => {
-                    target.peer = self.peer(target.peer);
-                }
-                JsonOpContent::Future(_) => {
-                    return Err(BookFileError::Damaged(
-                        "a change this version cannot read".into(),
-                    ));
-                }
-            }
-        }
-        Ok(())
-    }
-
     /// A document's changes with the ids and the genesis peer moved, as a
     /// new document.
     fn doc(&self, bytes: &[u8]) -> Result<LoroDoc> {
-        if self.v3 {
-            return v3::rewrite_doc(self, bytes);
-        }
-        let source = LoroDoc::new();
-        source
-            .import(bytes)
-            .map_err(|e| BookFileError::Damaged(e.to_string()))?;
-        let conversation = source.get_map(schema::conversation::META)
-            .get(schema::meta::DOC)
-            .is_some_and(|v| matches!(v, loro::ValueOrContainer::Value(LoroValue::String(id)) if id.starts_with("conversation:")));
-        let mut json = source
-            .export_json_updates_without_peer_compression(
-                &VersionVector::default(),
-                &source.oplog_vv(),
-            )
-            .map_err(|e| BookFileError::Damaged(e.to_string()))?;
-        for change in &mut json.changes {
-            self.change(change, conversation)?;
-        }
-        let out = LoroDoc::new();
-        schema::configure(&out);
-        out.import_json_updates(json)
-            .map_err(|e| BookFileError::Damaged(e.to_string()))?;
-        if out.len_ops() != source.len_ops() {
-            return Err(BookFileError::Damaged("a document lost changes".into()));
-        }
-        Ok(out)
+        v3::rewrite_doc(self, bytes)
     }
-}
-
-/// Loro's escaping of a mergeable name's segment.
-fn escape(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    for c in s.chars() {
-        match c {
-            '\\' => out.push_str("\\\\"),
-            '>' => out.push_str("\\>"),
-            '/' => out.push_str("\\s"),
-            '\0' => out.push_str("\\0"),
-            _ => out.push(c),
-        }
-    }
-    out
-}
-
-fn unescape(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    let mut chars = s.chars();
-    while let Some(c) = chars.next() {
-        if c != '\\' {
-            out.push(c);
-            continue;
-        }
-        match chars.next() {
-            Some('s') => out.push('/'),
-            Some('0') => out.push('\0'),
-            Some(other) => out.push(other),
-            None => out.push(c),
-        }
-    }
-    out
 }
 
 /// The kind of mergeable child a map slot's marker activates
@@ -838,71 +559,18 @@ fn marker_kind(v: &LoroValue) -> Option<loro::ContainerType> {
         .flatten()
 }
 
-/// The peer that wrote `doc`'s first change, if it is a genesis peer of
-/// `id`.
-fn genesis_of(doc: &LoroDoc, id: &str) -> Option<u64> {
-    let vv = doc.oplog_vv();
-    (1..=GENESIS_VERSION)
-        .rev()
-        .map(|v| genesis_peer(id, v))
-        .find(|p| vv.get(p).is_some())
-}
-
 /// The new id of each id the book's documents name.
 fn rewrite_for(read: &Contents) -> Result<Rewrite> {
-    let mut rw = Rewrite::default();
-    let (_, book_bytes) = read.docs.last().expect("checked: the book document");
+    let (_, bytes) = read.docs.last().expect("checked book document");
     let book = LoroDoc::new();
-    book.import(book_bytes)
+    book.import(bytes)
         .map_err(|e| BookFileError::Damaged(e.to_string()))?;
-    if (read.manifest.format_version == 3) != dr_doc::v3::is_v3_doc(&book) {
+    if read.manifest.format_version != FORMAT_VERSION || !dr_doc::v3::is_v3_doc(&book) {
         return Err(BookFileError::Damaged(
-            "book schema does not match the file version".into(),
+            "archive must contain a canonical v3 book".into(),
         ));
     }
-    if dr_doc::v3::is_v3_doc(&book) {
-        return v3::rewrite_for(read, &book);
-    }
-    let fresh = |old: &str, rw: &mut Rewrite| {
-        if !old.contains(':') && !rw.ids.contains_key(old) {
-            rw.ids.insert(old.to_owned(), new_uuid_v7());
-        }
-    };
-    fresh(&read.manifest.book, &mut rw);
-    for name in COLLECTIONS {
-        for key in book.get_map(*name).keys() {
-            fresh(&key, &mut rw);
-        }
-    }
-    for (d, _) in &read.docs {
-        if let Ok(id) = DocId::parse(&d.id) {
-            fresh(id.entity_id(), &mut rw);
-        }
-    }
-    for a in &read.assets {
-        fresh(&a.0.asset, &mut rw);
-    }
-    // Each document's genesis peer moves to its new id's.
-    for (d, bytes) in &read.docs {
-        let doc = LoroDoc::new();
-        doc.import(bytes)
-            .map_err(|e| BookFileError::Damaged(e.to_string()))?;
-        let new_id = rw
-            .doc_id(&d.id)
-            .ok_or_else(|| BookFileError::Damaged(format!("{}: no new id", d.id)))?;
-        match genesis_of(&doc, &d.id) {
-            Some(old) => {
-                rw.peers.insert(old, genesis_peer(&new_id, GENESIS_VERSION));
-            }
-            None => {
-                return Err(BookFileError::Damaged(format!(
-                    "{}: not written by this version of Drifting",
-                    d.id
-                )));
-            }
-        }
-    }
-    Ok(rw)
+    v3::rewrite_for(read, &book)
 }
 
 /// What was written so far, removed again on failure.
@@ -982,11 +650,7 @@ pub fn import_book(
                 .export(ExportMode::all_updates())
                 .map_err(|e| BookFileError::Damaged(e.to_string()))?;
             let genesis = match doc_id.kind() {
-                DocKind::Book if rw.v3 => dr_doc::v3::genesis_v3(match &doc_id {
-                    DocId::Book(b) => b,
-                    _ => unreachable!(),
-                }),
-                DocKind::Book => dr_doc::book::genesis(match &doc_id {
+                DocKind::Book => dr_doc::v3::genesis_v3(match &doc_id {
                     DocId::Book(b) => b,
                     _ => unreachable!(),
                 }),
@@ -1052,45 +716,6 @@ pub fn import_book(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn ids_and_genesis_peers_are_rewritten_in_place() {
-        let mut rw = Rewrite::default();
-        let old = "0190f1e2-3a4b-7c5d-8e6f-0123456789ab";
-        rw.ids.insert(old.into(), "NEW".into());
-        rw.ids.insert("short".into(), "SHORT".into());
-        rw.peers.insert(12345, 999);
-        assert_eq!(rw.string(old).as_deref(), Some("NEW"));
-        assert_eq!(rw.string("short").as_deref(), Some("SHORT"));
-        assert_eq!(rw.string("a short one"), None, "short ids only as a whole");
-        assert_eq!(
-            rw.string(&format!("todo:todo-autoparse:node:{old}#0@12345"))
-                .as_deref(),
-            Some("todo:todo-autoparse:node:NEW#0@999")
-        );
-        assert_eq!(rw.string("3@123456"), None, "another peer stays");
-        assert_eq!(
-            rw.string("cid:7@12345:Map").as_deref(),
-            Some("cid:7@999:Map")
-        );
-        let v = LoroValue::from(vec![LoroValue::from(old), LoroValue::from("plain")]);
-        assert_eq!(
-            rw.loro_value(&v),
-            LoroValue::from(vec![LoroValue::from("NEW"), LoroValue::from("plain")])
-        );
-        assert_eq!(
-            rw.mergeable_name("🤝:$facts>short").as_deref(),
-            Some("🤝:$facts>SHORT")
-        );
-        assert_eq!(
-            rw.mergeable_name(&format!("🤝:$nodes>{old}>a\\>b"))
-                .as_deref(),
-            Some("🤝:$nodes>NEW>a\\>b")
-        );
-        assert_eq!(rw.mergeable_name("meta"), None);
-        let marker = LoroValue::Binary(vec![1, 2, 3].into());
-        assert_eq!(rw.loro_value(&marker), marker, "binary values stay");
-    }
 
     #[test]
     fn a_legacy_file_is_told_apart() {

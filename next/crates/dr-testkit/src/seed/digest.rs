@@ -11,12 +11,12 @@
 
 use std::collections::BTreeMap;
 
-use dr_doc::book::{BookDoc, BookView};
+use dr_doc::import_v1::{BookDoc, BookView};
 use dr_doc::prose::ProseDoc;
 use dr_model::DocId;
-use dr_model::book::EntityRef;
 use dr_model::id::BookId;
 use dr_model::kind::EntityKind;
+use dr_model::shared::EntityRef;
 use serde_json::{Value, json};
 
 fn err(e: impl std::fmt::Display) -> String {

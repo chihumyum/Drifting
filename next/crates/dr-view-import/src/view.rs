@@ -25,7 +25,7 @@ use gpui::{
 };
 
 use crate::copy;
-use crate::flow::{Blocked, Done, Failed, Found, LegacyImport, Running, State, now_ms};
+use crate::flow::{Blocked, Done, Failed, Found, LegacyImport, Ready, Running, State, now_ms};
 
 /// Where the dialogs say they come from (the product and its version are not
 /// translated, as on the bookshelf's entry).
@@ -39,6 +39,14 @@ impl Render for LegacyImport {
         let dialog = match &self.state {
             State::Idle | State::Picking => None,
             State::Found(f) => Some(found(f, window, cx)),
+            State::Ready(r) => Some(ready(r, window, cx)),
+            State::Switching(d) => Some(
+                Dialog::new("v3-import-switching", t(cx, keys::import::v3::SWITCHING))
+                    .subtitle(d.folder.clone())
+                    .width(WIDTH)
+                    .body(Bar::new(None))
+                    .into_any_element(),
+            ),
             State::Running(r) => Some(running(r, window, cx)),
             State::Blocked(b) => Some(blocked(b, window, cx)),
             State::Done(d) => Some(done(d, window, cx)),
@@ -94,6 +102,69 @@ fn name_or_untitled(name: &str, cx: &App) -> SharedString {
     } else {
         name.to_owned().into()
     }
+}
+
+fn ready(r: &Ready, window: &mut Window, cx: &mut Context<LegacyImport>) -> AnyElement {
+    let entity = cx.entity();
+    let close = closer(cx);
+    let pending = r
+        .pending
+        .iter()
+        .map(|p| index(format!("{}: {}", p.code, p.source), window, cx))
+        .collect::<Vec<_>>();
+    Dialog::new("v3-import-ready", t(cx, keys::import::v3::TITLE))
+        .eyebrow(EYEBROW)
+        .subtitle(r.folder.clone())
+        .width(WIDTH)
+        .body(quiet(t(cx, keys::import::v3::DESTINATION), window, cx))
+        .body(index(r.target.display().to_string(), window, cx))
+        .body(quiet(
+            t(
+                cx,
+                if r.explicit_choices {
+                    keys::import::v3::SELECTED
+                } else {
+                    keys::import::v3::NO_CHOICES
+                },
+            ),
+            window,
+            cx,
+        ))
+        .when(!pending.is_empty(), |d| {
+            d.body(quiet(t(cx, keys::import::v3::PENDING), window, cx))
+                .body(
+                    div()
+                        .id("v3-import-pending")
+                        .max_h(px(LIST_MAX_H))
+                        .overflow_y_scroll()
+                        .children(pending),
+                )
+        })
+        .action(
+            Button::new("v3-import-mapping", t(cx, keys::import::v3::MAPPING))
+                .text()
+                .on_click({
+                    let entity = entity.clone();
+                    move |_, window, cx| entity.update(cx, |i, cx| i.choose_mapping(window, cx))
+                }),
+        )
+        .action(
+            Button::new("v3-import-cancel", t(cx, keys::common::CANCEL))
+                .text()
+                .on_click({
+                    let close = close.clone();
+                    move |_, window, cx| close(window, cx)
+                }),
+        )
+        .action(
+            Button::new("v3-import-start", t(cx, keys::import::v3::START))
+                .primary()
+                .on_click(move |_, window, cx| {
+                    entity.update(cx, |i, cx| i.start_configured(window, cx))
+                }),
+        )
+        .on_close(close)
+        .into_any_element()
 }
 
 // Progress.

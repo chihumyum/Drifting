@@ -3,6 +3,7 @@
 use crate::repo::Repo;
 
 mod audit;
+mod cutover;
 pub mod debug_bridge;
 mod evidence;
 pub mod hot_reload;
@@ -65,6 +66,11 @@ pub fn all() -> Vec<Gate> {
             name: "terms",
             about: "构想 / Ideas; H1/H2/H3 keep their own names in copy, prompts and export",
             run: terms::run,
+        },
+        Gate {
+            name: "v3-cutover",
+            about: "canonical App runtime; old formats are isolated source replay adapters",
+            run: cutover::run,
         },
         Gate {
             name: "migrations",

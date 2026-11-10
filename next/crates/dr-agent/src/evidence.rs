@@ -2,7 +2,7 @@
 //! verified against the immutable document frontier before only hashes persist.
 use std::collections::{BTreeMap, BTreeSet};
 
-use dr_doc::{book::BorrowedBook, prose::BorrowedProse};
+use dr_doc::prose::BorrowedProse;
 use dr_model::{DocId, id::BookId};
 use dr_store::{Library, Settlement};
 use serde::{Deserialize, Serialize};
@@ -156,136 +156,94 @@ fn book_entities(
             &settlement.before
         },
     )?;
-    if dr_doc::v3::is_v3_doc(&doc) {
-        let borrowed = dr_doc::v3::BorrowedBookV3::new(&doc, &book)?;
-        let view = borrowed.view();
-        let templates = view.templates_map();
-        let mut entities = BTreeMap::new();
-        for entry in view.entries_raw() {
-            let key = format!("entry:{}", entry.id);
-            let mut targets = BTreeSet::from([key.clone(), format!("body:{}/about", entry.id)]);
-            if let Some(tpl) = entry.effective_template(&templates) {
-                for m in &tpl.modules {
-                    if m.kind == dr_model::v3::ModuleKind::Prose {
-                        targets.insert(format!("body:{}/{}", entry.id, m.id));
-                    }
-                }
-            }
-            entities.insert(key, (serde_json::to_value(&entry)?, targets));
-        }
-        for template in view.templates() {
-            let key = format!("entry_template:{}", template.id);
-            entities.insert(
-                key.clone(),
-                (serde_json::to_value(&template)?, BTreeSet::from([key])),
-            );
-        }
-        for membership in view.memberships_raw() {
-            let key = format!("membership:{}/{}", membership.host, membership.member);
-            let targets = BTreeSet::from([
-                key.clone(),
-                format!("entry:{}", membership.host),
-                format!("entry:{}", membership.member),
-            ]);
-            entities.insert(key, (serde_json::to_value(&membership)?, targets));
-        }
-        for tv in view.timeline_views_raw() {
-            let key = format!("timeline_view:{}", tv.id);
-            let mut targets = BTreeSet::from([key.clone()]);
-            for lane in &tv.lanes {
-                targets.insert(format!("entry:{}", lane.entry));
-            }
-            for pl in &tv.placements {
-                targets.insert(format!("entry:{}", pl.entry));
-            }
-            for pin in &tv.pins {
-                if let Some(entry) = &pin.entry {
-                    targets.insert(format!("entry:{entry}"));
-                }
-            }
-            entities.insert(key, (serde_json::to_value(&tv)?, targets));
-        }
-        for patch in view.patches() {
-            let key = format!("patch:{}", patch.id);
-            let mut targets = BTreeSet::from([
-                key.clone(),
-                format!("entry:{}", patch.entry),
-                format!("body:{}/about", patch.entry),
-            ]);
-            if let Some(src) = &patch.source_entry {
-                targets.insert(format!("entry:{src}"));
-            }
-            entities.insert(key, (serde_json::to_value(&patch)?, targets));
-        }
-        for grid in view.plot_grids() {
-            let key = format!("plot_grid:{}/{}", grid.entry, grid.module);
-            let targets = BTreeSet::from([key.clone(), format!("entry:{}", grid.entry)]);
-            entities.insert(key, (serde_json::to_value(&grid)?, targets));
-        }
-        for material in view.materials() {
-            let key = format!("material:{}", material.id);
-            entities.insert(
-                key.clone(),
-                (serde_json::to_value(&material)?, BTreeSet::from([key])),
-            );
-        }
-        for comment in view.comments() {
-            let key = format!("comment:{}", comment.id);
-            let mut targets = BTreeSet::from([key.clone()]);
-            if let Some(target) = &comment.target {
-                targets.insert(format!("{}:{}", target.kind.as_str(), target.id));
-            }
-            entities.insert(key, (serde_json::to_value(&comment)?, targets));
-        }
-        for relation in view.relations_raw() {
-            let key = format!("relation:{}", relation.id);
-            let mut targets = BTreeSet::from([key.clone()]);
-            for endpoint in [&relation.from, &relation.to] {
-                targets.insert(format!("{}:{}", endpoint.kind.as_str(), endpoint.id));
-            }
-            entities.insert(key, (serde_json::to_value(&relation)?, targets));
-        }
-        return Ok(entities);
-    }
-    let borrowed = BorrowedBook::new(&doc, &book)?;
+
+    let borrowed = dr_doc::v3::BorrowedBookV3::new(&doc, &book)?;
     let view = borrowed.view();
+    let templates = view.templates_map();
     let mut entities = BTreeMap::new();
-    macro_rules! insert {
-        ($kind:literal, $rows:expr) => {
-            for row in $rows {
-                let key = format!("{}:{}", $kind, row.id);
-                entities.insert(
-                    key.clone(),
-                    (serde_json::to_value(&row)?, BTreeSet::from([key])),
-                );
+    for entry in view.entries_raw() {
+        let key = format!("entry:{}", entry.id);
+        let mut targets = BTreeSet::from([key.clone(), format!("body:{}/about", entry.id)]);
+        if let Some(tpl) = entry.effective_template(&templates) {
+            for m in &tpl.modules {
+                if m.kind == dr_model::v3::ModuleKind::Prose {
+                    targets.insert(format!("body:{}/{}", entry.id, m.id));
+                }
             }
-        };
-    }
-    insert!("node", view.nodes());
-    insert!("element", view.elements());
-    insert!("storyline", view.storylines());
-    insert!("category", view.categories());
-    insert!("material", view.materials());
-    insert!("comment", view.comments());
-    for patch in view.patches() {
-        let mut targets = BTreeSet::from([format!("element:{}", patch.element)]);
-        if let Some(node) = &patch.source_node {
-            targets.insert(format!("node:{node}"));
         }
+        entities.insert(key, (serde_json::to_value(&entry)?, targets));
+    }
+    for template in view.templates() {
+        let key = format!("entry_template:{}", template.id);
         entities.insert(
-            format!("patch:{}", patch.id),
-            (serde_json::to_value(&patch)?, targets),
+            key.clone(),
+            (serde_json::to_value(&template)?, BTreeSet::from([key])),
         );
     }
+    for membership in view.memberships_raw() {
+        let key = format!("membership:{}/{}", membership.host, membership.member);
+        let targets = BTreeSet::from([
+            key.clone(),
+            format!("entry:{}", membership.host),
+            format!("entry:{}", membership.member),
+        ]);
+        entities.insert(key, (serde_json::to_value(&membership)?, targets));
+    }
+    for tv in view.timeline_views_raw() {
+        let key = format!("timeline_view:{}", tv.id);
+        let mut targets = BTreeSet::from([key.clone()]);
+        for lane in &tv.lanes {
+            targets.insert(format!("entry:{}", lane.entry));
+        }
+        for pl in &tv.placements {
+            targets.insert(format!("entry:{}", pl.entry));
+        }
+        for pin in &tv.pins {
+            if let Some(entry) = &pin.entry {
+                targets.insert(format!("entry:{entry}"));
+            }
+        }
+        entities.insert(key, (serde_json::to_value(&tv)?, targets));
+    }
+    for patch in view.patches() {
+        let key = format!("patch:{}", patch.id);
+        let mut targets = BTreeSet::from([
+            key.clone(),
+            format!("entry:{}", patch.entry),
+            format!("body:{}/about", patch.entry),
+        ]);
+        if let Some(src) = &patch.source_entry {
+            targets.insert(format!("entry:{src}"));
+        }
+        entities.insert(key, (serde_json::to_value(&patch)?, targets));
+    }
+    for grid in view.plot_grids() {
+        let key = format!("plot_grid:{}/{}", grid.entry, grid.module);
+        let targets = BTreeSet::from([key.clone(), format!("entry:{}", grid.entry)]);
+        entities.insert(key, (serde_json::to_value(&grid)?, targets));
+    }
+    for material in view.materials() {
+        let key = format!("material:{}", material.id);
+        entities.insert(
+            key.clone(),
+            (serde_json::to_value(&material)?, BTreeSet::from([key])),
+        );
+    }
+    for comment in view.comments() {
+        let key = format!("comment:{}", comment.id);
+        let mut targets = BTreeSet::from([key.clone()]);
+        if let Some(target) = &comment.target {
+            targets.insert(format!("{}:{}", target.kind.as_str(), target.id));
+        }
+        entities.insert(key, (serde_json::to_value(&comment)?, targets));
+    }
     for relation in view.relations_raw() {
-        let mut targets = BTreeSet::from([format!("relation:{}", relation.id)]);
+        let key = format!("relation:{}", relation.id);
+        let mut targets = BTreeSet::from([key.clone()]);
         for endpoint in [&relation.from, &relation.to] {
             targets.insert(format!("{}:{}", endpoint.kind.as_str(), endpoint.id));
         }
-        entities.insert(
-            format!("relation:{}", relation.id),
-            (serde_json::to_value(&relation)?, targets),
-        );
+        entities.insert(key, (serde_json::to_value(&relation)?, targets));
     }
     Ok(entities)
 }

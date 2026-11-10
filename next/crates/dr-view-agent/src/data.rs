@@ -3,7 +3,7 @@
 use dr_workspace::{Actor, Workspace};
 use serde_json::{Value, json};
 
-use crate::onboarding::{Chapter, Element, StarterSource};
+use crate::onboarding::StarterSource;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ChangeTarget {
@@ -87,12 +87,8 @@ pub fn change_targets(run: &crate::state::RunSnapshot, turn: u32) -> Vec<ChangeT
             // History commands report collection roots; ordinary commands
             // report singular entity kinds. Both identify the same object.
             // `meta` stays distinct: its id names a field, not the book.
-            use dr_doc::book::Collection;
+            use dr_doc::v3::CollectionV3 as Collection;
             let (kind, id) = match Collection::from_root(&effect.kind) {
-                Some(Collection::Nodes) => ("node", effect.id),
-                Some(Collection::Elements) => ("element", effect.id),
-                Some(Collection::Categories) => ("category", effect.id),
-                Some(Collection::Storylines) => ("storyline", effect.id),
                 Some(Collection::Materials) => ("material", effect.id),
                 Some(Collection::Comments) => ("comment", effect.id),
                 Some(Collection::Relations) => ("relation", effect.id),
@@ -159,60 +155,49 @@ pub fn resolve_change(
     change: &ChangeTarget,
     history: bool,
 ) -> Result<ChangeLocation, String> {
-    use dr_workspace::{LinkGroup, NavTarget};
+    use dr_shell::nav::Target;
     let missing = || "changed object is no longer available".to_owned();
     if change.book.as_deref().is_some_and(|owner| owner != book) {
         return Err(missing());
     }
-    let catalog = ws.catalog(book).map_err(|error| error.to_string())?;
-    if !catalog.exists(&NavTarget::Book) {
-        return Err(missing());
-    }
-    if let Some(doc) = &change.history
-        && ws
-            .library()
-            .doc_info(doc)
-            .map_err(|error| error.to_string())?
-            .and_then(|info| info.book_id)
-            .as_deref()
-            != Some(book)
-    {
-        return Err(missing());
-    }
-    let locate = |kind: &str, id: &str| {
-        let nav = match kind {
-            "node" => catalog
-                .by_id(LinkGroup::Chapters, id)
-                .or_else(|| catalog.by_id(LinkGroup::Drifts, id)),
-            "element" => catalog.by_id(LinkGroup::Elements, id),
-            "category" => catalog.by_id(LinkGroup::Categories, id),
-            "storyline" => catalog.by_id(LinkGroup::Storylines, id),
-            "material" => id
-                .parse()
-                .ok()
-                .map(NavTarget::Material)
-                .filter(|target| catalog.exists(target)),
-            _ => None,
-        }?;
-        Some((
-            dr_shell::nav::Target::from_key(&nav.key())?,
-            catalog.title(&nav)?,
-        ))
+    let snapshot = dr_shell::book::Book::load(ws, book).map_err(|e| e.to_string())?;
+    let locate = |kind: &str, id: &str, module: Option<&str>| {
+        let key = match kind {
+            "entry" => module
+                .map(|m| format!("entry:{id}/{m}"))
+                .unwrap_or_else(|| format!("entry:{id}")),
+            "entry_template" | "template" => format!("template:{id}"),
+            "material" => format!("material:{id}"),
+            _ => return None,
+        };
+        let target = Target::from_key(&key)?;
+        snapshot.exists(&target).then(|| {
+            (
+                target.clone(),
+                snapshot.title(&target).unwrap_or_default().to_owned(),
+            )
+        })
     };
     if history {
         let doc = change.history.as_ref().ok_or_else(missing)?;
-        if !dr_model::DocId::parse(doc).is_ok_and(|doc| doc.profile().is_some())
-            || ws
-                .library()
-                .doc_info(doc)
-                .map_err(|error| error.to_string())?
-                .and_then(|info| info.book_id)
-                .as_deref()
-                != Some(book)
+        if ws
+            .library()
+            .doc_info(doc)
+            .map_err(|e| e.to_string())?
+            .and_then(|i| i.book_id)
+            .as_deref()
+            != Some(book)
         {
             return Err(missing());
         }
-        let (target, name) = locate(&change.kind, &change.id).ok_or_else(missing)?;
+        let (target, name) = match dr_model::DocId::parse(doc).map_err(|e| e.to_string())? {
+            dr_model::DocId::Body(b) => {
+                locate("entry", b.entry().as_str(), Some(b.module().as_str()))
+            }
+            dr_model::DocId::Material(id) => locate("material", id.as_str(), None),
+            _ => None,
+        }
+        .ok_or_else(missing)?;
         return Ok(ChangeLocation::History {
             doc: doc.clone(),
             name,
@@ -225,149 +210,66 @@ pub fn resolve_change(
             .ok_or_else(missing);
     }
     if change.kind == "relation" {
-        let result = ws
-            .call(&Actor::User, "relation.list", json!({"book":book}))
-            .map_err(|error| error.to_string())?;
-        let relation = result["output"]
-            .as_array()
+        let copy = ws
+            .library()
+            .load_copy(&format!("book:{book}"))
+            .map_err(|e| e.to_string())?;
+        let book_id = book
+            .parse()
+            .map_err(|e: dr_model::id::IdError| e.to_string())?;
+        let borrowed =
+            dr_doc::v3::BorrowedBookV3::new(&copy, &book_id).map_err(|e| e.to_string())?;
+        let r = borrowed
+            .view()
+            .relations_raw()
             .into_iter()
-            .flatten()
-            .find(|relation| relation["id"].as_str() == Some(change.id.as_str()))
+            .find(|r| r.id.as_str() == change.id)
             .ok_or_else(missing)?;
-        // Relations have no standalone prose document. Open one of this
-        // exact live relation's endpoints, preferring an element because
-        // its page hosts M17's relations section. Never borrow endpoints
-        // from another edge or fall back to the book's storage document.
-        let ends = [&relation["from"], &relation["to"]];
-        return ends
-            .iter()
-            .filter(|end| end["kind"] == "element")
-            .chain(ends.iter().filter(|end| end["kind"] != "element"))
-            .find_map(|end| {
-                end["kind"]
-                    .as_str()
-                    .zip(end["id"].as_str())
-                    .and_then(|(kind, id)| locate(kind, id))
-            })
+        return [&r.from, &r.to]
+            .into_iter()
+            .find_map(|e| locate(e.kind.as_str(), &e.id, None))
             .map(|(target, _)| ChangeLocation::Page(target))
             .ok_or_else(missing);
     }
     if change.kind == "comment" {
         let result = ws
             .call(&Actor::User, "comment.list", json!({"book":book}))
-            .map_err(|error| error.to_string())?;
-        let comment = result["output"]
+            .map_err(|e| e.to_string())?;
+        let c = result["output"]
             .as_array()
             .into_iter()
             .flatten()
-            .find(|comment| comment["id"].as_str() == Some(change.id.as_str()))
+            .find(|c| c["id"].as_str() == Some(&change.id))
             .ok_or_else(missing)?;
-        let target = if comment["unlocated"] == true {
-            None
-        } else {
-            comment["target"]["kind"]
-                .as_str()
-                .zip(comment["target"]["id"].as_str())
-                .and_then(|(kind, id)| locate(kind, id))
-                .map(|(target, _)| target)
-        };
+        let target = (c["unlocated"] != true)
+            .then(|| {
+                locate(
+                    c["target"]["kind"].as_str()?,
+                    c["target"]["id"].as_str()?,
+                    c["module"].as_str(),
+                )
+                .map(|(t, _)| t)
+            })
+            .flatten();
         return Ok(ChangeLocation::Comment {
             id: change.id.clone(),
             target,
         });
     }
-    locate(&change.kind, &change.id)
-        .map(|(target, _)| ChangeLocation::Page(target))
+    locate(&change.kind, &change.id, None)
+        .map(|(t, _)| ChangeLocation::Page(t))
         .ok_or_else(missing)
 }
 
 pub fn starters(ws: &Workspace, book: &str) -> Result<StarterSource, String> {
-    let read = |name, input| {
-        ws.call(&Actor::User, name, input)
-            .map(|value| value["output"].clone())
-            .map_err(|error| error.to_string())
-    };
     let copy = ws
         .library()
         .load_copy(&format!("book:{book}"))
-        .map_err(|error| error.to_string())?;
-    if dr_doc::v3::is_v3_doc(&copy) {
-        return Ok(StarterSource {
-            template_guided: true,
-            ..Default::default()
-        });
+        .map_err(|e| e.to_string())?;
+    if !dr_doc::v3::is_v3_doc(&copy) {
+        return Err("only canonical v3 books support the Agent".into());
     }
-    let chapters = read("chapter.list", json!({"book":book}))?;
-    let elements = read("element.list", json!({"book":book}))?;
-    let relations = read("relation.list", json!({"book":book}))?;
-    let recent = read("recent.list", json!({"book":book}))?;
-    let mut chapter_rows = Vec::new();
-    for (index, row) in chapters.as_array().into_iter().flatten().enumerate() {
-        let (Some(id), Some(title)) = (row["id"].as_str(), row["title"].as_str()) else {
-            continue;
-        };
-        let mut words = row["words"].as_u64().unwrap_or(0);
-        if words == 0 {
-            // Chapter words are a derived index and may not have been built
-            // yet. The guide only needs presence, so consult the live F3
-            // owner rather than treating an unindexed manuscript as empty.
-            // Read all paragraphs: text after 200 empty paragraphs still counts.
-            let prose = read(
-                "prose.read",
-                json!({"doc":format!("node:{id}"),"limit":usize::MAX}),
-            )?;
-            words = u64::from(prose["paragraphs"].as_array().into_iter().flatten().any(
-                |paragraph| {
-                    paragraph["text"]
-                        .as_str()
-                        .is_some_and(|text| !text.trim().is_empty())
-                },
-            ));
-        }
-        chapter_rows.push(Chapter {
-            id: id.into(),
-            title: title.into(),
-            book_order: index,
-            word_count: words,
-        });
-    }
-    let mut source = StarterSource {
-        chapters: chapter_rows,
-        ..Default::default()
-    };
-    let mut rows: Vec<_> = elements.as_array().into_iter().flatten().collect();
-    rows.sort_by_key(|row| (row["created_at"].as_i64().unwrap_or(0), row["id"].as_str()));
-    source.elements = rows
-        .into_iter()
-        .filter_map(|row| {
-            Some(Element {
-                id: row["id"].as_str()?.into(),
-                name: row["name"].as_str()?.into(),
-            })
-        })
-        .collect();
-    for row in relations.as_array().into_iter().flatten() {
-        for key in ["from", "to"] {
-            let target = &row[key];
-            if target["kind"] == "element"
-                && let Some(id) = target["id"].as_str()
-            {
-                *source.relation_counts.entry(id.into()).or_default() += 1;
-            }
-        }
-    }
-    source.recent_chapter_ids = recent
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(|row| {
-            let target = &row["target"];
-            (target["kind"] == "node")
-                .then(|| target["id"].as_str().map(str::to_owned))
-                .flatten()
-        })
-        .collect();
-    Ok(source)
+    Ok(StarterSource)
 }
 
 /// A provider activity may contain arbitrary data. Only a normal web URL is
@@ -398,45 +300,35 @@ mod tests {
     use super::*;
     use crate::state::{ChangedReceipt, ChatState, ToolActivity};
     use dr_agent::{SettlementRef, ToolResult, ToolStatus};
-    use dr_i18n::keys::agent_panel::onboarding::prompts;
     use dr_testkit::seed::{self, Preset};
 
     #[test]
     fn template_settlements_do_not_offer_unimplemented_navigation_or_history() {
         let directory = tempfile::tempdir().unwrap();
         let workspace = Workspace::open_dir(directory.path(), "m31-template-navigation").unwrap();
-        let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+        let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
         let book = seeded.books[0].book_id().to_string();
         let text = seeded.books[0].prose[0].view().plain_text();
         seeded.write_to(workspace.library()).unwrap();
-        for (kind, prefix) in [
-            ("category", "category_template"),
-            ("storyline", "chapter_template"),
-        ] {
-            let owner = workspace
-                .call(&Actor::User, &format!("{kind}.list"), json!({"book":book}))
-                .unwrap()["output"][0]["id"]
-                .as_str()
-                .unwrap()
-                .to_owned();
-            let mut arguments = json!({"book":book});
-            arguments[kind] = owner.into();
+        for owner in ["tpl-character", "tpl-chapter"] {
+            let arguments = json!({"book":book,"owner":owner,"template":true,"module":"mod-prose"});
             let doc = workspace
-                .call(
-                    &Actor::User,
-                    &format!("{prefix}.document"),
-                    arguments.clone(),
-                )
-                .unwrap()["output"]["doc"]
+                .call(&Actor::User, "module.prose_document", arguments.clone())
+                .unwrap()["output"]["id"]
                 .as_str()
                 .unwrap()
                 .to_owned();
-            let session = format!("m31-template-{kind}");
-            arguments["paragraphs"] = json!([{"text":text}]);
+            let session = format!("m31-template-{owner}");
+            let mut arguments = arguments;
+            arguments["paragraphs"] = json!(
+                text.lines()
+                    .map(|text| json!({"text":text}))
+                    .collect::<Vec<_>>()
+            );
             let output = workspace
                 .call(
                     &Actor::agent(&session, 1, "write"),
-                    &format!("{prefix}.set_body"),
+                    "module.set_prose",
                     arguments,
                 )
                 .unwrap();
@@ -446,11 +338,7 @@ mod tests {
                 .unwrap();
             assert_eq!(settlements.len(), 1);
             assert_eq!(settlements[0].doc_id, doc);
-            // The history capability is real; only a precise UI destination
-            // is missing. These are actual F3 receipts, not test-only ids.
-            workspace
-                .call(&Actor::User, "history.points", json!({"doc":doc}))
-                .unwrap();
+            assert!(!workspace.library().history(&doc).unwrap().is_empty());
             let receipts: Vec<_> = settlements
                 .into_iter()
                 .map(|row| SettlementRef {
@@ -486,7 +374,7 @@ mod tests {
 
     #[test]
     fn metadata_targets_use_their_own_call_and_turn_effects() {
-        let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+        let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
         let book = seeded.books[0].book_id().to_string();
         let mut run = ChatState::new("synthetic-session").snapshot();
         let receipt = |id| SettlementRef {
@@ -537,69 +425,12 @@ mod tests {
     }
 
     #[test]
-    fn recent_node_routes_starters_to_the_non_first_written_chapter() {
-        let directory = tempfile::tempdir().unwrap();
-        let library = dr_store::Library::open(
-            directory.path(),
-            dr_workspace::library_options("m31-starters-test"),
-        )
-        .unwrap();
-        let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
-        let book = seeded.books[0].book_id().to_string();
-        seeded.write_to(&library).unwrap();
-        let workspace =
-            Workspace::open(library, dr_workspace::WorkspaceOptions::default()).unwrap();
-        let listed = workspace
-            .call(&Actor::User, "chapter.list", json!({"book":book}))
-            .unwrap();
-        assert!(
-            listed["output"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .all(|chapter| chapter["words"] == 0),
-            "the regression must exercise the unbuilt index"
-        );
-        let before = starters(&workspace, &book).unwrap();
-        let written: Vec<_> = before
-            .chapters
-            .iter()
-            .filter(|chapter| chapter.word_count > 0)
-            .collect();
-        assert!(
-            written.len() > 1,
-            "the tiny seed has several written chapters"
-        );
-        let first = written[0];
-        let recent = written[1];
-        assert_eq!(
-            crate::onboarding::build_starter_prompts(&before)[0].values,
-            vec![("chapter", first.title.clone())]
-        );
-        workspace
-            .call(
-                &Actor::User,
-                "recent.touch",
-                json!({"book":book,"target":{"kind":"node","id":recent.id}}),
-            )
-            .unwrap();
-        let after = starters(&workspace, &book).unwrap();
-        assert_eq!(after.recent_chapter_ids.first(), Some(&recent.id));
-        let requests = crate::onboarding::build_starter_prompts(&after);
-        assert_eq!(requests[0].key, prompts::COMMENT_CHAPTER);
-        assert_eq!(requests[0].values, vec![("chapter", recent.title.clone())]);
-        assert_eq!(requests[1].values, vec![("chapter", recent.title.clone())]);
-        workspace.shutdown().unwrap();
-    }
-
-    #[test]
     fn v3_onboarding_does_not_infer_novel_starters_from_entry_shapes() {
         let directory = tempfile::tempdir().unwrap();
         let workspace = Workspace::open_dir(directory.path(), "k6-v3-starters").unwrap();
         let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
         seeded.write_to(workspace.library()).unwrap();
         let source = starters(&workspace, seeded.books[0].book_id().as_str()).unwrap();
-        assert!(source.template_guided);
         assert!(crate::onboarding::build_starter_prompts(&source).is_empty());
         workspace.shutdown().unwrap();
     }

@@ -29,14 +29,12 @@ impl Fixture {
         let dir = tempfile::tempdir().unwrap();
         let ws = Workspace::open_dir(dir.path(), "m29-runtime-test").unwrap();
         ws.set_auto_links(false);
-        let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+        let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
         seeded.write_to(ws.library()).unwrap();
         let book = seeded.books[0].book_id().clone();
-        let chapters = ws
-            .call(&Actor::User, "chapter.list", json!({"book":book}))
-            .unwrap();
+        let chapters = json!({"output":dr_testkit::seed::acceptance::entries_by_template(&ws,&book,"tpl-chapter")});
         let chapter = &chapters["output"][0];
-        let doc = format!("node:{}", chapter["id"].as_str().unwrap());
+        let doc = format!("body:{}/mod-prose", chapter["id"].as_str().unwrap());
         let prose = ws
             .call(
                 &Actor::User,
@@ -56,7 +54,7 @@ impl Fixture {
     }
 
     fn selector(&self) -> Value {
-        json!({"kind":"chapter","name":self.title})
+        json!({"kind":"entry","module":"mod-prose","name":self.title})
     }
 
     fn text(&self) -> &str {
@@ -65,7 +63,14 @@ impl Fixture {
 
     fn start(&self) -> Start {
         Start {
-            config: RunConfig::new(Provider::Openai, "synthetic-model"),
+            config: {
+                let mut c = RunConfig::new(Provider::Openai, "synthetic-model");
+                c.capabilities = Some(dr_agent::ModelCapabilities {
+                    context_window: Some(262_144),
+                    ..Default::default()
+                });
+                c
+            },
             book: self.book.clone(),
             conversation: ConversationId::new_v7(),
             input: self.text().into(),
@@ -177,8 +182,15 @@ fn wait_until(mut condition: impl FnMut() -> bool) {
 }
 
 #[test]
-fn scripted_discovery_name_resolution_write_receipt_and_exact_turn_undo() {
+fn scripted_discovery_name_resolution_receipt_and_entry_history_restore() {
     let fixture = Fixture::new();
+    let entry = fixture
+        .doc
+        .strip_prefix("body:")
+        .unwrap()
+        .strip_suffix("/mod-prose")
+        .unwrap();
+    let point = dr_testkit::seed::acceptance::entry_point(&fixture.ws, &fixture.book, &entry);
     let tools = Arc::new(AgentTools::new());
     let descriptors = tools.descriptors();
     assert_eq!(descriptors.len(), 2);
@@ -202,7 +214,7 @@ fn scripted_discovery_name_resolution_write_receipt_and_exact_turn_undo() {
             name: "tool_search".into(),
             arguments: json!({"query":"prose","limit":50}),
         }),
-        tool_round(call("chapters", "chapter.list", json!({}))),
+        tool_round(call("chapters", "entry.list", json!({"all":true}))),
         tool_round(fixture.read_call("read")),
         tool_round(fixture.write_call("write")),
         complete(fixture.text()),
@@ -272,58 +284,27 @@ fn scripted_discovery_name_resolution_write_receipt_and_exact_turn_undo() {
             &tools,
             &fixture,
             &finished_actor,
-            "chapter.update",
-            json!({"id":fixture.doc.strip_prefix("node:").unwrap(),"title":fixture.title})
+            "entry.update",
+            json!({"id":entry,"title":fixture.title})
         ),
         Err(Error::ReadRequired(_))
     ));
 
-    // A new turn cannot borrow the old turn's observations, even though it
-    // deliberately requests the old turn's exact settlement scope.
-    let actor = Actor::agent(&session, 2, "undo-first-turn");
-    let scope = json!({"session":session,"turn":1});
+    // A new Agent turn must establish fresh read authority before another
+    // prose edit. Author recovery uses the actual atomic entry snapshot API.
+    let actor = Actor::agent(&session, 2, "new-turn");
     assert!(matches!(
         invoke(
             &tools,
             &fixture,
             &actor,
-            "history.undo_agent",
-            scope.clone()
+            "prose.replace",
+            json!({"doc":fixture.selector(),"find":fixture.text().chars().rev().collect::<String>(),"replace":fixture.text()})
         ),
         Err(Error::ReadRequired(_))
     ));
-    let changes = invoke(
-        &tools,
-        &fixture,
-        &actor,
-        "history.agent_changes",
-        scope.clone(),
-    )
-    .unwrap();
-    assert_eq!(changes["output"].as_array().unwrap().len(), 1);
-    assert_eq!(changes["output"][0]["turn"], "1");
-    invoke(
-        &tools,
-        &fixture,
-        &actor,
-        "prose.read",
-        json!({"doc":fixture.selector(),"limit":usize::MAX}),
-    )
-    .unwrap();
-    let undone = invoke(&tools, &fixture, &actor, "history.undo_agent", scope).unwrap();
-    assert_eq!(undone["output"]["reverted_prose"], json!([fixture.doc]));
-    assert_eq!(undone["output"]["conflicts"], json!([]));
+    dr_testkit::seed::acceptance::restore_entry(&fixture.ws, &fixture.book, &entry, &point);
     assert_eq!(fixture.current()["paragraphs"], fixture.prose["paragraphs"]);
-    let receipts = fixture
-        .ws
-        .library()
-        .settlements(Some(&session), None)
-        .unwrap();
-    assert!(
-        receipts
-            .iter()
-            .any(|receipt| receipt.turn == "2" && receipt.call == "undo-first-turn")
-    );
 }
 
 #[test]

@@ -28,15 +28,16 @@ impl Fixture {
     fn new() -> Self {
         let dir = tempfile::tempdir().unwrap();
         let lib = Library::open(dir.path(), library_options("m32-external")).unwrap();
-        let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+        let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
         let book = seeded.books[0].book_id().clone();
         seeded.write_to(&lib).unwrap();
         let ws = Workspace::open(lib, WorkspaceOptions::default()).unwrap();
         ws.set_auto_links(false);
-        let chapters = ws
-            .call(&Actor::User, "chapter.list", json!({"book":book}))
-            .unwrap();
-        let doc = format!("node:{}", chapters["output"][0]["id"].as_str().unwrap());
+        let chapters = json!({"output":dr_testkit::seed::acceptance::entries_by_template(&ws,&book,"tpl-chapter")});
+        let doc = format!(
+            "body:{}/mod-prose",
+            chapters["output"][0]["id"].as_str().unwrap()
+        );
         let paragraph = ws
             .call(&Actor::User, "prose.read", json!({"doc":doc}))
             .unwrap()["output"]["paragraphs"][1]

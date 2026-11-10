@@ -57,9 +57,16 @@ pub struct Level {
     pub members: Vec<String>,
 }
 
+#[derive(Clone, Debug, Serialize)]
+pub struct ManuscriptBody {
+    pub entry: String,
+    pub module: String,
+    pub title: String,
+}
 #[derive(Default, Serialize)]
 pub struct BookV3 {
     pub revision: String,
+    pub manuscript: Vec<ManuscriptBody>,
     /// Effective tree traversal order; each row preserves its raw parent.
     pub entries: Vec<types::Entry>,
     pub templates: Vec<types::EntryTemplate>,
@@ -102,7 +109,6 @@ impl BookV3 {
             Target::Entry { id, .. } => self.entry(id.as_str()).is_some(),
             Target::Template(id) => self.template(id.as_str()).is_some(),
             Target::Material(id) => self.materials.iter().any(|m| m.id == id.as_str()),
-            _ => false,
         }
     }
     /// Metadata for every entry surface. Marks keep the template's vocabulary;
@@ -231,13 +237,32 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
         // or legacy rows.
         let book_id =
             dr_model::id::BookId::parse(id).map_err(|e| WsError::Invalid(e.to_string()))?;
-        let materials = lib
+        let (materials, manuscript) = lib
             .library()
             .open_doc(&format!("book:{id}"), dr_store::OpenDoc::Existing)?
             .read(move |doc| {
                 let book = BorrowedBookV3::new(doc, &book_id)
                     .map_err(|e| WsError::Invalid(e.to_string()))?;
-                Ok::<_, WsError>(book.view().materials().iter().map(Into::into).collect())
+                let view = book.view();
+                let templates = view.templates_map();
+                let mut manuscript = Vec::new();
+                for level in view.manuscript_levels() {
+                    for entry in view.manuscript_leaves(&level) {
+                        if let Some(template) = entry.effective_template(&templates) {
+                            for module in template.prose_modules() {
+                                manuscript.push(ManuscriptBody {
+                                    entry: entry.id.to_string(),
+                                    module: module.id.to_string(),
+                                    title: entry.title.clone(),
+                                });
+                            }
+                        }
+                    }
+                }
+                Ok::<_, WsError>((
+                    view.materials().iter().map(Into::into).collect(),
+                    manuscript,
+                ))
             })??;
         let material_folders = lib
             .run::<dr_workspace::commands::material::FolderList>(&Actor::User, input())?
@@ -271,6 +296,7 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
             .collect();
         let mut v3 = BookV3 {
             revision: after.version,
+            manuscript,
             entries,
             templates,
             roots,
@@ -333,7 +359,7 @@ pub(super) fn load(lib: &Workspace, id: &str) -> Result<Book, WsError> {
                 .and_then(|v| v.as_str())
                 .unwrap_or_default()
                 .to_owned(),
-            snapshot: Snapshot::V3(v3),
+            snapshot: Snapshot::V3(Box::new(v3)),
             index,
         });
     }

@@ -268,19 +268,24 @@ fn glossary_uses_seed_names_and_aliases_and_stays_bounded() {
     use dr_testkit::seed::{self, Preset};
     let dir = tempfile::tempdir().unwrap();
     let ws = dr_workspace::Workspace::open_dir(dir.path(), "speech-context").unwrap();
-    let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+    let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
     seeded.write_to(ws.library()).unwrap();
     let book = seeded.books[0].book_id().clone();
     let expected = seeded.books[0]
         .book
         .view()
-        .elements()
+        .entries()
         .into_iter()
-        .find(|e| e.deleted_at.is_none())
+        .find(|e| {
+            e.deleted_at.is_none()
+                && e.template
+                    .as_ref()
+                    .is_some_and(|t| t.as_str() == "tpl-character")
+        })
         .unwrap();
     let context = context::glossary(ws.library(), &book).unwrap();
-    assert!(context.contains(&expected.name));
-    for alias in &expected.aliases {
+    assert!(context.contains(&expected.title));
+    for alias in &expected.aliases(&seeded.books[0].book.view().templates_map()) {
         assert!(context.contains(alias));
     }
     let packed = context::pack(vec![

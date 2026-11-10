@@ -26,19 +26,14 @@ impl Fixture {
         let dir = tempfile::tempdir().unwrap();
         let ws = Workspace::open_dir(dir.path(), "m29-barriers-test").unwrap();
         ws.set_auto_links(false);
-        let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+        let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
         seeded.write_to(ws.library()).unwrap();
         let book = seeded.books[0].book_id().clone();
-        let chapters = author(&ws, "chapter.list", json!({"book":book}))
-            .as_array()
-            .unwrap()
-            .clone();
-        let elements = author(&ws, "element.list", json!({"book":book}))
-            .as_array()
-            .unwrap()
-            .clone();
+        let chapters = dr_testkit::seed::acceptance::entries_by_template(&ws, &book, "tpl-chapter");
+        let elements =
+            dr_testkit::seed::acceptance::entries_by_template(&ws, &book, "tpl-character");
         assert!(chapters.len() >= 2 && elements.len() >= 2);
-        let doc = format!("node:{}", chapters[0]["id"].as_str().unwrap());
+        let doc = format!("body:{}/mod-prose", chapters[0]["id"].as_str().unwrap());
         let prose = author(&ws, "prose.read", json!({"doc":doc,"limit":usize::MAX}));
         assert!(prose["paragraphs"].as_array().unwrap().len() >= 2);
         Self {
@@ -80,7 +75,7 @@ impl Fixture {
     }
 
     fn chapter_update(&self, chapter: usize) -> Value {
-        json!({"id":self.chapters[chapter]["id"],"summary":self.text()})
+        json!({"id":self.chapters[chapter]["id"],"title":format!("{} revised",self.chapters[chapter]["title"].as_str().unwrap())})
     }
 
     fn text(&self) -> &str {
@@ -145,7 +140,7 @@ fn resolving_an_entity_does_not_authorize_an_unread_write() {
     // Resolving these ids reads F3 internally, but those reads are not a
     // successful observation returned to this Agent.
     for chapter in 0..2 {
-        assert_read_required(f.invoke(&tools, &actor, "chapter.update", f.chapter_update(chapter)));
+        assert_read_required(f.invoke(&tools, &actor, "entry.update", f.chapter_update(chapter)));
     }
     assert_read_required(f.invoke(&tools, &actor, "prose.replace", f.replacement(1)));
     assert_eq!(f.book_bytes(), book);
@@ -162,13 +157,14 @@ fn a_book_frontier_does_not_grant_coverage_of_its_chapters() {
     let before = f.book_bytes();
     let receipts = f.receipts();
     for chapter in 0..2 {
-        assert_read_required(f.invoke(&tools, &actor, "chapter.update", f.chapter_update(chapter)));
+        assert_read_required(f.invoke(&tools, &actor, "entry.update", f.chapter_update(chapter)));
     }
     assert_eq!(f.book_bytes(), before);
     assert_eq!(f.receipts(), receipts);
 
-    f.invoke(&tools, &actor, "chapter.list", json!({})).unwrap();
-    f.invoke(&tools, &actor, "chapter.update", f.chapter_update(0))
+    f.invoke(&tools, &actor, "entry.list", json!({"all":true}))
+        .unwrap();
+    f.invoke(&tools, &actor, "entry.update", f.chapter_update(0))
         .unwrap();
     assert_eq!(f.receipts(), receipts + 1);
 }
@@ -179,20 +175,21 @@ fn element_body_coverage_does_not_authorize_element_metadata() {
     let tools = AgentTools::new();
     let actor = Actor::agent("body-only", 1, "write");
     let element = &f.elements[0]["id"];
-    let doc = format!("element:{}", element.as_str().unwrap());
+    let doc = format!("body:{}/mod-prose", element.as_str().unwrap());
     f.invoke(&tools, &actor, "prose.read", json!({"doc":doc}))
         .unwrap();
     let before = f.book_bytes();
     let body = f.bytes(&doc);
     let receipts = f.receipts();
-    let update = json!({"id":element,"summary":f.text()});
-    assert_read_required(f.invoke(&tools, &actor, "element.update", update.clone()));
+    let update = json!({"id":element,"title":format!("{} revised",f.elements[0]["title"].as_str().unwrap())});
+    assert_read_required(f.invoke(&tools, &actor, "entry.update", update.clone()));
     assert_eq!(f.book_bytes(), before);
     assert_eq!(f.bytes(&doc), body);
     assert_eq!(f.receipts(), receipts);
 
-    f.invoke(&tools, &actor, "element.list", json!({})).unwrap();
-    f.invoke(&tools, &actor, "element.update", update).unwrap();
+    f.invoke(&tools, &actor, "entry.list", json!({"all":true}))
+        .unwrap();
+    f.invoke(&tools, &actor, "entry.update", update).unwrap();
     assert_eq!(f.receipts(), receipts + 1);
 }
 
@@ -232,7 +229,7 @@ fn observations_belong_to_one_session_and_turn_but_not_one_call() {
     let f = Fixture::new();
     let tools = AgentTools::new();
     let reader = Actor::agent("reader", 1, "read");
-    f.invoke(&tools, &reader, "chapter.list", json!({}))
+    f.invoke(&tools, &reader, "entry.list", json!({"all":true}))
         .unwrap();
     let before = f.book_bytes();
     let receipts = f.receipts();
@@ -240,14 +237,14 @@ fn observations_belong_to_one_session_and_turn_but_not_one_call() {
         Actor::agent("other", 1, "write"),
         Actor::agent("reader", 2, "write"),
     ] {
-        assert_read_required(f.invoke(&tools, &actor, "chapter.update", f.chapter_update(0)));
+        assert_read_required(f.invoke(&tools, &actor, "entry.update", f.chapter_update(0)));
     }
     assert_eq!(f.book_bytes(), before);
     assert_eq!(f.receipts(), receipts);
     f.invoke(
         &tools,
         &Actor::agent("reader", 1, "later-call"),
-        "chapter.update",
+        "entry.update",
         f.chapter_update(0),
     )
     .unwrap();
@@ -259,7 +256,8 @@ fn a_new_book_version_read_does_not_refresh_old_chapter_coverage() {
     let f = Fixture::new();
     let tools = AgentTools::new();
     let actor = Actor::agent("new-version", 1, "write");
-    f.invoke(&tools, &actor, "chapter.list", json!({})).unwrap();
+    f.invoke(&tools, &actor, "entry.list", json!({"all":true}))
+        .unwrap();
     let version = f.ws.observe(&format!("book:{}", f.book)).unwrap().version;
     author(
         &f.ws,
@@ -273,12 +271,13 @@ fn a_new_book_version_read_does_not_refresh_old_chapter_coverage() {
     f.invoke(&tools, &actor, "comment.list", json!({})).unwrap();
     let before = f.book_bytes();
     let receipts = f.receipts();
-    assert_read_required(f.invoke(&tools, &actor, "chapter.update", f.chapter_update(0)));
+    assert_read_required(f.invoke(&tools, &actor, "entry.update", f.chapter_update(0)));
     assert_eq!(f.book_bytes(), before);
     assert_eq!(f.receipts(), receipts);
 
-    f.invoke(&tools, &actor, "chapter.list", json!({})).unwrap();
-    f.invoke(&tools, &actor, "chapter.update", f.chapter_update(0))
+    f.invoke(&tools, &actor, "entry.list", json!({"all":true}))
+        .unwrap();
+    f.invoke(&tools, &actor, "entry.update", f.chapter_update(0))
         .unwrap();
     assert_eq!(f.receipts(), receipts + 1);
 }
@@ -344,24 +343,6 @@ fn changing_prose_tools_does_not_reset_the_same_documents_conflict_budget() {
     let f = Fixture::new();
     let tools = AgentTools::new();
     let actor = Actor::agent("mixed-conflicts", 1, "write");
-    let target = json!({"kind":"node","id":f.chapters[0]["id"]});
-    let comment = author(
-        &f.ws,
-        "comment.create",
-        json!({"book":f.book,"target":target,"range":[0,1],"body":f.text()}),
-    );
-    let anchors = author(
-        &f.ws,
-        "comment.anchors",
-        json!({"book":f.book,"target":target}),
-    );
-    let anchor = anchors
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|anchor| anchor["id"] == comment["id"])
-        .unwrap()["anchor"]
-        .clone();
     let author_edit = || {
         let text = f.text().chars().next().unwrap().to_string();
         f.ws.prose_session(&f.doc)
@@ -386,11 +367,8 @@ fn changing_prose_tools_does_not_reset_the_same_documents_conflict_budget() {
     let second = f.invoke(
         &tools,
         &actor,
-        "prose.link",
-        json!({"links":[{
-            "doc":f.doc,"target":{"kind":"element","id":f.elements[0]["id"]},
-            "anchors":[anchor]
-        }]}),
+        "module.replace_prose",
+        json!({"owner":f.chapters[0]["id"],"module":"mod-prose","block_id":f.prose["paragraphs"][1]["block_id"],"find":f.text(),"replace":f.text().chars().rev().collect::<String>()}),
     );
     assert!(
         matches!(&second, Err(Error::ConflictLimit(doc)) if doc == &f.doc),
@@ -414,31 +392,36 @@ fn public_prose_projection_contains_only_the_targets_actual_comment_anchors() {
     let f = Fixture::new();
     let tools = AgentTools::new();
     let actor = Actor::agent("comments", 1, "read");
-    let target = json!({"kind":"node","id":f.chapters[0]["id"]});
+    let target = json!({"kind":"entry","id":f.chapters[0]["id"]});
     let block = &f.prose["paragraphs"][1]["block_id"];
     let attached = author(
         &f.ws,
         "comment.create",
         json!({
-            "book":f.book,"target":target,"block_id":block,"body":f.text()
+            "book":f.book,"target":target,"module":"mod-prose","block_id":block,"body":f.text()
         }),
     );
     let document = author(
         &f.ws,
         "comment.create",
         json!({
-            "book":f.book,"target":target,"body":f.text()
+            "book":f.book,"target":target,"module":"mod-prose","body":f.text()
         }),
     );
     let elsewhere = author(
         &f.ws,
         "comment.create",
         json!({
-            "book":f.book,"target":{"kind":"node","id":f.chapters[1]["id"]},"body":f.text()
+            "book":f.book,"target":{"kind":"entry","id":f.chapters[1]["id"]},"module":"mod-prose","body":f.text()
         }),
     );
     let comments = f
-        .invoke(&tools, &actor, "comment.list", json!({"target":target}))
+        .invoke(
+            &tools,
+            &actor,
+            "comment.list",
+            json!({"target":target,"module":"mod-prose"}),
+        )
         .unwrap();
     let expected: BTreeMap<_, _> = comments["output"]
         .as_array()

@@ -222,22 +222,18 @@ fn shortcut(id: &str, cx: &App) -> SharedString {
 
 /// An empty page's hint, faint under where the first line goes: the
 /// Markdown for the three heading levels, then search and the timeline.
-fn hints(v3: bool, window: &Window, cx: &App) -> Div {
+fn hints(window: &Window, cx: &App) -> Div {
     let theme = Theme::of(window, cx);
     let p = theme.palette;
     let s = theme.scale;
     let rows: Vec<(SharedString, SharedString)> = EMPTY_HINTS
         .iter()
         .enumerate()
-        .map(|(i, (label, md))| {
-            let label = if v3 {
-                t(
-                    cx,
-                    [keys::k4_pages::H1, keys::k4_pages::H2, keys::k4_pages::H3][i],
-                )
-            } else {
-                SharedString::from(*label)
-            };
+        .map(|(i, (_, md))| {
+            let label = t(
+                cx,
+                [keys::k4_pages::H1, keys::k4_pages::H2, keys::k4_pages::H3][i],
+            );
             (label, SharedString::from(*md))
         })
         .chain([
@@ -382,13 +378,7 @@ impl Render for PageEnd {
             .flex_col()
             .items_center()
             .pb(px(tk::BOTTOM))
-            .when(self.page.empty, |el| {
-                el.child(hints(
-                    dr_editor::v3::body(&self.page.doc).is_some(),
-                    window,
-                    cx,
-                ))
-            })
+            .when(self.page.empty, |el| el.child(hints(window, cx)))
             .child(
                 div()
                     .relative()

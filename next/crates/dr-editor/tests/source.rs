@@ -24,7 +24,7 @@ fn env() -> &'static Env {
         let dir = tempfile::tempdir().unwrap();
         let lib = Library::open(dir.path(), library_options("test")).unwrap();
         let ws = Workspace::open(lib, WorkspaceOptions::default()).unwrap();
-        let book = call(&ws, "book.create", json!({"name": "Conformance"}))["id"]
+        let book = call(&ws, "project.create", json!({"name": "Conformance"}))["id"]
             .as_str()
             .unwrap()
             .to_owned();
@@ -56,13 +56,12 @@ fn session_source(paragraphs: &[(BlockKind, &str)]) -> Box<dyn ProseSource> {
     let title = format!("c{}", N.fetch_add(1, Ordering::Relaxed));
     let id = call(
         &e.ws,
-        "chapter.create",
-        json!({"book": e.book, "title": title, "text": text}),
+        "entry.create", json!({"book": e.book, "parent": dr_testkit::seed::acceptance::novel_root(&e.ws, &e.book, "tpl-manuscript"), "template": "tpl-chapter", "title": title, "bodies": {"mod-prose": text}}),
     )["id"]
         .as_str()
         .unwrap()
         .to_owned();
-    let doc = format!("node:{id}");
+    let doc = format!("body:{id}/mod-prose");
     if paragraphs.iter().any(|(k, _)| *k != BlockKind::Body) {
         let seed = e.ws.prose_session(&doc).unwrap();
         let mut at = 0;
@@ -110,13 +109,12 @@ fn an_agents_command_reaches_the_editor_as_someone_elses_change() {
     let e = env();
     let id = call(
         &e.ws,
-        "chapter.create",
-        json!({"book": e.book, "title": "agent", "text": "开头。"}),
+        "entry.create", json!({"book": e.book, "parent": dr_testkit::seed::acceptance::novel_root(&e.ws, &e.book, "tpl-manuscript"), "template": "tpl-chapter", "title": "agent", "bodies": {"mod-prose": "开头。"}}),
     )["id"]
         .as_str()
         .unwrap()
         .to_owned();
-    let doc_id = format!("node:{id}");
+    let doc_id = format!("body:{id}/mod-prose");
     let mut doc = ProseDoc::open(Box::new(SessionSource::open(&e.ws, &doc_id).unwrap()));
     doc.replace(0..0, "作者", gpui_prose::text::ORIGIN_USER);
     e.ws.call(
@@ -147,13 +145,12 @@ fn a_commit_between_events_and_a_read_resyncs_the_mirror() {
     let e = env();
     let id = call(
         &e.ws,
-        "chapter.create",
-        json!({"book": e.book, "title": "resync", "text": "一\n二\n三"}),
+        "entry.create", json!({"book": e.book, "parent": dr_testkit::seed::acceptance::novel_root(&e.ws, &e.book, "tpl-manuscript"), "template": "tpl-chapter", "title": "resync", "bodies": {"mod-prose": "一\n二\n三"}}),
     )["id"]
         .as_str()
         .unwrap()
         .to_owned();
-    let doc_id = format!("node:{id}");
+    let doc_id = format!("body:{id}/mod-prose");
     let mut source = SessionSource::open(&e.ws, &doc_id).unwrap();
     let opened = source.resync();
     assert_eq!(opened.len(), 4);

@@ -127,20 +127,21 @@ fn titles_limit_empty_and_legacy_version_are_explicit() {
     assert!(v3::search(&ws, &book, " ", 1).unwrap().is_empty());
     assert!(v3::search(&ws, &book, title, 0).unwrap().is_empty());
     assert_eq!(ws.observe(&format!("book:{book}")).unwrap().version, before);
-    let old = call(
-        &ws,
-        "book.create",
-        json!({"name":"Synthetic compatibility"}),
-    );
-    assert!(v3::search(&ws, old["id"].as_str().unwrap(), title, 1).is_err());
+    let old = dr_testkit::seed::acceptance::empty_source(ws.library());
+    let old_doc = format!("book:{old}");
+    let before = ws.library().load_copy(&old_doc).unwrap();
+    assert!(v3::search(&ws, &old, title, 1).is_err());
     assert!(
         ws.call(
             &Actor::User,
             "book.search",
-            json!({"book":old["id"],"query":title})
+            json!({"book":old,"query":title})
         )
-        .is_ok()
+        .is_err()
     );
+    let after = ws.library().load_copy(&old_doc).unwrap();
+    assert_eq!(before.oplog_frontiers(), after.oplog_frontiers());
+    assert_eq!(before.get_deep_value(), after.get_deep_value());
     ws.shutdown().unwrap();
 }
 
@@ -235,10 +236,7 @@ fn v3_panel_emits_module_destination_without_a_legacy_jump(cx: &mut gpui::TestAp
     }
     let jump = panel.read_with(cx, |p, _| {
         let g = &p.v3_groups().unwrap()[0];
-        assert!(
-            p.groups().is_empty(),
-            "v3 results never enter legacy targets"
-        );
+
         v3::jump(g, g.rows.first())
     });
     cx.simulate_keystrokes("enter");

@@ -18,12 +18,6 @@ use std::fmt;
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-pub use crate::book::sort_kv;
-use crate::book::{
-    BlockSnapshot, DEFAULT_DAILY_WORD_TARGET, DEFAULT_WORD_TARGET, EncodedAnchor, EntityRef,
-    KvEntry, MaterialRegion, PLOT_DEFAULT_CELL, PLOT_DEFAULT_LINES, PlotLine, TodoProjection,
-    element_name_key,
-};
 use crate::check::{Violation, non_empty_name};
 pub use crate::id::{
     AssetId, BlockId, BodyDocId, BookId, CommentId, DocId, EntryId, EntryTemplateId, KvEntryId,
@@ -36,6 +30,12 @@ use crate::kind::{
 };
 use crate::order::cmp_order;
 use crate::pos::{PosKey, cmp_pos};
+pub use crate::shared::sort_kv;
+use crate::shared::{
+    BlockSnapshot, DEFAULT_DAILY_WORD_TARGET, DEFAULT_WORD_TARGET, EncodedAnchor, EntityRef,
+    KvEntry, MaterialRegion, PLOT_DEFAULT_CELL, PLOT_DEFAULT_LINES, PlotLine, TodoProjection,
+    element_name_key,
+};
 use crate::time::Timestamp;
 
 /// An inline v3 link to an entry (optionally one prose module) or a material.

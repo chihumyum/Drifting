@@ -2,61 +2,23 @@
 source: crates/dr-workspace/tests/registry.rs
 expression: registry().table()
 ---
-act.create                   command  book     Create an act starting at a chapter (or at the head of the book).
-act.delete                   command  book     Delete an act boundary (its chapters join the act before).
-act.list                     query    shared   List acts in reading order, each with its chapters.
-act.update                   command  book     Rename an act, recolour it, move its boundary or bind an idea to it.
 asset.get                    query    shared   Read an asset's recorded metadata: kind, media type, size and pixel dimensions (the Stats tab's file readings).
 asset.put                    command  book     Record an imported asset's metadata in the book (written once; the bytes are in storage).
-book.create                  command  library  Create a book (its book document from the shared genesis) and return its id.
-book.get                     query    shared   Read a book's name, summary, word targets and counts.
+book.get                     query    shared   Read v3 book metadata and word targets; aggregate counts use the v3 statistics adapter.
 book.list                    query    shared   List the library's books (trashed ones when asked).
 book.purge                   command  library  Delete a book in Recently Deleted for good, now: its documents, history and assets on this device. Refused for a book not in the trash or still open in an editor. Cannot be undone.
 book.purge_expired           command  library  Delete for good every book whose 30 days in Recently Deleted are over (the shelf runs it a while after it opens, so a restore made on another device can arrive first). Cannot be undone.
 book.restore                 command  book     Bring a book back from the trash.
-book.search                  query    shared   Search a book: titles, summaries, prose, material descriptions and element patches (chapters in reading order first, then ideas, elements, storylines, categories, materials). One- and two-character queries work.
 book.shelf                   query    shared   Everything the bookshelf shows, in one read: every book with its counts, chapter words, creation, last change, and (in Recently Deleted) when it goes for good. Live books first, most recently changed first; then the trashed ones, most recently deleted first.
 book.trash                   command  book     Move a book to the trash (restorable; storage deletes it for good later).
-book.update                  command  book     Change a book's name, summary or word targets.
-book.word_counts             query    shared   Word counts of a book from the derived index: each chapter, idea and storyline, the book (its chapters), and the word targets.
+book.update                  command  book     Update selected v3 book metadata fields without replacing other book data.
 book.writing_days            query    shared   A book's writing days: words written per day (all devices), today, the last seven days, active days and the streak.
-category.create              command  book     Create an element category (a taken name gets a numbered suffix; the final name is returned).
-category.list                query    shared   List element categories, with how many live elements each has.
-category.purge               command  book     Delete a category for good: its elements become uncategorized, its relations go and comments on it become floating, in one commit.
-category.restore             command  book     Bring a category back from the trash, with its elements.
-category.trash               command  book     Move a category to the trash. Never refused: its elements read as uncategorized until it is restored.
-category.update              command  book     Rename a category (a taken name gets a suffix), recolour it or change its layout.
-category_template.body       query    shared   Read a category's element template: the paragraphs (body text or H1/H2/H3) its new elements start with.
-category_template.document   command  book     Make sure a category's element template has its own prose document and return its id, for an editor to open (the template is then edited like any page).
-category_template.list       query    shared   List the fields every new element of a category starts with, in order.
-category_template.put        command  book     Add a field to a category's template or change one (key, value, position). Existing elements keep their fields.
-category_template.remove     command  book     Remove a field from a category's template. Existing elements keep theirs.
-category_template.set_body   command  book     Replace a category's element template (the body its new elements start with; empty removes it). Existing elements keep their bodies.
-chapter.arrange              command  book     Set exact coordinates of several chapters on one axis, and move act boundaries with them, in one step (undo of a spread uses it).
-chapter.create               command  book     Create a chapter (a taken title gets a numbered suffix; the final title is returned), optionally placed on story time too. Given a storyline and no text, it starts from that storyline's chapter template.
-chapter.list                 query    shared   List chapters in reading order, with their act, storylines, words, creation and last change (trashed ones after, when asked).
-chapter.move                 command  book     Move a chapter in reading order (it lands before the next chapter or act boundary).
-chapter.place                command  book     Put a chapter at an exact place on the reading-order or story-time axis and, optionally, on another storyline (as the primary one) or on none, in one step.
-chapter.purge                command  book     Delete a chapter for good: its relations go and comments on it become floating, in one commit. Undo restores it from history.
-chapter.restore              command  book     Bring a chapter back from the trash (its relations and comments come back with it).
-chapter.spread               command  book     Spread out (打散) the chapters on one axis: same order, evenly spaced, act boundaries moved along, in one step.
-chapter.trash                command  book     Move a chapter to the trash. Never refused: its relations are hidden and comments on it shown as unlocated until it is restored; the result lists them.
-chapter.update               command  book     Change a chapter's title, summary, status, place in reading order, narrative position or storylines.
-chapter_template.body        query    shared   Read a storyline's chapter template: the paragraphs (body text or H1/H2/H3) a new chapter whose main storyline it is starts with.
-chapter_template.document    command  book     Make sure a storyline's chapter template has its own prose document and return its id, for an editor to open.
-chapter_template.set_body    command  book     Replace a storyline's chapter template (the body new chapters on it start with; empty removes it). Existing chapters keep their text.
 comment.anchors              query    shared   The stored anchors of the comments on one entity's prose, for an editor laying them out (comments without an anchor are not listed).
 comment.create               command  book     Add a comment or TODO, on an entity, a paragraph, a passage of its prose, a region of an image or PDF, or floating.
 comment.delete               command  book     Delete a comment or TODO (its relations go with it).
 comment.list                 query    shared   List comments and TODOs (a target in the trash or gone shows as unlocated).
 comment.reanchor             command  book     Put a comment's anchor back where the editor's undo brought its text back (the author's change, synced; it follows the editor's undo, so it is not an entry of the object-level undo).
 comment.update               command  book     Change a comment or TODO: its text, status (resolve / reopen), priority, kind or linked Agent conversation.
-element.create               command  book     Create an element (it starts with its category's template fields, and its element template as the body when no text is given). A name or alias another element already has is refused (automatic links find people by name); the error names that element.
-element.list                 query    shared   List elements (with a mark on names a merge left duplicated).
-element.purge                command  book     Delete an element for good: its relations and patches go, comments on it become floating, in one commit.
-element.restore              command  book     Bring an element back from the trash (a name taken meanwhile gets a suffix).
-element.trash                command  book     Move an element to the trash. Never refused: its relations are hidden and comments on it unlocated until it is restored.
-element.update               command  book     Change an element: name, summary, category, aliases, fields, portrait, relation-graph pin. A name or alias another element has is refused.
 entry.create                 command  book     Create a v3 entry with its template, residence, membership and initial module content.
 entry.get                    query    shared   Read a v3 entry including retained module values.
 entry.list                   query    shared   Find v3 entries or list the children of a level in manuscript order.
@@ -83,24 +45,9 @@ entry_template.remove_module command  book     Remove a v3 module definition whi
 fact.list                    query    shared   List the book's project facts (项目设定), in order.
 fact.put                     command  book     Add a project fact or change one (key, value, position).
 fact.remove                  command  book     Remove a project fact.
-history.agent_changes        query    shared   List what an Agent session (or one turn) wrote: one entry per settled write, oldest first.
 history.points               query    shared   List a prose document's history points (kept 30 days, at most one every 15 minutes of writing), newest first, with the words at each.
 history.preview              query    shared   Read a prose document as it was at a history point: its paragraphs (with H1/H2/H3 levels) and its owner's title and summary then.
-history.restore_entities     command  book     Make named entities of a book equal to an earlier version (one commit; the rest of the book is untouched). The undo of every purge.
-history.restore_point        command  book     Restore a prose document to a history point, per entity: the prose goes back (a new change; history stays) and its owner's title, summary and other metadata fields go back to that time; the rest of the book is untouched.
-history.undo_agent           command  book     Undo what an Agent session (or one turn) wrote: book fields nobody changed since go back, entities it created go to the trash, entities it deleted come back, and prose untouched since is reverted; the rest is reported as conflicts.
-idea.create                  command  book     Create an idea (构想); a taken title gets a numbered suffix and the final title is returned.
-idea.list                    query    shared   List ideas (构想), optionally of one group.
-idea.purge                   command  book     Delete an idea for good: time pins bound to it keep its title as their label, acts and pins lose the binding, relations go, comments become floating; one commit.
-idea.restore                 command  book     Bring an idea back from the trash (its bindings come back with it).
-idea.to_chapter              command  book     Turn an idea into a chapter, keeping its page, text, comments and relations: it becomes a draft after the last chapter, on the given storyline and out of its idea group; acts and time pins bound to it are unbound (a pin with no label keeps the idea's title).
-idea.to_element              command  book     Turn an idea into a new element: its title becomes the name, its summary and text move over (the element starts with its category's template fields), and the idea goes to the trash. A name another element has is refused.
-idea.trash                   command  book     Move an idea to the trash. Never refused: acts and time pins bound to it read as unbound until it is restored.
-idea.update                  command  book     Change an idea's title, summary, status, group, board position or narrative position.
-idea_group.create            command  book     Create an idea group (groups nest at most two levels).
-idea_group.delete            command  book     Delete an idea group: its sub-groups and ideas move up to its parent.
-idea_group.list              query    shared   List idea groups, parents before children.
-idea_group.update            command  book     Rename, recolour or move an idea group (at most two levels).
+history.restore_point        command  book     Restore one material note and its metadata from history; entry bodies require complete-entry snapshots.
 level.get                    query    shared   Read resolved v3 level settings, resident children and accepted members.
 level.list                   query    shared   Read every live v3 level with settings, provenance, resident children and accepted members from one consistent book snapshot.
 material.create              command  book     Add a material: a text note, or an image or PDF whose asset is registered.
@@ -123,7 +70,6 @@ memory.list                  query    shared   List the book's Project Memory en
 memory.remove                command  book     Remove a Project Memory entry (kept as removed; restorable).
 memory.restore               command  book     Bring back a removed Project Memory entry.
 memory.update                command  book     Change a Project Memory entry's text, kind or status.
-mention.list                 query    shared   List what prose mentions: entity links and embedded materials, from one entity's prose, to one entity, or in the whole book (live ends only, with paragraph and span counts, the most mentioned first; `limit` keeps the top rows).
 module.list                  query    shared   List current and retained v3 modules and their registered prose documents.
 module.prose_document        command  book     Initialize a v3 prose module or level description and return its document ID.
 module.put_grid              command  book     Replace the rows, columns, cells and size of one v3 plot module.
@@ -138,20 +84,6 @@ module.remove_relation       command  book     Remove one relation projected in 
 module.replace_prose         command  book     Replace an exact passage in a v3 module or level description, addressed by block ID.
 module.set_field             command  book     Set or clear a typed field value in a v3 entry module.
 module.set_prose             command  book     Write paragraphs of a v3 prose module, level description or template prose.
-patch.check_sources          command  book     After a chapter's or idea's prose changed: mark the patches taken from it whose passage no longer occurs as invalidated, and unmark those whose passage is back. Follows the prose; not an author's step.
-patch.create                 command  book     Add a patch to an element: a title (optional) and a body, floating or taken from a passage of a chapter or idea.
-patch.delete                 command  book     Delete a patch at once (never refused): relations to it go and comments on it float, in the same commit; undo brings it all back.
-patch.list                   query    shared   List an element's patches: by their source chapter's reading order, then their own order; floating ones last. Invalidated ones are listed too.
-patch.move                   command  book     Move a patch among its element's patches (within the same source chapter the order is the patches' own).
-patch.update                 command  book     Change a patch's title or body, or the chapter it belongs to (none detaches it).
-plot_grid.cell               command  book     Write one cell of a plot grid (empty text clears it).
-plot_grid.clear              command  book     清空: clear every label and every cell of a plot grid; its rows, columns and size stay.
-plot_grid.create             command  book     Store a chapter's or idea's plot grid, three rows by three columns with empty labels, before its first edit; an existing grid is returned as it is.
-plot_grid.get                query    shared   Read a chapter's or idea's plot grid: rows, columns and the cells' text (an empty 3 × 3 grid when none is stored yet).
-plot_grid.line_add           command  book     Insert a row or column into a plot grid, first or right after another, with a label (empty shows the placeholder).
-plot_grid.line_remove        command  book     Remove a plot grid's row or column with its cells (the last row or column cannot go).
-plot_grid.line_update        command  book     Rename or move a plot grid's row or column (first, or right after another).
-plot_grid.size               command  book     Set the size of a plot grid's cells (120–440 wide, 56–380 high).
 project.create               command  library  Create a v3 project using the novel template.
 prose.link                   command  book     Link anchored ranges of prose documents to entities (anchors, not positions: the undo of automatic links that were taken off).
 prose.read                   query    shared   Read paragraphs of a prose document (text, block id, heading level).
@@ -159,29 +91,11 @@ prose.replace                command  book     Replace one exact passage of pros
 prose.restore                command  book     Restore a prose document to an earlier version, as a new change (history stays).
 prose.shape                  query    shared   Shape of a prose document: paragraphs, sentences, the share of dialogue, its checklist and the materials it embeds.
 prose.unlink                 command  book     Take links to entities off anchored ranges of prose documents (anchors, not positions: the undo of automatic links).
-recent.list                  query    shared   List the pages of a book the author opened recently on this device, newest first (what is in the trash or gone is left out).
-recent.touch                 command  book     Record that the author opened a page of a book (this device only; Project Home's 「继续写」 reads it). Not undoable.
-relation.create              command  book     Relate two entities (a symmetric type stores its ends in canonical order; an existing identical relation is returned instead).
-relation.delete              command  book     Delete a relation.
-relation.list                query    shared   List the relations to show (both ends live, one per semantic edge).
-relation_type.create         command  book     Create a relation type. A name another type has is refused (`RT-NAME`); the error names that type.
-relation_type.delete         command  book     Delete a relation type and every relation of that type, in one commit; the result says how many (the interface asks first, an Agent reports it).
-relation_type.list           query    shared   List relation types (the built-in one is marked locked).
-relation_type.update         command  book     Rename a relation type or change its description, role names or colour (the built-in type is locked).
-storyline.create             command  book     Create a storyline (a taken name gets a numbered suffix; the final name is returned). It starts with the book's storyline template fields.
-storyline.list               query    shared   List storylines in order, with how many live chapters each has.
-storyline.move               command  book     Move a storyline in the list (only its own position changes).
-storyline.purge              command  book     Delete a storyline for good: chapters leave it, its relations go and comments on it become floating, in one commit.
-storyline.restore            command  book     Bring a storyline back from the trash, with its chapters' membership.
-storyline.trash              command  book     Move a storyline to the trash. Never refused: chapters keep their membership, hidden until it is restored.
-storyline.update             command  book     Rename a storyline (a taken name gets a suffix), recolour it, change its summary or its fields.
-storyline_template.list      query    shared   List the fields every new storyline starts with, in order.
-storyline_template.put       command  book     Add a field to the storyline template or change one (key, value, position). Existing storylines keep their fields.
-storyline_template.remove    command  book     Remove a field from the storyline template. Existing storylines keep theirs.
-time_pin.create              command  book     Put a time pin on the narrative axis, with a label or bound to an idea.
-time_pin.delete              command  book     Delete a time pin.
-time_pin.list                query    shared   List the book's time pins along the narrative axis, with the ideas bound to them.
-time_pin.update              command  book     Move a time pin, change its label, or bind it to an idea or unbind it.
+recent.list                  query    shared   List this device's live v3 pages, retaining each entry's selected module.
+recent.touch                 command  book     Record a v3 entry and optional module, or a material, on this device without an undo step.
+relation.create              command  book     Create a canonical relation, validating live endpoints and template restrictions; return an existing semantic edge without a write.
+relation.delete              command  book     Delete one canonical relation without deleting either endpoint.
+relation.list                query    shared   List canonical relations whose endpoints are live, optionally scoped to an endpoint or type.
 timeline_view.add_lane       command  book     Add one live lane to a v3 view without replacing existing lane records or changing memberships.
 timeline_view.delete         command  book     Delete a v3 timeline view while retaining lane entries and memberships.
 timeline_view.list           query    shared   List v3 timeline views with their effective lanes, placements and time pins.

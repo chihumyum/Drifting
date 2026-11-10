@@ -88,10 +88,7 @@ pub fn corner(
     );
 
     let mut tools: Vec<AnyElement> = Vec::new();
-    let planned = matches!(
-        target,
-        Some(Target::Chapter(_) | Target::Idea(_) | Target::Entry { .. })
-    );
+    let planned = matches!(target, Some(Target::Entry { .. }));
     if planned && pages::has_bottom_panel_for(BottomPane::Planner, &w.book, cx) {
         let toggle = ws.clone();
         let open = w.bottom.layout.planner_open;
@@ -260,38 +257,9 @@ pub fn corner(
         .into_any_element()
 }
 
-/// 分享: the page (or the whole book) as Markdown (M41).
-fn share_item(
-    ws: &Entity<Workspace>,
-    target: dr_view_export::MarkdownTarget,
-    cx: &mut App,
-) -> MenuItem {
-    let ws = ws.clone();
-    MenuItem::new(
-        "corner-share",
-        Icon::Share,
-        t(cx, keys::markdown_share::MENU),
-    )
-    .on_click(move |_, window, cx| {
-        let target = target.clone();
-        ws.update(cx, |ws, cx| {
-            ws.corner_menu = None;
-            ws.open_export(dr_view_export::Request::Markdown(target), window, cx);
-        });
-    })
-}
-
 /// M41's two rows at the top of a ⋯ menu (the 0.1 order): share the page
 /// (or the whole book) as Markdown, export the manuscript.
 fn export_items(menu: Menu, ws: &Entity<Workspace>, chapter: Option<&str>, cx: &mut App) -> Menu {
-    let share = share_item(
-        ws,
-        match chapter {
-            Some(id) => dr_view_export::MarkdownTarget::Doc(format!("node:{id}")),
-            None => dr_view_export::MarkdownTarget::Book,
-        },
-        cx,
-    );
     let export = {
         let ws = ws.clone();
         let chapter = chapter.map(str::to_owned);
@@ -308,7 +276,7 @@ fn export_items(menu: Menu, ws: &Entity<Workspace>, chapter: Option<&str>, cx: &
             });
         })
     };
-    menu.item(share).item(export)
+    menu.item(export)
 }
 
 /// The whole book's ⋯ menu: share it, export it.

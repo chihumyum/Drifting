@@ -78,7 +78,6 @@ impl EventCount {
 /// gpui-prose's text source on one of the workspace's prose documents.
 pub struct SessionSource {
     doc_id: String,
-    v3: bool,
     /// Shared with the document's embeds (a table's cells write through it,
     /// so their commits land on the same undo stack).
     session: Arc<ProseSession>,
@@ -107,7 +106,6 @@ impl SessionSource {
             .iter()
             .map(|doc| {
                 doc.source_as::<Self>()
-                    .filter(|s| s.v3)
                     .ok_or_else(|| WsError::Invalid("unsupported cross-document source".into()))
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -147,6 +145,21 @@ impl SessionSource {
     /// author: an editing session on the workspace and a read handle on the
     /// same holder.
     pub fn open(ws: &Workspace, doc_id: &str) -> Result<SessionSource, WsError> {
+        if !matches!(
+            dr_model::DocId::parse(doc_id),
+            Ok(dr_model::DocId::Body(_) | dr_model::DocId::Material(_))
+        ) {
+            return Err(WsError::Invalid(
+                "only canonical body and material documents can be edited".into(),
+            ));
+        }
+        if let Some(book) = ws.library().doc_info(doc_id)?.and_then(|d| d.book_id)
+            && !crate::v3::is_book(ws, &book)?
+        {
+            return Err(WsError::Invalid(
+                "only canonical v3 books can be edited".into(),
+            ));
+        }
         let session = ws.prose_session(doc_id)?;
         // The session opened the holder; this handle shares it.
         let handle = ws
@@ -160,15 +173,7 @@ impl SessionSource {
                 .read(move |doc| subscribe(doc, shared))
                 .map_err(WsError::from)?
         };
-        let v3 = ws
-            .library()
-            .doc_info(doc_id)?
-            .and_then(|d| d.book_id)
-            .map(|book| crate::v3::is_book(ws, &book))
-            .transpose()?
-            .unwrap_or(false);
         Ok(SessionSource {
-            v3,
             doc_id: doc_id.to_owned(),
             session: Arc::new(session),
             handle,
@@ -205,7 +210,7 @@ impl SessionSource {
         let written = self.handle.write(store_origin, move |doc| {
             let prose = dr_doc::prose::BorrowedProse::new(doc, &doc_id)?;
             let mut txn = prose.txn();
-            convert::apply(&mut txn, edit)
+            convert::apply_v3(&mut txn, edit)
         });
         match written {
             Ok((Ok(result), _)) => result,
@@ -366,20 +371,16 @@ impl ProseSource for SessionSource {
             return EditResult::default();
         }
         let before = self.shared.queue().pushed_user;
-        let v3 = self.v3;
         let shared = self.shared.clone();
         let taken = self.taken;
         let guard = std::mem::take(&mut self.guard_rich);
         match self.session.edit(move |txn| {
-            if v3 && guard && shared.queue().pushed != taken {
+            if guard && shared.queue().pushed != taken {
                 shared.stale.store(true, Ordering::Relaxed);
                 return Err(dr_doc::DocError::NotInProfile("stale editor observation"));
             }
-            if v3 {
-                convert::apply_v3(txn, edit)
-            } else {
-                convert::apply(txn, edit)
-            }
+
+            convert::apply_v3(txn, edit)
         }) {
             Ok(mut result) => {
                 // Merge interval 0: each of the author's commits is one item.
@@ -407,22 +408,17 @@ impl ProseSource for SessionSource {
         let edits: Vec<OwnedEdit> = edits.iter().cloned().map(OwnedEdit::from).collect();
         let before = self.shared.queue().pushed_user;
         // One `dr-doc` transaction, one commit, one item on the undo stack.
-        let v3 = self.v3;
         let shared = self.shared.clone();
         let taken = self.taken;
         let guard = std::mem::take(&mut self.guard_rich);
         let written = self.session.edit(move |txn| {
-            if v3 && guard && shared.queue().pushed != taken {
+            if guard && shared.queue().pushed != taken {
                 shared.stale.store(true, Ordering::Relaxed);
                 return Err(dr_doc::DocError::NotInProfile("stale editor observation"));
             }
             let mut merged = EditResult::default();
             for edit in edits {
-                merged.merge(if v3 {
-                    convert::apply_v3(txn, edit)?
-                } else {
-                    convert::apply(txn, edit)?
-                });
+                merged.merge(convert::apply_v3(txn, edit)?);
             }
             Ok(merged)
         });

@@ -83,7 +83,7 @@ fn measure_a_few_hundred_megabyte_backup() {
         .ok()
         .and_then(|p| dr_testkit::seed::Preset::parse(&p))
         .unwrap_or(dr_testkit::seed::Preset::Heavy);
-    let seeded = dr_testkit::seed::generate(preset, dr_testkit::seed::DEFAULT_SEED).unwrap();
+    let seeded = dr_testkit::seed::generate_v3(preset, dr_testkit::seed::DEFAULT_SEED).unwrap();
     seeded.write_to(&lib).unwrap();
     lib.rebuild_stale_indexes().unwrap();
     let books: Vec<String> = lib

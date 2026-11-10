@@ -1,8 +1,4 @@
-use dr_i18n::keys::agent_panel::onboarding::prompts as k;
-use dr_view_agent::onboarding::{
-    Chapter, Element, Event, StarterSource, Step, View, build_starter_prompts, next_step,
-    resolve_view, waits_on_change,
-};
+use dr_view_agent::onboarding::{Event, Step, View, next_step, resolve_view, waits_on_change};
 
 #[test]
 fn migration_is_once_and_does_not_override_explicit_reset_or_unknown_values() {
@@ -53,70 +49,4 @@ fn only_sending_then_opening_a_real_change_finishes_the_guide() {
     assert_eq!(next_step(step, Event::ChangeSeen), Step::Done);
     assert_eq!(next_step(Step::Done, Event::Sent), Step::Done);
     assert_eq!(next_step(Step::Done, Event::Reset), Step::New);
-}
-
-#[test]
-fn starters_follow_recent_written_chapter_then_book_order_and_element_links() {
-    let seed = dr_testkit::seed::generate(dr_testkit::seed::Preset::Tiny, 31).unwrap();
-    let reader = seed.books[0].book.view();
-    let chapters = reader.chapters();
-    let elements = reader.elements();
-    let mut source = StarterSource {
-        chapters: chapters
-            .iter()
-            .take(3)
-            .enumerate()
-            .map(|(index, chapter)| Chapter {
-                id: chapter.id.to_string(),
-                title: chapter.title.clone(),
-                book_order: index,
-                word_count: if index == 2 { 0 } else { 1 },
-            })
-            .collect(),
-        elements: elements
-            .iter()
-            .take(3)
-            .map(|element| Element {
-                id: element.id.to_string(),
-                name: element.name.clone(),
-            })
-            .collect(),
-        recent_chapter_ids: vec![chapters[2].id.to_string(), chapters[1].id.to_string()],
-        ..Default::default()
-    };
-    source.relation_counts.insert(elements[2].id.to_string(), 3);
-    let prompts = build_starter_prompts(&source);
-    assert_eq!(prompts.len(), 3);
-    assert_eq!(prompts[0].key, k::COMMENT_CHAPTER);
-    assert_eq!(
-        prompts[0].values,
-        vec![("chapter", chapters[1].title.clone())]
-    );
-    assert_eq!(prompts[1].key, k::TIGHTEN_CHAPTER);
-    assert_eq!(prompts[2].key, k::RELATE_ELEMENTS);
-    assert_eq!(
-        prompts[2].values,
-        vec![
-            ("first", elements[2].name.clone()),
-            ("second", elements[0].name.clone())
-        ]
-    );
-    source.recent_chapter_ids.clear();
-    source.elements.truncate(1);
-    let prompts = build_starter_prompts(&source);
-    assert_eq!(
-        prompts[0].values,
-        vec![("chapter", chapters[0].title.clone())]
-    );
-    assert_eq!(prompts[2].key, k::COMPLETE_ELEMENT);
-    source.elements.clear();
-    assert_eq!(build_starter_prompts(&source)[2].key, k::EXTRACT_ELEMENTS);
-    source.chapters.clear();
-    assert_eq!(
-        build_starter_prompts(&source)
-            .iter()
-            .map(|prompt| prompt.key)
-            .collect::<Vec<_>>(),
-        [k::OUTLINE, k::INTERVIEW, k::CAST_CHARACTERS]
-    );
 }

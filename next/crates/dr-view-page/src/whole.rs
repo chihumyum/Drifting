@@ -149,7 +149,13 @@ impl Focusable for WholeBook {
     }
 }
 impl Render for WholeBook {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // A cached wrapper can re-enter the focus tree after navigation. Its
+        // native focus notification can precede painting; finish the same
+        // handoff on render, as the body-module renderer does.
+        if self.focus.is_focused(window) {
+            self.focus_editor(window, cx);
+        }
         div()
             .id("v3-whole-book")
             .track_focus(&self.focus)

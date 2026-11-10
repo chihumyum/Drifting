@@ -3,8 +3,8 @@
 //! shows on its slip. Read off the main thread, from the book document and
 //! the target's prose document; nothing is written.
 
-use dr_doc::book::BookReader;
 use dr_doc::schema::prose;
+use dr_doc::v3::BookReaderV3;
 use dr_model::id::{BookId, CommentId};
 use dr_store::OpenDoc;
 use dr_workspace::Workspace;
@@ -30,7 +30,7 @@ pub fn original(ws: &Workspace, book: &str, comment: &str) -> Result<Option<Orig
         .library()
         .open_doc(&format!("book:{book}"), OpenDoc::Existing)
         .map_err(|e| e.to_string())?
-        .read(move |d| BookReader::from_loro(book_id, d).map(|r| r.view().comment(&id)))
+        .read(move |d| BookReaderV3::from_loro(book_id, d).map(|r| r.view().comment(&id)))
         .map_err(|e| e.to_string())?
         .map_err(|e| e.to_string())?;
     let Some(c) = found else {
@@ -57,7 +57,18 @@ pub fn original(ws: &Workspace, book: &str, comment: &str) -> Result<Option<Orig
     }
     let changed = match (quote, c.target.as_ref(), c.anchor.clone()) {
         (Some(quote), Some(target), Some(anchor)) => {
-            let doc = format!("{}:{}", target.kind.as_str(), target.id);
+            let doc = match (&target.kind, c.target_module.as_ref()) {
+                (dr_model::kind::EntityKind::Entry, Some(module)) => {
+                    format!("body:{}/{}", target.id, module)
+                }
+                (dr_model::kind::EntityKind::Material, None) => format!("material:{}", target.id),
+                _ => {
+                    return Ok(Some(Original {
+                        text,
+                        changed: Some(true),
+                    }));
+                }
+            };
             ws.library()
                 .open_doc(&doc, OpenDoc::Existing)
                 .map_err(|e| e.to_string())?

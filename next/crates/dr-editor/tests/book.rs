@@ -25,7 +25,7 @@ fn env() -> Env {
     let dir = tempfile::tempdir().unwrap();
     let lib = Library::open(dir.path(), library_options("test")).unwrap();
     let ws = Workspace::open(lib, WorkspaceOptions::default()).unwrap();
-    let book = out(&ws, &Actor::User, "book.create", json!({"name": "全书"}))["id"]
+    let book = out(&ws, &Actor::User, "project.create", json!({"name": "全书"}))["id"]
         .as_str()
         .unwrap()
         .to_owned();
@@ -40,13 +40,12 @@ fn chapter(e: &Env, title: &str, text: &str) -> String {
     let id = out(
         &e.ws,
         &Actor::User,
-        "chapter.create",
-        json!({"book": e.book, "title": title, "text": text}),
+        "entry.create", json!({"book": e.book, "parent": dr_testkit::seed::acceptance::novel_root(&e.ws, &e.book, "tpl-manuscript"), "template": "tpl-chapter", "title": title, "bodies": {"mod-prose": text}}),
     )["id"]
         .as_str()
         .unwrap()
         .to_owned();
-    format!("node:{id}")
+    format!("body:{id}/mod-prose")
 }
 
 fn stored(e: &Env, doc: &str) -> Vec<String> {
@@ -106,17 +105,27 @@ fn text_of(view: &Entity<BookEditor>, cx: &mut VisualTestContext, doc: &str) -> 
 }
 
 #[gpui::test]
-fn every_chapter_in_one_scroll_with_its_acts(cx: &mut TestAppContext) {
+fn every_manuscript_entry_in_one_scroll_with_author_named_groups(cx: &mut TestAppContext) {
     let e = env();
     let one = chapter(&e, "一", "雨夜。");
     let two = chapter(&e, "二", "钟停了。\n第二段。");
     let three = chapter(&e, "三", "天亮。");
-    out(
+    let group = dr_testkit::seed::acceptance::novel_entry(
         &e.ws,
-        &Actor::User,
-        "act.create",
-        json!({"book": e.book, "name": "第二幕", "start_chapter": two.trim_start_matches("node:")}),
-    );
+        &e.book,
+        "tpl-group",
+        "第二部分",
+        None,
+    )["id"]
+        .clone();
+    for doc in [&two, &three] {
+        out(
+            &e.ws,
+            &Actor::User,
+            "entry.move",
+            json!({"book":e.book,"id":doc.trim_start_matches("body:").split('/').next().unwrap(),"parent":group}),
+        );
+    }
     let (view, cx) = open(cx, &e);
     let docs: Vec<String> =
         view.read_with(cx, |v, _| v.chapter_docs().map(str::to_owned).collect());
@@ -135,7 +144,19 @@ fn every_chapter_in_one_scroll_with_its_acts(cx: &mut TestAppContext) {
         )
     });
     assert_eq!(titles, ["一", "二", "三"]);
-    assert!(acts.contains(&(1, "第二幕".to_owned())), "{acts:?}");
+    assert!(
+        acts.is_empty(),
+        "canonical manuscript groups do not create legacy act boundaries"
+    );
+    assert_eq!(
+        out(
+            &e.ws,
+            &Actor::User,
+            "entry.get",
+            json!({"book":e.book,"id":group})
+        )["title"],
+        "第二部分"
+    );
     // Typing in the second chapter writes the second chapter's document.
     type_at(&view, cx, 1, 0, "早上，");
     assert_eq!(stored(&e, &two), ["早上，钟停了。", "第二段。"]);
@@ -313,8 +334,8 @@ fn the_view_follows_the_books_chapters(cx: &mut TestAppContext) {
     out(
         &e.ws,
         &Actor::User,
-        "chapter.update",
-        json!({"book": e.book, "id": one.trim_start_matches("node:"), "title": "第一章"}),
+        "entry.update",
+        json!({"book": e.book, "id": one.trim_start_matches("body:").split('/').next().unwrap(), "title": "第一章"}),
     );
     wait_for(cx, |cx| {
         view.read_with(cx, |v, cx| {

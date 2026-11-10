@@ -17,7 +17,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Range;
 use std::sync::{Arc, Mutex, Weak};
 
-use dr_doc::book::Collection;
+use dr_doc::v3::CollectionV3 as Collection;
 use dr_model::DocId;
 use dr_model::id::{BlockId, BookId};
 use dr_store::{ContainerChange, LocalChange, Origin};
@@ -87,9 +87,8 @@ pub struct Removed {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RemovedEntity {
     pub target: NavTarget,
-    /// Deleted for good (otherwise in the trash). A node deleted for good
-    /// that this workspace never read is named twice, as a chapter and as
-    /// an idea: its kind is gone with it.
+    /// Deleted for good (otherwise in the trash). Entry removal names the
+    /// entry without a module; every page of that entry becomes unavailable.
     pub purged: bool,
 }
 
@@ -115,7 +114,10 @@ fn root_name(id: &ContainerID) -> Option<&str> {
 /// Which entities of a book document a persisted change touched. The same
 /// rule as dr-doc's `BookEvent` (path[0] is the root collection, path[1] the
 /// entity key), applied to dr-store's owned diffs.
-pub(crate) fn book_changes(changes: &[ContainerChange]) -> Vec<EntityChange> {
+pub(crate) fn book_changes(
+    changes: &[ContainerChange],
+    doc: Option<&loro::LoroDoc>,
+) -> Vec<EntityChange> {
     // (collection, entity) -> changed fields; `None` once it is whole.
     let mut out: BTreeMap<(Collection, Option<String>), Option<BTreeSet<String>>> = BTreeMap::new();
     let mut add = |c: Collection, id: Option<String>, fields: Option<Vec<String>>| {
@@ -137,6 +139,15 @@ pub(crate) fn book_changes(changes: &[ContainerChange]) -> Vec<EntityChange> {
         let key = |i: usize| {
             c.path.get(i).and_then(|(_, idx)| match idx {
                 Index::Key(k) => Some(k.to_string()),
+                Index::Node(node) if collection.is_tree() => {
+                    let meta = doc?.get_tree(collection.root()).get_meta(*node).ok()?;
+                    match meta.get("id")? {
+                        loro::ValueOrContainer::Value(loro::LoroValue::String(id)) => {
+                            Some(id.to_string())
+                        }
+                        _ => None,
+                    }
+                }
                 _ => None,
             })
         };
@@ -154,6 +165,21 @@ pub(crate) fn book_changes(changes: &[ContainerChange]) -> Vec<EntityChange> {
             continue;
         }
         match &c.diff {
+            Diff::Tree(tree) if collection.is_tree() => {
+                for change in tree.iter() {
+                    let id = doc
+                        .and_then(|doc| {
+                            doc.get_tree(collection.root()).get_meta(change.target).ok()
+                        })
+                        .and_then(|meta| match meta.get("id") {
+                            Some(loro::ValueOrContainer::Value(loro::LoroValue::String(id))) => {
+                                Some(id.to_string())
+                            }
+                            _ => None,
+                        });
+                    add(collection, id, None);
+                }
+            }
             Diff::Map(m) if collection != Collection::Meta && !collection.is_tree() => {
                 for k in m.updated.keys() {
                     add(collection, Some(k.to_string()), None);

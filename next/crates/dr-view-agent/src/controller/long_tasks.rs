@@ -343,23 +343,6 @@ impl AgentController {
     }
 
     pub(super) fn after_run(&self, session: &str) {
-        let completed = self
-            .inner
-            .state
-            .lock()
-            .expect("Agent service")
-            .runs
-            .get(session)
-            .map(|r| r.conversation.clone());
-        let success = self
-            .with_workspace_read(|ws| {
-                let log = dr_agent::events(ws.library(), session, 0).map_err(string)?;
-                let failed = log.iter().any(|r| matches!(&r.event, dr_agent::Event::ToolFinished { result } if result.status != dr_agent::ToolStatus::Success));
-                Ok(!failed && log.iter().rev().find_map(|r| match r.event {
-                    dr_agent::Event::StateChanged { state } => Some(state), _ => None,
-                }) == Some(dr_agent::State::Completed))
-            })
-            .unwrap_or(false);
         let result = (|| {
             let lease = self.read_lease()?;
             let continuation = Store::new(lease.resources().workspace.library().clone())
@@ -420,19 +403,7 @@ impl AgentController {
             Ok(None) => self.retire_run(session, None),
             Err(error) => self.retire_run(session, Some(error)),
         }
-        if let Some(conversation) = completed {
-            let active = self
-                .inner
-                .state
-                .lock()
-                .expect("Agent service")
-                .runs
-                .values()
-                .any(|r| r.conversation == conversation);
-            if !active {
-                self.finish_organize(&conversation, success);
-            }
-        }
+
         self.inner.notify();
     }
 }

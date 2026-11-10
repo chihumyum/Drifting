@@ -19,9 +19,8 @@ use dr_view_shelf_art::{CoverStyle, cover_is_dark, cover_key};
 use dr_workspace::{
     Actor, Workspace as Library,
     commands::{
-        BookIn, ListIn,
-        book::{BookTrash, FactPut, FactPutIn},
-        chapter::ChapterList,
+        BookIn,
+        book::BookTrash,
         stats::{WritingDayIn, WritingDayRecord},
     },
 };
@@ -51,7 +50,8 @@ fn library() -> (tempfile::TempDir, Library) {
         dr_testkit::samples::slow_clock().unwrap(),
         dr_testkit::samples::a_q().unwrap(),
     ] {
-        dr_testkit::seed::write_book(&lib, &book).unwrap();
+        dr_testkit::seed::write_book_v3(&lib, &dr_testkit::seed::book_to_v3(&book).unwrap())
+            .unwrap();
     }
     lib.close().unwrap();
     (dir, Library::open_dir(&root, VERSION).unwrap())
@@ -122,21 +122,33 @@ fn the_window_opens_on_the_shelf_with_every_book(cx: &mut TestAppContext) {
     lib.library().rebuild_stale_indexes().unwrap();
     // The live chapters' words in the derived index, as F3 lists them.
     let expected = |book: &str| -> u64 {
-        lib.run::<ChapterList>(
-            &Actor::User,
-            ListIn {
-                book: book.to_owned(),
-                trashed: false,
-            },
-        )
-        .unwrap()
-        .output
-        .iter()
-        .map(|c| c.words)
-        .sum()
+        let raw = lib.library().load_copy(&format!("book:{book}")).unwrap();
+        let id = book.parse().unwrap();
+        let borrowed = dr_doc::v3::BorrowedBookV3::new(&raw, &id).unwrap();
+        let view = borrowed.view();
+        let templates = view.templates_map();
+        view.manuscript_levels()
+            .iter()
+            .flat_map(|level| view.manuscript_leaves(level))
+            .flat_map(|e| {
+                e.effective_template(&templates)
+                    .map(|t| {
+                        t.prose_modules()
+                            .map(|m| format!("body:{}/{}", e.id, m.id))
+                            .collect::<Vec<_>>()
+                    })
+                    .unwrap_or_default()
+            })
+            .map(|doc| {
+                lib.library()
+                    .doc_stats(&doc)
+                    .unwrap()
+                    .map_or(0, |s| s.words)
+            })
+            .sum()
     };
     shelf_until(&shelf, cx, |d| {
-        d.books.len() == 2 && d.books.iter().all(|b| b.words == expected(&b.id))
+        d.books.len() == 2 && d.books.iter().all(|b| b.words == Some(expected(&b.id)))
     });
     let data = shelf.read_with(cx, |s, _| s.data.clone().unwrap());
     let names: Vec<&str> = data.books.iter().map(|b| b.name.as_str()).collect();
@@ -146,19 +158,18 @@ fn the_window_opens_on_the_shelf_with_every_book(cx: &mut TestAppContext) {
     );
     for book in &data.books {
         // The counts are F3's, the words the chapters' in the derived index.
-        let chapters = lib
-            .run::<ChapterList>(
-                &Actor::User,
-                ListIn {
-                    book: book.id.clone(),
-                    trashed: false,
-                },
-            )
+        let count = dr_shell::book::Book::load(&lib, &book.id)
             .unwrap()
-            .output;
-        assert_eq!(book.chapters as usize, chapters.len());
-        assert_eq!(book.words, expected(&book.id));
-        assert!(book.words > 0, "{} has words", book.name);
+            .v3()
+            .unwrap()
+            .manuscript
+            .iter()
+            .map(|m| m.entry.clone())
+            .collect::<std::collections::BTreeSet<_>>()
+            .len();
+        assert_eq!(book.chapters as usize, count);
+        assert_eq!(book.words, Some(expected(&book.id)));
+        assert!(book.words.unwrap() > 0, "{} has words", book.name);
         assert!(book.edited_ms.is_some());
     }
     assert!(data.trashed.is_empty());
@@ -461,18 +472,23 @@ fn the_cards_carry_their_covers_and_days_and_the_button_turns_them(cx: &mut Test
         .output;
     let slow = books.iter().find(|b| b.name == "慢钟").unwrap().id.clone();
     // A genre for the cover's foot, and two writing days.
-    lib.run::<FactPut>(
-        &Actor::User,
-        FactPutIn {
-            book: slow.clone(),
-            id: None,
-            key: "体裁".into(),
-            value: " 悬疑 ".into(),
-            place: None,
-            pos: None,
-        },
-    )
-    .unwrap();
+    let b = slow.parse().unwrap();
+    lib.library()
+        .open_doc(&format!("book:{slow}"), dr_store::OpenDoc::Existing)
+        .unwrap()
+        .write(dr_store::Origin::Import, move |doc| {
+            dr_doc::v3::BorrowedBookV3::new(doc, &b)
+                .unwrap()
+                .txn()
+                .put_fact(&dr_model::shared::KvEntry {
+                    id: "cover-genre".parse().unwrap(),
+                    key: "体裁".into(),
+                    value: " 悬疑 ".into(),
+                    pos: None,
+                })
+                .unwrap()
+        })
+        .unwrap();
     let today = chrono::Local::now().format("%Y-%m-%d").to_string();
     for (day, words) in [(today.clone(), 420), (yesterday(&today), 80)] {
         lib.run::<WritingDayRecord>(

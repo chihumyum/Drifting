@@ -20,19 +20,33 @@ impl Env {
     fn new() -> Self {
         let dir = tempfile::tempdir().unwrap();
         let lib = Library::open(dir.path(), library_options("m29-guard-test")).unwrap();
-        let seed = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+        let seed = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
         seed.write_to(&lib).unwrap();
         let book = seed.books[0].book_id().to_string();
         let ws = Workspace::open(lib, WorkspaceOptions::default()).unwrap();
         ws.set_auto_links(false);
-        let chapters = out(&ws, "chapter.list", json!({"book":book}));
-        let doc = format!("node:{}", chapters[0]["id"].as_str().unwrap());
+        let entries = out(&ws, "entry.list", json!({"book":book,"all":true}));
+        let entry = entries
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|e| e["template"] == "tpl-chapter")
+            .unwrap();
+        let doc = format!("body:{}/mod-prose", entry["id"].as_str().unwrap());
         Self {
             _dir: dir,
             ws,
             book,
             doc,
         }
+    }
+    fn owner(&self) -> &str {
+        self.doc
+            .strip_prefix("body:")
+            .unwrap()
+            .split_once('/')
+            .unwrap()
+            .0
     }
     fn body(&self) -> Value {
         out(&self.ws, "prose.read", json!({"doc":self.doc}))
@@ -219,17 +233,18 @@ fn guarded_write_settles_and_identical_replacement_is_byte_identical() {
     assert_eq!(unchanged["effects"], json!([]));
     assert!(unchanged["journal"].is_null());
     assert_eq!(e.receipts(), 0);
+    let target = json!({"book":e.book,"entry":e.owner()});
+    let point = out(&e.ws, "entry_snapshot.create", target.clone())["id"].clone();
     let input = replacement(&e.doc, &body);
     e.ws.call_guarded(&agent(), "prose.replace", input.clone(), e.guards(&e.doc))
         .unwrap();
     assert_eq!(e.body()["paragraphs"][1]["text"], input["replace"]);
     assert_eq!(e.receipts(), 1);
-    let undone = out(
-        &e.ws,
-        "history.undo_agent",
-        json!({"session":"m29-guard","turn":1}),
-    );
-    assert_eq!(undone["reverted_prose"], json!([e.doc]));
+    let at = json!({"book":e.book,"entry":e.owner(),"point":point});
+    let preview = out(&e.ws, "entry_snapshot.preview", at.clone());
+    let mut restore = at;
+    restore["expected"] = preview["expected"].clone();
+    out(&e.ws, "entry_snapshot.restore", restore);
     assert_eq!(e.body()["paragraphs"], body["paragraphs"]);
 }
 
@@ -243,12 +258,15 @@ fn fresh_prose_uses_parent_observation_but_stale_parent_registers_nothing() {
     let created =
         e.ws.call_guarded(
             &agent(),
-            "chapter.create",
-            json!({"book":e.book,"title":text,"text":text}),
+            "entry.create",
+            json!({"book":e.book,"title":text,"template":"tpl-chapter","bodies":{"mod-prose":text}}),
             e.guards(&book_doc),
         )
         .unwrap();
-    let doc = format!("node:{}", created["output"]["id"].as_str().unwrap());
+    let doc = format!(
+        "body:{}/mod-prose",
+        created["output"]["id"].as_str().unwrap()
+    );
     assert_eq!(
         out(&e.ws, "prose.read", json!({"doc":doc}))["paragraphs"][0]["text"],
         text
@@ -258,8 +276,8 @@ fn fresh_prose_uses_parent_observation_but_stale_parent_registers_nothing() {
     let error =
         e.ws.call_guarded(
             &agent(),
-            "chapter.create",
-            json!({"book":e.book,"title":text,"text":text}),
+            "entry.create",
+            json!({"book":e.book,"title":text,"template":"tpl-chapter","bodies":{"mod-prose":text}}),
             stale,
         )
         .unwrap_err();
@@ -295,7 +313,7 @@ fn malformed_versions_and_library_writes_are_rejected_before_dispatch() {
     assert_eq!(
         e.ws.call_guarded(
             &agent(),
-            "book.create",
+            "project.create",
             json!({"name":title}),
             WritePreconditions::default()
         )
@@ -304,11 +322,15 @@ fn malformed_versions_and_library_writes_are_rejected_before_dispatch() {
         "invalid"
     );
     assert_eq!(e.ws.library().docs(None, None).unwrap().len(), before);
-    assert!(e.ws.call_guarded(
-        &agent(), "recent.touch",
-        json!({"book":e.book,"target":{"kind":"node","id":e.doc.strip_prefix("node:").unwrap()}}),
-        e.guards(&format!("book:{}", e.book)),
-    ).is_err());
+    assert!(
+        e.ws.call_guarded(
+            &agent(),
+            "recent.touch",
+            json!({"book":e.book,"target":{"kind":"entry","id":e.owner()}}),
+            e.guards(&format!("book:{}", e.book)),
+        )
+        .is_err()
+    );
     assert!(e.ws.library().local_get("ws", "recent").unwrap().is_none());
     assert_eq!(e.receipts(), 0);
 }
@@ -326,7 +348,7 @@ fn parallel_prose_writer_keeps_the_same_guard_boundary() {
         .unwrap();
     let input = json!({"links":[{
         "doc":e.doc,
-        "target":{"kind":"node","id":e.doc.strip_prefix("node:").unwrap()},
+        "target":{"kind":"entry","id":e.owner()},
         "anchors":[dr_workspace::dto::AnchorBytes::from(&anchor)]
     }]});
     let before = e.bytes(&e.doc);

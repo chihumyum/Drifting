@@ -4,6 +4,7 @@
 //! (F4); the Agent's projection of prose into editable text is M29.
 
 use dr_model::DocId;
+use dr_model::kind::ListKind;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -18,7 +19,7 @@ pub(crate) fn register(r: &mut Registry) {
         .add::<ProseRestore>()
         .add::<ProseLink>()
         .add::<ProseUnlink>()
-        .add::<Search>();
+        .add::<ProseShapeOp>();
 }
 
 fn doc_id(s: &str) -> Result<DocId> {
@@ -31,8 +32,8 @@ fn doc_id(s: &str) -> Result<DocId> {
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct ProseReadIn {
-    /// The prose document: `node:<id>`, `element:<id>`, `storyline:<id>`,
-    /// `category:<id>` or `material:<id>`.
+    /// Canonical prose: `body:<entry>/<module>`, `material:<id>` or
+    /// `template:<book>/<template>/<module>`.
     pub doc: String,
     /// First paragraph (0-based).
     #[serde(default)]
@@ -155,7 +156,7 @@ op! {
             // Links on names inside the new text, in this commit: the
             // inverse deletes the text and its links with it.
             let linked = match &names {
-                Some(n) => crate::autolink::link_written(txn, n, at..at + replace.chars().count())?,
+                Some(n) => crate::autolink::link_written_v3(txn, n, at..at + replace.chars().count())?,
                 None => 0,
             };
             Ok((at, bid, linked, true))
@@ -204,14 +205,45 @@ op! {
     }
 }
 
-// ---- entity links on anchored ranges ------------------------------------------
+pub(crate) fn seed_prose(
+    cx: &Cx<'_>,
+    book: &dr_model::id::BookId,
+    doc: &DocId,
+    text: Option<&str>,
+) -> Result<()> {
+    cx.create_prose(book, doc)?;
+    if let Some(t) = text.filter(|t| !t.is_empty()) {
+        if t.contains('\u{FFFC}') {
+            return Err(WsError::invalid("text may not contain U+FFFC"));
+        }
+        let names = if cx.workspace().auto_links() && crate::autolink::links_for(cx.actor()) {
+            Some(crate::autolink::book_matcher(
+                &*cx.book(book.as_str())?,
+                doc,
+            ))
+        } else {
+            None
+        };
+        let slot = cx.prose(doc)?;
+        let t = t.replace("\r\n", "\n");
+        cx.write_prose(&slot, move |txn| {
+            let end = txn.view().len().saturating_sub(1);
+            let caret = txn.insert_paragraphs(end, &t)?;
+            // Automatic links on the names in the new text, same commit.
+            if let Some(n) = &names {
+                crate::autolink::link_written_v3(txn, n, end..caret)?;
+            }
+            Ok(())
+        })?;
+    }
+    Ok(())
+}
 
-/// Links to one entity on anchored ranges of one prose document.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct LinkIn {
     pub doc: String,
-    /// What the links point at (`element`, `node`, `storyline`, `category`,
-    /// `material`).
+    /// A canonical entry or material. This inverse represents bare links;
+    /// richer existing marks must use the versioned prose edit protocol.
     pub target: crate::dto::Target,
     /// The ranges, as anchors (two cursors each, as comments keep them), so
     /// typing since moves nothing.
@@ -245,7 +277,10 @@ fn set_links(cx: &Cx<'_>, input: &LinksIn, on: bool) -> Result<LinksChanged> {
     for l in &input.links {
         let doc = doc_id(&l.doc)?;
         let kind = dr_model::kind::EntityKind::parse(&l.target.kind);
-        if !kind.may_be_linked() {
+        if !matches!(
+            kind,
+            dr_model::kind::EntityKind::Entry | dr_model::kind::EntityKind::Material
+        ) {
             return Err(WsError::invalid(format!(
                 "{:?} cannot be linked",
                 l.target.kind
@@ -257,7 +292,7 @@ fn set_links(cx: &Cx<'_>, input: &LinksIn, on: bool) -> Result<LinksChanged> {
         let anchors = l
             .anchors
             .iter()
-            .map(super::comment::decode_anchor)
+            .map(super::comment_shared::decode_anchor)
             .collect::<Result<Vec<_>>>()?;
         let link = EntityLink {
             target: l.target.id.clone(),
@@ -271,59 +306,109 @@ fn set_links(cx: &Cx<'_>, input: &LinksIn, on: bool) -> Result<LinksChanged> {
         }
     }
     let lib = cx.workspace().library();
-    for (doc, _) in &by_doc {
+    for (doc, links) in &by_doc {
         let info = lib
             .doc_info(&doc.to_string())?
             .ok_or_else(|| WsError::not_found("document", doc.to_string()))?;
         if let Some(b) = info.book_id {
-            cx.book(&b)?;
+            let slot = cx.book_v3(&b)?;
+            for (link, _) in links {
+                if !slot
+                    .reader_v3
+                    .view()
+                    .entity_exists(&dr_model::shared::EntityRef::new(
+                        link.kind.clone(),
+                        &link.target,
+                    ))
+                {
+                    return Err(WsError::not_found("link target", &link.target));
+                }
+            }
         }
     }
     let ws = cx.workspace();
     // Each anchor must be of its document before anything is written: an
     // open document's own version, a closed one's stored head (no load).
     for (doc, links) in &by_doc {
-        let vv = match ws.open_prose_slot(doc) {
-            Some(ps) => ps.handle.doc().with_doc(|d| d.oplog_vv()),
-            None => lib
-                .head(&doc.to_string())?
-                .map(|h| h.vv)
-                .unwrap_or_default(),
-        };
+        let slot = ws.prose_slot(doc)?;
+        let document = slot.handle.doc().with_doc(Clone::clone);
+        let reader = dr_doc::prose::BorrowedProse::new(&document, doc)?;
+        let view = reader.view();
+        // This shared inverse cannot describe module/block/unknown metadata.
+        // Refuse the whole request before the first write rather than erase
+        // data that an undo could not reconstruct.
+        for (link, anchors) in links {
+            let expected = dr_doc::prose::v3::encode_entity_link(
+                &dr_model::v3::EntityLinkV3 {
+                    target: link.target.clone(),
+                    kind: link.kind.clone(),
+                    module: None,
+                    block: None,
+                    end_block: None,
+                },
+                None,
+            )?;
+            for range in anchors
+                .iter()
+                .filter_map(|a| view.resolve(a))
+                .filter(|r| !r.collapsed)
+                .map(|r| r.range)
+            {
+                for (_, key, value) in view.copy_entity_links_v3(range)?.marks() {
+                    if key == &format!("entity:{}", link.target) && value != &expected {
+                        return Err(WsError::invalid(
+                            "anchored link metadata requires the versioned prose edit protocol",
+                        ));
+                    }
+                }
+            }
+        }
+        let vv = document.oplog_vv();
         for (_, anchors) in links {
             for a in anchors {
-                super::comment::anchor_known_in(&vv, doc, a)?;
+                super::comment_shared::anchor_known_in(&vv, doc, a)?;
             }
         }
     }
-    let writer = cx.prose_writer()?;
     // Then a few documents at a time, each opened, written and let go.
-    let counts = crate::holder::par_map(&by_doc, |(doc, links)| {
-        let ps = ws.prose_slot_passing(doc)?;
-        let (doc, links) = (doc.clone(), links.clone());
-        writer.write(&ps, move |d| {
-            let b = dr_doc::prose::BorrowedProse::new(d, &doc)?;
-            let mut txn = b.txn();
-            let mut n = 0;
-            for (link, anchors) in &links {
-                let found: Vec<std::ops::Range<usize>> = anchors
-                    .iter()
-                    .filter_map(|a| txn.view().resolve(a))
-                    .filter(|r| !r.collapsed)
-                    .map(|r| r.range)
-                    .collect();
-                for r in &found {
-                    if on {
-                        txn.link_entity(r.clone(), link)?;
-                    } else {
-                        txn.unlink_entity(r.clone(), &link.target)?;
+    let counts = by_doc
+        .iter()
+        .map(|(doc, links)| {
+            let ps = ws.prose_slot(doc)?;
+            let (doc, links) = (doc.clone(), links.clone());
+            cx.write_prose_raw(&ps, move |d| {
+                let b = dr_doc::prose::BorrowedProse::new(d, &doc)?;
+                let mut txn = b.txn();
+                let mut n = 0;
+                for (link, anchors) in &links {
+                    let found: Vec<std::ops::Range<usize>> = anchors
+                        .iter()
+                        .filter_map(|a| txn.view().resolve(a))
+                        .filter(|r| !r.collapsed)
+                        .map(|r| r.range)
+                        .collect();
+                    for r in &found {
+                        if on {
+                            txn.link_entity_v3(
+                                r.clone(),
+                                &dr_model::v3::EntityLinkV3 {
+                                    target: link.target.clone(),
+                                    kind: link.kind.clone(),
+                                    module: None,
+                                    block: None,
+                                    end_block: None,
+                                },
+                            )?;
+                        } else {
+                            txn.unlink_entity(r.clone(), &link.target)?;
+                        }
                     }
+                    n += found.len();
                 }
-                n += found.len();
-            }
-            Ok(n)
+                Ok(n)
+            })
         })
-    })?;
+        .collect::<Result<Vec<_>>>()?;
     let mut out = LinksChanged { ranges: 0, docs: 0 };
     for ((doc, _), n) in by_doc.iter().zip(&counts) {
         if *n > 0 {
@@ -359,191 +444,60 @@ op! {
     }
 }
 
-// ---- search -------------------------------------------------------------------
-
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
-pub struct SearchIn {
-    pub book: String,
-    pub query: String,
-    /// At most this many hits (default 50).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub limit: Option<usize>,
+pub struct ProseShapeIn {
+    /// A canonical body, template module or material prose document.
+    pub doc: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, JsonSchema)]
-pub struct SearchHitInfo {
-    /// The owner's prose document.
-    pub doc: String,
-    /// What owns the text: `chapter`, `idea`, `element`, `storyline`,
-    /// `category`, `material`.
-    pub kind: String,
-    pub owner: String,
-    /// The owner's title or name.
-    pub title: String,
-    /// Where the match is: `body` (the prose), `title`, `summary`,
-    /// `description` (a material's) or `patch` (one of an element's
-    /// patches, its title or its text).
-    pub field: String,
-    pub block_id: Option<String>,
-    /// The paragraph of the prose (0-based); body hits only.
-    pub paragraph: Option<u32>,
-    /// Character offset of the match in its paragraph or field.
-    pub offset: usize,
-    /// The match with a little context, on one line.
-    pub snippet: String,
-    /// Where the match starts in `snippet` and how long it is, in
-    /// characters.
-    pub snippet_match: usize,
-    pub match_len: usize,
-}
-
-/// Characters of context on each side of a match (dr-store's snippets).
-const SNIPPET_CONTEXT: usize = 24;
-
-/// Case-insensitive (simple case folding) character offset of `needle`,
-/// dr-store's rule for prose hits.
-fn find_folded(hay: &[char], needle: &[char]) -> Option<usize> {
-    if needle.is_empty() || needle.len() > hay.len() {
-        return None;
-    }
-    let fold = |c: char| c.to_lowercase().next().unwrap_or(c);
-    (0..=hay.len() - needle.len()).find(|&i| {
-        hay[i..i + needle.len()]
-            .iter()
-            .zip(needle)
-            .all(|(a, b)| fold(*a) == fold(*b))
-    })
-}
-
-/// Line and paragraph breaks read as spaces in a snippet.
-fn one_line(s: impl Iterator<Item = char>) -> String {
-    s.map(|c| {
-        if matches!(c, '\n' | '\r' | '\u{2028}' | '\u{2029}') {
-            ' '
-        } else {
-            c
-        }
-    })
-    .collect()
-}
-
-/// The first match of `needle` in a short text of the book document:
-/// (offset, snippet, where the match starts in the snippet).
-fn text_hit(text: &str, needle: &[char]) -> Option<(usize, String, usize)> {
-    let chars: Vec<char> = text.chars().collect();
-    let at = find_folded(&chars, needle)?;
-    let start = at.saturating_sub(SNIPPET_CONTEXT);
-    let end = (at + needle.len() + SNIPPET_CONTEXT).min(chars.len());
-    Some((at, one_line(chars[start..end].iter().copied()), at - start))
-}
-
-/// One owner of searchable text, in book order: its prose document, and the
-/// short texts the book document keeps for it.
-struct Owner {
-    doc: String,
-    kind: &'static str,
-    title: String,
-    /// `summary` or `description`, when it has one.
-    about: Option<(&'static str, String)>,
-    /// An element's patches: title and text.
-    patches: Vec<String>,
+pub struct ProseShapeOut {
+    /// Paragraphs that are not blank.
+    pub paragraphs: u64,
+    /// Sentences (a paragraph with words is at least one).
+    pub sentences: u64,
+    /// The share of characters inside quotation marks, 0–1.
+    pub dialogue: f32,
+    /// Checklist items (a note's tasks) and how many are checked.
+    pub tasks: u32,
+    pub done: u32,
+    /// The materials it embeds, in order (repeats kept).
+    pub embeds: Vec<String>,
 }
 
 op! {
-    Search = "book.search", Read, Shared,
-    "Search a book: titles, summaries, prose, material descriptions and element patches (chapters in reading order first, then ideas, elements, storylines, categories, materials). One- and two-character queries work.",
-    fn(cx, input: SearchIn) -> Vec<SearchHitInfo> {
-        let slot = cx.book(&input.book)?;
-        let limit = input.limit.unwrap_or(50);
-        let needle: Vec<char> = input.query.trim().chars().collect();
-        if needle.is_empty() || limit == 0 {
-            return Ok(Vec::new());
+    ProseShapeOp = "prose.shape", Read, Shared,
+    "Shape of a prose document: paragraphs, sentences, the share of dialogue, its checklist and the materials it embeds.",
+    fn(cx, input: ProseShapeIn) -> ProseShapeOut {
+        let doc = DocId::parse(&input.doc).map_err(|e| WsError::invalid(format!("{:?}: {e}", input.doc)))?;
+        if doc.profile().is_none() {
+            return Err(WsError::invalid(format!("{} is not a prose document", input.doc)));
         }
-        // Every live owner in book order; dr-store sorts the prose hits by
-        // this order before it cuts at `limit`.
-        let mut owners: Vec<Owner> = Vec::new();
-        let node = |n: &dr_model::book::Node, kind| Owner {
-            doc: format!("node:{}", n.id), kind, title: n.title.clone(),
-            about: Some(("summary", n.summary.clone())), patches: Vec::new(),
-        };
-        for c in chapters(&slot) {
-            owners.push(node(&c, "chapter"));
-        }
-        let mut ideas: Vec<_> = nodes(&slot).values().filter(|n| n.is_drift() && !n.is_trashed()).cloned().collect();
-        ideas.sort_by(|a, b| a.title.cmp(&b.title).then(a.id.cmp(&b.id)));
-        for n in &ideas {
-            owners.push(node(n, "idea"));
-        }
-        let all_patches = patches(&slot);
-        for e in elements(&slot).iter().filter(|e| e.deleted_at.is_none()) {
-            let mut mine: Vec<&dr_model::book::Patch> = all_patches.iter().filter(|p| p.element == e.id).collect();
-            mine.sort_by(|a, b| dr_model::pos::cmp_pos((a.pos.as_ref(), &a.id), (b.pos.as_ref(), &b.id)));
-            owners.push(Owner {
-                doc: format!("element:{}", e.id), kind: "element", title: e.name.clone(),
-                about: Some(("summary", e.summary.clone())),
-                patches: mine.iter().map(|p| match &p.title {
-                    Some(t) if !t.trim().is_empty() => format!("{t}\n{}", p.body),
-                    _ => p.body.clone(),
-                }).collect(),
-            });
-        }
-        for s in storylines(&slot).iter().filter(|s| s.deleted_at.is_none()) {
-            owners.push(Owner {
-                doc: format!("storyline:{}", s.id), kind: "storyline", title: s.name.clone(),
-                about: Some(("summary", s.summary.clone())), patches: Vec::new(),
-            });
-        }
-        for c in categories(&slot).iter().filter(|c| c.deleted_at.is_none()) {
-            owners.push(Owner {
-                doc: format!("category:{}", c.id), kind: "category", title: c.name.clone(),
-                about: None, patches: Vec::new(),
-            });
-        }
-        for m in materials(&slot).iter() {
-            owners.push(Owner {
-                doc: format!("material:{}", m.id), kind: "material", title: m.title.clone(),
-                about: Some(("description", m.description.clone())), patches: Vec::new(),
-            });
-        }
-        let order: Vec<&str> = owners.iter().map(|o| o.doc.as_str()).collect();
-        let prose = cx.workspace().library().search_in_order(Some(&input.book), &input.query, limit, &order)?;
-        // Prose hits by document, in paragraph order. Documents not in the
-        // order (trashed owners, orphans) come last from dr-store; they are
-        // left out.
-        let mut by_doc: std::collections::HashMap<String, Vec<dr_store::index::SearchHit>> = Default::default();
-        for h in prose {
-            by_doc.entry(h.doc_id.clone()).or_default().push(h);
-        }
-        let mut out = Vec::new();
-        for o in &owners {
-            if out.len() >= limit {
-                break;
+        let slot = cx.prose(&doc)?;
+        let view = cx.prose_view(&slot);
+        let mut texts = Vec::new();
+        let (mut tasks, mut done) = (0u32, 0u32);
+        let mut embeds = Vec::new();
+        for p in view.paragraphs() {
+            if p.attrs.list == Some(ListKind::Task) {
+                tasks += 1;
+                done += u32::from(p.attrs.checked);
             }
-            let owner = o.doc.split_once(':').map(|(_, id)| id.to_string()).unwrap_or_default();
-            let short = |field: &str, text: &str| text_hit(text, &needle).map(|(offset, snippet, at)| SearchHitInfo {
-                doc: o.doc.clone(), kind: o.kind.to_string(), owner: owner.clone(), title: o.title.clone(),
-                field: field.to_string(), block_id: None, paragraph: None, offset, snippet,
-                snippet_match: at, match_len: needle.len(),
-            });
-            out.extend(short("title", &o.title));
-            if let Some((field, text)) = &o.about {
-                out.extend(short(field, text));
+            if let Some(id) = p.embed()
+                && let Some(dr_doc::prose::EmbedView::Material { material: Some(m), .. }) = view.embed(id)
+            {
+                embeds.push(m.as_str().to_owned());
             }
-            for h in by_doc.remove(&o.doc).unwrap_or_default() {
-                let snippet: Vec<char> = h.snippet.chars().collect();
-                let at = find_folded(&snippet, &needle).unwrap_or(0);
-                out.push(SearchHitInfo {
-                    doc: o.doc.clone(), kind: o.kind.to_string(), owner: owner.clone(), title: o.title.clone(),
-                    field: "body".to_string(), block_id: h.block_id, paragraph: Some(h.ord),
-                    offset: h.match_offset, snippet: one_line(snippet.into_iter()), snippet_match: at,
-                    match_len: needle.len(),
-                });
-            }
-            for p in &o.patches {
-                out.extend(short("patch", p));
-            }
+            texts.push(dr_text::block_text(&view, &p));
         }
-        out.truncate(limit);
-        Ok(out)
+        let shape = dr_text::prose_shape(texts.iter().map(String::as_str));
+        Ok(ProseShapeOut {
+            paragraphs: shape.paragraphs,
+            sentences: shape.sentences,
+            dialogue: shape.dialogue,
+            tasks,
+            done,
+            embeds,
+        })
     }
 }

@@ -141,6 +141,11 @@ impl Session {
             return Err(StepError::new("busy", "the app holds the library"));
         }
         if self.ws.is_none() {
+            if self.data.join(dr_account::LIBRARIES_FILE).is_file() {
+                self.library = dr_account::LibraryRegistry::load_or_init(&self.data)
+                    .map_err(io)?
+                    .active_library_dir(&self.data);
+            }
             self.ws = Some(
                 Workspace::open_dir(&self.library, APP_VERSION)
                     .map_err(|e| StepError::new(e.code(), e.to_string()))?,
@@ -287,6 +292,34 @@ impl Drop for Session {
     }
 }
 
+/// Evidence for an explicitly requested synthetic source fixture, never an
+/// arbitrary author directory or a product import write route.
+fn fixture_files(root: &Path) -> Result<Value, StepError> {
+    fn visit(
+        root: &Path,
+        path: &Path,
+        out: &mut serde_json::Map<String, Value>,
+    ) -> Result<(), StepError> {
+        for entry in std::fs::read_dir(path).map_err(io)? {
+            let path = entry.map_err(io)?.path();
+            if path.is_dir() {
+                visit(root, &path, out)?;
+            } else {
+                let meta = std::fs::metadata(&path).map_err(io)?;
+                out.insert(path.strip_prefix(root).map_err(io)?.display().to_string(), json!({
+                    "sha256":legacy_fixture::sha256_bytes(&std::fs::read(&path).map_err(io)?),
+                    "bytes":meta.len(),
+                    "modified_ns":meta.modified().map_err(io)?.duration_since(std::time::UNIX_EPOCH).map_err(io)?.as_nanos().to_string(),
+                }));
+            }
+        }
+        Ok(())
+    }
+    let mut out = serde_json::Map::new();
+    visit(root, root, &mut out)?;
+    Ok(Value::Object(out))
+}
+
 impl Backend for Session {
     fn call(&mut self, actor: Option<&str>, name: &str, input: Value) -> Result<Value, StepError> {
         if self.app.is_some() {
@@ -324,18 +357,36 @@ impl Backend for Session {
     }
 
     fn legacy(&mut self, kind: &str) -> Result<Value, StepError> {
+        if kind == "retired-book" {
+            if self.app.is_some() {
+                return Err(StepError::new(
+                    "busy",
+                    "negative fixture before launch only",
+                ));
+            }
+            let ws = self.offline()?;
+            let book = dr_testkit::seed::acceptance::empty_source(ws.library());
+            return Ok(json!({"book":book,"fixture":"retired-source-catalog"}));
+        }
+
         let stamped = match kind {
-            "sample" => true,
+            "sample" | "sample-v3" => true,
             "sample-stale" => false,
             other => {
                 return Err(StepError::new(
                     "bad_request",
-                    format!("legacy {other}: sample or sample-stale"),
+                    format!("legacy {other}: sample, sample-v3 or sample-stale"),
                 ));
             }
         };
-        let old = legacy_fixture::build(stamped);
+        let old = if kind == "sample-v3" {
+            legacy_fixture::build_v3(stamped)
+        } else {
+            legacy_fixture::build(stamped)
+        };
         let out = json!({
+            "source_files": fixture_files(&old.root)?,
+            "choices": if kind == "sample-v3" { serde_json::to_value(legacy_fixture::v3_choices()).map_err(io)? } else { Value::Null },
             "root": old.root.display().to_string(),
             "db": old.db.display().to_string(),
             "book": legacy_fixture::BOOK,

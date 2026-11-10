@@ -15,8 +15,9 @@
 //! - The showcase preset and the two sample books come from
 //!   [`crate::samples`].
 
+pub mod acceptance;
 mod build;
-mod commands;
+
 mod digest;
 mod plan;
 mod preset;
@@ -26,7 +27,7 @@ pub mod v3;
 use dr_doc::Result;
 
 pub use build::{SeededBook, T0};
-pub use commands::CommandBook;
+
 pub use digest::digest;
 pub use preset::{Budget, Preset, Spec, allocate};
 pub use shape::{GroupShape, Shape};
@@ -64,27 +65,6 @@ pub fn generate(preset: Preset, seed: u64) -> Result<Seeded> {
     })
 }
 
-/// Build a synthetic preset through F3's commands into `ws` (as `actor`,
-/// normally `Actor::Import`) instead of writing documents directly: slower,
-/// but every rule the command layer checks checks the seed. The result has
-/// the same [`digest`] as [`generate`] followed by [`Seeded::write_to`].
-/// The showcase and the sample books are written directly only.
-pub fn generate_via_commands(
-    preset: Preset,
-    seed: u64,
-    ws: &dr_workspace::Workspace,
-    actor: &dr_workspace::Actor,
-) -> std::result::Result<Vec<CommandBook>, String> {
-    let spec = preset
-        .spec()
-        .ok_or("the showcase is written directly only (seed::generate)")?;
-    Ok(vec![commands::write(
-        ws,
-        actor,
-        &plan::synthetic(&spec, preset.name(), seed),
-    )?])
-}
-
 impl Seeded {
     /// Counts, sizes and the corpus fingerprint of every book together.
     pub fn shape(&self) -> Shape {
@@ -103,13 +83,24 @@ impl Seeded {
     }
 }
 
-// Store one seeded book (see `Seeded::write_to`): dr-samples' writer, which
-// the product uses for the built-in samples.
-pub use dr_samples::{WriteError, write_book};
+// Source-format writer lives only in the testkit. The App sample writer
+// is dr_samples::v3::write_book; there is no old persistent product path.
+pub use dr_samples::WriteError;
+mod source_store;
+pub use source_store::write_book;
 
 /// Library options for a seeded library: dr-doc's style configuration.
 pub fn library_options(app_version: &str) -> dr_store::LibraryOptions {
     let mut o = dr_store::LibraryOptions::new(app_version);
     o.configure_doc = Some(std::sync::Arc::new(dr_doc::schema::configure));
     o
+}
+
+/// A previous-format synthetic source for refusal and import-boundary tests.
+/// This is never offered by the App/CLI seed selector.
+pub fn write_source_fixture(lib: &dr_store::Library) -> std::result::Result<String, WriteError> {
+    let source = generate(Preset::Tiny, DEFAULT_SEED + 0x100)?;
+    let id = source.books[0].book_id().to_string();
+    source.write_to(lib)?;
+    Ok(id)
 }

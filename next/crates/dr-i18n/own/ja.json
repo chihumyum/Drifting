@@ -25,6 +25,16 @@
         "unfinished": "「{{name}}」のインポートが終わっていません",
         "carry_on": "インポートを再開"
       }
+    },
+    "v3": {
+      "title": "Reimport as v3",
+      "destination": "A separate v3 library will be created. The current library and 0.1 source are preserved.",
+      "mapping": "Choose MappingChoices JSON",
+      "no_choices": "No explicit mapping choices selected. Unresolved mapping stops before writes.",
+      "selected": "Explicit mapping choices selected",
+      "start": "Import into new library",
+      "pending": "Mapping choices required before import",
+      "switching": "Opening the completed v3 library"
     }
   },
   "settings": {
@@ -75,13 +85,6 @@
     "warnings": {
       "imagesDropped": "{{count}} 枚の画像はインポートされませんでした",
       "notUtf8": "UTF-8 のテキストではないため、一部の文字を置き換えました"
-    }
-  },
-  "notifications": {
-    "markdownFolder": {
-      "issue": {
-        "owned": "このフォルダーは別の Drifting が管理しているため、読み書きしていません"
-      }
     }
   },
   "speech": {

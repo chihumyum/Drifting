@@ -43,7 +43,7 @@ fn open(ws: &Workspace, doc: &str) -> ProseDoc {
 fn main() {
     let write = std::env::args().any(|a| a == "--write");
     let dir = tempfile::tempdir().expect("temp dir");
-    let seeded = seed::generate(Preset::Lite, seed::DEFAULT_SEED).expect("seed");
+    let seeded = seed::generate_v3(Preset::Lite, seed::DEFAULT_SEED).expect("seed");
     {
         let lib = dr_store::Library::open(dir.path(), library_options(VERSION)).expect("library");
         seeded.write_to(&lib).expect("write the seed");
@@ -60,11 +60,12 @@ fn main() {
         .as_str()
         .expect("a book")
         .to_owned();
-    let chapters: Vec<String> = out(&ws, &user, "chapter.list", json!({"book": book}))
+    let chapters: Vec<String> = out(&ws, &user, "entry.list", json!({"book":book,"all":true}))
         .as_array()
         .expect("chapters")
         .iter()
-        .map(|c| format!("node:{}", c["id"].as_str().unwrap()))
+        .filter(|c| c["template"] == "tpl-chapter")
+        .map(|c| format!("body:{}/mod-prose", c["id"].as_str().unwrap()))
         .collect();
 
     // Opening: the holder loads the document from SQLite (cold), then the

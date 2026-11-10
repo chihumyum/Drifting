@@ -39,7 +39,7 @@ use sha2::{Digest, Sha256};
 use similar::{Algorithm, DiffOp, capture_diff_slices};
 
 use crate::body::{FilePara, Kind, Marks, Para, line};
-use crate::plan::{Step, plan};
+use crate::merge_plan::{Step, plan};
 
 /// Why a file is not merged.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

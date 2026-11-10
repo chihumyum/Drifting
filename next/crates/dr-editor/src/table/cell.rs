@@ -315,7 +315,6 @@ pub struct CellSource {
     feed: Arc<TableFeed>,
     /// Events handed to the editor.
     taken: u64,
-    v3: bool,
     pub(crate) guard_rich: bool,
     host_items: Arc<AtomicUsize>,
     accepted_input: InputReceipt,
@@ -329,7 +328,6 @@ impl CellSource {
         session: Arc<ProseSession>,
         handle: DocHandle,
         feed: Arc<TableFeed>,
-        v3: bool,
     ) -> CellSource {
         CellSource {
             doc_id: doc_id.to_owned(),
@@ -340,7 +338,6 @@ impl CellSource {
             handle,
             feed,
             taken: 0,
-            v3,
             guard_rich: false,
             host_items: Arc::default(),
             accepted_input: Arc::default(),
@@ -364,23 +361,19 @@ impl CellSource {
     fn write(&mut self, ops: Vec<CellOp>) -> EditResult {
         let (embed, row, col) = (self.embed.clone(), self.row.clone(), self.col.clone());
         let before = self.feed.user_commits();
-        let (v3, feed, key, taken) = (self.v3, self.feed.clone(), self.key(), self.taken);
+        let (feed, key, taken) = (self.feed.clone(), self.key(), self.taken);
         let guard = std::mem::take(&mut self.guard_rich);
-        let document = if v3 {
-            match self.handle.read(LoroDoc::clone) {
-                Ok(doc) => Some(doc),
-                Err(e) => {
-                    log::error!("cell observation failed: {e}");
-                    return EditResult::default();
-                }
+        let document = match self.handle.read(LoroDoc::clone) {
+            Ok(doc) => doc,
+            Err(e) => {
+                log::error!("cell observation failed: {e}");
+                return EditResult::default();
             }
-        } else {
-            None
         };
         let written = self.session.edit(move |txn| {
             let observed = feed.commits();
-            let start = document.as_ref().map(LoroDoc::state_frontiers);
-            if v3 && guard {
+            let start = document.state_frontiers();
+            if guard {
                 let mut state = feed.state();
                 let queue = state.cells.entry(key).or_default();
                 if queue.pushed != taken {
@@ -394,18 +387,19 @@ impl CellSource {
             for op in ops {
                 apply(&text, op, &mut out)?;
             }
-            let receipt = document.map(|doc| AcceptedInput {
+            let receipt = AcceptedInput {
                 before: observed,
-                start: start.expect("v3 observation"),
-                after: doc.state_frontiers(),
-            });
+                start,
+                after: document.state_frontiers(),
+            };
             Ok((out, receipt))
         });
         let pushed = (self.feed.user_commits() - before) as usize;
         self.host_items.fetch_add(pushed, Ordering::Relaxed);
         match written {
             Ok((mut out, input)) => {
-                if let Some(mut input) = input.filter(|i| i.start != i.after) {
+                if input.start != input.after {
+                    let mut input = input;
                     let mut receipt = self
                         .accepted_input
                         .lock()

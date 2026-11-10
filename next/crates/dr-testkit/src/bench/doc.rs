@@ -7,10 +7,10 @@ use super::*;
 use crate::rng::Rng;
 use crate::seed::{self, DEFAULT_SEED};
 use dr_doc::Unit;
-use dr_doc::book::BookDoc;
+use dr_doc::import_v1::BookDoc;
 use dr_doc::prose::ProseDoc;
-use dr_model::book::EntityRef;
 use dr_model::kind::{EntityKind, NodeKind};
+use dr_model::shared::EntityRef;
 use dr_model::{DocId, Origin};
 
 fn err(e: impl std::fmt::Display) -> String {

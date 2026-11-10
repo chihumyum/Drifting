@@ -1,6 +1,6 @@
 //! Real mounted v3 inputs, delayed accepted writes and the shell's ordinary
 //! two-library/quit flow. All documents come from the shared synthetic seed.
-use crate::{Fields, element::patches::Patches, fields::v3::TypedFields};
+use crate::{Fields, fields::v3::TypedFields, patches::Patches};
 use dr_shell::{Services, SettingsFile, ShellInfo, book::Book};
 use dr_ui::input::TextArea;
 use dr_view_plot::{Field, PlannerHost, PlotPlanner};

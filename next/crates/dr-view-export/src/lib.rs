@@ -15,26 +15,22 @@
 //! rules and the decisions.
 
 mod manuscript;
-mod markdown;
 pub mod prefs;
 
 use std::path::PathBuf;
 
-pub use dr_export::{Format, MarkdownTarget};
+pub use dr_export::Format;
 use dr_i18n::{I18n, Locale, Platform};
 use dr_workspace::Workspace;
 use gpui::{Context, EventEmitter, IntoElement, Render, Window, div, prelude::*};
 
 pub use manuscript::{Busy, Feedback as ManuscriptFeedback, ManuscriptState};
-pub use markdown::{Action as MarkdownAction, Feedback as MarkdownFeedback, MarkdownState};
 
 /// What the author asked for.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Request {
     /// 「导出成稿」; opened from a chapter, 「选中章节」 starts with just it.
     Manuscript { chapter: Option<String> },
-    /// 「分享」: the whole book, or one prose document.
-    Markdown(MarkdownTarget),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -44,7 +40,6 @@ pub enum ExportEvent {
 
 enum Inner {
     Manuscript(ManuscriptState),
-    Markdown(MarkdownState),
 }
 
 /// The dialog over the workspace.
@@ -69,9 +64,6 @@ impl ExportDialog {
             Request::Manuscript { chapter } => {
                 Inner::Manuscript(ManuscriptState::new(lib, book, chapter, i18n, window, cx))
             }
-            Request::Markdown(target) => {
-                Inner::Markdown(MarkdownState::new(lib, book, target, i18n, cx))
-            }
         };
         ExportDialog { inner }
     }
@@ -80,29 +72,12 @@ impl ExportDialog {
     pub fn manuscript(&self) -> Option<&ManuscriptState> {
         match &self.inner {
             Inner::Manuscript(m) => Some(m),
-            Inner::Markdown(_) => None,
         }
     }
 
     pub fn manuscript_mut(&mut self) -> Option<&mut ManuscriptState> {
         match &mut self.inner {
             Inner::Manuscript(m) => Some(m),
-            Inner::Markdown(_) => None,
-        }
-    }
-
-    /// The Markdown side, when that is what is open.
-    pub fn markdown(&self) -> Option<&MarkdownState> {
-        match &self.inner {
-            Inner::Markdown(m) => Some(m),
-            Inner::Manuscript(_) => None,
-        }
-    }
-
-    pub fn markdown_mut(&mut self) -> Option<&mut MarkdownState> {
-        match &mut self.inner {
-            Inner::Markdown(m) => Some(m),
-            Inner::Manuscript(_) => None,
         }
     }
 
@@ -110,7 +85,6 @@ impl ExportDialog {
     pub fn close(&mut self, cx: &mut Context<Self>) {
         let busy = match &self.inner {
             Inner::Manuscript(m) => m.is_busy(),
-            Inner::Markdown(_) => false,
         };
         if !busy {
             cx.emit(ExportEvent::Close);
@@ -122,7 +96,6 @@ impl Render for ExportDialog {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let body = match &mut self.inner {
             Inner::Manuscript(_) => manuscript::render(self, window, cx),
-            Inner::Markdown(_) => markdown::render(self, window, cx),
         };
         div().child(body)
     }

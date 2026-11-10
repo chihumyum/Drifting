@@ -461,3 +461,40 @@ pub fn sha256_bytes(b: &[u8]) -> String {
 pub fn path_of(p: &Path) -> String {
     p.to_string_lossy().into_owned()
 }
+
+/// Explicit policy for this synthetic fixture's one symmetric relation type.
+/// No author library or product default consumes this choice.
+pub fn v3_choices() -> dr_import_v1::v3::MappingChoices {
+    let mut choices = dr_import_v1::v3::MappingChoices::default();
+    choices.relation_templates.insert(
+        dr_model::id::RelationTypeId::parse(REL_TYPE).unwrap(),
+        dr_import_v1::v3::TemplateRestriction {
+            source: vec![dr_import_v1::v3::category_template(CATEGORY)],
+            target: vec![dr_import_v1::v3::category_template(CATEGORY)],
+        },
+    );
+    let mut lane = dr_doc::v3::novel::novel_project_templates()
+        .into_iter()
+        .find(|t| t.id.as_str() == dr_doc::v3::novel::TPL_STORYLINE)
+        .unwrap();
+    lane.id = dr_model::id::EntryTemplateId::parse("test-fixture-unaffiliated").unwrap();
+    lane.settings.home = Some(None);
+    choices.unaffiliated = Some(dr_import_v1::v3::UnaffiliatedChoice {
+        parent: None,
+        template: lane,
+    });
+    choices
+}
+
+/// Positive canonical-import fixture. The original builder deliberately has a
+/// dangling relation; strict v3 import refuses that record rather than hiding it.
+/// Keep `build` unchanged for prewrite rejection coverage and remove only that
+/// known invalid fixture row before this positive fixture becomes an input.
+pub fn build_v3(stamped: bool) -> Old {
+    let old = build(stamped);
+    let c = Connection::open(&old.db).unwrap();
+    c.execute("DELETE FROM entity_relation WHERE id='rel-1'", [])
+        .unwrap();
+    drop(c);
+    old
+}

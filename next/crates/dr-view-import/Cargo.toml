@@ -10,15 +10,18 @@ description = "Drifting's import of a 0.1 library (M10's interface): the folder 
 [features]
 # Offscreen screenshots of the dialogs (`examples/import-capture.rs`),
 # through GPUI's headless test platform.
-capture = ["dep:anyhow", "dep:gpui_platform", "gpui_platform/test-support", "dep:color_quant", "dep:png", "dep:tempfile"]
+capture = ["dep:anyhow", "dep:gpui_platform", "gpui_platform/test-support", "dep:color_quant", "dep:png"]
 
 [dependencies]
 anyhow = { workspace = true, optional = true }
 color_quant = { workspace = true, optional = true }
+dr-account.workspace = true
 dr-i18n.workspace = true
 dr-import-v1.workspace = true
 # Where the 0.1 client keeps its libraries (the release identity's data folder).
+dr-model.workspace = true
 dr-platform.workspace = true
+dr-store.workspace = true
 dr-shell.workspace = true
 dr-ui.workspace = true
 dr-view-shelf.workspace = true
@@ -28,14 +31,16 @@ gpui.workspace = true
 gpui_platform = { workspace = true, optional = true }
 log.workspace = true
 png = { workspace = true, optional = true }
-tempfile = { workspace = true, optional = true }
+serde.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
 
 [dev-dependencies]
-dr-store.workspace = true
+dr-doc.workspace = true
+dr-testkit.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
 # The synthetic 0.1 library of dr-import-v1's tests (`tests/common`).
 rusqlite.workspace = true
-serde_json.workspace = true
 sha2.workspace = true
 tempfile.workspace = true
 

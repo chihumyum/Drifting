@@ -80,7 +80,7 @@ fn config() -> RunConfig {
         context_window: Some(256_000),
         ..Default::default()
     });
-    config.system_prompt = dr_agent::novel_template::OUTLINE_GUIDANCE.into();
+    config.system_prompt = "Synthetic base guidance".into();
     config
 }
 fn complete(text: &str) -> Vec<Step> {
@@ -187,13 +187,6 @@ fn v3_suggestions_are_generic_and_do_not_restore_cleared_novel_guidance() {
     .unwrap();
     controller.set_proactive_enabled(true);
     let now = chrono::Utc::now().timestamp_millis() + 2000;
-    assert!(
-        controller
-            .suggestions(&f.book, now)
-            .unwrap()
-            .organize
-            .is_none()
-    );
     let writes = f.ws.library().write_seq().unwrap();
     block_on(controller.trigger_suggestions(f.book.clone(), Some(config()), now)).unwrap();
     let requests = driver.requests();

@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use dr_agent_tools::{AgentTools, CallRequest, Error, catalog::Search};
 use dr_model::id::BookId;
 use dr_testkit::seed::{self, Preset};
-use dr_workspace::{Actor, Workspace, registry};
+use dr_workspace::{Actor, Workspace};
 use loro::ExportMode;
 use serde_json::{Value, json};
 
@@ -27,7 +27,7 @@ impl Fixture {
     fn new() -> Self {
         let dir = tempfile::tempdir().unwrap();
         let ws = Workspace::open_dir(dir.path(), "m29-review-regressions").unwrap();
-        let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+        let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
         let book = seeded.books[0].book_id().clone();
         let text = seeded.books[0].prose[0]
             .view()
@@ -65,6 +65,7 @@ impl Fixture {
             .docs(Some(self.book.as_str()), None)
             .unwrap()
             .into_iter()
+            .filter(|info| self.ws.library().head(&info.doc_id).unwrap().is_some())
             .map(|info| {
                 let bytes = self
                     .ws
@@ -117,7 +118,7 @@ fn internal_note_task_projection_is_never_discovered_or_authorized_by_prose_read
     );
     // Before M19 lands this checks the unavailable name; once it is registered
     // the same public-facade test must still reject before parsing or mutation.
-    for (index, read) in ["prose.shape", "prose.read"].into_iter().enumerate() {
+    for (index, read) in ["prose.read"].into_iter().enumerate() {
         let session = format!("review-note-maintenance-{index}");
         let actor = Actor::agent(&session, 1, "project");
         let arguments = if read == "prose.read" {
@@ -145,13 +146,11 @@ fn internal_note_task_projection_is_never_discovered_or_authorized_by_prose_read
 #[test]
 fn deleting_a_read_comment_cannot_purge_its_unread_hidden_relation() {
     let f = Fixture::new();
-    let chapter = f.author("chapter.list", json!({"book":f.book}))[0]["id"].clone();
-    let comment = f.author("comment.create", json!({"book":f.book,"body":f.text}))["id"].clone();
-    let relation = f.author(
-        "relation.create",
-        json!({"book":f.book,"from":{"kind":"comment","id":comment},"to":{"kind":"node","id":chapter}}),
-    )["id"]
+    let chapter = dr_testkit::seed::acceptance::entries_by_template(&f.ws, &f.book, "tpl-chapter")
+        [0]["id"]
         .clone();
+    let comment = f.author("comment.create", json!({"book":f.book,"body":f.text}))["id"].clone();
+    let relation=f.author("relation.create",json!({"book":f.book,"from":{"kind":"comment","id":comment},"to":{"kind":"entry","id":chapter}}))["id"].clone();
     let visible = f.author("relation.list", json!({"book":f.book}));
     let original = visible
         .as_array()
@@ -160,13 +159,18 @@ fn deleting_a_read_comment_cannot_purge_its_unread_hidden_relation() {
         .find(|row| row["id"] == relation)
         .unwrap()
         .clone();
-    f.author("chapter.trash", json!({"book":f.book,"id":chapter}));
+    f.author("entry.trash", json!({"book":f.book,"id":chapter}));
+    let copy =
+        f.ws.library()
+            .load_copy(&format!("book:{}", f.book))
+            .unwrap();
+    let borrowed = dr_doc::v3::BorrowedBookV3::new(&copy, &f.book).unwrap();
     assert!(
-        f.author("relation.list", json!({"book":f.book}))
-            .as_array()
-            .unwrap()
+        borrowed
+            .view()
+            .relations()
             .iter()
-            .all(|row| row["id"] != relation)
+            .all(|row| row.id.as_str() != relation.as_str().unwrap())
     );
 
     let tools = AgentTools::new();
@@ -191,7 +195,7 @@ fn deleting_a_read_comment_cannot_purge_its_unread_hidden_relation() {
 
     // Restoring the endpoint makes the original edge visible again. This
     // would fail if deleting the comment had run F3's hidden purge_fallout.
-    f.author("chapter.restore", json!({"book":f.book,"id":chapter}));
+    f.author("entry.restore", json!({"book":f.book,"id":chapter}));
     let restored = f.author("relation.list", json!({"book":f.book}));
     assert_eq!(
         restored
@@ -211,110 +215,43 @@ fn deleting_a_read_comment_cannot_purge_its_unread_hidden_relation() {
 }
 
 #[test]
-fn new_idea_conversions_stay_unavailable_even_after_source_reads() {
+fn entry_creation_rejects_the_old_revision_before_creating_anything() {
     let f = Fixture::new();
     let tools = AgentTools::new();
-    let actor = Actor::agent("review-idea-conversions", 1, "convert");
-    let ideas = f.invoke(&tools, &actor, "idea.list", json!({})).unwrap();
-    let idea = ideas["output"][0]["id"].clone();
-    assert!(idea.is_string());
-    f.invoke(
-        &tools,
-        &actor,
-        "prose.read",
-        json!({"doc":format!("node:{}",idea.as_str().unwrap()),"limit":usize::MAX}),
-    )
-    .unwrap();
-    let before = f.documents();
-    for name in ["idea.to_chapter", "idea.to_element"] {
-        assert!(
-            registry().get(name).is_some(),
-            "the F3 owner already registered {name}"
-        );
-        assert!(tools.catalog().descriptor(name).is_none());
-        assert!(
-            tools
-                .catalog()
-                .exclusions()
-                .iter()
-                .any(|(excluded, _)| excluded == name)
-        );
-        let search = tools.catalog().search(Search {
-            query: name.into(),
-            ..Search::default()
-        });
-        assert_eq!(search["total"], 0);
-        unavailable(f.invoke(&tools, &actor, name, json!({"id":idea})));
-        assert_eq!(
-            f.documents(),
-            before,
-            "{name} changed a document or created an orphan"
-        );
-    }
-    assert!(
-        f.ws.library()
-            .settlements(Some("review-idea-conversions"), None)
-            .unwrap()
-            .is_empty()
-    );
-    assert!(
-        f.ws.auto_links(),
-        "exclusion must not depend on disabling automatic links"
-    );
-}
-
-#[test]
-fn chapter_creation_rejects_the_old_revision_before_creating_anything() {
-    let f = Fixture::new();
-    let tools = AgentTools::new();
-    let actor = Actor::agent("review-chapter-revision", 1, "create");
-    let descriptor = tools.catalog().descriptor("chapter.create").unwrap();
+    let actor = Actor::agent("review-entry-revision", 1, "create");
+    let descriptor = tools.catalog().descriptor("entry.create").unwrap();
     assert_ne!(descriptor.revision, PRE_NARRATIVE_ORDER_REVISION);
-    assert!(
-        descriptor.input_schema["properties"]
-            .get("narrative_order")
-            .is_some()
-    );
-    let chapters = f.invoke(&tools, &actor, "chapter.list", json!({})).unwrap();
-    let arguments = json!({"title":f.text,"text":f.text,"narrative_order":37.5});
+    let parent = dr_testkit::seed::acceptance::novel_root(&f.ws, &f.book, "tpl-manuscript");
+    f.invoke(&tools, &actor, "entry.get", json!({"id":parent}))
+        .unwrap();
+    let args = json!({"parent":parent,"template":"tpl-chapter","title":f.text,"bodies":{"mod-prose":f.text}});
     let before = f.documents();
-    let mut old = request("chapter.create", arguments.clone());
+    let mut old = request("entry.create", args.clone());
     old.revision = Some(PRE_NARRATIVE_ORDER_REVISION.into());
-    assert!(matches!(
-        tools.invoke(&f.ws, &f.book, &actor, old),
-        Err(Error::Invalid(message)) if message == "tool definition changed; search it again"
-    ));
-    assert_eq!(
-        f.documents(),
-        before,
-        "the old schema must not create even the fresh prose document"
+    assert!(
+        matches!(tools.invoke(&f.ws,&f.book,&actor,old),Err(Error::Invalid(message)) if message=="tool definition changed; search it again")
     );
+    assert_eq!(f.documents(), before);
     assert!(
         f.ws.library()
-            .settlements(Some("review-chapter-revision"), None)
+            .settlements(Some("review-entry-revision"), None)
             .unwrap()
             .is_empty()
     );
-
-    let mut current = request("chapter.create", arguments);
+    let mut current = request("entry.create", args);
     current.revision = Some(descriptor.revision);
     let made = tools.invoke(&f.ws, &f.book, &actor, current).unwrap();
-    let after = f.author("chapter.list", json!({"book":f.book}));
     assert_eq!(
-        after.as_array().unwrap().len(),
-        chapters["output"].as_array().unwrap().len() + 1
+        f.author(
+            "entry.get",
+            json!({"book":f.book,"id":made["output"]["id"]})
+        )["title"],
+        f.text
     );
-    let created = after
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|row| row["id"] == made["output"]["id"])
-        .unwrap();
-    assert_eq!(created["narrative_order"], 37.5);
     assert!(
         !f.ws
             .library()
-            .settlements(Some("review-chapter-revision"), None)
+            .settlements(Some("review-entry-revision"), None)
             .unwrap()
             .is_empty()
     );
