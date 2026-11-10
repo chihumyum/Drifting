@@ -10,8 +10,9 @@
 - [research.md](research.md)：GPUI、Loro 与 Rust 生态的调研结论和来源
 - [progress.md](progress.md)：各路会话现在做到哪了
 - [simplifications.md](simplifications.md)：旧架构里不搬、合成一份、必须接住的东西，以及阶段 7 的清单
-- [kernel-v3.md](kernel-v3.md)：通用内核 v3 的方案（2026-11-09 草案，等作者定稿），分轨见 [handoff/kernel-v3-split.md](handoff/kernel-v3-split.md)
-- [k4-ui.md](k4-ui.md)：K4，把界面接回 v3，以及切换的标准
+- [kernel-v3.md](kernel-v3.md)：通用内核 v3 的定稿方案（2026-11-09），历史分轨见 [handoff/kernel-v3-split.md](handoff/kernel-v3-split.md)
+- [k4-ui.md](k4-ui.md)：K4 界面接回 v3 的方案与历史分工
+- [v3-cutover.md](v3-cutover.md)：2026-11-11 完成的 `next/` canonical v3 切换范围、保留边界与验收记录
 
 在新版能导入旧书之前，现有 Tauri 客户端照常维护，`AGENTS.md` 的规则对它照旧适用。
 
@@ -29,7 +30,7 @@
 
 这些规则在新版照旧，写进各模块的验收：
 
-- 大纲是 幕 / 章 / H1 / H2 / H3。H1–H3 只叫 H1/H2/H3，在界面、提示词、导出和文档里一律如此，三级同等对待。
+- `next/` canonical v3 默认大纲是 书稿 / 章 / H1 / H2 / H3（幕不再内置，作者新增层级由作者命名；0.1 客户端切换前保持原样）。H1–H3 只叫 H1/H2/H3，在界面、提示词、导出和文档里一律如此，三级同等对待。
 - 内部名 Drift 不变；中文叫「构想」，英文叫 Ideas。
 - Agent 的写入直接生效，作者靠快照历史撤销。Agent 改动的结算记录要持久保存。
 - 不做自定义右键菜单：

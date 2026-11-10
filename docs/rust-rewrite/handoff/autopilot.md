@@ -13,6 +13,36 @@
 5. **切换完成并本地合进 `main`**（2026-11-10 作者更新）：在分支 `codex/switch-v3` 上做好切换（新建书用 v3，App 只开 v3 的书，开发库从 0.1 重新导入的入口，删掉 next/ 里 v2.2 的页面、命令、数据层和测试），全套自动检查、功能与数据正确性验收通过后，由整合者本地合进 `main`，不用等作者试写一周或再次批准。性能和 UI 打磨不作为合入门槛；不推送、不发版。
 6. 有余力就接着做「切换后的活」里不需要作者拿主意的部分，见下。
 
+## 夜间队列（11-11）
+
+作者新指示（11-11 夜）：到 autopilot.md 的「终点」以后不要停，接着做下面的夜间队列，一直做到队列全部做完。作者在睡觉，不要提问，不要等回复。先把这段原样记进 docs/rust-rewrite/handoff/autopilot.md，新开一节「夜间队列（11-11）」，随你下一次文档提交进 main，方便接手的人看到。
+
+怎么保持不停：
+- 一项做完马上开下一项，不要用总结结束回合。等长命令时继续轮询，顺手做下一项的只读准备。
+- 卡住了（要作者拿主意、连续三次修不过、缺权限）：把卡点写进 autopilot.md「待作者」或「晨报」，分支留着，跳到下一项。
+- 每开始一项，先重读 autopilot.md 和 ~/Drifting-autopilot-logs/guardian-antigravity.json。每做完一项，更新这个状态文件，并在「晨报」追加一段，让作者什么时候醒来看到的都是最新的。
+- 每项一个分支、一个工作区。全套检查和你自己的数据正确性复核通过，才本地合进 main；不通过就不合。main 任何时候都要能跑。
+- autopilot.md「不能做」的清单照旧：不推送、不发版、不连真服务、不花钱、不装系统组件、不动 0.1 客户端、不删 refs/wip 和别人的分支、不读作者的日常库和真实书稿。
+
+队列，按顺序：
+0. 做完切换。
+   - codex/batch-70 的全套检查跑完。
+   - 照 ~/Drifting-autopilot-logs/guardian-codex.json 里 switchReview.pending 的八条逐条核对。删掉的测试要按内容核对有没有丢掉 v3 的覆盖，不能只看文件名。
+   - 副屏真窗口走一遍主要流程。
+   - 通过后本地合进 main，记 overnight.md、progress.md、autopilot.md「进度」，写晨报第一版。
+   - AGENTS.md 和 docs/rust-rewrite/ 里还写着 v2.2 并存的地方，一并改成现状。
+1. 截图总览（给作者早上看）。用 showcase 的 v3 样书，在副屏把每个页面和主要状态各截一张：书架、主页、条目页（各种模块）、层级页的四种显示、时间线、模板编辑、搜索、审阅、素材、统计、帮手、偏好、导入导出。浅色深色各一套，拼成一页放在 ~/Drifting-autopilot-logs/screens/index.html，不进仓库。另列一份「看着明显不对、或者和设计系统差得远」的清单，只列不改。
+2. 导入的三个技术缺口，即 v3-cutover.md「待作者／待协调」里的 28、29、30：
+   - 旧链接到 EntityLinkV3 写入的无损适配；
+   - 非空字段的默认值；
+   - 带标记或链接的旧表格单元。
+   这三项是技术活，不用作者定。22、23、25 是作者的策略，不要碰，保持 pending。每项都要有「源库不变、导入结果逐项核对」的永久测试。
+3. 大书性能。用 heavy 的 v3 样书（约 150 万字），release 构建，机器空闲（一分钟负载 < 4）时量：打开书、首屏、长章节里打字的延迟、滚动、切章节、层级页和左栏、搜索、时间线。对照 benchmarks.md 和各模块文档里的预算，从最慢的开始一项一项修，修一项量一次。不为了快去改数据格式和已有行为，Loro 版本不动。要改交互才能快的（比如分段加载长什么样），写进「待作者」。证据照 f8-testkit.md 的规矩。
+4. Super View 接到 v3。先读 ~/Drifting-autopilot-logs/post-switch-superviews-map.md。先做 M23 审阅与素材，再做 M22 要素全景。凡是要用到书序或幕的地方（v3 已经没有了），停下写进「待作者」，不自己设计。M21 故事图只写「待作者」，不动手。
+5. Markdown 文件夹 v3：只写方案文档，不写代码。
+
+全部做完后给晨报收尾：每一项合进了什么、main 在哪、量到的性能数字、还开着的问题、等作者定的事。然后停。
+
 ## 你能做什么、不能做什么
 
 **能做：**开子会话（下面的方法）；给子会话写指令；本地合并进 `main`；退回；给退回的问题开修复会话；会话死了就接手；在 `docs/rust-rewrite/` 里补必要的协调文档。
@@ -96,6 +126,7 @@ codex exec -C ~/Drifting-<任务名> -m gpt-6.1-sol -c model_reasoning_effort=ma
 | 11-10 13:55 | 任务 5 完成：第 68 批接收 `handback/k4-g1` → `aa403f52`（G1 普通跨章剪贴本地确定性重放与旧输入成组撤销修复）及 `k4-0-links` 范围选区衔接。全套 2380 通过／0 失败／22 忽略，通知顺序探针 1/1，副屏 74 步跨章剪贴与两次撤销／重开复验 74/74、0 pending；连同此前 13 条流程 801 步，统一正确性验收共 14 条真窗口流程、875 步全部通过。开始任务 6（v3 假服务同步往返）。 | `f6eb256c` |
 
 | 11-10 17:03 | 任务 6 完成：第 69 批接 `handback/track4` → `dee8634d`。两台独立设备、两本 canonical v3 书与四份资源变体真实往返；删除目标书 26 份文档，另一书 22 份全部文档及全部资源元数据／字节不变，隐藏／未来字段与历史保留，断连重连及 cursor 0 重放不复活。根独立跨书删除探针先红后绿，整合全套 2386／0 失败／22 忽略及全部门禁通过。接着从最新 main 启动任务 7；生产自动同步和远端物理缓存回收不冒称通过。 | `59a9cc45`（产品合入） |
+| 11-11 05:34 | 任务 7 暨夜间队列第 0 项完成：第 70 批接 `codex/switch-v3` `b10d7ac1` 整合候选 `2ae27b00` 合入 `main`。整合全套 9 门禁一次通过（Rust 2204 通过／0 失败／20 忽略，含全部 17 条恢复注册的 `release_tests`；`xtask` 13 门禁含 `v3-cutover` 与 `audit`），删掉的 236 个测试函数按内容逐条核对无丢 v3 覆盖，`switchReview.pending` 八条逐一复核通过；副屏真窗口 `g-b70-m3` 15 条主流程、`g-b70-switch-2`、`g-b70-sync-1` 全部通过；`AGENTS.md` 与 `docs/rust-rewrite/` 的 v2.2 并存表述已更新为现状，晨报第一版已写，继续夜间队列第 1 项。 | `ad97a43c`（产品合入） |
 
 ## 技术待协调
 
@@ -115,6 +146,30 @@ codex exec -C ~/Drifting-<任务名> -m gpt-6.1-sol -c model_reasoning_effort=ma
 
 - 条目页空间、重复标题等布局设计及样式／流畅度打磨已明确暂缓。本轮不自造布局，不以这些设计项阻塞安全快照阶段交回，也不把暂缓记成通过。
 
+- **macOS 辅助功能／键盘注入权限（外部 `CGEvent` 系统拼音探针）：** 守卫宿主 `Antigravity` 当前未获系统授权（`AXIsProcessTrusted() == false`、`CGPreflightPostEventAccess() == false`），因此 `guardian-native-ime.py` 从外部向系统拼音 `SCIM.ITABC` 发送硬件级 `CGEvent.post` 按键时被 macOS TCC 丢弃。按规矩不绕过系统权限、也不拿调试桥 `input.type` 冒充原生输入法组字；进程内 `gpui-ime`／`gpui-prose`／`dr-editor` 组字契约与源会话在已授权终端跑通的 `sv3-ime-10` 原件保留，如需在 `Antigravity` 下复跑外部硬件按键脚本，请作者在「系统设置 → 隐私与安全性 → 辅助功能」勾选 `Antigravity` 后执行一次。
+
 ## 晨报
 
-（到终点时写：合进了什么、`main` 在哪、统一正确性验收与同步往返的结果、`codex/switch-v3` 的合入提交、暂缓的性能／UI 项目、还开着的问题、待作者的决定。未做的 heavy 测量明确记为暂缓。）
+### 第一版（2026-11-11 05:40，夜间队列第 0 项：canonical v3 切换完成）
+
+- **合入记录与 `main` 位置：**
+  - 任务 5（统一正确性验收收尾）：第 68 批产品合入 `f6eb256c`（14 条副屏真窗口流程共 875 步全绿）。
+  - 任务 6（v3 假服务同步往返）：第 69 批产品合入 `59a9cc45`（协调提交 `93a43a3f`，两设备、两本 canonical v3 书、四份资源变体、删除隔离、隐藏字段保留与跨书身份矛盾拦截全部通过）。
+  - 任务 7 暨夜间队列第 0 项（canonical v3 切换）：源分支 `codex/switch-v3`（`b10d7ac1`）合入整合分支 `codex/batch-70` 并补入字海开书模块就绪等待门修复（`2ae27b00`），本地 `--no-ff` 合入 `main` 产品提交 `ad97a43c`；随后本提交同步更新 `AGENTS.md` 与 `docs/rust-rewrite/` 的切换后现状表述。
+- **全套自动检查结果（冻结源码 `2ae27b00`，外部证据 `batch-70-full-2/results.json`）：**
+  - `cargo fmt --all --check`：通过。
+  - `cargo clippy --workspace --all-targets --locked -- -D warnings`：通过。
+  - `RUST_TEST_THREADS=1 DR_UI_REQUIRE_FONTS=1 cargo test --workspace --locked --no-fail-fast`：**2204 通过、0 失败、20 忽略**（含全部 17 条恢复注册的 `dr-shell::release_tests` 及新增开书就绪回归 `sea_opening_wait_prepares_v3_entry_modules_without_stalling`）。
+  - `cargo xtask check`：13 道门禁全部通过（含新增 `v3-cutover` 扫描 686 个产品 Rust 文件零违规、`licenses` 59 成员／893 包、`audit` 972 包 0 漏洞、`evidence` 记录 20 stale／15 legacy 未篡改）。
+  - 仓库根 `pnpm public:check`、`pnpm ci:contract:check`、`pnpm agent:capabilities:check`、四份兼容验收与九语生成检查：全部通过。
+- **`switchReview.pending` 八条逐项复核（外部证据 `guardian-switch-8point-audit.json`、`guardian-content-test-audit.json`）：**
+  1. 17 条 `dr-shell::release_tests` 已全部恢复注册并在全量测试第 2369–2385 行实际编译运行通过。
+  2. 按函数体内容逐条核对 `main..codex/batch-70` 删除的 236 个测试函数：仅 2 条含 v3 词元且均为切换前“v3 与 v2.2 并存”双断言（已由 `dr-cli/tests/cli.rs` 与 `dr-export/tests/v3.rs` 的纯 canonical v3 测试替代），6 条共享命令名调用均属已退役固定域调用方且对应 v3 覆盖仍在 `v3_common.rs`、`dr-view-stats/tests/v3.rs`、`dr-workspace/tests/registry.rs`。
+  3. 普通新建、启动首选、显式 `book.open`、深链 `nav.open` 与书架计数均只接受 canonical v3；库内非 v3 书与 SQLite 文件原样保留、不就地改写或删除。
+  4. 开发库重新导入强制使用独立新目标目录 `reimport-v3-<id>`：未提供策略时 prewrite `V3Pending` 拒绝且不建目标目录、`libraries.json` 字节完全不变；提供显式 `MappingChoices` 后源库副本全部文件的 SHA-256 与 `mtime_ns` 零变化，原库仍留在注册表且可切回。
+  5. 输入法组字：进程内 `gpui-ime`／`gpui-prose`／`dr-editor`／`state.get.ime` 契约全绿，源会话 `sv3-ime-10` 原件保留；`Antigravity` 宿主因 macOS TCC `CGPreflightPostEventAccess == false` 无法由外部进程向系统拼音发 `CGEvent` 硬件按键（已如实记入「待作者」，未用 `input.type` 冒充组字）。
+  6. 窗口与假服务往返：`g-b70-sync-1` 完成真窗口 A 写入关闭 → `v3-loopback`（`FakeSyncServer` + `SyncEngine`）上传下载 → 真窗口 B 精确读回 frontier 并追写关闭 → 假服务上传下载 → 真窗口 A 重开精确读回；明确标注 `automaticAppSync: false`，不冒称生产自动后台同步。
+  7. 旧 Markdown 文件夹 watcher 在应用／外壳层零激活，既有外部文件夹与用户设置完整保留。
+  8. 书架字数新鲜度：`dr-workspace/src/commands/book.rs:152-164`（`shelf_book`）对不存在或 `head == None` 的正文计 `Some(0)`，对已有提交而 `doc_stats.indexed_seq` 未追上 `head.seq` 的正文返回 `None`（pending），不把待建索引正文误显示为空章 0 字。
+- **副屏真窗口全流程结果：** `g-b70-m3` 全部 15 条 canonical v3 场景（搜索、素材、模板、帮手、链接、排空、释放、结构、归属、历史、主页、时间线、接线、剪贴板、切换）+ `g-b70-switch-2` + `g-b70-sync-1` 全部在副屏通过，所有验收进程均已干净退出并归还租约。
+- **当前状态与下一步：** 夜间队列第 0 项已完成；现立即进入夜间队列第 1 项（`showcase` v3 样书副屏浅／深色截图总览与视觉问题清单），后续按顺序继续第 2–5 项并持续追加本节。
