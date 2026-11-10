@@ -75,24 +75,21 @@ fn files_become_chapters_of_the_chosen_storyline(cx: &mut TestAppContext) {
         WorkspaceOptions::default(),
     )
     .unwrap();
-    let book = out(&lib, "book.create", json!({"name": "慢钟"}))["id"]
+    let book = out(&lib, "project.create", json!({"name": "慢钟"}))["id"]
         .as_str()
         .unwrap()
         .to_owned();
+    dr_testkit::seed::acceptance::novel_entry(&lib, &book, "tpl-storyline", "主线", None);
+    let second =
+        dr_testkit::seed::acceptance::novel_entry(&lib, &book, "tpl-storyline", "支线", None)["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
     out(
         &lib,
-        "storyline.create",
-        json!({"book": book, "name": "主线"}),
+        "entry.create",
+        json!({"book": book, "parent": dr_testkit::seed::acceptance::novel_root(&lib, &book, "tpl-manuscript"), "template": "tpl-chapter", "title": "序"}),
     );
-    let second = out(
-        &lib,
-        "storyline.create",
-        json!({"book": book, "name": "支线"}),
-    )["id"]
-        .as_str()
-        .unwrap()
-        .to_owned();
-    out(&lib, "chapter.create", json!({"book": book, "title": "序"}));
     let files = dir.path().join("drafts");
     std::fs::create_dir_all(&files).unwrap();
     std::fs::write(files.join("10 尾声.md"), "# 尾声\n\n钟又走了。").unwrap();
@@ -136,28 +133,27 @@ fn files_become_chapters_of_the_chosen_storyline(cx: &mut TestAppContext) {
     });
     wait(cx, |cx| d.read_with(cx, |d, _| d.summary.is_some()));
     assert_eq!(d.read_with(cx, |d, _| d.summary), Some((2, 0)));
-    let chapters = out(&lib, "chapter.list", json!({"book": book}));
-    let got: Vec<(Value, Value)> = chapters
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|c| (c["title"].clone(), c["storylines"].clone()))
-        .collect();
+    let chapters = dr_testkit::seed::acceptance::entries_by_template(&lib, &book, "tpl-chapter");
     assert_eq!(
-        got,
-        [
-            (json!("序"), json!([])),
-            (json!("雨夜"), json!([second.clone()])),
-            (json!("尾声"), json!([second.clone()]))
-        ]
+        chapters
+            .iter()
+            .map(|e| e["title"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        ["序", "雨夜", "尾声"]
     );
+    let memberships = out(&lib, "membership.list", json!({"book":book}));
+    for entry in &chapters[1..] {
+        assert!(
+            memberships
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|m| m["host"] == second && m["member"] == entry["id"])
+        );
+    }
 
     // Elements: a taken name fails alone.
-    out(
-        &lib,
-        "element.create",
-        json!({"book": book, "name": "尾声"}),
-    );
+    dr_testkit::seed::acceptance::novel_entry(&lib, &book, "tpl-character", "尾声", None);
     d.update(cx, |d, cx| {
         d.clear(cx);
         d.kind = Kind::Element;

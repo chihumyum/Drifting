@@ -118,9 +118,9 @@ fn undo(e: &Env) {
 
 #[test]
 fn v3_material_delete_restores_hidden_relations_comments_and_live_text_after_reopen() {
-    use dr_model::book::EntityRef;
     use dr_model::id::{BookId, CommentId};
     use dr_model::kind::EntityKind;
+    use dr_model::shared::EntityRef;
     let mut e = env();
     let b = project(&e);
     let other = project(&e);
@@ -368,12 +368,9 @@ fn v3_comments_address_modules_validate_anchors_and_restore_after_reopen() {
             .as_deref(),
         Some("mod-prose")
     );
-    let old: legacy::CommentCreateIn =
-        serde_json::from_value(json!({"book":b,"target":target})).unwrap();
-    assert!(
-        e.ws()
-            .run::<legacy::CommentCreate>(&Actor::User, old)
-            .is_err()
+    assert_eq!(
+        <legacy::CommentCreate as dr_workspace::Op>::BOOK_VERSION,
+        Some(3)
     );
     let reanchor: legacy::CommentReanchorIn =
         serde_json::from_value(json!({"book":b,"id":a,"anchor":null})).unwrap();
@@ -450,15 +447,22 @@ fn v3_comments_address_modules_validate_anchors_and_restore_after_reopen() {
         "Synthetic"
     );
     assert_eq!(raw(&e, &other), untouched);
-    let old_book = e.book();
-    e.call(
-        "comment.create",
-        json!({"book":old_book,"body":"Legacy floating"}),
+    let old_book = common::acceptance::empty_source(e.ws().library());
+    let before = e.ws().library().head(&format!("book:{old_book}")).unwrap();
+    assert!(
+        e.try_call(
+            "comment.create",
+            json!({"book":old_book,"body":"Refused old source"})
+        )
+        .is_err()
     );
     assert!(
-        e.out("comment.list", json!({"book":old_book}))[0]
-            .get("module")
-            .is_none()
+        e.try_call("comment.list", json!({"book":old_book}))
+            .is_err()
+    );
+    assert_eq!(
+        e.ws().library().head(&format!("book:{old_book}")).unwrap(),
+        before
     );
 }
 
@@ -618,4 +622,32 @@ fn v3_material_comments_and_typed_todo_projection_keep_document_scope() {
     assert!(raw(&e, &b)["comments"][&c]["target"].is_null());
     undo(&e);
     assert_eq!(raw(&e, &b)["comments"][&c]["target"], mat);
+}
+
+#[test]
+fn observations_ignore_unwritten_getter_roots_and_keep_unknown_authored_values() {
+    let mut e = env();
+    let b = e.book();
+    let id = format!("book:{b}");
+    let h = e
+        .ws()
+        .library()
+        .open_doc(&id, dr_store::OpenDoc::Existing)
+        .unwrap();
+    h.write(dr_store::Origin::Import, |doc| {
+        let m = doc.get_map("future-author-data");
+        m.insert("unknown", "raw-future-value").unwrap();
+    })
+    .unwrap();
+    let before = e.ws().observe(&id).unwrap();
+    h.read(|doc| {
+        doc.get_map("never-authored-getter").get_deep_value();
+    })
+    .unwrap();
+    assert_eq!(e.ws().observe(&id).unwrap().value, before.value);
+    drop(h);
+    e.reopen();
+    let after = e.ws().observe(&id).unwrap();
+    assert_eq!(after.version, before.version);
+    assert_eq!(after.value, before.value);
 }

@@ -12,7 +12,6 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 
 use dr_model::kind::EntityKind;
-use dr_workspace::{BookCatalog, LinkGroup};
 use gpui_prose::render::RunStyle;
 use gpui_prose::schema::inline;
 use gpui_prose::style::ProseStyle;
@@ -25,20 +24,6 @@ use crate::rules::markdown_rule;
 /// Whether entity link targets are alive.
 pub trait LinkTargets {
     fn alive(&self, kind: &EntityKind, id: &str) -> bool;
-}
-
-impl LinkTargets for BookCatalog {
-    fn alive(&self, kind: &EntityKind, id: &str) -> bool {
-        let groups: &[LinkGroup] = match kind {
-            EntityKind::Element => &[LinkGroup::Elements],
-            // A node is a chapter or an idea (构想).
-            EntityKind::Node => &[LinkGroup::Chapters, LinkGroup::Drifts],
-            EntityKind::Storyline => &[LinkGroup::Storylines],
-            EntityKind::Category => &[LinkGroup::Categories],
-            _ => return true,
-        };
-        groups.iter().any(|g| self.by_id(*g, id).is_some())
-    }
 }
 
 /// The kind an entity mark's value names (elements when unsaid).

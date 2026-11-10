@@ -50,7 +50,8 @@ fn library() -> Result<(tempfile::TempDir, Vec<Book>, WritingYear)> {
     let root = dir.path().join("library");
     let lib = dr_store::Library::open(&root, dr_workspace::library_options(VERSION))?;
     for book in dr_testkit::samples::showcase(dr_testkit::seed::DEFAULT_SEED)? {
-        dr_testkit::seed::write_book(&lib, &book).map_err(|e| anyhow::anyhow!("{e}"))?;
+        dr_testkit::seed::write_book_v3(&lib, &dr_testkit::seed::book_to_v3(&book)?)
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
     }
     lib.close()?;
     let ws = dr_workspace::Workspace::open_dir(&root, VERSION)?;

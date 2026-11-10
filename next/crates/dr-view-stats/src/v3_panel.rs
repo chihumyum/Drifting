@@ -87,7 +87,7 @@ impl View {
             // Coalesce a burst of prose/index/book events; a newer request
             // cancels this task and cannot receive this request's result.
             cx.background_executor()
-                .timer(crate::panel::RELOAD_DELAY)
+                .timer(std::time::Duration::from_millis(300))
                 .await;
             let result = cx
                 .background_executor()

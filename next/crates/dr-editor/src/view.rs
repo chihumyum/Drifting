@@ -26,8 +26,8 @@ use std::cell::RefCell;
 use std::ops::Range;
 use std::rc::Rc;
 
-use dr_model::book::EncodedAnchor;
-use dr_workspace::{BookCatalog, Workspace, WsError, WsEvent};
+use dr_model::shared::EncodedAnchor;
+use dr_workspace::{Workspace, WsError, WsEvent};
 use futures::StreamExt;
 use futures::channel::mpsc;
 use gpui::{
@@ -66,18 +66,9 @@ pub struct CommentRequested {
     pub text: String,
 }
 
-struct Catalog(BookCatalog);
-
-/// A document's editor, its events, and a note's embeds.
+/// One prose document of the workspace, being edited.
 type EditorParts = (Entity<ProseEditor>, Subscription, Option<Rc<NoteEmbeds>>);
 
-impl LinkTargets for Catalog {
-    fn alive(&self, kind: &dr_model::kind::EntityKind, id: &str) -> bool {
-        self.0.alive(kind, id)
-    }
-}
-
-/// One prose document of the workspace, being edited.
 pub struct ChapterEditor {
     ws: Workspace,
     book: String,
@@ -279,16 +270,10 @@ impl ChapterEditor {
     }
 
     fn extension(ws: &Workspace, book: &str) -> DriftingExtension {
-        let targets = if crate::v3::is_book(ws, book).unwrap_or(false) {
-            Some(Box::new(crate::v3::LinkTargets {
-                workspace: ws.clone(),
-                book: book.to_owned(),
-            }) as Box<dyn LinkTargets>)
-        } else {
-            ws.catalog(book)
-                .ok()
-                .map(|c| Box::new(Catalog(c)) as Box<dyn LinkTargets>)
-        };
+        let targets = Some(Box::new(crate::v3::LinkTargets {
+            workspace: ws.clone(),
+            book: book.to_owned(),
+        }) as Box<dyn LinkTargets>);
         DriftingExtension::new(targets)
     }
 

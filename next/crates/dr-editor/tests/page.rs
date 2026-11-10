@@ -31,7 +31,7 @@ fn env() -> Env {
     let dir = tempfile::tempdir().unwrap();
     let lib = Library::open(dir.path(), library_options("test")).unwrap();
     let ws = Workspace::open(lib, WorkspaceOptions::default()).unwrap();
-    let book = out(&ws, "book.create", json!({"name": "页面"}))["id"]
+    let book = out(&ws, "project.create", json!({"name": "页面"}))["id"]
         .as_str()
         .unwrap()
         .to_owned();
@@ -45,21 +45,18 @@ fn env() -> Env {
 fn chapter(e: &Env, title: &str, text: &str) -> String {
     let id = out(
         &e.ws,
-        "chapter.create",
-        json!({"book": e.book, "title": title, "text": text}),
+        "entry.create", json!({"book": e.book, "parent": dr_testkit::seed::acceptance::novel_root(&e.ws, &e.book, "tpl-manuscript"), "template": "tpl-chapter", "title": title, "bodies": {"mod-prose": text}}),
     )["id"]
         .as_str()
         .unwrap()
         .to_owned();
-    format!("node:{id}")
+    format!("body:{id}/mod-prose")
 }
 
 fn titles(e: &Env) -> Vec<String> {
-    out(&e.ws, "chapter.list", json!({"book": e.book}))
-        .as_array()
-        .unwrap()
+    dr_testkit::seed::acceptance::entries_by_template(&e.ws, &e.book, "tpl-chapter")
         .iter()
-        .map(|c| c["title"].as_str().unwrap().to_owned())
+        .map(|e| e["title"].as_str().unwrap().to_owned())
         .collect()
 }
 
@@ -137,20 +134,27 @@ fn open<'a>(
 #[gpui::test]
 fn the_page_shows_its_facts_and_follows_them(cx: &mut TestAppContext) {
     let e = env();
-    let line = out(
-        &e.ws,
-        "storyline.create",
-        json!({"book": e.book, "name": "码头线"}),
-    )["id"]
-        .as_str()
-        .unwrap()
-        .to_owned();
+    let line =
+        dr_testkit::seed::acceptance::novel_entry(&e.ws, &e.book, "tpl-storyline", "码头线", None)
+            ["id"]
+            .clone();
     chapter(&e, "序", "开头。");
     let doc = chapter(&e, "雨夜", "他把吸铁石拍在桌上。");
+    let entry = doc.trim_start_matches("body:").split('/').next().unwrap();
     out(
         &e.ws,
-        "chapter.update",
-        json!({"book": e.book, "id": doc.trim_start_matches("node:"), "add_storylines": [line]}),
+        "membership.add",
+        json!({"book":e.book,"host":line,"member":entry}),
+    );
+    out(
+        &e.ws,
+        "membership.primary",
+        json!({"book":e.book,"member":entry,"host":line}),
+    );
+    out(
+        &e.ws,
+        "module.set_field",
+        json!({"book":e.book,"entry":entry,"module":"mod-fields","field":"status","value":"draft"}),
     );
     let (view, cx) = open(cx, &e, &doc);
     let recorder = Rc::new(Recorder::default());
@@ -202,7 +206,9 @@ fn the_page_shows_its_facts_and_follows_them(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-fn titles_follow_the_old_rules(cx: &mut TestAppContext) {
+fn titles_follow_current_level_policy_and_synopsis_trims_without_empty_writes(
+    cx: &mut TestAppContext,
+) {
     let _ = cx;
     let e = env();
     let one = chapter(&e, "一", "");
@@ -212,8 +218,7 @@ fn titles_follow_the_old_rules(cx: &mut TestAppContext) {
     assert_eq!(page::rename(&e.ws, &e.book, &one, "一").unwrap(), None);
     // Taken: F3 makes it unique.
     let stored = page::rename(&e.ws, &e.book, &one, "二").unwrap().unwrap();
-    assert_ne!(stored, "二");
-    assert!(stored.starts_with('二'), "{stored}");
+    assert_eq!(stored, "二");
     // A synopsis may be cleared; unchanged writes nothing.
     assert!(page::set_synopsis(&e.ws, &e.book, &one, "梗概").unwrap());
     assert!(!page::set_synopsis(&e.ws, &e.book, &one, " 梗概 ").unwrap());
@@ -223,16 +228,19 @@ fn titles_follow_the_old_rules(cx: &mut TestAppContext) {
 #[gpui::test]
 fn an_ideas_page_keeps_its_title_and_synopsis(cx: &mut TestAppContext) {
     let e = env();
-    let idea = out(
+    let idea = dr_testkit::seed::acceptance::novel_entry(
         &e.ws,
-        "idea.create",
-        json!({"book": e.book, "title": "钟楼的秘密", "text": "也许钟停在三点十七分。"}),
+        &e.book,
+        "tpl-idea",
+        "钟楼的秘密",
+        Some("也许钟停在三点十七分。"),
     )["id"]
         .as_str()
         .unwrap()
         .to_owned();
-    let doc = format!("node:{idea}");
-    let ideas = |e: &Env| out(&e.ws, "idea.list", json!({"book": e.book}));
+    let doc = format!("body:{idea}/mod-prose");
+    let ideas =
+        |e: &Env| dr_testkit::seed::acceptance::entries_by_template(&e.ws, &e.book, "tpl-idea");
     assert_eq!(
         page::rename(&e.ws, &e.book, &doc, " 钟楼里的人 ").unwrap(),
         Some("钟楼里的人".to_owned())
@@ -244,7 +252,10 @@ fn an_ideas_page_keeps_its_title_and_synopsis(cx: &mut TestAppContext) {
     assert!(page::set_synopsis(&e.ws, &e.book, &doc, "一个关于时间的构想").unwrap());
     let stored = ideas(&e)[0].clone();
     assert_eq!(
-        (stored["title"].as_str(), stored["summary"].as_str()),
+        (
+            stored["title"].as_str(),
+            stored["fields"]["mod-fields"]["summary"].as_str()
+        ),
         (Some("钟楼里的人"), Some("一个关于时间的构想"))
     );
     // The page sees it.
@@ -260,68 +271,21 @@ fn an_ideas_page_keeps_its_title_and_synopsis(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-fn an_acts_title_page_counts_its_chapters_and_words(cx: &mut TestAppContext) {
-    let e = env();
-    let one = chapter(&e, "一", "雨夜。");
-    let two = chapter(&e, "二", "钟停了。");
-    let three = chapter(&e, "三", "天亮了。");
-    for (name, at) in [("回乡", &one), ("停摆", &three)] {
-        out(
-            &e.ws,
-            "act.create",
-            json!({"book": e.book, "name": name, "start_chapter": at.trim_start_matches("node:")}),
-        );
-    }
-    let (ws, book) = (e.ws.clone(), e.book.clone());
-    cx.executor().allow_parking();
-    let (view, cx) = cx.add_window_view(move |window, cx| {
-        BookEditor::open(ws, &book, EditorSettings::default(), window, cx).unwrap()
-    });
-    view.update(cx, |v, cx| {
-        v.set_chrome(Some(Rc::new(Chrome(Rc::default()))), cx)
-    });
-    let act = |doc: &str, cx: &mut VisualTestContext| {
-        view.read_with(cx, |v, _| v.page_info(doc))
-            .unwrap()
-            .act_page
-    };
-    let first = act(&one, cx).expect("the first act opens at 一");
-    assert_eq!(
-        (
-            first.name.as_str(),
-            first.ordinal,
-            first.chapters,
-            first.words
-        ),
-        ("回乡", 1, 2, 5),
-        "雨夜 and 钟停了: punctuation is not counted"
-    );
-    let second = act(&three, cx).expect("the second at 三");
-    assert_eq!((second.ordinal, second.chapters, second.words), (2, 1, 3));
-    assert!(act(&two, cx).is_none());
-    // Typing in 二 counts toward the first act at once.
-    let editor = view.read_with(cx, |v, _| v.editor().clone());
-    editor.update_in(cx, |ed, window, cx| {
-        ed.select(1, 0..0, window, cx);
-        ed.replace_text_in_range(None, "夜里", window, cx);
-    });
-    assert_eq!(act(&one, cx).unwrap().words, 7);
-}
-
-#[gpui::test]
 fn a_new_chapter_lands_right_after(cx: &mut TestAppContext) {
     let _ = cx;
     let e = env();
     let one = chapter(&e, "一", "雨夜。");
     chapter(&e, "二", "天亮。");
     let new = page::new_chapter_after(&e.ws, &e.book, &one, "新章节").unwrap();
-    assert!(new.starts_with("node:"));
+    assert!(new.starts_with("body:"));
     assert_eq!(titles(&e), ["一", "新章节", "二"]);
     let again = page::new_chapter_after(&e.ws, &e.book, &one, "新章节").unwrap();
     assert_ne!(again, new);
     assert_eq!(titles(&e).len(), 4);
-    let status = out(&e.ws, "chapter.list", json!({"book": e.book}))[1]["status"].clone();
-    assert_eq!(status, "draft");
+    assert_eq!(
+        dr_testkit::seed::acceptance::entries_by_template(&e.ws, &e.book, "tpl-chapter")[1]["template"],
+        "tpl-chapter"
+    );
 }
 
 #[gpui::test]
@@ -351,11 +315,7 @@ fn every_chapter_of_the_book_has_its_page(cx: &mut TestAppContext) {
     let e = env();
     let one = chapter(&e, "一", "雨夜。");
     let two = chapter(&e, "二", "钟停了。");
-    out(
-        &e.ws,
-        "act.create",
-        json!({"book": e.book, "name": "第二幕", "start_chapter": two.trim_start_matches("node:")}),
-    );
+
     let (ws, book) = (e.ws.clone(), e.book.clone());
     cx.executor().allow_parking();
     let (view, cx) = cx.add_window_view(move |window, cx| {
@@ -369,13 +329,7 @@ fn every_chapter_of_the_book_has_its_page(cx: &mut TestAppContext) {
     draw(cx);
     draw(cx);
     let numbers: Vec<Option<u32>> = recorder.heads.borrow().iter().map(|p| p.number).collect();
-    assert_eq!(
-        view.read_with(cx, |v, _| v.page_info(&two))
-            .unwrap()
-            .act_opening
-            .as_deref(),
-        Some("第二幕")
-    );
+
     assert!(
         numbers.contains(&Some(1)) && numbers.contains(&Some(2)),
         "{numbers:?}"

@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 
 use dr_shell::nav::{Open, Target};
 use dr_shell::{Services, SettingsFile, ShellInfo, Workspace};
-use dr_view_export::{ExportDialog, MarkdownTarget, Request};
+use dr_view_export::{ExportDialog, Request};
 use dr_workspace::Workspace as Library;
 use gpui::{Entity, TestAppContext, VisualTestContext};
 
@@ -17,7 +17,7 @@ fn slow_clock() -> (tempfile::TempDir, Library) {
     let root = dir.path().join("library");
     let lib = dr_store::Library::open(&root, dr_workspace::library_options(VERSION)).unwrap();
     let book = dr_testkit::samples::slow_clock().unwrap();
-    dr_testkit::seed::write_book(&lib, &book).unwrap();
+    dr_testkit::seed::write_book_v3(&lib, &dr_testkit::seed::book_to_v3(&book).unwrap()).unwrap();
     lib.close().unwrap();
     let ws = Library::open_dir(&root, VERSION).unwrap();
     (dir, ws)
@@ -74,8 +74,15 @@ fn the_export_dialogs_open_over_the_workspace_and_close(cx: &mut TestAppContext)
     let (_dir, lib) = slow_clock();
     let (view, cx) = setup(cx, lib);
     let third = view.update_in(cx, |ws, window, cx| {
-        let id = ws.book.chapters[2].id.clone();
-        ws.open(Target::Chapter(id.parse().unwrap()), Open::KEEP, cx);
+        let id = ws.book.v3().unwrap().manuscript[2].entry.clone();
+        ws.open(
+            Target::Entry {
+                id: id.parse().unwrap(),
+                module: Some("mod-prose".parse().unwrap()),
+            },
+            Open::KEEP,
+            cx,
+        );
         ws.open_export(
             Request::Manuscript {
                 chapter: Some(id.clone()),
@@ -106,27 +113,4 @@ fn the_export_dialogs_open_over_the_workspace_and_close(cx: &mut TestAppContext)
     d.update(cx, |d, cx| d.close(cx));
     cx.run_until_parked();
     assert!(view.read_with(cx, |ws, _| ws.dialog.is_none()));
-
-    // The whole book's share.
-    view.update_in(cx, |ws, window, cx| {
-        ws.open(Target::Book, Open::KEEP, cx);
-        ws.open_export(Request::Markdown(MarkdownTarget::Book), window, cx);
-    });
-    wait_for(&view, cx, |ws, cx| {
-        dialog(ws).is_some_and(|d| d.read(cx).markdown().is_some_and(|m| m.doc.is_some()))
-    });
-    let (markdown, documents) = view.read_with(cx, |ws, cx| {
-        let doc = dialog(ws)
-            .unwrap()
-            .read(cx)
-            .markdown()
-            .unwrap()
-            .doc
-            .clone()
-            .unwrap();
-        (doc.markdown, doc.documents)
-    });
-    let first = view.read_with(cx, |ws, _| ws.book.chapters[0].title.clone());
-    assert!(markdown.contains(&first), "the first chapter's title");
-    assert!(documents >= 20, "{documents}");
 }

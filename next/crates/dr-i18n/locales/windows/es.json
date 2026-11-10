@@ -18,11 +18,6 @@
     "models": {
       "speechDesc": "Credencial de transcripción para entrada de voz, separada de los proveedores de chat. Incluye nombres de elementos y ambientación para corregir nombres propios. Las solicitudes van directamente a Bailian y la clave solo queda en el Administrador de credenciales de Windows."
     },
-    "sync": {
-      "projection": {
-        "reveal": "Mostrar en el Explorador de archivos"
-      }
-    },
     "update": {
       "channel_desc": "Windows 10/11 · x64 y ARM64"
     }

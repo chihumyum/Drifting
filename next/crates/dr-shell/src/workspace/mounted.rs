@@ -125,6 +125,18 @@ impl Workspace {
         let mut events = Vec::new();
         match &view {
             PageView::Doc(editor) => {
+                events.extend(link_events(editor, cx));
+                events.push(cx.subscribe(
+                    editor,
+                    |ws, _, event: &dr_editor::MaterialOpened, cx| {
+                        if let Some(target) =
+                            Target::from_key(&format!("material:{}", event.material))
+                            && ws.book.exists(&target)
+                        {
+                            ws.open(target, crate::nav::Open::PREVIEW, cx);
+                        }
+                    },
+                ));
                 editor.update(cx, |e, cx| e.set_decor_looks(looks, cx));
                 events.push(
                     cx.subscribe(editor, |ws, e, event, cx| ws.on_editor_event(&e, event, cx)),
@@ -143,6 +155,7 @@ impl Workspace {
                 );
             }
             PageView::Book(editor) => {
+                events.extend(link_events(editor, cx));
                 editor.update(cx, |e, cx| e.set_decor_looks(looks, cx));
                 events.push(cx.subscribe(editor, |ws, _, event, cx| {
                     ws.on_book_event(event, cx);

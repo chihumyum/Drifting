@@ -144,7 +144,6 @@ pub(super) fn rewrite_for(read: &Contents, book: &LoroDoc) -> Result<Rewrite> {
     let book_id = read.manifest.book.parse().map_err(damaged)?;
     dr_doc::v3::BorrowedBookV3::new(book, &book_id).map_err(damaged)?;
     let mut rw = Rewrite {
-        v3: true,
         ..Default::default()
     };
     fresh(&mut rw, &read.manifest.book);
@@ -181,9 +180,9 @@ pub(super) fn rewrite_for(read: &Contents, book: &LoroDoc) -> Result<Rewrite> {
         fresh(&mut rw, &asset.asset);
     }
     rw.ids.insert(
-        dr_doc::book::generic_relation_type_id(&read.manifest.book.parse().map_err(damaged)?)
+        dr_doc::catalog::generic_relation_type_id(&read.manifest.book.parse().map_err(damaged)?)
             .to_string(),
-        dr_doc::book::generic_relation_type_id(
+        dr_doc::catalog::generic_relation_type_id(
             &rw.ids[&read.manifest.book].parse().map_err(damaged)?,
         )
         .to_string(),
@@ -264,7 +263,7 @@ fn map_grid_lines(rw: &mut Rewrite, key: &str) {
     let Ok(new) = new.parse::<EntryId>() else {
         return;
     };
-    for n in 1..=dr_model::book::PLOT_DEFAULT_LINES {
+    for n in 1..=dr_model::shared::PLOT_DEFAULT_LINES {
         for (old, new) in [
             (
                 PlotRowId::default_for_entry(&old, &module, n).to_string(),

@@ -17,7 +17,7 @@ fn row(seq: i64, event: Event) -> JournalEvent {
 }
 
 fn fragments() -> Vec<String> {
-    let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+    let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
     seeded.books[0]
         .groups()
         .values()

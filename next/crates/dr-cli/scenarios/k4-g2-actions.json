@@ -1,5 +1,5 @@
 {
-  "about": "K4 G2 最终批：v3-lite 真窗口，树上移动／排序／非法循环／拖进接收层级，公共悬停卡新建／换模板／归属与主归属；保留待提交标题和显式重试；看板坐标写入；旧版隔离。",
+  "about": "K4 G2 最终批：v3-lite 真窗口，树上移动／排序／非法循环／拖进接收层级，公共悬停卡新建／换模板／归属与主归属；保留待提交标题和显式重试；看板坐标写入；旧版隔离。；v3 切换后保留全部 canonical 验收步骤，旧产品回切尾段已退役。",
   "steps": [
     {
       "seed": "v3-lite"
@@ -1225,29 +1225,6 @@
     {
       "app": "ui.screenshot",
       "png": "05-board-drag.png"
-    },
-    {
-      "call": "book.create",
-      "input": {
-        "name": "Synthetic legacy after G2"
-      },
-      "save": "legacy"
-    },
-    {
-      "app": "book.open",
-      "params": {
-        "book": "${legacy.id}"
-      }
-    },
-    {
-      "app": "ui.wait",
-      "params": {
-        "state": {
-          "/book/version": 2,
-          "/v3Sidebar": null
-        },
-        "timeout_ms": 15000
-      }
     },
     {
       "app": "app.quit"

@@ -2,10 +2,10 @@
 
 use std::collections::BTreeSet;
 
-use dr_model::book::KvEntry;
 use dr_model::id::*;
 use dr_model::kind::EntityKind;
 use dr_model::pos::PosKey;
+use dr_model::shared::KvEntry;
 use dr_model::v3::*;
 use dr_model::{DocId, Origin, Timestamp};
 

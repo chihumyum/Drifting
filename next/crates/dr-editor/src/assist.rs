@@ -38,7 +38,6 @@ use std::ops::Range;
 use std::rc::Rc;
 use std::time::Duration;
 
-use dr_model::kind::EntityKind;
 use dr_text::autolink::LinkTarget;
 use dr_ui::components::{Align, IconButton, Layer, Menu, MenuItem, MenuWidth, Place, RowIcon};
 use dr_ui::sand::{self, Icon};
@@ -283,9 +282,6 @@ pub enum MenuRow {
         group: entity_links::NameGroup,
     },
     /// 「创建要素「name」」.
-    Create {
-        name: String,
-    },
     Block(BlockChoice),
     Action(SlashAction),
     /// A material note's own entry.
@@ -367,7 +363,6 @@ pub enum AssistEvent {
 /// The pickers, automatic links and selection bar of one editor.
 pub struct Assist {
     ws: Workspace,
-    v3: bool,
     book: String,
     /// Each chapter's prose document (`node:<id>`, …), in the editor's order.
     docs: Vec<String>,
@@ -445,10 +440,8 @@ impl Assist {
         let decor_events = Self::watch_decorations(&editor, window, cx);
         let undo_counts = Self::counts(&editor, cx);
         let line_counts = Self::lines(&editor, cx);
-        let v3 = crate::v3::is_book(&ws, book).unwrap_or(false);
         let mut assist = Assist {
             ws,
-            v3,
             book: book.to_owned(),
             docs,
             editor,
@@ -677,11 +670,7 @@ impl Assist {
             };
             (line_ix, caret, {
                 let edits = entity_links::repairs(&line.text, &runs, caret, &names, before);
-                if self.v3 {
-                    entity_links::protect_v3(line, edits)
-                } else {
-                    edits
-                }
+                entity_links::protect_v3(line, edits)
             })
         };
         let _ = caret;
@@ -789,11 +778,7 @@ impl Assist {
                         _ => true,
                     })
                     .collect();
-                let edits = if self.v3 {
-                    entity_links::protect_v3(line, edits)
-                } else {
-                    edits
-                };
+                let edits = { entity_links::protect_v3(line, edits) };
                 (line_ix, edits)
             };
             let (line_ix, edits) = plan;
@@ -949,7 +934,7 @@ impl Assist {
                     return Vec::new();
                 };
                 let own = self.own_id(chapter).map(str::to_owned);
-                let mut rows: Vec<MenuRow> = names
+                let rows: Vec<MenuRow> = names
                     .search(query, MAX_ROWS + 1)
                     .into_iter()
                     .filter(|(_, t, _)| Some(&t.id) != own.as_ref())
@@ -960,10 +945,7 @@ impl Assist {
                         group,
                     })
                     .collect();
-                let q = query.trim();
-                if !self.v3 && !q.is_empty() && !names.has_element_named(q) {
-                    rows.push(MenuRow::Create { name: q.to_owned() });
-                }
+
                 rows
             }
         }
@@ -1006,19 +988,7 @@ impl Assist {
             MenuRow::Link { name, target, .. } => {
                 self.insert_link(chapter, at..caret, &name, &target, window, cx);
             }
-            MenuRow::Create { name } => match self.create_element(&name) {
-                Ok(target) => {
-                    self.names = None;
-                    self.insert_link(chapter, at..caret, &name, &target, window, cx);
-                }
-                Err(e) => {
-                    log::warn!("dr-editor: creating element {name}: {e}");
-                    self.write(chapter, HostStep::Own, window, cx, |doc| {
-                        doc.delete(at..caret, ORIGIN_USER);
-                        Some(at)
-                    });
-                }
-            },
+
             MenuRow::Block(choice) => self.apply_block(chapter, at..caret, choice, window, cx),
             MenuRow::Action(action) => self.apply_action(chapter, at..caret, action, window, cx),
             MenuRow::Note(choice) => self.apply_note(chapter, at..caret, choice, window, cx),
@@ -1258,50 +1228,7 @@ impl Assist {
             );
         }
 
-        let doc = self.docs.get(chapter)?;
-        let (prefix, id) = doc.split_once(':')?;
-        let group = match prefix {
-            "node" => {
-                let catalog = self.ws.catalog(&self.book).ok()?;
-                if catalog
-                    .by_id(dr_workspace::nav::LinkGroup::Chapters, id)
-                    .is_some()
-                {
-                    dr_workspace::nav::LinkGroup::Chapters
-                } else {
-                    dr_workspace::nav::LinkGroup::Drifts
-                }
-            }
-            "element" => dr_workspace::nav::LinkGroup::Elements,
-            "category" => dr_workspace::nav::LinkGroup::Categories,
-            "storyline" => dr_workspace::nav::LinkGroup::Storylines,
-            _ => return None,
-        };
-        Some(format!(
-            "drifting:{}/id-{id}/prose.md#L{}",
-            group.segment(),
-            2 * line + 1
-        ))
-    }
-
-    fn create_element(&self, name: &str) -> Result<LinkTarget, String> {
-        let category = self
-            .ws
-            .call(&Actor::User, "category.list", json!({ "book": self.book }))
-            .ok()
-            .and_then(|out| out["output"][0]["id"].as_str().map(str::to_owned));
-        let mut input = json!({ "book": self.book, "name": name });
-        if let Some(c) = category {
-            input["category"] = c.into();
-        }
-        let out = self
-            .ws
-            .call(&Actor::User, "element.create", input)
-            .map_err(|e| e.to_string())?;
-        let id = out["output"]["id"]
-            .as_str()
-            .ok_or("element.create gave no id")?;
-        Ok(LinkTarget::new(EntityKind::Element, id))
+        None
     }
 
     fn apply_block(
@@ -1452,12 +1379,10 @@ impl Assist {
         let doc = &e.book().chapters.get(chapter)?.doc;
         let marks = doc.marks_before(range.start + 1);
         let (target, value) = marks.entities().next()?;
-        if self.v3 {
+        {
             let link = dr_doc::prose::v3::decode_entity_link(target, value)?;
-            return Some(LinkTarget::new(link.kind, link.target));
+            Some(LinkTarget::new(link.kind, link.target))
         }
-        let link = crate::convert::entity_link(target, value);
-        Some(LinkTarget::new(link.kind, link.target))
     }
 
     fn open_card(&mut self, chapter: usize, id: SharedString, cx: &mut Context<Self>) {
@@ -1479,7 +1404,7 @@ impl Assist {
         let Some((chapter, id)) = self.pointed_link.clone() else {
             return;
         };
-        if self.v3 {
+        {
             let link = self
                 .editor
                 .read(cx)
@@ -1500,38 +1425,7 @@ impl Assist {
             if let Some(link) = link {
                 self.open_entity_link_v3(link, cx);
             }
-            return;
         }
-        let target = self.link_target(chapter, &id, cx);
-        self.close_card();
-        let Some(target) = target else { return };
-        // A target in the trash or gone: the click does nothing.
-        if crate::link_card::card_facts(&self.ws, &self.book, &target).is_some() {
-            let module = self
-                .editor
-                .read(cx)
-                .decoration_range(chapter, "links", &id)
-                .and_then(|range| {
-                    self.editor
-                        .read(cx)
-                        .book()
-                        .chapters
-                        .get(chapter)
-                        .map(|c| c.doc.marks_before(range.start + 1))
-                })
-                .and_then(|marks| {
-                    marks
-                        .entities()
-                        .find(|(t, _)| *t == target.id)
-                        .and_then(|(_, value)| crate::links::link_module(value))
-                });
-            cx.emit(AssistEvent::OpenLink {
-                chapter,
-                target,
-                module,
-            });
-        }
-        cx.notify();
     }
 
     /// Body and table clicks share the versioned endpoint and raw mark reader.
@@ -1540,13 +1434,12 @@ impl Assist {
         link: dr_model::v3::EntityLinkV3,
         cx: &mut Context<Self>,
     ) {
-        if self.v3
-            && crate::link_card::card_facts(
-                &self.ws,
-                &self.book,
-                &LinkTarget::new(link.kind.clone(), link.target.clone()),
-            )
-            .is_some()
+        if crate::link_card::card_facts(
+            &self.ws,
+            &self.book,
+            &LinkTarget::new(link.kind.clone(), link.target.clone()),
+        )
+        .is_some()
         {
             crate::links::open_v3(&self.ws, &self.book, link, cx);
         }
@@ -1704,9 +1597,7 @@ impl Assist {
                     list = list.section(label, &theme);
                     section = Some(*group);
                 }
-                MenuRow::Create { .. } if section.is_some() => {
-                    list = list.separator(&theme);
-                }
+
                 // The slash menu: the formats, the rule, Drifting's own.
                 MenuRow::Block(BlockChoice::Rule) if ix > 0 => {
                     list = list.separator(&theme);
@@ -1736,11 +1627,7 @@ impl Assist {
                     };
                     (RowIcon::Mark(kind, None), name.clone().into(), None)
                 }
-                MenuRow::Create { name } => (
-                    Icon::Plus.into(),
-                    format!("创建要素「{name}」").into(),
-                    None,
-                ),
+
                 MenuRow::Block(choice) => (choice.icon().into(), self.block_label(*choice), None),
                 MenuRow::Action(action) => (action.icon().into(), action.label().into(), None),
                 MenuRow::Note(choice) => (choice.icon().into(), choice.label().into(), None),
@@ -1976,23 +1863,17 @@ fn wrap_at(
         .size_full()
         .relative()
         .capture_action(move |_: &gpui_prose::input::actions::Copy, window, cx| {
-            if copy.read(cx).v3
-                && crate::clipboard::copy(&copy.read(cx).editor.clone(), false, window, cx)
-            {
+            if crate::clipboard::copy(&copy.read(cx).editor.clone(), false, window, cx) {
                 cx.stop_propagation();
             }
         })
         .capture_action(move |_: &gpui_prose::input::actions::Cut, window, cx| {
-            if cut.read(cx).v3
-                && crate::clipboard::copy(&cut.read(cx).editor.clone(), true, window, cx)
-            {
+            if crate::clipboard::copy(&cut.read(cx).editor.clone(), true, window, cx) {
                 cx.stop_propagation();
             }
         })
         .capture_action(move |_: &gpui_prose::input::actions::Paste, window, cx| {
-            if paste.read(cx).v3
-                && crate::clipboard::paste(&paste.read(cx).editor.clone(), window, cx)
-            {
+            if crate::clipboard::paste(&paste.read(cx).editor.clone(), window, cx) {
                 cx.stop_propagation();
             }
         })

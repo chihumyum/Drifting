@@ -33,8 +33,7 @@ impl SampleBookV3 {
 }
 
 /// Same two recipes, with migration policy supplied explicitly until the
-/// author settles m10's pending items. The v2.2 entry points remain usable
-/// by the existing application until its K4 workspace switch-over.
+/// author settles m10's pending items. The source catalog exists only in memory.
 pub fn pride_and_prejudice(choices: &MappingChoices) -> Result<SampleBookV3> {
     convert(&crate::pride_and_prejudice()?, choices)
 }
@@ -130,12 +129,12 @@ pub fn convert(source: &crate::SeededBook, choices: &MappingChoices) -> Result<S
     // Clone just the catalog into memory so anchor replacement cannot
     // mutate the source. Resolve exact cursors, never search for a quote
     // which could occur more than once.
-    let mut catalog = dr_doc::book::BookDoc::load(
+    let mut catalog = dr_doc::import_v1::BookDoc::load(
         source.book_id().clone(),
         import_peer("sample-v3-anchor-catalog"),
         &[source.book.export_snapshot()?],
     )?;
-    let relocate = |id: &DocId, encoded: &dr_model::book::EncodedAnchor| -> Result<Anchor> {
+    let relocate = |id: &DocId, encoded: &dr_model::import_v1::EncodedAnchor| -> Result<Anchor> {
         let index = *indices
             .get(&id.to_string())
             .ok_or_else(|| super::catalog::invalid(format!("missing sample prose {id}")))?;
@@ -190,12 +189,6 @@ pub fn write_book(
     lib: &dr_store::Library,
     sample: &SampleBookV3,
 ) -> std::result::Result<usize, crate::WriteError> {
-    if lib.options().deriver.is_some() {
-        return Err(super::catalog::invalid(
-            "v3 samples require a library without the v2 index deriver until K4",
-        )
-        .into());
-    }
     let all = dr_doc::loro_types::VersionVector::default();
     let mut count = 0;
     let mut store = |id: &DocId,

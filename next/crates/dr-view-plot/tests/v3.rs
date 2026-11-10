@@ -1,6 +1,6 @@
 //! G1's existing plot UI storage adapter, using the shared v3 synthetic corpus.
 use dr_view_plot::{Write, v3};
-use dr_workspace::{Actor, commands::plot_grid::Axis};
+use dr_workspace::{Actor, commands::v3::plot::Axis};
 use serde_json::json;
 fn seeded() -> (tempfile::TempDir, dr_workspace::Workspace, String, String) {
     let dir = tempfile::tempdir().unwrap();

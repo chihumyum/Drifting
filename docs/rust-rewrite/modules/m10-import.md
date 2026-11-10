@@ -1,5 +1,7 @@
 # M10 旧库导入
 
+> 2026-11-10 切换实施更新：GUI 显式 MappingChoices、新目标后台导入、结构化 pending、取消续导／退出排空和目录 checkpoint 已接线。 当前范围、删除／保留边界和验收状态见 [canonical v3 切换](../v3-cutover.md)。下文历史交回记录保留其原语境。
+
 2026-11-07，第一、第二个里程碑；2026-11-08，第三个里程碑（导入界面）、第四个里程碑（认领身份、取消、自动找旧库、真窗口验收）和第五个里程碑（没导完的提醒、多窗口）；同日第六个里程碑（旧模版写成模版文档）。计划见 [modules.md 的 M10](../modules.md#阶段-2写作闭环)，依据是 [P0-E 的结论和规格草稿](../spikes/p0-e-import.md)。导入本身在 `next/crates/dr-import-v1/`（不依赖 GPUI，不依赖 yrs / Yjs），界面在 `next/crates/dr-view-import/`；旧版这一侧只改了交接（`src/renderer/services/v2-handoff/`，[docs/v2-handoff.md](../../v2-handoff.md)）。测量证据在 [acceptance/m10-m4-import.json](../acceptance/m10-m4-import.json)（F8 的新格式，第四个里程碑重测），截图在 [m10/](m10/)。
 
 ## K3 前半段：旧库的 v3 导入清单（2026-11-09）

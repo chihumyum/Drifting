@@ -43,17 +43,7 @@ pub struct BookUpdateIn {
     )]
     pub daily_word_target: Option<Option<i64>>,
 }
-impl From<crate::commands::book::BookUpdateIn> for BookUpdateIn {
-    fn from(i: crate::commands::book::BookUpdateIn) -> Self {
-        Self {
-            book: i.book,
-            name: i.name,
-            summary: i.summary,
-            word_target: i.word_target.map(Some),
-            daily_word_target: i.daily_word_target.map(Some),
-        }
-    }
-}
+
 op! {
     BookUpdate = "book.update", Write, Book,
     "Update selected v3 book metadata fields without replacing other book data.",

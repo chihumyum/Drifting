@@ -2,12 +2,12 @@
 //! of small documents. Ignored by default; run with
 //! `DR_FUZZ_SEEDS=<dir> cargo test -p dr-doc --test fuzz_seeds -- --ignored`.
 
-use dr_doc::book::BookDoc;
+use dr_doc::import_v1::BookDoc;
 use dr_doc::prose::ProseDoc;
-use dr_model::book::EntityRef;
 use dr_model::id::*;
 use dr_model::kind::*;
 use dr_model::prose::{EntityLink, Heading};
+use dr_model::shared::EntityRef;
 use dr_model::{DocId, Origin};
 
 #[test]

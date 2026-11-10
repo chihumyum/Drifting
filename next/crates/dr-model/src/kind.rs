@@ -200,7 +200,7 @@ open_enum!(
     RelationOrientation {
         Directed = "directed",
         /// Endpoints are stored in canonical order (see
-        /// [`crate::book::canonical_symmetric`]).
+        /// [`crate::shared::canonical_symmetric`]).
         Symmetric = "symmetric",
     }
 );

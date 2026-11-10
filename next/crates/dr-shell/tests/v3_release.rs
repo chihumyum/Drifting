@@ -496,60 +496,51 @@ fn any_failed_writer_skips_final_checkpoints_after_all_writers_settle(cx: &mut T
 }
 
 #[gpui::test]
-fn mirror_stops_after_writers_before_checkpoint_and_resumes_on_failure(cx: &mut TestAppContext) {
-    let dir = setup(cx);
-    // The mirror's v3 document layout belongs to M40. Keep the shared v3
-    // fixture in the trash so this contract exercises its real worker's
-    // release lifetime without claiming a v3 Markdown export implementation.
-    let (done, waiting) = oneshot::channel();
+fn producers_drain_before_checkpoint_and_resume_on_failure(cx: &mut TestAppContext) {
+    let _dir = setup(cx);
+    let (done, waiting) = oneshot::channel::<Result<(), String>>();
     let mut waiting = Some(waiting);
+    let running = Rc::new(Cell::new(true));
     let finished = Rc::new(Cell::new(false));
     let finish = finished.clone();
     cx.update(|cx| {
-        let lib = cx.global::<Services>().library.as_ref().unwrap();
-        let books = lib.call(&Actor::User, "book.list", json!({})).unwrap();
-        lib.call(
-            &Actor::User,
-            "book.trash",
-            json!({"book":books["output"][0]["id"]}),
-        )
-        .unwrap();
-        dr_shell::mirror::set_folder(dir.path().join("markdown"), cx);
-        assert!(dr_shell::mirror::is_running(cx));
+        let producer = running.clone();
         release::before_release(cx, move |_| {
             let waiting = waiting.take().unwrap();
-            async move { waiting.await.unwrap() }.boxed_local()
+            let producer = producer.clone();
+            async move {
+                waiting.await.unwrap()?;
+                producer.set(false);
+                Ok(())
+            }
+            .boxed_local()
         });
-        release::after_drain(cx, |cx| {
+        let producer = running.clone();
+        release::after_drain(cx, move |cx| {
             assert!(release::is_releasing(cx));
-            assert!(!dr_shell::mirror::is_running(cx));
-            dr_shell::mirror::restart(cx);
-            assert!(
-                !dr_shell::mirror::is_running(cx),
-                "a producer cannot restart during checkpoint"
-            );
+            assert!(!producer.get());
             async { Err("checkpoint failed".into()) }.boxed_local()
         });
+        let producer = running.clone();
+        release::after_release(cx, move |_| producer.set(true));
+        let producer = running.clone();
         library::replace(
             cx,
             |_, _| panic!("checkpoint failure"),
             move |result, cx| {
                 assert_eq!(result, Err("checkpoint failed".into()));
                 assert!(!release::is_releasing(cx));
-                assert!(dr_shell::mirror::is_running(cx));
+                assert!(producer.get());
                 finish.set(true);
             },
         );
     });
     cx.run_until_parked();
-    cx.update(|cx| {
-        assert!(
-            dr_shell::mirror::is_running(cx),
-            "last pass waits for producers"
-        )
-    });
+    assert!(
+        running.get(),
+        "producer stays active until its accepted work completes"
+    );
     done.send(Ok(())).unwrap();
     wait(cx, || finished.get());
-    cx.update(dr_shell::mirror::stop);
     close(cx);
 }

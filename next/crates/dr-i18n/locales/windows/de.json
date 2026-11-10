@@ -18,11 +18,6 @@
     "models": {
       "speechDesc": "Transkriptionszugang für Spracheingabe, getrennt von den Chat-Anbietern. Element- und Weltdetailsnamen werden zur Korrektur von Eigennamen mitgesendet. Anfragen gehen direkt an Bailian; der Schlüssel liegt nur im Systemschlüsselbund."
     },
-    "sync": {
-      "projection": {
-        "reveal": "Im Explorer anzeigen"
-      }
-    },
     "update": {
       "channel_desc": "Windows 10/11 · x64 und ARM64"
     }

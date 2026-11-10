@@ -59,21 +59,23 @@ fn v3_home_metadata_updates_selected_fields_and_undo_keeps_independent_changes()
     for old_count in ["chapters", "ideas", "elements", "words"] {
         assert!(get.get(old_count).is_none());
     }
-    assert_eq!(get["word_target"], dr_model::book::DEFAULT_WORD_TARGET);
+    assert_eq!(get["word_target"], dr_model::shared::DEFAULT_WORD_TARGET);
     assert_eq!(
         get["daily_word_target"],
-        dr_model::book::DEFAULT_DAILY_WORD_TARGET
+        dr_model::shared::DEFAULT_DAILY_WORD_TARGET
     );
     let typed = e
         .ws()
         .run::<book::BookGet>(&Actor::User, BookIn { book: a.clone() })
         .unwrap();
     assert_eq!(typed.output.name, "Synthetic home");
-    // A caller requesting the old counts must choose the explicit v3 output.
-    assert!(
+    assert_eq!(
         e.ws()
             .run::<legacy::BookGet>(&Actor::User, BookIn { book: a.clone() })
-            .is_err()
+            .unwrap()
+            .output
+            .name,
+        typed.output.name
     );
     e.call(
         "book.update",
@@ -107,7 +109,7 @@ fn v3_home_metadata_updates_selected_fields_and_undo_keeps_independent_changes()
         expected
     );
     let get = e.out("book.get", json!({"book":a}));
-    assert_eq!(get["word_target"], dr_model::book::DEFAULT_WORD_TARGET);
+    assert_eq!(get["word_target"], dr_model::shared::DEFAULT_WORD_TARGET);
     assert!(get["daily_word_target"].is_null());
     e.ws().redo(&Actor::User).unwrap().unwrap();
     assert_eq!(
@@ -144,10 +146,10 @@ fn v3_home_metadata_updates_selected_fields_and_undo_keeps_independent_changes()
         json!({"book":a,"word_target":null,"daily_word_target":null}),
     );
     let get = e.out("book.get", json!({"book":a}));
-    assert_eq!(get["word_target"], dr_model::book::DEFAULT_WORD_TARGET);
+    assert_eq!(get["word_target"], dr_model::shared::DEFAULT_WORD_TARGET);
     assert_eq!(
         get["daily_word_target"],
-        dr_model::book::DEFAULT_DAILY_WORD_TARGET
+        dr_model::shared::DEFAULT_DAILY_WORD_TARGET
     );
     e.ws()
         .run::<legacy::BookUpdate>(

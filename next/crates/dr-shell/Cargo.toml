@@ -7,19 +7,12 @@ license.workspace = true
 publish.workspace = true
 description = "Drifting's shell: the three-column workspace, tabs and splits, sidebars, the Super View stage, shortcuts, settings and notifications"
 
-[features]
-# Offscreen screenshots and frame timings (`examples/shell-capture.rs`),
-# through GPUI's headless test platform. Off by default.
-capture = ["dep:gpui_platform", "gpui_platform/test-support", "dep:color_quant", "dep:png"]
-
 [dependencies]
 anyhow.workspace = true
 chrono.workspace = true
-color_quant = { workspace = true, optional = true }
 dr-doc.workspace = true
 dr-editor.workspace = true
 dr-i18n.workspace = true
-dr-mirror.workspace = true
 dr-model.workspace = true
 dr-platform.workspace = true
 # The library's root and options when the shell swaps it (`library.rs`).
@@ -37,10 +30,7 @@ dr-workspace.workspace = true
 futures.workspace = true
 gpui.workspace = true
 gpui-prose.workspace = true
-# Only for the `capture` feature; the app brings its own platform.
-gpui_platform = { workspace = true, optional = true }
 log.workspace = true
-png = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true
 
@@ -55,23 +45,3 @@ dr-testkit.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
 gpui_platform.workspace = true
 tempfile.workspace = true
-
-[[example]]
-name = "shell-capture"
-required-features = ["capture"]
-
-# M06, M07 and M20's screenshots (docs/rust-rewrite/modules/m06, m07, m20).
-[[example]]
-name = "m06-m07-capture"
-required-features = ["capture"]
-
-# M18's screenshots (docs/rust-rewrite/modules/m18).
-[[example]]
-name = "m18-capture"
-required-features = ["capture"]
-
-# M09's screenshots (docs/rust-rewrite/modules/m09): the snapshot history
-# over the shell. Here and not in dr-view-history, which dr-shell depends on.
-[[example]]
-name = "history-capture"
-required-features = ["capture"]

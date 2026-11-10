@@ -1,5 +1,5 @@
 use super::*;
-use dr_model::book::KvEntry;
+use dr_model::shared::KvEntry;
 pub(crate) fn register(r: &mut Registry) {
     r.add::<ModuleList>()
         .add::<ModuleRead>()
@@ -128,7 +128,7 @@ fn read(cx: &Cx<'_>, input: In) -> Result<Data> {
             .map(|m| content::grid(&v, &e.id, m))
     };
     let relations = if definition.is_some_and(|m| m.kind == m::ModuleKind::Relations) {
-        convert(v.relations_of(&dr_model::book::EntityRef {
+        convert(v.relations_of(&dr_model::shared::EntityRef {
             kind: dr_model::kind::EntityKind::Entry,
             id: e.id.to_string(),
         }))?
@@ -370,7 +370,7 @@ op! {
 pub struct SetIn {
     #[serde(flatten)]
     pub target: ProseIn,
-    pub paragraphs: Vec<super::super::template::TemplateParagraph>,
+    pub paragraphs: Vec<super::super::prose_template::TemplateParagraph>,
 }
 op! {
     ProseSet="module.set_prose",Write,Book,"Write paragraphs of a v3 prose module, level description or template prose.",fn(cx,input:SetIn)->Done {
@@ -390,7 +390,7 @@ op! {
             let at = state.oplog_frontiers();
             let b = dr_doc::prose::BorrowedProse::new(state, &doc)?;
             let mut txn=b.txn();
-            super::super::template::replace_paragraphs(&mut txn, &input.paragraphs)?;
+            super::super::prose_template::replace_paragraphs(&mut txn, &input.paragraphs)?;
             if let Some(links)=links {let len=txn.view().len();crate::autolink::link_written_v3(&mut txn,&links,0..len)?;}
             Ok(at)
         })?;

@@ -45,13 +45,18 @@ mod history_folders;
 pub mod material_links;
 pub mod membership;
 pub mod module;
+pub mod plot;
+pub mod project;
 pub mod recent;
+pub mod relations;
 pub mod snapshots;
 pub mod template;
 pub mod timeline;
 pub mod types;
 
 pub(crate) fn register(r: &mut Registry) {
+    project::register(r);
+    relations::register(r);
     snapshots::register(r);
     content::register(r);
     entry::register(r);

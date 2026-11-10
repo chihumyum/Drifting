@@ -30,6 +30,16 @@
         "unfinished": "„{{name}}“ wurde nicht fertig importiert",
         "carry_on": "Import fortsetzen"
       }
+    },
+    "v3": {
+      "title": "Reimport as v3",
+      "destination": "A separate v3 library will be created. The current library and 0.1 source are preserved.",
+      "mapping": "Choose MappingChoices JSON",
+      "no_choices": "No explicit mapping choices selected. Unresolved mapping stops before writes.",
+      "selected": "Explicit mapping choices selected",
+      "start": "Import into new library",
+      "pending": "Mapping choices required before import",
+      "switching": "Opening the completed v3 library"
     }
   },
   "settings": {
@@ -81,13 +91,6 @@
       "imagesDropped_one": "{{count}} Bild wurde nicht importiert",
       "imagesDropped_other": "{{count}} Bilder wurden nicht importiert",
       "notUtf8": "Kein UTF-8-Text; einige Zeichen wurden ersetzt"
-    }
-  },
-  "notifications": {
-    "markdownFolder": {
-      "issue": {
-        "owned": "Diesen Ordner verwaltet eine andere Drifting-Installation; nichts wurde gelesen oder geschrieben"
-      }
     }
   },
   "speech": {

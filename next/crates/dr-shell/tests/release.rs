@@ -23,7 +23,7 @@ fn setup(cx: &mut TestAppContext) -> tempfile::TempDir {
     cx.executor().allow_parking();
     let dir = tempfile::tempdir().unwrap();
     let ws = Workspace::open_dir(dir.path(), VERSION).unwrap();
-    seed::generate(Preset::Tiny, seed::DEFAULT_SEED)
+    seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED)
         .unwrap()
         .write_to(ws.library())
         .unwrap();
@@ -287,7 +287,7 @@ fn replacement_resumes_after_the_failed_or_new_library_is_installed(cx: &mut Tes
     let new = tempfile::tempdir().unwrap();
     let new_store =
         dr_store::Library::open(new.path(), dr_workspace::library_options(VERSION)).unwrap();
-    seed::generate(Preset::Tiny, seed::DEFAULT_SEED)
+    seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED)
         .unwrap()
         .write_to(&new_store)
         .unwrap();
@@ -440,7 +440,7 @@ fn pending_release_blocks_author_input(cx: &mut TestAppContext, quitting: bool) 
             .to_owned()
     });
     cx.update(|cx| {
-        dr_shell::pages::set_home(cx, move |_, window, cx| {
+        dr_shell::pages::set_v3_home(cx, move |_, window, cx| {
             let view = cx.new(|cx| {
                 let input =
                     cx.new(|cx| dr_ui::input::TextField::new("release-test-input", window, cx));
@@ -460,9 +460,12 @@ fn pending_release_blocks_author_input(cx: &mut TestAppContext, quitting: bool) 
             view.into()
         });
     });
-    let (_workspace, cx) = cx.add_window_view(dr_shell::Workspace::new);
+    let (workspace, cx) = cx.add_window_view(dr_shell::Workspace::new);
     let deadline = Instant::now() + Duration::from_secs(20);
-    while form.borrow().is_none() {
+    while form.borrow().is_none()
+        || workspace.read_with(cx, |ws, _| ws.book.is_empty())
+        || cx.debug_bounds("release-test-write").is_none()
+    {
         cx.update(|window, cx| window.draw(cx).clear(cx));
         cx.run_until_parked();
         assert!(Instant::now() < deadline, "the workspace did not open Home");
@@ -473,7 +476,9 @@ fn pending_release_blocks_author_input(cx: &mut TestAppContext, quitting: bool) 
     let other_window = cx.cx.add_window(dr_shell::Workspace::new);
     let mut other = gpui::VisualTestContext::from_window(other_window.into(), &cx.cx);
     let deadline = Instant::now() + Duration::from_secs(20);
-    while form.borrow().as_ref() == Some(&first_form) {
+    while form.borrow().as_ref() == Some(&first_form)
+        || other.debug_bounds("release-test-write").is_none()
+    {
         other.update(|window, cx| window.draw(cx).clear(cx));
         other.run_until_parked();
         assert!(

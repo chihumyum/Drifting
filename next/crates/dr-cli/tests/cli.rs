@@ -21,7 +21,7 @@ fn the_four_subcommands_parse() {
         parse(&a(&[
             "workspace",
             "call",
-            "chapter.create",
+            "entry.create",
             "--library",
             "L",
             "--input",
@@ -31,7 +31,7 @@ fn the_four_subcommands_parse() {
         .unwrap(),
         Command::Call {
             library: "L".into(),
-            command: "chapter.create".into(),
+            command: "entry.create".into(),
             input: Some("{}".into()),
             yes: true
         }
@@ -152,12 +152,20 @@ fn writes_need_yes_a_closed_app_and_leave_a_backup() {
     assert!(doc["value"].is_object(), "{doc}");
     let list: serde_json::Value = serde_json::from_str(&call(
         &lib,
-        "chapter.list",
-        serde_json::json!({ "book": book }),
+        "entry.list",
+        serde_json::json!({ "book": book,"all":true }),
         false,
     ))
     .unwrap();
-    assert_eq!(list["output"].as_array().unwrap().len(), 4);
+    assert_eq!(
+        list["output"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|e| e["template"] == "tpl-chapter")
+            .count(),
+        4
+    );
     drop(open);
     assert!(matches!(
         offline::guarded_write(&lib, false, "x", |_| Ok(String::new())).unwrap(),
@@ -202,33 +210,47 @@ fn inspect_reads_a_library_to_be_migrated_from_a_copy_and_leaves_it() {
 #[test]
 fn describe_lists_the_registry() {
     let table = run(Command::Describe { json: false });
-    assert!(table.contains("chapter.create"), "{table}");
+    assert!(table.contains("entry.create"), "{table}");
     let manifest: serde_json::Value =
         serde_json::from_str(&run(Command::Describe { json: true })).unwrap();
-    assert!(manifest.to_string().contains("chapter.create"));
+    assert!(manifest.to_string().contains("entry.create"));
 }
 
 #[test]
 fn commands_change_the_library_only_with_yes() {
     let (_tmp, lib) = seeded();
     let book = book_of(&lib);
-    let input = serde_json::json!({ "book": book, "title": "命令行加的章" });
-    let dry = call(&lib, "chapter.create", input.clone(), false);
+    let roots: serde_json::Value = serde_json::from_str(&call(
+        &lib,
+        "entry.list",
+        serde_json::json!({"book":book}),
+        false,
+    ))
+    .unwrap();
+    let parent = roots["output"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|e| e["template"] == "tpl-manuscript")
+        .unwrap()["id"]
+        .clone();
+    let input = serde_json::json!({"book":book,"parent":parent,"template":"tpl-chapter","title":"命令行加的章"});
+    let dry = call(&lib, "entry.create", input.clone(), false);
     assert!(dry.contains("rerun with --yes"), "{dry}");
-    let done = call(&lib, "chapter.create", input, true);
+    let done = call(&lib, "entry.create", input, true);
     assert!(done.starts_with("backed up to"), "{done}");
     assert!(done.contains("命令行加的章"), "{done}");
     let list = call(
         &lib,
-        "chapter.list",
-        serde_json::json!({ "book": book }),
+        "entry.list",
+        serde_json::json!({ "book": book,"all":true }),
         false,
     );
     assert!(list.contains("命令行加的章"));
     // A bad call reports the registry's error code.
     let e = execute(Command::Call {
         library: lib.clone(),
-        command: "chapter.update".into(),
+        command: "entry.update".into(),
         input: Some(serde_json::json!({ "book": book, "id": "nope" }).to_string()),
         yes: true,
     })
@@ -251,23 +273,16 @@ fn scenarios_run_steps_with_references_and_expectations() {
     let file = tmp.path().join("acceptance.json");
     std::fs::write(
         &file,
-        serde_json::json!({
-            "about": "two chapters, a refused element, an undo",
-            "steps": [
-                { "call": "book.create", "input": { "name": "验收" }, "save": "book" },
-                { "call": "chapter.create", "input": { "book": "${book.id}", "title": "第一章" },
-                  "expect": { "/title": "第一章" } },
-                { "call": "chapter.create", "input": { "book": "${book.id}", "title": "第一章" },
-                  "expect": { "/title": "第一章 2" } },
-                { "call": "element.create", "input": { "book": "${book.id}", "name": "阿Q" } },
-                { "call": "element.create", "input": { "book": "${book.id}", "name": "阿Q" },
-                  "expect_error": "name_taken" },
-                { "undo": true },
-                { "call": "element.list", "input": { "book": "${book.id}" }, "expect": { "/0": null } },
-                { "call": "chapter.list", "input": { "book": "${book.id}" },
-                  "expect": { "/0/title": "第一章", "/1/title": "第一章 2" } }
-            ]
-        })
+        serde_json::json!({"about":"canonical entries, refused duplicate name and command undo","steps":[
+            {"call":"project.create","input":{"name":"验收"},"save":"book"},
+            {"call":"entry.list","input":{"book":"${book.id}","all":true},"save":"roots"},
+            {"call":"entry.create","input":{"book":"${book.id}","parent":"${roots.[template=tpl-manuscript].id}","template":"tpl-chapter","title":"第一章"},"expect":{"/title":"第一章"}},
+            {"call":"entry.create","input":{"book":"${book.id}","parent":"${roots.[title=人物].id}","template":"tpl-character","title":"阿Q"}},
+            {"call":"entry.create","input":{"book":"${book.id}","parent":"${roots.[title=人物].id}","template":"tpl-character","title":"阿Q"},"expect_error":"invariant:V3-AUTOLINK-NAME-UNIQUE"},
+            {"undo":true},
+            {"call":"entry.list","input":{"book":"${book.id}","parent":"${roots.[title=人物].id}"},"expect":{"/0":null}},
+            {"call":"entry.list","input":{"book":"${book.id}","parent":"${roots.[template=tpl-manuscript].id}"},"expect":{"/0/title":"第一章"}}
+        ]})
         .to_string(),
     )
     .unwrap();
@@ -291,7 +306,10 @@ fn scenarios_run_steps_with_references_and_expectations() {
         out: None,
         keep: false,
     });
-    assert!(out.contains("failed as expected (name_taken)"), "{out}");
+    assert!(
+        out.contains("failed as expected (invariant:V3-AUTOLINK-NAME-UNIQUE)"),
+        "{out}"
+    );
     // A failed expectation stops the run with the step.
     std::fs::write(
         &file,
@@ -309,29 +327,6 @@ fn scenarios_run_steps_with_references_and_expectations() {
     })
     .unwrap_err();
     assert!(e.contains("step 0 (book.list): expected /0/name"), "{e}");
-}
-
-#[test]
-fn the_seed_can_be_written_through_the_commands() {
-    let tmp = tempfile::tempdir().unwrap();
-    let lib = tmp.path().join("library");
-    let out = run(Command::Scenario {
-        library: Some(lib.clone()),
-        name: "seed-commands:tiny".into(),
-        yes: true,
-        app: None,
-        profile: None,
-        out: None,
-        keep: false,
-    });
-    assert!(out.contains("commands"), "{out}");
-    let v: serde_json::Value = serde_json::from_str(&run(Command::Inspect {
-        library: lib,
-        doc: None,
-        json: true,
-    }))
-    .unwrap();
-    assert_eq!(v["books"][0]["chapters"], 4);
 }
 
 #[test]
@@ -389,9 +384,10 @@ fn the_shipped_scenarios_parse() {
     }
     // The phase 2 loop, M03, M09, M10, M11, M18, settings and M39.
     assert!(n >= 8, "{n} scenarios");
-    let loop_ =
-        dr_cli::scenario::parse(&std::fs::read_to_string(dir.join("writing-loop.json")).unwrap())
-            .unwrap();
+    let loop_ = dr_cli::scenario::parse(
+        &std::fs::read_to_string(dir.join("k4-0-navigation.json")).unwrap(),
+    )
+    .unwrap();
     assert!(dr_cli::scenario::is_live(&loop_));
     assert!(loop_.steps.iter().all(|s| s.pending.is_none()));
     assert!(
@@ -443,13 +439,13 @@ fn a_scenario_that_drives_the_app_keeps_to_its_own_profile() {
 }
 
 #[test]
-fn v3_seed_entrypoints_keep_legacy_and_write_v3() {
+fn all_seed_entrypoints_write_only_canonical_v3() {
     for name in ["tiny", "lite", "heavy", "showcase"] {
-        assert!(!dr_cli::seed::Choice::parse(name).unwrap().v3);
-        assert!(
+        assert_eq!(
+            dr_cli::seed::Choice::parse(name).unwrap().preset,
             dr_cli::seed::Choice::parse(&format!("v3-{name}"))
                 .unwrap()
-                .v3
+                .preset
         );
         dr_cli::scenario::parse(&format!(r#"{{"steps":[{{"seed":"v3-{name}"}}]}}"#)).unwrap();
     }

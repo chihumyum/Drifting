@@ -26,7 +26,12 @@ fn env() -> Env {
     let dir = tempfile::tempdir().unwrap();
     let lib = Library::open(dir.path(), library_options("test")).unwrap();
     let ws = Workspace::open(lib, WorkspaceOptions::default()).unwrap();
-    let book = out(&ws, &Actor::User, "book.create", json!({"name": "编辑器"}))["id"]
+    let book = out(
+        &ws,
+        &Actor::User,
+        "project.create",
+        json!({"name": "编辑器"}),
+    )["id"]
         .as_str()
         .unwrap()
         .to_owned();
@@ -41,13 +46,12 @@ fn chapter(e: &Env, title: &str, text: &str) -> String {
     let id = out(
         &e.ws,
         &Actor::User,
-        "chapter.create",
-        json!({"book": e.book, "title": title, "text": text}),
+        "entry.create", json!({"book": e.book, "parent": dr_testkit::seed::acceptance::novel_root(&e.ws, &e.book, "tpl-manuscript"), "template": "tpl-chapter", "title": title, "bodies": {"mod-prose": text}}),
     )["id"]
         .as_str()
         .unwrap()
         .to_owned();
-    format!("node:{id}")
+    format!("body:{id}/mod-prose")
 }
 
 /// The paragraphs as F3 reads them (what search, export and the Agent see).
@@ -119,13 +123,13 @@ fn typing_persists_through_the_workspace(cx: &mut TestAppContext) {
     // Search sees it once F2 has indexed the open document (it catches up
     // in the background; the quit hook makes it now).
     e.ws.before_quit();
-    let hits = out(
-        &e.ws,
-        &Actor::User,
-        "book.search",
-        json!({"book": e.book, "query": "钟停了"}),
+    e.ws.library().rebuild_stale_indexes().unwrap();
+    let hits = e.ws.library().search(Some(&e.book), "钟停了", 10).unwrap();
+    assert!(
+        hits.iter()
+            .any(|h| h.doc_id == doc && h.snippet.contains("钟停了")),
+        "{hits:?}"
     );
-    assert!(hits.to_string().contains("钟停了"), "{hits}");
 }
 
 #[gpui::test]

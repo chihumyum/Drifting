@@ -34,7 +34,7 @@ fn env() -> Env {
     let dir = tempfile::tempdir().unwrap();
     let lib = Library::open(dir.path(), library_options("test")).unwrap();
     let ws = Workspace::open(lib, WorkspaceOptions::default()).unwrap();
-    let book = out(&ws, "book.create", json!({"name": "导入"}))["id"]
+    let book = out(&ws, "project.create", json!({"name": "导入"}))["id"]
         .as_str()
         .unwrap()
         .to_owned();
@@ -85,18 +85,22 @@ fn docx(body: &str) -> Vec<u8> {
 #[test]
 fn files_become_chapters_after_the_last_one_with_their_formatting() {
     let e = env();
-    let line = out(
+    let line = dr_testkit::seed::acceptance::novel_entry(
         &e.ws,
-        "storyline.create",
-        json!({"book": e.book, "name": "主线"}),
+        &e.book,
+        "tpl-storyline",
+        "主线",
+        None,
     )["id"]
         .as_str()
         .unwrap()
         .to_owned();
-    let first = out(
+    let first = dr_testkit::seed::acceptance::novel_entry(
         &e.ws,
-        "chapter.create",
-        json!({"book": e.book, "title": "原有"}),
+        &e.book,
+        "tpl-chapter",
+        "原有",
+        None,
     )["id"]
         .as_str()
         .unwrap()
@@ -138,7 +142,11 @@ fn files_become_chapters_after_the_last_one_with_their_formatting() {
     assert_eq!(made[2].name, "夜");
 
     // After the chapter that was there, in the order given, on the storyline.
-    let chapters = out(&e.ws, "chapter.list", json!({"book": e.book}));
+    let chapters = serde_json::json!(dr_testkit::seed::acceptance::entries_by_template(
+        &e.ws,
+        &e.book,
+        "tpl-chapter"
+    ));
     let ids: Vec<&str> = chapters
         .as_array()
         .unwrap()
@@ -147,7 +155,13 @@ fn files_become_chapters_after_the_last_one_with_their_formatting() {
         .collect();
     assert_eq!(ids, [first.as_str(), &made[0].id, &made[1].id, &made[2].id]);
     for c in &chapters.as_array().unwrap()[1..] {
-        assert_eq!(c["storylines"], json!([line]));
+        assert!(
+            out(&e.ws, "membership.list", json!({"book":e.book}))
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|m| m["host"] == line && m["member"] == c["id"])
+        );
     }
 
     // The prose, read back as the manuscript export reads it.
@@ -208,26 +222,30 @@ fn files_become_chapters_after_the_last_one_with_their_formatting() {
     );
     // Undo takes the last import back like any chapter the author made.
     assert!(e.ws.undo(&Actor::User).unwrap().is_some());
-    let after = out(&e.ws, "chapter.list", json!({"book": e.book}));
+    let after = serde_json::json!(dr_testkit::seed::acceptance::entries_by_template(
+        &e.ws,
+        &e.book,
+        "tpl-chapter"
+    ));
     assert_eq!(after.as_array().unwrap().len(), 3);
 }
 
 #[test]
 fn ideas_and_elements_and_what_fails_alone() {
     let e = env();
-    let people = out(
-        &e.ws,
-        "category.create",
-        json!({"book": e.book, "name": "人物"}),
-    )["id"]
-        .as_str()
-        .unwrap()
-        .to_owned();
-    out(
-        &e.ws,
-        "element.create",
-        json!({"book": e.book, "name": "安娜"}),
-    );
+    let raw =
+        e.ws.library()
+            .load_copy(&format!("book:{}", e.book))
+            .unwrap();
+    let book_id = e.book.parse().unwrap();
+    let roots = dr_doc::v3::find_novel_roots(
+        &dr_doc::v3::BorrowedBookV3::new(&raw, &book_id)
+            .unwrap()
+            .view(),
+    )
+    .unwrap();
+    let people = roots.cat_character.to_string();
+    dr_testkit::seed::acceptance::novel_entry(&e.ws, &e.book, "tpl-character", "安娜", None);
     let parsed = |name: &str, text: &str| parse_bytes(name, text.as_bytes()).unwrap();
     let ideas = import_docs(
         &e.ws,
@@ -239,7 +257,9 @@ fn ideas_and_elements_and_what_fails_alone() {
     )
     .unwrap();
     let idea = ideas[0].result.clone().unwrap();
-    let listed = out(&e.ws, "idea.list", json!({"book": e.book}));
+    let listed = serde_json::json!(dr_testkit::seed::acceptance::entries_by_template(
+        &e.ws, &e.book, "tpl-idea"
+    ));
     assert_eq!(listed[0]["id"], idea.id);
     assert_eq!(
         prose(&e.ws, &idea.doc),
@@ -272,13 +292,10 @@ fn ideas_and_elements_and_what_fails_alone() {
         .clone()
         .expect("the next file still imports");
     assert_eq!(ben.name, "本");
-    assert!(ben.doc.starts_with("element:"));
-    let el = out(
-        &e.ws,
-        "element.list",
-        json!({"book": e.book, "category": people}),
-    );
-    assert_eq!(el[0]["name"], "本");
+    assert!(ben.doc.starts_with("body:"));
+    let el = out(&e.ws, "entry.get", json!({"book":e.book,"id":ben.id}));
+    assert_eq!(el["title"], "本");
+    assert_eq!(el["parent"], people);
     assert_eq!(prose(&e.ws, &ben.doc), vec![para(vec![run("钟表匠。")])]);
 
     // A cancelled import stops before the next file.
@@ -311,11 +328,7 @@ fn ideas_and_elements_and_what_fails_alone() {
 #[test]
 fn an_import_actor_gets_automatic_links() {
     let e = env();
-    out(
-        &e.ws,
-        "element.create",
-        json!({"book": e.book, "name": "安娜"}),
-    );
+    dr_testkit::seed::acceptance::novel_entry(&e.ws, &e.book, "tpl-character", "安娜", None);
     let doc: ParsedDoc = parse_bytes("a.txt", "安娜回来了。".as_bytes()).unwrap();
     let items = import_docs(
         &e.ws,

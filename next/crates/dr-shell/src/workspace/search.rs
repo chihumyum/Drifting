@@ -32,16 +32,10 @@ impl Workspace {
         let (lib, id) = (self.library.clone(), self.book_id.clone());
         let origin = id.clone();
         let panel = cx.new(|cx| {
-            if book.v3().is_some() {
-                let marks = Rc::new(move |t: &dr_view_search::v3::Target| {
-                    target(t).map_or((dr_ui::sand::Kind::Element, None), |t| book.mark(&t))
-                });
-                SearchPanel::new_v3(lib, id, marks, locale, platform, window, cx)
-            } else {
-                let marks =
-                    Rc::new(move |t: &dr_workspace::NavTarget| book.mark(&book::target(t.clone())));
-                SearchPanel::new(lib, id, marks, locale, platform, window, cx)
-            }
+            let marks = Rc::new(move |t: &dr_view_search::v3::Target| {
+                target(t).map_or((dr_ui::sand::Kind::Element, None), |t| book.mark(&t))
+            });
+            SearchPanel::new_v3(lib, id, marks, locale, platform, window, cx)
         });
         cx.subscribe_in(&panel, window, move |ws, panel, event, window, cx| {
             // A closed panel or a result from the previous book cannot close
@@ -72,16 +66,7 @@ impl Workspace {
                         ws.changed(cx);
                     }
                 }
-                SearchEvent::Jump(jump) => {
-                    let opened = jump
-                        .link
-                        .as_deref()
-                        .is_some_and(|link| ws.open_link(link, window, cx));
-                    if !opened {
-                        ws.super_view = None;
-                        ws.open(book::target(jump.target.clone()), Open::KEEP, cx);
-                    }
-                }
+
                 SearchEvent::Close => {}
             }
             cx.notify();
@@ -138,19 +123,7 @@ impl Workspace {
                     .collect::<Vec<_>>(),
             )
         } else {
-            (
-                2,
-                panel
-                    .groups()
-                    .iter()
-                    .map(|g| {
-                        json!({
-                            "target": book::target(g.target.clone()).key(), "title": g.title,
-                            "rows": rows(&g.rows),
-                        })
-                    })
-                    .collect::<Vec<_>>(),
-            )
+            (3, Vec::new())
         };
         Some(json!({"version": version, "searching": panel.is_searching(), "groups": groups}))
     }

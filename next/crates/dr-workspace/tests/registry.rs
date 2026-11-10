@@ -83,37 +83,34 @@ fn product_vocabulary() {
 }
 
 #[test]
-fn shared_comment_commands_publish_explicit_v3_signatures_without_changing_legacy_inputs() {
+fn shared_comment_commands_have_one_canonical_v3_signature() {
     for name in ["comment.create", "comment.list", "comment.anchors"] {
         let spec = registry().get(name).unwrap();
         assert!(
             spec.input_schema().as_value()["properties"]
                 .get("module")
-                .is_none()
+                .is_some(),
+            "{name}"
         );
-        let v3 = spec.v3.as_ref().expect("versioned signature");
-        assert!(
-            v3.input_schema().as_value()["properties"]
-                .get("module")
-                .is_some()
-        );
-        assert_eq!(spec.book_version, None);
+        assert_eq!(spec.book_version, Some(3));
     }
-    let manifest = registry().manifest();
-    let list = manifest
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|s| s["name"] == "comment.list")
-        .unwrap();
-    assert_eq!(list["v3"]["book_version"], 3);
-    assert!(list["v3"]["output"].to_string().contains("module"));
-    for name in [
-        "comment.update",
-        "comment.delete",
-        "comment.reanchor",
-        "todo.project",
-    ] {
-        assert!(registry().get(name).unwrap().v3.is_some());
+    for spec in registry().iter() {
+        assert!(
+            ![
+                "chapter.",
+                "idea.",
+                "act.",
+                "element.",
+                "category.",
+                "storyline.",
+                "time_pin.",
+                "plot_grid."
+            ]
+            .iter()
+            .any(|p| spec.name.starts_with(p)),
+            "retired operation {}",
+            spec.name
+        );
+        assert!(!spec.name.starts_with("book.create"));
     }
 }

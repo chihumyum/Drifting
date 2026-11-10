@@ -44,16 +44,6 @@
       "connect": "Conectar un modelo",
       "getKey": "Obtener clave API",
       "history": "Historial de versiones",
-      "prompts": {
-        "castCharacters": "Crea tres personajes principales",
-        "commentChapter": "Deja dos comentarios en «{{chapter}}»",
-        "completeElement": "Completa los detalles de «{{element}}»",
-        "extractElements": "Busca personas y lugares en «{{chapter}}» y añádelos como elementos",
-        "interview": "Hazme preguntas para dar forma a esta historia",
-        "outline": "Esboza capítulos para una estructura en tres actos",
-        "relateElements": "Aclara la relación entre {{first}} y {{second}}",
-        "tightenChapter": "Haz más conciso el primer párrafo de «{{chapter}}»"
-      },
       "saveFailed": "No se pudo guardar la clave en el llavero.",
       "try": "Probar"
     },
@@ -101,9 +91,6 @@
       "tokens": "Unos {{count}} tokens",
       "updated": "{{time}} · actualizado por {{by}}"
     }
-  },
-  "allChapters": {
-    "actOrdinal": "Acto {{n}}"
   },
   "auth": {
     "back": "Volver",
@@ -177,92 +164,6 @@
     "storyGraph": "Mapa de la historia",
     "todoLibrary": "Tareas y documentación"
   },
-  "bottomTimeline": {
-    "act": {
-      "chapterCount": "{{count}} capítulos",
-      "deleteMergeNext": "Eliminar este acto y unirlo al siguiente",
-      "deleteMergePrev": "Eliminar este acto y unirlo al anterior",
-      "dragBoundary": "Arrastra para ajustar el límite del acto",
-      "newAct": "Nuevo acto",
-      "openActNote": "Abrir nota del acto",
-      "railLabel": "Acto",
-      "startHere": "Iniciar nuevo acto aquí",
-      "unbindDrift": "Desvincular idea"
-    },
-    "axis": {
-      "addPin": "Añadir marcador temporal",
-      "time": "Tiempo"
-    },
-    "empty": {
-      "noChaptersInStoryline": "Sin capítulos en esta trama · doble clic para crear"
-    },
-    "locateCurrent": "Localizar capítulo actual",
-    "marker": {
-      "defaultLabel": "Marcador"
-    },
-    "menu": {
-      "detachFromNarrative": "Volver a sin ubicar",
-      "moveToUnaffiliated": "Mover a sin asignar"
-    },
-    "pinMenu": {
-      "bindDrift": "Vincular idea…",
-      "deleteMarker": "Eliminar marcador",
-      "openDrift": "Abrir idea",
-      "rename": "Renombrar",
-      "unbind": "Desvincular y restaurar como etiqueta simple"
-    },
-    "spread": {
-      "needTwo": "Se necesitan al menos dos capítulos para distribuir",
-      "title": "Distribuir: reorganizar {{mode}} para separar los nodos superpuestos"
-    },
-    "storyline": {
-      "chapterCount": "{{count}} cap."
-    },
-    "synthetic": {
-      "book": "Libro",
-      "unaffiliated": "Sin vincular"
-    },
-    "unplaced": {
-      "empty": "Todos los capítulos están en la línea temporal narrativa",
-      "label": "Sin ubicar",
-      "title": "Capítulos sin ubicar en la línea temporal narrativa"
-    },
-    "view": {
-      "book": "Libro",
-      "narrative": "Tiempo narrativo"
-    }
-  },
-  "categoryEditor": {
-    "actions": {
-      "openElement": "Abrir elemento"
-    },
-    "alerts": {
-      "deleteFailed": "No se pudo eliminar la categoría. Inténtalo de nuevo."
-    },
-    "deleteConfirm": "¿Eliminar la categoría «{{name}}»?\n\nSus elementos se moverán a «Sin categoría».",
-    "empty": {
-      "noFilteredElements": "No hay elementos para este filtro",
-      "noSummary": "Aún no hay resumen"
-    },
-    "filters": {
-      "unused": "Vacío",
-      "used": "Completos"
-    },
-    "folio": "Categoría",
-    "labels": {
-      "elementCount": "Elementos",
-      "summary": "Resumen"
-    },
-    "meta": {
-      "elements": "{{count}} elementos",
-      "items": "{{count}} elementos"
-    },
-    "sections": {
-      "elements": "Lista de elementos",
-      "scratch": "Apuntes"
-    },
-    "untitled": "Categoría sin título"
-  },
   "chapterEditor": {
     "synopsisPlaceholder": "Sinopsis…",
     "untitledChapter": "Capítulo sin título",
@@ -309,36 +210,16 @@
     "wordsCount": "{{count}} palabras"
   },
   "dashboard": {
-    "actions": {
-      "allChapters": "Todos los capítulos",
-      "elementOverview": "Vista de elementos",
-      "storyGraph": "Mapa de la historia"
-    },
     "hero": {
       "projectName": "Nombre del proyecto"
     },
-    "plan": {
-      "wordsPerDay": "palabras / día"
-    },
-    "profilePlaceholder": "Escribe la premisa, tesis o sinopsis",
     "sections": {
-      "projectProfile": "Presentación del proyecto",
-      "writingPlan": "Plan de escritura"
+      "projectProfile": "Presentación del proyecto"
     },
     "today": {
-      "goal": "Meta",
       "streak": "Racha",
       "week": "Esta semana"
-    },
-    "wordCount": "{{count}} palabras"
-  },
-  "edgeKindManager": {
-    "changeColor": "Cambiar color",
-    "changeColorLabel": "Cambiar color de {{label}}",
-    "editTypes": "Editar tipos",
-    "resetColor": "Restaurar color predeterminado",
-    "summary": "{{kinds}} tipos · {{relations}} relaciones",
-    "title": "Todos los tipos de relación"
+    }
   },
   "editorOutline": {
     "aria": "Esquema",
@@ -351,16 +232,8 @@
       "more": "Más acciones"
     },
     "menu": {
-      "changeCategory": "Cambiar categoría",
-      "changeGroup": "Cambiar grupo",
-      "deleteCategory": "Eliminar categoría",
-      "deleteElement": "Eliminar elemento",
       "deleteMaterial": "Eliminar material",
-      "deleteNode": "Eliminar nodo",
-      "deleteStoryline": "Eliminar trama",
-      "editStorylines": "Editar tramas",
       "moveMaterialToFolder": "Mover a carpeta…",
-      "moveToGroup": "Mover a grupo…",
       "openMaterialInSystem": "Abrir con la aplicación predeterminada"
     },
     "outlineRailMode": {
@@ -368,62 +241,16 @@
       "visible": "Mostrar índice"
     },
     "status": {
-      "discarded": "Descartado",
-      "draft": "Borrador",
-      "drifting": "Flotando",
-      "finished": "Terminado",
-      "resting": "En reposo"
-    },
-    "statusSection": {
-      "chapter": "Estado de escritura",
-      "drift": "Estado de la idea"
+      "draft": "Borrador"
     }
   },
-  "elementCategoryCreateMenu": {
-    "back": "Volver al menú de creación",
-    "createGroup": "Crear y abrir el primer elemento",
-    "duplicateGroup": "Ya existe un grupo con este nombre.",
-    "groupNameLabel": "Nombre del grupo",
-    "groupNamePlaceholder": "Introduce un nombre de grupo",
-    "groupTitle": "Nuevo grupo",
-    "newElement": "Nuevo elemento",
-    "newGroup": "Nuevo grupo…",
-    "openCreateMenu": "Añadir a esta categoría",
-    "title": "Añadir a «{{name}}»"
-  },
   "elementEditor": {
-    "alerts": {
-      "aliasConflict": "No se puede añadir el alias: «{{name}}» ya lo usa el elemento «{{conflicting}}».",
-      "deleteFailed": "No se pudo eliminar el elemento. Inténtalo de nuevo.",
-      "groupUpdateFailed": "No se pudo actualizar el grupo. Inténtalo de nuevo.",
-      "renameConflict": "No se puede renombrar: «{{name}}» ya se usa como nombre o alias del elemento «{{conflicting}}»."
-    },
-    "alias": {
-      "add": "Alias",
-      "addFirst": "Añadir alias",
-      "remove": "Quitar alias"
-    },
-    "category": {
-      "newOption": "Nueva categoría…"
-    },
-    "deleteConfirm": "¿Eliminar el elemento «{{name}}»?",
     "empty": {
       "noFacts": "Aún no hay campos. Al crear un elemento, la Plantilla de campos de su categoría los rellena."
     },
-    "folio": "Elemento",
-    "group": {
-      "create": "Crear grupo «{{name}}»",
-      "empty": "Esta categoría aún no tiene grupos.",
-      "noGroup": "(Sin grupo)",
-      "placeholder": "Busca o crea un grupo… (vacío = sin grupo)",
-      "title": "Grupo · {{category}}"
-    },
     "sections": {
-      "bioTitle": "Biografía",
       "facts": "Datos"
-    },
-    "summaryPlaceholder": "Resumen en una frase…",
-    "untitled": "Elemento sin título"
+    }
   },
   "entrySnapshot": {
     "empty": "Aún no hay instantáneas",
@@ -471,7 +298,6 @@
     "closeTitle": "Cerrar (Esc)",
     "field": {
       "body": "Cuerpo",
-      "name": "Nombre",
       "title": "Título"
     },
     "noResults": "No se encontraron coincidencias",
@@ -550,6 +376,16 @@
         "from_caches_one": "{{count}} texto vino de su caché y puede que le falten los últimos segundos",
         "from_caches_other": "{{count}} textos vinieron de su caché y puede que les falten los últimos segundos"
       }
+    },
+    "v3": {
+      "destination": "A separate v3 library will be created. The current library and 0.1 source are preserved.",
+      "mapping": "Choose MappingChoices JSON",
+      "no_choices": "No explicit mapping choices selected. Unresolved mapping stops before writes.",
+      "pending": "Mapping choices required before import",
+      "selected": "Explicit mapping choices selected",
+      "start": "Import into new library",
+      "switching": "Opening the completed v3 library",
+      "title": "Reimport as v3"
     }
   },
   "importDialog": {
@@ -627,77 +463,14 @@
     "valuePlaceholder": "Contenido"
   },
   "leftSidebar": {
-    "actions": {
-      "collapseAll": "Expandir o contraer todo",
-      "newCategory": "Nueva categoría",
-      "newDrift": "Nueva idea",
-      "newDriftGroup": "Nuevo grupo",
-      "sort": "Ordenar"
-    },
-    "empty": {
-      "noChapters": "Aún no hay capítulos.",
-      "noDrifts": "Aún no hay ideas.",
-      "noElements": "Aún no hay elementos."
-    },
     "groups": {
-      "addElementToGroup": "Nuevo elemento en este grupo",
-      "deleteGroup": "Eliminar grupo",
       "driftCount_many": "{{count}} ideas",
       "driftCount_one": "{{count}} idea",
-      "driftCount_other": "{{count}} ideas",
-      "moveDriftToRoot": "Nivel raíz (sacar del grupo)",
-      "moveGroupToRoot": "Nivel raíz (mover al nivel superior)",
-      "newChapterInStoryline": "Nuevo capítulo en esta trama",
-      "newDriftInGroup": "Nueva idea aquí",
-      "newSubGroup": "Nuevo subgrupo",
-      "rename": "Renombrar",
-      "renameElementGroupTitle": "Doble clic para renombrar el grupo",
-      "unaffiliated": "Sin vincular"
-    },
-    "meta": {
-      "chapters": "{{count}} capítulos",
-      "drifts": "{{count}} ideas",
-      "elements": "{{categories}} categorías · {{elements}} elementos"
-    },
-    "sort": {
-      "alphabet": "Alfabético",
-      "bookOrder": "Orden de lectura",
-      "categoryElements": "Ordenar elementos por categoría",
-      "cellMetaGroup": "Borde derecho de celda",
-      "chapters": "Ordenar capítulos",
-      "createdAt": "Fecha de creación",
-      "drifts": "Ordenar ideas",
-      "duplicatesAll": "Mostrar en todos los grupos vinculados",
-      "duplicatesGroup": "Capítulos con varias tramas",
-      "duplicatesPrimary": "Mostrar solo en la trama principal",
-      "narrativeOrder": "Orden narrativo",
-      "outerCategoriesGroup": "Categorías externas",
-      "outerStorylinesGroup": "Tramas externas",
-      "showBoth": "Mostrar palabras y fecha",
-      "showDate": "Mostrar fecha",
-      "showNone": "No mostrar ninguno",
-      "showWordCount": "Mostrar recuento de palabras",
-      "storylineChapters": "Ordenar capítulos dentro de las tramas",
-      "storylineOrder": "Orden de tramas",
-      "title": "Título A–Z",
-      "updatedAt": "Fecha de actualización"
-    },
-    "tabs": {
-      "chapters": "Capítulos",
-      "drifts": "Ideas",
-      "elements": "Elementos"
+      "driftCount_other": "{{count}} ideas"
     },
     "top": {
       "close": "Cerrar barra izquierda",
       "open": "Abrir barra izquierda"
-    },
-    "uncategorized": "Sin categoría",
-    "viewMode": {
-      "chapterSummary": "{{storylines}} tramas · {{chapters}} capítulos",
-      "elementCompactTitle": "Índice compacto · cambiar a lista de nombres",
-      "elementListTitle": "Lista de nombres · cambiar a índice compacto",
-      "globalTitle": "Vista del libro · agrupar por trama",
-      "storylineTitle": "Agrupado por trama · volver a vista del libro"
     }
   },
   "manuscriptExport": {
@@ -706,6 +479,7 @@
     "bookInfo": "Datos del libro",
     "bookTitle": "Título",
     "changeCover": "Cambiar",
+    "chapterCount_many": "{{count}} capítulos",
     "chapterCount_one": "{{count}} capítulo",
     "chapterCount_other": "{{count}} capítulos",
     "chapterTitles": "Títulos de capítulos",
@@ -740,22 +514,8 @@
     "title": "¿Dónde guardar la carpeta Markdown?"
   },
   "markdownShare": {
-    "characters": "{{count}} caracteres",
-    "copied": "Se ha copiado todo el Markdown",
-    "copy": "Copiar todo",
-    "currentBody": "El texto completo de este documento",
-    "failed": "No se pudo completar la acción. Reintenta o selecciona y copia el texto.",
     "loadFailed": "No se pudo leer el documento completo. Vuelve a intentarlo.",
-    "loading": "Preparando el Markdown completo…",
-    "menu": "Compartir",
-    "proseOnly": "Incluye títulos, texto y resúmenes de capítulos. Los comentarios y las notas de planificación siguen siendo privados.",
-    "readOnly": "Solo lectura",
-    "retry": "Reintentar",
-    "save": "Guardar .md",
-    "saved": "Markdown guardado",
-    "saving": "Guardando…",
-    "title": "Compartir Markdown",
-    "wholeBook": "Todos los capítulos en orden de lectura"
+    "retry": "Reintentar"
   },
   "materialEditor": {
     "deleteConfirm": "¿Eliminar el material «{{title}}»? Esta acción no se puede deshacer.",
@@ -847,9 +607,6 @@
     "back": "Volver"
   },
   "nodeEditor": {
-    "empty": {
-      "noStoryline": "Sin trama"
-    },
     "folio": {
       "chapter": "Capítulo",
       "chapterNumber": "Capítulo {{n}}",
@@ -874,15 +631,6 @@
     },
     "empty": "Sin notificaciones",
     "markdownFolder": {
-      "issue": {
-        "empty": "Texto vaciado; sin combinar, archivo conservado",
-        "encoding": "No es UTF-8; no leído, archivo conservado",
-        "frontmatter": "Propiedades iniciales mal formadas; no se combina ni sobrescribe hasta corregirlas",
-        "identity": "drifting-id identifica otro capítulo; sin combinar, archivo conservado",
-        "lineage": "Capítulo restaurado o restablecido; sin combinación automática, archivo conservado",
-        "owned": "Otra instalación de Drifting gestiona esta carpeta; no se leyó ni se escribió nada",
-        "too-large": "Demasiado grande; no leído, archivo conservado"
-      },
       "preserved_many": "{{count}} archivos editados conservados en .drifting/preserved",
       "preserved_one": "{{count}} archivo editado conservado en .drifting/preserved",
       "preserved_other": "{{count}} archivos editados conservados en .drifting/preserved",
@@ -936,12 +684,9 @@
   },
   "projectHome": {
     "book": {
-      "noStorylines": "Aún no hay tramas.",
-      "storylineCount": "{{done}} / {{total}} capítulos",
       "title": "El libro"
     },
     "continue": {
-      "empty": "Aún no hay capítulos.",
       "title": "Continuar"
     },
     "create": {
@@ -955,17 +700,14 @@
       }
     },
     "kicker": "Inicio del proyecto",
-    "readout": "{{chapters}} capítulos · {{storylines}} tramas · {{elements}} elementos",
     "settings": {
       "dailyGoal": "Meta diaria",
       "proactive": "Sugerencias proactivas",
       "projectTarget": "Meta del libro"
     },
-    "since": "Inicio del proyecto · desde {{date}}",
     "today": "Hoy {{today}} / {{goal}} · racha de {{streak}} días",
     "todayNoGoal": "Hoy {{today}} · racha de {{streak}} días",
     "views": {
-      "overview": "Vista general",
       "settings": "Ajustes"
     },
     "words": "{{words}} palabras",
@@ -1112,17 +854,6 @@
       "linkEntity": "Vincular entidad",
       "remove": "Quitar relación"
     },
-    "deleted": {
-      "category": "(categoría eliminada)",
-      "element": "(elemento eliminado)",
-      "node": "(capítulo eliminado)",
-      "storyline": "(trama eliminada)"
-    },
-    "empty": {
-      "incoming": "Ningún contenido hace referencia a esto todavía",
-      "outgoing": "Este texto aún no hace referencia a otras entidades",
-      "relations": "Aún no hay relaciones"
-    },
     "filters": {
       "all": "Todo"
     },
@@ -1133,68 +864,15 @@
       "patch": "Evolución",
       "storyline": "Trama"
     },
-    "meta": {
-      "blocksSpans": "{{blocks}} bloques · {{spans}} menciones",
-      "spans": "{{count}} menciones"
-    },
     "picker": {
-      "empty": "Sin opciones",
       "placeholder": "Buscar entidades vinculables…"
     },
     "sections": {
-      "incoming": "Enlaces entrantes",
-      "outgoing": "Referencias",
       "relations": "Relaciones"
     }
   },
-  "relationPicker": {
-    "untitledChapter": "Capítulo sin título",
-    "untitledDrift": "Idea sin título",
-    "untitledElement": "Elemento sin título",
-    "untitledStoryline": "Trama sin título"
-  },
   "relationTypes": {
-    "allowedEntities": "Entidades permitidas",
-    "allowedSources": "Entidades de origen permitidas",
-    "allowedTargets": "Entidades de destino permitidas",
-    "builtIn": "Integrado",
-    "cancel": "Cancelar",
-    "confirmDelete": "¿Eliminar el tipo de relación «{{name}}»?",
-    "create": "Nuevo",
-    "createInline": "Crear tipo de relación",
-    "defaultSourceRole": "Origen",
-    "defaultTargetRole": "Destino",
-    "delete": "Eliminar tipo de relación",
-    "description": "Descripción",
-    "directed": "Dirigida",
-    "direction": "Dirección",
-    "endpointRole": "Rol de los extremos",
-    "entityKinds": {
-      "category": "Categoría de elementos",
-      "comment": "Comentario",
-      "element": "Elemento",
-      "library_item": "Material",
-      "node": "Capítulo o idea",
-      "patch": "Evolución del elemento",
-      "storyline": "Trama"
-    },
-    "genericAssociation": {
-      "name": "Asociación",
-      "sourceRole": "Elemento asociado",
-      "targetRole": "Objeto"
-    },
-    "missing": "Falta el tipo de relación",
-    "name": "Nombre",
-    "pendingIncoming": "Esta entidad ← destino",
-    "pendingOutgoing": "Esta entidad → destino",
-    "save": "Guardar",
-    "selectConfigured": "Elegir tipo de relación",
-    "sourceRole": "Rol de origen",
-    "swap": "Intercambiar extremos de la relación",
-    "symmetric": "Simétrica",
-    "symmetricSummary": "Simétrica · {{role}}",
-    "targetRole": "Rol de destino",
-    "title": "Definiciones de tipos de relación"
+    "description": "Descripción"
   },
   "reviewPanel": {
     "commentPlaceholder": "Escribe un comentario…",
@@ -1212,8 +890,7 @@
     "scopes": {
       "current": "Actual"
     },
-    "sourceFloating": "Nivel de proyecto · sin entidad vinculada",
-    "sourceTextUnavailable": "Sin extracto guardado"
+    "sourceFloating": "Nivel de proyecto · sin entidad vinculada"
   },
   "rightSidebar": {
     "kickers": {
@@ -1223,7 +900,6 @@
         "all-chapters": "Libro completo · ritmo",
         "category": "Esta categoría · estadísticas",
         "chapter": "Este capítulo · estadísticas",
-        "drift": "Esta idea · estadísticas",
         "element": "Este elemento · estadísticas",
         "material": "Este material · Detalles",
         "none": "Proyecto · estadísticas",
@@ -1231,82 +907,22 @@
       }
     },
     "stats": {
-      "actMeta": "{{chapters}} capítulos · {{wordsK}}k · {{pct}}%",
-      "actRhythm": "Ritmo por acto",
-      "allElementsAppeared": "Todos los elementos han aparecido en el texto.",
-      "appeared": "Con apariciones",
-      "averageAppearance": "Media de apariciones",
-      "averagePerChapter": "Media por capítulo",
-      "avgChaptersPerElement": "{{count}} capítulos / elemento",
-      "bookPosition": "Posición en el libro",
       "category": "Categoría",
-      "categoryCoordinates": "Coordenadas de categoría",
-      "categoryNoElements": "Esta categoría aún no tiene elementos.",
       "chapter": "Capítulo",
-      "chapterCoordinates": "Coordenadas del capítulo",
-      "chapterCount": "Capítulos",
-      "chapterLengthRhythm": "Ritmo de extensión de capítulos",
-      "chapterOrdinal": "Capítulo {{count}}",
-      "chaptersValue": "{{count}} capítulos",
-      "completion": "Finalización",
       "dialogueRatio": "Proporción de diálogo",
-      "dimensions": "Dimensiones",
-      "discardedParen": " (descartados {{count}})",
-      "driftCoordinates": "Coordenadas de la idea",
-      "driftFreeFragment": "Idea · flotante",
-      "elementCoordinates": "Coordenadas del elemento",
-      "elementCount": "Número de elementos",
-      "elementsValue": "{{count}} elementos",
-      "embeddedMaterials": "Materiales incrustados",
-      "fileSize": "Tamaño",
-      "fileType": "Tipo",
-      "floatingStoryline": "Flotante / sin vincular",
-      "health": "Estado",
-      "lastModified": "Última modificación",
-      "longestWithWords": "Más largo · {{title}} ({{words}} palabras)",
-      "materialCoordinates": "Material",
-      "materialFile": "Archivo",
-      "materialRelations": "Vinculado a",
-      "moreLowAppearanceElements": "{{count}} elementos más con menos apariciones",
-      "moreUnappearedElements": "{{count}} más sin aparecer",
       "name": "Nombre",
-      "noActiveProgress": "Todos los capítulos están descartados o sin progreso.",
-      "noChapters": "Aún no hay capítulos. Escribe el primero para ver aquí el ritmo del libro.",
-      "noMentionedElements": "Aún no hay elementos mencionados con @ en el texto.",
-      "noteShape": "Nota",
-      "noteTasks": "Tareas",
-      "noteTasksValue": "{{done}} / {{total}} completadas",
-      "noteWords": "Extensión",
-      "openComments": "Comentarios y tareas pendientes",
       "paragraphSentence": "Párrafos / frases",
       "paragraphSentenceValue": "{{paragraphs}} párrafos · {{sentences}} frases",
       "recent": "Reciente",
-      "shortestWithWords": "Más corto · {{title}} ({{words}} palabras)",
       "snapshotButton": "Capturas históricas…",
-      "statusCount": "{{status}} {{count}} capítulos",
       "storyline": "Trama",
-      "storylineCoordinates": "Coordenadas de la trama",
-      "storylineCoreElements": "Elementos principales de esta trama",
-      "storylineDistribution": "Distribución de tramas",
-      "storylineNoChapters": "Esta trama aún no tiene capítulos.",
-      "storylineNoMentionedElements": "Ningún elemento mencionado con @ en los capítulos de esta trama.",
-      "thisChapterElements": "Elementos de este capítulo",
-      "thisFragmentElements": "Elementos de esta idea",
-      "titleWithWords": "{{title}} ({{words}} palabras)",
-      "type": "Tipo",
-      "unappearedElements": "Elementos sin apariciones",
       "updated": "Actualizado",
       "wordRhythm": "Palabras · ritmo",
-      "wordsPerChapterValue": "{{words}} palabras / capítulo",
       "wordsValue": "{{count}} palabras",
-      "writingProgress": "Progreso de escritura",
-      "writtenTarget": "Escrito / meta"
+      "writingProgress": "Progreso de escritura"
     },
     "status": {
-      "discarded": "Descartado",
-      "done": "Listo",
-      "draft": "Borrador",
-      "todo": "Por escribir"
+      "draft": "Borrador"
     },
     "tabs": {
       "companion": "Agent",
@@ -1672,18 +1288,7 @@
       "local_sub": "No se usa ninguna cuenta Drifting ni nube alojada. Exporta una copia legible cuando quieras.",
       "local_title": "Tu obra se queda en este dispositivo.",
       "projection": {
-        "allProjects": "Todos los proyectos",
-        "allProjectsUnset": "Todos los proyectos · Sin ubicación elegida",
-        "choose": "Elegir carpeta",
-        "description": "Cada proyecto tiene Markdown estructurado para lectura local, búsquedas y herramientas externas. Con Drifting abierto, puedes editar capítulos e ideas en otro editor y combinar los cambios. Los demás archivos se generan y son de solo lectura.",
-        "locationHint": "Dentro hay una carpeta por proyecto, solo en este dispositivo. Al cambiar de ubicación, las carpetas antiguas no se mueven.",
-        "offHint": "Desactivada: no se escribe Markdown ni se integran ediciones externas. Los archivos existentes permanecen.",
-        "offTitle": "¿Desactivar la carpeta Markdown?",
-        "offWarning": "Ningún proyecto escribirá Markdown. Los editores y Agent externos verán los archivos actuales y sus ediciones dejarán de integrarse en Drifting. Los archivos existentes permanecen. Reactiva en Ajustes → Sincronización y datos.",
-        "reveal": "Mostrar en Finder",
-        "title": "Carpeta Markdown",
-        "turnOff": "Desactivar carpeta Markdown",
-        "turnOn": "Activar"
+        "turnOff": "Desactivar carpeta Markdown"
       }
     },
     "title": "Ajustes",
@@ -1733,48 +1338,19 @@
   "speech": {
     "backlog": "Transcripciones pendientes"
   },
-  "storyGraph": {
-    "edge": {
-      "create": "Crear"
-    }
-  },
   "storylineEditor": {
-    "actions": {
-      "openChapter": "Abrir capítulo"
-    },
-    "alerts": {
-      "deleteFailed": "No se pudo eliminar la trama. Inténtalo de nuevo."
-    },
-    "deleteConfirm": "¿Eliminar la trama «{{name}}»?",
     "empty": {
-      "noChapterSummary": "Aún no hay resumen en una frase",
-      "noFacts": "Aún no hay campos. Al crear una trama, la Plantilla de trama del inicio del proyecto los rellena.",
-      "noFilteredChapters": "No hay capítulos para este filtro"
+      "noFacts": "Aún no hay campos. Al crear una trama, la Plantilla de trama del inicio del proyecto los rellena."
     },
     "filters": {
-      "all": "Todo",
-      "unwritten": "Sin empezar",
-      "written": "Escritos"
+      "all": "Todo"
     },
-    "folio": "Trama",
     "labels": {
       "color": "Color"
     },
-    "meta": {
-      "chapters": "{{count}} capítulos",
-      "chaptersWords": "{{chapters}} capítulos · {{words}} mil palabras",
-      "kWords": "{{count}} mil palabras",
-      "nodeTemplate": "Estructura predeterminada de capítulos nuevos"
-    },
-    "nodeTemplatePlaceholder": "Crea una estructura de capítulo con H1 / H2 / H3; los capítulos nuevos la usarán…",
     "sections": {
-      "chapters": "Secuencia de capítulos",
-      "facts": "Datos",
-      "nodeTemplate": "Plantilla de capítulo",
-      "scratch": "Apuntes"
-    },
-    "summaryPlaceholder": "Resumen de esta trama en una frase…",
-    "untitled": "Trama sin título"
+      "facts": "Datos"
+    }
   },
   "templateEditor": {
     "accept": "Aceptar entradas de otros lugares",
@@ -1861,12 +1437,7 @@
       "allChapters": "Libro completo"
     },
     "untitled": {
-      "category": "Categoría sin título",
-      "chapter": "Capítulo sin título",
-      "drift": "Idea sin título",
-      "element": "Elemento sin título",
-      "library_item": "Material sin título",
-      "storyline": "Trama sin título"
+      "library_item": "Material sin título"
     }
   },
   "userMenu": {
@@ -1982,11 +1553,7 @@
   },
   "workspaceWordTally": {
     "book": "Libro",
-    "chapter": "Capítulo",
     "counting": "contando",
-    "drift": "Idea",
-    "selection": "Selección",
-    "storyline": "Trama",
-    "today": "Hoy"
+    "selection": "Selección"
   }
 }

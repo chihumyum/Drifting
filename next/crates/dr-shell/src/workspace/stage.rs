@@ -321,16 +321,7 @@ fn paper(
     // A page a module draws whole lies on the desk at full width, with no
     // sheet: M19's picture is itself the raised paper (the 0.1 client's
     // shell mode).
-    if ws.read(cx).book.v3().is_none()
-        && let Some(view) = target.and_then(|t| ws.read(cx).module_page(t).cloned())
-    {
-        return div()
-            .id(ElementId::Name(format!("desk-{key}").into()))
-            .size_full()
-            .bg(p.desk.solid())
-            .child(view)
-            .into_any_element();
-    }
+
     let content = match target {
         None => home(ws, window, cx),
         Some(target) => document(ws, target, window, cx),
@@ -377,11 +368,7 @@ fn home(ws: &Entity<Workspace>, window: &mut Window, cx: &mut App) -> AnyElement
         return view.into_any_element();
     }
     // Project Home (M02, dr-view-home) when the app registered it.
-    if ws.read(cx).book.v3().is_none()
-        && let Some(view) = ws.read(cx).home.clone()
-    {
-        return view.into_any_element();
-    }
+
     let theme = Theme::of(window, cx);
     let p = theme.palette;
     let s = theme.scale;

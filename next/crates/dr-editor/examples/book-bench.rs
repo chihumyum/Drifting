@@ -470,7 +470,7 @@ fn main() {
     watchdog(timeout);
     let since = Instant::now();
     let dir = tempfile::tempdir().expect("temp dir");
-    let seeded = seed::generate(Preset::Heavy, seed::DEFAULT_SEED).expect("seed");
+    let seeded = seed::generate_v3(Preset::Heavy, seed::DEFAULT_SEED).expect("seed");
     {
         let lib = dr_store::Library::open(dir.path(), library_options(VERSION)).expect("library");
         seeded.write_to(&lib).expect("write the seed");

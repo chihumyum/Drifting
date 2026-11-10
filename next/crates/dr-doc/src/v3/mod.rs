@@ -1,6 +1,7 @@
 //! Universal kernel v3 book document (`docs/rust-rewrite/kernel-v3.md`).
 //!
-//! Coexists alongside [`crate::book`] (v2.2) until K4 switches the shell over.
+//! This is the only App book runtime. [`crate::import_v1`] is an isolated
+//! in-memory source replay adapter for importing previous formats.
 //! Every v3 book document starts from [`genesis_v3`] with `meta.v = 3`.
 
 pub mod novel;
@@ -21,7 +22,7 @@ use loro::{
     VersionVector,
 };
 
-use crate::book::{GENERIC_DESCRIPTION, GENERIC_NAME, generic_relation_type_id};
+use crate::catalog::{GENERIC_DESCRIPTION, GENERIC_NAME, generic_relation_type_id};
 use crate::core::{Committed, Core, Imported, check_borrowed, configured};
 use crate::error::Result;
 use crate::peer::{PeerId, genesis_peer};
@@ -76,7 +77,7 @@ pub fn genesis_v3(book_id: &BookId) -> Vec<u8> {
         ("name", LoroValue::from(GENERIC_NAME)),
         (
             "normalized_name",
-            dr_model::book::normalize_relation_type_name(GENERIC_NAME).into(),
+            dr_model::shared::normalize_relation_type_name(GENERIC_NAME).into(),
         ),
         ("description", GENERIC_DESCRIPTION.into()),
         ("orientation", "directed".into()),

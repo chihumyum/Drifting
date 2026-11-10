@@ -4,21 +4,11 @@
 //! the app through its debug bridge ([`crate::live`]).
 //!
 //! ```json
-//! {
-//!   "about": "Create a book and a chapter, then check the list",
-//!   "steps": [
-//!     { "call": "book.create", "input": { "name": "验收" }, "save": "book" },
-//!     { "call": "chapter.create", "input": { "book": "${book.id}", "title": "第一章" },
-//!       "save": "ch", "expect": { "/title": "第一章" } },
-//!     { "call": "chapter.create", "input": { "book": "${book.id}", "title": "第一章" },
-//!       "expect": { "/title": "第一章 2" } },
-//!     { "call": "element.create", "input": { "book": "${book.id}", "name": "" },
-//!       "expect_error": "invalid" },
-//!     { "undo": true },
-//!     { "call": "chapter.list", "input": { "book": "${book.id}" },
-//!       "expect": { "/0/title": "第一章" } }
-//!   ]
-//! }
+//! {"steps":[
+//!   {"call":"project.create","input":{"name":"Synthetic example"},"save":"book"},
+//!   {"call":"entry.list","input":{"book":"${book.id}"},"save":"roots"},
+//!   {"call":"entry.create","input":{"book":"${book.id}","parent":"${roots.[template=tpl-manuscript].id}","template":"tpl-chapter","title":"First chapter"}}
+//! ]}
 //! ```
 //!
 //! - A step is one of: `call` (an F3 command or query), `undo` / `redo` (the
@@ -602,10 +592,13 @@ mod tests {
         assert!(parse(r#"{"steps": [{"call": "book.list", "undo": true}]}"#).is_err());
         assert!(parse(r#"{"steps": [{"seed": "huge"}]}"#).is_err());
         assert!(parse(r#"{"steps": [{"call": "book.list", "png": "a.png"}]}"#).is_err());
-        let s = parse(r#"{"steps": [{"call": "book.list"}, {"call": "chapter.list", "input": {"book": "b"}}]}"#)
-            .unwrap();
+        let s = parse(
+            r#"{"steps": [{"call": "book.list"}, {"call": "entry.list", "input": {"book": "b"}}]}"#,
+        )
+        .unwrap();
         assert!(is_read_only(&s) && !is_live(&s));
-        let s = parse(r#"{"steps": [{"call": "book.create", "input": {"name": "x"}}]}"#).unwrap();
+        let s =
+            parse(r#"{"steps": [{"call": "project.create", "input": {"name": "x"}}]}"#).unwrap();
         assert!(!is_read_only(&s));
         let s = parse(r#"{"steps": [{"seed": "tiny"}, {"app": "state.get", "pending": "F6"}]}"#)
             .unwrap();

@@ -6,8 +6,8 @@ use std::time::{Duration, Instant, UNIX_EPOCH};
 
 use dr_doc::prose::EmbedKind;
 use dr_export::{
-    Align, Block, Format, Labels, MarkdownTarget, Options, Run, Section, default_chapters,
-    markdown, outline, read_manuscript, render,
+    Align, Block, Format, Labels, Options, Run, Section, default_chapters, outline,
+    read_manuscript, render,
 };
 use dr_model::id::{EmbedId, MaterialId};
 use dr_model::kind::EntityKind;
@@ -83,12 +83,14 @@ struct Book {
 
 /// 《雾港来信》: a prologue, two acts, a styled chapter and a discarded one.
 fn book(ws: &Workspace) -> Book {
-    let b = id(&out(ws, "book.create", json!({"name": "雾港来信"})));
-    let chapter = |title: &str, text: &str, summary: &str| {
-        id(&out(
+    let b = id(&out(ws, "project.create", json!({"name": "雾港来信"})));
+    let chapter = |title: &str, text: &str, _summary: &str| {
+        id(&dr_testkit::seed::acceptance::novel_entry(
             ws,
-            "chapter.create",
-            json!({"book": b, "title": title, "text": text, "summary": summary}),
+            &b,
+            "tpl-chapter",
+            title,
+            Some(text),
         ))
     };
     let prologue = chapter("序章　灯下", "\n雾港的灯塔在午夜亮起。\n\n", "灯塔亮了");
@@ -100,29 +102,18 @@ fn book(ws: &Workspace) -> Book {
     let harbour = chapter("第二章　旧港", "「雾散之前，不要出海。」", "");
     let voyage = chapter("第三章　返航", "船回来了。", "");
     let cut = chapter("删掉的一章", "不要了。", "");
-    out(
+    let anna = id(&dr_testkit::seed::acceptance::novel_entry(
         ws,
-        "chapter.update",
-        json!({"book": b, "id": cut, "status": "discarded"}),
-    );
-    out(
-        ws,
-        "act.create",
-        json!({"book": b, "name": "第一卷　潮起", "start_chapter": letters}),
-    );
-    out(
-        ws,
-        "act.create",
-        json!({"book": b, "name": "第二卷　雾散", "start_chapter": voyage}),
-    );
-    let anna = id(&out(
-        ws,
-        "element.create",
-        json!({"book": b, "name": "安娜"}),
+        &b,
+        "tpl-character",
+        "安娜",
+        Some(""),
     ));
     // Styles, quotes, a rule, alignment, indent, a line break and embeds,
     // the way the editor writes them.
-    let session = ws.prose_session(&format!("node:{letters}")).unwrap();
+    let session = ws
+        .prose_session(&format!("body:{letters}/mod-prose"))
+        .unwrap();
     session
         .edit(move |t| {
             let start = |t: &dr_doc::prose::ProseTxn<'_>, text: &str| {
@@ -158,7 +149,7 @@ fn book(ws: &Workspace) -> Book {
                 r,
                 &EntityLink {
                     target: anna.clone(),
-                    kind: EntityKind::Element,
+                    kind: EntityKind::Entry,
                     block: None,
                     end_block: None,
                 },
@@ -231,24 +222,20 @@ fn book(ws: &Workspace) -> Book {
 }
 
 #[test]
-fn the_outline_lists_chapters_in_book_order_under_their_acts() {
+fn the_outline_lists_canonical_manuscript_entries_in_order() {
     let e = env();
     let b = book(&e.ws);
     let o = outline(&e.ws, &b.id).unwrap();
     assert_eq!(o.title, "雾港来信");
-    assert_eq!(o.acts.len(), 2);
+    assert!(o.acts.is_empty());
     let ids: Vec<&str> = o.chapters.iter().map(|c| c.id.as_str()).collect();
     assert_eq!(
         ids,
         [&b.prologue, &b.letters, &b.harbour, &b.voyage, &b.cut].map(String::as_str)
     );
-    assert_eq!(o.chapters[0].act, None);
-    assert_eq!(o.chapters[1].act.as_deref(), Some(o.acts[0].id.as_str()));
-    assert_eq!(o.chapters[3].act.as_deref(), Some(o.acts[1].id.as_str()));
-    assert!(o.chapters[4].discarded());
     assert_eq!(
         default_chapters(&o),
-        [&b.prologue, &b.letters, &b.harbour, &b.voyage].map(String::clone)
+        [&b.prologue, &b.letters, &b.harbour, &b.voyage, &b.cut].map(String::clone)
     );
 }
 
@@ -290,11 +277,10 @@ fn chapter_prose_becomes_manuscript_blocks() {
         titles,
         [
             "序章　灯下",
-            "act 第一卷　潮起",
             "第一章 来信",
             "第二章　旧港",
-            "act 第二卷　雾散",
-            "第三章　返航"
+            "第三章　返航",
+            "删掉的一章"
         ]
     );
     let Section::Chapter { blocks, .. } = &m.sections[0] else {
@@ -305,7 +291,7 @@ fn chapter_prose_becomes_manuscript_blocks() {
         &[para("雾港的灯塔在午夜亮起。")],
         "blank ends trimmed"
     );
-    let Section::Chapter { blocks, .. } = &m.sections[2] else {
+    let Section::Chapter { blocks, .. } = &m.sections[1] else {
         panic!()
     };
     let bold = Run {
@@ -371,7 +357,7 @@ fn chapter_prose_becomes_manuscript_blocks() {
     assert!(all.contains("<a href=\"https://example.com/fog\">链接</a>"));
     assert!(all.contains("引文<br/>第二段"));
     assert!(!all.contains("javascript:"));
-    assert!(!all.contains("删掉的一章"));
+    assert!(all.contains("删掉的一章"));
 }
 
 #[test]
@@ -432,60 +418,10 @@ fn a_chosen_set_keeps_book_order_and_the_title_switches() {
 }
 
 #[test]
-fn markdown_shares_the_book_and_one_document() {
-    let e = env();
-    let b = book(&e.ws);
-    let doc = markdown(&e.ws, &b.id, &MarkdownTarget::Book).unwrap();
-    assert_eq!(doc.title, "雾港来信");
-    assert_eq!(doc.filename, "雾港来信.md");
-    assert_eq!(
-        doc.documents, 5,
-        "every live chapter, the discarded one too"
-    );
-    let md = &doc.markdown;
-    assert!(
-        md.starts_with("# 雾港来信\n\n### 序章　灯下\n\n> 灯塔亮了\n\n"),
-        "{md}"
-    );
-    assert!(
-        md.contains(
-            "\n\n## 第一卷　潮起\n\n### 第一章 来信\n\n#### 一　雨夜\n\n##### 信使抵达\n\n"
-        )
-    );
-    assert!(md.contains(
-        "这里有**加粗**、[链接](https://example.com/fog)、坏链接和安娜。\n\n> 引文第一段<br><br>引文<br>第二段\n\n---\n\n——完——"
-    ));
-    assert!(md.contains("\n\n## 第二卷　雾散\n\n### 第三章　返航\n\n船回来了。\n\n### 删掉的一章"));
-    assert!(md.ends_with("不要了。\n"));
-
-    let one = markdown(
-        &e.ws,
-        &b.id,
-        &MarkdownTarget::Doc(format!("node:{}", b.prologue)),
-    )
-    .unwrap();
-    assert_eq!(one.documents, 1);
-    // Empty paragraphs stay empty blocks, as in 0.1 (Markdown collapses
-    // the blank lines).
-    assert_eq!(
-        one.markdown,
-        "# 序章　灯下\n\n> 灯塔亮了\n\n\n\n雾港的灯塔在午夜亮起。\n\n\n\n\n"
-    );
-    let gone = markdown(&e.ws, &b.id, &MarkdownTarget::Doc("element:nope".into()));
-    assert!(gone.is_err());
-    let material = markdown(&e.ws, &b.id, &MarkdownTarget::Doc("material:x".into()));
-    assert!(matches!(material, Err(dr_export::ExportError::Invalid(_))));
-}
-
-#[test]
 fn a_chapter_never_written_exports_empty() {
     let e = env();
-    let b = id(&out(&e.ws, "book.create", json!({"name": "空书"})));
-    let c = id(&out(
-        &e.ws,
-        "chapter.create",
-        json!({"book": b, "title": ""}),
-    ));
+    let b = id(&out(&e.ws, "project.create", json!({"name": "空书"})));
+    dr_testkit::seed::acceptance::novel_entry(&e.ws, &b, "tpl-chapter", "空正文", Some(""));
     let m = read_manuscript(
         &e.ws,
         &b,
@@ -508,8 +444,6 @@ fn a_chapter_never_written_exports_empty() {
     for format in [Format::Epub, Format::Docx] {
         render(&m, format).unwrap();
     }
-    let md = markdown(&e.ws, &b, &MarkdownTarget::Doc(format!("node:{c}"))).unwrap();
-    assert!(md.markdown.starts_with("# "));
 }
 
 fn unzip_text(bytes: &[u8]) -> String {
@@ -531,7 +465,7 @@ fn unzip_text(bytes: &[u8]) -> String {
 fn the_lite_seed_exports_in_every_format() {
     let dir = tempfile::tempdir().unwrap();
     let lib = Library::open(dir.path(), library_options("test")).unwrap();
-    let seeded = seed::generate(Preset::Lite, seed::DEFAULT_SEED).unwrap();
+    let seeded = seed::generate_v3(Preset::Lite, seed::DEFAULT_SEED).unwrap();
     seeded.write_to(&lib).unwrap();
     let book = seeded.books[0].book_id().to_string();
     let ws = Workspace::open(lib, WorkspaceOptions::default()).unwrap();
@@ -603,13 +537,6 @@ fn the_lite_seed_exports_in_every_format() {
         ));
         assert!(!bytes.is_empty());
     }
-    let t = Instant::now();
-    let md = markdown(&ws, &book, &MarkdownTarget::Book).unwrap();
-    times.push(format!(
-        "Markdown {:?} {} KiB",
-        t.elapsed(),
-        md.markdown.len() / 1024
-    ));
     eprintln!("lite export: {}", times.join(", "));
     ws.close();
 }

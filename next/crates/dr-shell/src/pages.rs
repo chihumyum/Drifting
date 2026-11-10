@@ -65,7 +65,7 @@ use gpui::{
 use crate::Workspace;
 use crate::book::Book;
 use crate::nav::Target;
-use crate::workspace::{LeftTab, SuperView};
+use crate::workspace::SuperView;
 
 /// The bookshelf a window shows: its view, and the cell its notification
 /// bell records its bounds in (the notification center opens from there).
@@ -81,8 +81,7 @@ type MakeChrome =
     Rc<dyn Fn(&Target, PageHost, &mut Window, &mut App) -> Option<Rc<dyn PageChrome>>>;
 type MakeMenu = Rc<dyn Fn(&Target, &PageMenuHost, &App) -> Vec<PageMenuSection>>;
 type MakeView = Rc<dyn Fn(&Target, PageViewHost, &mut Window, &mut App) -> Option<ModulePage>>;
-type MakeLeftPanel =
-    Rc<dyn Fn(LeftTab, WeakEntity<Workspace>, &mut Window, &mut App) -> Option<LeftPanel>>;
+
 type MakeBottom = Rc<dyn Fn(&BottomHost, &mut Window, &mut App) -> Option<BottomPanel>>;
 
 /// What the Bottom Panel holds, top to bottom as the 0.1 client stacked
@@ -390,13 +389,10 @@ pub mod anchors {
 #[derive(Clone, Default)]
 struct Pages {
     shelf: Option<MakeShelf>,
-    home: Option<MakeHome>,
     v3_home: Option<MakeHome>,
     chrome: Vec<MakeChrome>,
     views: Vec<MakeView>,
     menus: Vec<MakeMenu>,
-    left_panels: Vec<MakeLeftPanel>,
-    bottom: Vec<(BottomPane, MakeBottom)>,
     v3_bottom: Vec<(BottomPane, MakeBottom)>,
     backdrop: Option<Backdrop>,
     first_run: Option<MakeFirstRun>,
@@ -415,15 +411,6 @@ pub fn set_shelf(
     make: impl Fn(WeakEntity<Workspace>, &mut Window, &mut App) -> ShelfPage + 'static,
 ) {
     cx.default_global::<Pages>().shelf = Some(Rc::new(make));
-}
-
-/// Registers Project Home. Each workspace window makes one with itself and
-/// keeps it while the window lives (it follows the book the window shows).
-pub fn set_home(
-    cx: &mut App,
-    make: impl Fn(WeakEntity<Workspace>, &mut Window, &mut App) -> AnyView + 'static,
-) {
-    cx.default_global::<Pages>().home = Some(Rc::new(make));
 }
 
 /// Registers the v3 Project Home. Legacy books keep [`set_home`]'s view.
@@ -505,44 +492,6 @@ pub(crate) fn menu_for(target: &Target, host: &PageMenuHost, cx: &App) -> Vec<Pa
         .collect()
 }
 
-/// Registers a left sidebar tab's panel: asked once per pane the first time
-/// that pane shows a tab (with the tab and the window's workspace), it
-/// gives that tab's [`LeftPanel`] or `None`.
-pub fn add_left_panel(
-    cx: &mut App,
-    make: impl Fn(LeftTab, WeakEntity<Workspace>, &mut Window, &mut App) -> Option<LeftPanel> + 'static,
-) {
-    cx.default_global::<Pages>().left_panels.push(Rc::new(make));
-}
-
-/// The panel registered for `tab`, made now, if any.
-pub(crate) fn left_panel_for(
-    tab: LeftTab,
-    ws: WeakEntity<Workspace>,
-    window: &mut Window,
-    cx: &mut App,
-) -> Option<LeftPanel> {
-    let makers = cx.try_global::<Pages>()?.left_panels.clone();
-    makers
-        .iter()
-        .find_map(|make| make(tab, ws.clone(), window, cx))
-}
-
-/// Registers what fills the Bottom Panel as `pane`: asked when the pane is
-/// to show (the timeline once per window and book; a planner each time
-/// another chapter or idea comes to the front), it gives the view or
-/// `None` (a page it does not plan). Called while the workspace draws: do
-/// not read or update the workspace in `make`.
-pub fn add_bottom_panel(
-    cx: &mut App,
-    pane: BottomPane,
-    make: impl Fn(&BottomHost, &mut Window, &mut App) -> Option<BottomPanel> + 'static,
-) {
-    cx.default_global::<Pages>()
-        .bottom
-        .push((pane, Rc::new(make)));
-}
-
 /// Registers a v3 Bottom Panel. Legacy registrations are never asked for a v3
 /// book. The host and lifecycle are the same as [`add_bottom_panel`].
 pub fn add_v3_bottom_panel(
@@ -563,11 +512,7 @@ pub fn has_bottom_panel_for(pane: BottomPane, book: &Book, cx: &App) -> bool {
         return false;
     }
     cx.try_global::<Pages>().is_some_and(|p| {
-        let makers = if book.v3().is_some() {
-            &p.v3_bottom
-        } else {
-            &p.bottom
-        };
+        let makers = &p.v3_bottom;
         makers.iter().any(|(at, _)| *at == pane)
     })
 }
@@ -575,7 +520,7 @@ pub fn has_bottom_panel_for(pane: BottomPane, book: &Book, cx: &App) -> bool {
 /// Whether a module draws `pane` (its toggle shows only then).
 pub fn has_bottom_panel(pane: BottomPane, cx: &App) -> bool {
     cx.try_global::<Pages>()
-        .is_some_and(|p| p.bottom.iter().any(|(at, _)| *at == pane))
+        .is_some_and(|p| p.v3_bottom.iter().any(|(at, _)| *at == pane))
 }
 
 /// The view registered for `pane` and `host`, made now, if any.
@@ -586,11 +531,7 @@ pub(crate) fn bottom_panel_for(
     cx: &mut App,
 ) -> Option<BottomPanel> {
     let pages = cx.try_global::<Pages>()?;
-    let registered = if host.book.v3().is_some() {
-        &pages.v3_bottom
-    } else {
-        &pages.bottom
-    };
+    let registered = &pages.v3_bottom;
     let makers: Vec<MakeBottom> = registered
         .iter()
         .filter(|(at, _)| *at == pane)
@@ -723,17 +664,6 @@ pub(crate) fn make_shelf(
     cx: &mut App,
 ) -> Option<ShelfPage> {
     let make = cx.try_global::<Pages>()?.shelf.clone()?;
-    Some(make(ws, window, cx))
-}
-
-/// A window's Project Home, made with the workspace (before it first
-/// renders); `None` when none is registered.
-pub(crate) fn make_home(
-    ws: WeakEntity<Workspace>,
-    window: &mut Window,
-    cx: &mut App,
-) -> Option<AnyView> {
-    let make = cx.try_global::<Pages>()?.home.clone()?;
     Some(make(ws, window, cx))
 }
 

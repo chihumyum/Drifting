@@ -76,6 +76,18 @@ pub fn replace(
     job: impl FnOnce(&Path, LibraryOptions) -> Result<StoreLibrary, String> + Send + 'static,
     done: impl FnOnce(Result<(), String>, &mut App) + 'static,
 ) {
+    replace_with_commit(cx, job, |_| Ok(()), done);
+}
+
+/// As `replace`, with an atomic preference update after the new workspace
+/// has opened successfully and before any window takes it up. A failed
+/// commit closes the new workspace and reopens the original one.
+pub fn replace_with_commit(
+    cx: &mut App,
+    job: impl FnOnce(&Path, LibraryOptions) -> Result<StoreLibrary, String> + Send + 'static,
+    commit: impl FnOnce(&Library) -> Result<(), String> + Send + 'static,
+    done: impl FnOnce(Result<(), String>, &mut App) + 'static,
+) {
     if crate::release::is_releasing(cx) {
         cx.defer(move |cx| done(Err("a library release is already in progress".into()), cx));
         return;
@@ -101,7 +113,7 @@ pub fn replace(
                 cx.spawn(async move |cx| {
                     let swapped = cx
                         .background_executor()
-                        .spawn(async move { swap(old, &root, options, job) })
+                        .spawn(async move { swap(old, &root, options, job, commit) })
                         .await;
                     cx.update(|cx| {
                         let result = match swapped {
@@ -170,6 +182,7 @@ fn swap(
     root: &Path,
     options: LibraryOptions,
     job: impl FnOnce(&Path, LibraryOptions) -> Result<StoreLibrary, String>,
+    commit: impl FnOnce(&Library) -> Result<(), String>,
 ) -> Swapped {
     let report = old.before_quit();
     log::info!(
@@ -197,7 +210,18 @@ fn swap(
     }
     match job(root, options.clone()) {
         Ok(lib) => match Library::open(lib, WorkspaceOptions::default()) {
-            Ok(lib) => Swapped::New(lib),
+            Ok(lib) => match commit(&lib) {
+                Ok(()) => Swapped::New(lib),
+                Err(why) => {
+                    if let Err(refused) = lib.try_shutdown() {
+                        return Swapped::Lost(format!(
+                            "{why}; prepared target could not close: {}",
+                            refused.error
+                        ));
+                    }
+                    reopen(why, options)
+                }
+            },
             Err(error) => reopen(error.to_string(), options),
         },
         Err(why) => reopen(why, options),
@@ -213,7 +237,6 @@ fn take_up(lib: Library, cx: &mut App) {
     }
     dr_view_stats::init(Some(lib.clone()), cx);
     dr_view_review::init(Some(lib.clone()), cx);
-    crate::mirror::restart(cx);
     for handle in windows(cx) {
         let lib = lib.clone();
         if let Err(error) = handle.update(cx, |ws, window, cx| ws.adopt_library(lib, window, cx)) {

@@ -40,8 +40,8 @@
 pub mod build;
 mod built_in;
 pub mod layout;
-mod store;
 pub mod v3;
+mod write_error;
 
 /// The random number generator and the paragraph model, in `dr-corpus`
 /// (no store) so dr-store's tests can use them too.
@@ -50,9 +50,9 @@ pub use dr_corpus::{para, rng};
 pub use build::SeededBook;
 pub use built_in::{
     ATTEMPTS_EXHAUSTED, MARKER_KEY, MARKER_SCOPE, MAX_ATTEMPTS, NOT_A_NEW_LIBRARY, Outcome, RECIPE,
-    UNKNOWN_MARKER, ensure_built_in,
+    UNKNOWN_MARKER, ensure_built_in, ensure_built_in_with,
 };
-pub use store::{WriteError, write_book};
+pub use write_error::WriteError;
 
 const PRIDE_AND_PREJUDICE: &str = include_str!("../books/pride-and-prejudice.json");
 const A_Q: &str = include_str!("../books/a-q.json");

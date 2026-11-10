@@ -41,8 +41,8 @@ impl Fixture {
         let directory = tempfile::tempdir().unwrap();
         let ws = Workspace::open_dir(directory.path(), "m32-outbound-test").unwrap();
         ws.set_auto_links(false);
-        let first = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
-        let second = seed::generate(Preset::Tiny, seed::DEFAULT_SEED + 1).unwrap();
+        let first = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+        let second = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED + 1).unwrap();
         let (book, other) = (
             first.books[0].book_id().clone(),
             second.books[0].book_id().clone(),

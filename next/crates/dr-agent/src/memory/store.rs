@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use dr_doc::book::BorrowedBook;
+use dr_doc::v3::BorrowedBookV3 as BorrowedBook;
 use dr_model::id::BookId;
 use dr_store::{Library, LocalTx, StoreError};
 use serde::{Deserialize, Serialize};

@@ -20,6 +20,13 @@ impl Workspace {
         let Some(library) = self.library.clone() else {
             return false;
         };
+        if address
+            .book
+            .as_ref()
+            .is_some_and(|book| !crate::book::canonical(&library, book.as_str()))
+        {
+            return false;
+        }
         // A cold launch may still be on the shelf with no selected book.
         // Only an existing book in this library may start that load.
         if self.book_id.is_empty()

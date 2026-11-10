@@ -12,6 +12,7 @@ name = "dr-cli"
 path = "src/main.rs"
 
 [dependencies]
+dr-account.workspace = true
 base64.workspace = true
 dr-debug-protocol.workspace = true
 dr-doc.workspace = true

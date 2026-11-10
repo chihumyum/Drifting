@@ -6,8 +6,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use dr_doc::v3::{BookViewV3, BorrowedBookV3};
 use dr_model::{
     DocId,
-    book::KvEntry,
     id::{BodyDocId, BookId, EntryId, EntryTemplateId, KvEntryId, ModuleId, TimelineViewId},
+    shared::KvEntry,
     v3::{
         Entry, EntryTemplate, FieldType, LEVEL_ABOUT_MODULE, ModuleKind, ModuleSpec,
         check_membership, check_timeline_placement_in_lane, level_about_module_id,
@@ -571,7 +571,7 @@ pub(crate) fn resolve_v3(
                 "module.remove_relation" => {
                     if let Some(id_val) = obj.get_mut("id") {
                         let raw = string(id_val, "id")?;
-                        let rels = view.relations_of(&dr_model::book::EntityRef {
+                        let rels = view.relations_of(&dr_model::shared::EntityRef {
                             kind: dr_model::kind::EntityKind::Entry,
                             id: eid.to_string(),
                         });
@@ -1255,6 +1255,12 @@ pub(crate) fn subjects_v3(name: &str, args: &Value) -> Vec<String> {
                             "entries" => {
                                 subjects.insert(format!("entry:{id}"));
                             }
+                            "facts" => {
+                                subjects.insert(format!("fact:{id}"));
+                            }
+                            "memory" => {
+                                subjects.insert(format!("memory:{id}"));
+                            }
                             "templates" => {
                                 subjects.insert(format!("entry_template:{id}"));
                             }
@@ -1273,7 +1279,7 @@ pub(crate) fn subjects_v3(name: &str, args: &Value) -> Vec<String> {
                 }
             }
         }
-        _ => return crate::resolve::subjects_v2(name, args),
+        _ => return crate::resolve::subjects_common(name, args),
     }
     subjects.into_iter().collect()
 }
@@ -2315,7 +2321,7 @@ fn resolve_material_args(
     Ok(())
 }
 
-fn resolve_folder_id(folders: &[dr_model::book::MaterialFolder], raw: &str) -> Result<String> {
+fn resolve_folder_id(folders: &[dr_model::shared::MaterialFolder], raw: &str) -> Result<String> {
     let trimmed = raw.trim();
     if let Some(f) = folders.iter().find(|f| f.id.as_str() == trimmed) {
         return Ok(f.id.to_string());

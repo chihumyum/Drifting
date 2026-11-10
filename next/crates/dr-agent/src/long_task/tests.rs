@@ -31,17 +31,10 @@ struct Fixture {
 }
 impl Fixture {
     fn new() -> Self {
-        Self::with_version(false)
-    }
-    fn with_version(v3: bool) -> Self {
         let dir = tempfile::tempdir().unwrap();
         let lib = Library::open(dir.path(), library_options("m30-plan")).unwrap();
-        let book = if v3 {
+        let book = {
             let seed = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
-            seed.write_to(&lib).unwrap();
-            seed.books[0].book_id().clone()
-        } else {
-            let seed = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
             seed.write_to(&lib).unwrap();
             seed.books[0].book_id().clone()
         };
@@ -282,8 +275,8 @@ fn manifest_reconciliation_retires_and_restores_without_false_completion() {
     let original = f.plan().steps[0].clone();
     f.ws.call(
         &Actor::User,
-        "chapter.update",
-        json!({"book":f.book,"id":original.target.id,"title":"renamed fixture"}),
+        "entry.update",
+        json!({"book":f.book,"id":original.target.id.split('/').next().unwrap(),"title":"renamed fixture"}),
     )
     .unwrap();
     assert!(f.snapshot().manifest_state.drifted);
@@ -298,8 +291,8 @@ fn manifest_reconciliation_retires_and_restores_without_false_completion() {
     assert_eq!(f.plan().steps[0].id, original.id);
     f.ws.call(
         &Actor::User,
-        "chapter.trash",
-        json!({"book":f.book,"id":original.target.id}),
+        "entry.trash",
+        json!({"book":f.book,"id":original.target.id.split('/').next().unwrap()}),
     )
     .unwrap();
     if f.plan().steps.len() > 1 {
@@ -332,8 +325,8 @@ fn manifest_reconciliation_retires_and_restores_without_false_completion() {
     }
     f.ws.call(
         &Actor::User,
-        "chapter.restore",
-        json!({"book":f.book,"id":original.target.id}),
+        "entry.restore",
+        json!({"book":f.book,"id":original.target.id.split('/').next().unwrap()}),
     )
     .unwrap();
     f.apply(
@@ -508,7 +501,7 @@ fn bounded_context_keeps_pins_and_never_splits_call_result_groups() {
 #[test]
 fn v3_manifest_keeps_each_body_and_retained_module_as_a_distinct_target() {
     use dr_doc::v3::novel::{MOD_PROSE, TPL_CHAPTER};
-    let f = Fixture::with_version(true);
+    let f = Fixture::new();
     f.create(WorkKind::Review);
     let plan = f.plan();
     assert!(plan.manifest.iter().all(|m| m.target.kind == "module"));

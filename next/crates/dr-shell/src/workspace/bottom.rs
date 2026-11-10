@@ -135,10 +135,7 @@ impl Workspace {
         if self.immersive || self.book_id.is_empty() {
             return None;
         }
-        let planned = matches!(
-            self.nav.current(),
-            Some(Target::Chapter(_) | Target::Idea(_) | Target::Entry { .. })
-        );
+        let planned = matches!(self.nav.current(), Some(Target::Entry { .. }));
         if self.bottom.layout.planner_open {
             return (planned && pages::has_bottom_panel_for(BottomPane::Planner, &self.book, cx))
                 .then_some(BottomPane::Planner);

@@ -291,7 +291,9 @@ pub struct TableView {
     cells: HashMap<CellKey, CellView>,
     /// The feed's commit count the cells last caught up with.
     seen: u64,
-    v3: bool,
+    /// Acknowledging our own write advances CAS admission, not the displayed
+    /// cell projections. They must still consume that commit before reuse.
+    refresh_cells: bool,
     style: Option<ProseStyle>,
     /// The cell whose typing the history's last step holds.
     last_edited: Option<CellKey>,
@@ -321,18 +323,19 @@ impl TableView {
                 .ok()?
         };
         let (cols, rows) = structure?;
-        let v3 = match crate::v3::is_book(&host.ws, &host.book) {
-            Ok(v3) => v3,
+        match crate::v3::is_book(&host.ws, &host.book) {
+            Ok(true) => {}
+            Ok(false) => return None,
             Err(e) => {
                 log::error!("table book version could not be read: {e}");
                 return None;
             }
-        };
+        }
         Some(TableView {
             host,
             embed,
             seen: feed.commits(),
-            v3,
+            refresh_cells: false,
             feed,
             _subscription: Some(subscription),
             cols,
@@ -415,7 +418,6 @@ impl TableView {
             self.host.session.clone(),
             self.host.handle.clone(),
             self.feed.clone(),
-            self.v3,
         );
         let items = source.host_items();
         let accepted_input = source.input_receipt();
@@ -538,7 +540,8 @@ impl TableView {
             }
         }
         let commits = self.feed.commits();
-        if commits != self.seen || restyle {
+        if commits != self.seen || restyle || self.refresh_cells {
+            self.refresh_cells = false;
             self.seen = commits;
             for view in self.cells.values() {
                 view.editor.update(cx, |e, cx| {
@@ -767,11 +770,7 @@ impl TableView {
         new_step: bool,
         f: impl FnOnce(&TableWriter) -> dr_doc::Result<R> + Send + 'static,
     ) -> Option<R> {
-        let observed = if self.v3 {
-            self.parked.as_ref().map_or(self.seen, |p| p.observed)
-        } else {
-            self.seen
-        };
+        let observed = self.parked.as_ref().map_or(self.seen, |p| p.observed);
         self.write_step_observed(cx, new_step, WriteObservation::Displayed(observed), f)
     }
 
@@ -784,26 +783,20 @@ impl TableView {
     ) -> Option<R> {
         let before = self.feed.user_commits();
         let embed = self.embed.clone();
-        let (v3, feed) = (self.v3, self.feed.clone());
-        let document = if v3 {
-            match self.host.handle.read(LoroDoc::clone) {
-                Ok(doc) => Some(doc),
-                Err(e) => {
-                    crate::links::clipboard_refused(cx, e);
-                    return None;
-                }
+        let feed = self.feed.clone();
+        let document = match self.host.handle.read(LoroDoc::clone) {
+            Ok(doc) => doc,
+            Err(e) => {
+                crate::links::clipboard_refused(cx, e);
+                return None;
             }
-        } else {
-            None
         };
         let written = self.host.session.edit(move |txn| {
             let before = feed.commits();
-            if v3 {
+            {
                 let valid = match observed {
                     WriteObservation::Displayed(expected) => before == expected,
-                    WriteObservation::Accepted(expected) => document
-                        .as_ref()
-                        .is_some_and(|doc| doc.state_frontiers() == expected),
+                    WriteObservation::Accepted(expected) => document.state_frontiers() == expected,
                 };
                 if !valid {
                     return Err(dr_doc::DocError::NotInProfile("stale table observation"));
@@ -811,7 +804,7 @@ impl TableView {
             }
             let w = txn.table(&embed)?;
             let result = f(&w)?;
-            Ok((result, document.map(|doc| doc.state_frontiers()), before))
+            Ok((result, document.state_frontiers(), before))
         });
         let pushed = (self.feed.user_commits() - before) as usize;
         self.fold(pushed, new_step, cx);
@@ -821,7 +814,7 @@ impl TableView {
         cx.notify();
         match written {
             Ok((result, frontier, before)) => {
-                if let Some(frontier) = frontier {
+                {
                     let feed = self.feed.clone();
                     // The acknowledgement may advance only our own exact
                     // committed version, never a fresh intervening peer state.
@@ -831,6 +824,7 @@ impl TableView {
                     match acknowledged {
                         Ok(Some(after)) => {
                             self.seen = after;
+                            self.refresh_cells = true;
                             if let Some(p) = self.parked.as_mut().filter(|p| p.observed == before) {
                                 p.observed = after;
                             }

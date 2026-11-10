@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 use dr_editor::decor::ReviewFocus;
 use dr_editor::{ChapterEditor, EditorSettings};
 use dr_i18n::{Locale, Platform};
-use dr_model::id::NodeId;
+
 use dr_store::Library;
 use dr_view_review::{CommentComposer, Filter, ReviewView};
 use dr_workspace::{Actor, NavTarget, Workspace, WorkspaceOptions, library_options};
@@ -35,7 +35,7 @@ fn env() -> Env {
     let dir = tempfile::tempdir().unwrap();
     let lib = Library::open(dir.path(), library_options("test")).unwrap();
     let ws = Workspace::open(lib, WorkspaceOptions::default()).unwrap();
-    let book = out(&ws, "book.create", json!({"name": "审阅"}))["id"]
+    let book = out(&ws, "project.create", json!({"name": "审阅"}))["id"]
         .as_str()
         .unwrap()
         .to_owned();
@@ -49,8 +49,7 @@ fn env() -> Env {
 fn chapter(e: &Env, title: &str, text: &str) -> String {
     out(
         &e.ws,
-        "chapter.create",
-        json!({"book": e.book, "title": title, "text": text}),
+        "entry.create", json!({"book": e.book, "parent": dr_testkit::seed::acceptance::novel_root(&e.ws, &e.book, "tpl-manuscript"), "template": "tpl-chapter", "title": title, "bodies": {"mod-prose": text}}),
     )["id"]
         .as_str()
         .unwrap()
@@ -60,8 +59,9 @@ fn chapter(e: &Env, title: &str, text: &str) -> String {
 fn comment(e: &Env, on: Option<&str>, kind: &str, body: &str) -> String {
     let mut input = json!({"book": e.book, "kind": kind, "body": body});
     if let Some(id) = on {
-        input["target"] = json!({"kind": "node", "id": id});
+        input["target"] = json!({"kind": "entry", "id": id});
         input["range"] = json!([0, 2]);
+        input["module"] = json!("mod-prose");
     }
     out(&e.ws, "comment.create", input)["id"]
         .as_str()
@@ -85,15 +85,35 @@ struct Root {
 impl Render for Root {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let opened = self.opened.clone();
-        let open: dr_view_review::Opener =
-            Rc::new(move |key, _, _| opened.borrow_mut().push(key.to_owned()));
-        div().size_full().child(dr_view_review::panel(
+        let open: dr_view_review::v3_panel::Open = Rc::new(move |target, _, _| {
+            let key = match target {
+                dr_view_review::v3::Target::Entry { id, module } => NavTarget::Entry {
+                    id: id.parse().unwrap(),
+                    module: module.map(|m| m.parse().unwrap()),
+                }
+                .key(),
+                dr_view_review::v3::Target::Material(id) => {
+                    NavTarget::Material(id.parse().unwrap()).key()
+                }
+            };
+            opened.borrow_mut().push(key);
+        });
+        let target = self.target.as_ref().and_then(|target| match target {
+            NavTarget::Entry { id, module } => Some(dr_view_review::v3::Target::Entry {
+                id: id.to_string(),
+                module: module.as_ref().map(ToString::to_string),
+            }),
+            NavTarget::Material(id) => Some(dr_view_review::v3::Target::Material(id.to_string())),
+            _ => None,
+        });
+        div().size_full().child(dr_view_review::v3_panel::panel(
             "review-test",
             &self.book,
-            self.target.clone(),
+            target,
             Locale::ZhCn,
             Platform::Mac,
             open,
+            Rc::new(|_| None),
             cx,
         ))
     }
@@ -166,7 +186,10 @@ fn the_tab_filters_scopes_and_groups_by_place(cx: &mut TestAppContext) {
     comment(&e, Some(&one), "note", "一的批注");
     comment(&e, Some(&two), "todo", "二的待办");
     comment(&e, None, "todo", "浮动待办");
-    let target = NavTarget::Chapter(NodeId::parse(&one).unwrap());
+    let target = NavTarget::Entry {
+        id: dr_model::id::EntryId::parse(&one).unwrap(),
+        module: Some("mod-prose".parse().unwrap()),
+    };
     let (view, _, cx) = open_tab(cx, &e, Some(target));
     assert!(wait_for(cx, |cx| ids(&view, cx).concat().len() == 3));
     // Grouped by place, the floating one last.
@@ -226,7 +249,10 @@ fn the_arrow_opens_the_chapter_and_chooses_the_comment(cx: &mut TestAppContext) 
     assert!(wait_for(cx, |cx| ids(&view, cx).concat().len() == 1));
     cx.update(|window, cx| view.update(cx, |v, cx| v.jump(&note, window, cx)));
     cx.run_until_parked();
-    assert_eq!(opened.borrow().as_slice(), [format!("chapter:{one}")]);
+    assert_eq!(
+        opened.borrow().as_slice(),
+        [format!("entry:{one}/mod-prose")]
+    );
     let jump = cx.update(|_, cx| ReviewFocus::get(cx).jump.map(|j| j.comment));
     assert_eq!(jump.as_deref(), Some(note.as_str()));
 }
@@ -236,7 +262,11 @@ fn the_composer_writes_a_comment_on_the_selection(cx: &mut TestAppContext) {
     let e = env();
     let one = chapter(&e, "一", "雨夜，钟楼停了。");
     cx.executor().allow_parking();
-    let (ws, book, doc) = (e.ws.clone(), e.book.clone(), format!("node:{one}"));
+    let (ws, book, doc) = (
+        e.ws.clone(),
+        e.book.clone(),
+        format!("body:{one}/mod-prose"),
+    );
     let (editor, cx) = cx.add_window_view(move |window, cx| {
         ChapterEditor::open(ws, &book, &doc, EditorSettings::default(), window, cx).unwrap()
     });
@@ -283,7 +313,7 @@ fn the_source_card_says_where_and_its_rows_act(cx: &mut TestAppContext) {
     let (view, _, cx) = open_tab(cx, &e, None);
     assert!(wait_for(cx, |cx| ids(&view, cx).concat().len() == 2));
     let (place, quote) = view.read_with(cx, |v, _| v.source_summary(&note)).unwrap();
-    assert_eq!(place.as_ref(), "一");
+    assert_eq!(place.as_ref(), "一 · 正文");
     assert_eq!(quote.as_deref(), Some("雨夜"));
     let (place, quote) = view
         .read_with(cx, |v, _| v.source_summary(&floating))
@@ -311,7 +341,7 @@ fn sample_env() -> Env {
     let dir = tempfile::tempdir().unwrap();
     let lib = Library::open(dir.path(), library_options("test")).unwrap();
     let sample = dr_testkit::samples::slow_clock().unwrap();
-    dr_testkit::seed::write_book(&lib, &sample).unwrap();
+    dr_testkit::seed::write_book_v3(&lib, &dr_testkit::seed::book_to_v3(&sample).unwrap()).unwrap();
     let book = sample.book.book_id().to_string();
     let ws = Workspace::open(lib, WorkspaceOptions::default()).unwrap();
     Env {
@@ -334,7 +364,11 @@ fn listed_ids(view: &Entity<ReviewView>, cx: &mut VisualTestContext) -> Vec<Stri
 #[gpui::test]
 fn current_scope_follows_generic_associations_and_source_changes(cx: &mut TestAppContext) {
     let e = sample_env();
-    let chapters = out(&e.ws, "chapter.list", json!({"book": e.book}));
+    let chapters = serde_json::json!(dr_testkit::seed::acceptance::entries_by_template(
+        &e.ws,
+        &e.book,
+        "tpl-chapter"
+    ));
     let one = chapters[0]["id"].as_str().unwrap();
     let two = chapters[1]["id"].as_str().unwrap();
     let direct = comment(
@@ -350,7 +384,14 @@ fn current_scope_follows_generic_associations_and_source_changes(cx: &mut TestAp
         "note",
         chapters[2]["title"].as_str().unwrap(),
     );
-    let (view, _, cx) = open_tab(cx, &e, Some(NavTarget::Chapter(one.parse().unwrap())));
+    let (view, _, cx) = open_tab(
+        cx,
+        &e,
+        Some(NavTarget::Entry {
+            id: one.parse().unwrap(),
+            module: Some("mod-prose".parse().unwrap()),
+        }),
+    );
     assert!(wait_for(cx, |cx| listed_ids(&view, cx).contains(&direct)));
     view.update(cx, |v, cx| v.set_current_only(true, cx));
     assert!(!listed_ids(&view, cx).contains(&floating));
@@ -360,7 +401,7 @@ fn current_scope_follows_generic_associations_and_source_changes(cx: &mut TestAp
             &e.ws,
             "relation.create",
             json!({
-                "book": e.book, "from": {"kind": "comment", "id": id}, "to": {"kind": "node", "id": one}
+                "book": e.book, "from": {"kind": "comment", "id": id}, "to": {"kind": "entry", "id": one}
             }),
         )
     };
@@ -378,11 +419,11 @@ fn current_scope_follows_generic_associations_and_source_changes(cx: &mut TestAp
             .count(),
         1
     );
-    assert!(
-        view.read_with(cx, |v, _| v.listing().open.iter().any(|g| g.key()
-            == format!("node:{two}")
-            && g.items.iter().any(|i| i.id == from_two)))
-    );
+    assert!(view.read_with(cx, |v, _| {
+        v.listing().open.iter().any(|g| {
+            g.key() == format!("entry:{two}/mod-prose") && g.items.iter().any(|i| i.id == from_two)
+        })
+    }));
     out(
         &e.ws,
         "relation.delete",
@@ -396,13 +437,13 @@ fn current_scope_follows_generic_associations_and_source_changes(cx: &mut TestAp
     );
     out(
         &e.ws,
-        "chapter.update",
+        "entry.update",
         json!({"book": e.book, "id": two, "title": renamed}),
     );
     assert!(wait_for(cx, |cx| view.read_with(cx, |v, _| v
         .source_summary(&from_two)
-        .is_some_and(|s| s.0.as_ref() == renamed))));
-    out(&e.ws, "chapter.trash", json!({"book": e.book, "id": two}));
+        .is_some_and(|s| s.0.as_ref() == format!("{renamed} · 正文")))));
+    out(&e.ws, "entry.trash", json!({"book": e.book, "id": two}));
     assert!(wait_for(cx, |cx| view.read_with(cx, |v, _| v
         .listing()
         .open

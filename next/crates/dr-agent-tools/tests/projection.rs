@@ -4,7 +4,7 @@ use dr_workspace::{Actor, Workspace};
 use serde_json::{Value, json};
 
 fn seed_text() -> String {
-    let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+    let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
     seeded.books[0]
         .prose
         .iter()
@@ -42,7 +42,7 @@ fn tiny_and_lite_round_trips_keep_every_loro_snapshot_byte() {
     for preset in [Preset::Tiny, Preset::Lite] {
         let dir = tempfile::tempdir().unwrap();
         let workspace = Workspace::open_dir(dir.path(), "projection-test").unwrap();
-        let seeded = seed::generate(preset, seed::DEFAULT_SEED).unwrap();
+        let seeded = seed::generate_v3(preset, seed::DEFAULT_SEED).unwrap();
         seeded.write_to(workspace.library()).unwrap();
         let mut documents = 0;
         for book in &seeded.books {
@@ -81,7 +81,7 @@ fn tiny_and_lite_round_trips_keep_every_loro_snapshot_byte() {
 fn one_paragraph_edit_runs_through_existing_f3_and_keeps_block_ids() {
     let dir = tempfile::tempdir().unwrap();
     let workspace = Workspace::open_dir(dir.path(), "projection-test").unwrap();
-    let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+    let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
     seeded.write_to(workspace.library()).unwrap();
     let prose = &seeded.books[0].prose[0];
     let doc = prose.doc_id().to_string();

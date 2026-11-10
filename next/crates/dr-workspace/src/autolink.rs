@@ -45,23 +45,17 @@
 //! The author's setting `editor.auto_entity_links` (on by default) governs
 //! all of it: the shell passes it on with [`crate::Workspace::set_auto_links`].
 
-use std::collections::{BTreeSet, HashSet};
+use std::collections::HashSet;
 use std::ops::Range;
 use std::sync::Arc;
 
-use dr_doc::anchor::Anchor;
-use dr_doc::book::BookView;
-use dr_doc::prose::{BorrowedProse, Paragraph, ProseTxn};
+use dr_doc::prose::{Paragraph, ProseTxn};
 use dr_model::DocId;
 use dr_model::kind::EntityKind;
 use dr_model::prose::EntityLink;
-use dr_text::autolink::{LinkMatcher, LinkName, LinkTarget, book_link_names};
+use dr_text::autolink::{LinkMatcher, LinkName, LinkTarget};
 
 use crate::Actor;
-use crate::commands::prose::{LinkIn, LinksIn};
-use crate::cx::{Cx, EffectAction, Invocation};
-use crate::dto::AnchorBytes;
-use crate::error::Result;
 use crate::workspace::BookSlot;
 
 /// Whether text `actor` writes gets automatic links.
@@ -69,15 +63,17 @@ pub fn links_for(actor: &Actor) -> bool {
     matches!(actor, Actor::Agent { .. } | Actor::Mirror | Actor::Import)
 }
 
-/// The names text in `doc` links to, from `book` as it is now: the
-/// matcher dr-text builds, never linking `doc`'s own entity. Built from
-/// scratch (about 50 ms on the heavy seed's 700 names);
-/// [`crate::Workspace::link_matcher`] keeps one per book until a name
-/// changes.
-pub fn matcher(book: &BookView<'_>, doc: &DocId) -> LinkMatcher<LinkTarget> {
-    LinkMatcher::new(book_link_names(book, &[doc.entity_id()]))
+pub fn matcher(book: &dr_doc::v3::BookViewV3<'_>, doc: &DocId) -> LinkMatcher<LinkTarget> {
+    let own = match doc {
+        DocId::Body(body) => body.entry().as_str(),
+        _ => doc.entity_id(),
+    };
+    LinkMatcher::new(
+        book_link_names_v3(book)
+            .into_iter()
+            .filter(|n| n.target.id != own),
+    )
 }
-
 fn book_link_names_v3(v: &dr_doc::v3::BookViewV3<'_>) -> Vec<LinkName<LinkTarget>> {
     let entries = v.entries_map();
     let templates = v.templates_map();
@@ -102,13 +98,7 @@ fn book_link_names_v3(v: &dr_doc::v3::BookViewV3<'_>) -> Vec<LinkName<LinkTarget
 /// Every name of `slot`'s book (dr-text's `book_link_names`), read once
 /// until an element or a node changes.
 pub(crate) fn book_names(slot: &BookSlot) -> Arc<Vec<LinkName<LinkTarget>>> {
-    if slot.is_v3() {
-        return Arc::new(book_link_names_v3(&slot.reader_v3.view()));
-    }
-    slot.cache
-        .get(crate::cache::Key::LinkNames, &slot.reader.view(), |v| {
-            book_link_names(v, &[])
-        })
+    Arc::new(book_link_names_v3(&slot.reader_v3.view()))
 }
 
 /// [`matcher`] for `doc` in `slot`'s book, from the book's cache.
@@ -117,17 +107,12 @@ pub(crate) fn book_matcher(slot: &BookSlot, doc: &DocId) -> Arc<LinkMatcher<Link
         DocId::Body(b) => b.entry().as_str(),
         _ => doc.entity_id(),
     };
-    if slot.is_v3() {
-        // The v2 cache invalidator knows no v3 roots. Build from current v3
-        // templates and memberships until the v3 view integration owns a cache.
-        return Arc::new(LinkMatcher::new(
-            book_names(slot)
-                .iter()
-                .filter(|n| n.target.id != self_id)
-                .cloned(),
-        ));
-    }
-    slot.cache.matcher(self_id, &book_names(slot))
+    Arc::new(LinkMatcher::new(
+        book_names(slot)
+            .iter()
+            .filter(|n| n.target.id != self_id)
+            .cloned(),
+    ))
 }
 
 /// A run of one entity link on a paragraph (adjacent spans of one target
@@ -367,292 +352,4 @@ fn link_written_with_v3(
         linked += apply(txn, start, &edits)?;
     }
     Ok(linked)
-}
-
-/// What a backfill wrote in one document: the links (target, ranges) it
-/// added and the links of others it removed.
-#[derive(Default)]
-struct Written {
-    linked: Vec<(LinkTarget, Vec<Range<usize>>)>,
-    unlinked: Vec<(LinkTarget, Vec<Range<usize>>)>,
-}
-
-fn push_range(list: &mut Vec<(LinkTarget, Vec<Range<usize>>)>, t: LinkTarget, r: Range<usize>) {
-    match list.iter_mut().find(|(x, _)| *x == t) {
-        Some((_, v)) => v.push(r),
-        None => list.push((t, vec![r])),
-    }
-}
-
-/// Whether a command by this actor fills in links for a new name.
-fn backfills(cx: &Cx<'_>) -> bool {
-    cx.workspace().auto_links() && matches!(cx.actor(), Actor::User | Actor::Agent { .. })
-}
-
-/// [`backfill`] for element `id`, now named `name` with `aliases`, that
-/// gained the names `added` (it is new, renamed or given aliases).
-pub(crate) fn backfill_element(
-    cx: &Cx<'_>,
-    slot: &BookSlot,
-    id: &dr_model::id::ElementId,
-    name: &str,
-    aliases: &[String],
-    added: &[String],
-) -> Result<usize> {
-    backfill_element_leaving(cx, slot, id, name, aliases, added, None)
-}
-
-/// [`backfill_element`] when entity `leaving` goes in the same command (an
-/// idea turned into this element): its names no longer count.
-pub(crate) fn backfill_element_leaving(
-    cx: &Cx<'_>,
-    slot: &BookSlot,
-    id: &dr_model::id::ElementId,
-    name: &str,
-    aliases: &[String],
-    added: &[String],
-    leaving: Option<&str>,
-) -> Result<usize> {
-    if !backfills(cx) || added.is_empty() {
-        return Ok(0);
-    }
-    let target = LinkTarget::new(EntityKind::Element, id.as_str());
-    let mut names: Vec<LinkName<LinkTarget>> = book_names(slot)
-        .iter()
-        .filter(|n| n.target != target && Some(n.target.id.as_str()) != leaving)
-        .cloned()
-        .collect();
-    // Its names among the elements', before the titles (the order dr-text
-    // gives them once the book write lands).
-    let at = names
-        .iter()
-        .position(|n| n.target.kind != EntityKind::Element)
-        .unwrap_or(names.len());
-    let own = std::iter::once(name.to_string())
-        .chain(aliases.iter().cloned())
-        .map(|n| LinkName::new(n, target.clone()));
-    names.splice(at..at, own);
-    backfill(cx, slot, &target, &names, added)
-}
-
-/// [`backfill`] for chapter or idea `id`, new or retitled `title`.
-pub(crate) fn backfill_title(
-    cx: &Cx<'_>,
-    slot: &BookSlot,
-    id: &dr_model::id::NodeId,
-    title: &str,
-) -> Result<usize> {
-    if !backfills(cx) {
-        return Ok(0);
-    }
-    let target = LinkTarget::new(EntityKind::Node, id.as_str());
-    let mut names: Vec<LinkName<LinkTarget>> = book_names(slot)
-        .iter()
-        .filter(|n| n.target != target)
-        .cloned()
-        .collect();
-    names.push(LinkName::new(title, target.clone()));
-    backfill(cx, slot, &target, &names, &[title.to_string()])
-}
-
-/// Link `added` (names `target` gained in this command) in the text
-/// already written in `slot`'s book; `names` is every name of the book as
-/// it will be once the command's book write lands. Step 2 of the write
-/// order: call it before the book write. Declares each document's undo.
-/// Returns how many links were written.
-fn backfill(
-    cx: &Cx<'_>,
-    slot: &BookSlot,
-    target: &LinkTarget,
-    names: &[LinkName<LinkTarget>],
-    added: &[String],
-) -> Result<usize> {
-    let added: Vec<String> = added
-        .iter()
-        .map(|n| n.trim().to_string())
-        .filter(|n| !n.is_empty())
-        .collect();
-    if added.is_empty() {
-        return Ok(0);
-    }
-    let pairs: HashSet<(String, String)> = added
-        .iter()
-        .map(|n| (n.clone(), target.id.clone()))
-        .collect();
-    // The documents that may hold a new name.
-    let ws = cx.workspace();
-    let book = slot.book.as_str();
-    let mut docs: BTreeSet<String> = BTreeSet::new();
-    for n in &added {
-        for h in ws.library().search(Some(book), n, usize::MAX >> 1)? {
-            docs.insert(h.doc_id);
-        }
-    }
-    docs.extend(ws.open_prose(&slot.book).into_iter().map(|d| d.to_string()));
-    // Only live pages of these kinds, never the target's own (from the
-    // book's cached reads: a key read of Loro per document added up).
-    let all_nodes = crate::commands::nodes(slot);
-    let live_elements: HashSet<String> = crate::commands::elements(slot)
-        .iter()
-        .filter(|e| e.deleted_at.is_none())
-        .map(|e| e.id.to_string())
-        .collect();
-    let (lines, cats) = (
-        crate::commands::storylines(slot),
-        crate::commands::categories(slot),
-    );
-    let live = |d: &DocId| -> bool {
-        match d {
-            DocId::Node(id) => all_nodes.get(id).is_some_and(|n| !n.is_trashed()),
-            DocId::Element(id) => live_elements.contains(id.as_str()),
-            DocId::Storyline(id) => lines.iter().any(|s| &s.id == id && s.deleted_at.is_none()),
-            DocId::Category(id) => cats.iter().any(|c| &c.id == id && c.deleted_at.is_none()),
-            _ => false,
-        }
-    };
-    let docs: Vec<DocId> = docs
-        .iter()
-        .filter_map(|d| DocId::parse(d).ok())
-        .filter(|d| d.entity_id() != target.id && live(d))
-        .collect();
-    // One matcher for the command; a document whose own entity's names
-    // occur in it gets one without them (a page never links to itself).
-    let shared = Arc::new(LinkMatcher::new(names.iter().cloned()));
-    let writer = cx.prose_writer()?;
-    // A few documents at a time: opening a long chapter is a load from
-    // SQLite, most of a document's time.
-    let done = crate::holder::par_map(&docs, |doc| {
-        backfill_doc(ws, &writer, doc, names, &shared, &added, &pairs)
-    })?;
-    let mut total = 0;
-    let (mut unlink, mut relink) = (Vec::new(), Vec::new());
-    for (doc, done) in docs.iter().zip(done) {
-        let Some((n, linked, unlinked)) = done.filter(|d| d.0 > 0) else {
-            continue;
-        };
-        total += n;
-        let doc = doc.to_string();
-        cx.effect(EffectAction::Updated, "prose", doc.clone(), None);
-        let entry = |(t, anchors): (LinkTarget, Vec<AnchorBytes>)| LinkIn {
-            doc: doc.clone(),
-            target: (&t).into(),
-            anchors,
-        };
-        unlink.extend(linked.into_iter().map(entry));
-        relink.extend(unlinked.into_iter().map(entry));
-    }
-    // The undo: one command for every document.
-    if !unlink.is_empty() {
-        cx.undo_with(Invocation::new("prose.unlink", LinksIn { links: unlink }));
-    }
-    if !relink.is_empty() {
-        cx.undo_with(Invocation::new("prose.link", LinksIn { links: relink }));
-    }
-    Ok(total)
-}
-
-/// Links added to (or taken off) a document, with anchors for the undo.
-type Anchored = Vec<(LinkTarget, Vec<AnchorBytes>)>;
-
-/// [`backfill`] in one document: `None` when it has nothing to link (no
-/// write then); otherwise how many links were written and their anchors.
-fn backfill_doc(
-    ws: &crate::Workspace,
-    writer: &crate::cx::ProseWriter,
-    doc: &DocId,
-    names: &[LinkName<LinkTarget>],
-    shared: &Arc<LinkMatcher<LinkTarget>>,
-    added: &[String],
-    pairs: &HashSet<(String, String)>,
-) -> Result<Option<(usize, Anchored, Anchored)>> {
-    let ps = ws.prose_slot_passing(doc)?;
-    let view = ps.reader.view();
-    let has_new = |t: &str| added.iter().any(|n| t.contains(n.as_str()));
-    if !view.paragraphs().any(|p| has_new(&p.text())) {
-        return Ok(None);
-    }
-    let own = doc.entity_id();
-    let text = view.plain_text();
-    let matcher = if names
-        .iter()
-        .any(|n| n.target.id == own && text.contains(n.name.as_str()))
-    {
-        Arc::new(LinkMatcher::new(
-            names.iter().filter(|n| n.target.id != own).cloned(),
-        ))
-    } else {
-        shared.clone()
-    };
-    // Plan on what is there now: no write when nothing would change. The
-    // write plans again on the state it applies to.
-    let needed = view.paragraphs().any(|p| {
-        let t = p.text();
-        has_new(&t)
-            && !keep_added(&t, plan(&t, &link_runs(&p), &matcher, 0..p.len()), pairs).is_empty()
-    });
-    if !needed {
-        return Ok(None);
-    }
-    let (d2, pairs, added) = (doc.clone(), pairs.clone(), added.to_vec());
-    let (n, linked, unlinked) = writer.write(&ps, move |d| {
-        let b = BorrowedProse::new(d, &d2)?;
-        let mut txn = b.txn();
-        let mut todo: Vec<(usize, Vec<LinkEdit>)> = Vec::new();
-        let mut w = Written::default();
-        for p in txn.view().paragraphs() {
-            let text = p.text();
-            if !added.iter().any(|n| text.contains(n.as_str())) {
-                continue;
-            }
-            let edits = keep_added(
-                &text,
-                plan(&text, &link_runs(&p), &matcher, 0..p.len()),
-                &pairs,
-            );
-            for e in &edits {
-                let at = p.range.start;
-                match e {
-                    LinkEdit::Link { range, target } => push_range(
-                        &mut w.linked,
-                        target.clone(),
-                        at + range.start..at + range.end,
-                    ),
-                    LinkEdit::Unlink { range, target } => {
-                        // The kind, from the link being taken off.
-                        let kind = p
-                            .runs
-                            .iter()
-                            .flat_map(|r| r.marks.entities.iter())
-                            .find(|l| l.target == *target)
-                            .map(|l| l.kind.clone())
-                            .unwrap_or(EntityKind::Element);
-                        push_range(
-                            &mut w.unlinked,
-                            LinkTarget::new(kind, target.clone()),
-                            at + range.start..at + range.end,
-                        )
-                    }
-                }
-            }
-            if !edits.is_empty() {
-                todo.push((p.range.start, edits));
-            }
-        }
-        let mut n = 0;
-        for (start, edits) in &todo {
-            n += apply(&mut txn, *start, edits)?;
-        }
-        // Anchors on what was written, for the undo.
-        let body = d.get_text(dr_doc::schema::prose::BODY);
-        let anchor = |r: &Range<usize>| {
-            Anchor::new(&body, r.clone()).map(|a| AnchorBytes::from(&a.encode()))
-        };
-        let anchors = |l: &[(LinkTarget, Vec<Range<usize>>)]| -> Anchored {
-            l.iter()
-                .map(|(t, rs)| (t.clone(), rs.iter().filter_map(anchor).collect()))
-                .collect()
-        };
-        Ok((n, anchors(&w.linked), anchors(&w.unlinked)))
-    })?;
-    Ok(Some((n, linked, unlinked)))
 }

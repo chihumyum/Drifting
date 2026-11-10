@@ -159,7 +159,7 @@ fn manuscript_keeps_resident_order_and_each_prose_module_once() {
 }
 
 #[test]
-fn manuscript_excludes_nonresident_and_trashed_content_and_preserves_v22() {
+fn manuscript_excludes_nonresident_and_trashed_content_and_refuses_old_books() {
     let (_dir, ws, book) = fixture();
     assert!(v3::is_book(&ws, &book).unwrap());
     let before = v3::outline(&ws, &book).unwrap();
@@ -200,14 +200,9 @@ fn manuscript_excludes_nonresident_and_trashed_content_and_preserves_v22() {
         ),
         Err(dr_export::ExportError::NoChapters)
     ));
-    let old = call(
-        &ws,
-        "book.create",
-        json!({"name":"Synthetic compatibility"}),
-    );
-    let old_id = old["id"].as_str().unwrap();
-    assert!(!v3::is_book(&ws, old_id).unwrap());
-    assert!(v3::outline(&ws, old_id).is_err());
-    assert!(dr_export::outline(&ws, old_id).unwrap().chapters.is_empty());
+    let old_id = dr_testkit::seed::acceptance::empty_source(ws.library());
+    assert!(!v3::is_book(&ws, &old_id).unwrap());
+    assert!(v3::outline(&ws, &old_id).is_err());
+    assert!(dr_export::outline(&ws, &old_id).is_err());
     ws.shutdown().unwrap();
 }

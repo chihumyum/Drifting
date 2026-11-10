@@ -1,12 +1,12 @@
 //! Typed writers for a universal kernel v3 book document (`kernel-v3.md`).
 
-use dr_model::book::{
-    Asset, BlockSnapshot, EntityRef, KvEntry, MaterialRegion, PLOT_DEFAULT_LINES,
-    normalize_relation_type_name,
-};
 use dr_model::id::*;
 use dr_model::kind::*;
 use dr_model::pos::PosKey;
+use dr_model::shared::{
+    Asset, BlockSnapshot, EntityRef, KvEntry, MaterialRegion, PLOT_DEFAULT_LINES,
+    normalize_relation_type_name,
+};
 use dr_model::v3::*;
 use dr_model::{Day, DocId, Timestamp};
 use loro::{
@@ -15,10 +15,10 @@ use loro::{
 };
 
 use crate::anchor::Anchor;
-use crate::book::EntitySnapshot;
-use crate::book::fields::set;
-use crate::book::read::forest;
-use crate::book::write::{MaterialWriter, MemoryWriter, PlotGridWriter, RelationWriter};
+use crate::catalog::EntitySnapshot;
+use crate::catalog::fields::set;
+use crate::catalog::read::forest;
+use crate::catalog::write::{MaterialWriter, MemoryWriter, PlotGridWriter, RelationWriter};
 use crate::error::{DocError, Result};
 use crate::peer::seed_peer;
 use crate::schema::book_v3;
@@ -640,8 +640,19 @@ impl EntriesTreeWriterV3<'_> {
     /// Move `id` to `index` among `parent`'s children (`None` = root).
     pub fn move_to_at(&self, id: &EntryId, parent: Option<&EntryId>, index: usize) -> Result<()> {
         let p = self.parent(parent)?;
+        let node = self.node(id)?;
+        // Replaying an identical import/current order must preserve its tree
+        // coordinate. Loro mov_to at the same index can mint a new fraction.
+        if self.tree.parent(node) == Some(p)
+            && self
+                .tree
+                .children(p)
+                .is_some_and(|children| children.get(index) == Some(&node))
+        {
+            return Ok(());
+        }
         self.tree.enable_fractional_index(0);
-        self.tree.mov_to(self.node(id)?, p, index)?;
+        self.tree.mov_to(node, p, index)?;
         Ok(())
     }
 
@@ -1294,7 +1305,7 @@ impl<'a> BookTxnV3<'a> {
             .view
             .relation_type(id)
             .is_some_and(|t| t.locked || t.system_key.is_some())
-            || id == &crate::book::generic_relation_type_id(self.view.book)
+            || id == &crate::catalog::generic_relation_type_id(self.view.book)
         {
             return Err(DocError::Locked(id.to_string()));
         }
@@ -1309,11 +1320,8 @@ impl<'a> BookTxnV3<'a> {
     }
 
     pub fn relation(&mut self, id: &RelationId) -> Result<RelationWriter> {
-        crate::book::BookTxn {
-            view: crate::book::BookView {
-                doc: self.view.doc,
-                book: self.view.book,
-            },
+        crate::catalog::write::CatalogTxn {
+            view: crate::catalog::read::CatalogView { doc: self.view.doc },
         }
         .relation(id)
     }
@@ -1397,81 +1405,57 @@ impl<'a> BookTxnV3<'a> {
     }
 
     pub fn material(&mut self, id: &MaterialId) -> Result<MaterialWriter> {
-        crate::book::BookTxn {
-            view: crate::book::BookView {
-                doc: self.view.doc,
-                book: self.view.book,
-            },
+        crate::catalog::write::CatalogTxn {
+            view: crate::catalog::read::CatalogView { doc: self.view.doc },
         }
         .material(id)
     }
 
     pub fn put_asset(&mut self, a: &Asset) -> Result<()> {
-        crate::book::BookTxn {
-            view: crate::book::BookView {
-                doc: self.view.doc,
-                book: self.view.book,
-            },
+        crate::catalog::write::CatalogTxn {
+            view: crate::catalog::read::CatalogView { doc: self.view.doc },
         }
         .put_asset(a)
     }
 
     pub fn memory(&mut self, id: &MemoryId) -> Result<MemoryWriter> {
-        crate::book::BookTxn {
-            view: crate::book::BookView {
-                doc: self.view.doc,
-                book: self.view.book,
-            },
+        crate::catalog::write::CatalogTxn {
+            view: crate::catalog::read::CatalogView { doc: self.view.doc },
         }
         .memory(id)
     }
 
     pub fn put_fact(&mut self, e: &KvEntry) -> Result<()> {
-        crate::book::BookTxn {
-            view: crate::book::BookView {
-                doc: self.view.doc,
-                book: self.view.book,
-            },
+        crate::catalog::write::CatalogTxn {
+            view: crate::catalog::read::CatalogView { doc: self.view.doc },
         }
         .put_fact(e)
     }
 
     pub fn remove_fact(&mut self, id: &KvEntryId) -> Result<()> {
-        crate::book::BookTxn {
-            view: crate::book::BookView {
-                doc: self.view.doc,
-                book: self.view.book,
-            },
+        crate::catalog::write::CatalogTxn {
+            view: crate::catalog::read::CatalogView { doc: self.view.doc },
         }
         .remove_fact(id)
     }
 
     pub fn writing_day(&mut self, device: &DeviceKey, day: &Day, words: i64) -> Result<()> {
-        crate::book::BookTxn {
-            view: crate::book::BookView {
-                doc: self.view.doc,
-                book: self.view.book,
-            },
+        crate::catalog::write::CatalogTxn {
+            view: crate::catalog::read::CatalogView { doc: self.view.doc },
         }
         .writing_day(device, day, words)
     }
 
-    pub fn material_folders(&mut self) -> crate::book::write::TreeWriter<'a> {
-        crate::book::BookTxn {
-            view: crate::book::BookView {
-                doc: self.view.doc,
-                book: self.view.book,
-            },
+    pub fn material_folders(&mut self) -> crate::catalog::write::TreeWriter<'a> {
+        crate::catalog::write::CatalogTxn {
+            view: crate::catalog::read::CatalogView { doc: self.view.doc },
         }
         .material_folders()
     }
 
     pub fn delete_material_folder(&mut self, id: &MaterialFolderId) -> Result<()> {
-        crate::book::BookTxn {
-            view: crate::book::BookView {
-                doc: self.view.doc,
-                book: self.view.book,
-            },
+        crate::catalog::write::CatalogTxn {
+            view: crate::catalog::read::CatalogView { doc: self.view.doc },
         }
         .delete_material_folder(id)
     }
@@ -1658,6 +1642,101 @@ impl<'a> BookTxnV3<'a> {
         Ok(())
     }
 
+    /// Restore selected shared records from their real historical containers.
+    /// A detached replay validates the entire diff and raw state before the
+    /// live document changes; deep-value reconstruction would flatten future
+    /// fields, atomic maps, rich text and list identities.
+    pub fn restore_shared_records_at(
+        &mut self,
+        records: &[(CollectionV3, String)],
+        old: &BookViewV3<'_>,
+    ) -> Result<()> {
+        use loro::{
+            Container, ContainerTrait, ValueOrContainer,
+            event::{Diff, DiffBatch},
+        };
+        use std::collections::{BTreeMap, BTreeSet, HashSet};
+        let mut selected: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
+        let mut ancestors = HashSet::new();
+        for (collection, id) in records {
+            if !matches!(
+                collection,
+                CollectionV3::Facts | CollectionV3::Memory | CollectionV3::Relations
+            ) {
+                return Err(DocError::NotInProfile("not a shared history record"));
+            }
+            selected.entry(collection.root()).or_default().insert(id);
+            for view in [self.view, *old] {
+                match view.doc.get_map(collection.root()).get(id) {
+                    Some(ValueOrContainer::Container(Container::Map(map))) => {
+                        ancestors.insert(map.id());
+                    }
+                    None => {}
+                    Some(_) => {
+                        return Err(DocError::NotInProfile("shared history record is not a map"));
+                    }
+                }
+            }
+        }
+        let diff = self
+            .view
+            .doc
+            .diff(&self.view.doc.oplog_frontiers(), &old.doc.state_frontiers())?;
+        let mut scoped = DiffBatch::default();
+        scoped.set_full_state(diff.is_full_state());
+        for (cid, change) in diff.iter() {
+            if let ContainerID::Root { name, .. } = cid
+                && let Some(keys) = selected.get(name.as_str())
+            {
+                if let Diff::Map(mut map) = change.clone() {
+                    map.updated.retain(|key, _| keys.contains(key.as_ref()));
+                    if !map.updated.is_empty() {
+                        scoped
+                            .push(cid.clone(), Diff::Map(map))
+                            .expect("unique diff container");
+                    }
+                }
+                continue;
+            }
+            if ancestors.contains(cid)
+                || [self.view.doc, old.doc].iter().any(|doc| {
+                    doc.get_path_to_container(cid).is_some_and(|path| {
+                        path.iter().any(|(parent, _)| ancestors.contains(parent))
+                    })
+                })
+            {
+                if matches!(change, Diff::Unknown) {
+                    return Err(DocError::NotInProfile(
+                        "shared history contains an unsupported CRDT container",
+                    ));
+                }
+                scoped
+                    .push(cid.clone(), change.clone())
+                    .expect("unique diff container");
+            }
+        }
+        // Applying a tree diff can allocate new node identities. Verify the
+        // real result on a detached copy, never after a partial live write.
+        let probe = loro::LoroDoc::new();
+        probe.config_text_style(crate::schema::style_config());
+        probe.import(&self.view.doc.export(loro::ExportMode::Snapshot)?)?;
+        probe.apply_diff(scoped.clone())?;
+        for (collection, id) in records {
+            let raw = |doc: &loro::LoroDoc| {
+                doc.get_map(collection.root())
+                    .get(id)
+                    .map(super::raw::raw_value)
+            };
+            if raw(&probe) != raw(old.doc) {
+                return Err(DocError::NotInProfile(
+                    "shared history cannot preserve retained container identities",
+                ));
+            }
+        }
+        self.view.doc.apply_diff(scoped)?;
+        Ok(())
+    }
+
     /// Append an immutable complete-entry checkpoint. The manifest is versioned
     /// by its owner in dr-workspace and references durable Loro frontiers.
     pub fn put_entry_checkpoint(&mut self, id: &str, manifest: &str) -> Result<()> {
@@ -1812,22 +1891,27 @@ impl<'a> BookTxnV3<'a> {
         old: &EntitySnapshot,
         keys: &[&str],
     ) -> Result<()> {
-        let mapped = match collection {
-            CollectionV3::Materials => crate::book::Collection::Materials,
-            CollectionV3::RelationTypes => crate::book::Collection::RelationTypes,
-            CollectionV3::Relations => crate::book::Collection::Relations,
-            CollectionV3::Comments => crate::book::Collection::Comments,
-            CollectionV3::Assets => crate::book::Collection::Assets,
-            CollectionV3::Memory => crate::book::Collection::Memory,
-            _ => return Err(DocError::NotInProfile("restore of a tree or meta")),
-        };
-        crate::book::BookTxn {
-            view: crate::book::BookView {
-                doc: self.view.doc,
-                book: self.view.book,
-            },
+        if !matches!(
+            collection,
+            CollectionV3::Materials
+                | CollectionV3::RelationTypes
+                | CollectionV3::Relations
+                | CollectionV3::Comments
+                | CollectionV3::Assets
+                | CollectionV3::Memory
+        ) {
+            return Err(DocError::NotInProfile("restore of a tree or meta"));
         }
-        .restore_fields(mapped, id, old, keys)
+        if collection == CollectionV3::RelationTypes {
+            self.refuse_locked(
+                &RelationTypeId::parse(id)
+                    .map_err(|_| DocError::NotInProfile("invalid relation type"))?,
+            )?;
+        }
+        crate::catalog::write::CatalogTxn {
+            view: crate::catalog::read::CatalogView { doc: self.view.doc },
+        }
+        .restore_fields(collection.root(), id, old, keys)
     }
 
     pub fn purge(&mut self, collection: CollectionV3, id: &str) -> Result<()> {

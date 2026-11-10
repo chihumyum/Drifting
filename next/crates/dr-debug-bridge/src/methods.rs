@@ -103,11 +103,11 @@ pub const METHODS: &[(&str, &str)] = &[
     ),
     (
         "ui.focus",
-        "{field, row?, select_all?}: give a text field the keyboard, as a click into it would (select_all: with its text selected, as a triple click), where dr-ui's fields are not yet in the accessibility tree: page.title, page.synopsis (the chapter page on the paper), element.name, element.alias, element.summary, element.field.key, element.field.value (row: an index, default the last), category.name, settings.search",
+        "{field, row?, select_all?}: give a text field the keyboard, as a click into it would (select_all: with its text selected, as a triple click), where dr-ui's fields are not yet in the accessibility tree: page.title, page.synopsis (novel prose page chrome), settings.search",
     ),
     (
         "nav.open",
-        "{target} (a page key: chapter:<id>, idea:<id>, …, book), {chapter} (an id or a title) or {link} (a location link): open it as a kept tab ({preview: true} for a preview)",
+        "{target} (a page key: entry:<id>[/<module>], material:<id>, template:<id>, book), {chapter} (an id or a title) or {link} (a location link): open it as a kept tab ({preview: true} for a preview)",
     ),
     (
         "book.open",
@@ -149,6 +149,22 @@ pub const METHODS: &[(&str, &str)] = &[
     (
         "settings.get",
         "{keys?}: the settings' values as the shell reads them (default: every one the registry knows), and the interface language",
+    ),
+    (
+        "import.v3.configure",
+        "{source, choices?}: choose the real GUI reimport source and explicit MappingChoices, entering its reviewable new-target Ready state",
+    ),
+    (
+        "import.v3.start",
+        "start the configured GUI reimport worker; its normal dialog remains cancellable",
+    ),
+    (
+        "import.v3.cancel",
+        "ask the GUI worker to finish the current book and stop",
+    ),
+    (
+        "import.v3.accept",
+        "accept only the GUI freshness/sync gate, keeping the same MappingChoices",
     ),
     ("methods", "this list"),
 ];
@@ -326,6 +342,9 @@ pub async fn call(method: &str, params: Value, cx: &mut AsyncApp) -> Out {
                 .collect();
             Ok(json!({ "root": root.to_string_lossy(), "preRestore": pre }))
         }),
+        "import.v3.configure" | "import.v3.start" | "import.v3.cancel" | "import.v3.accept" => {
+            cx.update(|cx| import_v3(method, &p, cx))
+        }
         "state.get" => cx.update(state),
         "page.text" => cx.update(|cx| page_text(&p, cx)),
         "ui.wait" => wait(&p, cx).await,
@@ -347,6 +366,61 @@ pub async fn call(method: &str, params: Value, cx: &mut AsyncApp) -> Out {
             format!("no method {other}; `methods` lists them"),
         )),
     }
+}
+
+fn import_v3(method: &str, p: &Value, cx: &mut App) -> Out {
+    let entity =
+        dr_view_import::importer(cx).ok_or_else(|| not_found("GUI importer is not initialized"))?;
+    in_window(cx, |_, window, cx| {
+        entity.update(cx, |import, cx| {
+            match method {
+                "import.v3.configure" => {
+                    let path = p
+                        .get("source")
+                        .and_then(Value::as_str)
+                        .ok_or_else(|| bad("source path required"))?;
+                    import.start(std::path::PathBuf::from(path), window, cx);
+                    if let Some(choices) = p.get("choices") {
+                        import
+                            .set_mapping_choices(
+                                serde_json::from_value(choices.clone())
+                                    .map_err(|e| bad(e.to_string()))?,
+                            )
+                            .map_err(bad)?;
+                    }
+                    cx.notify();
+                }
+                "import.v3.start" => import.start_configured(window, cx),
+                "import.v3.cancel" => import.cancel(cx),
+                "import.v3.accept" => import.import_anyway(window, cx),
+                _ => return Err(bad("unknown import action")),
+            }
+            Ok(import_state(import))
+        })
+    })?
+}
+fn import_state(import: &dr_view_import::LegacyImport) -> Value {
+    use dr_view_import::State;
+    let mut state = match import.state() {
+        State::Idle => json!({"phase":"idle"}),
+        State::Picking => json!({"phase":"picking"}),
+        State::Found(_) => json!({"phase":"found"}),
+        State::Ready(r) => {
+            json!({"phase":"ready","pending":r.pending,"explicitChoices":r.explicit_choices})
+        }
+        State::Running(r) => json!({"phase":"running","cancelling":r.cancelling}),
+        State::Blocked(_) => json!({"phase":"blocked"}),
+        State::Switching(_) => json!({"phase":"switching"}),
+        State::Done(d) => {
+            json!({"phase":"done","cancelled":d.cancelled,"books":d.books.iter().map(|b|json!({"id":b.id,"status":b.status,"words":b.words})).collect::<Vec<_>>()})
+        }
+        State::Failed(f) => json!({"phase":"failed","message":f.message}),
+    };
+    state["target"] = import
+        .destination()
+        .map(|d| d.target().display().to_string())
+        .into();
+    state
 }
 
 fn info(cx: &mut App) -> Out {
@@ -648,19 +722,11 @@ fn open(p: &Value, cx: &mut App) -> Out {
         let target = if let Some(key) = p.get("target").and_then(Value::as_str) {
             Target::from_key(key).ok_or_else(|| {
                 bad(format!(
-                    "{key} is not a page key (chapter:<id>, idea:<id>, …, book)"
+                    "{key} is not a page key (entry:<id>[/<module>], material:<id>, template:<id>, book)"
                 ))
             })?
-        } else if let Some(c) = p.get("chapter").and_then(Value::as_str) {
-            let found = ws
-                .book
-                .chapters
-                .iter()
-                .find(|x| x.id == c || x.title == c)
-                .ok_or_else(|| not_found(format!("no chapter {c} in 《{}》", ws.book.name)))?;
-            Target::Chapter(found.id.parse().map_err(|_| bad("not a chapter id"))?)
         } else {
-            return Err(bad("give params.target, params.chapter or params.link"));
+            return Err(bad("give params.target or params.link"));
         };
         if !ws.book.exists(&target) {
             return Err(not_found(format!("{} is not in this book", target.key())));
@@ -704,6 +770,7 @@ async fn open_book(p: &Value, cx: &mut AsyncApp) -> Out {
         }
         (None, None) => return Err(bad("give params.book (an id) or params.name")),
     };
+    command(&json!({"name":"book.get","input":{"book":id}}), cx).await?;
     cx.update(|cx| {
         update_workspace(cx, |ws, window, cx| ws.open_book(&id, window, cx))?;
         Ok(json!({ "opened": id }))
@@ -781,6 +848,7 @@ fn state_of(ws: &Workspace, window: &Window, cx: &App) -> Value {
         let s = p.read(cx).selection();
         json!({ "anchor": s.anchor, "head": s.head })
     });
+    let ime = prose.as_ref().and_then(|p| { let p = p.read(cx); p.composition().map(|c| json!({"chapter":c.chapter,"text":c.text,"range":{"start":c.at,"end":c.at+c.replaced},"selected":{"start":c.selected.start,"end":c.selected.end}})) });
     let v3_page = ws
         .nav
         .current()
@@ -797,10 +865,11 @@ fn state_of(ws: &Workspace, window: &Window, cx: &App) -> Value {
         });
     json!({
         "library": ws.library.is_some(),
+        "import": dr_view_import::importer(cx).map(|i|import_state(i.read(cx))),
         "book": {
             "id": ws.book_id, "name": book.name,
-            "chapters": book.chapters.len(), "loaded": !book.is_empty(),
-            "version": if book.v3().is_some() { 3 } else { 2 },
+            "chapters": book.v3().map_or(0, |b| b.manuscript.iter().map(|m| &m.entry).collect::<std::collections::BTreeSet<_>>().len()), "loaded": !book.is_empty(),
+            "version": book.v3().map(|_| 3),
         },
         "v3": book.v3(),
         "v3Sidebar": ws.v3_sidebar.as_ref().map(|s| s.read(cx).state()),
@@ -839,6 +908,7 @@ fn state_of(ws: &Workspace, window: &Window, cx: &App) -> Value {
             "any": window.focused(cx).is_some(),
         },
         "selection": selection,
+        "ime": ime,
         "selectionBar": selection_bar,
         // What covers the page: a dialog (M10's import, M39's feedback, M41's
         // export), the snapshot history (M09), the comment composer (M18),
@@ -928,6 +998,7 @@ fn page_text(p: &Value, cx: &mut App) -> Out {
             "ready": page.loading.is_none(), "loading": page.loading.is_some(),
             "paragraphs": paragraphs, "text": lines.join("\n"),
             "selection": { "anchor": sel.anchor, "head": sel.head },
+            "ime": prose.composition().map(|c| json!({"chapter":c.chapter,"text":c.text,"range":{"start":c.at,"end":c.at+c.replaced},"selected":{"start":c.selected.start,"end":c.selected.end}})),
             "source": if whole_book { "book" } else { "editor" },
             "doc": page.doc,
             "composition": page.v3.as_ref().map(|v| v.read(cx).state()),
@@ -942,7 +1013,7 @@ fn page_text(p: &Value, cx: &mut App) -> Out {
 fn head_of(target: &Target, doc: &str, window: &Window, cx: &App) -> Value {
     let focused = |h: gpui::FocusHandle| h.is_focused(window);
     match target {
-        Target::Chapter(_) => {
+        Target::Entry { .. } => {
             let Some((head, end)) = dr_view_page::page_views(doc, cx) else {
                 return Value::Null;
             };
@@ -961,50 +1032,6 @@ fn head_of(target: &Target, doc: &str, window: &Window, cx: &App) -> Value {
                 "number": e.page().number, "endOpen": e.is_open(),
                 "focus": focus,
             })
-        }
-        Target::Element(id) => {
-            let Some((head, fields)) = dr_view_elements::element_page(id.as_ref(), cx) else {
-                return Value::Null;
-            };
-            let (name, alias, summary) = head.read(cx).fields();
-            let rows = fields.read(cx).rows();
-            let focus = if focused(name.focus_handle(cx)) {
-                json!("name")
-            } else if focused(alias.focus_handle(cx)) {
-                json!("alias")
-            } else if focused(summary.focus_handle(cx)) {
-                json!("summary")
-            } else {
-                rows.iter()
-                    .position(|(_, k, v)| {
-                        focused(k.focus_handle(cx)) || focused(v.focus_handle(cx))
-                    })
-                    .map(|i| json!(format!("field.{i}")))
-                    .unwrap_or(Value::Null)
-            };
-            json!({
-                "name": name.read(cx).text(),
-                "alias": alias.read(cx).text(),
-                "summary": summary.read(cx).text(),
-                "fields": rows.iter().map(|(id, k, v)| json!({
-                    "id": id, "key": k.read(cx).text(), "value": v.read(cx).text(),
-                })).collect::<Vec<_>>(),
-                // The 0.1 alert is the shell's dialog now (M11's
-                // `dr_view_elements::dialogs`), not a field of the head.
-                "alert": dr_view_elements::dialogs::dialogs(cx)
-                    .and_then(|d| d.read(cx).asking())
-                    .and_then(|a| match a {
-                        dr_view_elements::dialogs::Asking::Alert(m) => Some(m),
-                        _ => None,
-                    }),
-                "focus": focus,
-            })
-        }
-        Target::Category(id) => {
-            let Some((head, _)) = dr_view_elements::category_page(id.as_ref(), cx) else {
-                return Value::Null;
-            };
-            json!({ "name": head.read(cx).name_field().read(cx).text() })
         }
         _ => Value::Null,
     }
@@ -1519,46 +1546,6 @@ fn focus_field(p: &Value, cx: &mut App) -> Out {
                     head.synopsis().focus_handle(cx)
                 }
             }
-            f if f.starts_with("element.") => {
-                let Target::Element(id) = &target else {
-                    return Err(not_found(format!(
-                        "{} is not an element's page",
-                        target.key()
-                    )));
-                };
-                let (head, fields) = dr_view_elements::element_page(id.as_ref(), cx)
-                    .ok_or_else(|| not_found("the element page's fields are not drawn yet"))?;
-                let (name, alias, summary) = head.read(cx).fields();
-                match f {
-                    "element.name" => name.focus_handle(cx),
-                    "element.alias" => alias.focus_handle(cx),
-                    "element.summary" => summary.focus_handle(cx),
-                    "element.field.key" | "element.field.value" => {
-                        let rows = fields.read(cx).rows();
-                        let ix = row.unwrap_or(rows.len().saturating_sub(1));
-                        let (_, key, value) = rows.get(ix).ok_or_else(|| {
-                            not_found(format!("no field row {ix} ({} rows)", rows.len()))
-                        })?;
-                        if f == "element.field.key" {
-                            key.focus_handle(cx)
-                        } else {
-                            value.focus_handle(cx)
-                        }
-                    }
-                    other => return Err(bad(format!("no field {other}"))),
-                }
-            }
-            "category.name" => {
-                let Target::Category(id) = &target else {
-                    return Err(not_found(format!(
-                        "{} is not a category's page",
-                        target.key()
-                    )));
-                };
-                let (head, _) = dr_view_elements::category_page(id.as_ref(), cx)
-                    .ok_or_else(|| not_found("the category page's head is not drawn yet"))?;
-                head.read(cx).name_field().focus_handle(cx)
-            }
             other => return Err(bad(format!("no field {other}"))),
         };
         window.focus(&handle, cx);
@@ -1571,7 +1558,7 @@ fn focus_field(p: &Value, cx: &mut App) -> Out {
 
 /// Selects a field's whole text, as a triple click would (⌘A in a field is
 /// the menu's Select All while the shell binds it without a context).
-fn select_all_in(field: &str, target: &Target, row: Option<usize>, _: &mut Window, cx: &mut App) {
+fn select_all_in(field: &str, target: &Target, _row: Option<usize>, _: &mut Window, cx: &mut App) {
     match field {
         "page.title" | "page.synopsis" => {
             if let Some((head, _)) = dr_view_page::page_views(&doc_key(target), cx) {
@@ -1583,38 +1570,6 @@ fn select_all_in(field: &str, target: &Target, row: Option<usize>, _: &mut Windo
                 area.update(cx, |a, cx| a.select_all_text(cx));
             }
         }
-        f if f.starts_with("element.") => {
-            let Target::Element(id) = target else { return };
-            let Some((head, fields)) = dr_view_elements::element_page(id.as_ref(), cx) else {
-                return;
-            };
-            let (name, alias, summary) = head.read(cx).fields();
-            match f {
-                "element.name" => name.update(cx, |a, cx| a.select_all_text(cx)),
-                "element.alias" => alias.update(cx, |a, cx| a.select_all_text(cx)),
-                "element.summary" => summary.update(cx, |a, cx| a.select_all_text(cx)),
-                "element.field.key" | "element.field.value" => {
-                    let rows = fields.read(cx).rows();
-                    let ix = row.unwrap_or(rows.len().saturating_sub(1));
-                    if let Some((_, key, value)) = rows.get(ix) {
-                        if f == "element.field.key" {
-                            key.update(cx, |a, cx| a.select_all_text(cx));
-                        } else {
-                            value.update(cx, |a, cx| a.select_all_text(cx));
-                        }
-                    }
-                }
-                _ => {}
-            }
-        }
-        "category.name" => {
-            if let Target::Category(id) = target
-                && let Some((head, _)) = dr_view_elements::category_page(id.as_ref(), cx)
-            {
-                let name = head.read(cx).name_field();
-                name.update(cx, |a, cx| a.select_all_text(cx));
-            }
-        }
         _ => {}
     }
 }
@@ -1622,7 +1577,10 @@ fn select_all_in(field: &str, target: &Target, row: Option<usize>, _: &mut Windo
 /// The prose document of a chapter page (`node:<id>`).
 fn doc_key(target: &Target) -> String {
     match target {
-        Target::Chapter(id) | Target::Idea(id) => format!("node:{id}"),
+        Target::Entry {
+            id,
+            module: Some(module),
+        } => format!("body:{id}/{module}"),
         other => other.key(),
     }
 }

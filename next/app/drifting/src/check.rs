@@ -164,12 +164,15 @@ async fn book(cx: &mut AsyncApp) -> Check<(String, Target, Target)> {
     .await?;
     until(cx, "the book", 30, |cx| {
         read_ws(cx, |ws, _| {
-            (ws.book.chapters.len() >= 2).then(|| {
-                let chapter = |i: usize| -> Option<Target> {
-                    ws.book.chapters[i].id.parse().ok().map(Target::Chapter)
-                };
-                Some((ws.book_id.clone(), chapter(0)?, chapter(1)?))
-            })?
+            let b = ws.book.v3()?;
+            let chapter = |i: usize| -> Option<Target> {
+                let body = b.manuscript.get(i)?;
+                Some(Target::Entry {
+                    id: body.entry.parse().ok()?,
+                    module: Some(body.module.parse().ok()?),
+                })
+            };
+            Some((ws.book_id.clone(), chapter(0)?, chapter(1)?))
         })
         .flatten()
     })
@@ -256,7 +259,10 @@ fn open(cx: &mut AsyncApp, target: &Target) -> Check<()> {
 
 fn doc_of(target: &Target) -> String {
     match target {
-        Target::Chapter(id) => format!("node:{id}"),
+        Target::Entry {
+            id,
+            module: Some(module),
+        } => format!("body:{id}/{module}"),
         other => other.key(),
     }
 }

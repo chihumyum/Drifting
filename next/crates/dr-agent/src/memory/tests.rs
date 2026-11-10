@@ -14,7 +14,7 @@ impl Fixture {
     fn new() -> Self {
         let dir = tempfile::tempdir().unwrap();
         let ws = Workspace::open_dir(dir.path(), "m30-memory-test").unwrap();
-        let seed = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+        let seed = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
         let book = seed.books[0].book_id().clone();
         let text = seed.books[0]
             .groups()
@@ -31,6 +31,7 @@ impl Fixture {
             text,
         }
     }
+
     fn add(&self, body: &str, actor: &Actor) -> MemoryId {
         let out = self
             .ws
@@ -254,6 +255,58 @@ fn trashed_and_deleted_book_cannot_recreate_local_memory() {
     );
     assert!(replace(lib, &f.book, 0, &f.text, UpdatedBy::Author).is_err());
 }
+#[test]
+fn imported_project_memory_is_plain_active_raw_body_and_keeps_unknown_status_inert() {
+    let f = Fixture::new();
+    let id = MemoryId::new_v7();
+    let body = format!("  {}\n\n{}  \n", f.text, f.text);
+    let edit = |status: &str, deleted: Option<dr_model::Timestamp>| {
+        let status = status.to_owned();
+        let body = body.clone();
+        let book = f.book.clone();
+        let id = id.clone();
+        f.ws.library()
+            .open_doc(&format!("book:{book}"), dr_store::OpenDoc::Existing)
+            .unwrap()
+            .write(dr_store::Origin::Import, move |doc| {
+                let b = dr_doc::v3::BorrowedBookV3::new(doc, &book).unwrap();
+                let mut t = b.txn();
+                for old in t.view().memory() {
+                    t.memory(&old.id)
+                        .unwrap()
+                        .deleted_at(Some(dr_model::Timestamp(1)))
+                        .unwrap();
+                }
+                t.memory(&id)
+                    .unwrap()
+                    .body(&body)
+                    .unwrap()
+                    .kind(&dr_model::kind::MemoryKind::from("directive"))
+                    .unwrap()
+                    .source(&dr_model::kind::MemorySource::from("author"))
+                    .unwrap()
+                    .status(&dr_model::kind::MemoryStatus::from(status.as_str()))
+                    .unwrap()
+                    .deleted_at(deleted)
+                    .unwrap();
+            })
+            .unwrap();
+    };
+    edit("active", None);
+    let snapshot = project(&f.ws, &f.book).unwrap();
+    assert_eq!(snapshot.markdown, format!("# PROJECT_MEMORY.md\n\n{body}"));
+    assert_eq!(snapshot.entries[0].body, body);
+    edit("future", None);
+    let snapshot = project(&f.ws, &f.book).unwrap();
+    assert_eq!(snapshot.entries[0].status, "future");
+    assert!(!snapshot.entries[0].active());
+    assert!(!snapshot.markdown.contains(&f.text));
+    edit("dismissed", None);
+    assert!(!project(&f.ws, &f.book).unwrap().markdown.contains(&f.text));
+    edit("active", Some(dr_model::Timestamp(1)));
+    assert!(project(&f.ws, &f.book).unwrap().entries.is_empty());
+}
+
 #[test]
 fn project_memory_is_plain_active_raw_body_and_shared_author_agent_data() {
     let f = Fixture::new();

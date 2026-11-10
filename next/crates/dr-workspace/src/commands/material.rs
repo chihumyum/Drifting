@@ -1,11 +1,10 @@
 //! Materials (素材) metadata, material folders (素材夹) and asset metadata.
 
-use dr_doc::book::Collection;
 use dr_model::DocId;
-use dr_model::book::{Asset, EntityRef};
 use dr_model::id::{AssetId, MaterialFolderId, MaterialId};
 use dr_model::kind::{AssetKind, EntityKind, MaterialKind};
 use dr_model::pos::PosKey;
+use dr_model::shared::{Asset, EntityRef};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -17,13 +16,7 @@ use crate::registry::Registry;
 
 // The model shape is shared, but the typed book reader and transaction are not.
 macro_rules! write_material_book {
-    ($cx:ident, $slot:expr, move |$txn:ident| $body:block) => {{
-        if $slot.is_v3() {
-            $cx.write_book_v3($slot, move |$txn| $body)
-        } else {
-            $cx.write_book($slot, move |$txn| $body)
-        }
-    }};
+    ($cx:ident, $slot:expr, move |$txn:ident| $body:block) => {{ $cx.write_book_v3($slot, move |$txn| $body) }};
 }
 
 fn restore(
@@ -31,21 +24,17 @@ fn restore(
     before: &loro::Frontiers,
     touched: Vec<(String, String)>,
 ) -> Invocation {
-    if slot.is_v3() {
-        Invocation::new(
-            "entry_history.restore",
-            super::v3::history::RestoreIn {
-                book: slot.book.to_string(),
-                at: crate::naming::frontiers_hex(before),
-                targets: touched
-                    .into_iter()
-                    .map(|(collection, id)| super::v3::history::Key { collection, id })
-                    .collect(),
-            },
-        )
-    } else {
-        super::history::restore_invocation(slot.book.as_str(), before, touched)
-    }
+    Invocation::new(
+        "entry_history.restore",
+        super::v3::history::RestoreIn {
+            book: slot.book.to_string(),
+            at: crate::naming::frontiers_hex(before),
+            targets: touched
+                .into_iter()
+                .map(|(collection, id)| super::v3::history::Key { collection, id })
+                .collect(),
+        },
+    )
 }
 
 pub(crate) fn register(r: &mut Registry) {
@@ -62,7 +51,7 @@ pub(crate) fn register(r: &mut Registry) {
         .add::<AssetGet>();
 }
 
-fn find(slot: &BookSlot, id: &str) -> Result<dr_model::book::Material> {
+fn find(slot: &BookSlot, id: &str) -> Result<dr_model::shared::Material> {
     materials(slot)
         .iter()
         .find(|m| m.id.as_str() == id)
@@ -144,7 +133,7 @@ op! {
         let id = MaterialId::new_v7();
         let title = match input.title.trim() { "" => "Untitled".to_string(), t => t.to_string() };
         if kind == MaterialKind::Text {
-            super::chapter::seed_prose(cx, &slot.book, &DocId::Material(id.clone()), input.text.as_deref())?;
+            super::prose::seed_prose(cx, &slot.book, &DocId::Material(id.clone()), input.text.as_deref())?;
         }
         let (i2, t2, d2) = (id.clone(), title.clone(), input.description.clone());
         let asset_id = asset.map(|a| a.id);
@@ -263,20 +252,12 @@ op! {
         touched.extend(rels.iter().map(|r| ("relations".to_string(), r.to_string())));
         touched.extend(cmts.iter().map(|c| ("comments".to_string(), c.to_string())));
         let (id, r2, c2) = (old.id.clone(), rels.clone(), cmts.clone());
-        let (_, before) = if slot.is_v3() {
-            cx.write_book_v3(&slot, move |txn| {
+        let (_, before) = cx.write_book_v3(&slot, move |txn| {
                 for r in &r2 { txn.purge(dr_doc::v3::CollectionV3::Relations, r.as_str())?; }
                 for c in &c2 { txn.comment(c)?.target(None)?.module(None)?.target_block(None)?.anchor(None)?; }
                 txn.purge(dr_doc::v3::CollectionV3::Materials, id.as_str())?;
                 Ok(())
-            })
-        } else {
-            cx.write_book(&slot, move |txn| {
-                apply_fallout(txn, &r2, &c2)?;
-                txn.purge(Collection::Materials, id.as_str())?;
-                Ok(())
-            })
-        }?;
+            })?;
         report_fallout(cx, &rels, &cmts);
         cx.effect(EffectAction::Purged, "material", &input.id, Some(&old.title));
         cx.undo_with(restore(&slot, &before, touched));

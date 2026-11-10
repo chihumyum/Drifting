@@ -51,7 +51,7 @@ fn tpl(e: &Env, b: &str, id: &str) -> Value {
 #[test]
 fn v3_project_ids_and_legacy_isolation() {
     let e = env();
-    let old = e.book();
+    let old = common::acceptance::empty_source(e.ws().library());
     let b = project(&e);
     let c = project(&e);
     let a = entries(&e, &b);
@@ -64,12 +64,7 @@ fn v3_project_ids_and_legacy_isolation() {
         e.try_call("entry.create", json!({"book":old,"title":"refused"}))
             .is_err()
     );
-    assert!(
-        e.out("chapter.list", json!({"book":old}))
-            .as_array()
-            .unwrap()
-            .is_empty()
-    );
+    assert!(dr_workspace::registry().get("chapter.list").is_none());
     // A v3 typed operation must refuse v2.2 before any commit or document registration.
     let before = e
         .ws()
@@ -655,8 +650,7 @@ fn v3_workspace_purge_keeps_the_other_book_and_legacy_commands_refuse_v3() {
         .collect::<std::collections::BTreeSet<_>>();
     assert!(
         e.try_call(
-            "chapter.create",
-            json!({"book":b,"title":"must not create a node"})
+            "chapter.create", json!({"book": b, "parent": common::acceptance::novel_root(e.ws(), &b, "tpl-manuscript"), "template": "tpl-chapter", "title": "must not create a node"})
         )
         .is_err()
     );
@@ -974,7 +968,13 @@ fn v3_level_batch_matches_individual_queries_and_reports_canonical_sources() {
             .iter()
             .any(|r| r["id"] == group)
     );
-    assert!(e.try_call("level.list", json!({"book":e.book()})).is_err());
+    assert!(
+        e.try_call(
+            "level.list",
+            json!({"book":common::acceptance::empty_source(e.ws().library())})
+        )
+        .is_err()
+    );
 }
 
 #[test]

@@ -109,16 +109,13 @@ impl AgentPanel {
         cx.notify();
     }
 
-    fn suggestion(&mut self, card: Option<String>, skip: bool, cx: &mut Context<Self>) {
+    fn suggestion(&mut self, card: String, skip: bool, cx: &mut Context<Self>) {
         let (Some(controller), Some(book)) = (self.controller.clone(), self.book.clone()) else {
             return;
         };
         let now = chrono::Utc::now().timestamp_millis();
         let job: BoxFuture<'static, Result<Option<ConversationId>, String>> = if skip {
-            let task = match card {
-                Some(card) => controller.dismiss_suggestion(book, card),
-                None => controller.skip_organize(book, now),
-            };
+            let task = controller.dismiss_suggestion(book, card);
             Box::pin(async move { task.await.map(|_| None) })
         } else {
             let mut config = match self.connections.read(cx).run_config() {
@@ -212,25 +209,7 @@ impl AgentPanel {
         let Some(suggestions) = &self.continuity.suggestions else {
             return column.into_any_element();
         };
-        if let Some(organize) = &suggestions.organize {
-            column = column.child(
-                div()
-                    .flex()
-                    .gap(px(4.))
-                    .child(
-                        Button::new("agent-organize", organize.title.clone())
-                            .text()
-                            .disabled(self.busy)
-                            .on_click(cx.listener(|p, _, _, cx| p.suggestion(None, false, cx))),
-                    )
-                    .child(
-                        Button::new("agent-organize-skip", "×")
-                            .text()
-                            .disabled(self.busy)
-                            .on_click(cx.listener(|p, _, _, cx| p.suggestion(None, true, cx))),
-                    ),
-            );
-        }
+
         for (i, stored) in suggestions
             .state
             .cards
@@ -254,7 +233,7 @@ impl AgentPanel {
                                     .text()
                                     .disabled(self.busy)
                                     .on_click(cx.listener(move |p, _, _, cx| {
-                                        p.suggestion(Some(open.clone()), false, cx)
+                                        p.suggestion(open.clone(), false, cx)
                                     })),
                             )
                             .child(
@@ -262,7 +241,7 @@ impl AgentPanel {
                                     .text()
                                     .disabled(self.busy)
                                     .on_click(cx.listener(move |p, _, _, cx| {
-                                        p.suggestion(Some(dismiss.clone()), true, cx)
+                                        p.suggestion(dismiss.clone(), true, cx)
                                     })),
                             ),
                     )

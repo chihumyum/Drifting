@@ -19,11 +19,10 @@
 //! sweep, so a book entity never names a prose document that is gone.
 
 use std::cell::RefCell;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::BTreeSet;
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::ThreadId;
 
-use dr_doc::book::{BookTxn, BorrowedBook};
 use dr_doc::prose::{BorrowedProse, ProseTxn, ProseView};
 use dr_model::DocId;
 use dr_model::id::BookId;
@@ -107,36 +106,6 @@ pub struct Outcome<T> {
     pub undo: Option<Vec<Invocation>>,
     /// The journal row (absent for reads, no-ops and inverse runs).
     pub journal: Option<i64>,
-}
-
-/// Writes a command makes to prose documents from other threads
-/// ([`Cx::prose_writer`]).
-pub(crate) struct ProseWriter {
-    origin: dr_store::Origin,
-    agent: Option<dr_store::AgentWrite>,
-    guards: Option<crate::guard::Guards>,
-}
-
-impl ProseWriter {
-    pub(crate) fn write<R, F>(&self, slot: &ProseSlot, f: F) -> Result<R>
-    where
-        F: FnOnce(&loro::LoroDoc) -> Result<R> + Send + 'static,
-        R: Send + 'static,
-    {
-        let guards = self.guards.clone();
-        let id = slot.doc.to_string();
-        holder::write(
-            &slot.handle,
-            self.origin.clone(),
-            self.agent.clone(),
-            move |doc| {
-                if let Some(guards) = guards {
-                    guards.check(&id, doc)?;
-                }
-                f(doc)
-            },
-        )
-    }
 }
 
 /// Test hook: make one named point of the write path fail once.
@@ -245,34 +214,6 @@ struct State {
     books_written: BTreeSet<BookId>,
     phase: Option<Phase>,
     book_hint: Option<BookId>,
-    /// Elements whose `updated_at` the book write stamps
-    /// ([`Cx::touch_element`]).
-    touched_elements: Vec<String>,
-    /// Documents opened for this command alone ([`Cx::prose_passing`]).
-    passing: HashMap<DocId, Arc<ProseSlot>>,
-}
-
-/// The key of an element's last change of its own fields, in seconds
-/// (dr-model's `Timestamp`), as comments keep theirs. dr-doc's element has
-/// no such field yet (F1 待协调): F3 writes and reads the key itself, the
-/// encoding dr-doc gives timestamps, so a later `ElementWriter::updated_at`
-/// reads what is stored.
-pub(crate) const ELEMENT_UPDATED_AT: &str = "updated_at";
-
-/// Write [`ELEMENT_UPDATED_AT`] = now on each live element map of `ids`.
-fn stamp_elements(doc: &loro::LoroDoc, ids: &[String]) -> Result<()> {
-    if ids.is_empty() {
-        return Ok(());
-    }
-    let root = doc.get_map(dr_doc::book::Collection::Elements.root());
-    let now = loro::LoroValue::I64(dr_model::Timestamp::now().0);
-    for id in ids {
-        if let Some(loro::ValueOrContainer::Container(loro::Container::Map(m))) = root.get(id) {
-            m.insert(ELEMENT_UPDATED_AT, now.clone())
-                .map_err(|e| WsError::Internal(e.to_string()))?;
-        }
-    }
-    Ok(())
 }
 
 /// The context of one command or query.
@@ -361,37 +302,6 @@ impl<'a> Cx<'a> {
             }
         }
         let slot = self.ws.book_slot(&book)?;
-        // Common book lifecycle/meta and prose operations keep their storage
-        // contracts. Kind-specific v2.2 commands must never create old roots in v3.
-        if slot.is_v3()
-            && self.spec.book_version != Some(3)
-            && self.spec.v3.is_none()
-            && !self.spec.name.starts_with("prose.")
-            && !matches!(
-                self.spec.name,
-                "book.get"
-                    | "book.update"
-                    | "book.trash"
-                    | "book.restore"
-                    | "book.writing_days"
-                    | "writing_day.record"
-                    | "material.list"
-                    | "material.create"
-                    | "material.update"
-                    | "material.move"
-                    | "material.delete"
-                    | "material_folder.list"
-                    | "material_folder.create"
-                    | "material_folder.update"
-                    | "material_folder.delete"
-                    | "asset.put"
-                    | "asset.get"
-            )
-        {
-            return Err(WsError::invalid(
-                "this operation requires a v2.2 book; use the v3 entry commands",
-            ));
-        }
         let mut st = self.st.borrow_mut();
         if st.book_hint.is_none() {
             st.book_hint = Some(book);
@@ -542,58 +452,6 @@ impl<'a> Cx<'a> {
         })
     }
 
-    /// Step 2 for writes this command makes on other threads (one per
-    /// document, `holder::par_map`): the origin and the Agent record
-    /// [`Cx::write_prose_raw`] would use.
-    pub(crate) fn prose_writer(&self) -> Result<ProseWriter> {
-        self.check_phase(Phase::Prose)?;
-        Ok(ProseWriter {
-            origin: match self.actor {
-                Actor::User => dr_store::Origin::Command,
-                _ => self.actor.store_origin(),
-            },
-            agent: self.actor.agent_write(&self.summary()),
-            guards: self.guards.clone(),
-        })
-    }
-
-    /// Step 3: the book document, one commit. Returns `f`'s value and the
-    /// book's version just before the commit (what a purge's undo restores
-    /// from). Whatever `f` applied before failing is committed too (dr-doc
-    /// cannot roll back), so `f` must validate nothing: validate before.
-    pub(crate) fn write_book<R, F>(&self, slot: &BookSlot, f: F) -> Result<(R, Frontiers)>
-    where
-        F: FnOnce(&mut BookTxn<'_>) -> Result<R> + Send + 'static,
-        R: Send + 'static,
-    {
-        self.check_phase(Phase::Book)?;
-        if !self.st.borrow_mut().books_written.insert(slot.book.clone()) {
-            return Err(WsError::Internal(format!(
-                "{}: a second book commit in one command",
-                self.spec.name
-            )));
-        }
-        self.faults().check("after_prose")?;
-        let agent = self.actor.agent_write(&self.summary());
-        let book = slot.book.clone();
-        let touched = std::mem::take(&mut self.st.borrow_mut().touched_elements);
-        let guards = self.guards.clone();
-        holder::write(&slot.handle, self.actor.store_origin(), agent, move |doc| {
-            if let Some(guards) = guards {
-                guards.check(&format!("book:{book}"), doc)?;
-            }
-            // The holder has settled the document: this is the stored head.
-            let before = doc.oplog_frontiers();
-            let r = {
-                let b = BorrowedBook::new(doc, &book)?;
-                let mut txn = b.txn();
-                f(&mut txn)?
-            };
-            stamp_elements(doc, &touched)?;
-            Ok((r, before))
-        })
-    }
-
     /// Step 3 on a v3 book document (`BookTxnV3`), one commit.
     pub(crate) fn write_book_v3<R, F>(&self, slot: &BookSlot, f: F) -> Result<(R, Frontiers)>
     where
@@ -625,29 +483,10 @@ impl<'a> Cx<'a> {
         })
     }
 
-    /// Stamp element `id`'s `updated_at` in this command's book write (a
-    /// rename, a field, an alias, a summary: what M11 shows as 「更新于」).
-    /// Call it before [`Self::write_book`].
-    pub(crate) fn touch_element(&self, id: &dr_model::id::ElementId) {
-        self.st.borrow_mut().touched_elements.push(id.to_string());
-    }
-
     /// The open prose document `doc` (created from its genesis if only
     /// registered).
     pub(crate) fn prose(&self, doc: &DocId) -> Result<Arc<ProseSlot>> {
         self.ws.prose_slot(doc)
-    }
-
-    /// [`Cx::prose`] for a command that touches a document in passing: its
-    /// open slot, or one held for this command only
-    /// (`Workspace::prose_slot_passing`).
-    pub(crate) fn prose_passing(&self, doc: &DocId) -> Result<Arc<ProseSlot>> {
-        if let Some(s) = self.st.borrow().passing.get(doc) {
-            return Ok(s.clone());
-        }
-        let s = self.ws.prose_slot_passing(doc)?;
-        self.st.borrow_mut().passing.insert(doc.clone(), s.clone());
-        Ok(s)
     }
 
     pub(crate) fn prose_view<'s>(&self, slot: &'s ProseSlot) -> ProseView<'s> {

@@ -1,0 +1,364 @@
+{
+  "about": "Task 7: real ordinary shelf creation defaults to canonical v3; type/save/reopen; retired book direct/link refuse; real GUI prewrite pending then explicit fixture choices to a new target. Source file manifest is returned by the shared synthetic fixture. Post-import typing verifies canonical editing in the activated target. A separate native App A/B/A scene supplies closed-library FakeSyncServer/SyncEngine evidence. No input.type step claims platform IME.",
+  "steps": [
+    {
+      "legacy": "retired-book",
+      "save": "retired"
+    },
+    {
+      "legacy": "sample-v3",
+      "save": "source"
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light",
+          "DRIFTING_WINDOW_DISPLAY": "secondary",
+          "DRIFTING_APP_DATA_DIR": "${source.root}"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        }
+      },
+      "save": "launched"
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "shelf.show"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/shelf": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "button",
+        "label": "New book",
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "Canonical switch probe"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "enter"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/version": 3,
+          "/book/loaded": true,
+          "/shelf": false
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "state.get",
+      "save": "created",
+      "expect": {
+        "/book/name": "Canonical switch probe",
+        "/book/version": 3
+      }
+    },
+    {
+      "call": "entry.list",
+      "input": {
+        "book": "${created.book.id}",
+        "all": true
+      },
+      "save": "roots"
+    },
+    {
+      "call": "entry.create",
+      "input": {
+        "book": "${created.book.id}",
+        "parent": "${roots.[template=tpl-manuscript].id}",
+        "template": "tpl-chapter",
+        "title": "Synthetic cutover entry"
+      },
+      "save": "entry"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/chapters": 1
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${entry.id}/mod-prose"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/focus/editor": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "切换正文。"
+      }
+    },
+    {
+      "app": "page.text",
+      "contains": {
+        "/text": "切换正文。"
+      }
+    },
+    {
+      "app": "app.quit"
+    },
+    {
+      "launch": {
+        "env": {
+          "DRIFTING_APPEARANCE": "light",
+          "DRIFTING_WINDOW_DISPLAY": "secondary",
+          "DRIFTING_APP_DATA_DIR": "${source.root}"
+        },
+        "settings": {
+          "device": {
+            "modules": {
+              "first_run.done": true,
+              "guides.seen": [
+                "workspace-tour"
+              ]
+            }
+          },
+          "account": {
+            "language.ui_locale": "en"
+          }
+        },
+        "book": "${created.book.id}"
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "text": "切换正文。",
+        "state": {
+          "/book/version": 3
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "page.text",
+      "contains": {
+        "/text": "切换正文。"
+      }
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${retired.book}"
+      },
+      "expect_error": "invalid"
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "link": "drifting-next-dev://open/${retired.book}/entries/id-${entry.id}/modules/id-mod-prose/prose.md"
+      },
+      "expect_error": "not_found"
+    },
+    {
+      "app": "state.get",
+      "expect": {
+        "/book/id": "${created.book.id}",
+        "/book/version": 3
+      }
+    },
+    {
+      "app": "import.v3.configure",
+      "params": {
+        "source": "${source.root}"
+      },
+      "expect": {
+        "/phase": "ready"
+      }
+    },
+    {
+      "app": "import.v3.start",
+      "expect": {
+        "/phase": "running"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/import/phase": "ready"
+        },
+        "timeout_ms": 90000
+      }
+    },
+    {
+      "app": "state.get",
+      "save": "pending",
+      "expect": {
+        "/import/explicitChoices": false,
+        "/import/pending/[code=relation-type-template-restrictions]/code": "relation-type-template-restrictions"
+      }
+    },
+    {
+      "app": "import.v3.configure",
+      "params": {
+        "source": "${source.root}",
+        "choices": "${source.choices}"
+      },
+      "expect": {
+        "/phase": "ready",
+        "/explicitChoices": true
+      }
+    },
+    {
+      "app": "import.v3.start"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/import/phase": "done",
+          "/library": true
+        },
+        "timeout_ms": 120000
+      }
+    },
+    {
+      "app": "state.get",
+      "save": "imported",
+      "expect": {
+        "/import/books/0/id": "${source.book}"
+      }
+    },
+    {
+      "app": "window.focus"
+    },
+    {
+      "app": "ui.press",
+      "params": {
+        "role": "button",
+        "label": "Done",
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/import/phase": "idle"
+        },
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${source.book}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/id": "${source.book}",
+          "/book/version": 3,
+          "/book/loaded": true,
+          "/shelf": false
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "state.get",
+      "save": "imported_open",
+      "expect": {
+        "/book/id": "${source.book}",
+        "/book/version": 3
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${source.book}",
+        "id": "${source.chapter}"
+      },
+      "expect": {
+        "/id": "${source.chapter}"
+      }
+    },
+    {
+      "app": "nav.open",
+      "params": {
+        "target": "entry:${source.chapter}/mod-prose"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/focus/editor": true
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "同步窗口甲。"
+      }
+    },
+    {
+      "app": "page.text",
+      "save": "sync_a",
+      "contains": {
+        "/text": "同步窗口甲。"
+      }
+    },
+    {
+      "app": "ui.screenshot",
+      "png": "canonical-app-imported.png"
+    },
+    {
+      "app": "app.quit"
+    }
+  ]
+}

@@ -36,7 +36,7 @@ fn main() -> anyhow::Result<()> {
     let directory = tempfile::tempdir()?;
     let workspace =
         dr_workspace::Workspace::open_dir(directory.path().join("library"), "m32-window-fixture")?;
-    let seed = seed::generate(Preset::Tiny, seed::DEFAULT_SEED)?;
+    let seed = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED)?;
     seed.write_to(workspace.library())?;
     let book = seed.books[0].book_id().to_string();
     let paths = GrantPaths::new(

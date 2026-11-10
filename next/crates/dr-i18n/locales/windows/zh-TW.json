@@ -18,11 +18,6 @@
     "models": {
       "speechDesc": "語音輸入的轉錄憑證，與上方聊天服務商分開。轉錄時會附上此作品的要素與設定名稱，以校正專有名詞；請求從本裝置直接送往百鍊，金鑰僅存在 Windows 認證管理員。"
     },
-    "sync": {
-      "projection": {
-        "reveal": "在檔案總管中顯示"
-      }
-    },
     "update": {
       "channel_desc": "Windows 10/11 · x64 與 ARM64"
     }

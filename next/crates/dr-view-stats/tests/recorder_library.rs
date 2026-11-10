@@ -23,19 +23,18 @@ fn the_authors_words_are_stored_for_today() {
     let ws = Workspace::open(lib, WorkspaceOptions::default()).unwrap();
     assert_eq!(ws.writing_device().as_deref(), Some(key.as_str()));
 
-    let book = out(&ws, "book.create", json!({"name": "Book"}))["id"]
+    let book = out(&ws, "project.create", json!({"name": "Book"}))["id"]
         .as_str()
         .unwrap()
         .to_owned();
     let chapter = out(
         &ws,
-        "chapter.create",
-        json!({"book": book, "title": "One", "text": "钟楼在镇口。"}),
+        "entry.create", json!({"book": book, "parent": dr_testkit::seed::acceptance::novel_root(&ws, &book, "tpl-manuscript"), "template": "tpl-chapter", "title": "One", "bodies": {"mod-prose": "钟楼在镇口。"}}),
     )["id"]
         .as_str()
         .unwrap()
         .to_owned();
-    let doc = format!("node:{chapter}");
+    let doc = format!("body:{chapter}/mod-prose");
     ws.library().reindex_doc(&doc).unwrap();
 
     let recorder = Recorder::over(&ws, |_| {});
@@ -61,21 +60,13 @@ fn the_authors_words_are_stored_for_today() {
     }
     // A body template is written like a page but is not the book's text:
     // neither today's words nor the book's change.
-    let cat = out(
+    let template = out(
         &ws,
-        "category.create",
-        json!({"book": book, "name": "人物"}),
-    )["id"]
-        .as_str()
-        .unwrap()
-        .to_owned();
-    out(
-        &ws,
-        "category_template.set_body",
-        json!({"book": book, "category": cat, "paragraphs": [{"heading": 1, "text": "外貌与来历"}]}),
+        "module.set_prose",
+        json!({"book": book, "owner": "tpl-character", "module": "mod-prose", "template": true, "paragraphs": [{"heading": 1, "text": "外貌与来历"}]}),
     );
     ws.library()
-        .reindex_doc(&format!("template:category:{cat}"))
+        .reindex_doc(template["id"].as_str().unwrap())
         .unwrap();
     std::thread::sleep(Duration::from_millis(300));
     assert_eq!(recorder.today(&book), Some(4));

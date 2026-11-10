@@ -4,13 +4,13 @@
 //! sample books; this module re-exports it.
 
 use dr_doc::{DocError, Result};
-use dr_model::book::{BlockSnapshot, EntityRef, KvEntry};
 use dr_model::id::*;
 use dr_model::kind::*;
 use dr_model::pos::PosKey;
+use dr_model::shared::{BlockSnapshot, EntityRef, KvEntry};
 use dr_model::{Day, DocId, Timestamp};
 
-pub(crate) use dr_samples::build::{Builder, format_paras, id, positions};
+pub(crate) use dr_samples::build::{Builder, id, positions};
 pub use dr_samples::build::{SeededBook, T0};
 
 use super::plan::{self, Plan};

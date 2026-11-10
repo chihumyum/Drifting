@@ -39,7 +39,7 @@ impl Fixture {
     fn new() -> Self {
         let dir = tempfile::tempdir().unwrap();
         let ws = Workspace::open_dir(dir.path(), "m31-navigation-test").unwrap();
-        let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+        let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
         let book = seeded.books[0].book_id().to_string();
         let words = seeded.books[0]
             .groups()
@@ -51,15 +51,11 @@ impl Fixture {
             .take(16)
             .collect();
         seeded.write_to(ws.library()).unwrap();
-        let chapter = ws
-            .call(&Actor::User, "chapter.list", json!({"book":book}))
-            .unwrap()["output"][0]["id"]
+        let chapter = json!({"output":dr_testkit::seed::acceptance::entries_by_template(&ws,&book,"tpl-chapter")})["output"][0]["id"]
             .as_str()
             .unwrap()
             .to_owned();
-        let element = ws
-            .call(&Actor::User, "element.list", json!({"book":book}))
-            .unwrap()["output"][0]["id"]
+        let element = json!({"output":dr_testkit::seed::acceptance::entries_by_template(&ws,&book,"tpl-character")})["output"][0]["id"]
             .as_str()
             .unwrap()
             .to_owned();
@@ -208,7 +204,10 @@ fn open<'a>(
     });
     shell.update(cx, |shell, cx| {
         shell.open(
-            Target::Chapter(fixture.chapter.parse().unwrap()),
+            Target::Entry {
+                id: fixture.chapter.parse().unwrap(),
+                module: Some("mod-prose".parse().unwrap()),
+            },
             Open::KEEP,
             cx,
         )
@@ -272,12 +271,16 @@ fn close(fixture: &Fixture, cx: &mut VisualTestContext) {
 
 fn comment_rounds(book: &str, chapter: &str, words: &str) -> Vec<Vec<Step>> {
     vec![
-        tool("chapters", "chapter.list", json!({"book":book})),
-        tool("comments", "comment.list", json!({"book":book})),
+        tool(
+            "module",
+            "module.read",
+            json!({"book":book,"entry":chapter,"module":"mod-prose"}),
+        ),
+        tool("comments", "comment.list", json!({"book":book,"all":true})),
         tool(
             "write",
             "comment.create",
-            json!({"book":book,"target":{"kind":"node","id":chapter},"body":words}),
+            json!({"book":book,"target":{"kind":"entry","id":chapter},"module":"mod-prose","body":words}),
         ),
     ]
 }
@@ -351,13 +354,14 @@ fn switching_books_cancels_unpainted_navigation_without_canceling_the_new_books_
     cx: &mut TestAppContext,
 ) {
     let fixture = Fixture::new();
-    let second = seed::generate(Preset::Tiny, seed::DEFAULT_SEED + 1).unwrap();
+    let second = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED + 1).unwrap();
     let book = second.books[0].book_id().to_string();
     second.write_to(fixture.ws.library()).unwrap();
-    let chapter = fixture
-        .ws
-        .call(&Actor::User, "chapter.list", json!({"book":book}))
-        .unwrap()["output"][0]["id"]
+    let chapter = dr_testkit::seed::acceptance::entries_by_template(
+        &fixture.ws,
+        &book,
+        "tpl-chapter",
+    )[0]["id"]
         .as_str()
         .unwrap()
         .to_owned();
@@ -403,7 +407,10 @@ fn switching_books_cancels_unpainted_navigation_without_canceling_the_new_books_
     });
     assert_eq!(
         shell.read_with(cx, |shell, _| shell.nav.current().cloned()),
-        Some(Target::Chapter(chapter.parse().unwrap()))
+        Some(Target::Entry {
+            id: chapter.parse().unwrap(),
+            module: Some("mod-prose".parse().unwrap())
+        })
     );
     assert_eq!(
         cx.update(|_, cx| ReviewFocus::get(cx).jump.unwrap().comment),
@@ -456,19 +463,27 @@ fn relation_rounds(fixture: &Fixture) -> (Vec<Vec<Step>>, String) {
     let read = |name| {
         fixture
             .ws
-            .call(&Actor::User, name, json!({"book":fixture.book}))
+            .call(&Actor::User, name, json!({"book":fixture.book,"all":true}))
             .unwrap()["output"]
             .clone()
     };
-    let elements = read("element.list");
-    let types = read("relation_type.list");
+    let elements = json!(dr_testkit::seed::acceptance::entries_by_template(
+        &fixture.ws,
+        &fixture.book,
+        "tpl-character"
+    ));
+    let types = read("entry_relation_type.list");
     let relations = read("relation.list");
     let kind = types
         .as_array()
         .unwrap()
         .iter()
         .find(|kind| {
-            kind["source_kinds"] == json!(["element"]) && kind["target_kinds"] == json!(["element"])
+            kind["source_kinds"] == json!(["entry"])
+                && kind["target_kinds"] == json!(["entry"])
+                && kind["source_templates"]
+                    .as_array()
+                    .is_some_and(|ts| ts.iter().any(|t| t == "tpl-character"))
         })
         .unwrap();
     let elements = elements.as_array().unwrap();
@@ -487,13 +502,21 @@ fn relation_rounds(fixture: &Fixture) -> (Vec<Vec<Step>>, String) {
     let from = from["id"].as_str().unwrap().to_owned();
     (
         vec![
-            tool("elements", "element.list", json!({"book":fixture.book})),
-            tool("types", "relation_type.list", json!({"book":fixture.book})),
+            tool(
+                "elements",
+                "entry.list",
+                json!({"book":fixture.book,"all":true}),
+            ),
+            tool(
+                "types",
+                "entry_relation_type.list",
+                json!({"book":fixture.book,"all":true}),
+            ),
             tool("relations", "relation.list", json!({"book":fixture.book})),
             tool(
                 "write",
                 "relation.create",
-                json!({"book":fixture.book,"from":{"kind":"element","id":from},"to":{"kind":"element","id":to["id"]},"relation_type":kind["id"]}),
+                json!({"book":fixture.book,"from":{"kind":"entry","id":from},"to":{"kind":"entry","id":to["id"]},"relation_type":kind["id"]}),
             ),
         ],
         from,
@@ -530,22 +553,38 @@ fn first_relation_only_change_opens_its_live_endpoint_without_prose_history(
     });
     assert_eq!(
         shell.read_with(cx, |shell, _| shell.nav.current().cloned()),
-        Some(Target::Element(endpoint.parse().unwrap()))
+        Some(Target::Entry {
+            id: endpoint.parse().unwrap(),
+            module: None
+        })
     );
     assert!(shell.read_with(cx, |shell, _| shell.history.is_none()));
     close(&fixture, cx);
 }
 
 #[gpui::test]
-fn agent_undo_metadata_effect_uses_the_restored_element_without_prose_history(
+fn agent_entry_history_effect_reveals_the_restored_metadata_without_prose_history(
     cx: &mut TestAppContext,
 ) {
     let fixture = Fixture::new();
-    let source = "m31-navigation-prior-agent";
-    let actor = Actor::agent(source, 1, "metadata");
-    let tools = dr_agent_tools::AgentTools::new();
     let book = fixture.book.parse().unwrap();
-    let invoke = |name: &str, arguments| {
+    let tools = dr_agent_tools::AgentTools::new();
+    let actor = Actor::agent("metadata-source", 1, "rename");
+    let before = fixture
+        .ws
+        .observe(&format!("book:{}", fixture.book))
+        .unwrap()
+        .version;
+    let original = fixture
+        .ws
+        .call(
+            &Actor::User,
+            "entry.get",
+            json!({"book":fixture.book,"id":fixture.element}),
+        )
+        .unwrap()["output"]["title"]
+        .clone();
+    let invoke = |name: &str, args: Value| {
         tools
             .invoke(
                 &fixture.ws,
@@ -553,73 +592,55 @@ fn agent_undo_metadata_effect_uses_the_restored_element_without_prose_history(
                 &actor,
                 dr_agent_tools::CallRequest {
                     name: name.into(),
-                    arguments,
+                    arguments: args,
                     revision: None,
                     edited_text: None,
                 },
             )
             .unwrap()
     };
-    let before = invoke("element.list", json!({"book":fixture.book}));
-    let summary = before["output"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|element| element["id"] == fixture.element)
-        .unwrap()["summary"]
-        .clone();
+    invoke("entry.get", json!({"id":fixture.element}));
     invoke(
-        "element.update",
-        json!({"book":fixture.book,"id":fixture.element,"summary":fixture.words}),
+        "entry.update",
+        json!({"id":fixture.element,"title":format!("{} revised",original.as_str().unwrap())}),
     );
-    assert!(
-        !fixture
-            .ws
-            .library()
-            .settlements(Some(source), None)
-            .unwrap()
-            .is_empty()
-    );
-    let scope = json!({"session":source,"turn":1});
     let (shell, panel, cx) = open(
         cx,
         &fixture,
         vec![
-            tool("changes", "history.agent_changes", scope.clone()),
-            tool("undo", "history.undo_agent", scope),
+            tool("entry", "entry.get", json!({"id":fixture.element})),
+            tool("version", "entry_history.version", json!({})),
+            tool(
+                "restore",
+                "entry_history.restore",
+                json!({"at":before,"targets":[{"collection":"entries","id":fixture.element}]}),
+            ),
         ],
     );
-    assert!(panel.read_with(cx, |panel, _| {
-        panel.snapshot().unwrap().runs[0]
-            .tools
-            .iter()
-            .filter_map(|tool| tool.result.as_ref())
-            .flat_map(|result| result.output["effects"].as_array().into_iter().flatten())
-            .any(|effect| effect["kind"] == "elements" && effect["id"] == fixture.element)
-    }));
-    let now = fixture
-        .ws
-        .call(&Actor::User, "element.list", json!({"book":fixture.book}))
-        .unwrap();
     assert_eq!(
-        now["output"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .find(|element| element["id"] == fixture.element)
-            .unwrap()["summary"],
-        summary
+        fixture
+            .ws
+            .call(
+                &Actor::User,
+                "entry.get",
+                json!({"book":fixture.book,"id":fixture.element})
+            )
+            .unwrap()["output"]["title"],
+        original
     );
-    let id = changed(&panel, &format!("element:{}", fixture.element), cx);
+    let id = changed(&panel, &format!("entry:{}", fixture.element), cx);
     click(&id, cx);
     wait(cx, |cx| {
         cx.update(|_, cx| onboarding::step(cx)) == onboarding::Step::Done
     });
     assert_eq!(
-        shell.read_with(cx, |shell, _| shell.nav.current().cloned()),
-        Some(Target::Element(fixture.element.parse().unwrap()))
+        shell.read_with(cx, |s, _| s.nav.current().cloned()),
+        Some(Target::Entry {
+            id: fixture.element.parse().unwrap(),
+            module: None
+        })
     );
-    assert!(shell.read_with(cx, |shell, _| shell.history.is_none()));
+    assert!(shell.read_with(cx, |s, _| s.history.is_none()));
     close(&fixture, cx);
 }
 
@@ -648,7 +669,10 @@ fn a_relation_deleted_before_inspection_does_not_open_an_endpoint_or_finish_the_
     );
     assert_eq!(
         shell.read_with(cx, |shell, _| shell.nav.current().cloned()),
-        Some(Target::Chapter(fixture.chapter.parse().unwrap()))
+        Some(Target::Entry {
+            id: fixture.chapter.parse().unwrap(),
+            module: Some("mod-prose".parse().unwrap())
+        })
     );
     assert!(shell.read_with(cx, |shell, _| shell.history.is_none()));
     close(&fixture, cx);
@@ -658,7 +682,7 @@ fn a_relation_deleted_before_inspection_does_not_open_an_endpoint_or_finish_the_
 fn first_book_metadata_change_opens_home_without_prose_history(cx: &mut TestAppContext) {
     let fixture = Fixture::new();
     let rounds = vec![
-        tool("read", "book.get", json!({"book":fixture.book})),
+        tool("read", "book.get", json!({"book":fixture.book,"all":true})),
         tool(
             "write",
             "book.update",
@@ -680,22 +704,29 @@ fn first_book_metadata_change_opens_home_without_prose_history(cx: &mut TestAppC
 fn first_element_metadata_change_opens_the_element_without_prose_history(cx: &mut TestAppContext) {
     let fixture = Fixture::new();
     let rounds = vec![
-        tool("read", "element.list", json!({"book":fixture.book})),
+        tool(
+            "read",
+            "module.read",
+            json!({"book":fixture.book,"entry":fixture.element,"module":"mod-fields"}),
+        ),
         tool(
             "write",
-            "element.update",
-            json!({"book":fixture.book,"id":fixture.element,"summary":fixture.words}),
+            "module.set_field",
+            json!({"book":fixture.book,"entry":fixture.element,"module":"mod-fields","field":"summary","value":fixture.words}),
         ),
     ];
     let (shell, panel, cx) = open(cx, &fixture, rounds);
-    let id = changed(&panel, &format!("element:{}", fixture.element), cx);
+    let id = changed(&panel, &format!("entry:{}", fixture.element), cx);
     click(&id, cx);
     wait(cx, |cx| {
         cx.update(|_, cx| onboarding::step(cx)) == onboarding::Step::Done
     });
     assert_eq!(
         shell.read_with(cx, |shell, _| shell.nav.current().cloned()),
-        Some(Target::Element(fixture.element.parse().unwrap()))
+        Some(Target::Entry {
+            id: fixture.element.parse().unwrap(),
+            module: None
+        })
     );
     assert!(shell.read_with(cx, |shell, _| shell.history.is_none()));
     close(&fixture, cx);
@@ -705,20 +736,24 @@ fn first_element_metadata_change_opens_the_element_without_prose_history(cx: &mu
 fn a_changed_object_deleted_before_inspection_does_not_complete_the_guide(cx: &mut TestAppContext) {
     let fixture = Fixture::new();
     let rounds = vec![
-        tool("read", "element.list", json!({"book":fixture.book})),
+        tool(
+            "read",
+            "module.read",
+            json!({"book":fixture.book,"entry":fixture.element,"module":"mod-fields"}),
+        ),
         tool(
             "write",
-            "element.update",
-            json!({"book":fixture.book,"id":fixture.element,"summary":fixture.words}),
+            "module.set_field",
+            json!({"book":fixture.book,"entry":fixture.element,"module":"mod-fields","field":"summary","value":fixture.words}),
         ),
     ];
     let (shell, panel, cx) = open(cx, &fixture, rounds);
-    let id = changed(&panel, &format!("element:{}", fixture.element), cx);
+    let id = changed(&panel, &format!("entry:{}", fixture.element), cx);
     fixture
         .ws
         .call(
             &Actor::User,
-            "element.trash",
+            "entry.trash",
             json!({"book":fixture.book,"id":fixture.element}),
         )
         .unwrap();
@@ -726,7 +761,10 @@ fn a_changed_object_deleted_before_inspection_does_not_complete_the_guide(cx: &m
         shell.read_with(cx, |shell, _| {
             shell
                 .book
-                .entry(&Target::Element(fixture.element.parse().unwrap()))
+                .entry(&Target::Entry {
+                    id: fixture.element.parse().unwrap(),
+                    module: None,
+                })
                 .is_none()
         })
     });
@@ -743,15 +781,7 @@ fn a_changed_object_deleted_before_inspection_does_not_complete_the_guide(cx: &m
 #[gpui::test]
 fn a_comment_receipt_reveals_its_actual_chapter_and_review_focus(cx: &mut TestAppContext) {
     let fixture = Fixture::new();
-    let rounds = vec![
-        tool("chapters", "chapter.list", json!({"book":fixture.book})),
-        tool("comments", "comment.list", json!({"book":fixture.book})),
-        tool(
-            "write",
-            "comment.create",
-            json!({"book":fixture.book,"target":{"kind":"node","id":fixture.chapter},"body":fixture.words}),
-        ),
-    ];
+    let rounds = comment_rounds(&fixture.book, &fixture.chapter, &fixture.words);
     let (shell, panel, cx) = open(cx, &fixture, rounds);
     let comment = panel.read_with(cx, |panel, _| {
         panel.snapshot().unwrap().runs[0]
@@ -774,7 +804,10 @@ fn a_comment_receipt_reveals_its_actual_chapter_and_review_focus(cx: &mut TestAp
     });
     assert_eq!(
         shell.read_with(cx, |shell, _| shell.nav.current().cloned()),
-        Some(Target::Chapter(fixture.chapter.parse().unwrap()))
+        Some(Target::Entry {
+            id: fixture.chapter.parse().unwrap(),
+            module: Some("mod-prose".parse().unwrap())
+        })
     );
     assert_eq!(
         cx.update(|_, cx| ReviewFocus::get(cx).jump.unwrap().comment),

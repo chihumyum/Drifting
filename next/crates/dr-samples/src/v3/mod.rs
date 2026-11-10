@@ -10,10 +10,10 @@ pub use samples::{SampleBookV3, a_q, convert, pride_and_prejudice, write_book};
 
 use std::collections::BTreeMap;
 
-use dr_doc::book::BookView;
+use dr_doc::import_v1::BookView;
 use dr_doc::v3::novel::*;
-use dr_model::book::EntityRef;
 use dr_model::id::*;
+use dr_model::import_v1::EntityRef;
 use dr_model::kind::EntityKind;
 use dr_model::v3::{EntryTemplate, RelationTypeV3};
 use serde::{Deserialize, Serialize};
@@ -23,9 +23,22 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct MappingChoices {
+    /// Explicit symbolic ids for fresh novel roots. These aliases are resolved
+    /// only inside the newly allocated target, never to source/old-library ids.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub root_references: BTreeMap<EntryId, RootReference>,
     pub act_binding: Option<ActBindingChoice>,
     pub unaffiliated: Option<UnaffiliatedChoice>,
     pub relation_templates: BTreeMap<RelationTypeId, TemplateRestriction>,
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RootReference {
+    Manuscript,
+    Ideas,
+    Elements,
+    Storylines,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -125,6 +138,53 @@ pub fn prose_id(book: &BookId, old: &DocId) -> DocId {
 }
 
 impl MappingChoices {
+    /// Resolve author-selected aliases against this transaction's actual
+    /// roots. No root role is selected by default, and the full template is
+    /// otherwise unchanged. Empty aliases keep the existing mapping hash.
+    pub(crate) fn resolved_roots(
+        &self,
+        roots: [&EntryId; 4],
+        source: &BookView<'_>,
+    ) -> dr_doc::Result<Self> {
+        let authored = source
+            .nodes()
+            .iter()
+            .map(|e| e.id.to_string())
+            .chain(source.acts().iter().map(|e| e.id.to_string()))
+            .chain(source.drift_groups().iter().map(|e| e.id.to_string()))
+            .chain(source.categories().iter().map(|e| e.id.to_string()))
+            .chain(source.elements().iter().map(|e| e.id.to_string()))
+            .chain(source.storylines().iter().map(|e| e.id.to_string()))
+            .collect::<std::collections::BTreeSet<_>>();
+        if self
+            .root_references
+            .keys()
+            .any(|id| authored.contains(id.as_str()))
+        {
+            return Err(catalog::invalid(
+                "root reference collides with an authored source entry",
+            ));
+        }
+        let resolve = |id: &EntryId| match self.root_references.get(id) {
+            Some(RootReference::Manuscript) => (*roots[0]).clone(),
+            Some(RootReference::Ideas) => (*roots[1]).clone(),
+            Some(RootReference::Elements) => (*roots[2]).clone(),
+            Some(RootReference::Storylines) => (*roots[3]).clone(),
+            None => id.clone(),
+        };
+        let mut mapped = self.clone();
+        if let Some(choice) = &mut mapped.unaffiliated {
+            choice.parent = choice.parent.as_ref().map(resolve);
+            choice.template.settings.home = choice
+                .template
+                .settings
+                .home
+                .as_ref()
+                .map(|v| v.as_ref().map(resolve));
+        }
+        Ok(mapped)
+    }
+
     /// Policy questions only. Source integrity is checked separately by the
     /// importer, before any target or installation identity is written.
     pub fn pending(&self, source: &BookView<'_>) -> Vec<Pending> {

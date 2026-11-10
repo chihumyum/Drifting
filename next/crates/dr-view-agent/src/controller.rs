@@ -53,7 +53,6 @@ struct ServiceState {
     starting: HashSet<ConversationId>,
     authorizations: HashMap<ConversationId, long_tasks::Authorization>,
     suggestion_jobs: HashMap<BookId, dr_agent::Cancellation>,
-    organize_runs: HashMap<ConversationId, proactive::OrganizeRun>,
     proactive_enabled: bool,
     close: Option<Completion>,
 }
@@ -197,7 +196,6 @@ impl AgentController {
                 starting: HashSet::new(),
                 authorizations: HashMap::new(),
                 suggestion_jobs: HashMap::new(),
-                organize_runs: HashMap::new(),
                 proactive_enabled: true,
                 close: None,
             }),

@@ -2,17 +2,17 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
-use dr_model::book::*;
 use dr_model::id::*;
 use dr_model::kind::*;
 use dr_model::pos::cmp_pos;
+use dr_model::shared::*;
 use dr_model::v3::*;
 use dr_model::{DocId, Timestamp};
 use loro::{LoroDoc, LoroMap, LoroTree, LoroValue, TreeID};
 
-use crate::book::EntitySnapshot;
-use crate::book::fields::{F, kv_entries};
-use crate::book::read::{ForestNode, forest};
+use crate::catalog::EntitySnapshot;
+use crate::catalog::fields::{F, kv_entries};
+use crate::catalog::read::{ForestNode, forest};
 use crate::schema::book_v3;
 use crate::v3::CollectionV3;
 use crate::{DocError, Result};
@@ -1771,6 +1771,8 @@ impl<'a> BookViewV3<'a> {
                 | CollectionV3::RelationTypes
                 | CollectionV3::Materials
                 | CollectionV3::Comments
+                | CollectionV3::Facts
+                | CollectionV3::Memory
         ) {
             return None;
         }
@@ -1779,20 +1781,18 @@ impl<'a> BookViewV3<'a> {
 
     /// Snapshot of a map-backed entity (e.g. `Materials`) at this view's frontiers.
     pub fn entity_snapshot(&self, collection: CollectionV3, id: &str) -> Option<EntitySnapshot> {
-        let mapped = match collection {
-            CollectionV3::Materials => crate::book::Collection::Materials,
-            CollectionV3::RelationTypes => crate::book::Collection::RelationTypes,
-            CollectionV3::Relations => crate::book::Collection::Relations,
-            CollectionV3::Comments => crate::book::Collection::Comments,
-            CollectionV3::Assets => crate::book::Collection::Assets,
-            CollectionV3::Memory => crate::book::Collection::Memory,
-            _ => return None,
-        };
-        crate::book::BookView {
-            doc: self.doc,
-            book: self.book,
+        if !matches!(
+            collection,
+            CollectionV3::Materials
+                | CollectionV3::RelationTypes
+                | CollectionV3::Relations
+                | CollectionV3::Comments
+                | CollectionV3::Assets
+                | CollectionV3::Memory
+        ) {
+            return None;
         }
-        .entity_snapshot(mapped, id)
+        crate::catalog::read::CatalogView { doc: self.doc }.entity_snapshot(collection.root(), id)
     }
 
     pub fn needs_repair(&self) -> bool {

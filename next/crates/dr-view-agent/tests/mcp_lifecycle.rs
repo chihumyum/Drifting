@@ -50,7 +50,7 @@ fn setup(cx: &mut TestAppContext) -> (tempfile::TempDir, Vec<String>) {
     let ws = Workspace::open_dir(dir.path().join("library"), "m32-shell").unwrap();
     let mut books = Vec::new();
     for number in 0..2 {
-        let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED + number).unwrap();
+        let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED + number).unwrap();
         books.push(seeded.books[0].book_id().to_string());
         seeded.write_to(ws.library()).unwrap();
     }

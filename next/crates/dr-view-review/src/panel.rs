@@ -27,6 +27,7 @@
 //!   resolved and reopened with a text button.
 
 use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use dr_editor::decor::{Original, ReviewFocus};
@@ -41,22 +42,17 @@ use dr_ui::glass::{self, Kind, Mode, Spec, Tone};
 use dr_ui::input::{FieldEvent, TextArea};
 use dr_ui::sand::{self, Icon};
 use dr_ui::style::DrStyled;
-use dr_ui::tokens::{Easing, Story, motion, radius};
-use dr_workspace::commands::EntityIn;
-use dr_workspace::commands::comment::{
-    CommentDelete, CommentList, CommentListIn, CommentUpdate, CommentUpdateIn,
-};
-use dr_workspace::commands::relation::{RelationList, RelationListIn};
-use dr_workspace::dto::{CommentInfo, RelationInfo, Target};
-use dr_workspace::{Actor, LinkGroup, NavTarget, Workspace};
+use dr_ui::tokens::{Story, motion, radius};
+use dr_workspace::commands::comment::CommentUpdateIn;
+use dr_workspace::dto::CommentInfo;
+use dr_workspace::{Actor, Workspace};
 use gpui::{
     AnyElement, AppContext, ClickEvent, Context, ElementId, Entity, FontWeight, InteractiveElement,
     IntoElement, ParentElement, Render, ScrollHandle, SharedString, StatefulInteractiveElement,
     Styled, Subscription, Task, Window, canvas, div, prelude::FluentBuilder, px,
 };
 
-use crate::Opener;
-use crate::model::{self, Filter, Group, Listing, Place};
+use crate::model::{Filter, Group, Listing, Place};
 
 /// The Review tab of one pane.
 pub struct ReviewView {
@@ -64,15 +60,12 @@ pub struct ReviewView {
     lib: Option<Workspace>,
     pub(crate) book: String,
     book_epoch: u64,
-    target: Option<NavTarget>,
     v3: Option<crate::v3_panel::State>,
     v3_load: u64,
     i18n: I18n,
     items: Vec<CommentInfo>,
     /// Only the built-in generic associations, never custom relation types.
-    associations: Vec<RelationInfo>,
     /// Titles and tabs of the items' targets (`kind:id`).
-    places: HashMap<String, (String, Option<NavTarget>)>,
     filter: Filter,
     current_only: bool,
     resolved_open: bool,
@@ -86,7 +79,6 @@ pub struct ReviewView {
     checks: HashMap<String, Tween>,
     pending: Option<Task<()>>,
     loaded: bool,
-    opener: Option<Opener>,
     /// The passages source cards show (原文), read when a card opens, and
     /// the ones being read.
     originals: HashMap<String, (Instant, Option<Original>)>,
@@ -104,35 +96,6 @@ struct Reveal {
     reply: futures::channel::oneshot::Sender<bool>,
 }
 
-/// Where a comment is, as a tab: a chapter, an idea, an element ….
-fn nav_of(catalog: &dr_workspace::BookCatalog, target: &Target) -> Option<NavTarget> {
-    if target.kind == "material" {
-        let nav = NavTarget::Material(target.id.parse().ok()?);
-        return catalog.exists(&nav).then_some(nav);
-    }
-    let groups: &[LinkGroup] = match target.kind.as_str() {
-        "node" => &[LinkGroup::Chapters, LinkGroup::Drifts],
-        "element" => &[LinkGroup::Elements],
-        "storyline" => &[LinkGroup::Storylines],
-        "category" => &[LinkGroup::Categories],
-        _ => &[],
-    };
-    groups.iter().find_map(|g| catalog.by_id(*g, &target.id))
-}
-
-/// The comment target of a tab.
-pub fn target_of(nav: &NavTarget) -> Option<Target> {
-    let (kind, id) = nav
-        .key()
-        .split_once(':')
-        .map(|(k, i)| (k.to_owned(), i.to_owned()))?;
-    let kind = match kind.as_str() {
-        "chapter" | "idea" => "node".to_owned(),
-        _ => kind,
-    };
-    Some(Target { kind, id })
-}
-
 impl ReviewView {
     pub(crate) fn new(id: SharedString, lib: Option<Workspace>) -> ReviewView {
         ReviewView {
@@ -140,13 +103,15 @@ impl ReviewView {
             lib,
             book: String::new(),
             book_epoch: 0,
-            target: None,
-            v3: None,
+            v3: Some(crate::v3_panel::State {
+                scope: None,
+                snapshot: crate::v3::Snapshot::default(),
+                open: Rc::new(|_, _, _| {}),
+                marks: Rc::new(|_| None),
+            }),
             v3_load: 0,
             i18n: I18n::new(Locale::default(), Platform::current()),
             items: Vec::new(),
-            associations: Vec::new(),
-            places: HashMap::new(),
             filter: Filter::All,
             current_only: false,
             resolved_open: false,
@@ -159,15 +124,9 @@ impl ReviewView {
             checks: HashMap::new(),
             pending: None,
             loaded: false,
-            opener: None,
             originals: HashMap::new(),
             asking: HashSet::new(),
         }
-    }
-
-    /// How the arrows open an entity's tab.
-    pub fn set_opener(&mut self, open: Opener) {
-        self.opener = Some(open);
     }
 
     pub(crate) fn is_v3(&self) -> bool {
@@ -191,11 +150,7 @@ impl ReviewView {
             self.pending = None;
             self.v3_load += 1;
             self.book = book.to_owned();
-            self.target = None;
-            self.opener = None;
             self.items.clear();
-            self.associations.clear();
-            self.places.clear();
             self.originals.clear();
             self.asking.clear();
             self.editing = None;
@@ -238,8 +193,6 @@ impl ReviewView {
             self.book_epoch += 1;
             self.book = book.to_owned();
             self.items.clear();
-            self.associations.clear();
-            self.places.clear();
             if let Some(state) = &mut self.v3 {
                 self.editing = None;
                 self.writing.clear();
@@ -304,40 +257,6 @@ impl ReviewView {
         self.reveal = Some(reveal);
     }
 
-    /// Shows `book`, following the page `target`.
-    pub(crate) fn show(
-        &mut self,
-        book: &str,
-        target: Option<NavTarget>,
-        locale: Locale,
-        platform: Platform,
-        cx: &mut Context<Self>,
-    ) {
-        if self.v3.take().is_some() {
-            self.book_epoch += 1;
-            self.pending = None;
-            self.v3_load += 1;
-            self.book.clear();
-            self.originals.clear();
-            self.asking.clear();
-        }
-        if self.i18n.locale() != locale {
-            self.i18n = I18n::new(locale, platform);
-        }
-        if self.target != target {
-            self.target = target;
-            cx.notify();
-        }
-        if self.book != book {
-            self.book = book.to_owned();
-            self.reveal = None;
-            self.items.clear();
-            self.associations.clear();
-            self.loaded = false;
-            self.reload(cx);
-        }
-    }
-
     /// The comments changed: read them again shortly.
     pub(crate) fn schedule(&mut self, cx: &mut Context<Self>) {
         if self.v3.is_some() {
@@ -352,76 +271,7 @@ impl ReviewView {
     }
 
     fn reload(&mut self, cx: &mut Context<Self>) {
-        if self.v3.is_some() {
-            self.reload_v3(cx);
-            return;
-        }
-        let Some(lib) = self.lib.clone() else {
-            return;
-        };
-        let book = self.book.clone();
-        if book.is_empty() {
-            return;
-        }
-        let task = cx.background_executor().spawn(async move {
-            let items = lib
-                .run::<CommentList>(
-                    &Actor::User,
-                    CommentListIn {
-                        book: book.clone(),
-                        kind: None,
-                        status: None,
-                        target: None,
-                    },
-                )
-                .map(|o| o.output)
-                .unwrap_or_default();
-            let associations = book
-                .parse::<dr_model::id::BookId>()
-                .ok()
-                .and_then(|id| {
-                    lib.run::<RelationList>(
-                        &Actor::User,
-                        RelationListIn {
-                            book: book.clone(),
-                            entity: None,
-                            relation_type: Some(
-                                dr_doc::book::generic_relation_type_id(&id).to_string(),
-                            ),
-                        },
-                    )
-                    .ok()
-                    .map(|o| o.output)
-                })
-                .unwrap_or_default();
-            let mut places = HashMap::new();
-            if let Ok(catalog) = lib.catalog(&book) {
-                for t in items.iter().filter_map(|i| i.target.as_ref()) {
-                    let key = format!("{}:{}", t.kind, t.id);
-                    places.entry(key).or_insert_with(|| {
-                        let nav = nav_of(&catalog, t);
-                        let title = nav
-                            .as_ref()
-                            .and_then(|n| catalog.title(n))
-                            .unwrap_or_default();
-                        (title, nav)
-                    });
-                }
-            }
-            (items, places, associations)
-        });
-        self.pending = Some(cx.spawn(async move |this, cx| {
-            let (items, places, associations) = task.await;
-            this.update(cx, |this, cx| {
-                this.items = items;
-                this.associations = associations;
-                this.places = places;
-                this.loaded = true;
-                this.apply_reveal();
-                cx.notify();
-            })
-            .ok();
-        }));
+        self.reload_v3(cx);
     }
 
     fn reload_v3(&mut self, cx: &mut Context<Self>) {
@@ -482,31 +332,15 @@ impl ReviewView {
 
     /// What is listed now.
     pub fn listing(&self) -> Listing {
-        if let Some(state) = &self.v3 {
-            let scope = self.current_only.then_some(state.scope.as_ref()).flatten();
-            return state.snapshot.cards(self.filter, scope);
-        }
-        let scope = self
-            .current_only
-            .then(|| self.target.as_ref().and_then(target_of))
-            .flatten();
-        let related = scope
+        self.v3
             .as_ref()
-            .filter(|target| {
-                matches!(
-                    target.kind.as_str(),
-                    "node" | "element" | "storyline" | "category"
+            .map(|state| {
+                state.snapshot.cards(
+                    self.filter,
+                    self.current_only.then_some(state.scope.as_ref()).flatten(),
                 )
             })
-            .map(|target| {
-                self.associations
-                    .iter()
-                    .filter(|relation| relation.from.kind == "comment" && &relation.to == target)
-                    .map(|relation| relation.from.id.clone())
-                    .collect()
-            })
-            .unwrap_or_default();
-        model::arrange_with_related(&self.items, self.filter, scope.as_ref(), &related)
+            .unwrap_or_default()
     }
 
     pub fn set_filter(&mut self, filter: Filter, cx: &mut Context<Self>) {
@@ -520,36 +354,13 @@ impl ReviewView {
     }
 
     fn update_comment(&mut self, input: CommentUpdateIn, cx: &mut Context<Self>) {
-        if self.v3.is_some() {
-            self.write_v3(
-                input.id.clone(),
-                "comment.update",
-                serde_json::to_value(input).expect("serializable comment update"),
-                false,
-                cx,
-            );
-            return;
-        }
-        let Some(lib) = self.lib.clone() else {
-            return;
-        };
-        // Shown at once; the workspace's event reads the list again.
-        if let Some(item) = self.items.iter_mut().find(|i| i.id == input.id) {
-            if let Some(body) = &input.body {
-                item.body = body.clone();
-            }
-            if let Some(status) = &input.status {
-                item.status = status.clone();
-            }
-        }
-        cx.background_executor()
-            .spawn(async move {
-                if let Err(e) = lib.run::<CommentUpdate>(&Actor::User, input) {
-                    log::warn!("review: comment.update: {e}");
-                }
-            })
-            .detach();
-        cx.notify();
+        self.write_v3(
+            input.id.clone(),
+            "comment.update",
+            serde_json::to_value(input).expect("serializable comment update"),
+            false,
+            cx,
+        );
     }
 
     /// Partial commands only. The read projection is never written back,
@@ -622,23 +433,6 @@ impl ReviewView {
 
     /// Completes or reopens a comment; a TODO's check stroke is drawn.
     pub fn set_done(&mut self, id: &str, done: bool, cx: &mut Context<Self>) {
-        if self.v3.is_some() {
-            let mut input = self.update_in(id);
-            input.status = Some(if done { "resolved" } else { "open" }.into());
-            self.update_comment(input, cx);
-            return;
-        }
-        let now = anim::now();
-        let check = self
-            .checks
-            .entry(id.to_owned())
-            .or_insert_with(|| Tween::still(if done { 0.0 } else { 1.0 }));
-        check.retarget(
-            if done { 1.0 } else { 0.0 },
-            now,
-            motion::sand::DRAW,
-            Easing::EASE_OUT,
-        );
         let mut input = self.update_in(id);
         input.status = Some(if done { "resolved" } else { "open" }.into());
         self.update_comment(input, cx);
@@ -681,56 +475,35 @@ impl ReviewView {
 
     /// Ends editing: saves `text` (or cancels with `None`).
     pub fn finish_edit(&mut self, id: &str, text: Option<String>, cx: &mut Context<Self>) {
-        if self.v3.is_some() {
-            if self.writing.contains(id) {
-                return;
-            }
-            if let Some(text) = text {
-                let mut input = self.update_in(id);
-                input.body = Some(text);
-                self.write_v3(
-                    id.to_owned(),
-                    "comment.update",
-                    serde_json::to_value(input).expect("serializable comment update"),
-                    true,
-                    cx,
-                );
-                return;
-            }
-            self.write_errors.remove(id);
-            if self
-                .editing
-                .as_ref()
-                .is_some_and(|(editing, _, _)| editing == id)
-            {
-                self.editing = None;
-                self.reload(cx);
-            }
-            cx.notify();
+        if self.writing.contains(id) {
             return;
-        }
-        if self.editing.as_ref().is_some_and(|(e, _, _)| e == id) {
-            self.editing = None;
         }
         if let Some(text) = text {
             let mut input = self.update_in(id);
             input.body = Some(text);
-            self.update_comment(input, cx);
+            self.write_v3(
+                id.to_owned(),
+                "comment.update",
+                serde_json::to_value(input).expect("serializable comment update"),
+                true,
+                cx,
+            );
+            return;
+        }
+        self.write_errors.remove(id);
+        if self
+            .editing
+            .as_ref()
+            .is_some_and(|(editing, _, _)| editing == id)
+        {
+            self.editing = None;
+            self.reload(cx);
         }
         cx.notify();
     }
 
     /// Turns a note into a TODO or back (`kind`: `todo` or `note`).
     pub fn set_kind(&mut self, id: &str, kind: &str, cx: &mut Context<Self>) {
-        if self.v3.is_some() {
-            let mut input = self.update_in(id);
-            input.kind = Some(kind.to_owned());
-            self.update_comment(input, cx);
-            return;
-        }
-        if let Some(item) = self.items.iter_mut().find(|i| i.id == id) {
-            item.kind = kind.to_owned();
-        }
         let mut input = self.update_in(id);
         input.kind = Some(kind.to_owned());
         self.update_comment(input, cx);
@@ -738,32 +511,13 @@ impl ReviewView {
 
     /// Deletes a comment (F3 records how to undo it).
     pub fn delete(&mut self, id: &str, cx: &mut Context<Self>) {
-        if self.v3.is_some() {
-            self.write_v3(
-                id.to_owned(),
-                "comment.delete",
-                serde_json::json!({"book": self.book, "id": id}),
-                true,
-                cx,
-            );
-            return;
-        }
-        let Some(lib) = self.lib.clone() else {
-            return;
-        };
-        self.items.retain(|i| i.id != id);
-        let input = EntityIn {
-            book: self.book.clone(),
-            id: id.to_owned(),
-        };
-        cx.background_executor()
-            .spawn(async move {
-                if let Err(e) = lib.run::<CommentDelete>(&Actor::User, input) {
-                    log::warn!("review: comment.delete: {e}");
-                }
-            })
-            .detach();
-        cx.notify();
+        self.write_v3(
+            id.to_owned(),
+            "comment.delete",
+            serde_json::json!({"book": self.book, "id": id}),
+            true,
+            cx,
+        );
     }
 
     /// What the source card of comment `id` says: where it is, and the
@@ -798,11 +552,7 @@ impl ReviewView {
         let v3 = self.v3.is_some();
         let v3_load = self.v3_load;
         let task = cx.background_executor().spawn(async move {
-            if v3 {
-                crate::v3::original(&lib, &book, &comment).map_err(|e| e.to_string())
-            } else {
-                dr_editor::decor::original(&lib, &book, &comment)
-            }
+            crate::v3::original(&lib, &book, &comment).map_err(|e| e.to_string())
         });
         let id = id.to_owned();
         cx.spawn(async move |this, cx| {
@@ -859,56 +609,18 @@ impl ReviewView {
                 quote: item.quote.clone().map(Into::into),
             };
         }
-        let place = item
-            .target
-            .as_ref()
-            .filter(|_| !item.unlocated)
-            .and_then(|t| self.places.get(&format!("{}:{}", t.kind, t.id)));
-        let Some((title, nav)) = place else {
-            return Source {
-                title: self
-                    .i18n
-                    .t(keys::review_panel::SOURCE_FLOATING)
-                    .to_owned()
-                    .into(),
-                mark: None,
-                quote: None,
-            };
-        };
-        let key = nav.as_ref().map(NavTarget::key).unwrap_or_default();
-        let (kind, id) = key.split_once(':').unwrap_or(("", ""));
-        let mark = match kind {
-            "chapter" => Some(sand::Kind::Chapter(seal_of(id))),
-            "idea" => Some(sand::Kind::Drift { loose: false }),
-            "element" => Some(sand::Kind::Element),
-            "storyline" => Some(sand::Kind::Storyline),
-            "category" => Some(sand::Kind::Category),
-            "material" => Some(sand::Kind::Material),
-            _ => None,
-        };
-        let quote = item.anchored.then(|| {
-            item.quote
-                .clone()
-                .filter(|q| !q.is_empty())
-                .unwrap_or_else(|| {
-                    self.i18n
-                        .t(keys::review_panel::SOURCE_TEXT_UNAVAILABLE)
-                        .to_owned()
-                })
-                .into()
-        });
         Source {
-            title: title.clone().into(),
-            mark,
-            quote,
+            title: self.i18n.t(keys::review_panel::SOURCE_FLOATING).into(),
+            mark: None,
+            quote: None,
         }
     }
 
     /// Jumps to a comment's text: the shell opens its entity, the editor
     /// shows it and draws it again.
     pub fn jump(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(state) = &self.v3 {
-            if let Some(crate::v3::Item {
+        if let Some(state) = &self.v3
+            && let Some(crate::v3::Item {
                 place: crate::v3::Place::On(target),
                 ..
             }) = state
@@ -916,23 +628,9 @@ impl ReviewView {
                 .items
                 .iter()
                 .find(|i| i.comment.id.as_str() == id)
-            {
-                ReviewFocus::jump(id, cx);
-                (state.open)(target.clone(), window, cx);
-            }
-            return;
-        }
-        let Some(item) = self.items.iter().find(|i| i.id == id) else {
-            return;
-        };
-        let nav = item
-            .target
-            .as_ref()
-            .and_then(|t| self.places.get(&format!("{}:{}", t.kind, t.id)))
-            .and_then(|(_, nav)| nav.clone());
-        ReviewFocus::jump(id, cx);
-        if let (Some(nav), Some(open)) = (nav, self.opener.clone()) {
-            open(&nav.key(), window, cx);
+        {
+            ReviewFocus::jump(id, cx);
+            (state.open)(target.clone(), window, cx);
         }
     }
 
@@ -949,13 +647,6 @@ impl ReviewView {
                 })
                 .map(|i| self.v3_title(i))
                 .unwrap_or_default(),
-            Place::On(t) => self
-                .places
-                .get(&format!("{}:{}", t.kind, t.id))
-                .map(|(title, _)| title.clone())
-                .filter(|t| !t.is_empty())
-                .unwrap_or_else(|| self.i18n.t(keys::review_panel::groups::DELETED).to_owned())
-                .into(),
             Place::Gone => self.i18n.t(keys::review_panel::groups::DELETED).into(),
             Place::Floating => self.i18n.t(keys::review_panel::groups::FLOATING).into(),
         }
@@ -1374,7 +1065,7 @@ impl Render for ReviewView {
             )
             .disabled(match &self.v3 {
                 Some(state) => state.scope.is_none(),
-                None => self.target.as_ref().and_then(target_of).is_none(),
+                None => true,
             })
             .on_change(move |on, _, cx| {
                 entity.update(cx, |this, cx| this.set_current_only(on, cx));
@@ -1627,16 +1318,6 @@ fn source_card(
     .into_any_element()
 }
 
-/// The seal a chapter presses (the 0.1 client's `sealOf`: a 31-hash of the
-/// id over UTF-16 units, modulo 6; the same as the shell's).
-fn seal_of(id: &str) -> u8 {
-    let mut hash: i32 = 0;
-    for unit in id.encode_utf16() {
-        hash = hash.wrapping_mul(31).wrapping_add(unit as i32);
-    }
-    ((hash as i64).abs() % 6) as u8
-}
-
 #[cfg(test)]
 mod reveal_tests {
     use super::*;
@@ -1649,7 +1330,9 @@ mod reveal_tests {
         loop {
             cx.executor().advance_clock(Duration::from_millis(20));
             cx.run_until_parked();
-            if view.read_with(cx, |view, _| view.loaded && view.reveal.is_none()) {
+            if view.read_with(cx, |view, _| {
+                view.pending.is_none() && view.reveal.is_none()
+            }) {
                 return;
             }
             assert!(Instant::now() < deadline, "comment reveal did not load");
@@ -1696,7 +1379,9 @@ mod reveal_tests {
         let deadline = Instant::now() + Duration::from_secs(10);
         loop {
             draw(cx);
-            if view.read_with(cx, |view, _| view.loaded && view.reveal.is_none()) {
+            if view.read_with(cx, |view, _| {
+                view.pending.is_none() && view.reveal.is_none()
+            }) {
                 return;
             }
             assert!(Instant::now() < deadline, "target card was not painted");
@@ -1709,7 +1394,7 @@ mod reveal_tests {
         cx.executor().allow_parking();
         let directory = tempfile::tempdir().unwrap();
         let ws = Workspace::open_dir(directory.path(), "m31-review-reveal-test").unwrap();
-        let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+        let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
         let book = seeded.books[0].book_id().to_string();
         let body = seeded.books[0]
             .groups()
@@ -1720,15 +1405,22 @@ mod reveal_tests {
             .clone();
         seeded.write_to(ws.library()).unwrap();
         let chapters = ws
-            .call(&Actor::User, "chapter.list", json!({"book":book}))
+            .call(&Actor::User, "entry.list", json!({"book":book,"all":true}))
             .unwrap();
-        let chapter = chapters["output"][0]["id"].as_str().unwrap();
+        let chapter = chapters["output"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|e| e["template"] == "tpl-chapter")
+            .unwrap()["id"]
+            .as_str()
+            .unwrap();
         let located = ws
             .call(
                 &Actor::User,
                 "comment.create",
                 json!({
-                    "book":book,"body":body,"target":{"kind":"node","id":chapter}
+                    "book":book,"body":body,"target":{"kind":"entry","id":chapter}
                 }),
             )
             .unwrap()["output"]["id"]
@@ -1752,7 +1444,7 @@ mod reveal_tests {
                 &Actor::User,
                 "comment.create",
                 json!({
-                    "book":book,"body":body,"target":{"kind":"node","id":chapter}
+                    "book":book,"body":body,"target":{"kind":"entry","id":chapter}
                 }),
             )
             .unwrap()["output"]["id"]
@@ -1794,7 +1486,10 @@ mod reveal_tests {
         assert_eq!(first.try_recv().unwrap(), Some(true));
         for (index, id) in [&located, &floating, &resolved].into_iter().enumerate() {
             view.update(cx, |view, cx| {
-                view.target = Some(NavTarget::Chapter(chapter.parse().unwrap()));
+                view.v3.as_mut().unwrap().scope = Some(crate::v3::Target::Entry {
+                    id: chapter.into(),
+                    module: None,
+                });
                 view.set_filter(
                     if index == 0 {
                         Filter::Todos
@@ -1834,7 +1529,7 @@ mod reveal_tests {
             "relation.create",
             json!({
                 "book":book,"from":{"kind":"comment","id":floating},
-                "to":{"kind":"node","id":chapter}
+                "to":{"kind":"entry","id":chapter}
             }),
         )
         .unwrap();
@@ -1849,14 +1544,20 @@ mod reveal_tests {
                 view.current_only,
                 "generic association already includes this card"
             );
-            assert!(!view.associations.is_empty());
+            assert!(visible(view, &floating));
         });
         let other_book = dr_model::id::BookId::new_v7().to_string();
         let mut switched = cx
             .update(|_, cx| crate::reveal_comment("reveal", &other_book, &floating, cx))
             .unwrap();
         assert!(
-            view.read_with(cx, |view, _| view.associations.is_empty()),
+            view.read_with(cx, |view, _| view
+                .v3
+                .as_ref()
+                .unwrap()
+                .snapshot
+                .items
+                .is_empty()),
             "reveal book switch clears the old associations immediately"
         );
         painted(cx, &view);
@@ -1870,7 +1571,7 @@ mod reveal_tests {
         cx.executor().allow_parking();
         let directory = tempfile::tempdir().unwrap();
         let ws = Workspace::open_dir(directory.path(), "m31-review-scroll-test").unwrap();
-        let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+        let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
         let book = seeded.books[0].book_id().to_string();
         let body: String = seeded.books[0]
             .groups()
@@ -1883,9 +1584,16 @@ mod reveal_tests {
             .collect();
         seeded.write_to(ws.library()).unwrap();
         let chapters = ws
-            .call(&Actor::User, "chapter.list", json!({"book":book}))
+            .call(&Actor::User, "entry.list", json!({"book":book,"all":true}))
             .unwrap();
-        let chapter = chapters["output"][0]["id"].as_str().unwrap();
+        let chapter = chapters["output"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|e| e["template"] == "tpl-chapter")
+            .unwrap()["id"]
+            .as_str()
+            .unwrap();
         let mut located = String::new();
         for _ in 0..48 {
             located = ws
@@ -1893,7 +1601,7 @@ mod reveal_tests {
                     &Actor::User,
                     "comment.create",
                     json!({
-                        "book":book,"body":body,"target":{"kind":"node","id":chapter}
+                        "book":book,"body":body,"target":{"kind":"entry","id":chapter}
                     }),
                 )
                 .unwrap()["output"]["id"]
@@ -2028,7 +1736,7 @@ mod reveal_tests {
         cx.executor().allow_parking();
         let directory = tempfile::tempdir().unwrap();
         let ws = Workspace::open_dir(directory.path(), "m31-review-ack-test").unwrap();
-        let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+        let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
         let book = seeded.books[0].book_id().to_string();
         let body = seeded.books[0]
             .groups()
@@ -2054,7 +1762,15 @@ mod reveal_tests {
             let view = crate::view("ack", cx).unwrap();
             let replaced = crate::reveal_comment("ack", &book, &comment, cx).unwrap();
             view.update(cx, |view, cx| {
-                view.show("", None, Locale::En, Platform::current(), cx)
+                view.show_v3(
+                    "",
+                    None,
+                    Locale::En,
+                    Platform::current(),
+                    Rc::new(|_, _, _| {}),
+                    Rc::new(|_| None),
+                    cx,
+                )
             });
             (first, replaced, view)
         });

@@ -22,9 +22,6 @@ use dr_ui::sand::{self, Icon};
 use dr_ui::style::DrStyled;
 use dr_ui::tokens::space;
 use dr_ui::{Theme, fonts::Role};
-use dr_workspace::commands::ListIn;
-use dr_workspace::commands::element::CategoryList;
-use dr_workspace::commands::storyline::StorylineList;
 use dr_workspace::{Actor, Workspace};
 use gpui::{
     App, AppContext as _, Context, Entity, InteractiveElement, IntoElement, ParentElement,
@@ -141,28 +138,28 @@ impl DocumentsDialog {
     pub fn new(lib: Workspace, book: String, cx: &mut Context<Self>) -> DocumentsDialog {
         let strings = dr_shell::Strings::get(cx);
         let i18n = I18n::new(strings.locale(), strings.platform());
-        let list = || ListIn {
-            book: book.clone(),
-            trashed: false,
+        let snapshot = dr_shell::book::Book::load(&lib, &book).ok();
+        let collect = |template: &str| {
+            snapshot
+                .as_ref()
+                .and_then(|b| b.v3())
+                .map(|b| {
+                    b.entries
+                        .iter()
+                        .filter(|e| e.template.as_deref() == Some(template))
+                        .map(|e| {
+                            (
+                                e.id.clone(),
+                                e.title.clone(),
+                                b.appearance(&e.id).and_then(|a| a.color),
+                            )
+                        })
+                        .collect()
+                })
+                .unwrap_or_default()
         };
-        let storylines = lib
-            .run::<StorylineList>(&Actor::User, list())
-            .map(|o| {
-                o.output
-                    .into_iter()
-                    .map(|s| (s.id, s.name, Some(s.color)))
-                    .collect()
-            })
-            .unwrap_or_default();
-        let categories = lib
-            .run::<CategoryList>(&Actor::User, list())
-            .map(|o| {
-                o.output
-                    .into_iter()
-                    .map(|c| (c.id, c.name, Some(c.color)))
-                    .collect()
-            })
-            .unwrap_or_default();
+        let storylines = collect("tpl-storyline");
+        let categories = collect("tpl-category");
         DocumentsDialog {
             lib,
             book,

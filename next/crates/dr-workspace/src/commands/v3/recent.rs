@@ -1,7 +1,12 @@
 //! V3 device-local navigation, preserving the entry's selected module.
 use super::*;
-use crate::commands::recent::RECENT_KEEP;
-pub use crate::commands::recent::RecentListIn;
+pub const RECENT_KEEP: usize = 10;
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct RecentListIn {
+    pub book: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit: Option<usize>,
+}
 use crate::registry::Op;
 use dr_store::{LocalChange, LocalChangeKind, StoreError};
 

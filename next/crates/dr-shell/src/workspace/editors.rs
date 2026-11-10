@@ -585,7 +585,7 @@ impl Workspace {
         let doc = editor.read(cx).doc_id().to_owned();
         match event {
             ChapterEditorEvent::Edited => {
-                if doc.starts_with("node:") {
+                if doc.starts_with("body:") {
                     self.unchecked.insert(doc.clone());
                 }
                 let key = self
@@ -1075,7 +1075,7 @@ impl Workspace {
 
 /// F4's links: a click on a live entity link opens its target as a preview
 /// (as the 0.1 client did); the slash menu's 位置链接 says it was copied.
-fn link_events<E>(editor: &Entity<E>, cx: &mut Context<Workspace>) -> [Subscription; 2]
+pub(super) fn link_events<E>(editor: &Entity<E>, cx: &mut Context<Workspace>) -> [Subscription; 2]
 where
     E: gpui::EventEmitter<dr_editor::EntityLinkOpened>
         + gpui::EventEmitter<dr_editor::PositionLinkCopied>
@@ -1102,16 +1102,12 @@ pub fn link_target(
     id: &str,
 ) -> Option<Target> {
     use dr_model::kind::EntityKind;
-    let kind = match kind {
-        EntityKind::Node if book.chapters.iter().any(|c| c.id == id) => "chapter",
-        EntityKind::Node => "idea",
-        EntityKind::Element => "element",
-        EntityKind::Category => "category",
-        EntityKind::Storyline => "storyline",
-        EntityKind::Material => "material",
+    let target = match kind {
+        EntityKind::Entry => Target::from_key(&format!("entry:{id}"))?,
+        EntityKind::Material => Target::from_key(&format!("material:{id}"))?,
         _ => return None,
     };
-    Target::from_key(&format!("{kind}:{id}"))
+    book.exists(&target).then_some(target)
 }
 
 /// M07's selection reading: the words in the selection, or none.

@@ -1,7 +1,7 @@
 //! Immutable, explicit structural reads. No cache is stored in the live view.
 use super::BookViewV3;
-use crate::book::fields::F;
-use crate::book::read::forest_value;
+use crate::catalog::fields::F;
+use crate::catalog::read::forest_value;
 use crate::schema::book_v3;
 use dr_model::id::{BookId, EntryId, EntryTemplateId};
 use dr_model::v3::*;

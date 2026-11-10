@@ -19,11 +19,12 @@ use dr_store::{Library, LibraryOptions};
 
 #[test]
 fn an_imported_library_is_indexed_when_it_opens() {
-    let src = old::build(true);
+    let src = old::build_v3(true);
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path().join("library");
     let mut o = Options::new("0.2.0-test");
     o.accept = Accept::NOTHING;
+    o.v3 = old::v3_choices();
     o.old_root = Some(src.root.clone());
     o.device_dir = Some(dir.path().join("device"));
     // The import builds the indexes itself; this test checks the rebuild on
@@ -71,7 +72,7 @@ fn an_imported_library_is_indexed_when_it_opens() {
     }
     assert!(lib.search(Some(old::BOOK), "外貌", 10).unwrap().is_empty());
 
-    let chapter = format!("node:{}", old::CHAPTER);
+    let chapter = format!("body:{}/mod-prose", old::CHAPTER);
     // 第一章 序 / 我要给阿Q做正传，已经不止一两年了。 / 引文第一段 / 引文第二段 /
     // TODO: 查一查赵太爷的年纪
     assert_eq!(
@@ -86,18 +87,22 @@ fn an_imported_library_is_indexed_when_it_opens() {
         .collect();
     assert_eq!(outline, vec![(1, "第一章 序".into(), Some("h1".into()))]);
     // Search: two characters through LIKE, three through FTS5.
-    let hits: Vec<(String, Option<String>)> = lib
+    let mut hits: Vec<(String, Option<String>)> = lib
         .search(Some(old::BOOK), "阿Q", 10)
         .unwrap()
         .into_iter()
         .map(|h| (h.doc_id, h.block_id))
         .collect();
+    hits.sort();
     // The chapter's paragraph and the storyline's description (阿Q 的一生。).
     assert_eq!(
         hits,
         vec![
+            (
+                format!("body:{}/about", old::STORYLINE),
+                Some("s-p1".into())
+            ),
             (chapter.clone(), Some("p1".into())),
-            (format!("storyline:{}", old::STORYLINE), Some("s-p1".into())),
         ]
     );
     let hits = lib.search(Some(old::BOOK), "赵太爷", 10).unwrap();

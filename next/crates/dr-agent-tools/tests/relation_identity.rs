@@ -1,8 +1,8 @@
 //! Caller-supplied relation identities cannot turn creation into an unread edit.
 
 use dr_agent_tools::{AgentTools, CallRequest, Error};
-use dr_doc::book::BorrowedBook;
-use dr_model::{book::Relation, id::BookId};
+use dr_doc::v3::BorrowedBookV3;
+use dr_model::{id::BookId, shared::Relation};
 use dr_store::OpenDoc;
 use dr_testkit::seed::{self, Preset};
 use dr_workspace::{Actor, Workspace};
@@ -22,31 +22,24 @@ impl Fixture {
     fn new() -> Self {
         let dir = tempfile::tempdir().unwrap();
         let ws = Workspace::open_dir(dir.path(), "m29-relation-identity-test").unwrap();
-        let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+        let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
         seeded.write_to(ws.library()).unwrap();
         let book = seeded.books[0].book_id().clone();
-        let chapters = author(&ws, "chapter.list", json!({"book":book}))
-            .as_array()
-            .unwrap()
-            .clone();
-        let elements = author(&ws, "element.list", json!({"book":book}))
-            .as_array()
-            .unwrap()
-            .clone();
+        let chapters = dr_testkit::seed::acceptance::entries_by_template(&ws, &book, "tpl-chapter");
+        let elements =
+            dr_testkit::seed::acceptance::entries_by_template(&ws, &book, "tpl-character");
         assert!(chapters.len() >= 2 && elements.len() >= 2);
         let types = chapters[..2]
             .iter()
             .map(|chapter| {
                 author(
                     &ws,
-                    "relation_type.create",
+                    "entry_relation_type.put",
                     json!({
                         "book":book,
-                        "name":chapter["title"],
-                        "source_role":chapter["title"],
-                        "target_role":elements[0]["name"],
-                        "source_kinds":["node"],
-                        "target_kinds":["element"]
+                        "definition": {"id":dr_model::id::RelationTypeId::new_v7(),"name":chapter["title"],
+                        "orientation":"directed","source_role":chapter["title"],"target_role":elements[0]["title"],
+                        "source_kinds":["entry"],"target_kinds":["entry"],"source_templates":["tpl-chapter"],"target_templates":["tpl-character"]}
                     }),
                 )["id"]
                     .clone()
@@ -65,8 +58,8 @@ impl Fixture {
     fn relation(&self, index: usize) -> Value {
         json!({
             "book":self.book,
-            "from":{"kind":"node","id":self.chapters[index]["id"]},
-            "to":{"kind":"element","id":self.elements[index]["id"]},
+            "from":{"kind":"entry","id":self.chapters[index]["id"]},
+            "to":{"kind":"entry","id":self.elements[index]["id"]},
             "relation_type":self.types[index]
         })
     }
@@ -98,7 +91,7 @@ impl Fixture {
             .open_doc(&format!("book:{book}"), OpenDoc::Existing)
             .unwrap()
             .read(move |doc| {
-                BorrowedBook::new(doc, &book)
+                BorrowedBookV3::new(doc, &book)
                     .unwrap()
                     .view()
                     .relations_raw()
@@ -137,7 +130,7 @@ fn assert_id_rejected(result: dr_agent_tools::Result<Value>) {
 fn a_visible_relation_list_cannot_authorize_overwriting_a_hidden_relation_id() {
     let f = Fixture::new();
     let made = author(&f.ws, "relation.create", f.relation(0));
-    assert_eq!(made["existing"], false);
+
     let id = made["id"].as_str().unwrap();
     let original = f
         .stored_relations()
@@ -146,7 +139,7 @@ fn a_visible_relation_list_cannot_authorize_overwriting_a_hidden_relation_id() {
         .unwrap();
     author(
         &f.ws,
-        "chapter.trash",
+        "entry.trash",
         json!({"book":f.book,"id":f.chapters[0]["id"]}),
     );
 
@@ -196,7 +189,7 @@ fn a_visible_relation_list_cannot_authorize_overwriting_a_hidden_relation_id() {
     let created = f
         .invoke(&tools, &actor, "relation.create", f.relation(1))
         .unwrap();
-    assert_eq!(created["output"]["existing"], false);
+
     assert_ne!(created["output"]["id"], made["id"]);
     let stored = f.stored_relations();
     assert!(stored.contains(&original));

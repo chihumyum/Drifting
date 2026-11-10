@@ -8,8 +8,8 @@
 //!    prose document (snapshot history first, then the current body) in
 //!    memory with dr-doc (deterministic import peers and the 0.1
 //!    timestamps) and store it in dr-store (origin `import`); then the book
-//!    document, stored step by step while the snapshot history's metadata is
-//!    replayed, each history point labelled at its version and time; then
+//!    document, composed with all historical metadata versions and checkpointed
+//!    before storing its successive versions with their historical labels; then
 //!    the assets;
 //! 4. write the receipt into the library and the archive beside it;
 //! 5. build search, outlines and word counts (dr-index).
@@ -23,7 +23,7 @@ use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
 use std::time::Instant;
 
 use dr_doc::Anchor;
-use dr_doc::book::{BookDoc, BookReader};
+use dr_doc::import_v1::BookDoc;
 use dr_doc::loro_types::{Frontiers, VersionVector};
 use dr_doc::peer::import_peer;
 use dr_doc::prose::ProseDoc;
@@ -33,7 +33,7 @@ use dr_model::{DocId, Origin, ProseProfile};
 use dr_store::history::{LabelRetention, NewLabel};
 use dr_store::{Device, DocHandle, Library, LibraryOptions, OpenDoc};
 use rusqlite::OptionalExtension;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::anchors::{self, Resolution};
@@ -53,12 +53,24 @@ use crate::time::parse_iso_ms;
 /// The importer's name in receipts.
 pub const IMPORTER: &str = concat!("dr-import-v1 ", env!("CARGO_PKG_VERSION"));
 
+/// Local recovery checkpoint. Allocated v3 identities and the complete catalog
+/// operation log are fixed before the first catalog write. Resume imports the
+/// same operations, including historical frontiers; it never replays history
+/// over the current tree or allocates another set of roots.
+#[derive(Serialize, Deserialize)]
+struct CatalogReplay {
+    source: String,
+    mapping: String,
+    snapshot: Vec<u8>,
+    frontiers: Vec<Vec<u8>>,
+}
+
 /// How to import.
 #[derive(Clone, Debug)]
 pub struct Options {
-    /// None retains the v2.2 import. v3 has explicit author policy and a
+    /// The canonical v3 import has explicit author policy and a
     /// separate integrity preflight; no novel defaults are inferred here.
-    pub v3: Option<crate::v3::MappingChoices>,
+    pub v3: crate::v3::MappingChoices,
     /// What the author accepted when the gate stopped ("仍然导入").
     pub accept: Accept,
     /// The 0.2 app version (dr-store's safety snapshots and library meta).
@@ -126,7 +138,7 @@ impl Cancel {
 impl Options {
     pub fn new(app_version: impl Into<String>) -> Self {
         Self {
-            v3: None,
+            v3: crate::v3::MappingChoices::default(),
             accept: Accept::NOTHING,
             app_version: app_version.into(),
             old_root: None,
@@ -469,17 +481,23 @@ pub fn import_with(
         Ok(o)
     };
     let lib = Library::open(target, library_options()?)?;
-    let written = write_library(&lib, analysed, options, adopted, &mut reporter, &mut timing)?;
-    lib.close()?;
+    let written = write_library(&lib, analysed, options, adopted, &mut reporter, &mut timing);
+    // Failure must also release the target before the UI offers a retry or
+    // activation. Preserve the original error after draining every holder.
+    let closed = lib.close();
+    let written = written?;
+    closed?;
     let receipt = finish(target, written, options, &mut timing)?;
-    if options.index && options.v3.is_none() && !options.cancel.now_requested() {
+    if options.index && !options.cancel.now_requested() {
         let t9 = Instant::now();
         let mut o = library_options()?;
         dr_index::attach(&mut o);
         o.rebuild_indexes_on_open = false;
         let lib = reopen(target, o)?;
-        timing.indexed_docs = build_indexes(&lib, &mut reporter)?;
-        lib.close()?;
+        let indexed = build_indexes(&lib, &mut reporter);
+        let closed = lib.close();
+        timing.indexed_docs = indexed?;
+        closed?;
         timing.index_ms = ms(t9);
     }
     reporter.done();
@@ -502,9 +520,9 @@ pub fn import_into_library(
     options: &Options,
     progress: Callback<'_>,
 ) -> Result<(Outcome, Timing)> {
-    if options.v3.is_some() && lib.options().deriver.is_some() {
+    if lib.options().deriver.is_some() {
         return Err(ImportError::Blocked(
-            "v3 import requires a library without the v2 index deriver until K4".into(),
+            "v3 import requires a separate target without an active index deriver".into(),
         ));
     }
     let mut reporter = Reporter::new(progress);
@@ -519,15 +537,7 @@ pub fn import_into_library(
     let adopted = take_over_identity(options.old_root.as_deref(), lib);
     let written = write_library(lib, analysed, options, adopted, &mut reporter, &mut timing)?;
     let receipt = finish(&root, written, options, &mut timing)?;
-    if options.index
-        && options.v3.is_none()
-        && lib.options().deriver.is_some()
-        && !options.cancel.now_requested()
-    {
-        let t9 = Instant::now();
-        timing.indexed_docs = build_indexes(lib, &mut reporter)?;
-        timing.index_ms = ms(t9);
-    }
+
     reporter.done();
     timing.total_ms = ms(started);
     Ok((Outcome::Imported(receipt), timing))
@@ -721,11 +731,34 @@ fn write_library(
                 "interrupted book belongs to another import path or mapping policy".into(),
             ));
         }
+        let cached: Option<CatalogReplay> = lib.local_read(|c| {
+            let json: Option<String> = c
+                .query_row(
+                    "SELECT value FROM local_state WHERE scope='import-v3-replay' AND key=?1",
+                    [&project.id],
+                    |r| r.get(0),
+                )
+                .optional()?;
+            json.map(|s| {
+                serde_json::from_str(&s).map_err(|e| dr_store::StoreError::Invalid {
+                    what: "catalog recovery checkpoint",
+                    value: e.to_string(),
+                })
+            })
+            .transpose()
+        })?;
+        if let Some(replay) = &cached {
+            if replay.source != staged.source.sha256 || replay.mapping != wanted {
+                return Err(ImportError::Invalid("interrupted catalog checkpoint belongs to another source or mapping policy; use a new target".into()));
+            }
+        } else if exists {
+            return Err(ImportError::Blocked("interrupted catalog predates the recovery checkpoint; preserve this target and import into a new target".into()));
+        }
         lib.local_transaction(|tx| {
             // A quit can leave prose before the catalog exists. Its
             // kernel is recorded atomically with begin_book, so retrying
             // with the other path cannot mix documents or histories.
-            if options.v3.is_some() { tx.execute("INSERT INTO local_state (scope,key,value,book_id,changed_ms) VALUES ('import-v1-kernel',?1,?2,?1,?3) ON CONFLICT(scope,key) DO UPDATE SET value=excluded.value,changed_ms=excluded.changed_ms", rusqlite::params![project.id,wanted,started_ms])?; }
+            tx.execute("INSERT INTO local_state (scope,key,value,book_id,changed_ms) VALUES ('import-v1-kernel',?1,?2,?1,?3) ON CONFLICT(scope,key) DO UPDATE SET value=excluded.value,changed_ms=excluded.changed_ms", rusqlite::params![project.id,wanted,started_ms])?;
             Ok(receipt::begin_book(tx, run_id, &project.id, &project.name)?)
         })?;
         let rows = legacy.book(&project.id)?;
@@ -745,9 +778,7 @@ fn write_library(
         if resuming {
             notes.add("resumed-after-interruption");
         }
-        if options.v3.is_some() && options.index {
-            notes.add("v3-index-awaits-k4");
-        }
+
         // Whether a history point is already there (an interrupted import
         // wrote it): the same label on the same version (and, for the 0.1
         // points, at the same time).
@@ -1124,25 +1155,14 @@ fn write_library(
         let mut bdoc = BookDoc::create(book_id.clone(), import_peer(&book_doc_s))?;
         // The legacy catalog is an in-memory replay model only. All stored
         // book frontiers and history labels below belong to the v3 writer.
-        let mut v3doc = if options.v3.is_none() {
-            None
-        } else if exists {
-            // Fresh root UUIDs belong to the first catalog transaction. A
-            // retry must keep that stored catalog, rather than generating
-            // different roots under the same deterministic import peer.
-            let bytes = lib
-                .load_copy(&book_doc_s)?
-                .export(loro::ExportMode::Snapshot)?;
-            Some(dr_doc::v3::BookDocV3::load(
+        let mut v3doc = if let Some(replay) = &cached {
+            dr_doc::v3::BookDocV3::load(
                 book_id.clone(),
                 import_peer(&book_doc_s),
-                &[bytes],
-            )?)
+                std::slice::from_ref(&replay.snapshot),
+            )?
         } else {
-            Some(dr_doc::v3::BookDocV3::create(
-                book_id.clone(),
-                import_peer(&book_doc_s),
-            )?)
+            dr_doc::v3::BookDocV3::create(book_id.clone(), import_peer(&book_doc_s))?
         };
         let catalog_projected = crate::v3::catalog_projections(options, &projected, &rows);
         let inputs = book::Inputs {
@@ -1174,100 +1194,148 @@ fn write_library(
         timing.book_ms += ms(t2);
 
         let t3 = Instant::now();
+        let mut replay_frontiers = Vec::new();
+        let mut expected: Vec<(Frontiers, Owner, Fields)> = Vec::new();
+        let t5;
+        {
+            let mut push = |bdoc: &BookDoc, ts: i64| -> Result<Frontiers> {
+                let at = if let Some(replay) = &cached {
+                    Frontiers::decode(replay.frontiers.get(replay_frontiers.len()).ok_or_else(
+                        || {
+                            ImportError::Invalid(
+                                "catalog recovery checkpoint has missing versions".into(),
+                            )
+                        },
+                    )?)
+                    .map_err(|e| ImportError::Invalid(format!("catalog recovery frontier: {e}")))?
+                } else {
+                    let (r, _) = v3doc.edit_at(Origin::Import, Some(ts), |t| {
+                        dr_samples::v3::sync_catalog(t, &bdoc.view(), &options.v3)
+                    });
+                    r?;
+                    dr_samples::v3::validate(&v3doc.view()).map_err(ImportError::Invalid)?;
+                    v3doc.frontiers()
+                };
+                replay_frontiers.push(at.clone());
+                Ok(at)
+            };
+            push(&bdoc, base_ts)?;
+            timing.store_ms += ms(t3);
+            let mut catalog_cancelled = false;
+            let n_points = points.len() as u64;
+            reporter.book_step(Step::Book, here, 0, n_points, n_bodies);
+            for (i, (p, step)) in points.iter().zip(&steps).enumerate() {
+                if options.cancel.now_requested() {
+                    catalog_cancelled = true;
+                    break;
+                }
+                if let Some((o, f)) = step {
+                    let t = Instant::now();
+                    let before = state[o].clone();
+                    let (r, _) = bdoc.edit_at(Origin::Import, Some(secs(p.ts_ms)), |t| {
+                        meta::apply(t, o, f, &before)
+                    });
+                    r?;
+                    let after = before.then(f);
+                    state.insert(o.clone(), after.clone());
+                    timing.book_ms += ms(t);
+                    let t = Instant::now();
+                    let frontiers = push(&bdoc, secs(p.ts_ms))?;
+                    timing.store_ms += ms(t);
+                    rec.history_meta_replayed += 1;
+                    expected.push((frontiers, o.clone(), after));
+                }
+                reporter.book_step(Step::Book, here, i as u64 + 1, n_points, n_bodies);
+            }
+            if catalog_cancelled {
+                stop_in_book!();
+            }
+            // The current fields back, then the book's own repairs.
+            let t4 = Instant::now();
+            let (r, _) = bdoc.edit_at(Origin::Import, Some(final_ts), |t| {
+                for (o, was) in &state {
+                    meta::apply(t, o, &currents[o], was)?;
+                }
+                Ok(())
+            });
+            r?;
+            let (r, _) = bdoc.edit_at(Origin::Repair, Some(final_ts), |t| {
+                let plan = t.view().repair_plan();
+                t.apply_repair(&plan)
+            });
+            r?;
+            timing.book_ms += ms(t4);
+            t5 = Instant::now();
+            push(&bdoc, final_ts)?;
+        }
+        if let Some(replay) = &cached {
+            if replay.frontiers.len() != replay_frontiers.len() {
+                return Err(ImportError::Invalid(
+                    "catalog recovery checkpoint has extra versions".into(),
+                ));
+            }
+        } else {
+            let replay = CatalogReplay {
+                source: staged.source.sha256.clone(),
+                mapping: wanted.clone(),
+                snapshot: v3doc.export_snapshot()?,
+                frontiers: replay_frontiers.iter().map(Frontiers::encode).collect(),
+            };
+            let json =
+                serde_json::to_string(&replay).map_err(|e| ImportError::Invalid(e.to_string()))?;
+            lib.local_transaction(|tx| { tx.execute("INSERT INTO local_state(scope,key,value,book_id,changed_ms) VALUES('import-v3-replay',?1,?2,?1,?3)",rusqlite::params![project.id,json,started_ms])?;Ok(()) })?;
+        }
+        if options.cancel.now_requested() {
+            stop_in_book!();
+        }
         let bh = open_new(
             lib,
             &book_doc_id,
             &project.id,
-            if options.v3.is_some() {
-                dr_doc::v3::genesis_v3(&book_id)
-            } else {
-                dr_doc::book::genesis(&book_id)
-            },
+            dr_doc::v3::genesis_v3(&book_id),
         )?;
-        let mut stored = VersionVector::default();
-        let mut push = |bdoc: &BookDoc, stored: &mut VersionVector, ts: i64| -> Result<Frontiers> {
-            if let (Some(target), Some(choices)) = (&mut v3doc, &options.v3) {
-                let (r, _) = target.edit_at(Origin::Import, Some(ts), |t| {
-                    dr_samples::v3::sync_catalog(t, &bdoc.view(), choices)
-                });
-                r?;
-                dr_samples::v3::validate(&target.view()).map_err(ImportError::Invalid)?;
-                let now = target.version();
-                if now != *stored {
-                    import_into(&bh, &book_doc_s, target.export_updates_since(stored)?)?;
-                    *stored = now;
-                }
-                return Ok(target.frontiers());
-            }
-            let now = bdoc.version();
-            if now != *stored {
-                import_into(&bh, &book_doc_s, bdoc.export_updates_since(stored)?)?;
-                *stored = now;
-            }
-            Ok(bdoc.frontiers())
+        let catalog = loro::LoroDoc::new();
+        dr_doc::schema::configure(&catalog);
+        catalog
+            .import(&v3doc.export_snapshot()?)
+            .map_err(dr_doc::DocError::from)?;
+        let persist_at = |at: &Frontiers| -> Result<()> {
+            let vv = catalog
+                .frontiers_to_vv(at)
+                .ok_or_else(|| ImportError::Invalid("unknown catalog recovery frontier".into()))?;
+            import_into(
+                &bh,
+                &book_doc_s,
+                catalog.export(loro::ExportMode::updates_till(&vv))?,
+            )
         };
-        push(&bdoc, &mut stored, base_ts)?;
-        timing.store_ms += ms(t3);
-        let mut expected: Vec<(Frontiers, Owner, Fields)> = Vec::new();
-        let n_points = points.len() as u64;
-        reporter.book_step(Step::Book, here, 0, n_points, n_bodies);
-        for (i, (p, step)) in points.iter().zip(&steps).enumerate() {
-            if let Some((o, f)) = step {
-                let t = Instant::now();
-                let before = state[o].clone();
-                let (r, _) = bdoc.edit_at(Origin::Import, Some(secs(p.ts_ms)), |t| {
-                    meta::apply(t, o, f, &before)
-                });
-                r?;
-                let after = before.then(f);
-                state.insert(o.clone(), after.clone());
-                timing.book_ms += ms(t);
-                let t = Instant::now();
-                let frontiers = push(&bdoc, &mut stored, secs(p.ts_ms))?;
-                timing.store_ms += ms(t);
-                rec.history_meta_replayed += 1;
-                expected.push((frontiers, o.clone(), after));
+        let mut version = 0;
+        persist_at(&replay_frontiers[version])?;
+        for (p, step) in points.iter().zip(&steps) {
+            if options.cancel.now_requested() {
+                break;
             }
-            let t = Instant::now();
+            if step.is_some() {
+                version += 1;
+                persist_at(&replay_frontiers[version])?;
+            }
             let periodic = dr_store::history::labels::PERIODIC;
             if !has_label(&p.doc_id, periodic, &p.frontiers, Some(p.ts_ms))? {
                 lib.label_at(&p.doc_id, &p.frontiers, periodic, p.ts_ms, retention)?;
             }
-            timing.labels_ms += ms(t);
-            reporter.book_step(Step::Book, here, i as u64 + 1, n_points, n_bodies);
         }
-        // The current fields back, then the book's own repairs.
-        let t4 = Instant::now();
-        let (r, _) = bdoc.edit_at(Origin::Import, Some(final_ts), |t| {
-            for (o, was) in &state {
-                meta::apply(t, o, &currents[o], was)?;
-            }
-            Ok(())
-        });
-        r?;
-        let (r, _) = bdoc.edit_at(Origin::Repair, Some(final_ts), |t| {
-            let plan = t.view().repair_plan();
-            t.apply_repair(&plan)
-        });
-        r?;
-        timing.book_ms += ms(t4);
-        let t5 = Instant::now();
-        push(&bdoc, &mut stored, final_ts)?;
+        if options.cancel.now_requested() {
+            bh.close();
+            stop_in_book!();
+        }
+        persist_at(replay_frontiers.last().expect("catalog current version"))?;
         bh.close();
         timing.store_ms += ms(t5);
         if options.verify_history && !expected.is_empty() {
-            let snapshot = vec![match &v3doc {
-                Some(doc) => doc.export_snapshot()?,
-                None => bdoc.export_snapshot()?,
-            }];
+            let snapshot = vec![v3doc.export_snapshot()?];
             for (at, o, want) in &expected {
-                let holds = if v3doc.is_some() {
-                    let reader = dr_doc::v3::BookReaderV3::load_at(book_id.clone(), &snapshot, at)?;
-                    crate::v3::holds(&reader.view(), o, want)
-                } else {
-                    let reader = BookReader::load_at(book_id.clone(), &snapshot, at)?;
-                    meta::holds(&reader.view(), o, want)
-                };
+                let reader = dr_doc::v3::BookReaderV3::load_at(book_id.clone(), &snapshot, at)?;
+                let holds = crate::v3::holds(&reader.view(), o, want);
                 if holds {
                     rec.history_meta_checked += 1;
                 } else {

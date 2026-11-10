@@ -29,6 +29,7 @@
 pub mod art;
 pub mod data;
 pub mod format;
+mod jobs;
 mod view;
 
 pub use view::{

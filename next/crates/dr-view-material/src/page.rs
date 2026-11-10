@@ -28,7 +28,7 @@ use std::time::Duration;
 #[path = "page_v3_tests.rs"]
 mod v3_tests;
 
-use dr_doc::book::Collection;
+use dr_doc::v3::CollectionV3 as Collection;
 use dr_i18n::keys;
 use dr_shell::book::Book;
 use dr_shell::pages::PageViewHost;
@@ -44,7 +44,7 @@ use dr_ui::style::DrStyled;
 use dr_ui::tokens::color::Rgb;
 use dr_ui::tokens::{Story, glass as g, radius};
 use dr_view_review::{CommentComposer, ComposerEvent};
-use dr_workspace::commands::comment::{CommentList, CommentListIn, CommentUpdate, CommentUpdateIn};
+use dr_workspace::commands::comment::{CommentUpdate, CommentUpdateIn};
 use dr_workspace::commands::material::{MaterialUpdate, MaterialUpdateIn};
 use dr_workspace::dto::Target;
 use dr_workspace::{Actor, Workspace as Library, WsEvent};
@@ -373,67 +373,58 @@ impl MediaPage {
 
     fn update_material(&mut self, input: MaterialUpdateIn, cx: &mut Context<Self>) {
         let lib = self.lib.clone();
-        if self.book.v3().is_some() {
-            let title = input.title.clone();
-            let description = input.description.clone();
-            if title.is_some() {
-                self.saving_title = true;
-                self.dirty_title = true;
-                self.title_error = None;
-                self.title.update(cx, |f, cx| f.set_disabled(true, cx));
-            }
-            if description.is_some() {
-                self.saving_description = true;
-                self.dirty_description = true;
-                self.description_error = None;
-                self.description
-                    .update(cx, |f, cx| f.set_disabled(true, cx));
-            }
-            cx.spawn(async move |this, cx| {
-                let result = cx
-                    .background_executor()
-                    .spawn(async move { lib.run::<MaterialUpdate>(&Actor::User, input) })
-                    .await;
-                this.update(cx, |page, cx| {
-                    if let Some(title) = title {
-                        page.saving_title = false;
-                        page.title.update(cx, |f, cx| f.set_disabled(false, cx));
-                        match &result {
-                            Ok(done) => {
-                                page.shown_title = Some(done.output.name.clone());
-                                page.dirty_title = page.title.read(cx).text().trim() != title;
-                            }
-                            Err(e) => page.title_error = Some(e.to_string()),
-                        }
-                    }
-                    if let Some(description) = description {
-                        page.saving_description = false;
-                        page.description
-                            .update(cx, |f, cx| f.set_disabled(false, cx));
-                        match &result {
-                            Ok(_) => {
-                                page.shown_description = Some(description.clone());
-                                page.dirty_description =
-                                    page.description.read(cx).text() != description;
-                            }
-                            Err(e) => page.description_error = Some(e.to_string()),
-                        }
-                    }
-                    cx.notify();
-                })
-                .ok();
-            })
-            .detach();
-            cx.notify();
-            return;
+
+        let title = input.title.clone();
+        let description = input.description.clone();
+        if title.is_some() {
+            self.saving_title = true;
+            self.dirty_title = true;
+            self.title_error = None;
+            self.title.update(cx, |f, cx| f.set_disabled(true, cx));
         }
-        cx.background_executor()
-            .spawn(async move {
-                if let Err(e) = lib.run::<MaterialUpdate>(&Actor::User, input) {
-                    log::warn!("material: material.update: {e}");
+        if description.is_some() {
+            self.saving_description = true;
+            self.dirty_description = true;
+            self.description_error = None;
+            self.description
+                .update(cx, |f, cx| f.set_disabled(true, cx));
+        }
+        cx.spawn(async move |this, cx| {
+            let result = cx
+                .background_executor()
+                .spawn(async move { lib.run::<MaterialUpdate>(&Actor::User, input) })
+                .await;
+            this.update(cx, |page, cx| {
+                if let Some(title) = title {
+                    page.saving_title = false;
+                    page.title.update(cx, |f, cx| f.set_disabled(false, cx));
+                    match &result {
+                        Ok(done) => {
+                            page.shown_title = Some(done.output.name.clone());
+                            page.dirty_title = page.title.read(cx).text().trim() != title;
+                        }
+                        Err(e) => page.title_error = Some(e.to_string()),
+                    }
                 }
+                if let Some(description) = description {
+                    page.saving_description = false;
+                    page.description
+                        .update(cx, |f, cx| f.set_disabled(false, cx));
+                    match &result {
+                        Ok(_) => {
+                            page.shown_description = Some(description.clone());
+                            page.dirty_description =
+                                page.description.read(cx).text() != description;
+                        }
+                        Err(e) => page.description_error = Some(e.to_string()),
+                    }
+                }
+                cx.notify();
             })
-            .detach();
+            .ok();
+        })
+        .detach();
+        cx.notify();
     }
 
     fn save_title(&mut self, text: String, cx: &mut Context<Self>) {
@@ -449,9 +440,7 @@ impl MediaPage {
             }
             return;
         }
-        if self.book.v3().is_none() {
-            self.shown_title = Some(title.clone());
-        }
+
         let input = MaterialUpdateIn {
             book: self.book_id.clone(),
             id: self.id.clone(),
@@ -474,9 +463,7 @@ impl MediaPage {
             self.description_error = None;
             return;
         }
-        if self.book.v3().is_none() {
-            self.shown_description = Some(text.clone());
-        }
+
         let input = MaterialUpdateIn {
             book: self.book_id.clone(),
             id: self.id.clone(),
@@ -963,26 +950,12 @@ impl MediaPage {
 
     fn reload_comments(&mut self, cx: &mut Context<Self>) {
         let (lib, book, id) = (self.lib.clone(), self.book_id.clone(), self.id.clone());
-        let v3 = self.book.v3().is_some();
         let task = cx.background_executor().spawn(async move {
-            if v3 {
-                return dr_view_review::v3::load(&lib, &book)
-                    .map(|snapshot| {
-                        let cards: Vec<_> = snapshot.items.iter().map(|i| i.card()).collect();
-                        regions::listed(&cards, &id)
-                    })
-                    .unwrap_or_default();
-            }
-            let input = CommentListIn {
-                book,
-                target: Some(Target {
-                    kind: "material".into(),
-                    id: id.clone(),
-                }),
-                ..Default::default()
-            };
-            lib.run::<CommentList>(&Actor::User, input)
-                .map(|o| regions::listed(&o.output, &id))
+            dr_view_review::v3::load(&lib, &book)
+                .map(|snapshot| {
+                    let cards: Vec<_> = snapshot.items.iter().map(|i| i.card()).collect();
+                    regions::listed(&cards, &id)
+                })
                 .unwrap_or_default()
         });
         self.reloading = Some(cx.spawn(async move |this, cx| {

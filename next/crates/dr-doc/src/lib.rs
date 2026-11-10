@@ -24,10 +24,11 @@
 //! the editor (F4) reads views and subscribes to [`prose::ProseEvent`]s.
 
 pub mod anchor;
-pub mod book;
+pub mod catalog;
 pub mod conversation;
 mod core;
 pub mod error;
+pub mod import_v1;
 pub mod peer;
 pub mod pos;
 pub mod prose;

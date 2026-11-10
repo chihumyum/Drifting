@@ -7,9 +7,9 @@ use dr_doc::v3::BorrowedBookV3;
 use dr_editor::decor::Original;
 use dr_model::{
     DocId,
-    book::Relation,
     id::{BodyDocId, BookId, CommentId},
     kind::EntityKind,
+    shared::Relation,
     v3::{self as m, CommentV3},
 };
 use dr_store::OpenDoc;
@@ -204,7 +204,7 @@ pub fn load(ws: &Workspace, book: &str) -> Result<Snapshot> {
                     }
                 })
                 .collect();
-            let generic = dr_doc::book::generic_relation_type_id(&id);
+            let generic = dr_doc::catalog::generic_relation_type_id(&id);
             let associations = v
                 .relations()
                 .into_iter()

@@ -240,21 +240,16 @@ impl TableView {
             .flatten()
             .filter(|k| k != key)
             .collect();
-        let observed = if self.v3 {
-            let Some(receipt) = receipt else {
-                return false;
-            };
-            if receipt.before != p.observed {
-                // The first input already committed. Keep it, refuse the stale
-                // range cleanup, and end that selection only after reporting.
-                crate::links::clipboard_refused(cx, "selected cells changed before accepted input");
-                self.end_cell_selection(cx);
-                return true;
-            }
-            super::WriteObservation::Accepted(receipt.after)
-        } else {
-            super::WriteObservation::Displayed(self.seen)
+        let Some(receipt) = receipt else {
+            return false;
         };
+        if receipt.before != p.observed {
+            // Keep already accepted input, refuse stale selection cleanup.
+            crate::links::clipboard_refused(cx, "selected cells changed before accepted input");
+            self.end_cell_selection(cx);
+            return true;
+        }
+        let observed = super::WriteObservation::Accepted(receipt.after);
         let (row, col) = key.clone();
         let _ = self.write_step_observed(cx, false, observed, move |w| {
             for (r, c) in &others {

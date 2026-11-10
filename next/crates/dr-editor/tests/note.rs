@@ -36,7 +36,7 @@ fn env() -> Env {
     let dir = tempfile::tempdir().unwrap();
     let lib = Library::open(dir.path(), library_options("test")).unwrap();
     let ws = Workspace::open(lib, WorkspaceOptions::default()).unwrap();
-    let book = out(&ws, "book.create", json!({"name": "笔记"}))["id"]
+    let book = out(&ws, "project.create", json!({"name": "笔记"}))["id"]
         .as_str()
         .unwrap()
         .to_owned();
@@ -581,13 +581,12 @@ fn a_chapter_has_none_of_it(cx: &mut TestAppContext) {
     let e = env();
     let id = out(
         &e.ws,
-        "chapter.create",
-        json!({"book": e.book, "title": "一", "text": ""}),
+        "entry.create", json!({"book": e.book, "parent": dr_testkit::seed::acceptance::novel_root(&e.ws, &e.book, "tpl-manuscript"), "template": "tpl-chapter", "title": "一", "bodies": {"mod-prose": ""}}),
     )["id"]
         .as_str()
         .unwrap()
         .to_owned();
-    let mut o = open(cx, &e, &format!("node:{id}"));
+    let mut o = open(cx, &e, &format!("body:{id}/mod-prose"));
     assert!(o.view.read_with(o.cx, |v, _| v.note_embeds().is_none()));
     assert_eq!(o.slash("表格"), [], "no table in a chapter's slash menu");
     o.type_text(" ==字==");

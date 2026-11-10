@@ -37,17 +37,24 @@ fn book() -> (tempfile::TempDir, Workspace, String) {
     let dir = tempfile::tempdir().unwrap();
     let lib = Library::open(dir.path(), library_options("test")).unwrap();
     let ws = Workspace::open(lib, WorkspaceOptions::default()).unwrap();
-    let book = id(&out(&ws, "book.create", json!({"name": "封面"})));
-    let a = id(&out(
-        &ws,
-        "storyline.create",
-        json!({"book": book, "name": "甲", "color": "#b5654a"}),
-    ));
-    let b = id(&out(
-        &ws,
-        "storyline.create",
-        json!({"book": book, "name": "乙", "color": "#4f7cac"}),
-    ));
+    let book = id(&out(&ws, "project.create", json!({"name": "封面"})));
+    let a =
+        dr_testkit::seed::acceptance::novel_entry(&ws, &book, "tpl-storyline", "甲", None)["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+    let b =
+        dr_testkit::seed::acceptance::novel_entry(&ws, &book, "tpl-storyline", "乙", None)["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+    for (id, color) in [(&a, "#b5654a"), (&b, "#4f7cac")] {
+        out(
+            &ws,
+            "module.set_field",
+            json!({"book":book,"entry":id,"module":"mod-fields","field":"color","value":color}),
+        );
+    }
     for (title, text, lines) in [
         ("一", "雨落在码头上。", vec![a.clone()]),
         ("二", "", vec![a.clone()]),
@@ -59,14 +66,16 @@ fn book() -> (tempfile::TempDir, Workspace, String) {
     ] {
         let chapter = id(&out(
             &ws,
-            "chapter.create",
-            json!({"book": book, "title": title, "text": text}),
+            "entry.create",
+            json!({"book": book, "parent": dr_testkit::seed::acceptance::novel_root(&ws, &book, "tpl-manuscript"), "template": "tpl-chapter", "title": title, "bodies": {"mod-prose": text}}),
         ));
-        out(
-            &ws,
-            "chapter.update",
-            json!({"book": book, "id": chapter, "add_storylines": lines}),
-        );
+        for host in lines {
+            out(
+                &ws,
+                "membership.add",
+                json!({"book":book,"host":host,"member":chapter}),
+            );
+        }
     }
     ws.library().rebuild_stale_indexes().unwrap();
     (dir, ws, book)

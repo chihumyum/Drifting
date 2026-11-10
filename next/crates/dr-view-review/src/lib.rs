@@ -24,20 +24,12 @@ pub mod v3_panel;
 
 use std::collections::HashMap;
 
-use dr_doc::book::Collection;
-use dr_i18n::{Locale, Platform};
-use dr_workspace::{NavTarget, Workspace, WsEvent, events::Subscription};
-use gpui::{
-    AnyElement, App, AppContext, Entity, Global, IntoElement, KeyBinding, SharedString, actions,
-};
+use dr_workspace::{Workspace, WsEvent, events::Subscription};
+use gpui::{App, AppContext, Entity, Global, KeyBinding, SharedString, actions};
 
 pub use composer::{Anchor, CommentComposer, ComposerEvent};
 pub use model::{Filter, Group, Listing, Place};
-pub use panel::{ReviewView, target_of};
-
-/// Opens a target's tab (its [`NavTarget::key`]): the arrow on a Review
-/// card. The shell gives it with [`panel`].
-pub type Opener = std::rc::Rc<dyn Fn(&str, &mut gpui::Window, &mut App)>;
+pub use panel::ReviewView;
 
 actions!(
     review,
@@ -81,20 +73,7 @@ pub fn init(lib: Option<Workspace>, cx: &mut App) {
     let subscription = lib.as_ref().map(|lib| {
         lib.subscribe(move |e| {
             if let WsEvent::Book(b) = e {
-                let legacy = b.changes.iter().any(|c| {
-                    matches!(
-                        c.collection,
-                        Collection::Comments
-                            | Collection::Relations
-                            | Collection::RelationTypes
-                            | Collection::Nodes
-                            | Collection::Elements
-                            | Collection::Categories
-                            | Collection::Storylines
-                            | Collection::Materials
-                    )
-                });
-                let _ = tx.unbounded_send((b.book.to_string(), legacy));
+                let _ = tx.unbounded_send((b.book.to_string(), true));
             }
         })
     });
@@ -139,27 +118,6 @@ pub fn release(cx: &mut App) {
         hub.views.clear();
         hub.lib = None;
     }
-}
-
-/// The Review tab for `book`, following the page `target`. `id` tells two
-/// panes apart; `open` opens a card's entity.
-pub fn panel(
-    id: &str,
-    book: &str,
-    target: Option<NavTarget>,
-    locale: Locale,
-    platform: Platform,
-    open: Opener,
-    cx: &mut App,
-) -> AnyElement {
-    let Some(view) = ensure_view(id, cx) else {
-        return gpui::Empty.into_any_element();
-    };
-    view.update(cx, |v, cx| {
-        v.set_opener(open);
-        v.show(book, target, locale, platform, cx);
-    });
-    view.into_any_element()
 }
 
 /// Reveal a specific comment in the named pane. The request survives the

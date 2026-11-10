@@ -11,7 +11,7 @@ use dr_doc::prose::ProseReader;
 use dr_model::DocId;
 use dr_store::{Library, LibraryOptions};
 use dr_testkit::crash::{self, Harness, Recovered, Reporter};
-use dr_testkit::seed::{self, Preset, Seeded};
+use dr_testkit::seed::{self, Preset, SeededV3};
 use dr_workspace::{Actor, Workspace, WorkspaceOptions, library_options};
 use serde_json::json;
 
@@ -28,12 +28,12 @@ fn options() -> LibraryOptions {
     options
 }
 
-fn fixture() -> (Seeded, DocId, String, Vec<String>) {
-    let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+fn fixture() -> (SeededV3, DocId, String, Vec<String>) {
+    let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
     let prose = seeded.books[0]
         .prose
         .iter()
-        .find(|p| matches!(p.doc_id(), DocId::Node(_)))
+        .find(|p| matches!(p.doc_id(), DocId::Body(_)))
         .unwrap();
     let doc = prose.doc_id().clone();
     let block = prose

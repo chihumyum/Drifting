@@ -19,8 +19,8 @@
 //!   they are durable. Queries are cached per book and kept current by them.
 //! - Undo in three layers: the editor's (F4, through dr-doc's `ProseUndo`),
 //!   object level ([`Workspace::undo`]: each command declares its inverse),
-//!   and an Agent's changes (`history.undo_agent`: by origin, entity by
-//!   entity, from history).
+//!   and complete entry snapshot history (including Agent checkpoints),
+//!   restored atomically through the guarded entry snapshot protocol.
 //!
 //! - The shell's needs ([`nav`]): location-link lookup, the targets a
 //!   removal names, the quit hook.
@@ -31,7 +31,6 @@
 
 pub mod actor;
 pub mod autolink;
-mod cache;
 pub mod commands;
 pub mod cx;
 pub mod dto;
@@ -55,6 +54,6 @@ pub use events::{
 };
 pub use guard::{Observation, WritePreconditions};
 pub use holder::COMMAND_ORIGIN;
-pub use nav::{BookCatalog, LinkGroup, NavTarget};
+pub use nav::NavTarget;
 pub use registry::{Access, Concurrency, Op, Registry, Spec, registry};
 pub use workspace::{QuitReport, ShutdownRefused, Workspace, WorkspaceOptions, library_options};

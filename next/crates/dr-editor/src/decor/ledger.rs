@@ -23,7 +23,7 @@ use std::collections::BTreeMap;
 use std::ops::Range;
 use std::path::PathBuf;
 
-use dr_model::book::EncodedAnchor;
+use dr_model::shared::EncodedAnchor;
 use dr_store::{OpenDoc, Origin};
 use dr_workspace::dto::AnchorBytes;
 use dr_workspace::{Workspace, WsEvent};
@@ -349,7 +349,7 @@ fn settled_marks(ws: &Workspace, last: i64) -> Result<(i64, Found), String> {
     let mut found: Found = Vec::new();
     for s in settlements.into_iter().filter(|s| s.id > last) {
         newest = newest.max(s.id);
-        if !s.doc_id.starts_with("node:") {
+        if !s.doc_id.starts_with("body:") {
             continue;
         }
         let Ok(handle) = lib.open_doc(&s.doc_id, OpenDoc::Existing) else {

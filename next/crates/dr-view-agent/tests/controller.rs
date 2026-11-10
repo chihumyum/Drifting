@@ -40,15 +40,16 @@ impl Fixture {
     fn new() -> Self {
         let dir = tempfile::tempdir().unwrap();
         let lib = Library::open(dir.path(), library_options("m31-controller")).unwrap();
-        let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+        let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
         let book = seeded.books[0].book_id().clone();
         seeded.write_to(&lib).unwrap();
         let ws = Workspace::open(lib, WorkspaceOptions::default()).unwrap();
         ws.set_auto_links(false);
-        let chapters = ws
-            .call(&Actor::User, "chapter.list", json!({"book":book}))
-            .unwrap();
-        let doc = format!("node:{}", chapters["output"][0]["id"].as_str().unwrap());
+        let chapters = json!({"output":dr_testkit::seed::acceptance::entries_by_template(&ws,&book,"tpl-chapter")});
+        let doc = format!(
+            "body:{}/mod-prose",
+            chapters["output"][0]["id"].as_str().unwrap()
+        );
         let prose = ws
             .call(&Actor::User, "prose.read", json!({"doc":doc}))
             .unwrap();
@@ -68,7 +69,14 @@ impl Fixture {
 
     fn start(&self, conversation: ConversationId) -> Start {
         Start {
-            config: RunConfig::new(Provider::Openai, "synthetic-model"),
+            config: {
+                let mut c = RunConfig::new(Provider::Openai, "synthetic-model");
+                c.capabilities = Some(dr_agent::ModelCapabilities {
+                    context_window: Some(262_144),
+                    ..Default::default()
+                });
+                c
+            },
             book: self.book.clone(),
             conversation,
             input: self.text(),
@@ -263,7 +271,12 @@ fn streaming_question_search_and_completion_are_rebuilt_without_a_panel() {
             .is_some_and(|message| message.blocks.len() == 2)
     });
     assert!(controller.start(f.start(conversation.clone())).is_err());
-    assert_eq!(driver.requests()[0].config.system_prompt, text);
+    let frozen = controller.snapshot(&f.book, &conversation).unwrap().runs[0]
+        .config
+        .clone()
+        .unwrap();
+    assert_eq!(driver.requests()[0].config.as_ref(), &frozen);
+    assert!(frozen.system_prompt.contains("BOOK_STRUCTURE.json"));
     assert_eq!(
         controller.list(&f.book).unwrap()[0].active.as_slice(),
         std::slice::from_ref(&session)
@@ -520,7 +533,7 @@ fn close_returns_while_a_read_is_busy_and_waits_for_its_last_reference() {
         reader.with_workspace_read(|ws| {
             entered.send(()).unwrap();
             blocked.recv().unwrap();
-            ws.call(&Actor::User, "chapter.list", json!({"book":book}))
+            ws.call(&Actor::User, "entry.list", json!({"book":book}))
                 .map(|value| value["output"].clone())
                 .map_err(|error| error.to_string())
         })

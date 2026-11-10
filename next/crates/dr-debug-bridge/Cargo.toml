@@ -26,6 +26,7 @@ dr-store.workspace = true
 # and `page.text` reach (M03, M11).
 dr-view-elements.workspace = true
 dr-view-page.workspace = true
+dr-view-import.workspace = true
 # M41's dialog, read in `state.get` (`transfer`).
 dr-view-transfer.workspace = true
 dr-workspace.workspace = true

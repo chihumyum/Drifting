@@ -43,15 +43,16 @@ impl ToolExecutor for Commands {
 fn setup() -> (tempfile::TempDir, Workspace, BookId, String, Value) {
     let dir = tempfile::tempdir().unwrap();
     let lib = Library::open(dir.path(), library_options("m27")).unwrap();
-    let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+    let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
     let book = seeded.books[0].book_id().clone();
     seeded.write_to(&lib).unwrap();
     let ws = Workspace::open(lib, WorkspaceOptions::default()).unwrap();
     ws.set_auto_links(false);
-    let chapters = ws
-        .call(&Actor::User, "chapter.list", json!({"book":book}))
-        .unwrap();
-    let doc = format!("node:{}", chapters["output"][0]["id"].as_str().unwrap());
+    let chapters = json!({"output":dr_testkit::seed::acceptance::entries_by_template(&ws,&book,"tpl-chapter")});
+    let doc = format!(
+        "body:{}/mod-prose",
+        chapters["output"][0]["id"].as_str().unwrap()
+    );
     let prose = ws
         .call(&Actor::User, "prose.read", json!({"doc":doc}))
         .unwrap()["output"]
@@ -228,6 +229,12 @@ fn run_freezes_route_and_author_limit_before_tools_settle() {
 #[test]
 fn scripted_tool_writes_book_leaves_receipts_and_can_be_undone() {
     let (_dir, ws, book, doc, prose) = setup();
+    let entry = doc
+        .strip_prefix("body:")
+        .unwrap()
+        .strip_suffix("/mod-prose")
+        .unwrap();
+    let point = dr_testkit::seed::acceptance::entry_point(&ws, &book, &entry);
     let p = &prose["paragraphs"][1];
     let text = p["text"].as_str().unwrap();
     let replacement: String = text.chars().rev().collect();
@@ -254,7 +261,7 @@ fn scripted_tool_writes_book_leaves_receipts_and_can_be_undone() {
     let run = runtime
         .start(Start {
             config: dr_agent::RunConfig::new(dr_agent::Provider::Openai, "synthetic-model"),
-            book,
+            book: book.clone(),
             conversation: cid.clone(),
             input: text.into(),
         })
@@ -283,12 +290,7 @@ fn scripted_tool_writes_book_leaves_receipts_and_can_be_undone() {
             .unwrap()["output"]["paragraphs"][1]["text"],
         replacement
     );
-    ws.call(
-        &Actor::User,
-        "history.undo_agent",
-        json!({"session":session,"turn":1}),
-    )
-    .unwrap();
+    dr_testkit::seed::acceptance::restore_entry(&ws, &book, &entry, &point);
     assert_eq!(
         ws.call(&Actor::User, "prose.read", json!({"doc":doc}))
             .unwrap()["output"]["paragraphs"],
@@ -431,7 +433,7 @@ fn premature_driver_eof_preserves_partial_message_and_fails() {
     let run = runtime
         .start(Start {
             config: dr_agent::RunConfig::new(dr_agent::Provider::Openai, "synthetic-model"),
-            book,
+            book: book.clone(),
             conversation: cid.clone(),
             input: text.into(),
         })

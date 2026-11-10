@@ -4,10 +4,8 @@
 
 mod checkin;
 mod delta;
-mod organize;
 mod state;
 
 pub use checkin::*;
 pub use delta::*;
-pub use organize::*;
 pub use state::*;

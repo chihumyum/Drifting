@@ -7,8 +7,8 @@
 //! new body through the plan, and turning it into a pair of Loro cursors.
 //! Ported from the P0-E spike (`next/spikes/import-v1/src/anchors.rs`).
 
-use dr_model::book::{BlockSnapshot, MaterialRegion};
 use dr_model::id::BlockId;
+use dr_model::import_v1::{BlockSnapshot, MaterialRegion};
 use serde::Serialize;
 use serde_json::Value;
 

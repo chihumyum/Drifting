@@ -26,7 +26,7 @@ impl Fixture {
     fn new() -> Self {
         let dir = tempfile::tempdir().unwrap();
         let lib = Library::open(dir.path(), library_options("m27-error-test")).unwrap();
-        let seeded = seed::generate(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
+        let seeded = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED).unwrap();
         seeded.write_to(&lib).unwrap();
         let book = seeded.books[0].book_id().clone();
         let text = seeded.books[0].prose[0]
@@ -286,7 +286,7 @@ fn library_has_one_runtime_owner_until_all_clones_are_dropped() {
 #[test]
 fn conversation_cannot_be_rebound_to_another_book_or_poison_recovery() {
     let f = Fixture::new();
-    let second = seed::generate(Preset::Tiny, seed::DEFAULT_SEED + 1).unwrap();
+    let second = seed::generate_v3(Preset::Tiny, seed::DEFAULT_SEED + 1).unwrap();
     second.write_to(f.ws.library()).unwrap();
     let second_book = second.books[0].book_id().clone();
     assert_ne!(f.book, second_book);
