@@ -319,6 +319,23 @@ fn real_table_grid_and_cell_text_clipboard_keep_module_and_binary_on_disk(cx: &m
         opened.borrow()[0].end_block.as_ref().unwrap().as_str(),
         "block-b"
     );
+    // A fresh grid read for copying does not authorize the old displayed
+    // selection to overwrite an equally sized peer update.
+    let (table_id, row, col) = (id.clone(), r.clone(), c.clone());
+    e.ws.prose_session(&doc)
+        .unwrap()
+        .edit(move |t| t.table(&table_id)?.set_cell(&row, &col, "peer!!"))
+        .unwrap();
+    let before = e.ws.observe(&doc).unwrap().version;
+    let _fresh = embeds.table_grid(id.as_str()).unwrap();
+    table.update_in(cx, |t, w, cx| {
+        t.paste_marked(0, 0, vec![vec!["stale!".into()]], vec![], w, cx)
+    });
+    assert_eq!(e.ws.observe(&doc).unwrap().version, before);
+    assert_eq!(
+        embeds.table_cells(id.as_str()).unwrap()[0],
+        vec!["peer!!".to_owned(), "outside".to_owned()]
+    );
 }
 
 #[gpui::test]

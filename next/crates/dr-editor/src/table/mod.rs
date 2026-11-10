@@ -763,9 +763,8 @@ impl TableView {
             let w = txn.table(&embed)?;
             f(&w)
         });
-        if written.is_ok() {
-            self.seen = self.feed.commits();
-        }
+        // Only sync() may advance the displayed observation. A fresh counter
+        // read after our write could include a peer's unseen commit.
         let pushed = (self.feed.user_commits() - before) as usize;
         self.fold(pushed, new_step, cx);
         self.last_edited = None;
@@ -775,7 +774,7 @@ impl TableView {
         match written {
             Ok(r) => Some(r),
             Err(e) => {
-                log::error!("dr-editor: table edit failed: {e}");
+                crate::links::clipboard_refused(cx, e);
                 None
             }
         }
