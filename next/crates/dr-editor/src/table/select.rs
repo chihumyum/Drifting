@@ -59,6 +59,8 @@ pub(crate) struct Parked {
     pub(crate) key: CellKey,
     pub(crate) sel: Selection,
     pub(crate) len: usize,
+    /// Frozen when the author starts the selection, never refreshed by copying.
+    pub(crate) observed: u64,
 }
 
 /// What a selection of cells is extended or moved by.
@@ -173,7 +175,12 @@ impl TableView {
                 e.select(0, at..at, window, cx);
                 (e.selection(), e.book().chapters[0].doc.max_cursor())
             });
-            self.parked = Some(Parked { key, sel, len });
+            self.parked = Some(Parked {
+                key,
+                sel,
+                len,
+                observed: self.seen,
+            });
         }
         self.cell_sel = Some(range);
         cx.notify();
@@ -209,7 +216,12 @@ impl TableView {
     /// The parked cell was typed in with cells selected (the text went in
     /// at its caret): the selected cells are emptied but for what was
     /// typed, in the typing's step. Returns whether it was.
-    pub(crate) fn typed_over(&mut self, key: &CellKey, cx: &mut Context<Self>) -> bool {
+    pub(super) fn typed_over(
+        &mut self,
+        key: &CellKey,
+        receipt: Option<super::cell::AcceptedInput>,
+        cx: &mut Context<Self>,
+    ) -> bool {
         let Some(p) = self.parked.clone().filter(|p| &p.key == key) else {
             return false;
         };
@@ -228,10 +240,23 @@ impl TableView {
             .flatten()
             .filter(|k| k != key)
             .collect();
-        self.cell_sel = None;
-        self.parked = None;
+        let observed = if self.v3 {
+            let Some(receipt) = receipt else {
+                return false;
+            };
+            if receipt.before != p.observed {
+                // The first input already committed. Keep it, refuse the stale
+                // range cleanup, and end that selection only after reporting.
+                crate::links::clipboard_refused(cx, "selected cells changed before accepted input");
+                self.end_cell_selection(cx);
+                return true;
+            }
+            super::WriteObservation::Accepted(receipt.after)
+        } else {
+            super::WriteObservation::Displayed(self.seen)
+        };
         let (row, col) = key.clone();
-        self.write_step(cx, false, move |w| {
+        let _ = self.write_step_observed(cx, false, observed, move |w| {
             for (r, c) in &others {
                 w.set_cell(r, c, "")?;
             }
@@ -244,6 +269,11 @@ impl TableView {
             }
             Ok(())
         });
+        // A concurrent write after the accepted input is rejected by the
+        // holder guard above. Neither success nor refusal erases that input.
+        // End the original range only after its result is known; it must not
+        // acquire a fresh version and retry destructive cleanup on a redraw.
+        self.end_cell_selection(cx);
         true
     }
 
@@ -440,7 +470,14 @@ impl TableView {
             .unwrap_or_default();
         let texts = rect(&cells, &rows, &cols);
         let marks = rect(&marks, &rows, &cols);
-        cx.write_to_clipboard(clip::table_item(&texts, &marks));
+        let item = match clip::table_item(&texts, &marks) {
+            Ok(item) => item,
+            Err(e) => {
+                crate::links::clipboard_refused(cx, e);
+                return true;
+            }
+        };
+        cx.write_to_clipboard(item);
         if cut {
             self.clear_cells(cx);
         }
@@ -484,7 +521,13 @@ impl TableView {
         let Some(grid) = grid.filter(|g| !g.is_empty()) else {
             return true;
         };
-        let marks = tile(&clip::marks_from_clipboard(item), rows.len(), cols.len());
+        let marks = match clip::marks_from_clipboard(item) {
+            Ok(m) => tile(&m, rows.len(), cols.len()),
+            Err(e) => {
+                crate::links::clipboard_refused(cx, e);
+                return true;
+            }
+        };
         let tiled = tile(&grid, rows.len(), cols.len());
         let (h, w) = (tiled.len(), tiled.first().map_or(0, Vec::len));
         self.paste_marked(rows.start, cols.start, tiled, marks, window, cx);

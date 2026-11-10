@@ -19,7 +19,14 @@ pub fn register(cx: &mut App) {
         if *target != dr_shell::nav::Target::Book || host.book.v3().is_none() {
             return None;
         }
+        let page = host.clone();
         let view = cx.new(|cx| WholeBook::new(host, window, cx));
+        dr_shell::v3::register_editor(
+            &page,
+            &view,
+            |v, _| v.editor().map(dr_shell::workspace::editors::PageView::Book),
+            cx,
+        );
         Some(ModulePage {
             focus: view.read(cx).focus.clone(),
             view: view.into(),

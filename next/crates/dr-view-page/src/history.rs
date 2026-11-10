@@ -22,14 +22,16 @@ pub fn init(cx: &mut App) {
         Box::pin(finish)
     });
     dr_shell::release::after_release(cx, start);
-    dr_shell::quit::before_quit(cx, |cx| {
-        // Runs after the release futures have drained Agent/field writes.
-        if let Some(ws) = cx
+    dr_shell::release::after_drain(cx, |cx| {
+        // Both the handle and the frontier must be captured after the final
+        // producer (including Markdown) has finished, while the old library
+        // still belongs to Services. Storage never blocks the UI executor.
+        let ws = cx
             .try_global::<dr_shell::Services>()
-            .and_then(|s| s.library.clone())
-            && let Err(e) = capture_on_close(&ws)
-        {
-            log::error!("final entry checkpoint failed: {e}");
-        }
+            .and_then(|s| s.library.clone());
+        let capture = cx
+            .background_executor()
+            .spawn(async move { ws.map(|ws| capture_on_close(&ws)).unwrap_or(Ok(())) });
+        Box::pin(capture)
     });
 }

@@ -23,7 +23,14 @@ pub struct BodyModule {
 pub fn register(cx: &mut App) {
     crate::whole::register(cx);
     dr_shell::v3::add_module_view(cx, "prose", |host, window, cx| {
+        let page = host.page.clone();
         let view = cx.new(|cx| BodyModule::new(host, window, cx));
+        dr_shell::v3::register_editor(
+            &page,
+            &view,
+            |v, _| v.editor().map(dr_shell::workspace::editors::PageView::Doc),
+            cx,
+        );
         let focus = view.read(cx).focus.clone();
         let refresh = view.downgrade();
         let reveal = view.downgrade();
@@ -188,7 +195,17 @@ impl BodyModule {
                 let doc = &p.book().chapters[0].doc;
                 let line = dr_shell::nav::location::line_to_block(lines.start) as usize;
                 let at = doc.line_start(line.min(doc.visible_lines().saturating_sub(1)));
-                p.select(0, at..at, window, cx);
+                let end = lines
+                    .end
+                    .map(|end| {
+                        let last = dr_shell::nav::location::line_to_block(end) as usize;
+                        doc.line_start(last.min(doc.visible_lines().saturating_sub(1)))
+                            + doc
+                                .line(last.min(doc.visible_lines().saturating_sub(1)))
+                                .chars
+                    })
+                    .unwrap_or(at);
+                p.select(0, at..end.max(at), window, cx);
             });
         }
     }

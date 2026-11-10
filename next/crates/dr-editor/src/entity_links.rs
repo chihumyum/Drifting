@@ -384,6 +384,25 @@ pub fn apply(doc: &mut ProseDoc, line_ix: usize, edits: &[LinkEdit]) {
     }
 }
 
+/// Automatic matching and repair may only change bare v3 entry marks.
+/// Preserve module/block/material/unknown representations and overlapping runs.
+pub fn protect_v3(line: &Line, edits: Vec<LinkEdit>) -> Vec<LinkEdit> {
+    let protected: Vec<_>=line.spans.iter().filter(|s|s.marks.entities().any(|(_,v)| {
+        !matches!(v,LoroValue::Map(m) if m.len()==1 && m.get("kind")==Some(&LoroValue::from("entry")))
+    })).map(|s|line.text[..s.range.start].chars().count()..line.text[..s.range.end].chars().count()).collect();
+    edits
+        .into_iter()
+        .filter(|edit| {
+            let range = match edit {
+                LinkEdit::Link { range, .. } | LinkEdit::Unlink { range, .. } => range,
+            };
+            !protected
+                .iter()
+                .any(|p| p.start < range.end && range.start < p.end)
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use std::ops::Range;

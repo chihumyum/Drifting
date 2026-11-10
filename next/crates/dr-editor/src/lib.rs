@@ -21,6 +21,7 @@
 pub mod anchors;
 pub mod assist;
 pub mod book;
+mod clipboard;
 pub mod convert;
 pub mod decor;
 pub mod embeds;

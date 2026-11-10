@@ -36,6 +36,7 @@ pub enum NoteEvent {
     OpenMaterial(String),
     /// The author typed in a cell ([`gpui_prose::AuthorTyped`]).
     Typed,
+    OpenLinkV3(dr_model::v3::EntityLinkV3),
 }
 
 /// How embeds report to the note's view.

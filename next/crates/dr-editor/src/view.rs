@@ -397,6 +397,9 @@ impl ChapterEditor {
 
     fn on_note(&mut self, event: NoteEvent, cx: &mut Context<Self>) {
         match event {
+            NoteEvent::OpenLinkV3(link) => self
+                .assist
+                .update(cx, |a, cx| a.open_entity_link_v3(link, cx)),
             NoteEvent::Edited => cx.emit(ChapterEditorEvent::Edited),
             NoteEvent::OpenMaterial(material) => cx.emit(MaterialOpened {
                 doc: self.doc_id.clone(),
@@ -788,8 +791,8 @@ impl ChapterEditor {
             [(Some(id), _)] => embeds
                 .table_grid(id)
                 .map(|(cells, marks)| crate::table::clip::table_item(&cells, &marks))
-                .unwrap_or_else(|| gpui::ClipboardItem::new_string(embeds.embed_text(id))),
-            _ => gpui::ClipboardItem::new_string(
+                .unwrap_or_else(|| Ok(gpui::ClipboardItem::new_string(embeds.embed_text(id)))),
+            _ => Ok(gpui::ClipboardItem::new_string(
                 parts
                     .iter()
                     .map(|(id, text)| match id {
@@ -798,7 +801,14 @@ impl ChapterEditor {
                     })
                     .collect::<Vec<_>>()
                     .join("\n"),
-            ),
+            )),
+        };
+        let item = match item {
+            Ok(item) => item,
+            Err(e) => {
+                crate::links::clipboard_refused(cx, e);
+                return true;
+            }
         };
         cx.write_to_clipboard(item);
         if cut {
@@ -829,12 +839,18 @@ impl ChapterEditor {
         let Some(cells) = cells else {
             return false;
         };
+        let marks = match crate::table::clip::marks_from_clipboard(&item) {
+            Ok(m) => m,
+            Err(e) => {
+                crate::links::clipboard_refused(cx, e);
+                return true;
+            }
+        };
         if !self.editor.read(cx).selection().is_empty() {
             self.editor
                 .update(cx, |e, cx| e.press_backspace(window, cx));
         }
         let offset = self.editor.read(cx).selection().head;
-        let marks = crate::table::clip::marks_from_clipboard(&item);
         crate::embeds::insert_table(&embeds, offset, cells, marks, window, cx);
         true
     }

@@ -1031,6 +1031,7 @@ fn material_entry_link_checks_book_observations_before_writing() {
             + 1
     );
 }
+
 #[test]
 fn v3_template_module_links_survive_copy_edit_history_and_other_book_is_untouched() {
     use dr_model::id::ModuleId;
