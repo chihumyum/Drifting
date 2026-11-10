@@ -435,16 +435,33 @@ fn v3_typing_over_selected_cells_replaces_the_range_and_undoes_once(cx: &mut Tes
     assert_eq!(embeds.table_grid(&id).unwrap(), before);
     // A successful own paste (including a no-op value) and format operation
     // may advance this selection only through their exact acknowledged state.
-    table.update_in(cx,|t,w,cx|{t.focus_cell(0,0,true,w,cx);t.select_cells((0,0),(1,0),w,cx);});draw(cx);
+    table.update_in(cx, |t, w, cx| {
+        t.focus_cell(0, 0, true, w, cx);
+        t.select_cells((0, 0), (1, 0), w, cx);
+    });
+    draw(cx);
     cx.write_to_clipboard(ClipboardItem::new_string("好".into()));
-    cx.dispatch_action(gpui_prose::input::actions::Paste);draw(cx);
-    cx.dispatch_action(gpui_prose::input::actions::ToggleBold);draw(cx);
-    assert_eq!(table.read_with(cx,|t,_|t.selected_cells()),Some((0..2,0..1)));
-    let formatted=embeds.table_grid(&id).unwrap();
-    input.update_in(cx,|p,w,cx|p.replace_text_in_range(None,"再",w,cx));draw(cx);
-    assert_eq!(embeds.table_cells(&id).unwrap(),vec![vec!["再".to_owned(),"outside".to_owned()],vec!["".to_owned(),"outside two".to_owned()]]);
-    cx.dispatch_action(gpui_prose::input::actions::Undo);draw(cx);
-    assert_eq!(embeds.table_grid(&id).unwrap(),formatted);
+    cx.dispatch_action(gpui_prose::input::actions::Paste);
+    draw(cx);
+    cx.dispatch_action(gpui_prose::input::actions::ToggleBold);
+    draw(cx);
+    assert_eq!(
+        table.read_with(cx, |t, _| t.selected_cells()),
+        Some((0..2, 0..1))
+    );
+    let formatted = embeds.table_grid(&id).unwrap();
+    input.update_in(cx, |p, w, cx| p.replace_text_in_range(None, "再", w, cx));
+    draw(cx);
+    assert_eq!(
+        embeds.table_cells(&id).unwrap(),
+        vec![
+            vec!["再".to_owned(), "outside".to_owned()],
+            vec!["".to_owned(), "outside two".to_owned()]
+        ]
+    );
+    cx.dispatch_action(gpui_prose::input::actions::Undo);
+    draw(cx);
+    assert_eq!(embeds.table_grid(&id).unwrap(), formatted);
 
     assert_eq!(
         body.read_with(cx, |p, _| p.book().chapters[0].doc.plain_text())
