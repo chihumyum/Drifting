@@ -40,7 +40,6 @@ dr-doc.workspace = true
 dr-view-page = { workspace = true, features = ["test-support"] }
 dr-view-plot.workspace = true
 anyhow.workspace = true
-dr-doc.workspace = true
 dr-store.workspace = true
 dr-testkit.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
