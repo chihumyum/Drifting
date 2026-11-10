@@ -1723,6 +1723,7 @@ dependencies = [
  "dr-store",
  "dr-testkit",
  "dr-view-elements",
+ "dr-view-home",
  "dr-view-page",
  "dr-view-transfer",
  "dr-workspace",

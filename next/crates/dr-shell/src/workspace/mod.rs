@@ -1119,6 +1119,7 @@ impl Workspace {
         self.shelf = None;
         self.shelf_open = false;
         self.home = None;
+        self.v3_home = None;
         self.left_panels.borrow_mut().clear();
         self.companion.borrow_mut().clear();
         self.library_panel.borrow_mut().clear();
