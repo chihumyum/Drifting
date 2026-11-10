@@ -536,7 +536,7 @@ K6 首次写前快照消费归 K6。布局、样式、截图目检、heavy、性
 不记为通过；没有改 progress.md、0.1 客户端或原 WIP。
 
 
-### G1 普通通览跨章剪贴修复（2026-11-10，最终验收中）
+### G1 普通通览跨章剪贴修复（2026-11-10）
 
 **做了什么：**恢复真实 v3 BookEditor／Assist 的跨章 Cut 和应用内 Copy 后的跨章
 Paste，保留各章只替换自己的选中范围、粘贴写入起点章及一次成组 Undo／Redo。
@@ -572,8 +572,7 @@ bold／Entry＋module＋block＋Binary raw、范围外未知根、锚点、旧�
 Redo、较晚输入独立撤销、多 session、重开、同数量未见并发拒绝及第二份 SQL append
 故障后原值／原版本／选区／重试断言；新增 Local 事件、SQL/live 完整操作字节相同和
 隐藏非文本／新容器写前拒绝后 Undo／重开不变。早期测试编译与断言时机修正原件保留，
-没有放宽原始值要求。当前固定最终产品源码后再跑五项完整检查及 74 步副屏主流程；
-正式 handback 尚未前移，旧 ed6／full1／full2 不充当本次最终验收。
+没有放宽原始值要求。最终源码 `aa403f52` 完成第三轮全套（fmt、Clippy、test **2380 通过／0 失败／22 忽略**、xtask、public，`g1-cross-document-fix.full-3.json`）及 74 步副屏主流程（74/74、0 pending，`g1-cross-document-fix.native-3/result.json`），正式指针 `handback/k4-g1` 已前移至 `aa403f52`；旧 ed6／full1／full2 不充当本次最终验收。
 
 **待协调：**普通跨章路径必须按既定功能交回，不作为“未知格式”留待作者。
 新增 User-only 原子文本接口的范围、staging 版本非提交回执和 Local 安装边界已明示；
