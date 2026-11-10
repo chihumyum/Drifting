@@ -155,6 +155,30 @@
       }
     },
     {
+      "app": "action.dispatch",
+      "params": {
+        "name": "workspace::ToggleLeftSidebar"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "timeout_ms": 30000,
+        "state": {
+          "/left/open": true,
+          "/v3Sidebar/registered": true,
+          "/v3Sidebar/selected": "${entries.[template=tpl-manuscript].id}"
+        }
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 600
+      }
+    },
+    {
       "app": "window.focus",
       "params": {}
     },
@@ -163,7 +187,9 @@
       "params": {},
       "expect": {
         "/windows/0/active": true,
-        "/windows/0/visible": true
+        "/windows/0/visible": true,
+        "/windows/0/bounds/width": 1440.0,
+        "/windows/0/bounds/height": 900.0
       },
       "save": "environment"
     },
@@ -452,12 +478,8 @@
       "app": "ui.find",
       "params": {
         "label": "${source.title}",
-        "role": "Button",
-        "count": 1,
-        "within": {
-          "label": "Entries",
-          "role": "Group"
-        }
+        "role": "Group",
+        "count": 1
       },
       "save": "treeSource"
     },
@@ -478,12 +500,19 @@
           "${treeSource.nodes.0.center.1}"
         ],
         "to": [
-          "${track.nodes.0.center.0}",
+          900,
           "${track.nodes.0.center.1}"
         ],
         "steps": 12
       },
-      "note": "从真实 G2 树源拖入 G3 泳道；只新增归属和本视图摆放，原住处、顺序和主归属不变。"
+      "note": "从真实 G2 树源拖入 G3 泳道；只新增归属和本视图摆放，原住处、顺序和主归属不变。 落点使用标准 1440×900 窗口内可见的轨道 x=900；不取虚拟宽轨道的屏外中心。"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "time",
+        "ms": 350
+      }
     },
     {
       "app": "ui.find",
@@ -536,7 +565,9 @@
       "params": {},
       "expect": {
         "/windows/0/active": true,
-        "/windows/0/visible": true
+        "/windows/0/visible": true,
+        "/windows/0/bounds/width": 1440.0,
+        "/windows/0/bounds/height": 900.0
       }
     },
     {
