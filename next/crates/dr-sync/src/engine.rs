@@ -407,7 +407,7 @@ impl SyncEngine {
                 vv_base64,
                 ..
             } => {
-                validate_document_metadata(doc_id, book_id.as_deref())?;
+                validate_document_metadata(library, doc_id, kind, book_id.as_deref())?;
                 if library.purged(doc_id)?.is_some()
                     || book_id
                         .as_deref()
@@ -482,8 +482,12 @@ impl SyncEngine {
                         "asset extension must be 1..=16 lowercase ASCII letters or digits".into(),
                     ));
                 }
-                if library.asset(asset_id, parsed_variant)?.is_some() {
-                    library.mark_asset_uploaded(asset_id, parsed_variant)?;
+                if let Some(existing) = library.asset(asset_id, parsed_variant)? {
+                    // Replaying an already confirmed blob is a no-op, including
+                    // its local confirmation timestamp in another book.
+                    if existing.uploaded_ms.is_none() {
+                        library.mark_asset_uploaded(asset_id, parsed_variant)?;
+                    }
                     return Ok(());
                 }
 
@@ -543,12 +547,15 @@ impl SyncEngine {
                 book_id,
                 purged_ms,
             } => {
-                validate_document_metadata(doc_id, book_id.as_deref())?;
+                validate_document_metadata(library, doc_id, kind, book_id.as_deref())?;
                 if library.purged(doc_id)?.is_none() {
                     if library.doc_info(doc_id)?.is_none() {
-                        let _ = library.register(doc_id, kind, book_id.as_deref());
+                        library.register(doc_id, kind, book_id.as_deref())?;
                     }
-                    let _ = library.purge_doc(doc_id);
+                    // In-use documents and storage failures must block this
+                    // record. Advancing the cursor here would acknowledge a
+                    // deletion that never reached the local store.
+                    library.purge_doc(doc_id)?;
                     report.applied_purges += 1;
                 }
                 self.state
@@ -581,7 +588,12 @@ fn validate_path_id(field: &str, value: &str) -> Result<(), SyncError> {
     Ok(())
 }
 
-fn validate_document_metadata(doc_id: &str, book_id: Option<&str>) -> Result<(), SyncError> {
+fn validate_document_metadata(
+    library: &Library,
+    doc_id: &str,
+    kind: &str,
+    book_id: Option<&str>,
+) -> Result<(), SyncError> {
     // Document ids never form filesystem paths: SQLite stores them verbatim,
     // and HTTP object keys encode them with base64url. In particular v3 ids
     // containing ':' and '/' must remain opaque, under F2's storage limits.
@@ -590,6 +602,24 @@ fn validate_document_metadata(doc_id: &str, book_id: Option<&str>) -> Result<(),
     }
     if let Some(book_id) = book_id {
         validate_path_id("book id", book_id)?;
+    }
+    // A known id keeps its stored identity, even after purge. Check before
+    // importing, purging, acknowledging a covered head or skipping a tombstone:
+    // none of those paths may accept contradictory remote kind/ownership.
+    // Unknown kinds and ids remain opaque; this compares identities, not a
+    // schema whitelist or a kind inferred from the id's spelling.
+    let stored_identity = if let Some(info) = library.doc_info(doc_id)? {
+        Some((info.kind, info.book_id))
+    } else {
+        library.purged(doc_id)?.map(|p| (p.kind, p.book_id))
+    };
+    if let Some((stored_kind, stored_book)) = stored_identity
+        && (kind != stored_kind || book_id != stored_book.as_deref())
+    {
+        return Err(SyncError::IntegrityMismatch {
+            expected: format!("{doc_id}: kind={stored_kind:?}, book_id={stored_book:?}"),
+            actual: format!("{doc_id}: kind={kind:?}, book_id={book_id:?}"),
+        });
     }
     Ok(())
 }
