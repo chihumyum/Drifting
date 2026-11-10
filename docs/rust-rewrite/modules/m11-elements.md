@@ -475,3 +475,31 @@ restore 与 K6 新增命令的排除规则；没有手改生成快照。格式�
 `next/target/acceptance/k4-g2-main65-host-tests.log`、`k4-g2-main65-catalog-tests.log`、
 `k4-g2-main65-command-coverage.log`。原整批回滚失败仍待 G4 正式修复配对；副屏时段已释放，
 本组合尚未新开验收窗口，也未据这些局部通过前移交回指针。
+
+### 第三批正式重交（2026-11-10）
+
+开发分支 `codex/k4-g2-levels`，提交本节后前移 `handback/k4-g2`。相对 `c54fda05` 的
+本轮顺序为 `32da898d`、`53f205fa`、`34e2552a`、`fdf086e6`、`54b3af9e`、`cd3a526a`、
+`bc2904aa`、`bc8279d1`、`068eb171`、`1e5e8b15`，加本节记录；其中 `53f205fa` 为真实
+Mutation 隐藏摆放回归，`34e2552a` 为审阅精确范围宿主和公共 `dr_shell::v3::EntryDrag`。
+受检源码冻结为 `1e5e8b152ce2579df0a233d1f1effee94b058e33`，包含正式 main `0f562934`、
+K2 `763ce98b` 和 G4 `39416a46`，不含这些分支此后的 WIP。三处追加冲突按前节保留双方；
+G2 没有代修已有内核／归档方法，没有新增或删除 v2.2 测试，新增公共载荷 API 见待协调 5。
+
+`CARGO_BUILD_JOBS=3`、`RUST_TEST_THREADS=1`、`DR_UI_REQUIRE_FONTS=1`：fmt、
+workspace/all-targets Clippy（locked／`-D warnings`）、workspace test
+**2260 通过／0 失败／22 忽略**、xtask（含审计）、public 全过；导入／回滚六项及 G2 操作七项
+都在全套通过。原件在 `next/target/acceptance/k4-g2-checks-5-final-g4-rollback/`。
+标准 debug／`seed:v3-lite` 的 `k4-g2-review-drag.json` 首轮 **194/194、0 pending**
+（192 项功能步骤加 2 项副屏前置），在 `next/target/acceptance/k4-g2-final-combined-secondary-1/`。
+窗口 1440 × 900 完整位于内置副屏，四处检查点及连续 144 份 app.info 均 active／visible；
+树、看板、守卫选择器和审阅范围通过，精确模块跳转／旧回调隔离由全套实际面板回归覆盖。
+验收 App 已退出并释放本人租约，源码之后只补交回文档。
+
+待整合：根已用原隐藏摆放与两项真实 undo 接管探针验证正式 K2 组合；第 63 批的最终接收
+仍由整合者判定。整合者另报告：main65＋G4 `39416a46` 的单个跨功能永久契约中，带完整
+快照的格式 3 书导入新书后 `entry_snapshot.list` 为 0（应为 1），G4 正修归档映射；按同批
+安排，本组完成固定组合后照常重交，最终根批次另配 G4 最新正式修复再检查，不取其 WIP。
+G3 待公共载荷进 main 后消费接收端；性能／heavy／截图目检和样式按既定阶段处理，不计本轮
+通过。此前 490／1／3、第十轮回滚失败、AX 角色诊断及早期大纲失败原件全部保留；旧绿测不替代
+本轮结果。G2 本轮没有新增产品文案，原文案均在 own 九语及生成检查内。未合回 main，未推送。
