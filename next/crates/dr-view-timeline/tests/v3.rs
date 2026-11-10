@@ -1,5 +1,10 @@
 //! K4 G3 uses the shared v3 seed and real workspace commands. No second corpus.
-use dr_shell::{Services, SettingsFile, ShellInfo, Workspace, book::Book, pages::BottomHost};
+use dr_shell::{
+    Services, SettingsFile, ShellInfo, Workspace,
+    book::Book,
+    pages::{BottomHost, PageViewHost},
+    v3::EntryDrag,
+};
 use dr_view_timeline::v3::{Timeline, model};
 use dr_workspace::{Actor, Workspace as Library};
 use gpui::{Context, Entity, Render, TestAppContext, VisualTestContext, Window, div, prelude::*};
@@ -88,10 +93,32 @@ fn lanes_use_membership_and_each_views_shared_position_only() {
 struct Host {
     timeline: Entity<Timeline>,
     _workspace: Entity<Workspace>,
+    drag: Option<EntryDrag>,
 }
 impl Render for Host {
     fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        div().size_full().child(self.timeline.clone())
+        div()
+            .size_full()
+            .flex()
+            .flex_col()
+            .when_some(self.drag.clone(), |el, drag| {
+                el.child(
+                    div()
+                        .id("g3-test-drag-source")
+                        .debug_selector(|| "g3-test-drag-source".into())
+                        .w(gpui::px(200.))
+                        .h(gpui::px(30.))
+                        .flex_none()
+                        .on_drag(drag, |_, _, _, cx| cx.new(|_| DragPreview)),
+                )
+            })
+            .child(div().flex_1().min_h_0().child(self.timeline.clone()))
+    }
+}
+struct DragPreview;
+impl Render for DragPreview {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        div().size(gpui::px(1.))
     }
 }
 fn frame(cx: &mut VisualTestContext) {
@@ -127,6 +154,7 @@ fn visual<'a>(
             },
             Services {
                 library: Some(lib.clone()),
+                book: Some(id.to_owned()),
                 ..Services::default()
             },
             SettingsFile::in_memory(),
@@ -146,8 +174,185 @@ fn visual<'a>(
         Host {
             timeline: cx.new(|_| Timeline::new(&host)),
             _workspace: ws,
+            drag: None,
         }
     })
+}
+
+fn drag_to_lane(host: &Entity<Host>, drag: EntryDrag, lane: &str, cx: &mut VisualTestContext) {
+    use gpui::{Modifiers, MouseButton, point, px};
+    host.update(cx, |h, cx| {
+        h.drag = Some(drag);
+        cx.notify();
+    });
+    frame(cx);
+    let source = cx.debug_bounds("g3-test-drag-source").unwrap().center();
+    let target = cx
+        .debug_bounds(Box::leak(format!("v3-track-{lane}").into_boxed_str()))
+        .unwrap()
+        .center();
+    cx.simulate_mouse_down(source, MouseButton::Left, Modifiers::none());
+    cx.simulate_mouse_move(
+        source + point(px(8.), px(0.)),
+        MouseButton::Left,
+        Modifiers::none(),
+    );
+    frame(cx);
+    cx.simulate_mouse_move(target, MouseButton::Left, Modifiers::none());
+    frame(cx);
+    cx.simulate_mouse_up(target, MouseButton::Left, Modifiers::none());
+    frame(cx);
+}
+
+#[gpui::test]
+fn shared_entry_drop_preserves_residence_and_rejects_other_libraries_owners_and_versions(
+    cx: &mut TestAppContext,
+) {
+    let (_dir, lib, id) = seed();
+    let (_other_dir, other_lib, same_id) = seed();
+    assert_eq!(id, same_id);
+    let before = Book::load(&lib, &id).unwrap();
+    let b = before.v3().unwrap();
+    let source = b
+        .entries
+        .iter()
+        .find(|e| e.template.as_deref() == Some("tpl-idea"))
+        .unwrap()
+        .clone();
+    let view = b.timeline_views[0].clone();
+    let lane = view.lanes[0].entry.clone();
+    let (host, cx) = visual(cx, &lib, &id);
+    let ws = host.read_with(cx, |h, _| h._workspace.clone());
+    wait(cx, |cx| ws.read_with(cx, |ws, _| ws.book.v3().is_some()));
+    let page = PageViewHost {
+        workspace: ws.downgrade(),
+        library: lib.clone(),
+        book_id: id.clone(),
+        book: ws.read_with(cx, |ws, _| ws.book.clone()),
+    };
+    let other_owner = cx.update(|w, cx| cx.new(|cx| Workspace::new(w, cx)));
+    for foreign in [
+        PageViewHost {
+            library: other_lib.clone(),
+            ..page.clone()
+        },
+        PageViewHost {
+            workspace: other_owner.downgrade(),
+            ..page.clone()
+        },
+        PageViewHost {
+            book_id: "different-book".into(),
+            ..page.clone()
+        },
+    ] {
+        let before = lib.observe(&format!("book:{id}")).unwrap();
+        drag_to_lane(
+            &host,
+            EntryDrag::new(foreign, &source.id, &source.title),
+            &lane,
+            cx,
+        );
+        assert_eq!(
+            lib.observe(&format!("book:{id}")).unwrap().version,
+            before.version
+        );
+    }
+    let mut drag = EntryDrag::new(page.clone(), &source.id, &source.title);
+    drag.span = Some(7.);
+    drag.set_grab(12.);
+    drag_to_lane(&host, drag, &lane, cx);
+    wait(cx, |_| {
+        call(&lib, "timeline_view.list", json!({"book":id}))[0]["placements"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|p| p["entry"] == source.id && p["span"] == 7.)
+    });
+    let actual = call(&lib, "entry.get", json!({"book":id,"id":source.id}));
+    assert_eq!(actual["parent"], json!(source.parent));
+    assert_eq!(actual["pos"], source.pos);
+    assert_eq!(actual["primary"], json!(source.primary));
+    assert!(
+        call(&lib, "membership.list", json!({"book":id}))
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|m| m["host"] == lane && m["member"] == source.id)
+    );
+    refresh(&host, &lib, &id, cx);
+    let before = lib.observe(&format!("book:{id}")).unwrap();
+    drag_to_lane(
+        &host,
+        EntryDrag::new(page, &source.id, &source.title),
+        &view.lanes[1].entry,
+        cx,
+    );
+    assert_eq!(
+        lib.observe(&format!("book:{id}")).unwrap().version,
+        before.version
+    );
+    assert_eq!(
+        call(
+            &other_lib,
+            "entry.get",
+            json!({"book":same_id,"id":source.id})
+        )["title"],
+        source.title
+    );
+}
+
+#[gpui::test]
+fn placement_uses_the_displayed_frontier_before_the_backend_write(cx: &mut TestAppContext) {
+    let (_dir, lib, id) = seed();
+    let b = Book::load(&lib, &id).unwrap();
+    let book = b.v3().unwrap();
+    let view = book.timeline_views[0].clone();
+    let entry = book
+        .entries
+        .iter()
+        .find(|e| e.template.as_deref() == Some("tpl-idea"))
+        .unwrap()
+        .id
+        .clone();
+    let (host, cx) = visual(cx, &lib, &id);
+    let t = host.read_with(cx, |h, _| h.timeline.clone());
+    call(
+        &lib,
+        "timeline_view.rename",
+        json!({"book":id,"view":view.id,"name":"Synthetic peer view name"}),
+    );
+    rejected_without_book_write(&host, &lib, &id, cx, |t, cx| {
+        t.update(cx, |t, cx| {
+            t.place(
+                entry.clone(),
+                Some(view.lanes[0].entry.clone()),
+                23.,
+                Some(5.),
+                cx,
+            )
+        })
+    });
+    refresh(&host, &lib, &id, cx);
+    t.update(cx, |t, cx| {
+        t.place(
+            entry.clone(),
+            Some(view.lanes[0].entry.clone()),
+            23.,
+            Some(5.),
+            cx,
+        )
+    });
+    wait(cx, |_| {
+        call(&lib, "timeline_view.list", json!({"book":id}))[0]["placements"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|p| p["entry"] == entry && p["at"] == 23.)
+    });
+    assert_eq!(
+        call(&lib, "timeline_view.list", json!({"book":id}))[0]["name"],
+        "Synthetic peer view name"
+    );
 }
 fn refresh(host: &Entity<Host>, lib: &Library, id: &str, cx: &mut VisualTestContext) {
     let book = Rc::new(Book::load(lib, id).unwrap());
@@ -400,6 +605,7 @@ fn queued_view_and_lane_edits_preserve_memberships_and_other_views(cx: &mut Test
         Host {
             timeline: cx.new(|_| Timeline::new(&host)),
             _workspace: ws,
+            drag: None,
         }
     });
     let t = host.read_with(cx, |h, _| h.timeline.clone());

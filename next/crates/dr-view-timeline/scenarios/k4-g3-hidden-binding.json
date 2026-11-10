@@ -1,5 +1,5 @@
 {
-  "about": "K4 G3 局部编辑：隐藏绑定保留；视图改名、泳道增删排序；显示版本拒写、失败草稿与显式重试。副屏隔离主流程，不做截图或性能验收。",
+  "about": "K4 G3 局部命令与公共树拖动：隐藏绑定保留，视图改名、泳道增删排序，显示版本拒写、失败草稿显式重试，树拖入只添归属与摆放。副屏隔离主流程，不做截图或性能验收。",
   "steps": [
     {
       "seed": "v3-lite"
@@ -17,10 +17,18 @@
       "save": "views"
     },
     {
+      "call": "entry.list",
+      "input": {
+        "book": "${books.0.id}",
+        "all": true
+      },
+      "save": "entries"
+    },
+    {
       "call": "entry.create",
       "input": {
         "book": "${books.0.id}",
-        "parent": "${views.0.lanes.0.entry}",
+        "parent": "${entries.[template=tpl-manuscript].id}",
         "template": "tpl-chapter",
         "title": "Synthetic pin-only target"
       },
@@ -53,14 +61,6 @@
         "book": "${books.0.id}"
       },
       "save": "hidden"
-    },
-    {
-      "call": "entry.list",
-      "input": {
-        "book": "${books.0.id}",
-        "all": true
-      },
-      "save": "entries"
     },
     {
       "call": "entry.create",
@@ -426,6 +426,89 @@
       },
       "expect": {
         "": "${memberships}"
+      }
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${source.title}",
+        "role": "Button",
+        "count": 1,
+        "within": {
+          "label": "Entries",
+          "role": "Group"
+        }
+      },
+      "save": "treeSource"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "Lane ${first.title}",
+        "role": "Group",
+        "count": 1
+      },
+      "save": "track"
+    },
+    {
+      "app": "input.drag",
+      "params": {
+        "from": [
+          "${treeSource.nodes.0.center.0}",
+          "${treeSource.nodes.0.center.1}"
+        ],
+        "to": [
+          "${track.nodes.0.center.0}",
+          "${track.nodes.0.center.1}"
+        ],
+        "steps": 12
+      },
+      "note": "从真实 G2 树源拖入 G3 泳道；只新增归属和本视图摆放，原住处、顺序和主归属不变。"
+    },
+    {
+      "app": "ui.find",
+      "params": {
+        "label": "${source.title}",
+        "role": "Button",
+        "count": 1,
+        "within": {
+          "label": "Lane ${first.title}",
+          "role": "Group"
+        }
+      }
+    },
+    {
+      "call": "membership.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "expect": {
+        "/[member=${source.id}]/host": "${first.id}"
+      }
+    },
+    {
+      "call": "entry.get",
+      "input": {
+        "book": "${books.0.id}",
+        "id": "${source.id}"
+      },
+      "expect": {
+        "/parent": "${source.parent}",
+        "/pos": "${source.pos}",
+        "/primary": "${source.primary}"
+      }
+    },
+    {
+      "call": "timeline_view.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "expect": {
+        "/0/placements/[entry=${source.id}]/entry": "${source.id}",
+        "/0/placements/[entry=${source.id}]/span": null,
+        "/0/pins/[id=synthetic-hidden-binding]/entry": "${target.id}",
+        "/0/pins/[id=synthetic-peer-pin]/label": "Synthetic peer pin",
+        "/0/name": "Synthetic retained view draft"
       }
     },
     {

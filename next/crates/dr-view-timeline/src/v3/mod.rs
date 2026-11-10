@@ -3,14 +3,15 @@ mod interaction;
 pub mod model;
 mod render;
 mod write;
-pub use interaction::{EntryDrag, PinEdit};
+pub use dr_shell::v3::EntryDrag;
+pub use interaction::PinEdit;
 
 use dr_i18n::keys;
 use dr_shell::{
     Workspace,
     book::Book,
     nav::{Open, Target},
-    pages::{self, BottomHost, BottomPane, BottomPanel},
+    pages::{self, BottomHost, BottomPane, BottomPanel, PageViewHost},
     t,
 };
 use dr_ui::input::field::{FieldEvent, TextField};
