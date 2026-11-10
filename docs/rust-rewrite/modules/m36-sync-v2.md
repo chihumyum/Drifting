@@ -120,12 +120,17 @@
 | 同一主契约：离线／取消／历史重放／库外边界 | 初次上传的真实 set_offline 失败及取消保留未同步数据和待传清单。永久删除后再次实际断网、失败、恢复并重建 engine；B 用公开 restore_library 从 cursor 0 重放旧更新、资源和墓碑，已删文档不复活。最后两台再次关库／重开核墓碑、另一书和历史点。各阶段检查库外合成 sentinel 原字节，末尾还核修改时间。 |
 | `a_held_v3_document_blocks_remote_purge_without_consuming_its_cursor` | 真 v3 正文仍被持有时，远端 purge 返回 AlreadyOpen，文档、原始数据及失败记录游标不变；释放后重建 engine 重试，实际删除、墓碑落地，其余文档不变，历史重放不复活。 |
 | `damaged_remote_loro_preserves_real_v3_author_data_and_reopen_state` | 将有效网络摘要包裹的损坏 Loro 字节指向真 v3 正文；导入报错，不确认伪造版本、不推进失败记录游标，原作者数据逐文档 head/raw/prose 与重开结果不变。 |
+| `contradictory_doc_purge_cannot_delete_another_real_v3_books_body` | 固化守卫的真实两书误删探针：书 B 的实际 canonical body 配书 A、空归属或矛盾 kind，均在清除前拒绝。两书逐文档 raw/head/正文/DocInfo、墓碑和库外 sentinel 原字节／修改时间不变。 |
+| `contradictory_loro_metadata_is_rejected_before_covered_or_new_updates` | 同样三种矛盾分别覆盖现有 head 已包含的版本和带新操作的有效 Loro 增量；只允许 change-list 请求成功，提前下载会导致测试失败。拒绝前不导入、不确认 remote_vv，不推进游标。 |
+| `contradictory_metadata_cannot_acknowledge_existing_v3_tombstones` | 对真实 canonical body 的既有墓碑重复上述三种矛盾及 purge／已覆盖更新／新增量三条路径。三个新增契约共 18 种情况，各真正关库、重开并重试同一记录；两书完整快照、remote_vv、墓碑与整个持久化同步状态均不变。 |
 
-必要修复仅两处，均在 `dr-sync/src/engine.rs`：远端 DocPurge 不再吞掉 register/purge_doc 错误，只有实际成功后才计数、推进游标；重复接收已确认资源时不再重写 `uploaded_ms`，使重放对另一书全部资源元数据也是无变化。前者有真 v3 持有者拒删红例，后者有主契约重放时资源时间戳变化的红例；未修改存储层或网络 payload。
+必要修复均在 `dr-sync/src/engine.rs`：远端 DocPurge 不再吞掉 register/purge_doc 错误，只有实际成功后才计数、推进游标；重复接收已确认资源时不再重写 `uploaded_ms`，使重放对另一书全部资源元数据也是无变化；远端文档元数据同时核对本机已登记 DocInfo 或既有墓碑的实际 kind/book_id，矛盾时报 `IntegrityMismatch`。最后一项在 LoroUpdate 的墓碑跳过／head 已覆盖快捷路径／下载导入之前，以及 DocPurge 的登记／清除／确认之前共同生效；对未知 id、合法 opaque kind 和未来字段不添加种类白名单，不改存储层或网络 payload。
+
+**守卫退回与本次复现。** 初次候选 `6c8a51e0` 即使通过原全套也不能接收：守卫独立复现书 B 的 body 被谎称属于书 A 的 DocPurge 删除，`applied_purges=1`、cursor 41。本次在该候选上先加入上述永久契约，实跑 **0 通过／3 失败**：两书 inventory 明确少一份真实正文；已覆盖更新及已有墓碑则错误成功并消耗记录。修复后的结果单独重新检查，原绿色结果不作为本次修复证据。
 
 ### 检查结果
 
-本地定向 `cargo test -p dr-sync --locked -- --nocapture` 已通过 16 项（原有 6 项、原有远端安全 7 项、新增 3 项）；最终全工作区检查结果待本轮填写。原有绝对路径、分隔符、重复资产元数据提前拒绝和配额／中断矩阵保留原断言。独立使用本 worktree 的 `next/target`，只复制现成字体缓存。
+修复后本地定向 `cargo test -p dr-sync --locked -- --nocapture` 已通过 **19 项**（原有 6 项、原有远端安全 7 项、真实 v3 3 项、归属拒绝 3 项）；最终全工作区检查结果待本轮填写。原有绝对路径、分隔符、重复资产元数据提前拒绝和配额／中断矩阵保留原断言。独立使用本 worktree 的 `next/target`，只复制现成字体缓存。
 
 机器重跑：在 `next/` 设置 `CARGO_TARGET_DIR=target CARGO_BUILD_JOBS=3 RUST_TEST_THREADS=1`，运行：
 
@@ -135,7 +140,7 @@ cargo test -p dr-sync --test remote_metadata --locked
 cargo test -p dr-sync --lib --locked
 ```
 
-原红、修后定向和全套命令日志保存在工作树外 `$HOME/Drifting-autopilot-logs/sync-v3-acceptance/`。核心验收是纯内核实际假服务往返；没有改窗口，没有将 UI、heavy、截图目检、性能或真实服务接线记为已通过。
+首轮证据保留在工作树外 `$HOME/Drifting-autopilot-logs/sync-v3-acceptance/`；本次守卫退回后的原红、修后定向和重新执行的全套日志另存于 `sync-v3-ownership-fix/`，其中 `01-conflicting-identity-red.log` 是修前 3 项失败，`02-dr-sync-green.log` 是修后 19 项通过。核心验收是纯内核实际假服务往返；没有改窗口，没有将 UI、heavy、截图目检、性能或真实服务接线记为已通过。
 
 ### 待协调
 

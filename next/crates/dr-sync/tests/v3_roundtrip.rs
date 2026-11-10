@@ -31,7 +31,7 @@ use dr_testkit::{
     seed::{self, DEFAULT_SEED, Preset},
 };
 use dr_workspace::{Actor, Workspace, WorkspaceOptions, WritePreconditions};
-use loro::{LoroDoc, ToJson};
+use loro::{ExportMode, LoroDoc, ToJson};
 use serde_json::{Value, json};
 
 const TOKEN: &str = "synthetic-v3-token";
@@ -301,6 +301,166 @@ fn canonical_library(path: &Path) -> (Library, String, String) {
         .unwrap()
         .doc_id;
     (lib, book, body)
+}
+
+#[derive(Clone, Copy, Debug)]
+enum RemoteDocumentChange {
+    Purge,
+    CoveredUpdate,
+    NewUpdate,
+}
+
+// The guardian's cross-book purge probe, extended to both LoroUpdate paths and
+// existing tombstones. Every case uses two actual canonical v3 books. Only the
+// untrusted metadata differs from the document's stored identity.
+fn reject_conflicting_document_identity(change: RemoteDocumentChange, already_purged: bool) {
+    for conflict in ["other-book", "missing-book", "kind"] {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("library");
+        let (lib, book_a, _) = canonical_library(&path);
+        let second = seed::generate_v3(Preset::Tiny, DEFAULT_SEED + 1).unwrap();
+        let book_b = second.books[0].book_id().to_string();
+        assert_ne!(book_a, book_b);
+        second.write_to(&lib).unwrap();
+        let info = lib
+            .docs(Some(&book_b), None)
+            .unwrap()
+            .into_iter()
+            .find(|d| matches!(DocId::parse(&d.doc_id), Ok(DocId::Body(_))))
+            .unwrap();
+        let sentinel_path = root.path().join("outside-sentinel.txt");
+        fs::write(&sentinel_path, b"synthetic sentinel").unwrap();
+        let sentinel_modified = fs::metadata(&sentinel_path).unwrap().modified().unwrap();
+
+        let remote = lib.load_copy(&info.doc_id).unwrap();
+        if matches!(change, RemoteDocumentChange::NewUpdate) {
+            remote.set_peer_id(u64::MAX - 2).unwrap();
+            remote
+                .get_map("future_remote_root")
+                .insert("untrusted_update", true)
+                .unwrap();
+            remote.commit();
+        }
+        let remote_vv = remote.oplog_vv();
+        let head = lib.head(&info.doc_id).unwrap().unwrap();
+        let covered = remote_vv
+            .iter()
+            .all(|(peer, end)| head.vv.get(peer).copied().unwrap_or(0) >= *end);
+        assert_eq!(covered, !matches!(change, RemoteDocumentChange::NewUpdate));
+        let bytes = remote.export(ExportMode::all_updates()).unwrap();
+        let (kind, book_id) = match conflict {
+            "other-book" => (info.kind.clone(), Some(book_a.clone())),
+            "missing-book" => (info.kind.clone(), None),
+            "kind" => ("future-opaque-kind".into(), info.book_id.clone()),
+            _ => unreachable!(),
+        };
+        let payload = match change {
+            RemoteDocumentChange::Purge => RemoteObjectPayload::DocPurge {
+                doc_id: info.doc_id.clone(),
+                kind,
+                book_id,
+                purged_ms: 1,
+            },
+            RemoteDocumentChange::CoveredUpdate | RemoteDocumentChange::NewUpdate => {
+                RemoteObjectPayload::LoroUpdate {
+                    doc_id: info.doc_id.clone(),
+                    kind,
+                    book_id,
+                    vv_base64: URL_SAFE_NO_PAD.encode(remote_vv.encode()),
+                    is_snapshot: false,
+                }
+            }
+        };
+        let server = FakeSyncServer::start(TOKEN);
+        let mut engine = SyncEngine::new(server.base_url(), &lib).unwrap();
+        engine.sync_once(&lib, TOKEN).unwrap();
+        if already_purged {
+            lib.purge_doc(&info.doc_id).unwrap();
+            engine.sync_once(&lib, TOKEN).unwrap();
+        }
+        // With no uploads pending, only the changes request may succeed. An
+        // import-path download before identity validation would return Offline.
+        assert!(lib.docs_with_local_changes().unwrap().is_empty());
+        let cursor = engine.cursor();
+        let images = [book_image(&lib, &book_a), book_image(&lib, &book_b)];
+        let tombstones = lib.purged_docs(None).unwrap();
+        let confirmed_vv = lib.remote_vv(&info.doc_id).unwrap();
+        let state_path = path.join("sync-cursor-v2.json");
+        let state = fs::read(&state_path).unwrap();
+        let record = SyncHttpClient::new(server.base_url())
+            .unwrap()
+            .put_object(
+                TOKEN,
+                "synthetic-conflicting-identity",
+                &payload,
+                &bytes,
+                None,
+            )
+            .unwrap();
+        assert_eq!(record.seq, cursor + 1);
+
+        // First attempt and a real disk reopen must reject the same record,
+        // preserve both books, and retain its retry position/acknowledgements.
+        let check_rejection = |lib: &Library, engine: &mut SyncEngine, stage: &str| {
+            server.set_fail_after_requests(Some(1));
+            let result = engine.sync_once(lib, TOKEN);
+            for (book, image) in [(&book_a, &images[0]), (&book_b, &images[1])] {
+                unchanged(lib, book, image, stage);
+            }
+            let error = result.unwrap_err();
+            assert!(
+                matches!(error, SyncError::IntegrityMismatch { .. }),
+                "{change:?}/{conflict}/purged={already_purged}/{stage}: {error:?}"
+            );
+            assert_eq!(lib.purged_docs(None).unwrap(), tombstones);
+            assert_eq!(lib.remote_vv(&info.doc_id).unwrap(), confirmed_vv);
+            assert_eq!(engine.cursor(), cursor);
+            assert_eq!(fs::read(&state_path).unwrap(), state);
+            sentinel(&sentinel_path, b"synthetic sentinel");
+            assert_eq!(
+                fs::metadata(&sentinel_path).unwrap().modified().unwrap(),
+                sentinel_modified
+            );
+        };
+        check_rejection(&lib, &mut engine, "refused contradictory document identity");
+        drop(engine);
+        lib.close().unwrap();
+        let lib = Library::open(&path, seed::library_options("0.2.0-test")).unwrap();
+        let mut engine = SyncEngine::new(server.base_url(), &lib).unwrap();
+        assert_eq!(engine.cursor(), cursor);
+        check_rejection(
+            &lib,
+            &mut engine,
+            "reopen/retry contradictory document identity",
+        );
+        lib.close().unwrap();
+    }
+}
+
+#[test]
+fn contradictory_doc_purge_cannot_delete_another_real_v3_books_body() {
+    reject_conflicting_document_identity(RemoteDocumentChange::Purge, false);
+}
+
+#[test]
+fn contradictory_loro_metadata_is_rejected_before_covered_or_new_updates() {
+    for change in [
+        RemoteDocumentChange::CoveredUpdate,
+        RemoteDocumentChange::NewUpdate,
+    ] {
+        reject_conflicting_document_identity(change, false);
+    }
+}
+
+#[test]
+fn contradictory_metadata_cannot_acknowledge_existing_v3_tombstones() {
+    for change in [
+        RemoteDocumentChange::Purge,
+        RemoteDocumentChange::CoveredUpdate,
+        RemoteDocumentChange::NewUpdate,
+    ] {
+        reject_conflicting_document_identity(change, true);
+    }
 }
 
 #[test]
