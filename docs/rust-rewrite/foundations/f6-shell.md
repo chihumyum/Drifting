@@ -876,30 +876,39 @@ G2 三种回调及 K5 新建委托。v3-lite 真窗口场景 **84/84 步、0 pen
 更新自己的子实体，不在这里重借 workspace；需要改窗口或调用命令的动作放进点击
 回调。第二轮完成后，左栏和大纲栏按 K4 分轨交给 G2；其余公共外壳入口继续留在 F6。
 
-### v3 Home 随换库释放（2026-11-10，检查中）
+### v3 Home 随换库释放交回（2026-11-10）
 
-`Workspace::let_go_of_library` 原来清掉 `home` 却漏掉 `v3_home`。真实 v3 Home
-持有 F3 Workspace，导致 `library::replace` 已排空并释放页面后，仍被
-`try_shutdown` 以 `other clones of the workspace are alive` 拒绝，替换作业无法执行。
-本次只在原释放列表补 `self.v3_home = None`；真实 Home 回归置于
-`dr-debug-bridge/tests/v3_home_release.rs`，用测试依赖 `dr-view-home` 的正式注册
-验证生命周期，不改 G1／G4 视图或生产依赖。旧正式指针
-`handback/k4-0-drain` 的 `8cfdd74e` 保持冻结。
+分支 `codex/k4-0-shell`，新增冻结指针 `handback/k4-0-home-release`；
+`handback/k4-0-drain` 的 `8cfdd74e` 保持不动。`Workspace::let_go_of_library` 原来
+清掉 `home` 却漏掉 `v3_home`，真实 v3 Home 持有的 F3 Workspace 令
+`try_shutdown` 以 `other clones of the workspace are alive` 拒绝换库。本次只在
+原释放列表补 `self.v3_home = None`。真实 Home 回归位于
+`dr-debug-bridge/tests/v3_home_release.rs`，通过测试依赖 `dr-view-home` 的正式
+注册验证；不改 G1／G4 视图或生产依赖。实现 `86c6a986`，测试移位 `797de423`；
+`0e549036` 合入正式 main `0f562934` 的第 65 批接收文档，未消费第 66 批 WIP。
 
-永久 `v3_home_release` 三项回归在修复前 0/3，通过相同 clone 拒绝分别复现正常
-换库失败、替换作业失败分支未进入、释放额外持有者后的重试仍失败；补一行后 3/3。
-测试核对旧 Home 弱引用消失、替换作业启动前原库已能独立打开、切换到另一份 v3
-库后读到新 Home，以及作业失败／额外持有者拒绝关闭后的原数据、Home 查询写入和
-重试。原件在 `next/target/acceptance/k4-0-checks/home-release-before.log` 与
-`home-release-after.log`。G1 原始 8 个失败中只有 4 个为换库 clone 拒绝，另外
-4 个为草稿来源断言失败；不把它们都归到本缺陷。新增 `k4-0-home-release.json`
-使用 v3-lite 从真实 Home 备份、修改、确认恢复，再核对还原数据、恢复前副本与
-重开后的输入／撤销。首轮全量 2253/0/22，但 xtask 拒绝了原先放在 dr-shell 的
-测试依赖循环；已将原样测试上移到 dr-debug-bridge，移除 shell 的测试依赖，
-不放松热更新门禁。原失败保留在 `home-release-final-xtask.log`；修正后的全套
-检查和唯一副屏冒烟尚待完成。
+检查：永久三项修复前 **0/3**，都由同一 clone 拒绝复现正常换库失败、替换作业
+失败分支未进入、释放额外持有者后的重试仍失败；修复后以及原样移到最终位置后
+均 **3/3**。测试核对旧 Home 弱引用消失、替换作业启动前原库可独立打开、另一份
+v3 库的新 Home，以及作业失败／额外持有者拒绝关闭后的原数据、Home 查询写入和
+重试。原件 `next/target/acceptance/k4-0-checks/home-release-before.log`、
+`home-release-after.log`、`home-release-moved.log` 保留。G1 原始 8 个失败中只有
+4 个是换库 clone 拒绝，另外 4 个是草稿来源断言失败，不混为一个原因。首轮全量
+2253/0/22，但 xtask 拒绝原先放在 dr-shell 的测试依赖循环；已原样移到
+dr-debug-bridge 并移除 shell 测试依赖，没有放松门禁，原失败保留为
+`home-release-final-xtask.log`。最终 `home-release-verified-*` 记录 fmt、全工作区
+all-targets Clippy（`-D warnings`）、全量 **2253 通过／0 失败／22 忽略**、xtask
+（含热更新循环门禁、audit）、public 与调试桥构建全部通过；jobs=3，单线程测试并
+要求字体。audit 0 漏洞／12 条既有提示、19 项 measured evidence stale 与 macOS
+`__eh_frame` 提示单列保留。
 
-没有新文案，没有新增或删除 v2.2 测试，没有扩展 heavy 或跨组修复。
+唯一副屏真窗口 `k4-0-home-release.json` 使用 v3-lite，真实 Home 备份、修改书名、
+确认恢复后读回旧书名与正文，核对恢复前副本，再重开 Home、输入正文并撤销：
+39 原步骤加 1 次本 PID 副屏校验，首轮 **40/40、0 pending、无重跑**。初始和
+恢复后的 app.info 均 active/visible，PID 40846 已退出，窗口租约已释放。结果在
+`next/target/acceptance/k4-0-home-release-window/result.json`，副屏凭据为
+`next/target/acceptance/k4-0-home-release-secondary/receipts/secondary-40846.json`。
+本项无新增待协调；没有新文案，没有新增或删除 v2.2 测试，没有做 heavy 测量。
 
 ### 最终 checkpoint 阶段交回（2026-11-10）
 
