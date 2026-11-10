@@ -190,7 +190,7 @@
       "params": {
         "book": "${retired.book}"
       },
-      "expect_error": "not_found"
+      "expect_error": "invalid"
     },
     {
       "app": "nav.open",
