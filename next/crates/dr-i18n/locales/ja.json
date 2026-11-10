@@ -1880,6 +1880,7 @@
     "autoLink": "自動リンク",
     "byStoryline": "ストーリーライン別",
     "collapse": "{{name}}を折りたたむ",
+    "create": "作成",
     "defaultTemplate": "既定のテンプレート",
     "display": "表示",
     "expand": "{{name}}を展開",
@@ -1894,6 +1895,7 @@
     "none": "なし",
     "off": "オフ",
     "on": "オン",
+    "primary": "主な所属",
     "residents": "ここにある項目",
     "restore": "{{name}}を元に戻す",
     "sourceDefault": "既定値",
@@ -1901,6 +1903,7 @@
     "sourceOverride": "上書き · {{name}}",
     "sourceTemplate": "テンプレート · {{name}} · {{level}}",
     "thisLevel": "この階層",
+    "title": "タイトル",
     "unassigned": "未所属"
   },
   "v3Shell": {

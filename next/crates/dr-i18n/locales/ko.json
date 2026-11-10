@@ -1880,6 +1880,7 @@
     "autoLink": "자동 링크",
     "byStoryline": "스토리라인별",
     "collapse": "{{name}} 접기",
+    "create": "만들기",
     "defaultTemplate": "기본 템플릿",
     "display": "표시",
     "expand": "{{name}} 펼치기",
@@ -1894,6 +1895,7 @@
     "none": "없음",
     "off": "끄기",
     "on": "켜기",
+    "primary": "주 소속",
     "residents": "여기에 있는 항목",
     "restore": "{{name}} 복원",
     "sourceDefault": "기본값",
@@ -1901,6 +1903,7 @@
     "sourceOverride": "재정의 · {{name}}",
     "sourceTemplate": "템플릿 · {{name}} · {{level}}",
     "thisLevel": "이 계층",
+    "title": "제목",
     "unassigned": "미소속"
   },
   "v3Shell": {

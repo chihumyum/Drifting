@@ -11,6 +11,8 @@ description = "Drifting's element and category pages (M11): name, aliases, categ
 # Offscreen screenshots of the element and category pages
 # (`examples/elements-capture.rs`), through GPUI's headless test platform.
 capture = ["dep:gpui_platform", "gpui_platform/test-support", "dep:color_quant", "dep:png"]
+# Explicit milestone-only draw probe; never enabled by the app's defaults.
+measure-v3 = ["gpui/profiler"]
 
 [dependencies]
 chrono.workspace = true
@@ -38,6 +40,7 @@ dr-doc.workspace = true
 dr-view-page = { workspace = true, features = ["test-support"] }
 dr-view-plot.workspace = true
 anyhow.workspace = true
+dr-doc.workspace = true
 dr-store.workspace = true
 dr-testkit.workspace = true
 gpui = { workspace = true, features = ["test-support"] }

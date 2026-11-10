@@ -1887,6 +1887,7 @@
     "autoLink": "Automatic links",
     "byStoryline": "By storyline",
     "collapse": "Collapse {{name}}",
+    "create": "Create",
     "defaultTemplate": "Default template",
     "display": "Display",
     "expand": "Expand {{name}}",
@@ -1901,6 +1902,7 @@
     "none": "None",
     "off": "Off",
     "on": "On",
+    "primary": "Primary",
     "residents": "Residents",
     "restore": "Restore {{name}}",
     "sourceDefault": "Default",
@@ -1908,6 +1910,7 @@
     "sourceOverride": "Override · {{name}}",
     "sourceTemplate": "Template · {{name}} · {{level}}",
     "thisLevel": "This level",
+    "title": "Title",
     "unassigned": "Unassigned"
   },
   "v3Shell": {

@@ -1895,6 +1895,7 @@
     "autoLink": "Links automáticos",
     "byStoryline": "Por linha narrativa",
     "collapse": "Recolher {{name}}",
+    "create": "Criar",
     "defaultTemplate": "Modelo padrão",
     "display": "Exibição",
     "expand": "Expandir {{name}}",
@@ -1909,6 +1910,7 @@
     "none": "Nenhum",
     "off": "Desativado",
     "on": "Ativado",
+    "primary": "Principal",
     "residents": "Entradas residentes",
     "restore": "Restaurar {{name}}",
     "sourceDefault": "Valor padrão",
@@ -1916,6 +1918,7 @@
     "sourceOverride": "Substituição · {{name}}",
     "sourceTemplate": "Modelo · {{name}} · {{level}}",
     "thisLevel": "Este nível",
+    "title": "Título",
     "unassigned": "Sem atribuição"
   },
   "v3Shell": {
