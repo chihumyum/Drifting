@@ -484,6 +484,10 @@ cargo drifting app quit
   阶段、完成时间、线程退出标记及调度次数／耗时。以客户端实际完成时间判断预算，
   不因外层调度迟返而误判已按时完成，也不接受截止后完成。这修复独立的线程边界，
   不宣称解释了第 66 批尚未定位的首轮 socket 超时。
+  原生验收可同时运行 `dr-cli/script/k4-0-bridge-token.py <pid> <profile> <凭据目录>`，
+  对同一隔离进程验证伪造令牌被拒绝、合法握手和 v3 状态，输出不含令牌的凭据。
+  该脚本只放在 `script/`；`scenarios/` 的每个文件都必须通过原有 JSON 场景解析契约。
+  首轮误放在场景目录的解析失败保留于 `bridge-final-test.log`，移位后重新跑全套。
 - **读编辑器**：章节、构想、要素等正文页和通览全书都是 `dr-editor` 的编辑器，放在 `Workspace::editors` 里（`PageView::Doc` 或 `Book`），用 `page_view(&Target)` 拿到。换页时外壳自己把键盘交给当前页的编辑器（`focus_page`），所以 `nav.open` 之后直接 `input.type` 就进编辑器。正文外面那一圈（章首章末、要素页头）是 `pages::add_page_chrome` 挂进来的视图，调试桥从 `dr-view-page`、`dr-view-elements` 留的入口去读。
 - **两个 crate**：
   - `dr-debug-protocol`（平台层，不依赖 GPUI）：线上格式、连接文件在哪、令牌握手、阻塞的客户端、不带 GPUI 的监听线程，以及 profile 的规则。`dr-cli` 和 xtask 用它；
