@@ -293,6 +293,17 @@ fn apply(t: &LoroText, op: CellOp, out: &mut EditResult) -> loro::LoroResult<()>
     Ok(())
 }
 
+/// A successful input job's exact state after its own operations. The holder
+/// persists before returning. Cleanup checks this frontier, so no peer commit
+/// can be mistaken for part of the accepted input, including a multi-edit rule.
+#[derive(Clone, Debug)]
+pub(super) struct AcceptedInput {
+    pub before: u64,
+    pub start: loro::Frontiers,
+    pub after: loro::Frontiers,
+}
+pub(super) type InputReceipt = Arc<Mutex<Option<AcceptedInput>>>;
+
 /// gpui-prose's text source on one cell of a note's table.
 pub struct CellSource {
     doc_id: String,
@@ -307,6 +318,7 @@ pub struct CellSource {
     v3: bool,
     pub(crate) guard_rich: bool,
     host_items: Arc<AtomicUsize>,
+    accepted_input: InputReceipt,
 }
 
 impl CellSource {
@@ -331,6 +343,7 @@ impl CellSource {
             v3,
             guard_rich: false,
             host_items: Arc::default(),
+            accepted_input: Arc::default(),
         }
     }
 
@@ -338,6 +351,10 @@ impl CellSource {
     /// nobody has folded into an editor's history yet (taken by the table).
     pub fn host_items(&self) -> Arc<AtomicUsize> {
         self.host_items.clone()
+    }
+
+    pub(super) fn input_receipt(&self) -> InputReceipt {
+        self.accepted_input.clone()
     }
 
     fn key(&self) -> CellKey {
@@ -349,7 +366,20 @@ impl CellSource {
         let before = self.feed.user_commits();
         let (v3, feed, key, taken) = (self.v3, self.feed.clone(), self.key(), self.taken);
         let guard = std::mem::take(&mut self.guard_rich);
+        let document = if v3 {
+            match self.handle.read(LoroDoc::clone) {
+                Ok(doc) => Some(doc),
+                Err(e) => {
+                    log::error!("cell observation failed: {e}");
+                    return EditResult::default();
+                }
+            }
+        } else {
+            None
+        };
         let written = self.session.edit(move |txn| {
+            let observed = feed.commits();
+            let start = document.as_ref().map(LoroDoc::state_frontiers);
             if v3 && guard {
                 let mut state = feed.state();
                 let queue = state.cells.entry(key).or_default();
@@ -364,12 +394,29 @@ impl CellSource {
             for op in ops {
                 apply(&text, op, &mut out)?;
             }
-            Ok(out)
+            let receipt = document.map(|doc| AcceptedInput {
+                before: observed,
+                start: start.expect("v3 observation"),
+                after: doc.state_frontiers(),
+            });
+            Ok((out, receipt))
         });
         let pushed = (self.feed.user_commits() - before) as usize;
         self.host_items.fetch_add(pushed, Ordering::Relaxed);
         match written {
-            Ok(mut out) => {
+            Ok((mut out, input)) => {
+                if let Some(mut input) = input.filter(|i| i.start != i.after) {
+                    let mut receipt = self
+                        .accepted_input
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner());
+                    if let Some(previous) = receipt.as_ref().filter(|old| old.after == input.start)
+                    {
+                        input.before = previous.before;
+                        input.start = previous.start.clone();
+                    }
+                    *receipt = Some(input);
+                }
                 // The cell keeps no history of its own (see the module docs).
                 out.undo_items = 0;
                 out

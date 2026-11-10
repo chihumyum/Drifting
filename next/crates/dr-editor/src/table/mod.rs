@@ -263,6 +263,7 @@ pub(crate) fn write_grid(
 struct CellView {
     editor: Entity<ProseEditor>,
     items: Arc<AtomicUsize>,
+    accepted_input: cell::InputReceipt,
     bounds: Rc<std::cell::Cell<Option<Bounds<Pixels>>>>,
     _events: Subscription,
 }
@@ -272,6 +273,11 @@ struct CellView {
 pub enum TableEvent {
     /// The author changed the table (a cell, a row, a column).
     Edited,
+}
+
+enum WriteObservation {
+    Displayed(u64),
+    Accepted(loro::Frontiers),
 }
 
 /// One table of a note, drawn in its embed paragraph.
@@ -412,6 +418,7 @@ impl TableView {
             self.v3,
         );
         let items = source.host_items();
+        let accepted_input = source.input_receipt();
         let book = Book::new(vec![Chapter {
             title: "".into(),
             doc: ProseDoc::open(Box::new(source)),
@@ -444,6 +451,7 @@ impl TableView {
         CellView {
             editor,
             items,
+            accepted_input,
             bounds: Rc::default(),
             _events: events,
         }
@@ -452,6 +460,12 @@ impl TableView {
     fn on_cell(&mut self, key: &CellKey, event: &EditorEvent, cx: &mut Context<Self>) {
         match event {
             EditorEvent::Edited { .. } => {
+                let receipt = self.cells.get(key).and_then(|cell| {
+                    cell.accepted_input
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner())
+                        .take()
+                });
                 if let Some(view) = self.cells.get(key) {
                     view.editor
                         .update(cx, |e, cx| crate::highlight::decorate(e, 0, cx));
@@ -469,7 +483,7 @@ impl TableView {
                     let _ = this.update(cx, |_, cx| cx.notify());
                 }));
                 self.host.edited(cx);
-                if !self.typed_over(key, cx) {
+                if !self.typed_over(key, receipt, cx) {
                     self.end_cell_selection(cx);
                 }
                 cx.emit(TableEvent::Edited);
@@ -753,18 +767,52 @@ impl TableView {
         new_step: bool,
         f: impl FnOnce(&TableWriter) -> dr_doc::Result<R> + Send + 'static,
     ) -> Option<R> {
+        let observed = if self.v3 {
+            self.parked.as_ref().map_or(self.seen, |p| p.observed)
+        } else {
+            self.seen
+        };
+        self.write_step_observed(cx, new_step, WriteObservation::Displayed(observed), f)
+    }
+
+    fn write_step_observed<R: Send + 'static>(
+        &mut self,
+        cx: &mut Context<Self>,
+        new_step: bool,
+        observed: WriteObservation,
+        f: impl FnOnce(&TableWriter) -> dr_doc::Result<R> + Send + 'static,
+    ) -> Option<R> {
         let before = self.feed.user_commits();
         let embed = self.embed.clone();
-        let (v3, feed, seen) = (self.v3, self.feed.clone(), self.seen);
+        let (v3, feed) = (self.v3, self.feed.clone());
+        let document = if v3 {
+            match self.host.handle.read(LoroDoc::clone) {
+                Ok(doc) => Some(doc),
+                Err(e) => {
+                    crate::links::clipboard_refused(cx, e);
+                    return None;
+                }
+            }
+        } else {
+            None
+        };
         let written = self.host.session.edit(move |txn| {
-            if v3 && feed.commits() != seen {
-                return Err(dr_doc::DocError::NotInProfile("stale table observation"));
+            let before = feed.commits();
+            if v3 {
+                let valid = match observed {
+                    WriteObservation::Displayed(expected) => before == expected,
+                    WriteObservation::Accepted(expected) => document
+                        .as_ref()
+                        .is_some_and(|doc| doc.state_frontiers() == expected),
+                };
+                if !valid {
+                    return Err(dr_doc::DocError::NotInProfile("stale table observation"));
+                }
             }
             let w = txn.table(&embed)?;
-            f(&w)
+            let result = f(&w)?;
+            Ok((result, document.map(|doc| doc.state_frontiers()), before))
         });
-        // Only sync() may advance the displayed observation. A fresh counter
-        // read after our write could include a peer's unseen commit.
         let pushed = (self.feed.user_commits() - before) as usize;
         self.fold(pushed, new_step, cx);
         self.last_edited = None;
@@ -772,7 +820,32 @@ impl TableView {
         cx.emit(TableEvent::Edited);
         cx.notify();
         match written {
-            Ok(r) => Some(r),
+            Ok((result, frontier, before)) => {
+                if let Some(frontier) = frontier {
+                    let feed = self.feed.clone();
+                    // The acknowledgement may advance only our own exact
+                    // committed version, never a fresh intervening peer state.
+                    let acknowledged = self.host.handle.read(move |doc| {
+                        (doc.state_frontiers() == frontier).then(|| feed.commits())
+                    });
+                    match acknowledged {
+                        Ok(Some(after)) => {
+                            self.seen = after;
+                            if let Some(p) = self.parked.as_mut().filter(|p| p.observed == before) {
+                                p.observed = after;
+                            }
+                        }
+                        _ => {
+                            crate::links::clipboard_refused(
+                                cx,
+                                "table changed after accepted write",
+                            );
+                            self.end_cell_selection(cx);
+                        }
+                    }
+                }
+                Some(result)
+            }
             Err(e) => {
                 crate::links::clipboard_refused(cx, e);
                 None

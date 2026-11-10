@@ -374,3 +374,196 @@ fn unsupported_typed_clipboard_preserves_selection_values_and_versions(cx: &mut 
     assert_eq!(editor.read_with(cx, |p, _| p.selection().range()), 1..4);
     assert_eq!(notices.get(), 3);
 }
+
+#[gpui::test]
+fn v3_typing_over_selected_cells_replaces_the_range_and_undoes_once(cx: &mut TestAppContext) {
+    use gpui::EntityInputHandler as _;
+    let e = env();
+    let material =
+        e.ws.call(
+            &Actor::User,
+            "material.create",
+            json!({"book":e.book,"kind":"text","title":"Synthetic selected cells"}),
+        )
+        .unwrap()["output"]["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+    let doc = format!("material:{material}");
+    let (view, body, cx) = open(cx, &e, &doc);
+    let embeds = view.read_with(cx, |v, _| v.note_embeds().unwrap().clone());
+    let cells = vec![
+        vec!["好".to_owned(), "outside".to_owned()],
+        vec!["好".to_owned(), "outside two".to_owned()],
+    ];
+    let marks = vec![
+        vec![
+            vec![],
+            vec![(0, 7, "entity:future".into(), raw("unknown-module"))],
+        ],
+        vec![vec![], vec![]],
+    ];
+    cx.update(|w, cx| crate::embeds::insert_table(&embeds, 0, cells.clone(), marks, w, cx));
+    draw(cx);
+    let table = embeds.tables()[0].clone();
+    let id = table.read_with(cx, |t, _| t.embed().to_string());
+    let before = embeds.table_grid(&id).unwrap();
+    table.update_in(cx, |t, w, cx| {
+        t.focus_cell(0, 0, true, w, cx);
+        t.select_cells((0, 0), (1, 0), w, cx);
+    });
+    draw(cx);
+    assert_eq!(
+        table.read_with(cx, |t, _| t.selected_cells()),
+        Some((0..2, 0..1))
+    );
+    let input = table.read_with(cx, |t, _| t.cell_editor(0, 0).unwrap().clone());
+    input.update_in(cx, |p, w, cx| p.replace_text_in_range(None, "新", w, cx));
+    draw(cx);
+    assert_eq!(
+        embeds.table_cells(&id).unwrap(),
+        vec![
+            vec!["新".to_owned(), "outside".to_owned()],
+            vec!["".to_owned(), "outside two".to_owned()]
+        ]
+    );
+    assert_eq!(table.read_with(cx, |t, _| t.selected_cells()), None);
+    assert_eq!(embeds.table_grid(&id).unwrap().1[0][1], before.1[0][1]);
+    cx.update(|w, cx| assert!(input.read(cx).focus_handle(cx).is_focused(w)));
+    cx.dispatch_action(gpui_prose::input::actions::Undo);
+    draw(cx);
+    assert_eq!(embeds.table_grid(&id).unwrap(), before);
+    // A successful own paste (including a no-op value) and format operation
+    // may advance this selection only through their exact acknowledged state.
+    table.update_in(cx,|t,w,cx|{t.focus_cell(0,0,true,w,cx);t.select_cells((0,0),(1,0),w,cx);});draw(cx);
+    cx.write_to_clipboard(ClipboardItem::new_string("好".into()));
+    cx.dispatch_action(gpui_prose::input::actions::Paste);draw(cx);
+    cx.dispatch_action(gpui_prose::input::actions::ToggleBold);draw(cx);
+    assert_eq!(table.read_with(cx,|t,_|t.selected_cells()),Some((0..2,0..1)));
+    let formatted=embeds.table_grid(&id).unwrap();
+    input.update_in(cx,|p,w,cx|p.replace_text_in_range(None,"再",w,cx));draw(cx);
+    assert_eq!(embeds.table_cells(&id).unwrap(),vec![vec!["再".to_owned(),"outside".to_owned()],vec!["".to_owned(),"outside two".to_owned()]]);
+    cx.dispatch_action(gpui_prose::input::actions::Undo);draw(cx);
+    assert_eq!(embeds.table_grid(&id).unwrap(),formatted);
+
+    assert_eq!(
+        body.read_with(cx, |p, _| p.book().chapters[0].doc.plain_text())
+            .matches('\u{fffc}')
+            .count(),
+        1
+    );
+}
+
+fn selected_cells_peer_case(cx: &mut TestAppContext, after_input: bool) {
+    use gpui::EntityInputHandler as _;
+    let e = env();
+    let material =
+        e.ws.call(
+            &Actor::User,
+            "material.create",
+            json!({"book":e.book,"kind":"text","title":"Synthetic concurrent selected cells"}),
+        )
+        .unwrap()["output"]["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+    let doc = format!("material:{material}");
+    let (view, _body, cx) = open(cx, &e, &doc);
+    let embeds = view.read_with(cx, |v, _| v.note_embeds().unwrap().clone());
+    let cells = vec![
+        vec!["好".to_owned(), "outside".to_owned()],
+        vec!["好".to_owned(), "outside two".to_owned()],
+    ];
+    let marks = vec![
+        vec![
+            vec![],
+            vec![(0, 7, "entity:future".into(), raw("unknown-module"))],
+        ],
+        vec![vec![], vec![]],
+    ];
+    cx.update(|w, cx| crate::embeds::insert_table(&embeds, 0, cells, marks, w, cx));
+    draw(cx);
+    let table = embeds.tables()[0].clone();
+    let (id, row, col) = table.read_with(cx, |t, _| {
+        (
+            t.embed().clone(),
+            t.rows()[1].id.clone(),
+            t.cols()[0].id.clone(),
+        )
+    });
+    let before = embeds.table_grid(id.as_str()).unwrap();
+    table.update_in(cx, |t, w, cx| {
+        t.focus_cell(0, 0, true, w, cx);
+        t.select_cells((0, 0), (1, 0), w, cx);
+    });
+    draw(cx);
+    let notices = std::rc::Rc::new(std::cell::Cell::new(0));
+    let seen = notices.clone();
+    cx.update(|_, cx| crate::links::set_clipboard_refusal(cx, move |_| seen.set(seen.get() + 1)));
+    let input = table.read_with(cx, |t, _| t.cell_editor(0, 0).unwrap().clone());
+    let handle =
+        e.ws.library()
+            .open_doc(&doc, dr_store::OpenDoc::Existing)
+            .unwrap();
+    let doc_id = dr_model::DocId::parse(&doc).unwrap();
+    let peer = move || {
+        let (result, _) = handle
+            .write(
+                dr_store::Origin::agent("synthetic-selected-peer", 1),
+                move |d| {
+                    let prose = dr_doc::prose::BorrowedProse::new(d, &doc_id)?;
+                    prose.txn().table(&id)?.set_cell(&row, &col, "他")
+                },
+            )
+            .unwrap();
+        result.unwrap();
+    };
+    let mut peer = Some(peer);
+    input.update_in(cx, |p, w, cx| {
+        if !after_input {
+            peer.take().unwrap()();
+        }
+        p.replace_text_in_range(None, "新", w, cx);
+        // EditorEvent subscribers cannot run while this editor is borrowed.
+        // This is a real intervening commit after durable input, before the
+        // table's cleanup callback, without changing the selected cell count.
+        if after_input {
+            peer.take().unwrap()();
+        }
+    });
+    draw(cx);
+    let id = table.read_with(cx, |t, _| t.embed().to_string());
+    assert_eq!(
+        embeds.table_cells(&id).unwrap(),
+        vec![
+            vec!["好新".to_owned(), "outside".to_owned()],
+            vec!["他".to_owned(), "outside two".to_owned()]
+        ]
+    );
+    assert_eq!(notices.get(), 1, "a refused cleanup must report failure");
+    assert_eq!(embeds.table_grid(&id).unwrap().1[0][1], before.1[0][1]);
+    assert_eq!(table.read_with(cx, |t, _| t.selected_cells()), None);
+    cx.update(|w, cx| assert!(input.read(cx).focus_handle(cx).is_focused(w)));
+    cx.dispatch_action(gpui_prose::input::actions::Undo);
+    draw(cx);
+    assert_eq!(
+        embeds.table_cells(&id).unwrap(),
+        vec![
+            vec!["好".to_owned(), "outside".to_owned()],
+            vec!["他".to_owned(), "outside two".to_owned()]
+        ]
+    );
+    assert_eq!(embeds.table_grid(&id).unwrap().1[0][1], before.1[0][1]);
+}
+#[gpui::test]
+fn v3_selected_cells_reject_unseen_peer_before_input_without_losing_accepted_text(
+    cx: &mut TestAppContext,
+) {
+    selected_cells_peer_case(cx, false);
+}
+#[gpui::test]
+fn v3_selected_cells_reject_peer_between_input_and_cleanup_without_fresh_authority(
+    cx: &mut TestAppContext,
+) {
+    selected_cells_peer_case(cx, true);
+}
