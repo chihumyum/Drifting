@@ -245,47 +245,49 @@ K6 首次写前快照消费归 K6。布局、样式、截图目检、heavy、性
 不记为通过；没有改 progress.md、0.1 客户端或原 WIP。
 
 
-### G1 普通通览跨章剪贴修复（2026-11-10，验收中）
+### G1 普通通览跨章剪贴修复（2026-11-10，最终验收中）
 
-**做了什么：**恢复 v3 BookEditor／Assist 的跨章 Cut 和应用内 Copy 后的跨章
-Paste，保留原 F4c 各章各删自己的范围、粘贴写入起点章及一次成组 Undo 的行为。
-不再将普通无格式文字的拒绝当作未来格式边界。只新增公共接口：
-`DocHandle::atomic_user(handles, book_id, edit, installed)`、
-`ProseSession::edit_atomic(sessions, edit)` 和 `ProseEditor::edit_group`。
-原单文档签名、命令原子 API 的 Command-only 限制及旧编辑分支均保持。新路径先
-按 id 预留全部 holder，在任何副本写入前统一校验显示源的原观察，转换也只写副本；
-SQLite 同一事务核书归属并追加全部正文，失败不安装／不确认 Undo。成功全部安装后、
-holder 队列与公告释放前，向同 workspace 的全部活动 session 确认精确本机 peer
-计数，避免其他标签下一次输入的 Undo 吸收本次操作。弱登记独立于 prose slot 淘汰，
-不持有库。编辑器只在成功后记录各章 Undo、组号和删除锚点；选中的空片段用仅宿主的空组标记
-连接实际有写入的章，不制造正文写入、不消费更早的 source Undo；后续输入另起一步。
-拒绝保留输入、选区及
-原数据并反馈既有九语失败提示。富标记沿用带类型的 raw 编码与 v3 链接，未改依赖、
-命令目录或其他负责方既有 API 行为，没有新增 v2.2 业务测试或删除旧测试。
+**做了什么：**恢复真实 v3 BookEditor／Assist 的跨章 Cut 和应用内 Copy 后的跨章
+Paste，保留各章只替换自己的选中范围、粘贴写入起点章及一次成组 Undo／Redo。
+只新增 `DocHandle::atomic_user(handles, book_id, edit, installed)`、
+`ProseSession::edit_atomic(sessions, edit)` 和 `ProseEditor::edit_group`；原单文档
+签名、命令 atomic 的 Command-only 限制、旧编辑分支和 Loro pin 保持。
+按 id 预留全部 holder，在任何副本写入前统一校验显示源原观察，再在副本转换。
+新作者路径只接受已存在文本容器的编辑：直接使用带类型的 TextDelta／LoroValue，
+核对完整值、raw 标记以及第二份独立副本的确定性操作字节；隐藏非文本写入、新容器
+或无法保真重放均在 SQL 前拒绝。一次 SQLite 事务复核书归属并追加**重放实际生成的
+操作**，随后在仍预留的 live holder 执行同一确定文本计划，核对操作字节／版本；
+各 session 的既有 UndoManager 正常收到 Local user 事件，全部安装后才确认／公告。
+不再用 Import＋补 checkpoint：Import 会把旧输入的 Undo 当远端变化变换，后补计数
+无法撤回该变换；已移除本轮在途的弱 Undo 登记／人工 checkpoint。返回值中的文本位置
+和原始值有效，staging 的操作 id／版本不是提交回执。编辑器成功后才记录各章组号、
+Undo 和删除锚点；首章空片段用仅宿主的空组 marker 连接其余章，不制造正文写入或
+消费旧步骤，后续 typing 另起一步。失败保留原值、选区、输入和焦点，显示既有九语
+失败提示。Entry＋module＋block 和 Binary raw 沿用无损编码；未新增 v2.2 测试、
+删除旧测试、改命令目录或其他负责方既有 API。
 
-**检查结果：**首红固定产品基线 `af0c55c3b8aff655a6e89963f8e7f383c39c5f7d`，
-真实绘制／聚焦的 canonical Tiny BookEditor 经 Assist 动作路由执行，普通 Cut 与
-应用内普通 Copy→跨章 Paste 两项正文断言失败，外部无 metadata 对照通过；
-`g1-cross-document-fix.red-1.log/.json/.patch` 保留首红、命令、环境、源 SHA 与
-测试补丁散列，未将静态推断冒充红例。修订后 9 项 v3 通览／session 回归通过，
-覆盖普通操作、一次 Undo、反向三章与整章清空、bold／Entry＋module＋block 与未知
-Binary raw、范围外未知根、锚点、Redo、落盘重开、同数量未见并发拒绝、第二份
-SQL append 故障保持原版本／所有原值／选区及原输入重试。原存储 atomic 目标
-10/10（含本次新增 2 项）通过，验证安装后确认／公告顺序、原 API 仍拒 User、
-staging／持久化／跨书失败不确认或部分落盘及重开。共享 session 契约验证多份
-活动 UndoManager 的记录与其他标签的下一笔输入撤销。早期测试泛型编译错误、
-相邻同值 mark 合并的范围期望和 peer 刷新后的选区时机错误均保留，后两项改为
-精确整份 raw mark 断言与真实同步动作路由中的拒绝瞬间断言，未降低数据要求。
-首轮固定 f8cd 全套实际 2376／0／22、五项检查通过；进程核对时已无 Cargo，未发送
-SIGINT，不记为中断。随后新增章界真实回归确认：首章空片段原本没有撤销入口，
-`g1-cross-document-fix.boundary-red-1.*` 保留 0／1 红例；新增宿主组标记后，
-原先输入／原版本不被假写入或消耗、章界 Undo／Redo 及后来输入与旧组分离均已转绿。
-最终补丁另固定源码跑第二轮完整检查及副屏主要流程；旧 ed6 的结果不充当本次检查。
+**检查结果：**首红 `af0c55c3` 的真实绘制／聚焦 Tiny BookEditor／Assist 路由中，
+普通 Cut 和应用内普通 Copy→跨章 Paste 两项正文断言失败，外部无 metadata 对照
+通过；`g1-cross-document-fix.red-1.*` 原件保留。章界空片段红
+`boundary-red-1.*` 为 0／1，修 marker 后转绿。全套第一轮 f8cd 源 2376／0／22、
+第二轮 d1ff 源 2378／0／22 及各自五门禁均通过；未被通知中断，但均早于后来发现的
+旧输入 Undo 缺陷，不算最终通过。native-1 漏传 launch.book，在首次正文动作前失败，
+属场景配置；native-2 在已正确加载书中，两次 Undo 的第二次未撤掉选区内较早的“新”，
+属真实产品失败，不归因环境。原日志／瞬间 environment／CG 副屏证明均保留。
+`old-typing-probe-1.*` 永久真实 GPUI 红同样 0／1，明确核焦点仍在、caret 仍首章，
+排除仅窗口焦点解释。改为本地重放后 `g1-cross-document-undo-fix.green-2.*`：
+10 项通览／session 回归及存储 atomic 11 项通过。保留普通操作、反向三章／整章、
+bold／Entry＋module＋block＋Binary raw、范围外未知根、锚点、旧输入的两次 Undo／
+Redo、较晚输入独立撤销、多 session、重开、同数量未见并发拒绝及第二份 SQL append
+故障后原值／原版本／选区／重试断言；新增 Local 事件、SQL/live 完整操作字节相同和
+隐藏非文本／新容器写前拒绝后 Undo／重开不变。早期测试编译与断言时机修正原件保留，
+没有放宽原始值要求。当前固定最终产品源码后再跑五项完整检查及 74 步副屏主流程；
+正式 handback 尚未前移，旧 ed6／full1／full2 不充当本次最终验收。
 
-**待协调：**当前普通路径已修，后续验收不因“安全拒绝”跳过既定功能。新增接口
-遵循公共只加不改，最终交回须列清原子作者 origin 与 Undo 确认边界；原 F4c 各章
-成组撤销规则保持，没有另承诺失败时跨文档 Undo 的共同事务。无本应用 metadata
-的外部纯文字仍由既有 F4c 路径处理，并有对照契约。无法保真的剪贴表示仍在写前
-明确拒绝；完整历史对无法保真嵌套树的已接首次真实提交前整批拒绝不变，归 G1／K1
-技术协调，不是待作者设计。布局、视觉、heavy、性能和流畅度继续暂缓，不计通过；
-不宣称 G1 全部完成或 autopilot 终点。原作者树／WIP、progress.md 和旧客户端不改。
+**待协调：**普通跨章路径必须按既定功能交回，不作为“未知格式”留待作者。
+新增 User-only 原子文本接口的范围、staging 版本非提交回执和 Local 安装边界已明示；
+原 F4c 各章成组撤销规则保持，没有另承诺失败时跨文档 Undo 的共同事务。无本应用
+metadata 的外部纯文本仍走既有 F4c 路径并有对照契约。无法保真的剪贴表示可写前明确
+拒绝；完整历史对无法保真嵌套树的已接首次真实提交前整批拒绝保持，后续技术能力归
+G1／K1，不升级待作者设计。布局、视觉、heavy、性能和流畅度暂缓，不记为通过；
+不宣称 G1 全部完成或 autopilot 终点。原作者树／WIP、progress.md、旧客户端不改。

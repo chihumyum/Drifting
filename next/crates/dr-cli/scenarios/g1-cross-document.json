@@ -1,5 +1,5 @@
 {
-  "about": "G1 v3 whole-book ordinary cross-chapter Cut and internal Copy/Paste through the real Assist/native key path; per-body durable reads, one grouped Undo, final accepted paste and quit/reopen. Canonical Tiny plus F4c text. Secondary isolated correctness flow only; no heavy, visual or performance acceptance. Includes a zero-length first selected fragment: Undo at the unchanged start chapter must still restore the changed group without consuming older source history.",
+  "about": "G1 v3 whole-book ordinary cross-chapter Cut and internal Copy/Paste through the real Assist/native key path; per-body durable reads, one grouped Undo, final accepted paste and quit/reopen. Canonical Tiny plus F4c text. Secondary isolated correctness flow only; no heavy, visual or performance acceptance. Includes a zero-length first selected fragment: Undo at the unchanged start chapter must still restore the changed group without consuming older source history. Starts with actual typed text inside the cut range: the first Undo restores the cut group and the next Undo removes only the older typing.",
   "steps": [
     {
       "seed": "v3-tiny"
@@ -74,7 +74,8 @@
             "language.ui_locale": "en",
             "editor.auto_entity_links": false
           }
-        }
+        },
+        "book": "${books.0.id}"
       }
     },
     {
@@ -87,6 +88,18 @@
         "/windows/0/visible": true
       },
       "save": "environment"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "timeout_ms": 30000,
+        "state": {
+          "/book/id": "${books.0.id}",
+          "/book/version": 3,
+          "/book/loaded": true
+        }
+      }
     },
     {
       "app": "nav.open",
@@ -124,6 +137,169 @@
           "/selection/anchor": 0,
           "/selection/head": 0
         }
+      }
+    },
+    {
+      "app": "input.type",
+      "params": {
+        "text": "新"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${first.0.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "新甲乙丙"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-up",
+        "times": 1
+      },
+      "expect": {
+        "/handled": [
+          true
+        ]
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "shift-right",
+        "times": 6
+      },
+      "expect": {
+        "/handled": [
+          true,
+          true,
+          true,
+          true,
+          true,
+          true
+        ]
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-x",
+        "times": 1
+      },
+      "expect": {
+        "/handled": [
+          true
+        ]
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${first.0.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": ""
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${second.0.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "戊",
+        "/paragraphs/1/text": "己"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-z",
+        "times": 1
+      },
+      "expect": {
+        "/handled": [
+          true
+        ]
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${first.0.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "新甲乙丙"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${second.0.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "丁戊",
+        "/paragraphs/1/text": "己"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-z",
+        "times": 1
+      },
+      "expect": {
+        "/handled": [
+          true
+        ]
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${first.0.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "甲乙丙"
+      }
+    },
+    {
+      "call": "module.read_prose",
+      "input": {
+        "book": "${books.0.id}",
+        "owner": "${second.0.id}",
+        "module": "mod-prose"
+      },
+      "expect": {
+        "/paragraphs/0/text": "丁戊",
+        "/paragraphs/1/text": "己"
+      }
+    },
+    {
+      "app": "input.key",
+      "params": {
+        "keys": "secondary-up",
+        "times": 1
+      },
+      "expect": {
+        "/handled": [
+          true
+        ]
       }
     },
     {
@@ -518,7 +694,8 @@
       "save": "beforeQuit"
     },
     {
-      "app": "app.quit"
+      "app": "app.quit",
+      "save": "quit1"
     },
     {
       "call": "module.read_prose",
@@ -562,7 +739,8 @@
             "language.ui_locale": "en",
             "editor.auto_entity_links": false
           }
-        }
+        },
+        "book": "${books.0.id}"
       }
     },
     {
@@ -575,6 +753,18 @@
         "/windows/0/visible": true
       },
       "save": "reopenEnvironment"
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "until": "ready",
+        "timeout_ms": 30000,
+        "state": {
+          "/book/id": "${books.0.id}",
+          "/book/version": 3,
+          "/book/loaded": true
+        }
+      }
     },
     {
       "app": "nav.open",
@@ -637,7 +827,8 @@
       }
     },
     {
-      "app": "app.quit"
+      "app": "app.quit",
+      "save": "quit2"
     }
   ]
 }

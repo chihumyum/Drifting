@@ -349,6 +349,89 @@ fn v3_cross_document_later_typing_does_not_rejoin_the_clipboard_undo_group(
 }
 
 #[gpui::test]
+fn v3_cross_document_old_typing_inside_the_cut_still_undoes_after_group_restore(
+    cx: &mut TestAppContext,
+) {
+    use gpui::Focusable as _;
+    use gpui_prose::{
+        input::actions::{Cut, Redo, Undo},
+        layout::BookPos,
+    };
+    let (e, docs) = cross_fixture();
+    let before = cross_texts(&e, &docs);
+    let (_view, prose, cx) = open_cross(cx, &e);
+    prose.update_in(cx, |p, w, cx| p.replace_text_in_range(None, "新", w, cx));
+    draw_cross(cx);
+    let (owner, module) = dr_editor::v3::body(&docs[0]).unwrap();
+    assert_eq!(
+        call(
+            &e,
+            "module.read_prose",
+            json!({"owner":owner,"module":module})
+        )["paragraphs"][0]["text"],
+        "新甲乙丙"
+    );
+    prose.update_in(cx, |p, w, cx| {
+        p.select_across(
+            BookPos {
+                chapter: 0,
+                offset: 0,
+            },
+            BookPos {
+                chapter: 1,
+                offset: 1,
+            },
+            w,
+            cx,
+        )
+    });
+    draw_cross(cx);
+    cx.dispatch_action(Cut);
+    draw_cross(cx);
+    assert_eq!(&cross_texts(&e, &docs)[..2], &["\n", "戊\n己\n"]);
+    assert_eq!(
+        call(
+            &e,
+            "module.read_prose",
+            json!({"owner":owner,"module":module})
+        )["paragraphs"][0]["text"],
+        ""
+    );
+    cx.dispatch_action(Undo);
+    draw_cross(cx);
+    assert_eq!(&cross_texts(&e, &docs)[..2], &["新甲乙丙\n", "丁戊\n己\n"]);
+    assert_eq!(
+        call(
+            &e,
+            "module.read_prose",
+            json!({"owner":owner,"module":module})
+        )["paragraphs"][0]["text"],
+        "新甲乙丙"
+    );
+    assert_eq!(prose.read_with(cx, |p, _| p.selection().chapter), 0);
+    cx.update(|w, cx| {
+        assert!(
+            prose.read(cx).focus_handle(cx).is_focused(w),
+            "restored book must retain the actual editor focus"
+        )
+    });
+    cx.dispatch_action(Undo);
+    draw_cross(cx);
+    assert_eq!(cross_texts(&e, &docs), before);
+    cx.dispatch_action(Redo);
+    draw_cross(cx);
+    assert_eq!(&cross_texts(&e, &docs)[..2], &["新甲乙丙\n", "丁戊\n己\n"]);
+    cx.dispatch_action(Redo);
+    draw_cross(cx);
+    assert_eq!(&cross_texts(&e, &docs)[..2], &["\n", "戊\n己\n"]);
+    cx.dispatch_action(Undo);
+    draw_cross(cx);
+    cx.dispatch_action(Undo);
+    draw_cross(cx);
+    assert_eq!(cross_texts(&e, &docs), before);
+}
+
+#[gpui::test]
 fn v3_cross_document_rich_paste_middle_chapter_raw_marks_anchor_and_grouped_undo(
     cx: &mut TestAppContext,
 ) {
@@ -619,7 +702,7 @@ fn v3_cross_document_atomic_sessions_preserve_undo_items_in_every_live_session()
     assert_eq!(
         cross_texts(&e, &docs),
         accepted,
-        "another session's typing undo cannot absorb the imported atomic edit"
+        "another session's typing undo cannot absorb the atomic author edit"
     );
     // A book change cannot be authorized merely because both holders exist.
     let other = call(&e, "project.create", json!({"name":"Synthetic other"}))["id"]
