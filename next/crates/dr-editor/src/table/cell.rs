@@ -304,6 +304,8 @@ pub struct CellSource {
     feed: Arc<TableFeed>,
     /// Events handed to the editor.
     taken: u64,
+    v3: bool,
+    pub(crate) guard_rich: bool,
     host_items: Arc<AtomicUsize>,
 }
 
@@ -315,6 +317,7 @@ impl CellSource {
         session: Arc<ProseSession>,
         handle: DocHandle,
         feed: Arc<TableFeed>,
+        v3: bool,
     ) -> CellSource {
         CellSource {
             doc_id: doc_id.to_owned(),
@@ -325,6 +328,8 @@ impl CellSource {
             handle,
             feed,
             taken: 0,
+            v3,
+            guard_rich: false,
             host_items: Arc::default(),
         }
     }
@@ -342,7 +347,17 @@ impl CellSource {
     fn write(&mut self, ops: Vec<CellOp>) -> EditResult {
         let (embed, row, col) = (self.embed.clone(), self.row.clone(), self.col.clone());
         let before = self.feed.user_commits();
+        let (v3, feed, key, taken) = (self.v3, self.feed.clone(), self.key(), self.taken);
+        let guard = std::mem::take(&mut self.guard_rich);
         let written = self.session.edit(move |txn| {
+            if v3 && guard {
+                let mut state = feed.state();
+                let queue = state.cells.entry(key).or_default();
+                if queue.pushed != taken {
+                    queue.stale = true;
+                    return Err(dr_doc::DocError::NotInProfile("stale cell observation"));
+                }
+            }
             let table = txn.table(&embed)?;
             let text = table.cell(&row, &col)?;
             let mut out = EditResult::default();

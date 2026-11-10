@@ -63,33 +63,69 @@ pub fn to_tsv(cells: &[Vec<String>]) -> String {
 
 /// The clipboard item for a copied table: the text, the cells and their
 /// marks.
-pub fn table_item(cells: &[Vec<String>], marks: &GridMarks) -> ClipboardItem {
-    let marks = serde_json::to_value(marks).unwrap_or_default();
-    ClipboardItem::new_string_with_json_metadata(
+pub fn table_item(cells: &[Vec<String>], marks: &GridMarks) -> Result<ClipboardItem, String> {
+    for (r, row) in marks.iter().enumerate() {
+        for (c, cell) in row.iter().enumerate() {
+            let text = cells
+                .get(r)
+                .and_then(|r| r.get(c))
+                .ok_or("table marks outside cells")?;
+            crate::clipboard::validate(text, cell)?;
+        }
+    }
+    let marks = marks
+        .iter()
+        .map(|row| {
+            row.iter()
+                .map(|cell| crate::clipboard::encode_marks(cell))
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(ClipboardItem::new_string_with_json_metadata(
         to_tsv(cells),
-        json!({ TABLE_KEY: cells, MARKS_KEY: marks }),
-    )
+        json!({ TABLE_KEY: cells, "drifting_table_marks_v3": marks }),
+    ))
 }
 
-fn metadata(item: &ClipboardItem) -> Option<serde_json::Value> {
-    let entry = item.entries().iter().find_map(|e| match e {
-        gpui::ClipboardEntry::String(s) => Some(s),
-        _ => None,
-    })?;
-    serde_json::from_str(entry.metadata.as_deref()?).ok()
-}
-
-/// The cells of a table Drifting copied, if `item` is one.
 pub fn table_from_clipboard(item: &ClipboardItem) -> Option<Vec<Vec<String>>> {
-    serde_json::from_value(metadata(item)?.get(TABLE_KEY)?.clone()).ok()
+    serde_json::from_value(crate::clipboard::metadata(item)?.get(TABLE_KEY)?.clone()).ok()
 }
 
-/// The cells' marks of a table Drifting copied (none for anything else).
-pub fn marks_from_clipboard(item: &ClipboardItem) -> GridMarks {
-    metadata(item)
-        .and_then(|m| m.get(MARKS_KEY).cloned())
-        .and_then(|m| serde_json::from_value(m).ok())
-        .unwrap_or_default()
+/// A malformed rich item is an error, never permission to discard its marks.
+pub fn marks_from_clipboard(item: &ClipboardItem) -> Result<GridMarks, String> {
+    let Some(m) = crate::clipboard::metadata_checked(item)? else {
+        return Ok(Vec::new());
+    };
+    let marks = if let Some(typed) = m.get("drifting_table_marks_v3") {
+        typed
+            .as_array()
+            .ok_or("invalid table marks")?
+            .iter()
+            .map(|r| {
+                r.as_array()
+                    .ok_or_else(|| "invalid table row marks".to_owned())?
+                    .iter()
+                    .map(crate::clipboard::decode_marks)
+                    .collect::<Result<Vec<_>, _>>()
+            })
+            .collect::<Result<Vec<_>, _>>()?
+    } else if let Some(legacy) = m.get(MARKS_KEY) {
+        serde_json::from_value(legacy.clone()).map_err(|e| e.to_string())?
+    } else {
+        return Ok(Vec::new());
+    };
+    if let Some(cells) = table_from_clipboard(item) {
+        for (r, row) in marks.iter().enumerate() {
+            for (c, cell) in row.iter().enumerate() {
+                let text = cells
+                    .get(r)
+                    .and_then(|r| r.get(c))
+                    .ok_or("table marks outside cells")?;
+                crate::clipboard::validate(text, cell)?;
+            }
+        }
+    }
+    Ok(marks)
 }
 
 /// Tab-separated text as rows of cells (quoted fields as spreadsheets
@@ -212,13 +248,13 @@ mod tests {
                 ),
             ],
         ]];
-        let item = table_item(&cells, &marks);
+        let item = table_item(&cells, &marks).unwrap();
         assert_eq!(table_from_clipboard(&item), Some(cells));
-        assert_eq!(marks_from_clipboard(&item), marks);
+        assert_eq!(marks_from_clipboard(&item).unwrap(), marks);
         assert_eq!(marks_at(&marks, 0, 1).len(), 2);
         assert_eq!(marks_at(&marks, 3, 0), &[] as &[CellMark]);
         let plain = ClipboardItem::new_string("x".into());
         assert_eq!(table_from_clipboard(&plain), None);
-        assert_eq!(marks_from_clipboard(&plain), GridMarks::new());
+        assert_eq!(marks_from_clipboard(&plain).unwrap(), GridMarks::new());
     }
 }

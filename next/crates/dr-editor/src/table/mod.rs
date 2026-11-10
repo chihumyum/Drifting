@@ -285,6 +285,7 @@ pub struct TableView {
     cells: HashMap<CellKey, CellView>,
     /// The feed's commit count the cells last caught up with.
     seen: u64,
+    v3: bool,
     style: Option<ProseStyle>,
     /// The cell whose typing the history's last step holds.
     last_edited: Option<CellKey>,
@@ -314,10 +315,18 @@ impl TableView {
                 .ok()?
         };
         let (cols, rows) = structure?;
+        let v3 = match crate::v3::is_book(&host.ws, &host.book) {
+            Ok(v3) => v3,
+            Err(e) => {
+                log::error!("table book version could not be read: {e}");
+                return None;
+            }
+        };
         Some(TableView {
             host,
             embed,
             seen: feed.commits(),
+            v3,
             feed,
             _subscription: Some(subscription),
             cols,
@@ -400,6 +409,7 @@ impl TableView {
             self.host.session.clone(),
             self.host.handle.clone(),
             self.feed.clone(),
+            self.v3,
         );
         let items = source.host_items();
         let book = Book::new(vec![Chapter {
@@ -745,10 +755,17 @@ impl TableView {
     ) -> Option<R> {
         let before = self.feed.user_commits();
         let embed = self.embed.clone();
+        let (v3, feed, seen) = (self.v3, self.feed.clone(), self.seen);
         let written = self.host.session.edit(move |txn| {
+            if v3 && feed.commits() != seen {
+                return Err(dr_doc::DocError::NotInProfile("stale table observation"));
+            }
             let w = txn.table(&embed)?;
             f(&w)
         });
+        if written.is_ok() {
+            self.seen = self.feed.commits();
+        }
         let pushed = (self.feed.user_commits() - before) as usize;
         self.fold(pushed, new_step, cx);
         self.last_edited = None;
@@ -918,6 +935,16 @@ impl TableView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        for (r, line) in grid.iter().enumerate() {
+            for (c, text) in line.iter().enumerate() {
+                if let Err(e) =
+                    crate::clipboard::validate(&cell_line(text), clip::marks_at(&marks, r, c))
+                {
+                    crate::links::clipboard_refused(cx, e);
+                    return;
+                }
+            }
+        }
         let need_rows = (row + grid.len()).saturating_sub(self.rows.len());
         let width = grid.iter().map(Vec::len).max().unwrap_or(0);
         let need_cols = (col + width).saturating_sub(self.cols.len());
@@ -974,7 +1001,14 @@ impl TableView {
         let Some((r, c)) = self.focused(window, cx).and_then(|k| self.index_of(&k)) else {
             return false;
         };
-        self.paste_marked(r, c, grid, clip::marks_from_clipboard(&item), window, cx);
+        let marks = match clip::marks_from_clipboard(&item) {
+            Ok(m) => m,
+            Err(e) => {
+                crate::links::clipboard_refused(cx, e);
+                return true;
+            }
+        };
+        self.paste_marked(r, c, grid, marks, window, cx);
         true
     }
 
@@ -1140,6 +1174,8 @@ impl Render for TableView {
                 let bounds = view.bounds.clone();
                 let me = cx.entity().downgrade();
                 let editor = view.editor.clone();
+                let clicked = view.editor.clone();
+                let click_host = self.host.clone();
                 let washed = self.is_cell_selected(&key);
                 let pressed = {
                     let (this, key) = (cx.entity().downgrade(), key.clone());
@@ -1163,7 +1199,8 @@ impl Render for TableView {
                         .child(view.editor.clone())
                         .into_any_element()
                 } else {
-                    ProseEditor::element(&view.editor, cx).into_any_element()
+                    crate::clipboard::wrap(&view.editor, ProseEditor::element(&view.editor, cx))
+                        .into_any_element()
                 };
                 line = line.child(
                     div()
@@ -1184,6 +1221,23 @@ impl Render for TableView {
                                     let end = e.book().chapters[0].doc.max_cursor();
                                     e.focus_at(0, end, window, cx);
                                 });
+                            }
+                        })
+                        .on_mouse_up(MouseButton::Left, move |event, _, cx| {
+                            if event.click_count != 1 || event.modifiers.modified() {
+                                return;
+                            }
+                            let e = clicked.read(cx);
+                            let sel = e.selection();
+                            if !sel.is_empty() {
+                                return;
+                            }
+                            let marks = e.book().chapters[0].doc.marks_before(sel.head + 1);
+                            if let Some(link) = marks
+                                .entities()
+                                .find_map(|(t, v)| dr_doc::prose::v3::decode_entity_link(t, v))
+                            {
+                                (click_host.notify)(crate::embeds::NoteEvent::OpenLinkV3(link), cx);
                             }
                         })
                         // Under the text and the rules, as a text selection is.

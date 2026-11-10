@@ -181,3 +181,43 @@ pub fn link_module(value: &LoroValue) -> Option<String> {
         .ok()
         .map(|m| m.to_string())
 }
+
+/// The G1 host supplies navigation without coupling the editor to the shell.
+/// The callback receives the originating library; it must recheck that scope
+/// after any asynchronous read. No live editor or library is retained here.
+type V3Open =
+    std::rc::Rc<dyn Fn(&dr_workspace::Workspace, &str, dr_model::v3::EntityLinkV3, &mut gpui::App)>;
+struct V3Opener(V3Open);
+impl gpui::Global for V3Opener {}
+pub fn set_v3_opener(
+    cx: &mut gpui::App,
+    open: impl Fn(&dr_workspace::Workspace, &str, dr_model::v3::EntityLinkV3, &mut gpui::App) + 'static,
+) {
+    cx.set_global(V3Opener(std::rc::Rc::new(open)));
+}
+pub(crate) fn open_v3(
+    ws: &dr_workspace::Workspace,
+    book: &str,
+    link: dr_model::v3::EntityLinkV3,
+    cx: &mut gpui::App,
+) -> bool {
+    let Some(open) = cx.try_global::<V3Opener>().map(|o| o.0.clone()) else {
+        return false;
+    };
+    open(ws, book, link, cx);
+    true
+}
+
+struct ClipboardRefusal(std::rc::Rc<dyn Fn(&mut gpui::App)>);
+impl gpui::Global for ClipboardRefusal {}
+/// Host feedback for refused rich clipboard actions; the technical reason stays
+/// in the log and the selection/clipboard remain available for retry.
+pub fn set_clipboard_refusal(cx: &mut gpui::App, notify: impl Fn(&mut gpui::App) + 'static) {
+    cx.set_global(ClipboardRefusal(std::rc::Rc::new(notify)));
+}
+pub(crate) fn clipboard_refused(cx: &mut gpui::App, error: impl std::fmt::Display) {
+    log::error!("rich clipboard action refused: {error}");
+    if let Some(notify) = cx.try_global::<ClipboardRefusal>().map(|n| n.0.clone()) {
+        notify(cx);
+    }
+}

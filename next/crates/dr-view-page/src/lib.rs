@@ -29,6 +29,7 @@
 pub mod end;
 pub mod head;
 mod history;
+mod links;
 pub mod settlement;
 pub mod v3;
 pub mod whole;
@@ -50,6 +51,7 @@ pub use head::PageHead;
 /// Registers the chrome with the shell: every chapter, idea and whole-book
 /// editor it opens gets one.
 pub fn init(cx: &mut App) {
+    links::init(cx);
     settlement::init(cx);
     history::init(cx);
     v3::register(cx);

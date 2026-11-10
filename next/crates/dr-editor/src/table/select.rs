@@ -440,7 +440,14 @@ impl TableView {
             .unwrap_or_default();
         let texts = rect(&cells, &rows, &cols);
         let marks = rect(&marks, &rows, &cols);
-        cx.write_to_clipboard(clip::table_item(&texts, &marks));
+        let item = match clip::table_item(&texts, &marks) {
+            Ok(item) => item,
+            Err(e) => {
+                crate::links::clipboard_refused(cx, e);
+                return true;
+            }
+        };
+        cx.write_to_clipboard(item);
         if cut {
             self.clear_cells(cx);
         }
@@ -484,7 +491,13 @@ impl TableView {
         let Some(grid) = grid.filter(|g| !g.is_empty()) else {
             return true;
         };
-        let marks = tile(&clip::marks_from_clipboard(item), rows.len(), cols.len());
+        let marks = match clip::marks_from_clipboard(item) {
+            Ok(m) => tile(&m, rows.len(), cols.len()),
+            Err(e) => {
+                crate::links::clipboard_refused(cx, e);
+                return true;
+            }
+        };
         let tiled = tile(&grid, rows.len(), cols.len());
         let (h, w) = (tiled.len(), tiled.first().map_or(0, Vec::len));
         self.paste_marked(rows.start, cols.start, tiled, marks, window, cx);

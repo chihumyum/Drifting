@@ -125,6 +125,86 @@ fn decode(s: &str) -> Option<String> {
     }
     String::from_utf8(out).ok()
 }
+pub fn resolve(
+    ws: &dr_workspace::Workspace,
+    book: &str,
+    link: &dr_model::v3::EntityLinkV3,
+) -> Result<Address, String> {
+    dr_doc::prose::v3::encode_entity_link(link, None).map_err(|e| e.to_string())?;
+    if link.block.is_none() && link.end_block.is_some() {
+        return Err("missing link start block".into());
+    }
+    let mut module = link.module.clone();
+    let doc = match link.kind {
+        dr_model::kind::EntityKind::Entry => {
+            // An unqualified entry link keeps its page target. Only a block
+            // address needs the actual first displayed prose module.
+            if module.is_none() && link.block.is_some() {
+                let id = link.target.clone();
+                module = crate::v3::read(ws, book, move |v| {
+                    let id = EntryId::parse(&id).ok()?;
+                    let e = v.entry(&id)?;
+                    let templates = v.templates_map();
+                    e.effective_template(&templates)?
+                        .prose_modules()
+                        .next()
+                        .map(|m| m.id.clone())
+                })
+                .map_err(|e| e.to_string())?;
+            }
+            module
+                .as_ref()
+                .map(|m| format!("body:{}/{}", link.target, m))
+        }
+        dr_model::kind::EntityKind::Material => Some(format!("material:{}", link.target)),
+        _ => return Err("invalid v3 link kind".into()),
+    };
+    let lines = if let Some(block) = &link.block {
+        let doc = doc.ok_or("no prose module for block link")?;
+        let id = dr_model::DocId::parse(&doc).map_err(|e| e.to_string())?;
+        let first = block.clone();
+        let last = link.end_block.clone().unwrap_or_else(|| first.clone());
+        ws.library()
+            .open_doc(&doc, dr_store::OpenDoc::Existing)
+            .map_err(|e| e.to_string())?
+            .read(move |d| {
+                let prose = dr_doc::prose::BorrowedProse::new(d, &id).map_err(|e| e.to_string())?;
+                let paragraphs = prose.view().paragraphs().collect::<Vec<_>>();
+                let a = paragraphs
+                    .iter()
+                    .position(|p| p.id.as_ref() == Some(&first))
+                    .ok_or("missing link start block")?;
+                let b = paragraphs
+                    .iter()
+                    .position(|p| p.id.as_ref() == Some(&last))
+                    .ok_or("missing link end block")?;
+                if b < a {
+                    return Err("reversed link block range".to_owned());
+                }
+                Ok((2 * a as u32 + 1, 2 * b as u32 + 1))
+            })
+            .map_err(|e| e.to_string())??
+            .into()
+    } else {
+        None
+    };
+    let endpoint = match link.kind {
+        dr_model::kind::EntityKind::Entry => Endpoint::Entry {
+            id: EntryId::parse(&link.target).map_err(|e| e.to_string())?,
+            module,
+        },
+        dr_model::kind::EntityKind::Material => {
+            Endpoint::Material(MaterialId::parse(&link.target).map_err(|e| e.to_string())?)
+        }
+        _ => unreachable!(),
+    };
+    Ok(Address {
+        book: Some(BookId::parse(book).map_err(|e| e.to_string())?),
+        endpoint,
+        lines,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

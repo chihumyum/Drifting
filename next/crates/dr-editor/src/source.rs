@@ -78,6 +78,7 @@ impl EventCount {
 /// gpui-prose's text source on one of the workspace's prose documents.
 pub struct SessionSource {
     doc_id: String,
+    v3: bool,
     /// Shared with the document's embeds (a table's cells write through it,
     /// so their commits land on the same undo stack).
     session: Arc<ProseSession>,
@@ -87,6 +88,7 @@ pub struct SessionSource {
     taken: u64,
     /// Write other origins straight through the holder (tests).
     foreign_writes: bool,
+    pub(crate) guard_rich: bool,
     _subscription: Subscription,
 }
 
@@ -108,13 +110,22 @@ impl SessionSource {
                 .read(move |doc| subscribe(doc, shared))
                 .map_err(WsError::from)?
         };
+        let v3 = ws
+            .library()
+            .doc_info(doc_id)?
+            .and_then(|d| d.book_id)
+            .map(|book| crate::v3::is_book(ws, &book))
+            .transpose()?
+            .unwrap_or(false);
         Ok(SessionSource {
+            v3,
             doc_id: doc_id.to_owned(),
             session: Arc::new(session),
             handle,
             shared,
             taken: 0,
             foreign_writes: false,
+            guard_rich: false,
             _subscription: subscription,
         })
     }
@@ -305,7 +316,21 @@ impl ProseSource for SessionSource {
             return EditResult::default();
         }
         let before = self.shared.queue().pushed_user;
-        match self.session.edit(move |txn| convert::apply(txn, edit)) {
+        let v3 = self.v3;
+        let shared = self.shared.clone();
+        let taken = self.taken;
+        let guard = std::mem::take(&mut self.guard_rich);
+        match self.session.edit(move |txn| {
+            if v3 && guard && shared.queue().pushed != taken {
+                shared.stale.store(true, Ordering::Relaxed);
+                return Err(dr_doc::DocError::NotInProfile("stale editor observation"));
+            }
+            if v3 {
+                convert::apply_v3(txn, edit)
+            } else {
+                convert::apply(txn, edit)
+            }
+        }) {
             Ok(mut result) => {
                 // Merge interval 0: each of the author's commits is one item.
                 // Count only the author's: an Agent's command may commit on
@@ -332,10 +357,22 @@ impl ProseSource for SessionSource {
         let edits: Vec<OwnedEdit> = edits.iter().cloned().map(OwnedEdit::from).collect();
         let before = self.shared.queue().pushed_user;
         // One `dr-doc` transaction, one commit, one item on the undo stack.
+        let v3 = self.v3;
+        let shared = self.shared.clone();
+        let taken = self.taken;
+        let guard = std::mem::take(&mut self.guard_rich);
         let written = self.session.edit(move |txn| {
+            if v3 && guard && shared.queue().pushed != taken {
+                shared.stale.store(true, Ordering::Relaxed);
+                return Err(dr_doc::DocError::NotInProfile("stale editor observation"));
+            }
             let mut merged = EditResult::default();
             for edit in edits {
-                merged.merge(convert::apply(txn, edit)?);
+                merged.merge(if v3 {
+                    convert::apply_v3(txn, edit)?
+                } else {
+                    convert::apply(txn, edit)?
+                });
             }
             Ok(merged)
         });
