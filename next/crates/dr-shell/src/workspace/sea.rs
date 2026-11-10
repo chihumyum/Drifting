@@ -120,7 +120,7 @@ impl Workspace {
     /// While a book is opening: whether the wait still holds. It lets go
     /// (with the bookshelf's hold, in the same frame) once the page in front
     /// is ready, kept 600 ms once it showed, or after 2 s.
-    pub(super) fn sea_settle(&mut self, window: &mut Window) -> bool {
+    pub(super) fn sea_settle(&mut self, window: &mut Window, cx: &Context<Self>) -> bool {
         let Some(since) = self.sea.opening_since else {
             if self.sea.waiting.is_none() {
                 self.sea.shelf = None;
@@ -128,11 +128,15 @@ impl Workspace {
             return self.sea.waiting.is_some();
         };
         let waited = since.elapsed();
+        let owner = cx.entity_id();
         let ready = !self.book.is_empty()
-            && self
-                .nav
-                .current()
-                .is_none_or(|target| self.page_view(target).is_some());
+            && self.nav.current().is_none_or(|target| {
+                let key = target.key();
+                self.editors.get(&key).is_some_and(|page| {
+                    let (ready, loading, failed) = self.page_status(owner, &key, page, cx);
+                    (ready && !loading) || failed
+                })
+            });
         let showed = waited >= OPENING_SHOWS;
         let done = waited >= OPENING_LIMIT
             || (ready && (!showed || waited >= OPENING_SHOWS + OPENING_STAYS));

@@ -21,10 +21,16 @@ pub fn register(cx: &mut App) {
         }
         let page = host.clone();
         let view = cx.new(|cx| WholeBook::new(host, window, cx));
-        dr_shell::v3::register_editor(
+        dr_shell::v3::register_editor_status(
             &page,
             &view,
-            |v, _| v.editor().map(dr_shell::workspace::editors::PageView::Book),
+            |v, _| {
+                (
+                    v.editor().map(dr_shell::workspace::editors::PageView::Book),
+                    v.loading.is_some(),
+                    v.failed,
+                )
+            },
             cx,
         );
         Some(ModulePage {

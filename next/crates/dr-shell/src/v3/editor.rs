@@ -3,7 +3,7 @@ use crate::{pages::PageViewHost, workspace::editors::PageView};
 use gpui::{App, Entity, EntityId, Global, Subscription};
 use std::{collections::HashMap, rc::Rc};
 
-type ReadEditor = Rc<dyn Fn(&App) -> Option<PageView>>;
+type ReadEditor = Rc<dyn Fn(&App) -> (Option<PageView>, bool, bool)>;
 struct Binding {
     workspace: EntityId,
     library: usize,
@@ -28,6 +28,17 @@ pub fn register_editor<V: 'static>(
     read: impl Fn(&V, &App) -> Option<PageView> + 'static,
     cx: &mut App,
 ) {
+    register_editor_status(host, view, move |v, cx| (read(v, cx), false, false), cx);
+}
+
+/// Like [`register_editor`], also reporting `(loading, failed)` while an async
+/// session prepares or if opening the document failed.
+pub fn register_editor_status<V: 'static>(
+    host: &PageViewHost,
+    view: &Entity<V>,
+    read: impl Fn(&V, &App) -> (Option<PageView>, bool, bool) + 'static,
+    cx: &mut App,
+) {
     let id = view.entity_id();
     let weak = view.downgrade();
     let workspace = host.workspace.clone();
@@ -40,7 +51,10 @@ pub fn register_editor<V: 'static>(
             workspace: host.workspace.entity_id(),
             library: host.library.library() as *const _ as usize,
             book: host.book_id.clone(),
-            read: Rc::new(move |cx| read(weak.upgrade()?.read(cx), cx)),
+            read: Rc::new(move |cx| match weak.upgrade() {
+                Some(entity) => read(entity.read(cx), cx),
+                None => (None, false, false),
+            }),
             _changed: changed,
         },
     );
@@ -50,13 +64,13 @@ pub fn register_editor<V: 'static>(
     .detach();
 }
 
-pub(crate) fn registered_editor(
+pub(crate) fn registered_editor_status(
     view: EntityId,
     workspace: EntityId,
     library: &dr_workspace::Workspace,
     book: &str,
     cx: &App,
-) -> Option<PageView> {
+) -> Option<(Option<PageView>, bool, bool)> {
     let binding = cx.try_global::<Editors>()?.0.get(&view)?;
     if binding.workspace != workspace
         || binding.library != library.library() as *const _ as usize
@@ -64,5 +78,15 @@ pub(crate) fn registered_editor(
     {
         return None;
     }
-    (binding.read)(cx)
+    Some((binding.read)(cx))
+}
+
+pub(crate) fn registered_editor(
+    view: EntityId,
+    workspace: EntityId,
+    library: &dr_workspace::Workspace,
+    book: &str,
+    cx: &App,
+) -> Option<PageView> {
+    registered_editor_status(view, workspace, library, book, cx).and_then(|(v, _, _)| v)
 }

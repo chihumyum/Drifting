@@ -111,6 +111,88 @@ impl Workspace {
         }
     }
 
+    /// `(ready, loading, failed)` for `page`, including v3 composition parts
+    /// and renderer-owned async editors (`BodyModule`, `WholeBook`).
+    pub fn page_status(
+        &self,
+        owner: gpui::EntityId,
+        key: &str,
+        page: &PageEditor,
+        cx: &gpui::App,
+    ) -> (bool, bool, bool) {
+        let Some(library) = &self.library else {
+            return (false, page.loading.is_some(), page.failed);
+        };
+        let Some(target) = Target::from_key(key) else {
+            return (false, page.loading.is_some(), page.failed);
+        };
+        if let Some(composition) = &page.v3 {
+            let v3 = composition.read(cx);
+            if !v3.synced {
+                return (false, true, false);
+            }
+            let mut any_loading = false;
+            let mut ready_modules = Vec::new();
+            for (module, root) in v3.editor_views() {
+                if let Some((view, loading, failed)) =
+                    crate::v3::registered_editor_status(root, owner, library, &self.book_id, cx)
+                {
+                    if failed {
+                        return (false, false, true);
+                    }
+                    if loading {
+                        any_loading = true;
+                    }
+                    if view.is_some() {
+                        ready_modules.push(module);
+                    }
+                }
+            }
+            if any_loading {
+                return (false, true, false);
+            }
+            let requested = match &target {
+                Target::Entry { module, .. } => module.as_ref().map(|m| m.as_str()),
+                _ => None,
+            };
+            let expects_view = match requested {
+                Some(m) => ready_modules.iter().any(|id| id == m),
+                None => !ready_modules.is_empty(),
+            };
+            if expects_view && page.view.is_none() {
+                return (false, true, false);
+            }
+            return (true, false, false);
+        }
+        if let Some(module) = &page.module {
+            if let Some((view, loading, failed)) = crate::v3::registered_editor_status(
+                module.view.entity_id(),
+                owner,
+                library,
+                &self.book_id,
+                cx,
+            ) {
+                if failed {
+                    return (false, false, true);
+                }
+                if loading || (view.is_some() && page.view.is_none()) {
+                    return (false, true, false);
+                }
+                return (page.view.is_some(), false, false);
+            }
+            return (
+                page.loading.is_none() && !page.failed,
+                page.loading.is_some(),
+                page.failed,
+            );
+        }
+        (
+            page.view.is_some() && page.loading.is_none() && !page.failed,
+            page.loading.is_some(),
+            page.failed,
+        )
+    }
+
     fn bind_mounted_editor(
         &mut self,
         view: PageView,

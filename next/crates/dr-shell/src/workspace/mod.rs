@@ -1494,7 +1494,7 @@ impl Render for Workspace {
         self.ensure_pages(window, cx);
         // M24: while a full-window wait holds the sea, only the sea shows
         // (the page in front gets ready under it).
-        if self.sea_settle(window) {
+        if self.sea_settle(window, cx) {
             let root = div()
                 .id("workspace")
                 .key_context(keymap::WORKSPACE)

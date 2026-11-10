@@ -2317,3 +2317,130 @@ fn typing_enters_immersive_writing_and_a_press_off_the_paper_leaves(cx: &mut Tes
     view.update(cx, |ws, cx| ws.toggle_super_view(SuperView::Elements, cx));
     assert_eq!(state(cx), (false, false), "a Super View ends it");
 }
+
+/// Opening a v3 book onto an entry page while M24's sea wait covers `stage::mid`
+/// still mounts all template modules immediately and settles without waiting
+/// for the 2-second `OPENING_LIMIT` fallback.
+#[gpui::test]
+fn sea_opening_wait_prepares_v3_entry_modules_without_stalling(cx: &mut TestAppContext) {
+    use dr_shell::pages::{self, SeaHold};
+    use std::cell::RefCell;
+    use std::rc::Rc;
+    let (_dir, lib) = slow_clock();
+    let book = lib.call(&Actor::User, "book.list", json!({})).unwrap()["output"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    lib.call(
+        &Actor::User,
+        "entry_template.put_module",
+        json!({
+            "book": book,
+            "template": "tpl-chapter",
+            "module": {
+                "id": "archive-second-body",
+                "kind": "prose",
+                "name": "Archive second body",
+            },
+        }),
+    )
+    .unwrap();
+    let chapter = lib
+        .call(
+            &Actor::User,
+            "entry.list",
+            json!({ "book": book, "all": true }),
+        )
+        .unwrap()["output"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|e| e["template"] == "tpl-chapter")
+        .unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    cx.executor().allow_parking();
+    let held: Rc<RefCell<Vec<SeaHold>>> = Rc::default();
+    let mut settings = SettingsFile::in_memory();
+    settings
+        .set(dr_shell::workspace::FIRST_RUN_DONE, Value::from(true), None)
+        .ok();
+    cx.update(|cx| {
+        dr_shell::init(
+            info(),
+            Services {
+                deep_links: None,
+                crash_reports: None,
+                library: Some(lib),
+                book: None,
+            },
+            settings,
+            cx,
+        );
+        dr_view_page::init(cx);
+        pages::set_shelf(cx, |_, _, cx| pages::ShelfPage {
+            view: cx.new(|_| Blank).into(),
+            bell: None,
+        });
+        let holds = held.clone();
+        pages::set_backdrop(
+            cx,
+            pages::Backdrop {
+                draw: Rc::new(|_, _| gpui::IntoElement::into_any_element(gpui::div())),
+                hold: Rc::new(move |kind, _, _| {
+                    holds.borrow_mut().push(kind);
+                    Box::new(Held(kind, holds.clone()))
+                }),
+                ebbing: Rc::new(|_, _| false),
+                on_sea: Rc::new(|_, el| el),
+            },
+        );
+    });
+    let (view, cx) = cx.add_window_view(Workspace::new);
+    cx.run_until_parked();
+    draw(cx);
+    let target = Target::from_key(&format!("entry:{chapter}/mod-prose")).unwrap();
+    let started = Instant::now();
+    view.update_in(cx, |ws, window, cx| {
+        ws.open_book(&book, window, cx);
+        ws.open(target.clone(), Open::KEEP, cx);
+    });
+    assert!(held.borrow().contains(&SeaHold::Loading));
+    while !held.borrow().is_empty() {
+        draw(cx);
+        cx.run_until_parked();
+        assert!(
+            started.elapsed() < Duration::from_millis(1500),
+            "sea_settle stalled until OPENING_LIMIT: {:?}",
+            held.borrow()
+        );
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    draw(cx);
+    let owner = view.entity_id();
+    let (status, sections) = view.read_with(cx, |ws, cx| {
+        let key = target.key();
+        let page = ws.editors.get(&key).expect("entry page mounted");
+        let status = ws.page_status(owner, &key, page, cx);
+        let sections: Vec<(String, bool)> = page
+            .v3
+            .as_ref()
+            .unwrap()
+            .read(cx)
+            .sections
+            .iter()
+            .map(|s| (s.id.clone(), s.registered))
+            .collect();
+        (status, sections)
+    });
+    assert_eq!(status, (true, false, false));
+    assert!(
+        sections.contains(&("mod-prose".to_owned(), true)),
+        "{sections:?}"
+    );
+    assert!(
+        sections.contains(&("archive-second-body".to_owned(), true)),
+        "{sections:?}"
+    );
+}

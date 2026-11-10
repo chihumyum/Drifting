@@ -786,7 +786,7 @@ fn layer_name(l: Layer) -> &'static str {
     }
 }
 
-fn state_of(ws: &Workspace, window: &Window, cx: &App) -> Value {
+fn state_of(owner: gpui::EntityId, ws: &Workspace, window: &Window, cx: &App) -> Value {
     let book = &ws.book;
     let tabs: Vec<Value> = ws
         .nav
@@ -818,10 +818,11 @@ fn state_of(ws: &Workspace, window: &Window, cx: &App) -> Value {
                 _ if e.doc.is_none() => "book",
                 _ => "editor",
             };
+            let (ready, loading, failed) = ws.page_status(owner, k, e, cx);
             json!({
                 "key": k, "kind": kind, "doc": e.doc,
-                "ready": (e.view.is_some() || e.module.is_some()) && e.loading.is_none(),
-                "loading": e.loading.is_some(), "failed": e.failed,
+                "ready": ready,
+                "loading": loading, "failed": failed,
             })
         })
         .collect();
@@ -930,12 +931,15 @@ fn state_of(ws: &Workspace, window: &Window, cx: &App) -> Value {
 }
 
 fn state(cx: &mut App) -> Out {
-    in_window(cx, |view, window, cx| state_of(view.read(cx), window, cx))
+    in_window(cx, |view, window, cx| {
+        state_of(view.entity_id(), view.read(cx), window, cx)
+    })
 }
 
 fn page_text(p: &Value, cx: &mut App) -> Out {
     let wanted = p.get("target").and_then(Value::as_str).map(str::to_owned);
     in_window(cx, move |view, window, cx| {
+        let owner = view.entity_id();
         let ws = view.read(cx);
         let target = match wanted {
             Some(k) => Target::from_key(&k).ok_or_else(|| bad(format!("{k} is not a page key")))?,
@@ -949,22 +953,24 @@ fn page_text(p: &Value, cx: &mut App) -> Out {
         // What the page's editor holds (every keystroke is already in it;
         // F3's prose.read reads the same once persisted). The whole book
         // lists each chapter's title as a section before its paragraphs.
+        let key = target.key();
         let page = ws
             .editors
-            .get(&target.key())
-            .ok_or_else(|| not_found(format!("{} is not open on screen", target.key())))?;
+            .get(&key)
+            .ok_or_else(|| not_found(format!("{key} is not open on screen")))?;
+        let (ready, loading, failed) = ws.page_status(owner, &key, page, cx);
         if page.view.is_none()
             && let Some(view) = &page.v3
         {
             let view = view.read(cx);
             return Ok(
-                json!({ "target": target.key(), "title": title, "ready": true, "loading": false, "failed": false, "source": "v3", "composition": view.state(), "text": view.sections.iter().map(|s| s.name.as_str()).collect::<Vec<_>>().join("\n"), "paragraphs": [] }),
+                json!({ "target": key, "title": title, "ready": ready, "loading": loading, "failed": failed, "source": "v3", "composition": view.state(), "text": view.sections.iter().map(|s| s.name.as_str()).collect::<Vec<_>>().join("\n"), "paragraphs": [] }),
             );
         }
         let Some(view) = &page.view else {
             return Ok(json!({
-                "target": target.key(), "title": title, "ready": false,
-                "loading": page.loading.is_some(), "failed": page.failed,
+                "target": key, "title": title, "ready": false,
+                "loading": loading, "failed": failed,
                 "paragraphs": [], "text": "", "source": "editor",
             }));
         };
@@ -994,8 +1000,8 @@ fn page_text(p: &Value, cx: &mut App) -> Out {
             .map(|doc| head_of(&target, doc, window, cx))
             .unwrap_or(Value::Null);
         Ok(json!({
-            "target": target.key(), "title": title,
-            "ready": page.loading.is_none(), "loading": page.loading.is_some(),
+            "target": key, "title": title,
+            "ready": ready, "loading": loading,
             "paragraphs": paragraphs, "text": lines.join("\n"),
             "selection": { "anchor": sel.anchor, "head": sel.head },
             "ime": prose.composition().map(|c| json!({"chapter":c.chapter,"text":c.text,"range":{"start":c.at,"end":c.at+c.replaced},"selected":{"start":c.selected.start,"end":c.selected.end}})),
@@ -1074,6 +1080,9 @@ fn settled(
     let covered = s["shelf"] == json!(true);
     if !covered && s["book"]["loaded"] != json!(true) {
         return Ok(Some("the book's lists have not arrived".into()));
+    }
+    if !covered && in_window(cx, |view, _, cx| view.read(cx).sea.waiting())? {
+        return Ok(Some("the sea wait still covers the workspace".into()));
     }
     let shown: Vec<String> = s["activeTab"]
         .as_u64()

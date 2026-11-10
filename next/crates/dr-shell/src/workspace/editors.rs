@@ -342,11 +342,13 @@ impl Workspace {
         let v3_material = self.book.v3().is_some() && matches!(target, Target::Material(_));
         if self.book.v3().is_some() && !v3_material {
             let view = cx.new(|cx| crate::v3::page::EntryPage::new(host, target.clone(), cx));
+            view.update(cx, |view, cx| view.sync_parts(window, cx));
             if let Some(lines) = self.nav.take_reveal(target) {
                 view.update(cx, |view, cx| view.reveal(lines, cx));
             }
+            let focus = view.read(cx).preferred_focus();
             let mut page = PageEditor::module(crate::pages::ModulePage {
-                focus: view.read(cx).focus.clone(),
+                focus,
                 view: view.clone().into(),
             });
             page.v3 = Some(view);
@@ -806,6 +808,9 @@ impl Workspace {
                 continue;
             }
             if let Some(view) = self.editors.get(&target.key()).and_then(|p| p.v3.clone()) {
+                if !view.read(cx).synced {
+                    view.update(cx, |v, cx| v.sync_parts(window, cx));
+                }
                 let focus = view.read(cx).preferred_focus();
                 if let Some(module) = self
                     .editors
