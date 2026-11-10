@@ -257,8 +257,7 @@
       "params": {
         "state": {
           "/import/phase": "done",
-          "/book/version": 3,
-          "/book/loaded": true
+          "/library": true
         },
         "timeout_ms": 120000
       }
@@ -267,9 +266,11 @@
       "app": "state.get",
       "save": "imported",
       "expect": {
-        "/book/id": "${source.book}",
-        "/book/version": 3
+        "/import/books/0/id": "${source.book}"
       }
+    },
+    {
+      "app": "window.focus"
     },
     {
       "app": "ui.press",
@@ -286,6 +287,32 @@
           "/import/phase": "idle"
         },
         "timeout_ms": 15000
+      }
+    },
+    {
+      "app": "book.open",
+      "params": {
+        "book": "${source.book}"
+      }
+    },
+    {
+      "app": "ui.wait",
+      "params": {
+        "state": {
+          "/book/id": "${source.book}",
+          "/book/version": 3,
+          "/book/loaded": true,
+          "/shelf": false
+        },
+        "timeout_ms": 30000
+      }
+    },
+    {
+      "app": "state.get",
+      "save": "imported_open",
+      "expect": {
+        "/book/id": "${source.book}",
+        "/book/version": 3
       }
     },
     {
