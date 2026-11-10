@@ -469,6 +469,7 @@ const COLLECTIONS: &[&str] = &[
 struct Rewrite {
     ids: HashMap<String, String>,
     peers: HashMap<u64, u64>,
+    checkpoints: HashMap<String, String>,
     v3: bool,
 }
 

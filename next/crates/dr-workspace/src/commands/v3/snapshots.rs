@@ -66,6 +66,26 @@ fn created(docs: &BTreeMap<String, LoroDoc>, point: Point) -> Created {
         versions: versions(docs),
     }
 }
+
+/// The format-1 manifest checksum, shared with identity-preserving archive
+/// import. This computes integrity only; owner and history validation remain
+/// the caller's responsibility. It does not mutate a library or a manifest.
+pub fn checkpoint_manifest_checksum(point: &Point) -> Result<String> {
+    checksum(point)
+}
+
+/// Fingerprint a checkpoint's historical book and body copies using the same
+/// algorithm as capture/preview. Archive import calls this on the rewritten
+/// documents at the rewritten frontiers, never on current live documents.
+pub fn checkpoint_history_fingerprint(
+    documents: &BTreeMap<String, LoroDoc>,
+    target: &EntryIn,
+) -> Result<String> {
+    if !documents.contains_key(&book_doc(&target.book)) {
+        return Err(WsError::not_found("checkpoint book", &target.book));
+    }
+    content_hash(documents, target)
+}
 #[derive(Clone, Debug, Serialize, JsonSchema)]
 pub struct BodyPreview {
     pub doc: String,
