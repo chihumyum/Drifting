@@ -315,11 +315,21 @@
       }
     },
     {
+      "call": "timeline_view.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "peerViews",
+      "expect": {
+        "/0/pins/[id=synthetic-peer-pin]/label": "Synthetic peer pin"
+      }
+    },
+    {
       "app": "ui.wait",
       "params": {
         "timeout_ms": 30000,
         "state": {
-          "/v3/timeline_views/0/pins/2/label": "Synthetic peer pin"
+          "/v3/timeline_views": "${peerViews}"
         }
       }
     },
@@ -365,11 +375,21 @@
       }
     },
     {
+      "call": "timeline_view.list",
+      "input": {
+        "book": "${books.0.id}"
+      },
+      "save": "restoredViews",
+      "expect": {
+        "/0/pins/[id=synthetic-hidden-binding]/entry": "${target.id}"
+      }
+    },
+    {
       "app": "ui.wait",
       "params": {
         "timeout_ms": 30000,
         "state": {
-          "/v3/timeline_views/0/pins/1/entry": "${target.id}"
+          "/v3/timeline_views": "${restoredViews}"
         }
       }
     },
