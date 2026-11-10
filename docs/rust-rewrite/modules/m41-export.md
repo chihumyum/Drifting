@@ -1,5 +1,49 @@
 # M41 导出
 
+## K4 G4 条目快照随书搬运修复交回（2026-11-10）
+
+第 65 批新增的 `entry_checkpoints` 清单存放在书文档里。整合者提供的未运行
+交叉探针适配为 `dr-export/tests/book_file_v3_snapshots.rs` 后，首次实跑
+0/1 失败：格式 3 导入成功，新条目的历史列表却为 0（预期 1），源书和第三书
+的完整清单、版本、原始值与正文仍未变。原红为忽略目录
+`next/target/g4-checks/snapshot-archive-before.log`。本次沿完整操作历史重映射
+检查点 id、书、条目、正文文档和 frontier；标题、原因及未知清单字段保持字面值。
+先校验源清单与真实历史，再在重写后的文档上检出对应版本，重算内容指纹和
+清单校验和。损坏或缺失的检查点历史在任何导入写入前拒绝，不跳过或修补成成功。
+
+公共地方只追加 `dr-workspace::commands::v3::snapshots` 的
+`checkpoint_manifest_checksum` 与 `checkpoint_history_fingerprint` 两个纯数据
+帮手，复用现有私有算法；后者缺少书副本时返回错误。未改现有命令、注册表或
+恢复行为；未删 v2.2 测试，无新增产品文案。三条永久契约已通过：两正文检查点
+导入／预览／有守卫恢复／重开且原书和第三书不动；genesis-only 正文版本、
+连续两次搬运、字面标题和未知字段保留、close capture 复用新指纹；六类损坏
+清单均在写入前拒绝。原受控回滚回归照常保留，定向 Clippy 通过。
+
+`dr-view-home/scenarios/book-history-v3.json` 保留原 33 步主流程并扩为 61 步，
+标准 debug／`seed:v3-lite` 副屏实跑 61/61、0 pending：两正文历史导入后
+预览、有守卫恢复、真实正文输入／读回／撤销与原书隔离均通过；Word 含新章节，
+格式 3 归档含 106 个文档。结果、物理副屏位置与文件核对分别保存在忽略目录
+`snapshot-archive-window-final/{result,secondary-display,artifact-checks}.json`。
+首轮 52 步在第 49 步错误地把 `page.text` 的模块目录当正文，实际数据恢复已
+通过；保留 `snapshot-archive-window/` 原失败，修正为模块注册核对及真实输入
+读回，不作为环境重试或原脚本复跑通过。
+G1 已声明的无法保真恢复形态仍按原 API 拒绝；
+不借归档放宽原值、身份或版本守卫，不做 heavy 或新产品设计。
+
+实现为 `ffee61d5`，窗口契约与记录为 `5fc370a6`；已 `git merge main`，
+基线仍为 `0f562934`（含第 65 批）。fmt、全工作区 Clippy、完整测试
+（2237 通过／0 失败／22 既有忽略）、xtask 含审计、public 和九语同步全过。
+编译并发 3，测试单线程并要求字体；审计 972 个锁定包、0 漏洞、12 条既有
+提示，public 5558 项。日志为忽略目录 `next/target/g4-checks/snapshot-archive-*.log`；
+九语检查首次调用错脚本路径，原调用错误单独保留，使用实际脚本后通过。
+交回指针为 `handback/k4-g4`，本批包含此前正式交回的回滚修复 `39416a46`。
+
+整合者另报告：冻结组合 `3e9f6fbb` 的原搜索 60/60、文本素材 28/28 均一次
+通过，精确素材批注读回与副屏位置已核对，证据在公共 Git 目录
+`integration-evidence/batch-66/search-material-preflight`；这是整合者前置复核，
+不是 G4 执行或最终整合全套，不据此提前关闭退回。第 66 批仍由整合者接收
+本次正式归档修复后完成整合验收；未合入 main、未推送。
+
 ## K4 G4 导入失败回滚返修（2026-11-10）
 
 整合中的原损坏 genesis 测试曾在导入返回错误后遗留一个新 book 文档；
