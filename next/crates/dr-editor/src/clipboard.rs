@@ -219,6 +219,54 @@ fn guard(doc: &mut ProseDoc) {
         s.guard_rich = true;
     }
 }
+
+fn replace_group(
+    editor: &mut ProseEditor,
+    paste: Option<(&str, &[CellMark])>,
+    window: &mut Window,
+    cx: &mut gpui::Context<ProseEditor>,
+) -> Result<bool, dr_workspace::WsError> {
+    use crate::convert::OwnedEdit;
+    let sel = editor.selection();
+    let start = sel.start();
+    let mut chapters = Vec::new();
+    let mut edits = Vec::new();
+    for chapter in start.chapter..=sel.end().chapter {
+        let (range, _) = editor.selected_in(chapter).expect("selected chapter");
+        chapters.push(chapter);
+        let mut part = Vec::new();
+        if let Some((text, marks)) = paste.filter(|_| chapter == start.chapter) {
+            let clears = editor.book().chapters[chapter]
+                .doc
+                .marks_before(range.start)
+                .iter()
+                .map(|(k, _)| (k.to_owned(), None))
+                .collect::<Vec<_>>();
+            part.push(OwnedEdit::from(Edit::Replace {
+                range: range.clone(),
+                text,
+                overrides: &clears,
+            }));
+            for (a, b, key, value) in marks {
+                part.push(OwnedEdit::from(Edit::Mark {
+                    range: range.start + a..range.start + b,
+                    key,
+                    value: value.clone(),
+                }));
+            }
+        } else {
+            part.push(OwnedEdit::from(Edit::Delete { range }));
+        }
+        edits.push(part);
+    }
+    let caret = gpui_prose::layout::BookPos {
+        chapter: start.chapter,
+        offset: start.offset + paste.map_or(0, |(text, _)| text.chars().count()),
+    };
+    editor.edit_group(&chapters, caret, window, cx, move |docs| {
+        crate::SessionSource::edit_group(docs, edits)
+    })
+}
 pub(crate) fn copy(
     editor: &Entity<ProseEditor>,
     cut: bool,
@@ -239,7 +287,12 @@ pub(crate) fn copy(
                 editor.update(cx, |e, cx| {
                     let sel = e.selection();
                     if sel.spans_chapters() {
-                        crate::links::clipboard_refused(cx, "cut across documents");
+                        if !matches!(replace_group(e, None, window, cx), Ok(true)) {
+                            crate::links::clipboard_refused(
+                                cx,
+                                "stale or failed cross-document cut",
+                            );
+                        }
                         return;
                     }
                     let saved = std::cell::Cell::new(false);
@@ -305,11 +358,7 @@ pub(crate) fn paste(editor: &Entity<ProseEditor>, window: &mut Window, cx: &mut 
     if e.composition().is_some() {
         return true;
     }
-    if sel.spans_chapters() {
-        crate::links::clipboard_refused(cx, "rich paste across documents is unsupported");
-        return true;
-    }
-    let doc = &e.book().chapters[sel.chapter].doc;
+    let doc = &e.book().chapters[sel.start().chapter].doc;
     if doc
         .source_as::<crate::SessionSource>()
         .is_some_and(|s| crate::v3::body(s.doc_id()).is_some())
@@ -319,6 +368,17 @@ pub(crate) fn paste(editor: &Entity<ProseEditor>, window: &mut Window, cx: &mut 
                 .any(|m| matches!(m.2.as_str(), "highlight" | "code")))
     {
         crate::links::clipboard_refused(cx, "unsupported target profile");
+        return true;
+    }
+    if sel.spans_chapters() {
+        editor.update(cx, move |e, cx| {
+            if !matches!(
+                replace_group(e, Some((&text, &marks)), window, cx),
+                Ok(true)
+            ) {
+                crate::links::clipboard_refused(cx, "stale or failed cross-document paste");
+            }
+        });
         return true;
     }
     let range = sel.range();

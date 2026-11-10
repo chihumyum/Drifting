@@ -17,7 +17,7 @@ use super::{
     marks::{self, Marks, Span},
     mirror::{self, ChangeSet, Line, LineSplice, TextOp},
     source::{Edit, EditResult, MarkOverride, ProseSource},
-    undo::{AnchorRestore, AuthorUndo, DeletionRecord, UndoConfig, restore_points},
+    undo::{AnchorRestore, AuthorUndo, DeletionRecord, Step, UndoConfig, restore_points},
     units::byte_of_char,
 };
 use crate::schema::{block, inline};
@@ -332,6 +332,42 @@ impl ProseDoc {
         result
     }
 
+    /// Body edits committed by a host transaction need the same deleted-anchor
+    /// bookkeeping as `apply_all`, captured before the durable write.
+    pub(crate) fn prepare_host_undo(&mut self) -> Vec<(AnchorId, Resolved)> {
+        self.anchors.resolve_all(self.source.as_ref())
+    }
+
+    pub(crate) fn accept_host_edit(
+        &mut self,
+        anchors: &[(AnchorId, Resolved)],
+        result: &EditResult,
+    ) {
+        let mut deleted = result.deleted.clone();
+        deleted.sort_by_key(|&(pos, _)| pos);
+        for (pos, len) in deleted {
+            self.undo.pending.deletions.push(DeletionRecord {
+                len,
+                restores: anchor_restores(anchors, pos..pos + len),
+            });
+        }
+        self.undo.after_commit(result.undo_items);
+        self.drain();
+    }
+
+    /// A host transaction can select an empty chapter fragment while changing
+    /// another chapter. Keep a logical group step here so Undo at the retained
+    /// caret reaches that group, without consuming an older source undo item.
+    /// Existing source-created steps always contain at least one item.
+    pub(crate) fn record_host_group_marker(&mut self, group: u64) {
+        self.undo.steps.push(Step {
+            items: Vec::new(),
+            started: AuthorUndo::long_ago(),
+            group: Some(group),
+        });
+        self.undo.redo.clear();
+    }
+
     /// Replaces `range` with `text` in one commit. Each `\n` in `text` is an
     /// Enter (new paragraphs get fresh block ids). Returns where the inserted
     /// text ended up.
@@ -523,6 +559,7 @@ impl ProseDoc {
     /// step, else where the cursor should go (if the step moved text).
     pub fn undo(&mut self) -> Option<Option<usize>> {
         let step = self.undo.steps.pop()?;
+        let host_marker = step.items.is_empty() && step.group.is_some();
         let before = self.changes.len();
         let mut changed = false;
         for record in step.items.iter().rev() {
@@ -543,12 +580,13 @@ impl ProseDoc {
             }
         }
         self.undo.redo.push(step);
-        changed.then(|| self.cursor_after(before))
+        (changed || host_marker).then(|| self.cursor_after(before))
     }
 
     /// Redoes the last undone step; see [`ProseDoc::undo`].
     pub fn redo(&mut self) -> Option<Option<usize>> {
         let mut step = self.undo.redo.pop()?;
+        let host_marker = step.items.is_empty() && step.group.is_some();
         let before = self.changes.len();
         let mut changed = false;
         for _ in &step.items {
@@ -557,7 +595,7 @@ impl ProseDoc {
         self.drain();
         step.started = AuthorUndo::long_ago();
         self.undo.steps.push(step);
-        changed.then(|| self.cursor_after(before))
+        (changed || host_marker).then(|| self.cursor_after(before))
     }
 
     fn restore_anchors(&mut self, restores: &[AnchorRestore], point: usize) {
