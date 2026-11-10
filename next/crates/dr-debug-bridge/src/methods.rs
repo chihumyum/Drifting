@@ -304,15 +304,15 @@ pub async fn call(method: &str, params: Value, cx: &mut AsyncApp) -> Out {
             update_workspace(cx, |ws, window, cx| ws.show_shelf(window, cx))
                 .map(|shown| json!({ "shown": shown }))
         }),
-        "panel.state" => cx.update(|_| Ok(crate::panel::state())),
-        "panel.answer" => cx.update(|_| {
+        "panel.state" => cx.update(|cx| Ok(crate::panel::state(cx))),
+        "panel.answer" => cx.update(|cx| {
             let path = std::path::PathBuf::from(string(&p, "path")?);
             if !path.is_absolute() {
                 return Err(bad("params.path: an absolute path is needed"));
             }
-            arm(Some(crate::panel::Answer::Path(path)))
+            arm(Some(crate::panel::Answer::Path(path)), cx)
         }),
-        "panel.cancel" => cx.update(|_| arm(Some(crate::panel::Answer::Cancel))),
+        "panel.cancel" => cx.update(|cx| arm(Some(crate::panel::Answer::Cancel), cx)),
         "library.info" => cx.update(|cx| {
             let lib = cx
                 .try_global::<Services>()
@@ -850,7 +850,7 @@ fn state_of(ws: &Workspace, window: &Window, cx: &App) -> Value {
         // M41's dialog when it is the one up, and the system's open or save
         // panel (a window of AppKit's over the app's).
         "transfer": transfer_of(ws, cx),
-        "panel": crate::panel::state(),
+        "panel": crate::panel::state(cx),
         "window": {
             "active": window.is_window_active(),
             "visible": window.visibility() == WindowVisibility::Visible,
@@ -1664,14 +1664,14 @@ fn screenshot(_: &mut App) -> Out {
 }
 
 /// Arms the answer for the next system panel.
-fn arm(answer: Option<crate::panel::Answer>) -> Out {
-    if !crate::panel::arm(answer) {
+fn arm(answer: Option<crate::panel::Answer>, cx: &App) -> Out {
+    if !crate::panel::arm(answer, cx) {
         return Err(BridgeError::new(
             codes::UNSUPPORTED,
-            "the system's open and save panels are answered on macOS only",
+            "the system's open and save panels require the native macOS main thread",
         ));
     }
-    Ok(crate::panel::state())
+    Ok(crate::panel::state(cx))
 }
 
 /// M41's dialog (book import, backup, restore) when it is the one over the
