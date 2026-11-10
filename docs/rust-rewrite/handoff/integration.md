@@ -596,3 +596,10 @@ git -c core.hooksPath=/dev/null merge --no-ff --no-edit -m "Merge branch '<整�
 - 整合并发 6、测试单线程、独立 target；fmt、Clippy、workspace test **2386 通过／0 失败／22 忽略**、xtask 含审计、public、CI 契约、Agent 清单、四份兼容测试和九语生成检查均通过。机器结果在约定外部日志目录 `batch-69-full/results.json`；独立原红／绿和源码记录见 `guardian-ownership-review.json`，源全套见 `sync-v3-ownership-fix/`。没有手改生成验收证据。
 - 两台独立设备和两本 canonical v3 Tiny 书经 FakeSyncServer 双向传输，含四份 source／thumbnail 资源。逐份核对文档身份、原始容器、正文、head 与资源元数据／字节；实际删除目标书 26 份文档，另一书 22 份文档及资源完全不变。隐藏条目／保留模块／时间钉绑定／未来字段／快照历史保留，实际断网、取消、重建 engine、cursor 0 重放与双库重开不复活已删文档。
 - 本机 purge 的资源文件确实删去；接收端原下载的物理缓存仍在，现有协议未提供资源删除墓碑。不因此新增协议或冒称远端物理回收完成。任务 6 没有把内核测试当作生产 App 自动同步／真服务验收；任务 7 单独做窗口与假服务数据衔接。heavy、性能、截图目检及样式仍暂缓。未推送、未开 PR、未发版。
+
+## 第七十批（canonical v3 切换合入）
+
+- 从 `main` `93a43a3f` 开 `codex/batch-70`，合并 `codex/switch-v3` `b10d7ac1`，补入一处字海开书等待门模块准备同步修复（`2ae27b00`：`dr-shell/src/book/v3.rs` 的 `sea_opening_wait_prepares_v3_entry_modules_without_stalling`），本地产品合入 `main` `ad97a43c`。
+- 8 项切换复核逐条通过（`guardian-switch-8point-audit.json`、`guardian-content-test-audit.json`）：17 条 `dr-shell::release_tests` 全部恢复注册并在全量中编译通过；按函数体内容核对 `main..codex/batch-70` 删除的 236 个测试函数，无丢失 v3 覆盖；新建、打开、深链与书架仅接受 canonical v3 并原样保留非 v3 数据库文件；GUI/CLI 重新导入写入独立新目录，prewrite `V3Pending` 零目标写入且 `libraries.json` 字节不变，源库副本 SHA-256／mtime 不变；旧 Markdown watcher 零激活；`shelf_book` 对已有提交而索引未追上的正文返回 `None`（pending）而不误报 0 字。
+- 整合并发 6、测试单线程（`batch-70-full-2/results.json`）：fmt、Clippy、workspace test **2204 通过／0 失败／20 忽略**、xtask 13 道门禁（含 `v3-cutover` 扫描 686 个产品 Rust 文件与 `audit` 972 包 0 漏洞）、根 `pnpm public:check`、CI 契约、Agent 清单、四份兼容验收与九语生成检查一次全过。
+- 副屏真窗口验收：冻结源码 `2ae27b00` 上独立跑通 `g-b70-m3` 全部 15 条 canonical v3 流程、`g-b70-switch-2`（新建／输入／重开／拒开旧书／EPUB 导出／prewrite pending／显式 choices 重导与源不变）和 `g-b70-sync-1`（窗口 A → `v3-loopback` 假服务 → 窗口 B → 窗口 A 重开；`automaticAppSync: false`）。守卫宿主 `Antigravity` 因 macOS TCC 未授予 `CGPreflightPostEventAccess`，外部 `CGEvent.post` 按键注入被系统拦截（`g-b70-ime-1` 如实记录，未将 `input.type` 冒充平台组字；进程内 `gpui-ime` 契约与源 `sv3-ime-10` 证据保留）。未推送、未开 PR、未发版。

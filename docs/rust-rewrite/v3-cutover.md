@@ -1,6 +1,6 @@
 # next/ canonical v3 切换
 
-2026-11-10 实施、11-11 完成源验收，任务 7，从 `main` 的 `93a43a3f` 实施。本文记录最终切换范围；历史模块文档中“v2.2 不动／两套并存”的叙述只描述切换前阶段，以本节和当前源码为准。本分支只交付实现与验收，守卫独立复核后由整合者本地合 main，不发布。
+2026-11-10 实施、11-11 完成源验收与守卫独立复核，任务 7，从 `main` 的 `93a43a3f` 实施（源 `codex/switch-v3` `b10d7ac1`，整合 `codex/batch-70` `2ae27b00`，本地产品合入 `main` `ad97a43c`）。本文记录最终切换范围；历史模块文档中“v2.2 不动／两套并存”的叙述只描述切换前阶段，以本页和当前源码为准。不推送、不发版。
 
 ## 做了什么
 
@@ -133,3 +133,11 @@ IME 证据来自本次未打包的真实 Debug App 和只读 `ProseEditor.compos
 IME-1–9 的环境／探针失败和 sync-1–2 的前台焦点失败完整保留，未把普通拉丁字符当作组字。中间本地 Debug bundle 诊断曾因未复制既有字体停止，补齐后仍未证明组字；最终通过证据是 IME-10 的原 Debug App。焦点守卫实际捕获到 Codex 重新前台，未向其他 App 发送该次受阻输入；没有将这些失败批量宣称环境瞬时后反复原样重跑。同步最终完整三次窗口链在 sync-3 重做。
 
 本源验收不代替守卫的独立复核，不覆盖生产自动同步、heavy／性能预算、截图目检、样式或流畅度；这几项未记通过。三个窄映射策略和 M10 28–30 的保守技术预检仍按前述待协调边界保留。
+
+### 守卫独立复核与合入记录（2026-11-11）
+
+- **整合修补：** 整合候选 `codex/batch-70` 在源 `b10d7ac1` 之上仅补一处启动就绪修复（`2ae27b00`：`dr-shell/src/book/v3.rs` 将条目与模块准备统一纳入字海开书等待门，避免开书落地后异步模块首次挂载竞态，并新增永久回归 `sea_opening_wait_prepares_v3_entry_modules_without_stalling`）。
+- **全套 9 门禁独立重跑（`batch-70-full-2/results.json`）：** `CARGO_BUILD_JOBS=6 RUST_TEST_THREADS=1 DR_UI_REQUIRE_FONTS=1` 下，`cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`、`cargo test --workspace --locked --no-fail-fast`（**2204 通过、0 失败、20 忽略**，含全部 17 条恢复注册的 `dr-shell::release_tests`）、`cargo xtask check`（13 门禁含 `v3-cutover` 扫描 686 个产品 Rust 文件与 `audit` 972 包 0 漏洞）、根 `pnpm public:check`、`pnpm ci:contract:check`、`pnpm agent:capabilities:check`、四份兼容验收与九语生成校验全部一次通过。
+- **删测内容级核对与 8 项审查（`guardian-content-test-audit.json`、`guardian-switch-8point-audit.json`）：** 按函数体逐条审计 `main..codex/batch-70` 删除的 236 个测试函数，仅 2 条含 v3 词元且均为“v3 与 v2.2 并存”双断言（已由纯 canonical v3 用例替代），6 条共享命令调用均为旧固定域调用方且对应 v3 契约仍在 `v3_common.rs`、`dr-view-stats/tests/v3.rs`、`dr-workspace/tests/registry.rs`。`shelf_book`（`dr-workspace/src/commands/book.rs:152-164`）已核实：不存在或 `head == None` 记 `Some(0)`，已有提交而索引未追上 `head.seq` 时返回 `None`（pending），不把待建索引正文误计为 0 字。旧 Markdown watcher 在应用层零激活，外部文件与设置原样保留。
+- **副屏真窗口独立验收：** 在冻结源码 `2ae27b00` 上独立跑通 `g-b70-m3` 全部 15 条 canonical v3 流程、`g-b70-switch-2`（普通新建 v3 书、输入重开、拒开非 v3 书与深链、EPUB 成稿导出校验、空 choices prewrite `V3Pending` 零目标写入且 `libraries.json` 字节不变、显式 choices 独立目录重导与源库 SHA-256／mtime 不变、重开读回）以及 `g-b70-sync-1`（窗口 A 写入退出 → `v3-loopback` 假服务同步 → 窗口 B 精确读回并写入退出 → 假服务同步 → 窗口 A 重开读回；`automaticAppSync: false`）。当前守卫宿主 `Antigravity` 未获 macOS 辅助功能／`CGPreflightPostEventAccess` 权限，外部 `CGEvent.post` 注入 `SCIM.ITABC` 按键被系统拦截（`g-b70-ime-1` 如实记录，未用 `input.type` 冒充系统组字；进程内 `gpui-ime`／`dr-editor` 组字契约与源 `sv3-ime-10` 证据保留）。
+- **本地合入：** 已以 `--no-ff` 本地合入 `main`（`ad97a43c`）。
