@@ -2707,6 +2707,7 @@ dependencies = [
  "dr-platform",
  "dr-shell",
  "dr-store",
+ "dr-sync",
  "dr-testkit",
  "dr-ui",
  "dr-view-account",

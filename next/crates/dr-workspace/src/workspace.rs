@@ -26,6 +26,7 @@ use crate::holder::{self, lock};
 use crate::journal::{Journal, JournalEntry};
 use crate::nav::NavTarget;
 use crate::registry::{Access, Op, Spec, registry};
+use crate::sync::{SyncController, SyncNowOutput, SyncStatusSnapshot};
 
 /// Options of a workspace.
 #[derive(Clone)]
@@ -188,6 +189,8 @@ pub(crate) struct Inner {
     /// ([`Inner::template_flip`]).
     /// The author's `editor.auto_entity_links` (`crate::autolink`).
     auto_links: std::sync::atomic::AtomicBool,
+    active_book: Mutex<Option<BookId>>,
+    sync_controller: Mutex<Option<Arc<dyn SyncController>>>,
 }
 
 /// Listen to the library's events (the caches and the bus follow them),
@@ -221,6 +224,19 @@ impl std::fmt::Debug for ShutdownRefused {
     }
 }
 
+/// Weak handle to a [`Workspace`] that does not block [`Workspace::try_shutdown`].
+#[derive(Clone)]
+pub struct WeakWorkspace {
+    inner: Weak<Inner>,
+}
+
+impl WeakWorkspace {
+    #[must_use]
+    pub fn upgrade(&self) -> Option<Workspace> {
+        self.inner.upgrade().map(|inner| Workspace { inner })
+    }
+}
+
 /// The command and query layer over one library. Cheap to clone.
 #[derive(Clone)]
 pub struct Workspace {
@@ -244,6 +260,8 @@ impl Workspace {
             library_gate: Arc::default(),
             subscription: Mutex::new(None),
             auto_links: std::sync::atomic::AtomicBool::new(true),
+            active_book: Mutex::new(None),
+            sync_controller: Mutex::new(None),
         });
         subscribe(&inner);
         Ok(Self { inner })
@@ -291,11 +309,19 @@ impl Workspace {
             .map(|d| d.writing_device_key())
     }
 
+    #[must_use]
+    pub fn downgrade(&self) -> WeakWorkspace {
+        WeakWorkspace {
+            inner: Arc::downgrade(&self.inner),
+        }
+    }
+
     /// Close every open document and wait for their holders (the library
     /// stays open; close it with `Library::close`).
     pub fn close(&self) {
         self.close_slots();
         lock(&self.inner.subscription).take();
+        lock(&self.inner.sync_controller).take();
     }
 
     /// Close the open documents nobody else holds; (closed, still in use).
@@ -539,12 +565,196 @@ impl Workspace {
         input: Value,
         journal: bool,
     ) -> Result<Outcome<Value>> {
+        match name {
+            "sync.status" => {
+                if !input.is_null() && input.as_object().is_none_or(|m| !m.is_empty()) {
+                    return Err(WsError::Invalid("sync.status takes an empty object".into()));
+                }
+                let output = serde_json::to_value(self.sync_status())
+                    .map_err(|e| WsError::Internal(e.to_string()))?;
+                return Ok(Outcome {
+                    output,
+                    effects: Vec::new(),
+                    undo: None,
+                    journal: None,
+                });
+            }
+            "sync.now" => {
+                if !input.is_null() && input.as_object().is_none_or(|m| !m.is_empty()) {
+                    return Err(WsError::Invalid("sync.now takes an empty object".into()));
+                }
+                let output = serde_json::to_value(self.sync_now()?)
+                    .map_err(|e| WsError::Internal(e.to_string()))?;
+                return Ok(Outcome {
+                    output,
+                    effects: Vec::new(),
+                    undo: None,
+                    journal: None,
+                });
+            }
+            _ => {}
+        }
         let spec: &'static Spec = registry()
             .get(name)
             .ok_or_else(|| WsError::UnknownCommand(name.into()))?;
         let cx = Cx::new(self, actor, spec);
         let out = (spec.call)(&cx, input);
         self.finish(cx, out, journal)
+    }
+
+    /// Attach (or clear) the runtime sync controller backing `sync.status` and `sync.now`.
+    pub fn set_sync_controller(&self, controller: Option<Arc<dyn SyncController>>) {
+        *lock(&self.inner.sync_controller) = controller;
+    }
+
+    /// Current sync health and pending local upload counts for this workspace.
+    pub fn sync_status(&self) -> SyncStatusSnapshot {
+        if let Some(ctrl) = lock(&self.inner.sync_controller).clone() {
+            return ctrl.status();
+        }
+        let pending_docs = self
+            .inner
+            .lib
+            .docs_with_local_changes()
+            .map(|d| d.len())
+            .unwrap_or(0);
+        let pending_assets = self
+            .inner
+            .lib
+            .assets_pending_upload()
+            .map(|a| a.len())
+            .unwrap_or(0);
+        let pending_purges = self
+            .inner
+            .lib
+            .purged_docs(None)
+            .map(|p| p.len())
+            .unwrap_or(0);
+        SyncStatusSnapshot {
+            pending_docs,
+            pending_assets,
+            pending_purges,
+            ..SyncStatusSnapshot::default()
+        }
+    }
+
+    /// Trigger an immediate sync cycle when Hosted Sync is active.
+    pub fn sync_now(&self) -> Result<SyncNowOutput> {
+        let Some(ctrl) = lock(&self.inner.sync_controller).clone() else {
+            return Err(WsError::Conflict(
+                "Hosted Sync is not active in local-only mode".into(),
+            ));
+        };
+        ctrl.sync_now()
+    }
+
+    /// Record which book is currently open on screen in the shell so remote
+    /// purges never close an active book's cached slots behind the author's back.
+    pub fn set_active_book(&self, book: Option<BookId>) {
+        *lock(&self.inner.active_book) = book;
+    }
+
+    pub fn active_book(&self) -> Option<BookId> {
+        lock(&self.inner.active_book).clone()
+    }
+
+    /// Release an unheld cached slot in `Workspace` right before a remote
+    /// `DocPurge` runs on `doc_id`. Never releases a document held by an open
+    /// editor (`ProseSession`), an active book on screen, or another reader.
+    pub fn release_idle_doc_for_remote_purge(&self, doc_id: &str) -> bool {
+        let Ok(doc) = DocId::parse(doc_id) else {
+            return false;
+        };
+        let active_book = lock(&self.inner.active_book).clone();
+        match doc {
+            DocId::Book(book) => {
+                if active_book.as_ref() == Some(&book) {
+                    return false;
+                }
+                {
+                    let prose = lock(&self.inner.prose);
+                    if prose
+                        .map
+                        .values()
+                        .any(|(_, s)| s.book.as_ref() == Some(&book) && Arc::strong_count(s) > 1)
+                    {
+                        return false;
+                    }
+                }
+                let removed = {
+                    let mut books = lock(&self.inner.books);
+                    if books.get(&book).is_some_and(|s| Arc::strong_count(s) == 1) {
+                        books.remove(&book)
+                    } else {
+                        None
+                    }
+                };
+                if let Some(slot) = removed
+                    && let Ok(slot) = Arc::try_unwrap(slot)
+                {
+                    slot.handle.close();
+                    return true;
+                }
+                false
+            }
+            other => {
+                let removed = {
+                    let mut prose = lock(&self.inner.prose);
+                    if let Some((_, slot)) = prose.map.get(&other) {
+                        if (slot.book.is_some() && slot.book == active_book)
+                            || Arc::strong_count(slot) > 1
+                        {
+                            None
+                        } else {
+                            prose.map.remove(&other).map(|(_, s)| s)
+                        }
+                    } else {
+                        None
+                    }
+                };
+                if let Some(slot) = removed
+                    && let Ok(slot) = Arc::try_unwrap(slot)
+                {
+                    slot.handle.close();
+                    return true;
+                }
+                false
+            }
+        }
+    }
+
+    /// Run dr-doc's post-merge deterministic repair on `doc_id` if its slot is
+    /// currently open in `Workspace`.
+    pub fn repair_after_sync(&self, doc_id: &str) {
+        let Ok(doc) = DocId::parse(doc_id) else {
+            return;
+        };
+        match doc {
+            DocId::Book(book) => {
+                let slot = lock(&self.inner.books).get(&book).cloned();
+                if let Some(slot) = slot {
+                    let _ = repair_book(&slot);
+                }
+            }
+            other => {
+                let slot = lock(&self.inner.prose)
+                    .map
+                    .get(&other)
+                    .map(|(_, s)| s.clone());
+                if let Some(slot) = slot {
+                    let _ = repair_prose(&slot);
+                }
+            }
+        }
+    }
+
+    /// Forget undo journal rows and per-book concurrency gates after a book is
+    /// permanently purged via remote sync.
+    pub fn cleanup_purged_book(&self, book_id: &str) {
+        let _ = self.inner.journal.forget_book(book_id);
+        if let Ok(book) = BookId::parse(book_id) {
+            lock(&self.inner.gates).remove(&book);
+        }
     }
 
     fn finish<T>(&self, cx: Cx<'_>, out: Result<T>, journal: bool) -> Result<Outcome<T>> {
@@ -1240,7 +1450,25 @@ impl Inner {
                     }
                 }
             }
-            StoreEvent::Local(c) => events::publish(&self.bus, &WsEvent::Local(c.clone())),
+            StoreEvent::Local(c) => {
+                events::publish(&self.bus, &WsEvent::Local(c.clone()));
+                if c.table == "purged_doc"
+                    && let Ok(DocId::Book(book)) = DocId::parse(&c.key)
+                {
+                    events::publish(
+                        &self.bus,
+                        &WsEvent::Removed(Removed {
+                            book,
+                            seq: 0,
+                            origin: dr_store::Origin::Sync,
+                            entities: vec![RemovedEntity {
+                                target: NavTarget::Book,
+                                purged: true,
+                            }],
+                        }),
+                    );
+                }
+            }
         }
     }
 }

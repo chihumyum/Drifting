@@ -160,3 +160,43 @@ cargo test -p dr-sync --lib --locked
 - **物理缓存与网络墓碑分开。** 本机 book.purge 的原资源文件已实测删除。当前公开协议只有 LoroUpdate／AssetBlob／DocPurge；B 的被删书文档确实清空，但原先下载的两个资源变体仍作为物理缓存留在 B，重放后仍在；不把文档删除计数当作远端物理文件已删。本轮既不据单个 DocPurge 级联 remove_asset，也不自创资产网络墓碑或服务器 GC。后续若要求远端设备／服务的物理缓存清理，需要负责方另定边界；另一书的资源不能受影响。
 - **持有者与应用调度。** 远端 purge 遇打开文档现在明确阻塞并保留重试位置。主契约显式释放 B 的 Workspace slots 后才接收整书删除；生产应用如何排空编辑器和重试仍属既有 F6 接线工作，不绕过 F2 保护，不据纯内核测试声称 App 自动同步。缺失文档的墓碑若无法通过既有 F2 register 建立，保持错误和游标，不吞错；需新存储接口时另协调 F2。
 - 沿用既有 F6 稿纸角标、生产同步调度与 Hosted `loro-v2` 登记待办；本次没有改生产服务协议或 G1 的历史／恢复语义。
+
+## 服务端需要提供的
+
+服务端代码位于独立仓库，不在本客户端仓库修改。客户端 `dr-sync` 与生产桌面 App 自动同步已按下列契约完备接线；服务端补齐对应命名空间、表迁移与配额／回收策略后即可直接联调：
+
+1. **命名空间隔离与能力协商（`loro-v2`）**：
+   - 在对象日志路由白名单中新增账号级命名空间 `loro-v2`（与 0.1 客户端使用的 `project-v1` / `agent-chat-v1` 完全隔离，互不读写、互不混流）。
+   - 所有同步请求均携带 `Authorization: Bearer <token>` 与 `X-Drifting-Sync-Capabilities: removals-v1`。若后续在 `loro-v2` 流上启用日志裁剪，对缺少 `removals-v1` 能力头的旧客户端返回 `426 Upgrade Required`。
+   - 服务端只存不透明二进制对象与元数据 JSON，不解析 Loro oplog 或快照内部 schema，单对象上限维持 `64 MiB`（`MAX_OBJECT_BYTES`）。
+
+2. **HTTP 接口与头部契约**：
+   - **`PUT /api/sync/v1/loro-v2/objects/<encoded_key>`**：
+     - `<encoded_key>` 为逻辑 `object_key`（如 `loro/<doc_id>/<sha256>`、`asset/<book_id>/<asset_id>/<variant>`、`purge/<doc_id>/<purged_ms>`）的 URL-safe 无填充 Base64 编码。
+     - 请求头：`X-Content-Sha256: sha256:<64位小写hex>`、`X-Drifting-Object-Meta: <base64url(JSON)>`、`Content-Type: application/octet-stream`。
+     - 服务端须校验实收字节长度（`≤ 64 MiB`）与 `X-Content-Sha256` 一致，不一致返回 `400`；解码并校验 `X-Drifting-Object-Meta` 为合法 `RemoteObjectPayload`（`type` 为 `loroUpdate` / `assetBlob` / `docPurge` 三者之一，字段名 `camelCase`）。
+     - **幂等重放**：同一 `(account_id, object_key)` 重传且 `sha256` 一致时，直接返回原已分配的 `RemoteObjectRecord`（不重复追加 `seq`、不重复计费）；同键不同摘要返回 `409 Conflict`。
+     - 成功响应返回 `RemoteObjectRecord` JSON：`{ seq, objectKey, sha256, byteLength, createdAt, payload }`。
+   - **`GET /api/sync/v1/loro-v2/changes?cursor=<u64>&limit=<usize>&includeRemovals=1`**：
+     - 按账号内严格单调递增的整数序号 `seq > cursor` 升序返回分页：`{ changes: RemoteObjectRecord[], nextCursor: u64, hasMore: bool }`。
+     - 无新记录时返回 `changes: []`、`nextCursor: cursor`、`hasMore: false`。`includeRemovals=1` 时包含 `type: "docPurge"` 墓碑记录，保证离线重连或从 `cursor = 0` 空库恢复的设备不会让已删文档或已删书复活。
+   - **`GET /api/sync/v1/loro-v2/objects/<encoded_key>`**：
+     - 按 `(account_id, object_key)` 鉴权并返回原始 `application/octet-stream` 字节（禁止跨账号读取、禁止 3xx 跨域跳转）；客户端落盘前再次校验字节数与 `sha256`。
+   - **`GET /api/sync/v1/usage`**：
+     - 沿用既有账号配额接口返回 `{ usedBytes, quotaBytes, hardLimitBytes }`（默认软上限 `500 MiB`、硬上限 `1 GiB`），其中 `usedBytes` 应统计该账号当前有效同步对象字节（或与 0.1 共享账号级存储池口径，见下）。
+
+3. **配额判定与 `413 QUOTA_EXCEEDED` 分流**：
+   - 客户端在导入新素材变体前会按 `usedBytes + pendingUploadBytes + incomingBytes > quotaBytes` 预检软上限（`500 MiB`），但**从不在客户端阻断正文／条目结构更新（`loroUpdate`）或永久删除墓碑（`docPurge`）**。
+   - 服务端侧建议与 0.1 保持同一分层策略：
+     - `assetBlob` 上传超过 `quotaBytes`（`500 MiB`）即返回 `413` 与 `{ "code": "QUOTA_EXCEEDED", "usedBytes": ..., "quotaBytes": ..., "hardLimitBytes": ... }`；
+     - `loroUpdate` 放行至 `hardLimitBytes`（`1 GiB`），避免资源触顶时卡住纯文字写作同步；
+     - **`docPurge` 墓碑即使在配额已满时也应允许写入**，否则作者在存储满后永久删书腾空间的操作无法同步上云。
+
+4. **数据库迁移、墓碑保留与云端对象回收（GC）**：
+   - **数据库迁移**：需新增（或在现有对象日志表上扩展）按 `(account_id, namespace = 'loro-v2', seq)` 索引的不可变日志表及 `(account_id, namespace, object_key)` 唯一约束，存储 `sha256`、`byte_length`、`payload_json`、对象存储键与 `created_at`。
+   - **整书删除与服务端资源回收**：客户端执行 `book.purge` 时会为该书的 `book:<book_id>` 及全部子文档写入带 `bookId` 的 `docPurge` 墓碑；接收端在看到整书已清除后会自动回收本机已下载的该书物理资源变体并跳过历史 `assetBlob` 下载。服务端可在确认 `doc_id == "book:<book_id>"` 的 `docPurge` 落库（并度过运维保留窗口，如 30 天可恢复期）后，异步回收同一 `(account_id, book_id)` 下已被覆盖的历史 `loroUpdate` 对象与 `assetBlob` 底层块，同时从 `usedBytes` 扣减已清除书占用的容量；**`docPurge` 墓碑元数据本身需保留**（或仅在流最低快照点推进后按 `removals-v1` 规则折叠），防止长期离线的旧副本重连后把旧数据重新推回。
+   - **增量日志折叠（可选后续优化）**：当某个 `doc_id` 上传了 `isSnapshot: true` 的 `loroUpdate`（或后续引入显式快照压缩接口）且度过保留期后，服务端可回收该 `doc_id` 在此 `seq` 之前的旧 `loroUpdate` 对象字节，保持新设备 `restore_library` 下载量可控。
+
+5. **0.1（Yjs）向 `next/`（`loro-v2`）的迁移边界**：
+   - **不做服务端侧 Yjs → Loro 在线自动转换**。0.1 的 SQLite + Yjs 模型与 canonical v3 的 Loro 条目树／多正文模块存在结构映射（含作者在导入向导中的显式确认项），转换权威统一在客户端 M10（`dr-import-v1`）。
+   - 切换期间同一账号下的 `project-v1`（0.1 客户端）与 `loro-v2`（`next/` 客户端）在服务端按命名空间并存、互不覆盖：作者在 `next/` 通过「导入 · Drifting 0.1」将本机 0.1 库导入到 `next/` 账号库后，由 `next/` 自动同步引擎把 canonical v3 文档与素材以 `loro-v2` 对象上传，其他登录同一账号的 `next/` 设备即自动拉取收敛。需作者拍板的唯一运维口径是：**切换期 `usedBytes` 是否将 `project-v1` 与 `loro-v2` 合并计入同一 `500 MiB` 配额，还是给切换期留独立过渡额度**。

@@ -500,6 +500,9 @@ pub struct Workspace {
     pub v3_home: Option<AnyView>,
     /// A left press on a drag region that has not moved yet (macOS).
     drag_armed: bool,
+    /// Last author keystroke timestamp (`WritingTyped`) for fading `Syncing` mark.
+    pub(crate) last_typing_ms: Option<u64>,
+    pub(crate) typing_settle_task: Option<Task<()>>,
     /// The layout changed since it was last stored.
     layout_dirty: bool,
     layout_save: Option<Task<()>>,
@@ -610,6 +613,8 @@ impl Workspace {
             shelf_open: false,
             v3_home: None,
             drag_armed: false,
+            last_typing_ms: None,
+            typing_settle_task: None,
             layout_dirty: false,
             layout_save: None,
             _library_events: None,
@@ -736,10 +741,12 @@ impl Workspace {
                 }
                 let id = book.id.clone();
                 self.book = Rc::new(book);
+                self.sync_active_book();
                 self.retitle_editors(cx);
                 Settings::update(cx, |file| file.set_last_book(&id));
                 if !gone.is_empty() {
                     self.changed(cx);
+                    crate::sync::notify_holder_released(cx);
                 }
                 cx.notify();
             }
@@ -747,6 +754,8 @@ impl Workspace {
                 log::info!("the library has no book");
                 self.book_id.clear();
                 self.book = Rc::new(Book::default());
+                self.sync_active_book();
+                crate::sync::notify_holder_released(cx);
                 cx.notify();
             }
             Err(error) => log::warn!("the book could not be read: {error}"),
@@ -792,22 +801,46 @@ impl Workspace {
     /// What a batch of F3 events means for the window.
     pub fn on_library_events(&mut self, events: Vec<WsEvent>, cx: &mut Context<Self>) {
         let mut reload_book = false;
+        let mut book_purged = false;
         let mut gone = Vec::new();
         for event in events {
             match event {
                 WsEvent::Book(b) if b.book.as_str() == self.book_id => reload_book = true,
                 WsEvent::Removed(r) if r.book.as_str() == self.book_id => {
-                    gone.extend(r.entities.into_iter().map(|e| book::target(e.target)));
+                    for entity in r.entities {
+                        if entity.target == dr_workspace::NavTarget::Book && entity.purged {
+                            book_purged = true;
+                        }
+                        gone.push(book::target(entity.target));
+                    }
                 }
                 _ => {}
             }
         }
+        if book_purged {
+            self.editors.clear();
+            self.release_words(cx);
+            self.focused_editor = None;
+            self.book_id.clear();
+            self.book = Rc::new(Book::default());
+            self.sync_active_book();
+            crate::sync::notify_holder_released(cx);
+            if !pages::has_shelf(cx) {
+                self.load_book(None, cx);
+            }
+            cx.notify();
+            return;
+        }
         if !gone.is_empty() {
+            let prev_editors = self.editors.len();
             for target in &gone {
                 self.nav.forget(target);
                 self.editors.remove(&target.key());
             }
             self.changed(cx);
+            if self.editors.len() < prev_editors {
+                crate::sync::notify_holder_released(cx);
+            }
         }
         // The editors fold their documents' changes in themselves.
         if reload_book {
@@ -830,8 +863,12 @@ impl Workspace {
         if !open.contains(&Target::Book.key()) {
             self.keep_reading_position(cx);
         }
+        let prev_editors = self.editors.len();
         self.editors.retain(|key, _| open.contains(key));
         self.release_words(cx);
+        if self.editors.len() < prev_editors {
+            crate::sync::notify_holder_released(cx);
+        }
         if self.book.is_empty() {
             return;
         }
@@ -939,10 +976,15 @@ impl Workspace {
             return false;
         }
         self.store_layout(cx);
+        self.editors.clear();
+        self.release_words(cx);
+        self.focused_editor = None;
         self.set_immersive(false, cx);
         self.shelf_open = true;
         self.super_view = None;
         self.notifications_open = false;
+        self.sync_active_book();
+        crate::sync::notify_holder_released(cx);
         self.sea_shelf(window, cx);
         cx.notify();
         true
@@ -963,6 +1005,7 @@ impl Workspace {
             // M24: a full-window wait on the sea until the page is ready.
             self.sea_opening(window, cx);
         }
+        let changed_book = book != self.book_id;
         self.shelf_open = false;
         self.notifications_open = false;
         self.super_view = None;
@@ -979,6 +1022,10 @@ impl Workspace {
             self.book = Rc::new(Book::default());
             self.restore_layout(cx);
             self.load_book(None, cx);
+        }
+        self.sync_active_book();
+        if changed_book {
+            crate::sync::notify_holder_released(cx);
         }
         cx.notify();
     }
@@ -1046,11 +1093,23 @@ impl Workspace {
         self.modules_for = None;
         self.modules_read = None;
         self.sea_swapping(window, cx);
+        if let Some(lib) = &self.library {
+            lib.set_active_book(None);
+        }
         self.library = None;
         self.book_id = String::new();
         self.book = Rc::new(Book::default());
         self.focus.focus(window, cx);
         cx.notify();
+    }
+
+    fn sync_active_book(&self) {
+        if let Some(lib) = &self.library {
+            let active = (!self.shelf_open && !self.book_id.is_empty())
+                .then(|| self.book_id.parse::<dr_model::id::BookId>().ok())
+                .flatten();
+            lib.set_active_book(active);
+        }
     }
 
     /// The swapped library ([`crate::library::replace`]): the window

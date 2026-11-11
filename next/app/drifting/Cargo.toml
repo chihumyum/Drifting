@@ -30,6 +30,7 @@ dr-platform.workspace = true
 dr-shell.workspace = true
 # F2's device identity for the library (writing days, epochs).
 dr-store.workspace = true
+dr-sync.workspace = true
 dr-ui.workspace = true
 dr-view-account.workspace = true
 dr-view-agent.workspace = true

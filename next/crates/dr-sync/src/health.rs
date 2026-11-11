@@ -435,6 +435,14 @@ impl SyncHealthTracker {
         self.snapshot.offline = offline;
     }
 
+    pub fn set_reauth_required(&mut self, required: bool) {
+        self.snapshot.reauth_required = required;
+    }
+
+    pub fn set_quota_exceeded(&mut self, exceeded: bool) {
+        self.snapshot.quota_exceeded = exceeded;
+    }
+
     pub fn set_init_failed(&mut self, failed: bool, message: Option<String>) {
         self.snapshot.init_failed = failed;
         if failed {
